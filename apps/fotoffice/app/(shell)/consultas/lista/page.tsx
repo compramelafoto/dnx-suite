@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ArmazonCaptacion } from "@/components/captacion/armazon";
 import { Listado } from "@/components/listado/listado";
+import { puedeEnContexto } from "@/lib/access/policy";
 import { contextoListadoDePagina } from "@/lib/listado/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
@@ -23,7 +24,7 @@ export default async function CaptacionListaPage({
   const { quedan } = await prepararCaptacion(workspace.id);
 
   return (
-    <ArmazonCaptacion activa="lista" quedan={quedan}>
+    <ArmazonCaptacion activa="lista" quedan={quedan} puedeCrear={puedeEnContexto(ctx, "operar", SERVICE_LEADS_MODULE_KEY)}>
       <Listado def={await cargarListadoCaptacion(ctx)} ctx={ctx} ruta="/consultas/lista" searchParams={searchParams} />
     </ArmazonCaptacion>
   );

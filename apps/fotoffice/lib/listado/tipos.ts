@@ -88,6 +88,10 @@ export type ResultadoLote = {
   detalle: unknown[];
 };
 
+export type ParametroLote =
+  | { etiqueta: string; opciones: (ctx: ContextoListado) => Promise<Opcion[]>; fecha?: never }
+  | { etiqueta: string; fecha: true; opciones?: never };
+
 export type AccionLote = {
   clave: string;
   etiqueta: string;
@@ -95,7 +99,11 @@ export type AccionLote = {
   maximo: number;
   /** Texto de confirmación. `{n}` = cantidad, `{parametro}` = etiqueta del parámetro elegido. */
   confirmacion: string;
-  parametro?: { etiqueta: string; opciones: (ctx: ContextoListado) => Promise<Opcion[]> };
+  /**
+   * Lo que se elige antes de aplicar: una opción de una lista o, con `fecha`, un día de calendario
+   * ("aaaa-mm-dd", validado en `lote.ts`; la confirmación lo muestra como "dd/mm/aaaa").
+   */
+  parametro?: ParametroLote;
   /** Separa las filas que la acción no puede tocar, con el motivo. */
   elegibles?: (
     ctx: ContextoListado,

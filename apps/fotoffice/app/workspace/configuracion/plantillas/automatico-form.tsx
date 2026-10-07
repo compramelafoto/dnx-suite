@@ -9,7 +9,12 @@ import type { CampoDeEjemplo } from "./vista-previa";
 
 const INICIAL: EstadoPlantillas = { error: null };
 
-/** "Respuesta automática a una consulta nueva": interruptor, asunto, cuerpo y vista previa. */
+const DESCRIPCION_AUTORESPUESTA =
+  "Cuando llega una consulta por el formulario público y trae correo, se le manda este correo después de guardarla. " +
+  "No se manda en las consultas cargadas a mano ni en las inscripciones presenciales. Si el envío falla, la consulta " +
+  "queda igual y el fallo queda en su historial.";
+
+/** Un mensaje automático (respuesta o aviso al equipo): interruptor, asunto, cuerpo y vista previa. */
 export function AutomaticoForm({
   clave,
   nombre,
@@ -21,6 +26,7 @@ export function AutomaticoForm({
   cuerpo: cuerpoGuardado,
   campos,
   soloApagar = false,
+  descripcion = DESCRIPCION_AUTORESPUESTA,
 }: {
   clave: string;
   nombre: string;
@@ -37,6 +43,8 @@ export function AutomaticoForm({
    * guardados, así que apagar no los revalida.
    */
   soloApagar?: boolean;
+  /** Qué hace este automático (por omisión, el texto de la respuesta automática). */
+  descripcion?: string;
 }) {
   const [encendido, setEncendido] = useState(encendidoGuardado);
   const [asunto, setAsunto] = useState(asuntoGuardado);
@@ -64,19 +72,15 @@ export function AutomaticoForm({
   }
 
   return (
-    <section className="fo-card space-y-4 p-5" aria-labelledby="automatico-titulo">
+    <section className="fo-card space-y-4 p-5" aria-labelledby={`automatico-titulo-${clave}`}>
       <div className="space-y-1">
-        <h2 id="automatico-titulo" className="text-base font-semibold">
+        <h2 id={`automatico-titulo-${clave}`} className="text-base font-semibold">
           {nombre}
         </h2>
         <p className="text-xs font-medium text-[var(--fo-muted)]">
           {ETIQUETA_TIPO_PLANTILLA[tipo]} · {ETIQUETA_CANAL[canal]}
         </p>
-        <p className="text-sm text-[var(--fo-muted)]">
-          Cuando llega una consulta por el formulario público y trae correo, se le manda este correo después de guardarla.
-          No se manda en las consultas cargadas a mano ni en las inscripciones presenciales. Si el envío falla, la consulta
-          queda igual y el fallo queda en su historial.
-        </p>
+        <p className="text-sm text-[var(--fo-muted)]">{descripcion}</p>
       </div>
       {soloApagar ? (
         <p role="note" className="rounded-lg border border-[var(--fo-border)] p-3 text-sm">

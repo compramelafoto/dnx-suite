@@ -1,12 +1,13 @@
 "use server";
 
-import { Prisma, prisma } from "@repo/db";
+import { type Prisma, prisma } from "@repo/db";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { notificarEvento } from "@/lib/circuitos/eventos";
+import {
+  altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA,
+} from "@/lib/consultas/alta";
+import { CAMPO_TRAMPA, cayoEnLaTrampa } from "@/lib/consultas/trampa";
 import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
-import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
-import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 
 /**
  * Topes de largo del formulario público (es abierto: nadie tiene que iniciar sesión). Los mismos
@@ -70,6 +71,8 @@ type CreateServiceLeadInput = {
   eventLocation?: string;
   message?: string;
   meta?: Record<string, unknown> | null;
+  /** El campo trampa (`lib/consultas/trampa.ts`): una persona lo deja vacío. */
+  [CAMPO_TRAMPA]?: string;
 };
 
 type CreateServiceLeadResult = { success: true } | { success: false; error: string };
@@ -77,6 +80,11 @@ type CreateServiceLeadResult = { success: true } | { success: false; error: stri
 function emptyToNull(value?: string): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+/** Vacío = null; si no, recortado al tope (nunca rechaza: es lo que escribió quien consulta). */
+function recortar(value: string | undefined, max: number): string | null {
+  return emptyToNull(value)?.slice(0, max).trim() || null;
 }
 
 function parseOptionalDate(value?: string): Date | null {
@@ -89,6 +97,11 @@ function parseOptionalDate(value?: string): Date | null {
 export async function createServiceLead(
   input: CreateServiceLeadInput,
 ): Promise<CreateServiceLeadResult> {
+  // Un robot llenó el campo trampa: la misma respuesta que con éxito, sin crear nada.
+  if (cayoEnLaTrampa(input?.[CAMPO_TRAMPA])) {
+    console.warn("[consultas] formulario público descartado", { codigo: "CAMPO_TRAMPA" });
+    return { success: true };
+  }
   try {
     const parsed = serviceLeadSchema.safeParse({
       workspaceSlug: input.workspaceSlug?.trim() ?? "",
@@ -128,45 +141,29 @@ export async function createServiceLead(
         : "";
     const resolvedEventSubtype = data.eventSubtype?.trim() || budgetTypeFromMeta || "";
 
-    const creado = await prisma.serviceSalesLead.create({
-      select: { id: true, createdAt: true },
-      data: {
-        workspaceId: branding.workspaceId,
-        formId: emptyToNull(data.formId),
-        formSlug: emptyToNull(data.formSlug),
-        name: data.name,
-        email: emptyToNull(data.email),
-        phone: emptyToNull(data.phone),
-        eventType: data.eventType,
-        eventSubtype: emptyToNull(resolvedEventSubtype),
+    // El alta única de la etapa 1, como formulario web: en una transacción el contacto (buscado
+    // sólo por correo), la consulta y su ficha nueva con la categoría equivalente al tipo del
+    // formulario; después, cada paso aislado y en orden: número, circuito, aviso al equipo y tarea,
+    // y la respuesta automática (sólo en este camino). Una falla de esos pasos nunca deshace el alta.
+    const alta = await altaDeConsulta(
+      altaDelSistema(branding.workspaceId),
+      {
+        contacto: { nombre: data.name, email: emptyToNull(data.email), telefono: emptyToNull(data.phone) },
+        eventType: recortar(data.eventType, MAX_TEXTO_CONSULTA),
+        // El subtipo puede venir de `meta.budgetType`, que zod no limita: se recorta al tope del
+        // alta en lugar de rechazar la consulta (lo mismo con los demás textos, por las dudas).
+        eventSubtype: recortar(resolvedEventSubtype, MAX_TEXTO_CONSULTA),
         eventDate: parseOptionalDate(data.eventDate),
-        eventLocation: emptyToNull(data.eventLocation),
-        message: emptyToNull(data.message),
-        metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : Prisma.JsonNull,
-        status: "NEW",
+        eventLocation: recortar(data.eventLocation, MAX_TEXTO_CONSULTA),
+        message: recortar(data.message, MAX_MENSAJE_CONSULTA),
+        metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
+        formId: emptyToNull(data.formId),
+        formSlug: recortar(data.formSlug, MAX_TEXTO_CONSULTA),
       },
-    });
-
-    // La consulta ya quedó registrada: recibe su número en una transacción aparte, para que una
-    // falla de la numeración nunca deshaga el alta (numerarConsultaNueva no lanza; si falla, la
-    // numera el próximo enganche).
-    await numerarConsultaNueva(branding.workspaceId, creado.id, creado.createdAt);
-
-    // Respuesta automática por correo (0.6), sólo en este camino del formulario público: va después
-    // del número para que [consulta_numero] ya exista. Nunca hace fallar el alta (no lanza; si el
-    // correo falla, queda registrado como "Falló").
-    try {
-      await responderConsultaNueva(branding.workspaceId, creado.id);
-    } catch {
-      console.error("[plantillas] no se pudo enganchar la respuesta automática");
-    }
-
-    // El motor de etapas la pone en la primera etapa. Una falla
-    // del motor nunca hace fallar el alta (notificarEvento no lanza; esto es por las dudas).
-    try {
-      await notificarEvento(branding.workspaceId, { tipo: "CAPTACION", id: creado.id }, "CONSULTA_RECIBIDA", creado.id);
-    } catch {
-      console.error("[captacion] no se pudo enganchar la consulta nueva al embudo");
+      { origenDelAlta: "WEB" },
+    );
+    if (!alta.ok) {
+      return { success: false, error: alta.error === MENSAJES_ALTA.fallo ? "No se pudo registrar el lead." : alta.error };
     }
 
     return { success: true };

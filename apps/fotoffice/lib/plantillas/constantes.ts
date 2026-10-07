@@ -10,8 +10,14 @@ export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 export const ESTADOS_MENSAJE = ["SENT", "FAILED", "OPENED_WHATSAPP"] as const;
 export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
 
-/** Claves de las plantillas automáticas (`FotofficeMessageTemplate.systemKey`). */
-export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA"] as const;
+/**
+ * Claves de las plantillas automáticas (`FotofficeMessageTemplate.systemKey`).
+ * - `CONSULTA_AUTORESPUESTA`: respuesta a quien consultó por el formulario público.
+ * - `CONSULTA_AVISO_EQUIPO`: aviso interno al responsable de una consulta nueva (etapa 1). Va
+ *   sólo a usuarios del equipo, con el remitente de FOTOFFICE: no se registra como mensaje de la
+ *   ficha, no cuenta en ningún tope diario ni en la regla de una respuesta cada 24 h.
+ */
+export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO"] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
 export const ETIQUETA_CANAL: Record<Canal, string> = { EMAIL: "Correo", WHATSAPP: "WhatsApp" };
@@ -40,6 +46,14 @@ export const TOPE_CORREOS_DIA = 200;
  * formulario público es abierto y alguien podría usarlo para disparar respuestas en masa.
  */
 export const TOPE_AUTOMATICOS_DIA = 50;
+/**
+ * Avisos internos de consulta nueva al equipo (`CONSULTA_AVISO_EQUIPO`) por día (de Buenos Aires)
+ * y organización. Tienen su propio tope: no cuentan en el de manuales ni en el de automáticos.
+ * Pasado el tope sólo se crea la tarea "Responder consulta".
+ */
+export const TOPE_AVISOS_EQUIPO_DIA = 100;
+/** Autor que figura en el registro de los avisos al equipo. */
+export const AUTOR_AVISO_EQUIPO = "Aviso al equipo";
 /** Una sola respuesta automática por dirección de correo y organización en este lapso. */
 export const VENTANA_UNA_AUTORESPUESTA_MS = 24 * 60 * 60 * 1000;
 

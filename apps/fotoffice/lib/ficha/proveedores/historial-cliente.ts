@@ -2,6 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { ETIQUETAS_CAMPO_CLIENTE } from "@/lib/clients/audit";
 import { IVA_CONDITION_LABELS } from "@/lib/clients/constants";
+import { ETIQUETA_CATEGORIA_CONTACTO } from "@/lib/consultas/constantes";
 import { whereCorte, type Proveedor } from "../linea-de-tiempo";
 import { filas, leerCambios } from "./comun";
 
@@ -11,6 +12,7 @@ const VALORES: Record<string, Record<string, string>> = {
   kind: { PERSONA: "Persona", EMPRESA: "Empresa" },
   status: { ACTIVO: "Activo", INACTIVO: "Inactivo" },
   ivaCondition: IVA_CONDITION_LABELS,
+  category: ETIQUETA_CATEGORIA_CONTACTO,
 };
 
 function valor(campo: string, v: unknown): string {

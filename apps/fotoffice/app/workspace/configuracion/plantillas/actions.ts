@@ -207,6 +207,8 @@ export async function guardarAutomaticoAction(_prev: EstadoPlantillas | undefine
       subject: texto(fd, "asunto", MAX_ASUNTO * 2),
       body: texto(fd, "cuerpo", MAX_CUERPO.EMAIL),
     }),
-    enabled ? "Guardado: la respuesta automática está encendida." : "Guardado: la respuesta automática está apagada.",
+    clave === "CONSULTA_AVISO_EQUIPO"
+      ? enabled ? "Guardado: el aviso al equipo está encendido." : "Guardado: el aviso al equipo está apagado."
+      : enabled ? "Guardado: la respuesta automática está encendida." : "Guardado: la respuesta automática está apagada.",
   );
 }

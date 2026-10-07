@@ -95,3 +95,28 @@ describe("registro de actividad del lote", () => {
     expect(vi.mocked(registrarActividad).mock.calls[0][1]).toMatchObject({ query: "" });
   });
 });
+
+describe("parámetro de fecha", () => {
+  function conFecha() {
+    const { def } = armar(["a", "b"]);
+    const aplicar = vi.fn(async (_c, ids: string[]) => ({ aplicados: ids.length, fallidos: [], detalle: [] }));
+    const accion: AccionLote = {
+      clave: "fecha", etiqueta: "Fijar fecha", capacidad: "operar", maximo: 3,
+      confirmacion: "Vas a fijar {n} para el {parametro}.", parametro: { etiqueta: "Fecha", fecha: true }, aplicar,
+    };
+    return { def, accion, aplicar };
+  }
+  it("acepta un día que existe y lo muestra como dd/mm/aaaa", async () => {
+    const { def, accion } = conFecha();
+    const p = await prepararLote(def, accion, ctx, { tipo: "ids", ids: ["a"] }, "2026-10-09", "2026-09-30");
+    expect(p).toMatchObject({ ok: true, mensaje: "Vas a fijar 1 para el 09/10/2026." });
+  });
+  it("rechaza lo que no es una fecha válida y no aplica", async () => {
+    const { def, accion, aplicar } = conFecha();
+    for (const v of [null, "", "2026-02-31", "09/10/2026", "2026-10-09..2026-10-10"]) {
+      expect(await prepararLote(def, accion, ctx, { tipo: "ids", ids: ["a"] }, v, "2026-09-30")).toEqual({ ok: false, error: "Elegí una fecha válida." });
+      expect((await aplicarLote(def, accion, ctx, { tipo: "ids", ids: ["a"] }, v, 1, "2026-09-30")).estado).toBe("error");
+    }
+    expect(aplicar).not.toHaveBeenCalled();
+  });
+});

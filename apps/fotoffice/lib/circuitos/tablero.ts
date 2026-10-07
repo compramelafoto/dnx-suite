@@ -6,6 +6,9 @@ import { SALIDAS, type Clase } from "./constantes";
 import { adaptadorDe, type NombreDeSujeto } from "./sujetos";
 import { numeroDe } from "../numeracion/asignar";
 import { TIPO_CONSULTA } from "../service-leads/numero";
+import { fechaDeEvento } from "../ficha/formato";
+import { sumarValores, valorComoNumero } from "../consultas/valor";
+import { esGrupoConsulta, grupoPide } from "../consultas/constantes";
 
 /**
  * Datos del tablero de Captación. Todo se lee acotado al workspace de la sesión: el circuito
@@ -19,6 +22,8 @@ const TIPO_SUJETO = "CAPTACION";
 const CLASE: Clase = "VENTA";
 const RUTA_LISTA = "/consultas/lista";
 const DIA_MS = 24 * 60 * 60 * 1000;
+/** Ids por lectura de valores: muy por debajo del tope de parámetros de Postgres. */
+const LOTE_DE_IDS = 5000;
 
 export type TarjetaVista = {
   journeyId: string;
@@ -31,11 +36,18 @@ export type TarjetaVista = {
   /** ISO: vuelve tal cual como `esperado` al mover o cerrar. */
   enteredStageAt: string;
   responsableId: number | null;
+  /** Datos de la etapa 1 (null si la consulta no tiene ficha nueva): categoría, día del evento y valor. */
+  categoria: string | null;
+  /** "20/12/2026" con el ayudante de fecha de calendario (`fechaDeEvento`). */
+  fechaEvento: string | null;
+  valor: number | null;
 };
 
 export type EtapaVista = { id: string; nombre: string; color: string; archivada: boolean };
-export type ColumnaVista = { etapa: EtapaVista; tarjetas: TarjetaVista[]; total: number; masHref: string | null };
-export type CircuitoVista = { id: string; nombre: string; clase: Clase };
+/** `valorTotal`: suma del valor estimado de TODAS las consultas de la columna (también las que no se dibujan). */
+export type ColumnaVista = { etapa: EtapaVista; tarjetas: TarjetaVista[]; total: number; valorTotal: number; masHref: string | null };
+/** `predeterminado`: el circuito donde entran las consultas nuevas (ahí va el alta rápida). */
+export type CircuitoVista = { id: string; nombre: string; clase: Clase; predeterminado: boolean };
 
 export type Tablero = {
   circuito: CircuitoVista | null;
@@ -53,6 +65,42 @@ export function diasEnEtapaAR(entrada: Date, ahora: Date): number {
   const desde = Date.parse(`${hoyEnBuenosAires(entrada)}T00:00:00Z`);
   const hasta = Date.parse(`${hoyEnBuenosAires(ahora)}T00:00:00Z`);
   return Math.max(0, Math.round((hasta - desde) / DIA_MS));
+}
+
+type DatosConsulta = { categoria: string | null; fechaEvento: string | null; valor: number | null };
+
+/**
+ * Categoría, día del evento y valor de estas consultas del workspace. En tandas de `LOTE_DE_IDS`
+ * (una columna puede tener más tarjetas de las que se dibujan, y el total las suma a todas).
+ */
+async function datosDeConsultas(workspaceId: string, leadIds: string[]): Promise<Map<string, DatosConsulta>> {
+  const mapa = new Map<string, DatosConsulta>();
+  const unicos = [...new Set(leadIds)];
+  if (unicos.length === 0) return mapa;
+  const filas: { leadId: string; categoryId: string; estimatedValue: unknown; eventStartsAt: Date | null }[] = [];
+  for (let i = 0; i < unicos.length; i += LOTE_DE_IDS) {
+    filas.push(
+      ...(await prisma.fotofficeConsulta.findMany({
+        where: { workspaceId, leadId: { in: unicos.slice(i, i + LOTE_DE_IDS) } },
+        select: { leadId: true, categoryId: true, estimatedValue: true, eventStartsAt: true },
+      })),
+    );
+  }
+  const categorias = filas.length
+    ? await prisma.fotofficeConsultaCategoria.findMany({ where: { workspaceId }, select: { id: true, name: true, group: true } })
+    : [];
+  const categoria = new Map(categorias.map((c) => [c.id, c]));
+  for (const f of filas) {
+    const c = categoria.get(f.categoryId);
+    // Regla R11: si el grupo de la categoría no pide fecha, el día que quedó guardado no se muestra.
+    const pideFecha = !c || !esGrupoConsulta(c.group) || grupoPide(c.group, "fechaHora");
+    mapa.set(f.leadId, {
+      categoria: c?.name ?? null,
+      fechaEvento: f.eventStartsAt && pideFecha ? fechaDeEvento(f.eventStartsAt) : null,
+      valor: valorComoNumero(f.estimatedValue as { toString(): string } | null),
+    });
+  }
+  return mapa;
 }
 
 /** Mismo criterio que `etiquetaDeUsuario` (lib/listado/acceso), sin arrastrar la sesión. */
@@ -93,7 +141,7 @@ async function elegirCircuito(workspaceId: string, circuitoId: string | null) {
     circuitos.find((c) => c.isDefault) ??
     circuitos[0] ??
     null;
-  const vista = (c: (typeof circuitos)[number]): CircuitoVista => ({ id: c.id, nombre: c.name, clase: CLASE });
+  const vista = (c: (typeof circuitos)[number]): CircuitoVista => ({ id: c.id, nombre: c.name, clase: CLASE, predeterminado: c.isDefault });
   return { circuito: elegido ? vista(elegido) : null, circuitos: circuitos.map(vista) };
 }
 
@@ -153,6 +201,16 @@ export async function cargarTablero(
     }),
   );
 
+  // Todas las consultas abiertas del circuito (con los filtros), para el total de valor por columna.
+  const todos = await prisma.fotofficeJourney.findMany({ where, select: { stageId: true, subjectId: true } });
+  const datos = await datosDeConsultas(workspaceId, todos.map((j) => j.subjectId));
+  const valoresPorEtapa = new Map<string | null, (number | null)[]>();
+  for (const j of todos) {
+    const lista = valoresPorEtapa.get(j.stageId) ?? [];
+    lista.push(datos.get(j.subjectId)?.valor ?? null);
+    valoresPorEtapa.set(j.stageId, lista);
+  }
+
   const recorridos = porEtapa.flatMap((c) => c.filas);
   const ids = recorridos.map((j) => j.id);
   const tareas = ids.length
@@ -184,6 +242,7 @@ export async function cargarTablero(
   const columnas: ColumnaVista[] = porEtapa.map(({ etapa, filas, total }) => ({
     etapa: { id: etapa.id, nombre: etapa.name, color: etapa.color, archivada: etapa.archivedAt !== null },
     total,
+    valorTotal: sumarValores(valoresPorEtapa.get(etapa.id) ?? []),
     masHref: total > filas.length ? `${RUTA_LISTA}?etapa=${encodeURIComponent(etapa.id)}` : null,
     tarjetas: filas.map((j) => ({
       journeyId: j.id,
@@ -194,6 +253,9 @@ export async function cargarTablero(
       tareas: conteo.get(j.id) ?? { hechas: 0, total: 0 },
       enteredStageAt: j.enteredStageAt.toISOString(),
       responsableId: j.ownerUserId,
+      categoria: datos.get(j.subjectId)?.categoria ?? null,
+      fechaEvento: datos.get(j.subjectId)?.fechaEvento ?? null,
+      valor: datos.get(j.subjectId)?.valor ?? null,
     })),
   }));
 

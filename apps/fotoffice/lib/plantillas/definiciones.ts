@@ -53,6 +53,7 @@ export type ResultadoCreado = { ok: true; id: string } | { ok: false; error: str
 /** Cómo sale cada mensaje automático (spec §3.5): ficha, canal y nombre fijos. */
 export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlantilla; nombre: string }> = {
   CONSULTA_AUTORESPUESTA: { canal: "EMAIL", tipo: "CONSULTA", nombre: "Respuesta automática a una consulta nueva" },
+  CONSULTA_AVISO_EQUIPO: { canal: "EMAIL", tipo: "CONSULTA", nombre: "Aviso de consulta nueva al equipo" },
 };
 
 export const MENSAJES_PLANTILLAS = {

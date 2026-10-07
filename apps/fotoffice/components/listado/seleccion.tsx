@@ -8,7 +8,8 @@ import { numero } from "./util";
 export type AccionVisible = {
   clave: string;
   etiqueta: string;
-  parametro: { etiqueta: string; opciones: Opcion[] } | null;
+  /** Con `fecha`, se elige un día ("aaaa-mm-dd") en vez de una opción. */
+  parametro: { etiqueta: string; opciones: Opcion[]; fecha?: boolean } | null;
 };
 
 type Seleccion = {

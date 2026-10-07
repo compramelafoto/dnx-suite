@@ -10,6 +10,12 @@ const circuitFindFirst = vi.fn();
 const stageFindMany = vi.fn();
 const stageFindFirst = vi.fn();
 const numeroFindMany = vi.fn();
+const categoriaFindFirst = vi.fn();
+const categoriaFindMany = vi.fn();
+const origenFindFirst = vi.fn();
+const origenFindMany = vi.fn();
+const miembroFindFirst = vi.fn();
+const miembroFindMany = vi.fn();
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({
   prisma: {
@@ -18,6 +24,9 @@ vi.mock("@repo/db", () => ({
     fotofficeCircuit: { findMany: (...a: unknown[]) => circuitFindMany(...a), findFirst: (...a: unknown[]) => circuitFindFirst(...a) },
     fotofficeStage: { findMany: (...a: unknown[]) => stageFindMany(...a), findFirst: (...a: unknown[]) => stageFindFirst(...a) },
     fotofficeRecordNumber: { findMany: (...a: unknown[]) => numeroFindMany(...a) },
+    fotofficeConsultaCategoria: { findFirst: (...a: unknown[]) => categoriaFindFirst(...a), findMany: (...a: unknown[]) => categoriaFindMany(...a) },
+    fotofficeOrigen: { findFirst: (...a: unknown[]) => origenFindFirst(...a), findMany: (...a: unknown[]) => origenFindMany(...a) },
+    workspaceMembership: { findFirst: (...a: unknown[]) => miembroFindFirst(...a), findMany: (...a: unknown[]) => miembroFindMany(...a) },
   },
 }));
 
@@ -28,13 +37,19 @@ import {
   diasEnEtapa,
   listadoCaptacion,
   ordenarPorNumero,
+  rangoSiguienteAccion,
   resolverWhere,
+  SIGUIENTE_ACCION,
   textoDeNumeroBuscado,
   whereCaptacion,
   whereRecorridos,
 } from "./listado";
 import { PARAMETROS_RESERVADOS, type ConsultaResuelta, type ContextoListado } from "@/lib/listado/tipos";
 import { avisoDeCampos } from "@/lib/campos/listado";
+import { recortarPorDinero } from "@/lib/listado/dinero";
+import { formatoPesos } from "@/lib/consultas/valor";
+import { SERVICE_LEADS_MODULE_KEY } from "./constants";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const base = { q: "", filtros: {}, periodos: {}, etiquetasRelacion: {}, orden: { campo: "alta", desc: true }, pagina: 1, filas: 25, ver: null } as ConsultaResuelta;
 const ctx: ContextoListado = { workspaceId: "w1", workspaceName: "W", userId: 1, userLabel: "u", role: "WORKSPACE_OWNER" };
@@ -165,8 +180,12 @@ describe("definición", () => {
     expect(listadoCaptacion.ordenes).toContain(listadoCaptacion.ordenPorDefecto.campo);
     for (const c of listadoCaptacion.columnas) if (c.orden) expect(listadoCaptacion.ordenes).toContain(c.orden);
   });
-  it("no tiene acciones en lote y exporta correo y teléfono", () => {
-    expect(listadoCaptacion.acciones).toEqual([]);
+  it("acciones en lote con Gestionar (tope 200) y exporta correo y teléfono", () => {
+    expect(listadoCaptacion.acciones.map((a) => a.clave)).toEqual(["responsable", "siguiente", "perdida", "circuito"]);
+    for (const a of listadoCaptacion.acciones) {
+      expect(a.capacidad).toBe("operar");
+      expect(a.maximo).toBe(200);
+    }
     const titulos = listadoCaptacion.exportar.columnas.map((c) => c.titulo);
     expect(titulos).toEqual(expect.arrayContaining(["Correo", "Teléfono"]));
   });
@@ -417,3 +436,119 @@ function parametros(w: { id?: unknown; OR?: unknown[]; AND?: unknown }): number 
   const enAnd = ((w.AND as { id?: { in?: string[] } }[] | undefined) ?? []).reduce<number>((n, o) => n + (o.id?.in?.length ?? 0), 0);
   return enId + enOr + enAnd;
 }
+
+describe("etapa 1: columnas y filtros de Consultas", () => {
+  // Miércoles 07/10/2026, 12:00 en Buenos Aires.
+  const miercoles = new Date("2026-10-07T15:00:00.000Z");
+  const fila = (extra: Record<string, unknown> = {}) =>
+    ({ id: "a", name: "Ana", email: null, phone: null, eventType: "BODA", eventDate: null, createdAt: ahora, fotofficeConsulta: null, recorrido: null, numero: null, ...extra }) as never;
+  const columna = (clave: string) => listadoCaptacion.columnas.find((c) => c.clave === clave)!;
+
+  it("columnas nuevas: categoría (o el tipo viejo), origen, valor en pesos y responsable", () => {
+    expect(listadoCaptacion.columnas.map((c) => c.clave)).toEqual(expect.arrayContaining(["categoria", "origen", "valor", "responsable"]));
+    const conFicha = fila({ fotofficeConsulta: { estimatedValue: { toString: () => "1250000.50" }, category: { name: "Boda civil" }, origin: { name: "Instagram" } } });
+    expect(columna("categoria").celda(conFicha)).toBe("Boda civil");
+    expect(columna("categoria").celda(fila())).toBe("Boda");
+    expect(columna("origen").celda(conFicha)).toBe("Instagram");
+    expect(columna("origen").celda(fila())).toBe("—");
+    expect(renderToStaticMarkup(columna("valor").celda(conFicha) as never)).toContain(formatoPesos(1250000.5));
+    expect(columna("valor").celda(fila())).toBe("—");
+    expect(columna("responsable").celda(fila({ recorrido: { responsable: "Beto" } }))).toBe("Beto");
+    expect(columna("responsable").celda(fila())).toBe("—");
+  });
+
+  it("el valor se ve y se exporta con Ver en Consultas, sin permiso de plata", () => {
+    const soloVer: ContextoListado = { ...ctx, role: "STAFF", acceso: { role: "STAFF", levels: { [SERVICE_LEADS_MODULE_KEY]: "VIEW" } } };
+    const def = recortarPorDinero(listadoCaptacion, soloVer);
+    expect(def.columnas.map((c) => c.clave)).toContain("valor");
+    expect(def.exportar.columnas.map((c) => c.titulo)).toEqual(expect.arrayContaining(["Categoría", "Origen", "Valor estimado", "Responsable"]));
+  });
+
+  it("filtros nuevos declarados sin claves reservadas", () => {
+    const claves = listadoCaptacion.filtros.map((f) => f.clave);
+    expect(claves).toEqual(expect.arrayContaining(["categoria", "origen", "responsable", "siguiente"]));
+    expect(listadoCaptacion.filtros.find((f) => f.clave === "siguiente")).toMatchObject({ tipo: "opcion", opciones: SIGUIENTE_ACCION });
+  });
+
+  it("categoría y origen filtran por la ficha de la consulta, acotada al workspace", () => {
+    const w = whereCaptacion("w1", { ...base, filtros: { categoria: "cat1", origen: "or1" } }, null);
+    expect(w).toEqual({ workspaceId: "w1", fotofficeConsulta: { is: { workspaceId: "w1", categoryId: "cat1", originId: "or1" } } });
+  });
+
+  it("siguiente acción: vencida antes de ahora; hoy y esta semana (lunes a domingo, hora AR) desde ahora", () => {
+    expect(rangoSiguienteAccion("vencida", miercoles)).toEqual({ lt: miercoles });
+    expect(rangoSiguienteAccion("hoy", miercoles)).toEqual({ gte: miercoles, lte: new Date("2026-10-08T02:59:59.999Z") });
+    // Domingo 11/10 a las 23:59:59.999 de Buenos Aires.
+    expect(rangoSiguienteAccion("semana", miercoles)).toEqual({ gte: miercoles, lte: new Date("2026-10-12T02:59:59.999Z") });
+    // Domingo a la noche: la semana termina ese mismo día.
+    const domingo = new Date("2026-10-12T01:00:00.000Z");
+    expect(rangoSiguienteAccion("semana", domingo)).toEqual({ gte: domingo, lte: new Date("2026-10-12T02:59:59.999Z") });
+    expect(rangoSiguienteAccion("otra", miercoles)).toBeNull();
+  });
+
+  it("responsable y siguiente acción van por la subconsulta de recorridos abiertos del workspace", async () => {
+    const c = { ...base, filtros: { responsable: "8", siguiente: "hoy" } };
+    expect(whereRecorridos("w1", c, miercoles)).toEqual({
+      workspaceId: "w1",
+      subjectType: "CAPTACION",
+      kind: "VENTA",
+      AND: [
+        { outcome: null, ownerUserId: 8 },
+        { outcome: null, stageDueAt: { gte: miercoles, lte: new Date("2026-10-08T02:59:59.999Z") } },
+      ],
+    });
+    journeyFindMany.mockResolvedValue([{ subjectId: "a" }]);
+    expect(await resolverWhere(ctx, c, miercoles)).toEqual({ workspaceId: "w1", id: { in: ["a"] } });
+    expect(journeyFindMany.mock.calls[0][0].where.workspaceId).toBe("w1");
+  });
+
+  it("presupuesto de ids conjunto: el filtro de responsable comparte el tope con la búsqueda en campos", async () => {
+    const rango = (pre: string, n: number) => Array.from({ length: n }, (_, i) => `${pre}${i}`);
+    journeyFindMany.mockResolvedValue(rango("x", 12_000).map((subjectId) => ({ subjectId })));
+    // AND: 12.000 (recorridos ∩ campos) + OR: 9.000 dentro de ellos = 21.000 > 20.000.
+    const c = { ...base, q: "boda", filtros: { responsable: "8" }, campos: { soloIds: rango("x", 12_000), buscarIds: rango("x", 9_000) } };
+    expect(await resolverWhere(ctx, c, ahora)).toEqual({ workspaceId: "w1", id: { in: [] } });
+    expect(await avisoCaptacion(ctx, c, ahora)).toBe(AVISO_DEMASIADAS);
+  });
+
+  it("validarRelacion: categoría, origen y responsable sólo del workspace", async () => {
+    categoriaFindFirst.mockResolvedValue({ name: "Boda" });
+    expect(await listadoCaptacion.validarRelacion!(ctx, "categoria", "cat1")).toBe("Boda");
+    expect(categoriaFindFirst.mock.calls[0][0].where).toEqual({ id: "cat1", workspaceId: "w1" });
+    origenFindFirst.mockResolvedValue(null);
+    expect(await listadoCaptacion.validarRelacion!(ctx, "origen", "ajeno")).toBeNull();
+    expect(origenFindFirst.mock.calls[0][0].where).toEqual({ id: "ajeno", workspaceId: "w1" });
+    miembroFindFirst.mockResolvedValue({ user: { name: " Beto ", email: null } });
+    expect(await listadoCaptacion.validarRelacion!(ctx, "responsable", "8")).toBe("Beto");
+    expect(miembroFindFirst.mock.calls[0][0].where).toEqual({ workspaceId: "w1", userId: 8 });
+    miembroFindFirst.mockClear();
+    expect(await listadoCaptacion.validarRelacion!(ctx, "responsable", "abc")).toBeNull();
+    expect(await listadoCaptacion.validarRelacion!(ctx, "responsable", "0")).toBeNull();
+    expect(miembroFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("opciones de categoría y origen del workspace (las archivadas, marcadas)", async () => {
+    categoriaFindMany.mockResolvedValue([{ id: "c1", name: "Boda", archivedAt: null }, { id: "c2", name: "XV", archivedAt: ahora }]);
+    expect(await listadoCaptacion.opcionesRelacion!(ctx, "categoria")).toEqual([
+      { valor: "c1", etiqueta: "Boda" },
+      { valor: "c2", etiqueta: "XV (archivada)" },
+    ]);
+    expect(categoriaFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1" });
+    origenFindMany.mockResolvedValue([]);
+    await listadoCaptacion.opcionesRelacion!(ctx, "origen");
+    expect(origenFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1" });
+  });
+
+  it("el responsable de cada fila sale de una sola lectura del equipo del workspace", async () => {
+    leadFindMany.mockResolvedValue([fila({ id: "a" }), fila({ id: "b" })]);
+    journeyFindMany.mockResolvedValue([
+      { subjectId: "a", outcome: null, enteredStageAt: ahora, stageDueAt: null, ownerUserId: 8, circuit: { name: "V" }, stage: null },
+      { subjectId: "b", outcome: null, enteredStageAt: ahora, stageDueAt: null, ownerUserId: 99, circuit: { name: "V" }, stage: null },
+    ]);
+    miembroFindMany.mockResolvedValue([{ userId: 8, user: { name: "Beto", email: null } }]);
+    const filas = await listadoCaptacion.traer(ctx, base, { skip: 0, take: 25 });
+    expect(filas.map((f) => f.recorrido?.responsable)).toEqual(["Beto", "Usuario 99"]);
+    expect(miembroFindMany).toHaveBeenCalledTimes(1);
+    expect(miembroFindMany.mock.calls[0][0].where).toEqual({ workspaceId: "w1", userId: { in: [8, 99] } });
+  });
+});

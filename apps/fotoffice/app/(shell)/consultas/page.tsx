@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { ArmazonCaptacion } from "@/components/captacion/armazon";
 import { Tablero } from "@/components/circuitos/tablero";
 import { puede } from "@/lib/access/policy";
+import { resolverAcceso } from "@/lib/access/acceso";
 import { cargarTablero } from "@/lib/circuitos/tablero";
+import { opcionesDeConsulta } from "@/lib/consultas/ficha";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { prepararCaptacion } from "@/lib/service-leads/preparar";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
@@ -39,7 +42,7 @@ export default async function CaptacionPage({
   const soloVencidas = uno(sp.vencidas) === "si";
 
   const { quedan } = await prepararCaptacion(workspace.id);
-  const [datos, role] = await Promise.all([
+  const [datos, role, acceso] = await Promise.all([
     cargarTablero(
       { workspaceId: workspace.id },
       circuito,
@@ -47,14 +50,19 @@ export default async function CaptacionPage({
       new Date(),
     ),
     resolveWorkspaceRole(user.id, workspace.id),
+    resolverAcceso(user.id, workspace.id),
   ]);
+  // "Nueva consulta" y el alta rápida, sólo con "Gestionar" en Consultas.
+  const puedeCrear = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);
+  const categorias = puedeCrear ? (await opcionesDeConsulta(workspace.id)).categorias : [];
 
   return (
-    <ArmazonCaptacion activa="tablero" quedan={quedan}>
+    <ArmazonCaptacion activa="tablero" quedan={quedan} puedeCrear={puedeCrear}>
       <Tablero
         datos={datos}
         filtros={{ circuito: datos.circuito?.id ?? null, responsable, soloVencidas }}
         puedePasarIgual={puede(role, "configurar")}
+        altaRapida={puedeCrear && datos.circuito?.predeterminado ? { categorias: categorias.map((c) => ({ id: c.id, nombre: c.nombre })) } : null}
       />
     </ArmazonCaptacion>
   );

@@ -4,115 +4,104 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
   branding: vi.fn(),
-  crear: vi.fn(),
-  notificar: vi.fn(),
-  numerar: vi.fn(),
-  responder: vi.fn(),
+  alta: vi.fn(),
   cabeceras: vi.fn(async () => new Headers()),
 }));
 
 vi.mock("@repo/db", () => ({
   Prisma: { JsonNull: null },
-  prisma: {
-    fotofficeWorkspaceBranding: { findUnique: H.branding },
-    serviceSalesLead: { create: H.crear },
-  },
+  prisma: { fotofficeWorkspaceBranding: { findUnique: H.branding } },
 }));
-vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
-vi.mock("@/lib/service-leads/numero", () => ({ numerarConsultaNueva: H.numerar }));
-vi.mock("@/lib/plantillas/automaticos", () => ({ responderConsultaNueva: H.responder }));
+// El alta única (contacto, consulta, número, circuito, aviso y respuesta automática) se prueba
+// en lib/consultas/alta.test.ts; acá, lo propio del formulario público.
+vi.mock("@/lib/consultas/alta", () => ({
+  altaDeConsulta: H.alta,
+  altaDelSistema: (workspaceId: string) => ({ workspaceId, userId: null, userLabel: "Sistema", role: null }),
+  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta." },
+  MAX_TEXTO_CONSULTA: 200,
+  MAX_MENSAJE_CONSULTA: 4000,
+}));
 vi.mock("next/headers", () => ({ headers: H.cabeceras }));
 
 const { createServiceLead } = await import("./service-lead");
 const { resetRateLimit } = await import("@/lib/geocode/rate-limit");
 
-const ALTA = new Date("2026-10-01T15:00:00Z");
 const ENTRADA = { workspaceSlug: "dnx-estudio", name: "Laura Pérez", email: "laura@example.com", eventType: "BODA" };
 
 beforeEach(() => {
   vi.clearAllMocks();
   H.branding.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "dnx-estudio" });
-  H.crear.mockResolvedValue({ id: "lead-9", createdAt: ALTA });
-  H.numerar.mockResolvedValue({ year: 2026, value: 1, display: "2026-0001" });
-  H.notificar.mockResolvedValue({ movido: true });
-  H.responder.mockResolvedValue("APAGADA");
+  H.alta.mockResolvedValue({ ok: true, leadId: "lead-9", consultaId: "q-9", clientId: "c-9", avisos: {} });
   H.cabeceras.mockImplementation(async () => new Headers());
   resetRateLimit();
 });
 
 describe("createServiceLead", () => {
-  it("crea la consulta y avisa CONSULTA_RECIBIDA al motor con el workspace del slug", async () => {
-    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
-    expect(H.crear).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ workspaceId: "ws-1", status: "NEW" }) }));
-    expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-9" }, "CONSULTA_RECIBIDA", "lead-9");
+  it("da de alta por el camino único como WEB, con el workspace del slug y sin usuario", async () => {
+    expect(
+      await createServiceLead({
+        ...ENTRADA, phone: " 341 555 ", eventDate: "2026-12-20", eventLocation: " Salón ", message: "Hola",
+        formId: "f1", formSlug: "boda", meta: { budgetType: "FULL" },
+      }),
+    ).toEqual({ success: true });
+    expect(H.alta).toHaveBeenCalledTimes(1);
+    const [quien, datos, opciones] = H.alta.mock.calls[0]!;
+    expect(quien).toEqual({ workspaceId: "ws-1", userId: null, userLabel: "Sistema", role: null });
+    expect(opciones).toEqual({ origenDelAlta: "WEB" });
+    expect(datos).toEqual({
+      contacto: { nombre: "Laura Pérez", email: "laura@example.com", telefono: "341 555" },
+      eventType: "BODA",
+      eventSubtype: "FULL",
+      eventDate: new Date("2026-12-20"),
+      eventLocation: "Salón",
+      message: "Hola",
+      metaJson: { budgetType: "FULL" },
+      formId: "f1",
+      formSlug: "boda",
+    });
   });
 
-  it("numera la consulta recién creada, después del alta y antes de avisar al motor", async () => {
+  it("los vacíos llegan como null", async () => {
     await createServiceLead(ENTRADA);
-    expect(H.numerar).toHaveBeenCalledWith("ws-1", "lead-9", ALTA);
-    expect(H.crear.mock.invocationCallOrder[0]).toBeLessThan(H.numerar.mock.invocationCallOrder[0]!);
-    expect(H.numerar.mock.invocationCallOrder[0]).toBeLessThan(H.notificar.mock.invocationCallOrder[0]!);
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({
+      contacto: { nombre: "Laura Pérez", email: "laura@example.com", telefono: null },
+      eventSubtype: null, eventDate: null, eventLocation: null, message: null, metaJson: null, formId: null, formSlug: null,
+    });
   });
 
-  it("sin número (la numeración no pudo) el alta igual sale bien", async () => {
-    H.numerar.mockResolvedValue(null);
-    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
-    expect(H.notificar).toHaveBeenCalled();
-  });
-
-  it("una falla del motor no hace fallar el alta", async () => {
-    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
-    H.notificar.mockRejectedValue(new Error("motor caído"));
-    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
-    H.notificar.mockResolvedValue({ movido: false });
-    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
-    expect(JSON.stringify(errores.mock.calls)).not.toContain("Laura");
-    errores.mockRestore();
-  });
-
-  it("sin workspace no crea ni avisa", async () => {
+  it("sin workspace no da de alta", async () => {
     H.branding.mockResolvedValue(null);
     expect(await createServiceLead(ENTRADA)).toEqual({ success: false, error: "Workspace no encontrado." });
-    expect(H.crear).not.toHaveBeenCalled();
-    expect(H.notificar).not.toHaveBeenCalled();
+    expect(H.alta).not.toHaveBeenCalled();
   });
 
-  it("si falla el alta, no registra los datos de la persona", async () => {
+  it("si el alta no sale, avisa sin datos; un error de validación se muestra tal cual", async () => {
+    H.alta.mockResolvedValue({ ok: false, error: "No se pudo registrar la consulta." });
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: false, error: "No se pudo registrar el lead." });
+    H.alta.mockResolvedValue({ ok: false, error: "Elegí una categoría." });
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: false, error: "Elegí una categoría." });
+  });
+
+  it("si el alta explota, no registra los datos de la persona", async () => {
     const errores = vi.spyOn(console, "error").mockImplementation(() => {});
-    H.crear.mockRejectedValue(Object.assign(new Error("Invalid value laura@example.com Laura Pérez"), { code: "P2000" }));
+    H.alta.mockRejectedValue(Object.assign(new Error("Invalid value laura@example.com Laura Pérez"), { code: "P2000" }));
     expect(await createServiceLead(ENTRADA)).toEqual({ success: false, error: "No se pudo registrar el lead." });
     const registrado = JSON.stringify(errores.mock.calls);
     expect(registrado).not.toContain("laura@example.com");
     expect(registrado).toContain("P2000");
-    expect(H.notificar).not.toHaveBeenCalled();
     errores.mockRestore();
   });
 
-  it("responde la consulta automáticamente después de numerarla, con el workspace del slug", async () => {
-    await createServiceLead(ENTRADA);
-    expect(H.responder).toHaveBeenCalledTimes(1);
-    expect(H.responder).toHaveBeenCalledWith("ws-1", "lead-9");
-    expect(H.numerar.mock.invocationCallOrder[0]).toBeLessThan(H.responder.mock.invocationCallOrder[0]!);
+  it("un budgetType larguísimo se recorta al tope del alta: la consulta se registra igual", async () => {
+    expect(await createServiceLead({ ...ENTRADA, meta: { budgetType: "x".repeat(500) } })).toEqual({ success: true });
+    const datos = H.alta.mock.calls[0]![1] as { eventSubtype: string; metaJson: unknown };
+    expect(datos.eventSubtype).toBe("x".repeat(200));
   });
 
-  it("si la respuesta automática explota, el alta igual sale bien y sigue al motor", async () => {
-    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
-    H.responder.mockRejectedValue(new Error("Resend caído laura@example.com"));
-    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
-    expect(H.notificar).toHaveBeenCalled();
-    expect(JSON.stringify(errores.mock.calls)).not.toContain("laura@example.com");
-    errores.mockRestore();
-  });
-
-  it("sin workspace o si falla el alta, no responde", async () => {
-    H.branding.mockResolvedValue(null);
-    await createServiceLead(ENTRADA);
-    H.branding.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "dnx-estudio" });
-    const errores = vi.spyOn(console, "error").mockImplementation(() => {});
-    H.crear.mockRejectedValue(new Error("x"));
-    await createServiceLead(ENTRADA);
-    errores.mockRestore();
-    expect(H.responder).not.toHaveBeenCalled();
+  it("datos inválidos: no llega al alta", async () => {
+    expect((await createServiceLead({ ...ENTRADA, email: "no-es-correo" })).success).toBe(false);
+    expect((await createServiceLead({ ...ENTRADA, name: "" })).success).toBe(false);
+    expect(H.alta).not.toHaveBeenCalled();
   });
 
   it("no quedan console.log en el archivo", () => {
@@ -152,8 +141,7 @@ describe("abuso del formulario público", () => {
     for (let i = 0; i < 10; i++) expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
     const frenada = await createServiceLead(ENTRADA);
     expect(frenada.success).toBe(false);
-    expect(H.crear).toHaveBeenCalledTimes(10);
-    expect(H.responder).toHaveBeenCalledTimes(10);
+    expect(H.alta).toHaveBeenCalledTimes(10);
     H.cabeceras.mockImplementation(ip("200.2.2.2"));
     expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
   });
@@ -162,5 +150,34 @@ describe("abuso del formulario público", () => {
     for (let i = 0; i < 12; i++) expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
     H.cabeceras.mockRejectedValue(new Error("fuera de un pedido"));
     expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+  });
+});
+
+describe("campo trampa", () => {
+  it("lleno: responde como éxito, no crea nada y loguea sólo el código", async () => {
+    const avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await createServiceLead({ ...ENTRADA, fo_hp_x: "http://spam.test" })).toEqual({ success: true });
+    expect(H.alta).not.toHaveBeenCalled();
+    expect(H.branding).not.toHaveBeenCalled();
+    expect(JSON.stringify(avisos.mock.calls)).toContain("CAMPO_TRAMPA");
+    expect(JSON.stringify(avisos.mock.calls)).not.toMatch(/laura|spam/i);
+    avisos.mockRestore();
+  });
+
+  it("vacío o con espacios: alta normal", async () => {
+    expect(await createServiceLead({ ...ENTRADA, fo_hp_x: "  " })).toEqual({ success: true });
+    expect(H.alta).toHaveBeenCalledTimes(1);
+  });
+
+  it("los dos formularios públicos lo dibujan oculto y lo mandan", () => {
+    const campo = readFileSync(path.join(process.cwd(), "components/consultas/campo-trampa.tsx"), "utf8");
+    expect(campo).toContain('aria-hidden="true"');
+    expect(campo).toContain("tabIndex={-1}");
+    expect(campo).toContain('autoComplete="off"');
+    for (const f of ["app/w/[workspaceSlug]/xv/public-service-lead-form.tsx", "app/w/[workspaceSlug]/public-dynamic-service-lead-form.tsx"]) {
+      const fuente = readFileSync(path.join(process.cwd(), f), "utf8");
+      expect(fuente).toContain("<CampoTrampa />");
+      expect(fuente).toContain('[CAMPO_TRAMPA]: formData.get(CAMPO_TRAMPA)?.toString() ?? ""');
+    }
   });
 });

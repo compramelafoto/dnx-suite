@@ -1,11 +1,11 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { puedeEnContexto, type AccesoEfectivo } from "@/lib/access/policy";
 import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
-  CARACTER_MARCADOR, CLAVE_FIRMA, CLAVES_AUTOMATICO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal,
+  CARACTER_MARCADOR, CLAVE_FIRMA, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal, type ClaveAutomatico,
 } from "./constantes";
 import { contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
 import { plantillaParaUsar } from "./definiciones";
@@ -172,7 +172,9 @@ async function validarPlantilla(
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
       where: {
-        id: templateId, workspaceId, channel: canal, entityType: tipo, systemKey: { in: [...CLAVES_AUTOMATICO] }, enabled: true,
+        // Sólo la respuesta automática sale a la persona de la ficha: el aviso al equipo
+        // (`CONSULTA_AVISO_EQUIPO`) nunca pasa por acá.
+        id: templateId, workspaceId, channel: canal, entityType: tipo, systemKey: CLAVE_RESPUESTA_A_LA_PERSONA, enabled: true,
         archivedAt: null,
       },
       select: { id: true },
@@ -181,6 +183,38 @@ async function validarPlantilla(
   }
   const p = await plantillaParaUsar(workspaceId, templateId, canal, tipo);
   return p ? { ok: true, id: p.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+}
+
+/** La única automática que va a la persona de la ficha. */
+const CLAVE_RESPUESTA_A_LA_PERSONA: ClaveAutomatico = "CONSULTA_AUTORESPUESTA";
+
+/**
+ * Asunto, HTML y texto listos para el transporte a partir de textos ya completados
+ * (`completarTextos`), con las mismas validaciones que `enviarCorreo`: asunto de una línea,
+ * cuerpo no vacío, sin textos por completar ni variables sueltas; `[firma]` se reemplaza por la
+ * firma dada. Lo usa el aviso interno al equipo, que no pasa por `enviarCorreo` (va a un usuario
+ * del equipo, no a la persona de la ficha, y no se registra ni cuenta en los topes).
+ */
+export function armarCorreoFinal(
+  asunto: string,
+  cuerpo: string,
+  firma: { html: string; texto: string },
+): { ok: true; asunto: string; html: string; texto: string } | Falla {
+  const a = asunto.replace(/\s+/g, " ").trim();
+  if (!a || a.length > MAX_ASUNTO) return no(MENSAJES_ENVIO.asunto);
+  const vc = validarCuerpo(cuerpo, "EMAIL");
+  if (!vc.ok) return vc;
+  if (tieneMarcadorSinCompletar(a) || tieneMarcadorSinCompletar(vc.cuerpo)) return no(MENSAJES_ENVIO.marcadorSinCompletar);
+  const fa = textoFinal(a, false);
+  if (!fa.ok) return fa;
+  const fc = textoFinal(vc.cuerpo, true);
+  if (!fc.ok) return fc;
+  return {
+    ok: true,
+    asunto: fa.texto,
+    html: cuerpoCorreoHtml(fc.texto, firma.html, fc.conFirma),
+    texto: cuerpoCorreoTexto(fc.texto, firma.texto, fc.conFirma),
+  };
 }
 
 // ─── Tope diario ─────────────────────────────────────────────────────────────
@@ -196,12 +230,31 @@ export function inicioDelDiaAR(ahora: Date): Date {
 }
 
 /**
+ * Filtro que deja afuera los avisos internos al equipo (`CONSULTA_AVISO_EQUIPO`), que se
+ * registran en `FotofficeMessage` con la plantilla del aviso pero tienen su propio tope y nunca
+ * cuentan como respuesta a una persona. Se distinguen por `templateId`: es la única marca que no
+ * necesita columnas nuevas. `{}` si el workspace todavía no tiene la plantilla del aviso.
+ */
+export async function sinAvisosAlEquipo(workspaceId: string): Promise<Prisma.FotofficeMessageWhereInput> {
+  const aviso = await prisma.fotofficeMessageTemplate.findFirst({
+    where: { workspaceId, systemKey: "CONSULTA_AVISO_EQUIPO" },
+    select: { id: true },
+  });
+  // `not` de Prisma deja afuera los null: se suman a mano los mensajes sin plantilla.
+  return aviso ? { OR: [{ templateId: null }, { templateId: { not: aviso.id } }] } : {};
+}
+
+/**
  * Correos enviados (`SENT`) hoy por la organización: los manuales o, con `automaticos`, los
- * automáticos. Cada grupo tiene su propio tope. Usa el índice (workspaceId, channel, createdAt).
+ * automáticos (sin los avisos al equipo, que tienen su propio tope). Cada grupo tiene su propio
+ * tope. Usa el índice (workspaceId, channel, createdAt).
  */
 export async function correosEnviadosHoy(workspaceId: string, ahora: Date, automaticos = false): Promise<number> {
   return prisma.fotofficeMessage.count({
-    where: { workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT", automatic: automaticos },
+    where: {
+      workspaceId, channel: "EMAIL", createdAt: { gte: inicioDelDiaAR(ahora) }, status: "SENT", automatic: automaticos,
+      ...(automaticos ? await sinAvisosAlEquipo(workspaceId) : {}),
+    },
   });
 }
 

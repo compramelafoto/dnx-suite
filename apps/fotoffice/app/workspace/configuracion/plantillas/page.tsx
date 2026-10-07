@@ -5,7 +5,7 @@ import { puede } from "@/lib/access/policy";
 import { listarCampos } from "@/lib/campos/definiciones";
 import { tiposConModuloEncendido } from "@/lib/campos/modulos";
 import { MAX_PLANTILLAS_ACTIVAS_POR_CANAL, type Canal, type TipoPlantilla } from "@/lib/plantillas/constantes";
-import { asegurarPlantillasIniciales } from "@/lib/plantillas/semillas";
+import { asegurarAvisoEquipo, asegurarPlantillasIniciales } from "@/lib/plantillas/semillas";
 import {
   AUTOMATICOS,
   contarUsosPorPlantilla,
@@ -53,6 +53,8 @@ export default async function ConfiguracionPlantillasPage({
     select: { publicSlug: true },
   });
   await asegurarPlantillasIniciales(workspace.id, branding?.publicSlug ?? "");
+  // El aviso al equipo (etapa 1) también lo necesitan los workspaces ya sembrados.
+  await asegurarAvisoEquipo(workspace.id);
 
   const [vocabulario, encendidos] = await Promise.all([
     loadPersonVocabulary(workspace.id),
@@ -71,6 +73,7 @@ export default async function ConfiguracionPlantillasPage({
   ];
   const conCaptacion = encendidos.includes("CONSULTA");
   const auto = await leerAutomatico(workspace.id, "CONSULTA_AUTORESPUESTA");
+  const aviso = await leerAutomatico(workspace.id, "CONSULTA_AVISO_EQUIPO");
   // Automáticos se ve con Captación encendida o, sin ella, mientras la respuesta siga encendida:
   // así se puede apagar (con el módulo apagado no sale, pero no debe quedar prendida a escondidas).
   const conAutomaticos = conCaptacion || auto?.enabled === true;
@@ -112,19 +115,35 @@ export default async function ConfiguracionPlantillasPage({
     );
   } else {
     const def = AUTOMATICOS.CONSULTA_AUTORESPUESTA;
+    const defAviso = AUTOMATICOS.CONSULTA_AVISO_EQUIPO;
     contenido = (
-      <AutomaticoForm
-        clave="CONSULTA_AUTORESPUESTA"
-        nombre={def.nombre}
-        canal={def.canal}
-        tipo={def.tipo}
-        encendido={auto?.enabled ?? false}
-        actualizado={auto?.updatedAt.toISOString() ?? ""}
-        asunto={auto?.subject ?? ""}
-        cuerpo={auto?.body ?? ""}
-        campos={campos[def.tipo]}
-        soloApagar={!conCaptacion}
-      />
+      <div className="space-y-6">
+        <AutomaticoForm
+          clave="CONSULTA_AUTORESPUESTA"
+          nombre={def.nombre}
+          canal={def.canal}
+          tipo={def.tipo}
+          encendido={auto?.enabled ?? false}
+          actualizado={auto?.updatedAt.toISOString() ?? ""}
+          asunto={auto?.subject ?? ""}
+          cuerpo={auto?.body ?? ""}
+          campos={campos[def.tipo]}
+          soloApagar={!conCaptacion}
+        />
+        <AutomaticoForm
+          clave="CONSULTA_AVISO_EQUIPO"
+          nombre={defAviso.nombre}
+          canal={defAviso.canal}
+          tipo={defAviso.tipo}
+          encendido={aviso?.enabled ?? false}
+          actualizado={aviso?.updatedAt.toISOString() ?? ""}
+          asunto={aviso?.subject ?? ""}
+          cuerpo={aviso?.body ?? ""}
+          campos={campos[defAviso.tipo]}
+          soloApagar={!conCaptacion}
+          descripcion="Cuando entra una consulta nueva (por el formulario o cargada a mano), se le manda este correo al responsable de consultas nuevas, o al dueño si no hay. Va con el remitente de FOTOFFICE y queda en el historial de la consulta. No cuenta en el tope diario de correos: tiene el suyo, de 100 avisos por día; pasado ese número sólo se crea la tarea. Quién lo recibe y si se crea la tarea se configura en Configuración → Consultas → Avisos."
+        />
+      </div>
     );
   }
 
