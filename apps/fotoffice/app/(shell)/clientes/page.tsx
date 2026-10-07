@@ -31,9 +31,14 @@ export default async function ClientesPage({
         description="Padrón de clientes del negocio: ficha, contacto y datos fiscales."
         actions={
           canEdit ? (
-            <Link href="/clientes/nuevo" className="fo-btn fo-btn-primary text-sm">
-              Nuevo cliente
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/clientes/importar" className="fo-btn fo-btn-secondary text-sm">
+                Importar
+              </Link>
+              <Link href="/clientes/nuevo" className="fo-btn fo-btn-primary text-sm">
+                Nuevo cliente
+              </Link>
+            </div>
           ) : undefined
         }
       />

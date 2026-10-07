@@ -13,6 +13,8 @@ import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { collectionCopy } from "@/lib/payments/connect/messages";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { enumerar, tiposConModuloEncendido } from "@/lib/campos/modulos";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -42,6 +44,8 @@ export default async function WorkspaceSettingsPage() {
   // La tarjeta de Campos nombra los mismos tipos que las pestañas de su página: cada uno con su módulo.
   const NOMBRE_TIPO = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas" } as const;
   const tiposConCampos = (await tiposConModuloEncendido(ensured.workspaceId)).map((t) => NOMBRE_TIPO[t]);
+  // Configuración → Consultas, sólo con el módulo encendido (como su pantalla).
+  const consultasEncendido = await isModuleEnabledForWorkspace(ensured.workspaceId, SERVICE_LEADS_MODULE_KEY);
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -140,6 +144,21 @@ export default async function WorkspaceSettingsPage() {
             <span className="block text-sm font-semibold">Campos</span>
             <span className="block text-xs text-[var(--fo-muted)]">
               Datos propios para las fichas de {enumerar(tiposConCampos, "y")}.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && consultasEncendido ? (
+        <Link
+          href="/workspace/configuracion/consultas"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Consultas</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Categorías, orígenes, roles de participante y avisos de consultas nuevas.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>

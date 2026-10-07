@@ -258,7 +258,11 @@ describe("rutas y guarda (prueba de fuente)", () => {
     const nav = leer("components/shell/shell-nav.tsx");
     expect(nav).toContain('{ title: "Consultas", items: captacion');
     expect(nav).toContain('label: "Bandeja"');
-    expect(nav).not.toContain('label: "Consultas"');
+    // Dentro del grupo Consultas ningún ítem repite el nombre (Configuración → Consultas, en el
+    // grupo de la institución, sí se llama así).
+    const grupo = nav.slice(nav.indexOf("const captacion: Item[]"), nav.indexOf("const presencia: Item[]"));
+    expect(grupo).toContain('label: "Bandeja"');
+    expect(grupo).not.toContain('label: "Consultas"');
     expect(nav).not.toContain('title: "Captación"');
   });
 });

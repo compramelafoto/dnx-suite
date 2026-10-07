@@ -11,8 +11,8 @@ export const PESTANAS_CAPTACION = [
 export type PestanaCaptacion = (typeof PESTANAS_CAPTACION)[number]["clave"];
 
 /**
- * Cabecera común de Consultas: título, botón "Nueva consulta" (sólo con "Gestionar" en
- * Consultas), pestañas y el aviso de las consultas por ordenar.
+ * Cabecera común de Consultas: título, botones "Importar" y "Nueva consulta" (sólo con
+ * "Gestionar" en Consultas), pestañas y el aviso de las consultas por ordenar.
  */
 export function ArmazonCaptacion({
   activa,
@@ -32,9 +32,14 @@ export function ArmazonCaptacion({
         description="Consultas de presupuesto, organizadas por etapas."
         actions={
           puedeCrear ? (
-            <Link href="/consultas/nueva" className="fo-btn fo-btn-primary text-sm">
-              Nueva consulta
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/consultas/importar" className="fo-btn fo-btn-secondary text-sm">
+                Importar
+              </Link>
+              <Link href="/consultas/nueva" className="fo-btn fo-btn-primary text-sm">
+                Nueva consulta
+              </Link>
+            </div>
           ) : undefined
         }
       />

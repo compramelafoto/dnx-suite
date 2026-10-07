@@ -76,3 +76,38 @@ describe("adaptadorCaptacion", () => {
     expect(status("l3")).toBe("NEW");
   });
 });
+
+describe("ganar una consulta pasa a su contacto a Cliente", () => {
+  const categoria = (clientId: string) => B.datos.fotofficeContactoPerfil.find((p) => p.clientId === clientId)?.category;
+
+  beforeEach(() => {
+    B.agregar("client", { id: "c1", workspaceId: "ws-1", name: "Laura" });
+    B.agregar("client", { id: "c2", workspaceId: "ws-1", name: "Martín" });
+    B.agregar("fotofficeContactoPerfil", { id: "p1", workspaceId: "ws-1", clientId: "c1", category: "CONTACTO" });
+    B.agregar("fotofficeContactoPerfil", { id: "p2", workspaceId: "ws-1", clientId: "c2", category: "PROVEEDOR" });
+    B.agregar("fotofficeConsulta", { id: "q1", workspaceId: "ws-1", leadId: "l1", clientId: "c1" });
+    B.agregar("fotofficeConsulta", { id: "q2", workspaceId: "ws-1", leadId: "l2", clientId: "c2" });
+  });
+
+  it("GANADA: CONTACTO → CLIENTE con su entrada en el historial", async () => {
+    await adaptadorCaptacion.alCambiarEtapa!(tx, "ws-1", "l1", null, "GANADA");
+    expect(categoria("c1")).toBe("CLIENTE");
+    const audit = B.datos.clientAudit.filter((a) => a.clientId === "c1");
+    expect(audit).toHaveLength(1);
+    expect(audit[0]!.changesJson).toEqual({ category: { before: "CONTACTO", after: "CLIENTE" } });
+  });
+
+  it("PERDIDA o mover de etapa no la toca; otras categorías tampoco", async () => {
+    await adaptadorCaptacion.alCambiarEtapa!(tx, "ws-1", "l1", null, "PERDIDA");
+    await adaptadorCaptacion.alCambiarEtapa!(tx, "ws-1", "l1", { leadStatus: "CONTACTED" }, null);
+    expect(categoria("c1")).toBe("CONTACTO");
+    await adaptadorCaptacion.alCambiarEtapa!(tx, "ws-1", "l2", null, "GANADA");
+    expect(categoria("c2")).toBe("PROVEEDOR");
+    expect(B.datos.clientAudit).toHaveLength(0);
+  });
+
+  it("no cruza workspaces", async () => {
+    await adaptadorCaptacion.alCambiarEtapa!(tx, "ws-2", "l1", null, "GANADA");
+    expect(categoria("c1")).toBe("CONTACTO");
+  });
+});

@@ -18,7 +18,7 @@ vi.mock("@/lib/ficha/etiquetas", () => ({
 }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: vi.fn(async () => false) }));
 
-import { listadoClientes, whereClientes } from "./listado";
+import { categoriaDeFila, listadoClientes, whereClientes, whereCumpleEnMes } from "./listado";
 import { PARAMETROS_RESERVADOS, type ConsultaResuelta, type ContextoListado } from "@/lib/listado/tipos";
 
 const base = { q: "", filtros: {}, periodos: {}, etiquetasRelacion: {}, orden: { campo: "numero", desc: true }, pagina: 1, filas: 25, ver: null } as ConsultaResuelta;
@@ -42,6 +42,47 @@ describe("whereClientes", () => {
   it("período de alta", () => {
     const desde = new Date("2026-09-01T03:00:00Z"), hasta = new Date("2026-10-01T02:59:59.999Z");
     expect(whereClientes("w1", { ...base, filtros: { alta: "este-mes" }, periodos: { alta: { desde, hasta } } }).createdAt).toEqual({ gte: desde, lte: hasta });
+  });
+});
+
+describe("perfil ampliado en el where", () => {
+  it("categoría CLIENTE incluye a los clientes sin perfil; las otras exigen el perfil", () => {
+    expect(whereClientes("w1", { ...base, filtros: { categoria: "CLIENTE" } }).AND).toEqual([
+      { OR: [{ fotofficePerfil: { is: null } }, { fotofficePerfil: { is: { category: "CLIENTE" } } }] },
+    ]);
+    expect(whereClientes("w1", { ...base, filtros: { categoria: "PROVEEDOR" } }).AND).toEqual([
+      { fotofficePerfil: { is: { category: "PROVEEDOR" } } },
+    ]);
+  });
+  it("una categoría inventada no filtra", () => {
+    expect(whereClientes("w1", { ...base, filtros: { categoria: "OTRA" } })).toEqual({ workspaceId: "w1" });
+  });
+  it("cumple este mes: el mes de Buenos Aires, un rango por año desde 1900", () => {
+    // 01/11 01:00 UTC = 31/10 22:00 en Buenos Aires: el mes es octubre.
+    const ahora = new Date("2026-11-01T01:00:00Z");
+    const w = whereCumpleEnMes(ahora);
+    expect(w.OR).toHaveLength(2026 - 1900 + 1);
+    expect(w.OR![0]).toEqual({ birthday: { gte: new Date("1900-10-01T00:00:00Z"), lt: new Date("1900-11-01T00:00:00Z") } });
+    expect(w.OR!.at(-1)).toEqual({ birthday: { gte: new Date("2026-10-01T00:00:00Z"), lt: new Date("2026-11-01T00:00:00Z") } });
+    const dic = whereCumpleEnMes(new Date("2026-12-15T12:00:00Z"));
+    expect(dic.OR!.at(-1)).toEqual({ birthday: { gte: new Date("2026-12-01T00:00:00Z"), lt: new Date("2027-01-01T00:00:00Z") } });
+    expect(whereClientes("w1", { ...base, filtros: { cumple: "este-mes" } }, ahora).AND).toEqual([{ fotofficePerfil: { is: w } }]);
+  });
+  it("los filtros del perfil se suman a los de campos personalizados", () => {
+    const w = whereClientes("w1", { ...base, filtros: { categoria: "COLABORADOR", cumple: "este-mes" }, campos: { soloIds: ["c1"], buscarIds: [] } });
+    expect(w.AND).toHaveLength(3);
+    expect((w.AND as unknown[])[0]).toEqual({ id: { in: ["c1"] } });
+  });
+  it("categoriaDeFila: sin perfil o con un valor raro cuenta como CLIENTE", () => {
+    expect(categoriaDeFila({ fotofficePerfil: null })).toBe("CLIENTE");
+    expect(categoriaDeFila({ fotofficePerfil: { category: "RARO" } })).toBe("CLIENTE");
+    expect(categoriaDeFila({ fotofficePerfil: { category: "CONTACTO" } })).toBe("CONTACTO");
+  });
+  it("la lista ofrece los filtros y las columnas nuevas", () => {
+    const filtros = listadoClientes.filtros.map((f) => f.clave);
+    expect(filtros).toEqual(expect.arrayContaining(["categoria", "cumple"]));
+    const columnas = listadoClientes.columnas.map((c) => c.clave);
+    expect(columnas).toEqual(expect.arrayContaining(["categoria", "celular", "provincia"]));
   });
 });
 

@@ -10,6 +10,7 @@ import {
   iniciarRecorrido,
   moverEnTransaccion,
   OPCIONES_TRANSACCION,
+  type OpcionesDeEntrada,
 } from "./recorridos";
 import { asegurarCircuitos } from "./semillas/asegurar";
 import { adaptadorDe, type Sujeto } from "./sujetos";
@@ -54,14 +55,21 @@ async function asegurarAlgunCircuito(workspaceId: string): Promise<void> {
  *   circuito y lo mueve a esa etapa como "Sistema". Nunca retrocede ni se queda en el lugar, y el
  *   mismo evento con el mismo `sourceRef` no mueve dos veces (`FotofficeProcessedEvent`).
  */
-export async function notificarEvento(workspaceId: string, sujeto: Sujeto, evento: Evento, sourceRef: string): Promise<{ movido: boolean }> {
+export async function notificarEvento(
+  workspaceId: string,
+  sujeto: Sujeto,
+  evento: Evento,
+  sourceRef: string,
+  entrada: OpcionesDeEntrada = {},
+): Promise<{ movido: boolean }> {
   try {
     if (!(EVENTOS as readonly string[]).includes(evento) || !adaptadorDe(sujeto.tipo)) return { movido: false };
     const ctx = contextoDeSistema(workspaceId);
 
     if (evento === "CONSULTA_RECIBIDA") {
       await asegurarAlgunCircuito(workspaceId);
-      await iniciarRecorrido(ctx, sujeto);
+      // `entrada.sinTareas`: la importación CSV de consultas no crea las tareas de la etapa.
+      await iniciarRecorrido(ctx, sujeto, undefined, entrada);
       return { movido: true };
     }
 

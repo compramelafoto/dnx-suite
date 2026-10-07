@@ -144,6 +144,25 @@ describe("iniciarRecorrido", () => {
   });
 });
 
+describe("sinTareas (importación CSV de consultas)", () => {
+  it("entra a la primera etapa y se mueve sin crear las tareas automáticas; el resto igual", async () => {
+    const { journeyId } = await R.iniciarRecorrido(EQUIPO, CONSULTA, undefined, { sinTareas: true });
+    expect(recorrido(journeyId)).toMatchObject({ stageId: "s1" });
+    expect(pasos(journeyId)).toHaveLength(1);
+    expect(tareas(journeyId)).toHaveLength(0);
+    // Sin tareas pendientes, la etapa que exige tareas no frena el avance.
+    expect(await R.mover(EQUIPO, journeyId, "s2", { nota: "Importada", sinTareas: true })).toEqual({ ok: true });
+    expect(recorrido(journeyId)).toMatchObject({ stageId: "s2" });
+    expect(tareas(journeyId)).toHaveLength(0);
+    expect(lead().status).toBe("CONTACTED");
+  });
+
+  it("sin la opción, las crea como siempre", async () => {
+    const id = await iniciado();
+    expect(tareas(id)).toHaveLength(2);
+  });
+});
+
 describe("mover", () => {
   it("crea el paso y las tareas de la etapa nueva, recalcula el vencimiento y actualiza el estado de la consulta", async () => {
     const id = await iniciado();

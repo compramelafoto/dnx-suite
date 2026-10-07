@@ -402,6 +402,18 @@ export function ShellNav({
           icon: ListPlus,
           isActive: under("/workspace/configuracion/campos"),
         },
+        // Etapa 1: categorías, orígenes, roles y avisos de Consultas, sólo con el módulo encendido.
+        ...(ve(SERVICE_LEADS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/consultas",
+                label: "Consultas",
+                description: "Categorías, orígenes, roles de participante y avisos de consultas nuevas.",
+                icon: Inbox,
+                isActive: under("/workspace/configuracion/consultas"),
+              },
+            ]
+          : []),
         {
           href: "/workspace/configuracion/plantillas",
           label: "Plantillas",

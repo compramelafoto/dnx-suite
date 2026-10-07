@@ -210,7 +210,10 @@ export function categoriaEquivalente(
 
 // --- Topes ------------------------------------------------------------------------------------
 
-/** Filas por importación CSV. */
-export const MAX_FILAS_IMPORTACION = 2000;
+/**
+ * Filas por importación CSV de consultas: se dan de alta de a una (contacto, consulta, número y
+ * circuito cada una), así que 500 entran holgadas en los 300 s de la función.
+ */
+export const MAX_FILAS_IMPORTACION_CONSULTAS = 500;
 /** Consultas viejas que el enganche ata por llamada. */
 export const LOTE_ENGANCHE = 50;

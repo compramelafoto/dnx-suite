@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "@/lib/service-leads/form-definitions";
 import { fechaDeEvento } from "@/lib/ficha/formato";
+import { marcarClienteSiGana } from "@/lib/contactos/perfil";
 import { ESTADOS_CAPTACION } from "../constantes";
 import type { Adaptador, NombreDeSujeto } from "./tipos";
 
@@ -56,6 +57,12 @@ export const adaptadorCaptacion: Adaptador = {
     else if (etapa?.leadStatus && esEstadoDeEtapa(etapa.leadStatus)) status = etapa.leadStatus;
     // Etapa sin estado compatible: la consulta conserva el que tenía.
     if (status === null) return;
-    await tx.serviceSalesLead.updateMany({ where: { id, workspaceId }, data: { status } });
+    const { count } = await tx.serviceSalesLead.updateMany({ where: { id, workspaceId }, data: { status } });
+    // Ganada: su contacto pasa de "Contacto" a "Cliente" (spec §3.3). Las otras categorías no
+    // se tocan. Misma transacción que el cierre.
+    if (status === "WON" && count === 1) {
+      const consulta = await tx.fotofficeConsulta.findFirst({ where: { leadId: id, workspaceId }, select: { clientId: true } });
+      if (consulta) await marcarClienteSiGana(tx, workspaceId, consulta.clientId);
+    }
   },
 };

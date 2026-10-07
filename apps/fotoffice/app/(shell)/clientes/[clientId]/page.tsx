@@ -20,6 +20,12 @@ import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
 import { listMovements } from "@/lib/cash/repository";
 import { MovementsTable } from "@/app/(shell)/caja/movements-table";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { perfilDe } from "@/lib/contactos/perfil";
+import { consultasDelContacto } from "@/lib/contactos/consultas-del-contacto";
+import { ETIQUETA_CATEGORIA_CONTACTO } from "@/lib/consultas/constantes";
+import { PerfilContactoTarjeta } from "@/components/contactos/perfil-contacto";
+import { ConsultasDelContacto } from "@/components/contactos/consultas-del-contacto";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
 
@@ -56,14 +62,30 @@ export default async function ClientePage({
     ? await listMembersAvailableToLink(workspace.id, cliente.member?.id ?? null)
     : [];
 
-  const insignias: InsigniaFicha[] = cliente.member
-    ? [
-        {
-          texto: `También es socio N° ${cliente.member.memberNumber}`,
-          href: `/members/${cliente.member.id}`,
-        },
-      ]
-    : [];
+  // Acceso resuelto una vez: historia (Gestionar en Clientes) y la tarjeta de Consultas (Ver
+  // en Consultas; el nivel ya incluye que el módulo esté encendido). Crear una consulta para
+  // este contacto pide Gestionar en Consultas.
+  const acceso = await resolverAcceso(user.id, workspace.id);
+  const veConsultas = puede(acceso, "ver", SERVICE_LEADS_MODULE_KEY);
+  const creaConsultas = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);
+  const [perfiles, delContacto] = await Promise.all([
+    perfilDe(workspace.id, [cliente.id]),
+    veConsultas ? consultasDelContacto(workspace.id, cliente.id) : Promise.resolve(null),
+  ]);
+  const perfil = perfiles.get(cliente.id);
+  if (!perfil) notFound();
+
+  const insignias: InsigniaFicha[] = [
+    { texto: ETIQUETA_CATEGORIA_CONTACTO[perfil.category] },
+    ...(cliente.member
+      ? [
+          {
+            texto: `También es socio N° ${cliente.member.memberNumber}`,
+            href: `/members/${cliente.member.id}`,
+          },
+        ]
+      : []),
+  ];
 
   // El módulo de Caja es de otro workspace-feature: si está apagado acá, no hay libro que
   // mostrar. Con roles, además, ver Clientes no da derecho a ver la plata: el consumo sale del
@@ -72,7 +94,7 @@ export default async function ClientePage({
   // Con "Gestionar" en Clientes la ficha tiene línea de tiempo, y ahí ya están estos movimientos
   // (filtro Plata, con la misma regla de VIEW en Caja). Sólo sin historia (nivel "Ver") se
   // muestra la lista de Consumo de main, para que nadie pierda lo que hoy ve.
-  const veHistoria = puede(await resolverAcceso(user.id, workspace.id), "operar", CLIENTS_MODULE_KEY);
+  const veHistoria = puede(acceso, "operar", CLIENTS_MODULE_KEY);
   const cajaHabilitada =
     !veHistoria &&
     hasLevel(await getModuleLevel(user.id, workspace.id, CASH_MODULE_KEY), "VIEW");
@@ -124,11 +146,20 @@ export default async function ClientePage({
                 <ClientForm client={cliente} enColumna />
               </fieldset>
             </DatosFicha>
+            <PerfilContactoTarjeta clientId={cliente.id} perfil={perfil} puedeEditar={canEdit} />
             <MasDatos entityType="CLIENTE" entityId={cliente.id} />
           </>
         }
         lateral={
           <>
+            {delContacto ? (
+              <ConsultasDelContacto
+                clientId={cliente.id}
+                consultas={delContacto.consultas}
+                hayMas={delContacto.hayMas}
+                puedeCrear={creaConsultas}
+              />
+            ) : null}
             <DatosFicha titulo="¿Es socio?">
               <p className="text-sm text-[var(--fo-muted)]">
                 {cliente.member ? (

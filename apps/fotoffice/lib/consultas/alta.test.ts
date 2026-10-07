@@ -266,7 +266,7 @@ describe("altaDeConsulta: el formulario web nunca pierde una consulta", () => {
     expect(B.datos.client).toHaveLength(0);
     const leadId = r.ok ? r.leadId : "";
     expect(H.numerar).toHaveBeenCalledWith("ws-1", leadId, expect.any(Date));
-    expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: leadId }, "CONSULTA_RECIBIDA", leadId);
+    expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: leadId }, "CONSULTA_RECIBIDA", leadId, { sinTareas: false });
     expect(H.avisar).toHaveBeenCalledTimes(1);
     expect(H.responder).toHaveBeenCalledWith("ws-1", leadId);
     return r;
@@ -341,7 +341,7 @@ describe("altaDeConsulta: los pasos de después", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(H.numerar).toHaveBeenCalledWith("ws-1", r.leadId, expect.any(Date));
-    expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: r.leadId }, "CONSULTA_RECIBIDA", r.leadId);
+    expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: r.leadId }, "CONSULTA_RECIBIDA", r.leadId, { sinTareas: false });
     expect(H.avisar).toHaveBeenCalledWith("ws-1", r.leadId, { responsableUserId: null, origenDelAlta: "WEB", creadorUserId: null }, {});
     expect(H.responder).toHaveBeenCalledWith("ws-1", r.leadId);
     expect(orden(H.numerar)).toBeLessThan(orden(H.notificar));
@@ -370,6 +370,8 @@ describe("altaDeConsulta: los pasos de después", () => {
     expect(H.avisar).toHaveBeenCalledTimes(2);
     expect(H.numerar).toHaveBeenCalledTimes(3);
     expect(H.notificar).toHaveBeenCalledTimes(3);
+    // Sólo la importación entra al circuito sin las tareas automáticas de la etapa.
+    expect(H.notificar.mock.calls.map((c) => c[4])).toEqual([{ sinTareas: false }, { sinTareas: false }, { sinTareas: true }]);
     await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
     expect(H.responder).toHaveBeenCalledTimes(1);
   });
