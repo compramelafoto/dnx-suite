@@ -9,6 +9,7 @@ import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { leerAjustes } from "@/lib/presupuestos/ajustes";
 import { asegurarAjustesDnx } from "@/lib/presupuestos/semillas";
 import { AjustesForm } from "./ajustes-form";
+import { PestanasPresupuestos } from "./pestanas";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ export default async function ConfiguracionPresupuestosPage() {
         title="Presupuestos"
         description="Validez, condiciones generales y propuesta de pago de los presupuestos nuevos, y el seguimiento."
       />
+      <PestanasPresupuestos activa="ajustes" />
       {!encendido ? (
         <div role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">
           El módulo Presupuestos todavía no está encendido. Podés dejar los ajustes listos; para encenderlo, pedilo desde{" "}

@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { Prisma, prisma } from "@repo/db";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { notificarEvento } from "@/lib/circuitos/eventos";
@@ -28,7 +29,8 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  *   2. circuito (0.4): entra a la primera etapa del circuito predeterminado (la importación,
  *      sin las tareas automáticas de la etapa);
  *   3. aviso al equipo y tarea "Responder consulta" (salvo en la importación);
- *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web.
+ *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web: la propuesta modelo
+ *      de la categoría si sale sola (etapa 2, Entrega B) o, si no salió, la común; nunca las dos.
  *
  * El formulario público NUNCA pierde una consulta: si la transacción falla por algo que no es
  * una validación (la base, un bloqueo, los catálogos, ninguna categoría), se guarda sólo la
@@ -123,6 +125,27 @@ class ErrorDeAlta extends Error {}
 
 /** El formulario web sin ninguna categoría: no es culpa de quien consulta, va al respaldo. */
 const SIN_CATEGORIA = "SIN_CATEGORIA";
+
+/**
+ * Corre `tarea` después de mandar la respuesta (`after` de Next, que en Vercel la mantiene viva
+ * hasta que termina, dentro del `maxDuration` de la ruta). Fuera de un pedido (pruebas, scripts)
+ * `after` lanza al instante y la tarea corre acá mismo, en orden. La tarea nunca lanza: cada paso
+ * atrapa sus errores; si igual lanzara, sólo se registra el código.
+ */
+async function despuesDeResponder(tarea: () => Promise<void>): Promise<void> {
+  const segura = async () => {
+    try {
+      await tarea();
+    } catch (error) {
+      registrarFalla("despuesDeResponder", error);
+    }
+  };
+  try {
+    after(segura);
+  } catch {
+    await segura();
+  }
+}
 
 function registrarFalla(donde: string, error: unknown): void {
   const e = error as { name?: string; code?: string } | null;
@@ -461,13 +484,29 @@ export async function altaDeConsulta(
     }
   }
 
-  // 4. Respuesta automática a la persona: sólo desde el formulario web (spec §3.1 y §3.5).
+  // 4. Respuesta automática a la persona: sólo desde el formulario web (spec §3.1 y §3.5). Primero
+  //    la propuesta modelo de la categoría, si sale sola (etapa 2, Entrega B); si no salió, la
+  //    común. Nunca las dos: la propuesta la reemplaza (y comparten la regla de una por dirección
+  //    cada 24 h). Se carga recién acá: Presupuestos usa el alta y así no hay un ciclo de imports.
+  //    Corre DESPUÉS de responderle al navegador (`despuesDeResponder`): la persona no espera a
+  //    que se arme y se mande el correo.
   if (origenDelAlta === "WEB") {
-    try {
-      await responderConsultaNueva(workspaceId, leadId);
-    } catch (error) {
-      registrarFalla("responderConsultaNueva", error);
-    }
+    await despuesDeResponder(async () => {
+      let comun = true;
+      try {
+        const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
+        comun = correspondeAutorespuestaComun(await enviarPropuestaModelo(workspaceId, leadId, deps));
+      } catch (error) {
+        registrarFalla("enviarPropuestaModelo", error);
+      }
+      if (comun) {
+        try {
+          await responderConsultaNueva(workspaceId, leadId);
+        } catch (error) {
+          registrarFalla("responderConsultaNueva", error);
+        }
+      }
+    });
   }
 
   const avisos: AvisosDelAlta = {};

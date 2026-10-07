@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { CODIGO_ENVIO_EN_CURSO } from "./constantes";
 import { vistaDeMensaje, type MensajeVista } from "./vista-mensaje";
 
 /** Lo que se lee de un mensaje registrado para mostrarlo (línea de tiempo e historial). */
@@ -28,8 +29,23 @@ export const MENSAJES_EN_HISTORIAL = 100;
  * filtra por workspace y tipo.
  */
 export async function mensajesDeConsulta(workspaceId: string, consultaId: string): Promise<MensajeVista[]> {
+  // Etapa 2, Entrega B: el seguimiento automático queda registrado en el presupuesto (para
+  // contarlo por presupuesto); en el historial de la consulta se ve igual.
+  const presupuestos = await prisma.fotofficePresupuesto.findMany({
+    where: { workspaceId, consultaLeadId: consultaId },
+    select: { id: true },
+    take: 200,
+  });
   const leidas = await prisma.fotofficeMessage.findMany({
-    where: { workspaceId, entityType: "CONSULTA", entityId: consultaId },
+    where: {
+      workspaceId,
+      OR: [
+        { entityType: "CONSULTA", entityId: consultaId },
+        ...(presupuestos.length ? [{ entityType: "PRESUPUESTO", entityId: { in: presupuestos.map((p) => p.id) } }] : []),
+      ],
+      // Las reservas de un envío automático en curso (o abandonado) no son mensajes.
+      AND: [{ OR: [{ errorCode: null }, { errorCode: { not: CODIGO_ENVIO_EN_CURSO } }] }],
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: MENSAJES_EN_HISTORIAL,
     select: SELECT_MENSAJE,

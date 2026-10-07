@@ -39,23 +39,25 @@ describe("Configuración → Presupuestos", () => {
     expect(a.startsWith('"use server";')).toBe(true);
     expect(a.match(/^export (?!async function |type )/gm)).toBeNull();
     const acciones = a.split("export async function ").slice(1);
-    expect(acciones.length).toBe(1);
-    for (const cuerpo of acciones) {
+    expect(acciones.length).toBe(3);
+    const llamadas = ["guardarAjustes(", "guardarPropuestaModelo(", "borrarPropuestaModelo("];
+    acciones.forEach((cuerpo, i) => {
       const ctx = cuerpo.indexOf("await contexto()");
       expect(ctx).toBeGreaterThan(0);
-      expect(cuerpo.indexOf("if (!ctx) return SIN_PERMISO;")).toBeGreaterThan(ctx);
-      expect(cuerpo.indexOf("guardarAjustes(")).toBeGreaterThan(ctx);
-    }
+      expect(cuerpo.search(/if \(!ctx\) return SIN_PERMISO(_PROPUESTA)?;/)).toBeGreaterThan(ctx);
+      expect(cuerpo.indexOf(llamadas[i]!)).toBeGreaterThan(ctx);
+    });
     expect(a).toContain('puede(role, "configurar")');
   });
 
-  it("el formulario es de cliente, no importa la base y marca el seguimiento como «Se usa próximamente»", () => {
+  it("el formulario es de cliente, no importa la base y el seguimiento ya no dice «Se usa próximamente»", () => {
     const c = aqui("ajustes-form.tsx");
     expect(c.startsWith('"use client";')).toBe(true);
     expect(c).not.toContain("@repo/db");
     expect(c).not.toContain("@/lib/presupuestos/ajustes");
     expect(c).not.toContain("@/lib/presupuestos/semillas");
-    expect(c).toContain("Se usa próximamente");
+    expect(c).not.toContain("Se usa próximamente");
+    expect(c).toContain("Configuración → Plantillas → Automáticos");
     for (const campo of ['name="validez"', 'name="condiciones"', 'name="propuestaPago"', 'name="seguimiento"', 'name="seguimientoActivo"']) {
       expect(c, campo).toContain(campo);
     }
@@ -71,5 +73,33 @@ describe("Configuración → Presupuestos", () => {
     const config = leer("app", "workspace", "configuracion", "page.tsx");
     expect(config).toContain('"/workspace/configuracion/presupuestos"');
     expect(config).toContain("presupuestosVisible ?");
+  });
+
+  it("propuestas modelo: dos pantallas con `configurar` antes de leer, con pestañas y la categoría del workspace", () => {
+    expect(aqui("page.tsx")).toContain('<PestanasPresupuestos activa="ajustes" />');
+    const lista = aqui("propuestas/page.tsx");
+    const editor = aqui("propuestas/[categoriaId]/page.tsx");
+    for (const p of [lista, editor]) {
+      const guarda = p.indexOf('puede(role, "configurar")');
+      expect(guarda).toBeGreaterThan(p.indexOf("await requireActiveWorkspaceRole()"));
+      for (const lectura of ["prisma.", "listarPropuestasModelo(", "leerPropuestaModelo(", "catalogoParaEditor(", "plantillasParaPropuesta("]) {
+        if (p.includes(lectura)) expect(p.indexOf(lectura), lectura).toBeGreaterThan(guarda);
+      }
+      expect(p).toContain('<PestanasPresupuestos activa="propuestas" />');
+    }
+    expect(editor).toContain("where: { id: categoriaId, workspaceId: workspace.id, archivedAt: null }");
+    expect(editor).toContain("notFound()");
+  });
+
+  it("el editor de la propuesta modelo es de cliente, reutiliza el buscador del catálogo y sólo arma ítems a precio de lista", () => {
+    const c = leer("components", "presupuestos", "editor-propuesta-modelo.tsx");
+    expect(c.startsWith('"use client";')).toBe(true);
+    expect(c).not.toMatch(/@repo\/db|server-only|propuestas-modelo"/);
+    expect(c).toContain("<BuscadorCatalogo");
+    expect(c).toContain('modoPrecio: "LISTA", calculo: null');
+    expect(c).not.toContain("itemLibre");
+    expect(c).not.toContain("PanelCuantoCobro");
+    expect(c).toContain("Enviar sola al llegar una consulta web");
+    expect(leer("components", "presupuestos", "editor-presupuesto.tsx")).toContain("<BuscadorCatalogo");
   });
 });

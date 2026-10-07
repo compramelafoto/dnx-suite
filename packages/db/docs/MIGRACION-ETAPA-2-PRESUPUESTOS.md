@@ -371,3 +371,192 @@ Todo en **DNX Estudio**, con datos de prueba que después se archivan.
 Si el envío dice "El envío de presupuestos no está configurado", falta la clave del enlace en
 Vercel (sección 3). Si la ficha de un producto da error justo después de publicar, falta aplicar el
 SQL (o falló).
+
+---
+
+## 9. Entrega B · Automatismos (propuesta modelo, seguimiento y lista de precios)
+
+Mismo criterio que la Entrega A: **sin staging**, el SQL va directo a la base de producción de
+FOTOFFICE y **antes** que el código. Requiere la Entrega A ya aplicada (las claves foráneas apuntan
+a `FotofficeConsultaCategoria` y `FotofficeMessageTemplate`).
+
+Qué trae esta entrega:
+
+- **Propuesta modelo por categoría** (Configuración → Presupuestos → Propuestas modelo): productos
+  del catálogo a precio de lista, condiciones, la plantilla de correo de tipo Presupuesto y el
+  interruptor «Enviar sola al llegar una consulta web». Encendido, la consulta de esa categoría que
+  llega por el formulario recibe el presupuesto por correo **en lugar de** la respuesta automática
+  común (nunca las dos), con los mismos topes: 50 automáticos por día y una respuesta por dirección
+  cada 24 h. Sólo sale si la respuesta automática común está encendida.
+- **Seguimiento automático:** una tarea diaria manda la plantilla `PRESUPUESTO_SEGUIMIENTO` a los
+  presupuestos enviados o vistos (sin aceptar, rechazar ni vencer) a los N días del último envío.
+- **Variable `[lista_precios]`** en las plantillas de Consulta y Presupuesto: los productos activos
+  marcados «en lista de precios», agrupados por categoría de Ventas, con su precio (hasta 50).
+
+### 9.1 Qué se aplica
+
+| Migración | Checksum (SHA-256 del archivo) |
+|---|---|
+| `20261021120000_fotoffice_etapa_2_propuesta_modelo` | `6366a81410aa21662b6b6316f950754fecbd67b7b08ec3e8cb1d159bd351fd2a` |
+
+Crea **una sola tabla**, `FotofficePropuestaModelo` (una fila por categoría y organización: único
+`workspaceId` + `categoryId`), con claves foráneas a `Workspace` y a la categoría (CASCADE) y a la
+plantilla (SET NULL: si se borra la plantilla, la propuesta queda sin plantilla y no sale sola). No
+toca ninguna tabla existente. La plantilla `PRESUPUESTO_SEGUIMIENTO` **no** necesita SQL: es una
+fila más de `FotofficeMessageTemplate` (tipo `PRESUPUESTO`, que el CHECK ya admite desde la
+Entrega A) y la crea el código la primera vez (Configuración → Plantillas con Presupuestos encendido,
+o la primera corrida del seguimiento).
+
+Antes de aplicar, comprobar el archivo:
+
+```sh
+shasum -a 256 packages/db/prisma/migrations/20261021120000_fotoffice_etapa_2_propuesta_modelo/migration.sql
+```
+
+Si no da el checksum de la tabla, **parar**: el archivo cambió después de escribir este documento.
+
+### 9.2 Orden de publicación
+
+1. Comprobar que no está aplicada:
+
+   ```sql
+   SELECT 1 FROM "_prisma_migrations" WHERE migration_name='20261021120000_fotoffice_etapa_2_propuesta_modelo';
+   ```
+
+2. Aplicar y registrar en **FOTOFFICE producción** (proyecto `compramelafoto`, rama `development`,
+   `divine-hall-10689679` / `br-old-rain-adwthzng`), en una sola transacción:
+
+   ```sql
+   BEGIN;
+   -- pegar acá el contenido completo de migration.sql
+
+   INSERT INTO "_prisma_migrations"
+     (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+   SELECT
+     gen_random_uuid()::text,
+     '6366a81410aa21662b6b6316f950754fecbd67b7b08ec3e8cb1d159bd351fd2a',
+     now(),
+     '20261021120000_fotoffice_etapa_2_propuesta_modelo',
+     NULL, NULL, now(), 1
+   WHERE NOT EXISTS (
+     SELECT 1 FROM "_prisma_migrations" WHERE migration_name = '20261021120000_fotoffice_etapa_2_propuesta_modelo'
+   );
+   COMMIT;
+   ```
+
+3. Verificar (sólo `SELECT`): la tabla existe, está vacía y tiene su único y sus claves foráneas.
+
+   ```sql
+   SELECT count(*) FROM "FotofficePropuestaModelo";                        -- 0
+   SELECT indexname FROM pg_indexes WHERE tablename = 'FotofficePropuestaModelo' ORDER BY 1;
+   -- FotofficePropuestaModelo_categoryId_idx, _pkey, _templateId_idx, _workspaceId_categoryId_key
+   SELECT conname, confdeltype FROM pg_constraint
+    WHERE conrelid = '"FotofficePropuestaModelo"'::regclass AND contype = 'f' ORDER BY 1;
+   -- categoryId_fkey c · templateId_fkey n · workspaceId_fkey c
+   ```
+
+4. Recién entonces se fusiona el PR y se publica el código. Si el código saliera antes, el alta de
+   consultas web **no se cae** (la propuesta modelo está aislada y cae a la respuesta común), pero
+   la pestaña Propuestas modelo daría error.
+
+No hacen falta variables nuevas en Vercel: el seguimiento usa `CRON_SECRET` (o
+`FOTOFFICE_CRON_SECRET`), como las otras tareas, y la clave de los enlaces de la Entrega A
+(`PRESUPUESTO_TOKEN_SECRET` o, si falta, `STORE_ORDER_TOKEN_SECRET`). Sin clave de enlaces, ni la
+propuesta modelo ni el seguimiento salen (la consulta recibe la respuesta común).
+
+### 9.3 La tarea programada nueva
+
+| Ruta | Horario (`vercel.json`) | Qué hace |
+|---|---|---|
+| `/api/cron/presupuestos-seguimiento` | `0 13 * * *` (10:00 de Buenos Aires) | Seguimiento de presupuestos |
+
+- Autenticación igual que las otras de FOTOFFICE: `Authorization: Bearer <CRON_SECRET>` (o
+  `FOTOFFICE_CRON_SECRET`); sin eso, 401. `maxDuration` 300.
+- Sólo revisa organizaciones con el seguimiento **encendido** y el módulo Presupuestos encendido.
+  Mientras nadie lo encienda, cada corrida termina sin mandar nada.
+- Una vez **por versión** enviada de **cada presupuesto** (si se envía la V2, vuelve a contar desde
+  ese envío). El mensaje queda registrado en el presupuesto (`FotofficeMessage.entityType =
+  'PRESUPUESTO'`, `entityId` = el presupuesto; esa columna no tiene CHECK), así dos presupuestos de
+  la misma consulta no se pisan; el historial de la consulta lo muestra igual. Dos corridas a la
+  vez no repiten: candado por presupuesto (`pg_advisory_xact_lock`) y reserva del registro antes de
+  mandar. Cuenta en el tope de 50 automáticos por día, respeta la regla de una respuesta automática por dirección cada
+  24 h (si le tocó otra, se intenta al día siguiente) y manda como mucho **200** por corrida.
+- Sólo mira las versiones enviadas hace entre `followUpDays` y `followUpDays + 30` días (los más
+  viejos ya no reciben seguimiento), sin los vencidos ni los ya seguidos, de a 500 por página: los
+  presupuestos viejos no tapan a los nuevos.
+- Responde sólo contadores: `{ ok, organizaciones, enviados, fallidos, salteados, conTopeDiario, topeCorrida }`.
+- Cada seguimiento queda en el historial de la consulta (mensaje automático y la línea «Se envió el
+  seguimiento automático del presupuesto N° …»).
+
+### 9.4 Detalles de la propuesta que sale sola
+
+- Corre **después** de responderle al navegador (`after` de Next): la persona ve «enviada» sin
+  esperar el correo. El orden número → circuito → aviso → respuesta se mantiene.
+- Dos envíos simultáneos del formulario con la misma dirección: candado por organización y
+  dirección (`pg_advisory_xact_lock`), se vuelve a mirar la regla de 24 h y se reserva el registro
+  del correo antes de crear el presupuesto. El segundo no crea nada ni recibe respuesta. La
+  respuesta común y el seguimiento toman el **mismo** candado y reservan igual: nunca salen dos
+  respuestas automáticas a la misma persona a la vez.
+- Una reserva (`errorCode = 'EN_CURSO'`) que quedó de hace más de una hora (el proceso murió entre
+  reservar y mandar) ya no frena nada y no se muestra en el historial.
+- Si el presupuesto quedó **Enviado** pero el correo no llegó (el proveedor lo rechazó, o algo
+  falló después de congelarlo), el responsable (o el dueño) recibe la tarea **«Revisar envío del
+  presupuesto N° …»** en la consulta, para reenviarlo desde la ficha. Si algo falló después de
+  congelarlo, **no** se manda la respuesta común (el correo pudo haber salido). En el registro queda
+  una fila «Falló» con el código del proveedor o `EN_CURSO`.
+- `[lista_precios]` sólo lee el catálogo si el texto la usa.
+
+### 9.5 Cómo encender el seguimiento
+
+1. Configuración → Presupuestos → Ajustes → **Seguimiento**: días (DNX: 3) y tildar **Activar el
+   seguimiento**. Guardar.
+2. Configuración → Plantillas → **Automáticos** → «Seguimiento de un presupuesto enviado»: revisar
+   el texto (nace encendido con un texto de fábrica; si no trae `[presupuesto_enlace]`, el enlace se
+   agrega al final). Apagarlo ahí también frena el seguimiento.
+
+Para la propuesta modelo: Configuración → Presupuestos → **Propuestas modelo** → la categoría →
+productos, condiciones, plantilla y «Enviar sola al llegar una consulta web». La respuesta
+automática común (Plantillas → Automáticos) tiene que estar encendida.
+
+### 9.6 Rollback
+
+Primero el código (revertir el PR o volver al deploy anterior) y después:
+
+```sql
+BEGIN;
+DROP TABLE "FotofficePropuestaModelo";
+DELETE FROM "_prisma_migrations" WHERE migration_name='20261021120000_fotoffice_etapa_2_propuesta_modelo';
+-- Opcional: la plantilla del seguimiento (el código anterior la ignora).
+DELETE FROM "FotofficeMessageTemplate" WHERE "systemKey" = 'PRESUPUESTO_SEGUIMIENTO';
+COMMIT;
+```
+
+Borra las propuestas modelo (no tiene vuelta atrás). Los presupuestos que ya salieron solos y los
+mensajes de seguimiento quedan: son presupuestos y mensajes comunes. Para frenar sólo el seguimiento
+sin rollback alcanza con destildar «Activar el seguimiento».
+
+### 9.7 Prueba en producción (para Daniel, en el PR)
+
+Todo en **DNX Estudio**, con una consulta de prueba hecha desde el formulario web con **un correo
+propio de Daniel** (y otro correo distinto para cada prueba, por la regla de 24 h).
+
+1. **Lista de precios:** marcar dos productos «en lista de precios». En Configuración → Plantillas,
+   abrir una plantilla de correo de Consulta, sumar `[lista_precios]` y ver la vista previa (o
+   mandarla a la consulta de prueba): aparecen esos productos con su precio.
+2. **Propuesta modelo:** en Configuración → Presupuestos → Propuestas modelo, armar la de **Boda**
+   con dos productos, elegir «Te enviamos tu presupuesto» y encender «Enviar sola…». Con la
+   respuesta automática encendida, mandar una consulta de Boda desde el formulario web. Comprobar:
+   - llega **un solo correo**, el del presupuesto (no la respuesta común), con el enlace;
+   - en la consulta hay un presupuesto **Enviado**, con número, a precio de lista de hoy, con el
+     responsable de Consultas (o Daniel);
+   - una segunda consulta desde el mismo correo en menos de 24 h **no recibe nada**.
+3. **Sin propuesta:** una consulta de otra categoría desde otro correo recibe la respuesta común.
+4. **Seguimiento:** activar el seguimiento a **1 día**. Al día siguiente, después de las 10, el
+   presupuesto del punto 2 (si no se aceptó) recibe el correo de seguimiento, y el historial lo
+   muestra. Al otro día no se repite. Volver a poner 3 días.
+   - Para no esperar, se puede llamar a la tarea a mano:
+     `curl -H "Authorization: Bearer $CRON_SECRET" https://<dominio de FOTOFFICE>/api/cron/presupuestos-seguimiento`
+     (**manda correos reales** a las organizaciones que tengan el seguimiento encendido: hacerlo sólo
+     con DNX como única encendida).
+5. **Limpieza:** apagar «Enviar sola…» si no se va a usar todavía, y archivar las consultas y
+   contactos de prueba.

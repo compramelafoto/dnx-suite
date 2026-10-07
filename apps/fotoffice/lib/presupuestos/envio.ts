@@ -4,8 +4,8 @@ import { notificarEvento } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import { numeroDe } from "@/lib/numeracion/asignar";
-import { CANALES, MAX_ASUNTO, TOPE_CORREOS_DIA, type Canal } from "@/lib/plantillas/constantes";
-import { contextoDe, correoValido, type ContextoMensaje } from "@/lib/plantillas/contexto";
+import { CANALES, MAX_ASUNTO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, type Canal } from "@/lib/plantillas/constantes";
+import { conListaDePrecios, contextoDe, correoValido, type ContextoMensaje } from "@/lib/plantillas/contexto";
 import { listarPlantillas, plantillaParaUsar } from "@/lib/plantillas/definiciones";
 import {
   abrirWhatsapp,
@@ -120,12 +120,12 @@ function idValido(v: unknown): v is string {
   return typeof v === "string" && v.length > 0 && v.length <= 64;
 }
 
-function origenDe(deps: DepsEnvioPresupuesto): string {
+export function origenDe(deps: DepsEnvioPresupuesto): string {
   return (deps.appOrigin ?? (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")).replace(/\/+$/, "");
 }
 
 /** "aaaa-mm-dd" → "dd/mm/aaaa". */
-function ddmmaaaa(fecha: Date | null): string | null {
+export function ddmmaaaa(fecha: Date | null): string | null {
   const t = textoDeFecha(fecha);
   return t ? t.split("-").reverse().join("/") : null;
 }
@@ -139,15 +139,16 @@ export function conEnlace(cuerpo: string, enlace: string): string {
   return `${cuerpo.slice(0, i).trimEnd()}\n\n${linea}\n\n${cuerpo.slice(i)}`;
 }
 
-type Fuente = { asunto: string | null; cuerpo: string; templateId: string | null };
+export type Fuente = { asunto: string | null; cuerpo: string; templateId: string | null };
 
 /** El texto a completar: el que llegó o el de la plantilla (PRESUPUESTO o GENERAL, del canal). */
-async function fuenteDelTexto(workspaceId: string, canal: Canal, datos: DatosEnvioPresupuesto): Promise<Fuente | Falla> {
+async function fuenteDelTexto(workspaceId: string, canal: Canal, datos: DatosEnvioPresupuesto, automatico = false): Promise<Fuente | Falla> {
   let templateId: string | null = null;
   let plantilla: { subject: string | null; body: string } | null = null;
   if (datos.templateId !== undefined && datos.templateId !== null && datos.templateId !== "") {
     const p = await plantillaParaUsar(workspaceId, datos.templateId, canal, "PRESUPUESTO");
-    if (!p) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
+    // El envío automático sólo sale con una plantilla de PRESUPUESTO (no GENERAL), como exige `enviarCorreo`.
+    if (!p || (automatico && p.entityType !== "PRESUPUESTO")) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
     templateId = p.id;
     plantilla = { subject: p.subject, body: p.body };
   }
@@ -159,10 +160,10 @@ async function fuenteDelTexto(workspaceId: string, canal: Canal, datos: DatosEnv
   return { asunto: canal === "EMAIL" ? (plantilla.subject ?? "") : null, cuerpo: plantilla.body, templateId };
 }
 
-type ValoresPresupuesto = NonNullable<ContextoMensaje["variables"]["presupuesto"]>;
+export type ValoresPresupuesto = NonNullable<ContextoMensaje["variables"]["presupuesto"]>;
 
 /** Completa el texto con las variables (las del presupuesto incluidas) y lo deja listo para enviar. */
-function textosFinales(
+export function textosFinales(
   contexto: ContextoMensaje,
   canal: Canal,
   fuente: Fuente,
@@ -181,6 +182,9 @@ type Hecho =
   | { tipo: "REPETIDO" }
   | { tipo: "NUEVA" | "REENVIO"; versionId: string; validUntil: Date | null; numero: string | null; totals: TotalesGuardados | null };
 
+/** Quién envía: una persona del equipo (con "Gestionar") o el sistema (la propuesta modelo, Entrega B). */
+type Emisor = { workspaceId: string; ctxEnvio: CtxEnvio; nombre: string | null; automatico: boolean; registroId?: string };
+
 export async function enviarPresupuesto(
   ctx: CtxPresupuestos,
   presupuestoId: unknown,
@@ -188,11 +192,43 @@ export async function enviarPresupuesto(
   deps: DepsEnvioPresupuesto = {},
 ): Promise<ResultadoEnvioPresupuesto> {
   if (!puedeGestionarPresupuestos(ctx)) return no(MENSAJES_PRESUPUESTO.sinPermiso);
+  const ctxEnvio: CtxEnvio = { workspaceId: ctx.workspaceId, userId: ctx.userId, userLabel: ctx.userLabel, role: ctx.role, acceso: ctx.acceso };
+  return enviarComo({ workspaceId: ctx.workspaceId, ctxEnvio, nombre: ctx.userLabel ?? null, automatico: false }, presupuestoId, datos, deps);
+}
+
+/**
+ * El sistema envía el borrador de un presupuesto por correo con una plantilla de PRESUPUESTO (la
+ * propuesta modelo de la consulta web, `./propuesta-automatica.ts`). Sin usuario ni permisos: lo
+ * llama sólo el servidor. Es un correo AUTOMÁTICO: cuenta en el tope de los automáticos
+ * (`TOPE_AUTOMATICOS_DIA`), no en el de los manuales, y queda registrado con `automatic=true`.
+ * La regla de una respuesta por dirección cada 24 h la mira quien llama, antes de crear nada; con
+ * `registroId` el registro completa la reserva que hizo quien llama (`reservarEnvioAutomatico`).
+ */
+export async function enviarPresupuestoDelSistema(
+  workspaceId: string,
+  presupuestoId: string,
+  templateId: string,
+  deps: DepsEnvioPresupuesto = {},
+  opciones: { registroId?: string } = {},
+): Promise<ResultadoEnvioPresupuesto> {
+  const ctxEnvio: CtxEnvio = { workspaceId, userId: null, userLabel: null, userName: null, userEmail: null, role: null };
+  const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId };
+  return enviarComo(emisor, presupuestoId, { canal: "EMAIL", templateId }, deps);
+}
+
+async function enviarComo(
+  emisor: Emisor,
+  presupuestoId: unknown,
+  datos: DatosEnvioPresupuesto,
+  deps: DepsEnvioPresupuesto,
+): Promise<ResultadoEnvioPresupuesto> {
   if (!idValido(presupuestoId) || !datos || typeof datos !== "object") return no(MENSAJES_PRESUPUESTO.datosInvalidos);
   if (typeof datos.canal !== "string" || !(CANALES as readonly string[]).includes(datos.canal)) return no(MENSAJES_ENVIO_PRESUPUESTO.canal);
   const canal = datos.canal as Canal;
+  // El sistema sólo envía por correo (WhatsApp abre un enlace que alguien tiene que mandar).
+  if (emisor.automatico && canal !== "EMAIL") return no(MENSAJES_ENVIO_PRESUPUESTO.canal);
   const reenviar = datos.reenviar === true;
-  const { workspaceId } = ctx;
+  const { workspaceId } = emisor;
   const ahora = (deps.ahora ?? (() => new Date()))();
 
   const clave = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
@@ -211,11 +247,12 @@ export async function enviarPresupuesto(
   if (!sitio || !urlDelPresupuesto({ ...sitio, appOrigin: origen, token: "x" })) return no(MENSAJES_ENVIO_PRESUPUESTO.sinSitio);
 
   // Lo que puede fallar sin depender del envío, ANTES de congelar.
-  const fuente = await fuenteDelTexto(workspaceId, canal, datos);
+  const fuente = await fuenteDelTexto(workspaceId, canal, datos, emisor.automatico);
   if ("ok" in fuente) return fuente;
-  const usuario = { nombre: ctx.userLabel ?? null, email: null };
-  const contexto = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, usuario, ahora);
-  if (!contexto) return no(MENSAJES_PRESUPUESTO.consulta);
+  const usuario = { nombre: emisor.nombre, email: null };
+  const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, usuario, ahora);
+  if (!leido) return no(MENSAJES_PRESUPUESTO.consulta);
+  const contexto = await conListaDePrecios(workspaceId, leido, fuente.asunto, fuente.cuerpo);
   if (canal === "EMAIL" && !correoValido(contexto.destino.email)) return no(MENSAJES_ENVIO.sinCorreo);
   if (canal === "WHATSAPP" && !normalizeWhatsappNumber(contexto.destino.telefono)) return no(MENSAJES_ENVIO.sinWhatsapp);
   const borradorAntes = await prisma.fotofficePresupuestoVersion.findFirst({
@@ -231,7 +268,14 @@ export async function enviarPresupuesto(
     vence: ddmmaaaa(datosDeEnvio(ahora, ajustes).validUntil),
   });
   if (!prueba.ok) return prueba;
-  if (canal === "EMAIL" && (await correosEnviadosHoy(workspaceId, ahora)) >= TOPE_CORREOS_DIA) return no(MENSAJES_ENVIO.tope);
+  if (canal === "EMAIL") {
+    // Cada grupo con su tope: los automáticos no consumen el de los manuales (ni al revés).
+    if (emisor.automatico) {
+      if ((await correosEnviadosHoy(workspaceId, ahora, true)) >= TOPE_AUTOMATICOS_DIA) return no(MENSAJES_ENVIO.topeAutomaticos);
+    } else if ((await correosEnviadosHoy(workspaceId, ahora)) >= TOPE_CORREOS_DIA) {
+      return no(MENSAJES_ENVIO.tope);
+    }
+  }
 
   let hecho: Hecho;
   try {
@@ -317,12 +361,16 @@ export async function enviarPresupuesto(
   });
   if (!textos.ok) return quedoEnviado(textos.error);
 
-  const ctxEnvio: CtxEnvio = { workspaceId, userId: ctx.userId, userLabel: ctx.userLabel, role: ctx.role, acceso: ctx.acceso };
+  const { ctxEnvio } = emisor;
   const opciones = { modulo: QUOTES_MODULE_KEY, tipoPlantilla: "PRESUPUESTO" as const };
   if (canal === "EMAIL") {
     const r = await enviarCorreo(
       ctxEnvio,
-      { entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: fuente.templateId, asunto: textos.asunto, cuerpo: textos.cuerpo },
+      {
+        entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: fuente.templateId, asunto: textos.asunto, cuerpo: textos.cuerpo,
+        automatico: emisor.automatico,
+        ...(emisor.registroId ? { registroId: emisor.registroId } : {}),
+      },
       { enviar: deps.enviar, ahora: () => ahora },
       opciones,
     );

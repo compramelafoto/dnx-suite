@@ -5,10 +5,11 @@ import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
 import {
-  CARACTER_MARCADOR, CLAVE_FIRMA, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, ZONA_HORARIA, type Canal, type ClaveAutomatico,
+  CARACTER_MARCADOR, CLAVE_FIRMA, CODIGO_ENVIO_EN_CURSO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA,
+  VIDA_RESERVA_MS, ZONA_HORARIA, type Canal, type ClaveAutomatico,
   type TipoPlantilla,
 } from "./constantes";
-import { contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
+import { conListaDePrecios, contextoDe, correoValido, type ContextoMensaje, type TipoFichaMensaje } from "./contexto";
 import { plantillaParaUsar } from "./definiciones";
 import { analizar, completar, tieneMarcadorSinCompletar } from "./motor";
 import { cuerpoCorreoHtml, cuerpoCorreoTexto, textoWhatsapp } from "./render";
@@ -121,7 +122,8 @@ export async function prepararMensaje(
   }
   const plantilla = await plantillaParaUsar(ctx.workspaceId, datos.templateId, datos.canal, datos.entityType);
   if (!plantilla) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
-  const r = completarTextos(contexto, datos.entityType, datos.canal === "EMAIL" ? plantilla.subject : null, plantilla.body);
+  const conLista = await conListaDePrecios(ctx.workspaceId, contexto, plantilla.subject, plantilla.body);
+  const r = completarTextos(conLista, datos.entityType, datos.canal === "EMAIL" ? plantilla.subject : null, plantilla.body);
   if (!r.ok) return r;
   return {
     ...r,
@@ -170,6 +172,19 @@ async function validarPlantilla(
     return automatico ? no(MENSAJES_ENVIO.plantillaNoEncontrada) : { ok: true, id: null };
   }
   if (typeof templateId !== "string" || templateId.length > 100) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  // Etapa 2, Entrega B: la propuesta modelo que sale sola va con una plantilla común de correo de
+  // PRESUPUESTO del workspace, y el seguimiento con la automática `PRESUPUESTO_SEGUIMIENTO`
+  // (encendida). Sólo el código del servidor pide ese tipo (`opciones.tipoPlantilla`).
+  if (automatico && tipo === "PRESUPUESTO") {
+    const f = await prisma.fotofficeMessageTemplate.findFirst({
+      where: {
+        id: templateId, workspaceId, channel: canal, entityType: "PRESUPUESTO", archivedAt: null,
+        OR: [{ systemKey: null }, { systemKey: CLAVE_SEGUIMIENTO, enabled: true }],
+      },
+      select: { id: true },
+    });
+    return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  }
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
       where: {
@@ -188,6 +203,8 @@ async function validarPlantilla(
 
 /** La única automática que va a la persona de la ficha. */
 const CLAVE_RESPUESTA_A_LA_PERSONA: ClaveAutomatico = "CONSULTA_AUTORESPUESTA";
+/** El seguimiento de un presupuesto (Entrega B): también va a la persona de la consulta. */
+const CLAVE_SEGUIMIENTO: ClaveAutomatico = "PRESUPUESTO_SEGUIMIENTO";
 
 /**
  * Asunto, HTML y texto listos para el transporte a partir de textos ya completados
@@ -297,7 +314,79 @@ export type DatosCorreo = {
   asunto: unknown;
   cuerpo: unknown;
   automatico?: boolean;
+  /**
+   * Sólo los automáticos de presupuestos (Entrega B), desde el servidor:
+   * - `registroId`: la reserva que ya hicieron (`reservarEnvioAutomatico`, con su candado); el
+   *   registro la completa en vez de crear otra fila;
+   * - `registrarEn`: la ficha donde queda el registro, si no es la del destinatario (el
+   *   seguimiento queda en el presupuesto, `PRESUPUESTO` + su id, para contarlo por presupuesto).
+   */
+  registroId?: string;
+  registrarEn?: { entityType: "PRESUPUESTO"; entityId: string };
 };
+
+export { CODIGO_ENVIO_EN_CURSO };
+
+/** Filtro: sin las reservas abandonadas (EN_CURSO de hace más de `VIDA_RESERVA_MS`). */
+export function sinReservasViejas(ahora: Date): Prisma.FotofficeMessageWhereInput {
+  return {
+    OR: [
+      { errorCode: null },
+      { errorCode: { not: CODIGO_ENVIO_EN_CURSO } },
+      { createdAt: { gte: new Date(ahora.getTime() - VIDA_RESERVA_MS) } },
+    ],
+  };
+}
+
+/**
+ * Candado por organización y dirección (dentro de una transacción): lo toman todas las respuestas
+ * automáticas a una persona (la común, la propuesta modelo y el seguimiento) antes de mirar la
+ * regla de 24 h y reservar, así dos a la vez no le mandan dos correos.
+ */
+export async function candadoDeDireccion(tx: Pick<Prisma.TransactionClient, "$executeRaw">, workspaceId: string, email: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-respuesta-web:${workspaceId}:${email.trim().toLowerCase()}`}))`;
+}
+
+/**
+ * Reserva el registro de un envío automático ANTES de mandarlo (dentro de la transacción que tiene
+ * el candado de quien llama): una fila FALLIDA con el código `EN_CURSO` que cuenta para la regla
+ * de una respuesta por dirección cada 24 h y para "ya se mandó", así otra corrida o un pedido
+ * simultáneo no manda lo mismo. `enviarCorreo` (con `registroId`) la completa; si no llega a
+ * enviarse, quien reservó la borra (`liberarReserva`).
+ */
+export async function reservarEnvioAutomatico(
+  cliente: Pick<Prisma.TransactionClient, "fotofficeMessage">,
+  datos: { workspaceId: string; entityType: string; entityId: string; templateId: string | null; toAddress: string },
+): Promise<string> {
+  const fila = await cliente.fotofficeMessage.create({
+    data: {
+      workspaceId: datos.workspaceId,
+      channel: "EMAIL",
+      entityType: datos.entityType,
+      entityId: datos.entityId,
+      templateId: datos.templateId,
+      toAddress: datos.toAddress,
+      subject: null,
+      body: "",
+      status: "FAILED",
+      automatic: true,
+      errorCode: CODIGO_ENVIO_EN_CURSO,
+      actorUserId: null,
+      actorLabel: "Automático",
+    },
+    select: { id: true },
+  });
+  return fila.id;
+}
+
+/** Borra una reserva que no se llegó a usar (sigue `EN_CURSO`). Nunca lanza. */
+export async function liberarReserva(workspaceId: string, id: string): Promise<void> {
+  try {
+    await prisma.fotofficeMessage.deleteMany({ where: { id, workspaceId, errorCode: CODIGO_ENVIO_EN_CURSO } });
+  } catch (e) {
+    console.error("[plantillas] no se pudo liberar una reserva de envío", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+  }
+}
 
 /**
  * Envía un correo a la persona del registro y lo registra (`SENT` o `FAILED`). El tope diario se
@@ -349,26 +438,31 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
   const fallo = resultado.status === "SENT" ? null : resultado;
   let mensajeId: string | null = null;
   try {
-    const fila = await prisma.fotofficeMessage.create({
-      data: {
-        workspaceId: ctx.workspaceId,
-        channel: "EMAIL",
-        entityType: datos.entityType,
-        entityId: datos.entityId,
-        templateId: plantilla.id,
-        toAddress: para,
-        subject: fa.texto,
-        body: vc.cuerpo.split(CARACTER_MARCADOR).join(""),
-        status: fallo ? "FAILED" : "SENT",
-        automatic: automatico,
-        providerId: resultado.status === "SENT" ? resultado.providerId : null,
-        errorCode: fallo ? codigoDeError(fallo) : null,
-        actorUserId: ctx.userId,
-        actorLabel: automatico ? "Automático" : ctx.userLabel,
-      },
-      select: { id: true },
-    });
-    mensajeId = fila.id;
+    const registro = {
+      workspaceId: ctx.workspaceId,
+      channel: "EMAIL",
+      entityType: datos.registrarEn?.entityType ?? datos.entityType,
+      entityId: datos.registrarEn?.entityId ?? datos.entityId,
+      templateId: plantilla.id,
+      toAddress: para,
+      subject: fa.texto,
+      body: vc.cuerpo.split(CARACTER_MARCADOR).join(""),
+      status: fallo ? "FAILED" : "SENT",
+      automatic: automatico,
+      providerId: resultado.status === "SENT" ? resultado.providerId : null,
+      errorCode: fallo ? codigoDeError(fallo) : null,
+      actorUserId: ctx.userId,
+      actorLabel: automatico ? "Automático" : ctx.userLabel,
+    };
+    if (datos.registroId) {
+      // Completa la reserva (la fecha queda la de la reserva: es la que vio el candado).
+      const r = await prisma.fotofficeMessage.updateMany({
+        where: { id: datos.registroId, workspaceId: ctx.workspaceId, errorCode: CODIGO_ENVIO_EN_CURSO },
+        data: registro,
+      });
+      if (r.count === 1) mensajeId = datos.registroId;
+    }
+    if (mensajeId === null) mensajeId = (await prisma.fotofficeMessage.create({ data: registro, select: { id: true } })).id;
   } catch (e) {
     // Sólo el código: nunca la dirección ni el cuerpo.
     console.error("[plantillas] no se pudo registrar el mensaje", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });

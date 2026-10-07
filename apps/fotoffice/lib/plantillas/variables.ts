@@ -28,6 +28,8 @@ export type ContextoVariables = {
   socio?: { numero: string | null };
   /** Sólo al enviar un presupuesto (etapa 2): ya formateados para leer. */
   presupuesto?: { numero: string | null; enlace: string | null; total: string | null; vence: string | null };
+  /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
+  listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
   campos: Record<string, string>;
 };
@@ -123,6 +125,7 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "consulta_lugar", etiqueta: "Lugar del evento", descripcion: "El lugar del evento.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.lugar) },
   { clave: "consulta_mensaje", etiqueta: "Mensaje de la consulta", descripcion: "Lo que escribió la persona al consultar.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.mensaje) },
   { clave: "consulta_etapa", etiqueta: "Etapa de la consulta", descripcion: "La etapa actual de la consulta en su recorrido.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.etapa) },
+  { clave: "lista_precios", etiqueta: "Lista de precios", descripcion: "Los productos del catálogo marcados «en lista de precios», con su precio en pesos (hasta 50).", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.listaPrecios) },
   // Presupuesto (etapa 2)
   { clave: "presupuesto_numero", etiqueta: "Número de presupuesto", descripcion: "El número del presupuesto (se asigna al enviarlo por primera vez).", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.numero) },
   { clave: "presupuesto_enlace", etiqueta: "Enlace al presupuesto", descripcion: "La dirección donde la persona ve y acepta el presupuesto.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.enlace) },

@@ -7197,6 +7197,7 @@ model Workspace {
   fotofficePresupuestoVersiones FotofficePresupuestoVersion[]
   fotofficePresupuestoVistas FotofficePresupuestoVista[]
   fotofficePresupuestoAjustes FotofficePresupuestoAjustes?
+  fotofficePropuestasModelo FotofficePropuestaModelo[]
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -20430,8 +20431,9 @@ model FotofficeMessageTemplate {
   updatedAt       DateTime  @updatedAt
   updatedByUserId Int?
 
-  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  messages  FotofficeMessage[]
+  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages         FotofficeMessage[]
+  propuestasModelo FotofficePropuestaModelo[]
 
   @@index([workspaceId, channel, archivedAt, order])
 }
@@ -20525,8 +20527,9 @@ model FotofficeConsultaCategoria {
   legacyEventType String?
   createdAt       DateTime  @default(now())
 
-  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  consultas FotofficeConsulta[]
+  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  consultas        FotofficeConsulta[]
+  propuestasModelo FotofficePropuestaModelo[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, archivedAt, order])
@@ -20791,6 +20794,30 @@ model FotofficePresupuestoAjustes {
   updatedAt       DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Propuesta modelo de una categoría de consulta (Entrega B): ítems predefinidos (sólo del
+/// catálogo y a precio de lista, validados por `lib/presupuestos/propuestas-modelo.ts`),
+/// condiciones y la plantilla de PRESUPUESTO para mandarla. Con `autoSendOnWeb`, la consulta que
+/// llega por el formulario web la recibe sola en lugar de la respuesta automática común.
+model FotofficePropuestaModelo {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  categoryId      String
+  items           Json
+  terms           String?
+  autoSendOnWeb   Boolean  @default(false)
+  templateId      String?
+  updatedAt       DateTime @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category  FotofficeConsultaCategoria @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  template  FotofficeMessageTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, categoryId])
+  @@index([categoryId])
+  @@index([templateId])
 }
 
 // ---------------------------------------------------------------------------

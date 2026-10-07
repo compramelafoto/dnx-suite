@@ -8,6 +8,7 @@ import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-s
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { resolverPersonaPorCliente, resolverPersonaPorSocio } from "@/lib/ficha/persona";
 import { numeroDe } from "@/lib/numeracion/asignar";
+import { listaDePrecios } from "@/lib/presupuestos/lista-precios";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "@/lib/service-leads/form-definitions";
 import type { ContextoVariables } from "./variables";
 
@@ -213,6 +214,26 @@ export async function contextoDe(
     remitente: { nombre: org.organizationName, replyTo: contacto.email },
     camposActivos: campos.activos,
   };
+}
+
+/** ¿Alguno de los textos usa `[lista_precios]` (o `[si:lista_precios]`)? */
+export function usaListaDePrecios(...textos: (string | null | undefined)[]): boolean {
+  return textos.some((t) => typeof t === "string" && t.includes("lista_precios"));
+}
+
+/**
+ * `[lista_precios]` (etapa 2, Entrega B) se lee SÓLO si el texto la usa: arma la lista con una
+ * lectura del catálogo y la suma al contexto de una consulta. En otra ficha, o si ningún texto la
+ * menciona, devuelve el mismo contexto sin leer nada.
+ */
+export async function conListaDePrecios(
+  workspaceId: string,
+  contexto: ContextoMensaje,
+  ...textos: (string | null | undefined)[]
+): Promise<ContextoMensaje> {
+  if (!contexto.variables.consulta || !usaListaDePrecios(...textos)) return contexto;
+  const listaPrecios = await listaDePrecios(workspaceId);
+  return { ...contexto, variables: { ...contexto.variables, listaPrecios } };
 }
 
 /**

@@ -7,6 +7,8 @@ const H = vi.hoisted(() => ({
   upsert: vi.fn(async (_datos: unknown) => ({ id: "a1" })),
   updateMany: vi.fn(async () => ({ count: 1 })),
   modulo: vi.fn(async () => false),
+  guardarPM: vi.fn(async (..._a: unknown[]): Promise<{ ok: true } | { ok: false; error: string }> => ({ ok: true })),
+  borrarPM: vi.fn(async (..._a: unknown[]): Promise<{ ok: true } | { ok: false; error: string }> => ({ ok: true })),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -14,6 +16,7 @@ vi.mock("@repo/db", () => ({
   prisma: { fotofficePresupuestoAjustes: { upsert: H.upsert, updateMany: H.updateMany, findUnique: vi.fn() } },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
+vi.mock("@/lib/presupuestos/propuestas-modelo", () => ({ guardarPropuestaModelo: H.guardarPM, borrarPropuestaModelo: H.borrarPM }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("@/lib/access/active-context", () => ({
   requireActiveWorkspaceRole: vi.fn(async () => ({
@@ -85,5 +88,37 @@ describe("guardarAjustesPresupuestosAction", () => {
     const r = await A.guardarAjustesPresupuestosAction(undefined, fd({ ...VALIDO, condiciones: "x".repeat(4001) }));
     expect(r.error).toMatch(/4000/);
     expect(H.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("acciones de la propuesta modelo", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    H.role.mockReturnValue("WORKSPACE_OWNER");
+  });
+
+  it("sin `configurar` no guardan ni borran", async () => {
+    H.role.mockReturnValue("WORKSPACE_MEMBER");
+    expect((await A.guardarPropuestaModeloAction({ categoriaId: "cat", items: [] })).ok).toBe(false);
+    expect((await A.borrarPropuestaModeloAction("cat")).ok).toBe(false);
+    expect(H.guardarPM).not.toHaveBeenCalled();
+    expect(H.borrarPM).not.toHaveBeenCalled();
+  });
+
+  it("usan el workspace de la sesión y pasan sólo los campos conocidos", async () => {
+    const datos = { categoriaId: "cat", items: [], condiciones: "c", enviarSola: false, plantillaId: null, workspaceId: "otro" };
+    expect(await A.guardarPropuestaModeloAction(datos)).toEqual({ ok: true });
+    const [ctx, pasados] = H.guardarPM.mock.calls[0]! as [{ workspaceId: string }, Record<string, unknown>];
+    expect(ctx.workspaceId).toBe("ws-1");
+    expect(pasados).toEqual({ categoriaId: "cat", items: [], condiciones: "c", enviarSola: false, plantillaId: null });
+    expect(H.revalidate).toHaveBeenCalledWith("/workspace/configuracion/presupuestos/propuestas", "layout");
+    expect(await A.borrarPropuestaModeloAction("cat")).toEqual({ ok: true });
+    expect((H.borrarPM.mock.calls[0]![0] as { workspaceId: string }).workspaceId).toBe("ws-1");
+  });
+
+  it("devuelven el error de la validación sin revalidar", async () => {
+    H.guardarPM.mockResolvedValueOnce({ ok: false, error: "No encontramos esa categoría." });
+    expect(await A.guardarPropuestaModeloAction({ categoriaId: "x", items: [] })).toEqual({ ok: false, error: "No encontramos esa categoría." });
+    expect(H.revalidate).not.toHaveBeenCalled();
   });
 });

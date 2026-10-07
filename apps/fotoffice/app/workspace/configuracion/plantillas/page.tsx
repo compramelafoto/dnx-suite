@@ -15,7 +15,7 @@ import {
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
-import { asegurarPlantillasPresupuesto } from "@/lib/presupuestos/plantillas";
+import { asegurarPlantillaSeguimiento, asegurarPlantillasPresupuesto } from "@/lib/presupuestos/plantillas";
 import { prisma } from "@repo/db";
 import { AutomaticoForm } from "./automatico-form";
 import type { CamposPorTipo, OpcionTipo } from "./editor-texto";
@@ -65,7 +65,10 @@ export default async function ConfiguracionPlantillasPage({
     isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
   ]);
   // Las de envío de presupuestos (etapa 2), con su módulo encendido.
-  if (conPresupuestos) await asegurarPlantillasPresupuesto(workspace.id);
+  if (conPresupuestos) {
+    await asegurarPlantillasPresupuesto(workspace.id);
+    await asegurarPlantillaSeguimiento(workspace.id);
+  }
   const etiquetas: Record<TipoPlantilla, string> = {
     GENERAL: "General",
     CLIENTE: "Clientes",
@@ -82,9 +85,11 @@ export default async function ConfiguracionPlantillasPage({
   const conCaptacion = encendidos.includes("CONSULTA");
   const auto = await leerAutomatico(workspace.id, "CONSULTA_AUTORESPUESTA");
   const aviso = await leerAutomatico(workspace.id, "CONSULTA_AVISO_EQUIPO");
+  const seguimiento = conPresupuestos ? await leerAutomatico(workspace.id, "PRESUPUESTO_SEGUIMIENTO") : null;
   // Automáticos se ve con Captación encendida o, sin ella, mientras la respuesta siga encendida:
   // así se puede apagar (con el módulo apagado no sale, pero no debe quedar prendida a escondidas).
-  const conAutomaticos = conCaptacion || auto?.enabled === true;
+  // Con Presupuestos encendido, también: ahí está el seguimiento (Entrega B).
+  const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos;
 
   const pestanas = PESTANAS.filter((p) => p.slug !== "automaticos" || conAutomaticos);
   const { canal: pedido } = await searchParams;
@@ -124,6 +129,7 @@ export default async function ConfiguracionPlantillasPage({
   } else {
     const def = AUTOMATICOS.CONSULTA_AUTORESPUESTA;
     const defAviso = AUTOMATICOS.CONSULTA_AVISO_EQUIPO;
+    const defSeguimiento = AUTOMATICOS.PRESUPUESTO_SEGUIMIENTO;
     contenido = (
       <div className="space-y-6">
         <AutomaticoForm
@@ -151,6 +157,21 @@ export default async function ConfiguracionPlantillasPage({
           soloApagar={!conCaptacion}
           descripcion="Cuando entra una consulta nueva (por el formulario o cargada a mano), se le manda este correo al responsable de consultas nuevas, o al dueño si no hay. Va con el remitente de FOTOFFICE y queda en el historial de la consulta. No cuenta en el tope diario de correos: tiene el suyo, de 100 avisos por día; pasado ese número sólo se crea la tarea. Quién lo recibe y si se crea la tarea se configura en Configuración → Consultas → Avisos."
         />
+        {conPresupuestos ? (
+          <AutomaticoForm
+            clave="PRESUPUESTO_SEGUIMIENTO"
+            nombre={defSeguimiento.nombre}
+            canal={defSeguimiento.canal}
+            tipo={defSeguimiento.tipo}
+            encendido={seguimiento?.enabled ?? false}
+            actualizado={seguimiento?.updatedAt.toISOString() ?? ""}
+            asunto={seguimiento?.subject ?? ""}
+            cuerpo={seguimiento?.body ?? ""}
+            campos={campos[defSeguimiento.tipo]}
+            soloApagar={false}
+            descripcion="Recordatorio a la persona de un presupuesto enviado que todavía no aceptó ni rechazó, a los días elegidos en Configuración → Presupuestos (donde también se enciende el seguimiento). Sale una vez por versión enviada, a las 10 de la mañana, y cuenta en el tope de correos automáticos. Si no tiene el enlace al presupuesto, se agrega al final."
+          />
+        ) : null}
       </div>
     );
   }
