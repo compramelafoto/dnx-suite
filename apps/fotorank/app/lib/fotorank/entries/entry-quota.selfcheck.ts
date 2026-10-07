@@ -13,6 +13,8 @@ import {
   DEFAULT_MAX_ENTRIES_PER_REGISTRATION,
   canCreateEntry,
   resolveEntryQuota,
+  resolvePolicyMaxEntries,
+  resolveRegistrationEntryLimit,
 } from "./entry-quota";
 
 // ===========================================================================
@@ -134,4 +136,45 @@ const partial = canCreateEntry({ policyMaxEntries: 3, currentEntryCount: 1 });
 assert.equal(partial.allowed, true);
 assert.equal(partial.allowed && partial.remainingAfter, 1);
 
-console.log("entry-quota.selfcheck.ts OK — compatibilidad, cupo por paquete y config inválida");
+// ===========================================================================
+// 4. ORIGEN DEL LÍMITE — política explícita o "Máx. archivos" de la categoría
+// ===========================================================================
+
+// Retratos del mundo 2026: sin política y categorías con 3 → 3 obras.
+// Antes caía al default de 1 aunque el organizador hubiera configurado 3.
+assert.equal(resolvePolicyMaxEntries(null, 3), 3);
+assert.equal(resolvePolicyMaxEntries({}, 3), 3);
+assert.equal(resolvePolicyMaxEntries({ publicUploadOpen: true }, 3), 3);
+
+// Santa Fe en Foco: política explícita de 1 manda sobre la categoría.
+assert.equal(resolvePolicyMaxEntries({ maxEntriesPerRegistration: 1 }, 1), 1);
+assert.equal(resolvePolicyMaxEntries({ maxEntriesPerRegistration: 1 }, 3), 1);
+assert.equal(resolvePolicyMaxEntries({ maxEntriesPerRegistration: 2 }, 5), 2);
+
+// Sin política ni categoría válida → default histórico.
+assert.equal(resolvePolicyMaxEntries(null, null), DEFAULT_MAX_ENTRIES_PER_REGISTRATION);
+assert.equal(resolvePolicyMaxEntries(null, 0), DEFAULT_MAX_ENTRIES_PER_REGISTRATION);
+assert.equal(resolvePolicyMaxEntries(null, 1.5), DEFAULT_MAX_ENTRIES_PER_REGISTRATION);
+
+// Una política inválida no se ignora a favor de la categoría: falla cerrado a 1.
+assert.equal(resolvePolicyMaxEntries({ maxEntriesPerRegistration: "3" }, 3), DEFAULT_MAX_ENTRIES_PER_REGISTRATION);
+assert.equal(resolvePolicyMaxEntries({ maxEntriesPerRegistration: 0 }, 3), DEFAULT_MAX_ENTRIES_PER_REGISTRATION);
+
+// El tope absoluto también aplica al valor de la categoría.
+assert.equal(
+  resolveEntryQuota({ policyMaxEntries: resolvePolicyMaxEntries(null, 500), currentEntryCount: 0 }).limit,
+  ABSOLUTE_MAX_ENTRIES_PER_REGISTRATION,
+);
+
+// Lo que se le muestra al participante coincide con la puerta.
+assert.equal(resolveRegistrationEntryLimit({ uploadPolicyJson: null, categoryMaxFiles: 3 }), 3);
+assert.equal(
+  resolveRegistrationEntryLimit({ uploadPolicyJson: null, categoryMaxFiles: 3, purchasedEntriesCount: 2 }),
+  2,
+);
+assert.equal(
+  resolveRegistrationEntryLimit({ uploadPolicyJson: { maxEntriesPerRegistration: 1 }, categoryMaxFiles: 3 }),
+  1,
+);
+
+console.log("entry-quota.selfcheck.ts OK — compatibilidad, cupo por paquete, config inválida y origen del límite");

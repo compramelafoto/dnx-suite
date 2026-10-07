@@ -37,6 +37,7 @@
     "test:css:cascade": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/public-ux/globals-cascade.selfcheck.ts",
     "test:entries:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.selfcheck.ts",
     "test:entries:integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries.integration.selfcheck.ts",
+    "test:entries:multi-integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries-multi.integration.selfcheck.ts",
     "test:entries:upload-timeout": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/upload-timeout-config.selfcheck.ts",
     "test:entries:eligibility-form": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/eligibility-form.selfcheck.ts",
     "test:entries:staged-upload": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/staged-upload.selfcheck.ts",

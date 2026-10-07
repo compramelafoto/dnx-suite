@@ -23,6 +23,8 @@ export type NextActionInput = {
   needsRulesReacceptance?: boolean;
   /** En detalle, evita CTA “Ver detalle” autorreferencial. */
   surface?: "list" | "detail";
+  /** Lugares libres del cupo de obras. Ausente = 0 (concurso de una foto). */
+  remainingEntries?: number;
 };
 
 /**
@@ -148,6 +150,16 @@ export function resolveParticipantNextAction(input: NextActionInput): Participan
   }
 
   if (entry === "CONFIRMED" || input.admissionStatus === "ADMITTED" || input.admissionStatus === "FROZEN_FOR_JURY") {
+    // Concursos de varias fotos: la primera ya está enviada, pero el cupo no.
+    if (input.upload.isOpen && (input.remainingEntries ?? 0) > 0) {
+      return {
+        key: "add_photo",
+        label: "Subir otra fotografía",
+        href: inscriptionHref,
+        variant: "primary",
+        enabled: true,
+      };
+    }
     return {
       key: onDetail ? "view_contest" : "view_detail",
       label: onDetail ? "Ver concurso" : "Consultar participación",
