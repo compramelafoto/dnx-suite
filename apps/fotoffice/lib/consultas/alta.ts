@@ -28,7 +28,8 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  *   2. circuito (0.4): entra a la primera etapa del circuito predeterminado (la importación,
  *      sin las tareas automáticas de la etapa);
  *   3. aviso al equipo y tarea "Responder consulta" (salvo en la importación);
- *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web.
+ *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web: la propuesta modelo
+ *      de la categoría si sale sola (etapa 2, Entrega B) o, si no salió, la común; nunca las dos.
  *
  * El formulario público NUNCA pierde una consulta: si la transacción falla por algo que no es
  * una validación (la base, un bloqueo, los catálogos, ninguna categoría), se guarda sólo la
@@ -461,12 +462,24 @@ export async function altaDeConsulta(
     }
   }
 
-  // 4. Respuesta automática a la persona: sólo desde el formulario web (spec §3.1 y §3.5).
+  // 4. Respuesta automática a la persona: sólo desde el formulario web (spec §3.1 y §3.5). Primero
+  //    la propuesta modelo de la categoría, si sale sola (etapa 2, Entrega B); si no salió, la
+  //    común. Nunca las dos: la propuesta la reemplaza (y comparten la regla de una por dirección
+  //    cada 24 h). Se carga recién acá: Presupuestos usa el alta y así no hay un ciclo de imports.
   if (origenDelAlta === "WEB") {
+    let comun = true;
     try {
-      await responderConsultaNueva(workspaceId, leadId);
+      const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
+      comun = correspondeAutorespuestaComun(await enviarPropuestaModelo(workspaceId, leadId, deps));
     } catch (error) {
-      registrarFalla("responderConsultaNueva", error);
+      registrarFalla("enviarPropuestaModelo", error);
+    }
+    if (comun) {
+      try {
+        await responderConsultaNueva(workspaceId, leadId);
+      } catch (error) {
+        registrarFalla("responderConsultaNueva", error);
+      }
     }
   }
 

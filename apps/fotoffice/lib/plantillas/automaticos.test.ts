@@ -321,7 +321,10 @@ describe("sólo el formulario público responde", () => {
     // (y sólo con ese origen: lo prueban lib/consultas/alta.test.ts).
     expect(quienesLlaman()).toEqual(["lib/consultas/alta.ts", "lib/plantillas/automaticos.ts"]);
     const alta = readFileSync(path.resolve(__dirname, "../consultas/alta.ts"), "utf8");
-    expect(alta).toMatch(/if \(origenDelAlta === "WEB"\) \{\s*try \{\s*await responderConsultaNueva\(/);
+    // Entrega B: dentro de la rama WEB, primero la propuesta modelo y la común sólo si corresponde.
+    expect(alta).toMatch(
+      /if \(origenDelAlta === "WEB"\) \{\s*let comun = true;[\s\S]*?enviarPropuestaModelo\([\s\S]*?if \(comun\) \{\s*try \{\s*await responderConsultaNueva\(/,
+    );
     const formulario = readFileSync(path.resolve(__dirname, "../../app/actions/service-lead.ts"), "utf8");
     expect(formulario).toContain('{ origenDelAlta: "WEB" }');
     // Y nadie más pide el origen WEB: ni las altas manuales ni la importación.

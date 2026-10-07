@@ -170,6 +170,15 @@ async function validarPlantilla(
     return automatico ? no(MENSAJES_ENVIO.plantillaNoEncontrada) : { ok: true, id: null };
   }
   if (typeof templateId !== "string" || templateId.length > 100) return no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  // La propuesta modelo que sale sola (etapa 2, Entrega B) va con una plantilla común de correo de
+  // PRESUPUESTO del workspace. Sólo el código del servidor pide ese tipo (`opciones.tipoPlantilla`).
+  if (automatico && tipo === "PRESUPUESTO") {
+    const f = await prisma.fotofficeMessageTemplate.findFirst({
+      where: { id: templateId, workspaceId, channel: canal, entityType: "PRESUPUESTO", systemKey: null, archivedAt: null },
+      select: { id: true },
+    });
+    return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  }
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
       where: {

@@ -12,6 +12,8 @@ const H = vi.hoisted(() => ({
   notificar: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({ movido: true })),
   avisar: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({})),
   responder: vi.fn(async (..._a: unknown[]): Promise<unknown> => "ENVIADO"),
+  // Entrega B: la propuesta modelo que sale sola (tiene sus pruebas en propuesta-automatica.test).
+  propuesta: vi.fn(async (..._a: unknown[]): Promise<string> => "NO_APLICA"),
   nivel: vi.fn(async (..._a: unknown[]) => true),
 }));
 
@@ -24,6 +26,11 @@ vi.mock("@/lib/service-leads/numero", () => ({
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
 vi.mock("@/lib/plantillas/automaticos", () => ({ responderConsultaNueva: H.responder }));
 vi.mock("./aviso", () => ({ avisarConsultaNueva: H.avisar }));
+vi.mock("@/lib/presupuestos/propuesta-automatica", () => ({
+  enviarPropuestaModelo: H.propuesta,
+  // Igual que la real: la común va salvo que la propuesta haya salido o no corresponda responder.
+  correspondeAutorespuestaComun: (r: string) => r !== "ENVIADA" && r !== "APAGADA" && r !== "YA_RESPONDIDO",
+}));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
 
 const A = await import("./alta");
@@ -48,7 +55,8 @@ const orden = (f: { mock: { invocationCallOrder: number[] } }) => f.mock.invocat
 let errores: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   B.vaciar();
-  for (const f of [H.numerar, H.notificar, H.avisar, H.responder]) f.mockClear();
+  for (const f of [H.numerar, H.notificar, H.avisar, H.responder, H.propuesta]) f.mockClear();
+  H.propuesta.mockResolvedValue("NO_APLICA");
   H.numerar.mockResolvedValue({ display: "2026-0001" });
   H.notificar.mockImplementation(async (ws: unknown, sujeto: unknown) => {
     // Como el motor real: abre el recorrido de venta de la consulta.
@@ -343,10 +351,40 @@ describe("altaDeConsulta: los pasos de después", () => {
     expect(H.numerar).toHaveBeenCalledWith("ws-1", r.leadId, expect.any(Date));
     expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: r.leadId }, "CONSULTA_RECIBIDA", r.leadId, { sinTareas: false });
     expect(H.avisar).toHaveBeenCalledWith("ws-1", r.leadId, { responsableUserId: null, origenDelAlta: "WEB", creadorUserId: null }, {});
+    expect(H.propuesta).toHaveBeenCalledWith("ws-1", r.leadId, {});
     expect(H.responder).toHaveBeenCalledWith("ws-1", r.leadId);
     expect(orden(H.numerar)).toBeLessThan(orden(H.notificar));
     expect(orden(H.notificar)).toBeLessThan(orden(H.avisar));
-    expect(orden(H.avisar)).toBeLessThan(orden(H.responder));
+    expect(orden(H.avisar)).toBeLessThan(orden(H.propuesta));
+    expect(orden(H.propuesta)).toBeLessThan(orden(H.responder));
+  });
+
+  it("propuesta modelo (Entrega B): si salió, no va la común; nunca salen las dos", async () => {
+    H.propuesta.mockResolvedValue("ENVIADA");
+    expect((await A.altaDeConsulta(SISTEMA, ENTRADA, WEB)).ok).toBe(true);
+    expect(H.propuesta).toHaveBeenCalledTimes(1);
+    expect(H.responder).not.toHaveBeenCalled();
+  });
+
+  it("propuesta modelo: apagada la respuesta automática o ya respondida esa dirección, no sale ninguna", async () => {
+    for (const r of ["APAGADA", "YA_RESPONDIDO"]) {
+      H.propuesta.mockResolvedValueOnce(r);
+      await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+    }
+    expect(H.responder).not.toHaveBeenCalled();
+  });
+
+  it("propuesta modelo: sin propuesta, con tope, con falla o si explota, cae a la común (una sola vez)", async () => {
+    for (const r of ["NO_APLICA", "TOPE", "FALLO", "ERROR", "SIN_CORREO"]) {
+      H.responder.mockClear();
+      H.propuesta.mockResolvedValueOnce(r);
+      expect((await A.altaDeConsulta(SISTEMA, ENTRADA, WEB)).ok, r).toBe(true);
+      expect(H.responder, r).toHaveBeenCalledTimes(1);
+    }
+    H.responder.mockClear();
+    H.propuesta.mockRejectedValueOnce(Object.assign(new Error("caída"), { code: "X" }));
+    expect((await A.altaDeConsulta(SISTEMA, ENTRADA, WEB)).ok).toBe(true);
+    expect(H.responder).toHaveBeenCalledTimes(1);
   });
 
   it("cada paso aislado: si uno explota, la consulta queda y los demás corren", async () => {
@@ -367,6 +405,7 @@ describe("altaDeConsulta: los pasos de después", () => {
       expect((await A.altaDeConsulta(EQUIPO, ENTRADA, { origenDelAlta })).ok).toBe(true);
     }
     expect(H.responder).not.toHaveBeenCalled();
+    expect(H.propuesta).not.toHaveBeenCalled();
     expect(H.avisar).toHaveBeenCalledTimes(2);
     expect(H.numerar).toHaveBeenCalledTimes(3);
     expect(H.notificar).toHaveBeenCalledTimes(3);

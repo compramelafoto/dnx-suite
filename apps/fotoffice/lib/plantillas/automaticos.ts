@@ -28,9 +28,11 @@ export type ResultadoAutomatico =
 
 /**
  * ¿Ya salió (o se intentó) una respuesta automática a esta dirección en las últimas 24 h? Cuenta
- * también las fallidas: un proveedor que rechaza no habilita reintentos en cadena.
+ * también las fallidas: un proveedor que rechaza no habilita reintentos en cadena. La usa también
+ * la propuesta modelo que sale sola (`lib/presupuestos/propuesta-automatica.ts`): las dos son
+ * respuestas automáticas a la misma persona y comparten la regla.
  */
-async function yaRespondida(workspaceId: string, email: string, ahora: Date): Promise<boolean> {
+export async function yaRespondida(workspaceId: string, email: string, ahora: Date): Promise<boolean> {
   const previo = await prisma.fotofficeMessage.findFirst({
     where: {
       workspaceId,
