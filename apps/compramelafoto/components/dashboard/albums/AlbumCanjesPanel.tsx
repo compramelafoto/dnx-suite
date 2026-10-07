@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import type { AlbumVoucherRow } from "@/lib/canje-externo/album-vouchers";
+import { copyPendingText } from "@/lib/clipboard/copy-pending-text";
 
 /**
  * Panel "Canjes": los combos que la fotógrafa cobró por fuera, con el estado de cada familia
@@ -36,6 +37,8 @@ export default function AlbumCanjesPanel({ albumId }: { albumId: number }) {
   const [enviando, setEnviando] = useState<number | null>(null);
   const [enviados, setEnviados] = useState<Set<number>>(new Set());
   const [copiado, setCopiado] = useState<{ id: number; que: "link" | "mensaje" } | null>(null);
+  /** El navegador no dejó copiar: el texto queda a la vista para copiarlo a mano. */
+  const [aMano, setAMano] = useState<{ id: number; texto: string } | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [curso, setCurso] = useState("");
 
@@ -88,16 +91,24 @@ export default function AlbumCanjesPanel({ albumId }: { albumId: number }) {
     }
   }
 
+  // Sin `await` antes de copiar: el permiso del toque se pierde mientras se espera el link
+  // (ver `copy-pending-text`).
   async function copiar(comboId: number, que: "link" | "mensaje") {
     setError(null);
+    setAMano(null);
     try {
-      const share = await pedirLink(comboId);
-      await navigator.clipboard.writeText(que === "link" ? share.link : share.message);
-      setCopiado({ id: comboId, que });
+      const { text, copied } = await copyPendingText(
+        pedirLink(comboId).then((share) => (que === "link" ? share.link : share.message))
+      );
       setEnviados((prev) => new Set(prev).add(comboId));
+      if (!copied) {
+        setAMano({ id: comboId, texto: text });
+        return;
+      }
+      setCopiado({ id: comboId, que });
       setTimeout(() => setCopiado((c) => (c?.id === comboId && c.que === que ? null : c)), 2500);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos copiar.");
+      setError(e instanceof Error ? e.message : "No pudimos generar el link. Probá de nuevo.");
     }
   }
 
@@ -199,7 +210,7 @@ export default function AlbumCanjesPanel({ albumId }: { albumId: number }) {
               const estado = ESTADO[c.estado];
               const yaEnviado = enviados.has(c.comboId);
               return (
-                <li key={c.comboId} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <li key={c.comboId} className="flex flex-col gap-2 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="m-0 font-medium text-[#1a1a1a]">
                       {c.studentName ?? "Sin nombre"}
@@ -259,6 +270,23 @@ export default function AlbumCanjesPanel({ albumId }: { albumId: number }) {
                       </button>
                     </div>
                   )}
+                  {aMano?.id === c.comboId ? (
+                    <div className="w-full basis-full rounded-lg bg-[#fff4e5] p-3 text-sm text-[#7a4a12]">
+                      <p className="m-0 font-medium">
+                        Este navegador no dejó copiar solo. Está seleccionado: copialo (mantené apretado o Cmd/Ctrl+C)
+                        y pegalo en el chat.
+                      </p>
+                      <textarea
+                        readOnly
+                        value={aMano.texto}
+                        rows={aMano.texto.length > 120 ? 5 : 2}
+                        autoFocus
+                        onFocus={(e) => e.currentTarget.select()}
+                        className="mt-2 w-full rounded-md border border-[#e8c99a] bg-white p-2 text-[13px] text-[#1f2328]"
+                        aria-label="Texto para copiar"
+                      />
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
