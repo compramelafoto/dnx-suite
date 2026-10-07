@@ -19,6 +19,13 @@ import {
 } from "@/lib/ficha/etiquetas-listado";
 import { camposParaListado, conCampos, restriccionDeCampos } from "@/lib/campos/listado";
 import { clientDisplayName } from "./display";
+import { hoyEnBuenosAires } from "@/lib/listado/periodos";
+import {
+  CATEGORIA_CONTACTO_SIN_PERFIL,
+  CATEGORIAS_CONTACTO,
+  ETIQUETA_CATEGORIA_CONTACTO,
+  esCategoriaContacto,
+} from "@/lib/consultas/constantes";
 
 const SELECT_FILA = {
   id: true,
@@ -38,6 +45,8 @@ const SELECT_FILA = {
   createdAt: true,
   member: { select: { memberNumber: true } },
   fotofficeTags: SELECT_ETIQUETAS,
+  // Perfil ampliado (etapa 1). Sin fila, el cliente cuenta como CLIENTE.
+  fotofficePerfil: { select: { category: true, mobile: true, province: true } },
 } satisfies Prisma.ClientSelect;
 
 export type FilaCliente = Prisma.ClientGetPayload<{ select: typeof SELECT_FILA }>;
@@ -51,8 +60,30 @@ const ETIQUETA_ESTADO: Record<string, string> = { ACTIVO: "Activo", INACTIVO: "I
 const fechaAR = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" });
 const etiquetaIva = (v: string) => IVA_CONDITION_LABELS[v as IvaCondition] ?? v;
 
+/** Categoría de contacto de una fila (sin perfil = CLIENTE). */
+export function categoriaDeFila(f: { fotofficePerfil?: { category: string } | null }): (typeof CATEGORIAS_CONTACTO)[number] {
+  const c = f.fotofficePerfil?.category;
+  return esCategoriaContacto(c) ? c : CATEGORIA_CONTACTO_SIN_PERFIL;
+}
+
+/** Año más viejo de un cumpleaños válido (`validarPerfil` no acepta antes de 1900). */
+const PRIMER_ANIO_CUMPLE = 1900;
+
+/**
+ * Filtro "Cumple este mes" (mes de Buenos Aires). `birthday` es una fecha de calendario (DATE) y
+ * Prisma no filtra por mes: se arma un rango por año, de 1900 al actual (las fechas válidas).
+ */
+export function whereCumpleEnMes(ahora: Date = new Date()): Prisma.FotofficeContactoPerfilWhereInput {
+  const [anio, mes] = hoyEnBuenosAires(ahora).split("-").map(Number) as [number, number];
+  const rangos: Prisma.FotofficeContactoPerfilWhereInput[] = [];
+  for (let y = PRIMER_ANIO_CUMPLE; y <= anio; y++) {
+    rangos.push({ birthday: { gte: new Date(Date.UTC(y, mes - 1, 1)), lt: new Date(Date.UTC(y, mes, 1)) } });
+  }
+  return { OR: rangos };
+}
+
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre, primero. */
-export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.ClientWhereInput {
+export function whereClientes(workspaceId: string, c: ConsultaResuelta, ahora: Date = new Date()): Prisma.ClientWhereInput {
   const where: Prisma.ClientWhereInput = { workspaceId };
   const campos = restriccionDeCampos(c);
   const q = c.q.trim();
@@ -77,6 +108,18 @@ export function whereClientes(workspaceId: string, c: ConsultaResuelta): Prisma.
   if (c.filtros.etiqueta) where.fotofficeTags = { some: { tagId: c.filtros.etiqueta } };
   if (c.filtros.movimientos === "si") where.movements = { some: {} };
   else if (c.filtros.movimientos === "no") where.movements = { none: {} };
+  // Perfil ampliado. Los dos filtros pueden ir juntos: van como AND sobre la relación.
+  const perfil: Prisma.ClientWhereInput[] = [];
+  const categoria = c.filtros.categoria;
+  if (esCategoriaContacto(categoria)) {
+    perfil.push(
+      categoria === CATEGORIA_CONTACTO_SIN_PERFIL
+        ? { OR: [{ fotofficePerfil: { is: null } }, { fotofficePerfil: { is: { category: categoria } } }] }
+        : { fotofficePerfil: { is: { category: categoria } } },
+    );
+  }
+  if (c.filtros.cumple === "este-mes") perfil.push({ fotofficePerfil: { is: whereCumpleEnMes(ahora) } });
+  if (perfil.length > 0) where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), ...perfil];
   return where;
 }
 
@@ -194,6 +237,17 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
     { clave: "telefono", titulo: "Teléfono", secundaria: true, celda: (f) => f.phone ?? "—" },
     { clave: "socio", titulo: "Socio", celda: (f) => f.member?.memberNumber ?? "—" },
     {
+      clave: "categoria",
+      titulo: "Categoría",
+      celda: (f) => (
+        <span className="rounded-full bg-[var(--fo-accent-soft)] px-2 py-0.5 text-xs text-[var(--fo-text)]">
+          {ETIQUETA_CATEGORIA_CONTACTO[categoriaDeFila(f)]}
+        </span>
+      ),
+    },
+    { clave: "celular", titulo: "Celular", secundaria: true, celda: (f) => f.fotofficePerfil?.mobile ?? "—" },
+    { clave: "provincia", titulo: "Provincia", secundaria: true, celda: (f) => f.fotofficePerfil?.province ?? "—" },
+    {
       clave: "estado",
       titulo: "Estado",
       celda: (f) => (
@@ -208,6 +262,13 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
   filtros: [
     { tipo: "opcion", clave: "tipo", etiqueta: "Tipo", opciones: CLIENT_KINDS.map((v) => ({ valor: v, etiqueta: ETIQUETA_TIPO[v] })) },
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: CLIENT_STATUSES.map((v) => ({ valor: v, etiqueta: ETIQUETA_ESTADO[v] })) },
+    {
+      tipo: "opcion",
+      clave: "categoria",
+      etiqueta: "Categoría de contacto",
+      opciones: CATEGORIAS_CONTACTO.map((v) => ({ valor: v, etiqueta: ETIQUETA_CATEGORIA_CONTACTO[v] })),
+    },
+    { tipo: "opcion", clave: "cumple", etiqueta: "Cumpleaños", opciones: [{ valor: "este-mes", etiqueta: "Cumple este mes" }] },
     { tipo: "relacion", clave: "etiqueta", etiqueta: "Etiqueta", conBuscador: true },
     { tipo: "periodo", clave: "alta", etiqueta: "Alta" },
     // Plata de Caja: sólo con Ver en Caja, como el Consumo de main.
@@ -278,6 +339,9 @@ export const listadoClientes: DefinicionListado<FilaCliente> = {
       { titulo: "Ciudad", tipo: "texto", valor: (f) => f.city },
       { titulo: "Estado", tipo: "texto", valor: (f) => ETIQUETA_ESTADO[f.status] ?? f.status },
       { titulo: "Socio N°", tipo: "texto", valor: (f) => f.member?.memberNumber ?? null },
+      { titulo: "Categoría de contacto", tipo: "texto", valor: (f) => ETIQUETA_CATEGORIA_CONTACTO[categoriaDeFila(f)] },
+      { titulo: "Celular", tipo: "texto", valor: (f) => f.fotofficePerfil?.mobile ?? null },
+      { titulo: "Provincia", tipo: "texto", valor: (f) => f.fotofficePerfil?.province ?? null },
       { titulo: "Alta", tipo: "fechaHora", valor: (f) => f.createdAt },
     ],
   },
