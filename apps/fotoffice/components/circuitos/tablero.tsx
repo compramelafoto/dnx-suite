@@ -6,6 +6,7 @@ import { useRef, useState, useSyncExternalStore, useTransition, type DragEvent }
 import { cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
+import { formatoPesos } from "@/lib/consultas/valor";
 import type { Tablero as DatosTablero, TarjetaVista } from "@/lib/circuitos/tablero";
 import { AltaRapida } from "@/components/consultas/alta-rapida";
 import { DialogoGanada } from "./dialogo-ganada";
@@ -276,6 +277,9 @@ export function Tablero({
                   {col.total}
                 </span>
               </header>
+              <p className="px-1 text-xs tabular-nums text-[var(--fo-muted)]" title="Suma del valor estimado de las consultas de esta columna">
+                Valor: {formatoPesos(col.valorTotal)}
+              </p>
               {indice === 0 && altaRapida && circuito.predeterminado && altaRapida.categorias.length > 0 ? <AltaRapida categorias={altaRapida.categorias} /> : null}
               <ul className="flex flex-col gap-2">
                 {col.tarjetas.map((t) => {

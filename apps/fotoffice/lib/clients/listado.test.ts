@@ -121,7 +121,7 @@ describe("etiquetas", () => {
   });
   it("las opciones son + y - por cada etiqueta del workspace", async () => {
     tagFindMany.mockResolvedValue([{ id: "t1", name: "VIP" }]);
-    expect(await accion.parametro!.opciones(ctx)).toEqual([
+    expect(await accion.parametro!.opciones!(ctx)).toEqual([
       { valor: "+t1", etiqueta: "Agregar VIP" },
       { valor: "-t1", etiqueta: "Quitar VIP" },
     ]);

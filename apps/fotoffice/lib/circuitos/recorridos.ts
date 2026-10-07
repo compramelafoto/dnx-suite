@@ -42,6 +42,8 @@ export const MENSAJES = {
   noEsDelEquipo: "Esa persona no es del equipo.",
   sinCircuito: "No hay un circuito para empezar.",
   sinEtapas: "Ese circuito no tiene etapas activas.",
+  mismoCircuito: "Ya está en ese circuito.",
+  circuitoInvalido: "Ese circuito no existe o no está activo.",
 } as const;
 
 export function mensajeTareasPendientes(pendientes: string[]): string {
@@ -447,11 +449,20 @@ export async function cambiarVencimiento(
   });
 }
 
-/** Asigna (o quita, con null) el responsable de un recorrido abierto. Sólo miembros del workspace. */
-export async function asignarResponsable(ctx: CtxCircuitos, journeyId: string, userId: number | null): Promise<Resultado> {
+/**
+ * Asigna (o quita, con null) el responsable de un recorrido abierto. Sólo miembros del workspace.
+ * Con `nota` (las acciones en lote) queda además en el historial, como un paso de la etapa a sí
+ * misma con esa nota; la ficha, como siempre, no deja paso.
+ */
+export async function asignarResponsable(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  userId: number | null,
+  opts: { nota?: string } = {},
+): Promise<Resultado> {
   const { workspaceId } = ctx;
   return enTransaccion(async (tx) => {
-    const j = await tx.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { id: true, closedAt: true } });
+    const j = await tx.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { id: true, closedAt: true, stageId: true } });
     if (!j) throw new Rechazo(MENSAJES.noEncontrado);
     if (j.closedAt !== null) throw new Rechazo(MENSAJES.cerrado);
     if (userId !== null) {
@@ -460,6 +471,64 @@ export async function asignarResponsable(ctx: CtxCircuitos, journeyId: string, u
     }
     const actualizado = await tx.fotofficeJourney.updateMany({ where: { id: j.id, workspaceId, closedAt: null }, data: { ownerUserId: userId } });
     if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cerrado);
+    const nota = opts.nota?.trim();
+    if (nota) {
+      await tx.fotofficeJourneyStep.create({
+        data: { journeyId: j.id, fromStageId: j.stageId, toStageId: j.stageId, note: nota, actorUserId: ctx.userId, actorLabel: ctx.userLabel },
+      });
+    }
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Pasa un recorrido abierto a otro circuito activo de su misma clase: entra en la primera etapa
+ * activa de ese circuito, con su vencimiento y sus tareas modelo, como si recién empezara ahí.
+ * Es el mismo recorrido (conserva responsable e historial): el paso queda con la nota
+ * "Pasó al circuito «…»". Las tareas de la etapa anterior quedan como están. Con `esperado`,
+ * sólo lo pasa si el recorrido sigue en la etapa desde ese momento.
+ */
+export async function cambiarDeCircuito(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  circuitoId: string,
+  opts: { esperado?: Date } = {},
+): Promise<Resultado> {
+  const { workspaceId } = ctx;
+  return enTransaccion(async (tx) => {
+    const j = await recorridoAbierto(tx, workspaceId, journeyId);
+    const circuito = await tx.fotofficeCircuit.findFirst({
+      where: { id: circuitoId, workspaceId, isActive: true, kind: j.kind },
+      select: { id: true, name: true },
+    });
+    if (!circuito) throw new Rechazo(MENSAJES.circuitoInvalido);
+    if (circuito.id === j.circuitId) throw new Rechazo(MENSAJES.mismoCircuito);
+    const primera = await tx.fotofficeStage.findFirst({
+      where: { circuitId: circuito.id, circuit: { workspaceId }, archivedAt: null },
+      select: { id: true, days: true, leadStatus: true },
+      orderBy: { order: "asc" },
+    });
+    if (!primera) throw new Rechazo(MENSAJES.sinEtapas);
+
+    const ahora = new Date();
+    const actualizado = await tx.fotofficeJourney.updateMany({
+      where: { id: j.id, workspaceId, circuitId: j.circuitId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
+      data: { circuitId: circuito.id, stageId: primera.id, enteredStageAt: ahora, stageDueAt: vencimientoDeEtapa(ahora, primera.days) },
+    });
+    if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
+    await tx.fotofficeJourneyStep.create({
+      data: {
+        journeyId: j.id,
+        fromStageId: j.stageId,
+        toStageId: primera.id,
+        note: `Pasó al circuito «${circuito.name}».`,
+        actorUserId: ctx.userId,
+        actorLabel: ctx.userLabel,
+        createdAt: ahora,
+      },
+    });
+    await crearTareasDeEtapa(tx, ctx, j, primera.id, ahora);
+    await adaptadorDe(j.subjectType)?.alCambiarEtapa?.(tx, workspaceId, j.subjectId, { leadStatus: primera.leadStatus }, null);
     return { ok: true as const };
   });
 }

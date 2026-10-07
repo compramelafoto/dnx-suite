@@ -56,7 +56,11 @@ async function accionesVisibles<F>(def: DefinicionListado<F>, ctx: ContextoLista
     permitidas.map(async (a) => ({
       clave: a.clave,
       etiqueta: a.etiqueta,
-      parametro: a.parametro ? { etiqueta: a.parametro.etiqueta, opciones: await a.parametro.opciones(ctx) } : null,
+      parametro: a.parametro?.fecha
+        ? { etiqueta: a.parametro.etiqueta, fecha: true, opciones: [] }
+        : a.parametro
+          ? { etiqueta: a.parametro.etiqueta, opciones: await a.parametro.opciones(ctx) }
+          : null,
     })),
   );
 }

@@ -19,6 +19,15 @@ describe("tablero de Captación", () => {
     }
   });
 
+  it("la columna muestra su total de valor y la tarjeta categoría, fecha del evento y valor (pesos, sin decimales)", () => {
+    const tablero = componente("tablero.tsx");
+    expect(tablero).toMatch(/formatoPesos\(col\.valorTotal\)/);
+    const t = componente("tarjeta.tsx");
+    for (const x of ["tarjeta.categoria", "tarjeta.fechaEvento", "formatoPesos(tarjeta.valor)"]) expect(t, x).toContain(x);
+    // El formato sale del módulo puro de valor (los componentes de cliente no tocan el servidor).
+    for (const c of [tablero, t]) expect(c).toContain('from "@/lib/consultas/valor"');
+  });
+
   it("la tarjeta se arrastra y siempre tiene «Mover a…»", () => {
     const t = componente("tarjeta.tsx");
     for (const x of ["draggable=", "onDragStart", "<MoverA"]) expect(t, x).toContain(x);

@@ -16,7 +16,7 @@ const CLIENTE = [
   "components/circuitos/tablero.tsx",
 ];
 /** Módulos de `lib/consultas` que un componente de cliente puede importar con valores: los puros. */
-const PUROS = new Set(["constantes", "formulario"]);
+const PUROS = new Set(["constantes", "formulario", "valor"]);
 
 describe("acciones de Consultas («use server»)", () => {
   const fuente = leer("app", "actions", "consultas.ts");

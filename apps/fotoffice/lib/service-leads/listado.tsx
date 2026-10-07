@@ -4,11 +4,14 @@ import { prisma, type Prisma } from "@repo/db";
 import { claseDeColorEtiqueta, fechaDeEvento } from "@/lib/ficha/formato";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { estaVencida } from "@/lib/circuitos/calculos";
-import { aDiasDeCalendario } from "@/lib/listado/periodos";
+import { aDiasDeCalendario, hoyEnBuenosAires, resolverPeriodo } from "@/lib/listado/periodos";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { avisoDeCampos, camposParaListado, conCampos, listasDeCampos } from "@/lib/campos/listado";
 import { presupuestoDeIds, TOPE_IDS_POR_CONSULTA, type PresupuestoDeIds } from "@/lib/listado/presupuesto";
 import { numeroDe } from "@/lib/numeracion/asignar";
+import { responsablesDe } from "@/lib/circuitos/tablero";
+import { formatoPesos, valorComoNumero } from "@/lib/consultas/valor";
+import { ACCIONES_CONSULTAS } from "./lote";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "./form-definitions";
 import { TIPO_CONSULTA } from "./numero";
 
@@ -20,6 +23,10 @@ const SELECT_FILA = {
   eventType: true,
   eventDate: true,
   createdAt: true,
+  // Datos de la etapa 1 (1:1, puede faltar en consultas todavía no enganchadas).
+  fotofficeConsulta: {
+    select: { estimatedValue: true, category: { select: { name: true } }, origin: { select: { name: true } } },
+  },
 } satisfies Prisma.ServiceSalesLeadSelect;
 
 /** Recorrido de venta de la consulta: no hay FK entre las dos tablas, se une por `subjectId`. */
@@ -29,6 +36,9 @@ export type RecorridoDeFila = {
   outcome: string | null;
   enteredStageAt: Date;
   stageDueAt: Date | null;
+  responsableId: number | null;
+  /** Nombre del responsable (como en el tablero); null sin responsable. */
+  responsable: string | null;
 };
 
 type FilaBase = Prisma.ServiceSalesLeadGetPayload<{ select: typeof SELECT_FILA }>;
@@ -56,6 +66,33 @@ const RESULTADOS: readonly Opcion[] = [
 const TIPOS_EVENTO = SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>;
 const etiquetaTipo = (v: string) => TIPOS_EVENTO[v] ?? v;
 
+/** "Siguiente acción" = vencimiento de la etapa del recorrido abierto (`stageDueAt`). */
+export const SIGUIENTE_ACCION: readonly Opcion[] = [
+  { valor: "vencida", etiqueta: "Vencida" },
+  { valor: "hoy", etiqueta: "Hoy" },
+  { valor: "semana", etiqueta: "Esta semana" },
+];
+
+/** Categoría de la consulta; sin ficha de la etapa 1, el tipo de evento viejo. */
+export function categoriaDe(f: FilaBase): string {
+  return f.fotofficeConsulta?.category.name ?? etiquetaTipo(f.eventType);
+}
+export function valorDe(f: FilaBase): number | null {
+  return valorComoNumero(f.fotofficeConsulta?.estimatedValue);
+}
+
+/**
+ * Puro: el rango de vencimientos de cada opción de "Siguiente acción", en hora de Buenos Aires.
+ * Vencida: antes de ahora. Hoy: de ahora al fin de hoy. Esta semana: de ahora al domingo (semana
+ * de lunes a domingo). Hoy y Esta semana no incluyen las vencidas.
+ */
+export function rangoSiguienteAccion(valor: string, ahora: Date): Prisma.DateTimeNullableFilter | null {
+  if (valor === "vencida") return { lt: ahora };
+  const periodo = valor === "hoy" ? "hoy" : valor === "semana" ? "esta-semana" : null;
+  const rango = periodo ? resolverPeriodo(periodo, hoyEnBuenosAires(ahora)) : null;
+  return rango ? { gte: ahora, lte: rango.hasta } : null;
+}
+
 export function diasEnEtapa(entrada: Date, ahora: Date): number {
   return Math.max(0, Math.floor((ahora.getTime() - entrada.getTime()) / DIA_MS));
 }
@@ -63,7 +100,7 @@ export function diasEnEtapa(entrada: Date, ahora: Date): number {
 /** ¿La consulta pide algo que sólo se sabe mirando el recorrido? */
 export function filtraPorRecorrido(c: ConsultaResuelta): boolean {
   const f = c.filtros;
-  return Boolean(f.circuito || f.etapa || f.resultado || f.vencidas);
+  return Boolean(f.circuito || f.etapa || f.resultado || f.vencidas || f.responsable || f.siguiente);
 }
 
 /**
@@ -79,12 +116,19 @@ export function whereRecorridos(workspaceId: string, c: ConsultaResuelta, ahora:
   else if (f.resultado) where.outcome = f.resultado;
   // `vencidas` sólo aplica a recorridos abiertos y se combina con `resultado`: una salida
   // (GANADA / PERDIDA) junto con `vencidas` no puede coincidir con nada.
+  const and: Prisma.FotofficeJourneyWhereInput[] = [];
   if (f.vencidas) {
-    const and: Prisma.FotofficeJourneyWhereInput[] = [{ outcome: null }];
+    and.push({ outcome: null });
     if (f.vencidas === "si") and.push({ stageDueAt: { lt: ahora } });
     else and.push({ OR: [{ stageDueAt: null }, { stageDueAt: { gte: ahora } }] });
-    where.AND = and;
   }
+  // Responsable y siguiente acción: también sólo recorridos abiertos (uno cerrado no tiene a cargo
+  // ni vencimiento que importe).
+  const responsable = Number(f.responsable);
+  if (f.responsable && Number.isSafeInteger(responsable)) and.push({ outcome: null, ownerUserId: responsable });
+  const siguiente = f.siguiente ? rangoSiguienteAccion(f.siguiente, ahora) : null;
+  if (siguiente) and.push({ outcome: null, stageDueAt: siguiente });
+  if (and.length > 0) where.AND = and;
   return where;
 }
 
@@ -137,6 +181,11 @@ export function whereCaptacion(
   }
   const alta = c.periodos.alta;
   if (alta) where.createdAt = { gte: alta.desde, lte: alta.hasta };
+  // Categoría y origen viven en la ficha de la etapa 1 (relación 1:1, sin listas de ids).
+  const consulta: Prisma.FotofficeConsultaWhereInput = {};
+  if (c.filtros.categoria) consulta.categoryId = c.filtros.categoria;
+  if (c.filtros.origen) consulta.originId = c.filtros.origen;
+  if (Object.keys(consulta).length > 0) where.fotofficeConsulta = { is: { workspaceId, ...consulta } };
   // Recorridos y filtros de campos, ya intersecados.
   if (ids.y !== null) where.id = { in: ids.y };
   return where;
@@ -233,6 +282,7 @@ async function recorridosDe(workspaceId: string, ids: string[]): Promise<Map<str
       outcome: true,
       enteredStageAt: true,
       stageDueAt: true,
+      ownerUserId: true,
       circuit: { select: { name: true } },
       stage: { select: { name: true, color: true } },
     },
@@ -246,16 +296,39 @@ async function recorridosDe(workspaceId: string, ids: string[]): Promise<Map<str
       outcome: j.outcome,
       enteredStageAt: j.enteredStageAt,
       stageDueAt: j.stageDueAt,
+      responsableId: j.ownerUserId ?? null,
+      responsable: null,
     });
   }
   return mapa;
+}
+
+/** Nombre de cada responsable de la página que sea del equipo (una lectura; ninguna si no hay). */
+async function nombresDeResponsables(workspaceId: string, ids: (number | null)[]): Promise<Map<number, string>> {
+  const unicos = [...new Set(ids.filter((id): id is number => typeof id === "number"))];
+  if (unicos.length === 0) return new Map();
+  const miembros = await prisma.workspaceMembership.findMany({
+    where: { workspaceId, userId: { in: unicos } },
+    select: { userId: true, user: { select: { name: true, email: true } } },
+  });
+  return new Map(miembros.map((m) => [m.userId, nombreDeMiembro(m.userId, m.user)]));
+}
+
+/** Mismo criterio que el tablero (`responsablesDe`). */
+function nombreDeMiembro(userId: number, u: { name?: string | null; email?: string | null } | null | undefined): string {
+  return u?.name?.trim() || u?.email?.trim() || `Usuario ${userId}`;
 }
 
 /** Recorrido y número de cada fila de la página: una lectura de cada uno para toda la página. */
 async function conRecorrido(workspaceId: string, filas: FilaBase[]): Promise<FilaCaptacion[]> {
   const ids = filas.map((f) => f.id);
   const [mapa, numeros] = await Promise.all([recorridosDe(workspaceId, ids), numeroDe(workspaceId, TIPO_CONSULTA, ids)]);
-  return filas.map((f) => ({ ...f, recorrido: mapa.get(f.id) ?? null, numero: numeros.get(f.id) ?? null }));
+  const nombres = await nombresDeResponsables(workspaceId, [...mapa.values()].map((r) => r.responsableId));
+  return filas.map((f) => {
+    const r = mapa.get(f.id) ?? null;
+    const recorrido = r && r.responsableId !== null ? { ...r, responsable: nombres.get(r.responsableId) ?? `Usuario ${r.responsableId}` } : r;
+    return { ...f, recorrido, numero: numeros.get(f.id) ?? null };
+  });
 }
 
 /**
@@ -338,9 +411,20 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
         </Link>
       ),
     },
-    { clave: "tipo", titulo: "Tipo de evento", celda: (f) => etiquetaTipo(f.eventType) },
+    { clave: "categoria", titulo: "Categoría", celda: categoriaDe },
     { clave: "evento", titulo: "Fecha del evento", orden: "evento", celda: (f) => (f.eventDate ? fechaDeEvento(f.eventDate) : "—") },
     { clave: "etapa", titulo: "Etapa", celda: celdaEtapa },
+    {
+      clave: "valor",
+      titulo: "Valor",
+      alinear: "derecha",
+      celda: (f) => {
+        const v = valorDe(f);
+        return v === null ? "—" : <span className="whitespace-nowrap tabular-nums">{formatoPesos(v)}</span>;
+      },
+    },
+    { clave: "responsable", titulo: "Responsable", celda: (f) => f.recorrido?.responsable ?? "—" },
+    { clave: "origen", titulo: "Origen", secundaria: true, celda: (f) => f.fotofficeConsulta?.origin?.name ?? "—" },
     {
       clave: "dias",
       titulo: "Días en la etapa",
@@ -366,6 +450,10 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
     { tipo: "relacion", clave: "etapa", etiqueta: "Etapa" },
     { tipo: "opcion", clave: "resultado", etiqueta: "Resultado", opciones: RESULTADOS },
     { tipo: "siNo", clave: "vencidas", etiqueta: "Vencidas", si: "Vencidas", no: "En plazo" },
+    { tipo: "relacion", clave: "categoria", etiqueta: "Categoría" },
+    { tipo: "relacion", clave: "origen", etiqueta: "Origen" },
+    { tipo: "relacion", clave: "responsable", etiqueta: "Responsable" },
+    { tipo: "opcion", clave: "siguiente", etiqueta: "Siguiente acción", opciones: SIGUIENTE_ACCION },
     { tipo: "periodo", clave: "evento", etiqueta: "Fecha del evento" },
     { tipo: "periodo", clave: "alta", etiqueta: "Alta" },
   ],
@@ -411,6 +499,26 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       const variosCircuitos = new Set(etapas.map((e) => e.circuit.name)).size > 1;
       return etapas.map((e) => ({ valor: e.id, etiqueta: variosCircuitos ? `${e.circuit.name} · ${e.name}` : e.name }));
     }
+    // Categorías y orígenes, también los archivados: las consultas viejas los siguen usando.
+    if (clave === "categoria") {
+      const filas = await prisma.fotofficeConsultaCategoria.findMany({
+        where: { workspaceId: ctx.workspaceId },
+        select: { id: true, name: true, archivedAt: true },
+        orderBy: [{ order: "asc" }, { name: "asc" }, { id: "asc" }],
+      });
+      return filas.map((c) => ({ valor: c.id, etiqueta: c.archivedAt ? `${c.name} (archivada)` : c.name }));
+    }
+    if (clave === "origen") {
+      const filas = await prisma.fotofficeOrigen.findMany({
+        where: { workspaceId: ctx.workspaceId },
+        select: { id: true, name: true, archivedAt: true },
+        orderBy: [{ order: "asc" }, { name: "asc" }, { id: "asc" }],
+      });
+      return filas.map((o) => ({ valor: o.id, etiqueta: o.archivedAt ? `${o.name} (archivado)` : o.name }));
+    }
+    if (clave === "responsable") {
+      return (await responsablesDe(ctx.workspaceId)).map((r) => ({ valor: String(r.id), etiqueta: r.nombre }));
+    }
     return [];
   },
   validarRelacion: async (ctx, clave, id) => {
@@ -423,11 +531,28 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       const e = await prisma.fotofficeStage.findFirst({ where: { id, circuit: { workspaceId: ctx.workspaceId, kind: "VENTA" } }, select: { name: true } });
       return e?.name ?? null;
     }
+    if (clave === "categoria") {
+      const c = await prisma.fotofficeConsultaCategoria.findFirst({ where: { id, workspaceId: ctx.workspaceId }, select: { name: true } });
+      return c?.name ?? null;
+    }
+    if (clave === "origen") {
+      const o = await prisma.fotofficeOrigen.findFirst({ where: { id, workspaceId: ctx.workspaceId }, select: { name: true } });
+      return o?.name ?? null;
+    }
+    if (clave === "responsable") {
+      const userId = Number(id);
+      if (!/^\d{1,10}$/.test(id) || !Number.isSafeInteger(userId) || userId <= 0) return null;
+      const m = await prisma.workspaceMembership.findFirst({
+        where: { workspaceId: ctx.workspaceId, userId },
+        select: { user: { select: { name: true, email: true } } },
+      });
+      return m ? nombreDeMiembro(userId, m.user) : null;
+    }
     return null;
   },
-  // Sin acciones en lote en esta etapa: mover, ganar o perder se hace desde el tablero y la ficha.
   aviso: avisoCaptacion,
-  acciones: [],
+  // Responsable, siguiente acción, cerrar como perdida y pasar a otro circuito (con "Gestionar").
+  acciones: ACCIONES_CONSULTAS,
   exportar: {
     columnas: [
       { titulo: "N°", tipo: "texto", valor: (f) => f.numero },
@@ -435,6 +560,10 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       { titulo: "Correo", tipo: "texto", valor: (f) => f.email },
       { titulo: "Teléfono", tipo: "texto", valor: (f) => f.phone },
       { titulo: "Tipo de evento", tipo: "texto", valor: (f) => etiquetaTipo(f.eventType) },
+      { titulo: "Categoría", tipo: "texto", valor: (f) => f.fotofficeConsulta?.category.name ?? null },
+      { titulo: "Origen", tipo: "texto", valor: (f) => f.fotofficeConsulta?.origin?.name ?? null },
+      { titulo: "Valor estimado", tipo: "importe", valor: (f) => valorDe(f) },
+      { titulo: "Responsable", tipo: "texto", valor: (f) => f.recorrido?.responsable ?? null },
       { titulo: "Fecha del evento", tipo: "texto", valor: (f) => (f.eventDate ? fechaDeEvento(f.eventDate) : null) },
       { titulo: "Circuito", tipo: "texto", valor: (f) => f.recorrido?.circuito ?? null },
       { titulo: "Etapa", tipo: "texto", valor: (f) => f.recorrido?.etapa?.nombre ?? null },
