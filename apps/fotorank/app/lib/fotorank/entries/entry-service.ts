@@ -19,7 +19,7 @@ import { buildChecklist, CHECKLIST_RULE_VERSION, entryStatusFromSummary, summari
 import { generateEntryDerivatives, readImageDimensions } from "./derivatives";
 import { assessDeviceCompatibility, extractEntryExif } from "./exif";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
-import { isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
+import { allowsMultipleCategories, isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
 import {
   buildStagedUploadKey,
   isValidStagedUploadId,
@@ -140,12 +140,19 @@ async function findDuplicate(input: {
  * hay, el "Máx. archivos" de la categoría) y, si hubo pago por paquete,
  * `purchasedEntriesCount`. Con 1 obra el comportamiento es idéntico al
  * anterior: sin cupo se devuelve la obra existente en lugar de fallar.
+ *
+ * Categoría: la obra nueva va a la de la inscripción, salvo que el concurso
+ * permita varias (`allowsMultipleCategories`) y se pida otra activa del mismo
+ * concurso. Con varias, el cupo se cuenta por categoría: 3 en Color y 3 en
+ * Monocromo son 6 obras.
  */
 export async function ensureEntryForRegistration(input: {
   contestId: string;
   registrationId: string;
   participantUserId: number;
   targetEntryId?: string | null;
+  /** Categoría de la obra nueva. Ausente = la de la inscripción. */
+  categoryId?: string | null;
 }): Promise<{ entryId: string; created: boolean }> {
   const reg = await prisma.fotorankContestRegistration.findUnique({
     where: { id: input.registrationId },
@@ -166,6 +173,7 @@ export async function ensureEntryForRegistration(input: {
     select: {
       id: true,
       status: true,
+      categoryId: true,
       assets: { where: { kind: "ORIGINAL" }, select: { id: true }, take: 1 },
     },
     orderBy: { createdAt: "asc" },
@@ -177,17 +185,41 @@ export async function ensureEntryForRegistration(input: {
     return { entryId: target.id, created: false };
   }
 
-  const emptyDraft = existing.find((e) => isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }));
-  if (emptyDraft) return { entryId: emptyDraft.id, created: false };
-
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: reg.contestId },
     select: { uploadPolicyJson: true },
   });
+
+  let category = { id: reg.categoryId, maxFiles: reg.category?.maxFiles ?? null };
+  if (input.categoryId && input.categoryId !== reg.categoryId) {
+    if (!allowsMultipleCategories(contest?.uploadPolicyJson)) {
+      throw new EntryError(
+        "CATEGORY_NOT_ALLOWED",
+        "Este concurso no permite presentar obras en otra categoría que la de tu inscripción.",
+        403,
+      );
+    }
+    const other = await prisma.fotorankContestCategory.findFirst({
+      where: { id: input.categoryId, contestId: reg.contestId, status: "ACTIVE" },
+      select: { id: true, maxFiles: true },
+    });
+    if (!other) throw new EntryError("CATEGORY_NOT_ALLOWED", "Categoría no disponible en este concurso.", 404);
+    category = other;
+  }
+
+  const emptyDraft = existing.find((e) => isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }));
+  if (emptyDraft) {
+    // El borrador de un intento fallido puede haber nacido en otra categoría.
+    if (emptyDraft.categoryId !== category.id) {
+      await prisma.fotorankContestEntry.update({ where: { id: emptyDraft.id }, data: { categoryId: category.id } });
+    }
+    return { entryId: emptyDraft.id, created: false };
+  }
+
   const quota = canCreateEntry({
-    policyMaxEntries: resolvePolicyMaxEntries(contest?.uploadPolicyJson, reg.category?.maxFiles),
+    policyMaxEntries: resolvePolicyMaxEntries(contest?.uploadPolicyJson, category.maxFiles),
     purchasedEntriesCount: reg.purchasedEntriesCount,
-    currentEntryCount: existing.length,
+    currentEntryCount: existing.filter((e) => e.categoryId === category.id).length,
   });
 
   if (!quota.allowed) {
@@ -203,7 +235,7 @@ export async function ensureEntryForRegistration(input: {
   const created = await prisma.fotorankContestEntry.create({
     data: {
       contestId: reg.contestId,
-      categoryId: reg.categoryId,
+      categoryId: category.id,
       authorUserId: reg.participantUserId,
       registrationId: reg.id,
       status: "DRAFT",
@@ -233,6 +265,8 @@ export async function createUploadIntent(input: {
   contentType?: string | null;
   /** Obra existente a reemplazar o reintentar. Ausente = obra nueva. */
   entryId?: string | null;
+  /** Categoría de la obra nueva (concursos con varias categorías). */
+  categoryId?: string | null;
 }): Promise<{
   entryId: string;
   registrationId: string;
@@ -276,6 +310,7 @@ export async function createUploadIntent(input: {
     registrationId: reg.id,
     participantUserId: input.participantUserId,
     targetEntryId: input.entryId,
+    categoryId: input.categoryId,
   });
 
   return {
@@ -764,7 +799,11 @@ async function runUploadPipeline(
     height: dims.height,
     decodable: dims.decodable,
     registrationConfirmed: true,
-    categoryMatches: entry.categoryId === entry.registration.categoryId,
+    // Con varias categorías habilitadas, cualquier categoría activa del concurso
+    // es válida (`categoryActive` ya controla que esté activa).
+    categoryMatches:
+      entry.categoryId === entry.registration.categoryId ||
+      (allowsMultipleCategories(entry.contest.uploadPolicyJson) && entry.category.contestId === entry.contestId),
     userMatches: true,
     contestActive: entry.contest.status === "PUBLISHED" || entry.contest.status === "ACTIVE",
     categoryActive: entry.category.status === "ACTIVE",
@@ -1249,8 +1288,11 @@ export async function listContestEntriesForOrganizer(input: {
       participant: { select: { id: true, name: true, email: true } },
       category: { select: { name: true } },
       entries: {
+        orderBy: { createdAt: "asc" },
         include: {
           checks: { select: { status: true } },
+          category: { select: { name: true } },
+          assets: { where: { kind: "ORIGINAL" }, select: { id: true }, take: 1 },
         },
       },
     },
@@ -1277,6 +1319,23 @@ export async function listContestEntriesForOrganizer(input: {
       submittedAt: entry?.submittedAt ?? null,
       confirmedAt: entry?.confirmedAt ?? null,
       entriesCount: r.entries.length,
+      /**
+       * Todas las obras de la inscripción, cada una con SU categoría: en
+       * concursos de varias fotos o varias categorías no alcanza con la primera.
+       * Sin los borradores de intentos de carga que no llegaron.
+       */
+      entries: r.entries
+        .filter((e) => !isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }))
+        .map((e) => ({
+          entryId: e.id,
+          entryStatus: e.status,
+          entryNumber: e.entryNumber,
+          technicalSummaryStatus: e.technicalSummaryStatus,
+          categoryName: e.category.name,
+          warnings: e.checks.filter((c) => c.status === "WARNING").length,
+          failures: e.checks.filter((c) => c.status === "FAIL").length,
+          requiresReview: e.checks.filter((c) => c.status === "REQUIRES_REVIEW").length,
+        })),
       warnings: checks.filter((c) => c.status === "WARNING").length,
       failures: checks.filter((c) => c.status === "FAIL").length,
       requiresReview: checks.filter((c) => c.status === "REQUIRES_REVIEW").length,

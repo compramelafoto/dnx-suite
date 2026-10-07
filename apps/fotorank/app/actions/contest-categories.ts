@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "../lib/auth";
 import { resolveActiveOrganizationForUser } from "../lib/fotorank/dashboard-org-context";
@@ -21,6 +21,7 @@ import {
   suggestGlobalCategoriesForInput,
 } from "../lib/fotorank/contestCategoryService";
 import { routes } from "../lib/routes";
+import { withMultipleCategories } from "../lib/fotorank/entries/upload-policy";
 
 async function loadContestForOrg(contestId: string) {
   const user = await requireAuth();
@@ -474,5 +475,29 @@ export async function assertCanBulkReplaceCategories(contestId: string): Promise
         "No se puede reemplazar todo el listado: hay obras o jurados asignados, o el concurso está cerrado/archivado. Usá la gestión por categoría (agregar / archivar / mapeo).",
     };
   }
+  return { ok: true };
+}
+
+/**
+ * Interruptor "Permitir participar en varias categorías". Con él encendido,
+ * una misma inscripción puede presentar obras en todas las categorías activas,
+ * con el "Máx. archivos" de cada una. Se guarda en la política de carga sin
+ * tocar el resto de sus claves.
+ */
+export async function setContestMultipleCategoriesAction(input: {
+  contestId: string;
+  enabled: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const loaded = await loadContestForOrg(input.contestId);
+  if (!loaded.ok) return loaded;
+  const mode = getCategoryManagementMode(loaded.contest.status, loaded.contest._count.entries > 0);
+  if (mode === "readonly") return { ok: false, error: "El concurso ya no admite cambios en sus categorías." };
+
+  await prisma.fotorankContest.update({
+    where: { id: loaded.contest.id },
+    data: { uploadPolicyJson: withMultipleCategories(loaded.contest.uploadPolicyJson, input.enabled) as Prisma.InputJsonValue },
+  });
+  revalidateContest(loaded.contest.id, loaded.contest.slug);
+  revalidatePath(routes.concursos.publico(loaded.contest.slug) + "/inscripcion");
   return { ok: true };
 }

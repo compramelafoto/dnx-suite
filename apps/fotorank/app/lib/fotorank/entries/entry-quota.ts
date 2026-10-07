@@ -14,6 +14,8 @@
  * puede subir 2.
  */
 
+import { allowsMultipleCategories } from "./upload-policy";
+
 /** Default histórico: una obra por inscripción. */
 export const DEFAULT_MAX_ENTRIES_PER_REGISTRATION = 1;
 
@@ -114,6 +116,35 @@ export function resolveRegistrationEntryLimit(input: {
     purchasedEntriesCount: input.purchasedEntriesCount,
     currentEntryCount: 0,
   }).limit;
+}
+
+export type CategoryEntryLimit = { categoryId: string; name: string; slug: string; limit: number };
+
+/**
+ * En qué categorías puede presentar obras una inscripción y cuántas en cada
+ * una. Sin el interruptor de varias categorías es sólo la de la inscripción;
+ * con él, todas las del concurso, primero la de la inscripción.
+ */
+export function resolveCategoryEntryLimits(input: {
+  uploadPolicyJson: unknown;
+  registrationCategoryId: string;
+  categories: Array<{ id: string; name: string; slug: string; maxFiles: number }>;
+  purchasedEntriesCount?: number | null;
+}): CategoryEntryLimit[] {
+  const own = input.categories.filter((c) => c.id === input.registrationCategoryId);
+  const others = allowsMultipleCategories(input.uploadPolicyJson)
+    ? input.categories.filter((c) => c.id !== input.registrationCategoryId)
+    : [];
+  return [...own, ...others].map((c) => ({
+    categoryId: c.id,
+    name: c.name,
+    slug: c.slug,
+    limit: resolveRegistrationEntryLimit({
+      uploadPolicyJson: input.uploadPolicyJson,
+      categoryMaxFiles: c.maxFiles,
+      purchasedEntriesCount: input.purchasedEntriesCount,
+    }),
+  }));
 }
 
 export type EntryQuotaCheck =

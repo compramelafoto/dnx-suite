@@ -12,7 +12,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { Prisma, prisma } from "@repo/db";
-import { confirmEntry, createUploadIntent, getMyEntries, processUploadedFile, EntryError } from "./index";
+import {
+  confirmEntry,
+  createUploadIntent,
+  getMyEntries,
+  processUploadedFile,
+  withMultipleCategories,
+  EntryError,
+} from "./index";
 import { createContestRegistration, publishRulesVersion, RULES_PLACEHOLDER_MARKER } from "../registration";
 import { getMyParticipationView } from "../participant-experience/load-participations";
 
@@ -103,8 +110,8 @@ async function main() {
   const { registration: reg } = await register(participant.id);
   await register(other.id);
 
-  const intent = (userId: number, entryId?: string) =>
-    createUploadIntent({ contestId: contest.id, participantUserId: userId, entryId });
+  const intent = (userId: number, entryId?: string, categoryId?: string) =>
+    createUploadIntent({ contestId: contest.id, participantUserId: userId, entryId, categoryId });
   const upload = async (entryId: string, color: number, isReplace = false) => {
     const r = await processUploadedFile({
       contestId: contest.id,
@@ -178,6 +185,65 @@ async function main() {
   })).id);
   assert.ok(otherView);
   assert.equal(otherView.uploadedCount, 0, "el borrador vacío no cuenta como cargada");
+
+  // =========================================================================
+  // 9. VARIAS CATEGORÍAS: 3 en Color y 3 en Monocromo con una sola inscripción
+  // =========================================================================
+  const mono = await prisma.fotorankContestCategory.create({
+    data: { contestId: contest.id, name: "Monocromo", slug: "monocromo", maxFiles: 3, status: "ACTIVE", sortOrder: 1 },
+  });
+
+  // Con el interruptor apagado, otra categoría está prohibida.
+  await expectEntryError(() => intent(participant.id, undefined, mono.id), "CATEGORY_NOT_ALLOWED");
+
+  await prisma.fotorankContest.update({
+    where: { id: contest.id },
+    data: { uploadPolicyJson: withMultipleCategories(null, true) as Prisma.InputJsonValue },
+  });
+
+  // Color sigue lleno (3 de 3)...
+  await expectEntryError(() => intent(participant.id), "ENTRY_QUOTA_EXCEEDED");
+  // ...pero Monocromo tiene su propio cupo de 3.
+  const monoIds: string[] = [];
+  for (const color of [30, 50, 110]) {
+    const m = await intent(participant.id, undefined, mono.id);
+    const r = await upload(m.entryId, color);
+    assert.notEqual(r.technicalSummaryStatus, "TECHNICALLY_REJECTED", "la categoría distinta no falla el control");
+    monoIds.push(m.entryId);
+  }
+  await expectEntryError(() => intent(participant.id, undefined, mono.id), "ENTRY_QUOTA_EXCEEDED");
+
+  const all = await getMyEntries(contest.id, participant.id);
+  assert.equal(all.length, 6);
+  assert.deepEqual(
+    all.filter((e) => e.categoryId === mono.id).map((e) => e.id),
+    monoIds,
+  );
+  assert.ok(all.every((e) => e.status === "CONFIRMED"));
+  const monoChecks = await prisma.fotorankContestEntryCheck.findMany({
+    where: { entryId: { in: monoIds }, checkCode: { in: ["REG_CATEGORY", "CONTEST_CATEGORY_ACTIVE"] } },
+    select: { status: true },
+  });
+  assert.equal(monoChecks.length, 6);
+  assert.ok(monoChecks.every((c) => c.status === "PASS"), "el control de categoría pasa en Monocromo");
+
+  // Una categoría de otro concurso no se puede pedir.
+  const foreign = await prisma.fotorankContestCategory.findFirst({ where: { contestId: { not: contest.id } } });
+  if (foreign) await expectEntryError(() => intent(other.id, undefined, foreign.id), "CATEGORY_NOT_ALLOWED");
+
+  // El borrador vacío de otra persona (nació en Color) se reusa y pasa a Monocromo.
+  const moved = await intent(other.id, undefined, mono.id);
+  assert.equal(moved.entryId, otherIntent.entryId);
+  assert.equal(
+    (await prisma.fotorankContestEntry.findUniqueOrThrow({ where: { id: moved.entryId } })).categoryId,
+    mono.id,
+  );
+
+  // Mis participaciones: 6 de 6.
+  const view6 = await getMyParticipationView(participant.id, reg.id);
+  assert.ok(view6);
+  assert.equal(view6.maxFiles, 6);
+  assert.equal(view6.uploadedCount, 6);
 
   console.log(JSON.stringify({ ok: true, contestId: contest.id, entries: mine.map((e) => e.id) }, null, 2));
   console.log("entries-multi.integration.selfcheck.ts OK");
