@@ -7,7 +7,7 @@ import {
 } from "@repo/social-publisher";
 import { Prisma, prisma } from "@/lib/admin/db";
 import { logSocialRequest, toSocialAccount } from "./prisma-store";
-import { enqueueWelcomePublishAfterPaid } from "./enqueue-welcome-publish";
+import { enqueueWelcomePublishAfterPaid, updateWelcomePublishAssets } from "./enqueue-welcome-publish";
 
 type DueStatus = "APPROVED" | "SCHEDULED" | "FAILED";
 const dueStatuses: DueStatus[] = ["APPROVED", "SCHEDULED", "FAILED"];
@@ -65,7 +65,16 @@ export async function processSocialPublishRequest(requestId: string) {
     include: { socialAccount: true },
   });
   if (!request || !dueStatuses.includes(request.status as DueStatus)) return { status: "SKIPPED" as const };
-  const assets = readAssets(request.assets);
+  let assets = readAssets(request.assets);
+  // La solicitud nace al pagar y la placa se dibuja después: se completa al momento de publicar.
+  if (!assets.length && request.entityType === "WELCOME_CARD") {
+    await updateWelcomePublishAssets(request.entityId);
+    const refreshed = await prisma.dnxSocialPublishRequest.findUnique({
+      where: { id: request.id },
+      select: { assets: true },
+    });
+    assets = readAssets(refreshed?.assets ?? null);
+  }
   if (!assets.some((asset) => asset.publicUrl)) {
     return fail(request, "ASSETS_NOT_READY", "Assets sin publicUrl", true);
   }
@@ -114,7 +123,7 @@ export async function processSocialPublishRequest(requestId: string) {
         providerRaw: (result.providerRawSanitized ?? undefined) as Prisma.InputJsonValue | undefined,
       },
     });
-    await markWelcomePublished(request, result.externalMediaId ?? null, result.externalPostId ?? null, publishedAt);
+    await markWelcomePublished(request);
     await logSocialRequest(request.id, "PUBLISHED", null, { dryRun: !livePublish });
     return { status: "PUBLISHED" as const, dryRun: !livePublish };
   } catch (error) {
@@ -122,28 +131,13 @@ export async function processSocialPublishRequest(requestId: string) {
   }
 }
 
-async function markWelcomePublished(
-  request: { entityType: string; entityId: string },
-  metaMediaId: string | null,
-  instagramPostId: string | null,
-  publishedAt: Date,
-) {
+/** La solicitud de bienvenida lleva el id de la inscripción. */
+async function markWelcomePublished(request: { entityType: string; entityId: string }) {
   if (request.entityType !== "WELCOME_CARD") return;
-  const card = await prisma.dnxWelcomeCard.findFirst({
-    where: { OR: [{ id: request.entityId }, { registrationId: request.entityId }] },
-    select: { id: true, registrationId: true },
+  await prisma.clickatonRegistration.updateMany({
+    where: { id: request.entityId },
+    data: { welcomePublicationStatus: "PUBLISHED" },
   });
-  if (!card) return;
-  await prisma.dnxWelcomeCard.update({
-    where: { id: card.id },
-    data: { metaMediaId, instagramPostId, publishedAt, publicationStatus: "PUBLISHED", publicationError: null },
-  });
-  if (card.registrationId) {
-    await prisma.clickatonRegistration.update({
-      where: { id: card.registrationId },
-      data: { welcomePublicationStatus: "PUBLISHED" },
-    });
-  }
 }
 
 async function fail(

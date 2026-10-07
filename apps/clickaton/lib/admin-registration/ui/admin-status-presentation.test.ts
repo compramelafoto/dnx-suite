@@ -10,7 +10,6 @@ import {
   presentAdminPaymentStatus,
   presentAdminRegistrationStatus,
   presentAdminResendClassification,
-  presentAdminWelcomeCardStatus,
 } from "./admin-status-presentation";
 
 const ROOT = join(process.cwd());
@@ -119,12 +118,10 @@ describe("presentAdminOperationalSummary", () => {
   });
 });
 
-describe("presentAdminFulfillmentStatus / welcome / resend", () => {
-  it("translates kit and welcome card states", () => {
+describe("presentAdminFulfillmentStatus / resend", () => {
+  it("translates kit and resend states", () => {
     assert.match(presentAdminFulfillmentStatus("DELIVERED").label, /entregado/i);
     assert.match(presentAdminFulfillmentStatus("PENDING").label, /pendiente/i);
-    assert.equal(presentAdminWelcomeCardStatus("GENERATED").label, "Placa disponible");
-    assert.equal(presentAdminWelcomeCardStatus("PENDING").label, "Placa pendiente");
     assert.match(presentAdminResendClassification("BOUNCED").label, /rebot/i);
   });
 });
@@ -189,7 +186,9 @@ describe("admin registrations UI source contracts", () => {
     assert.match(detail, /Fecha de inscripción/);
     assert.match(detail, /Marcar como entregado|ItemFulfillmentForm/);
     assert.match(detail, /Reenviar correo/);
-    assert.match(detail, /Volver a generar placa|Generar placa/);
+    // La placa se maneja en "Placas del participante"; el generador viejo se dio de baja.
+    assert.match(detail, /AdminParticipantCardsPanel/);
+    assert.doesNotMatch(detail, /welcome-card\/admin-actions/);
     assert.match(detail, /Información técnica|AdminTechnicalInfo/);
     // Labels visibles: no usar nombres de propiedad como copy de UI.
     assert.doesNotMatch(detail, /label=["']instagramHandle["']/);
