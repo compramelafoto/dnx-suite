@@ -2,6 +2,7 @@ import "server-only";
 import Papa from "papaparse";
 import { prisma, Prisma } from "@repo/db";
 import { puedeEnContexto } from "@/lib/access/policy";
+import { conBloqueoDeImportacion } from "@/lib/importacion/bloqueo";
 import type { Actor } from "@/lib/ficha/eventos";
 import { validarPerfil, type CtxContacto } from "@/lib/contactos/perfil";
 import { CATEGORIAS_CONTACTO, ETIQUETA_CATEGORIA_CONTACTO, type CategoriaContacto } from "@/lib/consultas/constantes";
@@ -24,6 +25,8 @@ import { matchExistingClient, soloDigitos, type ClientCandidate } from "./match"
  */
 
 export const MAX_FILAS_IMPORTACION_CLIENTES = 2000;
+/** Tope del archivo (también se mira en el navegador antes de leerlo). */
+export const MAX_BYTES_IMPORTACION_CLIENTES = 2 * 1024 * 1024;
 /** Filas por transacción al confirmar: cada lote lee el último número y numera seguido. */
 const FILAS_POR_LOTE = 100;
 
@@ -33,6 +36,7 @@ export const MENSAJES_IMPORTACION = {
   sinEncabezado: "No encontramos el encabezado. La primera fila tiene que tener los nombres de las columnas.",
   sinNombre: "Falta una columna de nombre (nombre, apellido o razón social).",
   demasiadas: `Se pueden importar hasta ${MAX_FILAS_IMPORTACION_CLIENTES} filas por vez.`,
+  grande: "El archivo pesa más de 2 MB. Partilo en varios archivos más chicos.",
   ilegible: "No pudimos leer el archivo. Revisá que sea un CSV.",
   numero: "No se pudo asignar un número. Probá de nuevo.",
 } as const;
@@ -141,7 +145,15 @@ type FilaInterna = FilaImportacion & {
 
 export type ResultadoAnalisis =
   | { ok: false; error: string }
-  | { ok: true; filas: FilaImportacion[]; validas: number; conError: number; duplicadas: number };
+  | {
+      ok: true;
+      filas: FilaImportacion[];
+      validas: number;
+      conError: number;
+      duplicadas: number;
+      /** Válidas sin documento, correo ni teléfono: no hay con qué detectar si ya existen. */
+      sinClave: number;
+    };
 
 /**
  * Analiza el CSV: columnas por encabezado (con alias en español), cada fila validada con las
@@ -150,6 +162,7 @@ export type ResultadoAnalisis =
  */
 export function analizarCsvClientes(texto: string, existentes: readonly ClientCandidate[]): { ok: false; error: string } | { ok: true; filas: FilaInterna[] } {
   if (typeof texto !== "string" || !texto.trim()) return { ok: false, error: MENSAJES_IMPORTACION.vacio };
+  if (new TextEncoder().encode(texto).length > MAX_BYTES_IMPORTACION_CLIENTES) return { ok: false, error: MENSAJES_IMPORTACION.grande };
   // Sin `transformHeader`: en papaparse 5.5 se aplica dos veces. Se traducen las claves después.
   const r = Papa.parse<Record<string, string>>(texto.replace(/^﻿/, ""), { header: true, skipEmptyLines: "greedy" });
   if ((r.meta.fields ?? []).length === 0) return { ok: false, error: MENSAJES_IMPORTACION.sinEncabezado };
@@ -255,6 +268,7 @@ function resumen(filas: FilaInterna[]): Extract<ResultadoAnalisis, { ok: true }>
     validas: filas.filter((f) => f.estado === "VALIDA").length,
     conError: filas.filter((f) => f.estado === "ERROR").length,
     duplicadas: filas.filter((f) => f.estado === "DUPLICADA").length,
+    sinClave: filas.filter((f) => f.estado === "VALIDA" && f.cliente && !f.cliente.docNumber && !f.cliente.email && !f.cliente.phone).length,
   };
 }
 
@@ -268,7 +282,16 @@ export async function previsualizarImportacionClientes(ctx: CtxContacto, texto: 
 
 export type ResultadoImportacion =
   | { ok: false; error: string }
-  | { ok: true; creados: number; conError: number; duplicadas: number; fallidas: number };
+  | {
+      ok: true;
+      creados: number;
+      conError: number;
+      duplicadas: number;
+      fallidas: number;
+      /** Números de fila (1 = primera de datos) que no se pudieron guardar, para reimportar sólo esas. */
+      filasFallidas: number[];
+      sinClave: number;
+    };
 
 /**
  * Confirma: vuelve a analizar el texto y crea las filas válidas. Cada lote de hasta 100 filas va
@@ -279,6 +302,13 @@ export type ResultadoImportacion =
 export async function importarClientes(ctx: CtxContacto, texto: unknown): Promise<ResultadoImportacion> {
   if (!puedeEnContexto(ctx, "operar", CLIENTS_MODULE_KEY)) return { ok: false, error: MENSAJES_IMPORTACION.sinPermiso };
   if (typeof texto !== "string") return { ok: false, error: MENSAJES_IMPORTACION.vacio };
+  // Una importación (de clientes o de consultas) a la vez por organización: el control de
+  // duplicados va adentro del candado.
+  const r = await conBloqueoDeImportacion(ctx, "clientes", () => importarConCandado(ctx, texto));
+  return r.ok ? r.valor : r;
+}
+
+async function importarConCandado(ctx: CtxContacto, texto: string): Promise<ResultadoImportacion> {
   const analisis = analizarCsvClientes(texto, await candidatosDe(ctx.workspaceId, texto));
   if (!analisis.ok) return analisis;
   const { workspaceId } = ctx;
@@ -286,7 +316,7 @@ export async function importarClientes(ctx: CtxContacto, texto: unknown): Promis
   const aCrear = analisis.filas.filter((f) => f.estado === "VALIDA" && f.cliente);
 
   let creados = 0;
-  let fallidas = 0;
+  const filasFallidas: number[] = [];
   for (let i = 0; i < aCrear.length; i += FILAS_POR_LOTE) {
     const lote = aCrear.slice(i, i + FILAS_POR_LOTE);
     let hecho = false;
@@ -334,8 +364,10 @@ export async function importarClientes(ctx: CtxContacto, texto: unknown): Promis
         }
       }
     }
-    if (!hecho) fallidas += lote.length;
+    if (!hecho) filasFallidas.push(...lote.map((f) => f.fila));
   }
   const r = resumen(analisis.filas);
-  return { ok: true, creados, conError: r.conError, duplicadas: r.duplicadas, fallidas };
+  return {
+    ok: true, creados, conError: r.conError, duplicadas: r.duplicadas, fallidas: filasFallidas.length, filasFallidas, sinClave: r.sinClave,
+  };
 }

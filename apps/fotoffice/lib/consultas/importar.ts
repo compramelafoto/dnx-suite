@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { mover } from "@/lib/circuitos/recorridos";
 import { fechaDeImportacion, normalizarEncabezado } from "@/lib/clients/importar";
+import { conBloqueoDeImportacion } from "@/lib/importacion/bloqueo";
 import { registrarActividad } from "@/lib/listado/actividad";
 import { parseAmountToMinor } from "@/lib/membership/history-import/amount";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -45,7 +46,7 @@ const NOTA_ETAPA = "Importada desde un CSV";
 export const MENSAJES_IMPORTACION_CONSULTAS = {
   sinPermiso: "No tenés permiso para importar consultas.",
   vacio: "Pegá o subí el CSV antes de continuar.",
-  grande: "El archivo pesa más de 2 MB. Partilo en varios.",
+  grande: "El archivo pesa más de 2 MB. Partilo en varios archivos más chicos.",
   sinEncabezado: "No encontramos el encabezado. La primera fila tiene que tener los nombres de las columnas.",
   sinNombre: "Falta la columna del nombre del contacto.",
   demasiadas: `Se pueden importar hasta ${MAX_FILAS_IMPORTACION.toLocaleString("es-AR")} filas por vez.`,
@@ -360,7 +361,15 @@ async function cargarCatalogos(workspaceId: string, filas: readonly Crudo[], dep
 
 export type ResultadoAnalisisConsultas =
   | { ok: false; error: string }
-  | { ok: true; filas: FilaImportacionConsulta[]; validas: number; conError: number; duplicadas: number };
+  | {
+      ok: true;
+      filas: FilaImportacionConsulta[];
+      validas: number;
+      conError: number;
+      duplicadas: number;
+      /** Válidas sin correo: no hay con qué detectar si ya existen (se cargarían de nuevo al repetir). */
+      sinCorreo: number;
+    };
 
 function puedeImportar(ctx: CtxConsultas): boolean {
   return ctx.userId !== null && puedeEnContexto(ctx, "operar", SERVICE_LEADS_MODULE_KEY);
@@ -385,6 +394,7 @@ function resumen(filas: FilaInterna[]): Extract<ResultadoAnalisisConsultas, { ok
     validas: filas.filter((f) => f.estado === "VALIDA").length,
     conError: filas.filter((f) => f.estado === "ERROR").length,
     duplicadas: filas.filter((f) => f.estado === "DUPLICADA").length,
+    sinCorreo: filas.filter((f) => f.estado === "VALIDA" && !f.correo).length,
   };
 }
 
@@ -416,7 +426,8 @@ export type ResultadoImportacionConsultas =
  * Confirma: vuelve a analizar y da de alta las filas válidas, de a `ALTAS_EN_PARALELO`, cada una
  * por `altaDeConsulta(…, IMPORTACION)` (sin avisos ni respuesta automática). Una fila que falla no
  * frena a las demás. Con etapa, mueve el recorrido con el motor (`mover`), como lo haría quien
- * importa: si la etapa de entrada exige tareas, sólo quien puede configurar lo fuerza.
+ * importa: si la etapa de entrada exige tareas, sólo quien puede configurar lo fuerza. Si ya hay
+ * otra importación en curso en la organización, no corre (`conBloqueoDeImportacion`).
  */
 export async function importarConsultas(
   ctx: CtxConsultas,
@@ -424,6 +435,13 @@ export async function importarConsultas(
   deps: DepsImportacion = {},
 ): Promise<ResultadoImportacionConsultas> {
   if (!puedeImportar(ctx)) return no(MENSAJES_IMPORTACION_CONSULTAS.sinPermiso);
+  // Una importación (de clientes o de consultas) a la vez por organización: el análisis de
+  // duplicados va adentro del candado.
+  const r = await conBloqueoDeImportacion(ctx, "consultas", () => importarConCandado(ctx, texto, deps));
+  return r.ok ? r.valor : r;
+}
+
+async function importarConCandado(ctx: CtxConsultas, texto: unknown, deps: DepsImportacion): Promise<ResultadoImportacionConsultas> {
   const a = await analizar(ctx, texto, deps);
   if (!a.ok) return a;
   const { workspaceId } = ctx;

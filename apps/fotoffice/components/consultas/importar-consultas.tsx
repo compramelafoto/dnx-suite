@@ -9,7 +9,7 @@ const MENSAJE_FALLA = "No se pudo completar. Probá de nuevo.";
 const ETIQUETA_ESTADO = { VALIDA: "Se carga", ERROR: "Con errores", DUPLICADA: "Ya existe" } as const;
 /** Igual que `MAX_BYTES_IMPORTACION_CONSULTAS` (el servidor lo vuelve a mirar). */
 const MAX_BYTES = 2 * 1024 * 1024;
-const GRANDE = "El archivo pesa más de 2 MB. Partilo en varios.";
+const GRANDE = "El archivo pesa más de 2 MB. Partilo en varios archivos más chicos.";
 
 /** "2026-12-20" → "20/12/2026" (es una fecha de calendario: sin zona horaria). */
 function fechaCorta(iso: string | null): string {
@@ -178,6 +178,12 @@ export function ImportarConsultas({ encabezado }: { encabezado: string }) {
           <p className="text-sm text-[var(--fo-muted)]">
             {analisis.validas} se cargan · {analisis.duplicadas} ya existen · {analisis.conError} con errores
           </p>
+          {analisis.sinCorreo > 0 ? (
+            <p role="note" className="text-sm text-[var(--fo-warning)]">
+              {analisis.sinCorreo === 1 ? "1 fila no tiene" : `${analisis.sinCorreo} filas no tienen`} correo: no podemos saber si esa
+              consulta ya existe, y si volvés a importar el archivo se carga de nuevo.
+            </p>
+          ) : null}
           <div className="max-h-[28rem] overflow-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-[var(--fo-muted)]">

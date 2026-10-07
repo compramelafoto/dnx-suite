@@ -82,7 +82,7 @@ describe("previsualizar e importar", () => {
 
   it("crea clientes numerados con su historial y el perfil en la misma transacción", async () => {
     const r = await I.importarClientes(GESTIONA, CSV);
-    expect(r).toEqual({ ok: true, creados: 3, conError: 1, duplicadas: 2, fallidas: 0 });
+    expect(r).toEqual({ ok: true, creados: 3, conError: 1, duplicadas: 2, fallidas: 0, filasFallidas: [], sinClave: 1 });
     const nuevos = B.datos.client.filter((c) => c.workspaceId === "ws-1" && c.id !== "viejo");
     expect(nuevos.map((c) => c.clientNumber)).toEqual([42, 43, 44]);
     expect(nuevos.every((c) => c.createdByUserId === 7)).toBe(true);
@@ -96,7 +96,8 @@ describe("previsualizar e importar", () => {
     // Martín sólo trae cumpleaños: la categoría queda la de defecto (CLIENTE).
     const martin = nuevos.find((c) => c.firstName === "Martín")!;
     expect(perfiles.find((x) => x.clientId === martin.id)?.category).toBe("CLIENTE");
-    expect(B.transacciones).toHaveLength(1);
+    // Una para tomar el candado de importación y una para el único lote.
+    expect(B.transacciones).toHaveLength(2);
   });
 
   it("repetir la importación no duplica", async () => {
@@ -105,12 +106,34 @@ describe("previsualizar e importar", () => {
     expect(r).toMatchObject({ ok: true, creados: 1 }); // sólo "Sin Datos" (sin correo ni teléfono) no se reconoce
   });
 
+  it("avisa las filas sin documento, correo ni teléfono (no se pueden controlar como duplicadas)", async () => {
+    const vista = await I.previsualizarImportacionClientes(GESTIONA, CSV);
+    expect(vista).toMatchObject({ ok: true, sinClave: 1 });
+    expect(await I.importarClientes(GESTIONA, CSV)).toMatchObject({ ok: true, sinClave: 1, filasFallidas: [] });
+  });
+
+  it("archivo de más de 2 MB: error claro antes de analizar", async () => {
+    const grande = `nombre\n${"x".repeat(I.MAX_BYTES_IMPORTACION_CLIENTES)}`;
+    expect(I.analizarCsvClientes(grande, [])).toEqual({ ok: false, error: I.MENSAJES_IMPORTACION.grande });
+    expect(await I.importarClientes(GESTIONA, grande)).toEqual({ ok: false, error: I.MENSAJES_IMPORTACION.grande });
+    expect(B.datos.client).toHaveLength(2);
+  });
+
+  it("con otra importación en curso en la organización, no corre", async () => {
+    B.agregar("fotofficeListActivity", {
+      workspaceId: "ws-1", listKey: "importacion", kind: "IMPORT_LOCK", action: "consultas", actorLabel: "Otra", rowCount: 0, query: "", createdAt: new Date(),
+    });
+    expect(await I.importarClientes(GESTIONA, CSV)).toEqual({ ok: false, error: "Ya hay una importación en curso; probá en unos minutos." });
+    expect(B.datos.client).toHaveLength(2);
+  });
+
   it("si falla el perfil, se deshace el lote entero (cliente, historial y perfil)", async () => {
     B.tablas.fotofficeContactoPerfil.create = async () => {
       throw new Error("falla");
     };
     const r = await I.importarClientes(GESTIONA, CSV);
-    expect(r).toMatchObject({ ok: true, creados: 0, fallidas: 3 });
+    // Devuelve los números de fila que no entraron, para reimportar sólo esas.
+    expect(r).toMatchObject({ ok: true, creados: 0, fallidas: 3, filasFallidas: [1, 2, 3] });
     expect(B.datos.client).toHaveLength(2);
     expect(B.datos.clientAudit).toHaveLength(0);
   });

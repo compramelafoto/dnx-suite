@@ -109,6 +109,14 @@ describe("Consultas → Importar", () => {
     expect(c).toContain("archivo.size > MAX_BYTES");
   });
 
+  it("las dos importaciones miran el tamaño del archivo (2 MB) antes de leerlo", () => {
+    for (const f of ["consultas/importar-consultas.tsx", "contactos/importar-clientes.tsx"]) {
+      const c = leer("components", ...f.split("/"));
+      expect(c, f).toContain("const MAX_BYTES = 2 * 1024 * 1024;");
+      expect(c.indexOf("archivo.size > MAX_BYTES"), f).toBeLessThan(c.indexOf("await archivo.text()"));
+    }
+  });
+
   it("el botón Importar está en la cabecera de Consultas, con Gestionar", () => {
     const a = leer("components", "captacion", "armazon.tsx");
     const i = a.indexOf('href="/consultas/importar"');

@@ -8,6 +8,15 @@ import type { ResultadoAnalisis, ResultadoImportacion } from "@/lib/clients/impo
 
 const MENSAJE_FALLA = "No se pudo completar. Probá de nuevo.";
 const ETIQUETA_ESTADO = { VALIDA: "Se carga", ERROR: "Con errores", DUPLICADA: "Ya existe" } as const;
+/** Igual que `MAX_BYTES_IMPORTACION_CLIENTES` (el servidor lo vuelve a mirar). */
+const MAX_BYTES = 2 * 1024 * 1024;
+const GRANDE = "El archivo pesa más de 2 MB. Partilo en varios archivos más chicos.";
+
+function textoSinClave(n: number): string {
+  return n === 1
+    ? "1 fila no tiene documento, correo ni teléfono: no podemos saber si ese cliente ya existe, y si volvés a importar el archivo se carga de nuevo."
+    : `${n} filas no tienen documento, correo ni teléfono: no podemos saber si esos clientes ya existen, y si volvés a importar el archivo se cargan de nuevo.`;
+}
 
 /**
  * Importación de clientes en dos pasos: pegar o subir el CSV y ver la vista previa con errores
@@ -71,8 +80,15 @@ export function ImportarClientes({ encabezado }: { encabezado: string }) {
           {resultado.duplicadas > 0 ? <li>{resultado.duplicadas} ya existían y no se tocaron.</li> : null}
           {resultado.conError > 0 ? <li>{resultado.conError} tenían errores y no se cargaron.</li> : null}
           {resultado.fallidas > 0 ? (
-            <li className="text-[var(--fo-danger)]">{resultado.fallidas} no se pudieron guardar. Volvé a importar el archivo: las que ya entraron no se repiten.</li>
+            <li className="text-[var(--fo-danger)]">
+              {resultado.fallidas === 1 ? "1 fila no se pudo guardar" : `${resultado.fallidas} filas no se pudieron guardar`} (
+              {resultado.filasFallidas.length > 50
+                ? `filas ${resultado.filasFallidas.slice(0, 50).join(", ")} y otras`
+                : `${resultado.filasFallidas.length === 1 ? "fila" : "filas"} ${resultado.filasFallidas.join(", ")}`}
+              ). Armá un CSV sólo con esas filas y volvé a importarlo.
+            </li>
           ) : null}
+          {resultado.sinClave > 0 ? <li>{textoSinClave(resultado.sinClave)}</li> : null}
         </ul>
         <div className="flex gap-2">
           <Link href="/clientes" className="fo-btn fo-btn-primary text-sm">
@@ -102,7 +118,7 @@ export function ImportarClientes({ encabezado }: { encabezado: string }) {
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="importar-clientes-archivo">
-            Archivo CSV
+            Archivo CSV (hasta 2 MB)
           </label>
           <input
             id="importar-clientes-archivo"
@@ -111,7 +127,13 @@ export function ImportarClientes({ encabezado }: { encabezado: string }) {
             className="fo-input"
             onChange={async (e) => {
               const archivo = e.target.files?.[0];
-              if (archivo) reiniciar(await archivo.text());
+              if (!archivo) return;
+              if (archivo.size > MAX_BYTES) {
+                reiniciar("");
+                setError(GRANDE);
+                return;
+              }
+              reiniciar(await archivo.text());
             }}
           />
         </div>
@@ -144,6 +166,11 @@ export function ImportarClientes({ encabezado }: { encabezado: string }) {
           <p className="text-sm text-[var(--fo-muted)]">
             {analisis.validas} se cargan · {analisis.duplicadas} ya existen · {analisis.conError} con errores
           </p>
+          {analisis.sinClave > 0 ? (
+            <p role="note" className="text-sm text-[var(--fo-warning)]">
+              {textoSinClave(analisis.sinClave)}
+            </p>
+          ) : null}
           <div className="max-h-[28rem] overflow-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-[var(--fo-muted)]">

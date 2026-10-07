@@ -252,6 +252,23 @@ describe("importar", () => {
     expect(B.datos.fotofficeJourney[0]!.stageId).toBe("e1");
   });
 
+  it("una sola importación a la vez por organización: la segunda (de consultas o de clientes) no corre", async () => {
+    const csv = `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,`;
+    const { conBloqueoDeImportacion, MENSAJE_IMPORTACION_EN_CURSO } = await import("@/lib/importacion/bloqueo");
+    // Mientras corre otra importación (acá, una de clientes simulada), la de consultas no entra.
+    const otra = await conBloqueoDeImportacion(EQUIPO, "clientes", async () => I.importarConsultas(EQUIPO, csv, SECUENCIAL));
+    expect(otra).toEqual({ ok: true, valor: { ok: false, error: MENSAJE_IMPORTACION_EN_CURSO } });
+    expect(consultas()).toHaveLength(0);
+    // Otra organización no queda trabada, y al terminar se puede de nuevo.
+    expect(await I.importarConsultas(EQUIPO, csv, SECUENCIAL)).toMatchObject({ ok: true, creadas: 1 });
+    expect(B.datos.fotofficeListActivity.filter((f) => f.kind === "IMPORT_LOCK")).toHaveLength(0);
+  });
+
+  it("la vista previa cuenta las filas sin correo (no se pueden controlar como duplicadas)", async () => {
+    const r = await I.previsualizarImportacionConsultas(EQUIPO, `${ENC}\nLaura,,341,Boda,,,,,,,,\nPedro,p@persona.test,,Boda,,,,,,,,`);
+    expect(r).toMatchObject({ ok: true, validas: 2, sinCorreo: 1 });
+  });
+
   it("queda en la bitácora de la lista de Consultas, sin datos personales", async () => {
     await I.importarConsultas(EQUIPO, `${ENC}\nLaura,laura@persona.test,,Boda,,,,,,,,\n,x@persona.test,,,,,,,,,,`, SECUENCIAL);
     expect(B.datos.fotofficeListActivity).toHaveLength(1);
