@@ -110,15 +110,6 @@ async function main() {
     }
   }
 
-  try {
-    const { enqueueWelcomeCardAfterPaid } = await import("../lib/welcome-card/enqueue");
-    await enqueueWelcomeCardAfterPaid({
-      registrationId: REG,
-      editionId: before.editionId,
-    });
-  } catch {
-    // soft
-  }
 
   const accessToken = signRegistrationAccessToken({
     registrationId: REG,

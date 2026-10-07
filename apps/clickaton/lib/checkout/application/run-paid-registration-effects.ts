@@ -61,17 +61,6 @@ export async function runPaidRegistrationEffects(input: {
     soft("FOTORANK_SYNC_ENQUEUE_SOFT")(err);
   }
 
-  // Placa de bienvenida.
-  try {
-    const { enqueueWelcomeCardAfterPaid } = await import("@/lib/welcome-card/enqueue");
-    void enqueueWelcomeCardAfterPaid({
-      registrationId: input.registrationId,
-      editionId: input.editionId,
-    });
-  } catch (err) {
-    soft("WELCOME_CARD_ENQUEUE_SOFT")(err);
-  }
-
   // Placas de participante V2.
   try {
     const { enqueueParticipantCardsAfterPaid } = await import(

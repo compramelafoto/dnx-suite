@@ -121,15 +121,6 @@ export function createGetRegistrationPaymentStatusUseCase(deps: {
               // soft-fail: PAID no se revierte
             }
             try {
-              const { enqueueWelcomeCardAfterPaid } = await import("@/lib/welcome-card/enqueue");
-              void enqueueWelcomeCardAfterPaid({
-                registrationId: registration.id,
-                editionId: registration.editionId,
-              });
-            } catch {
-              // soft-fail: PAID no se revierte
-            }
-            try {
               const { enqueueWelcomePublishAfterPaid } = await import(
                 "@/lib/social-publisher/enqueue-welcome-publish"
               );

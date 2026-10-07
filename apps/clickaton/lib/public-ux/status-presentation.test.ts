@@ -6,7 +6,6 @@ import {
   presentPaymentReturn,
   presentPaymentStatus,
   presentRegistrationStatus,
-  presentWelcomeCardStatus,
 } from "./status-presentation";
 import {
   isUnsafePublicErrorText,
@@ -105,14 +104,6 @@ describe("presentPaymentReturn", () => {
       displayAsApproved: false,
     });
     assert.match(p.nextAction ?? p.description, /segundo pago|No realices/i);
-  });
-});
-
-describe("presentWelcomeCardStatus", () => {
-  it("does not expose GENERATED/FAILED enums", () => {
-    assert.equal(looksLikeRawStatusEnum(presentWelcomeCardStatus("GENERATED").label), false);
-    assert.equal(looksLikeRawStatusEnum(presentWelcomeCardStatus("FAILED").label), false);
-    assert.equal(looksLikeRawStatusEnum(presentWelcomeCardStatus("PENDING").label), false);
   });
 });
 
