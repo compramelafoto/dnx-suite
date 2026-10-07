@@ -372,7 +372,7 @@ export async function computeCheckoutTotals(params: {
 
     const pricingByUploader = new Map<number, Awaited<ReturnType<typeof getPhotographerPricing>>>();
     for (const uploaderId of uploaderIds) {
-      pricingByUploader.set(uploaderId, await getPhotographerPricing(uploaderId));
+      pricingByUploader.set(uploaderId, await getPhotographerPricing(uploaderId, albumId));
     }
 
     const platformFeePercentPrint = await getPlatformFeePercent();

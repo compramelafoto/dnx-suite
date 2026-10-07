@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 import { normalizePrintSize } from "./prepaid-print-credit";
 
 export type ComboPrintProduct = {
@@ -25,16 +26,17 @@ function puntaje(name: string): number {
 
 export async function resolveComboPrintProduct(
   photographerId: number,
-  size: string
+  size: string,
+  albumId?: number | null
 ): Promise<ComboPrintProduct | null> {
   const target = normalizePrintSize(size);
   if (!target) return null;
   const products = await prisma.photographerProduct.findMany({
     where: { userId: photographerId, isActive: true },
-    select: { id: true, name: true, size: true, acabado: true },
+    select: { id: true, name: true, size: true, acabado: true, albumId: true },
     orderBy: { id: "asc" },
   });
-  const candidates = products
+  const candidates = productsForAlbum(products, albumId)
     .filter((p) => normalizePrintSize(p.size) === target)
     .sort((a, b) => puntaje(a.name) - puntaje(b.name) || a.id - b.id);
   const p = candidates[0];

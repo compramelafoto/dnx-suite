@@ -9,13 +9,20 @@
 import { prisma } from "@/lib/prisma";
 import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
 import { EXTERNAL_VOUCHER_KIND, parseExternalVoucherRefs } from "./external-voucher";
-import { buildCanjeWhatsAppMessage, buildWhatsAppUrl } from "./canje-whatsapp";
+import { EXTERNAL_PREVENTA_KIND, parseExternalPreventaRefs } from "./external-preventa";
+import {
+  buildCanjeWhatsAppMessage,
+  buildPreventaCanjeWhatsAppMessage,
+  buildWhatsAppUrl,
+} from "./canje-whatsapp";
 
 export type AlbumVoucherRow = {
   comboId: number;
   studentName: string | null;
   parentName: string | null;
   phone: string | null;
+  /** Curso del alumno (packs de colegio cargados por fuera). */
+  courseName: string | null;
   comboLabel: string;
   createdAt: string;
   estado: "sin_canjear" | "esperando_pago" | "canjeado";
@@ -28,7 +35,10 @@ export async function listAlbumVouchers(albumId: number): Promise<AlbumVoucherRo
       albumId,
       origin: "PREVENTA_PACK",
       status: "PAID",
-      redemptionPaymentRefsJson: { path: ["kind"], equals: EXTERNAL_VOUCHER_KIND },
+      OR: [
+        { redemptionPaymentRefsJson: { path: ["kind"], equals: EXTERNAL_VOUCHER_KIND } },
+        { redemptionPaymentRefsJson: { path: ["kind"], equals: EXTERNAL_PREVENTA_KIND } },
+      ],
     },
     select: {
       id: true,
@@ -51,15 +61,19 @@ export async function listAlbumVouchers(albumId: number): Promise<AlbumVoucherRo
 
   const rows: AlbumVoucherRow[] = [];
   for (const c of combos) {
-    const refs = parseExternalVoucherRefs(c.redemptionPaymentRefsJson);
-    if (!refs) continue;
+    const combo = parseExternalVoucherRefs(c.redemptionPaymentRefsJson);
+    const pack = combo ? null : parseExternalPreventaRefs(c.redemptionPaymentRefsJson);
+    if (!combo && !pack) continue;
     const pedido = c.redemptionOrderId != null ? pedidoPorId.get(c.redemptionOrderId) ?? null : null;
     rows.push({
       comboId: c.id,
-      studentName: refs.studentName ?? null,
-      parentName: refs.parentName ?? null,
+      studentName: combo?.studentName ?? pack?.studentName ?? null,
+      parentName: combo?.parentName ?? pack?.parentName ?? null,
       phone: c.buyerPhone,
-      comboLabel: refs.label ?? `${refs.printUnits} fotos impresas ${refs.size}`,
+      courseName: pack?.courseName ?? null,
+      comboLabel: combo
+        ? combo.label ?? `${combo.printUnits} fotos impresas ${combo.size}`
+        : pack?.label ?? "Pack de preventa",
       createdAt: c.createdAt.toISOString(),
       estado: !pedido ? "sin_canjear" : pedido.status === "PAID" ? "canjeado" : "esperando_pago",
       pedido: pedido
@@ -72,7 +86,12 @@ export async function listAlbumVouchers(albumId: number): Promise<AlbumVoucherRo
         : null,
     });
   }
-  return rows.sort((a, b) => (a.studentName ?? "").localeCompare(b.studentName ?? "", "es"));
+  // Los packs de colegio se cargan en el orden de la lista (nivel, curso, alumno): ese orden
+  // es el que sirve para recorrerlos curso por curso. Los combos sueltos, por nombre.
+  return rows.sort((a, b) => {
+    if (a.courseName || b.courseName) return a.comboId - b.comboId;
+    return (a.studentName ?? "").localeCompare(b.studentName ?? "", "es");
+  });
 }
 
 export type VoucherShareLink = { link: string; message: string; whatsappUrl: string | null };
@@ -93,11 +112,29 @@ export async function createVoucherShareLink(params: {
     },
   });
   const refs = parseExternalVoucherRefs(combo?.redemptionPaymentRefsJson);
-  if (!combo || !refs) return null;
+  const pack = refs ? null : parseExternalPreventaRefs(combo?.redemptionPaymentRefsJson);
+  if (!combo || (!refs && !pack)) return null;
 
-  const token = await createPackAccessTokenForOrder(combo.id, { ttlDays: 60, revokeExisting: false });
+  const token = await createPackAccessTokenForOrder(combo.id, { ttlDays: 90, revokeExisting: false });
   if (!token) return null;
-  const link = `${params.baseUrl.replace(/\/+$/, "")}/canje/${token.token}`;
+  const base = params.baseUrl.replace(/\/+$/, "");
+  if (pack) {
+    const link = `${base}/canje/preventa/${token.token}`;
+    const message = buildPreventaCanjeWhatsAppMessage({
+      parentName: pack.parentName,
+      studentName: pack.studentName,
+      albumTitle: combo.album.title,
+      packLabel: pack.label ?? "tu pack",
+      link,
+    });
+    return {
+      link,
+      message,
+      whatsappUrl: combo.buyerPhone ? buildWhatsAppUrl(combo.buyerPhone, message) : null,
+    };
+  }
+  if (!refs) return null;
+  const link = `${base}/canje/${token.token}`;
   const message = buildCanjeWhatsAppMessage({
     parentName: refs.parentName ?? null,
     studentName: refs.studentName ?? null,
