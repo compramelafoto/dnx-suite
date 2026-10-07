@@ -357,7 +357,7 @@ function slugBase(nombre: string): string {
 
 export type SponsorCommonInput = { name: string; websiteUrl: string; instagram: string };
 
-function normalizarComunes(input: SponsorCommonInput) {
+export function normalizarComunes(input: SponsorCommonInput) {
   const name = input.name.trim().slice(0, 120);
   if (name.length < 2) throw new SponsorsError("El nombre del sponsor tiene que tener al menos 2 letras.");
   const web = normalizarSitioWeb(input.websiteUrl);
