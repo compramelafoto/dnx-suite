@@ -253,6 +253,8 @@ export async function loadMemberProjects(workspaceId: string, memberId: string) 
         statusReason: true,
         visibleToMembers: true,
         createdAt: true,
+        deadlineAt: true,
+        manualNeededArs: true,
         attachments: { where: { taskUpdateId: null, quoteId: null }, select: { id: true, filename: true, sizeBytes: true } },
       },
     }),
@@ -476,4 +478,14 @@ export async function listMyComments(projectId: string, memberId: string) {
     orderBy: { createdAt: "asc" },
     select: { id: true, body: true, createdAt: true, withdrawnAt: true },
   });
+}
+
+/** Lo que votó el propio socio en varios proyectos, para marcar sus tarjetas. Nunca el de otro. */
+export async function listMyMemberVotes(memberId: string, projectIds: readonly string[]): Promise<Map<string, string>> {
+  if (projectIds.length === 0) return new Map();
+  const filas = await prisma.govMemberVote.findMany({
+    where: { memberId, projectId: { in: [...projectIds] } },
+    select: { projectId: true, value: true },
+  });
+  return new Map(filas.map((f) => [f.projectId, f.value]));
 }

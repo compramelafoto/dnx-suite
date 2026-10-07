@@ -241,12 +241,12 @@ describe("roleSelector", () => {
       workspaceId: "ws-a",
       options: [
         { kind: "MEMBER", label: "Socio", active: true },
-        { kind: "TEAM", label: "Administración", active: false },
+        { kind: "TEAM", label: "Comisión Directiva", active: false },
       ],
     });
   });
 
-  it("desde el panel: Administración activa", () => {
+  it("desde el panel: Comisión Directiva activa", () => {
     const r = roleSelector([teamA, socioA], { kind: "TEAM", workspaceId: "ws-a" }, socio);
     expect(r?.options.map((o) => [o.kind, o.active])).toEqual([
       ["MEMBER", false],
@@ -254,14 +254,14 @@ describe("roleSelector", () => {
     ]);
   });
 
-  it("el dueño también ve Administración", () => {
+  it("el dueño también ve Comisión Directiva", () => {
     const r = roleSelector([ownerA, socioA], { kind: "TEAM", workspaceId: "ws-a" }, socio);
-    expect(r?.options[1]?.label).toBe("Administración");
+    expect(r?.options[1]?.label).toBe("Comisión Directiva");
   });
 
-  it("con rol STAFF el equipo se llama Comisión", () => {
+  it("con rol STAFF también es Comisión Directiva", () => {
     const r = roleSelector([staffA, socioA], { kind: "MEMBER", workspaceId: "ws-a" }, socio);
-    expect(r?.options[1]).toEqual({ kind: "TEAM", label: "Comisión", active: false });
+    expect(r?.options[1]).toEqual({ kind: "TEAM", label: "Comisión Directiva", active: false });
   });
 
   it("usa la palabra del vocabulario, también femenina", () => {
