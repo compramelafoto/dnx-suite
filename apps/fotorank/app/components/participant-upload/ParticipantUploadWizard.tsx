@@ -24,6 +24,7 @@ import {
   type UploadWizardStepId,
   type WorkDataForm,
 } from "../../lib/fotorank/participant-upload";
+import type { CategoryEntryLimit } from "../../lib/fotorank/entries/entry-quota";
 import { formatParticipantDate } from "../../lib/fotorank/participant-experience/dates";
 import { UploadConfirmModal } from "./UploadConfirmModal";
 import { UploadStepper } from "./UploadStepper";
@@ -48,6 +49,8 @@ type EntryView = {
   } | null;
   publicRejectionReason?: string | null;
   previewUrl: string | null;
+  /** Categoría de la obra. En concursos con varias categorías puede no ser la de la inscripción. */
+  category?: { id: string; name: string; slug: string } | null;
   checks: Array<{ checkCode: string; status: string; title: string; message: string }>;
 };
 
@@ -65,6 +68,12 @@ export type ParticipantUploadWizardProps = {
   registrationNumber: string;
   registrationStatus: string;
   requirements: UploadRequirementsSummary;
+  /**
+   * Categorías donde la inscripción puede presentar obras y cuántas en cada
+   * una (la de la inscripción primero). Más de una = el concurso permite
+   * participar en varias categorías.
+   */
+  categoryLimits?: CategoryEntryLimit[];
   detailHref: string;
   participacionesHref?: string;
   /** Fixture: no llama APIs reales. */
@@ -96,6 +105,7 @@ export function ParticipantUploadWizard({
   registrationNumber,
   registrationStatus,
   requirements,
+  categoryLimits = [],
   detailHref,
   participacionesHref = "/participaciones",
   mode = "live",
@@ -121,6 +131,8 @@ export function ParticipantUploadWizard({
    * reusa en el reintento para que un envío fallido no ocupe otro lugar.
    */
   const pendingNewEntryIdRef = useRef<string | null>(null);
+  /** Categoría de la obra nueva que se está cargando (varias categorías). */
+  const [targetCategoryId, setTargetCategoryId] = useState<string | null>(null);
   const [uploadPhase, setUploadPhase] = useState<"idle" | "uploading" | "processing" | "done">(
     "idle",
   );
@@ -133,9 +145,41 @@ export function ParticipantUploadWizard({
   const inputRef = useRef<HTMLInputElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
 
-  const multi = requirements.maxFiles > 1;
-  const remainingSlots = Math.max(0, requirements.maxFiles - entries.length);
-  const entryPosition = entry ? entries.findIndex((e) => e.id === entry.id) + 1 || 1 : entries.length + 1;
+  const ownCategoryId = categoryLimits[0]?.categoryId ?? "";
+  const categoryOf = (e: EntryView) => e.category?.id ?? ownCategoryId;
+  const enabledCategories =
+    categoryLimits.length > 0
+      ? categoryLimits
+      : [{ categoryId: "", name: requirements.categoryName, slug: requirements.categorySlug, limit: requirements.maxFiles }];
+  /**
+   * Si el organizador apagó "varias categorías" después de que alguien ya
+   * presentó en otra, esas obras siguen en el concurso: se muestran igual
+   * (con el cupo lleno, para que no se ofrezca agregar).
+   */
+  const orphanCategories = [
+    ...new Map(
+      entries
+        .filter((e) => e.category && !enabledCategories.some((c) => c.categoryId === categoryOf(e)))
+        .map((e) => [e.category!.id, e.category!]),
+    ).values(),
+  ].map((c) => ({
+    categoryId: c.id,
+    name: c.name,
+    slug: c.slug,
+    limit: entries.filter((e) => categoryOf(e) === c.id).length,
+  }));
+  const groups = [...enabledCategories, ...orphanCategories].map((c) => ({
+    ...c,
+    entries: entries.filter((e) => categoryOf(e) === c.categoryId),
+  }));
+  const multiCategory = groups.length > 1;
+  const multi = multiCategory || requirements.maxFiles > 1;
+  const currentCategoryId = entry ? categoryOf(entry) : (targetCategoryId ?? groups[0]!.categoryId);
+  const currentGroup = groups.find((g) => g.categoryId === currentCategoryId) ?? groups[0]!;
+  const remainingSlots = Math.max(0, currentGroup.limit - currentGroup.entries.length);
+  const entryPosition = entry
+    ? currentGroup.entries.findIndex((e) => e.id === entry.id) + 1 || 1
+    : currentGroup.entries.length + 1;
 
   const startGate = canStartUpload({
     registrationStatus,
@@ -327,10 +371,11 @@ export function ParticipantUploadWizard({
   }
 
   /** Entra al asistente para una obra (reemplazo) o para una nueva (null). */
-  function startEntryFlow(target: EntryView | null) {
+  function startEntryFlow(target: EntryView | null, categoryId?: string) {
     setError(null);
     setInfo(null);
     setEntry(target);
+    setTargetCategoryId(target ? null : (categoryId ?? null));
     pendingNewEntryIdRef.current = null;
     setFile(null);
     setFileMeta(null);
@@ -404,7 +449,7 @@ export function ParticipantUploadWizard({
     if (workData.declaredDeviceKind === "UNKNOWN") {
       return "Indicá el tipo de dispositivo utilizado.";
     }
-    if (requirements.categorySlug.includes("profesional") && workData.declaredDeviceKind === "SMARTPHONE") {
+    if (currentGroup.slug.includes("profesional") && workData.declaredDeviceKind === "SMARTPHONE") {
       return "Esta categoría no admite fotografías tomadas con teléfono celular.";
     }
     if (
@@ -537,6 +582,8 @@ export function ParticipantUploadWizard({
               contentType: file.type || "image/jpeg",
               // Sin id el servidor crea una obra nueva (o reusa un borrador vacío).
               entryId: entry?.id ?? pendingNewEntryIdRef.current ?? undefined,
+              // Una obra nueva va a la categoría elegida; si se omite, a la de la inscripción.
+              categoryId: entry || !currentCategoryId ? undefined : currentCategoryId,
             }),
           },
           API_TIMEOUT_MS,
@@ -803,9 +850,10 @@ export function ParticipantUploadWizard({
         <p className="fr-public-eyebrow">Carga de fotografía</p>
         <h2 className="fr-upload-wizard__title">Participación guiada</h2>
         <p className="fr-upload-wizard__lead">
-          {requirements.categoryName} · {registrationNumber}
+          {multiCategory && step !== "requirements" ? currentGroup.name : requirements.categoryName} ·{" "}
+          {registrationNumber}
           {multi && step !== "requirements" && step !== "confirmation"
-            ? ` · Foto ${entryPosition} de ${requirements.maxFiles}`
+            ? ` · Foto ${entryPosition} de ${currentGroup.limit}`
             : null}
         </p>
         <UploadStepper current={step} />
@@ -849,6 +897,7 @@ export function ParticipantUploadWizard({
           <ul className="fr-upload-wizard__badge-row">
             <li className="fr-contest-info-badge fr-contest-info-badge--limit">
               Máx. {requirements.maxFiles === 1 ? "1 fotografía" : `${requirements.maxFiles} fotografías`}
+              {enabledCategories.length > 1 ? " por categoría" : null}
             </li>
             <li className="fr-contest-info-badge fr-contest-info-badge--device">
               {requirements.formatsLabel}
@@ -868,7 +917,7 @@ export function ParticipantUploadWizard({
           <dl className="fr-upload-wizard__facts">
             <div>
               <dt>Categoría</dt>
-              <dd>{requirements.categoryName}</dd>
+              <dd>{currentGroup.name}</dd>
             </div>
             <div>
               <dt>Resolución mínima</dt>
@@ -912,16 +961,32 @@ export function ParticipantUploadWizard({
           <p className="fr-upload-wizard__note">
             El GPS no es obligatorio y nunca se publica. El original se guarda de forma privada.
           </p>
-          {multi ? (
-            <EntryList
-              entries={entries}
-              maxFiles={requirements.maxFiles}
-              canReplace={canReplaceEntry}
-              onReplace={startEntryFlow}
-            />
+          {multi
+            ? groups.map((g) => (
+                <EntryList
+                  key={g.categoryId || "unica"}
+                  title={multiCategory ? g.name : "Tus fotografías"}
+                  entries={g.entries}
+                  maxFiles={g.limit}
+                  canReplace={canReplaceEntry}
+                  onReplace={(e) => startEntryFlow(e)}
+                  // Con una sola categoría el botón de agregar es el de abajo, como antes.
+                  onAdd={
+                    multiCategory && startGate.allowed && g.entries.length < g.limit
+                      ? () => startEntryFlow(null, g.categoryId)
+                      : undefined
+                  }
+                />
+              ))
+            : null}
+          {enabledCategories.length > 1 ? (
+            <p className="fr-upload-wizard__note">
+              Podés presentar hasta {enabledCategories.map((g) => `${g.limit} en ${g.name}`).join(" y ")}.
+            </p>
           ) : null}
           <div className="fr-upload-wizard__actions">
-            {multi ? (
+            {/* Con varias categorías, cada grupo de arriba tiene su propio botón. */}
+            {multiCategory ? null : multi ? (
               remainingSlots > 0 ? (
                 <button
                   type="button"
@@ -1245,7 +1310,7 @@ export function ParticipantUploadWizard({
             <dl className="fr-upload-wizard__facts" data-testid="entry-status-block">
               <div>
                 <dt>Categoría</dt>
-                <dd>{requirements.categoryName}</dd>
+                <dd>{currentGroup.name}</dd>
               </div>
               <div>
                 <dt>Archivo</dt>
@@ -1334,7 +1399,7 @@ export function ParticipantUploadWizard({
             </div>
             <div>
               <dt>Categoría</dt>
-              <dd>{requirements.categoryName}</dd>
+              <dd>{currentGroup.name}</dd>
             </div>
             <div>
               <dt>Estado</dt>
@@ -1350,7 +1415,8 @@ export function ParticipantUploadWizard({
               <div>
                 <dt>Fotografías enviadas</dt>
                 <dd data-testid="entries-count">
-                  {entries.length} de {requirements.maxFiles}
+                  {currentGroup.entries.length} de {currentGroup.limit}
+                  {multiCategory ? ` en ${currentGroup.name}` : null}
                 </dd>
               </div>
             ) : null}
@@ -1361,9 +1427,9 @@ export function ParticipantUploadWizard({
                 type="button"
                 className="fr-public-btn fr-public-btn--primary"
                 data-testid="upload-add-another"
-                onClick={() => startEntryFlow(null)}
+                onClick={() => startEntryFlow(null, currentCategoryId)}
               >
-                Subir otra fotografía
+                {multiCategory ? `Subir otra en ${currentGroup.name}` : "Subir otra fotografía"}
               </button>
             ) : null}
             {multi ? (
@@ -1418,20 +1484,26 @@ function isReplacementRequested(e: EntryView): boolean {
 
 /** Las obras de un concurso de varias fotos, con su estado y qué se puede hacer. */
 function EntryList({
+  title,
   entries,
   maxFiles,
   canReplace,
   onReplace,
+  onAdd,
 }: {
+  title: string;
   entries: EntryView[];
   maxFiles: number;
   canReplace: (e: EntryView) => boolean;
   onReplace: (e: EntryView) => void;
+  /** Presente cuando se puede agregar una obra en este grupo (varias categorías). */
+  onAdd?: () => void;
 }) {
+  const titleId = useId();
   return (
-    <section className="fr-upload-entries" data-testid="upload-entry-list" aria-labelledby="upload-entries-title">
-      <h4 id="upload-entries-title" className="fr-upload-entries__title">
-        Tus fotografías · {entries.length} de {maxFiles}
+    <section className="fr-upload-entries" data-testid="upload-entry-list" aria-labelledby={titleId}>
+      <h4 id={titleId} className="fr-upload-entries__title">
+        {title} · {entries.length} de {maxFiles}
       </h4>
       {entries.length === 0 ? (
         <p className="fr-upload-wizard__note">
@@ -1484,6 +1556,16 @@ function EntryList({
           })}
         </ol>
       )}
+      {onAdd ? (
+        <button
+          type="button"
+          className="fr-public-btn fr-public-btn--primary fr-upload-entries__add"
+          data-testid="upload-entry-add"
+          onClick={onAdd}
+        >
+          {entries.length === 0 ? `Cargar en ${title}` : `Agregar otra en ${title}`}
+        </button>
+      ) : null}
     </section>
   );
 }

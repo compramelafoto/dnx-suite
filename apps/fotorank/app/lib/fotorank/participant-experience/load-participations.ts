@@ -1,5 +1,5 @@
 import { prisma } from "@repo/db";
-import { isEmptyDraftEntry, resolveRegistrationEntryLimit } from "../entries/entry-quota";
+import { isEmptyDraftEntry, resolveCategoryEntryLimits } from "../entries/entry-quota";
 import { buildParticipantParticipationView } from "./build-view";
 import type { ParticipantParticipationView } from "./types";
 
@@ -32,10 +32,36 @@ const ENTRY_SELECT = {
  * vista nunca la leyó, y sumarle el flag `publicUploadOpen` acá cambiaría lo que
  * ven los participantes de otros concursos sin que nadie lo haya pedido.
  */
-function withoutUploadPolicy<T extends { uploadPolicyJson: unknown }>(contest: T): Omit<T, "uploadPolicyJson"> {
-  const rest: Omit<T, "uploadPolicyJson"> & { uploadPolicyJson?: unknown } = { ...contest };
+function withoutUploadPolicy<T extends { uploadPolicyJson: unknown; categories: unknown }>(
+  contest: T,
+): Omit<T, "uploadPolicyJson" | "categories"> {
+  const rest: Omit<T, "uploadPolicyJson" | "categories"> & { uploadPolicyJson?: unknown; categories?: unknown } = {
+    ...contest,
+  };
   delete rest.uploadPolicyJson;
+  delete rest.categories;
   return rest;
+}
+
+/**
+ * Cuántas obras puede presentar la inscripción en total: la suma de los cupos
+ * de cada categoría habilitada (una sola, salvo que el concurso permita varias).
+ */
+function totalEntryLimit(r: {
+  categoryId: string;
+  purchasedEntriesCount: number | null;
+  category: { id: string; name: string; slug: string; maxFiles: number };
+  contest: { uploadPolicyJson: unknown; categories: Array<{ id: string; name: string; slug: string; maxFiles: number }> };
+}): number {
+  const categories = r.contest.categories.some((c) => c.id === r.categoryId)
+    ? r.contest.categories
+    : [r.category, ...r.contest.categories];
+  return resolveCategoryEntryLimits({
+    uploadPolicyJson: r.contest.uploadPolicyJson,
+    registrationCategoryId: r.categoryId,
+    categories,
+    purchasedEntriesCount: r.purchasedEntriesCount,
+  }).reduce((sum, c) => sum + c.limit, 0);
 }
 
 /** Obras reales de la inscripción: sin los borradores de intentos fallidos. */
@@ -84,6 +110,11 @@ export async function listMyParticipationViews(
           judgingEndAt: true,
           resultsAt: true,
           uploadPolicyJson: true,
+          categories: {
+            where: { status: "ACTIVE" },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, name: true, slug: true, maxFiles: true },
+          },
         },
       },
       category: {
@@ -134,11 +165,7 @@ export async function listMyParticipationViews(
       categoryId: r.category.id,
       categoryName: r.category.name,
       categorySlug: r.category.slug,
-      maxFiles: resolveRegistrationEntryLimit({
-        uploadPolicyJson: r.contest.uploadPolicyJson,
-        categoryMaxFiles: r.category.maxFiles,
-        purchasedEntriesCount: r.purchasedEntriesCount,
-      }),
+      maxFiles: totalEntryLimit(r),
       registrationStatus: r.status,
       paymentStatus: r.paymentStatus,
       registeredAt: r.registeredAt,
@@ -185,6 +212,11 @@ export async function getMyParticipationView(
           judgingEndAt: true,
           resultsAt: true,
           uploadPolicyJson: true,
+          categories: {
+            where: { status: "ACTIVE" },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, name: true, slug: true, maxFiles: true },
+          },
         },
       },
       category: {
@@ -222,11 +254,7 @@ export async function getMyParticipationView(
     categoryId: r.category.id,
     categoryName: r.category.name,
     categorySlug: r.category.slug,
-    maxFiles: resolveRegistrationEntryLimit({
-      uploadPolicyJson: r.contest.uploadPolicyJson,
-      categoryMaxFiles: r.category.maxFiles,
-      purchasedEntriesCount: r.purchasedEntriesCount,
-    }),
+    maxFiles: totalEntryLimit(r),
     registrationStatus: r.status,
     paymentStatus: r.paymentStatus,
     registeredAt: r.registeredAt,

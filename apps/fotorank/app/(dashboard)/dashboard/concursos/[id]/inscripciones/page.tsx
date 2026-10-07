@@ -24,16 +24,19 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
 
   try {
     rows = await listContestEntriesForOrganizer({ contestId, organizerUserId: user.id });
+    // Los contadores de obras cuentan obras, no inscripciones: una persona
+    // puede presentar varias (y en varias categorías).
+    const obras = rows.flatMap((r) => r.entries);
     stats = {
       totalRegistrations: rows.length,
-      withoutPhoto: rows.filter((r) => !r.entryId).length,
-      uploaded: rows.filter((r) => r.entryId && r.entryStatus !== "DRAFT").length,
-      confirmed: rows.filter((r) => r.entryStatus === "CONFIRMED").length,
-      approved: rows.filter((r) => r.technicalSummaryStatus === "APPROVED").length,
-      approvedWithWarnings: rows.filter((r) => r.technicalSummaryStatus === "APPROVED_WITH_WARNINGS").length,
-      requiresReview: rows.filter((r) => r.technicalSummaryStatus === "REQUIRES_REVIEW").length,
-      rejected: rows.filter(
-        (r) => r.entryStatus === "REJECTED" || r.technicalSummaryStatus === "TECHNICALLY_REJECTED",
+      withoutPhoto: rows.filter((r) => r.entries.length === 0).length,
+      uploaded: obras.filter((e) => e.entryStatus !== "DRAFT").length,
+      confirmed: obras.filter((e) => e.entryStatus === "CONFIRMED").length,
+      approved: obras.filter((e) => e.technicalSummaryStatus === "APPROVED").length,
+      approvedWithWarnings: obras.filter((e) => e.technicalSummaryStatus === "APPROVED_WITH_WARNINGS").length,
+      requiresReview: obras.filter((e) => e.technicalSummaryStatus === "REQUIRES_REVIEW").length,
+      rejected: obras.filter(
+        (e) => e.entryStatus === "REJECTED" || e.technicalSummaryStatus === "TECHNICALLY_REJECTED",
       ).length,
     };
   } catch (err) {
@@ -63,7 +66,7 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
         {[
           ["Inscriptos", stats.totalRegistrations],
           ["Sin foto", stats.withoutPhoto],
-          ["Confirmadas", stats.confirmed],
+          ["Obras confirmadas", stats.confirmed],
           ["Requieren revisión", stats.requiresReview],
         ].map(([label, value]) => (
           <div key={String(label)} className="fr-recuadro border border-fr-border bg-fr-card">
@@ -87,37 +90,53 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.registrationId} className="border-b border-fr-border/60">
-                <td className="px-4 py-3 text-gold">{r.registrationNumber}</td>
-                <td className="px-4 py-3">
-                  <div className="text-fr-primary">{r.participantName ?? "—"}</div>
-                  <div className="text-xs text-fr-muted">{r.participantEmail}</div>
-                </td>
-                <td className="px-4 py-3 text-fr-primary">{r.categoryName}</td>
-                <td className="px-4 py-3 text-fr-primary">
-                  {r.entryStatus ?? "—"}
-                  {r.entryNumber ? <div className="text-xs text-fr-muted">{r.entryNumber}</div> : null}
-                </td>
-                <td className="px-4 py-3 text-fr-primary">{r.technicalSummaryStatus ?? "—"}</td>
-                <td className="px-4 py-3 text-fr-muted">
-                  {r.warnings}/{r.failures}
-                  {r.requiresReview ? ` · RR ${r.requiresReview}` : ""}
-                </td>
-                <td className="px-4 py-3">
-                  {r.entryId ? (
-                    <Link
-                      href={`/dashboard/concursos/${contestId}/inscripciones/${r.entryId}`}
-                      className="text-gold hover:text-gold-hover"
-                    >
-                      Ver detalle
-                    </Link>
-                  ) : (
-                    <span className="text-fr-muted">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              // Una fila por obra; la inscripción sin obras igual aparece, con "—".
+              const obras = r.entries.length > 0 ? r.entries : [null];
+              return obras.map((e, i) => (
+                <tr
+                  key={e?.entryId ?? r.registrationId}
+                  className={i === obras.length - 1 ? "border-b border-fr-border/60" : ""}
+                >
+                  {i === 0 ? (
+                    <>
+                      <td className="px-4 py-3 align-top text-gold" rowSpan={obras.length}>
+                        {r.registrationNumber}
+                        {obras.length > 1 ? (
+                          <div className="text-xs text-fr-muted">{obras.length} obras</div>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 align-top" rowSpan={obras.length}>
+                        <div className="text-fr-primary">{r.participantName ?? "—"}</div>
+                        <div className="text-xs text-fr-muted">{r.participantEmail}</div>
+                      </td>
+                    </>
+                  ) : null}
+                  <td className="px-4 py-3 text-fr-primary">{e?.categoryName ?? r.categoryName}</td>
+                  <td className="px-4 py-3 text-fr-primary">
+                    {e?.entryStatus ?? "—"}
+                    {e?.entryNumber ? <div className="text-xs text-fr-muted">{e.entryNumber}</div> : null}
+                  </td>
+                  <td className="px-4 py-3 text-fr-primary">{e?.technicalSummaryStatus ?? "—"}</td>
+                  <td className="px-4 py-3 text-fr-muted">
+                    {e ? `${e.warnings}/${e.failures}` : "—"}
+                    {e?.requiresReview ? ` · RR ${e.requiresReview}` : ""}
+                  </td>
+                  <td className="px-4 py-3">
+                    {e ? (
+                      <Link
+                        href={`/dashboard/concursos/${contestId}/inscripciones/${e.entryId}`}
+                        className="text-gold hover:text-gold-hover"
+                      >
+                        Ver detalle
+                      </Link>
+                    ) : (
+                      <span className="text-fr-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ));
+            })}
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-fr-muted">
