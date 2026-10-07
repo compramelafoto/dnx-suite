@@ -14,8 +14,10 @@ import {
   canCreateEntry,
   resolveEntryQuota,
   resolvePolicyMaxEntries,
+  resolveCategoryEntryLimits,
   resolveRegistrationEntryLimit,
 } from "./entry-quota";
+import { allowsMultipleCategories, withMultipleCategories } from "./upload-policy";
 
 // ===========================================================================
 // 1. COMPATIBILIDAD — concursos ya existentes
@@ -175,6 +177,52 @@ assert.equal(
 assert.equal(
   resolveRegistrationEntryLimit({ uploadPolicyJson: { maxEntriesPerRegistration: 1 }, categoryMaxFiles: 3 }),
   1,
+);
+
+// ===========================================================================
+// 5. VARIAS CATEGORÍAS POR INSCRIPCIÓN — interruptor del concurso
+// ===========================================================================
+
+// Apagado por defecto: ningún concurso existente cambia.
+assert.equal(allowsMultipleCategories(null), false);
+assert.equal(allowsMultipleCategories({}), false);
+assert.equal(allowsMultipleCategories({ maxEntriesPerRegistration: 1 }), false);
+assert.equal(allowsMultipleCategories({ allowMultipleCategories: "true" }), false, "sólo un booleano real lo enciende");
+assert.equal(allowsMultipleCategories({ allowMultipleCategories: true }), true);
+
+// Encenderlo sobre un concurso sin política (Retratos) NO inventa un cupo:
+// el límite por foto sigue saliendo del "Máx. archivos" de cada categoría.
+const encendido = withMultipleCategories(null, true);
+assert.equal(allowsMultipleCategories(encendido), true);
+assert.equal(resolvePolicyMaxEntries(encendido, 3), 3);
+assert.deepEqual(Object.keys(encendido), ["allowMultipleCategories"]);
+
+// Sobre una política existente conserva el resto de las claves.
+const conPolitica = withMultipleCategories({ maxEntriesPerRegistration: 2, publicUploadOpen: true }, true);
+assert.equal(resolvePolicyMaxEntries(conPolitica, 3), 2);
+assert.equal((conPolitica as { publicUploadOpen?: boolean }).publicUploadOpen, true);
+
+// Apagarlo quita la clave en lugar de dejar `false`.
+assert.equal("allowMultipleCategories" in withMultipleCategories(encendido, false), false);
+
+// Cupos que ve el participante, por categoría.
+const cats = [
+  { id: "color", name: "Color", slug: "color", maxFiles: 3 },
+  { id: "mono", name: "Monocromo", slug: "monocromo", maxFiles: 3 },
+];
+// Sin el interruptor: sólo la categoría de la inscripción.
+assert.deepEqual(
+  resolveCategoryEntryLimits({ uploadPolicyJson: null, registrationCategoryId: "mono", categories: cats }).map((c) => [c.categoryId, c.limit]),
+  [["mono", 3]],
+);
+// Con el interruptor: todas, empezando por la de la inscripción, 3 en cada una.
+assert.deepEqual(
+  resolveCategoryEntryLimits({
+    uploadPolicyJson: { allowMultipleCategories: true },
+    registrationCategoryId: "mono",
+    categories: cats,
+  }).map((c) => [c.categoryId, c.limit]),
+  [["mono", 3], ["color", 3]],
 );
 
 console.log("entry-quota.selfcheck.ts OK — compatibilidad, cupo por paquete, config inválida y origen del límite");

@@ -101,3 +101,25 @@ export function assertUploadPolicySafeForProduction(policy: UploadPolicy): void 
     );
   }
 }
+
+/**
+ * ¿El concurso deja que una misma inscripción presente obras en varias
+ * categorías? Apagado salvo `true` explícito: cada inscripción queda en la
+ * categoría que eligió al anotarse, como siempre.
+ */
+export function allowsMultipleCategories(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  return (raw as { allowMultipleCategories?: unknown }).allowMultipleCategories === true;
+}
+
+/**
+ * Devuelve la política con el interruptor puesto o sacado, sin tocar el resto.
+ * Sobre un concurso sin política crea sólo esta clave: no agrega
+ * `maxEntriesPerRegistration`, así el cupo sigue saliendo de cada categoría.
+ */
+export function withMultipleCategories(raw: unknown, enabled: boolean): Record<string, unknown> {
+  const base = raw && typeof raw === "object" && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
+  if (enabled) base.allowMultipleCategories = true;
+  else delete base.allowMultipleCategories;
+  return base;
+}

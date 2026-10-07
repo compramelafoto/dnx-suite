@@ -21,7 +21,11 @@ import {
   presentRegistrationStatus,
   resolveUploadWindow,
 } from "../../../lib/fotorank/participant-experience";
-import { resolveRegistrationEntryLimit } from "../../../lib/fotorank/entries/entry-quota";
+import { allowsMultipleCategories } from "../../../lib/fotorank/entries/upload-policy";
+import {
+  resolveCategoryEntryLimits,
+  resolveRegistrationEntryLimit,
+} from "../../../lib/fotorank/entries/entry-quota";
 import { buildUploadRequirementsSummary } from "../../../lib/fotorank/participant-upload";
 import { toStatusBadgeTone } from "../../../lib/fotorank/public-ux/status-tone-bridge";
 import {
@@ -113,6 +117,14 @@ export default async function ContestInscriptionPage({ params }: Props) {
           timezone: contest.timezone,
         })
       : null;
+    const categoryLimits = category
+      ? resolveCategoryEntryLimits({
+          uploadPolicyJson: contest.uploadPolicyJson,
+          registrationCategoryId: category.id,
+          categories: contest.categories,
+          purchasedEntriesCount: existing.purchasedEntriesCount,
+        })
+      : [];
     const regStatus = presentRegistrationStatus(existing.status);
 
     return (
@@ -185,6 +197,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
                   registrationNumber={existing.registrationNumber}
                   registrationStatus={existing.status}
                   requirements={requirements}
+                  categoryLimits={categoryLimits}
                   detailHref={`/participaciones/${existing.id}`}
                 />
               ) : null}
@@ -245,6 +258,7 @@ export default async function ContestInscriptionPage({ params }: Props) {
                   publishedAt: rules.publishedAt ? rules.publishedAt.toISOString() : null,
                 }}
                 isFree={isFree}
+                allowMultipleCategories={allowsMultipleCategories(contest.uploadPolicyJson)}
               />
             )}
           </PageContainer>

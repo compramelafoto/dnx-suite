@@ -9,6 +9,8 @@ const BY_CODE: Partial<Record<EntryErrorCode | string, string>> = {
   REPLACE_NOT_ALLOWED: "En este momento no podés reemplazar la fotografía.",
   CONFIRM_BLOCKED: "Todavía no se puede confirmar el envío. Revisá los requisitos técnicos.",
   FROZEN: "La obra está congelada y no admite cambios.",
+  ENTRY_QUOTA_EXCEEDED: "Ya cargaste todas las fotografías que permite esta categoría.",
+  CATEGORY_NOT_ALLOWED: "Este concurso no permite presentar fotografías en esa categoría.",
   DEVICE_NOT_ELIGIBLE: "El dispositivo declarado no es válido para esta categoría.",
   TERRITORY_REQUIRED: "Confirmá el territorio y la localidad de captura.",
   ARGRA_REQUIRED: "Falta la acreditación requerida para esta categoría.",

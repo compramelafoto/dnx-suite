@@ -18,6 +18,7 @@ import {
   listGlobalCategoriesCatalogAction,
   reorderContestCategoriesAction,
   searchGlobalCategoriesAction,
+  setContestMultipleCategoriesAction,
   suggestGlobalCategoryForSystemAction,
   suggestSimilarCategoriesAction,
   updateContestCategoryMappingsAction,
@@ -25,6 +26,7 @@ import {
 import { updateContestCategoriesFromModal } from "../../../../../actions/contests";
 import { getCategoryManagementMode } from "../../../../../lib/fotorank/contestCategoryPolicy";
 import { normalizeSlug } from "../../../../../lib/fotorank/slug";
+import { allowsMultipleCategories } from "../../../../../lib/fotorank/entries/upload-policy";
 
 type Contest = NonNullable<
   Awaited<ReturnType<typeof import("../../../../../lib/fotorank/contests").getFotorankContestById>>
@@ -439,6 +441,14 @@ export function CategoriasModalContent({ contest, onSuccess, onCancel, readOnly,
         >
           {error}
         </div>
+      ) : null}
+
+      {activeRows.length > 1 ? (
+        <MultipleCategoriesToggle
+          contestId={contest.id}
+          initial={allowsMultipleCategories(contest.uploadPolicyJson)}
+          onError={setError}
+        />
       ) : null}
 
       <FormSection title="Categorías del concurso" description="Catálogo global, mapeos y nombres visibles. Las obras quedan ligadas al concurso y, para ranking global, a categorías maestras aprobadas." style={{ marginBottom: 0 }}>
@@ -884,5 +894,68 @@ export function CategoriasModalContent({ contest, onSuccess, onCancel, readOnly,
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Interruptor "Permitir participar en varias categorías". Se guarda al
+ * tocarlo: es una decisión aparte de la edición de categorías.
+ */
+function MultipleCategoriesToggle({
+  contestId,
+  initial,
+  onError,
+}: {
+  contestId: string;
+  initial: boolean;
+  onError: (msg: string | null) => void;
+}) {
+  const theme = useResolvedTheme();
+  const [enabled, setEnabled] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  async function toggle(next: boolean) {
+    setBusy(true);
+    onError(null);
+    const r = await setContestMultipleCategoriesAction({ contestId, enabled: next });
+    setBusy(false);
+    if (!r.ok) {
+      onError(r.error);
+      return;
+    }
+    setEnabled(next);
+  }
+
+  return (
+    <label
+      data-testid="multiple-categories-toggle"
+      style={{
+        display: "flex",
+        gap: spacing[3],
+        alignItems: "flex-start",
+        border: `1px solid ${theme.border.subtle}`,
+        background: theme.surface.base,
+        borderRadius: radius.button,
+        padding: spacing[4],
+        cursor: busy ? "wait" : "pointer",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={enabled}
+        disabled={busy}
+        onChange={(e) => void toggle(e.target.checked)}
+        style={{ marginTop: 3 }}
+      />
+      <span style={{ display: "grid", gap: spacing[1] }}>
+        <span style={{ color: theme.text.primary, fontWeight: 600, fontSize: "0.9rem" }}>
+          Permitir participar en varias categorías
+        </span>
+        <span style={{ color: theme.text.secondary, fontSize: "0.85rem", lineHeight: 1.5 }}>
+          Con una sola inscripción, cada participante puede presentar fotografías en todas las categorías, hasta el
+          “Máx. archivos” de cada una. Apagado, sólo en la categoría que eligió al inscribirse.
+        </span>
+      </span>
+    </label>
   );
 }

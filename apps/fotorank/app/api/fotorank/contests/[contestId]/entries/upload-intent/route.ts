@@ -19,14 +19,16 @@ export async function POST(req: Request, ctx: Ctx) {
      */
     let contentType: string | null = null;
     let entryId: string | null = null;
+    let categoryId: string | null = null;
     try {
-      const body = (await req.json()) as { contentType?: unknown; entryId?: unknown };
+      const body = (await req.json()) as { contentType?: unknown; entryId?: unknown; categoryId?: unknown };
       if (typeof body?.contentType === "string") contentType = body.contentType;
       if (typeof body?.entryId === "string" && body.entryId.trim()) entryId = body.entryId.trim();
+      if (typeof body?.categoryId === "string" && body.categoryId.trim()) categoryId = body.categoryId.trim();
     } catch {
       contentType = null;
     }
-    const intent = await createUploadIntent({ contestId, participantUserId: user.id, contentType, entryId });
+    const intent = await createUploadIntent({ contestId, participantUserId: user.id, contentType, entryId, categoryId });
     return NextResponse.json({ ok: true, ...intent });
   } catch (err) {
     if (err instanceof EntryError) {
