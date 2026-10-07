@@ -117,11 +117,18 @@ export async function responderConsultaNueva(
     });
     if (!reserva) return "YA_RESPONDIDO";
 
-    const r = await enviarCorreo(
-      ctxDelSistema(workspaceId),
-      { entityType: "CONSULTA", entityId: leadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true, registroId: reserva },
-      deps,
-    );
+    let r: Awaited<ReturnType<typeof enviarCorreo>>;
+    try {
+      r = await enviarCorreo(
+        ctxDelSistema(workspaceId),
+        { entityType: "CONSULTA", entityId: leadId, templateId: auto.id, asunto: textos.asunto, cuerpo: textos.cuerpo, automatico: true, registroId: reserva },
+        deps,
+      );
+    } catch (e) {
+      // Si el envío lanza, la reserva no tiene que frenar esa dirección hasta que venza: se libera acá.
+      await liberarReserva(workspaceId, reserva).catch(() => undefined);
+      throw e;
+    }
     if (r.ok) return "ENVIADO";
     // Sin registrar (tope, texto): la reserva no se usó y se libera.
     if (!r.registrado) await liberarReserva(workspaceId, reserva);
