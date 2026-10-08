@@ -243,6 +243,30 @@ describe("pagar una cuenta", () => {
     expect(B.sql.some((s) => s.valores.includes("fotoffice-pedido:ped-1"))).toBe(true);
   });
 
+  it("el comprobante: sólo un adjunto LISTO del proveedor de la cuenta, de este workspace", async () => {
+    B.agregar("fotofficeAttachment", { id: "adj-ok", workspaceId: "ws-1", clientId: "lab", status: "LISTO", fileName: "transf.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-otro", workspaceId: "ws-1", clientId: "cli-1", status: "LISTO", fileName: "o.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-pend", workspaceId: "ws-1", clientId: "lab", status: "PENDIENTE", fileName: "p.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-borr", workspaceId: "ws-1", clientId: "lab", status: "LISTO", deletedAt: new Date(), fileName: "b.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-ajeno", workspaceId: "ws-2", clientId: "lab", status: "LISTO", fileName: "a.pdf" });
+    for (const adjuntoId of ["adj-otro", "adj-pend", "adj-borr", "adj-ajeno", "no-existe"]) {
+      expect(await pagar("c-1", { adjuntoId })).toEqual({ ok: false, error: MC.adjunto });
+    }
+    expect(await pagar("c-1", { adjuntoId: 5 })).toEqual({ ok: false, error: MC.adjunto });
+    expect(movimientos()).toHaveLength(0);
+    expect(fila("c-1").paidAt ?? null).toBeNull();
+    await pagada("c-1", { adjuntoId: "adj-ok" });
+    expect(fila("c-1").attachmentId).toBe("adj-ok");
+  });
+
+  it("sin proveedor no hay comprobante; sin adjuntoId queda sin comprobante", async () => {
+    B.agregar("fotofficeAttachment", { id: "adj-ok", workspaceId: "ws-1", clientId: "lab", status: "LISTO", fileName: "transf.pdf" });
+    cuenta("c-sin", { supplierClientId: null });
+    expect(await pagar("c-sin", { adjuntoId: "adj-ok" })).toEqual({ ok: false, error: MC.adjuntoSinProveedor });
+    await pagada("c-sin");
+    expect(fila("c-sin").attachmentId ?? null).toBeNull();
+  });
+
   it("un medio digital sale de la cuenta digital; un día anterior, a las 12 de Argentina", async () => {
     await pagada("c-1", { medio: "TRANSFERENCIA", fecha: "2026-10-01" });
     expect(movimientos()[0]).toMatchObject({ accountId: "mp", paymentMethod: "TRANSFERENCIA", occurredAt: new Date("2026-10-01T15:00:00.000Z") });

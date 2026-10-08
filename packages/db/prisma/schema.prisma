@@ -7412,6 +7412,7 @@ model FotofficeAttachment {
   client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   fotofficeCobros FotofficeCobro[]
+  fotofficeCuentasPagar FotofficeCuentaPagar[]
 
   @@index([workspaceId, clientId, createdAt])
   @@index([workspaceId, memberId, createdAt])
@@ -21077,6 +21078,8 @@ model FotofficeCuentaPagar {
   voidReason         String?
   /// El contramovimiento al anular el pago: el único asegura que se anule una sola vez.
   voidCashMovementId String?   @unique
+  /// Comprobante del pago: adjunto LISTO de la ficha del proveedor (lo valida el código).
+  attachmentId       String?
   /// Clave del formulario de pago: el mismo envío dos veces paga una sola vez.
   idempotencyKey     String?
   createdByUserId    Int?
@@ -21091,6 +21094,7 @@ model FotofficeCuentaPagar {
   costCategory     CashCategory?            @relation("FotofficeCuentaPagarRubroCosto", fields: [costCategoryId], references: [id], onDelete: SetNull)
   paidCashMovement CashMovement?            @relation("FotofficeCuentaPagarMovimiento", fields: [paidCashMovementId], references: [id], onDelete: SetNull)
   voidCashMovement CashMovement?            @relation("FotofficeCuentaPagarContramovimiento", fields: [voidCashMovementId], references: [id], onDelete: SetNull)
+  attachment       FotofficeAttachment?     @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, idempotencyKey])
   @@index([workspaceId, dueDate])
@@ -21101,6 +21105,7 @@ model FotofficeCuentaPagar {
   @@index([supplierClientId])
   @@index([costoPlantillaId])
   @@index([costCategoryId])
+  @@index([attachmentId])
 }
 
 /// Recordatorio de vencimiento de una cuota ya enviado. Uno por (cuota, vencimiento): si se mueve

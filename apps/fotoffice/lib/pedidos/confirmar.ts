@@ -5,6 +5,7 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { bloquearPresupuesto, itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acceso";
 import { copiarTareasAlPedido, leerPlantillasChecklist, titulosParaPedidoNuevo } from "./checklist";
+import { OPCIONES_TRANSACCION_PEDIDO } from "./constantes";
 import { crearCuentasDelPedido } from "./cuentas-pagar";
 import { buscarOpcion, opcionesParaPresupuesto, parsePaymentOptionsSnapshot, type OpcionPago } from "./opciones-pago";
 import { leerCuotasEditadas, type CuotaParaGuardar } from "./plan";
@@ -255,7 +256,7 @@ export async function confirmarPedido(
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: ctx.userId });
       await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
-    });
+    }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
     if (e instanceof Corte) return { ok: false, error: e.mensaje, ...(e.pedidoId ? { pedidoId: e.pedidoId } : {}) };
     // Otra confirmación del mismo presupuesto ganó (único `presupuestoId`): devolver la suya.

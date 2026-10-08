@@ -9,6 +9,7 @@ import {
   guardarCuentaPagarAction,
   pagarCuentaAction,
 } from "@/app/actions/pedidos";
+import { subirAdjuntoConId } from "@/components/ficha/subir-adjunto";
 import { claseDeColorEtiqueta, fechaHoraBA } from "@/lib/ficha/formato";
 import { ETIQUETA_MEDIO_COBRO, MEDIOS_COBRO, esMedioCobro, type MedioCobro } from "@/lib/pedidos/constantes";
 import type { CuentaVista, OpcionProveedor } from "@/lib/pedidos/cuentas-pagar";
@@ -44,6 +45,7 @@ export function CostosYPagos({
   cuentas,
   margenes,
   gestiona,
+  puedeAdjuntar,
   cancelado,
   proveedores,
   rubros,
@@ -53,6 +55,8 @@ export function CostosYPagos({
   cuentas: CuentaVista[];
   margenes: Margenes;
   gestiona: boolean;
+  /** "Gestionar" en Clientes: puede subir el comprobante a la ficha del proveedor (igual que en los cobros). */
+  puedeAdjuntar: boolean;
   cancelado: boolean;
   proveedores: OpcionProveedor[];
   rubros: Opcion[];
@@ -168,6 +172,7 @@ export function CostosYPagos({
                 {c.rubro ? ` · ${c.rubro}` : ""}
                 {c.pagadaEl ? ` · Pagada el ${fechaHoraBA(c.pagadaEl)}` : ""}
                 {c.pagadaEl && c.medio ? ` · ${esMedioCobro(c.medio) ? ETIQUETA_MEDIO_COBRO[c.medio] : c.medio}` : ""}
+                {c.pagadaEl && c.comprobante ? ` · Comprobante: ${c.comprobante}` : ""}
               </p>
               {c.pagoAnuladoEl ? (
                 <p className="text-xs text-[var(--fo-muted)]">
@@ -349,13 +354,25 @@ export function CostosYPagos({
         </form>
       ) : null}
 
-      {pagando ? <PagarCuenta cuenta={pagando} rubros={rubros} hoy={hoy} onCerrar={() => setPagando(null)} /> : null}
+      {pagando ? <PagarCuenta cuenta={pagando} rubros={rubros} hoy={hoy} puedeAdjuntar={puedeAdjuntar} onCerrar={() => setPagando(null)} /> : null}
     </div>
   );
 }
 
 /** Diálogo "Pagar": fecha (hoy en Argentina), medio (los 5 de Caja) y rubro de costo obligatorio. */
-function PagarCuenta({ cuenta, rubros, hoy, onCerrar }: { cuenta: CuentaVista; rubros: Opcion[]; hoy: string; onCerrar: () => void }) {
+function PagarCuenta({
+  cuenta,
+  rubros,
+  hoy,
+  puedeAdjuntar,
+  onCerrar,
+}: {
+  cuenta: CuentaVista;
+  rubros: Opcion[];
+  hoy: string;
+  puedeAdjuntar: boolean;
+  onCerrar: () => void;
+}) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [pendiente, iniciar] = useTransition();
@@ -363,6 +380,9 @@ function PagarCuenta({ cuenta, rubros, hoy, onCerrar }: { cuenta: CuentaVista; r
   const [fecha, setFecha] = useState(hoy);
   const [medio, setMedio] = useState<MedioCobro>("TRANSFERENCIA");
   const [rubro, setRubro] = useState(cuenta.rubroId ?? "");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [adjunto, setAdjunto] = useState<{ archivo: File; id: string } | null>(null);
+  const [progreso, setProgreso] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -377,7 +397,21 @@ function PagarCuenta({ cuenta, rubros, hoy, onCerrar }: { cuenta: CuentaVista; r
     if (!rubro) return setError("Elegí el rubro de costo.");
     setError(null);
     iniciar(async () => {
-      const r = await pagarCuentaAction({ cuentaId: cuenta.id, fecha, medio, categoryId: rubro, idempotencyKey: clave }).catch(() => ({
+      // El comprobante se sube una sola vez, a la ficha del proveedor (si se reintenta, se reusa).
+      let adjuntoId: string | null = null;
+      if (archivo && puedeAdjuntar && cuenta.proveedorId) {
+        if (adjunto && adjunto.archivo === archivo) adjuntoId = adjunto.id;
+        else {
+          setProgreso(0);
+          const s = await subirAdjuntoConId({ tipo: "CLIENTE", id: cuenta.proveedorId }, archivo, setProgreso).catch(() => null);
+          setProgreso(null);
+          if (!s) return setError(ERROR_CONEXION);
+          if (!s.ok) return setError(`No se pudo subir el comprobante: ${s.error}`);
+          setAdjunto({ archivo, id: s.id });
+          adjuntoId = s.id;
+        }
+      }
+      const r = await pagarCuentaAction({ cuentaId: cuenta.id, fecha, medio, categoryId: rubro, idempotencyKey: clave, adjuntoId }).catch(() => ({
         ok: false as const,
         error: ERROR_CONEXION,
       }));
@@ -433,6 +467,14 @@ function PagarCuenta({ cuenta, rubros, hoy, onCerrar }: { cuenta: CuentaVista; r
               ))}
             </select>
           </label>
+          {puedeAdjuntar && cuenta.proveedorId ? (
+            <label className="fo-field-stack text-sm sm:col-span-2">
+              <span className="fo-label">Comprobante (opcional)</span>
+              <input type="file" className="fo-input" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
+              <span className="text-xs text-[var(--fo-muted)]">Se guarda en la ficha del proveedor.</span>
+              {progreso !== null ? <span className="text-xs text-[var(--fo-muted)]">Subiendo… {progreso} %</span> : null}
+            </label>
+          ) : null}
         </div>
         <p className="text-xs text-[var(--fo-muted)]">El pago sale de Caja como un egreso, en la cuenta que corresponde al medio.</p>
         {error ? (

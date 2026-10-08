@@ -27,6 +27,7 @@ CREATE TABLE "FotofficeCuentaPagar" (
     "voidedAt" TIMESTAMP(3),
     "voidReason" TEXT,
     "voidCashMovementId" TEXT,
+    "attachmentId" TEXT,
     "idempotencyKey" TEXT,
     "createdByUserId" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -102,6 +103,9 @@ CREATE INDEX "FotofficeCuentaPagar_costoPlantillaId_idx" ON "FotofficeCuentaPaga
 CREATE INDEX "FotofficeCuentaPagar_costCategoryId_idx" ON "FotofficeCuentaPagar"("costCategoryId");
 
 -- CreateIndex
+CREATE INDEX "FotofficeCuentaPagar_attachmentId_idx" ON "FotofficeCuentaPagar"("attachmentId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "FotofficeCuentaPagar_workspaceId_idempotencyKey_key" ON "FotofficeCuentaPagar"("workspaceId", "idempotencyKey");
 
 -- CreateIndex
@@ -142,6 +146,9 @@ ALTER TABLE "FotofficeCuentaPagar" ADD CONSTRAINT "FotofficeCuentaPagar_paidCash
 
 -- AddForeignKey
 ALTER TABLE "FotofficeCuentaPagar" ADD CONSTRAINT "FotofficeCuentaPagar_voidCashMovementId_fkey" FOREIGN KEY ("voidCashMovementId") REFERENCES "CashMovement"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "FotofficeCuentaPagar" ADD CONSTRAINT "FotofficeCuentaPagar_attachmentId_fkey" FOREIGN KEY ("attachmentId") REFERENCES "FotofficeAttachment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "FotofficeCuotaRecordatorio" ADD CONSTRAINT "FotofficeCuotaRecordatorio_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;

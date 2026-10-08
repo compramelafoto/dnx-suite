@@ -12,6 +12,7 @@ import {
   ENTIDAD_NUMERACION_PEDIDO,
   esEstadoPedido,
   ID_OPCION_CONTADO,
+  OPCIONES_TRANSACCION_PEDIDO,
   type EstadoPedido,
 } from "./constantes";
 import { copiarTareasAlPedido, titulosParaPedidoNuevo } from "./checklist";
@@ -306,7 +307,7 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
       // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
-    });
+    }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
     falla("crearPedidoManual", e);
     return { ok: false, error: MENSAJES_PEDIDO.fallo };

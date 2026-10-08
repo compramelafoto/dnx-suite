@@ -305,9 +305,11 @@ export async function pagarCuentaAction(datos: {
   medio: string;
   categoryId: string;
   idempotencyKey: string;
+  adjuntoId?: string | null;
 }): Promise<ResultadoPago> {
   if (!esObjeto(datos) || !esId(datos.cuentaId) || typeof datos.fecha !== "string" || typeof datos.medio !== "string") return INVALIDO;
   if (typeof datos.categoryId !== "string" || typeof datos.idempotencyKey !== "string") return INVALIDO;
+  if (datos.adjuntoId != null && typeof datos.adjuntoId !== "string") return INVALIDO;
   const ctx = await contextoDePedidos("operar");
   if (!ctx) return SIN_ACCESO;
   const r = await pagarCuenta(ctx, {
@@ -316,6 +318,7 @@ export async function pagarCuentaAction(datos: {
     medio: datos.medio,
     categoryId: datos.categoryId,
     idempotencyKey: datos.idempotencyKey,
+    adjuntoId: datos.adjuntoId ?? undefined,
   });
   if (r.ok) revalidarCuentas(r.pedidoId);
   return r;

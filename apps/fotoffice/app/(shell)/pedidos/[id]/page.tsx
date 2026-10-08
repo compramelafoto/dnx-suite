@@ -326,6 +326,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
                 cuentas={costosYPagos.cuentas}
                 margenes={costosYPagos.margenes}
                 gestiona={gestionaCuentas}
+                puedeAdjuntar={puedeEnContexto(ctx, "operar", CLIENTS_MODULE_KEY)}
                 cancelado={cancelado}
                 proveedores={proveedores}
                 rubros={rubrosCosto}

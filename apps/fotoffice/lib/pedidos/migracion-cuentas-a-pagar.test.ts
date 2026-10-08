@@ -66,6 +66,7 @@ describe("migración de la etapa 3, Entrega B1 (cuentas a pagar, recordatorios, 
       ["FotofficeCuentaPagar", "supplierClientId"],
       ["FotofficeCuentaPagar", "costoPlantillaId"],
       ["FotofficeCuentaPagar", "costCategoryId"],
+      ["FotofficeCuentaPagar", "attachmentId"],
       ["FotofficeCuotaRecordatorio", "workspaceId"],
       ["FotofficePedidoAjustes", "incomeCategoryId"],
       ["FotofficePedidoTarea", "workspaceId"],
@@ -87,10 +88,18 @@ describe("migración de la etapa 3, Entrega B1 (cuentas a pagar, recordatorios, 
     fk("FotofficeCuentaPagar", "costCategoryId", "CashCategory", "SET NULL");
     fk("FotofficeCuentaPagar", "paidCashMovementId", "CashMovement", "SET NULL");
     fk("FotofficeCuentaPagar", "voidCashMovementId", "CashMovement", "SET NULL");
+    fk("FotofficeCuentaPagar", "attachmentId", "FotofficeAttachment", "SET NULL");
     fk("FotofficeCuotaRecordatorio", "cuotaId", "FotofficePedidoCuota", "CASCADE");
     fk("FotofficePedidoAjustes", "incomeCategoryId", "CashCategory", "SET NULL");
     fk("FotofficePedidoTarea", "pedidoId", "FotofficePedido", "CASCADE");
-    expect(sql.match(/FOREIGN KEY/g)).toHaveLength(13);
+    expect(sql.match(/FOREIGN KEY/g)).toHaveLength(14);
+  });
+
+  it("el comprobante del pago es una columna de la tabla nueva (no toca FotofficeAttachment)", () => {
+    expect(sql).toContain(`"attachmentId" TEXT,`);
+    expect(modelo("FotofficeCuentaPagar")).toMatch(/attachmentId\s+String\?/);
+    expect(modelo("FotofficeAttachment")).toMatch(/fotofficeCuentasPagar\s+FotofficeCuentaPagar\[\]/);
+    expect(modelo("FotofficeAttachment")).not.toMatch(/^\s+attachmentId\s/m);
   });
 
   it("tiene los CHECK de importe, medio, pago, motivo, días y tareas", () => {

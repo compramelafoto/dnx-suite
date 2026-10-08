@@ -90,6 +90,8 @@ export const MENSAJES_CUENTA = {
   sinCajaAnular: "Para anular pagos encendé el módulo Caja: el contramovimiento va a Caja.",
   fallo: "No se pudo guardar la cuenta a pagar. Probá de nuevo.",
   falloPago: "No se pudo registrar el pago. Probá de nuevo.",
+  adjunto: "El comprobante no es válido: subilo de nuevo a la ficha del proveedor.",
+  adjuntoSinProveedor: "Para adjuntar un comprobante, la cuenta tiene que tener proveedor.",
   falloAnular: "No se pudo anular el pago. Probá de nuevo.",
 } as const;
 
@@ -411,9 +413,11 @@ export type DatosPago = {
   categoryId: unknown;
   /** Clave única del formulario (8 a 100 caracteres: letras, números, `-` o `_`). */
   idempotencyKey: unknown;
+  /** Comprobante del pago (opcional): un adjunto LISTO de la ficha del proveedor de la cuenta. */
+  adjuntoId?: unknown;
 };
 
-type PagoValidado = { cuentaId: string; fecha: string; medio: MedioCobro; categoryId: string; clave: string };
+type PagoValidado = { cuentaId: string; fecha: string; medio: MedioCobro; categoryId: string; clave: string; adjuntoId: string | null };
 
 function validarPago(d: DatosPago, ahora: Date): { ok: true; v: PagoValidado } | { ok: false; error: string } {
   if (!d || typeof d !== "object" || !idValido(d.cuentaId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
@@ -422,7 +426,12 @@ function validarPago(d: DatosPago, ahora: Date): { ok: true; v: PagoValidado } |
   if (d.fecha > diaEnBuenosAires(ahora)) return { ok: false, error: MENSAJES_CUENTA.fechaFutura };
   if (!esMedioCobro(d.medio)) return { ok: false, error: MENSAJES_CUENTA.medio };
   if (!idValido(d.categoryId)) return { ok: false, error: MENSAJES_CUENTA.rubro };
-  return { ok: true, v: { cuentaId: d.cuentaId, fecha: d.fecha, medio: d.medio, categoryId: d.categoryId, clave: d.idempotencyKey } };
+  let adjuntoId: string | null = null;
+  if (d.adjuntoId !== undefined && d.adjuntoId !== null && d.adjuntoId !== "") {
+    if (!idValido(d.adjuntoId)) return { ok: false, error: MENSAJES_CUENTA.adjunto };
+    adjuntoId = d.adjuntoId;
+  }
+  return { ok: true, v: { cuentaId: d.cuentaId, fecha: d.fecha, medio: d.medio, categoryId: d.categoryId, clave: d.idempotencyKey, adjuntoId } };
 }
 
 type CuentaPorClave = { id: string; pedidoId: string | null; paidAt: Date | null; paidCashMovementId: string | null };
@@ -486,6 +495,17 @@ export async function pagarCuenta(ctx: CtxPedidos, datos: DatosPago, deps: DepsC
         : null;
       const pedido = c.pedidoId ? await tx.fotofficePedido.findFirst({ where: { id: c.pedidoId, workspaceId }, select: { number: true } }) : null;
 
+      if (v.adjuntoId) {
+        // Igual que el comprobante de un cobro: un adjunto LISTO de la ficha del proveedor de la
+        // cuenta, del mismo workspace; nunca de otro contacto ni una subida sin confirmar.
+        if (!proveedor) throw new Corte(MENSAJES_CUENTA.adjuntoSinProveedor);
+        const a = await tx.fotofficeAttachment.findFirst({
+          where: { id: v.adjuntoId, workspaceId, clientId: proveedor.id, status: "LISTO", deletedAt: null },
+          select: { id: true },
+        });
+        if (!a) throw new Corte(MENSAJES_CUENTA.adjunto);
+      }
+
       // De dónde sale en Caja. Nunca inventa una cuenta: sin cuenta, no hay pago.
       const cuentasCaja = await tx.cashAccount.findMany({
         where: { workspaceId, isActive: true },
@@ -524,6 +544,7 @@ export async function pagarCuenta(ctx: CtxPedidos, datos: DatosPago, deps: DepsC
           paidMethod: v.medio,
           paidCashMovementId: mov.id,
           costCategoryId: rubro.id,
+          attachmentId: v.adjuntoId,
           idempotencyKey: v.clave,
           voidedAt: null,
           voidReason: null,
@@ -607,6 +628,8 @@ export type CuentaVista = {
   rubro: string | null;
   /** ISO del pago vigente. */
   pagadaEl: string | null;
+  /** Nombre del comprobante del pago vigente, si tiene. */
+  comprobante: string | null;
   medio: string | null;
   /** ISO de la última anulación de un pago (la cuenta volvió a pendiente). */
   pagoAnuladoEl: string | null;
@@ -633,17 +656,22 @@ export async function costosYPagosDelPedido(
     take: MAX_CUENTAS_POR_PEDIDO,
     select: {
       id: true, concept: true, supplierClientId: true, amountArs: true, dueDate: true, costCategoryId: true,
-      paidAt: true, paidMethod: true, voidedAt: true, voidReason: true,
+      paidAt: true, paidMethod: true, voidedAt: true, voidReason: true, attachmentId: true,
     },
   });
   const proveedores = [...new Set(filas.map((f) => f.supplierClientId).filter((x): x is string => !!x))];
   const rubros = [...new Set(filas.map((f) => f.costCategoryId).filter((x): x is string => !!x))];
-  const [contactos, categorias] = await Promise.all([
+  const adjuntosIds = [...new Set(filas.filter((f) => f.paidAt).map((f) => f.attachmentId).filter((x): x is string => !!x))];
+  const [contactos, categorias, adjuntos] = await Promise.all([
     proveedores.length
       ? prisma.client.findMany({ where: { workspaceId, id: { in: proveedores } }, select: { id: true, kind: true, firstName: true, lastName: true, businessName: true } })
       : Promise.resolve([]),
     rubros.length ? prisma.cashCategory.findMany({ where: { workspaceId, id: { in: rubros } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    adjuntosIds.length
+      ? prisma.fotofficeAttachment.findMany({ where: { workspaceId, id: { in: adjuntosIds }, deletedAt: null }, select: { id: true, fileName: true } })
+      : Promise.resolve([]),
   ]);
+  const archivo = new Map(adjuntos.map((a) => [a.id, a.fileName]));
   const nombre = new Map(contactos.map((c) => [c.id, clientDisplayName(c)]));
   const rubro = new Map(categorias.map((c) => [c.id, c.name]));
   const cuentas = filas.map((f): CuentaVista => {
@@ -661,6 +689,7 @@ export async function costosYPagosDelPedido(
       rubroId,
       rubro: rubroId ? rubro.get(rubroId)! : null,
       pagadaEl: f.paidAt ? f.paidAt.toISOString() : null,
+      comprobante: f.paidAt && f.attachmentId ? (archivo.get(f.attachmentId) ?? null) : null,
       medio: f.paidAt ? f.paidMethod : null,
       pagoAnuladoEl: !f.paidAt && f.voidedAt ? f.voidedAt.toISOString() : null,
       motivoAnulacion: !f.paidAt && f.voidedAt ? f.voidReason : null,
