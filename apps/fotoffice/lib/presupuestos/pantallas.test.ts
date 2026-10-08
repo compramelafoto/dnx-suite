@@ -228,6 +228,7 @@ describe("fuente de las pantallas", () => {
     const panel = leer("components/presupuestos/panel-cuanto-cobro.tsx");
     expect(panel).toContain("perfilParaPanel(item, perfilDelWorkspace)");
     expect(panel).toContain("/workspace/configuracion/precios");
+    expect(panel).toContain("!perfilesIguales(perfil, perfilDelWorkspace)");
     // El perfil se carga en Configuración → Precios: ningún componente usa el perfil corto.
     for (const f of readdirSync(join(RAIZ, "components/presupuestos"))) {
       const src = leer(`components/presupuestos/${f}`);

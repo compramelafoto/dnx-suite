@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { pesos } from "@/lib/presupuestos/editor";
+import { perfilesIguales } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import {
   calcularItemDelPanel,
@@ -71,13 +72,13 @@ export function AvisoSinPerfil() {
 }
 
 /** El perfil que se está usando, en una línea. Lo comparten el panel y el asistente. */
-export function PerfilEnUso({ perfil }: { perfil: CuantoCobroProfileInput }) {
+export function PerfilEnUso({ perfil, anterior = false }: { perfil: CuantoCobroProfileInput; anterior?: boolean }) {
   const { valorHora } = resumirPerfil(perfil);
   return (
     <p className="text-xs text-[var(--fo-muted)]">
       {valorHora !== null ? `Valor de tu hora: ${pesos(valorHora)} · ` : ""}
       <Link href={RUTA_PRECIOS} className="text-[var(--fo-accent)] hover:underline">
-        Perfil de Configuración → Precios
+        {anterior ? "Perfil con el que se calculó este ítem" : "Perfil de Configuración → Precios"}
       </Link>
     </p>
   );
@@ -160,8 +161,10 @@ export function PanelCuantoCobro({
 }) {
   const inicial = trabajoDelItem(item);
   // Un ítem ya calculado se reabre con SU perfil guardado; si no, con el del workspace.
-  const { perfil: guardado, desactualizado } = perfilParaPanel(item, perfilDelWorkspace);
+  const { perfil: guardado } = perfilParaPanel(item, perfilDelWorkspace);
   const [perfil, setPerfil] = useState<CuantoCobroProfileInput | null>(guardado);
+  // El aviso vale mientras se use un perfil distinto del actual; al recalcular desaparece.
+  const desactualizado = perfil !== null && perfilDelWorkspace !== null && !perfilesIguales(perfil, perfilDelWorkspace);
   const [trabajo, setTrabajo] = useState<TrabajoPanel>(inicial.trabajo);
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState(inicial.tipoDeTrabajo);
 
@@ -189,7 +192,7 @@ export function PanelCuantoCobro({
         </button>
       </div>
 
-      {perfil ? <PerfilEnUso perfil={perfil} /> : <AvisoSinPerfil />}
+      {perfil ? <PerfilEnUso perfil={perfil} anterior={desactualizado} /> : <AvisoSinPerfil />}
       {perfil && desactualizado && perfilDelWorkspace ? (
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <p className="text-[var(--fo-text)]">Este ítem se calculó con un perfil anterior.</p>
