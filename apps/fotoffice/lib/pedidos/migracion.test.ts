@@ -26,6 +26,12 @@ const COLUMNAS_NUEVAS = [
 
 const MEDIOS = `('EFECTIVO', 'TRANSFERENCIA', 'MERCADO_PAGO', 'TARJETA', 'OTRO')`;
 
+/** El único cambio en una tabla existente: el CHECK del tipo de plantilla suma 'PEDIDO' (Task 5). */
+const CHECK_PLANTILLA = [
+  `ALTER TABLE "FotofficeMessageTemplate" DROP CONSTRAINT IF EXISTS "FotofficeMessageTemplate_entityType";`,
+  `ALTER TABLE "FotofficeMessageTemplate" ADD CONSTRAINT "FotofficeMessageTemplate_entityType" CHECK ("entityType" IN ('GENERAL', 'CLIENTE', 'SOCIO', 'CONSULTA', 'PRESUPUESTO', 'PEDIDO'));`,
+];
+
 function modelo(nombre: string): string {
   const m = schema.match(new RegExp(`\\nmodel ${nombre} \\{[\\s\\S]*?\\n\\}`));
   if (!m) throw new Error(`No está el modelo ${nombre}`);
@@ -33,7 +39,7 @@ function modelo(nombre: string): string {
 }
 
 describe("migración de la etapa 3 (pedidos y cobros)", () => {
-  const sinColumnas = COLUMNAS_NUEVAS.reduce((t, linea) => t.replace(linea, ""), sql);
+  const sinColumnas = [...COLUMNAS_NUEVAS, ...CHECK_PLANTILLA].reduce((t, linea) => t.replace(linea, ""), sql);
 
   it("sólo suma columnas que admiten nulo en tablas propias de la etapa 2", () => {
     for (const linea of COLUMNAS_NUEVAS) expect(sql).toContain(linea);
@@ -47,7 +53,14 @@ describe("migración de la etapa 3 (pedidos y cobros)", () => {
     for (const t of ["CashCategory", "CashMovement", "Product", "Client", "Workspace", "ServiceSalesLead"]) {
       expect(sql).not.toMatch(new RegExp(`ALTER TABLE "${t}"`));
     }
-    expect(sql).not.toMatch(/DROP |DELETE FROM|UPDATE "|INSERT INTO/);
+    expect(sinColumnas).not.toMatch(/DROP |DELETE FROM|UPDATE "|INSERT INTO/);
+  });
+
+  it("sólo amplía el CHECK del tipo de plantilla con PEDIDO (la misma lista de la etapa 2 más PEDIDO)", () => {
+    for (const linea of CHECK_PLANTILLA) expect(sql).toContain(linea);
+    // El DROP va antes que el ADD, y es el único DROP del archivo.
+    expect(sql.indexOf(CHECK_PLANTILLA[0]!)).toBeLessThan(sql.indexOf(CHECK_PLANTILLA[1]!));
+    expect(sql.match(/DROP /g)).toHaveLength(1);
   });
 
   it("crea las cinco tablas nuevas y nada más", () => {

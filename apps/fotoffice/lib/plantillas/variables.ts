@@ -28,13 +28,18 @@ export type ContextoVariables = {
   socio?: { numero: string | null };
   /** Sólo al enviar un presupuesto (etapa 2): ya formateados para leer. */
   presupuesto?: { numero: string | null; enlace: string | null; total: string | null; vence: string | null };
+  /** Sólo al enviar el enlace de un pedido o un recibo (etapa 3): ya formateados para leer. */
+  pedido?: { numero: string | null; enlace: string | null; saldo: string | null };
+  /** Sólo al enviar un recibo (etapa 3): ya formateados para leer. */
+  recibo?: { numero: string | null; enlace: string | null; importe: string | null };
   /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
   listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
   campos: Record<string, string>;
 };
 
-export type GrupoVariable = "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Socio" | "Campos";
+export type GrupoVariable =
+  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Socio" | "Campos";
 
 export type DefinicionVariable = {
   clave: string;
@@ -52,6 +57,7 @@ const TODAS = TIPOS_PLANTILLA;
 const CONSULTA: readonly TipoPlantilla[] = ["CONSULTA", "PRESUPUESTO"];
 const PRESUPUESTO: readonly TipoPlantilla[] = ["PRESUPUESTO"];
 const SOCIO: readonly TipoPlantilla[] = ["SOCIO"];
+const PEDIDO: readonly TipoPlantilla[] = ["PEDIDO"];
 const CON_CAMPOS: readonly TipoPlantilla[] = ["CLIENTE", "SOCIO", "CONSULTA"];
 
 function limpio(v: string | null | undefined): string | null {
@@ -131,6 +137,13 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "presupuesto_enlace", etiqueta: "Enlace al presupuesto", descripcion: "La dirección donde la persona ve y acepta el presupuesto.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.enlace) },
   { clave: "presupuesto_total", etiqueta: "Total del presupuesto", descripcion: "El total, en pesos (sin los opcionales).", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.total) },
   { clave: "presupuesto_vence", etiqueta: "Vencimiento del presupuesto", descripcion: "El último día de validez, en dd/mm/aaaa.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.vence) },
+  // Pedido (etapa 3)
+  { clave: "pedido_numero", etiqueta: "Número de pedido", descripcion: "El número del pedido.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.numero) },
+  { clave: "pedido_enlace", etiqueta: "Enlace al pedido", descripcion: "La dirección donde la persona ve su pedido: plan de cuotas, saldo y recibos.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.enlace) },
+  { clave: "pedido_saldo", etiqueta: "Saldo del pedido", descripcion: "Lo que falta pagar del pedido, en pesos.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.saldo) },
+  { clave: "recibo_numero", etiqueta: "Número de recibo", descripcion: "El número del recibo del cobro (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.numero) },
+  { clave: "recibo_enlace", etiqueta: "Enlace al recibo", descripcion: "La dirección donde la persona ve e imprime el recibo (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.enlace) },
+  { clave: "recibo_importe", etiqueta: "Importe del recibo", descripcion: "Lo que se cobró, en pesos (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.importe) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];

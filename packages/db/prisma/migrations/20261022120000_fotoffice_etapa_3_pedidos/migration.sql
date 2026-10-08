@@ -6,7 +6,9 @@
 --   - `FotofficePresupuestoAjustes.paymentOptions`;
 --   - `FotofficeProductoCatalogo.incomeCategoryId` (FK a `CashCategory`, ON DELETE SET NULL).
 -- No toca `CashCategory`, `CashMovement`, `Product`, `Client` ni `Workspace` (las FKs nacen en las
--- tablas nuevas). No borra nada ni actualiza filas.
+-- tablas nuevas). No borra nada ni actualiza filas. En una tabla existente, SÓLO reemplaza el CHECK
+-- de `FotofficeMessageTemplate.entityType` por la misma lista más 'PEDIDO' (al final del archivo;
+-- ninguna fila deja de cumplirlo), igual que la etapa 2 sumó 'PRESUPUESTO'.
 -- NO SE APLICA A NINGUNA BASE desde el código: se corre a mano en producción, antes de fusionar, y se
 -- registra con `migrate resolve` (ver `packages/db/docs/MIGRACION-ETAPA-3-PEDIDOS.md`).
 -- Lo que el SQL no puede chequear lo valida el código (`lib/pedidos`, `lib/rubros`): que la suma de las
@@ -289,3 +291,9 @@ ALTER TABLE "FotofficeCobro" ADD CONSTRAINT "FotofficeCobro_netArs" CHECK ("netA
 ALTER TABLE "FotofficeCobro" ADD CONSTRAINT "FotofficeCobro_voidReason" CHECK ("voidedAt" IS NULL OR "voidReason" IS NOT NULL);
 ALTER TABLE "FotofficeCobroImputacion" ADD CONSTRAINT "FotofficeCobroImputacion_amountArs" CHECK ("amountArs" > 0);
 ALTER TABLE "FotofficeRubro" ADD CONSTRAINT "FotofficeRubro_not_self" CHECK ("parentCategoryId" IS NULL OR "parentCategoryId" <> "categoryId");
+
+-- Plantillas de mensajes (0.6): el tipo PEDIDO, para el enlace del pedido y el recibo de pago.
+-- No es una columna nueva: sólo se amplía la lista del CHECK que ya existía (los valores viejos
+-- siguen valiendo). Idempotente.
+ALTER TABLE "FotofficeMessageTemplate" DROP CONSTRAINT IF EXISTS "FotofficeMessageTemplate_entityType";
+ALTER TABLE "FotofficeMessageTemplate" ADD CONSTRAINT "FotofficeMessageTemplate_entityType" CHECK ("entityType" IN ('GENERAL', 'CLIENTE', 'SOCIO', 'CONSULTA', 'PRESUPUESTO', 'PEDIDO'));

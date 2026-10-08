@@ -68,7 +68,10 @@ export const MAX_CUOTAS_OMISION = 6;
 
 /** Secuencias de numeración (`FotofficeRecordNumber.entityType`). */
 export const ENTIDAD_NUMERACION_PEDIDO = "PEDIDO";
-export const ENTIDAD_NUMERACION_RECIBO = "RECIBO";
+/** Clave de la secuencia de los recibos (`CLAVES_SECUENCIA`). */
+export const SECUENCIA_RECIBO = "RECIBO";
+/** `entityType` del número de recibo: se numera el cobro (uno por cobro, idempotente). */
+export const ENTIDAD_NUMERACION_RECIBO = "COBRO";
 /** `CashMovement.sourceModule` de los cobros de pedidos. */
 export const MODULO_CAJA_PEDIDOS = "pedidos";
 /** Leyenda fija del recibo X interno. */

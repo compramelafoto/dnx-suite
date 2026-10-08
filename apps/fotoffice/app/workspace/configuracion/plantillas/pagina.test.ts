@@ -43,7 +43,12 @@ describe("Configuración → Plantillas", () => {
     expect(p).toContain("...encendidos.map((t) => ({ valor: t, etiqueta: etiquetas[t] }))");
     expect(p).toContain("SOCIO: vocabulario.Plural");
     // Entrega B: con Presupuestos encendido también, por el seguimiento automático.
-    expect(p).toContain("const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos;");
+    // Etapa 3: con Pedidos encendido también, por el recibo de pago.
+    expect(p).toContain("const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos || conPedidos;");
+    expect(p).toContain('clave="RECIBO_DE_PAGO"');
+    expect(p).toContain("{conPedidos ? (\n          <AutomaticoForm");
+    expect(p).toContain("await asegurarPlantillaRecibo(workspace.id);");
+    expect(p).toContain('...(conPedidos ? [{ valor: "PEDIDO" as const, etiqueta: etiquetas.PEDIDO }] : [])');
     expect(p).toContain('clave="PRESUPUESTO_SEGUIMIENTO"');
     expect(p).toContain("{conPresupuestos ? (\n          <AutomaticoForm");
     expect(p).toContain("await asegurarPlantillaSeguimiento(workspace.id);");

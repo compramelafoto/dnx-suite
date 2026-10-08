@@ -42,6 +42,8 @@ const TABLAS = [
   "cashCategory", "fotofficeRubro",
   // Pedidos y cobros (etapa 3).
   "fotofficePedido", "fotofficePedidoCuota", "fotofficeCobro", "fotofficeCobroImputacion",
+  // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
+  "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -140,6 +142,14 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     voidReason: null, voidCashMovementId: null, idempotencyKey: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeCobroImputacion: () => ({ createdAt: new Date() }),
+  cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
+  cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
+  cashMovement: () => ({
+    shiftId: null, categoryId: null, paymentMethod: "EFECTIVO", clientId: null, receiptRef: null, sourceModule: "manual",
+    sourceRef: null, reversesMovementId: null, reverseReason: null, transferId: null, createdByUserId: null, createdAt: new Date(),
+  }),
+  workspaceFeatureModule: () => ({ enabled: false, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -280,6 +290,12 @@ export function crearBaseEnMemoria() {
       { columnas: ["workspaceId", "idempotencyKey"], aplica: (f) => f.idempotencyKey !== null && f.idempotencyKey !== undefined },
     ],
     fotofficeCobroImputacion: [{ columnas: ["cobroId", "cuotaId"] }],
+    // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
+    cashMovement: [
+      { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },
+      { columnas: ["reversesMovementId"], aplica: (f) => f.reversesMovementId !== null && f.reversesMovementId !== undefined },
+    ],
+    workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
   };
 
   /**

@@ -6,8 +6,10 @@ export type Canal = (typeof CANALES)[number];
  * Tipo de ficha de una plantilla. GENERAL sirve en cualquier ficha y sólo usa variables comunes.
  * PRESUPUESTO (etapa 2) no es una ficha: es el envío de un presupuesto, que sale desde la consulta
  * con las variables de la consulta más las del presupuesto (`[presupuesto_enlace]`, etc.).
+ * PEDIDO (etapa 3) tampoco es una ficha: es el envío del enlace de un pedido o de un recibo, que
+ * sale al contacto del pedido con las variables comunes más las del pedido (`[pedido_enlace]`, etc.).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -23,8 +25,10 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  * - `PRESUPUESTO_SEGUIMIENTO`: recordatorio a la persona de un presupuesto enviado que no
  *   respondió (etapa 2, Entrega B). Lo manda la tarea diaria `lib/presupuestos/seguimiento.ts`
  *   si la organización encendió el seguimiento en Configuración → Presupuestos.
+ * - `RECIBO_DE_PAGO`: el recibo de un cobro registrado, al contacto del pedido (etapa 3). Nace
+ *   encendido; sale después de registrar el cobro (`lib/pedidos/recibos.ts`) y nunca lo frena.
  */
-export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO"] as const;
+export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO"] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
 export const ETIQUETA_CANAL: Record<Canal, string> = { EMAIL: "Correo", WHATSAPP: "WhatsApp" };
@@ -34,6 +38,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   SOCIO: "Socio",
   CONSULTA: "Consulta",
   PRESUPUESTO: "Presupuesto",
+  PEDIDO: "Pedido",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

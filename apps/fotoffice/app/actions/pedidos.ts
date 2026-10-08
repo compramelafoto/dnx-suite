@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { MENSAJES_PEDIDO } from "@/lib/pedidos/acceso";
+import { anularCobro, registrarCobro, type ResultadoAnulacion, type ResultadoCobro } from "@/lib/pedidos/cobros";
+import { enlaceDelPedido, enlaceDelRecibo, type ResultadoEnlace } from "@/lib/pedidos/enlace";
+import { enviarReciboAutomatico } from "@/lib/pedidos/recibos";
 import { confirmarPedido, vistaPreviaConfirmacion, type ResultadoConfirmacion, type VistaPreviaConfirmacion } from "@/lib/pedidos/confirmar";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { cambiarEstadoPedido, cambiarRubro, crearPedidoManual, type Resultado, type ResultadoAlta } from "@/lib/pedidos/pedidos";
@@ -112,4 +116,72 @@ export async function cambiarRubroPedidoAction(datos: { pedidoId: string; catego
   const r = await cambiarRubro(ctx, datos.pedidoId, datos.categoryId);
   if (r.ok) revalidar(datos.pedidoId);
   return r;
+}
+
+/**
+ * "Registrar cobro". Si el cobro se creó (no es un doble clic), el recibo sale por correo después
+ * de responder (`after`), con la plantilla automática "Recibo de pago": nunca frena el cobro.
+ */
+export async function registrarCobroAction(datos: {
+  pedidoId: string;
+  importe: number;
+  fecha: string;
+  medio: string;
+  imputaciones?: { cuotaId: string; amountArs: number }[] | null;
+  adjuntoId?: string | null;
+  idempotencyKey: string;
+}): Promise<ResultadoCobro> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId) || typeof datos.importe !== "number" || typeof datos.fecha !== "string") return INVALIDO;
+  if (typeof datos.medio !== "string" || typeof datos.idempotencyKey !== "string") return INVALIDO;
+  if (datos.imputaciones != null && !Array.isArray(datos.imputaciones)) return INVALIDO;
+  if (datos.adjuntoId != null && typeof datos.adjuntoId !== "string") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await registrarCobro(ctx, {
+    pedidoId: datos.pedidoId,
+    importe: datos.importe,
+    fecha: datos.fecha,
+    medio: datos.medio,
+    imputaciones: datos.imputaciones ?? undefined,
+    adjuntoId: datos.adjuntoId ?? undefined,
+    idempotencyKey: datos.idempotencyKey,
+  });
+  if (r.ok) {
+    revalidar(r.pedidoId);
+    if (r.creado) {
+      const { workspaceId } = ctx;
+      const cobroId = r.cobroId;
+      after(() => enviarReciboAutomatico(workspaceId, cobroId).then(() => undefined));
+    }
+  }
+  return r;
+}
+
+/** "Anular cobro": exige motivo. Una segunda anulación no hace nada. */
+export async function anularCobroAction(datos: { cobroId: string; motivo: string }): Promise<ResultadoAnulacion> {
+  if (!esObjeto(datos) || !esId(datos.cobroId) || typeof datos.motivo !== "string") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await anularCobro(ctx, datos.cobroId, datos.motivo);
+  if (r.ok && !r.yaAnulado) revalidar(r.pedidoId);
+  return r;
+}
+
+/** "Copiar enlace del cliente": el enlace del pedido (lo crea la primera vez; `rotar` lo renueva). */
+export async function enlaceDelPedidoAction(datos: { pedidoId: string; rotar?: boolean }): Promise<ResultadoEnlace> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId)) return INVALIDO;
+  if (datos.rotar != null && typeof datos.rotar !== "boolean") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await enlaceDelPedido(ctx, datos.pedidoId, { rotar: datos.rotar === true });
+  if (r.ok && datos.rotar) revalidar(datos.pedidoId);
+  return r;
+}
+
+/** El enlace del recibo de un cobro, para copiarlo o mandarlo por WhatsApp. */
+export async function enlaceDelReciboAction(datos: { cobroId: string }): Promise<ResultadoEnlace> {
+  if (!esObjeto(datos) || !esId(datos.cobroId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  return enlaceDelRecibo(ctx, datos.cobroId);
 }
