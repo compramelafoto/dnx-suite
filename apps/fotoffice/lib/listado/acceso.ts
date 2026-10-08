@@ -4,7 +4,7 @@ import { resolveActiveWorkspace } from "@/lib/workspace";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { puede, puedeEnContexto, type Capacidad } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
-import { entradaDeLista } from "./registro";
+import { entradaDeLista, listaPermitida } from "./registro";
 import type { ContextoListado } from "./tipos";
 
 /** Cómo se nombra a la persona en el registro de actividad. Una sola regla para todas las páginas. */
@@ -14,7 +14,8 @@ export function etiquetaDeUsuario(user: { id: number; name?: string | null; emai
 
 /**
  * Contexto para acciones y descargas de un listado. Devuelve null ante cualquier falta —sin
- * sesión, sin workspace, módulo apagado, sin nivel "Ver" en el módulo de la lista— sin distinguir
+ * sesión, sin workspace, módulo apagado, sin nivel "Ver" en el módulo de la lista, sin la condición
+ * extra de la lista (`permitido` en el registro)— sin distinguir
  * el motivo, y nunca redirige: un redirect en una descarga produce un archivo con HTML adentro.
  * Las acciones en lote y la exportación exigen además `operar` (nivel "Gestionar") con
  * `exigirCapacidad`, que mira el mismo módulo.
@@ -29,7 +30,7 @@ export async function contextoDeListado(clave: string): Promise<ContextoListado 
   if (!(await isModuleEnabledForWorkspace(workspace.id, lista.moduleKey))) return null;
   const acceso = await resolverAcceso(user.id, workspace.id);
   if (!puede(acceso, "ver", lista.moduleKey)) return null;
-  return {
+  const ctx: ContextoListado = {
     workspaceId: workspace.id,
     workspaceName: workspace.name,
     userId: user.id,
@@ -38,6 +39,8 @@ export async function contextoDeListado(clave: string): Promise<ContextoListado 
     acceso,
     modulo: lista.moduleKey,
   };
+  // Las listas enteras de dinero piden algo más que "Ver" (p. ej. "A pagar": ver costos).
+  return listaPermitida(clave, ctx) ? ctx : null;
 }
 
 /**

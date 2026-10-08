@@ -17,6 +17,7 @@ type Vista = {
   fechaEvento: string | null;
   eventLabel: string | null;
   aviso: AvisoPlan | null;
+  plantillas: string[];
 };
 
 /**
@@ -33,6 +34,8 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
   const [editado, setEditado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [yaTiene, setYaTiene] = useState<string | null>(null);
+  // Plantilla de checklist a copiar; "" = sin checklist.
+  const [checklist, setChecklist] = useState("");
 
   function abrir() {
     setError(null);
@@ -51,7 +54,9 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
         fechaEvento: v.fechaEvento,
         eventLabel: v.eventLabel,
         aviso: v.aviso,
+        plantillas: v.plantillasChecklist,
       });
+      setChecklist(v.plantillasChecklist[0] ?? "");
       setFilas(v.cuotas.map((c) => ({ clave: claveDeFila(), id: null, dueDate: c.dueDate, importe: textoDeImporte(c.amountArs), suggestedMethod: null, imputado: 0 })));
       setEditado(false);
     });
@@ -65,7 +70,7 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
     setError(null);
     iniciar(async () => {
       const plan = editado ? cuotasParaGuardar(filas).map(({ dueDate, amountArs, suggestedMethod }) => ({ dueDate, amountArs, suggestedMethod })) : null;
-      const r = await confirmarPedidoAction({ presupuestoId, plan }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
+      const r = await confirmarPedidoAction({ presupuestoId, plan, checklist: checklist === "" ? null : checklist }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
       if (r.ok) {
         router.push(`/pedidos/${encodeURIComponent(r.pedidoId)}`);
         return;
@@ -138,6 +143,21 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
           deshabilitado={pendiente}
         />
       )}
+      {vista.plantillas.length > 0 ? (
+        <div className="fo-field-stack max-w-sm">
+          <label className="fo-label" htmlFor="confirmar-checklist">
+            Checklist del pedido
+          </label>
+          <select id="confirmar-checklist" className="fo-input" value={checklist} onChange={(e) => setChecklist(e.target.value)} disabled={pendiente}>
+            {vista.plantillas.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+            <option value="">Sin checklist</option>
+          </select>
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" className="text-sm text-[var(--fo-danger)]">
           {error}

@@ -185,10 +185,14 @@ async function validarPlantilla(
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
   }
-  // Etapa 3: el recibo de un cobro sale con la automática `RECIBO_DE_PAGO` (encendida).
+  // Etapa 3: el recibo de un cobro sale con la automática `RECIBO_DE_PAGO` y el recordatorio de
+  // una cuota con `RECORDATORIO_CUOTA` (Entrega B1), encendidas.
   if (automatico && tipo === "PEDIDO") {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
-      where: { id: templateId, workspaceId, channel: canal, entityType: "PEDIDO", systemKey: CLAVE_RECIBO, enabled: true, archivedAt: null },
+      where: {
+        id: templateId, workspaceId, channel: canal, entityType: "PEDIDO", systemKey: { in: [CLAVE_RECIBO, CLAVE_RECORDATORIO] }, enabled: true,
+        archivedAt: null,
+      },
       select: { id: true },
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
@@ -215,6 +219,8 @@ const CLAVE_RESPUESTA_A_LA_PERSONA: ClaveAutomatico = "CONSULTA_AUTORESPUESTA";
 const CLAVE_SEGUIMIENTO: ClaveAutomatico = "PRESUPUESTO_SEGUIMIENTO";
 /** El recibo de un cobro (etapa 3): va al contacto del pedido. */
 const CLAVE_RECIBO: ClaveAutomatico = "RECIBO_DE_PAGO";
+/** El recordatorio del vencimiento de una cuota (Entrega B1): va al contacto del pedido. */
+const CLAVE_RECORDATORIO: ClaveAutomatico = "RECORDATORIO_CUOTA";
 
 /**
  * Asunto, HTML y texto listos para el transporte a partir de textos ya completados

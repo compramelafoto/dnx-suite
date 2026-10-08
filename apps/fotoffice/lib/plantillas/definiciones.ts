@@ -56,6 +56,7 @@ export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlan
   CONSULTA_AVISO_EQUIPO: { canal: "EMAIL", tipo: "CONSULTA", nombre: "Aviso de consulta nueva al equipo" },
   PRESUPUESTO_SEGUIMIENTO: { canal: "EMAIL", tipo: "PRESUPUESTO", nombre: "Seguimiento de un presupuesto enviado" },
   RECIBO_DE_PAGO: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recibo de pago" },
+  RECORDATORIO_CUOTA: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recordatorio de vencimiento de una cuota" },
 };
 
 export const MENSAJES_PLANTILLAS = {

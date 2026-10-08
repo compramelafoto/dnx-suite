@@ -7204,6 +7204,10 @@ model Workspace {
   fotofficeCobros FotofficeCobro[]
   fotofficeCobroImputaciones FotofficeCobroImputacion[]
   fotofficeRubros FotofficeRubro[]
+  fotofficeCuentasPagar FotofficeCuentaPagar[]
+  fotofficeCuotaRecordatorios FotofficeCuotaRecordatorio[]
+  fotofficePedidoAjustes FotofficePedidoAjustes?
+  fotofficePedidoTareas FotofficePedidoTarea[]
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -7408,6 +7412,7 @@ model FotofficeAttachment {
   client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   fotofficeCobros FotofficeCobro[]
+  fotofficeCuentasPagar FotofficeCuentaPagar[]
 
   @@index([workspaceId, clientId, createdAt])
   @@index([workspaceId, memberId, createdAt])
@@ -18567,6 +18572,7 @@ model Client {
   fotofficePresupuestos FotofficePresupuesto[] @relation("FotofficePresupuestoContacto")
   fotofficePedidos FotofficePedido[] @relation("FotofficePedidoContacto")
   fotofficeCobros FotofficeCobro[] @relation("FotofficeCobroContacto")
+  fotofficeCuentasPagar FotofficeCuentaPagar[] @relation("FotofficeCuentaPagarProveedor")
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -18652,6 +18658,8 @@ model CashCategory {
   fotofficeRubrosHijos      FotofficeRubro[]            @relation("FotofficeRubroPadre")
   fotofficeProductosIngreso FotofficeProductoCatalogo[] @relation("FotofficeProductoRubroIngreso")
   fotofficePedidosIngreso   FotofficePedido[]           @relation("FotofficePedidoRubroIngreso")
+  fotofficeCuentasPagarCosto    FotofficeCuentaPagar[]   @relation("FotofficeCuentaPagarRubroCosto")
+  fotofficePedidoAjustesIngreso FotofficePedidoAjustes[] @relation("FotofficePedidoAjustesRubroIngreso")
 
   @@unique([workspaceId, kind, name])
   @@index([workspaceId, kind, isActive])
@@ -18750,6 +18758,8 @@ model CashMovement {
   /// Cobro de un pedido de FOTOFFICE que lo originó o que lo anuló. Relaciones inversas: esta tabla no cambia.
   fotofficeCobro        FotofficeCobro? @relation("FotofficeCobroMovimiento")
   fotofficeCobroAnulado FotofficeCobro? @relation("FotofficeCobroContramovimiento")
+  fotofficeCuentaPagada      FotofficeCuentaPagar? @relation("FotofficeCuentaPagarMovimiento")
+  fotofficeCuentaPagoAnulado FotofficeCuentaPagar? @relation("FotofficeCuentaPagarContramovimiento")
 
   /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
   /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
@@ -20712,6 +20722,7 @@ model FotofficeCostoPlantilla {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   supplier  Client?   @relation("FotofficeCostoProveedor", fields: [supplierClientId], references: [id], onDelete: SetNull)
+  cuentasPagar FotofficeCuentaPagar[]
 
   @@index([workspaceId, productId, order])
   @@index([workspaceId, supplierClientId])
@@ -20918,6 +20929,8 @@ model FotofficePedido {
   incomeCategory  CashCategory?                @relation("FotofficePedidoRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
   cuotas          FotofficePedidoCuota[]
   cobros          FotofficeCobro[]
+  cuentasPagar    FotofficeCuentaPagar[]
+  tareas          FotofficePedidoTarea[]
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -20948,7 +20961,8 @@ model FotofficePedidoCuota {
 
   workspace    Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   pedido       FotofficePedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  imputaciones FotofficeCobroImputacion[]
+  imputaciones  FotofficeCobroImputacion[]
+  recordatorios FotofficeCuotaRecordatorio[]
 
   @@index([pedidoId, position])
   @@index([workspaceId, dueDate])
@@ -21038,6 +21052,115 @@ model FotofficeRubro {
 
   @@index([workspaceId])
   @@index([parentCategoryId])
+}
+
+/// Cuenta a pagar (Entrega B1): un costo de un pedido (o suelto) que se le debe a un proveedor.
+/// Nace de los costos-plantilla del catálogo (`lib/pedidos/costos.ts`) o se carga a mano. Nunca se
+/// borra una pagada: el pago se anula con motivo y un contramovimiento en Caja.
+/// paidMethod: EFECTIVO | TRANSFERENCIA | MERCADO_PAGO | TARJETA | OTRO (CHECK en el SQL); `paidAt`
+/// y `paidMethod` van juntos (los dos nulos o los dos con valor).
+model FotofficeCuentaPagar {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  pedidoId           String?
+  supplierClientId   String?
+  costoPlantillaId   String?
+  concept            String
+  amountArs          Decimal   @db.Decimal(12, 2)
+  /// Vencimiento (fecha de Argentina); null si el pedido no tiene fecha de evento.
+  dueDate            DateTime? @db.Date
+  costCategoryId     String?
+  paidAt             DateTime?
+  paidMethod         String?
+  /// El EGRESO en Caja (`sourceModule = "pedidos-pagos"`).
+  paidCashMovementId String?   @unique
+  voidedAt           DateTime?
+  voidReason         String?
+  /// El contramovimiento al anular el pago: el único asegura que se anule una sola vez.
+  voidCashMovementId String?   @unique
+  /// Comprobante del pago: adjunto LISTO de la ficha del proveedor (lo valida el código).
+  attachmentId       String?
+  /// Clave del formulario de pago: el mismo envío dos veces paga una sola vez.
+  idempotencyKey     String?
+  createdByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace        Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Restrict: un pedido con cuentas a pagar no se borra.
+  pedido           FotofficePedido?         @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+  supplier         Client?                  @relation("FotofficeCuentaPagarProveedor", fields: [supplierClientId], references: [id], onDelete: SetNull)
+  costoPlantilla   FotofficeCostoPlantilla? @relation(fields: [costoPlantillaId], references: [id], onDelete: SetNull)
+  costCategory     CashCategory?            @relation("FotofficeCuentaPagarRubroCosto", fields: [costCategoryId], references: [id], onDelete: SetNull)
+  paidCashMovement CashMovement?            @relation("FotofficeCuentaPagarMovimiento", fields: [paidCashMovementId], references: [id], onDelete: SetNull)
+  voidCashMovement CashMovement?            @relation("FotofficeCuentaPagarContramovimiento", fields: [voidCashMovementId], references: [id], onDelete: SetNull)
+  attachment       FotofficeAttachment?     @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, dueDate])
+  @@index([workspaceId, supplierClientId])
+  @@index([workspaceId, pedidoId])
+  /// Para el chequeo de las FKs al borrar un pedido, un contacto, un costo-plantilla o un rubro.
+  @@index([pedidoId])
+  @@index([supplierClientId])
+  @@index([costoPlantillaId])
+  @@index([costCategoryId])
+  @@index([attachmentId])
+}
+
+/// Recordatorio de vencimiento de una cuota ya enviado. Uno por (cuota, vencimiento): si se mueve
+/// el vencimiento, vuelve a avisar.
+model FotofficeCuotaRecordatorio {
+  id          String   @id @default(cuid())
+  workspaceId String
+  cuotaId     String
+  /// El vencimiento de la cuota cuando se avisó (fecha de Argentina).
+  dueDate     DateTime @db.Date
+  sentAt      DateTime @default(now())
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cuota     FotofficePedidoCuota @relation(fields: [cuotaId], references: [id], onDelete: Cascade)
+
+  @@unique([cuotaId, dueDate])
+  @@index([workspaceId])
+}
+
+/// Ajustes de pedidos del workspace (Configuración → Pedidos): recordatorios de cuotas, rubro de
+/// ingreso por omisión y plantillas de checklist (JSON validado por el código).
+model FotofficePedidoAjustes {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  /// Días antes del vencimiento en que sale el recordatorio (CHECK 0 a 30 en el SQL).
+  reminderDays       Int      @default(1)
+  reminderEnabled    Boolean  @default(false)
+  incomeCategoryId   String?
+  checklistTemplates Json?
+  updatedAt          DateTime @updatedAt
+
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  incomeCategory CashCategory? @relation("FotofficePedidoAjustesRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
+
+  /// Para la FK al borrar un rubro.
+  @@index([incomeCategoryId])
+}
+
+/// Tarea del checklist de un pedido. `position` desde 1 y título no vacío (CHECK en el SQL).
+model FotofficePedidoTarea {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  pedidoId     String
+  position     Int
+  title        String
+  doneAt       DateTime?
+  doneByUserId Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoId, position])
+  @@index([workspaceId])
 }
 
 // ---------------------------------------------------------------------------

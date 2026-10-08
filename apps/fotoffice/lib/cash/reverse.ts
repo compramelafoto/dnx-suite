@@ -28,6 +28,7 @@
  */
 const SE_ANULAN_EN_SU_MODULO: Record<string, string> = {
   pedidos: "Este cobro se anula desde el pedido.",
+  "pedidos-pagos": "Este pago se anula desde el pedido.",
 };
 
 /**

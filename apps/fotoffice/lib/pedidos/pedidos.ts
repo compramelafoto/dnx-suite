@@ -7,12 +7,16 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
+import { rubroIngresoPorOmision } from "./ajustes";
 import {
   ENTIDAD_NUMERACION_PEDIDO,
   esEstadoPedido,
   ID_OPCION_CONTADO,
+  OPCIONES_TRANSACCION_PEDIDO,
   type EstadoPedido,
 } from "./constantes";
+import { copiarTareasAlPedido, titulosParaPedidoNuevo } from "./checklist";
+import { crearCuentasDelPedido } from "./cuentas-pagar";
 import { puedePasarPedido, resumenDePlan, type ResumenPlan } from "./estado";
 import type { OpcionPago } from "./opciones-pago";
 import {
@@ -68,14 +72,19 @@ export function nombreDeContacto(c: { firstName: string | null; lastName: string
 
 // --- Piezas comunes con la confirmación ---------------------------------------------------------
 
-type LectorRubro = Pick<Tx, "fotofficeProductoCatalogo" | "cashCategory">;
+type LectorRubro = Pick<Tx, "fotofficeProductoCatalogo" | "cashCategory" | "fotofficePedidoAjustes">;
 
 /**
  * Rubro de ingreso del pedido: el del primer ítem de catálogo (en el orden de los ítems) cuyo
- * producto tenga `incomeCategoryId`, si ese rubro sigue siendo un INGRESO del workspace. null si
- * ninguno tiene.
+ * producto tenga `incomeCategoryId`, si ese rubro sigue siendo un INGRESO del workspace. Si
+ * ninguno tiene, el rubro por omisión de Configuración → Pedidos (Entrega B1), si sigue siendo un
+ * INGRESO del workspace. null si no hay ninguno.
  */
 export async function rubroDeItems(cliente: LectorRubro, workspaceId: string, items: readonly Pick<ItemPresupuesto, "productId">[]): Promise<string | null> {
+  return (await rubroDeLosProductos(cliente, workspaceId, items)) ?? (await rubroIngresoPorOmision(cliente, workspaceId));
+}
+
+async function rubroDeLosProductos(cliente: LectorRubro, workspaceId: string, items: readonly Pick<ItemPresupuesto, "productId">[]): Promise<string | null> {
   const productIds = [...new Set(items.map((i) => i.productId).filter((x): x is string => typeof x === "string" && x !== ""))];
   if (productIds.length === 0) return null;
   const perfiles = await cliente.fotofficeProductoCatalogo.findMany({
@@ -177,6 +186,8 @@ export type DatosPedidoManual = {
   eventLabel?: unknown;
   /** Plan ajustado a mano (sin ids); sin él, el plan sale de la opción. */
   plan?: unknown;
+  /** Plantilla de checklist a copiar (por nombre); sin ella, la primera; `null` = ninguna. */
+  checklist?: unknown;
 };
 
 export type ResultadoAlta = { ok: true; pedidoId: string; numero: string; aviso: AvisoPlan | null } | { ok: false; error: string };
@@ -272,6 +283,8 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoAlta> => {
       const incomeCategoryId = await rubroDeItems(tx, workspaceId, items);
+      const tareas = await titulosParaPedidoNuevo(tx, workspaceId, datos.checklist);
+      if (!tareas.ok) return { ok: false, error: tareas.error };
       const r = await insertarPedido(tx, {
         workspaceId,
         presupuestoId: null,
@@ -290,8 +303,11 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
         cuotas,
         ahora,
       });
+      await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
+      // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
+      await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
-    });
+    }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
     falla("crearPedidoManual", e);
     return { ok: false, error: MENSAJES_PEDIDO.fallo };

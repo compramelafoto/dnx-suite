@@ -48,6 +48,9 @@ describe("Configuración → Plantillas", () => {
     expect(p).toContain('clave="RECIBO_DE_PAGO"');
     expect(p).toContain("{conPedidos ? (\n          <AutomaticoForm");
     expect(p).toContain("await asegurarPlantillaRecibo(workspace.id);");
+    // Entrega B1: el recordatorio de cuotas, también con Pedidos encendido.
+    expect(p).toContain('clave="RECORDATORIO_CUOTA"');
+    expect(p).toContain("await asegurarPlantillaRecordatorio(workspace.id);");
     expect(p).toContain('...(conPedidos ? [{ valor: "PEDIDO" as const, etiqueta: etiquetas.PEDIDO }] : [])');
     expect(p).toContain('clave="PRESUPUESTO_SEGUIMIENTO"');
     expect(p).toContain("{conPresupuestos ? (\n          <AutomaticoForm");
