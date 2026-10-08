@@ -229,6 +229,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "orders",
+    cuadro: "20",
+    nombre: "Pedidos",
+    resuelve:
+      "El presupuesto aceptado se confirma como pedido con un clic: copia lo que se vendió, la fecha del evento y arma el plan de cuotas con la forma de pago que eligió el cliente. Ves qué cuota está pagada, cuál vence y cuál ya venció, y cada cobro entra a la Caja con su recibo.",
+    pantallas: [
+      "Pedido desde el presupuesto aceptado",
+      "Plan de cuotas editable",
+      "Saldo y cuotas vencidas",
+      "Pedido cargado a mano",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",
@@ -361,11 +374,11 @@ export const EN_CONSTRUCCION: {
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",
   },
   {
-    cuadro: "20",
-    icono: "pedidos",
-    nombre: "Pedidos",
+    cuadro: "21",
+    icono: "cobros",
+    nombre: "Cobro en línea de las cuotas",
     resuelve:
-      "Del presupuesto aceptado al trabajo hecho: el pedido con sus fechas, quién lo hace y cuándo se entrega.",
+      "Que el cliente pague cada cuota del pedido desde su enlace, con un recordatorio antes del vencimiento, y lo que le tenés que pagar a cada proveedor por trabajo.",
   },
 ];
 

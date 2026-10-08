@@ -41,6 +41,12 @@ export const LISTAS: Record<string, EntradaLista> = {
     ruta: "/presupuestos",
     cargar: async () => (await import("@/lib/presupuestos/listado")).listadoPresupuestos,
   },
+  // Pedidos (etapa 3): módulo `orders`. Total, cobrado y saldo son precio al cliente: sin `dinero`.
+  pedidos: {
+    moduleKey: "orders",
+    ruta: "/pedidos",
+    cargar: async () => (await import("@/lib/pedidos/listado")).listadoPedidos,
+  },
   "caja-movimientos": {
     moduleKey: "cash",
     ruta: "/caja/movimientos",

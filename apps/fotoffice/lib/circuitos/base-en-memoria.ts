@@ -40,6 +40,8 @@ const TABLAS = [
   "fotofficePropuestaModelo",
   // Rubros de dos niveles (etapa 3): categorías de Caja y su perfil.
   "cashCategory", "fotofficeRubro",
+  // Pedidos y cobros (etapa 3).
+  "fotofficePedido", "fotofficePedidoCuota", "fotofficeCobro", "fotofficeCobroImputacion",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -127,6 +129,17 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
   cashCategory: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRubro: () => ({ parentCategoryId: null, code: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePedido: () => ({
+    presupuestoId: null, acceptedVersionId: null, consultaLeadId: null, status: "CONFIRMADO", cancelReason: null,
+    paymentOption: null, eventDate: null, eventLabel: null, incomeCategoryId: null, ownerUserId: null, accessTokenHash: null,
+    createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficePedidoCuota: () => ({ suggestedMethod: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeCobro: () => ({
+    feeArs: null, netArs: null, providerPaymentRef: null, cashMovementId: null, attachmentId: null, voidedAt: null,
+    voidReason: null, voidCashMovementId: null, idempotencyKey: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeCobroImputacion: () => ({ createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -252,6 +265,21 @@ export function crearBaseEnMemoria() {
     // Etapa 3.
     cashCategory: [{ columnas: ["workspaceId", "kind", "name"] }],
     fotofficeRubro: [{ columnas: ["categoryId"] }],
+    // Los de la migración de pedidos (los que admiten nulo, sólo con valor, como en Postgres).
+    fotofficePedido: [
+      { columnas: ["workspaceId", "number"] },
+      { columnas: ["presupuestoId"], aplica: (f) => f.presupuestoId !== null && f.presupuestoId !== undefined },
+      { columnas: ["accessTokenHash"], aplica: (f) => f.accessTokenHash !== null && f.accessTokenHash !== undefined },
+    ],
+    fotofficeCobro: [
+      { columnas: ["workspaceId", "receiptNumber"] },
+      { columnas: ["receiptTokenHash"] },
+      { columnas: ["cashMovementId"], aplica: (f) => f.cashMovementId !== null && f.cashMovementId !== undefined },
+      { columnas: ["voidCashMovementId"], aplica: (f) => f.voidCashMovementId !== null && f.voidCashMovementId !== undefined },
+      { columnas: ["providerPaymentRef"], aplica: (f) => f.providerPaymentRef !== null && f.providerPaymentRef !== undefined },
+      { columnas: ["workspaceId", "idempotencyKey"], aplica: (f) => f.idempotencyKey !== null && f.idempotencyKey !== undefined },
+    ],
+    fotofficeCobroImputacion: [{ columnas: ["cobroId", "cuotaId"] }],
   };
 
   /**
@@ -500,6 +528,9 @@ export function crearBaseEnMemoria() {
     }];
   }
 
+  /** La foto de la transacción abierta (lo que se restaura si lanza). */
+  let fotoAbierta: Record<Tabla, Fila[]> | null = null;
+
   const FUERA = "uso de prisma fuera de la transacción";
   const prisma: Record<string, unknown> = cliente(() => (abiertas > 0 ? FUERA : null));
   prisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>, opciones?: unknown) => {
@@ -508,6 +539,7 @@ export function crearBaseEnMemoria() {
     const foto = Object.fromEntries(TABLAS.map((t) => [t, datos[t].map((f) => clonar(f) as Fila)])) as Record<Tabla, Fila[]>;
     let viva = true;
     const tx = cliente(() => (viva ? null : "uso de tx con la transacción ya terminada"));
+    fotoAbierta = foto;
     abiertas++;
     try {
       return await fn(tx);
@@ -517,6 +549,7 @@ export function crearBaseEnMemoria() {
     } finally {
       viva = false;
       abiertas--;
+      fotoAbierta = null;
     }
   };
 
@@ -530,10 +563,21 @@ export function crearBaseEnMemoria() {
     transacciones,
     /** Inserta una fila de prueba con los valores por defecto de su tabla. */
     agregar: (tabla: Tabla, fila: Fila) => insertar(tabla, fila),
+    /**
+     * Inserta una fila como si OTRA transacción la hubiera confirmado: si hay una transacción
+     * abierta y lanza, la fila queda (no se deshace con la foto). Sirve para simular carreras
+     * que se resuelven con un índice único.
+     */
+    agregarDeOtraTransaccion: (tabla: Tabla, fila: Fila) => {
+      const f = insertar(tabla, fila);
+      fotoAbierta?.[tabla].push(clonar(f) as Fila);
+      return f;
+    },
     vaciar: () => {
       for (const t of TABLAS) datos[t] = [];
       transacciones.length = 0;
       abiertas = 0;
+      fotoAbierta = null;
       sql.length = 0;
       ganchos.alEjecutarSql = null;
     },
