@@ -21,6 +21,12 @@ const item = (id: string, productId: string | null = "prod-1", datos: Record<str
   modoPrecio: "LISTA", calculo: null, seccion: null, opcional: false, ...datos,
 });
 
+const concepto = (id: string, datos: Record<string, unknown> = {}) => ({
+  id, productId: null, nombre: `Concepto ${id}`, descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+  modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: { concepts: [{ name: "Cobertura", itemType: "own-service" }] } } },
+  seccion: null, opcional: false, ...datos,
+});
+
 let plantillaId = "";
 beforeEach(() => {
   B.vaciar();
@@ -40,10 +46,24 @@ const guardar = (datos: Partial<import("./propuestas-modelo").DatosPropuestaMode
   PM.guardarPropuestaModelo(ctx, { categoriaId: "cat-boda", items: [item("a")], condiciones: " Seña 30 %. ", enviarSola: true, plantillaId, ...datos });
 
 describe("validarItemsDeModelo (puro)", () => {
-  it("sólo productos del catálogo en modo LISTA, sin cálculo", () => {
+  it("acepta productos del catálogo (LISTA) y conceptos calculados con trabajo", () => {
     expect(PM.validarItemsDeModelo([item("a")]).ok).toBe(true);
     expect(PM.validarItemsDeModelo([item("a", null)])).toEqual({ ok: false, error: M.soloLista });
-    expect(PM.validarItemsDeModelo([item("a", "prod-1", { modoPrecio: "CALCULO" })])).toEqual({ ok: false, error: M.soloLista });
+    expect(PM.validarItemsDeModelo([concepto("c")]).ok).toBe(true);
+  });
+
+  it("rechaza un concepto calculado sin trabajo o ligado a un producto", () => {
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: { concepts: [] } } } })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: {} } })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: null })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([concepto("c", { productId: "prod-1" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+  });
+
+  it("normaliza el concepto: precio 0 y sin perfil ni otros campos del cálculo", () => {
+    const r = PM.validarItemsDeModelo([concepto("c", { precioUnitario: 5, calculo: { precioSugerido: 9, entrada: { perfil: { gastos: 1 }, presupuesto: { concepts: [{ name: "x" }] } } } })]);
+    expect(r.ok && r.valor[0]).toMatchObject({ productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: { concepts: [{ name: "x" }] } } } });
+    expect(r.ok && Object.keys(r.valor[0]!.calculo!)).toEqual(["entrada"]);
+    expect(r.ok && Object.keys((r.valor[0]!.calculo as never as { entrada: object }).entrada)).toEqual(["presupuesto"]);
   });
 
   it("aplica los topes de la entrega A", () => {
