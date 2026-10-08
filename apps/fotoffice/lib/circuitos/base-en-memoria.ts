@@ -38,6 +38,8 @@ const TABLAS = [
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
   "fotofficePropuestaModelo",
+  // Perfil de precios del workspace.
+  "fotofficePerfilPrecios",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -119,6 +121,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     validityDays: 15, terms: null, paymentProposal: null, followUpDays: 3, followUpEnabled: false, updatedAt: new Date(),
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -241,6 +244,7 @@ export function crearBaseEnMemoria() {
     ],
     fotofficePresupuestoAjustes: [{ columnas: ["workspaceId"] }],
     fotofficePropuestaModelo: [{ columnas: ["workspaceId", "categoryId"] }],
+    fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
   };
 
   /**
