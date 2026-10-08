@@ -1,9 +1,17 @@
 import type { TemplateVariablePlugin } from "../../variables/types";
 import { SCHOOL_TEMPLATE_ALIASES } from "./aliases";
-import { SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS } from "./definitions";
+import {
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  SCHOOL_CLIENT_PHOTO_SLOT_COUNT,
+  SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
+} from "./definitions";
 
 export { SCHOOL_TEMPLATE_ALIASES } from "./aliases";
-export { SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS } from "./definitions";
+export {
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  SCHOOL_CLIENT_PHOTO_SLOT_COUNT,
+  SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
+} from "./definitions";
 
 /** Datos de ejemplo para preview/tests (sin red). */
 export const SCHOOL_TEMPLATE_EXAMPLE_DATA: Record<string, unknown> = {
@@ -17,6 +25,12 @@ export const SCHOOL_TEMPLATE_EXAMPLE_DATA: Record<string, unknown> = {
   "event.dateFormatted": "17/04/2026",
   "branding.schoolLogoUrl": "https://cdn.example.com/school-logo.png",
   "branding.photographerLogoUrl": "https://cdn.example.com/photographer-logo.png",
+  ...Object.fromEntries(
+    Array.from({ length: SCHOOL_CLIENT_PHOTO_SLOT_COUNT }, (_, i) => [
+      `photo_${i + 1}`,
+      SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    ]),
+  ),
 };
 
 export const schoolTemplateVariablesPlugin: TemplateVariablePlugin = {

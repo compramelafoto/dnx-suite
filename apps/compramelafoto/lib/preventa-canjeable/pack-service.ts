@@ -428,6 +428,7 @@ export type CreateBenefitInput = {
   photographerProductId?: number | null;
   templatePolicy: BenefitTemplatePolicy;
   templateId?: number | null;
+  templateV2Id?: string | null;
   extraUnitPriceOverrideArs?: number | null;
   requiredPhotoCount: number;
   selectionMode: BenefitSelectionMode;
@@ -445,6 +446,7 @@ export async function createBenefitDefinition(input: CreateBenefitInput): Promis
       photographerProductId: input.photographerProductId ?? null,
       templatePolicy: input.templatePolicy,
       templateId: input.templateId ?? null,
+      templateV2Id: input.templateV2Id ?? null,
       extraUnitPriceOverrideArs:
         input.extraUnitPriceOverrideArs == null
           ? null
@@ -467,6 +469,7 @@ export type UpdateBenefitInput = Partial<{
   photographerProductId: number | null;
   templatePolicy: BenefitTemplatePolicy;
   templateId: number | null;
+  templateV2Id: string | null;
   extraUnitPriceOverrideArs: number | null;
   requiredPhotoCount: number;
   selectionMode: BenefitSelectionMode;
@@ -491,6 +494,7 @@ export async function updateBenefitDefinition(
         : {}),
       ...(data.templatePolicy !== undefined ? { templatePolicy: data.templatePolicy } : {}),
       ...(data.templateId !== undefined ? { templateId: data.templateId } : {}),
+      ...(data.templateV2Id !== undefined ? { templateV2Id: data.templateV2Id } : {}),
       ...(data.extraUnitPriceOverrideArs !== undefined
         ? {
             extraUnitPriceOverrideArs:

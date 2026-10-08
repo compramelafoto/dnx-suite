@@ -17,9 +17,11 @@ import {
 import { assertPreventaPackOrderRedeemable } from "@/lib/preventa-canjeable/assert-preventa-pack-redeemable";
 import {
   ensureSchoolDesignForPreCompraOrderItem,
+  loadSchoolDesignContext,
   PRE_DESIGN_ITEM_STATUSES,
-  type TemplateRow,
 } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import type { DesignTemplateVersion } from "@/lib/design-v2/template";
+import { notifyPhotographerDesignToReview } from "@/lib/design-v2/notify";
 import { ensureDigitalDelivery } from "@/lib/digital-delivery";
 
 export { PreventaPackRedeemValidationError };
@@ -69,7 +71,8 @@ async function persistSchoolSelectionsFromRedeem(
   tx: Prisma.TransactionClient,
   preCompraOrderId: number | null,
   snapshot: PreventaPackSnapshotV1,
-  selections: RedeemUnitSelectionInput[]
+  selections: RedeemUnitSelectionInput[],
+  redemptionOrderId: number
 ): Promise<void> {
   if (!preCompraOrderId) return;
   const preCompra = await tx.preCompraOrder.findUnique({
@@ -82,7 +85,6 @@ async function persistSchoolSelectionsFromRedeem(
           id: true,
           subjectId: true,
           status: true,
-          albumProduct: { select: { requiresDesign: true, defaultTemplateId: true } },
         },
         orderBy: { id: "asc" },
       },
@@ -138,7 +140,8 @@ async function persistSchoolSelectionsFromRedeem(
     }
   }
 
-  const templateCache = new Map<number, TemplateRow | null>();
+  const templateCache = new Map<string, DesignTemplateVersion | null>();
+  const designContext = await loadSchoolDesignContext(tx, preCompraOrderId);
 
   for (const chunk of perItemPhotoIds) {
     if (chunk.photoIds.length === 0) continue;
@@ -197,17 +200,17 @@ async function persistSchoolSelectionsFromRedeem(
       continue;
     }
 
-    const item = items.find((i) => i.id === chunk.orderItemId) ?? null;
-    const designResult = await ensureSchoolDesignForPreCompraOrderItem(tx, {
-      snapshot,
-      orderItem: {
-        id: chunk.orderItemId,
-        albumProduct: item?.albumProduct ?? null,
-      },
-      selectionPhotos,
-      photoIdsByBenefitKey: chunk.photoIdsByBenefitKey,
-      templateCache,
-    });
+    const designResult = designContext
+      ? await ensureSchoolDesignForPreCompraOrderItem(tx, {
+          snapshot,
+          orderItem: { id: chunk.orderItemId },
+          selectionPhotos,
+          photoIdsByBenefitKey: chunk.photoIdsByBenefitKey,
+          context: designContext,
+          redemptionOrderId,
+          templateCache,
+        })
+      : ({ outcome: "skipped", reason: "context_missing" } as const);
     if (designResult.outcome === "skipped") {
       // El pack puede no tener pieza para diseñar (por ejemplo, solo digitales). Igual la familia
       // ya eligió: dejarlo en "Esperando selfie" hace que el panel del fotógrafo mienta.
@@ -506,7 +509,8 @@ export async function executePreventaPackRedeemV1InTransaction(
     tx,
     Number.isFinite(preCompraOrderId) ? preCompraOrderId : null,
     snapshot,
-    selections
+    selections,
+    child.id
   );
 
   const updated = await tx.order.updateMany({
@@ -551,6 +555,17 @@ export async function executePreventaPackRedeemV1(
     // El pedido de canje nace pagado sin pasar por el webhook de Mercado Pago, que es quien
     // normalmente prepara la entrega. Sin esto la familia canjea y nunca recibe sus fotos.
     // Fuera de la transacción y sin propagar el error: el canje ya está confirmado.
+    // Diseños armados en el canje: el fotógrafo tiene que enterarse para revisarlos.
+    try {
+      const designs = await prisma.designProject.findMany({
+        where: { albumOrderId: resultado.redemptionOrderId },
+        select: { id: true },
+      });
+      for (const d of designs) await notifyPhotographerDesignToReview(d.id);
+    } catch (err) {
+      console.error("[preventa_redeem] design_notify_failed", { err });
+    }
+
     try {
       await ensureDigitalDelivery(resultado.redemptionOrderId);
     } catch (err) {

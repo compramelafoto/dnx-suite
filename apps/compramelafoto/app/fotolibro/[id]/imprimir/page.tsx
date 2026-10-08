@@ -13,7 +13,7 @@ export default function FotolibroImprimirPage() {
   return (
     <div className="min-h-screen bg-[#f7f5f2] p-6">
       <div className="max-w-3xl mx-auto w-full px-4 sm:px-6">
-        <Link href={id ? `/fotolibro/${id}/vista` : "/admin/plantillas/disenador"} className="text-sm text-[#6b7280] hover:text-[#1a1a1a] mb-4 inline-block">
+        <Link href={id ? `/fotolibro/${id}/vista` : "/dashboard/designs"} className="text-sm text-[#6b7280] hover:text-[#1a1a1a] mb-4 inline-block">
           ← Volver
         </Link>
         <Card className="p-6">
@@ -43,7 +43,7 @@ export default function FotolibroImprimirPage() {
                 Crear pedido de impresión
               </Button>
             </Link>
-            <Link href={id ? `/fotolibro/${id}/vista` : "/admin/plantillas/disenador"} className="flex-1">
+            <Link href={id ? `/fotolibro/${id}/vista` : "/dashboard/designs"} className="flex-1">
               <Button variant="secondary" className="w-full">
                 Cancelar
               </Button>

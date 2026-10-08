@@ -109,6 +109,10 @@ const nextConfig: NextConfig = {
     // apps/fotoffice, que consume el mismo paquete.
     "pdf-to-png-converter",
     "@napi-rs/canvas",
+    // Los diseños aprobados (`lib/design-v2/render.ts`) se rasterizan a JPG con `mupdf`, que es
+    // WebAssembly: igual en todos los sistemas, corre en Vercel. Webpack no sabe empaquetar su
+    // `.wasm`; lo carga Node en tiempo de ejecución. Mismo criterio que FOTOFFICE y Clickatón.
+    "mupdf",
   ],
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
   webpack: (config, { isServer }) => {
@@ -137,6 +141,10 @@ const nextConfig: NextConfig = {
             request?.startsWith("@napi-rs/canvas-")
           ) {
             return callback(undefined, `commonjs ${request}`);
+          }
+          // `mupdf` es ESM con `await` en el nivel superior: va como `import()` nativo.
+          if (request === "mupdf") {
+            return callback(undefined, "import mupdf");
           }
           return callback();
         },
@@ -222,6 +230,15 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/api/photos/**": ["./assets/fonts/Roboto-Regular.ttf", "./assets/watermark.png"],
+    /*
+     * El motor que pasa el diseño aprobado a JPG. Solo en la ruta que lo usa: el `.wasm` pesa
+     * 10 MB y Next lo copia una vez por función (aplicado a todas, el build se queda sin disco).
+     */
+    "/api/fotografo/disenos/[id]/approve": [
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+    ],
   },
   outputFileTracingExcludes: {
     "/api/photos/**": photoViewTraceExcludes,
