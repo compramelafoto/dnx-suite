@@ -15,7 +15,6 @@ import {
   pesos,
   type DatosEditor,
 } from "@/lib/presupuestos/editor";
-import type { PerfilPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { AsistenteCuantoCobro } from "./asistente-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
@@ -108,7 +107,6 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
   /** Ítem recién creado para calcular: si se cierra el panel sin usarlo, se descarta. */
   const [nuevoCalculado, setNuevoCalculado] = useState<string | null>(null);
   const [asistente, setAsistente] = useState(false);
-  const [perfil, setPerfil] = useState<PerfilPanel | null>(datos.internos?.perfil ?? null);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(() =>
     Date.now() - (guardadosRecientes.get(datos.presupuestoId) ?? 0) < RECIENTE_MS ? { ok: true, texto: "Guardado." } : null,
   );
@@ -220,10 +218,9 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
           </div>
           {asistente && internos ? (
             <AsistenteCuantoCobro
-              perfilInicial={perfil}
+              perfilDelWorkspace={datos.internos?.perfil ?? null}
               onCerrar={() => setAsistente(false)}
-              onAgregar={(nuevos, p) => {
-                setPerfil(p);
+              onAgregar={(nuevos) => {
                 cambiar([...items, ...nuevos]);
                 setAsistente(false);
               }}
@@ -236,15 +233,14 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
         <PanelCuantoCobro
           key={itemCalculando.id}
           item={itemCalculando}
-          perfilInicial={perfil}
+          perfilDelWorkspace={datos.internos?.perfil ?? null}
           onCerrar={() => {
             // Un ítem nuevo que nunca se calculó se descarta al cerrar.
             if (nuevoCalculado === itemCalculando.id) setItems((xs) => xs.filter((x) => x.id !== itemCalculando.id));
             setNuevoCalculado(null);
             setCalculando(null);
           }}
-          onUsar={(item, p) => {
-            setPerfil(p);
+          onUsar={(item) => {
             // El precio del panel es el del motor (o su precio a mano): sigue al cálculo.
             marcarAjuste(item.id, false);
             actualizar(item.id, item);

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ItemPresupuesto } from "./constantes";
 import { ajustadosIniciales, armarDatosEditor, buscarEnCatalogo, costosEnVivo, itemDesdeProducto, itemLibre, itemsParaGuardar, type ProductoParaEditor } from "./editor";
-import { calcularItemDelPanel, PERFIL_VACIO, trabajoVacio } from "./panel-cuanto-cobro";
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { calcularItemDelPanel, trabajoVacio } from "./panel-cuanto-cobro";
 import { calcularTotales } from "./totales";
 
-const PERFIL = { ...PERFIL_VACIO, gastosPersonales: "900000" };
+const PERFIL = createBaseCompleteProfile();
 const calculado = (() => {
   const r = calcularItemDelPanel(PERFIL, { ...trabajoVacio("Boda"), horasCobertura: "8", horasEdicion: "10" }, "Boda", { id: "c1", nombre: "Boda" }, new Date("2026-10-07T15:00:00Z"));
   if (!r.ok) throw new Error(r.error);

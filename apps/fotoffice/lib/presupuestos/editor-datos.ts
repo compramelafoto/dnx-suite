@@ -1,12 +1,13 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
+import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { resumenCombo } from "@/lib/catalogo/reglas";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { veCostos, type CtxPresupuestos } from "./acceso";
 import type { CostoDeCatalogo } from "./costos";
 import type { ProductoParaEditor } from "./editor";
-import { perfilDesdeMotor, type PerfilPanel } from "./panel-cuanto-cobro";
-import { costosDelCatalogo, itemsGuardados } from "./versiones";
+import { costosDelCatalogo } from "./versiones";
 
 /**
  * Lecturas del editor (sólo servidor). El catálogo sale sin costos; los costos del catálogo y el
@@ -78,24 +79,9 @@ export async function costosCatalogoParaEditor(ctx: CtxPresupuestos, productIds:
 }
 
 /**
- * Perfil de ¿Cuánto Cobro? para precargar el panel: el del último ítem calculado del workspace
- * (entre las 20 versiones más nuevas). FOTOFFICE no guarda un perfil aparte (sin tablas nuevas);
- * si no hay ninguno, el panel lo pide la primera vez. Sin `veCostos`, null y sin leer.
+ * Perfil de ¿Cuánto Cobro? del workspace (Configuración → Precios) para el panel del editor.
+ * Sin `veCostos`, null y sin leer (lo garantiza `leerPerfilPrecios`); sin perfil cargado, null.
  */
-export async function ultimoPerfilDelWorkspace(ctx: CtxPresupuestos): Promise<PerfilPanel | null> {
-  if (!veCostos(ctx)) return null;
-  const versiones = await prisma.fotofficePresupuestoVersion.findMany({
-    where: { workspaceId: ctx.workspaceId },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    select: { items: true },
-    take: 20,
-  });
-  for (const v of versiones) {
-    for (const it of itemsGuardados(v.items)) {
-      if (it.modoPrecio !== "CALCULO" || !it.calculo) continue;
-      const perfil = perfilDesdeMotor((it.calculo.entrada as { perfil?: unknown } | null)?.perfil);
-      if (perfil) return perfil;
-    }
-  }
-  return null;
+export async function perfilDelWorkspace(ctx: CtxPresupuestos): Promise<CuantoCobroProfileInput | null> {
+  return (await leerPerfilPrecios(ctx))?.perfil ?? null;
 }

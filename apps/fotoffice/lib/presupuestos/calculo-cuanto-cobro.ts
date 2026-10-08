@@ -20,7 +20,9 @@ import {
   type CuantoCobroProfileInput,
   type CuantoCobroQuoteInput,
 } from "@repo/cuanto-cobro-core";
-import type { Descuento, InstantaneaCalculo, ItemPresupuesto } from "./constantes";
+import { TOPE_ENTRADA_MOTOR, type Descuento, type InstantaneaCalculo, type ItemPresupuesto } from "./constantes";
+
+export { TOPE_ENTRADA_MOTOR };
 
 export type EntradaItemCalculado = {
   id: string;
@@ -120,7 +122,6 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
 export type EntradaMotor = { perfil: CuantoCobroProfileInput; presupuesto: CuantoCobroQuoteInput };
 
 /** Tope del JSON de entrada (el perfil y el trabajo de un panel real pesan unos pocos KB). */
-export const TOPE_ENTRADA_MOTOR = 200_000;
 
 function objetoPlano(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);

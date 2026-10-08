@@ -9,7 +9,7 @@ import { claseDeEstado } from "@/lib/presupuestos/listado";
 import { puedeGestionarPresupuestos } from "@/lib/presupuestos/acceso";
 import { ETIQUETA_ESTADO } from "@/lib/presupuestos/constantes";
 import { armarDatosEditor } from "@/lib/presupuestos/editor";
-import { catalogoParaEditor, costosCatalogoParaEditor, ultimoPerfilDelWorkspace } from "@/lib/presupuestos/editor-datos";
+import { catalogoParaEditor, costosCatalogoParaEditor, perfilDelWorkspace } from "@/lib/presupuestos/editor-datos";
 import { requirePresupuestos } from "@/lib/presupuestos/pagina";
 import { leerPresupuesto } from "@/lib/presupuestos/presupuestos";
 import { opcionesDeEnvio } from "@/lib/presupuestos/envio";
@@ -45,7 +45,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
     const catalogo = await catalogoParaEditor(workspace.id);
     const ids = [...new Set([...catalogo.map((p) => p.id), ...borrador.items.map((i) => i.productId).filter((x): x is string => !!x)])];
     const [costosCatalogo, perfil] = detalle.veCostos
-      ? await Promise.all([costosCatalogoParaEditor(ctx, ids), ultimoPerfilDelWorkspace(ctx)])
+      ? await Promise.all([costosCatalogoParaEditor(ctx, ids), perfilDelWorkspace(ctx)])
       : [undefined, null];
     const datos = armarDatosEditor({
       presupuestoId: detalle.id,

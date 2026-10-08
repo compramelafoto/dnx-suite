@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { calculateCuantoCobro } from "@repo/cuanto-cobro-core";
-import { createBaseCompleteProfile, createBaseCompleteQuote } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 
 /**
  * Task 4 (pantallas): lecturas del editor con y sin permiso de costos, la definición de la lista
@@ -19,7 +18,6 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
 const D = await import("./editor-datos");
 const L = await import("./listado");
-const { itemDesdeCalculo } = await import("./calculo-cuanto-cobro");
 
 const niveles = { quotes: "MANAGE", "service-leads": "MANAGE", clients: "MANAGE" };
 const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: niveles } as never };
@@ -29,13 +27,6 @@ const LECTOR = { workspaceId: "ws-1", userId: 3, userLabel: "Leo", role: "STAFF"
 beforeEach(() => {
   B.vaciar();
 });
-
-function itemCalculado() {
-  const entrada = { perfil: createBaseCompleteProfile(), presupuesto: createBaseCompleteQuote() };
-  const r = itemDesdeCalculo(calculateCuantoCobro(entrada.perfil, entrada.presupuesto), { id: "c1", nombre: "Boda", parametros: entrada });
-  if (!r.ok) throw new Error(r.error);
-  return r.item;
-}
 
 describe("lecturas del editor", () => {
   it("catálogo: activos del workspace, sin costos, con el ahorro de los combos", async () => {
@@ -55,14 +46,16 @@ describe("lecturas del editor", () => {
 
   it("costos del catálogo y perfil de ¿Cuánto Cobro?: sólo con configurar; sin permiso, vacío", async () => {
     B.agregar("product", { id: "cob", workspaceId: "ws-1", name: "Cobertura", priceArs: "600000.00", costArs: "200000.00" });
-    B.agregar("fotofficePresupuestoVersion", { workspaceId: "ws-1", presupuestoId: "p", number: 1, items: [itemCalculado()], totals: {}, createdAt: new Date() });
     expect(await D.costosCatalogoParaEditor(EQUIPO, ["cob"])).toEqual({});
-    expect(await D.ultimoPerfilDelWorkspace(EQUIPO)).toBeNull();
-    expect(await D.ultimoPerfilDelWorkspace(LECTOR)).toBeNull();
+    expect(await D.perfilDelWorkspace(EQUIPO)).toBeNull();
+    expect(await D.perfilDelWorkspace(LECTOR)).toBeNull();
     expect(await D.costosCatalogoParaEditor(DUENO, ["cob"])).toEqual({ cob: { plantillas: [], costoProducto: 200000 } });
-    expect(await D.ultimoPerfilDelWorkspace(DUENO)).toMatchObject({ gastosPersonales: "200000", horasSemanales: "40" });
+    expect(await D.perfilDelWorkspace(DUENO)).toBeNull();
+    B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", schemaVersion: 1, profileData: createBaseCompleteProfile(), source: null, updatedAt: new Date(), updatedByUserId: 1 });
+    expect(await D.perfilDelWorkspace(EQUIPO)).toBeNull();
+    expect(await D.perfilDelWorkspace(DUENO)).toEqual(createBaseCompleteProfile());
     // Otro workspace no aporta su perfil.
-    expect(await D.ultimoPerfilDelWorkspace({ ...DUENO, workspaceId: "ws-2" })).toBeNull();
+    expect(await D.perfilDelWorkspace({ ...DUENO, workspaceId: "ws-2" })).toBeNull();
   });
 });
 
@@ -175,7 +168,7 @@ describe("fuente de las pantallas", () => {
 
   it("la página del presupuesto lee costos del catálogo y perfil sólo con veCostos, y el editor no los pide de otro lado", () => {
     const pagina = leer("app/(shell)/presupuestos/[id]/page.tsx");
-    expect(pagina).toMatch(/detalle\.veCostos\s*\?\s*await Promise\.all\(\[costosCatalogoParaEditor\(ctx, ids\), ultimoPerfilDelWorkspace\(ctx\)\]\)/);
+    expect(pagina).toMatch(/detalle\.veCostos\s*\?\s*await Promise\.all\(\[costosCatalogoParaEditor\(ctx, ids\), perfilDelWorkspace\(ctx\)\]\)/);
     expect(pagina).toContain("costos={detalle.veCostos ? vigente.costos : null}");
     expect(pagina).toContain("armarDatosEditor(");
     const editor = leer("components/presupuestos/editor-presupuesto.tsx");
@@ -232,7 +225,16 @@ describe("fuente de las pantallas", () => {
       expect(src.match(/aria-live=/g)).toHaveLength(1);
       expect(src).not.toContain('role="status"');
     }
-    expect(leer("components/presupuestos/panel-cuanto-cobro.tsx")).toContain("perfilParaPanel(item, perfilInicial)");
+    const panel = leer("components/presupuestos/panel-cuanto-cobro.tsx");
+    expect(panel).toContain("perfilParaPanel(item, perfilDelWorkspace)");
+    expect(panel).toContain("/workspace/configuracion/precios");
+    expect(panel).toContain("!perfilesIguales(perfil, perfilDelWorkspace)");
+    // El perfil se carga en Configuración → Precios: ningún componente usa el perfil corto.
+    for (const f of readdirSync(join(RAIZ, "components/presupuestos"))) {
+      const src = leer(`components/presupuestos/${f}`);
+      expect(src, f).not.toContain("PerfilPanel");
+      expect(src, f).not.toContain("CamposPerfil");
+    }
     // Nuevo: el nombre del contacto de la consulta, sólo con Ver en Consultas y en Clientes.
     const nuevo = leer("app/(shell)/presupuestos/nuevo/page.tsx");
     expect(nuevo).toContain('puedeEnContexto(ctx, "ver", SERVICE_LEADS_MODULE_KEY) && puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)');
