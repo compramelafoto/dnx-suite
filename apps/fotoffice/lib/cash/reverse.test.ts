@@ -106,6 +106,12 @@ describe("movimientos que se anulan en su módulo", () => {
     for (const s of ["manual", "sales", "membership", "bookings", null, undefined]) expect(noSeAnulaEnCaja(s)).toBeNull();
   });
 
+  it("la anulación de un cobro de pedido tampoco se deshace desde Caja; otras anulaciones sí", async () => {
+    const { noSeAnulaEnCaja } = await import("./reverse");
+    expect(noSeAnulaEnCaja("manual", "pedidos")).toBe("Este cobro se anula desde el pedido.");
+    for (const s of ["manual", "sales", null, undefined]) expect(noSeAnulaEnCaja("manual", s)).toBeNull();
+  });
+
   it("la acción de Caja lo rechaza antes de escribir y la fila no ofrece el botón", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
@@ -113,10 +119,10 @@ describe("movimientos que se anulan en su módulo", () => {
     const accion = readFileSync(join(raiz, "actions.ts"), "utf8");
     const cuerpo = accion.slice(accion.indexOf("export async function reverseMovementAction"));
     expect(cuerpo).toContain("sourceModule: true");
-    expect(cuerpo.indexOf("noSeAnulaEnCaja(original.sourceModule)")).toBeGreaterThan(0);
-    expect(cuerpo.indexOf("noSeAnulaEnCaja(original.sourceModule)")).toBeLessThan(cuerpo.indexOf("buildReversal("));
+    expect(cuerpo.indexOf("noSeAnulaEnCaja(original.sourceModule, original.reverses?.sourceModule)")).toBeGreaterThan(0);
+    expect(cuerpo.indexOf("noSeAnulaEnCaja(original.sourceModule, original.reverses?.sourceModule)")).toBeLessThan(cuerpo.indexOf("buildReversal("));
     const tabla = readFileSync(join(raiz, "movements-table.tsx"), "utf8");
     const boton = tabla.slice(tabla.indexOf("export function AnularMovimiento"));
-    expect(boton.indexOf("noSeAnulaEnCaja(m.sourceModule)")).toBeLessThan(boton.indexOf("<form action={reverseMovementAction}"));
+    expect(boton.indexOf("noSeAnulaEnCaja(m.sourceModule, m.reversesSourceModule)")).toBeLessThan(boton.indexOf("<form action={reverseMovementAction}"));
   });
 });

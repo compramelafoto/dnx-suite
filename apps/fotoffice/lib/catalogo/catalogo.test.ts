@@ -40,7 +40,6 @@ describe("perfil para presupuestos", () => {
     expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: false, incomeLabel: "Coberturas" })).toEqual({ ok: true });
     expect(B.datos.fotofficeProductoCatalogo).toHaveLength(1);
     expect(await P.leerPerfil("ws-1", "p1")).toMatchObject({ inPriceList: false, incomeLabel: "Coberturas" });
-    expect(await P.rubrosUsados("ws-1")).toEqual(["Coberturas"]);
   });
 
   it("rubro de Caja: sólo una categoría de INGRESO de este workspace", async () => {

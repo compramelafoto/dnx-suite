@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { confirmarPedidoAction, vistaPreviaConfirmacionAction } from "@/app/actions/pedidos";
-import { fechaCorta, pesosPedido } from "@/lib/pedidos/pantalla";
+import { ajustePorFormaDePago, fechaCorta, pesosConSigno, pesosPedido } from "@/lib/pedidos/pantalla";
 import { aCentavos, ETIQUETA_AVISO_PLAN, type AvisoPlan } from "@/lib/pedidos/plan-cuotas";
 import { claveDeFila, cuotasParaGuardar, EditorCuotas, importeDeFila, textoDeImporte, type FilaCuota } from "./editor-cuotas";
 
@@ -14,7 +14,6 @@ type Vista = {
   total: number;
   totalPresupuesto: number;
   opcion: string | null;
-  interes: number;
   fechaEvento: string | null;
   eventLabel: string | null;
   aviso: AvisoPlan | null;
@@ -49,7 +48,6 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
         total: v.total,
         totalPresupuesto: v.totalPresupuesto,
         opcion: v.opcion?.etiqueta ?? null,
-        interes: v.opcion?.interes ?? 0,
         fechaEvento: v.fechaEvento,
         eventLabel: v.eventLabel,
         aviso: v.aviso,
@@ -103,6 +101,7 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
     );
   }
 
+  const ajuste = ajustePorFormaDePago(vista.total, vista.totalPresupuesto);
   return (
     <section aria-labelledby="confirmar-titulo" className="fo-card space-y-4">
       <div className="space-y-1">
@@ -111,13 +110,13 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
         </h2>
         <p className="text-sm text-[var(--fo-muted)]">
           {vista.opcion ? `Opción de pago: ${vista.opcion}. ` : ""}
-          Total del pedido: {pesosPedido(vista.total)}
-          {aCentavos(vista.interes) > 0 ? ` (incluye ${pesosPedido(vista.interes)} de interés de financiación)` : ""}
-          {aCentavos(vista.total) !== aCentavos(vista.totalPresupuesto) && aCentavos(vista.interes) === 0
-            ? ` · el presupuesto era de ${pesosPedido(vista.totalPresupuesto)}`
-            : ""}
-          .
+          Total del pedido: {pesosPedido(vista.total)}.
         </p>
+        {ajuste ? (
+          <p className="text-sm text-[var(--fo-muted)]">
+            Total del presupuesto: {pesosPedido(vista.totalPresupuesto)} · {ajuste.etiqueta}: {pesosConSigno(ajuste.importe)}.
+          </p>
+        ) : null}
         {vista.fechaEvento || vista.eventLabel ? (
           <p className="text-sm text-[var(--fo-muted)]">
             Evento: {[vista.fechaEvento ? fechaCorta(vista.fechaEvento) : null, vista.eventLabel].filter(Boolean).join(" · ")}

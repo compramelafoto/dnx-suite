@@ -17,6 +17,7 @@ import type { Descuento, ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import type { TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { ETIQUETA_ESTADO_CUOTA, ETIQUETA_ESTADO_PEDIDO, type EstadoCuota, type EstadoPedido } from "./constantes";
 import type { CuotaConEstado, ResumenPlan } from "./estado";
+import { ajustePorFormaDePago, type AjustePorFormaDePago } from "./pantalla";
 
 export type OrganizacionPublica = { nombre: string; logoUrl: string | null; whatsappUrl: string | null; email: string | null };
 
@@ -64,6 +65,8 @@ export type VistaPedidoPublica = {
   totales: { subtotal: number; descuentos: number; totalItems: number; opcionales: number; cantidadOpcionales: number };
   /** La forma de pago elegida, y el interés de financiación si lo tiene. */
   formaDePago: { etiqueta: string; interes: number } | null;
+  /** Descuento del contado o interés del plan: total del pedido − total de los ítems (null si da 0). */
+  ajuste: AjustePorFormaDePago | null;
   plan: { total: number; cobrado: number; saldo: number; vencido: number; cuotas: CuotaPublica[] };
   recibos: ReciboEnLista[];
 };
@@ -145,6 +148,7 @@ export function armarVistaPedido(args: {
       cantidadOpcionales: numero(t?.opcionales?.cantidad),
     },
     formaDePago: args.formaDePago ? { etiqueta: args.formaDePago.etiqueta, interes: numero(args.formaDePago.interes) } : null,
+    ajuste: typeof t?.total === "number" && Number.isFinite(t.total) ? ajustePorFormaDePago(args.plan.total, t.total) : null,
     plan: {
       total: args.plan.total,
       cobrado: args.plan.cobrado,

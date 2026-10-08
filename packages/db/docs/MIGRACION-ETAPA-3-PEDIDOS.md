@@ -261,6 +261,16 @@ Después de publicar, **Daniel**:
 
 ## 6. Configuración de DNX después de encender
 
+**Requisito para registrar cobros (antes del primer cobro):** el módulo **Caja** tiene que estar
+encendido en DNX y tiene que haber **al menos una cuenta de Caja que no sea la caja fuerte** apta para
+cada medio de cobro que se vaya a usar: una cuenta de tipo **Efectivo** para efectivo y una de tipo
+**Digital** para transferencia, Mercado Pago y tarjeta. Cada cobro entra en Caja con el depósito
+automático, que nunca usa la caja fuerte: sin Caja encendida el cobro se rechaza ("encendé el módulo
+Caja") y sin ninguna cuenta que no sea la caja fuerte también ("hace falta una cuenta de Caja donde
+depositarlo"). Si falta la cuenta del tipo del medio, el cobro cae en la cuenta por omisión (o en la
+primera que no sea la caja fuerte), que puede no ser la que corresponde: revisarlo en Caja → Cuentas
+antes de cobrar. Anular un cobro también exige Caja encendida (el contramovimiento va a Caja).
+
 1. **Numeración** (Configuración → Numeración): las filas **Pedido** y **Recibo** usan por omisión
    **año y 4 dígitos** (`2026-0001`). **No hay nada que configurar** salvo que ya existan filas de
    numeración con otro formato para esas claves; en ese caso, revisarlas antes del primer pedido.
@@ -280,6 +290,17 @@ borradas, el editor y la página pública del presupuesto y la ficha de producto
 1. Apagar **Pedidos** en DNX (Configuración → Módulos).
 2. Revertir el PR (o volver a publicar en Vercel el deploy anterior de FOTOFFICE) y confirmar que
    producción ya sirve la versión anterior.
+
+   **Cuidado con Caja si se revierte sólo el código y ya hay cobros.** El código viejo de Caja no
+   conoce el origen `pedidos`: muestra esos movimientos sin etiqueta de origen y **deja anularlos a
+   mano** desde Caja → Movimientos (también el contramovimiento de un cobro anulado). Hacerlo devuelve
+   o vuelve a sumar el dinero en Caja mientras el cobro sigue vigente (o anulado) en el pedido, y los
+   dos quedan contradiciéndose. Por eso **no revertir el código mientras existan cobros** sin revisar
+   antes Caja: listar los movimientos de pedidos
+   (`SELECT id, kind, "amountArs", "occurredAt" FROM "CashMovement" WHERE "sourceModule" = 'pedidos'`,
+   y sus contramovimientos por `"reversesMovementId"`) y avisar a quien opera Caja que **no anule
+   ninguno de esos movimientos** mientras el código viejo esté publicado. Numeración también puede
+   mostrar la fila `RECIBO`, que el código viejo no conoce: no tocarla.
 3. Recién entonces, en orden seguro para las claves foráneas:
 
 ```sql
@@ -318,6 +339,10 @@ de cuentas siguen existiendo, sin el árbol.
 
 Todo en **DNX Estudio**, con datos de prueba que después se cancelan o archivan.
 
+**Antes de empezar:** Caja encendida y al menos una cuenta de Caja que no sea la caja fuerte para cada
+medio de cobro que se pruebe (Efectivo para el paso 5; Digital si se prueba una transferencia). Ver el
+requisito al principio de la sección 6.
+
 0. **Antes de nada**, con el SQL aplicado y el código publicado: abrir el editor de un presupuesto, la
    ficha de un producto del catálogo y el enlace público de un presupuesto ya enviado. Tienen que
    cargar sin error.
@@ -338,8 +363,10 @@ Todo en **DNX Estudio**, con datos de prueba que después se cancelan o archivan
    pedido y la cuenta del depósito automático de efectivo.
 8. **Anular el cobro** con un motivo. El recibo pasa a "anulado", la cuota vuelve a estar pendiente y
    en Caja aparece el **contramovimiento** de la anulación.
-9. **Cancelar el pedido** con un motivo. Queda **Cancelado**; si tuviera cobros vigentes, se anulan
-   primero.
+9. **Cancelar el pedido** con un motivo. Queda **Cancelado**. **Cancelar un pedido NO anula sus
+   cobros** (los cobros hechos quedan): si tuviera cobros vigentes, anularlos **uno por uno antes**
+   desde la ficha del pedido (como en el paso 8) y recién después cancelar. Si se cancela con un cobro
+   vigente, su ingreso sigue en Caja y no aparece ningún contramovimiento.
 10. **Caja final:** el saldo de la cuenta tiene que quedar igual que antes de la prueba (ingreso y
     contramovimiento se compensan), y los dos movimientos siguen listados.
 11. **Limpieza:** archivar la consulta y el contacto de prueba.

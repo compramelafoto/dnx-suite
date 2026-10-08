@@ -16,6 +16,28 @@ export function pesosPedido(n: number): string {
   }).format(conCentavos ? n : Math.round(n));
 }
 
+/** El renglón que explica por qué el total del pedido no es el de los ítems de la versión. */
+export type AjustePorFormaDePago = { etiqueta: "Descuento por pago de contado" | "Interés de financiación"; importe: number };
+
+/**
+ * Diferencia entre el total del pedido (el de la opción de pago elegida) y el total de los ítems de
+ * la versión: negativa es el descuento del contado, positiva el interés del plan. Sin diferencia,
+ * null (no se muestra renglón). Importe con signo, exacto a centavos.
+ */
+export function ajustePorFormaDePago(totalPedido: number, totalVersion: number): AjustePorFormaDePago | null {
+  const diferencia = aCentavos(totalPedido) - aCentavos(totalVersion);
+  if (diferencia === 0) return null;
+  return {
+    etiqueta: diferencia < 0 ? "Descuento por pago de contado" : "Interés de financiación",
+    importe: desdeCentavos(diferencia),
+  };
+}
+
+/** "−$ 10.000" o "+$ 5.000": el importe de un ajuste, con el signo a la vista. */
+export function pesosConSigno(n: number): string {
+  return `${aCentavos(n) < 0 ? "−" : "+"}${pesosPedido(Math.abs(n))}`;
+}
+
 /** Pesos con centavos, como va en el recibo ("$ 120.000,50"). */
 export function pesosConCentavos(n: number): string {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);

@@ -300,7 +300,7 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
 
       const cobroId = randomUUID();
       const numero = await asignarNumero(tx, {
-        workspaceId, key: SECUENCIA_RECIBO, entityType: ENTIDAD_NUMERACION_RECIBO, entityId: cobroId, fecha: ahora,
+        workspaceId, key: SECUENCIA_RECIBO, entityType: ENTIDAD_NUMERACION_RECIBO, entityId: cobroId, fecha: paidAt,
       });
       const movimiento = await recordCashMovement(tx, {
         workspaceId,

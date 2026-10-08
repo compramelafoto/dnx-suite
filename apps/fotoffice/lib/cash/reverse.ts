@@ -30,9 +30,22 @@ const SE_ANULAN_EN_SU_MODULO: Record<string, string> = {
   pedidos: "Este cobro se anula desde el pedido.",
 };
 
-/** El motivo por el que Caja no anula este movimiento a mano, o null si lo puede anular. */
-export function noSeAnulaEnCaja(sourceModule: string | null | undefined): string | null {
-  return (sourceModule && SE_ANULAN_EN_SU_MODULO[sourceModule]) || null;
+/**
+ * El motivo por el que Caja no anula este movimiento a mano, o null si lo puede anular.
+ *
+ * `anulaAOrigen` es el `sourceModule` del movimiento que ESTE anula (si es un contramovimiento).
+ * El contramovimiento de un cobro anulado nace `manual`, pero deshacerlo desde Caja volvería a
+ * sumar el dinero con el cobro todavía anulado en el pedido: también se rechaza.
+ */
+export function noSeAnulaEnCaja(
+  sourceModule: string | null | undefined,
+  anulaAOrigen?: string | null,
+): string | null {
+  return (
+    (sourceModule && SE_ANULAN_EN_SU_MODULO[sourceModule]) ||
+    (anulaAOrigen && SE_ANULAN_EN_SU_MODULO[anulaAOrigen]) ||
+    null
+  );
 }
 
 export type ReversibleMovement = {

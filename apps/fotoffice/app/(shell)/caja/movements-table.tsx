@@ -20,10 +20,10 @@ function fecha(d: Date) {
  * `/caja/movimientos`. No aparece en un movimiento ya anulado ni en una pata de un pase (ver
  * abajo por qué).
  */
-export function AnularMovimiento({ movement: m }: { movement: Pick<MovementRow, "id" | "isReversed" | "transferId" | "sourceModule"> }) {
+export function AnularMovimiento({ movement: m }: { movement: Pick<MovementRow, "id" | "isReversed" | "transferId" | "sourceModule" | "reversesSourceModule"> }) {
   if (m.isReversed || m.transferId) return null;
   // Un cobro de pedido no se anula acá: lo dice, sin botón (la acción también lo rechaza).
-  const enSuModulo = noSeAnulaEnCaja(m.sourceModule);
+  const enSuModulo = noSeAnulaEnCaja(m.sourceModule, m.reversesSourceModule);
   if (enSuModulo) return <span className="text-xs text-[var(--fo-muted)]">{enSuModulo}</span>;
   return (
     <form action={reverseMovementAction} className="flex flex-wrap items-center gap-1">

@@ -150,6 +150,8 @@ export const movementSelect = {
   reverseReason: true,
   // Sólo para saber si YA lo anularon: `reversesMovementId` es único, así que a lo sumo hay uno.
   reversedBy: { select: { id: true } },
+  // El origen del movimiento que éste anula: la anulación de un cobro de pedido no se deshace en Caja.
+  reverses: { select: { sourceModule: true } },
   transferId: true,
 } satisfies Prisma.CashMovementSelect;
 
@@ -174,6 +176,8 @@ export type MovementRow = {
   sourceRef: string | null;
   reversesMovementId: string | null;
   reverseReason: string | null;
+  /** `sourceModule` del movimiento que éste anula, si es un contramovimiento. */
+  reversesSourceModule: string | null;
   /** Ya tiene un contramovimiento que lo anula. Se usa para no ofrecer anular dos veces. */
   isReversed: boolean;
   /** Es una pata de un pase entre cuentas: no es ingreso ni egreso del negocio. */
@@ -200,6 +204,7 @@ export function toMovementRow(r: MovementQueryRow): MovementRow {
     sourceRef: r.sourceRef,
     reversesMovementId: r.reversesMovementId,
     reverseReason: r.reverseReason,
+    reversesSourceModule: r.reverses?.sourceModule ?? null,
     isReversed: r.reversedBy !== null,
     transferId: r.transferId,
   };

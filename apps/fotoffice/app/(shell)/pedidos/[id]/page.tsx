@@ -18,7 +18,7 @@ import { estadosSiguientes } from "@/lib/pedidos/estado";
 import { comprobantesDeCobros, costosDelPedido, mensajesDePedido, rubrosDeIngreso } from "@/lib/pedidos/ficha";
 import { claseDeEstadoPedido } from "@/lib/pedidos/listado";
 import { requirePedidos } from "@/lib/pedidos/pagina";
-import { fechaCorta, pesosPedido } from "@/lib/pedidos/pantalla";
+import { ajustePorFormaDePago, fechaCorta, pesosConSigno, pesosPedido } from "@/lib/pedidos/pantalla";
 import { leerPedido } from "@/lib/pedidos/pedidos";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
@@ -67,6 +67,9 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
   ]);
 
   const plan = detalle.plan;
+  // Descuento del contado o interés del plan, para que Total de los ítems + ajuste = Total.
+  const totalItems = detalle.totals && typeof detalle.totals.total === "number" ? detalle.totals.total : null;
+  const ajuste = totalItems !== null ? ajustePorFormaDePago(plan.total, totalItems) : null;
   const cuotasConSaldo = plan.cuotas
     .filter((c) => c.estado !== "PAGADA" && c.estado !== "CANCELADA" && c.saldo > 0)
     .map((c) => ({ id: c.id, position: c.position, dueDate: c.dueDate, amountArs: c.amountArs, saldo: c.saldo }));
@@ -179,9 +182,6 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
                 <dt className="text-xs text-[var(--fo-muted)]">Opción de pago</dt>
                 <dd>
                   {detalle.paymentOption?.etiqueta ?? "—"}
-                  {detalle.paymentOption && detalle.paymentOption.interes > 0 ? (
-                    <span className="block text-xs text-[var(--fo-muted)]">Interés de financiación: {pesosPedido(detalle.paymentOption.interes)}</span>
-                  ) : null}
                 </dd>
               </div>
               <div>
@@ -190,6 +190,18 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
               </div>
             </dl>
             <dl className="space-y-1 border-t border-[var(--fo-border)] pt-3 text-sm">
+              {ajuste ? (
+                <>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-[var(--fo-muted)]">Total de los ítems</dt>
+                    <dd className="tabular-nums">{pesosPedido(totalItems ?? 0)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-[var(--fo-muted)]">{ajuste.etiqueta}</dt>
+                    <dd className="tabular-nums">{pesosConSigno(ajuste.importe)}</dd>
+                  </div>
+                </>
+              ) : null}
               <div className="flex justify-between gap-2">
                 <dt className="text-[var(--fo-muted)]">Total</dt>
                 <dd className="tabular-nums">{pesosPedido(plan.total)}</dd>

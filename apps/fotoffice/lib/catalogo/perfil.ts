@@ -100,12 +100,3 @@ export async function rubrosDeIngreso(workspaceId: string, productId: string): P
     [rubro, ...hijos].map((r) => ({ id: r.id, name: r.name, code: r.code, isActive: r.isActive, esHijo: r !== rubro })),
   );
 }
-
-/** Rubros ya usados en el workspace, para sugerirlos al escribir. */
-export async function rubrosUsados(workspaceId: string): Promise<string[]> {
-  const filas = await prisma.fotofficeProductoCatalogo.findMany({
-    where: { workspaceId, incomeLabel: { not: null } },
-    select: { incomeLabel: true },
-  });
-  return [...new Set(filas.map((f) => f.incomeLabel).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, "es"));
-}

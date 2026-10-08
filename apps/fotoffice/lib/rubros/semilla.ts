@@ -64,6 +64,18 @@ function buscar(categorias: readonly Categoria[], item: { kind: string; name: st
 export async function sembrarPlanDnx(workspaceId: string, slug: string | null | undefined): Promise<ResultadoSemilla> {
   if (!esSlugDnx(slug)) return { ok: false, error: "El plan de cuentas de DNX es sólo para DNX Estudio." };
 
+  try {
+    return await sembrarEnTransaccion(workspaceId);
+  } catch (e) {
+    // Dos clics a la vez: las dos transacciones ven "sin perfil" y la segunda choca con el único
+    // `categoryId` de `FotofficeRubro` (P2002). Postgres sólo lo informa cuando la otra ya se
+    // confirmó, así que el plan quedó cargado: se trata como hecho en vez de mostrar un error.
+    if ((e as { code?: unknown } | null)?.code === "P2002") return { ok: true, creadas: 0, completadas: 0, respetadas: 0 };
+    throw e;
+  }
+}
+
+function sembrarEnTransaccion(workspaceId: string): Promise<ResultadoSemilla> {
   return prisma.$transaction(async (tx) => {
     // 1. Categorías: crea las que faltan. `skipDuplicates` cubre dos clics a la vez (el único es
     //    por workspace, lado y nombre exacto).

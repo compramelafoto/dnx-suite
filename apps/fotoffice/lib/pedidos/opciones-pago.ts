@@ -187,6 +187,10 @@ export function parsePaymentOptionsSnapshot(value: unknown): CuantoCobroPaymentO
 
 // --- Normalización (portada) ------------------------------------------------------------------
 
+/** Largo máximo del id de un plan (la elección del cliente). */
+export const MAX_LARGO_ID_PLAN = 64;
+const ID_PLAN_VALIDO = new RegExp(`^[A-Za-z0-9_-]{1,${MAX_LARGO_ID_PLAN}}$`);
+
 const INSTALLMENT_MODES: CuantoCobroInstallmentInterestMode[] = ["none", "manual", "index_suggested"];
 
 function newPlanId(): string {
@@ -235,13 +239,15 @@ export function normalizePaymentOptions(
         .filter((plan): plan is CuantoCobroInstallmentPlanInput => plan != null)
     : [];
   // FOTOFFICE: el id es la elección del cliente, así que no puede repetirse ni pisar los reservados.
-  // Los reemplazos son deterministas (normalizar dos veces lo mismo da los mismos ids): sin id,
-  // `plan-<posición>`; repetido o reservado, `<id>-2`, `<id>-3`…
+  // Viaja a la página pública y se guarda en el pedido: sólo letras, números, "-" y "_", hasta
+  // ${MAX_LARGO_ID_PLAN} caracteres. Los reemplazos son deterministas (normalizar dos veces lo mismo
+  // da los mismos ids): sin id o con uno que no cumple, `plan-<posición>`; repetido o reservado,
+  // `<id>-2`, `<id>-3`… (recortando la base para no pasarse del largo).
   const usados = new Set<string>([ID_OPCION_CONTADO, ID_OPCION_OMISION]);
   plans.forEach((plan, index) => {
-    const base = plan.id || `plan-${index + 1}`;
+    const base = ID_PLAN_VALIDO.test(plan.id) ? plan.id : `plan-${index + 1}`;
     let id = base;
-    for (let n = 2; usados.has(id); n++) id = `${base}-${n}`;
+    for (let n = 2; usados.has(id); n++) id = `${base.slice(0, MAX_LARGO_ID_PLAN - `-${n}`.length)}-${n}`;
     plan.id = id;
     usados.add(id);
   });

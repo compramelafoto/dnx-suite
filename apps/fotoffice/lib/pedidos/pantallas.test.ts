@@ -89,6 +89,17 @@ describe("ayudas puras", () => {
     expect(P.importeSugerido([])).toBe(0);
   });
 
+  it("ajuste por forma de pago: descuento del contado (negativo), interés del plan (positivo) o nada", () => {
+    expect(P.ajustePorFormaDePago(90000, 100000)).toEqual({ etiqueta: "Descuento por pago de contado", importe: -10000 });
+    expect(P.ajustePorFormaDePago(115000.5, 100000)).toEqual({ etiqueta: "Interés de financiación", importe: 15000.5 });
+    expect(P.ajustePorFormaDePago(100000, 100000)).toBeNull();
+    // A centavos: una diferencia de redondeo de coma flotante no es un renglón.
+    expect(P.ajustePorFormaDePago(0.1 + 0.2, 0.3)).toBeNull();
+    expect(P.pesosConSigno(-10000).startsWith("−")).toBe(true);
+    expect(P.pesosConSigno(15000.5).startsWith("+")).toBe(true);
+    expect(P.pesosConSigno(-10000)).toContain("10.000");
+  });
+
   it("clave de idempotencia: con la forma que acepta el servidor y distinta cada vez", () => {
     const a = P.claveDeCobro();
     expect(a).toMatch(/^[A-Za-z0-9_-]{8,100}$/);
@@ -157,6 +168,18 @@ describe("fuente de las pantallas", () => {
     expect(leer("components/pedidos/items-pedido.tsx").startsWith('"use client"')).toBe(false);
     // `costosDelPedido` vuelve a mirar el permiso antes de leer.
     expect(leer("lib/pedidos/ficha.ts")).toMatch(/if \(!veCostosDePedido\(ctx\) \|\| !detalle\.acceptedVersionId\) return null;/);
+  });
+
+  it("la ficha, la confirmación y la página pública muestran el renglón del descuento o del interés", () => {
+    const ficha = leer("app/(shell)/pedidos/[id]/page.tsx");
+    expect(ficha).toContain("ajustePorFormaDePago(plan.total, totalItems)");
+    expect(ficha).toContain("{ajuste.etiqueta}");
+    const confirmar = leer("components/pedidos/confirmar-pedido.tsx");
+    expect(confirmar).toContain("ajustePorFormaDePago(vista.total, vista.totalPresupuesto)");
+    expect(confirmar).toContain("{ajuste.etiqueta}");
+    const publico = leer("components/pedidos/pedido-publico.tsx");
+    expect(publico).toContain("{vista.ajuste.etiqueta}");
+    expect(publico).toContain("pesosConSigno(vista.ajuste.importe)");
   });
 
   it("el historial de la ficha lee los mensajes registrados con entityType PEDIDO", () => {

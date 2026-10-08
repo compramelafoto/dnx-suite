@@ -268,11 +268,13 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       reversedBy: { select: { id: true } },
       transferId: true,
       sourceModule: true,
+      reverses: { select: { sourceModule: true } },
     },
   });
   if (!original) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent("Ese movimiento no existe.")}`);
-  // Un cobro de pedido se anula desde el pedido (que escribe el contramovimiento y libera las cuotas).
-  const enSuModulo = noSeAnulaEnCaja(original.sourceModule);
+  // Un cobro de pedido se anula desde el pedido (que escribe el contramovimiento y libera las cuotas),
+  // y la anulación de un cobro tampoco se deshace desde acá.
+  const enSuModulo = noSeAnulaEnCaja(original.sourceModule, original.reverses?.sourceModule);
   if (enSuModulo) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent(enSuModulo)}`);
 
   const resultado = buildReversal(

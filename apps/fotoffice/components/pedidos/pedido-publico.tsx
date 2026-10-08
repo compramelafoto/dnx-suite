@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { pesosPedido } from "@/lib/pedidos/pantalla";
+import { pesosConSigno, pesosPedido } from "@/lib/pedidos/pantalla";
 import type { ItemPublicoPedido, OrganizacionPublica, VistaPedidoPublica } from "@/lib/pedidos/vista-publica";
 
 /**
@@ -130,10 +130,10 @@ export function PedidoPublico({ vista }: { vista: VistaPedidoPublica }) {
             <span className="text-right">{vista.formaDePago.etiqueta}</span>
           </div>
         ) : null}
-        {vista.formaDePago && vista.formaDePago.interes > 0 ? (
+        {vista.ajuste ? (
           <div className="flex justify-between gap-2">
-            <span className="opacity-70">Interés de financiación</span>
-            <span className="tabular-nums">{pesosPedido(vista.formaDePago.interes)}</span>
+            <span className="opacity-70">{vista.ajuste.etiqueta}</span>
+            <span className="tabular-nums">{pesosConSigno(vista.ajuste.importe)}</span>
           </div>
         ) : null}
         <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-lg font-semibold">

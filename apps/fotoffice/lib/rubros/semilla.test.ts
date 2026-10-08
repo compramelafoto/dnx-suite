@@ -103,6 +103,18 @@ describe("sembrarPlanDnx", () => {
     expect(B.datos.fotofficeRubro.find((p) => p.categoryId === bodas.id)).toMatchObject({ code: "3.1.1", parentCategoryId: null });
   });
 
+  it("doble clic: si la otra transacción ya creó el perfil (P2002), se trata como hecho", async () => {
+    const espia = vi.spyOn(B.prisma as unknown as { $transaction: () => Promise<unknown> }, "$transaction").mockRejectedValueOnce(Object.assign(new Error("único"), { code: "P2002" }));
+    expect(await S.sembrarPlanDnx("ws-1", SLUG_DNX)).toEqual({ ok: true, creadas: 0, completadas: 0, respetadas: 0 });
+    espia.mockRestore();
+  });
+
+  it("otro error de la base no se tapa", async () => {
+    const espia = vi.spyOn(B.prisma as unknown as { $transaction: () => Promise<unknown> }, "$transaction").mockRejectedValueOnce(new Error("se cayó la conexión"));
+    await expect(S.sembrarPlanDnx("ws-1", SLUG_DNX)).rejects.toThrow("se cayó la conexión");
+    espia.mockRestore();
+  });
+
   it("no toca otros workspaces", async () => {
     categoria("bodas-ws2", "Bodas", "INGRESO", "ws-2");
     await S.sembrarPlanDnx("ws-1", SLUG_DNX);

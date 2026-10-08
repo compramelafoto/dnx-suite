@@ -96,6 +96,8 @@ describe("enlace público del pedido", () => {
     expect(v!.items.map((i) => [i.nombre, i.neto])).toEqual([["Cobertura", 100000], ["Álbum", 20000]]);
     expect(Object.keys(v!.items[0]!).sort()).toEqual(["cantidad", "descripcion", "descuento", "id", "neto", "nombre", "opcional", "precioUnitario", "seccion"]);
     expect(v!.formaDePago).toEqual({ etiqueta: "2 cuotas sin interés", interes: 0 });
+    // Sin interés ni descuento, el total es el de los ítems: no hay renglón de ajuste.
+    expect(v!.ajuste).toBeNull();
     expect(v!.plan).toMatchObject({ total: 120000, cobrado: 40000.5, saldo: 79999.5 });
     expect(v!.plan.cuotas.map((c) => [c.numero, c.vence, c.estadoEtiqueta, c.saldo])).toEqual([
       [1, "07/10/2026", "Parcial", 19999.5],
@@ -218,6 +220,26 @@ describe("las lecturas públicas no piden campos internos", () => {
       expect(p.select, JSON.stringify(p)).not.toBe("TODO");
       for (const k of PROHIBIDOS) expect(Object.keys(p.select as object), `${p.tabla}.${k}`).not.toContain(k);
     }
+  });
+
+  it("armarVistaPedido: con contado con descuento o plan con interés, un renglón explica la diferencia con los ítems", () => {
+    const vista = (total: number, totals: unknown = TOTALS) =>
+      VP.armarVistaPedido({
+        organizacion: { nombre: "X", logoUrl: null, whatsappUrl: null, email: null },
+        numero: "1", estado: "CONFIRMADO", eventDate: null, eventLabel: null,
+        items: ITEMS as never,
+        totals: totals as never,
+        formaDePago: { etiqueta: "Contado", interes: 0 },
+        plan: { cuotas: [], total, cobrado: 0, saldo: total, aCobrar: 0, vencido: 0, cuotasVencidas: 0, proximoVencimiento: null, descuadrado: false } as never,
+        recibos: [],
+      });
+    // Ítems por $ 120.000: contado con 10 % de descuento → $ 108.000.
+    expect(vista(108000).ajuste).toEqual({ etiqueta: "Descuento por pago de contado", importe: -12000 });
+    expect(vista(132000).ajuste).toEqual({ etiqueta: "Interés de financiación", importe: 12000 });
+    expect(vista(120000).ajuste).toBeNull();
+    // Sin totales guardados no se inventa un ajuste.
+    expect(vista(5000, null).ajuste).toBeNull();
+    expect(vista(5000, {}).ajuste).toBeNull();
   });
 
   it("armarVistaPedido copia campo por campo: la instantánea del cálculo de un ítem no pasa", () => {

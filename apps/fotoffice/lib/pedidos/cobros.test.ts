@@ -81,6 +81,15 @@ afterEach(() => {
 });
 
 describe("registrar un cobro", () => {
+  it("el año del recibo sale del día del pago, no del día en que se registra", async () => {
+    // Se registra el 2 de enero de 2027 un pago del 30 de diciembre de 2026.
+    const enero = { ahora: () => new Date("2027-01-02T15:00:00.000Z"), clave: CLAVE };
+    const r = await CO.registrarCobro(DUENO, { pedidoId: "ped-1", importe: 40000, fecha: "2026-12-30", medio: "EFECTIVO", idempotencyKey: clave() }, enero);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.reciboNumero).toBe("2026-0001");
+    expect(B.datos.fotofficeRecordNumber.find((x) => x.entityId === r.cobroId)).toMatchObject({ year: 2026 });
+  });
+
   it("imputa, numera el recibo, crea su token, deposita en Caja y pasa el pedido a EN_CURSO", async () => {
     const r = await cobrado("ped-1", 40000);
     expect(r).toMatchObject({ reciboNumero: "2026-0001", creado: true, primero: true, pedidoId: "ped-1" });

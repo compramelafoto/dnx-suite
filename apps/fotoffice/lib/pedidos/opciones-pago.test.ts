@@ -211,6 +211,27 @@ describe("normalizePaymentOptions", () => {
     expect(normalizePaymentOptions(a)).toEqual(a);
   });
 
+  it("un id de plan largo o con caracteres raros se reemplaza por plan-<posición>, de forma determinista", () => {
+    const largo = "a".repeat(65);
+    const justo = "b".repeat(64);
+    const crudo = {
+      installmentPlans: [
+        { id: largo, numberOfInstallments: "2" },
+        { id: "<script>", numberOfInstallments: "3" },
+        { id: "con espacio", numberOfInstallments: "4" },
+        { id: "ok_Plan-3", numberOfInstallments: "5" },
+        { id: justo, numberOfInstallments: "6" },
+        { id: justo, numberOfInstallments: "7" },
+      ],
+    } as never;
+    const a = normalizePaymentOptions(crudo);
+    const ids = a.installmentPlans.map((p) => p.id);
+    expect(ids).toEqual(["plan-1", "plan-2", "plan-3", "ok_Plan-3", justo, `${"b".repeat(62)}-2`]);
+    expect(ids.every((id) => /^[A-Za-z0-9_-]{1,64}$/.test(id))).toBe(true);
+    expect(normalizePaymentOptions(crudo)).toEqual(a);
+    expect(normalizePaymentOptions(a)).toEqual(a);
+  });
+
   it("cashEnabled sólo se toma si es booleano de verdad", () => {
     expect(normalizePaymentOptions({ cashEnabled: false }).cashEnabled).toBe(false);
     expect(normalizePaymentOptions({ cashEnabled: true }).cashEnabled).toBe(true);
