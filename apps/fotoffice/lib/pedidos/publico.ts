@@ -1,12 +1,15 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
+import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { sitioDelWorkspace, type SitioDelPresupuesto } from "@/lib/presupuestos/sitio";
 import { itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { ETIQUETA_MEDIO_COBRO, esEstadoPedido, esMedioCobro } from "./constantes";
 import { enlacesDeRecibos, resolverTokenPedido, resolverTokenRecibo, type DepsEnlace } from "./enlace";
 import { resumenDePlan } from "./estado";
+import { idDeCuotaValido, paymentIdValido } from "./mp-puro";
+import { verificarPagoCuota, type VerificacionPago } from "./mp";
 import { fechaDeBase, pesosDeBase, planesDe } from "./plan";
 import { leerRecibo } from "./recibos";
 import {
@@ -78,6 +81,8 @@ export async function abrirPedidoPublico(workspaceId: string, token: unknown, de
   if (!p || !esEstadoPedido(p.status)) return null;
   const sitio = await sitioDelWorkspace(workspaceId);
   if (!sitio) return null;
+  // Sólo el sí o el no: el cobrador (y su token) se resuelve en el servidor y no sale de acá.
+  const cobrosHabilitados = p.status !== "CANCELADO" && (await resolveWorkspaceCollector(workspaceId).then((r) => r.ok, () => false));
 
   const [planes, cobros] = await Promise.all([
     planesDe(workspaceId, [p.id]),
@@ -100,6 +105,7 @@ export async function abrirPedidoPublico(workspaceId: string, token: unknown, de
     totals: (p.totals as TotalesGuardados | null) ?? null,
     formaDePago: formaDePago(p.paymentOption),
     plan: resumenDePlan(plan.cuotas, plan.imputaciones, { hoy: diaEnBuenosAires(ahora), estadoPedido: p.status, total: pesosDeBase(p.totalArs) }),
+    cobrosHabilitados,
     recibos: cobros.map((c) => ({
       numero: c.receiptNumber,
       fecha: ddmmaaaa(diaEnBuenosAires(c.paidAt)),
@@ -118,4 +124,21 @@ export async function abrirReciboPublico(workspaceId: string, token: unknown): P
   const [recibo, sitio] = await Promise.all([leerRecibo(workspaceId, r.cobroId), sitioDelWorkspace(workspaceId)]);
   if (!recibo || !sitio) return null;
   return armarVistaRecibo({ organizacion: marca(sitio, `Hola, tengo una consulta sobre el recibo N° ${recibo.numero}.`), recibo });
+}
+
+/**
+ * La vuelta de Mercado Pago a la página del pedido (`?pago=ok&cuota=…&payment_id=…`): la dirección
+ * no se cree. Se valida el token del pedido, la forma del `payment_id` y que la cuota sea de ESE
+ * pedido, y se le pregunta a Mercado Pago. null = no hay nada para verificar.
+ */
+export async function verificarVueltaDePago(
+  workspaceId: string,
+  token: unknown,
+  datos: { cuotaId: unknown; paymentId: unknown },
+): Promise<VerificacionPago | null> {
+  if (!idDeCuotaValido(datos.cuotaId)) return null;
+  const paymentId = paymentIdValido(datos.paymentId) ? datos.paymentId : null;
+  const r = await resolverTokenPedido(workspaceId, token);
+  if (!r) return null;
+  return verificarPagoCuota({ workspaceId, pedidoId: r.pedidoId, cuotaId: datos.cuotaId, providerPaymentId: paymentId });
 }

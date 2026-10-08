@@ -15,3 +15,11 @@ export async function pasaElFrenoDeEnlaces(): Promise<boolean> {
   const ip = clientIp(await headers());
   return checkRateLimit({ key: `pedido-ver:${ip}`, limit: TOPE_VISTAS, windowMs: DIEZ_MINUTOS }).allowed;
 }
+
+/** Pagar una cuota (abre una preferencia en Mercado Pago) y verificar la vuelta (le pregunta a Mercado Pago): cupos aparte, más cortos. */
+const TOPE_PAGOS = 15;
+
+export async function pasaElFrenoDePagos(): Promise<boolean> {
+  const ip = clientIp(await headers());
+  return checkRateLimit({ key: `pedido-pagar:${ip}`, limit: TOPE_PAGOS, windowMs: DIEZ_MINUTOS }).allowed;
+}

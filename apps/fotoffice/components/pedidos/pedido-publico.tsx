@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { pesosConSigno, pesosPedido } from "@/lib/pedidos/pantalla";
+import type { AvisoDePago } from "@/lib/pedidos/pago-vuelta";
 import type { ItemPublicoPedido, OrganizacionPublica, VistaPedidoPublica } from "@/lib/pedidos/vista-publica";
 
 /**
@@ -73,10 +74,24 @@ function Renglon({ i }: { i: ItemPublicoPedido }) {
   );
 }
 
-export function PedidoPublico({ vista }: { vista: VistaPedidoPublica }) {
+/** El formulario de «Pagar»: la acción del servidor vuelve a validar el token y la cuota; acá sólo viajan ids. */
+export type PagoDelPedido = {
+  accion: (formData: FormData) => void | Promise<void>;
+  slug: string;
+  token: string;
+  /** Cuota de `?pagar=`: se resalta sólo si es de este pedido (si no está en el plan, se ignora). */
+  resaltarCuotaId: string | null;
+  aviso: AvisoDePago | null;
+};
+
+export function PedidoPublico({ vista, pago }: { vista: VistaPedidoPublica; pago?: PagoDelPedido }) {
   const secciones: (string | null)[] = [];
   for (const i of vista.items) if (!secciones.includes(i.seccion)) secciones.push(i.seccion);
   const cancelado = vista.estado === "CANCELADO";
+  // El último recibo vigente con enlace: el del pago que se acaba de acreditar.
+  const reciboNuevo = [...vista.recibos].reverse().find((r) => !r.anulado && r.url) ?? null;
+  const resaltada = pago?.resaltarCuotaId && vista.plan.cuotas.some((c) => c.id === pago.resaltarCuotaId) ? pago.resaltarCuotaId : null;
+  const hayPagar = vista.plan.cuotas.some((c) => c.pagable);
   return (
     <article className="space-y-6">
       <MarcaPublica organizacion={vista.organizacion}>
@@ -85,6 +100,20 @@ export function PedidoPublico({ vista }: { vista: VistaPedidoPublica }) {
       </MarcaPublica>
 
       {cancelado ? <p className="fo-card p-4">Este pedido está cancelado. Si tenés dudas, escribinos.</p> : null}
+
+      {pago?.aviso ? (
+        <p role="status" className={`fo-card p-4 ${pago.aviso.tono === "error" ? "text-[var(--fo-danger)]" : ""}`}>
+          {pago.aviso.texto}
+          {pago.aviso.conRecibo && reciboNuevo ? (
+            <>
+              {" "}
+              <a href={reciboNuevo.url!} className="font-medium underline" rel="noreferrer">
+                Ver el recibo N° {reciboNuevo.numero}
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       {vista.evento.etiqueta || vista.evento.fecha ? (
         <section aria-label="Evento" className="text-sm">
@@ -173,16 +202,35 @@ export function PedidoPublico({ vista }: { vista: VistaPedidoPublica }) {
                   <th className="py-1 pr-2 text-right font-medium">Importe</th>
                   <th className="py-1 pr-2 text-right font-medium">Saldo</th>
                   <th className="py-1 font-medium">Estado</th>
+                  {hayPagar && pago ? <th className="py-1 pl-2 font-medium"><span className="sr-only">Pagar</span></th> : null}
                 </tr>
               </thead>
               <tbody>
                 {vista.plan.cuotas.map((c) => (
-                  <tr key={c.numero} className="border-t border-[var(--fo-border)]">
+                  <tr
+                    key={c.numero}
+                    aria-current={c.id === resaltada ? "true" : undefined}
+                    className={`border-t border-[var(--fo-border)] ${c.id === resaltada ? "bg-black/5 outline outline-2 outline-current" : ""}`}
+                  >
                     <td className="py-2 pr-2 tabular-nums">{c.numero}</td>
                     <td className="py-2 pr-2">{c.vence}</td>
                     <td className="py-2 pr-2 text-right tabular-nums">{pesosPedido(c.importe)}</td>
                     <td className="py-2 pr-2 text-right tabular-nums">{pesosPedido(c.saldo)}</td>
                     <td className={`py-2 ${c.estado === "VENCIDA" ? "font-medium text-[var(--fo-danger)]" : ""}`}>{c.estadoEtiqueta}</td>
+                    {hayPagar && pago ? (
+                      <td className="py-2 pl-2 text-right">
+                        {c.pagable ? (
+                          <form action={pago.accion}>
+                            <input type="hidden" name="slug" value={pago.slug} />
+                            <input type="hidden" name="token" value={pago.token} />
+                            <input type="hidden" name="cuotaId" value={c.id} />
+                            <button type="submit" className={`fo-btn ${c.id === resaltada ? "fo-btn-primary" : "fo-btn-secondary"} whitespace-nowrap text-sm`}>
+                              Pagar con Mercado Pago
+                            </button>
+                          </form>
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

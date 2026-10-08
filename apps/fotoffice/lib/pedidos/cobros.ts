@@ -17,7 +17,7 @@ import {
 } from "./constantes";
 import { hashDeToken, resolverClaveDeEnlace, tokenDelRecibo } from "./enlace";
 import { imputadoPorCuota } from "./estado";
-import { imputarAutomatico, validarImputacionManual, type CuotaConSaldo, type Imputacion } from "./imputacion";
+import { imputarConPreferida, validarImputacionManual, type CuotaConSaldo, type Imputacion } from "./imputacion";
 import { bloquearPedido, pesosDeBase, pesosParaBase, planesDe } from "./plan";
 import { aCentavos, desdeCentavos, esFechaValida, tieneHastaDosDecimales } from "./plan-cuotas";
 
@@ -230,6 +230,126 @@ async function cuotasConSaldo(tx: Tx, workspaceId: string, pedidoId: string): Pr
   }));
 }
 
+/** Lo que el núcleo del cobro necesita; lo arman el cobro manual y el del sistema. */
+type EntradaCobro = {
+  workspaceId: string;
+  pedidoId: string;
+  importe: number;
+  paidAt: Date;
+  medio: MedioCobro;
+  /** Reparto a mano; sin esto, automático. */
+  manual: Imputacion[] | null;
+  /** Cuota que se paga primero (el cobro del sistema); el resto, de la más vieja a la más nueva. */
+  preferida: string | null;
+  adjuntoId: string | null;
+  /** Clave del formulario; null en un cobro del sistema (su idempotencia es el id del pago). */
+  clave: string | null;
+  claveEnlace: string;
+  /** null = el sistema. */
+  createdByUserId: number | null;
+  /** Pago del proveedor (Mercado Pago): su id, la comisión y el neto, si se conocen. */
+  proveedor: { paymentRef: string; feeArs: number | null; netArs: number | null } | null;
+};
+
+/**
+ * El núcleo del cobro, dentro de la transacción y con el candado del pedido YA tomado: valida el
+ * pedido, imputa, numera el recibo, deposita en Caja, crea el cobro y su reparto, y pasa el pedido
+ * a EN_CURSO. Lo usan `registrarCobro` (a mano) y `registrarCobroDelSistema` (Mercado Pago).
+ * Corta con `Corte` y un mensaje si no se puede.
+ */
+async function aplicarCobro(tx: Tx, e: EntradaCobro): Promise<{ cobroId: string; numero: string; primero: boolean; consultaLeadId: string | null }> {
+  const { workspaceId, paidAt, claveEnlace } = e;
+  const p = await tx.fotofficePedido.findFirst({
+    where: { id: e.pedidoId, workspaceId },
+    select: { id: true, number: true, status: true, clientId: true, consultaLeadId: true, incomeCategoryId: true, totalArs: true },
+  });
+  if (!p || !esEstadoPedido(p.status)) throw new Corte(MENSAJES_PEDIDO.noExiste);
+  if (p.status === "CANCELADO") throw new Corte(MENSAJES_COBRO.cancelado);
+
+  if (e.adjuntoId) {
+    // El comprobante es un adjunto LISTO de la ficha del contacto del pedido (adonde lo sube el
+    // diálogo): nunca de otro contacto, de un socio ni una subida sin confirmar.
+    const a = await tx.fotofficeAttachment.findFirst({
+      where: { id: e.adjuntoId, workspaceId, clientId: p.clientId, status: "LISTO", deletedAt: null },
+      select: { id: true },
+    });
+    if (!a) throw new Corte(MENSAJES_COBRO.adjunto);
+  }
+
+  // Imputación contra los saldos vigentes, leídos con el candado tomado.
+  const cuotas = await cuotasConSaldo(tx, workspaceId, p.id);
+  const imp = e.manual ? validarImputacionManual(cuotas, e.manual, e.importe) : imputarConPreferida(cuotas, e.importe, e.preferida);
+  if (!imp.ok) throw new Corte(imp.error);
+
+  // Los cobros vigentes, con el candado tomado: ningún otro cobro de este pedido está a mitad de camino.
+  const vigentes = await tx.fotofficeCobro.findMany({ where: { workspaceId, pedidoId: p.id, voidedAt: null }, select: { amountArs: true } });
+  // Además del saldo de las cuotas, el del pedido: si el total bajó y el plan quedó descuadrado,
+  // las cuotas podrían sumar más que lo que falta pagar. Nunca se cobra más que total − cobrado.
+  const cobrado = vigentes.reduce((s, c) => s + decimalArsToMinor(c.amountArs), 0);
+  if (aCentavos(e.importe) > decimalArsToMinor(p.totalArs) - cobrado) throw new Corte(MENSAJES_COBRO.saldoExcedido);
+  const primero = vigentes.length === 0;
+
+  // Dónde entra en Caja. Nunca inventa una cuenta: sin cuenta, no hay cobro.
+  const cuentas = await tx.cashAccount.findMany({
+    where: { workspaceId, isActive: true },
+    select: { id: true, name: true, kind: true, isDefault: true, isVault: true },
+    orderBy: { order: "asc" },
+  });
+  const destino = resolveDepositTarget({ cashEnabled: true, paymentMethod: e.medio, accounts: cuentas, categories: [], categoryName: "" });
+  if (!destino.ok) throw new Corte(MENSAJES_COBRO.sinCuenta);
+  // El rubro de ingreso del pedido, si sigue siendo un rubro INGRESO del workspace.
+  const rubro = p.incomeCategoryId
+    ? await tx.cashCategory.findFirst({ where: { id: p.incomeCategoryId, workspaceId, kind: "INGRESO" }, select: { id: true } })
+    : null;
+
+  const cobroId = randomUUID();
+  const numero = await asignarNumero(tx, {
+    workspaceId, key: SECUENCIA_RECIBO, entityType: ENTIDAD_NUMERACION_RECIBO, entityId: cobroId, fecha: paidAt,
+  });
+  const movimiento = await recordCashMovement(tx, {
+    workspaceId,
+    accountId: destino.accountId,
+    kind: "INGRESO",
+    amountMinor: aCentavos(e.importe),
+    occurredAt: paidAt,
+    description: `Cobro pedido N° ${p.number} · recibo ${numero.display}`,
+    sourceModule: MODULO_CAJA_PEDIDOS,
+    sourceRef: cobroId,
+    categoryId: rubro?.id ?? null,
+    clientId: p.clientId,
+    paymentMethod: e.medio,
+    createdByUserId: e.createdByUserId,
+  });
+  await tx.fotofficeCobro.create({
+    data: {
+      id: cobroId,
+      workspaceId,
+      pedidoId: p.id,
+      clientId: p.clientId,
+      paidAt,
+      method: e.medio,
+      amountArs: pesosParaBase(e.importe),
+      feeArs: e.proveedor?.feeArs == null ? null : pesosParaBase(e.proveedor.feeArs),
+      netArs: e.proveedor?.netArs == null ? null : pesosParaBase(e.proveedor.netArs),
+      providerPaymentRef: e.proveedor?.paymentRef ?? null,
+      cashMovementId: movimiento.id,
+      attachmentId: e.adjuntoId,
+      receiptNumber: numero.display,
+      receiptTokenHash: hashDeToken(tokenDelRecibo(cobroId, claveEnlace)),
+      idempotencyKey: e.clave,
+      createdByUserId: e.createdByUserId,
+    },
+    select: { id: true },
+  });
+  await tx.fotofficeCobroImputacion.createMany({
+    data: imp.imputaciones.map((i) => ({ workspaceId, cobroId, cuotaId: i.cuotaId, amountArs: pesosParaBase(i.amountArs) })),
+  });
+  if (primero && p.status === "CONFIRMADO") {
+    await tx.fotofficePedido.updateMany({ where: { id: p.id, workspaceId, status: "CONFIRMADO" }, data: { status: "EN_CURSO" } });
+  }
+  return { cobroId, numero: numero.display, primero, consultaLeadId: p.consultaLeadId };
+}
+
 /** Registra un cobro del pedido. Ver el comentario del archivo. Con "Gestionar" en Pedidos. */
 export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: DepsCobros = {}): Promise<ResultadoCobro> {
   if (!puedeGestionarPedidos(ctx)) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
@@ -256,92 +376,10 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
       const yaEstaba = await porClave(tx, workspaceId, v.clave);
       if (yaEstaba) throw new Repetido(yaEstaba);
 
-      const p = await tx.fotofficePedido.findFirst({
-        where: { id: v.pedidoId, workspaceId },
-        select: { id: true, number: true, status: true, clientId: true, consultaLeadId: true, incomeCategoryId: true, totalArs: true },
+      return aplicarCobro(tx, {
+        workspaceId, pedidoId: v.pedidoId, importe: v.importe, paidAt, medio: v.medio, manual: v.manual, preferida: null,
+        adjuntoId: v.adjuntoId, clave: v.clave, claveEnlace, createdByUserId: ctx.userId, proveedor: null,
       });
-      if (!p || !esEstadoPedido(p.status)) throw new Corte(MENSAJES_PEDIDO.noExiste);
-      if (p.status === "CANCELADO") throw new Corte(MENSAJES_COBRO.cancelado);
-
-      if (v.adjuntoId) {
-        // El comprobante es un adjunto LISTO de la ficha del contacto del pedido (adonde lo sube el
-        // diálogo): nunca de otro contacto, de un socio ni una subida sin confirmar.
-        const a = await tx.fotofficeAttachment.findFirst({
-          where: { id: v.adjuntoId, workspaceId, clientId: p.clientId, status: "LISTO", deletedAt: null },
-          select: { id: true },
-        });
-        if (!a) throw new Corte(MENSAJES_COBRO.adjunto);
-      }
-
-      // Imputación contra los saldos vigentes, leídos con el candado tomado.
-      const cuotas = await cuotasConSaldo(tx, workspaceId, p.id);
-      const imp = v.manual ? validarImputacionManual(cuotas, v.manual, v.importe) : imputarAutomatico(cuotas, v.importe);
-      if (!imp.ok) throw new Corte(imp.error);
-
-      // Los cobros vigentes, con el candado tomado: ningún otro cobro de este pedido está a mitad de camino.
-      const vigentes = await tx.fotofficeCobro.findMany({ where: { workspaceId, pedidoId: p.id, voidedAt: null }, select: { amountArs: true } });
-      // Además del saldo de las cuotas, el del pedido: si el total bajó y el plan quedó descuadrado,
-      // las cuotas podrían sumar más que lo que falta pagar. Nunca se cobra más que total − cobrado.
-      const cobrado = vigentes.reduce((s, c) => s + decimalArsToMinor(c.amountArs), 0);
-      if (aCentavos(v.importe) > decimalArsToMinor(p.totalArs) - cobrado) throw new Corte(MENSAJES_COBRO.saldoExcedido);
-      const primero = vigentes.length === 0;
-
-      // Dónde entra en Caja. Nunca inventa una cuenta: sin cuenta, no hay cobro.
-      const cuentas = await tx.cashAccount.findMany({
-        where: { workspaceId, isActive: true },
-        select: { id: true, name: true, kind: true, isDefault: true, isVault: true },
-        orderBy: { order: "asc" },
-      });
-      const destino = resolveDepositTarget({ cashEnabled: true, paymentMethod: v.medio, accounts: cuentas, categories: [], categoryName: "" });
-      if (!destino.ok) throw new Corte(MENSAJES_COBRO.sinCuenta);
-      // El rubro de ingreso del pedido, si sigue siendo un rubro INGRESO del workspace.
-      const rubro = p.incomeCategoryId
-        ? await tx.cashCategory.findFirst({ where: { id: p.incomeCategoryId, workspaceId, kind: "INGRESO" }, select: { id: true } })
-        : null;
-
-      const cobroId = randomUUID();
-      const numero = await asignarNumero(tx, {
-        workspaceId, key: SECUENCIA_RECIBO, entityType: ENTIDAD_NUMERACION_RECIBO, entityId: cobroId, fecha: paidAt,
-      });
-      const movimiento = await recordCashMovement(tx, {
-        workspaceId,
-        accountId: destino.accountId,
-        kind: "INGRESO",
-        amountMinor: aCentavos(v.importe),
-        occurredAt: paidAt,
-        description: `Cobro pedido N° ${p.number} · recibo ${numero.display}`,
-        sourceModule: MODULO_CAJA_PEDIDOS,
-        sourceRef: cobroId,
-        categoryId: rubro?.id ?? null,
-        clientId: p.clientId,
-        paymentMethod: v.medio,
-        createdByUserId: ctx.userId,
-      });
-      await tx.fotofficeCobro.create({
-        data: {
-          id: cobroId,
-          workspaceId,
-          pedidoId: p.id,
-          clientId: p.clientId,
-          paidAt,
-          method: v.medio,
-          amountArs: pesosParaBase(v.importe),
-          cashMovementId: movimiento.id,
-          attachmentId: v.adjuntoId,
-          receiptNumber: numero.display,
-          receiptTokenHash: hashDeToken(tokenDelRecibo(cobroId, claveEnlace)),
-          idempotencyKey: v.clave,
-          createdByUserId: ctx.userId,
-        },
-        select: { id: true },
-      });
-      await tx.fotofficeCobroImputacion.createMany({
-        data: imp.imputaciones.map((i) => ({ workspaceId, cobroId, cuotaId: i.cuotaId, amountArs: pesosParaBase(i.amountArs) })),
-      });
-      if (primero && p.status === "CONFIRMADO") {
-        await tx.fotofficePedido.updateMany({ where: { id: p.id, workspaceId, status: "CONFIRMADO" }, data: { status: "EN_CURSO" } });
-      }
-      return { cobroId, numero: numero.display, primero, consultaLeadId: p.consultaLeadId };
     }, OPCIONES_TRANSACCION);
   } catch (e) {
     if (e instanceof Corte) return { ok: false, error: e.mensaje };
@@ -361,6 +399,117 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
     await notificarEvento(workspaceId, { tipo: "CAPTACION", id: hecho.consultaLeadId }, "SENA_COBRADA", hecho.cobroId).catch(() => undefined);
   }
   return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero, importe: v.importe };
+}
+
+export type DatosCobroDelSistema = {
+  workspaceId: string;
+  pedidoId: string;
+  /** Pesos, con hasta dos decimales (el bruto del pago). */
+  importe: number;
+  /** Cuándo se aprobó el pago; null = ahora. */
+  paidAt: Date | null;
+  /** La cuota que la persona eligió pagar: se imputa primero. */
+  cuotaPreferidaId: string | null;
+  /** Id del pago en Mercado Pago: el cobro se identifica por él (único en la base). */
+  providerPaymentRef: string;
+  feeArs: number | null;
+  netArs: number | null;
+};
+
+/** Por qué un pago aprobado no se pudo acreditar: sirve para avisar al responsable. */
+export type MotivoSinAcreditar = "CANCELADO" | "EXCEDE" | "SIN_CAJA" | "SIN_CUENTA" | "SIN_CLAVE" | "NO_EXISTE" | "DATOS" | "FALLO";
+
+export type ResultadoCobroDelSistema =
+  | { ok: true; cobroId: string; pedidoId: string; reciboNumero: string; creado: boolean; primero: boolean }
+  | { ok: false; motivo: MotivoSinAcreditar; error: string };
+
+function motivoDe(mensaje: string): MotivoSinAcreditar {
+  if (mensaje === MENSAJES_COBRO.cancelado) return "CANCELADO";
+  if (mensaje === MENSAJES_COBRO.saldoExcedido) return "EXCEDE";
+  if (mensaje === MENSAJES_COBRO.sinCuenta) return "SIN_CUENTA";
+  if (mensaje === MENSAJES_PEDIDO.noExiste) return "NO_EXISTE";
+  return "FALLO";
+}
+
+/**
+ * El cobro de un pago aprobado de Mercado Pago (Entrega B2): el mismo núcleo que el cobro manual
+ * (candado, imputación, número de recibo, Caja, `SENA_COBRADA`, EN_CURSO), sin persona que lo
+ * registre (`createdByUserId` nulo = "Sistema"), con medio MERCADO_PAGO y la cuota elegida primero.
+ *
+ * **Idempotente por `providerPaymentRef`**: si ya hay un cobro con ese pago, no hace nada
+ * (`creado: false`); la carrera la frena el único de la base (P2002 = ya acreditado).
+ * **Nunca crea saldo negativo**: un pago que supera el saldo, de un pedido cancelado o sin dónde
+ * depositar NO se acredita y devuelve el motivo, para que el llamador avise a una persona.
+ *
+ * El llamador (webhook / vuelta del comprador) ya validó que el pago es de este pedido y de esta
+ * organización. No lanza. Sólo códigos en los logs.
+ */
+export async function registrarCobroDelSistema(datos: DatosCobroDelSistema, deps: DepsCobros = {}): Promise<ResultadoCobroDelSistema> {
+  const ahora = (deps.ahora ?? (() => new Date()))();
+  const { workspaceId, pedidoId, providerPaymentRef } = datos;
+  if (!idValido(workspaceId) || !idValido(pedidoId) || typeof providerPaymentRef !== "string" || providerPaymentRef.length === 0 || providerPaymentRef.length > 100) {
+    return { ok: false, motivo: "DATOS", error: MENSAJES_PEDIDO.datosInvalidos };
+  }
+  const importe = datos.importe;
+  if (typeof importe !== "number" || !tieneHastaDosDecimales(importe) || aCentavos(importe) <= 0 || importe > MAX_IMPORTE_COBRO) {
+    return { ok: false, motivo: "DATOS", error: MENSAJES_COBRO.importe };
+  }
+  const centavosOk = (n: number | null) => n === null || (Number.isFinite(n) && tieneHastaDosDecimales(n));
+  const feeArs = centavosOk(datos.feeArs) ? datos.feeArs : null;
+  const netArs = centavosOk(datos.netArs) ? datos.netArs : null;
+
+  const previo = await porPago(prisma, providerPaymentRef);
+  if (previo) return repetidoDelSistema(previo);
+
+  if (!(await isModuleEnabledForWorkspace(workspaceId, CASH_MODULE_KEY))) return { ok: false, motivo: "SIN_CAJA", error: MENSAJES_COBRO.sinCaja };
+  const claveEnlace = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
+  if (!claveEnlace) return { ok: false, motivo: "SIN_CLAVE", error: MENSAJES_COBRO.sinClave };
+
+  const paidAt = datos.paidAt && datos.paidAt.getTime() <= ahora.getTime() ? datos.paidAt : ahora;
+  let hecho: { cobroId: string; numero: string; primero: boolean; consultaLeadId: string | null };
+  try {
+    hecho = await prisma.$transaction(async (tx) => {
+      await bloquearPedido(tx, pedidoId);
+      const yaEstaba = await porPago(tx, providerPaymentRef);
+      if (yaEstaba) throw new RepetidoDelSistema(yaEstaba);
+      return aplicarCobro(tx, {
+        workspaceId, pedidoId, importe: desdeCentavos(aCentavos(importe)), paidAt, medio: "MERCADO_PAGO", manual: null,
+        preferida: datos.cuotaPreferidaId, adjuntoId: null, clave: null, claveEnlace, createdByUserId: null,
+        proveedor: { paymentRef: providerPaymentRef, feeArs, netArs },
+      });
+    }, OPCIONES_TRANSACCION);
+  } catch (e) {
+    if (e instanceof Corte) return { ok: false, motivo: motivoDe(e.mensaje), error: e.mensaje };
+    if (e instanceof RepetidoDelSistema) return repetidoDelSistema(e.cobro);
+    // Otro aviso del mismo pago confirmó en el medio (el único de `providerPaymentRef` frena): ya acreditado.
+    if (codigoDe(e) === "P2002") {
+      const otro = await porPago(prisma, providerPaymentRef).catch(() => null);
+      if (otro) return repetidoDelSistema(otro);
+    }
+    falla("registrarCobroDelSistema", e);
+    return { ok: false, motivo: "FALLO", error: MENSAJES_COBRO.fallo };
+  }
+
+  if (hecho.primero && hecho.consultaLeadId) {
+    await notificarEvento(workspaceId, { tipo: "CAPTACION", id: hecho.consultaLeadId }, "SENA_COBRADA", hecho.cobroId).catch(() => undefined);
+  }
+  return { ok: true, cobroId: hecho.cobroId, pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero };
+}
+
+type CobroPorPago = { id: string; pedidoId: string; receiptNumber: string };
+
+async function porPago(cliente: Pick<Tx, "fotofficeCobro">, providerPaymentRef: string): Promise<CobroPorPago | null> {
+  return cliente.fotofficeCobro.findFirst({ where: { providerPaymentRef }, select: { id: true, pedidoId: true, receiptNumber: true } });
+}
+
+function repetidoDelSistema(c: CobroPorPago): ResultadoCobroDelSistema {
+  return { ok: true, cobroId: c.id, pedidoId: c.pedidoId, reciboNumero: c.receiptNumber, creado: false, primero: false };
+}
+
+class RepetidoDelSistema extends Error {
+  constructor(readonly cobro: CobroPorPago) {
+    super("repetido");
+  }
 }
 
 class Repetido extends Error {

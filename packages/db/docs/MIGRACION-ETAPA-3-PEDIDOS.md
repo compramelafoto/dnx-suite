@@ -635,3 +635,97 @@ la plantilla "Recordatorio de cuota" tiene que estar encendida y el correo de pr
 
 Si confirmar un pedido, la ficha o Configuración → Pedidos dan error justo después de publicar, falta
 aplicar el SQL de esta entrega (o falló).
+
+---
+
+# Entrega B2 · Cobro de cuotas por Mercado Pago desde el enlace del pedido
+
+Procedimiento manual, **sin staging**, igual que las entregas anteriores: se publica directo a
+producción. Esta entrega **no tiene SQL**: no hay migración, ni tablas ni columnas nuevas, ni
+variables de entorno nuevas. No hay nada que aplicar en la base antes del código.
+
+Qué hace: en el enlace público del pedido, cada cuota con saldo tiene un botón para **pagar con
+Mercado Pago**. Al volver del pago, el comprador ve el aviso ("Gracias") y el sistema registra solo el
+cobro, el recibo y el movimiento de Caja. También suma la variable `[cuota_link_pago]` para los
+mensajes.
+
+## B2.1 El webhook nuevo
+
+`/api/payments/mp/pedidos-webhook`
+
+- **Siempre responde 200**, aunque algo falle, para que Mercado Pago no reintente sin fin. Los errores
+  quedan en el log.
+- **No confía en lo que llega**: con el número de pago del aviso, **le pregunta a Mercado Pago** el
+  estado real del pago, usando el token de la organización que cobra.
+- **Idempotente por número de pago**: el mismo pago avisado dos veces (o avisado y verificado al volver
+  el comprador) se registra **una sola vez**.
+- Sólo acredita pagos **aprobados**, en pesos, de una cuota de esa organización.
+
+## B2.2 Qué hace falta para que funcione
+
+- La organización tiene que tener **Mercado Pago conectado** en Configuración → Cobros. Sin eso, el
+  botón no aparece.
+- **Caja encendida** y con una **cuenta para el medio MERCADO_PAGO**. Sin Caja o sin esa cuenta el pago
+  no se puede aplicar (ver B2.4).
+- **Comisión de plataforma en 0** hasta que el PR 357 unifique las comisiones de Mercado Pago y de la
+  plataforma. Hoy la preferencia de pago sale sin comisión para DNX.
+- La comisión que cobra Mercado Pago se guarda en el cobro (comisión y neto) sólo si el aviso la trae.
+
+## B2.3 Cambio en el paquete compartido
+
+`packages/payments` (`sanitize.ts`): la respuesta de pago saneada ahora conserva `fee_details` con
+**tipo e importe** (antes lo descartaba). Es un cambio aditivo: agrega un campo, no quita ninguno. Lo
+usan las demás apps que importan el paquete; sin este cambio la comisión y el neto quedarían vacíos en
+producción.
+
+## B2.4 Pagos que no se pueden aplicar
+
+Casos: **pago doble** (la cuota o el pedido ya no deben tanto), **pedido cancelado**, **sin Caja o sin
+cuenta de Caja**, moneda distinta de pesos, o un error al guardar.
+
+- **No se crea el cobro** y no se toca la Caja.
+- Se deja el motivo en el log y se crea una **tarea para el responsable** en la consulta del pedido:
+  "Pago de Mercado Pago sin aplicar: devolver o aplicar a mano". Hay una sola tarea abierta por
+  consulta; si hay dos pagos sin aplicar del mismo pedido, comparten la tarea.
+- **El dinero ya está en Mercado Pago**: hay que **devolverlo a mano desde Mercado Pago** (o, si
+  corresponde, aplicarlo a mano en el pedido).
+
+Limitación: el webhook sólo mira organizaciones con pedidos en CONFIRMADO o EN_CURSO. Un pago de una
+organización sin ninguno en marcha se resuelve al volver el comprador al enlace.
+
+## B2.5 Variable nueva
+
+`[cuota_link_pago]`: enlace directo para pagar una cuota. Si el mensaje es de una cuota (por ejemplo el
+recordatorio) usa esa; si no, la **primera con saldo**. Queda vacía si no hay saldo o el pedido está
+cancelado. Los textos sembrados no se tocaron: para usarla hay que agregarla a la plantilla.
+
+## B2.6 Prueba en producción (para Daniel, en el PR)
+
+Con un **pago real chico** (por ejemplo, una cuota de **$100**), en **DNX Estudio** o una organización de
+prueba. **Antes:** Mercado Pago conectado en Configuración → Cobros, Caja encendida y una cuenta para
+MERCADO_PAGO. Pagar desde **otro dispositivo**, con una cuenta de Mercado Pago distinta de la cobradora.
+
+1. Crear un pedido de prueba con una cuota de $100 y copiar el **enlace del pedido**.
+2. Abrir el enlace desde **otro dispositivo** y apretar **Pagar con Mercado Pago** en esa cuota.
+3. Pagar los $100 en Mercado Pago y **volver** al enlace.
+4. Ver el aviso **"Gracias"** y la cuota como pagada (puede tardar unos segundos; si dice "en proceso",
+   recargar).
+5. En la ficha del pedido: el **cobro** registrado, con medio Mercado Pago, y su **recibo** (también
+   llega por correo si el recibo automático está encendido).
+6. En **Caja → Movimientos**: el ingreso por el **importe bruto** ($100), y en el cobro la **comisión y
+   el neto** de Mercado Pago.
+7. Repetir el aviso (recargar el enlace con `?pago=ok`): **no** se duplica el cobro.
+8. **Limpieza:** primero **anular el cobro en FOTOFFICE** (la Caja vuelve al saldo anterior) y después
+   **devolver el pago en Mercado Pago**. Recién entonces cancelar el pedido de prueba (cancelar no anula
+   cobros).
+
+Si algo no se acredita, revisar el log de `/api/payments/mp/pedidos-webhook` y las tareas de la consulta
+del pedido.
+
+## B2.7 Vuelta atrás
+
+Revertir el PR (o volver a publicar el deploy anterior de FOTOFFICE). **No hay datos que borrar ni
+tablas que eliminar.** Los **cobros ya registrados quedan**, con sus recibos y movimientos de Caja:
+siguen siendo válidos y se anulan desde el pedido como cualquier otro. Los pagos que lleguen después de
+revertir no se registran solos: hay que aplicarlos a mano o devolverlos en Mercado Pago. El cambio en
+`packages/payments` es aditivo y no necesita deshacerse por separado.

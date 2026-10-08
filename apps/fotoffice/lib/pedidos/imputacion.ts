@@ -48,6 +48,27 @@ export function imputarAutomatico(cuotasConSaldo: readonly CuotaConSaldo[], impo
 }
 
 /**
+ * Reparte el importe empezando por la cuota preferida (la que la persona eligió pagar) y sigue con
+ * el resto de la más vieja a la más nueva. Si la preferida no existe o no tiene saldo, es el
+ * automático común. Rechaza si el importe supera el saldo total.
+ */
+export function imputarConPreferida(cuotasConSaldo: readonly CuotaConSaldo[], importe: number, preferidaId: string | null): ResultadoImputacion {
+  const preferida = preferidaId ? cuotasConSaldo.find((c) => c.id === preferidaId) : undefined;
+  if (!preferida || aCentavos(preferida.saldo) <= 0) return imputarAutomatico(cuotasConSaldo, importe);
+  if (!importeValido(importe)) return { ok: false, error: "El importe tiene que ser mayor que cero." };
+  if (aCentavos(importe) > saldoTotal(cuotasConSaldo)) return { ok: false, error: "El importe supera el saldo del pedido." };
+  const aLaPreferida = Math.min(aCentavos(preferida.saldo), aCentavos(importe));
+  const imputaciones: Imputacion[] = [{ cuotaId: preferida.id, amountArs: desdeCentavos(aLaPreferida) }];
+  const resto = aCentavos(importe) - aLaPreferida;
+  if (resto > 0) {
+    const r = imputarAutomatico(cuotasConSaldo.filter((c) => c.id !== preferida.id), desdeCentavos(resto));
+    if (!r.ok) return r;
+    imputaciones.push(...r.imputaciones);
+  }
+  return { ok: true, imputaciones };
+}
+
+/**
  * Valida una imputación a mano: cuotas del pedido, sin repetir, cada parte mayor que cero y no mayor
  * que el saldo de su cuota, y la suma igual al importe del cobro.
  */

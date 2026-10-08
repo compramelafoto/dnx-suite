@@ -171,7 +171,7 @@ async function recordatorioDe(
   }
   const email = destino.email;
   const leido = await contextoDeMensajePedido(
-    workspaceId, c.pedidoId, { usuario: { nombre: null, email: null }, ahora, textos: [auto.subject, auto.body] }, deps,
+    workspaceId, c.pedidoId, { cuotaId: c.cuotaId, usuario: { nombre: null, email: null }, ahora, textos: [auto.subject, auto.body] }, deps,
   );
   if (!leido.ok) {
     console.warn("[pedidos] el recordatorio de cuota no se pudo armar", { codigo: leido.codigo });

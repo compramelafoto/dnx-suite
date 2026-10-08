@@ -13,7 +13,8 @@ import { enlaceDelPedidoDelSistema, enlacesDeRecibos, type DepsEnlace } from "./
 import { importeEnLetras } from "./numero-a-letras";
 import { nombreDeContacto } from "./pedidos";
 import { pesosConCentavos } from "./pantalla";
-import { fechaDeBase, pesosDeBase } from "./plan";
+import { imputadoPorCuota } from "./estado";
+import { fechaDeBase, pesosDeBase, planesDe } from "./plan";
 import { aCentavos, desdeCentavos } from "./plan-cuotas";
 import { asegurarPlantillaRecibo } from "./plantillas";
 
@@ -125,10 +126,10 @@ export type ContextoPedido =
 export async function contextoDeMensajePedido(
   workspaceId: string,
   pedidoId: string,
-  opciones: { cobroId?: string | null; usuario: UsuarioQueEnvia; ahora: Date; textos: readonly (string | null | undefined)[] },
+  opciones: { cobroId?: string | null; cuotaId?: string | null; usuario: UsuarioQueEnvia; ahora: Date; textos: readonly (string | null | undefined)[] },
   deps: DepsEnlace = {},
 ): Promise<ContextoPedido> {
-  const p = await prisma.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true, number: true, clientId: true, totalArs: true } });
+  const p = await prisma.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true, number: true, clientId: true, totalArs: true, status: true } });
   if (!p) return { ok: false, codigo: "NO_ENCONTRADO" };
   const base = await contextoDe(workspaceId, "CLIENTE", p.clientId, opciones.usuario, opciones.ahora);
   if (!base) return { ok: false, codigo: "NO_ENCONTRADO" };
@@ -138,10 +139,23 @@ export async function contextoDeMensajePedido(
   const saldo = desdeCentavos(Math.max(0, aCentavos(pesosDeBase(p.totalArs)) - cobrado));
 
   let enlacePedido: string | null = null;
-  if (usa("pedido_enlace", opciones.textos)) {
+  // `[cuota_link_pago]`: el enlace del pedido + `?pagar=<cuota>`. La cuota es la pedida (el
+  // recordatorio) o, si no, la primera con saldo; sin ninguna, la variable queda vacía.
+  let cuotaLinkPago: string | null = null;
+  const quiereLinkPago = usa("cuota_link_pago", opciones.textos);
+  if (usa("pedido_enlace", opciones.textos) || quiereLinkPago) {
     const e = await enlaceDelPedidoDelSistema(workspaceId, p.id, {}, deps);
     if (!e.ok) return { ok: false, codigo: "SIN_ENLACE" };
     enlacePedido = e.url;
+    if (quiereLinkPago) {
+      const plan = (await planesDe(workspaceId, [p.id])).get(p.id) ?? { cuotas: [], imputaciones: [] };
+      const imputado = imputadoPorCuota(plan.imputaciones);
+      const conSaldo = [...plan.cuotas]
+        .sort((x, y) => x.position - y.position)
+        .filter((c) => aCentavos(c.amountArs) - (imputado.get(c.id) ?? 0) > 0);
+      const elegida = p.status === "CANCELADO" ? undefined : opciones.cuotaId ? conSaldo.find((c) => c.id === opciones.cuotaId) : conSaldo[0];
+      if (elegida) cuotaLinkPago = `${e.url}?pagar=${encodeURIComponent(elegida.id)}`;
+    }
   }
 
   let recibo: NonNullable<ContextoMensaje["variables"]["recibo"]> | undefined;
@@ -163,7 +177,7 @@ export async function contextoDeMensajePedido(
     variables: {
       ...base.variables,
       // Saldo 0 → null: así el bloque `[si:pedido_saldo]` desaparece en vez de decir "$ 0".
-      pedido: { numero: p.number, enlace: enlacePedido, saldo: aCentavos(saldo) > 0 ? pesos(saldo) : null },
+      pedido: { numero: p.number, enlace: enlacePedido, saldo: aCentavos(saldo) > 0 ? pesos(saldo) : null, cuotaLinkPago },
       ...(recibo ? { recibo } : {}),
     },
   };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imputarAutomatico, validarImputacionManual, type CuotaConSaldo } from "./imputacion";
+import { imputarAutomatico, imputarConPreferida, validarImputacionManual, type CuotaConSaldo } from "./imputacion";
 
 const CUOTAS: CuotaConSaldo[] = [
   // Desordenadas a propósito: el orden sale del vencimiento, no del arreglo.
@@ -108,5 +108,31 @@ describe("validarImputacionManual", () => {
     });
     expect(validarImputacionManual(CUOTAS, [{ cuotaId: "c1", amountArs: 0 }], 0).ok).toBe(false);
     expect(validarImputacionManual(CUOTAS, [], 100).ok).toBe(false);
+  });
+});
+
+describe("imputarConPreferida", () => {
+  it("va primero a la preferida y el resto de la más vieja a la más nueva", () => {
+    expect(imputarConPreferida(CUOTAS, 1500, "c2")).toEqual({
+      ok: true,
+      imputaciones: [{ cuotaId: "c2", amountArs: 1000 }, { cuotaId: "c1", amountArs: 500 }],
+    });
+  });
+
+  it("un importe menor que el saldo de la preferida va sólo a ella", () => {
+    expect(imputarConPreferida(CUOTAS, 300.5, "c3")).toEqual({ ok: true, imputaciones: [{ cuotaId: "c3", amountArs: 300.5 }] });
+  });
+
+  it("sin preferida, o con una paga o ajena, es el automático común", () => {
+    const pagas = CUOTAS.map((c) => (c.id === "c2" ? { ...c, saldo: 0 } : c));
+    expect(imputarConPreferida(pagas, 1500, "c2")).toEqual(imputarAutomatico(pagas, 1500));
+    expect(imputarConPreferida(CUOTAS, 500, null)).toEqual(imputarAutomatico(CUOTAS, 500));
+    expect(imputarConPreferida(CUOTAS, 500, "otra")).toEqual(imputarAutomatico(CUOTAS, 500));
+  });
+
+  it("rechaza lo que supera el saldo total o no es un importe válido", () => {
+    expect(imputarConPreferida(CUOTAS, 3000.01, "c2")).toEqual({ ok: false, error: "El importe supera el saldo del pedido." });
+    expect(imputarConPreferida(CUOTAS, 0, "c2").ok).toBe(false);
+    expect(imputarConPreferida(CUOTAS, 10.123, "c2").ok).toBe(false);
   });
 });

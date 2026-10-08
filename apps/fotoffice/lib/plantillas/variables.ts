@@ -29,11 +29,11 @@ export type ContextoVariables = {
   /** Sólo al enviar un presupuesto (etapa 2): ya formateados para leer. */
   presupuesto?: { numero: string | null; enlace: string | null; total: string | null; vence: string | null };
   /** Sólo al enviar el enlace de un pedido o un recibo (etapa 3): ya formateados para leer. */
-  pedido?: { numero: string | null; enlace: string | null; saldo: string | null };
+  pedido?: { numero: string | null; enlace: string | null; saldo: string | null; cuotaLinkPago?: string | null };
   /** Sólo al enviar un recibo (etapa 3): ya formateados para leer. */
   recibo?: { numero: string | null; enlace: string | null; importe: string | null };
   /** Sólo en el recordatorio de una cuota (etapa 3, Entrega B1): ya formateados para leer. */
-  cuota?: { vence: string | null; importe: string | null };
+  cuota?: { vence: string | null; importe: string | null; linkPago?: string | null };
   /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
   listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
@@ -148,6 +148,7 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "recibo_importe", etiqueta: "Importe del recibo", descripcion: "Lo que se cobró, en pesos (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.importe) },
   { clave: "cuota_vence", etiqueta: "Vencimiento de la cuota", descripcion: "El día en que vence la cuota, en dd/mm/aaaa (sólo en el recordatorio de una cuota).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.cuota?.vence) },
   { clave: "cuota_importe", etiqueta: "Importe de la cuota", descripcion: "Lo que falta pagar de la cuota, en pesos (sólo en el recordatorio de una cuota).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.cuota?.importe) },
+  { clave: "cuota_link_pago", etiqueta: "Enlace para pagar la cuota", descripcion: "La dirección del pedido con la cuota resaltada y su botón «Pagar con Mercado Pago». En el recordatorio es la cuota recordada; en los demás mensajes, la próxima cuota con saldo (vacío si no hay).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.cuota?.linkPago ?? c.pedido?.cuotaLinkPago) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];
