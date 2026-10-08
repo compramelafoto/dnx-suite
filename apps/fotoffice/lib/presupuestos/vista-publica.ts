@@ -3,10 +3,12 @@
  *
  * `armarVistaPublica` copia campo por campo SÓLO lo que se puede mostrar: nombre, descripción,
  * cantidad, precio, descuento, neto, sección y si es opcional. Nunca la instantánea del cálculo,
- * el modo de precio, el producto del catálogo, ni `costSnapshot` (que ni se lee de la base). Así,
+ * el modo de precio, el producto del catálogo, ni `costSnapshot` (que ni se lee de la base). De
+ * las opciones de pago, sólo nombre, cuotas, importe por cuota, total y nota (`opcionesPublicas`). Así,
  * aunque mañana se sumen campos internos al ítem, no llegan solos a la página.
  */
 import type { Descuento, ItemPresupuesto } from "./constantes";
+import { opcionesPublicas, type OpcionPublica } from "./opciones-pago";
 import type { TotalesGuardados } from "./versiones";
 
 /** El estado del enlace. REEMPLAZADO nunca llega a la vista: la página redirige a la vigente. */
@@ -36,8 +38,10 @@ export type VistaPublica = {
   vence: string | null;
   condiciones: string | null;
   propuestaPago: string | null;
-  /** Sólo si ESTA versión se aceptó. */
-  aceptacion: { fecha: string; nombre: string } | null;
+  /** Opciones de pago congeladas en la versión (vacío si se envió antes de tenerlas). */
+  opcionesPago: OpcionPublica[];
+  /** Sólo si ESTA versión se aceptó. `opcion`: la forma de pago elegida, o null. */
+  aceptacion: { fecha: string; nombre: string; opcion: string | null } | null;
 };
 
 const numero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -61,11 +65,23 @@ export function armarVistaPublica(args: {
   estado: EstadoDeLaVista;
   organizacion: VistaPublica["organizacion"];
   numero: string | null;
-  version: { number: number; items: readonly ItemPresupuesto[]; totals: TotalesGuardados | null; terms: string | null; paymentProposal: string | null; acceptedAt: Date | null; acceptedName: string | null };
+  version: {
+    number: number;
+    items: readonly ItemPresupuesto[];
+    totals: TotalesGuardados | null;
+    terms: string | null;
+    paymentProposal: string | null;
+    paymentOptions?: unknown;
+    chosenPaymentOptionId?: string | null;
+    acceptedAt: Date | null;
+    acceptedName: string | null;
+  };
   validUntil: Date | null;
 }): VistaPublica {
   const t = args.version.totals;
   const renglones = t?.renglones ?? {};
+  const opcionesPago = opcionesPublicas(args.version.paymentOptions);
+  const elegida = opcionesPago.find((o) => o.id === args.version.chosenPaymentOptionId)?.etiqueta ?? null;
   return {
     estado: args.estado,
     organizacion: {
@@ -97,9 +113,10 @@ export function armarVistaPublica(args: {
     vence: ddmmaaaa(args.validUntil),
     condiciones: args.version.terms,
     propuestaPago: args.version.paymentProposal,
+    opcionesPago,
     aceptacion:
       args.estado === "ACEPTADO" && args.version.acceptedAt
-        ? { fecha: fechaHoraBA.format(args.version.acceptedAt).replace(",", ""), nombre: args.version.acceptedName ?? "" }
+        ? { fecha: fechaHoraBA.format(args.version.acceptedAt).replace(",", ""), nombre: args.version.acceptedName ?? "", opcion: elegida }
         : null,
   };
 }

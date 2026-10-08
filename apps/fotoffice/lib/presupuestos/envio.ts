@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { notificarEvento } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
@@ -22,10 +22,13 @@ import { leerAjustes } from "./ajustes";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto } from "./constantes";
 import { pesos } from "./editor";
 import { resolverClaveDeEnlace, tokenDeVersion, urlDelPresupuesto, vencimientoDelToken, hashDeToken } from "./enlace";
-import { estadoEfectivo, textoDeFecha } from "./estados";
+import { diaEnBuenosAires, estadoEfectivo, textoDeFecha } from "./estados";
+import { fechaDelEvento } from "./evento";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { datosDeEnvio, numerarPresupuesto, pasarEstado } from "./presupuestos";
 import { sitioDelWorkspace, type SitioDelPresupuesto } from "./sitio";
+import { opcionesParaPresupuesto } from "@/lib/pedidos/opciones-pago";
+import { entradaGuardada } from "./opciones-pago";
 import { bloquearPresupuesto, congelarVersion, itemsGuardados, revocarAnteriores, type TotalesGuardados } from "./versiones";
 
 /**
@@ -260,6 +263,7 @@ async function enviarComo(
     select: { id: true },
   });
   const ajustes = await leerAjustes(workspaceId);
+  const fechaEvento = await fechaDelEvento(workspaceId, p.consultaLeadId);
   const objetivo = borradorAntes?.id ?? p.currentVersionId;
   const prueba = textosFinales(contexto, canal, fuente, {
     numero: "0",
@@ -290,14 +294,24 @@ async function enviarComo(
 
       const borrador = await tx.fotofficePresupuestoVersion.findFirst({
         where: { workspaceId, presupuestoId, sentAt: null },
-        select: { id: true, items: true, totals: true },
+        select: { id: true, items: true, totals: true, paymentOptions: true },
       });
       if (borrador) {
         if (itemsGuardados(borrador.items).length === 0) throw new Corte(MENSAJES_ENVIO_PRESUPUESTO.sinItems);
         const envio = datosDeEnvio(ahora, ajustes);
         const token = tokenDeVersion(borrador.id, clave);
+        // Opciones de pago congeladas sobre el total de la versión: las del presupuesto o, si nunca
+        // se tocaron, las de la organización; sin ninguna, la de omisión (con la fecha del evento).
+        const opciones = opcionesParaPresupuesto(
+          { paymentOptions: entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago },
+          (borrador.totals as TotalesGuardados | null)?.total ?? 0,
+          fechaEvento,
+          diaEnBuenosAires(ahora),
+          ahora.toISOString(),
+        );
         const congelada = await congelarVersion(tx, {
           workspaceId, versionId: borrador.id, ahora, tokenHash: hashDeToken(token), tokenExpiresAt: vencimientoDelToken(envio.validUntil),
+          paymentOptions: opciones as unknown as Prisma.InputJsonValue,
         });
         if (!congelada) throw new Corte(MENSAJES_PRESUPUESTO.cambio);
         await revocarAnteriores(tx, { workspaceId, presupuestoId, vigenteId: borrador.id, ahora });

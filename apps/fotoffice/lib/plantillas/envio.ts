@@ -185,6 +185,14 @@ async function validarPlantilla(
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
   }
+  // Etapa 3: el recibo de un cobro sale con la automática `RECIBO_DE_PAGO` (encendida).
+  if (automatico && tipo === "PEDIDO") {
+    const f = await prisma.fotofficeMessageTemplate.findFirst({
+      where: { id: templateId, workspaceId, channel: canal, entityType: "PEDIDO", systemKey: CLAVE_RECIBO, enabled: true, archivedAt: null },
+      select: { id: true },
+    });
+    return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  }
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
       where: {
@@ -205,6 +213,8 @@ async function validarPlantilla(
 const CLAVE_RESPUESTA_A_LA_PERSONA: ClaveAutomatico = "CONSULTA_AUTORESPUESTA";
 /** El seguimiento de un presupuesto (Entrega B): también va a la persona de la consulta. */
 const CLAVE_SEGUIMIENTO: ClaveAutomatico = "PRESUPUESTO_SEGUIMIENTO";
+/** El recibo de un cobro (etapa 3): va al contacto del pedido. */
+const CLAVE_RECIBO: ClaveAutomatico = "RECIBO_DE_PAGO";
 
 /**
  * Asunto, HTML y texto listos para el transporte a partir de textos ya completados
@@ -315,14 +325,15 @@ export type DatosCorreo = {
   cuerpo: unknown;
   automatico?: boolean;
   /**
-   * Sólo los automáticos de presupuestos (Entrega B), desde el servidor:
+   * Sólo los automáticos de presupuestos (Entrega B) y el recibo de pago (etapa 3), desde el servidor:
    * - `registroId`: la reserva que ya hicieron (`reservarEnvioAutomatico`, con su candado); el
    *   registro la completa en vez de crear otra fila;
    * - `registrarEn`: la ficha donde queda el registro, si no es la del destinatario (el
-   *   seguimiento queda en el presupuesto, `PRESUPUESTO` + su id, para contarlo por presupuesto).
+   *   seguimiento queda en el presupuesto, `PRESUPUESTO` + su id, para contarlo por presupuesto; el
+   *   recibo de pago, en el pedido, `PEDIDO` + su id).
    */
   registroId?: string;
-  registrarEn?: { entityType: "PRESUPUESTO"; entityId: string };
+  registrarEn?: { entityType: "PRESUPUESTO" | "PEDIDO"; entityId: string };
 };
 
 export { CODIGO_ENVIO_EN_CURSO };
@@ -482,6 +493,8 @@ export type DatosWhatsapp = {
   entityId: string;
   templateId?: string | null;
   cuerpo: unknown;
+  /** La ficha donde queda el registro, si no es la del destinatario (como en `DatosCorreo`). */
+  registrarEn?: { entityType: "PRESUPUESTO" | "PEDIDO"; entityId: string };
 };
 
 export type ResultadoWhatsapp = { ok: true; url: string; mensajeId: string } | Falla;
@@ -516,8 +529,8 @@ export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opcione
       data: {
         workspaceId: ctx.workspaceId,
         channel: "WHATSAPP",
-        entityType: datos.entityType,
-        entityId: datos.entityId,
+        entityType: datos.registrarEn?.entityType ?? datos.entityType,
+        entityId: datos.registrarEn?.entityId ?? datos.entityId,
         templateId: plantilla.id,
         toAddress: numero,
         subject: null,

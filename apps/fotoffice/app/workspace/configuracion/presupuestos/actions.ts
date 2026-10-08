@@ -36,7 +36,7 @@ function texto(fd: FormData, nombre: string): string | null {
   return typeof v === "string" ? v : null;
 }
 
-/** Validez, condiciones, propuesta de pago y seguimiento. `guardarAjustes` valida rangos y largos. */
+/** Validez, condiciones, propuesta de pago, opciones de pago y seguimiento. `guardarAjustes` valida rangos y largos. */
 export async function guardarAjustesPresupuestosAction(
   _prev: EstadoPresupuestosConfig | undefined,
   fd: FormData,
@@ -46,12 +46,23 @@ export async function guardarAjustesPresupuestosAction(
   const validezDias = texto(fd, "validez");
   const seguimientoDias = texto(fd, "seguimiento");
   if (validezDias === null || seguimientoDias === null) return DATOS_INVALIDOS;
+  // Opciones de pago: JSON del editor (campo oculto). Sin el campo, las guardadas no se tocan.
+  const crudas = texto(fd, "opcionesPago");
+  let opcionesPago: unknown;
+  if (crudas !== null) {
+    try {
+      opcionesPago = JSON.parse(crudas);
+    } catch {
+      return DATOS_INVALIDOS;
+    }
+  }
   const r = await guardarAjustes(ctx, {
     validezDias,
     condiciones: texto(fd, "condiciones"),
     propuestaPago: texto(fd, "propuestaPago"),
     seguimientoDias,
     seguimientoActivo: fd.get("seguimientoActivo") === "1",
+    ...(crudas !== null ? { opcionesPago } : {}),
   });
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);

@@ -29,12 +29,30 @@ describe("catálogo de variables", () => {
       "hoy",
       "consulta_numero", "consulta_tipo", "consulta_fecha", "consulta_lugar", "consulta_mensaje", "consulta_etapa", "lista_precios",
       "presupuesto_numero", "presupuesto_enlace", "presupuesto_total", "presupuesto_vence",
+      "pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe",
       "socio_numero",
     ]);
     for (const v of VARIABLES) {
       expect(v.etiqueta.length).toBeGreaterThan(0);
       expect(v.descripcion.length).toBeGreaterThan(0);
     }
+  });
+
+  it("las de pedido y recibo sólo valen en PEDIDO y salen del contexto (etapa 3)", () => {
+    const claves = ["pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe"];
+    for (const c of claves) {
+      expect(clavesPermitidas("PEDIDO", []).has(c)).toBe(true);
+      for (const t of ["GENERAL", "CLIENTE", "CONSULTA", "PRESUPUESTO", "SOCIO"] as const) expect(clavesPermitidas(t, []).has(c)).toBe(false);
+    }
+    expect(clavesPermitidas("PEDIDO", []).has("nombre")).toBe(true);
+    expect(clavesPermitidas("PEDIDO", []).has("consulta_fecha")).toBe(false);
+    const r = resolverVariables({
+      ...base(),
+      pedido: { numero: "2026-0001", enlace: "https://x.test/pedido/t", saldo: "$ 80.000" },
+      recibo: { numero: "2026-0003", enlace: "https://x.test/recibo/t", importe: "$ 40.000,00" },
+    });
+    expect(claves.map(r)).toEqual(["2026-0001", "https://x.test/pedido/t", "$ 80.000", "2026-0003", "https://x.test/recibo/t", "$ 40.000,00"]);
+    expect(resolverVariables(base())("recibo_numero")).toBeNull();
   });
 
   it("obtiene cada variable del contexto", () => {

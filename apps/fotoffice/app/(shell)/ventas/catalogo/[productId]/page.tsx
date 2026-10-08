@@ -10,7 +10,8 @@ import { ProductForm } from "../../product-form";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
 import { PresupuestoSections } from "./presupuesto-sections";
-import { leerPerfil, rubrosUsados } from "@/lib/catalogo/perfil";
+import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
+import { sugerirRubro } from "@/lib/rubros/rubros";
 import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
 import { leerCostos, proveedoresDelWorkspace } from "@/lib/catalogo/costos";
 
@@ -42,7 +43,7 @@ export default async function ProductoPage({
   const etapa2 = presupuestosEnabled
     ? await Promise.all([
         leerPerfil(workspace.id, producto.id),
-        rubrosUsados(workspace.id),
+        rubrosDeIngreso(workspace.id, producto.id),
         leerCombo(workspace.id, producto.id, producto.priceMinor),
         productosParaCombo(workspace.id, producto.id),
         leerCostos(workspace.id, producto.id),
@@ -84,6 +85,7 @@ export default async function ProductoPage({
           priceMinor={producto.priceMinor}
           perfil={etapa2[0]}
           rubros={etapa2[1]}
+          rubroSugerido={etapa2[0].incomeCategoryId ? null : sugerirRubro(etapa2[0].incomeLabel, etapa2[1])}
           combo={etapa2[2]}
           productosCombo={etapa2[3]}
           costos={etapa2[4]}

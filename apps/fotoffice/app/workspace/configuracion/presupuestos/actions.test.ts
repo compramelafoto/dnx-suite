@@ -86,6 +86,20 @@ describe("guardarAjustesPresupuestosAction", () => {
     expect(H.upsert).not.toHaveBeenCalled();
   });
 
+  it("opciones de pago: el JSON del editor se valida y se guarda; roto o inválido, no guarda", async () => {
+    const opciones = { cashEnabled: false, installmentPlans: [{ id: "p3", numberOfInstallments: "3", interestMode: "none" }] };
+    expect(await A.guardarAjustesPresupuestosAction(undefined, fd({ ...VALIDO, opcionesPago: JSON.stringify(opciones) }))).toEqual({ error: null, ok: "Ajustes guardados." });
+    const arg = H.upsert.mock.calls[0]![0] as { update: Record<string, unknown> };
+    expect(arg.update.paymentOptions).toEqual({
+      cashEnabled: false, cashDiscountPercent: "", cashCommercialNote: "",
+      installmentPlans: [{ id: "p3", numberOfInstallments: "3", interestMode: "none", interestPercent: "", commercialNote: "", appliedIndexMetadata: null }],
+    });
+    H.upsert.mockClear();
+    expect((await A.guardarAjustesPresupuestosAction(undefined, fd({ ...VALIDO, opcionesPago: "{roto" }))).error).toBe("Los datos no son válidos.");
+    expect((await A.guardarAjustesPresupuestosAction(undefined, fd({ ...VALIDO, opcionesPago: JSON.stringify({ installmentPlans: [{ numberOfInstallments: "0" }] }) }))).error).toMatch(/cuotas/);
+    expect(H.upsert).not.toHaveBeenCalled();
+  });
+
   it("rechaza textos de más de 4000 caracteres", async () => {
     const r = await A.guardarAjustesPresupuestosAction(undefined, fd({ ...VALIDO, condiciones: "x".repeat(4001) }));
     expect(r.error).toMatch(/4000/);

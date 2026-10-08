@@ -20,8 +20,9 @@ const ETIQUETA_ORIGEN: Record<MovementSource, string> = {
   membership: "Cuotas",
   bookings: "Reservas",
   sales: "Ventas",
-  "work-orders": "Pedidos",
+  "work-orders": "Órdenes de trabajo",
   governance: "Proyectos de la comisión",
+  pedidos: "Pedidos",
 };
 
 const fechaHoraAR = new Intl.DateTimeFormat("es-AR", {

@@ -10,6 +10,7 @@ describe("registro de listas", () => {
       "caja-movimientos": "cash",
       captacion: "service-leads",
       presupuestos: "quotes",
+      pedidos: "orders",
     });
   });
 
@@ -20,6 +21,7 @@ describe("registro de listas", () => {
       "caja-movimientos": "/caja/movimientos",
       captacion: "/consultas/lista",
       presupuestos: "/presupuestos",
+      pedidos: "/pedidos",
     });
   });
 });

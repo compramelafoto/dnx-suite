@@ -31,7 +31,9 @@ export async function guardarPerfilAction(productId: string, formData: FormData)
   const r = await guardarPerfil(workspace.id, String(productId), {
     // Casilla con respaldo oculto DESPUÉS: `get` devuelve la primera coincidencia.
     inPriceList: formData.get("inPriceList") === "on",
-    incomeLabel: formData.get("incomeLabel"),
+    // Etapa 3: el rubro es una categoría de ingreso de Caja (se valida contra el workspace y el
+    // lado). El texto viejo (`incomeLabel`) ya no se edita acá: no se manda y queda como estaba.
+    incomeCategoryId: formData.get("incomeCategoryId") ?? null,
   });
   if (r.ok) refrescar(productId);
   return r;

@@ -31,7 +31,7 @@ beforeEach(() => B.vaciar());
 describe("perfil para presupuestos", () => {
   it("sin fila: fuera de la lista, sin rubro, no es combo", async () => {
     producto("p1");
-    expect(await P.leerPerfil("ws-1", "p1")).toEqual({ inPriceList: false, incomeLabel: null, isCombo: false });
+    expect(await P.leerPerfil("ws-1", "p1")).toEqual({ inPriceList: false, incomeLabel: null, incomeCategoryId: null, isCombo: false });
   });
 
   it("guarda y vuelve a guardar sobre la misma fila (1:1)", async () => {
@@ -40,7 +40,54 @@ describe("perfil para presupuestos", () => {
     expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: false, incomeLabel: "Coberturas" })).toEqual({ ok: true });
     expect(B.datos.fotofficeProductoCatalogo).toHaveLength(1);
     expect(await P.leerPerfil("ws-1", "p1")).toMatchObject({ inPriceList: false, incomeLabel: "Coberturas" });
-    expect(await P.rubrosUsados("ws-1")).toEqual(["Coberturas"]);
+  });
+
+  it("rubro de Caja: sólo una categoría de INGRESO de este workspace", async () => {
+    producto("p1");
+    B.agregar("cashCategory", { id: "bodas", workspaceId: "ws-1", name: "Bodas", kind: "INGRESO" });
+    B.agregar("cashCategory", { id: "baja", workspaceId: "ws-1", name: "Vieja", kind: "INGRESO", isActive: false });
+    B.agregar("cashCategory", { id: "costo", workspaceId: "ws-1", name: "Viajes", kind: "EGRESO" });
+    B.agregar("cashCategory", { id: "ajena", workspaceId: "ws-2", name: "Bodas", kind: "INGRESO" });
+
+    expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: false, incomeCategoryId: "costo" })).toEqual(P.RUBRO_INVALIDO);
+    expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: false, incomeCategoryId: "ajena" })).toEqual(P.RUBRO_INVALIDO);
+    expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: false, incomeCategoryId: 7 })).toEqual(P.RUBRO_INVALIDO);
+    expect(B.datos.fotofficeProductoCatalogo).toHaveLength(0);
+
+    expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: true, incomeCategoryId: "bodas" })).toEqual({ ok: true });
+    expect(await P.leerPerfil("ws-1", "p1")).toMatchObject({ incomeCategoryId: "bodas" });
+    // Un rubro dado de baja que el producto ya tenía se puede volver a guardar.
+    expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: true, incomeCategoryId: "baja" })).toEqual({ ok: true });
+    expect(await P.guardarPerfil("ws-1", "p1", { inPriceList: true, incomeCategoryId: "" })).toEqual({ ok: true });
+    expect(await P.leerPerfil("ws-1", "p1")).toMatchObject({ incomeCategoryId: null });
+  });
+
+  it("guardar sin mandar el texto viejo no lo borra (queda como sugerencia)", async () => {
+    producto("p1");
+    await P.guardarPerfil("ws-1", "p1", { inPriceList: false, incomeLabel: "Bodas" });
+    await P.guardarPerfil("ws-1", "p1", { inPriceList: true, incomeCategoryId: null });
+    expect(await P.leerPerfil("ws-1", "p1")).toMatchObject({ inPriceList: true, incomeLabel: "Bodas", incomeCategoryId: null });
+  });
+
+  it("opciones del selector: activas de ingreso agrupadas por padre, más la actual aunque esté de baja", async () => {
+    B.agregar("cashCategory", { id: "estudio", workspaceId: "ws-1", name: "Estudio Fotográfico", kind: "INGRESO", order: 5 });
+    B.agregar("cashCategory", { id: "bodas", workspaceId: "ws-1", name: "Bodas", kind: "INGRESO", order: 1 });
+    B.agregar("cashCategory", { id: "ventas", workspaceId: "ws-1", name: "Ventas", kind: "INGRESO", order: 0 });
+    B.agregar("cashCategory", { id: "baja", workspaceId: "ws-1", name: "Vieja", kind: "INGRESO", isActive: false });
+    B.agregar("cashCategory", { id: "otra-baja", workspaceId: "ws-1", name: "Otra", kind: "INGRESO", isActive: false });
+    B.agregar("cashCategory", { id: "costo", workspaceId: "ws-1", name: "Viajes", kind: "EGRESO" });
+    B.agregar("fotofficeRubro", { workspaceId: "ws-1", categoryId: "estudio", code: "3.1" });
+    B.agregar("fotofficeRubro", { workspaceId: "ws-1", categoryId: "bodas", code: "3.1.1", parentCategoryId: "estudio" });
+
+    producto("p1");
+    B.agregar("fotofficeProductoCatalogo", { workspaceId: "ws-1", productId: "p1", incomeCategoryId: "baja" });
+    const opciones = await P.rubrosDeIngreso("ws-1", "p1");
+    expect(opciones.map((o) => [o.id, o.esHijo])).toEqual([
+      ["estudio", false],
+      ["bodas", true],
+      ["ventas", false],
+      ["baja", false],
+    ]);
   });
 
   it("un producto de otro workspace no existe", async () => {

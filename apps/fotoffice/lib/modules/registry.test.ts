@@ -40,7 +40,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión y presupuestos", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos y pedidos", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -61,6 +61,7 @@ describe("MODULE_REGISTRY", () => {
         STORE_MODULE_KEY,
         GOVERNANCE_MODULE_KEY,
         "quotes",
+        "orders",
       ].sort(),
     );
   });
@@ -168,6 +169,18 @@ describe("presupuestos (etapa 2)", () => {
     expect(m?.family).toBe("negocio");
     expect(m?.dependsOn).toEqual([SERVICE_LEADS_MODULE_KEY]);
     // Sin comisión: lo enciende el administrador de la plataforma desde Módulos, como el resto.
+    expect(m?.platformFee).toBeUndefined();
+  });
+});
+
+describe("pedidos (etapa 3)", () => {
+  it("figura disponible, con su ruta, en Negocio y dependiendo de Presupuestos", () => {
+    const m = getModuleDefinition("orders");
+    expect(m?.status).toBe("AVAILABLE");
+    expect(m?.label).toBe("Pedidos");
+    expect(m?.route).toBe("/pedidos");
+    expect(m?.family).toBe("negocio");
+    expect(m?.dependsOn).toEqual(["quotes"]);
     expect(m?.platformFee).toBeUndefined();
   });
 });

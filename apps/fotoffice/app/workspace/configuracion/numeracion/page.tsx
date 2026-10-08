@@ -20,6 +20,7 @@ const NOMBRES: Record<ClaveSecuencia, string> = {
   PEDIDO: "Pedidos",
   CONTRATO: "Contratos",
   PROYECTO: "Proyectos",
+  RECIBO: "Recibos",
 };
 
 export default async function ConfiguracionNumeracionPage() {
