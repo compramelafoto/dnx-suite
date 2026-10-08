@@ -6,6 +6,14 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(appDir, "../..");
 
 const nextConfig: NextConfig = {
+  // Los tipos NO se chequean en el build de Vercel: el 08/10/2026, al sumar el diseñador compartido
+  // (PR #426), ese paso quedó más de 20 minutos trabado sin memoria. Se chequean en GitHub Actions
+  // (`.github/workflows/chequeos.yml`, «Chequear tipos de FotoRank»), que frena el PR antes del
+  // merge. Mismo criterio que FOTOFFICE, Clickatón y CompraMeLaFoto.
+  // Si alguna vez se saca ese paso del workflow, hay que volver a prender esto.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   /**
    * pdf-to-png-converter → @napi-rs/canvas (binarios nativos). Turbopack no puede empaquetarlos;
    * deben resolverse en runtime con require en Node (Vercel incluye el paquete en node_modules).
