@@ -25,7 +25,7 @@ const LINKS = [
     id: "revisiones",
     label: "Revisiones",
     hint: "Aprobaciones de diseño",
-    href: "/dashboard/design-projects",
+    href: "/fotografo/disenos",
   },
 ] as const;
 

@@ -9,7 +9,7 @@ export { TemplateEditorShell } from "./TemplateEditorShell";
 export { TemplateEditorCanvas } from "./TemplateEditorCanvas";
 export { TemplateEditorInspector } from "./TemplateEditorInspector";
 export { TemplateEditorLayers } from "./TemplateEditorLayers";
-export { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
+export { TemplateCanvasRenderer, type PhotoOverride } from "./TemplateCanvasRenderer";
 export { TemplateVersionList } from "./TemplateVersionList";
 export { TemplateDiagnosticsPanel } from "./TemplateDiagnosticsPanel";
 export { TemplateBlockContextToolbar } from "./TemplateBlockContextToolbar";

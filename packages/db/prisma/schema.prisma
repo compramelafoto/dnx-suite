@@ -4458,8 +4458,20 @@ model TemplateV2Publication {
 /// * Proyecto de diseño (cliente diseña, fotógrafo aprueba)
 model DesignProject {
   id                Int                 @id @default(autoincrement())
-  orderItemId       Int                 @unique
-  templateId        Int
+  /// Preventa escolar: el ítem canjeado. Nulo en los diseños de packs de galería.
+  orderItemId       Int?                @unique
+  /// Motor viejo (`Template` + `TemplateSlot`). Nulo en los diseños del diseñador nuevo.
+  templateId        Int?
+  /// Diseñador nuevo: la plantilla y la versión con la que se armó (la versión queda fija para
+  /// que retocar la plantilla no cambie un diseño ya revisado).
+  templateV2Id         String?
+  templateV2VersionId  String?
+  /// Pack de galería: el pedido pagado y el borrador del pack (uno por pack dentro del pedido).
+  albumOrderId         Int?
+  albumPackDraftId     String?           @unique
+  albumId              Int?
+  /// Dueño del álbum: quien revisa y aprueba. Evita recorrer el pedido para cada permiso.
+  photographerUserId   Int?
   status            DesignProjectStatus @default(DRAFT)
   currentRevisionId Int?                @unique
   createdAt         DateTime            @default(now())
@@ -4472,13 +4484,15 @@ model DesignProject {
   reviewNote        String?
   exportJobs        DesignExportJob[]
   currentRevision   DesignRevision?     @relation("DesignProjectCurrentRevision", fields: [currentRevisionId], references: [id])
-  orderItem         PreCompraOrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  template          Template            @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  orderItem         PreCompraOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  template          Template?           @relation(fields: [templateId], references: [id], onDelete: Cascade)
   revisions         DesignRevision[]    @relation("DesignProjectRevisions")
 
   @@index([orderItemId])
   @@index([templateId])
   @@index([status])
+  @@index([photographerUserId, status])
+  @@index([albumOrderId])
 }
 
 model DesignRevision {
@@ -5593,6 +5607,8 @@ model BenefitDefinition {
   regularUnitPriceAfterPreventaArs Int?
   packDefinition                   PackDefinition        @relation(fields: [packDefinitionId], references: [id], onDelete: Cascade)
   photographerProduct              PhotographerProduct?  @relation(fields: [photographerProductId], references: [id])
+  /// Plantilla del diseñador nuevo para el armado al canjear. Reemplaza a `templateId`.
+  templateV2Id                     String?
   template                         Template?             @relation(fields: [templateId], references: [id])
 
   @@index([packDefinitionId])

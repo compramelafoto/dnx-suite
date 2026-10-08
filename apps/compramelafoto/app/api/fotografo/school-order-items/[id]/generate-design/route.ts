@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { parsePreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
-import { ensureSchoolDesignForPreCompraOrderItem } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import {
+  ensureSchoolDesignForPreCompraOrderItem,
+  loadSchoolDesignContext,
+} from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import { notifyPhotographerDesignToReview } from "@/lib/design-v2/notify";
 import { loadPhotoIdsByBenefitKeyForPreventaOrder } from "@/lib/preventa-canjeable/photo-ids-by-benefit-key";
 import { OrderOrigin } from "@/lib/prisma";
 
@@ -53,6 +57,12 @@ function toFriendlyGenerateDesignMessage(reason: string): string {
   if (reason.startsWith("validation_failed:")) {
     return "La selección de fotos no cumple con la plantilla requerida (cantidad o roles). Revisá la selección.";
   }
+  if (reason === "template_without_photo_slots") {
+    return "La plantilla no tiene huecos para las fotos del cliente. Agregalos en el editor (Foto del cliente 1, 2…).";
+  }
+  if (reason === "context_missing") {
+    return "No encontramos el pedido de preventa de este ítem.";
+  }
   if (reason === "design_project_missing") {
     return "No se pudo crear el proyecto de diseño. Intentá de nuevo o contactá a soporte.";
   }
@@ -86,9 +96,6 @@ export async function POST(_req: Request, context: RouteCtx) {
       select: {
         id: true,
         packDefinitionId: true,
-        albumProduct: {
-          select: { requiresDesign: true, defaultTemplateId: true },
-        },
         order: {
           select: {
             id: true,
@@ -164,7 +171,7 @@ export async function POST(_req: Request, context: RouteCtx) {
         origin: OrderOrigin.PREVENTA_PACK,
         preCompraPaymentRef: String(item.order.id),
       },
-      select: { id: true, preventaPackSnapshotJson: true },
+      select: { id: true, preventaPackSnapshotJson: true, redemptionOrderId: true },
       orderBy: { id: "desc" },
     });
 
@@ -241,19 +248,21 @@ export async function POST(_req: Request, context: RouteCtx) {
         : null,
     }));
 
-    const result = await prisma.$transaction((tx) =>
-      ensureSchoolDesignForPreCompraOrderItem(tx, {
+    const result = await prisma.$transaction(async (tx) => {
+      const designContext = await loadSchoolDesignContext(tx, item.order.id);
+      if (!designContext) return { outcome: "skipped" as const, reason: "context_missing" };
+      return ensureSchoolDesignForPreCompraOrderItem(tx, {
         snapshot,
-        orderItem: {
-          id: item.id,
-          albumProduct: item.albumProduct,
-        },
+        orderItem: { id: item.id },
         selectionPhotos,
         photoIdsByBenefitKey,
-      })
-    );
+        context: designContext,
+        redemptionOrderId: preventaOrder.redemptionOrderId ?? null,
+      });
+    });
 
     if (result.outcome === "created") {
+      await notifyPhotographerDesignToReview(result.designProjectId);
       return NextResponse.json({
         ok: true,
         outcome: "created",

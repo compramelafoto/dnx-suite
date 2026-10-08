@@ -23,14 +23,6 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/process-design-previews",
-      "schedule": "*/2 * * * *"
-    },
-    {
-      "path": "/api/cron/process-design-exports",
-      "schedule": "*/2 * * * *"
-    },
-    {
       "path": "/api/cron/process-camera-ingest-jobs",
       "schedule": "*/5 * * * *"
     },

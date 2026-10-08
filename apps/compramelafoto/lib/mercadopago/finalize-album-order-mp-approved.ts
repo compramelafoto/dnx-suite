@@ -32,6 +32,7 @@ import { getAlbumOrderFulfillmentFromItems } from "@/lib/order-fulfillment";
 import { createOrganizerCommissionForPaidOrder } from "@/lib/school-organizer-commission";
 import { ensureEventOrganizerCommissionSnapshotForPaidOrder } from "@/lib/event-organizer-commission-snapshot";
 import { resolveAlbumOrderMpAccessTokenByOrderId } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
+import { ensureAlbumPackDesignsForPaidOrder } from "@/lib/design-v2/album-pack-designs";
 
 export type FinalizeAlbumOrderMpResult =
   | { ok: true; skipped: "already_paid"; orderId: number; paymentId: string }
@@ -452,6 +453,13 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     items: order.items ?? [],
     paymentRef: String(paymentId),
   });
+
+  // Packs con diseño: se arma con las fotos elegidas y queda para que el fotógrafo lo revise.
+  try {
+    await ensureAlbumPackDesignsForPaidOrder(orderId);
+  } catch (err: unknown) {
+    console.error("[design_v2] armado de diseños del pedido falló", { orderId, err });
+  }
 
   try {
     await prisma.webhookEvent.create({

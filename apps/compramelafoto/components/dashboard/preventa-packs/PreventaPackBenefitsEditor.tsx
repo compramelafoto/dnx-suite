@@ -25,7 +25,7 @@ function benefitListSummary(
   templates: TemplateOption[]
 ): string {
   const photographerProductName = benefitProductName(b, products);
-  const tpl = templates.find((t) => t.id === b.templateId);
+  const tpl = templates.find((t) => t.id === b.templateV2Id);
   return buildBenefitDashboardSummary({
     kind: b.kind,
     includedQuantity: b.includedQuantity,

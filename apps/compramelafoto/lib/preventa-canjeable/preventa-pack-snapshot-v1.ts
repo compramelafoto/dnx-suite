@@ -37,6 +37,8 @@ export type PreventaPackSnapshotBenefitV1 = {
   photographerProductId: number | null;
   templatePolicy: string;
   templateId: number | null;
+  /** Plantilla del diseñador nuevo que arma el diseño al canjear. */
+  templateV2Id?: string | null;
   extraUnitPriceOverrideArs: number | null;
   regularUnitPriceAfterPreventaArs: number | null;
   sortOrder: number;
@@ -139,6 +141,7 @@ export function buildPreventaPackSnapshotV1(
       photographerProductId: b.photographerProductId ?? null,
       templatePolicy: b.templatePolicy,
       templateId: b.templateId ?? null,
+      templateV2Id: b.templateV2Id ?? null,
       extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs ?? null,
       regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs ?? null,
       sortOrder: b.sortOrder,
@@ -173,6 +176,7 @@ export function scalePreventaPackSnapshotV1ByPackQuantity(
         photographerProductId: b.photographerProductId,
         templatePolicy: b.templatePolicy as BenefitTemplatePolicy,
         templateId: b.templateId,
+        templateV2Id: b.templateV2Id ?? null,
         extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs,
         regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs,
         requiredPhotoCount: b.requiredPhotoCount,
@@ -247,6 +251,7 @@ function enrichBenefitHumanFields(
     photographerProductId: b.photographerProductId,
     templatePolicy: b.templatePolicy,
     templateId: b.templateId,
+    templateV2Id: b.templateV2Id ?? null,
     extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs,
     regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs,
     requiredPhotoCount: b.requiredPhotoCount,
@@ -358,6 +363,8 @@ export function parsePreventaPackSnapshotV1(raw: unknown): PreventaPackSnapshotV
       templatePolicy: expectString("templatePolicy", b.templatePolicy),
       templateId:
         b.templateId == null ? null : expectInt("templateId", b.templateId, { min: 1 }),
+      templateV2Id:
+        typeof b.templateV2Id === "string" && b.templateV2Id.trim() ? b.templateV2Id.trim() : null,
       extraUnitPriceOverrideArs:
         b.extraUnitPriceOverrideArs == null
           ? null
