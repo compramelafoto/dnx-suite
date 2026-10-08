@@ -30,6 +30,7 @@ export function PerfilForm({ inicial }: { inicial: CuantoCobroProfileInput }) {
   const cambiar = (parcial: Partial<CuantoCobroProfileInput>) => {
     setPerfil((p) => ({ ...p, ...parcial }));
     setOk(null);
+    setError(null);
   };
 
   function guardar() {
@@ -61,6 +62,10 @@ export function PerfilForm({ inicial }: { inicial: CuantoCobroProfileInput }) {
             <div className="flex justify-between gap-2">
               <dt className="text-[var(--fo-muted)]">Horas que se cobran por mes</dt>
               <dd className="font-medium">{Math.round(resumen.horasFacturablesMes * 10) / 10}</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt className="text-[var(--fo-muted)]">Costo de tu hora</dt>
+              <dd className="font-medium">{resumen.costoHora === null ? "—" : pesos(resumen.costoHora)}</dd>
             </div>
             <div className="flex justify-between gap-2">
               <dt className="text-[var(--fo-muted)]">Valor de tu hora</dt>

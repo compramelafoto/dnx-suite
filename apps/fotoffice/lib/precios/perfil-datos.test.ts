@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { INITIAL_CUANTO_COBRO_PROFILE } from "@repo/cuanto-cobro-core";
-import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
-import { normalizarPerfil, perfilesIguales, validarPerfil } from "./perfil-datos";
+import { createBaseCompleteProfile, createBaseCompleteQuote } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { MAX_PERFIL_BYTES, normalizarPerfil, perfilesIguales, validarPerfil } from "./perfil-datos";
+import { entradaDelMotor, TOPE_ENTRADA_MOTOR } from "../presupuestos/calculo-cuanto-cobro";
 
 describe("normalizarPerfil", () => {
   it("devuelve null si no es un objeto", () => {
@@ -111,5 +112,22 @@ describe("perfilesIguales", () => {
   it("detecta un cambio de monto", () => {
     const a = createBaseCompleteProfile();
     expect(perfilesIguales(a, { ...a, businessRent: "999999" })).toBe(false);
+  });
+});
+
+describe("tope del perfil frente al motor", () => {
+  it("un perfil al tope más un presupuesto típico entra en la entrada del motor", () => {
+    const base = createBaseCompleteProfile();
+    const relleno = "x".repeat(1000);
+    const perfil = { ...base, personalExpenseGroups: [{ id: "g", title: "g", items: [] as { id: string; label: string; amount: string; isCustom: boolean }[] }] };
+    let i = 0;
+    while (JSON.stringify(perfil).length < MAX_PERFIL_BYTES - 1100) {
+      perfil.personalExpenseGroups[0].items.push({ id: `i${i++}`, label: relleno, amount: "1", isCustom: true });
+    }
+    expect(JSON.stringify(perfil).length).toBeLessThanOrEqual(MAX_PERFIL_BYTES);
+    expect(validarPerfil(perfil).ok).toBe(true);
+    const entrada = { perfil, presupuesto: createBaseCompleteQuote() };
+    expect(JSON.stringify(entrada).length).toBeLessThanOrEqual(TOPE_ENTRADA_MOTOR);
+    expect(entradaDelMotor(entrada)).not.toBeNull();
   });
 });

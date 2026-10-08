@@ -39,7 +39,11 @@ export async function guardarPerfilPrecios(
       update: { schemaVersion: 1, profileData, source: "manual", updatedByUserId: ctx.userId },
     });
     return { ok: true };
-  } catch {
+  } catch (e) {
+    console.error("[precios] no se pudo guardar el perfil", {
+      workspaceId: ctx.workspaceId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return { ok: false, error: "No se pudo guardar el perfil." };
   }
 }

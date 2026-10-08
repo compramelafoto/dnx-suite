@@ -7,9 +7,13 @@ import {
   type MonthlyExpenseGroup,
   type MonthlyExpenseItem,
 } from "@repo/cuanto-cobro-core";
+import { TOPE_ENTRADA_MOTOR } from "../presupuestos/constantes";
 
-/** Tope del perfil serializado (JSON). */
-export const MAX_PERFIL_BYTES = 200 * 1024;
+/**
+ * Tope del perfil serializado (JSON). Deja 50 KB de margen bajo el tope de entrada del motor
+ * (perfil + trabajo): un perfil que se guarda tiene que poder calcularse en un presupuesto.
+ */
+export const MAX_PERFIL_BYTES = TOPE_ENTRADA_MOTOR - 50_000;
 
 function esObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === "object" && valor !== null && !Array.isArray(valor);

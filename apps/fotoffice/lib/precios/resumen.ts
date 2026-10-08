@@ -2,6 +2,7 @@ import {
   INITIAL_CUANTO_COBRO_QUOTE,
   computeMonthlyBillableHours,
   getCuantoCobroMissingFields,
+  getProfileCostHour,
   getProfileHourlyRate,
   getProfileMonthlyNeed,
   parseCuantoCobroAmount,
@@ -30,6 +31,7 @@ export type ResumenPerfil = {
   necesidadMensual: number;
   horasFacturablesMes: number;
   valorHora: number | null;
+  costoHora: number | null;
   gastosPersonales: number;
   gastosNegocio: number;
   reservas: number;
@@ -63,6 +65,7 @@ export function resumirPerfil(p: CuantoCobroProfileInput): ResumenPerfil {
     necesidadMensual,
     horasFacturablesMes: computeMonthlyBillableHours(p.weeklyHours, p.timeDistribution),
     valorHora: getProfileHourlyRate(p),
+    costoHora: getProfileCostHour(p),
     gastosPersonales,
     gastosNegocio,
     reservas,
