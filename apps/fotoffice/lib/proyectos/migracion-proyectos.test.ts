@@ -18,6 +18,11 @@ function modelo(nombre: string): string {
 }
 
 describe("migración de la etapa 4, Entrega A (proyectos)", () => {
+  it("sólo tiene SQL y comentarios: nada de la salida de `prisma migrate diff` pegado por error", () => {
+    const sueltas = sql.split("\n").filter((l) => /^(warn|info|error)\b|pris\.ly/i.test(l.trim()));
+    expect(sueltas).toEqual([]);
+  });
+
   it("crea las siete tablas nuevas y nada más", () => {
     for (const t of TABLAS) expect(sql).toMatch(new RegExp(`CREATE TABLE "${t}"`));
     expect(sql.match(/CREATE TABLE/g)).toHaveLength(7);

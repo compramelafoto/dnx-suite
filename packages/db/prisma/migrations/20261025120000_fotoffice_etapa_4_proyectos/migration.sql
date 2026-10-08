@@ -11,8 +11,6 @@
 -- Los únicos con columnas nulas (`pedidoId`, `pedidoItemIndex`) no chocan entre sí en Postgres: los
 -- proyectos sueltos (sin pedido) no se ven afectados.
 
-warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
-For more information, see: https://pris.ly/prisma-config
 
 -- CreateTable
 CREATE TABLE "FotofficeProyecto" (
