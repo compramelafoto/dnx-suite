@@ -5,6 +5,7 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { guardarAjustesPedidos } from "@/lib/pedidos/ajustes";
+import { guardarPlantillasChecklist } from "@/lib/pedidos/checklist";
 import type { CtxPedidos } from "@/lib/pedidos/acceso";
 
 /** Estado del formulario de Configuración → Pedidos (`useActionState`). */
@@ -44,4 +45,25 @@ export async function guardarAjustesPedidosAction(_prev: EstadoPedidosConfig | u
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);
   return { error: null, ok: "Ajustes guardados." };
+}
+
+/**
+ * Plantillas de checklist: llegan como JSON en un campo del formulario (`plantillas`) y se validan
+ * enteras en el servidor (`validarPlantillas`): topes, nombres y textos. Reemplaza todas.
+ */
+export async function guardarPlantillasChecklistAction(_prev: EstadoPedidosConfig | undefined, fd: FormData): Promise<EstadoPedidosConfig> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO;
+  const crudo = texto(fd, "plantillas");
+  if (crudo === null || crudo.length > 200_000) return DATOS_INVALIDOS;
+  let datos: unknown;
+  try {
+    datos = JSON.parse(crudo);
+  } catch {
+    return DATOS_INVALIDOS;
+  }
+  const r = await guardarPlantillasChecklist(ctx, datos);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: "Plantillas guardadas." };
 }

@@ -5,7 +5,10 @@ import { puede } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { asegurarAjustesPedidosDnx, leerAjustesPedidos, rubrosDeIngreso } from "@/lib/pedidos/ajustes";
+import { leerPlantillasChecklist } from "@/lib/pedidos/checklist";
+import { prisma } from "@repo/db";
 import { AjustesPedidosForm } from "./ajustes-form";
+import { PlantillasChecklistForm } from "./plantillas-checklist-form";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +33,11 @@ export default async function ConfiguracionPedidosPage() {
   // DNX Estudio arranca con el recordatorio un día antes, encendido. Nunca pisa una fila.
   await asegurarAjustesPedidosDnx(workspace.id);
 
-  const [ajustes, rubros, encendido] = await Promise.all([
+  const [ajustes, rubros, encendido, plantillas] = await Promise.all([
     leerAjustesPedidos(workspace.id),
     rubrosDeIngreso(workspace.id),
     isModuleEnabledForWorkspace(workspace.id, ORDERS_MODULE_KEY),
+    leerPlantillasChecklist(prisma, workspace.id),
   ]);
 
   return (
@@ -53,14 +57,18 @@ export default async function ConfiguracionPedidosPage() {
       ) : null}
       <AjustesPedidosForm ajustes={ajustes} rubros={rubros} />
 
-      {/* ─── Plantillas de checklist (Task 5 de la Entrega B1) ───────────────────────────────
-          Acá va el editor de `FotofficePedidoAjustes.checklistTemplates` (hasta 10 plantillas
-          con hasta 40 tareas cada una). Todavía no está construido. */}
-      <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="checklist-pedido-titulo" data-seccion="checklist">
-        <h2 id="checklist-pedido-titulo" className="text-base font-semibold">
-          Plantillas de checklist
-        </h2>
-        <p className="text-[var(--fo-muted)]">Las listas de tareas que se copian a cada pedido al confirmarlo. Próximamente.</p>
+      {/* Plantillas de checklist (Entrega B1): se copian a cada pedido al confirmarlo. */}
+      <section className="fo-card space-y-4 p-5" aria-labelledby="checklist-pedido-titulo" data-seccion="checklist">
+        <div className="space-y-1">
+          <h2 id="checklist-pedido-titulo" className="text-base font-semibold">
+            Plantillas de checklist
+          </h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Las listas de tareas que se copian a cada pedido al confirmarlo (por omisión, la primera; al confirmar se puede
+            elegir otra o ninguna). Después, cada pedido puede tildar, agregar y quitar tareas sin afectar a la plantilla.
+          </p>
+        </div>
+        <PlantillasChecklistForm plantillas={plantillas} />
       </section>
 
       <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="otros-ajustes-pedido-titulo">

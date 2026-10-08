@@ -75,3 +75,35 @@ describe("guardarAjustesPedidosAction", () => {
     expect(H.upsert).not.toHaveBeenCalled();
   });
 });
+
+describe("guardarPlantillasChecklistAction", () => {
+  const PLANTILLAS = [{ name: "Simple", tasks: [" Cobrar seña ", "Entregar"] }];
+  beforeEach(() => {
+    vi.clearAllMocks();
+    H.role.mockReturnValue("WORKSPACE_OWNER");
+  });
+
+  it("sin `configurar` no escribe nada", async () => {
+    H.role.mockReturnValue("WORKSPACE_MEMBER");
+    const r = await A.guardarPlantillasChecklistAction(undefined, fd({ plantillas: JSON.stringify(PLANTILLAS) }));
+    expect(r.error).toMatch(/dueño o un administrador/);
+    expect(H.upsert).not.toHaveBeenCalled();
+  });
+
+  it("guarda las plantillas validadas en el workspace de la sesión y revalida", async () => {
+    const r = await A.guardarPlantillasChecklistAction(undefined, fd({ plantillas: JSON.stringify(PLANTILLAS), workspaceId: "otro" }));
+    expect(r).toEqual({ error: null, ok: "Plantillas guardadas." });
+    const arg = H.upsert.mock.calls[0]![0] as { where: { workspaceId: string }; update: Record<string, unknown> };
+    expect(arg.where.workspaceId).toBe("ws-1");
+    expect(arg.update).toEqual({ checklistTemplates: [{ name: "Simple", tasks: ["Cobrar seña", "Entregar"] }] });
+    expect(H.revalidate).toHaveBeenCalledWith("/workspace/configuracion/pedidos");
+  });
+
+  it("rechaza JSON roto, faltante o con topes de más", async () => {
+    expect((await A.guardarPlantillasChecklistAction(undefined, fd({ plantillas: "{no" }))).error).toBe("Los datos no son válidos.");
+    expect((await A.guardarPlantillasChecklistAction(undefined, fd({}))).error).toBe("Los datos no son válidos.");
+    const once = Array.from({ length: 11 }, (_, i) => ({ name: `P${i}`, tasks: ["t"] }));
+    expect((await A.guardarPlantillasChecklistAction(undefined, fd({ plantillas: JSON.stringify(once) }))).error).toMatch(/hasta 10/);
+    expect(H.upsert).not.toHaveBeenCalled();
+  });
+});

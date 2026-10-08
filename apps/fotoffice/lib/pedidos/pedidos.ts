@@ -14,6 +14,7 @@ import {
   ID_OPCION_CONTADO,
   type EstadoPedido,
 } from "./constantes";
+import { copiarTareasAlPedido, titulosParaPedidoNuevo } from "./checklist";
 import { crearCuentasDelPedido } from "./cuentas-pagar";
 import { puedePasarPedido, resumenDePlan, type ResumenPlan } from "./estado";
 import type { OpcionPago } from "./opciones-pago";
@@ -184,6 +185,8 @@ export type DatosPedidoManual = {
   eventLabel?: unknown;
   /** Plan ajustado a mano (sin ids); sin él, el plan sale de la opción. */
   plan?: unknown;
+  /** Plantilla de checklist a copiar (por nombre); sin ella, la primera; `null` = ninguna. */
+  checklist?: unknown;
 };
 
 export type ResultadoAlta = { ok: true; pedidoId: string; numero: string; aviso: AvisoPlan | null } | { ok: false; error: string };
@@ -279,6 +282,8 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoAlta> => {
       const incomeCategoryId = await rubroDeItems(tx, workspaceId, items);
+      const tareas = await titulosParaPedidoNuevo(tx, workspaceId, datos.checklist);
+      if (!tareas.ok) return { ok: false, error: tareas.error };
       const r = await insertarPedido(tx, {
         workspaceId,
         presupuestoId: null,
@@ -297,6 +302,7 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
         cuotas,
         ahora,
       });
+      await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
       // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };

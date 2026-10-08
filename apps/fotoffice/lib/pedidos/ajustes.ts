@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { esSlugDnx } from "@/lib/slug-dnx";
 import { MENSAJES_PEDIDO, type CtxPedidos } from "./acceso";
+import { PLANTILLAS_CHECKLIST_DNX } from "./checklist-plantillas";
 
 /**
  * Ajustes de Pedidos (Configuración → Pedidos, etapa 3, Entrega B1): una fila por organización
@@ -13,7 +14,8 @@ import { MENSAJES_PEDIDO, type CtxPedidos } from "./acceso";
  *   que manda la tarea diaria (`./recordatorios.ts`).
  * - `incomeCategoryId`: el rubro INGRESO de Caja que se usa al confirmar (o dar de alta a mano) un
  *   pedido si ninguno de sus ítems tiene rubro (`rubroDeItems` en `./pedidos.ts`).
- * - `checklistTemplates`: las plantillas de checklist. Las edita la Task 5; acá no se tocan.
+ * - `checklistTemplates`: las plantillas de checklist. Se editan en `./checklist.ts`; acá no se tocan
+ *   (salvo la semilla de DNX).
  *
  * Nunca loguea datos personales.
  */
@@ -120,18 +122,26 @@ export async function rubrosDeIngreso(workspaceId: string): Promise<{ id: string
 }
 
 /**
- * Ajustes de Pedidos de DNX Estudio (Global Constraints): recordatorio un día antes, ENCENDIDO.
- * Sólo para DNX y sólo si no hay fila: nunca pisa lo que alguien ya configuró. Idempotente (el
- * único de `workspaceId`). Lee la dirección pública del workspace. Devuelve si creó la fila.
+ * Ajustes de Pedidos de DNX Estudio (Global Constraints): recordatorio un día antes, ENCENDIDO, y
+ * las plantillas de checklist "Pedidos con Contrato" y "Pedidos Simple". Sólo para DNX. Idempotente
+ * y sin pisar nada: sin fila, la crea con todo; con fila y `checklistTemplates` en null (nunca
+ * configuradas), completa sólo las plantillas; si ya hay plantillas (aunque sea una lista vacía) o
+ * recordatorio configurado, no toca nada. Devuelve si escribió algo.
  *
  * Se llama al abrir Configuración → Pedidos y la lista de Pedidos; la tarea diaria nunca crea filas.
  */
 export async function asegurarAjustesPedidosDnx(workspaceId: string): Promise<boolean> {
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { publicSlug: true } });
   if (!esSlugDnx(branding?.publicSlug)) return false;
+  const plantillas = PLANTILLAS_CHECKLIST_DNX as unknown as Prisma.InputJsonValue;
   const r = await prisma.fotofficePedidoAjustes.createMany({
-    data: [{ workspaceId, reminderDays: 1, reminderEnabled: true }],
+    data: [{ workspaceId, reminderDays: 1, reminderEnabled: true, checklistTemplates: plantillas }],
     skipDuplicates: true,
   });
-  return r.count > 0;
+  if (r.count > 0) return true;
+  // La fila ya existía: sólo se completan las plantillas si nunca se configuraron (null).
+  const f = await prisma.fotofficePedidoAjustes.findUnique({ where: { workspaceId }, select: { checklistTemplates: true } });
+  if (!f || f.checklistTemplates !== null) return false;
+  await prisma.fotofficePedidoAjustes.updateMany({ where: { workspaceId }, data: { checklistTemplates: plantillas } });
+  return true;
 }

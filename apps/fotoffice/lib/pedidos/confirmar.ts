@@ -4,6 +4,7 @@ import { diaDeCalendario } from "@/lib/consultas/fechas";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { bloquearPresupuesto, itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acceso";
+import { copiarTareasAlPedido, leerPlantillasChecklist, titulosParaPedidoNuevo } from "./checklist";
 import { crearCuentasDelPedido } from "./cuentas-pagar";
 import { buscarOpcion, opcionesParaPresupuesto, parsePaymentOptionsSnapshot, type OpcionPago } from "./opciones-pago";
 import { leerCuotasEditadas, type CuotaParaGuardar } from "./plan";
@@ -25,6 +26,8 @@ import { etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from
  * - arma el plan desde la opción, o el plan ajustado en la vista previa (validado contra el total);
  * - apaga `pedidoPorConfirmar`;
  * - rubro de ingreso: el del primer ítem de catálogo que tenga uno; responsable: el del presupuesto;
+ * - copia las tareas de la plantilla de checklist elegida (por omisión la primera; `null` = sin
+ *   checklist; Entrega B1, `./checklist.ts`);
  * - crea las cuentas a pagar desde los costos-plantilla de sus productos y combos (Entrega B1,
  *   `crearCuentasDelPedido`), con el rubro de costo vacío: se elige al pagar.
  *
@@ -147,7 +150,13 @@ async function preparar(cliente: Lector, workspaceId: string, presupuestoId: str
 }
 
 export type VistaPreviaConfirmacion =
-  | { ok: true; vista: Omit<ConfirmacionPreparada, "items" | "totals" | "ownerUserId"> }
+  | {
+      ok: true;
+      vista: Omit<ConfirmacionPreparada, "items" | "totals" | "ownerUserId"> & {
+        /** Nombres de las plantillas de checklist; la primera es la que se copia por omisión. */
+        plantillasChecklist: string[];
+      };
+    }
   | { ok: false; error: string; pedidoId?: string };
 
 /** Lo que se va a crear (sobre todo el plan, para ajustarlo antes de confirmar). No escribe nada. */
@@ -156,6 +165,7 @@ export async function vistaPreviaConfirmacion(ctx: CtxPedidos, presupuestoId: un
   if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
   try {
     const d = await preparar(prisma, ctx.workspaceId, presupuestoId, deps.ahora?.() ?? new Date());
+    const plantillas = await leerPlantillasChecklist(prisma, ctx.workspaceId);
     // Sin los ítems (pueden traer costos) ni el responsable: sólo lo del plan.
     return {
       ok: true,
@@ -172,6 +182,7 @@ export async function vistaPreviaConfirmacion(ctx: CtxPedidos, presupuestoId: un
         cuotas: d.cuotas,
         aviso: d.aviso,
         incomeCategoryId: d.incomeCategoryId,
+        plantillasChecklist: plantillas.map((p) => p.name),
       },
     };
   } catch (e) {
@@ -188,12 +199,14 @@ function falla(donde: string, error: unknown): void {
 /**
  * Confirma el pedido de un presupuesto aceptado. `planAjustado`: el plan editado en la vista previa
  * (fecha, importe y medio sugerido de cada cuota; sin ids), que tiene que sumar el total.
+ * `checklist`: nombre de la plantilla de checklist a copiar; `undefined` = la primera, `null` = ninguna.
  */
 export async function confirmarPedido(
   ctx: CtxPedidos,
   presupuestoId: unknown,
   planAjustado?: unknown,
   deps: DepsConfirmar = {},
+  checklist?: unknown,
 ): Promise<ResultadoConfirmacion> {
   if (!puedeGestionarPedidos(ctx) || ctx.userId === null) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
   if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
@@ -218,6 +231,8 @@ export async function confirmarPedido(
         cuotas = ajustado;
         aviso = null;
       }
+      const tareas = await titulosParaPedidoNuevo(tx, workspaceId, checklist);
+      if (!tareas.ok) throw new Corte(tareas.error);
       const r = await insertarPedido(tx, {
         workspaceId,
         presupuestoId,
@@ -236,6 +251,7 @@ export async function confirmarPedido(
         cuotas,
         ahora,
       });
+      await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: ctx.userId });
       await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };

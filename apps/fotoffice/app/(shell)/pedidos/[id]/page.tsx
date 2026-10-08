@@ -1,8 +1,10 @@
+import { prisma } from "@repo/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { MensajeRegistrado } from "@/components/mensajes/mensaje-registrado";
 import { AccionesPedido } from "@/components/pedidos/acciones-pedido";
+import { ChecklistDelPedido } from "@/components/pedidos/checklist-del-pedido";
 import { CobrosDelPedido, type CobroVista } from "@/components/pedidos/cobros-del-pedido";
 import { CostosYPagos } from "@/components/pedidos/costos-y-pagos";
 import { EditarPlan } from "@/components/pedidos/editar-plan";
@@ -11,8 +13,10 @@ import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
 import { RegistrarCobro } from "@/components/pedidos/registrar-cobro";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { claseDeColorEtiqueta, fechaHoraBA } from "@/lib/ficha/formato";
 import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
+import { leerChecklist } from "@/lib/pedidos/checklist";
 import { costosYPagosDelPedido, proveedoresParaCuentas, puedeGestionarCuentas, rubrosDeCosto } from "@/lib/pedidos/cuentas-pagar";
 import { ETIQUETA_ESTADO_CUOTA, ETIQUETA_ESTADO_PEDIDO, ETIQUETA_MEDIO_COBRO, esMedioCobro, type EstadoCuota } from "@/lib/pedidos/constantes";
 import { opcionesDeEnvioPedido } from "@/lib/pedidos/envio";
@@ -72,6 +76,17 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
         rubrosDeCosto(workspace.id, costosYPagos.cuentas.flatMap((c) => (c.rubroId ? [c.rubroId] : []))),
       ])
     : [[], []];
+  const checklist = await leerChecklist(ctx, detalle.id);
+  const idsHechas = [...new Set((checklist?.tareas ?? []).flatMap((t) => (t.hechaPorId !== null ? [t.hechaPorId] : [])))];
+  const usuarios =
+    idsHechas.length > 0 ? await prisma.user.findMany({ where: { id: { in: idsHechas } }, select: { id: true, name: true, email: true } }) : [];
+  const nombreDe = new Map(usuarios.map((u) => [u.id, etiquetaDeUsuario(u)]));
+  const tareasVista = (checklist?.tareas ?? []).map((t) => ({
+    id: t.id,
+    titulo: t.titulo,
+    hecha: t.hecha,
+    detalle: t.hechaEn ? [t.hechaPorId !== null ? nombreDe.get(t.hechaPorId) : null, fechaHoraBA(t.hechaEn)].filter(Boolean).join(" · ") : null,
+  }));
   const [mensajes, comprobantes, envio, rubros] = await Promise.all([
     mensajesDePedido(workspace.id, detalle.id),
     comprobantesDeCobros(workspace.id, detalle.cobros.map((c) => c.id)),
@@ -318,6 +333,13 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
               />
             </section>
           ) : null}
+
+          <section id="checklist" aria-labelledby="checklist-titulo" className="fo-card space-y-3">
+            <h2 id="checklist-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+              Checklist
+            </h2>
+            <ChecklistDelPedido pedidoId={detalle.id} tareas={tareasVista} plantillas={checklist?.plantillas ?? []} puedeEditar={gestiona && !cancelado} />
+          </section>
 
           <ItemsPedido items={detalle.items.map((i) => aItemDePedido(i))} totales={detalle.totals} costos={costos} />
 

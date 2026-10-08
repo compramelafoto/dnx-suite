@@ -69,6 +69,44 @@ describe("ajustes de Pedidos", () => {
   });
 });
 
+describe("semilla de las plantillas de checklist de DNX", () => {
+  const NOMBRES = ["Pedidos con Contrato", "Pedidos Simple"];
+  const guardadas = () => (B.datos.fotofficePedidoAjustes[0]?.checklistTemplates as { name: string; tasks: string[] }[] | null | undefined) ?? null;
+
+  it("DNX nace con las dos plantillas, sin el duplicado de la firma del contrato", async () => {
+    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
+    await AJ.asegurarAjustesPedidosDnx("ws-1");
+    const g = guardadas()!;
+    expect(g.map((p) => p.name)).toEqual(NOMBRES);
+    expect(g[0]!.tasks).toEqual(["Enviar contrato", "Recoger firma del contrato", "Cobrar seña", "Confirmar horarios y lugar", "Asignar equipo", "Evento realizado", "Entregar material"]);
+    expect(g[1]!.tasks).toEqual(["Cobrar seña", "Confirmar horarios y lugar", "Asignar equipo", "Evento realizado", "Entregar material"]);
+  });
+
+  it("con la fila ya creada y sin plantillas (null), las completa; no toca lo demás", async () => {
+    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", reminderDays: 5, reminderEnabled: false, checklistTemplates: null });
+    expect(await AJ.asegurarAjustesPedidosDnx("ws-1")).toBe(true);
+    expect(guardadas()!.map((p) => p.name)).toEqual(NOMBRES);
+    expect(B.datos.fotofficePedidoAjustes[0]).toMatchObject({ reminderDays: 5, reminderEnabled: false });
+  });
+
+  it("nunca pisa plantillas propias, ni una lista vacía", async () => {
+    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: [{ name: "Mía", tasks: ["Una"] }] });
+    expect(await AJ.asegurarAjustesPedidosDnx("ws-1")).toBe(false);
+    expect(guardadas()).toEqual([{ name: "Mía", tasks: ["Una"] }]);
+    B.datos.fotofficePedidoAjustes[0]!.checklistTemplates = [];
+    expect(await AJ.asegurarAjustesPedidosDnx("ws-1")).toBe(false);
+    expect(guardadas()).toEqual([]);
+  });
+
+  it("otra organización no recibe plantillas", async () => {
+    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-2", publicSlug: "otro-estudio" });
+    expect(await AJ.asegurarAjustesPedidosDnx("ws-2")).toBe(false);
+    expect(B.datos.fotofficePedidoAjustes).toHaveLength(0);
+  });
+});
+
 describe("rubro de ingreso por omisión al confirmar", () => {
   const items = [{ productId: "prod-1" }, { productId: null }] as never[];
 

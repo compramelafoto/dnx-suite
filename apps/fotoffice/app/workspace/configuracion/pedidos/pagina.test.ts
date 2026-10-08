@@ -18,7 +18,7 @@ describe("Configuración → Pedidos", () => {
     expect(p.indexOf("await asegurarAjustesPedidosDnx(workspace.id)")).toBeLessThan(p.indexOf("leerAjustesPedidos(workspace.id)"));
   });
 
-  it("con el módulo apagado se puede configurar igual; enlaza a Plantillas y Numeración y reserva el lugar del checklist", () => {
+  it("con el módulo apagado se puede configurar igual; enlaza a Plantillas y Numeración y tiene la sección del checklist", () => {
     const p = aqui("page.tsx");
     expect(p).toContain("isModuleEnabledForWorkspace(workspace.id, ORDERS_MODULE_KEY)");
     expect(p).toMatch(/\) : null\}\s*<AjustesPedidosForm ajustes=\{ajustes\} rubros=\{rubros\} \/>/);

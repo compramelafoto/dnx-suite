@@ -241,6 +241,72 @@ describe("confirmar desde el presupuesto", () => {
   });
 });
 
+describe("checklist al confirmar (Entrega B1)", () => {
+  const PLANTILLAS = [
+    { name: "Con contrato", tasks: ["Enviar contrato", "Cobrar seña"] },
+    { name: "Simple", tasks: ["Entregar material"] },
+  ];
+  const tareasDe = (id: string) =>
+    B.datos.fotofficePedidoTarea
+      .filter((t) => t.pedidoId === id)
+      .sort((a, b) => (a.position as number) - (b.position as number))
+      .map((t) => `${t.position}. ${t.title}`);
+
+  it("sin plantillas, el pedido nace sin tareas", async () => {
+    const r = await confirmado();
+    expect(tareasDe(r.pedidoId)).toEqual([]);
+  });
+
+  it("por omisión copia la primera plantilla, con el workspace y las posiciones desde 1", async () => {
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: PLANTILLAS });
+    const r = await confirmado();
+    expect(tareasDe(r.pedidoId)).toEqual(["1. Enviar contrato", "2. Cobrar seña"]);
+    expect(B.datos.fotofficePedidoTarea.every((t) => t.workspaceId === "ws-1" && t.doneAt === null)).toBe(true);
+  });
+
+  it("copia la plantilla elegida por nombre", async () => {
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: PLANTILLAS });
+    const r = await C.confirmarPedido(DUENO, "pre-1", undefined, deps, "Simple");
+    if (!r.ok) throw new Error(r.error);
+    expect(tareasDe(r.pedidoId)).toEqual(["1. Entregar material"]);
+  });
+
+  it("con null confirma sin checklist", async () => {
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: PLANTILLAS });
+    const r = await C.confirmarPedido(DUENO, "pre-1", undefined, deps, null);
+    if (!r.ok) throw new Error(r.error);
+    expect(tareasDe(r.pedidoId)).toEqual([]);
+  });
+
+  it("una plantilla que no existe frena todo: no crea el pedido ni consume el número", async () => {
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: PLANTILLAS });
+    const r = await C.confirmarPedido(DUENO, "pre-1", undefined, deps, "No está");
+    expect(r.ok).toBe(false);
+    expect(B.datos.fotofficePedido).toHaveLength(0);
+    expect(B.datos.fotofficePedidoTarea).toHaveLength(0);
+    expect((await C.confirmarPedido(DUENO, "pre-1", undefined, deps, 7)).ok).toBe(false);
+  });
+
+  it("la vista previa lista los nombres de las plantillas", async () => {
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: PLANTILLAS });
+    const v = await C.vistaPreviaConfirmacion(DUENO, "pre-1", deps);
+    expect(v.ok && v.vista.plantillasChecklist).toEqual(["Con contrato", "Simple"]);
+  });
+
+  it("el pedido manual también copia la primera, otra elegida, o ninguna", async () => {
+    B.agregar("fotofficePedidoAjustes", { id: "aj", workspaceId: "ws-1", checklistTemplates: PLANTILLAS });
+    const base = { clientId: "cli-lead-1", items: [item("x", { precioUnitario: 1000 })], opcion: { tipo: "CONTADO" } };
+    const a = await P.crearPedidoManual(SABI, base, deps);
+    const b = await P.crearPedidoManual(SABI, { ...base, checklist: "Simple" }, deps);
+    const c = await P.crearPedidoManual(SABI, { ...base, checklist: null }, deps);
+    if (!a.ok || !b.ok || !c.ok) throw new Error("alta");
+    expect(tareasDe(a.pedidoId)).toEqual(["1. Enviar contrato", "2. Cobrar seña"]);
+    expect(tareasDe(b.pedidoId)).toEqual(["1. Entregar material"]);
+    expect(tareasDe(c.pedidoId)).toEqual([]);
+    expect((await P.crearPedidoManual(SABI, { ...base, checklist: "No está" }, deps)).ok).toBe(false);
+  });
+});
+
 describe("carrera: un presupuesto, un pedido", () => {
   it("la segunda confirmación recibe 'Ya tiene pedido' con el pedido que ganó", async () => {
     const r = await confirmado();

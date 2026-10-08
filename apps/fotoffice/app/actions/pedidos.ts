@@ -7,6 +7,7 @@ import { anularCobro, registrarCobro, type ResultadoAnulacion, type ResultadoCob
 import { enlaceDelPedido, enlaceDelRecibo, type ResultadoEnlace } from "@/lib/pedidos/enlace";
 import { enviarMensajePedido, type ResultadoMensajePedido } from "@/lib/pedidos/envio";
 import { enviarReciboAutomatico } from "@/lib/pedidos/recibos";
+import { agregarTarea, aplicarPlantilla, marcarTarea, quitarTarea } from "@/lib/pedidos/checklist";
 import { confirmarPedido, vistaPreviaConfirmacion, type ResultadoConfirmacion, type VistaPreviaConfirmacion } from "@/lib/pedidos/confirmar";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import {
@@ -58,12 +59,18 @@ export async function vistaPreviaConfirmacionAction(presupuestoId: string): Prom
 }
 
 /** "Confirmar pedido" desde un presupuesto aceptado, con el plan propuesto o el ajustado. */
-export async function confirmarPedidoAction(datos: { presupuestoId: string; plan?: unknown[] | null }): Promise<ResultadoConfirmacion> {
+export async function confirmarPedidoAction(datos: {
+  presupuestoId: string;
+  plan?: unknown[] | null;
+  /** Plantilla de checklist (por nombre); no se manda = la primera; `null` = sin checklist. */
+  checklist?: string | null;
+}): Promise<ResultadoConfirmacion> {
   if (!esObjeto(datos) || !esId(datos.presupuestoId)) return INVALIDO;
   if (datos.plan != null && !Array.isArray(datos.plan)) return INVALIDO;
+  if (datos.checklist != null && typeof datos.checklist !== "string") return INVALIDO;
   const ctx = await contextoDePedidos("operar");
   if (!ctx) return SIN_ACCESO;
-  const r = await confirmarPedido(ctx, datos.presupuestoId, datos.plan ?? undefined);
+  const r = await confirmarPedido(ctx, datos.presupuestoId, datos.plan ?? undefined, {}, datos.checklist);
   if (r.ok) revalidar(r.pedidoId, datos.presupuestoId);
   return r;
 }
@@ -77,11 +84,13 @@ export async function crearPedidoManualAction(datos: {
   fechaEvento?: string | null;
   eventLabel?: string | null;
   plan?: unknown[] | null;
+  checklist?: string | null;
 }): Promise<ResultadoAlta> {
   if (!esObjeto(datos) || !esId(datos.clientId) || !Array.isArray(datos.items) || !esObjeto(datos.opcion)) return INVALIDO;
   if (datos.fechaEvento != null && typeof datos.fechaEvento !== "string") return INVALIDO;
   if (datos.eventLabel != null && typeof datos.eventLabel !== "string") return INVALIDO;
   if (datos.plan != null && !Array.isArray(datos.plan)) return INVALIDO;
+  if (datos.checklist != null && typeof datos.checklist !== "string") return INVALIDO;
   const ctx = await contextoDePedidos("operar");
   if (!ctx) return SIN_ACCESO;
   const r = await crearPedidoManual(ctx, {
@@ -92,6 +101,8 @@ export async function crearPedidoManualAction(datos: {
     fechaEvento: datos.fechaEvento ?? null,
     eventLabel: datos.eventLabel ?? null,
     plan: datos.plan ?? undefined,
+    // `undefined` = la primera plantilla; `null` = sin checklist.
+    checklist: datos.checklist,
   });
   if (r.ok) {
     revalidar(r.pedidoId);
@@ -317,5 +328,47 @@ export async function anularPagoCuentaAction(datos: { cuentaId: string; motivo: 
   if (!ctx) return SIN_ACCESO;
   const r = await anularPagoCuenta(ctx, datos.cuentaId, datos.motivo);
   if (r.ok && !r.yaAnulado) revalidarCuentas(r.pedidoId);
+  return r;
+}
+
+// --- Checklist del pedido (Entrega B1) -----------------------------------------------------------
+
+/** Tilda o destilda una tarea del checklist (idempotente). */
+export async function marcarTareaAction(datos: { pedidoId: string; tareaId: string; hecha: boolean }): Promise<Resultado> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId) || !esId(datos.tareaId) || typeof datos.hecha !== "boolean") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await marcarTarea(ctx, datos.pedidoId, datos.tareaId, datos.hecha);
+  if (r.ok) revalidar(datos.pedidoId);
+  return r;
+}
+
+/** Agrega una tarea al final del checklist. */
+export async function agregarTareaAction(datos: { pedidoId: string; titulo: string }): Promise<Resultado> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId) || typeof datos.titulo !== "string") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await agregarTarea(ctx, datos.pedidoId, datos.titulo);
+  if (r.ok) revalidar(datos.pedidoId);
+  return r;
+}
+
+/** Quita una tarea del checklist. */
+export async function quitarTareaAction(datos: { pedidoId: string; tareaId: string }): Promise<Resultado> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId) || !esId(datos.tareaId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await quitarTarea(ctx, datos.pedidoId, datos.tareaId);
+  if (r.ok) revalidar(datos.pedidoId);
+  return r;
+}
+
+/** "Aplicar plantilla": sólo si el pedido no tiene tareas. */
+export async function aplicarPlantillaAction(datos: { pedidoId: string; plantilla: string }): Promise<Resultado> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId) || typeof datos.plantilla !== "string") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await aplicarPlantilla(ctx, datos.pedidoId, datos.plantilla);
+  if (r.ok) revalidar(datos.pedidoId);
   return r;
 }
