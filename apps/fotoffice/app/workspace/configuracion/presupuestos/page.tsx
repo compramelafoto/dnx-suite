@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { SLUG_DNX } from "@/lib/consultas/constantes";
+import { esSlugDnx } from "@/lib/slug-dnx";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { leerAjustes } from "@/lib/presupuestos/ajustes";
 import { asegurarAjustesDnx } from "@/lib/presupuestos/semillas";
@@ -75,7 +75,7 @@ export default async function ConfiguracionPresupuestosPage() {
           </Link>
           , en la fila «Presupuestos».
         </p>
-        {slug === SLUG_DNX ? (
+        {esSlugDnx(slug) ? (
           <p className="text-[var(--fo-muted)]">
             Para seguir la numeración de Alboom, poné el próximo número de Presupuestos en{" "}
             <strong className="text-[var(--fo-text)]">{PROXIMO_NUMERO_DNX}</strong> antes de enviar el primero.

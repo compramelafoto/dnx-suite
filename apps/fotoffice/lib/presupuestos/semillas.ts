@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { SLUG_DNX } from "@/lib/consultas/constantes";
+import { esSlugDnx } from "@/lib/slug-dnx";
 import { SEGUIMIENTO_POR_OMISION_DIAS, VALIDEZ_POR_OMISION_DIAS } from "./constantes";
 
 /**
@@ -14,7 +14,7 @@ import { SEGUIMIENTO_POR_OMISION_DIAS, VALIDEZ_POR_OMISION_DIAS } from "./consta
  * Configuración → Numeración (ver el documento de la migración).
  */
 export async function asegurarAjustesDnx(workspaceId: string, slug: string | null | undefined): Promise<boolean> {
-  if (slug !== SLUG_DNX) return false;
+  if (!esSlugDnx(slug)) return false;
   const r = await prisma.fotofficePresupuestoAjustes.createMany({
     data: [{
       workspaceId,

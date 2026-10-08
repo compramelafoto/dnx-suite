@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { SLUG_DNX } from "@/lib/campos/semillas";
+import { esSlugDnx } from "@/lib/slug-dnx";
 import type { Canal, TipoPlantilla } from "./constantes";
 import { AUTOMATICOS } from "./definiciones";
 
@@ -187,7 +187,7 @@ const CLAVE = "CONSULTA_AUTORESPUESTA" as const;
 export async function asegurarPlantillasIniciales(workspaceId: string, slug: string): Promise<void> {
   // Lo común es que ya esté: un conteo simple, sin abrir transacción.
   if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, systemKey: CLAVE } })) > 0) return;
-  const esDnx = slug === SLUG_DNX;
+  const esDnx = esSlugDnx(slug);
   const auto = esDnx ? AUTORESPUESTA_DNX : AUTORESPUESTA_GENERICA;
   const def = AUTOMATICOS[CLAVE];
   try {

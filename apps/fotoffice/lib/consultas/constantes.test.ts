@@ -91,8 +91,9 @@ describe("constantes de consultas", () => {
     expect(ROLES_PARTICIPANTE_DNX).toContain("Operador de Plataforma");
   });
 
-  it("el slug de DNX es el mismo que usan los campos (0.5)", () => {
+  it("el slug de DNX es el mismo que usan los campos (0.5): los dos lo toman de lib/slug-dnx", () => {
     const fuente = readFileSync(join(__dirname, "..", "campos", "semillas.ts"), "utf8");
-    expect(fuente).toContain(`export const SLUG_DNX = "${SLUG_DNX}";`);
+    expect(fuente).toContain('export { SLUG_DNX } from "@/lib/slug-dnx";');
+    expect(SLUG_DNX).toBe("dnxestudio");
   });
 });

@@ -112,15 +112,19 @@ describe("asegurarCircuitos", () => {
   });
   it("no escribe si ya hay circuitos", async () => {
     tx.fotofficeCircuit.count.mockResolvedValue(1);
-    await asegurarCircuitos("w1", "dnx-estudio");
+    await asegurarCircuitos("w1", "dnxestudio");
     expect(tx.fotofficeCircuit.create).not.toHaveBeenCalled();
     expect(tx.fotofficeLossReason.createMany).not.toHaveBeenCalled();
   });
   it("DNX: 21 circuitos y 6 motivos", async () => {
-    await asegurarCircuitos("w1", "dnx-estudio");
+    await asegurarCircuitos("w1", "dnxestudio");
     expect(vi.mocked(prisma.$transaction).mock.calls[0]![1]).toEqual({ timeout: 30_000, maxWait: 10_000 });
     expect(tx.fotofficeCircuit.create).toHaveBeenCalledTimes(21);
     expect(tx.fotofficeLossReason.createMany.mock.calls[0]![0].data).toHaveLength(MOTIVOS_INICIALES.length);
+  });
+  it("DNX con la dirección histórica dnx-estudio también recibe sus 21 circuitos", async () => {
+    await asegurarCircuitos("w1", "dnx-estudio");
+    expect(tx.fotofficeCircuit.create).toHaveBeenCalledTimes(21);
   });
   it("otro workspace: 1 circuito y 6 motivos", async () => {
     await asegurarCircuitos("w2", "otra");

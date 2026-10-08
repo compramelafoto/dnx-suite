@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { puede } from "@/lib/access/policy";
+import { esSlugDnx } from "@/lib/slug-dnx";
 
 /** Categorías de notas de DNX Estudio, en este orden. */
 export const CATEGORIAS_DNX: readonly string[] = [
@@ -22,7 +23,7 @@ export const CATEGORIAS_DNX: readonly string[] = [
 const CATEGORIAS_GENERAL: readonly string[] = ["General"];
 
 export function categoriasIniciales(slug: string): readonly string[] {
-  return slug === "dnx-estudio" ? CATEGORIAS_DNX : CATEGORIAS_GENERAL;
+  return esSlugDnx(slug) ? CATEGORIAS_DNX : CATEGORIAS_GENERAL;
 }
 
 /**
