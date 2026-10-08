@@ -213,6 +213,8 @@ export async function guardarAutomaticoAction(_prev: EstadoPlantillas | undefine
         ? enabled ? "Guardado: el texto del seguimiento está encendido." : "Guardado: el seguimiento está apagado."
         : clave === "RECIBO_DE_PAGO"
           ? enabled ? "Guardado: el recibo de pago está encendido." : "Guardado: el recibo de pago está apagado."
-          : enabled ? "Guardado: la respuesta automática está encendida." : "Guardado: la respuesta automática está apagada.",
+          : clave === "RECORDATORIO_CUOTA"
+            ? enabled ? "Guardado: el texto del recordatorio de cuotas está encendido." : "Guardado: el recordatorio de cuotas está apagado."
+            : enabled ? "Guardado: la respuesta automática está encendida." : "Guardado: la respuesta automática está apagada.",
   );
 }

@@ -17,7 +17,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { asegurarPlantillaSeguimiento, asegurarPlantillasPresupuesto } from "@/lib/presupuestos/plantillas";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
-import { asegurarPlantillaRecibo, asegurarPlantillasPedido } from "@/lib/pedidos/plantillas";
+import { asegurarPlantillaRecibo, asegurarPlantillaRecordatorio, asegurarPlantillasPedido } from "@/lib/pedidos/plantillas";
 import { prisma } from "@repo/db";
 import { AutomaticoForm } from "./automatico-form";
 import type { CamposPorTipo, OpcionTipo } from "./editor-texto";
@@ -75,6 +75,7 @@ export default async function ConfiguracionPlantillasPage({
   // Las de pedidos (etapa 3), con su módulo encendido: el recibo automático y, en DNX, "Tu pedido".
   if (conPedidos) {
     await asegurarPlantillaRecibo(workspace.id);
+    await asegurarPlantillaRecordatorio(workspace.id);
     await asegurarPlantillasPedido(workspace.id, branding?.publicSlug ?? "");
   }
   const etiquetas: Record<TipoPlantilla, string> = {
@@ -97,6 +98,7 @@ export default async function ConfiguracionPlantillasPage({
   const aviso = await leerAutomatico(workspace.id, "CONSULTA_AVISO_EQUIPO");
   const seguimiento = conPresupuestos ? await leerAutomatico(workspace.id, "PRESUPUESTO_SEGUIMIENTO") : null;
   const recibo = conPedidos ? await leerAutomatico(workspace.id, "RECIBO_DE_PAGO") : null;
+  const recordatorio = conPedidos ? await leerAutomatico(workspace.id, "RECORDATORIO_CUOTA") : null;
   // Automáticos se ve con Captación encendida o, sin ella, mientras la respuesta siga encendida:
   // así se puede apagar (con el módulo apagado no sale, pero no debe quedar prendida a escondidas).
   // Con Presupuestos encendido, también: ahí está el seguimiento (Entrega B).
@@ -143,6 +145,7 @@ export default async function ConfiguracionPlantillasPage({
     const defAviso = AUTOMATICOS.CONSULTA_AVISO_EQUIPO;
     const defSeguimiento = AUTOMATICOS.PRESUPUESTO_SEGUIMIENTO;
     const defRecibo = AUTOMATICOS.RECIBO_DE_PAGO;
+    const defRecordatorio = AUTOMATICOS.RECORDATORIO_CUOTA;
     contenido = (
       <div className="space-y-6">
         <AutomaticoForm
@@ -198,6 +201,21 @@ export default async function ConfiguracionPlantillasPage({
             campos={campos[defRecibo.tipo]}
             soloApagar={false}
             descripcion="Cuando se registra un cobro de un pedido, se le manda este correo al contacto del pedido con el enlace al recibo. Sale una sola vez por cobro, cuenta en el tope de correos automáticos y nunca frena el cobro: si no sale (sin correo, tope o falla del proveedor), el recibo se puede mandar a mano desde el pedido."
+          />
+        ) : null}
+        {conPedidos ? (
+          <AutomaticoForm
+            clave="RECORDATORIO_CUOTA"
+            nombre={defRecordatorio.nombre}
+            canal={defRecordatorio.canal}
+            tipo={defRecordatorio.tipo}
+            encendido={recordatorio?.enabled ?? false}
+            actualizado={recordatorio?.updatedAt.toISOString() ?? ""}
+            asunto={recordatorio?.subject ?? ""}
+            cuerpo={recordatorio?.body ?? ""}
+            campos={campos[defRecordatorio.tipo]}
+            soloApagar={false}
+            descripcion="Aviso al contacto del pedido de una cuota que todavía tiene saldo, a los días antes del vencimiento elegidos en Configuración → Pedidos (donde también se encienden los recordatorios). Sale una vez por cuota y vencimiento, a las 10 de la mañana; si se mueve el vencimiento, vuelve a avisar. No sale si el pedido está cancelado o la cuota ya está pagada, y cuenta en el tope de correos automáticos."
           />
         ) : null}
       </div>

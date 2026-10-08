@@ -30,6 +30,7 @@ describe("catálogo de variables", () => {
       "consulta_numero", "consulta_tipo", "consulta_fecha", "consulta_lugar", "consulta_mensaje", "consulta_etapa", "lista_precios",
       "presupuesto_numero", "presupuesto_enlace", "presupuesto_total", "presupuesto_vence",
       "pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe",
+      "cuota_vence", "cuota_importe",
       "socio_numero",
     ]);
     for (const v of VARIABLES) {
@@ -39,7 +40,7 @@ describe("catálogo de variables", () => {
   });
 
   it("las de pedido y recibo sólo valen en PEDIDO y salen del contexto (etapa 3)", () => {
-    const claves = ["pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe"];
+    const claves = ["pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe", "cuota_vence", "cuota_importe"];
     for (const c of claves) {
       expect(clavesPermitidas("PEDIDO", []).has(c)).toBe(true);
       for (const t of ["GENERAL", "CLIENTE", "CONSULTA", "PRESUPUESTO", "SOCIO"] as const) expect(clavesPermitidas(t, []).has(c)).toBe(false);
@@ -50,9 +51,13 @@ describe("catálogo de variables", () => {
       ...base(),
       pedido: { numero: "2026-0001", enlace: "https://x.test/pedido/t", saldo: "$ 80.000" },
       recibo: { numero: "2026-0003", enlace: "https://x.test/recibo/t", importe: "$ 40.000,00" },
+      cuota: { vence: "15/11/2026", importe: "$ 30.000,50" },
     });
-    expect(claves.map(r)).toEqual(["2026-0001", "https://x.test/pedido/t", "$ 80.000", "2026-0003", "https://x.test/recibo/t", "$ 40.000,00"]);
+    expect(claves.map(r)).toEqual([
+      "2026-0001", "https://x.test/pedido/t", "$ 80.000", "2026-0003", "https://x.test/recibo/t", "$ 40.000,00", "15/11/2026", "$ 30.000,50",
+    ]);
     expect(resolverVariables(base())("recibo_numero")).toBeNull();
+    expect(resolverVariables(base())("cuota_vence")).toBeNull();
   });
 
   it("obtiene cada variable del contexto", () => {

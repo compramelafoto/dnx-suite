@@ -43,6 +43,7 @@ type Lector = Pick<
   | "client"
   | "fotofficeProductoCatalogo"
   | "cashCategory"
+  | "fotofficePedidoAjustes"
 >;
 
 export type DepsConfirmar = { ahora?: () => Date };

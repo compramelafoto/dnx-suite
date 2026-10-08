@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { Listado } from "@/components/listado/listado";
 import { contextoListadoDePagina } from "@/lib/listado/acceso";
 import { ORDERS_MODULE_KEY, puedeGestionarPedidos, veCostosDePedido } from "@/lib/pedidos/acceso";
+import { asegurarAjustesPedidosDnx } from "@/lib/pedidos/ajustes";
 import { listadoPedidos } from "@/lib/pedidos/listado";
 import { requirePedidos } from "@/lib/pedidos/pagina";
 
@@ -20,6 +21,9 @@ export default async function PedidosPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { user, workspace, ctx } = await requirePedidos("ver");
+  // DNX Estudio arranca con el recordatorio de cuotas encendido (Entrega B1): la fila nace la primera
+  // vez que alguien abre Pedidos o su configuración. Nunca pisa una fila; la tarea diaria no la crea.
+  await asegurarAjustesPedidosDnx(workspace.id);
   const ctxListado = await contextoListadoDePagina(user, workspace, ORDERS_MODULE_KEY);
   return (
     <div className="space-y-6">

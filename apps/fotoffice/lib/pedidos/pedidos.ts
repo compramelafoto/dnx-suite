@@ -7,6 +7,7 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
+import { rubroIngresoPorOmision } from "./ajustes";
 import {
   ENTIDAD_NUMERACION_PEDIDO,
   esEstadoPedido,
@@ -69,14 +70,19 @@ export function nombreDeContacto(c: { firstName: string | null; lastName: string
 
 // --- Piezas comunes con la confirmación ---------------------------------------------------------
 
-type LectorRubro = Pick<Tx, "fotofficeProductoCatalogo" | "cashCategory">;
+type LectorRubro = Pick<Tx, "fotofficeProductoCatalogo" | "cashCategory" | "fotofficePedidoAjustes">;
 
 /**
  * Rubro de ingreso del pedido: el del primer ítem de catálogo (en el orden de los ítems) cuyo
- * producto tenga `incomeCategoryId`, si ese rubro sigue siendo un INGRESO del workspace. null si
- * ninguno tiene.
+ * producto tenga `incomeCategoryId`, si ese rubro sigue siendo un INGRESO del workspace. Si
+ * ninguno tiene, el rubro por omisión de Configuración → Pedidos (Entrega B1), si sigue siendo un
+ * INGRESO del workspace. null si no hay ninguno.
  */
 export async function rubroDeItems(cliente: LectorRubro, workspaceId: string, items: readonly Pick<ItemPresupuesto, "productId">[]): Promise<string | null> {
+  return (await rubroDeLosProductos(cliente, workspaceId, items)) ?? (await rubroIngresoPorOmision(cliente, workspaceId));
+}
+
+async function rubroDeLosProductos(cliente: LectorRubro, workspaceId: string, items: readonly Pick<ItemPresupuesto, "productId">[]): Promise<string | null> {
   const productIds = [...new Set(items.map((i) => i.productId).filter((x): x is string => typeof x === "string" && x !== ""))];
   if (productIds.length === 0) return null;
   const perfiles = await cliente.fotofficeProductoCatalogo.findMany({
