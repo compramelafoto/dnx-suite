@@ -15,13 +15,15 @@ import {
   shiftDifferenceMinor,
 } from "@/lib/cash/shift";
 import { parseMovementForm } from "@/lib/cash/movement-form";
-import { buildReversal } from "@/lib/cash/reverse";
+import { buildReversal, noSeAnulaEnCaja } from "@/lib/cash/reverse";
 import { accountBalanceMinor } from "@/lib/cash/balance";
 import { createCashTransfer, validateTransfer } from "@/lib/cash/transfer";
 import { parseAccountForm } from "@/lib/cash/account-form";
 import { parseCategoryForm } from "@/lib/cash/category-form";
 import { seedRowsFor } from "@/lib/cash/seed";
 import { sanitizeReturnTo } from "@/lib/cash/return-to";
+import { escribirPerfilRubro, validarPerfilRubro } from "@/lib/rubros/repositorio";
+import { sembrarPlanDnx } from "@/lib/rubros/semilla";
 
 const CAJA = "/caja";
 const MOVIMIENTOS = "/caja/movimientos";
@@ -265,9 +267,15 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       description: true,
       reversedBy: { select: { id: true } },
       transferId: true,
+      sourceModule: true,
+      reverses: { select: { sourceModule: true } },
     },
   });
   if (!original) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent("Ese movimiento no existe.")}`);
+  // Un cobro de pedido se anula desde el pedido (que escribe el contramovimiento y libera las cuotas),
+  // y la anulación de un cobro tampoco se deshace desde acá.
+  const enSuModulo = noSeAnulaEnCaja(original.sourceModule, original.reverses?.sourceModule);
+  if (enSuModulo) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent(enSuModulo)}`);
 
   const resultado = buildReversal(
     {
@@ -431,7 +439,12 @@ export async function saveAccountAction(formData: FormData): Promise<void> {
   redirect(`${CONFIGURACION}?ok=1`);
 }
 
-/** Alta y edición de una categoría. */
+/**
+ * Alta y edición de una categoría, con su rubro padre y su código (etapa 3).
+ *
+ * Padre y código se validan ANTES de escribir nada, y la categoría y su perfil se guardan en la
+ * misma transacción: o queda todo, o nada.
+ */
 export async function saveCategoryAction(formData: FormData): Promise<void> {
   const { workspace } = await requireCashConfigurer();
   const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
@@ -445,20 +458,46 @@ export async function saveCategoryAction(formData: FormData): Promise<void> {
       where: { id: categoryId, workspaceId: workspace.id },
     });
     if (propia === 0) redirect(`${CONFIGURACION}?error=${encodeURIComponent("Esa categoría no existe.")}`);
-    await prisma.cashCategory.update({ where: { id: categoryId }, data: v });
-  } else {
-    try {
-      await prisma.cashCategory.create({ data: { ...v, workspaceId: workspace.id } });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        redirect(
-          `${CONFIGURACION}?error=${encodeURIComponent("Ya existe una categoría con ese nombre para ese lado.")}`,
-        );
-      }
-      throw e;
-    }
   }
 
+  const perfil = await validarPerfilRubro(workspace.id, categoryId, v.kind, {
+    parentCategoryId: formData.get("parentCategoryId"),
+    code: formData.get("code"),
+  });
+  if (!perfil.ok) redirect(`${CONFIGURACION}?error=${encodeURIComponent(perfil.error)}`);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const id = categoryId
+        ? (await tx.cashCategory.update({ where: { id: categoryId }, data: v, select: { id: true } })).id
+        : (await tx.cashCategory.create({ data: { ...v, workspaceId: workspace.id }, select: { id: true } })).id;
+      await escribirPerfilRubro(workspace.id, id, perfil.valores, tx);
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      redirect(
+        `${CONFIGURACION}?error=${encodeURIComponent("Ya existe una categoría con ese nombre para ese lado.")}`,
+      );
+    }
+    throw e;
+  }
+
+  revalidatePath(CONFIGURACION);
+  redirect(`${CONFIGURACION}?ok=1`);
+}
+
+/**
+ * "Cargar plan de cuentas de DNX": sólo DNX Estudio (lo vuelve a verificar `sembrarPlanDnx` con
+ * la dirección pública del workspace de la sesión). Se puede apretar de nuevo sin duplicar nada.
+ */
+export async function sembrarPlanDnxAction(): Promise<void> {
+  const { workspace } = await requireCashConfigurer();
+  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
+    where: { workspaceId: workspace.id },
+    select: { publicSlug: true },
+  });
+  const r = await sembrarPlanDnx(workspace.id, branding?.publicSlug ?? null);
+  if (!r.ok) redirect(`${CONFIGURACION}?error=${encodeURIComponent(r.error)}`);
   revalidatePath(CONFIGURACION);
   redirect(`${CONFIGURACION}?ok=1`);
 }

@@ -60,13 +60,14 @@ export async function crearPresupuestoAction(datos: {
   return r;
 }
 
-/** Guarda el borrador (ítems, descuento global, condiciones y propuesta de pago). */
+/** Guarda el borrador (ítems, descuento global, condiciones, propuesta y opciones de pago). */
 export async function guardarBorradorAction(datos: {
   presupuestoId: string;
   items: unknown[];
   descuento?: unknown;
   condiciones?: string | null;
   propuestaPago?: string | null;
+  opcionesPago?: unknown;
 }): Promise<Resultado> {
   if (!esObjeto(datos) || !esId(datos.presupuestoId) || !Array.isArray(datos.items)) return INVALIDO;
   const ctx = await contextoDePresupuestos("operar");
@@ -76,6 +77,7 @@ export async function guardarBorradorAction(datos: {
     descuento: datos.descuento,
     condiciones: datos.condiciones,
     propuestaPago: datos.propuestaPago,
+    opcionesPago: datos.opcionesPago,
   });
   if (r.ok) revalidar(datos.presupuestoId);
   return r;

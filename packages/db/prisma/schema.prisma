@@ -7199,6 +7199,11 @@ model Workspace {
   fotofficePresupuestoAjustes FotofficePresupuestoAjustes?
   fotofficePerfilPrecios      FotofficePerfilPrecios?
   fotofficePropuestasModelo FotofficePropuestaModelo[]
+  fotofficePedidos FotofficePedido[]
+  fotofficePedidoCuotas FotofficePedidoCuota[]
+  fotofficeCobros FotofficeCobro[]
+  fotofficeCobroImputaciones FotofficeCobroImputacion[]
+  fotofficeRubros FotofficeRubro[]
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -7402,6 +7407,7 @@ model FotofficeAttachment {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  fotofficeCobros FotofficeCobro[]
 
   @@index([workspaceId, clientId, createdAt])
   @@index([workspaceId, memberId, createdAt])
@@ -10057,6 +10063,7 @@ model ServiceSalesLead {
   workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   fotofficeConsulta FotofficeConsulta?
   fotofficePresupuestos FotofficePresupuesto[]
+  fotofficePedidos FotofficePedido[]
 
   @@index([workspaceId])
   @@index([status])
@@ -18558,6 +18565,8 @@ model Client {
   fotofficePerfil FotofficeContactoPerfil?
   fotofficeCostosProveedor FotofficeCostoPlantilla[] @relation("FotofficeCostoProveedor")
   fotofficePresupuestos FotofficePresupuesto[] @relation("FotofficePresupuestoContacto")
+  fotofficePedidos FotofficePedido[] @relation("FotofficePedidoContacto")
+  fotofficeCobros FotofficeCobro[] @relation("FotofficeCobroContacto")
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -18637,6 +18646,12 @@ model CashCategory {
 
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   movements CashMovement[]
+
+  /// Relaciones inversas de FOTOFFICE (etapa 3): no son columnas, esta tabla no cambia.
+  fotofficeRubro            FotofficeRubro?             @relation("FotofficeRubroCategoria")
+  fotofficeRubrosHijos      FotofficeRubro[]            @relation("FotofficeRubroPadre")
+  fotofficeProductosIngreso FotofficeProductoCatalogo[] @relation("FotofficeProductoRubroIngreso")
+  fotofficePedidosIngreso   FotofficePedido[]           @relation("FotofficePedidoRubroIngreso")
 
   @@unique([workspaceId, kind, name])
   @@index([workspaceId, kind, isActive])
@@ -18732,6 +18747,9 @@ model CashMovement {
   reversedBy CashMovement? @relation("CashMovementReversal")
   /// Proyecto de la comisión al que pertenece (Gobierno). Vive en la tabla de enlace: esta tabla no cambia.
   govLink    GovProjectMovement?
+  /// Cobro de un pedido de FOTOFFICE que lo originó o que lo anuló. Relaciones inversas: esta tabla no cambia.
+  fotofficeCobro        FotofficeCobro? @relation("FotofficeCobroMovimiento")
+  fotofficeCobroAnulado FotofficeCobro? @relation("FotofficeCobroContramovimiento")
 
   /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
   /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
@@ -20637,16 +20655,22 @@ model FotofficeProductoCatalogo {
   productId   String   @unique
   /// Aparece en la lista de precios (Entrega B: variable `[lista_precios]`).
   inPriceList Boolean  @default(false)
-  /// Rubro de ingreso, en texto (la jerarquía de cuentas llega con Caja, etapa 3).
+  /// Rubro de ingreso, en texto (etapa 2). Desde la etapa 3 es sólo la sugerencia para elegir
+  /// `incomeCategoryId`.
   incomeLabel String?
+  /// Rubro de ingreso de Caja (etapa 3). El pedido lo toma del primer ítem que lo tenga.
+  incomeCategoryId String?
   isCombo     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  incomeCategory CashCategory? @relation("FotofficeProductoRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, inPriceList])
+  /// Para la FK al borrar un rubro.
+  @@index([incomeCategoryId])
 }
 
 /// Componente de un combo. Mismo workspace y sin ciclos: lo valida el código (`lib/catalogo/combos.ts`);
@@ -20721,6 +20745,7 @@ model FotofficePresupuesto {
   currentVersion  FotofficePresupuestoVersion?  @relation("FotofficePresupuestoVigente", fields: [currentVersionId], references: [id], onDelete: SetNull)
   acceptedVersion FotofficePresupuestoVersion?  @relation("FotofficePresupuestoAceptado", fields: [acceptedVersionId], references: [id], onDelete: SetNull)
   versions        FotofficePresupuestoVersion[] @relation("FotofficePresupuestoVersiones")
+  pedido          FotofficePedido?
 
   @@index([workspaceId, status])
   @@index([workspaceId, consultaLeadId])
@@ -20744,6 +20769,10 @@ model FotofficePresupuestoVersion {
   totals            Json
   terms             String?
   paymentProposal   String?
+  /// Opciones de pago congeladas al enviar (instantánea de ¿Cuánto Cobro?, `lib/pedidos/opciones-pago.ts`).
+  paymentOptions        Json?
+  /// La opción que eligió el cliente al aceptar: "contado" o el id del plan.
+  chosenPaymentOptionId String?
   costSnapshot      Json?
   createdByUserId   Int?
   createdAt         DateTime  @default(now())
@@ -20761,6 +20790,7 @@ model FotofficePresupuestoVersion {
   vigenteDe   FotofficePresupuesto?       @relation("FotofficePresupuestoVigente")
   aceptadaDe  FotofficePresupuesto?       @relation("FotofficePresupuestoAceptado")
   vistas      FotofficePresupuestoVista[]
+  pedidos     FotofficePedido[]
 
   @@unique([presupuestoId, number])
   @@index([workspaceId, sentAt])
@@ -20789,6 +20819,9 @@ model FotofficePresupuestoAjustes {
   validityDays    Int      @default(15)
   terms           String?
   paymentProposal String?
+  /// Opciones de pago de la organización (`CuantoCobroPaymentOptionsInput`). Null: se ofrece la de
+  /// omisión de `lib/pedidos/opciones-pago.ts`.
+  paymentOptions  Json?
   /// Seguimiento automático (Entrega B).
   followUpDays    Int      @default(3)
   followUpEnabled Boolean  @default(false)
@@ -20835,6 +20868,176 @@ model FotofficePerfilPrecios {
   updatedByUserId Int?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Etapa 3 · Entrega A: pedidos, plan de cuotas, cobros y rubros.
+// Migración a mano: 20261022120000_fotoffice_etapa_3_pedidos (con los CHECK de estados, medios e
+// importes). Ninguna columna en tablas compartidas: sólo relaciones inversas.
+// ---------------------------------------------------------------------------
+
+/// Pedido confirmado: desde un presupuesto aceptado o a mano desde un contacto.
+/// status: CONFIRMADO | EN_CURSO | COMPLETADO | CANCELADO (CHECK en el SQL; CANCELADO exige motivo).
+/// `number` es el número visible de la secuencia PEDIDO (`FotofficeRecordNumber.display`): texto,
+/// porque con año el valor se repite cada año.
+/// `items` y `totals` son la instantánea de la versión aceptada; `totalArs` es el total de la opción
+/// elegida (financiado si tiene interés, con descuento si es contado).
+model FotofficePedido {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  number            String
+  /// Un presupuesto genera un solo pedido: el único resuelve la carrera.
+  presupuestoId     String?   @unique
+  acceptedVersionId String?
+  consultaLeadId    String?
+  clientId          String
+  status            String    @default("CONFIRMADO")
+  cancelReason      String?
+  items             Json
+  totals            Json
+  totalArs          Decimal   @db.Decimal(12, 2)
+  /// La opción de pago elegida (instantánea); null si el total es cero.
+  paymentOption     Json?
+  /// Día del evento (fecha de Argentina).
+  eventDate         DateTime? @db.Date
+  eventLabel        String?
+  incomeCategoryId  String?
+  ownerUserId       Int?
+  /// Hash SHA-256 del token del enlace público del pedido.
+  accessTokenHash   String?   @unique
+  createdByUserId   Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace       Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// Restrict: un presupuesto con pedido no se borra (el pedido guarda de dónde salió).
+  presupuesto     FotofficePresupuesto?        @relation(fields: [presupuestoId], references: [id], onDelete: Restrict)
+  acceptedVersion FotofficePresupuestoVersion? @relation(fields: [acceptedVersionId], references: [id], onDelete: SetNull)
+  consultaLead    ServiceSalesLead?            @relation(fields: [consultaLeadId], references: [id], onDelete: Restrict)
+  client          Client                       @relation("FotofficePedidoContacto", fields: [clientId], references: [id], onDelete: Restrict)
+  incomeCategory  CashCategory?                @relation("FotofficePedidoRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
+  cuotas          FotofficePedidoCuota[]
+  cobros          FotofficeCobro[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([workspaceId, clientId])
+  @@index([workspaceId, consultaLeadId])
+  @@index([workspaceId, eventDate])
+  /// Para el chequeo de las FKs al borrar una consulta, un contacto, una versión o un rubro.
+  @@index([consultaLeadId])
+  @@index([clientId])
+  @@index([acceptedVersionId])
+  @@index([incomeCategoryId])
+}
+
+/// Cuota del plan de un pedido. No guarda estado: el saldo sale de las imputaciones de cobros sin
+/// anular y "cancelada" sale del estado del pedido.
+model FotofficePedidoCuota {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  pedidoId        String
+  position        Int
+  /// Vencimiento (fecha de Argentina).
+  dueDate         DateTime @db.Date
+  amountArs       Decimal  @db.Decimal(12, 2)
+  /// Medio sugerido (los mismos 5 de Caja); null: cualquiera.
+  suggestedMethod String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace    Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido       FotofficePedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  imputaciones FotofficeCobroImputacion[]
+
+  @@index([pedidoId, position])
+  @@index([workspaceId, dueDate])
+}
+
+/// Cobro manual de un pedido. Nunca se borra: se anula con motivo (`voidedAt`) y un contramovimiento
+/// en Caja. Cada cobro es un recibo X interno (número de la secuencia RECIBO y token con hash).
+/// method: EFECTIVO | TRANSFERENCIA | MERCADO_PAGO | TARJETA | OTRO (CHECK en el SQL).
+model FotofficeCobro {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  pedidoId           String
+  clientId           String
+  paidAt             DateTime
+  method             String
+  amountArs          Decimal   @db.Decimal(12, 2)
+  feeArs             Decimal?  @db.Decimal(12, 2)
+  netArs             Decimal?  @db.Decimal(12, 2)
+  /// Referencia del pago en el proveedor (Entrega B).
+  providerPaymentRef String?   @unique
+  cashMovementId     String?   @unique
+  attachmentId       String?
+  receiptNumber      String
+  /// Hash SHA-256 del token del enlace público del recibo.
+  receiptTokenHash   String    @unique
+  voidedAt           DateTime?
+  voidReason         String?
+  voidCashMovementId String?   @unique
+  /// Clave del formulario: el mismo envío dos veces devuelve el mismo cobro.
+  idempotencyKey     String?
+  createdByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido           FotofficePedido            @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+  client           Client                     @relation("FotofficeCobroContacto", fields: [clientId], references: [id], onDelete: Restrict)
+  cashMovement     CashMovement?              @relation("FotofficeCobroMovimiento", fields: [cashMovementId], references: [id], onDelete: SetNull)
+  voidCashMovement CashMovement?              @relation("FotofficeCobroContramovimiento", fields: [voidCashMovementId], references: [id], onDelete: SetNull)
+  attachment       FotofficeAttachment?       @relation(fields: [attachmentId], references: [id], onDelete: SetNull)
+  imputaciones     FotofficeCobroImputacion[]
+
+  @@unique([workspaceId, receiptNumber])
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, paidAt])
+  @@index([workspaceId, clientId])
+  /// Para el chequeo de las FKs al borrar un pedido, un contacto o un adjunto.
+  @@index([pedidoId])
+  @@index([clientId])
+  @@index([attachmentId])
+}
+
+/// Parte de un cobro aplicada a una cuota. Sólo cuentan las de cobros sin anular.
+model FotofficeCobroImputacion {
+  id          String   @id @default(cuid())
+  workspaceId String
+  cobroId     String
+  cuotaId     String
+  amountArs   Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cobro     FotofficeCobro       @relation(fields: [cobroId], references: [id], onDelete: Cascade)
+  /// Restrict: al editar el plan, una cuota con imputaciones no se puede borrar.
+  cuota     FotofficePedidoCuota @relation(fields: [cuotaId], references: [id], onDelete: Restrict)
+
+  @@unique([cobroId, cuotaId])
+  @@index([cuotaId])
+  @@index([workspaceId])
+}
+
+/// Perfil 1:1 de un rubro de Caja (`CashCategory`) con padre y código (3.1.2, 4.0…), para no tocar
+/// `CashCategory`. Un solo nivel de padre, sin ciclos, mismo `kind` y mismo workspace: lo valida el
+/// código (`lib/rubros`); el SQL frena que un rubro sea su propio padre.
+model FotofficeRubro {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  categoryId       String   @unique
+  parentCategoryId String?
+  code             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category       CashCategory  @relation("FotofficeRubroCategoria", fields: [categoryId], references: [id], onDelete: Cascade)
+  parentCategory CashCategory? @relation("FotofficeRubroPadre", fields: [parentCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([parentCategoryId])
 }
 
 // ---------------------------------------------------------------------------

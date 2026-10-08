@@ -61,6 +61,7 @@ const ICONOS: Record<string, LucideIcon> = {
   correos: Mail,
   equipo: UserCog,
   quotes: FileText,
+  orders: ClipboardList,
 
   // En construcción
   pedidos: ClipboardList,

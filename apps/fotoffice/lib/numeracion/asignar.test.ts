@@ -38,7 +38,7 @@ describe("asignarNumero", () => {
     expect(await numerar()).toEqual({ year: 2026, value: 2, display: "2026-0002" });
     expect((await numerar("PRESUPUESTO")).display).toBe("2026-0001");
     expect((await numerar("PRESUPUESTO")).display).toBe("2026-0002");
-    expect(B.datos.fotofficeSequence).toHaveLength(5);
+    expect(B.datos.fotofficeSequence).toHaveLength(6);
     expect(B.datos.fotofficeRecordNumber).toHaveLength(4);
   });
 

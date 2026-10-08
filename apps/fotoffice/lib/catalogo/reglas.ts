@@ -40,10 +40,19 @@ export function pesosSinDecimales(minor: number): string {
 
 // --- Perfil ------------------------------------------------------------------------------------
 
-export type PerfilCatalogo = { inPriceList: boolean; incomeLabel: string | null; isCombo: boolean };
+/**
+ * `incomeLabel` es el rubro en texto de la etapa 2; desde la etapa 3 el rubro es
+ * `incomeCategoryId` (una categoría de ingreso de Caja) y el texto sólo sirve de sugerencia.
+ */
+export type PerfilCatalogo = {
+  inPriceList: boolean;
+  incomeLabel: string | null;
+  incomeCategoryId: string | null;
+  isCombo: boolean;
+};
 
 /** Un producto sin fila de perfil: fuera de la lista, sin rubro, no es combo. */
-export const PERFIL_VACIO: PerfilCatalogo = { inPriceList: false, incomeLabel: null, isCombo: false };
+export const PERFIL_VACIO: PerfilCatalogo = { inPriceList: false, incomeLabel: null, incomeCategoryId: null, isCombo: false };
 
 export const TOPE_RUBRO = 80;
 

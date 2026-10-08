@@ -1,4 +1,5 @@
 import { pesos } from "@/lib/presupuestos/editor";
+import { importeDeOpcion, type OpcionPublica } from "@/lib/presupuestos/opciones-pago";
 import type { ItemDeLaVista, VistaPublica } from "@/lib/presupuestos/vista-publica";
 
 /**
@@ -36,6 +37,25 @@ function Renglon({ i }: { i: ItemDeLaVista }) {
       </div>
       <p className="shrink-0 tabular-nums font-medium">{pesos(i.neto)}</p>
     </li>
+  );
+}
+
+function OpcionesDePago({ opciones }: { opciones: OpcionPublica[] }) {
+  return (
+    <section aria-label="Opciones de pago" className="space-y-2">
+      <h2 className="text-base font-semibold">Opciones de pago</h2>
+      <ul className="divide-y divide-[var(--fo-border)] text-sm">
+        {opciones.map((o) => (
+          <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+            <span>
+              <span className="font-medium">{o.etiqueta}</span>
+              {o.nota && o.nota !== o.etiqueta ? <span className="block text-xs opacity-75">{o.nota}</span> : null}
+            </span>
+            <span className="tabular-nums">{importeDeOpcion(o)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -97,6 +117,7 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
         ) : null}
       </section>
 
+      {vista.opcionesPago.length > 0 ? <OpcionesDePago opciones={vista.opcionesPago} /> : null}
       {vista.propuestaPago ? (
         <section aria-label="Propuesta de pago" className="space-y-1">
           <h2 className="text-base font-semibold">Forma de pago</h2>
@@ -112,6 +133,7 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
       {vista.aceptacion ? (
         <p className="rounded-lg border border-[var(--fo-border)] p-3 text-sm">
           Aceptado por {vista.aceptacion.nombre} el {vista.aceptacion.fecha} (hora de Argentina).
+          {vista.aceptacion.opcion ? ` Forma de pago elegida: ${vista.aceptacion.opcion}.` : ""}
         </p>
       ) : null}
     </article>

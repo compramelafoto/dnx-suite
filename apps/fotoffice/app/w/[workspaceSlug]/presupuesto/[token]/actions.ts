@@ -23,13 +23,19 @@ async function visitante() {
   return { ip, ipHash: hashDeIp(ip === "desconocido" ? null : ip, salDeIp()), userAgent: navegadorCorto(h.get("user-agent")) };
 }
 
-/** "Acepto": nombre y tilde de las condiciones. */
-export async function aceptarPresupuestoAction(slug: unknown, token: unknown, nombre: unknown, acepta: unknown): Promise<ResultadoPublico> {
+/** "Acepto": nombre, tilde de las condiciones y la forma de pago elegida (sin elegir, la primera). */
+export async function aceptarPresupuestoAction(
+  slug: unknown,
+  token: unknown,
+  nombre: unknown,
+  acepta: unknown,
+  opcion?: unknown,
+): Promise<ResultadoPublico> {
   const v = await visitante();
   if (!checkRateLimit({ key: `presupuesto-aceptar:${v.ip}`, limit: 10, windowMs: DIEZ_MINUTOS }).allowed) return { ok: false, error: DEMASIADOS };
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return { ok: false, error: MENSAJES_ACEPTACION.enlaceInvalido };
-  const r = await aceptarPresupuesto(workspaceId, token, { nombre, acepta }, { ipHash: v.ipHash, userAgent: v.userAgent });
+  const r = await aceptarPresupuesto(workspaceId, token, { nombre, acepta, opcion }, { ipHash: v.ipHash, userAgent: v.userAgent });
   return r.ok ? { ok: true } : r;
 }
 

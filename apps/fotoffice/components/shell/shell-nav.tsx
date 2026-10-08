@@ -9,6 +9,7 @@ import {
   Calculator,
   ChevronDown,
   ClipboardCheck,
+  ClipboardList,
   FileText,
   Hash,
   Globe,
@@ -56,6 +57,8 @@ import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/bl
 
 // Clave del módulo como texto: `lib/presupuestos/acceso` arrastra la política de acceso al navegador.
 const QUOTES_MODULE_KEY = "quotes";
+// Ídem `lib/pedidos/acceso`.
+const ORDERS_MODULE_KEY = "orders";
 
 /**
  * Menú principal.
@@ -337,6 +340,18 @@ export function ShellNav({
             description: "Los presupuestos de las consultas: armarlos, versionarlos y seguirlos.",
             icon: Calculator,
             isActive: under("/presupuestos"),
+          },
+        ]
+      : []),
+    // Pedidos (etapa 3): módulo propio (`orders`, depende de Presupuestos), con su nivel.
+    ...(ve(ORDERS_MODULE_KEY)
+      ? [
+          {
+            href: "/pedidos",
+            label: "Pedidos",
+            description: "Los trabajos confirmados: plan de cuotas, cobros y recibos.",
+            icon: ClipboardList,
+            isActive: under("/pedidos"),
           },
         ]
       : []),

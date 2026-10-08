@@ -21,6 +21,33 @@
  * su propio rastro en `/caja/pases` — no un truco por la puerta de la anulación genérica.
  */
 
+/**
+ * Movimientos que Caja NO anula a mano: el dato de verdad vive en otro módulo, que al anular
+ * también escribe el contramovimiento. Anularlos desde `/caja/movimientos` devolvería el dinero y
+ * dejaría el registro de origen vigente (un cobro de pedido seguiría imputado a sus cuotas).
+ */
+const SE_ANULAN_EN_SU_MODULO: Record<string, string> = {
+  pedidos: "Este cobro se anula desde el pedido.",
+};
+
+/**
+ * El motivo por el que Caja no anula este movimiento a mano, o null si lo puede anular.
+ *
+ * `anulaAOrigen` es el `sourceModule` del movimiento que ESTE anula (si es un contramovimiento).
+ * El contramovimiento de un cobro anulado nace `manual`, pero deshacerlo desde Caja volvería a
+ * sumar el dinero con el cobro todavía anulado en el pedido: también se rechaza.
+ */
+export function noSeAnulaEnCaja(
+  sourceModule: string | null | undefined,
+  anulaAOrigen?: string | null,
+): string | null {
+  return (
+    (sourceModule && SE_ANULAN_EN_SU_MODULO[sourceModule]) ||
+    (anulaAOrigen && SE_ANULAN_EN_SU_MODULO[anulaAOrigen]) ||
+    null
+  );
+}
+
 export type ReversibleMovement = {
   id: string;
   kind: "INGRESO" | "EGRESO";

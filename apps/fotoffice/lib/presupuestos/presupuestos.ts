@@ -15,6 +15,7 @@ import {
   type CtxPresupuestos,
 } from "./acceso";
 import { leerAjustes, type AjustesPresupuestos } from "./ajustes";
+import { entradaGuardada, validarOpcionesPago } from "./opciones-pago";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
 import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde, vencio } from "./estados";
 import {
@@ -171,6 +172,8 @@ export async function crearPresupuesto(
           totals: totalesVacios() as unknown as Prisma.InputJsonValue,
           terms: ajustes.condiciones,
           paymentProposal: ajustes.propuestaPago,
+          // Las opciones de pago de la organización, para editarlas en este presupuesto.
+          ...(ajustes.opcionesPago ? { paymentOptions: ajustes.opcionesPago as unknown as Prisma.InputJsonValue } : {}),
           costSnapshot: costosVacios() as unknown as Prisma.InputJsonValue,
           createdByUserId: ctx.userId,
         },
@@ -200,7 +203,7 @@ export function sinEntradasDeCalculo(entrada: EntradaBorrador): EntradaBorrador 
 
 /**
  * Guarda el borrador: ítems (validados; los de ¿Cuánto Cobro? recalculados en el servidor),
- * descuentos, condiciones y propuesta de pago. Sólo hay borrador si la última versión no se
+ * descuentos, condiciones, propuesta de pago y opciones de pago. Sólo hay borrador si la última versión no se
  * envió: para cambiar uno enviado primero se crea la versión siguiente (`crearNuevaVersion`).
  *
  * La escritura es condicional (`sentAt IS NULL`, con el candado del presupuesto): si mientras se
@@ -222,9 +225,17 @@ export async function guardarBorrador(
   if (p.status === "ACEPTADO") return { ok: false, error: MENSAJES_PRESUPUESTO.aceptado };
   const borrador = await prisma.fotofficePresupuestoVersion.findFirst({
     where: { workspaceId, presupuestoId, sentAt: null },
-    select: { id: true, items: true },
+    select: { id: true, items: true, paymentOptions: true },
   });
   if (!borrador) return { ok: false, error: MENSAJES_PRESUPUESTO.yaEnviado };
+
+  // Opciones de pago (etapa 3): sólo si llegaron. Sin el campo, las guardadas quedan.
+  let paymentOptions: Prisma.InputJsonValue | undefined;
+  if (entrada && typeof entrada === "object" && entrada.opcionesPago !== undefined) {
+    const o = validarOpcionesPago(entrada.opcionesPago, entradaGuardada(borrador.paymentOptions));
+    if (!o.ok) return o;
+    paymentOptions = o.valor as unknown as Prisma.InputJsonValue;
+  }
 
   // R4 (Task 4): sin `configurar`, el cálculo no se carga ni se cambia. Las entradas que lleguen
   // del navegador se ignoran y cada ítem de ¿Cuánto Cobro? se recalcula con la que ya estaba
@@ -245,6 +256,7 @@ export async function guardarBorrador(
           totals: n.valor.totals as unknown as Prisma.InputJsonValue,
           terms: n.valor.terms,
           paymentProposal: n.valor.paymentProposal,
+          ...(paymentOptions !== undefined ? { paymentOptions } : {}),
           costSnapshot: n.valor.costSnapshot as unknown as Prisma.InputJsonValue,
         },
       });

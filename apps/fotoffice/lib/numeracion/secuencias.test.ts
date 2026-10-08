@@ -34,20 +34,22 @@ beforeEach(() => {
 });
 
 describe("asegurarSecuencias", () => {
-  it("crea las cinco con sus valores iniciales y es idempotente", async () => {
+  it("crea las seis con sus valores iniciales y es idempotente", async () => {
     await S.asegurarSecuencias("ws-1");
     await S.asegurarSecuencias("ws-1");
-    expect(B.datos.fotofficeSequence).toHaveLength(5);
+    expect(B.datos.fotofficeSequence).toHaveLength(6);
     const consulta = B.datos.fotofficeSequence.find((s) => s.key === "CONSULTA")!;
     expect(consulta).toMatchObject({ withYear: true, digits: 4, nextValue: 1, prefix: "" });
     const pedido = B.datos.fotofficeSequence.find((s) => s.key === "PEDIDO")!;
     expect(pedido).toMatchObject({ withYear: true, digits: 4, nextValue: 1, prefix: "" });
+    const recibo = B.datos.fotofficeSequence.find((s) => s.key === "RECIBO")!;
+    expect(recibo).toMatchObject({ withYear: true, digits: 4, nextValue: 1, prefix: "" });
   });
 
   it("completa sólo las que faltan", async () => {
     B.agregar("fotofficeSequence", { workspaceId: "ws-1", key: "PEDIDO", nextValue: 2025095 });
     await S.asegurarSecuencias("ws-1");
-    expect(B.datos.fotofficeSequence).toHaveLength(5);
+    expect(B.datos.fotofficeSequence).toHaveLength(6);
     expect(B.datos.fotofficeSequence.find((s) => s.key === "PEDIDO")!.nextValue).toBe(2025095);
   });
 });
@@ -77,7 +79,7 @@ describe("leerSecuencias", () => {
     await numerar("CONSULTA");
     await numerar("CONSULTA");
     const ls = await S.leerSecuencias("ws-1", HOY);
-    expect(ls.map((s) => s.key)).toEqual(["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO"]);
+    expect(ls.map((s) => s.key)).toEqual(["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO", "RECIBO"]);
     expect(ls[0]).toMatchObject({ proximo: 3, minimoProximo: 3, vistaPrevia: "2026-0003" });
     // Al año siguiente la secuencia con año arranca de nuevo.
     const enero = await S.leerSecuencias("ws-1", new Date("2027-01-05T10:00:00-03:00"));

@@ -8,6 +8,7 @@ import { ENTIDAD_NUMERACION, esEstadoPresupuesto } from "./constantes";
 import { pesos } from "./editor";
 import { hashDeToken, tokenConForma } from "./enlace";
 import { estadoEfectivo } from "./estados";
+import { opcionElegida } from "./opciones-pago";
 import { pasarEstado } from "./presupuestos";
 import { buscarEnlace } from "./publico";
 import { bloquearPresupuesto, type TotalesGuardados } from "./versiones";
@@ -21,6 +22,8 @@ import { bloquearPresupuesto, type TotalesGuardados } from "./versiones";
  * - Sólo la versión vigente, enviada, sin vencer y no rechazada. Una vieja (reemplazada) o vencida
  *   se rechaza con un mensaje claro.
  * - Evidencia en la versión: fecha, nombre, IP con hash y navegador.
+ * - La forma de pago elegida (etapa 3) se guarda en la MISMA escritura condicional, validada contra
+ *   la instantánea congelada de esa versión: sin elección, la primera; un id que no está, error.
  * - El presupuesto pasa a ACEPTADO con la versión aceptada y "Pedido por confirmar".
  * - Después (fuera de la transacción, sin poder romper la aceptación): el motor recibe
  *   `PRESUPUESTO_ACEPTADO` (la consulta avanza según las reglas de su circuito); después la
@@ -66,7 +69,7 @@ export type DepsAceptacion = DepsAvisos & { ahora?: () => Date };
 export async function aceptarPresupuesto(
   workspaceId: string,
   token: unknown,
-  datos: { nombre: unknown; acepta: unknown },
+  datos: { nombre: unknown; acepta: unknown; opcion?: unknown },
   evidencia: { ipHash: string | null; userAgent: string | null },
   deps: DepsAceptacion = {},
 ): Promise<ResultadoAceptacion> {
@@ -88,7 +91,7 @@ export async function aceptarPresupuesto(
       await bloquearPresupuesto(tx, v0.presupuestoId);
       const v = await tx.fotofficePresupuestoVersion.findFirst({
         where: { id: v0.id, workspaceId },
-        select: { sentAt: true, revokedAt: true, tokenExpiresAt: true, acceptedAt: true, totals: true },
+        select: { sentAt: true, revokedAt: true, tokenExpiresAt: true, acceptedAt: true, totals: true, paymentOptions: true },
       });
       const p = await tx.fotofficePresupuesto.findFirst({
         where: { id: v0.presupuestoId, workspaceId },
@@ -102,11 +105,16 @@ export async function aceptarPresupuesto(
       if (efectivo === "ACEPTADO") throw new Corte(MENSAJES_ACEPTACION.yaAceptado);
       if (efectivo === "VENCIDO") throw new Corte(MENSAJES_ACEPTACION.vencido);
       if (efectivo === "RECHAZADO" || efectivo === "BORRADOR") throw new Corte(MENSAJES_ACEPTACION.rechazado);
+      const opcion = opcionElegida(v.paymentOptions, datos.opcion);
+      if (!opcion.ok) throw new Corte(opcion.error);
 
       // Una sola vez por versión: si otra aceptación ganó la carrera, esta no escribe nada.
       const r = await tx.fotofficePresupuestoVersion.updateMany({
         where: { id: v0.id, workspaceId, acceptedAt: null, revokedAt: null },
-        data: { acceptedAt: ahora, acceptedName: nombre, acceptedIpHash: evidencia.ipHash, acceptedUserAgent: evidencia.userAgent },
+        data: {
+          acceptedAt: ahora, acceptedName: nombre, acceptedIpHash: evidencia.ipHash, acceptedUserAgent: evidencia.userAgent,
+          chosenPaymentOptionId: opcion.valor,
+        },
       });
       if (r.count !== 1) throw new Corte(MENSAJES_ACEPTACION.yaAceptado);
       const estado = await pasarEstado(tx, {

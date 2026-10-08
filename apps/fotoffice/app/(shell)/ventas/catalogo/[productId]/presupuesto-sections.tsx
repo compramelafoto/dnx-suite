@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import type { ComboDetalle } from "@/lib/catalogo/combos";
 import type { CostoDetalle, ProveedorOpcion } from "@/lib/catalogo/costos";
+import type { RubroIngresoOpcion } from "@/lib/catalogo/perfil";
 import { pesosSinDecimales, resumenCombo, textoDias, type PerfilCatalogo } from "@/lib/catalogo/reglas";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import {
@@ -40,6 +41,7 @@ export function PresupuestoSections({
   priceMinor,
   perfil,
   rubros,
+  rubroSugerido,
   combo,
   productosCombo,
   costos,
@@ -48,7 +50,9 @@ export function PresupuestoSections({
   productId: string;
   priceMinor: number;
   perfil: PerfilCatalogo;
-  rubros: string[];
+  rubros: RubroIngresoOpcion[];
+  /** Si no hay rubro elegido: el de Caja con el mismo nombre que el rubro en texto viejo. */
+  rubroSugerido: string | null;
   combo: ComboDetalle;
   productosCombo: { id: string; name: string; priceMinor: number }[];
   costos: CostoDetalle[];
@@ -56,7 +60,7 @@ export function PresupuestoSections({
 }) {
   return (
     <div className="space-y-6">
-      <PerfilSection productId={productId} perfil={perfil} rubros={rubros} />
+      <PerfilSection productId={productId} perfil={perfil} rubros={rubros} rubroSugerido={rubroSugerido} />
       <ComboSection
         key={combo.componentes.map((c) => `${c.productId}:${c.quantity}`).join("|")}
         productId={productId}
@@ -74,9 +78,23 @@ export function PresupuestoSections({
   );
 }
 
-function PerfilSection({ productId, perfil, rubros }: { productId: string; perfil: PerfilCatalogo; rubros: string[] }) {
+function PerfilSection({
+  productId,
+  perfil,
+  rubros,
+  rubroSugerido,
+}: {
+  productId: string;
+  perfil: PerfilCatalogo;
+  rubros: RubroIngresoOpcion[];
+  rubroSugerido: string | null;
+}) {
   const [resultado, setResultado] = useState<CatalogoActionResult | null>(null);
   const [guardando, startTransition] = useTransition();
+  const elegido = perfil.incomeCategoryId ?? rubroSugerido ?? "";
+  // Hubo rubro en texto (etapa 2) pero ningún rubro de Caja se llama igual: se avisa para que
+  // lo elijan o lo creen en Caja.
+  const textoSinPar = !perfil.incomeCategoryId && !rubroSugerido && perfil.incomeLabel ? perfil.incomeLabel : null;
 
   return (
     <form
@@ -94,24 +112,31 @@ function PerfilSection({ productId, perfil, rubros }: { productId: string; perfi
         En lista de precios
       </label>
       <div className="fo-field-stack">
-        <label className="fo-label" htmlFor="incomeLabel">
+        <label className="fo-label" htmlFor="incomeCategoryId">
           Rubro de ingreso
         </label>
-        <input
-          id="incomeLabel"
-          name="incomeLabel"
-          className="fo-input"
-          defaultValue={perfil.incomeLabel ?? ""}
-          list="rubros-ingreso"
-          maxLength={80}
-          placeholder="Por ejemplo: Coberturas"
-        />
-        <datalist id="rubros-ingreso">
+        <select id="incomeCategoryId" name="incomeCategoryId" className="fo-input" defaultValue={elegido}>
+          <option value="">Sin rubro</option>
           {rubros.map((r) => (
-            <option key={r} value={r} />
+            <option key={r.id} value={r.id}>
+              {r.esHijo ? "\u00a0\u00a0\u00a0" : ""}
+              {r.code ? `${r.code} ${r.name}` : r.name}
+              {r.isActive ? "" : " (dado de baja)"}
+            </option>
           ))}
-        </datalist>
-        <p className="fo-helper">Sirve para agrupar lo que se vende. Las cuentas de Caja llegan más adelante.</p>
+        </select>
+        {rubroSugerido && !perfil.incomeCategoryId ? (
+          <p className="fo-helper">
+            Sugerido por el rubro que tenía cargado («{perfil.incomeLabel}»). Guardá para confirmarlo.
+          </p>
+        ) : textoSinPar ? (
+          <p className="fo-helper">
+            Tenía cargado «{textoSinPar}», que no coincide con ningún rubro de Caja. Elegí uno o crealo en Caja →
+            Configuración.
+          </p>
+        ) : (
+          <p className="fo-helper">Es la categoría de Caja donde entra el dinero de este producto cuando se cobra.</p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={guardando}>

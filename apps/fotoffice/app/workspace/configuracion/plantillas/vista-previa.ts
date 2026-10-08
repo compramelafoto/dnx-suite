@@ -35,6 +35,8 @@ export function contextoDeEjemplo(campos: readonly CampoDeEjemplo[], hoy = new D
       etapa: "Nueva",
     },
     socio: { numero: "0123" },
+    pedido: { numero: "2026-0007", enlace: "https://estudio-ejemplo.com/pedido/ejemplo", saldo: "$ 240.000" },
+    recibo: { numero: "2026-0012", enlace: "https://estudio-ejemplo.com/recibo/ejemplo", importe: "$ 120.000" },
     campos: Object.fromEntries(campos.map((c) => [c.clave, `[${c.nombre}]`])),
   };
 }

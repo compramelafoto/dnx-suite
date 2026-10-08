@@ -13,7 +13,7 @@ import { formatearNumero, validarConfigSecuencia, type ConfigSecuencia } from ".
 
 type Cliente = Prisma.TransactionClient | typeof prisma;
 
-export const CLAVES_SECUENCIA = ["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO"] as const;
+export const CLAVES_SECUENCIA = ["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO", "RECIBO"] as const;
 export type ClaveSecuencia = (typeof CLAVES_SECUENCIA)[number];
 
 /** Todas con año y 4 dígitos ("2026-0001"): cada 1° de enero (hora de Argentina) vuelven a 0001. */
@@ -24,6 +24,8 @@ export const SECUENCIAS_INICIALES: Record<ClaveSecuencia, ConfigSecuencia> = {
   PEDIDO: CON_ANIO,
   CONTRATO: CON_ANIO,
   PROYECTO: CON_ANIO,
+  /** Recibos X internos de los cobros de pedidos (etapa 3). */
+  RECIBO: CON_ANIO,
 };
 
 export const MENSAJES_NUMERACION = {
@@ -96,7 +98,7 @@ export function vistaPrevia(config: ConfigSecuencia & { currentYear?: number | n
 
 const SELECT_SECUENCIA = { key: true, prefix: true, withYear: true, digits: true, nextValue: true, currentYear: true } as const;
 
-/** Las cinco secuencias del workspace, en orden fijo, con el próximo número y su vista previa. */
+/** Las secuencias del workspace, en orden fijo, con el próximo número y su vista previa. */
 export async function leerSecuencias(workspaceId: string, hoy: Date = new Date()): Promise<SecuenciaLeida[]> {
   await asegurarSecuencias(workspaceId);
   const filas = await prisma.fotofficeSequence.findMany({ where: { workspaceId }, select: SELECT_SECUENCIA });

@@ -61,10 +61,20 @@ const nextConfig: NextConfig = {
   ],
   outputFileTracingRoot: path.join(appDir, "../.."),
   outputFileTracingIncludes: {
+    /*
+     * Sólo lo que el cliente de Prisma usa en Linux (como FotoRank): sin motores de macOS, tipos,
+     * variantes edge/wasm ni migraciones. Con `**` la función de las placas pasó los 250 MB.
+     */
     "/**": [
-      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
-      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
-      "../../packages/db/prisma/**",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/*.js",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/package.json",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/schema.prisma",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/*.js",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/package.json",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/library.js",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/index-browser.js",
+      "../../packages/db/prisma/schema.prisma",
       // Las tipografías ya no se leen del disco: viajan incrustadas en @repo/design-studio.
       // Antes se copiaban acá y aun así fallaban en el servidor — con pnpm el enlace a
       // @fontsource vive dentro de packages/design-studio, y el código empaquetado termina en
@@ -80,6 +90,19 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
       "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
       "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+    ],
+  },
+  /** Segunda barrera: lo que no corre en Linux aunque el rastreo automático de Next lo sume. */
+  outputFileTracingExcludes: {
+    "/**": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/*.d.ts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/libquery_engine-darwin*",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/query_engine_bg.wasm",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*.d.ts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*.d.mts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/*.map",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/*.wasm-base64.*",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/query_*",
     ],
   },
   // Direcciones viejas que siguen andando (`/captacion/...` → `/consultas/...`).
@@ -118,6 +141,12 @@ const nextConfig: NextConfig = {
       // tiene el botón "Acepto" (clickjacking). Vale para la página y para la vista de impresión.
       { source: "/w/:slug/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
+      // Los enlaces del pedido y del recibo (etapa 3): llevan su token en la dirección y no se
+      // enmarcan en otro sitio, igual que el del presupuesto.
+      { source: "/w/:slug/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/w/:slug/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
     ];
   },
   images: {

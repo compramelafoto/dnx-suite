@@ -65,6 +65,7 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
         email={vista.organizacion.email}
         // Relativo: sirve igual en `/w/<slug>/presupuesto/<token>` y en el dominio propio.
         hrefImprimir={`${encodeURIComponent(token)}/imprimir`}
+        opciones={vista.opcionesPago}
       />
     </main>
   );

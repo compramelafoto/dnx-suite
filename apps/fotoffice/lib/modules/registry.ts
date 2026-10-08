@@ -312,14 +312,18 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     family: "institucion",
   },
   {
+    // Etapa 3 (Entrega A): el pedido nace de un presupuesto aceptado (o a mano desde un contacto),
+    // con su plan de cuotas, cobros y recibos. Por eso depende de Presupuestos.
     key: "orders",
     label: "Pedidos",
-    description: "Pedidos de trabajos y su estado de producción y entrega.",
+    description:
+      "Pedidos confirmados desde un presupuesto aceptado o cargados a mano, con plan de cuotas, cobros que van a Caja y recibos.",
     category: "GENERAL",
     order: 27,
-    status: "PLANNED",
+    route: "/pedidos",
+    status: "AVAILABLE",
     family: "negocio",
-    dependsOn: ["clients"],
+    dependsOn: ["quotes"],
   },
   {
     key: "projects",
