@@ -84,11 +84,11 @@ describe("notificarEvento: CONSULTA_RECIBIDA", () => {
   it("sin ningún circuito, carga los iniciales con el slug público antes de empezar", async () => {
     B.vaciar();
     B.agregar("serviceSalesLead", { id: "lead-1", workspaceId: "ws-1", name: "Laura", eventType: "BODA", status: "NEW" });
-    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnx-estudio" });
+    B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
     B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-2", publicSlug: "otro" });
     H.asegurar.mockImplementation(async () => sembrarCircuito());
     expect(await E.notificarEvento("ws-1", CONSULTA, "CONSULTA_RECIBIDA", "lead-1")).toEqual({ movido: true });
-    expect(H.asegurar).toHaveBeenCalledWith("ws-1", "dnx-estudio");
+    expect(H.asegurar).toHaveBeenCalledWith("ws-1", "dnxestudio");
     expect(recorridos("lead-1")[0]).toMatchObject({ stageId: "s1" });
   });
 

@@ -26,11 +26,11 @@ vi.mock("next/headers", () => ({ headers: H.cabeceras }));
 const { createServiceLead } = await import("./service-lead");
 const { resetRateLimit } = await import("@/lib/geocode/rate-limit");
 
-const ENTRADA = { workspaceSlug: "dnx-estudio", name: "Laura Pérez", email: "laura@example.com", eventType: "BODA" };
+const ENTRADA = { workspaceSlug: "dnxestudio", name: "Laura Pérez", email: "laura@example.com", eventType: "BODA" };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  H.branding.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "dnx-estudio" });
+  H.branding.mockResolvedValue({ workspaceId: "ws-1", publicSlug: "dnxestudio" });
   H.alta.mockResolvedValue({ ok: true, leadId: "lead-9", consultaId: "q-9", clientId: "c-9", avisos: {} });
   H.cabeceras.mockImplementation(async () => new Headers());
   resetRateLimit();

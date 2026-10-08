@@ -2,13 +2,21 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireServiceLeadsContext } from "@/lib/workspace";
+import { rutaPublicaFormulario } from "@/lib/service-leads/ruta-publica";
 
 export default async function ServiceLeadFormsPage() {
   const { workspace } = await requireServiceLeadsContext();
-  const forms = await prisma.serviceLeadForm.findMany({
-    where: { workspaceId: workspace.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const [forms, branding] = await Promise.all([
+    prisma.serviceLeadForm.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    // El enlace público sale de la dirección real del workspace, nunca de un valor fijo.
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { publicSlug: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-10">
@@ -41,7 +49,7 @@ export default async function ServiceLeadFormsPage() {
             </thead>
             <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
               {forms.map((form) => {
-                const publicPath = `/w/dnx-estudio/${form.slug}`;
+                const publicPath = rutaPublicaFormulario(branding?.publicSlug, form.slug);
                 return (
                   <tr key={form.id} className="hover:bg-[var(--fo-surface-hover)]/60">
                     <td className="px-4 py-3 text-[var(--fo-text)] font-medium">{form.name}</td>
@@ -50,14 +58,18 @@ export default async function ServiceLeadFormsPage() {
                     <td className="px-4 py-3 text-[var(--fo-muted)]">{form.isActive ? "Sí" : "No"}</td>
                     <td className="px-4 py-3 text-[var(--fo-muted)]">{form.isDefault ? "Sí" : "No"}</td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={publicPath}
-                        className="text-[var(--fo-accent)] underline underline-offset-2"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {publicPath}
-                      </Link>
+                      {publicPath ? (
+                        <Link
+                          href={publicPath}
+                          className="text-[var(--fo-accent)] underline underline-offset-2"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {publicPath}
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--fo-muted)]">Sin dirección pública</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">

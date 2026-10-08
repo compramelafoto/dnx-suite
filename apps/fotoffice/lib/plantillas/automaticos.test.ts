@@ -35,7 +35,7 @@ const { createServiceLead } = await import("@/app/actions/service-lead");
 
 const AHORA = new Date("2026-10-01T15:00:00.000Z");
 const EMAIL = "laura@persona.test";
-const ENTRADA = { workspaceSlug: "dnx-estudio", name: "Laura Pérez", email: EMAIL, eventType: "BODA" };
+const ENTRADA = { workspaceSlug: "dnxestudio", name: "Laura Pérez", email: EMAIL, eventType: "BODA" };
 
 function autorespuesta(datos: Record<string, unknown> = {}) {
   return B.agregar("fotofficeMessageTemplate", {
@@ -64,7 +64,7 @@ beforeEach(() => {
   H.modulo.mockResolvedValue(true);
   // La base en memoria no tiene findUnique: el alta busca el branding por su slug público.
   (B.tablas.fotofficeWorkspaceBranding as unknown as Record<string, unknown>).findUnique = (a: never) => B.tablas.fotofficeWorkspaceBranding.findFirst(a);
-  B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnx-estudio" });
+  B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(AHORA);
   errores = vi.spyOn(console, "error").mockImplementation(() => {});

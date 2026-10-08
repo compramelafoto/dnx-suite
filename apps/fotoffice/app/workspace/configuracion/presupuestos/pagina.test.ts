@@ -31,7 +31,7 @@ describe("Configuración → Presupuestos", () => {
     const p = aqui("page.tsx");
     expect(p).toContain('href="/workspace/configuracion/numeracion"');
     expect(p).toContain('const PROXIMO_NUMERO_DNX = "2025262";');
-    expect(p).toContain("slug === SLUG_DNX ?");
+    expect(p).toContain("esSlugDnx(slug) ?");
   });
 
   it("las acciones son de servidor y pasan por el contexto con `configurar` primero", () => {

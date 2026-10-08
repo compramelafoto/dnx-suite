@@ -1,7 +1,9 @@
 import "server-only";
 import { prisma } from "@repo/db";
 
-export const SLUG_DNX = "dnx-estudio";
+import { esSlugDnx } from "@/lib/slug-dnx";
+
+export { SLUG_DNX } from "@/lib/slug-dnx";
 
 /** El único campo que DNX usa en Alboom; la migración (etapa 8) completa sus valores. */
 export const CAMPO_INICIAL_DNX = {
@@ -17,7 +19,7 @@ export const CAMPO_INICIAL_DNX = {
  * armó los suyos, no vuelve. Idempotente; el resto de los workspaces arranca sin campos.
  */
 export async function asegurarCamposIniciales(workspaceId: string, slug: string): Promise<void> {
-  if (slug !== SLUG_DNX) return;
+  if (!esSlugDnx(slug)) return;
   // Lo común es que ya tenga campos: un conteo simple, sin abrir transacción.
   if ((await prisma.fotofficeCustomField.count({ where: { workspaceId, entityType: CAMPO_INICIAL_DNX.entityType } })) > 0) return;
   try {

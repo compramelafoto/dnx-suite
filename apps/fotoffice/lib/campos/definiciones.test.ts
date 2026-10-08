@@ -215,8 +215,8 @@ describe("opciones", () => {
 
 describe("campo inicial de DNX", () => {
   it("crea Archivos del cliente una sola vez y sólo en DNX", async () => {
-    await S.asegurarCamposIniciales("ws-1", "dnx-estudio");
-    await S.asegurarCamposIniciales("ws-1", "dnx-estudio");
+    await S.asegurarCamposIniciales("ws-1", "dnxestudio");
+    await S.asegurarCamposIniciales("ws-1", "dnxestudio");
     await S.asegurarCamposIniciales("ws-2", "sfpr");
     expect(campos()).toHaveLength(1);
     expect(campos()[0]).toMatchObject({
@@ -227,7 +227,7 @@ describe("campo inicial de DNX", () => {
   it("no vuelve si DNX ya tiene algún campo de clientes, aunque esté archivado", async () => {
     const id = await crear("Mío");
     await D.archivarCampo(ADMIN, id);
-    await S.asegurarCamposIniciales("ws-1", "dnx-estudio");
+    await S.asegurarCamposIniciales("ws-1", "dnxestudio");
     expect(campos()).toHaveLength(1);
   });
 
@@ -238,7 +238,7 @@ describe("campo inicial de DNX", () => {
       return 0;
     };
     try {
-      await expect(S.asegurarCamposIniciales("ws-1", "dnx-estudio")).resolves.toBeUndefined();
+      await expect(S.asegurarCamposIniciales("ws-1", "dnxestudio")).resolves.toBeUndefined();
     } finally {
       B.tablas.fotofficeCustomField.count = original;
     }

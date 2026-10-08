@@ -76,7 +76,7 @@ describe("textos iniciales", () => {
 
 describe("asegurarPlantillasIniciales", () => {
   it("DNX: las 7 plantillas y la autorespuesta apagada; dos veces deja lo mismo y la segunda no abre transacción", async () => {
-    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarPlantillasIniciales("ws-1", "dnxestudio");
     expect(plantillas()).toHaveLength(8);
     expect(B.transacciones).toHaveLength(1);
     const auto = await D.leerAutomatico("ws-1", "CONSULTA_AUTORESPUESTA");
@@ -93,7 +93,7 @@ describe("asegurarPlantillasIniciales", () => {
       ["Coordinar entrevista", 1],
     ]);
     const antes = filas();
-    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarPlantillasIniciales("ws-1", "dnxestudio");
     expect(filas()).toBe(antes);
     expect(B.transacciones).toHaveLength(1);
   });
@@ -108,9 +108,9 @@ describe("asegurarPlantillasIniciales", () => {
   });
 
   it("si ya tiene la automática, no vuelve a sembrar aunque haya borrado las plantillas", async () => {
-    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarPlantillasIniciales("ws-1", "dnxestudio");
     B.datos.fotofficeMessageTemplate = plantillas().filter((p) => p.systemKey !== null);
-    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarPlantillasIniciales("ws-1", "dnxestudio");
     expect(plantillas()).toHaveLength(1);
   });
 
@@ -128,7 +128,7 @@ describe("asegurarPlantillasIniciales", () => {
     B.agregar("fotofficeMessageTemplate", {
       workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", name: "x", subject: "a", body: "b", systemKey: "CONSULTA_AUTORESPUESTA",
     });
-    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarPlantillasIniciales("ws-1", "dnxestudio");
     B.tablas.fotofficeMessageTemplate.count = original;
     expect(plantillas()).toHaveLength(1);
   });
@@ -136,7 +136,7 @@ describe("asegurarPlantillasIniciales", () => {
 
 describe("asegurarAvisoEquipo", () => {
   it("crea una vez el aviso al equipo, encendido, aparte de las demás semillas", async () => {
-    await S.asegurarPlantillasIniciales("ws-1", "dnx-estudio");
+    await S.asegurarPlantillasIniciales("ws-1", "dnxestudio");
     await S.asegurarAvisoEquipo("ws-1");
     await S.asegurarAvisoEquipo("ws-1");
     const aviso = await D.leerAutomatico("ws-1", "CONSULTA_AVISO_EQUIPO");
