@@ -1,9 +1,11 @@
+import { prisma } from "@repo/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { NuevoPedido } from "@/components/pedidos/nuevo-pedido";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { leerPlantillasChecklist } from "@/lib/pedidos/checklist";
 import { requirePedidos } from "@/lib/pedidos/pagina";
 import { catalogoParaEditor } from "@/lib/presupuestos/editor-datos";
 import { contactoParaPresupuesto } from "@/lib/presupuestos/nuevo-datos";
@@ -25,6 +27,7 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
   const contacto = contactoId && veContactos ? await contactoParaPresupuesto(workspace.id, contactoId) : null;
   if (contactoId && veContactos && !contacto) notFound();
   const catalogo = contacto ? await catalogoParaEditor(workspace.id) : [];
+  const plantillas = contacto ? (await leerPlantillasChecklist(prisma, workspace.id)).map((p) => p.name) : [];
 
   return (
     <div className="space-y-6">
@@ -38,7 +41,7 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
         }
       />
       {contacto ? (
-        <NuevoPedido clientId={contacto.id} catalogo={catalogo} />
+        <NuevoPedido clientId={contacto.id} catalogo={catalogo} plantillas={plantillas} />
       ) : (
         <div className="fo-card space-y-2 text-sm">
           <p>

@@ -27,8 +27,13 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   si la organización encendió el seguimiento en Configuración → Presupuestos.
  * - `RECIBO_DE_PAGO`: el recibo de un cobro registrado, al contacto del pedido (etapa 3). Nace
  *   encendido; sale después de registrar el cobro (`lib/pedidos/recibos.ts`) y nunca lo frena.
+ * - `RECORDATORIO_CUOTA`: aviso al contacto del pedido de una cuota con saldo que vence pronto
+ *   (etapa 3, Entrega B1). Lo manda la tarea diaria `lib/pedidos/recordatorios.ts` si la
+ *   organización encendió los recordatorios en Configuración → Pedidos.
  */
-export const CLAVES_AUTOMATICO = ["CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO"] as const;
+export const CLAVES_AUTOMATICO = [
+  "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA",
+] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
 export const ETIQUETA_CANAL: Record<Canal, string> = { EMAIL: "Correo", WHATSAPP: "WhatsApp" };

@@ -343,7 +343,7 @@ export default function FotografoEscuelasPedidosPage() {
                                   <span className="text-xs text-gray-700">Entrega: {entregaTexto}</span>
                                 ) : null}
                                 <Link
-                                  href={`/dashboard/design-projects/${pid}`}
+                                  href={`/fotografo/disenos/${pid}`}
                                   className="text-[#c27b3d] hover:underline text-xs"
                                 >
                                   Abrir diseño
@@ -424,7 +424,7 @@ export default function FotografoEscuelasPedidosPage() {
                                 {uniqueDesignIds.length} diseños
                               </span>
                               <Link
-                                href="/dashboard/design-projects"
+                                href="/fotografo/disenos"
                                 className="text-[#c27b3d] hover:underline text-xs"
                               >
                                 Ver diseños

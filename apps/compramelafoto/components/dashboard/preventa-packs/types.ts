@@ -7,6 +7,8 @@ export type BenefitRow = {
   photographerProductId: number | null;
   templatePolicy: "NONE" | "REQUIRED" | "OPTIONAL";
   templateId: number | null;
+  /** Plantilla del diseñador nuevo con la que se arma el diseño al canjear. */
+  templateV2Id?: string | null;
   extraUnitPriceOverrideArs: number | null;
   requiredPhotoCount: number;
   selectionMode: "SINGLE_PHOTO" | "MULTI_PHOTO_FIXED" | "ALBUM_CHOICE";
@@ -44,8 +46,11 @@ export type PhotographerProductOption = {
   isActive?: boolean;
 };
 
+/** Plantilla del diseñador nuevo que se puede asignar a un beneficio. */
 export type TemplateOption = {
-  id: number;
+  id: string;
   name: string;
   group: string;
+  /** Cuántas fotos del cliente usa (huecos `photo_n`). 0 = no arma nada. */
+  photoInputs: number;
 };

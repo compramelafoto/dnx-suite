@@ -188,7 +188,10 @@ export default function DashboardDesignsPage() {
           </p>
         </div>
         <div className="shrink-0">
-          <CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto} />
+          <CreateTemplateV2Button
+            basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto}
+            theme={{ accent: "#c27b3d", accentInk: "#ffffff" }}
+          />
         </div>
       </header>
 

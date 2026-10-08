@@ -4,260 +4,142 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Input from "@/components/ui/Input";
 
-type TemplateRow = {
-  id: number;
+type StatusRow = {
+  legacyTemplateId: number;
   name: string;
   imageUrl: string;
-  widthCm: number;
-  heightCm: number;
-  isSystemTemplate: boolean;
-  theme: string | null;
-  album: { id: number; title: string };
-  slots: { id: number }[];
+  slots: number;
+  templateV2Id: string | null;
 };
 
-type AlbumOption = { id: number; title: string };
+type ResultRow = {
+  legacyTemplateId: number;
+  name: string;
+  templateV2Id: string | null;
+  created: boolean;
+  benefitsRepointed: number;
+  packsRepointed: number;
+  error: string | null;
+};
 
-export default function AdminPlantillasPage() {
-  const [templates, setTemplates] = useState<TemplateRow[]>([]);
-  const [albums, setAlbums] = useState<AlbumOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterSystem, setFilterSystem] = useState<string>("");
-  const [filterTheme, setFilterTheme] = useState("");
-  const [patchingId, setPatchingId] = useState<number | null>(null);
-  const [themeInputs, setThemeInputs] = useState<Record<number, string>>({});
-  const [createAlbumId, setCreateAlbumId] = useState<string>("");
+/**
+ * Las plantillas del diseñador viejo y su paso al diseñador nuevo.
+ *
+ * El diseñador viejo ya no crea plantillas ni arma diseños: todo el circuito (probar, armar al
+ * comprar o canjear, revisar y aprobar) usa el nuevo. Esta pantalla queda para migrar lo que
+ * haya quedado y ver a qué plantilla nueva pasó cada una.
+ */
+export default function AdminLegacyTemplatesMigrationPage() {
+  const [rows, setRows] = useState<StatusRow[] | null>(null);
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<ResultRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    const res = await fetch("/api/admin/template-v2/migrate-legacy", { credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    setRows(res.ok && data.ok ? data.templates : []);
+  }
 
   useEffect(() => {
-    loadTemplates();
-  }, [filterSystem, filterTheme]);
-
-  useEffect(() => {
-    fetch("/api/admin/albums?visibility=public", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : { albums: [] }))
-      .then((data) => setAlbums(data.albums?.slice(0, 200).map((a: { id: number; title: string }) => ({ id: a.id, title: a.title })) ?? []))
-      .catch(() => setAlbums([]));
+    void load();
   }, []);
 
-  async function loadTemplates() {
-    setLoading(true);
+  async function migrate() {
+    setRunning(true);
+    setError(null);
     try {
-      const params = new URLSearchParams();
-      if (filterSystem === "true") params.set("isSystem", "true");
-      if (filterSystem === "false") params.set("isSystem", "false");
-      if (filterTheme.trim()) params.set("theme", filterTheme.trim());
-      const res = await fetch(`/api/admin/templates?${params.toString()}`, { credentials: "include" });
+      const res = await fetch("/api/admin/template-v2/migrate-legacy", { method: "POST", credentials: "include" });
       const data = await res.json().catch(() => ({}));
-      setTemplates(data.templates ?? []);
-    } catch {
-      setTemplates([]);
+      if (!res.ok || !data.ok) throw new Error(data.error || "La migración falló.");
+      setResults(data.results);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "La migración falló.");
     } finally {
-      setLoading(false);
+      setRunning(false);
     }
   }
 
-  async function toggleSystem(t: TemplateRow) {
-    setPatchingId(t.id);
-    try {
-      const res = await fetch(`/api/admin/templates/${t.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ isSystemTemplate: !t.isSystemTemplate }),
-      });
-      if (res.ok) {
-        setTemplates((prev) =>
-          prev.map((x) => (x.id === t.id ? { ...x, isSystemTemplate: !x.isSystemTemplate } : x))
-        );
-      }
-    } finally {
-      setPatchingId(null);
-    }
-  }
-
-  async function saveTheme(t: TemplateRow) {
-    const theme = themeInputs[t.id] ?? t.theme ?? "";
-    setPatchingId(t.id);
-    try {
-      const res = await fetch(`/api/admin/templates/${t.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ theme: theme.trim() || null }),
-      });
-      if (res.ok) {
-        setTemplates((prev) =>
-          prev.map((x) => (x.id === t.id ? { ...x, theme: theme.trim() || null } : x))
-        );
-        setThemeInputs((prev) => ({ ...prev, [t.id]: "" }));
-      }
-    } finally {
-      setPatchingId(null);
-    }
-  }
+  const pending = (rows ?? []).filter((r) => !r.templateV2Id).length;
 
   return (
-    <div className="p-6 max-w-5xl">
-      <h1 className="text-xl font-semibold text-[#1a1a1a] mb-2">Plantillas clásicas (V1)</h1>
-      <p className="text-sm text-[#6b7280] mb-4">
-        Listado en base al modelo anterior (imagen + recuadros). Para el editor nuevo, plantillas de sistema con variables y packs
-        usá el hub V2.
+    <div className="max-w-5xl p-6">
+      <h1 className="mb-1 text-xl font-semibold text-[#1a1a1a]">Migración del diseñador viejo</h1>
+      <p className="mb-6 text-sm text-[#6b7280]">
+        Las plantillas del diseñador viejo pasan al diseñador nuevo: la imagen queda de fondo y cada recuadro pasa
+        a ser un hueco “Foto del cliente”. Lo que las usaba (beneficios de preventa, packs) pasa a usar la nueva. Se
+        puede repetir: lo que ya se migró no se duplica.
       </p>
 
-      <Card className="mb-6 border-[#fde68a] bg-[#fffbeb] p-4">
-        <p className="text-sm font-semibold text-[#92400e]">Plantillas y editor nuevo (Template V2)</p>
-        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-[#78350f]">
-          <li>
-            <Link href="/dashboard/designs" className="font-semibold underline decoration-[#c27b3d] underline-offset-2 hover:text-[#92400e]">
-              Hub Diseños · plantillas V2
-            </Link>
-            {" — catálogo sistema, tus plantillas y (admin) listado global."}
-          </li>
-          <li>
-            <Link
-              href="/admin/template-v2/revision"
-              className="font-semibold underline decoration-[#c27b3d] underline-offset-2 hover:text-[#92400e]"
-            >
-              Cola de revisión
-            </Link>
-            {" — aprobá o rechazá envíos públicos."}
-          </li>
-        </ul>
+      <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
+        <p className="text-sm text-[#374151]">
+          {rows == null
+            ? "Cargando…"
+            : rows.length === 0
+              ? "No hay plantillas del diseñador viejo."
+              : pending === 0
+                ? `Las ${rows.length} plantillas ya están en el diseñador nuevo.`
+                : `${pending} de ${rows.length} plantillas sin migrar.`}
+        </p>
+        <Button variant="primary" size="sm" onClick={() => void migrate()} disabled={running || rows == null || rows.length === 0}>
+          {running ? "Migrando…" : pending > 0 ? "Migrar al diseñador nuevo" : "Volver a revisar referencias"}
+        </Button>
       </Card>
 
-      <p className="text-sm text-[#6b7280] mb-6">
-        En esta tabla sólo aparecen las plantillas <span className="font-medium text-[#374151]">clásicas</span>. Las marcadas como
-        &quot;del sistema&quot; aquí siguen el flujo V1 para fotógrafos en contextos legacy.
-      </p>
+      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
 
-      <Card className="p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-[#374151]">Filtrar:</label>
-            <select
-              className="rounded border border-[#e5e7eb] px-2 py-1.5 text-sm bg-white"
-              value={filterSystem}
-              onChange={(e) => setFilterSystem(e.target.value)}
-            >
-              <option value="">Todas</option>
-              <option value="true">Solo del sistema</option>
-              <option value="false">Solo de usuarios</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-[#374151]">Temática:</label>
-            <input
-              type="text"
-              className="rounded border border-[#e5e7eb] px-2 py-1.5 text-sm w-40"
-              placeholder="ej. Bodas"
-              value={filterTheme}
-              onChange={(e) => setFilterTheme(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3 ml-auto">
-            <Link href="/fotografo/diseno/plantillas/nueva?system=1">
-              <Button variant="primary">
-                Crear plantilla pública (sin álbum)
-              </Button>
-            </Link>
-            <span className="text-sm text-[#6b7280]">o en álbum:</span>
-            <select
-              className="rounded border border-[#e5e7eb] px-2 py-1.5 text-sm bg-white min-w-[180px]"
-              value={createAlbumId}
-              onChange={(e) => setCreateAlbumId(e.target.value)}
-            >
-              <option value="">— Elegir álbum —</option>
-              {albums.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.title} (ID {a.id})
-                </option>
-              ))}
-            </select>
-            <Link
-              href={createAlbumId ? `/fotografo/diseno/plantillas/nueva?albumId=${createAlbumId}` : "#"}
-              className={!createAlbumId ? "pointer-events-none opacity-60" : ""}
-            >
-              <Button variant="secondary" size="sm" disabled={!createAlbumId}>
-                Ir a crear en álbum
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </Card>
-
-      {loading ? (
-        <p className="text-sm text-[#6b7280]">Cargando…</p>
-      ) : templates.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="text-[#6b7280]">No hay plantillas con los filtros elegidos.</p>
+      {results ? (
+        <Card className="mb-4 border-emerald-200 bg-emerald-50 p-4">
+          <ul className="space-y-1 text-sm text-emerald-900">
+            {results.map((r) => (
+              <li key={r.legacyTemplateId}>
+                {r.error
+                  ? `✗ ${r.name}: ${r.error}`
+                  : `✓ ${r.name}: ${r.created ? "creada en el diseñador nuevo" : "ya estaba migrada"}` +
+                    (r.benefitsRepointed || r.packsRepointed
+                      ? ` · ${r.benefitsRepointed} beneficio(s) y ${r.packsRepointed} pack(s) actualizados`
+                      : "")}
+              </li>
+            ))}
+          </ul>
         </Card>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#e5e7eb] text-left text-[#6b7280]">
-                <th className="pb-2 pr-2">Vista</th>
-                <th className="pb-2 pr-2">Nombre</th>
-                <th className="pb-2 pr-2">Álbum</th>
-                <th className="pb-2 pr-2">Medidas</th>
-                <th className="pb-2 pr-2">Del sistema</th>
-                <th className="pb-2 pr-2">Temática</th>
-                <th className="pb-2 pr-2">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map((t) => (
-                <tr key={t.id} className="border-b border-[#e5e7eb]">
-                  <td className="py-2 pr-2">
-                    <div className="w-14 h-10 bg-[#f3f4f6] rounded overflow-hidden">
-                      <img src={t.imageUrl} alt="" className="w-full h-full object-contain" />
-                    </div>
-                  </td>
-                  <td className="py-2 pr-2 font-medium text-[#1a1a1a]">{t.name}</td>
-                  <td className="py-2 pr-2 text-[#6b7280]">{t.album?.title ?? "—"}</td>
-                  <td className="py-2 pr-2 text-[#6b7280]">{t.widthCm}×{t.heightCm} cm</td>
-                  <td className="py-2 pr-2">
-                    {t.isSystemTemplate ? (
-                      <span className="text-green-600 text-xs">Sí</span>
-                    ) : (
-                      <span className="text-[#6b7280] text-xs">No</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-2">
-                    <input
-                      type="text"
-                      className="rounded border border-[#e5e7eb] px-2 py-1 text-xs w-28"
-                      placeholder="Temática"
-                      value={themeInputs[t.id] ?? t.theme ?? ""}
-                      onChange={(e) => setThemeInputs((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                    />
-                    <button
-                      type="button"
-                      className="ml-1 text-xs text-[#c27b3d] hover:underline"
-                      onClick={() => saveTheme(t)}
-                      disabled={patchingId === t.id}
-                    >
-                      Guardar
-                    </button>
-                  </td>
-                  <td className="py-2 pr-2">
-                    <button
-                      type="button"
-                      className="text-xs text-[#c27b3d] hover:underline"
-                      onClick={() => toggleSystem(t)}
-                      disabled={patchingId === t.id}
-                    >
-                      {t.isSystemTemplate ? "Quitar del sistema" : "Marcar del sistema"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      ) : null}
+
+      <ul className="grid gap-3">
+        {(rows ?? []).map((r) => (
+          <li key={r.legacyTemplateId}>
+            <Card className="flex items-center gap-4 p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={r.imageUrl} alt="" className="h-16 w-16 rounded object-cover ring-1 ring-[#e5e7eb]" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#111827]">{r.name}</p>
+                <p className="text-xs text-[#6b7280]">
+                  #{r.legacyTemplateId} · {r.slots} recuadro(s) de foto
+                </p>
+              </div>
+              {r.templateV2Id ? (
+                <div className="flex shrink-0 gap-3 text-sm">
+                  <Link
+                    href={`/fotografo/diseno/plantillas/v2/${r.templateV2Id}/probar`}
+                    className="font-medium text-[#c27b3d] underline"
+                  >
+                    Probar
+                  </Link>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                    Migrada
+                  </span>
+                </div>
+              ) : (
+                <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+                  Sin migrar
+                </span>
+              )}
+            </Card>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

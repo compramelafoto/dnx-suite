@@ -1,10 +1,14 @@
+"use client";
+
 import { QrBlockRenderer } from "./QrBlockRenderer";
-import React from "react";
+import React, { useState } from "react";
 import {
+  computeCoverCropRect,
   getResolvedVariableText,
   getTextVisualConfig,
   toRenderableBlocks,
   type TemplateV2Block,
+  type PhotoCrop,
   type TemplateV2Canvas,
 } from "@repo/template-editor-core";
 import { resolveBracePlaceholdersInText } from "@repo/template-editor-core";
@@ -22,7 +26,16 @@ type TemplateCanvasRendererProps = {
   /** Editor: mientras se edita inline, oculta el cuerpo del texto para no duplicarlo bajo el contentEditable. */
   hideTextBodyForBlockId?: string | null;
   className?: string;
+  /** Si se pasa, solo se dibujan los bloques de esa cara. */
+  pageIndex?: number;
+  /**
+   * Fotos concretas para bloques de imagen, por id de bloque, con su encuadre. Lo usa la revisión
+   * de diseños: cada hueco de foto del cliente muestra la foto asignada tal como va a imprimirse.
+   */
+  photoOverrides?: Record<string, PhotoOverride>;
 };
+
+export type PhotoOverride = { src: string; crop?: PhotoCrop };
 
 /** Multiselección: contorno liviano; el primario se pinta en TemplateEditorCanvas (handles). */
 const SECONDARY_SELECTION_OUTLINE = "1.5px solid rgba(59, 130, 246, 0.42)";
@@ -261,6 +274,88 @@ function ImageBlockRenderer({
   );
 }
 
+/**
+ * Una foto encuadrada en su hueco, con la misma cuenta que usa la exportación
+ * (`computeCoverCropRect`): lo que se aprueba en pantalla es lo que se imprime.
+ */
+function CroppedPhotoRenderer({
+  override,
+  config,
+  layoutWidth,
+  layoutHeight,
+}: {
+  override: PhotoOverride;
+  config: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const [natural, setNatural] = useState<{ src: string; w: number; h: number } | null>(null);
+  const size = natural && natural.src === override.src ? natural : null;
+  const maskShape = String(config.maskShape ?? "rect").toLowerCase();
+  const borderRadius = Math.max(0, Number(config.borderRadius ?? 0));
+
+  let imgStyle: React.CSSProperties = {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+    maxWidth: "none",
+  };
+  if (size) {
+    const rect = computeCoverCropRect({
+      srcWidth: size.w,
+      srcHeight: size.h,
+      slotWidth: layoutWidth,
+      slotHeight: layoutHeight,
+      crop: override.crop,
+    });
+    const scale = layoutWidth / rect.width;
+    imgStyle = {
+      ...imgStyle,
+      width: size.w * scale,
+      height: size.h * scale,
+      left: -rect.left * scale,
+      top: -rect.top * scale,
+      objectFit: "fill",
+    };
+  }
+
+  const clip: React.CSSProperties =
+    maskShape === "ellipse"
+      ? { borderRadius: "50%" }
+      : maskShape === "circle"
+        ? { clipPath: `circle(${Math.min(layoutWidth, layoutHeight) / 2}px at 50% 50%)` }
+        : { borderRadius };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        background: "var(--te-chrome-sunken, #eef0f2)",
+        ...clip,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={override.src}
+        alt=""
+        draggable={false}
+        style={imgStyle}
+        onLoad={(e) => {
+          const el = e.currentTarget;
+          setNatural({ src: override.src, w: el.naturalWidth, h: el.naturalHeight });
+        }}
+      />
+    </div>
+  );
+}
+
 function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
   const variant = String(config.variant ?? "rectangle").toLowerCase();
   const fill = typeof config.fill === "string" ? config.fill : "var(--te-line)";
@@ -387,9 +482,13 @@ export function TemplateCanvasRenderer({
   diagnosticHighlightByBlockId,
   hideTextBodyForBlockId = null,
   className,
+  pageIndex,
+  photoOverrides,
 }: TemplateCanvasRendererProps) {
   const canvasBackground = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
-  const renderableBlocks = toRenderableBlocks(blocks);
+  const renderableBlocks = toRenderableBlocks(
+    pageIndex == null ? blocks : blocks.filter((b) => (b.pageIndex ?? 0) === pageIndex),
+  );
   const selectedSet = new Set(selectedBlockIds);
 
   return (
@@ -432,7 +531,15 @@ export function TemplateCanvasRenderer({
                 <VariableTextBlockRenderer config={block.configJson} resolvedVariables={resolvedVariables} />
               )
             ) : null}
-            {block.type === "IMAGE" ? (
+            {(block.type === "IMAGE" || block.type === "PHOTO") && photoOverrides?.[block.id]?.src ? (
+              <CroppedPhotoRenderer
+                override={photoOverrides[block.id]!}
+                config={block.configJson}
+                layoutWidth={block.layout.width}
+                layoutHeight={block.layout.height}
+              />
+            ) : null}
+            {block.type === "IMAGE" && !photoOverrides?.[block.id]?.src ? (
               <ImageBlockRenderer
                 config={block.configJson}
                 resolvedVariables={resolvedVariables}
@@ -450,7 +557,7 @@ export function TemplateCanvasRenderer({
               />
             ) : null}
             {block.type === "BACKGROUND" ? <BackgroundLegacyRenderer config={block.configJson} /> : null}
-            {block.type === "PHOTO" ? (
+            {block.type === "PHOTO" && !photoOverrides?.[block.id]?.src ? (
               <PhotoLegacyRenderer layoutWidth={block.layout.width} layoutHeight={block.layout.height} />
             ) : null}
           </BlockContainer>

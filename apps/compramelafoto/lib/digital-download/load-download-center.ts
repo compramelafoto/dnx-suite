@@ -17,6 +17,7 @@ import {
   buildPhotoDownloadApiUrl,
   buildZipDownloadApiUrl,
 } from "@/lib/digital-download/download-center-url";
+import { parseDesignV2Data } from "@/lib/design-v2/design-data";
 
 export type DownloadCenterPhoto = {
   photoId: number;
@@ -31,6 +32,14 @@ export type DownloadCenterZipState =
   | { status: "ready"; downloadUrl: string }
   | { status: "error" };
 
+export type DownloadCenterDesign = {
+  id: number;
+  name: string;
+  pdfUrl: string | null;
+  /** Una imagen por cara, en orden. */
+  jpgUrls: string[];
+};
+
 export type DownloadCenterData = {
   orderId: number;
   accessToken: string;
@@ -42,6 +51,8 @@ export type DownloadCenterData = {
   photos: DownloadCenterPhoto[];
   /** Videos comprados en el mismo pedido. Cada uno se baja por su cuenta. */
   videos: DownloadCenterVideo[];
+  /** Diseños con las fotos elegidas (carpeta, póster…), cuando el fotógrafo ya los aprobó. */
+  designs: DownloadCenterDesign[];
   availability: {
     status: DownloadAvailabilityStatus;
     daysRemaining: number;
@@ -246,6 +257,8 @@ export async function loadDownloadCenterByToken(
 
   photos.sort((a, b) => a.photoId - b.photoId);
 
+  const designs = await loadApprovedDesignsForOrder(order.id);
+
   const appBase =
     baseUrl ??
     process.env.APP_URL ??
@@ -264,6 +277,7 @@ export async function loadDownloadCenterByToken(
       accessToken,
       baseUrl: appBase,
     }),
+    designs,
     availability: {
       status: effectiveStatus,
       daysRemaining: albumDeleted ? 0 : availability.daysRemaining,
@@ -273,6 +287,34 @@ export async function loadDownloadCenterByToken(
     zip: mapZipJob(zipJob, zipDownloadUrl, photos.length),
     supportUrl: `${appBase.replace(/\/$/, "")}/cliente/soporte`,
   };
+}
+
+/** Diseños aprobados del pedido, con sus archivos. Los que están en revisión no se muestran. */
+async function loadApprovedDesignsForOrder(orderId: number): Promise<DownloadCenterDesign[]> {
+  const projects = await prisma.designProject.findMany({
+    where: { albumOrderId: orderId, status: "EXPORTED" },
+    orderBy: { id: "asc" },
+    select: { id: true, templateV2Id: true, currentRevision: { select: { dataJson: true } } },
+  });
+  if (projects.length === 0) return [];
+  const templateIds = projects.map((p) => p.templateV2Id).filter((id): id is string => id != null);
+  const templates = await prisma.templateV2.findMany({
+    where: { id: { in: templateIds } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(templates.map((t) => [t.id, t.name]));
+  const designs: DownloadCenterDesign[] = [];
+  for (const p of projects) {
+    const data = parseDesignV2Data(p.currentRevision?.dataJson);
+    if (!data?.export) continue;
+    designs.push({
+      id: p.id,
+      name: (p.templateV2Id && nameById.get(p.templateV2Id)) || "Tu diseño",
+      pdfUrl: data.export.pdfUrl,
+      jpgUrls: data.export.jpgUrls,
+    });
+  }
+  return designs;
 }
 
 /** Obtiene el token de acceso al centro para un pedido pagado (si existe). */

@@ -55,6 +55,10 @@
     {
       "path": "/api/cron/presupuestos-seguimiento",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/pedidos-recordatorios",
+      "schedule": "0 13 * * *"
     }
   ]
 }

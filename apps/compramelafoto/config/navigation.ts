@@ -108,7 +108,17 @@ export function getPhotographerSidebarItems(icons: {
         { id: "escolar-instituciones", label: "Instituciones", path: "/fotografo/escuelas" },
         { id: "escolar-pedidos", label: "Pedidos escolares", path: "/fotografo/escuelas/pedidos" },
         { id: "escolar-disenos", label: "Diseños escolares", path: "/dashboard/designs" },
-        { id: "escolar-revisiones", label: "Revisiones", path: "/dashboard/design-projects" },
+        { id: "escolar-revisiones", label: "Revisiones", path: "/fotografo/disenos" },
+      ],
+    },
+    {
+      id: "disenos",
+      label: "Diseños",
+      path: "/fotografo/disenos",
+      icon: icons.design ?? icons.albums,
+      children: [
+        { id: "disenos-revisar", label: "Para revisar", path: "/fotografo/disenos" },
+        { id: "disenos-plantillas", label: "Mis plantillas", path: "/fotografo/diseno/plantillas/v2" },
       ],
     },
     {

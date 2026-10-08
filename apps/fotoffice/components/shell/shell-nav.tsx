@@ -461,6 +461,19 @@ export function ShellNav({
               },
             ]
           : []),
+        // Etapa 3, Entrega B1: ajustes de Pedidos. Con Presupuestos o Pedidos encendido: se pueden
+        // dejar listos antes de encender el módulo `orders`.
+        ...(ve(QUOTES_MODULE_KEY) || ve(ORDERS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/pedidos",
+                label: "Pedidos",
+                description: "Recordatorio de cuotas, rubro de ingreso por omisión y checklist de los pedidos.",
+                icon: ClipboardList,
+                isActive: under("/workspace/configuracion/pedidos"),
+              },
+            ]
+          : []),
         {
           href: "/workspace/configuracion/plantillas",
           label: "Plantillas",

@@ -15,6 +15,7 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { enumerar, tiposConModuloEncendido } from "@/lib/campos/modulos";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 
 export default async function WorkspaceSettingsPage() {
@@ -50,6 +51,10 @@ export default async function WorkspaceSettingsPage() {
   // Configuración → Presupuestos: con Consultas o Presupuestos encendido (los ajustes se dejan
   // listos antes de encender el módulo, como en el menú).
   const presupuestosVisible = consultasEncendido || (await isModuleEnabledForWorkspace(ensured.workspaceId, QUOTES_MODULE_KEY));
+  // Configuración → Pedidos: con Presupuestos o Pedidos encendido (como en el menú).
+  const pedidosVisible =
+    (await isModuleEnabledForWorkspace(ensured.workspaceId, QUOTES_MODULE_KEY)) ||
+    (await isModuleEnabledForWorkspace(ensured.workspaceId, ORDERS_MODULE_KEY));
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -193,6 +198,21 @@ export default async function WorkspaceSettingsPage() {
             <span className="block text-sm font-semibold">Presupuestos</span>
             <span className="block text-xs text-[var(--fo-muted)]">
               Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && pedidosVisible ? (
+        <Link
+          href="/workspace/configuracion/pedidos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Pedidos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Recordatorio de cuotas, rubro de ingreso por omisión y checklist de los pedidos.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>

@@ -1,5 +1,36 @@
 import type { TemplateVariableDefinition } from "../../variables/types";
 
+/** Cuántos huecos de "foto del cliente" ofrece el catálogo: `photo_1` … `photo_12`. */
+export const SCHOOL_CLIENT_PHOTO_SLOT_COUNT = 12;
+
+/** Gris liso, sin red: lo que muestra la vista previa del editor en un hueco de foto. */
+export const SCHOOL_CLIENT_PHOTO_PLACEHOLDER =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAAEUlEQVR4nGN49OIDVsQwkBIAV9CC4fMnHZAAAAAASUVORK5CYII=";
+
+/**
+ * Huecos que se llenan con las fotos que eligió el cliente, en el orden en que las eligió.
+ *
+ * Las plantillas escolares ya usaban `photo_1`, `photo_2` y `photo_3` (la "Carpeta escolar 3
+ * fotos"), pero el catálogo no las declaraba: la vista previa del editor las rechazaba como
+ * "variable de imagen inválida" y no había forma de ver el diseño.
+ */
+const SCHOOL_CLIENT_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = Array.from(
+  { length: SCHOOL_CLIENT_PHOTO_SLOT_COUNT },
+  (_, i) => ({
+    path: `photo_${i + 1}`,
+    label: `Foto del cliente ${i + 1}`,
+    description: `La foto número ${i + 1} que elige el cliente al canjear o comprar el pack.`,
+    valueType: "image" as const,
+    required: false,
+    example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    formatters: ["none"],
+    usableIn: ["IMAGE" as const],
+    defaultFallback: null,
+    group: "photos",
+    groupLabel: "Fotos del cliente",
+  }),
+);
+
 /**
  * Definiciones escolares (solo catálogo).
  * Sin Prisma, pedidos ni resolución de negocio — el caller entrega `data`.
@@ -143,4 +174,5 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     group: "branding",
     groupLabel: "Marca",
   },
+  ...SCHOOL_CLIENT_PHOTO_DEFINITIONS,
 ];

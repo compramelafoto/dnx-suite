@@ -103,12 +103,14 @@ describe("movimientos que se anulan en su módulo", () => {
   it("un cobro de pedido no se anula desde Caja; los demás sí", async () => {
     const { noSeAnulaEnCaja } = await import("./reverse");
     expect(noSeAnulaEnCaja("pedidos")).toBe("Este cobro se anula desde el pedido.");
+    expect(noSeAnulaEnCaja("pedidos-pagos")).toBe("Este pago se anula desde el pedido.");
     for (const s of ["manual", "sales", "membership", "bookings", null, undefined]) expect(noSeAnulaEnCaja(s)).toBeNull();
   });
 
   it("la anulación de un cobro de pedido tampoco se deshace desde Caja; otras anulaciones sí", async () => {
     const { noSeAnulaEnCaja } = await import("./reverse");
     expect(noSeAnulaEnCaja("manual", "pedidos")).toBe("Este cobro se anula desde el pedido.");
+    expect(noSeAnulaEnCaja("manual", "pedidos-pagos")).toBe("Este pago se anula desde el pedido.");
     for (const s of ["manual", "sales", null, undefined]) expect(noSeAnulaEnCaja("manual", s)).toBeNull();
   });
 

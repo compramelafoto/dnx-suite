@@ -38,6 +38,8 @@ export const MOVEMENT_SOURCES = [
   /** Gasto o ingreso de un proyecto de la comisión, cargado desde el proyecto. */
   "governance",
   "pedidos",
+  /** Pago de una cuenta a pagar de un pedido (a un proveedor): se anula desde el pedido. */
+  "pedidos-pagos",
 ] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 

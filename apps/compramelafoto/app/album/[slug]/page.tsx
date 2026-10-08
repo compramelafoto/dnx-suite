@@ -173,6 +173,7 @@ const selectAlbumBase = {
       requiresSelection: true,
       requiresDesign: true,
       templateId: true,
+      templateV2Id: true,
       packType: true,
       availabilityPhase: true,
       isActive: true,

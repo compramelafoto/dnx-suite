@@ -17,6 +17,7 @@ export * from "./block-arrays-equivalent";
 export * from "./block-display-name";
 export * from "./block-style-clipboard";
 export * from "./canvas-print-units";
+export * from "./client-photo-slots";
 export * from "./clamp-block-position";
 export * from "./create-default-blocks";
 export * from "./diagnostic-quick-fixes";

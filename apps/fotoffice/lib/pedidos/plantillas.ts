@@ -52,6 +52,45 @@ export async function asegurarPlantillaRecibo(workspaceId: string): Promise<void
   }
 }
 
+/** Texto inicial del recordatorio automático del vencimiento de una cuota (Entrega B1). */
+export const RECORDATORIO_INICIAL = {
+  asunto: "Recordatorio: vence una cuota[si:pedido_numero] de tu pedido N° [pedido_numero][/si]",
+  cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Te recordamos que el [cuota_vence] vence la cuota de [cuota_importe][si:pedido_numero] de tu pedido N° [pedido_numero][/si].
+
+Podés ver el detalle y tus recibos acá:
+
+[pedido_enlace]
+
+Si ya la pagaste, no tengas en cuenta este mensaje. Cualquier duda, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si].
+
+[firma]`,
+} as const;
+
+const CLAVE_RECORDATORIO = "RECORDATORIO_CUOTA" as const;
+
+/**
+ * Crea, una sola vez por organización, la plantilla automática del recordatorio de cuotas. Nace
+ * encendida: lo que decide si sale es el interruptor de Configuración → Pedidos (que nace apagado
+ * salvo en DNX). Idempotente como `asegurarPlantillaRecibo`.
+ */
+export async function asegurarPlantillaRecordatorio(workspaceId: string): Promise<void> {
+  if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, systemKey: CLAVE_RECORDATORIO } })) > 0) return;
+  const def = AUTOMATICOS[CLAVE_RECORDATORIO];
+  try {
+    await prisma.fotofficeMessageTemplate.create({
+      data: {
+        workspaceId, systemKey: CLAVE_RECORDATORIO, channel: def.canal, entityType: def.tipo, name: def.nombre,
+        subject: RECORDATORIO_INICIAL.asunto, body: RECORDATORIO_INICIAL.cuerpo, enabled: true, order: 4,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    if ((e as { code?: unknown })?.code !== "P2002") throw e;
+  }
+}
+
 /** Plantillas iniciales "Tu pedido" de DNX Estudio, con el enlace del pedido. */
 export const PLANTILLAS_PEDIDO_DNX: readonly PlantillaInicial[] = [
   {
