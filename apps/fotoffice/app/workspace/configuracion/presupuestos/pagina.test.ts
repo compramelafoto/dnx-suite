@@ -27,11 +27,11 @@ describe("Configuración → Presupuestos", () => {
     expect(aqui("actions.ts")).not.toContain("isModuleEnabledForWorkspace");
   });
 
-  it("enlaza a Numeración y le recuerda a DNX el próximo número 2025262", () => {
+  it("enlaza a Numeración y explica el formato con año", () => {
     const p = aqui("page.tsx");
     expect(p).toContain('href="/workspace/configuracion/numeracion"');
-    expect(p).toContain('const PROXIMO_NUMERO_DNX = "2025262";');
-    expect(p).toContain("esSlugDnx(slug) ?");
+    expect(p).toContain("2026-0001");
+    expect(p).not.toContain("2025262");
   });
 
   it("las acciones son de servidor y pasan por el contexto con `configurar` primero", () => {

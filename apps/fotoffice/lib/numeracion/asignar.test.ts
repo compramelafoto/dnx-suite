@@ -36,8 +36,8 @@ describe("asignarNumero", () => {
   it("crea las secuencias la primera vez y numera en orden", async () => {
     expect((await numerar()).display).toBe("2026-0001");
     expect(await numerar()).toEqual({ year: 2026, value: 2, display: "2026-0002" });
-    expect((await numerar("PRESUPUESTO")).display).toBe("1");
-    expect((await numerar("PRESUPUESTO")).display).toBe("2");
+    expect((await numerar("PRESUPUESTO")).display).toBe("2026-0001");
+    expect((await numerar("PRESUPUESTO")).display).toBe("2026-0002");
     expect(B.datos.fotofficeSequence).toHaveLength(5);
     expect(B.datos.fotofficeRecordNumber).toHaveLength(4);
   });
@@ -90,6 +90,8 @@ describe("asignarNumero", () => {
   });
 
   it("sin año no reinicia", async () => {
+    // Por omisión todas llevan año; ésta se configuró sin año.
+    B.agregar("fotofficeSequence", { workspaceId: "ws-1", key: "PEDIDO", withYear: false, digits: 1, nextValue: 1 });
     await numerar("PEDIDO", new Date("2026-12-31T10:00:00-03:00"));
     expect((await numerar("PEDIDO", new Date("2027-01-02T10:00:00-03:00"))).display).toBe("2");
     expect(secuencia("PEDIDO").currentYear).toBeNull();
