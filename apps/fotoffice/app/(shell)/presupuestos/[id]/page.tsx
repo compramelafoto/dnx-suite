@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { ConfirmarPedido } from "@/components/pedidos/confirmar-pedido";
 import { AccionesPresupuesto } from "@/components/presupuestos/acciones-presupuesto";
 import { EditorPresupuesto } from "@/components/presupuestos/editor-presupuesto";
 import { EnviarPresupuesto } from "@/components/presupuestos/enviar-presupuesto";
@@ -17,6 +18,8 @@ import { leerAjustes } from "@/lib/presupuestos/ajustes";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { fechaDelEvento } from "@/lib/presupuestos/evento";
 import { entradaGuardada, importeDeOpcion, opcionesPublicas, opcionesVacias } from "@/lib/presupuestos/opciones-pago";
+import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
+import { pedidoDePresupuesto } from "@/lib/pedidos/pedidos";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +83,11 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   const ultima = detalle.versiones.at(-1)?.number ?? 1;
   // Las opciones de pago congeladas en la vigente enviada, y la que eligió el cliente.
   const opcionesVigente = vigente?.sentAt ? opcionesPublicas(vigente.paymentOptions) : [];
+  // Aceptado: "Confirmar pedido" (con "Gestionar" en Pedidos) o, si ya se confirmó, el enlace al
+  // pedido (con "Ver" en Pedidos). Los niveles ya incluyen que el módulo `orders` esté encendido.
+  const aceptado = detalle.estado === "ACEPTADO";
+  const pedido = aceptado ? await pedidoDePresupuesto(ctx, detalle.id) : null;
+  const confirmaPedido = aceptado && pedido === null && puedeGestionarPedidos(ctx);
 
   return (
     <div className="space-y-6">
@@ -105,6 +113,16 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         </span>
         {detalle.pedidoPorConfirmar ? <span className="text-[var(--fo-muted)]">Pedido por confirmar</span> : null}
       </div>
+
+      {pedido ? (
+        <p className="fo-card text-sm">
+          Este presupuesto ya tiene pedido:{" "}
+          <Link href={`/pedidos/${encodeURIComponent(pedido.id)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
+            Pedido N° {pedido.numero}
+          </Link>
+        </p>
+      ) : null}
+      {confirmaPedido ? <ConfirmarPedido presupuestoId={detalle.id} hoy={diaEnBuenosAires(new Date())} /> : null}
 
       {gestiona ? (
         <AccionesPresupuesto

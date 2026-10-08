@@ -27,6 +27,9 @@ import { ETIQUETA_CATEGORIA_CONTACTO } from "@/lib/consultas/constantes";
 import { PerfilContactoTarjeta } from "@/components/contactos/perfil-contacto";
 import { ConsultasDelContacto } from "@/components/contactos/consultas-del-contacto";
 import { aTarjeta, TarjetaPresupuestos } from "@/components/presupuestos/tarjeta-presupuestos";
+import { aTarjetaPedido, TarjetaPedidos } from "@/components/pedidos/tarjeta-pedidos";
+import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
+import { listarPedidos } from "@/lib/pedidos/pedidos";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
@@ -85,6 +88,17 @@ export default async function ClientePage({
           { clientId: cliente.id },
         )
       ).map(aTarjeta)
+    : null;
+  // Tarjeta "Pedidos" del contacto: con "Ver" en Pedidos; "Nuevo pedido" con "Gestionar". Nunca
+  // lleva costos (`aTarjetaPedido`).
+  const vePedidos = puede(acceso, "ver", ORDERS_MODULE_KEY);
+  const pedidos = vePedidos
+    ? (
+        await listarPedidos(
+          { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso },
+          { clientId: cliente.id },
+        )
+      ).map(aTarjetaPedido)
     : null;
   const perfil = perfiles.get(cliente.id);
   if (!perfil) notFound();
@@ -180,6 +194,13 @@ export default async function ClientePage({
                 hrefNuevo={`/presupuestos/nuevo?contacto=${encodeURIComponent(cliente.id)}`}
                 puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY)}
                 vacio="Todavía no tiene presupuestos."
+              />
+            ) : null}
+            {pedidos ? (
+              <TarjetaPedidos
+                pedidos={pedidos}
+                hrefNuevo={puede(acceso, "operar", ORDERS_MODULE_KEY) ? `/pedidos/nuevo?contacto=${encodeURIComponent(cliente.id)}` : null}
+                vacio="Todavía no tiene pedidos."
               />
             ) : null}
             <DatosFicha titulo="¿Es socio?">

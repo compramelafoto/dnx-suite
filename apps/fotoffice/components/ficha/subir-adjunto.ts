@@ -41,6 +41,19 @@ export async function subirAdjunto(
   archivo: File,
   alAvanzar: (porcentaje: number) => void,
 ): Promise<Resultado> {
+  const r = await subirAdjuntoConId(persona, archivo, alAvanzar);
+  return r.ok ? { ok: true } : r;
+}
+
+/**
+ * Igual que `subirAdjunto`, pero devuelve el id del adjunto ya confirmado: lo usa el comprobante
+ * de un cobro (el adjunto queda en la ficha del contacto y el cobro lo referencia).
+ */
+export async function subirAdjuntoConId(
+  persona: PersonaFicha,
+  archivo: File,
+  alAvanzar: (porcentaje: number) => void,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const problema = revisarArchivo(archivo);
   if (problema) return { ok: false, error: problema };
   const tipo = tipoDeArchivo(archivo.name, archivo.type);
@@ -48,5 +61,6 @@ export async function subirAdjunto(
   if (!permiso.ok) return permiso;
   const subio = await putConProgreso(permiso.url, archivo, tipo, alAvanzar);
   if (!subio) return { ok: false, error: "La subida no se completó. Probá de nuevo." };
-  return confirmarSubidaAction(persona, permiso.id);
+  const confirmado = await confirmarSubidaAction(persona, permiso.id);
+  return confirmado.ok ? { ok: true, id: permiso.id } : confirmado;
 }

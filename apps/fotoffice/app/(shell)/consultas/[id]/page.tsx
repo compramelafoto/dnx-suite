@@ -12,6 +12,9 @@ import { ContactoDeConsulta } from "@/components/consultas/contacto-de-consulta"
 import { DatosConsulta } from "@/components/consultas/datos-consulta";
 import { Participantes } from "@/components/consultas/participantes";
 import { aTarjeta, TarjetaPresupuestos } from "@/components/presupuestos/tarjeta-presupuestos";
+import { aTarjetaPedido, TarjetaPedidos } from "@/components/pedidos/tarjeta-pedidos";
+import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
+import { listarPedidos } from "@/lib/pedidos/pedidos";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
@@ -87,6 +90,10 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   const presupuestos = vePresupuestos ? (await listarPresupuestos(ctxPresupuestos, { consultaLeadId: id })).map(aTarjeta) : null;
   // Envíos, vistas y aceptaciones de sus presupuestos, para el historial (sin costos ni IP).
   const eventosPresupuestos = vePresupuestos ? await eventosDePresupuestos(ctxPresupuestos, id) : [];
+  // Tarjeta "Pedidos": con "Ver" en Pedidos. Sin "Nuevo pedido" (se confirma desde el presupuesto
+  // aceptado). La tarjeta nunca lleva costos (`aTarjetaPedido`).
+  const vePedidos = puede(acceso, "ver", ORDERS_MODULE_KEY);
+  const pedidos = vePedidos ? (await listarPedidos(ctxPresupuestos, { consultaLeadId: id })).map(aTarjetaPedido) : null;
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -183,6 +190,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               vacio="Esta consulta todavía no tiene presupuestos."
             />
           ) : null}
+          {pedidos ? <TarjetaPedidos pedidos={pedidos} vacio="Esta consulta todavía no tiene pedidos." /> : null}
           <section aria-labelledby="datos-titulo" className="fo-card space-y-3">
             <h2 id="datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
               {datosConsulta ? "Contacto y mensaje" : "Datos de la consulta"}

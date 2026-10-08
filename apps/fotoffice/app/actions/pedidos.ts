@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { MENSAJES_PEDIDO } from "@/lib/pedidos/acceso";
 import { anularCobro, registrarCobro, type ResultadoAnulacion, type ResultadoCobro } from "@/lib/pedidos/cobros";
 import { enlaceDelPedido, enlaceDelRecibo, type ResultadoEnlace } from "@/lib/pedidos/enlace";
+import { enviarMensajePedido, type ResultadoMensajePedido } from "@/lib/pedidos/envio";
 import { enviarReciboAutomatico } from "@/lib/pedidos/recibos";
 import { confirmarPedido, vistaPreviaConfirmacion, type ResultadoConfirmacion, type VistaPreviaConfirmacion } from "@/lib/pedidos/confirmar";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
@@ -184,4 +185,34 @@ export async function enlaceDelReciboAction(datos: { cobroId: string }): Promise
   const ctx = await contextoDePedidos("ver");
   if (!ctx) return SIN_ACCESO;
   return enlaceDelRecibo(ctx, datos.cobroId);
+}
+
+/**
+ * "Enviar por correo" / "WhatsApp" desde la ficha del pedido (con `cobroId`, el recibo de ese
+ * cobro). El texto llega con variables y lo completa el servidor. Queda en el historial del pedido.
+ */
+export async function enviarMensajePedidoAction(datos: {
+  pedidoId: string;
+  canal: string;
+  templateId?: string | null;
+  asunto?: string | null;
+  cuerpo?: string | null;
+  cobroId?: string | null;
+}): Promise<ResultadoMensajePedido> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId) || typeof datos.canal !== "string") return INVALIDO;
+  if (datos.templateId != null && !esId(datos.templateId)) return INVALIDO;
+  if (datos.asunto != null && typeof datos.asunto !== "string") return INVALIDO;
+  if (datos.cuerpo != null && typeof datos.cuerpo !== "string") return INVALIDO;
+  if (datos.cobroId != null && !esId(datos.cobroId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await enviarMensajePedido(ctx, datos.pedidoId, {
+    canal: datos.canal,
+    templateId: datos.templateId ?? null,
+    asunto: datos.asunto ?? null,
+    cuerpo: datos.cuerpo ?? null,
+    cobroId: datos.cobroId ?? null,
+  });
+  if (r.ok || r.registrado) revalidar(datos.pedidoId);
+  return r;
 }

@@ -493,6 +493,8 @@ export type DatosWhatsapp = {
   entityId: string;
   templateId?: string | null;
   cuerpo: unknown;
+  /** La ficha donde queda el registro, si no es la del destinatario (como en `DatosCorreo`). */
+  registrarEn?: { entityType: "PRESUPUESTO" | "PEDIDO"; entityId: string };
 };
 
 export type ResultadoWhatsapp = { ok: true; url: string; mensajeId: string } | Falla;
@@ -527,8 +529,8 @@ export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opcione
       data: {
         workspaceId: ctx.workspaceId,
         channel: "WHATSAPP",
-        entityType: datos.entityType,
-        entityId: datos.entityId,
+        entityType: datos.registrarEn?.entityType ?? datos.entityType,
+        entityId: datos.registrarEn?.entityId ?? datos.entityId,
         templateId: plantilla.id,
         toAddress: numero,
         subject: null,

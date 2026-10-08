@@ -457,6 +457,15 @@ describe("rubro de ingreso", () => {
     expect((await P.leerPedido(LECTOR, pedidoId, deps))!.rubro).toBe("Sesiones");
   });
 
+  it("un pedido cancelado no cambia de rubro", async () => {
+    const { pedidoId } = await confirmado();
+    B.agregar("cashCategory", { id: "rubro-sesiones", workspaceId: "ws-1", name: "Sesiones", kind: "INGRESO" });
+    expect(await P.cambiarEstadoPedido(SABI, pedidoId, "CANCELADO", "No va más")).toEqual({ ok: true });
+    const antes = pedido(pedidoId).incomeCategoryId;
+    expect(await P.cambiarRubro(SABI, pedidoId, "rubro-sesiones")).toEqual({ ok: false, error: M.cancelado });
+    expect(pedido(pedidoId).incomeCategoryId).toBe(antes);
+  });
+
   it("un rubro que dejó de ser INGRESO no se toma del catálogo", async () => {
     B.datos.cashCategory.find((c) => c.id === "rubro-bodas")!.kind = "EGRESO";
     const { pedidoId } = await confirmado();

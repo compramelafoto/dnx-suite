@@ -339,20 +339,35 @@ export async function cambiarEstadoPedido(
 
 // --- Rubro ------------------------------------------------------------------------------------
 
-/** Cambia el rubro de ingreso del pedido: un rubro INGRESO de Caja del mismo workspace. */
+/**
+ * Cambia el rubro de ingreso del pedido: un rubro INGRESO de Caja del mismo workspace. Con el
+ * candado del pedido (como cobrar o cambiar el estado) y nunca en un pedido cancelado.
+ */
 export async function cambiarRubro(ctx: CtxPedidos, pedidoId: unknown, categoryId: unknown): Promise<Resultado> {
   if (!puedeGestionarPedidos(ctx)) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
   if (!idValido(pedidoId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
   if (!idValido(categoryId)) return { ok: false, error: MENSAJES_PEDIDO.rubro };
   const { workspaceId } = ctx;
-  const [p, cat] = await Promise.all([
-    prisma.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true } }),
-    prisma.cashCategory.findFirst({ where: { id: categoryId, workspaceId, kind: "INGRESO" }, select: { id: true } }),
-  ]);
-  if (!p) return { ok: false, error: MENSAJES_PEDIDO.noExiste };
-  if (!cat) return { ok: false, error: MENSAJES_PEDIDO.rubro };
-  const r = await prisma.fotofficePedido.updateMany({ where: { id: pedidoId, workspaceId }, data: { incomeCategoryId: cat.id } });
-  return r.count === 1 ? { ok: true } : { ok: false, error: MENSAJES_PEDIDO.noExiste };
+  try {
+    return await prisma.$transaction(async (tx): Promise<Resultado> => {
+      await bloquearPedido(tx, pedidoId);
+      const [p, cat] = await Promise.all([
+        tx.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true, status: true } }),
+        tx.cashCategory.findFirst({ where: { id: categoryId, workspaceId, kind: "INGRESO" }, select: { id: true } }),
+      ]);
+      if (!p) return { ok: false, error: MENSAJES_PEDIDO.noExiste };
+      if (p.status === "CANCELADO") return { ok: false, error: MENSAJES_PEDIDO.cancelado };
+      if (!cat) return { ok: false, error: MENSAJES_PEDIDO.rubro };
+      const r = await tx.fotofficePedido.updateMany({
+        where: { id: pedidoId, workspaceId, status: p.status },
+        data: { incomeCategoryId: cat.id },
+      });
+      return r.count === 1 ? { ok: true } : { ok: false, error: MENSAJES_PEDIDO.cambio };
+    });
+  } catch (e) {
+    falla("cambiarRubro", e);
+    return { ok: false, error: MENSAJES_PEDIDO.fallo };
+  }
 }
 
 // --- Lecturas ---------------------------------------------------------------------------------
