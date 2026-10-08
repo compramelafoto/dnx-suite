@@ -87,7 +87,7 @@ export function SeccionGastosPersonales({ perfil, cambiar }: PropsSeccion) {
               />
               <button
                 type="button"
-                className="fo-btn"
+                className="fo-btn fo-btn-danger-outline"
                 aria-label={`Quitar renglón ${it.label || "sin nombre"}`}
                 onClick={() => editar(g.id, (x) => ({ ...x, items: x.items.filter((i) => i.id !== it.id) }))}
               >
@@ -99,12 +99,12 @@ export function SeccionGastosPersonales({ perfil, cambiar }: PropsSeccion) {
             <div className="flex gap-2">
               <button
                 type="button"
-                className="fo-btn"
+                className="fo-btn fo-btn-secondary"
                 onClick={() => editar(g.id, (x) => ({ ...x, items: [...x.items, { id: crypto.randomUUID(), label: "", amount: "", isCustom: true }] }))}
               >
                 Agregar renglón
               </button>
-              <button type="button" className="fo-btn" onClick={() => poner(grupos.filter((x) => x.id !== g.id))}>
+              <button type="button" className="fo-btn fo-btn-danger-outline" onClick={() => poner(grupos.filter((x) => x.id !== g.id))}>
                 Quitar grupo
               </button>
             </div>
@@ -114,7 +114,7 @@ export function SeccionGastosPersonales({ perfil, cambiar }: PropsSeccion) {
           </div>
         </fieldset>
       ))}
-      <button type="button" className="fo-btn" onClick={() => poner([...grupos, { id: crypto.randomUUID(), title: "", items: [] }])}>
+      <button type="button" className="fo-btn fo-btn-secondary" onClick={() => poner([...grupos, { id: crypto.randomUUID(), title: "", items: [] }])}>
         Agregar grupo
       </button>
     </Seccion>
