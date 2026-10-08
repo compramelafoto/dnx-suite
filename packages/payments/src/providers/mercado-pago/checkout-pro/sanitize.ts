@@ -34,8 +34,23 @@ export function sanitizeMercadoPagoPaymentResponse(
     live_mode: body.live_mode === true,
     // Cuándo se aprobó (la fecha de la venta en FOTOFFICE). No es un dato personal.
     date_approved: typeof body.date_approved === "string" ? body.date_approved : null,
+    // Comisiones que MP descontó (tipo y monto en pesos): sirven para el neto de un cobro. No son datos personales.
+    fee_details: sanitizeFeeDetails(body.fee_details),
     // omit payer, card, token, phone, email
   };
+}
+
+function sanitizeFeeDetails(raw: unknown): Array<{ type: string; amount: number }> {
+  if (!Array.isArray(raw)) return [];
+  const out: Array<{ type: string; amount: number }> = [];
+  for (const row of raw) {
+    if (typeof row !== "object" || row === null) continue;
+    const { type, amount } = row as { type?: unknown; amount?: unknown };
+    if (typeof type === "string" && typeof amount === "number" && Number.isFinite(amount)) {
+      out.push({ type: type.slice(0, 64), amount });
+    }
+  }
+  return out;
 }
 
 export function assertNoSecretLeak(payload: unknown, token: string): void {
