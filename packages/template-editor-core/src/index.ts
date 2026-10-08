@@ -47,6 +47,7 @@ export * from "./upload-template-version-image";
 export * from "./validate-save-payload";
 export * from "./variable-catalog";
 export * from "./variable-catalog-fotoffice";
+export * from "./variable-catalog-fotorank";
 export * from "./variable-catalog-product";
 
 export * from "./presets/index";

@@ -31,6 +31,8 @@ export const routes = {
       categorias: (id: string) => `/dashboard/concursos/${id}/categorias`,
       resultados: (id: string) => `/dashboard/concursos/${id}/resultados`,
       diplomas: (id: string) => `/dashboard/concursos/${id}/diplomas`,
+      /** Imágenes de ganadores para redes, diseñadas en el diseñador. */
+      ganadores: (id: string) => `/dashboard/concursos/${id}/ganadores`,
       premios: (id: string) => `/dashboard/concursos/${id}/premios`,
       comercializacion: (id: string) => `/dashboard/concursos/${id}/comercializacion`,
       /** Carga y reemplazo de las imágenes del concurso. */

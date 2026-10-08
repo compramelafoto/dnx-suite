@@ -460,6 +460,10 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
           fontItalic: texto(b.fontStyle) === "italic",
           color: texto(b.color, "#111111"),
           textAlign: texto(b.align, "left").toUpperCase(),
+          // Las mayúsculas del diseño base se conservaban al imprimir pero no al pasar al editor.
+          ...(conversionDeLetras(b.textTransform) !== "none"
+            ? { textTransform: conversionDeLetras(b.textTransform) }
+            : {}),
         };
 
         blocks.push(
@@ -476,15 +480,31 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
 
       if (tipo === "image") {
         const clave = texto(b.variableKey);
+        /*
+         * La variable va en `source.variableKey`, que es donde la buscan el lienzo y el
+         * inspector; en la raíz sólo la leía la impresión, así que una imagen sembrada se veía
+         * como "Imagen libre" mientras se diseñaba. Se conserva también el encaje ("contain" en
+         * un logo) y el recorte, que antes se perdían al pasar al editor.
+         */
+        const encaje = texto(b.fit) === "contain" ? "contain" : "cover";
+        const recorte = texto(b.mask);
+        const forma = {
+          ...(recorte === "circle" || recorte === "ellipse" ? { maskShape: recorte } : {}),
+          ...(num(b.cornerRadius, 0) > 0 ? { borderRadius: px(num(b.cornerRadius, 0)) } : {}),
+        };
         blocks.push(
           clave === "photo"
-            ? { ...base, type: "PHOTO", configJson: { variableKey: "photo", fit: "cover" } }
+            ? {
+                ...base,
+                type: "PHOTO",
+                configJson: { variableKey: "photo", source: { variableKey: "photo" }, fit: encaje, ...forma },
+              }
             : {
                 ...base,
                 type: "IMAGE",
                 configJson: clave
-                  ? { variableKey: clave, fit: "cover" }
-                  : { src: texto(b.resourceRef), fit: "cover" },
+                  ? { variableKey: clave, source: { variableKey: clave }, fit: encaje, ...forma }
+                  : { src: texto(b.resourceRef), fit: encaje, ...forma },
               },
         );
         return;

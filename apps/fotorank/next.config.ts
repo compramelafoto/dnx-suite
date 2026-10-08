@@ -15,8 +15,24 @@ const nextConfig: NextConfig = {
     "@napi-rs/canvas",
     "@prisma/client",
     "@repo/db",
+    /*
+     * El diseñador (diplomas e imágenes de ganadores) rasteriza con `mupdf`, que es WebAssembly:
+     * un solo archivo igual para todos los sistemas, apto Vercel. El bundler no sabe empaquetar
+     * su `.wasm` de 10 MB; lo carga Node en tiempo de ejecución. `sharp` prepara las fotos.
+     */
+    "mupdf",
+    "sharp",
   ],
-  transpilePackages: ["@repo/auth", "@repo/quick-search", "@repo/jury-ranking", "@repo/payments"],
+  transpilePackages: [
+    "@repo/auth",
+    "@repo/quick-search",
+    "@repo/jury-ranking",
+    "@repo/payments",
+    // El diseñador compartido con FOTOFFICE, Clickatón y ComprameLaFoto (TypeScript fuente).
+    "@repo/design-studio",
+    "@repo/template-editor-core",
+    "@repo/template-editor-ui",
+  ],
   outputFileTracingRoot: monorepoRoot,
   /**
    * Prisma en las funciones de Vercel: solo lo que Node necesita para ejecutar en Linux.
@@ -45,6 +61,27 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/index-browser.js",
       "../../packages/db/prisma/schema.prisma",
     ],
+    /*
+     * El motor de rasterizado del diseñador, sólo en las rutas que dibujan: el `.wasm` pesa 10 MB
+     * y Next lo copia una vez por función; aplicado a todas, el build se queda sin disco (pasó en
+     * Clickatón). La emisión de diplomas corre como acción de servidor de sus páginas.
+     */
+    ...Object.fromEntries(
+      [
+        "/dashboard/concursos/[id]/diplomas",
+        "/dashboard/tools/diplomas-masivos",
+        "/api/fotorank/diplomas/templates/[templateId]/preview",
+        "/api/fotorank/contests/[contestId]/ganadores/[entryId]/[format]",
+        "/api/fotorank/contests/[contestId]/ganadores/zip",
+      ].map((ruta) => [
+        ruta,
+        [
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
+          "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+        ],
+      ]),
+    ),
   },
   /**
    * Segunda barrera, por si el rastreo automático de Next (o un include futuro) vuelve a sumar

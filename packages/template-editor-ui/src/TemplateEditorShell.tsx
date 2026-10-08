@@ -1597,6 +1597,7 @@ export function TemplateEditorShell({
               <TemplateEditorCanvas
                 state={state}
                 dispatch={dispatch}
+                resolvedVariables={valoresDeMuestra}
                 className="min-h-0 flex-1"
                 showSafeArea={showSafeArea}
                 showCenterAxes={showCenterAxes}
