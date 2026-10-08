@@ -32,6 +32,12 @@ export default async function PedidosPage({
         description="Los trabajos confirmados, con su plan de cuotas, lo cobrado y el saldo."
         actions={
           <div className="flex flex-wrap gap-2">
+            {/* Informes y "A pagar" son dinero: sólo con `veCostosDePedido`. */}
+            {veCostosDePedido(ctx) ? (
+              <Link href="/pedidos/informes" className="fo-btn fo-btn-secondary text-sm">
+                Informes
+              </Link>
+            ) : null}
             {/* "A pagar" es dinero de costos: sólo con `veCostosDePedido`. */}
             {veCostosDePedido(ctx) ? (
               <Link href="/pedidos/a-pagar" className="fo-btn fo-btn-secondary text-sm">
