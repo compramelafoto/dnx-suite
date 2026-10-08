@@ -20,6 +20,8 @@ import { calcularTotales } from "@/lib/presupuestos/totales";
 import { AsistenteCuantoCobro } from "./asistente-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
 import { PanelCuantoCobro } from "./panel-cuanto-cobro";
+import { EditorOpcionesPago } from "./editor-opciones-pago";
+import { opcionesVacias } from "@/lib/presupuestos/opciones-pago";
 
 /**
  * Editor del borrador de un presupuesto (spec §3.2).
@@ -103,6 +105,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
   const [descuento, setDescuento] = useState<Descuento | null>(datos.descuento);
   const [condiciones, setCondiciones] = useState(datos.condiciones ?? "");
   const [propuestaPago, setPropuestaPago] = useState(datos.propuestaPago ?? "");
+  const [opcionesPago, setOpcionesPago] = useState(() => datos.opcionesPago?.valor ?? opcionesVacias());
   const [seccionNueva, setSeccionNueva] = useState("");
   const [calculando, setCalculando] = useState<string | null>(null);
   /** Ítem recién creado para calcular: si se cierra el panel sin usarlo, se descarta. */
@@ -167,6 +170,7 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
         descuento,
         condiciones,
         propuestaPago,
+        ...(datos.opcionesPago ? { opcionesPago } : {}),
       }).catch(() => ({ ok: false as const, error: "No se pudo guardar. Probá de nuevo." }));
       if (r.ok) {
         guardadosRecientes.set(datos.presupuestoId, Date.now());
@@ -475,6 +479,18 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
           ) : null}
         </section>
       </div>
+
+      {datos.opcionesPago ? (
+        <section aria-label="Opciones de pago" className="fo-card space-y-3">
+          <h2 className="text-base font-semibold">Opciones de pago</h2>
+          <EditorOpcionesPago
+            valor={opcionesPago}
+            onCambio={(v) => { setOpcionesPago(v); setCambios(true); }}
+            vistaPrevia={{ total: totales.total, fechaEvento: datos.opcionesPago.fechaEvento, hoy: datos.opcionesPago.hoy }}
+            deshabilitado={!puedeGuardar}
+          />
+        </section>
+      ) : null}
 
       {puedeGuardar ? (
         <div className="flex flex-wrap items-center gap-3">

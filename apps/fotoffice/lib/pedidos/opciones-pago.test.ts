@@ -188,8 +188,37 @@ describe("normalizePaymentOptions", () => {
       ] as never,
     });
     const ids = r.installmentPlans.map((p) => p.id);
-    expect(ids[2]).toBe("p");
+    expect(ids).toEqual(["contado-2", "omision-2", "p", "p-2"]);
     expect(new Set([...ids, "contado", "omision"]).size).toBe(6);
+  });
+
+  it("los reemplazos de id son deterministas: normalizar dos veces da lo mismo", () => {
+    const crudo = {
+      installmentPlans: [
+        { numberOfInstallments: "2" },
+        { id: "  ", numberOfInstallments: "3" },
+        { id: "plan-1", numberOfInstallments: "4" },
+        { id: "x", numberOfInstallments: "5" },
+        { id: "x", numberOfInstallments: "6" },
+        { id: "x-2", numberOfInstallments: "7" },
+      ],
+    } as never;
+    const a = normalizePaymentOptions(crudo);
+    const b = normalizePaymentOptions(crudo);
+    expect(a).toEqual(b);
+    expect(a.installmentPlans.map((p) => p.id)).toEqual(["plan-1", "plan-2", "plan-1-2", "x", "x-2", "x-2-2"]);
+    // Y lo ya normalizado no cambia.
+    expect(normalizePaymentOptions(a)).toEqual(a);
+  });
+
+  it("cashEnabled sólo se toma si es booleano de verdad", () => {
+    expect(normalizePaymentOptions({ cashEnabled: false }).cashEnabled).toBe(false);
+    expect(normalizePaymentOptions({ cashEnabled: true }).cashEnabled).toBe(true);
+    for (const raro of ["false", 0, 1, null, "si", {}]) {
+      expect(normalizePaymentOptions({ cashEnabled: raro } as never).cashEnabled).toBe(
+        INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS.cashEnabled,
+      );
+    }
   });
 });
 

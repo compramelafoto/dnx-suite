@@ -110,13 +110,15 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     pedidoPorConfirmar: false, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficePresupuestoVersion: () => ({
-    terms: null, paymentProposal: null, costSnapshot: null, createdByUserId: null, createdAt: new Date(), sentAt: null,
+    terms: null, paymentProposal: null, paymentOptions: null, chosenPaymentOptionId: null, costSnapshot: null,
+    createdByUserId: null, createdAt: new Date(), sentAt: null,
     tokenHash: null, tokenExpiresAt: null, revokedAt: null, acceptedAt: null, acceptedName: null, acceptedIpHash: null,
     acceptedUserAgent: null,
   }),
   fotofficePresupuestoVista: () => ({ viewedAt: new Date(), ipHash: null, userAgent: null }),
   fotofficePresupuestoAjustes: () => ({
-    validityDays: 15, terms: null, paymentProposal: null, followUpDays: 3, followUpEnabled: false, updatedAt: new Date(),
+    validityDays: 15, terms: null, paymentProposal: null, paymentOptions: null, followUpDays: 3, followUpEnabled: false,
+    updatedAt: new Date(),
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
 };

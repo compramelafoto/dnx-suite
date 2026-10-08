@@ -13,6 +13,10 @@ import { catalogoParaEditor, costosCatalogoParaEditor, ultimoPerfilDelWorkspace 
 import { requirePresupuestos } from "@/lib/presupuestos/pagina";
 import { leerPresupuesto } from "@/lib/presupuestos/presupuestos";
 import { opcionesDeEnvio } from "@/lib/presupuestos/envio";
+import { leerAjustes } from "@/lib/presupuestos/ajustes";
+import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
+import { fechaDelEvento } from "@/lib/presupuestos/evento";
+import { entradaGuardada, importeDeOpcion, opcionesPublicas, opcionesVacias } from "@/lib/presupuestos/opciones-pago";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +51,13 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
     const [costosCatalogo, perfil] = detalle.veCostos
       ? await Promise.all([costosCatalogoParaEditor(ctx, ids), ultimoPerfilDelWorkspace(ctx)])
       : [undefined, null];
+    // Opciones de pago: las del borrador o, si nunca se tocaron, las de la organización.
+    const [ajustes, fechaEvento] = await Promise.all([leerAjustes(workspace.id), fechaDelEvento(workspace.id, detalle.consultaLeadId)]);
+    const opcionesPago = {
+      valor: entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago ?? opcionesVacias(),
+      fechaEvento,
+      hoy: diaEnBuenosAires(new Date()),
+    };
     const datos = armarDatosEditor({
       presupuestoId: detalle.id,
       borrador: { id: borrador.id, number: borrador.number, items: borrador.items, totals: borrador.totals, terms: borrador.terms, paymentProposal: borrador.paymentProposal },
@@ -54,6 +65,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
       veCostos: detalle.veCostos,
       costosCatalogo,
       perfil,
+      opcionesPago,
     });
     // La clave cambia con cada guardado: después de `router.refresh()` el editor se vuelve a montar
     // con lo que guardó el servidor (precios recalculados, ítems validados), no con su estado viejo.
@@ -66,6 +78,8 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   const enviadoVigente = vigente !== null && vigente.sentAt !== null;
   const titulo = detalle.numero ? `Presupuesto N° ${detalle.numero}` : "Presupuesto sin enviar";
   const ultima = detalle.versiones.at(-1)?.number ?? 1;
+  // Las opciones de pago congeladas en la vigente enviada, y la que eligió el cliente.
+  const opcionesVigente = vigente?.sentAt ? opcionesPublicas(vigente.paymentOptions) : [];
 
   return (
     <div className="space-y-6">
@@ -122,6 +136,24 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         ) : (
           <p className="fo-card text-sm text-[var(--fo-muted)]">Este presupuesto todavía no tiene una versión para mostrar.</p>
         ))}
+
+      {!editor && opcionesVigente.length > 0 ? (
+        <section aria-label="Opciones de pago" className="fo-card space-y-2 text-sm">
+          <h2 className="text-base font-semibold">Opciones de pago (V{vigente?.number})</h2>
+          <ul className="divide-y divide-[var(--fo-border)]">
+            {opcionesVigente.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <span>
+                  {o.etiqueta}
+                  {vigente?.chosenPaymentOptionId === o.id ? <strong className="ml-2">Elegida por el cliente</strong> : null}
+                  {o.nota && o.nota !== o.etiqueta ? <span className="block text-xs text-[var(--fo-muted)]">{o.nota}</span> : null}
+                </span>
+                <span className="tabular-nums">{importeDeOpcion(o)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

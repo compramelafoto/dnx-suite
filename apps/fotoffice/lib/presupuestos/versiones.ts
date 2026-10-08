@@ -14,6 +14,7 @@ import {
 } from "./constantes";
 import { ESTADOS_CERRADOS } from "./estados";
 import { costosDeVersion, type CostoDeCatalogo, type CostosVersion } from "./costos";
+import { entradaGuardada } from "./opciones-pago";
 import { calcularTotales, type TotalesPresupuesto } from "./totales";
 
 export { costosDeVersion, type CostoDeCatalogo, type CostosVersion, type OrigenCosto } from "./costos";
@@ -44,6 +45,8 @@ export type EntradaBorrador = {
   descuento?: unknown;
   condiciones?: unknown;
   propuestaPago?: unknown;
+  /** Opciones de pago del presupuesto (etapa 3). Sin el campo, las guardadas no se tocan. */
+  opcionesPago?: unknown;
 };
 
 export type BorradorNormalizado = {
@@ -203,6 +206,13 @@ export type VersionVista = {
   sentAt: Date | null;
   revokedAt: Date | null;
   acceptedAt: Date | null;
+  /**
+   * Opciones de pago tal como están guardadas: la entrada editable en un borrador (null: todavía
+   * las de la organización) o la instantánea congelada en una enviada (`lib/presupuestos/opciones-pago.ts`).
+   */
+  paymentOptions: unknown;
+  /** La opción que eligió el cliente al aceptar, o null. */
+  chosenPaymentOptionId: string | null;
   /** Sólo con permiso de costos; si no, null. */
   costos: CostosVersion | null;
 };
@@ -214,6 +224,8 @@ export const SELECT_VERSION = {
   totals: true,
   terms: true,
   paymentProposal: true,
+  paymentOptions: true,
+  chosenPaymentOptionId: true,
   costSnapshot: true,
   sentAt: true,
   revokedAt: true,
@@ -227,6 +239,8 @@ type FilaVersion = {
   totals: unknown;
   terms: string | null;
   paymentProposal: string | null;
+  paymentOptions?: unknown;
+  chosenPaymentOptionId?: string | null;
   costSnapshot: unknown;
   sentAt: Date | null;
   revokedAt: Date | null;
@@ -252,6 +266,8 @@ export function versionParaVista(fila: FilaVersion, conCostos: boolean): Version
     sentAt: fila.sentAt,
     revokedAt: fila.revokedAt,
     acceptedAt: fila.acceptedAt,
+    paymentOptions: fila.paymentOptions ?? null,
+    chosenPaymentOptionId: fila.chosenPaymentOptionId ?? null,
     costos: conCostos ? ((fila.costSnapshot as CostosVersion | null) ?? null) : null,
   };
 }
@@ -299,7 +315,7 @@ export async function crearNuevaVersion(ctx: CtxPresupuestos, presupuestoId: unk
       const base = p.currentVersionId
         ? await tx.fotofficePresupuestoVersion.findFirst({
             where: { id: p.currentVersionId, workspaceId, presupuestoId },
-            select: { items: true, totals: true, terms: true, paymentProposal: true, costSnapshot: true },
+            select: { items: true, totals: true, terms: true, paymentProposal: true, paymentOptions: true, costSnapshot: true },
           })
         : null;
       if (!base) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste };
@@ -311,6 +327,8 @@ export async function crearNuevaVersion(ctx: CtxPresupuestos, presupuestoId: unk
       const number = (ultima?.number ?? 0) + 1;
       // Copia profunda: la versión nueva no comparte nada con la enviada.
       const copia = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+      // Las opciones de pago vuelven a ser editables: la instantánea congelada pasa a entrada.
+      const opciones = entradaGuardada(base.paymentOptions);
       const nueva = await tx.fotofficePresupuestoVersion.create({
         data: {
           workspaceId,
@@ -320,6 +338,7 @@ export async function crearNuevaVersion(ctx: CtxPresupuestos, presupuestoId: unk
           totals: copia(base.totals) as Prisma.InputJsonValue,
           terms: base.terms,
           paymentProposal: base.paymentProposal,
+          ...(opciones ? { paymentOptions: opciones as unknown as Prisma.InputJsonValue } : {}),
           costSnapshot: (base.costSnapshot === null ? costosVacios() : copia(base.costSnapshot)) as Prisma.InputJsonValue,
           createdByUserId: ctx.userId,
         },
@@ -342,16 +361,29 @@ export async function crearNuevaVersion(ctx: CtxPresupuestos, presupuestoId: unk
 
 /**
  * Congela un borrador: le pone `sentAt` (y, si vienen, el hash del token y su vencimiento).
- * Las instantáneas ya están armadas desde el último guardado. Condicional (`sentAt IS NULL`):
- * devuelve false si otra transacción ya la congeló.
+ * Las instantáneas ya están armadas desde el último guardado, salvo las opciones de pago: esas se
+ * calculan sobre el total al enviar (`paymentOptions`, ver `envio.ts`) y reemplazan la entrada.
+ * Condicional (`sentAt IS NULL`): devuelve false si otra transacción ya la congeló.
  */
 export async function congelarVersion(
   tx: Tx,
-  args: { workspaceId: string; versionId: string; ahora: Date; tokenHash?: string | null; tokenExpiresAt?: Date | null },
+  args: {
+    workspaceId: string;
+    versionId: string;
+    ahora: Date;
+    tokenHash?: string | null;
+    tokenExpiresAt?: Date | null;
+    paymentOptions?: Prisma.InputJsonValue;
+  },
 ): Promise<boolean> {
   const r = await tx.fotofficePresupuestoVersion.updateMany({
     where: { id: args.versionId, workspaceId: args.workspaceId, sentAt: null },
-    data: { sentAt: args.ahora, tokenHash: args.tokenHash ?? null, tokenExpiresAt: args.tokenExpiresAt ?? null },
+    data: {
+      sentAt: args.ahora,
+      tokenHash: args.tokenHash ?? null,
+      tokenExpiresAt: args.tokenExpiresAt ?? null,
+      ...(args.paymentOptions !== undefined ? { paymentOptions: args.paymentOptions } : {}),
+    },
   });
   return r.count === 1;
 }

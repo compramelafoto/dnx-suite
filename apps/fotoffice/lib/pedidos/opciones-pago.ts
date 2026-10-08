@@ -206,7 +206,8 @@ function normalizeAppliedIndexMetadata(raw: unknown): EconomicIndexRateMetadata 
 function normalizeInstallmentPlan(raw: unknown): CuantoCobroInstallmentPlanInput | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const record = raw as Record<string, unknown>;
-  const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : newPlanId();
+  // Sin id queda vacío: `normalizePaymentOptions` le asigna uno determinista según la posición.
+  const id = typeof record.id === "string" ? record.id.trim() : "";
   const interestMode = INSTALLMENT_MODES.includes(record.interestMode as CuantoCobroInstallmentInterestMode)
     ? (record.interestMode as CuantoCobroInstallmentInterestMode)
     : "none";
@@ -234,14 +235,20 @@ export function normalizePaymentOptions(
         .filter((plan): plan is CuantoCobroInstallmentPlanInput => plan != null)
     : [];
   // FOTOFFICE: el id es la elección del cliente, así que no puede repetirse ni pisar los reservados.
+  // Los reemplazos son deterministas (normalizar dos veces lo mismo da los mismos ids): sin id,
+  // `plan-<posición>`; repetido o reservado, `<id>-2`, `<id>-3`…
   const usados = new Set<string>([ID_OPCION_CONTADO, ID_OPCION_OMISION]);
-  for (const plan of plans) {
-    while (usados.has(plan.id)) plan.id = newPlanId();
-    usados.add(plan.id);
-  }
+  plans.forEach((plan, index) => {
+    const base = plan.id || `plan-${index + 1}`;
+    let id = base;
+    for (let n = 2; usados.has(id); n++) id = `${base}-${n}`;
+    plan.id = id;
+    usados.add(id);
+  });
 
   return {
-    cashEnabled: raw.cashEnabled ?? INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS.cashEnabled,
+    cashEnabled:
+      typeof raw.cashEnabled === "boolean" ? raw.cashEnabled : INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS.cashEnabled,
     cashDiscountPercent:
       typeof raw.cashDiscountPercent === "string"
         ? raw.cashDiscountPercent
@@ -305,7 +312,7 @@ export function opcionPorOmision(input: {
 }
 
 /** true si la organización dejó opciones que se puedan ofrecer (contado o algún plan válido). */
-function tieneOpcionesConfiguradas(opciones: CuantoCobroPaymentOptionsInput): boolean {
+export function tieneOpcionesConfiguradas(opciones: CuantoCobroPaymentOptionsInput): boolean {
   return opciones.cashEnabled || opciones.installmentPlans.some((p) => parsePositiveInt(p.numberOfInstallments) > 0);
 }
 

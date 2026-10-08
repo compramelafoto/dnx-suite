@@ -1,6 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { EditorOpcionesPago } from "@/components/presupuestos/editor-opciones-pago";
+import type { CuantoCobroPaymentOptionsInput } from "@/lib/pedidos/opciones-pago";
+import { opcionesVacias } from "@/lib/presupuestos/opciones-pago";
 import { guardarAjustesPresupuestosAction, type EstadoPresupuestosConfig } from "./actions";
 
 /** Lo que muestra el formulario. Mismo contenido que `AjustesPresupuestos` del servidor. */
@@ -10,6 +13,8 @@ export type AjustesVista = {
   propuestaPago: string | null;
   seguimientoDias: number;
   seguimientoActivo: boolean;
+  /** null: nunca se guardaron (se ofrece la de omisión). */
+  opcionesPago: CuantoCobroPaymentOptionsInput | null;
 };
 
 const INICIAL: EstadoPresupuestosConfig = { error: null };
@@ -22,6 +27,7 @@ const MAX_TEXTO = 4000;
  */
 export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
   const [estado, guardar, guardando] = useActionState(guardarAjustesPresupuestosAction, INICIAL);
+  const [opcionesPago, setOpcionesPago] = useState<CuantoCobroPaymentOptionsInput>(() => ajustes.opcionesPago ?? opcionesVacias());
   return (
     <form action={guardar} className="space-y-6">
       <section className="fo-card space-y-4 p-5" aria-labelledby="ajustes-presupuesto-titulo">
@@ -83,6 +89,19 @@ export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
             placeholder="Por ejemplo: 30% para reservar la fecha y el resto antes del evento."
           />
         </div>
+      </section>
+
+      <section className="fo-card space-y-4 p-5" aria-labelledby="opciones-pago-titulo">
+        <div className="space-y-1">
+          <h2 id="opciones-pago-titulo" className="text-base font-semibold">
+            Opciones de pago
+          </h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Cada presupuesto nuevo las ofrece calculadas sobre su total, y en cada uno las podés cambiar. El cliente elige una
+            al aceptar; si no elige, queda la primera.
+          </p>
+        </div>
+        <EditorOpcionesPago valor={opcionesPago} onCambio={setOpcionesPago} nombre="opcionesPago" />
       </section>
 
       <section className="fo-card space-y-4 p-5" aria-labelledby="seguimiento-presupuesto-titulo">

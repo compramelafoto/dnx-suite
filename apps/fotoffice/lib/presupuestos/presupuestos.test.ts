@@ -536,8 +536,27 @@ describe("ajustes", () => {
     expect(await A.guardarAjustes(DUENO, datos)).toEqual({ ok: true });
     expect(await A.guardarAjustes(DUENO, { ...datos, validezDias: 25 })).toEqual({ ok: true });
     expect(B.datos.fotofficePresupuestoAjustes).toHaveLength(1);
-    expect(await A.leerAjustes("ws-1")).toEqual({ validezDias: 25, condiciones: null, propuestaPago: null, seguimientoDias: 5, seguimientoActivo: true });
+    expect(await A.leerAjustes("ws-1")).toEqual({ validezDias: 25, condiciones: null, propuestaPago: null, seguimientoDias: 5, seguimientoActivo: true, opcionesPago: null });
     expect(await A.leerAjustes("ws-2")).toEqual(A.AJUSTES_DE_FABRICA);
+  });
+
+  it("opciones de pago: se validan, se guardan y, sin el campo, no se tocan; el presupuesto nuevo las copia", async () => {
+    const datos = { validezDias: 20, condiciones: "", propuestaPago: null, seguimientoDias: 5, seguimientoActivo: true };
+    const opciones = { cashEnabled: true, cashDiscountPercent: "5", installmentPlans: [{ id: "p3", numberOfInstallments: "3", interestMode: "none" }] };
+    expect(await A.guardarAjustes(DUENO, { ...datos, opcionesPago: { installmentPlans: [{ numberOfInstallments: "99" }] } })).toMatchObject({ ok: false });
+    expect(B.datos.fotofficePresupuestoAjustes).toHaveLength(0);
+    expect(await A.guardarAjustes(DUENO, { ...datos, opcionesPago: opciones })).toEqual({ ok: true });
+    const esperadas = {
+      cashEnabled: true, cashDiscountPercent: "5", cashCommercialNote: "",
+      installmentPlans: [{ id: "p3", numberOfInstallments: "3", interestMode: "none", interestPercent: "", commercialNote: "", appliedIndexMetadata: null }],
+    };
+    expect((await A.leerAjustes("ws-1")).opcionesPago).toEqual(esperadas);
+    expect(await A.guardarAjustes(DUENO, { ...datos, validezDias: 30 })).toEqual({ ok: true });
+    expect((await A.leerAjustes("ws-1")).opcionesPago).toEqual(esperadas);
+
+    const r = await P.crearPresupuesto(DUENO, { consultaLeadId: "lead-1" }, deps);
+    if (!r.ok) throw new Error(r.error);
+    expect(B.datos.fotofficePresupuestoVersion.find((v) => v.id === r.versionId)!.paymentOptions).toEqual(esperadas);
   });
 
   it("semilla de DNX: 15 días y seguimiento a 3 (apagado), sólo si falta y sólo para DNX", async () => {

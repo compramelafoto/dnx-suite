@@ -9,6 +9,7 @@
  */
 import { itemSinDatosInternos, type Descuento, type ItemPresupuesto } from "./constantes";
 import { costosDeVersion, type CostoDeCatalogo, type CostosVersion } from "./costos";
+import type { OpcionesPagoEditor } from "./opciones-pago";
 import type { PerfilPanel } from "./panel-cuanto-cobro";
 import type { TotalesPresupuesto } from "./totales";
 
@@ -42,6 +43,8 @@ export type DatosEditor = {
   condiciones: string | null;
   propuestaPago: string | null;
   catalogo: ProductoParaEditor[];
+  /** Opciones de pago editables (etapa 3), con lo necesario para la vista previa. */
+  opcionesPago?: OpcionesPagoEditor;
   /** Sólo con `veCostos`; si no, la clave no está. */
   internos?: InternosEditor;
 };
@@ -66,6 +69,7 @@ export function armarDatosEditor(args: {
   veCostos: boolean;
   costosCatalogo?: Record<string, CostoDeCatalogo>;
   perfil?: PerfilPanel | null;
+  opcionesPago?: OpcionesPagoEditor;
 }): DatosEditor {
   const { borrador, veCostos } = args;
   const items: ItemPresupuesto[] = veCostos
@@ -80,6 +84,7 @@ export function armarDatosEditor(args: {
     propuestaPago: borrador.paymentProposal,
     catalogo: args.catalogo.map((p) => ({ ...p })),
   };
+  if (args.opcionesPago) datos.opcionesPago = args.opcionesPago;
   if (veCostos) datos.internos = { costosCatalogo: args.costosCatalogo ?? {}, perfil: args.perfil ?? null };
   return datos;
 }

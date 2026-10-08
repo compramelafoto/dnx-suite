@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const PROXIMO_NUMERO_DNX = "2025262";
 
 /**
- * Configuración → Presupuestos (spec §3.4): validez, condiciones, propuesta de pago y seguimiento.
+ * Configuración → Presupuestos (spec §3.4): validez, condiciones, propuesta y opciones de pago y seguimiento.
  * Permiso: `configurar`. Se puede configurar con el módulo apagado, para dejarlo listo antes de
  * encenderlo; sólo cambia el aviso de arriba.
  */
@@ -51,7 +51,7 @@ export default async function ConfiguracionPresupuestosPage() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title="Presupuestos"
-        description="Validez, condiciones generales y propuesta de pago de los presupuestos nuevos, y el seguimiento."
+        description="Validez, condiciones generales, propuesta y opciones de pago de los presupuestos nuevos, y el seguimiento."
       />
       <PestanasPresupuestos activa="ajustes" />
       {!encendido ? (

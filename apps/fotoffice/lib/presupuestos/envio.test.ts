@@ -662,3 +662,140 @@ describe("aceptar", () => {
     expect(tareas(AV.TITULO_TAREA_ACEPTADO)).toHaveLength(1);
   });
 });
+
+// --- Opciones de pago (etapa 3) ----------------------------------------------------------------------
+
+describe("opciones de pago", () => {
+  const evidencia = { ipHash: "hash-ip", userAgent: "Mozilla/5.0" };
+  const OPCIONES = {
+    cashEnabled: true,
+    cashDiscountPercent: "10",
+    cashCommercialNote: "",
+    installmentPlans: [
+      { id: "p3", numberOfInstallments: "3", interestMode: "none", interestPercent: "", commercialNote: "Sin recargo" },
+      { id: "p6", numberOfInstallments: "6", interestMode: "manual", interestPercent: "15", commercialNote: "" },
+    ],
+  };
+  const ajustesConOpciones = () =>
+    B.agregar("fotofficePresupuestoAjustes", { workspaceId: "ws-1", validityDays: 15, followUpDays: 3, followUpEnabled: false, paymentOptions: OPCIONES });
+  const conEvento = (dia: string) => Object.assign(B.datos.fotofficeConsulta.find((c) => c.leadId === "lead-1")!, { eventStartsAt: new Date(`${dia}T00:00:00.000Z`) });
+  const items = [itemLista("a", { precioUnitario: 300_000 })];
+  const instantanea = (versionId: string) => version(versionId).paymentOptions as { cash: { cashPrice: number } | null; installmentPlans: { id: string; numberOfInstallments: number; financedTotal: number }[]; basePrice: number };
+
+  it("el borrador arranca con las de la organización y, al enviar, la versión congela la instantánea sobre su total", async () => {
+    ajustesConOpciones();
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    const s = instantanea(versionId);
+    expect(s.basePrice).toBe(300_000);
+    expect(s.cash?.cashPrice).toBe(270_000);
+    expect(s.installmentPlans.map((p) => [p.id, p.numberOfInstallments, p.financedTotal])).toEqual([["p3", 3, 300_000], ["p6", 6, 345_000]]);
+    expect(version(versionId).chosenPaymentOptionId).toBeNull();
+  });
+
+  it("las editadas en el presupuesto mandan; la propuesta de pago en texto sigue igual", async () => {
+    ajustesConOpciones();
+    const r = await armado(DUENO, "lead-1", items);
+    const g = await P.guardarBorrador(DUENO, r.presupuestoId, {
+      items, propuestaPago: "Seña del 30%",
+      opcionesPago: { cashEnabled: false, installmentPlans: [{ id: "p12", numberOfInstallments: "12", interestMode: "none", commercialNote: "" }] },
+    }, deps);
+    expect(g).toEqual({ ok: true });
+    expect(await P.guardarBorrador(DUENO, r.presupuestoId, { items, opcionesPago: { installmentPlans: [{ id: "x", numberOfInstallments: "0" }] } }, deps))
+      .toMatchObject({ ok: false });
+    const e = await EN.enviarPresupuesto(DUENO, r.presupuestoId, { canal: "EMAIL", templateId: plantilla() }, depsEnvio());
+    expect(e.ok).toBe(true);
+    const s = instantanea(r.versionId);
+    expect(s.cash).toBeNull();
+    expect(s.installmentPlans.map((p) => p.id)).toEqual(["p12"]);
+    expect(version(r.versionId).paymentProposal).toBe("Seña del 30%");
+  });
+
+  it("sin opciones configuradas, la de omisión con la fecha del evento (y 6 sin fecha)", async () => {
+    conEvento("2026-12-20");
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    expect(instantanea(versionId).installmentPlans).toEqual([
+      expect.objectContaining({ id: "omision", numberOfInstallments: 2, financedTotal: 300_000, installmentAmount: 150_000 }),
+    ]);
+    const vista = vistaDe(await PU.abrirPresupuestoPublico("ws-1", token(versionId), { registrar: false, ipHash: null, userAgent: null }, depsPublico()));
+    expect(vista?.opcionesPago.map((o) => o.etiqueta)).toEqual(["Hasta 2 cuotas sin interés"]);
+
+    consulta("lead-2");
+    const otro = await enviado(DUENO, "lead-2", items);
+    expect(instantanea(otro.versionId).installmentPlans).toEqual([expect.objectContaining({ id: "omision", numberOfInstallments: 6 })]);
+  });
+
+  it("congelada no cambia: la V2 vuelve a editar lo de la V1 y la V1 queda igual", async () => {
+    ajustesConOpciones();
+    const { presupuestoId, versionId } = await enviado(DUENO, "lead-1", items);
+    const antes = JSON.stringify(version(versionId).paymentOptions);
+    const v2 = await V.crearNuevaVersion(DUENO, presupuestoId);
+    if (!v2.ok) throw new Error(v2.error);
+    expect(version(v2.versionId).paymentOptions).toMatchObject({ cashEnabled: true, cashDiscountPercent: "10", installmentPlans: [{ id: "p3" }, { id: "p6" }] });
+    await P.guardarBorrador(DUENO, presupuestoId, { items, opcionesPago: { cashEnabled: false, installmentPlans: [] } }, deps);
+    expect(JSON.stringify(version(versionId).paymentOptions)).toBe(antes);
+  });
+
+  it("el enlace muestra cada opción con su importe por cuota y nunca datos internos", async () => {
+    ajustesConOpciones();
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    const vista = vistaDe(await PU.abrirPresupuestoPublico("ws-1", token(versionId), { registrar: false, ipHash: null, userAgent: null }, depsPublico()));
+    expect(vista?.opcionesPago).toEqual([
+      { id: "contado", etiqueta: "Contado con 10% de descuento", cuotas: 1, importeCuota: 270_000, total: 270_000, nota: null },
+      { id: "p3", etiqueta: "3 cuotas sin interés", cuotas: 3, importeCuota: 100_000, total: 300_000, nota: "Sin recargo" },
+      { id: "p6", etiqueta: "6 cuotas con 15% de interés", cuotas: 6, importeCuota: 57_500, total: 345_000, nota: null },
+    ]);
+    const json = JSON.stringify(vista);
+    for (const interno of ["rateMetadata", "rateSource", "basePrice", "interestPercent", "costo", "margen"]) expect(json).not.toContain(interno);
+  });
+
+  it("al aceptar se guarda la elegida en la misma escritura condicional; sin elegir, la primera", async () => {
+    ajustesConOpciones();
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    const original = B.tablas.fotofficePresupuestoVersion.updateMany;
+    const escrituras: { where: unknown; data: Record<string, unknown> }[] = [];
+    B.tablas.fotofficePresupuestoVersion.updateMany = async (a: Parameters<typeof original>[0]) => {
+      escrituras.push(a as never);
+      return original(a);
+    };
+    try {
+      const r = await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "p6" }, evidencia, { ahora: () => AHORA, enviar: enviador() });
+      expect(r.ok).toBe(true);
+    } finally {
+      B.tablas.fotofficePresupuestoVersion.updateMany = original;
+    }
+    expect(escrituras).toEqual([
+      expect.objectContaining({
+        where: expect.objectContaining({ id: versionId, acceptedAt: null, revokedAt: null }),
+        data: expect.objectContaining({ acceptedName: "Laura", chosenPaymentOptionId: "p6" }),
+      }),
+    ]);
+    expect(version(versionId).chosenPaymentOptionId).toBe("p6");
+    const vista = vistaDe(await PU.abrirPresupuestoPublico("ws-1", token(versionId), { registrar: false, ipHash: null, userAgent: null }, depsPublico()));
+    expect(vista?.aceptacion).toMatchObject({ nombre: "Laura", opcion: "6 cuotas con 15% de interés" });
+
+    consulta("lead-2");
+    const otro = await enviado(DUENO, "lead-2", items);
+    expect((await AC.aceptarPresupuesto("ws-1", token(otro.versionId), { nombre: "Laura", acepta: true }, evidencia, { ahora: () => AHORA, enviar: enviador() })).ok).toBe(true);
+    expect(version(otro.versionId).chosenPaymentOptionId).toBe("contado");
+  });
+
+  it("una opción que no está en la instantánea no acepta nada", async () => {
+    ajustesConOpciones();
+    const { presupuestoId, versionId } = await enviado(DUENO, "lead-1", items);
+    for (const opcion of ["omision", "p9", 6, { id: "p6" }]) {
+      expect(await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion }, evidencia, { ahora: () => AHORA, enviar: enviador() }))
+        .toEqual({ ok: false, error: "La forma de pago elegida no es válida. Recargá la página y elegí una de las opciones." });
+    }
+    expect(version(versionId)).toMatchObject({ acceptedAt: null, chosenPaymentOptionId: null });
+    expect(presupuesto(presupuestoId).status).toBe("ENVIADO");
+    expect(H.notificar).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), "PRESUPUESTO_ACEPTADO", expect.anything());
+  });
+
+  it("una versión enviada antes de las opciones (sin instantánea) se acepta igual, sin forma de pago", async () => {
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    version(versionId).paymentOptions = null;
+    expect((await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "contado" }, evidencia, { ahora: () => AHORA, enviar: enviador() })).ok).toBe(false);
+    expect((await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true }, evidencia, { ahora: () => AHORA, enviar: enviador() })).ok).toBe(true);
+    expect(version(versionId).chosenPaymentOptionId).toBeNull();
+  });
+});

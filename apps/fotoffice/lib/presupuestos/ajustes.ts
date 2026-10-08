@@ -1,7 +1,9 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
+import type { CuantoCobroPaymentOptionsInput } from "@/lib/pedidos/opciones-pago";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { SEGUIMIENTO_POR_OMISION_DIAS, VALIDEZ_POR_OMISION_DIAS } from "./constantes";
+import { entradaGuardada, validarOpcionesPago } from "./opciones-pago";
 
 /**
  * Ajustes de presupuestos (Configuración → Presupuestos, spec §3.4): una fila por organización.
@@ -16,6 +18,11 @@ export type AjustesPresupuestos = {
   propuestaPago: string | null;
   seguimientoDias: number;
   seguimientoActivo: boolean;
+  /**
+   * Opciones de pago de la organización (etapa 3). null: nunca se guardaron; igual que sin contado
+   * ni planes, el presupuesto ofrece la de omisión (`opcionesParaPresupuesto`).
+   */
+  opcionesPago: CuantoCobroPaymentOptionsInput | null;
 };
 
 export const AJUSTES_DE_FABRICA: AjustesPresupuestos = {
@@ -24,6 +31,7 @@ export const AJUSTES_DE_FABRICA: AjustesPresupuestos = {
   propuestaPago: null,
   seguimientoDias: SEGUIMIENTO_POR_OMISION_DIAS,
   seguimientoActivo: false,
+  opcionesPago: null,
 };
 
 export const MAX_TEXTO_AJUSTES = 4000;
@@ -33,7 +41,7 @@ type Lector = { fotofficePresupuestoAjustes: Pick<typeof prisma.fotofficePresupu
 export async function leerAjustes(workspaceId: string, cliente: Lector = prisma): Promise<AjustesPresupuestos> {
   const f = await cliente.fotofficePresupuestoAjustes.findUnique({
     where: { workspaceId },
-    select: { validityDays: true, terms: true, paymentProposal: true, followUpDays: true, followUpEnabled: true },
+    select: { validityDays: true, terms: true, paymentProposal: true, followUpDays: true, followUpEnabled: true, paymentOptions: true },
   });
   if (!f) return { ...AJUSTES_DE_FABRICA };
   return {
@@ -42,6 +50,7 @@ export async function leerAjustes(workspaceId: string, cliente: Lector = prisma)
     propuestaPago: f.paymentProposal,
     seguimientoDias: f.followUpDays,
     seguimientoActivo: f.followUpEnabled,
+    opcionesPago: entradaGuardada(f.paymentOptions),
   };
 }
 
@@ -60,7 +69,10 @@ function texto(v: unknown): string | null | undefined {
 
 export type ResultadoAjustes = { ok: true } | { ok: false; error: string };
 
-/** Guarda los ajustes. Exige `configurar`. */
+/**
+ * Guarda los ajustes. Exige `configurar`. `opcionesPago` es opcional: si no viene, las opciones de
+ * pago guardadas no se tocan; si viene, se valida con `validarOpcionesPago`.
+ */
 export async function guardarAjustes(ctx: CtxPresupuestos, datos: unknown): Promise<ResultadoAjustes> {
   if (!puedeConfigurarPresupuestos(ctx)) return { ok: false, error: MENSAJES_PRESUPUESTO.sinPermisoAjustes };
   if (!datos || typeof datos !== "object") return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
@@ -74,7 +86,18 @@ export async function guardarAjustes(ctx: CtxPresupuestos, datos: unknown): Prom
   const paymentProposal = texto(d.propuestaPago);
   if (terms === undefined || paymentProposal === undefined) return { ok: false, error: MENSAJES_PRESUPUESTO.texto };
 
-  const valores = { validityDays, terms, paymentProposal, followUpDays, followUpEnabled: d.seguimientoActivo };
+  let paymentOptions: Prisma.InputJsonValue | undefined;
+  if (d.opcionesPago !== undefined) {
+    const anteriores = await prisma.fotofficePresupuestoAjustes.findUnique({ where: { workspaceId: ctx.workspaceId }, select: { paymentOptions: true } });
+    const o = validarOpcionesPago(d.opcionesPago, entradaGuardada(anteriores?.paymentOptions));
+    if (!o.ok) return o;
+    paymentOptions = o.valor as unknown as Prisma.InputJsonValue;
+  }
+
+  const valores = {
+    validityDays, terms, paymentProposal, followUpDays, followUpEnabled: d.seguimientoActivo,
+    ...(paymentOptions !== undefined ? { paymentOptions } : {}),
+  };
   try {
     await prisma.fotofficePresupuestoAjustes.upsert({
       where: { workspaceId: ctx.workspaceId },

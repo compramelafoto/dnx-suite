@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { aceptarPresupuestoAction, pedirPresupuestoNuevoAction } from "@/app/w/[workspaceSlug]/presupuesto/[token]/actions";
+import { importeDeOpcion, type OpcionPublica } from "@/lib/presupuestos/opciones-pago";
 import type { EstadoDeLaVista } from "@/lib/presupuestos/vista-publica";
 
 /**
- * Botones del enlace público: "Acepto" (nombre + tilde), "Tengo dudas" (WhatsApp de la
- * organización), "Descargar PDF" (vista para imprimir) y, si venció, "Pedir uno nuevo". Las
+ * Botones del enlace público: "Acepto" (nombre + tilde + forma de pago, por omisión la primera),
+ * "Tengo dudas" (WhatsApp de la organización), "Descargar PDF" (vista para imprimir) y, si venció, "Pedir uno nuevo". Las
  * reglas (una sola aceptación, versión vigente, vencimiento) las vuelve a mirar el servidor.
  */
 export function AccionesPublicas({
@@ -17,6 +18,7 @@ export function AccionesPublicas({
   whatsappUrl,
   email,
   hrefImprimir,
+  opciones = [],
 }: {
   slug: string;
   token: string;
@@ -24,11 +26,14 @@ export function AccionesPublicas({
   whatsappUrl: string | null;
   email: string | null;
   hrefImprimir: string;
+  /** Opciones de pago congeladas en la versión (sin costos). */
+  opciones?: OpcionPublica[];
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [nombre, setNombre] = useState("");
   const [acepta, setAcepta] = useState(false);
+  const [opcion, setOpcion] = useState<string | null>(opciones[0]?.id ?? null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -36,7 +41,7 @@ export function AccionesPublicas({
     e.preventDefault();
     setError(null);
     iniciar(async () => {
-      const r = await aceptarPresupuestoAction(slug, token, nombre, acepta).catch(() => ({ ok: false as const, error: "No pudimos registrar tu aceptación. Probá de nuevo." }));
+      const r = await aceptarPresupuestoAction(slug, token, nombre, acepta, opcion).catch(() => ({ ok: false as const, error: "No pudimos registrar tu aceptación. Probá de nuevo." }));
       if (r.ok) router.refresh();
       else setError(r.error);
     });
@@ -78,6 +83,20 @@ export function AccionesPublicas({
               className="fo-input w-full"
             />
           </label>
+          {opciones.length > 0 ? (
+            <fieldset className="space-y-2 text-sm">
+              <legend className="mb-1">¿Cómo vas a pagar?</legend>
+              {opciones.map((o) => (
+                <label key={o.id} className="flex items-start gap-2">
+                  <input type="radio" name="opcion-pago" value={o.id} checked={opcion === o.id} onChange={() => setOpcion(o.id)} className="mt-1" />
+                  <span>
+                    <span className="font-medium">{o.etiqueta}</span>
+                    <span className="block tabular-nums opacity-75">{importeDeOpcion(o)}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-1" />
             <span>Leí el presupuesto y acepto sus condiciones.</span>

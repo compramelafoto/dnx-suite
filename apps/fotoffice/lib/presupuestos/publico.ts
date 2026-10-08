@@ -39,6 +39,9 @@ export type EnlaceEncontrado = {
     totals: unknown;
     terms: string | null;
     paymentProposal: string | null;
+    /** Instantánea congelada de las opciones de pago (o null, si se envió antes de la etapa 3). */
+    paymentOptions: unknown;
+    chosenPaymentOptionId: string | null;
     acceptedAt: Date | null;
     acceptedName: string | null;
   };
@@ -53,6 +56,8 @@ const SELECT_VERSION_PUBLICA = {
   totals: true,
   terms: true,
   paymentProposal: true,
+  paymentOptions: true,
+  chosenPaymentOptionId: true,
   sentAt: true,
   revokedAt: true,
   tokenExpiresAt: true,
@@ -108,6 +113,7 @@ export async function buscarEnlace(workspaceId: string, token: unknown, ahora: D
     currentVersionId: p.currentVersionId,
     version: {
       number: v.number, items: v.items, totals: v.totals, terms: v.terms, paymentProposal: v.paymentProposal,
+      paymentOptions: v.paymentOptions, chosenPaymentOptionId: v.chosenPaymentOptionId,
       acceptedAt: v.acceptedAt, acceptedName: v.acceptedName,
     },
   };
@@ -169,6 +175,8 @@ export async function abrirPresupuestoPublico(
       totals: (enlace.version.totals as TotalesGuardados | null) ?? null,
       terms: enlace.version.terms,
       paymentProposal: enlace.version.paymentProposal,
+      paymentOptions: enlace.version.paymentOptions,
+      chosenPaymentOptionId: enlace.version.chosenPaymentOptionId,
       acceptedAt: enlace.version.acceptedAt,
       acceptedName: enlace.version.acceptedName,
     },
