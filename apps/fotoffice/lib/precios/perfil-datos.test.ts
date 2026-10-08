@@ -56,15 +56,24 @@ describe("validarPerfil", () => {
     expect(validarPerfil(5)).toEqual({ ok: false, error: "Los datos del perfil no son válidos." });
   });
 
-  it("rechaza una distribución que no suma 100", () => {
+  it("acepta la distribución de un perfil real de CLF: 24 h con porcentajes que suman 101", () => {
     const p = {
       ...createBaseCompleteProfile(),
-      weeklyHours: "40",
+      weeklyHours: "24",
+      timeDistribution: { coverage: "33", editing: "21", administration: "21", sales: "8", marketing: "13", training: "5" },
+    };
+    expect(validarPerfil(p).ok).toBe(true);
+  });
+
+  it("rechaza una distribución cuyas horas no cierran", () => {
+    const p = {
+      ...createBaseCompleteProfile(),
+      weeklyHours: "24",
       timeDistribution: { coverage: "50", editing: "20", administration: "0", sales: "0", marketing: "0", training: "0" },
     };
     expect(validarPerfil(p)).toEqual({
       ok: false,
-      error: "La distribución del tiempo tiene que sumar 100%.",
+      error: "La distribución del tiempo no cierra: las horas de cada tarea tienen que sumar tus horas por semana.",
     });
   });
 

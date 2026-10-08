@@ -1,6 +1,7 @@
 import {
   COMMERCIAL_POSITIONING_OPTIONS,
   INITIAL_CUANTO_COBRO_PROFILE,
+  isTimeDistributionValid,
   parseCuantoCobroAmount,
   type CuantoCobroProfileInput,
   type MonthlyExpenseGroup,
@@ -117,14 +118,8 @@ export function validarPerfil(raw: unknown): ResultadoValidacion {
   if (invalido) return { ok: false, error: `Revisá el monto de «${invalido}».` };
 
   const horas = parseCuantoCobroAmount(perfil.weeklyHours) ?? 0;
-  if (horas > 0) {
-    const suma = CAMPOS_DISTRIBUCION.reduce(
-      (total, [clave]) => total + (parseCuantoCobroAmount(perfil.timeDistribution[clave]) ?? 0),
-      0,
-    );
-    if (Math.abs(suma - 100) > 0.5) {
-      return { ok: false, error: "La distribución del tiempo tiene que sumar 100%." };
-    }
+  if (horas > 0 && !isTimeDistributionValid(perfil.timeDistribution, Math.round(horas))) {
+    return { ok: false, error: "La distribución del tiempo no cierra: las horas de cada tarea tienen que sumar tus horas por semana." };
   }
 
   const pos = perfil.commercialPositioningId;

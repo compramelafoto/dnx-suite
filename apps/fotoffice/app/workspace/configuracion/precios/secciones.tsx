@@ -3,6 +3,7 @@
 import { useId } from "react";
 import {
   COMMERCIAL_POSITIONING_OPTIONS,
+  isTimeDistributionValid,
   parseCuantoCobroAmount,
   type CuantoCobroProfileInput,
   type MonthlyExpenseGroup,
@@ -138,8 +139,11 @@ export function SeccionNegocio({ perfil, cambiar }: PropsSeccion) {
 }
 
 export function SeccionTiempo({ perfil, cambiar }: PropsSeccion) {
-  const total = CLAVES_TIEMPO.reduce((s, k) => s + monto(perfil.timeDistribution[k]), 0);
-  const ok = Math.abs(total - 100) < 0.005;
+  const semanal = Math.round(monto(perfil.weeklyHours));
+  const horasDe = (k: (typeof CLAVES_TIEMPO)[number]) => Math.round((semanal * monto(perfil.timeDistribution[k])) / 100);
+  const porcentajes = CLAVES_TIEMPO.reduce((s, k) => s + monto(perfil.timeDistribution[k]), 0);
+  const asignadas = CLAVES_TIEMPO.reduce((s, k) => s + horasDe(k), 0);
+  const ok = isTimeDistributionValid(perfil.timeDistribution, semanal);
   const etiquetas: Record<(typeof CLAVES_TIEMPO)[number], string> = {
     coverage: "Coberturas (%)",
     editing: "Edición (%)",
@@ -157,13 +161,15 @@ export function SeccionTiempo({ perfil, cambiar }: PropsSeccion) {
             key={k}
             etiqueta={etiquetas[k]}
             valor={perfil.timeDistribution[k]}
-            ayuda={k === "coverage" ? "Lo único que se cobra." : undefined}
+            ayuda={[k === "coverage" ? "Lo único que se cobra." : null, semanal > 0 ? `${horasDe(k)} h por semana` : null].filter(Boolean).join(" ") || undefined}
             onCambio={(v) => cambiar({ timeDistribution: { ...perfil.timeDistribution, [k]: v } })}
           />
         ))}
       </div>
       <p role="status" className={"text-sm font-medium " + (ok ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]")}>
-        Total: {Math.round(total * 100) / 100}% {ok ? "" : "(tiene que sumar 100%)"}
+        {semanal > 0
+          ? `Asignadas: ${asignadas} de ${semanal} horas${ok ? "" : " (las horas de cada tarea tienen que sumar tus horas por semana)"}`
+          : `Total: ${Math.round(porcentajes * 100) / 100}%${ok ? "" : " (tiene que sumar 100%)"}`}
       </p>
     </Seccion>
   );
