@@ -26,7 +26,12 @@ function salir(mensaje: string): never {
 
 function valorDe(args: string[], nombre: string): string | undefined {
   const i = args.indexOf(nombre);
-  return i >= 0 ? args[i + 1] : undefined;
+  if (i < 0) return undefined;
+  const valor = args[i + 1];
+  if (valor === undefined || valor.startsWith("--")) {
+    salir(`Falta el valor de ${nombre}.`);
+  }
+  return valor;
 }
 
 /** `prisma` es una instancia de PrismaClient: su constructor permite abrir otra conexión a otra base. */
@@ -49,6 +54,10 @@ async function main() {
   const urlFotoffice = process.env.DATABASE_URL?.trim();
   if (!urlClf) salir("Falta la variable de entorno DATABASE_URL_CLF (base de CompraMeLaFoto).");
   if (!urlFotoffice) salir("Falta la variable de entorno DATABASE_URL (base de FOTOFFICE).");
+
+  if (urlClf === urlFotoffice) {
+    salir("DATABASE_URL_CLF y DATABASE_URL apuntan a la misma base: tienen que ser la de CompraMeLaFoto y la de FOTOFFICE.");
+  }
 
   const clf = abrirCliente(urlClf);
   const fotoffice = abrirCliente(urlFotoffice);
