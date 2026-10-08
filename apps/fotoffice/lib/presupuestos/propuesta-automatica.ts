@@ -19,11 +19,14 @@ import {
   sinAvisosAlEquipo,
 } from "@/lib/plantillas/envio";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
+import { leerPerfilPreciosDelSistema } from "@/lib/precios/perfil";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { crearTareaDeConsulta, destinatarioDelPresupuesto } from "./avisos";
 import { QUOTES_MODULE_KEY } from "./acceso";
 import { leerAjustes } from "./ajustes";
-import { ENTIDAD_NUMERACION, MAX_DESCRIPCION_ITEM, MAX_NOMBRE_ITEM, type ItemPresupuesto } from "./constantes";
+import { ENTIDAD_NUMERACION, type ItemPresupuesto } from "./constantes";
+import { nuevaClave } from "./editor";
+import { instanciarPropuesta, type ProductoDeCatalogo, type ResultadoInstanciar } from "./instanciar-propuesta";
 import { enviarPresupuestoDelSistema, type DepsEnvioPresupuesto } from "./envio";
 import { vencimientoDesde } from "./estados";
 import { leerPropuestaModelo, plantillaDePropuesta } from "./propuestas-modelo";
@@ -86,30 +89,25 @@ function aviso(codigo: string): void {
   console.warn("[presupuestos] la propuesta modelo no salió sola", { codigo });
 }
 
-/** Los ítems de la propuesta con nombre, descripción y precio del catálogo de hoy; null si falta alguno. */
-async function itemsAlPrecioDeHoy(workspaceId: string, items: ItemPresupuesto[]): Promise<ItemPresupuesto[] | null> {
+/**
+ * Los ítems de la propuesta "a hoy": los de lista con nombre, descripción y precio del catálogo de
+ * ahora; los calculados, vueltos a correr con el perfil del workspace. Devuelve el motivo si no se puede.
+ */
+async function itemsAlPrecioDeHoy(
+  workspaceId: string,
+  items: ItemPresupuesto[],
+  ahora: Date,
+): Promise<ResultadoInstanciar> {
   const ids = [...new Set(items.map((i) => i.productId).filter((x): x is string => x !== null))];
   const productos = await prisma.product.findMany({
     where: { workspaceId, id: { in: ids }, isActive: true },
     select: { id: true, name: true, description: true, priceArs: true },
   });
-  const deId = new Map(productos.map((p) => [p.id, p]));
-  const out: ItemPresupuesto[] = [];
-  for (const it of items) {
-    const p = it.productId ? deId.get(it.productId) : undefined;
-    // Un producto que se archivó o se borró después: la propuesta quedó vieja y no se manda a medias.
-    if (!p) return null;
-    const descripcion = p.description?.trim() ? p.description.trim().slice(0, MAX_DESCRIPCION_ITEM) : null;
-    out.push({
-      ...it,
-      nombre: p.name.trim().slice(0, MAX_NOMBRE_ITEM) || it.nombre,
-      descripcion,
-      precioUnitario: decimalArsToMinor(p.priceArs) / 100,
-      modoPrecio: "LISTA",
-      calculo: null,
-    });
-  }
-  return out;
+  const deId = new Map<string, ProductoDeCatalogo>(
+    productos.map((p) => [p.id, { nombre: p.name, descripcion: p.description, precio: decimalArsToMinor(p.priceArs) / 100 }]),
+  );
+  const perfil = items.some((i) => i.modoPrecio === "CALCULO") ? await leerPerfilPreciosDelSistema(workspaceId) : null;
+  return instanciarPropuesta(items, { productos: deId, perfil, nuevaClave, ahora });
 }
 
 export async function enviarPropuestaModelo(
@@ -147,11 +145,12 @@ export async function enviarPropuestaModelo(
       aviso("PLANTILLA_NO_ENCONTRADA");
       return "FALLO";
     }
-    const items = await itemsAlPrecioDeHoy(workspaceId, propuesta.items);
-    if (!items) {
-      aviso("PRODUCTO_FUERA_DEL_CATALOGO");
+    const instanciada = await itemsAlPrecioDeHoy(workspaceId, propuesta.items, ahora);
+    if (!instanciada.ok) {
+      aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
       return "FALLO";
     }
+    const items = instanciada.items;
     const ajustes = await leerAjustes(workspaceId);
     const borrador = await normalizarBorrador(
       workspaceId,

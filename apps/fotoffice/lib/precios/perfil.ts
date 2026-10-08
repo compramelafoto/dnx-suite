@@ -47,3 +47,12 @@ export async function guardarPerfilPrecios(
     return { ok: false, error: "No se pudo guardar el perfil." };
   }
 }
+
+/**
+ * El perfil para el sistema (envío automático de propuestas): sin permisos de persona. Sólo
+ * servidor; nunca devolver al navegador sin veCostos.
+ */
+export async function leerPerfilPreciosDelSistema(workspaceId: string): Promise<CuantoCobroProfileInput | null> {
+  const fila = await prisma.fotofficePerfilPrecios.findUnique({ where: { workspaceId }, select: { profileData: true } });
+  return fila ? normalizarPerfil(fila.profileData) : null;
+}
