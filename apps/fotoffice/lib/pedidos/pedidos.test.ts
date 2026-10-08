@@ -130,20 +130,20 @@ afterEach(() => {
 describe("confirmar desde el presupuesto", () => {
   it("copia ítems y totales, el evento, el responsable y el rubro; numera y apaga 'pedido por confirmar'", async () => {
     const r = await confirmado();
-    expect(r.numero).toBe("1");
+    expect(r.numero).toBe("2026-0001");
     const p = pedido(r.pedidoId);
     const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === "v-pre-1")!;
     expect(p.items).toEqual(v.items);
     expect(p.totals).toEqual(v.totals);
     expect(p.items).not.toBe(v.items);
     expect(p).toMatchObject({
-      workspaceId: "ws-1", number: "1", presupuestoId: "pre-1", acceptedVersionId: "v-pre-1", consultaLeadId: "lead-1",
+      workspaceId: "ws-1", number: "2026-0001", presupuestoId: "pre-1", acceptedVersionId: "v-pre-1", consultaLeadId: "lead-1",
       clientId: "cli-lead-1", status: "CONFIRMADO", totalArs: "120000.00", eventLabel: "Boda · Laura Pérez",
       incomeCategoryId: "rubro-bodas", ownerUserId: 7, createdByUserId: 1,
     });
     expect((p.eventDate as Date).toISOString()).toBe("2026-12-12T00:00:00.000Z");
     expect((p.paymentOption as { id: string }).id).toBe("p3");
-    expect(B.datos.fotofficeRecordNumber).toEqual([expect.objectContaining({ entityType: "PEDIDO", entityId: r.pedidoId, display: "1" })]);
+    expect(B.datos.fotofficeRecordNumber).toEqual([expect.objectContaining({ entityType: "PEDIDO", entityId: r.pedidoId, display: "2026-0001" })]);
     expect(B.datos.fotofficePresupuesto.find((x) => x.id === "pre-1")!.pedidoPorConfirmar).toBe(false);
   });
 
@@ -424,11 +424,11 @@ describe("lecturas", () => {
     const c1 = B.datos.fotofficePedidoCuota.find((c) => c.position === 1)!;
     cobro(pedidoId, c1.id as string, "15000.50");
     const [fila] = await P.listarPedidos(LECTOR, { clientId: "cli-lead-1" }, deps);
-    expect(fila).toMatchObject({ id: pedidoId, numero: "1", estado: "CONFIRMADO", contacto: "Laura Pérez", total: 120000, cobrado: 15000.5, saldo: 104999.5, proximoVencimiento: "2026-10-07" });
+    expect(fila).toMatchObject({ id: pedidoId, numero: "2026-0001", estado: "CONFIRMADO", contacto: "Laura Pérez", total: 120000, cobrado: 15000.5, saldo: 104999.5, proximoVencimiento: "2026-10-07" });
     const d = await P.leerPedido(LECTOR, pedidoId, deps);
     expect(d!.plan.cuotas[0]).toMatchObject({ estado: "PARCIAL", imputado: 15000.5, saldo: 24999.5 });
     expect(d!.cobros).toHaveLength(1);
-    expect(await P.pedidoDePresupuesto(LECTOR, "pre-1")).toEqual({ id: pedidoId, numero: "1" });
+    expect(await P.pedidoDePresupuesto(LECTOR, "pre-1")).toEqual({ id: pedidoId, numero: "2026-0001" });
   });
 
   it("costos y margen sólo con configurar o verDinero", async () => {
@@ -507,8 +507,8 @@ describe("aislamiento entre workspaces", () => {
     aceptado("pre-9", { ws: "ws-2", leadId: "lead-9", items: [item("a")] });
     const a = await confirmado();
     const b = await confirmado("pre-9", OTRO);
-    expect(a.numero).toBe("1");
-    expect(b.numero).toBe("1");
+    expect(a.numero).toBe("2026-0001");
+    expect(b.numero).toBe("2026-0001");
     expect(pedido(b.pedidoId)).toMatchObject({ workspaceId: "ws-2", clientId: "cli-lead-9", incomeCategoryId: null });
   });
 });
