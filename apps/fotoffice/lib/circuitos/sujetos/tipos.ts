@@ -23,6 +23,13 @@ export type Adaptador = {
   /** Nombre, detalle y enlace a la ficha de cada id (sólo los del workspace). */
   nombre(workspaceId: string, ids: string[]): Promise<Map<string, NombreDeSujeto>>;
   /**
+   * Fecha planificada ("YYYY-MM-DD", calendario de Argentina) de una etapa para este registro, si
+   * el tipo tiene un plan (Proyectos). Con ella las tareas modelo de la etapa vencen en
+   * "fecha + días de la tarea" en vez de contar desde la entrada. null = sin plan: el motor cuenta
+   * desde la entrada, como siempre.
+   */
+  fechaPlanificada?(tx: Prisma.TransactionClient, workspaceId: string, id: string, stageId: string): Promise<string | null>;
+  /**
    * Se llama dentro de la misma transacción del movimiento. `etapa` es la etapa de destino
    * (null al cerrar) y `salida` el resultado del cierre (null al mover).
    */

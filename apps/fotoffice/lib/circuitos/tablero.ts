@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { hoyEnBuenosAires } from "../listado/periodos";
 import { estaVencida } from "./calculos";
-import { SALIDAS, type Clase } from "./constantes";
+import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
 import { adaptadorDe, type NombreDeSujeto } from "./sujetos";
 import { numeroDe } from "../numeracion/asignar";
 import { TIPO_CONSULTA } from "../service-leads/numero";
@@ -18,9 +18,12 @@ import { esGrupoConsulta, grupoPide } from "../consultas/constantes";
 
 /** Tarjetas por columna. Pasado el tope, la columna ofrece "y N más" hacia el Modo lista. */
 export const TOPE_POR_COLUMNA = 300;
-const TIPO_SUJETO = "CAPTACION";
-const CLASE: Clase = "VENTA";
-const RUTA_LISTA = "/consultas/lista";
+/** Qué tablero es: el tipo de registro y la clase de circuitos. Por omisión, el de Captación (Consultas). */
+export type OpcionesTablero = { tipoSujeto?: TipoSujeto; clase?: Clase };
+const POR_OMISION = { tipoSujeto: "CAPTACION", clase: "VENTA" } as const satisfies Required<OpcionesTablero>;
+/** Tipo de número (`FotofficeRecordNumber.entityType`) de cada tipo de registro. */
+const tipoDeNumeroDe = (tipo: TipoSujeto): string | undefined => (tipo === "CAPTACION" ? TIPO_CONSULTA : tipo === "PROYECTO" ? "PROYECTO" : undefined);
+const SIN_DATOS: Partial<Record<TipoSujeto, string>> = { PROYECTO: "Proyecto sin datos" };
 const DIA_MS = 24 * 60 * 60 * 1000;
 /** Ids por lectura de valores: muy por debajo del tope de parámetros de Postgres. */
 const LOTE_DE_IDS = 5000;
@@ -130,7 +133,7 @@ export async function responsablesDe(workspaceId: string): Promise<{ id: number;
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-async function elegirCircuito(workspaceId: string, circuitoId: string | null) {
+async function elegirCircuito(workspaceId: string, circuitoId: string | null, CLASE: Clase) {
   const circuitos = await prisma.fotofficeCircuit.findMany({
     where: { workspaceId, kind: CLASE, isActive: true },
     select: { id: true, name: true, kind: true, isDefault: true },
@@ -150,10 +153,14 @@ export async function cargarTablero(
   circuitoId: string | null,
   filtros: FiltrosTablero,
   ahora: Date,
+  opciones: OpcionesTablero = {},
 ): Promise<Tablero> {
   const { workspaceId } = ctx;
+  const TIPO_SUJETO = opciones.tipoSujeto ?? POR_OMISION.tipoSujeto;
+  const CLASE = opciones.clase ?? POR_OMISION.clase;
+  const esCaptacion = TIPO_SUJETO === "CAPTACION";
   const [{ circuito, circuitos }, motivos, responsables] = await Promise.all([
-    elegirCircuito(workspaceId, circuitoId),
+    elegirCircuito(workspaceId, circuitoId, CLASE),
     motivosActivos(workspaceId),
     responsablesDe(workspaceId),
   ]);
@@ -203,7 +210,8 @@ export async function cargarTablero(
 
   // Todas las consultas abiertas del circuito (con los filtros), para el total de valor por columna.
   const todos = await prisma.fotofficeJourney.findMany({ where, select: { stageId: true, subjectId: true } });
-  const datos = await datosDeConsultas(workspaceId, todos.map((j) => j.subjectId));
+  // Categoría, día del evento y valor son datos de la consulta: otros tipos no los tienen.
+  const datos = esCaptacion ? await datosDeConsultas(workspaceId, todos.map((j) => j.subjectId)) : new Map<string, DatosConsulta>();
   const valoresPorEtapa = new Map<string | null, (number | null)[]>();
   for (const j of todos) {
     const lista = valoresPorEtapa.get(j.stageId) ?? [];
@@ -232,21 +240,23 @@ export async function cargarTablero(
   }
 
   const adaptador = adaptadorDe(TIPO_SUJETO);
+  const rutaLista = `${adaptador?.rutaTablero ?? "/consultas"}/lista`;
+  const tipoDeNumero = tipoDeNumeroDe(TIPO_SUJETO);
   const sujetos = recorridos.map((j) => j.subjectId);
   // Nombres y números de todo el tablero en una lectura cada uno.
   const [nombres, numeros] = await Promise.all([
     adaptador ? adaptador.nombre(workspaceId, sujetos) : new Map<string, NombreDeSujeto>(),
-    numeroDe(workspaceId, TIPO_CONSULTA, sujetos),
+    tipoDeNumero ? numeroDe(workspaceId, tipoDeNumero, sujetos) : Promise.resolve(new Map<string, string>()),
   ]);
 
   const columnas: ColumnaVista[] = porEtapa.map(({ etapa, filas, total }) => ({
     etapa: { id: etapa.id, nombre: etapa.name, color: etapa.color, archivada: etapa.archivedAt !== null },
     total,
     valorTotal: sumarValores(valoresPorEtapa.get(etapa.id) ?? []),
-    masHref: total > filas.length ? `${RUTA_LISTA}?etapa=${encodeURIComponent(etapa.id)}` : null,
+    masHref: total > filas.length ? `${rutaLista}?etapa=${encodeURIComponent(etapa.id)}` : null,
     tarjetas: filas.map((j) => ({
       journeyId: j.id,
-      sujeto: nombres.get(j.subjectId) ?? { titulo: "Consulta sin datos", href: adaptador?.rutaFicha(j.subjectId) ?? RUTA_LISTA },
+      sujeto: nombres.get(j.subjectId) ?? { titulo: SIN_DATOS[TIPO_SUJETO] ?? "Consulta sin datos", href: adaptador?.rutaFicha(j.subjectId) ?? rutaLista },
       numero: numeros.get(j.subjectId) ?? null,
       diasEnEtapa: diasEnEtapaAR(j.enteredStageAt, ahora),
       vencida: estaVencida(j.stageDueAt, ahora),

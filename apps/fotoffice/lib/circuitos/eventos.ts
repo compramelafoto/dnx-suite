@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
-import { EVENTOS, ESTADOS_CAPTACION, NOTA_IMPORTADA, SALIDAS, type Evento } from "./constantes";
+import { EVENTOS, ESTADOS_CAPTACION, NOTA_IMPORTADA, SALIDAS, type Clase, type Evento, type TipoSujeto } from "./constantes";
 import { esRetroceso } from "./calculos";
 import {
   cerrar,
@@ -96,14 +96,19 @@ export async function notificarEvento(
  * tareas obligatorias pendientes no lo frenan (el paso queda marcado como forzado). Nunca
  * lanza: una falla del motor no puede romper la operación del módulo que avisa.
  */
-export async function ganarConsultaPorSistema(workspaceId: string, leadId: string, nota: string): Promise<{ cerrado: boolean }> {
+export async function ganarConsultaPorSistema(
+  workspaceId: string,
+  leadId: string,
+  nota: string,
+  { tipoSujeto = "CAPTACION", clase = "VENTA" }: { tipoSujeto?: TipoSujeto; clase?: Clase } = {},
+): Promise<{ cerrado: boolean }> {
   try {
     const abierto = await prisma.fotofficeJourney.findFirst({
-      where: { workspaceId, subjectType: "CAPTACION", subjectId: leadId, kind: "VENTA", closedAt: null },
+      where: { workspaceId, subjectType: tipoSujeto, subjectId: leadId, kind: clase, closedAt: null },
       select: { id: true },
     });
     if (!abierto) return { cerrado: false };
-    const r = await cerrar(contextoDeSistema(workspaceId), abierto.id, SALIDAS.VENTA.exito, undefined, nota, { deSistema: true });
+    const r = await cerrar(contextoDeSistema(workspaceId), abierto.id, SALIDAS[clase].exito, undefined, nota, { deSistema: true });
     return { cerrado: r.ok };
   } catch (error) {
     registrarFalla("ganarConsultaPorSistema", { workspaceId }, error);

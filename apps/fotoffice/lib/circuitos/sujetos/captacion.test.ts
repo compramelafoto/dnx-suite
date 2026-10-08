@@ -24,12 +24,12 @@ beforeEach(() => {
 });
 
 describe("adaptadorDe", () => {
-  it("sólo Captación está conectada", () => {
+  it("Captación y Proyectos están conectados", () => {
     expect(adaptadorDe("CAPTACION")).toBe(adaptadorCaptacion);
     expect(adaptadorCaptacion.moduleKey).toBe("service-leads");
     expect(adaptadorCaptacion.rutaTablero).toBe("/consultas");
     expect(adaptadorCaptacion.rutaFicha("a/b")).toBe("/consultas/a%2Fb");
-    for (const t of ["CONSULTA", "PROYECTO", "COBERTURA", "toString", ""]) expect(adaptadorDe(t)).toBeNull();
+    for (const t of ["CONSULTA", "COBERTURA", "toString", ""]) expect(adaptadorDe(t)).toBeNull();
   });
 });
 

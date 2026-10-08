@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS, SERVICE_LEAD_SUBTYPE_LABELS } from "@/lib/service-leads/form-definitions";
 import { estaVencida, proyeccion } from "./calculos";
-import { SALIDAS, type Clase } from "./constantes";
+import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
 import { describirPaso, tareasVisibles, type PasoVista, type TareaFicha } from "./ficha-vista";
 import { motivosActivos, responsablesDe } from "./tablero";
 
@@ -13,7 +13,8 @@ import { motivosActivos, responsablesDe } from "./tablero";
  * página responde "no encontrado". Las fechas viajan como ISO (van a componentes de cliente).
  */
 
-const TIPO_SUJETO = "CAPTACION";
+/** Tipo de registro por omisión: Captación (Consultas). */
+const TIPO_SUJETO: TipoSujeto = "CAPTACION";
 
 export type ConsultaFicha = {
   id: string;
@@ -68,19 +69,19 @@ export type Ficha = {
 const etiqueta = (mapa: Record<string, string>, v: string) => mapa[v] ?? v;
 
 /** El recorrido abierto de la consulta; si no hay, el último que se cerró. */
-async function recorridoDe(workspaceId: string, leadId: string) {
+export async function recorridoDe(workspaceId: string, leadId: string, tipoSujeto: TipoSujeto = TIPO_SUJETO) {
   const select = {
     id: true, circuitId: true, kind: true, stageId: true, outcome: true, lossReasonId: true,
     enteredStageAt: true, stageDueAt: true, ownerUserId: true, closedAt: true,
   } as const;
   const abierto = await prisma.fotofficeJourney.findFirst({
-    where: { workspaceId, subjectType: TIPO_SUJETO, subjectId: leadId, closedAt: null },
+    where: { workspaceId, subjectType: tipoSujeto, subjectId: leadId, closedAt: null },
     select,
     orderBy: [{ createdAt: "desc" }],
   });
   if (abierto) return abierto;
   return prisma.fotofficeJourney.findFirst({
-    where: { workspaceId, subjectType: TIPO_SUJETO, subjectId: leadId, closedAt: { not: null } },
+    where: { workspaceId, subjectType: tipoSujeto, subjectId: leadId, closedAt: { not: null } },
     select,
     orderBy: [{ closedAt: "desc" }],
   });

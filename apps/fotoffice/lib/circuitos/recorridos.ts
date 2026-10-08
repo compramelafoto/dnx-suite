@@ -4,6 +4,7 @@ import { puede } from "@/lib/access/policy";
 import { fechaBA } from "@/lib/ficha/formato";
 import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
 import { esRetroceso, validarMovimiento, vencimientoDeEtapa, vencimientoDeTarea } from "./calculos";
+import { vencimientoDeTarea as vencimientoPlanificado } from "@/lib/proyectos/fechas";
 import { adaptadorDe, type Sujeto } from "./sujetos";
 import type { CtxCircuitos } from "./acceso";
 
@@ -58,7 +59,7 @@ export function mensajeTareasPendientes(pendientes: string[]): string {
 }
 
 /** Clase de circuito en la que arranca cada tipo de registro cuando no se elige circuito. */
-const CLASE_INICIAL: Partial<Record<TipoSujeto, Clase>> = { CAPTACION: "VENTA" };
+const CLASE_INICIAL: Partial<Record<TipoSujeto, Clase>> = { CAPTACION: "VENTA", PROYECTO: "TRABAJO" };
 
 /**
  * Rechazo esperado dentro de una transacción: se lanza para deshacer todo lo escrito y se
@@ -107,13 +108,25 @@ async function recorridoAbierto(tx: Tx, workspaceId: string, journeyId: string) 
   return { ...j, stageId: j.stageId };
 }
 
-/** Crea como tareas reales las tareas modelo de la etapa en la que se acaba de entrar. */
+/** Fin del día (Buenos Aires) de una fecha de calendario "YYYY-MM-DD", como el resto de los vencimientos. */
+function finDelDiaDe(fecha: string): Date {
+  return new Date(`${fecha}T23:59:59.999-03:00`);
+}
+
+/**
+ * Crea como tareas reales las tareas modelo de la etapa en la que se acaba de entrar.
+ *
+ * `vencimiento` (opcional) reemplaza el cálculo de la fecha de cada tarea a partir de sus días. Si
+ * no se pasa, el adaptador del tipo puede dar la fecha planificada de la etapa (Proyectos): la
+ * tarea vence ese día + sus días. Sin plan, cuenta desde la entrada, como siempre (Consultas).
+ */
 async function crearTareasDeEtapa(
   tx: Tx,
   ctx: CtxCircuitos,
   j: { id: string; subjectType: string; subjectId: string; ownerUserId: number | null },
   stageId: string,
   entrada: Date,
+  vencimiento?: (dias: number) => Date,
 ): Promise<void> {
   const modelos = await tx.fotofficeStageTaskTemplate.findMany({
     where: { stageId, stage: { circuit: { workspaceId: ctx.workspaceId } } },
@@ -121,6 +134,11 @@ async function crearTareasDeEtapa(
     orderBy: { order: "asc" },
   });
   if (modelos.length === 0) return;
+  let vence = vencimiento;
+  if (!vence) {
+    const plan = (await adaptadorDe(j.subjectType)?.fechaPlanificada?.(tx, ctx.workspaceId, j.subjectId, stageId)) ?? null;
+    if (plan !== null) vence = (dias) => finDelDiaDe(vencimientoPlanificado(plan, dias));
+  }
   await tx.fotofficeTask.createMany({
     data: modelos.map((m) => ({
       workspaceId: ctx.workspaceId,
@@ -129,7 +147,7 @@ async function crearTareasDeEtapa(
       subjectType: j.subjectType,
       subjectId: j.subjectId,
       title: m.title,
-      dueAt: vencimientoDeTarea(entrada, m.days),
+      dueAt: vence ? vence(m.days) : vencimientoDeTarea(entrada, m.days),
       required: m.required,
       assigneeUserId: j.ownerUserId,
       createdByUserId: ctx.userId,

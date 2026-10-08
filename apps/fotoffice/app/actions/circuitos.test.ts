@@ -93,8 +93,8 @@ describe("guardas comunes", () => {
   });
 
   it.each(LLAMADAS)("%s: tipo de registro no conectado → no encontrado", async (_n, llamar) => {
-    H.sujetoRec.mockResolvedValue({ tipo: "PROYECTO", id: "p1" });
-    H.sujetoTarea.mockResolvedValue({ tipo: "PROYECTO", id: "p1" });
+    H.sujetoRec.mockResolvedValue({ tipo: "COBERTURA", id: "p1" });
+    H.sujetoTarea.mockResolvedValue({ tipo: "COBERTURA", id: "p1" });
     expect(await llamar()).toEqual({ ok: false, error: "No encontramos ese registro." });
     for (const f of MOTOR) expect(f).not.toHaveBeenCalled();
   });
