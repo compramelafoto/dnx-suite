@@ -123,6 +123,34 @@ describe("recibo de pago automático", () => {
     expect(B.datos.fotofficePedido[0]!.accessTokenHash).toBe(EN.hashDeToken(EN.tokenDelPedido("ped-1", CLAVE, 0)));
   });
 
+  it("[cuota_link_pago]: la próxima cuota con saldo (o la pedida); vacío si no hay o si está cancelado", async () => {
+    B.agregar("fotofficePedidoCuota", { id: "c2", workspaceId: "ws-1", pedidoId: "ped-1", position: 2, dueDate: new Date("2026-11-07T00:00:00Z"), amountArs: "60000.00" });
+    B.datos.fotofficePedidoCuota[0]!.amountArs = "60000.00";
+    const leer = async (cuotaId?: string) => {
+      const r = await RE.contextoDeMensajePedido("ws-1", "ped-1", { cuotaId, usuario: { nombre: null, email: null }, ahora: AHORA, textos: ["[cuota_link_pago]"] }, deps);
+      return r.ok ? r.contexto.variables.pedido?.cuotaLinkPago : "ERROR";
+    };
+    const base = `https://app.test/w/dnxestudio/pedido/${EN.tokenDelPedido("ped-1", CLAVE, 0)}`;
+    expect(await leer()).toBe(`${base}?pagar=c1`);
+    expect(await leer("c2")).toBe(`${base}?pagar=c2`);
+    // Una cuota que no es de este pedido (o ya paga) no da enlace.
+    expect(await leer("otra")).toBeNull();
+    await cobro(60000);
+    expect(await leer()).toBe(`${base}?pagar=c2`);
+    expect(await leer("c1")).toBeNull();
+    await cobro(60000);
+    expect(await leer()).toBeNull();
+  });
+
+  it("[cuota_link_pago] no crea el enlace si ningún texto lo usa, y un pedido cancelado no da enlace", async () => {
+    const sinUso = await RE.contextoDeMensajePedido("ws-1", "ped-1", { usuario: { nombre: null, email: null }, ahora: AHORA, textos: [] }, deps);
+    expect(sinUso.ok && sinUso.contexto.variables.pedido?.cuotaLinkPago).toBeNull();
+    expect(B.datos.fotofficePedido[0]!.accessTokenHash ?? null).toBeNull();
+    B.datos.fotofficePedido[0]!.status = "CANCELADO";
+    const c = await RE.contextoDeMensajePedido("ws-1", "ped-1", { usuario: { nombre: null, email: null }, ahora: AHORA, textos: ["[cuota_link_pago]"] }, deps);
+    expect(c.ok && c.contexto.variables.pedido?.cuotaLinkPago).toBeNull();
+  });
+
   it("una falla del proveedor queda registrada y nunca lanza", async () => {
     H.enviar.mockResolvedValue({ status: "PROVIDER_REJECTED", detail: "HTTP 422" });
     expect(await RE.enviarReciboAutomatico("ws-1", await cobro(), deps)).toBe("NO_ENVIADO");

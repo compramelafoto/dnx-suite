@@ -67,3 +67,13 @@ export function hechosDelPago(pago: {
     feeMinor: comisionDeMp(pago.rawSanitized, pago.amountMinor),
   };
 }
+
+/** El `payment_id` de la vuelta de Mercado Pago: sólo dígitos. Lo demás se descarta antes de usarlo. */
+export function paymentIdValido(v: unknown): v is string {
+  return typeof v === "string" && /^\d{1,20}$/.test(v);
+}
+
+/** El id de una cuota que viene de la dirección (`?cuota=` / `?pagar=`): forma de id, nada más. */
+export function idDeCuotaValido(v: unknown): v is string {
+  return typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+}

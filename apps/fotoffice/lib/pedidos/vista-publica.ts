@@ -34,6 +34,8 @@ export type ItemPublicoPedido = {
 };
 
 export type CuotaPublica = {
+  /** Para el botón «Pagar» y el resaltado (`?pagar=`): el token del pedido ya la dejó ver. */
+  id: string;
   numero: number;
   /** "dd/mm/aaaa". */
   vence: string;
@@ -42,6 +44,8 @@ export type CuotaPublica = {
   saldo: number;
   estado: EstadoCuota;
   estadoEtiqueta: string;
+  /** Muestra «Pagar con Mercado Pago»: con saldo, pedido no cancelado y cobros habilitados. */
+  pagable: boolean;
 };
 
 export type ReciboEnLista = {
@@ -97,8 +101,10 @@ function organizacion(o: OrganizacionPublica): OrganizacionPublica {
   return { nombre: o.nombre, logoUrl: o.logoUrl, whatsappUrl: o.whatsappUrl, email: o.email };
 }
 
-function cuotaPublica(c: CuotaConEstado): CuotaPublica {
+function cuotaPublica(c: CuotaConEstado, puedePagar: boolean): CuotaPublica {
   return {
+    id: c.id,
+    pagable: puedePagar && c.saldo > 0,
     numero: c.position,
     vence: ddmmaaaa(c.dueDate),
     importe: c.amountArs,
@@ -120,8 +126,11 @@ export function armarVistaPedido(args: {
   formaDePago: { etiqueta: string; interes: number } | null;
   plan: ResumenPlan;
   recibos: readonly ReciboEnLista[];
+  /** La organización puede cobrar con Mercado Pago (sólo el sí o el no: nunca la cuenta ni el token). */
+  cobrosHabilitados?: boolean;
 }): VistaPedidoPublica {
   const t = args.totals;
+  const puedePagar = args.cobrosHabilitados === true && args.estado !== "CANCELADO";
   const renglones = t?.renglones ?? {};
   return {
     organizacion: organizacion(args.organizacion),
@@ -154,7 +163,7 @@ export function armarVistaPedido(args: {
       cobrado: args.plan.cobrado,
       saldo: args.plan.saldo,
       vencido: args.plan.vencido,
-      cuotas: args.plan.cuotas.map(cuotaPublica),
+      cuotas: args.plan.cuotas.map((c) => cuotaPublica(c, puedePagar)),
     },
     recibos: args.recibos.map((r) => ({ numero: r.numero, fecha: r.fecha, importe: r.importe, medio: r.medio, anulado: r.anulado, url: r.url })),
   };
