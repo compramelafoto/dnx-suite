@@ -2,24 +2,37 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, X } from "lucide-react";
+import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import { borrarPropuestaModeloAction, guardarPropuestaModeloAction } from "@/app/workspace/configuracion/presupuestos/actions";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { itemDesdeProducto, nuevaClave, pesos, type ProductoParaEditor } from "@/lib/presupuestos/editor";
+import { calcularItemDelPanel, entradaDelPanel, trabajoDesdeMotor, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { calcularTotales } from "@/lib/presupuestos/totales";
+import { AvisoSinPerfil, CampoTexto, CamposTrabajo } from "./panel-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
 
 /**
- * Editor simplificado de la propuesta modelo de una categoría (Entrega B): el mismo buscador del
- * catálogo que el editor de presupuestos y sólo ítems a precio de lista (sin texto libre ni
- * ¿Cuánto Cobro?). El precio que se ve es el del catálogo de hoy: al enviarla, nombre, descripción
- * y precio se toman del catálogo en ese momento.
+ * Editor simplificado de la propuesta modelo de una categoría: el mismo buscador del catálogo que
+ * el editor de presupuestos (ítems a precio de lista) y, además, conceptos calculados con
+ * ¿Cuánto Cobro? (sin texto libre). Del concepto calculado se guarda SÓLO el trabajo
+ * (`calculo.entrada.presupuesto`), nunca el perfil de precios: el perfil llega a esta pantalla
+ * porque quien la ve tiene `configurar`, y se usa sólo para mostrar el precio de hoy. Al enviarla,
+ * los ítems de lista toman nombre, descripción y precio del catálogo en ese momento, y los
+ * calculados se recalculan con el perfil de ese momento.
  */
 
 function aNumero(v: string): number {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
+
+const esConcepto = (i: ItemPresupuesto) => i.modoPrecio === "CALCULO";
+
+/** El trabajo guardado de un concepto calculado (sólo `entrada.presupuesto`). */
+const presupuestoDe = (i: ItemPresupuesto): unknown => (i.calculo?.entrada as { presupuesto?: unknown } | null | undefined)?.presupuesto;
+
+type Edicion = { id: string | null; trabajo: TrabajoPanel; tipoDeTrabajo: string };
 
 export function EditorPropuestaModelo(props: {
   categoriaId: string;
@@ -30,6 +43,8 @@ export function EditorPropuestaModelo(props: {
   plantillaId: string | null;
   catalogo: ProductoParaEditor[];
   plantillas: { id: string; nombre: string }[];
+  /** El perfil de Configuración → Precios, o null si todavía no lo cargaron. */
+  perfilDelWorkspace: CuantoCobroProfileInput | null;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -48,8 +63,48 @@ export function EditorPropuestaModelo(props: {
   const [seccionNueva, setSeccionNueva] = useState("");
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
 
-  const totales = calcularTotales(items, null);
-  const fueraDelCatalogo = items.filter((i) => !i.productId || !delCatalogo.has(i.productId));
+  const [edicion, setEdicion] = useState<Edicion | null>(null);
+
+  /** El precio de hoy de un concepto calculado (sólo vista); null si falta el perfil o datos. */
+  function precioDeHoy(i: ItemPresupuesto): number | null {
+    const guardado = trabajoDesdeMotor(presupuestoDe(i));
+    if (!props.perfilDelWorkspace || !guardado) return null;
+    const r = calcularItemDelPanel(props.perfilDelWorkspace, guardado.trabajo, guardado.tipoDeTrabajo, { id: i.id, nombre: i.nombre });
+    return r.ok ? r.item.precioUnitario : null;
+  }
+  const preciosDeHoy = new Map(items.filter(esConcepto).map((i) => [i.id, precioDeHoy(i)]));
+  const totales = calcularTotales(
+    items.map((i) => (esConcepto(i) ? { ...i, precioUnitario: preciosDeHoy.get(i.id) ?? 0 } : i)),
+    null,
+  );
+  const vistaPrevia =
+    edicion && props.perfilDelWorkspace
+      ? calcularItemDelPanel(props.perfilDelWorkspace, edicion.trabajo, edicion.tipoDeTrabajo, { id: edicion.id ?? "vista-previa", nombre: edicion.trabajo.nombre })
+      : null;
+
+  function aceptarConcepto() {
+    if (!edicion || !props.perfilDelWorkspace || !vistaPrevia?.ok) return;
+    // Se guarda sólo el trabajo: el perfil queda afuera.
+    const { presupuesto } = entradaDelPanel(props.perfilDelWorkspace, edicion.trabajo, edicion.tipoDeTrabajo);
+    const calculo = { entrada: { presupuesto } } as unknown as ItemPresupuesto["calculo"];
+    const nombre = vistaPrevia.item.nombre;
+    if (edicion.id) {
+      const id = edicion.id;
+      cambiar(items.map((i) => (i.id === id ? { ...i, nombre, calculo, precioUnitario: 0 } : i)));
+    } else {
+      cambiar([
+        ...items,
+        { ...vistaPrevia.item, id: nuevaClave(), seccion: seccionNueva.trim() || null, productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo },
+      ]);
+    }
+    setEdicion(null);
+  }
+  function editarConcepto(i: ItemPresupuesto) {
+    const guardado = trabajoDesdeMotor(presupuestoDe(i));
+    setEdicion({ id: i.id, trabajo: guardado?.trabajo ?? trabajoVacio(i.nombre), tipoDeTrabajo: guardado?.tipoDeTrabajo ?? "" });
+  }
+
+  const fueraDelCatalogo = items.filter((i) => !esConcepto(i) && (!i.productId || !delCatalogo.has(i.productId)));
 
   function cambiar(nuevos: ItemPresupuesto[]) {
     setItems(nuevos);
@@ -70,7 +125,12 @@ export function EditorPropuestaModelo(props: {
     iniciar(async () => {
       const r = await guardarPropuestaModeloAction({
         categoriaId: props.categoriaId,
-        items: items.map((i) => ({ ...i, modoPrecio: "LISTA", calculo: null })),
+        items: items.map((i) =>
+          esConcepto(i)
+            ? // Sólo el trabajo; el servidor repite la cuenta al enviar.
+              { ...i, productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: presupuestoDe(i) } } }
+            : { ...i, modoPrecio: "LISTA", calculo: null },
+        ),
         condiciones,
         enviarSola,
         plantillaId: plantillaId || null,
@@ -110,11 +170,50 @@ export function EditorPropuestaModelo(props: {
             <input id={`${id}-sec`} className="fo-input" value={seccionNueva} onChange={(e) => setSeccionNueva(e.target.value)} placeholder="Ej.: Cobertura, Álbum" />
           </div>
         </div>
-        <p className="text-xs text-[var(--fo-muted)]">Sólo productos del catálogo, a precio de lista. El precio que sale es el del catálogo el día del envío.</p>
+        <p className="text-xs text-[var(--fo-muted)]">
+          Productos del catálogo a precio de lista (el precio que sale es el del catálogo el día del envío) o conceptos calculados con ¿Cuánto Cobro?
+        </p>
+        {props.perfilDelWorkspace === null ? (
+          <AvisoSinPerfil />
+        ) : edicion === null ? (
+          <button type="button" className="fo-btn fo-btn-secondary" onClick={() => setEdicion({ id: null, trabajo: trabajoVacio(), tipoDeTrabajo: "" })}>
+            Agregar concepto calculado
+          </button>
+        ) : (
+          <div role="group" aria-label="Concepto calculado" className="space-y-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
+            <CampoTexto
+              etiqueta="Tipo de trabajo"
+              tipo="text"
+              valor={edicion.tipoDeTrabajo}
+              onCambio={(v) => setEdicion({ ...edicion, tipoDeTrabajo: v })}
+              ayuda="Por ejemplo: Boda, 15 años, Corporativo."
+            />
+            <CamposTrabajo trabajo={edicion.trabajo} onCambio={(t) => setEdicion({ ...edicion, trabajo: t })} />
+            <p role="status" className="text-sm font-semibold tabular-nums text-[var(--fo-text)]">
+              {vistaPrevia?.ok ? `Precio hoy: ${pesos(vistaPrevia.item.precioUnitario)}` : vistaPrevia ? vistaPrevia.error : ""}
+            </p>
+            {vistaPrevia && !vistaPrevia.ok && vistaPrevia.faltan.length > 0 ? (
+              <ul className="list-disc space-y-0.5 pl-5 text-xs text-[var(--fo-muted)]">
+                {vistaPrevia.faltan.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="flex gap-2">
+              <button type="button" className="fo-btn fo-btn-primary" disabled={!vistaPrevia?.ok} onClick={aceptarConcepto}>
+                {edicion.id ? "Guardar cambios" : "Agregar a la propuesta"}
+              </button>
+              <button type="button" className="fo-btn fo-btn-ghost" onClick={() => setEdicion(null)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="text-xs text-[var(--fo-muted)]">El perfil de precios no se guarda en la propuesta: sólo el trabajo. Al enviarla se calcula con tu perfil de ese día.</p>
       </section>
 
       <section aria-label="Productos de la propuesta" className="fo-card space-y-3 overflow-x-auto">
-        {items.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay productos. Buscalos en el catálogo.</p> : null}
+        {items.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay productos. Buscalos en el catálogo o agregá un concepto calculado.</p> : null}
         {fueraDelCatalogo.length > 0 ? (
           <p role="alert" className="text-sm text-[var(--fo-danger)]">
             Hay productos que ya no están en el catálogo: quitalos antes de guardar.
@@ -126,7 +225,7 @@ export function EditorPropuestaModelo(props: {
               <tr className="text-left text-xs text-[var(--fo-muted)]">
                 <th className="py-1 pr-2 font-medium">Producto</th>
                 <th className="py-1 pr-2 font-medium">Cant.</th>
-                <th className="py-1 pr-2 text-right font-medium">Precio de lista</th>
+                <th className="py-1 pr-2 text-right font-medium">Precio de lista u hoy</th>
                 <th className="py-1 pr-2 text-right font-medium">Subtotal</th>
                 <th className="py-1 font-medium">
                   <span className="sr-only">Acciones</span>
@@ -140,6 +239,7 @@ export function EditorPropuestaModelo(props: {
                   <tr key={it.id} className="border-t border-[var(--fo-border)] align-top">
                     <td className="py-2 pr-2">
                       <p className="font-medium text-[var(--fo-text)]">{it.nombre}</p>
+                      {esConcepto(it) ? <p className="text-xs text-[var(--fo-muted)]">Calculado con ¿Cuánto Cobro?</p> : null}
                       <input
                         aria-label={`Sección de ${etiquetaFila}`}
                         className="fo-input mt-1 text-xs"
@@ -158,16 +258,22 @@ export function EditorPropuestaModelo(props: {
                       </label>
                     </td>
                     <td className="py-2 pr-2">
-                      <input
-                        aria-label={`Cantidad de ${etiquetaFila}`}
-                        type="number"
-                        min={0}
-                        className="fo-input w-20 text-right"
-                        value={it.cantidad}
-                        onChange={(e) => actualizar(it.id, { cantidad: aNumero(e.target.value) })}
-                      />
+                      {esConcepto(it) ? (
+                        <span className="tabular-nums">{it.cantidad}</span>
+                      ) : (
+                        <input
+                          aria-label={`Cantidad de ${etiquetaFila}`}
+                          type="number"
+                          min={0}
+                          className="fo-input w-20 text-right"
+                          value={it.cantidad}
+                          onChange={(e) => actualizar(it.id, { cantidad: aNumero(e.target.value) })}
+                        />
+                      )}
                     </td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{pesos(it.precioUnitario)}</td>
+                    <td className="py-2 pr-2 text-right tabular-nums">
+                      {esConcepto(it) ? (preciosDeHoy.get(it.id) != null ? pesos(preciosDeHoy.get(it.id)!) : "—") : pesos(it.precioUnitario)}
+                    </td>
                     <td className="py-2 pr-2 text-right tabular-nums">{pesos(totales.renglones[it.id]?.neto ?? 0)}</td>
                     <td className="py-2">
                       <div className="flex gap-1">
@@ -177,6 +283,11 @@ export function EditorPropuestaModelo(props: {
                         <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Bajar ${etiquetaFila}`} disabled={i === items.length - 1} onClick={() => mover(it.id, 1)}>
                           <ArrowDown className="h-4 w-4" aria-hidden />
                         </button>
+                        {esConcepto(it) && props.perfilDelWorkspace ? (
+                          <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Editar ${etiquetaFila}`} onClick={() => editarConcepto(it)}>
+                            <Pencil className="h-4 w-4" aria-hidden />
+                          </button>
+                        ) : null}
                         <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Quitar ${etiquetaFila}`} onClick={() => cambiar(items.filter((x) => x.id !== it.id))}>
                           <X className="h-4 w-4" aria-hidden />
                         </button>
