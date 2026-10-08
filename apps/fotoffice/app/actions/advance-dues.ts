@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
-import { createAdvanceCharges } from "@/lib/membership/advance-store";
+import { cancelPendingAdvance, createAdvanceCharges } from "@/lib/membership/advance-store";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 
 export type AdvanceDuesResult =
@@ -42,4 +42,22 @@ export async function advanceDuesAction(months: number): Promise<AdvanceDuesResu
 
   revalidatePath("/portal/cuotas");
   return { ok: true, payPath: "/portal/cuotas" };
+}
+
+/**
+ * Quita las cuotas adelantadas que el socio pidió y todavía no pagó.
+ *
+ * No exige que la institución pueda cobrar: arrepentirse de un pedido tiene que poder
+ * hacerse siempre, aunque el cobro en línea se haya apagado después de pedirlo.
+ */
+export async function cancelAdvanceAction(): Promise<
+  { ok: true; removed: number } | { ok: false; error: string }
+> {
+  const user = await requireAuth();
+  const context = await loadPortalContext(user.id);
+  if (!context) return { ok: false, error: "No encontramos tu ficha de socio." };
+
+  const r = await cancelPendingAdvance(context.member.id);
+  revalidatePath("/portal/cuotas");
+  return { ok: true, removed: r.removed };
 }

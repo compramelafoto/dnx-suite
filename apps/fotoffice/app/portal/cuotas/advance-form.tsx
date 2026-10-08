@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { advanceDuesAction } from "@/app/actions/advance-dues";
+import { advanceDuesAction, cancelAdvanceAction } from "@/app/actions/advance-dues";
 
 /**
  * Adelantar cuotas.
@@ -12,13 +12,70 @@ import { advanceDuesAction } from "@/app/actions/advance-dues";
  */
 export function AdvanceForm({
   options,
+  pending,
 }: {
   options: { months: number; label: string; totalLabel: string }[];
+  /** Cuotas adelantadas pedidas y sin pagar. Si hay, se ofrece quitarlas en vez de pedir más. */
+  pending: {
+    count: number;
+    firstLabel: string;
+    lastLabel: string;
+    totalLabel: string;
+  } | null;
 }) {
   const router = useRouter();
   const [elegido, setElegido] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
+
+  /*
+    Pedir un adelanto crea las cuotas en el momento, antes de pagarlas. Si el socio ya tiene
+    un pedido sin pagar no se le ofrece otro —apilarlos era lo que hacía crecer la deuda con
+    cada toque— y se le da la salida: pagarlo con el botón de siempre o quitarlo.
+  */
+  if (pending) {
+    const rango =
+      pending.count === 1 ? pending.firstLabel : `de ${pending.firstLabel} a ${pending.lastLabel}`;
+    return (
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">Cuotas adelantadas sin pagar</h2>
+        <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
+          Pediste adelantar {pending.count === 1 ? "1 cuota" : `${pending.count} cuotas`} ({rango})
+          por {pending.totalLabel}. Ya están sumadas en lo que debés. Si fue un error o cambiaste de
+          idea, podés quitarlas: las cuotas que ya debías no se tocan.
+        </p>
+        {error ? (
+          <p className="text-xs text-[var(--fo-danger)]" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="fo-btn w-full text-sm disabled:opacity-60"
+          disabled={pendiente}
+          onClick={() => {
+            if (
+              !window.confirm(
+                `¿Quitar ${pending.count === 1 ? "la cuota adelantada" : `las ${pending.count} cuotas adelantadas`} sin pagar?`,
+              )
+            )
+              return;
+            startTransition(async () => {
+              setError(null);
+              const r = await cancelAdvanceAction();
+              if (!r.ok) {
+                setError(r.error);
+                return;
+              }
+              router.refresh();
+            });
+          }}
+        >
+          {pendiente ? "Quitando…" : "Quitar las cuotas adelantadas"}
+        </button>
+      </section>
+    );
+  }
 
   if (options.length === 0) return null;
 

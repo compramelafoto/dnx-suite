@@ -1,14 +1,14 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import {
-  MAX_ADVANCE_MONTHS,
   advanceAmountMinorFor,
   advanceCandidatePeriods,
+  advanceRoomMonths,
   planAdvancePeriods,
   type AdvancePeriod,
 } from "./advance";
 import { getActiveFeeValue, getDuesSettings } from "./settings";
-import { minorToDecimalString } from "./money";
+import { decimalArsToMinor, minorToDecimalString } from "./money";
 import { periodOf } from "./monthly-plan";
 import type { FeeScale } from "./amounts";
 import { monthlyDuePeriod } from "./periods";
@@ -43,10 +43,74 @@ async function primerMesLibre(memberId: string, ahora: Date): Promise<string> {
   return periodOf(siguiente);
 }
 
+/** Una cuota adelantada que el socio pidió y todavía no pagó (ni en parte). */
+export type PendingAdvanceCharge = {
+  id: string;
+  period: string;
+  amountMinor: number;
+};
+
+/**
+ * Las cuotas adelantadas sin pagar: las de un mes posterior al corriente que siguen intactas.
+ *
+ * Un mes posterior al corriente sólo pudo haberlo creado un adelanto: la generación mensual
+ * nunca carga un mes que todavía no empezó. "Intactas" es sin ninguna imputación — ni pago ni
+ * saldo a favor aplicado —; una con algo imputado ya es plata del socio y no se toca.
+ */
+export async function loadPendingAdvance(
+  memberId: string,
+  opciones: { now?: Date } = {},
+): Promise<PendingAdvanceCharge[]> {
+  const corriente = periodOf(opciones.now ?? new Date());
+  const cargos = await prisma.membershipCharge.findMany({
+    where: {
+      memberId,
+      concept: "MENSUAL",
+      period: { gt: corriente },
+      allocations: { none: {} },
+      recommendationBenefit: { is: null },
+    },
+    orderBy: { period: "asc" },
+    select: { id: true, period: true, amountArs: true, balanceArs: true },
+  });
+  return cargos
+    .filter((c) => c.balanceArs.equals(c.amountArs) && c.balanceArs.gt(0))
+    .map((c) => ({
+      id: c.id,
+      period: c.period,
+      amountMinor: decimalArsToMinor(c.balanceArs),
+    }));
+}
+
+/**
+ * Quita las cuotas adelantadas que el socio pidió y no pagó.
+ *
+ * Es el arrepentimiento: pedir un adelanto crea las cuotas antes de pagarlas, y sin esto un
+ * toque de más quedaba como deuda para siempre. Sólo borra las intactas (ver
+ * `loadPendingAdvance`) y vuelve a comprobarlo dentro del mismo `deleteMany`, por si entre la
+ * lectura y el borrado entró un pago.
+ */
+export async function cancelPendingAdvance(
+  memberId: string,
+  opciones: { now?: Date } = {},
+): Promise<{ removed: number }> {
+  const pendientes = await loadPendingAdvance(memberId, opciones);
+  if (pendientes.length === 0) return { removed: 0 };
+  const r = await prisma.membershipCharge.deleteMany({
+    where: {
+      id: { in: pendientes.map((p) => p.id) },
+      memberId,
+      allocations: { none: {} },
+      recommendationBenefit: { is: null },
+    },
+  });
+  return { removed: r.count };
+}
+
 export async function loadAdvanceOffer(
   memberId: string,
   opciones: { now?: Date } = {},
-): Promise<{ periods: AdvancePeriod[] }> {
+): Promise<{ periods: AdvancePeriod[]; pending: PendingAdvanceCharge[] }> {
   const ahora = opciones.now ?? new Date();
   const socio = await prisma.member.findUnique({
     where: { id: memberId },
@@ -58,22 +122,31 @@ export async function loadAdvanceOffer(
       category: { select: { generatesDues: true } },
     },
   });
-  if (!socio) return { periods: [] };
+  if (!socio) return { periods: [], pending: [] };
 
   // Los honorarios (u otra categoría que no genera cuotas) no tienen nada para adelantar:
   // ofrecerles un precio sería inventar una deuda que la institución nunca definió para
   // ellos. Sin categoría se asume que sí genera cuotas, igual que en la generación mensual.
   if (!(socio.category?.generatesDues ?? true)) {
-    return { periods: [] };
+    return { periods: [], pending: [] };
   }
 
-  const [settings, desde] = await Promise.all([
+  const [settings, desde, pendientes] = await Promise.all([
     getDuesSettings(socio.workspaceId),
     primerMesLibre(memberId, ahora),
+    loadPendingAdvance(memberId, { now: ahora }),
   ]);
 
-  // Se ofrece el tope completo; cuántos toma de verdad lo elige el socio en la pantalla.
-  const periodos = advanceCandidatePeriods(desde, MAX_ADVANCE_MONTHS);
+  // Con un adelanto pedido y sin pagar no se ofrece otro: primero se paga o se quita. Cada
+  // pedido crea cuotas de verdad, y apilar pedidos era sumarle deuda a quien sólo estaba
+  // probando las opciones.
+  if (pendientes.length > 0) return { periods: [], pending: pendientes };
+
+  // Se ofrece lo que entra en la ventana; cuántos toma de verdad lo elige el socio en la
+  // pantalla. La ventana se mide desde hoy (ver `advanceRoomMonths`).
+  const lugar = advanceRoomMonths(periodOf(ahora), desde);
+  if (lugar === 0) return { periods: [], pending: [] };
+  const periodos = advanceCandidatePeriods(desde, lugar);
 
   // El valor de referencia se pide al vencimiento de CADA período, no a hoy: si ya hay un
   // aumento resuelto para noviembre (un `MembershipFeeValue` con `validFrom` futuro que la
@@ -97,10 +170,11 @@ export async function loadAdvanceOffer(
   return {
     periods: planAdvancePeriods({
       fromPeriod: desde,
-      months: MAX_ADVANCE_MONTHS,
+      months: lugar,
       feeValuesMinor,
       dueDay: settings.dueDay,
     }),
+    pending: [],
   };
 }
 
@@ -115,6 +189,12 @@ export async function createAdvanceCharges(input: {
   if (!socio) return { ok: false, error: "No encontramos tu ficha de socio." };
 
   const oferta = await loadAdvanceOffer(input.memberId);
+  if (oferta.pending.length > 0) {
+    return {
+      ok: false,
+      error: "Ya tenés cuotas adelantadas sin pagar. Pagalas o quitalas antes de pedir otras.",
+    };
+  }
   if (oferta.periods.length === 0) {
     return { ok: false, error: "La institución todavía no fijó el valor de la cuota." };
   }
