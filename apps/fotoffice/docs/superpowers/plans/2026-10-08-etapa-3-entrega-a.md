@@ -216,7 +216,7 @@ Los rubros de ingresos y costos pasan a tener dos niveles.
 
 **Files:**
 - `lib/pedidos/{cobros,recibos,enlace}.ts` y pruebas;
-- `lib/numeracion/secuencias.ts`: clave `RECIBO`, con `{ prefix: "", withYear: false, digits: 1, nextValue: 1 }`;
+- `lib/numeracion/secuencias.ts`: clave `RECIBO`, con `{ prefix: "", withYear: true, digits: 4, nextValue: 1 } (año + 4 dígitos, como todas desde el 08/10)`;
 - `lib/plantillas`: tipo `PEDIDO`, variables y automático;
 - `lib/circuitos`: emitir `SENA_COBRADA`.
 
@@ -302,7 +302,7 @@ Los rubros de ingresos y costos pasan a tener dos niveles.
   - checksum de `migration.sql`;
   - consultas de verificación;
   - vuelta atrás;
-  - configuración de DNX: `PEDIDO` en 2025095, `RECIBO` desde 1, encender `orders`, cargar el plan de cuentas;
+  - configuración de DNX: `PEDIDO` y `RECIBO` con año y 4 dígitos (2026-0001), encender `orders`, cargar el plan de cuentas;
   - prueba en producción: aceptar un presupuesto de prueba, confirmar, cobrar en efectivo, abrir el recibo desde otro navegador, anular, cancelar el pedido y ver Caja.
 - [ ] Verificación completa: vitest, tsc de las 4 apps, build y borrar `.next/cache`.
 - [ ] Commit `Pedidos: documento de migración de la entrega A`.

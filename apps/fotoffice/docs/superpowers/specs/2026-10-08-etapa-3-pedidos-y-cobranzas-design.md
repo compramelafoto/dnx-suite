@@ -330,8 +330,8 @@ Para cada entrega:
 2. PR, chequeos y fusión.
 3. Verificar el despliegue y que no haya errores 5xx.
 4. Configurar DNX:
-   - numeración `PEDIDO` en 2025095 (sigue a Alboom);
-   - `RECIBO` desde 1;
+   - numeración `PEDIDO` con año y 4 dígitos (2026-0001; pedido de Daniel del 08/10);
+   - `RECIBO` con año y 4 dígitos;
    - encender el módulo `orders`;
    - sembrar los rubros.
 5. Prueba en producción con un pedido de prueba, que después se cancela, y sus cobros, que se anulan.
