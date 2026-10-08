@@ -42,6 +42,8 @@ const TABLAS = [
   "cashCategory", "fotofficeRubro",
   // Pedidos y cobros (etapa 3).
   "fotofficePedido", "fotofficePedidoCuota", "fotofficeCobro", "fotofficeCobroImputacion",
+  // Cuentas a pagar, recordatorios de cuotas, ajustes de pedidos y checklist (etapa 3, Entrega B1).
+  "fotofficeCuentaPagar", "fotofficeCuotaRecordatorio", "fotofficePedidoAjustes", "fotofficePedidoTarea",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -144,6 +146,16 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     voidReason: null, voidCashMovementId: null, idempotencyKey: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeCobroImputacion: () => ({ createdAt: new Date() }),
+  fotofficeCuentaPagar: () => ({
+    pedidoId: null, supplierClientId: null, costoPlantillaId: null, dueDate: null, costCategoryId: null, paidAt: null,
+    paidMethod: null, paidCashMovementId: null, voidedAt: null, voidReason: null, voidCashMovementId: null,
+    idempotencyKey: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeCuotaRecordatorio: () => ({ sentAt: new Date() }),
+  fotofficePedidoAjustes: () => ({
+    reminderDays: 1, reminderEnabled: false, incomeCategoryId: null, checklistTemplates: null, updatedAt: new Date(),
+  }),
+  fotofficePedidoTarea: () => ({ doneAt: null, doneByUserId: null, createdAt: new Date(), updatedAt: new Date() }),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
   cashMovement: () => ({
@@ -293,6 +305,15 @@ export function crearBaseEnMemoria() {
       { columnas: ["workspaceId", "idempotencyKey"], aplica: (f) => f.idempotencyKey !== null && f.idempotencyKey !== undefined },
     ],
     fotofficeCobroImputacion: [{ columnas: ["cobroId", "cuotaId"] }],
+    // Entrega B1: los de la migración de cuentas a pagar.
+    fotofficeCuentaPagar: [
+      { columnas: ["paidCashMovementId"], aplica: (f) => f.paidCashMovementId !== null && f.paidCashMovementId !== undefined },
+      { columnas: ["voidCashMovementId"], aplica: (f) => f.voidCashMovementId !== null && f.voidCashMovementId !== undefined },
+      { columnas: ["workspaceId", "idempotencyKey"], aplica: (f) => f.idempotencyKey !== null && f.idempotencyKey !== undefined },
+    ],
+    // El vencimiento es una fecha: se compara por valor (`igual`).
+    fotofficeCuotaRecordatorio: [{ columnas: ["cuotaId", "dueDate"] }],
+    fotofficePedidoAjustes: [{ columnas: ["workspaceId"] }],
     // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
     cashMovement: [
       { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },
@@ -318,7 +339,7 @@ export function crearBaseEnMemoria() {
   function verificarUnicidad(tabla: Tabla, f: Fila) {
     for (const u of UNICOS[tabla] ?? []) {
       if (u.aplica && !u.aplica(f)) continue;
-      const choca = datos[tabla].some((x) => x !== f && (!u.aplica || u.aplica(x)) && u.columnas.every((c) => x[c] === f[c]));
+      const choca = datos[tabla].some((x) => x !== f && (!u.aplica || u.aplica(x)) && u.columnas.every((c) => igual(x[c], f[c])));
       if (choca) throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
     }
   }
