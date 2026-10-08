@@ -2,7 +2,16 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireServiceLeadsContext } from "@/lib/workspace";
-import { rutaPublicaFormulario } from "@/lib/service-leads/ruta-publica";
+import { appUrl } from "@/lib/app-url";
+import {
+  baseDelSitio,
+  codigoMarcoConAltoAutomatico,
+  codigoMarcoSimple,
+  esFormularioInsertable,
+  urlInsertada,
+  urlPublicaFormulario,
+  urlScriptInsertar,
+} from "@/lib/service-leads/insertar";
 import { ShareDetailsClient } from "./share-details-client";
 
 type Props = { params: Promise<{ formId: string }> };
@@ -20,12 +29,37 @@ export default async function ShareServiceLeadFormPage({ params }: Props) {
 
   if (!form) notFound();
 
-  // El enlace público sale de la dirección real del workspace, nunca de un valor fijo.
-  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
-    where: { workspaceId: workspace.id },
-    select: { publicSlug: true },
+  // El enlace público sale de la dirección real del workspace, nunca de un valor fijo: su dominio
+  // propio si lo tiene conectado, si no `<FOTOFFICE>/w/<slug>`. Siempre absoluto, porque se pega
+  // en otra web.
+  const [branding, dominio] = await Promise.all([
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { publicSlug: true },
+    }),
+    prisma.fotofficeWorkspaceDomain.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { domain: true, status: true },
+    }),
+  ]);
+  const base = baseDelSitio({
+    customDomain: dominio?.status === "CONNECTED" ? dominio.domain : null,
+    appOrigin: appUrl(),
+    slug: branding?.publicSlug ?? null,
   });
-  const publicUrl = rutaPublicaFormulario(branding?.publicSlug, form.slug);
+  const publicUrl = base ? urlPublicaFormulario(base, form.slug) : null;
+  const titulo = form.title?.trim() || form.name;
+  const insertar =
+    base && esFormularioInsertable(form.slug)
+      ? (() => {
+          const url = urlInsertada(base, form.slug);
+          return {
+            url,
+            simple: codigoMarcoSimple({ url, titulo }),
+            conAltoAutomatico: codigoMarcoConAltoAutomatico({ url, titulo, scriptUrl: urlScriptInsertar(base) }),
+          };
+        })()
+      : null;
 
   return (
     <div className="space-y-10">
@@ -40,6 +74,7 @@ export default async function ShareServiceLeadFormPage({ params }: Props) {
           formSlug={form.slug}
           formMode={form.formMode}
           publicUrl={publicUrl}
+          insertar={insertar}
         />
       ) : (
         <div className="fo-card">

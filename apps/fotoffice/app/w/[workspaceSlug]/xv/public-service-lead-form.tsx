@@ -34,11 +34,14 @@ export function PublicServiceLeadForm({
   formId,
   formSlug,
   configJson,
+  insertado = false,
 }: {
   workspaceSlug: string;
   formId?: string;
   formSlug?: string;
   configJson?: unknown;
+  /** Dibujado dentro de otra web (`/w/<slug>/insertar/xv`): no salta de página al terminar. */
+  insertado?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [pending, startTransition] = useTransition();
@@ -49,6 +52,9 @@ export function PublicServiceLeadForm({
 
   useEffect(() => {
     if (!ok) return;
+    // Insertado en otra web, saltar de página dentro del marco no sirve (WhatsApp no se deja
+    // enmarcar) y sacar a la persona de la web que la contiene tampoco: se ofrece un botón.
+    if (insertado) return;
     if (postSubmitAction.type === "NONE") return;
     if (!postSubmitAction.url) return;
 
@@ -57,7 +63,7 @@ export function PublicServiceLeadForm({
     }, postSubmitAction.delaySeconds * 1000);
 
     return () => window.clearTimeout(timeout);
-  }, [ok, postSubmitAction]);
+  }, [ok, postSubmitAction, insertado]);
 
   if (ok) {
     return (
@@ -66,6 +72,16 @@ export function PublicServiceLeadForm({
         <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
           Recibimos tus datos y te vamos a contactar pronto con una propuesta para tu cobertura de XV.
         </p>
+        {insertado && postSubmitAction.type !== "NONE" && postSubmitAction.url ? (
+          <a
+            href={postSubmitAction.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fo-btn fo-btn-primary mt-4 inline-flex"
+          >
+            {postSubmitAction.type === "WHATSAPP" ? "Seguir por WhatsApp" : "Continuar"}
+          </a>
+        ) : null}
       </div>
     );
   }

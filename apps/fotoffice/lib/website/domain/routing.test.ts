@@ -65,3 +65,12 @@ describe("isFotofficeHost", () => {
     expect(isFotofficeHost("sfpr.com.ar", ORIGIN)).toBe(false);
   });
 });
+
+describe("formulario insertable en el dominio propio", () => {
+  it("/insertar[/<formulario>] se dibuja sin el armazón del sitio", () => {
+    expect(decide("/insertar")).toEqual({ kind: "rewrite", pathname: "/formulario-insertado/sfpr/general" });
+    expect(decide("/insertar/xv")).toEqual({ kind: "rewrite", pathname: "/formulario-insertado/sfpr/xv" });
+    // El script de alto automático es un archivo estático: pasa sin tocar.
+    expect(decide("/insertar.js")).toEqual({ kind: "pass" });
+  });
+});
