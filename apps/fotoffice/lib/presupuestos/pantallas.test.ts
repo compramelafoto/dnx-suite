@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { calculateCuantoCobro } from "@repo/cuanto-cobro-core";
-import { createBaseCompleteProfile, createBaseCompleteQuote } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 
 /**
  * Task 4 (pantallas): lecturas del editor con y sin permiso de costos, la definición de la lista
@@ -19,7 +18,6 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
 const D = await import("./editor-datos");
 const L = await import("./listado");
-const { itemDesdeCalculo } = await import("./calculo-cuanto-cobro");
 
 const niveles = { quotes: "MANAGE", "service-leads": "MANAGE", clients: "MANAGE" };
 const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: niveles } as never };
@@ -29,13 +27,6 @@ const LECTOR = { workspaceId: "ws-1", userId: 3, userLabel: "Leo", role: "STAFF"
 beforeEach(() => {
   B.vaciar();
 });
-
-function itemCalculado() {
-  const entrada = { perfil: createBaseCompleteProfile(), presupuesto: createBaseCompleteQuote() };
-  const r = itemDesdeCalculo(calculateCuantoCobro(entrada.perfil, entrada.presupuesto), { id: "c1", nombre: "Boda", parametros: entrada });
-  if (!r.ok) throw new Error(r.error);
-  return r.item;
-}
 
 describe("lecturas del editor", () => {
   it("catálogo: activos del workspace, sin costos, con el ahorro de los combos", async () => {
@@ -234,7 +225,15 @@ describe("fuente de las pantallas", () => {
       expect(src.match(/aria-live=/g)).toHaveLength(1);
       expect(src).not.toContain('role="status"');
     }
-    expect(leer("components/presupuestos/panel-cuanto-cobro.tsx")).toContain("perfilParaPanel(item, perfilInicial)");
+    const panel = leer("components/presupuestos/panel-cuanto-cobro.tsx");
+    expect(panel).toContain("perfilParaPanel(item, perfilDelWorkspace)");
+    expect(panel).toContain("/workspace/configuracion/precios");
+    // El perfil se carga en Configuración → Precios: ningún componente usa el perfil corto.
+    for (const f of readdirSync(join(RAIZ, "components/presupuestos"))) {
+      const src = leer(`components/presupuestos/${f}`);
+      expect(src, f).not.toContain("PerfilPanel");
+      expect(src, f).not.toContain("CamposPerfil");
+    }
     // Nuevo: el nombre del contacto de la consulta, sólo con Ver en Consultas y en Clientes.
     const nuevo = leer("app/(shell)/presupuestos/nuevo/page.tsx");
     expect(nuevo).toContain('puedeEnContexto(ctx, "ver", SERVICE_LEADS_MODULE_KEY) && puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)');

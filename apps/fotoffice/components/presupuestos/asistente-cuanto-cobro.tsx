@@ -1,26 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { nuevaClave, pesos } from "@/lib/presupuestos/editor";
-import { armarItemsDelAsistente, PERFIL_VACIO, trabajoVacio, type PerfilPanel, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
-import { CampoTexto, CamposPerfil, CamposTrabajo } from "./panel-cuanto-cobro";
+import { armarItemsDelAsistente, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { AvisoSinPerfil, CampoTexto, CamposTrabajo, PerfilEnUso } from "./panel-cuanto-cobro";
 
 /**
- * "Armar con ¿Cuánto Cobro?" (spec §3.2): un perfil y los conceptos del trabajo dan un ítem
+ * "Armar con ¿Cuánto Cobro?" (spec §3.2): el perfil de Configuración → Precios y los conceptos del trabajo dan un ítem
  * calculado por concepto. Sólo para quien tiene `configurar` (R4), como el panel.
  */
 export function AsistenteCuantoCobro({
-  perfilInicial,
+  perfilDelWorkspace,
   onAgregar,
   onCerrar,
 }: {
-  perfilInicial: PerfilPanel | null;
-  onAgregar: (items: ItemPresupuesto[], perfil: PerfilPanel) => void;
+  /** El perfil de Configuración → Precios, o null si todavía no lo cargaron. */
+  perfilDelWorkspace: CuantoCobroProfileInput | null;
+  onAgregar: (items: ItemPresupuesto[]) => void;
   onCerrar: () => void;
 }) {
-  const [perfil, setPerfil] = useState<PerfilPanel>(perfilInicial ?? PERFIL_VACIO);
-  const [verPerfil, setVerPerfil] = useState(perfilInicial === null);
+  const perfil = perfilDelWorkspace;
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState("");
   const [seccion, setSeccion] = useState("");
   const [trabajos, setTrabajos] = useState<TrabajoPanel[]>([trabajoVacio("Cobertura")]);
@@ -29,8 +30,8 @@ export function AsistenteCuantoCobro({
   // agregar, así no cambian en cada tecla.
   const opciones = (clave: () => string) => ({ seccion: seccion.trim() || null, nuevaClave: clave });
   let n = 0;
-  const r = armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, opciones(() => `vista-${n++}`));
-  const total = r.ok ? r.items.reduce((s, i) => s + i.precioUnitario, 0) : 0;
+  const r = perfil ? armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, opciones(() => `vista-${n++}`)) : null;
+  const total = r?.ok ? r.items.reduce((s, i) => s + i.precioUnitario, 0) : 0;
 
   return (
     <section aria-label="Armar con ¿Cuánto Cobro?" className="space-y-4 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] p-4">
@@ -44,12 +45,7 @@ export function AsistenteCuantoCobro({
         </button>
       </div>
 
-      <div className="space-y-2">
-        <button type="button" className="text-sm font-medium text-[var(--fo-accent)] hover:underline" onClick={() => setVerPerfil((v) => !v)} aria-expanded={verPerfil}>
-          {verPerfil ? "Ocultar tu perfil" : "Tu perfil (gastos y horas)"}
-        </button>
-        {verPerfil ? <CamposPerfil perfil={perfil} onCambio={setPerfil} /> : null}
-      </div>
+      {perfil ? <PerfilEnUso perfil={perfil} /> : <AvisoSinPerfil />}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <CampoTexto etiqueta="Tipo de trabajo" tipo="text" valor={tipoDeTrabajo} onCambio={setTipoDeTrabajo} />
@@ -83,9 +79,9 @@ export function AsistenteCuantoCobro({
 
       {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
       <p className="sr-only" aria-live="polite">
-        {r.ok ? `Total sugerido: ${pesos(total)}` : ""}
+        {r?.ok ? `Total sugerido: ${pesos(total)}` : ""}
       </p>
-      {r.ok ? (
+      {!r ? null : r.ok ? (
         <div className="space-y-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <ul className="space-y-1">
             {r.items.map((it) => (
@@ -100,8 +96,9 @@ export function AsistenteCuantoCobro({
             type="button"
             className="fo-btn fo-btn-primary text-sm"
             onClick={() => {
+              if (!perfil) return;
               const final = armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, opciones(nuevaClave));
-              if (final.ok) onAgregar(final.items, perfil);
+              if (final.ok) onAgregar(final.items);
             }}
           >
             Agregar {r.items.length === 1 ? "el ítem" : `los ${r.items.length} ítems`}

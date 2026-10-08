@@ -30,7 +30,7 @@ export type ProductoParaEditor = {
 export type InternosEditor = {
   /** Costos de cada producto ofrecido (clave = id del producto). */
   costosCatalogo: Record<string, CostoDeCatalogo>;
-  /** Perfil de ¿Cuánto Cobro? para precargar el panel (el último usado en el workspace), o null. */
+  /** Perfil de ¿Cuánto Cobro? del workspace (Configuración → Precios), o null si todavía no lo cargaron. */
   perfil: CuantoCobroProfileInput | null;
 };
 
