@@ -6,28 +6,24 @@ import {
   armarItemsDelAsistente,
   calcularItemDelPanel,
   entradaDelPanel,
-  PERFIL_VACIO,
-  perfilAlMotor,
   perfilParaPanel,
-  perfilDesdeMotor,
   trabajoDesdeMotor,
   trabajoVacio,
-  type PerfilPanel,
   type TrabajoPanel,
 } from "./panel-cuanto-cobro";
 
 const CUANDO = new Date("2026-10-07T15:00:00.000Z");
-const PERFIL: PerfilPanel = { ...PERFIL_VACIO, gastosPersonales: "900000", alquiler: "100000", software: "30000", horasSemanales: "40", horasCobertura: "14" };
+const PERFIL = createBaseCompleteProfile();
 const BODA: TrabajoPanel = { ...trabajoVacio("Cobertura de boda"), horasCobertura: "8", horasEdicion: "10", horasEntrega: "1", horasViaje: "2", costoDirecto: "20000", horasCliente: "3" };
 
 describe("panel de ¿Cuánto Cobro? (motor real)", () => {
-  it("el perfil corto da un perfil completo del motor (distribución que suma el total semanal)", () => {
-    const r = calculateCuantoCobro(perfilAlMotor(PERFIL), entradaDelPanel(PERFIL, BODA, "Boda").presupuesto);
+  it("el perfil completo del workspace corre en el motor", () => {
+    const r = calculateCuantoCobro(PERFIL, entradaDelPanel(PERFIL, BODA, "Boda").presupuesto);
     expect(r.status).toBe("complete");
   });
 
   it("sin gastos personales o sin horas, el motor dice qué falta", () => {
-    const r = calcularItemDelPanel({ ...PERFIL, gastosPersonales: "" }, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO);
+    const r = calcularItemDelPanel({ ...PERFIL, personalExpenseGroups: [], weeklyHours: "" }, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.faltan.length).toBeGreaterThan(0);
   });
@@ -51,23 +47,15 @@ describe("panel de ¿Cuánto Cobro? (motor real)", () => {
     expect(ajustado.ok && ajustado.item.precioUnitario).toBe(500000);
   });
 
-  it("se reabre: del motor al formulario corto y de vuelta da el mismo precio", () => {
+  it("se reabre: la entrada guardada devuelve el trabajo y da el mismo precio", () => {
     const entrada = entradaDelPanel(PERFIL, BODA, "Boda");
-    const perfil = perfilDesdeMotor(entrada.perfil)!;
     const t = trabajoDesdeMotor(entrada.presupuesto)!;
-    expect(perfil).toMatchObject({ gastosPersonales: "900000", horasSemanales: "40", horasCobertura: "14" });
     expect(t.tipoDeTrabajo).toBe("Boda");
-    const a = calcularItemDelPanel(PERFIL, BODA, "Boda", { id: "x", nombre: "x" }, CUANDO);
-    const b = calcularItemDelPanel(perfil, t.trabajo, t.tipoDeTrabajo, { id: "x", nombre: "x" }, CUANDO);
-    expect(a.ok && b.ok && a.item.precioUnitario === b.item.precioUnitario).toBe(true);
-  });
-
-  it("un perfil completo del motor (el de CLF) se lee en corto", () => {
-    const p = perfilDesdeMotor(createBaseCompleteProfile())!;
-    expect(p.gastosPersonales).toBe("200000");
     expect(trabajoDesdeMotor(createBaseCompleteQuote())?.trabajo.horasCobertura).toBe("6");
-    expect(perfilDesdeMotor(null)).toBeNull();
     expect(trabajoDesdeMotor({ concepts: [] })).toBeNull();
+    const a = calcularItemDelPanel(PERFIL, BODA, "Boda", { id: "x", nombre: "x" }, CUANDO);
+    const b = calcularItemDelPanel(PERFIL, t.trabajo, t.tipoDeTrabajo, { id: "x", nombre: "x" }, CUANDO);
+    expect(a.ok && b.ok && a.item.precioUnitario === b.item.precioUnitario).toBe(true);
   });
 
   it("'Armar con ¿Cuánto Cobro?': un ítem por concepto; las horas con el cliente, sólo en el primero", () => {
@@ -84,13 +72,22 @@ describe("panel de ¿Cuánto Cobro? (motor real)", () => {
     expect(armarItemsDelAsistente(PERFIL, [], "", { nuevaClave: () => "z" }).ok).toBe(false);
   });
 
-  it("al reabrir un ítem calculado, el panel usa SU perfil guardado y no el último del editor", () => {
+  it("al reabrir un ítem calculado, el panel usa SU perfil guardado y avisa si el del workspace cambió", () => {
     const r = calcularItemDelPanel(PERFIL, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO);
     if (!r.ok) throw new Error(r.error);
-    const otro: PerfilPanel = { ...PERFIL, gastosPersonales: "1", horasSemanales: "10" };
-    expect(perfilParaPanel(r.item, otro)).toMatchObject({ gastosPersonales: "900000", horasSemanales: "40" });
-    expect(perfilParaPanel({ calculo: null }, otro)).toBe(otro);
-    expect(perfilParaPanel(null, null)).toEqual(PERFIL_VACIO);
-    expect(perfilParaPanel({ calculo: { entrada: { perfil: "roto" } } }, otro)).toBe(otro);
+    const otro = { ...PERFIL, weeklyHours: "10" };
+    const conOtro = perfilParaPanel(r.item, otro);
+    expect(conOtro.origen).toBe("item");
+    expect(conOtro.desactualizado).toBe(true);
+    expect(conOtro.perfil).toMatchObject({ weeklyHours: PERFIL.weeklyHours });
+    expect(perfilParaPanel(r.item, PERFIL)).toMatchObject({ origen: "item", desactualizado: false });
+    expect(perfilParaPanel(r.item, null)).toMatchObject({ origen: "item", desactualizado: false });
+  });
+
+  it("sin perfil en el ítem: el del workspace, o ninguno", () => {
+    expect(perfilParaPanel({ calculo: null }, PERFIL)).toEqual({ perfil: PERFIL, origen: "workspace", desactualizado: false });
+    expect(perfilParaPanel({ calculo: null }, null)).toEqual({ perfil: null, origen: "ninguno", desactualizado: false });
+    expect(perfilParaPanel(null, null).origen).toBe("ninguno");
+    expect(perfilParaPanel({ calculo: { entrada: { perfil: "roto" } } }, PERFIL).origen).toBe("workspace");
   });
 });

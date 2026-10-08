@@ -169,6 +169,21 @@ export default async function WorkspaceSettingsPage() {
         </Link>
       ) : null}
 
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/precios"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Precios</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Tus costos, tus horas y el valor de tu hora para calcular presupuestos con ¿Cuánto Cobro?
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
       {membership?.role && puede(membership.role, "configurar") && presupuestosVisible ? (
         <Link
           href="/workspace/configuracion/presupuestos"

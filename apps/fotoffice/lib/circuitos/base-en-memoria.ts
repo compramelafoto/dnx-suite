@@ -44,6 +44,8 @@ const TABLAS = [
   "fotofficePedido", "fotofficePedidoCuota", "fotofficeCobro", "fotofficeCobroImputacion",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
+  // Perfil de precios del workspace.
+  "fotofficePerfilPrecios",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -150,6 +152,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   workspaceFeatureModule: () => ({ enabled: false, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, createdAt: new Date() }),
+  fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -296,6 +299,7 @@ export function crearBaseEnMemoria() {
       { columnas: ["reversesMovementId"], aplica: (f) => f.reversesMovementId !== null && f.reversesMovementId !== undefined },
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
+    fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
   };
 
   /**

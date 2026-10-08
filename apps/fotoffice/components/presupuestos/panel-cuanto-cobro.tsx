@@ -1,9 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
-import { COMMERCIAL_POSITIONING_OPTIONS } from "@repo/cuanto-cobro-core";
+import Link from "next/link";
+import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { pesos } from "@/lib/presupuestos/editor";
+import { perfilesIguales } from "@/lib/precios/perfil-datos";
+import { resumirPerfil } from "@/lib/precios/resumen";
 import {
   calcularItemDelPanel,
   perfilParaPanel,
@@ -11,13 +14,12 @@ import {
   trabajoDesdeMotor,
   trabajoVacio,
   type DatosItemCalculado,
-  type PerfilPanel,
   type TrabajoPanel,
 } from "@/lib/presupuestos/panel-cuanto-cobro";
 
 /**
  * Panel de ¿Cuánto Cobro? de un ítem (spec §3.2). SÓLO se dibuja para quien tiene `configurar`
- * (R4): pide el perfil del fotógrafo (gastos, horas) y el trabajo, corre el motor en el navegador y
+ * (R4): toma el perfil de Configuración → Precios y pide el trabajo, corre el motor en el navegador y
  * muestra el precio sugerido con su costo y su margen. "Usar este precio" pega el ítem en el
  * presupuesto; al guardar, el servidor repite la cuenta con la misma entrada (R2).
  */
@@ -55,56 +57,30 @@ export function CampoTexto({
   );
 }
 
-/** El perfil del fotógrafo en corto. Lo comparten el panel y el asistente. */
-export function CamposPerfil({ perfil, onCambio }: { perfil: PerfilPanel; onCambio: (p: PerfilPanel) => void }) {
-  const set = (k: keyof PerfilPanel) => (v: string) => onCambio({ ...perfil, [k]: v });
-  const idPos = useId();
-  const idVive = useId();
+const RUTA_PRECIOS = "/workspace/configuracion/precios";
+
+/** Aviso cuando todavía no hay perfil de precios cargado. Lo comparten el panel y el asistente. */
+export function AvisoSinPerfil() {
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <CampoTexto etiqueta="Gastos personales del mes ($)" valor={perfil.gastosPersonales} onCambio={set("gastosPersonales")} ayuda="Vivienda, comida, servicios, todo lo de tu casa." />
-        <div className="fo-field-stack">
-          <label htmlFor={idVive} className="fo-label">
-            ¿Vivís sólo de la fotografía?
-          </label>
-          <select
-            id={idVive}
-            className="fo-input"
-            value={perfil.viveSoloDeLaFoto ? "si" : "no"}
-            onChange={(e) => onCambio({ ...perfil, viveSoloDeLaFoto: e.target.value === "si" })}
-          >
-            <option value="si">Sí</option>
-            <option value="no">No, tengo otros ingresos</option>
-          </select>
-        </div>
-        {!perfil.viveSoloDeLaFoto ? <CampoTexto etiqueta="Otros ingresos del mes ($)" valor={perfil.ingresosExternos} onCambio={set("ingresosExternos")} /> : null}
-        <CampoTexto etiqueta="Alquiler o estudio ($/mes)" valor={perfil.alquiler} onCambio={set("alquiler")} />
-        <CampoTexto etiqueta="Software y herramientas ($/mes)" valor={perfil.software} onCambio={set("software")} />
-        <CampoTexto etiqueta="Publicidad ($/mes)" valor={perfil.marketing} onCambio={set("marketing")} />
-        <CampoTexto etiqueta="Colaboradores fijos" valor={perfil.colaboradores} onCambio={set("colaboradores")} />
-        {perfil.colaboradores.trim() !== "" && perfil.colaboradores.trim() !== "0" ? (
-          <CampoTexto etiqueta="Costo del equipo ($/mes)" valor={perfil.costoColaboradores} onCambio={set("costoColaboradores")} />
-        ) : null}
-        <CampoTexto etiqueta="Horas de trabajo por semana" valor={perfil.horasSemanales} onCambio={set("horasSemanales")} />
-        <CampoTexto etiqueta="De esas, horas de cobertura" valor={perfil.horasCobertura} onCambio={set("horasCobertura")} ayuda="Las que se cobran; el resto es edición y gestión." />
-        <CampoTexto etiqueta="Renovación de equipo ($/mes)" valor={perfil.renovacionEquipo} onCambio={set("renovacionEquipo")} />
-        <CampoTexto etiqueta="Fondo de emergencia ($/mes)" valor={perfil.fondoEmergencia} onCambio={set("fondoEmergencia")} />
-        <CampoTexto etiqueta="Ahorro y vacaciones ($/mes)" valor={perfil.ahorro} onCambio={set("ahorro")} />
-      </div>
-      <div className="fo-field-stack">
-        <label htmlFor={idPos} className="fo-label">
-          Momento del negocio
-        </label>
-        <select id={idPos} className="fo-input" value={perfil.posicionamiento} onChange={(e) => onCambio({ ...perfil, posicionamiento: e.target.value as PerfilPanel["posicionamiento"] })}>
-          {COMMERCIAL_POSITIONING_OPTIONS.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.title}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="space-y-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
+      <p className="text-[var(--fo-text)]">Para calcular con ¿Cuánto Cobro? primero cargá tu perfil de precios.</p>
+      <Link href={RUTA_PRECIOS} className="font-medium text-[var(--fo-accent)] hover:underline">
+        Ir a Configuración → Precios
+      </Link>
     </div>
+  );
+}
+
+/** El perfil que se está usando, en una línea. Lo comparten el panel y el asistente. */
+export function PerfilEnUso({ perfil, anterior = false }: { perfil: CuantoCobroProfileInput; anterior?: boolean }) {
+  const { valorHora } = resumirPerfil(perfil);
+  return (
+    <p className="text-xs text-[var(--fo-muted)]">
+      {valorHora !== null ? `Valor de tu hora: ${pesos(valorHora)} · ` : ""}
+      <Link href={RUTA_PRECIOS} className="text-[var(--fo-accent)] hover:underline">
+        {anterior ? "Perfil con el que se calculó este ítem" : "Perfil de Configuración → Precios"}
+      </Link>
+    </p>
   );
 }
 
@@ -172,20 +148,23 @@ export function trabajoDelItem(item: ItemPresupuesto | null): { trabajo: Trabajo
 
 export function PanelCuantoCobro({
   item,
-  perfilInicial,
+  perfilDelWorkspace,
   onUsar,
   onCerrar,
 }: {
   /** El ítem que se calcula (su clave, nombre, sección…); con cálculo previo, se reabre con esos datos. */
   item: ItemPresupuesto;
-  perfilInicial: PerfilPanel | null;
-  onUsar: (item: ItemPresupuesto, perfil: PerfilPanel) => void;
+  /** El perfil de Configuración → Precios, o null si todavía no lo cargaron. */
+  perfilDelWorkspace: CuantoCobroProfileInput | null;
+  onUsar: (item: ItemPresupuesto) => void;
   onCerrar: () => void;
 }) {
   const inicial = trabajoDelItem(item);
-  // Un ítem ya calculado se reabre con SU perfil guardado, no con el último del editor.
-  const [perfil, setPerfil] = useState<PerfilPanel>(() => perfilParaPanel(item, perfilInicial));
-  const [verPerfil, setVerPerfil] = useState(perfilInicial === null && !item.calculo);
+  // Un ítem ya calculado se reabre con SU perfil guardado; si no, con el del workspace.
+  const { perfil: guardado } = perfilParaPanel(item, perfilDelWorkspace);
+  const [perfil, setPerfil] = useState<CuantoCobroProfileInput | null>(guardado);
+  // El aviso vale mientras se use un perfil distinto del actual; al recalcular desaparece.
+  const desactualizado = perfil !== null && perfilDelWorkspace !== null && !perfilesIguales(perfil, perfilDelWorkspace);
   const [trabajo, setTrabajo] = useState<TrabajoPanel>(inicial.trabajo);
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState(inicial.tipoDeTrabajo);
 
@@ -198,8 +177,8 @@ export function PanelCuantoCobro({
     productId: item.productId,
   };
   // El motor es puro y rápido: corre en cada cambio, sin ir al servidor.
-  const resultado = calcularItemDelPanel(perfil, trabajo, tipoDeTrabajo, datos);
-  const c = resultado.ok ? resultado.item.calculo : null;
+  const resultado = perfil ? calcularItemDelPanel(perfil, trabajo, tipoDeTrabajo, datos) : null;
+  const c = resultado?.ok ? resultado.item.calculo : null;
 
   return (
     <section aria-label="Calcular con ¿Cuánto Cobro?" className="space-y-4 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] p-4">
@@ -213,21 +192,24 @@ export function PanelCuantoCobro({
         </button>
       </div>
 
-      <div className="space-y-2">
-        <button type="button" className="text-sm font-medium text-[var(--fo-accent)] hover:underline" onClick={() => setVerPerfil((v) => !v)} aria-expanded={verPerfil}>
-          {verPerfil ? "Ocultar tu perfil" : "Tu perfil (gastos y horas)"}
-        </button>
-        {verPerfil ? <CamposPerfil perfil={perfil} onCambio={setPerfil} /> : null}
-      </div>
+      {perfil ? <PerfilEnUso perfil={perfil} anterior={desactualizado} /> : <AvisoSinPerfil />}
+      {perfil && desactualizado && perfilDelWorkspace ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
+          <p className="text-[var(--fo-text)]">Este ítem se calculó con un perfil anterior.</p>
+          <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setPerfil(perfilDelWorkspace)}>
+            Recalcular con mi perfil actual
+          </button>
+        </div>
+      ) : null}
 
       <CampoTexto etiqueta="Tipo de trabajo" tipo="text" valor={tipoDeTrabajo} onCambio={setTipoDeTrabajo} ayuda="Por ejemplo: Boda, 15 años, Corporativo." />
       <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} />
 
       {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
       <p className="sr-only" aria-live="polite">
-        {resultado.ok && c ? `Precio sugerido: ${pesos(c.precioSugerido)}` : ""}
+        {resultado?.ok && c ? `Precio sugerido: ${pesos(c.precioSugerido)}` : ""}
       </p>
-      {resultado.ok && c ? (
+      {!resultado ? null : resultado.ok && c ? (
         <div className="space-y-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-surface-hover)] p-3 text-sm">
           <p className="text-base font-semibold text-[var(--fo-text)]">Precio sugerido: {pesos(c.precioSugerido)}</p>
           <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
@@ -245,7 +227,7 @@ export function PanelCuantoCobro({
               ))}
             </ul>
           ) : null}
-          <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => onUsar(resultado.item, perfil)}>
+          <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => onUsar(resultado.item)}>
             Usar este precio
           </button>
         </div>

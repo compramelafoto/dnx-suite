@@ -251,3 +251,6 @@ export function validarItems(raw: unknown): ResultadoValidacion<ItemPresupuesto[
   }
   return { ok: true, valor: items };
 }
+
+/** Tope del JSON de entrada del motor (`{perfil, presupuesto}`). Vive acá, puro, para que lo usen el perfil y el adaptador. */
+export const TOPE_ENTRADA_MOTOR = 200_000;

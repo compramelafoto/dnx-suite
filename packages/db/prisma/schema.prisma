@@ -7197,6 +7197,7 @@ model Workspace {
   fotofficePresupuestoVersiones FotofficePresupuestoVersion[]
   fotofficePresupuestoVistas FotofficePresupuestoVista[]
   fotofficePresupuestoAjustes FotofficePresupuestoAjustes?
+  fotofficePerfilPrecios      FotofficePerfilPrecios?
   fotofficePropuestasModelo FotofficePropuestaModelo[]
   fotofficePedidos FotofficePedido[]
   fotofficePedidoCuotas FotofficePedidoCuota[]
@@ -20851,6 +20852,22 @@ model FotofficePropuestaModelo {
   @@unique([workspaceId, categoryId])
   @@index([categoryId])
   @@index([templateId])
+}
+
+/// Perfil de precios de ¿Cuánto Cobro? del workspace (Configuración → Precios). `profileData` es un
+/// `CuantoCobroProfileInput` completo (mismo formato que `CuantoCobroFinancialProfile` de CLF).
+/// Lo leen Presupuestos y, más adelante, el asistente de ventas. Sólo `configurar` lo ve.
+model FotofficePerfilPrecios {
+  id              String   @id @default(cuid())
+  workspaceId     String   @unique
+  schemaVersion   Int      @default(1)
+  profileData     Json
+  /// "manual" | "clf-import"
+  source          String?
+  updatedAt       DateTime @updatedAt
+  updatedByUserId Int?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------
