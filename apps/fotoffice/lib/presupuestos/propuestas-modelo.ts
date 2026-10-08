@@ -2,6 +2,8 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { validarItems, type ItemPresupuesto, type ResultadoValidacion } from "./constantes";
+import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
+import { TIPOS_TRABAJO } from "./panel-cuanto-cobro";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { MAX_TEXTO_VERSION } from "./versiones";
 
@@ -33,6 +35,8 @@ export const MENSAJES_PROPUESTA_MODELO = {
   soloLista: "Los productos de la propuesta tienen que ser del catálogo.",
   conceptoInvalido: "Revisá el concepto calculado: le faltan las horas o el tipo de trabajo.",
   producto: MENSAJES_PRESUPUESTO.producto,
+  sinPerfil: "Para que salga sola con conceptos calculados, primero cargá tu perfil en Configuración → Precios.",
+  calculoSinPrecio: "Uno de los conceptos calculados no da precio con tu perfil actual: revisalo antes de activar el envío automático.",
   plantilla: "Elegí una plantilla de correo de tipo Presupuesto.",
   sinItems: "Para que salga sola, la propuesta necesita al menos un ítem.",
   sinPlantilla: "Para que salga sola, elegí la plantilla de correo con la que se envía.",
@@ -103,6 +107,9 @@ function trabajoDelConcepto(calculo: unknown): unknown | null {
   if (!objetoPlano(presupuesto) || !Array.isArray(presupuesto.concepts)) return null;
   const c = presupuesto.concepts[0];
   if (!objetoPlano(c)) return null;
+  const nombre = comoTexto(c.name);
+  if (nombre === undefined || nombre.trim() === "") return null;
+  if (!TIPOS_TRABAJO.some((t) => t.valor === c.itemType)) return null;
   const concepto: Record<string, string> = {};
   for (const k of CAMPOS_DEL_CONCEPTO) {
     const t = comoTexto(c[k]);
@@ -260,6 +267,16 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
       select: { id: true },
     });
     if (encontrados.length !== productIds.length) return no(MENSAJES_PROPUESTA_MODELO.producto);
+  }
+
+  // Si sale sola, los conceptos calculados tienen que dar precio de verdad (misma vía que al enviar).
+  if (enviarSola && items.valor.length > 0) {
+    const real = await itemsDeLaPropuesta(workspaceId, items.valor, new Date());
+    if (!real.ok) {
+      if (real.motivo === "SIN_PERFIL") return no(MENSAJES_PROPUESTA_MODELO.sinPerfil);
+      if (real.motivo === "CALCULO") return no(MENSAJES_PROPUESTA_MODELO.calculoSinPrecio);
+      return no(MENSAJES_PROPUESTA_MODELO.producto);
+    }
   }
 
   let plantillaId: string | null = null;

@@ -162,6 +162,28 @@ describe("crear", () => {
       expect(item!.precioUnitario).toBeGreaterThan(0);
     });
 
+    it("el equipo (sin configurar) guarda el borrador precargado tal como le llega al navegador", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      conPropuesta([lista, calculado]);
+      const r = await nuevo(EQUIPO);
+      const vista = V.versionParaVista(versionesDe(r.presupuestoId)[0] as never, false);
+      const items = vista.items as { modoPrecio: string; precioUnitario: number }[];
+      const precio = items[1]!.precioUnitario;
+      expect(items[1]).toMatchObject({ modoPrecio: "CALCULO", calculo: null });
+      expect(precio).toBeGreaterThan(0);
+      expect(await P.guardarBorrador(EQUIPO, r.presupuestoId, { items: vista.items }, deps)).toEqual({ ok: true });
+      const guardados = versionesDe(r.presupuestoId)[0]!.items as { precioUnitario: number }[];
+      expect(guardados[1]!.precioUnitario).toBe(precio);
+    });
+
+    it("si los ítems instanciados no validan (precio del catálogo sobre el tope), V1 vacía y el registro sólo lleva un código", async () => {
+      B.datos.product.find((x) => x.id === "prod-a")!.priceArs = "99999999999999.00";
+      conPropuesta([lista]);
+      const r = await nuevo();
+      expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ items: [] });
+      expect(JSON.stringify(errores.mock.calls)).toContain("ITEMS_INVALIDOS");
+    });
+
     it("sin condiciones en la propuesta, salen las de los ajustes", async () => {
       await A.guardarAjustes(DUENO, { validezDias: 15, condiciones: "Generales", propuestaPago: null, seguimientoDias: 3, seguimientoActivo: false });
       conPropuesta([lista], null);

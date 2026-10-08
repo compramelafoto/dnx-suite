@@ -8,6 +8,8 @@ const B = await vi.hoisted(async () => {
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+
 const PM = await import("./propuestas-modelo");
 const M = PM.MENSAJES_PROPUESTA_MODELO;
 
@@ -59,8 +61,18 @@ describe("validarItemsDeModelo (puro)", () => {
     expect(PM.validarItemsDeModelo([concepto("c", { productId: "prod-1" })])).toEqual({ ok: false, error: M.conceptoInvalido });
   });
 
+  it("rechaza un concepto sin nombre o con un tipo de trabajo que no existe", () => {
+    const con = (c: Record<string, unknown>) => concepto("c", { calculo: { entrada: { presupuesto: { concepts: [c] } } } });
+    expect(PM.validarItemsDeModelo([con({ name: "", itemType: "own-service" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "   ", itemType: "own-service" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ itemType: "own-service" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "x" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "x", itemType: "otro" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "x", itemType: "outsourced" })]).ok).toBe(true);
+  });
+
   it("normaliza el concepto: precio 0 y sin perfil ni otros campos del cálculo", () => {
-    const r = PM.validarItemsDeModelo([concepto("c", { precioUnitario: 5, calculo: { precioSugerido: 9, entrada: { perfil: { gastos: 1 }, presupuesto: { concepts: [{ name: "x" }] } } } })]);
+    const r = PM.validarItemsDeModelo([concepto("c", { precioUnitario: 5, calculo: { precioSugerido: 9, entrada: { perfil: { gastos: 1 }, presupuesto: { concepts: [{ name: "x", itemType: "expense" }] } } } })]);
     expect(r.ok && r.valor[0]).toMatchObject({ productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: { concepts: [{ name: "x" }] } } } });
     expect(r.ok && Object.keys(r.valor[0]!.calculo!)).toEqual(["entrada"]);
     expect(r.ok && Object.keys((r.valor[0]!.calculo as never as { entrada: object }).entrada)).toEqual(["presupuesto"]);
@@ -155,6 +167,30 @@ describe("guardar, leer y borrar", () => {
     expect(await guardar({ items: [] })).toEqual({ ok: false, error: M.sinItems });
     expect(await guardar({ plantillaId: null })).toEqual({ ok: false, error: M.sinPlantilla });
     expect(await guardar({ items: [], plantillaId: null, enviarSola: false })).toEqual({ ok: true });
+  });
+
+  describe("salir sola con conceptos calculados", () => {
+    const calculado = (datos: Record<string, unknown> = {}) =>
+      concepto("c", { calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4", ...datos }] } } } });
+
+    it("sin perfil de precios: no deja activarla", async () => {
+      expect(await guardar({ items: [calculado()] as never })).toEqual({ ok: false, error: M.sinPerfil });
+      expect(B.datos.fotofficePropuestaModelo).toHaveLength(0);
+    });
+
+    it("con un concepto que no da precio con el perfil: no deja activarla", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      expect(await guardar({ items: [concepto("c")] as never })).toEqual({ ok: false, error: M.calculoSinPrecio });
+    });
+
+    it("con perfil y un concepto que da precio: la guarda", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      expect(await guardar({ items: [item("a"), calculado()] as never })).toEqual({ ok: true });
+    });
+
+    it("apagada, un concepto calculado se guarda aunque no haya perfil", async () => {
+      expect(await guardar({ items: [calculado()] as never, enviarSola: false })).toEqual({ ok: true });
+    });
   });
 
   it("condiciones de más de 4000 caracteres no", async () => {

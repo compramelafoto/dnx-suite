@@ -123,6 +123,7 @@ export async function enviarPropuestaModelo(
     }
     const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
     if (!instanciada.ok) {
+      // PRODUCTO_INACTIVO se registra con el código histórico PRODUCTO_FUERA_DEL_CATALOGO.
       aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
       return "FALLO";
     }

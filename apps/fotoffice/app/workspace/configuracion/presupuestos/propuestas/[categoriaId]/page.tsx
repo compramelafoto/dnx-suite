@@ -49,7 +49,7 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
 
   return (
     <div className="max-w-4xl space-y-6">
-      <PageHeader title={`Propuesta modelo · ${categoria.name}`} description="Productos del catálogo a precio de lista, condiciones y cómo se envía." />
+      <PageHeader title={`Propuesta modelo · ${categoria.name}`} description="Productos del catálogo a precio de lista y conceptos calculados con ¿Cuánto Cobro?, condiciones y cómo se envía." />
       <PestanasPresupuestos activa="propuestas" />
       <p className="text-sm">
         <Link href="/workspace/configuracion/presupuestos/propuestas" className="text-[var(--fo-accent)] hover:underline">

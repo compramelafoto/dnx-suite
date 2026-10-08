@@ -288,7 +288,7 @@ export function EditorPropuestaModelo(props: {
                             <Pencil className="h-4 w-4" aria-hidden />
                           </button>
                         ) : null}
-                        <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Quitar ${etiquetaFila}`} onClick={() => cambiar(items.filter((x) => x.id !== it.id))}>
+                        <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Quitar ${etiquetaFila}`} onClick={() => { cambiar(items.filter((x) => x.id !== it.id)); if (edicion?.id === it.id) setEdicion(null); }}>
                           <X className="h-4 w-4" aria-hidden />
                         </button>
                       </div>
