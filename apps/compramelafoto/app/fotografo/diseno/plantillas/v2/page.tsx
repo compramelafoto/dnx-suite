@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import TemplateV2NameEditor from "@/components/template-v2/TemplateV2NameEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +115,10 @@ export default async function PlantillasV2ListPage() {
             abrir una anterior sin salir del flujo.
           </p>
         </div>
-        <CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto} />
+        <CreateTemplateV2Button
+          basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto}
+          theme={{ accent: "#c27b3d", accentInk: "#ffffff" }}
+        />
       </div>
 
       {templates.length === 0 ? (
@@ -166,8 +170,11 @@ export default async function PlantillasV2ListPage() {
                   return (
                     <tr key={template.id} className="border-b border-[#f1f5f9] align-top last:border-b-0">
                       <td className="px-5 py-4">
-                        <p className="text-sm font-semibold text-[#111827]">{template.name || "Sin nombre"}</p>
-                        <p className="mt-1 text-xs text-[#6b7280]">Lista para editar en el diseñador</p>
+                        <TemplateV2NameEditor
+                          templateId={template.id}
+                          initialName={template.name}
+                          subtitle="Lista para editar en el diseñador"
+                        />
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">Template ID</p>
