@@ -406,3 +406,104 @@ describe("revisión: carreras y fallas después de enviar", () => {
   });
 });
 
+
+describe("armarBorradorDePropuesta (borrador automático)", () => {
+  const activar = () => B.agregar("fotofficePropuestaBorradorAuto", { workspaceId: "ws-1", categoryId: categoriaBoda });
+  const tareas = () => B.datos.fotofficeTask;
+  const lead = () => B.datos.serviceSalesLead.at(-1)!.id as string;
+
+  it("desde el formulario web: arma el borrador sin enviar, sin correo ni registro, con tarea para el responsable", async () => {
+    // Sin la respuesta automática encendida no sale nada, pero el borrador igual se arma.
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    B.agregar("fotofficeConsultaAjustes", { workspaceId: "ws-1", defaultOwnerUserId: 5 });
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+
+    expect(H.enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(0);
+    expect(presupuestos()).toHaveLength(1);
+    const p = presupuestos()[0]!;
+    expect(p).toMatchObject({ status: "BORRADOR", ownerUserId: 5, consultaLeadId: lead() });
+    const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === p.currentVersionId)!;
+    expect(v).toMatchObject({ createdByUserId: null, sentAt: null });
+    expect((v.totals as { total: number }).total).toBe(900001);
+    expect(tareas().some((t) => String(t.title).startsWith("Revisar y enviar el presupuesto"))).toBe(true);
+  });
+
+  it("con la común encendida y sin envío automático: sale la común y además queda el borrador", async () => {
+    autorespuesta();
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(correo().subject).toBe("Recibimos tu consulta");
+    expect(presupuestos().map((p) => p.status)).toEqual(["BORRADOR"]);
+  });
+
+  it("si la propuesta salió sola, no arma otro borrador", async () => {
+    autorespuesta();
+    propuesta();
+    activar();
+    await createServiceLead(ENTRADA);
+    expect(presupuestos().map((p) => p.status)).toEqual(["ENVIADO"]);
+  });
+
+  it("no cuenta para el tope diario de automáticos", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    const antes = H.enviar.mock.calls.length;
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("YA_TIENE_PRESUPUESTO");
+    expect(H.enviar.mock.calls.length).toBe(antes);
+    expect(mensajes()).toHaveLength(0);
+    expect(TOPE_AUTOMATICOS_DIA).toBeGreaterThan(0);
+  });
+
+  it("no duplica: con un presupuesto ya existente devuelve YA_TIENE_PRESUPUESTO", async () => {
+    propuesta({ autoSendOnWeb: false });
+    await createServiceLead(ENTRADA);
+    activar();
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("ARMADO");
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("YA_TIENE_PRESUPUESTO");
+    expect(presupuestos()).toHaveLength(1);
+    expect(tareas().filter((t) => String(t.title).startsWith("Revisar y enviar"))).toHaveLength(1);
+  });
+
+  it("NO_APLICA: interruptor apagado, sin ficha, sin propuesta o Presupuestos apagado", async () => {
+    propuesta({ autoSendOnWeb: false });
+    await createServiceLead(ENTRADA);
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("NO_APLICA");
+    expect(await PA.armarBorradorDePropuesta("ws-1", "no-existe")).toBe("NO_APLICA");
+    activar();
+    H.modulo.mockImplementation(async (_ws: string, m: string) => m !== "quotes");
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("NO_APLICA");
+    H.modulo.mockResolvedValue(true);
+    expect(presupuestos()).toHaveLength(0);
+  });
+
+  it("sin perfil de precios con un concepto calculado: FALLO y no queda presupuesto", async () => {
+    propuesta({
+      autoSendOnWeb: false,
+      items: [{
+        id: "r3", productId: null, nombre: "Cobertura boda", descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+        modoPrecio: "CALCULO", seccion: null, opcional: false,
+        calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4" }] } } },
+      }],
+    });
+    activar();
+    await createServiceLead(ENTRADA);
+    expect(presupuestos()).toHaveLength(0);
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("FALLO");
+    expect(presupuestos()).toHaveLength(0);
+  });
+
+  it("nunca lanza: si algo explota devuelve ERROR y sólo registra el código", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    const id = lead();
+    H.modulo.mockRejectedValue(Object.assign(new Error("Laura caída"), { code: "P1001" }));
+    expect(await PA.armarBorradorDePropuesta("ws-1", id)).toBe("ERROR");
+    expect(JSON.stringify(errores.mock.calls)).toContain("P1001");
+  });
+});

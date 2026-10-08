@@ -22,6 +22,7 @@ import { numeroDe } from "@/lib/numeracion/asignar";
 import { crearTareaDeConsulta, destinatarioDelPresupuesto } from "./avisos";
 import { QUOTES_MODULE_KEY } from "./acceso";
 import { leerAjustes } from "./ajustes";
+import { armaBorradorAuto } from "./borrador-automatico";
 import { ENTIDAD_NUMERACION } from "./constantes";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
 import { enviarPresupuestoDelSistema, type DepsEnvioPresupuesto } from "./envio";
@@ -121,26 +122,9 @@ export async function enviarPropuestaModelo(
       aviso("PLANTILLA_NO_ENCONTRADA");
       return "FALLO";
     }
-    const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
-    if (!instanciada.ok) {
-      // PRODUCTO_INACTIVO se registra con el código histórico PRODUCTO_FUERA_DEL_CATALOGO.
-      aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
-      return "FALLO";
-    }
-    const items = instanciada.items;
-    const ajustes = await leerAjustes(workspaceId);
-    const borrador = await normalizarBorrador(
-      workspaceId,
-      { items, condiciones: propuesta.condiciones ?? ajustes.condiciones, propuestaPago: ajustes.propuestaPago },
-      new Map(),
-      ahora,
-    );
-    if (!borrador.ok) {
-      aviso("ITEMS_INVALIDOS");
-      return "FALLO";
-    }
-    const consultas = await leerAjustesConsultas(workspaceId);
-    const owner = await destinatarioDelAviso(workspaceId, [consultas.responsableUserId], deps);
+    const armado = await armarBorradorBase(workspaceId, propuesta, ahora, deps);
+    if (!armado.ok) return "FALLO";
+    const { borrador, ajustes, owner } = armado;
     const email = destino.email;
     const filtro = await sinAvisosAlEquipo(workspaceId);
 
@@ -151,32 +135,7 @@ export async function enviarPropuestaModelo(
     const hecho = await prisma.$transaction(async (tx) => {
       await candadoDeDireccion(tx, workspaceId, email);
       if (await yaRespondida(workspaceId, email, ahora, { cliente: tx, filtro })) return null;
-      const p = await tx.fotofficePresupuesto.create({
-        data: {
-          workspaceId,
-          consultaLeadId: leadId,
-          clientId: ficha.clientId,
-          status: "BORRADOR",
-          ownerUserId: owner,
-          validUntil: vencimientoDesde(ahora, ajustes.validezDias),
-        },
-        select: { id: true },
-      });
-      const v = await tx.fotofficePresupuestoVersion.create({
-        data: {
-          workspaceId,
-          presupuestoId: p.id,
-          number: 1,
-          items: borrador.valor.items as unknown as Prisma.InputJsonValue,
-          totals: borrador.valor.totals as unknown as Prisma.InputJsonValue,
-          terms: borrador.valor.terms,
-          paymentProposal: borrador.valor.paymentProposal,
-          costSnapshot: borrador.valor.costSnapshot as unknown as Prisma.InputJsonValue,
-          createdByUserId: null,
-        },
-        select: { id: true },
-      });
-      await tx.fotofficePresupuesto.update({ where: { id: p.id }, data: { currentVersionId: v.id }, select: { id: true } });
+      const p = await crearPresupuestoDelSistema(tx, { workspaceId, leadId, clientId: ficha.clientId, owner, ajustes, borrador: borrador.valor, ahora });
       const reserva = await reservarEnvioAutomatico(tx, { workspaceId, entityType: "CONSULTA", entityId: leadId, templateId: plantilla.id, toAddress: email });
       return { presupuestoId: p.id, reserva };
     }, OPCIONES_TRANSACCION);
@@ -220,6 +179,126 @@ export async function enviarPropuestaModelo(
   }
 }
 
+type Propuesta = NonNullable<Awaited<ReturnType<typeof leerPropuestaModelo>>>;
+type Ajustes = Awaited<ReturnType<typeof leerAjustes>>;
+type BorradorNormalizado = Extract<Awaited<ReturnType<typeof normalizarBorrador>>, { ok: true }>["valor"];
+
+/**
+ * Lo común al envío automático y al borrador automático: instancia los ítems de la propuesta al
+ * precio de HOY, los normaliza con las condiciones y la propuesta de pago, y busca al responsable.
+ * No crea nada. Si no se puede, lo registra (sólo códigos) y devuelve `ok: false`.
+ */
+async function armarBorradorBase(
+  workspaceId: string,
+  propuesta: Propuesta,
+  ahora: Date,
+  deps: DepsPropuestaAutomatica,
+): Promise<{ ok: true; borrador: { valor: BorradorNormalizado }; ajustes: Ajustes; owner: number | null } | { ok: false }> {
+  const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
+  if (!instanciada.ok) {
+    // PRODUCTO_INACTIVO se registra con el código histórico PRODUCTO_FUERA_DEL_CATALOGO.
+    aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
+    return { ok: false };
+  }
+  const ajustes = await leerAjustes(workspaceId);
+  const borrador = await normalizarBorrador(
+    workspaceId,
+    { items: instanciada.items, condiciones: propuesta.condiciones ?? ajustes.condiciones, propuestaPago: ajustes.propuestaPago },
+    new Map(),
+    ahora,
+  );
+  if (!borrador.ok) {
+    aviso("ITEMS_INVALIDOS");
+    return { ok: false };
+  }
+  const consultas = await leerAjustesConsultas(workspaceId);
+  const owner = await destinatarioDelAviso(workspaceId, [consultas.responsableUserId], deps);
+  return { ok: true, borrador, ajustes, owner };
+}
+
+/** Crea (dentro de la transacción) el presupuesto del sistema, sin usuario, con su versión 1. */
+async function crearPresupuestoDelSistema(
+  tx: Prisma.TransactionClient,
+  d: { workspaceId: string; leadId: string; clientId: string; owner: number | null; ajustes: Ajustes; borrador: BorradorNormalizado; ahora: Date },
+): Promise<{ id: string }> {
+  const { workspaceId, borrador } = d;
+  const p = await tx.fotofficePresupuesto.create({
+    data: {
+      workspaceId,
+      consultaLeadId: d.leadId,
+      clientId: d.clientId,
+      status: "BORRADOR",
+      ownerUserId: d.owner,
+      validUntil: vencimientoDesde(d.ahora, d.ajustes.validezDias),
+    },
+    select: { id: true },
+  });
+  const v = await tx.fotofficePresupuestoVersion.create({
+    data: {
+      workspaceId,
+      presupuestoId: p.id,
+      number: 1,
+      items: borrador.items as unknown as Prisma.InputJsonValue,
+      totals: borrador.totals as unknown as Prisma.InputJsonValue,
+      terms: borrador.terms,
+      paymentProposal: borrador.paymentProposal,
+      costSnapshot: borrador.costSnapshot as unknown as Prisma.InputJsonValue,
+      createdByUserId: null,
+    },
+    select: { id: true },
+  });
+  await tx.fotofficePresupuesto.update({ where: { id: p.id }, data: { currentVersionId: v.id }, select: { id: true } });
+  return p;
+}
+
+export type ResultadoBorradorDePropuesta = "ARMADO" | "NO_APLICA" | "YA_TIENE_PRESUPUESTO" | "FALLO" | "ERROR";
+
+/**
+ * Borrador automático: arma el presupuesto de la propuesta modelo de la categoría y lo deja en
+ * BORRADOR para el responsable, con una tarea "Revisar y enviar el presupuesto". NO envía nada,
+ * NO reserva ni registra correo y NO cuenta para el tope diario. No arma si la consulta ya tiene
+ * algún presupuesto. Nunca lanza; sólo registra códigos.
+ */
+export async function armarBorradorDePropuesta(
+  workspaceId: string,
+  leadId: string,
+  deps: DepsPropuestaAutomatica = {},
+): Promise<ResultadoBorradorDePropuesta> {
+  try {
+    const ahora = (deps.ahora ?? (() => new Date()))();
+    if (!(await isModuleEnabledForWorkspace(workspaceId, QUOTES_MODULE_KEY))) return "NO_APLICA";
+    const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true, clientId: true } });
+    if (!ficha || !ficha.categoryId) return "NO_APLICA";
+    if (!(await armaBorradorAuto(workspaceId, ficha.categoryId))) return "NO_APLICA";
+    const propuesta = await leerPropuestaModelo(workspaceId, ficha.categoryId);
+    if (!propuesta || propuesta.items.length === 0) return "NO_APLICA";
+    if (await tienePresupuesto(workspaceId, leadId)) return "YA_TIENE_PRESUPUESTO";
+
+    const armado = await armarBorradorBase(workspaceId, propuesta, ahora, deps);
+    if (!armado.ok) return "FALLO";
+    const { borrador, ajustes, owner } = armado;
+
+    const creado = await prisma.$transaction(async (tx) => {
+      // Dos altas a la vez de la misma consulta: el candado las pone en fila y la segunda ve el presupuesto de la primera.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-borrador-auto:${workspaceId}:${leadId}`}))`;
+      if (await tienePresupuesto(workspaceId, leadId, tx)) return null;
+      return crearPresupuestoDelSistema(tx, { workspaceId, leadId, clientId: ficha.clientId, owner, ajustes, borrador: borrador.valor, ahora });
+    }, OPCIONES_TRANSACCION);
+    if (!creado) return "YA_TIENE_PRESUPUESTO";
+
+    await tareaDeRevision(workspaceId, leadId, creado.id, owner, ahora, tituloDeBorrador);
+    return "ARMADO";
+  } catch (e) {
+    console.error("[presupuestos] falló el borrador automático", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+    return "ERROR";
+  }
+}
+
+async function tienePresupuesto(workspaceId: string, leadId: string, cliente: Pick<Prisma.TransactionClient, "fotofficePresupuesto"> = prisma): Promise<boolean> {
+  const p = await cliente.fotofficePresupuesto.findFirst({ where: { workspaceId, consultaLeadId: leadId }, select: { id: true } });
+  return p !== null;
+}
+
 /** ¿El correo llegó a intentarse? (la reserva ya no está EN_CURSO). Ante la duda, sí. */
 async function correoIntentado(workspaceId: string, reserva: string): Promise<boolean> {
   try {
@@ -241,11 +320,18 @@ async function yaNoEsBorrador(workspaceId: string, presupuestoId: string): Promi
 }
 
 /** Tarea "Revisar envío del presupuesto N° …" para el responsable (o el dueño). Nunca lanza. */
-async function tareaDeRevision(workspaceId: string, leadId: string, presupuestoId: string, owner: number | null, ahora: Date): Promise<void> {
+async function tareaDeRevision(
+  workspaceId: string,
+  leadId: string,
+  presupuestoId: string,
+  owner: number | null,
+  ahora: Date,
+  titulo: (numero: string | null) => string = tituloDeRevision,
+): Promise<void> {
   try {
     const numero = (await numeroDe(workspaceId, ENTIDAD_NUMERACION, [presupuestoId])).get(presupuestoId) ?? null;
     const para = await destinatarioDelPresupuesto(workspaceId, owner);
-    await crearTareaDeConsulta(workspaceId, leadId, tituloDeRevision(numero), para, ahora, { unaSolaAbierta: true });
+    await crearTareaDeConsulta(workspaceId, leadId, titulo(numero), para, ahora, { unaSolaAbierta: true });
   } catch (e) {
     console.error("[presupuestos] no se pudo crear la tarea de revisión", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
   }
@@ -254,6 +340,11 @@ async function tareaDeRevision(workspaceId: string, leadId: string, presupuestoI
 /** PURO. Título de la tarea cuando la propuesta quedó enviada pero el correo no llegó. */
 export function tituloDeRevision(numero: string | null): string {
   return `Revisar envío del presupuesto ${numero ? `N° ${numero}` : "sin número"}`;
+}
+
+/** PURO. Título de la tarea del borrador automático: el presupuesto está armado y falta mandarlo. */
+export function tituloDeBorrador(numero: string | null): string {
+  return `Revisar y enviar el presupuesto ${numero ? `N° ${numero}` : "sin número"}`;
 }
 
 /** Borra el presupuesto que creó el sistema SÓLO si sigue en borrador (nunca uno enviado). Nunca lanza. */
