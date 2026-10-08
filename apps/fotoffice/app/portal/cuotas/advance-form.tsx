@@ -51,7 +51,7 @@ export function AdvanceForm({
         ) : null}
         <button
           type="button"
-          className="fo-btn w-full text-sm disabled:opacity-60"
+          className="fo-btn fo-btn-secondary w-full text-sm disabled:opacity-60"
           disabled={pendiente}
           onClick={() => {
             if (
