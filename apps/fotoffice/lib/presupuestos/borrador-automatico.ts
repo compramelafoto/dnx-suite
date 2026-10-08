@@ -28,7 +28,10 @@ function idValido(v: unknown): v is string {
 
 function falla(donde: string, error: unknown): void {
   const e = error as { code?: unknown } | null;
-  console.error(`[presupuestos] ${donde} falló`, { codigo: typeof e?.code === "string" ? e.code : null });
+  const codigo = typeof e?.code === "string" ? e.code : null;
+  // P2021: la tabla todavía no existe (falta aplicar el SQL). Con aviso alcanza; no ensuciar el nivel de error.
+  if (codigo === "P2021") console.warn(`[presupuestos] ${donde}: falta aplicar el SQL del borrador automático`, { codigo });
+  else console.error(`[presupuestos] ${donde} falló`, { codigo });
 }
 
 /** (Sistema) ¿La categoría arma el borrador sola? Ante cualquier error, false. */

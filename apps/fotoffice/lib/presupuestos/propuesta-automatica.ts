@@ -19,6 +19,7 @@ import {
 } from "@/lib/plantillas/envio";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { numeroDe } from "@/lib/numeracion/asignar";
+import { TIPO_CONSULTA } from "@/lib/service-leads/numero";
 import { crearTareaDeConsulta, destinatarioDelPresupuesto } from "./avisos";
 import { QUOTES_MODULE_KEY } from "./acceso";
 import { leerAjustes } from "./ajustes";
@@ -280,17 +281,28 @@ export async function armarBorradorDePropuesta(
 
     const creado = await prisma.$transaction(async (tx) => {
       // Dos altas a la vez de la misma consulta: el candado las pone en fila y la segunda ve el presupuesto de la primera.
+      // Nota: `crearPresupuesto` manual no toma este mismo candado (carrera aceptada, muy improbable).
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-borrador-auto:${workspaceId}:${leadId}`}))`;
       if (await tienePresupuesto(workspaceId, leadId, tx)) return null;
       return crearPresupuestoDelSistema(tx, { workspaceId, leadId, clientId: ficha.clientId, owner, ajustes, borrador: borrador.valor, ahora });
     }, OPCIONES_TRANSACCION);
     if (!creado) return "YA_TIENE_PRESUPUESTO";
 
-    await tareaDeRevision(workspaceId, leadId, creado.id, owner, ahora, tituloDeBorrador);
+    const numeroConsulta = await numeroDeConsulta(workspaceId, leadId);
+    await tareaDeRevision(workspaceId, leadId, creado.id, owner, ahora, () => tituloDeBorrador(numeroConsulta));
     return "ARMADO";
   } catch (e) {
     console.error("[presupuestos] falló el borrador automático", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
     return "ERROR";
+  }
+}
+
+/** Número visible de la consulta (los presupuestos se numeran recién al enviarse). Nunca lanza. */
+async function numeroDeConsulta(workspaceId: string, leadId: string): Promise<string | null> {
+  try {
+    return (await numeroDe(workspaceId, TIPO_CONSULTA, [leadId])).get(leadId) ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -342,9 +354,9 @@ export function tituloDeRevision(numero: string | null): string {
   return `Revisar envío del presupuesto ${numero ? `N° ${numero}` : "sin número"}`;
 }
 
-/** PURO. Título de la tarea del borrador automático: el presupuesto está armado y falta mandarlo. */
+/** PURO. Título de la tarea del borrador automático; `numero` es el de la CONSULTA (el presupuesto aún no tiene). */
 export function tituloDeBorrador(numero: string | null): string {
-  return `Revisar y enviar el presupuesto ${numero ? `N° ${numero}` : "sin número"}`;
+  return numero ? `Revisar y enviar el presupuesto de la consulta N° ${numero}` : "Revisar y enviar el presupuesto armado";
 }
 
 /** Borra el presupuesto que creó el sistema SÓLO si sigue en borrador (nunca uno enviado). Nunca lanza. */

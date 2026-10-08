@@ -5,6 +5,7 @@ import { puedeEnContexto } from "@/lib/access/policy";
 import { notificarEvento } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
+import type { ResultadoPropuestaAutomatica } from "@/lib/presupuestos/propuesta-automatica";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 import { puedeSerResponsable, type DepsAjustes } from "./ajustes";
@@ -495,13 +496,20 @@ export async function altaDeConsulta(
   if (origenDelAlta === "WEB") {
     await despuesDeResponder(async () => {
       let comun = true;
-      let resultado: import("@/lib/presupuestos/propuesta-automatica").ResultadoPropuestaAutomatica | undefined;
+      let resultado: ResultadoPropuestaAutomatica | undefined;
       try {
         const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
         resultado = await enviarPropuestaModelo(workspaceId, leadId, deps);
         comun = correspondeAutorespuestaComun(resultado);
       } catch (error) {
         registrarFalla("enviarPropuestaModelo", error);
+      }
+      if (comun) {
+        try {
+          await responderConsultaNueva(workspaceId, leadId);
+        } catch (error) {
+          registrarFalla("responderConsultaNueva", error);
+        }
       }
       // Si la propuesta no salió, queda el borrador armado para el responsable (sin enviar nada).
       if (resultado !== "ENVIADA" && resultado !== "ERROR_TRAS_ENVIO") {
@@ -510,13 +518,6 @@ export async function altaDeConsulta(
           await armarBorradorDePropuesta(workspaceId, leadId, deps);
         } catch (error) {
           registrarFalla("armarBorradorDePropuesta", error);
-        }
-      }
-      if (comun) {
-        try {
-          await responderConsultaNueva(workspaceId, leadId);
-        } catch (error) {
-          registrarFalla("responderConsultaNueva", error);
         }
       }
     });

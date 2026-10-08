@@ -406,7 +406,6 @@ describe("revisión: carreras y fallas después de enviar", () => {
   });
 });
 
-
 describe("armarBorradorDePropuesta (borrador automático)", () => {
   const activar = () => B.agregar("fotofficePropuestaBorradorAuto", { workspaceId: "ws-1", categoryId: categoriaBoda });
   const tareas = () => B.datos.fotofficeTask;
@@ -456,7 +455,36 @@ describe("armarBorradorDePropuesta (borrador automático)", () => {
     expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("YA_TIENE_PRESUPUESTO");
     expect(H.enviar.mock.calls.length).toBe(antes);
     expect(mensajes()).toHaveLength(0);
-    expect(TOPE_AUTOMATICOS_DIA).toBeGreaterThan(0);
+  });
+
+  it("con el tope diario de automáticos lleno igual arma el borrador y no registra mensajes", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    for (let i = 0; i < TOPE_AUTOMATICOS_DIA; i++) {
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: `x${i}`, toAddress: `p${i}@x.test`,
+        body: "b", status: "SENT", automatic: true, createdAt: new Date(AHORA.getTime() - 60_000),
+      });
+    }
+    const antes = mensajes().length;
+    await createServiceLead(ENTRADA);
+    B.datos.fotofficePresupuesto.length = 0;
+    B.datos.fotofficeTask.length = 0;
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("ARMADO");
+    expect(mensajes()).toHaveLength(antes);
+    expect(H.enviar).not.toHaveBeenCalled();
+  });
+
+  it("la tarea usa el número de la consulta y nunca dice 'sin número'", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    const titulos = tareas().map((t) => String(t.title)).filter((t) => t.startsWith("Revisar y enviar"));
+    expect(titulos).toHaveLength(1);
+    expect(titulos[0]).not.toContain("sin número");
+    expect(titulos[0]).toMatch(/^(Revisar y enviar el presupuesto de la consulta N° \S+|Revisar y enviar el presupuesto armado)$/);
+    expect(PA.tituloDeBorrador("0042")).toBe("Revisar y enviar el presupuesto de la consulta N° 0042");
+    expect(PA.tituloDeBorrador(null)).toBe("Revisar y enviar el presupuesto armado");
   });
 
   it("no duplica: con un presupuesto ya existente devuelve YA_TIENE_PRESUPUESTO", async () => {

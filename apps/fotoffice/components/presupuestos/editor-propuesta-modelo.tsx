@@ -361,8 +361,8 @@ export function EditorPropuestaModelo(props: {
               id={`${id}-borrador`}
               type="checkbox"
               className="mt-1"
-              checked={props.sqlPendiente ? false : enviarSola ? false : borradorAuto}
-              disabled={pendiente || props.sqlPendiente || enviarSola}
+              checked={props.sqlPendiente ? false : borradorAuto}
+              disabled={pendiente || props.sqlPendiente || (props.enviarSola && !borradorAuto)}
               aria-describedby={`${id}-borrador-ayuda`}
               onChange={(e) => cambiarBorrador(e.target.checked)}
             />
@@ -371,7 +371,7 @@ export function EditorPropuestaModelo(props: {
               <span id={`${id}-borrador-ayuda`} className="block text-xs text-[var(--fo-muted)]">
                 {props.sqlPendiente
                   ? "Falta aplicar el SQL del borrador automático."
-                  : enviarSola
+                  : props.enviarSola && !borradorAuto
                     ? "Ya sale sola."
                     : "Te queda una tarea para revisarlo y mandarlo."}
               </span>
