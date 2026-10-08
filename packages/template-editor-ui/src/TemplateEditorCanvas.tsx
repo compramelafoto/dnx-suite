@@ -64,6 +64,12 @@ type Props = {
   state: TemplateV2EditorState;
   dispatch: TemplateV2EditorDispatch;
   className?: string;
+  /**
+   * Valores de muestra con que el lienzo resuelve las variables, según la plataforma de la
+   * plantilla. Sin esto el lienzo usaba siempre los de escuela, y en FotoOffice o FotoRank los
+   * datos aparecían como `{clave}` y las imágenes atadas a un dato como "Imagen libre".
+   */
+  resolvedVariables?: Record<string, unknown>;
   /** Guía visual de márgenes seguros (no es un bloque; no se exporta en preview). Por defecto activa. */
   showSafeArea?: boolean;
   /** Ejes vertical y horizontal en el centro del lienzo (referencia fija; no es snap dinámico). Por defecto activos. */
@@ -348,6 +354,7 @@ export function TemplateEditorCanvas({
   state,
   dispatch,
   className,
+  resolvedVariables: valoresDeMuestra = TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES,
   showSafeArea = true,
   showCenterAxes = true,
   onCanvasBackgroundClick,
@@ -693,7 +700,7 @@ export function TemplateEditorCanvas({
               canvas={state.canvas}
               blocks={blocksOnPage}
               readOnly
-              resolvedVariables={TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES}
+              resolvedVariables={valoresDeMuestra}
               selectedBlockIds={state.selectedBlockIds}
               primarySelectedBlockId={primaryId}
               diagnosticHighlightByBlockId={diagnosticHighlightByBlockId}
@@ -1452,7 +1459,7 @@ export function TemplateEditorCanvas({
                   dispatch={dispatch}
                   onEnd={endInlineTextEdit}
                   canvasWidth={state.canvas.width}
-                  resolvedVariables={TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES}
+                  resolvedVariables={valoresDeMuestra}
                 />
               </div>
             ) : null}
