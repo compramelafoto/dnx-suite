@@ -14,7 +14,7 @@ const { createServiceLead } = await import("@/app/actions/service-lead");
 
 /** 1/10/2026 al mediodía de Buenos Aires. */
 const AHORA = new Date("2026-10-01T15:00:00.000Z");
-const ENTRADA = { workspaceSlug: "dnx-estudio", name: "Laura Pérez", email: "laura@example.com", eventType: "BODA" };
+const ENTRADA = { workspaceSlug: "dnxestudio", name: "Laura Pérez", email: "laura@example.com", eventType: "BODA" };
 
 const numero = (id: string) => B.datos.fotofficeRecordNumber.find((r) => r.entityType === "CONSULTA" && r.entityId === id)?.display ?? null;
 const consultas = () => B.datos.serviceSalesLead.filter((l) => l.workspaceId === "ws-1");
@@ -24,7 +24,7 @@ beforeEach(() => {
   B.vaciar();
   // La base en memoria no tiene findUnique: el alta busca el branding por su slug público.
   (B.tablas.fotofficeWorkspaceBranding as unknown as Record<string, unknown>).findUnique = (a: never) => B.tablas.fotofficeWorkspaceBranding.findFirst(a);
-  B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnx-estudio" });
+  B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(AHORA);
   errores = vi.spyOn(console, "error").mockImplementation(() => {});

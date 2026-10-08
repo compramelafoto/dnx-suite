@@ -16,13 +16,14 @@ type Cliente = Prisma.TransactionClient | typeof prisma;
 export const CLAVES_SECUENCIA = ["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO"] as const;
 export type ClaveSecuencia = (typeof CLAVES_SECUENCIA)[number];
 
-/** Consultas con año y 4 dígitos ("2026-0001"); el resto sin año ni prefijo, desde 1. */
+/** Todas con año y 4 dígitos ("2026-0001"): cada 1° de enero (hora de Argentina) vuelven a 0001. */
+const CON_ANIO: ConfigSecuencia = { prefix: "", withYear: true, digits: 4, nextValue: 1 };
 export const SECUENCIAS_INICIALES: Record<ClaveSecuencia, ConfigSecuencia> = {
-  CONSULTA: { prefix: "", withYear: true, digits: 4, nextValue: 1 },
-  PRESUPUESTO: { prefix: "", withYear: false, digits: 1, nextValue: 1 },
-  PEDIDO: { prefix: "", withYear: false, digits: 1, nextValue: 1 },
-  CONTRATO: { prefix: "", withYear: false, digits: 1, nextValue: 1 },
-  PROYECTO: { prefix: "", withYear: false, digits: 1, nextValue: 1 },
+  CONSULTA: CON_ANIO,
+  PRESUPUESTO: CON_ANIO,
+  PEDIDO: CON_ANIO,
+  CONTRATO: CON_ANIO,
+  PROYECTO: CON_ANIO,
 };
 
 export const MENSAJES_NUMERACION = {

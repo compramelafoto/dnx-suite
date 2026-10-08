@@ -31,12 +31,15 @@ beforeEach(() => {
 });
 
 describe("categoriasIniciales", () => {
-  it("dnx-estudio devuelve las 13 en orden", () => {
-    const r = categoriasIniciales("dnx-estudio");
+  it("dnxestudio devuelve las 13 en orden", () => {
+    const r = categoriasIniciales("dnxestudio");
     expect(r).toBe(CATEGORIAS_DNX);
     expect(r).toHaveLength(13);
     expect(r[0]).toBe("URGENTE");
     expect(r[12]).toBe("Otro");
+  });
+  it("la dirección histórica dnx-estudio también es DNX", () => {
+    expect(categoriasIniciales("dnx-estudio")).toBe(CATEGORIAS_DNX);
   });
   it("otros workspaces tienen sólo General", () => {
     expect(categoriasIniciales("sfpr")).toEqual(["General"]);

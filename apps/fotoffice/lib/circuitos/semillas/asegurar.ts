@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { CIRCUITOS_DNX, MOTIVOS_INICIALES, type SemillaCircuito } from "./dnx";
 import { CIRCUITO_MINIMO } from "./minimo";
+import { esSlugDnx } from "@/lib/slug-dnx";
 
 export { CIRCUITOS_DNX, MOTIVOS_INICIALES } from "./dnx";
 export type { SemillaCircuito } from "./dnx";
@@ -38,7 +39,7 @@ export async function asegurarCircuitos(workspaceId: string, slug: string): Prom
   try {
     await prisma.$transaction(async (tx) => {
       if ((await tx.fotofficeCircuit.count({ where: { workspaceId } })) > 0) return;
-      const circuitos = slug === "dnx-estudio" ? CIRCUITOS_DNX : [CIRCUITO_MINIMO];
+      const circuitos = esSlugDnx(slug) ? CIRCUITOS_DNX : [CIRCUITO_MINIMO];
       for (const c of circuitos) {
         await tx.fotofficeCircuit.create({ data: datosCircuito(workspaceId, c) });
       }

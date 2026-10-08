@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { SLUG_DNX } from "@/lib/consultas/constantes";
+import { esSlugDnx } from "@/lib/slug-dnx";
 import { SEGUIMIENTO_POR_OMISION_DIAS, VALIDEZ_POR_OMISION_DIAS } from "./constantes";
 
 /**
@@ -9,12 +9,9 @@ import { SEGUIMIENTO_POR_OMISION_DIAS, VALIDEZ_POR_OMISION_DIAS } from "./consta
  *
  * Sólo para DNX y sólo si no hay fila: nunca pisa lo que alguien ya configuró. Idempotente: el
  * único de `workspaceId` frena una corrida simultánea. Devuelve si creó la fila.
- *
- * La numeración de Presupuestos de DNX (seguir la de Alboom en 2025262) se configura a mano en
- * Configuración → Numeración (ver el documento de la migración).
  */
 export async function asegurarAjustesDnx(workspaceId: string, slug: string | null | undefined): Promise<boolean> {
-  if (slug !== SLUG_DNX) return false;
+  if (!esSlugDnx(slug)) return false;
   const r = await prisma.fotofficePresupuestoAjustes.createMany({
     data: [{
       workspaceId,

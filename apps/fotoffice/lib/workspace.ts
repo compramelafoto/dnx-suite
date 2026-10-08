@@ -8,6 +8,7 @@ import { WEBSITE_MODULE_KEY } from "./website/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "./service-leads/constants";
 import { isModuleEnabledForWorkspace } from "./modules/gating";
 import { hasModuleLevel } from "./permissions/module-access";
+import { SLUGS_DNX } from "./slug-dnx";
 
 export type ActiveWorkspace = {
   id: string;
@@ -83,10 +84,15 @@ export async function resolveActiveWorkspace(userId: number): Promise<ActiveWork
     if (hit) return { id: hit.workspace.id, name: hit.workspace.name };
   }
 
-  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
-    where: { publicSlug: "dnx-estudio" },
-    select: { workspaceId: true },
-  });
+  // Preferencia por DNX Estudio: su dirección real primero, la histórica después.
+  let branding: { workspaceId: string } | null = null;
+  for (const publicSlug of SLUGS_DNX) {
+    branding = await prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { publicSlug },
+      select: { workspaceId: true },
+    });
+    if (branding) break;
+  }
   if (branding) {
     const match = effectiveMemberships.find(
       (m) => m.workspaceId === branding.workspaceId

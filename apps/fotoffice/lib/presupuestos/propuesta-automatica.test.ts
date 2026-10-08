@@ -39,9 +39,9 @@ vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
 vi.mock("./sitio", () => ({
   sitioDelWorkspace: async (ws: string) =>
     ws === "ws-1"
-      ? { workspaceId: "ws-1", slug: "dnx-estudio", customDomain: null, nombre: "Estudio DNX", logoUrl: null, whatsapp: null, email: "hola@estudio.test" }
+      ? { workspaceId: "ws-1", slug: "dnxestudio", customDomain: null, nombre: "Estudio DNX", logoUrl: null, whatsapp: null, email: "hola@estudio.test" }
       : null,
-  workspaceDelSlug: async (s: string) => (s === "dnx-estudio" ? "ws-1" : null),
+  workspaceDelSlug: async (s: string) => (s === "dnxestudio" ? "ws-1" : null),
 }));
 
 const PA = await import("./propuesta-automatica");
@@ -52,7 +52,7 @@ const { TOPE_AUTOMATICOS_DIA } = await import("@/lib/plantillas/constantes");
 
 const AHORA = new Date("2026-10-07T15:00:00.000Z");
 const EMAIL = "laura@persona.test";
-const ENTRADA = { workspaceSlug: "dnx-estudio", name: "Laura Pérez", email: EMAIL, eventType: "BODA" };
+const ENTRADA = { workspaceSlug: "dnxestudio", name: "Laura Pérez", email: EMAIL, eventType: "BODA" };
 
 let categoriaBoda = "";
 let plantillaPresupuesto = "";
@@ -94,7 +94,7 @@ beforeEach(async () => {
   vi.stubEnv("PRESUPUESTO_TOKEN_SECRET", "clave-de-prueba");
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://fotoffice.test");
   (B.tablas.fotofficeWorkspaceBranding as unknown as Record<string, unknown>).findUnique = (a: never) => B.tablas.fotofficeWorkspaceBranding.findFirst(a);
-  B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnx-estudio" });
+  B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnxestudio" });
   B.agregar("workspaceMembership", { workspaceId: "ws-1", userId: 1, role: "WORKSPACE_OWNER", createdAt: new Date("2025-01-01") });
   B.agregar("workspaceMembership", { workspaceId: "ws-1", userId: 5, role: "STAFF", createdAt: new Date("2025-02-01") });
   B.agregar("product", { id: "prod-cob", workspaceId: "ws-1", name: "Cobertura completa", description: "8 horas", priceArs: "600000.00" });

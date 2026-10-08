@@ -97,7 +97,7 @@ describe("cargarMasDatos", () => {
 
   it("en un cliente de DNX crea «Archivos del cliente» si no hay campos", async () => {
     B.datos.fotofficeCustomField = [];
-    H.ctx.mockResolvedValue({ ...CTX, workspaceSlug: "dnx-estudio", role: "WORKSPACE_OWNER" });
+    H.ctx.mockResolvedValue({ ...CTX, workspaceSlug: "dnxestudio", role: "WORKSPACE_OWNER" });
     const v = await F.cargarMasDatos("CLIENTE", "c1");
     expect(v?.campos.map((c) => [c.nombre, c.tipo])).toEqual([["Archivos del cliente", "ENLACE"]]);
     expect(v?.puedeConfigurar).toBe(true);
@@ -106,7 +106,7 @@ describe("cargarMasDatos", () => {
   });
 
   it("en DNX con campos de clientes ya creados: un conteo, sin abrir transacción", async () => {
-    H.ctx.mockResolvedValue({ ...CTX, workspaceSlug: "dnx-estudio" });
+    H.ctx.mockResolvedValue({ ...CTX, workspaceSlug: "dnxestudio" });
     await F.cargarMasDatos("CLIENTE", "c1");
     expect(B.transacciones).toHaveLength(0);
     expect(B.datos.fotofficeCustomField.filter((f) => f.name === "Archivos del cliente")).toHaveLength(0);

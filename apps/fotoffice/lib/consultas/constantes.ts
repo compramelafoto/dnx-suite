@@ -10,11 +10,10 @@ import {
   type ServiceLeadEventType,
 } from "@/lib/service-leads/form-definitions";
 
-/**
- * Slug público de DNX Estudio. Mismo valor que `SLUG_DNX` de `lib/campos/semillas.ts` (que no se
- * importa acá porque es de servidor); una prueba verifica que no se separen.
- */
-export const SLUG_DNX = "dnx-estudio";
+import { esSlugDnx } from "@/lib/slug-dnx";
+
+/** Slug público de DNX Estudio: la única copia vive en `lib/slug-dnx.ts`. */
+export { SLUG_DNX } from "@/lib/slug-dnx";
 
 // --- Grupos de categoría ----------------------------------------------------------------------
 
@@ -191,7 +190,7 @@ export type SemillasConsultas = {
 
 /** Qué catálogos recibe una organización según su slug público. */
 export function semillasPara(slug: string | null | undefined): SemillasConsultas {
-  return slug === SLUG_DNX
+  return esSlugDnx(slug)
     ? { categorias: CATEGORIAS_DNX, origenes: ORIGENES_DNX, roles: ROLES_PARTICIPANTE_DNX }
     : { categorias: CATEGORIAS_EQUIVALENTES, origenes: ORIGENES_EQUIVALENTES, roles: ROLES_PARTICIPANTE_EQUIVALENTES };
 }

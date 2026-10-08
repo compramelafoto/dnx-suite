@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { SLUG_DNX } from "@/lib/consultas/constantes";
+import { esSlugDnx } from "@/lib/slug-dnx";
 import { CATEGORIAS_PRODUCTO_DNX, categoriasFaltantes } from "./reglas";
 
 /**
@@ -12,7 +12,7 @@ import { CATEGORIAS_PRODUCTO_DNX, categoriasFaltantes } from "./reglas";
  * Devuelve cuántas creó.
  */
 export async function asegurarCategoriasProductoDnx(workspaceId: string, slug: string | null | undefined): Promise<number> {
-  if (slug !== SLUG_DNX) return 0;
+  if (!esSlugDnx(slug)) return 0;
   const existentes = await prisma.productCategory.findMany({ where: { workspaceId }, select: { name: true, order: true } });
   const faltan = categoriasFaltantes(existentes.map((c) => c.name), CATEGORIAS_PRODUCTO_DNX);
   if (faltan.length === 0) return 0;

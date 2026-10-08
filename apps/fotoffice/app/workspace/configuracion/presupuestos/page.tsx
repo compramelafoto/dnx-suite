@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { SLUG_DNX } from "@/lib/consultas/constantes";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { leerAjustes } from "@/lib/presupuestos/ajustes";
 import { asegurarAjustesDnx } from "@/lib/presupuestos/semillas";
@@ -12,9 +11,6 @@ import { AjustesForm } from "./ajustes-form";
 import { PestanasPresupuestos } from "./pestanas";
 
 export const dynamic = "force-dynamic";
-
-/** Próximo número de Presupuestos de DNX: sigue la numeración de Alboom. */
-const PROXIMO_NUMERO_DNX = "2025262";
 
 /**
  * Configuración → Presupuestos (spec §3.4): validez, condiciones, propuesta de pago y seguimiento.
@@ -75,16 +71,9 @@ export default async function ConfiguracionPresupuestosPage() {
           </Link>
           , en la fila «Presupuestos».
         </p>
-        {slug === SLUG_DNX ? (
-          <p className="text-[var(--fo-muted)]">
-            Para seguir la numeración de Alboom, poné el próximo número de Presupuestos en{" "}
-            <strong className="text-[var(--fo-text)]">{PROXIMO_NUMERO_DNX}</strong> antes de enviar el primero.
-          </p>
-        ) : (
-          <p className="text-[var(--fo-muted)]">
-            Si venís de otro sistema, poné ahí el próximo número para seguir la misma serie.
-          </p>
-        )}
+        <p className="text-[var(--fo-muted)]">
+          Por omisión el número lleva el año y cuatro dígitos (2026-0001) y vuelve a 0001 cada 1° de enero.
+        </p>
       </section>
     </div>
   );

@@ -24,13 +24,13 @@ beforeEach(() => {
   H.user.mockResolvedValue({ id: 5, name: "Ana", email: "a@x" });
   H.ws.mockResolvedValue({ id: "ws-1", name: "W" });
   H.rol.mockResolvedValue("STAFF");
-  H.branding.mockResolvedValue({ publicSlug: "dnx-estudio" });
+  H.branding.mockResolvedValue({ publicSlug: "dnxestudio" });
 });
 
 describe("contextoDeCampos", () => {
   it("devuelve el workspace de la sesión con su slug", async () => {
     expect(await contextoDeCampos()).toEqual({
-      workspaceId: "ws-1", workspaceSlug: "dnx-estudio", userId: 5, userLabel: "Ana", role: "STAFF",
+      workspaceId: "ws-1", workspaceSlug: "dnxestudio", userId: 5, userLabel: "Ana", role: "STAFF",
       acceso: { role: "STAFF", levels: expect.objectContaining({ clients: "MANAGE", members: "VIEW" }) },
     });
     expect(H.branding).toHaveBeenCalledWith({ where: { workspaceId: "ws-1" }, select: { publicSlug: true } });

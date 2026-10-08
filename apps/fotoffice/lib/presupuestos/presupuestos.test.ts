@@ -580,13 +580,13 @@ describe("estados", () => {
 
   it("número PRESUPUESTO: se asigna una vez", async () => {
     const { presupuestoId } = await nuevo();
-    const numerar = () => (B.prisma.$transaction as (fn: (tx: never) => Promise<{ value: number }>) => Promise<{ value: number }>)((tx) =>
+    const numerar = () => (B.prisma.$transaction as (fn: (tx: never) => Promise<{ value: number; display: string }>) => Promise<{ value: number; display: string }>)((tx) =>
       P.numerarPresupuesto(tx, { workspaceId: "ws-1", presupuestoId, fecha: AHORA }));
     const a = await numerar();
     const b = await numerar();
     expect(a.value).toBe(1);
     expect(b).toEqual(a);
-    expect((await P.leerPresupuesto(DUENO, presupuestoId, deps))!.numero).toBe(String(a.value));
+    expect((await P.leerPresupuesto(DUENO, presupuestoId, deps))!.numero).toBe(a.display);
   });
 });
 
