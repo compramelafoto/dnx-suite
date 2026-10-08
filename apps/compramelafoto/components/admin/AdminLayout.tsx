@@ -97,6 +97,7 @@ const menuGroups: MenuGroup[] = [
     title: "Diseños",
     items: [
       { id: "plantillas-v2-hub", label: "Plantillas y editor V2", path: "/dashboard/designs" },
+      { id: "template-v2-plantillas", label: "Plantillas de fotógrafos", path: "/admin/template-v2/plantillas" },
       { id: "template-v2-revision", label: "Revisión plantillas V2", path: "/admin/template-v2/revision" },
       { id: "plantillas", label: "Plantillas clásicas (V1)", path: "/admin/plantillas" },
       { id: "plantillas-disenador", label: "Diseñador clásico (V1)", path: "/admin/plantillas/disenador" },
@@ -233,6 +234,7 @@ function getActiveMenuId(
   if (pathname?.startsWith("/admin/clientes")) return "clientes";
   if (pathname?.startsWith("/admin/fotooffice-interesados")) return "fotooffice-interesados";
   if (pathname === "/dashboard/designs" || pathname?.startsWith("/dashboard/designs/")) return "plantillas-v2-hub";
+  if (pathname?.startsWith("/admin/template-v2/plantillas")) return "template-v2-plantillas";
   if (pathname?.startsWith("/admin/template-v2")) return "template-v2-revision";
   if (pathname?.startsWith("/admin/plantillas/disenador")) return "plantillas-disenador";
   if (pathname?.startsWith("/admin/email-marketing")) return "email-marketing";

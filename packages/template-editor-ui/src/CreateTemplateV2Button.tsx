@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "./primitives/Button";
 import { templateV2EditorPath } from "./template-v2-base-path";
+import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
+import { useEditorThemeStyle } from "./theme-context";
 
 type CreateResponse = {
   ok: boolean;
@@ -33,11 +35,20 @@ const CLICKATON_PRESETS: PresetOption[] = [
 
 export function CreateTemplateV2Button({
   basePath,
+  theme,
 }: {
   /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
   basePath: string;
+  /**
+   * Colores del botón. El botón vive fuera del editor, en el listado de cada app, así que no
+   * hereda los tokens `--te-*` del elemento raíz del editor: sin declararlos acá,
+   * `var(--te-accent)` no resuelve y "Nueva plantilla" queda blanco sobre blanco.
+   */
+  theme?: TemplateEditorTheme;
 }) {
   const router = useRouter();
+  const contextThemeStyle = useEditorThemeStyle();
+  const themeStyle = theme ? editorThemeStyle(theme) : contextThemeStyle;
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -82,7 +93,7 @@ export function CreateTemplateV2Button({
   }
 
   return (
-    <div className="relative flex flex-col items-end gap-2" ref={rootRef}>
+    <div className="relative flex flex-col items-end gap-2" ref={rootRef} style={themeStyle}>
       <div className="flex items-stretch gap-1">
         <Button
           type="button"
