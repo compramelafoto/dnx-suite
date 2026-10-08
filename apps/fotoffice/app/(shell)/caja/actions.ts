@@ -15,7 +15,7 @@ import {
   shiftDifferenceMinor,
 } from "@/lib/cash/shift";
 import { parseMovementForm } from "@/lib/cash/movement-form";
-import { buildReversal } from "@/lib/cash/reverse";
+import { buildReversal, noSeAnulaEnCaja } from "@/lib/cash/reverse";
 import { accountBalanceMinor } from "@/lib/cash/balance";
 import { createCashTransfer, validateTransfer } from "@/lib/cash/transfer";
 import { parseAccountForm } from "@/lib/cash/account-form";
@@ -267,9 +267,13 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       description: true,
       reversedBy: { select: { id: true } },
       transferId: true,
+      sourceModule: true,
     },
   });
   if (!original) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent("Ese movimiento no existe.")}`);
+  // Un cobro de pedido se anula desde el pedido (que escribe el contramovimiento y libera las cuotas).
+  const enSuModulo = noSeAnulaEnCaja(original.sourceModule);
+  if (enSuModulo) redirect(`${MOVIMIENTOS}?error=${encodeURIComponent(enSuModulo)}`);
 
   const resultado = buildReversal(
     {

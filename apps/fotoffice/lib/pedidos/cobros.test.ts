@@ -155,6 +155,15 @@ describe("registrar un cobro", () => {
     expect((await cobrado("ped-1", 20000)).reciboNumero).toBe("2026-0002");
   });
 
+  it("tampoco cobra más que total − cobrado aunque el plan quedó descuadrado (el total bajó)", async () => {
+    await cobrado("ped-1", 30000);
+    B.datos.fotofficePedido[0]!.totalArs = "80000.00"; // las cuotas siguen sumando 120.000
+    expect(await cobrar("ped-1", 50000.01)).toEqual({ ok: false, error: "El importe supera el saldo del pedido." });
+    expect(B.datos.fotofficeCobro).toHaveLength(1);
+    expect(movimientos()).toHaveLength(1);
+    expect((await cobrado("ped-1", 50000)).creado).toBe(true);
+  });
+
   it("valida los datos y el permiso", async () => {
     expect(await cobrar("ped-1", 0)).toEqual({ ok: false, error: CO.MENSAJES_COBRO.importe });
     expect(await cobrar("ped-1", 10.001)).toEqual({ ok: false, error: CO.MENSAJES_COBRO.importe });
@@ -282,6 +291,9 @@ describe("enlaces del pedido y del recibo", () => {
     const r = await EN.enlaceDelRecibo(DUENO, a.cobroId, depsEnlace);
     expect(r).toEqual({ ok: true, url: `https://app.test/w/dnxestudio/recibo/${EN.tokenDelRecibo(a.cobroId, CLAVE)}` });
     expect(await EN.enlaceDelRecibo(OTRO, a.cobroId, depsEnlace)).toEqual({ ok: false, error: "No encontramos ese cobro." });
+    // Sólo lee: alcanza con Ver. El del pedido (crea o renueva) sigue pidiendo Gestionar.
+    expect((await EN.enlaceDelRecibo(LECTOR, a.cobroId, depsEnlace)).ok).toBe(true);
+    expect(await EN.enlaceDelPedido(LECTOR, "ped-1", {}, depsEnlace)).toEqual({ ok: false, error: M.sinPermiso });
   });
 });
 

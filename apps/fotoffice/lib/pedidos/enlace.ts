@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { prisma } from "@repo/db";
 import { hashDeToken, resolverClaveDeEnlace, tokenConForma } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
-import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acceso";
+import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, type CtxPedidos } from "./acceso";
 
 /**
  * Los enlaces públicos del pedido y del recibo (etapa 3, spec §2 A.5, A.6). Mismo criterio que el
@@ -174,9 +174,9 @@ export async function enlaceDelPedidoDelSistema(
   }
 }
 
-/** El enlace del recibo de un cobro del workspace (no escribe: el hash nace con el cobro). Con "Gestionar". */
+/** El enlace del recibo de un cobro del workspace. Sólo lee (el hash nace con el cobro): alcanza con "Ver". */
 export async function enlaceDelRecibo(ctx: CtxPedidos, cobroId: unknown, deps: DepsEnlace = {}): Promise<ResultadoEnlace> {
-  if (!puedeGestionarPedidos(ctx)) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
+  if (!puedeVerPedidos(ctx)) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
   if (!idValido(cobroId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
   const c = await prisma.fotofficeCobro.findFirst({ where: { id: cobroId, workspaceId: ctx.workspaceId }, select: { id: true } });
   if (!c) return { ok: false, error: "No encontramos ese cobro." };

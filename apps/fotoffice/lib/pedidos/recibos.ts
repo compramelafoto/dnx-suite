@@ -163,7 +163,8 @@ export async function contextoDeMensajePedido(
     ...base,
     variables: {
       ...base.variables,
-      pedido: { numero: p.number, enlace: enlacePedido, saldo: pesos(saldo) },
+      // Saldo 0 → null: así el bloque `[si:pedido_saldo]` desaparece en vez de decir "$ 0".
+      pedido: { numero: p.number, enlace: enlacePedido, saldo: aCentavos(saldo) > 0 ? pesos(saldo) : null },
       ...(recibo ? { recibo } : {}),
     },
   };

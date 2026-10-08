@@ -84,6 +84,14 @@ describe("recibo de pago automático", () => {
     expect(plantilla).toMatchObject({ enabled: true, entityType: "PEDIDO", channel: "EMAIL" });
   });
 
+  it("con el pedido pagado no dice el saldo (saldo 0 → el bloque desaparece)", async () => {
+    const id = await cobro(120000);
+    expect(await RE.enviarReciboAutomatico("ws-1", id, deps)).toBe("ENVIADO");
+    expect(correo().text).not.toContain("Saldo pendiente");
+    const ctx = await RE.contextoDeMensajePedido("ws-1", "ped-1", { usuario: { nombre: null, email: null }, ahora: AHORA, textos: [] }, deps);
+    expect(ctx.ok && ctx.contexto.variables.pedido?.saldo).toBeNull();
+  });
+
   it("apagado, sin correo o con el cobro anulado no sale", async () => {
     await PL.asegurarPlantillaRecibo("ws-1");
     B.datos.fotofficeMessageTemplate[0]!.enabled = false;

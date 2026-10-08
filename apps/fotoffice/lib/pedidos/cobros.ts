@@ -66,6 +66,8 @@ export const MENSAJES_COBRO = {
   cancelado: "El pedido está cancelado: no admite cobros.",
   importe: "El importe tiene que ser mayor que cero, con hasta dos decimales.",
   importeTope: "El importe es demasiado grande.",
+  /** El mismo texto que el de la imputación (`lib/pedidos/imputacion.ts`). */
+  saldoExcedido: "El importe supera el saldo del pedido.",
   fecha: "La fecha del cobro no es válida.",
   fechaFutura: "La fecha del cobro no puede ser posterior a hoy.",
   medio: "Elegí el medio de pago.",
@@ -251,7 +253,7 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
 
       const p = await tx.fotofficePedido.findFirst({
         where: { id: v.pedidoId, workspaceId },
-        select: { id: true, number: true, status: true, clientId: true, consultaLeadId: true, incomeCategoryId: true },
+        select: { id: true, number: true, status: true, clientId: true, consultaLeadId: true, incomeCategoryId: true, totalArs: true },
       });
       if (!p || !esEstadoPedido(p.status)) throw new Corte(MENSAJES_PEDIDO.noExiste);
       if (p.status === "CANCELADO") throw new Corte(MENSAJES_COBRO.cancelado);
@@ -266,9 +268,13 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
       const imp = v.manual ? validarImputacionManual(cuotas, v.manual, v.importe) : imputarAutomatico(cuotas, v.importe);
       if (!imp.ok) throw new Corte(imp.error);
 
-      // ¿Primer cobro vigente? Con el candado tomado, ningún otro cobro de este pedido está a mitad de camino.
-      const vigentes = await tx.fotofficeCobro.count({ where: { workspaceId, pedidoId: p.id, voidedAt: null } });
-      const primero = vigentes === 0;
+      // Los cobros vigentes, con el candado tomado: ningún otro cobro de este pedido está a mitad de camino.
+      const vigentes = await tx.fotofficeCobro.findMany({ where: { workspaceId, pedidoId: p.id, voidedAt: null }, select: { amountArs: true } });
+      // Además del saldo de las cuotas, el del pedido: si el total bajó y el plan quedó descuadrado,
+      // las cuotas podrían sumar más que lo que falta pagar. Nunca se cobra más que total − cobrado.
+      const cobrado = vigentes.reduce((s, c) => s + decimalArsToMinor(c.amountArs), 0);
+      if (aCentavos(v.importe) > decimalArsToMinor(p.totalArs) - cobrado) throw new Corte(MENSAJES_COBRO.saldoExcedido);
+      const primero = vigentes.length === 0;
 
       // Dónde entra en Caja. Nunca inventa una cuenta: sin cuenta, no hay cobro.
       const cuentas = await tx.cashAccount.findMany({

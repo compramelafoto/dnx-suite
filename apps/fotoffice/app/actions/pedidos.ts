@@ -178,10 +178,10 @@ export async function enlaceDelPedidoAction(datos: { pedidoId: string; rotar?: b
   return r;
 }
 
-/** El enlace del recibo de un cobro, para copiarlo o mandarlo por WhatsApp. */
+/** El enlace del recibo de un cobro, para copiarlo o mandarlo por WhatsApp. Sólo lee: con "Ver". */
 export async function enlaceDelReciboAction(datos: { cobroId: string }): Promise<ResultadoEnlace> {
   if (!esObjeto(datos) || !esId(datos.cobroId)) return INVALIDO;
-  const ctx = await contextoDePedidos("operar");
+  const ctx = await contextoDePedidos("ver");
   if (!ctx) return SIN_ACCESO;
   return enlaceDelRecibo(ctx, datos.cobroId);
 }

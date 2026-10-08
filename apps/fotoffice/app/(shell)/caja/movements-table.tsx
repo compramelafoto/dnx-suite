@@ -1,6 +1,7 @@
 import { formatMinorArs } from "@/lib/membership/money";
 import type { MovementRow } from "@/lib/cash/repository";
 import { reverseMovementAction } from "./actions";
+import { noSeAnulaEnCaja } from "@/lib/cash/reverse";
 
 export const ETIQUETA_METODO: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -19,8 +20,11 @@ function fecha(d: Date) {
  * `/caja/movimientos`. No aparece en un movimiento ya anulado ni en una pata de un pase (ver
  * abajo por qué).
  */
-export function AnularMovimiento({ movement: m }: { movement: Pick<MovementRow, "id" | "isReversed" | "transferId"> }) {
+export function AnularMovimiento({ movement: m }: { movement: Pick<MovementRow, "id" | "isReversed" | "transferId" | "sourceModule"> }) {
   if (m.isReversed || m.transferId) return null;
+  // Un cobro de pedido no se anula acá: lo dice, sin botón (la acción también lo rechaza).
+  const enSuModulo = noSeAnulaEnCaja(m.sourceModule);
+  if (enSuModulo) return <span className="text-xs text-[var(--fo-muted)]">{enSuModulo}</span>;
   return (
     <form action={reverseMovementAction} className="flex flex-wrap items-center gap-1">
       <input type="hidden" name="movementId" value={m.id} />
