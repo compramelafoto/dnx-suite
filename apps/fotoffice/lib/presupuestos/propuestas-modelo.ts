@@ -34,7 +34,7 @@ export const MENSAJES_PROPUESTA_MODELO = {
   conceptoInvalido: "Revisá el concepto calculado: le faltan las horas o el tipo de trabajo.",
   producto: MENSAJES_PRESUPUESTO.producto,
   plantilla: "Elegí una plantilla de correo de tipo Presupuesto.",
-  sinItems: "Para que salga sola, la propuesta necesita al menos un producto.",
+  sinItems: "Para que salga sola, la propuesta necesita al menos un ítem.",
   sinPlantilla: "Para que salga sola, elegí la plantilla de correo con la que se envía.",
   texto: `Las condiciones pueden tener hasta ${MAX_TEXTO_VERSION} caracteres.`,
   noExiste: "Esa categoría no tiene propuesta modelo.",
@@ -83,14 +83,40 @@ function falla(donde: string, error: unknown): void {
 /** Lo único que guarda un concepto calculado de la propuesta: el trabajo, sin el perfil. */
 export type ConceptoDePropuesta = { entrada: { presupuesto: unknown } };
 
+const CAMPOS_DEL_CONCEPTO = [
+  "name", "itemType", "quantity", "coverageHours", "editingHours", "deliveryHours", "travelHours", "directCost",
+  "supplierCost", "productionHours", "shippingCost", "outsourcedLaborCost", "managementHours", "expenseCost",
+  "desiredMarginPercent",
+] as const;
+
+const objetoPlano = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const comoTexto = (v: unknown): string | undefined => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : undefined);
+
+/**
+ * El trabajo del concepto, armado con una lista blanca: sólo lo que lee `trabajoDesdeMotor`
+ * (primer concepto, tipo de trabajo, horas con el cliente, precio manual). Nada de `perfil` ni
+ * de otros campos. null si no hay un primer concepto que sea un objeto.
+ */
 function trabajoDelConcepto(calculo: unknown): unknown | null {
-  if (!calculo || typeof calculo !== "object") return null;
-  const entrada = (calculo as { entrada?: unknown }).entrada;
-  if (!entrada || typeof entrada !== "object") return null;
-  const presupuesto = (entrada as { presupuesto?: unknown }).presupuesto;
-  if (!presupuesto || typeof presupuesto !== "object" || Array.isArray(presupuesto)) return null;
-  const conceptos = (presupuesto as { concepts?: unknown }).concepts;
-  return Array.isArray(conceptos) && conceptos[0] ? presupuesto : null;
+  if (!objetoPlano(calculo) || !objetoPlano(calculo.entrada)) return null;
+  const presupuesto = calculo.entrada.presupuesto;
+  if (!objetoPlano(presupuesto) || !Array.isArray(presupuesto.concepts)) return null;
+  const c = presupuesto.concepts[0];
+  if (!objetoPlano(c)) return null;
+  const concepto: Record<string, string> = {};
+  for (const k of CAMPOS_DEL_CONCEPTO) {
+    const t = comoTexto(c[k]);
+    if (t !== undefined) concepto[k] = t;
+  }
+  const client = objetoPlano(presupuesto.client) ? presupuesto.client : {};
+  const horas = objetoPlano(client.hours) ? comoTexto(client.hours.salesHours) : undefined;
+  const jobType = comoTexto(client.jobType);
+  const chosenPrice = comoTexto(presupuesto.chosenPrice);
+  return {
+    client: { ...(jobType !== undefined ? { jobType } : {}), ...(horas !== undefined ? { hours: { salesHours: horas } } : {}) },
+    ...(chosenPrice !== undefined ? { chosenPrice } : {}),
+    concepts: [concepto],
+  };
 }
 
 /**

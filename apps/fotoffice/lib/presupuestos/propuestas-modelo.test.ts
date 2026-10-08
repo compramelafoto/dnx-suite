@@ -74,6 +74,34 @@ describe("validarItemsDeModelo (puro)", () => {
   });
 });
 
+describe("conceptos calculados: lista blanca", () => {
+  it("no guarda un perfil (ni arriba ni dentro del concepto) ni campos ajenos", () => {
+    const r = PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: {
+      perfil: { gastos: 1 }, extra: 1, chosenPrice: "5000",
+      client: { jobType: "Boda", perfil: { x: 1 }, hours: { salesHours: "2", otro: 1 } },
+      concepts: [{ name: "Cobertura", itemType: "own-service", quantity: 2, coverageHours: "6", perfil: { gastos: 1 }, raro: "x" }, { name: "segundo" }],
+    } } } })]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect((r.valor[0]!.calculo as never as { entrada: unknown }).entrada).toEqual({ presupuesto: {
+      client: { jobType: "Boda", hours: { salesHours: "2" } }, chosenPrice: "5000",
+      concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "2", coverageHours: "6" }],
+    } });
+  });
+
+  it("rechaza un primer concepto que no es un objeto", () => {
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: { concepts: ["x"] } } } })])).toEqual({ ok: false, error: M.conceptoInvalido });
+  });
+
+  it("guardar y leer conserva el concepto calculado", async () => {
+    expect(await guardar({ items: [item("a"), concepto("c")] as never, enviarSola: false })).toEqual({ ok: true });
+    const p = await PM.leerPropuestaModelo("ws-1", "cat-boda");
+    expect(p!.items).toHaveLength(2);
+    expect(p!.items[1]).toMatchObject({ id: "c", productId: null, modoPrecio: "CALCULO", precioUnitario: 0 });
+    expect(JSON.stringify(B.datos.fotofficePropuestaModelo[0])).not.toContain("perfil");
+  });
+});
+
 describe("guardar, leer y borrar", () => {
   it("guarda la propuesta de la categoría y la lee", async () => {
     expect(await guardar()).toEqual({ ok: true });

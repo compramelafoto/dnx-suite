@@ -47,6 +47,21 @@ describe("instanciarPropuesta (puro)", () => {
     expect((r.items[0]!.calculo as never as { entrada: { perfil?: unknown } }).entrada.perfil).toBeTruthy();
   });
 
+  it("la cantidad sale del trabajo, no del ítem guardado: el renglón queda en 1 y el precio la refleja", () => {
+    const con = (cantidadItem: number, quantity: string): ItemPresupuesto => ({
+      ...concepto("c"), cantidad: cantidadItem,
+      calculo: { entrada: { presupuesto: { ...presupuesto, concepts: [{ ...presupuesto.concepts[0]!, quantity }] } } } as never,
+    });
+    const deps = { productos, perfil: createBaseCompleteProfile(), nuevaClave, ahora };
+    const uno = instanciarPropuesta([con(7, "1")], deps);
+    const tres = instanciarPropuesta([con(7, "3")], deps);
+    expect(uno.ok && tres.ok).toBe(true);
+    if (!uno.ok || !tres.ok) return;
+    expect(uno.items[0]!.cantidad).toBe(1);
+    expect(tres.items[0]!.cantidad).toBe(1);
+    expect(tres.items[0]!.precioUnitario).toBeGreaterThan(uno.items[0]!.precioUnitario);
+  });
+
   it("sin perfil, un concepto calculado no se puede", () => {
     expect(instanciarPropuesta([concepto("c")], { productos, perfil: null, nuevaClave })).toEqual({ ok: false, motivo: "SIN_PERFIL" });
   });
