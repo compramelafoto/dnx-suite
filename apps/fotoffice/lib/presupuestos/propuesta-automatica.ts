@@ -3,7 +3,6 @@ import { prisma, type Prisma } from "@repo/db";
 import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { leerAjustes as leerAjustesConsultas, type DepsAjustes } from "@/lib/consultas/ajustes";
 import { destinatarioDelAviso } from "@/lib/consultas/aviso";
-import { decimalArsToMinor } from "@/lib/membership/money";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { yaRespondida } from "@/lib/plantillas/automaticos";
 import { TOPE_AUTOMATICOS_DIA } from "@/lib/plantillas/constantes";
@@ -19,14 +18,12 @@ import {
   sinAvisosAlEquipo,
 } from "@/lib/plantillas/envio";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
-import { leerPerfilPreciosDelSistema } from "@/lib/precios/perfil";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { crearTareaDeConsulta, destinatarioDelPresupuesto } from "./avisos";
 import { QUOTES_MODULE_KEY } from "./acceso";
 import { leerAjustes } from "./ajustes";
-import { ENTIDAD_NUMERACION, type ItemPresupuesto } from "./constantes";
-import { nuevaClave } from "./editor";
-import { instanciarPropuesta, type ProductoDeCatalogo, type ResultadoInstanciar } from "./instanciar-propuesta";
+import { ENTIDAD_NUMERACION } from "./constantes";
+import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
 import { enviarPresupuestoDelSistema, type DepsEnvioPresupuesto } from "./envio";
 import { vencimientoDesde } from "./estados";
 import { leerPropuestaModelo, plantillaDePropuesta } from "./propuestas-modelo";
@@ -89,27 +86,6 @@ function aviso(codigo: string): void {
   console.warn("[presupuestos] la propuesta modelo no salió sola", { codigo });
 }
 
-/**
- * Los ítems de la propuesta "a hoy": los de lista con nombre, descripción y precio del catálogo de
- * ahora; los calculados, vueltos a correr con el perfil del workspace. Devuelve el motivo si no se puede.
- */
-async function itemsAlPrecioDeHoy(
-  workspaceId: string,
-  items: ItemPresupuesto[],
-  ahora: Date,
-): Promise<ResultadoInstanciar> {
-  const ids = [...new Set(items.map((i) => i.productId).filter((x): x is string => x !== null))];
-  const productos = await prisma.product.findMany({
-    where: { workspaceId, id: { in: ids }, isActive: true },
-    select: { id: true, name: true, description: true, priceArs: true },
-  });
-  const deId = new Map<string, ProductoDeCatalogo>(
-    productos.map((p) => [p.id, { nombre: p.name, descripcion: p.description, precio: decimalArsToMinor(p.priceArs) / 100 }]),
-  );
-  const perfil = items.some((i) => i.modoPrecio === "CALCULO") ? await leerPerfilPreciosDelSistema(workspaceId) : null;
-  return instanciarPropuesta(items, { productos: deId, perfil, nuevaClave, ahora });
-}
-
 export async function enviarPropuestaModelo(
   workspaceId: string,
   leadId: string,
@@ -145,7 +121,7 @@ export async function enviarPropuestaModelo(
       aviso("PLANTILLA_NO_ENCONTRADA");
       return "FALLO";
     }
-    const instanciada = await itemsAlPrecioDeHoy(workspaceId, propuesta.items, ahora);
+    const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
     if (!instanciada.ok) {
       aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
       return "FALLO";

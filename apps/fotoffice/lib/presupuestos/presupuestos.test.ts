@@ -124,6 +124,95 @@ describe("crear", () => {
     expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ terms: "Seña 30 %", paymentProposal: "Transferencia" });
   });
 
+  describe("precargado con la propuesta modelo de la categoría", () => {
+    const calculado = {
+      id: "r2", productId: null, nombre: "Cobertura boda", descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+      modoPrecio: "CALCULO", seccion: null, opcional: false,
+      calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4" }] } } },
+    };
+    const lista = { id: "r1", productId: "prod-a", nombre: "Viejo", descripcion: null, cantidad: 2, precioUnitario: 1, descuento: null, modoPrecio: "LISTA", seccion: null, opcional: false };
+    const conPropuesta = (items: unknown[], terms: string | null = "Seña del 30 %.") =>
+      B.agregar("fotofficePropuestaModelo", { workspaceId: "ws-1", categoryId: "cat", items, terms, autoSendOnWeb: false });
+    beforeEach(() => {
+      B.agregar("product", { id: "prod-a", workspaceId: "ws-1", name: "Álbum", description: "30x30", priceArs: "150000.50" });
+    });
+
+    it("LISTA + CALCULO: V1 con los ítems al precio de hoy, totales y costos, y las condiciones de la propuesta", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      conPropuesta([lista, calculado]);
+      const r = await nuevo();
+      const v = versionesDe(r.presupuestoId)[0]!;
+      const items = v.items as { nombre: string; precioUnitario: number; modoPrecio: string; calculo: unknown }[];
+      expect(items).toHaveLength(2);
+      expect(items[0]).toMatchObject({ nombre: "Álbum", precioUnitario: 150000.5, modoPrecio: "LISTA" });
+      expect(items[1]!.modoPrecio).toBe("CALCULO");
+      expect(items[1]!.precioUnitario).toBeGreaterThan(0);
+      expect(items[1]!.calculo).not.toBeNull();
+      const total = (v.totals as { total: number }).total;
+      expect(total).toBeCloseTo(2 * 150000.5 + items[1]!.precioUnitario, 2);
+      expect(v.terms).toBe("Seña del 30 %.");
+      expect((v.costSnapshot as { costoTotal: number }).costoTotal).toBeGreaterThan(0);
+    });
+
+    it("un usuario del equipo (sin configurar) obtiene los ítems calculados", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      conPropuesta([calculado]);
+      const r = await nuevo(EQUIPO);
+      const [item] = versionesDe(r.presupuestoId)[0]!.items as { precioUnitario: number }[];
+      expect(item!.precioUnitario).toBeGreaterThan(0);
+    });
+
+    it("sin condiciones en la propuesta, salen las de los ajustes", async () => {
+      await A.guardarAjustes(DUENO, { validezDias: 15, condiciones: "Generales", propuestaPago: null, seguimientoDias: 3, seguimientoActivo: false });
+      conPropuesta([lista], null);
+      const r = await nuevo();
+      expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ terms: "Generales" });
+    });
+
+    it("con una consulta nueva usa la categoría elegida", async () => {
+      B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: SLUG_DNX });
+      await asegurarCatalogosDelWorkspace("ws-1");
+      const cat = B.datos.fotofficeConsultaCategoria.find((c) => c.workspaceId === "ws-1")!.id as string;
+      B.agregar("fotofficePropuestaModelo", { workspaceId: "ws-1", categoryId: cat, items: [lista], terms: null, autoSendOnWeb: false });
+      const r = await P.crearPresupuesto(DUENO, { nuevaConsulta: { contacto: { nombre: "Nora Gil", email: "nora@x.test" }, categoriaId: cat } }, deps);
+      if (!r.ok) throw new Error(r.error);
+      expect((versionesDe(r.presupuestoId)[0]!.items as unknown[]).length).toBe(1);
+    });
+
+    it("producto inactivo: V1 vacía y el alta sigue bien", async () => {
+      B.datos.product.find((x) => x.id === "prod-a")!.isActive = false;
+      conPropuesta([lista]);
+      const r = await nuevo();
+      expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ items: [] });
+    });
+
+    it("CALCULO sin perfil: V1 vacía", async () => {
+      conPropuesta([calculado]);
+      const r = await nuevo();
+      expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ items: [] });
+    });
+
+    it("sin propuesta para la categoría: V1 vacía", async () => {
+      const r = await nuevo();
+      expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ items: [] });
+    });
+
+    it("si leer la propuesta lanza, V1 vacía y el registro sólo lleva un código", async () => {
+      conPropuesta([lista]);
+      const original = B.tablas.fotofficePropuestaModelo.findFirst;
+      B.tablas.fotofficePropuestaModelo.findFirst = async () => {
+        throw Object.assign(new Error("Laura Pérez"), { code: "P1001" });
+      };
+      try {
+        const r = await nuevo();
+        expect(versionesDe(r.presupuestoId)[0]).toMatchObject({ items: [] });
+        expect(JSON.stringify(errores.mock.calls)).toContain("P1001");
+      } finally {
+        B.tablas.fotofficePropuestaModelo.findFirst = original;
+      }
+    });
+  });
+
   it("una consulta de otro workspace (o inexistente) no existe", async () => {
     expect(await P.crearPresupuesto(DUENO, { consultaLeadId: "lead-9" }, deps)).toEqual({ ok: false, error: M.consulta });
     expect(await P.crearPresupuesto(OTRO, { consultaLeadId: "lead-1" }, deps)).toEqual({ ok: false, error: M.consulta });

@@ -16,6 +16,8 @@ import {
 } from "./acceso";
 import { leerAjustes, type AjustesPresupuestos } from "./ajustes";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
+import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
+import { leerPropuestaModelo } from "./propuestas-modelo";
 import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde, vencio } from "./estados";
 import {
   bloquearPresupuesto,
@@ -25,6 +27,7 @@ import {
   SELECT_VERSION,
   totalesVacios,
   versionParaVista,
+  type BorradorNormalizado,
   type CostosVersion,
   type EntradaBorrador,
   type TotalesGuardados,
@@ -103,6 +106,44 @@ async function consultaDelWorkspace(workspaceId: string, leadId: string): Promis
 }
 
 /**
+ * Los ítems, totales y costos de la propuesta modelo de la categoría de la consulta, o null (sin
+ * categoría, sin propuesta, producto inactivo, sin perfil para un cálculo, ítems inválidos o
+ * cualquier error): crear el presupuesto nunca falla por la propuesta. Sólo se registra un código.
+ */
+async function precargarConPropuesta(
+  workspaceId: string,
+  leadId: string,
+  ajustes: AjustesPresupuestos,
+  ahora: Date,
+): Promise<BorradorNormalizado | null> {
+  try {
+    const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true } });
+    if (!ficha) return null;
+    const propuesta = await leerPropuestaModelo(workspaceId, ficha.categoryId);
+    if (!propuesta || propuesta.items.length === 0) return null;
+    const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
+    if (!instanciada.ok) {
+      console.error("[presupuestos] la propuesta modelo no precargó el presupuesto", { codigo: instanciada.motivo });
+      return null;
+    }
+    const borrador = await normalizarBorrador(
+      workspaceId,
+      { items: instanciada.items, condiciones: propuesta.condiciones ?? ajustes.condiciones, propuestaPago: ajustes.propuestaPago },
+      new Map(),
+      ahora,
+    );
+    if (!borrador.ok) {
+      console.error("[presupuestos] la propuesta modelo no precargó el presupuesto", { codigo: "ITEMS_INVALIDOS" });
+      return null;
+    }
+    return borrador.valor;
+  } catch (e) {
+    falla("precargarConPropuesta", e);
+    return null;
+  }
+}
+
+/**
  * "Nuevo presupuesto" de una consulta. Si no se eligió consulta, se crea una con el alta de
  * siempre (`altaDeConsulta`, origen MANUAL: número, circuito y aviso como cualquier alta), lo que
  * además pide "Gestionar" en Consultas. Crea el presupuesto en BORRADOR con su V1 vacía (las
@@ -149,6 +190,8 @@ export async function crearPresupuesto(
   }
 
   const ajustes = await leerAjustes(workspaceId);
+  // La propuesta modelo de la categoría, ANTES de la transacción: si algo falla, V1 vacía como siempre.
+  const precargado = await precargarConPropuesta(workspaceId, consulta.leadId, ajustes, ahora);
   try {
     return await prisma.$transaction(async (tx) => {
       const p = await tx.fotofficePresupuesto.create({
@@ -167,11 +210,11 @@ export async function crearPresupuesto(
           workspaceId,
           presupuestoId: p.id,
           number: 1,
-          items: [] as Prisma.InputJsonValue,
-          totals: totalesVacios() as unknown as Prisma.InputJsonValue,
-          terms: ajustes.condiciones,
-          paymentProposal: ajustes.propuestaPago,
-          costSnapshot: costosVacios() as unknown as Prisma.InputJsonValue,
+          items: (precargado?.items ?? []) as unknown as Prisma.InputJsonValue,
+          totals: (precargado?.totals ?? totalesVacios()) as unknown as Prisma.InputJsonValue,
+          terms: precargado ? precargado.terms : ajustes.condiciones,
+          paymentProposal: precargado ? precargado.paymentProposal : ajustes.propuestaPago,
+          costSnapshot: (precargado?.costSnapshot ?? costosVacios()) as unknown as Prisma.InputJsonValue,
           createdByUserId: ctx.userId,
         },
         select: { id: true },
