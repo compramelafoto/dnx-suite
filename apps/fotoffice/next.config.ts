@@ -118,6 +118,12 @@ const nextConfig: NextConfig = {
       // tiene el botón "Acepto" (clickjacking). Vale para la página y para la vista de impresión.
       { source: "/w/:slug/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
+      // Los enlaces del pedido y del recibo (etapa 3): llevan su token en la dirección y no se
+      // enmarcan en otro sitio, igual que el del presupuesto.
+      { source: "/w/:slug/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/w/:slug/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
     ];
   },
   images: {

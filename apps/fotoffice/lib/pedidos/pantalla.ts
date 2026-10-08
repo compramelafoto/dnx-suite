@@ -16,6 +16,11 @@ export function pesosPedido(n: number): string {
   }).format(conCentavos ? n : Math.round(n));
 }
 
+/** Pesos con centavos, como va en el recibo ("$ 120.000,50"). */
+export function pesosConCentavos(n: number): string {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 /** "aaaa-mm-dd" → "dd/mm/aaaa" (o "—"). */
 export function fechaCorta(ymd: string | null | undefined): string {
   return ymd ? ymd.split("-").reverse().join("/") : "—";

@@ -12,6 +12,7 @@ import { ETIQUETA_MEDIO_COBRO, esMedioCobro, LEYENDA_RECIBO } from "./constantes
 import { enlaceDelPedidoDelSistema, enlacesDeRecibos, type DepsEnlace } from "./enlace";
 import { importeEnLetras } from "./numero-a-letras";
 import { nombreDeContacto } from "./pedidos";
+import { pesosConCentavos } from "./pantalla";
 import { fechaDeBase, pesosDeBase } from "./plan";
 import { aCentavos, desdeCentavos } from "./plan-cuotas";
 import { asegurarPlantillaRecibo } from "./plantillas";
@@ -23,10 +24,8 @@ import { asegurarPlantillaRecibo } from "./plantillas";
  * Nunca loguea datos personales: sólo códigos.
  */
 
-/** Pesos con centavos, como va en el recibo ("$ 120.000,50"). */
-export function pesosConCentavos(n: number): string {
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
+/** Pesos con centavos, como va en el recibo ("$ 120.000,50"). Vive en `pantalla.ts` (puro). */
+export { pesosConCentavos };
 
 // --- Datos del recibo -------------------------------------------------------------------------
 
