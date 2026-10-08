@@ -30,7 +30,7 @@ export default async function PropuestasModeloPage() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title="Presupuestos"
-        description="Una propuesta modelo por categoría: productos del catálogo a precio de lista y condiciones, lista para mandar."
+        description="Una propuesta modelo por categoría: productos del catálogo a precio de lista, conceptos calculados con ¿Cuánto Cobro? y condiciones, lista para mandar."
       />
       <PestanasPresupuestos activa="propuestas" />
       <p className="text-sm text-[var(--fo-muted)]">

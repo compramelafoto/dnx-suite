@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutboundEmail } from "@/lib/communications/send-email";
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 
 /**
  * La consulta web recibe su propuesta modelo sola (Entrega B, Task 2). De punta a punta por el
@@ -44,6 +45,7 @@ vi.mock("./sitio", () => ({
 }));
 
 const PA = await import("./propuesta-automatica");
+const { armarVistaPublica } = await import("./vista-publica");
 const { createServiceLead } = await import("@/app/actions/service-lead");
 const { asegurarCatalogosDelWorkspace } = await import("@/lib/consultas/semillas");
 const { TOPE_AUTOMATICOS_DIA } = await import("@/lib/plantillas/constantes");
@@ -185,6 +187,54 @@ describe("encendida contra apagada", () => {
     expect(H.enviar).not.toHaveBeenCalled();
     expect(presupuestos()).toHaveLength(0);
     expect(B.datos.serviceSalesLead).toHaveLength(1);
+  });
+});
+
+describe("conceptos calculados en la propuesta", () => {
+  const conceptoCalculado = {
+    id: "r3", productId: null, nombre: "Cobertura boda", descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+    modoPrecio: "CALCULO", seccion: "Fotos", opcional: false,
+    calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4" }] } } },
+  };
+  const conCalculo = () => propuesta({ items: [conceptoCalculado] });
+
+  it("con perfil: sale ENVIADA, el ítem queda CALCULO con el precio del motor y la vista pública no ve el cálculo", async () => {
+    autorespuesta();
+    B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+    conCalculo();
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(correo().subject).toMatch(/^Tu presupuesto N° /);
+    const p = presupuestos()[0]!;
+    expect(p.status).toBe("ENVIADO");
+    const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === p.currentVersionId)!;
+    const items = v.items as { modoPrecio: string; precioUnitario: number; calculo: unknown; id: string }[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.modoPrecio).toBe("CALCULO");
+    expect(items[0]!.precioUnitario).toBeGreaterThan(0);
+    expect(items[0]!.calculo).not.toBeNull();
+    expect(items[0]!.id).not.toBe("r3");
+
+    const vista = armarVistaPublica({
+      estado: "ACTIVO",
+      organizacion: { nombre: "Estudio DNX", logoUrl: null, whatsappUrl: null, email: null },
+      numero: null,
+      version: { number: 1, items: v.items as never, totals: v.totals as never, terms: v.terms as never, paymentProposal: null, acceptedAt: null, acceptedName: null },
+      validUntil: null,
+    });
+    const json = JSON.stringify(vista);
+    for (const prohibido of ["calculo", "entrada", "perfil"]) expect(json).not.toContain(prohibido);
+    expect(vista.items[0]!.precioUnitario).toBe(items[0]!.precioUnitario);
+  });
+
+  it("sin perfil: FALLO, no se crea presupuesto y va la común", async () => {
+    autorespuesta();
+    conCalculo();
+    await createServiceLead(ENTRADA);
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(correo().subject).toBe("Recibimos tu consulta");
+    expect(presupuestos()).toHaveLength(0);
+    expect(JSON.stringify(avisos.mock.calls)).toContain("SIN_PERFIL");
   });
 });
 
