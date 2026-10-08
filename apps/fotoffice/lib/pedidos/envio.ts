@@ -41,6 +41,7 @@ export const MENSAJES_MENSAJE_PEDIDO = {
   canal: "Elegí correo o WhatsApp.",
   sinTexto: "Elegí una plantilla o escribí el mensaje.",
   cobro: "No encontramos ese cobro.",
+  anulado: "Ese cobro está anulado: su recibo no se envía.",
 } as const;
 
 type Falla = { ok: false; error: string };
@@ -88,6 +89,13 @@ export async function enviarMensajePedido(
     asunto = canal === "EMAIL" ? (plantilla.subject ?? "") : null;
   } else {
     return no(MENSAJES_MENSAJE_PEDIDO.sinTexto);
+  }
+
+  // El recibo de un cobro anulado no se manda (ni se registra un WhatsApp con él).
+  if (cobroId !== null) {
+    const c = await prisma.fotofficeCobro.findFirst({ where: { id: cobroId, workspaceId, pedidoId }, select: { voidedAt: true } });
+    if (!c) return no(MENSAJES_MENSAJE_PEDIDO.cobro);
+    if (c.voidedAt) return no(MENSAJES_MENSAJE_PEDIDO.anulado);
   }
 
   const leido = await contextoDeMensajePedido(

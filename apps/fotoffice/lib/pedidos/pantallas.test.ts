@@ -201,6 +201,19 @@ describe("fuente de las pantallas", () => {
     expect(nav).toContain('const ORDERS_MODULE_KEY = "orders";');
   });
 
+  it("revisión: la vista del recibo sobrevive al cobro que salda el pedido y muestra el importe del servidor", () => {
+    const pagina = leer("app/(shell)/pedidos/[id]/page.tsx");
+    // RegistrarCobro no depende del saldo para montarse: sólo el botón.
+    expect(pagina).not.toMatch(/plan\.saldo > 0 \? \(\s*<RegistrarCobro/);
+    expect(pagina).toContain("puedeCobrar={!cancelado && plan.saldo > 0}");
+    const src = leer("components/pedidos/registrar-cobro.tsx");
+    expect(src).toMatch(/\{puedeCobrar \? \(\s*<button/);
+    expect(src).toContain("importe: r.importe");
+    expect(src).not.toContain("importe: monto }");
+    // Los recibos anulados no ofrecen enviarse.
+    expect(leer("components/pedidos/cobros-del-pedido.tsx")).toContain("gestiona && envio && !c.anulado");
+  });
+
   it("el cobro manda una clave de idempotencia generada al abrir el diálogo", () => {
     const src = leer("components/pedidos/registrar-cobro.tsx");
     expect(src).toContain("setClave(claveDeCobro());");

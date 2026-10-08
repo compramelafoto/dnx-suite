@@ -18,7 +18,7 @@ import {
 import { hashDeToken, resolverClaveDeEnlace, tokenDelRecibo } from "./enlace";
 import { imputadoPorCuota } from "./estado";
 import { imputarAutomatico, validarImputacionManual, type CuotaConSaldo, type Imputacion } from "./imputacion";
-import { bloquearPedido, pesosParaBase, planesDe } from "./plan";
+import { bloquearPedido, pesosDeBase, pesosParaBase, planesDe } from "./plan";
 import { aCentavos, desdeCentavos, esFechaValida, tieneHastaDosDecimales } from "./plan-cuotas";
 
 /**
@@ -72,7 +72,7 @@ export const MENSAJES_COBRO = {
   fechaFutura: "La fecha del cobro no puede ser posterior a hoy.",
   medio: "Elegí el medio de pago.",
   imputaciones: "El reparto entre cuotas no es válido.",
-  adjunto: "No encontramos ese comprobante.",
+  adjunto: "No encontramos ese comprobante en la ficha del contacto del pedido (tiene que estar subido del todo).",
   clave: "Falta la clave del formulario. Volvé a abrirlo.",
   claveDeOtro: "Ese formulario ya se usó para otro pedido. Volvé a abrirlo.",
   sinCaja: "Para registrar cobros encendé el módulo Caja: cada cobro entra en Caja.",
@@ -110,6 +110,8 @@ export type ResultadoCobro =
       creado: boolean;
       /** Es el primer cobro vigente del pedido (se avisó `SENA_COBRADA`). */
       primero: boolean;
+      /** El importe guardado del cobro (en un reintento, el del cobro que ya estaba). */
+      importe: number;
     }
   | { ok: false; error: string };
 
@@ -201,16 +203,18 @@ async function porClave(
   cliente: Pick<Tx, "fotofficeCobro">,
   workspaceId: string,
   clave: string,
-): Promise<{ id: string; pedidoId: string; receiptNumber: string } | null> {
+): Promise<CobroPorClave | null> {
   return cliente.fotofficeCobro.findFirst({
     where: { workspaceId, idempotencyKey: clave },
-    select: { id: true, pedidoId: true, receiptNumber: true },
+    select: { id: true, pedidoId: true, receiptNumber: true, amountArs: true },
   });
 }
 
-function repetido(c: { id: string; pedidoId: string; receiptNumber: string }, pedidoId: string): ResultadoCobro {
+type CobroPorClave = { id: string; pedidoId: string; receiptNumber: string; amountArs: { toString(): string } };
+
+function repetido(c: CobroPorClave, pedidoId: string): ResultadoCobro {
   if (c.pedidoId !== pedidoId) return { ok: false, error: MENSAJES_COBRO.claveDeOtro };
-  return { ok: true, cobroId: c.id, pedidoId: c.pedidoId, reciboNumero: c.receiptNumber, creado: false, primero: false };
+  return { ok: true, cobroId: c.id, pedidoId: c.pedidoId, reciboNumero: c.receiptNumber, creado: false, primero: false, importe: pesosDeBase(c.amountArs) };
 }
 
 /** Saldos vigentes de cada cuota (importe menos lo imputado por cobros sin anular). */
@@ -259,7 +263,12 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
       if (p.status === "CANCELADO") throw new Corte(MENSAJES_COBRO.cancelado);
 
       if (v.adjuntoId) {
-        const a = await tx.fotofficeAttachment.findFirst({ where: { id: v.adjuntoId, workspaceId, deletedAt: null }, select: { id: true } });
+        // El comprobante es un adjunto LISTO de la ficha del contacto del pedido (adonde lo sube el
+        // diálogo): nunca de otro contacto, de un socio ni una subida sin confirmar.
+        const a = await tx.fotofficeAttachment.findFirst({
+          where: { id: v.adjuntoId, workspaceId, clientId: p.clientId, status: "LISTO", deletedAt: null },
+          select: { id: true },
+        });
         if (!a) throw new Corte(MENSAJES_COBRO.adjunto);
       }
 
@@ -350,11 +359,11 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
     // Doble red: `notificarEvento` no lanza, y si alguna vez lo hiciera, el cobro ya está hecho.
     await notificarEvento(workspaceId, { tipo: "CAPTACION", id: hecho.consultaLeadId }, "SENA_COBRADA", hecho.cobroId).catch(() => undefined);
   }
-  return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero };
+  return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero, importe: v.importe };
 }
 
 class Repetido extends Error {
-  constructor(readonly cobro: { id: string; pedidoId: string; receiptNumber: string }) {
+  constructor(readonly cobro: CobroPorClave) {
     super("repetido");
   }
 }

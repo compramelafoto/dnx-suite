@@ -95,6 +95,20 @@ describe("enviar un mensaje del pedido", () => {
     expect(correo().text).toContain(`https://app.test/w/dnxestudio/recibo/${EN.tokenDelRecibo(c.cobroId, CLAVE)}`);
   });
 
+  it("el recibo de un cobro anulado no se manda por correo ni por WhatsApp", async () => {
+    const c = await CO.registrarCobro(DUENO, { pedidoId: "ped-1", importe: 40000, fecha: "2026-10-07", medio: "EFECTIVO", idempotencyKey: "clave-form-anulado" }, deps);
+    if (!c.ok) throw new Error(c.error);
+    expect(await CO.anularCobro(DUENO, c.cobroId, "Error de carga", deps)).toMatchObject({ ok: true });
+    for (const canal of ["EMAIL", "WHATSAPP"]) {
+      expect(await EV.enviarMensajePedido(DUENO, "ped-1", { canal, asunto: "Recibo", cuerpo: "Tu recibo: [recibo_enlace]", cobroId: c.cobroId }, deps)).toEqual({
+        ok: false,
+        error: EV.MENSAJES_MENSAJE_PEDIDO.anulado,
+      });
+    }
+    expect(H.enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(0);
+  });
+
   it("WhatsApp: devuelve el enlace wa.me con el texto y lo registra en el pedido", async () => {
     const r = await EV.enviarMensajePedido(DUENO, "ped-1", { canal: "WHATSAPP", cuerpo: "Hola [nombre], tu pedido: [pedido_enlace]" }, deps);
     if (!r.ok) throw new Error(r.error);

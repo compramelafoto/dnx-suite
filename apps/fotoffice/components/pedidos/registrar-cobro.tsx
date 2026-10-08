@@ -44,6 +44,7 @@ export function RegistrarCobro({
   hoy,
   puedeAdjuntar,
   envio,
+  puedeCobrar,
 }: {
   pedidoId: string;
   clientId: string;
@@ -53,6 +54,11 @@ export function RegistrarCobro({
   hoy: string;
   puedeAdjuntar: boolean;
   envio: OpcionesEnvioPedido | null;
+  /**
+   * Si se ofrece el botón (pedido sin cancelar y con saldo). El componente queda montado aunque no:
+   * así, cuando un cobro salda el pedido y la ficha se refresca, la vista del recibo sigue abierta.
+   */
+  puedeCobrar: boolean;
 }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
@@ -138,7 +144,8 @@ export function RegistrarCobro({
           setError(r.error);
           return;
         }
-        setHecho({ cobroId: r.cobroId, numero: r.reciboNumero, importe: monto });
+        // El importe que guardó el servidor (en un reintento con la misma clave, el del cobro que ya estaba).
+        setHecho({ cobroId: r.cobroId, numero: r.reciboNumero, importe: r.importe });
         router.refresh();
       } catch {
         setProgreso(null);
@@ -149,9 +156,11 @@ export function RegistrarCobro({
 
   return (
     <>
-      <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={abrir} disabled={cuotas.length === 0}>
-        Registrar cobro
-      </button>
+      {puedeCobrar ? (
+        <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={abrir} disabled={cuotas.length === 0}>
+          Registrar cobro
+        </button>
+      ) : null}
       <dialog
         ref={ref}
         aria-labelledby={`cobro-titulo-${pedidoId}`}

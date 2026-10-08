@@ -115,6 +115,10 @@ describe("registrar un cobro", () => {
     expect(a.ok && b.ok).toBe(true);
     if (!a.ok || !b.ok) return;
     expect(b).toMatchObject({ cobroId: a.cobroId, reciboNumero: a.reciboNumero, creado: false });
+    expect(a.importe).toBe(40000);
+    // Reintento con la misma clave y otro importe escrito: devuelve el importe guardado, no el nuevo.
+    const c = await CO.registrarCobro(DUENO, { ...datos, importe: 35000 }, deps);
+    expect(c).toMatchObject({ cobroId: a.cobroId, creado: false, importe: 40000 });
     expect(B.datos.fotofficeCobro).toHaveLength(1);
     expect(movimientos()).toHaveLength(1);
     // La misma clave en otro pedido no sirve.
@@ -177,6 +181,22 @@ describe("registrar un cobro", () => {
     B.agregar("workspaceFeatureModule", { workspaceId: "ws-2", moduleKey: "cash", enabled: true });
     expect(await cobrar("ped-1", 10, {}, OTRO)).toEqual({ ok: false, error: M.noExiste });
     expect(B.datos.fotofficeCobro).toHaveLength(0);
+  });
+
+  it("el comprobante: adjunto LISTO de la ficha del contacto del pedido; nunca de otro contacto, de un socio ni sin confirmar", async () => {
+    B.agregar("fotofficeAttachment", { id: "adj-ok", workspaceId: "ws-1", clientId: "cli-1", status: "LISTO", fileName: "t.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-otro", workspaceId: "ws-1", clientId: "cli-2", status: "LISTO", fileName: "o.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-socio", workspaceId: "ws-1", memberId: "soc-1", status: "LISTO", fileName: "s.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-pend", workspaceId: "ws-1", clientId: "cli-1", status: "PENDIENTE", fileName: "p.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-borr", workspaceId: "ws-1", clientId: "cli-1", status: "LISTO", deletedAt: new Date(), fileName: "b.pdf" });
+    B.agregar("fotofficeAttachment", { id: "adj-ajeno", workspaceId: "ws-2", clientId: "cli-1", status: "LISTO", fileName: "a.pdf" });
+    for (const id of ["adj-otro", "adj-socio", "adj-pend", "adj-borr", "adj-ajeno"]) {
+      expect(await cobrar("ped-1", 10, { adjuntoId: id }), id).toEqual({ ok: false, error: CO.MENSAJES_COBRO.adjunto });
+    }
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+    expect(movimientos()).toHaveLength(0);
+    const r = await cobrado("ped-1", 10, { adjuntoId: "adj-ok" });
+    expect(B.datos.fotofficeCobro.find((x) => x.id === r.cobroId)!.attachmentId).toBe("adj-ok");
   });
 
   it("el pedido cancelado rechaza cobros", async () => {

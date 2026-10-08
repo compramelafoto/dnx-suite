@@ -137,17 +137,18 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
 
       {gestiona ? (
         <div className="flex flex-wrap items-start gap-2">
-          {!cancelado && plan.saldo > 0 ? (
-            <RegistrarCobro
-              pedidoId={detalle.id}
-              clientId={detalle.clientId}
-              cuotas={cuotasConSaldo}
-              saldoPedido={plan.saldo}
-              hoy={hoy}
-              puedeAdjuntar={puedeEnContexto(ctx, "operar", CLIENTS_MODULE_KEY)}
-              envio={envio}
-            />
-          ) : null}
+          {/* Siempre montado (con Gestionar): si el cobro salda el pedido, la vista del recibo
+              no desaparece al refrescar la ficha. El botón sólo sale sin cancelar y con saldo. */}
+          <RegistrarCobro
+            pedidoId={detalle.id}
+            clientId={detalle.clientId}
+            cuotas={cuotasConSaldo}
+            saldoPedido={plan.saldo}
+            hoy={hoy}
+            puedeAdjuntar={puedeEnContexto(ctx, "operar", CLIENTS_MODULE_KEY)}
+            envio={envio}
+            puedeCobrar={!cancelado && plan.saldo > 0}
+          />
           <AccionesPedido
             pedidoId={detalle.id}
             siguientes={estadosSiguientes(detalle.estado)}
