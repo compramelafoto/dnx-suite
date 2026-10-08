@@ -54,8 +54,6 @@ describe("configurarSecuenciaAction", () => {
     expect(cambio).toMatchObject({ workspaceId: "ws-1", key: "PEDIDO", actorUserId: 7, actorLabel: "Ana" });
     expect(describirCambioSecuencia(cambio.before, cambio.after)).toEqual([
       'Prefijo: sin prefijo → "P-"',
-      "Año: sin año → con año",
-      "Dígitos: 1 → 4",
       "Próximo número: 1 → 42",
     ]);
     expect(H.revalidate).toHaveBeenCalledWith("/workspace/configuracion/numeracion");

@@ -41,7 +41,7 @@ describe("asegurarSecuencias", () => {
     const consulta = B.datos.fotofficeSequence.find((s) => s.key === "CONSULTA")!;
     expect(consulta).toMatchObject({ withYear: true, digits: 4, nextValue: 1, prefix: "" });
     const pedido = B.datos.fotofficeSequence.find((s) => s.key === "PEDIDO")!;
-    expect(pedido).toMatchObject({ withYear: false, digits: 1, nextValue: 1, prefix: "" });
+    expect(pedido).toMatchObject({ withYear: true, digits: 4, nextValue: 1, prefix: "" });
   });
 
   it("completa sólo las que faltan", async () => {
@@ -148,7 +148,7 @@ describe("configurarSecuencia", () => {
     expect(B.datos.fotofficeSequenceChange).toHaveLength(1);
     expect(B.datos.fotofficeSequenceChange[0]).toMatchObject({
       workspaceId: "ws-1", key: "PRESUPUESTO", actorUserId: 1, actorLabel: "Ana",
-      before: { prefix: "", withYear: false, digits: 1, nextValue: 1, currentYear: null },
+      before: { prefix: "", withYear: true, digits: 4, nextValue: 1, currentYear: null },
       after: { prefix: "P-", withYear: true, digits: 4, nextValue: 7, currentYear: 2026 },
     });
     const h = await S.historialSecuencia("ws-1", "PRESUPUESTO");
