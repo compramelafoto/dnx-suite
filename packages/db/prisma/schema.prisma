@@ -7224,6 +7224,13 @@ model Workspace {
   fotofficeCuotaRecordatorios FotofficeCuotaRecordatorio[]
   fotofficePedidoAjustes FotofficePedidoAjustes?
   fotofficePedidoTareas FotofficePedidoTarea[]
+  fotofficeProyectos FotofficeProyecto[]
+  fotofficeProductoProyectos FotofficeProductoProyecto[]
+  fotofficeProyectoRoles FotofficeProyectoRol[]
+  fotofficeProyectoParticipantes FotofficeProyectoParticipante[]
+  fotofficeProyectoNotas FotofficeProyectoNota[]
+  fotofficeProyectoAdjuntos FotofficeProyectoAdjunto[]
+  fotofficeProyectoEtapaPlanes FotofficeProyectoEtapaPlan[]
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -18589,6 +18596,8 @@ model Client {
   fotofficePedidos FotofficePedido[] @relation("FotofficePedidoContacto")
   fotofficeCobros FotofficeCobro[] @relation("FotofficeCobroContacto")
   fotofficeCuentasPagar FotofficeCuentaPagar[] @relation("FotofficeCuentaPagarProveedor")
+  fotofficeProyectos FotofficeProyecto[]
+  fotofficeProyectoParticipaciones FotofficeProyectoParticipante[]
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -20167,6 +20176,8 @@ model FotofficeCircuit {
   workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   stages    FotofficeStage[]
   journeys  FotofficeJourney[]
+  proyectos FotofficeProyecto[]
+  reglasProyecto FotofficeProductoProyecto[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, kind, isActive])
@@ -20191,6 +20202,7 @@ model FotofficeStage {
   rules     FotofficeStageRule[]
   journeys  FotofficeJourney[]
   tasks     FotofficeTask[]
+  planesProyecto FotofficeProyectoEtapaPlan[]
   stepsFrom FotofficeJourneyStep[]       @relation("StepFrom")
   stepsTo   FotofficeJourneyStep[]       @relation("StepTo")
 
@@ -20947,6 +20959,7 @@ model FotofficePedido {
   cobros          FotofficeCobro[]
   cuentasPagar    FotofficeCuentaPagar[]
   tareas          FotofficePedidoTarea[]
+  proyectos       FotofficeProyecto[]
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -21177,6 +21190,184 @@ model FotofficePedidoTarea {
 
   @@index([pedidoId, position])
   @@index([workspaceId])
+}
+
+// ---------------------------------------------------------------------------
+// Proyectos (etapa 4, Entrega A). Nacen al confirmar un pedido, uno por regla de cada producto.
+// El SQL (`20261025120000_fotoffice_etapa_4_proyectos`) agrega los CHECK que Prisma no expresa.
+// ---------------------------------------------------------------------------
+
+/// Proyecto de trabajo. Fechas de Argentina (DATE). `baseDate` = evento del pedido o día de la confirmación.
+/// Único (pedidoId, pedidoItemIndex, circuitId): confirmar dos veces no duplica (en Postgres los nulos no chocan).
+/// CHECK en el SQL: `suspendReason` obligatorio si hay `suspendedAt`.
+model FotofficeProyecto {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  number           String
+  name             String
+  clientId         String
+  pedidoId         String?
+  pedidoItemIndex  Int?
+  productId        String?
+  circuitId        String
+  eventDate        DateTime? @db.Date
+  baseDate         DateTime  @db.Date
+  finalDueDate     DateTime? @db.Date
+  ownerUserId      Int?
+  delegateUserId   Int?
+  description      String?
+  suspendedAt      DateTime?
+  suspendReason    String?
+  externalId       String?
+  createdByUserId  Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace     Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client        Client                           @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  pedido        FotofficePedido?                 @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+  product       Product?                         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  circuit       FotofficeCircuit                 @relation(fields: [circuitId], references: [id], onDelete: Restrict)
+  participantes FotofficeProyectoParticipante[]
+  notas         FotofficeProyectoNota[]
+  adjuntos      FotofficeProyectoAdjunto[]
+  planes        FotofficeProyectoEtapaPlan[]
+
+  @@unique([workspaceId, number])
+  @@unique([pedidoId, pedidoItemIndex, circuitId])
+  @@index([workspaceId, finalDueDate])
+  @@index([workspaceId, clientId])
+  @@index([workspaceId, pedidoId])
+  @@index([workspaceId, ownerUserId])
+  /// Para el chequeo de las FKs al borrar un contacto, un pedido, un producto o un flujo.
+  @@index([clientId])
+  @@index([pedidoId])
+  @@index([productId])
+  @@index([circuitId])
+}
+
+/// Regla "Proyecto que genera" de un producto (Catálogo). Puede haber varias por producto.
+/// CHECK en el SQL: `daysFromEvent` entre -365 y 365.
+model FotofficeProductoProyecto {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  productId     String
+  circuitId     String
+  /// null = usar el responsable del pedido.
+  ownerUserId   Int?
+  daysFromEvent Int      @default(0)
+  /// null = «{contacto} · {producto}».
+  nameTemplate  String?
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  circuit   FotofficeCircuit @relation(fields: [circuitId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, productId, order])
+  @@index([productId])
+  @@index([circuitId])
+}
+
+/// Rol de un participante de proyecto (Fotógrafo, Editor, Salón, DJ…).
+model FotofficeProyectoRol {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  participantes FotofficeProyectoParticipante[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Participante de un proyecto: un usuario del equipo o un contacto (exactamente uno; CHECK en el SQL).
+model FotofficeProyectoParticipante {
+  id          String   @id @default(cuid())
+  workspaceId String
+  proyectoId  String
+  userId      Int?
+  clientId    String?
+  roleId      String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto     @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  client    Client?               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role      FotofficeProyectoRol? @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, proyectoId])
+  @@index([workspaceId, userId])
+  @@index([proyectoId])
+  @@index([clientId])
+  @@index([roleId])
+}
+
+/// Nota de un proyecto. Cuerpo no vacío (CHECK en el SQL).
+model FotofficeProyectoNota {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  proyectoId   String
+  body         String
+  authorUserId Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@index([proyectoId, createdAt])
+  @@index([workspaceId])
+}
+
+/// Adjunto de un proyecto: misma forma de almacenamiento que `FotofficeAttachment` (bucket privado).
+model FotofficeProyectoAdjunto {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  proyectoId       String
+  /// adjuntos/<workspaceId>/<uuid> — nunca sale al navegador.
+  storageKey       String    @unique
+  fileName         String
+  contentType      String
+  sizeBytes        Int
+  /// PENDIENTE | LISTO | BORRADO
+  status           String    @default("PENDIENTE")
+  uploadedByUserId Int?
+  uploadedByLabel  String
+  deletedAt        DateTime?
+  purgeAfter       DateTime?
+  createdAt        DateTime  @default(now())
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, proyectoId, createdAt])
+  @@index([proyectoId])
+  @@index([status, purgeAfter])
+}
+
+/// Vencimiento planificado de una etapa de un proyecto (no se mueve aunque haya atraso).
+model FotofficeProyectoEtapaPlan {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  proyectoId     String
+  stageId        String
+  plannedDueDate DateTime @db.Date
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  stage     FotofficeStage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([proyectoId, stageId])
+  @@index([workspaceId])
+  @@index([stageId])
 }
 
 // ---------------------------------------------------------------------------
@@ -21618,6 +21809,8 @@ model Product {
   fotofficeComboItems FotofficeComboItem[]      @relation("FotofficeComboItemCombo")
   fotofficeEnCombos   FotofficeComboItem[]      @relation("FotofficeComboItemComponente")
   fotofficeCostos     FotofficeCostoPlantilla[]
+  fotofficeProyectos  FotofficeProyecto[]
+  fotofficeProyectoReglas FotofficeProductoProyecto[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, isActive])

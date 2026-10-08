@@ -44,6 +44,9 @@ const TABLAS = [
   "fotofficePedido", "fotofficePedidoCuota", "fotofficeCobro", "fotofficeCobroImputacion",
   // Cuentas a pagar, recordatorios de cuotas, ajustes de pedidos y checklist (etapa 3, Entrega B1).
   "fotofficeCuentaPagar", "fotofficeCuotaRecordatorio", "fotofficePedidoAjustes", "fotofficePedidoTarea",
+  // Proyectos (etapa 4, Entrega A).
+  "fotofficeProyecto", "fotofficeProductoProyecto", "fotofficeProyectoRol", "fotofficeProyectoParticipante",
+  "fotofficeProyectoNota", "fotofficeProyectoAdjunto", "fotofficeProyectoEtapaPlan",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -156,6 +159,20 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     reminderDays: 1, reminderEnabled: false, incomeCategoryId: null, checklistTemplates: null, updatedAt: new Date(),
   }),
   fotofficePedidoTarea: () => ({ doneAt: null, doneByUserId: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeProyecto: () => ({
+    pedidoId: null, pedidoItemIndex: null, productId: null, eventDate: null, finalDueDate: null, ownerUserId: null,
+    delegateUserId: null, description: null, suspendedAt: null, suspendReason: null, externalId: null,
+    createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeProductoProyecto: () => ({
+    ownerUserId: null, daysFromEvent: 0, nameTemplate: null, order: 0, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeProyectoRol: () => ({ order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeProyectoParticipante: () => ({ userId: null, clientId: null, roleId: null, note: null, createdAt: new Date() }),
+  fotofficeProyectoNota: () => ({ authorUserId: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeProyectoAdjunto: () => ({
+    status: "PENDIENTE", uploadedByUserId: null, deletedAt: null, purgeAfter: null, createdAt: new Date(),
+  }),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
   cashMovement: () => ({
@@ -314,6 +331,17 @@ export function crearBaseEnMemoria() {
     // El vencimiento es una fecha: se compara por valor (`igual`).
     fotofficeCuotaRecordatorio: [{ columnas: ["cuotaId", "dueDate"] }],
     fotofficePedidoAjustes: [{ columnas: ["workspaceId"] }],
+    // Etapa 4, Entrega A: los de la migración de proyectos (los que admiten nulo, sólo con valor).
+    fotofficeProyecto: [
+      { columnas: ["workspaceId", "number"] },
+      {
+        columnas: ["pedidoId", "pedidoItemIndex", "circuitId"],
+        aplica: (f) => f.pedidoId !== null && f.pedidoId !== undefined && f.pedidoItemIndex !== null && f.pedidoItemIndex !== undefined,
+      },
+    ],
+    fotofficeProyectoRol: [{ columnas: ["workspaceId", "name"] }],
+    fotofficeProyectoAdjunto: [{ columnas: ["storageKey"] }],
+    fotofficeProyectoEtapaPlan: [{ columnas: ["proyectoId", "stageId"] }],
     // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
     cashMovement: [
       { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },
