@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..", "..", "..");
-const sql = readFileSync(join(RAIZ, "packages/db/prisma/migrations/20261022120000_fotoffice_perfil_precios/migration.sql"), "utf8");
+const sql = readFileSync(join(RAIZ, "packages/db/prisma/migrations/20261022100000_fotoffice_perfil_precios/migration.sql"), "utf8");
 const schema = readFileSync(join(RAIZ, "packages/db/prisma/schema.prisma"), "utf8");
 
 describe("migración del perfil de precios", () => {

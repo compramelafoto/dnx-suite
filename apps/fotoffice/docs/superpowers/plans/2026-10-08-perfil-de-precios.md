@@ -27,7 +27,7 @@
 
 **Files:**
 - Modify: `packages/db/prisma/schema.prisma` (agregar modelo después de `FotofficePropuestaModelo`; relación inversa en `model Workspace` junto a `fotofficePresupuestoAjustes FotofficePresupuestoAjustes?`, línea ~7199)
-- Create: `packages/db/prisma/migrations/20261022120000_fotoffice_perfil_precios/migration.sql`
+- Create: `packages/db/prisma/migrations/20261022100000_fotoffice_perfil_precios/migration.sql`
 - Create: `apps/fotoffice/lib/precios/migracion.test.ts`
 - Modify: `apps/fotoffice/lib/circuitos/base-en-memoria.ts` (agregar `"fotofficePerfilPrecios"` a `TABLAS`, valores por omisión y único por `workspaceId`)
 
@@ -43,7 +43,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..", "..", "..");
-const sql = readFileSync(join(RAIZ, "packages/db/prisma/migrations/20261022120000_fotoffice_perfil_precios/migration.sql"), "utf8");
+const sql = readFileSync(join(RAIZ, "packages/db/prisma/migrations/20261022100000_fotoffice_perfil_precios/migration.sql"), "utf8");
 const schema = readFileSync(join(RAIZ, "packages/db/prisma/schema.prisma"), "utf8");
 
 describe("migración del perfil de precios", () => {
