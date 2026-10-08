@@ -376,3 +376,262 @@ editor de presupuestos o la ficha de un producto dan error justo después de pub
 SQL (o falló).
 
 ---
+
+---
+
+# Entrega B1 · Cuentas a pagar, recordatorios, ajustes y checklist de Pedidos
+
+Procedimiento manual, **sin staging**, igual que la Entrega A: el SQL va directo a la base de producción
+de FOTOFFICE y **antes** que el código. Esta entrega suma **sólo tablas nuevas** (ninguna columna en
+tablas existentes, tampoco en las `Fotoffice*` de la Entrega A) y **no hay variables de entorno nuevas**
+(el cron usa `CRON_SECRET`, que ya existe).
+
+Qué hace: en cada pedido, los **costos del catálogo** se vuelven **cuentas a pagar** a proveedores (con
+vencimiento, pago contra Caja, anulación con motivo y comprobante); informes de a cobrar, cobrado y a
+pagar; un **recordatorio diario por correo** de cuotas por vencer; **ajustes de Pedidos** (días de
+aviso, rubro de ingreso por omisión) y **checklist** de tareas por pedido, con plantillas.
+
+## B1.1 Migración
+
+`packages/db/prisma/migrations/20261024120000_fotoffice_etapa_3_cuentas_a_pagar/migration.sql`
+
+**Checksum (sha256 completo):**
+
+```
+c1a5832a57b8a73d65833b66ef240d3da356d2acba46b244cbd131c7f11c64d0
+```
+
+Antes de pegar el SQL, comprobar que el archivo no cambió: `shasum -a 256` tiene que dar exactamente
+eso.
+
+### Tablas nuevas (4) y quién las lee
+
+**`FotofficeCuentaPagar`** (lo que se le debe a un proveedor)
+- Columnas: `id`, `workspaceId`, `pedidoId?`, `supplierClientId?`, `costoPlantillaId?`, `concept`,
+  `amountArs DECIMAL(12,2)`, `dueDate DATE?`, `costCategoryId?`, `paidAt?`, `paidMethod?`,
+  `paidCashMovementId?`, `voidedAt?`, `voidReason?`, `voidCashMovementId?`, `attachmentId?`,
+  `idempotencyKey?`, `createdByUserId?`, `createdAt`, `updatedAt`.
+- Únicos: `paidCashMovementId`, `voidCashMovementId`, `(workspaceId, idempotencyKey)`.
+- Índices: `(workspaceId, dueDate)`, `(workspaceId, supplierClientId)`, `(workspaceId, pedidoId)`,
+  `pedidoId`, `supplierClientId`, `costoPlantillaId`, `costCategoryId`, `attachmentId`.
+- FK (8): `Workspace` CASCADE; `FotofficePedido` **RESTRICT** (un pedido con cuentas no se borra);
+  `Client` (proveedor), `FotofficeCostoPlantilla`, `CashCategory`, `CashMovement` (pago),
+  `CashMovement` (anulación) y `FotofficeAttachment` (comprobante), todas SET NULL.
+- CHECK (4): `_amountArs` (> 0), `_paidMethod` (EFECTIVO, TRANSFERENCIA, MERCADO_PAGO, TARJETA, OTRO),
+  `_paid` (`paidAt` y `paidMethod` van juntos), `_voidReason` (anular exige motivo).
+- **La leen: la ficha del pedido (sección "Costos y pagos"), `/pedidos/a-pagar` y `/pedidos/informes`
+  (informe "A pagar" y márgenes). Y la ESCRIBE el flujo de confirmar pedido (y "Nuevo pedido" manual),
+  que desde esta entrega crea las cuentas en la misma transacción.**
+
+**`FotofficeCuotaRecordatorio`** (qué recordatorio ya salió)
+- Columnas: `id`, `workspaceId`, `cuotaId`, `dueDate DATE`, `sentAt`.
+- Único `(cuotaId, dueDate)` (no se avisa dos veces el mismo vencimiento); índice `workspaceId`.
+- FK (2): `Workspace` CASCADE y `FotofficePedidoCuota` CASCADE.
+- **La lee y escribe el cron `/api/cron/pedidos-recordatorios`.**
+
+**`FotofficePedidoAjustes`** (una fila por organización)
+- Columnas: `id`, `workspaceId` (único), `reminderDays INT DEFAULT 1`, `reminderEnabled BOOLEAN DEFAULT
+  false`, `incomeCategoryId?`, `checklistTemplates JSONB?`, `updatedAt`.
+- Índice `incomeCategoryId`. FK (2): `Workspace` CASCADE y `CashCategory` SET NULL.
+- CHECK (1): `_reminderDays` (0 a 30).
+- **La leen: Configuración → Pedidos, `/pedidos` (siembra los ajustes de DNX al abrirla), el cron de
+  recordatorios, confirmar pedido / Nuevo pedido (rubro de ingreso por omisión y selector de checklist) y
+  la sección Checklist de la ficha ("Aplicar plantilla").**
+
+**`FotofficePedidoTarea`** (checklist del pedido)
+- Columnas: `id`, `workspaceId`, `pedidoId`, `position`, `title`, `doneAt?`, `doneByUserId?`,
+  `createdAt`, `updatedAt`.
+- Índices: `(pedidoId, position)`, `workspaceId`. FK (2): `Workspace` CASCADE y `FotofficePedido`
+  CASCADE.
+- CHECK (2): `_position` (>= 1) y `_title` (no vacío).
+- **La leen: la sección "Checklist" de la ficha del pedido. La ESCRIBE el flujo de confirmar pedido
+  (copia las tareas de la plantilla elegida) y el tildado en la ficha.**
+
+Totales: **4 tablas, 10 FK, 7 CHECK nuevos, 0 columnas en tablas existentes, 0 filas tocadas.**
+
+**IMPORTANTE: el SQL tiene que estar aplicado ANTES de publicar el código.** Confirmar un pedido ahora
+escribe en `FotofficeCuentaPagar` y `FotofficePedidoTarea`: sin las tablas, **confirmar pedidos da
+error** (y `/pedidos`, la ficha y Configuración → Pedidos también, porque leen `FotofficePedidoAjustes`).
+
+### Lo que el SQL no hace
+Nada de datos: no crea cuentas para pedidos que ya existen (en producción aún no hay pedidos reales) ni
+enciende nada. El módulo Pedidos ya estaba encendido o no según la Entrega A; esta entrega no cambia eso.
+
+## B1.2 Orden
+
+1. Debe estar aplicada la Entrega A (`20261022120000_fotoffice_etapa_3_pedidos`); sin ella no existen
+   `FotofficePedido`, `FotofficePedidoCuota` ni `FotofficeAttachment` no-nulo de referencia y el SQL falla.
+2. Esta migración (`20261024120000`) va **después** de `20261023100000_fotoffice_propuesta_borrador_auto`
+   (PR 423, otra sesión). Si esa **todavía no está aplicada**, da igual el orden: son tablas
+   independientes y no se tocan entre sí. **Pero hay que registrar las dos** en `_prisma_migrations`,
+   cada una con su propio checksum y su propio documento.
+3. SQL en producción → verificar (B1.4) → recién entonces fusionar y publicar el código.
+
+## B1.3 Base y procedimiento
+
+Base: **FOTOFFICE producción**, proyecto Neon `divine-hall-10689679`, rama `development`
+(`br-old-rain-adwthzng`). Sin staging.
+
+### Paso 1 — Comprobar qué está aplicado
+
+```sql
+SELECT migration_name FROM "_prisma_migrations"
+ WHERE migration_name IN (
+  '20261022120000_fotoffice_etapa_3_pedidos',
+  '20261023100000_fotoffice_propuesta_borrador_auto',
+  '20261024120000_fotoffice_etapa_3_cuentas_a_pagar');
+```
+
+- Tiene que estar la primera (Entrega A). Si no, parar y aplicarla.
+- Si ya está `20261024120000_...`, parar: ya se aplicó.
+
+### Paso 2 — Aplicar y registrar, a mano, en una sola transacción
+
+```sql
+BEGIN;
+-- pegar acá el contenido completo de migration.sql
+
+INSERT INTO "_prisma_migrations"
+  (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+SELECT
+  gen_random_uuid()::text,
+  'c1a5832a57b8a73d65833b66ef240d3da356d2acba46b244cbd131c7f11c64d0',
+  now(),
+  '20261024120000_fotoffice_etapa_3_cuentas_a_pagar',
+  NULL, NULL, now(), 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM "_prisma_migrations" WHERE migration_name = '20261024120000_fotoffice_etapa_3_cuentas_a_pagar'
+);
+COMMIT;
+```
+
+Si algo falla, la transacción entera se deshace: no queda nada a medias.
+
+## B1.4 Verificación (sólo `SELECT`)
+
+```sql
+-- Las 4 tablas existen y están vacías
+SELECT table_name FROM information_schema.tables
+ WHERE table_schema = 'public' AND table_name IN (
+  'FotofficeCuentaPagar','FotofficeCuotaRecordatorio','FotofficePedidoAjustes','FotofficePedidoTarea'); -- 4 filas
+
+SELECT
+  (SELECT count(*) FROM "FotofficeCuentaPagar")        AS cuentas,   -- 0
+  (SELECT count(*) FROM "FotofficeCuotaRecordatorio")  AS recordat,  -- 0
+  (SELECT count(*) FROM "FotofficePedidoAjustes")      AS ajustes,   -- 0
+  (SELECT count(*) FROM "FotofficePedidoTarea")        AS tareas;    -- 0
+
+-- Los 7 CHECK nuevos
+SELECT conname FROM pg_constraint
+ WHERE contype = 'c' AND conrelid IN (
+   '"FotofficeCuentaPagar"'::regclass, '"FotofficePedidoAjustes"'::regclass, '"FotofficePedidoTarea"'::regclass)
+ ORDER BY 1; -- 7 filas
+
+-- Las 10 claves foráneas
+SELECT conname FROM pg_constraint
+ WHERE contype = 'f' AND conrelid IN (
+   '"FotofficeCuentaPagar"'::regclass, '"FotofficeCuotaRecordatorio"'::regclass,
+   '"FotofficePedidoAjustes"'::regclass, '"FotofficePedidoTarea"'::regclass)
+ ORDER BY 1; -- 10 filas
+
+-- Ninguna tabla existente cambió: el checksum de la Entrega A sigue igual y esta quedó registrada
+SELECT migration_name, checksum, finished_at IS NOT NULL AS terminada FROM "_prisma_migrations"
+ WHERE migration_name IN ('20261022120000_fotoffice_etapa_3_pedidos','20261024120000_fotoffice_etapa_3_cuentas_a_pagar');
+-- 2 filas; la nueva con checksum c1a5832a...64d0 y terminada = true
+```
+
+## B1.5 Cron nuevo y recordatorios
+
+**Cron:** `/api/cron/pedidos-recordatorios`, una vez por día a las **10:00 de Buenos Aires**
+(`0 13 * * *` UTC, ya cargado en `apps/fotoffice/vercel.json`; Vercel lo toma al publicar). Responde
+sólo contadores, sin datos de nadie.
+
+**Cómo correrlo a mano** (acepta GET y POST). Exige el encabezado `Authorization: Bearer <secreto>`,
+donde el secreto es `CRON_SECRET` (o `FOTOFFICE_CRON_SECRET`) de Vercel; sin secreto configurado no
+entra nadie (401):
+
+```bash
+curl -sS -X POST "https://<dominio-de-FOTOFFICE-en-producción>/api/cron/pedidos-recordatorios" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Escribir el secreto en la terminal sólo con la variable (`CRON_SECRET=... curl ...`), no pegarlo en
+chats ni en el PR.
+
+**Qué hace:** para cada organización con el recordatorio **encendido** y el módulo Pedidos encendido, y
+con la plantilla automática "Recordatorio de cuota" (`RECORDATORIO_CUOTA`) encendida, busca las cuotas
+que vencen entre hoy y hoy + N días (día de Buenos Aires) de pedidos no cancelados con saldo pendiente
+y manda **un** correo por cuota y vencimiento (`FotofficeCuotaRecordatorio` evita repetir). El correo
+queda registrado en la comunicación del pedido. Si el envío no sale, borra la marca y reintenta al día
+siguiente. Tope de 200 por corrida.
+
+**Cómo encender los recordatorios:** Configuración → **Pedidos**: "Activar el recordatorio de cuotas" y
+"días antes del vencimiento" (0 a 30). Una organización nueva nace **apagada**, con 1 día. **DNX Estudio
+se siembra solo encendido y con 1 día** la primera vez que alguien abre `/pedidos` o Configuración →
+Pedidos (nunca pisa lo que ya esté guardado).
+
+## B1.6 Vuelta atrás
+
+**Primero el código, después las tablas.** Con el código nuevo publicado y las tablas borradas,
+confirmar pedidos y la ficha dan error.
+
+1. Revertir el PR (o volver a publicar el deploy anterior de FOTOFFICE) y confirmar que producción ya
+   sirve la versión anterior. El cron deja de existir con ese deploy.
+2. Recién entonces:
+
+```sql
+BEGIN;
+DROP TABLE "FotofficePedidoTarea";
+DROP TABLE "FotofficeCuotaRecordatorio";
+DROP TABLE "FotofficeCuentaPagar";
+DROP TABLE "FotofficePedidoAjustes";
+DELETE FROM "_prisma_migrations" WHERE migration_name = '20261024120000_fotoffice_etapa_3_cuentas_a_pagar';
+COMMIT;
+```
+
+(Ninguna de las cuatro depende de otra; el orden es seguro. Las FK salen de ellas hacia tablas que
+quedan.)
+
+**Advertencia sobre Caja:** si ya se pagó alguna cuenta, **los egresos quedan en Caja** como movimientos
+con `sourceModule = 'pedidos-pagos'` (y los contramovimientos de los pagos anulados). El rollback no los
+borra ni cambia el saldo, pero **el código viejo de Caja no conoce ese origen y deja anularlos a mano**
+desde Caja → Movimientos: hacerlo devolvería el dinero a Caja sin que quede registro del pago en ningún
+pedido. Antes de revertir, listarlos
+(`SELECT id, kind, "amountArs", "occurredAt" FROM "CashMovement" WHERE "sourceModule" = 'pedidos-pagos'`)
+y avisar a quien opera Caja que **no anule ninguno**. Se pierden las cuentas a pagar, los recordatorios
+enviados, los ajustes de Pedidos (días de aviso y plantillas de checklist) y los checklists.
+
+## B1.7 Prueba en producción (para Daniel, en el PR)
+
+En **DNX Estudio**, con datos de prueba. **Antes:** Caja encendida, una cuenta de Caja que no sea la caja
+fuerte para el medio con que se pague, y al menos un rubro de **egreso** (rubro de costo). Para el paso 6
+la plantilla "Recordatorio de cuota" tiene que estar encendida y el correo de prueba ser de Daniel.
+
+1. **Producto con costo:** en el catálogo, un producto de prueba con una **plantilla de costo** (por
+   ejemplo, "Álbum, $400, proveedor de prueba", con proveedor cargado como contacto).
+2. **Confirmar un pedido** que lleve ese producto (presupuesto de prueba aceptado, como en la sección 8,
+   con fecha de evento en pocos días y un plan de 2 cuotas, o "Nuevo pedido"). Elegir una plantilla de
+   checklist en la pantalla de confirmación. El pedido se crea sin error.
+3. **Ficha del pedido → "Costos y pagos":** aparece la cuenta a pagar, con proveedor, importe,
+   vencimiento (según la fecha del evento) y margen.
+4. **Pantalla "A pagar"** (`/pedidos/a-pagar`): la cuenta figura como pendiente; probar el filtro por
+   proveedor. Mirar también `/pedidos/informes`.
+5. **Pagarla:** botón de pago, medio **Efectivo**, cuenta de Caja que no sea caja fuerte y **rubro de
+   costo obligatorio** (sin rubro no deja pagar). Opcional: subir un comprobante. La cuenta queda
+   "Pagada"; en Caja → Movimientos aparece el **egreso** con origen "Pagos a proveedores". Desde Caja
+   ese movimiento **no se puede anular** ("Este pago se anula desde el pedido").
+6. **Anular el pago** desde la ficha, con motivo. La cuenta vuelve a pendiente y en Caja aparece el
+   **contramovimiento**. El saldo de la cuenta queda igual que antes.
+7. **Recordatorio a mano:** dejar una cuota del pedido de prueba (con saldo) venciendo **mañana**
+   (editar el plan o crear el pedido con evento a ese día) y Configuración → Pedidos con el recordatorio
+   encendido a 1 día. Correr el cron con `curl` (B1.5). Respuesta `ok: true` con 1 enviado. Llega el
+   **correo** a la casilla de prueba y queda **registrado** en la ficha del pedido. Correrlo **una segunda
+   vez**: no vuelve a enviar (queda en "ya avisadas").
+8. **Checklist:** en la ficha, tildar una tarea (aparecen quién y cuándo), destildarla, agregar una
+   propia y quitarla.
+9. **Limpieza:** **anular primero los cobros** (si se cobró algo) y recién después **cancelar el pedido
+   de prueba** (cancelar no anula cobros ni pagos). Si quedó un pago a proveedor vigente, anularlo antes
+   (paso 6). Caja final: mismo saldo que al empezar. Archivar el contacto y el producto de prueba.
+
+Si confirmar un pedido, la ficha o Configuración → Pedidos dan error justo después de publicar, falta
+aplicar el SQL de esta entrega (o falló).
