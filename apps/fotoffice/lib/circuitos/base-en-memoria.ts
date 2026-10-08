@@ -38,6 +38,8 @@ const TABLAS = [
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
   "fotofficePropuestaModelo",
+  // Rubros de dos niveles (etapa 3): categorías de Caja y su perfil.
+  "cashCategory", "fotofficeRubro",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -102,7 +104,9 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeConsultaAjustes: () => ({ defaultOwnerUserId: null, notifyEmail: true, createTask: true, updatedAt: new Date() }),
   product: () => ({ kind: "PRODUCTO", categoryId: null, isActive: true, costArs: null, createdAt: new Date(), updatedAt: new Date() }),
   productCategory: () => ({ order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }),
-  fotofficeProductoCatalogo: () => ({ inPriceList: false, incomeLabel: null, isCombo: false, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeProductoCatalogo: () => ({
+    inPriceList: false, incomeLabel: null, incomeCategoryId: null, isCombo: false, createdAt: new Date(), updatedAt: new Date(),
+  }),
   fotofficeComboItem: () => ({ quantity: 1, order: 0, createdAt: new Date() }),
   fotofficeCostoPlantilla: () => ({ supplierClientId: null, perUnit: false, daysFromEvent: 0, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePresupuesto: () => ({
@@ -121,6 +125,8 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     updatedAt: new Date(),
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
+  cashCategory: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeRubro: () => ({ parentCategoryId: null, code: null, createdAt: new Date(), updatedAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -243,6 +249,9 @@ export function crearBaseEnMemoria() {
     ],
     fotofficePresupuestoAjustes: [{ columnas: ["workspaceId"] }],
     fotofficePropuestaModelo: [{ columnas: ["workspaceId", "categoryId"] }],
+    // Etapa 3.
+    cashCategory: [{ columnas: ["workspaceId", "kind", "name"] }],
+    fotofficeRubro: [{ columnas: ["categoryId"] }],
   };
 
   /**
