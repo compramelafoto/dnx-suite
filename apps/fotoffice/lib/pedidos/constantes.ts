@@ -77,3 +77,6 @@ export const MODULO_CAJA_PEDIDOS = "pedidos";
 /** Leyenda fija del recibo X interno. */
 export const LEYENDA_RECIBO = "Documento no válido como factura";
 export const ZONA_HORARIA = "America/Argentina/Buenos_Aires";
+
+/** Opciones de las transacciones largas de Pedidos (confirmar y dar de alta a mano): más aire que los 5 s por omisión. */
+export const OPCIONES_TRANSACCION_PEDIDO = { timeout: 15_000, maxWait: 5_000 } as const;

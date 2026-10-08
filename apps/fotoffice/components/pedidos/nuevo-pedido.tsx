@@ -17,7 +17,7 @@ const MAX_CUOTAS = 60;
  * lista), contado o N cuotas, y la fecha y descripción del evento. El plan sale de la opción (se
  * ajusta después con "Editar plan"). El total y todas las reglas los vuelve a calcular el servidor.
  */
-export function NuevoPedido({ clientId, catalogo }: { clientId: string; catalogo: ProductoParaEditor[] }) {
+export function NuevoPedido({ clientId, catalogo, plantillas = [] }: { clientId: string; catalogo: ProductoParaEditor[]; plantillas?: string[] }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [items, setItems] = useState<ItemPresupuesto[]>([]);
@@ -25,6 +25,8 @@ export function NuevoPedido({ clientId, catalogo }: { clientId: string; catalogo
   const [cuotas, setCuotas] = useState("3");
   const [fechaEvento, setFechaEvento] = useState("");
   const [evento, setEvento] = useState("");
+  // Plantilla de checklist; "" = sin checklist. Por omisión, la primera.
+  const [checklist, setChecklist] = useState(plantillas[0] ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const totales = calcularTotales(items, null);
@@ -46,6 +48,7 @@ export function NuevoPedido({ clientId, catalogo }: { clientId: string; catalogo
         opcion: tipo === "CONTADO" ? { tipo: "CONTADO" } : { tipo: "CUOTAS", cuotas: n },
         fechaEvento: fechaEvento || null,
         eventLabel: evento.trim() || null,
+        checklist: checklist === "" ? null : checklist,
       }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
       if (r.ok) router.push(`/pedidos/${encodeURIComponent(r.pedidoId)}`);
       else setError(r.error);
@@ -162,6 +165,19 @@ export function NuevoPedido({ clientId, catalogo }: { clientId: string; catalogo
             <span className="fo-label">Fecha del evento (opcional)</span>
             <input type="date" className="fo-input" value={fechaEvento} onChange={(e) => setFechaEvento(e.target.value)} />
           </label>
+          {plantillas.length > 0 ? (
+            <label className="fo-field-stack text-sm">
+              <span className="fo-label">Checklist del pedido</span>
+              <select className="fo-input" value={checklist} onChange={(e) => setChecklist(e.target.value)}>
+                {plantillas.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+                <option value="">Sin checklist</option>
+              </select>
+            </label>
+          ) : null}
           <label className="fo-field-stack text-sm">
             <span className="fo-label">Evento (opcional)</span>
             <input className="fo-input" value={evento} maxLength={200} onChange={(e) => setEvento(e.target.value)} placeholder="Ej.: Casamiento en Estancia La Pradera" />

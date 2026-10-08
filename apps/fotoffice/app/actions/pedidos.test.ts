@@ -24,6 +24,11 @@ const H = vi.hoisted(() => ({
   enlacePedido: vi.fn(),
   enlaceRecibo: vi.fn(),
   recibo: vi.fn(),
+  generar: vi.fn(),
+  guardarCuenta: vi.fn(),
+  borrarCuenta: vi.fn(),
+  pagar: vi.fn(),
+  anularPago: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
@@ -36,6 +41,13 @@ vi.mock("@/lib/pedidos/pedidos", () => ({ cambiarEstadoPedido: H.estado, cambiar
 vi.mock("@/lib/pedidos/confirmar", () => ({ confirmarPedido: H.confirmar, vistaPreviaConfirmacion: H.vista }));
 vi.mock("@/lib/pedidos/enlace", () => ({ enlaceDelPedido: H.enlacePedido, enlaceDelRecibo: H.enlaceRecibo }));
 vi.mock("@/lib/pedidos/recibos", () => ({ enviarReciboAutomatico: H.recibo }));
+vi.mock("@/lib/pedidos/cuentas-pagar", () => ({
+  generarCostosDelPedido: H.generar,
+  guardarCuenta: H.guardarCuenta,
+  borrarCuenta: H.borrarCuenta,
+  pagarCuenta: H.pagar,
+  anularPagoCuenta: H.anularPago,
+}));
 
 const A = await import("./pedidos");
 const { MENSAJES_PEDIDO: M } = await import("@/lib/pedidos/acceso");
@@ -43,7 +55,10 @@ const { MENSAJES_PEDIDO: M } = await import("@/lib/pedidos/acceso");
 const CTX = { workspaceId: "ws-1", userId: 7, userLabel: "Ana", role: "STAFF" };
 const SIN_ACCESO = { ok: false, error: M.sinPermiso };
 const INVALIDO = { ok: false, error: M.datosInvalidos };
-const LIB = [H.enviar, H.cobrar, H.anular, H.plan, H.estado, H.rubro, H.confirmar, H.vista, H.manual, H.enlacePedido, H.enlaceRecibo];
+const LIB = [
+  H.enviar, H.cobrar, H.anular, H.plan, H.estado, H.rubro, H.confirmar, H.vista, H.manual, H.enlacePedido, H.enlaceRecibo,
+  H.generar, H.guardarCuenta, H.borrarCuenta, H.pagar, H.anularPago,
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -112,6 +127,50 @@ describe("cobro, anulación, rubro y recibo", () => {
     expect(await A.cambiarRubroPedidoAction({ pedidoId: "ped-1", categoryId: "" })).toEqual(INVALIDO);
     expect(await A.cambiarRubroPedidoAction({ pedidoId: "ped-1", categoryId: "rubro-1" })).toEqual({ ok: true });
     expect(H.rubro).toHaveBeenCalledWith(CTX, "ped-1", "rubro-1");
+  });
+});
+
+describe("cuentas a pagar", () => {
+  beforeEach(() => {
+    H.generar.mockResolvedValue({ ok: true, creadas: 2, mensaje: null });
+    H.guardarCuenta.mockResolvedValue({ ok: true, cuentaId: "c-1", pedidoId: "ped-1" });
+    H.borrarCuenta.mockResolvedValue({ ok: true, cuentaId: "c-1", pedidoId: "ped-1" });
+    H.pagar.mockResolvedValue({ ok: true, cuentaId: "c-1", pedidoId: "ped-1", creado: true, movimientoId: "m-1" });
+    H.anularPago.mockResolvedValue({ ok: true, yaAnulado: false, pedidoId: "ped-1" });
+  });
+
+  it("revisan la forma antes de armar el contexto", async () => {
+    expect(await A.generarCostosAction({ pedidoId: "" })).toEqual(INVALIDO);
+    expect(await A.guardarCuentaPagarAction({ pedidoId: "ped-1", concepto: "X", importe: "10" as never })).toEqual(INVALIDO);
+    expect(await A.guardarCuentaPagarAction({ pedidoId: 3 as never, concepto: "X", importe: 10 })).toEqual(INVALIDO);
+    expect(await A.borrarCuentaPagarAction({ cuentaId: "x".repeat(65) })).toEqual(INVALIDO);
+    expect(await A.pagarCuentaAction({ cuentaId: "c-1", fecha: "2026-10-07", medio: "EFECTIVO", categoryId: 1 as never, idempotencyKey: "clave-1234" })).toEqual(INVALIDO);
+    expect(await A.anularPagoCuentaAction({ cuentaId: "c-1", motivo: null as never })).toEqual(INVALIDO);
+    expect(H.ctx).not.toHaveBeenCalled();
+    for (const f of LIB) expect(f).not.toHaveBeenCalled();
+  });
+
+  it("sin contexto Gestionar no escriben", async () => {
+    H.ctx.mockResolvedValue(null);
+    expect(await A.pagarCuentaAction({ cuentaId: "c-1", fecha: "2026-10-07", medio: "EFECTIVO", categoryId: "r-1", idempotencyKey: "clave-1234" })).toEqual(SIN_ACCESO);
+    expect(await A.generarCostosAction({ pedidoId: "ped-1" })).toEqual(SIN_ACCESO);
+    expect(H.ctx).toHaveBeenCalledWith("operar");
+    for (const f of LIB) expect(f).not.toHaveBeenCalled();
+  });
+
+  it("llaman a lib/pedidos con el contexto de la sesión y revalidan A pagar y la ficha", async () => {
+    await A.pagarCuentaAction({ cuentaId: "c-1", fecha: "2026-10-07", medio: "EFECTIVO", categoryId: "r-1", idempotencyKey: "clave-1234" });
+    expect(H.pagar).toHaveBeenCalledWith(CTX, { cuentaId: "c-1", fecha: "2026-10-07", medio: "EFECTIVO", categoryId: "r-1", idempotencyKey: "clave-1234" });
+    expect(H.revalidate).toHaveBeenCalledWith("/pedidos/a-pagar");
+    expect(H.revalidate).toHaveBeenCalledWith("/pedidos/ped-1");
+    await A.guardarCuentaPagarAction({ pedidoId: "ped-1", concepto: "Viáticos", importe: 10 });
+    expect(H.guardarCuenta).toHaveBeenCalledWith(CTX, { id: null, pedidoId: "ped-1", supplierClientId: null, concepto: "Viáticos", importe: 10, vence: null, costCategoryId: null });
+    await A.anularPagoCuentaAction({ cuentaId: "c-1", motivo: "Error" });
+    expect(H.anularPago).toHaveBeenCalledWith(CTX, "c-1", "Error");
+    await A.borrarCuentaPagarAction({ cuentaId: "c-1" });
+    expect(H.borrarCuenta).toHaveBeenCalledWith(CTX, "c-1");
+    await A.generarCostosAction({ pedidoId: "ped-1" });
+    expect(H.generar).toHaveBeenCalledWith(CTX, "ped-1");
   });
 });
 

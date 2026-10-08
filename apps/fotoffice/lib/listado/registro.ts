@@ -1,3 +1,4 @@
+import { veCostosDePedido } from "@/lib/pedidos/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { recortarPorDinero } from "./dinero";
 import type { ContextoListado, DefinicionListado } from "./tipos";
@@ -12,6 +13,12 @@ type EntradaLista = {
   ruta: string;
   /** Recibe el contexto porque algunas definiciones dependen del workspace (p. ej. vocabulario de Socios). */
   cargar: (ctx: ContextoListado) => Promise<ListadoCualquiera>;
+  /**
+   * Una condición más que "Ver" en el módulo, para las listas que son enteras de dinero (no basta
+   * con sacar columnas). Sin ella, la lista no existe para esa persona: ni página, ni exportación,
+   * ni acciones, ni vistas (`definicionDe` y `contextoDeListado` devuelven null).
+   */
+  permitido?: (ctx: ContextoListado) => boolean;
 };
 
 export const LISTAS: Record<string, EntradaLista> = {
@@ -47,6 +54,14 @@ export const LISTAS: Record<string, EntradaLista> = {
     ruta: "/pedidos",
     cargar: async () => (await import("@/lib/pedidos/listado")).listadoPedidos,
   },
+  // "A pagar" (etapa 3, Entrega B1): todo es dinero de costos, así que la lista entera exige
+  // `veCostosDePedido` (`configurar` o `verDinero`), además de "Ver" en Pedidos.
+  "pedidos-a-pagar": {
+    moduleKey: "orders",
+    ruta: "/pedidos/a-pagar",
+    cargar: async () => (await import("@/lib/pedidos/listado-a-pagar")).listadoAPagar,
+    permitido: (ctx) => veCostosDePedido(ctx),
+  },
   "caja-movimientos": {
     moduleKey: "cash",
     ruta: "/caja/movimientos",
@@ -63,7 +78,14 @@ export function entradaDeLista(clave: string): EntradaLista | null {
   return typeof clave === "string" && Object.hasOwn(LISTAS, clave) ? LISTAS[clave] : null;
 }
 
+/** Si esta persona puede usar la lista, además de "Ver" en su módulo (ver `permitido`). */
+export function listaPermitida(clave: string, ctx: ContextoListado): boolean {
+  const l = entradaDeLista(clave);
+  return l !== null && (!l.permitido || l.permitido(ctx));
+}
+
 export async function definicionDe(clave: string, ctx: ContextoListado): Promise<ListadoCualquiera | null> {
   const l = entradaDeLista(clave);
-  return l ? recortarPorDinero(await l.cargar(ctx), ctx) : null;
+  if (!l || !listaPermitida(clave, ctx)) return null;
+  return recortarPorDinero(await l.cargar(ctx), ctx);
 }
