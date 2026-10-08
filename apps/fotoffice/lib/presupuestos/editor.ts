@@ -9,7 +9,7 @@
  */
 import { itemSinDatosInternos, type Descuento, type ItemPresupuesto } from "./constantes";
 import { costosDeVersion, type CostoDeCatalogo, type CostosVersion } from "./costos";
-import type { PerfilPanel } from "./panel-cuanto-cobro";
+import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { TotalesPresupuesto } from "./totales";
 
 /** Un producto del catálogo, como lo ofrece el buscador del editor (sin costos). */
@@ -31,7 +31,7 @@ export type InternosEditor = {
   /** Costos de cada producto ofrecido (clave = id del producto). */
   costosCatalogo: Record<string, CostoDeCatalogo>;
   /** Perfil de ¿Cuánto Cobro? para precargar el panel (el último usado en el workspace), o null. */
-  perfil: PerfilPanel | null;
+  perfil: CuantoCobroProfileInput | null;
 };
 
 export type DatosEditor = {
@@ -65,7 +65,7 @@ export function armarDatosEditor(args: {
   catalogo: ProductoParaEditor[];
   veCostos: boolean;
   costosCatalogo?: Record<string, CostoDeCatalogo>;
-  perfil?: PerfilPanel | null;
+  perfil?: CuantoCobroProfileInput | null;
 }): DatosEditor {
   const { borrador, veCostos } = args;
   const items: ItemPresupuesto[] = veCostos

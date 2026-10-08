@@ -55,14 +55,16 @@ describe("lecturas del editor", () => {
 
   it("costos del catálogo y perfil de ¿Cuánto Cobro?: sólo con configurar; sin permiso, vacío", async () => {
     B.agregar("product", { id: "cob", workspaceId: "ws-1", name: "Cobertura", priceArs: "600000.00", costArs: "200000.00" });
-    B.agregar("fotofficePresupuestoVersion", { workspaceId: "ws-1", presupuestoId: "p", number: 1, items: [itemCalculado()], totals: {}, createdAt: new Date() });
     expect(await D.costosCatalogoParaEditor(EQUIPO, ["cob"])).toEqual({});
-    expect(await D.ultimoPerfilDelWorkspace(EQUIPO)).toBeNull();
-    expect(await D.ultimoPerfilDelWorkspace(LECTOR)).toBeNull();
+    expect(await D.perfilDelWorkspace(EQUIPO)).toBeNull();
+    expect(await D.perfilDelWorkspace(LECTOR)).toBeNull();
     expect(await D.costosCatalogoParaEditor(DUENO, ["cob"])).toEqual({ cob: { plantillas: [], costoProducto: 200000 } });
-    expect(await D.ultimoPerfilDelWorkspace(DUENO)).toMatchObject({ gastosPersonales: "200000", horasSemanales: "40" });
+    expect(await D.perfilDelWorkspace(DUENO)).toBeNull();
+    B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", schemaVersion: 1, profileData: createBaseCompleteProfile(), source: null, updatedAt: new Date(), updatedByUserId: 1 });
+    expect(await D.perfilDelWorkspace(EQUIPO)).toBeNull();
+    expect(await D.perfilDelWorkspace(DUENO)).toEqual(createBaseCompleteProfile());
     // Otro workspace no aporta su perfil.
-    expect(await D.ultimoPerfilDelWorkspace({ ...DUENO, workspaceId: "ws-2" })).toBeNull();
+    expect(await D.perfilDelWorkspace({ ...DUENO, workspaceId: "ws-2" })).toBeNull();
   });
 });
 
@@ -175,7 +177,7 @@ describe("fuente de las pantallas", () => {
 
   it("la página del presupuesto lee costos del catálogo y perfil sólo con veCostos, y el editor no los pide de otro lado", () => {
     const pagina = leer("app/(shell)/presupuestos/[id]/page.tsx");
-    expect(pagina).toMatch(/detalle\.veCostos\s*\?\s*await Promise\.all\(\[costosCatalogoParaEditor\(ctx, ids\), ultimoPerfilDelWorkspace\(ctx\)\]\)/);
+    expect(pagina).toMatch(/detalle\.veCostos\s*\?\s*await Promise\.all\(\[costosCatalogoParaEditor\(ctx, ids\), perfilDelWorkspace\(ctx\)\]\)/);
     expect(pagina).toContain("costos={detalle.veCostos ? vigente.costos : null}");
     expect(pagina).toContain("armarDatosEditor(");
     const editor = leer("components/presupuestos/editor-presupuesto.tsx");
