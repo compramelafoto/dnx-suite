@@ -155,8 +155,25 @@ describe("fuente de las pantallas", () => {
     }
   });
 
-  it("ningún componente de navegador recibe costos ni margen", () => {
-    for (const c of clientes) expect(readFileSync(c, "utf8"), c).not.toMatch(/costo|margen|CostosVersion/i);
+  // "Costos y pagos" (Entrega B1) es la excepción a propósito: muestra las cuentas a pagar y los
+  // márgenes, y la ficha sólo lo lee y lo monta con `veCostos` (la regla de abajo).
+  const CON_COSTOS = ["costos-y-pagos.tsx"];
+
+  it("ningún componente de navegador recibe costos ni margen (salvo Costos y pagos, con permiso)", () => {
+    for (const c of clientes) {
+      if (CON_COSTOS.some((f) => c.endsWith(`/${f}`))) continue;
+      expect(readFileSync(c, "utf8"), c).not.toMatch(/costo|margen|CostosVersion/i);
+    }
+  });
+
+  it("Costos y pagos: la ficha lo lee sólo con veCostos y lo monta sólo si se leyó", () => {
+    const pagina = leer("app/(shell)/pedidos/[id]/page.tsx");
+    expect(pagina).toMatch(/const costosYPagos = detalle\.veCostos\s*\?\s*await costosYPagosDelPedido\(ctx,/);
+    expect(pagina).toContain("{costosYPagos ? (");
+    expect(pagina.match(/<CostosYPagos/g)).toHaveLength(1);
+    expect(pagina.indexOf("{costosYPagos ? (")).toBeLessThan(pagina.indexOf("<CostosYPagos"));
+    // `costosYPagosDelPedido` vuelve a mirar el permiso antes de leer.
+    expect(leer("lib/pedidos/cuentas-pagar.ts")).toMatch(/if \(!puedeVerCuentas\(ctx\)\) return null;/);
   });
 
   it("la ficha lee costos sólo con veCostos y sólo se los pasa a los ítems (componente de servidor)", () => {

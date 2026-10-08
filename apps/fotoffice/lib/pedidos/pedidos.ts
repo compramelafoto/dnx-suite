@@ -13,6 +13,7 @@ import {
   ID_OPCION_CONTADO,
   type EstadoPedido,
 } from "./constantes";
+import { crearCuentasDelPedido } from "./cuentas-pagar";
 import { puedePasarPedido, resumenDePlan, type ResumenPlan } from "./estado";
 import type { OpcionPago } from "./opciones-pago";
 import {
@@ -290,6 +291,8 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
         cuotas,
         ahora,
       });
+      // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
+      await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
     });
   } catch (e) {

@@ -11,6 +11,7 @@ describe("registro de listas", () => {
       captacion: "service-leads",
       presupuestos: "quotes",
       pedidos: "orders",
+      "pedidos-a-pagar": "orders",
     });
   });
 
@@ -22,6 +23,7 @@ describe("registro de listas", () => {
       captacion: "/consultas/lista",
       presupuestos: "/presupuestos",
       pedidos: "/pedidos",
+      "pedidos-a-pagar": "/pedidos/a-pagar",
     });
   });
 });
@@ -37,5 +39,20 @@ describe("claves que no son listas", () => {
 
   it("definicionDe devuelve null sin cargar nada", async () => {
     for (const c of heredadas) expect(await definicionDe(c, ctx)).toBeNull();
+  });
+});
+
+describe("listas enteras de dinero", () => {
+  const base = { workspaceId: "w", workspaceName: "W", userId: 1, userLabel: "x" };
+  const ctx = (role: string, levels: Record<string, string>): ContextoListado => ({ ...base, role, acceso: { role, levels } as never, modulo: "orders" });
+
+  it("A pagar exige ver costos (configurar o verDinero): sin eso, no hay definición", async () => {
+    const { listaPermitida } = await import("./registro");
+    const sinDinero = ctx("STAFF", { orders: "MANAGE" });
+    expect(listaPermitida("pedidos-a-pagar", sinDinero)).toBe(false);
+    expect(await definicionDe("pedidos-a-pagar", sinDinero)).toBeNull();
+    expect(listaPermitida("pedidos", sinDinero)).toBe(true);
+    expect(listaPermitida("pedidos-a-pagar", ctx("STAFF", { orders: "VIEW", cash: "VIEW" }))).toBe(true);
+    expect(listaPermitida("pedidos-a-pagar", ctx("WORKSPACE_ADMIN", {}))).toBe(true);
   });
 });

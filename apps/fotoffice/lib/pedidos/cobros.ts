@@ -123,7 +123,8 @@ export type DepsCobros = {
   clave?: string | null;
 };
 
-class Corte extends Error {
+/** Corte con un mensaje para la persona (también lo usan las cuentas a pagar, `./cuentas-pagar.ts`). */
+export class Corte extends Error {
   constructor(readonly mensaje: string) {
     super("corte");
   }
@@ -419,9 +420,10 @@ export async function anularCobro(ctx: CtxPedidos, cobroId: unknown, motivo: unk
 /**
  * Escribe el contramovimiento del depósito con `buildReversal` y devuelve su id. Si ya estaba
  * anulado a mano, devuelve el de esa anulación. Si `buildReversal` rechaza por otro motivo (una
- * pata de un pase entre cuentas: un cobro nunca lo es), corta con ese mensaje.
+ * pata de un pase entre cuentas: un cobro nunca lo es), corta con ese mensaje. También anula el
+ * pago de una cuenta a pagar (`./cuentas-pagar.ts`).
  */
-async function contramovimiento(
+export async function contramovimiento(
   tx: Tx,
   workspaceId: string,
   movimientoId: string,

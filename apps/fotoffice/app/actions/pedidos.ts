@@ -9,13 +9,25 @@ import { enviarMensajePedido, type ResultadoMensajePedido } from "@/lib/pedidos/
 import { enviarReciboAutomatico } from "@/lib/pedidos/recibos";
 import { confirmarPedido, vistaPreviaConfirmacion, type ResultadoConfirmacion, type VistaPreviaConfirmacion } from "@/lib/pedidos/confirmar";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
+import {
+  anularPagoCuenta,
+  borrarCuenta,
+  generarCostosDelPedido,
+  guardarCuenta,
+  pagarCuenta,
+  type ResultadoAnularPago,
+  type ResultadoCuenta,
+  type ResultadoGenerar,
+  type ResultadoPago,
+} from "@/lib/pedidos/cuentas-pagar";
 import { cambiarEstadoPedido, cambiarRubro, crearPedidoManual, type Resultado, type ResultadoAlta } from "@/lib/pedidos/pedidos";
 import { editarPlan } from "@/lib/pedidos/plan";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción, en este orden: revisa la forma
 // de lo que llega, arma el contexto (sesión + workspace de la sesión + módulo `orders` encendido
 // + "Gestionar" en Pedidos) y recién ahí escribe. Cada id se valida contra el workspace en
-// `lib/pedidos`. Ninguna devuelve costos.
+// `lib/pedidos`. Ninguna devuelve costos. Las de cuentas a pagar exigen además ver costos
+// (`veCostosDePedido`), y lo revisa `lib/pedidos/cuentas-pagar`.
 
 const SIN_ACCESO = { ok: false as const, error: MENSAJES_PEDIDO.sinPermiso };
 const INVALIDO = { ok: false as const, error: MENSAJES_PEDIDO.datosInvalidos };
@@ -214,5 +226,96 @@ export async function enviarMensajePedidoAction(datos: {
     cobroId: datos.cobroId ?? null,
   });
   if (r.ok || r.registrado) revalidar(datos.pedidoId);
+  return r;
+}
+
+// --- Cuentas a pagar (Entrega B1) -------------------------------------------------------------
+
+function revalidarCuentas(pedidoId: string | null): void {
+  revalidatePath("/pedidos/a-pagar");
+  if (pedidoId) revalidatePath(`/pedidos/${pedidoId}`);
+}
+
+function textoOpcional(v: unknown): v is string | null | undefined {
+  return v === undefined || v === null || typeof v === "string";
+}
+
+/** "Generar costos": las cuentas a pagar de un pedido que no tiene ninguna. */
+export async function generarCostosAction(datos: { pedidoId: string }): Promise<ResultadoGenerar> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await generarCostosDelPedido(ctx, datos.pedidoId);
+  if (r.ok && r.creadas > 0) revalidarCuentas(datos.pedidoId);
+  return r;
+}
+
+/** Agrega una cuenta a pagar a un pedido (sin `id`) o edita una pendiente (con `id`). */
+export async function guardarCuentaPagarAction(datos: {
+  id?: string | null;
+  pedidoId?: string | null;
+  supplierClientId?: string | null;
+  concepto: string;
+  importe: number;
+  vence?: string | null;
+  costCategoryId?: string | null;
+}): Promise<ResultadoCuenta> {
+  if (!esObjeto(datos) || typeof datos.concepto !== "string" || typeof datos.importe !== "number") return INVALIDO;
+  if (![datos.id, datos.pedidoId, datos.supplierClientId, datos.vence, datos.costCategoryId].every(textoOpcional)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await guardarCuenta(ctx, {
+    id: datos.id ?? null,
+    pedidoId: datos.pedidoId ?? null,
+    supplierClientId: datos.supplierClientId ?? null,
+    concepto: datos.concepto,
+    importe: datos.importe,
+    vence: datos.vence ?? null,
+    costCategoryId: datos.costCategoryId ?? null,
+  });
+  if (r.ok) revalidarCuentas(r.pedidoId);
+  return r;
+}
+
+/** Borra una cuenta a pagar que no está pagada. */
+export async function borrarCuentaPagarAction(datos: { cuentaId: string }): Promise<ResultadoCuenta> {
+  if (!esObjeto(datos) || !esId(datos.cuentaId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await borrarCuenta(ctx, datos.cuentaId);
+  if (r.ok) revalidarCuentas(r.pedidoId);
+  return r;
+}
+
+/** "Pagar": egreso en Caja con el rubro de costo elegido. Un doble clic devuelve el mismo pago. */
+export async function pagarCuentaAction(datos: {
+  cuentaId: string;
+  fecha: string;
+  medio: string;
+  categoryId: string;
+  idempotencyKey: string;
+}): Promise<ResultadoPago> {
+  if (!esObjeto(datos) || !esId(datos.cuentaId) || typeof datos.fecha !== "string" || typeof datos.medio !== "string") return INVALIDO;
+  if (typeof datos.categoryId !== "string" || typeof datos.idempotencyKey !== "string") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await pagarCuenta(ctx, {
+    cuentaId: datos.cuentaId,
+    fecha: datos.fecha,
+    medio: datos.medio,
+    categoryId: datos.categoryId,
+    idempotencyKey: datos.idempotencyKey,
+  });
+  if (r.ok) revalidarCuentas(r.pedidoId);
+  return r;
+}
+
+/** "Anular pago": exige motivo. La cuenta vuelve a pendiente; una segunda anulación no hace nada. */
+export async function anularPagoCuentaAction(datos: { cuentaId: string; motivo: string }): Promise<ResultadoAnularPago> {
+  if (!esObjeto(datos) || !esId(datos.cuentaId) || typeof datos.motivo !== "string") return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await anularPagoCuenta(ctx, datos.cuentaId, datos.motivo);
+  if (r.ok && !r.yaAnulado) revalidarCuentas(r.pedidoId);
   return r;
 }

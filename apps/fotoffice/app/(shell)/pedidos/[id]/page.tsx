@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { MensajeRegistrado } from "@/components/mensajes/mensaje-registrado";
 import { AccionesPedido } from "@/components/pedidos/acciones-pedido";
 import { CobrosDelPedido, type CobroVista } from "@/components/pedidos/cobros-del-pedido";
+import { CostosYPagos } from "@/components/pedidos/costos-y-pagos";
 import { EditarPlan } from "@/components/pedidos/editar-plan";
 import { EnviarPedido } from "@/components/pedidos/enviar-pedido";
 import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
@@ -12,6 +13,7 @@ import { puedeEnContexto } from "@/lib/access/policy";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { claseDeColorEtiqueta, fechaHoraBA } from "@/lib/ficha/formato";
 import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
+import { costosYPagosDelPedido, proveedoresParaCuentas, puedeGestionarCuentas, rubrosDeCosto } from "@/lib/pedidos/cuentas-pagar";
 import { ETIQUETA_ESTADO_CUOTA, ETIQUETA_ESTADO_PEDIDO, ETIQUETA_MEDIO_COBRO, esMedioCobro, type EstadoCuota } from "@/lib/pedidos/constantes";
 import { opcionesDeEnvioPedido } from "@/lib/pedidos/envio";
 import { estadosSiguientes } from "@/lib/pedidos/estado";
@@ -46,7 +48,8 @@ type Hito = { clave: string; fecha: string; texto: string };
  *
  * Costos (Global Constraints): `leerPedido` ya saca el cálculo de los ítems sin permiso, y el costo
  * y el margen se leen sólo con `detalle.veCostos` (`configurar` o `verDinero`). Al navegador de
- * quien no lo tiene no le llega ningún costo.
+ * quien no lo tiene no le llega ningún costo. Lo mismo "Costos y pagos" (cuentas a pagar, margen
+ * previsto y margen real, Entrega B1): sólo se lee y se monta con `detalle.veCostos`.
  */
 export default async function PedidoPage({ params }: { params: Promise<{ id: string }> }) {
   const { workspace, ctx } = await requirePedidos("ver");
@@ -59,6 +62,16 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
   const cancelado = detalle.estado === "CANCELADO";
   const hoy = diaEnBuenosAires(new Date());
   const costos = detalle.veCostos ? await costosDelPedido(ctx, detalle) : null;
+  const costosYPagos = detalle.veCostos
+    ? await costosYPagosDelPedido(ctx, { id: detalle.id, total: detalle.plan.total, cobrado: detalle.plan.cobrado })
+    : null;
+  const gestionaCuentas = costosYPagos !== null && puedeGestionarCuentas(ctx);
+  const [proveedores, rubrosCosto] = gestionaCuentas
+    ? await Promise.all([
+        proveedoresParaCuentas(workspace.id, costosYPagos.cuentas.flatMap((c) => (c.proveedorId ? [c.proveedorId] : []))),
+        rubrosDeCosto(workspace.id, costosYPagos.cuentas.flatMap((c) => (c.rubroId ? [c.rubroId] : []))),
+      ])
+    : [[], []];
   const [mensajes, comprobantes, envio, rubros] = await Promise.all([
     mensajesDePedido(workspace.id, detalle.id),
     comprobantesDeCobros(workspace.id, detalle.cobros.map((c) => c.id)),
@@ -287,6 +300,24 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
               />
             ) : null}
           </section>
+
+          {costosYPagos ? (
+            <section id="costos" aria-labelledby="costos-pagos-titulo" className="fo-card space-y-3">
+              <h2 id="costos-pagos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+                Costos y pagos
+              </h2>
+              <CostosYPagos
+                pedidoId={detalle.id}
+                cuentas={costosYPagos.cuentas}
+                margenes={costosYPagos.margenes}
+                gestiona={gestionaCuentas}
+                cancelado={cancelado}
+                proveedores={proveedores}
+                rubros={rubrosCosto}
+                hoy={hoy}
+              />
+            </section>
+          ) : null}
 
           <ItemsPedido items={detalle.items.map((i) => aItemDePedido(i))} totales={detalle.totals} costos={costos} />
 

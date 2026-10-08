@@ -4,6 +4,7 @@ import { diaDeCalendario } from "@/lib/consultas/fechas";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { bloquearPresupuesto, itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acceso";
+import { crearCuentasDelPedido } from "./cuentas-pagar";
 import { buscarOpcion, opcionesParaPresupuesto, parsePaymentOptionsSnapshot, type OpcionPago } from "./opciones-pago";
 import { leerCuotasEditadas, type CuotaParaGuardar } from "./plan";
 import { planDesdeOpcion, validarPlan, type AvisoPlan, type CuotaPlan } from "./plan-cuotas";
@@ -23,7 +24,9 @@ import { etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from
  * - asigna el número `PEDIDO`;
  * - arma el plan desde la opción, o el plan ajustado en la vista previa (validado contra el total);
  * - apaga `pedidoPorConfirmar`;
- * - rubro de ingreso: el del primer ítem de catálogo que tenga uno; responsable: el del presupuesto.
+ * - rubro de ingreso: el del primer ítem de catálogo que tenga uno; responsable: el del presupuesto;
+ * - crea las cuentas a pagar desde los costos-plantilla de sus productos y combos (Entrega B1,
+ *   `crearCuentasDelPedido`), con el rubro de costo vacío: se elige al pagar.
  *
  * Un presupuesto genera un solo pedido: el único `presupuestoId` decide la carrera. Quien pierde
  * recibe `{ ok: false, error: "Ya tiene pedido", pedidoId }` con el pedido que ganó.
@@ -232,6 +235,7 @@ export async function confirmarPedido(
         cuotas,
         ahora,
       });
+      await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: ctx.userId });
       await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
     });
