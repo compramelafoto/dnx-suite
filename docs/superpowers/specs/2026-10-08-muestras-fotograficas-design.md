@@ -61,9 +61,13 @@ La app nueva se compila **sólo cuando cambia su propio código, también en pro
 
 ## Datos (tablas nuevas en la base de FOTOFFICE y FotoRank)
 
+Los estados y tipos van como **texto, no como enum de Prisma**: el schema lo comparten todas
+las apps y un enum que falte en alguna base rompe sus escrituras (mismo criterio que
+`Raffle` y `Booking.status`). Los ids de usuario son `Int` sin relación Prisma a `User`.
+
 **`CulturalActivity`** — la ficha.
-- `type` (enum de los siete tipos), `title`, `slug` único, `description`, `coverImageUrl`.
-- `organizersText` (nombres libres) y vínculos opcionales a cuentas (`CulturalActivityOrganizer`).
+- `type` (uno de los siete tipos), `title`, `slug` único, `description`, `coverImageUrl`.
+- `organizersText` (nombres libres). Los vínculos a cuentas (`CulturalActivityOrganizer`) llegan en la etapa 2.
 - `startsAt`, `endsAt`, `openingAt?`, `scheduleText`, `priceText?` (entrada libre si vacío),
   `externalUrl?`.
 - Lugar: `isVirtualOnly`, `venueName?`, `address?`, `city?`, `province?`, `latitude?`,
@@ -121,7 +125,11 @@ Aprobada → Despublicada (por quien aprobó)       Aprobada → Cancelada (cart
 - Al **rechazar**: mail con el motivo.
 - **Editar una aprobada** (texto, horarios, obras) no vuelve a revisión. Si cambian fechas o
   lugar, se actualiza la entrada del blog. Si se despublica, la entrada vuelve a borrador.
-- Proponer exige cuenta; un socio entra con su cuenta de FOTOFFICE.
+- Proponer exige cuenta. La cookie de sesión de FOTOFFICE no cruza a otro dominio, así que la
+  app nueva tiene su propio **ingreso con Google** (igual que SubiLaFoto) que crea la sesión en
+  la **misma tabla `User`**: el socio entra con el mismo Google y es el mismo usuario.
+- En la etapa 1 todas las propuestas van a la bandeja de Daniel; el ruteo a la institución
+  del socio llega en la etapa 2.
 
 ## Portal del socio (etapa 2)
 
