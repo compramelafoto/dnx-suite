@@ -1,13 +1,30 @@
 import { randomBytes } from "node:crypto";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { createHash } from "node:crypto";
 import { prisma } from "@repo/db";
-import { parseDiplomaLayoutJson } from "./layoutSchema";
-import type { DiplomaMergeVariables } from "./mergeFields";
 import { buildDiplomaVerificationUrl } from "./publicBaseUrl";
-import { renderDiplomaPdf, pdfBufferToPngBuffer, sha256Hex } from "./renderDiploma";
 import { saveDiplomaFile } from "./diplomaStorage";
 import type { PlanRow } from "./issuanceTypes";
+import { DIPLOMA_CANVAS_PX, readDiplomaDesignLink } from "../design/constants";
+import { loadDesignDocument } from "../design/templates";
+import { renderDesign, slugArchivo, type DesignValues } from "../design/render";
+import { entryImageRef } from "../design/images";
+
+/** Resolución del PNG de un diploma: A4 a 150 dpi (1754 × 1240), para compartir en pantalla. */
+const DIPLOMA_PNG_DPI = 150;
+
+function sha256Hex(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** La fecha de hoy en Argentina, como AAAA-MM-DD: el diploma lleva la fecha local, no la UTC. */
+export function fechaArgentina(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
 
 export function newVerificationToken(): string {
   return randomBytes(20).toString("base64url").replace(/=+$/, "");
@@ -21,28 +38,33 @@ export function newDiplomaCode(contestSlug: string): string {
   return `FR-${part}-${randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-function buildMergeVariables(params: {
+/**
+ * Los datos del diploma, con las claves del catálogo del diseñador (`plugins/fotorank`).
+ * Lo que no aplica va vacío y su bloque no se dibuja: un diploma de jurado no tiene obra.
+ */
+export function buildDiplomaValues(params: {
   row: PlanRow;
   contestTitle: string;
   organizerName: string;
+  organizerLogo: string | null;
   categoryName: string;
   diplomaCode: string;
   verificationUrl: string;
   issuedAt: Date;
-}): DiplomaMergeVariables {
-  const { row, contestTitle, organizerName, categoryName, diplomaCode, verificationUrl, issuedAt } =
-    params;
-  const issuedDate = format(issuedAt, "d MMM yyyy", { locale: es });
+}): DesignValues {
+  const { row } = params;
   return {
     recipientName: row.recipientName,
-    entryTitle: row.entryTitle?.trim() || "—",
-    contestTitle,
-    organizerName,
-    categoryName: categoryName || "—",
-    prizeLabel: row.prizeLabel?.trim() || "—",
-    diplomaCode,
-    issuedDate,
-    verificationUrl,
+    entryTitle: row.entryTitle?.trim() || null,
+    entryImage: row.entryId ? entryImageRef(row.entryId) : null,
+    prizeLabel: row.prizeLabel?.trim() || null,
+    categoryName: params.categoryName.trim() || null,
+    contestTitle: params.contestTitle,
+    organizerName: params.organizerName,
+    organizerLogo: params.organizerLogo,
+    issuedDate: fechaArgentina(params.issuedAt),
+    diplomaCode: params.diplomaCode || null,
+    verificationUrl: params.verificationUrl || null,
   };
 }
 
@@ -97,7 +119,12 @@ export async function issueSinglePlanRow(params: {
     }),
     prisma.fotorankContest.findUnique({
       where: { id: contestId },
-      select: { id: true, title: true, slug: true, organization: { select: { name: true } } },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        organization: { select: { name: true, logoUrl: true } },
+      },
     }),
     row.contestCategoryId
       ? prisma.fotorankContestCategory.findFirst({
@@ -126,18 +153,26 @@ export async function issueSinglePlanRow(params: {
   const qrValue = withVerification ? verificationUrl : "";
   const issuedAt = new Date();
 
+  const link = readDiplomaDesignLink(template.layoutJson);
+  if (!link) {
+    return {
+      ok: false,
+      key: row.key,
+      error: "Esta plantilla se hizo con el editor anterior. Creá una plantilla nueva para emitir.",
+    };
+  }
+
   const categoryName = category?.name ?? "";
-  const variables = buildMergeVariables({
+  const values = buildDiplomaValues({
     row,
     contestTitle: contest.title,
     organizerName: contest.organization.name,
+    organizerLogo: contest.organization.logoUrl ?? null,
     categoryName,
-    diplomaCode,
+    diplomaCode: withVerification ? diplomaCode : "",
     verificationUrl,
     issuedAt,
   });
-
-  const layout = parseDiplomaLayoutJson(template.layoutJson);
 
   let created: Awaited<ReturnType<typeof prisma.fotorankDiplomaIssued.create>>;
   try {
@@ -168,26 +203,36 @@ export async function issueSinglePlanRow(params: {
   }
 
   try {
-    const pdfBuffer = await renderDiplomaPdf({
-      widthPt: template.widthPt,
-      heightPt: template.heightPt,
-      backgroundColor: template.backgroundColor,
-      backgroundImageUrl: template.backgroundImageUrl,
-      layout,
-      variables,
-      qrPayload: withVerification ? verificationUrl : "",
+    const design = await loadDesignDocument({
+      organizationId,
+      templateId: link.designTemplateId,
+      documentName: "Diploma",
+      fallbackCanvas: DIPLOMA_CANVAS_PX,
     });
-    const pngBuffer = outputFormats.png ? await pdfBufferToPngBuffer(pdfBuffer) : null;
-    const pdfSave = outputFormats.pdf ? await saveDiplomaFile(contestId, created.id, "pdf", pdfBuffer) : null;
-    const pngSave = outputFormats.png && pngBuffer ? await saveDiplomaFile(contestId, created.id, "png", pngBuffer) : null;
-    const pdfChecksum = outputFormats.pdf ? sha256Hex(pdfBuffer) : null;
-    const pngChecksum = outputFormats.png && pngBuffer ? sha256Hex(pngBuffer) : null;
+    if (!design) throw new Error("No se encontró el diseño de la plantilla.");
+    const rendered = await renderDesign({
+      design,
+      values,
+      formats: [
+        ...(outputFormats.pdf ? (["PDF"] as const) : []),
+        ...(outputFormats.png ? (["PNG"] as const) : []),
+      ],
+      fileBaseName: slugArchivo(`diploma-${row.recipientName}`, "diploma"),
+      pngDpi: DIPLOMA_PNG_DPI,
+    });
+    if (!rendered.ok) throw new Error(rendered.errors.join(" "));
+    const pdfSave = rendered.pdf ? await saveDiplomaFile(contestId, created.id, "pdf", rendered.pdf) : null;
+    const pngSave = rendered.png ? await saveDiplomaFile(contestId, created.id, "png", rendered.png) : null;
 
     await prisma.fotorankDiplomaIssued.update({
       where: { id: created.id },
       data: {
-        ...(pdfSave ? { pdfUrl: pdfSave.publicUrl, pdfBytes: pdfSave.bytes, pdfChecksum: pdfChecksum ?? undefined } : {}),
-        ...(pngSave ? { pngUrl: pngSave.publicUrl, pngBytes: pngSave.bytes, pngChecksum: pngChecksum ?? undefined } : {}),
+        ...(pdfSave && rendered.pdf
+          ? { pdfUrl: pdfSave.publicUrl, pdfBytes: pdfSave.bytes, pdfChecksum: sha256Hex(rendered.pdf) }
+          : {}),
+        ...(pngSave && rendered.png
+          ? { pngUrl: pngSave.publicUrl, pngBytes: pngSave.bytes, pngChecksum: sha256Hex(rendered.png) }
+          : {}),
         renderedAt: new Date(),
       },
     });

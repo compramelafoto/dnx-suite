@@ -9,6 +9,7 @@ import {
 } from "@repo/template-engine";
 import { createTemplatePreviewExampleData } from "./rendering/create-template-preview-example-data";
 import { createFotofficeExampleData } from "./variable-catalog-fotoffice";
+import { createFotorankExampleData } from "./variable-catalog-fotorank";
 import { createSchoolTemplateEngineRegistry } from "./template-engine-compat";
 
 export type TemplateProductId = "school" | "clickaton" | "fotoffice" | "fotorank";
@@ -61,6 +62,9 @@ export function createExampleDataForProduct(
   }
   if (product === "fotoffice") {
     return createFotofficeExampleData(overrides);
+  }
+  if (product === "fotorank") {
+    return createFotorankExampleData(overrides);
   }
   return createTemplatePreviewExampleData(overrides);
 }

@@ -4,13 +4,11 @@ import { useMemo, useState, useTransition } from "react";
 import {
   downloadDiplomaExcelTemplateAction,
   generateDiplomasFromExcelDraftAction,
-  getDiplomaPreviewSampleVariablesAction,
   listDiplomaExcelBatchesAction,
   parseDiplomaExcelDraftAction,
 } from "../../../../actions/diplomas";
-import { DiplomaLayoutPreview } from "../../../../components/diplomas/DiplomaLayoutPreview";
-import { parseDiplomaLayoutJson } from "../../../../lib/fotorank/diplomas/layoutSchema";
-import type { DiplomaMergeVariables } from "../../../../lib/fotorank/diplomas/mergeFields";
+import { DiplomaTemplatePreviewImage } from "../../../../components/diplomas/DiplomaTemplatePreviewImage";
+import { readDiplomaDesignLink } from "../../../../lib/fotorank/design/constants";
 
 type ContestOption = {
   id: string;
@@ -21,10 +19,6 @@ type ContestOption = {
     name: string;
     status: string;
     layoutJson: unknown;
-    widthPt: number;
-    heightPt: number;
-    backgroundColor: string;
-    backgroundImageUrl: string | null;
   }>;
 };
 
@@ -62,7 +56,7 @@ export function DiplomaBatchToolClient({
   const [excelRequireAllValid, setExcelRequireAllValid] = useState(false);
   const [excelBatchHistory, setExcelBatchHistory] = useState<Array<Record<string, unknown>>>([]);
 
-  const [previewVars, setPreviewVars] = useState<DiplomaMergeVariables | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const refreshHistory = () => {
     if (!contestId) return;
@@ -72,33 +66,8 @@ export function DiplomaBatchToolClient({
     });
   };
 
-  const loadPreview = () => {
-    if (!contestId) return;
-    start(async () => {
-      const r = await getDiplomaPreviewSampleVariablesAction(contestId);
-      if (!r.ok) return;
-      const firstValid = excelRows.find((x) => Array.isArray((x as { errors?: unknown }).errors) && ((x as { errors: unknown[] }).errors.length === 0));
-      const fv = firstValid as
-        | {
-            nombre_completo?: string;
-            categoria?: string;
-            premio?: string;
-            puesto?: string;
-            titulo_obra?: string;
-            fecha_emision?: string;
-            texto_adicional?: string;
-          }
-        | undefined;
-      setPreviewVars({
-        ...r.variables,
-        recipientName: fv?.nombre_completo || r.variables.recipientName,
-        categoryName: fv?.categoria || r.variables.categoryName,
-        prizeLabel: [fv?.premio, fv?.puesto ? `Puesto ${fv.puesto}` : "", fv?.texto_adicional].filter(Boolean).join(" · ") || r.variables.prizeLabel,
-        entryTitle: fv?.titulo_obra || r.variables.entryTitle,
-        issuedDate: fv?.fecha_emision || r.variables.issuedDate,
-      });
-    });
-  };
+  // La vista previa la dibuja el mismo motor que emite, con un premiado de muestra.
+  const loadPreview = () => setPreviewOpen(true);
 
   return (
     <div className="space-y-8">
@@ -122,7 +91,7 @@ export function DiplomaBatchToolClient({
                   setExcelRows([]);
                   setExcelSummary(null);
                   setExcelUnknownColumns([]);
-                  setPreviewVars(null);
+                  setPreviewOpen(false);
                   setError(null);
                   setOkMsg(null);
                 }}
@@ -351,18 +320,15 @@ export function DiplomaBatchToolClient({
         </section>
       ) : null}
 
-      {template && previewVars ? (
+      {template && previewOpen ? (
         <section className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
-          <h3 className="text-base font-semibold text-fr-primary">Vista previa del diploma (primera fila válida)</h3>
-          <div className="mt-4 max-w-[720px]">
-            <DiplomaLayoutPreview
-              layout={parseDiplomaLayoutJson(template.layoutJson)}
-              variables={previewVars}
-              widthPt={template.widthPt}
-              heightPt={template.heightPt}
-              backgroundColor={template.backgroundColor}
-              backgroundImageUrl={template.backgroundImageUrl ?? undefined}
-            />
+          <h3 className="text-base font-semibold text-fr-primary">Vista previa del diploma</h3>
+          <div className="mt-4 aspect-[297/210] max-w-[720px] overflow-hidden rounded-lg bg-fr-bg-elevated">
+            {readDiplomaDesignLink(template.layoutJson) ? (
+              <DiplomaTemplatePreviewImage templateId={template.id} alt={template.name} />
+            ) : (
+              <p className="p-6 text-xs text-fr-muted">Esta plantilla es del editor anterior: creá una nueva.</p>
+            )}
           </div>
         </section>
       ) : null}
