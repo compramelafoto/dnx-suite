@@ -34,7 +34,7 @@
       var marco = marcos[i];
       if (marco.contentWindow !== event.source) continue;
       if (origenDe(marco.getAttribute("src") || marco.src) !== event.origin) return;
-      marco.style.height = Math.min(Math.ceil(alto), ALTO_MAXIMO) + "px";
+      marco.style.height = Math.max(100, Math.min(Math.ceil(alto), ALTO_MAXIMO)) + "px";
       return;
     }
   });

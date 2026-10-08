@@ -35,7 +35,7 @@ export function esFormularioInsertable(formSlug: string | null | undefined): for
 }
 
 const SLUG = "[a-z0-9][a-z0-9-]{0,62}";
-const PUBLICA = new RegExp(`^/w/(${SLUG})/${SEGMENTO_INSERTAR}(?:/(${SLUG}))?/?$`, "i");
+const PUBLICA = new RegExp(`^/w/(${SLUG})/${SEGMENTO_INSERTAR}(?:/(${SLUG}))?/?$`);
 
 /**
  * `/w/<slug>/insertar[/<formulario>]` → la ruta interna que lo dibuja sin el armazón del sitio.
