@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
+import { categoriasConBorradorAuto } from "@/lib/presupuestos/borrador-automatico";
 import { listarPropuestasModelo } from "@/lib/presupuestos/propuestas-modelo";
 import { PestanasPresupuestos } from "../pestanas";
 
@@ -25,6 +26,7 @@ export default async function PropuestasModeloPage() {
   }
   const categorias =
     (await listarPropuestasModelo({ workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role })) ?? [];
+  const conBorrador = await categoriasConBorradorAuto(workspace.id);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -48,7 +50,7 @@ export default async function PropuestasModeloPage() {
                 <p className="font-medium text-[var(--fo-text)]">{c.nombre}</p>
                 <p className="text-xs text-[var(--fo-muted)]">
                   {c.tienePropuesta
-                    ? `Con propuesta · ${c.cantidadItems === 1 ? "1 producto" : `${c.cantidadItems} productos`}${c.enviarSola ? " · sale sola con la consulta web" : ""}`
+                    ? `Con propuesta · ${c.cantidadItems === 1 ? "1 producto" : `${c.cantidadItems} productos`}${c.enviarSola ? " · sale sola con la consulta web" : ""}${conBorrador?.has(c.categoriaId) ? " · Borrador automático" : ""}`
                     : "Sin propuesta"}
                 </p>
               </div>

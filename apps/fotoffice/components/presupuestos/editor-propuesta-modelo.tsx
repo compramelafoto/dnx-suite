@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Pencil, X } from "lucide-react";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
-import { borrarPropuestaModeloAction, guardarPropuestaModeloAction } from "@/app/workspace/configuracion/presupuestos/actions";
+import { borrarPropuestaModeloAction, guardarBorradorAutoAction, guardarPropuestaModeloAction } from "@/app/workspace/configuracion/presupuestos/actions";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { itemDesdeProducto, nuevaClave, pesos, type ProductoParaEditor } from "@/lib/presupuestos/editor";
 import { calcularItemDelPanel, entradaDelPanel, trabajoDesdeMotor, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
@@ -40,6 +40,10 @@ export function EditorPropuestaModelo(props: {
   items: ItemPresupuesto[];
   condiciones: string | null;
   enviarSola: boolean;
+  /** El borrador automático está encendido para esta categoría. */
+  borradorAuto: boolean;
+  /** Falta aplicar el SQL del borrador automático (la tabla no existe). */
+  sqlPendiente: boolean;
   plantillaId: string | null;
   catalogo: ProductoParaEditor[];
   plantillas: { id: string; nombre: string }[];
@@ -59,6 +63,8 @@ export function EditorPropuestaModelo(props: {
   );
   const [condiciones, setCondiciones] = useState(props.condiciones ?? "");
   const [enviarSola, setEnviarSola] = useState(props.enviarSola);
+  const [borradorAuto, setBorradorAuto] = useState(props.borradorAuto);
+  const [avisoBorrador, setAvisoBorrador] = useState<{ ok: boolean; texto: string } | null>(null);
   const [plantillaId, setPlantillaId] = useState(props.plantillaId ?? "");
   const [seccionNueva, setSeccionNueva] = useState("");
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -140,6 +146,22 @@ export function EditorPropuestaModelo(props: {
         router.refresh();
       } else {
         setMensaje({ ok: false, texto: r.error });
+      }
+    });
+  }
+
+  // La casilla del borrador se guarda sola al tildar (no espera al botón de la propuesta).
+  function cambiarBorrador(encendido: boolean) {
+    setAvisoBorrador(null);
+    setBorradorAuto(encendido);
+    iniciar(async () => {
+      const r = await guardarBorradorAutoAction(props.categoriaId, encendido).catch(() => ({ ok: false as const, error: "No se pudo guardar. Probá de nuevo." }));
+      if (r.ok) {
+        setAvisoBorrador({ ok: true, texto: encendido ? "Borrador automático encendido." : "Borrador automático apagado." });
+        router.refresh();
+      } else {
+        setBorradorAuto(!encendido);
+        setAvisoBorrador({ ok: false, texto: r.error });
       }
     });
   }
@@ -333,6 +355,34 @@ export function EditorPropuestaModelo(props: {
             </span>
           </span>
         </label>
+        <div className="space-y-1">
+          <label className="flex items-start gap-2 text-sm" htmlFor={`${id}-borrador`}>
+            <input
+              id={`${id}-borrador`}
+              type="checkbox"
+              className="mt-1"
+              checked={props.sqlPendiente ? false : enviarSola ? false : borradorAuto}
+              disabled={pendiente || props.sqlPendiente || enviarSola}
+              aria-describedby={`${id}-borrador-ayuda`}
+              onChange={(e) => cambiarBorrador(e.target.checked)}
+            />
+            <span>
+              Armar el borrador cuando llega una consulta web (sin enviarlo)
+              <span id={`${id}-borrador-ayuda`} className="block text-xs text-[var(--fo-muted)]">
+                {props.sqlPendiente
+                  ? "Falta aplicar el SQL del borrador automático."
+                  : enviarSola
+                    ? "Ya sale sola."
+                    : "Te queda una tarea para revisarlo y mandarlo."}
+              </span>
+            </span>
+          </label>
+          {avisoBorrador ? (
+            <p role={avisoBorrador.ok ? "status" : "alert"} className={avisoBorrador.ok ? "text-xs text-[var(--fo-muted)]" : "text-xs text-[var(--fo-danger)]"}>
+              {avisoBorrador.texto}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <div className="flex flex-wrap items-center gap-3">

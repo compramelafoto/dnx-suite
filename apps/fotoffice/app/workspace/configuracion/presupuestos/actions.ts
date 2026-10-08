@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
+import { guardarBorradorAuto } from "@/lib/presupuestos/borrador-automatico";
 import { guardarAjustes } from "@/lib/presupuestos/ajustes";
 import { borrarPropuestaModelo, guardarPropuestaModelo } from "@/lib/presupuestos/propuestas-modelo";
 import type { CtxPresupuestos } from "@/lib/presupuestos/acceso";
@@ -91,6 +92,16 @@ export async function borrarPropuestaModeloAction(categoriaId: unknown): Promise
   const ctx = await contexto();
   if (!ctx) return SIN_PERMISO_PROPUESTA;
   const r = await borrarPropuestaModelo(ctx, categoriaId);
+  if (!r.ok) return r;
+  revalidatePath(RUTA_PROPUESTAS, "layout");
+  return { ok: true };
+}
+
+/** Enciende o apaga el borrador automático de una categoría (la casilla del editor de la propuesta). */
+export async function guardarBorradorAutoAction(categoriaId: unknown, encendido: unknown): Promise<ResultadoPropuestaModeloAction> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO_PROPUESTA;
+  const r = await guardarBorradorAuto(ctx, categoriaId, encendido);
   if (!r.ok) return r;
   revalidatePath(RUTA_PROPUESTAS, "layout");
   return { ok: true };

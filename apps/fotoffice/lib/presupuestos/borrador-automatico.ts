@@ -14,6 +14,7 @@ export const MENSAJES_BORRADOR_AUTO = {
   sinPermiso: MENSAJES_PRESUPUESTO.sinPermisoAjustes,
   datosInvalidos: MENSAJES_PRESUPUESTO.datosInvalidos,
   categoria: "No encontramos esa categoría.",
+  guardar: "No se pudo guardar. Probá de nuevo.",
   fallo: "No se pudo guardar. ¿Ya se aplicó el SQL del borrador automático?",
 } as const;
 
@@ -64,12 +65,19 @@ export async function guardarBorradorAuto(ctx: CtxPresupuestos, categoriaId: unk
   if (!puedeConfigurarPresupuestos(ctx)) return no(MENSAJES_BORRADOR_AUTO.sinPermiso);
   if (!idValido(categoriaId) || typeof encendido !== "boolean") return no(MENSAJES_BORRADOR_AUTO.datosInvalidos);
   const { workspaceId } = ctx;
+  // La categoría se busca aparte: un error acá no es "falta el SQL". Apagar vale también para una archivada.
+  let categoria: { id: string } | null;
   try {
-    const categoria = await prisma.fotofficeConsultaCategoria.findFirst({
-      where: { id: categoriaId, workspaceId, archivedAt: null },
+    categoria = await prisma.fotofficeConsultaCategoria.findFirst({
+      where: { id: categoriaId, workspaceId, ...(encendido ? { archivedAt: null } : {}) },
       select: { id: true },
     });
-    if (!categoria) return no(MENSAJES_BORRADOR_AUTO.categoria);
+  } catch (e) {
+    falla("guardarBorradorAuto.categoria", e);
+    return no(MENSAJES_BORRADOR_AUTO.guardar);
+  }
+  if (!categoria) return no(MENSAJES_BORRADOR_AUTO.categoria);
+  try {
     if (encendido) {
       await prisma.fotofficePropuestaBorradorAuto.upsert({
         where: { workspaceId_categoryId: { workspaceId, categoryId: categoriaId } },

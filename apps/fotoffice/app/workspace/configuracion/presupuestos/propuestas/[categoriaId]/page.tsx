@@ -7,6 +7,7 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
+import { categoriasConBorradorAuto } from "@/lib/presupuestos/borrador-automatico";
 import { catalogoParaEditor } from "@/lib/presupuestos/editor-datos";
 import { leerPropuestaModelo, plantillasParaPropuesta } from "@/lib/presupuestos/propuestas-modelo";
 import { PestanasPresupuestos } from "../../pestanas";
@@ -40,11 +41,12 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
   if (!categoria) notFound();
 
   // El perfil sólo se lee acá, dentro del bloque con `configurar`: llega al navegador para mostrar el precio de hoy.
-  const [propuesta, catalogo, plantillas, perfil] = await Promise.all([
+  const [propuesta, catalogo, plantillas, perfil, conBorrador] = await Promise.all([
     leerPropuestaModelo(workspace.id, categoria.id),
     catalogoParaEditor(workspace.id),
     plantillasParaPropuesta(workspace.id),
     leerPerfilPrecios({ workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role }),
+    categoriasConBorradorAuto(workspace.id),
   ]);
 
   return (
@@ -63,6 +65,8 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
         items={propuesta?.items ?? []}
         condiciones={propuesta?.condiciones ?? null}
         enviarSola={propuesta?.enviarSola ?? false}
+        borradorAuto={conBorrador?.has(categoria.id) ?? false}
+        sqlPendiente={conBorrador === null}
         plantillaId={propuesta?.plantillaId ?? null}
         catalogo={catalogo}
         plantillas={plantillas}

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const B = await vi.hoisted(async () => {
   const { crearBaseEnMemoria } = await import("../circuitos/base-en-memoria");
@@ -20,6 +20,14 @@ beforeEach(() => {
   B.agregar("fotofficeConsultaCategoria", { id: "cat-15", workspaceId: "ws-1", name: "15 años", group: "Social", order: 2 });
   B.agregar("fotofficeConsultaCategoria", { id: "cat-vieja", workspaceId: "ws-1", name: "Vieja", group: "Social", archivedAt: new Date() });
   B.agregar("fotofficeConsultaCategoria", { id: "cat-ajena", workspaceId: "ws-2", name: "Boda", group: "Social" });
+});
+
+const originalesCategoria = { findFirst: B.tablas.fotofficeConsultaCategoria.findFirst };
+const tabla = B.tablas.fotofficePropuestaBorradorAuto;
+const originales = { ...tabla };
+afterEach(() => {
+  Object.assign(tabla, originales);
+  B.tablas.fotofficeConsultaCategoria.findFirst = originalesCategoria.findFirst;
 });
 
 describe("guardarBorradorAuto", () => {
@@ -50,6 +58,23 @@ describe("guardarBorradorAuto", () => {
     expect((await BA.guardarBorradorAuto(DUENO, 5, true)).ok).toBe(false);
     expect((await BA.guardarBorradorAuto(DUENO, "cat-boda", "si")).ok).toBe(false);
     expect(await BA.categoriasConBorradorAuto("ws-1")).toEqual(new Set());
+  });
+
+  it("apagar vale para una categoría archivada; encender no", async () => {
+    B.agregar("fotofficePropuestaBorradorAuto", { workspaceId: "ws-1", categoryId: "cat-vieja" });
+    expect((await BA.guardarBorradorAuto(DUENO, "cat-vieja", true)).ok).toBe(false);
+    expect(await BA.guardarBorradorAuto(DUENO, "cat-vieja", false)).toEqual({ ok: true });
+    expect(await BA.armaBorradorAuto("ws-1", "cat-vieja")).toBe(false);
+  });
+
+  it("si encienden a la vez en dos pestañas (P2002) sigue siendo ok", async () => {
+    tabla.upsert = async () => { throw Object.assign(new Error("unique"), { code: "P2002" }); };
+    expect(await BA.guardarBorradorAuto(DUENO, "cat-boda", true)).toEqual({ ok: true });
+  });
+
+  it("un error al buscar la categoría no culpa al SQL", async () => {
+    B.tablas.fotofficeConsultaCategoria.findFirst = async () => { throw new Error("boom"); };
+    expect(await BA.guardarBorradorAuto(DUENO, "cat-boda", true)).toEqual({ ok: false, error: BA.MENSAJES_BORRADOR_AUTO.guardar });
   });
 
   it("apagar sólo toca el workspace propio", async () => {
