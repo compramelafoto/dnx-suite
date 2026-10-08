@@ -83,6 +83,17 @@ jobs:
       - name: Pruebas de FOTOFFICE
         run: pnpm --filter fotoffice test
 
+      # FotoRank, lo mismo: el 08/10/2026, al sumar el diseñador compartido (PR #426), su build en
+      # Vercel quedó más de 20 minutos trabado en el paso de tipos. Se apagó allá
+      # (`typescript.ignoreBuildErrors` en su next.config.ts) y se chequea acá.
+      - name: Chequear tipos de FotoRank
+        run: pnpm --filter fotorank check-types
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Pruebas del diseñador en FotoRank (diplomas e imágenes de ganadores)
+        run: pnpm --filter fotorank test:design
+
       - name: Pruebas del Ensayo de edición
         run: pnpm --filter clickaton selfcheck:edition-rehearsal
 
