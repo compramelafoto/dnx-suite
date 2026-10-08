@@ -95,7 +95,20 @@ const nextConfig: NextConfig = {
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
     ];
+    // El formulario de consulta para insertar en cualquier web (lib/service-leads/insertar.ts): se
+    // deja enmarcar desde cualquier sitio, a propósito, y no se indexa (la página es el sitio).
+    // Sin botón peligroso que robar con un clic: es el mismo formulario abierto del sitio público.
+    const marcoLibre = [
+      { key: "Content-Security-Policy", value: "frame-ancestors *" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ];
     return [
+      { source: "/w/:slug/insertar", headers: marcoLibre },
+      { source: "/w/:slug/insertar/:form", headers: marcoLibre },
+      // En el dominio propio de la institución las direcciones van sin `/w/<slug>`.
+      { source: "/insertar", headers: marcoLibre },
+      { source: "/insertar/:form", headers: marcoLibre },
+      { source: "/formulario-insertado/:slug/:form", headers: marcoLibre },
       { source: "/w/:slug/tienda/pedido/:path*", headers: noReferrer },
       { source: "/tienda/pedido/:path*", headers: noReferrer },
       // El enlace del permiso del autor lleva su token en la dirección: misma regla.

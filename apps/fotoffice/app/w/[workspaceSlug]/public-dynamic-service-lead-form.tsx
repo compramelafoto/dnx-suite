@@ -98,9 +98,12 @@ function renderFieldInput(field: FieldDefinition) {
 export function PublicDynamicServiceLeadForm({
   workspaceSlug,
   form,
+  insertado = false,
 }: {
   workspaceSlug: string;
   form: FormPayload;
+  /** Dibujado dentro de otra web (`/w/<slug>/insertar`): no salta de página al terminar. */
+  insertado?: boolean;
 }) {
   const config = useMemo(() => toConfig(form.configJson), [form.configJson]);
   const selector = config.entrySelector;
@@ -113,6 +116,9 @@ export function PublicDynamicServiceLeadForm({
 
   useEffect(() => {
     if (!ok) return;
+    // Insertado en otra web, saltar de página dentro del marco no sirve (WhatsApp no se deja
+    // enmarcar) y sacar a la persona de la web que la contiene tampoco: se ofrece un botón.
+    if (insertado) return;
     if (postSubmitAction.type === "NONE") return;
     if (!postSubmitAction.url) return;
 
@@ -121,7 +127,7 @@ export function PublicDynamicServiceLeadForm({
     }, postSubmitAction.delaySeconds * 1000);
 
     return () => window.clearTimeout(timeout);
-  }, [ok, postSubmitAction]);
+  }, [ok, postSubmitAction, insertado]);
 
   if (ok) {
     return (
@@ -131,6 +137,16 @@ export function PublicDynamicServiceLeadForm({
           {config.successMessage ??
             "¡Gracias por tu consulta! Recibimos tus datos y te vamos a contactar pronto."}
         </p>
+        {insertado && postSubmitAction.type !== "NONE" && postSubmitAction.url ? (
+          <a
+            href={postSubmitAction.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fo-btn fo-btn-primary mt-4 inline-flex"
+          >
+            {postSubmitAction.type === "WHATSAPP" ? "Seguir por WhatsApp" : "Continuar"}
+          </a>
+        ) : null}
       </div>
     );
   }

@@ -4,6 +4,8 @@
  * Vive separada para poder probar la decisión entera sin levantar Next.
  */
 
+import { rutaInternaInsertada } from "@/lib/service-leads/insertar";
+
 export type CustomDomainDecision =
   /** Seguir sin tocar: recursos de Next, API, archivos estáticos. */
   | { kind: "pass" }
@@ -92,7 +94,9 @@ export function decideCustomDomainRoute(args: {
   if (FOTOFFICE_ONLY_SEGMENTS.has(first)) return toFotoffice(pathname);
   if (SITE_SEGMENTS_ON_FOTOFFICE.has(first)) return toFotoffice(`${ownPrefix}${pathname}`);
 
-  return { kind: "rewrite", pathname: pathname === "/" ? ownPrefix : `${ownPrefix}${pathname}` };
+  const sitio = pathname === "/" ? ownPrefix : `${ownPrefix}${pathname}`;
+  // `/insertar[/<formulario>]`: el formulario solo, para insertar en otra web (sin el armazón).
+  return { kind: "rewrite", pathname: rutaInternaInsertada(sitio) ?? sitio };
 }
 
 /**

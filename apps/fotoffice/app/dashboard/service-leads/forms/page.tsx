@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireServiceLeadsContext } from "@/lib/workspace";
 import { rutaPublicaFormulario } from "@/lib/service-leads/ruta-publica";
+import { esFormularioInsertable } from "@/lib/service-leads/insertar";
 
 export default async function ServiceLeadFormsPage() {
   const { workspace } = await requireServiceLeadsContext();
@@ -85,6 +86,14 @@ export default async function ServiceLeadFormsPage() {
                         >
                           Compartir
                         </Link>
+                        {publicPath && esFormularioInsertable(form.slug) ? (
+                          <Link
+                            href={`/dashboard/service-leads/forms/${form.id}/share#insertar`}
+                            className="text-[var(--fo-accent)] underline underline-offset-2 whitespace-nowrap"
+                          >
+                            Insertar en mi web
+                          </Link>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
