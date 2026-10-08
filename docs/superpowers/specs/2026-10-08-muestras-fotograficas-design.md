@@ -1,6 +1,6 @@
 # Muestras Fotográficas: mapa nacional de muestras y actividades culturales
 
-Fecha: 2026-10-08 · Estado: aprobado por Daniel en chat (las cuatro partes)
+Fecha: 2026-10-08 · Estado: aprobado por Daniel en chat (las cuatro partes; venta con motor propio y flujo concurso → muestra agregados el mismo día)
 
 ## Problema
 
@@ -17,8 +17,10 @@ actividades culturales, pero no hay un lugar donde publicarlas. Hoy:
 Que **cualquiera pueda promocionar una muestra** (socio, galería, centro cultural o fotógrafo
 suelto), que se publique en un **mapa nacional** con su **galería virtual**, que los socios
 vean las **muestras cercanas** en su portal y en un resumen semanal, que las instituciones la
-publiquen en su blog, y que las obras se puedan **vender en CompraMeLaFoto** como copias
-impresas o digitales, incluso en **ediciones limitadas firmadas y verificables por QR**.
+publiquen en su blog, que un **concurso de FotoRank o Clickatón termine en una muestra**, y
+que las obras se puedan **vender** como copias impresas o digitales, con el dinero repartido
+entre organizador, fotógrafo y plataforma, incluso en **ediciones limitadas firmadas y
+verificables por QR**.
 
 ## Decisiones (tomadas con Daniel)
 
@@ -40,8 +42,24 @@ impresas o digitales, incluso en **ediciones limitadas firmadas y verificables p
    **encendido** en todas las instituciones y cada una lo puede apagar.
 6. **Aviso a socios.** **Resumen semanal por mail, jueves 10:00 hora argentina**; no se manda
    si no hay nada en su zona; suscripto por defecto, baja con un clic.
-7. **Venta.** Copias impresas y archivos digitales, **a través de CLF con un puente** (CLF
-   está en otra base). No se unifican las bases.
+7. **Venta con motor propio sobre DNX Payments, repartida en tres.** Copias impresas y
+   archivos digitales, cobrados con `@repo/payments` (Orders API + Split 1:N de Mercado Pago):
+   **organizador + fotógrafo + fee de la plataforma**. El organizador define el porcentaje de
+   cada uno por muestra. Reemplaza al puente a CLF (decidido el 2026-10-08): CLF cobra a un
+   solo fotógrafo con el fee como recargo, y vive en otra base. De CLF se copia la *forma* de
+   trabajar las impresiones con laboratorio, no se conecta. No se unifican las bases.
+9. **Concurso → muestra.** Los ganadores y preseleccionados de un concurso de **FotoRank**
+   (misma base, directo) o **Clickatón** (otra base, con exportación) arman una muestra. El
+   organizador elige por obra: **galería virtual**, **se imprime**, **a la venta**.
+10. **Perfil público del autor.** Biografía, fotos, muestras en las que expuso y obras a la
+    venta. Existe aunque el autor no tenga cuenta; lo "reclama" al entrar con su Google.
+    Página **"Fotógrafos que expusieron"** con todos los perfiles.
+11. **Piezas imprimibles con plantilla:** el **marco** de la obra (título y autor) y una
+    **ficha aparte con QR**. El QR lleva a **la página de esa obra en esa muestra** (comprar,
+    verificar la copia, enlace al perfil del autor), no directo al perfil.
+12. **Aceptación del autor.** Ganar un concurso no autoriza a vender: la obra se exhibe si las
+    bases del concurso lo autorizan, y se vende sólo si **el autor acepta con un clic** la venta
+    y el reparto propuesto.
 8. **Ediciones limitadas** con número de copia, certificado de autenticidad, firma digital
    propia (sin blockchain ni NFT) y **QR de verificación**.
 
@@ -49,12 +67,14 @@ impresas o digitales, incluso en **ediciones limitadas firmadas y verificables p
 
 | Pieza | Qué hace |
 |---|---|
-| `apps/muestras` (nueva) | Sitio público: mapa nacional, listado con filtros, ficha con galería, "Proponé tu muestra", bandeja de aprobación de Daniel, verificación de certificados (etapa 6). |
+| `apps/muestras` (nueva) | Sitio público: mapa nacional, listado con filtros, ficha con galería, "Proponé tu muestra", bandeja de aprobación de Daniel, verificación de certificados (etapa 8). |
 | `packages/muestras` (nuevo) | Las reglas en un solo lugar: crear, enviar a revisión, aprobar, rechazar, despublicar, cancelar; estado temporal; quién aprueba qué; cercanía. Sin React. Lo usan la app nueva y FOTOFFICE. |
-| `@repo/geo` (existe) | Distancias (Haversine), Nominatim, consultas de cercanía y el adaptador de InfoSpot (etapa 4). |
+| `@repo/geo` (existe) | Distancias (Haversine), Nominatim, consultas de cercanía y el adaptador de InfoSpot (etapa 9). |
 | `@repo/content` (existe) | Crear y actualizar entradas del blog de la institución. |
 | FOTOFFICE | Panel "Muestras" (aprobar y sugerencias), ubicación de la institución, portal "Muestras cerca", resumen semanal. |
-| CLF | Etapa 5: tienda de la muestra, cobro por el Mercado Pago del fotógrafo, pedidos de impresión existentes. |
+| `@repo/payments` (existe) | Etapa 7: cobro con Split 1:N (organizador, fotógrafo, plataforma). Producción hoy bloqueada por `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` hasta la orden productiva de cierre de la homologación. |
+| Diseñador de plantillas (existe) | Etapa 6: marco de la obra y ficha con QR, renderizados a PDF sin navegador (el mismo que usan los diplomas de FotoRank). |
+| FotoRank / Clickatón | Etapa 5: origen de ganadores y preseleccionados. |
 
 La app nueva se compila **sólo cuando cambia su propio código, también en producción**
 (`turbo-ignore` sin la excepción de producción que tiene `apps/fotoffice/vercel.json`).
@@ -94,7 +114,7 @@ ciudad, nunca la dirección exacta), `radiusKm` (25/50/100/200/todo el país),
 **Ubicación de la institución** (etapa 2) — `latitude`, `longitude` y `suggestionRadiusKm`
 (por defecto 50) en la configuración del workspace.
 
-Etapas 5 y 6 agregan sus tablas (oferta de venta por obra, edición, copias numeradas,
+Las etapas 4 a 8 agregan sus tablas (perfiles de autor, oferta de venta por obra, reparto, edición, copias numeradas,
 reservas de número, certificados); se diseñan en detalle al llegar.
 
 ## La ficha y la galería
@@ -106,7 +126,7 @@ reservas de número, certificados); se diseñan en detalle al llegar.
   cartel "Visitala en persona"; al cerrar se ve completa. El organizador puede elegir
   "completa desde el principio".
 - Las fotos se guardan **achicadas para web** (preset nuevo en el bucket de FOTOFFICE). Los
-  originales en alta se suben recién en la etapa 5, al poner una obra a la venta.
+  originales en alta se suben recién en la etapa 7, al poner una obra a la venta.
 - **Itinerante:** una ficha por sede; "Duplicar para otra sede" copia todo menos lugar y fechas.
 
 ## Recorrido
@@ -156,7 +176,48 @@ Al aprobarse una actividad de otra institución o de alguien suelto, a menos de
 **Muestras → Sugerencias**: "Publicar en mi blog" (la entrada cita al organizador y enlaza a la
 ficha en `muestrasfotograficas.com`) o "Descartar". Sin ubicación cargada no hay sugerencias.
 
-## Ediciones limitadas con QR (etapa 6)
+## Concurso → muestra (etapa 5)
+
+- En FotoRank, al cerrar un concurso: botón **"Armar muestra"**. Crea un borrador de actividad
+  tipo `MUESTRA` con las obras ganadoras y preseleccionadas, su autor vinculado al perfil y la
+  categoría o premio como dato de la obra.
+- Clickatón está en otra base y otro bucket: se hace después, con una exportación de ganadores
+  (datos + copia de las imágenes al bucket de Muestras).
+- Por cada obra el organizador marca: **galería virtual**, **se imprime**, **a la venta**.
+- Antes de publicar, se pide a cada autor la aceptación (decisión 12). Hasta que acepta, su obra
+  no se ofrece a la venta.
+
+## Perfil del autor (etapa 4)
+
+- Tabla de perfiles de autor (nombre, biografía, foto, enlaces, `userId?`). Las obras pasan a
+  apuntar al perfil (`authorProfileId`), conservando `authorName` como texto de respaldo.
+- Página pública `/fotografos/<slug>`: biografía, obras expuestas por muestra, obras a la venta.
+- Página **"Fotógrafos que expusieron"**: todos los perfiles con al menos una obra en una
+  muestra publicada.
+- Un perfil sin cuenta lo crea el organizador; el autor lo reclama al entrar con el mismo email.
+
+## Piezas para imprimir (etapa 6)
+
+- **Marco de la obra:** la foto con un remarco diseñado en plantilla, con título y autor.
+- **Ficha de la obra:** título, autor, año, técnica, premio si lo hubo, texto breve y **QR** a
+  `muestrasfotograficas.com/m/<muestra>/o/<obra>`.
+- Las plantillas se arman en el diseñador de la suite; el organizador elige plantilla y medida
+  y descarga un PDF por obra o todas juntas.
+
+## Venta con reparto en tres (etapa 7)
+
+- El organizador define por muestra el **porcentaje del organizador** y el del **fotógrafo**;
+  el **fee de la plataforma** lo fija DNX. Cada autor ve el reparto antes de aceptar.
+- Productos por obra: **archivo digital** y **copia impresa** (medidas y precios por muestra).
+- Cobro con `@repo/payments`: una Order con Split 1:N; fotógrafo y organizador conectan su
+  Mercado Pago (consentimiento de partner). Sin Mercado Pago conectado, esa obra no se vende.
+- **Riesgo a resolver en su diseño:** el receptor único de notificaciones de Mercado Pago está
+  en CLF (otra base) y rutea por `external_reference`; hay que definir cómo llega la
+  confirmación de pago a la base de Muestras.
+- La producción de copias: la imprime el organizador o un laboratorio (se copia de CLF el
+  circuito *en producción → listo → enviado → entregado*).
+
+## Ediciones limitadas con QR (etapa 8)
 
 - Al poner una obra a la venta: **edición abierta** o **limitada de N copias** (+ pruebas de
   autor). Vendida la primera copia, N no puede subir.
@@ -171,7 +232,8 @@ ficha en `muestrasfotograficas.com`) o "Descartar". Sin ubicación cargada no ha
   `muestrasfotograficas.com/verificar/<código>`: "Copia auténtica 3/10 de … emitida el …", o
   "anulada" si hubo devolución (el número no se reutiliza).
 - **Nunca la copia 11 de 10:** la numeración vive en nuestra base; al iniciar el pago en CLF
-  se reserva un número por 20 minutos y se libera si no se paga.
+  se reserva un número por 20 minutos y se libera si no se paga. Va con la venta (etapa 7) o
+  justo después (etapa 8).
 - En digital, el valor está en el certificado registrado, no en el archivo (se puede copiar).
 
 ## Etapas
@@ -181,16 +243,18 @@ ficha en `muestrasfotograficas.com`) o "Descartar". Sin ubicación cargada no ha
 | 1 | `apps/muestras` + `packages/muestras` + tablas: mapa, listado, ficha con galería, "Proponé tu muestra", bandeja de aprobación de Daniel |
 | 2 | FOTOFFICE: aprobación por institución, blog automático, portal "Muestras cerca", ubicación de la institución, sugerencias |
 | 3 | Resumen semanal por mail |
-| 4 | Envío a InfoSpot (adaptador de `@repo/geo`) |
-| 5 | Puente a CLF: venta de copias impresas y digitales (diseño propio) |
-| 6 | Ediciones limitadas firmadas, certificado y QR |
-| 7 | FotoRank: "Convertir concurso en muestra" |
+| 4 | Perfiles públicos de autor y "Fotógrafos que expusieron" |
+| 5 | Concurso → muestra: FotoRank primero, Clickatón después |
+| 6 | Piezas para imprimir: marco y ficha con QR, con plantillas |
+| 7 | Venta con motor propio sobre DNX Payments, reparto organizador / fotógrafo / plataforma, aceptación del autor |
+| 8 | Ediciones limitadas firmadas, certificado y QR de autenticidad |
+| 9 | Envío a InfoSpot (adaptador de `@repo/geo`) |
 
 ## Pruebas
 
 - Unitarias (vitest) en `packages/muestras`: transiciones de estado, permisos de aprobación,
   estado temporal en hora argentina, cercanía y orden por distancia, topes de galería. En la
-  etapa 6, que la numeración no se pase del total con compras simultáneas.
+  etapa 8, que la numeración no se pase del total con compras simultáneas.
 - Prueba local con `next dev` antes de cada publicación (las vistas previas de Vercel no
   sirven para esto).
 - Piloto con SFPR en la etapa 2 antes de abrir a todas las instituciones (FOTOFFICE no tiene
@@ -205,9 +269,13 @@ ficha en `muestrasfotograficas.com`) o "Descartar". Sin ubicación cargada no ha
   tabla (el registro `_prisma_migrations` no es confiable).
 - **Contenido indebido o sin derechos:** aprobación previa, confirmación de derechos,
   despublicar.
-- **Puente a CLF** cruza bases: etapa propia con diseño propio.
+- **Split 1:N en producción** depende de cerrar la homologación de Mercado Pago (falta la
+  orden productiva). La etapa 7 no puede salir antes.
+- **Confirmación de pago entre bases:** el receptor de notificaciones vive en CLF.
+- **Derechos de exhibición y venta** de obras de concursos: bases del concurso + aceptación del
+  autor.
 
 ## Fuera de alcance de este documento
 
-El detalle de las etapas 4 a 7, la unificación de bases de la suite y las ediciones
-numeradas dentro de CLF fuera de las muestras.
+El detalle de las etapas 4 a 9 (cada una tiene su propio diseño antes de construirse) y la
+unificación de bases de la suite.
