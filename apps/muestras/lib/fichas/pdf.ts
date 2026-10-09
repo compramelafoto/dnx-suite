@@ -92,14 +92,30 @@ function dibujarFicha(p: PDFPage, f: FichaDeObra, t: Medidas, { normal, negrita 
   });
 }
 
-/** El QR como cuadraditos vectoriales. La matriz se lee de arriba abajo y el PDF mide desde abajo. */
+/** Los módulos negros de cada fila, juntados en tramos horizontales seguidos. */
+export function tramosOscuros(modulos: boolean[][]): { fila: number; col: number; largo: number }[] {
+  const tramos: { fila: number; col: number; largo: number }[] = [];
+  modulos.forEach((fila, f) => {
+    let c = 0;
+    while (c < fila.length) {
+      if (!fila[c]) { c++; continue; }
+      const desde = c;
+      while (c < fila.length && fila[c]) c++;
+      tramos.push({ fila: f, col: desde, largo: c - desde });
+    }
+  });
+  return tramos;
+}
+
+/**
+ * El QR como rectángulos vectoriales: uno por tramo de módulos negros seguidos (se ve igual que un
+ * cuadradito por módulo y el PDF pesa bastante menos). La matriz se lee de arriba abajo y el PDF
+ * mide desde abajo.
+ */
 function dibujarQr(p: PDFPage, modulos: boolean[][], x: number, y: number, lado: number) {
   const n = modulos.length;
   const mod = lado / n;
-  for (let f = 0; f < n; f++) {
-    for (let c = 0; c < n; c++) {
-      if (!modulos[f]![c]) continue;
-      p.drawRectangle({ x: x + c * mod, y: y + (n - 1 - f) * mod, width: mod, height: mod, color: NEGRO });
-    }
+  for (const t of tramosOscuros(modulos)) {
+    p.drawRectangle({ x: x + t.col * mod, y: y + (n - 1 - t.fila) * mod, width: t.largo * mod, height: mod, color: NEGRO });
   }
 }
