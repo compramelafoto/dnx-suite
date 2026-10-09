@@ -4,7 +4,8 @@ const db = vi.hoisted(() => ({
   culturalCall: { findUnique: vi.fn() },
   culturalCallCurator: { findFirst: vi.fn() },
   culturalCallSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-  culturalCallWork: { deleteMany: vi.fn() },
+  culturalCallWork: { deleteMany: vi.fn(), createMany: vi.fn() },
+  $queryRaw: vi.fn(),
   $transaction: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
@@ -42,6 +43,7 @@ beforeEach(() => {
   db.culturalCallSubmission.findUnique.mockResolvedValue(null);
   db.culturalCallSubmission.create.mockResolvedValue({ id: "s1" });
   db.culturalCallSubmission.updateMany.mockResolvedValue({ count: 1 });
+  db.$queryRaw.mockResolvedValue([{ status: "OPEN", opensAt: conv.opensAt, closesAt: conv.closesAt }]);
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db));
 });
 
@@ -63,6 +65,25 @@ describe("guardarEnvio", () => {
     expect(await guardarEnvio(fd([obra(1)]))).toEqual({ ok: true, id: "s0" });
     expect(db.culturalCallWork.deleteMany).toHaveBeenCalledWith({ where: { submissionId: "s0" } });
     expect(db.culturalCallSubmission.update.mock.calls[0][0].data).toMatchObject({ status: "ACTIVE", withdrawnAt: null });
+    expect(db.culturalCallWork.createMany.mock.calls[0][0].data[0]).toMatchObject({ submissionId: "s0", callId: "c1", sortOrder: 0 });
+  });
+  it("al editar bloquea la fila del envío antes de borrar y volver a crear las obras", async () => {
+    db.culturalCallSubmission.findUnique.mockResolvedValue({ id: "s0" });
+    await guardarEnvio(fd([obra(1)]));
+    const orden = [
+      db.$queryRaw.mock.invocationCallOrder[1],
+      db.culturalCallWork.deleteMany.mock.invocationCallOrder[0],
+      db.culturalCallWork.createMany.mock.invocationCallOrder[0],
+    ];
+    expect(db.$queryRaw.mock.calls[1][0].join("")).toContain("FOR UPDATE");
+    expect(orden).toEqual([...orden].sort((x, y) => x - y));
+  });
+  it("si la convocatoria se cerró justo antes de guardar (lectura con bloqueo), no guarda", async () => {
+    db.$queryRaw.mockResolvedValue([{ status: "CLOSED", opensAt: conv.opensAt, closesAt: conv.closesAt }]);
+    expect(await guardarEnvio(fd([obra(1)]))).toEqual({ ok: false, errores: ["La convocatoria no recibe obras en este momento."] });
+    expect(db.$queryRaw.mock.calls[0][0].join("")).toContain("FOR SHARE");
+    expect(db.culturalCallSubmission.create).not.toHaveBeenCalled();
+    expect(correos.avisarEnvioRecibido).not.toHaveBeenCalled();
   });
   it("fuera de fecha no recibe", async () => {
     vi.setSystemTime(new Date("2026-12-01T03:00:01Z"));
@@ -90,6 +111,8 @@ describe("guardarEnvio", () => {
   it("descarta imágenes de otra carpeta", async () => {
     const ajena = { imageUrl: "https://pub-test.r2.dev/muestras/8/1.webp", title: "Ajena" };
     expect((await guardarEnvio(fd([ajena]))).ok).toBe(false);
+    const r = await guardarEnvio(fd([obra(1), ajena]));
+    expect(r.ok).toBe(false);
     expect(db.$transaction).not.toHaveBeenCalled();
   });
   it("dos guardados a la vez: el segundo recibe un aviso claro", async () => {
@@ -108,6 +131,11 @@ describe("retirarEnvio", () => {
   it("marca el envío propio como retirado", async () => {
     expect((await retirarEnvio("c1")).ok).toBe(true);
     expect(db.culturalCallSubmission.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { callId: "c1", userId: 7, status: "ACTIVE" } }));
+  });
+  it("si se cerró justo antes de retirar, no retira", async () => {
+    db.$queryRaw.mockResolvedValue([{ status: "CLOSED", opensAt: conv.opensAt, closesAt: conv.closesAt }]);
+    expect((await retirarEnvio("c1")).ok).toBe(false);
+    expect(db.culturalCallSubmission.updateMany).not.toHaveBeenCalled();
   });
   it("después del cierre no se retira", async () => {
     db.culturalCall.findUnique.mockResolvedValue({ ...conv, status: "CLOSED" });

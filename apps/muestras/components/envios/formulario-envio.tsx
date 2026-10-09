@@ -50,7 +50,7 @@ export function FormularioEnvio({ callId, maxObras, bases, derechos, retirable, 
           const r = await guardarEnvio(fd);
           if (!r.ok) return setErrores(r.errores);
           setErrores([]);
-          setListo("¡Listo! Recibimos tu envío. Te mandamos un mail de confirmación.");
+          setListo("¡Listo! Recibimos tu envío. Podés verlo en Mis envíos.");
           router.refresh();
         });
       }}

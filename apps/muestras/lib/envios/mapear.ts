@@ -2,7 +2,7 @@ import { CALL_TEXT_LIMITS } from "@repo/muestras";
 import { baseImagenesPublicas } from "@/lib/actividades/mapear";
 
 export type ObraEnviada = { imageUrl: string; title: string; year: number | null; technique: string | null; statement: string | null };
-export type EnvioForm = { callId: string; authorName: string; basesAccepted: boolean; rightsAccepted: boolean; works: ObraEnviada[] };
+export type EnvioForm = { callId: string; authorName: string; basesAccepted: boolean; rightsAccepted: boolean; works: ObraEnviada[]; descartadas: number };
 
 /**
  * Sólo imágenes que subió esta misma persona por nuestra ruta de subida, que las procesa (saca
@@ -19,11 +19,12 @@ export function esImagenDeUsuario(url: string, base: string | null, userId: numb
 const corto = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max).trim();
 const anioActual = () => new Date().getUTCFullYear();
 
-function obras(raw: string, base: string | null, userId: number): ObraEnviada[] {
+/** Las obras válidas y cuántas de las mandadas se descartaron (imagen ajena, sin procesar, o de más). */
+function obras(raw: string, base: string | null, userId: number): { works: ObraEnviada[]; descartadas: number } {
   try {
     const arr: unknown = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr.slice(0, 20).flatMap((o) => {
+    if (!Array.isArray(arr)) return { works: [], descartadas: 0 };
+    const works = arr.slice(0, 20).flatMap((o) => {
       if (!o || typeof o !== "object") return [];
       const r = o as Record<string, unknown>;
       if (typeof r.imageUrl !== "string" || !esImagenDeUsuario(r.imageUrl, base, userId)) return [];
@@ -36,17 +37,20 @@ function obras(raw: string, base: string | null, userId: number): ObraEnviada[] 
         statement: corto(r.statement, CALL_TEXT_LIMITS.statement) || null,
       }];
     });
+    return { works, descartadas: arr.length - works.length };
   } catch {
-    return [];
+    return { works: [], descartadas: 0 };
   }
 }
 
 export function envioDesdeFormData(fd: FormData, userId: number, baseImagenes: string | null = baseImagenesPublicas()): EnvioForm {
+  const { works, descartadas } = obras(String(fd.get("works") ?? "[]"), baseImagenes, userId);
   return {
     callId: corto(fd.get("callId"), 40),
     authorName: corto(fd.get("authorName"), CALL_TEXT_LIMITS.authorName),
     basesAccepted: fd.get("basesAccepted") === "on",
     rightsAccepted: fd.get("rightsAccepted") === "on",
-    works: obras(String(fd.get("works") ?? "[]"), baseImagenes, userId),
+    works,
+    descartadas,
   };
 }

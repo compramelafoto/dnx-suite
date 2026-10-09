@@ -28,6 +28,21 @@ function convocatoria(callId: string) {
 const recibe = (c: NonNullable<Awaited<ReturnType<typeof convocatoria>>>) =>
   c.activity.reviewStatus === "APPROVED" && acceptsSubmissions(callPhase(c, new Date()));
 
+const CERRADA = Symbol("convocatoria cerrada");
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * Vuelve a leer el estado de la convocatoria con bloqueo compartido (FOR SHARE) dentro de la
+ * transacción: si en ese instante la están cerrando, el cierre espera a este guardado o este
+ * guardado ve el cierre. Sin esto, un envío podía colarse después de cerrar.
+ */
+async function exigirQueRecibe(tx: Tx, c: { id: string; opensAt: Date; closesAt: Date }) {
+  const filas = await tx.$queryRaw<{ status: string; opensAt: Date; closesAt: Date }[]>`
+    SELECT status, "opensAt", "closesAt" FROM "CulturalCall" WHERE id = ${c.id} FOR SHARE`;
+  const f = filas[0];
+  if (!f || !acceptsSubmissions(callPhase(f, new Date()))) throw CERRADA;
+}
+
 /** Crea o reemplaza el envío propio mientras la convocatoria recibe obras. */
 export async function guardarEnvio(fd: FormData): Promise<ResultadoAccion> {
   if (!(fd instanceof FormData)) return NO_EXISTE;
@@ -44,6 +59,7 @@ export async function guardarEnvio(fd: FormData): Promise<ResultadoAccion> {
   const conflicto = submitterConflict({ isOwner: c.activity.proposedByUserId === usuario.id, isCurator: !!curador });
   if (conflicto) return { ok: false, errores: [conflicto] };
   const problemas = submissionProblems(e, c.maxWorksPerPerson);
+  if (e.descartadas > 0) problemas.push("Alguna imagen no es válida o no la subiste vos desde acá. Quitala y subila de nuevo.");
   if (new Set(e.works.map((w) => w.imageUrl)).size !== e.works.length) problemas.push("Hay una imagen repetida: cada obra tiene que ser distinta.");
   if (problemas.length) return { ok: false, errores: problemas };
   if (!frenarPorUsuario("guardarEnvio", usuario.id).allowed) {
@@ -55,13 +71,17 @@ export async function guardarEnvio(fd: FormData): Promise<ResultadoAccion> {
   let id: string;
   try {
     id = await prisma.$transaction(async (tx) => {
+      await exigirQueRecibe(tx, c);
       const previo = await tx.culturalCallSubmission.findUnique({ where: { callId_userId: { callId: c.id, userId: usuario.id } }, select: { id: true } });
       if (previo) {
+        // Dos pestañas sobre el mismo envío: la segunda espera a la primera y recién ahí reemplaza.
+        await tx.$queryRaw`SELECT id FROM "CulturalCallSubmission" WHERE id = ${previo.id} FOR UPDATE`;
         await tx.culturalCallWork.deleteMany({ where: { submissionId: previo.id } });
         await tx.culturalCallSubmission.update({
           where: { id: previo.id },
-          data: { authorName: e.authorName, status: "ACTIVE", withdrawnAt: null, basesAcceptedAt: ahora, rightsAcceptedAt: ahora, works: { create: obras } },
+          data: { authorName: e.authorName, status: "ACTIVE", withdrawnAt: null, basesAcceptedAt: ahora, rightsAcceptedAt: ahora },
         });
+        await tx.culturalCallWork.createMany({ data: obras.map((o) => ({ ...o, submissionId: previo.id })) });
         return previo.id;
       }
       const nuevo = await tx.culturalCallSubmission.create({
@@ -71,7 +91,8 @@ export async function guardarEnvio(fd: FormData): Promise<ResultadoAccion> {
       return nuevo.id;
     });
   } catch (err) {
-    // Dos pestañas guardando a la vez: la segunda choca con el único (convocatoria, persona).
+    if (err === CERRADA) return NO_RECIBE;
+    // Dos pestañas creando a la vez: la segunda choca con el único (convocatoria, persona).
     if (typeof err === "object" && err && (err as { code?: string }).code === "P2002") {
       return { ok: false, errores: ["Tu envío se estaba guardando desde otra pestaña. Recargá la página y revisalo."] };
     }
@@ -90,10 +111,20 @@ export async function retirarEnvio(callId: string): Promise<ResultadoAccion> {
   const c = await convocatoria(callId);
   if (!c) return NO_EXISTE;
   if (!recibe(c)) return NO_RECIBE;
-  const { count } = await prisma.culturalCallSubmission.updateMany({
-    where: { callId, userId: usuario.id, status: "ACTIVE" },
-    data: { status: "WITHDRAWN", withdrawnAt: new Date() },
-  });
+  let count: number;
+  try {
+    count = await prisma.$transaction(async (tx) => {
+      await exigirQueRecibe(tx, c);
+      const r = await tx.culturalCallSubmission.updateMany({
+        where: { callId, userId: usuario.id, status: "ACTIVE" },
+        data: { status: "WITHDRAWN", withdrawnAt: new Date() },
+      });
+      return r.count;
+    });
+  } catch (err) {
+    if (err === CERRADA) return NO_RECIBE;
+    throw err;
+  }
   if (count === 0) return { ok: false, errores: ["No tenés un envío activo en esta convocatoria."] };
   revalidatePath("/panel/envios");
   return { ok: true, id: callId };
