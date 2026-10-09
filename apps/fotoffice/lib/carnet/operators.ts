@@ -1,13 +1,27 @@
 import { prisma } from "@repo/db";
-import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { hasModuleAction, hasModuleLevel } from "@/lib/permissions/module-access";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { COMMUNICATIONS_CARNETS_ACTION } from "@/lib/permissions/actions";
 import type { FulfillmentCapability } from "./fulfillment";
+
+/**
+ * Quién administra los carnets: emite, descarga el PDF, entrega y reparte los permisos de carnets.
+ *
+ * Dos caminos: gestionar Socios (`members` MANAGE: responde por el padrón) o tener en Comunicación
+ * la acción `communications.carnets` — así un rol de Comunicación opera los carnets sin poder dar
+ * altas, editar fichas ni tocar cuotas.
+ */
+export async function canAdministerCards(userId: number, workspaceId: string): Promise<boolean> {
+  if (await hasModuleLevel(userId, workspaceId, MEMBERS_MODULE_KEY, "MANAGE")) return true;
+  return hasModuleAction(userId, workspaceId, COMMUNICATIONS_MODULE_KEY, COMMUNICATIONS_CARNETS_ACTION);
+}
 
 /**
  * Qué puede hacer una persona con los carnets de un workspace.
  *
- * Quien gestiona Socios (`members` MANAGE: dueño, admin o un rol que lo dé) puede todo sin
- * figurar en ninguna tabla: responde por el padrón. Los permisos otorgados existen para el caso
+ * Quien administra carnets (`canAdministerCards`: gestiona Socios o tiene la acción de carnets en
+ * Comunicación) puede todo sin figurar en ninguna tabla. Los permisos otorgados existen para el caso
  * que motivó esto — el impresor entra al sistema, marca los carnets como impresos, y nada más.
  *
  * Ya no se lee la tabla legacy `Membership`: el nivel sale de `WorkspaceMembership` y de los
@@ -18,7 +32,7 @@ export async function resolveCardCapabilities(
   workspaceId: string,
 ): Promise<FulfillmentCapability[]> {
   const [gestiona, grant] = await Promise.all([
-    hasModuleLevel(userId, workspaceId, MEMBERS_MODULE_KEY, "MANAGE"),
+    canAdministerCards(userId, workspaceId),
     prisma.memberCardOperator.findUnique({
       where: { workspaceId_userId: { workspaceId, userId } },
       select: { canProduce: true, canDeliver: true },
