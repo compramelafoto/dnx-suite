@@ -1,0 +1,26 @@
+[
+  {
+    "archivo": "01-agenda.png",
+    "ruta": "/reservas?vista=semana",
+    "que_mostrar": "La agenda en vista Semana en pantalla de escritorio (ancho ≥ 1024 px para que se vea el panel izquierdo), con al menos dos espacios de colores distintos, alguna reserva confirmada y alguna pendiente (borde punteado) para que aparezca el aviso amarillo de pendientes.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-cargar-reserva.png",
+    "ruta": "/reservas/nueva",
+    "que_mostrar": "El formulario Cargar reserva completo con datos de ejemplo (espacio elegido, horario de 2 horas, nombre ficticio, Quién reserva = Socio), sin enviar.",
+    "selector_recorte": "form"
+  },
+  {
+    "archivo": "03-ficha-reserva.png",
+    "ruta": "/reservas?vista=semana",
+    "que_mostrar": "Tocar una reserva Confirmada para abrir su ficha. Debe verse la ficha con Espacio, Quién, Estado, Total y el botón Cancelar reserva. Usar un nombre ficticio.",
+    "selector_recorte": "[role=dialog]"
+  },
+  {
+    "archivo": "04-aprobar.png",
+    "ruta": "/reservas?vista=semana",
+    "que_mostrar": "Tocar una reserva en estado A aprobar (idealmente con un extra a confirmar) para que se vean el botón Aprobar, la casilla «No se pudo conseguir» y el campo Motivo del rechazo con el botón Rechazar. No apretar ningún botón.",
+    "selector_recorte": "[role=dialog]"
+  }
+]

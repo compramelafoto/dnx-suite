@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { hasModuleLevel } from "@/lib/permissions/module-access";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { canAdministerCards } from "@/lib/carnet/operators";
 
 export type SetOperatorResult = { ok: true } | { ok: false; error: string };
 
@@ -18,9 +17,9 @@ export async function setCardOperatorAction(formData: FormData): Promise<SetOper
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
 
-  const puede = await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE");
+  const puede = await canAdministerCards(user.id, workspace.id);
   if (!puede) {
-    return { ok: false, error: "Solo el dueño o un administrador puede cambiar estos permisos." };
+    return { ok: false, error: "Solo quien administra los carnets puede cambiar estos permisos." };
   }
 
   const userId = Number(formData.get("userId"));

@@ -1,0 +1,8 @@
+[
+  { "archivo": "01-bienvenidas.png", "ruta": "/comunicacion/placas", "que_mostrar": "Pantalla completa de Bienvenidas con al menos un socio en «Para publicar». Entrar con un usuario que gestione Comunicación.", "selector_recorte": null },
+  { "archivo": "02-ver-placa-y-texto.png", "ruta": "/comunicacion/placas", "que_mostrar": "Abrir «Ver placa y texto» en la primera tarjeta y esperar a que carguen las dos placas. Recortar a esa tarjeta.", "selector_recorte": "li.fo-card:first-of-type" },
+  { "archivo": "03-botones-bienvenida.png", "ruta": "/comunicacion/placas", "que_mostrar": "Fila de botones de la primera tarjeta: «Descargar cuadrada», «Descargar historia», «Copiar texto sugerido», «Marcar como publicada».", "selector_recorte": "li.fo-card:first-of-type .flex.flex-wrap.gap-2" },
+  { "archivo": "04-sumar-a-mano.png", "ruta": "/comunicacion/placas", "que_mostrar": "Recuadro «Sumar una bienvenida a mano» al pie, con el selector de socio visible.", "selector_recorte": "section.fo-card:has(h2)" },
+  { "archivo": "05-socio-de-la-semana.png", "ruta": "/comunicacion/placas/socio-de-la-semana", "que_mostrar": "Pantalla con el socio de la semana actual, sus dos placas cargadas y el texto sugerido.", "selector_recorte": null },
+  { "archivo": "06-le-falta.png", "ruta": "/comunicacion/placas/socio-de-la-semana", "que_mostrar": "Recuadro «A su tarjeta le falta:» con el botón de aviso. Sólo aparece si el socio de la semana tiene el perfil incompleto; si no, omitir la captura.", "selector_recorte": "div.rounded-lg:has(> p.font-medium)" }
+]
