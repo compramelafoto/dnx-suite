@@ -34,10 +34,11 @@ describe("ajustes de contratos", () => {
     expect(A.clausulaVigente(a)).toBe(CLAUSULA_CONSENTIMIENTO_INICIAL);
   });
 
-  it("la cláusula por omisión habla de firma electrónica (Ley 25.506 art. 5, CCyC 286 y 288) y no de firma digital", () => {
+  it("la cláusula por omisión habla de firma electrónica (Ley 25.506 art. 5, CCyC 284, 286 y 1106, sin el 288) y no de firma digital", () => {
     expect(CLAUSULA_CONSENTIMIENTO_INICIAL).toMatch(/firma electrónica/);
     expect(CLAUSULA_CONSENTIMIENTO_INICIAL).toMatch(/artículo 5 de la Ley 25\.506/);
-    expect(CLAUSULA_CONSENTIMIENTO_INICIAL).toMatch(/286 y 288/);
+    expect(CLAUSULA_CONSENTIMIENTO_INICIAL).toMatch(/284, 286 y 1106/);
+    expect(CLAUSULA_CONSENTIMIENTO_INICIAL).not.toMatch(/288/);
     expect(CLAUSULA_CONSENTIMIENTO_INICIAL.toLowerCase()).not.toContain("firma digital");
   });
 
