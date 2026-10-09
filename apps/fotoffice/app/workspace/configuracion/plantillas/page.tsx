@@ -92,6 +92,7 @@ export default async function ConfiguracionPlantillasPage({
     PRESUPUESTO: "Presupuestos",
     PEDIDO: "Pedidos",
     CITA: "Citas",
+    CONTRATO: "Contratos",
   };
   // GENERAL siempre; Clientes, Socios y Consultas sólo con su módulo encendido; Presupuestos, con el suyo.
   const tipos: OpcionTipo[] = [
@@ -118,7 +119,7 @@ export default async function ConfiguracionPlantillasPage({
   const elegida = pestanas.find((p) => p.slug === pedido) ?? pestanas[0]!;
 
   // Campos personalizados activos de cada tipo encendido, para la lista de variables.
-  const campos: CamposPorTipo = { GENERAL: [], CLIENTE: [], SOCIO: [], CONSULTA: [], PRESUPUESTO: [], PEDIDO: [], CITA: [] };
+  const campos: CamposPorTipo = { GENERAL: [], CLIENTE: [], SOCIO: [], CONSULTA: [], PRESUPUESTO: [], PEDIDO: [], CITA: [], CONTRATO: [] };
   const listas = await Promise.all(encendidos.map((t) => listarCampos(workspace.id, t)));
   encendidos.forEach((t, i) => {
     campos[t] = listas[i]!.map((c) => ({ clave: c.key, nombre: c.name }));

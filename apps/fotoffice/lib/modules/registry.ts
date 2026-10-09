@@ -370,6 +370,17 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     route: "/agenda",
     family: "base",
   },
+  {
+    key: "contracts",
+    label: "Contratos",
+    description: "Contratos de los pedidos: se arman con una plantilla, se mandan a firmar por correo y quedan firmados con firma electrónica.",
+    category: "GENERAL",
+    order: 36,
+    status: "AVAILABLE",
+    route: "/contratos",
+    family: "negocio",
+    dependsOn: ["orders"],
+  },
 ] as const;
 
 export function getModuleDefinition(key: string): ModuleDefinition | undefined {

@@ -30,6 +30,8 @@ import { aTarjeta, TarjetaPresupuestos } from "@/components/presupuestos/tarjeta
 import { aTarjetaPedido, TarjetaPedidos } from "@/components/pedidos/tarjeta-pedidos";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { listarPedidos } from "@/lib/pedidos/pedidos";
+import { TarjetaContratos } from "@/components/contratos/tarjeta-contratos";
+import { contratosParaTarjeta } from "@/lib/contratos/tarjetas";
 import { TarjetaProyectos } from "@/components/proyectos/tarjeta-proyectos";
 import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
@@ -112,6 +114,11 @@ export default async function ClientePage({
           { clientId: cliente.id },
         )
       : null;
+  // Tarjeta "Contratos" del contacto: con el módulo encendido y "Ver" en Contratos (si no, null y no se lee nada).
+  const contratos = await contratosParaTarjeta(
+    { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso },
+    { clientId: cliente.id },
+  );
   const perfil = perfiles.get(cliente.id);
   if (!perfil) notFound();
 
@@ -216,6 +223,7 @@ export default async function ClientePage({
               />
             ) : null}
             {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." /> : null}
+            {contratos ? <TarjetaContratos contratos={contratos} vacio="Todavía no tiene contratos." /> : null}
             <DatosFicha titulo="¿Es socio?">
               <p className="text-sm text-[var(--fo-muted)]">
                 {cliente.member ? (

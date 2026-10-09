@@ -271,6 +271,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "contracts",
+    cuadro: "24",
+    nombre: "Contratos",
+    resuelve:
+      "El contrato de cada pedido sale de una plantilla tuya, con los datos de quien contrata, el detalle de lo vendido y el plan de cuotas ya completados. Lo mandás a firmar por correo: cada firmante verifica su identidad con un código y firma con su nombre y su trazo, con firma electrónica (Ley 25.506). Ves quién abrió, quién firmó y quién falta, y al final queda un PDF con las firmas y la constancia de cada una.",
+    pantallas: [
+      "Plantillas de contrato con variables",
+      "Contratantes del pedido",
+      "Envío a firmar por correo",
+      "Firma electrónica con código de verificación",
+      "PDF firmado y bitácora",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",
@@ -299,7 +313,7 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   },
   {
     key: BANDEJA_MODULE_KEY,
-    cuadro: "24",
+    cuadro: "25",
     nombre: "Bandeja de WhatsApp",
     resuelve:
       "Todos los chats de WhatsApp de la institución en una sola bandeja. Ves quién escribió, si lo atiende el bot o una persona del equipo, y respondés desde el panel dentro de la ventana de 24 horas. Cada conversación se vincula a la ficha del cliente.",

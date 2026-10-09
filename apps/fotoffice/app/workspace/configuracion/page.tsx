@@ -17,6 +17,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
+import { CONTRACTS_MODULE_KEY } from "@/lib/contratos/acceso";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -55,6 +56,8 @@ export default async function WorkspaceSettingsPage() {
   const pedidosVisible =
     (await isModuleEnabledForWorkspace(ensured.workspaceId, QUOTES_MODULE_KEY)) ||
     (await isModuleEnabledForWorkspace(ensured.workspaceId, ORDERS_MODULE_KEY));
+  // Configuración → Contratos: sólo con el módulo encendido (como en el menú).
+  const contratosVisible = await isModuleEnabledForWorkspace(ensured.workspaceId, CONTRACTS_MODULE_KEY);
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -228,6 +231,21 @@ export default async function WorkspaceSettingsPage() {
             <span className="block text-sm font-semibold">Pedidos</span>
             <span className="block text-xs text-[var(--fo-muted)]">
               Recordatorio de cuotas, rubro de ingreso por omisión y checklist de los pedidos.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && contratosVisible ? (
+        <Link
+          href="/workspace/configuracion/contratos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Contratos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Plantillas de contrato, datos de la empresa, consentimiento a la firma electrónica y recordatorios.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>

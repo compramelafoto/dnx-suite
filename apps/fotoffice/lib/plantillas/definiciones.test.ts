@@ -39,6 +39,23 @@ function automatico(workspaceId = "ws-1") {
 
 beforeEach(() => B.vaciar());
 
+describe("tipo CONTRATO", () => {
+  it("las acciones generales no crean ni convierten plantillas en CONTRATO", async () => {
+    expect(await D.crearPlantilla(ADMIN, { canal: "EMAIL", tipo: "CONTRATO", nombre: "X", asunto: "a", cuerpo: "b" })).toEqual({ ok: false, error: M.tipoInvalido });
+    const id = await crear();
+    expect(await D.editarPlantilla(ADMIN, id, { tipo: "CONTRATO" })).toEqual({ ok: false, error: M.tipoInvalido });
+    expect(plantilla(id).entityType).toBe("CLIENTE");
+    expect(plantillas()).toHaveLength(1);
+  });
+
+  it("tampoco edita ni duplica una que ya quedó como CONTRATO", async () => {
+    const id = B.agregar("fotofficeMessageTemplate", { workspaceId: "ws-1", channel: "EMAIL", entityType: "CONTRATO", name: "Rara", subject: "a", body: "b", systemKey: null }).id as string;
+    expect(await D.editarPlantilla(ADMIN, id, { nombre: "Otra" })).toEqual({ ok: false, error: M.tipoInvalido });
+    expect((await D.duplicarPlantilla(ADMIN, id)).ok).toBe(false);
+    expect(plantillas()).toHaveLength(1);
+  });
+});
+
 describe("permiso", () => {
   it("sin `configurar` ninguna escritura toca la base", async () => {
     const id = await crear();

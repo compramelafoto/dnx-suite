@@ -10,8 +10,12 @@ export type Canal = (typeof CANALES)[number];
  * sale al contacto del pedido con las variables comunes más las del pedido (`[pedido_enlace]`, etc.).
  * CITA (etapa 4, Agenda) tampoco es una ficha: es el recordatorio automático de una cita al contacto
  * que participa, con las variables comunes más las de la cita (`[cita_titulo]`, `[cita_fecha]`, etc.).
+ * CONTRATO (etapa 5) tampoco es una ficha: reserva el tipo de los correos automáticos de un contrato (envío,
+ * código, recordatorio y firmado). Los textos de los contratos mismos NO viven acá: están en
+ * `FotofficeContratoPlantilla` (Configuración → Contratos → Plantillas) y usan su propio catálogo de variables
+ * (`lib/contratos/variables.ts`).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -35,9 +39,14 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  * - `RECORDATORIO_CITA`: aviso a los contactos con correo que participan de una cita próxima (etapa 4,
  *   Agenda). Lo manda la tarea horaria `lib/agenda/recordatorios.ts` si la organización encendió el
  *   recordatorio en Configuración → Agenda (apagado por omisión).
+ * - `CONTRATO_ENVIO`, `CONTRATO_CODIGO`, `CONTRATO_RECORDATORIO` y `CONTRATO_FIRMADO` (etapa 5, Contratos):
+ *   los correos del circuito de firma a cada firmante (enlace, código de verificación, recordatorio y
+ *   PDF firmado). Son transaccionales: sin el freno de 24 h por dirección, con el tope diario de
+ *   automáticos. Los manda `lib/contratos/correos.ts`; el del código NO guarda el código en el registro.
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
+  "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
@@ -50,6 +59,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   PRESUPUESTO: "Presupuesto",
   PEDIDO: "Pedido",
   CITA: "Cita",
+  CONTRATO: "Contrato",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

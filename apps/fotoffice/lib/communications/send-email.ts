@@ -37,6 +37,11 @@ export type OutboundEmail = {
   sender?: WorkspaceSender | null;
   /** Cabeceras extra, p. ej. `List-Unsubscribe` en los envíos a muchos socios. */
   headers?: Record<string, string>;
+  /**
+   * Archivos adjuntos (opcional). Resend los recibe en base64. Sólo los usa el PDF del contrato firmado
+   * (etapa 5): un solo archivo chico. Resend admite hasta 40 MB entre todos.
+   */
+  attachments?: { filename: string; content: Uint8Array; contentType?: string }[];
 };
 
 /** Cuánto se espera a Resend antes de cortar el pedido. */
@@ -54,6 +59,13 @@ function providerPayload(message: OutboundEmail, envFrom: string) {
   if (message.replyTo) payload.reply_to = message.replyTo;
   else if (message.sender?.replyTo) payload.reply_to = [message.sender.replyTo];
   if (message.headers && Object.keys(message.headers).length > 0) payload.headers = message.headers;
+  if (message.attachments && message.attachments.length > 0) {
+    payload.attachments = message.attachments.map((a) => ({
+      filename: a.filename,
+      content: Buffer.from(a.content).toString("base64"),
+      ...(a.contentType ? { content_type: a.contentType } : {}),
+    }));
+  }
   return payload;
 }
 
