@@ -13,6 +13,7 @@ Procedimiento manual, sin staging: el SQL va directo a la base de producción de
 |---|---|
 | Migración | `20261028120000_fotoffice_etapa_6_informes` |
 | Archivo | `packages/db/prisma/migrations/20261028120000_fotoffice_etapa_6_informes/migration.sql` |
+| Checksum (sha256) | `adf49660990bf5a537d7e7a1d2c1d489a12c945a6304ec17522217578d274fe2` |
 | Qué hace | Crea `FotofficeInformesAjustes` (una fila por workspace) con cuatro CHECK. No toca tablas existentes, no borra ni actualiza filas. |
 
 ## Aplicar
