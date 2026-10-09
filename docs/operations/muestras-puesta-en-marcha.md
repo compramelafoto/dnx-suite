@@ -55,6 +55,21 @@ Cargarlas en el proyecto `muestras-dnxsuite`, entorno **Production**:
 | `R2_PUBLIC_URL` | `https://pub-2086bd02202c406a9b952f2dbfa945c9.r2.dev` |
 | `GEOCODING_USER_AGENT` | `MuestrasFotograficas/1.0 (muestrasfotograficas.com)` |
 | `MUESTRAS_CORREOS_EN_VIVO` | `false` (por ahora) |
+| `MUESTRAS_CONTACTO_EMAIL` | La casilla para pedidos de baja de datos (se muestra en `/privacidad`). Opcional: si falta, la página dice que se puede pedir respondiendo cualquier correo de Muestras o contactando a la organización que opera DNX Suite |
+
+**No cargar estas dos**, aunque estén en otros proyectos de la suite:
+
+- `COOKIE_DOMAIN`: FOTOFFICE usa `.dnxsuite.com`. Si se copia acá, el navegador descarta la
+  cookie de sesión en `muestrasfotograficas.com` (no es de ese dominio) y nadie puede entrar.
+  Sin la variable, la cookie queda atada al dominio del sitio, que es lo correcto.
+- `GOOGLE_REDIRECT_URI`: si se copia la de otro proyecto, Google devuelve a la persona a esa otra
+  plataforma después de elegir la cuenta. Sin la variable, el sitio arma solo
+  `https://muestrasfotograficas.com/api/auth/google/callback` a partir de `APP_URL`.
+
+**Después de cambiar variables hay que volver a desplegar**: Vercel no las aplica a un deploy que
+ya existe. Ojo: el `ignoreCommand` de `apps/muestras/vercel.json` puede saltear el redeploy de un
+commit que ya se construyó. En ese caso, desde el panel de Vercel usar **Redeploy** con
+"Use existing Build Cache" **apagado**, o subir un commit que toque algo de `apps/muestras`.
 
 Más adelante, cuando el dominio esté verificado en Resend (paso 7): `RESEND_API_KEY`
 (marcarla como sensible) y `MUESTRAS_EMAIL_FROM`.

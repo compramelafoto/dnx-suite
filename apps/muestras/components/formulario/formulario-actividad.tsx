@@ -48,7 +48,13 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       if (!r.ok) return setErrores(r.errores);
       if (enviar) {
         const e = await enviarARevision(r.id);
-        if (!e.ok) { setErrores(e.errores); router.replace(`/mis-muestras/${r.id}`); return; }
+        if (!e.ok) {
+          if (inicial) { setErrores(e.errores); router.refresh(); return; }
+          // Borrador nuevo: hay que ir a su página para que lo próximo edite el mismo y no cree
+          // otro. Los faltantes viajan en la URL porque el cambio de página borra este estado.
+          router.replace(`/mis-muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
+          return;
+        }
       }
       router.push(enviar ? "/mis-muestras?enviada=1" : `/mis-muestras/${r.id}`);
     });

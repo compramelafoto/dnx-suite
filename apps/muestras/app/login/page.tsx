@@ -21,9 +21,8 @@ type Props = { searchParams: Promise<{ error?: string; next?: string }> };
 export default async function Login({ searchParams }: Props) {
   const { error, next } = await searchParams;
 
-  // Quien ya tiene la sesión abierta no tiene nada que hacer acá. La portada
-  // muestra «Ingresar» a todo el mundo para poder servirse estática, así que
-  // este desvío es lo que hace que ese botón no sea un callejón sin salida.
+  // Quien ya tiene la sesión abierta no tiene nada que hacer acá: si llega por
+  // un enlace viejo o con la pestaña desactualizada, se lo manda a destino.
   const token = (await cookies()).get(DNX_SESSION_COOKIE)?.value;
   if (token && (await getSessionUserByRawToken(token))) {
     redirect(rutaInternaSegura(next) ?? "/mis-muestras");

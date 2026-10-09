@@ -8,8 +8,21 @@ import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditarActividad({ params }: { params: Promise<{ id: string }> }) {
+/** Los faltantes que dejó un "Enviar a revisión" fallido al crear el borrador. Sólo se muestran. */
+function faltantes(raw: string | string[] | undefined): string[] {
+  if (typeof raw !== "string" || !raw) return [];
+  return raw.split("|").map((m) => m.trim().slice(0, 300)).filter(Boolean).slice(0, 20);
+}
+
+export default async function EditarActividad({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ faltan?: string | string[] }>;
+}) {
   const { id } = await params;
+  const faltan = faltantes((await searchParams).faltan);
   const usuario = await requireUsuario(`/mis-muestras/${id}`);
   const a = await buscarPropia(id, usuario);
   if (!a) notFound();
@@ -28,6 +41,12 @@ export default async function EditarActividad({ params }: { params: Promise<{ id
         </>
       ) : null}
       {estado === "IN_REVIEW" ? <p className="text-[var(--mf-muted)]">Está en revisión. No se puede editar hasta que la revisemos.</p> : null}
+      {faltan.length && editable ? (
+        <div role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+          <p className="font-medium">Guardamos el borrador, pero todavía no se puede enviar a revisión:</p>
+          <ul className="list-disc pl-5">{faltan.map((m) => <li key={m}>{m}</li>)}</ul>
+        </div>
+      ) : null}
       {editable ? <FormularioActividad inicial={a} /> : null}
     </main>
   );

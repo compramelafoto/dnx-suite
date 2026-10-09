@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
+import { Encabezado } from "@/components/encabezado/encabezado";
 import "./globals.css";
 
 const texto = Inter({ subsets: ["latin"], variable: "--mf-font" });
@@ -19,7 +20,10 @@ export const viewport: Viewport = { themeColor: "#f6f4ef" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <Encabezado />
+        {children}
+      </body>
     </html>
   );
 }
