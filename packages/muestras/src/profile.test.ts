@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import {
   freeProfileSlug, normalizeInstagram, normalizeProfileSlug, normalizeWebsite, profileSlugBase, profileSlugProblem,
-  allowedAuthorProfileId, profileWorksInActivity, resolveAuthorProfileId, sameName,
+  allowedAuthorProfileId, countsForPublicProfile, profileWorksInActivity, resolveAuthorProfileId, sameName,
 } from "./profile";
 
 describe("slug del perfil", () => {
@@ -120,5 +120,13 @@ describe("qué perfil puede quedar vinculado según el estado de la muestra", ()
   });
   it("sin perfil propio, un pedido igual a null no es el del dueño", () => {
     expect(allowedAuthorProfileId({ ...base, previous: null, ownerProfileId: null, status: "APPROVED", requested: "p-otro" })).toEqual({ id: null, blocked: true });
+  });
+});
+
+describe("qué cuenta para el perfil público", () => {
+  it("sólo una muestra publicada", () => {
+    expect(countsForPublicProfile({ reviewStatus: "APPROVED", type: "MUESTRA" })).toBe(true);
+    expect(countsForPublicProfile({ reviewStatus: "APPROVED", type: "CHARLA" })).toBe(false);
+    expect(countsForPublicProfile({ reviewStatus: "IN_REVIEW", type: "MUESTRA" })).toBe(false);
   });
 });

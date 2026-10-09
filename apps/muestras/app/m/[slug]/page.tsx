@@ -26,7 +26,10 @@ export default async function Ficha({ params }: Props) {
   if (!a) notFound();
   const ahora = new Date();
   const { works: todas, isPartial } = visibleWorks(a, a.works, ahora);
-  const works = todas.filter((w) => esUrlWeb(w.imageUrl));
+  // Al cliente viaja sólo lo que muestra la galería: ni ids de usuario o de perfil ni fechas.
+  const works = todas
+    .filter((w) => esUrlWeb(w.imageUrl))
+    .map(({ id, imageUrl, title, authorName, year, technique }) => ({ id, imageUrl, title, authorName, year, technique }));
   const mapa = a.latitude != null && a.longitude != null
     ? `https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`
     : null;

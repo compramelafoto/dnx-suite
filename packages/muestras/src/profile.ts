@@ -122,6 +122,14 @@ export function allowedAuthorProfileId(p: {
   return { id: p.previous, blocked: true };
 }
 
+/**
+ * Una muestra cuenta para el perfil público sólo si está publicada y es una muestra: es el mismo
+ * filtro que usan `/fotografos` y la página del perfil.
+ */
+export function countsForPublicProfile(a: { reviewStatus: string; type: string }): boolean {
+  return a.reviewStatus === "APPROVED" && a.type === "MUESTRA";
+}
+
 /** Aviso que recibe quien intenta sumar el perfil de otra persona a una muestra publicada. */
 export const AVISO_PERFIL_EN_PUBLICADA =
   "Para sumar autores con perfil a una muestra publicada, escribinos. Las obras quedaron con el autor que tenían.";

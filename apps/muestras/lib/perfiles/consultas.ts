@@ -11,7 +11,7 @@ export function buscarPerfilPropio(userId: number) {
 export function obrasVinculadas(profileId: string) {
   return prisma.culturalActivityWork.findMany({
     where: { authorProfileId: profileId },
-    select: { id: true, title: true, imageUrl: true, activity: { select: { title: true, slug: true, reviewStatus: true } } },
+    select: { id: true, title: true, imageUrl: true, activity: { select: { title: true, slug: true, reviewStatus: true, type: true } } },
     orderBy: { createdAt: "desc" },
     take: 200,
   });

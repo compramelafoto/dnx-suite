@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { countsForPublicProfile } from "@repo/muestras";
 import { FormularioPerfil } from "@/components/perfil/formulario-perfil";
 import { ObrasVinculadas } from "@/components/perfil/obras-vinculadas";
 import { buscarPerfilPropio, obrasVinculadas } from "@/lib/perfiles/consultas";
@@ -12,7 +13,8 @@ export default async function MiPerfil() {
   const usuario = await requireUsuario("/panel/perfil");
   const perfil = await buscarPerfilPropio(usuario.id);
   const obras = perfil ? await obrasVinculadas(perfil.id) : [];
-  const publicado = obras.some((o) => o.activity.reviewStatus === "APPROVED");
+  // Mismo criterio que el perfil público: sólo cuentan las muestras publicadas.
+  const publicado = obras.some((o) => countsForPublicProfile(o.activity));
   return (
     <main className="max-w-3xl space-y-12">
       <header className="space-y-3">
