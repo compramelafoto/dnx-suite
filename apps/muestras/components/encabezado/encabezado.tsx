@@ -7,7 +7,7 @@ const enlace = "whitespace-nowrap px-1.5 py-1.5 underline-offset-[6px] hover:und
 
 /**
  * Encabezado común a todas las páginas. Lee la sesión, así que vuelve dinámicas las páginas
- * que lo usan: es el precio de mostrar "Mis muestras" y "Salir" a quien entró.
+ * que lo usan: es el precio de mostrar "Mi panel" y "Salir" a quien entró.
  */
 export async function Encabezado() {
   const usuario = await getUsuario();
@@ -29,11 +29,12 @@ export async function Encabezado() {
               Con la sesión abierta hay más enlaces y en el teléfono también se oculta. */}
           <span className={`mf-titulo whitespace-nowrap text-[17px] tracking-[-0.02em] group-data-[sobre-foto=true]:sr-only ${usuario ? "max-sm:sr-only" : ""}`}>Muestras Fotográficas</span>
         </Link>
+        {/* En el teléfono no entra: queda en el pie. */}
+        <Link href="/fotografos" className={`${enlace} max-sm:hidden`}>Fotógrafos</Link>
         <Link href="/proponer" className={enlace}><span className="sm:hidden">Proponer</span><span className="max-sm:hidden">Proponé tu muestra</span></Link>
         {usuario ? (
           <>
-            <Link href="/mis-muestras" className={enlace}>Mis muestras</Link>
-            {usuario.esSuperAdmin ? <Link href="/admin" className={enlace}>Revisión</Link> : null}
+            <Link href="/panel" className={enlace}>Mi panel</Link>
             <form method="post" action="/api/auth/logout">
               <button type="submit" className={`${enlace} opacity-75`}>Salir</button>
             </form>

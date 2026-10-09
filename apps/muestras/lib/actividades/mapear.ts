@@ -10,6 +10,10 @@ export type ObraForm = {
   year: number | null;
   technique: string | null;
   isHighlight: boolean;
+  /** Perfil público del autor; el servidor verifica que exista. */
+  authorProfileId: string | null;
+  /** Sólo para mostrar en el editor; el servidor no lo lee. */
+  authorProfileName?: string | null;
 };
 
 export type FichaForm = {
@@ -105,6 +109,7 @@ function obras(raw: string, base: string | null): ObraForm[] {
         year: typeof r.year === "number" && Number.isInteger(r.year) ? r.year : null,
         technique: typeof r.technique === "string" ? corto(r.technique, LARGOS.obraTechnique) || null : null,
         isHighlight: r.isHighlight === true,
+        authorProfileId: typeof r.authorProfileId === "string" && /^[a-z0-9]{8,40}$/i.test(r.authorProfileId) ? r.authorProfileId : null,
       }];
     });
   } catch {
@@ -119,7 +124,8 @@ export type OpcionesFicha = {
 
 export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): FichaForm {
   const base = "baseImagenes" in opciones ? opciones.baseImagenes ?? null : baseImagenesPublicas();
-  const virtual = fd.get("isVirtualOnly") === "on";
+  // Una muestra siempre tiene sede: aunque llegue la casilla, para una muestra no cuenta.
+  const virtual = fd.get("isVirtualOnly") === "on" && fd.get("type") !== "MUESTRA";
   const modo = txt(fd, "galleryMode");
   const portada = opt(fd, "coverImageUrl");
   return {

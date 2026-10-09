@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FotoPortada } from "@/lib/portada/fotos";
+import { BuscarCerca } from "./buscar-cerca";
 
 /** Cada cuánto cambia la foto. El fundido dura 1,2 s (`.mf-fundido`). */
 const INTERVALO_MS = 6000;
@@ -58,8 +59,9 @@ export function Banner({ fotos }: { fotos: FotoPortada[] }) {
           <h1 id="titulo-portada" className="mf-nombre text-[clamp(3.6rem,10.5vw,10.5rem)]">
             Muestras<br />Fotográficas
           </h1>
-          <p className="mt-6 max-w-[36ch] text-balance text-lg leading-snug text-white/90 sm:text-xl">Todas las muestras de fotografía del país, en un solo lugar.</p>
-          <div className="mt-7 flex flex-wrap items-center gap-x-7 gap-y-3 text-[15px]">
+          <p className="mt-6 max-w-[36ch] text-balance text-lg leading-snug text-white/90 sm:text-xl">Muestras de fotografía para ver en persona, en todo el país.</p>
+          <BuscarCerca />
+          <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-3 text-[15px]">
             <a href="#muestras" className="inline-flex h-11 items-center border border-white/80 px-5 transition-colors hover:bg-white hover:text-[var(--mf-ink)]">Ver muestras</a>
             <Link href="/proponer" className="underline decoration-white/50 underline-offset-[6px] hover:decoration-white">Proponé la tuya</Link>
           </div>

@@ -22,14 +22,20 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
   const [pendiente, start] = useTransition();
   const [errores, setErrores] = useState<string[]>([]);
   const [tipo, setTipo] = useState(inicial?.type ?? "MUESTRA");
-  const [virtual, setVirtual] = useState(inicial?.isVirtualOnly ?? false);
+  const [soloOnline, setSoloOnline] = useState(inicial?.isVirtualOnly ?? false);
+  // Una muestra se visita en persona: para ella no existe "sólo online" (ver MUESTRA_NEEDS_VENUE).
+  const esMuestra = tipo === "MUESTRA";
+  const sinLugar = !esMuestra && soloOnline;
   const [portada, setPortada] = useState<string | null>(inicial?.coverImageUrl ?? null);
   const [lugar, setLugar] = useState({
     address: inicial?.address ?? "", city: inicial?.city ?? "", province: inicial?.province ?? "",
     latitude: inicial?.latitude ?? null as number | null, longitude: inicial?.longitude ?? null as number | null,
   });
   const [obras, setObras] = useState<ObraForm[]>(
-    (inicial?.works ?? []).map((w) => ({ id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique, isHighlight: w.isHighlight })),
+    (inicial?.works ?? []).map((w) => ({
+      id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique,
+      isHighlight: w.isHighlight, authorProfileId: w.authorProfileId, authorProfileName: w.authorProfile?.displayName ?? null,
+    })),
   );
 
   function datos(form: HTMLFormElement) {
@@ -52,11 +58,14 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
           if (inicial) { setErrores(e.errores); router.refresh(); return; }
           // Borrador nuevo: hay que ir a su página para que lo próximo edite el mismo y no cree
           // otro. Los faltantes viajan en la URL porque el cambio de página borra este estado.
-          router.replace(`/mis-muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
+          router.replace(`/panel/muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
           return;
         }
       }
-      router.push(enviar ? "/mis-muestras?enviada=1" : `/mis-muestras/${r.id}`);
+      // Un aviso (por ejemplo, un perfil ajeno en una muestra publicada) no frena el guardado:
+      // viaja en la URL porque el cambio de página borra este estado.
+      const aviso = r.avisos?.length ? "?aviso=perfiles" : "";
+      router.push(enviar ? "/panel/muestras?enviada=1" : `/panel/muestras/${r.id}${aviso}`);
     });
   }
 
@@ -93,13 +102,18 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       </fieldset>
 
       <fieldset className="space-y-3">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" name="isVirtualOnly" checked={virtual} onChange={(e) => setVirtual(e.target.checked)} />
-          Es sólo virtual (no tiene sala)
-        </label>
-        {!virtual ? (
+        <legend className="text-lg">{esMuestra ? "Dónde se puede visitar" : "Dónde es"}</legend>
+        {esMuestra ? (
+          <p className="text-sm text-[var(--mf-muted)]">La sala, galería o centro cultural donde se cuelgan las obras. Con la dirección, la muestra aparece en el mapa y la gente sabe cómo llegar.</p>
+        ) : (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="isVirtualOnly" checked={soloOnline} onChange={(e) => setSoloOnline(e.target.checked)} />
+            Es sólo online (no tiene lugar)
+          </label>
+        )}
+        {!sinLugar ? (
           <>
-            <label className="block">Nombre del lugar<input name="venueName" className={campo} defaultValue={inicial?.venueName ?? ""} placeholder="Centro cultural, galería…" /></label>
+            <label className="block">{esMuestra ? "Nombre de la sede" : "Nombre del lugar"}<input name="venueName" className={campo} defaultValue={inicial?.venueName ?? ""} placeholder="Sala, galería, centro cultural…" /></label>
             <BuscadorDireccion onElegir={(l) => setLugar({ address: l.address ?? l.displayName, city: l.city ?? "", province: l.province ?? "", latitude: l.latitude, longitude: l.longitude })} />
             <p className="text-sm text-[var(--mf-muted)]">{lugar.address || "Todavía no elegiste la dirección."} Si el punto quedó corrido, tocá el mapa o arrastrá el pin.</p>
             <MapaDelLugar latitude={lugar.latitude} longitude={lugar.longitude} editable onMover={(lat, lng) => setLugar((p) => ({ ...p, latitude: lat, longitude: lng }))} alto="280px" />
@@ -109,11 +123,12 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
 
       {tipo === "MUESTRA" ? (
         <fieldset className="space-y-3">
-          <legend className="text-lg">Galería virtual</legend>
+          <legend className="text-lg">Obras de la muestra</legend>
+          <p className="text-sm text-[var(--mf-muted)]">Mientras la muestra está abierta, la ficha muestra sólo las destacadas: un anticipo online para invitar a la visita. Cuando cierra, quedan todas como archivo de la muestra.</p>
           <EditorObras obras={obras} onCambio={setObras} />
           <label className="flex items-center gap-2">
             <input type="checkbox" name="galleryMode" value="FULL" defaultChecked={inicial?.galleryMode === "FULL"} />
-            Mostrar la galería completa desde el primer día
+            Mostrar todas las obras online desde el primer día
           </label>
           <label className="flex items-start gap-2">
             <input type="checkbox" name="rightsConfirmed" defaultChecked={inicial?.rightsConfirmedAt != null} />

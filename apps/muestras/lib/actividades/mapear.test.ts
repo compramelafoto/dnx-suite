@@ -40,10 +40,17 @@ describe("fichaDesdeFormData", () => {
     expect(f.rightsConfirmed).toBe(true);
     expect(f.works).toHaveLength(1);
   });
-  it("una actividad sólo virtual descarta el lugar", () => {
-    const f = fichaDesdeFormData(fd({ ...base, isVirtualOnly: "on" }));
+  it("una charla sólo online descarta el lugar", () => {
+    const f = fichaDesdeFormData(fd({ ...base, type: "CHARLA", isVirtualOnly: "on" }));
+    expect(f.isVirtualOnly).toBe(true);
     expect(f.latitude).toBeNull();
     expect(f.address).toBeNull();
+  });
+  it("una muestra nunca queda como sólo online: conserva la sede", () => {
+    const f = fichaDesdeFormData(fd({ ...base, isVirtualOnly: "on" }));
+    expect(f.isVirtualOnly).toBe(false);
+    expect(f.address).toBe("Calle 1");
+    expect(f.latitude).toBeCloseTo(-31.74);
   });
   it("obras mal formadas se ignoran", () => {
     const f = fichaDesdeFormData(fd({ ...base, works: "no es json" }));
@@ -135,5 +142,19 @@ describe("imágenes ajenas", () => {
     } finally {
       if (antes === undefined) delete process.env.R2_PUBLIC_URL; else process.env.R2_PUBLIC_URL = antes;
     }
+  });
+});
+
+describe("perfil del autor en cada obra", () => {
+  it("acepta un id de perfil con forma de id y descarta lo demás", () => {
+    const f = fichaDesdeFormData(fd({
+      ...base,
+      works: JSON.stringify([
+        { imageUrl: `${BASE}/muestras/7/1.webp`, title: "Uno", authorProfileId: "cm1abcdefghijklmnop" },
+        { imageUrl: `${BASE}/muestras/7/2.webp`, title: "Dos", authorProfileId: "'; drop table" },
+        { imageUrl: `${BASE}/muestras/7/3.webp`, title: "Tres" },
+      ]),
+    }));
+    expect(f.works.map((w) => w.authorProfileId)).toEqual(["cm1abcdefghijklmnop", null, null]);
   });
 });

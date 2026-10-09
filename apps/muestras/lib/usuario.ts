@@ -27,7 +27,7 @@ export async function requireUsuario(siguiente: string): Promise<Usuario> {
 }
 
 export async function requireSuperAdmin(): Promise<Usuario> {
-  const u = await requireUsuario("/admin");
-  if (!u.esSuperAdmin) redirect("/");
+  const u = await requireUsuario("/panel/revision");
+  if (!u.esSuperAdmin) redirect("/panel");
   return u;
 }

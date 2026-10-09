@@ -1,0 +1,38 @@
+[
+  {
+    "archivo": "01-login.png",
+    "ruta": "/login",
+    "que_mostrar": "Pantalla de inicio de sesión SIN sesión iniciada (ventana privada). Campos Email y Contraseña vacíos, botón Iniciar sesión y botón Continuar con Google.",
+    "selector_recorte": "main"
+  },
+  {
+    "archivo": "02-elegir-institucion.png",
+    "ruta": "/elegir-perfil",
+    "que_mostrar": "Pantalla ¿A dónde querés entrar? con la tarjeta de SFPR. Sólo aparece si la cuenta está en más de una institución; si la cuenta de captura tiene una sola, redirige: usar una cuenta con SFPR + negocio propio.",
+    "selector_recorte": "main"
+  },
+  {
+    "archivo": "03-selector-rol.png",
+    "ruta": "/workspace",
+    "que_mostrar": "Selector Rol arriba del menú lateral con Socio y Comisión Directiva, Comisión Directiva resaltado. La cuenta debe ser socia de SFPR y además integrar la comisión.",
+    "selector_recorte": "nav[aria-label=\"Rol\"]"
+  },
+  {
+    "archivo": "04-menu-lateral.png",
+    "ruta": "/members",
+    "que_mostrar": "Menú lateral completo con Inicio arriba, la sección Socios desplegada (Padrón resaltado) y las demás secciones plegadas mostrando su cantidad.",
+    "selector_recorte": "aside:has(nav[aria-label=\"Principal\"])"
+  },
+  {
+    "archivo": "05-buscador.png",
+    "ruta": "/workspace",
+    "que_mostrar": "Abrir el buscador (botón Buscar arriba del menú, o Ctrl K / ⌘K) y escribir \"cuotas\" para que se vea la lista de resultados.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "06-instructivos.png",
+    "ruta": "/workspace",
+    "que_mostrar": "Pie del menú lateral con el enlace Instructivos visible (hacer scroll del menú hasta abajo si hace falta).",
+    "selector_recorte": "aside:has(nav[aria-label=\"Principal\"])"
+  }
+]

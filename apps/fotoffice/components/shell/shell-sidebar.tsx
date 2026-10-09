@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
@@ -69,6 +70,16 @@ export function ShellSidebar({
         vocabulary={vocabulary}
         openGroups={openGroups}
       />
+      {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla. */}
+      <div className="mt-8 border-t border-[var(--fo-border)] pt-4">
+        <Link
+          href="/instructivos"
+          className="flex items-center gap-2 rounded-[var(--fo-radius-sm)] px-2 py-2 text-sm text-[var(--fo-muted)] hover:bg-[var(--fo-bg)] hover:text-[var(--fo-text)]"
+        >
+          <BookOpen className="h-4 w-4" aria-hidden />
+          Instructivos
+        </Link>
+      </div>
     </aside>
   );
 }
