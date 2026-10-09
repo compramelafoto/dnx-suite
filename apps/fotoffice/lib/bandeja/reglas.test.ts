@@ -27,8 +27,8 @@ describe("atiendeElBot", () => {
   it("HUMANO sin asignar y pausa vencida: sí", () => {
     expect(atiendeElBot(chat({ estado: "HUMANO", botPausadoHasta: h(-1) }), AHORA)).toBe(true);
   });
-  it("HUMANO sin asignar y sin pausa registrada: cuenta como vencida, atiende el bot", () => {
-    expect(atiendeElBot(chat({ estado: "HUMANO" }), AHORA)).toBe(true);
+  it("HUMANO sin asignar y sin pausa registrada: no atiende el bot (a falla, calla)", () => {
+    expect(atiendeElBot(chat({ estado: "HUMANO" }), AHORA)).toBe(false);
   });
   it("HUMANO asignado nunca vuelve solo, aunque la pausa haya vencido", () => {
     expect(atiendeElBot(chat({ estado: "HUMANO", asignadoUserId: 7, botPausadoHasta: h(-100) }), AHORA)).toBe(false);

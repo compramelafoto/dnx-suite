@@ -29,13 +29,16 @@ const HORA_MS = 3_600_000;
 
 /**
  * §3 "atiendeElBot": true si `estado === BOT`, o si `estado === HUMANO`, sin asignado y con la
- * pausa vencida (o sin pausa). Un chat TOMADO por alguien nunca vuelve solo al bot.
+ * pausa REGISTRADA y vencida. Un chat TOMADO por alguien nunca vuelve solo al bot. Un HUMANO sin
+ * asignado y sin pausa registrada es un dato incompleto: ante la duda NO contesta el bot (a falla,
+ * callar es más seguro que pisar a una persona).
  */
 export function atiendeElBot(chat: EstadoChat, ahora: Date): boolean {
   if (chat.estado === "BOT") return true;
   if (chat.estado !== "HUMANO") return false;
   if (chat.asignadoUserId !== null) return false;
-  return !chat.botPausadoHasta || chat.botPausadoHasta.getTime() <= ahora.getTime();
+  if (!chat.botPausadoHasta) return false;
+  return chat.botPausadoHasta.getTime() <= ahora.getTime();
 }
 
 /**
@@ -67,8 +70,7 @@ const COMANDO_BOT = /^#bot(\s|$)/i;
  * cambiar el asignado. Si el texto empieza con "#bot": vuelve a `BOT`, sin pausa ni asignado, y se
  * registra el SISTEMA "Devuelto al bot desde el celular".
  */
-export function alEco(chat: EstadoChat, ahora: Date, texto: string | null | undefined, pausaBotHoras: number): ResultadoRegla {
-  void chat;
+export function alEco(_chat: EstadoChat, ahora: Date, texto: string | null | undefined, pausaBotHoras: number): ResultadoRegla {
   if (texto && COMANDO_BOT.test(texto.trim())) {
     return {
       parche: { estado: "BOT", botPausadoHasta: null, asignadoUserId: null },
@@ -79,8 +81,7 @@ export function alEco(chat: EstadoChat, ahora: Date, texto: string | null | unde
 }
 
 /** §3 "Tomar (panel)": `HUMANO`, asignado a quien toma, sin pausa. `nombre` es la etiqueta del usuario. */
-export function alTomar(chat: EstadoChat, userId: number, nombre: string): ResultadoRegla {
-  void chat;
+export function alTomar(_chat: EstadoChat, userId: number, nombre: string): ResultadoRegla {
   return {
     parche: { estado: "HUMANO", asignadoUserId: userId, botPausadoHasta: null },
     sistema: { texto: `${nombre} tomó el chat` },
@@ -88,8 +89,7 @@ export function alTomar(chat: EstadoChat, userId: number, nombre: string): Resul
 }
 
 /** §3 "Devolver al bot": `BOT`, sin asignado (y sin pausa pendiente). */
-export function alDevolver(userId: number, nombre: string): ResultadoRegla {
-  void userId;
+export function alDevolver(_userId: number, nombre: string): ResultadoRegla {
   return {
     parche: { estado: "BOT", asignadoUserId: null, botPausadoHasta: null },
     sistema: { texto: `${nombre} devolvió el chat al bot` },
@@ -97,8 +97,7 @@ export function alDevolver(userId: number, nombre: string): ResultadoRegla {
 }
 
 /** §3 "Resolver": `RESUELTO`. */
-export function alResolver(userId: number, nombre: string): ResultadoRegla {
-  void userId;
+export function alResolver(_userId: number, nombre: string): ResultadoRegla {
   return { parche: { estado: "RESUELTO" }, sistema: { texto: `${nombre} marcó el chat como resuelto` } };
 }
 

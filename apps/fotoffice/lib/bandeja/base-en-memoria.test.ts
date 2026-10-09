@@ -3,7 +3,7 @@ import { crearBaseEnMemoria } from "@/lib/circuitos/base-en-memoria";
 
 describe("base en memoria: tablas de la Bandeja", () => {
   it("aplica los defaults y los únicos de la migración", async () => {
-    const { prisma } = crearBaseEnMemoria();
+    const prisma = crearBaseEnMemoria().prisma as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     const chat = await prisma.fotofficeWaChat.create({ data: { workspaceId: "w1", waId: "5493413419869", ultimoMensajeEn: new Date() } });
     expect(chat).toMatchObject({ estado: "BOT", noLeidos: 0, asignadoUserId: null, clientId: null });
     await expect(
@@ -22,7 +22,7 @@ describe("base en memoria: tablas de la Bandeja", () => {
   });
 
   it("la conexión es una por workspace y el phoneNumberId sólo choca con valor", async () => {
-    const { prisma } = crearBaseEnMemoria();
+    const prisma = crearBaseEnMemoria().prisma as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     const c = await prisma.fotofficeWaConexion.create({ data: { workspaceId: "w1" } });
     expect(c).toMatchObject({ modo: "SIMULADO", pausaBotHoras: 4 });
     await expect(prisma.fotofficeWaConexion.create({ data: { workspaceId: "w1" } })).rejects.toMatchObject({ code: "P2002" });
