@@ -168,7 +168,15 @@ const nextConfig: NextConfig = {
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
   // Mismo criterio que apps/clickaton, que consume el mismo paquete.
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    /*
+     * En Vercel, sin caché persistente de webpack. El 09/10/2026 todo build que restauraba el caché
+     * de un deploy anterior moría por memoria (SIGKILL) o tardaba 42 min; los mismos commits sin
+     * caché compilaban en 2 a 4 min. Cargar el caché cuesta más memoria que compilar de cero.
+     * En local el caché sigue (sin `VERCEL`).
+     */
+    if (!dev && process.env.VERCEL) config.cache = false;
+
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
