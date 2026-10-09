@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  anonymousCodes, assemblyPlan, canDecide, canScore, canSeeIdentity, canViewCallImage, curatorOrder, curatorProgress,
+  OBRA_QUITADA_DE_LA_GALERIA, anonymousCodes, assemblyPlan, editorGalleryPlan, needsAssembly, canDecide, canScore, canSeeIdentity, canViewCallImage, curatorOrder, curatorProgress,
   filterForCurator, filterRanking, invitationState, isValidScore, leakedFields, normalizeEmail, rankWorks, selectionRoom,
   stableHash, toCuratorView, type AssemblySource,
 } from "./curation";
@@ -151,7 +151,36 @@ describe("armar la muestra", () => {
     const sel = Array.from({ length: 11 }, (_, i) => src(i));
     const msg = assemblyPlan(sel, { count: 30, highlights: 0 }).problems[0];
     expect(msg).toMatch(/hasta 40 obras: ya tiene 30 y seleccionaste 11/);
-    expect(msg).toMatch(/sacá obras de la galería desde el editor/);
+    expect(msg).toMatch(/quitá obras elegidas desde el editor \(no se vuelven a agregar\)/);
   });
   it("sin seleccionadas no arma nada", () => expect(assemblyPlan([], { count: 0, highlights: 0 }).problems).toEqual(["No hay obras seleccionadas."]));
+});
+
+describe("obras quitadas de la galería", () => {
+  const galeria = new Set(["aw-1"]);
+  it("se copian las nunca copiadas y las que se borraron por otro camino", () => {
+    expect(needsAssembly(null, galeria)).toBe(true);
+    expect(needsAssembly("aw-borrada", galeria)).toBe(true);
+    expect(needsAssembly("aw-1", galeria)).toBe(false);
+  });
+  it("una quitada a propósito no se vuelve a copiar", () => expect(needsAssembly(OBRA_QUITADA_DE_LA_GALERIA, galeria)).toBe(false));
+});
+
+describe("lo que el editor hace con la galería", () => {
+  const fila = (id: string, sortOrder: number, isHighlight = false) => ({ id, sortOrder, isHighlight });
+  it("quita sólo lo que cargó y ya no manda; conserva lo que no vio, después de lo enviado", () => {
+    const r = editorGalleryPlan({
+      current: [fila("a", 0), fila("b", 1), fila("z", 6), fila("y", 5)],
+      loadedIds: ["a", "b"], keptIds: ["a"], submittedCount: 2, submittedHighlights: 0,
+    });
+    expect(r).toEqual({ removedIds: ["b"], preserved: [{ id: "y", sortOrder: 2 }, { id: "z", sortOrder: 3 }], problems: [] });
+  });
+  it("los topes cuentan las conservadas", () => {
+    const current = Array.from({ length: 5 }, (_, i) => fila(`n${i}`, i, i < 2));
+    const obras = editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 36, submittedHighlights: 0 });
+    expect(obras.problems[0]).toMatch(/se sumaron 5 obras.*quedarían 41 y el tope es 40/);
+    const destacadas = editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 10, submittedHighlights: 11 });
+    expect(destacadas.problems[0]).toMatch(/quedarían 13 destacadas y el tope es 12/);
+    expect(editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 35, submittedHighlights: 10 }).problems).toEqual([]);
+  });
 });

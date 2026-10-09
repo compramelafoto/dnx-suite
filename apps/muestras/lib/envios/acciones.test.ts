@@ -23,7 +23,7 @@ const { resetRateLimit } = await import("@/lib/limite");
 const conv = {
   id: "c1", slug: "ciudad", status: "OPEN", maxWorksPerPerson: 2,
   opensAt: new Date("2026-11-01T03:00:00Z"), closesAt: new Date("2026-12-01T02:59:59.999Z"),
-  activity: { proposedByUserId: 9, reviewStatus: "APPROVED" },
+  activity: { proposedByUserId: 9, reviewStatus: "APPROVED", isVirtualOnly: false, venueName: "Centro Cultural", address: "Calle 1" },
 };
 const obra = (n: number) => ({ imageUrl: `https://pub-test.r2.dev/muestras/7/${n}.webp`, title: `Obra ${n}` });
 function fd(works: unknown[], extra: Record<string, string> = {}) {
@@ -90,7 +90,7 @@ describe("guardarEnvio", () => {
     expect(await guardarEnvio(fd([obra(1)]))).toEqual({ ok: false, errores: ["La convocatoria no recibe obras en este momento."] });
   });
   it("quien organiza no envía", async () => {
-    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { proposedByUserId: 7, reviewStatus: "APPROVED" } });
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, proposedByUserId: 7 } });
     expect((await guardarEnvio(fd([obra(1)]))).ok).toBe(false);
     expect(db.$transaction).not.toHaveBeenCalled();
   });
@@ -100,8 +100,13 @@ describe("guardarEnvio", () => {
     expect(db.culturalCallCurator.findFirst.mock.calls[0][0].where.OR).toEqual([{ userId: 7 }, { email: "ana@x.com" }]);
   });
   it("no recibe si la muestra no está publicada", async () => {
-    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { proposedByUserId: 9, reviewStatus: "PENDING" } });
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, reviewStatus: "PENDING" } });
     expect((await guardarEnvio(fd([obra(1)]))).ok).toBe(false);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+  it("no recibe si la muestra ya no tiene lugar físico", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, isVirtualOnly: true, venueName: null, address: null } });
+    expect(await guardarEnvio(fd([obra(1)]))).toEqual({ ok: false, errores: ["Esta convocatoria no recibe obras: la muestra ya no tiene un lugar donde exponerlas."] });
     expect(db.$transaction).not.toHaveBeenCalled();
   });
   it("rechaza una imagen repetida", async () => {

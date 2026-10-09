@@ -259,13 +259,65 @@ export function assemblyPlan(
   if (existing.count + selectedInRankingOrder.length > MAX_WORKS) {
     problems.push(
       `La muestra admite hasta ${MAX_WORKS} obras: ya tiene ${existing.count} y seleccionaste ${selectedInRankingOrder.length}. ` +
-        "Para hacer lugar, sacá obras de la galería desde el editor de la muestra y volvé a armarla.",
+        "Para hacer lugar, sacá de la galería obras que no vinieron de esta convocatoria, o quitá obras elegidas desde el editor (no se vuelven a agregar).",
     );
   }
   if (problems.length) return { works: [], problems };
   const lugares = Math.max(0, MAX_HIGHLIGHTS - existing.highlights);
   return {
     works: selectedInRankingOrder.map((w, i) => ({ ...w, isHighlight: i < lugares, sortOrder: existing.count + i })),
+    problems,
+  };
+}
+
+/**
+ * Marca en `CulturalCallWork.activityWorkId` de una obra elegida que alguien quitó a propósito de
+ * la galería desde el editor. Armar la muestra no la vuelve a copiar. No es un id: nunca se usa
+ * para armar enlaces a la obra.
+ */
+export const OBRA_QUITADA_DE_LA_GALERIA = "quitada";
+
+/**
+ * Una obra elegida falta copiar a la galería si nunca se copió o si su copia ya no existe (p. ej.
+ * se borró por otro camino). Si se quitó a propósito desde el editor, no.
+ */
+export function needsAssembly(activityWorkId: string | null, galleryIds: ReadonlySet<string>): boolean {
+  if (activityWorkId === OBRA_QUITADA_DE_LA_GALERIA) return false;
+  return !activityWorkId || !galleryIds.has(activityWorkId);
+}
+
+export type GalleryRowInDb = { id: string; isHighlight: boolean; sortOrder: number };
+
+/**
+ * Qué hace el editor con la galería al guardar. Sólo se quitan las obras que el editor cargó
+ * (`loadedIds`) y ya no manda; las que existen en la base pero el editor no llegó a ver (p. ej.
+ * copiadas al armar la muestra con la pestaña abierta) se conservan, en su orden, después de las
+ * enviadas. Los topes cuentan las conservadas.
+ */
+export function editorGalleryPlan(p: {
+  current: readonly GalleryRowInDb[];
+  loadedIds: readonly string[];
+  keptIds: readonly string[];
+  submittedCount: number;
+  submittedHighlights: number;
+}): { removedIds: string[]; preserved: { id: string; sortOrder: number }[]; problems: string[] } {
+  const cargadas = new Set(p.loadedIds);
+  const quedan = new Set(p.keptIds);
+  const removedIds = p.current.filter((w) => cargadas.has(w.id) && !quedan.has(w.id)).map((w) => w.id);
+  const conservadas = p.current
+    .filter((w) => !cargadas.has(w.id) && !quedan.has(w.id))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const problems: string[] = [];
+  if (conservadas.length) {
+    const total = p.submittedCount + conservadas.length;
+    const destacadas = p.submittedHighlights + conservadas.filter((w) => w.isHighlight).length;
+    const aviso = `Mientras editabas se sumaron ${conservadas.length === 1 ? "1 obra" : `${conservadas.length} obras`} a la galería (por ejemplo, al armar la muestra desde una convocatoria).`;
+    if (total > MAX_WORKS) problems.push(`${aviso} Con ellas quedarían ${total} y el tope es ${MAX_WORKS}: recargá la página y sacá las que sobren.`);
+    else if (destacadas > MAX_HIGHLIGHTS) problems.push(`${aviso} Con ellas quedarían ${destacadas} destacadas y el tope es ${MAX_HIGHLIGHTS}: recargá la página y ajustá las destacadas.`);
+  }
+  return {
+    removedIds,
+    preserved: conservadas.map((w, i) => ({ id: w.id, sortOrder: p.submittedCount + i })),
     problems,
   };
 }

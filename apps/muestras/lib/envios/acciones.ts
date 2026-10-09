@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { acceptsSubmissions, callPhase, submissionProblems, submitterConflict } from "@repo/muestras";
+import { acceptsSubmissions, callPhase, hasPhysicalVenue, submissionProblems, submitterConflict } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { frenarPorUsuario } from "@/lib/limite";
 import { avisarEnvioRecibido } from "@/lib/correos/convocatorias";
@@ -19,7 +19,7 @@ function convocatoria(callId: string) {
     where: { id: callId },
     select: {
       id: true, slug: true, status: true, opensAt: true, closesAt: true, maxWorksPerPerson: true,
-      activity: { select: { proposedByUserId: true, reviewStatus: true } },
+      activity: { select: { proposedByUserId: true, reviewStatus: true, isVirtualOnly: true, venueName: true, address: true } },
     },
   });
 }
@@ -52,6 +52,9 @@ export async function guardarEnvio(fd: FormData): Promise<ResultadoAccion> {
   const c = e.callId ? await convocatoria(e.callId) : null;
   if (!c) return NO_EXISTE;
   if (!recibe(c)) return NO_RECIBE;
+  // Si la muestra dejó de tener un lugar físico, la convocatoria deja de ser pública. Retirar un
+  // envío sigue permitido.
+  if (!hasPhysicalVenue(c.activity)) return { ok: false, errores: ["Esta convocatoria no recibe obras: la muestra ya no tiene un lugar donde exponerlas."] };
   const curador = await prisma.culturalCallCurator.findFirst({
     where: { callId: c.id, status: { not: "REVOKED" }, OR: [{ userId: usuario.id }, { email: usuario.email.toLowerCase() }] },
     select: { id: true },

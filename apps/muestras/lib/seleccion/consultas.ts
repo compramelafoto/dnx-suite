@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { canSeeIdentity, curatorImagePath, rankWorks, type RankingRow } from "@repo/muestras";
+import { canSeeIdentity, curatorImagePath, needsAssembly, rankWorks, type RankingRow } from "@repo/muestras";
 
 export type FilaSeleccion = RankingRow & {
   title: string;
@@ -59,8 +59,9 @@ export async function avanceDelEquipo(callId: string) {
 }
 
 /**
- * Cuántas obras elegidas (de envíos vigentes) no están en la galería de la muestra: las que nunca
- * se copiaron y las copiadas que después se borraron. Con alguna, se puede volver a armar.
+ * Cuántas obras elegidas (de envíos vigentes) faltan en la galería de la muestra: las que nunca
+ * se copiaron y las copiadas que ya no existen. Las quitadas a propósito desde el editor no
+ * cuentan. Con alguna, se puede volver a armar.
  */
 export async function elegidasFueraDeLaGaleria(callId: string, activityId: string): Promise<number> {
   const [elegidas, galeria] = await Promise.all([
@@ -68,5 +69,5 @@ export async function elegidasFueraDeLaGaleria(callId: string, activityId: strin
     prisma.culturalActivityWork.findMany({ where: { activityId }, select: { id: true } }),
   ]);
   const ids = new Set(galeria.map((w) => w.id));
-  return elegidas.filter((e) => !e.activityWorkId || !ids.has(e.activityWorkId)).length;
+  return elegidas.filter((e) => needsAssembly(e.activityWorkId, ids)).length;
 }

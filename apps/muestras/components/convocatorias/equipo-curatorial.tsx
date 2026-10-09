@@ -79,8 +79,8 @@ export function EquipoCuratorial({ callId, curadores, editable }: { callId: stri
       ) : null}
       {mensaje ? <p className={mensaje.ok ? "text-[var(--mf-teal)]" : "text-[var(--mf-alerta)]"}>{mensaje.texto}</p> : null}
       {enlace ? (
-        <div className="space-y-2" role="status">
-          <p className="text-[var(--mf-alerta)]">No pudimos mandar el mail. Copiá este enlace y mandáselo a la persona que va a curar.</p>
+        <div className="space-y-2">
+          <p className="text-[var(--mf-alerta)]" role="status">No pudimos mandar el mail. Copiá este enlace y mandáselo a la persona que va a curar. Tiene que entrar con la cuenta de Google de ese mail.</p>
           <div className="flex flex-wrap gap-3">
             <label className="min-w-[16rem] flex-1">
               <span className="sr-only">Enlace de la invitación</span>

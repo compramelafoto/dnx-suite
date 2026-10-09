@@ -52,8 +52,9 @@ export default async function Seleccion({ params }: Props) {
         estado={c.status}
         filas={filas}
         lugar={selectionRoom(c.activity._count.works, elegidas)}
-        // Ya armada, salvo que falte en la galería alguna elegida (p. ej. se borró en el editor):
-        // entonces se puede volver a armar y se copian sólo las que faltan.
+        // Ya armada, salvo que falte en la galería alguna elegida cuya copia ya no existe: entonces se
+        // puede volver a armar y se copian sólo las que faltan. Las quitadas a propósito desde el
+        // editor no cuentan (no se vuelven a agregar).
         yaArmada={c.assembledAt != null && faltanEnGaleria === 0}
         muestraId={c.activity.id}
         porAgregar={c.assembledAt != null ? faltanEnGaleria : undefined}

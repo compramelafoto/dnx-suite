@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
+import { hasPhysicalVenue } from "@repo/muestras";
 import type { Usuario } from "@/lib/usuario";
 
 /** Datos de la muestra que se muestran junto a la convocatoria (nada de revisión). */
@@ -21,16 +22,21 @@ export function listarConvocatoriasPublicas() {
   });
 }
 
-/** Cualquiera que no sea borrador: un enlace compartido no se rompe al cerrar. */
-export const buscarConvocatoriaPublica = cache((slug: string) =>
-  prisma.culturalCall.findFirst({
+/**
+ * Cualquiera que no sea borrador: un enlace compartido no se rompe al cerrar. Si la muestra dejó
+ * de tener un lugar físico (`hasPhysicalVenue`), la convocatoria deja de ser pública: devuelve
+ * `null`, igual que si no existiera.
+ */
+export const buscarConvocatoriaPublica = cache(async (slug: string) => {
+  const c = await prisma.culturalCall.findFirst({
     where: { slug, status: { not: "DRAFT" }, activity: { reviewStatus: "APPROVED" } },
     select: {
       id: true, slug: true, title: true, status: true, basesText: true, requirementsText: true, rightsText: true,
       opensAt: true, closesAt: true, maxWorksPerPerson: true, activity: MUESTRA_PUBLICA,
     },
-  }),
-);
+  });
+  return c && hasPhysicalVenue(c.activity) ? c : null;
+});
 
 /** Las convocatorias que organiza la persona (todas, si es super admin: modera). */
 export function listarConvocatoriasMias(usuario: Usuario) {

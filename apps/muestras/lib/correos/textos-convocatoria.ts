@@ -67,7 +67,7 @@ export function textoInvitacionCurador(p: { convocatoria: string; organizador: s
     parrafos: [
       "¡Hola!",
       `${p.organizador} te invita a formar parte del equipo curatorial de la convocatoria “${p.convocatoria}” en Muestras Fotográficas.`,
-      "Vas a ver las obras sin el nombre de sus autores y a puntuarlas de 1 a 5. Para aceptar, entrá con tu cuenta de Google.",
+      "Vas a ver las obras sin el nombre de sus autores y a puntuarlas de 1 a 5. Para aceptar, entrá con la cuenta de Google de este mail.",
       `La invitación vence el ${formatArDay(p.vence)}.`,
     ],
     enlace: { texto: "Aceptar la invitación", url: p.url },

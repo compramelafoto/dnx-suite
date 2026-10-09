@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { assemblyPlan, canDecide, canEdit, isWorkDecision, rankWorks, selectionRoom, type ReviewStatus } from "@repo/muestras";
+import { assemblyPlan, canDecide, canEdit, isWorkDecision, needsAssembly, rankWorks, selectionRoom, type ReviewStatus } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { frenarPorUsuario } from "@/lib/limite";
 import type { ResultadoAccion } from "@/lib/actividades/acciones";
@@ -69,8 +69,9 @@ export async function decidir(callWorkId: string, decision: string): Promise<Res
  * escribe la misma fila de la muestra, así que espera o hace esperar).
  *
  * Es idempotente: sólo copia las elegidas que todavía no están en la galería. Una elegida cuya
- * obra copiada ya no existe (p. ej. se borró en el editor) cuenta como no copiada, así que se
- * puede volver a armar aunque la convocatoria ya tenga `assembledAt`.
+ * obra copiada ya no existe cuenta como no copiada, así que se puede volver a armar aunque la
+ * convocatoria ya tenga `assembledAt`. Las que alguien quitó a propósito desde el editor quedan
+ * marcadas (`OBRA_QUITADA_DE_LA_GALERIA`) y no se vuelven a copiar.
  *
  * Las imágenes se copian tal cual (`imageUrl` en `muestras/<userId>/…`): ya son nuestras, procesadas.
  * La galería pública sólo existe después de cerrar la curaduría, cuando cada autor firma su obra.
@@ -109,7 +110,7 @@ export async function armarMuestra(callId: string): Promise<ResultadoAccion> {
           where: { callId, decision: "SELECTED", submission: { status: "ACTIVE" } },
           select: { id: true, anonymousCode: true, decision: true, imageUrl: true, title: true, year: true, technique: true, activityWorkId: true, submission: { select: { authorName: true, userId: true } } },
         });
-        const elegidas = candidatas.filter((e) => !e.activityWorkId || !enLaGaleria.has(e.activityWorkId));
+        const elegidas = candidatas.filter((e) => needsAssembly(e.activityWorkId, enLaGaleria));
         if (c.assembledAt && elegidas.length === 0) throw new Corte(YA_ARMADA);
 
         const puntajes = await tx.culturalCallScore.findMany({

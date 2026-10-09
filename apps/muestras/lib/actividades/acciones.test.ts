@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
-  culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn() },
+  culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+  culturalCallWork: { updateMany: vi.fn() },
   photographerProfile: { findUnique: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 const correos = vi.hoisted(() => ({ avisarAprobada: vi.fn(), avisarRechazada: vi.fn(), avisarNuevaPropuesta: vi.fn() }));
@@ -31,7 +33,14 @@ beforeEach(() => {
   resetRateLimit();
   db.culturalActivity.update.mockResolvedValue({});
   db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
-  db.$transaction.mockResolvedValue([]);
+  db.$transaction.mockImplementation(async (arg: unknown) => (typeof arg === "function" ? arg(db) : []));
+  db.$queryRaw.mockResolvedValue([]);
+  // Salvo que el test diga otra cosa, la galería en la base es la de la fila que devuelve findUnique.
+  db.culturalActivityWork.findMany.mockImplementation(async () =>
+    (((await db.culturalActivity.findUnique.getMockImplementation()?.()) as { works?: object[] } | null)?.works ?? []).map((w) => ({
+      isHighlight: false, sortOrder: 0, authorProfileId: null, authorUserId: null, ...w,
+    })),
+  );
   db.photographerProfile.findUnique.mockResolvedValue(null);
   db.photographerProfile.findMany.mockResolvedValue([]);
 });
@@ -236,5 +245,60 @@ describe("obras: ids estables y perfil del autor", () => {
     const r = await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja" })]) }));
     expect(r.ok).toBe(false);
     expect(db.culturalActivityWork.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("guardarBorrador: obras sumadas con la pestaña abierta y obras quitadas", () => {
+  const BASE = "https://pub-test.r2.dev";
+  const obra = (extra: Record<string, unknown> = {}) => ({
+    imageUrl: `${BASE}/muestras/7/1.webp`, title: "Uno", authorName: "Ana Pérez", year: null, technique: null, isHighlight: false, ...extra,
+  });
+  function fd(o: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(k, v);
+    return f;
+  }
+  const enLaBase = (filas: Array<{ id: string; sortOrder: number; isHighlight?: boolean }>) =>
+    db.culturalActivityWork.findMany.mockResolvedValue(filas.map((w) => ({ isHighlight: false, authorProfileId: null, authorUserId: null, ...w })));
+  beforeEach(() => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, works: [] });
+  });
+
+  it("bloquea la muestra y conserva, después de las enviadas, las obras armadas que la pestaña no vio", async () => {
+    enLaBase([{ id: "w1", sortOrder: 0 }, { id: "w2", sortOrder: 1 }, { id: "armada-b", sortOrder: 3 }, { id: "armada-a", sortOrder: 2 }]);
+    const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: JSON.stringify(["w1", "w2"]), works: JSON.stringify([obra({ id: "w1" }), obra({ id: "w2" })]) }));
+    expect(r).toEqual({ ok: true, id: "a1" });
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toMatch(/FROM "CulturalActivity" WHERE id = \? FOR UPDATE/);
+    expect(db.culturalActivityWork.deleteMany).toHaveBeenCalledWith({ where: { activityId: "a1", id: { notIn: ["armada-a", "armada-b"] } } });
+    expect(db.culturalActivityWork.update.mock.calls.map((c) => c[0])).toEqual([
+      { where: { id: "armada-a" }, data: { sortOrder: 2 } },
+      { where: { id: "armada-b" }, data: { sortOrder: 3 } },
+    ]);
+    expect(db.culturalCallWork.updateMany).not.toHaveBeenCalled();
+  });
+  it("una obra que el editor cargó y sacó se quita y queda marcada para no volver a armarse", async () => {
+    enLaBase([{ id: "w1", sortOrder: 0 }, { id: "elegida", sortOrder: 1 }]);
+    const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: JSON.stringify(["w1", "elegida"]), works: JSON.stringify([obra({ id: "w1" })]) }));
+    expect(r).toEqual({ ok: true, id: "a1" });
+    expect(db.culturalActivityWork.deleteMany).toHaveBeenCalledWith({ where: { activityId: "a1", id: { notIn: [] } } });
+    expect(db.culturalCallWork.updateMany).toHaveBeenCalledWith({
+      where: { activityWorkId: { in: ["elegida"] }, call: { activityId: "a1" } },
+      data: { activityWorkId: "quitada" },
+    });
+  });
+  it("los topes cuentan las obras conservadas: si se pasan, no escribe", async () => {
+    enLaBase(Array.from({ length: 5 }, (_, i) => ({ id: `armada-${i}`, sortOrder: 40 + i })));
+    const muchas = Array.from({ length: 36 }, () => obra());
+    const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: "[]", works: JSON.stringify(muchas) }));
+    expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/quedarían 41 y el tope es 40/)] });
+    expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
+    expect(db.culturalActivityWork.createMany).not.toHaveBeenCalled();
+  });
+  it("también las destacadas", async () => {
+    enLaBase([{ id: "armada", sortOrder: 5, isHighlight: true }]);
+    const destacadas = Array.from({ length: 12 }, () => obra({ isHighlight: true }));
+    const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: "[]", works: JSON.stringify(destacadas) }));
+    expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/13 destacadas y el tope es 12/)] });
   });
 });

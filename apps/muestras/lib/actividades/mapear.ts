@@ -39,6 +39,12 @@ export type FichaForm = {
   galleryMode: GalleryMode;
   rightsConfirmed: boolean;
   works: ObraForm[];
+  /**
+   * Ids de las obras que el editor cargó al abrirse. Al guardar sólo se quitan de la galería las
+   * que están acá y ya no vienen en `works`: las que se sumaron después (p. ej. al armar la
+   * muestra con la pestaña abierta) se conservan.
+   */
+  idsCargados: string[];
 };
 
 /**
@@ -117,6 +123,16 @@ function obras(raw: string, base: string | null): ObraForm[] {
   }
 }
 
+function ids(raw: string): string[] {
+  try {
+    const arr: unknown = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return [...new Set(arr.filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(x)))].slice(0, 200);
+  } catch {
+    return [];
+  }
+}
+
 export type OpcionesFicha = {
   /** Base pública de las imágenes. Si no se pasa, se lee del entorno (para los tests se inyecta). */
   baseImagenes?: string | null;
@@ -150,6 +166,7 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     galleryMode: isGalleryMode(modo) ? modo : "HIGHLIGHTS_UNTIL_CLOSED",
     rightsConfirmed: fd.get("rightsConfirmed") === "on",
     works: obras(txt(fd, "works") || "[]", base),
+    idsCargados: ids(txt(fd, "idsCargados") || "[]"),
   };
 }
 

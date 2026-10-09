@@ -23,7 +23,8 @@ export default async function ConvocatoriaPublica({ params }: Props) {
   const fase = callPhase(c, ahora);
   if (!hasPublicPage(fase)) notFound();
   const a = c.activity;
-  const lugar = a.isVirtualOnly ? "Muestra virtual" : [a.venueName, a.city, a.province].filter(Boolean).join(", ");
+  // `buscarConvocatoriaPublica` sólo devuelve convocatorias de muestras con lugar físico.
+  const lugar = [a.venueName, a.city, a.province].filter(Boolean).join(", ");
 
   return (
     <main className="mf-marco grid gap-12 py-10 sm:py-16 lg:grid-cols-[minmax(0,1fr)_20rem]">

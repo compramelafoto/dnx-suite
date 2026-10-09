@@ -27,7 +27,7 @@ export default async function Invitacion({ params }: Props) {
         <>
           <p className="text-lg leading-snug">Te invitaron a formar parte del equipo curatorial de <strong className="font-medium">{inv.convocatoria}</strong>.</p>
           <p className="text-[15px] text-[var(--mf-muted)]">
-            La invitación se mandó a {inv.email}. Vas a quedar en el equipo con la cuenta con la que entraste ({usuario.email}). Si enviaste obras a esta convocatoria, no podés curarla.
+            La invitación es para {inv.email}: para aceptarla tenés que entrar con la cuenta de Google de ese mail (ahora entraste como {usuario.email}). Si enviaste obras a esta convocatoria, no podés curarla.
           </p>
           <AceptarInvitacion token={token} />
         </>

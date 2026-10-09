@@ -25,7 +25,8 @@ export default async function EnviarObras({ params }: Props) {
     select: { id: true },
   });
   const a = c.activity;
-  const lugar = a.isVirtualOnly ? "Muestra virtual" : [a.venueName, a.city, a.province].filter(Boolean).join(", ");
+  // `buscarConvocatoriaPublica` sólo devuelve convocatorias de muestras con lugar físico.
+  const lugar = [a.venueName, a.city, a.province].filter(Boolean).join(", ");
   const conflicto = submitterConflict({ isOwner: organiza > 0, isCurator: !!curador });
   const [previo, perfil] = await Promise.all([buscarMiEnvio(c.id, usuario.id), buscarPerfilPropio(usuario.id)]);
 

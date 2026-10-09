@@ -6,9 +6,10 @@ vi.mock("server-only", () => ({}));
 
 const { listarMisEnvios } = await import("./consultas");
 
-const envio = (status: string, reviewStatus: string) => ({
+const PRESENCIAL = { isVirtualOnly: false, venueName: "Centro Cultural", address: "Calle 1" };
+const envio = (status: string, reviewStatus: string, lugar: object = PRESENCIAL) => ({
   id: "s1", status: "ACTIVE", updatedAt: new Date(),
-  call: { id: "c1", slug: "ciudad", title: "Ciudad", status, opensAt: new Date(), closesAt: new Date(), activity: { reviewStatus } },
+  call: { id: "c1", slug: "ciudad", title: "Ciudad", status, opensAt: new Date(), closesAt: new Date(), activity: { reviewStatus, ...lugar } },
   works: [{ id: "w1", title: "Uno", imageUrl: "u", decision: "SELECTED" }],
 });
 
@@ -25,6 +26,10 @@ describe("listarMisEnvios", () => {
     const [e] = await listarMisEnvios(7);
     expect(e!.call.tienePaginaPublica).toBe(esperado);
     expect(e!.call).not.toHaveProperty("activity");
+  });
+  it("si la muestra ya no tiene lugar físico, no hay página pública", async () => {
+    db.culturalCallSubmission.findMany.mockResolvedValue([envio("OPEN", "APPROVED", { isVirtualOnly: true, venueName: null, address: null })]);
+    expect((await listarMisEnvios(7))[0]!.call.tienePaginaPublica).toBe(false);
   });
   it("la decisión sólo sale con la selección terminada", async () => {
     db.culturalCallSubmission.findMany.mockResolvedValue([envio("CURATING", "APPROVED")]);

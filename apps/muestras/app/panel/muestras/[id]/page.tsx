@@ -60,7 +60,8 @@ export default async function EditarActividad({
       {avisoPerfiles ? (
         <p role="status" className="rounded-[2px] bg-amber-50 p-3 text-sm text-amber-900">Guardamos los cambios. {AVISO_PERFIL_EN_PUBLICADA}</p>
       ) : null}
-      {editable ? <FormularioActividad inicial={a} /> : null}
+      {/* La clave cambia con cada guardado: el editor vuelve a cargar las obras con sus ids nuevos. */}
+      {editable ? <FormularioActividad key={a.updatedAt.toISOString()} inicial={a} /> : null}
     </main>
   );
 }

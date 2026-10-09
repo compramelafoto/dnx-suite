@@ -52,7 +52,7 @@ export default async function EditarConvocatoria({ params }: Props) {
 
       <section aria-labelledby="t-equipo" className="space-y-3">
         <h2 id="t-equipo" className="text-sm text-[var(--mf-muted)]">Equipo curatorial</h2>
-        <p className="text-[15px] text-[var(--mf-muted)]">Cada integrante recibe un enlace por mail y entra con su cuenta de Google. Ve todas las obras, sin nombres, y las puntúa de 1 a 5.</p>
+        <p className="text-[15px] text-[var(--mf-muted)]">Cada integrante recibe un enlace por mail y entra con la cuenta de Google de ese mail. Ve todas las obras, sin nombres, y las puntúa de 1 a 5.</p>
         <EquipoCuratorial callId={c.id} curadores={c.curators} editable={c.status !== "DONE"} />
       </section>
 

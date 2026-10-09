@@ -132,6 +132,24 @@ describe("armarMuestra", () => {
     expect(db.culturalCallWork.update).toHaveBeenCalledWith({ where: { id: "w2" }, data: { activityWorkId: "aw-Dos" } });
     expect(db.culturalCall.updateMany).not.toHaveBeenCalled();
   });
+  it("una elegida quitada a propósito desde el editor no se vuelve a copiar", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, assembledAt: new Date() });
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1", isHighlight: true }]);
+    db.culturalCallWork.findMany.mockResolvedValue([
+      { ...elegida("w1", "Uno", 30), activityWorkId: "aw-1" },
+      { ...elegida("w2", "Dos", 31), activityWorkId: "quitada" },
+      { ...elegida("w3", "Tres", 32), activityWorkId: "aw-borrada" },
+    ]);
+    expect(await armarMuestra("c1")).toEqual({ ok: true, id: "a1" });
+    expect(db.culturalActivityWork.create.mock.calls.map((c) => c[0].data.title)).toEqual(["Tres"]);
+  });
+  it("si lo único que falta son obras quitadas a propósito, ya está armada", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, assembledAt: new Date() });
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1", isHighlight: true }]);
+    db.culturalCallWork.findMany.mockResolvedValue([{ ...elegida("w1", "Uno", 30), activityWorkId: "aw-1" }, { ...elegida("w2", "Dos", 31), activityWorkId: "quitada" }]);
+    expect(await armarMuestra("c1")).toEqual({ ok: false, errores: ["La muestra ya se armó con esta selección."] });
+    expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
+  });
   it("una convocatoria ajena no existe", async () => {
     usuarioActual.valor = { ...ana, id: 8 };
     expect(await armarMuestra("c1")).toEqual({ ok: false, errores: ["La convocatoria no existe."] });

@@ -56,4 +56,9 @@ describe("elegidasFueraDeLaGaleria", () => {
     db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1" }]);
     expect(await elegidasFueraDeLaGaleria("c1", "a1")).toBe(2);
   });
+  it("no cuenta las quitadas a propósito desde el editor", async () => {
+    db.culturalCallWork.findMany.mockResolvedValue([{ activityWorkId: "quitada" }, { activityWorkId: "aw-1" }]);
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1" }]);
+    expect(await elegidasFueraDeLaGaleria("c1", "a1")).toBe(0);
+  });
 });
