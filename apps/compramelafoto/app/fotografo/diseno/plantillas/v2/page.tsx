@@ -2,7 +2,11 @@ import Link from "next/link";
 import { Role } from "@/lib/prisma";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import {
+  CreateTemplateV2Button,
+  TEMPLATE_V2_BASE_PATHS,
+  TemplateV2RowActions,
+} from "@repo/template-editor-ui";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import TemplateV2NameEditor from "@/components/template-v2/TemplateV2NameEditor";
@@ -63,7 +67,11 @@ export default async function PlantillasV2ListPage() {
   }
 
   const rows = await prisma.templateV2.findMany({
-    where: user.role === Role.ADMIN ? undefined : { ownerUserId: user.id },
+    // Las archivadas son las que se eliminaron desde esta lista.
+    where:
+      user.role === Role.ADMIN
+        ? { status: { not: "ARCHIVED" } }
+        : { ownerUserId: user.id, status: { not: "ARCHIVED" } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -201,11 +209,12 @@ export default async function PlantillasV2ListPage() {
                       <td className="px-5 py-4">
                         {editorHref ? (
                           <div className="flex flex-col items-start gap-2">
-                            <Link href={editorHref}>
-                              <Button variant="primary" className="px-5 py-2.5 text-sm font-semibold">
-                                Editar
-                              </Button>
-                            </Link>
+                            <TemplateV2RowActions
+                              templateId={template.id}
+                              name={template.name}
+                              editorHref={editorHref}
+                              showRename={false}
+                            />
                             <Link
                               href={`/fotografo/diseno/plantillas/v2/${template.id}/probar`}
                               className="text-xs font-medium text-[#c27b3d] underline underline-offset-2 hover:text-[#a0632f]"
