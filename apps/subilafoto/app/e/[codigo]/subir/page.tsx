@@ -6,6 +6,7 @@ import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { Cargador } from "./cargador";
+import { DejarMensaje } from "./mensaje";
 import { BarraDeReacciones } from "./reacciones";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ export default async function Subir({ params }: Props) {
       deactivationAt: true,
       themeTokens: true,
       allowPhotos: true,
+      allowMessages: true,
       hostsLabel: true,
       coverUrl: true,
     },
@@ -74,6 +76,9 @@ export default async function Subir({ params }: Props) {
           </p>
           <Cargador codigo={clave} tema={tema} />
           <BarraDeReacciones codigo={clave} acento={tema.acento} />
+          {evento.allowMessages ? (
+            <DejarMensaje codigo={clave} acento={tema.acento} />
+          ) : null}
         </>
       ) : (
         <p className="mt-6 max-w-[32ch] opacity-80">
