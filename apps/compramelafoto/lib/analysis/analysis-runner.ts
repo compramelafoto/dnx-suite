@@ -261,6 +261,8 @@ type AnalysisPhotoContext = {
     cleanupStatus: AlbumCleanupStatus;
     /** Decide si vale la pena leer el texto de las fotos. Ver `should-run-ocr`. */
     type: EventType | null;
+    /** Interruptor del fotógrafo. `null` = no lo configuró, decide el tipo. */
+    textSearchEnabled: boolean | null;
   };
 };
 
@@ -281,6 +283,7 @@ async function processJob(
     para todas las fotos de la plataforma y era la mitad de la factura de Amazon.
   */
   const includeOcr = shouldRunOcr({
+    textSearchEnabled: photo?.album.textSearchEnabled ?? null,
     albumType: photo?.album.type ?? null,
     requested: ocrRequested,
   });
@@ -777,6 +780,7 @@ export async function runAnalysisPipeline(options: RunOptions) {
                 expirationExtensionDays: true,
                 cleanupStatus: true,
                 type: true,
+                textSearchEnabled: true,
               },
             },
           },
