@@ -46,7 +46,7 @@ export default async function DetalleEvento({ params }: Props) {
 
   return (
     <main className="sobre-claro mx-auto max-w-2xl px-6 py-16">
-      <p className="text-sm font-extrabold" style={{ color: "var(--slf-violeta)" }}>
+      <p className="text-sm font-extrabold" style={{ color: "var(--slf-violeta-texto)" }}>
         En configuración
       </p>
       <h1 className="mt-2 text-3xl font-extrabold leading-tight">{evento.name}</h1>
@@ -101,7 +101,7 @@ export default async function DetalleEvento({ params }: Props) {
             href={enlace.href}
             style={{
               ...estiloBotonDnx("secundario"),
-              color: "var(--slf-violeta)",
+              color: "var(--slf-violeta-texto)",
               border: "1px solid var(--slf-violeta)",
             }}
           >

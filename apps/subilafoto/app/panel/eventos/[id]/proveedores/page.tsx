@@ -165,7 +165,7 @@ export default async function ProveedoresDelEvento({ params }: Props) {
       <a
         href={`/panel/eventos/${evento.id}`}
         className="mt-12 inline-block text-sm font-extrabold"
-        style={{ color: "var(--slf-violeta)" }}
+        style={{ color: "var(--slf-violeta-texto)" }}
       >
         ← Volver al evento
       </a>

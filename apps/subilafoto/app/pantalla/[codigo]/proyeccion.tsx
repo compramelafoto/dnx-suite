@@ -62,9 +62,16 @@ export function Proyeccion({
   fondo,
   qrSvg,
   urlDelEvento,
+  nombreDelEvento,
+  anfitriones,
+  acento,
 }: {
   codigo: string;
   iniciales: ItemEnVivo[];
+  /** El nombre de la fiesta. Preside el cartel del QR: es de quién es la noche. */
+  nombreDelEvento: string;
+  anfitriones: string | null;
+  acento: string;
   /** El tema ya resuelto, con su textura. Ver `estiloDeTema`. */
   estilo: CSSProperties;
   /** El color de fondo solo, para tapar la foto cuando aparece el QR. */
@@ -262,16 +269,44 @@ export function Proyeccion({
           pointerEvents: paso.tipo === "QR" ? "auto" : "none",
         }}
       >
-        <p className="text-balance px-12 text-center text-[clamp(1.5rem,4vw,3.5rem)] font-extrabold">
-          {fotos.length === 0 ? "Sacá fotos y subilas acá" : "Sumá tus fotos"}
-        </p>
+        {/*
+          Arriba el nombre de la fiesta, abajo la instrucción.
+
+          Antes presidía "Sacá fotos y subilas acá": el cartel más grande del salón
+          hablaba de la aplicación en vez de hablar de la fiesta. Quien levanta la vista
+          tiene que leer primero de quién es la noche; cómo sumarse viene después, que es
+          además el orden en que uno mira un QR —primero qué es, después qué hacer—.
+        */}
+        <div className="px-10 text-center">
+          <p className="text-balance text-[clamp(1.8rem,5.5vw,4.5rem)] font-extrabold leading-[1.05]">
+            {nombreDelEvento}
+          </p>
+          {anfitriones ? (
+            <p
+              className="mt-3 text-[clamp(1rem,2.4vw,2rem)]"
+              style={{ opacity: 0.8 }}
+            >
+              {anfitriones}
+            </p>
+          ) : null}
+        </div>
+
+        {/* El marco toma el acento de la plantilla: el QR tiene que ser blanco por
+            contraste, pero el borde lo ata a la estética del evento. */}
         <div
-          className="w-[min(26rem,45vh)] rounded-3xl bg-white p-6"
+          className="w-[min(24rem,42vh)] rounded-3xl bg-white p-6"
+          style={{ boxShadow: `0 0 0 0.6rem ${acento}` }}
           dangerouslySetInnerHTML={{ __html: qrSvg }}
         />
-        <p className="text-[clamp(1rem,2vw,1.6rem)]" style={{ opacity: 0.75 }}>
-          {urlDelEvento}
-        </p>
+
+        <div className="px-10 text-center">
+          <p className="text-[clamp(1.1rem,2.6vw,2.1rem)] font-extrabold">
+            {fotos.length === 0 ? "Sacá fotos y subilas acá" : "Sumá tus fotos"}
+          </p>
+          <p className="mt-2 text-[clamp(0.9rem,1.7vw,1.4rem)]" style={{ opacity: 0.7 }}>
+            {urlDelEvento}
+          </p>
+        </div>
       </div>
 
       {actual?.tipo === "FOTO" && (actual.pie || actual.nombre) ? (

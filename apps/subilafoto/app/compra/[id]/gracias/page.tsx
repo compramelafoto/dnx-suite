@@ -70,7 +70,7 @@ export default async function Gracias({ params }: Props) {
         <Link
           href={`/v/${orden.sellerProfile.slug}`}
           className="underline underline-offset-4"
-          style={{ color: "var(--slf-violeta)" }}
+          style={{ color: "var(--slf-violeta-texto)" }}
         >
           Volver a {orden.sellerProfile.displayName}
         </Link>

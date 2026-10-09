@@ -227,7 +227,7 @@ export default async function Moderacion({ params, searchParams }: Props) {
                                   ? estiloBotonDnx("primario")
                                   : {
                                       ...estiloBotonDnx("secundario"),
-                                      color: "var(--slf-violeta)",
+                                      color: "var(--slf-violeta-texto)",
                                       border: "1px solid var(--slf-violeta)",
                                     }
                               }
