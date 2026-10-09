@@ -8,14 +8,22 @@ import { Visor } from "@/components/visor/visor";
 type Obra = { id: string; imageUrl: string; title: string; authorName: string; year: number | null; technique: string | null };
 
 /** Grilla de obras con visor a pantalla completa. Flechas y Escape del teclado funcionan en el visor. */
-export function Galeria({ obras, parcial, slug }: { obras: Obra[]; parcial: boolean; slug: string }) {
+export function Galeria({ obras, parcial, cerrada, slug }: { obras: Obra[]; parcial: boolean; cerrada: boolean; slug: string }) {
   const [abierta, setAbierta] = useState<number | null>(null);
   const actual = abierta != null ? obras[abierta] : null;
   const ir = (d: number) => setAbierta((i) => (i == null ? i : (i + d + obras.length) % obras.length));
 
   return (
     <section className="space-y-4">
-      {parcial ? <p className="text-[var(--mf-muted)]">Estás viendo una selección. Visitala en persona: la galería completa se publica cuando cierra.</p> : null}
+      {/* Mientras está abierta, lo online es un anticipo que invita a ir; al cerrar, el archivo. */}
+      <h2 className="mf-titulo text-[clamp(1.5rem,3vw,2rem)]">{cerrada ? "Archivo de la muestra" : "Anticipo de la muestra"}</h2>
+      <p className="text-[var(--mf-muted)]">
+        {cerrada
+          ? "Las obras que se colgaron en la sala, para quien no llegó a verla."
+          : parcial
+            ? "Una selección de lo que vas a ver en la sala. Las demás obras quedan online cuando la muestra cierra."
+            : "Lo que vas a ver en la sala. Las obras se disfrutan mejor en persona."}
+      </p>
       <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
         {obras.map((o, i) => (
           <li key={o.id}>
