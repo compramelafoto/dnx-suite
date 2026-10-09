@@ -242,6 +242,21 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "projects",
+    cuadro: "22",
+    nombre: "Proyectos",
+    resuelve:
+      "Cada trabajo vendido se convierte en un proyecto con su flujo, sus etapas y sus tareas, con fechas calculadas desde el día del evento. Ves quién es el responsable, quién integra el equipo (fotógrafos, salón, DJ, lo que haga falta), qué se atrasó y qué está suspendido, con notas y archivos adjuntos en cada uno.",
+    pantallas: [
+      "Proyecto creado al confirmar el pedido",
+      "Tablero por etapas",
+      "Tareas con fecha y responsable",
+      "Equipo del proyecto con roles",
+      "Notas y adjuntos",
+      "Suspender y reanudar",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",

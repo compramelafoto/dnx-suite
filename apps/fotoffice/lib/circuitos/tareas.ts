@@ -4,6 +4,7 @@ import { hoyEnBuenosAires } from "../listado/periodos";
 import type { TipoSujeto } from "./constantes";
 import { MENSAJES, type Resultado } from "./recorridos";
 import { adaptadorDe, type NombreDeSujeto, type Sujeto } from "./sujetos";
+import { suspendidosEntre } from "@/lib/proyectos/proyectos";
 import type { CtxCircuitos } from "./acceso";
 
 export const TITULO_MAX = 200;
@@ -149,14 +150,18 @@ function inicioDelDia(ahora: Date): Date {
 /**
  * Tareas pendientes asignadas a quien opera, de recorridos abiertos del workspace, en tres
  * grupos según el día de hoy en Buenos Aires: vencidas (antes de hoy), hoy, y próximas (hasta 7
- * días después de hoy). Las que no tienen vencimiento no aparecen.
+ * días después de hoy). Las que no tienen vencimiento no aparecen. Las de un proyecto suspendido
+ * tampoco aparecen: se retoman al reanudarlo.
  */
 export async function misTareas(
   ctx: CtxCircuitos,
   hoy: Date,
+  /** Sólo las tareas de estos tipos de registro (por omisión, todos). */
+  tipos?: readonly TipoSujeto[],
 ): Promise<{ vencidas: TareaVista[]; hoy: TareaVista[]; proximas: TareaVista[] }> {
   const grupos = { vencidas: [] as TareaVista[], hoy: [] as TareaVista[], proximas: [] as TareaVista[] };
   if (ctx.userId === null) return grupos;
+  if (tipos && tipos.length === 0) return grupos;
   const inicioHoy = inicioDelDia(hoy);
   const inicioManana = new Date(inicioHoy.getTime() + DIA_MS);
   const limite = new Date(inicioHoy.getTime() + 8 * DIA_MS); // fin del día hoy + 7
@@ -166,6 +171,7 @@ export async function misTareas(
       workspaceId: ctx.workspaceId,
       assigneeUserId: ctx.userId,
       doneAt: null,
+      ...(tipos ? { subjectType: { in: [...tipos] } } : {}),
       dueAt: { not: null, lt: limite },
       journey: { workspaceId: ctx.workspaceId, closedAt: null },
     },
@@ -173,6 +179,13 @@ export async function misTareas(
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     take: 500,
   });
+
+  const suspendidos = await suspendidosEntre(ctx.workspaceId, filas.filter((f) => f.subjectType === "PROYECTO").map((f) => f.subjectId));
+  if (suspendidos.size > 0) {
+    for (let i = filas.length - 1; i >= 0; i--) {
+      if (filas[i]!.subjectType === "PROYECTO" && suspendidos.has(filas[i]!.subjectId)) filas.splice(i, 1);
+    }
+  }
 
   const etapas = await nombresDeEtapas(ctx.workspaceId, filas.map((f) => f.stageId));
   const nombres = new Map<string, Map<string, NombreDeSujeto>>();

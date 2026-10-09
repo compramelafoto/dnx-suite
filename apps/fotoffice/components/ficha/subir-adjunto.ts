@@ -32,6 +32,17 @@ export function revisarArchivo(archivo: File): string | null {
   return null;
 }
 
+/** Cómo se pide y se confirma una subida: la de las fichas de personas o la de otro registro (un proyecto). */
+export type CanalDeSubida = {
+  pedir: (archivo: { nombre: string; tipo: string; tamano: number }) => Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }>;
+  confirmar: (id: string) => Promise<Resultado>;
+};
+
+const canalDePersona = (persona: PersonaFicha): CanalDeSubida => ({
+  pedir: (archivo) => pedirSubidaAction(persona, archivo),
+  confirmar: (id) => confirmarSubidaAction(persona, id),
+});
+
 /**
  * Un archivo de punta a punta: pedir permiso (el servidor valida y reserva) → PUT directo →
  * confirmar (el servidor verifica que el objeto llegó y su tamaño real).
@@ -54,13 +65,22 @@ export async function subirAdjuntoConId(
   archivo: File,
   alAvanzar: (porcentaje: number) => void,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  return subirPorCanal(canalDePersona(persona), archivo, alAvanzar);
+}
+
+/** Lo mismo, con el canal que se le pase (los adjuntos de un proyecto). */
+export async function subirPorCanal(
+  canal: CanalDeSubida,
+  archivo: File,
+  alAvanzar: (porcentaje: number) => void,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const problema = revisarArchivo(archivo);
   if (problema) return { ok: false, error: problema };
   const tipo = tipoDeArchivo(archivo.name, archivo.type);
-  const permiso = await pedirSubidaAction(persona, { nombre: archivo.name, tipo, tamano: archivo.size });
+  const permiso = await canal.pedir({ nombre: archivo.name, tipo, tamano: archivo.size });
   if (!permiso.ok) return permiso;
   const subio = await putConProgreso(permiso.url, archivo, tipo, alAvanzar);
   if (!subio) return { ok: false, error: "La subida no se completó. Probá de nuevo." };
-  const confirmado = await confirmarSubidaAction(persona, permiso.id);
+  const confirmado = await canal.confirmar(permiso.id);
   return confirmado.ok ? { ok: true, id: permiso.id } : confirmado;
 }

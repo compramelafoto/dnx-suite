@@ -1,5 +1,6 @@
 "use server";
 
+import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { revalidatePath } from "next/cache";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -22,12 +23,13 @@ const SIN_ACCESO: Falla = { ok: false, error: MENSAJES_VALORES.sinPermiso };
 const MODULO_APAGADO: Falla = { ok: false, error: "Ese módulo no está activo." };
 const NO_ENCONTRADO: Falla = { ok: false, error: MENSAJES_VALORES.noEncontrado };
 
-const MODULO = { CLIENTE: CLIENTS_MODULE_KEY, SOCIO: MEMBERS_MODULE_KEY, CONSULTA: SERVICE_LEADS_MODULE_KEY } as const;
+const MODULO = { CLIENTE: CLIENTS_MODULE_KEY, SOCIO: MEMBERS_MODULE_KEY, CONSULTA: SERVICE_LEADS_MODULE_KEY, PROYECTO: PROJECTS_MODULE_KEY } as const;
 
 function rutaFicha(entityType: keyof typeof MODULO, id: string): string {
   const seguro = encodeURIComponent(id);
   if (entityType === "CLIENTE") return `/clientes/${seguro}`;
   if (entityType === "SOCIO") return `/members/${seguro}`;
+  if (entityType === "PROYECTO") return `/proyectos/${seguro}`;
   return `/consultas/${seguro}`;
 }
 

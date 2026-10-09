@@ -12,6 +12,7 @@ import { DialogoPerdida } from "./dialogo-perdida";
 
 /** Lo que responde el motor cuando alguien cambió el recorrido entre que se cargó y se guardó. */
 const MENSAJE_CAMBIO = "Esta consulta cambió mientras tanto.";
+const MENSAJE_CAMBIO_PROYECTO = "Este proyecto cambió mientras tanto.";
 const MENSAJE_FALLA = "No se pudo guardar el cambio. Probá de nuevo.";
 const NOTA_MAX = 2000;
 
@@ -34,7 +35,10 @@ export function Recorrido({
   motivos,
   responsables,
   puedePasarIgual,
+  tipo = "CAPTACION",
 }: {
+  /** Qué registro es: cambia los textos de los diálogos de cierre. */
+  tipo?: "CAPTACION" | "PROYECTO";
   recorrido: RecorridoFicha;
   titulo: string;
   motivos: { id: string; nombre: string }[];
@@ -80,7 +84,7 @@ export function Recorrido({
           return;
         }
         setAviso({ mensaje: r.error, pendientes: r.pendientes, op });
-        if (r.error === MENSAJE_CAMBIO) router.refresh();
+        if (r.error === MENSAJE_CAMBIO || r.error === MENSAJE_CAMBIO_PROYECTO) router.refresh();
       } catch {
         setAviso({ mensaje: MENSAJE_FALLA });
       }
@@ -341,6 +345,7 @@ export function Recorrido({
       </p>
 
       <DialogoGanada
+        pregunta={tipo === "PROYECTO" ? "¿Marcar el proyecto como terminado? No se puede deshacer." : undefined}
         titulo={ganando ? titulo : null}
         onCancelar={() => setGanando(false)}
         onConfirmar={() => {
@@ -349,6 +354,7 @@ export function Recorrido({
         }}
       />
       <DialogoPerdida
+        textos={tipo === "PROYECTO" ? { titulo: "Cancelar el proyecto", boton: "Cancelar el proyecto" } : undefined}
         titulo={perdiendo ? titulo : null}
         motivos={motivos}
         onCancelar={() => setPerdiendo(false)}

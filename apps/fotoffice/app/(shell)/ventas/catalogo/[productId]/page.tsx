@@ -14,6 +14,8 @@ import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
 import { sugerirRubro } from "@/lib/rubros/rubros";
 import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
 import { leerCostos, proveedoresDelWorkspace } from "@/lib/catalogo/costos";
+import { proyectosEncendidos } from "@/lib/proyectos/crear";
+import { leerReglas, opcionesDeRegla } from "@/lib/proyectos/reglas-catalogo";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +52,12 @@ export default async function ProductoPage({
         proveedoresDelWorkspace(workspace.id),
       ])
     : null;
+
+  // Etapa 4: "Proyecto que genera", sólo con Presupuestos y Proyectos encendidos.
+  const proyectos =
+    etapa2 && (await proyectosEncendidos(workspace.id))
+      ? { reglas: await leerReglas(workspace.id, producto.id), opciones: await opcionesDeRegla(workspace.id) }
+      : null;
 
   return (
     <div className="space-y-8">
@@ -90,6 +98,7 @@ export default async function ProductoPage({
           productosCombo={etapa2[3]}
           costos={etapa2[4]}
           proveedores={etapa2[5]}
+          proyectos={proyectos}
         />
       ) : null}
 

@@ -44,7 +44,7 @@ export default async function WorkspaceSettingsPage() {
   // si alguien ya la cambió.
   const vocabulario = await loadPersonVocabulary(ensured.workspaceId);
   // La tarjeta de Campos nombra los mismos tipos que las pestañas de su página: cada uno con su módulo.
-  const NOMBRE_TIPO = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas" } as const;
+  const NOMBRE_TIPO = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas", PROYECTO: "proyectos" } as const;
   const tiposConCampos = (await tiposConModuloEncendido(ensured.workspaceId)).map((t) => NOMBRE_TIPO[t]);
   // Configuración → Consultas, sólo con el módulo encendido (como su pantalla).
   const consultasEncendido = await isModuleEnabledForWorkspace(ensured.workspaceId, SERVICE_LEADS_MODULE_KEY);

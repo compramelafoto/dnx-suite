@@ -331,8 +331,10 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     description: "Proyectos fotográficos con sus tareas, fechas y equipo.",
     category: "GENERAL",
     order: 28,
-    status: "PLANNED",
+    status: "AVAILABLE",
+    route: "/proyectos",
     family: "negocio",
+    dependsOn: ["orders"],
   },
   {
     key: "gallery",

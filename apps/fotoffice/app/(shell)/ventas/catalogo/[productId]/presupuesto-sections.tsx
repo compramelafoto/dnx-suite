@@ -10,9 +10,12 @@ import {
   guardarComboAction,
   guardarCostosAction,
   guardarPerfilAction,
+  guardarReglasProyectoAction,
   type CatalogoActionResult,
   type CostoFormulario,
+  type ReglaProyectoFormulario,
 } from "./presupuesto-actions";
+import type { OpcionesDeRegla, ReglaDetalle } from "@/lib/proyectos/reglas-catalogo";
 
 /**
  * Las secciones de la ficha del producto para presupuestos (etapa 2): "Para presupuestos",
@@ -46,6 +49,7 @@ export function PresupuestoSections({
   productosCombo,
   costos,
   proveedores,
+  proyectos,
 }: {
   productId: string;
   priceMinor: number;
@@ -57,6 +61,8 @@ export function PresupuestoSections({
   productosCombo: { id: string; name: string; priceMinor: number }[];
   costos: CostoDetalle[];
   proveedores: ProveedorOpcion[];
+  /** Reglas "Proyecto que genera"; null con el módulo Proyectos apagado. */
+  proyectos: { reglas: ReglaDetalle[]; opciones: OpcionesDeRegla } | null;
 }) {
   return (
     <div className="space-y-6">
@@ -74,6 +80,14 @@ export function PresupuestoSections({
         costos={costos}
         proveedores={proveedores}
       />
+      {proyectos ? (
+        <ProyectosSection
+          key={proyectos.reglas.map((r) => r.id).join("|")}
+          productId={productId}
+          reglas={proyectos.reglas}
+          opciones={proyectos.opciones}
+        />
+      ) : null}
     </div>
   );
 }
@@ -407,6 +421,138 @@ function CostosSection({
           onClick={() => startTransition(async () => setResultado(await guardarCostosAction(productId, filas)))}
         >
           {guardando ? "Guardando…" : "Guardar costos"}
+        </button>
+        <Aviso resultado={resultado} />
+      </div>
+    </section>
+  );
+}
+
+function ProyectosSection({
+  productId,
+  reglas,
+  opciones,
+}: {
+  productId: string;
+  reglas: ReglaDetalle[];
+  opciones: OpcionesDeRegla;
+}) {
+  const [filas, setFilas] = useState<ReglaProyectoFormulario[]>(() =>
+    reglas.map((r) => ({
+      circuitId: r.circuitId,
+      ownerUserId: r.ownerUserId === null ? "" : String(r.ownerUserId),
+      daysFromEvent: String(r.daysFromEvent),
+      nameTemplate: r.nameTemplate ?? "",
+    })),
+  );
+  const [resultado, setResultado] = useState<CatalogoActionResult | null>(null);
+  const [guardando, startTransition] = useTransition();
+
+  // Un flujo ya elegido que se dio de baja se sigue mostrando (se saltea al vender).
+  const flujos = useMemo(() => {
+    const mapa = new Map(opciones.circuitos.map((c) => [c.id, c.name]));
+    for (const r of reglas) if (!mapa.has(r.circuitId)) mapa.set(r.circuitId, `${r.circuitName} (archivado)`);
+    return [...mapa.entries()];
+  }, [opciones, reglas]);
+
+  function cambiar(i: number, cambio: Partial<ReglaProyectoFormulario>) {
+    setFilas((fs) => fs.map((f, j) => (j === i ? { ...f, ...cambio } : f)));
+  }
+
+  return (
+    <section className="fo-card space-y-4 p-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Proyecto que genera</h2>
+        <p className="fo-helper">
+          Al confirmar un pedido con este producto se abre un proyecto por cada fila, con el flujo de trabajo elegido. La
+          cantidad no multiplica: un álbum por cuatro unidades sigue siendo un proyecto. En el nombre podés usar {"{contacto}"},{" "}
+          {"{producto}"}, {"{evento}"} y {"{pedido}"}.
+        </p>
+      </div>
+
+      {filas.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Este producto no abre proyectos.</p> : null}
+      <ul className="space-y-3">
+        {filas.map((f, i) => {
+          const dias = Number(f.daysFromEvent);
+          return (
+            <li key={i} className="space-y-2 rounded-lg border border-[var(--fo-border)] p-3">
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Flujo de trabajo"
+                  value={f.circuitId}
+                  onChange={(e) => cambiar(i, { circuitId: e.target.value })}
+                >
+                  <option value="">Elegí el flujo</option>
+                  {flujos.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Responsable"
+                  value={f.ownerUserId}
+                  onChange={(e) => cambiar(i, { ownerUserId: e.target.value })}
+                >
+                  <option value="">El responsable del pedido</option>
+                  {opciones.equipo.map((m) => (
+                    <option key={m.id} value={String(m.id)}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Nombre del proyecto"
+                  placeholder="{contacto} · {producto}"
+                  maxLength={200}
+                  value={f.nameTemplate}
+                  onChange={(e) => cambiar(i, { nameTemplate: e.target.value })}
+                />
+                <input
+                  className="fo-input w-24"
+                  type="number"
+                  step={1}
+                  min={-365}
+                  max={365}
+                  aria-label="Días desde el evento"
+                  value={f.daysFromEvent}
+                  onChange={(e) => cambiar(i, { daysFromEvent: e.target.value })}
+                />
+                <span className="text-xs text-[var(--fo-muted)]">
+                  {Number.isInteger(dias) ? `entrega ${textoDias(dias)}` : "días desde el evento (+/-)"}
+                </span>
+                <button type="button" className="fo-btn fo-btn-ghost ml-auto text-sm" onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}>
+                  Quitar
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        className="fo-btn fo-btn-secondary text-sm"
+        onClick={() => setFilas((fs) => [...fs, { circuitId: opciones.circuitos[0]?.id ?? "", ownerUserId: "", daysFromEvent: "0", nameTemplate: "" }])}
+      >
+        Agregar proyecto
+      </button>
+      {opciones.circuitos.length === 0 ? (
+        <p className="fo-helper">Para elegir un flujo, creá uno de trabajo en Configuración → Circuitos.</p>
+      ) : null}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="fo-btn fo-btn-primary text-sm"
+          disabled={guardando}
+          onClick={() => startTransition(async () => setResultado(await guardarReglasProyectoAction(productId, filas)))}
+        >
+          {guardando ? "Guardando…" : "Guardar proyectos"}
         </button>
         <Aviso resultado={resultado} />
       </div>

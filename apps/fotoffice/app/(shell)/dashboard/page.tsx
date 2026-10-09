@@ -4,6 +4,8 @@ import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
 import { MisTareas } from "@/components/circuitos/mis-tareas";
 import { misTareasDelInicio } from "@/lib/circuitos/inicio";
+import { MisEntregas } from "@/components/proyectos/mis-entregas";
+import { misEntregasDelInicio } from "@/lib/proyectos/entregas";
 import { invitacionesPendientesWhere } from "@/lib/course-marketplace/access";
 import { puedePedirReventa } from "@/lib/course-marketplace/mercado";
 import { moduleOffNotice } from "@/lib/dashboard/module-off-notice";
@@ -25,6 +27,9 @@ export default async function DashboardPage({
 
   // Sólo con `operar` y Captación encendida; vacío o con error, no se muestra (nunca rompe el inicio).
   const tareas = workspace !== null ? await misTareasDelInicio(user, workspace.id, new Date()) : null;
+
+  // Los proyectos propios con fecha final en los próximos 7 días o vencidos (sólo con "Ver" en Proyectos).
+  const entregas = workspace !== null ? await misEntregasDelInicio(user, workspace.id, new Date()) : null;
 
   let branding: { publicSlug: string; commercialName: string } | null = null;
   if (workspace !== null) {
@@ -123,6 +128,7 @@ export default async function DashboardPage({
       ) : null}
 
       {tareas ? <MisTareas grupos={tareas} /> : null}
+      {entregas ? <MisEntregas entregas={entregas} /> : null}
 
       {memberships === 0 ? (
         <div className="fo-card">

@@ -16,6 +16,7 @@ const PESTANAS: { slug: string; entityType: TipoRegistroActivo }[] = [
   { slug: "clientes", entityType: "CLIENTE" },
   { slug: "socios", entityType: "SOCIO" },
   { slug: "consultas", entityType: "CONSULTA" },
+  { slug: "proyectos", entityType: "PROYECTO" },
 ];
 
 export default async function ConfiguracionCamposPage({
@@ -52,8 +53,9 @@ export default async function ConfiguracionCamposPage({
     CLIENTE: "Clientes",
     SOCIO: vocabulario.Plural,
     CONSULTA: "Consultas",
+    PROYECTO: "Proyectos",
   };
-  const enMinuscula: Record<TipoRegistroActivo, string> = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas" };
+  const enMinuscula: Record<TipoRegistroActivo, string> = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas", PROYECTO: "proyectos" };
   // Cada pestaña sólo con su módulo encendido: Clientes, Socios, Captación.
   const pestanas = PESTANAS.filter((p) => encendidos.includes(p.entityType));
   if (pestanas.length === 0) {
@@ -61,7 +63,7 @@ export default async function ConfiguracionCamposPage({
       <div className="max-w-xl space-y-6">
         <PageHeader title="Campos" />
         <p className="text-sm text-[var(--fo-muted)]">
-          Los campos personalizados se usan en las fichas de clientes, {vocabulario.plural} o consultas. Encendé alguno de
+          Los campos personalizados se usan en las fichas de clientes, {vocabulario.plural}, consultas o proyectos. Encendé alguno de
           esos módulos para configurarlos.
         </p>
       </div>

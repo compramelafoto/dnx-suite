@@ -206,6 +206,11 @@ describe("mover", () => {
     expect(foto()).toBe(antes);
   });
 
+  it("el aviso de cambio nombra al proyecto cuando el sujeto es un proyecto", () => {
+    expect(R.MENSAJES.cambio).toBe("Esta consulta cambió mientras tanto.");
+    expect(R.MENSAJES.cambioProyecto).toBe("Este proyecto cambió mientras tanto.");
+  });
+
   it("si alguien lo movió entre la lectura y la escritura, se deshace todo", async () => {
     const id = await iniciado();
     tildarObligatorias(id);

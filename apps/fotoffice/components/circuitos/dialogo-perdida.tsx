@@ -3,13 +3,18 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+const TEXTOS_PERDIDA = { titulo: "Marcar como perdida", boton: "Marcar como perdida" };
+
 /** Pide el motivo (obligatorio) y una nota opcional antes de cerrar una consulta como perdida. */
 export function DialogoPerdida({
   titulo,
   motivos,
   onConfirmar,
   onCancelar,
+  textos = TEXTOS_PERDIDA,
 }: {
+  /** Títulos y botón (por omisión, los de Consultas). */
+  textos?: { titulo: string; boton: string };
   /** Nombre de la consulta; null = el diálogo está cerrado. */
   titulo: string | null;
   motivos: { id: string; nombre: string }[];
@@ -53,7 +58,7 @@ export function DialogoPerdida({
       >
         <div className="space-y-1">
           <h2 id="dialogo-perdida-titulo" className="text-lg font-semibold text-[var(--fo-text)]">
-            Marcar como perdida
+            {textos.titulo}
           </h2>
           {titulo ? <p className="text-sm text-[var(--fo-muted)]">{titulo}</p> : null}
         </div>
@@ -94,7 +99,7 @@ export function DialogoPerdida({
             Cancelar
           </button>
           <button type="submit" className="fo-btn fo-btn-danger text-sm" disabled={!motivo}>
-            Marcar como perdida
+            {textos.boton}
           </button>
         </div>
       </form>

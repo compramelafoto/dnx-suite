@@ -34,6 +34,8 @@ export async function registroDelWorkspace(workspaceId: string, entityType: stri
       return (await prisma.member.findFirst({ where, select: { id: true } })) !== null;
     case "CONSULTA":
       return (await prisma.serviceSalesLead.findFirst({ where, select: { id: true } })) !== null;
+    case "PROYECTO":
+      return (await prisma.fotofficeProyecto.findFirst({ where, select: { id: true } })) !== null;
     default:
       return false;
   }

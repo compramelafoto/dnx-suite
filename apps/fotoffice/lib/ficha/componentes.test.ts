@@ -69,7 +69,7 @@ describe("componentes de la ficha", () => {
 
   it("una subida que falla por excepción queda marcada y libera el botón; accept incluye extensiones", () => {
     const a = componente("adjuntos.tsx");
-    expect(a).toMatch(/try \{\s*const r = await subirAdjunto\(/);
+    expect(a).toMatch(/try \{[\s\S]*?await subirAdjunto\(/);
     expect(a).toContain("} catch {");
     expect(a).toContain('"No se pudo subir. Probá de nuevo."');
     expect(a).toContain("actualizar({ error: ERROR_SUBIDA_FALLIDA })");

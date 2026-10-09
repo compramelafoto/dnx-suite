@@ -22,7 +22,10 @@ export function SelectorContacto({
   excluir,
   deshabilitado,
   marca = {},
+  buscar = buscarContactosAction,
 }: {
+  /** Quién busca (por omisión, el de Consultas; la ficha del proyecto pasa el suyo). */
+  buscar?: (texto: string) => Promise<{ ok: true; contactos: ContactoElegido[] } | { ok: false; error: string }>;
   etiqueta: string;
   elegido: ContactoElegido | null;
   onElegir: (c: ContactoElegido | null) => void;
@@ -47,7 +50,7 @@ export function SelectorContacto({
     const espera = setTimeout(async () => {
       setBuscando(true);
       try {
-        const r = await buscarContactosAction(t);
+        const r = await buscar(t);
         if (!vigente) return;
         if (!r.ok) {
           setError(r.error);
@@ -67,7 +70,7 @@ export function SelectorContacto({
       vigente = false;
       clearTimeout(espera);
     };
-  }, [busca, t, clavesExcluidas]);
+  }, [busca, t, clavesExcluidas, buscar]);
 
   if (elegido) {
     return (

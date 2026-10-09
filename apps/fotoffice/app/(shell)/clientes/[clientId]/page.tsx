@@ -30,6 +30,10 @@ import { aTarjeta, TarjetaPresupuestos } from "@/components/presupuestos/tarjeta
 import { aTarjetaPedido, TarjetaPedidos } from "@/components/pedidos/tarjeta-pedidos";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { listarPedidos } from "@/lib/pedidos/pedidos";
+import { TarjetaProyectos } from "@/components/proyectos/tarjeta-proyectos";
+import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
+import { proyectosEncendidos } from "@/lib/proyectos/crear";
+import { proyectosParaTarjeta } from "@/lib/proyectos/tarjetas";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
@@ -100,6 +104,14 @@ export default async function ClientePage({
         )
       ).map(aTarjetaPedido)
     : null;
+  // Tarjeta "Proyectos" del contacto: con el módulo encendido y "Ver" en Proyectos.
+  const proyectos =
+    puede(acceso, "ver", PROJECTS_MODULE_KEY) && (await proyectosEncendidos(workspace.id))
+      ? await proyectosParaTarjeta(
+          { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso },
+          { clientId: cliente.id },
+        )
+      : null;
   const perfil = perfiles.get(cliente.id);
   if (!perfil) notFound();
 
@@ -203,6 +215,7 @@ export default async function ClientePage({
                 vacio="Todavía no tiene pedidos."
               />
             ) : null}
+            {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." /> : null}
             <DatosFicha titulo="¿Es socio?">
               <p className="text-sm text-[var(--fo-muted)]">
                 {cliente.member ? (

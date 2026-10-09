@@ -6,6 +6,7 @@ import { parseArsToMinor } from "@/lib/membership/money";
 import { guardarPerfil } from "@/lib/catalogo/perfil";
 import { guardarComponentes } from "@/lib/catalogo/combos";
 import { guardarCostos } from "@/lib/catalogo/costos";
+import { guardarReglas } from "@/lib/proyectos/reglas-catalogo";
 
 /**
  * Las tres secciones que la ficha del producto suma para presupuestos (etapa 2): "Combo",
@@ -83,4 +84,33 @@ export async function guardarCostosAction(productId: string, costos: CostoFormul
   const r = await guardarCostos(workspace.id, String(productId), filas);
   if (r.ok) refrescar(productId);
   return r;
+}
+
+export type ReglaProyectoFormulario = {
+  circuitId: string;
+  /** Id del miembro del equipo, o "" = el responsable del pedido. */
+  ownerUserId: string;
+  daysFromEvent: string;
+  nameTemplate: string;
+};
+
+/** "Proyecto que genera" (Etapa 4): las reglas del producto. Exige `sales.catalog`, como los costos. */
+export async function guardarReglasProyectoAction(productId: string, reglas: ReglaProyectoFormulario[]): Promise<CatalogoActionResult> {
+  const { workspace } = await requireSalesAdmin();
+  if (!Array.isArray(reglas)) return { ok: false, error: "Los proyectos no son válidos." };
+  const filas: unknown[] = [];
+  for (const [i, r] of reglas.entries()) {
+    const diasTexto = String(r?.daysFromEvent ?? "").trim();
+    const dueno = String(r?.ownerUserId ?? "").trim();
+    if (dueno !== "" && !/^\d{1,9}$/.test(dueno)) return { ok: false, error: `Fila ${i + 1}: el responsable no es válido.` };
+    filas.push({
+      circuitId: String(r?.circuitId ?? ""),
+      ownerUserId: dueno === "" ? null : Number(dueno),
+      daysFromEvent: diasTexto === "" ? 0 : Number(diasTexto),
+      nameTemplate: String(r?.nameTemplate ?? ""),
+    });
+  }
+  const res = await guardarReglas(workspace.id, String(productId), filas);
+  if (res.ok) refrescar(productId);
+  return res;
 }

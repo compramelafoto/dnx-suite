@@ -18,6 +18,7 @@ type Vista = {
   eventLabel: string | null;
   aviso: AvisoPlan | null;
   plantillas: string[];
+  proyectos: { index: number; nombre: string; flujo: string; finalDueDate: string; aviso?: string }[];
 };
 
 /**
@@ -36,6 +37,8 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
   const [yaTiene, setYaTiene] = useState<string | null>(null);
   // Plantilla de checklist a copiar; "" = sin checklist.
   const [checklist, setChecklist] = useState("");
+  // Posiciones de proyectos destildados.
+  const [omitidos, setOmitidos] = useState<number[]>([]);
 
   function abrir() {
     setError(null);
@@ -55,7 +58,9 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
         eventLabel: v.eventLabel,
         aviso: v.aviso,
         plantillas: v.plantillasChecklist,
+        proyectos: v.proyectos,
       });
+      setOmitidos([]);
       setChecklist(v.plantillasChecklist[0] ?? "");
       setFilas(v.cuotas.map((c) => ({ clave: claveDeFila(), id: null, dueDate: c.dueDate, importe: textoDeImporte(c.amountArs), suggestedMethod: null, imputado: 0 })));
       setEditado(false);
@@ -70,7 +75,7 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
     setError(null);
     iniciar(async () => {
       const plan = editado ? cuotasParaGuardar(filas).map(({ dueDate, amountArs, suggestedMethod }) => ({ dueDate, amountArs, suggestedMethod })) : null;
-      const r = await confirmarPedidoAction({ presupuestoId, plan, checklist: checklist === "" ? null : checklist }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
+      const r = await confirmarPedidoAction({ presupuestoId, plan, checklist: checklist === "" ? null : checklist, proyectosOmitidos: omitidos }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
       if (r.ok) {
         router.push(`/pedidos/${encodeURIComponent(r.pedidoId)}`);
         return;
@@ -157,6 +162,34 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
             <option value="">Sin checklist</option>
           </select>
         </div>
+      ) : null}
+      {vista.proyectos.length > 0 ? (
+        <fieldset className="space-y-2">
+          <legend className="fo-label">Proyectos que se van a crear</legend>
+          <ul className="space-y-2 text-sm">
+            {vista.proyectos.map((p) => (
+              <li key={p.index} className="space-y-0.5">
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!p.aviso && !omitidos.includes(p.index)}
+                    disabled={pendiente || !!p.aviso}
+                    onChange={(e) => setOmitidos((o) => (e.target.checked ? o.filter((i) => i !== p.index) : [...o, p.index]))}
+                  />
+                  <span>
+                    <span className="font-medium">{p.nombre}</span>
+                    <span className="text-[var(--fo-muted)]">
+                      {" "}
+                      · {p.flujo} · entrega {fechaCorta(p.finalDueDate)}
+                    </span>
+                  </span>
+                </label>
+                {p.aviso ? <p className="pl-6 text-xs text-[var(--fo-warning)]">{p.aviso}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </fieldset>
       ) : null}
       {error ? (
         <p role="alert" className="text-sm text-[var(--fo-danger)]">

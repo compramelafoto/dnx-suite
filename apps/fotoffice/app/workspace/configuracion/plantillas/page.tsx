@@ -63,7 +63,8 @@ export default async function ConfiguracionPlantillasPage({
 
   const [vocabulario, encendidos, conPresupuestos, conPedidos] = await Promise.all([
     loadPersonVocabulary(workspace.id),
-    tiposConModuloEncendido(workspace.id),
+    // Proyectos tiene campos personalizados, pero todavía no tiene plantillas de mensajes.
+    tiposConModuloEncendido(workspace.id).then((ts) => ts.filter((t): t is Exclude<typeof t, "PROYECTO"> => t !== "PROYECTO")),
     isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
     isModuleEnabledForWorkspace(workspace.id, ORDERS_MODULE_KEY),
   ]);

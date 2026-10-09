@@ -10,7 +10,7 @@ import { EditorMasDatos } from "./editor-mas-datos";
  * workspace) ANTES de leer valores. Sin campos activos no se ve nada, salvo un enlace
  * discreto a Configuración → Campos para quien puede configurar.
  */
-export async function MasDatos({ entityType, entityId }: { entityType: "CLIENTE" | "SOCIO" | "CONSULTA"; entityId: string }) {
+export async function MasDatos({ entityType, entityId }: { entityType: "CLIENTE" | "SOCIO" | "CONSULTA" | "PROYECTO"; entityId: string }) {
   const vista = await cargarMasDatos(entityType, entityId);
   if (!vista) return null;
 

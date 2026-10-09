@@ -75,6 +75,7 @@ function esChoque(e: unknown): boolean {
 async function pluralDe(workspaceId: string, entityType: TipoRegistroActivo): Promise<string> {
   if (entityType === "CLIENTE") return "clientes";
   if (entityType === "CONSULTA") return "consultas";
+  if (entityType === "PROYECTO") return "proyectos";
   return (await loadPersonVocabulary(workspaceId)).plural;
 }
 

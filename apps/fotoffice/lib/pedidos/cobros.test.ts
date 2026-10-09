@@ -236,6 +236,33 @@ describe("registrar un cobro", () => {
     expect(B.datos.fotofficePedido.find((p) => p.id === "ped-2")!.status).toBe("EN_CURSO");
   });
 
+  it("SENA_COBRADA también avisa a cada proyecto del pedido, sólo con el primer cobro y sin tocar los de otros pedidos", async () => {
+    for (const [id, pedidoId, ws] of [["p1", "ped-1", "ws-1"], ["p2", "ped-1", "ws-1"], ["p3", "ped-2", "ws-1"], ["p4", "ped-1", "ws-2"]] as const) {
+      B.agregar("fotofficeProyecto", { id, workspaceId: ws, number: id, name: id, clientId: "cli-1", pedidoId, circuitId: "c", baseDate: new Date("2026-10-07") });
+    }
+    pedido("ped-2", [["2026-10-07", 100]], { consultaLeadId: null });
+    const a = await cobrado("ped-1", 1000);
+    await cobrado("ped-1", 1000);
+    expect(H.notificar.mock.calls.map((c) => [c[1], c[2], c[3]])).toEqual([
+      [{ tipo: "CAPTACION", id: "lead-1" }, "SENA_COBRADA", a.cobroId],
+      [{ tipo: "PROYECTO", id: "p1" }, "SENA_COBRADA", a.cobroId],
+      [{ tipo: "PROYECTO", id: "p2" }, "SENA_COBRADA", a.cobroId],
+    ]);
+    // Sin consulta, igual avisa al proyecto.
+    const b = await cobrado("ped-2", 100);
+    expect(H.notificar).toHaveBeenLastCalledWith("ws-1", { tipo: "PROYECTO", id: "p3" }, "SENA_COBRADA", b.cobroId);
+  });
+
+  it("una falla del motor al avisar a un proyecto no frena el cobro ni a los demás", async () => {
+    for (const id of ["p1", "p2"]) {
+      B.agregar("fotofficeProyecto", { id, workspaceId: "ws-1", number: id, name: id, clientId: "cli-1", pedidoId: "ped-1", circuitId: "c", baseDate: new Date("2026-10-07") });
+    }
+    H.notificar.mockResolvedValueOnce({ movido: false }).mockRejectedValueOnce(new Error("motor"));
+    const r = await cobrar("ped-1", 1000);
+    expect(r.ok).toBe(true);
+    expect(H.notificar).toHaveBeenCalledTimes(3);
+  });
+
   it("una falla del motor no frena el cobro", async () => {
     H.notificar.mockRejectedValueOnce(new Error("motor"));
     expect((await cobrar("ped-1", 100)).ok).toBe(true);

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { NOTA_IMPORTADA, SALIDAS } from "./constantes";
+import { NOTA_IMPORTADA, SALIDAS, type Clase } from "./constantes";
 
 /**
  * Informe de un circuito en un período: cuánto tardan las consultas en cada etapa, cuántas
@@ -158,15 +158,16 @@ export async function informeCircuito(workspaceId: string, circuitId: string, de
 }
 
 /**
- * Circuitos de venta activos del workspace para elegir en el informe, y cuál se muestra: el
+ * Circuitos activos de la clase (por omisión, venta) del workspace para elegir en el informe, y cuál se muestra: el
  * pedido si es suyo; si no, el predeterminado o el primero.
  */
 export async function circuitosDelInforme(
   workspaceId: string,
   pedido: string | null,
+  clase: Clase = "VENTA",
 ): Promise<{ circuitos: { id: string; nombre: string }[]; elegido: string | null }> {
   const filas = await prisma.fotofficeCircuit.findMany({
-    where: { workspaceId, kind: "VENTA", isActive: true },
+    where: { workspaceId, kind: clase, isActive: true },
     select: { id: true, name: true, isDefault: true },
     orderBy: [{ name: "asc" }],
   });

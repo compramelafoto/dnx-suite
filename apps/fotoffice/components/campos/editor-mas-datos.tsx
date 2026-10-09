@@ -22,7 +22,7 @@ export function EditorMasDatos({
   puedeEditar,
   children,
 }: {
-  entityType: "CLIENTE" | "SOCIO" | "CONSULTA";
+  entityType: "CLIENTE" | "SOCIO" | "CONSULTA" | "PROYECTO";
   entityId: string;
   campos: CampoVista[];
   puedeEditar: boolean;

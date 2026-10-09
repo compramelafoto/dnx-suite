@@ -14,7 +14,19 @@ const TITULO_MAX = 200;
  * anteriores. Se tildan en línea; las agregadas a mano ("sueltas") también se borran. Con el
  * recorrido cerrado no se agregan tareas nuevas.
  */
-export function Tareas({ journeyId, tareas, abierto }: { journeyId: string; tareas: TareaFicha[]; abierto: boolean }) {
+export function Tareas({
+  journeyId,
+  tareas,
+  abierto,
+  responsables,
+}: {
+  journeyId: string;
+  tareas: TareaFicha[];
+  abierto: boolean;
+  /** Si viene, cada tarea muestra a quién está asignada (la ficha del proyecto). */
+  responsables?: { id: number; nombre: string }[];
+}) {
+  const nombreDe = new Map((responsables ?? []).map((r) => [r.id, r.nombre]));
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +117,7 @@ export function Tareas({ journeyId, tareas, abierto }: { journeyId: string; tare
                     t.vence ? `Vence ${fechaBA(t.vence)}` : null,
                     t.vencida && !hecha ? "Vencida" : null,
                     t.suelta ? "Agregada a mano" : t.deEtapaAnterior ? `Quedó de ${t.etapa}` : null,
+                    responsables ? `Responsable: ${t.responsableId !== null ? (nombreDe.get(t.responsableId) ?? "otra persona") : "sin asignar"}` : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
