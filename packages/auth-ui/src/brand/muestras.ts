@@ -7,7 +7,7 @@ import type { DnxAuthBrandConfig } from "../types";
 export const muestrasAuthBrand: DnxAuthBrandConfig = {
   applicationId: "muestras",
   productName: "Muestras Fotográficas",
-  logo: { src: "/brand/muestras-logo.svg", alt: "Muestras Fotográficas", height: "4rem", href: "/" },
+  logo: { src: "/brand/muestras-logo.webp", alt: "Muestras Fotográficas", height: "6rem", href: "/" },
   tokens: { brandKey: "muestras", fontFamily: "var(--mf-font), system-ui, sans-serif" },
   privacyUrl: "/privacidad",
   termsUrl: "/terminos",

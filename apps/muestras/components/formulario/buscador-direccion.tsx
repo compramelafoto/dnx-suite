@@ -27,16 +27,16 @@ export function BuscadorDireccion({ onElegir }: { onElegir: (l: Lugar) => void }
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Buscá la dirección (calle, número, ciudad)"
-        className="w-full rounded-md border border-[var(--mf-line)] bg-white px-3 py-2"
+        className="w-full rounded-[10px] border border-[var(--mf-line)] bg-white px-3 py-2"
       />
       {error ? <p className="mt-1 text-sm text-[var(--mf-muted)]">{error}</p> : null}
       {res.length > 0 ? (
-        <ul className="absolute z-10 mt-1 w-full rounded-md border border-[var(--mf-line)] bg-white shadow">
+        <ul className="absolute z-10 mt-1 w-full rounded-[10px] border border-[var(--mf-line)] bg-white">
           {res.map((l) => (
             <li key={`${l.latitude},${l.longitude}`}>
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--mf-bg)]"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-[var(--mf-surface)]"
                 onClick={() => { onElegir(l); setRes([]); setQ(l.displayName); }}
               >
                 {l.displayName}

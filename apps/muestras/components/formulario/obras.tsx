@@ -41,11 +41,11 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--mf-muted)]">
-        {obras.length}/{MAX_WORKS} obras · {destacadas}/{MAX_HIGHLIGHTS} destacadas. Mientras la muestra está abierta, el público ve sólo las destacadas.
+        {obras.length}/{MAX_WORKS} obras, {destacadas}/{MAX_HIGHLIGHTS} destacadas. Mientras la muestra está abierta, el público ve sólo las destacadas.
       </p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {obras.map((o, i) => (
-          <li key={o.imageUrl} className="flex gap-3 rounded-md border border-[var(--mf-line)] bg-white p-2">
+          <li key={o.imageUrl} className="flex gap-3 rounded-[10px] border border-[var(--mf-line)] bg-white p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={o.imageUrl} alt="" className="h-24 w-24 rounded object-cover" />
             <div className="flex-1 space-y-1 text-sm">
@@ -70,7 +70,7 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
         ))}
       </ul>
       {obras.length < MAX_WORKS ? (
-        <label className="inline-block cursor-pointer rounded-md border border-dashed border-[var(--mf-line)] px-4 py-3">
+        <label className="inline-block cursor-pointer rounded-[10px] border border-dashed border-[var(--mf-line)] px-4 py-3">
           {subiendo > 0 ? `Subiendo ${subiendo}…` : "Agregar fotos"}
           <input type="file" accept="image/*" multiple className="hidden" disabled={subiendo > 0} onChange={(e) => agregar(e.target.files)} />
         </label>

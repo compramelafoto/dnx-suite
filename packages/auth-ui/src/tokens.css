@@ -98,15 +98,15 @@
 
 /* Muestras Fotográficas. Papel claro y un rojo óxido como único acento. */
 .dnx-auth-root[data-brand="muestras"] {
-  --auth-background: #f6f4ef;
+  --auth-background: #ffffff;
   --auth-surface: #ffffff;
-  --auth-text-primary: #1b1a17;
-  --auth-text-secondary: #6b665c;
-  --auth-border: #e2ddd2;
-  --auth-secondary-border: #8a8478;
-  --auth-primary: #b4432c;
+  --auth-text-primary: #1c2b35;
+  --auth-text-secondary: #5a6b76;
+  --auth-border: #d6e2e9;
+  --auth-secondary-border: #5a6b76;
+  --auth-primary: #0d6b7a;
   --auth-primary-text: #ffffff;
-  --auth-focus: #b4432c;
+  --auth-focus: #0d6b7a;
   --auth-error: #a1251b;
   --auth-error-bg: rgba(161, 37, 27, 0.08);
 }

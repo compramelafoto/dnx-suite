@@ -112,7 +112,7 @@ export default function MapaDelLugar({
     // `z-0` no es decorativo: los paneles de Leaflet traen su propio `z-index` alto y sin esto
     // el mapa se dibuja por encima de la lista de sugerencias del buscador.
     <div
-      className="relative z-0 overflow-hidden rounded-md border border-[var(--mf-line)]"
+      className="relative z-0 overflow-hidden rounded-2xl border border-[var(--mf-line)]"
       style={{ height: alto }}
     >
       <MapContainer

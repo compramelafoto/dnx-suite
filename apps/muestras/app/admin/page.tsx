@@ -12,11 +12,11 @@ type Fila = Awaited<ReturnType<typeof listarParaRevisar>>[number];
 
 function Tarjeta({ f }: { f: Fila }) {
   return (
-    <li className="grid gap-3 rounded-md border border-[var(--mf-line)] bg-white p-4 sm:grid-cols-[1fr_18rem]">
+    <li className="grid gap-3 rounded-[10px] border border-[var(--mf-line)] bg-white p-4 sm:grid-cols-[1fr_18rem]">
       <div className="space-y-1">
-        <p className="text-sm text-[var(--mf-muted)]">{REVIEW_STATUS_LABELS[f.reviewStatus as ReviewStatus] ?? f.reviewStatus} · {ACTIVITY_TYPE_LABELS[f.type as ActivityType] ?? f.type}</p>
+        <p className="text-sm text-[var(--mf-muted)]">{REVIEW_STATUS_LABELS[f.reviewStatus as ReviewStatus] ?? f.reviewStatus}, {ACTIVITY_TYPE_LABELS[f.type as ActivityType] ?? f.type}</p>
         <h2 className="text-lg font-medium">{f.title}</h2>
-        <p className="text-sm">{formatArDay(f.startsAt)} al {formatArDay(f.endsAt)} · {f.isVirtualOnly ? "Virtual" : [f.address, f.city, f.province].filter(Boolean).join(", ")}</p>
+        <p className="text-sm">Del {formatArDay(f.startsAt)} al {formatArDay(f.endsAt)}. {f.isVirtualOnly ? "Virtual" : [f.address, f.city, f.province].filter(Boolean).join(", ")}</p>
         <p className="text-sm">Organiza: {f.organizersText}</p>
         <p className="line-clamp-3 text-sm text-[var(--mf-muted)]">{f.description}</p>
         <div className="flex gap-1">
@@ -39,7 +39,7 @@ export default async function Admin() {
   const resto = filas.filter((f) => f.reviewStatus !== "IN_REVIEW");
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
-      <h1 className="font-[family-name:var(--mf-serif)] text-3xl">Revisión</h1>
+      <h1 className="mf-titulo text-[2.45rem]">Revisión</h1>
       <section className="space-y-3">
         <h2 className="text-xl">Para revisar ({pendientes.length})</h2>
         {pendientes.length ? <ul className="space-y-3">{pendientes.map((f) => <Tarjeta key={f.id} f={f} />)}</ul> : <p>No hay propuestas pendientes.</p>}

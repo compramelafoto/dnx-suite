@@ -47,8 +47,8 @@ export default async function Login({ searchParams }: Props) {
       {/*
         `secondary` y no `emphasized`: es el estilo canónico de la suite y el
         que hace que este botón se vea igual que en las otras plataformas, que
-        es justamente lo pedido. El color de marca lo pone el fondo púrpura y
-        el amarillo del foco, no el botón.
+        es justamente lo pedido. El color de marca lo ponen el logo y el
+        petróleo del foco, no el botón.
       */}
       <DnxGoogleButton href={destino} emphasis="secondary" />
     </DnxAuthShell>

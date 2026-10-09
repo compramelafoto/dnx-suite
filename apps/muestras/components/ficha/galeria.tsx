@@ -16,11 +16,12 @@ export function Galeria({ obras, parcial }: { obras: Obra[]; parcial: boolean })
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {obras.map((o, i) => (
           <li key={o.id}>
-            <button type="button" className="block w-full" onClick={() => setAbierta(i)}>
+            <button type="button" className="block w-full rounded-[10px]" onClick={() => setAbierta(i)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={o.imageUrl} alt={`${o.title}, de ${o.authorName}`} loading="lazy" className="aspect-square w-full object-cover" />
+              <img src={o.imageUrl} alt={`${o.title}, de ${o.authorName}`} loading="lazy" className="aspect-square w-full rounded-[10px] object-cover" />
             </button>
-            <p className="mt-1 text-sm">{o.title} · <span className="text-[var(--mf-muted)]">{o.authorName}</span></p>
+            <p className="mt-1.5 text-sm font-medium">{o.title}</p>
+            <p className="text-sm text-[var(--mf-muted)]">{o.authorName}</p>
           </li>
         ))}
       </ul>
@@ -36,13 +37,13 @@ export function Galeria({ obras, parcial }: { obras: Obra[]; parcial: boolean })
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={actual.imageUrl} alt={actual.title} className="max-h-[80vh] max-w-full object-contain" />
           <p className="mt-3 text-center">
-            <strong>{actual.title}</strong> · {actual.authorName}
-            {actual.year ? `, ${actual.year}` : ""}{actual.technique ? ` · ${actual.technique}` : ""}
+            <strong>{actual.title}</strong>, de {actual.authorName}
+            {actual.year ? `, ${actual.year}` : ""}{actual.technique ? `. ${actual.technique}` : ""}
           </p>
           <div className="mt-3 flex gap-6">
-            <button onClick={() => ir(-1)}>← Anterior</button>
+            <button onClick={() => ir(-1)}>Anterior</button>
             <button onClick={() => setAbierta(null)}>Cerrar</button>
-            <button onClick={() => ir(1)}>Siguiente →</button>
+            <button onClick={() => ir(1)}>Siguiente</button>
           </div>
         </div>
       ) : null}
