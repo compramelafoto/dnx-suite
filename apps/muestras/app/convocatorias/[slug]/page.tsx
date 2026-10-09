@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CALL_PHASE_PUBLIC_TEXT, acceptsSubmissions, callPhase, formatArDay, hasPublicPage } from "@repo/muestras";
+import { CALL_PHASE_PUBLIC_TEXT, callMetaDescription, acceptsSubmissions, callPhase, formatArDay, hasPublicPage } from "@repo/muestras";
 import { buscarConvocatoriaPublica } from "@/lib/convocatorias/consultas";
 
 export const revalidate = 300;
@@ -11,7 +11,7 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = await buscarConvocatoriaPublica((await params).slug);
   if (!c) return {};
-  return { title: c.title, description: c.basesText.slice(0, 160) };
+  return { title: c.title, description: callMetaDescription(c.basesText, `Convocatoria para exponer en la muestra ${c.activity.title}.`) };
 }
 
 const boton = "inline-flex h-12 items-center rounded-[2px] bg-[var(--mf-ink)] px-6 text-white";
@@ -33,7 +33,7 @@ export default async function ConvocatoriaPublica({ params }: Props) {
           <p className="text-sm text-[var(--mf-muted)]">Convocatoria para exponer. {CALL_PHASE_PUBLIC_TEXT[fase]}</p>
           <h1 className="mf-titulo text-[clamp(2.2rem,5vw,3.5rem)]">{c.title}</h1>
           <p className="text-lg text-[var(--mf-muted)]">
-            {a.reviewStatus === "APPROVED" ? <>Para exponer en la muestra <Link href={`/m/${a.slug}`} className="underline underline-offset-[6px]">{a.title}</Link></> : <>Para exponer en la muestra “{a.title}”</>}
+            Para exponer en la muestra <Link href={`/m/${a.slug}`} className="underline underline-offset-[6px]">{a.title}</Link>
             {lugar ? `. ${lugar}` : ""}
           </p>
         </header>

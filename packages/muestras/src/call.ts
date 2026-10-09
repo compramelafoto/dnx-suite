@@ -103,9 +103,13 @@ function validDay(d: string): boolean {
   }
 }
 
-/** Lo que falta para abrir la convocatoria. `today` es el día argentino de hoy (YYYY-MM-DD). */
-export function missingForOpening(d: CallDraft, today: string): string[] {
+/**
+ * Lo que falta para abrir la convocatoria. `today` es el día argentino de hoy (YYYY-MM-DD).
+ * Si se pasa `activityStatus` (estado de la muestra), la convocatoria sólo abre con la muestra publicada.
+ */
+export function missingForOpening(d: CallDraft, today: string, activityStatus?: string): string[] {
   const out: string[] = [];
+  if (activityStatus !== undefined && activityStatus !== "APPROVED") out.push("Para abrir la convocatoria, la muestra tiene que estar publicada.");
   if (!d.title.trim()) out.push("Falta el título de la convocatoria.");
   if (!d.basesText.trim()) out.push("Faltan las bases.");
   if (!d.rightsText.trim()) out.push("Falta el texto de autorización de derechos.");
@@ -224,4 +228,15 @@ export function submitterConflict(p: { isOwner: boolean; isCurator: boolean }): 
   if (p.isOwner) return "Organizás esta convocatoria: no podés enviar obras.";
   if (p.isCurator) return "Sos parte del equipo curatorial: no podés enviar obras.";
   return null;
+}
+
+/** Descripción para buscadores: corta en un límite de palabra, sin partir caracteres de dos unidades. */
+export function callMetaDescription(basesText: string, fallback: string, max = 160): string {
+  const t = basesText.replace(/\s+/g, " ").trim();
+  if (!t) return fallback;
+  const chars = Array.from(t);
+  if (chars.length <= max) return t;
+  const corte = chars.slice(0, max).join("");
+  const ultimo = corte.lastIndexOf(" ");
+  return `${(ultimo > max / 2 ? corte.slice(0, ultimo) : corte).replace(/[\s,.;:]+$/, "")}…`;
 }

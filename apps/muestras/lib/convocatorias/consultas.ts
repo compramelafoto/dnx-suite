@@ -11,7 +11,7 @@ const MUESTRA_PUBLICA = {
 /** Abiertas (recibiendo o por recibir). El filtro fino por fecha lo hace `callPhase`. */
 export function listarConvocatoriasPublicas() {
   return prisma.culturalCall.findMany({
-    where: { status: "OPEN" },
+    where: { status: "OPEN", activity: { reviewStatus: "APPROVED" } },
     select: { id: true, slug: true, title: true, status: true, opensAt: true, closesAt: true, maxWorksPerPerson: true, activity: MUESTRA_PUBLICA },
     orderBy: { closesAt: "asc" },
     take: 200,
@@ -21,10 +21,10 @@ export function listarConvocatoriasPublicas() {
 /** Cualquiera que no sea borrador: un enlace compartido no se rompe al cerrar. */
 export const buscarConvocatoriaPublica = cache((slug: string) =>
   prisma.culturalCall.findFirst({
-    where: { slug, status: { not: "DRAFT" } },
+    where: { slug, status: { not: "DRAFT" }, activity: { reviewStatus: "APPROVED" } },
     select: {
       id: true, slug: true, title: true, status: true, basesText: true, requirementsText: true, rightsText: true,
-      opensAt: true, closesAt: true, maxWorksPerPerson: true, activity: { select: { ...MUESTRA_PUBLICA.select, proposedByUserId: true } },
+      opensAt: true, closesAt: true, maxWorksPerPerson: true, activity: MUESTRA_PUBLICA,
     },
   }),
 );

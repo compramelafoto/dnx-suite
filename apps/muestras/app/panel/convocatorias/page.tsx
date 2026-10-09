@@ -42,7 +42,7 @@ export default async function Convocatorias() {
         <h2 id="t-nueva" className="text-sm text-[var(--mf-muted)]">Armar una convocatoria nueva</h2>
         {sinConvocatoria.length === 0 ? (
           <p className="text-[15px]">
-            Cada convocatoria es de una muestra. <Link href="/panel/proponer" className="underline underline-offset-[6px]">Creá la muestra</Link> (alcanza con el borrador) y volvé acá.
+            Cada convocatoria es de una muestra. <Link href="/panel/proponer" className="underline underline-offset-[6px]">Creá la muestra</Link> y volvé acá. Para abrir la convocatoria, la muestra tiene que estar publicada.
           </p>
         ) : (
           <ul className="border-t border-[var(--mf-line)]">

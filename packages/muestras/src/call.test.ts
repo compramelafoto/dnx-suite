@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import {
   acceptsSubmissions, callPhase, canCallAction, closeDayProblem, editableCallFields, hasPublicPage, isListedPhase,
-  missingForOpening, nextCallStatus, submissionProblems, submitterConflict, type CallActionContext,
+  callMetaDescription, missingForOpening, nextCallStatus, submissionProblems, submitterConflict, type CallActionContext,
 } from "./call";
 
 const fechas = { opensAt: dayStartAr("2026-11-01"), closesAt: dayEndAr("2026-11-30") };
@@ -126,5 +126,20 @@ describe("envíos", () => {
     expect(submitterConflict({ isOwner: true, isCurator: false })).toMatch(/Organizás/);
     expect(submitterConflict({ isOwner: false, isCurator: true })).toMatch(/equipo curatorial/);
     expect(submitterConflict({ isOwner: false, isCurator: false })).toBeNull();
+  });
+});
+
+describe("reglas de publicación y descripción", () => {
+  const ok = { title: "Ciudad", basesText: "Bases", rightsText: "Autorizo", opensDay: "2026-11-01", closesDay: "2026-11-30", maxWorksPerPerson: 3 };
+  it("no abre con la muestra sin publicar", () => {
+    expect(missingForOpening(ok, "2026-10-20", "DRAFT")).toContain("Para abrir la convocatoria, la muestra tiene que estar publicada.");
+    expect(missingForOpening(ok, "2026-10-20", "APPROVED")).toEqual([]);
+  });
+  it("descripción: fallback, corte en palabra y sin partir pares sustitutos", () => {
+    expect(callMetaDescription("  ", "Bases")).toBe("Bases");
+    expect(callMetaDescription("corto", "x")).toBe("corto");
+    const largo = callMetaDescription("palabra ".repeat(40), "x");
+    expect(largo.endsWith("palabra…")).toBe(true);
+    expect(callMetaDescription("📷".repeat(200), "x")).toBe("📷".repeat(160) + "…");
   });
 });

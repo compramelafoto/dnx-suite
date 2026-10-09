@@ -89,7 +89,7 @@ async function transicion(id: string, accion: CallAction, extra: (ahora: Date) =
   if (typeof id !== "string") return NO_EXISTE;
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
-  const c = await prisma.culturalCall.findUnique({ where: { id }, include: { activity: { select: { proposedByUserId: true } } } });
+  const c = await prisma.culturalCall.findUnique({ where: { id }, include: { activity: { select: { proposedByUserId: true, reviewStatus: true } } } });
   if (!c) return NO_EXISTE;
   const [envios, curadores, obras] = await Promise.all([
     prisma.culturalCallSubmission.count({ where: { callId: id, status: "ACTIVE" } }),
@@ -103,7 +103,7 @@ async function transicion(id: string, accion: CallAction, extra: (ahora: Date) =
     activeCurators: curadores,
     works: obras,
     missingForOpening: accion === "open"
-      ? missingForOpening({ title: c.title, basesText: c.basesText, rightsText: c.rightsText, opensDay: toArDay(c.opensAt), closesDay: toArDay(c.closesAt), maxWorksPerPerson: c.maxWorksPerPerson }, toArDay(ahora))
+      ? missingForOpening({ title: c.title, basesText: c.basesText, rightsText: c.rightsText, opensDay: toArDay(c.opensAt), closesDay: toArDay(c.closesAt), maxWorksPerPerson: c.maxWorksPerPerson }, toArDay(ahora), c.activity.reviewStatus)
       : [],
   });
   if (!permiso.ok) return { ok: false, errores: [permiso.reason] };
