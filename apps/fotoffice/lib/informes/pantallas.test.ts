@@ -17,6 +17,8 @@ const PAGINAS = [
   "app/(shell)/informes/page.tsx",
   "app/(shell)/informes/resultados/page.tsx",
   "app/(shell)/informes/resultados/detalle/page.tsx",
+  "app/(shell)/informes/ventas/page.tsx",
+  "app/(shell)/informes/ventas/detalle/page.tsx",
   "app/(shell)/informes/flujo/page.tsx",
   "app/(shell)/informes/flujo/detalle/page.tsx",
   "app/(shell)/informes/monotributo/page.tsx",

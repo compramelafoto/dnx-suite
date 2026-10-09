@@ -6,9 +6,9 @@ describe("itemsMenuInformes", () => {
   it("sin nivel en el módulo no hay entradas", () => {
     expect(itemsMenuInformes({ veInformes: false, puedeConfigurar: true })).toEqual([]);
   });
-  it("quien ve Informes tiene Tablero, Resultados, Flujo de caja y Monotributo; Ajustes sólo si puede configurar", () => {
-    expect(itemsMenuInformes({ veInformes: true, puedeConfigurar: false }).map((i) => i.label)).toEqual(["Tablero", "Resultados", "Flujo de caja", "Monotributo"]);
-    expect(itemsMenuInformes({ veInformes: true, puedeConfigurar: true }).map((i) => i.label)).toEqual(["Tablero", "Resultados", "Flujo de caja", "Monotributo", "Ajustes"]);
+  it("quien ve Informes tiene Tablero, Resultados, Ventas, Flujo de caja y Monotributo; Ajustes sólo si puede configurar", () => {
+    expect(itemsMenuInformes({ veInformes: true, puedeConfigurar: false }).map((i) => i.label)).toEqual(["Tablero", "Resultados", "Ventas", "Flujo de caja", "Monotributo"]);
+    expect(itemsMenuInformes({ veInformes: true, puedeConfigurar: true }).map((i) => i.label)).toEqual(["Tablero", "Resultados", "Ventas", "Flujo de caja", "Monotributo", "Ajustes"]);
   });
   it("sólo el Tablero se marca por coincidencia exacta y todas tienen palabras para el buscador", () => {
     const items = itemsMenuInformes({ veInformes: true, puedeConfigurar: true });
