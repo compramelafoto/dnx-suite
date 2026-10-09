@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OutboundEmail } from "@/lib/communications/send-email";
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 
 /**
  * La consulta web recibe su propuesta modelo sola (Entrega B, Task 2). De punta a punta por el
@@ -44,6 +45,7 @@ vi.mock("./sitio", () => ({
 }));
 
 const PA = await import("./propuesta-automatica");
+const { armarVistaPublica } = await import("./vista-publica");
 const { createServiceLead } = await import("@/app/actions/service-lead");
 const { asegurarCatalogosDelWorkspace } = await import("@/lib/consultas/semillas");
 const { TOPE_AUTOMATICOS_DIA } = await import("@/lib/plantillas/constantes");
@@ -185,6 +187,54 @@ describe("encendida contra apagada", () => {
     expect(H.enviar).not.toHaveBeenCalled();
     expect(presupuestos()).toHaveLength(0);
     expect(B.datos.serviceSalesLead).toHaveLength(1);
+  });
+});
+
+describe("conceptos calculados en la propuesta", () => {
+  const conceptoCalculado = {
+    id: "r3", productId: null, nombre: "Cobertura boda", descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+    modoPrecio: "CALCULO", seccion: "Fotos", opcional: false,
+    calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4" }] } } },
+  };
+  const conCalculo = () => propuesta({ items: [conceptoCalculado] });
+
+  it("con perfil: sale ENVIADA, el ítem queda CALCULO con el precio del motor y la vista pública no ve el cálculo", async () => {
+    autorespuesta();
+    B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+    conCalculo();
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(correo().subject).toMatch(/^Tu presupuesto N° /);
+    const p = presupuestos()[0]!;
+    expect(p.status).toBe("ENVIADO");
+    const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === p.currentVersionId)!;
+    const items = v.items as { modoPrecio: string; precioUnitario: number; calculo: unknown; id: string }[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.modoPrecio).toBe("CALCULO");
+    expect(items[0]!.precioUnitario).toBeGreaterThan(0);
+    expect(items[0]!.calculo).not.toBeNull();
+    expect(items[0]!.id).not.toBe("r3");
+
+    const vista = armarVistaPublica({
+      estado: "ACTIVO",
+      organizacion: { nombre: "Estudio DNX", logoUrl: null, whatsappUrl: null, email: null },
+      numero: null,
+      version: { number: 1, items: v.items as never, totals: v.totals as never, terms: v.terms as never, paymentProposal: null, acceptedAt: null, acceptedName: null },
+      validUntil: null,
+    });
+    const json = JSON.stringify(vista);
+    for (const prohibido of ["calculo", "entrada", "perfil"]) expect(json).not.toContain(prohibido);
+    expect(vista.items[0]!.precioUnitario).toBe(items[0]!.precioUnitario);
+  });
+
+  it("sin perfil: FALLO, no se crea presupuesto y va la común", async () => {
+    autorespuesta();
+    conCalculo();
+    await createServiceLead(ENTRADA);
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(correo().subject).toBe("Recibimos tu consulta");
+    expect(presupuestos()).toHaveLength(0);
+    expect(JSON.stringify(avisos.mock.calls)).toContain("SIN_PERFIL");
   });
 });
 
@@ -356,3 +406,132 @@ describe("revisión: carreras y fallas después de enviar", () => {
   });
 });
 
+describe("armarBorradorDePropuesta (borrador automático)", () => {
+  const activar = () => B.agregar("fotofficePropuestaBorradorAuto", { workspaceId: "ws-1", categoryId: categoriaBoda });
+  const tareas = () => B.datos.fotofficeTask;
+  const lead = () => B.datos.serviceSalesLead.at(-1)!.id as string;
+
+  it("desde el formulario web: arma el borrador sin enviar, sin correo ni registro, con tarea para el responsable", async () => {
+    // Sin la respuesta automática encendida no sale nada, pero el borrador igual se arma.
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    B.agregar("fotofficeConsultaAjustes", { workspaceId: "ws-1", defaultOwnerUserId: 5 });
+    expect(await createServiceLead(ENTRADA)).toEqual({ success: true });
+
+    expect(H.enviar).not.toHaveBeenCalled();
+    expect(mensajes()).toHaveLength(0);
+    expect(presupuestos()).toHaveLength(1);
+    const p = presupuestos()[0]!;
+    expect(p).toMatchObject({ status: "BORRADOR", ownerUserId: 5, consultaLeadId: lead() });
+    const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === p.currentVersionId)!;
+    expect(v).toMatchObject({ createdByUserId: null, sentAt: null });
+    expect((v.totals as { total: number }).total).toBe(900001);
+    expect(tareas().some((t) => String(t.title).startsWith("Revisar y enviar el presupuesto"))).toBe(true);
+  });
+
+  it("con la común encendida y sin envío automático: sale la común y además queda el borrador", async () => {
+    autorespuesta();
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(correo().subject).toBe("Recibimos tu consulta");
+    expect(presupuestos().map((p) => p.status)).toEqual(["BORRADOR"]);
+  });
+
+  it("si la propuesta salió sola, no arma otro borrador", async () => {
+    autorespuesta();
+    propuesta();
+    activar();
+    await createServiceLead(ENTRADA);
+    expect(presupuestos().map((p) => p.status)).toEqual(["ENVIADO"]);
+  });
+
+  it("no cuenta para el tope diario de automáticos", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    const antes = H.enviar.mock.calls.length;
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("YA_TIENE_PRESUPUESTO");
+    expect(H.enviar.mock.calls.length).toBe(antes);
+    expect(mensajes()).toHaveLength(0);
+  });
+
+  it("con el tope diario de automáticos lleno igual arma el borrador y no registra mensajes", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    for (let i = 0; i < TOPE_AUTOMATICOS_DIA; i++) {
+      B.agregar("fotofficeMessage", {
+        workspaceId: "ws-1", channel: "EMAIL", entityType: "CONSULTA", entityId: `x${i}`, toAddress: `p${i}@x.test`,
+        body: "b", status: "SENT", automatic: true, createdAt: new Date(AHORA.getTime() - 60_000),
+      });
+    }
+    const antes = mensajes().length;
+    await createServiceLead(ENTRADA);
+    B.datos.fotofficePresupuesto.length = 0;
+    B.datos.fotofficeTask.length = 0;
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("ARMADO");
+    expect(mensajes()).toHaveLength(antes);
+    expect(H.enviar).not.toHaveBeenCalled();
+  });
+
+  it("la tarea usa el número de la consulta y nunca dice 'sin número'", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    const titulos = tareas().map((t) => String(t.title)).filter((t) => t.startsWith("Revisar y enviar"));
+    expect(titulos).toHaveLength(1);
+    expect(titulos[0]).not.toContain("sin número");
+    expect(titulos[0]).toMatch(/^(Revisar y enviar el presupuesto de la consulta N° \S+|Revisar y enviar el presupuesto armado)$/);
+    expect(PA.tituloDeBorrador("0042")).toBe("Revisar y enviar el presupuesto de la consulta N° 0042");
+    expect(PA.tituloDeBorrador(null)).toBe("Revisar y enviar el presupuesto armado");
+  });
+
+  it("no duplica: con un presupuesto ya existente devuelve YA_TIENE_PRESUPUESTO", async () => {
+    propuesta({ autoSendOnWeb: false });
+    await createServiceLead(ENTRADA);
+    activar();
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("ARMADO");
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("YA_TIENE_PRESUPUESTO");
+    expect(presupuestos()).toHaveLength(1);
+    expect(tareas().filter((t) => String(t.title).startsWith("Revisar y enviar"))).toHaveLength(1);
+  });
+
+  it("NO_APLICA: interruptor apagado, sin ficha, sin propuesta o Presupuestos apagado", async () => {
+    propuesta({ autoSendOnWeb: false });
+    await createServiceLead(ENTRADA);
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("NO_APLICA");
+    expect(await PA.armarBorradorDePropuesta("ws-1", "no-existe")).toBe("NO_APLICA");
+    activar();
+    H.modulo.mockImplementation(async (_ws: string, m: string) => m !== "quotes");
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("NO_APLICA");
+    H.modulo.mockResolvedValue(true);
+    expect(presupuestos()).toHaveLength(0);
+  });
+
+  it("sin perfil de precios con un concepto calculado: FALLO y no queda presupuesto", async () => {
+    propuesta({
+      autoSendOnWeb: false,
+      items: [{
+        id: "r3", productId: null, nombre: "Cobertura boda", descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+        modoPrecio: "CALCULO", seccion: null, opcional: false,
+        calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4" }] } } },
+      }],
+    });
+    activar();
+    await createServiceLead(ENTRADA);
+    expect(presupuestos()).toHaveLength(0);
+    expect(await PA.armarBorradorDePropuesta("ws-1", lead())).toBe("FALLO");
+    expect(presupuestos()).toHaveLength(0);
+  });
+
+  it("nunca lanza: si algo explota devuelve ERROR y sólo registra el código", async () => {
+    propuesta({ autoSendOnWeb: false });
+    activar();
+    await createServiceLead(ENTRADA);
+    const id = lead();
+    H.modulo.mockRejectedValue(Object.assign(new Error("Laura caída"), { code: "P1001" }));
+    expect(await PA.armarBorradorDePropuesta("ws-1", id)).toBe("ERROR");
+    expect(JSON.stringify(errores.mock.calls)).toContain("P1001");
+  });
+});

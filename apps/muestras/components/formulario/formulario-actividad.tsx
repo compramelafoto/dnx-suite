@@ -15,7 +15,7 @@ const MapaDelLugar = dynamic(() => import("@/components/mapa/mapa-del-lugar"), {
 
 export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarPropia>>>;
 
-const campo = "w-full rounded-[10px] border border-[var(--mf-line)] bg-white px-3 py-2";
+const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2";
 
 export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }) {
   const router = useRouter();
@@ -123,13 +123,13 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       ) : null}
 
       {errores.length ? (
-        <ul role="alert" className="rounded-[10px] bg-red-50 p-3 text-sm text-red-800">{errores.map((e) => <li key={e}>{e}</li>)}</ul>
+        <ul role="alert" className="rounded-[2px] bg-red-50 p-3 text-sm text-red-800">{errores.map((e) => <li key={e}>{e}</li>)}</ul>
       ) : null}
 
       <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={pendiente} className="rounded-[10px] border border-[var(--mf-line)] px-4 py-2"
+        <button type="button" disabled={pendiente} className="rounded-[2px] border border-[var(--mf-line)] px-4 py-2"
           onClick={(e) => guardar(e.currentTarget.form!, false)}>Guardar borrador</button>
-        <button type="button" disabled={pendiente} className="rounded-[10px] bg-[var(--mf-accent)] px-4 py-2 text-[var(--mf-accent-ink)]"
+        <button type="button" disabled={pendiente} className="rounded-[2px] bg-[var(--mf-accent)] px-4 py-2 text-[var(--mf-accent-ink)]"
           onClick={(e) => guardar(e.currentTarget.form!, true)}>Enviar a revisión</button>
       </div>
     </form>

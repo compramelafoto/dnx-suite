@@ -210,3 +210,93 @@ describe("homologation payload snapshot (sanitized)", () => {
     assert.equal(sum, total.amountMinor);
   });
 });
+
+/**
+ * Revisión de MP del 07/10/2026 (IXFS-16376): `items[].external_code`,
+ * `payer.first_name`/`last_name`, `payer.address` y los cinco campos de
+ * `additional_info.payer` salieron observados porque la orden de evidencia no
+ * los enviaba. El código ya los soportaba; faltaba usarlos. Este test fija que
+ * un pedido completo los deja en el payload.
+ */
+describe("payload completo para homologación", () => {
+  it("lleva external_code y los datos ampliados del pagador", () => {
+    const total = money("ARS", 15_000n);
+    const distribution = calculateDistribution({
+      total,
+      rules: [
+        { recipientId: "owner-share", role: "PLATFORM", kind: "PERCENTAGE", percentageBps: 8000, priority: 1, optional: false },
+        { recipientId: "partner-a", role: "PHOTOGRAPHER", kind: "PERCENTAGE", percentageBps: 1000, priority: 2, optional: false },
+        { recipientId: "partner-b", role: "ORGANIZER", kind: "PERCENTAGE", percentageBps: 1000, priority: 3, optional: false },
+      ],
+      rounding: "LARGEST_REMAINDER",
+      eligibleRecipientIds: ["owner-share", "partner-a", "partner-b"],
+    });
+    const partnerReceiverIds = new Map([
+      ["partner-a", FAKE_PARTNER_RECEIVER_ID],
+      ["partner-b", FAKE_PARTNER_RECEIVER_ID_2],
+    ]);
+    const partnerConsentsByRecipientId = new Map([
+      ["partner-a", testActivePartnerConsent(FAKE_PARTNER_RECEIVER_ID)],
+      ["partner-b", testActivePartnerConsent(FAKE_PARTNER_RECEIVER_ID_2)],
+    ]);
+    const amountType = resolveMpAmountType(distribution, "fixed_preferred");
+    const entries = buildSplitEntriesFromDistribution(
+      distribution,
+      FAKE_OWNER_USER_ID,
+      partnerReceiverIds,
+      { partnerConsentsByRecipientId, amountType },
+    );
+
+    const built = buildMercadoPagoSplitOrderRequest({
+      externalReference: buildOpaqueExternalReference("dnx", "order", "completo-001"),
+      total,
+      amountType,
+      entries,
+      deviceSessionId: TEST_DEVICE_SESSION_ID,
+      payerEmail: "test_buyer@testuser.com",
+      payerProfile: {
+        firstName: "Comprador",
+        lastName: "De Prueba",
+        identification: { type: "DNI", number: "12345678" },
+        phone: { areaCode: "341", number: "5550000" },
+        address: { zipCode: "2000", streetName: "Córdoba", streetNumber: "1234" },
+        registrationDate: "2026-01-15T10:00:00.000-03:00",
+        isPrimeUser: false,
+        isFirstPurchaseOnline: true,
+        authenticationType: "Gmail",
+        lastPurchase: "2026-09-20T18:30:00.000-03:00",
+      },
+      statementDescriptor: "DNX",
+      items: [
+        singleIntangibleItem({
+          title: "Foto digital",
+          total,
+          categoryId: "virtual_goods",
+          externalCode: "CLF-FOTO-001",
+        }),
+      ],
+      paymentToken: "TEST_CARD_TOKEN_FIXTURE_NOT_A_SECRET",
+      paymentMethodId: "master",
+    });
+
+    const body = built.body as Record<string, any>;
+
+    assert.equal(body.items[0].external_code, "CLF-FOTO-001");
+    assert.equal(body.items[0].category_id, "virtual_goods");
+    assert.equal(body.payer.first_name, "Comprador");
+    assert.equal(body.payer.last_name, "De Prueba");
+    assert.equal(body.payer.identification.number, "12345678");
+    assert.equal(body.payer.phone.area_code, "341");
+
+    // La dirección va dentro de `payer`: Orders rechaza `additional_info`.
+    assert.equal(body.payer.address.zip_code, "2000");
+    assert.equal(body.payer.address.street_name, "Córdoba");
+    assert.equal(body.payer.address.street_number, "1234");
+
+    assert.equal(
+      body.additional_info,
+      undefined,
+      "Orders rechaza additional_info: el payload no debe incluirlo",
+    );
+  });
+});

@@ -1,11 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Hanken_Grotesk } from "next/font/google";
+import { Archivo } from "next/font/google";
 import { Encabezado } from "@/components/encabezado/encabezado";
 import { Pie } from "@/components/pie/pie";
 import "./globals.css";
 
-/** Una sola familia para todo el sitio. Los títulos se distinguen con `.mf-titulo`. */
-const fuente = Hanken_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--mf-font" });
+/**
+ * Una sola familia para todo el sitio: Archivo, variable en peso y en ancho. El texto va con el
+ * ancho normal; los títulos (`.mf-titulo`) y el nombre del banner (`.mf-nombre`) se angostan.
+ */
+const fuente = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--mf-font" });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://muestrasfotograficas.com";
 

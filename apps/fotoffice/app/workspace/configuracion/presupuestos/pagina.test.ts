@@ -39,8 +39,8 @@ describe("Configuración → Presupuestos", () => {
     expect(a.startsWith('"use server";')).toBe(true);
     expect(a.match(/^export (?!async function |type )/gm)).toBeNull();
     const acciones = a.split("export async function ").slice(1);
-    expect(acciones.length).toBe(3);
-    const llamadas = ["guardarAjustes(", "guardarPropuestaModelo(", "borrarPropuestaModelo("];
+    expect(acciones.length).toBe(4);
+    const llamadas = ["guardarAjustes(", "guardarPropuestaModelo(", "borrarPropuestaModelo(", "guardarBorradorAuto("];
     acciones.forEach((cuerpo, i) => {
       const ctx = cuerpo.indexOf("await contexto()");
       expect(ctx).toBeGreaterThan(0);
@@ -78,7 +78,7 @@ describe("Configuración → Presupuestos", () => {
   it("propuestas modelo: dos pantallas con `configurar` antes de leer, con pestañas y la categoría del workspace", () => {
     expect(aqui("page.tsx")).toContain('<PestanasPresupuestos activa="ajustes" />');
     const lista = aqui("propuestas/page.tsx");
-    const editor = aqui("propuestas/[categoriaId]/page.tsx");
+    const editor = leer("app", "workspace", "configuracion", "presupuestos", "propuestas", "[categoriaId]", "page.tsx");
     for (const p of [lista, editor]) {
       const guarda = p.indexOf('puede(role, "configurar")');
       expect(guarda).toBeGreaterThan(p.indexOf("await requireActiveWorkspaceRole()"));
@@ -101,5 +101,33 @@ describe("Configuración → Presupuestos", () => {
     expect(c).not.toContain("PanelCuantoCobro");
     expect(c).toContain("Enviar sola al llegar una consulta web");
     expect(leer("components", "presupuestos", "editor-presupuesto.tsx")).toContain("<BuscadorCatalogo");
+  });
+  it("el editor de la propuesta modelo agrega conceptos calculados sin mandar el perfil", () => {
+    const e = leer("components", "presupuestos", "editor-propuesta-modelo.tsx");
+    expect(e).toContain("Agregar concepto calculado");
+    expect(e).toContain("<AvisoSinPerfil />");
+    expect(e).toContain("Agregar a la propuesta");
+    expect(e).toContain("Precio hoy:");
+    // Lo que se guarda: sólo el trabajo, nunca el perfil.
+    expect(e).toContain('modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: presupuestoDe(i) } }');
+    const guardar = e.slice(e.indexOf("guardarPropuestaModeloAction({"), e.indexOf("}).catch"));
+    expect(guardar).not.toContain("perfil");
+    const p = leer("app", "workspace", "configuracion", "presupuestos", "propuestas", "[categoriaId]", "page.tsx");
+    expect(p.indexOf("leerPerfilPrecios(")).toBeGreaterThan(p.indexOf('puede(role, "configurar")'));
+    expect(p).toContain("perfilDelWorkspace={perfil?.perfil ?? null}");
+  });
+
+  it("la casilla del borrador automático: SQL pendiente, deshabilitada con «Enviar sola» y con etiqueta atada", () => {
+    const e = leer("components", "presupuestos", "editor-propuesta-modelo.tsx");
+    expect(e).toContain("Armar el borrador cuando llega una consulta web (sin enviarlo)");
+    expect(e).toContain("Te queda una tarea para revisarlo y mandarlo.");
+    expect(e).toContain("Ya sale sola.");
+    expect(e).toContain("Falta aplicar el SQL del borrador automático.");
+    expect(e).toContain("htmlFor={`${id}-borrador`}");
+    expect(e).toContain("guardarBorradorAutoAction(props.categoriaId, encendido)");
+    const p = leer("app", "workspace", "configuracion", "presupuestos", "propuestas", "[categoriaId]", "page.tsx");
+    expect(p.indexOf("categoriasConBorradorAuto(")).toBeGreaterThan(p.indexOf('puede(role, "configurar")'));
+    expect(p).toContain("sqlPendiente={conBorrador === null}");
+    expect(aqui("propuestas/page.tsx")).toContain("Borrador automático");
   });
 });

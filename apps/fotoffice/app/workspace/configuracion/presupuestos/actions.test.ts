@@ -8,6 +8,7 @@ const H = vi.hoisted(() => ({
   updateMany: vi.fn(async () => ({ count: 1 })),
   modulo: vi.fn(async () => false),
   guardarPM: vi.fn(async (..._a: unknown[]): Promise<{ ok: true } | { ok: false; error: string }> => ({ ok: true })),
+  guardarBA: vi.fn(async (..._a: unknown[]): Promise<{ ok: true } | { ok: false; error: string }> => ({ ok: true })),
   borrarPM: vi.fn(async (..._a: unknown[]): Promise<{ ok: true } | { ok: false; error: string }> => ({ ok: true })),
 }));
 
@@ -17,6 +18,7 @@ vi.mock("@repo/db", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
 vi.mock("@/lib/presupuestos/propuestas-modelo", () => ({ guardarPropuestaModelo: H.guardarPM, borrarPropuestaModelo: H.borrarPM }));
+vi.mock("@/lib/presupuestos/borrador-automatico", () => ({ guardarBorradorAuto: H.guardarBA }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("@/lib/access/active-context", () => ({
   requireActiveWorkspaceRole: vi.fn(async () => ({
@@ -133,6 +135,32 @@ describe("acciones de la propuesta modelo", () => {
   it("devuelven el error de la validación sin revalidar", async () => {
     H.guardarPM.mockResolvedValueOnce({ ok: false, error: "No encontramos esa categoría." });
     expect(await A.guardarPropuestaModeloAction({ categoriaId: "x", items: [] })).toEqual({ ok: false, error: "No encontramos esa categoría." });
+    expect(H.revalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe("guardarBorradorAutoAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    H.role.mockReturnValue("WORKSPACE_OWNER");
+  });
+
+  it("sin `configurar` no guarda", async () => {
+    H.role.mockReturnValue("WORKSPACE_MEMBER");
+    expect((await A.guardarBorradorAutoAction("cat", true)).ok).toBe(false);
+    expect(H.guardarBA).not.toHaveBeenCalled();
+  });
+
+  it("usa el workspace de la sesión y revalida", async () => {
+    expect(await A.guardarBorradorAutoAction("cat", true)).toEqual({ ok: true });
+    const [ctx, cat, enc] = H.guardarBA.mock.calls[0]! as [{ workspaceId: string }, string, boolean];
+    expect([ctx.workspaceId, cat, enc]).toEqual(["ws-1", "cat", true]);
+    expect(H.revalidate).toHaveBeenCalledWith("/workspace/configuracion/presupuestos/propuestas", "layout");
+  });
+
+  it("devuelve el error sin revalidar", async () => {
+    H.guardarBA.mockResolvedValueOnce({ ok: false, error: "No encontramos esa categoría." });
+    expect(await A.guardarBorradorAutoAction("x", true)).toEqual({ ok: false, error: "No encontramos esa categoría." });
     expect(H.revalidate).not.toHaveBeenCalled();
   });
 });

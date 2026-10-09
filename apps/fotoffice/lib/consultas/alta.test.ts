@@ -14,6 +14,8 @@ const H = vi.hoisted(() => ({
   responder: vi.fn(async (..._a: unknown[]): Promise<unknown> => "ENVIADO"),
   // Entrega B: la propuesta modelo que sale sola (tiene sus pruebas en propuesta-automatica.test).
   propuesta: vi.fn(async (..._a: unknown[]): Promise<string> => "NO_APLICA"),
+  // Borrador automático: se arma sólo si la propuesta no salió (tiene sus pruebas en propuesta-automatica.test).
+  borrador: vi.fn(async (..._a: unknown[]): Promise<string> => "NO_APLICA"),
   nivel: vi.fn(async (..._a: unknown[]) => true),
 }));
 
@@ -28,6 +30,7 @@ vi.mock("@/lib/plantillas/automaticos", () => ({ responderConsultaNueva: H.respo
 vi.mock("./aviso", () => ({ avisarConsultaNueva: H.avisar }));
 vi.mock("@/lib/presupuestos/propuesta-automatica", () => ({
   enviarPropuestaModelo: H.propuesta,
+  armarBorradorDePropuesta: H.borrador,
   // Igual que la real: la común va salvo que la propuesta haya salido o no corresponda responder.
   correspondeAutorespuestaComun: (r: string) => r !== "ENVIADA" && r !== "APAGADA" && r !== "YA_RESPONDIDO",
 }));
@@ -55,7 +58,8 @@ const orden = (f: { mock: { invocationCallOrder: number[] } }) => f.mock.invocat
 let errores: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   B.vaciar();
-  for (const f of [H.numerar, H.notificar, H.avisar, H.responder, H.propuesta]) f.mockClear();
+  for (const f of [H.numerar, H.notificar, H.avisar, H.responder, H.propuesta, H.borrador]) f.mockClear();
+  H.borrador.mockResolvedValue("NO_APLICA");
   H.propuesta.mockResolvedValue("NO_APLICA");
   H.numerar.mockResolvedValue({ display: "2026-0001" });
   H.notificar.mockImplementation(async (ws: unknown, sujeto: unknown) => {
@@ -385,6 +389,31 @@ describe("altaDeConsulta: los pasos de después", () => {
     H.propuesta.mockRejectedValueOnce(Object.assign(new Error("caída"), { code: "X" }));
     expect((await A.altaDeConsulta(SISTEMA, ENTRADA, WEB)).ok).toBe(true);
     expect(H.responder).toHaveBeenCalledTimes(1);
+  });
+
+  it("borrador automático: se intenta sólo si la propuesta no salió, aislado y sin tocar la común", async () => {
+    for (const r of ["ENVIADA", "ERROR_TRAS_ENVIO"]) {
+      H.propuesta.mockResolvedValueOnce(r);
+      await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+    }
+    expect(H.borrador).not.toHaveBeenCalled();
+    for (const r of ["NO_APLICA", "APAGADA", "YA_RESPONDIDO", "TOPE", "FALLO", "ERROR", "SIN_CORREO"]) {
+      H.borrador.mockClear();
+      H.propuesta.mockResolvedValueOnce(r);
+      const res = await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+      expect(res.ok, r).toBe(true);
+      if (res.ok) expect(H.borrador, r).toHaveBeenCalledWith("ws-1", res.leadId, {});
+    }
+    // Si el borrador explota, la común va igual.
+    H.responder.mockClear();
+    H.propuesta.mockResolvedValueOnce("NO_APLICA");
+    H.borrador.mockRejectedValueOnce(Object.assign(new Error("caída"), { code: "X" }));
+    expect((await A.altaDeConsulta(SISTEMA, ENTRADA, WEB)).ok).toBe(true);
+    expect(H.responder).toHaveBeenCalledTimes(1);
+    // Y fuera del formulario web no se arma.
+    H.borrador.mockClear();
+    await A.altaDeConsulta(SISTEMA, ENTRADA, MANUAL);
+    expect(H.borrador).not.toHaveBeenCalled();
   });
 
   it("cada paso aislado: si uno explota, la consulta queda y los demás corren", async () => {
