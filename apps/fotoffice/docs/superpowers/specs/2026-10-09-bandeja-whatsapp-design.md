@@ -76,6 +76,13 @@ ninguno, el panel ofrece "Vincular a un cliente" / "Crear contacto".
   cliente), guarda el mensaje (idempotente), aplica las reglas (§3), suma `noLeidos` en entrantes,
   actualiza `estadoEnvio` con los ESTADO.
 
+### Requisitos de despliegue
+
+- Una sola app de Meta para FOTOFFICE: una única `WHATSAPP_APP_SECRET`; las instituciones se conectan a través de ella.
+- Los números argentinos se envían como `549…` (el parser unifica el móvil sin 9 que a veces manda Meta).
+- A confirmar con el primer payload real: el formato del eco (`smb_message_echoes`) y los eventos `sticker` (se guarda como imagen) y `reaction` (se ignora).
+- Seguridad: por `phoneNumberId` sólo reciben eventos las conexiones en modo REAL, y pasar a REAL (o cambiar de número en REAL) se verifica contra Meta con el token de la institución. Un aviso de estado de un mensaje todavía desconocido y de menos de 5 minutos hace responder 500 para que Meta reintente.
+
 ## 6. Salida: `lib/bandeja/envio.ts`
 
 `enviarTexto(conexion, waId, texto)`: si `modo === "REAL"` y hay token en el vault → POST

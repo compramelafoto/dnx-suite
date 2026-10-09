@@ -27,7 +27,7 @@ beforeEach(async () => {
   process.env.WHATSAPP_APP_SECRET = SECRETO;
   process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN = TOKEN;
   for (const t of ["fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje"] as const) B.datos[t].length = 0;
-  await P.fotofficeWaConexion.create({ data: { workspaceId: "w1", phoneNumberId: "106540352242922" } });
+  await P.fotofficeWaConexion.create({ data: { workspaceId: "w1", phoneNumberId: "106540352242922", modo: "REAL" } });
 });
 afterEach(() => {
   delete process.env.WHATSAPP_APP_SECRET;

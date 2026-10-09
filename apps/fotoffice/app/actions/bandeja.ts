@@ -12,7 +12,6 @@ import {
   vincularCliente,
   type Resultado,
 } from "@/lib/bandeja/acciones";
-import { guardarConexion, MENSAJES_CONEXION, type DatosConexion, type ResultadoConexion } from "@/lib/bandeja/conexion";
 import { contextoDeBandeja } from "@/lib/bandeja/contexto";
 import { buscarClientes, type ClienteBuscado } from "@/lib/bandeja/lecturas";
 
@@ -81,13 +80,4 @@ export async function buscarClientesAction(q: string): Promise<{ ok: true; clien
   const clientes = await buscarClientes(ctx, q);
   if (!clientes) return { ok: false, error: MENSAJES_BANDEJA.sinPermisoClientes };
   return { ok: true, clientes };
-}
-
-/** Configuración → WhatsApp: sólo dueño y administradores. */
-export async function guardarConexionAction(datos: DatosConexion): Promise<ResultadoConexion> {
-  const ctx = await contextoDeBandeja("configurar");
-  if (!ctx) return { ok: false, error: MENSAJES_CONEXION.sinPermiso };
-  const r = await guardarConexion(ctx, datos);
-  if (r.ok) revalidatePath("/bandeja");
-  return r;
 }

@@ -78,7 +78,9 @@ export default async function ConfiguracionWhatsappPage() {
           <li>Secreto de la app (WHATSAPP_APP_SECRET): {process.env.WHATSAPP_APP_SECRET ? "configurado" : "falta"}</li>
         </ul>
       </section>
-      {real ? null : <SimuladorForm />}
+      {!encendido ? (
+        <p className="text-sm text-[var(--fo-muted)]">El simulador de mensajes aparece cuando se enciende el módulo Bandeja de WhatsApp.</p>
+      ) : real ? null : <SimuladorForm />}
     </div>
   );
 }

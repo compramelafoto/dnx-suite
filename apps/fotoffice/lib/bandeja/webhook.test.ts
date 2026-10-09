@@ -54,6 +54,18 @@ describe("leerWebhook", () => {
     expect(leerWebhook(json)[0]).toMatchObject({ waId: "5493413419869" });
   });
 
+  it("sticker es IMAGEN; la reacción se ignora por completo (también como eco)", () => {
+    const json = { entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: "1" }, messages: [
+      { from: "5493413419869", id: "w1", timestamp: "1", type: "sticker", sticker: { id: "55", mime_type: "image/webp" } },
+      { from: "5493413419869", id: "w2", timestamp: "2", type: "reaction", reaction: { message_id: "w0", emoji: "👍" } },
+    ] } }, { field: "smb_message_echoes", value: { metadata: { phone_number_id: "1" }, message_echoes: [
+      { to: "5493413419869", id: "w3", timestamp: "3", type: "reaction", reaction: { message_id: "w0", emoji: "👍" } },
+    ] } }] }] };
+    const e = leerWebhook(json);
+    expect(e).toHaveLength(1);
+    expect(e[0]).toMatchObject({ tipo: "ENTRANTE", waMessageId: "w1", mensajeTipo: "IMAGEN", media: { id: "55", mimeType: "image/webp" } });
+  });
+
   it("ubicación", () => {
     const json = { entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: "1" }, messages: [
       { from: "5493413419869", id: "w1", timestamp: "1", type: "location", location: { latitude: -32.9, longitude: -60.6, name: "Estudio" } },

@@ -5,14 +5,21 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { puede } from "@/lib/access/policy";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
-import { guardarConexion, MENSAJES_CONEXION } from "@/lib/bandeja/conexion";
+import { borrarTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
+import { guardarConexion, leerConexion, MENSAJES_CONEXION } from "@/lib/bandeja/conexion";
 import { MENSAJES_SIMULADOR, simularEntrante } from "@/lib/bandeja/simulador";
 import type { CtxConsultas } from "@/lib/consultas/catalogo";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 
 /** Estado de los formularios de Configuración → WhatsApp (`useActionState`). */
-export type EstadoWhatsappConfig = { error: string | null; ok?: string; chatId?: string };
+export type EstadoWhatsappConfig = {
+  error: string | null;
+  ok?: string;
+  chatId?: string;
+  /** Lo que se escribió, para no perderlo si falla el guardado. NUNCA lleva el token. */
+  valores?: { modo: string; phoneNumberId: string; wabaId: string; displayPhone: string; pausaBotHoras: string };
+};
 
 const RUTA = "/workspace/configuracion/whatsapp";
 
@@ -45,7 +52,15 @@ export async function guardarWhatsappAction(_prev: EstadoWhatsappConfig | undefi
     pausaBotHoras: pausa === undefined || pausa.trim() === "" ? undefined : Number(pausa),
     token: texto(fd, "token"),
   });
-  if (!r.ok) return { error: r.error };
+  if (!r.ok) {
+    return {
+      error: r.error,
+      valores: {
+        modo: texto(fd, "modo") ?? "", phoneNumberId: texto(fd, "phoneNumberId") ?? "", wabaId: texto(fd, "wabaId") ?? "",
+        displayPhone: texto(fd, "displayPhone") ?? "", pausaBotHoras: pausa ?? "",
+      },
+    };
+  }
   revalidatePath(RUTA);
   revalidatePath("/bandeja");
   return { error: null, ok: "Configuración guardada." };
@@ -61,4 +76,22 @@ export async function simularEntranteAction(_prev: EstadoWhatsappConfig | undefi
   if (!r.ok) return { error: r.error };
   revalidatePath("/bandeja");
   return { error: null, ok: "Mensaje simulado registrado.", chatId: r.chatId };
+}
+
+/** Borra el token guardado. Si la conexión estaba en real, vuelve a prueba: sin token no puede enviar. */
+export async function borrarTokenAction(_prev: EstadoWhatsappConfig | undefined, _fd: FormData): Promise<EstadoWhatsappConfig> {
+  const ctx = await contexto();
+  if (!ctx) return { error: MENSAJES_CONEXION.sinPermiso };
+  try {
+    await borrarTokenWhatsapp(ctx.workspaceId);
+    if ((await leerConexion(ctx.workspaceId)).modo === "REAL") {
+      const r = await guardarConexion(ctx, { modo: "SIMULADO" });
+      if (!r.ok) return { error: r.error };
+    }
+  } catch {
+    return { error: "No se pudo borrar el token." };
+  }
+  revalidatePath(RUTA);
+  revalidatePath("/bandeja");
+  return { error: null, ok: "Token borrado." };
 }

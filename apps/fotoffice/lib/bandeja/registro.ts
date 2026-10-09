@@ -48,6 +48,8 @@ export async function aplicarEventos(
 ): Promise<ResultadoRegistro> {
   const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0 };
   const conexiones = new Map<string, { workspaceId: string; pausaBotHoras: number } | null>();
+  /** Un aviso de estado sin mensaje conocido más nuevo que esto se cuenta como fallido, para que Meta reintente. */
+  const REINTENTO_ESTADO_MS = 5 * 60_000;
 
   for (const [indice, ev] of eventos.entries()) {
     try {
@@ -56,9 +58,11 @@ export async function aplicarEventos(
       if (conexion === undefined) {
         const c = await prisma.fotofficeWaConexion.findUnique({
           where: opciones.workspaceId ? { workspaceId: opciones.workspaceId } : { phoneNumberId: ev.phoneNumberId },
-          select: { workspaceId: true, pausaBotHoras: true },
+          select: { workspaceId: true, pausaBotHoras: true, modo: true },
         });
-        conexion = c ? { workspaceId: c.workspaceId, pausaBotHoras: c.pausaBotHoras ?? PAUSA_BOT_HORAS_POR_DEFECTO } : null;
+        // Por `phoneNumberId` sólo cuentan las conexiones REALES: una simulada no puede reclamar un número ajeno.
+        const vale = c && (opciones.workspaceId || c.modo === "REAL");
+        conexion = c && vale ? { workspaceId: c.workspaceId, pausaBotHoras: c.pausaBotHoras ?? PAUSA_BOT_HORAS_POR_DEFECTO } : null;
         conexiones.set(clave, conexion);
       }
       if (!conexion) {
@@ -66,7 +70,9 @@ export async function aplicarEventos(
         continue;
       }
       if (ev.tipo === "ESTADO") {
-        if (await aplicarEstado(conexion.workspaceId, ev)) r.aplicados++;
+        const salida = await aplicarEstado(conexion.workspaceId, ev);
+        if (salida === "aplicado") r.aplicados++;
+        else if (salida === "desconocido" && ahora.getTime() - (ev.en ?? ahora).getTime() < REINTENTO_ESTADO_MS) r.fallidos++;
         else r.ignorados++;
         continue;
       }
@@ -121,16 +127,19 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
 
   const clave = { workspaceId_waId: { workspaceId, waId: ev.waId } };
   let chat = await tx.fotofficeWaChat.findUnique({ where: clave });
+  /** Cliente ya buscado al crear el chat: no se busca de nuevo en el mismo evento. */
+  let clienteBuscado: { id: string | null } | null = null;
   if (chat) {
     // Candado de fila: un "Tomar" simultáneo del panel espera a que terminemos (o lo esperamos), y
     // volvemos a leer el chat ya con sus cambios antes de calcular el parche de las reglas.
     await tx.$executeRaw`SELECT 1 FROM "FotofficeWaChat" WHERE id = ${chat.id} FOR UPDATE`;
     chat = (await tx.fotofficeWaChat.findUnique({ where: clave })) ?? chat;
   } else {
+    clienteBuscado = { id: await clienteDelTelefono(workspaceId, ev.waId, tx) };
     chat = await tx.fotofficeWaChat.create({
       data: {
         workspaceId, waId: ev.waId, nombre: entrante ? ev.nombre : null, ultimoMensajeEn: cuando, ...vistaPreviaDe(ev.texto, ev.mensajeTipo),
-        clientId: await clienteDelTelefono(workspaceId, ev.waId, tx),
+        clientId: clienteBuscado.id,
       },
     });
   }
@@ -168,7 +177,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
     parche.noLeidos = { increment: 1 };
     if (ev.nombre && ev.nombre !== chat.nombre) parche.nombre = ev.nombre;
   }
-  if (!chat.clientId) {
+  if (!chat.clientId && !clienteBuscado) {
     const clientId = await clienteDelTelefono(workspaceId, ev.waId, tx);
     if (clientId) parche.clientId = clientId;
   }
@@ -185,11 +194,12 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
 }
 
 /**
- * Estado de envío de un mensaje nuestro. `false` si no lo conocemos o el estado no avanza. El
+ * Estado de envío de un mensaje nuestro. "desconocido" si no lo conocemos (quien llama decide si
+ * reintentar); "ignorado" si no avanza. El
  * `where` del `updateMany` exige que el estado actual sea de rango menor: dos avisos simultáneos
  * (entregado y leído) no pueden retroceder el resultado. FALLO es terminal y sólo vale antes de la entrega.
  */
-async function aplicarEstado(workspaceId: string, ev: EventoEstado): Promise<boolean> {
+async function aplicarEstado(workspaceId: string, ev: EventoEstado): Promise<"aplicado" | "ignorado" | "desconocido"> {
   const m = await prisma.fotofficeWaMensaje.findUnique({
     where: { workspaceId_waMessageId: { workspaceId, waMessageId: ev.waMessageId } },
     select: { id: true, direccion: true },
@@ -197,13 +207,13 @@ async function aplicarEstado(workspaceId: string, ev: EventoEstado): Promise<boo
   if (!m) {
     // Aviso de estado sin mensaje: puede ser que el envío no haya guardado todavía su waMessageId.
     console.warn("[fotoffice][whatsapp] estado de un mensaje desconocido", { estado: ev.estado, codigo: ev.errorCodigo });
-    return false;
+    return "desconocido";
   }
-  if (m.direccion !== "SALIENTE") return false;
+  if (m.direccion !== "SALIENTE") return "ignorado";
   const previos = (ev.estado === "FALLO" ? ["PENDIENTE", "SIMULADO", "ENVIADO"] : ESTADOS_PREVIOS[ev.estado]) as string[];
   const r = await prisma.fotofficeWaMensaje.updateMany({
     where: { id: m.id, estadoEnvio: { in: previos } },
     data: { estadoEnvio: ev.estado, errorCodigo: ev.estado === "FALLO" ? ev.errorCodigo : null },
   });
-  return r.count > 0;
+  return r.count > 0 ? "aplicado" : "ignorado";
 }

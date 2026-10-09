@@ -61,7 +61,7 @@ function waIdDeMeta(v: unknown): string | null {
   return waIdDe(`+${digitos}`) ?? digitos;
 }
 
-const TIPOS_CON_ARCHIVO: Record<string, TipoMensaje> = { image: "IMAGEN", audio: "AUDIO", document: "DOCUMENTO", video: "VIDEO" };
+const TIPOS_CON_ARCHIVO: Record<string, TipoMensaje> = { image: "IMAGEN", sticker: "IMAGEN", audio: "AUDIO", document: "DOCUMENTO", video: "VIDEO" };
 
 /** Contenido de un mensaje (entrante o eco): tipo, texto y datos del archivo/ubicación. */
 function contenido(m: Json): { mensajeTipo: TipoMensaje; texto: string | null; media: MediaWa | null } {
@@ -107,6 +107,8 @@ function mensajes(value: Json, phoneNumberId: string, salida: EventoWa[]) {
   }
   for (const m of lista(value.messages)) {
     if (!esObjeto(m)) continue;
+    // Una reacción no es un mensaje: no suma no leídos ni mueve la ventana de 24 horas.
+    if (m.type === "reaction") continue;
     const waMessageId = texto(m.id);
     const waId = waIdDeMeta(m.from);
     if (!waMessageId || !waId) continue;
@@ -132,7 +134,7 @@ const ESTADOS: Record<string, EstadoDeEnvioWa> = { sent: "ENVIADO", delivered: "
 
 function ecos(value: Json, phoneNumberId: string, salida: EventoWa[]) {
   for (const m of lista(value.message_echoes)) {
-    if (!esObjeto(m)) continue;
+    if (!esObjeto(m) || m.type === "reaction") continue;
     const waMessageId = texto(m.id);
     const waId = waIdDeMeta(m.to);
     if (!waMessageId || !waId) continue;

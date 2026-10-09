@@ -28,9 +28,22 @@ describe("simularEntrante", () => {
     if (r.ok) expect(r.chatId).toBe(B.datos.fotofficeWaChat[0].id);
   });
 
-  it("sin fila de conexión la crea simulada; con una existente usa su pausa", async () => {
+  it("sin fila de conexión la crea SIMULADA", async () => {
     await simularEntrante(ADMIN, { telefono: "341 341-9869", texto: "hola" }, AHORA);
     expect(B.datos.fotofficeWaConexion).toHaveLength(1);
+    expect(B.datos.fotofficeWaConexion[0]).toMatchObject({ workspaceId: "w1", modo: "SIMULADO" });
+  });
+
+  it("con una fila existente no la pisa y usa su pausa del bot", async () => {
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", phoneNumberId: null, modo: "SIMULADO", pausaBotHoras: 9 });
+    await simularEntrante(ADMIN, { telefono: "341 341-9869", texto: "hola" }, AHORA);
+    expect(B.datos.fotofficeWaConexion).toHaveLength(1);
+    expect(B.datos.fotofficeWaConexion[0]).toMatchObject({ pausaBotHoras: 9 });
+    // La pausa se aplica con un eco desde el celular: dura 9 horas, no las 4 por omisión.
+    const { aplicarEventos } = await import("./registro");
+    await aplicarEventos([{ tipo: "ECO", phoneNumberId: "simulado", waMessageId: "e1", waId: "5493413419869", en: AHORA, mensajeTipo: "TEXTO", texto: "x", media: null }], AHORA, { workspaceId: "w1" });
+    const pausa = (B.datos.fotofficeWaChat[0].botPausadoHasta as Date).getTime();
+    expect(pausa).toBe(AHORA.getTime() + 9 * 3600_000);
   });
 
   it("dos simulaciones seguidas suman no leídos (ids distintos)", async () => {

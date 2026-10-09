@@ -34,7 +34,7 @@ const mensajes = () => B.datos.fotofficeWaMensaje;
 
 beforeEach(async () => {
   for (const t of ["fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje", "client"] as const) B.datos[t].length = 0;
-  await P.fotofficeWaConexion.create({ data: { workspaceId: WS, phoneNumberId: PNID } });
+  await P.fotofficeWaConexion.create({ data: { workspaceId: WS, phoneNumberId: PNID, modo: "REAL" } });
 });
 
 describe("aplicarEventos: entrantes", () => {
@@ -95,6 +95,15 @@ describe("aplicarEventos: entrantes", () => {
     const r = await aplicarEventos([entrante({ phoneNumberId: "999" })], AHORA);
     expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
     expect(chats()).toHaveLength(0);
+  });
+
+  it("una conexión SIMULADA no recibe eventos por phoneNumberId (no puede apropiarse de un número)", async () => {
+    B.datos.fotofficeWaConexion[0].modo = "SIMULADO";
+    const r = await aplicarEventos([entrante()], AHORA);
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
+    expect(chats()).toHaveLength(0);
+    // El simulador de Configuración sí entra, por workspaceId.
+    expect(await aplicarEventos([entrante()], AHORA, { workspaceId: WS })).toMatchObject({ aplicados: 1 });
   });
 
   it("sin hora de Meta usa la de recepción", async () => {
@@ -192,8 +201,15 @@ describe("aplicarEventos: estados de envío", () => {
     expect(mensajes()[0]).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "131047" });
   });
 
-  it("mensaje desconocido o entrante: se ignora", async () => {
-    expect((await aplicarEventos([estado()], AHORA)).ignorados).toBe(1);
+  it("estado de un mensaje desconocido y reciente (< 5 min): fallido, para que Meta reintente", async () => {
+    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1 });
+  });
+
+  it("estado de un mensaje desconocido y viejo (>= 5 min): se ignora", async () => {
+    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
+  });
+
+  it("mensaje entrante con ese id: el estado se ignora", async () => {
     await aplicarEventos([entrante({ waMessageId: "wamid.out1" })], AHORA);
     expect((await aplicarEventos([estado()], AHORA)).ignorados).toBe(1);
     expect(mensajes()[0].estadoEnvio).toBe("RECIBIDO");

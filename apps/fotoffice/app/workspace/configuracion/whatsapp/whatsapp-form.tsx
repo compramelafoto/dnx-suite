@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { guardarWhatsappAction, simularEntranteAction, type EstadoWhatsappConfig } from "./actions";
+import { borrarTokenAction, guardarWhatsappAction, simularEntranteAction, type EstadoWhatsappConfig } from "./actions";
 
 /** Lo que muestra el formulario. NUNCA lleva el token: sólo si hay uno cargado. */
 export type ConexionVista = {
@@ -23,27 +23,34 @@ function Mensaje({ estado }: { estado: EstadoWhatsappConfig }) {
 
 export function ConexionForm({ conexion, tieneToken }: { conexion: ConexionVista; tieneToken: boolean }) {
   const [estado, guardar, guardando] = useActionState(guardarWhatsappAction, INICIAL);
+  const [estadoBorrar, borrar, borrando] = useActionState(borrarTokenAction, INICIAL);
+  // Tras un guardado fallido se conserva lo escrito (nunca el token); si no, lo que hay guardado.
+  const v = estado.valores ?? {
+    modo: conexion.modo, phoneNumberId: conexion.phoneNumberId, wabaId: conexion.wabaId,
+    displayPhone: conexion.displayPhone, pausaBotHoras: String(conexion.pausaBotHoras),
+  };
   return (
+    <>
     <form action={guardar} className="fo-card space-y-4 p-5" aria-labelledby="whatsapp-conexion-titulo">
       <h2 id="whatsapp-conexion-titulo" className="text-base font-semibold">Conexión</h2>
       <div className="fo-field-stack max-w-xs">
         <label className="fo-label" htmlFor="wa-modo">Modo</label>
-        <select id="wa-modo" name="modo" defaultValue={conexion.modo} className="fo-input">
+        <select id="wa-modo" name="modo" defaultValue={v.modo} className="fo-input">
           <option value="SIMULADO">Prueba (los mensajes no salen)</option>
           <option value="REAL">Real (conectado a WhatsApp)</option>
         </select>
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="wa-phone-number-id">Phone number ID</label>
-        <input id="wa-phone-number-id" name="phoneNumberId" inputMode="numeric" autoComplete="off" defaultValue={conexion.phoneNumberId} className="fo-input" />
+        <input id="wa-phone-number-id" name="phoneNumberId" inputMode="numeric" autoComplete="off" defaultValue={v.phoneNumberId} className="fo-input" />
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="wa-waba-id">WhatsApp Business Account ID</label>
-        <input id="wa-waba-id" name="wabaId" inputMode="numeric" autoComplete="off" defaultValue={conexion.wabaId} className="fo-input" />
+        <input id="wa-waba-id" name="wabaId" inputMode="numeric" autoComplete="off" defaultValue={v.wabaId} className="fo-input" />
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="wa-display-phone">Número para mostrar</label>
-        <input id="wa-display-phone" name="displayPhone" autoComplete="off" defaultValue={conexion.displayPhone} className="fo-input" />
+        <input id="wa-display-phone" name="displayPhone" autoComplete="off" defaultValue={v.displayPhone} className="fo-input" />
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="wa-token">Token de acceso</label>
@@ -52,12 +59,26 @@ export function ConexionForm({ conexion, tieneToken }: { conexion: ConexionVista
       </div>
       <div className="fo-field-stack max-w-xs">
         <label className="fo-label" htmlFor="wa-pausa">Horas de pausa del bot</label>
-        <input id="wa-pausa" name="pausaBotHoras" type="number" inputMode="numeric" min={1} max={72} step={1} required defaultValue={conexion.pausaBotHoras} className="fo-input" />
+        <input id="wa-pausa" name="pausaBotHoras" type="number" inputMode="numeric" min={1} max={72} step={1} required defaultValue={v.pausaBotHoras} className="fo-input" />
         <p className="text-xs text-[var(--fo-muted)]">De 1 a 72. Si alguien responde desde el celular, el bot espera ese tiempo.</p>
       </div>
       <Mensaje estado={estado} />
       <button type="submit" disabled={guardando} className="fo-btn fo-btn-primary">{guardando ? "Guardando…" : "Guardar"}</button>
     </form>
+    {tieneToken ? (
+      <form
+        action={borrar}
+        onSubmit={(e) => {
+          if (!window.confirm("¿Borrar el token de WhatsApp? Si la conexión está en modo real, vuelve al modo de prueba y deja de enviar.")) e.preventDefault();
+        }}
+        className="fo-card space-y-2 p-5"
+      >
+        <p className="text-sm text-[var(--fo-muted)]">Si ya no querés usar este token, podés borrarlo.</p>
+        <Mensaje estado={estadoBorrar} />
+        <button type="submit" disabled={borrando} className="fo-btn fo-btn-secondary">{borrando ? "Borrando…" : "Borrar token"}</button>
+      </form>
+    ) : null}
+    </>
   );
 }
 

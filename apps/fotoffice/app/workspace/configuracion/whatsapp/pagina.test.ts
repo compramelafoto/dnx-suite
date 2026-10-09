@@ -19,7 +19,8 @@ describe("Configuración → WhatsApp", () => {
 
   it("el simulador sólo se ofrece fuera de modo real y la URL del webhook es la de Meta", () => {
     const p = aqui("page.tsx");
-    expect(p).toContain("{real ? null : <SimuladorForm />}");
+    expect(p).toContain("{!encendido ? (");
+    expect(p).toContain("real ? null : <SimuladorForm />");
     expect(p).toContain("/api/webhooks/whatsapp");
     expect(p).toContain("WHATSAPP_WEBHOOK_VERIFY_TOKEN");
   });
