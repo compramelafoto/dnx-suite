@@ -54,6 +54,8 @@ const TABLAS = [
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
   "fotofficePerfilPrecios",
+  // Bandeja de WhatsApp.
+  "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -140,6 +142,18 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
   fotofficePropuestaBorradorAuto: () => ({ createdAt: new Date(), createdByUserId: null }),
+  fotofficeWaConexion: () => ({
+    phoneNumberId: null, wabaId: null, displayPhone: null, modo: "SIMULADO", pausaBotHoras: 4,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeWaChat: () => ({
+    nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, ultimoEntranteEn: null,
+    noLeidos: 0, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeWaMensaje: () => ({
+    autorUserId: null, autorLabel: null, tipo: "TEXTO", texto: null, media: null, waMessageId: null,
+    estadoEnvio: "RECIBIDO", errorCodigo: null, createdAt: new Date(),
+  }),
   cashCategory: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRubro: () => ({ parentCategoryId: null, code: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePedido: () => ({
@@ -384,6 +398,15 @@ export function crearBaseEnMemoria() {
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
     fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
+    // Bandeja de WhatsApp: los de la migración (el de mensajes, sólo con waMessageId, como en Postgres).
+    fotofficeWaConexion: [
+      { columnas: ["workspaceId"] },
+      { columnas: ["phoneNumberId"], aplica: (f) => f.phoneNumberId !== null && f.phoneNumberId !== undefined },
+    ],
+    fotofficeWaChat: [{ columnas: ["workspaceId", "waId"] }],
+    fotofficeWaMensaje: [
+      { columnas: ["workspaceId", "waMessageId"], aplica: (f) => f.waMessageId !== null && f.waMessageId !== undefined },
+    ],
   };
 
   /**
