@@ -1061,6 +1061,82 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  apps/muestras:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@repo/auth-ui':
+        specifier: workspace:*
+        version: link:../../packages/auth-ui
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
+      '@repo/muestras':
+        specifier: workspace:*
+        version: link:../../packages/muestras
+      leaflet:
+        specifier: ^1.9.4
+        version: 1.9.4
+      next:
+        specifier: 16.2.1
+        version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      react-leaflet:
+        specifier: ^5.0.0
+        version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      resend:
+        specifier: ^6.14.0
+        version: 6.17.1
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.2
+      '@types/leaflet':
+        specifier: ^1.9.21
+        version: 1.9.21
+      '@types/node':
+        specifier: ^20
+        version: 20.19.37
+      '@types/react':
+        specifier: ^19
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.2(@types/react@19.2.2)
+      eslint:
+        specifier: ^9
+        version: 9.39.1(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.2.1
+        version: 16.2.1(@typescript-eslint/parser@8.62.1(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.2.2
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
+
   apps/subilafoto:
     dependencies:
       '@aws-sdk/client-rekognition':
@@ -1681,6 +1757,31 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  packages/muestras:
+    dependencies:
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../geo
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
   packages/notifications:
     dependencies:
