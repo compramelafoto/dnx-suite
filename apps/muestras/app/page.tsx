@@ -63,7 +63,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
           height={420}
           priority
           sizes="(min-width: 1024px) 420px, 220px"
-          className="mf-apertura mix-blend-multiply size-[220px] justify-self-center lg:size-[420px] lg:justify-self-end"
+          className="mf-apertura size-[220px] justify-self-center lg:size-[420px] lg:justify-self-end"
         />
       </section>
 
