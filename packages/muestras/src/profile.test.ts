@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import {
   freeProfileSlug, normalizeInstagram, normalizeProfileSlug, normalizeWebsite, profileSlugBase, profileSlugProblem,
-  profileWorksInActivity, resolveAuthorProfileId, sameName,
+  allowedAuthorProfileId, profileWorksInActivity, resolveAuthorProfileId, sameName,
 } from "./profile";
 
 describe("slug del perfil", () => {
@@ -90,5 +90,35 @@ describe("obras de un perfil en una muestra", () => {
     const r = profileWorksInActivity(a, obras, "p", new Date("2026-11-25T15:00:00Z"));
     expect(r.visible.map((w) => w.id)).toEqual(["w1", "w2"]);
     expect(r.hiddenCount).toBe(0);
+  });
+});
+
+describe("qué perfil puede quedar vinculado según el estado de la muestra", () => {
+  const base = { previous: "p-viejo", ownerProfileId: "p-dueno", isSuperAdmin: false };
+  it("en borrador o rechazada se puede vincular cualquier perfil", () => {
+    expect(allowedAuthorProfileId({ ...base, status: "DRAFT", requested: "p-otro" })).toEqual({ id: "p-otro", blocked: false });
+    expect(allowedAuthorProfileId({ ...base, status: "REJECTED", requested: "p-otro" })).toEqual({ id: "p-otro", blocked: false });
+  });
+  it("publicada: conserva el vínculo que ya tenía", () => {
+    expect(allowedAuthorProfileId({ ...base, status: "APPROVED", requested: "p-viejo" })).toEqual({ id: "p-viejo", blocked: false });
+  });
+  it("publicada: se puede vincular al perfil de quien la propuso", () => {
+    expect(allowedAuthorProfileId({ ...base, previous: null, status: "APPROVED", requested: "p-dueno" })).toEqual({ id: "p-dueno", blocked: false });
+  });
+  it("publicada: se puede desvincular", () => {
+    expect(allowedAuthorProfileId({ ...base, status: "APPROVED", requested: null })).toEqual({ id: null, blocked: false });
+  });
+  it("publicada: un perfil ajeno se ignora y queda el anterior", () => {
+    expect(allowedAuthorProfileId({ ...base, status: "APPROVED", requested: "p-otro" })).toEqual({ id: "p-viejo", blocked: true });
+    expect(allowedAuthorProfileId({ ...base, previous: null, status: "APPROVED", requested: "p-otro" })).toEqual({ id: null, blocked: true });
+  });
+  it("despublicada también cuenta como ya publicada", () => {
+    expect(allowedAuthorProfileId({ ...base, status: "UNPUBLISHED", requested: "p-otro" }).blocked).toBe(true);
+  });
+  it("el super admin puede vincular cualquier perfil", () => {
+    expect(allowedAuthorProfileId({ ...base, isSuperAdmin: true, status: "APPROVED", requested: "p-otro" })).toEqual({ id: "p-otro", blocked: false });
+  });
+  it("sin perfil propio, un pedido igual a null no es el del dueño", () => {
+    expect(allowedAuthorProfileId({ ...base, previous: null, ownerProfileId: null, status: "APPROVED", requested: "p-otro" })).toEqual({ id: null, blocked: true });
   });
 });

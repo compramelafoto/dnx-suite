@@ -99,6 +99,34 @@ export function resolveAuthorProfileId(
 }
 
 /**
+ * Límite al vincular obras con perfiles una vez que la muestra ya se publicó.
+ *
+ * Mientras es borrador o fue rechazada, todo pasa por la revisión antes de verse: se puede
+ * vincular cualquier perfil. Desde que se publicó (aprobada, o despublicada después), los
+ * cambios salen sin revisión: quien la propuso sólo puede dejar el vínculo que la obra ya tenía,
+ * vincularla a su propio perfil o desvincularla. Cualquier otro perfil se ignora (queda el
+ * anterior) y `blocked` avisa para mostrarle a la persona que tiene que escribirnos.
+ * El super admin puede vincular cualquiera.
+ */
+export function allowedAuthorProfileId(p: {
+  status: string;
+  previous: string | null;
+  requested: string | null;
+  ownerProfileId: string | null;
+  isSuperAdmin: boolean;
+}): { id: string | null; blocked: boolean } {
+  const libre = p.isSuperAdmin || p.status === "DRAFT" || p.status === "REJECTED";
+  if (libre || p.requested === null || p.requested === p.previous || p.requested === p.ownerProfileId) {
+    return { id: p.requested, blocked: false };
+  }
+  return { id: p.previous, blocked: true };
+}
+
+/** Aviso que recibe quien intenta sumar el perfil de otra persona a una muestra publicada. */
+export const AVISO_PERFIL_EN_PUBLICADA =
+  "Para sumar autores con perfil a una muestra publicada, escribinos. Las obras quedaron con el autor que tenían.";
+
+/**
  * Las obras de un perfil dentro de una muestra, separadas en las que se pueden mostrar y las
  * que la galería todavía reserva para la visita (sólo se cuentan).
  */

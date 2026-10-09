@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { REVIEW_STATUS_LABELS, canEdit, type ReviewStatus } from "@repo/muestras";
+import { AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, type ReviewStatus } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
 import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { BotonesPublicada } from "@/components/formulario/botones-publicada";
@@ -20,10 +20,13 @@ export default async function EditarActividad({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ faltan?: string | string[] }>;
+  searchParams: Promise<{ faltan?: string | string[]; aviso?: string | string[] }>;
 }) {
   const { id } = await params;
-  const faltan = faltantes((await searchParams).faltan);
+  const sp = await searchParams;
+  const faltan = faltantes(sp.faltan);
+  // Sólo una marca conocida: el texto del aviso nunca sale de la URL.
+  const avisoPerfiles = sp.aviso === "perfiles";
   const usuario = await requireUsuario(`/panel/muestras/${id}`);
   const a = await buscarPropia(id, usuario);
   if (!a) notFound();
@@ -53,6 +56,9 @@ export default async function EditarActividad({
           <p className="font-medium">Guardamos el borrador, pero todavía no se puede enviar a revisión:</p>
           <ul className="list-disc pl-5">{faltan.map((m) => <li key={m}>{m}</li>)}</ul>
         </div>
+      ) : null}
+      {avisoPerfiles ? (
+        <p role="status" className="rounded-[2px] bg-amber-50 p-3 text-sm text-amber-900">Guardamos los cambios. {AVISO_PERFIL_EN_PUBLICADA}</p>
       ) : null}
       {editable ? <FormularioActividad inicial={a} /> : null}
     </main>

@@ -192,6 +192,40 @@ describe("obras: ids estables y perfil del autor", () => {
     await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra()]) }));
     expect(db.photographerProfile.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 7 } }));
   });
+  describe("publicada: sólo el vínculo previo, el perfil propio o ninguno", () => {
+    const AVISO = "Para sumar autores con perfil a una muestra publicada, escribinos. Las obras quedaron con el autor que tenían.";
+    const completa = {
+      id: "a1", type: "CHARLA", title: "Charla", description: "d", coverImageUrl: `${BASE}/muestras/7/p.webp`, organizersText: "o",
+      startDay: "2026-11-05", endDay: "2026-11-06", scheduleText: "18", isVirtualOnly: "on", rightsConfirmed: "on",
+    };
+    beforeEach(() => {
+      db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED", works: [{ id: "w-vieja", authorProfileId: "pviejo0001" }] });
+      db.photographerProfile.findUnique.mockResolvedValue({ id: "perfilana01", displayName: "Ana Pérez" });
+      db.photographerProfile.findMany.mockResolvedValue([{ id: "pviejo0001" }, { id: "perfilana01" }, { id: "pajeno0001" }]);
+    });
+    it("ignora un perfil ajeno, conserva el anterior y avisa sin frenar el guardado", async () => {
+      const r = await guardarBorrador(fd({ ...completa, works: JSON.stringify([obra({ id: "w-vieja", authorProfileId: "pajeno0001" }), obra({ authorName: "Luis", authorProfileId: "pajeno0001" })]) }));
+      expect(r).toEqual({ ok: true, id: "a1", avisos: [AVISO] });
+      expect(guardadas().map((o) => o.authorProfileId)).toEqual(["pviejo0001", null]);
+    });
+    it("deja el vínculo previo y el perfil propio sin aviso", async () => {
+      const r = await guardarBorrador(fd({ ...completa, works: JSON.stringify([obra({ id: "w-vieja", authorProfileId: "pviejo0001" }), obra({ authorName: "Otro nombre", authorProfileId: "perfilana01" })]) }));
+      expect(r).toEqual({ ok: true, id: "a1" });
+      expect(guardadas().map((o) => o.authorProfileId)).toEqual(["pviejo0001", "perfilana01"]);
+    });
+    it("el super admin puede vincular cualquier perfil", async () => {
+      usuarioActual.valor = { id: 1, esSuperAdmin: true, email: "d@x", name: "Daniel" };
+      const r = await guardarBorrador(fd({ ...completa, works: JSON.stringify([obra({ id: "w-vieja", authorProfileId: "pajeno0001" })]) }));
+      expect(r).toEqual({ ok: true, id: "a1" });
+      expect(guardadas()[0]!.authorProfileId).toBe("pajeno0001");
+    });
+    it("en borrador se puede vincular cualquier perfil existente", async () => {
+      db.culturalActivity.findUnique.mockResolvedValue({ ...fila, works: [{ id: "w-vieja", authorProfileId: null }] });
+      const r = await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja", authorProfileId: "pajeno0001" })]) }));
+      expect(r).toEqual({ ok: true, id: "a1" });
+      expect(guardadas()[0]!.authorProfileId).toBe("pajeno0001");
+    });
+  });
   it("un usuario que no puede editar la actividad no escribe nada", async () => {
     usuarioActual.valor = { id: 99, esSuperAdmin: false, email: "x@y", name: null };
     const r = await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja" })]) }));

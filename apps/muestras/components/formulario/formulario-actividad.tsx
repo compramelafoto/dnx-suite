@@ -59,7 +59,10 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
           return;
         }
       }
-      router.push(enviar ? "/panel/muestras?enviada=1" : `/panel/muestras/${r.id}`);
+      // Un aviso (por ejemplo, un perfil ajeno en una muestra publicada) no frena el guardado:
+      // viaja en la URL porque el cambio de página borra este estado.
+      const aviso = r.avisos?.length ? "?aviso=perfiles" : "";
+      router.push(enviar ? "/panel/muestras?enviada=1" : `/panel/muestras/${r.id}${aviso}`);
     });
   }
 
