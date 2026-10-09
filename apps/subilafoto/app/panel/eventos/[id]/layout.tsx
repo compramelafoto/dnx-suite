@@ -3,8 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
-import { gruposDelEvento } from "@/lib/panel-navegacion";
-import { Navegacion } from "../../navegacion";
 
 export const dynamic = "force-dynamic";
 
@@ -38,21 +36,23 @@ export default async function MarcoDelEvento({
   });
   if (!evento) notFound();
 
+  /*
+    Acá va sólo el nombre del evento. El menú lo dibuja `MarcoDelPanel`, que es el único
+    de todo el panel: antes este marco dibujaba otro y se veían dos, uno encima del otro.
+
+    La comprobación de dueño se queda igual, y es redundante a propósito: mostrar el
+    nombre sin verificar filtraría el nombre de la fiesta de otro fotógrafo a cualquiera
+    con el identificador.
+  */
   return (
-    <div className="mx-auto max-w-6xl px-4 lg:px-6">
+    <div className="mx-auto max-w-5xl px-4 lg:px-8">
       <h2
         className="mt-8 text-lg font-extrabold leading-tight"
         style={{ color: "var(--slf-tinta)" }}
       >
         {evento.name}
       </h2>
-
-      <div className="mt-4 lg:grid lg:grid-cols-[16rem_1fr] lg:gap-8">
-        <div className="lg:sticky lg:top-6 lg:self-start">
-          <Navegacion grupos={gruposDelEvento(id)} />
-        </div>
-        <div className="min-w-0">{children}</div>
-      </div>
+      <div className="mt-4 min-w-0">{children}</div>
     </div>
   );
 }
