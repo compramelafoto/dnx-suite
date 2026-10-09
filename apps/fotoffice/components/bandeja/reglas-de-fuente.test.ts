@@ -119,6 +119,31 @@ describe("ajustes de la ronda 1", () => {
   });
 });
 
+describe("la pantalla se actualiza al instante tras una acción", () => {
+  it.each([
+    ["components/bandeja/botones-del-chat.tsx", /if \(r\.ok\) router\.refresh\(\)/],
+    ["components/bandeja/panel-del-cliente.tsx", /if \(r\.ok\) \{[^}]*router\.refresh\(\)/],
+    ["components/bandeja/caja-de-respuesta.tsx", /if \(r\.ok\) \{[^]*?router\.refresh\(\)/],
+  ])("%s llama a router.refresh() cuando la acción sale bien", (ruta, patron) => {
+    const f = leer(ruta);
+    expect(f).toContain("useRouter");
+    expect(f).toMatch(patron);
+  });
+
+  it("las acciones del servidor piden refresh() además de revalidar", () => {
+    const f = leer("app/actions/bandeja.ts");
+    expect(f).toContain('import { refresh, revalidatePath } from "next/cache"');
+    expect(f.match(/\brefresh\(\);/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("al enviar se muestra una burbuja provisoria que se oculta cuando llega el mensaje real", () => {
+    const f = leer("components/bandeja/caja-de-respuesta.tsx");
+    expect(f).toContain("provisorio.idBase === ultimoMensajeId");
+    expect(f).toContain("enviando");
+    expect(leer("app/(shell)/bandeja/[chatId]/page.tsx")).toContain("ultimoMensajeId={ultimo?.id ?? null}");
+  });
+});
+
 describe("menú", () => {
   it("el ítem figura con la ruta y el nivel Ver del módulo", () => {
     const f = leer("components/shell/shell-nav.tsx");

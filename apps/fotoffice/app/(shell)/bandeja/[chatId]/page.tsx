@@ -60,7 +60,7 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
             <DesplazarAlFinal clave={ultimo?.id ?? "vacio"} />
           </section>
           {puedeOperar ? (
-            <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} />
+            <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} />
           ) : (
             <p role="status" className="text-sm text-[var(--fo-muted)]">
               Tenés permiso para ver la bandeja, pero no para responder.

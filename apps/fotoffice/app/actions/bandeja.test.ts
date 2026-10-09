@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
-  contexto: vi.fn(), revalidate: vi.fn(),
+  contexto: vi.fn(), revalidate: vi.fn(), refrescar: vi.fn(),
   responder: vi.fn(), tomar: vi.fn(), marcarLeido: vi.fn(), buscarClientes: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
+vi.mock("next/cache", () => ({ revalidatePath: H.revalidate, refresh: H.refrescar }));
 vi.mock("@/lib/bandeja/contexto", () => ({ contextoDeBandeja: H.contexto }));
 vi.mock("@/lib/bandeja/acciones", () => ({
   responder: H.responder, tomar: H.tomar, marcarLeido: H.marcarLeido,
@@ -44,6 +44,7 @@ describe("server actions de la Bandeja", () => {
     const r = await A.responderAction("c1", "hola", "tok-1");
     expect(r).toMatchObject({ ok: true });
     expect(H.responder).toHaveBeenCalledWith(CTX, "c1", "hola", "tok-1");
+    expect(H.refrescar).toHaveBeenCalled();
     expect(H.revalidate).toHaveBeenCalledWith("/bandeja");
     expect(H.revalidate).toHaveBeenCalledWith("/bandeja/c1");
   });

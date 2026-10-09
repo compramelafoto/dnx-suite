@@ -14,13 +14,26 @@ const AVISO_FUERA_DE_VENTANA =
  * del servidor se reutiliza el mismo identificador con el mismo texto. Mientras se envía, el botón
  * queda deshabilitado. Fuera de la ventana de 24 h no se puede escribir.
  */
-export function CajaDeRespuesta({ chatId, dentroDeVentana }: { chatId: string; dentroDeVentana: boolean }) {
+export function CajaDeRespuesta({
+  chatId,
+  dentroDeVentana,
+  ultimoMensajeId,
+}: {
+  chatId: string;
+  dentroDeVentana: boolean;
+  /** Id del último mensaje que muestra la conversación: cuando cambia, el servidor ya trajo el nuestro. */
+  ultimoMensajeId: string | null;
+}) {
   const router = useRouter();
   const idTexto = useId();
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Burbuja provisoria con lo recién enviado. Se muestra mientras la conversación siga con el mismo
+  // último mensaje; cuando el refresco trae el mensaje real (el id cambia) deja de mostrarse, así
+  // nunca queda duplicado.
+  const [provisorio, setProvisorio] = useState<{ texto: string; idBase: string | null } | null>(null);
   const envioEnCurso = useRef<{ token: string; texto: string } | null>(null);
 
   const vacio = texto.trim().length === 0;
@@ -35,6 +48,7 @@ export function CajaDeRespuesta({ chatId, dentroDeVentana }: { chatId: string; d
     }
     const { token } = envioEnCurso.current;
     setEnviando(true);
+    setProvisorio({ texto: limpio, idBase: ultimoMensajeId });
     setError(null);
     setAviso(null);
     try {
@@ -42,15 +56,19 @@ export function CajaDeRespuesta({ chatId, dentroDeVentana }: { chatId: string; d
       if (r.ok) {
         envioEnCurso.current = null;
         setTexto("");
+        // Por si el refresco no llegara a traer el mensaje, la burbuja provisoria no queda para siempre.
+        window.setTimeout(() => setProvisorio(null), 20_000);
         setAviso(r.aviso ?? (r.estadoEnvio === "SIMULADO" ? "Mensaje registrado (modo de prueba: no salió a WhatsApp)." : "Mensaje enviado."));
         router.refresh();
       } else {
         // El servidor contestó que no: el próximo intento es un envío nuevo.
         envioEnCurso.current = null;
+        setProvisorio(null);
         setError(r.error);
       }
     } catch {
       // Sin respuesta: puede haber salido. Se conserva el identificador para reintentar sin duplicar.
+      setProvisorio(null);
       setError("No pudimos confirmar el envío. Revisá la conversación antes de reintentar.");
     } finally {
       setEnviando(false);
@@ -66,6 +84,14 @@ export function CajaDeRespuesta({ chatId, dentroDeVentana }: { chatId: string; d
   }
   return (
     <form onSubmit={enviar} className="space-y-2">
+      {provisorio && provisorio.idBase === ultimoMensajeId ? (
+        <div className="flex justify-end" role="status">
+          <div className="max-w-[85%] min-w-0 rounded-[var(--fo-radius)] border border-[var(--fo-accent-muted)] bg-[var(--fo-accent-soft)] px-3 py-2">
+            <p className="whitespace-pre-wrap break-words text-sm text-[var(--fo-text)]">{provisorio.texto}</p>
+            <p className="mt-1 text-right text-[11px] text-[var(--fo-muted)]">enviando</p>
+          </div>
+        </div>
+      ) : null}
       <label htmlFor={idTexto} className="fo-label">
         Respuesta
       </label>

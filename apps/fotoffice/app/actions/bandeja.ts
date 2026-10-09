@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { MENSAJES_BANDEJA } from "@/lib/bandeja/acceso";
 import {
   crearContactoDesdeChat,
@@ -22,6 +22,8 @@ import { buscarClientes, type ClienteBuscado } from "@/lib/bandeja/lecturas";
 const SIN_ACCESO = { ok: false as const, error: MENSAJES_BANDEJA.sinPermiso };
 
 function revalidarChat(chatId: string): void {
+  // `refresh()` le dice al navegador que vuelva a pedir la pantalla actual al terminar la acción.
+  refresh();
   revalidatePath("/bandeja");
   revalidatePath(`/bandeja/${chatId}`);
 }
@@ -69,7 +71,10 @@ export async function marcarLeidoAction(chatId: string): Promise<Resultado> {
   if (!ctx) return SIN_ACCESO;
   if (typeof chatId !== "string" || !chatId) return { ok: false, error: MENSAJES_BANDEJA.noExiste };
   const r = await marcarLeido(ctx, chatId);
-  if (r.ok) revalidatePath("/bandeja");
+  if (r.ok) {
+    refresh();
+    revalidatePath("/bandeja");
+  }
   return r;
 }
 
