@@ -61,46 +61,38 @@ export function buildMercadoPagoPayer(
     };
   }
 
-  return payer;
-}
-
-/**
- * Contexto e historial que van en `additional_info.payer`.
- * Devuelve `undefined` cuando no hay nada que informar, para no agregar un
- * nodo vacío al payload.
- */
-export function buildMercadoPagoAdditionalInfoPayer(
-  profile?: OrderPayerProfile,
-): Record<string, unknown> | undefined {
-  if (!profile) return undefined;
-  const info: Record<string, unknown> = {};
-
   const zipCode = clean(profile.address?.zipCode);
   const streetName = clean(profile.address?.streetName);
   const streetNumber = clean(profile.address?.streetNumber);
   if (zipCode || streetName || streetNumber) {
-    info.address = {
+    payer.address = {
       ...(zipCode ? { zip_code: zipCode } : {}),
       ...(streetName ? { street_name: streetName } : {}),
       ...(streetNumber ? { street_number: streetNumber } : {}),
     };
   }
 
-  const registrationDate = clean(profile.registrationDate);
-  if (registrationDate) info.registration_date = registrationDate;
+  return payer;
+}
 
-  const lastPurchase = clean(profile.lastPurchase);
-  if (lastPurchase) info.last_purchase = lastPurchase;
-
-  const authenticationType = clean(profile.authenticationType);
-  if (authenticationType) info.authentication_type = authenticationType;
-
-  if (typeof profile.isPrimeUser === "boolean") {
-    info.is_prime_user = profile.isPrimeUser;
-  }
-  if (typeof profile.isFirstPurchaseOnline === "boolean") {
-    info.is_first_purchase_online = profile.isFirstPurchaseOnline;
-  }
-
-  return Object.keys(info).length > 0 ? info : undefined;
+/**
+ * La API de Orders **no acepta** `additional_info`: responde
+ * `Properties not supported ('$.additional_info' - additionalProperties 'payer'
+ * not allowed)` y la orden ni siquiera se crea (verificado el 07/10/2026 contra
+ * sandbox MLA).
+ *
+ * Ese nodo pertenece a la API de Payments (`/v1/payments`), no a Orders. Por eso
+ * la identidad y el contacto —incluida la dirección— se envían dentro de `payer`,
+ * y los cinco campos de historial (`registration_date`, `is_prime_user`,
+ * `is_first_purchase_online`, `authentication_type`, `last_purchase`) quedan sin
+ * destino en Orders: se conservan en `OrderPayerProfile` porque el checklist de
+ * homologación los pide, pero no hay dónde ponerlos hasta que MP indique el campo.
+ *
+ * Se mantiene la función devolviendo `undefined` para no romper a quien la
+ * importe, y para que el día que exista un destino se cambie en un solo lugar.
+ */
+export function buildMercadoPagoAdditionalInfoPayer(
+  _profile?: OrderPayerProfile,
+): Record<string, unknown> | undefined {
+  return undefined;
 }
