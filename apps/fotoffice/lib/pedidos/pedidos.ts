@@ -6,6 +6,8 @@ import { validarDescuento, validarItems, type ItemPresupuesto } from "@/lib/pres
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
+import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
+import { nombreDeContacto } from "./nombre-contacto";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
 import { rubroIngresoPorOmision } from "./ajustes";
 import {
@@ -65,10 +67,7 @@ function falla(donde: string, error: unknown): void {
   console.error(`[pedidos] ${donde} falló`, { codigo: typeof e?.code === "string" ? e.code : null });
 }
 
-export function nombreDeContacto(c: { firstName: string | null; lastName: string | null; businessName: string | null } | null | undefined): string {
-  if (!c) return "Sin nombre";
-  return c.businessName?.trim() || [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || "Sin nombre";
-}
+export { nombreDeContacto };
 
 // --- Piezas comunes con la confirmación ---------------------------------------------------------
 
@@ -280,6 +279,7 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
     aviso = plan.aviso;
   }
 
+  const conProyectos = await proyectosEncendidos(workspaceId);
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoAlta> => {
       const incomeCategoryId = await rubroDeItems(tx, workspaceId, items);
@@ -306,6 +306,13 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
       await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
       // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
+      // Y los proyectos de las reglas de sus productos (Etapa 4), todos: a mano no hay vista previa.
+      if (conProyectos) {
+        await crearProyectosDelPedido(tx, ctx, {
+          pedidoId: r.id, clientId: contacto.id, items, fechaEvento, eventLabel: etiqueta, numeroPedido: r.numero,
+          ownerUserId: ctx.userId, confirmadoEn: ahora,
+        });
+      }
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
     }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {

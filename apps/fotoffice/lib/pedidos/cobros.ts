@@ -394,11 +394,28 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
   }
 
   // Lo que sigue nunca deshace el cobro: `notificarEvento` no lanza.
-  if (hecho.primero && hecho.consultaLeadId) {
-    // Doble red: `notificarEvento` no lanza, y si alguna vez lo hiciera, el cobro ya está hecho.
-    await notificarEvento(workspaceId, { tipo: "CAPTACION", id: hecho.consultaLeadId }, "SENA_COBRADA", hecho.cobroId).catch(() => undefined);
-  }
+  // Doble red: `notificarEvento` no lanza, y si alguna vez lo hiciera, el cobro ya está hecho.
+  if (hecho.primero) await avisarSenaCobrada(workspaceId, v.pedidoId, hecho.consultaLeadId, hecho.cobroId);
   return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero, importe: v.importe };
+}
+
+/**
+ * Primer cobro vigente de un pedido: avisa `SENA_COBRADA` a la consulta (si tiene) y a cada proyecto
+ * del pedido (Etapa 4; el motor sólo mueve los recorridos abiertos que tengan una regla de ese
+ * evento). Nunca lanza: el cobro ya está hecho.
+ */
+async function avisarSenaCobrada(workspaceId: string, pedidoId: string, consultaLeadId: string | null, cobroId: string): Promise<void> {
+  if (consultaLeadId) {
+    await notificarEvento(workspaceId, { tipo: "CAPTACION", id: consultaLeadId }, "SENA_COBRADA", cobroId).catch(() => undefined);
+  }
+  try {
+    const proyectos = await prisma.fotofficeProyecto.findMany({ where: { workspaceId, pedidoId }, select: { id: true }, orderBy: { createdAt: "asc" } });
+    for (const p of proyectos) {
+      await notificarEvento(workspaceId, { tipo: "PROYECTO", id: p.id }, "SENA_COBRADA", cobroId).catch(() => undefined);
+    }
+  } catch (e) {
+    falla("avisarSenaCobrada", e);
+  }
 }
 
 export type DatosCobroDelSistema = {
@@ -490,9 +507,7 @@ export async function registrarCobroDelSistema(datos: DatosCobroDelSistema, deps
     return { ok: false, motivo: "FALLO", error: MENSAJES_COBRO.fallo };
   }
 
-  if (hecho.primero && hecho.consultaLeadId) {
-    await notificarEvento(workspaceId, { tipo: "CAPTACION", id: hecho.consultaLeadId }, "SENA_COBRADA", hecho.cobroId).catch(() => undefined);
-  }
+  if (hecho.primero) await avisarSenaCobrada(workspaceId, pedidoId, hecho.consultaLeadId, hecho.cobroId);
   return { ok: true, cobroId: hecho.cobroId, pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero };
 }
 

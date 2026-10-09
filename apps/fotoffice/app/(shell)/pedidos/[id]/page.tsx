@@ -9,6 +9,7 @@ import { CobrosDelPedido, type CobroVista } from "@/components/pedidos/cobros-de
 import { CostosYPagos } from "@/components/pedidos/costos-y-pagos";
 import { EditarPlan } from "@/components/pedidos/editar-plan";
 import { EnviarPedido } from "@/components/pedidos/enviar-pedido";
+import { ProyectosDelPedido } from "@/components/pedidos/proyectos-del-pedido";
 import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
 import { RegistrarCobro } from "@/components/pedidos/registrar-cobro";
 import { puedeEnContexto } from "@/lib/access/policy";
@@ -28,6 +29,10 @@ import { ajustePorFormaDePago, fechaCorta, pesosConSigno, pesosPedido } from "@/
 import { leerPedido } from "@/lib/pedidos/pedidos";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
+import { puedeGestionarProyectos, puedeVerProyectos } from "@/lib/proyectos/acceso";
+import { proyectosEncendidos } from "@/lib/proyectos/crear";
+import { proyectosDeUnPedido } from "@/lib/proyectos/del-pedido";
+import { opcionesDeRegla } from "@/lib/proyectos/reglas-catalogo";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +92,15 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     hecha: t.hecha,
     detalle: t.hechaEn ? [t.hechaPorId !== null ? nombreDe.get(t.hechaPorId) : null, fechaHoraBA(t.hechaEn)].filter(Boolean).join(" · ") : null,
   }));
+  // Proyectos (Etapa 4): sólo con el módulo encendido y "Ver" en Proyectos.
+  const verProyectos = puedeVerProyectos(ctx) && (await proyectosEncendidos(workspace.id));
+  const gestionaProyectos = verProyectos && puedeGestionarProyectos(ctx) && !cancelado;
+  const [proyectos, opcionesProyecto] = verProyectos
+    ? await Promise.all([
+        proyectosDeUnPedido(ctx, detalle.id),
+        gestionaProyectos ? opcionesDeRegla(workspace.id) : Promise.resolve({ circuitos: [], equipo: [] }),
+      ])
+    : [[], { circuitos: [], equipo: [] }];
   const [mensajes, comprobantes, envio, rubros] = await Promise.all([
     mensajesDePedido(workspace.id, detalle.id),
     comprobantesDeCobros(workspace.id, detalle.cobros.map((c) => c.id)),
@@ -341,6 +355,21 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
             </h2>
             <ChecklistDelPedido pedidoId={detalle.id} tareas={tareasVista} plantillas={checklist?.plantillas ?? []} puedeEditar={gestiona && !cancelado} />
           </section>
+
+          {verProyectos ? (
+            <section id="proyectos" aria-labelledby="proyectos-titulo" className="fo-card space-y-3">
+              <h2 id="proyectos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+                Proyectos
+              </h2>
+              <ProyectosDelPedido
+                pedidoId={detalle.id}
+                proyectos={proyectos}
+                flujos={opcionesProyecto.circuitos}
+                equipo={opcionesProyecto.equipo}
+                puedeAgregar={gestionaProyectos}
+              />
+            </section>
+          ) : null}
 
           <ItemsPedido items={detalle.items.map((i) => aItemDePedido(i))} totales={detalle.totals} costos={costos} />
 

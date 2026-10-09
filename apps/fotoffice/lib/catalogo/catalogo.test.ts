@@ -237,8 +237,9 @@ describe("fuente de la ficha", () => {
 
   it("cada acción exige sales.catalog (requireSalesAdmin) y toma el workspace de la sesión", () => {
     const exportadas = acciones.match(/export async function \w+/g) ?? [];
-    expect(exportadas).toHaveLength(3);
-    expect(acciones.match(/await requireSalesAdmin\(\)/g)).toHaveLength(3);
+    // Perfil, combo, costos y (Etapa 4) "Proyecto que genera".
+    expect(exportadas).toHaveLength(4);
+    expect(acciones.match(/await requireSalesAdmin\(\)/g)).toHaveLength(4);
     expect(acciones).not.toMatch(/workspaceId\s*[:,]\s*(formData|c\.|costos|componentes)/);
   });
 

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { diaDeCalendario } from "@/lib/consultas/fechas";
+import { aVistaPrevia, crearProyectosDelPedido, IndiceInvalido, planificarProyectos, proyectosEncendidos, type ProyectoVistaPrevia } from "@/lib/proyectos/crear";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { bloquearPresupuesto, itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acceso";
@@ -30,7 +31,10 @@ import { etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from
  * - copia las tareas de la plantilla de checklist elegida (por omisión la primera; `null` = sin
  *   checklist; Entrega B1, `./checklist.ts`);
  * - crea las cuentas a pagar desde los costos-plantilla de sus productos y combos (Entrega B1,
- *   `crearCuentasDelPedido`), con el rubro de costo vacío: se elige al pagar.
+ *   `crearCuentasDelPedido`), con el rubro de costo vacío: se elige al pagar;
+ * - crea los proyectos de las reglas "Proyecto que genera" de sus productos y combos (Etapa 4,
+ *   `crearProyectosDelPedido`), salvo los que se destildaron en la vista previa, sólo con el módulo
+ *   Proyectos encendido.
  *
  * Un presupuesto genera un solo pedido: el único `presupuestoId` decide la carrera. Quien pierde
  * recibe `{ ok: false, error: "Ya tiene pedido", pedidoId }` con el pedido que ganó.
@@ -156,6 +160,8 @@ export type VistaPreviaConfirmacion =
       vista: Omit<ConfirmacionPreparada, "items" | "totals" | "ownerUserId"> & {
         /** Nombres de las plantillas de checklist; la primera es la que se copia por omisión. */
         plantillasChecklist: string[];
+        /** Proyectos que se van a crear (vacío con el módulo Proyectos apagado). */
+        proyectos: ProyectoVistaPrevia[];
       };
     }
   | { ok: false; error: string; pedidoId?: string };
@@ -167,6 +173,14 @@ export async function vistaPreviaConfirmacion(ctx: CtxPedidos, presupuestoId: un
   try {
     const d = await preparar(prisma, ctx.workspaceId, presupuestoId, deps.ahora?.() ?? new Date());
     const plantillas = await leerPlantillasChecklist(prisma, ctx.workspaceId);
+    const proyectos = (await proyectosEncendidos(ctx.workspaceId))
+      ? aVistaPrevia(
+          await planificarProyectos(prisma, ctx.workspaceId, {
+            clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
+            numeroPedido: null, ownerUserId: d.ownerUserId, confirmadoEn: deps.ahora?.() ?? new Date(),
+          }),
+        )
+      : [];
     // Sin los ítems (pueden traer costos) ni el responsable: sólo lo del plan.
     return {
       ok: true,
@@ -184,6 +198,7 @@ export async function vistaPreviaConfirmacion(ctx: CtxPedidos, presupuestoId: un
         aviso: d.aviso,
         incomeCategoryId: d.incomeCategoryId,
         plantillasChecklist: plantillas.map((p) => p.name),
+        proyectos,
       },
     };
   } catch (e) {
@@ -197,10 +212,19 @@ function falla(donde: string, error: unknown): void {
   console.error(`[pedidos] ${donde} falló`, { codigo: typeof e?.code === "string" ? e.code : null });
 }
 
+/** Los índices destildados de la vista previa: una lista de enteros no negativos, sin repetidos. */
+function leerOmitidos(v: unknown): Set<number> | null {
+  if (v === undefined || v === null) return new Set();
+  if (!Array.isArray(v) || v.length > 200) return null;
+  if (!v.every((x) => typeof x === "number" && Number.isInteger(x) && x >= 0)) return null;
+  return new Set(v as number[]);
+}
+
 /**
  * Confirma el pedido de un presupuesto aceptado. `planAjustado`: el plan editado en la vista previa
  * (fecha, importe y medio sugerido de cada cuota; sin ids), que tiene que sumar el total.
  * `checklist`: nombre de la plantilla de checklist a copiar; `undefined` = la primera, `null` = ninguna.
+ * `proyectosOmitidos`: posiciones de la lista de proyectos de la vista previa que se destildaron.
  */
 export async function confirmarPedido(
   ctx: CtxPedidos,
@@ -208,9 +232,12 @@ export async function confirmarPedido(
   planAjustado?: unknown,
   deps: DepsConfirmar = {},
   checklist?: unknown,
+  proyectosOmitidos?: unknown,
 ): Promise<ResultadoConfirmacion> {
   if (!puedeGestionarPedidos(ctx) || ctx.userId === null) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
   if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  const omitidos = leerOmitidos(proyectosOmitidos);
+  if (!omitidos) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
   let ajustado: CuotaParaGuardar[] | null = null;
   if (planAjustado !== undefined && planAjustado !== null) {
     const p = leerCuotasEditadas(planAjustado);
@@ -219,6 +246,7 @@ export async function confirmarPedido(
   }
   const { workspaceId } = ctx;
   const ahora = deps.ahora?.() ?? new Date();
+  const conProyectos = await proyectosEncendidos(workspaceId);
 
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
@@ -254,11 +282,18 @@ export async function confirmarPedido(
       });
       await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: ctx.userId });
+      if (conProyectos) {
+        await crearProyectosDelPedido(tx, ctx, {
+          pedidoId: r.id, clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
+          numeroPedido: r.numero, ownerUserId: d.ownerUserId, confirmadoEn: ahora, omitidos,
+        });
+      }
       await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
     }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
     if (e instanceof Corte) return { ok: false, error: e.mensaje, ...(e.pedidoId ? { pedidoId: e.pedidoId } : {}) };
+    if (e instanceof IndiceInvalido) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
     // Otra confirmación del mismo presupuesto ganó (único `presupuestoId`): devolver la suya.
     if ((e as { code?: unknown } | null)?.code === "P2002") {
       const ganador = await prisma.fotofficePedido.findFirst({ where: { presupuestoId, workspaceId }, select: { id: true } });
