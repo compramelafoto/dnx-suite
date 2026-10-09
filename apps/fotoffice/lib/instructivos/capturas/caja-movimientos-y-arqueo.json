@@ -1,0 +1,50 @@
+[
+  {
+    "archivo": "01-panorama.png",
+    "ruta": "/caja",
+    "que_mostrar": "Pantalla completa del Panorama de Caja: formulario 'Cargar movimiento', tarjetas de las cuentas con su saldo y el comienzo de 'Últimos movimientos'. Que haya al menos una cuenta de efectivo de mostrador y una caja fuerte configuradas.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-cargar-movimiento.png",
+    "ruta": "/caja",
+    "que_mostrar": "Formulario 'Cargar movimiento' completado sin enviar: Cuenta = la caja del mostrador, Tipo = Egreso, Importe 5.000, una categoría de egreso, Medio de pago Efectivo, Descripción 'Compra de artículos de limpieza'.",
+    "selector_recorte": "form.fo-card:has(#mov-account)"
+  },
+  {
+    "archivo": "03-abrir-turno.png",
+    "ruta": "/caja",
+    "que_mostrar": "Tarjeta de la cuenta 'Efectivo de mostrador' SIN turno abierto, con el campo 'Abrir turno — con cuánto' (escribir 20.000 sin enviar) y el botón 'Abrir turno'.",
+    "selector_recorte": "section.fo-card:has(input[name='openingAmountArs'])"
+  },
+  {
+    "archivo": "04-cerrar-turno.png",
+    "ruta": "/caja",
+    "que_mostrar": "Tarjeta de la cuenta de mostrador CON turno abierto: bloque 'Turno abierto' con el 'Esperado', y los campos 'Cuánto contaste' y 'Si no cuadra, explicá por qué' completados sin enviar.",
+    "selector_recorte": "section.fo-card:has(input[name='countedAmountArs'])"
+  },
+  {
+    "archivo": "05-arqueos-propuesta-pase.png",
+    "ruta": "/caja/turnos",
+    "que_mostrar": "Pantalla que aparece justo después de tocar 'Cerrar turno' (la URL lleva ?ok=1&shiftId=…): mensaje 'Turno cerrado.', la propuesta '¿Pasás cuánto a …?' con 'Sí, pasar' y 'Ahora no', y la tabla de arqueos. Sólo aparece si hay una caja fuerte configurada. Cerrar un turno es real: hacerlo al cierre de un día verdadero.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "06-pases.png",
+    "ruta": "/caja/pases",
+    "que_mostrar": "Formulario de pase con De = caja del mostrador, A = caja fuerte, Importe 10.000 y Nota completados sin enviar, y debajo la lista de pases hechos.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "07-anular-movimiento.png",
+    "ruta": "/caja/movimientos",
+    "que_mostrar": "Una fila de la tabla de movimientos (un movimiento manual) con el campo 'Motivo de la anulación' escrito y el botón 'Anular' visible. NO tocar Anular.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "08-reportes.png",
+    "ruta": "/caja/reportes?shortcut=este-mes",
+    "que_mostrar": "Parte superior de Reportes: atajos 'Este mes' (marcado), 'El mes pasado', 'Últimos 30 días', filtros Desde/Hasta/Cuenta, 'Saldo actual por cuenta' y 'Resumen del período' con Entró, Salió y Neto.",
+    "selector_recorte": null
+  }
+]
