@@ -48,7 +48,15 @@ import {
   registerTemplateTextInsert,
 } from "@repo/template-editor-core";
 import { createAreaTextBlockInRect, createPointTextBlockAt } from "@repo/template-editor-core";
-import { computeResizeRect } from "@repo/template-editor-core";
+import {
+  canvasDpi,
+  computeResizeRect,
+  describeAspect,
+  findAspectPreset,
+  formatBlockSize,
+  getBlockAspectLock,
+} from "@repo/template-editor-core";
+import { useBlockSizeUnit } from "./useBlockSizeUnit";
 import {
   TEMPLATE_V2_RESET_WORK_SCROLL_EVENT,
   type TemplateEditorCanvasTool,
@@ -164,6 +172,55 @@ function getOverlayStyle(block: TemplateV2EditorState["blocks"][number]) {
     zIndex: l.zIndex + 1000,
     boxSizing: "border-box" as const,
   };
+}
+
+/**
+ * Medida del recuadro mientras se estira: "85 × 55 mm · 3:2". Vive dentro del lienzo escalado,
+ * así que se contra-escala con el zoom para leerse siempre del mismo tamaño.
+ */
+function BlockSizeBadge({
+  width,
+  height,
+  unit,
+  dpi,
+  zoom,
+}: {
+  width: number;
+  height: number;
+  unit: Parameters<typeof formatBlockSize>[2];
+  dpi: number;
+  zoom: number;
+}) {
+  const z = zoom > 0 ? zoom : 1;
+  const preset = findAspectPreset(width, height);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "100%",
+        transform: `translate(-50%, ${10 / z}px) scale(${1 / z})`,
+        transformOrigin: "top center",
+        whiteSpace: "nowrap",
+        pointerEvents: "none",
+        fontSize: 11,
+        fontWeight: 600,
+        lineHeight: 1,
+        padding: "4px 7px",
+        borderRadius: 6,
+        background: "var(--te-accent)",
+        color: "#fff",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {formatBlockSize(width, height, unit, dpi)}
+      <span style={{ opacity: preset ? 1 : 0.75, fontWeight: preset ? 600 : 400 }}>
+        {" · "}
+        {describeAspect(width, height)}
+      </span>
+    </div>
+  );
 }
 
 function asBlockConfigJson(block: TemplateV2Block): Record<string, unknown> {
@@ -381,6 +438,9 @@ export function TemplateEditorCanvas({
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const textEditStartSnapshotRef = useRef<ReturnType<typeof takePersistSnapshot> | null>(null);
   const [rotatingBlockId, setRotatingBlockId] = useState<string | null>(null);
+  /** Bloque que se está estirando: mientras dura el gesto, el recuadro muestra su medida. */
+  const [resizingBlockId, setResizingBlockId] = useState<string | null>(null);
+  const sizeUnit = useBlockSizeUnit();
   /** Rect en coords de lienzo: esquinas opuestas durante el arrastre. */
   const [marqueeRect, setMarqueeRect] = useState<{ ax: number; ay: number; bx: number; by: number } | null>(null);
   /** Vista previa al colocar texto en área (herramienta T). */
@@ -1309,6 +1369,7 @@ export function TemplateEditorCanvas({
                           };
                           const startFs =
                             typeof nb.fontSize === "number" && Number.isFinite(nb.fontSize) ? nb.fontSize : 20;
+                          setResizingBlockId(primaryBlock.id);
                           resizeRef.current = {
                             pointerId: e.pointerId,
                             blockId: primaryBlock.id,
@@ -1335,17 +1396,20 @@ export function TemplateEditorCanvas({
                           if (!rz.moved && (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5)) {
                             rz.moved = true;
                           }
+                          // Con proporción fijada en el inspector, la esquina estira siempre en
+                          // proporción, como si Mayús estuviera apretada.
+                          const aspectLock = getBlockAspectLock(primaryBlock.configJson);
                           const next = computeResizeRect(
                             rz.handle,
                             {
                               x: rz.startX,
                               y: rz.startY,
                               width: rz.startWidth,
-                              height: rz.startHeight,
+                              height: aspectLock ? rz.startWidth / aspectLock : rz.startHeight,
                             },
                             dx,
                             dy,
-                            { shift: e.shiftKey, alt: e.altKey }
+                            { shift: e.shiftKey || aspectLock !== null, alt: e.altKey }
                           );
                           const layoutPatch = {
                             x: next.x,
@@ -1398,10 +1462,12 @@ export function TemplateEditorCanvas({
                           }
                           gesturePersistSnapshotRef.current = null;
                           resizeRef.current = null;
+                          setResizingBlockId(null);
                         }}
                         onPointerCancel={() => {
                           gesturePersistSnapshotRef.current = null;
                           resizeRef.current = null;
+                          setResizingBlockId(null);
                         }}
                       />
                       );
@@ -1424,6 +1490,15 @@ export function TemplateEditorCanvas({
                   >
                     LOCKED
                   </div>
+                ) : null}
+                {resizingBlockId === primaryBlock.id ? (
+                  <BlockSizeBadge
+                    width={primaryBlock.layout.width}
+                    height={primaryBlock.layout.height}
+                    unit={sizeUnit}
+                    dpi={canvasDpi(state.canvas)}
+                    zoom={state.zoom}
+                  />
                 ) : null}
                 {rotatingBlockId === primaryBlock.id ? (
                   <div
