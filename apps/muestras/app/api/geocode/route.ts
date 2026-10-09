@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   if (q.length < 3) return NextResponse.json({ error: "Escribí al menos 3 caracteres." }, { status: 400 });
   try {
     const lugares = await createNominatimProvider({
-      userAgent: process.env.GEOCODING_USER_AGENT || "MuestrasFotograficas/1.0 (muestrasfotograficas.com)",
+      userAgent: process.env.GEOCODING_USER_AGENT || "MuestrasFotograficas/1.0 (+https://muestrasfotograficas.com)",
     }).search(q, { limit: 5 });
     return NextResponse.json(
       lugares.map((p) => ({

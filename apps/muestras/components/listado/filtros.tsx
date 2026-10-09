@@ -1,10 +1,17 @@
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from "@repo/muestras";
 
 /** Formulario GET: los filtros viven en la URL, así se pueden compartir. */
-export function Filtros({ provincias, actual }: { provincias: string[]; actual: { provincia?: string; tipo?: string; abiertas?: string; archivo?: string } }) {
+export function Filtros({ provincias, actual, cerca }: {
+  provincias: string[];
+  actual: { provincia?: string; tipo?: string; abiertas?: string; archivo?: string };
+  /** Si la portada está ordenada "cerca de", filtrar no lo pierde. Ya vienen validados. */
+  cerca?: { cerca: string; lugar: string | null } | null;
+}) {
   const casilla = "flex items-center gap-2";
   return (
     <form action="/#muestras" className="flex flex-wrap items-center gap-x-7 gap-y-4 text-sm">
+      {cerca ? <input type="hidden" name="cerca" value={cerca.cerca} /> : null}
+      {cerca?.lugar ? <input type="hidden" name="lugar" value={cerca.lugar} /> : null}
       <label>
         <span className="sr-only">Provincia</span>
         <select name="provincia" defaultValue={actual.provincia ?? ""} className="mf-select max-w-[14rem]">

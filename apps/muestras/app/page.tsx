@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ACTIVITY_TYPE_LABELS, applyFilter, formatArDay, isActivityType, temporalStatus, type ActivityType } from "@repo/muestras";
+import { ACTIVITY_TYPE_LABELS, applyFilter, cleanPlaceLabel, distanceLabel, formatArDay, formatNearParam, isActivityType, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { Filtros } from "@/components/listado/filtros";
 import { MapaNacionalCliente } from "@/components/mapa/mapa-nacional-cliente";
@@ -10,7 +10,7 @@ import { PASOS_MUESTRA } from "@/lib/portada/funciones";
 
 export const revalidate = 300;
 
-type Busqueda = { provincia?: string; tipo?: string; abiertas?: string; archivo?: string };
+type Busqueda = { provincia?: string; tipo?: string; abiertas?: string; archivo?: string; cerca?: string; lugar?: string };
 
 const accionFina = "inline-flex h-11 items-center border border-[var(--mf-ink)] px-5 text-[15px] transition-colors hover:bg-[var(--mf-ink)] hover:text-white";
 
@@ -19,14 +19,23 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
   const sp = await searchParams;
   const ahora = new Date();
   const todas = await listarPublicas();
-  const lista = applyFilter(todas, {
+  const filtradas = applyFilter(todas, {
     province: sp.provincia || undefined,
     type: isActivityType(sp.tipo) ? sp.tipo : undefined,
     openNow: sp.abiertas === "1",
     includeClosed: sp.archivo === "1",
   }, ahora);
+  // "Cerca de": viene de la URL, así que se valida estricto; `lugar` es sólo texto para mostrar.
+  const origen = parseNearParam(sp.cerca);
+  const lugarBuscado = origen ? (cleanPlaceLabel(sp.lugar) ?? "el punto elegido") : null;
+  const lista = origen ? withDistance(origen, filtradas) : filtradas.map((a) => ({ ...a, distanceKm: null as number | null }));
+  const sinCerca = new URLSearchParams(
+    Object.entries({ provincia: sp.provincia, tipo: sp.tipo, abiertas: sp.abiertas, archivo: sp.archivo })
+      .filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""),
+  ).toString();
   const provincias = [...new Set(todas.map((a) => a.province).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, "es"));
-  const lugarDe = (a: (typeof todas)[number]) => (a.isVirtualOnly ? "Virtual" : [a.venueName, a.city, a.province].filter(Boolean).join(", "));
+  // Una muestra siempre tiene sede; "Online" sólo puede aparecer en charlas o talleres.
+  const lugarDe = (a: (typeof todas)[number]) => (a.isVirtualOnly ? "Online" : [a.venueName, a.city, a.province].filter(Boolean).join(", "));
   const puntos = lista.flatMap((a) => (a.latitude != null && a.longitude != null && !a.isCancelled
     ? [{ slug: a.slug, title: a.title, latitude: a.latitude, longitude: a.longitude, etiqueta: `${formatArDay(a.startsAt)} al ${formatArDay(a.endsAt)}`, lugar: a.city }]
     : []));
@@ -43,7 +52,8 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
 
       <section aria-labelledby="titulo-funciones" className="mf-marco pt-20 sm:pt-28">
         <h2 id="titulo-funciones" className="mf-titulo max-w-[16ch] text-[clamp(2rem,4.5vw,3.5rem)]">Todo lo que podés hacer con tu muestra</h2>
-        <p className="mt-5 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Para fotógrafos, organizadores, fotoclubes e instituciones, de la convocatoria al archivo.</p>
+        <p className="mt-5 max-w-[52ch] text-balance text-xl leading-snug">Organizás una muestra en una sala, una galería o un centro cultural. Acá encontrás todo para armarla, difundirla y llevar gente a verla.</p>
+        <p className="mt-3 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Para fotógrafos, organizadores, fotoclubes e instituciones, de la convocatoria al archivo.</p>
         <ol className="mt-12 border-t border-[var(--mf-line)] sm:mt-16">
           {PASOS_MUESTRA.map((paso, i) => (
             <li key={paso.titulo} className="grid gap-x-10 gap-y-4 border-b border-[var(--mf-line)] py-8 sm:py-10 md:grid-cols-12">
@@ -64,8 +74,14 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
           <h2 id="titulo-muestras" className="mf-titulo text-[clamp(2rem,4vw,3rem)]">Muestras</h2>
           {todas.length > 0 ? <p className="text-sm text-[var(--mf-muted)]">{cuenta}</p> : null}
         </div>
-        <p className="mt-4 mb-8 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Encontrá muestras cerca tuyo, con fechas, horarios, cómo llegar y una selección de las obras.</p>
-        {todas.length > 0 ? <div className="mb-6"><Filtros provincias={provincias} actual={sp} /></div> : null}
+        <p className="mt-4 mb-8 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Muestras para visitar en persona: dónde quedan, fechas, horarios y cómo llegar, con un anticipo de las obras.</p>
+        {origen ? (
+          <p className="mb-6 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-l-2 border-[var(--mf-spot)] pl-4 text-lg">
+            <span>Muestras cerca de {lugarBuscado}</span>
+            <Link href={`/${sinCerca ? `?${sinCerca}` : ""}#muestras`} className="text-[15px] text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">Ver todo el país</Link>
+          </p>
+        ) : null}
+        {todas.length > 0 ? <div className="mb-6"><Filtros provincias={provincias} actual={sp} cerca={origen ? { cerca: formatNearParam(origen), lugar: cleanPlaceLabel(sp.lugar) } : null} /></div> : null}
 
         {todas.length === 0 ? (
           <div className="border-t border-[var(--mf-line)] pt-10 pb-4">
@@ -92,7 +108,10 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
                         <EstadoActividad startsAt={a.startsAt} endsAt={a.endsAt} isCancelled={a.isCancelled} ahora={ahora} />
                       </span>
                     </span>
-                    <span className="min-w-0 text-[15px] text-[var(--mf-muted)] md:text-[var(--mf-ink)]">{lugarDe(a) || tipo}</span>
+                    <span className="min-w-0 text-[15px] text-[var(--mf-muted)] md:text-[var(--mf-ink)]">
+                      {lugarDe(a) || tipo}
+                      {distanceLabel(a.distanceKm) ? <span className="block text-[13px] text-[var(--mf-muted)]">{distanceLabel(a.distanceKm)}</span> : null}
+                    </span>
                     <span className="text-[15px] tabular-nums text-[var(--mf-muted)] md:text-right md:text-[var(--mf-ink)]">
                       {formatArDay(a.startsAt)} al {formatArDay(a.endsAt)}
                     </span>
@@ -106,9 +125,9 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
 
       {/* El país es alto y angosto: en pantalla ancha el mapa va a la derecha, no como franja. */}
       <section id="mapa" aria-labelledby="titulo-mapa" className="mf-marco grid scroll-mt-16 gap-4 pt-16 sm:pt-20 lg:grid-cols-12 lg:gap-8">
-        <h2 id="titulo-mapa" className="text-sm text-[var(--mf-muted)] lg:col-span-4">En el mapa</h2>
+        <h2 id="titulo-mapa" className="text-sm text-[var(--mf-muted)] lg:col-span-4">{origen ? `En el mapa, cerca de ${lugarBuscado}` : "Dónde visitarlas"}</h2>
         <div className="h-[380px] min-w-0 sm:h-[480px] lg:col-span-8 lg:h-[600px]">
-          <MapaNacionalCliente puntos={puntos} />
+          <MapaNacionalCliente puntos={puntos} centro={origen} />
         </div>
       </section>
 
@@ -116,6 +135,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
         <h2 id="titulo-organizadores" className="mf-titulo max-w-[20ch] text-[clamp(2.1rem,5vw,4.25rem)] leading-[0.98]">
           ¿Organizás una muestra? Cargala con sus fotos y compartila con todo el mundo.
         </h2>
+        <p className="mt-6 max-w-[48ch] text-lg leading-snug text-[var(--mf-muted)]">La muestra se vive en la sala. Acá la ponés en el mapa, contás cuándo y dónde, y mostrás un anticipo de las obras para que la gente vaya a verla.</p>
         <Link href="/proponer" className={`${accionFina} mt-10`}>Proponé tu muestra</Link>
       </section>
     </main>

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
-import { LIMITES, checkRateLimit, frenarPorUsuario, resetRateLimit } from "./limite";
+import { LIMITES, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorUsuario, ipDeLaPeticion, resetRateLimit } from "./limite";
 
 beforeEach(() => resetRateLimit());
 
@@ -32,5 +32,20 @@ describe("tope de fichas", () => {
   it("sigue teniendo tope", () => {
     for (let i = 0; i < LIMITES.fichas.limit; i++) frenarPorUsuario("fichas", 1);
     expect(frenarPorUsuario("fichas", 1).allowed).toBe(false);
+  });
+});
+
+describe("frenarPorIp", () => {
+  const h = (o: Record<string, string>) => ({ get: (n: string) => o[n] ?? null });
+  it("toma el primer valor de x-forwarded-for", () => expect(ipDeLaPeticion(h({ "x-forwarded-for": "200.1.2.3, 10.0.0.1" }))).toBe("200.1.2.3"));
+  it("si no hay, usa x-real-ip", () => expect(ipDeLaPeticion(h({ "x-real-ip": "2800:810::1" }))).toBe("2800:810::1"));
+  it("lo que no parece una IP cae en el balde común", () => {
+    expect(ipDeLaPeticion(h({}))).toBe("sin-ip");
+    expect(ipDeLaPeticion(h({ "x-forwarded-for": "<script>" }))).toBe("sin-ip");
+  });
+  it("cuenta por IP: el tope de una no frena a otra", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.buscarCerca.limit; i++) expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(true);
+    expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(false);
+    expect(frenarPorIp("buscarCerca", "2.2.2.2").allowed).toBe(true);
   });
 });

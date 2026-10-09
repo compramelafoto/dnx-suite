@@ -15,9 +15,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://muestrasfoto
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: { default: "Muestras Fotográficas", template: "%s | Muestras Fotográficas" },
-  description: "El mapa de las muestras y actividades de fotografía de todo el país.",
+  description: "Muestras de fotografía para ver en persona, en todo el país: dónde quedan, fechas, horarios y cómo llegar.",
   openGraph: {
     siteName: "Muestras Fotográficas",
+    description: "Muestras de fotografía para ver en persona, en todo el país: dónde quedan, fechas, horarios y cómo llegar.",
     locale: "es_AR",
     type: "website",
     images: ["/brand/muestras-logo-1254.webp"],
