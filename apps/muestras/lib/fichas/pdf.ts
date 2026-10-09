@@ -1,9 +1,9 @@
-import { PDFDocument, StandardFonts, rgb, type Color, type PDFFont, type PDFPage } from "pdf-lib";
-import { matrizDelQr } from "./qr";
-import { cortarEnLineas, paraWinAnsi, type FichaDeObra } from "./texto";
+import { PDFDocument, type PDFPage } from "pdf-lib";
+import { GRIS, LINEA, MM, TINTA, bloque, cargarFuentes, dibujarQr, type Fuentes } from "@/lib/piezas/dibujo";
+import { paraWinAnsi, type FichaDeObra } from "./texto";
 
-/** Puntos PDF por milímetro. */
-export const MM = 72 / 25.4;
+// Lo común de los PDF vive en `lib/piezas/dibujo.ts`; se reexporta para quien ya lo usaba de acá.
+export { MM, tramosOscuros } from "@/lib/piezas/dibujo";
 
 /**
  * Medidas de cada tamaño (milímetros para el papel, puntos para la letra). Una ficha por página
@@ -21,14 +21,6 @@ export function esTamanoFicha(v: unknown): v is TamanoFicha {
   return v === "A6" || v === "A5";
 }
 
-// Los colores del sitio: tinta, grafito y línea.
-const TINTA = rgb(0x1c / 255, 0x2b / 255, 0x35 / 255);
-const GRIS = rgb(0x5b / 255, 0x66 / 255, 0x70 / 255);
-const LINEA = rgb(0xe4 / 255, 0xe7 / 255, 0xe9 / 255);
-const NEGRO = rgb(0, 0, 0);
-
-type Fuentes = { normal: PDFFont; negrita: PDFFont };
-
 export async function pdfDeFichas(fichas: FichaDeObra[], tamano: TamanoFicha): Promise<Uint8Array> {
   if (fichas.length === 0) throw new Error("No hay obras para imprimir.");
   const t = TAMANOS[tamano];
@@ -36,27 +28,9 @@ export async function pdfDeFichas(fichas: FichaDeObra[], tamano: TamanoFicha): P
   pdf.setTitle(`Fichas de sala: ${paraWinAnsi(fichas[0]!.muestra)}`);
   pdf.setCreator("Muestras Fotográficas");
   pdf.setProducer("Muestras Fotográficas");
-  const fuentes: Fuentes = {
-    normal: await pdf.embedFont(StandardFonts.Helvetica),
-    negrita: await pdf.embedFont(StandardFonts.HelveticaBold),
-  };
+  const fuentes = await cargarFuentes(pdf);
   for (const f of fichas) dibujarFicha(pdf.addPage([t.ancho * MM, t.alto * MM]), f, t, fuentes);
   return pdf.save();
-}
-
-/** Escribe un bloque de texto desde `y` hacia abajo y devuelve dónde terminó. */
-function bloque(
-  p: PDFPage,
-  texto: string,
-  o: { x: number; y: number; ancho: number; size: number; font: PDFFont; color: Color; maxLineas: number; interlinea?: number },
-): number {
-  const lineas = cortarEnLineas(paraWinAnsi(texto), o.ancho, (s) => o.font.widthOfTextAtSize(s, o.size), o.maxLineas);
-  let y = o.y;
-  for (const l of lineas) {
-    y -= o.size * (o.interlinea ?? 1.2);
-    p.drawText(l, { x: o.x, y, size: o.size, font: o.font, color: o.color });
-  }
-  return y;
 }
 
 function dibujarFicha(p: PDFPage, f: FichaDeObra, t: Medidas, { normal, negrita }: Fuentes) {
@@ -81,7 +55,7 @@ function dibujarFicha(p: PDFPage, f: FichaDeObra, t: Medidas, { normal, negrita 
 
   // Abajo a la izquierda el QR; a su derecha, la invitación.
   const lado = t.qr * MM;
-  dibujarQr(p, matrizDelQr(f.url), m, m, lado);
+  dibujarQr(p, f.url, m, m, lado);
   const xTexto = m + lado + 4 * MM;
   const anchoTexto = ancho - m - xTexto;
   const yInvitacion = bloque(p, "Escaneá para ver la obra y a su autor", {
@@ -90,32 +64,4 @@ function dibujarFicha(p: PDFPage, f: FichaDeObra, t: Medidas, { normal, negrita 
   bloque(p, "muestrasfotograficas.com", {
     x: xTexto, y: yInvitacion - t.detalle * 0.4, ancho: anchoTexto, size: t.detalle * 0.85, font: normal, color: GRIS, maxLineas: 2,
   });
-}
-
-/** Los módulos negros de cada fila, juntados en tramos horizontales seguidos. */
-export function tramosOscuros(modulos: boolean[][]): { fila: number; col: number; largo: number }[] {
-  const tramos: { fila: number; col: number; largo: number }[] = [];
-  modulos.forEach((fila, f) => {
-    let c = 0;
-    while (c < fila.length) {
-      if (!fila[c]) { c++; continue; }
-      const desde = c;
-      while (c < fila.length && fila[c]) c++;
-      tramos.push({ fila: f, col: desde, largo: c - desde });
-    }
-  });
-  return tramos;
-}
-
-/**
- * El QR como rectángulos vectoriales: uno por tramo de módulos negros seguidos (se ve igual que un
- * cuadradito por módulo y el PDF pesa bastante menos). La matriz se lee de arriba abajo y el PDF
- * mide desde abajo.
- */
-function dibujarQr(p: PDFPage, modulos: boolean[][], x: number, y: number, lado: number) {
-  const n = modulos.length;
-  const mod = lado / n;
-  for (const t of tramosOscuros(modulos)) {
-    p.drawRectangle({ x: x + t.col * mod, y: y + (n - 1 - t.fila) * mod, width: t.largo * mod, height: mod, color: NEGRO });
-  }
 }

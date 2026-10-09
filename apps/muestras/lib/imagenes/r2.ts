@@ -64,3 +64,38 @@ export async function leerDeR2(urlPublica: string): Promise<{ cuerpo: ReadableSt
     return null;
   }
 }
+
+/** El objeto entero en memoria (para pasarlo por sharp). `null` en los mismos casos que `leerDeR2`. */
+export async function leerBytesDeR2(urlPublica: string): Promise<Buffer | null> {
+  const r = await leerDeR2(urlPublica);
+  if (!r) return null;
+  try {
+    return Buffer.from(await new Response(r.cuerpo).arrayBuffer());
+  } catch (err) {
+    console.error("[muestras] R2 lectura completa:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+const CLAVE_PDF = /^muestras\/piezas\/[A-Za-z0-9_-]{1,64}\/[a-f0-9]{32}\.pdf$/;
+
+/**
+ * Sube un PDF de piezas para imprimir (etapa 4, D4): Vercel corta las respuestas de más de
+ * 4,5 MB, así que los PDF pesados se bajan del bucket. La clave lleva la huella del contenido:
+ * no se adivina y el mismo PDF pisa al mismo objeto.
+ */
+export async function subirPdfAR2(bytes: Uint8Array, clave: string, nombreArchivo: string): Promise<string> {
+  if (!CLAVE_PDF.test(clave)) throw new Error("Clave de PDF inválida.");
+  const c = config();
+  await s3(c).send(
+    new PutObjectCommand({
+      Bucket: c.bucket,
+      Key: clave,
+      Body: bytes,
+      ContentType: "application/pdf",
+      ContentDisposition: `attachment; filename="${nombreArchivo.replace(/[^A-Za-z0-9._-]/g, "-")}"`,
+      CacheControl: "public, max-age=86400",
+    }),
+  );
+  return `${c.publicUrl}/${clave}`;
+}

@@ -1,3 +1,5 @@
+import { createHash, randomBytes } from "node:crypto";
+
 /**
  * Freno en memoria para lo que cualquier cuenta de Google puede disparar: buscar direcciones,
  * subir imágenes, crear borradores y enviarlos a revisión.
@@ -81,16 +83,26 @@ export const LIMITES = {
   decidir: { limit: 600, windowMs: 10 * 60_000 },
   // La imagen anónima pasa por nuestra función (no por el bucket): frena el raspado.
   imagenCuraduria: { limit: 1500, windowMs: 10 * 60_000 },
+  // Etapa 4: la sala. Un PDF con 40 fotos tarda; una por obra en dos medidas entra holgado.
+  piezas: { limit: 60, windowMs: 10 * 60_000 },
+  guardarMontaje: { limit: 120, windowMs: 60 * 60_000 },
+  moderarLibro: { limit: 600, windowMs: 10 * 60_000 },
+  cambiarModoLibro: { limit: 60, windowMs: 60 * 60_000 },
 } as const;
 
 /**
- * Los topes de lo que se puede hacer sin sesión, contados por IP. Hoy, sólo "Buscá muestras
- * cerca tuyo" de la portada: cada búsqueda es un pedido a Nominatim con nuestro nombre, y su
- * política pide no pasar de uno por segundo. 10 por minuto alcanza para buscar, corregir y
- * volver a buscar; un bucle se frena enseguida.
+ * Los topes de lo que se puede hacer sin sesión, contados por IP (por su huella, nunca la IP en
+ * claro). "Buscá muestras cerca tuyo" de la portada: cada búsqueda es un pedido a Nominatim con
+ * nuestro nombre, y su política pide no pasar de uno por segundo. 10 por minuto alcanza para
+ * buscar, corregir y volver a buscar; un bucle se frena enseguida.
  */
 export const LIMITES_PUBLICOS = {
   buscarCerca: { limit: 10, windowMs: 60_000 },
+  // Etapa 4. Pasarse sólo deja de contar: la página y la redirección andan igual.
+  visitas: { limit: 300, windowMs: 10 * 60_000 },
+  escaneos: { limit: 120, windowMs: 10 * 60_000 },
+  // Por IP y por muestra: un grupo escolar en la red del lugar comparte IP.
+  libro: { limit: 10, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
@@ -106,9 +118,29 @@ export function ipDeLaPeticion(h: { get(nombre: string): string | null }): strin
   return /^[0-9a-fA-F:.]{3,45}$/.test(ip) ? ip : "sin-ip";
 }
 
-/** Cuenta un uso de `que` para esa IP y dice si todavía está dentro del tope. */
-export function frenarPorIp(que: QueSeLimitaSinSesion, ip: string): DecisionDeFreno {
-  return checkRateLimit({ key: `ip:${que}:${ip}`, ...LIMITES_PUBLICOS[que] });
+/** Topes por muestra, sumando a todas las personas: frena una inundación repartida en muchas IPs. */
+export const LIMITES_POR_MUESTRA = {
+  libro: { limit: 200, windowMs: 60 * 60_000 },
+} as const;
+
+// Sal al azar por instancia: la huella no se puede revertir ni cruzar entre instancias, y nunca se
+// guarda en la base. La IP en claro no queda ni en memoria.
+const SAL = randomBytes(16).toString("hex");
+
+/** Huella de una IP para usar como clave del freno (decisión D15 de la etapa 4). */
+export function huellaDeIp(ip: string): string {
+  return createHash("sha256").update(SAL).update(ip).digest("base64url").slice(0, 22);
+}
+
+/** Cuenta un uso de `que` para esa IP (opcionalmente dentro de un `ambito`, p. ej. una muestra). */
+export function frenarPorIp(que: QueSeLimitaSinSesion, ip: string, ambito?: string): DecisionDeFreno {
+  return checkRateLimit({ key: `ip:${que}:${ambito ?? "-"}:${huellaDeIp(ip)}`, ...LIMITES_PUBLICOS[que] });
+}
+
+export type QueSeLimitaPorMuestra = keyof typeof LIMITES_POR_MUESTRA;
+
+export function frenarPorMuestra(que: QueSeLimitaPorMuestra, activityId: string): DecisionDeFreno {
+  return checkRateLimit({ key: `muestra:${que}:${activityId}`, ...LIMITES_POR_MUESTRA[que] });
 }
 
 export type QueSeLimita = keyof typeof LIMITES;

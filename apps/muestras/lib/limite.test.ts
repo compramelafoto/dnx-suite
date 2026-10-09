@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
-import { LIMITES, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorUsuario, ipDeLaPeticion, resetRateLimit } from "./limite";
+import {
+  LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
+  ipDeLaPeticion, resetRateLimit,
+} from "./limite";
 
 beforeEach(() => resetRateLimit());
 
@@ -47,5 +50,27 @@ describe("frenarPorIp", () => {
     for (let i = 0; i < LIMITES_PUBLICOS.buscarCerca.limit; i++) expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(true);
     expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(false);
     expect(frenarPorIp("buscarCerca", "2.2.2.2").allowed).toBe(true);
+  });
+});
+
+
+describe("huella de IP", () => {
+  it("no es la IP, es estable y distingue IPs", () => {
+    const a = huellaDeIp("181.1.2.3");
+    expect(a).not.toContain("181");
+    expect(a).toBe(huellaDeIp("181.1.2.3"));
+    expect(a).not.toBe(huellaDeIp("181.1.2.4"));
+  });
+});
+
+describe("frenos de la sala", () => {
+  it("el libro se cuenta por IP y por muestra", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.libro.limit; i++) expect(frenarPorIp("libro", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("libro", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("libro", "1.1.1.1", "m2").allowed).toBe(true);
+  });
+  it("tope por muestra para todas las IPs juntas", () => {
+    for (let i = 0; i < LIMITES_POR_MUESTRA.libro.limit; i++) expect(frenarPorMuestra("libro", "m1").allowed).toBe(true);
+    expect(frenarPorMuestra("libro", "m1").allowed).toBe(false);
   });
 });
