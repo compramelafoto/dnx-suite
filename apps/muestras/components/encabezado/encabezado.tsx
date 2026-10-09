@@ -29,6 +29,8 @@ export async function Encabezado() {
               Con la sesión abierta hay más enlaces y en el teléfono también se oculta. */}
           <span className={`mf-titulo whitespace-nowrap text-[17px] tracking-[-0.02em] group-data-[sobre-foto=true]:sr-only ${usuario ? "max-sm:sr-only" : ""}`}>Muestras Fotográficas</span>
         </Link>
+        {/* En el teléfono no entra: queda en el pie. */}
+        <Link href="/fotografos" className={`${enlace} max-sm:hidden`}>Fotógrafos</Link>
         <Link href="/proponer" className={enlace}><span className="sm:hidden">Proponer</span><span className="max-sm:hidden">Proponé tu muestra</span></Link>
         {usuario ? (
           <>
