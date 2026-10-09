@@ -9,6 +9,9 @@ const M = vi.hoisted(() => ({
   detalleFlujo: vi.fn(),
   flujo: vi.fn(),
   monotributo: vi.fn(),
+  ventas: vi.fn(),
+  detalleVentas: vi.fn(),
+  embudo: vi.fn(),
   workspace: vi.fn(async () => ({ name: "Mi Estudio" })),
 }));
 vi.mock("server-only", () => ({}));
@@ -17,12 +20,16 @@ vi.mock("@/lib/informes/acceso", () => ({ contextoDeInformes: vi.fn(async () => 
 vi.mock("@/lib/informes/resultados-datos", () => ({ cargarResultados: M.resultados }));
 vi.mock("@/lib/informes/detalle-datos", () => ({ cargarDetalleResultados: M.detalleRes, cargarDetalleFlujo: M.detalleFlujo }));
 vi.mock("@/lib/informes/flujo-datos", () => ({ cargarFlujo: M.flujo }));
+vi.mock("@/lib/informes/ventas-datos", () => ({ cargarVentas: M.ventas, cargarDetalleVentas: M.detalleVentas }));
+vi.mock("@/lib/informes/embudo-datos", () => ({ cargarEmbudo: M.embudo }));
 vi.mock("@/lib/informes/monotributo-datos", () => ({ cargarMonotributo: M.monotributo }));
 
 const { GET } = await import("./route");
 const { armarResultados } = await import("@/lib/informes/resultados");
 const { armarFlujo } = await import("@/lib/informes/flujo");
 const { armarMonotributo } = await import("@/lib/informes/monotributo");
+const { armarVentas } = await import("@/lib/informes/ventas");
+const { armarEmbudo } = await import("@/lib/informes/embudo");
 
 const llamar = (informe: string, query = "") =>
   GET(new NextRequest(`http://localhost/api/informes/${informe}/csv${query}`), { params: Promise.resolve({ informe }) });
@@ -47,7 +54,7 @@ describe("GET /api/informes/[informe]/csv", () => {
   });
 
   it("un informe que no existe responde 404", async () => {
-    expect((await llamar("ventas")).status).toBe(404);
+    expect((await llamar("inexistente")).status).toBe(404);
     expect(M.resultados).not.toHaveBeenCalled();
   });
 
@@ -114,5 +121,60 @@ describe("GET /api/informes/[informe]/csv", () => {
   it("el cargador que no devuelve nada (sin permiso interno) también da 404", async () => {
     M.flujo.mockResolvedValue(null);
     expect((await llamar("flujo")).status).toBe(404);
+  });
+
+  it("Ventas: CSV de la matriz con el agrupamiento pedido y 422 si se pasó el tope", async () => {
+    const matrizVentas = armarVentas({
+      meses: ["2026-10"], agrupar: "cliente",
+      pedidos: [{ id: "1", numero: "P-1", confirmadoEn: new Date("2026-10-05T15:00:00Z"), fechaEvento: null, totalCentavos: 123450, items: [], clienteId: "c1", cliente: "Ana", vendedorId: null, vendedor: "", tieneConsulta: false, categoriaId: null, categoria: null, origenId: null, origen: null }],
+    });
+    M.ventas.mockResolvedValue({ periodo: { valor: "este-mes" }, agrupar: "cliente", matriz: matrizVentas, cantidadPedidos: 1, avisos: [] });
+    const r = await llamar("ventas", "?agrupar=cliente&periodo=este-mes");
+    expect(r.status).toBe(200);
+    const t = await r.text();
+    expect(t).toContain("Cliente;10/2026;Total;Pedidos");
+    expect(t).toContain("Ana;1234,50;1234,50;1");
+    expect(M.ventas.mock.calls[0][1]).toEqual({ periodo: "este-mes", agrupar: "cliente" });
+
+    M.ventas.mockResolvedValue({ periodo: { valor: "este-mes" }, agrupar: "cliente", matriz: null, cantidadPedidos: 0, avisos: ["Hay demasiados datos para este período, achicá el rango"] });
+    const tope = await llamar("ventas");
+    expect(tope.status).toBe(422);
+    expect(await tope.text()).toContain("demasiados datos");
+  });
+
+  it("Ventas detalle: todas las filas con el total; sin permiso interno, 404", async () => {
+    M.detalleVentas.mockResolvedValue({
+      avisos: [], total: 500, cantidad: 1, filas: [],
+      todas: [{ clave: "1", pedidoId: "1", numero: "P-1", confirmado: "2026-10-05", cliente: "Ana", fechaEvento: "2026-12-12", categoria: "Bodas", vendedor: "Vera", centavos: 500 }],
+    });
+    const t = await (await llamar("ventas-detalle", "?grupo=c:c1")).text();
+    expect(t).toContain("Pedido;Fecha de confirmación;Cliente;Fecha del evento;Categoría;Vendedor;Importe");
+    expect(t).toContain("P-1;05/10/2026;Ana;12/12/2026;Bodas;Vera;5,00");
+    expect(t).toContain("Total;;;;;;5,00");
+    M.detalleVentas.mockResolvedValue(null);
+    expect((await llamar("ventas-detalle")).status).toBe(404);
+  });
+
+  it("Embudo: CSV con una fila por grupo y el total; 422 si se pasó el tope", async () => {
+    const tabla = armarEmbudo({
+      agrupar: "categoria",
+      consultas: [
+        { id: "1", creadaEn: new Date("2026-10-01T15:00:00Z"), categoriaId: "k1", categoria: "Bodas", origenId: null, origen: null, valorEstimadoCentavos: 100000, resultado: "GANADA", cerradaEn: new Date("2026-10-04T15:00:00Z"), vendidoCentavos: 123450 },
+        { id: "2", creadaEn: new Date("2026-10-01T15:00:00Z"), categoriaId: "k1", categoria: "Bodas", origenId: null, origen: null, valorEstimadoCentavos: 0, resultado: null, cerradaEn: null, vendidoCentavos: 0 },
+      ],
+    });
+    M.embudo.mockResolvedValue({ periodo: { valor: "este-mes" }, agrupar: "categoria", tabla, avisos: [] });
+    const r = await llamar("embudo", "?agrupar=categoria&periodo=este-mes");
+    expect(r.status).toBe(200);
+    const t = await r.text();
+    expect(t).toContain("Categoría;Entraron;Ganadas;Perdidas;Abiertas;% de conversión;Valor estimado;Vendido;Días promedio hasta cerrar");
+    expect(t).toContain("Bodas;2;1;0;1;50 %;1000,00;1234,50;3");
+    expect(t).toContain("Total;2;1;0;1;50 %;1000,00;1234,50;3");
+    expect(M.embudo.mock.calls[0][1]).toEqual({ periodo: "este-mes", agrupar: "categoria" });
+
+    M.embudo.mockResolvedValue({ periodo: { valor: "este-mes" }, agrupar: "categoria", tabla: null, avisos: ["Hay demasiados datos para este período, achicá el rango"] });
+    expect((await llamar("embudo")).status).toBe(422);
+    M.embudo.mockResolvedValue(null);
+    expect((await llamar("embudo")).status).toBe(404);
   });
 });

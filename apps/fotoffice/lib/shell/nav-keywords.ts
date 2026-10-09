@@ -56,6 +56,8 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   // Informes
   "/informes": ["tablero", "resumen", "por cobrar", "por pagar", "saldo", "finanzas", "dinero", "balance"],
   "/informes/resultados": ["ganancia", "perdida", "ingresos", "costos", "gastos", "rubros", "meses", "balance", "estado de resultados", "devengado", "percibido"],
+  "/informes/ventas": ["ventas", "vendido", "facturado", "pedidos", "productos", "clientes", "vendedor", "categoria", "origen", "por producto", "ranking"],
+  "/informes/embudo": ["embudo", "consultas", "conversion", "ganadas", "perdidas", "abiertas", "leads", "captacion", "por categoria", "por origen", "cierre"],
   "/informes/flujo": ["proyeccion", "futuro", "cuanto va a haber", "cobros", "pagos", "vencimientos", "caja proyectada", "cashflow"],
   "/informes/monotributo": ["tope", "categoria", "facturacion", "arca", "afip", "limite", "topes"],
   "/informes/ajustes": ["saldo minimo", "tope", "categoria", "aviso", "configurar informes"],

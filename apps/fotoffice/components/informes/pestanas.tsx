@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 const PESTANAS = [
   { href: "/informes", label: "Tablero", exacto: true },
   { href: "/informes/resultados", label: "Resultados", exacto: false },
+  { href: "/informes/ventas", label: "Ventas", exacto: false },
+  { href: "/informes/embudo", label: "Embudo", exacto: false },
   { href: "/informes/flujo", label: "Flujo de caja", exacto: false },
   { href: "/informes/monotributo", label: "Monotributo", exacto: false },
 ] as const;
