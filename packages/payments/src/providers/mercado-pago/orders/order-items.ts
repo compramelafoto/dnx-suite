@@ -126,6 +126,8 @@ export function singleIntangibleItem(opts: {
   total: Money;
   categoryId?: string;
   id?: string;
+  /** Código interno del ítem en el catálogo del seller (`items[].external_code`). */
+  externalCode?: string;
 }): OrderItemInput {
   return {
     ...(opts.id ? { id: opts.id } : {}),
@@ -133,5 +135,6 @@ export function singleIntangibleItem(opts: {
     quantity: 1,
     unitPrice: money(opts.total.currency, opts.total.amountMinor),
     ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
+    ...(opts.externalCode ? { externalCode: opts.externalCode } : {}),
   };
 }

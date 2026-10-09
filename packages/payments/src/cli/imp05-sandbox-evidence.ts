@@ -210,13 +210,37 @@ async function createOrderSmoke(input: {
     paymentMethodId: input.paymentMethodId ?? "master",
     installments: 1,
     payerEmail: "buyer.imp05@testuser.com",
-    statementDescriptor: "DNX TEST",
+    /**
+     * Perfil completo del pagador. MP lo marca como "recomendado", pero en la
+     * revisión del 07/10 (IXFS-16376) los campos ausentes salieron observados:
+     * la orden de evidencia tiene que mostrar todo lo que la integración sabe
+     * enviar, no el mínimo que alcanza para crearla.
+     */
+    payerProfile: {
+      firstName: "Comprador",
+      lastName: "De Prueba",
+      identification: { type: "DNI", number: "12345678" },
+      phone: { areaCode: "341", number: "5550000" },
+      address: {
+        zipCode: "2000",
+        streetName: "Córdoba",
+        streetNumber: "1234",
+      },
+      registrationDate: "2026-01-15T10:00:00.000-03:00",
+      isPrimeUser: false,
+      isFirstPurchaseOnline: true,
+      authenticationType: "Gmail",
+      lastPurchase: "2026-09-20T18:30:00.000-03:00",
+    },
+    statementDescriptor: "CLF FOTOS",
     items: [
       singleIntangibleItem({
         title: "Imp05 sandbox intangible",
         total,
-        categoryId: "others",
+        // "virtual_goods" describe mejor una foto digital que el genérico "others".
+        categoryId: "virtual_goods",
         id: input.externalReference,
+        externalCode: `CLF-FOTO-${input.label.toUpperCase()}`,
       }),
     ],
     partnerReceiverIds,
@@ -244,7 +268,7 @@ async function createOrderSmoke(input: {
     externalReference: input.externalReference,
     amountType: "fixed_preferred",
     payerEmailMasked: "bu…@testuser.com",
-    statementDescriptor: "DNX TEST",
+    statementDescriptor: "CLF FOTOS",
     idempotencyPresent: true,
     meliSessionPresent: true,
     payments: got.payments.map((p) => ({
@@ -344,7 +368,7 @@ async function main() {
     verifyAfterCreate: true,
     allowTestFixtures: false,
     enforceOrders1nStagingGate: false,
-    defaultStatementDescriptor: "DNX TEST",
+    defaultStatementDescriptor: "CLF FOTOS",
   });
 
   // --- Consent real ---
