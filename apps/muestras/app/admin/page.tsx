@@ -12,7 +12,7 @@ type Fila = Awaited<ReturnType<typeof listarParaRevisar>>[number];
 
 function Tarjeta({ f }: { f: Fila }) {
   return (
-    <li className="grid gap-3 rounded-[10px] border border-[var(--mf-line)] bg-white p-4 sm:grid-cols-[1fr_18rem]">
+    <li className="grid gap-3 rounded-[2px] border border-[var(--mf-line)] bg-white p-4 sm:grid-cols-[1fr_18rem]">
       <div className="space-y-1">
         <p className="text-sm text-[var(--mf-muted)]">{REVIEW_STATUS_LABELS[f.reviewStatus as ReviewStatus] ?? f.reviewStatus}, {ACTIVITY_TYPE_LABELS[f.type as ActivityType] ?? f.type}</p>
         <h2 className="text-lg font-medium">{f.title}</h2>

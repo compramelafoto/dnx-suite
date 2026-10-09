@@ -43,8 +43,10 @@ export type PuntoMapa = { slug: string; title: string; latitude: number; longitu
  */
 export default function MapaNacional({ puntos }: { puntos: PuntoMapa[] }) {
   return (
-    <div className="relative z-0 h-full overflow-hidden rounded-2xl border border-[var(--mf-line)]">
+    <div className="mf-mapa-portada relative z-0 h-full overflow-hidden bg-[var(--mf-surface)]">
       <MapContainer bounds={ARGENTINA} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
+        {/* Teselas de OpenStreetMap pasadas a gris (`.mf-mapa-portada` en globals.css): el mapa
+            acompaña, no compite con las fotos. Las claras de CARTO ya piden clave. */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
