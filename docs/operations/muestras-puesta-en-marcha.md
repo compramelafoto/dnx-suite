@@ -138,3 +138,29 @@ Cómo probarlo de punta a punta:
    fichas en A6.
 5. Escanear un QR con el celular: tiene que abrir `https://muestrasfotograficas.com/m/<muestra>/o/<obra>`.
 6. Ver que el perfil aparece en `/fotografos` y en `/fotografos/<slug>`.
+
+## Etapa 3 — convocatorias y curaduría anónima
+
+- **Migración:** `20261028120000_muestras_etapa_3_convocatorias` ya está aplicada en la base de
+  producción (cinco tablas `CulturalCall*`). No hay que correr nada.
+- **R2 con permiso de lectura:** las fotos de la curaduría se sirven desde el servidor (nunca se
+  muestra la dirección del archivo). La clave R2 del proyecto de Muestras en Vercel tiene que poder
+  **leer** objetos, no sólo subirlos. Si no puede, el curador ve las fotos en blanco.
+- **Correos:** con los correos apagados, al invitar a un curador la pantalla muestra el enlace para
+  copiarlo y mandarlo a mano. Los avisos de cierre y de resultados no se reenvían: conviene encender
+  los correos (sección 7) antes de la primera convocatoria real.
+- **Reglas para abrir una convocatoria:** la muestra tiene que estar publicada (con al menos una obra,
+  que cuenta para el tope de 40) y tener sala o dirección. Las muestras sólo virtuales no convocan.
+- **Invitaciones a curar:** se aceptan sólo entrando con la cuenta de Google del mail invitado. El
+  organizador y quien invitó no pueden curar su propia convocatoria.
+- **Anonimato:** curadores y organizador ven sólo códigos (A-001…). Los nombres aparecen recién al
+  cerrar la curaduría.
+
+Cómo probarlo de punta a punta:
+
+1. Con una muestra publicada que tenga sala, abrir **Panel → Convocatorias**, crear la convocatoria
+   y abrirla.
+2. Con otra cuenta, entrar a `/convocatorias/<slug>` y mandar obras.
+3. Invitar a un curador (con los correos apagados, copiar el enlace) y aceptarlo con su cuenta.
+4. Cerrar la recepción, empezar la curaduría y puntuar desde **Panel → Curaduría**.
+5. En **Selección**, elegir obras, cerrar la curaduría y tocar **Armar la muestra**.

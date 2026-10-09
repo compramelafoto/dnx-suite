@@ -23405,6 +23405,9 @@ model CulturalActivity {
 
   works CulturalActivityWork[]
 
+  /// Convocatoria online de esta muestra (Muestras, etapa 3). A lo sumo una.
+  call CulturalCall?
+
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
   @@index([workspaceId])
@@ -23460,6 +23463,146 @@ model PhotographerProfile {
   works CulturalActivityWork[]
 
   @@index([displayName])
+}
+
+/// Convocatoria online de una muestra (Muestras Fotográficas, etapa 3).
+///
+/// Estados como texto: DRAFT | OPEN | CLOSED | CURATING | DONE. Ids de usuario `Int` sin
+/// relación a `User`, igual que `CulturalActivity`. Quien organiza es el `proposedByUserId` de la
+/// actividad; `createdByUserId` queda como registro.
+model CulturalCall {
+  id         String           @id @default(cuid())
+  activityId String           @unique
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  slug       String           @unique
+
+  title             String
+  basesText         String
+  requirementsText  String?
+  rightsText        String
+  /// Inicio del primer día, en UTC (00:00 hora argentina).
+  opensAt           DateTime
+  /// Fin del último día, en UTC (23:59:59.999 hora argentina).
+  closesAt          DateTime
+  maxWorksPerPerson Int      @default(3)
+
+  /// DRAFT | OPEN | CLOSED | CURATING | DONE
+  status              String    @default("DRAFT")
+  createdByUserId     Int
+  openedAt            DateTime?
+  closedAt            DateTime?
+  curationStartedAt   DateTime?
+  curationClosedAt    DateTime?
+  assembledAt         DateTime?
+  /// Se marcan antes de mandar los correos masivos: un doble clic no los duplica.
+  closedNoticeSentAt  DateTime?
+  resultsNoticeSentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions CulturalCallSubmission[]
+  works       CulturalCallWork[]
+  curators    CulturalCallCurator[]
+
+  @@index([status, closesAt])
+  @@index([createdByUserId])
+}
+
+/// El envío de una persona a una convocatoria: una fila por persona, con hasta N obras.
+model CulturalCallSubmission {
+  id               String       @id @default(cuid())
+  callId           String
+  call             CulturalCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  userId           Int
+  /// Cómo firma si queda seleccionada. Nunca llega a un curador.
+  authorName       String
+  /// ACTIVE | WITHDRAWN
+  status           String       @default("ACTIVE")
+  basesAcceptedAt  DateTime
+  rightsAcceptedAt DateTime
+  withdrawnAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  works CulturalCallWork[]
+
+  @@unique([callId, userId])
+  @@index([userId])
+}
+
+/// Una obra enviada. `anonymousCode` se asigna al cerrar la convocatoria (es la posición en un
+/// orden por hash: único por construcción). `activityWorkId` es la obra de la muestra creada al
+/// armarla; sin FK a propósito, porque el editor de la muestra reescribe sus obras.
+model CulturalCallWork {
+  /// uuid (aleatorio, no ordenado en el tiempo): el id viaja en la URL de la imagen anónima y no debe delatar el orden de envío.
+  id           String                 @id @default(uuid())
+  callId       String
+  call         CulturalCall           @relation(fields: [callId], references: [id], onDelete: Cascade)
+  submissionId String
+  submission   CulturalCallSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  imageUrl  String
+  title     String
+  year      Int?
+  technique String?
+  statement String?
+  sortOrder Int     @default(0)
+
+  anonymousCode  String?
+  /// PENDING | SELECTED | DISCARDED
+  decision       String    @default("PENDING")
+  decidedAt      DateTime?
+  activityWorkId String?
+
+  createdAt DateTime @default(now())
+
+  scores CulturalCallScore[]
+
+  @@unique([callId, anonymousCode])
+  @@index([submissionId])
+  @@index([callId, decision])
+}
+
+/// Integrante del equipo curatorial de una convocatoria. Se invita por email con un enlace de un
+/// solo uso (se guarda el SHA-256 del token, nunca el token).
+model CulturalCallCurator {
+  id              String       @id @default(cuid())
+  callId          String
+  call            CulturalCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  email           String
+  userId          Int?
+  tokenHash       String       @unique
+  /// INVITED | ACTIVE | REVOKED
+  status          String       @default("INVITED")
+  invitedByUserId Int
+  invitedAt       DateTime     @default(now())
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+
+  scores CulturalCallScore[]
+
+  @@unique([callId, email])
+  @@unique([callId, userId])
+  @@index([userId])
+}
+
+/// Puntaje de 1 a 5 de un curador a una obra, con una nota optativa.
+model CulturalCallScore {
+  id         String              @id @default(cuid())
+  callWorkId String
+  callWork   CulturalCallWork    @relation(fields: [callWorkId], references: [id], onDelete: Cascade)
+  curatorId  String
+  curator    CulturalCallCurator @relation(fields: [curatorId], references: [id], onDelete: Cascade)
+  score      Int
+  note       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([callWorkId, curatorId])
+  @@index([curatorId])
 }
 
 /// Ajustes del módulo Informes (etapa 6): una fila por workspace. Saldo mínimo de alerta del flujo

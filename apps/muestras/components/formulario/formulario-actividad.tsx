@@ -38,6 +38,10 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     })),
   );
 
+  // Las obras que este editor cargó: al guardar sólo se quitan de la galería las que estaban acá.
+  // Si mientras tanto se sumaron otras (p. ej. al armar la muestra en otra pestaña), se conservan.
+  const [idsCargados] = useState<string[]>(() => (inicial?.works ?? []).map((w) => w.id));
+
   function datos(form: HTMLFormElement) {
     const fd = new FormData(form);
     if (inicial) fd.set("id", inicial.id);
@@ -45,6 +49,7 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     fd.set("address", lugar.address); fd.set("city", lugar.city); fd.set("province", lugar.province);
     fd.set("latitude", lugar.latitude?.toString() ?? ""); fd.set("longitude", lugar.longitude?.toString() ?? "");
     fd.set("works", JSON.stringify(tipo === "MUESTRA" ? obras : []));
+    fd.set("idsCargados", JSON.stringify(idsCargados));
     return fd;
   }
 
@@ -55,9 +60,9 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       if (enviar) {
         const e = await enviarARevision(r.id);
         if (!e.ok) {
-          if (inicial) { setErrores(e.errores); router.refresh(); return; }
-          // Borrador nuevo: hay que ir a su página para que lo próximo edite el mismo y no cree
-          // otro. Los faltantes viajan en la URL porque el cambio de página borra este estado.
+          // Los faltantes viajan en la URL: el guardado cambia la clave del formulario (y, si es un
+          // borrador nuevo, la página), así que este estado se pierde. Un borrador nuevo además
+          // tiene que ir a su página para que lo próximo edite el mismo y no cree otro.
           router.replace(`/panel/muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
           return;
         }

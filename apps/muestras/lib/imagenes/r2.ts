@@ -1,5 +1,5 @@
 import "server-only";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 /**
  * Bucket R2 de FOTOFFICE, bajo el prefijo `muestras/`. Mismas variables que
@@ -20,14 +20,18 @@ function config() {
 
 let cliente: S3Client | null = null;
 
-export async function subirAR2(bytes: Buffer, clave: string, contentType: string): Promise<string> {
-  const c = config();
+function s3(c: ReturnType<typeof config>): S3Client {
   cliente ??= new S3Client({
     region: "auto",
     endpoint: c.endpoint,
     credentials: { accessKeyId: c.accessKeyId, secretAccessKey: c.secretAccessKey },
   });
-  await cliente.send(
+  return cliente;
+}
+
+export async function subirAR2(bytes: Buffer, clave: string, contentType: string): Promise<string> {
+  const c = config();
+  await s3(c).send(
     new PutObjectCommand({
       Bucket: c.bucket,
       Key: clave,
@@ -37,4 +41,26 @@ export async function subirAR2(bytes: Buffer, clave: string, contentType: string
     }),
   );
   return `${c.publicUrl}/${clave}`;
+}
+
+/**
+ * Lee un objeto propio del bucket a partir de su URL pública. Lo usa la ruta anónima de la
+ * curaduría: el curador recibe la imagen sin ver la URL, que lleva el id de quien la subió.
+ * `null` si la URL no es nuestra, el objeto no existe o falta configurar el bucket.
+ */
+export async function leerDeR2(urlPublica: string): Promise<{ cuerpo: ReadableStream; contentType: string } | null> {
+  try {
+    // Dentro del try: sin configuración la imagen no está (404), no es un error del servidor.
+    const c = config();
+    const prefijo = `${c.publicUrl}/`;
+    if (!urlPublica.startsWith(prefijo)) return null;
+    const clave = urlPublica.slice(prefijo.length);
+    if (!/^muestras\/[A-Za-z0-9._/-]+$/.test(clave) || clave.includes("..")) return null;
+    const r = await s3(c).send(new GetObjectCommand({ Bucket: c.bucket, Key: clave }));
+    if (!r.Body) return null;
+    return { cuerpo: r.Body.transformToWebStream(), contentType: r.ContentType ?? "image/webp" };
+  } catch (err) {
+    console.error("[muestras] R2 lectura:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
 }

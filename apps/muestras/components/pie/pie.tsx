@@ -9,6 +9,7 @@ export function Pie() {
       <div className="mf-marco flex flex-wrap items-center justify-between gap-x-8 gap-y-2 py-6">
         <p>Muestras Fotográficas es parte de DNX Suite.</p>
         <nav aria-label="Más" className="flex gap-5">
+          <Link href="/convocatorias" className={enlace}>Convocatorias</Link>
           <Link href="/fotografos" className={enlace}>Fotógrafos</Link>
           <Link href="/privacidad" className={enlace}>Privacidad</Link>
           <Link href="/terminos" className={enlace}>Términos</Link>

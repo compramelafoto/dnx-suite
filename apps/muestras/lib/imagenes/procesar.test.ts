@@ -37,3 +37,18 @@ describe("procesarImagen", () => {
     await expect(procesarImagen(grande, "obra")).rejects.toThrow("demasiados píxeles");
   });
 });
+
+describe("anonimato de la imagen (etapa 3)", () => {
+  it("no conserva EXIF, XMP ni IPTC: el autor de la cámara no viaja al curador", async () => {
+    const conAutor = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#888" } })
+      .jpeg()
+      .withExif({ IFD0: { Artist: "Ana Pérez", Copyright: "Ana Pérez" } })
+      .toBuffer();
+    expect((await sharp(conAutor).metadata()).exif).toBeDefined();
+    const r = await procesarImagen(conAutor, "obra");
+    const meta = await sharp(r.bytes).metadata();
+    expect(meta.exif).toBeUndefined();
+    expect(meta.xmp).toBeUndefined();
+    expect(meta.iptc).toBeUndefined();
+  });
+});

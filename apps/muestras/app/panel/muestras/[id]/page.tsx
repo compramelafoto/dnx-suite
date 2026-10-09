@@ -9,7 +9,7 @@ import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
 
-/** Los faltantes que dejó un "Enviar a revisión" fallido al crear el borrador. Sólo se muestran. */
+/** Los faltantes que dejó un "Enviar a revisión" fallido. Sólo se muestran. */
 function faltantes(raw: string | string[] | undefined): string[] {
   if (typeof raw !== "string" || !raw) return [];
   return raw.split("|").map((m) => m.trim().slice(0, 300)).filter(Boolean).slice(0, 20);
@@ -60,7 +60,8 @@ export default async function EditarActividad({
       {avisoPerfiles ? (
         <p role="status" className="rounded-[2px] bg-amber-50 p-3 text-sm text-amber-900">Guardamos los cambios. {AVISO_PERFIL_EN_PUBLICADA}</p>
       ) : null}
-      {editable ? <FormularioActividad inicial={a} /> : null}
+      {/* La clave cambia con cada guardado: el editor vuelve a cargar las obras con sus ids nuevos. */}
+      {editable ? <FormularioActividad key={a.updatedAt.toISOString()} inicial={a} /> : null}
     </main>
   );
 }

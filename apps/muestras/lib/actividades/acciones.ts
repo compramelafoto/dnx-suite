@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
-  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, allowedAuthorProfileId, canEdit, canPerform, missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId,
-  toArDay, type ReviewAction, type ReviewStatus,
+  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, allowedAuthorProfileId, canEdit, canPerform, editorGalleryPlan,
+  missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId, toArDay, type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
@@ -12,10 +12,14 @@ import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData, type FichaForm } from "./mapear";
 
 /** `avisos`: cosas que no frenaron el guardado pero conviene contarle a la persona. */
-export type ResultadoAccion = { ok: true; id: string; avisos?: string[] } | { ok: false; errores: string[] };
+export type ResultadoAccion =
+  | { ok: true; id: string; avisos?: string[]; /** Enlace para mandar a mano cuando el correo no salió. */ enlace?: string }
+  | { ok: false; errores: string[] };
 
 const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no existe."] };
+
+class Corte extends Error {}
 
 function refrescar(slug?: string) {
   revalidatePath("/");
@@ -38,15 +42,16 @@ function refrescar(slug?: string) {
  */
 async function obrasParaGuardar(
   works: FichaForm["works"],
-  previas: ReadonlyMap<string, string | null>,
+  previas: ReadonlyMap<string, { authorProfileId: string | null; authorUserId: number | null }>,
   duenoId: number,
   contexto: { status: string; isSuperAdmin: boolean } = { status: "DRAFT", isSuperAdmin: false },
+  db: Pick<typeof prisma, "photographerProfile"> = prisma,
 ) {
-  const perfilPropio = await prisma.photographerProfile.findUnique({ where: { userId: duenoId }, select: { id: true, displayName: true } });
+  const perfilPropio = await db.photographerProfile.findUnique({ where: { userId: duenoId }, select: { id: true, displayName: true } });
   const pedidos = [...new Set(works.map((w) => w.authorProfileId).filter((x): x is string => !!x))];
   const existentes = new Set(
     pedidos.length
-      ? (await prisma.photographerProfile.findMany({ where: { id: { in: pedidos } }, select: { id: true } })).map((p) => p.id)
+      ? (await db.photographerProfile.findMany({ where: { id: { in: pedidos } }, select: { id: true } })).map((p) => p.id)
       : [],
   );
   const usados = new Set<string>();
@@ -61,7 +66,7 @@ async function obrasParaGuardar(
     );
     const permitido = allowedAuthorProfileId({
       status: contexto.status,
-      previous: conserva ? previas.get(w.id!) ?? null : null,
+      previous: conserva ? previas.get(w.id!)?.authorProfileId ?? null : null,
       requested: pedido,
       ownerProfileId: perfilPropio?.id ?? null,
       isSuperAdmin: contexto.isSuperAdmin,
@@ -72,6 +77,9 @@ async function obrasParaGuardar(
       imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
       technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
       authorProfileId: permitido.id,
+      // La cuenta del autor (p. ej. de una obra que llegó por convocatoria) no se edita en el
+      // formulario: se conserva, porque reescribir la galería no puede borrarla.
+      authorUserId: conserva ? previas.get(w.id!)?.authorUserId ?? null : null,
     };
   });
   return { obras, avisos: bloqueado ? [AVISO_PERFIL_EN_PUBLICADA] : [] };
@@ -104,36 +112,81 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     return { ok: true, id: creada.id };
   }
 
-  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id }, include: { works: { select: { id: true, authorProfileId: true } } } });
+  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id }, include: { works: { select: { id: true, isHighlight: true } } } });
   if (!actual) return NO_EXISTE;
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin };
   if (!canEdit({ ...actual, reviewStatus: actual.reviewStatus as ReviewStatus }, actor)) {
     return { ok: false, errores: ["No podés editar esta actividad ahora."] };
   }
-  // Una ficha ya enviada o publicada no puede quedar incompleta por una edición.
+  // Una ficha ya enviada o publicada no puede quedar incompleta por una edición. Cuentan también
+  // las obras que se conservan aunque el editor no las haya visto (ver `editorGalleryPlan`).
   if (actual.reviewStatus !== "DRAFT" && actual.reviewStatus !== "REJECTED") {
+    const cargadas = new Set([...f.idsCargados, ...f.works.flatMap((w) => (w.id ? [w.id] : []))]);
+    const sinVer = actual.works.filter((w) => !cargadas.has(w.id));
     const faltan = missingForSubmission({
       type: f.type, title: f.title, description: f.description, coverImageUrl: f.coverImageUrl,
       organizersText: f.organizersText, startDay: f.startDay, endDay: f.endDay,
       scheduleText: f.scheduleText, isVirtualOnly: f.isVirtualOnly, address: f.address,
       latitude: f.latitude, longitude: f.longitude, rightsConfirmed: f.rightsConfirmed,
-      worksCount: f.works.length, highlightsCount: f.works.filter((w) => w.isHighlight).length,
+      worksCount: f.works.length + sinVer.length,
+      highlightsCount: f.works.filter((w) => w.isHighlight).length + sinVer.filter((w) => w.isHighlight).length,
     });
     if (faltan.length) return { ok: false, errores: faltan };
   }
   // Se conserva la primera confirmación de derechos.
   if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
-  const { obras, avisos } = await obrasParaGuardar(
-    f.works,
-    new Map(actual.works.map((w) => [w.id, w.authorProfileId ?? null])),
-    actual.proposedByUserId,
-    { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
-  );
-  await prisma.$transaction([
-    prisma.culturalActivity.update({ where: { id: f.id }, data: datos }),
-    prisma.culturalActivityWork.deleteMany({ where: { activityId: f.id } }),
-    prisma.culturalActivityWork.createMany({ data: obras.map((o) => ({ ...o, activityId: f.id! })) }),
-  ]);
+  const id = f.id;
+  let avisos: string[];
+  try {
+    avisos = await prisma.$transaction(
+      async (tx) => {
+        // Bloquea la muestra: armarla desde una convocatoria (que también la bloquea) no puede
+        // sumar obras entre que se leen y se reescriben.
+        await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${id} FOR UPDATE`;
+        const enLaBase = await tx.culturalActivityWork.findMany({
+          where: { activityId: id },
+          select: { id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true },
+        });
+        const r = await obrasParaGuardar(
+          f.works,
+          new Map(enLaBase.map((w) => [w.id, { authorProfileId: w.authorProfileId ?? null, authorUserId: w.authorUserId ?? null }])),
+          actual.proposedByUserId,
+          { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
+          tx,
+        );
+        const plan = editorGalleryPlan({
+          current: enLaBase,
+          loadedIds: f.idsCargados,
+          keptIds: r.obras.flatMap((o) => (o.id ? [o.id] : [])),
+          submittedCount: r.obras.length,
+          submittedHighlights: r.obras.filter((o) => o.isHighlight).length,
+        });
+        if (plan.problems.length) throw new Corte(plan.problems.join(" "));
+        const conservadas = plan.preserved.map((w) => w.id);
+        await tx.culturalActivity.update({ where: { id }, data: datos });
+        // Se reescriben las enviadas (las que ya existían conservan su id) y se quitan las que el
+        // editor sacó. Las conservadas no se tocan, salvo su orden: van después de las enviadas.
+        await tx.culturalActivityWork.deleteMany({ where: { activityId: id, id: { notIn: conservadas } } });
+        if (r.obras.length) await tx.culturalActivityWork.createMany({ data: r.obras.map((o) => ({ ...o, activityId: id })) });
+        for (const w of plan.preserved) {
+          await tx.culturalActivityWork.update({ where: { id: w.id }, data: { sortOrder: w.sortOrder } });
+        }
+        // Una obra elegida en una convocatoria que se quitó a propósito no se vuelve a copiar al
+        // armar la muestra otra vez.
+        if (plan.removedIds.length) {
+          await tx.culturalCallWork.updateMany({
+            where: { activityWorkId: { in: plan.removedIds }, call: { activityId: id } },
+            data: { activityWorkId: OBRA_QUITADA_DE_LA_GALERIA },
+          });
+        }
+        return r.avisos;
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
+  } catch (err) {
+    if (err instanceof Corte) return { ok: false, errores: [err.message] };
+    throw err;
+  }
   refrescar(actual.slug);
   return avisos.length ? { ok: true, id: f.id, avisos } : { ok: true, id: f.id };
 }
