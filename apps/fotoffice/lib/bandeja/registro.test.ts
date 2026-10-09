@@ -205,6 +205,11 @@ describe("aplicarEventos: estados de envío", () => {
     expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1 });
   });
 
+  it("estado desconocido con hora ilegible o muy en el futuro: se ignora, no se reintenta", async () => {
+    expect(await aplicarEventos([estado({ en: null })], AHORA)).toMatchObject({ ignorados: 1, fallidos: 0 });
+    expect(await aplicarEventos([estado({ en: min(30) })], AHORA)).toMatchObject({ ignorados: 1, fallidos: 0 });
+  });
+
   it("estado de un mensaje desconocido y viejo (>= 5 min): se ignora", async () => {
     expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
   });

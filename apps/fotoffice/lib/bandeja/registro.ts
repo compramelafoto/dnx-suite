@@ -72,7 +72,7 @@ export async function aplicarEventos(
       if (ev.tipo === "ESTADO") {
         const salida = await aplicarEstado(conexion.workspaceId, ev);
         if (salida === "aplicado") r.aplicados++;
-        else if (salida === "desconocido" && ahora.getTime() - (ev.en ?? ahora).getTime() < REINTENTO_ESTADO_MS) r.fallidos++;
+        else if (salida === "desconocido" && reintentable(ev.en, ahora, REINTENTO_ESTADO_MS)) r.fallidos++;
         else r.ignorados++;
         continue;
       }
@@ -85,6 +85,12 @@ export async function aplicarEventos(
     }
   }
   return r;
+}
+
+/** Se reintenta sólo si la hora es legible, no está más de 1 minuto en el futuro y tiene menos de `maxMs`. */
+function reintentable(en: Date | null, ahora: Date, maxMs: number): boolean {
+  const edad = en ? ahora.getTime() - en.getTime() : null;
+  return edad !== null && edad >= -60_000 && edad < maxMs;
 }
 
 /** Del error, sólo el nombre y el código de Prisma: el mensaje puede traer textos o teléfonos. */

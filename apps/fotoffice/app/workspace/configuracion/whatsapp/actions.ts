@@ -83,11 +83,12 @@ export async function borrarTokenAction(_prev: EstadoWhatsappConfig | undefined,
   const ctx = await contexto();
   if (!ctx) return { error: MENSAJES_CONEXION.sinPermiso };
   try {
-    await borrarTokenWhatsapp(ctx.workspaceId);
+    // Primero se baja a prueba y recién después se borra: un fallo nunca deja REAL sin token.
     if ((await leerConexion(ctx.workspaceId)).modo === "REAL") {
       const r = await guardarConexion(ctx, { modo: "SIMULADO" });
       if (!r.ok) return { error: r.error };
     }
+    await borrarTokenWhatsapp(ctx.workspaceId);
   } catch {
     return { error: "No se pudo borrar el token." };
   }
