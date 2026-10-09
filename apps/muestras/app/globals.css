@@ -1,65 +1,153 @@
 @import "tailwindcss";
 
 /*
- * Identidad de Muestras Fotográficas. Los colores salen del logo: el diafragma (petróleo,
- * turquesa y tinta), el haz de luz celeste y la luz cálida de los spots. El fondo es blanco
- * puro para que el logo no quede metido en una caja.
+ * Identidad de Muestras Fotográficas, versión 2. La protagonista es la fotografía: el sitio es
+ * papel blanco, tinta del logo y grises neutros. El petróleo del diafragma queda para el foco
+ * del teclado y para el punto de "Abierta". Nada de cajas de color.
  */
 :root {
+  /* Papel. */
   --mf-bg: #ffffff;
-  --mf-surface: #f4f8fa;
+  /* Niebla: fondo de lo que todavía no cargó o no tiene foto. */
+  --mf-surface: #f2f3f4;
+  /* Tinta del logo: el negro del sitio. */
   --mf-ink: #1c2b35;
-  /* 5,5:1 sobre blanco. */
-  --mf-muted: #5a6b76;
-  --mf-line: #d6e2e9;
-  --mf-accent: #0d6b7a;
+  /* Grafito, 5,9:1 sobre blanco. */
+  --mf-muted: #5b6670;
+  /* Línea: las separaciones finas del índice y del encabezado. */
+  --mf-line: #e4e7e9;
+  /* Acciones principales: tinta sobre papel, no color. */
+  --mf-accent: #1c2b35;
   --mf-accent-ink: #ffffff;
-  --mf-deep: #13414a;
-  --mf-teal: #178e8b;
-  /* La luz de los spots. Es el único color cálido: sólo para "Últimos días". */
-  --mf-spot: #f2c14e;
+  --mf-deep: #2b3e4b;
+  /* El petróleo del logo: foco y estado "Abierta". */
+  --mf-foco: #0d6b7a;
+  --mf-teal: #0d6b7a;
+  /* La luz de los spots: sólo el punto de "Últimos días". */
+  --mf-spot: #e0a526;
+  /* Cancelada. */
+  --mf-alerta: #9a2a1f;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
   background: var(--mf-bg);
   color: var(--mf-ink);
   font-family: var(--mf-font), system-ui, sans-serif;
+  font-stretch: 100%;
 }
 
-/* Títulos: la misma familia, con más peso y más apretada. */
+/*
+ * Títulos: la misma Archivo, angostada con su eje de ancho y apretada. Es el único gesto
+ * tipográfico del sitio; el texto corrido va con el ancho normal.
+ */
 .mf-titulo {
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  font-stretch: 84%;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1;
   text-wrap: balance;
+}
+
+/* El nombre del sitio sobre el banner: todavía más angosto y más apretado. */
+.mf-nombre {
+  font-stretch: 74%;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 0.86;
+}
+
+/* Contenedor común: ancho de galería, no de formulario. */
+.mf-marco {
+  margin-inline: auto;
+  max-width: 88rem;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .mf-marco {
+    padding-inline: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mf-marco {
+    padding-inline: 3rem;
+  }
 }
 
 /* Foco visible en todo lo que se puede tocar. */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid var(--mf-accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--mf-foco);
+  outline-offset: 3px;
 }
 
-/* La única animación del sitio: el diafragma del logo se abre al cargar la portada. */
-@keyframes mf-apertura {
-  from {
-    opacity: 0;
-    transform: rotate(-12deg) scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+/* Sobre una foto el foco es blanco: el petróleo no se vería. */
+.mf-sobre-foto :where(a, button):focus-visible {
+  outline-color: #ffffff;
 }
 
-.mf-apertura {
-  animation: mf-apertura 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+/*
+ * Sombra para el texto del banner: un degradado sólo donde está el texto (abajo a la izquierda)
+ * y una franja arriba para el encabezado. El resto de la foto queda limpio.
+ */
+.mf-sombra-texto {
+  background: radial-gradient(ellipse 100% 85% at 0% 100%, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0.38) 45%, transparent 80%);
+}
+
+/* El texto chico sobre la foto (bajada, acciones, crédito) lleva una sombra suave: en las fotos
+   claras el degradado solo no alcanza. */
+.mf-texto-sobre-foto {
+  text-shadow: 0 1px 14px rgb(0 0 0 / 0.5);
+}
+
+.mf-sombra-arriba {
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.38), transparent);
+}
+
+/* Fundido entre fotos del banner. Sin movimiento si la persona lo pidió. */
+.mf-fundido {
+  transition: opacity 1200ms ease-in-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mf-apertura {
-    animation: none;
+  .mf-fundido {
+    transition: none;
   }
+}
+
+/* Selects de los filtros: una línea abajo, sin caja. */
+.mf-select {
+  appearance: none;
+  background-color: transparent;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 9px) 52%, calc(100% - 5px) 52%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  border: 0;
+  border-bottom: 1px solid var(--mf-ink);
+  border-radius: 0;
+  padding: 0.35rem 1.25rem 0.35rem 0;
+}
+
+/* El mapa de la portada en grises claros. El filtro va en el panel de teselas entero (no en cada
+   tesela) para que no se vean costuras entre ellas; los marcadores van en otro panel. */
+.mf-mapa-portada .leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.7) brightness(1.12);
+}
+
+/* Y los marcadores en tinta: el azul de Leaflet sería el único color de la página. */
+.mf-mapa-portada .leaflet-marker-icon {
+  filter: grayscale(1) brightness(0.45);
 }
 
 /* Los globos del mapa con la tipografía de la casa. */
@@ -67,8 +155,10 @@ body {
   font-family: var(--mf-font), system-ui, sans-serif;
 }
 
-.leaflet-popup-content-wrapper {
-  border-radius: 10px;
+.leaflet-popup-content-wrapper,
+.leaflet-bar,
+.leaflet-bar a {
+  border-radius: 2px !important;
 }
 
 .leaflet-container a.mf-globo-titulo {

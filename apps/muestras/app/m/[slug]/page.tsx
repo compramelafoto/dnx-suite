@@ -35,13 +35,13 @@ export default async function Ficha({ params }: Props) {
     <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
       <Link href="/" className="text-sm text-[var(--mf-accent)] underline underline-offset-4">Volver a todas las muestras</Link>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {esUrlWeb(a.coverImageUrl) ? <img src={a.coverImageUrl} alt="" className="max-h-[60vh] w-full rounded-[10px] object-cover" /> : null}
+      {esUrlWeb(a.coverImageUrl) ? <img src={a.coverImageUrl} alt="" className="max-h-[60vh] w-full rounded-[2px] object-cover" /> : null}
       <header className="space-y-2">
         <EstadoActividad startsAt={a.startsAt} endsAt={a.endsAt} isCancelled={a.isCancelled} ahora={ahora} />
         <h1 className="mf-titulo text-[clamp(2rem,5vw,3rem)]">{a.title}</h1>
         <p className="text-[var(--mf-muted)]">{ACTIVITY_TYPE_LABELS[a.type as ActivityType] ?? a.type}. Organiza {a.organizersText}</p>
       </header>
-      {a.isCancelled ? <p className="rounded-[10px] bg-[#a1251b]/10 p-3 text-[#8a1f17]">Esta actividad se suspendió.</p> : null}
+      {a.isCancelled ? <p className="rounded-[2px] bg-[#a1251b]/10 p-3 text-[#8a1f17]">Esta actividad se suspendió.</p> : null}
       <dl className="grid gap-4 border-y border-[var(--mf-line)] py-5 sm:grid-cols-2">
         <div><dt className="text-sm text-[var(--mf-muted)]">Fechas</dt><dd>{formatArDay(a.startsAt)} al {formatArDay(a.endsAt)}</dd></div>
         {a.openingAt ? <div><dt className="text-sm text-[var(--mf-muted)]">Inauguración</dt><dd>{formatArDay(a.openingAt)}</dd></div> : null}
