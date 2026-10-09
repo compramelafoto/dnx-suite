@@ -2,5 +2,5 @@
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && pnpm --filter muestras build",
   "framework": "nextjs",
-  "ignoreCommand": "cd ../.. && npx turbo-ignore muestras --fallback=HEAD^1"
+  "ignoreCommand": "cd ../.. && if [ \"$VERCEL_ENV\" != \"production\" ]; then exit 0; fi; npx turbo-ignore muestras --fallback=HEAD^1"
 }
