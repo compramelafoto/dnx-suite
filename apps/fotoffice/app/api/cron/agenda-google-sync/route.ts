@@ -15,6 +15,8 @@ export const maxDuration = 300;
  * nunca los calendarios ni las reservas de Reservas. Los registros llevan códigos, sin datos personales.
  */
 const TOPE_ORGANIZACIONES = 25;
+/** Pasado este tiempo no se empieza otra organización (maxDuration es 300 s): las que quedan esperan a la próxima corrida. */
+const PRESUPUESTO_MS = 240_000;
 
 function autorizado(request: Request): boolean {
   return isAuthorizedCronRequest({
@@ -28,7 +30,13 @@ export async function POST(request: Request) {
   try {
     const ids = await organizacionesParaSincronizar(TOPE_ORGANIZACIONES);
     const reportes = [];
+    const inicio = Date.now();
+    let sinAtender = 0;
     for (const workspaceId of ids) {
+      if (Date.now() - inicio >= PRESUPUESTO_MS) {
+        sinAtender += 1;
+        continue;
+      }
       try {
         reportes.push(await sincronizarAgenda(workspaceId));
       } catch (error) {
@@ -36,7 +44,7 @@ export async function POST(request: Request) {
         reportes.push({ workspaceId, errores: ["ERROR"] });
       }
     }
-    return NextResponse.json({ ok: true, workspaces: reportes.length, reportes });
+    return NextResponse.json({ ok: true, workspaces: reportes.length, sinAtender, reportes });
   } catch (error) {
     console.error("[agenda][google] falló la corrida de sincronización", { codigo: codigoDeError(error) });
     return NextResponse.json({ ok: false, error: "falló la sincronización" }, { status: 500 });

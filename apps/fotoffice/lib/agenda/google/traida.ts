@@ -35,7 +35,7 @@ function datosParaGuardar(d: DatosDeCita) {
   };
 }
 
-async function aplicarEvento(workspaceId: string, evento: EventoGoogle, r: ReporteTraida): Promise<void> {
+async function aplicarEvento(workspaceId: string, evento: EventoGoogle, r: ReporteTraida, g: ContextoGoogle): Promise<void> {
   if (esEventoDeEntrega(evento)) {
     r.ignorados += 1;
     return;
@@ -67,7 +67,13 @@ async function aplicarEvento(workspaceId: string, evento: EventoGoogle, r: Repor
       // con la cita que lo originó en vez de crear un duplicado.
       const origen = evento.extendedProperties?.private?.foCitaId;
       if (typeof origen === "string" && origen.length > 0) {
-        const propia = await prisma.fotofficeCita.findFirst({ where: { id: origen, workspaceId, googleEventId: null }, select: { id: true } });
+        const propia = await prisma.fotofficeCita.findFirst({ where: { id: origen, workspaceId, googleEventId: null }, select: { id: true, status: true } });
+        if (propia && propia.status === "ANULADA") {
+          // La cita ya se anuló acá: el evento no tiene que quedar vivo en Google.
+          await g.cliente.borrarEvento(g.calendarId, decision.datos.googleEventId);
+          r.ignorados += 1;
+          return;
+        }
         if (propia) {
           await prisma.fotofficeCita.updateMany({
             where: { id: propia.id as string, workspaceId },
@@ -124,7 +130,7 @@ export async function traerCambios(workspaceId: string, g: ContextoGoogle, ahora
 
     for (const evento of pagina.events) {
       try {
-        await aplicarEvento(workspaceId, evento, reporte);
+        await aplicarEvento(workspaceId, evento, reporte, g);
       } catch (error) {
         // Un evento que falla no frena a los demás, pero el token no avanza: la próxima corrida lo reintenta.
         console.error("[agenda][google] no se pudo aplicar un evento", { codigo: codigoDeError(error) });

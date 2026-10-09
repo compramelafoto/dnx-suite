@@ -58,15 +58,23 @@ export async function sincronizarAgenda(workspaceId: string, ahora: Date = new D
   return reporte;
 }
 
-/** Las organizaciones con calendario de Agenda creado y el módulo encendido, las que hace más tiempo no se sincronizan primero. */
-export async function organizacionesParaSincronizar(tope: number): Promise<string[]> {
+/**
+ * Las organizaciones con calendario de Agenda creado y el módulo encendido, en orden ALEATORIO y hasta `tope`.
+ * No hay columna de "último intento": ordenar por `googleLastSyncAt` dejaba siempre primeras a las que se
+ * omiten (cuenta revocada) o fallan, que no lo actualizan, y con `tope` de ellas desplazaban a las sanas.
+ * Con orden aleatorio ninguna organización puede quedar sin atención de forma permanente.
+ */
+export async function organizacionesParaSincronizar(tope: number, azar: () => number = Math.random): Promise<string[]> {
   const conModulo = await prisma.workspaceFeatureModule.findMany({ where: { moduleKey: "agenda", enabled: true }, select: { workspaceId: true } });
   if (conModulo.length === 0) return [];
   const filas = await prisma.fotofficeAgendaAjustes.findMany({
     where: { googleCalendarId: { not: null }, workspaceId: { in: conModulo.map((m) => m.workspaceId as string) } },
     select: { workspaceId: true },
-    orderBy: [{ googleLastSyncAt: { sort: "asc", nulls: "first" } }, { workspaceId: "asc" }],
-    take: tope,
   });
-  return filas.map((f) => f.workspaceId as string);
+  const ids = filas.map((f) => f.workspaceId as string);
+  for (let i = ids.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(azar() * (i + 1));
+    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+  }
+  return ids.slice(0, tope);
 }

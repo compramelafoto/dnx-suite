@@ -33,6 +33,7 @@ function crearGoogleFalso() {
   const eventos = new Map<string, Ev>();
   const llamadas: { op: string; id?: string; cuerpo?: Ev; filtro?: unknown }[] = [];
   let fallar: ((op: string) => unknown) | null = null;
+  let alCrearCalendario: (() => Promise<void> | void) | null = null;
 
   const marca = () => new Date(Date.UTC(2026, 9, 9, 12, 0, 0) + ++reloj * 1000).toISOString();
   const tocar = (ev: Ev) => {
@@ -50,7 +51,11 @@ function crearGoogleFalso() {
     async crearCalendario(resumen) {
       llamadas.push({ op: "crearCalendario", cuerpo: { resumen } });
       revisar("crearCalendario");
+      await alCrearCalendario?.();
       return "cal-nuevo";
+    },
+    async borrarCalendario(id) {
+      llamadas.push({ op: "borrarCalendario", id });
     },
     async insertarEvento(_cal, cuerpo, id) {
       llamadas.push({ op: "insert", id, cuerpo: cuerpo as Ev });
@@ -111,6 +116,10 @@ function crearGoogleFalso() {
     },
     fallarCon(f: ((op: string) => unknown) | null) {
       fallar = f;
+    },
+    /** Gancho que corre en medio de `crearCalendario` (simula a otro administrador). */
+    alCrearCalendario(f: (() => Promise<void> | void) | null) {
+      alCrearCalendario = f;
     },
   };
 }
@@ -516,6 +525,32 @@ describe("traída desde Google", () => {
 
 // ---- Corrida completa y cron ------------------------------------------------------------------
 
+describe("traída: evento propio enlazado a una cita anulada (M6)", () => {
+  it("borra el evento de Google en vez de dejarlo vivo", async () => {
+    nuevaCita("c9", { status: "ANULADA" });
+    G.externo({ id: "ev-huerfano", summary: "x", start: { dateTime: "2026-10-22T13:00:00-03:00" }, end: { dateTime: "2026-10-22T14:00:00-03:00" }, extendedProperties: { private: { foCitaId: "c9" } } });
+    const { contextoGoogle } = await import("./contexto-google");
+    const c = await contextoGoogle("ws-1");
+    if (!c.ok) throw new Error("sin contexto");
+    await T.traerCambios("ws-1", c.google, AHORA);
+    expect(G.ops("delete").map((l) => l.id)).toEqual(["ev-huerfano"]);
+    expect(G.eventos.get("ev-huerfano")!.status).toBe("cancelled");
+    expect(cita("c9")).toMatchObject({ status: "ANULADA", googleEventId: null });
+  });
+
+  it("con la cita viva sigue enlazando, sin borrar", async () => {
+    nuevaCita("c8");
+    G.externo({ id: "ev-ok", summary: "x", start: { dateTime: "2026-10-22T13:00:00-03:00" }, end: { dateTime: "2026-10-22T14:00:00-03:00" }, extendedProperties: { private: { foCitaId: "c8" } } });
+    const { contextoGoogle } = await import("./contexto-google");
+    const c = await contextoGoogle("ws-1");
+    if (!c.ok) throw new Error("sin contexto");
+    const r = await T.traerCambios("ws-1", c.google, AHORA);
+    expect(r.enlazadas).toBe(1);
+    expect(G.ops("delete")).toHaveLength(0);
+    expect(cita("c8").googleEventId).toBe("ev-ok");
+  });
+});
+
 describe("sincronizar una organización", () => {
   it("empuja lo pendiente, reconcilia las entregas y trae lo nuevo, aislando los errores", async () => {
     nuevaCita("c1");
@@ -542,6 +577,23 @@ describe("sincronizar una organización", () => {
     const r = await S.sincronizarAgenda("ws-1", AHORA);
     expect(r.omitida).toBe("NEEDS_RECONSENT");
     expect(G.llamadas).toHaveLength(0);
+  });
+
+  it("el orden es aleatorio y respeta el tope: ninguna organización queda sin atención para siempre (M1)", async () => {
+    for (let i = 2; i <= 30; i += 1) {
+      B.agregar("workspaceFeatureModule", { workspaceId: `w${i}`, moduleKey: "agenda", enabled: true });
+      B.agregar("fotofficeAgendaAjustes", { workspaceId: `w${i}`, googleCalendarId: `cal-${i}`, googleLastSyncAt: null });
+    }
+    const vistas = new Set<string>();
+    for (let i = 0; i < 60; i += 1) {
+      const ids = await S.organizacionesParaSincronizar(5);
+      expect(ids).toHaveLength(5);
+      expect(new Set(ids).size).toBe(5);
+      ids.forEach((x) => vistas.add(x));
+    }
+    expect(vistas.size).toBe(30);
+    // Con un "azar" fijo el resultado es determinista.
+    expect(await S.organizacionesParaSincronizar(3, () => 0)).toHaveLength(3);
   });
 
   it("las organizaciones a sincronizar son las que tienen el módulo encendido y el calendario creado", async () => {
@@ -576,6 +628,29 @@ describe("cron agenda-google-sync", () => {
     vi.unstubAllEnvs();
   });
 
+  it("deja de empezar organizaciones pasado el presupuesto de tiempo y lo informa (M2)", async () => {
+    vi.stubEnv("CRON_SECRET", "secreto");
+    for (let i = 2; i <= 3; i += 1) {
+      B.agregar("workspaceFeatureModule", { workspaceId: `w${i}`, moduleKey: "agenda", enabled: true });
+      B.agregar("fotofficeAgendaAjustes", { workspaceId: `w${i}`, googleCalendarId: `cal-${i}` });
+    }
+    const real = Date.now();
+    let t = real;
+    const reloj = vi.spyOn(Date, "now").mockImplementation(() => {
+      t += 100_000; // cada consulta del reloj "gasta" 100 s
+      return t;
+    });
+    const { GET } = await import("@/app/api/cron/agenda-google-sync/route");
+    const res = await GET(new Request("http://x/api", { headers: { authorization: "Bearer secreto" } }));
+    reloj.mockRestore();
+    const cuerpo = await res.json();
+    expect(res.status).toBe(200);
+    expect(cuerpo.workspaces + cuerpo.sinAtender).toBe(3);
+    expect(cuerpo.sinAtender).toBeGreaterThan(0);
+    expect(cuerpo.workspaces).toBeLessThan(3);
+    vi.unstubAllEnvs();
+  });
+
   it("no toca las reservas: ni sus calendarios ni sus bloqueos", async () => {
     const { readFileSync, readdirSync } = await import("node:fs");
     const { join } = await import("node:path");
@@ -605,6 +680,29 @@ describe("crear el calendario de la Agenda", () => {
     const r = await Cal.crearCalendarioDeAgenda(DUENO, "Foto Estudio");
     expect(r).toEqual({ ok: true });
     expect(G.ops("crearCalendario")[0]!.cuerpo).toEqual({ resumen: "Foto Estudio Agenda" });
+    expect(ajustes().googleCalendarId).toBe("cal-nuevo");
+  });
+
+  it("si otro administrador guardó su calendario mientras tanto, borra el que acaba de crear y no pisa el existente (I1)", async () => {
+    G.alCrearCalendario(() => {
+      ajustes().googleCalendarId = "cal-del-otro";
+    });
+    const r = await Cal.crearCalendarioDeAgenda(DUENO, "Foto Estudio");
+    expect(r).toEqual({ ok: false, error: Cal.MENSAJES_CALENDARIO.yaExiste });
+    expect(ajustes().googleCalendarId).toBe("cal-del-otro");
+    expect(G.ops("borrarCalendario").map((l) => l.id)).toEqual(["cal-nuevo"]);
+  });
+
+  it("dos envíos simultáneos dejan un solo calendario guardado y borran el sobrante (I1)", async () => {
+    const [a, b] = await Promise.all([Cal.crearCalendarioDeAgenda(DUENO, "X"), Cal.crearCalendarioDeAgenda(DUENO, "X")]);
+    expect([a, b].filter((x) => x.ok)).toHaveLength(1);
+    expect(ajustes().googleCalendarId).toBe("cal-nuevo");
+    expect(G.ops("borrarCalendario")).toHaveLength(G.ops("crearCalendario").length - 1);
+  });
+
+  it("crea la fila de ajustes si todavía no existía", async () => {
+    B.datos.fotofficeAgendaAjustes.length = 0;
+    expect(await Cal.crearCalendarioDeAgenda(DUENO, "X")).toEqual({ ok: true });
     expect(ajustes().googleCalendarId).toBe("cal-nuevo");
   });
 

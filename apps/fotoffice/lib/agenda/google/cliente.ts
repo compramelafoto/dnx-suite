@@ -25,6 +25,8 @@ export type PaginaDeEventos = {
 
 export type ClienteAgenda = {
   crearCalendario(resumen: string): Promise<string>;
+  /** Borra un calendario secundario (sólo para deshacer uno recién creado que perdió una carrera). 404/410 es éxito. */
+  borrarCalendario(calendarId: string): Promise<void>;
   /** `eventId` opcional: un id ya usado (aun por un evento borrado) da 409. */
   insertarEvento(calendarId: string, cuerpo: CuerpoEventoGoogle, eventId?: string): Promise<EventoEscrito>;
   parchearEvento(calendarId: string, eventId: string, cuerpo: CuerpoEventoGoogle): Promise<EventoEscrito>;
@@ -95,6 +97,15 @@ export function crearClienteAgenda(accessToken: string): ClienteAgenda {
         body: JSON.stringify({ summary: resumen, timeZone: HUSO_HORARIO }),
       });
       return r.id;
+    },
+
+    async borrarCalendario(calendarId) {
+      try {
+        await pedir<void>(`/calendars/${encodeURIComponent(calendarId)}`, { method: "DELETE" });
+      } catch (error) {
+        if (esInexistente(error)) return;
+        throw error;
+      }
     },
 
     async insertarEvento(calendarId, cuerpo, eventId) {
