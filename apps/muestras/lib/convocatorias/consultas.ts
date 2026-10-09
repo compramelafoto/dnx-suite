@@ -5,13 +5,16 @@ import type { Usuario } from "@/lib/usuario";
 
 /** Datos de la muestra que se muestran junto a la convocatoria (nada de revisión). */
 const MUESTRA_PUBLICA = {
-  select: { title: true, slug: true, reviewStatus: true, coverImageUrl: true, venueName: true, city: true, province: true, isVirtualOnly: true, startsAt: true, endsAt: true },
+  select: { title: true, slug: true, reviewStatus: true, coverImageUrl: true, venueName: true, address: true, city: true, province: true, isVirtualOnly: true, startsAt: true, endsAt: true },
 } as const;
 
-/** Abiertas (recibiendo o por recibir). El filtro fino por fecha lo hace `callPhase`. */
+/**
+ * Abiertas (recibiendo o por recibir) de muestras presenciales. El filtro fino por fecha lo hace
+ * `callPhase`; el del lugar, `hasPhysicalVenue` en la página.
+ */
 export function listarConvocatoriasPublicas() {
   return prisma.culturalCall.findMany({
-    where: { status: "OPEN", activity: { reviewStatus: "APPROVED" } },
+    where: { status: "OPEN", activity: { reviewStatus: "APPROVED", isVirtualOnly: false } },
     select: { id: true, slug: true, title: true, status: true, opensAt: true, closesAt: true, maxWorksPerPerson: true, activity: MUESTRA_PUBLICA },
     orderBy: { closesAt: "asc" },
     take: 200,

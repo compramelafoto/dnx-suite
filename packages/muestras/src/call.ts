@@ -103,13 +103,28 @@ function validDay(d: string): boolean {
   }
 }
 
+/** Dónde se hace la muestra, tal como está en la ficha. */
+export type CallVenue = { isVirtualOnly: boolean; venueName: string | null; address: string | null };
+
+export const NEEDS_PHYSICAL_VENUE = "La convocatoria es para una muestra presencial: cargá la sala o el lugar antes de abrirla.";
+
+/**
+ * Las convocatorias buscan obras para colgar: la muestra tiene que ser presencial (no sólo
+ * virtual) y tener cargada la sala o la dirección.
+ */
+export function hasPhysicalVenue(v: CallVenue): boolean {
+  return !v.isVirtualOnly && !!(v.venueName?.trim() || v.address?.trim());
+}
+
 /**
  * Lo que falta para abrir la convocatoria. `today` es el día argentino de hoy (YYYY-MM-DD).
  * Si se pasa `activityStatus` (estado de la muestra), la convocatoria sólo abre con la muestra publicada.
+ * Si se pasa `venue`, sólo abre para una muestra presencial con lugar (`hasPhysicalVenue`).
  */
-export function missingForOpening(d: CallDraft, today: string, activityStatus?: string): string[] {
+export function missingForOpening(d: CallDraft, today: string, activityStatus?: string, venue?: CallVenue): string[] {
   const out: string[] = [];
   if (activityStatus !== undefined && activityStatus !== "APPROVED") out.push("Para abrir la convocatoria, la muestra tiene que estar publicada.");
+  if (venue !== undefined && !hasPhysicalVenue(venue)) out.push(NEEDS_PHYSICAL_VENUE);
   if (!d.title.trim()) out.push("Falta el título de la convocatoria.");
   if (!d.basesText.trim()) out.push("Faltan las bases.");
   if (!d.rightsText.trim()) out.push("Falta el texto de autorización de derechos.");

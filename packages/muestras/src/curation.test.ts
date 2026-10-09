@@ -149,7 +149,9 @@ describe("armar la muestra", () => {
   });
   it("no se pasa del tope de 40", () => {
     const sel = Array.from({ length: 11 }, (_, i) => src(i));
-    expect(assemblyPlan(sel, { count: 30, highlights: 0 }).problems[0]).toMatch(/hasta 40 obras/);
+    const msg = assemblyPlan(sel, { count: 30, highlights: 0 }).problems[0];
+    expect(msg).toMatch(/hasta 40 obras: ya tiene 30 y seleccionaste 11/);
+    expect(msg).toMatch(/sacá obras de la galería desde el editor/);
   });
   it("sin seleccionadas no arma nada", () => expect(assemblyPlan([], { count: 0, highlights: 0 }).problems).toEqual(["No hay obras seleccionadas."]));
 });

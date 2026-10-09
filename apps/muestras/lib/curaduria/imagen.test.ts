@@ -9,7 +9,7 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 const { imagenAutorizada } = await import("./imagen");
 
 const fila = (status: string, envio = "ACTIVE") => ({
-  imageUrl: "https://pub/muestras/7/a.webp", callId: "c1",
+  imageUrl: "https://pub/muestras/7/a.webp", callId: "c1", anonymousCode: "O-001",
   submission: { status: envio }, call: { status, activity: { proposedByUserId: 9 } },
 });
 const persona = (id: number, esSuperAdmin = false) => ({ id, esSuperAdmin, email: "x@y", name: null });
@@ -37,6 +37,10 @@ describe("imagen por la ruta anónima", () => {
   });
   it("un envío retirado no se sirve", async () => {
     db.culturalCallWork.findUnique.mockResolvedValue(fila("CURATING", "WITHDRAWN"));
+    expect(await imagenAutorizada("w1", persona(1, true))).toBeNull();
+  });
+  it("una obra sin código anónimo no se sirve", async () => {
+    db.culturalCallWork.findUnique.mockResolvedValue({ ...fila("CURATING"), anonymousCode: null });
     expect(await imagenAutorizada("w1", persona(1, true))).toBeNull();
   });
   it("una obra inexistente", async () => {

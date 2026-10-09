@@ -46,11 +46,27 @@ export async function rankingDeLaConvocatoria(callId: string, status: string): P
   });
 }
 
-/** Avance de cada curador (cuántas puntuó de cuántas). El organizador conoce a su equipo. */
+/**
+ * Avance de cada curador (cuántas puntuó de cuántas). El organizador conoce a su equipo. Las
+ * puntuadas se cuentan sobre el mismo universo que el total: sin obras de envíos retirados.
+ */
 export async function avanceDelEquipo(callId: string) {
   const [curadores, total] = await Promise.all([
-    prisma.culturalCallCurator.findMany({ where: { callId, status: "ACTIVE" }, select: { id: true, email: true, _count: { select: { scores: true } } }, orderBy: { acceptedAt: "asc" } }),
+    prisma.culturalCallCurator.findMany({ where: { callId, status: "ACTIVE" }, select: { id: true, email: true, _count: { select: { scores: { where: { callWork: { anonymousCode: { not: null }, submission: { status: "ACTIVE" } } } } } } }, orderBy: { acceptedAt: "asc" } }),
     prisma.culturalCallWork.count({ where: { callId, anonymousCode: { not: null }, submission: { status: "ACTIVE" } } }),
   ]);
   return curadores.map((k) => ({ id: k.id, email: k.email, puntuadas: k._count.scores, total }));
+}
+
+/**
+ * Cuántas obras elegidas (de envíos vigentes) no están en la galería de la muestra: las que nunca
+ * se copiaron y las copiadas que después se borraron. Con alguna, se puede volver a armar.
+ */
+export async function elegidasFueraDeLaGaleria(callId: string, activityId: string): Promise<number> {
+  const [elegidas, galeria] = await Promise.all([
+    prisma.culturalCallWork.findMany({ where: { callId, decision: "SELECTED", submission: { status: "ACTIVE" } }, select: { activityWorkId: true } }),
+    prisma.culturalActivityWork.findMany({ where: { activityId }, select: { id: true } }),
+  ]);
+  const ids = new Set(galeria.map((w) => w.id));
+  return elegidas.filter((e) => !e.activityWorkId || !ids.has(e.activityWorkId)).length;
 }

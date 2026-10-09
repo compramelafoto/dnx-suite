@@ -67,8 +67,8 @@ export async function avisarConvocatoriaCerrada(callId: string): Promise<void> {
 }
 
 /**
- * Sólo cuando la curaduría terminó, y nunca a quien todavía tiene obras sin decidir: decirle
- * "no quedó" a alguien cuya obra sigue pendiente sería un error irreparable.
+ * Sólo cuando la curaduría terminó. Para entonces, una obra sin decidir cuenta como no elegida
+ * (regla D20): todos reciben su resultado y sólo se nombran las elegidas.
  */
 export async function avisarResultados(callId: string): Promise<void> {
   try {
@@ -100,10 +100,6 @@ export async function avisarResultados(callId: string): Promise<void> {
     const r = await enviarEnLote(call.submissions.flatMap((s) => {
       const u = us.get(s.userId);
       if (!u) return [];
-      if (s.works.some((w) => w.decision === "PENDING")) {
-        console.warn("[muestras] resultados: se saltea un envío con obras sin decidir", callId);
-        return [];
-      }
       const nombre = s.authorName.split(" ")[0] || null;
       const titulos = s.works.filter((w) => w.decision === "SELECTED").map((w) => w.title);
       return [aMensaje(u.email, titulos.length
@@ -116,12 +112,21 @@ export async function avisarResultados(callId: string): Promise<void> {
   }
 }
 
-export async function avisarInvitacionCurador(p: { email: string; token: string; convocatoria: string; organizador: string; invitedAt: Date }): Promise<void> {
+/** Enlace que acepta la invitación: el mismo que va en el correo. */
+export const enlaceDeInvitacion = (token: string) => `${APP_URL}/panel/curaduria/invitacion/${token}`;
+
+/**
+ * Devuelve si el correo salió y el enlace: si no salió, quien organiza lo recibe para mandarlo
+ * a mano. Nunca tira.
+ */
+export async function avisarInvitacionCurador(p: { email: string; token: string; convocatoria: string; organizador: string; invitedAt: Date }): Promise<{ enviado: boolean; url: string }> {
+  const url = enlaceDeInvitacion(p.token);
   try {
     const vence = new Date(p.invitedAt.getTime() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000);
-    const t = textoInvitacionCurador({ convocatoria: p.convocatoria, organizador: p.organizador, vence, url: `${APP_URL}/panel/curaduria/invitacion/${p.token}` });
-    await enviar(p.email, t.subject, t.parrafos, t.enlace);
+    const t = textoInvitacionCurador({ convocatoria: p.convocatoria, organizador: p.organizador, vence, url });
+    return { enviado: await enviar(p.email, t.subject, t.parrafos, t.enlace), url };
   } catch (err) {
     console.error("[muestras] falló la invitación a curar", err);
+    return { enviado: false, url };
   }
 }

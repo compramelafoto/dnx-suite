@@ -22,7 +22,7 @@ const URL_BUCKET = "https://pub.r2.dev/muestras/7/obra-secreta.webp";
 const pedir = (id = ID) => GET(new Request(`http://x/api/curaduria/obras/${id}/imagen`), { params: Promise.resolve({ id }) });
 const curador = { id: 20, email: "c@x", name: null, esSuperAdmin: false };
 const obra = (status = "CURATING", callId = "c1") => ({
-  imageUrl: URL_BUCKET, callId, submission: { status: "ACTIVE" }, call: { status, activity: { proposedByUserId: 9 } },
+  imageUrl: URL_BUCKET, callId, anonymousCode: "O-001", submission: { status: "ACTIVE" }, call: { status, activity: { proposedByUserId: 9 } },
 });
 const cuerpo = (texto: string) => new Response(texto).body!;
 
@@ -81,14 +81,23 @@ describe("GET /api/curaduria/obras/[id]/imagen", () => {
     await esNoEncontrada(await pedir());
   });
 
-  it("un objeto que no es imagen no se sirve", async () => {
-    m.leerDeR2.mockResolvedValue({ cuerpo: cuerpo("<html>"), contentType: "text/html" });
+  it.each(["text/html", "image/svg+xml", "image/gif", "application/octet-stream"])("un objeto %s no se sirve", async (tipo) => {
+    m.leerDeR2.mockResolvedValue({ cuerpo: cuerpo("<html>"), contentType: tipo });
     await esNoEncontrada(await pedir());
+  });
+
+  it.each(["image/jpeg", "image/png", "IMAGE/WEBP; charset=binary"])("sirve %s", async (tipo) => {
+    m.leerDeR2.mockResolvedValue({ cuerpo: cuerpo("BYTES"), contentType: tipo });
+    const r = await pedir();
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe(tipo.split(";")[0]!.toLowerCase());
   });
 
   it("demasiados pedidos: 429", async () => {
     m.frenar.mockReturnValue({ allowed: false, remaining: 0, resetAt: 0 });
-    expect((await pedir()).status).toBe(429);
+    const r = await pedir();
+    expect(r.status).toBe(429);
+    expect(r.headers.get("x-content-type-options")).toBe("nosniff");
     expect(m.leerDeR2).not.toHaveBeenCalled();
   });
 

@@ -15,17 +15,27 @@ function armar(m: Mensaje) {
   return { html, text };
 }
 
-/** Nunca tira: un correo que no sale no puede deshacer una aprobación. */
-export async function enviar(to: string, subject: string, parrafos: string[], enlace?: { texto: string; url: string }) {
+/**
+ * Nunca tira: un correo que no sale no puede deshacer una aprobación. Devuelve `true` sólo si
+ * Resend aceptó el correo (compuerta cerrada, rechazo o caída devuelven `false`).
+ */
+export async function enviar(to: string, subject: string, parrafos: string[], enlace?: { texto: string; url: string }): Promise<boolean> {
   const c = compuertaDeEnvio();
   if (!c.puede) {
     console.info("[muestras] correo no enviado:", c.motivo, subject);
-    return;
+    return false;
   }
   try {
-    await new Resend(c.apiKey).emails.send({ from: c.from, to, subject, ...armar({ to, subject, parrafos, enlace }) });
+    // El SDK no tira ante un rechazo de Resend: lo devuelve en `error`.
+    const r = await new Resend(c.apiKey).emails.send({ from: c.from, to, subject, ...armar({ to, subject, parrafos, enlace }) });
+    if (r?.error) {
+      console.error("[muestras] Resend rechazó el correo", subject, r.error.message);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error("[muestras] falló el envío", subject, err);
+    return false;
   }
 }
 

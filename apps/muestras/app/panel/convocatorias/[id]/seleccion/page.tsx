@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { selectionRoom } from "@repo/muestras";
 import { TablaSeleccion } from "@/components/seleccion/tabla-seleccion";
 import { buscarConvocatoriaDelOrganizador } from "@/lib/convocatorias/consultas";
-import { avanceDelEquipo, rankingDeLaConvocatoria } from "@/lib/seleccion/consultas";
+import { avanceDelEquipo, elegidasFueraDeLaGaleria, rankingDeLaConvocatoria } from "@/lib/seleccion/consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,11 @@ export default async function Seleccion({ params }: Props) {
   const c = await buscarConvocatoriaDelOrganizador(id, usuario);
   if (!c) notFound();
   if (c.status !== "CURATING" && c.status !== "DONE") redirect(`/panel/convocatorias/${id}`);
-  const [filas, equipo] = await Promise.all([rankingDeLaConvocatoria(id, c.status), avanceDelEquipo(id)]);
+  const [filas, equipo, faltanEnGaleria] = await Promise.all([
+    rankingDeLaConvocatoria(id, c.status),
+    avanceDelEquipo(id),
+    c.assembledAt != null ? elegidasFueraDeLaGaleria(id, c.activity.id) : Promise.resolve(0),
+  ]);
   const elegidas = filas.filter((f) => f.decision === "SELECTED").length;
 
   return (
@@ -48,8 +52,11 @@ export default async function Seleccion({ params }: Props) {
         estado={c.status}
         filas={filas}
         lugar={selectionRoom(c.activity._count.works, elegidas)}
-        yaArmada={c.assembledAt != null}
+        // Ya armada, salvo que falte en la galería alguna elegida (p. ej. se borró en el editor):
+        // entonces se puede volver a armar y se copian sólo las que faltan.
+        yaArmada={c.assembledAt != null && faltanEnGaleria === 0}
         muestraId={c.activity.id}
+        porAgregar={c.assembledAt != null ? faltanEnGaleria : undefined}
       />
     </main>
   );

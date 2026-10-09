@@ -60,9 +60,11 @@ export async function invitarCurador(callId: string, emailCrudo: string): Promis
   } catch {
     return { ok: false, errores: ["No se pudo invitar: la invitación cambió mientras tanto. Recargá la página."] };
   }
-  await avisarInvitacionCurador({ email, token, convocatoria: c.title, organizador: usuario.name ?? usuario.email, invitedAt: ahora });
+  const aviso = await avisarInvitacionCurador({ email, token, convocatoria: c.title, organizador: usuario.name ?? usuario.email, invitedAt: ahora });
   revalidatePath(`/panel/convocatorias/${callId}`);
-  return { ok: true, id: fila.id };
+  // Si el correo no salió, el enlace vuelve sólo a quien invitó (es el actor de esta acción) para
+  // que lo mande a mano. El token crudo no se guarda en ningún lado.
+  return aviso.enviado ? { ok: true, id: fila.id } : { ok: true, id: fila.id, enlace: aviso.url };
 }
 
 /** Saca a alguien del equipo. Sus puntajes dejan de contar en el ranking. */
@@ -89,20 +91,28 @@ export async function aceptarInvitacion(token: string): Promise<ResultadoAccion>
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
   if (!frenarPorUsuario("aceptarInvitacion", usuario.id).allowed) return { ok: false, errores: ["Demasiados intentos. Esperá un rato."] };
-  const k = await prisma.culturalCallCurator.findUnique({ where: { tokenHash: hashDeToken(token) }, select: { id: true, callId: true, status: true, invitedAt: true, userId: true } });
+  const k = await prisma.culturalCallCurator.findUnique({ where: { tokenHash: hashDeToken(token) }, select: { id: true, callId: true, email: true, status: true, invitedAt: true, userId: true } });
   if (!k) return INVITACION_INVALIDA;
   const estado = invitationState(k, new Date());
   if (estado === "USED") return { ok: false, errores: ["Esta invitación ya se usó."] };
   if (estado === "EXPIRED") return { ok: false, errores: ["La invitación venció. Pedile a quien organiza que te la vuelva a mandar."] };
   if (estado === "REVOKED") return INVITACION_INVALIDA;
-  const [envio, yaEsta] = await Promise.all([
+  const [envio, yaEsta, cuentasDelEmail] = await Promise.all([
     prisma.culturalCallSubmission.findFirst({ where: { callId: k.callId, userId: usuario.id }, select: { id: true } }),
     prisma.culturalCallCurator.findFirst({ where: { callId: k.callId, userId: usuario.id, status: "ACTIVE" }, select: { id: true } }),
+    // Quien envió obras con la cuenta del email invitado tampoco puede curar aunque acepte con otra.
+    prisma.user.findMany({ where: { email: { equals: k.email, mode: "insensitive" } }, select: { id: true } }),
   ]);
   if (k.userId != null && k.userId !== usuario.id) {
     return { ok: false, errores: ["Esta invitación quedó asociada a otra cuenta. Volvé a entrar con esa cuenta o pedí una invitación nueva."] };
   }
-  if (envio) return { ok: false, errores: ["Enviaste obras a esta convocatoria: no podés ser parte del equipo curatorial."] };
+  const otrasCuentas = cuentasDelEmail.map((u) => u.id).filter((id) => id !== usuario.id);
+  const envioDelEmail = envio || otrasCuentas.length === 0 ? null : await prisma.culturalCallSubmission.findFirst({
+    where: { callId: k.callId, status: "ACTIVE", userId: { in: otrasCuentas } },
+    select: { id: true },
+  });
+  // Mismo mensaje en los dos casos: no se da ningún detalle extra.
+  if (envio || envioDelEmail) return { ok: false, errores: ["Enviaste obras a esta convocatoria: no podés ser parte del equipo curatorial."] };
   if (yaEsta) {
     // Ya está en el equipo por otra fila: esta invitación no queda vigente.
     await prisma.culturalCallCurator.updateMany({ where: { id: k.id, status: "INVITED" }, data: { status: "REVOKED", revokedAt: new Date() } });

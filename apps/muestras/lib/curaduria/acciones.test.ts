@@ -29,6 +29,7 @@ const TOKEN = "a".repeat(43);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  correos.avisarInvitacionCurador.mockResolvedValue({ enviado: true, url: "https://x.test/panel/curaduria/invitacion/t" });
   resetRateLimit();
   usuarioActual.valor = ana;
   db.culturalCall.findUnique.mockResolvedValue(conv);
@@ -51,6 +52,12 @@ describe("invitarCurador", () => {
     const aviso = correos.avisarInvitacionCurador.mock.calls[0][0];
     expect(aviso).toMatchObject({ email: "carla@x.com", convocatoria: "Ciudad", organizador: "Ana" });
     expect(data.tokenHash).toBe(hashDeToken(aviso.token));
+  });
+  it("si el correo no salió, devuelve el enlace a quien invitó (y no lo guarda)", async () => {
+    correos.avisarInvitacionCurador.mockResolvedValue({ enviado: false, url: "https://x.test/panel/curaduria/invitacion/zzz" });
+    expect(await invitarCurador("c1", "carla@x.com")).toEqual({ ok: true, id: "k1", enlace: "https://x.test/panel/curaduria/invitacion/zzz" });
+    const data = db.culturalCallCurator.create.mock.calls[0][0].data;
+    expect(JSON.stringify(data)).not.toContain(correos.avisarInvitacionCurador.mock.calls[0][0].token);
   });
   it("sólo quien organiza", async () => {
     usuarioActual.valor = carla;
@@ -119,6 +126,15 @@ describe("aceptarInvitacion", () => {
     db.culturalCallCurator.findFirst.mockResolvedValue({ id: "k0" });
     expect(await aceptarInvitacion(TOKEN)).toEqual({ ok: true, id: "c1" });
     expect(db.culturalCallCurator.updateMany.mock.calls[0][0]).toMatchObject({ where: { id: "k1", status: "INVITED" }, data: { status: "REVOKED" } });
+  });
+  it("si la cuenta del email invitado tiene un envío activo, no se acepta desde otra cuenta", async () => {
+    db.culturalCallCurator.findUnique.mockResolvedValue({ id: "k1", callId: "c1", email: "Otra@X.com", status: "INVITED", invitedAt: new Date() });
+    db.user.findMany.mockResolvedValue([{ id: 55 }]);
+    db.culturalCallSubmission.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "s9" });
+    expect(await aceptarInvitacion(TOKEN)).toEqual({ ok: false, errores: ["Enviaste obras a esta convocatoria: no podés ser parte del equipo curatorial."] });
+    expect(db.user.findMany.mock.calls[0][0].where).toEqual({ email: { equals: "Otra@X.com", mode: "insensitive" } });
+    expect(db.culturalCallSubmission.findFirst.mock.calls[1][0].where).toEqual({ callId: "c1", status: "ACTIVE", userId: { in: [55] } });
+    expect(db.culturalCallCurator.updateMany).not.toHaveBeenCalled();
   });
   it("quien envió obras no puede aceptar", async () => {
     db.culturalCallSubmission.findFirst.mockResolvedValue({ id: "s1" });

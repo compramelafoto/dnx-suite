@@ -10,7 +10,8 @@ export async function listarMisCuradurias(userId: number) {
     select: {
       id: true,
       call: { select: { id: true, title: true, status: true, closesAt: true } },
-      _count: { select: { scores: true } },
+      // Mismo universo que el total: no cuentan las obras de envíos retirados.
+      _count: { select: { scores: { where: { callWork: { anonymousCode: { not: null }, submission: { status: "ACTIVE" } } } } } },
     },
     orderBy: { acceptedAt: "desc" },
   });

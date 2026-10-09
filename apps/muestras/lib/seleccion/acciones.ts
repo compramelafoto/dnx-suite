@@ -37,6 +37,8 @@ export async function decidir(callWorkId: string, decision: string): Promise<Res
       // Bloquea la convocatoria: dos "Seleccionar" a la vez no se pasan juntos del tope.
       await tx.$queryRaw`SELECT id FROM "CulturalCall" WHERE id = ${w.callId} FOR UPDATE`;
       if (decision === "SELECTED" && w.decision !== "SELECTED") {
+        // Y la muestra, para contar sus obras sin que el editor las cambie en el medio.
+        await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${w.call.activity.id} FOR UPDATE`;
         const [enLaMuestra, elegidas] = await Promise.all([
           tx.culturalActivityWork.count({ where: { activityId: w.call.activity.id } }),
           tx.culturalCallWork.count({ where: { callId: w.callId, decision: "SELECTED" } }),
@@ -61,9 +63,14 @@ export async function decidir(callWorkId: string, decision: string): Promise<Res
 
 /**
  * Copia las obras seleccionadas de ESTA convocatoria a la galería de la muestra, en el orden del
- * ranking, con su autor (y su perfil de fotógrafo, si tiene). Una sola vez y todo en una
- * transacción que primero bloquea la fila de la convocatoria: un doble clic o dos pestañas no
- * duplican obras, y los topes se cuentan con lo que la muestra tiene en ese momento.
+ * ranking, con su autor (y su perfil de fotógrafo, si tiene). Todo en una transacción que primero
+ * bloquea la fila de la convocatoria y después la de la muestra: un doble clic o dos pestañas no
+ * duplican obras, y los topes se cuentan con lo que la muestra tiene en ese momento (el editor
+ * escribe la misma fila de la muestra, así que espera o hace esperar).
+ *
+ * Es idempotente: sólo copia las elegidas que todavía no están en la galería. Una elegida cuya
+ * obra copiada ya no existe (p. ej. se borró en el editor) cuenta como no copiada, así que se
+ * puede volver a armar aunque la convocatoria ya tenga `assembledAt`.
  *
  * Las imágenes se copian tal cual (`imageUrl` en `muestras/<userId>/…`): ya son nuestras, procesadas.
  * La galería pública sólo existe después de cerrar la curaduría, cuando cada autor firma su obra.
@@ -82,22 +89,29 @@ export async function armarMuestra(callId: string): Promise<ResultadoAccion> {
           where: { id: callId },
           select: {
             id: true, status: true, assembledAt: true,
-            activity: { select: { id: true, slug: true, reviewStatus: true, proposedByUserId: true, workspaceId: true, isCancelled: true, rightsConfirmedAt: true, works: { select: { isHighlight: true } } } },
+            activity: { select: { id: true, slug: true, reviewStatus: true, proposedByUserId: true, workspaceId: true, isCancelled: true, rightsConfirmedAt: true } },
           },
         });
         if (!c || (c.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) throw new Corte("La convocatoria no existe.");
         if (c.status !== "DONE") throw new Corte("Primero cerrá la curaduría.");
-        if (c.assembledAt) throw new Corte(YA_ARMADA);
         const a = c.activity;
         if (!canEdit({ ...a, reviewStatus: a.reviewStatus as ReviewStatus }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin })) {
           throw new Corte("La muestra no se puede editar ahora (está en revisión o despublicada).");
         }
 
-        // Sólo obras de esta convocatoria, vigentes y todavía no copiadas.
-        const elegidas = await tx.culturalCallWork.findMany({
-          where: { callId, decision: "SELECTED", activityWorkId: null, submission: { status: "ACTIVE" } },
-          select: { id: true, anonymousCode: true, decision: true, imageUrl: true, title: true, year: true, technique: true, submission: { select: { authorName: true, userId: true } } },
+        // Bloquea la muestra antes de contar sus obras para los topes de 40 y 12.
+        await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;
+        const actuales = await tx.culturalActivityWork.findMany({ where: { activityId: a.id }, select: { id: true, isHighlight: true } });
+        const enLaGaleria = new Set(actuales.map((w) => w.id));
+
+        // Sólo obras de esta convocatoria, vigentes y que no estén ya en la galería.
+        const candidatas = await tx.culturalCallWork.findMany({
+          where: { callId, decision: "SELECTED", submission: { status: "ACTIVE" } },
+          select: { id: true, anonymousCode: true, decision: true, imageUrl: true, title: true, year: true, technique: true, activityWorkId: true, submission: { select: { authorName: true, userId: true } } },
         });
+        const elegidas = candidatas.filter((e) => !e.activityWorkId || !enLaGaleria.has(e.activityWorkId));
+        if (c.assembledAt && elegidas.length === 0) throw new Corte(YA_ARMADA);
+
         const puntajes = await tx.culturalCallScore.findMany({
           where: { callWorkId: { in: elegidas.map((e) => e.id) }, curator: { status: "ACTIVE" } },
           select: { callWorkId: true, score: true },
@@ -115,11 +129,13 @@ export async function armarMuestra(callId: string): Promise<ResultadoAccion> {
             authorName: e.submission.authorName, authorUserId: e.submission.userId, authorProfileId: perfilDe.get(e.submission.userId) ?? null,
           };
         });
-        const plan = assemblyPlan(enOrden, { count: a.works.length, highlights: a.works.filter((w) => w.isHighlight).length });
+        const plan = assemblyPlan(enOrden, { count: actuales.length, highlights: actuales.filter((w) => w.isHighlight).length });
         if (plan.problems.length) throw new Corte(plan.problems.join(" "));
 
-        const { count } = await tx.culturalCall.updateMany({ where: { id: callId, status: "DONE", assembledAt: null }, data: { assembledAt: new Date() } });
-        if (count === 0) throw new Corte(YA_ARMADA);
+        if (!c.assembledAt) {
+          const { count } = await tx.culturalCall.updateMany({ where: { id: callId, status: "DONE", assembledAt: null }, data: { assembledAt: new Date() } });
+          if (count === 0) throw new Corte(YA_ARMADA);
+        }
         for (const o of plan.works) {
           const { callWorkId, ...obra } = o;
           const creada = await tx.culturalActivityWork.create({ data: { ...obra, activityId: a.id }, select: { id: true } });

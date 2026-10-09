@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CALL_PHASE_PUBLIC_TEXT, callPhase, formatArDay, isListedPhase } from "@repo/muestras";
+import { CALL_PHASE_PUBLIC_TEXT, callPhase, formatArDay, hasPhysicalVenue, isListedPhase } from "@repo/muestras";
 import { listarConvocatoriasPublicas } from "@/lib/convocatorias/consultas";
 
 export const revalidate = 300;
 
+type Fila = Awaited<ReturnType<typeof listarConvocatoriasPublicas>>[number];
+
+/** Recibe (o va a recibir) obras y es para una muestra presencial con lugar cargado. */
+const seLista = (c: Fila, ahora: Date) => isListedPhase(callPhase(c, ahora)) && hasPhysicalVenue(c.activity);
+
 export async function generateMetadata(): Promise<Metadata> {
   const ahora = new Date();
-  const hay = (await listarConvocatoriasPublicas()).some((c) => isListedPhase(callPhase(c, ahora)));
+  const hay = (await listarConvocatoriasPublicas()).some((c) => seLista(c, ahora));
   return {
     title: "Convocatorias abiertas",
     description: "Convocatorias para exponer en muestras fotográficas de todo el país: mandá tus obras para que las elijan.",
@@ -17,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ConvocatoriasPublicas() {
   const ahora = new Date();
-  const lista = (await listarConvocatoriasPublicas()).filter((c) => isListedPhase(callPhase(c, ahora)));
+  const lista = (await listarConvocatoriasPublicas()).filter((c) => seLista(c, ahora));
   return (
     <main className="mf-marco py-10 sm:py-16">
       <h1 className="mf-titulo max-w-[16ch] text-[clamp(2.2rem,5vw,3.5rem)]">Convocatorias abiertas</h1>
@@ -27,7 +32,7 @@ export default async function ConvocatoriasPublicas() {
       ) : (
         <ul className="mt-10 border-t border-[var(--mf-line)]">
           {lista.map((c) => {
-            const lugar = c.activity.isVirtualOnly ? "Virtual" : [c.activity.venueName, c.activity.city, c.activity.province].filter(Boolean).join(", ");
+            const lugar = [c.activity.venueName, c.activity.city, c.activity.province].filter(Boolean).join(", ");
             return (
               <li key={c.id} className="border-b border-[var(--mf-line)]">
                 <Link href={`/convocatorias/${c.slug}`} className="group grid gap-1 py-6">

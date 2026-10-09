@@ -257,7 +257,10 @@ export function assemblyPlan(
   const problems: string[] = [];
   if (selectedInRankingOrder.length === 0) problems.push("No hay obras seleccionadas.");
   if (existing.count + selectedInRankingOrder.length > MAX_WORKS) {
-    problems.push(`La muestra admite hasta ${MAX_WORKS} obras: ya tiene ${existing.count} y seleccionaste ${selectedInRankingOrder.length}.`);
+    problems.push(
+      `La muestra admite hasta ${MAX_WORKS} obras: ya tiene ${existing.count} y seleccionaste ${selectedInRankingOrder.length}. ` +
+        "Para hacer lugar, sacá obras de la galería desde el editor de la muestra y volvé a armarla.",
+    );
   }
   if (problems.length) return { works: [], problems };
   const lugares = Math.max(0, MAX_HIGHLIGHTS - existing.highlights);

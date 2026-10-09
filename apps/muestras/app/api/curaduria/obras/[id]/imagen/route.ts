@@ -9,6 +9,9 @@ export const dynamic = "force-dynamic";
 /** Los ids de obra son uuid: cualquier otra cosa ni llega a la base. */
 const ID_VALIDO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Sólo los formatos que genera la subida (y los comunes de foto). Cualquier otro tipo no se sirve. */
+const TIPOS_PERMITIDOS = new Set(["image/webp", "image/jpeg", "image/png"]);
+
 const noEncontrada = () =>
   new Response("No encontrada", {
     status: 404,
@@ -28,14 +31,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const usuario = await getUsuario();
   if (!usuario || !ID_VALIDO.test(id)) return noEncontrada();
   if (!frenarPorUsuario("imagenCuraduria", usuario.id).allowed) {
-    return new Response("Demasiados pedidos", { status: 429, headers: { "Cache-Control": "private, no-store", "Retry-After": "600" } });
+    return new Response("Demasiados pedidos", {
+      status: 429,
+      headers: { "Cache-Control": "private, no-store", "Retry-After": "600", "X-Content-Type-Options": "nosniff" },
+    });
   }
   const url = await imagenAutorizada(id, usuario);
   if (!url) return noEncontrada();
   const archivo = await leerDeR2(url);
   if (!archivo) return noEncontrada();
-  // Sólo imágenes: si el objeto viniera con otro tipo, no se sirve.
-  const tipo = archivo.contentType.startsWith("image/") ? archivo.contentType : null;
+  // Sólo WebP, JPEG o PNG: si el objeto viniera con otro tipo (incluido SVG), no se sirve.
+  const base = archivo.contentType.split(";")[0]!.trim().toLowerCase();
+  const tipo = TIPOS_PERMITIDOS.has(base) ? base : null;
   if (!tipo) {
     await archivo.cuerpo.cancel().catch(() => {});
     return noEncontrada();

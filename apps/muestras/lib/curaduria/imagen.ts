@@ -16,11 +16,13 @@ export async function imagenAutorizada(callWorkId: string, usuario: Usuario): Pr
     select: {
       imageUrl: true,
       callId: true,
+      anonymousCode: true,
       submission: { select: { status: true } },
       call: { select: { status: true, activity: { select: { proposedByUserId: true } } } },
     },
   });
-  if (!w || w.submission.status !== "ACTIVE") return null;
+  // Sin código anónimo la obra todavía no entró a la curaduría: no se sirve por acá.
+  if (!w || !w.anonymousCode || w.submission.status !== "ACTIVE") return null;
   const k = await prisma.culturalCallCurator.findFirst({ where: { callId: w.callId, userId: usuario.id }, select: { status: true } });
   const puede = canViewCallImage({
     status: w.call.status,

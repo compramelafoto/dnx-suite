@@ -4,11 +4,12 @@ const db = vi.hoisted(() => ({
   culturalCallWork: { findMany: vi.fn(), count: vi.fn() },
   culturalCallScore: { findMany: vi.fn() },
   culturalCallCurator: { findMany: vi.fn() },
+  culturalActivityWork: { findMany: vi.fn() },
 }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("server-only", () => ({}));
 
-const { rankingDeLaConvocatoria } = await import("./consultas");
+const { avanceDelEquipo, elegidasFueraDeLaGaleria, rankingDeLaConvocatoria } = await import("./consultas");
 const obra = { id: "w1", anonymousCode: "O-001", decision: "PENDING", title: "Uno", year: null, technique: null, statement: null, submission: { authorName: "Ana Pérez" } };
 
 beforeEach(() => {
@@ -35,5 +36,24 @@ describe("rankingDeLaConvocatoria", () => {
     await rankingDeLaConvocatoria("c1", "CURATING");
     expect(db.culturalCallScore.findMany.mock.calls[0][0].where).toEqual({ callWork: { callId: "c1" }, curator: { status: "ACTIVE" } });
     expect(db.culturalCallWork.findMany.mock.calls[0][0].where.callId).toBe("c1");
+  });
+});
+
+describe("avanceDelEquipo", () => {
+  it("no cuenta como puntuadas las obras de envíos retirados", async () => {
+    db.culturalCallCurator.findMany.mockResolvedValue([{ id: "k1", email: "k@x", _count: { scores: 2 } }]);
+    db.culturalCallWork.count.mockResolvedValue(3);
+    expect(await avanceDelEquipo("c1")).toEqual([{ id: "k1", email: "k@x", puntuadas: 2, total: 3 }]);
+    expect(db.culturalCallCurator.findMany.mock.calls[0][0].select._count).toEqual({
+      select: { scores: { where: { callWork: { anonymousCode: { not: null }, submission: { status: "ACTIVE" } } } } },
+    });
+  });
+});
+
+describe("elegidasFueraDeLaGaleria", () => {
+  it("cuenta las nunca copiadas y las copiadas que se borraron", async () => {
+    db.culturalCallWork.findMany.mockResolvedValue([{ activityWorkId: null }, { activityWorkId: "aw-1" }, { activityWorkId: "aw-borrada" }]);
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1" }]);
+    expect(await elegidasFueraDeLaGaleria("c1", "a1")).toBe(2);
   });
 });

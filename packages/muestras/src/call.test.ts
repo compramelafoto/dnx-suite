@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import {
   acceptsSubmissions, callPhase, canCallAction, closeDayProblem, editableCallFields, hasPublicPage, isListedPhase,
-  callMetaDescription, missingForOpening, nextCallStatus, submissionProblems, submitterConflict, type CallActionContext,
+  callMetaDescription, hasPhysicalVenue, missingForOpening, nextCallStatus, submissionProblems, submitterConflict, type CallActionContext,
 } from "./call";
 
 const fechas = { opensAt: dayStartAr("2026-11-01"), closesAt: dayEndAr("2026-11-30") };
@@ -46,6 +46,18 @@ describe("abrir la convocatoria", () => {
       "Falta la fecha de cierre.",
       "Cada persona puede enviar entre 1 y 10 obras.",
     ]);
+  });
+  it("sólo para muestras presenciales con sala o lugar", () => {
+    const msg = "La convocatoria es para una muestra presencial: cargá la sala o el lugar antes de abrirla.";
+    expect(missingForOpening(ok, "2026-10-20", "APPROVED", { isVirtualOnly: true, venueName: "Sala", address: "Calle 1" })).toEqual([msg]);
+    expect(missingForOpening(ok, "2026-10-20", "APPROVED", { isVirtualOnly: false, venueName: " ", address: null })).toEqual([msg]);
+    expect(missingForOpening(ok, "2026-10-20", "APPROVED", { isVirtualOnly: false, venueName: null, address: "Calle 1" })).toEqual([]);
+    expect(missingForOpening(ok, "2026-10-20", "APPROVED", { isVirtualOnly: false, venueName: "Sala", address: null })).toEqual([]);
+  });
+  it("hasPhysicalVenue", () => {
+    expect(hasPhysicalVenue({ isVirtualOnly: false, venueName: "Sala", address: null })).toBe(true);
+    expect(hasPhysicalVenue({ isVirtualOnly: true, venueName: "Sala", address: "x" })).toBe(false);
+    expect(hasPhysicalVenue({ isVirtualOnly: false, venueName: null, address: "" })).toBe(false);
   });
   it("cierre antes de la apertura o ya pasado", () => {
     expect(missingForOpening({ ...ok, closesDay: "2026-10-30" }, "2026-10-20")).toContain("La fecha de cierre es anterior a la de apertura.");

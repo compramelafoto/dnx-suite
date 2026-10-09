@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const batchSend = vi.fn();
-vi.mock("resend", () => ({ Resend: class { batch = { send: batchSend }; emails = { send: vi.fn() }; } }));
+const emailSend = vi.fn();
+vi.mock("resend", () => ({ Resend: class { batch = { send: batchSend }; emails = { send: emailSend }; } }));
 vi.mock("@repo/db", () => ({ prisma: {} }));
 
-import { enviarEnLote, type Mensaje } from "./enviar";
+import { enviar, enviarEnLote, type Mensaje } from "./enviar";
 
 const msgs = (n: number): Mensaje[] => Array.from({ length: n }, (_, i) => ({ to: `a${i}@x.com`, subject: "s", parrafos: ["p"] }));
 
 beforeEach(() => {
   batchSend.mockReset();
+  emailSend.mockReset();
   vi.stubEnv("RESEND_API_KEY", "k");
   vi.stubEnv("MUESTRAS_CORREOS_EN_VIVO", "true");
   vi.stubEnv("MUESTRAS_EMAIL_FROM", "m@x.com");
@@ -32,5 +34,19 @@ describe("enviarEnLote", () => {
     const r = await enviarEnLote(msgs(3));
     expect(batchSend).not.toHaveBeenCalled();
     expect(r).toEqual({ compuerta: false, total: 3, aceptados: 0 });
+  });
+});
+
+describe("enviar", () => {
+  it("true sólo si Resend lo aceptó", async () => {
+    emailSend.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: { message: "no" } }).mockRejectedValueOnce(new Error("red"));
+    expect(await enviar("a@x.com", "s", ["p"])).toBe(true);
+    expect(await enviar("a@x.com", "s", ["p"])).toBe(false);
+    expect(await enviar("a@x.com", "s", ["p"])).toBe(false);
+  });
+  it("con la compuerta cerrada devuelve false sin intentar", async () => {
+    vi.stubEnv("MUESTRAS_CORREOS_EN_VIVO", "false");
+    expect(await enviar("a@x.com", "s", ["p"])).toBe(false);
+    expect(emailSend).not.toHaveBeenCalled();
   });
 });

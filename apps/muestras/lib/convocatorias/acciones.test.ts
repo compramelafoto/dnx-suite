@@ -25,7 +25,7 @@ const { resetRateLimit } = await import("@/lib/limite");
 const conv = {
   id: "c1", slug: "ciudad-abc123", title: "Ciudad", basesText: "Bases", rightsText: "Autorizo", requirementsText: null,
   opensAt: new Date("2026-11-01T03:00:00Z"), closesAt: new Date("2026-12-01T02:59:59.999Z"), maxWorksPerPerson: 3,
-  status: "DRAFT", activity: { proposedByUserId: 7 },
+  status: "DRAFT", activity: { proposedByUserId: 7, isVirtualOnly: false, venueName: "Sala Norte", address: null },
 };
 const ana = { id: 7, esSuperAdmin: false, email: "ana@x", name: "Ana" };
 const beto = { id: 8, esSuperAdmin: false, email: "beto@x", name: "Beto" };
@@ -134,6 +134,15 @@ describe("estados", () => {
     db.culturalCall.findUnique.mockResolvedValue(conv);
     expect((await abrirConvocatoria("c1")).ok).toBe(true);
     expect(db.culturalCall.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1", status: "DRAFT" }, data: expect.objectContaining({ status: "OPEN" }) }));
+  });
+  it("no abre para una muestra sólo virtual o sin lugar cargado", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-20T15:00:00Z"), toFake: ["Date"] });
+    const msg = "La convocatoria es para una muestra presencial: cargá la sala o el lugar antes de abrirla.";
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, isVirtualOnly: true } });
+    expect(await abrirConvocatoria("c1")).toEqual({ ok: false, errores: [msg] });
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, venueName: null, address: null } });
+    expect(await abrirConvocatoria("c1")).toEqual({ ok: false, errores: [msg] });
+    expect(db.culturalCall.updateMany).not.toHaveBeenCalled();
   });
   it("cerrar antes de la fecha no se puede", async () => {
     vi.useFakeTimers({ now: new Date("2026-11-15T15:00:00Z"), toFake: ["Date"] });

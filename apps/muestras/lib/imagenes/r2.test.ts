@@ -35,3 +35,12 @@ describe("leerDeR2", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("leerDeR2 sin configuración", () => {
+  it("devuelve null (la ruta responde 404), no tira", async () => {
+    vi.stubEnv("R2_BUCKET_NAME", "");
+    vi.stubEnv("R2_BUCKET", "");
+    expect(await leerDeR2(`${base}/muestras/a.webp`)).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+});

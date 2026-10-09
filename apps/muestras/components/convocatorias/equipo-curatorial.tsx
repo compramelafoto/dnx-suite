@@ -15,12 +15,26 @@ export function EquipoCuratorial({ callId, curadores, editable }: { callId: stri
   const [pendiente, start] = useTransition();
   const [email, setEmail] = useState("");
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
-  const correr = (f: () => Promise<{ ok: boolean; errores?: string[] }>, exito: string) =>
+  const [enlace, setEnlace] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  const correr = (f: () => Promise<{ ok: boolean; errores?: string[]; enlace?: string }>, exito: string) =>
     start(async () => {
       const r = await f();
-      setMensaje(r.ok ? { ok: true, texto: exito } : { ok: false, texto: (r.errores ?? []).join(" ") });
+      setCopiado(false);
+      // Con `enlace` el correo no salió: no se dice "enviada" y se muestra el enlace para copiar.
+      setEnlace(r.ok && r.enlace ? r.enlace : null);
+      setMensaje(r.ok ? (r.enlace ? null : { ok: true, texto: exito }) : { ok: false, texto: (r.errores ?? []).join(" ") });
       if (r.ok) router.refresh();
     });
+  const copiar = async () => {
+    if (!enlace) return;
+    try {
+      await navigator.clipboard.writeText(enlace);
+      setCopiado(true);
+    } catch {
+      setCopiado(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -64,6 +78,18 @@ export function EquipoCuratorial({ callId, curadores, editable }: { callId: stri
         </form>
       ) : null}
       {mensaje ? <p className={mensaje.ok ? "text-[var(--mf-teal)]" : "text-[var(--mf-alerta)]"}>{mensaje.texto}</p> : null}
+      {enlace ? (
+        <div className="space-y-2" role="status">
+          <p className="text-[var(--mf-alerta)]">No pudimos mandar el mail. Copiá este enlace y mandáselo a la persona que va a curar.</p>
+          <div className="flex flex-wrap gap-3">
+            <label className="min-w-[16rem] flex-1">
+              <span className="sr-only">Enlace de la invitación</span>
+              <input type="text" readOnly value={enlace} onFocus={(e) => e.currentTarget.select()} className={campo} />
+            </label>
+            <button type="button" className={botonFino} onClick={copiar}>{copiado ? "Copiado" : "Copiar enlace"}</button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

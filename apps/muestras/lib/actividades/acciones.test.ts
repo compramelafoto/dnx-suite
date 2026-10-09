@@ -178,6 +178,11 @@ describe("obras: ids estables y perfil del autor", () => {
     await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja" }), obra({ id: "w-ajena" }), obra({ id: "w-vieja" })]) }));
     expect(guardadas().map((o) => o.id)).toEqual(["w-vieja", undefined, undefined]);
   });
+  it("conserva la cuenta del autor de las obras que siguen (no se pierde al reescribir la galería)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, works: [{ id: "w-vieja", authorProfileId: null, authorUserId: 42 }] });
+    await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja" }), obra()]) }));
+    expect(guardadas().map((o) => o.authorUserId)).toEqual([42, null]);
+  });
   it("vincula sola una obra nueva cuyo autor coincide con el perfil de quien propuso", async () => {
     db.photographerProfile.findUnique.mockResolvedValue({ id: "perfil-ana", displayName: "ana perez" });
     await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra()]) }));

@@ -3,22 +3,28 @@ import { prisma } from "@repo/db";
 
 /**
  * Los envíos de la persona, con sus obras. La decisión de cada obra sólo sale cuando la
- * convocatoria terminó (`DONE`): antes, ni siquiera viaja al navegador.
+ * convocatoria terminó (`DONE`): antes, ni siquiera viaja al navegador. `tienePaginaPublica` dice
+ * si existe `/convocatorias/<slug>` (no borrador y muestra publicada).
  */
 export async function listarMisEnvios(userId: number) {
   const envios = await prisma.culturalCallSubmission.findMany({
     where: { userId },
     select: {
       id: true, status: true, updatedAt: true,
-      call: { select: { id: true, slug: true, title: true, status: true, opensAt: true, closesAt: true } },
+      call: { select: { id: true, slug: true, title: true, status: true, opensAt: true, closesAt: true, activity: { select: { reviewStatus: true } } } },
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, imageUrl: true, decision: true } },
     },
     orderBy: { updatedAt: "desc" },
     take: 200,
   });
-  return envios.map((e) => ({
+  return envios.map(({ call: { activity, ...call }, ...e }) => ({
     ...e,
-    works: e.works.map((w) => ({ ...w, decision: e.call.status === "DONE" && e.status === "ACTIVE" ? w.decision : null })),
+    call: {
+      ...call,
+      // Misma condición que `buscarConvocatoriaPublica`: si no, el enlace daría 404.
+      tienePaginaPublica: call.status !== "DRAFT" && activity.reviewStatus === "APPROVED",
+    },
+    works: e.works.map((w) => ({ ...w, decision: call.status === "DONE" && e.status === "ACTIVE" ? w.decision : null })),
   }));
 }
 

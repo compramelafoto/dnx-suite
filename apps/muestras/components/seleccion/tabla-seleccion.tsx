@@ -10,8 +10,10 @@ import type { FilaSeleccion } from "@/lib/seleccion/consultas";
 
 const DECISION: Record<WorkDecision, string> = { PENDING: "Sin decidir", SELECTED: "Elegida", DISCARDED: "Descartada" };
 
-export function TablaSeleccion({ callId, estado, filas, lugar, yaArmada, muestraId }: {
+export function TablaSeleccion({ callId, estado, filas, lugar, yaArmada, muestraId, porAgregar }: {
   callId: string; estado: string; filas: FilaSeleccion[]; lugar: number; yaArmada: boolean; muestraId: string;
+  /** Si la muestra ya se armó y faltan elegidas en la galería: cuántas se vuelven a copiar. */
+  porAgregar?: number;
 }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
@@ -100,7 +102,7 @@ export function TablaSeleccion({ callId, estado, filas, lugar, yaArmada, muestra
               disabled={pendiente || elegidas === 0}
               className={botonLleno}
               onClick={() => {
-                if (!window.confirm(`Se agregan ${elegidas} obras a la galería de la muestra, con el nombre de cada autor. Después podés ordenarlas y elegir destacadas en el editor.`)) return;
+                if (!window.confirm(`Se agregan ${porAgregar ?? elegidas} obras a la galería de la muestra, con el nombre de cada autor. Después podés ordenarlas y elegir destacadas en el editor.`)) return;
                 correr(() => armarMuestra(callId));
               }}
             >

@@ -46,15 +46,16 @@ export async function subirAR2(bytes: Buffer, clave: string, contentType: string
 /**
  * Lee un objeto propio del bucket a partir de su URL pública. Lo usa la ruta anónima de la
  * curaduría: el curador recibe la imagen sin ver la URL, que lleva el id de quien la subió.
- * `null` si la URL no es nuestra o el objeto no existe.
+ * `null` si la URL no es nuestra, el objeto no existe o falta configurar el bucket.
  */
 export async function leerDeR2(urlPublica: string): Promise<{ cuerpo: ReadableStream; contentType: string } | null> {
-  const c = config();
-  const prefijo = `${c.publicUrl}/`;
-  if (!urlPublica.startsWith(prefijo)) return null;
-  const clave = urlPublica.slice(prefijo.length);
-  if (!/^muestras\/[A-Za-z0-9._/-]+$/.test(clave) || clave.includes("..")) return null;
   try {
+    // Dentro del try: sin configuración la imagen no está (404), no es un error del servidor.
+    const c = config();
+    const prefijo = `${c.publicUrl}/`;
+    if (!urlPublica.startsWith(prefijo)) return null;
+    const clave = urlPublica.slice(prefijo.length);
+    if (!/^muestras\/[A-Za-z0-9._/-]+$/.test(clave) || clave.includes("..")) return null;
     const r = await s3(c).send(new GetObjectCommand({ Bucket: c.bucket, Key: clave }));
     if (!r.Body) return null;
     return { cuerpo: r.Body.transformToWebStream(), contentType: r.ContentType ?? "image/webp" };

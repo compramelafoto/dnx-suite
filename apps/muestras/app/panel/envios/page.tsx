@@ -26,7 +26,11 @@ export default async function MisEnvios() {
             return (
               <li key={e.id} className="space-y-4 border-b border-[var(--mf-line)] py-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <Link href={`/convocatorias/${e.call.slug}`} className="mf-titulo text-xl underline-offset-[5px] hover:underline">{e.call.title}</Link>
+                  {e.call.tienePaginaPublica ? (
+                    <Link href={`/convocatorias/${e.call.slug}`} className="mf-titulo text-xl underline-offset-[5px] hover:underline">{e.call.title}</Link>
+                  ) : (
+                    <span className="mf-titulo text-xl">{e.call.title}</span>
+                  )}
                   <span className="text-sm">{e.status === "WITHDRAWN" ? "Retiraste el envío" : CALL_PHASE_PUBLIC_TEXT[fase]}</span>
                 </div>
                 {e.status === "ACTIVE" ? (
@@ -41,7 +45,7 @@ export default async function MisEnvios() {
                     ))}
                   </ul>
                 ) : null}
-                {acceptsSubmissions(fase) ? (
+                {acceptsSubmissions(fase) && e.call.tienePaginaPublica ? (
                   <p className="text-[15px]">
                     <Link href={`/convocatorias/${e.call.slug}/enviar`} className="underline underline-offset-[6px]">{e.status === "ACTIVE" ? "Cambiar o retirar" : "Volver a enviar"}</Link>
                     <span className="text-[var(--mf-muted)]"> hasta el {formatArDay(e.call.closesAt)}</span>

@@ -152,13 +152,12 @@ export function VisorCuraduria({ obras: iniciales, soloLectura }: { obras: Curat
               <p className="text-[13px] text-[var(--mf-muted)]">{[actual.year, actual.technique].filter(Boolean).join(". ")}</p>
               {actual.statement ? <p className="text-[15px] leading-snug">{actual.statement}</p> : null}
             </div>
-            <div role="radiogroup" aria-label={`Puntaje de ${SCORE_MIN} a ${SCORE_MAX}`} className="flex gap-2">
+            <div role="group" aria-label={`Puntaje de ${SCORE_MIN} a ${SCORE_MAX}`} className="flex gap-2">
               {PUNTAJES.map((n) => (
                 <button
                   key={n}
                   type="button"
-                  role="radio"
-                  aria-checked={actual.myScore === n}
+                  aria-pressed={actual.myScore === n}
                   aria-keyshortcuts={String(n)}
                   disabled={soloLectura}
                   className={`size-11 rounded-[2px] border text-lg tabular-nums disabled:opacity-60 ${actual.myScore === n ? "border-[var(--mf-ink)] bg-[var(--mf-ink)] text-[var(--mf-bg)]" : "border-[var(--mf-line)]"}`}

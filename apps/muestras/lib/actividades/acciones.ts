@@ -12,7 +12,9 @@ import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData, type FichaForm } from "./mapear";
 
 /** `avisos`: cosas que no frenaron el guardado pero conviene contarle a la persona. */
-export type ResultadoAccion = { ok: true; id: string; avisos?: string[] } | { ok: false; errores: string[] };
+export type ResultadoAccion =
+  | { ok: true; id: string; avisos?: string[]; /** Enlace para mandar a mano cuando el correo no salió. */ enlace?: string }
+  | { ok: false; errores: string[] };
 
 const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no existe."] };
@@ -38,7 +40,7 @@ function refrescar(slug?: string) {
  */
 async function obrasParaGuardar(
   works: FichaForm["works"],
-  previas: ReadonlyMap<string, string | null>,
+  previas: ReadonlyMap<string, { authorProfileId: string | null; authorUserId: number | null }>,
   duenoId: number,
   contexto: { status: string; isSuperAdmin: boolean } = { status: "DRAFT", isSuperAdmin: false },
 ) {
@@ -61,7 +63,7 @@ async function obrasParaGuardar(
     );
     const permitido = allowedAuthorProfileId({
       status: contexto.status,
-      previous: conserva ? previas.get(w.id!) ?? null : null,
+      previous: conserva ? previas.get(w.id!)?.authorProfileId ?? null : null,
       requested: pedido,
       ownerProfileId: perfilPropio?.id ?? null,
       isSuperAdmin: contexto.isSuperAdmin,
@@ -72,6 +74,9 @@ async function obrasParaGuardar(
       imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
       technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
       authorProfileId: permitido.id,
+      // La cuenta del autor (p. ej. de una obra que llegó por convocatoria) no se edita en el
+      // formulario: se conserva, porque reescribir la galería no puede borrarla.
+      authorUserId: conserva ? previas.get(w.id!)?.authorUserId ?? null : null,
     };
   });
   return { obras, avisos: bloqueado ? [AVISO_PERFIL_EN_PUBLICADA] : [] };
@@ -104,7 +109,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     return { ok: true, id: creada.id };
   }
 
-  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id }, include: { works: { select: { id: true, authorProfileId: true } } } });
+  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id }, include: { works: { select: { id: true, authorProfileId: true, authorUserId: true } } } });
   if (!actual) return NO_EXISTE;
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin };
   if (!canEdit({ ...actual, reviewStatus: actual.reviewStatus as ReviewStatus }, actor)) {
@@ -125,7 +130,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
   const { obras, avisos } = await obrasParaGuardar(
     f.works,
-    new Map(actual.works.map((w) => [w.id, w.authorProfileId ?? null])),
+    new Map(actual.works.map((w) => [w.id, { authorProfileId: w.authorProfileId ?? null, authorUserId: w.authorUserId ?? null }])),
     actual.proposedByUserId,
     { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
   );

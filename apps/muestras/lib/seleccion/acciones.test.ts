@@ -4,7 +4,7 @@ const db = vi.hoisted(() => ({
   culturalCall: { findUnique: vi.fn(), updateMany: vi.fn() },
   culturalCallWork: { findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   culturalCallScore: { findMany: vi.fn() },
-  culturalActivityWork: { count: vi.fn(), create: vi.fn() },
+  culturalActivityWork: { count: vi.fn(), create: vi.fn(), findMany: vi.fn() },
   culturalActivity: { update: vi.fn() },
   photographerProfile: { findMany: vi.fn() },
   $queryRaw: vi.fn(),
@@ -70,14 +70,16 @@ describe("decidir", () => {
 describe("armarMuestra", () => {
   const conv = {
     id: "c1", status: "DONE", assembledAt: null,
-    activity: { id: "a1", slug: "ciudad", reviewStatus: "DRAFT", proposedByUserId: 7, workspaceId: null, isCancelled: false, rightsConfirmedAt: null, works: [{ isHighlight: true }] },
+    activity: { id: "a1", slug: "ciudad", reviewStatus: "DRAFT", proposedByUserId: 7, workspaceId: null, isCancelled: false, rightsConfirmedAt: null },
   };
+  const galeria = (n: number, isHighlight: boolean) => Array.from({ length: n }, (_, i) => ({ id: `aw-${i}`, isHighlight }));
   const elegida = (id: string, title: string, userId: number) => ({
     id, anonymousCode: id.toUpperCase(), decision: "SELECTED", imageUrl: `https://pub/muestras/${userId}/${id}.webp`, title, year: 2024, technique: null,
     submission: { authorName: `Autor ${userId}`, userId },
   });
   beforeEach(() => {
     db.culturalCall.findUnique.mockResolvedValue(conv);
+    db.culturalActivityWork.findMany.mockResolvedValue(galeria(1, true));
     db.culturalCallWork.findMany.mockResolvedValue([elegida("w1", "Uno", 30), elegida("w2", "Dos", 31)]);
     db.culturalCallScore.findMany.mockResolvedValue([{ callWorkId: "w1", score: 3 }, { callWorkId: "w2", score: 5 }]);
   });
@@ -98,12 +100,37 @@ describe("armarMuestra", () => {
   });
   it("bloquea la fila de la convocatoria antes de leer nada", async () => {
     await armarMuestra("c1");
+    expect(db.$queryRaw.mock.calls[0][0].join("")).toContain('"CulturalCall"');
     expect(db.$queryRaw.mock.calls[0][0].join("")).toContain("FOR UPDATE");
     expect(db.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(db.culturalCall.findUnique.mock.invocationCallOrder[0]);
   });
-  it("sólo toma obras de esa convocatoria, sin copiar y vigentes", async () => {
+  it("bloquea la fila de la muestra antes de contar sus obras", async () => {
     await armarMuestra("c1");
-    expect(db.culturalCallWork.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { callId: "c1", decision: "SELECTED", activityWorkId: null, submission: { status: "ACTIVE" } } }));
+    const sql = db.$queryRaw.mock.calls[1][0].join("");
+    expect(sql).toContain('"CulturalActivity"');
+    expect(sql).toContain("FOR UPDATE");
+    expect(db.$queryRaw.mock.calls[1][1]).toBe("a1");
+    expect(db.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(db.culturalActivityWork.findMany.mock.invocationCallOrder[0]);
+  });
+  it("sólo toma obras de esa convocatoria y vigentes", async () => {
+    await armarMuestra("c1");
+    expect(db.culturalCallWork.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { callId: "c1", decision: "SELECTED", submission: { status: "ACTIVE" } } }));
+  });
+  it("ya armada y con todo en la galería: no duplica", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, assembledAt: new Date() });
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1", isHighlight: true }, { id: "aw-2", isHighlight: false }]);
+    db.culturalCallWork.findMany.mockResolvedValue([{ ...elegida("w1", "Uno", 30), activityWorkId: "aw-1" }, { ...elegida("w2", "Dos", 31), activityWorkId: "aw-2" }]);
+    expect(await armarMuestra("c1")).toEqual({ ok: false, errores: ["La muestra ya se armó con esta selección."] });
+    expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
+  });
+  it("ya armada pero con una obra copiada que se borró: la vuelve a copiar (y sólo esa)", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, assembledAt: new Date() });
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "aw-1", isHighlight: true }]);
+    db.culturalCallWork.findMany.mockResolvedValue([{ ...elegida("w1", "Uno", 30), activityWorkId: "aw-1" }, { ...elegida("w2", "Dos", 31), activityWorkId: "aw-borrada" }]);
+    expect(await armarMuestra("c1")).toEqual({ ok: true, id: "a1" });
+    expect(db.culturalActivityWork.create.mock.calls.map((c) => c[0].data.title)).toEqual(["Dos"]);
+    expect(db.culturalCallWork.update).toHaveBeenCalledWith({ where: { id: "w2" }, data: { activityWorkId: "aw-Dos" } });
+    expect(db.culturalCall.updateMany).not.toHaveBeenCalled();
   });
   it("una convocatoria ajena no existe", async () => {
     usuarioActual.valor = { ...ana, id: 8 };
@@ -111,12 +138,12 @@ describe("armarMuestra", () => {
     expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
   });
   it("no pasa del tope de 40 contando lo que ya tiene la muestra", async () => {
-    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, works: Array.from({ length: 39 }, () => ({ isHighlight: false })) } });
-    expect(await armarMuestra("c1")).toMatchObject({ ok: false, errores: [expect.stringMatching(/hasta 40 obras/)] });
+    db.culturalActivityWork.findMany.mockResolvedValue(galeria(39, false));
+    expect(await armarMuestra("c1")).toMatchObject({ ok: false, errores: [expect.stringMatching(/hasta 40 obras.*ya tiene 39.*editor/)] });
     expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
   });
   it("sólo completa las destacadas hasta 12", async () => {
-    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, works: Array.from({ length: 11 }, () => ({ isHighlight: true })) } });
+    db.culturalActivityWork.findMany.mockResolvedValue(galeria(11, true));
     await armarMuestra("c1");
     expect(db.culturalActivityWork.create.mock.calls.map((c) => c[0].data.isHighlight)).toEqual([true, false]);
   });
