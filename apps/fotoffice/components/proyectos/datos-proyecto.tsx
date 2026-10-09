@@ -40,6 +40,7 @@ export function DatosProyecto({
   equipo,
   nombres,
   puedeEditar,
+  veContactos,
 }: {
   datos: DatosDelProyecto;
   /** Quiénes pueden ser responsables o delegados. */
@@ -47,6 +48,8 @@ export function DatosProyecto({
   /** Nombre de cada persona que ya figura en el proyecto (aunque ya no esté en `equipo`). */
   nombres: Record<string, string>;
   puedeEditar: boolean;
+  /** "Ver" en Clientes: sin esto el contacto es texto, sin enlace a su ficha. */
+  veContactos: boolean;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -183,9 +186,13 @@ export function DatosProyecto({
       ) : (
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <Dato termino="Contacto">
-            <Link href={`/clientes/${encodeURIComponent(datos.contacto.id)}`} className="text-[var(--fo-accent)] hover:underline">
-              {datos.contacto.nombre}
-            </Link>
+            {veContactos ? (
+              <Link href={`/clientes/${encodeURIComponent(datos.contacto.id)}`} className="text-[var(--fo-accent)] hover:underline">
+                {datos.contacto.nombre}
+              </Link>
+            ) : (
+              datos.contacto.nombre
+            )}
           </Dato>
           <Dato termino="Pedido">
             {datos.pedido ? (

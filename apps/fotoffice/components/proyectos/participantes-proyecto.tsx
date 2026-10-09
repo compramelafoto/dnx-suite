@@ -118,7 +118,7 @@ export function ParticipantesProyecto({
           {participantes.map((p) => (
             <li key={p.id} className="flex items-start justify-between gap-2">
               <span className="min-w-0 flex-1">
-                {p.clientId ? (
+                {p.clientId && puedeElegirContactos ? (
                   <Link href={`/clientes/${encodeURIComponent(p.clientId)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
                     {p.nombre}
                   </Link>

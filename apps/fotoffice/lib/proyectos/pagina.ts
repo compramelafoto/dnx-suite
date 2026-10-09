@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { requireAuth, type AuthUser } from "@/lib/auth";
 import { prisma } from "@repo/db";
@@ -15,7 +16,13 @@ import { asegurarRolesProyectoDnx } from "./semillas";
  * En orden: sesión, workspace activo, módulo `projects` encendido y el nivel pedido ("ver" = Ver;
  * "operar" = Gestionar). Igual que `lib/pedidos/pagina.ts`.
  */
-export async function requireProyectos(nivel: "ver" | "operar" = "ver"): Promise<{
+export const requireProyectos: (nivel?: "ver" | "operar") => Promise<{
+  user: AuthUser;
+  workspace: ActiveWorkspace;
+  ctx: CtxProyectos;
+}> = cache(requireProyectosSinCache);
+
+async function requireProyectosSinCache(nivel: "ver" | "operar" = "ver"): Promise<{
   user: AuthUser;
   workspace: ActiveWorkspace;
   ctx: CtxProyectos;

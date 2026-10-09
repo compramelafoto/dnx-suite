@@ -110,6 +110,13 @@ describe("Mis entregas de la semana (lectura)", () => {
     expect(r!.map((e) => [e.id, e.dias])).toEqual([["vencido", -3], ["semana", 7]]);
   });
 
+  it("con muchos vencidos no se pierden las entregas de la semana", async () => {
+    for (let i = 0; i < 60; i++) proyecto(`viejo${i}`, { finalDueDate: hoyMas(-100 + i) });
+    proyecto("proxima", { finalDueDate: hoyMas(2) });
+    const r = await E.misEntregasDelInicio({ id: 7 }, "ws-1", AHORA);
+    expect(r!.some((e) => e.id === "proxima")).toBe(true);
+  });
+
   it("sin Ver en Proyectos o con el módulo apagado no se muestra (y no se lee nada)", async () => {
     proyecto("a", { finalDueDate: hoyMas(1) });
     G.niveles = { projects: "NONE" };
@@ -194,6 +201,12 @@ describe("reglas de fuente", () => {
     const pos = orden.map((s) => guarda.indexOf(s));
     expect(pos.every((p) => p > -1)).toBe(true);
     expect([...pos].sort((a, b) => a - b)).toEqual(pos);
+  });
+
+  it("la guarda de pantallas va en cache() y el contacto sin Ver en Clientes no es un enlace", () => {
+    expect(leer("lib/proyectos/pagina.ts")).toContain("cache(requireProyectosSinCache)");
+    expect(leer("components/proyectos/datos-proyecto.tsx")).toContain("veContactos ? (");
+    expect(leer("components/proyectos/participantes-proyecto.tsx")).toContain("p.clientId && puedeElegirContactos");
   });
 
   it("al abrir las pantallas DNX siembra sus roles de participante", () => {

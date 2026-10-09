@@ -10,7 +10,8 @@ import { entregasDeLaSemana, type EntregaDeLaSemana } from "./entregas-puro";
 
 export type { EntregaDeLaSemana } from "./entregas-puro";
 
-const TOPE = 100;
+/** Tope de cada grupo (vencidas y próximas). */
+const TOPE = 50;
 
 /**
  * "Mis entregas de la semana" del inicio: los proyectos de quien entra (es su responsable) con
@@ -30,12 +31,17 @@ export async function misEntregasDelInicio(
     const hoy = hoyEnBuenosAires(ahora);
     const limite = new Date(`${hoy}T00:00:00.000Z`);
     limite.setUTCDate(limite.getUTCDate() + 7);
-    const filas = await prisma.fotofficeProyecto.findMany({
-      where: { workspaceId, ownerUserId: user.id, suspendedAt: null, finalDueDate: { not: null, lte: limite } },
-      select: { id: true, number: true, name: true, finalDueDate: true },
-      orderBy: [{ finalDueDate: "asc" }, { id: "asc" }],
-      take: TOPE,
-    });
+    // Próximas (hoy..+7) y vencidas por separado, cada una con su tope: muchos vencidos viejos no
+    // pueden dejar afuera lo que vence esta semana.
+    const base = { workspaceId, ownerUserId: user.id, suspendedAt: null };
+    const select = { id: true, number: true, name: true, finalDueDate: true } as const;
+    const orderBy = [{ finalDueDate: "asc" as const }, { id: "asc" as const }];
+    const inicio = new Date(`${hoy}T00:00:00.000Z`);
+    const [proximas, vencidas] = await Promise.all([
+      prisma.fotofficeProyecto.findMany({ where: { ...base, finalDueDate: { gte: inicio, lte: limite } }, select, orderBy, take: TOPE }),
+      prisma.fotofficeProyecto.findMany({ where: { ...base, finalDueDate: { lt: inicio } }, select, orderBy, take: TOPE }),
+    ]);
+    const filas = [...vencidas, ...proximas];
     if (filas.length === 0) return null;
     // Sigue vivo = tiene un recorrido abierto (uno terminado o cancelado ya no se entrega).
     const abiertos = await prisma.fotofficeJourney.findMany({

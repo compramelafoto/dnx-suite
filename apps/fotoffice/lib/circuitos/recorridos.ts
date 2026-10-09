@@ -44,6 +44,7 @@ export const MENSAJES = {
   archivada: "Esa etapa está archivada.",
   mismaEtapa: "Ya está en esa etapa.",
   cambio: "Esta consulta cambió mientras tanto.",
+  cambioProyecto: "Este proyecto cambió mientras tanto.",
   cerrado: "Ese registro ya está cerrado.",
   salida: "Ese resultado no corresponde a este circuito.",
   motivo: "Elegí un motivo.",
@@ -53,6 +54,11 @@ export const MENSAJES = {
   mismoCircuito: "Ya está en ese circuito.",
   circuitoInvalido: "Ese circuito no existe o no está activo.",
 } as const;
+
+/** "Cambió mientras tanto" con el sustantivo del sujeto: los proyectos no son consultas. */
+function mensajeCambio(subjectType: string): string {
+  return subjectType === "PROYECTO" ? MENSAJES.cambioProyecto : MENSAJES.cambio;
+}
 
 export function mensajeTareasPendientes(pendientes: string[]): string {
   return `Faltan tareas obligatorias: ${pendientes.join(", ")}.`;
@@ -325,7 +331,7 @@ export async function moverEnTransaccion(
     where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
     data: { stageId: etapaDestino.id, enteredStageAt: entrada, stageDueAt: vencimientoDeEtapa(ahora, etapaDestino.days) },
   });
-  if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
+  if (actualizado.count !== 1) throw new Rechazo(mensajeCambio(j.subjectType));
 
   await tx.fotofficeJourneyStep.create({
     data: {
@@ -425,7 +431,7 @@ export async function cerrarEnTransaccion(
     where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
     data: { stageId: null, stageDueAt: null, outcome: salida, lossReasonId: motivoId, closedAt: cierre },
   });
-  if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
+  if (actualizado.count !== 1) throw new Rechazo(mensajeCambio(j.subjectType));
 
   await tx.fotofficeJourneyStep.create({
     data: {
@@ -465,7 +471,7 @@ export async function cambiarVencimiento(
       where: { id: j.id, workspaceId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
       data: { stageDueAt: dueAt },
     });
-    if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
+    if (actualizado.count !== 1) throw new Rechazo(mensajeCambio(j.subjectType));
     const texto = nota.trim();
     await tx.fotofficeJourneyStep.create({
       data: {
@@ -558,7 +564,7 @@ export async function cambiarDeCircuito(
       where: { id: j.id, workspaceId, circuitId: j.circuitId, stageId: j.stageId, enteredStageAt: opts.esperado ?? j.enteredStageAt, closedAt: null },
       data: { circuitId: circuito.id, stageId: primera.id, enteredStageAt: ahora, stageDueAt: vencimientoDeEtapa(ahora, primera.days) },
     });
-    if (actualizado.count !== 1) throw new Rechazo(MENSAJES.cambio);
+    if (actualizado.count !== 1) throw new Rechazo(mensajeCambio(j.subjectType));
     await tx.fotofficeJourneyStep.create({
       data: {
         journeyId: j.id,

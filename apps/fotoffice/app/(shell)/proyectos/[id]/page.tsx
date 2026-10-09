@@ -67,6 +67,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div className="min-w-0 space-y-4 self-start">
           <DatosProyecto
+            veContactos={veContactos}
             key={`${ficha.id}:${ficha.estado}:${ficha.finalDueDate ?? ""}:${ficha.responsable?.id ?? ""}:${ficha.delegado?.id ?? ""}:${ficha.nombre}`}
             datos={{
               id: ficha.id,

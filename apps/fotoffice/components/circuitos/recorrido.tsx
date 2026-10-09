@@ -12,6 +12,7 @@ import { DialogoPerdida } from "./dialogo-perdida";
 
 /** Lo que responde el motor cuando alguien cambió el recorrido entre que se cargó y se guardó. */
 const MENSAJE_CAMBIO = "Esta consulta cambió mientras tanto.";
+const MENSAJE_CAMBIO_PROYECTO = "Este proyecto cambió mientras tanto.";
 const MENSAJE_FALLA = "No se pudo guardar el cambio. Probá de nuevo.";
 const NOTA_MAX = 2000;
 
@@ -83,7 +84,7 @@ export function Recorrido({
           return;
         }
         setAviso({ mensaje: r.error, pendientes: r.pendientes, op });
-        if (r.error === MENSAJE_CAMBIO) router.refresh();
+        if (r.error === MENSAJE_CAMBIO || r.error === MENSAJE_CAMBIO_PROYECTO) router.refresh();
       } catch {
         setAviso({ mensaje: MENSAJE_FALLA });
       }

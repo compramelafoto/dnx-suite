@@ -5,6 +5,7 @@ import { puede } from "@/lib/access/policy";
 import { cargarTablero } from "@/lib/circuitos/tablero";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { requireProyectos, prepararProyectos } from "@/lib/proyectos/pagina";
+import { reenviarALista } from "@/lib/proyectos/lista-url";
 import { circuitoInicialDelTablero } from "@/lib/proyectos/tablero-inicial";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function ProyectosPage({
   const { user, workspace } = await requireProyectos("ver");
   const sp = await searchParams;
   // La lista vive en su propia ruta: `vista` es un parámetro reservado del motor de listados.
-  if (uno(sp.vista) === "lista") redirect("/proyectos/lista");
+  if (uno(sp.vista) === "lista") redirect(reenviarALista(sp));
   await prepararProyectos(workspace.id);
 
   const circuitoParam = uno(sp.circuito);

@@ -16,6 +16,7 @@ import { Tarjeta, type AvisoTarjeta } from "./tarjeta";
 
 /** Lo que responde el motor cuando alguien movió la consulta entre que se cargó y se soltó. */
 export const MENSAJE_CAMBIO = "Esta consulta cambió mientras tanto.";
+const MENSAJE_CAMBIO_PROYECTO = "Este proyecto cambió mientras tanto.";
 const MENSAJE_FALLA = "No se pudo guardar el cambio. Probá de nuevo.";
 
 // ─── Pantalla grande: sólo ahí hay arrastre ──────────────────────────────────
@@ -133,7 +134,7 @@ export function Tablero({
           },
         }));
         // Otra persona (o una regla) la movió: se trae el tablero de nuevo para ver dónde quedó.
-        if (r.error === MENSAJE_CAMBIO) router.refresh();
+        if (r.error === MENSAJE_CAMBIO || r.error === MENSAJE_CAMBIO_PROYECTO) router.refresh();
       } catch {
         setAvisos((a) => ({ ...a, [op.journeyId]: { mensaje: MENSAJE_FALLA, puedePasarIgual: false, op } }));
       } finally {

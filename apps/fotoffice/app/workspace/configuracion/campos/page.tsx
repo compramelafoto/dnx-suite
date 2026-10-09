@@ -63,7 +63,7 @@ export default async function ConfiguracionCamposPage({
       <div className="max-w-xl space-y-6">
         <PageHeader title="Campos" />
         <p className="text-sm text-[var(--fo-muted)]">
-          Los campos personalizados se usan en las fichas de clientes, {vocabulario.plural} o consultas. Encendé alguno de
+          Los campos personalizados se usan en las fichas de clientes, {vocabulario.plural}, consultas o proyectos. Encendé alguno de
           esos módulos para configurarlos.
         </p>
       </div>
