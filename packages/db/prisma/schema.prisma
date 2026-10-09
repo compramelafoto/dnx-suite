@@ -7231,6 +7231,10 @@ model Workspace {
   fotofficeProyectoNotas FotofficeProyectoNota[]
   fotofficeProyectoAdjuntos FotofficeProyectoAdjunto[]
   fotofficeProyectoEtapaPlanes FotofficeProyectoEtapaPlan[]
+  fotofficeCitaTipos FotofficeCitaTipo[]
+  fotofficeCitas FotofficeCita[]
+  fotofficeProductoCitas FotofficeProductoCita[]
+  fotofficeAgendaAjustes FotofficeAgendaAjustes?
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -10092,6 +10096,8 @@ model ServiceSalesLead {
   fotofficeConsulta FotofficeConsulta?
   fotofficePresupuestos FotofficePresupuesto[]
   fotofficePedidos FotofficePedido[]
+
+  fotofficeCitas FotofficeCita[]
 
   @@index([workspaceId])
   @@index([status])
@@ -18598,6 +18604,8 @@ model Client {
   fotofficeCuentasPagar FotofficeCuentaPagar[] @relation("FotofficeCuentaPagarProveedor")
   fotofficeProyectos FotofficeProyecto[]
   fotofficeProyectoParticipaciones FotofficeProyectoParticipante[]
+  fotofficeCitas FotofficeCita[]
+  fotofficeCitaParticipaciones FotofficeCitaParticipante[]
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -20960,6 +20968,7 @@ model FotofficePedido {
   cuentasPagar    FotofficeCuentaPagar[]
   tareas          FotofficePedidoTarea[]
   proyectos       FotofficeProyecto[]
+  citas           FotofficeCita[]
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -21232,6 +21241,7 @@ model FotofficeProyecto {
   notas         FotofficeProyectoNota[]
   adjuntos      FotofficeProyectoAdjunto[]
   planes        FotofficeProyectoEtapaPlan[]
+  citas         FotofficeCita[]
 
   @@unique([workspaceId, number])
   @@unique([pedidoId, pedidoItemIndex, circuitId])
@@ -21283,6 +21293,7 @@ model FotofficeProyectoRol {
 
   workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   participantes FotofficeProyectoParticipante[]
+  participantesCita FotofficeCitaParticipante[]
 
   @@unique([workspaceId, name])
 }
@@ -21811,6 +21822,7 @@ model Product {
   fotofficeCostos     FotofficeCostoPlantilla[]
   fotofficeProyectos  FotofficeProyecto[]
   fotofficeProyectoReglas FotofficeProductoProyecto[]
+  fotofficeCitaReglas FotofficeProductoCita[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, isActive])
@@ -22916,4 +22928,155 @@ model WorkspaceContestShowcase {
   updatedAt        DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+
+// ============================================================================
+// FOTOFFICE — Etapa 4, Entrega B: Agenda (citas). Las columnas de estado y los rangos se validan con CHECK en el SQL
+// (ver la migración `20261026120000_fotoffice_etapa_4_agenda`).
+// ============================================================================
+
+/// Tipo de cita (Reunión con cliente, Evento, Sesión de fotos…), con su color.
+model FotofficeCitaTipo {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  /// "#RRGGBB" (CHECK en el SQL).
+  color       String   @default("#6b7280")
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  citas     FotofficeCita[]
+  reglas    FotofficeProductoCita[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Cita de la agenda. Fechas en instantes UTC; `allDay` = ocupa el día de Argentina.
+/// CHECK en el SQL: estado, `endAt > startAt` y título no vacío.
+model FotofficeCita {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  title            String
+  typeId           String?
+  /// AGENDADA | CONFIRMADA | REALIZADA | ANULADA.
+  status           String    @default("AGENDADA")
+  startAt          DateTime
+  endAt            DateTime
+  allDay           Boolean   @default(false)
+  location         String?
+  notes            String?
+  ownerUserId      Int?
+  clientId         String?
+  proyectoId       String?
+  pedidoId         String?
+  consultaLeadId   String?
+  reglaId          String?
+  pedidoItemIndex  Int?
+  googleEventId    String?
+  googleEtag       String?
+  googleUpdatedAt  DateTime?
+  createdByUserId  Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace     Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type          FotofficeCitaTipo?         @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  client        Client?                    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  proyecto      FotofficeProyecto?         @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  pedido        FotofficePedido?           @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+  consultaLead  ServiceSalesLead?          @relation(fields: [consultaLeadId], references: [id], onDelete: SetNull)
+  regla         FotofficeProductoCita?     @relation(fields: [reglaId], references: [id], onDelete: SetNull)
+  participantes FotofficeCitaParticipante[]
+  recordatorios FotofficeCitaRecordatorio[]
+
+  @@unique([workspaceId, googleEventId])
+  @@unique([pedidoId, pedidoItemIndex, reglaId])
+  @@index([workspaceId, startAt])
+  @@index([workspaceId, ownerUserId, startAt])
+  @@index([typeId])
+  @@index([clientId])
+  @@index([proyectoId])
+  @@index([pedidoId])
+  @@index([consultaLeadId])
+  @@index([reglaId])
+}
+
+/// Participante de una cita: un usuario del equipo o un contacto (exactamente uno; CHECK en el SQL).
+model FotofficeCitaParticipante {
+  id        String   @id @default(cuid())
+  citaId    String
+  userId    Int?
+  clientId  String?
+  roleId    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  cita   FotofficeCita         @relation(fields: [citaId], references: [id], onDelete: Cascade)
+  client Client?               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role   FotofficeProyectoRol? @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  @@index([citaId])
+  @@index([userId])
+  @@index([clientId])
+  @@index([roleId])
+}
+
+/// Regla "Cita que genera" de un producto (Catálogo). CHECK en el SQL: días −365..365, duración 15..1440,
+/// hora `HH:MM` o nula (todo el día).
+model FotofficeProductoCita {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  productId       String
+  typeId          String?
+  /// null = «{producto}».
+  title           String?
+  daysFromEvent   Int      @default(0)
+  /// "HH:MM" en hora de Argentina; null = todo el día.
+  startTime       String?
+  durationMinutes Int      @default(60)
+  /// null = usar el responsable del pedido.
+  ownerUserId     Int?
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      FotofficeCitaTipo? @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  citas     FotofficeCita[]
+
+  @@index([workspaceId, productId, order])
+  @@index([productId])
+  @@index([typeId])
+}
+
+/// Ajustes de la agenda del workspace: calendario de Google y recordatorio al cliente.
+model FotofficeAgendaAjustes {
+  id                String    @id @default(cuid())
+  workspaceId       String    @unique
+  googleCalendarId  String?
+  googleSyncToken   String?
+  googleLastSyncAt  DateTime?
+  defaultLayers     Json?
+  reminderEnabled   Boolean   @default(false)
+  reminderHours     Int       @default(24)
+  updatedAt         DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Recordatorio ya enviado de una cita: uno por (cita, inicio). Si la cita se mueve, vale otro.
+model FotofficeCitaRecordatorio {
+  id      String   @id @default(cuid())
+  citaId  String
+  startAt DateTime
+  sentAt  DateTime @default(now())
+
+  cita FotofficeCita @relation(fields: [citaId], references: [id], onDelete: Cascade)
+
+  @@unique([citaId, startAt])
 }
