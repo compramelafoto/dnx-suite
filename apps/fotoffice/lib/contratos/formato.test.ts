@@ -68,3 +68,25 @@ describe("regiones", () => {
     expect(t).not.toContain(MARCA);
   });
 });
+
+describe("salto de página seguido de una tabla", () => {
+  const tabla = regionTabla([["Ítem", "Total"], ["Fotos", "$ 100"]]);
+  const texto = `A\n${REGION_SALTO}\nB\n\n${tabla}\nC`;
+
+  it("no se come el texto ni la tabla que vienen después del salto", () => {
+    expect(aBloques(texto)).toEqual([
+      { tipo: "parrafo", segmentos: [{ texto: "A", negrita: false }] },
+      { tipo: "salto" },
+      { tipo: "parrafo", segmentos: [{ texto: "B", negrita: false }] },
+      { tipo: "tabla", filas: [["Ítem", "Total"], ["Fotos", "$ 100"]] },
+      { tipo: "parrafo", segmentos: [{ texto: "C", negrita: false }] },
+    ]);
+  });
+
+  it("el texto plano conserva B y la tabla", () => {
+    const plano = aTextoPlano(texto);
+    expect(plano).toContain("B");
+    expect(plano).toContain("Fotos\t$ 100");
+    expect(plano).not.toContain(MARCA);
+  });
+});

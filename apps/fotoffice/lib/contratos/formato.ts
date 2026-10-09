@@ -41,7 +41,12 @@ export function regionTabla(filas: readonly (readonly string[])[]): string {
   return `${MARCA}tabla${MARCA}${limpias.join("\n")}${MARCA}fin${MARCA}`;
 }
 
-const REGIONES = new RegExp(`${MARCA}(salto|tabla)${MARCA}(?:([\\s\\S]*?)${MARCA}fin${MARCA})?`, "g");
+/**
+ * Dos alternativas separadas: el salto nunca lleva cuerpo. Con un único patrón y el cuerpo opcional, un
+ * salto seguido más adelante de una tabla se comía todo lo del medio hasta el `fin` de la tabla.
+ * Grupo 1: el cuerpo de la tabla (undefined en un salto).
+ */
+const REGIONES = new RegExp(`${MARCA}salto${MARCA}|${MARCA}tabla${MARCA}([\\s\\S]*?)${MARCA}fin${MARCA}`, "g");
 
 /** Negritas de una línea: `**…**`. Nunca devuelve segmentos vacíos. */
 export function segmentarNegrita(texto: string): Segmento[] {
@@ -92,10 +97,10 @@ export function aBloques(texto: string): Bloque[] {
   for (const m of texto.matchAll(REGIONES)) {
     bloques.push(...bloquesDeTexto(sinMarca(texto.slice(desde, m.index))));
     desde = m.index + m[0].length;
-    if (m[1] === "salto") {
+    if (m[1] === undefined) {
       bloques.push({ tipo: "salto" });
-    } else if (m[2] !== undefined) {
-      const filas = m[2].split("\n").map((f) => f.split("\t"));
+    } else {
+      const filas = m[1].split("\n").map((f) => f.split("\t"));
       bloques.push({ tipo: "tabla", filas });
     }
   }
@@ -105,5 +110,5 @@ export function aBloques(texto: string): Bloque[] {
 
 /** El texto sin marcas ni formato, para mostrarlo como texto plano (el salto de página es una línea). */
 export function aTextoPlano(texto: string): string {
-  return sinMarca(texto.replace(REGIONES, (_t, tipo: string, filas?: string) => (tipo === "salto" ? "\n———\n" : `\n${filas ?? ""}\n`)));
+  return sinMarca(texto.replace(REGIONES, (_t, filas?: string) => (filas === undefined ? "\n———\n" : `\n${filas}\n`)));
 }
