@@ -1,10 +1,19 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { INVITATION_TTL_DAYS } from "@repo/muestras";
-import { APP_URL, enviar, enviarEnLote, type Mensaje } from "./enviar";
+import { APP_URL, enviar, enviarEnLote, type Mensaje, type ResultadoDeLote } from "./enviar";
 import {
   textoConvocatoriaCerrada, textoEnvioRecibido, textoInvitacionCurador, textoNoSeleccionada, textoSeleccionada, type Texto,
 } from "./textos-convocatoria";
+
+/**
+ * Si el lote no salió (compuerta cerrada o todos los pedidos rechazados) se devuelve la marca a
+ * `null`, para que un reintento posterior pueda mandarlo. Sólo si la marca sigue siendo la nuestra.
+ */
+async function soltarMarca(callId: string, campo: "closedNoticeSentAt" | "resultsNoticeSentAt", marca: Date, r: ResultadoDeLote) {
+  if (r.total === 0 || r.aceptados > 0) return;
+  await prisma.culturalCall.updateMany({ where: { id: callId, [campo]: marca }, data: { [campo]: null } });
+}
 
 /** Ninguno tira: un correo que no sale no puede deshacer un envío, un cierre ni una selección. */
 
@@ -35,26 +44,41 @@ export async function avisarEnvioRecibido(submissionId: string): Promise<void> {
 /** Se marca `closedNoticeSentAt` antes de mandar: si dos pedidos llegan juntos, sale uno solo. */
 export async function avisarConvocatoriaCerrada(callId: string): Promise<void> {
   try {
-    const { count } = await prisma.culturalCall.updateMany({ where: { id: callId, closedNoticeSentAt: null }, data: { closedNoticeSentAt: new Date() } });
+    const marca = new Date();
+    const { count } = await prisma.culturalCall.updateMany({ where: { id: callId, closedNoticeSentAt: null }, data: { closedNoticeSentAt: marca } });
     if (count === 0) return;
     const call = await prisma.culturalCall.findUnique({
       where: { id: callId },
       select: { title: true, submissions: { where: { status: "ACTIVE" }, select: { userId: true, authorName: true } } },
     });
-    if (!call) return;
+    if (!call) {
+      await soltarMarca(callId, "closedNoticeSentAt", marca, { compuerta: true, total: 1, aceptados: 0 });
+      return;
+    }
     const us = await personas(call.submissions.map((s) => s.userId));
-    await enviarEnLote(call.submissions.flatMap((s) => {
+    const r = await enviarEnLote(call.submissions.flatMap((s) => {
       const u = us.get(s.userId);
       return u ? [aMensaje(u.email, textoConvocatoriaCerrada({ nombre: s.authorName.split(" ")[0] || null, convocatoria: call.title, appUrl: APP_URL }))] : [];
     }));
+    await soltarMarca(callId, "closedNoticeSentAt", marca, r);
   } catch (err) {
     console.error("[muestras] falló el aviso de cierre", err);
   }
 }
 
+/**
+ * Sólo cuando la curaduría terminó, y nunca a quien todavía tiene obras sin decidir: decirle
+ * "no quedó" a alguien cuya obra sigue pendiente sería un error irreparable.
+ */
 export async function avisarResultados(callId: string): Promise<void> {
   try {
-    const { count } = await prisma.culturalCall.updateMany({ where: { id: callId, resultsNoticeSentAt: null }, data: { resultsNoticeSentAt: new Date() } });
+    const cerrada = await prisma.culturalCall.findUnique({ where: { id: callId }, select: { status: true, curationClosedAt: true } });
+    if (!cerrada || (cerrada.status !== "DONE" && !cerrada.curationClosedAt)) {
+      console.info("[muestras] resultados no enviados: la curaduría sigue abierta", callId);
+      return;
+    }
+    const marca = new Date();
+    const { count } = await prisma.culturalCall.updateMany({ where: { id: callId, resultsNoticeSentAt: null }, data: { resultsNoticeSentAt: marca } });
     if (count === 0) return;
     const call = await prisma.culturalCall.findUnique({
       where: { id: callId },
@@ -66,19 +90,27 @@ export async function avisarResultados(callId: string): Promise<void> {
         },
       },
     });
-    if (!call) return;
+    if (!call) {
+      await soltarMarca(callId, "resultsNoticeSentAt", marca, { compuerta: true, total: 1, aceptados: 0 });
+      return;
+    }
     const recibidas = call.submissions.reduce((n, s) => n + s.works.length, 0);
     const elegidas = call.submissions.reduce((n, s) => n + s.works.filter((w) => w.decision === "SELECTED").length, 0);
     const us = await personas(call.submissions.map((s) => s.userId));
-    await enviarEnLote(call.submissions.flatMap((s) => {
+    const r = await enviarEnLote(call.submissions.flatMap((s) => {
       const u = us.get(s.userId);
       if (!u) return [];
+      if (s.works.some((w) => w.decision === "PENDING")) {
+        console.warn("[muestras] resultados: se saltea un envío con obras sin decidir", callId);
+        return [];
+      }
       const nombre = s.authorName.split(" ")[0] || null;
       const titulos = s.works.filter((w) => w.decision === "SELECTED").map((w) => w.title);
       return [aMensaje(u.email, titulos.length
         ? textoSeleccionada({ nombre, convocatoria: call.title, titulos, appUrl: APP_URL })
         : textoNoSeleccionada({ nombre, convocatoria: call.title, recibidas, elegidas, appUrl: APP_URL }))];
     }));
+    await soltarMarca(callId, "resultsNoticeSentAt", marca, r);
   } catch (err) {
     console.error("[muestras] falló el aviso de resultados", err);
   }

@@ -29,29 +29,45 @@ export async function enviar(to: string, subject: string, parrafos: string[], en
   }
 }
 
+export type ResultadoDeLote = {
+  /** false si la compuerta está cerrada: no se intentó mandar nada. */
+  compuerta: boolean;
+  total: number;
+  /** Cuántos aceptó Resend (los lotes rechazados o caídos no suman). */
+  aceptados: number;
+};
+
 /**
  * Muchos correos de una vez (cierre de convocatoria, resultados): de a 100 por pedido, que es el
  * tope del envío en lote de Resend. Uno por uno, 300 participantes pasarían el tiempo máximo de
- * la función. Nunca tira.
+ * la función. Nunca tira; dice cuántos salieron para que quien llama pueda reintentar.
  */
-export async function enviarEnLote(mensajes: readonly Mensaje[]): Promise<void> {
-  if (mensajes.length === 0) return;
+export async function enviarEnLote(mensajes: readonly Mensaje[]): Promise<ResultadoDeLote> {
+  const total = mensajes.length;
+  if (total === 0) return { compuerta: true, total, aceptados: 0 };
   const c = compuertaDeEnvio();
   if (!c.puede) {
-    console.info("[muestras] lote no enviado:", c.motivo, mensajes.length);
-    return;
+    console.info("[muestras] lote no enviado:", c.motivo, total);
+    return { compuerta: false, total, aceptados: 0 };
   }
-  const resend = new Resend(c.apiKey);
-  for (let i = 0; i < mensajes.length; i += 100) {
-    const tanda = mensajes.slice(i, i + 100);
-    try {
-      // El SDK no tira ante un rechazo de Resend: lo devuelve en `error`.
-      const { error } = await resend.batch.send(tanda.map((m) => ({ from: c.from, to: m.to, subject: m.subject, ...armar(m) })));
-      if (error) console.error("[muestras] Resend rechazó un lote", i, error.message);
-    } catch (err) {
-      console.error("[muestras] falló un lote", i, err);
+  let aceptados = 0;
+  try {
+    const resend = new Resend(c.apiKey);
+    for (let i = 0; i < total; i += 100) {
+      const tanda = mensajes.slice(i, i + 100);
+      try {
+        // El SDK no tira ante un rechazo de Resend: lo devuelve en `error`.
+        const { error } = await resend.batch.send(tanda.map((m) => ({ from: c.from, to: m.to, subject: m.subject, ...armar(m) })));
+        if (error) console.error("[muestras] Resend rechazó un lote", i, error.message);
+        else aceptados += tanda.length;
+      } catch (err) {
+        console.error("[muestras] falló un lote", i, err);
+      }
     }
+  } catch (err) {
+    console.error("[muestras] falló el envío en lote", err);
   }
+  return { compuerta: true, total, aceptados };
 }
 
 async function datos(id: string) {
