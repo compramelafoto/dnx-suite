@@ -65,7 +65,10 @@ export const LIMITES = {
   crearBorrador: { limit: 20, windowMs: 60 * 60_000 },
   guardarPerfil: { limit: 30, windowMs: 60 * 60_000 },
   buscarPerfiles: { limit: 60, windowMs: 60_000 },
-  fichas: { limit: 30, windowMs: 10 * 60_000 },
+  // Una muestra llena son 40 obras (MAX_WORKS): bajar la ficha de cada una más el PDF completo en
+  // dos tamaños entra holgado. Contar sólo el PDF completo dejaría sin tope las fichas sueltas,
+  // que también arman un PDF en el servidor.
+  fichas: { limit: 100, windowMs: 10 * 60_000 },
   enviarARevision: { limit: 10, windowMs: 60 * 60_000 },
 } as const;
 

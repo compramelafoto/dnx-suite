@@ -1,12 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { listarFotografos } from "@/lib/perfiles/consultas";
 import { esUrlWeb } from "@/lib/url";
 
 export const revalidate = 300;
-export const metadata = {
-  title: "Fotógrafos que expusieron",
-  description: "Autores con obras en muestras fotográficas de todo el país.",
-};
+
+/** Mientras no haya perfiles publicados, la página vacía no se indexa. */
+export async function generateMetadata(): Promise<Metadata> {
+  const vacia = (await listarFotografos()).length === 0;
+  return {
+    title: "Fotógrafos que expusieron",
+    description: "Autores con obras en muestras fotográficas de todo el país.",
+    ...(vacia ? { robots: { index: false, follow: true } } : {}),
+  };
+}
 
 export default async function Fotografos() {
   const perfiles = await listarFotografos();

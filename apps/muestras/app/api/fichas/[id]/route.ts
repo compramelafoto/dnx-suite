@@ -10,7 +10,9 @@ export const dynamic = "force-dynamic";
 /** PDF de fichas de sala: todas (`?tamano=A6`) o una (`&obra=<id>`). Sólo dueño o super admin. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await getUsuario();
-  if (!usuario) return NextResponse.json({ error: "Tenés que ingresar." }, { status: 401 });
+  // Se llega con un enlace del panel: sin sesión, a ingresar y de vuelta a Montaje. No se usa el
+  // id pedido para nada, así no se revela si la muestra existe.
+  if (!usuario) return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent("/panel/montaje")}`, req.url), 307);
   if (!frenarPorUsuario("fichas", usuario.id).allowed) {
     return NextResponse.json({ error: "Pediste muchas fichas seguidas. Esperá unos minutos." }, { status: 429 });
   }

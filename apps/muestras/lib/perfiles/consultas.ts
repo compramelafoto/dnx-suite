@@ -19,9 +19,12 @@ export function obrasVinculadas(profileId: string) {
 
 const PUBLICADA = { reviewStatus: "APPROVED", type: "MUESTRA" } as const;
 
-/** Perfiles con al menos una obra en una muestra publicada, para "Fotógrafos que expusieron". */
-export function listarFotografos() {
-  return prisma.photographerProfile.findMany({
+/**
+ * Perfiles con al menos una obra en una muestra publicada, para "Fotógrafos que expusieron".
+ * `cache`: los metadatos (para el `noindex` de la lista vacía) y la página la piden juntos.
+ */
+export const listarFotografos = cache(() =>
+  prisma.photographerProfile.findMany({
     where: { works: { some: { activity: PUBLICADA } } },
     select: {
       slug: true, displayName: true, city: true, province: true, avatarUrl: true,
@@ -29,8 +32,8 @@ export function listarFotografos() {
     },
     orderBy: { displayName: "asc" },
     take: 1000,
-  });
-}
+  }),
+);
 
 /**
  * Un perfil con sus muestras publicadas y **todas** las obras de cada una: la regla de qué se ve
