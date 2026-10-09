@@ -40,7 +40,7 @@ const RUTA_PLANTILLAS = "/workspace/configuracion/contratos/plantillas";
 /** Configuración → Contratos: datos de la empresa, cláusula de consentimiento y recordatorios. */
 export async function guardarAjustesContratosAction(datos: unknown): Promise<ResultadoAjustes> {
   if (!esObjeto(datos)) return DATOS_INVALIDOS;
-  const ctx = await contextoDeContratos("ver");
+  const ctx = await contextoDeContratos("configurar");
   if (!ctx) return SIN_PERMISO;
   const r = await guardarAjustesContratos(ctx, datos);
   if (r.ok) revalidatePath(RUTA_AJUSTES);
@@ -52,7 +52,7 @@ export async function subirFirmaEmpresaAction(formData: FormData): Promise<Resul
   const archivo = formData instanceof FormData ? formData.get("archivo") : null;
   if (!(archivo instanceof File)) return DATOS_INVALIDOS;
   if (archivo.size > FIRMA_EMPRESA_MAX_BYTES) return { ok: false, error: MENSAJES_CONTRATO.firmaTamano };
-  const ctx = await contextoDeContratos("ver");
+  const ctx = await contextoDeContratos("configurar");
   if (!ctx) return SIN_PERMISO;
   const r = await guardarFirmaEmpresa(ctx, new Uint8Array(await archivo.arrayBuffer()));
   if (r.ok) revalidatePath(RUTA_AJUSTES);
@@ -60,7 +60,7 @@ export async function subirFirmaEmpresaAction(formData: FormData): Promise<Resul
 }
 
 export async function quitarFirmaEmpresaAction(): Promise<ResultadoAjustes> {
-  const ctx = await contextoDeContratos("ver");
+  const ctx = await contextoDeContratos("configurar");
   if (!ctx) return SIN_PERMISO;
   const r = await quitarFirmaEmpresa(ctx);
   if (r.ok) revalidatePath(RUTA_AJUSTES);
@@ -71,7 +71,7 @@ export async function quitarFirmaEmpresaAction(): Promise<ResultadoAjustes> {
 
 export async function crearPlantillaContratoAction(datos: unknown): Promise<ResultadoPlantilla> {
   if (!esObjeto(datos)) return DATOS_INVALIDOS;
-  const ctx = await contextoDeContratos("ver");
+  const ctx = await contextoDeContratos("configurar");
   if (!ctx) return SIN_PERMISO;
   const r = await crearPlantilla(ctx, datos);
   if (r.ok) revalidatePath(RUTA_PLANTILLAS);
@@ -80,7 +80,7 @@ export async function crearPlantillaContratoAction(datos: unknown): Promise<Resu
 
 export async function editarPlantillaContratoAction(id: string, datos: unknown): Promise<ResultadoSimple> {
   if (!esId(id) || !esObjeto(datos)) return DATOS_INVALIDOS;
-  const ctx = await contextoDeContratos("ver");
+  const ctx = await contextoDeContratos("configurar");
   if (!ctx) return SIN_PERMISO;
   const r = await editarPlantilla(ctx, id, datos);
   if (r.ok) revalidatePath(RUTA_PLANTILLAS);
@@ -89,7 +89,7 @@ export async function editarPlantillaContratoAction(id: string, datos: unknown):
 
 export async function eliminarPlantillaContratoAction(id: string): Promise<ResultadoSimple> {
   if (!esId(id)) return DATOS_INVALIDOS;
-  const ctx = await contextoDeContratos("ver");
+  const ctx = await contextoDeContratos("configurar");
   if (!ctx) return SIN_PERMISO;
   const r = await eliminarPlantilla(ctx, id);
   if (r.ok) revalidatePath(RUTA_PLANTILLAS);
@@ -173,11 +173,11 @@ export async function actualizarDatosContratoAction(contratoId: string, confirma
  * Envía el contrato a firmar. Con el contrato ya enviado, `textoCorregido` crea una versión nueva y revoca
  * la anterior. Los correos salen con `after()`: no frenan la respuesta y una falla del proveedor no deshace nada.
  */
-export async function enviarContratoAction(contratoId: string, textoCorregido?: string): Promise<ResultadoEnviar> {
+export async function enviarContratoAction(contratoId: string, textoCorregido?: string, confirmarVacias?: boolean): Promise<ResultadoEnviar> {
   if (!esId(contratoId) || (textoCorregido !== undefined && typeof textoCorregido !== "string")) return DATOS_INVALIDOS;
   const ctx = await contextoDeContratos("operar");
   if (!ctx) return SIN_PERMISO;
-  const r = await enviar(ctx, contratoId, { textoCorregido });
+  const r = await enviar(ctx, contratoId, { textoCorregido, confirmarVacias: confirmarVacias === true });
   if (r.ok) {
     const { workspaceId } = ctx;
     after(() => enviarCorreosDeVersion(workspaceId, contratoId, r.versionId).then(() => undefined));

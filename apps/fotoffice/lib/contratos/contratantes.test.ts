@@ -12,7 +12,7 @@ const C = await import("./contratantes");
 const { MENSAJES_CONTRATO: M } = await import("./acceso");
 
 type Nivel = "NONE" | "VIEW" | "MANAGE";
-const ctx = (contracts: Nivel, role = "STAFF") => ({ workspaceId: "ws-1", userId: 7, userLabel: "Ana", role, acceso: { role, levels: { contracts } } as never });
+const ctx = (contracts: Nivel, role = "STAFF", clients: Nivel = "VIEW") => ({ workspaceId: "ws-1", userId: 7, userLabel: "Ana", role, acceso: { role, levels: { contracts, clients } } as never });
 const GESTIONA = ctx("MANAGE");
 const SOLO_VER = ctx("VIEW");
 const filas = () => B.datos.fotofficePedidoContratante.map((f) => [f.orden, f.clientId]);
@@ -80,6 +80,12 @@ describe("contratantes del pedido", () => {
   it("escribir exige Gestionar en Contratos", async () => {
     expect(await C.fijarContratante(SOLO_VER, { pedidoId: "p1", orden: 2, clientId: "c2" })).toEqual({ ok: false, error: M.sinPermiso });
     expect(await C.quitarContratante2(SOLO_VER, "p1")).toEqual({ ok: false, error: M.sinPermiso });
+  });
+
+  it("fijar un contratante exige además Ver en Clientes (R10), aunque se conozca el id", async () => {
+    const sinClientes = ctx("MANAGE", "STAFF", "NONE");
+    expect(await C.fijarContratante(sinClientes, { pedidoId: "p1", orden: 2, clientId: "c2" })).toEqual({ ok: false, error: M.buscarClientes });
+    expect(filas()).toEqual([]);
     expect(filas()).toEqual([]);
   });
 

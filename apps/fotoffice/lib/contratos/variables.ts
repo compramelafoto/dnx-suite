@@ -116,7 +116,9 @@ export function textoDeDato(v: string): string {
     .replace(/\*{2,}/g, "*")
     .replace(/\[/g, "(")
     .replace(/\]/g, ")")
-    .replace(/^#+/, "")
+    .trim()
+    // Primero el trim y recién después los `#` iniciales (con los espacios que queden entre ellos): "  ## x" no puede quedar como título.
+    .replace(/^[#\s]+/, "")
     .trim();
 }
 

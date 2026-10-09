@@ -113,6 +113,28 @@ function armarTexto(
   return { ok: true, texto: r.texto, vacias: r.vacias };
 }
 
+/**
+ * Las variables que quedan sin dato si el borrador se armara hoy desde su plantilla (para pedir confirmación
+ * antes de enviarlo). Si no se puede calcular (sin plantilla, pedido que cambió) devuelve [] y no frena nada.
+ */
+export async function variablesVaciasDelBorrador(workspaceId: string, contratoId: string, ahora: Date = new Date()): Promise<string[]> {
+  try {
+    const c = await prisma.fotofficeContrato.findFirst({
+      where: { id: contratoId, workspaceId },
+      select: { pedidoId: true, templateId: true, number: true },
+    });
+    if (!c || !c.templateId) return [];
+    const plantilla = await prisma.fotofficeContratoPlantilla.findFirst({ where: { id: c.templateId, workspaceId }, select: { body: true } });
+    if (!plantilla) return [];
+    const base = await leerBaseDelTexto(workspaceId, c.pedidoId);
+    if (!base || "error" in base) return [];
+    const t = armarTexto(plantilla.body, base, c.number, ahora);
+    return t.ok ? [...new Set(t.vacias)] : [];
+  } catch {
+    return [];
+  }
+}
+
 function nombreDelContrato(plantilla: string, pedido: string): string {
   return `${plantilla} · Pedido ${pedido}`.slice(0, MAX_NOMBRE_CONTRATO);
 }

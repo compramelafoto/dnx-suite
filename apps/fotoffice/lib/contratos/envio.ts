@@ -6,6 +6,7 @@ import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { MENSAJES_CONTRATO as M, puedeGestionarContratos, type CtxContratos } from "./acceso";
 import { leerAjustesContratos } from "./ajustes";
 import { enviarCorreoContrato } from "./correos";
+import { variablesVaciasDelBorrador } from "./contratos";
 import { resolverContratantes } from "./contratantes";
 import { registrarEvento } from "./eventos";
 import { hashDeToken, resolverClaveDeEnlace, tokenDeFirmante, urlDelContrato } from "./enlace";
@@ -15,7 +16,8 @@ import type { DepsEnvio } from "@/lib/plantillas/envio";
 /**
  * Enviar un contrato a firmar, corregirlo (versión nueva) y reenviar el enlace de un firmante.
  *
- * ENVIAR (BORRADOR) o CORREGIR (ENVIADO o FIRMADO_PARCIAL, con el texto corregido): en UNA transacción,
+ * ENVIAR (BORRADOR) o CORREGIR (ENVIADO, FIRMADO_PARCIAL o RECHAZADO, con el texto corregido; al corregir un
+ * RECHAZADO se borra el rechazo del contrato y la versión nueva trae firmantes nuevos, sin rechazo): en UNA transacción,
  * con el candado del contrato, se crea la versión N+1 con el texto final y su huella SHA-256, se crean los
  * firmantes (uno por contratante, con nombre, documento y correo congelados, su token y su vencimiento), se
  * revoca la versión anterior (`revokedAt`: los enlaces de sus firmantes dejan de servir y las firmas que
@@ -31,7 +33,7 @@ import type { DepsEnvio } from "@/lib/plantillas/envio";
 
 export type ResultadoEnviar =
   | { ok: true; versionId: string; version: number; correccion: boolean; firmantes: { id: string; orden: number }[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; vacias?: string[] };
 
 const no = (error: string) => ({ ok: false as const, error });
 
@@ -48,7 +50,7 @@ export type DepsEnviar = { ahora?: () => Date; clave?: string | null; appOrigin?
 export async function enviar(
   ctx: CtxContratos,
   contratoId: unknown,
-  opciones: { textoCorregido?: unknown } = {},
+  opciones: { textoCorregido?: unknown; confirmarVacias?: unknown } = {},
   deps: DepsEnviar = {},
 ): Promise<ResultadoEnviar> {
   if (!puedeGestionarContratos(ctx)) return no(M.sinPermiso);
@@ -62,17 +64,18 @@ export async function enviar(
   });
   if (!c) return no(M.contratoNoExiste);
 
-  let crudo: string;
-  if (c.status === "BORRADOR") {
-    crudo = c.bodyText;
-  } else if (c.status === "ENVIADO" || c.status === "FIRMADO_PARCIAL") {
+  // Corregir (ENVIADO, FIRMADO_PARCIAL o RECHAZADO) trae su propio texto; el del BORRADOR se lee adentro de la
+  // transacción, con el candado, para no congelar un texto viejo si alguien lo editó mientras tanto.
+  const corrige = c.status === "ENVIADO" || c.status === "FIRMADO_PARCIAL" || c.status === "RECHAZADO";
+  if (c.status !== "BORRADOR" && !corrige) return no(M.noSeEnvia);
+  if (corrige) {
     if (typeof opciones.textoCorregido !== "string") return no(M.faltaTextoCorregido);
-    crudo = opciones.textoCorregido;
+    const revision = revisarTextoFinal(opciones.textoCorregido);
+    if (!revision.ok) return no(revision.error);
   } else {
-    return no(M.noSeEnvia);
+    const revision = revisarTextoFinal(c.bodyText);
+    if (!revision.ok) return no(revision.error);
   }
-  const revision = revisarTextoFinal(crudo);
-  if (!revision.ok) return no(revision.error);
 
   const clave = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
   if (!clave) return no(M.sinClaveEnlace);
@@ -82,25 +85,41 @@ export async function enviar(
   const ajustes = await leerAjustesContratos(workspaceId);
   if (!ajustes.companyName || !ajustes.companyName.trim()) return no(M.sinEmpresa);
 
-  const contratantes = await resolverContratantes(workspaceId, c.pedidoId);
-  if (!contratantes || contratantes.length === 0) return no(M.pedido);
-  const sinCorreo = contratantesSinCorreo(contratantes);
-  if (sinCorreo.length) return no(`${M.contratanteSinCorreo} ${sinCorreo.map((x) => x.nombre).join(", ")}.`);
+  const previos = await resolverContratantes(workspaceId, c.pedidoId);
+  if (!previos || previos.length === 0) return no(M.pedido);
+  const sinCorreoPrevio = contratantesSinCorreo(previos);
+  if (sinCorreoPrevio.length) return no(`${M.contratanteSinCorreo} ${sinCorreoPrevio.map((x) => x.nombre).join(", ")}.`);
+
+  // Variables que quedaron sin dato al armar el borrador: se pide confirmar antes de mandarlo a firmar.
+  if (c.status === "BORRADOR" && opciones.confirmarVacias !== true) {
+    const vacias = await variablesVaciasDelBorrador(workspaceId, contratoId);
+    if (vacias.length > 0) {
+      return { ok: false as const, error: `Hay datos que quedaron sin completar: ${vacias.map((v) => `[${v}]`).join(", ")}. Confirmá si querés enviarlo igual.`, vacias };
+    }
+  }
 
   try {
     return await prisma.$transaction(async (tx) => {
       await bloquearContrato(tx, contratoId);
       const actual = await tx.fotofficeContrato.findFirst({
         where: { id: contratoId, workspaceId },
-        select: { id: true, status: true, currentVersionId: true },
+        select: { id: true, status: true, currentVersionId: true, bodyText: true },
       });
       if (!actual) throw new Corte(M.contratoNoExiste);
       if (actual.status !== c.status) throw new Corte(c.status === "BORRADOR" ? M.yaEnviado : M.carrera);
+      // Con el candado tomado: el texto del borrador y los contratantes se leen ACÁ, no antes.
+      const revision = revisarTextoFinal(c.status === "BORRADOR" ? actual.bodyText : (opciones.textoCorregido as string));
+      if (!revision.ok) throw new Corte(revision.error);
+      const contratantes = await resolverContratantes(workspaceId, c.pedidoId, tx);
+      if (!contratantes || contratantes.length === 0) throw new Corte(M.pedido);
+      const sinCorreo = contratantesSinCorreo(contratantes);
+      if (sinCorreo.length) throw new Corte(`${M.contratanteSinCorreo} ${sinCorreo.map((x) => x.nombre).join(", ")}.`);
 
       const versiones = await tx.fotofficeContratoVersion.findMany({ where: { contratoId, workspaceId }, select: { id: true, number: true, bodyText: true } });
       // Corregir con el mismo texto de la versión vigente no cambia nada (y es lo que pasa con un doble clic).
       const vigente = versiones.find((v) => v.id === actual.currentVersionId);
-      if (vigente && vigente.bodyText === revision.texto) throw new Corte(M.sinCambios);
+      // Un contrato RECHAZADO se puede reenviar tal cual (el rechazo pudo ser por otra razón que el texto).
+      if (actual.status !== "RECHAZADO" && vigente && vigente.bodyText === revision.texto) throw new Corte(M.sinCambios);
       const numero = versiones.reduce((m, v) => Math.max(m, v.number), 0) + 1;
       const versionId = randomUUID();
       await tx.fotofficeContratoVersion.create({
@@ -124,7 +143,7 @@ export async function enviar(
       // Toma el contrato sólo si sigue como lo leímos: es lo que decide una carrera.
       const r = await tx.fotofficeContrato.updateMany({
         where: { id: contratoId, workspaceId, status: actual.status, currentVersionId: anterior },
-        data: { status: "ENVIADO", currentVersionId: versionId, bodyText: revision.texto, sentAt: ahora },
+        data: { status: "ENVIADO", currentVersionId: versionId, bodyText: revision.texto, sentAt: ahora, rejectedAt: null },
       });
       if (r.count !== 1) throw new Corte(M.carrera);
       const correccion = anterior !== null;

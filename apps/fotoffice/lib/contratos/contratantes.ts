@@ -1,5 +1,7 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
+import { puedeEnContexto } from "@/lib/access/policy";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { clientDisplayName } from "@/lib/clients/display";
 import { MENSAJES_CONTRATO as M, puedeGestionarContratos, puedeVerContratos, type CtxContratos } from "./acceso";
 import type { ContratanteParaContrato } from "./variables";
@@ -50,10 +52,14 @@ function aContratante(orden: 1 | 2, c: FilaCliente, porOmision: boolean): Contra
 }
 
 /** Los contratantes del pedido (sin permisos: lo usa el servidor ya autorizado). null si el pedido no existe en el workspace. */
-export async function resolverContratantes(workspaceId: string, pedidoId: string): Promise<Contratante[] | null> {
-  const pedido = await prisma.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true, clientId: true } });
+export async function resolverContratantes(
+  workspaceId: string,
+  pedidoId: string,
+  db: Pick<Prisma.TransactionClient, "fotofficePedido" | "fotofficePedidoContratante" | "client"> = prisma,
+): Promise<Contratante[] | null> {
+  const pedido = await db.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true, clientId: true } });
   if (!pedido) return null;
-  const filas = await prisma.fotofficePedidoContratante.findMany({
+  const filas = await db.fotofficePedidoContratante.findMany({
     where: { workspaceId, pedidoId },
     select: { orden: true, clientId: true },
     orderBy: [{ orden: "asc" }],
@@ -62,7 +68,7 @@ export async function resolverContratantes(workspaceId: string, pedidoId: string
   const fila2 = filas.find((f) => f.orden === 2)?.clientId as string | undefined;
   const id1 = fila1 ?? (pedido.clientId as string);
   const ids = [id1, ...(fila2 ? [fila2] : [])];
-  const clientes = await prisma.client.findMany({ where: { workspaceId, id: { in: ids } }, select: SELECT_CLIENTE });
+  const clientes = await db.client.findMany({ where: { workspaceId, id: { in: ids } }, select: SELECT_CLIENTE });
   const por = new Map((clientes as FilaCliente[]).map((c) => [c.id, c]));
   const c1 = por.get(id1);
   if (!c1) return null;
@@ -87,6 +93,8 @@ export type ResultadoContratante = { ok: true } | { ok: false; error: string };
  */
 export async function fijarContratante(ctx: CtxContratos, datos: unknown): Promise<ResultadoContratante> {
   if (!puedeGestionarContratos(ctx)) return { ok: false, error: M.sinPermiso };
+  // R10: el padrón de clientes se elige sólo con "Ver" en Clientes (no alcanza con conocer el id).
+  if (!puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)) return { ok: false, error: M.buscarClientes };
   if (!datos || typeof datos !== "object") return { ok: false, error: M.datosInvalidos };
   const d = datos as Record<string, unknown>;
   if (!idValido(d.pedidoId) || !idValido(d.clientId)) return { ok: false, error: M.datosInvalidos };

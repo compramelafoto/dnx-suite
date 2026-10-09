@@ -192,7 +192,7 @@ export default async function FichaContratoPage({ params }: { params: Promise<{ 
               {borrador ? "Borrador del contrato" : ficha.version ? `Texto de la versión ${ficha.version.numero}` : "Texto del contrato"}
             </h2>
             {borrador ? (
-              <BorradorContrato key={`${ficha.id}:${ficha.eventos.at(-1)?.id ?? ""}`} contratoId={ficha.id} nombre={ficha.nombre} texto={ficha.textoBorrador} puedeEditar={gestiona} />
+              <BorradorContrato key={`${ficha.id}:${ficha.version?.id ?? "borrador"}`} contratoId={ficha.id} nombre={ficha.nombre} texto={ficha.textoBorrador} puedeEditar={gestiona} />
             ) : (
               <>
                 {ficha.version ? (

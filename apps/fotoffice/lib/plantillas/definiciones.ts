@@ -262,7 +262,7 @@ export async function crearPlantilla(ctx: CtxPlantillas, datos: NuevaPlantilla):
   if (!puede(ctx.role, "configurar")) return no(MENSAJES_PLANTILLAS.sinPermiso);
   if (!datos || typeof datos !== "object") return no(MENSAJES_PLANTILLAS.datosInvalidos);
   if (!esCanal(datos.canal)) return no(MENSAJES_PLANTILLAS.canalInvalido);
-  if (!esTipoPlantilla(datos.tipo)) return no(MENSAJES_PLANTILLAS.tipoInvalido);
+  if (!esTipoPlantilla(datos.tipo) || datos.tipo === "CONTRATO") return no(MENSAJES_PLANTILLAS.tipoInvalido);
   const name = limpiarNombre(datos.nombre);
   if (!name) return no(MENSAJES_PLANTILLAS.nombre);
   const texto = await validarTexto(ctx.workspaceId, datos.canal, datos.tipo, datos.asunto, datos.cuerpo);
@@ -306,7 +306,9 @@ export async function editarPlantilla(ctx: CtxPlantillas, id: string, cambios: C
     if (!name) return no(MENSAJES_PLANTILLAS.nombre);
     data.name = name;
   }
-  if (cambios.tipo !== undefined && !esTipoPlantilla(cambios.tipo)) return no(MENSAJES_PLANTILLAS.tipoInvalido);
+  // Las plantillas de contratos tienen su propia pantalla y sus propias acciones: acá no se crean ni se editan.
+  if (cambios.tipo !== undefined && (!esTipoPlantilla(cambios.tipo) || cambios.tipo === "CONTRATO")) return no(MENSAJES_PLANTILLAS.tipoInvalido);
+  if (p.entityType === "CONTRATO") return no(MENSAJES_PLANTILLAS.tipoInvalido);
   const tocaTexto =
     (cambios.tipo !== undefined && cambios.tipo !== p.entityType) || cambios.asunto !== undefined || cambios.cuerpo !== undefined;
   if (tocaTexto) {
@@ -341,7 +343,7 @@ export async function duplicarPlantilla(ctx: CtxPlantillas, id: string): Promise
     return no(mensajeTope(p.channel));
   }
   // Se revalida: un campo personalizado pudo archivarse desde que se guardó el original.
-  if (!esTipoPlantilla(p.entityType)) return no(MENSAJES_PLANTILLAS.datosInvalidos);
+  if (!esTipoPlantilla(p.entityType) || p.entityType === "CONTRATO") return no(MENSAJES_PLANTILLAS.datosInvalidos);
   const texto = await validarTexto(ctx.workspaceId, p.channel, p.entityType, p.subject, p.body);
   if (!texto.ok) return texto;
   const name = `Copia de ${p.name}`.slice(0, MAX_NOMBRE_PLANTILLA).trim();

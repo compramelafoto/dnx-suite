@@ -20,6 +20,22 @@ describe("acciones de contratos (fuente)", () => {
     expect(c).toContain("esId(");
   });
 
+  it.each([
+    "guardarAjustesContratosAction", "subirFirmaEmpresaAction", "quitarFirmaEmpresaAction",
+    "crearPlantillaContratoAction", "editarPlantillaContratoAction", "eliminarPlantillaContratoAction",
+  ])("%s pide `configurar` (lo mismo que la pantalla), sin exigir además Ver en Contratos", (nombre) => {
+    const c = cuerpoDe(nombre);
+    expect(c).toContain('contextoDeContratos("configurar")');
+    expect(c).not.toContain('contextoDeContratos("ver")');
+  });
+
+  it("el editor del borrador no se remonta con cada evento (conserva sus avisos al refrescar)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const pagina = readFileSync(new URL("../../app/(shell)/contratos/[id]/page.tsx", import.meta.url), "utf8");
+    expect(pagina).not.toMatch(/<BorradorContrato[^>]*eventos/);
+    expect(pagina).toContain('key={`${ficha.id}:${ficha.version?.id ?? "borrador"}`}');
+  });
+
   it("los correos salen con after() y nunca antes de confirmar el envío", () => {
     for (const nombre of ["enviarContratoAction", "reenviarEnlaceContratoAction"]) {
       const c = cuerpoDe(nombre);

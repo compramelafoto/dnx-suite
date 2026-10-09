@@ -103,6 +103,24 @@ describe("firma de la empresa", () => {
     expect(B.datos.fotofficeContratoAjustes).toHaveLength(0);
   });
 
+  it("si falla guardar la clave en la base tras subir, se borra el objeto recién subido y se conserva la anterior", async () => {
+    B.agregar("fotofficeContratoAjustes", { id: "aj", workspaceId: "ws-1", companySignatureKey: "contratos/ws-1/empresa/firma-vieja.png" });
+    const real = B.tablas.fotofficeContratoAjustes.upsert;
+    B.tablas.fotofficeContratoAjustes.upsert = async () => {
+      throw new Error("base caída");
+    };
+    try {
+      expect(await A.guardarFirmaEmpresa(DUENO, PNG)).toEqual({ ok: false, error: M.guardar });
+    } finally {
+      B.tablas.fotofficeContratoAjustes.upsert = real;
+    }
+    const subida = R2.subirObjetoContrato.mock.calls[0]![0];
+    expect(R2.borrarObjetoContrato).toHaveBeenCalledTimes(1);
+    expect(R2.borrarObjetoContrato).toHaveBeenCalledWith(subida);
+    expect(R2.borrarObjetoContrato).not.toHaveBeenCalledWith("contratos/ws-1/empresa/firma-vieja.png");
+    expect(B.datos.fotofficeContratoAjustes[0]).toMatchObject({ companySignatureKey: "contratos/ws-1/empresa/firma-vieja.png" });
+  });
+
   it("quitar borra la clave y el objeto; sin firma no hace nada", async () => {
     expect(await A.quitarFirmaEmpresa(DUENO)).toEqual({ ok: true });
     expect(R2.borrarObjetoContrato).not.toHaveBeenCalled();

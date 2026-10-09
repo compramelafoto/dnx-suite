@@ -14,7 +14,7 @@ type Panel = null | "corregir" | "anular" | "papel";
 
 /**
  * Acciones de un contrato ya creado (con "Gestionar"): "Corregir y reenviar" (texto nuevo → versión nueva; los
- * enlaces anteriores dejan de servir), "Anular" (con motivo) y "Marcar firmado en papel" (se sube el escaneo a
+ * enlaces anteriores dejan de servir; también desde Rechazado), "Anular" (con motivo) y "Marcar firmado en papel" (se sube el escaneo a
  * la ficha del contacto y recién después se marca). Cada botón sólo aparece en los estados donde el servidor lo
  * acepta, y el servidor lo vuelve a decidir.
  */
@@ -40,7 +40,7 @@ export function AccionesContrato({
   const [progreso, setProgreso] = useState<number | null>(null);
   const archivo = useRef<HTMLInputElement>(null);
 
-  const puedeCorregir = estado === "ENVIADO" || estado === "FIRMADO_PARCIAL";
+  const puedeCorregir = estado === "ENVIADO" || estado === "FIRMADO_PARCIAL" || estado === "RECHAZADO";
   const puedeAnular = estado === "BORRADOR" || estado === "ENVIADO" || estado === "FIRMADO_PARCIAL" || estado === "RECHAZADO";
   const puedePapel = estado === "BORRADOR" || estado === "ENVIADO" || estado === "FIRMADO_PARCIAL";
   if (!puedeCorregir && !puedeAnular && !puedePapel) return null;

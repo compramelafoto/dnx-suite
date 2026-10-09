@@ -9,17 +9,18 @@ import { CONTRACTS_MODULE_KEY, type CtxContratos } from "./acceso";
 
 /**
  * Guarda de las acciones y pantallas de Contratos, en este orden: sesión, workspace activo, módulo
- * `contracts` encendido y el nivel pedido ("ver" = Ver; "operar" = Gestionar). Igual que
+ * `contracts` encendido y el nivel pedido ("ver" = Ver; "operar" = Gestionar; "configurar" = dueño o
+ * administrador, sin pedir además Ver en Contratos: es lo mismo que mira la pantalla de Configuración). Igual que
  * `lib/agenda/contexto.ts`: null ante cualquier falta, sin decir el motivo.
  */
-export async function contextoDeContratos(nivel: "ver" | "operar"): Promise<CtxContratos | null> {
+export async function contextoDeContratos(nivel: "ver" | "operar" | "configurar"): Promise<CtxContratos | null> {
   const user = await getAuthUser();
   if (!user) return null;
   const workspace = await resolveActiveWorkspace(user.id);
   if (!workspace) return null;
   if (!(await isModuleEnabledForWorkspace(workspace.id, CONTRACTS_MODULE_KEY))) return null;
   const acceso = await resolverAcceso(user.id, workspace.id);
-  if (!puede(acceso, nivel, CONTRACTS_MODULE_KEY)) return null;
+  if (nivel === "configurar" ? !puede(acceso, "configurar") : !puede(acceso, nivel, CONTRACTS_MODULE_KEY)) return null;
   return { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso };
 }
 

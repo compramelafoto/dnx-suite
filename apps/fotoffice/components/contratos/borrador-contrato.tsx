@@ -35,6 +35,16 @@ export function BorradorContrato({
   const [paso, setPaso] = useState<Paso>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [vaciasPorConfirmar, setVaciasPorConfirmar] = useState<string[] | null>(null);
+  // El componente conserva su estado (y sus avisos) a través de `router.refresh()`; cuando el servidor trae un
+  // texto o un nombre distinto (guardar, "Actualizar datos"), se reacomoda a eso sin perder el aviso.
+  const [delServidor, setDelServidor] = useState({ nombre: nombreInicial, texto: textoInicial });
+  if (delServidor.nombre !== nombreInicial || delServidor.texto !== textoInicial) {
+    setDelServidor({ nombre: nombreInicial, texto: textoInicial });
+    setNombre(nombreInicial);
+    setTexto(textoInicial);
+    setGuardado({ nombre: nombreInicial, texto: textoInicial });
+  }
   const sinGuardar = nombre !== guardado.nombre || texto !== guardado.texto;
 
   function correr<T extends { ok: boolean }>(accion: () => Promise<T>, alTerminar: (r: T & { ok: true }) => void) {
@@ -70,14 +80,22 @@ export function BorradorContrato({
     );
   }
 
-  function enviar() {
-    correr(
-      () => enviarContratoAction(contratoId),
-      () => {
+  function enviar(confirmarVacias = false) {
+    setError(null);
+    setAviso(null);
+    iniciar(async () => {
+      const r = await enviarContratoAction(contratoId, undefined, confirmarVacias).catch(() => ({ ok: false as const, error: ERROR_CONEXION, vacias: undefined }));
+      if (r.ok) {
         setPaso(null);
+        setVaciasPorConfirmar(null);
         router.refresh();
-      },
-    );
+      } else if ("vacias" in r && r.vacias && r.vacias.length > 0) {
+        setVaciasPorConfirmar(r.vacias);
+      } else {
+        setVaciasPorConfirmar(null);
+        setError(r.error);
+      }
+    });
   }
 
   if (!puedeEditar) {
@@ -146,11 +164,27 @@ export function BorradorContrato({
             Cada contratante recibe un correo con su enlace para verificar su identidad y firmar. Una vez enviado, el texto ya no se edita: para cambiarlo hay que corregirlo y volver a enviarlo.
           </p>
           <div className="flex gap-2">
-            <button type="button" className="fo-btn fo-btn-primary text-sm" disabled={pendiente} onClick={enviar}>
+            <button type="button" className="fo-btn fo-btn-primary text-sm" disabled={pendiente} onClick={() => enviar(false)}>
               {pendiente ? "Enviando…" : "Sí, enviar ahora"}
             </button>
             <button type="button" className="fo-btn fo-btn-secondary text-sm" disabled={pendiente} onClick={() => setPaso(null)}>
               Todavía no
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {vaciasPorConfirmar ? (
+        <div role="alert" className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-danger)] p-3 text-sm">
+          <p>
+            Estos datos quedaron sin completar en el contrato: <strong>{vaciasPorConfirmar.map((v) => `[${v}]`).join(", ")}</strong>. Si los completaste a mano en el texto, podés enviarlo igual; si no, volvé y completá los datos del pedido o del contacto.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="fo-btn fo-btn-danger-outline text-sm" disabled={pendiente} onClick={() => enviar(true)}>
+              Enviar igual
+            </button>
+            <button type="button" className="fo-btn fo-btn-secondary text-sm" disabled={pendiente} onClick={() => setVaciasPorConfirmar(null)}>
+              Volver al borrador
             </button>
           </div>
         </div>

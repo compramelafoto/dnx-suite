@@ -169,12 +169,95 @@ describe("enviar", () => {
     expect(firmantes()).toHaveLength(0);
   });
 
-  it("anulado, firmado o rechazado no se envían", async () => {
-    for (const estado of ["ANULADO", "FIRMADO", "RECHAZADO"]) {
+  it("anulado o firmado no se envían", async () => {
+    for (const estado of ["ANULADO", "FIRMADO"]) {
       contrato().status = estado;
       expect(await E.enviar(GESTIONA, "k1", {}, deps)).toEqual({ ok: false, error: M.noSeEnvia });
     }
     expect(versiones()).toHaveLength(0);
+  });
+});
+
+describe("lectura dentro del candado", () => {
+  it("si el borrador se edita mientras se espera el candado, se congela el texto nuevo (no el viejo)", async () => {
+    const EDITADO = "# Contrato C-1\n\nTexto editado a último momento.";
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (!texto.includes("pg_advisory_xact_lock")) return;
+      B.ganchos.alEjecutarSql = null;
+      Object.assign(contrato(), { bodyText: EDITADO });
+    };
+    const r = await E.enviar(GESTIONA, "k1", {}, deps);
+    expect(r.ok).toBe(true);
+    expect(versiones()[0]).toMatchObject({ bodyText: EDITADO, contentHash: huellaTexto(EDITADO) });
+    expect(contrato().bodyText).toBe(EDITADO);
+  });
+
+  it("si lo editado a último momento ya no es válido, no se envía", async () => {
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (!texto.includes("pg_advisory_xact_lock")) return;
+      B.ganchos.alEjecutarSql = null;
+      Object.assign(contrato(), { bodyText: "Falta [algo]" });
+    };
+    expect((await E.enviar(GESTIONA, "k1", {}, deps)).ok).toBe(false);
+    expect(versiones()).toHaveLength(0);
+    expect(contrato().status).toBe("BORRADOR");
+  });
+
+  it("si el contratante pierde su correo mientras se espera el candado, no se envía", async () => {
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (!texto.includes("pg_advisory_xact_lock")) return;
+      B.ganchos.alEjecutarSql = null;
+      Object.assign(B.datos.client[0]!, { email: null });
+    };
+    const r = await E.enviar(GESTIONA, "k1", {}, deps);
+    expect(r.ok).toBe(false);
+    expect(versiones()).toHaveLength(0);
+  });
+});
+
+describe("variables sin completar: pide confirmar", () => {
+  beforeEach(() => {
+    B.agregar("fotofficeContratoPlantilla", { id: "t1", workspaceId: "ws-1", name: "Plantilla", body: "Entre [contratante1_nombre] y [contratante2_nombre].", isActive: true, order: 0 });
+    Object.assign(contrato(), { templateId: "t1" });
+  });
+
+  it("devuelve la lista y no envía; con la confirmación envía", async () => {
+    const r = await E.enviar(GESTIONA, "k1", {}, deps);
+    expect(r).toMatchObject({ ok: false, vacias: ["contratante2_nombre"] });
+    expect(versiones()).toHaveLength(0);
+    expect(contrato().status).toBe("BORRADOR");
+    const ok = await E.enviar(GESTIONA, "k1", { confirmarVacias: true }, deps);
+    expect(ok.ok).toBe(true);
+    expect(versiones()).toHaveLength(1);
+  });
+
+  it("sin variables vacías no pide nada", async () => {
+    B.agregar("fotofficePedidoContratante", { workspaceId: "ws-1", pedidoId: "p1", orden: 2, clientId: "c2" });
+    expect((await E.enviar(GESTIONA, "k1", {}, deps)).ok).toBe(true);
+  });
+});
+
+describe("corregir un contrato rechazado", () => {
+  it("pide el texto; con él crea la versión 2, revoca la 1, vuelve a ENVIADO y limpia el rechazo", async () => {
+    await E.enviar(GESTIONA, "k1", {}, deps);
+    Object.assign(firmantes()[0]!, { rejectedAt: AHORA, rejectReason: "No estoy de acuerdo" });
+    Object.assign(contrato(), { status: "RECHAZADO", rejectedAt: AHORA });
+    expect(await E.enviar(GESTIONA, "k1", {}, deps)).toEqual({ ok: false, error: M.faltaTextoCorregido });
+
+    const r = await E.enviar(GESTIONA, "k1", { textoCorregido: "# Contrato C-1\n\nCon el cambio pedido." }, deps);
+    expect(r).toMatchObject({ ok: true, version: 2, correccion: true });
+    expect(contrato()).toMatchObject({ status: "ENVIADO", rejectedAt: null });
+    expect(versiones().map((v) => [v.number, v.revokedAt])).toEqual([[1, AHORA], [2, null]]);
+    const nuevos = firmantes().filter((f) => f.versionId === (r.ok ? r.versionId : ""));
+    expect(nuevos).toHaveLength(1);
+    expect(nuevos[0]).toMatchObject({ rejectedAt: null, signedAt: null });
+  });
+
+  it("un rechazado se puede reenviar aunque el texto sea el mismo", async () => {
+    await E.enviar(GESTIONA, "k1", {}, deps);
+    Object.assign(contrato(), { status: "RECHAZADO", rejectedAt: AHORA });
+    const r = await E.enviar(GESTIONA, "k1", { textoCorregido: TEXTO }, deps);
+    expect(r).toMatchObject({ ok: true, version: 2 });
   });
 });
 

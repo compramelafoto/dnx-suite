@@ -130,7 +130,13 @@ export async function guardarFirmaEmpresa(ctx: CtxContratos, bytes: Uint8Array):
   } catch {
     return { ok: false, error: M.firmaSinAlmacen };
   }
-  await guardarFila(ctx.workspaceId, { companySignatureKey: clave });
+  try {
+    await guardarFila(ctx.workspaceId, { companySignatureKey: clave });
+  } catch {
+    // No quedó referenciada: se borra lo recién subido (la firma anterior se conserva).
+    await borrarObjetoContrato(clave).catch(() => undefined);
+    return { ok: false, error: M.guardar };
+  }
   if (anterior && anterior !== clave) await borrarObjetoContrato(anterior).catch(() => undefined);
   return { ok: true };
 }

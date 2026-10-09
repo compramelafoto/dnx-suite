@@ -124,6 +124,11 @@ describe("datos de afuera", () => {
     const { textoDeDato } = await import("./variables");
     expect(textoDeDato("Ana\n\n**Gómez**\t[x]")).toBe("Ana *Gómez* (x)");
     expect(textoDeDato("## Título")).toBe("Título");
+    // El trim va antes de sacar los `#`: con espacios antes no puede quedar un título.
+    expect(textoDeDato("  ## Cláusula")).toBe("Cláusula");
+    expect(textoDeDato("\n  # x")).toBe("x");
+    expect(textoDeDato(" # # y ")).toBe("y");
+    expect(textoDeDato("a ** b **")).toBe("a * b *");
     expect(textoDeDato(`a${MARCA}tabla${MARCA}b`)).toBe("atablab");
   });
 });
