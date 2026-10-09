@@ -177,6 +177,9 @@ jobs:
       - name: Pruebas de finanzas en la app
         run: pnpm --filter compramelafoto test:finance-dnx
 
+      - name: Pruebas de los frenos de gasto en Amazon
+        run: pnpm --filter compramelafoto test:aws-costos
+
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
 

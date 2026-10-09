@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAnalysisPipeline } from "@/lib/analysis/analysis-runner";
-import { resolveIncludeOcrFromRequest } from "@/lib/analysis/resolve-include-ocr";
+import { resolveOcrRequestedFromRequest } from "@/lib/analysis/resolve-include-ocr";
 import { resolveMaxRunMs } from "@/lib/analysis/analysis-throughput";
 import {
   CRON_LOCK_IDS,
@@ -65,12 +65,12 @@ async function runAnalysis(req: Request) {
   try {
     const url = new URL(req.url);
     const debug = url.searchParams.get("debug") === "1";
-    const includeOcr = resolveIncludeOcrFromRequest(url);
+    const ocrRequested = resolveOcrRequestedFromRequest(url);
     const albumIdRaw = url.searchParams.get("albumId");
     const albumIdParsed = albumIdRaw ? Number(albumIdRaw) : NaN;
     const albumId = Number.isFinite(albumIdParsed) ? albumIdParsed : undefined;
     const response = await runAnalysisPipeline({
-      includeOcr,
+      ocrRequested,
       debug,
       source: "cron",
       albumId,
@@ -93,7 +93,7 @@ async function runAnalysis(req: Request) {
         images_processed: processed,
         skipped: false,
         idle: locked === 0,
-        include_ocr: includeOcr,
+        ocr_requested: ocrRequested,
       });
     }
 

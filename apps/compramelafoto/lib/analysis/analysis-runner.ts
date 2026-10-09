@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { AlbumCleanupStatus, PhotoExifMetadataStatus } from "@prisma/client";
+import type { AlbumCleanupStatus, EventType, PhotoExifMetadataStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getR2ObjectMetadata, readFromR2 } from "@/lib/r2-client";
 import { extractOcrTokensFromImage } from "@/lib/ocr/extract-ocr-tokens";
@@ -17,11 +17,16 @@ import {
   shouldRunAnotherRound,
 } from "@/lib/analysis/analysis-throughput";
 import sharp from "sharp";
+import { shouldRunOcr } from "@/lib/analysis/should-run-ocr";
 
 const MAX_ATTEMPTS = 3;
 
 type RunOptions = {
-  includeOcr: boolean;
+  /**
+   * Lo que pidió quien dispara la corrida: `true` fuerza la lectura de texto, `false` la
+   * apaga, `null` —lo normal, y lo que usa el cron— deja decidir por tipo de álbum.
+   */
+  ocrRequested: boolean | null;
   debug: boolean;
   source: "cron" | "admin";
   /** Si se indica, solo crea/claim jobs de ese álbum (útil para destrabar galerías grandes). */
@@ -254,6 +259,8 @@ type AnalysisPhotoContext = {
     firstPhotoDate: Date | null;
     expirationExtensionDays: number | null;
     cleanupStatus: AlbumCleanupStatus;
+    /** Decide si vale la pena leer el texto de las fotos. Ver `should-run-ocr`. */
+    type: EventType | null;
   };
 };
 
@@ -264,11 +271,19 @@ async function processJob(
     attempts: number | null;
     photo: AnalysisPhotoContext | null;
   },
-  includeOcr: boolean,
+  ocrRequested: boolean | null,
   debug: boolean
 ) {
   const photo = job.photo;
   const photoId = job.photoId;
+  /*
+    La lectura de texto se decide por álbum, no por corrida. Antes el cron la forzaba
+    para todas las fotos de la plataforma y era la mitad de la factura de Amazon.
+  */
+  const includeOcr = shouldRunOcr({
+    albumType: photo?.album.type ?? null,
+    requested: ocrRequested,
+  });
   const tStart = Date.now();
   const timing: Record<string, number> = {};
   const debugChecks: Array<Record<string, unknown>> = [];
@@ -761,6 +776,7 @@ export async function runAnalysisPipeline(options: RunOptions) {
                 firstPhotoDate: true,
                 expirationExtensionDays: true,
                 cleanupStatus: true,
+                type: true,
               },
             },
           },
@@ -779,7 +795,7 @@ export async function runAnalysisPipeline(options: RunOptions) {
             attempts: job.attempts ?? null,
             photo: job.photo,
           },
-          options.includeOcr,
+          options.ocrRequested,
           options.debug
         )
     );
@@ -802,7 +818,8 @@ export async function runAnalysisPipeline(options: RunOptions) {
       batch_size_config: batchSize,
       concurrency_config: concurrency,
       max_run_ms: maxRunMs,
-      ocr_skipped_in_primary_pipeline: !options.includeOcr,
+      // Ya no es un dato de la corrida sino de cada foto: acá se informa lo pedido.
+      ocr_requested: options.ocrRequested,
     });
   } while (
     shouldRunAnotherRound({

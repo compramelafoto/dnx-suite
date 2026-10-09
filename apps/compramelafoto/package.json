@@ -35,7 +35,8 @@
     "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/preventa-canjeable/pack-savings.test.ts lib/preventa-canjeable/preventa-redeem-url.test.ts lib/preventa-canjeable/preventa-canje-slots.test.ts lib/albums/album-share-image.test.ts",
     "test:video-cleanup": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-cleanup.test.ts",
     "test:pricing-digital": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/pricing/album-digital-base-price.test.ts lib/pricing/album-scoped-products.test.ts lib/clipboard/copy-pending-text.test.ts",
-    "test:video-frames": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-frame-matching.test.ts"
+    "test:video-frames": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-frame-matching.test.ts",
+    "test:aws-costos": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/analysis/should-run-ocr.test.ts lib/album-cleanup/face-rows-safe-to-forget.test.ts lib/faces/orphan-faces.test.ts lib/album-cleanup/resume-cursor.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
