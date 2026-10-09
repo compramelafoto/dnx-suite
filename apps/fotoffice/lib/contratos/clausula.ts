@@ -1,7 +1,7 @@
 /**
  * Cláusula de consentimiento por omisión (Configuración → Contratos). Módulo PURO.
  * Es una firma ELECTRÓNICA (Ley 25.506, art. 5); nunca se la presenta como una firma con certificado.
- * No cita el art. 288 del CCyC: ese exige firma DIGITAL para los instrumentos electrónicos. Se apoya en la
+ * No cita el art. 288 del CCyC: ese exige, para los instrumentos electrónicos, una firma con certificado. Se apoya en la
  * libertad de formas (art. 284), la expresión escrita en cualquier soporte (art. 286) y la forma escrita de los
  * contratos por medios electrónicos (art. 1106). Texto modelo: conviene que lo revise un abogado.
  */

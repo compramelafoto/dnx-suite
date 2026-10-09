@@ -58,6 +58,10 @@ export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlan
   RECIBO_DE_PAGO: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recibo de pago" },
   RECORDATORIO_CUOTA: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recordatorio de vencimiento de una cuota" },
   RECORDATORIO_CITA: { canal: "EMAIL", tipo: "CITA", nombre: "Recordatorio de una cita al cliente" },
+  CONTRATO_ENVIO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Contrato para firmar" },
+  CONTRATO_CODIGO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Código para firmar un contrato" },
+  CONTRATO_RECORDATORIO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Recordatorio de un contrato sin firmar" },
+  CONTRATO_FIRMADO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Contrato firmado" },
 };
 
 export const MENSAJES_PLANTILLAS = {

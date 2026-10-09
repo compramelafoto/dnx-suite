@@ -118,3 +118,12 @@ describe("completarContrato y revisarPlantillaContrato", () => {
     expect(r.texto).toBe("Hola salto chau");
   });
 });
+
+describe("datos de afuera", () => {
+  it("textoDeDato aplana saltos, neutraliza ** # y corchetes, y saca la marca", async () => {
+    const { textoDeDato } = await import("./variables");
+    expect(textoDeDato("Ana\n\n**Gómez**\t[x]")).toBe("Ana *Gómez* (x)");
+    expect(textoDeDato("## Título")).toBe("Título");
+    expect(textoDeDato(`a${MARCA}tabla${MARCA}b`)).toBe("atablab");
+  });
+});

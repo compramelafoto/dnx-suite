@@ -104,9 +104,25 @@ export type ContextoContratoEntrada = {
   hoy: Date;
 };
 
+/**
+ * Un dato que viene de una persona o de un ítem (nombre, domicilio, producto…) entra al contrato como
+ * texto llano: sin marcas privadas, en una sola línea, sin `**` (negrita), sin `#` al principio (título)
+ * y con los corchetes vueltos paréntesis (no pueden pasar por variables ni por textos por completar).
+ * Así nadie puede alterar el formato del contrato escribiendo en su ficha.
+ */
+export function textoDeDato(v: string): string {
+  return sinMarca(v)
+    .replace(/\s+/g, " ")
+    .replace(/\*{2,}/g, "*")
+    .replace(/\[/g, "(")
+    .replace(/\]/g, ")")
+    .replace(/^#+/, "")
+    .trim();
+}
+
 function limpio(v: string | null | undefined): string | null {
   if (v == null) return null;
-  const t = sinMarca(v).trim();
+  const t = textoDeDato(v);
   return t ? t : null;
 }
 
@@ -145,7 +161,7 @@ export function contextoContrato(entrada: ContextoContratoEntrada): (clave: stri
     items.length
       ? regionTabla([
           ["Descripción", "Cantidad", "Precio unitario", "Importe"],
-          ...items.map((i) => [i.nombre, cantidad(i.cantidad), pesosPedido(i.precioUnitario), pesosPedido(i.total)]),
+          ...items.map((i) => [textoDeDato(i.nombre), cantidad(i.cantidad), pesosPedido(i.precioUnitario), pesosPedido(i.total)]),
         ])
       : null,
   );

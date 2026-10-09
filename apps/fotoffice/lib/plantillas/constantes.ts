@@ -39,9 +39,14 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  * - `RECORDATORIO_CITA`: aviso a los contactos con correo que participan de una cita próxima (etapa 4,
  *   Agenda). Lo manda la tarea horaria `lib/agenda/recordatorios.ts` si la organización encendió el
  *   recordatorio en Configuración → Agenda (apagado por omisión).
+ * - `CONTRATO_ENVIO`, `CONTRATO_CODIGO`, `CONTRATO_RECORDATORIO` y `CONTRATO_FIRMADO` (etapa 5, Contratos):
+ *   los correos del circuito de firma a cada firmante (enlace, código de verificación, recordatorio y
+ *   PDF firmado). Son transaccionales: sin el freno de 24 h por dirección, con el tope diario de
+ *   automáticos. Los manda `lib/contratos/correos.ts`; el del código NO guarda el código en el registro.
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
+  "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 

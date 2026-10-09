@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { MENSAJES_CONTRATO } from "@/lib/contratos/acceso";
 import { FIRMA_EMPRESA_MAX_BYTES, guardarAjustesContratos, guardarFirmaEmpresa, quitarFirmaEmpresa, type ResultadoAjustes } from "@/lib/contratos/ajustes";
 import { contextoDeContratos } from "@/lib/contratos/contexto";
+import { actualizarDatos, anular, editarBorrador, generarContrato, marcarFirmadoEnPapel, type ResultadoContrato, type ResultadoGenerar } from "@/lib/contratos/contratos";
+import { enviar, enviarCorreoAlFirmante, enviarCorreosDeVersion, reenviarEnlace, type ResultadoEnviar, type ResultadoReenviar } from "@/lib/contratos/envio";
 import { fijarContratante, quitarContratante2, type ResultadoContratante } from "@/lib/contratos/contratantes";
 import {
   crearPlantilla, editarPlantilla, eliminarPlantilla, type ResultadoPlantilla, type ResultadoSimple,
@@ -124,4 +127,92 @@ export async function buscarContactosContratosAction(
   if (!ctx) return SIN_PERMISO;
   if (!puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)) return { ok: false, error: MENSAJES_CONTRATO.buscarClientes };
   return { ok: true, contactos: await buscarContactos(ctx.workspaceId, texto) };
+}
+
+// --- Contrato: generar, editar, enviar, anular (Gestionar) -------------------------------------------
+
+function refrescar(contratoId?: string): void {
+  revalidatePath("/contratos");
+  if (contratoId) revalidatePath(`/contratos/${contratoId}`);
+}
+
+/** Genera un contrato en borrador desde un pedido y una plantilla. */
+export async function generarContratoAction(pedidoId: string, templateId: string): Promise<ResultadoGenerar> {
+  if (!esId(pedidoId) || !esId(templateId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await generarContrato(ctx, pedidoId, templateId);
+  if (r.ok) {
+    refrescar(r.id);
+    revalidatePath(`/pedidos/${pedidoId}`);
+  }
+  return r;
+}
+
+export async function editarBorradorContratoAction(contratoId: string, datos: unknown): Promise<ResultadoContrato> {
+  if (!esId(contratoId) || !esObjeto(datos)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await editarBorrador(ctx, contratoId, datos);
+  if (r.ok) refrescar(contratoId);
+  return r;
+}
+
+/** "Actualizar datos": vuelve a armar el texto desde la plantilla y pisa lo editado a mano (hay que confirmar). */
+export async function actualizarDatosContratoAction(contratoId: string, confirmar: boolean): Promise<ResultadoGenerar> {
+  if (!esId(contratoId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await actualizarDatos(ctx, contratoId, confirmar);
+  if (r.ok) refrescar(contratoId);
+  return r;
+}
+
+/**
+ * Envía el contrato a firmar. Con el contrato ya enviado, `textoCorregido` crea una versión nueva y revoca
+ * la anterior. Los correos salen con `after()`: no frenan la respuesta y una falla del proveedor no deshace nada.
+ */
+export async function enviarContratoAction(contratoId: string, textoCorregido?: string): Promise<ResultadoEnviar> {
+  if (!esId(contratoId) || (textoCorregido !== undefined && typeof textoCorregido !== "string")) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await enviar(ctx, contratoId, { textoCorregido });
+  if (r.ok) {
+    const { workspaceId } = ctx;
+    after(() => enviarCorreosDeVersion(workspaceId, contratoId, r.versionId).then(() => undefined));
+    refrescar(contratoId);
+  }
+  return r;
+}
+
+export async function reenviarEnlaceContratoAction(firmanteId: string): Promise<ResultadoReenviar> {
+  if (!esId(firmanteId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await reenviarEnlace(ctx, firmanteId);
+  if (r.ok) {
+    const { workspaceId } = ctx;
+    after(() => enviarCorreoAlFirmante(workspaceId, firmanteId).then(() => undefined));
+    refrescar(r.contratoId);
+  }
+  return r;
+}
+
+export async function anularContratoAction(contratoId: string, motivo: string): Promise<ResultadoContrato> {
+  if (!esId(contratoId) || typeof motivo !== "string") return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await anular(ctx, contratoId, motivo);
+  if (r.ok) refrescar(contratoId);
+  return r;
+}
+
+/** Marca el contrato como firmado en papel, con el escaneo subido a la ficha del contacto como respaldo. */
+export async function marcarFirmadoEnPapelAction(contratoId: string, adjuntoId: string): Promise<ResultadoContrato> {
+  if (!esId(contratoId) || !esId(adjuntoId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await marcarFirmadoEnPapel(ctx, contratoId, adjuntoId);
+  if (r.ok) refrescar(contratoId);
+  return r;
 }

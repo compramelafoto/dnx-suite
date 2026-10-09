@@ -36,6 +36,8 @@ export type ContextoVariables = {
   cuota?: { vence: string | null; importe: string | null; linkPago?: string | null };
   /** Sólo en el recordatorio de una cita (etapa 4, Agenda): ya formateados para leer (hora de Buenos Aires). */
   cita?: { titulo: string | null; fecha: string | null; hora: string | null; lugar: string | null };
+  /** Sólo en los correos del contrato (etapa 5): ya formateados. El código nunca se guarda en el registro. */
+  contrato?: { numero: string | null; enlace: string | null; codigo: string | null; firmante: string | null };
   /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
   listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
@@ -43,7 +45,7 @@ export type ContextoVariables = {
 };
 
 export type GrupoVariable =
-  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Socio" | "Campos";
+  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Contrato" | "Socio" | "Campos";
 
 export type DefinicionVariable = {
   clave: string;
@@ -63,6 +65,7 @@ const PRESUPUESTO: readonly TipoPlantilla[] = ["PRESUPUESTO"];
 const SOCIO: readonly TipoPlantilla[] = ["SOCIO"];
 const PEDIDO: readonly TipoPlantilla[] = ["PEDIDO"];
 const CITA: readonly TipoPlantilla[] = ["CITA"];
+const CONTRATO: readonly TipoPlantilla[] = ["CONTRATO"];
 const CON_CAMPOS: readonly TipoPlantilla[] = ["CLIENTE", "SOCIO", "CONSULTA"];
 
 function limpio(v: string | null | undefined): string | null {
@@ -157,6 +160,11 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "cita_fecha", etiqueta: "Fecha de la cita", descripcion: "El día de la cita, en dd/mm/aaaa (hora de Buenos Aires).", grupo: "Cita", tipos: CITA, obtener: (c) => limpio(c.cita?.fecha) },
   { clave: "cita_hora", etiqueta: "Hora de la cita", descripcion: "La hora de inicio, en hh:mm (hora de Buenos Aires). Vacía si la cita es de todo el día.", grupo: "Cita", tipos: CITA, obtener: (c) => limpio(c.cita?.hora) },
   { clave: "cita_lugar", etiqueta: "Lugar de la cita", descripcion: "El lugar de la cita, si se cargó.", grupo: "Cita", tipos: CITA, obtener: (c) => limpio(c.cita?.lugar) },
+  // Contrato (etapa 5)
+  { clave: "contrato_numero", etiqueta: "Número de contrato", descripcion: "El número del contrato.", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.numero) },
+  { clave: "contrato_enlace", etiqueta: "Enlace para firmar", descripcion: "La dirección personal de cada firmante para leer y firmar el contrato.", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.enlace) },
+  { clave: "contrato_codigo", etiqueta: "Código de verificación", descripcion: "El código de 6 dígitos para firmar (sólo en el correo del código).", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.codigo) },
+  { clave: "firmante_nombre", etiqueta: "Nombre del firmante", descripcion: "El nombre de quien tiene que firmar.", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.firmante) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];
