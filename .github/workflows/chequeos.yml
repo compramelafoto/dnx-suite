@@ -31,6 +31,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Los `launch.json` de `.claude/` se versionan para que cualquier sesión levante los
+      # servidores de desarrollo por nombre, y las sesiones los editan seguido. Una vez se
+      # coló ahí una DATABASE_URL de Neon con la contraseña a la vista (sin llegar a
+      # commitearse): si llega a un PR, se frena acá. La base se toma del `.env.local` de
+      # cada app, que `next dev` lee solo y que git ignora.
+      - name: Sin credenciales en la configuración de .claude
+        run: |
+          archivos=$(git ls-files | grep -E '(^|/)\.claude/.*\.json$|(^|/)\.mcp\.json$' || true)
+          [ -z "$archivos" ] && exit 0
+          hallazgos=$(grep -nE 'postgres(ql)?://[^:/@" ]+:[^@" ]+@|npg_[A-Za-z0-9]{8,}' $archivos || true)
+          if [ -n "$hallazgos" ]; then
+            # Se muestra dónde está, nunca la contraseña: el log de Actions también se lee.
+            echo "$hallazgos" | sed -E 's#(://[^:]+:)[^@]+@#\1***@#g; s#npg_[A-Za-z0-9]+#npg_***#g'
+            echo "::error::Hay una cadena de conexión con contraseña en la configuración de .claude. Sacala y usá el .env.local de la app."
+            exit 1
+          fi
+
       # Sin `version`: la toma del campo `packageManager` del package.json raíz.
       # Si se ponen las dos, la acción falla con "Multiple versions of pnpm".
       - uses: pnpm/action-setup@v4
