@@ -90,7 +90,8 @@ export default async function DetalleEvento({ params }: Props) {
         {[
           { href: `/panel/eventos/${id}/control`, texto: "Control de pantalla" },
           { href: `/panel/eventos/${id}/moderacion`, texto: "Moderación" },
-          { href: `/panel/eventos/${id}/plantilla`, texto: "Plantilla" },
+          { href: `/panel/eventos/${id}/portada`, texto: "Portada y nombre" },
+          { href: `/panel/eventos/${id}/plantilla`, texto: "Estilo" },
           { href: `/panel/eventos/${id}/qr`, texto: "QR y materiales" },
           { href: `/panel/eventos/${id}/proveedores`, texto: "Proveedores" },
         ].map((enlace) => (
