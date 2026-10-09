@@ -9,7 +9,7 @@ import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
 
-/** Los faltantes que dejó un "Enviar a revisión" fallido al crear el borrador. Sólo se muestran. */
+/** Los faltantes que dejó un "Enviar a revisión" fallido. Sólo se muestran. */
 function faltantes(raw: string | string[] | undefined): string[] {
   if (typeof raw !== "string" || !raw) return [];
   return raw.split("|").map((m) => m.trim().slice(0, 300)).filter(Boolean).slice(0, 20);

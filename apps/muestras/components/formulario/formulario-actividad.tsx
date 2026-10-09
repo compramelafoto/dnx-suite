@@ -57,9 +57,9 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       if (enviar) {
         const e = await enviarARevision(r.id);
         if (!e.ok) {
-          if (inicial) { setErrores(e.errores); router.refresh(); return; }
-          // Borrador nuevo: hay que ir a su página para que lo próximo edite el mismo y no cree
-          // otro. Los faltantes viajan en la URL porque el cambio de página borra este estado.
+          // Los faltantes viajan en la URL: el guardado cambia la clave del formulario (y, si es un
+          // borrador nuevo, la página), así que este estado se pierde. Un borrador nuevo además
+          // tiene que ir a su página para que lo próximo edite el mismo y no cree otro.
           router.replace(`/panel/muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
           return;
         }
