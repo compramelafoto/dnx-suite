@@ -1,6 +1,7 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
@@ -294,6 +295,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Placa cuadrada y para historias",
       "Texto sugerido para copiar",
       "Plantillas con tus colores y tu logo",
+    ],
+  },
+  {
+    key: BANDEJA_MODULE_KEY,
+    cuadro: "24",
+    nombre: "Bandeja de WhatsApp",
+    resuelve:
+      "Todos los chats de WhatsApp de la institución en una sola bandeja. Ves quién escribió, si lo atiende el bot o una persona del equipo, y respondés desde el panel dentro de la ventana de 24 horas. Cada conversación se vincula a la ficha del cliente.",
+    pantallas: [
+      "Bandeja de chats con no leídos",
+      "Tomar, devolver al bot y resolver",
+      "Respuesta con registro de quién la mandó",
+      "Cliente vinculado a su ficha",
     ],
   },
   {
