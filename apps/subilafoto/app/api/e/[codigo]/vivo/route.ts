@@ -91,11 +91,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
 
       while (vivo && Date.now() - arranque < DURACION_DE_LA_CONEXION_MS) {
         const nuevas = await prisma.subilafotoMedia.findMany({
-          where: { ...condicionDesdeCursor(evento.id, cursor), kind: "PHOTO" },
+          where: {
+            ...condicionDesdeCursor(evento.id, cursor),
+            // Los mensajes van por el mismo canal: también son algo que aparece.
+            kind: { in: ["PHOTO", "MESSAGE"] },
+          },
           orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
           take: 20,
           select: {
             id: true,
+            kind: true,
             caption: true,
             guestName: true,
             publishedAt: true,
@@ -104,6 +109,31 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
         });
 
         for (const foto of nuevas) {
+          // El cursor avanza siempre, también para los mensajes.
+          const anteriorCursor = { publishedAt: foto.publishedAt!, id: foto.id };
+
+          /*
+            Un mensaje no tiene archivo ni variante: viaja con su texto y nada más. Si
+            cayera en la rama de abajo, `varianteParaMirar` devolvería `null` y el
+            mensaje no saldría nunca.
+          */
+          if (foto.kind === "MESSAGE") {
+            cursor = anteriorCursor;
+            if (!foto.caption) continue;
+            mandar(
+              `id: ${codificarCursor(cursor)}\n` +
+                `event: foto\n` +
+                `data: ${JSON.stringify({
+                  tipo: "MENSAJE",
+                  id: foto.id,
+                  texto: foto.caption,
+                  nombre: foto.guestName,
+                })}\n\n`,
+            );
+            ultimoLatido = Date.now();
+            continue;
+          }
+
           const clave = varianteParaMirar(foto.variants, "pantalla");
 
           /*
@@ -161,7 +191,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
         */
         if (Date.now() - ultimaReconciliacion > RECONCILIAR_CADA_MS) {
           const vigentes = await prisma.subilafotoMedia.findMany({
-            where: { ...condicionDesdeCursor(evento.id, null), kind: "PHOTO" },
+            where: {
+              ...condicionDesdeCursor(evento.id, null),
+              kind: { in: ["PHOTO", "MESSAGE"] },
+            },
             orderBy: [{ publishedAt: "desc" }],
             take: 200,
             select: { id: true },

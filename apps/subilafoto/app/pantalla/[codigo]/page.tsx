@@ -8,7 +8,7 @@ import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
 import { urlDelCodigo } from "@/lib/url-invitado";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
-import { Proyeccion, type FotoEnVivo } from "./proyeccion";
+import { Proyeccion, type ItemEnVivo } from "./proyeccion";
 
 export const dynamic = "force-dynamic";
 
@@ -95,10 +95,20 @@ export default async function Pantalla({ params }: Props) {
   }
 
   const ultimas = await prisma.subilafotoMedia.findMany({
-    where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
+    where: {
+      ...condicionDePublicadas(evento.id),
+      // Los mensajes se proyectan entre las fotos, como un globo de chat.
+      kind: { in: ["PHOTO", "MESSAGE"] },
+    },
     orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
     take: 20,
-    select: { id: true, caption: true, guestName: true, variants: SELECT_DE_VARIANTES },
+    select: {
+      id: true,
+      kind: true,
+      caption: true,
+      guestName: true,
+      variants: SELECT_DE_VARIANTES,
+    },
   });
 
   // Se dan vuelta: la pantalla las recorre en el orden en que se publicaron.
@@ -107,10 +117,16 @@ export default async function Pantalla({ params }: Props) {
   // proyecta —un recuadro roto en la pared del salón es peor que una foto de menos.
   const enlaces = await enlacesDeVariantes(enOrden, "pantalla", DURACION.proyeccion);
 
-  const iniciales: FotoEnVivo[] = enOrden.flatMap((f, i) => {
+  const iniciales: ItemEnVivo[] = enOrden.flatMap((f, i): ItemEnVivo[] => {
+    if (f.kind === "MESSAGE") {
+      // Un mensaje no tiene archivo: su contenido es el texto.
+      return f.caption
+        ? [{ tipo: "MENSAJE", id: f.id, texto: f.caption, nombre: f.guestName }]
+        : [];
+    }
     const url = enlaces[i];
     if (!url) return [];
-    return [{ id: f.id, url, pie: f.caption, nombre: f.guestName }];
+    return [{ tipo: "FOTO", id: f.id, url, pie: f.caption, nombre: f.guestName }];
   });
 
   /*

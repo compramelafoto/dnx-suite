@@ -22,12 +22,18 @@ import { idsAQuitar } from "@/lib/vivo";
  *   tampoco sirve: la gente llega durante toda la noche.
  */
 
-export type FotoEnVivo = {
-  id: string;
-  url: string;
-  pie?: string | null;
-  nombre?: string | null;
-};
+/**
+ * Lo que pasa por la pantalla: una foto o un mensaje.
+ *
+ * Son dos cosas distintas y no una foto con texto: el mensaje no tiene archivo, y
+ * tratarlo como una foto sin `url` llevaría a un recuadro roto en la pared del salón.
+ */
+export type ItemEnVivo =
+  | { tipo: "FOTO"; id: string; url: string; pie?: string | null; nombre?: string | null }
+  | { tipo: "MENSAJE"; id: string; texto: string; nombre?: string | null };
+
+/** Nombre viejo, conservado para no romper lo que todavía lo importe. */
+export type FotoEnVivo = Extract<ItemEnVivo, { tipo: "FOTO" }>;
 
 const CADA_FOTO_MS = 7_000;
 /** El QR se deja más tiempo: hay que sacar el teléfono, abrir la cámara y apuntar. */
@@ -58,7 +64,7 @@ export function Proyeccion({
   urlDelEvento,
 }: {
   codigo: string;
-  iniciales: FotoEnVivo[];
+  iniciales: ItemEnVivo[];
   /** El tema ya resuelto, con su textura. Ver `estiloDeTema`. */
   estilo: CSSProperties;
   /** El color de fondo solo, para tapar la foto cuando aparece el QR. */
@@ -67,7 +73,7 @@ export function Proyeccion({
   qrSvg: string;
   urlDelEvento: string;
 }) {
-  const [fotos, setFotos] = useState<FotoEnVivo[]>(iniciales);
+  const [fotos, setFotos] = useState<ItemEnVivo[]>(iniciales);
   // Crece sin tope y el resto se saca con módulo. Así el reloj no necesita
   // saber cuántas fotos hay, y no hay que rearmarlo cada vez que llega una.
   const [vuelta, setVuelta] = useState(0);
@@ -88,17 +94,24 @@ export function Proyeccion({
     const fuente = new EventSource(`/api/e/${codigo}/vivo`);
 
     fuente.addEventListener("foto", (e) => {
-      const foto = JSON.parse((e as MessageEvent).data) as FotoEnVivo;
+      const item = JSON.parse((e as MessageEvent).data) as ItemEnVivo;
 
-      // Se precarga antes de meterla en la rotación: así nunca aparece a medias.
-      const img = new Image();
-      img.src = foto.url;
       const agregar = () =>
         setFotos((previas) =>
-          previas.some((f) => f.id === foto.id)
+          previas.some((f) => f.id === item.id)
             ? previas
-            : [...previas, foto].slice(-MAXIMO_EN_MEMORIA),
+            : [...previas, item].slice(-MAXIMO_EN_MEMORIA),
         );
+
+      // Un mensaje no tiene nada que descargar: entra enseguida.
+      if (item.tipo === "MENSAJE") {
+        agregar();
+        return;
+      }
+
+      // Una foto se precarga antes de entrar en la rotación: así nunca aparece a medias.
+      const img = new Image();
+      img.src = item.url;
       img.onload = agregar;
       // Si la precarga falla, se agrega igual: peor es que no aparezca nunca.
       img.onerror = agregar;
@@ -220,16 +233,25 @@ export function Proyeccion({
         Se pintan todas y se muestra una: cambiar el `src` de una sola etiqueta
         haría parpadear en blanco cada siete segundos en una pantalla grande.
       */}
-      {fotos.map((foto, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={foto.id}
-          src={foto.url}
-          alt=""
-          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700"
-          style={{ opacity: i === indiceVisible ? 1 : 0 }}
-        />
-      ))}
+      {fotos.map((item, i) =>
+        item.tipo === "FOTO" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={item.id}
+            src={item.url}
+            alt=""
+            className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700"
+            style={{ opacity: i === indiceVisible ? 1 : 0 }}
+          />
+        ) : (
+          <GloboDeChat
+            key={item.id}
+            texto={item.texto}
+            nombre={item.nombre}
+            visible={i === indiceVisible}
+          />
+        ),
+      )}
 
       {/* El turno del código: la pantalla entera, no una esquina. */}
       <div
@@ -252,7 +274,7 @@ export function Proyeccion({
         </p>
       </div>
 
-      {actual?.pie || actual?.nombre ? (
+      {actual?.tipo === "FOTO" && (actual.pie || actual.nombre) ? (
         <div
           className="absolute inset-x-0 bottom-0 px-12 py-10 text-center transition-opacity duration-700"
           style={{
@@ -361,5 +383,58 @@ function BotonDeMando({
       <span className="text-2xl leading-none">{children}</span>
       <span className="text-sm font-extrabold">{etiqueta}</span>
     </button>
+  );
+}
+
+/**
+ * Un mensaje proyectado, como un globo de chat.
+ *
+ * El globo no es decoración: sin él, un texto solo sobre el fondo del evento se lee como
+ * un cartel del sistema —un aviso, un error— y no como algo que escribió alguien del
+ * salón. La forma es lo que dice "esto lo mandó una persona".
+ *
+ * La cola abajo a la izquierda y el nombre afuera del globo, como en cualquier chat: es
+ * la convención que todo el mundo ya sabe leer.
+ */
+function GloboDeChat({
+  texto,
+  nombre,
+  visible,
+}: {
+  texto: string;
+  nombre?: string | null;
+  visible: boolean;
+}) {
+  return (
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center px-[8vw] transition-opacity duration-700"
+      style={{ opacity: visible ? 1 : 0 }}
+      aria-hidden={!visible}
+    >
+      <div
+        className="relative max-w-[min(50rem,80vw)] rounded-[2.5rem] px-12 py-10"
+        style={{ background: "rgba(255,255,255,0.95)", color: "#1A1A1A" }}
+      >
+        <p className="text-balance text-center text-[clamp(1.6rem,4.5vw,3.4rem)] font-extrabold leading-[1.2]">
+          {texto}
+        </p>
+
+        {/* La cola del globo, dibujada con un triángulo. */}
+        <span
+          className="absolute -bottom-5 left-16 h-0 w-0"
+          style={{
+            borderLeft: "1.5rem solid transparent",
+            borderRight: "0.5rem solid transparent",
+            borderTop: "1.5rem solid rgba(255,255,255,0.95)",
+          }}
+        />
+      </div>
+
+      {nombre ? (
+        <p className="mt-10 text-[clamp(1rem,2vw,1.6rem)] font-extrabold" style={{ opacity: 0.85 }}>
+          {nombre}
+        </p>
+      ) : null}
+    </div>
   );
 }
