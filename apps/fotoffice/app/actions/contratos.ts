@@ -8,6 +8,7 @@ import { MENSAJES_CONTRATO } from "@/lib/contratos/acceso";
 import { FIRMA_EMPRESA_MAX_BYTES, guardarAjustesContratos, guardarFirmaEmpresa, quitarFirmaEmpresa, type ResultadoAjustes } from "@/lib/contratos/ajustes";
 import { contextoDeContratos } from "@/lib/contratos/contexto";
 import { actualizarDatos, anular, editarBorrador, generarContrato, marcarFirmadoEnPapel, type ResultadoContrato, type ResultadoGenerar } from "@/lib/contratos/contratos";
+import { enlaceDeFirmante, type ResultadoEnlace } from "@/lib/contratos/copiar-enlace";
 import { enviar, enviarCorreoAlFirmante, enviarCorreosDeVersion, reenviarEnlace, type ResultadoEnviar, type ResultadoReenviar } from "@/lib/contratos/envio";
 import { fijarContratante, quitarContratante2, type ResultadoContratante } from "@/lib/contratos/contratantes";
 import {
@@ -215,4 +216,15 @@ export async function marcarFirmadoEnPapelAction(contratoId: string, adjuntoId: 
   const r = await marcarFirmadoEnPapel(ctx, contratoId, adjuntoId);
   if (r.ok) refrescar(contratoId);
   return r;
+}
+
+/**
+ * "Copiar enlace": devuelve la dirección vigente de un firmante para mandarla por otro medio. Sólo con
+ * "Gestionar" (el enlace permite firmar), y sólo para un firmante que todavía no firmó ni rechazó.
+ */
+export async function enlaceDeFirmanteContratoAction(firmanteId: string): Promise<ResultadoEnlace> {
+  if (!esId(firmanteId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeContratos("operar");
+  if (!ctx) return SIN_PERMISO;
+  return enlaceDeFirmante(ctx, firmanteId);
 }

@@ -388,6 +388,18 @@ export function ShellNav({
           },
         ]
       : []),
+    // Contratos (etapa 5): módulo propio (`contracts`, depende de Pedidos), con su nivel.
+    ...(ve(CONTRACTS_MODULE_KEY)
+      ? [
+          {
+            href: "/contratos",
+            label: "Contratos",
+            description: "Los contratos de cada pedido: generarlos, mandarlos a firmar y seguir quién firmó.",
+            icon: FileText,
+            isActive: under("/contratos"),
+          },
+        ]
+      : []),
   ];
 
   // Presencia pública: el sitio y su blog. Es donde aterrizan los portfolios y las redes
