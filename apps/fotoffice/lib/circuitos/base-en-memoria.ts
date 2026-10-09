@@ -50,6 +50,9 @@ const TABLAS = [
   // Agenda (etapa 4, Entrega B).
   "fotofficeCitaTipo", "fotofficeCita", "fotofficeCitaParticipante", "fotofficeProductoCita", "fotofficeAgendaAjustes",
   "fotofficeCitaRecordatorio",
+  // Contratos (etapa 5).
+  "fotofficeContratoPlantilla", "fotofficePedidoContratante", "fotofficeContrato", "fotofficeContratoVersion",
+  "fotofficeContratoFirmante", "fotofficeContratoEvento", "fotofficeContratoAjustes",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -192,6 +195,24 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     reminderHours: 24, updatedAt: new Date(),
   }),
   fotofficeCitaRecordatorio: () => ({ sentAt: new Date() }),
+  fotofficeContratoPlantilla: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePedidoContratante: () => ({ createdAt: new Date() }),
+  fotofficeContrato: () => ({
+    templateId: null, status: "BORRADOR", currentVersionId: null, sentAt: null, signedAt: null, rejectedAt: null,
+    voidedAt: null, voidReason: null, pdfKey: null, pdfHash: null, pdfSentAt: null, manualSignedAt: null,
+    manualAttachmentId: null, ownerUserId: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeContratoVersion: () => ({ revokedAt: null }),
+  fotofficeContratoFirmante: () => ({
+    clientId: null, docNumber: null, viewedAt: null, codeHash: null, codeExpiresAt: null, codeAttempts: 0,
+    codesSentInWindow: 0, codeWindowStart: null, verifiedAt: null, typedName: null, signatureKey: null, signedAt: null,
+    ipHash: null, userAgent: null, rejectedAt: null, rejectReason: null, lastReminderAt: null,
+  }),
+  fotofficeContratoEvento: () => ({ firmanteId: null, actorUserId: null, data: null, createdAt: new Date() }),
+  fotofficeContratoAjustes: () => ({
+    companySignatureKey: null, companyName: null, companyTaxId: null, companyAddress: null, consentClause: null,
+    reminderEnabled: false, reminderDays: 3, updatedAt: new Date(),
+  }),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
   cashMovement: () => ({
@@ -375,6 +396,16 @@ export function crearBaseEnMemoria() {
     ],
     fotofficeAgendaAjustes: [{ columnas: ["workspaceId"] }],
     fotofficeCitaRecordatorio: [{ columnas: ["citaId", "startAt"] }],
+    // Etapa 5: los de la migración de contratos.
+    fotofficeContratoPlantilla: [{ columnas: ["workspaceId", "name"] }],
+    fotofficePedidoContratante: [{ columnas: ["pedidoId", "orden"] }],
+    fotofficeContrato: [
+      { columnas: ["workspaceId", "number"] },
+      { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
+    ],
+    fotofficeContratoVersion: [{ columnas: ["contratoId", "number"] }],
+    fotofficeContratoFirmante: [{ columnas: ["tokenHash"] }],
+    fotofficeContratoAjustes: [{ columnas: ["workspaceId"] }],
     // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
     cashMovement: [
       { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },
