@@ -33,6 +33,13 @@ export function toArDay(date: Date): string {
   return new Date(date.getTime() - OFFSET_MS).toISOString().slice(0, 10);
 }
 
+const FORMATO_DIA = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", timeZone: "America/Argentina/Buenos_Aires" });
+
+/** Fecha corta legible en hora argentina, por ejemplo "5 nov". */
+export function formatArDay(d: Date): string {
+  return FORMATO_DIA.format(d);
+}
+
 export type TemporalStatus = "UPCOMING" | "OPEN" | "CLOSED";
 
 /** Próxima / Abierta / Cerrada. No se guarda: se calcula siempre con la hora actual. */

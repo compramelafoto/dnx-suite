@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayEndAr, dayStartAr, isLastDays, temporalStatus, toArDay } from "./dates";
+import { dayEndAr, dayStartAr, formatArDay, isLastDays, temporalStatus, toArDay } from "./dates";
 
 describe("fechas en hora argentina", () => {
   it("el día empieza a las 00:00 ART (03:00 UTC)", () => {
@@ -38,5 +38,13 @@ describe("estado temporal", () => {
     expect(isLastDays(a, new Date("2026-11-15T15:00:00.000Z"))).toBe(true);
     expect(isLastDays(a, new Date("2026-11-10T15:00:00.000Z"))).toBe(false);
     expect(isLastDays(a, new Date("2026-11-22T15:00:00.000Z"))).toBe(false);
+  });
+});
+
+describe("formatArDay", () => {
+  it("usa la hora argentina, no la UTC", () => {
+    const t = formatArDay(new Date("2026-11-06T01:00:00Z"));
+    expect(t).toContain("5");
+    expect(t.toLowerCase()).toContain("nov");
   });
 });
