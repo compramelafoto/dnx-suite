@@ -18,6 +18,8 @@ import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { asegurarPlantillaSeguimiento, asegurarPlantillasPresupuesto } from "@/lib/presupuestos/plantillas";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { asegurarPlantillaRecibo, asegurarPlantillaRecordatorio, asegurarPlantillasPedido } from "@/lib/pedidos/plantillas";
+import { AGENDA_MODULE_KEY } from "@/lib/agenda/acceso";
+import { asegurarPlantillaRecordatorioCita } from "@/lib/agenda/plantillas";
 import { prisma } from "@repo/db";
 import { AutomaticoForm } from "./automatico-form";
 import type { CamposPorTipo, OpcionTipo } from "./editor-texto";
@@ -61,12 +63,13 @@ export default async function ConfiguracionPlantillasPage({
   // El aviso al equipo (etapa 1) también lo necesitan los workspaces ya sembrados.
   await asegurarAvisoEquipo(workspace.id);
 
-  const [vocabulario, encendidos, conPresupuestos, conPedidos] = await Promise.all([
+  const [vocabulario, encendidos, conPresupuestos, conPedidos, conAgenda] = await Promise.all([
     loadPersonVocabulary(workspace.id),
     // Proyectos tiene campos personalizados, pero todavía no tiene plantillas de mensajes.
     tiposConModuloEncendido(workspace.id).then((ts) => ts.filter((t): t is Exclude<typeof t, "PROYECTO"> => t !== "PROYECTO")),
     isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
     isModuleEnabledForWorkspace(workspace.id, ORDERS_MODULE_KEY),
+    isModuleEnabledForWorkspace(workspace.id, AGENDA_MODULE_KEY),
   ]);
   // Las de envío de presupuestos (etapa 2), con su módulo encendido.
   if (conPresupuestos) {
@@ -79,6 +82,8 @@ export default async function ConfiguracionPlantillasPage({
     await asegurarPlantillaRecordatorio(workspace.id);
     await asegurarPlantillasPedido(workspace.id, branding?.publicSlug ?? "");
   }
+  // El recordatorio de citas (Agenda), con su módulo encendido.
+  if (conAgenda) await asegurarPlantillaRecordatorioCita(workspace.id);
   const etiquetas: Record<TipoPlantilla, string> = {
     GENERAL: "General",
     CLIENTE: "Clientes",
@@ -86,6 +91,7 @@ export default async function ConfiguracionPlantillasPage({
     CONSULTA: "Consultas",
     PRESUPUESTO: "Presupuestos",
     PEDIDO: "Pedidos",
+    CITA: "Citas",
   };
   // GENERAL siempre; Clientes, Socios y Consultas sólo con su módulo encendido; Presupuestos, con el suyo.
   const tipos: OpcionTipo[] = [
@@ -99,19 +105,20 @@ export default async function ConfiguracionPlantillasPage({
   const aviso = await leerAutomatico(workspace.id, "CONSULTA_AVISO_EQUIPO");
   const seguimiento = conPresupuestos ? await leerAutomatico(workspace.id, "PRESUPUESTO_SEGUIMIENTO") : null;
   const recibo = conPedidos ? await leerAutomatico(workspace.id, "RECIBO_DE_PAGO") : null;
+  const recordatorioCita = conAgenda ? await leerAutomatico(workspace.id, "RECORDATORIO_CITA") : null;
   const recordatorio = conPedidos ? await leerAutomatico(workspace.id, "RECORDATORIO_CUOTA") : null;
   // Automáticos se ve con Captación encendida o, sin ella, mientras la respuesta siga encendida:
   // así se puede apagar (con el módulo apagado no sale, pero no debe quedar prendida a escondidas).
   // Con Presupuestos encendido, también: ahí está el seguimiento (Entrega B).
   // Con Pedidos encendido, también: ahí está el recibo de pago (etapa 3).
-  const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos || conPedidos;
+  const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos || conPedidos || conAgenda;
 
   const pestanas = PESTANAS.filter((p) => p.slug !== "automaticos" || conAutomaticos);
   const { canal: pedido } = await searchParams;
   const elegida = pestanas.find((p) => p.slug === pedido) ?? pestanas[0]!;
 
   // Campos personalizados activos de cada tipo encendido, para la lista de variables.
-  const campos: CamposPorTipo = { GENERAL: [], CLIENTE: [], SOCIO: [], CONSULTA: [], PRESUPUESTO: [], PEDIDO: [] };
+  const campos: CamposPorTipo = { GENERAL: [], CLIENTE: [], SOCIO: [], CONSULTA: [], PRESUPUESTO: [], PEDIDO: [], CITA: [] };
   const listas = await Promise.all(encendidos.map((t) => listarCampos(workspace.id, t)));
   encendidos.forEach((t, i) => {
     campos[t] = listas[i]!.map((c) => ({ clave: c.key, nombre: c.name }));
@@ -147,6 +154,7 @@ export default async function ConfiguracionPlantillasPage({
     const defSeguimiento = AUTOMATICOS.PRESUPUESTO_SEGUIMIENTO;
     const defRecibo = AUTOMATICOS.RECIBO_DE_PAGO;
     const defRecordatorio = AUTOMATICOS.RECORDATORIO_CUOTA;
+    const defRecordatorioCita = AUTOMATICOS.RECORDATORIO_CITA;
     contenido = (
       <div className="space-y-6">
         <AutomaticoForm
@@ -217,6 +225,21 @@ export default async function ConfiguracionPlantillasPage({
             campos={campos[defRecordatorio.tipo]}
             soloApagar={false}
             descripcion="Aviso al contacto del pedido de una cuota que todavía tiene saldo, a los días antes del vencimiento elegidos en Configuración → Pedidos (donde también se encienden los recordatorios). Sale una vez por cuota y vencimiento, a las 10 de la mañana; si se mueve el vencimiento, vuelve a avisar. No sale si el pedido está cancelado o la cuota ya está pagada, y cuenta en el tope de correos automáticos."
+          />
+        ) : null}
+        {conAgenda ? (
+          <AutomaticoForm
+            clave="RECORDATORIO_CITA"
+            nombre={defRecordatorioCita.nombre}
+            canal={defRecordatorioCita.canal}
+            tipo={defRecordatorioCita.tipo}
+            encendido={recordatorioCita?.enabled ?? false}
+            actualizado={recordatorioCita?.updatedAt.toISOString() ?? ""}
+            asunto={recordatorioCita?.subject ?? ""}
+            cuerpo={recordatorioCita?.body ?? ""}
+            campos={campos[defRecordatorioCita.tipo]}
+            soloApagar={false}
+            descripcion="Aviso a los contactos con correo que participan de una cita, a las horas antes elegidas en Configuración → Agenda (donde también se enciende el recordatorio, apagado por omisión). Sale una vez por cita y horario; si se mueve la cita, vuelve a avisar. No sale si la cita está anulada o ya se hizo, y cuenta en el tope de correos automáticos."
           />
         ) : null}
       </div>

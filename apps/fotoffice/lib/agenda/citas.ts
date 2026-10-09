@@ -241,8 +241,19 @@ export async function editarCita(ctx: CtxAgenda, citaId: unknown, datos: DatosCi
   const { workspaceId } = ctx;
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoCita> => {
-      const actual = await tx.fotofficeCita.findFirst({ where: { id: citaId, workspaceId }, select: { id: true, typeId: true, startAt: true, endAt: true } });
+      const actual = await tx.fotofficeCita.findFirst({ where: { id: citaId, workspaceId }, select: { id: true, typeId: true, startAt: true, endAt: true, allDay: true, status: true } });
       if (!actual) throw new Corte(MENSAJES_AGENDA.noExiste);
+      // Una cita anulada o realizada no se mueve (ni se estira): primero se la reactiva. Editar otros
+      // datos, o mandar las mismas fechas, sí se puede.
+      if (
+        (actual.status === "ANULADA" || actual.status === "REALIZADA") &&
+        !(c.status === "AGENDADA" || c.status === "CONFIRMADA") &&
+        ((c.startAt && c.startAt.getTime() !== (actual.startAt as Date).getTime()) ||
+          (c.endAt && c.endAt.getTime() !== (actual.endAt as Date).getTime()) ||
+          (c.allDay !== undefined && c.allDay !== actual.allDay))
+      ) {
+        throw new Corte(MENSAJES_AGENDA.citaCerrada);
+      }
       // El fin siempre contra el inicio vigente, aunque sólo se haya mandado uno de los dos.
       const inicio = c.startAt ?? (actual.startAt as Date);
       const fin = c.endAt ?? (actual.endAt as Date);

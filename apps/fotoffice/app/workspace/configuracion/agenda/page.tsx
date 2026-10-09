@@ -4,10 +4,12 @@ import { prisma } from "@repo/db";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { AGENDA_MODULE_KEY } from "@/lib/agenda/acceso";
+import { leerAjustesRecordatorio } from "@/lib/agenda/ajustes";
 import { nombreDelCalendario } from "@/lib/agenda/google/calendario";
 import { estadoDeGoogleAgenda } from "@/lib/agenda/google/estado";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CrearCalendario } from "./crear-calendario";
+import { RecordatorioForm } from "./recordatorio-form";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +50,7 @@ export default async function ConfiguracionAgendaPage() {
   const ajustes = await prisma.fotofficeAgendaAjustes.findUnique({ where: { workspaceId: workspace.id }, select: { googleCalendarId: true, googleLastSyncAt: true } });
   const g = await estadoDeGoogleAgenda(workspace.id, ajustes?.googleCalendarId ?? null, ajustes?.googleLastSyncAt ?? null, new Date());
   const nombre = nombreDelCalendario(workspace.name);
+  const recordatorio = await leerAjustesRecordatorio(workspace.id);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -99,7 +102,7 @@ export default async function ConfiguracionAgendaPage() {
         {!g.calendarioCreado && g.cuenta === "CONECTADA" ? <CrearCalendario nombre={nombre} /> : null}
       </section>
 
-      {/* TAREA 5: acá va la sección «Recordatorio al cliente» (encendido y horas de anticipación). */}
+      <RecordatorioForm activo={recordatorio.activo} horas={recordatorio.horas} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Link

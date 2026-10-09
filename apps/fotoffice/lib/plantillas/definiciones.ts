@@ -57,6 +57,7 @@ export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlan
   PRESUPUESTO_SEGUIMIENTO: { canal: "EMAIL", tipo: "PRESUPUESTO", nombre: "Seguimiento de un presupuesto enviado" },
   RECIBO_DE_PAGO: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recibo de pago" },
   RECORDATORIO_CUOTA: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recordatorio de vencimiento de una cuota" },
+  RECORDATORIO_CITA: { canal: "EMAIL", tipo: "CITA", nombre: "Recordatorio de una cita al cliente" },
 };
 
 export const MENSAJES_PLANTILLAS = {
@@ -100,9 +101,9 @@ const SELECT_PLANTILLA = {
 
 // ─── Validación ──────────────────────────────────────────────────────────────
 
-/** Campos personalizados activos del tipo de ficha (0.5). Las GENERAL, PRESUPUESTO y PEDIDO no usan campos. */
+/** Campos personalizados activos del tipo de ficha (0.5). Las GENERAL, PRESUPUESTO, PEDIDO y CITA no usan campos. */
 async function camposDe(workspaceId: string, tipo: TipoPlantilla): Promise<CampoParaVariables[]> {
-  if (tipo === "GENERAL" || tipo === "PRESUPUESTO" || tipo === "PEDIDO") return [];
+  if (tipo === "GENERAL" || tipo === "PRESUPUESTO" || tipo === "PEDIDO" || tipo === "CITA") return [];
   const campos = await listarCampos(workspaceId, tipo);
   return campos.map((c) => ({ clave: c.key, nombre: c.name }));
 }

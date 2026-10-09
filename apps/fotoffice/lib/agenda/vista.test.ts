@@ -181,6 +181,33 @@ describe("cargarVistaAgenda", () => {
     expect(conCaja.capas).toContain("CUOTAS");
   });
 
+  it("cumpleaños: si se llega al tope de perfiles leídos, la capa se marca como truncada", async () => {
+    const perfil = (i: number) => ({ id: `pf${i}`, clientId: `cl${i}`, birthday: new Date("1990-01-01T00:00:00.000Z"), client: { firstName: "N", lastName: String(i), businessName: null } });
+    P.fotofficeContactoPerfil.findMany.mockResolvedValue(Array.from({ length: 5000 }, (_, i) => perfil(i)));
+    const lleno = await cargarVistaAgenda(DUENO, { rango: RANGO, habilitados: TODOS });
+    expect(lleno.truncadas).toContain("CUMPLEANOS");
+    P.fotofficeContactoPerfil.findMany.mockResolvedValue(Array.from({ length: 4999 }, (_, i) => perfil(i)));
+    expect((await cargarVistaAgenda(DUENO, { rango: RANGO, habilitados: TODOS })).truncadas).not.toContain("CUMPLEANOS");
+  });
+
+  it("cuotas: las pagas no cuentan para el tope, así que muchas pagas no tapan a la impaga", async () => {
+    const pedido = { number: "PED-1", status: "CONFIRMADO", totalArs: "60100", client: { firstName: "Laura", lastName: "Pérez", businessName: null } };
+    const pagas = Array.from({ length: 600 }, (_, i) => ({ id: `p${i}`, pedidoId: "ped1", dueDate: new Date("2026-10-25T00:00:00.000Z"), pedido }));
+    const impaga = { id: "impaga", pedidoId: "ped1", dueDate: new Date("2026-10-26T00:00:00.000Z"), pedido };
+    P.fotofficePedidoCuota.findMany.mockImplementation(async (args: unknown) => {
+      if ((args as { select: Record<string, unknown> }).select.pedido) return [...pagas, impaga];
+      return [
+        ...pagas.map((c, i) => ({ id: c.id, pedidoId: "ped1", position: i + 1, dueDate: c.dueDate, amountArs: "100", suggestedMethod: null })),
+        { id: "impaga", pedidoId: "ped1", position: 601, dueDate: impaga.dueDate, amountArs: "100", suggestedMethod: null },
+      ];
+    });
+    P.fotofficeCobroImputacion.findMany.mockResolvedValue(pagas.map((c, i) => ({ cobroId: `co${i}`, cuotaId: c.id, amountArs: "100" })));
+    P.fotofficeCobro.findMany.mockResolvedValue(pagas.map((_, i) => ({ id: `co${i}`, voidedAt: null })));
+    const v = await cargarVistaAgenda(DUENO, { rango: RANGO, habilitados: TODOS });
+    expect(v.eventos.filter((e) => e.capa === "CUOTAS")).toHaveLength(1);
+    expect(v.truncadas).not.toContain("CUOTAS");
+  });
+
   it("sin Gestionar en Agenda las citas llegan de sólo lectura", async () => {
     const v = await cargarVistaAgenda(ctx("STAFF", { ...NIVELES_TODOS, agenda: "VIEW" }), { rango: RANGO, habilitados: TODOS });
     expect(v.eventos.filter((e) => e.capa === "CITAS").every((e) => !e.editable)).toBe(true);
@@ -196,7 +223,8 @@ describe("cargarVistaAgenda", () => {
     for (const fn of [P.fotofficeCita.findMany, P.fotofficeProyecto.findMany, P.fotofficeTask.findMany, P.fotofficePedidoCuota.findMany, P.booking.findMany]) {
       const args = fn.mock.calls[0]![0] as { where: Record<string, unknown>; take?: number };
       expect(args.where.workspaceId).toBe("ws-1");
-      expect(args.take).toBe(501);
+      // Las cuotas leen más: el tope se aplica después de sacar las pagas.
+      expect(args.take).toBe(fn === P.fotofficePedidoCuota.findMany ? 2001 : 501);
     }
     expect((P.fotofficeCita.findMany.mock.calls[0]![0] as { where: Record<string, unknown> }).where).toMatchObject({ ownerUserId: 7, startAt: { lt: RANGO.hasta }, endAt: { gt: RANGO.desde } });
   });

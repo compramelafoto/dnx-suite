@@ -54,5 +54,6 @@ export const MENSAJES_AGENDA = {
   tipoRepetido: "Ya hay un tipo con ese nombre.",
   tipoColor: "El color tiene que ser un código como #2563eb.",
   tipoNoExiste: "No encontramos ese tipo de cita.",
+  citaCerrada: "No se puede mover una cita anulada o realizada. Reactivala primero.",
   moduloApagado: "El módulo Agenda está apagado.",
 } as const;

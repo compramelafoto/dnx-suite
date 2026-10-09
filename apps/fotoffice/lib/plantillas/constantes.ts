@@ -8,8 +8,10 @@ export type Canal = (typeof CANALES)[number];
  * con las variables de la consulta más las del presupuesto (`[presupuesto_enlace]`, etc.).
  * PEDIDO (etapa 3) tampoco es una ficha: es el envío del enlace de un pedido o de un recibo, que
  * sale al contacto del pedido con las variables comunes más las del pedido (`[pedido_enlace]`, etc.).
+ * CITA (etapa 4, Agenda) tampoco es una ficha: es el recordatorio automático de una cita al contacto
+ * que participa, con las variables comunes más las de la cita (`[cita_titulo]`, `[cita_fecha]`, etc.).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -30,9 +32,12 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  * - `RECORDATORIO_CUOTA`: aviso al contacto del pedido de una cuota con saldo que vence pronto
  *   (etapa 3, Entrega B1). Lo manda la tarea diaria `lib/pedidos/recordatorios.ts` si la
  *   organización encendió los recordatorios en Configuración → Pedidos.
+ * - `RECORDATORIO_CITA`: aviso a los contactos con correo que participan de una cita próxima (etapa 4,
+ *   Agenda). Lo manda la tarea horaria `lib/agenda/recordatorios.ts` si la organización encendió el
+ *   recordatorio en Configuración → Agenda (apagado por omisión).
  */
 export const CLAVES_AUTOMATICO = [
-  "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA",
+  "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
@@ -44,6 +49,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   CONSULTA: "Consulta",
   PRESUPUESTO: "Presupuesto",
   PEDIDO: "Pedido",
+  CITA: "Cita",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

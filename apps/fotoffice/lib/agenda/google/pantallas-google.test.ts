@@ -15,10 +15,10 @@ describe("Configuración → Agenda (permisos y enlaces)", () => {
     }
   });
 
-  it("enlaza a Tipos de cita y a Integraciones, y deja marcado el lugar del recordatorio", () => {
+  it("enlaza a Tipos de cita y a Integraciones, y tiene el recordatorio al cliente", () => {
     expect(pagina).toContain('href="/workspace/configuracion/agenda/tipos"');
     expect(pagina).toContain('href="/workspace/configuracion/integraciones"');
-    expect(pagina).toContain("TAREA 5");
+    expect(pagina).toContain("<RecordatorioForm");
   });
 
   it("muestra los avisos y la última sincronización, sin códigos de error ni datos de la cuenta fuera del correo conectado", () => {

@@ -38,6 +38,8 @@ import type { DetalleCita, EventoVista, OrigenDeCita, VistaDeAgenda } from "./vi
 
 export const TOPE_POR_CAPA = 500;
 const TOPE_CUMPLEANOS_LEIDOS = 5000;
+/** Cuotas que se leen del rango antes de quitar las pagas (las impagas son las que cuentan para el tope). */
+const TOPE_CUOTAS_LEIDAS = TOPE_POR_CAPA * 4;
 const TOPE_PARTICIPANTES = 50;
 
 export type OpcionesVista = {
@@ -302,10 +304,10 @@ export async function cargarVistaAgenda(ctx: CtxAgenda, opciones: OpcionesVista)
             pedido: { select: { number: true, status: true, totalArs: true, client: { select: { firstName: true, lastName: true, businessName: true } } } },
           },
           orderBy: [{ dueDate: "asc" }, { id: "asc" }],
-          take: TOPE_POR_CAPA + 1,
+          take: TOPE_CUOTAS_LEIDAS + 1,
         });
-        const { filas, truncada } = cortar(leidas);
-        if (truncada) truncadas.push("CUOTAS");
+        // El tope se aplica DESPUÉS de sacar las cuotas pagas: un mes con muchas pagas no tapa a las impagas.
+        const filas = leidas.slice(0, TOPE_CUOTAS_LEIDAS);
         const planes = await planesDe(workspaceId, filas.map((f) => f.pedidoId as string));
         const hoy = diaArgentina(new Date());
         const saldos = new Map<string, number>();
@@ -321,16 +323,22 @@ export async function cargarVistaAgenda(ctx: CtxAgenda, opciones: OpcionesVista)
           });
           for (const c of resumen.cuotas) saldos.set(c.id, c.saldo);
         }
-        entrada.cuotas = filas.map(
-          (f): FilaCuota => ({
-            pedidoId: f.pedidoId as string,
-            cuotaId: f.id as string,
-            pedidoNumero: f.pedido.number as string,
-            contacto: nombreDeContacto(f.pedido.client),
-            vencimiento: f.dueDate as Date,
-            saldo: saldos.get(f.id as string) ?? 0,
-          }),
-        );
+        const conSaldo = filas
+          .map(
+            (f): FilaCuota => ({
+              pedidoId: f.pedidoId as string,
+              cuotaId: f.id as string,
+              pedidoNumero: f.pedido.number as string,
+              contacto: nombreDeContacto(f.pedido.client),
+              vencimiento: f.dueDate as Date,
+              saldo: saldos.get(f.id as string) ?? 0,
+            }),
+          )
+          .filter((c) => c.saldo > 0);
+        const { filas: visibles, truncada } = cortar(conSaldo);
+        // Truncada si hay más impagas que el tope o si ni siquiera se alcanzó a leer todo el rango.
+        if (truncada || leidas.length > TOPE_CUOTAS_LEIDAS) truncadas.push("CUOTAS");
+        entrada.cuotas = visibles;
       })(),
     );
   }
@@ -375,9 +383,11 @@ export async function cargarVistaAgenda(ctx: CtxAgenda, opciones: OpcionesVista)
         // Mes y día no se pueden comparar en SQL sin pelear con la zona: se filtra en memoria por
         // los días del rango (el año no cuenta).
         const buscados = new Set(diasDelRango(rango).map((d) => d.slice(5)));
+        // Si el workspace tiene más perfiles con cumpleaños que el tope, los que no se leyeron faltan: se avisa.
+        if (leidos.length >= TOPE_CUMPLEANOS_LEIDOS) truncadas.push("CUMPLEANOS");
         const delRango = leidos.filter((f) => f.birthday !== null && buscados.has((f.birthday as Date).toISOString().slice(5, 10)));
         const { filas, truncada } = cortar(delRango);
-        if (truncada) truncadas.push("CUMPLEANOS");
+        if (truncada && !truncadas.includes("CUMPLEANOS")) truncadas.push("CUMPLEANOS");
         entrada.cumpleanos = filas.map(
           (f): FilaCumple => ({
             id: f.id as string,

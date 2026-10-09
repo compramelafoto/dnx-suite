@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { MENSAJES_AGENDA } from "@/lib/agenda/acceso";
 import { anularCita, cambiarEstadoCita, crearCita, editarCita, moverCita, type DatosCita, type ResultadoCita } from "@/lib/agenda/citas";
+import { guardarAjustesRecordatorio, type ResultadoAjustes } from "@/lib/agenda/ajustes";
 import { contextoDeAgenda } from "@/lib/agenda/contexto";
 import { crearCalendarioDeAgenda, type ResultadoCalendario } from "@/lib/agenda/google/calendario";
 import { alCambiarCita } from "@/lib/agenda/google/hook";
@@ -178,5 +179,17 @@ export async function crearCalendarioAgendaAction(): Promise<ResultadoCalendario
     const workspaceId = ctx.workspaceId;
     after(() => sincronizarAgenda(workspaceId).then(() => undefined));
   }
+  return r;
+}
+
+// --- Recordatorio al cliente (configurar) ---------------------------------------------------------
+
+/** Configuración → Agenda → «Recordatorio al cliente»: encendido y horas de anticipación. Sólo `configurar` (lo exige lib). */
+export async function guardarRecordatorioAgendaAction(datos: { activo: boolean; horas: number | string }): Promise<ResultadoAjustes> {
+  if (!esObjeto(datos)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeAgenda("ver");
+  if (!ctx) return SIN_PERMISO;
+  const r = await guardarAjustesRecordatorio(ctx, datos);
+  if (r.ok) revalidatePath("/workspace/configuracion/agenda");
   return r;
 }

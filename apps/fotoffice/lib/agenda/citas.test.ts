@@ -169,6 +169,24 @@ describe("editar, mover, cambiar de estado y anular", () => {
     expect(citas()[0]!.status).toBe("ANULADA");
   });
 
+  it("una cita anulada o realizada no se mueve (ni se estira) hasta reactivarla; editar otros datos sí", async () => {
+    const id = await crear();
+    for (const estado of ["ANULADA", "REALIZADA"]) {
+      B.datos.fotofficeCita[0]!.status = estado;
+      const antes = { ...B.datos.fotofficeCita[0]! };
+      expect(await K.moverCita(GESTIONA, id, { startAt: "2026-11-21T12:00:00.000Z", endAt: "2026-11-21T13:00:00.000Z" })).toEqual({ ok: false, error: M.citaCerrada });
+      expect(await K.editarCita(GESTIONA, id, { endAt: "2026-11-21T13:00:00.000Z" })).toEqual({ ok: false, error: M.citaCerrada });
+      expect(await K.editarCita(GESTIONA, id, { allDay: true })).toEqual({ ok: false, error: M.citaCerrada });
+      expect(citas()[0]!.startAt).toEqual(antes.startAt);
+      expect(citas()[0]!.endAt).toEqual(antes.endAt);
+      // Las mismas fechas, o cambiar otro dato, se puede; también reactivarla (con fechas nuevas).
+      expect(await K.moverCita(GESTIONA, id, { startAt: INICIO, endAt: FIN })).toEqual({ ok: true, id });
+      expect(await K.editarCita(GESTIONA, id, { title: "Con otro título" })).toEqual({ ok: true, id });
+    }
+    expect(await K.editarCita(GESTIONA, id, { status: "AGENDADA", startAt: "2026-11-21T12:00:00.000Z", endAt: "2026-11-21T13:00:00.000Z" })).toEqual({ ok: true, id });
+    expect(citas()[0]).toMatchObject({ status: "AGENDADA", startAt: new Date("2026-11-21T12:00:00.000Z") });
+  });
+
   it("editar, mover y anular piden Gestionar", async () => {
     const id = await crear();
     expect(await K.editarCita(LECTOR, id, { title: "x" })).toEqual({ ok: false, error: M.sinPermiso });

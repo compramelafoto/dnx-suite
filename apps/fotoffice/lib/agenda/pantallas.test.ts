@@ -113,4 +113,16 @@ describe("pantallas de Agenda: fuente", () => {
     expect(p.indexOf('puede(role, "configurar")')).toBeGreaterThan(0);
     expect(p.indexOf('puede(role, "configurar")')).toBeLessThan(p.indexOf("listarTipos("));
   });
+
+  it("Configuración → Agenda: el recordatorio al cliente se guarda con `configurar` y viene apagado de fábrica", () => {
+    const pagina = leer("app/workspace/configuracion/agenda/page.tsx");
+    expect(pagina).toContain("<RecordatorioForm");
+    expect(pagina).not.toContain("TAREA 5");
+    const lib = leer("lib/agenda/ajustes.ts");
+    expect(lib).toContain("if (!puedeConfigurarAgenda(ctx))");
+    expect(lib).toContain("activo: false");
+    const accion = leer("app/actions/agenda.ts");
+    expect(accion).toContain("guardarRecordatorioAgendaAction");
+    expect(accion).toContain("guardarAjustesRecordatorio(ctx, datos)");
+  });
 });
