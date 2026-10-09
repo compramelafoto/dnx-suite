@@ -15,8 +15,15 @@ const entra = (c: string) => {
   return (cp >= 0x20 && cp <= 0x7e) || (cp >= 0xa0 && cp <= 0xff) || EXTRAS_WINANSI.includes(c);
 };
 
+/**
+ * Invisibles que llegan pegados desde el celular: selectores de variante de emoji (U+FE00–FE0F),
+ * uniones y espacios de ancho cero (U+200B–200D, U+2060, U+FEFF) y el guion opcional (U+00AD).
+ * No se ven, así que se sacan antes: si no, cada uno saldría impreso como "?".
+ */
+const INVISIBLES = /[\u00AD\u200B-\u200D\u2060\uFE00-\uFE0F\uFEFF]/g;
+
 export function paraWinAnsi(s: string): string {
-  return Array.from(s.normalize("NFC"))
+  return Array.from(s.replace(INVISIBLES, "").normalize("NFC"))
     .map((c) => {
       if (/\s/.test(c)) return " ";
       if (entra(c)) return c;

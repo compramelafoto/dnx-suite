@@ -4,7 +4,7 @@ const db = vi.hoisted(() => ({ culturalActivity: { findFirst: vi.fn() } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 
 process.env.APP_URL = "https://muestrasfotograficas.com/";
-const { cargarFichas } = await import("./cargar");
+const { baseUrlPublica, cargarFichas } = await import("./cargar");
 
 const muestra = {
   slug: "miradas-abc123", title: "Miradas",
@@ -48,4 +48,24 @@ describe("cargarFichas", () => {
     db.culturalActivity.findFirst.mockResolvedValue(null);
     expect(await cargarFichas("a1", { id: 8, esSuperAdmin: false }, null)).toBeNull();
   });
+});
+
+describe("baseUrlPublica (la dirección que va en el QR)", () => {
+  const DEFECTO = "https://muestrasfotograficas.com";
+  it("en local acepta localhost", () => {
+    expect(baseUrlPublica({ NODE_ENV: "development", APP_URL: "http://localhost:3014/" })).toBe("http://localhost:3014");
+  });
+  it("en producción acepta un dominio propio con https", () => {
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "https://www.muestrasfotograficas.com" })).toBe("https://www.muestrasfotograficas.com");
+  });
+  it("en producción descarta localhost, *.vercel.app y http, y avisa una sola vez", () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "http://localhost:3014" })).toBe(DEFECTO);
+    expect(baseUrlPublica({ VERCEL_ENV: "production", APP_URL: "https://muestras-abc.vercel.app" })).toBe(DEFECTO);
+    expect(baseUrlPublica({ NODE_ENV: "production", NEXT_PUBLIC_APP_URL: "http://muestrasfotograficas.com" })).toBe(DEFECTO);
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "no es una url" })).toBe(DEFECTO);
+    expect(aviso).toHaveBeenCalledTimes(1);
+    aviso.mockRestore();
+  });
+  it("sin variables, el dominio público", () => expect(baseUrlPublica({})).toBe(DEFECTO));
 });

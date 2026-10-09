@@ -8,6 +8,12 @@ describe("paraWinAnsi", () => {
     expect(paraWinAnsi("Cámara 📷")).toBe("Cámara ?");
   });
   it("los saltos de línea pasan a espacios", () => expect(paraWinAnsi("uno\ndos")).toBe("uno dos"));
+  it("saca los invisibles en vez de imprimir un ?", () => {
+    // Selector de variante (U+FE0F), unión de ancho cero (U+200D), espacio de ancho cero (U+200B).
+    expect(paraWinAnsi("Sol\u200Bar ❤\uFE0F")).toBe("Solar ?");
+    expect(paraWinAnsi("👩\u200D👩")).toBe("??");
+    expect(paraWinAnsi("a\u200Cb\u2060c\uFEFFd\u00ADe")).toBe("abcde");
+  });
 });
 
 describe("cortarEnLineas", () => {
