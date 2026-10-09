@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
 import { queMostrar } from "@/lib/pantalla-ritmo";
 import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
@@ -71,6 +72,14 @@ export function Proyeccion({
   // saber cuántas fotos hay, y no hay que rearmarlo cada vez que llega una.
   const [vuelta, setVuelta] = useState(0);
   const [volando, setVolando] = useState<EmojiVolando[]>([]);
+  /*
+    El mando del DJ. Vive sólo en esta pantalla y no se guarda: si el televisor se
+    reinicia a mitad de la fiesta tiene que volver solo a reproducir, no quedarse en
+    pausa porque alguien la tocó hace dos horas.
+  */
+  const [pausado, setPausado] = useState(false);
+  const [aleatorio, setAleatorio] = useState(false);
+  const [mandoVisible, setMandoVisible] = useState(false);
   const [conteo, setConteo] = useState<Record<string, number>>({});
 
   // Escucha las fotos nuevas. EventSource reconecta solo y manda el
@@ -152,6 +161,15 @@ export function Proyeccion({
     return () => fuente.close();
   }, [codigo]);
 
+  /*
+    La semilla del sorteo sale del código del evento: es estable toda la noche —así el
+    orden no cambia en cada repintado— y distinta en cada fiesta.
+  */
+  const semilla = useMemo(
+    () => [...codigo].reduce((suma, c) => (suma * 31 + c.charCodeAt(0)) >>> 0, 7),
+    [codigo],
+  );
+
   const paso = queMostrar({ vuelta, cantidadDeFotos: fotos.length });
 
   /*
@@ -162,14 +180,39 @@ export function Proyeccion({
     las dependencias a propósito, cada vuelta programa la siguiente.
   */
   useEffect(() => {
+    // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
+    if (pausado) return;
     const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
     const reloj = setTimeout(() => setVuelta((v) => v + 1), cuanto);
     return () => clearTimeout(reloj);
-  }, [vuelta, paso.tipo]);
+  }, [vuelta, paso.tipo, pausado]);
+
+  /*
+    El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
+    abierto sería una barra gris sobre la pantalla del salón toda la noche.
+  */
+  useEffect(() => {
+    if (!mandoVisible) return;
+    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
+    return () => clearTimeout(reloj);
+  }, [mandoVisible, pausado, aleatorio]);
 
   const totales = totalesOrdenados(conteo);
-  const indiceVisible = paso.tipo === "FOTO" ? paso.indice : -1;
-  const actual = paso.tipo === "FOTO" ? fotos[paso.indice] : undefined;
+  /*
+    `queMostrar` dice CUÁNTAS fotos pasaron —y cuándo toca el QR—; el modo de
+    reproducción dice CUÁL de todas se ve. Separados porque son dos preguntas distintas:
+    el ritmo no cambia cuando el DJ pone aleatorio.
+  */
+  const indiceVisible =
+    paso.tipo === "FOTO"
+      ? indiceDeFoto({
+          fotosMostradas: paso.indice,
+          cantidad: fotos.length,
+          aleatorio,
+          semilla,
+        })
+      : -1;
+  const actual = indiceVisible >= 0 ? fotos[indiceVisible] : undefined;
 
   return (
     <div className="relative h-[100svh] w-full overflow-hidden" style={estilo}>
@@ -287,5 +330,36 @@ export function Proyeccion({
         }
       `}</style>
     </div>
+  );
+}
+
+/**
+ * Un botón del mando.
+ *
+ * Grande y con el nombre escrito: lo toca alguien parado, de noche, con música fuerte y
+ * sin haber visto nunca esta pantalla. Un ícono solo no alcanza.
+ */
+function BotonDeMando({
+  activo,
+  onClick,
+  etiqueta,
+  children,
+}: {
+  activo: boolean;
+  onClick: () => void;
+  etiqueta: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      className="flex min-h-[64px] min-w-[150px] items-center gap-3 rounded-2xl px-4 text-left text-white"
+      style={{ background: activo ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)" }}
+    >
+      <span className="text-2xl leading-none">{children}</span>
+      <span className="text-sm font-extrabold">{etiqueta}</span>
+    </button>
   );
 }
