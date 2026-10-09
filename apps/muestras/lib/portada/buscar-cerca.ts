@@ -2,17 +2,17 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createNominatimProvider } from "@repo/geo";
 import { cleanPlaceLabel, nearHref } from "@repo/muestras";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
-import { elegirLugar } from "./elegir-lugar";
+import { normalizarBusqueda, ubicarConCache, type PuntoBuscado } from "./geocodificar";
 
 export type EstadoBusquedaCerca = { error: string | null };
 
 /**
  * "Buscá muestras cerca tuyo", de la portada. Pública: no pide sesión, así que se frena por IP
- * (`LIMITES_PUBLICOS`) y sólo devuelve un lugar (el primero habitable, en Argentina) como coordenadas.
- * No es un proxy de Nominatim: no devuelve la lista ni los datos de la dirección.
+ * (`LIMITES_PUBLICOS`) y sólo devuelve un lugar (el primero habitable, en Argentina) como
+ * coordenadas. No es un proxy de Nominatim: no devuelve la lista ni los datos de la dirección.
+ * Las búsquedas se guardan un día (`ubicarConCache`) y el pedido tiene tiempo máximo.
  *
  * Si encuentra el lugar, redirige a la portada ordenada por cercanía; si no, devuelve el error
  * para mostrarlo debajo del campo. Anda también sin JavaScript (es la acción del formulario).
@@ -24,13 +24,9 @@ export async function buscarCerca(_previo: EstadoBusquedaCerca, fd: FormData): P
   const freno = frenarPorIp("buscarCerca", ipDeLaPeticion(await headers()));
   if (!freno.allowed) return { error: "Demasiadas búsquedas seguidas. Probá en un minuto." };
 
-  let punto: { latitude: number; longitude: number; city: string | null } | null = null;
+  let punto: PuntoBuscado | null;
   try {
-    const resultados = await createNominatimProvider({
-      userAgent: process.env.GEOCODING_USER_AGENT || "MuestrasFotograficas/1.0 (muestrasfotograficas.com)",
-    }).search(texto, { limit: 5, countryCode: "ar" });
-    const elegido = elegirLugar(resultados);
-    if (elegido) punto = { latitude: elegido.latitude, longitude: elegido.longitude, city: elegido.city };
+    ({ punto } = await ubicarConCache(normalizarBusqueda(texto)));
   } catch (err) {
     console.error("buscarCerca:", err instanceof Error ? err.message : String(err));
     return { error: "No pudimos buscar ese lugar. Probá de nuevo en un rato." };

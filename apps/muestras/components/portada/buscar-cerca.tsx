@@ -53,7 +53,7 @@ export function BuscarCerca() {
           name="q"
           type="text"
           inputMode="search"
-          autoComplete="address-level2"
+          autoComplete="off"
           placeholder="Ciudad o dirección"
           required
           minLength={3}
