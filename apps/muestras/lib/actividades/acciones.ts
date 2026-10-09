@@ -18,9 +18,10 @@ const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no exist
 
 function refrescar(slug?: string) {
   revalidatePath("/");
-  revalidatePath("/mis-muestras");
-  revalidatePath("/admin");
-  if (slug) revalidatePath(`/m/${slug}`);
+  revalidatePath("/panel", "layout");
+  // La ficha y las páginas de sus obras (`/m/<slug>/o/<id>`).
+  if (slug) revalidatePath(`/m/${slug}`, "layout");
+  revalidatePath("/fotografos", "layout");
 }
 
 /** Crea o actualiza la ficha y reemplaza su galería. No cambia el estado de revisión. */
