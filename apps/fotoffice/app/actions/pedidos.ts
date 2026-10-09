@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { empujarCitasDelPedido } from "@/lib/agenda/crear";
+import { empujarEntregasDelPedido } from "@/lib/agenda/google/empuje";
 import { MENSAJES_PEDIDO } from "@/lib/pedidos/acceso";
 import { anularCobro, registrarCobro, type ResultadoAnulacion, type ResultadoCobro } from "@/lib/pedidos/cobros";
 import { enlaceDelPedido, enlaceDelRecibo, type ResultadoEnlace } from "@/lib/pedidos/enlace";
@@ -83,6 +84,7 @@ export async function confirmarPedidoAction(datos: {
     // Las citas que creó el pedido llegan a Google después de confirmar, sin frenar la acción.
     const workspaceId = ctx.workspaceId;
     after(() => empujarCitasDelPedido(workspaceId, r.pedidoId));
+    after(() => empujarEntregasDelPedido(workspaceId, r.pedidoId));
   }
   return r;
 }
@@ -121,6 +123,7 @@ export async function crearPedidoManualAction(datos: {
     revalidatePath(`/clientes/${datos.clientId}`);
     const workspaceId = ctx.workspaceId;
     after(() => empujarCitasDelPedido(workspaceId, r.pedidoId));
+    after(() => empujarEntregasDelPedido(workspaceId, r.pedidoId));
   }
   return r;
 }

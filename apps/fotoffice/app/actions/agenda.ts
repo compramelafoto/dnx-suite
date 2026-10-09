@@ -6,13 +6,16 @@ import { puedeEnContexto } from "@/lib/access/policy";
 import { MENSAJES_AGENDA } from "@/lib/agenda/acceso";
 import { anularCita, cambiarEstadoCita, crearCita, editarCita, moverCita, type DatosCita, type ResultadoCita } from "@/lib/agenda/citas";
 import { contextoDeAgenda } from "@/lib/agenda/contexto";
+import { crearCalendarioDeAgenda, type ResultadoCalendario } from "@/lib/agenda/google/calendario";
 import { alCambiarCita } from "@/lib/agenda/google/hook";
+import { sincronizarAgenda } from "@/lib/agenda/google/sincronizar";
 import {
   agregarParticipante, editarParticipante, quitarParticipante,
   type DatosParticipante, type ResultadoParticipante, type ResultadoSimple,
 } from "@/lib/agenda/participantes";
 import { crearTipo, editarTipo, type ResultadoTipo, type ResultadoSimple as ResultadoSimpleTipo } from "@/lib/agenda/tipos";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { prisma } from "@repo/db";
 import { buscarContactos, type ContactoEncontrado } from "@/lib/consultas/ficha";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción revisa la forma de lo que llega,
@@ -50,7 +53,7 @@ export async function crearCitaAction(datos: DatosCita): Promise<ResultadoCita> 
   const r = await crearCita(ctx, datos);
   if (r.ok) {
     avisarCambio(ctx.workspaceId, r.id);
-    if (typeof datos.pedidoId === "string") revalidatePath(`/pedidos/${datos.pedidoId}`);
+    if (esId(datos.pedidoId)) revalidatePath(`/pedidos/${datos.pedidoId}`);
   }
   return r;
 }
@@ -155,5 +158,25 @@ export async function editarTipoCitaAction(
   if (!ctx) return SIN_PERMISO;
   const r = await editarTipo(ctx, tipoId, datos);
   if (r.ok) revalidarAgenda();
+  return r;
+}
+
+// --- Google Calendar ------------------------------------------------------------------------------
+
+/**
+ * Configuración → Agenda → «Crear calendario «<organización> Agenda»». Sólo `configurar` (lo exige lib).
+ * Al crearlo, y sin frenar la respuesta, se hace la primera sincronización: las citas y entregas que ya
+ * existían suben al calendario nuevo.
+ */
+export async function crearCalendarioAgendaAction(): Promise<ResultadoCalendario> {
+  const ctx = await contextoDeAgenda("ver");
+  if (!ctx) return SIN_PERMISO;
+  const org = await prisma.workspace.findUnique({ where: { id: ctx.workspaceId }, select: { name: true } });
+  const r = await crearCalendarioDeAgenda(ctx, org?.name ?? "");
+  if (r.ok) {
+    revalidatePath("/workspace/configuracion/agenda");
+    const workspaceId = ctx.workspaceId;
+    after(() => sincronizarAgenda(workspaceId).then(() => undefined));
+  }
   return r;
 }

@@ -5,7 +5,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { itemsGuardados } from "@/lib/presupuestos/versiones";
 import { AGENDA_MODULE_KEY } from "./acceso";
-import { alCambiarCita } from "./google/hook";
+import { empujarCitas } from "./google/empuje";
 import { PROFUNDIDAD_MAXIMA_COMBOS } from "./constantes";
 import { citaDesdeRegla, sumarDias } from "./fechas";
 import { citasDelPedido, type CitaDesdeRegla } from "./reglas";
@@ -228,12 +228,13 @@ export async function crearCitasDelPedido(tx: Tx, workspaceId: string, d: DatosC
  * cada cita que el pedido acaba de crear. Sin citas, no hace nada. Un fallo de una no frena las demás.
  */
 export async function empujarCitasDelPedido(workspaceId: string, pedidoId: string): Promise<void> {
-  const citas = await prisma.fotofficeCita.findMany({ where: { workspaceId, pedidoId }, select: { id: true } });
-  for (const c of citas) {
-    try {
-      await alCambiarCita(workspaceId, c.id as string);
-    } catch {
-      console.error("[agenda] empujarCitasDelPedido falló", { pedidoId });
-    }
+  try {
+    // Con el módulo apagado no hay nada que empujar: ni siquiera se buscan las citas.
+    if (!(await agendaEncendida(workspaceId))) return;
+    const citas = await prisma.fotofficeCita.findMany({ where: { workspaceId, pedidoId }, select: { id: true } });
+    // Un solo pedido de permiso a Google para todas las citas del pedido.
+    await empujarCitas(workspaceId, citas.map((c) => c.id as string));
+  } catch {
+    console.error("[agenda] empujarCitasDelPedido falló");
   }
 }

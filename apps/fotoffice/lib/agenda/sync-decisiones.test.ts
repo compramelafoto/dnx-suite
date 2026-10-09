@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cuerpoDeCita, decideEntrega, decideLocal, decideRemote, idEventoEntrega, tiempoDeEventoGoogle, type CitaLocal, type EventoGoogle,
+  cuerpoDeCita, decideEntrega, decideLocal, decideRemote, idEventoCita, idEventoEntrega, tiempoDeEventoGoogle, type CitaLocal, type EventoGoogle,
 } from "./sync-decisiones";
 
 const evento = (extra: Partial<EventoGoogle> = {}): EventoGoogle => ({
@@ -30,6 +30,13 @@ describe("decideRemote", () => {
     const r = decideRemote(evento({ summary: "  " }), null);
     expect(r.accion).toBe("crear");
     if (r.accion === "crear") expect(r.datos).toMatchObject({ title: "(sin título)", googleEventId: "g1", allDay: false });
+  });
+  it("la descripción de Google viaja como notas, y un cambio sólo de notas actualiza", () => {
+    const c = decideRemote(evento({ description: " Llevar contrato " }), null);
+    if (c.accion === "crear") expect(c.datos.notes).toBe("Llevar contrato");
+    const r = decideRemote(evento({ description: "Otra nota" }), cita({ notes: "Llevar contrato" }));
+    expect(r.accion).toBe("actualizar");
+    expect(decideRemote(evento({ description: "Llevar contrato" }), cita({ notes: "Llevar contrato " })).accion).toBe("ignorar");
   });
   it("evento borrado que no teníamos: ignorar", () => {
     expect(decideRemote(evento({ status: "cancelled" }), null).accion).toBe("ignorar");
@@ -70,6 +77,27 @@ describe("decideLocal", () => {
     expect(decideLocal(cita({ googleEventId: null }), "borrar").accion).toBe("nada");
     expect(decideLocal(cita({ status: "ANULADA" }), "editar").accion).toBe("delete");
   });
+  it("el patch siempre manda status confirmed (revive un evento borrado: cita anulada y reactivada)", () => {
+    const r = decideLocal(cita({ status: "AGENDADA", googleEventId: "g1" }), "editar");
+    expect(r.accion).toBe("patch");
+    if (r.accion === "patch") expect(r.cuerpo.status).toBe("confirmed");
+    const i = decideLocal(cita({ googleEventId: null }), "crear");
+    if (i.accion === "insert") expect(i.cuerpo.status).toBe("confirmed");
+  });
+  it("el patch VACÍA lugar y notas (texto vacío); el insert los omite", () => {
+    const p = decideLocal(cita({ location: null, notes: "  " }), "editar");
+    if (p.accion !== "patch") throw new Error("se esperaba patch");
+    expect(p.cuerpo.location).toBe("");
+    expect(p.cuerpo.description).toBe("");
+    const i = decideLocal(cita({ googleEventId: null, location: null, notes: null }), "crear");
+    if (i.accion !== "insert") throw new Error("se esperaba insert");
+    expect("location" in i.cuerpo).toBe(false);
+    expect("description" in i.cuerpo).toBe(false);
+  });
+  it("el id de la cita sirve para Google y es estable", () => {
+    expect(idEventoCita("ckabc123xyz")).toBe(idEventoCita("ckabc123xyz"));
+    expect(idEventoCita("ckabc123xyz")).toMatch(/^[a-v0-9]{5,1024}$/);
+  });
   it("el cuerpo: con hora usa dateTime y huso; todo el día usa date (fin exclusivo)", () => {
     const c = cuerpoDeCita(cita({ location: " Salón ", notes: "x" }));
     expect(c).toMatchObject({ summary: "Reunión", location: "Salón", description: "x", start: { dateTime: "2026-10-10T16:00:00.000Z", timeZone: "America/Argentina/Buenos_Aires" } });
@@ -90,6 +118,7 @@ describe("decideEntrega", () => {
       expect(r.cuerpo.start).toEqual({ date: "2026-11-20" });
       expect(r.cuerpo.end).toEqual({ date: "2026-11-21" });
       expect(r.cuerpo.extendedProperties.private.foKind).toBe("entrega");
+      expect(r.cuerpo.status).toBe("confirmed");
     }
   });
   it("suspendido, cerrado o sin fecha: se borra el evento", () => {

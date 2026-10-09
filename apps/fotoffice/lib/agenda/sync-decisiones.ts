@@ -53,6 +53,7 @@ export type DatosDeCita = {
   endAt: Date;
   allDay: boolean;
   location: string | null;
+  notes: string | null;
   googleEventId: string;
   googleEtag: string | null;
   googleUpdatedAt: Date;
@@ -65,6 +66,10 @@ export type DecisionRemota =
   | { accion: "ignorar"; motivo: string };
 
 const TITULO_POR_OMISION = "(sin título)";
+/** Topes de la cita local (los mismos que valida `lib/agenda/citas.ts`). */
+const MAX_TITULO = 200;
+const MAX_LUGAR = 300;
+const MAX_NOTAS = 5000;
 
 function instante(v: string | undefined): Date | null {
   if (!v) return null;
@@ -99,7 +104,8 @@ function mismosDatos(c: CitaLocal, d: DatosDeCita): boolean {
     c.startAt.getTime() === d.startAt.getTime() &&
     c.endAt.getTime() === d.endAt.getTime() &&
     c.allDay === d.allDay &&
-    (c.location ?? null) === (d.location ?? null)
+    (c.location ?? null) === (d.location ?? null) &&
+    (c.notes?.trim() ? c.notes.trim() : null) === d.notes
   );
 }
 
@@ -118,9 +124,10 @@ export function decideRemote(evento: EventoGoogle, cita: CitaLocal | null): Deci
   if (actualizadoEn === null) return { accion: "ignorar", motivo: "evento sin fecha de modificación" };
 
   const datos: DatosDeCita = {
-    title: evento.summary?.trim() ? evento.summary.trim() : TITULO_POR_OMISION,
+    title: evento.summary?.trim() ? evento.summary.trim().slice(0, MAX_TITULO) : TITULO_POR_OMISION,
     ...tiempo,
-    location: evento.location?.trim() ? evento.location.trim() : null,
+    location: evento.location?.trim() ? evento.location.trim().slice(0, MAX_LUGAR) : null,
+    notes: evento.description?.trim() ? evento.description.trim().slice(0, MAX_NOTAS) : null,
     googleEventId: evento.id,
     googleEtag: evento.etag ?? null,
     googleUpdatedAt: actualizadoEn,
@@ -141,8 +148,11 @@ export type CambioLocal = "crear" | "editar" | "mover" | "anular" | "borrar";
 
 export type CuerpoEventoGoogle = {
   summary: string;
+  /** En un `patch`, omitir un campo es "no tocarlo": para vaciarlo se manda "". */
   location?: string;
   description?: string;
+  /** Siempre "confirmed": un `patch` o un `insert` con id repetido tiene que REVIVIR un evento borrado. */
+  status?: "confirmed";
   start: { date: string } | { dateTime: string; timeZone: string };
   end: { date: string } | { dateTime: string; timeZone: string };
   extendedProperties: { private: Record<string, string> };
@@ -159,16 +169,30 @@ function diaDeMedianoche(d: Date): string {
   return new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
 }
 
-/** El cuerpo del evento de Google de una cita. */
-export function cuerpoDeCita(c: Pick<CitaLocal, "id" | "title" | "startAt" | "endAt" | "allDay" | "location" | "notes">): CuerpoEventoGoogle {
+/**
+ * El cuerpo del evento de Google de una cita.
+ *
+ * - `status: "confirmed"` siempre: si el evento se había borrado (cita anulada y reactivada), el `patch`
+ *   lo revive.
+ * - En un `patch` el lugar y las notas vacíos se mandan como "" (Google los borra); en un `insert` se omiten.
+ */
+export function cuerpoDeCita(
+  c: Pick<CitaLocal, "id" | "title" | "startAt" | "endAt" | "allDay" | "location" | "notes">,
+  opciones: { vaciarCamposVacios?: boolean } = {},
+): CuerpoEventoGoogle {
   const cuerpo: CuerpoEventoGoogle = {
     summary: c.title,
+    status: "confirmed",
     start: c.allDay ? { date: diaDeMedianoche(c.startAt) } : { dateTime: c.startAt.toISOString(), timeZone: HUSO_HORARIO },
     end: c.allDay ? { date: diaDeMedianoche(c.endAt) } : { dateTime: c.endAt.toISOString(), timeZone: HUSO_HORARIO },
     extendedProperties: { private: { [CLAVE_TIPO_EVENTO_GOOGLE]: "cita", foCitaId: c.id } },
   };
-  if (c.location?.trim()) cuerpo.location = c.location.trim();
-  if (c.notes?.trim()) cuerpo.description = c.notes.trim();
+  const lugar = c.location?.trim() ?? "";
+  const notas = c.notes?.trim() ?? "";
+  if (lugar) cuerpo.location = lugar;
+  else if (opciones.vaciarCamposVacios) cuerpo.location = "";
+  if (notas) cuerpo.description = notas;
+  else if (opciones.vaciarCamposVacios) cuerpo.description = "";
   return cuerpo;
 }
 
@@ -181,7 +205,17 @@ export function decideLocal(cita: CitaLocal, cambio: CambioLocal): DecisionLocal
       : { accion: "nada", motivo: "la cita no estaba en Google" };
   }
   if (!tieneEvento) return { accion: "insert", cuerpo: cuerpoDeCita(cita) };
-  return { accion: "patch", googleEventId: cita.googleEventId as string, cuerpo: cuerpoDeCita(cita) };
+  return { accion: "patch", googleEventId: cita.googleEventId as string, cuerpo: cuerpoDeCita(cita, { vaciarCamposVacios: true }) };
+}
+
+/**
+ * Id determinístico del evento de Google de una cita: así dos empujes a la vez (alta y edición enseguida)
+ * no crean dos eventos (el segundo `insert` da 409 y pasa a `patch`). Mismo formato que `idEventoEntrega`.
+ */
+export function idEventoCita(citaId: string): string {
+  let hex = "";
+  for (const b of new TextEncoder().encode(citaId)) hex += b.toString(16).padStart(2, "0");
+  return `focita${hex}`;
 }
 
 // ---- Entregas de proyectos (sólo ida) ----------------------------------------------------------
@@ -223,6 +257,7 @@ export function decideEntrega(p: ProyectoParaEntrega): DecisionEntrega {
     eventId,
     cuerpo: {
       summary: `${PREFIJO_ENTREGA}${p.name}`,
+      status: "confirmed",
       start: { date: dia },
       end: { date: sumarDias(dia, 1) },
       extendedProperties: { private: { [CLAVE_TIPO_EVENTO_GOOGLE]: VALOR_EVENTO_ENTREGA, foProyectoId: p.id } },

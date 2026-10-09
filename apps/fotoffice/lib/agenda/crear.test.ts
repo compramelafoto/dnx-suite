@@ -239,3 +239,58 @@ describe("citas al confirmar el pedido", () => {
     expect(citas()).toHaveLength(0);
   });
 });
+
+describe("empujar a Google las citas del pedido", () => {
+  it("con el módulo Agenda apagado ni siquiera busca las citas", async () => {
+    regla("r1", "prod-album");
+    const r = await confirmar();
+    if (!r.ok) throw new Error(r.error);
+    B.datos.workspaceFeatureModule.length = 0;
+    const original = B.tablas.fotofficeCita.findMany;
+    const espia = vi.fn(original);
+    B.tablas.fotofficeCita.findMany = espia as typeof original;
+    try {
+      await K.empujarCitasDelPedido("ws-1", r.pedidoId);
+    } finally {
+      B.tablas.fotofficeCita.findMany = original;
+    }
+    expect(espia).not.toHaveBeenCalled();
+  });
+});
+
+describe("proyectos y citas juntos en confirmarPedido", () => {
+  beforeEach(() => {
+    B.agregar("workspaceFeatureModule", { workspaceId: "ws-1", moduleKey: "projects", enabled: true });
+    B.agregar("fotofficeCircuit", { id: "ct-album", workspaceId: "ws-1", name: "Álbum", kind: "TRABAJO" });
+    B.agregar("fotofficeStage", { id: "al1", circuitId: "ct-album", name: "Edición", order: 0, days: 10 });
+    B.agregar("fotofficeProductoProyecto", { id: "rp1", workspaceId: "ws-1", productId: "prod-album", circuitId: "ct-album" });
+    B.agregar("fotofficeProductoProyecto", { id: "rp2", workspaceId: "ws-1", productId: "prod-cobertura", circuitId: "ct-album" });
+    regla("r1", "prod-album");
+    regla("r2", "prod-cobertura");
+  });
+  const juntos = (proyectosOmitidos?: unknown, citasOmitidas?: unknown) =>
+    C.confirmarPedido(DUENO, "pre-1", undefined, deps, undefined, proyectosOmitidos, citasOmitidas);
+
+  it("crea los proyectos y las citas del pedido en la misma confirmación", async () => {
+    const r = await juntos();
+    if (!r.ok) throw new Error(r.error);
+    expect(B.datos.fotofficeProyecto.filter((p) => p.pedidoId === r.pedidoId)).toHaveLength(2);
+    expect(delPedido(r.pedidoId)).toHaveLength(2);
+  });
+
+  it("lo destildado en cada lista se respeta por separado", async () => {
+    const r = await juntos([0], [1]);
+    if (!r.ok) throw new Error(r.error);
+    expect(B.datos.fotofficeProyecto.map((p) => p.productId)).toEqual(["prod-cobertura"]);
+    expect(delPedido(r.pedidoId).map((c) => c.reglaId)).toEqual(["r1"]);
+  });
+
+  it("un índice inexistente en CUALQUIERA de las dos listas rechaza todo y no deja nada a medias", async () => {
+    for (const [proyectos, citasSin] of [[[9], [0]], [[0], [9]], [[9], [9]], [["x"], undefined], [undefined, [-1]]] as const) {
+      expect(await juntos(proyectos, citasSin)).toEqual({ ok: false, error: MP.datosInvalidos });
+      expect(B.datos.fotofficePedido).toHaveLength(0);
+      expect(B.datos.fotofficeProyecto).toHaveLength(0);
+      expect(citas()).toHaveLength(0);
+    }
+  });
+});

@@ -6,9 +6,13 @@ const H = vi.hoisted(() => ({
   agregarPart: vi.fn(), editarPart: vi.fn(), quitarPart: vi.fn(), crearRol: vi.fn(),
   agregarNota: vi.fn(), editarNota: vi.fn(), borrarNota: vi.fn(),
   pedir: vi.fn(), confirmar: vi.fn(), enlace: vi.fn(), borrarAdj: vi.fn(), restaurar: vi.fn(),
+  entrega: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
+// `after` corre enseguida: así se ve a qué proyecto se le avisa a Google.
+vi.mock("next/server", () => ({ after: (f: () => unknown) => void f() }));
+vi.mock("@/lib/agenda/google/empuje", () => ({ alCambiarProyecto: H.entrega }));
 vi.mock("@/lib/proyectos/contexto", () => ({ contextoDeProyectos: H.ctx }));
 vi.mock("@/lib/proyectos/crear", () => ({ crearProyectoManual: vi.fn() }));
 vi.mock("@/lib/proyectos/proyectos", () => ({ editarDatos: H.editar, suspender: H.suspender, reanudar: H.reanudar, reasignarTareas: H.reasignar }));
@@ -62,6 +66,21 @@ describe("acciones de Proyectos", () => {
     await llamar();
     if (!["descargar", "crear rol", "pedir subida"].includes(_n)) expect(H.revalidate).toHaveBeenCalledWith("/proyectos/p1");
     expect(LIBS.some((f) => f.mock.calls.length === 1)).toBe(true);
+  });
+
+  it("editar, suspender y reanudar avisan a Google de la entrega del proyecto, después de confirmar", async () => {
+    await A.editarProyectoAction("p1", { finalDueDate: "2026-12-01" });
+    await A.suspenderProyectoAction("p1", "motivo");
+    await A.reanudarProyectoAction("p1");
+    expect(H.entrega.mock.calls).toEqual([["ws-1", "p1"], ["ws-1", "p1"], ["ws-1", "p1"]]);
+  });
+
+  it("si la acción falla o no hay permiso, no se avisa a Google", async () => {
+    H.editar.mockResolvedValue({ ok: false, error: "x" });
+    await A.editarProyectoAction("p1", { name: "n" });
+    H.ctx.mockResolvedValue(null);
+    await A.reanudarProyectoAction("p1");
+    expect(H.entrega).not.toHaveBeenCalled();
   });
 
   it("pide Ver para descargar y Gestionar para el resto", async () => {

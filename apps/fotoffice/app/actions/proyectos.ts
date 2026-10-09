@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { alCambiarProyecto } from "@/lib/agenda/google/empuje";
 import { MENSAJES_PROYECTO } from "@/lib/proyectos/acceso";
 import { contextoDeProyectos } from "@/lib/proyectos/contexto";
 import { crearProyectoManual, type ResultadoProyectoManual } from "@/lib/proyectos/crear";
@@ -46,7 +48,10 @@ export async function agregarProyectoAction(datos: {
     nombre: datos.nombre ?? undefined,
     ownerUserId: datos.ownerUserId ?? undefined,
   });
-  if (r.ok) revalidatePath(`/pedidos/${datos.pedidoId}`);
+  if (r.ok) {
+    revalidatePath(`/pedidos/${datos.pedidoId}`);
+    avisarEntrega(ctx.workspaceId, r.proyectoId);
+  }
   return r;
 }
 
@@ -55,6 +60,11 @@ export async function agregarProyectoAction(datos: {
 const DATOS_INVALIDOS = { ok: false, error: MENSAJES_PROYECTO.datosInvalidos } as const;
 const SIN_PERMISO = { ok: false, error: MENSAJES_PROYECTO.sinPermiso } as const;
 const ADJUNTOS_APAGADOS = { ok: false, error: "Los adjuntos todavía no están habilitados." } as const;
+
+/** La fecha de entrega del proyecto llega a Google Calendar después de confirmar, sin frenar la acción. */
+function avisarEntrega(workspaceId: string, proyectoId: string): void {
+  after(() => alCambiarProyecto(workspaceId, proyectoId));
+}
 
 function revalidarProyecto(proyectoId: string): void {
   revalidatePath("/proyectos");
@@ -72,7 +82,10 @@ export async function editarProyectoAction(proyectoId: string, datos: DatosEdici
     finalDueDate: datos.finalDueDate,
     description: datos.description,
   });
-  if (r.ok) revalidarProyecto(proyectoId);
+  if (r.ok) {
+    revalidarProyecto(proyectoId);
+    avisarEntrega(ctx.workspaceId, proyectoId);
+  }
   return r;
 }
 
@@ -82,6 +95,7 @@ export async function suspenderProyectoAction(proyectoId: string, motivo: string
   if (!ctx) return SIN_PERMISO;
   const r = await suspender(ctx, proyectoId, motivo);
   if (r.ok) {
+    avisarEntrega(ctx.workspaceId, proyectoId);
     revalidarProyecto(proyectoId);
     revalidatePath("/dashboard");
   }
@@ -94,6 +108,7 @@ export async function reanudarProyectoAction(proyectoId: string): Promise<Result
   if (!ctx) return SIN_PERMISO;
   const r = await reanudar(ctx, proyectoId);
   if (r.ok) {
+    avisarEntrega(ctx.workspaceId, proyectoId);
     revalidarProyecto(proyectoId);
     revalidatePath("/dashboard");
   }

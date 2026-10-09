@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { alCambiarProyecto } from "@/lib/agenda/google/empuje";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { contextoDeCircuitos, type CtxCircuitos } from "@/lib/circuitos/acceso";
@@ -117,7 +119,15 @@ export async function cerrarAction(datos: {
   if (esFalla(p)) return p;
   const forzar = datos.forzar === true && puede(p.ctx.role, "configurar");
   const r = await cerrar(p.ctx, datos.journeyId, datos.salida, datos.lossReasonId, datos.nota, { esperado, forzar });
-  if (r.ok) revalidar(p);
+  if (r.ok) {
+    revalidar(p);
+    // Un proyecto cerrado deja de entregarse: su evento se borra de Google Calendar (después de responder).
+    if (p.sujeto.tipo === "PROYECTO") {
+      const workspaceId = p.ctx.workspaceId;
+      const proyectoId = p.sujeto.id;
+      after(() => alCambiarProyecto(workspaceId, proyectoId));
+    }
+  }
   return r;
 }
 
