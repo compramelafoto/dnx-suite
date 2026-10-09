@@ -233,14 +233,24 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
           el contador es el número que se proyecta, que tiene que ser el de verdad.
         */
         if (Date.now() - ultimosTotales > TOTALES_CADA_MS) {
+          /*
+            Agrupado por foto y por emoji: la pantalla muestra el contador de la foto que
+            está viendo, no uno del evento entero que sube toda la noche sin decir nada.
+
+            Las reacciones sin foto —pantalla apagada, o mostrando el QR— caen bajo la
+            clave vacía. No se tiran: son parte de la noche.
+          */
           const porEmoji = await prisma.subilafotoReaction.groupBy({
-            by: ["emoji"],
+            by: ["mediaId", "emoji"],
             where: { eventId: evento.id },
             _count: { emoji: true },
           });
-          const conteo: Record<string, number> = {};
-          for (const fila of porEmoji) conteo[fila.emoji] = fila._count.emoji;
-          mandar(`event: reacciones\ndata: ${JSON.stringify({ conteo })}\n\n`);
+          const porFoto: Record<string, Record<string, number>> = {};
+          for (const fila of porEmoji) {
+            const clave = fila.mediaId ?? "";
+            (porFoto[clave] ??= {})[fila.emoji] = fila._count.emoji;
+          }
+          mandar(`event: reacciones\ndata: ${JSON.stringify({ porFoto })}\n\n`);
           ultimosTotales = Date.now();
           ultimoLatido = Date.now();
         }
