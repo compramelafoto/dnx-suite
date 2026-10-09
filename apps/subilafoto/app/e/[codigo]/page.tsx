@@ -99,10 +99,18 @@ export default async function PuertaDelInvitado({ params }: Props) {
           priority
           className="mb-10 h-auto w-[min(20rem,72vw)] rounded-2xl object-cover"
         />
-      ) : (
-        // Monocromo y no el isotipo a color: el fondo lo pone la plantilla del evento y
-        // el manual prohíbe usar el logo sobre fondos que no le dan contraste. Además la
-        // marca que manda acá es la del evento, no la nuestra.
+      ) : logo ? null : (
+        /*
+          El relleno, sólo cuando no hay NI portada NI logo del fotógrafo.
+
+          Antes salía siempre que faltara la portada, y desde que el logo del fotógrafo
+          se muestra arriba eso dejaba dos marcas apiladas: la suya y la nuestra en gris
+          debajo. La marca que manda acá es la del evento; la nuestra es el último
+          recurso para que la pantalla no arranque con un hueco.
+
+          Monocromo y no el isotipo a color: el fondo lo pone la plantilla del evento y
+          el manual prohíbe usar el logo sobre fondos que no le dan contraste.
+        */
         <Image
           src="/brand/subilafoto-isotipo-monocromo-blanco.png"
           alt=""
