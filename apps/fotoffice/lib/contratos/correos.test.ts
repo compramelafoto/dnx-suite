@@ -204,3 +204,12 @@ describe("correos de una versión enviada", () => {
     expect(enviados[0]!.text).toContain(token);
   });
 });
+
+describe("texto del recordatorio", () => {
+  it("avisa que el enlace de este correo reemplaza a los anteriores", async () => {
+    const { readFileSync } = await import("node:fs");
+    const fuente = readFileSync(new URL("./correos.ts", import.meta.url), "utf8");
+    const i = fuente.indexOf("CONTRATO_RECORDATORIO: {");
+    expect(fuente.slice(i, fuente.indexOf("CONTRATO_FIRMADO: {"))).toContain("reemplaza a los que te hayamos mandado antes");
+  });
+});

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { Bloque, Segmento } from "@/lib/contratos/formato";
-import { resolverTokenFirmantePorWorkspace } from "@/lib/contratos/enlace";
+import { resolverTokenFirmantePorWorkspace, urlDelContrato } from "@/lib/contratos/enlace";
 import { armarVistaFirma, type EstadoFirmante } from "@/lib/contratos/publico";
 import { registrarVista } from "@/lib/contratos/firma";
-import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
+import { sitioDelWorkspace, workspaceDelSlug } from "@/lib/presupuestos/sitio";
 import { FirmaFlujo } from "./firma-flujo";
 import { abreAlguienDelEquipo, visitanteDelEnlace } from "./visitante";
 
@@ -83,6 +83,10 @@ export default async function ContratoPublicoPage({ params }: Props) {
   // Si lo abre alguien del equipo (con sesión), no cuenta como apertura del firmante.
   if (!(await abreAlguienDelEquipo(workspaceId))) await registrarVista(workspaceId, r);
   const vista = await armarVistaFirma(workspaceId, r);
+  // El enlace al PDF es ABSOLUTO (dominio propio o /w/<slug> bajo el origen de la app): no depende de la barra final de la dirección.
+  const sitio = vista.pdfDisponible ? await sitioDelWorkspace(workspaceId) : null;
+  const base = sitio ? urlDelContrato({ ...sitio, appOrigin: (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").replace(/\/+$/, ""), token }) : null;
+  const pdfHref = base ? `${base}/pdf` : `/w/${encodeURIComponent(workspaceSlug)}/contrato/${encodeURIComponent(token)}/pdf`;
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8 md:py-12">
@@ -105,9 +109,8 @@ export default async function ContratoPublicoPage({ params }: Props) {
           <p>Firmaste este contrato{vista.yo.firmadoEn ? ` el ${vista.yo.firmadoEn}` : ""}.</p>
           <p className="opacity-70">{vista.leyenda}</p>
           {vista.pdfDisponible ? (
-            // Dirección relativa: sirve igual en `/w/<slug>/contrato/<token>` y en el dominio propio.
             <p className="pt-1">
-              <a href={`${encodeURIComponent(token)}/pdf`} className="fo-btn fo-btn-secondary text-sm" download>
+              <a href={pdfHref} className="fo-btn fo-btn-secondary text-sm" download>
                 Descargar PDF
               </a>
             </p>

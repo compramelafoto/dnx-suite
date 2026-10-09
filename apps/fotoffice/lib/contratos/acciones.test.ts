@@ -36,6 +36,14 @@ describe("acciones de contratos (fuente)", () => {
     expect(pagina).toContain('key={`${ficha.id}:${ficha.version?.id ?? "borrador"}`}');
   });
 
+  it("el enlace público al PDF es absoluto (se arma con urlDelContrato), no relativo al token", async () => {
+    const { readFileSync } = await import("node:fs");
+    const pagina = readFileSync(new URL("../../app/w/[workspaceSlug]/contrato/[token]/page.tsx", import.meta.url), "utf8");
+    expect(pagina).toContain("urlDelContrato(");
+    expect(pagina).toContain("href={pdfHref}");
+    expect(pagina).not.toContain("href={`${encodeURIComponent(token)}/pdf`}");
+  });
+
   it("los correos salen con after() y nunca antes de confirmar el envío", () => {
     for (const nombre of ["enviarContratoAction", "reenviarEnlaceContratoAction"]) {
       const c = cuerpoDe(nombre);

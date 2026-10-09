@@ -8,7 +8,8 @@ import { enviarCorreoContrato } from "./correos";
 import { hashDeToken, resolverClaveDeEnlace, tokenDeFirmante, urlDelContrato } from "./enlace";
 import { registrarEvento } from "./eventos";
 import { finalizarContratoFirmado, type DepsSellado } from "./sellado";
-import { bloquearContrato, vencimientoDeEnlace } from "./versiones";
+import { DIAS_VALIDEZ_ENLACE } from "./constantes";
+import { bloquearContrato } from "./versiones";
 
 /**
  * Tarea diaria de Contratos (`app/api/cron/contratos-recordatorios`, 13:00 UTC = 10:00 de Buenos Aires).
@@ -19,9 +20,10 @@ import { bloquearContrato, vencimientoDeEnlace } from "./versiones";
  *    de contratos ENVIADO o FIRMADO_PARCIAL que no firmaron ni rechazaron, con el enlace sin vencer, cuya
  *    versión se envió hace `reminderDays` días o más y cuyo último recordatorio (si hubo) fue hace
  *    `reminderDays` días o más. Les manda `CONTRATO_RECORDATORIO`.
- *    El enlace no se puede reconstruir desde la base (sólo está su hash): al recordar se ROTA el token
- *    (hash y vencimiento nuevos, como "Reenviar enlace") y el correo lleva el enlace nuevo. Si el correo
- *    no sale se vuelve atrás la rotación, así el enlace que ya tenía la persona sigue andando.
+ *    El enlace no se puede reconstruir desde la base (sólo está su hash): al recordar se manda el
+ *    MISMO enlace (el token se recalcula con el id del firmante y su vencimiento) sin extender su vida: los
+ *    recordatorios terminan cuando el enlace vence (o a los 30 días del envío de la versión). Sólo el
+ *    "Reenviar enlace" manual rota el token y extiende. Si el correo no sale se deja como estaba.
  * 2. REINTENTO DE PDF: contratos FIRMADO (por los firmantes, no en papel) de los últimos 30 días que
  *    quedaron sin PDF o sin copia enviada (`after()` no llegó a terminar o falló el proveedor).
  *
@@ -74,19 +76,21 @@ async function rotarToken(workspaceId: string, contratoId: string, firmanteId: s
         select: { tokenHash: true, tokenExpiresAt: true, lastReminderAt: true, signedAt: true, rejectedAt: true },
       }),
       tx.fotofficeContrato.findFirst({ where: { id: contratoId, workspaceId }, select: { status: true, currentVersionId: true } }),
-      tx.fotofficeContratoVersion.findFirst({ where: { id: versionId, workspaceId }, select: { revokedAt: true } }),
+      tx.fotofficeContratoVersion.findFirst({ where: { id: versionId, workspaceId }, select: { revokedAt: true, sentAt: true } }),
     ]);
     if (!f || !c || !v || f.signedAt || f.rejectedAt || v.revokedAt || c.currentVersionId !== versionId) return null;
     if (c.status !== "ENVIADO" && c.status !== "FIRMADO_PARCIAL") return null;
     if (f.tokenExpiresAt.getTime() <= ahora.getTime()) return null;
     if (f.lastReminderAt && f.lastReminderAt.getTime() > limite.getTime()) return null;
-    let vence = vencimientoDeEnlace(ahora);
-    // El token depende del vencimiento: tiene que ser distinto del anterior.
-    if (vence.getTime() <= f.tokenExpiresAt.getTime()) vence = new Date(f.tokenExpiresAt.getTime() + 1);
-    const nuevoHash = hashDeToken(tokenDeFirmante(firmanteId, vence, clave));
+    // Segunda guarda: pasados los días de vida del enlace desde el envío de la versión, no se recuerda más.
+    if (v.sentAt.getTime() + DIAS_VALIDEZ_ENLACE * DIA_MS <= ahora.getTime()) return null;
+    // El recordatorio NO extiende la vida del enlace: sale con el mismo vencimiento (el token se recalcula igual
+    // desde el id y el vencimiento, así que no hace falta rotarlo) y los recordatorios terminan cuando vence.
+    const vence = f.tokenExpiresAt;
+    const nuevoHash = f.tokenHash;
     const r = await tx.fotofficeContratoFirmante.updateMany({
       where: { id: firmanteId, workspaceId, tokenHash: f.tokenHash, signedAt: null, rejectedAt: null },
-      data: { tokenHash: nuevoHash, tokenExpiresAt: vence, lastReminderAt: ahora },
+      data: { lastReminderAt: ahora },
     });
     if (r.count !== 1) return null;
     return { nuevoHash, vence, antes: { tokenHash: f.tokenHash, tokenExpiresAt: f.tokenExpiresAt, lastReminderAt: f.lastReminderAt } };
@@ -119,7 +123,9 @@ async function recordatoriosDe(workspaceId: string, dias: number, ahora: Date, c
     where: { workspaceId, id: { in: versionIds }, revokedAt: null },
     select: { id: true, sentAt: true },
   });
-  const vigentes = new Set(versiones.filter((v) => v.sentAt.getTime() <= limite.getTime()).map((v) => v.id));
+  const vigentes = new Set(
+    versiones.filter((v) => v.sentAt.getTime() <= limite.getTime() && v.sentAt.getTime() + DIAS_VALIDEZ_ENLACE * DIA_MS > ahora.getTime()).map((v) => v.id),
+  );
   if (vigentes.size === 0) return;
   const firmantes = await prisma.fotofficeContratoFirmante.findMany({
     where: {

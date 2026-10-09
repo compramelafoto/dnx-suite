@@ -56,6 +56,8 @@ Te recordamos que el contrato [contrato_numero] de [organizacion] todavía está
 
 Podés leerlo y firmarlo desde acá: [contrato_enlace]
 
+El enlace de este correo reemplaza a los que te hayamos mandado antes: si alguno ya no funciona, usá este.
+
 Si ya lo firmaste o tenés alguna duda, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si].
 
 [firma]`,

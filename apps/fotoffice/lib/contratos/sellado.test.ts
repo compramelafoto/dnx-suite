@@ -107,6 +107,37 @@ describe("generarPdfContrato", () => {
     expect(tipos()).toEqual(["PDF_GENERADO"]);
   });
 
+  it("las lecturas de firmas y el armado van antes del candado: con el candado tomado sólo se sube", async () => {
+    const orden: string[] = [];
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (texto.includes("pg_advisory_xact_lock")) orden.push("candado");
+    };
+    const leerTraza = async (clave: string) => {
+      orden.push("leer");
+      return leer(clave);
+    };
+    const subirTraza = async (clave: string, bytes: Uint8Array) => {
+      orden.push("subir");
+      await subir(clave, bytes);
+    };
+    const r = await P.generarPdfContrato("k1", deps({ leer: leerTraza, subir: subirTraza }));
+    B.ganchos.alEjecutarSql = null;
+    expect(r).toMatchObject({ ok: true, yaExistia: false });
+    expect(orden).toEqual(["leer", "leer", "leer", "candado", "subir"]);
+  });
+
+  it("si otra corrida deja el PDF mientras éste se arma, se descarta lo armado y no se sube nada", async () => {
+    const leerYGana = async (clave: string) => {
+      Object.assign(contrato(), { pdfKey: "contratos/ws-1/k1/contrato-C-1-v1.pdf", pdfHash: "hash-del-otro" });
+      return leer(clave);
+    };
+    const r = await P.generarPdfContrato("k1", deps({ leer: leerYGana }));
+    expect(r).toMatchObject({ ok: true, yaExistia: true, pdfHash: "hash-del-otro" });
+    expect(subir).not.toHaveBeenCalled();
+    expect(tipos()).toEqual([]);
+    expect(contrato().pdfHash).toBe("hash-del-otro");
+  });
+
   it("sólo sella contratos firmados por todos (no borrador, no en papel, no con firmas faltantes)", async () => {
     Object.assign(contrato(), { status: "FIRMADO_PARCIAL" });
     expect(await P.generarPdfContrato("k1", deps())).toEqual({ ok: false, codigo: "NO_FIRMADO" });

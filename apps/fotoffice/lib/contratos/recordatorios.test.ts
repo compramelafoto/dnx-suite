@@ -86,8 +86,8 @@ async function corrida(extra: Record<string, unknown> = {}) {
 }
 
 describe("a quién se le recuerda", () => {
-  it("al firmante pendiente, con un enlace nuevo; el viejo deja de servir y el nuevo abre", async () => {
-    const viejoHash = firmante("f1").tokenHash;
+  it("al firmante pendiente, con su mismo enlace y sin extender su vencimiento", async () => {
+    const hashAntes = firmante("f1").tokenHash;
     const rep = await corrida();
     expect(rep.recordatorios).toMatchObject({ enviados: 1, fallidos: 0, salteados: 0 });
     expect(rep.organizaciones).toBe(1);
@@ -95,16 +95,33 @@ describe("a quién se le recuerda", () => {
     expect(enviados[0]!.to).toBe("f1@x.com");
     expect(enviados[0]!.subject).toBe("Te falta firmar el contrato C-k1");
     const f = firmante("f1");
-    expect(f.tokenHash).not.toBe(viejoHash);
+    expect(f.tokenHash).toBe(hashAntes);
     expect(f.lastReminderAt).toEqual(AHORA);
-    expect((f.tokenExpiresAt as Date).getTime()).toBe(AHORA.getTime() + 30 * DIA);
-    const nuevo = token("f1", f.tokenExpiresAt as Date);
-    expect(enviados[0]!.text).toContain(`https://app.test/w/dnxestudio/contrato/${nuevo}`);
-    expect(L.hashDeToken(nuevo)).toBe(f.tokenHash);
-    expect(await L.resolverTokenFirmantePorWorkspace("ws-1", nuevo, AHORA)).toMatchObject({ ok: true });
-    expect(await L.resolverTokenFirmantePorWorkspace("ws-1", token("f1"), AHORA)).toEqual({ ok: false, motivo: "NO_ENCONTRADO" });
+    expect(f.tokenExpiresAt).toEqual(VENCE);
+    expect(enviados[0]!.text).toContain(`https://app.test/w/dnxestudio/contrato/${token("f1")}`);
+    expect(await L.resolverTokenFirmantePorWorkspace("ws-1", token("f1"), AHORA)).toMatchObject({ ok: true });
     expect(tipos()).toEqual(["RECORDATORIO"]);
     expect(B.datos.fotofficeMessage[0]).toMatchObject({ entityType: "CONTRATO", entityId: "k1", status: "SENT", automatic: true });
+  });
+
+  it("los recordatorios terminan: corrida tras corrida el vencimiento no se mueve y al vencer no sale más ninguno", async () => {
+    let total = 0;
+    for (let d = 0; d <= 40; d += 3) {
+      const ahora = new Date(AHORA.getTime() + d * DIA);
+      total += (await corrida({ ahora: () => ahora })).recordatorios.enviados;
+      expect(firmante("f1").tokenExpiresAt).toEqual(VENCE);
+    }
+    // El enlace vence a los 25 días de AHORA: 9 recordatorios (días 0 a 24) y ninguno después.
+    expect(total).toBe(9);
+    const despues = new Date(AHORA.getTime() + 60 * DIA);
+    expect((await corrida({ ahora: () => despues })).recordatorios.enviados).toBe(0);
+  });
+
+  it("segunda guarda: una versión enviada hace 30 días o más no recibe recordatorios aunque el enlace siga vivo", async () => {
+    Object.assign(B.datos.fotofficeContratoVersion[0]!, { sentAt: hace(30) });
+    expect((await corrida()).recordatorios.enviados).toBe(0);
+    Object.assign(B.datos.fotofficeContratoVersion[0]!, { sentAt: hace(29) });
+    expect((await corrida()).recordatorios.enviados).toBe(1);
   });
 
   it("no antes de reminderDays desde el envío", async () => {
