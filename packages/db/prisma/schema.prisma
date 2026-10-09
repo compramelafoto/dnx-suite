@@ -23262,6 +23262,8 @@ model FotofficeWaMensaje {
   /// RECIBIDO | SIMULADO | PENDIENTE | ENVIADO | ENTREGADO | LEIDO | FALLO
   estadoEnvio String   @default("RECIBIDO")
   errorCodigo String?
+  /// Token de idempotencia del envío desde el panel (un reintento no manda dos veces).
+  clientToken String?
   createdAt   DateTime @default(now())
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -23269,5 +23271,6 @@ model FotofficeWaMensaje {
 
   /// Idempotencia de los webhooks (los NULL no chocan entre sí en Postgres).
   @@unique([workspaceId, waMessageId])
+  @@unique([chatId, clientToken])
   @@index([chatId, createdAt])
 }

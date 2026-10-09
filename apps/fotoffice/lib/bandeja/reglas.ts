@@ -112,3 +112,15 @@ export function alResponderDesdePanel(chat: EstadoChat, userId: number, nombre: 
   if (chat.estado === "HUMANO" && chat.asignadoUserId === userId) return { parche: {} };
   return alTomar(chat, userId, nombre);
 }
+
+/** Minutos tras los que un mensaje que sigue PENDIENTE se muestra como INCIERTO. */
+export const MINUTOS_PENDIENTE_INCIERTO = 2;
+
+/**
+ * Estado que la pantalla muestra de un mensaje saliente: un PENDIENTE de hace más de 2 minutos
+ * quedó sin confirmar (el envío pudo salir o no) y se muestra "INCIERTO". El resto, tal cual.
+ */
+export function estadoVisible(mensaje: { estadoEnvio: string; createdAt: Date }, ahora: Date): string {
+  if (mensaje.estadoEnvio !== "PENDIENTE") return mensaje.estadoEnvio;
+  return ahora.getTime() - mensaje.createdAt.getTime() > MINUTOS_PENDIENTE_INCIERTO * 60_000 ? "INCIERTO" : "PENDIENTE";
+}

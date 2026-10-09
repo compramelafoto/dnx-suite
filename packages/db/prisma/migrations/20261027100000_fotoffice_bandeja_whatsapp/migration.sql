@@ -51,6 +51,7 @@ CREATE TABLE "FotofficeWaMensaje" (
     "waMessageId" TEXT,
     "estadoEnvio" TEXT NOT NULL DEFAULT 'RECIBIDO',
     "errorCodigo" TEXT,
+    "clientToken" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "FotofficeWaMensaje_pkey" PRIMARY KEY ("id")
@@ -76,6 +77,9 @@ CREATE INDEX "FotofficeWaChat_clientId_idx" ON "FotofficeWaChat"("clientId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FotofficeWaMensaje_workspaceId_waMessageId_key" ON "FotofficeWaMensaje"("workspaceId", "waMessageId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "FotofficeWaMensaje_chatId_clientToken_key" ON "FotofficeWaMensaje"("chatId", "clientToken");
 
 -- CreateIndex
 CREATE INDEX "FotofficeWaMensaje_chatId_createdAt_idx" ON "FotofficeWaMensaje"("chatId", "createdAt");

@@ -21,10 +21,11 @@ describe("enviarTexto", () => {
     expect(f).not.toHaveBeenCalled();
   });
 
-  it("REAL sin phoneNumberId o sin token: simulado", async () => {
+  it("REAL sin phoneNumberId o sin token usable: falla (no simula en silencio)", async () => {
     const f = vi.fn();
-    expect(await enviarTexto({ ...REAL, phoneNumberId: null }, "549", "hola", { fetch: f as never, leerToken: conToken })).toEqual({ ok: true, simulado: true });
-    expect(await enviarTexto(REAL, "549", "hola", { fetch: f as never, leerToken: async () => null })).toEqual({ ok: true, simulado: true });
+    expect(await enviarTexto({ ...REAL, phoneNumberId: null }, "549", "hola", { fetch: f as never, leerToken: conToken })).toEqual({ ok: false, codigo: "SIN_NUMERO" });
+    expect(await enviarTexto(REAL, "549", "hola", { fetch: f as never, leerToken: async () => null })).toEqual({ ok: false, codigo: "SIN_TOKEN" });
+    expect(await enviarTexto(REAL, "549", "hola", { fetch: f as never, leerToken: async () => { throw new Error("x"); } })).toEqual({ ok: false, codigo: "SIN_TOKEN" });
     expect(f).not.toHaveBeenCalled();
   });
 

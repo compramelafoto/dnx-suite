@@ -108,43 +108,74 @@ export async function resolver(ctx: CtxBandeja, chatId: string, deps: Deps = {})
   return transicion(ctx, chatId, (chat) => (chat.estado === "RESUELTO" ? null : alResolver(userId, ctx.userLabel)), deps.ahora ?? new Date());
 }
 
-/** Marca el chat como leído (VIEW alcanza: no cambia quién lo atiende). */
+/** Marca el chat como leído (VIEW alcanza: no cambia quién lo atiende). Bajo el mismo candado de fila. */
 export async function marcarLeido(ctx: CtxBandeja, chatId: string): Promise<Resultado> {
   if (!puedeVerBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
-  const r = await prisma.fotofficeWaChat.updateMany({ where: { id: chatId, workspaceId: ctx.workspaceId }, data: { noLeidos: 0 } });
-  return r.count > 0 ? { ok: true } : no(MENSAJES_BANDEJA.noExiste);
+  try {
+    return await prisma.$transaction(async (tx): Promise<Resultado> => {
+      const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
+      if (!chat) return no(MENSAJES_BANDEJA.noExiste);
+      if (chat.noLeidos !== 0) await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { noLeidos: 0 } });
+      return { ok: true };
+    });
+  } catch (e) {
+    console.error("[fotoffice][whatsapp] falló al marcar leído", detalleDeError(e));
+    return no(MENSAJES_BANDEJA.fallo);
+  }
+}
+
+export type RespuestaEnviada = { mensajeId: string; estadoEnvio: string; aviso?: string };
+
+const TOKEN_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
+const esChoqueDeUnico = (e: unknown) => (e as { code?: unknown } | null)?.code === "P2002";
+
+/** Lo que se le cuenta a quien envió, según lo que QUEDÓ guardado del mensaje. */
+function respuestaDe(m: { id: string; estadoEnvio: string; errorCodigo: string | null }): Resultado<RespuestaEnviada> {
+  if (m.estadoEnvio === "FALLO") return no(m.errorCodigo === "SIN_TOKEN" ? MENSAJES_BANDEJA.sinToken : MENSAJES_BANDEJA.falloEnvio);
+  if (m.estadoEnvio === "PENDIENTE") return { ok: true, mensajeId: m.id, estadoEnvio: "PENDIENTE", aviso: MENSAJES_BANDEJA.noConfirmado };
+  return { ok: true, mensajeId: m.id, estadoEnvio: m.estadoEnvio };
 }
 
 /**
- * Responde desde el panel (§3, §6). En una transacción con candado: valida la ventana de 24 h,
- * toma el chat si hace falta (queda un SISTEMA) y deja el mensaje PENDIENTE con su autor. FUERA de
- * la transacción llama a Meta (o simula) y recién ahí pasa el mensaje a SIMULADO, ENVIADO o FALLO.
+ * Responde desde el panel (§3, §6). Exige un `clientToken` (idempotencia): un doble clic o un
+ * reintento con el mismo token devuelve el estado del mensaje ya guardado y NO envía otra vez.
+ * En una transacción con candado: valida la ventana de 24 h, toma el chat si hace falta (queda un
+ * SISTEMA) y deja el mensaje PENDIENTE con su autor. FUERA de la transacción llama a Meta (o
+ * simula) y recién ahí pasa el mensaje a SIMULADO, ENVIADO o FALLO. Lo que devuelve es lo que
+ * quedó guardado: si no se pudo registrar el resultado, el estado es PENDIENTE con un aviso.
  */
 export async function responder(
   ctx: CtxBandeja,
   chatId: string,
   textoCrudo: unknown,
+  clientToken: unknown,
   deps: Deps = {},
-): Promise<Resultado<{ mensajeId: string; estadoEnvio: string }>> {
+): Promise<Resultado<RespuestaEnviada>> {
   const userId = ctx.userId;
   if (userId === null || !puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
+  if (typeof clientToken !== "string" || !TOKEN_VALIDO.test(clientToken)) return no(MENSAJES_BANDEJA.sinClientToken);
   const texto = typeof textoCrudo === "string" ? textoCrudo.trim() : "";
   if (!texto) return no(MENSAJES_BANDEJA.textoVacio);
   if (texto.length > TEXTO_MAXIMO) return no(MENSAJES_BANDEJA.textoLargo);
   const ahora = deps.ahora ?? new Date();
 
+  const previo = (tx: Tx | typeof prisma, chat: string) =>
+    tx.fotofficeWaMensaje.findFirst({ where: { chatId: chat, workspaceId: ctx.workspaceId, clientToken }, select: { id: true, estadoEnvio: true, errorCodigo: true } });
+
   let guardado: { mensajeId: string; waId: string };
   try {
-    const r = await prisma.$transaction(async (tx) => {
+    const r = await prisma.$transaction(async (tx): Promise<Resultado<{ mensajeId: string; waId: string }> | { ok: true; repetido: Resultado<RespuestaEnviada> }> => {
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
+      const repetido = await previo(tx, chat.id);
+      if (repetido) return { ok: true, repetido: respuestaDe(repetido) };
       if (!puedeResponderLibre(aEstado(chat), ahora)) return no(MENSAJES_BANDEJA.fueraDeVentana);
       const regla = alResponderDesdePanel(aEstado(chat), userId, ctx.userLabel);
       if (regla.sistema) await escribirSistema(tx, ctx.workspaceId, chat.id, regla.sistema.texto, ahora);
       const m = await tx.fotofficeWaMensaje.create({
         data: {
           workspaceId: ctx.workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "USUARIO", autorUserId: userId,
-          autorLabel: ctx.userLabel, tipo: "TEXTO", texto, estadoEnvio: "PENDIENTE", createdAt: new Date(ahora.getTime() + 1),
+          autorLabel: ctx.userLabel, tipo: "TEXTO", texto, estadoEnvio: "PENDIENTE", clientToken, createdAt: new Date(ahora.getTime() + 1),
         },
         select: { id: true },
       });
@@ -155,11 +186,17 @@ export async function responder(
           ...(ahora.getTime() > chat.ultimoMensajeEn.getTime() ? { ultimoMensajeEn: new Date(ahora.getTime() + 1) } : {}),
         },
       });
-      return { ok: true as const, mensajeId: m.id, waId: chat.waId };
+      return { ok: true, mensajeId: m.id, waId: chat.waId };
     });
     if (!r.ok) return r;
+    if ("repetido" in r) return r.repetido;
     guardado = r;
   } catch (e) {
+    // Otra petición con el mismo token ganó la carrera: se devuelve su estado, sin enviar.
+    if (esChoqueDeUnico(e)) {
+      const ganador = await previo(prisma, chatId).catch(() => null);
+      if (ganador) return respuestaDe(ganador);
+    }
     console.error("[fotoffice][whatsapp] falló al guardar una respuesta", detalleDeError(e));
     return no(MENSAJES_BANDEJA.fallo);
   }
@@ -179,29 +216,48 @@ export async function responder(
     : envio.simulado
       ? { estadoEnvio: "SIMULADO" }
       : { estadoEnvio: "ENVIADO", waMessageId: envio.waMessageId };
-  const estadoEnvio = datos.estadoEnvio as string;
+  const guardar = (d: Prisma.FotofficeWaMensajeUpdateInput) => prisma.fotofficeWaMensaje.update({ where: { id: guardado.mensajeId }, data: d });
+  let persistido: { estadoEnvio: string; errorCodigo: string | null } = { estadoEnvio: "PENDIENTE", errorCodigo: null };
   try {
-    await prisma.fotofficeWaMensaje.update({ where: { id: guardado.mensajeId }, data: datos });
+    await guardar(datos);
+    persistido = { estadoEnvio: datos.estadoEnvio as string, errorCodigo: (datos.errorCodigo as string | undefined) ?? null };
   } catch (e) {
-    if ((e as { code?: unknown } | null)?.code === "P2002" && envio.ok && !envio.simulado) {
+    if (esChoqueDeUnico(e) && envio.ok && !envio.simulado) {
       // Ese waMessageId ya existe (el eco del celular llegó primero): se deja ENVIADO sin id.
-      await prisma.fotofficeWaMensaje.update({ where: { id: guardado.mensajeId }, data: { estadoEnvio: "ENVIADO" } }).catch(() => undefined);
+      try {
+        await guardar({ estadoEnvio: "ENVIADO" });
+        persistido = { estadoEnvio: "ENVIADO", errorCodigo: null };
+      } catch (e2) {
+        console.error("[fotoffice][whatsapp] no se pudo registrar el resultado del envío", detalleDeError(e2));
+      }
     } else {
       console.error("[fotoffice][whatsapp] no se pudo registrar el resultado del envío", detalleDeError(e));
     }
   }
-  if (!envio.ok) return no(MENSAJES_BANDEJA.falloEnvio);
-  return { ok: true, mensajeId: guardado.mensajeId, estadoEnvio };
+  return respuestaDe({ id: guardado.mensajeId, ...persistido });
 }
 
-/** Vincula el chat a un cliente del MISMO workspace. */
-export async function vincularCliente(ctx: CtxBandeja, chatId: string, clientId: unknown): Promise<Resultado> {
+/**
+ * Vincula el chat a un cliente del MISMO workspace. Si ya tiene otro cliente, rechaza salvo que
+ * se pida `reemplazar` (así dos pantallas abiertas no se pisan sin querer). Bajo candado de fila.
+ */
+export async function vincularCliente(ctx: CtxBandeja, chatId: string, clientId: unknown, opciones: { reemplazar?: boolean } = {}): Promise<Resultado> {
   if (!puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
   if (typeof clientId !== "string" || !clientId) return no(MENSAJES_BANDEJA.cliente);
-  const cliente = await prisma.client.findFirst({ where: { id: clientId, workspaceId: ctx.workspaceId }, select: { id: true } });
-  if (!cliente) return no(MENSAJES_BANDEJA.cliente);
-  const r = await prisma.fotofficeWaChat.updateMany({ where: { id: chatId, workspaceId: ctx.workspaceId }, data: { clientId: cliente.id } });
-  return r.count > 0 ? { ok: true } : no(MENSAJES_BANDEJA.noExiste);
+  try {
+    return await prisma.$transaction(async (tx): Promise<Resultado> => {
+      const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
+      if (!chat) return no(MENSAJES_BANDEJA.noExiste);
+      const cliente = await tx.client.findFirst({ where: { id: clientId, workspaceId: ctx.workspaceId }, select: { id: true } });
+      if (!cliente) return no(MENSAJES_BANDEJA.cliente);
+      if (chat.clientId && chat.clientId !== cliente.id && opciones.reemplazar !== true) return no(MENSAJES_BANDEJA.clienteDistinto);
+      await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { clientId: cliente.id } });
+      return { ok: true };
+    });
+  } catch (e) {
+    console.error("[fotoffice][whatsapp] falló al vincular el cliente", detalleDeError(e));
+    return no(MENSAJES_BANDEJA.fallo);
+  }
 }
 
 /**

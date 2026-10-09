@@ -3,8 +3,8 @@ import { leerTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
 import type { Conexion } from "./conexion";
 
 /**
- * Salida a WhatsApp (§6 del diseño). Sólo manda de verdad si la conexión está en REAL, tiene
- * `phoneNumberId` y hay token en el baúl; en cualquier otro caso es una simulación. NUNCA lanza ni
+ * Salida a WhatsApp (§6 del diseño). Con la conexión SIMULADA simula; en REAL manda de verdad o
+ * falla (SIN_NUMERO / SIN_TOKEN si falta algo), nunca simula en silencio. NUNCA lanza ni
  * loguea el texto, el teléfono o el token: devuelve el código de error de Meta (o el HTTP).
  */
 
@@ -27,9 +27,12 @@ export async function enviarTexto(
   texto: string,
   deps: DepsEnvio = {},
 ): Promise<ResultadoEnvio> {
-  if (conexion.modo !== "REAL" || !conexion.phoneNumberId) return { ok: true, simulado: true };
+  if (conexion.modo !== "REAL") return { ok: true, simulado: true };
+  // En modo REAL la honestidad gana: sin número o sin token usable (falta, revocado, no se puede
+  // descifrar) NO se simula —parecería enviado—: falla con un código que la pantalla explica.
+  if (!conexion.phoneNumberId) return { ok: false, codigo: "SIN_NUMERO" };
   const token = await (deps.leerToken ?? leerTokenWhatsapp)(conexion.workspaceId).catch(() => null);
-  if (!token) return { ok: true, simulado: true };
+  if (!token) return { ok: false, codigo: "SIN_TOKEN" };
 
   const version = process.env.WHATSAPP_API_VERSION || "v21.0";
   const url = `https://graph.facebook.com/${version}/${conexion.phoneNumberId}/messages`;

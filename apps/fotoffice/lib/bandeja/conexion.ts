@@ -98,12 +98,7 @@ export async function guardarConexion(ctx: CtxConsultas, datos: DatosConexion): 
     if (!phoneNumberId || !hayToken) return { ok: false, error: MENSAJES_CONEXION.realSinDatos };
   }
 
-  try {
-    if (tokenNuevo) await guardarTokenWhatsapp(ctx.workspaceId, tokenNuevo, ctx.userId);
-  } catch {
-    return { ok: false, error: MENSAJES_CONEXION.sinClave };
-  }
-
+  // Primero la fila (puede chocar por número repetido); el token se guarda recién cuando la fila quedó.
   const fila = { phoneNumberId, wabaId, displayPhone, modo: modo as string, pausaBotHoras: pausa };
   try {
     await prisma.fotofficeWaConexion.upsert({
@@ -115,5 +110,22 @@ export async function guardarConexion(ctx: CtxConsultas, datos: DatosConexion): 
     if ((e as { code?: unknown } | null)?.code === "P2002") return { ok: false, error: MENSAJES_CONEXION.numeroEnUso };
     return { ok: false, error: MENSAJES_CONEXION.fallo };
   }
+  if (tokenNuevo) {
+    try {
+      await guardarTokenWhatsapp(ctx.workspaceId, tokenNuevo, ctx.userId);
+    } catch {
+      // Sin token no se puede quedar en REAL por esta vía: se vuelve al modo anterior.
+      if (modo === "REAL" && actual.modo !== "REAL") {
+        await prisma.fotofficeWaConexion.update({ where: { workspaceId: ctx.workspaceId }, data: { modo: actual.modo } }).catch(() => undefined);
+      }
+      return { ok: false, error: MENSAJES_CONEXION.sinClave };
+    }
+  }
   return { ok: true };
+}
+
+/** Para la pantalla de configuración: modo, si hay token usable y el número. Nunca el token. */
+export async function estadoConexion(workspaceId: string): Promise<{ modo: ModoConexion; tieneToken: boolean; phoneNumberId: string | null }> {
+  const c = await leerConexion(workspaceId);
+  return { modo: c.modo, tieneToken: await hayTokenWhatsapp(workspaceId), phoneNumberId: c.phoneNumberId };
 }

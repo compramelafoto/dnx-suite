@@ -9,7 +9,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 vi.mock("@/lib/integrations/whatsapp/credentials", () => ({ hayTokenWhatsapp: H.hayToken, guardarTokenWhatsapp: H.guardarToken }));
 
-const { leerConexion, guardarConexion } = await import("./conexion");
+const { leerConexion, guardarConexion, estadoConexion } = await import("./conexion");
 
 const ADMIN = { workspaceId: "w1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: {} } as never };
 const EQUIPO = { workspaceId: "w1", userId: 2, userLabel: "Ana", role: "STAFF", acceso: { role: "STAFF", levels: { "whatsapp-inbox": "MANAGE" } } as never };
@@ -17,6 +17,7 @@ const EQUIPO = { workspaceId: "w1", userId: 2, userLabel: "Ana", role: "STAFF", 
 beforeEach(() => {
   B.vaciar();
   vi.clearAllMocks();
+  H.guardarToken.mockReset();
   H.hayToken.mockResolvedValue(false);
 });
 
@@ -26,7 +27,27 @@ describe("leerConexion", () => {
   });
 });
 
+describe("estadoConexion", () => {
+  it("modo, si hay token y número; nunca el token", async () => {
+    H.hayToken.mockResolvedValue(true);
+    await guardarConexion(ADMIN, { phoneNumberId: "123456" });
+    expect(await estadoConexion("w1")).toEqual({ modo: "SIMULADO", tieneToken: true, phoneNumberId: "123456" });
+  });
+});
+
 describe("guardarConexion", () => {
+  it("si el número choca, no se guarda el token", async () => {
+    B.agregar("fotofficeWaConexion", { workspaceId: "w2", phoneNumberId: "123456" });
+    expect(await guardarConexion(ADMIN, { phoneNumberId: "123456", token: "EAAG" })).toMatchObject({ ok: false });
+    expect(H.guardarToken).not.toHaveBeenCalled();
+  });
+
+  it("si falla el token al pasar a REAL, vuelve al modo anterior", async () => {
+    H.guardarToken.mockRejectedValue(new Error("sin clave"));
+    expect(await guardarConexion(ADMIN, { modo: "REAL", phoneNumberId: "123456", token: "EAAG" })).toMatchObject({ ok: false });
+    expect(await leerConexion("w1")).toMatchObject({ modo: "SIMULADO" });
+  });
+
   it("sólo configura quien puede `configurar`", async () => {
     expect(await guardarConexion(EQUIPO, { pausaBotHoras: 6 })).toMatchObject({ ok: false });
     expect(B.datos.fotofficeWaConexion).toHaveLength(0);

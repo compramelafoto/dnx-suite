@@ -38,8 +38,9 @@ async function conOperar<T extends object>(
   return r;
 }
 
-export async function responderAction(chatId: string, texto: string) {
-  return conOperar(chatId, (ctx, id) => responder(ctx, id, texto));
+/** `clientToken`: lo genera el formulario una vez por envío (evita el doble envío en reintentos). */
+export async function responderAction(chatId: string, texto: string, clientToken: string) {
+  return conOperar(chatId, (ctx, id) => responder(ctx, id, texto, clientToken));
 }
 
 export async function tomarAction(chatId: string) {
@@ -54,8 +55,8 @@ export async function resolverAction(chatId: string) {
   return conOperar(chatId, (ctx, id) => resolver(ctx, id));
 }
 
-export async function vincularClienteAction(chatId: string, clientId: string) {
-  return conOperar(chatId, (ctx, id) => vincularCliente(ctx, id, clientId));
+export async function vincularClienteAction(chatId: string, clientId: string, reemplazar = false) {
+  return conOperar(chatId, (ctx, id) => vincularCliente(ctx, id, clientId, { reemplazar: reemplazar === true }));
 }
 
 export async function crearContactoDesdeChatAction(chatId: string, nombre?: string) {

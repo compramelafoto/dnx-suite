@@ -9,6 +9,7 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 vi.mock("@/lib/integrations/whatsapp/credentials", () => ({ leerTokenWhatsapp: vi.fn(async () => null), hayTokenWhatsapp: vi.fn(), guardarTokenWhatsapp: vi.fn() }));
 
 const A = await import("./acciones");
+const { estadoVisible } = await import("./reglas");
 
 const AHORA = new Date("2026-10-09T15:00:00.000Z");
 const hace = (horas: number) => new Date(AHORA.getTime() - horas * 3_600_000);
@@ -42,7 +43,7 @@ describe("permisos", () => {
   it("con sólo Ver no se puede responder, tomar, devolver, resolver ni vincular, pero sí marcar leído", async () => {
     const { id } = await chatNuevo();
     const sin = { ok: false, error: "No tenés permiso para hacer esto." };
-    expect(await A.responder(LEO, id, "hola", { ahora: AHORA })).toEqual(sin);
+    expect(await A.responder(LEO, id, "hola", "tok-1", { ahora: AHORA })).toEqual(sin);
     expect(await A.tomar(LEO, id)).toEqual(sin);
     expect(await A.devolverAlBot(LEO, id)).toEqual(sin);
     expect(await A.resolver(LEO, id)).toEqual(sin);
@@ -63,7 +64,7 @@ describe("permisos", () => {
     const { id } = await chatNuevo();
     B.agregar("client", { id: "c-w1", workspaceId: "w1", firstName: "Lu" });
     const noExiste = { ok: false, error: "No encontramos ese chat." };
-    expect(await A.responder(OTRA_INSTITUCION, id, "hola", { ahora: AHORA })).toEqual(noExiste);
+    expect(await A.responder(OTRA_INSTITUCION, id, "hola", "tok-1", { ahora: AHORA })).toEqual(noExiste);
     expect(await A.tomar(OTRA_INSTITUCION, id)).toEqual(noExiste);
     expect(await A.devolverAlBot(OTRA_INSTITUCION, id)).toEqual(noExiste);
     expect(await A.resolver(OTRA_INSTITUCION, id)).toEqual(noExiste);
@@ -108,7 +109,7 @@ describe("responder", () => {
   it("fuera de las 24 h no envía ni escribe nada", async () => {
     const { id } = await chatNuevo({ ultimoEntranteEn: hace(25) });
     const enviar = vi.fn();
-    const r = await A.responder(ANA, id, "hola", { ahora: AHORA, enviar });
+    const r = await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA, enviar });
     expect(r).toEqual({ ok: false, error: "Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp sólo permite responder con una plantilla aprobada." });
     expect(enviar).not.toHaveBeenCalled();
     expect(mensajes()).toHaveLength(0);
@@ -117,20 +118,20 @@ describe("responder", () => {
 
   it("un chat sin mensajes del cliente tampoco admite texto libre", async () => {
     const { id } = await chatNuevo({ ultimoEntranteEn: null });
-    expect(await A.responder(ANA, id, "hola", { ahora: AHORA })).toMatchObject({ ok: false });
+    expect(await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA })).toMatchObject({ ok: false });
   });
 
   it("texto vacío o de más de 4096 caracteres se rechaza", async () => {
     const { id } = await chatNuevo();
-    expect(await A.responder(ANA, id, "   ", { ahora: AHORA })).toMatchObject({ ok: false });
-    expect(await A.responder(ANA, id, "a".repeat(4097), { ahora: AHORA })).toMatchObject({ ok: false });
-    expect(await A.responder(ANA, id, 42, { ahora: AHORA })).toMatchObject({ ok: false });
+    expect(await A.responder(ANA, id, "   ", "tok-1", { ahora: AHORA })).toMatchObject({ ok: false });
+    expect(await A.responder(ANA, id, "a".repeat(4097), "tok-1", { ahora: AHORA })).toMatchObject({ ok: false });
+    expect(await A.responder(ANA, id, 42, "tok-1", { ahora: AHORA })).toMatchObject({ ok: false });
     expect(mensajes()).toHaveLength(0);
   });
 
   it("sin haber tomado el chat lo toma (SISTEMA) y deja el mensaje con su autor; simulado", async () => {
     const { id } = await chatNuevo();
-    const r = await A.responder(ANA, id, "  Hola Lucía  ", { ahora: AHORA });
+    const r = await A.responder(ANA, id, "  Hola Lucía  ", "tok-1", { ahora: AHORA });
     expect(r).toMatchObject({ ok: true, estadoEnvio: "SIMULADO" });
     expect(chats()[0]).toMatchObject({ estado: "HUMANO", asignadoUserId: 2, noLeidos: 0 });
     const [sistema, saliente] = mensajes();
@@ -143,7 +144,7 @@ describe("responder", () => {
 
   it("si ya es suyo, no repite el aviso de que lo tomó", async () => {
     const { id } = await chatNuevo({ estado: "HUMANO", asignadoUserId: 2 });
-    await A.responder(ANA, id, "hola", { ahora: AHORA });
+    await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA });
     expect(mensajes()).toHaveLength(1);
     expect(mensajes()[0].direccion).toBe("SALIENTE");
   });
@@ -152,7 +153,7 @@ describe("responder", () => {
     const { id } = await chatNuevo();
     B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "REAL", phoneNumberId: "123" });
     const enviar = vi.fn(async () => ({ ok: true as const, simulado: false as const, waMessageId: "wamid.OK" }));
-    const r = await A.responder(ANA, id, "hola", { ahora: AHORA, enviar });
+    const r = await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA, enviar });
     expect(r).toMatchObject({ ok: true, estadoEnvio: "ENVIADO" });
     expect(enviar).toHaveBeenCalledWith(expect.objectContaining(conexionReal), WA, "hola");
     expect(mensajes().at(-1)).toMatchObject({ estadoEnvio: "ENVIADO", waMessageId: "wamid.OK", errorCodigo: null });
@@ -161,7 +162,7 @@ describe("responder", () => {
   it("falla de Meta: el mensaje queda FALLO con el código y la acción avisa; el chat igual quedó tomado", async () => {
     const { id } = await chatNuevo();
     const enviar = vi.fn(async () => ({ ok: false as const, codigo: "131047" }));
-    const r = await A.responder(ANA, id, "hola", { ahora: AHORA, enviar });
+    const r = await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA, enviar });
     expect(r).toMatchObject({ ok: false });
     expect(mensajes().at(-1)).toMatchObject({ direccion: "SALIENTE", estadoEnvio: "FALLO", errorCodigo: "131047" });
     expect(chats()[0].estado).toBe("HUMANO");
@@ -174,14 +175,14 @@ describe("responder", () => {
       estadoAlEnviar = mensajes().at(-1)?.estadoEnvio as string;
       return { ok: true as const, simulado: true as const };
     });
-    await A.responder(ANA, id, "hola", { ahora: AHORA, enviar });
+    await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA, enviar });
     expect(estadoAlEnviar).toBe("PENDIENTE");
   });
 
   it("si el envío revienta, queda FALLO y no se pierde el mensaje", async () => {
     const { id } = await chatNuevo();
     const enviar = vi.fn(async () => { throw new Error("boom con el texto hola"); });
-    const r = await A.responder(ANA, id, "hola", { ahora: AHORA, enviar });
+    const r = await A.responder(ANA, id, "hola", "tok-1", { ahora: AHORA, enviar });
     expect(r).toMatchObject({ ok: false });
     expect(mensajes().at(-1)).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "INTERNO" });
   });
@@ -189,12 +190,24 @@ describe("responder", () => {
   it("no loguea el texto ni el teléfono", async () => {
     const { id } = await chatNuevo();
     const enviar = vi.fn(async () => ({ ok: false as const, codigo: "RED" }));
-    await A.responder(ANA, id, "texto-secreto", { ahora: AHORA, enviar });
+    await A.responder(ANA, id, "texto-secreto", "tok-1", { ahora: AHORA, enviar });
     expect(JSON.stringify((console.error as unknown as { mock: { calls: unknown[] } }).mock.calls)).not.toMatch(/texto-secreto|549341/);
   });
 });
 
 describe("vincular y crear contacto", () => {
+  it("si el chat ya tiene otro cliente, no lo pisa salvo `reemplazar`", async () => {
+    const { id } = await chatNuevo({ clientId: "c1" });
+    B.agregar("client", { id: "c1", workspaceId: "w1", firstName: "Lu" });
+    B.agregar("client", { id: "c3", workspaceId: "w1", firstName: "Otro" });
+    expect(await A.vincularCliente(ANA, id, "c3")).toEqual({ ok: false, error: "Este chat ya está vinculado a otro cliente." });
+    expect(chats()[0].clientId).toBe("c1");
+    expect(await A.vincularCliente(ANA, id, "c1")).toEqual({ ok: true });
+    expect(await A.vincularCliente(ANA, id, "c3", { reemplazar: true })).toEqual({ ok: true });
+    expect(chats()[0].clientId).toBe("c3");
+    expect(B.sql.some((q) => q.texto.includes("FOR UPDATE"))).toBe(true);
+  });
+
   it("vincula un cliente del mismo workspace y rechaza el de otro", async () => {
     const { id } = await chatNuevo();
     B.agregar("client", { id: "c1", workspaceId: "w1", firstName: "Lu" });
@@ -237,5 +250,110 @@ describe("vincular y crear contacto", () => {
     const sinClientes = ctxDe(5, "Sol", { "whatsapp-inbox": "MANAGE", clients: "VIEW" });
     expect(await A.crearContactoDesdeChat(sinClientes, id)).toMatchObject({ ok: false });
     expect(B.datos.client).toHaveLength(0);
+  });
+});
+
+describe("responder: idempotencia, resultado real y modo REAL sin token", () => {
+  const ok = async () => ({ ok: true as const, simulado: false as const, waMessageId: "wamid.OK" });
+
+  it("exige un clientToken válido", async () => {
+    const { id } = await chatNuevo();
+    for (const t of [undefined, "", "a".repeat(65), "con espacio", 5]) {
+      expect(await A.responder(ANA, id, "hola", t, { ahora: AHORA })).toMatchObject({ ok: false });
+    }
+    expect(mensajes()).toHaveLength(0);
+  });
+
+  it("reintento con el mismo token: no envía otra vez y devuelve el estado guardado", async () => {
+    const { id } = await chatNuevo();
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "REAL", phoneNumberId: "123" });
+    const enviar = vi.fn(ok);
+    const a = await A.responder(ANA, id, "hola", "tok-9", { ahora: AHORA, enviar });
+    const b = await A.responder(ANA, id, "hola", "tok-9", { ahora: AHORA, enviar });
+    expect(enviar).toHaveBeenCalledTimes(1);
+    expect(b).toEqual(a);
+    expect(b).toMatchObject({ ok: true, estadoEnvio: "ENVIADO" });
+    expect(mensajes().filter((m) => m.direccion === "SALIENTE")).toHaveLength(1);
+    // Otro token es otro mensaje.
+    await A.responder(ANA, id, "hola", "tok-10", { ahora: AHORA, enviar });
+    expect(enviar).toHaveBeenCalledTimes(2);
+  });
+
+  it("el reintento tras un envío fallido sigue siendo fallido y tampoco reenvía; fuera de ventana igual devuelve lo guardado", async () => {
+    const { id } = await chatNuevo();
+    const enviar = vi.fn(async () => ({ ok: false as const, codigo: "131047" }));
+    await A.responder(ANA, id, "hola", "t", { ahora: AHORA, enviar });
+    const dos = await A.responder(ANA, id, "hola", "t", { ahora: new Date(AHORA.getTime() + 30 * 3_600_000), enviar });
+    expect(dos).toMatchObject({ ok: false });
+    expect(enviar).toHaveBeenCalledTimes(1);
+  });
+
+  it("choque del único (otra petición ganó la carrera): devuelve su estado sin enviar", async () => {
+    const { id } = await chatNuevo();
+    const enviar = vi.fn(ok);
+    // Nuestra transacción choca con el único porque la otra petición confirmó su mensaje primero.
+    const dp = B.prisma as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const original = dp.$transaction;
+    dp.$transaction = async () => {
+      dp.$transaction = original;
+      B.agregar("fotofficeWaMensaje", {
+        workspaceId: "w1", chatId: id, direccion: "SALIENTE", autor: "USUARIO", estadoEnvio: "ENVIADO", clientToken: "t-carrera", waMessageId: "wamid.R",
+      });
+      throw Object.assign(new Error("unique"), { code: "P2002" });
+    };
+    const r = await A.responder(ANA, id, "hola", "t-carrera", { ahora: AHORA, enviar });
+    expect(r).toMatchObject({ ok: true, estadoEnvio: "ENVIADO" });
+    expect(enviar).not.toHaveBeenCalled();
+    expect(mensajes().filter((m) => m.direccion === "SALIENTE")).toHaveLength(1);
+  });
+
+  it("P2002 al guardar el waMessageId: queda ENVIADO sin id", async () => {
+    const { id } = await chatNuevo();
+    B.agregar("fotofficeWaMensaje", { workspaceId: "w1", chatId: id, direccion: "SALIENTE", autor: "CELULAR", estadoEnvio: "ENVIADO", waMessageId: "wamid.OK" });
+    const r = await A.responder(ANA, id, "hola", "t", { ahora: AHORA, enviar: vi.fn(ok) });
+    expect(r).toMatchObject({ ok: true, estadoEnvio: "ENVIADO" });
+    expect(mensajes().find((m) => m.clientToken === "t")).toMatchObject({ estadoEnvio: "ENVIADO", waMessageId: null });
+  });
+
+  it("si falla el registro del resultado tras un envío real: PENDIENTE con aviso, nunca ENVIADO", async () => {
+    const { id } = await chatNuevo();
+    const dp = B.prisma as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const originalTabla = dp.fotofficeWaMensaje;
+    dp.fotofficeWaMensaje = new Proxy(originalTabla, {
+      get: (t, m: string) => (m === "update" ? async () => { throw new Error("db caída"); } : t[m]),
+    });
+    try {
+      const r = await A.responder(ANA, id, "hola", "t", { ahora: AHORA, enviar: vi.fn(ok) });
+      expect(r).toMatchObject({ ok: true, estadoEnvio: "PENDIENTE", aviso: expect.stringContaining("No pudimos confirmar") });
+      expect(mensajes().find((m) => m.clientToken === "t")?.estadoEnvio).toBe("PENDIENTE");
+    } finally {
+      dp.fotofficeWaMensaje = originalTabla;
+    }
+  });
+
+  it("modo REAL sin token usable: FALLO SIN_TOKEN y mensaje claro (no simula)", async () => {
+    const { id } = await chatNuevo();
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "REAL", phoneNumberId: "123" });
+    const r = await A.responder(ANA, id, "hola", "t", { ahora: AHORA }); // envío real de lib: el vault simulado no tiene token
+    expect(r).toEqual({ ok: false, error: "Falta el token de WhatsApp en Configuración → WhatsApp." });
+    expect(mensajes().at(-1)).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "SIN_TOKEN" });
+  });
+});
+
+describe("marcarLeido bajo candado", () => {
+  it("toma el candado de la fila", async () => {
+    const { id } = await chatNuevo();
+    await A.marcarLeido(ANA, id);
+    expect(B.sql.some((q) => q.texto.includes("FOR UPDATE"))).toBe(true);
+  });
+});
+
+describe("estadoVisible", () => {
+  it("un PENDIENTE de más de 2 minutos es INCIERTO; el resto no cambia", () => {
+    const m = (estadoEnvio: string, min: number) => ({ estadoEnvio, createdAt: new Date(AHORA.getTime() - min * 60_000) });
+    expect(estadoVisible(m("PENDIENTE", 1), AHORA)).toBe("PENDIENTE");
+    expect(estadoVisible(m("PENDIENTE", 3), AHORA)).toBe("INCIERTO");
+    expect(estadoVisible(m("ENVIADO", 60), AHORA)).toBe("ENVIADO");
+    expect(estadoVisible(m("FALLO", 60), AHORA)).toBe("FALLO");
   });
 });

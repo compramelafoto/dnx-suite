@@ -24,7 +24,7 @@ beforeEach(() => {
 describe("server actions de la Bandeja", () => {
   it("sin contexto (sin sesión, módulo apagado o sin permiso) no ejecutan nada", async () => {
     H.contexto.mockResolvedValue(null);
-    expect(await A.responderAction("c1", "hola")).toEqual({ ok: false, error: "No tenés permiso para hacer esto." });
+    expect(await A.responderAction("c1", "hola", "tok-1")).toEqual({ ok: false, error: "No tenés permiso para hacer esto." });
     expect(await A.tomarAction("c1")).toMatchObject({ ok: false });
     expect(await A.marcarLeidoAction("c1")).toMatchObject({ ok: false });
     expect(await A.guardarConexionAction({})).toMatchObject({ ok: false });
@@ -44,9 +44,9 @@ describe("server actions de la Bandeja", () => {
 
   it("usan el contexto de la sesión, nunca datos del navegador, y revalidan las dos rutas", async () => {
     H.responder.mockResolvedValue({ ok: true, mensajeId: "m1", estadoEnvio: "SIMULADO" });
-    const r = await A.responderAction("c1", "hola");
+    const r = await A.responderAction("c1", "hola", "tok-1");
     expect(r).toMatchObject({ ok: true });
-    expect(H.responder).toHaveBeenCalledWith(CTX, "c1", "hola");
+    expect(H.responder).toHaveBeenCalledWith(CTX, "c1", "hola", "tok-1");
     expect(H.revalidate).toHaveBeenCalledWith("/bandeja");
     expect(H.revalidate).toHaveBeenCalledWith("/bandeja/c1");
   });

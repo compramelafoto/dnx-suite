@@ -34,6 +34,7 @@ describe("migración de la Bandeja de WhatsApp", () => {
       `ON "FotofficeWaChat"("workspaceId", "asignadoUserId")`,
       `ON "FotofficeWaChat"("clientId")`,
       `CREATE UNIQUE INDEX "FotofficeWaMensaje_workspaceId_waMessageId_key" ON "FotofficeWaMensaje"("workspaceId", "waMessageId")`,
+      `CREATE UNIQUE INDEX "FotofficeWaMensaje_chatId_clientToken_key" ON "FotofficeWaMensaje"("chatId", "clientToken")`,
       `ON "FotofficeWaMensaje"("chatId", "createdAt")`,
     ]) expect(sql).toContain(idx);
   });
@@ -59,6 +60,9 @@ describe("migración de la Bandeja de WhatsApp", () => {
     expect(modelo("FotofficeWaChat")).toContain("@@unique([workspaceId, waId])");
     expect(modelo("FotofficeWaChat")).toContain("@@index([workspaceId, estado, ultimoMensajeEn])");
     expect(modelo("FotofficeWaMensaje")).toContain("@@unique([workspaceId, waMessageId])");
+    expect(modelo("FotofficeWaMensaje")).toContain("@@unique([chatId, clientToken])");
+    expect(modelo("FotofficeWaMensaje")).toMatch(/clientToken\s+String\?/);
+    expect(sql).toContain('"clientToken" TEXT,');
     expect(modelo("FotofficeWaMensaje")).toContain("@@index([chatId, createdAt])");
     expect(modelo("Workspace")).toMatch(/fotofficeWaConexion\s+FotofficeWaConexion\?/);
     expect(modelo("Workspace")).toMatch(/fotofficeWaChats\s+FotofficeWaChat\[\]/);

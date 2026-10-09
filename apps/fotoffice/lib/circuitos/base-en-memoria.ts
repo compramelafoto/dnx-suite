@@ -152,7 +152,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeWaMensaje: () => ({
     autorUserId: null, autorLabel: null, tipo: "TEXTO", texto: null, media: null, waMessageId: null,
-    estadoEnvio: "RECIBIDO", errorCodigo: null, createdAt: new Date(),
+    estadoEnvio: "RECIBIDO", errorCodigo: null, clientToken: null, createdAt: new Date(),
   }),
   cashCategory: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRubro: () => ({ parentCategoryId: null, code: null, createdAt: new Date(), updatedAt: new Date() }),
@@ -406,6 +406,7 @@ export function crearBaseEnMemoria() {
     fotofficeWaChat: [{ columnas: ["workspaceId", "waId"] }],
     fotofficeWaMensaje: [
       { columnas: ["workspaceId", "waMessageId"], aplica: (f) => f.waMessageId !== null && f.waMessageId !== undefined },
+      { columnas: ["chatId", "clientToken"], aplica: (f) => f.clientToken !== null && f.clientToken !== undefined },
     ],
   };
 
@@ -467,8 +468,16 @@ export function crearBaseEnMemoria() {
       update: async (a: { where: Where; data: Fila; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
         if (!f) throw Object.assign(new Error("Record to update not found"), { code: "P2025" });
+        // Como Postgres: si el cambio choca con un único, la fila queda como estaba.
+        const antes = { ...f };
         aplicarDatos(f, a.data);
-        verificarUnicidad(tabla, f);
+        try {
+          verificarUnicidad(tabla, f);
+        } catch (e) {
+          for (const k of Object.keys(f)) delete f[k];
+          Object.assign(f, antes);
+          throw e;
+        }
         return elegir(f, a.select);
       },
       upsert: async (a: { where: Where; create: Fila; update: Fila; select?: Record<string, boolean> }) => {

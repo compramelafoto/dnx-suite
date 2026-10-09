@@ -30,6 +30,10 @@ export const MENSAJES_BANDEJA = {
   cliente: "No encontramos ese cliente.",
   yaVinculado: "Este chat ya tiene un cliente vinculado.",
   sinPermisoClientes: "Para crear un cliente necesitás permiso de gestión en Clientes.",
+  sinToken: "Falta el token de WhatsApp en Configuración → WhatsApp.",
+  clienteDistinto: "Este chat ya está vinculado a otro cliente.",
+  sinClientToken: "Falta el identificador del envío. Recargá la página e intentá de nuevo.",
+  noConfirmado: "No pudimos confirmar el envío; revisá el chat en WhatsApp.",
   falloEnvio: "No se pudo enviar el mensaje por WhatsApp. Quedó registrado como fallido.",
   fallo: "No se pudo completar la acción. Probá de nuevo.",
 } as const;
