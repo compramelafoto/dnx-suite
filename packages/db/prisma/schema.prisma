@@ -19064,7 +19064,13 @@ model SubilafotoEvent {
   maxUploadsPerGuest Int?                        @default(30)
   visibility         SubilafotoVisibility        @default(LINK_ONLY)
   accessCode         String?
-  guestsCanSeeAlbum  Boolean                     @default(true)
+  /// Si el invitado puede recorrer todas las fotos del evento.
+  ///
+  /// Nace **apagado** desde el 2026-10-09: las fotos se miran en la pantalla del salón.
+  /// Un álbum abierto a cualquiera con el QR es gente de la fiesta descargando el
+  /// trabajo del fotógrafo antes de que lo venda, y además expone a todos los invitados
+  /// a que cualquiera se lleve sus fotos.
+  guestsCanSeeAlbum  Boolean                     @default(false)
   guestsCanDownload  Boolean                     @default(false)
   moderationProfile  SubilafotoModerationProfile @default(SOCIAL)
   downloadStatus     SubilafotoDownloadStatus    @default(NOT_OFFERED)
@@ -19138,6 +19144,7 @@ model SubilafotoMedia {
   guest      SubilafotoGuestSession?        @relation(fields: [guestSessionId], references: [id])
   variants   SubilafotoMediaVariant[]
   moderation SubilafotoModerationDecision[]
+  reactions  SubilafotoReaction[]
 
   @@unique([eventId, checksum])
   @@index([eventId, status, publishedAt])
@@ -19222,16 +19229,22 @@ model SubilafotoReaction {
   eventId        String
   /// Null si la sesión del invitado se borró; la reacción sigue contando.
   guestSessionId String?
+  /// Qué foto estaba proyectándose cuando se mandó. Null si fue sobre el QR o un
+  /// mensaje, o si la pantalla todavía no informó qué muestra.
+  mediaId        String?
   emoji          String
   createdAt      DateTime @default(now())
 
   event        SubilafotoEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   guestSession SubilafotoGuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+  media        SubilafotoMedia?        @relation(fields: [mediaId], references: [id], onDelete: SetNull)
 
   /// La pantalla pregunta "qué llegó después de tal momento" una vez por segundo.
   @@index([eventId, createdAt])
   /// El freno al que aprieta sin parar: cuántas mandó y cuándo fue la última.
   @@index([guestSessionId, createdAt])
+  /// El contador que se proyecta sobre cada foto.
+  @@index([mediaId])
 }
 
 model SubilafotoScreen {

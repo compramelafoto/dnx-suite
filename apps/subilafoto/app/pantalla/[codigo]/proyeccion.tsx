@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
 import { queMostrar } from "@/lib/pantalla-ritmo";
+import { sacarSiYaSeVio } from "@/lib/pantalla-una-sola-vez";
 import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
 
@@ -199,25 +200,6 @@ export function Proyeccion({
     El reloj se rearma en cada paso porque el QR dura más que una foto: `vuelta` está en
     las dependencias a propósito, cada vuelta programa la siguiente.
   */
-  useEffect(() => {
-    // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
-    if (pausado) return;
-    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
-    const reloj = setTimeout(() => setVuelta((v) => v + 1), cuanto);
-    return () => clearTimeout(reloj);
-  }, [vuelta, paso.tipo, pausado]);
-
-  /*
-    El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
-    abierto sería una barra gris sobre la pantalla del salón toda la noche.
-  */
-  useEffect(() => {
-    if (!mandoVisible) return;
-    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
-    return () => clearTimeout(reloj);
-  }, [mandoVisible, pausado, aleatorio]);
-
-  const totales = totalesOrdenados(conteo);
   /*
     `queMostrar` dice CUÁNTAS fotos pasaron —y cuándo toca el QR—; el modo de
     reproducción dice CUÁL de todas se ve. Separados porque son dos preguntas distintas:
@@ -233,6 +215,34 @@ export function Proyeccion({
         })
       : -1;
   const actual = indiceVisible >= 0 ? fotos[indiceVisible] : undefined;
+
+  useEffect(() => {
+    // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
+    if (pausado) return;
+    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
+    const reloj = setTimeout(() => {
+      /*
+        Al pasar de turno, el mensaje que se mostró sale de la rotación: se ve una vez.
+        Se saca acá y no al mostrarlo, porque sacarlo mientras está en pantalla correría
+        los índices y haría saltar la foto que se está viendo.
+      */
+      setFotos((previas) => sacarSiYaSeVio(previas, actual));
+      setVuelta((v) => v + 1);
+    }, cuanto);
+    return () => clearTimeout(reloj);
+  }, [vuelta, paso.tipo, pausado, actual]);
+
+  /*
+    El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
+    abierto sería una barra gris sobre la pantalla del salón toda la noche.
+  */
+  useEffect(() => {
+    if (!mandoVisible) return;
+    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
+    return () => clearTimeout(reloj);
+  }, [mandoVisible, pausado, aleatorio]);
+
+  const totales = totalesOrdenados(conteo);
 
   return (
     <div className="relative h-[100svh] w-full overflow-hidden" style={estilo}>
@@ -360,6 +370,72 @@ export function Proyeccion({
           ))}
         </div>
       ) : null}
+
+      {/*
+        El mando del DJ.
+
+        Visible pero discreto: una pestaña en el borde izquierdo con el texto "Controles".
+        Antes era una franja invisible y nadie la encontraba —ni sabiéndolo—, que es lo
+        mismo que no tener controles. Un botón tenue que se puede ignorar molesta menos a
+        la proyección que uno que nadie usa.
+
+        El panel se esconde solo a los cinco segundos de la última acción.
+      */}
+      <button
+        type="button"
+        onClick={() => setMandoVisible((v) => !v)}
+        aria-expanded={mandoVisible}
+        className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-xl px-2 py-6 text-xs font-extrabold tracking-widest text-white transition-opacity"
+        style={{
+          background: "rgba(0,0,0,0.45)",
+          opacity: mandoVisible ? 0 : 0.5,
+          pointerEvents: mandoVisible ? "none" : "auto",
+          writingMode: "vertical-rl",
+        }}
+      >
+        CONTROLES
+      </button>
+
+      <div
+        className="absolute left-0 top-1/2 flex -translate-y-1/2 flex-col gap-3 rounded-r-3xl p-4 transition-transform duration-300"
+        style={{
+          background: "rgba(0,0,0,0.72)",
+          transform: mandoVisible ? "translate(0, -50%)" : "translate(-110%, -50%)",
+        }}
+        aria-hidden={!mandoVisible}
+      >
+        <BotonDeMando
+          activo={!pausado}
+          onClick={() => setPausado((v) => !v)}
+          etiqueta={pausado ? "Reanudar" : "Pausar"}
+        >
+          {pausado ? "\u25B6" : "\u2759\u2759"}
+        </BotonDeMando>
+
+        <BotonDeMando
+          activo={aleatorio}
+          onClick={() => setAleatorio((v) => !v)}
+          etiqueta={aleatorio ? "Pasar en orden" : "Pasar al azar"}
+        >
+          {"\u2928"}
+        </BotonDeMando>
+
+        <BotonDeMando
+          activo={false}
+          onClick={() => setVuelta((v) => v + 1)}
+          etiqueta="Pasar a la siguiente"
+        >
+          {"\u23ED"}
+        </BotonDeMando>
+
+        <button
+          type="button"
+          onClick={() => setMandoVisible(false)}
+          className="mt-1 text-xs font-extrabold text-white underline underline-offset-4 opacity-70"
+        >
+          Ocultar
+        </button>
+      </div>
 
       <style>{`
         /*

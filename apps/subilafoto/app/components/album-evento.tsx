@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
-import { estiloDeTema } from "@/lib/estilo-de-tema";
+import { estiloLegible } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 import { nombreDeCategoria } from "@/lib/proveedores/categorias";
@@ -60,7 +60,7 @@ export async function AlbumDelEvento({
   return (
     <main
       className="min-h-[100svh] px-4 py-12 sm:px-6"
-      style={estiloDeTema(tema)}
+      style={estiloLegible(tema)}
     >
       <header className="mx-auto max-w-5xl text-center">
         <h1 className="text-balance text-[clamp(1.6rem,6vw,2.5rem)] font-extrabold leading-[1.1]">
