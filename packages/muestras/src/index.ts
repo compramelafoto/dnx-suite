@@ -11,3 +11,4 @@ export * from "./profile";
 export * from "./call";
 export * from "./curation";
 export * from "./print";
+export * from "./hanging";
