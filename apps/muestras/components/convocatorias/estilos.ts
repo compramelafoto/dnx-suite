@@ -3,3 +3,6 @@ export const botonLleno =
   "inline-flex h-11 items-center justify-center rounded-[2px] border border-[var(--mf-ink)] bg-[var(--mf-ink)] px-5 text-[var(--mf-bg)] disabled:opacity-50";
 export const botonFino =
   "inline-flex h-11 items-center justify-center rounded-[2px] border border-[var(--mf-ink)] px-5 disabled:opacity-50";
+export const campo =
+  "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2 disabled:bg-[var(--mf-surface)] disabled:text-[var(--mf-muted)]";
+export const enlace = "underline underline-offset-[6px]";
