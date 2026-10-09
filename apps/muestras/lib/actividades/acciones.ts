@@ -32,7 +32,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   if (f.works.filter((w) => w.isHighlight).length > MAX_HIGHLIGHTS) {
     return { ok: false, errores: [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`] };
   }
-  const datos = datosParaGuardar(f);
+  const datos: ReturnType<typeof datosParaGuardar> = datosParaGuardar(f);
   const obras = f.works.map((w, i) => ({
     imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
     technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
@@ -53,6 +53,19 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   if (!canEdit({ ...actual, reviewStatus: actual.reviewStatus as ReviewStatus }, actor)) {
     return { ok: false, errores: ["No podés editar esta actividad ahora."] };
   }
+  // Una ficha ya enviada o publicada no puede quedar incompleta por una edición.
+  if (actual.reviewStatus !== "DRAFT" && actual.reviewStatus !== "REJECTED") {
+    const faltan = missingForSubmission({
+      type: f.type, title: f.title, description: f.description, coverImageUrl: f.coverImageUrl,
+      organizersText: f.organizersText, startDay: f.startDay, endDay: f.endDay,
+      scheduleText: f.scheduleText, isVirtualOnly: f.isVirtualOnly, address: f.address,
+      latitude: f.latitude, longitude: f.longitude, rightsConfirmed: f.rightsConfirmed,
+      worksCount: f.works.length, highlightsCount: f.works.filter((w) => w.isHighlight).length,
+    });
+    if (faltan.length) return { ok: false, errores: faltan };
+  }
+  // Se conserva la primera confirmación de derechos.
+  if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
   await prisma.$transaction([
     prisma.culturalActivity.update({ where: { id: f.id }, data: datos }),
     prisma.culturalActivityWork.deleteMany({ where: { activityId: f.id } }),
@@ -67,6 +80,7 @@ async function transicion(
   accion: ReviewAction,
   extra: (ahora: Date, revisor: number) => Record<string, unknown> = () => ({}),
 ): Promise<ResultadoAccion> {
+  if (typeof id !== "string") return NO_EXISTE;
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
   const fila = await prisma.culturalActivity.findUnique({ where: { id }, include: { works: true } });
@@ -87,10 +101,11 @@ async function transicion(
   }
 
   const ahora = new Date();
-  await prisma.culturalActivity.update({
-    where: { id },
+  const { count } = await prisma.culturalActivity.updateMany({
+    where: { id, reviewStatus: estado },
     data: { reviewStatus: nextStatus(accion, estado), ...extra(ahora, usuario.id) },
   });
+  if (count === 0) return { ok: false, errores: ["La actividad cambió mientras tanto. Recargá la página."] };
   refrescar(fila.slug);
   return { ok: true, id };
 }
@@ -108,6 +123,8 @@ export async function aprobar(id: string) {
 }
 
 export async function rechazar(id: string, motivo: string): Promise<ResultadoAccion> {
+  if (typeof id !== "string") return NO_EXISTE;
+  if (typeof motivo !== "string") return { ok: false, errores: ["Escribí el motivo del rechazo."] };
   const m = motivo.trim();
   if (!m) return { ok: false, errores: ["Escribí el motivo del rechazo."] };
   const r = await transicion(id, "reject", (ahora, revisor) => ({ reviewedAt: ahora, reviewedByUserId: revisor, rejectionReason: m.slice(0, 1000) }));

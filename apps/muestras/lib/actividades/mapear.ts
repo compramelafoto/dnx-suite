@@ -1,6 +1,6 @@
 import type { Prisma } from "@repo/db";
 import { encodeGeohash } from "@repo/geo";
-import { dayEndAr, dayStartAr, isGalleryMode, type GalleryMode } from "@repo/muestras";
+import { dayEndAr, dayStartAr, isGalleryMode, toArDay, type GalleryMode } from "@repo/muestras";
 
 export type ObraForm = {
   id?: string;
@@ -109,7 +109,7 @@ const diaValido = (d: string) => {
 
 /** Lo que se escribe en la tabla. Nunca incluye estado ni dueño: eso lo deciden las acciones. */
 export function datosParaGuardar(f: FichaForm) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = toArDay(new Date());
   const inicio = diaValido(f.startDay) ? f.startDay : hoy;
   const fin = diaValido(f.endDay) ? f.endDay : inicio;
   return {
