@@ -7243,6 +7243,7 @@ model Workspace {
   fotofficeContratoFirmantes     FotofficeContratoFirmante[]
   fotofficeContratoEventos       FotofficeContratoEvento[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
+  fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
   productStoreListings           ProductStoreListing[]
   storeSettings                  StoreSettings?
@@ -23445,4 +23446,19 @@ model PhotographerProfile {
   works CulturalActivityWork[]
 
   @@index([displayName])
+}
+
+/// Ajustes del módulo Informes (etapa 6): una fila por workspace. Saldo mínimo de alerta del flujo
+/// proyectado y datos del control de monotributo. Todo opcional; `monotributoWarnPct` entre 50 y 99
+/// (CHECK en el SQL).
+model FotofficeInformesAjustes {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
+  minBalanceArs       Decimal? @db.Decimal(14, 2)
+  monotributoCategory String?
+  monotributoCapArs   Decimal? @db.Decimal(14, 2)
+  monotributoWarnPct  Int      @default(80)
+  updatedAt           DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
