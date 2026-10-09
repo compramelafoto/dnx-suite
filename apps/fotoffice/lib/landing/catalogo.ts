@@ -284,6 +284,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "reports",
+    cuadro: "25",
+    nombre: "Informes",
+    resuelve:
+      "Ves cómo le está yendo al negocio sin armar planillas: el resultado por rubro y por mes (lo cobrado y pagado, o lo vendido y comprometido), el flujo de caja proyectado con lo que viene a cobrar y a pagar, y un control del monotributo con semáforo. Cada número se puede abrir hasta el movimiento que lo forma y se descarga a planilla.",
+    pantallas: [
+      "Tablero con lo que vence y el saldo de Caja",
+      "Resultados por rubro y por mes",
+      "Flujo de caja proyectado con saldo mínimo",
+      "Control de monotributo",
+      "Descarga a planilla",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",
