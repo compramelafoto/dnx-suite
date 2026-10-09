@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { empujarCitasDelPedido } from "@/lib/agenda/crear";
 import { MENSAJES_PEDIDO } from "@/lib/pedidos/acceso";
 import { anularCobro, registrarCobro, type ResultadoAnulacion, type ResultadoCobro } from "@/lib/pedidos/cobros";
 import { enlaceDelPedido, enlaceDelRecibo, type ResultadoEnlace } from "@/lib/pedidos/enlace";
@@ -66,15 +67,23 @@ export async function confirmarPedidoAction(datos: {
   checklist?: string | null;
   /** Posiciones de la lista de proyectos de la vista previa que se destildaron. */
   proyectosOmitidos?: number[] | null;
+  /** Posiciones de la lista de citas de la vista previa que se destildaron. */
+  citasOmitidas?: number[] | null;
 }): Promise<ResultadoConfirmacion> {
   if (!esObjeto(datos) || !esId(datos.presupuestoId)) return INVALIDO;
   if (datos.plan != null && !Array.isArray(datos.plan)) return INVALIDO;
   if (datos.checklist != null && typeof datos.checklist !== "string") return INVALIDO;
   if (datos.proyectosOmitidos != null && !Array.isArray(datos.proyectosOmitidos)) return INVALIDO;
+  if (datos.citasOmitidas != null && !Array.isArray(datos.citasOmitidas)) return INVALIDO;
   const ctx = await contextoDePedidos("operar");
   if (!ctx) return SIN_ACCESO;
-  const r = await confirmarPedido(ctx, datos.presupuestoId, datos.plan ?? undefined, {}, datos.checklist, datos.proyectosOmitidos ?? undefined);
-  if (r.ok) revalidar(r.pedidoId, datos.presupuestoId);
+  const r = await confirmarPedido(ctx, datos.presupuestoId, datos.plan ?? undefined, {}, datos.checklist, datos.proyectosOmitidos ?? undefined, datos.citasOmitidas ?? undefined);
+  if (r.ok) {
+    revalidar(r.pedidoId, datos.presupuestoId);
+    // Las citas que creó el pedido llegan a Google después de confirmar, sin frenar la acción.
+    const workspaceId = ctx.workspaceId;
+    after(() => empujarCitasDelPedido(workspaceId, r.pedidoId));
+  }
   return r;
 }
 
@@ -110,6 +119,8 @@ export async function crearPedidoManualAction(datos: {
   if (r.ok) {
     revalidar(r.pedidoId);
     revalidatePath(`/clientes/${datos.clientId}`);
+    const workspaceId = ctx.workspaceId;
+    after(() => empujarCitasDelPedido(workspaceId, r.pedidoId));
   }
   return r;
 }

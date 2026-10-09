@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { diaDeCalendario } from "@/lib/consultas/fechas";
+import { agendaEncendida, aVistaPrevia as aVistaPreviaCitas, crearCitasDelPedido, IndiceCitaInvalido, planificarCitas, type CitaVistaPrevia } from "@/lib/agenda/crear";
 import { aVistaPrevia, crearProyectosDelPedido, IndiceInvalido, planificarProyectos, proyectosEncendidos, type ProyectoVistaPrevia } from "@/lib/proyectos/crear";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { bloquearPresupuesto, itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
@@ -34,7 +35,10 @@ import { etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from
  *   `crearCuentasDelPedido`), con el rubro de costo vacío: se elige al pagar;
  * - crea los proyectos de las reglas "Proyecto que genera" de sus productos y combos (Etapa 4,
  *   `crearProyectosDelPedido`), salvo los que se destildaron en la vista previa, sólo con el módulo
- *   Proyectos encendido.
+ *   Proyectos encendido;
+ * - crea las citas de las reglas "Cita que genera" de sus productos y combos (Etapa 4, Entrega B,
+ *   `crearCitasDelPedido`), salvo las que se destildaron en la vista previa, sólo con el módulo Agenda
+ *   encendido y con fecha de evento.
  *
  * Un presupuesto genera un solo pedido: el único `presupuestoId` decide la carrera. Quien pierde
  * recibe `{ ok: false, error: "Ya tiene pedido", pedidoId }` con el pedido que ganó.
@@ -162,6 +166,8 @@ export type VistaPreviaConfirmacion =
         plantillasChecklist: string[];
         /** Proyectos que se van a crear (vacío con el módulo Proyectos apagado). */
         proyectos: ProyectoVistaPrevia[];
+        /** Citas que se van a crear (vacío con el módulo Agenda apagado). */
+        citas: CitaVistaPrevia[];
       };
     }
   | { ok: false; error: string; pedidoId?: string };
@@ -178,6 +184,14 @@ export async function vistaPreviaConfirmacion(ctx: CtxPedidos, presupuestoId: un
           await planificarProyectos(prisma, ctx.workspaceId, {
             clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
             numeroPedido: null, ownerUserId: d.ownerUserId, confirmadoEn: deps.ahora?.() ?? new Date(),
+          }),
+        )
+      : [];
+    const citas = (await agendaEncendida(ctx.workspaceId))
+      ? aVistaPreviaCitas(
+          await planificarCitas(prisma, ctx.workspaceId, {
+            clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
+            numeroPedido: null, ownerUserId: d.ownerUserId,
           }),
         )
       : [];
@@ -199,6 +213,7 @@ export async function vistaPreviaConfirmacion(ctx: CtxPedidos, presupuestoId: un
         incomeCategoryId: d.incomeCategoryId,
         plantillasChecklist: plantillas.map((p) => p.name),
         proyectos,
+        citas,
       },
     };
   } catch (e) {
@@ -225,6 +240,7 @@ function leerOmitidos(v: unknown): Set<number> | null {
  * (fecha, importe y medio sugerido de cada cuota; sin ids), que tiene que sumar el total.
  * `checklist`: nombre de la plantilla de checklist a copiar; `undefined` = la primera, `null` = ninguna.
  * `proyectosOmitidos`: posiciones de la lista de proyectos de la vista previa que se destildaron.
+ * `citasOmitidas`: lo mismo para la lista de citas.
  */
 export async function confirmarPedido(
   ctx: CtxPedidos,
@@ -233,11 +249,13 @@ export async function confirmarPedido(
   deps: DepsConfirmar = {},
   checklist?: unknown,
   proyectosOmitidos?: unknown,
+  citasOmitidas?: unknown,
 ): Promise<ResultadoConfirmacion> {
   if (!puedeGestionarPedidos(ctx) || ctx.userId === null) return { ok: false, error: MENSAJES_PEDIDO.sinPermiso };
   if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
   const omitidos = leerOmitidos(proyectosOmitidos);
-  if (!omitidos) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  const citasSinCrear = leerOmitidos(citasOmitidas);
+  if (!omitidos || !citasSinCrear) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
   let ajustado: CuotaParaGuardar[] | null = null;
   if (planAjustado !== undefined && planAjustado !== null) {
     const p = leerCuotasEditadas(planAjustado);
@@ -247,6 +265,7 @@ export async function confirmarPedido(
   const { workspaceId } = ctx;
   const ahora = deps.ahora?.() ?? new Date();
   const conProyectos = await proyectosEncendidos(workspaceId);
+  const conCitas = await agendaEncendida(workspaceId);
 
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
@@ -288,12 +307,18 @@ export async function confirmarPedido(
           numeroPedido: r.numero, ownerUserId: d.ownerUserId, confirmadoEn: ahora, omitidos,
         });
       }
+      if (conCitas) {
+        await crearCitasDelPedido(tx, workspaceId, {
+          pedidoId: r.id, clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
+          numeroPedido: r.numero, ownerUserId: d.ownerUserId, createdByUserId: ctx.userId, omitidos: citasSinCrear,
+        });
+      }
       await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
     }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
     if (e instanceof Corte) return { ok: false, error: e.mensaje, ...(e.pedidoId ? { pedidoId: e.pedidoId } : {}) };
-    if (e instanceof IndiceInvalido) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+    if (e instanceof IndiceInvalido || e instanceof IndiceCitaInvalido) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
     // Otra confirmación del mismo presupuesto ganó (único `presupuestoId`): devolver la suya.
     if ((e as { code?: unknown } | null)?.code === "P2002") {
       const ganador = await prisma.fotofficePedido.findFirst({ where: { presupuestoId, workspaceId }, select: { id: true } });

@@ -6,6 +6,7 @@ import { validarDescuento, validarItems, type ItemPresupuesto } from "@/lib/pres
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
+import { agendaEncendida, crearCitasDelPedido } from "@/lib/agenda/crear";
 import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
 import { nombreDeContacto } from "./nombre-contacto";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
@@ -280,6 +281,7 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
   }
 
   const conProyectos = await proyectosEncendidos(workspaceId);
+  const conCitas = await agendaEncendida(workspaceId);
   try {
     return await prisma.$transaction(async (tx): Promise<ResultadoAlta> => {
       const incomeCategoryId = await rubroDeItems(tx, workspaceId, items);
@@ -311,6 +313,13 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
         await crearProyectosDelPedido(tx, ctx, {
           pedidoId: r.id, clientId: contacto.id, items, fechaEvento, eventLabel: etiqueta, numeroPedido: r.numero,
           ownerUserId: ctx.userId, confirmadoEn: ahora,
+        });
+      }
+      // Y las citas de las reglas de sus productos (Etapa 4, Entrega B), todas y sólo con fecha de evento.
+      if (conCitas) {
+        await crearCitasDelPedido(tx, workspaceId, {
+          pedidoId: r.id, clientId: contacto.id, items, fechaEvento, eventLabel: etiqueta, numeroPedido: r.numero,
+          ownerUserId: ctx.userId, createdByUserId: ctx.userId,
         });
       }
       return { ok: true, pedidoId: r.id, numero: r.numero, aviso };

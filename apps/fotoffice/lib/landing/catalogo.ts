@@ -257,6 +257,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "agenda",
+    cuadro: "23",
+    nombre: "Agenda",
+    resuelve:
+      "Las reuniones, sesiones y eventos del equipo en un calendario por día, semana o mes, con el tipo de cada cita, su responsable y quiénes participan. Al confirmar un pedido, los productos pueden crear solos las citas que corresponden, según la fecha del evento. Sobre el mismo calendario ves las entregas de proyectos, las tareas con vencimiento, las cuotas por cobrar y los cumpleaños, y podés sincronizarlo con Google Calendar.",
+    pantallas: [
+      "Calendario por día, semana y mes",
+      "Citas con tipo, responsable y participantes",
+      "Citas creadas desde el pedido",
+      "Entregas, tareas y vencimientos en capas",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",
