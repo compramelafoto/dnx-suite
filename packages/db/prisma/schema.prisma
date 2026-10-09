@@ -337,7 +337,7 @@ model User {
   clickatonReferralCode               ClickatonReferralCode?
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
-  fotofficeNotes FotofficeNote[] @relation("FotofficeNoteAuthor")
+  fotofficeNotes                      FotofficeNote[]                    @relation("FotofficeNoteAuthor")
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -750,21 +750,21 @@ model TalkLead {
 /// *
 /// * Blog — categorías editoriales
 model BlogCategory {
-  id          Int        @id @default(autoincrement())
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  platform    String
+  id           Int        @id @default(autoincrement())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  platform     String
   /// A qué institución pertenece, dentro de la plataforma. "" = el blog de la plataforma entera
   /// (CompraMeLaFoto, Clickatón). En FOTOFFICE es el id del workspace: cada institución tiene su
   /// blog. Texto y no FK a propósito: "" tiene que poder entrar en el `@@unique`, y un NULL no
   /// cuenta para la unicidad en Postgres.
-  workspaceKey String @default("")
-  name        String
-  slug        String
-  description String?
-  sortOrder   Int        @default(0)
-  isFeatured  Boolean    @default(false)
-  posts       BlogPost[]
+  workspaceKey String     @default("")
+  name         String
+  slug         String
+  description  String?
+  sortOrder    Int        @default(0)
+  isFeatured   Boolean    @default(false)
+  posts        BlogPost[]
 
   @@unique([platform, workspaceKey, slug])
   @@index([platform, sortOrder])
@@ -773,12 +773,12 @@ model BlogCategory {
 /// *
 /// * Blog — tags transversales
 model BlogTag {
-  id       Int           @id @default(autoincrement())
-  platform String
-  workspaceKey String @default("")
-  name     String
-  slug     String
-  posts    BlogPostTag[]
+  id           Int           @id @default(autoincrement())
+  platform     String
+  workspaceKey String        @default("")
+  name         String
+  slug         String
+  posts        BlogPostTag[]
 
   @@unique([platform, workspaceKey, slug])
 }
@@ -786,20 +786,20 @@ model BlogTag {
 /// *
 /// * Blog — autores (independientes de User)
 model BlogAuthor {
-  id        Int        @id @default(autoincrement())
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  platform  String
-  workspaceKey String @default("")
-  name      String
-  slug      String
-  bio       String?
-  avatarUrl String?
-  role      String?
-  userId    Int?
-  isActive  Boolean    @default(true)
-  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  posts     BlogPost[]
+  id           Int        @id @default(autoincrement())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  platform     String
+  workspaceKey String     @default("")
+  name         String
+  slug         String
+  bio          String?
+  avatarUrl    String?
+  role         String?
+  userId       Int?
+  isActive     Boolean    @default(true)
+  user         User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  posts        BlogPost[]
 
   @@unique([platform, workspaceKey, slug])
   @@index([platform, isActive])
@@ -808,18 +808,18 @@ model BlogAuthor {
 /// *
 /// * Blog — biblioteca multimedia
 model BlogMedia {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  platform  String
-  workspaceKey String @default("")
-  title     String?
-  altText   String?
-  caption   String?
-  filename  String
-  url       String
-  r2Key     String
-  mimeType  String
-  sizeBytes Int
+  id           Int      @id @default(autoincrement())
+  createdAt    DateTime @default(now())
+  platform     String
+  workspaceKey String   @default("")
+  title        String?
+  altText      String?
+  caption      String?
+  filename     String
+  url          String
+  r2Key        String
+  mimeType     String
+  sizeBytes    Int
 
   @@index([platform, createdAt])
   @@index([platform, workspaceKey, createdAt])
@@ -828,35 +828,35 @@ model BlogMedia {
 /// *
 /// * Blog — artículos
 model BlogPost {
-  id             Int            @id @default(autoincrement())
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id             Int                      @id @default(autoincrement())
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
   platform       String
-  workspaceKey String @default("")
+  workspaceKey   String                   @default("")
   title          String
   slug           String
   excerpt        String?
   contentJson    Json
-  contentHtml    String         @db.Text
+  contentHtml    String                   @db.Text
   heroImageUrl   String?
-  status         BlogPostStatus @default(DRAFT)
-  type           BlogPostType   @default(BLOG)
+  status         BlogPostStatus           @default(DRAFT)
+  type           BlogPostType             @default(BLOG)
   publishedAt    DateTime?
   lastReviewedAt DateTime?
   readingTimeMin Int?
-  isFeatured     Boolean        @default(false)
+  isFeatured     Boolean                  @default(false)
   featuredUntil  DateTime?
   seoTitle       String?
   seoDescription String?
   seoGoal        String?
   ogImageUrl     String?
   canonicalUrl   String?
-  noIndex        Boolean        @default(false)
-  viewCount      Int            @default(0)
+  noIndex        Boolean                  @default(false)
+  viewCount      Int                      @default(0)
   categoryId     Int?
   authorId       Int?
-  category       BlogCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  author         BlogAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category       BlogCategory?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author         BlogAuthor?              @relation(fields: [authorId], references: [id], onDelete: SetNull)
   tags           BlogPostTag[]
   views          BlogPostView[]
   bannerSlot     FotofficeBlogBannerSlot?
@@ -4457,36 +4457,36 @@ model TemplateV2Publication {
 
 /// * Proyecto de diseño (cliente diseña, fotógrafo aprueba)
 model DesignProject {
-  id                Int                 @id @default(autoincrement())
+  id                  Int                 @id @default(autoincrement())
   /// Preventa escolar: el ítem canjeado. Nulo en los diseños de packs de galería.
-  orderItemId       Int?                @unique
+  orderItemId         Int?                @unique
   /// Motor viejo (`Template` + `TemplateSlot`). Nulo en los diseños del diseñador nuevo.
-  templateId        Int?
+  templateId          Int?
   /// Diseñador nuevo: la plantilla y la versión con la que se armó (la versión queda fija para
   /// que retocar la plantilla no cambie un diseño ya revisado).
-  templateV2Id         String?
-  templateV2VersionId  String?
+  templateV2Id        String?
+  templateV2VersionId String?
   /// Pack de galería: el pedido pagado y el borrador del pack (uno por pack dentro del pedido).
-  albumOrderId         Int?
-  albumPackDraftId     String?           @unique
-  albumId              Int?
+  albumOrderId        Int?
+  albumPackDraftId    String?             @unique
+  albumId             Int?
   /// Dueño del álbum: quien revisa y aprueba. Evita recorrer el pedido para cada permiso.
-  photographerUserId   Int?
-  status            DesignProjectStatus @default(DRAFT)
-  currentRevisionId Int?                @unique
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  approvedAt        DateTime?
-  approvedByUserId  Int?
-  rejectedAt        DateTime?
-  rejectedByUserId  Int?
-  reviewReason      String?
-  reviewNote        String?
-  exportJobs        DesignExportJob[]
-  currentRevision   DesignRevision?     @relation("DesignProjectCurrentRevision", fields: [currentRevisionId], references: [id])
-  orderItem         PreCompraOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  template          Template?           @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  revisions         DesignRevision[]    @relation("DesignProjectRevisions")
+  photographerUserId  Int?
+  status              DesignProjectStatus @default(DRAFT)
+  currentRevisionId   Int?                @unique
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  approvedAt          DateTime?
+  approvedByUserId    Int?
+  rejectedAt          DateTime?
+  rejectedByUserId    Int?
+  reviewReason        String?
+  reviewNote          String?
+  exportJobs          DesignExportJob[]
+  currentRevision     DesignRevision?     @relation("DesignProjectCurrentRevision", fields: [currentRevisionId], references: [id])
+  orderItem           PreCompraOrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  template            Template?           @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  revisions           DesignRevision[]    @relation("DesignProjectRevisions")
 
   @@index([orderItemId])
   @@index([templateId])
@@ -7098,166 +7098,166 @@ model FotorankGlobalCategoryAlias {
 
 /// Workspace compartido (FotoRank judges + Fotoffice / cursos / evaluaciones).
 model Workspace {
-  id                          String                             @id @default(cuid())
-  name                        String
-  createdAt                   DateTime                           @default(now())
-  updatedAt                   DateTime                           @updatedAt
-  courses                     Course[]
-  courseBeneficiaries         CourseBeneficiary[]
-  courseSaleShares            CourseSaleShare[]
-  courseResaleAgreements      CourseResaleAgreement[]
-  courseEnrollments           CourseEnrollment[]
-  courseAccesses              CourseAccess[]
-  courseSalesCourses          CourseSalesCourse[]
-  courseSalesLeads            CourseSalesLead[]
-  courseSalesTeachers         CourseSalesTeacher[]
-  courseSalesSettings         CourseSalesWorkspaceSettings?
-  fotofficeBranding           FotofficeWorkspaceBranding?
-  fotofficeListViews          FotofficeListView[]
-  fotofficeListActivity       FotofficeListActivity[]
-  fotofficeWebsite            FotofficeWorkspaceWebsite?
-  fotofficeDomain             FotofficeWorkspaceDomain?
-  fotofficeBlogBannerSlots    FotofficeBlogBannerSlot[]
-  fotorankJudgeAccounts       FotorankJudgeAccount[]
-  memberships                 Membership[]
-  serviceLeadForms            ServiceLeadForm[]
-  serviceSalesLeads           ServiceSalesLead[]
-  evaluationContexts          EvaluationContext[]
-  students                    EvaluationStudent[]
-  featureModules              WorkspaceFeatureModule[]
-  workspaceMembershipsUnified WorkspaceMembership[]
-  workspaceInvitations        WorkspaceInvitation[]
-  adminEvents                 WorkspaceAdminEvent[]
-  customRoles                 WorkspaceCustomRole[]
-  offices                     WorkspaceOffice[]
-  memberWelcomes              MemberWelcome[]
-  memberAboutMes              MemberAboutMe[]
-  memberSpotlights            MemberSpotlight[]
-  appAccessUnified            WorkspaceAppAccess[]
-  institutionalMembers        Member[]
-  memberCategories            MemberCategory[]
-  memberAudits                MemberAudit[]
-  memberPortfolios            FotofficeMemberPortfolio[]
-  memberInvitations           MemberInvitation[]
-  moduleFees                  WorkspaceModuleFee[]
-  integrations                WorkspaceIntegration[]
-  bookingSpaces               BookingSpace[]
-  bookings                    Booking[]
-  bookingClosures             BookingClosure[]
-  bookingSettings             BookingSettings?
-  bookingResources            BookingResource[]
-  bookingExtras               BookingExtra[]
-  raffles                     Raffle[]
-  rafflePrizeCommitments      RafflePrizeCommitment[]
-  raffleSettings              RaffleSettings?
-  govProjectTypes             GovProjectType[]
-  govProjects                 GovProject[]
-  govMeetings                 GovMeeting[]
-  contestShowcase             WorkspaceContestShowcase?
-  clients                     Client[]
-  cashAccounts                CashAccount[]
-  cashCategories              CashCategory[]
-  cashShifts                  CashShift[]
-  cashMovements               CashMovement[]
-  cashTransfers               CashTransfer[]
-  productCategories           ProductCategory[]
-  products                    Product[]
-  stockMovements              StockMovement[]
-  sales                       Sale[]
-  feeLedger                   WorkspaceFeeLedgerEntry[]
-  membershipApplications      MembershipApplication[]
-  membershipDuesSettings      MembershipDuesSettings?
-  membershipFeeValues         MembershipFeeValue[]
-  membershipCharges           MembershipCharge[]
-  membershipPayments          MembershipPayment[]
-  memberCards                 MemberCard[]
-  memberCardOperators         MemberCardOperator[]
-  recommendationBenefits      MembershipRecommendationBenefit[]
-  coverageSettings            CoverageSettings?
-  coverageRequests            CoverageRequest[]
-  coverages                   Coverage[]
-  coverageCalls               CoverageCall[]
-  coverageCollaborators       CoverageCollaboratorProfile[]
-  coverageEvents              CoverageEvent[]
-  vocabulary                  WorkspaceVocabulary?
-  fotofficeNoteCategories FotofficeNoteCategory[]
-  fotofficeNotes FotofficeNote[]
-  fotofficeTags FotofficeTag[]
-  fotofficeTagAssignments FotofficeTagAssignment[]
-  fotofficeAttachments FotofficeAttachment[]
-  fotofficePersonRelations FotofficePersonRelation[]
-  fotofficeCircuits FotofficeCircuit[]
-  fotofficeLossReasons FotofficeLossReason[]
-  fotofficeJourneys FotofficeJourney[]
-  fotofficeTasks FotofficeTask[]
-  fotofficePersonEvents FotofficePersonEvent[]
-  fotofficeCustomFields FotofficeCustomField[]
-  fotofficeCustomValues FotofficeCustomValue[]
-  fotofficeCustomValueChanges FotofficeCustomValueChange[]
-  fotofficeSequences FotofficeSequence[]
-  fotofficeSequenceChanges FotofficeSequenceChange[]
-  fotofficeRecordNumbers FotofficeRecordNumber[]
-  fotofficeMessageTemplates FotofficeMessageTemplate[]
-  fotofficeMessages FotofficeMessage[]
-  fotofficeConsultas FotofficeConsulta[]
-  fotofficeConsultaCategorias FotofficeConsultaCategoria[]
-  fotofficeOrigenes FotofficeOrigen[]
-  fotofficeRolesParticipante FotofficeRolParticipante[]
+  id                             String                             @id @default(cuid())
+  name                           String
+  createdAt                      DateTime                           @default(now())
+  updatedAt                      DateTime                           @updatedAt
+  courses                        Course[]
+  courseBeneficiaries            CourseBeneficiary[]
+  courseSaleShares               CourseSaleShare[]
+  courseResaleAgreements         CourseResaleAgreement[]
+  courseEnrollments              CourseEnrollment[]
+  courseAccesses                 CourseAccess[]
+  courseSalesCourses             CourseSalesCourse[]
+  courseSalesLeads               CourseSalesLead[]
+  courseSalesTeachers            CourseSalesTeacher[]
+  courseSalesSettings            CourseSalesWorkspaceSettings?
+  fotofficeBranding              FotofficeWorkspaceBranding?
+  fotofficeListViews             FotofficeListView[]
+  fotofficeListActivity          FotofficeListActivity[]
+  fotofficeWebsite               FotofficeWorkspaceWebsite?
+  fotofficeDomain                FotofficeWorkspaceDomain?
+  fotofficeBlogBannerSlots       FotofficeBlogBannerSlot[]
+  fotorankJudgeAccounts          FotorankJudgeAccount[]
+  memberships                    Membership[]
+  serviceLeadForms               ServiceLeadForm[]
+  serviceSalesLeads              ServiceSalesLead[]
+  evaluationContexts             EvaluationContext[]
+  students                       EvaluationStudent[]
+  featureModules                 WorkspaceFeatureModule[]
+  workspaceMembershipsUnified    WorkspaceMembership[]
+  workspaceInvitations           WorkspaceInvitation[]
+  adminEvents                    WorkspaceAdminEvent[]
+  customRoles                    WorkspaceCustomRole[]
+  offices                        WorkspaceOffice[]
+  memberWelcomes                 MemberWelcome[]
+  memberAboutMes                 MemberAboutMe[]
+  memberSpotlights               MemberSpotlight[]
+  appAccessUnified               WorkspaceAppAccess[]
+  institutionalMembers           Member[]
+  memberCategories               MemberCategory[]
+  memberAudits                   MemberAudit[]
+  memberPortfolios               FotofficeMemberPortfolio[]
+  memberInvitations              MemberInvitation[]
+  moduleFees                     WorkspaceModuleFee[]
+  integrations                   WorkspaceIntegration[]
+  bookingSpaces                  BookingSpace[]
+  bookings                       Booking[]
+  bookingClosures                BookingClosure[]
+  bookingSettings                BookingSettings?
+  bookingResources               BookingResource[]
+  bookingExtras                  BookingExtra[]
+  raffles                        Raffle[]
+  rafflePrizeCommitments         RafflePrizeCommitment[]
+  raffleSettings                 RaffleSettings?
+  govProjectTypes                GovProjectType[]
+  govProjects                    GovProject[]
+  govMeetings                    GovMeeting[]
+  contestShowcase                WorkspaceContestShowcase?
+  clients                        Client[]
+  cashAccounts                   CashAccount[]
+  cashCategories                 CashCategory[]
+  cashShifts                     CashShift[]
+  cashMovements                  CashMovement[]
+  cashTransfers                  CashTransfer[]
+  productCategories              ProductCategory[]
+  products                       Product[]
+  stockMovements                 StockMovement[]
+  sales                          Sale[]
+  feeLedger                      WorkspaceFeeLedgerEntry[]
+  membershipApplications         MembershipApplication[]
+  membershipDuesSettings         MembershipDuesSettings?
+  membershipFeeValues            MembershipFeeValue[]
+  membershipCharges              MembershipCharge[]
+  membershipPayments             MembershipPayment[]
+  memberCards                    MemberCard[]
+  memberCardOperators            MemberCardOperator[]
+  recommendationBenefits         MembershipRecommendationBenefit[]
+  coverageSettings               CoverageSettings?
+  coverageRequests               CoverageRequest[]
+  coverages                      Coverage[]
+  coverageCalls                  CoverageCall[]
+  coverageCollaborators          CoverageCollaboratorProfile[]
+  coverageEvents                 CoverageEvent[]
+  vocabulary                     WorkspaceVocabulary?
+  fotofficeNoteCategories        FotofficeNoteCategory[]
+  fotofficeNotes                 FotofficeNote[]
+  fotofficeTags                  FotofficeTag[]
+  fotofficeTagAssignments        FotofficeTagAssignment[]
+  fotofficeAttachments           FotofficeAttachment[]
+  fotofficePersonRelations       FotofficePersonRelation[]
+  fotofficeCircuits              FotofficeCircuit[]
+  fotofficeLossReasons           FotofficeLossReason[]
+  fotofficeJourneys              FotofficeJourney[]
+  fotofficeTasks                 FotofficeTask[]
+  fotofficePersonEvents          FotofficePersonEvent[]
+  fotofficeCustomFields          FotofficeCustomField[]
+  fotofficeCustomValues          FotofficeCustomValue[]
+  fotofficeCustomValueChanges    FotofficeCustomValueChange[]
+  fotofficeSequences             FotofficeSequence[]
+  fotofficeSequenceChanges       FotofficeSequenceChange[]
+  fotofficeRecordNumbers         FotofficeRecordNumber[]
+  fotofficeMessageTemplates      FotofficeMessageTemplate[]
+  fotofficeMessages              FotofficeMessage[]
+  fotofficeConsultas             FotofficeConsulta[]
+  fotofficeConsultaCategorias    FotofficeConsultaCategoria[]
+  fotofficeOrigenes              FotofficeOrigen[]
+  fotofficeRolesParticipante     FotofficeRolParticipante[]
   fotofficeConsultaParticipantes FotofficeConsultaParticipante[]
-  fotofficeContactoPerfiles FotofficeContactoPerfil[]
-  fotofficeConsultaAjustes FotofficeConsultaAjustes?
-  fotofficeProductosCatalogo FotofficeProductoCatalogo[]
-  fotofficeComboItems FotofficeComboItem[]
-  fotofficeCostosPlantilla FotofficeCostoPlantilla[]
-  fotofficePresupuestos FotofficePresupuesto[]
-  fotofficePresupuestoVersiones FotofficePresupuestoVersion[]
-  fotofficePresupuestoVistas FotofficePresupuestoVista[]
-  fotofficePresupuestoAjustes FotofficePresupuestoAjustes?
-  fotofficePerfilPrecios      FotofficePerfilPrecios?
-  fotofficePropuestasModelo FotofficePropuestaModelo[]
-  fotofficeBorradoresAuto   FotofficePropuestaBorradorAuto[]
-  fotofficePedidos FotofficePedido[]
-  fotofficePedidoCuotas FotofficePedidoCuota[]
-  fotofficeCobros FotofficeCobro[]
-  fotofficeCobroImputaciones FotofficeCobroImputacion[]
-  fotofficeRubros FotofficeRubro[]
-  fotofficeCuentasPagar FotofficeCuentaPagar[]
-  fotofficeCuotaRecordatorios FotofficeCuotaRecordatorio[]
-  fotofficePedidoAjustes FotofficePedidoAjustes?
-  fotofficePedidoTareas FotofficePedidoTarea[]
-  fotofficeProyectos FotofficeProyecto[]
-  fotofficeProductoProyectos FotofficeProductoProyecto[]
-  fotofficeProyectoRoles FotofficeProyectoRol[]
+  fotofficeContactoPerfiles      FotofficeContactoPerfil[]
+  fotofficeConsultaAjustes       FotofficeConsultaAjustes?
+  fotofficeProductosCatalogo     FotofficeProductoCatalogo[]
+  fotofficeComboItems            FotofficeComboItem[]
+  fotofficeCostosPlantilla       FotofficeCostoPlantilla[]
+  fotofficePresupuestos          FotofficePresupuesto[]
+  fotofficePresupuestoVersiones  FotofficePresupuestoVersion[]
+  fotofficePresupuestoVistas     FotofficePresupuestoVista[]
+  fotofficePresupuestoAjustes    FotofficePresupuestoAjustes?
+  fotofficePerfilPrecios         FotofficePerfilPrecios?
+  fotofficePropuestasModelo      FotofficePropuestaModelo[]
+  fotofficeBorradoresAuto        FotofficePropuestaBorradorAuto[]
+  fotofficePedidos               FotofficePedido[]
+  fotofficePedidoCuotas          FotofficePedidoCuota[]
+  fotofficeCobros                FotofficeCobro[]
+  fotofficeCobroImputaciones     FotofficeCobroImputacion[]
+  fotofficeRubros                FotofficeRubro[]
+  fotofficeCuentasPagar          FotofficeCuentaPagar[]
+  fotofficeCuotaRecordatorios    FotofficeCuotaRecordatorio[]
+  fotofficePedidoAjustes         FotofficePedidoAjustes?
+  fotofficePedidoTareas          FotofficePedidoTarea[]
+  fotofficeProyectos             FotofficeProyecto[]
+  fotofficeProductoProyectos     FotofficeProductoProyecto[]
+  fotofficeProyectoRoles         FotofficeProyectoRol[]
   fotofficeProyectoParticipantes FotofficeProyectoParticipante[]
-  fotofficeProyectoNotas FotofficeProyectoNota[]
-  fotofficeProyectoAdjuntos FotofficeProyectoAdjunto[]
-  fotofficeProyectoEtapaPlanes FotofficeProyectoEtapaPlan[]
-  fotofficeCitaTipos FotofficeCitaTipo[]
-  fotofficeCitas FotofficeCita[]
-  fotofficeProductoCitas FotofficeProductoCita[]
-  fotofficeAgendaAjustes FotofficeAgendaAjustes?
-  fotofficeContratoPlantillas FotofficeContratoPlantilla[]
-  fotofficePedidoContratantes FotofficePedidoContratante[]
-  fotofficeContratos FotofficeContrato[]
-  fotofficeContratoVersiones FotofficeContratoVersion[]
-  fotofficeContratoFirmantes FotofficeContratoFirmante[]
-  fotofficeContratoEventos FotofficeContratoEvento[]
-  fotofficeContratoAjustes FotofficeContratoAjustes?
-  clientAudits ClientAudit[]
-  productStoreListings        ProductStoreListing[]
-  storeSettings               StoreSettings?
-  storeShippingSettings       StoreShippingSettings?
-  storeShippingZones          StoreShippingZone[]
-  storeOrders                 StoreOrder[]
-  contactSyncSettings         WorkspaceContactSyncSetting[]
-  contactLinks                WorkspaceContactLink[]
-  contestOrganizationLinks    WorkspaceContestOrganizationLink[]
-  storePrintSettings          StorePrintSettings?
-  printFormats                PrintFormat[]
-  contestStoreSettings        ContestStoreSettings[]
-  artworkConsents             ArtworkConsent[]
-  artworkListings             ArtworkListing[]
-  artworkRoyalties            ArtworkRoyalty[]
+  fotofficeProyectoNotas         FotofficeProyectoNota[]
+  fotofficeProyectoAdjuntos      FotofficeProyectoAdjunto[]
+  fotofficeProyectoEtapaPlanes   FotofficeProyectoEtapaPlan[]
+  fotofficeCitaTipos             FotofficeCitaTipo[]
+  fotofficeCitas                 FotofficeCita[]
+  fotofficeProductoCitas         FotofficeProductoCita[]
+  fotofficeAgendaAjustes         FotofficeAgendaAjustes?
+  fotofficeContratoPlantillas    FotofficeContratoPlantilla[]
+  fotofficePedidoContratantes    FotofficePedidoContratante[]
+  fotofficeContratos             FotofficeContrato[]
+  fotofficeContratoVersiones     FotofficeContratoVersion[]
+  fotofficeContratoFirmantes     FotofficeContratoFirmante[]
+  fotofficeContratoEventos       FotofficeContratoEvento[]
+  fotofficeContratoAjustes       FotofficeContratoAjustes?
+  clientAudits                   ClientAudit[]
+  productStoreListings           ProductStoreListing[]
+  storeSettings                  StoreSettings?
+  storeShippingSettings          StoreShippingSettings?
+  storeShippingZones             StoreShippingZone[]
+  storeOrders                    StoreOrder[]
+  contactSyncSettings            WorkspaceContactSyncSetting[]
+  contactLinks                   WorkspaceContactLink[]
+  contestOrganizationLinks       WorkspaceContestOrganizationLink[]
+  storePrintSettings             StorePrintSettings?
+  printFormats                   PrintFormat[]
+  contestStoreSettings           ContestStoreSettings[]
+  artworkConsents                ArtworkConsent[]
+  artworkListings                ArtworkListing[]
+  artworkRoyalties               ArtworkRoyalty[]
 }
 
 model WorkspaceFeatureModule {
@@ -7347,6 +7347,7 @@ model FotofficeListView {
   @@index([workspaceId, listKey, kind])
   @@index([ownerUserId])
 }
+
 /// Catálogo de categorías de notas por workspace (etapa 0.3).
 model FotofficeNoteCategory {
   id          String   @id @default(cuid())
@@ -7443,11 +7444,11 @@ model FotofficeAttachment {
   purgeAfter       DateTime?
   createdAt        DateTime  @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client    Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  fotofficeCobros FotofficeCobro[]
-  fotofficeCuentasPagar FotofficeCuentaPagar[]
+  workspace                  Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client                     Client?                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  member                     Member?                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  fotofficeCobros            FotofficeCobro[]
+  fotofficeCuentasPagar      FotofficeCuentaPagar[]
   fotofficeContratosManuales FotofficeContrato[]
 
   @@index([workspaceId, clientId, createdAt])
@@ -7521,7 +7522,6 @@ model ClientAudit {
 
   @@index([workspaceId, clientId, createdAt])
 }
-
 
 /// Registro de exportaciones y acciones en lote hechas desde un listado.
 model FotofficeListActivity {
@@ -7651,26 +7651,26 @@ model FotofficeEmailCampaign {
 
 /// Un destinatario de un envío a muchos.
 model FotofficeEmailDelivery {
-  id         String                 @id @default(cuid())
-  campaignId String
-  memberId   String?
+  id           String                 @id @default(cuid())
+  campaignId   String
+  memberId     String?
   /// En minúsculas.
-  email      String
-  firstName  String?
+  email        String
+  firstName    String?
   /// PENDING · SENDING · SENT · FAILED
-  status     String                 @default("PENDING")
-  claimedAt  DateTime?
-  resendId   String?
-  error      String?
-  sentAt     DateTime?
+  status       String                 @default("PENDING")
+  claimedAt    DateTime?
+  resendId     String?
+  error        String?
+  sentAt       DateTime?
   /// Métricas que informa Resend por webhook (primer evento de cada tipo).
   deliveredAt  DateTime?
   openedAt     DateTime?
   clickedAt    DateTime?
   bouncedAt    DateTime?
   complainedAt DateTime?
-  createdAt  DateTime               @default(now())
-  campaign   FotofficeEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt    DateTime               @default(now())
+  campaign     FotofficeEmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, email])
   @@index([campaignId, status])
@@ -7924,13 +7924,13 @@ model Member {
   /// --- Presencia profesional ---
   /// Se pide desde el alta: pedirla después implica volver a contactar a cada socio uno por uno.
   /// Nombre del estudio o marca, si trabaja con uno distinto de su nombre.
-  businessName   String?
+  businessName    String?
   /// Logo de ese estudio o marca. Se muestra en el portal junto al nombre; lo sube el socio.
   businessLogoUrl String?
   /// Rubros en los que trabaja. Vocabulario cerrado, validado en lib/membership/specialties.ts.
-  specialties    String[] @default([])
+  specialties     String[] @default([])
   /// Presentación breve, en palabras del socio.
-  bio            String?
+  bio             String?
 
   /// --- Dónde atiende: el domicilio del ESTUDIO, nunca el particular ---
   ///
@@ -7947,18 +7947,18 @@ model Member {
   /// Ver `apps/fotoffice/lib/membership/studio-location.ts`.
   studioLat        Float?
   studioLng        Float?
-  website        String?
+  website          String?
   /// Instagram y TikTok se guardan como usuario, sin arroba. Facebook, YouTube y LinkedIn como
   /// dirección completa: en esas tres el perfil tiene varias formas válidas. Ver lib/membership/social.ts.
-  instagram      String?
-  tiktok         String?
-  facebook       String?
-  youtube        String?
-  linkedin       String?
+  instagram        String?
+  tiktok           String?
+  facebook         String?
+  youtube          String?
+  linkedin         String?
   /// Consentimiento explícito para publicar estos datos en la web pública de la institución.
   /// Arranca en false a propósito: publicar los datos de alguien requiere que lo haya pedido,
   /// no que no se haya opuesto.
-  directoryOptIn Boolean  @default(false)
+  directoryOptIn   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8026,6 +8026,12 @@ model Member {
   govProjectsProposed             GovProject[]                      @relation("GovProjectProposer")
   govProjectsResponsible          GovProject[]                      @relation("GovProjectResponsible")
   govTasksAssigned                GovProjectTask[]
+  fotofficeNotes                  FotofficeNote[]
+  fotofficeTags                   FotofficeTagAssignment[]
+  fotofficeAttachments            FotofficeAttachment[]
+  fotofficeEvents                 FotofficePersonEvent[]
+  relationsFrom                   FotofficePersonRelation[]         @relation("RelationFromMember")
+  relationsTo                     FotofficePersonRelation[]         @relation("RelationToMember")
 
   @@unique([workspaceId, memberNumber])
   @@unique([workspaceId, email])
@@ -8039,12 +8045,6 @@ model Member {
   @@index([workspaceId, documentNumber])
   @@index([workspaceId, lastName, firstName])
   @@index([workspaceId, recommendedByMemberId])
-  fotofficeNotes FotofficeNote[]
-  fotofficeTags FotofficeTagAssignment[]
-  fotofficeAttachments FotofficeAttachment[]
-  fotofficeEvents FotofficePersonEvent[]
-  relationsFrom FotofficePersonRelation[] @relation("RelationFromMember")
-  relationsTo FotofficePersonRelation[] @relation("RelationToMember")
 }
 
 /// Invitación para que un socio acceda con su propia cuenta.
@@ -8204,7 +8204,7 @@ model MembershipDuesSettings {
   recommendationBenefitPercent Decimal @default(100) @db.Decimal(5, 2)
   /// Enlace de invitación al grupo de WhatsApp de los socios (`https://chat.whatsapp.com/...`).
   /// Va en el correo de bienvenida y como botón en el inicio del portal. `null` = no hay grupo.
-  communityWhatsappUrl String?
+  communityWhatsappUrl         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8725,9 +8725,9 @@ model FotofficeMemberPortfolioPhoto {
   height      Int
 
   /// El orden que eligió la persona. Denso dentro de un portfolio, arranca en 0.
-  order Int
-  title String?
-  year  Int?
+  order   Int
+  title   String?
+  year    Int?
   /// Descripción de lo que se ve en la foto. Va al atributo `alt` de la imagen.
   ///
   /// Es lo que lee Google para encontrar la foto **y** lo que escucha quien usa un lector de
@@ -8979,12 +8979,12 @@ model BookingSpace {
   /// jornada. Ninguno de los dos se puede escribir como tarifa horaria —no hay número por hora
   /// que dé el mismo total para 3, 4 y 5 horas— y fingir que sí obligaba a mostrarle a la gente
   /// un precio por hora que no es el que paga.
-  pricingMode String @default("HOURLY")
+  pricingMode             String  @default("HOURLY")
   /// Tamaño del bloque, en minutos. **`null` = un solo bloque por reserva** (la "jornada"):
   /// se cobra lo mismo dure lo que dure, y el piso lo pone `minBookingMinutes`.
-  blockMinutes Int?
-  memberBlockPriceArs    Decimal @default(0) @db.Decimal(12, 2)
-  nonMemberBlockPriceArs Decimal @default(0) @db.Decimal(12, 2)
+  blockMinutes            Int?
+  memberBlockPriceArs     Decimal @default(0) @db.Decimal(12, 2)
+  nonMemberBlockPriceArs  Decimal @default(0) @db.Decimal(12, 2)
   /// Horas bonificadas por mes para socios. 0 = este espacio no bonifica.
   memberFreeHoursPerMonth Int     @default(0)
   allowsNonMembers        Boolean @default(true)
@@ -9082,20 +9082,20 @@ model Booking {
   customerType String
 
   /// Dinero, todo congelado en el momento de reservar.
-  billedMinutes   Int
-  freeMinutesUsed Int     @default(0)
+  billedMinutes       Int
+  freeMinutesUsed     Int      @default(0)
   /// El precio por hora que se aplicó. Sólo tiene sentido con `pricingModeSnapshot = "HOURLY"`.
-  hourlyPriceArs  Decimal @db.Decimal(12, 2)
+  hourlyPriceArs      Decimal  @db.Decimal(12, 2)
   /// Cómo se cobró ESTA reserva. Congelado: si mañana el espacio cambia de modo o de precio,
   /// lo que se cobró no se reescribe.
-  pricingModeSnapshot String  @default("HOURLY")
+  pricingModeSnapshot String   @default("HOURLY")
   /// Con `"BLOCK"`: cuánto salía cada bloque y cuántos se cobraron.
   blockPriceArs       Decimal? @db.Decimal(12, 2)
   blocksBilled        Int?
-  totalArs        Decimal @db.Decimal(12, 2)
+  totalArs            Decimal  @db.Decimal(12, 2)
   /// Puntos básicos: 500 = 5%. Entero, nunca porcentaje decimal.
-  feeBps          Int     @default(0)
-  feeArs          Decimal @default(0) @db.Decimal(12, 2)
+  feeBps              Int      @default(0)
+  feeArs              Decimal  @default(0) @db.Decimal(12, 2)
 
   /// MERCADO_PAGO | TRANSFERENCIA | SIN_CARGO | PRESENCIAL
   paymentMethod   String
@@ -9370,8 +9370,8 @@ model RafflePrize {
 
   /// Referencia opaca a `DnxPartner`, sin clave foránea: mismo criterio que el resto del
   /// dominio Partners, que vive en su propia aplicación.
-  partnerId           String?
-  partnerNameSnapshot String?
+  partnerId              String?
+  partnerNameSnapshot    String?
   /// Adónde se le pide el comprobante cuando el socio retira.
   partnerEmailSnapshot   String?
   /// El logo con el que se muestra el premio al socio. Instantánea como todo lo demás: la
@@ -9420,10 +9420,10 @@ model RafflePrizeAward {
 
   /// --- Los dos avisos que salen al resolver el sorteo ---
   /// Al ganador: qué ganó, dónde retirarlo y hasta cuándo.
-  notifiedAt        DateTime?
-  noticeError       String?
+  notifiedAt         DateTime?
+  noticeError        String?
   /// Al aliado: a quién entregarle, hasta cuándo, y el pedido del comprobante.
-  sponsorNotifiedAt DateTime?
+  sponsorNotifiedAt  DateTime?
   sponsorNoticeError String?
 
   deliveredAt       DateTime?
@@ -9464,9 +9464,9 @@ model RafflePrizeCommitment {
   id          String @id @default(cuid())
   workspaceId String
 
-  title       String
-  description String?
-  conditions  String?
+  title               String
+  description         String?
+  conditions          String?
   /// En centavos, sólo informativo.
   estimatedValueMinor Int?
 
@@ -9511,17 +9511,17 @@ model RaffleSettings {
   workspaceId String @unique
 
   /// Si se generan solos los sorteos de cada mes.
-  monthlyEnabled Boolean @default(false)
+  monthlyEnabled          Boolean @default(false)
   /// Día del mes del acto. Si el mes no llega a ese día, se usa el último.
-  drawDay        Int     @default(30)
+  drawDay                 Int     @default(30)
   /// Hora del acto, en hora argentina.
-  drawHour       Int     @default(20)
+  drawHour                Int     @default(20)
   /// Cuántas horas antes cierra el padrón.
-  entriesCloseHoursBefore Int @default(24)
+  entriesCloseHoursBefore Int     @default(24)
   /// Días que tiene el ganador para retirar. Se copia a cada sorteo generado.
-  pickupDays     Int     @default(15)
+  pickupDays              Int     @default(15)
   /// Con cuántos días de anticipación se crea el sorteo del mes.
-  createDaysAhead Int    @default(10)
+  createDaysAhead         Int     @default(10)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -9684,7 +9684,7 @@ model EvaluationResultItem {
 }
 
 model Course {
-  id                    String             @id @default(cuid())
+  id                    String                  @id @default(cuid())
   workspaceId           String
   title                 String
   slug                  String
@@ -9698,26 +9698,26 @@ model Course {
   classroomLink         String?
   classroomCode         String?
   classroomInstructions String?
-  status                CourseStatus       @default(DRAFT)
+  status                CourseStatus            @default(DRAFT)
   /// Cómo se dicta. De esto depende qué le cuelga: ediciones con fecha y lugar, o clases
   /// grabadas. Nace en PRESENCIAL para que ningún curso existente cambie de comportamiento.
-  deliveryMode          CourseDeliveryMode @default(PRESENCIAL)
+  deliveryMode          CourseDeliveryMode      @default(PRESENCIAL)
   /// Precio del curso grabado, que no tiene ediciones donde guardarlo. Null en los demás.
-  priceArs              Decimal?           @db.Decimal(12, 2)
+  priceArs              Decimal?                @db.Decimal(12, 2)
   /// Meses de acceso desde la compra, sólo para grabados. Vitalicio suena generoso hasta que
   /// el video sigue costando almacenamiento cinco años después.
-  accessMonths          Int                @default(12)
+  accessMonths          Int                     @default(12)
   /// Porcentaje de clases vistas que da el curso por terminado y emite el certificado.
-  completionPercent     Int                @default(80)
+  completionPercent     Int                     @default(80)
   /// El socio activo de la institución lo toma gratis desde su portal; el público lo paga.
-  freeForMembers        Boolean            @default(false)
+  freeForMembers        Boolean                 @default(false)
   /// El dueño lo ofrece en el Mercado de cursos para que otros negocios lo revendan.
-  offeredToResellers    Boolean            @default(false)
+  offeredToResellers    Boolean                 @default(false)
   /// % sugerido para revendedores, en puntos básicos. Hasta acá un pedido se aprueba solo.
   suggestedResellerBps  Int?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  workspace             Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instances             CourseInstance[]
   lessons               CourseLesson[]
   enrollments           CourseEnrollment[]
@@ -10084,27 +10084,27 @@ model CourseSalesLead {
 }
 
 model ServiceSalesLead {
-  id            String            @id @default(cuid())
-  workspaceId   String
-  name          String
-  email         String?
-  phone         String?
-  eventType     String
-  eventDate     DateTime?
-  eventLocation String?
-  message       String?
-  status        ServiceLeadStatus @default(NEW)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  eventSubtype  String?
-  metaJson      Json?
-  formId        String?
-  formSlug      String?
-  form          ServiceLeadForm?  @relation(fields: [formId], references: [id])
-  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  fotofficeConsulta FotofficeConsulta?
+  id                    String                 @id @default(cuid())
+  workspaceId           String
+  name                  String
+  email                 String?
+  phone                 String?
+  eventType             String
+  eventDate             DateTime?
+  eventLocation         String?
+  message               String?
+  status                ServiceLeadStatus      @default(NEW)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  eventSubtype          String?
+  metaJson              Json?
+  formId                String?
+  formSlug              String?
+  form                  ServiceLeadForm?       @relation(fields: [formId], references: [id])
+  workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fotofficeConsulta     FotofficeConsulta?
   fotofficePresupuestos FotofficePresupuesto[]
-  fotofficePedidos FotofficePedido[]
+  fotofficePedidos      FotofficePedido[]
 
   fotofficeCitas FotofficeCita[]
 
@@ -18584,40 +18584,40 @@ model Client {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  member           Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  movements        CashMovement[]
-  coverageRequests CoverageRequest[]
-  sales            Sale[]
+  workspace                        Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member                           Member?                         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  movements                        CashMovement[]
+  coverageRequests                 CoverageRequest[]
+  sales                            Sale[]
+  fotofficeNotes                   FotofficeNote[]
+  fotofficeTags                    FotofficeTagAssignment[]
+  fotofficeAttachments             FotofficeAttachment[]
+  fotofficeEvents                  FotofficePersonEvent[]
+  audits                           ClientAudit[]
+  relationsFrom                    FotofficePersonRelation[]       @relation("RelationFromClient")
+  relationsTo                      FotofficePersonRelation[]       @relation("RelationToClient")
+  storeOrders                      StoreOrder[]
+  fotofficeConsultas               FotofficeConsulta[]             @relation("FotofficeConsultaContacto")
+  fotofficeConsultasReferidas      FotofficeConsulta[]             @relation("FotofficeConsultaReferente")
+  fotofficeParticipaciones         FotofficeConsultaParticipante[] @relation("FotofficeConsultaParticipante")
+  fotofficePerfil                  FotofficeContactoPerfil?
+  fotofficeCostosProveedor         FotofficeCostoPlantilla[]       @relation("FotofficeCostoProveedor")
+  fotofficePresupuestos            FotofficePresupuesto[]          @relation("FotofficePresupuestoContacto")
+  fotofficePedidos                 FotofficePedido[]               @relation("FotofficePedidoContacto")
+  fotofficeCobros                  FotofficeCobro[]                @relation("FotofficeCobroContacto")
+  fotofficeCuentasPagar            FotofficeCuentaPagar[]          @relation("FotofficeCuentaPagarProveedor")
+  fotofficeProyectos               FotofficeProyecto[]
+  fotofficeProyectoParticipaciones FotofficeProyectoParticipante[]
+  fotofficeCitas                   FotofficeCita[]
+  fotofficePedidoContratantes      FotofficePedidoContratante[]
+  fotofficeContratos               FotofficeContrato[]
+  fotofficeContratoFirmas          FotofficeContratoFirmante[]
+  fotofficeCitaParticipaciones     FotofficeCitaParticipante[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status])
   @@index([workspaceId, docNumber])
   @@index([workspaceId, email])
-  fotofficeNotes FotofficeNote[]
-  fotofficeTags FotofficeTagAssignment[]
-  fotofficeAttachments FotofficeAttachment[]
-  fotofficeEvents FotofficePersonEvent[]
-  audits ClientAudit[]
-  relationsFrom FotofficePersonRelation[] @relation("RelationFromClient")
-  relationsTo FotofficePersonRelation[] @relation("RelationToClient")
-  storeOrders StoreOrder[]
-  fotofficeConsultas FotofficeConsulta[] @relation("FotofficeConsultaContacto")
-  fotofficeConsultasReferidas FotofficeConsulta[] @relation("FotofficeConsultaReferente")
-  fotofficeParticipaciones FotofficeConsultaParticipante[] @relation("FotofficeConsultaParticipante")
-  fotofficePerfil FotofficeContactoPerfil?
-  fotofficeCostosProveedor FotofficeCostoPlantilla[] @relation("FotofficeCostoProveedor")
-  fotofficePresupuestos FotofficePresupuesto[] @relation("FotofficePresupuestoContacto")
-  fotofficePedidos FotofficePedido[] @relation("FotofficePedidoContacto")
-  fotofficeCobros FotofficeCobro[] @relation("FotofficeCobroContacto")
-  fotofficeCuentasPagar FotofficeCuentaPagar[] @relation("FotofficeCuentaPagarProveedor")
-  fotofficeProyectos FotofficeProyecto[]
-  fotofficeProyectoParticipaciones FotofficeProyectoParticipante[]
-  fotofficeCitas FotofficeCita[]
-  fotofficePedidoContratantes FotofficePedidoContratante[]
-  fotofficeContratos FotofficeContrato[]
-  fotofficeContratoFirmas FotofficeContratoFirmante[]
-  fotofficeCitaParticipaciones FotofficeCitaParticipante[]
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -18699,12 +18699,12 @@ model CashCategory {
   movements CashMovement[]
 
   /// Relaciones inversas de FOTOFFICE (etapa 3): no son columnas, esta tabla no cambia.
-  fotofficeRubro            FotofficeRubro?             @relation("FotofficeRubroCategoria")
-  fotofficeRubrosHijos      FotofficeRubro[]            @relation("FotofficeRubroPadre")
-  fotofficeProductosIngreso FotofficeProductoCatalogo[] @relation("FotofficeProductoRubroIngreso")
-  fotofficePedidosIngreso   FotofficePedido[]           @relation("FotofficePedidoRubroIngreso")
-  fotofficeCuentasPagarCosto    FotofficeCuentaPagar[]   @relation("FotofficeCuentaPagarRubroCosto")
-  fotofficePedidoAjustesIngreso FotofficePedidoAjustes[] @relation("FotofficePedidoAjustesRubroIngreso")
+  fotofficeRubro                FotofficeRubro?             @relation("FotofficeRubroCategoria")
+  fotofficeRubrosHijos          FotofficeRubro[]            @relation("FotofficeRubroPadre")
+  fotofficeProductosIngreso     FotofficeProductoCatalogo[] @relation("FotofficeProductoRubroIngreso")
+  fotofficePedidosIngreso       FotofficePedido[]           @relation("FotofficePedidoRubroIngreso")
+  fotofficeCuentasPagarCosto    FotofficeCuentaPagar[]      @relation("FotofficeCuentaPagarRubroCosto")
+  fotofficePedidoAjustesIngreso FotofficePedidoAjustes[]    @relation("FotofficePedidoAjustesRubroIngreso")
 
   @@unique([workspaceId, kind, name])
   @@index([workspaceId, kind, isActive])
@@ -18795,14 +18795,14 @@ model CashMovement {
   category  CashCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   client    Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  transfer   CashTransfer? @relation(fields: [transferId], references: [id], onDelete: SetNull)
-  reverses   CashMovement? @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
-  reversedBy CashMovement? @relation("CashMovementReversal")
+  transfer                   CashTransfer?         @relation(fields: [transferId], references: [id], onDelete: SetNull)
+  reverses                   CashMovement?         @relation("CashMovementReversal", fields: [reversesMovementId], references: [id], onDelete: SetNull)
+  reversedBy                 CashMovement?         @relation("CashMovementReversal")
   /// Proyecto de la comisión al que pertenece (Gobierno). Vive en la tabla de enlace: esta tabla no cambia.
-  govLink    GovProjectMovement?
+  govLink                    GovProjectMovement?
   /// Cobro de un pedido de FOTOFFICE que lo originó o que lo anuló. Relaciones inversas: esta tabla no cambia.
-  fotofficeCobro        FotofficeCobro? @relation("FotofficeCobroMovimiento")
-  fotofficeCobroAnulado FotofficeCobro? @relation("FotofficeCobroContramovimiento")
+  fotofficeCobro             FotofficeCobro?       @relation("FotofficeCobroMovimiento")
+  fotofficeCobroAnulado      FotofficeCobro?       @relation("FotofficeCobroContramovimiento")
   fotofficeCuentaPagada      FotofficeCuentaPagar? @relation("FotofficeCuentaPagarMovimiento")
   fotofficeCuentaPagoAnulado FotofficeCuentaPagar? @relation("FotofficeCuentaPagarContramovimiento")
 
@@ -19086,6 +19086,7 @@ model SubilafotoEvent {
   emailsSent    SubilafotoEmailSent[]
   consents      SubilafotoConsent[]
   audits        SubilafotoAudit[]
+  reactions     SubilafotoReaction[]
 
   @@index([sellerProfileId])
   @@index([status, activationAt])
@@ -19201,10 +19202,36 @@ model SubilafotoGuestSession {
   firstSeenAt  DateTime @default(now())
   lastSeenAt   DateTime @updatedAt
 
-  event SubilafotoEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  media SubilafotoMedia[]
+  event     SubilafotoEvent      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  media     SubilafotoMedia[]
+  reactions SubilafotoReaction[]
 
   @@index([eventId, lastSeenAt])
+}
+
+/// Un emoji que un invitado mandó a la pantalla del salón.
+///
+/// No pasa por moderación y no hace falta: el invitado elige de una barra cerrada de
+/// seis emojis y no escribe nada. Si se aceptara texto libre, la pantalla sería un
+/// cartel abierto proyectado en grande y sin nadie revisando.
+///
+/// Se guarda una fila por reacción y no un contador: el contador se saca sumando, y
+/// tener el detalle permite frenar al que aprieta sin parar y reconstruir la noche.
+model SubilafotoReaction {
+  id             String   @id @default(cuid())
+  eventId        String
+  /// Null si la sesión del invitado se borró; la reacción sigue contando.
+  guestSessionId String?
+  emoji          String
+  createdAt      DateTime @default(now())
+
+  event        SubilafotoEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guestSession SubilafotoGuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+
+  /// La pantalla pregunta "qué llegó después de tal momento" una vez por segundo.
+  @@index([eventId, createdAt])
+  /// El freno al que aprieta sin parar: cuántas mandó y cuándo fue la última.
+  @@index([guestSessionId, createdAt])
 }
 
 model SubilafotoScreen {
@@ -20193,10 +20220,10 @@ model FotofficeCircuit {
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  stages    FotofficeStage[]
-  journeys  FotofficeJourney[]
-  proyectos FotofficeProyecto[]
+  workspace      Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages         FotofficeStage[]
+  journeys       FotofficeJourney[]
+  proyectos      FotofficeProyecto[]
   reglasProyecto FotofficeProductoProyecto[]
 
   @@unique([workspaceId, name])
@@ -20217,14 +20244,14 @@ model FotofficeStage {
   archivedAt   DateTime?
   createdAt    DateTime  @default(now())
 
-  circuit   FotofficeCircuit             @relation(fields: [circuitId], references: [id], onDelete: Cascade)
-  templates FotofficeStageTaskTemplate[]
-  rules     FotofficeStageRule[]
-  journeys  FotofficeJourney[]
-  tasks     FotofficeTask[]
+  circuit        FotofficeCircuit             @relation(fields: [circuitId], references: [id], onDelete: Cascade)
+  templates      FotofficeStageTaskTemplate[]
+  rules          FotofficeStageRule[]
+  journeys       FotofficeJourney[]
+  tasks          FotofficeTask[]
   planesProyecto FotofficeProyectoEtapaPlan[]
-  stepsFrom FotofficeJourneyStep[]       @relation("StepFrom")
-  stepsTo   FotofficeJourneyStep[]       @relation("StepTo")
+  stepsFrom      FotofficeJourneyStep[]       @relation("StepFrom")
+  stepsTo        FotofficeJourneyStep[]       @relation("StepTo")
 
   @@index([circuitId, order])
 }
@@ -20286,10 +20313,10 @@ model FotofficeJourney {
   closedAt       DateTime?
   createdAt      DateTime  @default(now())
 
-  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  circuit    FotofficeCircuit     @relation(fields: [circuitId], references: [id], onDelete: Restrict)
-  stage      FotofficeStage?      @relation(fields: [stageId], references: [id], onDelete: Restrict)
-  lossReason FotofficeLossReason? @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
+  workspace  Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  circuit    FotofficeCircuit          @relation(fields: [circuitId], references: [id], onDelete: Restrict)
+  stage      FotofficeStage?           @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  lossReason FotofficeLossReason?      @relation(fields: [lossReasonId], references: [id], onDelete: SetNull)
   steps      FotofficeJourneyStep[]
   tasks      FotofficeTask[]
   processed  FotofficeProcessedEvent[]
@@ -20604,7 +20631,7 @@ model FotofficeConsultaCategoria {
   legacyEventType String?
   createdAt       DateTime  @default(now())
 
-  workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace        Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   consultas        FotofficeConsulta[]
   propuestasModelo FotofficePropuestaModelo[]
   borradoresAuto   FotofficePropuestaBorradorAuto[]
@@ -20709,19 +20736,19 @@ model FotofficeConsultaAjustes {
 /// Datos de un producto para presupuestos (1:1 con `Product`). Un producto sin fila está fuera
 /// de la lista de precios, sin rubro y no es combo.
 model FotofficeProductoCatalogo {
-  id          String   @id @default(cuid())
-  workspaceId String
-  productId   String   @unique
+  id               String   @id @default(cuid())
+  workspaceId      String
+  productId        String   @unique
   /// Aparece en la lista de precios (Entrega B: variable `[lista_precios]`).
-  inPriceList Boolean  @default(false)
+  inPriceList      Boolean  @default(false)
   /// Rubro de ingreso, en texto (etapa 2). Desde la etapa 3 es sólo la sugerencia para elegir
   /// `incomeCategoryId`.
-  incomeLabel String?
+  incomeLabel      String?
   /// Rubro de ingreso de Caja (etapa 3). El pedido lo toma del primer ítem que lo tenga.
   incomeCategoryId String?
-  isCombo     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isCombo          Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -20768,9 +20795,9 @@ model FotofficeCostoPlantilla {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  supplier  Client?   @relation("FotofficeCostoProveedor", fields: [supplierClientId], references: [id], onDelete: SetNull)
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product      Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier     Client?                @relation("FotofficeCostoProveedor", fields: [supplierClientId], references: [id], onDelete: SetNull)
   cuentasPagar FotofficeCuentaPagar[]
 
   @@index([workspaceId, productId, order])
@@ -20821,29 +20848,29 @@ model FotofficePresupuesto {
 /// de cada ítem (LISTA | CALCULO) vive en el JSON y lo valida el código.
 /// `costSnapshot` nunca se envía al público. El token se guarda como hash SHA-256.
 model FotofficePresupuestoVersion {
-  id                String    @id @default(cuid())
-  workspaceId       String
-  presupuestoId     String
-  number            Int
-  items             Json
-  totals            Json
-  terms             String?
-  paymentProposal   String?
+  id                    String    @id @default(cuid())
+  workspaceId           String
+  presupuestoId         String
+  number                Int
+  items                 Json
+  totals                Json
+  terms                 String?
+  paymentProposal       String?
   /// Opciones de pago congeladas al enviar (instantánea de ¿Cuánto Cobro?, `lib/pedidos/opciones-pago.ts`).
   paymentOptions        Json?
   /// La opción que eligió el cliente al aceptar: "contado" o el id del plan.
   chosenPaymentOptionId String?
-  costSnapshot      Json?
-  createdByUserId   Int?
-  createdAt         DateTime  @default(now())
-  sentAt            DateTime?
-  tokenHash         String?   @unique
-  tokenExpiresAt    DateTime?
-  revokedAt         DateTime?
-  acceptedAt        DateTime?
-  acceptedName      String?
-  acceptedIpHash    String?
-  acceptedUserAgent String?
+  costSnapshot          Json?
+  createdByUserId       Int?
+  createdAt             DateTime  @default(now())
+  sentAt                DateTime?
+  tokenHash             String?   @unique
+  tokenExpiresAt        DateTime?
+  revokedAt             DateTime?
+  acceptedAt            DateTime?
+  acceptedName          String?
+  acceptedIpHash        String?
+  acceptedUserAgent     String?
 
   workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   presupuesto FotofficePresupuesto        @relation("FotofficePresupuestoVersiones", fields: [presupuestoId], references: [id], onDelete: Cascade)
@@ -21030,8 +21057,8 @@ model FotofficePedidoCuota {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  workspace    Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  pedido       FotofficePedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  workspace     Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido        FotofficePedido              @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   imputaciones  FotofficeCobroImputacion[]
   recordatorios FotofficeCuotaRecordatorio[]
 
@@ -21243,33 +21270,33 @@ model FotofficePedidoTarea {
 /// Único (pedidoId, pedidoItemIndex, circuitId): confirmar dos veces no duplica (en Postgres los nulos no chocan).
 /// CHECK en el SQL: `suspendReason` obligatorio si hay `suspendedAt`.
 model FotofficeProyecto {
-  id               String    @id @default(cuid())
-  workspaceId      String
-  number           String
-  name             String
-  clientId         String
-  pedidoId         String?
-  pedidoItemIndex  Int?
-  productId        String?
-  circuitId        String
-  eventDate        DateTime? @db.Date
-  baseDate         DateTime  @db.Date
-  finalDueDate     DateTime? @db.Date
-  ownerUserId      Int?
-  delegateUserId   Int?
-  description      String?
-  suspendedAt      DateTime?
-  suspendReason    String?
-  externalId       String?
-  createdByUserId  Int?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  workspaceId     String
+  number          String
+  name            String
+  clientId        String
+  pedidoId        String?
+  pedidoItemIndex Int?
+  productId       String?
+  circuitId       String
+  eventDate       DateTime? @db.Date
+  baseDate        DateTime  @db.Date
+  finalDueDate    DateTime? @db.Date
+  ownerUserId     Int?
+  delegateUserId  Int?
+  description     String?
+  suspendedAt     DateTime?
+  suspendReason   String?
+  externalId      String?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  workspace     Workspace                        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client        Client                           @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  pedido        FotofficePedido?                 @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
-  product       Product?                         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  circuit       FotofficeCircuit                 @relation(fields: [circuitId], references: [id], onDelete: Restrict)
+  workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client        Client                          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  pedido        FotofficePedido?                @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+  product       Product?                        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  circuit       FotofficeCircuit                @relation(fields: [circuitId], references: [id], onDelete: Restrict)
   participantes FotofficeProyectoParticipante[]
   notas         FotofficeProyectoNota[]
   adjuntos      FotofficeProyectoAdjunto[]
@@ -21324,8 +21351,8 @@ model FotofficeProyectoRol {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  participantes FotofficeProyectoParticipante[]
+  workspace         Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  participantes     FotofficeProyectoParticipante[]
   participantesCita FotofficeCitaParticipante[]
 
   @@unique([workspaceId, name])
@@ -21647,7 +21674,7 @@ enum ModulePermissionLevel {
 
 /// Rol definido por un workspace. El nombre y los módulos los elige cada institución.
 model WorkspaceCustomRole {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   name        String
   description String?
@@ -21656,8 +21683,8 @@ model WorkspaceCustomRole {
   templateKey String?
   /// Archivado al "borrarlo" con personas asignadas. Nada se borra (diseño §12.2).
   archivedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   permissions WorkspaceRolePermission[]
@@ -21707,17 +21734,17 @@ model WorkspaceRoleAssignment {
 
 /// Cargo de la comisión, definido por cada institución ("Tesorero", "Vocal titular").
 model WorkspaceOffice {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   name        String
   /// Integra la comisión y vota (diseño §12.1.1). Revisor de cuentas: false.
-  votes       Boolean  @default(true)
-  order       Int      @default(0)
+  votes       Boolean   @default(true)
+  order       Int       @default(0)
   /// Plantilla de la que nació ("president", "auditor"…). Null si se creó de cero.
   templateKey String?
   archivedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   terms     WorkspaceOfficeTerm[]
@@ -21806,7 +21833,7 @@ model Product {
   categoryId  String?
 
   /// PRODUCTO | SERVICIO
-  kind String @default("PRODUCTO")
+  kind            String  @default("PRODUCTO")
   /// Código interno, el que se inventa cada negocio.
   sku             String?
   /// Código de barras del fabricante. La llave del catálogo maestro.
@@ -21820,7 +21847,7 @@ model Product {
   /// son copias independientes: si no hubiera columna acá, la marca precargada al escanear
   /// un código se perdería en cuanto se guardara el alta, igual que pasaría con `name` si no
   /// tuviera su propia columna en esta tabla.
-  brand String?
+  brand       String?
 
   priceArs Decimal  @db.Decimal(12, 2)
   costArs  Decimal? @db.Decimal(12, 2)
@@ -21840,22 +21867,22 @@ model Product {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  globalProduct  GlobalProduct?   @relation(fields: [globalProductId], references: [id], onDelete: SetNull)
-  stockMovements StockMovement[]
-  saleItems      SaleItem[]
-  storeListing   ProductStoreListing?
-  images         ProductImage[]
-  variants       ProductVariant[]
-  storeOrderItems StoreOrderItem[]
-  fotofficeCatalogo   FotofficeProductoCatalogo?
-  fotofficeComboItems FotofficeComboItem[]      @relation("FotofficeComboItemCombo")
-  fotofficeEnCombos   FotofficeComboItem[]      @relation("FotofficeComboItemComponente")
-  fotofficeCostos     FotofficeCostoPlantilla[]
-  fotofficeProyectos  FotofficeProyecto[]
+  workspace               Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category                ProductCategory?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  globalProduct           GlobalProduct?              @relation(fields: [globalProductId], references: [id], onDelete: SetNull)
+  stockMovements          StockMovement[]
+  saleItems               SaleItem[]
+  storeListing            ProductStoreListing?
+  images                  ProductImage[]
+  variants                ProductVariant[]
+  storeOrderItems         StoreOrderItem[]
+  fotofficeCatalogo       FotofficeProductoCatalogo?
+  fotofficeComboItems     FotofficeComboItem[]        @relation("FotofficeComboItemCombo")
+  fotofficeEnCombos       FotofficeComboItem[]        @relation("FotofficeComboItemComponente")
+  fotofficeCostos         FotofficeCostoPlantilla[]
+  fotofficeProyectos      FotofficeProyecto[]
   fotofficeProyectoReglas FotofficeProductoProyecto[]
-  fotofficeCitaReglas FotofficeProductoCita[]
+  fotofficeCitaReglas     FotofficeProductoCita[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, isActive])
@@ -21883,8 +21910,8 @@ model StockMovement {
   /// Obligatoria de hecho en los ajustes: un ajuste sin explicar no se entiende después.
   note         String?
   /// Talle vendido / movido. Nulo en productos sin variantes y en todo lo anterior a la tienda.
-  variantId String?
-  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   createdByUserId Int?
   createdAt       DateTime @default(now())
@@ -21914,11 +21941,11 @@ model Sale {
   totalArs    Decimal @db.Decimal(12, 2)
 
   /// EFECTIVO | MERCADO_PAGO | TRANSFERENCIA | TARJETA | OTRO
-  paymentMethod String
+  paymentMethod  String
   /// El ingreso que generó. Único: una venta deposita una sola vez.
   cashMovementId String? @unique
 
-  note String?
+  note               String?
   /// Cuando se facturó por fuera. La facturación propia es la etapa 6.
   externalInvoiceRef String?
 
@@ -21946,21 +21973,21 @@ model Sale {
 /// tiene que seguir mostrando lo que se cobró y lo que costó ESA vez, aunque el producto
 /// después cambie de nombre o de precio.
 model SaleItem {
-  id     String @id @default(cuid())
-  saleId String
+  id        String  @id @default(cuid())
+  saleId    String
   /// Nulo en un renglón suelto, escrito a mano.
   productId String?
 
-  description  String
-  qty          Int
-  unitPriceArs Decimal  @db.Decimal(12, 2)
-  unitCostArs  Decimal? @db.Decimal(12, 2)
-  lineTotalArs Decimal  @db.Decimal(12, 2)
+  description        String
+  qty                Int
+  unitPriceArs       Decimal         @db.Decimal(12, 2)
+  unitCostArs        Decimal?        @db.Decimal(12, 2)
+  lineTotalArs       Decimal         @db.Decimal(12, 2)
   /// Si el precio se pisó a mano. Para poder explicarlo meses después.
-  priceWasOverridden Boolean @default(false)
+  priceWasOverridden Boolean         @default(false)
   /// Talle vendido / movido. Nulo en productos sin variantes y en todo lo anterior a la tienda.
-  variantId String?
-  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantId          String?
+  variant            ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -22262,7 +22289,7 @@ model MemberWelcome {
 /// «Más sobre mí»: lo que el socio cuenta para que los colegas lo conozcan (Socio de la semana).
 /// Todo opcional: sólo se muestra lo que contestó. Una fila por socio.
 model MemberAboutMe {
-  memberId          String   @id
+  memberId          String    @id
   workspaceId       String
   howStarted        String?
   passion           String?
@@ -22274,12 +22301,12 @@ model MemberAboutMe {
   wantsToLearn      String?
   beyondPhotography String?
   /// Acepta que los colegas le escriban por WhatsApp (sólo dentro del portal).
-  whatsappOptIn     Boolean  @default(false)
+  whatsappOptIn     Boolean   @default(false)
   /// Sabe que en algún momento va a salir como Socio de la semana.
   spotlightNoticeAt DateTime?
   /// Hasta 3 fotos para su placa, en orden.
-  featuredPhotoUrls String[] @default([])
-  updatedAt         DateTime @updatedAt
+  featuredPhotoUrls String[]  @default([])
+  updatedAt         DateTime  @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -22621,17 +22648,17 @@ model GovProject {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  type        GovProjectType?   @relation(fields: [typeId], references: [id], onDelete: SetNull)
-  proposedBy  Member?           @relation("GovProjectProposer", fields: [proposedByMemberId], references: [id], onDelete: SetNull)
-  responsible Member?           @relation("GovProjectResponsible", fields: [responsibleMemberId], references: [id], onDelete: SetNull)
-  stages      GovProjectStage[]
-  tasks       GovProjectTask[]
-  attachments GovAttachment[]
-  events      GovProjectEvent[]
-  votes       GovVote[]
-  comments    GovComment[]
-  memberVotes GovMemberVote[]
+  workspace    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type         GovProjectType?      @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  proposedBy   Member?              @relation("GovProjectProposer", fields: [proposedByMemberId], references: [id], onDelete: SetNull)
+  responsible  Member?              @relation("GovProjectResponsible", fields: [responsibleMemberId], references: [id], onDelete: SetNull)
+  stages       GovProjectStage[]
+  tasks        GovProjectTask[]
+  attachments  GovAttachment[]
+  events       GovProjectEvent[]
+  votes        GovVote[]
+  comments     GovComment[]
+  memberVotes  GovMemberVote[]
   meetingItems GovMeetingItem[]
   quotes       GovQuote[]
   reservations GovReservation[]
@@ -22650,8 +22677,8 @@ model GovProjectStage {
   estimatedCostArs Decimal? @db.Decimal(12, 2)
   createdAt        DateTime @default(now())
 
-  project GovProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   GovProjectTask[]
+  project   GovProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     GovProjectTask[]
   quotes    GovQuote[]
   movements GovProjectMovement[]
 
@@ -22785,17 +22812,17 @@ model GovVote {
 /// socio desde su portal, en un proyecto visible. Nada se borra: quien la escribió la puede
 /// retirar y queda "retirada".
 model GovComment {
-  id           String    @id @default(cuid())
-  projectId    String
-  authorUserId Int
+  id             String    @id @default(cuid())
+  projectId      String
+  authorUserId   Int
   /// Ficha del socio que opinó desde el portal. null = opinión de la comisión. La de un socio
   /// la lee sólo la comisión, con su nombre; los demás socios no la ven.
   authorMemberId String?
   /// Nombre al momento de escribir, para que el hilo se lea igual si cambia el cargo.
-  authorLabel  String
-  body         String
-  createdAt    DateTime  @default(now())
-  withdrawnAt  DateTime?
+  authorLabel    String
+  body           String
+  createdAt      DateTime  @default(now())
+  withdrawnAt    DateTime?
 
   project GovProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -22804,21 +22831,21 @@ model GovComment {
 
 /// Reunión de comisión: temario, tratamiento de cada tema y acta.
 model GovMeeting {
-  id          String    @id @default(cuid())
-  workspaceId String
-  title       String
-  scheduledAt DateTime
+  id                      String    @id @default(cuid())
+  workspaceId             String
+  title                   String
+  scheduledAt             DateTime
   /// Lugar físico o enlace de la videollamada.
-  location    String?
+  location                String?
   /// PLANNED | HELD | MINUTES_APPROVED
-  status      String    @default("PLANNED")
-  heldAt      DateTime?
+  status                  String    @default("PLANNED")
+  heldAt                  DateTime?
   /// Al aprobar el acta queda fija; lo posterior son notas agregadas.
   minutesApprovedAt       DateTime?
   minutesApprovedByUserId Int?
   createdByUserId         Int?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   items     GovMeetingItem[]
@@ -22844,18 +22871,18 @@ model GovMeetingAttendee {
 
 /// Un tema del temario: un proyecto o un tema suelto.
 model GovMeetingItem {
-  id           String    @id @default(cuid())
-  meetingId    String
-  projectId    String?
-  title        String
-  order        Int       @default(0)
+  id              String    @id @default(cuid())
+  meetingId       String
+  projectId       String?
+  title           String
+  order           Int       @default(0)
   /// Lo decidido, en texto.
-  decisionText String?
+  decisionText    String?
   /// Sólo para proyectos: APPROVED | REJECTED | POSTPONED | CONTINUES
-  outcome      String?
+  outcome         String?
   /// Foto de la votación al decidir: a favor, en contra, sin votar, habilitados.
-  voteSnapshot Json?
-  treatedAt    DateTime?
+  voteSnapshot    Json?
+  treatedAt       DateTime?
   treatedByUserId Int?
 
   meeting GovMeeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
@@ -22882,20 +22909,20 @@ model GovMeetingNote {
 /// Cotización recibida de un proveedor para una etapa. Se llama así para no confundirla con el
 /// módulo Presupuestos (lo que el fotógrafo le manda a su cliente).
 model GovQuote {
-  id           String    @id @default(cuid())
-  projectId    String
-  stageId      String
-  supplier     String
-  amountArs    Decimal   @db.Decimal(12, 2)
-  quotedAt     DateTime
-  validUntil   DateTime?
-  note         String?
+  id              String    @id @default(cuid())
+  projectId       String
+  stageId         String
+  supplier        String
+  amountArs       Decimal   @db.Decimal(12, 2)
+  quotedAt        DateTime
+  validUntil      DateTime?
+  note            String?
   /// RECEIVED | CHOSEN | DISCARDED. A lo sumo una CHOSEN por etapa.
-  status       String    @default("RECEIVED")
-  discardReason String?
+  status          String    @default("RECEIVED")
+  discardReason   String?
   createdByUserId Int?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   project     GovProject           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   stage       GovProjectStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
@@ -22963,7 +22990,6 @@ model WorkspaceContestShowcase {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
-
 // ============================================================================
 // FOTOFFICE — Etapa 4, Entrega B: Agenda (citas). Las columnas de estado y los rangos se validan con CHECK en el SQL
 // (ver la migración `20261026120000_fotoffice_etapa_4_agenda`).
@@ -22981,7 +23007,7 @@ model FotofficeCitaTipo {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   citas     FotofficeCita[]
   reglas    FotofficeProductoCita[]
 
@@ -22991,38 +23017,38 @@ model FotofficeCitaTipo {
 /// Cita de la agenda. Fechas en instantes UTC; `allDay` = ocupa el día de Argentina.
 /// CHECK en el SQL: estado, `endAt > startAt` y título no vacío.
 model FotofficeCita {
-  id               String    @id @default(cuid())
-  workspaceId      String
-  title            String
-  typeId           String?
+  id              String    @id @default(cuid())
+  workspaceId     String
+  title           String
+  typeId          String?
   /// AGENDADA | CONFIRMADA | REALIZADA | ANULADA.
-  status           String    @default("AGENDADA")
-  startAt          DateTime
-  endAt            DateTime
-  allDay           Boolean   @default(false)
-  location         String?
-  notes            String?
-  ownerUserId      Int?
-  clientId         String?
-  proyectoId       String?
-  pedidoId         String?
-  consultaLeadId   String?
-  reglaId          String?
-  pedidoItemIndex  Int?
-  googleEventId    String?
-  googleEtag       String?
-  googleUpdatedAt  DateTime?
-  createdByUserId  Int?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  status          String    @default("AGENDADA")
+  startAt         DateTime
+  endAt           DateTime
+  allDay          Boolean   @default(false)
+  location        String?
+  notes           String?
+  ownerUserId     Int?
+  clientId        String?
+  proyectoId      String?
+  pedidoId        String?
+  consultaLeadId  String?
+  reglaId         String?
+  pedidoItemIndex Int?
+  googleEventId   String?
+  googleEtag      String?
+  googleUpdatedAt DateTime?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  workspace     Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  type          FotofficeCitaTipo?         @relation(fields: [typeId], references: [id], onDelete: SetNull)
-  client        Client?                    @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  proyecto      FotofficeProyecto?         @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
-  pedido        FotofficePedido?           @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
-  consultaLead  ServiceSalesLead?          @relation(fields: [consultaLeadId], references: [id], onDelete: SetNull)
-  regla         FotofficeProductoCita?     @relation(fields: [reglaId], references: [id], onDelete: SetNull)
+  workspace     Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type          FotofficeCitaTipo?          @relation(fields: [typeId], references: [id], onDelete: SetNull)
+  client        Client?                     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  proyecto      FotofficeProyecto?          @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  pedido        FotofficePedido?            @relation(fields: [pedidoId], references: [id], onDelete: SetNull)
+  consultaLead  ServiceSalesLead?           @relation(fields: [consultaLeadId], references: [id], onDelete: SetNull)
+  regla         FotofficeProductoCita?      @relation(fields: [reglaId], references: [id], onDelete: SetNull)
   participantes FotofficeCitaParticipante[]
   recordatorios FotofficeCitaRecordatorio[]
 
@@ -23089,15 +23115,15 @@ model FotofficeProductoCita {
 
 /// Ajustes de la agenda del workspace: calendario de Google y recordatorio al cliente.
 model FotofficeAgendaAjustes {
-  id                String    @id @default(cuid())
-  workspaceId       String    @unique
-  googleCalendarId  String?
-  googleSyncToken   String?
-  googleLastSyncAt  DateTime?
-  defaultLayers     Json?
-  reminderEnabled   Boolean   @default(false)
-  reminderHours     Int       @default(24)
-  updatedAt         DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  workspaceId      String    @unique
+  googleCalendarId String?
+  googleSyncToken  String?
+  googleLastSyncAt DateTime?
+  defaultLayers    Json?
+  reminderEnabled  Boolean   @default(false)
+  reminderHours    Int       @default(24)
+  updatedAt        DateTime  @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -23288,8 +23314,6 @@ model FotofficeContratoAjustes {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
-
-
 /// Una actividad cultural de Muestras Fotográficas (muestrasfotograficas.com): muestra,
 /// charla, taller, salida, presentación de libro, proyección u otra.
 ///
@@ -23365,17 +23389,17 @@ model CulturalActivityWork {
   activityId String
   activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
-  imageUrl     String
-  title        String
-  authorName   String
-  authorUserId Int?
+  imageUrl        String
+  title           String
+  authorName      String
+  authorUserId    Int?
   /// Perfil público del autor (etapa 2). `authorName` queda siempre como respaldo en texto.
   authorProfileId String?
   authorProfile   PhotographerProfile? @relation(fields: [authorProfileId], references: [id], onDelete: SetNull)
-  year         Int?
-  technique    String?
-  isHighlight  Boolean @default(false)
-  sortOrder    Int     @default(0)
+  year            Int?
+  technique       String?
+  isHighlight     Boolean              @default(false)
+  sortOrder       Int                  @default(0)
 
   createdAt DateTime @default(now())
 

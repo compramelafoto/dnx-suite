@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
 import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
 import { yaAcepto } from "@/lib/consentimiento-db";
@@ -68,11 +69,7 @@ export default async function PuertaDelInvitado({ params }: Props) {
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={{
-        background: tema.fondo,
-        color: tema.texto,
-        fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-      }}
+      style={estiloDeTema(tema)}
     >
       {evento.coverUrl ? (
         <Image

@@ -30,6 +30,8 @@ const DURACION_DE_LA_CONEXION_MS = 240_000;
 const LATIDO_CADA_MS = 20_000;
 /** Cada tanto se manda la lista completa de lo vigente, por si se perdió un aviso. */
 const RECONCILIAR_CADA_MS = 30_000;
+/** Cada tanto se manda el contador completo de reacciones, por si se perdió alguna. */
+const TOTALES_CADA_MS = 10_000;
 
 export async function GET(req: Request, ctx: { params: Promise<{ codigo: string }> }) {
   const { codigo } = await ctx.params;
@@ -77,6 +79,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
 
       let ultimoLatido = Date.now();
       let ultimaReconciliacion = 0;
+      let ultimosTotales = 0;
+      /*
+        Las reacciones que ya se mandaron. Arranca en "ahora" y no en cero: al conectarse,
+        la pantalla no tiene que ver volar las trescientas de la hora pasada de golpe. El
+        contador sí llega completo enseguida, por el evento `reacciones`.
+      */
+      let desdeReacciones = new Date();
       // Los cambios se miran por `updatedAt`: ocultar, bloquear y borrar lo tocan.
       let desdeCambios = new Date(Date.now() - 60_000);
 
@@ -161,6 +170,45 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
             `event: vigentes\ndata: ${JSON.stringify({ ids: vigentes.map((v) => v.id) })}\n\n`,
           );
           ultimaReconciliacion = Date.now();
+          ultimoLatido = Date.now();
+        }
+
+        /*
+          Las reacciones nuevas, una por una: la pantalla las hace volar.
+
+          Se mandan de a 30 como máximo por vuelta. En el momento más alto de la noche
+          —el brindis, la entrada de la torta— pueden llegar cientos en un segundo, y
+          mandarlas todas haría volar una nube ilegible y cargaría el navegador del
+          televisor sin que nadie note la diferencia.
+        */
+        const reaccionesNuevas = await prisma.subilafotoReaction.findMany({
+          where: { eventId: evento.id, createdAt: { gt: desdeReacciones } },
+          orderBy: { createdAt: "asc" },
+          take: 30,
+          select: { id: true, emoji: true, createdAt: true },
+        });
+
+        for (const r of reaccionesNuevas) {
+          mandar(`event: reaccion\ndata: ${JSON.stringify({ id: r.id, emoji: r.emoji })}\n\n`);
+          desdeReacciones = r.createdAt;
+          ultimoLatido = Date.now();
+        }
+
+        /*
+          El contador completo. Va aparte de las reacciones sueltas porque son dos cosas
+          distintas: las sueltas son la animación —se pueden perder sin consecuencia— y
+          el contador es el número que se proyecta, que tiene que ser el de verdad.
+        */
+        if (Date.now() - ultimosTotales > TOTALES_CADA_MS) {
+          const porEmoji = await prisma.subilafotoReaction.groupBy({
+            by: ["emoji"],
+            where: { eventId: evento.id },
+            _count: { emoji: true },
+          });
+          const conteo: Record<string, number> = {};
+          for (const fila of porEmoji) conteo[fila.emoji] = fila._count.emoji;
+          mandar(`event: reacciones\ndata: ${JSON.stringify({ conteo })}\n\n`);
+          ultimosTotales = Date.now();
           ultimoLatido = Date.now();
         }
 

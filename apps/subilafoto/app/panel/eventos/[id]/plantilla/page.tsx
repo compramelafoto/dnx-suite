@@ -24,11 +24,20 @@ export default async function ElegirPlantilla({ params }: Props) {
   });
   if (!evento) notFound();
 
-  // Se compara el snapshot guardado contra el catálogo para saber cuál está elegida.
+  /*
+    Se compara el snapshot guardado contra el catálogo para saber cuál está elegida.
+
+    Se miran TODOS los tokens y no sólo el fondo y el acento: con trece estilos y
+    texturas, dos pueden compartir paleta y diferenciarse en el dibujo o en la letra, y
+    entonces el selector marcaría la equivocada.
+  */
   const tema = resolverTema(evento.themeTokens);
   const actual =
-    PLANTILLAS.find((p) => p.tokens.fondo === tema.fondo && p.tokens.acento === tema.acento)
-      ?.clave ?? null;
+    PLANTILLAS.find((p) =>
+      (Object.keys(p.tokens) as (keyof typeof p.tokens)[]).every(
+        (k) => p.tokens[k] === tema[k],
+      ),
+    )?.clave ?? null;
 
   return (
     <main className="sobre-claro mx-auto max-w-2xl px-6 py-16">
