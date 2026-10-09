@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
 import { Cargador } from "./cargador";
 import { BarraDeReacciones } from "./reacciones";
@@ -33,11 +34,7 @@ export default async function Subir({ params }: Props) {
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={{
-        background: tema.fondo,
-        color: tema.texto,
-        fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-      }}
+      style={estiloDeTema(tema)}
     >
       <h1 className="max-w-[18ch] text-balance text-[clamp(1.5rem,6vw,2.2rem)] font-extrabold leading-tight">
         {evento.name}

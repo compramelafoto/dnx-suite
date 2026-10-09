@@ -4,6 +4,7 @@ import { condicionDePublicadas } from "@/lib/album";
 import { cartelDePantalla } from "@/lib/pantalla-cartel";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { qrDelEvento } from "@/lib/qr";
+import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
 import { urlDelCodigo } from "@/lib/url-invitado";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
@@ -73,11 +74,7 @@ export default async function Pantalla({ params }: Props) {
     return (
       <main
         className="flex h-[100svh] w-full flex-col items-center justify-center px-16 text-center"
-        style={{
-          background: tema.fondo,
-          color: tema.texto,
-          fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-        }}
+        style={estiloDeTema(tema)}
       >
         <p className="text-balance text-[clamp(2rem,6vw,4.5rem)] font-extrabold leading-[1.1]">
           {cartel.titulo}
@@ -129,8 +126,8 @@ export default async function Pantalla({ params }: Props) {
       urlDelEvento={urlDelEvento.replace(/^https?:\/\//, "")}
       codigo={evento.code}
       iniciales={iniciales}
+      estilo={estiloDeTema(tema)}
       fondo={tema.fondo}
-      texto={tema.texto}
     />
   );
 }

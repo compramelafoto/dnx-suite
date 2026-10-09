@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { queMostrar } from "@/lib/pantalla-ritmo";
 import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
@@ -36,20 +36,32 @@ const MAXIMO_EN_MEMORIA = 40;
 /** Cuánto dura un emoji subiendo por la pantalla. */
 const VUELO_MS = 4_000;
 
-type EmojiVolando = { clave: string; emoji: string; izquierda: number; demora: number };
+type EmojiVolando = {
+  clave: string;
+  emoji: string;
+  /** Dónde arranca, en porcentaje del ancho. */
+  izquierda: number;
+  demora: number;
+  /** Cuánto se corre de costado mientras sube, en vw. Puede ser negativo. */
+  deriva: number;
+  /** Cuánto se inclina al final, en grados. */
+  giro: number;
+};
 
 export function Proyeccion({
   codigo,
   iniciales,
+  estilo,
   fondo,
-  texto,
   qrSvg,
   urlDelEvento,
 }: {
   codigo: string;
   iniciales: FotoEnVivo[];
+  /** El tema ya resuelto, con su textura. Ver `estiloDeTema`. */
+  estilo: CSSProperties;
+  /** El color de fondo solo, para tapar la foto cuando aparece el QR. */
   fondo: string;
-  texto: string;
   /** El código QR ya dibujado en el servidor: la pantalla no tiene que calcularlo. */
   qrSvg: string;
   urlDelEvento: string;
@@ -116,6 +128,10 @@ export function Proyeccion({
         emoji,
         izquierda: 5 + Math.random() * 90,
         demora: Math.random() * 600,
+        // Se sortean acá y no en CSS: con valores fijos, dos emojis que llegan juntos
+        // harían el mismo recorrido y se vería la animación, no la reacción.
+        deriva: (Math.random() - 0.5) * 24,
+        giro: (Math.random() - 0.5) * 50,
       };
       setVolando((previos) => [...previos, nuevo]);
       // Se saca cuando termina de subir: si no, la lista crece toda la noche.
@@ -156,10 +172,7 @@ export function Proyeccion({
   const actual = paso.tipo === "FOTO" ? fotos[paso.indice] : undefined;
 
   return (
-    <div
-      className="relative h-[100svh] w-full overflow-hidden"
-      style={{ background: fondo, color: texto }}
-    >
+    <div className="relative h-[100svh] w-full overflow-hidden" style={estilo}>
       {/*
         Se pintan todas y se muestra una: cambiar el `src` de una sola etiqueta
         haría parpadear en blanco cada siete segundos en una pantalla grande.
@@ -218,7 +231,14 @@ export function Proyeccion({
           <span
             key={v.clave}
             className="slf-emoji-vuela absolute bottom-0 text-[clamp(2.5rem,6vw,5rem)]"
-            style={{ left: `${v.izquierda}%`, animationDelay: `${v.demora}ms` }}
+            style={
+              {
+                left: `${v.izquierda}%`,
+                animationDelay: `${v.demora}ms`,
+                "--slf-deriva": `${v.deriva}vw`,
+                "--slf-giro": `${v.giro}deg`,
+              } as CSSProperties
+            }
           >
             {v.emoji}
           </span>
@@ -242,11 +262,21 @@ export function Proyeccion({
       ) : null}
 
       <style>{`
+        /*
+          El recorrido. No es una línea recta: se corre de costado y se inclina mientras
+          sube, cambiando de lado a mitad de camino. Un emoji que sube derecho se lee como
+          una animación; uno que se bambolea se lee como alguien reaccionando.
+        */
         @keyframes slf-sube {
-          0%   { transform: translateY(0) scale(0.7); opacity: 0; }
+          0%   { transform: translate(0, 0) scale(0.7) rotate(0deg); opacity: 0; }
           15%  { opacity: 1; }
-          80%  { opacity: 1; }
-          100% { transform: translateY(-85vh) scale(1.15); opacity: 0; }
+          35%  { transform: translate(calc(var(--slf-deriva) * 0.45), -28vh) scale(1.05)
+                   rotate(calc(var(--slf-giro) * 0.5)); }
+          65%  { transform: translate(calc(var(--slf-deriva) * -0.25), -55vh) scale(1.1)
+                   rotate(calc(var(--slf-giro) * -0.35)); }
+          85%  { opacity: 1; }
+          100% { transform: translate(var(--slf-deriva), -88vh) scale(1.2)
+                   rotate(var(--slf-giro)); opacity: 0; }
         }
         .slf-emoji-vuela {
           animation: slf-sube ${VUELO_MS}ms ease-out forwards;
