@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --mf-bg: #f6f4ef;
+  --mf-surface: #ffffff;
+  --mf-ink: #1b1a17;
+  --mf-muted: #6b665c;
+  --mf-line: #e2ddd2;
+  --mf-accent: #b4432c;
+  --mf-accent-ink: #ffffff;
+}
+
+body {
+  background: var(--mf-bg);
+  color: var(--mf-ink);
+  font-family: var(--mf-font), system-ui, sans-serif;
+}

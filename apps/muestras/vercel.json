@@ -1,0 +1,6 @@
+{
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter muestras build",
+  "framework": "nextjs",
+  "ignoreCommand": "cd ../.. && npx turbo-ignore muestras --fallback=HEAD^1"
+}
