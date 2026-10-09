@@ -270,6 +270,20 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "contracts",
+    cuadro: "24",
+    nombre: "Contratos",
+    resuelve:
+      "El contrato de cada pedido sale de una plantilla tuya, con los datos de quien contrata, el detalle de lo vendido y el plan de cuotas ya completados. Lo mandás a firmar por correo: cada firmante verifica su identidad con un código y firma con su nombre y su trazo, con firma electrónica (Ley 25.506). Ves quién abrió, quién firmó y quién falta, y al final queda un PDF con las firmas y la constancia de cada una.",
+    pantallas: [
+      "Plantillas de contrato con variables",
+      "Contratantes del pedido",
+      "Envío a firmar por correo",
+      "Firma electrónica con código de verificación",
+      "PDF firmado y bitácora",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",

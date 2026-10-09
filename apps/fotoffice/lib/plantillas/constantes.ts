@@ -10,8 +10,12 @@ export type Canal = (typeof CANALES)[number];
  * sale al contacto del pedido con las variables comunes más las del pedido (`[pedido_enlace]`, etc.).
  * CITA (etapa 4, Agenda) tampoco es una ficha: es el recordatorio automático de una cita al contacto
  * que participa, con las variables comunes más las de la cita (`[cita_titulo]`, `[cita_fecha]`, etc.).
+ * CONTRATO (etapa 5) tampoco es una ficha: reserva el tipo de los correos automáticos de un contrato (envío,
+ * código, recordatorio y firmado). Los textos de los contratos mismos NO viven acá: están en
+ * `FotofficeContratoPlantilla` (Configuración → Contratos → Plantillas) y usan su propio catálogo de variables
+ * (`lib/contratos/variables.ts`).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -50,6 +54,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   PRESUPUESTO: "Presupuesto",
   PEDIDO: "Pedido",
   CITA: "Cita",
+  CONTRATO: "Contrato",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

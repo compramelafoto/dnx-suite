@@ -101,9 +101,9 @@ const SELECT_PLANTILLA = {
 
 // ─── Validación ──────────────────────────────────────────────────────────────
 
-/** Campos personalizados activos del tipo de ficha (0.5). Las GENERAL, PRESUPUESTO, PEDIDO y CITA no usan campos. */
+/** Campos personalizados activos del tipo de ficha (0.5). Las GENERAL, PRESUPUESTO, PEDIDO, CITA y CONTRATO no usan campos. */
 async function camposDe(workspaceId: string, tipo: TipoPlantilla): Promise<CampoParaVariables[]> {
-  if (tipo === "GENERAL" || tipo === "PRESUPUESTO" || tipo === "PEDIDO" || tipo === "CITA") return [];
+  if (tipo === "GENERAL" || tipo === "PRESUPUESTO" || tipo === "PEDIDO" || tipo === "CITA" || tipo === "CONTRATO") return [];
   const campos = await listarCampos(workspaceId, tipo);
   return campos.map((c) => ({ clave: c.key, nombre: c.name }));
 }

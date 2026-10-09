@@ -65,6 +65,8 @@ const ORDERS_MODULE_KEY = "orders";
 const PROJECTS_MODULE_KEY = "projects";
 // Ídem `lib/agenda/acceso`.
 const AGENDA_MODULE_KEY = "agenda";
+// Ídem `lib/contratos/acceso`.
+const CONTRACTS_MODULE_KEY = "contracts";
 
 /**
  * Menú principal.
@@ -502,6 +504,18 @@ export function ShellNav({
                 description: "Recordatorio de cuotas, rubro de ingreso por omisión y checklist de los pedidos.",
                 icon: ClipboardList,
                 isActive: under("/workspace/configuracion/pedidos"),
+              },
+            ]
+          : []),
+        // Etapa 5: ajustes y plantillas de Contratos, sólo con el módulo encendido.
+        ...(ve(CONTRACTS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/contratos",
+                label: "Contratos",
+                description: "Plantillas de contrato, datos de la empresa y recordatorios de firma.",
+                icon: FileText,
+                isActive: under("/workspace/configuracion/contratos"),
               },
             ]
           : []),
