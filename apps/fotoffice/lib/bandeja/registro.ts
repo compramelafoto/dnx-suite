@@ -40,20 +40,26 @@ export async function clienteDelTelefono(workspaceId: string, waId: string, db: 
  * cuenta en `fallidos` (y se loguea índice y tipo, nada personal) y el resto del lote sigue. Quien
  * llama debe responder 500 si hay fallidos: Meta reintenta y lo ya aplicado es idempotente.
  */
-export async function aplicarEventos(eventos: EventoWa[], ahora: Date = new Date()): Promise<ResultadoRegistro> {
+export async function aplicarEventos(
+  eventos: EventoWa[],
+  ahora: Date = new Date(),
+  /** `workspaceId`: sólo para el simulador de Configuración. Resuelve la conexión por institución en vez de por `phoneNumberId`. */
+  opciones: { workspaceId?: string } = {},
+): Promise<ResultadoRegistro> {
   const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0 };
   const conexiones = new Map<string, { workspaceId: string; pausaBotHoras: number } | null>();
 
   for (const [indice, ev] of eventos.entries()) {
     try {
-      let conexion = conexiones.get(ev.phoneNumberId);
+      const clave = opciones.workspaceId ?? ev.phoneNumberId;
+      let conexion = conexiones.get(clave);
       if (conexion === undefined) {
         const c = await prisma.fotofficeWaConexion.findUnique({
-          where: { phoneNumberId: ev.phoneNumberId },
+          where: opciones.workspaceId ? { workspaceId: opciones.workspaceId } : { phoneNumberId: ev.phoneNumberId },
           select: { workspaceId: true, pausaBotHoras: true },
         });
         conexion = c ? { workspaceId: c.workspaceId, pausaBotHoras: c.pausaBotHoras ?? PAUSA_BOT_HORAS_POR_DEFECTO } : null;
-        conexiones.set(ev.phoneNumberId, conexion);
+        conexiones.set(clave, conexion);
       }
       if (!conexion) {
         r.ignorados++;
