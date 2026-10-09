@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { resolverTema } from "@/lib/tema";
 import { Cargador } from "./cargador";
+import { BarraDeReacciones } from "./reacciones";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export default async function Subir({ params }: Props) {
             Elegí las fotos de tu galería o sacá una nueva.
           </p>
           <Cargador codigo={clave} tema={tema} />
+          <BarraDeReacciones codigo={clave} acento={tema.acento} />
         </>
       ) : (
         <p className="mt-6 max-w-[32ch] opacity-80">

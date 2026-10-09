@@ -3,13 +3,23 @@ import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
 import { cartelDePantalla } from "@/lib/pantalla-cartel";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { qrDelEvento } from "@/lib/qr";
 import { resolverTema } from "@/lib/tema";
+import { urlDelCodigo } from "@/lib/url-invitado";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 import { Proyeccion, type FotoEnVivo } from "./proyeccion";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ codigo: string }> };
+
+function baseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.AUTH_URL?.trim() ||
+    "http://localhost:3012"
+  );
+}
 
 /**
  * La pantalla del salón.
@@ -106,8 +116,17 @@ export default async function Pantalla({ params }: Props) {
     return [{ id: f.id, url, pie: f.caption, nombre: f.guestName }];
   });
 
+  /*
+    El QR se dibuja en el servidor y viaja ya hecho. El televisor del salón suele ser un
+    aparato lento: no tiene por qué calcular un código que nunca cambia en toda la noche.
+  */
+  const urlDelEvento = urlDelCodigo(baseUrl(), evento.code);
+  const qrSvg = await qrDelEvento(urlDelEvento);
+
   return (
     <Proyeccion
+      qrSvg={qrSvg}
+      urlDelEvento={urlDelEvento.replace(/^https?:\/\//, "")}
       codigo={evento.code}
       iniciales={iniciales}
       fondo={tema.fondo}
