@@ -10,11 +10,18 @@ import { CostosYPagos } from "@/components/pedidos/costos-y-pagos";
 import { EditarPlan } from "@/components/pedidos/editar-plan";
 import { EnviarPedido } from "@/components/pedidos/enviar-pedido";
 import { ProyectosDelPedido } from "@/components/pedidos/proyectos-del-pedido";
+import { ContratantesDelPedido } from "@/components/contratos/contratantes-del-pedido";
+import { ContratosDelPedido } from "@/components/contratos/contratos-del-pedido";
 import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
 import { RegistrarCobro } from "@/components/pedidos/registrar-cobro";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { citasDeOrigen } from "@/lib/agenda/de-origen";
+import { puedeGestionarContratos, puedeVerContratos } from "@/lib/contratos/acceso";
+import { contratosEncendidos } from "@/lib/contratos/contexto";
+import { leerContratantes } from "@/lib/contratos/contratantes";
+import { listarPlantillas } from "@/lib/contratos/plantillas";
+import { contratosParaTarjeta } from "@/lib/contratos/tarjetas";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { claseDeColorEtiqueta, fechaHoraBA } from "@/lib/ficha/formato";
@@ -105,6 +112,17 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     : [[], { circuitos: [], equipo: [] }];
   // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda.
   const citas = await citasDeOrigen(ctx, { pedidoId: detalle.id });
+  // Contratantes (Etapa 5): sólo con el módulo Contratos encendido y "Ver" en Contratos.
+  const verContratos = puedeVerContratos(ctx) && (await contratosEncendidos(workspace.id));
+  const contratantes = verContratos ? await leerContratantes(ctx, detalle.id) : null;
+  // Tarjeta "Contratos": los contratos del pedido y, con "Gestionar", el selector de plantilla para generar uno.
+  const gestionaContratos = verContratos && puedeGestionarContratos(ctx) && !cancelado;
+  const [contratosDelPedido, plantillasContrato] = verContratos
+    ? await Promise.all([
+        contratosParaTarjeta(ctx, { pedidoId: detalle.id }),
+        gestionaContratos ? listarPlantillas(ctx) : Promise.resolve([]),
+      ])
+    : [null, []];
   const [mensajes, comprobantes, envio, rubros] = await Promise.all([
     mensajesDePedido(workspace.id, detalle.id),
     comprobantesDeCobros(workspace.id, detalle.cobros.map((c) => c.id)),
@@ -371,6 +389,37 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
                 flujos={opcionesProyecto.circuitos}
                 equipo={opcionesProyecto.equipo}
                 puedeAgregar={gestionaProyectos}
+              />
+            </section>
+          ) : null}
+
+          {contratantes ? (
+            <section id="contratantes" aria-labelledby="contratantes-titulo" className="fo-card space-y-3">
+              <h2 id="contratantes-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+                Contratantes
+              </h2>
+              <ContratantesDelPedido
+                pedidoId={detalle.id}
+                contratantes={contratantes.map((c) => ({
+                  orden: c.orden, clientId: c.clientId, nombre: c.nombre, email: c.email, telefono: c.telefono, porOmision: c.porOmision,
+                }))}
+                puedeEditar={puedeGestionarContratos(ctx)}
+                puedeBuscar={puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)}
+                puedeVerContactos={puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)}
+              />
+            </section>
+          ) : null}
+
+          {contratosDelPedido ? (
+            <section id="contratos" aria-labelledby="contratos-titulo" className="fo-card space-y-3">
+              <h2 id="contratos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+                Contratos
+              </h2>
+              <ContratosDelPedido
+                pedidoId={detalle.id}
+                contratos={contratosDelPedido}
+                plantillas={plantillasContrato.filter((p) => p.isActive).map((p) => ({ id: p.id, nombre: p.name }))}
+                puedeGenerar={gestionaContratos}
               />
             </section>
           ) : null}

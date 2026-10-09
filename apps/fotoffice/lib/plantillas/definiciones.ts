@@ -58,6 +58,10 @@ export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlan
   RECIBO_DE_PAGO: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recibo de pago" },
   RECORDATORIO_CUOTA: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recordatorio de vencimiento de una cuota" },
   RECORDATORIO_CITA: { canal: "EMAIL", tipo: "CITA", nombre: "Recordatorio de una cita al cliente" },
+  CONTRATO_ENVIO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Contrato para firmar" },
+  CONTRATO_CODIGO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Código para firmar un contrato" },
+  CONTRATO_RECORDATORIO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Recordatorio de un contrato sin firmar" },
+  CONTRATO_FIRMADO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Contrato firmado" },
 };
 
 export const MENSAJES_PLANTILLAS = {
@@ -101,9 +105,9 @@ const SELECT_PLANTILLA = {
 
 // ─── Validación ──────────────────────────────────────────────────────────────
 
-/** Campos personalizados activos del tipo de ficha (0.5). Las GENERAL, PRESUPUESTO, PEDIDO y CITA no usan campos. */
+/** Campos personalizados activos del tipo de ficha (0.5). Las GENERAL, PRESUPUESTO, PEDIDO, CITA y CONTRATO no usan campos. */
 async function camposDe(workspaceId: string, tipo: TipoPlantilla): Promise<CampoParaVariables[]> {
-  if (tipo === "GENERAL" || tipo === "PRESUPUESTO" || tipo === "PEDIDO" || tipo === "CITA") return [];
+  if (tipo === "GENERAL" || tipo === "PRESUPUESTO" || tipo === "PEDIDO" || tipo === "CITA" || tipo === "CONTRATO") return [];
   const campos = await listarCampos(workspaceId, tipo);
   return campos.map((c) => ({ clave: c.key, nombre: c.name }));
 }
@@ -258,7 +262,7 @@ export async function crearPlantilla(ctx: CtxPlantillas, datos: NuevaPlantilla):
   if (!puede(ctx.role, "configurar")) return no(MENSAJES_PLANTILLAS.sinPermiso);
   if (!datos || typeof datos !== "object") return no(MENSAJES_PLANTILLAS.datosInvalidos);
   if (!esCanal(datos.canal)) return no(MENSAJES_PLANTILLAS.canalInvalido);
-  if (!esTipoPlantilla(datos.tipo)) return no(MENSAJES_PLANTILLAS.tipoInvalido);
+  if (!esTipoPlantilla(datos.tipo) || datos.tipo === "CONTRATO") return no(MENSAJES_PLANTILLAS.tipoInvalido);
   const name = limpiarNombre(datos.nombre);
   if (!name) return no(MENSAJES_PLANTILLAS.nombre);
   const texto = await validarTexto(ctx.workspaceId, datos.canal, datos.tipo, datos.asunto, datos.cuerpo);
@@ -302,7 +306,9 @@ export async function editarPlantilla(ctx: CtxPlantillas, id: string, cambios: C
     if (!name) return no(MENSAJES_PLANTILLAS.nombre);
     data.name = name;
   }
-  if (cambios.tipo !== undefined && !esTipoPlantilla(cambios.tipo)) return no(MENSAJES_PLANTILLAS.tipoInvalido);
+  // Las plantillas de contratos tienen su propia pantalla y sus propias acciones: acá no se crean ni se editan.
+  if (cambios.tipo !== undefined && (!esTipoPlantilla(cambios.tipo) || cambios.tipo === "CONTRATO")) return no(MENSAJES_PLANTILLAS.tipoInvalido);
+  if (p.entityType === "CONTRATO") return no(MENSAJES_PLANTILLAS.tipoInvalido);
   const tocaTexto =
     (cambios.tipo !== undefined && cambios.tipo !== p.entityType) || cambios.asunto !== undefined || cambios.cuerpo !== undefined;
   if (tocaTexto) {
@@ -337,7 +343,7 @@ export async function duplicarPlantilla(ctx: CtxPlantillas, id: string): Promise
     return no(mensajeTope(p.channel));
   }
   // Se revalida: un campo personalizado pudo archivarse desde que se guardó el original.
-  if (!esTipoPlantilla(p.entityType)) return no(MENSAJES_PLANTILLAS.datosInvalidos);
+  if (!esTipoPlantilla(p.entityType) || p.entityType === "CONTRATO") return no(MENSAJES_PLANTILLAS.datosInvalidos);
   const texto = await validarTexto(ctx.workspaceId, p.channel, p.entityType, p.subject, p.body);
   if (!texto.ok) return texto;
   const name = `Copia de ${p.name}`.slice(0, MAX_NOMBRE_PLANTILLA).trim();

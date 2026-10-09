@@ -7236,6 +7236,13 @@ model Workspace {
   fotofficeCitas FotofficeCita[]
   fotofficeProductoCitas FotofficeProductoCita[]
   fotofficeAgendaAjustes FotofficeAgendaAjustes?
+  fotofficeContratoPlantillas FotofficeContratoPlantilla[]
+  fotofficePedidoContratantes FotofficePedidoContratante[]
+  fotofficeContratos FotofficeContrato[]
+  fotofficeContratoVersiones FotofficeContratoVersion[]
+  fotofficeContratoFirmantes FotofficeContratoFirmante[]
+  fotofficeContratoEventos FotofficeContratoEvento[]
+  fotofficeContratoAjustes FotofficeContratoAjustes?
   clientAudits ClientAudit[]
   productStoreListings        ProductStoreListing[]
   storeSettings               StoreSettings?
@@ -7441,6 +7448,7 @@ model FotofficeAttachment {
   member    Member?   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   fotofficeCobros FotofficeCobro[]
   fotofficeCuentasPagar FotofficeCuentaPagar[]
+  fotofficeContratosManuales FotofficeContrato[]
 
   @@index([workspaceId, clientId, createdAt])
   @@index([workspaceId, memberId, createdAt])
@@ -18606,6 +18614,9 @@ model Client {
   fotofficeProyectos FotofficeProyecto[]
   fotofficeProyectoParticipaciones FotofficeProyectoParticipante[]
   fotofficeCitas FotofficeCita[]
+  fotofficePedidoContratantes FotofficePedidoContratante[]
+  fotofficeContratos FotofficeContrato[]
+  fotofficeContratoFirmas FotofficeContratoFirmante[]
   fotofficeCitaParticipaciones FotofficeCitaParticipante[]
 }
 
@@ -20989,6 +21000,8 @@ model FotofficePedido {
   tareas          FotofficePedidoTarea[]
   proyectos       FotofficeProyecto[]
   citas           FotofficeCita[]
+  contratantes    FotofficePedidoContratante[]
+  contratos       FotofficeContrato[]
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -23100,6 +23113,182 @@ model FotofficeCitaRecordatorio {
 
   @@unique([citaId, startAt])
 }
+
+/// Plantilla de contrato de una organización (Etapa 5). El cuerpo usa el formato liviano de `lib/contratos/formato.ts`
+/// y las variables de `lib/contratos/variables.ts`. No se borra: se desactiva (`isActive`).
+model FotofficeContratoPlantilla {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  body        String
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contratos FotofficeContrato[]
+
+  @@unique([workspaceId, name])
+}
+
+/// Quién contrata un pedido: el contratante 1 es obligatorio, el 2 es opcional (orden IN (1,2) en el SQL).
+model FotofficePedidoContratante {
+  id          String   @id @default(cuid())
+  workspaceId String
+  pedidoId    String
+  orden       Int
+  clientId    String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  client    Client          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@unique([pedidoId, orden])
+  @@index([workspaceId])
+  @@index([clientId])
+}
+
+/// Contrato de un pedido. status: BORRADOR | ENVIADO | FIRMADO_PARCIAL | FIRMADO | RECHAZADO | ANULADO (CHECK en el SQL).
+/// `bodyText` es el texto ya resuelto; al enviar se congela en una `FotofficeContratoVersion` con su huella.
+model FotofficeContrato {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  pedidoId           String
+  clientId           String
+  templateId         String?
+  number             String
+  name               String
+  status             String    @default("BORRADOR")
+  bodyText           String
+  currentVersionId   String?   @unique
+  sentAt             DateTime?
+  signedAt           DateTime?
+  rejectedAt         DateTime?
+  voidedAt           DateTime?
+  voidReason         String?
+  /// PDF final con las firmas (R2 privado) y su propia huella SHA-256.
+  pdfKey             String?
+  pdfHash            String?
+  pdfSentAt          DateTime?
+  /// Firmado en papel: fecha y adjunto escaneado.
+  manualSignedAt     DateTime?
+  manualAttachmentId String?
+  ownerUserId        Int?
+  createdByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace        Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido           FotofficePedido             @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+  client           Client                      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  template         FotofficeContratoPlantilla? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  currentVersion   FotofficeContratoVersion?   @relation("ContratoVersionVigente", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  manualAttachment FotofficeAttachment?        @relation(fields: [manualAttachmentId], references: [id], onDelete: SetNull)
+  versiones        FotofficeContratoVersion[]  @relation("ContratoVersiones")
+  eventos          FotofficeContratoEvento[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([pedidoId])
+  @@index([clientId])
+  @@index([templateId])
+  @@index([manualAttachmentId])
+}
+
+/// Versión enviada de un contrato: texto congelado y huella SHA-256 (hex) del `bodyText` en UTF-8.
+model FotofficeContratoVersion {
+  id          String    @id @default(cuid())
+  workspaceId String
+  contratoId  String
+  number      Int
+  bodyText    String
+  contentHash String
+  sentAt      DateTime
+  revokedAt   DateTime?
+
+  workspace       Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contrato        FotofficeContrato           @relation("ContratoVersiones", fields: [contratoId], references: [id], onDelete: Cascade)
+  contratoVigente FotofficeContrato?          @relation("ContratoVersionVigente")
+  firmantes       FotofficeContratoFirmante[]
+
+  @@unique([contratoId, number])
+  @@index([workspaceId])
+}
+
+/// Quien firma una versión. El enlace se guarda como hash; el código de 6 dígitos también (HMAC).
+model FotofficeContratoFirmante {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  versionId         String
+  orden             Int
+  clientId          String?
+  name              String
+  docNumber         String?
+  email             String
+  tokenHash         String    @unique
+  tokenExpiresAt    DateTime
+  viewedAt          DateTime?
+  codeHash          String?
+  codeExpiresAt     DateTime?
+  codeAttempts      Int       @default(0)
+  codesSentInWindow Int       @default(0)
+  codeWindowStart   DateTime?
+  verifiedAt        DateTime?
+  typedName         String?
+  signatureKey      String?
+  signedAt          DateTime?
+  ipHash            String?
+  userAgent         String?
+  rejectedAt        DateTime?
+  rejectReason      String?
+  lastReminderAt    DateTime?
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  version   FotofficeContratoVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  client    Client?                  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([versionId])
+  @@index([clientId])
+}
+
+/// Bitácora del contrato (sólo se agrega). El código de verificación nunca se guarda acá.
+model FotofficeContratoEvento {
+  id          String   @id @default(cuid())
+  workspaceId String
+  contratoId  String
+  type        String
+  firmanteId  String?
+  actorUserId Int?
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contrato  FotofficeContrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@index([contratoId, createdAt])
+  @@index([workspaceId])
+}
+
+/// Ajustes de contratos de la organización: firma y datos de la empresa, cláusula de consentimiento y recordatorio.
+model FotofficeContratoAjustes {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
+  companySignatureKey String?
+  companyName         String?
+  companyTaxId        String?
+  companyAddress      String?
+  consentClause       String?
+  reminderEnabled     Boolean  @default(false)
+  reminderDays        Int      @default(3)
+  updatedAt           DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+
 
 /// Una actividad cultural de Muestras Fotográficas (muestrasfotograficas.com): muestra,
 /// charla, taller, salida, presentación de libro, proyección u otra.

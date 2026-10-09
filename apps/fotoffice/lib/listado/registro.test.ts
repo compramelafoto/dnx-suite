@@ -12,6 +12,7 @@ describe("registro de listas", () => {
       presupuestos: "quotes",
       pedidos: "orders",
       proyectos: "projects",
+      contratos: "contracts",
       "pedidos-a-pagar": "orders",
     });
   });
@@ -25,6 +26,7 @@ describe("registro de listas", () => {
       presupuestos: "/presupuestos",
       pedidos: "/pedidos",
       proyectos: "/proyectos/lista",
+      contratos: "/contratos",
       "pedidos-a-pagar": "/pedidos/a-pagar",
     });
   });
