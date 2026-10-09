@@ -38,9 +38,23 @@ export function limpiarMensaje(texto: string): string {
     .trim();
 }
 
+/**
+ * Con qué estado nace un mensaje.
+ *
+ * **Decisión del titular, 2026-10-09: sin cola de revisión manual.** Era
+ * `REVIEW_REQUIRED` y esperaba al fotógrafo, porque Amazon mira imágenes y no juzga
+ * texto. Ahora se proyecta solo.
+ *
+ * Lo que eso significa: **un texto escrito por un invitado aparece en la pared del salón
+ * sin que nadie lo haya leído**. Lo único que lo acota es que son 140 caracteres y que
+ * queda guardado con la sesión de quien lo mandó. El fotógrafo lo puede sacar desde
+ * Control en vivo, pero después de que se vio.
+ */
+const ESTADO_INICIAL = "APPROVED" as const;
+
 export type VeredictoDeMensaje =
-  | { ok: true; texto: string; estadoInicial: "REVIEW_REQUIRED" }
-  | { ok: false; motivo: string; estadoInicial: "REVIEW_REQUIRED" };
+  | { ok: true; texto: string; estadoInicial: typeof ESTADO_INICIAL }
+  | { ok: false; motivo: string; estadoInicial: typeof ESTADO_INICIAL };
 
 export function validarMensaje(crudo: string): VeredictoDeMensaje {
   const texto = limpiarMensaje(crudo);
@@ -50,16 +64,16 @@ export function validarMensaje(crudo: string): VeredictoDeMensaje {
     esto no tiene que elegir el estado, y no hay forma de olvidarse de ponerlo.
   */
   if (texto.length === 0) {
-    return { ok: false, motivo: "Escribí algo antes de mandarlo.", estadoInicial: "REVIEW_REQUIRED" };
+    return { ok: false, motivo: "Escribí algo antes de mandarlo.", estadoInicial: ESTADO_INICIAL };
   }
 
   if (texto.length > LARGO_MAXIMO_MENSAJE) {
     return {
       ok: false,
       motivo: `El mensaje no puede pasar de ${LARGO_MAXIMO_MENSAJE} caracteres.`,
-      estadoInicial: "REVIEW_REQUIRED",
+      estadoInicial: ESTADO_INICIAL,
     };
   }
 
-  return { ok: true, texto, estadoInicial: "REVIEW_REQUIRED" };
+  return { ok: true, texto, estadoInicial: ESTADO_INICIAL };
 }

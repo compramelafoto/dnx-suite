@@ -143,7 +143,7 @@ export default async function Panel() {
         <Link
           href="/panel/eventos/nuevo"
           className="text-sm font-extrabold"
-          style={{ color: "var(--slf-violeta)" }}
+          style={{ color: "var(--slf-violeta-texto)" }}
         >
           Crear uno
         </Link>
@@ -191,14 +191,14 @@ export default async function Panel() {
           <Link
             href="/panel/salud"
             className="inline-flex min-h-[44px] items-center font-extrabold underline underline-offset-4"
-            style={{ color: "var(--slf-violeta)" }}
+            style={{ color: "var(--slf-violeta-texto)" }}
           >
             Cómo va la noche
           </Link>
           <Link
             href="/panel/arrepentimientos"
             className="inline-flex min-h-[44px] items-center font-extrabold underline underline-offset-4"
-            style={{ color: "var(--slf-violeta)" }}
+            style={{ color: "var(--slf-violeta-texto)" }}
           >
             Arrepentimientos
           </Link>

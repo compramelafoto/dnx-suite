@@ -25,3 +25,27 @@ export function estiloDeTema(tema: Tema): CSSProperties {
     ...(dibujo ? { backgroundImage: dibujo.imagen, backgroundSize: dibujo.tamano } : {}),
   };
 }
+
+/**
+ * Tipografías que **no** se usan en el teléfono del invitado.
+ *
+ * La de cartel es condensada y en mayúsculas: se lee perfecto proyectada a tres metros y
+ * es ilegible a un palmo, a oscuras, en una fiesta. La manuscrita tiene el mismo
+ * problema en un botón o en un párrafo.
+ *
+ * La serif no está acá: es legible en un teléfono y además es la que da el tono de una
+ * boda o un egreso, así que ahí sí vale respetar la plantilla.
+ */
+const SOLO_PARA_PROYECTAR = ["--slf-font-cartel", "--slf-font-mano"];
+
+/**
+ * El mismo tema, pero con la letra que el invitado pueda leer.
+ *
+ * **Los colores y la textura se conservan**: lo que cambia es la tipografía, no la
+ * identidad. El invitado tiene que ver su fiesta, nada más que poder leerla.
+ */
+export function estiloLegible(tema: Tema): CSSProperties {
+  const esDeCartel = SOLO_PARA_PROYECTAR.some((f) => tema.tipografia.includes(f));
+
+  return estiloDeTema(esDeCartel ? { ...tema, tipografia: "var(--slf-font)" } : tema);
+}

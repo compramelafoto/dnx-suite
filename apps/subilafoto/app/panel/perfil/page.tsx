@@ -50,7 +50,7 @@ export default async function Perfil() {
 
   return (
     <main className="sobre-claro mx-auto max-w-xl px-6 py-14">
-      <Link href="/panel" className="text-sm font-extrabold" style={{ color: "var(--slf-violeta)" }}>
+      <Link href="/panel" className="text-sm font-extrabold" style={{ color: "var(--slf-violeta-texto)" }}>
         ← Panel
       </Link>
 

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
-import { seccionesDelEvento } from "@/lib/panel-navegacion";
+import { gruposDelEvento } from "@/lib/panel-navegacion";
 import { Navegacion } from "../../navegacion";
 
 export const dynamic = "force-dynamic";
@@ -40,13 +40,16 @@ export default async function MarcoDelEvento({
 
   return (
     <div className="mx-auto max-w-6xl px-4 lg:px-6">
-      <h2 className="mt-8 text-sm font-extrabold" style={{ color: "var(--slf-tinta-suave)" }}>
+      <h2
+        className="mt-8 text-lg font-extrabold leading-tight"
+        style={{ color: "var(--slf-tinta)" }}
+      >
         {evento.name}
       </h2>
 
-      <div className="mt-4 lg:grid lg:grid-cols-[15rem_1fr] lg:gap-10">
+      <div className="mt-4 lg:grid lg:grid-cols-[16rem_1fr] lg:gap-8">
         <div className="lg:sticky lg:top-6 lg:self-start">
-          <Navegacion secciones={seccionesDelEvento(id)} titulo="Este evento" />
+          <Navegacion grupos={gruposDelEvento(id)} />
         </div>
         <div className="min-w-0">{children}</div>
       </div>

@@ -91,18 +91,34 @@ describe("procesar una foto", () => {
     expect(guardados[0]!.publicar).toBe(false);
   });
 
-  test("si el proveedor falla, la foto queda retenida y no publicada", async () => {
+  test("si el proveedor falla, se publica igual y queda anotado el error", async () => {
+    /*
+      Cambiado el 2026-10-09 por decisión del titular: sin cola de revisión manual.
+
+      Antes fallaba cerrado y con la cuenta de Amazon suspendida la pantalla del salón
+      quedaba vacía toda la noche. Ahora se publica, sabiendo que durante una caída no
+      hay ninguna moderación.
+
+      Lo que Amazon dictaminó se sigue guardando entero: `estado` es su veredicto crudo y
+      `estadoVisible` es lo que ve el salón. Sin esa separación no habría forma de
+      revisar después qué pasó esa noche.
+    */
     const { deps, guardados } = armar({ proveedor: proveedorRoto });
     await procesarFoto(deps, "m1");
 
     expect(guardados[0]!.estado).toBe("REVIEW_REQUIRED");
-    expect(guardados[0]!.publicar).toBe(false);
+    expect(guardados[0]!.estadoVisible).toBe("APPROVED");
+    expect(guardados[0]!.publicar).toBe(true);
     expect(guardados[0]!.codigoDeError).toBe("AccessDeniedException");
   });
 
   test("si no se puede bajar la foto del bucket, tampoco se publica", async () => {
-    // El archivo puede no estar todavía, o R2 puede fallar. Ninguna de las dos
-    // cosas puede terminar en una foto proyectada sin revisar.
+    /*
+      El archivo puede no estar todavía, o R2 puede fallar. Esto NO lo alcanza la
+      política de publicar lo dudoso: sin bytes no hay versión reducida y la pantalla no
+      proyecta fotos sin versión. Publicarla sería anotar como visible algo que nadie va
+      a ver nunca.
+    */
     const { deps, guardados } = armar({
       descargar: async () => {
         throw Object.assign(new Error("no está"), { name: "NoSuchKey" });
@@ -111,6 +127,7 @@ describe("procesar una foto", () => {
     await procesarFoto(deps, "m1");
 
     expect(guardados[0]!.estado).toBe("REVIEW_REQUIRED");
+    expect(guardados[0]!.estadoVisible).toBe("REVIEW_REQUIRED");
     expect(guardados[0]!.publicar).toBe(false);
     expect(guardados[0]!.codigoDeError).toBe("NoSuchKey");
   });

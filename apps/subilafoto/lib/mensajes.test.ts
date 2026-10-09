@@ -52,18 +52,24 @@ describe("la limpieza del texto", () => {
   });
 });
 
-describe("la regla que no se negocia", () => {
-  test("un mensaje nunca se publica solo", () => {
+describe("con qué estado nace un mensaje", () => {
+  test("se publica solo", () => {
     /*
-      Un emoji puede pasar sin moderar porque la lista es cerrada y no puede decir nada.
-      Un mensaje de texto proyectado en la pared de un salón puede decir cualquier cosa,
-      y Rekognition no lee texto para decidir si ofende.
+      Cambiado el 2026-10-09 por decisión del titular. Antes esta prueba se llamaba "la
+      regla que no se negocia" y fijaba lo contrario: el mensaje esperaba al fotógrafo
+      porque Amazon mira imágenes y no juzga texto.
 
-      Mientras no haya un proveedor que modere texto, el mensaje espera al fotógrafo. Si
-      algún día se automatiza, esta prueba es la que hay que venir a cambiar a propósito.
+      Él pidió que no haya cola de revisión manual, sabiendo lo que implica: **un texto
+      escrito por un invitado aparece en la pared del salón sin que nadie lo haya
+      leído**. Lo único que lo acota son los 140 caracteres, que quede guardado con la
+      sesión de quien lo mandó, y que el fotógrafo lo pueda sacar desde Control en vivo
+      —después de que se vio—.
+
+      Si algún día se quiere volver atrás, o sumar un proveedor que modere texto, acá es
+      donde hay que venir.
     */
     const { estadoInicial } = validarMensaje("Lo que sea");
 
-    expect(estadoInicial).toBe("REVIEW_REQUIRED");
+    expect(estadoInicial).toBe("APPROVED");
   });
 });

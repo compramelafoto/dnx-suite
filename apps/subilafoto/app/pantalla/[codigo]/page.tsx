@@ -43,6 +43,7 @@ export default async function Pantalla({ params }: Props) {
       code: true,
       themeTokens: true,
       name: true,
+      hostsLabel: true,
       status: true,
       activationAt: true,
       deactivationAt: true,
@@ -139,6 +140,9 @@ export default async function Pantalla({ params }: Props) {
   return (
     <Proyeccion
       qrSvg={qrSvg}
+      nombreDelEvento={evento.name}
+      anfitriones={evento.hostsLabel}
+      acento={tema.acento}
       urlDelEvento={urlDelEvento.replace(/^https?:\/\//, "")}
       codigo={evento.code}
       iniciales={iniciales}
