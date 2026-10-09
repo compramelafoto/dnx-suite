@@ -65,6 +65,7 @@ export const LIMITES = {
   crearBorrador: { limit: 20, windowMs: 60 * 60_000 },
   guardarPerfil: { limit: 30, windowMs: 60 * 60_000 },
   buscarPerfiles: { limit: 60, windowMs: 60_000 },
+  fichas: { limit: 30, windowMs: 10 * 60_000 },
   enviarARevision: { limit: 10, windowMs: 60 * 60_000 },
 } as const;
 

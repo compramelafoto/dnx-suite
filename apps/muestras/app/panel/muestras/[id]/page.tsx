@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { REVIEW_STATUS_LABELS, canEdit, type ReviewStatus } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
+import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarPropia } from "@/lib/actividades/consultas";
 import { requireUsuario } from "@/lib/usuario";
@@ -38,6 +39,12 @@ export default async function EditarActividad({
         <>
           <p><Link href={`/m/${a.slug}`} className="underline">Ver publicada</Link>. Los cambios se publican sin volver a revisión.</p>
           <BotonesPublicada id={a.id} cancelada={a.isCancelled} />
+          {a.type === "MUESTRA" ? (
+            <section className="space-y-2 border-t border-[var(--mf-line)] pt-4">
+              <h2 className="text-sm text-[var(--mf-muted)]">Fichas de sala con QR</h2>
+              <DescargarFichas id={a.id} obras={a.works} />
+            </section>
+          ) : null}
         </>
       ) : null}
       {estado === "IN_REVIEW" ? <p className="text-[var(--mf-muted)]">Está en revisión. No se puede editar hasta que la revisemos.</p> : null}

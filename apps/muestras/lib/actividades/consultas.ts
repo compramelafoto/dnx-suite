@@ -62,3 +62,12 @@ export function buscarPropia(id: string, usuario: Usuario) {
 export function contarParaRevisar() {
   return prisma.culturalActivity.count({ where: { reviewStatus: "IN_REVIEW" } });
 }
+
+/** Muestras publicadas propias, con sus obras, para "Montaje e impresión". */
+export function listarPublicadasMias(userId: number) {
+  return prisma.culturalActivity.findMany({
+    where: { proposedByUserId: userId, reviewStatus: "APPROVED", type: "MUESTRA" },
+    select: { id: true, slug: true, title: true, startsAt: true, endsAt: true, works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true } } },
+    orderBy: { startsAt: "desc" },
+  });
+}
