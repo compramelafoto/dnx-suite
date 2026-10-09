@@ -22,7 +22,6 @@ export default async function ConvocatoriaPublica({ params }: Props) {
   if (!c) notFound();
   const fase = callPhase(c, ahora);
   if (!hasPublicPage(fase)) notFound();
-  // La página /enviar la crea la Task 11: hasta entonces el botón "Enviar obras" da 404.
   const a = c.activity;
   const lugar = a.isVirtualOnly ? "Muestra virtual" : [a.venueName, a.city, a.province].filter(Boolean).join(", ");
 
