@@ -21,6 +21,15 @@ const nextConfig: NextConfig = {
       // 4,5 MB que Vercel pone a cualquier pedido.
       bodySizeLimit: "4mb",
     },
+    /*
+     * La compilación se quedaba sin memoria en Vercel (OOM en "Creating an optimized production
+     * build", 09/10). Como hay un `webpack` propio, Next apaga solo el proceso aparte de webpack:
+     * se enciende a mano. Más la optimización de memoria de webpack y un único proceso en
+     * paralelo, como CompraMeLaFoto. Tarda un poco más y entra en la memoria.
+     */
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+    cpus: 1,
   },
   // @repo/db NO se transpila: se externaliza para conservar el Query Engine de Prisma.
   // Mismo criterio que apps/clickaton. Transpilarlo funcionaba con Turbopack, pero con

@@ -349,10 +349,11 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   {
     key: "agenda",
     label: "Agenda",
-    description: "Agenda de compromisos del equipo.",
+    description: "Agenda de citas del equipo, con las entregas, tareas y vencimientos del negocio en un solo calendario.",
     category: "GENERAL",
     order: 35,
-    status: "PLANNED",
+    status: "AVAILABLE",
+    route: "/agenda",
     family: "base",
   },
 ] as const;

@@ -13,9 +13,12 @@ const H = vi.hoisted(() => ({
   tildar: vi.fn(),
   crear: vi.fn(),
   borrar: vi.fn(),
+  entrega: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
+vi.mock("next/server", () => ({ after: (f: () => unknown) => void f() }));
+vi.mock("@/lib/agenda/google/empuje", () => ({ alCambiarProyecto: H.entrega }));
 vi.mock("@repo/db", () => ({ prisma: {} }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("@/lib/circuitos/acceso", () => ({ contextoDeCircuitos: H.ctx }));
@@ -124,6 +127,8 @@ describe("el módulo se decide por el tipo del registro", () => {
     expect(await A.tildarTareaAction({ taskId: "k1", hecha: true })).toEqual({ ok: true });
     expect(H.modulo).toHaveBeenCalledWith("ws-1", "projects");
     expect(H.revalidate.mock.calls.map((c) => c[0])).toContain("/proyectos/p1");
+    // Cerrar el proyecto le avisa a Google (se borra la entrega); mover una etapa no.
+    expect(H.entrega.mock.calls).toEqual([["ws-1", "p1"]]);
   });
 
   it("quien sólo gestiona Consultas no toca un proyecto", async () => {

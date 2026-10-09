@@ -25,6 +25,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // Rutas reales de la aplicación.
   "actions",
   "admin",
+  "agenda",
   "api",
   "aula",
   "bienvenida",

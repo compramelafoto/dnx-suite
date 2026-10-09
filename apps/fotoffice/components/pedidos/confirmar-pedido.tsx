@@ -19,6 +19,7 @@ type Vista = {
   aviso: AvisoPlan | null;
   plantillas: string[];
   proyectos: { index: number; nombre: string; flujo: string; finalDueDate: string; aviso?: string }[];
+  citas: { index: number; titulo: string; tipo: string | null; dia: string | null; hora: string | null; aviso?: string }[];
 };
 
 /**
@@ -39,6 +40,8 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
   const [checklist, setChecklist] = useState("");
   // Posiciones de proyectos destildados.
   const [omitidos, setOmitidos] = useState<number[]>([]);
+  // Posiciones de citas destildadas.
+  const [citasOmitidas, setCitasOmitidas] = useState<number[]>([]);
 
   function abrir() {
     setError(null);
@@ -59,8 +62,10 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
         aviso: v.aviso,
         plantillas: v.plantillasChecklist,
         proyectos: v.proyectos,
+        citas: v.citas,
       });
       setOmitidos([]);
+      setCitasOmitidas([]);
       setChecklist(v.plantillasChecklist[0] ?? "");
       setFilas(v.cuotas.map((c) => ({ clave: claveDeFila(), id: null, dueDate: c.dueDate, importe: textoDeImporte(c.amountArs), suggestedMethod: null, imputado: 0 })));
       setEditado(false);
@@ -75,7 +80,7 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
     setError(null);
     iniciar(async () => {
       const plan = editado ? cuotasParaGuardar(filas).map(({ dueDate, amountArs, suggestedMethod }) => ({ dueDate, amountArs, suggestedMethod })) : null;
-      const r = await confirmarPedidoAction({ presupuestoId, plan, checklist: checklist === "" ? null : checklist, proyectosOmitidos: omitidos }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
+      const r = await confirmarPedidoAction({ presupuestoId, plan, checklist: checklist === "" ? null : checklist, proyectosOmitidos: omitidos, citasOmitidas }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
       if (r.ok) {
         router.push(`/pedidos/${encodeURIComponent(r.pedidoId)}`);
         return;
@@ -186,6 +191,34 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
                   </span>
                 </label>
                 {p.aviso ? <p className="pl-6 text-xs text-[var(--fo-warning)]">{p.aviso}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </fieldset>
+      ) : null}
+      {vista.citas.length > 0 ? (
+        <fieldset className="space-y-2">
+          <legend className="fo-label">Citas que se van a crear</legend>
+          <ul className="space-y-2 text-sm">
+            {vista.citas.map((c) => (
+              <li key={c.index} className="space-y-0.5">
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!c.aviso && !citasOmitidas.includes(c.index)}
+                    disabled={pendiente || !!c.aviso}
+                    onChange={(e) => setCitasOmitidas((o) => (e.target.checked ? o.filter((i) => i !== c.index) : [...o, c.index]))}
+                  />
+                  <span>
+                    <span className="font-medium">{c.titulo}</span>
+                    <span className="text-[var(--fo-muted)]">
+                      {c.tipo ? ` · ${c.tipo}` : ""}
+                      {c.dia ? ` · ${fechaCorta(c.dia)}${c.hora ? ` a las ${c.hora}` : " (todo el día)"}` : ""}
+                    </span>
+                  </span>
+                </label>
+                {c.aviso ? <p className="pl-6 text-xs text-[var(--fo-warning)]">{c.aviso}</p> : null}
               </li>
             ))}
           </ul>

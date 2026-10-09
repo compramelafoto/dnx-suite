@@ -16,6 +16,8 @@ import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
 import { leerCostos, proveedoresDelWorkspace } from "@/lib/catalogo/costos";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { leerReglas, opcionesDeRegla } from "@/lib/proyectos/reglas-catalogo";
+import { agendaEncendida } from "@/lib/agenda/crear";
+import { leerReglas as leerReglasCita, opcionesDeRegla as opcionesDeReglaCita } from "@/lib/agenda/reglas-catalogo";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +60,11 @@ export default async function ProductoPage({
     etapa2 && (await proyectosEncendidos(workspace.id))
       ? { reglas: await leerReglas(workspace.id, producto.id), opciones: await opcionesDeRegla(workspace.id) }
       : null;
+  // Etapa 4, Entrega B: "Cita que genera", sólo con Presupuestos y Agenda encendidos.
+  const citas =
+    etapa2 && (await agendaEncendida(workspace.id))
+      ? { reglas: await leerReglasCita(workspace.id, producto.id), opciones: await opcionesDeReglaCita(workspace.id) }
+      : null;
 
   return (
     <div className="space-y-8">
@@ -99,6 +106,7 @@ export default async function ProductoPage({
           costos={etapa2[4]}
           proveedores={etapa2[5]}
           proyectos={proyectos}
+          citas={citas}
         />
       ) : null}
 

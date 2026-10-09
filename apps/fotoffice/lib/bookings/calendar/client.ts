@@ -42,7 +42,7 @@ export type CalendarClient = {
 };
 
 /** Error con el código HTTP a la vista, para que `isSyncTokenExpired` pueda reconocerlo. */
-class CalendarHttpError extends Error {
+export class CalendarHttpError extends Error {
   readonly code: number;
   constructor(code: number, message: string) {
     super(message);

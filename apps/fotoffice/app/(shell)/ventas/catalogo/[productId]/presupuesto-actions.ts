@@ -7,6 +7,7 @@ import { guardarPerfil } from "@/lib/catalogo/perfil";
 import { guardarComponentes } from "@/lib/catalogo/combos";
 import { guardarCostos } from "@/lib/catalogo/costos";
 import { guardarReglas } from "@/lib/proyectos/reglas-catalogo";
+import { guardarReglas as guardarReglasCita } from "@/lib/agenda/reglas-catalogo";
 
 /**
  * Las tres secciones que la ficha del producto suma para presupuestos (etapa 2): "Combo",
@@ -111,6 +112,42 @@ export async function guardarReglasProyectoAction(productId: string, reglas: Reg
     });
   }
   const res = await guardarReglas(workspace.id, String(productId), filas);
+  if (res.ok) refrescar(productId);
+  return res;
+}
+
+export type ReglaCitaFormulario = {
+  /** Id del tipo de cita, o "" = sin tipo. */
+  typeId: string;
+  title: string;
+  daysFromEvent: string;
+  /** "HH:MM" o "" = todo el día. */
+  startTime: string;
+  durationMinutes: string;
+  /** Id del miembro del equipo, o "" = el responsable del pedido. */
+  ownerUserId: string;
+};
+
+/** "Cita que genera" (Etapa 4, Entrega B): las reglas del producto. Exige `sales.catalog`, como las de proyectos. */
+export async function guardarReglasCitaAction(productId: string, reglas: ReglaCitaFormulario[]): Promise<CatalogoActionResult> {
+  const { workspace } = await requireSalesAdmin();
+  if (!Array.isArray(reglas)) return { ok: false, error: "Las citas no son válidas." };
+  const filas: unknown[] = [];
+  for (const [i, r] of reglas.entries()) {
+    const diasTexto = String(r?.daysFromEvent ?? "").trim();
+    const durTexto = String(r?.durationMinutes ?? "").trim();
+    const dueno = String(r?.ownerUserId ?? "").trim();
+    if (dueno !== "" && !/^\d{1,9}$/.test(dueno)) return { ok: false, error: `Fila ${i + 1}: el responsable no es válido.` };
+    filas.push({
+      typeId: String(r?.typeId ?? "").trim() || null,
+      title: String(r?.title ?? ""),
+      daysFromEvent: diasTexto === "" ? 0 : Number(diasTexto),
+      startTime: String(r?.startTime ?? "").trim() || null,
+      durationMinutes: durTexto === "" ? NaN : Number(durTexto),
+      ownerUserId: dueno === "" ? null : Number(dueno),
+    });
+  }
+  const res = await guardarReglasCita(workspace.id, String(productId), filas);
   if (res.ok) refrescar(productId);
   return res;
 }

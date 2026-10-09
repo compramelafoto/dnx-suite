@@ -60,7 +60,7 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
       "https://www.googleapis.com/auth/calendar.readonly",
       "https://www.googleapis.com/auth/calendar.app.created",
     ],
-    requiredByModules: ["bookings"],
+    requiredByModules: ["bookings", "agenda"],
     status: "AVAILABLE",
   },
   {

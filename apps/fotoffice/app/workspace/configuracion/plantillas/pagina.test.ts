@@ -44,7 +44,7 @@ describe("Configuración → Plantillas", () => {
     expect(p).toContain("SOCIO: vocabulario.Plural");
     // Entrega B: con Presupuestos encendido también, por el seguimiento automático.
     // Etapa 3: con Pedidos encendido también, por el recibo de pago.
-    expect(p).toContain("const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos || conPedidos;");
+    expect(p).toContain("const conAutomaticos = conCaptacion || auto?.enabled === true || conPresupuestos || conPedidos || conAgenda;");
     expect(p).toContain('clave="RECIBO_DE_PAGO"');
     expect(p).toContain("{conPedidos ? (\n          <AutomaticoForm");
     expect(p).toContain("await asegurarPlantillaRecibo(workspace.id);");

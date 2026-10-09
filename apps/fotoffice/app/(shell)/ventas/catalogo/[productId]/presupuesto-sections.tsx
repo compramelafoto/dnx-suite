@@ -10,12 +10,15 @@ import {
   guardarComboAction,
   guardarCostosAction,
   guardarPerfilAction,
+  guardarReglasCitaAction,
   guardarReglasProyectoAction,
   type CatalogoActionResult,
   type CostoFormulario,
+  type ReglaCitaFormulario,
   type ReglaProyectoFormulario,
 } from "./presupuesto-actions";
 import type { OpcionesDeRegla, ReglaDetalle } from "@/lib/proyectos/reglas-catalogo";
+import type { OpcionesDeReglaCita, ReglaCitaDetalle } from "@/lib/agenda/reglas-catalogo";
 
 /**
  * Las secciones de la ficha del producto para presupuestos (etapa 2): "Para presupuestos",
@@ -50,6 +53,7 @@ export function PresupuestoSections({
   costos,
   proveedores,
   proyectos,
+  citas,
 }: {
   productId: string;
   priceMinor: number;
@@ -63,6 +67,8 @@ export function PresupuestoSections({
   proveedores: ProveedorOpcion[];
   /** Reglas "Proyecto que genera"; null con el módulo Proyectos apagado. */
   proyectos: { reglas: ReglaDetalle[]; opciones: OpcionesDeRegla } | null;
+  /** Reglas "Cita que genera"; null con el módulo Agenda apagado. */
+  citas: { reglas: ReglaCitaDetalle[]; opciones: OpcionesDeReglaCita } | null;
 }) {
   return (
     <div className="space-y-6">
@@ -86,6 +92,14 @@ export function PresupuestoSections({
           productId={productId}
           reglas={proyectos.reglas}
           opciones={proyectos.opciones}
+        />
+      ) : null}
+      {citas ? (
+        <CitasSection
+          key={citas.reglas.map((r) => r.id).join("|")}
+          productId={productId}
+          reglas={citas.reglas}
+          opciones={citas.opciones}
         />
       ) : null}
     </div>
@@ -553,6 +567,165 @@ function ProyectosSection({
           onClick={() => startTransition(async () => setResultado(await guardarReglasProyectoAction(productId, filas)))}
         >
           {guardando ? "Guardando…" : "Guardar proyectos"}
+        </button>
+        <Aviso resultado={resultado} />
+      </div>
+    </section>
+  );
+}
+
+function CitasSection({
+  productId,
+  reglas,
+  opciones,
+}: {
+  productId: string;
+  reglas: ReglaCitaDetalle[];
+  opciones: OpcionesDeReglaCita;
+}) {
+  const [filas, setFilas] = useState<ReglaCitaFormulario[]>(() =>
+    reglas.map((r) => ({
+      typeId: r.typeId ?? "",
+      title: r.title ?? "",
+      daysFromEvent: String(r.daysFromEvent),
+      startTime: r.startTime ?? "",
+      durationMinutes: String(r.durationMinutes),
+      ownerUserId: r.ownerUserId === null ? "" : String(r.ownerUserId),
+    })),
+  );
+  const [resultado, setResultado] = useState<CatalogoActionResult | null>(null);
+  const [guardando, startTransition] = useTransition();
+
+  // Un tipo ya elegido que se dio de baja se sigue mostrando.
+  const tipos = useMemo(() => {
+    const mapa = new Map(opciones.tipos.map((t) => [t.id, t.name]));
+    for (const r of reglas) if (r.typeId && !mapa.has(r.typeId)) mapa.set(r.typeId, `${r.typeName ?? "Tipo"} (dado de baja)`);
+    return [...mapa.entries()];
+  }, [opciones, reglas]);
+
+  function cambiar(i: number, cambio: Partial<ReglaCitaFormulario>) {
+    setFilas((fs) => fs.map((f, j) => (j === i ? { ...f, ...cambio } : f)));
+  }
+
+  return (
+    <section className="fo-card space-y-4 p-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Cita que genera</h2>
+        <p className="fo-helper">
+          Al confirmar un pedido con este producto se agenda una cita por cada fila, el día del evento más o menos los días
+          que indiques. Sin hora, la cita es de todo el día. Si el pedido no tiene fecha de evento, no se crea ninguna. La
+          cantidad no multiplica. En el título podés usar {"{contacto}"}, {"{producto}"}, {"{evento}"} y {"{pedido}"}.
+        </p>
+      </div>
+
+      {filas.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Este producto no agenda citas.</p> : null}
+      <ul className="space-y-3">
+        {filas.map((f, i) => {
+          const dias = Number(f.daysFromEvent);
+          return (
+            <li key={i} className="space-y-2 rounded-lg border border-[var(--fo-border)] p-3">
+              <div className="flex flex-wrap gap-2">
+                <select
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Tipo de cita"
+                  value={f.typeId}
+                  onChange={(e) => cambiar(i, { typeId: e.target.value })}
+                >
+                  <option value="">Sin tipo</option>
+                  {tipos.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Responsable"
+                  value={f.ownerUserId}
+                  onChange={(e) => cambiar(i, { ownerUserId: e.target.value })}
+                >
+                  <option value="">El responsable del pedido</option>
+                  {opciones.equipo.map((m) => (
+                    <option key={m.id} value={String(m.id)}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Título de la cita"
+                  placeholder="{producto}"
+                  maxLength={200}
+                  value={f.title}
+                  onChange={(e) => cambiar(i, { title: e.target.value })}
+                />
+                <input
+                  className="fo-input w-24"
+                  type="number"
+                  step={1}
+                  min={-365}
+                  max={365}
+                  aria-label="Días desde el evento"
+                  value={f.daysFromEvent}
+                  onChange={(e) => cambiar(i, { daysFromEvent: e.target.value })}
+                />
+                <span className="text-xs text-[var(--fo-muted)]">
+                  {Number.isInteger(dias) ? textoDias(dias) : "días desde el evento (+/-)"}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-[var(--fo-muted)]">Hora</span>
+                  <input
+                    className="fo-input w-28"
+                    type="time"
+                    aria-label="Hora de inicio (vacío = todo el día)"
+                    value={f.startTime}
+                    onChange={(e) => cambiar(i, { startTime: e.target.value })}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-[var(--fo-muted)]">Dura</span>
+                  <input
+                    className="fo-input w-24"
+                    type="number"
+                    step={15}
+                    min={15}
+                    max={1440}
+                    aria-label="Duración en minutos"
+                    value={f.durationMinutes}
+                    onChange={(e) => cambiar(i, { durationMinutes: e.target.value })}
+                  />
+                  <span className="text-xs text-[var(--fo-muted)]">minutos</span>
+                </label>
+                <button type="button" className="fo-btn fo-btn-ghost ml-auto text-sm" onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}>
+                  Quitar
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        className="fo-btn fo-btn-secondary text-sm"
+        onClick={() =>
+          setFilas((fs) => [...fs, { typeId: "", title: "", daysFromEvent: "0", startTime: "", durationMinutes: "60", ownerUserId: "" }])
+        }
+      >
+        Agregar cita
+      </button>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          className="fo-btn fo-btn-primary text-sm"
+          disabled={guardando}
+          onClick={() => startTransition(async () => setResultado(await guardarReglasCitaAction(productId, filas)))}
+        >
+          {guardando ? "Guardando…" : "Guardar citas"}
         </button>
         <Aviso resultado={resultado} />
       </div>

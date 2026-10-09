@@ -197,6 +197,14 @@ async function validarPlantilla(
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
   }
+  // Etapa 4 (Agenda): el recordatorio de una cita sale con la automática `RECORDATORIO_CITA`, encendida.
+  if (automatico && tipo === "CITA") {
+    const f = await prisma.fotofficeMessageTemplate.findFirst({
+      where: { id: templateId, workspaceId, channel: canal, entityType: "CITA", systemKey: CLAVE_RECORDATORIO_CITA, enabled: true, archivedAt: null },
+      select: { id: true },
+    });
+    return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  }
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
       where: {
@@ -221,6 +229,8 @@ const CLAVE_SEGUIMIENTO: ClaveAutomatico = "PRESUPUESTO_SEGUIMIENTO";
 const CLAVE_RECIBO: ClaveAutomatico = "RECIBO_DE_PAGO";
 /** El recordatorio del vencimiento de una cuota (Entrega B1): va al contacto del pedido. */
 const CLAVE_RECORDATORIO: ClaveAutomatico = "RECORDATORIO_CUOTA";
+/** El recordatorio de una cita (Agenda): va a los contactos con correo que participan. */
+const CLAVE_RECORDATORIO_CITA: ClaveAutomatico = "RECORDATORIO_CITA";
 
 /**
  * Asunto, HTML y texto listos para el transporte a partir de textos ya completados
@@ -339,7 +349,7 @@ export type DatosCorreo = {
    *   recibo de pago, en el pedido, `PEDIDO` + su id).
    */
   registroId?: string;
-  registrarEn?: { entityType: "PRESUPUESTO" | "PEDIDO"; entityId: string };
+  registrarEn?: { entityType: "PRESUPUESTO" | "PEDIDO" | "CITA"; entityId: string };
 };
 
 export { CODIGO_ENVIO_EN_CURSO };

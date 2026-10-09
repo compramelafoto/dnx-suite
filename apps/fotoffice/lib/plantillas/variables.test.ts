@@ -31,12 +31,28 @@ describe("catálogo de variables", () => {
       "presupuesto_numero", "presupuesto_enlace", "presupuesto_total", "presupuesto_vence",
       "pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe",
       "cuota_vence", "cuota_importe", "cuota_link_pago",
+      "cita_titulo", "cita_fecha", "cita_hora", "cita_lugar",
       "socio_numero",
     ]);
     for (const v of VARIABLES) {
       expect(v.etiqueta.length).toBeGreaterThan(0);
       expect(v.descripcion.length).toBeGreaterThan(0);
     }
+  });
+
+  it("las de cita sólo valen en CITA y salen del contexto (Agenda)", () => {
+    const claves = ["cita_titulo", "cita_fecha", "cita_hora", "cita_lugar"];
+    for (const c of claves) {
+      expect(clavesPermitidas("CITA", []).has(c)).toBe(true);
+      for (const t of ["GENERAL", "CLIENTE", "CONSULTA", "PRESUPUESTO", "SOCIO", "PEDIDO"] as const) expect(clavesPermitidas(t, []).has(c)).toBe(false);
+    }
+    expect(clavesPermitidas("CITA", []).has("nombre")).toBe(true);
+    expect(clavesPermitidas("CITA", []).has("pedido_enlace")).toBe(false);
+    const r = resolverVariables({ ...base(), cita: { titulo: "Reunión", fecha: "15/10/2026", hora: null, lugar: "Estudio" } });
+    expect(r("cita_titulo")).toBe("Reunión");
+    expect(r("cita_fecha")).toBe("15/10/2026");
+    expect(r("cita_hora")).toBeNull();
+    expect(r("cita_lugar")).toBe("Estudio");
   });
 
   it("las de pedido y recibo sólo valen en PEDIDO y salen del contexto (etapa 3)", () => {

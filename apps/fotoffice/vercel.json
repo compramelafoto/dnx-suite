@@ -29,6 +29,14 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/agenda-google-sync",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/agenda-recordatorios",
+      "schedule": "0 * * * *"
+    },
+    {
       "path": "/api/cron/contactos-sync",
       "schedule": "0 7 * * *"
     },

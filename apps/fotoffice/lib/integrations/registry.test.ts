@@ -37,6 +37,8 @@ describe("catálogo de integraciones", () => {
     expect(calendar).toBeDefined();
     expect(calendar!.scopes).toContain("https://www.googleapis.com/auth/calendar.events");
     expect(calendar!.requiredByModules).toContain("bookings");
+    // La Agenda usa la misma cuenta (calendario propio).
+    expect(calendar!.requiredByModules).toContain("agenda");
   });
 
   it("las integraciones previstas existen en el catálogo pero no se ofrecen", () => {
