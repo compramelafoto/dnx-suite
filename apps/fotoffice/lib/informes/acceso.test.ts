@@ -39,10 +39,12 @@ describe("requireInformes", () => {
     expect((await requireInformes()).ctx.role).toBe("WORKSPACE_ADMIN");
     expect(M.isModuleEnabledForWorkspace).toHaveBeenCalledWith("w1", "reports");
   });
-  it("personal con nivel Ver en Informes pasa; con Caja Ver sin Informes no", async () => {
+  it("personal con nivel Ver en Informes o en Caja pasa; solo Cuotas no", async () => {
     como("STAFF", { reports: "VIEW" });
     expect((await requireInformes()).ctx.userId).toBe(7);
     como("STAFF", { cash: "VIEW" });
+    expect((await requireInformes()).ctx.userId).toBe(7);
+    como("STAFF", { "membership-dues": "VIEW" });
     expect(await redirige(requireInformes)).toBe("REDIRECT:/dashboard");
   });
   it("sin nivel en Informes, redirige", async () => {

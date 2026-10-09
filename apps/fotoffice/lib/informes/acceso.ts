@@ -10,8 +10,8 @@ import { REPORTS_MODULE_KEY } from "./constantes";
 
 /**
  * Acceso a Informes (etapa 6). Todo informe, CSV y acción exige, en este orden: sesión, workspace
- * activo, módulo `reports` encendido y `verDinero` sobre `reports` (dueño o administrador, o nivel
- * Ver en el módulo). Ajustes exige además `configurar` (dueño o administrador).
+ * activo, módulo `reports` encendido y `verDinero` sobre `reports` o `cash` (dueño o administrador,
+ * o nivel Ver en Informes o en Caja; Cuotas no alcanza). Ajustes exige además `configurar` (dueño o administrador).
  */
 export type CtxInformes = {
   workspaceId: string;
@@ -31,8 +31,11 @@ export const MENSAJES_INFORMES = {
   fallo: "No se pudo guardar. Probá de nuevo.",
 } as const;
 
+/** Módulos cuyo nivel Ver abre Informes (además de dueño y administradores). */
+export const MODULOS_VER_INFORMES: readonly string[] = [REPORTS_MODULE_KEY, "cash"];
+
 export function puedeVerInformes(ctx: Pick<CtxInformes, "role" | "acceso">): boolean {
-  return puedeEnContexto(ctx, "verDinero", REPORTS_MODULE_KEY);
+  return puedeEnContexto(ctx, "verDinero", MODULOS_VER_INFORMES);
 }
 
 export function puedeConfigurarInformes(ctx: Pick<CtxInformes, "role" | "acceso">): boolean {
@@ -50,7 +53,7 @@ export async function requireInformes(): Promise<{ ctx: CtxInformes }> {
   if (!workspace) redirect("/workspace");
   if (!(await isModuleEnabledForWorkspace(workspace.id, REPORTS_MODULE_KEY))) redirect("/dashboard?module=off");
   const acceso = await resolverAcceso(user.id, workspace.id);
-  if (!puede(acceso, "verDinero", REPORTS_MODULE_KEY)) redirect("/dashboard");
+  if (!puedeVerInformes({ role: acceso.role, acceso })) redirect("/dashboard");
   return { ctx: { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso } };
 }
 
@@ -71,7 +74,7 @@ export async function contextoDeInformes(nivel: "ver" | "configurar" = "ver"): P
   if (!workspace) return null;
   if (!(await isModuleEnabledForWorkspace(workspace.id, REPORTS_MODULE_KEY))) return null;
   const acceso = await resolverAcceso(user.id, workspace.id);
-  if (!puede(acceso, "verDinero", REPORTS_MODULE_KEY)) return null;
+  if (!puedeVerInformes({ role: acceso.role, acceso })) return null;
   if (nivel === "configurar" && !puede(acceso, "configurar")) return null;
   return { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role: acceso.role, acceso };
 }
