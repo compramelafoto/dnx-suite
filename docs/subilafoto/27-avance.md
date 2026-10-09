@@ -46,8 +46,8 @@ contra la base y los servicios reales, y alguien miró el resultado.
 | 3.2 | Checkout con `marketplace_fee` | ✅ | ⬜ | Ninguna compra real. Exige tarjeta |
 | 3.3 | Webhook idempotente | ✅ | ⬜ | Nunca recibió un aviso real de Mercado Pago |
 | 3.4 | Adicional de descarga | ✅ | ⬜ | Depende de 3.2 |
-| 3.5 | ZIP con manifiesto | ✅ | 🟡 | En curso: hay 6 fotos sembradas esperando al cron de paquetes |
-| 3.6 | Enlace firmado, con vencimiento y revocable | ✅ | ⬜ | Depende de 3.5 |
+| 3.5 | ZIP con manifiesto | ✅ | ✅ | Armado por el cron el 20/9: 6 fotos, 0,67 MB, los 6 checksums coinciden |
+| 3.6 | Enlace firmado, con vencimiento y revocable | ✅ | ✅ | Bajado el 20/9. Nunca había funcionado: la firma se rompía al pegarle el nombre del archivo (PR 201) |
 | 3.7 | Los cinco correos | ✅ | ✅ | `dia-1` y `dia-3` salieron `SENT` el 17/9 |
 | 3.8 | Retención de 30 días con candado | ✅ | ✅ | 300 archivos borrados de R2, con auditoría |
 | 3.9 | Proveedores contra `DnxPartner` | ✅ | ✅ | Dos envíos, mismo CUIT, una sola empresa |

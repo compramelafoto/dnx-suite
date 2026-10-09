@@ -8,7 +8,7 @@ alguien miró. El número que vale es el de producción: ver
 
 | Proyecto | Tareas | Código | Producción | |
 |---|---|---|---|---|
-| **subilafoto** | 46 |  93% |  61% | `██████····` |
+| **subilafoto** | 46 |  93% |  65% | `███████···` |
 
 ## subilafoto
 
@@ -16,7 +16,7 @@ alguien miró. El número que vale es el de producción: ver
 |---|---|---|---|---|
 | SubiLaFoto — Etapa 1: base funcional | 9 | 100% |  89% | 1.3, 1.7 |
 | SubiLaFoto — Etapa 2: núcleo en vivo | 13 | 100% |  62% | 2.1, 2.5, 2.6, 2.7, 2.10, 2.11, 2.13 |
-| SubiLaFoto — Etapa 3: comercial y proveedores | 10 | 100% |  40% | 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.10 |
+| SubiLaFoto — Etapa 3: comercial y proveedores | 10 | 100% |  55% | 3.1, 3.2, 3.3, 3.4, 3.10 |
 | SubiLaFoto — Etapa 4: estabilización | 8 |  75% |  57% | 4.4, 4.6, 4.7, 4.8 |
 | SubiLaFoto — Etapa 5: ensayo y lanzamiento | 6 |  83% |  60% | 5.2, 5.6 |
 
