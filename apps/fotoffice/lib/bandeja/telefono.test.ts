@@ -53,5 +53,9 @@ describe("mismoTelefono", () => {
     // Mismos últimos 10 dígitos que el waId argentino, pero es otro país: no coincide.
     expect(mismoTelefono(WA, "+1 3413419869")).toBe(false);
     expect(mismoTelefono("13413419869", "341 341 9869")).toBe(false);
+    // waId de Reino Unido (441524123456): sin prefijo 54 no es argentino, aunque la ficha parezca local.
+    expect(mismoTelefono("441524123456", "152 4123456")).toBe(false);
+    expect(mismoTelefono("441524123456", "1524123456")).toBe(false);
+    expect(mismoTelefono("441524123456", "+44 1524 123456")).toBe(true);
   });
 });

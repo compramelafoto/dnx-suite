@@ -80,7 +80,9 @@ export function mismoTelefono(waId: string, telefono: string | null | undefined)
   const a = waId.replace(/\D/g, "");
   const b = (telefono ?? "").replace(/\D/g, "");
   if (!a || !b) return false;
-  if (esArgentino(a) && esArgentino(b)) {
+  // El waId viene de Meta en E.164 (con país): es argentino sólo si empieza con 54. La ficha, en
+  // cambio, puede estar escrita en forma local.
+  if (a.startsWith("54") && esArgentino(b)) {
     const x = ultimos10(a);
     return x.length === 10 && x === ultimos10(b);
   }

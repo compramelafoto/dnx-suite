@@ -101,8 +101,13 @@ describe("alEco (respuesta desde el celular)", () => {
   it("eco sin texto (foto, audio) también pausa", () => {
     expect(alEco(chat(), AHORA, null, 4).parche.estado).toBe("HUMANO");
   });
-  it("eco en un chat RESUELTO lo pasa a HUMANO", () => {
-    expect(alEco(chat({ estado: "RESUELTO" }), AHORA, "hola", 4).parche.estado).toBe("HUMANO");
+  it("eco en un chat RESUELTO lo reabre y deja constancia", () => {
+    const r = alEco(chat({ estado: "RESUELTO" }), AHORA, "hola", 4);
+    expect(r.parche).toEqual({ estado: "HUMANO", botPausadoHasta: h(4) });
+    expect(r.sistema?.texto).toBe("Se reabrió desde el celular");
+  });
+  it("eco en un chat que no estaba resuelto no deja mensaje de sistema", () => {
+    expect(alEco(chat({ estado: "BOT" }), AHORA, "hola", 4).sistema).toBeUndefined();
   });
 });
 

@@ -437,6 +437,14 @@ export function crearBaseEnMemoria() {
     return f;
   }
 
+  /** Como Prisma: `{ increment: n }` suma sobre el valor actual en vez de reemplazarlo. */
+  function aplicarDatos(fila: Fila, data: Fila) {
+    for (const [k, v] of Object.entries(clonar(data) as Fila)) {
+      const inc = v && typeof v === "object" && !(v instanceof Date) ? (v as { increment?: unknown }).increment : undefined;
+      fila[k] = typeof inc === "number" ? ((fila[k] as number | null) ?? 0) + inc : v;
+    }
+  }
+
   function delegado(tabla: Tabla) {
     return {
       findFirst: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[] } = {}) => {
@@ -459,14 +467,14 @@ export function crearBaseEnMemoria() {
       update: async (a: { where: Where; data: Fila; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
         if (!f) throw Object.assign(new Error("Record to update not found"), { code: "P2025" });
-        Object.assign(f, clonar(a.data));
+        aplicarDatos(f, a.data);
         verificarUnicidad(tabla, f);
         return elegir(f, a.select);
       },
       upsert: async (a: { where: Where; create: Fila; update: Fila; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
         if (!f) return elegir(insertar(tabla, a.create), a.select);
-        Object.assign(f, clonar(a.update));
+        aplicarDatos(f, a.update);
         verificarUnicidad(tabla, f);
         return elegir(f, a.select);
       },
@@ -498,7 +506,7 @@ export function crearBaseEnMemoria() {
       updateMany: async (a: { where?: Where; data: Fila }) => {
         const hits = datos[tabla].filter((x) => cumple(x, a.where));
         for (const h of hits) {
-          Object.assign(h, clonar(a.data));
+          aplicarDatos(h, a.data);
           verificarUnicidad(tabla, h);
         }
         return { count: hits.length };

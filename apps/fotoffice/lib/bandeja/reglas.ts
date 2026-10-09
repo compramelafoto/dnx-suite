@@ -70,14 +70,17 @@ const COMANDO_BOT = /^#bot(\s|$)/i;
  * cambiar el asignado. Si el texto empieza con "#bot": vuelve a `BOT`, sin pausa ni asignado, y se
  * registra el SISTEMA "Devuelto al bot desde el celular".
  */
-export function alEco(_chat: EstadoChat, ahora: Date, texto: string | null | undefined, pausaBotHoras: number): ResultadoRegla {
+export function alEco(chat: EstadoChat, ahora: Date, texto: string | null | undefined, pausaBotHoras: number): ResultadoRegla {
   if (texto && COMANDO_BOT.test(texto.trim())) {
     return {
       parche: { estado: "BOT", botPausadoHasta: null, asignadoUserId: null },
       sistema: { texto: "Devuelto al bot desde el celular" },
     };
   }
-  return { parche: { estado: "HUMANO", botPausadoHasta: new Date(ahora.getTime() + pausaBotHoras * HORA_MS) } };
+  const parche: ParcheChat = { estado: "HUMANO", botPausadoHasta: new Date(ahora.getTime() + pausaBotHoras * HORA_MS) };
+  // Una persona escribió desde el celular en un chat cerrado: se reabre (queda constancia).
+  if (chat.estado === "RESUELTO") return { parche, sistema: { texto: "Se reabrió desde el celular" } };
+  return { parche };
 }
 
 /** §3 "Tomar (panel)": `HUMANO`, asignado a quien toma, sin pausa. `nombre` es la etiqueta del usuario. */

@@ -107,4 +107,38 @@ describe("POST /api/webhooks/whatsapp", () => {
     expect(registrado).not.toContain("sesión de fotos");
     expect(registrado).not.toContain("5493413419869");
   });
+
+  it("500: el log trae sólo nombre y código, nunca el mensaje del error (puede llevar texto o teléfonos)", async () => {
+    const original = B.tablas.fotofficeWaConexion.findUnique;
+    B.tablas.fotofficeWaConexion.findUnique = async () => {
+      throw Object.assign(new Error("Invalid `prisma.x()` invocation: Hola, quería consultar por una sesión de fotos 5493413419869"), {
+        name: "PrismaClientKnownRequestError", code: "P2024",
+      });
+    };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // El aislamiento por evento atrapa el error: igual responde 500 y loguea sin datos personales.
+      expect((await post(fixture("texto.json"))).status).toBe(500);
+    } finally {
+      B.tablas.fotofficeWaConexion.findUnique = original;
+    }
+    const registrado = JSON.stringify(log.mock.calls);
+    expect(registrado).toContain("P2024");
+    expect(registrado).toContain("PrismaClientKnownRequestError");
+    expect(registrado).not.toContain("sesión de fotos");
+    expect(registrado).not.toContain("5493413419869");
+  });
+
+  it("la firma se verifica sobre los bytes crudos (cuerpo con tildes)", async () => {
+    const cuerpo = fixture("texto.json");
+    const bytes = Buffer.from(cuerpo, "utf8");
+    const firma = `sha256=${createHmac("sha256", SECRETO).update(bytes).digest("hex")}`;
+    expect((await post(cuerpo, firma)).status).toBe(200);
+  });
+
+  it("el challenge sale como texto plano con nosniff", async () => {
+    const r = await get({ "hub.mode": "subscribe", "hub.verify_token": TOKEN, "hub.challenge": "<b>1</b>" });
+    expect(r.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(r.headers.get("content-type")).toContain("text/plain");
+  });
 });

@@ -40,7 +40,7 @@ beforeEach(async () => {
 describe("aplicarEventos: entrantes", () => {
   it("crea el chat con nombre, no leído, hora y el mensaje", async () => {
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0 });
+    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0 });
     expect(chats()).toHaveLength(1);
     expect(chats()[0]).toMatchObject({
       workspaceId: WS, waId: WA, nombre: "Lucía", estado: "BOT", noLeidos: 1, clientId: null,
@@ -67,7 +67,7 @@ describe("aplicarEventos: entrantes", () => {
   it("idempotente: el mismo waMessageId no duplica ni vuelve a sumar", async () => {
     await aplicarEventos([entrante()], AHORA);
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0 });
+    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0 });
     expect(mensajes()).toHaveLength(1);
     expect(chats()[0].noLeidos).toBe(1);
   });
@@ -93,7 +93,7 @@ describe("aplicarEventos: entrantes", () => {
 
   it("phoneNumberId sin conexión: se ignora sin tocar nada", async () => {
     const r = await aplicarEventos([entrante({ phoneNumberId: "999" })], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1 });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
     expect(chats()).toHaveLength(0);
   });
 
@@ -120,10 +120,12 @@ describe("aplicarEventos: entrantes", () => {
   it("si la escritura falla a medias no queda chat ni mensaje (transacción)", async () => {
     const original = B.tablas.fotofficeWaMensaje.create;
     B.tablas.fotofficeWaMensaje.create = async () => { throw new Error("boom"); };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await expect(aplicarEventos([entrante()], AHORA)).rejects.toThrow("boom");
+      expect(await aplicarEventos([entrante()], AHORA)).toMatchObject({ aplicados: 0, fallidos: 1 });
     } finally {
       B.tablas.fotofficeWaMensaje.create = original;
+      log.mockRestore();
     }
     expect(chats()).toHaveLength(0);
   });
@@ -195,6 +197,140 @@ describe("aplicarEventos: estados de envío", () => {
     await aplicarEventos([entrante({ waMessageId: "wamid.out1" })], AHORA);
     expect((await aplicarEventos([estado()], AHORA)).ignorados).toBe(1);
     expect(mensajes()[0].estadoEnvio).toBe("RECIBIDO");
+  });
+});
+
+describe("concurrencia", () => {
+  const sembrar = (p: Record<string, unknown> = {}) =>
+    P.fotofficeWaChat.create({ data: { workspaceId: WS, waId: WA, ultimoMensajeEn: min(-30), ...p } });
+
+  it("chat existente: toma el candado de fila (FOR UPDATE) y suma no leídos con increment", async () => {
+    await sembrar({ noLeidos: 2 });
+    B.sql.length = 0;
+    await aplicarEventos([entrante()], AHORA);
+    expect(B.sql.some((q) => q.texto.includes("FOR UPDATE") && q.texto.includes("FotofficeWaChat"))).toBe(true);
+    expect(chats()[0].noLeidos).toBe(3);
+  });
+
+  it("un 'Tomar' del panel que gana el candado no se pisa: se relee el chat antes de las reglas", async () => {
+    const c = await sembrar({ estado: "RESUELTO" });
+    // Al tomar el candado, el panel ya había tomado el chat (asignado 7, HUMANO).
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (texto.includes("FOR UPDATE")) B.datos.fotofficeWaChat.find((x) => x.id === c.id)!.estado = "HUMANO";
+      if (texto.includes("FOR UPDATE")) B.datos.fotofficeWaChat.find((x) => x.id === c.id)!.asignadoUserId = 7;
+    };
+    try {
+      await aplicarEventos([entrante()], AHORA);
+    } finally {
+      B.ganchos.alEjecutarSql = null;
+    }
+    expect(chats()[0]).toMatchObject({ estado: "HUMANO", asignadoUserId: 7 });
+    expect(mensajes().filter((m) => m.direccion === "SISTEMA")).toHaveLength(0);
+  });
+
+  it("carrera al crear el chat: el otro lo creó primero, el mensaje se guarda una sola vez y no se pierde", async () => {
+    const original = B.tablas.fotofficeWaChat.create;
+    let fallo = true;
+    B.tablas.fotofficeWaChat.create = async (a) => {
+      if (fallo) {
+        fallo = false;
+        B.agregarDeOtraTransaccion("fotofficeWaChat", { workspaceId: WS, waId: WA, ultimoMensajeEn: min(-2), noLeidos: 1 });
+        throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+      }
+      return original(a);
+    };
+    try {
+      const r = await aplicarEventos([entrante()], AHORA);
+      expect(r).toMatchObject({ aplicados: 1, fallidos: 0 });
+    } finally {
+      B.tablas.fotofficeWaChat.create = original;
+    }
+    expect(chats()).toHaveLength(1);
+    expect(mensajes().filter((m) => m.waMessageId === "wamid.1")).toHaveLength(1);
+    expect(chats()[0].noLeidos).toBe(2);
+  });
+});
+
+describe("aislamiento de fallos por evento", () => {
+  it("un evento que falla no frena al resto y se informa en fallidos (log sin datos personales)", async () => {
+    const original = B.tablas.fotofficeWaMensaje.create;
+    B.tablas.fotofficeWaMensaje.create = async (a) => {
+      if ((a.data as { waMessageId?: string }).waMessageId === "wamid.malo") throw new Error("boom: hola 5493413419869");
+      return original(a);
+    };
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const r = await aplicarEventos([entrante({ waMessageId: "wamid.malo" }), entrante({ waMessageId: "wamid.bueno", waId: "5493415550000" })], AHORA);
+      expect(r).toMatchObject({ aplicados: 1, fallidos: 1 });
+    } finally {
+      B.tablas.fotofficeWaMensaje.create = original;
+    }
+    const registrado = JSON.stringify(log.mock.calls);
+    log.mockRestore();
+    expect(mensajes().map((m) => m.waMessageId)).toEqual(["wamid.bueno"]);
+    expect(registrado).toContain('"indice":0');
+    expect(registrado).not.toContain("5493413419869");
+  });
+});
+
+describe("ECO sobre un chat resuelto", () => {
+  it("lo reabre como HUMANO y deja el mensaje de sistema", async () => {
+    await P.fotofficeWaChat.create({ data: { workspaceId: WS, waId: WA, estado: "RESUELTO", ultimoMensajeEn: min(-60) } });
+    await aplicarEventos([eco()], AHORA);
+    expect(chats()[0].estado).toBe("HUMANO");
+    expect(mensajes().some((m) => m.texto === "Se reabrió desde el celular")).toBe(true);
+  });
+});
+
+describe("estados de envío: nunca retroceden", () => {
+  const saliente = async (estadoEnvio: string) => {
+    const c = await P.fotofficeWaChat.create({ data: { workspaceId: WS, waId: WA, ultimoMensajeEn: min(-5) } });
+    await P.fotofficeWaMensaje.create({
+      data: { workspaceId: WS, chatId: c.id, direccion: "SALIENTE", autor: "BOT", waMessageId: "wamid.out1", estadoEnvio },
+    });
+  };
+
+  it("el where del updateMany protege de una carrera: si otro aviso ya lo pasó a LEIDO, ENTREGADO no lo pisa", async () => {
+    await saliente("ENVIADO");
+    const original = B.tablas.fotofficeWaMensaje.updateMany;
+    B.tablas.fotofficeWaMensaje.updateMany = async (a) => {
+      mensajes()[0].estadoEnvio = "LEIDO"; // el aviso "read" se aplicó entre la lectura y la escritura
+      return original(a);
+    };
+    try {
+      const r = await aplicarEventos([estado({ estado: "ENTREGADO" })], AHORA);
+      expect(r.ignorados).toBe(1);
+    } finally {
+      B.tablas.fotofficeWaMensaje.updateMany = original;
+    }
+    expect(mensajes()[0].estadoEnvio).toBe("LEIDO");
+  });
+
+  it("FALLO es terminal: no lo pisa un estado posterior", async () => {
+    await saliente("PENDIENTE");
+    await aplicarEventos([estado({ estado: "FALLO", errorCodigo: "131047" })], AHORA);
+    expect((await aplicarEventos([estado({ estado: "LEIDO" })], AHORA)).ignorados).toBe(1);
+    expect((await aplicarEventos([estado({ estado: "ENVIADO" })], AHORA)).ignorados).toBe(1);
+    expect(mensajes()[0]).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "131047" });
+  });
+
+  it("un FALLO tardío no pisa un mensaje ya entregado", async () => {
+    await saliente("ENTREGADO");
+    expect((await aplicarEventos([estado({ estado: "FALLO", errorCodigo: "1" })], AHORA)).ignorados).toBe(1);
+    expect(mensajes()[0].estadoEnvio).toBe("ENTREGADO");
+  });
+
+  it("estado de un mensaje desconocido: avisa en el log sólo con el código", async () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await aplicarEventos([estado({ waMessageId: "wamid.nadie", estado: "FALLO", errorCodigo: "131026" })], AHORA);
+    } finally {
+      // (se lee antes de restaurar)
+    }
+    const registrado = JSON.stringify(aviso.mock.calls);
+    aviso.mockRestore();
+    expect(registrado).toContain("131026");
+    expect(registrado).not.toContain("wamid.nadie");
   });
 });
 

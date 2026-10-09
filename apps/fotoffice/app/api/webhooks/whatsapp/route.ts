@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { firmaValida, leerWebhook } from "@/lib/bandeja/webhook";
-import { aplicarEventos } from "@/lib/bandeja/registro";
+import { firmaValida, leerWebhook, mismoTextoSeguro } from "@/lib/bandeja/webhook";
+import { aplicarEventos, detalleDeError } from "@/lib/bandeja/registro";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,8 +19,11 @@ export async function GET(request: Request) {
   if (!token) return NextResponse.json({ error: "no disponible" }, { status: 404 });
 
   const q = new URL(request.url).searchParams;
-  if (q.get("hub.mode") === "subscribe" && q.get("hub.verify_token") === token) {
-    return new Response(q.get("hub.challenge") ?? "", { status: 200, headers: { "content-type": "text/plain" } });
+  if (q.get("hub.mode") === "subscribe" && mismoTextoSeguro(q.get("hub.verify_token") ?? "", token)) {
+    return new Response(q.get("hub.challenge") ?? "", {
+      status: 200,
+      headers: { "content-type": "text/plain", "x-content-type-options": "nosniff" },
+    });
   }
   return NextResponse.json({ error: "prohibido" }, { status: 403 });
 }
@@ -29,14 +32,15 @@ export async function POST(request: Request) {
   const secreto = process.env.WHATSAPP_APP_SECRET?.trim();
   if (!secreto) return NextResponse.json({ error: "no disponible" }, { status: 404 });
 
-  const cuerpo = await request.text();
-  if (!firmaValida(cuerpo, request.headers.get("x-hub-signature-256"), secreto)) {
+  // La firma se calcula sobre los bytes crudos; recién después se decodifica el texto.
+  const bytes = Buffer.from(await request.arrayBuffer());
+  if (!firmaValida(bytes, request.headers.get("x-hub-signature-256"), secreto)) {
     return NextResponse.json({ error: "firma inválida" }, { status: 401 });
   }
 
   let payload: unknown;
   try {
-    payload = JSON.parse(cuerpo);
+    payload = JSON.parse(bytes.toString("utf8"));
   } catch {
     return NextResponse.json({ error: "cuerpo inválido" }, { status: 400 });
   }
@@ -47,12 +51,12 @@ export async function POST(request: Request) {
 
   try {
     const r = await aplicarEventos(eventos);
+    // Si algún evento falló, 500: Meta reintenta el lote y lo ya aplicado es idempotente.
+    if (r.fallidos > 0) return NextResponse.json({ error: "no se pudo registrar" }, { status: 500 });
     return NextResponse.json({ ok: true, ...r });
   } catch (error) {
-    console.error("[fotoffice][whatsapp] no se pudo registrar un aviso de Meta", {
-      detalle: error instanceof Error ? error.message : "error desconocido",
-    });
-    // 500: Meta lo reintenta más tarde; el registro es idempotente por waMessageId.
+    // Sólo nombre y código: el mensaje de un error de Prisma puede traer textos o teléfonos.
+    console.error("[fotoffice][whatsapp] no se pudo registrar un aviso de Meta", detalleDeError(error));
     return NextResponse.json({ error: "no se pudo registrar" }, { status: 500 });
   }
 }

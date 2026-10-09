@@ -162,13 +162,20 @@ export function leerWebhook(json: unknown): EventoWa[] {
   return salida;
 }
 
+/** Igualdad de textos en tiempo constante (con guarda de largo: `timingSafeEqual` lo exige). */
+export function mismoTextoSeguro(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 /**
  * Firma de Meta: `x-hub-signature-256: sha256=<HMAC-SHA256 hex del cuerpo crudo con el app secret>`.
  * Comparación en tiempo constante.
  */
-export function firmaValida(cuerpo: string, firma: string | null | undefined, secreto: string): boolean {
+export function firmaValida(cuerpo: string | Uint8Array, firma: string | null | undefined, secreto: string): boolean {
   if (!firma || !secreto) return false;
-  const esperada = Buffer.from(`sha256=${createHmac("sha256", secreto).update(cuerpo, "utf8").digest("hex")}`);
+  const esperada = Buffer.from(`sha256=${createHmac("sha256", secreto).update(cuerpo).digest("hex")}`);
   const recibida = Buffer.from(firma.trim());
   if (esperada.length !== recibida.length) return false;
   return timingSafeEqual(esperada, recibida);
