@@ -17,7 +17,7 @@ import {
   type ResultadoRegla,
 } from "./reglas";
 import { clienteDelTelefono, detalleDeError } from "./registro";
-import { vistaPreviaDe } from "./vista-previa";
+import { truncarSeguro, vistaPreviaDe } from "./vista-previa";
 
 /**
  * Acciones de la Bandeja de WhatsApp (servidor). Todas reciben el contexto armado desde la sesión
@@ -278,7 +278,7 @@ export async function crearContactoDesdeChat(ctx: CtxBandeja, chatId: string, no
       let clientId = await clienteDelTelefono(ctx.workspaceId, chat.waId, tx);
       if (!clientId) {
         const completo = (typeof nombre === "string" ? nombre.trim() : "") || chat.nombre?.trim() || "Contacto de WhatsApp";
-        const [primero, ...resto] = completo.slice(0, 120).split(/\s+/);
+        const [primero, ...resto] = truncarSeguro(completo, 120, false).split(/\s+/);
         const creado = await findOrCreateClient(
           tx,
           {

@@ -240,3 +240,36 @@ describe("vista previa", () => {
     expect(textoDeVistaPrevia({ ultimoMensajeTexto: null, ultimoMensajeTipo: null })).toBeNull();
   });
 });
+
+describe("truncarSeguro", () => {
+  const sinSuelto = (s: string) => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s);
+
+  it("un texto sin emoji que entra queda igual y uno largo se recorta a 120 con puntos", async () => {
+    const { vistaPreviaDe, truncarSeguro } = await import("./vista-previa");
+    expect(truncarSeguro("hola", 120)).toBe("hola");
+    expect(vistaPreviaDe("a".repeat(120), "TEXTO").ultimoMensajeTexto).toBe("a".repeat(120));
+    const largo = vistaPreviaDe("a".repeat(121), "TEXTO").ultimoMensajeTexto!;
+    expect(largo).toBe(`${"a".repeat(119)}…`);
+  });
+
+  it("un emoji justo en el lugar 119 o 120 no se parte", async () => {
+    const { vistaPreviaDe } = await import("./vista-previa");
+    for (const antes of [118, 119, 120]) {
+      const r = vistaPreviaDe(`${"a".repeat(antes)}😀${"b".repeat(10)}`, "TEXTO").ultimoMensajeTexto!;
+      expect(sinSuelto(r)).toBe(true);
+      expect(Array.from(r).length).toBeLessThanOrEqual(120);
+    }
+    const justo = vistaPreviaDe(`${"a".repeat(119)}😀`, "TEXTO").ultimoMensajeTexto!;
+    expect(justo).toBe(`${"a".repeat(119)}😀`);
+  });
+
+  it("un emoji familiar (con uniones) en el límite no se parte", async () => {
+    const { truncarSeguro } = await import("./vista-previa");
+    const familia = "👨‍👩‍👧‍👦";
+    const r = truncarSeguro(`${"a".repeat(118)}${familia}${"b".repeat(5)}`, 120);
+    expect(sinSuelto(r)).toBe(true);
+    // Nunca queda la familia a medias: o está entera o no está.
+    expect(r.includes("👨") ? r.includes(familia) : true).toBe(true);
+    expect(r.endsWith("…")).toBe(true);
+  });
+});

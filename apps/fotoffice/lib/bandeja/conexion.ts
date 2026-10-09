@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { MODOS_CONEXION, PAUSA_BOT_HORAS_POR_DEFECTO, type ModoConexion } from "./constantes";
+import { truncarSeguro } from "./vista-previa";
 import { puedeEnContexto } from "@/lib/access/policy";
 import type { CtxConsultas } from "@/lib/consultas/catalogo";
 import { guardarTokenWhatsapp, hayTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
@@ -85,7 +86,7 @@ export async function guardarConexion(ctx: CtxConsultas, datos: DatosConexion): 
   const wabaId = datos.wabaId === undefined ? actual.wabaId : texto(datos.wabaId) || null;
   if (wabaId && !soloDigitos(wabaId)) return { ok: false, error: MENSAJES_CONEXION.wabaId };
 
-  const displayPhone = datos.displayPhone === undefined ? actual.displayPhone : texto(datos.displayPhone).slice(0, 40) || null;
+  const displayPhone = datos.displayPhone === undefined ? actual.displayPhone : truncarSeguro(texto(datos.displayPhone), 40, false) || null;
 
   const pausa = datos.pausaBotHoras === undefined ? actual.pausaBotHoras : datos.pausaBotHoras;
   if (typeof pausa !== "number" || !Number.isInteger(pausa) || pausa < PAUSA_MINIMA_HORAS || pausa > PAUSA_MAXIMA_HORAS) {

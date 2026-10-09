@@ -9,7 +9,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { puedeOperarBandeja, puedeVerBandeja, type CtxBandeja } from "./acceso";
 import type { Autor, Direccion, EstadoDelChat, TipoMensaje } from "./constantes";
 import { atiendeElBot, estadoVisible, puedeResponderLibre } from "./reglas";
-import { textoDeVistaPrevia } from "./vista-previa";
+import { textoDeVistaPrevia, truncarSeguro } from "./vista-previa";
 
 /**
  * Lecturas de la Bandeja de WhatsApp (servidor): la lista de chats, el detalle de uno y el total de
@@ -103,7 +103,7 @@ export async function listarChats(
 
   // Sin permiso de Clientes la búsqueda no entra a la ficha: sólo perfil de WhatsApp y número.
   const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
-  const q = (opciones.q ?? "").trim().slice(0, 80);
+  const q = truncarSeguro((opciones.q ?? "").trim(), 80, false);
   if (q) {
     const digitos = soloDigitos(q);
     const porNombre = !veClientes ? [] : ((await prisma.client.findMany({
@@ -280,7 +280,7 @@ export type ClienteBuscado = { id: string; nombre: string; telefono: string | nu
  */
 export async function buscarClientes(ctx: CtxBandeja, q: unknown): Promise<ClienteBuscado[] | null> {
   if (!puedeOperarBandeja(ctx) || !puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)) return null;
-  const texto = typeof q === "string" ? q.trim().slice(0, 80) : "";
+  const texto = typeof q === "string" ? truncarSeguro(q.trim(), 80, false) : "";
   if (texto.length < 2) return [];
   const digitos = soloDigitos(texto);
   const o: Record<string, unknown>[] = [
