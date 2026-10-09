@@ -1,0 +1,113 @@
+# Muestras Fotográficas — puesta en marcha
+
+Guía para dejar el sitio funcionando en producción. Cada paso dice quién lo hace:
+**lo hace Daniel** o **lo hace Claude con permiso** (Claude pide autorización antes de actuar).
+
+## Estado al 08/10/2026
+
+| Paso | Estado |
+|---|---|
+| Dominio `muestrasfotograficas.com` comprado en DonWeb | Hecho |
+| Migración `20261025120000_muestras_etapa_1` aplicada | Hecho (08/10/2026) |
+| Proyecto de Vercel `muestras-dnxsuite` creado | Hecho |
+| Variables de entorno en Vercel | Pendiente |
+| Dominio conectado en Vercel + DNS | Pendiente |
+| URI de redirección en Google Cloud | Pendiente |
+| Verificar dominio en Resend y encender correos | Pendiente |
+| Cargar muestras reales | Pendiente |
+
+## 1. Dominio — hecho (lo hizo Daniel)
+
+Se compró `muestrasfotograficas.com` en DonWeb. Es el dominio canónico (sin `www`);
+`www.muestrasfotograficas.com` redirige al dominio sin `www`. Queda opcional mirar el `.com.ar`.
+
+## 2. Migración de base de datos — hecha (la hizo Claude con permiso)
+
+La migración `20261025120000_muestras_etapa_1` ya está aplicada en producción desde el
+08/10/2026, en la base de Neon `divine-hall-10689679`, rama `development` (la misma de FOTOFFICE),
+y está registrada en `_prisma_migrations`. No hay que volver a correrla.
+
+## 3. Proyecto de Vercel — creado (lo hizo Claude con permiso)
+
+- Proyecto: `muestras-dnxsuite` (`prj_yZNfeUfKtGhuGA4RXnfwQL10dDxq`).
+- Root Directory: `apps/muestras`. Rama de producción: `main`.
+- Los deploys de Preview están desactivados: `apps/muestras/vercel.json` tiene un `ignoreCommand`
+  que saltea cualquier build que no sea de producción.
+
+## 4. Variables de entorno en Vercel — lo hace Daniel (o Claude con permiso)
+
+Cargarlas en el proyecto `muestras-dnxsuite`, entorno **Production**:
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | La misma que `fotoffice-dnxsuite` |
+| `DIRECT_URL` | La misma que `fotoffice-dnxsuite` |
+| `GOOGLE_CLIENT_ID` | El mismo cliente compartido que usan `subilafoto-dnxsuite` y FOTOFFICE |
+| `GOOGLE_CLIENT_SECRET` | Idem |
+| `APP_URL` | `https://muestrasfotograficas.com` |
+| `NEXT_PUBLIC_APP_URL` | `https://muestrasfotograficas.com` |
+| `AUTH_URL` | `https://muestrasfotograficas.com` |
+| `R2_ACCOUNT_ID` | El de la cuenta de Cloudflare |
+| `R2_ENDPOINT` | El endpoint S3 de la cuenta de R2 |
+| `R2_ACCESS_KEY_ID` | De un token de API de R2 con permiso Object Read & Write sobre el bucket `fotoffice-media` |
+| `R2_SECRET_ACCESS_KEY` | Idem |
+| `R2_BUCKET_NAME` | `fotoffice-media` |
+| `R2_PUBLIC_URL` | `https://pub-2086bd02202c406a9b952f2dbfa945c9.r2.dev` |
+| `GEOCODING_USER_AGENT` | `MuestrasFotograficas/1.0 (muestrasfotograficas.com)` |
+| `MUESTRAS_CORREOS_EN_VIVO` | `false` (por ahora) |
+| `MUESTRAS_CONTACTO_EMAIL` | La casilla para pedidos de baja de datos (se muestra en `/privacidad`). Opcional: si falta, la página dice que se puede pedir respondiendo cualquier correo de Muestras o contactando a la organización que opera DNX Suite |
+
+**No cargar estas dos**, aunque estén en otros proyectos de la suite:
+
+- `COOKIE_DOMAIN`: FOTOFFICE usa `.dnxsuite.com`. Si se copia acá, el navegador descarta la
+  cookie de sesión en `muestrasfotograficas.com` (no es de ese dominio) y nadie puede entrar.
+  Sin la variable, la cookie queda atada al dominio del sitio, que es lo correcto.
+- `GOOGLE_REDIRECT_URI`: si se copia la de otro proyecto, Google devuelve a la persona a esa otra
+  plataforma después de elegir la cuenta. Sin la variable, el sitio arma solo
+  `https://muestrasfotograficas.com/api/auth/google/callback` a partir de `APP_URL`.
+
+**Después de cambiar variables hay que volver a desplegar**: Vercel no las aplica a un deploy que
+ya existe. Ojo: el `ignoreCommand` de `apps/muestras/vercel.json` puede saltear el redeploy de un
+commit que ya se construyó. En ese caso, desde el panel de Vercel usar **Redeploy** con
+"Use existing Build Cache" **apagado**, o subir un commit que toque algo de `apps/muestras`.
+
+Más adelante, cuando el dominio esté verificado en Resend (paso 7): `RESEND_API_KEY`
+(marcarla como sensible) y `MUESTRAS_EMAIL_FROM`.
+
+## 5. Conectar el dominio en Vercel y DNS en DonWeb — lo hace Daniel (o Claude con permiso para la parte de Vercel)
+
+1. En Vercel, proyecto `muestras-dnxsuite` → Domains: agregar `muestrasfotograficas.com`
+   como dominio principal y `www.muestrasfotograficas.com` con redirección al principal.
+2. En DonWeb, zona DNS del dominio (lo hace Daniel):
+   - Registro **A** del dominio raíz (apex) → `76.76.21.21`
+   - Registro **CNAME** de `www` → `cname.vercel-dns.com`
+   - Confirmar estos valores contra lo que Vercel muestre al agregar el dominio; si difieren, usar los de Vercel.
+3. Esperar a que Vercel marque ambos dominios como válidos (puede tardar de minutos a unas horas).
+
+## 6. Google Cloud — lo hace Daniel (consola de Google)
+
+En el proyecto `compramelafoto-auth`, cliente OAuth compartido de la suite:
+
+- Agregar a **URIs de redireccionamiento autorizados**:
+  `https://muestrasfotograficas.com/api/auth/google/callback`
+- Agregar a **Orígenes autorizados de JavaScript**:
+  `https://muestrasfotograficas.com`
+
+Sin esto el botón "Entrar con Google" falla.
+
+## 7. Correos con Resend — lo hace Daniel
+
+1. Verificar el dominio `muestrasfotograficas.com` en Resend (agregar los registros DNS que pide, en DonWeb).
+2. Cargar `RESEND_API_KEY` y `MUESTRAS_EMAIL_FROM` en Vercel.
+3. Recién entonces poner `MUESTRAS_CORREOS_EN_VIVO=true` y volver a desplegar.
+
+Mientras tanto los correos quedan apagados (hace falta que estén las dos cosas: la clave y el interruptor en `true`).
+
+## 8. Primer deploy y prueba — lo hace Claude con permiso
+
+Con todo lo anterior cargado, desplegar `main` en producción y recorrer: proponer una actividad,
+aprobarla como super admin, verla en el mapa, en el listado y en su ficha.
+
+## 9. Cargar muestras reales — lo hace Daniel con ayuda de Claude
+
+Cargar 2 o 3 muestras reales de SFPR para que el mapa no arranque vacío.

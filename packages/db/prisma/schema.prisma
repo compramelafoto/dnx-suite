@@ -23080,3 +23080,92 @@ model FotofficeCitaRecordatorio {
 
   @@unique([citaId, startAt])
 }
+
+/// Una actividad cultural de Muestras Fotográficas (muestrasfotograficas.com): muestra,
+/// charla, taller, salida, presentación de libro, proyección u otra.
+///
+/// Estados y tipos van como texto y no como enum: las apps de la suite comparten este archivo
+/// y un enum que falte en alguna base rompe sus escrituras (mismo criterio que `Raffle`).
+/// Las reglas viven en `packages/muestras`.
+model CulturalActivity {
+  id   String @id @default(cuid())
+  slug String @unique
+
+  /// MUESTRA | CHARLA | TALLER | SALIDA | LIBRO | PROYECCION | OTRA
+  type           String
+  title          String
+  description    String
+  coverImageUrl  String?
+  /// Organizadores en texto libre. Los vínculos a cuentas llegan en la etapa 2.
+  organizersText String
+
+  /// Inicio del primer día, en UTC (00:00 hora argentina).
+  startsAt     DateTime
+  /// Fin del último día, en UTC (23:59:59.999 hora argentina).
+  endsAt       DateTime
+  openingAt    DateTime?
+  scheduleText String?
+  /// Vacío = entrada libre.
+  priceText    String?
+  externalUrl  String?
+
+  isVirtualOnly Boolean @default(false)
+  venueName     String?
+  address       String?
+  city          String?
+  province      String?
+  latitude      Float?
+  longitude     Float?
+  geohash       String?
+
+  /// Institución de FOTOFFICE si la propuso un socio (etapa 2). Sin relación a propósito.
+  workspaceId      String?
+  proposedByUserId Int
+
+  /// DRAFT | IN_REVIEW | APPROVED | REJECTED | UNPUBLISHED
+  reviewStatus     String    @default("DRAFT")
+  rejectionReason  String?
+  submittedAt      DateTime?
+  reviewedByUserId Int?
+  reviewedAt       DateTime?
+  isCancelled      Boolean   @default(false)
+
+  /// HIGHLIGHTS_UNTIL_CLOSED | FULL
+  galleryMode       String    @default("HIGHLIGHTS_UNTIL_CLOSED")
+  rightsConfirmedAt DateTime?
+
+  /// Entrada del blog de su institución (etapa 2).
+  blogPostId       Int?
+  /// Sedes de una misma muestra itinerante comparten este valor.
+  itinerantGroupId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  works CulturalActivityWork[]
+
+  @@index([reviewStatus, endsAt])
+  @@index([proposedByUserId])
+  @@index([workspaceId])
+  @@index([geohash])
+}
+
+/// Una obra de la galería virtual de una muestra. Tope: 40 por muestra, 12 destacadas.
+model CulturalActivityWork {
+  id         String           @id @default(cuid())
+  activityId String
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  imageUrl     String
+  title        String
+  authorName   String
+  authorUserId Int?
+  year         Int?
+  technique    String?
+  isHighlight  Boolean @default(false)
+  sortOrder    Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([activityId, sortOrder])
+}
