@@ -27,23 +27,35 @@ export async function crearConvocatoria(activityId: string): Promise<ResultadoAc
   if (typeof activityId !== "string") return NO_EXISTE;
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
-  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true, proposedByUserId: true, call: { select: { id: true } } } });
+  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true, reviewStatus: true, proposedByUserId: true, call: { select: { id: true } } } });
   if (!a || (a.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) return { ok: false, errores: ["La muestra no existe."] };
   if (a.type !== "MUESTRA") return { ok: false, errores: ["Sólo una muestra puede tener convocatoria."] };
   if (a.call) return { ok: true, id: a.call.id };
+  if (a.reviewStatus === "UNPUBLISHED") return { ok: false, errores: ["La muestra está despublicada: no puede tener convocatoria."] };
   if (!frenarPorUsuario("crearConvocatoria", usuario.id).allowed) {
     return { ok: false, errores: ["Creaste muchas convocatorias seguidas. Esperá un rato y probá de nuevo."] };
   }
   const hoy = toArDay(new Date());
   const enUnMes = toArDay(new Date(dayStartAr(hoy).getTime() + 30 * 24 * 60 * 60 * 1000));
-  const creada = await prisma.culturalCall.create({
-    data: {
-      activityId: a.id, slug: newSlug(a.title), title: a.title, basesText: "", rightsText: DERECHOS_SUGERIDOS,
-      requirementsText: REQUISITOS_SUGERIDOS, opensAt: dayStartAr(hoy), closesAt: dayEndAr(enUnMes),
-      maxWorksPerPerson: DEFAULT_WORKS_PER_PERSON, createdByUserId: usuario.id,
-    },
-    select: { id: true },
-  });
+  const crear = () =>
+    prisma.culturalCall.create({
+      data: {
+        activityId: a.id, slug: newSlug(a.title), title: a.title, basesText: "", rightsText: DERECHOS_SUGERIDOS,
+        requirementsText: REQUISITOS_SUGERIDOS, opensAt: dayStartAr(hoy), closesAt: dayEndAr(enUnMes),
+        maxWorksPerPerson: DEFAULT_WORKS_PER_PERSON, createdByUserId: usuario.id,
+      },
+      select: { id: true },
+    });
+  let creada: { id: string };
+  try {
+    creada = await crear();
+  } catch (e) {
+    if ((e as { code?: string })?.code !== "P2002") throw e;
+    // Dos pedidos a la vez (ya existe la de esta muestra) o slug repetido (se reintenta una vez).
+    const existente = await prisma.culturalCall.findUnique({ where: { activityId: a.id }, select: { id: true } });
+    if (existente) return { ok: true, id: existente.id };
+    creada = await crear();
+  }
   refrescar();
   return { ok: true, id: creada.id };
 }
@@ -57,6 +69,7 @@ export async function guardarConvocatoria(fd: FormData): Promise<ResultadoAccion
   const c = await prisma.culturalCall.findUnique({ where: { id: f.id }, select: { id: true, slug: true, status: true, closesAt: true, activity: { select: { proposedByUserId: true } } } });
   if (!c || (c.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) return NO_EXISTE;
   if (c.status !== "DRAFT" && c.status !== "OPEN") return { ok: false, errores: ["La convocatoria ya cerró: no se puede editar."] };
+  if (c.status === "OPEN" && !f.basesText) return { ok: false, errores: ["Con la convocatoria abierta, las bases no pueden quedar vacías."] };
   if (c.status === "OPEN" && !f.title) return { ok: false, errores: ["Falta el título de la convocatoria."] };
   const problema = closeDayProblem(c.status, c.closesAt, f.closesDay);
   if (problema) return { ok: false, errores: [problema] };
@@ -121,10 +134,12 @@ async function congelarCodigos(id: string) {
   const codigos = anonymousCodes(id, obras.map((o) => o.id));
   const pendientes = obras.filter((o) => o.anonymousCode !== codigos.get(o.id));
   if (pendientes.length === 0) return;
-  // Una actualización por obra; 60 s alcanzan para cientos de obras contra Neon.
+  // Primero se liberan todos los códigos de la convocatoria (obras retiradas incluidas) y recién
+  // después se asignan, así un corrimiento de posiciones no choca con (callId, anonymousCode).
   await prisma.$transaction(
     async (tx) => {
-      for (const o of pendientes) await tx.culturalCallWork.update({ where: { id: o.id }, data: { anonymousCode: codigos.get(o.id)! } });
+      await tx.culturalCallWork.updateMany({ where: { callId: id, anonymousCode: { not: null } }, data: { anonymousCode: null } });
+      for (const o of obras) await tx.culturalCallWork.update({ where: { id: o.id }, data: { anonymousCode: codigos.get(o.id)! } });
     },
     { timeout: 60_000, maxWait: 10_000 },
   );
@@ -134,7 +149,12 @@ async function congelarCodigos(id: string) {
 export async function cerrarConvocatoria(id: string): Promise<ResultadoAccion> {
   const r = await transicion(id, "close", (ahora) => ({ closedAt: ahora }));
   if (!r.ok) return r;
-  await congelarCodigos(id);
+  // Si congelar falla, el cierre ya quedó hecho y el aviso igual sale; `empezarCuraduria` lo repite.
+  try {
+    await congelarCodigos(id);
+  } catch (e) {
+    console.error("[convocatorias] no se pudieron congelar los códigos al cerrar", id, e);
+  }
   await avisarConvocatoriaCerrada(id);
   return { ok: true, id };
 }
@@ -144,7 +164,13 @@ export async function empezarCuraduria(id: string): Promise<ResultadoAccion> {
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
   const c = await prisma.culturalCall.findUnique({ where: { id }, select: { status: true, activity: { select: { proposedByUserId: true } } } });
-  if (c && c.status === "CLOSED" && (c.activity.proposedByUserId === usuario.id || usuario.esSuperAdmin)) await congelarCodigos(id);
+  if (c && c.status === "CLOSED" && (c.activity.proposedByUserId === usuario.id || usuario.esSuperAdmin)) {
+    try {
+      await congelarCodigos(id);
+    } catch {
+      return { ok: false, errores: ["No se pudieron asignar los códigos anónimos. Probá de nuevo."] };
+    }
+  }
   return transicion(id, "startCuration", (ahora) => ({ curationStartedAt: ahora }));
 }
 

@@ -6,7 +6,9 @@ const db = vi.hoisted(() => ({
   culturalCallSubmission: { findFirst: vi.fn() },
   culturalCallCurator: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   culturalCallWork: { findUnique: vi.fn() },
-  culturalCallScore: { upsert: vi.fn() },
+  culturalCallScore: { upsert: vi.fn(), deleteMany: vi.fn() },
+  $queryRaw: vi.fn(),
+  $transaction: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 const correos = vi.hoisted(() => ({ avisarInvitacionCurador: vi.fn() }));
@@ -37,6 +39,8 @@ beforeEach(() => {
   db.culturalCallCurator.create.mockResolvedValue({ id: "k1" });
   db.culturalCallCurator.update.mockResolvedValue({ id: "k1" });
   db.culturalCallCurator.updateMany.mockResolvedValue({ count: 1 });
+  db.$transaction.mockImplementation(async (fn: (tx: typeof db) => Promise<unknown>) => fn(db));
+  db.$queryRaw.mockResolvedValue([{ callStatus: "CURATING", curatorStatus: "ACTIVE" }]);
 });
 
 describe("invitarCurador", () => {
@@ -53,15 +57,17 @@ describe("invitarCurador", () => {
     expect((await invitarCurador("c1", "x@y.com")).ok).toBe(false);
     expect(db.culturalCallCurator.create).not.toHaveBeenCalled();
   });
-  it("no invita a quien envió obras", async () => {
+  it("no revela si la persona envió obras: invita igual", async () => {
     db.user.findMany.mockResolvedValue([{ id: 20 }]);
     db.culturalCallSubmission.findFirst.mockResolvedValue({ id: "s1" });
-    expect((await invitarCurador("c1", "carla@x.com")).ok).toBe(false);
+    expect((await invitarCurador("c1", "carla@x.com")).ok).toBe(true);
+    expect(db.culturalCallSubmission.findFirst).not.toHaveBeenCalled();
   });
   it("renueva una invitación revocada", async () => {
-    db.culturalCallCurator.findUnique.mockResolvedValue({ id: "k0", status: "REVOKED" });
+    db.culturalCallCurator.findUnique.mockResolvedValue({ id: "k0", status: "REVOKED", userId: 20 });
     expect((await invitarCurador("c1", "carla@x.com")).ok).toBe(true);
-    expect(db.culturalCallCurator.update.mock.calls[0][0].data).toMatchObject({ status: "INVITED", revokedAt: null });
+    expect(db.culturalCallScore.deleteMany).toHaveBeenCalledWith({ where: { curatorId: "k0" } });
+    expect(db.culturalCallCurator.update.mock.calls[0][0].data).toMatchObject({ status: "INVITED", revokedAt: null, userId: null });
   });
   it("email inválido", async () => expect(await invitarCurador("c1", "nada")).toEqual({ ok: false, errores: ["Escribí un email válido."] }));
   it("con la selección terminada no se suma gente", async () => {
@@ -100,6 +106,20 @@ describe("aceptarInvitacion", () => {
     db.culturalCallCurator.findUnique.mockResolvedValue({ id: "k1", callId: "c1", status: "ACTIVE", invitedAt: new Date() });
     expect(await aceptarInvitacion(TOKEN)).toMatchObject({ ok: false, errores: [expect.stringMatching(/ya se usó/)] });
   });
+  it("una fila ligada a otra cuenta no se acepta", async () => {
+    db.culturalCallCurator.findUnique.mockResolvedValue({ id: "k1", callId: "c1", status: "INVITED", invitedAt: new Date(), userId: 99 });
+    expect((await aceptarInvitacion(TOKEN)).ok).toBe(false);
+    expect(db.culturalCallCurator.updateMany).not.toHaveBeenCalled();
+  });
+  it("un choque de unicidad da un mensaje claro", async () => {
+    db.culturalCallCurator.updateMany.mockRejectedValue({ code: "P2002" });
+    expect(await aceptarInvitacion(TOKEN)).toMatchObject({ ok: false, errores: [expect.stringMatching(/otra invitación/)] });
+  });
+  it("si ya es curador por otra fila, esta invitación se revoca", async () => {
+    db.culturalCallCurator.findFirst.mockResolvedValue({ id: "k0" });
+    expect(await aceptarInvitacion(TOKEN)).toEqual({ ok: true, id: "c1" });
+    expect(db.culturalCallCurator.updateMany.mock.calls[0][0]).toMatchObject({ where: { id: "k1", status: "INVITED" }, data: { status: "REVOKED" } });
+  });
   it("quien envió obras no puede aceptar", async () => {
     db.culturalCallSubmission.findFirst.mockResolvedValue({ id: "s1" });
     expect((await aceptarInvitacion(TOKEN)).ok).toBe(false);
@@ -132,6 +152,11 @@ describe("puntuar", () => {
   });
   it("un curador revocado no", async () => {
     db.culturalCallCurator.findFirst.mockResolvedValue({ id: "k1", status: "REVOKED" });
+    expect((await puntuar("w1", 3, "")).ok).toBe(false);
+    expect(db.culturalCallScore.upsert).not.toHaveBeenCalled();
+  });
+  it("si bajo el bloqueo la curaduría ya cerró, no escribe", async () => {
+    db.$queryRaw.mockResolvedValue([{ callStatus: "DONE", curatorStatus: "ACTIVE" }]);
     expect((await puntuar("w1", 3, "")).ok).toBe(false);
     expect(db.culturalCallScore.upsert).not.toHaveBeenCalled();
   });

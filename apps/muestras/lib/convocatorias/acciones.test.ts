@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => {
   const d = {
     culturalActivity: { findUnique: vi.fn() },
-    culturalCall: { findUnique: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    culturalCall: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
     culturalCallSubmission: { count: vi.fn() },
     culturalCallCurator: { count: vi.fn() },
-    culturalCallWork: { count: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+    culturalCallWork: { count: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     $transaction: vi.fn(),
   };
   return d;
@@ -65,6 +65,24 @@ describe("crearConvocatoria", () => {
     expect(await crearConvocatoria("a1")).toEqual({ ok: true, id: "c0" });
     expect(db.culturalCall.create).not.toHaveBeenCalled();
   });
+  it("no para una muestra despublicada", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ id: "a1", title: "Ciudad", type: "MUESTRA", reviewStatus: "UNPUBLISHED", proposedByUserId: 7, call: null });
+    expect((await crearConvocatoria("a1")).ok).toBe(false);
+    expect(db.culturalCall.create).not.toHaveBeenCalled();
+  });
+  it("si dos pedidos chocan (P2002), devuelve la que ya existe", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ id: "a1", title: "Ciudad", type: "MUESTRA", proposedByUserId: 7, call: null });
+    db.culturalCall.create.mockRejectedValueOnce({ code: "P2002" });
+    db.culturalCall.findUnique.mockResolvedValue({ id: "c9" });
+    expect(await crearConvocatoria("a1")).toEqual({ ok: true, id: "c9" });
+  });
+  it("si choca el slug, reintenta con otro", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ id: "a1", title: "Ciudad", type: "MUESTRA", proposedByUserId: 7, call: null });
+    db.culturalCall.create.mockRejectedValueOnce({ code: "P2002" });
+    db.culturalCall.findUnique.mockResolvedValue(null);
+    expect(await crearConvocatoria("a1")).toEqual({ ok: true, id: "c1" });
+    expect(db.culturalCall.create).toHaveBeenCalledTimes(2);
+  });
   it("crea en borrador con textos sugeridos", async () => {
     db.culturalActivity.findUnique.mockResolvedValue({ id: "a1", title: "Ciudad", type: "MUESTRA", proposedByUserId: 7, call: null });
     expect(await crearConvocatoria("a1")).toEqual({ ok: true, id: "c1" });
@@ -93,6 +111,11 @@ describe("guardarConvocatoria", () => {
     expect((await guardarConvocatoria(fd({ ...form, closesDay: "2026-12-10" }))).ok).toBe(true);
     const data = db.culturalCall.updateMany.mock.calls[0][0].data;
     expect(Object.keys(data).sort()).toEqual(["basesText", "closesAt", "requirementsText", "title"]);
+  });
+  it("abierta no deja vaciar las bases", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, status: "OPEN" });
+    expect((await guardarConvocatoria(fd({ ...form, closesDay: "2026-12-10", basesText: "" }))).ok).toBe(false);
+    expect(db.culturalCall.updateMany).not.toHaveBeenCalled();
   });
   it("cerrada no se edita", async () => {
     db.culturalCall.findUnique.mockResolvedValue({ ...conv, status: "CLOSED" });
@@ -126,6 +149,17 @@ describe("estados", () => {
     const codigos = db.culturalCallWork.update.mock.calls.map((c) => c[0].data.anonymousCode).sort();
     expect(codigos).toEqual(["O-001", "O-002"]);
     expect(db.culturalCallWork.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { callId: "c1", submission: { status: "ACTIVE" } } }));
+    expect(correos.avisarConvocatoriaCerrada).toHaveBeenCalledWith("c1");
+    // Antes de asignar se liberan todos los códigos de la convocatoria.
+    expect(db.culturalCallWork.updateMany).toHaveBeenCalledWith({ where: { callId: "c1", anonymousCode: { not: null } }, data: { anonymousCode: null } });
+  });
+  it("si congelar falla, el cierre queda y el aviso sale igual", async () => {
+    vi.useFakeTimers({ now: new Date("2026-12-02T15:00:00Z"), toFake: ["Date"] });
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, status: "OPEN" });
+    db.culturalCallWork.findMany.mockResolvedValue([{ id: "w1", anonymousCode: null }]);
+    db.$transaction.mockRejectedValueOnce(new Error("boom"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await cerrarConvocatoria("c1")).ok).toBe(true);
     expect(correos.avisarConvocatoriaCerrada).toHaveBeenCalledWith("c1");
   });
   it("si se cambia el estado en el medio, no avisa", async () => {
