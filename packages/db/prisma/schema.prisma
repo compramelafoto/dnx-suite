@@ -23400,6 +23400,16 @@ model CulturalActivity {
   /// Sedes de una misma muestra itinerante comparten este valor.
   itinerantGroupId String?
 
+  /// Texto curatorial (Muestras, etapa 4): va en la ficha pública, el cartel de sala y el catálogo.
+  curatorialText String?
+  /// Créditos de la curaduría, p. ej. "Curaduría: Ana Pérez".
+  curatorCredits String?
+  /// Libro de visitas: PUBLISH | REVIEW | OFF
+  guestbookMode  String  @default("PUBLISH")
+  /// Plano de montaje (paredes y obras). Se lee y se guarda entero; ver `parseHangingPlan`.
+  /// Sin FK a las obras a propósito: el editor de la muestra las borra y las vuelve a crear.
+  hangingPlan    Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -23407,6 +23417,11 @@ model CulturalActivity {
 
   /// Convocatoria online de esta muestra (Muestras, etapa 3). A lo sumo una.
   call CulturalCall?
+
+  /// Contadores diarios de visitas y escaneos (etapa 4).
+  dailyStats       CulturalActivityDailyStat[]
+  /// Comentarios del libro de visitas (etapa 4).
+  guestbookEntries CulturalActivityGuestbookEntry[]
 
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
@@ -23618,4 +23633,40 @@ model FotofficeInformesAjustes {
   updatedAt           DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Contador diario de la sala (Muestras Fotográficas, etapa 4). Sin datos de quien visita: ni IP,
+/// ni user-agent, ni usuario. `workId` vacío = la muestra entera; si no, el id de una obra, sin FK
+/// (el editor de la muestra reescribe sus obras). `day` es el día argentino "AAAA-MM-DD" como
+/// texto, a propósito: un timestamp sin zona corre el día.
+model CulturalActivityDailyStat {
+  activityId String
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  workId     String           @default("")
+  day        String
+  /// VIEW | SCAN | GUESTBOOK_SCAN
+  metric     String
+  count      Int              @default(0)
+
+  @@id([activityId, workId, day, metric])
+}
+
+/// Comentario del libro de visitas de una muestra (etapa 4). Se deja sin cuenta; no se guarda IP
+/// ni nada que identifique a quien lo escribió más allá de lo que eligió poner.
+model CulturalActivityGuestbookEntry {
+  id         String           @id @default(cuid())
+  activityId String
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  name    String?
+  city    String?
+  comment String
+  /// PENDING | PUBLISHED | HIDDEN
+  status  String  @default("PUBLISHED")
+
+  moderatedAt       DateTime?
+  moderatedByUserId Int?
+  createdAt         DateTime  @default(now())
+
+  @@index([activityId, status, createdAt])
 }
