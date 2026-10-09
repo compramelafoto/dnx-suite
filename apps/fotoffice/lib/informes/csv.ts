@@ -5,6 +5,7 @@
 import { armarCsvExcel } from "@/lib/listado/csv";
 import type { ColumnaExport } from "@/lib/listado/tipos";
 import type { FilaDetalle } from "./detalle";
+import { ETIQUETAS_AGRUPAMIENTO_EMBUDO, type TablaEmbudo } from "./embudo";
 import { fechaLarga } from "./detalle";
 import { LEYENDA_MONOTRIBUTO } from "./constantes";
 import type { FlujoProyectado } from "./flujo";
@@ -13,7 +14,7 @@ import { etiquetaMes } from "./periodos";
 import type { FilaRubro, MatrizResultados } from "./resultados";
 import { ETIQUETAS_AGRUPAMIENTO, type FilaDetalleVentas, type MatrizVentas } from "./ventas";
 
-export const INFORMES_CSV = ["resultados", "resultados-detalle", "flujo", "flujo-detalle", "monotributo", "ventas", "ventas-detalle"] as const;
+export const INFORMES_CSV = ["resultados", "resultados-detalle", "flujo", "flujo-detalle", "monotributo", "ventas", "ventas-detalle", "embudo"] as const;
 export type InformeCsv = (typeof INFORMES_CSV)[number];
 
 export function esInformeCsv(v: string): v is InformeCsv {
@@ -134,6 +135,24 @@ export function csvDeVentasDetalle(filas: readonly FilaDetalleVentas[], total: n
     { titulo: "Categoría", tipo: "texto", valor: (f) => f.categoria },
     { titulo: "Vendedor", tipo: "texto", valor: (f) => f.vendedor },
     { titulo: "Importe", tipo: "importe", valor: (f) => f.centavos },
+  ];
+  return armarCsvExcel(columnas, datos);
+}
+
+/** Embudo de consultas: una fila por grupo y el total al final. Conversión con coma decimal, días con un decimal. */
+export function csvDeEmbudo(t: TablaEmbudo): string {
+  const coma = (n: number) => String(n).replace(".", ",");
+  const datos = [...t.filas, t.total];
+  const columnas: ColumnaExport<(typeof datos)[number]>[] = [
+    { titulo: ETIQUETAS_AGRUPAMIENTO_EMBUDO[t.agrupar], tipo: "texto", valor: (f) => f.etiqueta },
+    { titulo: "Entraron", tipo: "texto", valor: (f) => String(f.entraron) },
+    { titulo: "Ganadas", tipo: "texto", valor: (f) => String(f.ganadas) },
+    { titulo: "Perdidas", tipo: "texto", valor: (f) => String(f.perdidas) },
+    { titulo: "Abiertas", tipo: "texto", valor: (f) => String(f.abiertas) },
+    { titulo: "% de conversión", tipo: "texto", valor: (f) => (f.conversion === null ? "" : `${coma(f.conversion)} %`) },
+    { titulo: "Valor estimado", tipo: "importe", valor: (f) => f.valorEstimado },
+    { titulo: "Vendido", tipo: "importe", valor: (f) => f.vendido },
+    { titulo: "Días promedio hasta cerrar", tipo: "texto", valor: (f) => (f.diasPromedio === null ? "" : coma(f.diasPromedio)) },
   ];
   return armarCsvExcel(columnas, datos);
 }

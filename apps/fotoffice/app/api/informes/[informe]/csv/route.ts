@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@repo/db";
 import { contextoDeInformes } from "@/lib/informes/acceso";
-import { csvDeDetalle, csvDeFlujo, csvDeMonotributo, csvDeResultados, csvDeVentas, csvDeVentasDetalle, esInformeCsv } from "@/lib/informes/csv";
+import { csvDeDetalle, csvDeEmbudo, csvDeFlujo, csvDeMonotributo, csvDeResultados, csvDeVentas, csvDeVentasDetalle, esInformeCsv } from "@/lib/informes/csv";
 import { cargarDetalleFlujo, cargarDetalleResultados } from "@/lib/informes/detalle-datos";
+import { cargarEmbudo } from "@/lib/informes/embudo-datos";
 import { cargarFlujo } from "@/lib/informes/flujo-datos";
 import { cargarMonotributo } from "@/lib/informes/monotributo-datos";
 import { cargarResultados } from "@/lib/informes/resultados-datos";
@@ -13,7 +14,7 @@ import { nombreArchivoExport } from "@/lib/listado/csv";
 export const dynamic = "force-dynamic";
 
 /**
- * CSV de Informes: resultados, resultados-detalle, flujo, flujo-detalle, monotributo, ventas y ventas-detalle. Mismo permiso que
+ * CSV de Informes: resultados, resultados-detalle, flujo, flujo-detalle, monotributo, ventas, ventas-detalle y embudo. Mismo permiso que
  * las pantallas (módulo `reports` encendido y `verDinero`); sin permiso responde 404 sin decir el motivo.
  * Todo se lee del workspace de la sesión.
  */
@@ -42,6 +43,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ info
     if (!v) return new NextResponse(null, { status: 404 });
     if (v.matriz) csv = csvDeVentas(v.matriz);
     else aviso = v.avisos[v.avisos.length - 1] ?? null;
+  } else if (informe === "embudo") {
+    const e = await cargarEmbudo(ctx, { periodo: valorDePeriodo(sp), agrupar: primero(sp.agrupar) });
+    if (!e) return new NextResponse(null, { status: 404 });
+    if (e.tabla) csv = csvDeEmbudo(e.tabla);
+    else aviso = e.avisos[e.avisos.length - 1] ?? null;
   } else if (informe === "ventas-detalle") {
     const d = await cargarDetalleVentas(ctx, sp);
     if (!d) return new NextResponse(null, { status: 404 });

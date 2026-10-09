@@ -11,6 +11,7 @@ const M = vi.hoisted(() => ({
   monotributo: vi.fn(),
   ventas: vi.fn(),
   detalleVentas: vi.fn(),
+  embudo: vi.fn(),
   workspace: vi.fn(async () => ({ name: "Mi Estudio" })),
 }));
 vi.mock("server-only", () => ({}));
@@ -20,6 +21,7 @@ vi.mock("@/lib/informes/resultados-datos", () => ({ cargarResultados: M.resultad
 vi.mock("@/lib/informes/detalle-datos", () => ({ cargarDetalleResultados: M.detalleRes, cargarDetalleFlujo: M.detalleFlujo }));
 vi.mock("@/lib/informes/flujo-datos", () => ({ cargarFlujo: M.flujo }));
 vi.mock("@/lib/informes/ventas-datos", () => ({ cargarVentas: M.ventas, cargarDetalleVentas: M.detalleVentas }));
+vi.mock("@/lib/informes/embudo-datos", () => ({ cargarEmbudo: M.embudo }));
 vi.mock("@/lib/informes/monotributo-datos", () => ({ cargarMonotributo: M.monotributo }));
 
 const { GET } = await import("./route");
@@ -27,6 +29,7 @@ const { armarResultados } = await import("@/lib/informes/resultados");
 const { armarFlujo } = await import("@/lib/informes/flujo");
 const { armarMonotributo } = await import("@/lib/informes/monotributo");
 const { armarVentas } = await import("@/lib/informes/ventas");
+const { armarEmbudo } = await import("@/lib/informes/embudo");
 
 const llamar = (informe: string, query = "") =>
   GET(new NextRequest(`http://localhost/api/informes/${informe}/csv${query}`), { params: Promise.resolve({ informe }) });
@@ -150,5 +153,28 @@ describe("GET /api/informes/[informe]/csv", () => {
     expect(t).toContain("Total;;;;;;5,00");
     M.detalleVentas.mockResolvedValue(null);
     expect((await llamar("ventas-detalle")).status).toBe(404);
+  });
+
+  it("Embudo: CSV con una fila por grupo y el total; 422 si se pasó el tope", async () => {
+    const tabla = armarEmbudo({
+      agrupar: "categoria",
+      consultas: [
+        { id: "1", creadaEn: new Date("2026-10-01T15:00:00Z"), categoriaId: "k1", categoria: "Bodas", origenId: null, origen: null, valorEstimadoCentavos: 100000, resultado: "GANADA", cerradaEn: new Date("2026-10-04T15:00:00Z"), vendidoCentavos: 123450 },
+        { id: "2", creadaEn: new Date("2026-10-01T15:00:00Z"), categoriaId: "k1", categoria: "Bodas", origenId: null, origen: null, valorEstimadoCentavos: 0, resultado: null, cerradaEn: null, vendidoCentavos: 0 },
+      ],
+    });
+    M.embudo.mockResolvedValue({ periodo: { valor: "este-mes" }, agrupar: "categoria", tabla, avisos: [] });
+    const r = await llamar("embudo", "?agrupar=categoria&periodo=este-mes");
+    expect(r.status).toBe(200);
+    const t = await r.text();
+    expect(t).toContain("Categoría;Entraron;Ganadas;Perdidas;Abiertas;% de conversión;Valor estimado;Vendido;Días promedio hasta cerrar");
+    expect(t).toContain("Bodas;2;1;0;1;50 %;1000,00;1234,50;3");
+    expect(t).toContain("Total;2;1;0;1;50 %;1000,00;1234,50;3");
+    expect(M.embudo.mock.calls[0][1]).toEqual({ periodo: "este-mes", agrupar: "categoria" });
+
+    M.embudo.mockResolvedValue({ periodo: { valor: "este-mes" }, agrupar: "categoria", tabla: null, avisos: ["Hay demasiados datos para este período, achicá el rango"] });
+    expect((await llamar("embudo")).status).toBe(422);
+    M.embudo.mockResolvedValue(null);
+    expect((await llamar("embudo")).status).toBe(404);
   });
 });
