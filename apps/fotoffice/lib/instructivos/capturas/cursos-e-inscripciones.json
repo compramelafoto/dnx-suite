@@ -1,0 +1,32 @@
+[
+  {
+    "archivo": "01-crear-curso.png",
+    "ruta": "/dashboard/courses/new",
+    "que_mostrar": "La sección Información general del formulario Crear curso con datos de ejemplo: Título «Taller de retrato», Estado Borrador, Modalidad Presencial, Instructor/a y Nivel completos. No enviar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-edicion.png",
+    "ruta": "/dashboard/courses/<id de un curso presencial con al menos una edición>",
+    "que_mostrar": "Bajar hasta la tarjeta Ediciones: el formulario de nueva edición arriba y, debajo, una edición existente con fechas, lugar, precio y «Cupos disponibles: X/Y».",
+    "selector_recorte": "section.fo-card:has(h2)"
+  },
+  {
+    "archivo": "03-publicar.png",
+    "ruta": "/dashboard/courses/<id de un curso presencial>",
+    "que_mostrar": "La parte superior de Información general con el selector Estado abierto o mostrando Publicado. No guardar si es un curso real que no debe publicarse.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "04-listado.png",
+    "ruta": "/dashboard/courses",
+    "que_mostrar": "El listado Cursos presenciales con al menos un curso Publicado, mostrando «Ediciones: N · Inscripciones aprobadas: N» y los botones Editar y Duplicar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "05-inscripciones.png",
+    "ruta": "/courses/leads",
+    "que_mostrar": "La tabla «Inscripciones y leads» con alguna fila. Si está vacía en la base real, mostrar el estado vacío «Sin leads todavía». Difuminar nombres y correos.",
+    "selector_recorte": null
+  }
+]

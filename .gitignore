@@ -125,3 +125,7 @@ packages/db/.data/
 .env*
 !.env.example
 !**/.env.example
+
+# Caché incremental de TypeScript. Es un archivo generado y gigante: versionado
+# genera un conflicto en cada fusión y no aporta nada.
+*.tsbuildinfo
