@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
+import { contextoDeInformes } from "@/lib/informes/acceso";
 import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listCategories, movementsForBalance, movementsForReport } from "@/lib/cash/repository";
 import { balancesByAccountMinor, periodSummary, topClients, totalsByCategory } from "@/lib/cash/balance";
@@ -205,12 +207,21 @@ export default async function ReportesPage({
     : [];
   const margenTotales = marginTotals(lineasMargen);
   const margenPorProducto = marginByProduct(lineasMargen);
+  // El enlace a Informes sólo si el módulo está encendido y esta persona puede verlo.
+  const verInformes = (await contextoDeInformes()) !== null;
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Reportes"
         description="Saldo por cuenta, lo que entró y salió del período, y quiénes compraron más."
+        actions={
+          verInformes ? (
+            <Link href="/informes/resultados" className="fo-btn fo-btn-secondary text-sm">
+              Ver en Informes
+            </Link>
+          ) : undefined
+        }
       />
 
       <PeriodFilter accounts={cuentas} accountId={accountId} from={range.from} to={range.to} activeShortcut={activeShortcut} />

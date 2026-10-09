@@ -73,6 +73,17 @@ export const NOMBRE_RUBRO_DESCONOCIDO = "Rubro no encontrado";
 const ceros = (n: number) => Array.from({ length: n }, () => 0);
 const sumar = (a: number[], b: readonly number[]) => a.forEach((_, i) => (a[i] += b[i]));
 
+/**
+ * Bloque en el que cae un asiento: el de su rubro si es del mismo lado; si no, "Sin clasificar" de
+ * su propio lado. Lo usan la matriz y el desglose, para que una celda y su detalle coincidan.
+ */
+export function claveBloqueDeAsiento(a: Pick<Asiento, "categoryId" | "kind">, porId: ReadonlyMap<string, RubroInfo>): ClaveBloque {
+  const rubro = a.categoryId ? porId.get(a.categoryId) : undefined;
+  const bloqueRubro = rubro ? bloqueDeRubro(rubro, porId) : null;
+  if (bloqueRubro !== null && ladoDeBloque(bloqueRubro) === a.kind) return bloqueRubro;
+  return a.kind === "INGRESO" ? "SIN_CLASIFICAR_INGRESO" : "SIN_CLASIFICAR_EGRESO";
+}
+
 export function armarResultados(entrada: { meses: string[]; rubros: RubroInfo[]; asientos: Asiento[] }): MatrizResultados {
   const { meses, rubros, asientos } = entrada;
   const indiceMes = new Map(meses.map((m, i) => [m, i]));
@@ -85,15 +96,7 @@ export function armarResultados(entrada: { meses: string[]; rubros: RubroInfo[];
   for (const a of asientos) {
     const i = indiceMes.get(a.mes);
     if (i === undefined) continue;
-    const rubro = a.categoryId ? porId.get(a.categoryId) : undefined;
-    const bloqueRubro = rubro ? bloqueDeRubro(rubro, porId) : null;
-    const lado = a.kind;
-    const bloque: ClaveBloque =
-      bloqueRubro !== null && ladoDeBloque(bloqueRubro) === lado
-        ? bloqueRubro
-        : lado === "INGRESO"
-          ? "SIN_CLASIFICAR_INGRESO"
-          : "SIN_CLASIFICAR_EGRESO";
+    const bloque = claveBloqueDeAsiento(a, porId);
     const clave = `${bloque}|${a.categoryId ?? ""}`;
     let celda = acumulado.get(clave);
     if (!celda) acumulado.set(clave, (celda = { bloque, porMes: ceros(n) }));
@@ -222,31 +225,44 @@ export function asientosDeCaja(
   opciones: { excluirModulos?: readonly string[] } = {},
 ): Asiento[] {
   const excluidos = new Set(opciones.excluirModulos ?? []);
+  const porId = mapaDeOriginales(movs, originales);
+  const out: Asiento[] = [];
+  for (const m of movs) {
+    const a = asientoDeMovimiento(m, porId, excluidos);
+    if (a) out.push(a);
+  }
+  return out;
+}
+
+/** Los originales posibles de una anulación: los de afuera del lote y los movimientos del propio lote. */
+export function mapaDeOriginales(movs: readonly MovimientoCajaFila[], originales: Iterable<MovimientoOriginal> = []): Map<string, MovimientoOriginal> {
   const porId = new Map<string, MovimientoOriginal>();
   for (const o of originales) porId.set(o.id, o);
   for (const m of movs) porId.set(m.id, m);
+  return porId;
+}
 
-  const out: Asiento[] = [];
-  for (const m of movs) {
-    if (m.transferId !== null) continue;
-    const mes = mesDeDia(diaEnBuenosAires(m.occurredAt));
-    if (m.reversesMovementId === null) {
-      if (excluidos.has(m.sourceModule)) continue;
-      out.push({ mes, categoryId: m.categoryId, kind: m.kind, centavos: m.centavos, signo: 1 });
-      continue;
-    }
-    const original = porId.get(m.reversesMovementId);
-    if (original) {
-      if (original.transferId) continue;
-      if (excluidos.has(original.sourceModule ?? m.sourceModule)) continue;
-      out.push({ mes, categoryId: original.categoryId, kind: original.kind, centavos: m.centavos, signo: -1 });
-    } else {
-      // Sin el original a mano: el contramovimiento es del lado contrario, así que se resta del lado opuesto.
-      if (excluidos.has(m.sourceModule)) continue;
-      out.push({ mes, categoryId: m.categoryId, kind: m.kind === "INGRESO" ? "EGRESO" : "INGRESO", centavos: m.centavos, signo: -1 });
-    }
+/** El asiento de un movimiento de Caja (`null` si no cuenta: pata de transferencia o módulo excluido). */
+export function asientoDeMovimiento(
+  m: MovimientoCajaFila,
+  porId: ReadonlyMap<string, MovimientoOriginal>,
+  excluidos: ReadonlySet<string> = new Set(),
+): Asiento | null {
+  if (m.transferId !== null) return null;
+  const mes = mesDeDia(diaEnBuenosAires(m.occurredAt));
+  if (m.reversesMovementId === null) {
+    if (excluidos.has(m.sourceModule)) return null;
+    return { mes, categoryId: m.categoryId, kind: m.kind, centavos: m.centavos, signo: 1 };
   }
-  return out;
+  const original = porId.get(m.reversesMovementId);
+  if (original) {
+    if (original.transferId) return null;
+    if (excluidos.has(original.sourceModule ?? m.sourceModule)) return null;
+    return { mes, categoryId: original.categoryId, kind: original.kind, centavos: m.centavos, signo: -1 };
+  }
+  // Sin el original a mano: el contramovimiento es del lado contrario, así que se resta del lado opuesto.
+  if (excluidos.has(m.sourceModule)) return null;
+  return { mes, categoryId: m.categoryId, kind: m.kind === "INGRESO" ? "EGRESO" : "INGRESO", centavos: m.centavos, signo: -1 };
 }
 
 export type PedidoFila = {
@@ -265,6 +281,25 @@ export type CuentaPagarFila = {
   costCategoryId: string | null;
 };
 
+/** Día que ubica un pedido en la base devengada: el del evento, o el de creación (hora argentina). */
+export function diaDePedido(p: Pick<PedidoFila, "eventDate" | "createdAt">): string {
+  return p.eventDate ?? diaEnBuenosAires(p.createdAt);
+}
+
+/** Día que ubica una cuenta a pagar en la base devengada: su vencimiento, o el de creación. */
+export function diaDeCuenta(c: Pick<CuentaPagarFila, "dueDate" | "createdAt">): string {
+  return c.dueDate ?? diaEnBuenosAires(c.createdAt);
+}
+
+export function asientoDePedido(p: PedidoFila): Asiento | null {
+  if (p.status === "CANCELADO") return null;
+  return { mes: mesDeDia(diaDePedido(p)), categoryId: p.incomeCategoryId, kind: "INGRESO", centavos: p.centavos, signo: 1 };
+}
+
+export function asientoDeCuenta(c: CuentaPagarFila): Asiento {
+  return { mes: mesDeDia(diaDeCuenta(c)), categoryId: c.costCategoryId, kind: "EGRESO", centavos: c.centavos, signo: 1 };
+}
+
 /**
  * Asientos de la base "vendido y comprometido": pedidos no cancelados (ingreso, por fecha del evento
  * o de creación), todas las cuentas a pagar (egreso, por vencimiento o creación) y los movimientos de
@@ -278,14 +313,10 @@ export function asientosDevengados(entrada: {
 }): Asiento[] {
   const out: Asiento[] = [];
   for (const p of entrada.pedidos) {
-    if (p.status === "CANCELADO") continue;
-    const dia = p.eventDate ?? diaEnBuenosAires(p.createdAt);
-    out.push({ mes: mesDeDia(dia), categoryId: p.incomeCategoryId, kind: "INGRESO", centavos: p.centavos, signo: 1 });
+    const a = asientoDePedido(p);
+    if (a) out.push(a);
   }
-  for (const c of entrada.cuentas) {
-    const dia = c.dueDate ?? diaEnBuenosAires(c.createdAt);
-    out.push({ mes: mesDeDia(dia), categoryId: c.costCategoryId, kind: "EGRESO", centavos: c.centavos, signo: 1 });
-  }
+  for (const c of entrada.cuentas) out.push(asientoDeCuenta(c));
   out.push(...asientosDeCaja(entrada.movs, entrada.originales ?? [], { excluirModulos: MODULOS_CAJA_DE_PEDIDOS }));
   return out;
 }

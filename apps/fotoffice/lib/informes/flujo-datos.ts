@@ -54,7 +54,7 @@ export function hastaDeHorizonte(hoy: string, horizonte: HorizonteFlujo): string
   return mismo > ultimo ? ultimo : mismo;
 }
 
-const ESTADOS_A_COBRAR = ["CONFIRMADO", "EN_CURSO", "COMPLETADO"];
+export const ESTADOS_A_COBRAR = ["CONFIRMADO", "EN_CURSO", "COMPLETADO"];
 const LOTE = 1000;
 
 /**
