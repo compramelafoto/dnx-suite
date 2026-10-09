@@ -17,6 +17,7 @@ export function ShellSidebar({
   vocabulary,
   roleSelector = null,
   openGroups = [],
+  bandejaNoLeidos = 0,
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -38,6 +39,8 @@ export function ShellSidebar({
   roleSelector?: RoleSelectorData | null;
   /** Grupos del menú que la persona dejó desplegados (cookie `fo_nav_grupos`). */
   openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (0 si no hay o no corresponde). */
+  bandejaNoLeidos?: number;
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -68,6 +71,7 @@ export function ShellSidebar({
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
         openGroups={openGroups}
+        bandejaNoLeidos={bandejaNoLeidos}
       />
     </aside>
   );

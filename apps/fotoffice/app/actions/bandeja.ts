@@ -14,6 +14,7 @@ import {
 } from "@/lib/bandeja/acciones";
 import { guardarConexion, MENSAJES_CONEXION, type DatosConexion, type ResultadoConexion } from "@/lib/bandeja/conexion";
 import { contextoDeBandeja } from "@/lib/bandeja/contexto";
+import { buscarClientes, type ClienteBuscado } from "@/lib/bandeja/lecturas";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción arma primero el contexto desde la
 // sesión (usuario + workspace activo + módulo encendido + nivel) y recién ahí actúa. El workspace y
@@ -71,6 +72,15 @@ export async function marcarLeidoAction(chatId: string): Promise<Resultado> {
   const r = await marcarLeido(ctx, chatId);
   if (r.ok) revalidatePath("/bandeja");
   return r;
+}
+
+/** Búsqueda de clientes para vincular un chat: pide "Gestionar" en la Bandeja y "Ver" en Clientes. */
+export async function buscarClientesAction(q: string): Promise<{ ok: true; clientes: ClienteBuscado[] } | { ok: false; error: string }> {
+  const ctx = await contextoDeBandeja("operar");
+  if (!ctx) return SIN_ACCESO;
+  const clientes = await buscarClientes(ctx, q);
+  if (!clientes) return { ok: false, error: MENSAJES_BANDEJA.sinPermisoClientes };
+  return { ok: true, clientes };
 }
 
 /** Configuración → WhatsApp: sólo dueño y administradores. */

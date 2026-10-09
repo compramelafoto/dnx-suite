@@ -18,6 +18,7 @@ import {
   Link2,
   Plug,
   Inbox,
+  MessageCircle,
   LayoutDashboard,
   LayoutGrid,
   ListPlus,
@@ -41,6 +42,7 @@ import {
   type SubmoduleAccess,
   type SubmoduleItem,
 } from "@/lib/modules/submodules";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
@@ -96,6 +98,8 @@ type Item = {
   isActive: (path: string) => boolean;
   /** Qué se hace ahí, en una línea. No se dibuja en el menú: el buscador busca dentro. */
   description?: string;
+  /** Cantidad a mostrar al lado del nombre (ej. mensajes sin leer). Se omite si es 0. */
+  badge?: number;
 };
 
 function exact(href: string) {
@@ -205,7 +209,13 @@ function Section({
                 className={itemClass(item.isActive(path))}
               >
                 <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-                {item.label}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.badge && item.badge > 0 ? (
+                  <span className="rounded-full bg-[var(--fo-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    {item.badge > 99 ? "99+" : item.badge}
+                    <span className="sr-only"> sin leer</span>
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -223,6 +233,7 @@ export function ShellNav({
   platformAdmin,
   vocabulary,
   openGroups = [],
+  bandejaNoLeidos = 0,
 }: {
   /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
   levels: ModuleLevels;
@@ -236,6 +247,8 @@ export function ShellNav({
   vocabulary: PersonVocabulary;
   /** Grupos que la persona dejó desplegados, leídos de la cookie en el servidor. */
   openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (se calculan en el servidor). */
+  bandejaNoLeidos?: number;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
@@ -327,6 +340,20 @@ export function ShellNav({
     mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
     agregaron—. Ahora es un módulo como los demás y arranca apagado.
   */
+  // Bandeja de WhatsApp: módulo propio (`whatsapp-inbox`). Apagado en el workspace, nadie tiene nivel.
+  const whatsapp: Item[] = ve(BANDEJA_MODULE_KEY)
+    ? [
+        {
+          href: "/bandeja",
+          label: "Bandeja de WhatsApp",
+          description: "Los chats de WhatsApp: quién los atiende, respuestas y clientes vinculados.",
+          icon: MessageCircle,
+          isActive: under("/bandeja"),
+          badge: bandejaNoLeidos,
+        },
+      ]
+    : [];
+
   const captacion: Item[] = [
     ...(ve(SERVICE_LEADS_MODULE_KEY)
     ? [
@@ -556,6 +583,7 @@ export function ShellNav({
     { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },
     { title: "Comisión", items: comision, moduleKey: GOVERNANCE_MODULE_KEY },
     { title: "Comunicación", items: comunicacion, moduleKey: COMMUNICATIONS_MODULE_KEY },
+    { title: "WhatsApp", items: whatsapp, moduleKey: BANDEJA_MODULE_KEY },
     { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
     { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },

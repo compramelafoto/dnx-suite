@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
   contexto: vi.fn(), revalidate: vi.fn(),
-  responder: vi.fn(), tomar: vi.fn(), marcarLeido: vi.fn(), guardarConexion: vi.fn(),
+  responder: vi.fn(), tomar: vi.fn(), marcarLeido: vi.fn(), guardarConexion: vi.fn(), buscarClientes: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
@@ -11,6 +11,7 @@ vi.mock("@/lib/bandeja/acciones", () => ({
   responder: H.responder, tomar: H.tomar, marcarLeido: H.marcarLeido,
   devolverAlBot: vi.fn(), resolver: vi.fn(), vincularCliente: vi.fn(), crearContactoDesdeChat: vi.fn(),
 }));
+vi.mock("@/lib/bandeja/lecturas", () => ({ buscarClientes: H.buscarClientes }));
 vi.mock("@/lib/bandeja/conexion", () => ({ guardarConexion: H.guardarConexion, MENSAJES_CONEXION: { sinPermiso: "sólo admin" } }));
 
 const A = await import("./bandeja");
@@ -62,3 +63,20 @@ describe("server actions de la Bandeja", () => {
     expect(H.tomar).not.toHaveBeenCalled();
   });
 });
+
+describe("buscarClientesAction", () => {
+  it("sin contexto de operar no busca nada", async () => {
+    H.contexto.mockResolvedValue(null);
+    expect(await A.buscarClientesAction("marta")).toMatchObject({ ok: false });
+    expect(H.buscarClientes).not.toHaveBeenCalled();
+  });
+
+  it("pide el nivel operar y devuelve los clientes; sin permiso de Clientes, error", async () => {
+    H.buscarClientes.mockResolvedValueOnce([{ id: "c1", nombre: "Marta", telefono: null }]);
+    expect(await A.buscarClientesAction("marta")).toEqual({ ok: true, clientes: [{ id: "c1", nombre: "Marta", telefono: null }] });
+    expect(H.contexto).toHaveBeenCalledWith("operar");
+    H.buscarClientes.mockResolvedValueOnce(null);
+    expect(await A.buscarClientesAction("marta")).toMatchObject({ ok: false });
+  });
+});
+
