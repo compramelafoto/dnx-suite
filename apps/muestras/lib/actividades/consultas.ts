@@ -51,3 +51,7 @@ export function buscarPropia(id: string, usuario: Usuario) {
     include: { works: { orderBy: { sortOrder: "asc" } } },
   });
 }
+
+export function contarParaRevisar() {
+  return prisma.culturalActivity.count({ where: { reviewStatus: "IN_REVIEW" } });
+}
