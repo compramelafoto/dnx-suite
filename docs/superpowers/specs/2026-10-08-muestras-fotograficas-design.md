@@ -279,3 +279,25 @@ ficha en `muestrasfotograficas.com`) o "Descartar". Sin ubicación cargada no ha
 
 El detalle de las etapas 4 a 9 (cada una tiene su propio diseño antes de construirse) y la
 unificación de bases de la suite.
+
+## Funcionalidades sumadas el 2026-10-09 (pedido de Daniel)
+
+Daniel pidió que la portada publique **todas** las funcionalidades, construidas o no, sin marca
+de "próximamente". Se suman al plan (cada una tendrá su diseño antes de construirse):
+
+- **Convocatoria y curaduría online privada y anónima:** el organizador abre una convocatoria,
+  los fotógrafos envían obras, el equipo curatorial las ve sin nombre de autor, las puntúa y
+  filtra, y con las elegidas se arma la muestra. Reutiliza lo que se pueda del juzgamiento
+  anónimo de FotoRank.
+- **Concurso de FotoRank → muestra** (ya era la etapa 5): se destaca en la portada.
+- Coorganizadores y curadores con permiso de edición.
+- Cartel con el texto curatorial y catálogo de la muestra en PDF.
+- Plano y lista de montaje (qué obra va en cada pared, con medidas).
+- Piezas para redes generadas desde la ficha.
+- Invitación a la inauguración con confirmación de asistencia.
+- Estadísticas de visitas, escaneos de QR y ventas.
+- Libro de visitas digital vía QR.
+
+La portada v2 (fotos de arquitectura de Rosario de Daniel en blanco y negro, sólo en el banner)
+explica el recorrido en 7 pasos: crear, convocar y seleccionar, gestionar obras y artistas,
+montar, difundir, vender y después de la muestra.
