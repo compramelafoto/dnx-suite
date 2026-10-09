@@ -37,6 +37,8 @@ export type VistaFirma = {
   puedeActuar: boolean;
   /** Si no puede actuar, por qué (texto para la pantalla). */
   aviso: string | null;
+  /** El contrato está firmado por todos y su PDF sellado ya existe: se puede ofrecer "Descargar PDF". */
+  pdfDisponible: boolean;
 };
 
 type Resuelto = Extract<ResultadoTokenContrato, { ok: true }>;
@@ -47,7 +49,7 @@ export function fechaAR(d: Date): string {
 }
 
 export async function armarVistaFirma(workspaceId: string, r: Resuelto, ahora: Date = new Date()): Promise<VistaFirma> {
-  const [sitio, ajustes, filas, propio] = await Promise.all([
+  const [sitio, ajustes, filas, propio, conPdf] = await Promise.all([
     sitioDelWorkspace(workspaceId),
     leerAjustesContratos(workspaceId),
     prisma.fotofficeContratoFirmante.findMany({
@@ -59,6 +61,9 @@ export async function armarVistaFirma(workspaceId: string, r: Resuelto, ahora: D
       where: { id: r.firmante.id, workspaceId },
       select: { verifiedAt: true, typedName: true },
     }),
+    r.contrato.status === "FIRMADO"
+      ? prisma.fotofficeContrato.findFirst({ where: { id: r.contrato.id, workspaceId }, select: { pdfKey: true } })
+      : Promise.resolve(null),
   ]);
   const firmaUrl = await urlFirmaEmpresa(ajustes.companySignatureKey);
   const estadoDe = (f: { signedAt: Date | null; rejectedAt: Date | null }): EstadoFirmante => (f.signedAt ? "FIRMO" : f.rejectedAt ? "RECHAZO" : "PENDIENTE");
@@ -95,5 +100,6 @@ export async function armarVistaFirma(workspaceId: string, r: Resuelto, ahora: D
     },
     puedeActuar,
     aviso,
+    pdfDisponible: r.contrato.status === "FIRMADO" && !!conPdf?.pdfKey,
   };
 }

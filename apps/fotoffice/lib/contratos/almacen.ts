@@ -43,6 +43,14 @@ export async function subirObjetoContrato(clave: string, cuerpo: Uint8Array, tip
   await c.send(new PutObjectCommand({ Bucket: bucket, Key: claveSegura(clave), Body: cuerpo, ContentType: tipo, ContentLength: cuerpo.byteLength }));
 }
 
+/** Lee un objeto del bucket privado y devuelve sus bytes (la firma dibujada, el PDF). Lanza si no está. */
+export async function leerObjetoContrato(clave: string): Promise<Uint8Array> {
+  const { c, bucket } = s3();
+  const r = await c.send(new GetObjectCommand({ Bucket: bucket, Key: claveSegura(clave) }));
+  if (!r.Body) throw new Error("Objeto vacío");
+  return r.Body.transformToByteArray();
+}
+
 /** GET firmado de corta vida, para mostrar una imagen o bajar un archivo desde el servidor. */
 export async function urlDeLecturaContrato(clave: string): Promise<string> {
   const { c, bucket } = s3();

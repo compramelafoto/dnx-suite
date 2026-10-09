@@ -90,4 +90,14 @@ describe("página pública de firma: fuente", () => {
       expect(sinLeyenda, f).not.toMatch(/firma digital/i);
     }
   });
+
+  it("el PDF se ofrece sólo cuando existe, con un enlace relativo al token, y su ruta resuelve el token cada vez", () => {
+    const page = leer(`${BASE}/page.tsx`);
+    expect(page).toContain("vista.pdfDisponible");
+    expect(page).toContain("/pdf`}");
+    const ruta = leer(`${BASE}/pdf/route.ts`);
+    expect(ruta).toContain("resolverTokenFirmante(workspaceSlug, token)");
+    expect(ruta).toContain('r.contrato.status !== "FIRMADO"');
+    expect(ruta).toContain("visitanteDeAccion");
+  });
 });

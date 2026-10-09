@@ -104,6 +104,14 @@ export default async function ContratoPublicoPage({ params }: Props) {
           <h2 className="text-base font-semibold">Firmado</h2>
           <p>Firmaste este contrato{vista.yo.firmadoEn ? ` el ${vista.yo.firmadoEn}` : ""}.</p>
           <p className="opacity-70">{vista.leyenda}</p>
+          {vista.pdfDisponible ? (
+            // Dirección relativa: sirve igual en `/w/<slug>/contrato/<token>` y en el dominio propio.
+            <p className="pt-1">
+              <a href={`${encodeURIComponent(token)}/pdf`} className="fo-btn fo-btn-secondary text-sm" download>
+                Descargar PDF
+              </a>
+            </p>
+          ) : null}
         </section>
       ) : null}
 

@@ -456,5 +456,11 @@ describe("la vista pública no filtra datos de otros", () => {
     const vista = await P.armarVistaFirma("ws-1", r, AHORA);
     expect(vista).toMatchObject({ puedeActuar: false, yo: { estado: "FIRMO" }, aviso: "El contrato quedó firmado por todas las partes." });
     expect(vista.yo.firmadoEn).toContain("2026");
+    // El PDF sellado se ofrece recién cuando existe.
+    expect(vista.pdfDisponible).toBe(false);
+    Object.assign(contrato(), { pdfKey: "contratos/ws-1/k1/contrato-C-1-v1.pdf" });
+    expect((await P.armarVistaFirma("ws-1", r, AHORA)).pdfDisponible).toBe(true);
+    Object.assign(contrato(), { status: "FIRMADO_PARCIAL" });
+    expect((await P.armarVistaFirma("ws-1", { ...r, contrato: { ...r.contrato, status: "FIRMADO_PARCIAL" } }, AHORA)).pdfDisponible).toBe(false);
   });
 });

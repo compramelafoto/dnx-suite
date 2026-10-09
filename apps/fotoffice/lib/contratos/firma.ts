@@ -14,6 +14,7 @@ import { enviarCorreoContrato, type DatosCorreoContrato, type ResultadoCorreoCon
 import { resolverClaveDeEnlace, resolverTokenFirmantePorWorkspace, type ResultadoTokenContrato } from "./enlace";
 import { registrarEvento } from "./eventos";
 import { bytesDeDataUrlPng, revisarPngFirma } from "./png";
+import { finalizarContratoFirmado } from "./sellado";
 import { Corte, bloquearContrato } from "./versiones";
 
 /**
@@ -30,7 +31,7 @@ import { Corte, bloquearContrato } from "./versiones";
  *    transacción con el candado del contrato toma al firmante con un UPDATE condicional (una sola firma
  *    por firmante), sube el PNG a R2 privado, deja la evidencia (IP con sal y navegador) y recalcula el
  *    estado del contrato. Si ya firmaron todos: `FIRMADO`, tilda la tarea del checklist y avisa al
- *    responsable; el PDF (tarea 6) cuelga de `alFirmarContrato`.
+ *    responsable; el PDF cuelga de `alFirmarContrato`.
  * 4. `rechazar`: "No estoy de acuerdo" con motivo obligatorio; el contrato queda `RECHAZADO`.
  *
  * Los eventos sólo guardan códigos y números (nunca el código de verificación, nombres ni correos).
@@ -339,11 +340,11 @@ export async function firmar(
 }
 
 /**
- * Gancho para la tarea 6 (PDF con las firmas y envío de la copia): se llama con `after()` cuando el
- * contrato queda firmado por todos. Hoy no hace nada.
+ * Se llama con `after()` cuando el contrato queda firmado por todos: genera el PDF sellado y manda la copia
+ * a los firmantes y a la organización (`sellado.ts`). Nunca lanza: si algo falla, el cron diario lo reintenta.
  */
-export async function alFirmarContrato(_contratoId: string): Promise<void> {
-  return;
+export async function alFirmarContrato(contratoId: string): Promise<void> {
+  await finalizarContratoFirmado(contratoId);
 }
 
 /** Tilda la tarea "Recoger firma del contrato" (sin importar mayúsculas) del checklist del pedido, si existe. Nunca lanza. */

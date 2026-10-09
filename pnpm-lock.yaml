@@ -655,6 +655,9 @@ importers:
       papaparse:
         specifier: ^5.5.4
         version: 5.5.4
+      pdf-lib:
+        specifier: 1.17.1
+        version: 1.17.1
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4

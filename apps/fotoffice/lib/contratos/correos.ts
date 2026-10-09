@@ -116,6 +116,8 @@ export type DatosCorreoContrato = {
   enlace?: string | null;
   /** Sólo CONTRATO_CODIGO. Nunca se guarda. */
   codigo?: string | null;
+  /** Sólo CONTRATO_FIRMADO: el PDF sellado. */
+  adjuntos?: { filename: string; content: Uint8Array; contentType?: string }[];
 };
 
 const CODIGO_OCULTO = "******";
@@ -178,6 +180,7 @@ export async function enviarCorreoContrato(d: DatosCorreoContrato, deps: DepsEnv
       html: correo.html,
       text: correo.texto,
       fromName: real.remitente.nombre,
+      ...(d.adjuntos && d.adjuntos.length > 0 ? { attachments: d.adjuntos } : {}),
       ...(correoValido(real.remitente.replyTo) ? { replyTo: real.remitente.replyTo } : {}),
     });
     const fallo = resultado.status === "SENT" ? null : resultado;
