@@ -1,0 +1,127 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@repo/db";
+import { CALL_TEXT_LIMITS, canScore, invitationState, isValidScore, normalizeEmail } from "@repo/muestras";
+import { getUsuario, type Usuario } from "@/lib/usuario";
+import { frenarPorUsuario } from "@/lib/limite";
+import { avisarInvitacionCurador } from "@/lib/correos/convocatorias";
+import type { ResultadoAccion } from "@/lib/actividades/acciones";
+import { esTokenConForma, hashDeToken, nuevoTokenDeInvitacion } from "./token";
+
+const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
+const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La convocatoria no existe."] };
+const INVITACION_INVALIDA: ResultadoAccion = { ok: false, errores: ["La invitación no es válida."] };
+
+/** Convocatoria del organizador (o super admin) que todavía admite cambios en el equipo. */
+async function convocatoriaParaEquipo(callId: string, usuario: Usuario) {
+  const c = await prisma.culturalCall.findUnique({ where: { id: callId }, select: { id: true, title: true, status: true, activity: { select: { proposedByUserId: true } } } });
+  if (!c || (c.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) return null;
+  return c;
+}
+
+/** Invita por email. Si ya estaba invitada (o revocada), renueva el enlace. */
+export async function invitarCurador(callId: string, emailCrudo: string): Promise<ResultadoAccion> {
+  if (typeof callId !== "string" || typeof emailCrudo !== "string") return NO_EXISTE;
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  const c = await convocatoriaParaEquipo(callId, usuario);
+  if (!c) return NO_EXISTE;
+  if (c.status === "DONE") return { ok: false, errores: ["La selección ya terminó."] };
+  const email = normalizeEmail(emailCrudo);
+  if (!email) return { ok: false, errores: ["Escribí un email válido."] };
+  if (!frenarPorUsuario("invitarCurador", usuario.id).allowed) {
+    return { ok: false, errores: ["Mandaste muchas invitaciones seguidas. Esperá un rato y probá de nuevo."] };
+  }
+  // Quien envió obras no puede curar: vería (y puntuaría) las suyas.
+  const envio = await prisma.culturalCallSubmission.findFirst({
+    where: { callId, userId: { in: (await prisma.user.findMany({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true } })).map((u) => u.id) } },
+    select: { id: true },
+  });
+  if (envio) return { ok: false, errores: ["Esa persona envió obras a esta convocatoria: no puede ser parte del equipo curatorial."] };
+
+  const { token, hash } = nuevoTokenDeInvitacion();
+  const ahora = new Date();
+  const previo = await prisma.culturalCallCurator.findUnique({ where: { callId_email: { callId, email } }, select: { id: true, status: true } });
+  if (previo?.status === "ACTIVE") return { ok: false, errores: ["Esa persona ya es parte del equipo curatorial."] };
+  let fila: { id: string };
+  try {
+    fila = previo
+      // `status: { not: "ACTIVE" }`: si aceptó justo ahora, no se pisa su alta.
+      ? await prisma.culturalCallCurator.update({ where: { id: previo.id, status: { not: "ACTIVE" } }, data: { tokenHash: hash, status: "INVITED", invitedAt: ahora, invitedByUserId: usuario.id, revokedAt: null }, select: { id: true } })
+      : await prisma.culturalCallCurator.create({ data: { callId, email, tokenHash: hash, invitedByUserId: usuario.id, invitedAt: ahora }, select: { id: true } });
+  } catch {
+    return { ok: false, errores: ["No se pudo invitar: la invitación cambió mientras tanto. Recargá la página."] };
+  }
+  await avisarInvitacionCurador({ email, token, convocatoria: c.title, organizador: usuario.name ?? usuario.email, invitedAt: ahora });
+  revalidatePath(`/panel/convocatorias/${callId}`);
+  return { ok: true, id: fila.id };
+}
+
+/** Saca a alguien del equipo. Sus puntajes dejan de contar en el ranking. */
+export async function revocarCurador(curatorId: string): Promise<ResultadoAccion> {
+  if (typeof curatorId !== "string") return NO_EXISTE;
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  const k = await prisma.culturalCallCurator.findUnique({ where: { id: curatorId }, select: { callId: true } });
+  if (!k) return NO_EXISTE;
+  const c = await convocatoriaParaEquipo(k.callId, usuario);
+  if (!c) return NO_EXISTE;
+  if (c.status === "DONE") return { ok: false, errores: ["La selección ya terminó."] };
+  await prisma.culturalCallCurator.updateMany({ where: { id: curatorId, status: { not: "REVOKED" } }, data: { status: "REVOKED", revokedAt: new Date() } });
+  revalidatePath(`/panel/convocatorias/${k.callId}`);
+  return { ok: true, id: curatorId };
+}
+
+/**
+ * Acepta con la cuenta con la que entró. No exige que el email coincida (mucha gente tiene más de
+ * una cuenta de Google): el enlace es de un solo uso y vence a los 30 días.
+ */
+export async function aceptarInvitacion(token: string): Promise<ResultadoAccion> {
+  if (!esTokenConForma(token)) return INVITACION_INVALIDA;
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  if (!frenarPorUsuario("aceptarInvitacion", usuario.id).allowed) return { ok: false, errores: ["Demasiados intentos. Esperá un rato."] };
+  const k = await prisma.culturalCallCurator.findUnique({ where: { tokenHash: hashDeToken(token) }, select: { id: true, callId: true, status: true, invitedAt: true } });
+  if (!k) return INVITACION_INVALIDA;
+  const estado = invitationState(k, new Date());
+  if (estado === "USED") return { ok: false, errores: ["Esta invitación ya se usó."] };
+  if (estado === "EXPIRED") return { ok: false, errores: ["La invitación venció. Pedile a quien organiza que te la vuelva a mandar."] };
+  if (estado === "REVOKED") return INVITACION_INVALIDA;
+  const [envio, yaEsta] = await Promise.all([
+    prisma.culturalCallSubmission.findFirst({ where: { callId: k.callId, userId: usuario.id }, select: { id: true } }),
+    prisma.culturalCallCurator.findFirst({ where: { callId: k.callId, userId: usuario.id, status: "ACTIVE" }, select: { id: true } }),
+  ]);
+  if (envio) return { ok: false, errores: ["Enviaste obras a esta convocatoria: no podés ser parte del equipo curatorial."] };
+  if (yaEsta) return { ok: true, id: k.callId };
+  const { count } = await prisma.culturalCallCurator.updateMany({
+    where: { id: k.id, status: "INVITED" },
+    data: { status: "ACTIVE", userId: usuario.id, acceptedAt: new Date() },
+  });
+  if (count === 0) return { ok: false, errores: ["Esta invitación ya se usó."] };
+  revalidatePath("/panel/curaduria");
+  return { ok: true, id: k.callId };
+}
+
+/** Puntaje de 1 a 5 y nota optativa del curador a una obra. Se puede cambiar mientras dure la curaduría. */
+export async function puntuar(callWorkId: string, score: number, nota: string): Promise<ResultadoAccion> {
+  if (typeof callWorkId !== "string") return NO_EXISTE;
+  if (!isValidScore(score)) return { ok: false, errores: ["El puntaje va de 1 a 5."] };
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  if (!frenarPorUsuario("puntuar", usuario.id).allowed) return { ok: false, errores: ["Vas muy rápido. Esperá unos minutos."] };
+  const w = await prisma.culturalCallWork.findUnique({
+    where: { id: callWorkId },
+    select: { id: true, callId: true, anonymousCode: true, submission: { select: { status: true } }, call: { select: { status: true } } },
+  });
+  if (!w || !w.anonymousCode || w.submission.status !== "ACTIVE") return { ok: false, errores: ["La obra no existe."] };
+  const k = await prisma.culturalCallCurator.findFirst({ where: { callId: w.callId, userId: usuario.id, status: "ACTIVE" }, select: { id: true, status: true } });
+  if (!k || !canScore({ status: w.call.status, curatorStatus: k.status })) return { ok: false, errores: ["No podés puntuar esta obra ahora."] };
+  const note = typeof nota === "string" ? nota.trim().slice(0, CALL_TEXT_LIMITS.note).trim() || null : null;
+  await prisma.culturalCallScore.upsert({
+    where: { callWorkId_curatorId: { callWorkId, curatorId: k.id } },
+    create: { callWorkId, curatorId: k.id, score, note },
+    update: { score, note },
+  });
+  return { ok: true, id: callWorkId };
+}
