@@ -18,6 +18,12 @@ export function rutaInternaSegura(raw: string | null | undefined): string | unde
   if (valor.includes("://")) return undefined;
   // Algunos navegadores convierten "\" en "/", así que "/\sitio.com" termina saliendo.
   if (valor.includes("\\")) return undefined;
+  // El parser de URL borra tabs y saltos de línea: "/\t/sitio.com" queda "//sitio.com" y sale
+  // del dominio. Se rechaza cualquier carácter de control (códigos 0 a 31 y el 127).
+  for (const ch of valor) {
+    const codigo = ch.charCodeAt(0);
+    if (codigo < 32 || codigo === 127) return undefined;
+  }
 
   return valor.slice(0, 512);
 }

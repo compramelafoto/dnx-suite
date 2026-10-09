@@ -14,6 +14,7 @@ import {
 import { prisma } from "@repo/db";
 import { adjuntarSesion, OPCIONES_COOKIE } from "@/lib/sesion";
 import { APP_OAUTH } from "@/lib/google-app";
+import { rutaInternaSegura } from "@/lib/ruta-segura";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,7 +116,9 @@ export async function GET(req: Request) {
       data: { lastLoginAt: new Date() },
     });
 
-    const destino = transito.next ?? "/mis-muestras";
+    // El `next` ya se filtró al iniciar el ingreso, pero se vuelve a filtrar acá: es lo que
+    // efectivamente se usa para redirigir, y el costo de repetirlo es nulo.
+    const destino = rutaInternaSegura(transito.next) ?? "/mis-muestras";
     const respuesta = NextResponse.redirect(new URL(destino, origin));
 
     respuesta.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {
