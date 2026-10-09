@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { activeSectionKey, type PanelSectionGroup } from "@repo/muestras";
 
 /**
@@ -12,16 +12,33 @@ import { activeSectionKey, type PanelSectionGroup } from "@repo/muestras";
 export function BarraLateral({ grupos, nombre }: { grupos: PanelSectionGroup[]; nombre: string }) {
   const activa = activeSectionKey(usePathname());
   const [abierta, setAbierta] = useState(false);
+  const cajon = useRef<HTMLDivElement>(null);
+  const botonMenu = useRef<HTMLButtonElement>(null);
   const actual = grupos.flatMap((g) => g.sections).find((s) => s.key === activa);
 
   useEffect(() => {
     if (!abierta) return;
-    const alTeclear = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierta(false); };
+    const boton = botonMenu.current;
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setAbierta(false); return; }
+      if (e.key !== "Tab" || !cajon.current) return;
+      // Trampa de foco: Tab y Shift+Tab giran dentro del cajón.
+      const items = Array.from(cajon.current.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"));
+      if (items.length === 0) return;
+      const primero = items[0];
+      const ultimo = items[items.length - 1];
+      const enfocado = document.activeElement;
+      if (!cajon.current.contains(enfocado)) { e.preventDefault(); primero.focus(); }
+      else if (e.shiftKey && enfocado === primero) { e.preventDefault(); ultimo.focus(); }
+      else if (!e.shiftKey && enfocado === ultimo) { e.preventDefault(); primero.focus(); }
+    };
     window.addEventListener("keydown", alTeclear);
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", alTeclear);
       document.body.style.overflow = "";
+      // Al cerrar (botón, Escape, fondo o navegación) el foco vuelve a "Menú".
+      boton?.focus();
     };
   }, [abierta]);
 
@@ -57,6 +74,7 @@ export function BarraLateral({ grupos, nombre }: { grupos: PanelSectionGroup[]; 
       <div className="flex items-center justify-between border-b border-[var(--mf-line)] py-3 lg:hidden">
         <span className="text-sm text-[var(--mf-muted)]">{actual?.label ?? "Mi panel"}</span>
         <button
+          ref={botonMenu}
           type="button"
           aria-expanded={abierta}
           aria-controls="panel-cajon"
@@ -69,7 +87,7 @@ export function BarraLateral({ grupos, nombre }: { grupos: PanelSectionGroup[]; 
       {abierta ? (
         <div id="panel-cajon" role="dialog" aria-modal="true" aria-label="Menú del panel" className="fixed inset-0 z-50 lg:hidden">
           <button type="button" aria-label="Cerrar el menú" className="absolute inset-0 bg-black/30" onClick={() => setAbierta(false)} />
-          <div className="absolute inset-y-0 left-0 w-[min(20rem,85vw)] overflow-y-auto bg-[var(--mf-bg)] p-6 shadow-xl">
+          <div ref={cajon} className="absolute inset-y-0 left-0 w-[min(20rem,85vw)] overflow-y-auto bg-[var(--mf-bg)] p-6 shadow-xl">
             <div className="mb-8 flex items-center justify-between">
               <span className="mf-titulo text-2xl">Mi panel</span>
               <button type="button" autoFocus onClick={() => setAbierta(false)} className="text-sm underline underline-offset-4">Cerrar</button>
