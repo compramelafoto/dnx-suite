@@ -421,3 +421,18 @@ select.fo-input {
     transform: translateY(0);
   }
 }
+
+/* Instructivos: al imprimir o guardar en PDF sale sólo la guía, sin menú ni encabezado. */
+@media print {
+  body:has(.instructivo) #fo-shell-nav,
+  body:has(.instructivo) header {
+    display: none !important;
+  }
+  body:has(.instructivo) main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .instructivo .fo-card {
+    box-shadow: none !important;
+  }
+}

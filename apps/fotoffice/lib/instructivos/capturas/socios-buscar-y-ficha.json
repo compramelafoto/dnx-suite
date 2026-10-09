@@ -1,0 +1,50 @@
+[
+  {
+    "archivo": "01-padron.png",
+    "ruta": "/members?limpio=1",
+    "que_mostrar": "Pantalla Socios sin filtros: contadores Total, Activos, Suspendidos e Inactivos y el comienzo de la lista.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-busqueda.png",
+    "ruta": "/members?q=garcia",
+    "que_mostrar": "Caja de búsqueda con un apellido escrito y la lista ya filtrada. Usar un apellido común para que haya varios resultados.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "03-filtros.png",
+    "ruta": "/members?estado=ACTIVE",
+    "que_mostrar": "Barra de filtros (Estado, Categoría, Etiqueta, Acceso al portal, Deuda) con Estado = Activo aplicado y la etiqueta del filtro con su cruz y el enlace Limpiar todo. Verificar que el parámetro estado=ACTIVE aplique el filtro; si no, aplicarlo a mano desde el selector Estado.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "04-vista-rapida.png",
+    "ruta": "/members",
+    "que_mostrar": "En pantalla ancha (más de 1024 px), hacer clic en una fila (no sobre el nombre) para abrir el panel Vista rápida a la derecha, con el botón Abrir ficha.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "05-ficha.png",
+    "ruta": "/members/<id-de-un-socio>",
+    "que_mostrar": "Encabezado de la ficha: nombre, Socio N°, estado, categoría y los botones Llamar, WhatsApp y correo, más Volver al padrón y Editar. Elegir un socio que haya aceptado figurar, o difuminar teléfono y correo.",
+    "selector_recorte": "header"
+  },
+  {
+    "archivo": "06-ficha-datos.png",
+    "ruta": "/members/<id-de-un-socio>",
+    "que_mostrar": "Ficha completa: caja de notas e historia en el centro y las tarjetas Identidad, Contacto e Información societaria a la derecha. Difuminar documento, fecha de nacimiento, teléfono y domicilio.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "07-editar.png",
+    "ruta": "/members/<id-de-un-socio>/edit",
+    "que_mostrar": "Formulario Editar con las secciones Identidad, Contacto e Información societaria y el botón Guardar cambios. No guardar nada. Difuminar datos personales.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "08-cambiar-estado.png",
+    "ruta": "/members/<id-de-un-socio>",
+    "que_mostrar": "En la tarjeta Información societaria, elegir Suspendido en el selector Estado (SIN tocar Cambiar) para que aparezca el aviso y el campo Motivo (obligatorio). Después volver a dejarlo como estaba.",
+    "selector_recorte": "[aria-label=\"Datos de la persona\"]"
+  }
+]

@@ -2,8 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { hasModuleLevel } from "@/lib/permissions/module-access";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { canAdministerCards } from "@/lib/carnet/operators";
 import { listOperatorCandidates } from "@/lib/carnet/operator-admin";
 import { OperatorRow } from "./operator-row";
 
@@ -19,7 +18,7 @@ export default async function PermisosCarnetsPage() {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
 
-  const puede = await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE");
+  const puede = await canAdministerCards(user.id, workspace.id);
   if (!puede) redirect("/members/carnets");
 
   const gente = await listOperatorCandidates(workspace.id);

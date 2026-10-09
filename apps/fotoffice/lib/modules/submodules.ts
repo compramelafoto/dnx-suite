@@ -14,6 +14,7 @@ import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
+  COMMUNICATIONS_CARNETS_ACTION,
   COVERAGES_COORDINATE_ACTION,
   STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
@@ -58,6 +59,12 @@ export type SubmoduleItem = {
   levelModuleKey?: string;
   /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
   requiresAction?: string;
+  /**
+   * Se oculta para quien gestiona este módulo, porque ahí ya tiene la misma pantalla. Carnets
+   * aparece en Comunicación para el rol que lo opera sin gestionar Socios; a quien gestiona
+   * Socios se le mostraría dos veces.
+   */
+  hiddenIfManages?: string;
   /**
    * Sólo dueño o admin del negocio (`isFullAccessRole`), como exige su página. Para pantallas de
    * plata que no se delegan con roles: un MANAGE del módulo no alcanza.
@@ -505,6 +512,17 @@ const COMUNICACION: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // La pantalla vive en Socios; acá la ve el rol de Comunicación con la acción de carnets.
+    href: "/members/carnets",
+    label: "Carnets",
+    icon: "CreditCard",
+    description: "Emitir carnets, descargar el PDF para imprimir y registrar la entrega.",
+    requiresManage: true,
+    requiresAction: COMMUNICATIONS_CARNETS_ACTION,
+    hiddenIfManages: MEMBERS_MODULE_KEY,
+    activeMatch: "under",
+  },
+  {
     href: "/comunicacion/plantillas",
     label: "Plantillas",
     icon: "Palette",
@@ -548,6 +566,7 @@ function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAcc
   if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
   if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
   if (item.requiresFullAccess && access.fullAccess !== true) return false;
+  if (item.hiddenIfManages && hasLevel(nivel(item.hiddenIfManages), "MANAGE")) return false;
   return true;
 }
 
