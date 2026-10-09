@@ -29,7 +29,10 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     latitude: inicial?.latitude ?? null as number | null, longitude: inicial?.longitude ?? null as number | null,
   });
   const [obras, setObras] = useState<ObraForm[]>(
-    (inicial?.works ?? []).map((w) => ({ id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique, isHighlight: w.isHighlight })),
+    (inicial?.works ?? []).map((w) => ({
+      id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique,
+      isHighlight: w.isHighlight, authorProfileId: w.authorProfileId, authorProfileName: w.authorProfile?.displayName ?? null,
+    })),
   );
 
   function datos(form: HTMLFormElement) {
@@ -52,11 +55,14 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
           if (inicial) { setErrores(e.errores); router.refresh(); return; }
           // Borrador nuevo: hay que ir a su página para que lo próximo edite el mismo y no cree
           // otro. Los faltantes viajan en la URL porque el cambio de página borra este estado.
-          router.replace(`/mis-muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
+          router.replace(`/panel/muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
           return;
         }
       }
-      router.push(enviar ? "/mis-muestras?enviada=1" : `/mis-muestras/${r.id}`);
+      // Un aviso (por ejemplo, un perfil ajeno en una muestra publicada) no frena el guardado:
+      // viaja en la URL porque el cambio de página borra este estado.
+      const aviso = r.avisos?.length ? "?aviso=perfiles" : "";
+      router.push(enviar ? "/panel/muestras?enviada=1" : `/panel/muestras/${r.id}${aviso}`);
     });
   }
 

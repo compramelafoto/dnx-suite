@@ -23369,6 +23369,9 @@ model CulturalActivityWork {
   title        String
   authorName   String
   authorUserId Int?
+  /// Perfil público del autor (etapa 2). `authorName` queda siempre como respaldo en texto.
+  authorProfileId String?
+  authorProfile   PhotographerProfile? @relation(fields: [authorProfileId], references: [id], onDelete: SetNull)
   year         Int?
   technique    String?
   isHighlight  Boolean @default(false)
@@ -23377,4 +23380,32 @@ model CulturalActivityWork {
   createdAt DateTime @default(now())
 
   @@index([activityId, sortOrder])
+  @@index([authorProfileId])
+}
+
+/// Perfil público de un fotógrafo en Muestras Fotográficas (`/fotografos/<slug>`).
+///
+/// Cada cuenta tiene a lo sumo uno (`userId` único). `userId` es opcional y sin relación a
+/// `User` a propósito: más adelante el organizador va a poder crear el perfil de un autor sin
+/// cuenta, que el autor reclama al entrar. Mismas convenciones que `CulturalActivity`.
+model PhotographerProfile {
+  id          String  @id @default(cuid())
+  userId      Int?    @unique
+  slug        String  @unique
+  displayName String
+  bio         String?
+  city        String?
+  province    String?
+  /// URL http(s) completa.
+  website     String?
+  /// Usuario de Instagram sin "@".
+  instagram   String?
+  avatarUrl   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  works CulturalActivityWork[]
+
+  @@index([displayName])
 }

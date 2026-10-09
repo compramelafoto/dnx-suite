@@ -28,7 +28,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No pudimos leer el archivo." }, { status: 400 });
   }
   const file = form.get("file");
-  const uso: UsoImagen = form.get("uso") === "portada" ? "portada" : "obra";
+  const pedido = form.get("uso");
+  const uso: UsoImagen = pedido === "portada" || pedido === "avatar" ? pedido : "obra";
   if (!(file instanceof File)) return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "La imagen pesa más de 4 MB." }, { status: 413 });
 

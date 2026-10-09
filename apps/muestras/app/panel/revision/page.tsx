@@ -25,7 +25,7 @@ function Tarjeta({ f }: { f: Fila }) {
             <img key={w.id} src={w.imageUrl} alt="" className="h-14 w-14 object-cover" />
           ))}
         </div>
-        <Link href={`/mis-muestras/${f.id}`} className="text-sm underline">Ver o corregir la ficha completa</Link>
+        <Link href={`/panel/muestras/${f.id}`} className="text-sm underline">Ver o corregir la ficha completa</Link>
       </div>
       <AccionesRevision id={f.id} estado={f.reviewStatus} />
     </li>
@@ -38,7 +38,7 @@ export default async function Admin() {
   const pendientes = filas.filter((f) => f.reviewStatus === "IN_REVIEW");
   const resto = filas.filter((f) => f.reviewStatus !== "IN_REVIEW");
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
+    <main className="max-w-5xl space-y-8">
       <h1 className="mf-titulo text-[2.45rem]">Revisión</h1>
       <section className="space-y-3">
         <h2 className="text-xl">Para revisar ({pendientes.length})</h2>
