@@ -2,7 +2,12 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
-import { estiloDeTema } from "@/lib/estilo-de-tema";
+import { estiloLegible } from "@/lib/estilo-de-tema";
+import { urlDelBanner } from "@/lib/banner-url";
+import { enlaceDeBannerValido } from "@/lib/banner";
+import { urlDelLogo } from "@/lib/logo-url";
+import { BannerDelFotografo } from "../banner-del-fotografo";
+import { LogoDelFotografo } from "../logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { Cargador } from "./cargador";
@@ -29,25 +34,32 @@ export default async function Subir({ params }: Props) {
       allowMessages: true,
       hostsLabel: true,
       coverUrl: true,
+      sellerProfile: {
+        select: { logoUrl: true, displayName: true, bannerUrl: true, bannerLinkUrl: true },
+      },
     },
   });
 
   if (!evento) notFound();
 
   const tema = resolverTema(evento.themeTokens);
+  const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
+  const banner = await urlDelBanner(evento.sellerProfile.bannerUrl);
   const acceso = estadoDeAcceso(evento, new Date());
   const portada = await urlDePortada(evento.coverUrl);
 
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={estiloDeTema(tema)}
+      style={estiloLegible(tema)}
     >
       {/*
         La portada y de quién es la fiesta, igual que en la puerta. El invitado llega acá
         desde la puerta o desde el historial del navegador, y sin esto la pantalla donde
         realmente sube sus fotos es la única del recorrido que no dice de qué fiesta es.
       */}
+      <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
+
       {portada ? (
         <Image
           src={portada}
@@ -87,6 +99,11 @@ export default async function Subir({ params }: Props) {
             : "El evento terminó y ya no se pueden subir fotos."}
         </p>
       )}
+      <BannerDelFotografo
+        url={banner}
+        enlace={enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl)}
+        nombre={evento.sellerProfile.displayName}
+      />
     </main>
   );
 }

@@ -42,7 +42,7 @@ export default async function PortadaDelEvento({ params }: Props) {
         <a
           href={`/e/${evento.code}`}
           className="underline decoration-2 underline-offset-4"
-          style={{ color: "var(--slf-violeta)" }}
+          style={{ color: "var(--slf-violeta-texto)" }}
         >
           la página de tus invitados
         </a>

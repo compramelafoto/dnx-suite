@@ -130,7 +130,7 @@ export function FormularioDePortada({
           <label
             htmlFor="archivoPortada"
             className="inline-flex min-h-[44px] cursor-pointer items-center rounded-xl border-2 px-5 text-sm font-extrabold"
-            style={{ borderColor: "var(--slf-violeta)", color: "var(--slf-violeta)" }}
+            style={{ borderColor: "var(--slf-violeta)", color: "var(--slf-violeta-texto)" }}
           >
             {subiendo ? "Subiendo…" : vista ? "Cambiar" : "Elegir foto"}
           </label>
@@ -179,7 +179,7 @@ export function FormularioDePortada({
         </button>
 
         {estado.guardado && !enviando ? (
-          <span className="text-sm font-extrabold" style={{ color: "var(--slf-violeta)" }}>
+          <span className="text-sm font-extrabold" style={{ color: "var(--slf-violeta-texto)" }}>
             Guardado
           </span>
         ) : null}

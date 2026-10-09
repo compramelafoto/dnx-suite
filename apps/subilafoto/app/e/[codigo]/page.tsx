@@ -4,7 +4,12 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
-import { estiloDeTema } from "@/lib/estilo-de-tema";
+import { estiloLegible } from "@/lib/estilo-de-tema";
+import { urlDelBanner } from "@/lib/banner-url";
+import { enlaceDeBannerValido } from "@/lib/banner";
+import { urlDelLogo } from "@/lib/logo-url";
+import { BannerDelFotografo } from "./banner-del-fotografo";
+import { LogoDelFotografo } from "./logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
@@ -43,6 +48,9 @@ export default async function PuertaDelInvitado({ params }: Props) {
       hostsLabel: true,
       venueName: true,
       coverUrl: true,
+      sellerProfile: {
+        select: { logoUrl: true, displayName: true, bannerUrl: true, bannerLinkUrl: true },
+      },
       status: true,
       activationAt: true,
       deactivationAt: true,
@@ -71,13 +79,17 @@ export default async function PuertaDelInvitado({ params }: Props) {
   });
   // El tema sale del snapshot del evento. Si está vacío o corrupto, cae en la marca.
   const tema = resolverTema(evento.themeTokens);
+  const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
+  const banner = await urlDelBanner(evento.sellerProfile.bannerUrl);
   const hora = FORMATO_HORA(evento.timezone);
 
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={estiloDeTema(tema)}
+      style={estiloLegible(tema)}
     >
+      <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
+
       {portada ? (
         <Image
           src={portada}
@@ -226,6 +238,11 @@ export default async function PuertaDelInvitado({ params }: Props) {
           ) : null}
         </>
       )}
+      <BannerDelFotografo
+        url={banner}
+        enlace={enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl)}
+        nombre={evento.sellerProfile.displayName}
+      />
     </main>
   );
 }

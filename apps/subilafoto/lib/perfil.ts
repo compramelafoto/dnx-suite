@@ -1,3 +1,4 @@
+import { esClaveDeBanner } from "./banner";
 import { esClaveDeLogo } from "./logo";
 
 /**
@@ -53,6 +54,9 @@ export type EntradaDePerfil = {
   headline: string;
   descripcion: string;
   logoUrl: string;
+  bannerUrl: string;
+  /// Ya validado: `https` o vacío. Ver `enlaceDeBannerValido`.
+  bannerLinkUrl: string | null;
   brandColor: string;
   termsText: string;
   publicar: boolean;
@@ -64,6 +68,8 @@ export type DatosDePerfil = {
   headline: string | null;
   description: string | null;
   logoUrl: string | null;
+  bannerUrl: string | null;
+  bannerLinkUrl: string | null;
   brandColor: string | null;
   termsText: string | null;
   isPublished: boolean;
@@ -120,6 +126,14 @@ export function revisarPerfil(entrada: EntradaDePerfil): Revision {
     return { ok: false, error: "El logo tiene que ser una dirección que empiece con https." };
   }
 
+  // Mismo criterio para el banner: clave nuestra o `https`. Nada más.
+  const bannerUrl = entrada.bannerUrl.trim();
+  const bannerValido =
+    !bannerUrl || esClaveDeBanner(bannerUrl) || /^https:\/\/[^\s]+$/i.test(bannerUrl);
+  if (!bannerValido) {
+    return { ok: false, error: "El banner tiene que ser una dirección que empiece con https." };
+  }
+
   return {
     ok: true,
     datos: {
@@ -130,6 +144,8 @@ export function revisarPerfil(entrada: EntradaDePerfil): Revision {
       // descripción es mejor que perder todo lo escrito por pasarse de largo.
       description: recortar(entrada.descripcion, LARGO.descripcion),
       logoUrl: logoUrl || null,
+      bannerUrl: bannerUrl || null,
+      bannerLinkUrl: entrada.bannerLinkUrl,
       brandColor: brandColor || null,
       termsText: recortar(entrada.termsText, LARGO.terminos),
       isPublished: entrada.publicar && centavos !== null,

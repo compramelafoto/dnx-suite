@@ -49,6 +49,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "formulario-insertado",
   "gobierno",
   "imprimir",
+  "informes",
   // `/insertar` es la dirección del formulario insertable en el dominio propio de una institución.
   "insertar",
   "instructivos",

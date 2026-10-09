@@ -10,6 +10,7 @@ import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { REPORTS_MODULE_KEY } from "@/lib/informes/constantes";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -366,6 +367,16 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     route: "/contratos",
     family: "negocio",
     dependsOn: ["orders"],
+  },
+  {
+    key: REPORTS_MODULE_KEY,
+    label: "Informes",
+    description: "Resultados por rubro y mes, flujo de caja proyectado y control de monotributo, con descarga a planilla.",
+    category: "GENERAL",
+    order: 37,
+    status: "AVAILABLE",
+    route: "/informes",
+    family: "negocio",
   },
 ] as const;
 

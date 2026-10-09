@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
 import { queMostrar } from "@/lib/pantalla-ritmo";
+import { sacarSiYaSeVio } from "@/lib/pantalla-una-sola-vez";
 import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
 
@@ -62,9 +63,16 @@ export function Proyeccion({
   fondo,
   qrSvg,
   urlDelEvento,
+  nombreDelEvento,
+  anfitriones,
+  acento,
 }: {
   codigo: string;
   iniciales: ItemEnVivo[];
+  /** El nombre de la fiesta. Preside el cartel del QR: es de quién es la noche. */
+  nombreDelEvento: string;
+  anfitriones: string | null;
+  acento: string;
   /** El tema ya resuelto, con su textura. Ver `estiloDeTema`. */
   estilo: CSSProperties;
   /** El color de fondo solo, para tapar la foto cuando aparece el QR. */
@@ -86,7 +94,12 @@ export function Proyeccion({
   const [pausado, setPausado] = useState(false);
   const [aleatorio, setAleatorio] = useState(false);
   const [mandoVisible, setMandoVisible] = useState(false);
-  const [conteo, setConteo] = useState<Record<string, number>>({});
+  /*
+    El contador, por foto. `porFoto[mediaId][emoji]`, más un total del evento bajo la
+    clave vacía para las reacciones que llegaron sin foto —con la pantalla apagada o
+    mostrando el QR—.
+  */
+  const [porFoto, setPorFoto] = useState<Record<string, Record<string, number>>>({});
 
   // Escucha las fotos nuevas. EventSource reconecta solo y manda el
   // Last-Event-ID, así que no hay que escribir la reconexión a mano.
@@ -166,9 +179,9 @@ export function Proyeccion({
     // El contador de verdad, completo. Llega cada diez segundos.
     fuente.addEventListener("reacciones", (e) => {
       const datos = JSON.parse((e as MessageEvent).data) as {
-        conteo: Record<string, number>;
+        porFoto: Record<string, Record<string, number>>;
       };
-      setConteo(datos.conteo);
+      setPorFoto(datos.porFoto);
     });
 
     return () => fuente.close();
@@ -192,25 +205,6 @@ export function Proyeccion({
     El reloj se rearma en cada paso porque el QR dura más que una foto: `vuelta` está en
     las dependencias a propósito, cada vuelta programa la siguiente.
   */
-  useEffect(() => {
-    // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
-    if (pausado) return;
-    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
-    const reloj = setTimeout(() => setVuelta((v) => v + 1), cuanto);
-    return () => clearTimeout(reloj);
-  }, [vuelta, paso.tipo, pausado]);
-
-  /*
-    El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
-    abierto sería una barra gris sobre la pantalla del salón toda la noche.
-  */
-  useEffect(() => {
-    if (!mandoVisible) return;
-    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
-    return () => clearTimeout(reloj);
-  }, [mandoVisible, pausado, aleatorio]);
-
-  const totales = totalesOrdenados(conteo);
   /*
     `queMostrar` dice CUÁNTAS fotos pasaron —y cuándo toca el QR—; el modo de
     reproducción dice CUÁL de todas se ve. Separados porque son dos preguntas distintas:
@@ -226,6 +220,57 @@ export function Proyeccion({
         })
       : -1;
   const actual = indiceVisible >= 0 ? fotos[indiceVisible] : undefined;
+
+  useEffect(() => {
+    // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
+    if (pausado) return;
+    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
+    const reloj = setTimeout(() => {
+      /*
+        Al pasar de turno, el mensaje que se mostró sale de la rotación: se ve una vez.
+        Se saca acá y no al mostrarlo, porque sacarlo mientras está en pantalla correría
+        los índices y haría saltar la foto que se está viendo.
+      */
+      setFotos((previas) => sacarSiYaSeVio(previas, actual));
+      setVuelta((v) => v + 1);
+    }, cuanto);
+    return () => clearTimeout(reloj);
+  }, [vuelta, paso.tipo, pausado, actual]);
+
+  /*
+    El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
+    abierto sería una barra gris sobre la pantalla del salón toda la noche.
+  */
+  useEffect(() => {
+    if (!mandoVisible) return;
+    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
+    return () => clearTimeout(reloj);
+  }, [mandoVisible, pausado, aleatorio]);
+
+  /*
+    Lo que se muestra es el contador DE LA FOTO QUE SE ESTÁ VIENDO. Un número del evento
+    entero sube toda la noche y no dice nada de la foto que está en pantalla.
+  */
+  /*
+    Avisarle al servidor qué se está proyectando. Es la única forma de que una reacción
+    se pueda atribuir a una foto: la rotación la decide esta pantalla, no el servidor.
+
+    Se manda `null` durante el QR y durante un mensaje: ahí no hay foto a la que
+    reaccionar.
+  */
+  const idProyectado = actual?.tipo === "FOTO" ? actual.id : null;
+  useEffect(() => {
+    void fetch(`/api/e/${codigo}/proyectando`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mediaId: idProyectado }),
+      // Si falla no pasa nada grave: la reacción se guarda sin foto.
+    }).catch(() => {});
+  }, [codigo, idProyectado]);
+
+  const totales = totalesOrdenados(
+    actual?.tipo === "FOTO" ? (porFoto[actual.id] ?? {}) : {},
+  );
 
   return (
     <div className="relative h-[100svh] w-full overflow-hidden" style={estilo}>
@@ -262,16 +307,44 @@ export function Proyeccion({
           pointerEvents: paso.tipo === "QR" ? "auto" : "none",
         }}
       >
-        <p className="text-balance px-12 text-center text-[clamp(1.5rem,4vw,3.5rem)] font-extrabold">
-          {fotos.length === 0 ? "Sacá fotos y subilas acá" : "Sumá tus fotos"}
-        </p>
+        {/*
+          Arriba el nombre de la fiesta, abajo la instrucción.
+
+          Antes presidía "Sacá fotos y subilas acá": el cartel más grande del salón
+          hablaba de la aplicación en vez de hablar de la fiesta. Quien levanta la vista
+          tiene que leer primero de quién es la noche; cómo sumarse viene después, que es
+          además el orden en que uno mira un QR —primero qué es, después qué hacer—.
+        */}
+        <div className="px-10 text-center">
+          <p className="text-balance text-[clamp(1.8rem,5.5vw,4.5rem)] font-extrabold leading-[1.05]">
+            {nombreDelEvento}
+          </p>
+          {anfitriones ? (
+            <p
+              className="mt-3 text-[clamp(1rem,2.4vw,2rem)]"
+              style={{ opacity: 0.8 }}
+            >
+              {anfitriones}
+            </p>
+          ) : null}
+        </div>
+
+        {/* El marco toma el acento de la plantilla: el QR tiene que ser blanco por
+            contraste, pero el borde lo ata a la estética del evento. */}
         <div
-          className="w-[min(26rem,45vh)] rounded-3xl bg-white p-6"
+          className="w-[min(24rem,42vh)] rounded-3xl bg-white p-6"
+          style={{ boxShadow: `0 0 0 0.6rem ${acento}` }}
           dangerouslySetInnerHTML={{ __html: qrSvg }}
         />
-        <p className="text-[clamp(1rem,2vw,1.6rem)]" style={{ opacity: 0.75 }}>
-          {urlDelEvento}
-        </p>
+
+        <div className="px-10 text-center">
+          <p className="text-[clamp(1.1rem,2.6vw,2.1rem)] font-extrabold">
+            {fotos.length === 0 ? "Sacá fotos y subilas acá" : "Sumá tus fotos"}
+          </p>
+          <p className="mt-2 text-[clamp(0.9rem,1.7vw,1.4rem)]" style={{ opacity: 0.7 }}>
+            {urlDelEvento}
+          </p>
+        </div>
       </div>
 
       {actual?.tipo === "FOTO" && (actual.pie || actual.nombre) ? (
@@ -325,6 +398,72 @@ export function Proyeccion({
           ))}
         </div>
       ) : null}
+
+      {/*
+        El mando del DJ.
+
+        Visible pero discreto: una pestaña en el borde izquierdo con el texto "Controles".
+        Antes era una franja invisible y nadie la encontraba —ni sabiéndolo—, que es lo
+        mismo que no tener controles. Un botón tenue que se puede ignorar molesta menos a
+        la proyección que uno que nadie usa.
+
+        El panel se esconde solo a los cinco segundos de la última acción.
+      */}
+      <button
+        type="button"
+        onClick={() => setMandoVisible((v) => !v)}
+        aria-expanded={mandoVisible}
+        className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-xl px-2 py-6 text-xs font-extrabold tracking-widest text-white transition-opacity"
+        style={{
+          background: "rgba(0,0,0,0.45)",
+          opacity: mandoVisible ? 0 : 0.5,
+          pointerEvents: mandoVisible ? "none" : "auto",
+          writingMode: "vertical-rl",
+        }}
+      >
+        CONTROLES
+      </button>
+
+      <div
+        className="absolute left-0 top-1/2 flex -translate-y-1/2 flex-col gap-3 rounded-r-3xl p-4 transition-transform duration-300"
+        style={{
+          background: "rgba(0,0,0,0.72)",
+          transform: mandoVisible ? "translate(0, -50%)" : "translate(-110%, -50%)",
+        }}
+        aria-hidden={!mandoVisible}
+      >
+        <BotonDeMando
+          activo={!pausado}
+          onClick={() => setPausado((v) => !v)}
+          etiqueta={pausado ? "Reanudar" : "Pausar"}
+        >
+          {pausado ? "\u25B6" : "\u2759\u2759"}
+        </BotonDeMando>
+
+        <BotonDeMando
+          activo={aleatorio}
+          onClick={() => setAleatorio((v) => !v)}
+          etiqueta={aleatorio ? "Pasar en orden" : "Pasar al azar"}
+        >
+          {"\u2928"}
+        </BotonDeMando>
+
+        <BotonDeMando
+          activo={false}
+          onClick={() => setVuelta((v) => v + 1)}
+          etiqueta="Pasar a la siguiente"
+        >
+          {"\u23ED"}
+        </BotonDeMando>
+
+        <button
+          type="button"
+          onClick={() => setMandoVisible(false)}
+          className="mt-1 text-xs font-extrabold text-white underline underline-offset-4 opacity-70"
+        >
+          Ocultar
+        </button>
+      </div>
 
       <style>{`
         /*

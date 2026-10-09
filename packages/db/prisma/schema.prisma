@@ -7243,6 +7243,7 @@ model Workspace {
   fotofficeContratoFirmantes     FotofficeContratoFirmante[]
   fotofficeContratoEventos       FotofficeContratoEvento[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
+  fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
   productStoreListings           ProductStoreListing[]
   storeSettings                  StoreSettings?
@@ -18975,6 +18976,13 @@ model SubilafotoSellerProfile {
   description        String?
   logoUrl            String?
   coverUrl           String?
+  /// Banner de publicidad del fotógrafo, al pie de la pantalla del invitado.
+  ///
+  /// Es del VENDEDOR y no del evento: lo pone una vez y aparece en todas sus fiestas.
+  /// Por eso la imagen vive fuera de `eventos/` y no la alcanza el borrado a los 30 días.
+  bannerUrl          String?
+  /// A dónde lleva al tocarlo. Su Instagram, su sitio, un WhatsApp.
+  bannerLinkUrl      String?
   brandColor         String?
   basePriceCents     Int                    @default(0)
   currency           String                 @default("ARS")
@@ -19056,6 +19064,13 @@ model SubilafotoEvent {
   themeTokens        Json?
   coverUrl           String?
   closingCardText    String?
+  /// Qué foto está proyectándose ahora mismo, según la última vez que avisó la pantalla.
+  ///
+  /// La pantalla es la única que sabe qué se está viendo: la rotación la decide ella,
+  /// no el servidor. Sin este dato, una reacción no se puede atribuir a ninguna foto.
+  nowShowingMediaId  String?
+  /// Cuándo avisó. Un aviso viejo no sirve: la pantalla pudo haberse apagado.
+  nowShowingAt       DateTime?
   allowPhotos        Boolean                     @default(true)
   allowVideos        Boolean                     @default(false)
   allowMessages      Boolean                     @default(true)
@@ -19064,7 +19079,13 @@ model SubilafotoEvent {
   maxUploadsPerGuest Int?                        @default(30)
   visibility         SubilafotoVisibility        @default(LINK_ONLY)
   accessCode         String?
-  guestsCanSeeAlbum  Boolean                     @default(true)
+  /// Si el invitado puede recorrer todas las fotos del evento.
+  ///
+  /// Nace **apagado** desde el 2026-10-09: las fotos se miran en la pantalla del salón.
+  /// Un álbum abierto a cualquiera con el QR es gente de la fiesta descargando el
+  /// trabajo del fotógrafo antes de que lo venda, y además expone a todos los invitados
+  /// a que cualquiera se lleve sus fotos.
+  guestsCanSeeAlbum  Boolean                     @default(false)
   guestsCanDownload  Boolean                     @default(false)
   moderationProfile  SubilafotoModerationProfile @default(SOCIAL)
   downloadStatus     SubilafotoDownloadStatus    @default(NOT_OFFERED)
@@ -19138,6 +19159,7 @@ model SubilafotoMedia {
   guest      SubilafotoGuestSession?        @relation(fields: [guestSessionId], references: [id])
   variants   SubilafotoMediaVariant[]
   moderation SubilafotoModerationDecision[]
+  reactions  SubilafotoReaction[]
 
   @@unique([eventId, checksum])
   @@index([eventId, status, publishedAt])
@@ -19222,16 +19244,22 @@ model SubilafotoReaction {
   eventId        String
   /// Null si la sesión del invitado se borró; la reacción sigue contando.
   guestSessionId String?
+  /// Qué foto estaba proyectándose cuando se mandó. Null si fue sobre el QR o un
+  /// mensaje, o si la pantalla todavía no informó qué muestra.
+  mediaId        String?
   emoji          String
   createdAt      DateTime @default(now())
 
   event        SubilafotoEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   guestSession SubilafotoGuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+  media        SubilafotoMedia?        @relation(fields: [mediaId], references: [id], onDelete: SetNull)
 
   /// La pantalla pregunta "qué llegó después de tal momento" una vez por segundo.
   @@index([eventId, createdAt])
   /// El freno al que aprieta sin parar: cuántas mandó y cuándo fue la última.
   @@index([guestSessionId, createdAt])
+  /// El contador que se proyecta sobre cada foto.
+  @@index([mediaId])
 }
 
 model SubilafotoScreen {
@@ -23378,7 +23406,7 @@ model CulturalActivity {
   works CulturalActivityWork[]
 
   /// Convocatoria online de esta muestra (Muestras, etapa 3). A lo sumo una.
-  call  CulturalCall?
+  call CulturalCall?
 
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
@@ -23459,13 +23487,13 @@ model CulturalCall {
   maxWorksPerPerson Int      @default(3)
 
   /// DRAFT | OPEN | CLOSED | CURATING | DONE
-  status            String    @default("DRAFT")
-  createdByUserId   Int
-  openedAt          DateTime?
-  closedAt          DateTime?
-  curationStartedAt DateTime?
-  curationClosedAt  DateTime?
-  assembledAt       DateTime?
+  status              String    @default("DRAFT")
+  createdByUserId     Int
+  openedAt            DateTime?
+  closedAt            DateTime?
+  curationStartedAt   DateTime?
+  curationClosedAt    DateTime?
+  assembledAt         DateTime?
   /// Se marcan antes de mandar los correos masivos: un doble clic no los duplica.
   closedNoticeSentAt  DateTime?
   resultsNoticeSentAt DateTime?
@@ -23483,14 +23511,14 @@ model CulturalCall {
 
 /// El envío de una persona a una convocatoria: una fila por persona, con hasta N obras.
 model CulturalCallSubmission {
-  id     String       @id @default(cuid())
-  callId String
-  call   CulturalCall @relation(fields: [callId], references: [id], onDelete: Cascade)
-  userId Int
+  id               String       @id @default(cuid())
+  callId           String
+  call             CulturalCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+  userId           Int
   /// Cómo firma si queda seleccionada. Nunca llega a un curador.
   authorName       String
   /// ACTIVE | WITHDRAWN
-  status           String    @default("ACTIVE")
+  status           String       @default("ACTIVE")
   basesAcceptedAt  DateTime
   rightsAcceptedAt DateTime
   withdrawnAt      DateTime?
@@ -23575,4 +23603,19 @@ model CulturalCallScore {
 
   @@unique([callWorkId, curatorId])
   @@index([curatorId])
+}
+
+/// Ajustes del módulo Informes (etapa 6): una fila por workspace. Saldo mínimo de alerta del flujo
+/// proyectado y datos del control de monotributo. Todo opcional; `monotributoWarnPct` entre 50 y 99
+/// (CHECK en el SQL).
+model FotofficeInformesAjustes {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
+  minBalanceArs       Decimal? @db.Decimal(14, 2)
+  monotributoCategory String?
+  monotributoCapArs   Decimal? @db.Decimal(14, 2)
+  monotributoWarnPct  Int      @default(80)
+  updatedAt           DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

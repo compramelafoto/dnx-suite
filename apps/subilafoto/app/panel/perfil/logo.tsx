@@ -93,7 +93,7 @@ export function SubirLogo({
         <label
           htmlFor="archivoLogo"
           className="inline-flex min-h-[44px] cursor-pointer items-center rounded-xl border-2 px-5 text-sm font-extrabold"
-          style={{ borderColor: "var(--slf-violeta)", color: "var(--slf-violeta)" }}
+          style={{ borderColor: "var(--slf-violeta)", color: "var(--slf-violeta-texto)" }}
         >
           {estado === "subiendo" ? "Subiendo…" : vista ? "Cambiar" : "Elegir archivo"}
         </label>

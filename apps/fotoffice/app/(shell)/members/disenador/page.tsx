@@ -1,8 +1,12 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { canDesignTemplates } from "@/lib/template-v2/access";
 import { prisma } from "@repo/db";
-import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import {
+  CreateTemplateV2Button,
+  TEMPLATE_V2_BASE_PATHS,
+  TemplateV2RowActions,
+  templateV2EditorPath,
+} from "@repo/template-editor-ui";
 import { CreateCarnetTemplate } from "@/components/members/create-carnet-template";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
@@ -58,6 +62,7 @@ export default async function PlantillasPage() {
   let templates: Plantilla[] = [];
   let faltaMigracion = false;
   let tieneCarnet = false;
+  let carnetId: string | null = null;
   try {
     // Las placas de Comunicación se diseñan con este mismo editor, pero son de otra área y
     // tienen su propia lista (Comunicación → Plantillas). Acá no se mezclan.
@@ -65,7 +70,8 @@ export default async function PlantillasPage() {
     const placas = new Set(
       conMarca.filter((t) => isPlacaTemplateKey(t.templateKey)).map((t) => t.templateId),
     );
-    tieneCarnet = conMarca.some((t) => t.templateKey === CARNET_TEMPLATE_KEY);
+    carnetId = conMarca.find((t) => t.templateKey === CARNET_TEMPLATE_KEY)?.templateId ?? null;
+    tieneCarnet = carnetId !== null;
     const todas = await prisma.templateV2.findMany({
       where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } },
       orderBy: { updatedAt: "desc" },
@@ -142,16 +148,24 @@ export default async function PlantillasPage() {
                   <td className="px-5 py-3 text-xs text-[var(--fo-muted)]">{t.status}</td>
                   <td className="px-5 py-3 text-[var(--fo-muted)]">{fecha(t.updatedAt)}</td>
                   <td className="px-5 py-3">
-                    {t.currentVersionId ? (
-                      <Link
-                        href={`/members/disenador/${t.id}/${t.currentVersionId}`}
-                        className="underline underline-offset-2"
-                      >
-                        Abrir editor
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-[var(--fo-muted-soft)]">Sin versión</span>
-                    )}
+                    <TemplateV2RowActions
+                      templateId={t.id}
+                      name={t.name}
+                      editorHref={
+                        t.currentVersionId
+                          ? templateV2EditorPath(
+                              TEMPLATE_V2_BASE_PATHS.fotoffice,
+                              t.id,
+                              t.currentVersionId,
+                            )
+                          : null
+                      }
+                      deleteWarning={
+                        t.id === carnetId
+                          ? `Es el diseño del carnet: los carnets van a volver al diseño de fábrica.`
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ))}

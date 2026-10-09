@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { estiloDeTema } from "./estilo-de-tema";
+import { estiloDeTema, estiloLegible } from "./estilo-de-tema";
 import { TEMA_BASE } from "./tema";
+
+const CARTEL = "var(--slf-font-cartel)";
 
 describe("el estilo que se aplica a una pantalla", () => {
   test("sin textura, el fondo es el color solo", () => {
@@ -42,5 +44,41 @@ describe("el estilo que se aplica a una pantalla", () => {
     const estilo = estiloDeTema(conAcentoRaro);
 
     expect(estilo.backgroundImage).toContain("%23FF0000");
+  });
+});
+
+describe("el estilo del teléfono del invitado", () => {
+  test("nunca usa la letra de cartel, por más que la plantilla la pida", () => {
+    /*
+      El defecto que esto previene: el estilo "Pista" usa una condensada en mayúsculas que
+      se lee perfecto proyectada a tres metros y es ilegible en un teléfono, a oscuras, en
+      una fiesta. La letra de la plantilla manda en la pantalla del salón; la del invitado
+      tiene que poder leerse.
+    */
+    const estilo = estiloLegible({ ...TEMA_BASE, tipografia: CARTEL });
+
+    expect(estilo.fontFamily).not.toContain("cartel");
+  });
+
+  test("tampoco la manuscrita", () => {
+    const estilo = estiloLegible({ ...TEMA_BASE, tipografia: "var(--slf-font-mano)" });
+
+    expect(estilo.fontFamily).not.toContain("mano");
+  });
+
+  test("conserva los colores y la textura del evento", () => {
+    // Lo que cambia es la letra, no la identidad: el invitado tiene que ver su fiesta.
+    const tema = { ...TEMA_BASE, tipografia: CARTEL, acento: "#FF0000", textura: "globos" as const };
+    const estilo = estiloLegible(tema);
+
+    expect(estilo.background).toBe(tema.fondo);
+    expect(estilo.color).toBe(tema.texto);
+    expect(estilo.backgroundImage).toContain("%23FF0000");
+  });
+
+  test("la serif sí se respeta: es legible y da el tono de una boda", () => {
+    const estilo = estiloLegible({ ...TEMA_BASE, tipografia: "var(--slf-font-serif)" });
+
+    expect(estilo.fontFamily).toContain("serif");
   });
 });

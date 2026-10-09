@@ -1,3 +1,4 @@
+import { estadoAlPublicar } from "./politica-de-publicacion";
 import { decidirDesdeElAnalisis, type Decision, type Etiqueta, type Perfil } from "./reglas";
 import { codigoDeError, type ProveedorDeModeracion } from "./proveedor";
 
@@ -19,7 +20,10 @@ export type FotoParaModerar = {
 export type EntradaDeGuardado = {
   mediaId: string;
   perfil: Perfil;
+  /** Lo que dictaminó Amazon. Se guarda tal cual en la decisión. */
   estado: Decision["estado"];
+  /** Lo que ve el salón, después de la política de publicación. */
+  estadoVisible: Decision["estado"];
   /** Verdadero sólo si además hay que poner `publishedAt`. */
   publicar: boolean;
   proveedor: string;
@@ -95,6 +99,13 @@ export async function procesarFoto(
     Si esto explota, la foto se decide igual. Una foto sin variante se puede volver a
     intentar; una foto sin decisión queda retenida para siempre.
   */
+  /*
+    Lo que dictaminó Amazon y lo que ve el salón son dos cosas distintas desde el
+    2026-10-09: sin cola de revisión manual, lo dudoso se publica. Ver
+    `politica-de-publicacion`.
+  */
+  const visible = estadoAlPublicar(decision.estado, { seLeyoElArchivo: bytes !== null });
+
   if (bytes && decision.estado !== "BLOCKED") {
     try {
       await deps.reducir(foto.id, foto.originalKey, bytes);
@@ -107,9 +118,10 @@ export async function procesarFoto(
     mediaId: foto.id,
     perfil: foto.perfil,
     estado: decision.estado,
+    estadoVisible: visible,
     // Publicar es poner `publishedAt`, y es lo único que hace que una foto
     // llegue a la pantalla. Sólo pasa con APPROVED.
-    publicar: decision.estado === "APPROVED",
+    publicar: visible === "APPROVED",
     proveedor: deps.proveedor.nombre,
     modelo: analisis.ok ? (analisis.modelo ?? null) : null,
     versionDePolitica: decision.versionDePolitica,

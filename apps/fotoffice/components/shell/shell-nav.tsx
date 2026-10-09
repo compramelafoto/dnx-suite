@@ -8,6 +8,7 @@ import {
   Building2,
   Calculator,
   CalendarDays,
+  ChartColumn,
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
@@ -54,6 +55,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { ordenarSecciones } from "@/lib/modules/nav-order";
+import { itemsMenuInformes } from "@/lib/informes/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
@@ -67,6 +69,8 @@ const PROJECTS_MODULE_KEY = "projects";
 const AGENDA_MODULE_KEY = "agenda";
 // Ídem `lib/contratos/acceso`.
 const CONTRACTS_MODULE_KEY = "contracts";
+// Ídem `lib/informes/constantes`.
+const REPORTS_MODULE_KEY = "reports";
 
 /**
  * Menú principal.
@@ -402,6 +406,16 @@ export function ShellNav({
       : []),
   ];
 
+  // Informes (etapa 6): módulo propio (`reports`), con su nivel. Apagado, nadie tiene nivel y no aparece.
+  // Ajustes sólo para quien puede configurar (dueño o administrador), como la pantalla.
+  const informes: Item[] = itemsMenuInformes({ veInformes: ve(REPORTS_MODULE_KEY), puedeConfigurar: access.fullAccess === true }).map((i) => ({
+    href: i.href,
+    label: i.label,
+    description: i.description,
+    icon: ChartColumn,
+    isActive: i.activeMatch === "exact" ? exact(i.href) : under(i.href),
+  }));
+
   // Presencia pública: el sitio y su blog. Es donde aterrizan los portfolios y las redes
   // cuando existan.
   //
@@ -587,6 +601,7 @@ export function ShellNav({
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
     { title: "Agenda", items: agenda, moduleKey: AGENDA_MODULE_KEY },
     { title: "Consultas", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+    { title: "Informes", items: informes, moduleKey: REPORTS_MODULE_KEY },
     { title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
     { title: "Institución", items: institucion, moduleKey: null },
     { title: "Plataforma", items: plataforma, moduleKey: null },

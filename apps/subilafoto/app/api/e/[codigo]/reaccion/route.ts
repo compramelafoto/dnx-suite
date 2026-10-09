@@ -5,6 +5,7 @@ import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { yaAcepto } from "@/lib/consentimiento-db";
 import { COOKIE_INVITADO, obtenerOCrearSesion } from "@/lib/invitado-cookie";
 import { OPCIONES_COOKIE } from "@/lib/sesion";
+import { fotoALaQueReacciona } from "@/lib/que-se-proyecta";
 import { esEmojiValido, puedeReaccionar } from "@/lib/reacciones";
 
 export const runtime = "nodejs";
@@ -35,7 +36,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ codigo: string
 
   const evento = await prisma.subilafotoEvent.findUnique({
     where: { code: codigo.toUpperCase() },
-    select: { id: true, status: true, activationAt: true, deactivationAt: true },
+    select: {
+      id: true,
+      status: true,
+      activationAt: true,
+      deactivationAt: true,
+      nowShowingMediaId: true,
+      nowShowingAt: true,
+    },
   });
   if (!evento) return NextResponse.json({ error: "El evento no existe." }, { status: 404 });
 
@@ -87,8 +95,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ codigo: string
     return NextResponse.json({ error: veredicto.motivo }, { status: 429 });
   }
 
+  /*
+    A qué foto se le cuenta. Si la pantalla no avisó hace poco, la reacción se guarda sin
+    foto: suma al total del evento pero no se le atribuye a ninguna. Inventar a cuál
+    sería peor que no saberlo.
+  */
+  const mediaId = fotoALaQueReacciona({
+    mediaId: evento.nowShowingMediaId,
+    avisadoEl: evento.nowShowingAt,
+    ahora: new Date(),
+  });
+
   await prisma.subilafotoReaction.create({
-    data: { eventId: evento.id, guestSessionId: sesion.id, emoji },
+    data: { eventId: evento.id, guestSessionId: sesion.id, emoji, mediaId },
   });
 
   const res = NextResponse.json({ ok: true });

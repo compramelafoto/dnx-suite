@@ -16,6 +16,14 @@
 
   /* Derivados de trabajo, no de marca. */
   --slf-violeta-hover: #6a17f0;
+  /*
+    El violeta para TEXTO. El de la marca (#7c2bff) es un color de botón: sobre blanco
+    da 5,76 de contraste y a ese brillo, en un párrafo o en una lista de menú, cansa y
+    se lee peor que el negro. Éste da 9,08 y es el mismo color, más tranquilo.
+  */
+  --slf-violeta-texto: #5b1db8;
+  /* El fondo de la barra lateral, para despegarla del contenido. */
+  --slf-panel-lateral: #faf7ff;
   --slf-tinta: #1a0530;
   --slf-tinta-suave: #4a3a5e;
   --slf-borde: #e6dff2;

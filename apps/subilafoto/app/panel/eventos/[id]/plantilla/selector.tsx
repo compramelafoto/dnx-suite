@@ -88,7 +88,7 @@ export function SelectorDePlantilla({
                         {esta ? (
                           <span
                             className="ml-3 text-xs font-extrabold"
-                            style={{ color: "var(--slf-violeta)" }}
+                            style={{ color: "var(--slf-violeta-texto)" }}
                           >
                             elegida
                           </span>
