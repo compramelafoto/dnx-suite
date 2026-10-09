@@ -42,13 +42,6 @@ export default async function PantallaYProyeccion({ params }: Props) {
 
   return (
     <main className="sobre-claro mx-auto max-w-2xl px-6 py-16">
-      <Link
-        href={`/panel/eventos/${id}`}
-        className="text-sm font-extrabold"
-        style={{ color: "var(--slf-violeta)" }}
-      >
-        ← {evento.name}
-      </Link>
 
       <h1 className="mt-4 text-3xl font-extrabold leading-tight">La pantalla del salón</h1>
       <p className="mt-3" style={{ color: "var(--slf-tinta-suave)" }}>
