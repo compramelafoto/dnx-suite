@@ -88,6 +88,8 @@ jobs:
 
       - name: Chequear tipos de Muestras
         run: pnpm --filter muestras check-types
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Pruebas de Muestras
         run: pnpm --filter muestras test
