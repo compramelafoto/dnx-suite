@@ -19057,6 +19057,13 @@ model SubilafotoEvent {
   themeTokens        Json?
   coverUrl           String?
   closingCardText    String?
+  /// Qué foto está proyectándose ahora mismo, según la última vez que avisó la pantalla.
+  ///
+  /// La pantalla es la única que sabe qué se está viendo: la rotación la decide ella,
+  /// no el servidor. Sin este dato, una reacción no se puede atribuir a ninguna foto.
+  nowShowingMediaId  String?
+  /// Cuándo avisó. Un aviso viejo no sirve: la pantalla pudo haberse apagado.
+  nowShowingAt       DateTime?
   allowPhotos        Boolean                     @default(true)
   allowVideos        Boolean                     @default(false)
   allowMessages      Boolean                     @default(true)

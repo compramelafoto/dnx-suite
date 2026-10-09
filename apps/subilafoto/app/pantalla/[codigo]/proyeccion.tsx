@@ -94,7 +94,12 @@ export function Proyeccion({
   const [pausado, setPausado] = useState(false);
   const [aleatorio, setAleatorio] = useState(false);
   const [mandoVisible, setMandoVisible] = useState(false);
-  const [conteo, setConteo] = useState<Record<string, number>>({});
+  /*
+    El contador, por foto. `porFoto[mediaId][emoji]`, más un total del evento bajo la
+    clave vacía para las reacciones que llegaron sin foto —con la pantalla apagada o
+    mostrando el QR—.
+  */
+  const [porFoto, setPorFoto] = useState<Record<string, Record<string, number>>>({});
 
   // Escucha las fotos nuevas. EventSource reconecta solo y manda el
   // Last-Event-ID, así que no hay que escribir la reconexión a mano.
@@ -174,9 +179,9 @@ export function Proyeccion({
     // El contador de verdad, completo. Llega cada diez segundos.
     fuente.addEventListener("reacciones", (e) => {
       const datos = JSON.parse((e as MessageEvent).data) as {
-        conteo: Record<string, number>;
+        porFoto: Record<string, Record<string, number>>;
       };
-      setConteo(datos.conteo);
+      setPorFoto(datos.porFoto);
     });
 
     return () => fuente.close();
@@ -242,7 +247,30 @@ export function Proyeccion({
     return () => clearTimeout(reloj);
   }, [mandoVisible, pausado, aleatorio]);
 
-  const totales = totalesOrdenados(conteo);
+  /*
+    Lo que se muestra es el contador DE LA FOTO QUE SE ESTÁ VIENDO. Un número del evento
+    entero sube toda la noche y no dice nada de la foto que está en pantalla.
+  */
+  /*
+    Avisarle al servidor qué se está proyectando. Es la única forma de que una reacción
+    se pueda atribuir a una foto: la rotación la decide esta pantalla, no el servidor.
+
+    Se manda `null` durante el QR y durante un mensaje: ahí no hay foto a la que
+    reaccionar.
+  */
+  const idProyectado = actual?.tipo === "FOTO" ? actual.id : null;
+  useEffect(() => {
+    void fetch(`/api/e/${codigo}/proyectando`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mediaId: idProyectado }),
+      // Si falla no pasa nada grave: la reacción se guarda sin foto.
+    }).catch(() => {});
+  }, [codigo, idProyectado]);
+
+  const totales = totalesOrdenados(
+    actual?.tipo === "FOTO" ? (porFoto[actual.id] ?? {}) : {},
+  );
 
   return (
     <div className="relative h-[100svh] w-full overflow-hidden" style={estilo}>
