@@ -70,6 +70,17 @@ export const LIMITES = {
   // que también arman un PDF en el servidor.
   fichas: { limit: 100, windowMs: 10 * 60_000 },
   enviarARevision: { limit: 10, windowMs: 60 * 60_000 },
+  // Etapa 3: convocatorias y curaduría.
+  crearConvocatoria: { limit: 10, windowMs: 60 * 60_000 },
+  // Cada guardado de un envío manda un correo de "recibimos tus obras".
+  guardarEnvio: { limit: 20, windowMs: 60 * 60_000 },
+  invitarCurador: { limit: 30, windowMs: 60 * 60_000 },
+  aceptarInvitacion: { limit: 20, windowMs: 60 * 60_000 },
+  // Un curador con 300 obras puntúa y corrige rápido con el teclado: tope holgado.
+  puntuar: { limit: 1200, windowMs: 10 * 60_000 },
+  decidir: { limit: 600, windowMs: 10 * 60_000 },
+  // La imagen anónima pasa por nuestra función (no por el bucket): frena el raspado.
+  imagenCuraduria: { limit: 1500, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimita = keyof typeof LIMITES;
