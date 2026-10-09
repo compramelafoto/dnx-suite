@@ -38,6 +38,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "coberturas",
   "comunicacion",
   "consultas",
+  "contratos",
   "correo",
   "courses",
   "cursos",

@@ -43,6 +43,18 @@ describe("sendTransactionalEmail", () => {
     expect(body.text).toBe("hola");
   });
 
+  it("sin adjuntos no manda el campo; con adjuntos los manda en base64", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl });
+    await sendTransactionalEmail(
+      { ...MESSAGE, attachments: [{ filename: "contrato.pdf", content: new Uint8Array([37, 80, 68, 70]), contentType: "application/pdf" }] },
+      { env: ENV, fetchImpl },
+    );
+    const cuerpos = fetchImpl.mock.calls.map((c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)));
+    expect(cuerpos[0]).not.toHaveProperty("attachments");
+    expect(cuerpos[1].attachments).toEqual([{ filename: "contrato.pdf", content: Buffer.from("%PDF").toString("base64"), content_type: "application/pdf" }]);
+  });
+
   it("sin configuración no llama al proveedor", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "no" }));
     const result = await sendTransactionalEmail(MESSAGE, { env: {}, fetchImpl });

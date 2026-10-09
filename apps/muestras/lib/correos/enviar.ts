@@ -43,7 +43,7 @@ export async function avisarNuevaPropuesta(id: string): Promise<void> {
       select: { email: true },
     });
     for (const a of admins) {
-      await enviar(a.email, `Nueva propuesta: ${d.title}`, [`${d.nombre ?? d.email} propuso "${d.title}".`], { texto: "Revisarla", url: `${APP_URL}/admin` });
+      await enviar(a.email, `Nueva propuesta: ${d.title}`, [`${d.nombre ?? d.email} propuso "${d.title}".`], { texto: "Revisarla", url: `${APP_URL}/panel/revision` });
     }
   } catch (err) {
     console.error("[muestras] falló el aviso de nueva propuesta", err);
@@ -64,7 +64,7 @@ export async function avisarRechazada(id: string): Promise<void> {
   try {
     const d = await datos(id);
     if (!d) return;
-    await enviar(d.email, `Revisamos "${d.title}"`, [`¡Hola${d.nombre ? ` ${d.nombre}` : ""}! Revisamos "${d.title}" y todavía no la podemos publicar.`, `Motivo: ${d.rejectionReason ?? "sin detalle"}.`, "Podés corregirla y volver a enviarla."], { texto: "Corregirla", url: `${APP_URL}/mis-muestras` });
+    await enviar(d.email, `Revisamos "${d.title}"`, [`¡Hola${d.nombre ? ` ${d.nombre}` : ""}! Revisamos "${d.title}" y todavía no la podemos publicar.`, `Motivo: ${d.rejectionReason ?? "sin detalle"}.`, "Podés corregirla y volver a enviarla."], { texto: "Corregirla", url: `${APP_URL}/panel/muestras` });
   } catch (err) {
     console.error("[muestras] falló el aviso de rechazo", err);
   }

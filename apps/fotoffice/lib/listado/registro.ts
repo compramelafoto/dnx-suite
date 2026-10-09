@@ -60,6 +60,12 @@ export const LISTAS: Record<string, EntradaLista> = {
     ruta: "/proyectos/lista",
     cargar: async () => (await import("@/lib/proyectos/listado")).listadoProyectos,
   },
+  // Contratos (etapa 5): módulo `contracts`. Sin plata y sin acciones en lote.
+  contratos: {
+    moduleKey: "contracts",
+    ruta: "/contratos",
+    cargar: async () => (await import("@/lib/contratos/listado")).listadoContratos,
+  },
   // "A pagar" (etapa 3, Entrega B1): todo es dinero de costos, así que la lista entera exige
   // `veCostosDePedido` (`configurar` o `verDinero`), además de "Ver" en Pedidos.
   "pedidos-a-pagar": {

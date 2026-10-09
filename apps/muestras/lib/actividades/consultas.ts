@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "@repo/db";
 import type { Usuario } from "@/lib/usuario";
 
@@ -20,12 +21,18 @@ export function listarPublicas() {
   });
 }
 
-export function buscarPorSlug(slug: string) {
-  return prisma.culturalActivity.findFirst({
+/** Publicada, con sus obras y el perfil de cada autor. `cache`: metadatos y página la piden juntos. */
+export const buscarPorSlug = cache((slug: string) =>
+  prisma.culturalActivity.findFirst({
     where: { slug, reviewStatus: "APPROVED" },
-    include: { works: { orderBy: { sortOrder: "asc" } } },
-  });
-}
+    include: {
+      works: {
+        orderBy: { sortOrder: "asc" },
+        include: { authorProfile: { select: { slug: true, displayName: true } } },
+      },
+    },
+  }),
+);
 
 export function listarMias(userId: number) {
   return prisma.culturalActivity.findMany({
@@ -48,6 +55,19 @@ export function listarParaRevisar() {
 export function buscarPropia(id: string, usuario: Usuario) {
   return prisma.culturalActivity.findFirst({
     where: usuario.esSuperAdmin ? { id } : { id, proposedByUserId: usuario.id },
-    include: { works: { orderBy: { sortOrder: "asc" } } },
+    include: { works: { orderBy: { sortOrder: "asc" }, include: { authorProfile: { select: { displayName: true } } } } },
+  });
+}
+
+export function contarParaRevisar() {
+  return prisma.culturalActivity.count({ where: { reviewStatus: "IN_REVIEW" } });
+}
+
+/** Muestras publicadas propias, con sus obras, para "Montaje e impresión". */
+export function listarPublicadasMias(userId: number) {
+  return prisma.culturalActivity.findMany({
+    where: { proposedByUserId: userId, reviewStatus: "APPROVED", type: "MUESTRA" },
+    select: { id: true, slug: true, title: true, startsAt: true, endsAt: true, works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true } } },
+    orderBy: { startsAt: "desc" },
   });
 }

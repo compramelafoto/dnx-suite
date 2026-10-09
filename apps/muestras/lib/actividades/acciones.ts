@@ -3,24 +3,78 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
-  MAX_HIGHLIGHTS, MAX_WORKS, canEdit, canPerform, missingForSubmission, newSlug, nextStatus,
+  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, allowedAuthorProfileId, canEdit, canPerform, missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId,
   toArDay, type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
 import { frenarPorUsuario } from "@/lib/limite";
-import { datosParaGuardar, fichaDesdeFormData } from "./mapear";
+import { datosParaGuardar, fichaDesdeFormData, type FichaForm } from "./mapear";
 
-export type ResultadoAccion = { ok: true; id: string } | { ok: false; errores: string[] };
+/** `avisos`: cosas que no frenaron el guardado pero conviene contarle a la persona. */
+export type ResultadoAccion = { ok: true; id: string; avisos?: string[] } | { ok: false; errores: string[] };
 
 const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no existe."] };
 
 function refrescar(slug?: string) {
   revalidatePath("/");
-  revalidatePath("/mis-muestras");
-  revalidatePath("/admin");
-  if (slug) revalidatePath(`/m/${slug}`);
+  revalidatePath("/panel", "layout");
+  // La ficha y las páginas de sus obras (`/m/<slug>/o/<id>`).
+  if (slug) revalidatePath(`/m/${slug}`, "layout");
+  revalidatePath("/fotografos", "layout");
+}
+
+/**
+ * Las obras tal como se escriben.
+ *
+ * - Cada obra que ya era de esta muestra conserva su id: está en la URL de su página y en el QR
+ *   de la ficha impresa. Un id ajeno o repetido se descarta y la obra se crea como nueva.
+ * - El perfil del autor se resuelve con `resolveAuthorProfileId`, usando el perfil de quien
+ *   propuso la muestra (no el de quien edita: puede ser el super admin).
+ * - Si la muestra ya se publicó, `allowedAuthorProfileId` limita a qué perfil se puede vincular
+ *   (el vínculo que la obra ya tenía, el perfil de quien propuso o ninguno). Lo demás se ignora y
+ *   vuelve un aviso que no frena el guardado.
+ */
+async function obrasParaGuardar(
+  works: FichaForm["works"],
+  previas: ReadonlyMap<string, string | null>,
+  duenoId: number,
+  contexto: { status: string; isSuperAdmin: boolean } = { status: "DRAFT", isSuperAdmin: false },
+) {
+  const perfilPropio = await prisma.photographerProfile.findUnique({ where: { userId: duenoId }, select: { id: true, displayName: true } });
+  const pedidos = [...new Set(works.map((w) => w.authorProfileId).filter((x): x is string => !!x))];
+  const existentes = new Set(
+    pedidos.length
+      ? (await prisma.photographerProfile.findMany({ where: { id: { in: pedidos } }, select: { id: true } })).map((p) => p.id)
+      : [],
+  );
+  const usados = new Set<string>();
+  let bloqueado = false;
+  const obras = works.map((w, i) => {
+    const conserva = !!w.id && previas.has(w.id) && !usados.has(w.id);
+    if (conserva) usados.add(w.id!);
+    const pedido = resolveAuthorProfileId(
+      { isNew: !conserva, authorName: w.authorName, requestedProfileId: w.authorProfileId },
+      existentes,
+      perfilPropio,
+    );
+    const permitido = allowedAuthorProfileId({
+      status: contexto.status,
+      previous: conserva ? previas.get(w.id!) ?? null : null,
+      requested: pedido,
+      ownerProfileId: perfilPropio?.id ?? null,
+      isSuperAdmin: contexto.isSuperAdmin,
+    });
+    if (permitido.blocked) bloqueado = true;
+    return {
+      ...(conserva ? { id: w.id } : {}),
+      imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
+      technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
+      authorProfileId: permitido.id,
+    };
+  });
+  return { obras, avisos: bloqueado ? [AVISO_PERFIL_EN_PUBLICADA] : [] };
 }
 
 /** Crea o actualiza la ficha y reemplaza su galería. No cambia el estado de revisión. */
@@ -34,16 +88,14 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     return { ok: false, errores: [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`] };
   }
   const datos: ReturnType<typeof datosParaGuardar> = datosParaGuardar(f);
-  const obras = f.works.map((w, i) => ({
-    imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
-    technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
-  }));
 
   if (!f.id) {
     // Sólo se cuenta la creación: editar un borrador propio no tiene tope.
     if (!frenarPorUsuario("crearBorrador", usuario.id).allowed) {
       return { ok: false, errores: ["Creaste muchas actividades seguidas. Esperá un rato y probá de nuevo."] };
     }
+    // Una actividad nueva es un borrador: todavía no hay límite de perfiles.
+    const { obras } = await obrasParaGuardar(f.works, new Map(), usuario.id);
     const creada = await prisma.culturalActivity.create({
       data: { ...datos, slug: newSlug(f.title), proposedByUserId: usuario.id, works: { create: obras } },
       select: { id: true },
@@ -52,7 +104,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     return { ok: true, id: creada.id };
   }
 
-  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id } });
+  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id }, include: { works: { select: { id: true, authorProfileId: true } } } });
   if (!actual) return NO_EXISTE;
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin };
   if (!canEdit({ ...actual, reviewStatus: actual.reviewStatus as ReviewStatus }, actor)) {
@@ -71,13 +123,19 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   }
   // Se conserva la primera confirmación de derechos.
   if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
+  const { obras, avisos } = await obrasParaGuardar(
+    f.works,
+    new Map(actual.works.map((w) => [w.id, w.authorProfileId ?? null])),
+    actual.proposedByUserId,
+    { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
+  );
   await prisma.$transaction([
     prisma.culturalActivity.update({ where: { id: f.id }, data: datos }),
     prisma.culturalActivityWork.deleteMany({ where: { activityId: f.id } }),
     prisma.culturalActivityWork.createMany({ data: obras.map((o) => ({ ...o, activityId: f.id! })) }),
   ]);
   refrescar(actual.slug);
-  return { ok: true, id: f.id };
+  return avisos.length ? { ok: true, id: f.id, avisos } : { ok: true, id: f.id };
 }
 
 async function transicion(

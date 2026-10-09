@@ -111,3 +111,30 @@ aprobarla como super admin, verla en el mapa, en el listado y en su ficha.
 ## 9. Cargar muestras reales — lo hace Daniel con ayuda de Claude
 
 Cargar 2 o 3 muestras reales de SFPR para que el mapa no arranque vacío.
+
+## Etapa 2 — perfiles de fotógrafos y fichas de sala con QR
+
+- **Migración:** `20261027120000_muestras_etapa_2_perfiles` ya está aplicada en la base de
+  producción. No hay que correr nada.
+- **Antes de imprimir un QR:** confirmar en Vercel (proyecto de Muestras, entorno Production) que
+  `APP_URL=https://muestrasfotograficas.com`. Si en producción `APP_URL` apunta a `localhost`, a una
+  dirección `*.vercel.app` o no es `https`, el sitio usa igual `https://muestrasfotograficas.com` y
+  deja un aviso en el log: conviene corregir la variable de todos modos.
+- **Regla de perfiles en una muestra publicada:** quien la propuso puede dejar el autor que la obra
+  ya tenía, vincularla a su propio perfil o desvincularla. Para sumar el perfil de otra persona
+  tiene que escribirnos (el super admin puede vincular cualquiera). En borrador o rechazada se
+  puede vincular cualquier perfil, porque todo pasa por revisión.
+- **Fichas:** hasta 100 PDFs cada 10 minutos por persona (alcanza para la ficha de cada una de las
+  40 obras más el PDF completo). Sin sesión, el enlace de descarga lleva a ingresar y vuelve a
+  Montaje e impresión.
+
+Cómo probarlo de punta a punta:
+
+1. Ingresar y crear el perfil en **Panel → Mi perfil**.
+2. Proponer una muestra con obras (alguna con el propio nombre como autor, para ver que se
+   vincula sola) y enviarla a revisión.
+3. Como super admin, aprobarla en `/panel/revision`.
+4. En **Montaje e impresión** (o en la página de la muestra en el panel) bajar el PDF de todas las
+   fichas en A6.
+5. Escanear un QR con el celular: tiene que abrir `https://muestrasfotograficas.com/m/<muestra>/o/<obra>`.
+6. Ver que el perfil aparece en `/fotografos` y en `/fotografos/<slug>`.

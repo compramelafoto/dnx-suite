@@ -1,6 +1,6 @@
 import sharp from "sharp";
 
-const LADO_MAYOR = { obra: 2000, portada: 1600 } as const;
+const LADO_MAYOR = { obra: 2000, portada: 1600, avatar: 800 } as const;
 export type UsoImagen = keyof typeof LADO_MAYOR;
 
 /**
@@ -38,7 +38,10 @@ export async function procesarImagen(bytes: Buffer, uso: UsoImagen) {
   try {
     const { data, info } = await sharp(bytes, { limitInputPixels: MAX_PIXELES })
       .rotate()
-      .resize({ width: lado, height: lado, fit: "inside", withoutEnlargement: true })
+      // El avatar se ve siempre en un círculo: sale cuadrado, recortado al centro.
+      .resize(uso === "avatar"
+        ? { width: lado, height: lado, fit: "cover", position: "centre" }
+        : { width: lado, height: lado, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer({ resolveWithObject: true });
     return { bytes: data, width: info.width, height: info.height, contentType: "image/webp" as const };

@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
       "../../packages/db/prisma/**",
     ],
   },
+  // Las URLs de la etapa 1 siguen andando: hay enlaces en correos ya enviados y en favoritos.
+  // `/proponer` es temporal (307): es el enlace de difusión y mañana puede ser una página pública.
+  async redirects() {
+    return [
+      { source: "/mis-muestras", destination: "/panel/muestras", permanent: true },
+      { source: "/mis-muestras/:id", destination: "/panel/muestras/:id", permanent: true },
+      { source: "/admin", destination: "/panel/revision", permanent: true },
+      { source: "/proponer", destination: "/panel/proponer", permanent: false },
+    ];
+  },
   turbopack: {
     // Silencia la detección errónea de root por lockfiles fuera del monorepo.
     root: path.join(appDir, "../.."),

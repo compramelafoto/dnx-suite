@@ -8,7 +8,8 @@ export function Pie() {
     <footer className="border-t border-[var(--mf-line)] text-[13px] text-[var(--mf-muted)]">
       <div className="mf-marco flex flex-wrap items-center justify-between gap-x-8 gap-y-2 py-6">
         <p>Muestras Fotográficas es parte de DNX Suite.</p>
-        <nav aria-label="Legales" className="flex gap-5">
+        <nav aria-label="Más" className="flex gap-5">
+          <Link href="/fotografos" className={enlace}>Fotógrafos</Link>
           <Link href="/privacidad" className={enlace}>Privacidad</Link>
           <Link href="/terminos" className={enlace}>Términos</Link>
         </nav>

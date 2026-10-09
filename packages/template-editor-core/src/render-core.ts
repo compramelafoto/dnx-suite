@@ -43,7 +43,20 @@ export function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * Normaliza la config del bloque según su tipo y conserva la proporción fijada (`aspectLock`),
+ * que es del editor y vale para cualquier tipo: sin esto, guardar la borraría.
+ */
 export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown): Record<string, unknown> {
+  const normalized = normalizeBlockConfigByType(type, input);
+  const lock = asObject(input).aspectLock;
+  if (typeof lock === "number" && Number.isFinite(lock) && lock > 0) {
+    return { ...normalized, aspectLock: lock };
+  }
+  return normalized;
+}
+
+function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): Record<string, unknown> {
   const cfg = asObject(input);
   if (type === "TEXT") {
     const contentObj = asObject(cfg.content);
