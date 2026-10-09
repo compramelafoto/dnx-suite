@@ -29,7 +29,10 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     latitude: inicial?.latitude ?? null as number | null, longitude: inicial?.longitude ?? null as number | null,
   });
   const [obras, setObras] = useState<ObraForm[]>(
-    (inicial?.works ?? []).map((w) => ({ id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique, isHighlight: w.isHighlight })),
+    (inicial?.works ?? []).map((w) => ({
+      id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique,
+      isHighlight: w.isHighlight, authorProfileId: w.authorProfileId, authorProfileName: w.authorProfile?.displayName ?? null,
+    })),
   );
 
   function datos(form: HTMLFormElement) {

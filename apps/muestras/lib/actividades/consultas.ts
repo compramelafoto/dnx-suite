@@ -55,7 +55,7 @@ export function listarParaRevisar() {
 export function buscarPropia(id: string, usuario: Usuario) {
   return prisma.culturalActivity.findFirst({
     where: usuario.esSuperAdmin ? { id } : { id, proposedByUserId: usuario.id },
-    include: { works: { orderBy: { sortOrder: "asc" } } },
+    include: { works: { orderBy: { sortOrder: "asc" }, include: { authorProfile: { select: { displayName: true } } } } },
   });
 }
 

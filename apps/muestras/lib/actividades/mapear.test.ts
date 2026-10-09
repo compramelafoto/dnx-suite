@@ -137,3 +137,17 @@ describe("imágenes ajenas", () => {
     }
   });
 });
+
+describe("perfil del autor en cada obra", () => {
+  it("acepta un id de perfil con forma de id y descarta lo demás", () => {
+    const f = fichaDesdeFormData(fd({
+      ...base,
+      works: JSON.stringify([
+        { imageUrl: `${BASE}/muestras/7/1.webp`, title: "Uno", authorProfileId: "cm1abcdefghijklmnop" },
+        { imageUrl: `${BASE}/muestras/7/2.webp`, title: "Dos", authorProfileId: "'; drop table" },
+        { imageUrl: `${BASE}/muestras/7/3.webp`, title: "Tres" },
+      ]),
+    }));
+    expect(f.works.map((w) => w.authorProfileId)).toEqual(["cm1abcdefghijklmnop", null, null]);
+  });
+});

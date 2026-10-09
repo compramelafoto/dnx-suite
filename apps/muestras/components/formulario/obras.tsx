@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MAX_HIGHLIGHTS, MAX_WORKS } from "@repo/muestras";
 import type { ObraForm } from "@/lib/actividades/mapear";
 import { subirImagen } from "./subir-imagen";
+import { VincularPerfil } from "./vincular-perfil";
 
 export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: (o: ObraForm[]) => void }) {
   const [subiendo, setSubiendo] = useState(0);
@@ -20,7 +21,7 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
     for (const f of lista) {
       try {
         const url = await subirImagen(f, "obra");
-        nuevas.push({ imageUrl: url, title: f.name.replace(/\.[^.]+$/, ""), authorName: "", year: null, technique: null, isHighlight: false });
+        nuevas.push({ imageUrl: url, title: f.name.replace(/\.[^.]+$/, ""), authorName: "", year: null, technique: null, isHighlight: false, authorProfileId: null, authorProfileName: null });
       } catch (e) {
         setError(e instanceof Error ? e.message : "No pudimos subir una imagen.");
       }
@@ -43,6 +44,7 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
       <p className="text-sm text-[var(--mf-muted)]">
         {obras.length}/{MAX_WORKS} obras, {destacadas}/{MAX_HIGHLIGHTS} destacadas. Mientras la muestra está abierta, el público ve sólo las destacadas.
       </p>
+      <p className="text-sm text-[var(--mf-muted)]">Si el autor sos vos y tenés perfil de fotógrafo con el mismo nombre, las obras nuevas se vinculan solas al guardar.</p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {obras.map((o, i) => (
           <li key={o.imageUrl} className="flex gap-3 rounded-[2px] border border-[var(--mf-line)] bg-white p-2">
@@ -51,6 +53,10 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
             <div className="flex-1 space-y-1 text-sm">
               <input className="w-full border-b" value={o.title} onChange={(e) => cambiar(i, { title: e.target.value })} placeholder="Título" />
               <input className="w-full border-b" value={o.authorName} onChange={(e) => cambiar(i, { authorName: e.target.value })} placeholder="Autor" />
+              <VincularPerfil
+                nombre={o.authorProfileName ?? null}
+                onVincular={(p) => cambiar(i, { authorProfileId: p?.id ?? null, authorProfileName: p?.displayName ?? null })}
+              />
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1">
                   <input

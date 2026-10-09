@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
   culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn() },
+  photographerProfile: { findUnique: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
@@ -31,6 +32,8 @@ beforeEach(() => {
   db.culturalActivity.update.mockResolvedValue({});
   db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
   db.$transaction.mockResolvedValue([]);
+  db.photographerProfile.findUnique.mockResolvedValue(null);
+  db.photographerProfile.findMany.mockResolvedValue([]);
 });
 
 describe("enviarARevision", () => {
@@ -151,5 +154,48 @@ describe("topes por persona", () => {
     const r = await enviarARevision("a1");
     expect(r.ok).toBe(false);
     expect(db.culturalActivity.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("obras: ids estables y perfil del autor", () => {
+  const BASE = "https://pub-test.r2.dev";
+  const obra = (extra: Record<string, unknown> = {}) => ({
+    imageUrl: `${BASE}/muestras/7/1.webp`, title: "Uno", authorName: "Ana Pérez", year: null, technique: null, isHighlight: false, ...extra,
+  });
+  function fd(o: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(k, v);
+    return f;
+  }
+  const guardadas = () => db.culturalActivityWork.createMany.mock.calls[0]![0].data as Array<Record<string, unknown>>;
+
+  beforeEach(() => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, works: [{ id: "w-vieja" }] });
+  });
+
+  it("conserva el id de las obras que ya eran de la muestra (el QR impreso sigue andando)", async () => {
+    await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja" }), obra({ id: "w-ajena" }), obra({ id: "w-vieja" })]) }));
+    expect(guardadas().map((o) => o.id)).toEqual(["w-vieja", undefined, undefined]);
+  });
+  it("vincula sola una obra nueva cuyo autor coincide con el perfil de quien propuso", async () => {
+    db.photographerProfile.findUnique.mockResolvedValue({ id: "perfil-ana", displayName: "ana perez" });
+    await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra()]) }));
+    expect(guardadas()[0]!.authorProfileId).toBe("perfil-ana");
+  });
+  it("descarta un perfil pedido que no existe", async () => {
+    await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ authorProfileId: "cperfilinexistente01" })]) }));
+    expect(guardadas()[0]!.authorProfileId).toBeNull();
+  });
+  it("si edita el super admin, el perfil por defecto es el de quien propuso", async () => {
+    usuarioActual.valor = { id: 1, esSuperAdmin: true, email: "d@x", name: "Daniel" };
+    await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra()]) }));
+    expect(db.photographerProfile.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 7 } }));
+  });
+  it("un usuario que no puede editar la actividad no escribe nada", async () => {
+    usuarioActual.valor = { id: 99, esSuperAdmin: false, email: "x@y", name: null };
+    const r = await guardarBorrador(fd({ id: "a1", title: "Charla", works: JSON.stringify([obra({ id: "w-vieja" })]) }));
+    expect(r.ok).toBe(false);
+    expect(db.culturalActivityWork.createMany).not.toHaveBeenCalled();
   });
 });
