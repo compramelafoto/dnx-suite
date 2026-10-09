@@ -5,6 +5,7 @@ import { resolveActiveWorkspace } from "@/lib/workspace";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { MODULOS_CRM } from "@/lib/access/modulos-crm";
+import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import type { CtxCampos } from "./definiciones";
 
@@ -27,7 +28,7 @@ export async function contextoDeCampos(): Promise<ContextoCampos | null> {
   const acceso = await resolverAcceso(user.id, workspace.id);
   // "Ver" en alguno de los módulos con campos: leer "Más datos" sigue al nivel de la ficha;
   // guardar valores exige `operar` sobre el módulo del registro, y configurar, dueño/admin.
-  if (!puede(acceso, "ver", MODULOS_CRM) && !puede(acceso, "configurar")) return null;
+  if (!puede(acceso, "ver", [...MODULOS_CRM, PROJECTS_MODULE_KEY]) && !puede(acceso, "configurar")) return null;
   const branding = await prisma.fotofficeWorkspaceBranding.findFirst({
     where: { workspaceId: workspace.id },
     select: { publicSlug: true },

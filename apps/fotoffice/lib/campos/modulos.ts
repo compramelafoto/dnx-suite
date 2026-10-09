@@ -2,6 +2,7 @@ import "server-only";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { TIPOS_REGISTRO_ACTIVOS, type TipoRegistroActivo } from "./constantes";
 
@@ -13,6 +14,7 @@ export const MODULO_DE_REGISTRO: Record<TipoRegistroActivo, string> = {
   CLIENTE: CLIENTS_MODULE_KEY,
   SOCIO: MEMBERS_MODULE_KEY,
   CONSULTA: SERVICE_LEADS_MODULE_KEY,
+  PROYECTO: PROJECTS_MODULE_KEY,
 };
 
 /** ¿El módulo del tipo está encendido en el workspace? Un tipo desconocido, no. */

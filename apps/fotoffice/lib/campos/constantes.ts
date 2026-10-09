@@ -1,7 +1,7 @@
 /** Tipos de registro que hoy admiten campos personalizados. */
-export const TIPOS_REGISTRO_ACTIVOS = ["CLIENTE", "SOCIO", "CONSULTA"] as const;
+export const TIPOS_REGISTRO_ACTIVOS = ["CLIENTE", "SOCIO", "CONSULTA", "PROYECTO"] as const;
 /** Activos + reservados (módulos que todavía no existen; no se ofrecen en la UI). */
-export const TIPOS_REGISTRO = [...TIPOS_REGISTRO_ACTIVOS, "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO"] as const;
+export const TIPOS_REGISTRO = [...TIPOS_REGISTRO_ACTIVOS, "PRESUPUESTO", "PEDIDO", "CONTRATO"] as const;
 export type TipoRegistro = (typeof TIPOS_REGISTRO)[number];
 export type TipoRegistroActivo = (typeof TIPOS_REGISTRO_ACTIVOS)[number];
 

@@ -87,42 +87,20 @@ export async function recorridoDe(workspaceId: string, leadId: string, tipoSujet
   });
 }
 
-export async function cargarFicha(workspaceId: string, leadId: string, ahora: Date): Promise<Ficha | null> {
-  const lead = await prisma.serviceSalesLead.findFirst({
-    where: { id: leadId, workspaceId },
-    select: {
-      id: true, name: true, email: true, phone: true, eventType: true, eventSubtype: true, eventDate: true,
-      eventLocation: true, message: true, formId: true, createdAt: true,
-    },
-  });
-  if (!lead) return null;
+export type RecorridoCompleto = {
+  recorrido: RecorridoFicha;
+  tareas: TareaFicha[];
+  proyeccion: ProyeccionFicha | null;
+  historial: PasoVista[];
+};
 
-  const [form, j, motivos, responsables] = await Promise.all([
-    lead.formId
-      ? prisma.serviceLeadForm.findFirst({ where: { id: lead.formId, workspaceId }, select: { name: true } })
-      : Promise.resolve(null),
-    recorridoDe(workspaceId, lead.id),
-    motivosActivos(workspaceId),
-    responsablesDe(workspaceId),
-  ]);
+type RecorridoCrudo = NonNullable<Awaited<ReturnType<typeof recorridoDe>>>;
 
-  const consulta: ConsultaFicha = {
-    id: lead.id,
-    nombre: lead.name,
-    email: lead.email,
-    telefono: lead.phone,
-    whatsapp: buildWhatsappUrl(lead.phone),
-    tipo: etiqueta(SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>, lead.eventType),
-    subtipo: lead.eventSubtype ? etiqueta(SERVICE_LEAD_SUBTYPE_LABELS, lead.eventSubtype) : null,
-    fechaEvento: lead.eventDate ? lead.eventDate.toISOString() : null,
-    lugar: lead.eventLocation,
-    mensaje: lead.message,
-    formulario: form?.name ?? null,
-    alta: lead.createdAt.toISOString(),
-  };
-
-  if (!j) return { consulta, recorrido: null, tareas: [], proyeccion: null, historial: [], motivos, responsables };
-
+/**
+ * Etapas, tareas, proyección e historial de un recorrido (de cualquier tipo de registro). Todo se
+ * lee acotado al workspace. Devuelve null si el flujo del recorrido ya no existe.
+ */
+export async function armarRecorrido(workspaceId: string, j: RecorridoCrudo, ahora: Date): Promise<RecorridoCompleto | null> {
   const [circuito, etapas, pasos, tareas, motivo] = await Promise.all([
     prisma.fotofficeCircuit.findFirst({ where: { id: j.circuitId, workspaceId }, select: { id: true, name: true } }),
     prisma.fotofficeStage.findMany({
@@ -140,14 +118,14 @@ export async function cargarFicha(workspaceId: string, leadId: string, ahora: Da
     }),
     prisma.fotofficeTask.findMany({
       where: { workspaceId, journeyId: j.id, journey: { workspaceId } },
-      select: { id: true, title: true, dueAt: true, doneAt: true, required: true, stageId: true },
+      select: { id: true, title: true, dueAt: true, doneAt: true, required: true, stageId: true, assigneeUserId: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     }),
     j.lossReasonId
       ? prisma.fotofficeLossReason.findFirst({ where: { id: j.lossReasonId, workspaceId }, select: { name: true } })
       : Promise.resolve(null),
   ]);
-  if (!circuito) return { consulta, recorrido: null, tareas: [], proyeccion: null, historial: [], motivos, responsables };
+  if (!circuito) return null;
 
   const nombres = new Map(etapas.map((e) => [e.id, e.name]));
   const abierto = j.closedAt === null && j.stageId !== null;
@@ -187,12 +165,50 @@ export async function cargarFicha(workspaceId: string, leadId: string, ahora: Da
   }
 
   return {
-    consulta,
     recorrido,
     tareas: tareasVisibles(tareas, abierto ? j.stageId : null, nombres, ahora),
     proyeccion: proy,
     historial: pasos.map((p) => describirPaso(p, nombres)),
-    motivos,
-    responsables,
   };
+}
+
+export async function cargarFicha(workspaceId: string, leadId: string, ahora: Date): Promise<Ficha | null> {
+  const lead = await prisma.serviceSalesLead.findFirst({
+    where: { id: leadId, workspaceId },
+    select: {
+      id: true, name: true, email: true, phone: true, eventType: true, eventSubtype: true, eventDate: true,
+      eventLocation: true, message: true, formId: true, createdAt: true,
+    },
+  });
+  if (!lead) return null;
+
+  const [form, j, motivos, responsables] = await Promise.all([
+    lead.formId
+      ? prisma.serviceLeadForm.findFirst({ where: { id: lead.formId, workspaceId }, select: { name: true } })
+      : Promise.resolve(null),
+    recorridoDe(workspaceId, lead.id),
+    motivosActivos(workspaceId),
+    responsablesDe(workspaceId),
+  ]);
+
+  const consulta: ConsultaFicha = {
+    id: lead.id,
+    nombre: lead.name,
+    email: lead.email,
+    telefono: lead.phone,
+    whatsapp: buildWhatsappUrl(lead.phone),
+    tipo: etiqueta(SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>, lead.eventType),
+    subtipo: lead.eventSubtype ? etiqueta(SERVICE_LEAD_SUBTYPE_LABELS, lead.eventSubtype) : null,
+    fechaEvento: lead.eventDate ? lead.eventDate.toISOString() : null,
+    lugar: lead.eventLocation,
+    mensaje: lead.message,
+    formulario: form?.name ?? null,
+    alta: lead.createdAt.toISOString(),
+  };
+
+  if (!j) return { consulta, recorrido: null, tareas: [], proyeccion: null, historial: [], motivos, responsables };
+  const completo = await armarRecorrido(workspaceId, j, ahora);
+  if (!completo) return { consulta, recorrido: null, tareas: [], proyeccion: null, historial: [], motivos, responsables };
+
+  return { consulta, ...completo, motivos, responsables };
 }

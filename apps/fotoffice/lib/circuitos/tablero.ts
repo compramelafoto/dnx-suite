@@ -45,6 +45,8 @@ export type TarjetaVista = {
   /** "20/12/2026" con el ayudante de fecha de calendario (`fechaDeEvento`). */
   fechaEvento: string | null;
   valor: number | null;
+  /** Sólo se informa cuando es cierto: un proyecto suspendido. */
+  suspendido?: boolean;
 };
 
 export type EtapaVista = { id: string; nombre: string; color: string; archivada: boolean };
@@ -280,6 +282,7 @@ export async function cargarTablero(
       categoria: datos.get(j.subjectId)?.categoria ?? null,
       fechaEvento: datos.get(j.subjectId)?.fechaEvento ?? null,
       valor: datos.get(j.subjectId)?.valor ?? null,
+      ...(suspendidos.has(j.subjectId) ? { suspendido: true } : {}),
     })),
   }));
 

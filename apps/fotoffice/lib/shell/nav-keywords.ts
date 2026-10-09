@@ -64,6 +64,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/consultas": ["captacion", "bandeja", "tablero", "contactos", "interesados", "consultas", "presupuestos"],
   "/presupuestos": ["cotizacion", "cotizar", "precio", "cuanto cobro", "propuesta", "vencidos"],
   "/pedidos": ["pedido", "cobro", "cobrar", "cuotas", "recibo", "saldo", "seña", "sena"],
+  "/proyectos": ["proyecto", "trabajo", "entrega", "entregas", "tablero", "etapas", "tareas", "equipo", "atraso", "suspendido"],
 
   // Presencia pública
   "/website": ["web", "pagina", "sitio", "portal", "home publica", "constructor", "menu"],

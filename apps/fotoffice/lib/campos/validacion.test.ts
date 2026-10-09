@@ -6,8 +6,9 @@ const ok = (v: unknown) => ({ ok: true, valor: v });
 
 describe("constantes", () => {
   it("tipos de registro y de campo", () => {
-    expect(TIPOS_REGISTRO_ACTIVOS).toEqual(["CLIENTE", "SOCIO", "CONSULTA"]);
-    expect(TIPOS_REGISTRO).toEqual(["CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO"]);
+    expect(TIPOS_REGISTRO_ACTIVOS).toEqual(["CLIENTE", "SOCIO", "CONSULTA", "PROYECTO"]);
+    // Sin repetir: los activos van primero y después los reservados.
+    expect(TIPOS_REGISTRO).toEqual(["CLIENTE", "SOCIO", "CONSULTA", "PROYECTO", "PRESUPUESTO", "PEDIDO", "CONTRATO"]);
     expect(TIPOS_CAMPO).toEqual(["TEXTO", "TEXTO_LARGO", "NUMERO", "FECHA", "SI_NO", "LISTA", "ENLACE"]);
     for (const t of TIPOS_CAMPO) expect(ETIQUETA_TIPO_CAMPO[t]).toBeTruthy();
     expect(MAX_CAMPOS).toBe(40);

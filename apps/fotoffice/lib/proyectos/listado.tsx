@@ -2,10 +2,12 @@ import "server-only";
 import Link from "next/link";
 import { prisma, type Prisma } from "@repo/db";
 import { TOPE_IDS_POR_CONSULTA } from "@/lib/listado/presupuesto";
+import { responsablesDe } from "@/lib/circuitos/tablero";
 import { hoyEnBuenosAires } from "@/lib/listado/periodos";
 import type { ConsultaResuelta, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { atraso, fechaValida } from "./fechas";
+import { ACCIONES_PROYECTOS } from "./lote";
 
 /**
  * Lista de Proyectos sobre el motor de listas (0.2). Columnas: número, nombre, contacto,
@@ -62,11 +64,29 @@ async function idsCerrados(workspaceId: string): Promise<Cerrados> {
   return { excedido: false, ids: [...new Set(filas.map((f) => f.subjectId as string))] };
 }
 
+/** Ids de los proyectos con recorrido abierto en una etapa (el filtro por etapa sale del recorrido). */
+async function idsEnEtapa(workspaceId: string, etapaId: string): Promise<Cerrados> {
+  const filas = await prisma.fotofficeJourney.findMany({
+    where: { workspaceId, subjectType: "PROYECTO", closedAt: null, stageId: etapaId },
+    select: { subjectId: true },
+    take: TOPE_IDS_POR_CONSULTA + 1,
+  });
+  if (filas.length > TOPE_IDS_POR_CONSULTA) return { excedido: true };
+  return { excedido: false, ids: [...new Set(filas.map((f) => f.subjectId as string))] };
+}
+
 const usaCerrados = (c: ConsultaResuelta) => c.filtros.estado === "CERRADO" || c.filtros.estado === "EN_CURSO" || c.filtros.vencidos === "si" || c.filtros.vencidos === "no";
 
 /** Puro: lo que se le pide a Prisma. `workspaceId` va siempre. `hoy` = "aaaa-mm-dd". */
-export function whereProyectos(workspaceId: string, c: ConsultaResuelta, cerrados: Cerrados | null, hoy: string): Prisma.FotofficeProyectoWhereInput {
-  if (cerrados?.excedido) return { workspaceId, id: { in: [] } };
+export function whereProyectos(
+  workspaceId: string,
+  c: ConsultaResuelta,
+  cerrados: Cerrados | null,
+  hoy: string,
+  /** Los proyectos que están en la etapa del filtro "Etapa" (null = no se filtra por etapa). */
+  enEtapa: Cerrados | null = null,
+): Prisma.FotofficeProyectoWhereInput {
+  if (cerrados?.excedido || enEtapa?.excedido) return { workspaceId, id: { in: [] } };
   const ids = cerrados && !cerrados.excedido ? cerrados.ids : [];
   const and: Prisma.FotofficeProyectoWhereInput[] = [];
   const q = c.q.trim();
@@ -82,6 +102,10 @@ export function whereProyectos(workspaceId: string, c: ConsultaResuelta, cerrado
       ],
     });
   }
+  if (c.filtros.circuito && ID_VALIDO.test(c.filtros.circuito)) and.push({ circuitId: c.filtros.circuito });
+  const responsable = Number(c.filtros.responsable);
+  if (c.filtros.responsable && Number.isSafeInteger(responsable) && responsable > 0) and.push({ ownerUserId: responsable });
+  if (enEtapa && !enEtapa.excedido) and.push({ id: { in: enEtapa.ids } });
   switch (c.filtros.estado) {
     case "SUSPENDIDO": and.push({ suspendedAt: { not: null } }); break;
     case "CERRADO": and.push({ id: { in: ids } }); break;
@@ -99,8 +123,11 @@ export function whereProyectos(workspaceId: string, c: ConsultaResuelta, cerrado
 }
 
 async function resolverWhere(workspaceId: string, c: ConsultaResuelta) {
-  const cerrados = usaCerrados(c) ? await idsCerrados(workspaceId) : null;
-  return whereProyectos(workspaceId, c, cerrados, hoyEnBuenosAires());
+  const [cerrados, enEtapa] = await Promise.all([
+    usaCerrados(c) ? idsCerrados(workspaceId) : Promise.resolve(null),
+    c.filtros.etapa && ID_VALIDO.test(c.filtros.etapa) ? idsEnEtapa(workspaceId, c.filtros.etapa) : Promise.resolve(null),
+  ]);
+  return whereProyectos(workspaceId, c, cerrados, hoyEnBuenosAires(), enEtapa);
 }
 
 function ordenarPor(c: ConsultaResuelta): Prisma.FotofficeProyectoOrderByWithRelationInput[] {
@@ -228,6 +255,10 @@ export const listadoProyectos: DefinicionListado<FilaProyecto> = {
     },
   ],
   filtros: [
+    // La clave es `circuito` (no `flujo`) para que el "Modo lista" del tablero llegue ya filtrado.
+    { tipo: "relacion", clave: "circuito", etiqueta: "Flujo" },
+    { tipo: "relacion", clave: "etapa", etiqueta: "Etapa" },
+    { tipo: "relacion", clave: "responsable", etiqueta: "Responsable" },
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: OPCIONES_ESTADO_PROYECTO },
     { tipo: "siNo", clave: "vencidos", etiqueta: "Fecha final", si: "Vencidos", no: "No vencidos" },
   ],
@@ -245,8 +276,51 @@ export const listadoProyectos: DefinicionListado<FilaProyecto> = {
     return filas.map((f) => f.id);
   },
   traerPorIds: async (ctx, ids) => filasPorIds(ctx.workspaceId, ids),
-  aviso: async (ctx, c) => (usaCerrados(c) && (await idsCerrados(ctx.workspaceId)).excedido ? AVISO_DEMASIADOS_PROYECTOS : null),
-  acciones: [],
+  aviso: async (ctx, c) => {
+    if (usaCerrados(c) && (await idsCerrados(ctx.workspaceId)).excedido) return AVISO_DEMASIADOS_PROYECTOS;
+    if (c.filtros.etapa && ID_VALIDO.test(c.filtros.etapa) && (await idsEnEtapa(ctx.workspaceId, c.filtros.etapa)).excedido) return AVISO_DEMASIADOS_PROYECTOS;
+    return null;
+  },
+  opcionesRelacion: async (ctx, clave) => {
+    if (clave === "circuito") {
+      const circuitos = await prisma.fotofficeCircuit.findMany({
+        where: { workspaceId: ctx.workspaceId, kind: "TRABAJO" },
+        select: { id: true, name: true },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+      });
+      return circuitos.map((c) => ({ valor: c.id as string, etiqueta: c.name as string }));
+    }
+    if (clave === "etapa") {
+      const etapas = await prisma.fotofficeStage.findMany({
+        where: { circuit: { workspaceId: ctx.workspaceId, kind: "TRABAJO" } },
+        select: { id: true, name: true, circuit: { select: { name: true } } },
+        orderBy: [{ circuit: { name: "asc" } }, { order: "asc" }, { id: "asc" }],
+      });
+      const varios = new Set(etapas.map((e) => e.circuit.name)).size > 1;
+      return etapas.map((e) => ({ valor: e.id as string, etiqueta: varios ? `${e.circuit.name} · ${e.name}` : (e.name as string) }));
+    }
+    if (clave === "responsable") return (await responsablesDe(ctx.workspaceId)).map((r) => ({ valor: String(r.id), etiqueta: r.nombre }));
+    return [];
+  },
+  validarRelacion: async (ctx, clave, id) => {
+    if (!ID_VALIDO.test(id) && clave !== "responsable") return null;
+    if (clave === "circuito") {
+      const c = await prisma.fotofficeCircuit.findFirst({ where: { id, workspaceId: ctx.workspaceId, kind: "TRABAJO" }, select: { name: true } });
+      return (c?.name as string | undefined) ?? null;
+    }
+    if (clave === "etapa") {
+      const e = await prisma.fotofficeStage.findFirst({ where: { id, circuit: { workspaceId: ctx.workspaceId, kind: "TRABAJO" } }, select: { name: true } });
+      return (e?.name as string | undefined) ?? null;
+    }
+    if (clave === "responsable") {
+      const userId = Number(id);
+      if (!/^\d{1,10}$/.test(id) || !Number.isSafeInteger(userId) || userId <= 0) return null;
+      const m = await prisma.workspaceMembership.findFirst({ where: { workspaceId: ctx.workspaceId, userId }, select: { user: { select: { name: true, email: true } } } });
+      return m ? (((m.user.name as string | null) || (m.user.email as string | null)) ?? `Usuario ${userId}`) : null;
+    }
+    return null;
+  },
+  acciones: ACCIONES_PROYECTOS,
   exportar: {
     columnas: [
       { titulo: "N°", tipo: "texto", valor: (f) => f.numero },

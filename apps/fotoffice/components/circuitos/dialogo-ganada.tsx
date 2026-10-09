@@ -7,7 +7,10 @@ export function DialogoGanada({
   titulo,
   onConfirmar,
   onCancelar,
+  pregunta = "¿Marcar como ganada? No se puede deshacer.",
 }: {
+  /** Texto de la pregunta (por omisión, el de Consultas). */
+  pregunta?: string;
   /** Nombre de la consulta; null = el diálogo está cerrado. */
   titulo: string | null;
   onConfirmar: () => void;
@@ -41,7 +44,7 @@ export function DialogoGanada({
       >
         <div className="space-y-1">
           <h2 id="dialogo-ganada-titulo" className="text-lg font-semibold text-[var(--fo-text)]">
-            ¿Marcar como ganada? No se puede deshacer.
+            {pregunta}
           </h2>
           {titulo ? <p className="text-sm text-[var(--fo-muted)]">{titulo}</p> : null}
         </div>

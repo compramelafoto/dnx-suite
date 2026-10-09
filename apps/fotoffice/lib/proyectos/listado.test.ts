@@ -38,4 +38,34 @@ describe("whereProyectos", () => {
     const w = whereProyectos("ws-1", consulta({}, "laura"), null, "2026-10-15") as { AND: { OR: unknown[] }[] };
     expect(w.AND[0]!.OR).toHaveLength(5);
   });
+
+  it("flujo y responsable van directo a las columnas; un id con forma inválida se ignora", () => {
+    expect(whereProyectos("ws-1", consulta({ circuito: "ct-1", responsable: "7" }), null, "2026-10-15")).toEqual({
+      workspaceId: "ws-1",
+      AND: [{ circuitId: "ct-1" }, { ownerUserId: 7 }],
+    });
+    expect(whereProyectos("ws-1", consulta({ circuito: "no valido!", responsable: "abc" }), null, "2026-10-15")).toEqual({ workspaceId: "ws-1" });
+  });
+
+  it("etapa: sólo los proyectos con recorrido abierto en ella; con demasiados, vacío", () => {
+    expect(whereProyectos("ws-1", consulta({ etapa: "e1" }), null, "2026-10-15", { excedido: false, ids: ["a", "b"] })).toEqual({
+      workspaceId: "ws-1",
+      AND: [{ id: { in: ["a", "b"] } }],
+    });
+    expect(whereProyectos("ws-1", consulta({ etapa: "e1" }), null, "2026-10-15", { excedido: true })).toEqual({ workspaceId: "ws-1", id: { in: [] } });
+  });
+
+  it("se combinan con el estado y los vencidos", () => {
+    const w = whereProyectos("ws-1", consulta({ circuito: "ct-1", estado: "SUSPENDIDO", vencidos: "si" }), { excedido: false, ids: [] }, "2026-10-15") as { AND: unknown[] };
+    expect(w.AND).toHaveLength(3);
+  });
+});
+
+describe("definición de la lista", () => {
+  it("filtros por flujo, etapa, responsable, estado y vencidos; acciones en lote", async () => {
+    const { listadoProyectos } = await import("./listado");
+    expect(listadoProyectos.filtros.map((f) => f.clave)).toEqual(["circuito", "etapa", "responsable", "estado", "vencidos"]);
+    expect(listadoProyectos.acciones.map((a) => a.clave)).toEqual(["responsable", "suspender", "reanudar"]);
+    expect(listadoProyectos.columnas.map((c) => c.clave)).toEqual(["numero", "nombre", "contacto", "responsable", "etapa", "vence", "atraso", "estado"]);
+  });
 });

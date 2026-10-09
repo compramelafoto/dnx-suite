@@ -54,7 +54,10 @@ export function Tablero({
   filtros,
   puedePasarIgual,
   altaRapida = null,
+  tipo = "CAPTACION",
 }: {
+  /** Qué tablero es: cambia la ruta, los textos y si hay valor estimado (sólo Consultas). */
+  tipo?: "CAPTACION" | "PROYECTO";
   datos: DatosTablero;
   filtros: FiltrosVista;
   /** El rol puede `configurar`: ofrece "Pasar igual" ante tareas obligatorias pendientes. */
@@ -78,6 +81,9 @@ export function Tablero({
   const arrastre = useRef<Arrastre | null>(null);
 
   const { circuito, columnas, salidas, motivos, responsables } = datos;
+  const esProyecto = tipo === "PROYECTO";
+  const ruta = esProyecto ? "/proyectos" : "/consultas";
+  const plural = esProyecto ? "proyectos" : "consultas";
   const nombreResponsable = new Map(responsables.map((r) => [r.id, r.nombre]));
   const etapasActivas = columnas.filter((c) => !c.etapa.archivada).map((c) => ({ id: c.etapa.id, nombre: c.etapa.nombre }));
   const listaSalidas = [salidas.exito, salidas.fracaso];
@@ -189,13 +195,17 @@ export function Tablero({
     if (f.responsable !== null) q.set("responsable", String(f.responsable));
     if (f.soloVencidas) q.set("vencidas", "si");
     const s = q.toString();
-    router.push(s ? `/consultas?${s}` : "/consultas");
+    router.push(s ? `${ruta}?${s}` : ruta);
   }
 
   if (!circuito) {
     return (
       <div className="fo-card space-y-2 text-sm">
-        <p className="text-[var(--fo-muted)]">Todavía no hay un circuito de venta activo para ordenar las consultas.</p>
+        <p className="text-[var(--fo-muted)]">
+          {esProyecto
+            ? "Todavía no hay un flujo de trabajo activo para ordenar los proyectos."
+            : "Todavía no hay un circuito de venta activo para ordenar las consultas."}
+        </p>
         <Link href="/workspace/configuracion/circuitos" className="font-medium text-[var(--fo-accent)] hover:underline">
           Ir a Configuración → Circuitos
         </Link>
@@ -203,7 +213,7 @@ export function Tablero({
     );
   }
 
-  const hrefLista = `/consultas/lista?circuito=${encodeURIComponent(circuito.id)}`;
+  const hrefLista = `${ruta}/lista?circuito=${encodeURIComponent(circuito.id)}`;
   const zonaClase = (clave: string, color: string) =>
     `flex min-h-24 items-center justify-center rounded-lg border-2 border-dashed p-4 text-center text-sm font-medium ${color} ${
       sobre === clave ? "ring-2 ring-[var(--fo-accent)]" : ""
@@ -214,7 +224,7 @@ export function Tablero({
       <div className="flex flex-wrap items-end gap-3 text-sm">
         {datos.circuitos.length > 1 ? (
           <label className="fo-field-stack">
-            <span className="fo-label">Circuito</span>
+            <span className="fo-label">{esProyecto ? "Flujo" : "Circuito"}</span>
             <select className="fo-input" value={circuito.id} onChange={(ev) => irA({ circuito: ev.target.value })}>
               {datos.circuitos.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -273,13 +283,15 @@ export function Tablero({
               <header className="flex items-center justify-between gap-2 px-1">
                 <span className={`truncate rounded px-2 py-0.5 text-xs font-medium ${claseDeColorEtiqueta(etapa.color)}`}>{etapa.nombre}</span>
                 <span className="flex items-center gap-2 text-xs text-[var(--fo-muted)]">
-                  {etapa.archivada ? <span title="Etapa archivada: se puede sacar a las consultas, no entrar">archivada</span> : null}
+                  {etapa.archivada ? <span title={`Etapa archivada: se pueden sacar ${esProyecto ? "los proyectos" : "las consultas"}, no entrar`}>archivada</span> : null}
                   {col.total}
                 </span>
               </header>
-              <p className="px-1 text-xs tabular-nums text-[var(--fo-muted)]" title="Suma del valor estimado de las consultas de esta columna">
-                Valor: {formatoPesos(col.valorTotal)}
-              </p>
+              {esProyecto ? null : (
+                <p className="px-1 text-xs tabular-nums text-[var(--fo-muted)]" title="Suma del valor estimado de las consultas de esta columna">
+                  Valor: {formatoPesos(col.valorTotal)}
+                </p>
+              )}
               {indice === 0 && altaRapida && circuito.predeterminado && altaRapida.categorias.length > 0 ? <AltaRapida categorias={altaRapida.categorias} /> : null}
               <ul className="flex flex-col gap-2">
                 {col.tarjetas.map((t) => {
@@ -303,7 +315,7 @@ export function Tablero({
                   );
                 })}
               </ul>
-              {col.tarjetas.length === 0 ? <p className="px-1 py-4 text-center text-xs text-[var(--fo-muted)]">Sin consultas</p> : null}
+              {col.tarjetas.length === 0 ? <p className="px-1 py-4 text-center text-xs text-[var(--fo-muted)]">Sin {plural}</p> : null}
               {col.masHref ? (
                 <Link href={col.masHref} className="px-1 text-xs font-medium text-[var(--fo-accent)] hover:underline">
                   y {col.total - col.tarjetas.length} más
@@ -336,6 +348,7 @@ export function Tablero({
       </div>
 
       <DialogoGanada
+        pregunta={esProyecto ? "¿Marcar el proyecto como terminado? No se puede deshacer." : undefined}
         titulo={ganando?.titulo ?? null}
         onCancelar={() => setGanando(null)}
         onConfirmar={() => {
@@ -345,6 +358,7 @@ export function Tablero({
         }}
       />
       <DialogoPerdida
+        textos={esProyecto ? { titulo: "Cancelar el proyecto", boton: "Cancelar el proyecto" } : undefined}
         titulo={perdiendo?.titulo ?? null}
         motivos={motivos}
         onCancelar={() => setPerdiendo(null)}

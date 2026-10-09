@@ -162,4 +162,15 @@ describe("misTareas", () => {
     expect(r.hoy[1]?.etapa).toBeNull();
     expect(await T.misTareas({ ...EQUIPO, userId: null }, AHORA)).toEqual({ vencidas: [], hoy: [], proximas: [] });
   });
+
+  it("con `tipos` sólo trae las tareas de esos tipos de registro (la lista vacía no trae nada)", async () => {
+    const d = ar("2026-10-15T10:00:00.000");
+    tareaPara("de-consulta", d);
+    tareaPara("de-proyecto", d, { subjectType: "PROYECTO", subjectId: "p-1" });
+    const ids = async (tipos?: readonly ("CAPTACION" | "PROYECTO")[]) => (await T.misTareas(EQUIPO, AHORA, tipos)).hoy.map((t) => t.id).sort();
+    expect(await ids()).toEqual(["de-consulta", "de-proyecto"]);
+    expect(await ids(["CAPTACION"])).toEqual(["de-consulta"]);
+    expect(await ids(["PROYECTO"])).toEqual(["de-proyecto"]);
+    expect(await ids([])).toEqual([]);
+  });
 });

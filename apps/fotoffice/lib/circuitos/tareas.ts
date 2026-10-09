@@ -156,9 +156,12 @@ function inicioDelDia(ahora: Date): Date {
 export async function misTareas(
   ctx: CtxCircuitos,
   hoy: Date,
+  /** Sólo las tareas de estos tipos de registro (por omisión, todos). */
+  tipos?: readonly TipoSujeto[],
 ): Promise<{ vencidas: TareaVista[]; hoy: TareaVista[]; proximas: TareaVista[] }> {
   const grupos = { vencidas: [] as TareaVista[], hoy: [] as TareaVista[], proximas: [] as TareaVista[] };
   if (ctx.userId === null) return grupos;
+  if (tipos && tipos.length === 0) return grupos;
   const inicioHoy = inicioDelDia(hoy);
   const inicioManana = new Date(inicioHoy.getTime() + DIA_MS);
   const limite = new Date(inicioHoy.getTime() + 8 * DIA_MS); // fin del día hoy + 7
@@ -168,6 +171,7 @@ export async function misTareas(
       workspaceId: ctx.workspaceId,
       assigneeUserId: ctx.userId,
       doneAt: null,
+      ...(tipos ? { subjectType: { in: [...tipos] } } : {}),
       dueAt: { not: null, lt: limite },
       journey: { workspaceId: ctx.workspaceId, closedAt: null },
     },

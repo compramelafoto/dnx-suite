@@ -5,7 +5,7 @@ import { Download, Paperclip, RotateCcw, Trash2, Upload } from "lucide-react";
 import { borrarAdjuntoAction, enlaceDeDescargaAction, restaurarAdjuntoAction } from "@/app/actions/ficha";
 import { TIPOS_PERMITIDOS } from "@/lib/ficha/adjuntos-reglas";
 import { fechaBA, fechaHoraBA, tamanoLegible } from "@/lib/ficha/formato";
-import { subirAdjunto } from "./subir-adjunto";
+import { subirAdjunto, subirPorCanal, type CanalDeSubida } from "./subir-adjunto";
 import type { AdjuntoVista, PersonaFicha, Resultado } from "./tipos";
 
 /** Junto a los tipos MIME: algunos navegadores no conocen el de HEIC y sólo filtran por extensión. */
@@ -14,17 +14,30 @@ const ERROR_SUBIDA_FALLIDA = "No se pudo subir. Probá de nuevo.";
 
 type Subida = { clave: string; nombre: string; progreso: number; error: string | null };
 
+/** Dónde se guardan los adjuntos cuando no son de una persona (los de un proyecto). */
+export type CanalDeAdjuntos = CanalDeSubida & {
+  enlace: (adjuntoId: string) => Promise<{ ok: true; url: string } | { ok: false; error: string }>;
+  borrar: (adjuntoId: string) => Promise<Resultado>;
+  restaurar: (adjuntoId: string) => Promise<Resultado>;
+};
+
 /**
  * Adjuntos privados de la persona. Los archivos van directo del navegador al almacenamiento
  * con un enlace firmado; acá sólo se manejan ids de adjunto y enlaces que vencen.
  */
 export function Adjuntos({
   persona,
+  canal,
   adjuntos,
   habilitados,
   esConfigurador,
+  puedeEditar = true,
 }: {
-  persona: PersonaFicha;
+  /** La ficha de una persona; si se pasa `canal`, no hace falta. */
+  persona?: PersonaFicha;
+  canal?: CanalDeAdjuntos;
+  /** Sin esto (sólo "Ver") no se sube ni se borra. */
+  puedeEditar?: boolean;
   adjuntos: AdjuntoVista[];
   habilitados: boolean;
   esConfigurador: boolean;
@@ -52,7 +65,9 @@ export function Adjuntos({
       const actualizar = (cambio: Partial<Subida>) =>
         setSubidas((antes) => antes.map((s) => (s.clave === clave ? { ...s, ...cambio } : s)));
       try {
-        const r = await subirAdjunto(persona, archivo, (progreso) => actualizar({ progreso: Math.min(progreso, 99) }));
+        const avanzar = (progreso: number) => actualizar({ progreso: Math.min(progreso, 99) });
+        const r = canal ? await subirPorCanal(canal, archivo, avanzar) : persona ? await subirAdjunto(persona, archivo, avanzar) : null;
+        if (!r) throw new Error("sin destino");
         if (r.ok) setSubidas((antes) => antes.filter((s) => s.clave !== clave));
         else actualizar({ error: r.error });
       } catch {
@@ -75,7 +90,7 @@ export function Adjuntos({
   function descargar(adjuntoId: string) {
     setError(null);
     iniciar(async () => {
-      const r = await enlaceDeDescargaAction(persona, adjuntoId);
+      const r = canal ? await canal.enlace(adjuntoId) : await enlaceDeDescargaAction(persona!, adjuntoId);
       if (r.ok) window.location.assign(r.url);
       else setError(r.error);
     });
@@ -92,7 +107,7 @@ export function Adjuntos({
 
       {!habilitados ? (
         <p className="text-sm text-[var(--fo-muted)]">Los adjuntos todavía no están habilitados.</p>
-      ) : (
+      ) : !puedeEditar ? null : (
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -169,16 +184,18 @@ export function Adjuntos({
               >
                 <Download className="size-4" />
               </button>
-              <button
-                type="button"
-                className="fo-icon-btn fo-icon-btn-danger"
-                onClick={() => setConfirmando(a.id)}
-                disabled={pendiente || !habilitados}
-                aria-label={`Borrar ${a.nombre}`}
-                title="Borrar"
-              >
-                <Trash2 className="size-4" />
-              </button>
+              {puedeEditar ? (
+                <button
+                  type="button"
+                  className="fo-icon-btn fo-icon-btn-danger"
+                  onClick={() => setConfirmando(a.id)}
+                  disabled={pendiente || !habilitados}
+                  aria-label={`Borrar ${a.nombre}`}
+                  title="Borrar"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              ) : null}
             </div>
             {confirmando === a.id ? (
               <div className="mt-2 space-y-2 rounded-lg bg-[var(--fo-danger-soft)] p-2 text-xs" role="group" aria-label="Confirmar borrado">
@@ -192,7 +209,7 @@ export function Adjuntos({
                   <button
                     type="button"
                     className="fo-btn fo-btn-danger text-xs"
-                    onClick={() => correr(() => borrarAdjuntoAction(persona, a.id))}
+                    onClick={() => correr(() => (canal ? canal.borrar(a.id) : borrarAdjuntoAction(persona!, a.id)))}
                     disabled={pendiente}
                   >
                     Borrar
@@ -204,7 +221,7 @@ export function Adjuntos({
         ))}
       </ul>
 
-      {esConfigurador && borrados.length > 0 ? (
+      {puedeEditar && esConfigurador && borrados.length > 0 ? (
         <details className="text-sm">
           <summary className="cursor-pointer text-xs text-[var(--fo-muted)]">Borrados que se pueden restaurar ({borrados.length})</summary>
           <ul className="mt-2 space-y-2">
@@ -217,7 +234,7 @@ export function Adjuntos({
                 <button
                   type="button"
                   className="fo-btn fo-btn-ghost text-xs"
-                  onClick={() => correr(() => restaurarAdjuntoAction(persona, a.id))}
+                  onClick={() => correr(() => (canal ? canal.restaurar(a.id) : restaurarAdjuntoAction(persona!, a.id)))}
                   disabled={pendiente || !habilitados}
                 >
                   <RotateCcw className="size-3.5" aria-hidden />

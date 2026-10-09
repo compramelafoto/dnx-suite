@@ -77,6 +77,7 @@ export function Tarjeta({
           {textoDias(tarjeta.diasEnEtapa)}
         </span>
         {tarjeta.vencida ? <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-700">Vencida</span> : null}
+        {tarjeta.suspendido ? <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">Suspendido</span> : null}
         {tareas.total > 0 ? (
           <span
             className={`rounded px-1.5 py-0.5 ${tareas.hechas === tareas.total ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}

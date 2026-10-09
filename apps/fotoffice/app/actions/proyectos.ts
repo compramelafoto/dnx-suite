@@ -12,6 +12,9 @@ import {
 import { agregarNota, borrarNota, editarNota, type ResultadoNota } from "@/lib/proyectos/notas";
 import { borrarAdjunto, confirmarSubida, enlaceDeDescarga, pedirSubida, restaurarAdjunto, type ResultadoAdjunto } from "@/lib/proyectos/adjuntos";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
+import { puedeEnContexto } from "@/lib/access/policy";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { buscarContactos, type ContactoEncontrado } from "@/lib/consultas/ficha";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción revisa la forma de lo que llega,
 // arma el contexto (sesión + workspace de la sesión + módulo `projects` encendido + "Gestionar" en
@@ -110,6 +113,20 @@ export async function reasignarTareasAction(
     revalidatePath("/dashboard");
   }
   return r;
+}
+
+/**
+ * Buscador de contactos del equipo del proyecto: "Gestionar" en Proyectos y, además, "Ver" en
+ * Clientes (regla R10: es el padrón de clientes).
+ */
+export async function buscarContactosProyectoAction(
+  texto: string,
+): Promise<{ ok: true; contactos: ContactoEncontrado[] } | { ok: false; error: string }> {
+  if (typeof texto !== "string" || texto.length > 200) return DATOS_INVALIDOS;
+  const ctx = await contextoDeProyectos("operar");
+  if (!ctx) return SIN_PERMISO;
+  if (!puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY)) return { ok: false, error: "Para buscar contactos necesitás permiso para ver Clientes." };
+  return { ok: true, contactos: await buscarContactos(ctx.workspaceId, texto) };
 }
 
 // --- Equipo ---------------------------------------------------------------------------------------

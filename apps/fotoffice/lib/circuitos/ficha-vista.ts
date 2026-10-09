@@ -75,6 +75,8 @@ export type TareaCruda = {
   doneAt: Date | null;
   required: boolean;
   stageId: string | null;
+  /** Quién la tiene a cargo (opcional: sólo lo leen las fichas que lo muestran). */
+  assigneeUserId?: number | null;
 };
 
 export type TareaFicha = {
@@ -90,6 +92,8 @@ export type TareaFicha = {
   suelta: boolean;
   /** Pendiente que quedó de una etapa por la que ya pasó. */
   deEtapaAnterior: boolean;
+  /** Quién la tiene a cargo; null = nadie. */
+  responsableId: number | null;
 };
 
 /**
@@ -115,6 +119,7 @@ export function tareasVisibles(
       etapa: t.stageId === null ? null : (nombres.get(t.stageId) ?? ETAPA_BORRADA),
       suelta: t.stageId === null,
       deEtapaAnterior: t.stageId !== null && t.stageId !== etapaActualId,
+      responsableId: t.assigneeUserId ?? null,
     }));
 }
 

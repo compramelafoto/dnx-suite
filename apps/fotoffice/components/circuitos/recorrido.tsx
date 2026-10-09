@@ -34,7 +34,10 @@ export function Recorrido({
   motivos,
   responsables,
   puedePasarIgual,
+  tipo = "CAPTACION",
 }: {
+  /** Qué registro es: cambia los textos de los diálogos de cierre. */
+  tipo?: "CAPTACION" | "PROYECTO";
   recorrido: RecorridoFicha;
   titulo: string;
   motivos: { id: string; nombre: string }[];
@@ -341,6 +344,7 @@ export function Recorrido({
       </p>
 
       <DialogoGanada
+        pregunta={tipo === "PROYECTO" ? "¿Marcar el proyecto como terminado? No se puede deshacer." : undefined}
         titulo={ganando ? titulo : null}
         onCancelar={() => setGanando(false)}
         onConfirmar={() => {
@@ -349,6 +353,7 @@ export function Recorrido({
         }}
       />
       <DialogoPerdida
+        textos={tipo === "PROYECTO" ? { titulo: "Cancelar el proyecto", boton: "Cancelar el proyecto" } : undefined}
         titulo={perdiendo ? titulo : null}
         motivos={motivos}
         onCancelar={() => setPerdiendo(false)}

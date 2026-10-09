@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { agregarProyectoAction } from "@/app/actions/proyectos";
-import type { ProyectoDelPedido } from "@/lib/proyectos/del-pedido";
+import type { ProyectoDeTarjeta as ProyectoDelPedido } from "@/lib/proyectos/tarjetas";
 import { fechaCorta } from "@/lib/pedidos/pantalla";
 
 const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
@@ -63,10 +63,11 @@ export function ProyectosDelPedido({
             <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-[var(--fo-border)] p-3">
               <div className="min-w-0">
                 <Link href={`/proyectos/${encodeURIComponent(p.id)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
-                  {p.name}
+                  {p.nombre}
                 </Link>
                 <p className="text-xs text-[var(--fo-muted)]">
-                  N° {p.number} · {p.flujo}
+                  N° {p.numero} · {p.flujo}
+                  {p.estado === "SUSPENDIDO" ? " · Suspendido" : p.estado === "CERRADO" ? " · Cerrado" : p.etapa ? ` · ${p.etapa}` : ""}
                 </p>
               </div>
               {p.finalDueDate ? <span className="text-xs text-[var(--fo-muted)]">Entrega: {fechaCorta(p.finalDueDate)}</span> : null}

@@ -18,6 +18,13 @@ describe("módulos de los tipos de registro", () => {
     expect(await moduloDeRegistroEncendido("ws", "PRESUPUESTO")).toBe(false);
   });
 
+  it("Proyectos tiene campos con su módulo `projects`", async () => {
+    expect(MODULO_DE_REGISTRO.PROYECTO).toBe("projects");
+    H.encendidos = new Set(["projects"]);
+    expect(await moduloDeRegistroEncendido("ws", "PROYECTO")).toBe(true);
+    expect(await tiposConModuloEncendido("ws")).toEqual(["PROYECTO"]);
+  });
+
   it("los tipos encendidos, en el orden de siempre", async () => {
     expect(await tiposConModuloEncendido("ws")).toEqual([]);
     H.encendidos = new Set([MODULO_DE_REGISTRO.CONSULTA, MODULO_DE_REGISTRO.CLIENTE]);

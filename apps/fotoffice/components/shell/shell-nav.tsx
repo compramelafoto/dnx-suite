@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
+  FolderKanban,
   Hash,
   Globe,
   Link2,
@@ -59,6 +60,8 @@ import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/bl
 const QUOTES_MODULE_KEY = "quotes";
 // Ídem `lib/pedidos/acceso`.
 const ORDERS_MODULE_KEY = "orders";
+// Ídem `lib/proyectos/acceso`.
+const PROJECTS_MODULE_KEY = "projects";
 
 /**
  * Menú principal.
@@ -352,6 +355,18 @@ export function ShellNav({
             description: "Los trabajos confirmados: plan de cuotas, cobros y recibos.",
             icon: ClipboardList,
             isActive: under("/pedidos"),
+          },
+        ]
+      : []),
+    // Proyectos (etapa 4): módulo propio (`projects`, depende de Pedidos), con su nivel.
+    ...(ve(PROJECTS_MODULE_KEY)
+      ? [
+          {
+            href: "/proyectos",
+            label: "Proyectos",
+            description: "Los trabajos de cada pedido: etapas, tareas, fechas y equipo.",
+            icon: FolderKanban,
+            isActive: under("/proyectos"),
           },
         ]
       : []),
