@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
+import { cartelDePantalla } from "@/lib/pantalla-cartel";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { resolverTema } from "@/lib/tema";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
@@ -42,15 +43,23 @@ export default async function Pantalla({ params }: Props) {
   const tema = resolverTema(evento.themeTokens);
 
   /*
-    La placa de cierre. Cuando el evento termina, la pantalla deja de rotar y
-    queda con un mensaje fijo: si siguiera pasando fotos, el salón vacío tendría
-    una pantalla encendida toda la noche.
+    La pantalla fuera del horario del evento.
+
+    Son DOS momentos distintos y no uno: antes de empezar invita, después se despide.
+    Hasta el 2026-10-09 los dos caían en la placa de cierre, porque se miraba sólo
+    `puedeSubir` —que es falso en los dos casos—. El televisor enchufado media hora
+    antes decía "Gracias por la noche" a un salón que recién se estaba llenando.
 
     Se mira el acceso y no sólo el estado: el cron corre cada cinco minutos, así
     que entre que vence la ventana y se marca `CLOSED` hay un rato en el que la
     base todavía dice `ACTIVE`. La pantalla no tiene por qué esperar al cron.
   */
-  if (!estadoDeAcceso(evento, new Date()).puedeSubir) {
+  const cartel = cartelDePantalla({
+    momento: estadoDeAcceso(evento, new Date()).momento,
+    textoDeCierre: evento.closingCardText,
+  });
+
+  if (cartel.tipo !== "PROYECTANDO") {
     return (
       <main
         className="flex h-[100svh] w-full flex-col items-center justify-center px-16 text-center"
@@ -61,8 +70,16 @@ export default async function Pantalla({ params }: Props) {
         }}
       >
         <p className="text-balance text-[clamp(2rem,6vw,4.5rem)] font-extrabold leading-[1.1]">
-          {evento.closingCardText?.trim() || "Gracias por la noche"}
+          {cartel.titulo}
         </p>
+        {cartel.tipo === "ESPERANDO" ? (
+          <p
+            className="mt-8 text-balance text-[clamp(1.1rem,2.4vw,2rem)]"
+            style={{ opacity: 0.85 }}
+          >
+            {cartel.bajada}
+          </p>
+        ) : null}
         <p className="mt-8 text-[clamp(1rem,2vw,1.75rem)]" style={{ opacity: 0.7 }}>
           {evento.name}
         </p>
