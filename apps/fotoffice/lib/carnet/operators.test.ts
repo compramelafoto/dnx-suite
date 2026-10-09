@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
   hasLevel: vi.fn(),
+  hasAction: vi.fn(),
   grant: vi.fn(),
   legacy: vi.fn(),
   workspaceMembership: vi.fn(),
 }));
 
-vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.hasLevel }));
+vi.mock("@/lib/permissions/module-access", () => ({
+  hasModuleLevel: H.hasLevel,
+  hasModuleAction: H.hasAction,
+}));
 vi.mock("@repo/db", () => ({
   prisma: {
     memberCardOperator: { findUnique: H.grant },
@@ -20,6 +24,7 @@ const { resolveCardCapabilities } = await import("./operators");
 
 beforeEach(() => {
   H.hasLevel.mockReset().mockResolvedValue(false);
+  H.hasAction.mockReset().mockResolvedValue(false);
   H.grant.mockReset().mockResolvedValue(null);
   H.legacy.mockReset().mockResolvedValue({ role: "ADMIN" });
   H.workspaceMembership.mockReset().mockResolvedValue({ role: "WORKSPACE_OWNER" });
@@ -34,6 +39,16 @@ describe("resolveCardCapabilities", () => {
       "ADMINISTRAR",
     ]);
     expect(H.hasLevel).toHaveBeenCalledWith(7, "ws-1", "members", "MANAGE");
+  });
+
+  it("con la acción de carnets en Comunicación también puede todo, sin gestionar Socios", async () => {
+    H.hasAction.mockResolvedValue(true);
+    await expect(resolveCardCapabilities(7, "ws-1")).resolves.toEqual([
+      "PRODUCIR",
+      "ENTREGAR",
+      "ADMINISTRAR",
+    ]);
+    expect(H.hasAction).toHaveBeenCalledWith(7, "ws-1", "communications", "communications.carnets");
   });
 
   it("decide por nivel, no por el rol de membresía ni por la tabla legacy Membership", async () => {

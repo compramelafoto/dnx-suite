@@ -1,8 +1,13 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { estiloDeTema } from "@/lib/estilo-de-tema";
+import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { Cargador } from "./cargador";
+import { DejarMensaje } from "./mensaje";
+import { BarraDeReacciones } from "./reacciones";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +26,9 @@ export default async function Subir({ params }: Props) {
       deactivationAt: true,
       themeTokens: true,
       allowPhotos: true,
+      allowMessages: true,
+      hostsLabel: true,
+      coverUrl: true,
     },
   });
 
@@ -28,19 +36,38 @@ export default async function Subir({ params }: Props) {
 
   const tema = resolverTema(evento.themeTokens);
   const acceso = estadoDeAcceso(evento, new Date());
+  const portada = await urlDePortada(evento.coverUrl);
 
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={{
-        background: tema.fondo,
-        color: tema.texto,
-        fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-      }}
+      style={estiloDeTema(tema)}
     >
+      {/*
+        La portada y de quién es la fiesta, igual que en la puerta. El invitado llega acá
+        desde la puerta o desde el historial del navegador, y sin esto la pantalla donde
+        realmente sube sus fotos es la única del recorrido que no dice de qué fiesta es.
+      */}
+      {portada ? (
+        <Image
+          src={portada}
+          alt=""
+          width={400}
+          height={400}
+          priority
+          className="mb-8 h-auto w-[min(11rem,42vw)] rounded-2xl object-cover"
+        />
+      ) : null}
+
       <h1 className="max-w-[18ch] text-balance text-[clamp(1.5rem,6vw,2.2rem)] font-extrabold leading-tight">
         {evento.name}
       </h1>
+
+      {evento.hostsLabel ? (
+        <p className="mt-2 text-lg" style={{ color: tema.texto, opacity: 0.78 }}>
+          {evento.hostsLabel}
+        </p>
+      ) : null}
 
       {acceso.puedeSubir && evento.allowPhotos ? (
         <>
@@ -48,6 +75,10 @@ export default async function Subir({ params }: Props) {
             Elegí las fotos de tu galería o sacá una nueva.
           </p>
           <Cargador codigo={clave} tema={tema} />
+          <BarraDeReacciones codigo={clave} acento={tema.acento} />
+          {evento.allowMessages ? (
+            <DejarMensaje codigo={clave} acento={tema.acento} />
+          ) : null}
         </>
       ) : (
         <p className="mt-6 max-w-[32ch] opacity-80">

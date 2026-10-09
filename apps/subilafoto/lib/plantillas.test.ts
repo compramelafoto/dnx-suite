@@ -1,12 +1,27 @@
 import { describe, expect, test } from "vitest";
-import { PLANTILLAS, plantillaPorClave } from "./plantillas";
+import { FAMILIAS, PLANTILLAS, plantillaPorClave, plantillasDeFamilia } from "./plantillas";
 import { contraste } from "./contraste";
 import { resolverTema } from "./tema";
 
 describe("catálogo de plantillas", () => {
-  test("son seis y cada una tiene clave única", () => {
-    expect(PLANTILLAS).toHaveLength(6);
-    expect(new Set(PLANTILLAS.map((p) => p.clave)).size).toBe(6);
+  test("cada plantilla tiene una clave única", () => {
+    /*
+      Se cuentan contra sí mismas y no contra un número fijo: el catálogo crece, y una
+      prueba que diga "son seis" sólo obliga a editarla cada vez sin verificar nada.
+      Lo que importa es que no haya dos con la misma clave, porque la clave es lo que
+      se guarda en el evento.
+    */
+    expect(new Set(PLANTILLAS.map((p) => p.clave)).size).toBe(PLANTILLAS.length);
+  });
+
+  test("todas pertenecen a una familia declarada", () => {
+    const declaradas = new Set(FAMILIAS.map((f) => f.clave));
+    for (const p of PLANTILLAS) expect(declaradas.has(p.familia)).toBe(true);
+  });
+
+  test("ninguna familia queda vacía en el selector", () => {
+    // Una familia sin plantillas sería una solapa que se abre y no muestra nada.
+    for (const f of FAMILIAS) expect(plantillasDeFamilia(f.clave).length).toBeGreaterThan(0);
   });
 
   test.each(PLANTILLAS.map((p) => [p.nombre, p] as const))(

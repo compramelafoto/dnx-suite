@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
+import { queMostrar } from "@/lib/pantalla-ritmo";
+import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
 
 /**
@@ -14,34 +17,76 @@ import { idsAQuitar } from "@/lib/vivo";
  * - **Sin scroll ni controles.** No hay nadie para operarla.
  * - **Se aguanta sola.** Si se corta la conexión, reconecta; si se cae del todo,
  *   sigue rotando lo que ya tiene en memoria.
+ * - **El QR se intercala.** Cada diez fotos ocupa la pantalla entera. Chico en una
+ *   esquina y encima de una foto no lo escanea nadie, y una sola vez al principio
+ *   tampoco sirve: la gente llega durante toda la noche.
  */
 
-export type FotoEnVivo = {
-  id: string;
-  url: string;
-  pie?: string | null;
-  nombre?: string | null;
-};
+/**
+ * Lo que pasa por la pantalla: una foto o un mensaje.
+ *
+ * Son dos cosas distintas y no una foto con texto: el mensaje no tiene archivo, y
+ * tratarlo como una foto sin `url` llevaría a un recuadro roto en la pared del salón.
+ */
+export type ItemEnVivo =
+  | { tipo: "FOTO"; id: string; url: string; pie?: string | null; nombre?: string | null }
+  | { tipo: "MENSAJE"; id: string; texto: string; nombre?: string | null };
+
+/** Nombre viejo, conservado para no romper lo que todavía lo importe. */
+export type FotoEnVivo = Extract<ItemEnVivo, { tipo: "FOTO" }>;
 
 const CADA_FOTO_MS = 7_000;
-/** Las URL vienen firmadas por un minuto: no se puede guardar una lista infinita. */
+/** El QR se deja más tiempo: hay que sacar el teléfono, abrir la cámara y apuntar. */
+const EL_QR_MS = 12_000;
+/** Las URL vienen firmadas por un rato: no se puede guardar una lista infinita. */
 const MAXIMO_EN_MEMORIA = 40;
+/** Cuánto dura un emoji subiendo por la pantalla. */
+const VUELO_MS = 4_000;
+
+type EmojiVolando = {
+  clave: string;
+  emoji: string;
+  /** Dónde arranca, en porcentaje del ancho. */
+  izquierda: number;
+  demora: number;
+  /** Cuánto se corre de costado mientras sube, en vw. Puede ser negativo. */
+  deriva: number;
+  /** Cuánto se inclina al final, en grados. */
+  giro: number;
+};
 
 export function Proyeccion({
   codigo,
   iniciales,
+  estilo,
   fondo,
-  texto,
+  qrSvg,
+  urlDelEvento,
 }: {
   codigo: string;
-  iniciales: FotoEnVivo[];
+  iniciales: ItemEnVivo[];
+  /** El tema ya resuelto, con su textura. Ver `estiloDeTema`. */
+  estilo: CSSProperties;
+  /** El color de fondo solo, para tapar la foto cuando aparece el QR. */
   fondo: string;
-  texto: string;
+  /** El código QR ya dibujado en el servidor: la pantalla no tiene que calcularlo. */
+  qrSvg: string;
+  urlDelEvento: string;
 }) {
-  const [fotos, setFotos] = useState<FotoEnVivo[]>(iniciales);
+  const [fotos, setFotos] = useState<ItemEnVivo[]>(iniciales);
   // Crece sin tope y el resto se saca con módulo. Así el reloj no necesita
   // saber cuántas fotos hay, y no hay que rearmarlo cada vez que llega una.
   const [vuelta, setVuelta] = useState(0);
+  const [volando, setVolando] = useState<EmojiVolando[]>([]);
+  /*
+    El mando del DJ. Vive sólo en esta pantalla y no se guarda: si el televisor se
+    reinicia a mitad de la fiesta tiene que volver solo a reproducir, no quedarse en
+    pausa porque alguien la tocó hace dos horas.
+  */
+  const [pausado, setPausado] = useState(false);
+  const [aleatorio, setAleatorio] = useState(false);
+  const [mandoVisible, setMandoVisible] = useState(false);
+  const [conteo, setConteo] = useState<Record<string, number>>({});
 
   // Escucha las fotos nuevas. EventSource reconecta solo y manda el
   // Last-Event-ID, así que no hay que escribir la reconexión a mano.
@@ -49,17 +94,24 @@ export function Proyeccion({
     const fuente = new EventSource(`/api/e/${codigo}/vivo`);
 
     fuente.addEventListener("foto", (e) => {
-      const foto = JSON.parse((e as MessageEvent).data) as FotoEnVivo;
+      const item = JSON.parse((e as MessageEvent).data) as ItemEnVivo;
 
-      // Se precarga antes de meterla en la rotación: así nunca aparece a medias.
-      const img = new Image();
-      img.src = foto.url;
       const agregar = () =>
         setFotos((previas) =>
-          previas.some((f) => f.id === foto.id)
+          previas.some((f) => f.id === item.id)
             ? previas
-            : [...previas, foto].slice(-MAXIMO_EN_MEMORIA),
+            : [...previas, item].slice(-MAXIMO_EN_MEMORIA),
         );
+
+      // Un mensaje no tiene nada que descargar: entra enseguida.
+      if (item.tipo === "MENSAJE") {
+        agregar();
+        return;
+      }
+
+      // Una foto se precarga antes de entrar en la rotación: así nunca aparece a medias.
+      const img = new Image();
+      img.src = item.url;
       img.onload = agregar;
       // Si la precarga falla, se agrega igual: peor es que no aparezca nunca.
       img.onerror = agregar;
@@ -81,59 +133,154 @@ export function Proyeccion({
       });
     });
 
+    /*
+      Un emoji que alguien acaba de mandar: sube por la pantalla y se va.
+
+      La posición y la demora se sortean acá y no en CSS para que dos que llegan juntos
+      no suban pegados por la misma línea, que es lo que delata que es una animación y
+      no gente reaccionando.
+    */
+    fuente.addEventListener("reaccion", (e) => {
+      const { id, emoji } = JSON.parse((e as MessageEvent).data) as {
+        id: string;
+        emoji: string;
+      };
+      const nuevo: EmojiVolando = {
+        clave: id,
+        emoji,
+        izquierda: 5 + Math.random() * 90,
+        demora: Math.random() * 600,
+        // Se sortean acá y no en CSS: con valores fijos, dos emojis que llegan juntos
+        // harían el mismo recorrido y se vería la animación, no la reacción.
+        deriva: (Math.random() - 0.5) * 24,
+        giro: (Math.random() - 0.5) * 50,
+      };
+      setVolando((previos) => [...previos, nuevo]);
+      // Se saca cuando termina de subir: si no, la lista crece toda la noche.
+      setTimeout(
+        () => setVolando((previos) => previos.filter((v) => v.clave !== nuevo.clave)),
+        VUELO_MS + nuevo.demora + 500,
+      );
+    });
+
+    // El contador de verdad, completo. Llega cada diez segundos.
+    fuente.addEventListener("reacciones", (e) => {
+      const datos = JSON.parse((e as MessageEvent).data) as {
+        conteo: Record<string, number>;
+      };
+      setConteo(datos.conteo);
+    });
+
     return () => fuente.close();
   }, [codigo]);
 
-  // La rotación es independiente de la llegada de fotos: si deja de llegar
-  // gente nueva, la pantalla sigue mostrando lo que hay en lugar de congelarse.
+  /*
+    La semilla del sorteo sale del código del evento: es estable toda la noche —así el
+    orden no cambia en cada repintado— y distinta en cada fiesta.
+  */
+  const semilla = useMemo(
+    () => [...codigo].reduce((suma, c) => (suma * 31 + c.charCodeAt(0)) >>> 0, 7),
+    [codigo],
+  );
+
+  const paso = queMostrar({ vuelta, cantidadDeFotos: fotos.length });
+
+  /*
+    La rotación es independiente de la llegada de fotos: si deja de llegar gente nueva,
+    la pantalla sigue mostrando lo que hay en lugar de congelarse.
+
+    El reloj se rearma en cada paso porque el QR dura más que una foto: `vuelta` está en
+    las dependencias a propósito, cada vuelta programa la siguiente.
+  */
   useEffect(() => {
-    const reloj = setInterval(() => setVuelta((v) => v + 1), CADA_FOTO_MS);
-    return () => clearInterval(reloj);
-  }, []);
+    // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
+    if (pausado) return;
+    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
+    const reloj = setTimeout(() => setVuelta((v) => v + 1), cuanto);
+    return () => clearTimeout(reloj);
+  }, [vuelta, paso.tipo, pausado]);
 
-  const indice = fotos.length > 0 ? vuelta % fotos.length : 0;
-  const actual = fotos[indice];
+  /*
+    El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
+    abierto sería una barra gris sobre la pantalla del salón toda la noche.
+  */
+  useEffect(() => {
+    if (!mandoVisible) return;
+    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
+    return () => clearTimeout(reloj);
+  }, [mandoVisible, pausado, aleatorio]);
 
-  if (!actual) {
-    return (
-      <div
-        className="flex h-[100svh] w-full flex-col items-center justify-center px-12 text-center"
-        style={{ background: fondo, color: texto }}
-      >
-        <p className="text-[clamp(1.5rem,4vw,3rem)] font-extrabold">
-          Escaneá el código y subí tus fotos
-        </p>
-        <p className="mt-6 text-[clamp(1rem,2vw,1.5rem)]" style={{ opacity: 0.7 }}>
-          Van a aparecer acá
-        </p>
-      </div>
-    );
-  }
+  const totales = totalesOrdenados(conteo);
+  /*
+    `queMostrar` dice CUÁNTAS fotos pasaron —y cuándo toca el QR—; el modo de
+    reproducción dice CUÁL de todas se ve. Separados porque son dos preguntas distintas:
+    el ritmo no cambia cuando el DJ pone aleatorio.
+  */
+  const indiceVisible =
+    paso.tipo === "FOTO"
+      ? indiceDeFoto({
+          fotosMostradas: paso.indice,
+          cantidad: fotos.length,
+          aleatorio,
+          semilla,
+        })
+      : -1;
+  const actual = indiceVisible >= 0 ? fotos[indiceVisible] : undefined;
 
   return (
-    <div
-      className="relative h-[100svh] w-full overflow-hidden"
-      style={{ background: fondo, color: texto }}
-    >
+    <div className="relative h-[100svh] w-full overflow-hidden" style={estilo}>
       {/*
         Se pintan todas y se muestra una: cambiar el `src` de una sola etiqueta
         haría parpadear en blanco cada siete segundos en una pantalla grande.
       */}
-      {fotos.map((foto, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={foto.id}
-          src={foto.url}
-          alt=""
-          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700"
-          style={{ opacity: i === indice ? 1 : 0 }}
-        />
-      ))}
+      {fotos.map((item, i) =>
+        item.tipo === "FOTO" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={item.id}
+            src={item.url}
+            alt=""
+            className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700"
+            style={{ opacity: i === indiceVisible ? 1 : 0 }}
+          />
+        ) : (
+          <GloboDeChat
+            key={item.id}
+            texto={item.texto}
+            nombre={item.nombre}
+            visible={i === indiceVisible}
+          />
+        ),
+      )}
 
-      {actual.pie || actual.nombre ? (
+      {/* El turno del código: la pantalla entera, no una esquina. */}
+      <div
+        className="absolute inset-0 flex flex-col items-center justify-center gap-8 transition-opacity duration-700"
+        style={{
+          background: fondo,
+          opacity: paso.tipo === "QR" ? 1 : 0,
+          pointerEvents: paso.tipo === "QR" ? "auto" : "none",
+        }}
+      >
+        <p className="text-balance px-12 text-center text-[clamp(1.5rem,4vw,3.5rem)] font-extrabold">
+          {fotos.length === 0 ? "Sacá fotos y subilas acá" : "Sumá tus fotos"}
+        </p>
         <div
-          className="absolute inset-x-0 bottom-0 px-12 py-10 text-center"
-          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.65), transparent)" }}
+          className="w-[min(26rem,45vh)] rounded-3xl bg-white p-6"
+          dangerouslySetInnerHTML={{ __html: qrSvg }}
+        />
+        <p className="text-[clamp(1rem,2vw,1.6rem)]" style={{ opacity: 0.75 }}>
+          {urlDelEvento}
+        </p>
+      </div>
+
+      {actual?.tipo === "FOTO" && (actual.pie || actual.nombre) ? (
+        <div
+          className="absolute inset-x-0 bottom-0 px-12 py-10 text-center transition-opacity duration-700"
+          style={{
+            background: "linear-gradient(to top, rgba(0,0,0,0.65), transparent)",
+            opacity: paso.tipo === "FOTO" ? 1 : 0,
+          }}
         >
           <p className="text-[clamp(1rem,2.2vw,1.75rem)] font-extrabold text-white">
             {actual.pie}
@@ -141,6 +288,152 @@ export function Proyeccion({
             {actual.nombre}
           </p>
         </div>
+      ) : null}
+
+      {/* Los emojis que manda el salón, subiendo. Nunca tapan nada: pasan y se van. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {volando.map((v) => (
+          <span
+            key={v.clave}
+            className="slf-emoji-vuela absolute bottom-0 text-[clamp(2.5rem,6vw,5rem)]"
+            style={
+              {
+                left: `${v.izquierda}%`,
+                animationDelay: `${v.demora}ms`,
+                "--slf-deriva": `${v.deriva}vw`,
+                "--slf-giro": `${v.giro}deg`,
+              } as CSSProperties
+            }
+          >
+            {v.emoji}
+          </span>
+        ))}
+      </div>
+
+      {/* El contador. Sólo los que alguien mandó: una fila de ceros no dice nada. */}
+      {totales.length > 0 ? (
+        <div className="absolute left-0 top-0 flex gap-3 p-6">
+          {totales.map((t) => (
+            <div
+              key={t.emoji}
+              className="flex items-center gap-2 rounded-full px-4 py-2 text-[clamp(1rem,1.8vw,1.5rem)] font-extrabold"
+              style={{ background: "rgba(0,0,0,0.45)", color: "#fff" }}
+            >
+              <span>{t.emoji}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{t.total}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <style>{`
+        /*
+          El recorrido. No es una línea recta: se corre de costado y se inclina mientras
+          sube, cambiando de lado a mitad de camino. Un emoji que sube derecho se lee como
+          una animación; uno que se bambolea se lee como alguien reaccionando.
+        */
+        @keyframes slf-sube {
+          0%   { transform: translate(0, 0) scale(0.7) rotate(0deg); opacity: 0; }
+          15%  { opacity: 1; }
+          35%  { transform: translate(calc(var(--slf-deriva) * 0.45), -28vh) scale(1.05)
+                   rotate(calc(var(--slf-giro) * 0.5)); }
+          65%  { transform: translate(calc(var(--slf-deriva) * -0.25), -55vh) scale(1.1)
+                   rotate(calc(var(--slf-giro) * -0.35)); }
+          85%  { opacity: 1; }
+          100% { transform: translate(var(--slf-deriva), -88vh) scale(1.2)
+                   rotate(var(--slf-giro)); opacity: 0; }
+        }
+        .slf-emoji-vuela {
+          animation: slf-sube ${VUELO_MS}ms ease-out forwards;
+        }
+        /* Si alguien configuró su equipo para no ver animaciones, se respeta. */
+        @media (prefers-reduced-motion: reduce) {
+          .slf-emoji-vuela { animation-duration: 1ms; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/**
+ * Un botón del mando.
+ *
+ * Grande y con el nombre escrito: lo toca alguien parado, de noche, con música fuerte y
+ * sin haber visto nunca esta pantalla. Un ícono solo no alcanza.
+ */
+function BotonDeMando({
+  activo,
+  onClick,
+  etiqueta,
+  children,
+}: {
+  activo: boolean;
+  onClick: () => void;
+  etiqueta: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      className="flex min-h-[64px] min-w-[150px] items-center gap-3 rounded-2xl px-4 text-left text-white"
+      style={{ background: activo ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)" }}
+    >
+      <span className="text-2xl leading-none">{children}</span>
+      <span className="text-sm font-extrabold">{etiqueta}</span>
+    </button>
+  );
+}
+
+/**
+ * Un mensaje proyectado, como un globo de chat.
+ *
+ * El globo no es decoración: sin él, un texto solo sobre el fondo del evento se lee como
+ * un cartel del sistema —un aviso, un error— y no como algo que escribió alguien del
+ * salón. La forma es lo que dice "esto lo mandó una persona".
+ *
+ * La cola abajo a la izquierda y el nombre afuera del globo, como en cualquier chat: es
+ * la convención que todo el mundo ya sabe leer.
+ */
+function GloboDeChat({
+  texto,
+  nombre,
+  visible,
+}: {
+  texto: string;
+  nombre?: string | null;
+  visible: boolean;
+}) {
+  return (
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center px-[8vw] transition-opacity duration-700"
+      style={{ opacity: visible ? 1 : 0 }}
+      aria-hidden={!visible}
+    >
+      <div
+        className="relative max-w-[min(50rem,80vw)] rounded-[2.5rem] px-12 py-10"
+        style={{ background: "rgba(255,255,255,0.95)", color: "#1A1A1A" }}
+      >
+        <p className="text-balance text-center text-[clamp(1.6rem,4.5vw,3.4rem)] font-extrabold leading-[1.2]">
+          {texto}
+        </p>
+
+        {/* La cola del globo, dibujada con un triángulo. */}
+        <span
+          className="absolute -bottom-5 left-16 h-0 w-0"
+          style={{
+            borderLeft: "1.5rem solid transparent",
+            borderRight: "0.5rem solid transparent",
+            borderTop: "1.5rem solid rgba(255,255,255,0.95)",
+          }}
+        />
+      </div>
+
+      {nombre ? (
+        <p className="mt-10 text-[clamp(1rem,2vw,1.6rem)] font-extrabold" style={{ opacity: 0.85 }}>
+          {nombre}
+        </p>
       ) : null}
     </div>
   );

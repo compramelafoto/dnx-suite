@@ -25,7 +25,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const r = await cargar(slug, workId, new Date());
   if (!r) return {};
   const titulo = `${r.obra.title}, de ${r.obra.authorName || "autor sin indicar"}`;
-  const descripcion = `Obra de la muestra "${r.a.title}".`;
+  const sede = r.a.isVirtualOnly ? null : [r.a.venueName, r.a.city].filter(Boolean).join(", ");
+  const descripcion = `Obra de la muestra "${r.a.title}"${sede ? `, en ${sede}` : ""}.`;
   return {
     title: titulo,
     description: descripcion,
@@ -45,7 +46,7 @@ export default async function PaginaDeObra({ params }: Props) {
   const autor = obra.authorName || "Autor sin indicar";
   const datos = [obra.year ? String(obra.year) : null, obra.technique].filter(Boolean).join(". ");
   const { prev, next } = conFoto ? neighborWorks(visibleWorks(a, a.works, ahora).works, obra.id) : { prev: null, next: null };
-  const lugar = a.isVirtualOnly ? "Virtual" : [a.venueName, a.city].filter(Boolean).join(", ");
+  const lugar = a.isVirtualOnly ? "Online" : [a.venueName, a.city].filter(Boolean).join(", ");
 
   return (
     <main className="mf-marco space-y-8 py-8 sm:py-12">
@@ -60,7 +61,7 @@ export default async function PaginaDeObra({ params }: Props) {
         </figure>
       ) : (
         <div className="flex min-h-[40vh] items-center justify-center bg-[var(--mf-surface)] p-8 text-center">
-          <p className="max-w-[36ch] text-lg leading-snug">Esta obra se ve en la sala. La galería completa se publica cuando la muestra cierra.</p>
+          <p className="max-w-[36ch] text-lg leading-snug">Esta obra se ve en la sala. Cuando la muestra cierra, queda online en el archivo de la muestra.</p>
         </div>
       )}
 

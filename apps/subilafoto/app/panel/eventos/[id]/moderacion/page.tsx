@@ -68,6 +68,7 @@ export default async function Moderacion({ params, searchParams }: Props) {
       status: true,
       caption: true,
       createdAt: true,
+      kind: true,
       variants: SELECT_DE_VARIANTES,
       moderation: {
         orderBy: { decidedAt: "desc" },
@@ -90,13 +91,6 @@ export default async function Moderacion({ params, searchParams }: Props) {
 
   return (
     <main className="sobre-claro mx-auto max-w-6xl px-6 py-14">
-      <Link
-        href={`/panel/eventos/${evento.id}`}
-        className="text-sm font-extrabold"
-        style={{ color: "var(--slf-violeta)" }}
-      >
-        ← {evento.name}
-      </Link>
 
       <h1 className="mt-5 text-3xl font-extrabold tracking-[-0.02em]">Moderación</h1>
       <p className="mt-3 max-w-[60ch] leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>
@@ -151,7 +145,22 @@ export default async function Moderacion({ params, searchParams }: Props) {
                         cachee. Y sin botón de descarga, por la regla del
                         documento 03.
                       */}
-                      {foto.enlace ? (
+                      {foto.kind === "MESSAGE" ? (
+                        /*
+                          Un mensaje no tiene imagen: lo que hay que revisar es el texto.
+                          Se muestra con forma de globo para que se lea de un vistazo
+                          como lo que es, y entero —no recortado—: aprobar sin poder leer
+                          el final sería aprobar a ciegas.
+                        */
+                        <div
+                          className="flex aspect-[4/3] w-full items-center justify-center p-5"
+                          style={{ background: "var(--slf-crema)" }}
+                        >
+                          <p className="text-balance text-center text-base font-extrabold leading-snug">
+                            {foto.caption}
+                          </p>
+                        </div>
+                      ) : foto.enlace ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={foto.enlace}

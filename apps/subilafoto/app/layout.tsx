@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Montserrat } from "next/font/google";
+import { Bebas_Neue, Caveat, Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
 
 // El manual fija Montserrat. Sólo tres pesos: cada peso extra son kilobytes que
@@ -17,6 +17,25 @@ const cormorant = Cormorant_Garamond({
   variable: "--slf-font-serif",
   subsets: ["latin"],
   weight: ["400", "600", "700"],
+  display: "swap",
+});
+
+// Letra de cartel: condensada y en caja alta, pensada para leerse de lejos. Es la que
+// mejor funciona proyectada en la pared de un salón. Un solo peso, que es todo lo que
+// tiene la familia.
+const bebas = Bebas_Neue({
+  variable: "--slf-font-cartel",
+  subsets: ["latin"],
+  weight: ["400"],
+  display: "swap",
+});
+
+// Manuscrita, para cumpleaños y eventos de confianza. Dos pesos: el regular para el
+// cuerpo y el grueso para los títulos.
+const caveat = Caveat({
+  variable: "--slf-font-mano",
+  subsets: ["latin"],
+  weight: ["400", "700"],
   display: "swap",
 });
 
@@ -51,7 +70,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es" className={`${montserrat.variable} ${cormorant.variable}`}>
+    <html lang="es" className={`${montserrat.variable} ${cormorant.variable} ${bebas.variable} ${caveat.variable}`}>
       <body style={{ fontFamily: "var(--slf-font), system-ui, sans-serif" }}>
         {children}
       </body>

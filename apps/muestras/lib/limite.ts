@@ -83,6 +83,34 @@ export const LIMITES = {
   imagenCuraduria: { limit: 1500, windowMs: 10 * 60_000 },
 } as const;
 
+/**
+ * Los topes de lo que se puede hacer sin sesión, contados por IP. Hoy, sólo "Buscá muestras
+ * cerca tuyo" de la portada: cada búsqueda es un pedido a Nominatim con nuestro nombre, y su
+ * política pide no pasar de uno por segundo. 10 por minuto alcanza para buscar, corregir y
+ * volver a buscar; un bucle se frena enseguida.
+ */
+export const LIMITES_PUBLICOS = {
+  buscarCerca: { limit: 10, windowMs: 60_000 },
+} as const;
+
+export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
+
+/**
+ * La IP de quien pide, según los encabezados del proxy (en Vercel, `x-forwarded-for` lo pone la
+ * plataforma y el primer valor es el cliente). Sin encabezados, todos comparten un mismo balde:
+ * peor para ellos, nunca un pase libre.
+ */
+export function ipDeLaPeticion(h: { get(nombre: string): string | null }): string {
+  const reenviada = h.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = reenviada || h.get("x-real-ip")?.trim() || "";
+  return /^[0-9a-fA-F:.]{3,45}$/.test(ip) ? ip : "sin-ip";
+}
+
+/** Cuenta un uso de `que` para esa IP y dice si todavía está dentro del tope. */
+export function frenarPorIp(que: QueSeLimitaSinSesion, ip: string): DecisionDeFreno {
+  return checkRateLimit({ key: `ip:${que}:${ip}`, ...LIMITES_PUBLICOS[que] });
+}
+
 export type QueSeLimita = keyof typeof LIMITES;
 
 /** Cuenta un uso de `que` para la persona y dice si todavía está dentro del tope. */

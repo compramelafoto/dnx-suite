@@ -11,6 +11,7 @@ export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>
     titulo: "Ventas",
     bajada: "Vendé copias impresas y archivos digitales de las obras de tu muestra.",
     puntos: [
+      "Quien recorre la sala compra desde el QR de cada ficha.",
       "Precios y medidas por muestra.",
       "Cobro con Mercado Pago, repartido entre organizador, fotógrafo y plataforma.",
       "Cada autor acepta la venta y el reparto con un clic.",
@@ -20,10 +21,10 @@ export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>
   },
   estadisticas: {
     titulo: "Estadísticas",
-    bajada: "Cuánta gente ve tu muestra, escanea los QR de la sala y compra.",
+    bajada: "Cuánta gente escanea los QR de la sala, mira la ficha de tu muestra y compra.",
     puntos: [
-      "Visitas a la ficha de la muestra y a cada obra.",
       "Escaneos de los QR de las fichas de sala, obra por obra.",
+      "Visitas a la ficha de la muestra y a cada obra.",
       "Ventas por obra y por autor.",
       "Libro de visitas digital con los comentarios del público.",
     ],

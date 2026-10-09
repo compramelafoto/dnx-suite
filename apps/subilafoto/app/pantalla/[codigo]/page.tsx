@@ -1,14 +1,26 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
+import { cartelDePantalla } from "@/lib/pantalla-cartel";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { qrDelEvento } from "@/lib/qr";
+import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
+import { urlDelCodigo } from "@/lib/url-invitado";
 import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
-import { Proyeccion, type FotoEnVivo } from "./proyeccion";
+import { Proyeccion, type ItemEnVivo } from "./proyeccion";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ codigo: string }> };
+
+function baseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.AUTH_URL?.trim() ||
+    "http://localhost:3012"
+  );
+}
 
 /**
  * La pantalla del salón.
@@ -42,27 +54,39 @@ export default async function Pantalla({ params }: Props) {
   const tema = resolverTema(evento.themeTokens);
 
   /*
-    La placa de cierre. Cuando el evento termina, la pantalla deja de rotar y
-    queda con un mensaje fijo: si siguiera pasando fotos, el salón vacío tendría
-    una pantalla encendida toda la noche.
+    La pantalla fuera del horario del evento.
+
+    Son DOS momentos distintos y no uno: antes de empezar invita, después se despide.
+    Hasta el 2026-10-09 los dos caían en la placa de cierre, porque se miraba sólo
+    `puedeSubir` —que es falso en los dos casos—. El televisor enchufado media hora
+    antes decía "Gracias por la noche" a un salón que recién se estaba llenando.
 
     Se mira el acceso y no sólo el estado: el cron corre cada cinco minutos, así
     que entre que vence la ventana y se marca `CLOSED` hay un rato en el que la
     base todavía dice `ACTIVE`. La pantalla no tiene por qué esperar al cron.
   */
-  if (!estadoDeAcceso(evento, new Date()).puedeSubir) {
+  const cartel = cartelDePantalla({
+    momento: estadoDeAcceso(evento, new Date()).momento,
+    textoDeCierre: evento.closingCardText,
+  });
+
+  if (cartel.tipo !== "PROYECTANDO") {
     return (
       <main
         className="flex h-[100svh] w-full flex-col items-center justify-center px-16 text-center"
-        style={{
-          background: tema.fondo,
-          color: tema.texto,
-          fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-        }}
+        style={estiloDeTema(tema)}
       >
         <p className="text-balance text-[clamp(2rem,6vw,4.5rem)] font-extrabold leading-[1.1]">
-          {evento.closingCardText?.trim() || "Gracias por la noche"}
+          {cartel.titulo}
         </p>
+        {cartel.tipo === "ESPERANDO" ? (
+          <p
+            className="mt-8 text-balance text-[clamp(1.1rem,2.4vw,2rem)]"
+            style={{ opacity: 0.85 }}
+          >
+            {cartel.bajada}
+          </p>
+        ) : null}
         <p className="mt-8 text-[clamp(1rem,2vw,1.75rem)]" style={{ opacity: 0.7 }}>
           {evento.name}
         </p>
@@ -71,10 +95,20 @@ export default async function Pantalla({ params }: Props) {
   }
 
   const ultimas = await prisma.subilafotoMedia.findMany({
-    where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
+    where: {
+      ...condicionDePublicadas(evento.id),
+      // Los mensajes se proyectan entre las fotos, como un globo de chat.
+      kind: { in: ["PHOTO", "MESSAGE"] },
+    },
     orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
     take: 20,
-    select: { id: true, caption: true, guestName: true, variants: SELECT_DE_VARIANTES },
+    select: {
+      id: true,
+      kind: true,
+      caption: true,
+      guestName: true,
+      variants: SELECT_DE_VARIANTES,
+    },
   });
 
   // Se dan vuelta: la pantalla las recorre en el orden en que se publicaron.
@@ -83,18 +117,33 @@ export default async function Pantalla({ params }: Props) {
   // proyecta —un recuadro roto en la pared del salón es peor que una foto de menos.
   const enlaces = await enlacesDeVariantes(enOrden, "pantalla", DURACION.proyeccion);
 
-  const iniciales: FotoEnVivo[] = enOrden.flatMap((f, i) => {
+  const iniciales: ItemEnVivo[] = enOrden.flatMap((f, i): ItemEnVivo[] => {
+    if (f.kind === "MESSAGE") {
+      // Un mensaje no tiene archivo: su contenido es el texto.
+      return f.caption
+        ? [{ tipo: "MENSAJE", id: f.id, texto: f.caption, nombre: f.guestName }]
+        : [];
+    }
     const url = enlaces[i];
     if (!url) return [];
-    return [{ id: f.id, url, pie: f.caption, nombre: f.guestName }];
+    return [{ tipo: "FOTO", id: f.id, url, pie: f.caption, nombre: f.guestName }];
   });
+
+  /*
+    El QR se dibuja en el servidor y viaja ya hecho. El televisor del salón suele ser un
+    aparato lento: no tiene por qué calcular un código que nunca cambia en toda la noche.
+  */
+  const urlDelEvento = urlDelCodigo(baseUrl(), evento.code);
+  const qrSvg = await qrDelEvento(urlDelEvento);
 
   return (
     <Proyeccion
+      qrSvg={qrSvg}
+      urlDelEvento={urlDelEvento.replace(/^https?:\/\//, "")}
       codigo={evento.code}
       iniciales={iniciales}
+      estilo={estiloDeTema(tema)}
       fondo={tema.fondo}
-      texto={tema.texto}
     />
   );
 }

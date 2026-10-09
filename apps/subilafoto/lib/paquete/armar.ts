@@ -11,6 +11,8 @@ import { condicionDePublicadas } from "@/lib/album";
 import { armarManifiesto, nombreEnElPaquete, type ArchivoDelManifiesto } from "./manifiesto";
 import { repartirEnPartes } from "./partes";
 import { vencimientoDelEnlace } from "./enlace";
+import { imagenDelMensaje } from "./mensaje-a-imagen";
+import { resolverTema } from "@/lib/tema";
 
 /**
  * Arma el paquete de descarga de un evento.
@@ -34,17 +36,26 @@ export type ResultadoDelArmado =
 export async function armarPaquete(eventoId: string): Promise<ResultadoDelArmado> {
   const evento = await prisma.subilafotoEvent.findUnique({
     where: { id: eventoId },
-    select: { id: true, name: true, code: true, retentionUntil: true },
+    select: { id: true, name: true, code: true, retentionUntil: true, themeTokens: true },
   });
   if (!evento) return { ok: false, error: "El evento no existe." };
 
   const fotos = await prisma.subilafotoMedia.findMany({
-    where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
+    where: {
+      ...condicionDePublicadas(evento.id),
+      /*
+        Los mensajes también van al paquete. El cliente se lleva todo el material de su
+        fiesta, y un saludo proyectado en la pared esa noche es parte del material: se
+        dibuja como imagen, igual que en la pantalla.
+      */
+      kind: { in: ["PHOTO", "MESSAGE"] },
+    },
     // El mismo orden en cada generación: si cambiara, la foto 007 de un cliente
     // no sería la misma que la de ayer.
     orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
+      kind: true,
       originalKey: true,
       originalBytes: true,
       checksum: true,
@@ -90,6 +101,7 @@ export async function armarPaquete(eventoId: string): Promise<ResultadoDelArmado
     try {
       const resultado = await escribirParte({
         evento,
+        tema: resolverTema(evento.themeTokens),
         grupo,
         parte: { numero: numeroDeParte, de: partes.length },
         totalDeFotos: fotos.length,
@@ -135,6 +147,7 @@ export async function armarPaquete(eventoId: string): Promise<ResultadoDelArmado
 
 type FotoDelPaquete = {
   id: string;
+  kind: "PHOTO" | "VIDEO" | "MESSAGE";
   originalKey: string;
   originalBytes: number | null;
   checksum: string | null;
@@ -145,12 +158,14 @@ type FotoDelPaquete = {
 
 async function escribirParte(entrada: {
   evento: { id: string; name: string; code: string };
+  /** Los colores con los que se dibujan los mensajes, los mismos de la pantalla. */
+  tema: { fondo: string; texto: string; acento: string };
   grupo: FotoDelPaquete[];
   parte: { numero: number; de: number };
   totalDeFotos: number;
   desde: number;
 }): Promise<{ clave: string; bytes: number; checksum: string; manifiesto: object }> {
-  const { evento, grupo, parte, totalDeFotos, desde } = entrada;
+  const { evento, tema, grupo, parte, totalDeFotos, desde } = entrada;
   const cliente = almacenamiento();
   const clave = `paquetes/${evento.code}/parte-${parte.numero}-de-${parte.de}.zip`;
 
@@ -182,6 +197,32 @@ async function escribirParte(entrada: {
   const archivos: ArchivoDelManifiesto[] = [];
 
   for (const [i, foto] of grupo.entries()) {
+    /*
+      Un mensaje no tiene archivo en el bucket: se dibuja acá, como PNG, con el mismo
+      globo de chat que se ve en la pantalla del salón. El nombre lleva `.png` y no la
+      extensión del original, que está vacía.
+    */
+    if (foto.kind === "MESSAGE") {
+      const nombre = nombreEnElPaquete(desde + i + 1, totalDeFotos, "mensaje.png");
+      const imagen = await imagenDelMensaje({
+        texto: foto.caption ?? "",
+        nombre: foto.guestName,
+        tema: { fondo: tema.fondo, texto: tema.texto, acento: tema.acento },
+      });
+
+      zip.append(imagen, { name: nombre });
+      archivos.push({
+        archivo: nombre,
+        bytes: imagen.byteLength,
+        // Se calcula sobre lo que realmente entra al ZIP: la imagen, no el texto.
+        checksum: createHash("sha256").update(imagen).digest("hex"),
+        autor: foto.guestName,
+        pie: foto.caption,
+        subidaEl: (foto.publishedAt ?? new Date()).toISOString(),
+      });
+      continue;
+    }
+
     const nombre = nombreEnElPaquete(desde + i + 1, totalDeFotos, foto.originalKey);
 
     const objeto = await cliente.send(

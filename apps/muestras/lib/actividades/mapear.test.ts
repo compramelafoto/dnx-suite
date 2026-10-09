@@ -40,10 +40,17 @@ describe("fichaDesdeFormData", () => {
     expect(f.rightsConfirmed).toBe(true);
     expect(f.works).toHaveLength(1);
   });
-  it("una actividad sólo virtual descarta el lugar", () => {
-    const f = fichaDesdeFormData(fd({ ...base, isVirtualOnly: "on" }));
+  it("una charla sólo online descarta el lugar", () => {
+    const f = fichaDesdeFormData(fd({ ...base, type: "CHARLA", isVirtualOnly: "on" }));
+    expect(f.isVirtualOnly).toBe(true);
     expect(f.latitude).toBeNull();
     expect(f.address).toBeNull();
+  });
+  it("una muestra nunca queda como sólo online: conserva la sede", () => {
+    const f = fichaDesdeFormData(fd({ ...base, isVirtualOnly: "on" }));
+    expect(f.isVirtualOnly).toBe(false);
+    expect(f.address).toBe("Calle 1");
+    expect(f.latitude).toBeCloseTo(-31.74);
   });
   it("obras mal formadas se ignoran", () => {
     const f = fichaDesdeFormData(fd({ ...base, works: "no es json" }));

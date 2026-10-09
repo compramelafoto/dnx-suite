@@ -4,6 +4,8 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { estiloDeTema } from "@/lib/estilo-de-tema";
+import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
 import { yaAcepto } from "@/lib/consentimiento-db";
@@ -54,6 +56,12 @@ export default async function PuertaDelInvitado({ params }: Props) {
   if (!evento) notFound();
 
   const acceso = estadoDeAcceso(evento, new Date());
+  /*
+    El bucket es privado: lo guardado es la clave del archivo y hay que firmarla. Antes
+    se ponía el valor crudo en el `src`, que nunca habría cargado — no se notaba porque
+    no había forma de cargar una portada.
+  */
+  const portada = await urlDePortada(evento.coverUrl);
 
   // Si ya aceptó los términos en este evento, no se le vuelve a pedir.
   const almacen = await cookies();
@@ -68,15 +76,11 @@ export default async function PuertaDelInvitado({ params }: Props) {
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={{
-        background: tema.fondo,
-        color: tema.texto,
-        fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-      }}
+      style={estiloDeTema(tema)}
     >
-      {evento.coverUrl ? (
+      {portada ? (
         <Image
-          src={evento.coverUrl}
+          src={portada}
           alt=""
           width={520}
           height={520}

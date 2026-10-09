@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { BlockSizePanel } from "./inspector/BlockSizePanel";
 import { ColorField } from "./inspector/ColorField";
 import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
 import { FieldLabel, InspectorPanel } from "./inspector/InspectorPanel";
@@ -171,6 +172,8 @@ export function TemplateEditorInspector({
         <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
         <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Cambios locales hasta que guardes.</p>
       </div>
+
+      <BlockSizePanel block={selectedBlock} canvas={canvas} dispatch={dispatch} />
 
       {/*
         La opacidad estaba en cada fila de la lista de capas, con su deslizador siempre a la

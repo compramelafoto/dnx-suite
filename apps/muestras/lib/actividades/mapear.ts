@@ -140,7 +140,8 @@ export type OpcionesFicha = {
 
 export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): FichaForm {
   const base = "baseImagenes" in opciones ? opciones.baseImagenes ?? null : baseImagenesPublicas();
-  const virtual = fd.get("isVirtualOnly") === "on";
+  // Una muestra siempre tiene sede: aunque llegue la casilla, para una muestra no cuenta.
+  const virtual = fd.get("isVirtualOnly") === "on" && fd.get("type") !== "MUESTRA";
   const modo = txt(fd, "galleryMode");
   const portada = opt(fd, "coverImageUrl");
   return {

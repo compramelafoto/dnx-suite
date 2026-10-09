@@ -50,13 +50,6 @@ export default async function Control({ params }: Props) {
 
   return (
     <main className="sobre-claro mx-auto max-w-3xl px-4 py-8">
-      <Link
-        href={`/panel/eventos/${evento.id}`}
-        className="text-sm font-extrabold"
-        style={{ color: "var(--slf-violeta)" }}
-      >
-        ← {evento.name}
-      </Link>
 
       <h1 className="mt-4 text-2xl font-extrabold tracking-[-0.02em]">En la pantalla</h1>
       <p className="mt-2 leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>

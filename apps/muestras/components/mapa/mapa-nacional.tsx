@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -17,12 +17,23 @@ L.Icon.Default.mergeOptions({
 const ARGENTINA: L.LatLngBoundsExpression = [[-55.2, -73.7], [-21.7, -53.5]];
 /** Con un solo punto (o varios en la misma cuadra) no se acerca más que esto. */
 const ZOOM_MAXIMO_AL_ENCUADRAR = 12;
+/** "Cerca de": una ciudad y sus alrededores (unos 50 km a cada lado). */
+const ZOOM_CERCA = 9;
 
-/** Encuadra los puntos; si no hay, el país. Se vuelve a encuadrar cuando cambian los filtros. */
-function Encuadre({ puntos }: { puntos: PuntoMapa[] }) {
+export type Centro = { latitude: number; longitude: number };
+
+/**
+ * Encuadra los puntos; si no hay, el país. Se vuelve a encuadrar cuando cambian los filtros.
+ * Con un centro ("cerca de"), se para ahí con zoom de ciudad.
+ */
+function Encuadre({ puntos, centro }: { puntos: PuntoMapa[]; centro?: Centro | null }) {
   const mapa = useMap();
-  const clave = puntos.map((p) => `${p.latitude},${p.longitude}`).join("|");
+  const clave = puntos.map((p) => `${p.latitude},${p.longitude}`).join("|") + (centro ? `@${centro.latitude},${centro.longitude}` : "");
   useEffect(() => {
+    if (centro) {
+      mapa.setView([centro.latitude, centro.longitude], ZOOM_CERCA);
+      return;
+    }
     if (puntos.length === 0) {
       mapa.fitBounds(ARGENTINA);
       return;
@@ -41,7 +52,7 @@ export type PuntoMapa = { slug: string; title: string; latitude: number; longitu
  * Centro de Argentina con zoom de país. Sólo en el navegador: importar con `ssr: false`.
  * Ocupa todo el alto de quien lo contiene.
  */
-export default function MapaNacional({ puntos }: { puntos: PuntoMapa[] }) {
+export default function MapaNacional({ puntos, centro }: { puntos: PuntoMapa[]; centro?: Centro | null }) {
   return (
     <div className="mf-mapa-portada relative z-0 h-full overflow-hidden bg-[var(--mf-surface)]">
       <MapContainer bounds={ARGENTINA} scrollWheelZoom={false} style={{ height: "100%", width: "100%" }}>
@@ -51,7 +62,11 @@ export default function MapaNacional({ puntos }: { puntos: PuntoMapa[] }) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Encuadre puntos={puntos} />
+        <Encuadre puntos={puntos} centro={centro} />
+        {centro ? (
+          // El punto buscado: un círculo, para no confundirlo con una muestra.
+          <CircleMarker center={[centro.latitude, centro.longitude]} radius={8} pathOptions={{ color: "#1c2b35", weight: 2, fillColor: "#e0a526", fillOpacity: 1 }} />
+        ) : null}
         {puntos.map((p) => (
           <Marker key={p.slug} position={[p.latitude, p.longitude]} alt={p.title}>
             <Popup>

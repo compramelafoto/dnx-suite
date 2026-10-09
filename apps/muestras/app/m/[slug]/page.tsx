@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ACTIVITY_TYPE_LABELS, formatArDay, visibleWorks, type ActivityType } from "@repo/muestras";
+import { ACTIVITY_TYPE_LABELS, formatArDay, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { Galeria } from "@/components/ficha/galeria";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
@@ -51,12 +51,12 @@ export default async function Ficha({ params }: Props) {
         <div><dt className="text-sm text-[var(--mf-muted)]">Horarios</dt><dd>{a.scheduleText}</dd></div>
         <div><dt className="text-sm text-[var(--mf-muted)]">Entrada</dt><dd>{a.priceText || "Libre y gratuita"}</dd></div>
         <div className="sm:col-span-2"><dt className="text-sm text-[var(--mf-muted)]">Lugar</dt>
-          <dd>{a.isVirtualOnly ? "Sólo virtual" : <>{a.venueName ? `${a.venueName}, ` : ""}{a.address}{a.city ? `, ${a.city}` : ""}{a.province ? `, ${a.province}` : ""}{mapa ? <><br /><a href={mapa} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Ver en el mapa</a></> : null}</>}</dd>
+          <dd>{a.isVirtualOnly ? "Online" : <>{a.venueName ? `${a.venueName}, ` : ""}{a.address}{a.city ? `, ${a.city}` : ""}{a.province ? `, ${a.province}` : ""}{mapa ? <><br /><a href={mapa} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Cómo llegar</a></> : null}</>}</dd>
         </div>
         {esUrlWeb(a.externalUrl) ? <div className="sm:col-span-2"><a href={a.externalUrl} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Más información</a></div> : null}
       </dl>
       <div className="whitespace-pre-line">{a.description}</div>
-      {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} slug={a.slug} /> : null}
+      {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} cerrada={temporalStatus(a, ahora) === "CLOSED"} slug={a.slug} /> : null}
     </main>
   );
 }

@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const vacia = (await listarFotografos()).length === 0;
   return {
     title: "Fotógrafos que expusieron",
-    description: "Autores con obras en muestras fotográficas de todo el país.",
+    description: "Autores que colgaron sus obras en muestras de fotografía de todo el país.",
     ...(vacia ? { robots: { index: false, follow: true } } : {}),
   };
 }
@@ -20,7 +20,7 @@ export default async function Fotografos() {
   return (
     <main className="mf-marco py-10 sm:py-16">
       <h1 className="mf-titulo max-w-[16ch] text-[clamp(2.2rem,5vw,3.5rem)]">Fotógrafos que expusieron</h1>
-      <p className="mt-4 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Autores con obras en muestras de todo el país.</p>
+      <p className="mt-4 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Autores que colgaron sus obras en muestras de todo el país.</p>
       {perfiles.length === 0 ? (
         <p className="mt-10 border-t border-[var(--mf-line)] pt-8 text-lg">Todavía no hay perfiles publicados.</p>
       ) : (
