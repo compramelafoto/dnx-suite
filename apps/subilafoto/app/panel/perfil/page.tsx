@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { perfilDeVenta } from "@/lib/perfil-de-venta";
+import { urlDelBanner } from "@/lib/banner-url";
 import { urlDelLogo } from "@/lib/logo-url";
 import { FormularioPerfil } from "./formulario";
 
@@ -39,6 +40,8 @@ export default async function Perfil() {
       headline: true,
       description: true,
       logoUrl: true,
+      bannerUrl: true,
+      bannerLinkUrl: true,
       brandColor: true,
       basePriceCents: true,
       termsText: true,
@@ -64,6 +67,7 @@ export default async function Perfil() {
         perfil={perfil}
         enlace={`${baseUrl()}/v/${perfil.slug}`}
         vistaDelLogo={await urlDelLogo(perfil.logoUrl)}
+        vistaDelBanner={await urlDelBanner(perfil.bannerUrl)}
       />
     </main>
   );
