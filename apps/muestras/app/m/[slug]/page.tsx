@@ -53,7 +53,7 @@ export default async function Ficha({ params }: Props) {
         {esUrlWeb(a.externalUrl) ? <div className="sm:col-span-2"><a href={a.externalUrl} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Más información</a></div> : null}
       </dl>
       <div className="whitespace-pre-line">{a.description}</div>
-      {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} /> : null}
+      {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} slug={a.slug} /> : null}
     </main>
   );
 }

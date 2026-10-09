@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "@repo/db";
 import type { Usuario } from "@/lib/usuario";
 
@@ -20,12 +21,18 @@ export function listarPublicas() {
   });
 }
 
-export function buscarPorSlug(slug: string) {
-  return prisma.culturalActivity.findFirst({
+/** Publicada, con sus obras y el perfil de cada autor. `cache`: metadatos y página la piden juntos. */
+export const buscarPorSlug = cache((slug: string) =>
+  prisma.culturalActivity.findFirst({
     where: { slug, reviewStatus: "APPROVED" },
-    include: { works: { orderBy: { sortOrder: "asc" } } },
-  });
-}
+    include: {
+      works: {
+        orderBy: { sortOrder: "asc" },
+        include: { authorProfile: { select: { slug: true, displayName: true } } },
+      },
+    },
+  }),
+);
 
 export function listarMias(userId: number) {
   return prisma.culturalActivity.findMany({

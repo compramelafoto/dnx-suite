@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { workPath } from "@repo/muestras";
 import { Visor } from "@/components/visor/visor";
 
 type Obra = { id: string; imageUrl: string; title: string; authorName: string; year: number | null; technique: string | null };
 
 /** Grilla de obras con visor a pantalla completa. Flechas y Escape del teclado funcionan en el visor. */
-export function Galeria({ obras, parcial }: { obras: Obra[]; parcial: boolean }) {
+export function Galeria({ obras, parcial, slug }: { obras: Obra[]; parcial: boolean; slug: string }) {
   const [abierta, setAbierta] = useState<number | null>(null);
   const actual = abierta != null ? obras[abierta] : null;
   const ir = (d: number) => setAbierta((i) => (i == null ? i : (i + d + obras.length) % obras.length));
@@ -31,7 +33,7 @@ export function Galeria({ obras, parcial }: { obras: Obra[]; parcial: boolean })
           etiqueta="Obras de la muestra"
           onCerrar={() => setAbierta(null)}
           onIr={ir}
-          pie={<><strong className="font-medium text-white">{actual.title}</strong>, de {actual.authorName}{actual.year ? `, ${actual.year}` : ""}{actual.technique ? `. ${actual.technique}` : ""}</>}
+          pie={<><strong className="font-medium text-white">{actual.title}</strong>, de {actual.authorName}{actual.year ? `, ${actual.year}` : ""}{actual.technique ? `. ${actual.technique}` : ""}{" "}<Link href={workPath(slug, actual.id)} className="ml-2 text-white underline underline-offset-4">Ver la obra</Link></>}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={actual.imageUrl} alt={`${actual.title}, de ${actual.authorName}`} className="mx-auto h-full w-full object-contain" />
