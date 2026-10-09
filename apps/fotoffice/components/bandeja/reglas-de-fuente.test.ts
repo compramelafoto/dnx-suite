@@ -107,6 +107,18 @@ describe("permisos en pantalla", () => {
   });
 });
 
+describe("ajustes de la ronda 1", () => {
+  it("'Crear contacto' sólo se ofrece con permiso de Clientes, y la guarda se calcula una vez por pedido", () => {
+    expect(leer("components/bandeja/panel-del-cliente.tsx")).toContain("puedeCrearContacto ? (");
+    expect(leer("app/(shell)/bandeja/[chatId]/page.tsx")).toContain("puedeCrearContacto={puedeOperarClientes}");
+    expect(leer("lib/bandeja/pagina.ts")).toContain("cache(requireBandejaSinCache)");
+  });
+
+  it("marcar leído evita llamadas simultáneas", () => {
+    expect(leer("components/bandeja/marcar-leido.tsx")).toContain("enCurso.current");
+  });
+});
+
 describe("menú", () => {
   it("el ítem figura con la ruta y el nivel Ver del módulo", () => {
     const f = leer("components/shell/shell-nav.tsx");
@@ -117,6 +129,6 @@ describe("menú", () => {
 
   it("el total de no leídos sólo se consulta con Ver en el módulo", () => {
     const f = leer("components/shell/admin-shell.tsx");
-    expect(f).toMatch(/hasLevel\(levels\[BANDEJA_MODULE_KEY\] \?\? "NONE", "VIEW"\) \? await noLeidosParaElMenu/);
+    expect(f).toMatch(/hasLevel\(levels\[BANDEJA_MODULE_KEY\] \?\? "NONE", "VIEW"\) \? await noLeidosDelWorkspace/);
   });
 });

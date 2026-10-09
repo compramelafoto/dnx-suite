@@ -9,6 +9,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { puedeOperarBandeja, puedeVerBandeja, type CtxBandeja } from "./acceso";
 import type { Autor, Direccion, EstadoDelChat, TipoMensaje } from "./constantes";
 import { atiendeElBot, estadoVisible, puedeResponderLibre } from "./reglas";
+import { textoDeVistaPrevia } from "./vista-previa";
 
 /**
  * Lecturas de la Bandeja de WhatsApp (servidor): la lista de chats, el detalle de uno y el total de
@@ -30,27 +31,9 @@ export const ETIQUETA_FILTRO: Record<FiltroBandeja, string> = {
 
 export const MAXIMO_CHATS = 200;
 export const MAXIMO_MENSAJES = 200;
-export const LARGO_VISTA_PREVIA = 120;
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 const CLAVE_CONSULTAS = SERVICE_LEADS_MODULE_KEY;
 const CLAVE_PRESUPUESTOS = "quotes";
-
-const TEXTO_POR_TIPO: Record<string, string> = {
-  IMAGEN: "Imagen",
-  AUDIO: "Audio",
-  DOCUMENTO: "Documento",
-  VIDEO: "Video",
-  UBICACION: "Ubicación",
-  PLANTILLA: "Plantilla",
-  OTRO: "Mensaje",
-};
-
-/** Texto corto de un mensaje para la lista: el texto, o el tipo entre corchetes si no tiene. */
-export function vistaPrevia(m: { texto: string | null; tipo: string }): string {
-  const t = (m.texto ?? "").replace(/\s+/g, " ").trim();
-  if (t) return t.length > LARGO_VISTA_PREVIA ? `${t.slice(0, LARGO_VISTA_PREVIA - 1)}…` : t;
-  return `[${TEXTO_POR_TIPO[m.tipo] ?? "Mensaje"}]`;
-}
 
 export type ChatDeLista = {
   id: string;
@@ -100,7 +83,8 @@ function dondeDelFiltro(filtro: FiltroBandeja, userId: number, ahora: Date): Rec
     case "resueltos":
       return { estado: "RESUELTO" };
     default:
-      return {};
+      // "Todos" es todo menos lo resuelto; lo resuelto se ve en su filtro.
+      return { estado: { not: "RESUELTO" } };
   }
 }
 
@@ -117,10 +101,12 @@ export async function listarChats(
   const filtro = (FILTROS_BANDEJA as readonly string[]).includes(opciones.filtro ?? "") ? (opciones.filtro as FiltroBandeja) : "todos";
   const condiciones: Record<string, unknown>[] = [{ workspaceId: ctx.workspaceId }, dondeDelFiltro(filtro, ctx.userId, ahora)];
 
+  // Sin permiso de Clientes la búsqueda no entra a la ficha: sólo perfil de WhatsApp y número.
+  const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   const q = (opciones.q ?? "").trim().slice(0, 80);
   if (q) {
     const digitos = soloDigitos(q);
-    const porNombre = (await prisma.client.findMany({
+    const porNombre = !veClientes ? [] : ((await prisma.client.findMany({
       where: {
         workspaceId: ctx.workspaceId,
         OR: [
@@ -131,7 +117,7 @@ export async function listarChats(
       },
       select: { id: true },
       take: 50,
-    })) as { id: string }[];
+    })) as { id: string }[]);
     const o: Record<string, unknown>[] = [{ nombre: { contains: q, mode: "insensitive" } }];
     if (digitos.length >= 3) o.push({ waId: { contains: digitos } });
     if (porNombre.length > 0) o.push({ clientId: { in: porNombre.map((c) => c.id) } });
@@ -145,26 +131,15 @@ export async function listarChats(
   })) as {
     id: string; waId: string; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
     botPausadoHasta: Date | null; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
+    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null;
   }[];
 
-  const [usuarios, clientes, ultimos] = await Promise.all([
+  const [usuarios, clientes] = await Promise.all([
     nombresDeUsuarios(chats.flatMap((c) => (c.asignadoUserId !== null ? [c.asignadoUserId] : []))),
     clientesPorId(ctx.workspaceId, chats.flatMap((c) => (c.clientId ? [c.clientId] : []))),
-    Promise.all(
-      chats.map(
-        (c) =>
-          prisma.fotofficeWaMensaje.findFirst({
-            where: { chatId: c.id, workspaceId: ctx.workspaceId },
-            orderBy: { createdAt: "desc" },
-            select: { texto: true, tipo: true },
-          }) as Promise<{ texto: string | null; tipo: string } | null>,
-      ),
-    ),
   ]);
-  // Sin permiso de Clientes el nombre de la ficha no se muestra: se usa el del perfil de WhatsApp.
-  const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
 
-  return chats.map((c, i) => {
+  return chats.map((c) => {
     const cliente = veClientes && c.clientId ? clientes.get(c.clientId) : undefined;
     const clienteNombre = cliente ? clientDisplayName(cliente) : null;
     const estado = c.estado as EstadoDelChat;
@@ -176,7 +151,7 @@ export async function listarChats(
       atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn }, ahora),
       asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
       clienteNombre,
-      ultimoMensaje: ultimos[i] ? vistaPrevia(ultimos[i]) : null,
+      ultimoMensaje: textoDeVistaPrevia(c),
       ultimoMensajeEn: c.ultimoMensajeEn,
       noLeidos: c.noLeidos,
     };
@@ -277,15 +252,24 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   };
 }
 
-/** Suma de mensajes sin leer de todos los chats del workspace. `null` sin permiso de "Ver". */
+/**
+ * Suma de mensajes sin leer de un workspace (una sola consulta agregada). ÚNICA implementación:
+ * la usan `totalNoLeidos` y el menú, que ya comprobó el permiso. Si la lectura falla (tabla sin
+ * migrar) devuelve 0: el menú nunca rompe una pantalla.
+ */
+export async function noLeidosDelWorkspace(workspaceId: string): Promise<number> {
+  try {
+    const r = await prisma.fotofficeWaChat.aggregate({ where: { workspaceId, noLeidos: { gt: 0 } }, _sum: { noLeidos: true } });
+    return r._sum.noLeidos ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Mensajes sin leer del workspace. `null` sin permiso de "Ver". */
 export async function totalNoLeidos(ctx: CtxBandeja): Promise<number | null> {
   if (!puedeVerBandeja(ctx)) return null;
-  const filas = (await prisma.fotofficeWaChat.findMany({
-    where: { workspaceId: ctx.workspaceId, noLeidos: { gt: 0 } },
-    select: { noLeidos: true },
-    take: 5000,
-  })) as { noLeidos: number }[];
-  return filas.reduce((s, f) => s + f.noLeidos, 0);
+  return noLeidosDelWorkspace(ctx.workspaceId);
 }
 
 export type ClienteBuscado = { id: string; nombre: string; telefono: string | null };

@@ -5,7 +5,7 @@
 const ZONA = "America/Argentina/Buenos_Aires";
 
 const dia = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, year: "numeric", month: "2-digit", day: "2-digit" });
-const hora = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, hour: "2-digit", minute: "2-digit", hour12: false });
+const hora = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 /** "14:05" si es de hoy, "09/10 14:05" si no. */
 export function horaDeLista(fecha: Date, ahora: Date = new Date()): string {

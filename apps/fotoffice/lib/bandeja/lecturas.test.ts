@@ -54,10 +54,8 @@ describe("listarChats", () => {
   });
 
   it("ordena por último mensaje, con vista previa corta, no leídos y asignado", async () => {
-    const a = await chat("5491111111111", { ultimoMensajeEn: hace(5), noLeidos: 3 });
-    const b = await chat("5492222222222", { ultimoMensajeEn: hace(1), estado: "HUMANO", asignadoUserId: 2, nombre: "Lu" });
-    await msg(a.id, { texto: "x".repeat(300) });
-    await msg(b.id, { tipo: "IMAGEN", texto: null });
+    const a = await chat("5491111111111", { ultimoMensajeEn: hace(5), noLeidos: 3, ultimoMensajeTexto: "x".repeat(120), ultimoMensajeTipo: "TEXTO" });
+    const b = await chat("5492222222222", { ultimoMensajeEn: hace(1), estado: "HUMANO", asignadoUserId: 2, nombre: "Lu", ultimoMensajeTexto: null, ultimoMensajeTipo: "IMAGEN" });
     const lista = (await L.listarChats(ANA, { ahora: AHORA }))!;
     expect(lista.map((c) => c.id)).toEqual([b.id, a.id]);
     expect(lista[0]).toMatchObject({ titulo: "Lu", asignadoNombre: "Ana", ultimoMensaje: "[Imagen]", atiendeElBot: false });
@@ -73,12 +71,35 @@ describe("listarChats", () => {
     const pausaVigente = await chat("5490000000005", { estado: "HUMANO", botPausadoHasta: new Date(AHORA.getTime() + 3_600_000) });
     const resuelto = await chat("5490000000006", { estado: "RESUELTO" });
     const ids = async (filtro: FiltroBandeja) => (await L.listarChats(ANA, { filtro, ahora: AHORA }))!.map((c) => c.id).sort();
-    expect(await ids("todos")).toHaveLength(6);
+    expect(await ids("todos")).toHaveLength(5);
+    expect(await ids("todos")).not.toContain(resuelto.id);
     expect(await ids("bot")).toEqual([bot.id, pausado.id].sort());
     expect(await ids("mios")).toEqual([mio.id]);
     expect(await ids("sin-asignar")).toEqual([bot.id, pausado.id, pausaVigente.id].sort());
     expect(await ids("resueltos")).toEqual([resuelto.id]);
     expect(ajeno.id).toBeTruthy();
+  });
+
+  it("la lista no consulta los mensajes: la vista previa sale del propio chat", async () => {
+    const c = await chat("5491111111111", { ultimoMensajeTexto: "del chat", ultimoMensajeTipo: "TEXTO" });
+    await msg(c.id, { texto: "otro texto en la tabla de mensajes" });
+    const espia = vi.spyOn(B.tablas.fotofficeWaMensaje, "findFirst");
+    const espia2 = vi.spyOn(B.tablas.fotofficeWaMensaje, "findMany");
+    expect((await L.listarChats(ANA, { ahora: AHORA }))![0].ultimoMensaje).toBe("del chat");
+    expect(espia).not.toHaveBeenCalled();
+    expect(espia2).not.toHaveBeenCalled();
+    const sin = await chat("5492222222222");
+    expect((await L.listarChats(ANA, { ahora: AHORA }))!.find((x) => x.id === sin.id)!.ultimoMensaje).toBeNull();
+  });
+
+  it("sin permiso de Clientes la búsqueda no entra a los nombres de las fichas", async () => {
+    B.agregar("client", { id: "c1", workspaceId: "w1", kind: "PERSONA", firstName: "Marta", lastName: "Pérez" });
+    const conFicha = await chat("5493410000002", { clientId: "c1", nombre: "Marti" });
+    await chat("5493410000003", { nombre: "Otro" });
+    const ids = async (ctx: typeof ANA, q: string) => (await L.listarChats(ctx, { q, ahora: AHORA }))!.map((c) => c.id);
+    expect(await ids(ANA, "pérez")).toEqual([conFicha.id]);
+    expect(await ids(LEO, "pérez")).toEqual([]);
+    expect(await ids(LEO, "marti")).toEqual([conFicha.id]);
   });
 
   it("un filtro inventado se trata como todos", async () => {
@@ -162,6 +183,29 @@ describe("detalleChat", () => {
   });
 });
 
+describe("noLeidosDelWorkspace", () => {
+  it("con filas devuelve la suma y sin filas 0", async () => {
+    expect(await L.noLeidosDelWorkspace("w1")).toBe(0);
+    await chat("5490000000001", { noLeidos: 4 });
+    expect(await L.noLeidosDelWorkspace("w1")).toBe(4);
+  });
+
+  it("si la lectura falla (tabla sin migrar) devuelve 0", async () => {
+    const espia = vi.spyOn(B.tablas.fotofficeWaChat, "aggregate").mockRejectedValueOnce(new Error("relation does not exist"));
+    expect(await L.noLeidosDelWorkspace("w1")).toBe(0);
+    espia.mockRestore();
+  });
+
+  it("usa una sola consulta agregada", async () => {
+    await chat("5490000000001", { noLeidos: 2 });
+    const a = vi.spyOn(B.tablas.fotofficeWaChat, "aggregate");
+    const f = vi.spyOn(B.tablas.fotofficeWaChat, "findMany");
+    await L.totalNoLeidos(LEO);
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(f).not.toHaveBeenCalled();
+  });
+});
+
 describe("totalNoLeidos", () => {
   it("suma los no leídos del workspace; sin permiso, null", async () => {
     await chat("5490000000001", { noLeidos: 2 });
@@ -186,10 +230,13 @@ describe("buscarClientes", () => {
   });
 });
 
-describe("vistaPrevia", () => {
-  it("recorta a 120 y usa el tipo si no hay texto", () => {
-    expect(L.vistaPrevia({ texto: "a".repeat(500), tipo: "TEXTO" })).toHaveLength(120);
-    expect(L.vistaPrevia({ texto: "  ", tipo: "AUDIO" })).toBe("[Audio]");
-    expect(L.vistaPrevia({ texto: null, tipo: "XYZ" })).toBe("[Mensaje]");
+describe("vista previa", () => {
+  it("se arma con hasta 120 caracteres y el tipo, y la lista usa el tipo si no hay texto", async () => {
+    const { vistaPreviaDe, textoDeVistaPrevia } = await import("./vista-previa");
+    expect(vistaPreviaDe("a".repeat(500), "TEXTO").ultimoMensajeTexto).toHaveLength(120);
+    expect(vistaPreviaDe("  ", "AUDIO")).toEqual({ ultimoMensajeTexto: null, ultimoMensajeTipo: "AUDIO" });
+    expect(textoDeVistaPrevia({ ultimoMensajeTexto: null, ultimoMensajeTipo: "AUDIO" })).toBe("[Audio]");
+    expect(textoDeVistaPrevia({ ultimoMensajeTexto: null, ultimoMensajeTipo: "XYZ" })).toBe("[Mensaje]");
+    expect(textoDeVistaPrevia({ ultimoMensajeTexto: null, ultimoMensajeTipo: null })).toBeNull();
   });
 });

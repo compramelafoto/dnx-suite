@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 /** Una conversación: burbujas por autor, caja de respuesta, acciones y panel del cliente. Se refresca cada 5 segundos. */
 export default async function ChatPage({ params }: { params: Promise<{ chatId: string }> }) {
-  const { ctx, puedeOperar } = await requireBandeja();
+  const { ctx, puedeOperar, puedeOperarClientes } = await requireBandeja();
   const { chatId } = await params;
   const chat = await detalleChat(ctx, chatId);
   if (!chat) notFound();
@@ -73,6 +73,7 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
             cliente={chat.cliente}
             clienteOculto={chat.clienteOculto}
             puedeOperar={puedeOperar}
+            puedeCrearContacto={puedeOperarClientes}
             nombrePerfil={chat.nombrePerfil}
             waId={chat.waId}
           />

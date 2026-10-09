@@ -29,6 +29,8 @@ CREATE TABLE "FotofficeWaChat" (
     "botPausadoHasta" TIMESTAMP(3),
     "ultimoMensajeEn" TIMESTAMP(3) NOT NULL,
     "ultimoEntranteEn" TIMESTAMP(3),
+    "ultimoMensajeTexto" TEXT,
+    "ultimoMensajeTipo" TEXT,
     "noLeidos" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,

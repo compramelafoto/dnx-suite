@@ -357,3 +357,15 @@ describe("estadoVisible", () => {
     expect(estadoVisible(m("FALLO", 60), AHORA)).toBe("FALLO");
   });
 });
+
+describe("vista previa del chat", () => {
+  it("responder desde el panel la actualiza; tomar (mensaje de sistema) no la cambia", async () => {
+    await P.fotofficeWaConexion.create({ data: conexionReal });
+    const { id } = await chatNuevo({ ultimoMensajeTexto: "del cliente", ultimoMensajeTipo: "TEXTO", ultimoMensajeEn: hace(2) });
+    await A.tomar(ANA, id);
+    expect(chats()[0]).toMatchObject({ ultimoMensajeTexto: "del cliente", ultimoMensajeTipo: "TEXTO" });
+    const enviar = vi.fn(async () => ({ ok: true as const, waMessageId: "wamid.x" }));
+    await A.responder(ANA, id, "Te paso el presupuesto", "tok-prev", { ahora: AHORA, enviar } as never);
+    expect(chats()[0]).toMatchObject({ ultimoMensajeTexto: "Te paso el presupuesto", ultimoMensajeTipo: "TEXTO" });
+  });
+});

@@ -148,7 +148,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeWaChat: () => ({
     nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, ultimoEntranteEn: null,
-    noLeidos: 0, createdAt: new Date(), updatedAt: new Date(),
+    ultimoMensajeTexto: null, ultimoMensajeTipo: null, noLeidos: 0, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaMensaje: () => ({
     autorUserId: null, autorLabel: null, tipo: "TEXTO", texto: null, media: null, waMessageId: null,
@@ -455,6 +455,14 @@ export function crearBaseEnMemoria() {
       findMany: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[]; take?: number } = {}) =>
         ordenar(datos[tabla].filter((x) => cumple(x, a.where)), a.orderBy).slice(0, a.take ?? Infinity).map((x) => elegir(x, a.select)),
       count: async (a: { where?: Where } = {}) => datos[tabla].filter((x) => cumple(x, a.where)).length,
+      /** Mínimo: sólo `_sum` de columnas numéricas (null si no hay filas, como Prisma). */
+      aggregate: async (a: { where?: Where; _sum?: Record<string, boolean> } = {}) => {
+        const filas = datos[tabla].filter((x) => cumple(x, a.where));
+        const _sum = Object.fromEntries(
+          Object.keys(a._sum ?? {}).map((c) => [c, filas.length === 0 ? null : filas.reduce((s, f) => s + ((f[c] as number | null) ?? 0), 0)]),
+        );
+        return { _sum };
+      },
       findUnique: async (a: { where: Where; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
         return f ? elegir(f, a.select) : null;

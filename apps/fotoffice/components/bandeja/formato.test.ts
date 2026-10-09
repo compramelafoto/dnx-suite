@@ -14,6 +14,10 @@ describe("formato de la Bandeja (hora argentina)", () => {
     expect(horaDeLista(f, new Date("2026-10-10T20:00:00.000Z"))).toBe("09/10 12:05");
   });
 
+  it("la medianoche es 00:05, no 24:05", () => {
+    expect(soloHora(new Date("2026-10-09T03:05:00.000Z"))).toBe("00:05");
+  });
+
   it("a las 01:00 UTC todavía es el día anterior en Argentina", () => {
     expect(fechaYHora(new Date("2026-10-10T01:00:00.000Z"))).toBe("09/10/2026 22:00");
   });

@@ -24,6 +24,7 @@ export function PanelDelCliente({
   cliente,
   clienteOculto,
   puedeOperar,
+  puedeCrearContacto,
   nombrePerfil,
   waId,
 }: {
@@ -31,6 +32,8 @@ export function PanelDelCliente({
   cliente: ClienteDelPanel | null;
   clienteOculto: boolean;
   puedeOperar: boolean;
+  /** Puede gestionar Clientes: sin eso el servidor rechaza crear la ficha, así que no se ofrece. */
+  puedeCrearContacto: boolean;
   nombrePerfil: string | null;
   waId: string;
 }) {
@@ -145,11 +148,13 @@ export function PanelDelCliente({
               </ul>
             )
           ) : null}
+          {puedeCrearContacto ? (
           <div>
-            <button type="button" className="fo-btn fo-btn-ghost text-sm" disabled={ocupado} onClick={() => correr(() => crearContactoDesdeChatAction(chatId, nombrePerfil ?? undefined))}>
-              Crear contacto con este número
-            </button>
-          </div>
+              <button type="button" className="fo-btn fo-btn-ghost text-sm" disabled={ocupado} onClick={() => correr(() => crearContactoDesdeChatAction(chatId, nombrePerfil ?? undefined))}>
+                Crear contacto con este número
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

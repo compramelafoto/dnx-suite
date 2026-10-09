@@ -2,6 +2,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { PAUSA_BOT_HORAS_POR_DEFECTO } from "./constantes";
 import { alEco, alEntrante, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
 import { mismoTelefono } from "./telefono";
+import { vistaPreviaDe } from "./vista-previa";
 import type { EventoEco, EventoEntrante, EventoEstado, EventoWa } from "./webhook";
 
 /**
@@ -122,7 +123,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
   } else {
     chat = await tx.fotofficeWaChat.create({
       data: {
-        workspaceId, waId: ev.waId, nombre: entrante ? ev.nombre : null, ultimoMensajeEn: cuando,
+        workspaceId, waId: ev.waId, nombre: entrante ? ev.nombre : null, ultimoMensajeEn: cuando, ...vistaPreviaDe(ev.texto, ev.mensajeTipo),
         clientId: await clienteDelTelefono(workspaceId, ev.waId, tx),
       },
     });
@@ -153,7 +154,10 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
   if (parche.ultimoEntranteEn && chat.ultimoEntranteEn && chat.ultimoEntranteEn.getTime() > parche.ultimoEntranteEn.getTime()) {
     parche.ultimoEntranteEn = chat.ultimoEntranteEn;
   }
-  if (cuando.getTime() > chat.ultimoMensajeEn.getTime()) parche.ultimoMensajeEn = cuando;
+  if (cuando.getTime() > chat.ultimoMensajeEn.getTime()) {
+    parche.ultimoMensajeEn = cuando;
+    Object.assign(parche, vistaPreviaDe(ev.texto, ev.mensajeTipo));
+  }
   if (entrante) {
     parche.noLeidos = { increment: 1 };
     if (ev.nombre && ev.nombre !== chat.nombre) parche.nombre = ev.nombre;

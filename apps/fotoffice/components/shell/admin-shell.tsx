@@ -14,7 +14,7 @@ import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
 import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
-import { noLeidosParaElMenu } from "@/lib/bandeja/menu";
+import { noLeidosDelWorkspace } from "@/lib/bandeja/lecturas";
 import { hasLevel } from "@/lib/permissions/levels";
 import { hasProfilesInSeveralWorkspaces, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
@@ -54,7 +54,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const levels = workspace !== null ? await getModuleLevels(user.id, workspace.id) : {};
   // Mensajes sin leer de la Bandeja de WhatsApp: sólo se consultan con el módulo encendido y "Ver".
   const bandejaNoLeidos =
-    workspace !== null && hasLevel(levels[BANDEJA_MODULE_KEY] ?? "NONE", "VIEW") ? await noLeidosParaElMenu(workspace.id) : 0;
+    workspace !== null && hasLevel(levels[BANDEJA_MODULE_KEY] ?? "NONE", "VIEW") ? await noLeidosDelWorkspace(workspace.id) : 0;
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
   // el menú es un componente de cliente y sólo recibe la lista ya resuelta.

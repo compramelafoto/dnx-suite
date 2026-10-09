@@ -54,6 +54,8 @@ describe("migración de la Bandeja de WhatsApp", () => {
     expect(sql).toContain(`"pausaBotHoras" INTEGER NOT NULL DEFAULT 4`);
     expect(sql).toContain(`"estado" TEXT NOT NULL DEFAULT 'BOT'`);
     expect(sql).toContain(`"noLeidos" INTEGER NOT NULL DEFAULT 0`);
+    expect(sql).toContain(`"ultimoMensajeTexto" TEXT,`);
+    expect(sql).toContain(`"ultimoMensajeTipo" TEXT,`);
   });
 
   it("el esquema coincide y las tablas existentes sólo reciben relaciones inversas", () => {

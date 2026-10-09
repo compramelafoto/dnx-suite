@@ -378,3 +378,33 @@ describe("vínculo con el cliente (§4)", () => {
     expect(chats()[0].clientId).toBe("c1");
   });
 });
+
+describe("vista previa del chat", () => {
+  it("el entrante crea el chat con su vista previa y el siguiente la actualiza", async () => {
+    await aplicarEventos([entrante({ texto: "hola" })], AHORA);
+    expect(chats()[0]).toMatchObject({ ultimoMensajeTexto: "hola", ultimoMensajeTipo: "TEXTO" });
+    await aplicarEventos([entrante({ waMessageId: "wamid.2", en: min(-0.5), texto: "x".repeat(300) })], AHORA);
+    expect(chats()[0].ultimoMensajeTexto).toHaveLength(120);
+  });
+
+  it("una imagen sin texto deja el tipo", async () => {
+    await aplicarEventos([entrante({ mensajeTipo: "IMAGEN", texto: null })], AHORA);
+    expect(chats()[0]).toMatchObject({ ultimoMensajeTexto: null, ultimoMensajeTipo: "IMAGEN" });
+  });
+
+  it("el eco también actualiza la vista previa", async () => {
+    await aplicarEventos([entrante({ en: min(-5) })], AHORA);
+    await aplicarEventos([eco({ en: min(-1), texto: "ya te contesto" })], AHORA);
+    expect(chats()[0].ultimoMensajeTexto).toBe("ya te contesto");
+  });
+
+  it("un mensaje viejo que llega tarde no pisa la vista previa, ni el de sistema", async () => {
+    await aplicarEventos([entrante({ en: min(-1), texto: "nuevo" })], AHORA);
+    await aplicarEventos([entrante({ waMessageId: "wamid.viejo", en: min(-30), texto: "viejo" })], AHORA);
+    expect(chats()[0].ultimoMensajeTexto).toBe("nuevo");
+    await P.fotofficeWaChat.update({ where: { id: chats()[0].id }, data: { estado: "RESUELTO" } });
+    await aplicarEventos([entrante({ waMessageId: "wamid.3", en: min(-0.5), texto: "volví" })], AHORA);
+    expect(mensajes().some((m) => m.autor === "SISTEMA")).toBe(true);
+    expect(chats()[0].ultimoMensajeTexto).toBe("volví");
+  });
+});

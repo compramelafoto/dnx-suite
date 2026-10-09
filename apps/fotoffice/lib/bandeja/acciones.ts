@@ -17,6 +17,7 @@ import {
   type ResultadoRegla,
 } from "./reglas";
 import { clienteDelTelefono, detalleDeError } from "./registro";
+import { vistaPreviaDe } from "./vista-previa";
 
 /**
  * Acciones de la Bandeja de WhatsApp (servidor). Todas reciben el contexto armado desde la sesión
@@ -183,7 +184,7 @@ export async function responder(
         where: { id: chat.id },
         data: {
           ...regla.parche, noLeidos: 0,
-          ...(ahora.getTime() > chat.ultimoMensajeEn.getTime() ? { ultimoMensajeEn: new Date(ahora.getTime() + 1) } : {}),
+          ...(ahora.getTime() > chat.ultimoMensajeEn.getTime() ? { ultimoMensajeEn: new Date(ahora.getTime() + 1), ...vistaPreviaDe(texto, "TEXTO") } : {}),
         },
       });
       return { ok: true, mensajeId: m.id, waId: chat.waId };

@@ -23228,6 +23228,9 @@ model FotofficeWaChat {
   ultimoMensajeEn  DateTime
   /// Base de la ventana de 24 h para responder con texto libre.
   ultimoEntranteEn DateTime?
+  /// Vista previa para la lista (texto plano, hasta 120 caracteres) y tipo del último mensaje real (no SISTEMA).
+  ultimoMensajeTexto String?
+  ultimoMensajeTipo  String?
   noLeidos         Int       @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
