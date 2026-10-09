@@ -111,6 +111,45 @@ describe("guardas comunes", () => {
   });
 });
 
+describe("el módulo se decide por el tipo del registro", () => {
+  const acceso = (l: Record<string, "NONE" | "VIEW" | "MANAGE">) => ({ ...EQUIPO, acceso: { role: "STAFF", levels: l } });
+  const PROYECTO = { tipo: "PROYECTO", id: "p1" };
+
+  it("quien sólo gestiona Proyectos mueve, cierra y tilda las tareas de un proyecto", async () => {
+    H.ctx.mockResolvedValue(acceso({ projects: "MANAGE", "service-leads": "NONE" }));
+    H.sujetoRec.mockResolvedValue(PROYECTO);
+    H.sujetoTarea.mockResolvedValue(PROYECTO);
+    expect(await A.moverAction({ journeyId: "j1", destinoId: "s2" })).toEqual({ ok: true });
+    expect(await A.cerrarAction({ journeyId: "j1", salida: "GANADA" })).toEqual({ ok: true });
+    expect(await A.tildarTareaAction({ taskId: "k1", hecha: true })).toEqual({ ok: true });
+    expect(H.modulo).toHaveBeenCalledWith("ws-1", "projects");
+    expect(H.revalidate.mock.calls.map((c) => c[0])).toContain("/proyectos/p1");
+  });
+
+  it("quien sólo gestiona Consultas no toca un proyecto", async () => {
+    H.ctx.mockResolvedValue(acceso({ projects: "NONE", "service-leads": "MANAGE" }));
+    H.sujetoRec.mockResolvedValue(PROYECTO);
+    H.sujetoTarea.mockResolvedValue(PROYECTO);
+    expect(await A.moverAction({ journeyId: "j1", destinoId: "s2" })).toEqual(SIN_ACCESO);
+    expect(await A.tildarTareaAction({ taskId: "k1", hecha: true })).toEqual(SIN_ACCESO);
+    for (const f of MOTOR) expect(f).not.toHaveBeenCalled();
+  });
+
+  it("quien sólo gestiona Proyectos no toca una consulta", async () => {
+    H.ctx.mockResolvedValue(acceso({ projects: "MANAGE", "service-leads": "NONE" }));
+    expect(await A.moverAction({ journeyId: "j1", destinoId: "s2" })).toEqual(SIN_ACCESO);
+    expect(await A.cerrarAction({ journeyId: "j1", salida: "GANADA" })).toEqual(SIN_ACCESO);
+    for (const f of MOTOR) expect(f).not.toHaveBeenCalled();
+  });
+
+  it("con Proyectos sólo en \"Ver\" tampoco se puede operar un proyecto", async () => {
+    H.ctx.mockResolvedValue(acceso({ projects: "VIEW", "service-leads": "MANAGE" }));
+    H.sujetoRec.mockResolvedValue(PROYECTO);
+    expect(await A.moverAction({ journeyId: "j1", destinoId: "s2" })).toEqual(SIN_ACCESO);
+    expect(H.mover).not.toHaveBeenCalled();
+  });
+});
+
 describe("formas inválidas", () => {
   const casos: [string, () => Promise<unknown>][] = [
     ["mover sin datos", () => A.moverAction(null as never)],

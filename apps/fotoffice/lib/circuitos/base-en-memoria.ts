@@ -219,6 +219,7 @@ export function crearBaseEnMemoria() {
         return Object.entries(c).every(([op, x]) => {
           if (x === undefined) return true;
           if (op === "in") return (x as unknown[]).some((y) => igual(v, y));
+          if (op === "notIn") return !(x as unknown[]).some((y) => igual(v, y));
           if (op === "not") return !igual(v, x);
           // `mode` sólo modifica a `contains` y `equals`.
           if (op === "mode") return true;

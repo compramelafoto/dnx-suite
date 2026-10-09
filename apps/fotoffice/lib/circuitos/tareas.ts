@@ -4,6 +4,7 @@ import { hoyEnBuenosAires } from "../listado/periodos";
 import type { TipoSujeto } from "./constantes";
 import { MENSAJES, type Resultado } from "./recorridos";
 import { adaptadorDe, type NombreDeSujeto, type Sujeto } from "./sujetos";
+import { suspendidosEntre } from "@/lib/proyectos/proyectos";
 import type { CtxCircuitos } from "./acceso";
 
 export const TITULO_MAX = 200;
@@ -149,7 +150,8 @@ function inicioDelDia(ahora: Date): Date {
 /**
  * Tareas pendientes asignadas a quien opera, de recorridos abiertos del workspace, en tres
  * grupos según el día de hoy en Buenos Aires: vencidas (antes de hoy), hoy, y próximas (hasta 7
- * días después de hoy). Las que no tienen vencimiento no aparecen.
+ * días después de hoy). Las que no tienen vencimiento no aparecen. Las de un proyecto suspendido
+ * tampoco aparecen: se retoman al reanudarlo.
  */
 export async function misTareas(
   ctx: CtxCircuitos,
@@ -173,6 +175,13 @@ export async function misTareas(
     orderBy: [{ dueAt: "asc" }, { id: "asc" }],
     take: 500,
   });
+
+  const suspendidos = await suspendidosEntre(ctx.workspaceId, filas.filter((f) => f.subjectType === "PROYECTO").map((f) => f.subjectId));
+  if (suspendidos.size > 0) {
+    for (let i = filas.length - 1; i >= 0; i--) {
+      if (filas[i]!.subjectType === "PROYECTO" && suspendidos.has(filas[i]!.subjectId)) filas.splice(i, 1);
+    }
+  }
 
   const etapas = await nombresDeEtapas(ctx.workspaceId, filas.map((f) => f.stageId));
   const nombres = new Map<string, Map<string, NombreDeSujeto>>();

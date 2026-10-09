@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { suspendidosEntre } from "@/lib/proyectos/proyectos";
 import { hoyEnBuenosAires } from "../listado/periodos";
 import { estaVencida } from "./calculos";
 import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
@@ -148,6 +149,15 @@ async function elegirCircuito(workspaceId: string, circuitoId: string | null, CL
   return { circuito: elegido ? vista(elegido) : null, circuitos: circuitos.map(vista) };
 }
 
+/** Ids de los proyectos suspendidos que tienen un recorrido abierto en este flujo. */
+async function suspendidosDelFlujo(workspaceId: string, circuitId: string): Promise<Set<string>> {
+  const abiertos = await prisma.fotofficeJourney.findMany({
+    where: { workspaceId, circuitId, subjectType: "PROYECTO", closedAt: null },
+    select: { subjectId: true },
+  });
+  return suspendidosEntre(workspaceId, abiertos.map((j) => j.subjectId));
+}
+
 export async function cargarTablero(
   ctx: { workspaceId: string },
   circuitoId: string | null,
@@ -174,13 +184,17 @@ export async function cargarTablero(
     orderBy: [{ order: "asc" }],
   });
 
+  // Un proyecto suspendido no cuenta como vencido: ni se marca ni entra en "sólo vencidas".
+  const suspendidos = TIPO_SUJETO === "PROYECTO" ? await suspendidosDelFlujo(workspaceId, circuito.id) : new Set<string>();
   const where = {
     workspaceId,
     circuitId: circuito.id,
     subjectType: TIPO_SUJETO,
     closedAt: null,
     ...(filtros.responsable !== undefined ? { ownerUserId: filtros.responsable } : {}),
-    ...(filtros.soloVencidas ? { stageDueAt: { lt: ahora } } : {}),
+    ...(filtros.soloVencidas
+      ? { stageDueAt: { lt: ahora }, ...(suspendidos.size > 0 ? { subjectId: { notIn: [...suspendidos] } } : {}) }
+      : {}),
   };
   // Un solo conteo por etapa (con los filtros) para toda la pantalla.
   const grupos = await prisma.fotofficeJourney.groupBy({ by: ["stageId"], where, _count: true });
@@ -259,7 +273,7 @@ export async function cargarTablero(
       sujeto: nombres.get(j.subjectId) ?? { titulo: SIN_DATOS[TIPO_SUJETO] ?? "Consulta sin datos", href: adaptador?.rutaFicha(j.subjectId) ?? rutaLista },
       numero: numeros.get(j.subjectId) ?? null,
       diasEnEtapa: diasEnEtapaAR(j.enteredStageAt, ahora),
-      vencida: estaVencida(j.stageDueAt, ahora),
+      vencida: estaVencida(j.stageDueAt, ahora) && !suspendidos.has(j.subjectId),
       tareas: conteo.get(j.id) ?? { hechas: 0, total: 0 },
       enteredStageAt: j.enteredStageAt.toISOString(),
       responsableId: j.ownerUserId,

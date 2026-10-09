@@ -4,6 +4,7 @@ import { resolveActiveWorkspace } from "@/lib/workspace";
 import { puede, type AccesoEfectivo } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 
 /**
@@ -19,8 +20,8 @@ export type CtxCircuitos = {
   acceso?: AccesoEfectivo;
 };
 
-/** Módulos de los sujetos del motor (hoy, sólo Captación). */
-const MODULOS_DEL_MOTOR = [SERVICE_LEADS_MODULE_KEY];
+/** Módulos de los sujetos del motor: Captación (consultas) y Proyectos. */
+const MODULOS_DEL_MOTOR = [SERVICE_LEADS_MODULE_KEY, PROJECTS_MODULE_KEY];
 
 export function contextoDeSistema(workspaceId: string): CtxCircuitos {
   return { workspaceId, userId: null, userLabel: "Sistema", role: null };
@@ -28,8 +29,10 @@ export function contextoDeSistema(workspaceId: string): CtxCircuitos {
 
 /**
  * Guarda común de las acciones del motor: sesión, workspace activo y `operar` (nivel
- * "Gestionar") en el módulo de algún sujeto del motor. Cada acción vuelve a mirarlo sobre el
- * módulo del sujeto que toca.
+ * "Gestionar") en el módulo de algún sujeto del motor (Captación o Proyectos). Es sólo la puerta
+ * de entrada: la decisión de verdad la toma cada acción sobre el módulo del sujeto que toca
+ * (`preparar` en `app/actions/circuitos.ts` busca el recorrido y exige "Gestionar" en el módulo de
+ * SU tipo), así que quien sólo gestiona Consultas no puede tocar un proyecto y viceversa.
  * Devuelve null ante cualquier falta, sin distinguir el motivo, y nunca redirige. El
  * `workspaceId` sale siempre de la sesión. El módulo del sujeto lo verifica cada acción
  * (este contexto es genérico para todos los tipos de registro).

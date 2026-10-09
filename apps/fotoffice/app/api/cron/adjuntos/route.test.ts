@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const H = vi.hoisted(() => ({ purgar: vi.fn(), configurado: vi.fn() }));
+const H = vi.hoisted(() => ({ purgar: vi.fn(), purgarProy: vi.fn(), configurado: vi.fn() }));
+vi.mock("@/lib/proyectos/adjuntos", () => ({ purgarAdjuntos: H.purgarProy }));
 vi.mock("@/lib/ficha/adjuntos", () => ({ purgarAdjuntos: H.purgar }));
 vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.configurado }));
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String(e) }));
@@ -16,6 +17,7 @@ function pedido(auth?: string) {
 
 beforeEach(() => {
   H.purgar.mockReset().mockResolvedValue({ purgados: 2, pendientesLimpios: 1, fallidos: 0 });
+  H.purgarProy.mockReset().mockResolvedValue({ purgados: 0, pendientesLimpios: 0, fallidos: 0 });
   H.configurado.mockReset().mockReturnValue(true);
   process.env.CRON_SECRET = "s3creto";
   delete process.env.FOTOFFICE_CRON_SECRET;
@@ -41,6 +43,11 @@ describe("cron de adjuntos", () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true, purgados: 2, pendientesLimpios: 1, fallidos: 0 });
     expect(H.purgar).toHaveBeenCalledTimes(1);
+  });
+  it("suma también lo purgado de los adjuntos de proyectos", async () => {
+    H.purgarProy.mockResolvedValue({ purgados: 3, pendientesLimpios: 2, fallidos: 1 });
+    const r = await GET(pedido("Bearer s3creto"));
+    expect(await r.json()).toEqual({ ok: true, purgados: 5, pendientesLimpios: 3, fallidos: 1 });
   });
   it("bucket sin configurar → no hace nada", async () => {
     H.configurado.mockReturnValue(false);

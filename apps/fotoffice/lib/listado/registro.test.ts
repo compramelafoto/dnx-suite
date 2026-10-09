@@ -11,6 +11,7 @@ describe("registro de listas", () => {
       captacion: "service-leads",
       presupuestos: "quotes",
       pedidos: "orders",
+      proyectos: "projects",
       "pedidos-a-pagar": "orders",
     });
   });
@@ -23,6 +24,7 @@ describe("registro de listas", () => {
       captacion: "/consultas/lista",
       presupuestos: "/presupuestos",
       pedidos: "/pedidos",
+      proyectos: "/proyectos/lista",
       "pedidos-a-pagar": "/pedidos/a-pagar",
     });
   });
