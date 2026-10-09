@@ -9,17 +9,17 @@ export type TextoEnPreparacion = { titulo: string; bajada: string; puntos: strin
 export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>> = {
   convocatorias: {
     titulo: "Convocatorias",
-    bajada: "Abrí una convocatoria online y recibí las obras de los fotógrafos en un solo lugar.",
+    bajada: "Abrí una convocatoria y recibí las obras de los fotógrafos en un solo lugar, vivan donde vivan.",
     puntos: [
       "Bases, fechas y cantidad de obras por autor, en una página pública para difundir.",
       "Los fotógrafos envían sus obras con título, año y técnica, desde el teléfono o la computadora.",
       "Ves todo lo recibido en orden y les avisás por mail a los participantes.",
-      "Con las elegidas armás la muestra sin volver a cargar nada.",
+      "Con las elegidas armás la muestra y su montaje sin volver a cargar nada.",
     ],
   },
   curaduria: {
     titulo: "Curaduría",
-    bajada: "La selección online, privada y anónima.",
+    bajada: "La selección de las obras que van a la sala, a distancia, privada y anónima.",
     puntos: [
       "El equipo curatorial ve las obras sin el nombre del autor.",
       "Cada curador puntúa y comenta; las obras se filtran por puntaje.",
@@ -31,6 +31,7 @@ export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>
     titulo: "Ventas",
     bajada: "Vendé copias impresas y archivos digitales de las obras de tu muestra.",
     puntos: [
+      "Quien recorre la sala compra desde el QR de cada ficha.",
       "Precios y medidas por muestra.",
       "Cobro con Mercado Pago, repartido entre organizador, fotógrafo y plataforma.",
       "Cada autor acepta la venta y el reparto con un clic.",
@@ -40,10 +41,10 @@ export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>
   },
   estadisticas: {
     titulo: "Estadísticas",
-    bajada: "Cuánta gente ve tu muestra, escanea los QR de la sala y compra.",
+    bajada: "Cuánta gente escanea los QR de la sala, mira la ficha de tu muestra y compra.",
     puntos: [
-      "Visitas a la ficha de la muestra y a cada obra.",
       "Escaneos de los QR de las fichas de sala, obra por obra.",
+      "Visitas a la ficha de la muestra y a cada obra.",
       "Ventas por obra y por autor.",
       "Libro de visitas digital con los comentarios del público.",
     ],

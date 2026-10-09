@@ -20,6 +20,9 @@ export type DraftInput = {
 
 const blank = (s: string | null | undefined) => !s || s.trim() === "";
 
+/** Una muestra se visita en persona: sin sede no hay muestra. Charlas o talleres sí pueden ser online. */
+export const MUESTRA_NEEDS_VENUE = "Una muestra necesita una sede: cargá la dirección donde se puede visitar.";
+
 /** Lo que falta para poder mandar a revisión. Lista vacía = lista para enviar. */
 export function missingForSubmission(d: DraftInput): string[] {
   const out: string[] = [];
@@ -31,7 +34,8 @@ export function missingForSubmission(d: DraftInput): string[] {
   if (blank(d.startDay) || blank(d.endDay)) out.push("Faltan las fechas.");
   else if (d.endDay < d.startDay) out.push("La fecha de cierre es anterior a la de inicio.");
   if (blank(d.scheduleText)) out.push("Faltan los horarios.");
-  if (!d.isVirtualOnly) {
+  if (d.type === "MUESTRA" && d.isVirtualOnly) out.push(MUESTRA_NEEDS_VENUE);
+  else if (!d.isVirtualOnly) {
     if (blank(d.address)) out.push("Falta la dirección.");
     if (d.latitude == null || d.longitude == null) out.push("Falta ubicar el lugar en el mapa.");
   }
