@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { estiloLegible } from "@/lib/estilo-de-tema";
+import { urlDelBanner } from "@/lib/banner-url";
+import { enlaceDeBannerValido } from "@/lib/banner";
 import { urlDelLogo } from "@/lib/logo-url";
+import { BannerDelFotografo } from "../banner-del-fotografo";
 import { LogoDelFotografo } from "../logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
@@ -31,7 +34,9 @@ export default async function Subir({ params }: Props) {
       allowMessages: true,
       hostsLabel: true,
       coverUrl: true,
-      sellerProfile: { select: { logoUrl: true, displayName: true } },
+      sellerProfile: {
+        select: { logoUrl: true, displayName: true, bannerUrl: true, bannerLinkUrl: true },
+      },
     },
   });
 
@@ -39,6 +44,7 @@ export default async function Subir({ params }: Props) {
 
   const tema = resolverTema(evento.themeTokens);
   const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
+  const banner = await urlDelBanner(evento.sellerProfile.bannerUrl);
   const acceso = estadoDeAcceso(evento, new Date());
   const portada = await urlDePortada(evento.coverUrl);
 
@@ -93,6 +99,11 @@ export default async function Subir({ params }: Props) {
             : "El evento terminó y ya no se pueden subir fotos."}
         </p>
       )}
+      <BannerDelFotografo
+        url={banner}
+        enlace={enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl)}
+        nombre={evento.sellerProfile.displayName}
+      />
     </main>
   );
 }

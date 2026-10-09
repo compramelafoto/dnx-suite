@@ -18976,6 +18976,13 @@ model SubilafotoSellerProfile {
   description        String?
   logoUrl            String?
   coverUrl           String?
+  /// Banner de publicidad del fotógrafo, al pie de la pantalla del invitado.
+  ///
+  /// Es del VENDEDOR y no del evento: lo pone una vez y aparece en todas sus fiestas.
+  /// Por eso la imagen vive fuera de `eventos/` y no la alcanza el borrado a los 30 días.
+  bannerUrl          String?
+  /// A dónde lleva al tocarlo. Su Instagram, su sitio, un WhatsApp.
+  bannerLinkUrl      String?
   brandColor         String?
   basePriceCents     Int                    @default(0)
   currency           String                 @default("ARS")

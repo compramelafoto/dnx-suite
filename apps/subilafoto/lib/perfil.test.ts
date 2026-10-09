@@ -7,6 +7,8 @@ const BUENO = {
   headline: "Fotos de casamiento en Córdoba",
   descripcion: "",
   logoUrl: "",
+  bannerUrl: "",
+  bannerLinkUrl: null,
   brandColor: "#7C2BFF",
   termsText: "",
   publicar: true,
@@ -86,5 +88,46 @@ describe("revisar el perfil antes de guardarlo", () => {
   test("los límites están donde dicen", () => {
     expect(PRECIO_MINIMO_CENTS).toBe(100_000);
     expect(PRECIO_MAXIMO_CENTS).toBe(500_000_000);
+  });
+});
+
+describe("el banner de publicidad del fotógrafo", () => {
+  test("una clave de nuestro bucket pasa", () => {
+    const r = revisarPerfil({ ...BUENO, bannerUrl: "banners/slf-1/abc123.jpg" });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.datos.bannerUrl).toBe("banners/slf-1/abc123.jpg");
+  });
+
+  test("una dirección https pegada a mano también", () => {
+    const r = revisarPerfil({ ...BUENO, bannerUrl: "https://midominio.com/banner.jpg" });
+
+    expect(r.ok).toBe(true);
+  });
+
+  test("cualquier otra cosa se rechaza con un motivo entendible", () => {
+    const r = revisarPerfil({ ...BUENO, bannerUrl: "javascript:alert(1)" });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain("https");
+  });
+
+  test("sin banner se guarda igual: es opcional", () => {
+    const r = revisarPerfil({ ...BUENO, bannerUrl: "" });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.datos.bannerUrl).toBeNull();
+  });
+
+  test("el enlace llega ya validado y se guarda tal cual", () => {
+    /*
+      `enlaceDeBannerValido` corre antes, en la acción: acá sólo se guarda. Se prueba
+      igual para dejar fijo que esta función NO lo vuelve a tocar, y que si alguien
+      saltea la validación de arriba no hay una segunda red acá.
+    */
+    const r = revisarPerfil({ ...BUENO, bannerLinkUrl: "https://instagram.com/x" });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.datos.bannerLinkUrl).toBe("https://instagram.com/x");
   });
 });
