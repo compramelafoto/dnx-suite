@@ -90,13 +90,6 @@ export default async function Moderacion({ params, searchParams }: Props) {
 
   return (
     <main className="sobre-claro mx-auto max-w-6xl px-6 py-14">
-      <Link
-        href={`/panel/eventos/${evento.id}`}
-        className="text-sm font-extrabold"
-        style={{ color: "var(--slf-violeta)" }}
-      >
-        ← {evento.name}
-      </Link>
 
       <h1 className="mt-5 text-3xl font-extrabold tracking-[-0.02em]">Moderación</h1>
       <p className="mt-3 max-w-[60ch] leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>
