@@ -42,36 +42,46 @@ describe("buildMercadoPagoPayer", () => {
 });
 
 describe("buildMercadoPagoAdditionalInfoPayer", () => {
-  it("devuelve undefined cuando no hay nada que informar", () => {
-    assert.equal(buildMercadoPagoAdditionalInfoPayer(undefined), undefined);
-    assert.equal(buildMercadoPagoAdditionalInfoPayer({}), undefined);
+  /**
+   * Orders rechaza `additional_info` por completo. Se verificó contra sandbox
+   * MLA el 07/10/2026: responde `Properties not supported ('$.additional_info'
+   * - additionalProperties 'payer' not allowed)` y la orden no se crea.
+   */
+  it("no devuelve nada: Orders no acepta ese nodo", () => {
     assert.equal(
-      buildMercadoPagoAdditionalInfoPayer({ authenticationType: "   " }),
+      buildMercadoPagoAdditionalInfoPayer({
+        registrationDate: "2026-01-15T10:00:00.000-03:00",
+        isPrimeUser: false,
+        isFirstPurchaseOnline: true,
+        authenticationType: "Gmail",
+        lastPurchase: "2026-09-20T18:30:00.000-03:00",
+        address: { zipCode: "2000" },
+      }),
       undefined,
     );
   });
 
-  it("mapea historial y contexto con los nombres de la API", () => {
-    const info = buildMercadoPagoAdditionalInfoPayer({
-      registrationDate: "2025-03-01T10:00:00.000Z",
-      lastPurchase: "2026-08-01T12:00:00.000Z",
-      authenticationType: "Gmail",
-      isPrimeUser: true,
-      isFirstPurchaseOnline: false,
-      address: { zipCode: "S2000", streetName: "Córdoba", streetNumber: "1234" },
+  it("tampoco devuelve nada sin perfil", () => {
+    assert.equal(buildMercadoPagoAdditionalInfoPayer(undefined), undefined);
+  });
+});
+
+describe("buildMercadoPagoPayer — dirección", () => {
+  it("manda la dirección dentro de payer, que es donde Orders la acepta", () => {
+    const payer = buildMercadoPagoPayer("comprador@testuser.com", {
+      address: { zipCode: "2000", streetName: "Córdoba", streetNumber: "1234" },
     });
-    assert.deepEqual(info, {
-      address: { zip_code: "S2000", street_name: "Córdoba", street_number: "1234" },
-      registration_date: "2025-03-01T10:00:00.000Z",
-      last_purchase: "2026-08-01T12:00:00.000Z",
-      authentication_type: "Gmail",
-      is_prime_user: true,
-      is_first_purchase_online: false,
+    assert.deepEqual(payer.address, {
+      zip_code: "2000",
+      street_name: "Córdoba",
+      street_number: "1234",
     });
   });
 
-  it("conserva los booleanos en false, que son información válida", () => {
-    const info = buildMercadoPagoAdditionalInfoPayer({ isPrimeUser: false });
-    assert.deepEqual(info, { is_prime_user: false });
+  it("omite la dirección cuando el perfil no la trae", () => {
+    const payer = buildMercadoPagoPayer("comprador@testuser.com", {
+      firstName: "Ana",
+    });
+    assert.equal(payer.address, undefined);
   });
 });
