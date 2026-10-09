@@ -6,7 +6,7 @@ import {
 describe("secciones del panel", () => {
   it("una persona común ve todo menos Revisión", () => {
     expect(panelSections({ isSuperAdmin: false }).map((s) => s.key)).toEqual([
-      "inicio", "muestras", "proponer", "perfil", "convocatorias", "curaduria", "montaje", "ventas", "estadisticas",
+      "inicio", "muestras", "proponer", "perfil", "envios", "convocatorias", "curaduria", "montaje", "ventas", "estadisticas",
     ]);
   });
   it("el super admin ve también Revisión", () => {
@@ -29,6 +29,9 @@ describe("secciones del panel", () => {
   it("upcomingSection devuelve sólo las que están en preparación", () => {
     expect(upcomingSection("ventas")?.label).toBe("Ventas");
     expect(upcomingSection("montaje")).toBeNull();
+    expect(upcomingSection("convocatorias")).toBeNull();
+    expect(upcomingSection("curaduria")).toBeNull();
+    expect(upcomingSection("envios")).toBeNull();
     expect(upcomingSection("revision")).toBeNull();
     expect(upcomingSection("cualquiera")).toBeNull();
   });
