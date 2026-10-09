@@ -7,6 +7,7 @@ import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib
 import {
   Building2,
   Calculator,
+  CalendarDays,
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
@@ -62,6 +63,8 @@ const QUOTES_MODULE_KEY = "quotes";
 const ORDERS_MODULE_KEY = "orders";
 // Ídem `lib/proyectos/acceso`.
 const PROJECTS_MODULE_KEY = "projects";
+// Ídem `lib/agenda/acceso`.
+const AGENDA_MODULE_KEY = "agenda";
 
 /**
  * Menú principal.
@@ -249,6 +252,19 @@ export function ShellNav({
   const socios: Item[] = itemsDeModulo(MEMBERS_MODULE_KEY, access, vocabulary);
 
   const reservas: Item[] = itemsDeModulo(BOOKINGS_MODULE_KEY, access, vocabulary);
+
+  // Agenda (etapa 4, entrega B): módulo propio (`agenda`), con su nivel. Apagado, nadie tiene nivel y no aparece.
+  const agenda: Item[] = ve(AGENDA_MODULE_KEY)
+    ? [
+        {
+          href: "/agenda",
+          label: "Agenda",
+          description: "Las citas del equipo, con las entregas, tareas y vencimientos en un solo calendario.",
+          icon: CalendarDays,
+          isActive: under("/agenda"),
+        },
+      ]
+    : [];
 
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
@@ -543,6 +559,7 @@ export function ShellNav({
     { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
     { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
+    { title: "Agenda", items: agenda, moduleKey: AGENDA_MODULE_KEY },
     { title: "Consultas", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
     { title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
     { title: "Institución", items: institucion, moduleKey: null },

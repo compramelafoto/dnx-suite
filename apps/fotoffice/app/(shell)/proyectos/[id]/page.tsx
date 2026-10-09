@@ -12,7 +12,9 @@ import { NotasProyecto } from "@/components/proyectos/notas-proyecto";
 import { ParticipantesProyecto } from "@/components/proyectos/participantes-proyecto";
 import { PlanProyecto } from "@/components/proyectos/plan-proyecto";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
+import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
+import { citasDeOrigen } from "@/lib/agenda/de-origen";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
@@ -40,6 +42,8 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
 
   const [ficha, role] = await Promise.all([cargarFichaProyecto(ctx, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
   if (!ficha) notFound();
+  // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda (si no, null y no se lee nada).
+  const citas = await citasDeOrigen(ctx, { proyectoId: ficha.id });
 
   const puedeEditar = puedeEnContexto(ctx, "operar", PROJECTS_MODULE_KEY);
   const configura = puedeEnContexto(ctx, "configurar");
@@ -112,6 +116,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
             puedeElegirContactos={veContactos}
             puedeCrearRoles={configura}
           />
+          {citas ? <TarjetaCitas citas={citas} nueva={`proyecto=${encodeURIComponent(ficha.id)}`} vacio="Este proyecto todavía no tiene citas." /> : null}
           <MasDatos entityType="PROYECTO" entityId={ficha.id} />
         </div>
 

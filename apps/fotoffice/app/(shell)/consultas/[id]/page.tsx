@@ -19,7 +19,9 @@ import { TarjetaProyectos } from "@/components/proyectos/tarjeta-proyectos";
 import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { proyectosParaTarjeta } from "@/lib/proyectos/tarjetas";
+import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { puede } from "@/lib/access/policy";
+import { citasDeOrigen } from "@/lib/agenda/de-origen";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { cargarDatosConsulta, opcionesDeConsulta, responsablesDeConsultas, sinDatosDeOtrosContactos } from "@/lib/consultas/ficha";
@@ -105,6 +107,9 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
     puede(acceso, "ver", PROJECTS_MODULE_KEY) && (await proyectosEncendidos(workspace.id))
       ? await proyectosParaTarjeta(ctxPresupuestos, { consultaLeadId: id })
       : null;
+
+  // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda.
+  const citas = await citasDeOrigen(ctxPresupuestos, { consultaLeadId: id });
 
   const { consulta, recorrido } = ficha;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
@@ -203,6 +208,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
           ) : null}
           {pedidos ? <TarjetaPedidos pedidos={pedidos} vacio="Esta consulta todavía no tiene pedidos." /> : null}
           {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Esta consulta todavía no tiene proyectos." /> : null}
+          {citas ? <TarjetaCitas citas={citas} nueva={`consulta=${encodeURIComponent(id)}`} vacio="Esta consulta todavía no tiene citas." /> : null}
           <section aria-labelledby="datos-titulo" className="fo-card space-y-3">
             <h2 id="datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
               {datosConsulta ? "Contacto y mensaje" : "Datos de la consulta"}
