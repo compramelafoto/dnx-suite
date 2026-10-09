@@ -15,6 +15,7 @@ import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -203,6 +204,19 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 40,
     route: "/comunicacion/placas",
+    status: "AVAILABLE",
+    family: "base",
+  },
+  {
+    // Bandeja de WhatsApp (Etapa A): chats de la línea de la institución, con bot, toma por una
+    // persona y respuesta desde el panel. La conexión real con Meta se configura aparte.
+    key: BANDEJA_MODULE_KEY,
+    label: "Bandeja de WhatsApp",
+    description:
+      "Los chats de WhatsApp de la institución en una bandeja: quién los atiende (bot o una persona), respuestas desde el panel y cada cliente vinculado a su ficha.",
+    category: "GENERAL",
+    order: 41,
+    route: "/bandeja",
     status: "AVAILABLE",
     family: "base",
   },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ANDREANI_INTEGRATION_KEY,
+  WHATSAPP_INTEGRATION_KEY,
   CORREO_ARGENTINO_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
   GOOGLE_CONTACTS_INTEGRATION_KEY,
@@ -16,12 +17,13 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar, Contacts, Correo Argentino y Andreani son las implementadas hoy", () => {
+  it("Google Calendar, Contacts, Correo Argentino, Andreani y WhatsApp son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
       GOOGLE_CONTACTS_INTEGRATION_KEY,
       CORREO_ARGENTINO_INTEGRATION_KEY,
       ANDREANI_INTEGRATION_KEY,
+      WHATSAPP_INTEGRATION_KEY,
     ]);
   });
 

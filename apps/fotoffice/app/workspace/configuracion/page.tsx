@@ -207,6 +207,21 @@ export default async function WorkspaceSettingsPage() {
         </Link>
       ) : null}
 
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/whatsapp"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">WhatsApp</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Conexión de la Bandeja, pausa del bot y simulador de mensajes.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
       {membership?.role && puede(membership.role, "configurar") && pedidosVisible ? (
         <Link
           href="/workspace/configuracion/pedidos"

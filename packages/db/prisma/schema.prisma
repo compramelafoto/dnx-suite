@@ -7216,6 +7216,9 @@ model Workspace {
   fotofficePerfilPrecios      FotofficePerfilPrecios?
   fotofficePropuestasModelo FotofficePropuestaModelo[]
   fotofficeBorradoresAuto   FotofficePropuestaBorradorAuto[]
+  fotofficeWaConexion       FotofficeWaConexion?
+  fotofficeWaChats          FotofficeWaChat[]
+  fotofficeWaMensajes       FotofficeWaMensaje[]
   fotofficePedidos FotofficePedido[]
   fotofficePedidoCuotas FotofficePedidoCuota[]
   fotofficeCobros FotofficeCobro[]
@@ -18609,6 +18612,7 @@ model Client {
   fotofficeCostosProveedor FotofficeCostoPlantilla[] @relation("FotofficeCostoProveedor")
   fotofficePresupuestos FotofficePresupuesto[] @relation("FotofficePresupuestoContacto")
   fotofficePedidos FotofficePedido[] @relation("FotofficePedidoContacto")
+  fotofficeWaChats FotofficeWaChat[]
   fotofficeCobros FotofficeCobro[] @relation("FotofficeCobroContacto")
   fotofficeCuentasPagar FotofficeCuentaPagar[] @relation("FotofficeCuentaPagarProveedor")
   fotofficeProyectos FotofficeProyecto[]
@@ -23377,4 +23381,88 @@ model CulturalActivityWork {
   createdAt DateTime @default(now())
 
   @@index([activityId, sortOrder])
+}
+
+/// Bandeja de WhatsApp (FOTOFFICE): conexión del workspace. UNA por workspace. El token de Meta NO va
+/// acá: va cifrado en `WorkspaceIntegration` (proveedor WHATSAPP). Enums como texto: el esquema lo
+/// comparten cinco aplicaciones.
+model FotofficeWaConexion {
+  id            String   @id @default(cuid())
+  workspaceId   String   @unique
+  phoneNumberId String?  @unique
+  wabaId        String?
+  displayPhone  String?
+  /// SIMULADO | REAL
+  modo          String   @default("SIMULADO")
+  pausaBotHoras Int      @default(4)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Un chat de WhatsApp (un teléfono) dentro de un workspace.
+model FotofficeWaChat {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  /// Teléfono E.164 sin "+" (ej. 5493413419869).
+  waId             String
+  /// Nombre del perfil de WhatsApp.
+  nombre           String?
+  clientId         String?
+  /// BOT | HUMANO | RESUELTO
+  estado           String    @default("BOT")
+  asignadoUserId   Int?
+  botPausadoHasta  DateTime?
+  ultimoMensajeEn  DateTime
+  /// Base de la ventana de 24 h para responder con texto libre.
+  ultimoEntranteEn DateTime?
+  /// Vista previa para la lista (texto plano, hasta 120 caracteres) y tipo del último mensaje real (no SISTEMA).
+  ultimoMensajeTexto String?
+  ultimoMensajeTipo  String?
+  noLeidos         Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  mensajes  FotofficeWaMensaje[]
+
+  @@unique([workspaceId, waId])
+  @@index([workspaceId, estado, ultimoMensajeEn])
+  @@index([workspaceId, asignadoUserId])
+  @@index([clientId])
+}
+
+/// Un mensaje de un chat. Las acciones (tomó, devolvió al bot, resolvió) quedan como SISTEMA.
+model FotofficeWaMensaje {
+  id          String   @id @default(cuid())
+  workspaceId String
+  chatId      String
+  /// ENTRANTE | SALIENTE | SISTEMA
+  direccion   String
+  /// CLIENTE | BOT | USUARIO | CELULAR | SISTEMA
+  autor       String
+  autorUserId Int?
+  autorLabel  String?
+  /// TEXTO | IMAGEN | AUDIO | DOCUMENTO | VIDEO | UBICACION | PLANTILLA | OTRO
+  tipo        String   @default("TEXTO")
+  texto       String?
+  /// id/mime/caption de Meta; no se descarga en esta etapa.
+  media       Json?
+  waMessageId String?
+  /// RECIBIDO | SIMULADO | PENDIENTE | ENVIADO | ENTREGADO | LEIDO | FALLO
+  estadoEnvio String   @default("RECIBIDO")
+  errorCodigo String?
+  /// Token de idempotencia del envío desde el panel (un reintento no manda dos veces).
+  clientToken String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chat      FotofficeWaChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  /// Idempotencia de los webhooks (los NULL no chocan entre sí en Postgres).
+  @@unique([workspaceId, waMessageId])
+  @@unique([chatId, clientToken])
+  @@index([chatId, createdAt])
 }
