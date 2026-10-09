@@ -13,7 +13,9 @@ vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor })
 vi.mock("@/lib/correos/enviar", () => correos);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+process.env.R2_PUBLIC_URL = "https://pub-test.r2.dev";
 const { aprobar, enviarARevision, rechazar, guardarBorrador } = await import("./acciones");
+const { resetRateLimit } = await import("@/lib/limite");
 
 const fila = {
   id: "a1", slug: "x", type: "CHARLA", title: "Charla", description: "d", coverImageUrl: "u",
@@ -25,6 +27,7 @@ const fila = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimit();
   db.culturalActivity.update.mockResolvedValue({});
   db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
   db.$transaction.mockResolvedValue([]);
@@ -98,7 +101,7 @@ describe("transicion con carrera", () => {
 
 describe("guardarBorrador sobre una ficha publicada", () => {
   const completa = {
-    id: "a1", type: "CHARLA", title: "Charla", description: "d", coverImageUrl: "u", organizersText: "o",
+    id: "a1", type: "CHARLA", title: "Charla", description: "d", coverImageUrl: "https://pub-test.r2.dev/muestras/7/p.webp", organizersText: "o",
     startDay: "2026-11-05", endDay: "2026-11-06", scheduleText: "18", isVirtualOnly: "on", rightsConfirmed: "on",
     works: "[]",
   };
@@ -121,5 +124,32 @@ describe("guardarBorrador sobre una ficha publicada", () => {
     const r = await guardarBorrador(fd(completa));
     expect(r).toEqual({ ok: true, id: "a1" });
     expect(db.$transaction).toHaveBeenCalled();
+  });
+});
+
+describe("topes por persona", () => {
+  function fd(o: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(k, v);
+    return f;
+  }
+  it("crear borradores tiene tope; editar uno existente no cuenta", async () => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.create.mockResolvedValue({ id: "n" });
+    for (let i = 0; i < 20; i++) expect((await guardarBorrador(fd({ title: "Nueva" }))).ok).toBe(true);
+    const r = await guardarBorrador(fd({ title: "Una más" }));
+    expect(r.ok).toBe(false);
+    expect(db.culturalActivity.create).toHaveBeenCalledTimes(20);
+    db.culturalActivity.findUnique.mockResolvedValue(fila);
+    expect((await guardarBorrador(fd({ id: "a1", title: "Edición" }))).ok).toBe(true);
+  });
+  it("enviar a revisión tiene tope y no escribe al pasarlo", async () => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.findUnique.mockResolvedValue(fila);
+    for (let i = 0; i < 10; i++) expect((await enviarARevision("a1")).ok).toBe(true);
+    db.culturalActivity.updateMany.mockClear();
+    const r = await enviarARevision("a1");
+    expect(r.ok).toBe(false);
+    expect(db.culturalActivity.updateMany).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ import {
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
+import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData } from "./mapear";
 
 export type ResultadoAccion = { ok: true; id: string } | { ok: false; errores: string[] };
@@ -39,6 +40,10 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   }));
 
   if (!f.id) {
+    // Sólo se cuenta la creación: editar un borrador propio no tiene tope.
+    if (!frenarPorUsuario("crearBorrador", usuario.id).allowed) {
+      return { ok: false, errores: ["Creaste muchas actividades seguidas. Esperá un rato y probá de nuevo."] };
+    }
     const creada = await prisma.culturalActivity.create({
       data: { ...datos, slug: newSlug(f.title), proposedByUserId: usuario.id, works: { create: obras } },
       select: { id: true },
@@ -79,10 +84,13 @@ async function transicion(
   id: string,
   accion: ReviewAction,
   extra: (ahora: Date, revisor: number) => Record<string, unknown> = () => ({}),
+  antes?: (usuario: { id: number }) => ResultadoAccion | null,
 ): Promise<ResultadoAccion> {
   if (typeof id !== "string") return NO_EXISTE;
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
+  const corte = antes?.(usuario);
+  if (corte) return corte;
   const fila = await prisma.culturalActivity.findUnique({ where: { id }, include: { works: true } });
   if (!fila) return NO_EXISTE;
   const estado = fila.reviewStatus as ReviewStatus;
@@ -110,8 +118,14 @@ async function transicion(
   return { ok: true, id };
 }
 
+/** Cada envío dispara un correo a la bandeja de revisión: por eso lleva tope por persona. */
+function frenoDeEnvio(usuario: { id: number }): ResultadoAccion | null {
+  if (frenarPorUsuario("enviarARevision", usuario.id).allowed) return null;
+  return { ok: false, errores: ["Enviaste muchas actividades a revisión seguidas. Esperá un rato y probá de nuevo."] };
+}
+
 export async function enviarARevision(id: string) {
-  const r = await transicion(id, "submit", (ahora) => ({ submittedAt: ahora, rejectionReason: null }));
+  const r = await transicion(id, "submit", (ahora) => ({ submittedAt: ahora, rejectionReason: null }), frenoDeEnvio);
   if (r.ok) await avisarNuevaPropuesta(id);
   return r;
 }

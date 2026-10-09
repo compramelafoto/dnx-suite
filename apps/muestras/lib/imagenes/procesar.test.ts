@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { procesarImagen } from "./procesar";
+import { ImagenInvalida, procesarImagen } from "./procesar";
 
 async function jpeg(w: number, h: number) {
   return sharp({ create: { width: w, height: h, channels: 3, background: "#888" } }).jpeg().toBuffer();
@@ -23,5 +23,13 @@ describe("procesarImagen", () => {
   });
   it("rechaza algo que no es imagen", async () => {
     await expect(procesarImagen(Buffer.from("hola"), "obra")).rejects.toThrow("No es una imagen válida");
+  });
+  it("el error de archivo inválido es de la persona, no del servidor", async () => {
+    await expect(procesarImagen(Buffer.from("hola"), "obra")).rejects.toBeInstanceOf(ImagenInvalida);
+  });
+  it("rechaza una imagen con más de 50 megapíxeles sin decodificarla", async () => {
+    // 8000 × 7000 = 56 MP. Se arma en PNG porque comprime casi a nada siendo un color liso.
+    const grande = await sharp({ create: { width: 8000, height: 7000, channels: 3, background: "#000" } }).png().toBuffer();
+    await expect(procesarImagen(grande, "obra")).rejects.toThrow("demasiados píxeles");
   });
 });

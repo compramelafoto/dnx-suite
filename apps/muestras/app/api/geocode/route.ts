@@ -1,17 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createNominatimProvider } from "@repo/geo";
-import { checkRateLimit, clientIp } from "@/lib/geocode/limite";
+import { frenarPorUsuario } from "@/lib/limite";
+import { getUsuario } from "@/lib/usuario";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Buscar una dirección. Proxy a Nominatim con nuestro `User-Agent` y un tope por origen,
- * mismo criterio que `apps/fotoffice/app/api/geocode/route.ts`. Se usa al cargar el lugar de
- * una actividad: el resultado se guarda en la ficha y no se vuelve a pedir.
+ * Buscar una dirección. Proxy a Nominatim con nuestro `User-Agent` y un tope por persona.
+ * Sólo se usa al cargar el lugar de una actividad, que ya exige sesión: sin ella este endpoint
+ * sería un proxy abierto a Nominatim con nuestra IP. El resultado se guarda en la ficha y no se
+ * vuelve a pedir.
  */
 export async function GET(req: NextRequest) {
-  const freno = checkRateLimit({ key: `geocode:${clientIp(req.headers)}`, limit: 60, windowMs: 60_000 });
+  const usuario = await getUsuario();
+  if (!usuario) return NextResponse.json({ error: "Tenés que ingresar para buscar direcciones." }, { status: 401 });
+  const freno = frenarPorUsuario("geocode", usuario.id);
   if (!freno.allowed) {
     return NextResponse.json({ error: "Demasiadas búsquedas seguidas. Probá en un minuto." }, { status: 429 });
   }
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
       })),
     );
   } catch (err) {
-    console.error("GET /api/geocode:", err);
+    console.error("GET /api/geocode:", err instanceof Error ? err.message : String(err));
     return NextResponse.json({ error: "No pudimos buscar esa dirección." }, { status: 502 });
   }
 }
