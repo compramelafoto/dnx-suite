@@ -51,7 +51,7 @@ export function freeProfileSlug(base: string, taken: ReadonlySet<string>): strin
 
 /** "@usuario" o la URL del perfil → "usuario". `null` si no parece un usuario de Instagram. */
 export function normalizeInstagram(raw: string): string | null {
-  const s = raw.trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/^@/, "").split(/[/?#]/)[0] ?? "";
+  const s = raw.trim().replace(/^(?:https?:\/\/)?(?:www\.|m\.)?instagram\.com\//i, "").replace(/^@/, "").split(/[/?#]/)[0] ?? "";
   return /^[A-Za-z0-9._]{1,30}$/.test(s) ? s.toLowerCase() : null;
 }
 
@@ -63,6 +63,8 @@ export function normalizeWebsite(raw: string): string | null {
     const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
     if (!u.hostname.includes(".")) return null;
+    // Una dirección con usuario o contraseña ("https://a:b@sitio.com") se usa para engañar.
+    if (u.username || u.password) return null;
     return u.toString();
   } catch {
     return null;

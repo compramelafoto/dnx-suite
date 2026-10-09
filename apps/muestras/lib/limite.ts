@@ -63,6 +63,8 @@ export const LIMITES = {
   geocode: { limit: 60, windowMs: 60_000 },
   imagenes: { limit: 60, windowMs: 10 * 60_000 },
   crearBorrador: { limit: 20, windowMs: 60 * 60_000 },
+  guardarPerfil: { limit: 30, windowMs: 60 * 60_000 },
+  buscarPerfiles: { limit: 60, windowMs: 60_000 },
   enviarARevision: { limit: 10, windowMs: 60 * 60_000 },
 } as const;
 

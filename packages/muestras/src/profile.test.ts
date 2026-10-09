@@ -34,6 +34,9 @@ describe("enlaces del perfil", () => {
   it("Instagram acepta @usuario y la URL del perfil", () => {
     expect(normalizeInstagram("@Ana.Perez")).toBe("ana.perez");
     expect(normalizeInstagram("https://www.instagram.com/ana_perez/?hl=es")).toBe("ana_perez");
+    expect(normalizeInstagram("instagram.com/ana")).toBe("ana");
+    expect(normalizeInstagram("m.instagram.com/ana")).toBe("ana");
+    expect(normalizeInstagram("https://m.instagram.com/Ana/")).toBe("ana");
     expect(normalizeInstagram("con espacio")).toBeNull();
     expect(normalizeInstagram("  ")).toBeNull();
   });
@@ -43,6 +46,8 @@ describe("enlaces del perfil", () => {
     expect(normalizeWebsite("javascript:alert(1)")).toBeNull();
     expect(normalizeWebsite("ftp://ejemplo.com")).toBeNull();
     expect(normalizeWebsite("localhost")).toBeNull();
+    expect(normalizeWebsite("https://user:clave@ejemplo.com")).toBeNull();
+    expect(normalizeWebsite("user@ejemplo.com")).toBeNull();
   });
 });
 

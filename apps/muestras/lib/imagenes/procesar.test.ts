@@ -17,6 +17,10 @@ describe("procesarImagen", () => {
     const r = await procesarImagen(await jpeg(3000, 4000), "portada");
     expect(r.height).toBe(1600);
   });
+  it("el avatar sale cuadrado de 800 px, recortado al centro", async () => {
+    const r = await procesarImagen(await jpeg(1600, 900), "avatar");
+    expect([r.width, r.height]).toEqual([800, 800]);
+  });
   it("no agranda una imagen chica", async () => {
     const r = await procesarImagen(await jpeg(800, 600), "obra");
     expect(r.width).toBe(800);
