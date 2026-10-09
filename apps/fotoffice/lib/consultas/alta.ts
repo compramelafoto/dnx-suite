@@ -5,6 +5,7 @@ import { puedeEnContexto } from "@/lib/access/policy";
 import { notificarEvento } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
+import type { ResultadoPropuestaAutomatica } from "@/lib/presupuestos/propuesta-automatica";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 import { puedeSerResponsable, type DepsAjustes } from "./ajustes";
@@ -31,6 +32,8 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  *   3. aviso al equipo y tarea "Responder consulta" (salvo en la importación);
  *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web: la propuesta modelo
  *      de la categoría si sale sola (etapa 2, Entrega B) o, si no salió, la común; nunca las dos.
+ *      Si la propuesta no salió, además queda armado el borrador del presupuesto (sin enviar) para
+ *      las categorías con "Armar el borrador solo" (`armarBorradorDePropuesta`).
  *
  * El formulario público NUNCA pierde una consulta: si la transacción falla por algo que no es
  * una validación (la base, un bloqueo, los catálogos, ninguna categoría), se guarda sólo la
@@ -493,9 +496,11 @@ export async function altaDeConsulta(
   if (origenDelAlta === "WEB") {
     await despuesDeResponder(async () => {
       let comun = true;
+      let resultado: ResultadoPropuestaAutomatica | undefined;
       try {
         const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
-        comun = correspondeAutorespuestaComun(await enviarPropuestaModelo(workspaceId, leadId, deps));
+        resultado = await enviarPropuestaModelo(workspaceId, leadId, deps);
+        comun = correspondeAutorespuestaComun(resultado);
       } catch (error) {
         registrarFalla("enviarPropuestaModelo", error);
       }
@@ -504,6 +509,15 @@ export async function altaDeConsulta(
           await responderConsultaNueva(workspaceId, leadId);
         } catch (error) {
           registrarFalla("responderConsultaNueva", error);
+        }
+      }
+      // Si la propuesta no salió, queda el borrador armado para el responsable (sin enviar nada).
+      if (resultado !== "ENVIADA" && resultado !== "ERROR_TRAS_ENVIO") {
+        try {
+          const { armarBorradorDePropuesta } = await import("@/lib/presupuestos/propuesta-automatica");
+          await armarBorradorDePropuesta(workspaceId, leadId, deps);
+        } catch (error) {
+          registrarFalla("armarBorradorDePropuesta", error);
         }
       }
     });

@@ -7215,6 +7215,7 @@ model Workspace {
   fotofficePresupuestoAjustes FotofficePresupuestoAjustes?
   fotofficePerfilPrecios      FotofficePerfilPrecios?
   fotofficePropuestasModelo FotofficePropuestaModelo[]
+  fotofficeBorradoresAuto   FotofficePropuestaBorradorAuto[]
   fotofficePedidos FotofficePedido[]
   fotofficePedidoCuotas FotofficePedidoCuota[]
   fotofficeCobros FotofficeCobro[]
@@ -20595,6 +20596,7 @@ model FotofficeConsultaCategoria {
   workspace        Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   consultas        FotofficeConsulta[]
   propuestasModelo FotofficePropuestaModelo[]
+  borradoresAuto   FotofficePropuestaBorradorAuto[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, archivedAt, order])
@@ -20899,6 +20901,24 @@ model FotofficePropuestaModelo {
   @@unique([workspaceId, categoryId])
   @@index([categoryId])
   @@index([templateId])
+}
+
+/// Interruptor del borrador automático por categoría de consulta: la fila existe = encendido. Al
+/// llegar una consulta web de esa categoría, el sistema arma el presupuesto en borrador (sin
+/// enviarlo) y deja una tarea de revisión. Tabla aparte para que publicar el código antes del SQL
+/// no rompa `FotofficePropuestaModelo`.
+model FotofficePropuestaBorradorAuto {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  categoryId      String
+  createdAt       DateTime @default(now())
+  createdByUserId Int?
+
+  workspace Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  category  FotofficeConsultaCategoria @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, categoryId])
+  @@index([categoryId])
 }
 
 /// Perfil de precios de ¿Cuánto Cobro? del workspace (Configuración → Precios). `profileData` es un

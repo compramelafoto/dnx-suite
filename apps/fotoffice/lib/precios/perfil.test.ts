@@ -8,7 +8,7 @@ const B = await vi.hoisted(async () => {
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
-const { leerPerfilPrecios, guardarPerfilPrecios } = await import("./perfil");
+const { leerPerfilPrecios, guardarPerfilPrecios, leerPerfilPreciosDelSistema } = await import("./perfil");
 
 const niveles = { quotes: "MANAGE", "service-leads": "MANAGE", clients: "MANAGE" };
 const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: niveles } as never };
@@ -80,5 +80,15 @@ describe("perfil de precios", () => {
     } finally {
       B.tablas.fotofficePerfilPrecios.upsert = original;
     }
+  });
+});
+
+describe("perfil de precios para el sistema", () => {
+  it("sin permisos devuelve el perfil guardado, o null si no hay", async () => {
+    expect(await leerPerfilPreciosDelSistema("ws-1")).toBeNull();
+    const perfil = createBaseCompleteProfile();
+    await guardarPerfilPrecios(DUENO, perfil);
+    expect(await leerPerfilPreciosDelSistema("ws-1")).toEqual(perfil);
+    expect(await leerPerfilPreciosDelSistema("ws-2")).toBeNull();
   });
 });

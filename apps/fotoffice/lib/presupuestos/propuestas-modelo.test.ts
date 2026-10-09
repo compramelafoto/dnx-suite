@@ -8,6 +8,8 @@ const B = await vi.hoisted(async () => {
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+
 const PM = await import("./propuestas-modelo");
 const M = PM.MENSAJES_PROPUESTA_MODELO;
 
@@ -19,6 +21,12 @@ const OTRO = { workspaceId: "ws-2", userId: 9, userLabel: "Otro", role: "WORKSPA
 const item = (id: string, productId: string | null = "prod-1", datos: Record<string, unknown> = {}) => ({
   id, productId, nombre: `Ítem ${id}`, descripcion: null, cantidad: 1, precioUnitario: 1000, descuento: null,
   modoPrecio: "LISTA", calculo: null, seccion: null, opcional: false, ...datos,
+});
+
+const concepto = (id: string, datos: Record<string, unknown> = {}) => ({
+  id, productId: null, nombre: `Concepto ${id}`, descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+  modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: { concepts: [{ name: "Cobertura", itemType: "own-service" }] } } },
+  seccion: null, opcional: false, ...datos,
 });
 
 let plantillaId = "";
@@ -40,10 +48,34 @@ const guardar = (datos: Partial<import("./propuestas-modelo").DatosPropuestaMode
   PM.guardarPropuestaModelo(ctx, { categoriaId: "cat-boda", items: [item("a")], condiciones: " Seña 30 %. ", enviarSola: true, plantillaId, ...datos });
 
 describe("validarItemsDeModelo (puro)", () => {
-  it("sólo productos del catálogo en modo LISTA, sin cálculo", () => {
+  it("acepta productos del catálogo (LISTA) y conceptos calculados con trabajo", () => {
     expect(PM.validarItemsDeModelo([item("a")]).ok).toBe(true);
     expect(PM.validarItemsDeModelo([item("a", null)])).toEqual({ ok: false, error: M.soloLista });
-    expect(PM.validarItemsDeModelo([item("a", "prod-1", { modoPrecio: "CALCULO" })])).toEqual({ ok: false, error: M.soloLista });
+    expect(PM.validarItemsDeModelo([concepto("c")]).ok).toBe(true);
+  });
+
+  it("rechaza un concepto calculado sin trabajo o ligado a un producto", () => {
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: { concepts: [] } } } })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: {} } })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: null })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([concepto("c", { productId: "prod-1" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+  });
+
+  it("rechaza un concepto sin nombre o con un tipo de trabajo que no existe", () => {
+    const con = (c: Record<string, unknown>) => concepto("c", { calculo: { entrada: { presupuesto: { concepts: [c] } } } });
+    expect(PM.validarItemsDeModelo([con({ name: "", itemType: "own-service" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "   ", itemType: "own-service" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ itemType: "own-service" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "x" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "x", itemType: "otro" })])).toEqual({ ok: false, error: M.conceptoInvalido });
+    expect(PM.validarItemsDeModelo([con({ name: "x", itemType: "outsourced" })]).ok).toBe(true);
+  });
+
+  it("normaliza el concepto: precio 0 y sin perfil ni otros campos del cálculo", () => {
+    const r = PM.validarItemsDeModelo([concepto("c", { precioUnitario: 5, calculo: { precioSugerido: 9, entrada: { perfil: { gastos: 1 }, presupuesto: { concepts: [{ name: "x", itemType: "expense" }] } } } })]);
+    expect(r.ok && r.valor[0]).toMatchObject({ productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: { concepts: [{ name: "x" }] } } } });
+    expect(r.ok && Object.keys(r.valor[0]!.calculo!)).toEqual(["entrada"]);
+    expect(r.ok && Object.keys((r.valor[0]!.calculo as never as { entrada: object }).entrada)).toEqual(["presupuesto"]);
   });
 
   it("aplica los topes de la entrega A", () => {
@@ -51,6 +83,34 @@ describe("validarItemsDeModelo (puro)", () => {
     expect(PM.validarItemsDeModelo([item("a", "prod-1", { cantidad: 0 })]).ok).toBe(false);
     expect(PM.validarItemsDeModelo([item("a"), item("a")]).ok).toBe(false);
     expect(PM.validarItemsDeModelo("nada").ok).toBe(false);
+  });
+});
+
+describe("conceptos calculados: lista blanca", () => {
+  it("no guarda un perfil (ni arriba ni dentro del concepto) ni campos ajenos", () => {
+    const r = PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: {
+      perfil: { gastos: 1 }, extra: 1, chosenPrice: "5000",
+      client: { jobType: "Boda", perfil: { x: 1 }, hours: { salesHours: "2", otro: 1 } },
+      concepts: [{ name: "Cobertura", itemType: "own-service", quantity: 2, coverageHours: "6", perfil: { gastos: 1 }, raro: "x" }, { name: "segundo" }],
+    } } } })]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect((r.valor[0]!.calculo as never as { entrada: unknown }).entrada).toEqual({ presupuesto: {
+      client: { jobType: "Boda", hours: { salesHours: "2" } }, chosenPrice: "5000",
+      concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "2", coverageHours: "6" }],
+    } });
+  });
+
+  it("rechaza un primer concepto que no es un objeto", () => {
+    expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: { concepts: ["x"] } } } })])).toEqual({ ok: false, error: M.conceptoInvalido });
+  });
+
+  it("guardar y leer conserva el concepto calculado", async () => {
+    expect(await guardar({ items: [item("a"), concepto("c")] as never, enviarSola: false })).toEqual({ ok: true });
+    const p = await PM.leerPropuestaModelo("ws-1", "cat-boda");
+    expect(p!.items).toHaveLength(2);
+    expect(p!.items[1]).toMatchObject({ id: "c", productId: null, modoPrecio: "CALCULO", precioUnitario: 0 });
+    expect(JSON.stringify(B.datos.fotofficePropuestaModelo[0])).not.toContain("perfil");
   });
 });
 
@@ -107,6 +167,30 @@ describe("guardar, leer y borrar", () => {
     expect(await guardar({ items: [] })).toEqual({ ok: false, error: M.sinItems });
     expect(await guardar({ plantillaId: null })).toEqual({ ok: false, error: M.sinPlantilla });
     expect(await guardar({ items: [], plantillaId: null, enviarSola: false })).toEqual({ ok: true });
+  });
+
+  describe("salir sola con conceptos calculados", () => {
+    const calculado = (datos: Record<string, unknown> = {}) =>
+      concepto("c", { calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: "6", editingHours: "4", ...datos }] } } } });
+
+    it("sin perfil de precios: no deja activarla", async () => {
+      expect(await guardar({ items: [calculado()] as never })).toEqual({ ok: false, error: M.sinPerfil });
+      expect(B.datos.fotofficePropuestaModelo).toHaveLength(0);
+    });
+
+    it("con un concepto que no da precio con el perfil: no deja activarla", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      expect(await guardar({ items: [concepto("c")] as never })).toEqual({ ok: false, error: M.calculoSinPrecio });
+    });
+
+    it("con perfil y un concepto que da precio: la guarda", async () => {
+      B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+      expect(await guardar({ items: [item("a"), calculado()] as never })).toEqual({ ok: true });
+    });
+
+    it("apagada, un concepto calculado se guarda aunque no haya perfil", async () => {
+      expect(await guardar({ items: [calculado()] as never, enviarSola: false })).toEqual({ ok: true });
+    });
   });
 
   it("condiciones de más de 4000 caracteres no", async () => {

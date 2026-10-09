@@ -37,7 +37,7 @@ const TABLAS = [
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
-  "fotofficePropuestaModelo",
+  "fotofficePropuestaModelo", "fotofficePropuestaBorradorAuto",
   // Rubros de dos niveles (etapa 3): categorías de Caja y su perfil.
   "cashCategory", "fotofficeRubro",
   // Pedidos y cobros (etapa 3).
@@ -139,6 +139,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     updatedAt: new Date(),
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficePropuestaBorradorAuto: () => ({ createdAt: new Date(), createdByUserId: null }),
   cashCategory: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRubro: () => ({ parentCategoryId: null, code: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePedido: () => ({
@@ -324,6 +325,7 @@ export function crearBaseEnMemoria() {
     ],
     fotofficePresupuestoAjustes: [{ columnas: ["workspaceId"] }],
     fotofficePropuestaModelo: [{ columnas: ["workspaceId", "categoryId"] }],
+    fotofficePropuestaBorradorAuto: [{ columnas: ["workspaceId", "categoryId"] }],
     // Etapa 3.
     cashCategory: [{ columnas: ["workspaceId", "kind", "name"] }],
     fotofficeRubro: [{ columnas: ["categoryId"] }],

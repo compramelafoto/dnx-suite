@@ -2,6 +2,8 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { validarItems, type ItemPresupuesto, type ResultadoValidacion } from "./constantes";
+import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
+import { TIPOS_TRABAJO } from "./panel-cuanto-cobro";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { MAX_TEXTO_VERSION } from "./versiones";
 
@@ -16,10 +18,11 @@ import { MAX_TEXTO_VERSION } from "./versiones";
  * Reglas:
  * - configurar: SÓLO con `configurar` (dueño y administradores), como el resto de
  *   Configuración → Presupuestos;
- * - los ítems son SÓLO productos activos del catálogo del workspace y en modo LISTA
- *   **[decisión: un precio calculado depende del perfil privado; la propuesta modelo usa el precio
- *   de lista]**, con los mismos topes que un presupuesto (`validarItems`). Al enviarla, nombre,
- *   descripción y precio se toman del catálogo en ese momento;
+ * - los ítems son productos activos del catálogo (modo LISTA: al enviarla, nombre, descripción y
+ *   precio se toman del catálogo en ese momento) o conceptos calculados (CALCULO, sin producto):
+ *   de éstos se guarda SÓLO el trabajo (`calculo.entrada.presupuesto`), NUNCA el perfil de precios
+ *   (privado); el precio se calcula al instanciar la propuesta con el perfil del workspace
+ *   (`./instanciar-propuesta.ts`). Mismos topes que un presupuesto (`validarItems`);
  * - la categoría y la plantilla se buscan DENTRO del workspace: una de otro no existe.
  *
  * Nunca loguea datos personales.
@@ -29,10 +32,13 @@ export const MENSAJES_PROPUESTA_MODELO = {
   sinPermiso: MENSAJES_PRESUPUESTO.sinPermisoAjustes,
   datosInvalidos: MENSAJES_PRESUPUESTO.datosInvalidos,
   categoria: "No encontramos esa categoría.",
-  soloLista: "La propuesta modelo sólo lleva productos del catálogo a precio de lista.",
+  soloLista: "Los productos de la propuesta tienen que ser del catálogo.",
+  conceptoInvalido: "Revisá el concepto calculado: le faltan las horas o el tipo de trabajo.",
   producto: MENSAJES_PRESUPUESTO.producto,
+  sinPerfil: "Para que salga sola con conceptos calculados, primero cargá tu perfil en Configuración → Precios.",
+  calculoSinPrecio: "Uno de los conceptos calculados no da precio con tu perfil actual: revisalo antes de activar el envío automático.",
   plantilla: "Elegí una plantilla de correo de tipo Presupuesto.",
-  sinItems: "Para que salga sola, la propuesta necesita al menos un producto.",
+  sinItems: "Para que salga sola, la propuesta necesita al menos un ítem.",
   sinPlantilla: "Para que salga sola, elegí la plantilla de correo con la que se envía.",
   texto: `Las condiciones pueden tener hasta ${MAX_TEXTO_VERSION} caracteres.`,
   noExiste: "Esa categoría no tiene propuesta modelo.",
@@ -78,17 +84,72 @@ function falla(donde: string, error: unknown): void {
   console.error(`[presupuestos] ${donde} falló`, { codigo: typeof e?.code === "string" ? e.code : null });
 }
 
+/** Lo único que guarda un concepto calculado de la propuesta: el trabajo, sin el perfil. */
+export type ConceptoDePropuesta = { entrada: { presupuesto: unknown } };
+
+const CAMPOS_DEL_CONCEPTO = [
+  "name", "itemType", "quantity", "coverageHours", "editingHours", "deliveryHours", "travelHours", "directCost",
+  "supplierCost", "productionHours", "shippingCost", "outsourcedLaborCost", "managementHours", "expenseCost",
+  "desiredMarginPercent",
+] as const;
+
+const objetoPlano = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const comoTexto = (v: unknown): string | undefined => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : undefined);
+
+/**
+ * El trabajo del concepto, armado con una lista blanca: sólo lo que lee `trabajoDesdeMotor`
+ * (primer concepto, tipo de trabajo, horas con el cliente, precio manual). Nada de `perfil` ni
+ * de otros campos. null si no hay un primer concepto que sea un objeto.
+ */
+function trabajoDelConcepto(calculo: unknown): unknown | null {
+  if (!objetoPlano(calculo) || !objetoPlano(calculo.entrada)) return null;
+  const presupuesto = calculo.entrada.presupuesto;
+  if (!objetoPlano(presupuesto) || !Array.isArray(presupuesto.concepts)) return null;
+  const c = presupuesto.concepts[0];
+  if (!objetoPlano(c)) return null;
+  const nombre = comoTexto(c.name);
+  if (nombre === undefined || nombre.trim() === "") return null;
+  if (!TIPOS_TRABAJO.some((t) => t.valor === c.itemType)) return null;
+  const concepto: Record<string, string> = {};
+  for (const k of CAMPOS_DEL_CONCEPTO) {
+    const t = comoTexto(c[k]);
+    if (t !== undefined) concepto[k] = t;
+  }
+  const client = objetoPlano(presupuesto.client) ? presupuesto.client : {};
+  const horas = objetoPlano(client.hours) ? comoTexto(client.hours.salesHours) : undefined;
+  const jobType = comoTexto(client.jobType);
+  const chosenPrice = comoTexto(presupuesto.chosenPrice);
+  return {
+    client: { ...(jobType !== undefined ? { jobType } : {}), ...(horas !== undefined ? { hours: { salesHours: horas } } : {}) },
+    ...(chosenPrice !== undefined ? { chosenPrice } : {}),
+    concepts: [concepto],
+  };
+}
+
 /**
  * PURO. Los ítems de una propuesta modelo: los de `validarItems` (topes, claves, números) y,
- * además, cada uno del catálogo (`productId`) y a precio de lista, sin cálculo.
+ * además, cada uno es un producto del catálogo a precio de lista (`productId`) o un concepto
+ * calculado (sin producto, con su trabajo). Del concepto se descarta todo menos el trabajo.
  */
 export function validarItemsDeModelo(raw: unknown): ResultadoValidacion<ItemPresupuesto[]> {
   const v = validarItems(raw);
   if (!v.ok) return v;
+  const out: ItemPresupuesto[] = [];
   for (const it of v.valor) {
-    if (it.modoPrecio !== "LISTA" || it.productId === null) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+    if (it.modoPrecio === "LISTA") {
+      if (it.productId === null) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+      out.push({ ...it, calculo: null });
+    } else if (it.modoPrecio === "CALCULO") {
+      const presupuesto = it.productId === null ? trabajoDelConcepto(it.calculo) : null;
+      if (presupuesto === null) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.conceptoInvalido };
+      // `calculo` está tipado como `InstantaneaCalculo`; acá guarda sólo `ConceptoDePropuesta`.
+      const concepto: ConceptoDePropuesta = { entrada: { presupuesto } };
+      out.push({ ...it, productId: null, precioUnitario: 0, calculo: concepto as unknown as ItemPresupuesto["calculo"] });
+    } else {
+      return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+    }
   }
-  return { ok: true, valor: v.valor.map((it) => ({ ...it, calculo: null })) };
+  return { ok: true, valor: out };
 }
 
 function textoCondiciones(v: unknown): string | null | undefined {
@@ -199,13 +260,23 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
   if (!(await categoriaDelWorkspace(workspaceId, categoriaId))) return no(MENSAJES_PROPUESTA_MODELO.categoria);
 
   // Cada producto, activo y del MISMO workspace.
-  const productIds = [...new Set(items.valor.map((i) => i.productId as string))];
+  const productIds = [...new Set(items.valor.map((i) => i.productId).filter((x): x is string => x !== null))];
   if (productIds.length > 0) {
     const encontrados = await prisma.product.findMany({
       where: { workspaceId, id: { in: productIds }, isActive: true },
       select: { id: true },
     });
     if (encontrados.length !== productIds.length) return no(MENSAJES_PROPUESTA_MODELO.producto);
+  }
+
+  // Si sale sola, los conceptos calculados tienen que dar precio de verdad (misma vía que al enviar).
+  if (enviarSola && items.valor.length > 0) {
+    const real = await itemsDeLaPropuesta(workspaceId, items.valor, new Date());
+    if (!real.ok) {
+      if (real.motivo === "SIN_PERFIL") return no(MENSAJES_PROPUESTA_MODELO.sinPerfil);
+      if (real.motivo === "CALCULO") return no(MENSAJES_PROPUESTA_MODELO.calculoSinPrecio);
+      return no(MENSAJES_PROPUESTA_MODELO.producto);
+    }
   }
 
   let plantillaId: string | null = null;
