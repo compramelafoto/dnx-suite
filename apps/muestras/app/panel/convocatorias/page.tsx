@@ -9,7 +9,7 @@ export const metadata = { title: "Convocatorias" };
 
 export default async function Convocatorias() {
   const usuario = await requireUsuario("/panel/convocatorias");
-  const [mias, sinConvocatoria] = await Promise.all([listarConvocatoriasMias(usuario), muestrasSinConvocatoria(usuario.id)]);
+  const [mias, sinConvocatoria] = await Promise.all([listarConvocatoriasMias(usuario), muestrasSinConvocatoria(usuario)]);
   return (
     <main className="max-w-3xl space-y-12">
       <header className="space-y-3">

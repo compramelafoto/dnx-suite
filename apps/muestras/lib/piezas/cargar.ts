@@ -2,8 +2,9 @@ import "server-only";
 import { prisma } from "@repo/db";
 import type { Usuario } from "@/lib/usuario";
 import type { MuestraParaPiezas } from "./textos";
+import { dondePuede } from "@/lib/equipo/permisos";
 
-/** Una muestra propia (cualquiera, si es super admin), de tipo muestra; publicada si se pide. */
+/** Una muestra con `pieces` (dueño, coorganización o super admin), de tipo muestra; publicada si se pide. */
 export function cargarMuestraParaPiezas(
   id: string,
   usuario: Pick<Usuario, "id" | "esSuperAdmin">,
@@ -13,7 +14,7 @@ export function cargarMuestraParaPiezas(
     where: {
       id, type: "MUESTRA",
       ...(publicada ? { reviewStatus: "APPROVED" } : {}),
-      ...(usuario.esSuperAdmin ? {} : { proposedByUserId: usuario.id }),
+      ...dondePuede(usuario, "pieces"),
     },
     select: {
       id: true, slug: true, title: true, organizersText: true, curatorialText: true, curatorCredits: true,

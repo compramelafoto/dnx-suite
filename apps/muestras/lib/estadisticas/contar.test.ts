@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({ $executeRaw: vi.fn() }));
-const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
-vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
-const { esDeQuienOrganiza, pedidoContable, sumarUno } = await import("./contar");
+const { pedidoContable, sumarUno } = await import("./contar");
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile Safari/604.1";
 beforeEach(() => vi.clearAllMocks());
@@ -24,15 +22,5 @@ describe("qué se cuenta", () => {
     expect(pedidoContable(new Headers({ "user-agent": UA }))).toBe(true);
     expect(pedidoContable(new Headers({ "user-agent": "WhatsApp/2.24" }))).toBe(false);
     expect(pedidoContable(new Headers({ "user-agent": UA, "sec-purpose": "prefetch" }))).toBe(false);
-  });
-  it("no cuenta al organizador ni al super admin", async () => {
-    usuarioActual.valor = null;
-    expect(await esDeQuienOrganiza(7)).toBe(false);
-    usuarioActual.valor = { id: 7, esSuperAdmin: false };
-    expect(await esDeQuienOrganiza(7)).toBe(true);
-    usuarioActual.valor = { id: 8, esSuperAdmin: false };
-    expect(await esDeQuienOrganiza(7)).toBe(false);
-    usuarioActual.valor = { id: 1, esSuperAdmin: true };
-    expect(await esDeQuienOrganiza(7)).toBe(true);
   });
 });

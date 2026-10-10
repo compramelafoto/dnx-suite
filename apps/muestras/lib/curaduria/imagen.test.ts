@@ -35,6 +35,11 @@ describe("imagen por la ruta anónima", () => {
     db.culturalCallWork.findUnique.mockResolvedValue(fila("CLOSED"));
     expect(await imagenAutorizada("w1", persona(9))).not.toBeNull();
   });
+  it("la coorganización de la muestra no la ve: la convocatoria es sólo del dueño (etapa 5, D4)", async () => {
+    db.culturalCallWork.findUnique.mockResolvedValue(fila("CLOSED"));
+    // 15 coorganiza la muestra de 9: para la imagen anónima es un extraño.
+    expect(await imagenAutorizada("w1", persona(15))).toBeNull();
+  });
   it("un envío retirado no se sirve", async () => {
     db.culturalCallWork.findUnique.mockResolvedValue(fila("CURATING", "WITHDRAWN"));
     expect(await imagenAutorizada("w1", persona(1, true))).toBeNull();

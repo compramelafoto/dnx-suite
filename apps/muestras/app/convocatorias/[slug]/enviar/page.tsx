@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { acceptsSubmissions, callPhase, formatArDay, submitterConflict } from "@repo/muestras";
 import { FormularioEnvio } from "@/components/envios/formulario-envio";
 import { buscarConvocatoriaPublica } from "@/lib/convocatorias/consultas";
+import { dondePuede } from "@/lib/equipo/permisos";
 import { buscarMiEnvio } from "@/lib/envios/consultas";
 import { buscarPerfilPropio } from "@/lib/perfiles/consultas";
 import { requireUsuario } from "@/lib/usuario";
@@ -19,7 +20,9 @@ export default async function EnviarObras({ params }: Props) {
   const c = await buscarConvocatoriaPublica(slug);
   if (!c) notFound();
   const fase = callPhase(c, new Date());
-  const organiza = await prisma.culturalCall.count({ where: { id: c.id, activity: { proposedByUserId: usuario.id } } });
+  // Sólo choca el dueño (`manageCall`): la coorganización puede enviar obras (D4). El super admin
+  // se evalúa como cualquiera: este conflicto no es un permiso.
+  const organiza = await prisma.culturalCall.count({ where: { id: c.id, activity: dondePuede({ ...usuario, esSuperAdmin: false }, "manageCall") } });
   const curador = await prisma.culturalCallCurator.findFirst({
     where: { callId: c.id, status: { not: "REVOKED" }, OR: [{ userId: usuario.id }, { email: usuario.email.toLowerCase() }] },
     select: { id: true },

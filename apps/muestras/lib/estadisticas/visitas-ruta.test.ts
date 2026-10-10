@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findFirst: vi.fn() },
+  culturalActivity: { findFirst: vi.fn(), count: vi.fn() },
   culturalActivityWork: { findFirst: vi.fn() },
   $executeRaw: vi.fn(),
 }));
@@ -20,7 +20,8 @@ beforeEach(() => {
   resetRateLimit();
   usuarioActual.valor = null;
   db.$executeRaw.mockResolvedValue(1);
-  db.culturalActivity.findFirst.mockResolvedValue({ id: "cka1b2c3d4", proposedByUserId: 7 });
+  db.culturalActivity.findFirst.mockResolvedValue({ id: "cka1b2c3d4" });
+  db.culturalActivity.count.mockResolvedValue(0);
   db.culturalActivityWork.findFirst.mockResolvedValue({ id: "ckw1b2c3d4" });
 });
 
@@ -36,9 +37,18 @@ describe("POST /api/visitas", () => {
     expect((await enviar({ a: "mal formado!" })).status).toBe(204);
     expect((await enviar("no es json")).status).toBe(204);
     expect((await enviar({ a: "cka1b2c3d4" }, "curl/8.0")).status).toBe(204);
+    // Alguien del equipo de la muestra (dueño o integrante activo): no cuenta.
     usuarioActual.valor = { id: 7, esSuperAdmin: false };
+    db.culturalActivity.count.mockResolvedValue(1);
     expect((await enviar({ a: "cka1b2c3d4" })).status).toBe(204);
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ id: "cka1b2c3d4" });
     expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+  it("una persona con sesión que no es del equipo sí cuenta", async () => {
+    usuarioActual.valor = { id: 8, esSuperAdmin: false };
+    db.culturalActivity.count.mockResolvedValue(0);
+    await enviar({ a: "cka1b2c3d4" });
+    expect(db.$executeRaw).toHaveBeenCalledTimes(1);
   });
   it("la misma página desde la misma IP cuenta hasta 30 veces cada 10 minutos; otra página sigue", async () => {
     for (let i = 0; i < 35; i++) await enviar({ a: "cka1b2c3d4", o: "ckw1b2c3d4" });
