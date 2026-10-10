@@ -14,7 +14,7 @@ const miFila = (usuario: Quien) =>
 const CAMPOS_PUBLICOS = {
   id: true, slug: true, type: true, title: true, coverImageUrl: true, organizersText: true,
   startsAt: true, endsAt: true, scheduleText: true, isVirtualOnly: true, venueName: true,
-  city: true, province: true, latitude: true, longitude: true, isCancelled: true,
+  city: true, province: true, country: true, latitude: true, longitude: true, isCancelled: true,
 } as const;
 
 export type ActividadPublica = Awaited<ReturnType<typeof listarPublicas>>[number];
@@ -94,7 +94,7 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       id: true, slug: true, type: true, title: true, description: true, organizersText: true,
       curatorialText: true, curatorCredits: true, coverImageUrl: true,
       startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, scheduleText: true, priceText: true, externalUrl: true,
-      isVirtualOnly: true, venueName: true, address: true, city: true, province: true, latitude: true, longitude: true,
+      isVirtualOnly: true, venueName: true, address: true, city: true, province: true, country: true, latitude: true, longitude: true,
       galleryMode: true, visibility: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
       editVersion: true, updatedAt: true, lastEditedByUserId: true, lastEditedAt: true, lastEditedPart: true,
       proposedByUserId: true, workspaceId: true,

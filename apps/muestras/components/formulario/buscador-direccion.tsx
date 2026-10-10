@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 export type Lugar = { latitude: number; longitude: number; displayName: string; address: string | null; city: string | null; province: string | null };
 
 /** Escribe, espera 400 ms y busca. Elegir un resultado completa dirección, ciudad, provincia y punto. */
-export function BuscadorDireccion({ onElegir }: { onElegir: (l: Lugar) => void }) {
+/** `pais`: código ISO del país de la sede; la búsqueda se limita a ese país. */
+export function BuscadorDireccion({ onElegir, pais = "AR" }: { onElegir: (l: Lugar) => void; pais?: string }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState<Lugar[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -13,13 +14,13 @@ export function BuscadorDireccion({ onElegir }: { onElegir: (l: Lugar) => void }
   useEffect(() => {
     if (q.trim().length < 3) return;
     const t = setTimeout(async () => {
-      const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&pais=${encodeURIComponent(pais)}`);
       const j = (await r.json()) as Lugar[] | { error: string };
       if (Array.isArray(j)) { setRes(j); setError(j.length ? null : "No encontramos esa dirección."); }
       else { setRes([]); setError(j.error); }
     }, 400);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, pais]);
 
   return (
     <div className="relative">
