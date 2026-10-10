@@ -93,7 +93,7 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       curatorialText: true, curatorCredits: true, coverImageUrl: true,
       startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, scheduleText: true, priceText: true, externalUrl: true,
       isVirtualOnly: true, venueName: true, address: true, city: true, province: true, latitude: true, longitude: true,
-      galleryMode: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
+      galleryMode: true, visibility: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
       editVersion: true, updatedAt: true, lastEditedByUserId: true, lastEditedAt: true, lastEditedPart: true,
       proposedByUserId: true, workspaceId: true,
       works: {
@@ -107,9 +107,11 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
     },
   });
   if (!a) return null;
-  const { members, proposedByUserId, workspaceId, ...actividad } = a;
+  // El ajuste de sorpresa no viaja al formulario (lleva la semilla del sorteo): va aparte.
+  const { members, proposedByUserId, workspaceId, visibility, ...actividad } = a;
   return {
     actividad,
+    visibilidad: { visibility, galleryMode: a.galleryMode },
     rol: activityRole({ proposedByUserId, members }, usuario.id),
     reglas: { reviewStatus: a.reviewStatus, proposedByUserId, workspaceId, isCancelled: a.isCancelled },
   };

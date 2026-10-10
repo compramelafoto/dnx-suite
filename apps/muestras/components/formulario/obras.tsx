@@ -9,7 +9,8 @@ import { VincularPerfil } from "./vincular-perfil";
 /** Desde cuántos lugares libres se avisa que se acerca el tope técnico (no es un tope de diseño). */
 const AVISO_TOPE = 20;
 
-export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: (o: ObraForm[]) => void }) {
+/** `queSeVe`: qué ve el público online según la sorpresa de la muestra (lo arma el servidor con `queSeVeOnline`). */
+export function EditorObras({ obras, onCambio, queSeVe }: { obras: ObraForm[]; onCambio: (o: ObraForm[]) => void; queSeVe?: string }) {
   const [subiendo, setSubiendo] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const destacadas = obras.filter((o) => o.isHighlight).length;
@@ -45,7 +46,8 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--mf-muted)]">
-        {obras.length === 1 ? "1 obra" : `${obras.length} obras`}, {destacadas}/{MAX_HIGHLIGHTS} destacadas. Mientras la muestra está abierta, el público ve sólo las destacadas.
+        {obras.length === 1 ? "1 obra" : `${obras.length} obras`}, {destacadas}/{MAX_HIGHLIGHTS} destacadas.{" "}
+        {queSeVe ?? "Mientras la muestra está abierta, el público ve sólo las destacadas."}
       </p>
       {MAX_WORKS - obras.length <= AVISO_TOPE ? (
         <p className="text-sm text-[var(--mf-accent)]">

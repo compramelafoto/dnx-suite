@@ -124,4 +124,7 @@ describe("frenos de la sorpresa (etapa 6)", () => {
     expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(false);
     expect(frenarPorIp("anticipo", "2.2.2.2").allowed).toBe(true);
   });
+  it("guardar la visibilidad: 60 por hora por persona", () => {
+    expect(LIMITES.guardarVisibilidad).toEqual({ limit: 60, windowMs: 60 * 60_000 });
+  });
 });

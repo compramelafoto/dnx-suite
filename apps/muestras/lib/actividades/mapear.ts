@@ -265,3 +265,12 @@ export function datosParaGuardar(f: FichaForm) {
     rightsConfirmedAt: f.rightsConfirmed ? new Date() : null,
   } satisfies Prisma.CulturalActivityUncheckedUpdateInput;
 }
+
+/**
+ * El `galleryMode` que se guarda desde la ficha: el del formulario mientras la muestra no tiene
+ * ajuste de sorpresa; con ajuste (`visibility`), el que ya tenía (lo mantiene coherente Visibilidad).
+ */
+export function modoDeGaleriaAlGuardar(pedido: GalleryMode, actual: { visibility: unknown; galleryMode: string }): GalleryMode {
+  if (actual.visibility == null) return pedido;
+  return isGalleryMode(actual.galleryMode) ? actual.galleryMode : pedido;
+}

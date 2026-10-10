@@ -149,6 +149,18 @@ describe("guardarBorrador sobre una ficha publicada", () => {
     const nueva = await guardarBorrador(fd({ title: "Nueva", openingClock: "19:00" }));
     expect(nueva).toEqual({ ok: false, errores: ["Para poner la hora, elegí también el día de la inauguración."] });
   });
+  it("con la sorpresa cargada (etapa 6), el formulario no cambia galleryMode: lo decide Visibilidad", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({
+      ...fila, reviewStatus: "APPROVED", galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: { v: 1, online: { exhibited: "NONE" } },
+    });
+    expect((await guardarBorrador(fd({ ...completa, galleryMode: "FULL" }))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data.galleryMode).toBe("HIGHLIGHTS_UNTIL_CLOSED");
+  });
+  it("sin ajuste de sorpresa, galleryMode sale del formulario como hasta hoy", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED", galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: null });
+    expect((await guardarBorrador(fd({ ...completa, galleryMode: "FULL" }))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data.galleryMode).toBe("FULL");
+  });
 });
 
 describe("topes por persona", () => {

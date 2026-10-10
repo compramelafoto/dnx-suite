@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, canEditTexts, type ReviewStatus } from "@repo/muestras";
+import {
+  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
+  type ReviewStatus,
+} from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
 import { FormularioTextos } from "@/components/formulario/formulario-textos";
 import { DescargarFichas } from "@/components/panel/descargar-fichas";
@@ -8,6 +11,7 @@ import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarParaEditar } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
 import { textoDelUltimoCambio } from "@/lib/equipo/registro";
+import { queSeVeOnline } from "@/lib/visibilidad/texto";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +37,7 @@ export default async function EditarActividad({
   const usuario = await requireUsuario(`/panel/muestras/${id}`);
   const r = await buscarParaEditar(id, usuario);
   if (!r) notFound();
-  const { actividad: a, rol, reglas } = r;
+  const { actividad: a, rol, reglas, visibilidad } = r;
   const estado = a.reviewStatus as ReviewStatus;
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: rol };
   // Ficha completa (`editActivity`), sólo textos (`editTexts`, rol de textos) o lectura.
@@ -42,6 +46,9 @@ export default async function EditarActividad({
   const ultimo = await textoDelUltimoCambio(a);
   const enlaces = a.type === "MUESTRA"
     ? [
+        puede(usuario, "visibility", rol)
+          ? { href: `/panel/muestras/${a.id}/visibilidad`, texto: `Visibilidad (${VISIBILITY_PRESET_LABELS[parseVisibility(visibilidad.visibility, visibilidad.galleryMode).preset]})` }
+          : null,
         puede(usuario, "hanging", rol) ? { href: `/panel/montaje/${a.id}`, texto: "Montaje e impresión" } : null,
         estado === "APPROVED" && puede(usuario, "stats", rol) ? { href: `/panel/estadisticas/${a.id}`, texto: "Estadísticas y libro de visitas" } : null,
         estado === "APPROVED" && puede(usuario, "promote", rol) ? { href: `/panel/difusion/${a.id}`, texto: "Difusión" } : null,
@@ -88,7 +95,15 @@ export default async function EditarActividad({
         <p role="status" className="rounded-[2px] bg-amber-50 p-3 text-sm text-amber-900">Guardamos los cambios. {AVISO_PERFIL_EN_PUBLICADA}</p>
       ) : null}
       {/* La clave cambia con cada guardado: el editor vuelve a cargar las obras con sus ids nuevos. */}
-      {editable ? <FormularioActividad key={a.updatedAt.toISOString()} inicial={a} /> : null}
+      {editable ? <FormularioActividad
+          key={a.updatedAt.toISOString()}
+          inicial={a}
+          visibilidad={{
+            conAjuste: visibilidad.visibility != null,
+            queSeVe: queSeVeOnline(visibilidad),
+            enlace: puede(usuario, "visibility", rol) ? `/panel/muestras/${a.id}/visibilidad` : null,
+          }}
+        /> : null}
       {soloTextos ? (
         <section className="space-y-4 border-t border-[var(--mf-line)] pt-6">
           <p className="text-[15px] text-[var(--mf-muted)]">Tu rol en esta muestra es Textos y curaduría: podés editar el texto curatorial, los créditos y los textos de cada obra.</p>

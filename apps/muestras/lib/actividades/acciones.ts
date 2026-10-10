@@ -13,7 +13,7 @@ import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
-import { datosParaGuardar, fichaDesdeFormData, type FichaForm } from "./mapear";
+import { datosParaGuardar, fichaDesdeFormData, modoDeGaleriaAlGuardar, type FichaForm } from "./mapear";
 
 /** `avisos`: cosas que no frenaron el guardado pero conviene contarle a la persona. */
 export type ResultadoAccion =
@@ -152,6 +152,9 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   }
   // Se conserva la primera confirmación de derechos.
   if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
+  // Con la sorpresa cargada (etapa 6, spec D24), qué se ve online lo decide Visibilidad: la casilla
+  // del formulario ya no está y lo que llegue no pisa el modo guardado.
+  datos.galleryMode = modoDeGaleriaAlGuardar(datos.galleryMode, actual);
   const id = f.id;
   const version = f.editVersion;
   let avisos: string[];
