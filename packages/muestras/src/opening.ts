@@ -198,8 +198,9 @@ export function googleCalendarUrl(e: OpeningEvent): string {
 export type RsvpCsvRow = { name: string; email: string | null; companions: number; status: string; createdAt: Date };
 
 function celda(v: string): string {
-  // Un texto que empieza con = + - @ lo ejecuta Excel como fórmula (inyección CSV).
-  const seguro = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  // Un texto que empieza con = + - @ (aunque sea después de espacios o tabulaciones) lo ejecuta
+  // Excel como fórmula (inyección CSV).
+  const seguro = /^[\s]*[=+\-@]/.test(v) || /^[\t\r]/.test(v) ? `'${v}` : v;
   return /[;"\r\n]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro;
 }
 

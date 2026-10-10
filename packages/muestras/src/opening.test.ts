@@ -149,4 +149,9 @@ describe("CSV", () => {
     expect(filas[1]).toBe("\"Ana; Pérez\";ana@ejemplo.com;2;3;Confirmada;10/11/2026 18:40");
     expect(filas[2]).toBe("\"'=HYPERLINK(\"\"x\"\")\";;0;1;En lista de espera;10/11/2026 19:00");
   });
+  it("neutraliza fórmulas aunque vengan después de espacios o tabulaciones", () => {
+    const filas = rsvpCsv(["  =1+1", "\t+SUM(A1)", " -2", "@x", "Ana = Pérez"].map((name) => ({ name, email: null, companions: 0, status: "CONFIRMED", createdAt: new Date("2026-11-10T21:40:00Z") })))
+      .slice(1).split("\r\n").slice(1, 6).map((f) => f.split(";")[0]);
+    expect(filas).toEqual(["'  =1+1", "'\t+SUM(A1)", "' -2", "'@x", "Ana = Pérez"]);
+  });
 });

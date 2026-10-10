@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { openingHasTime, openingWhenText, rsvpState } from "@repo/muestras";
+import { formatArDay, openingHasTime, openingWhenText, rsvpState } from "@repo/muestras";
 import { CopiarEnlace } from "@/components/enlace/copiar-enlace";
 import { ConfigurarInauguracion } from "@/components/inauguracion/configurar-inauguracion";
+import { ListaAsistencia } from "@/components/inauguracion/lista-asistencia";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
 import { cargarInauguracionPanel } from "@/lib/inauguracion/consultas";
 import { requireUsuario } from "@/lib/usuario";
@@ -19,6 +20,7 @@ export default async function InauguracionPanel({ params }: Props) {
   const r = await cargarInauguracionPanel(id, usuario);
   if (!r) notFound();
   const a = r.muestra;
+  const t = r.totales;
   const conHora = openingHasTime(a.openingAt);
   const estado = rsvpState(a, new Date());
   const publica = `${baseUrlPublica()}/m/${a.slug}/inauguracion`;
@@ -50,6 +52,24 @@ export default async function InauguracionPanel({ params }: Props) {
       ) : a.reviewStatus !== "APPROVED" ? (
         <p className="text-sm text-[var(--mf-muted)]">La invitación pública aparece cuando la muestra está publicada.</p>
       ) : null}
+      <section className="space-y-4 border-t border-[var(--mf-line)] pt-6">
+        <h2 className="text-lg">Quiénes confirmaron</h2>
+        <p className="text-[15px]">
+          {t.people === 1 ? "1 persona" : `${t.people} personas`} en {t.confirmed === 1 ? "1 confirmación" : `${t.confirmed} confirmaciones`}
+          {t.waitlist ? ` · ${t.waitlistPeople === 1 ? "1 persona" : `${t.waitlistPeople} personas`} en lista de espera` : ""}
+          {a.rsvpCapacity ? ` · cupo de ${a.rsvpCapacity}` : ""}
+        </p>
+        {r.borrado ? (
+          <p className="text-[var(--mf-muted)]">
+            Los datos personales se borraron el {formatArDay(r.borrado)}, 30 días después del cierre. Confirmaron {t.people === 1 ? "1 persona" : `${t.people} personas`}.
+          </p>
+        ) : (
+          <ListaAsistencia activityId={a.id} filas={r.lista} abierta={a.rsvpStatus === "OPEN"} />
+        )}
+        <p className="text-sm text-[var(--mf-muted)]">
+          Esta lista la ven sólo vos y la coorganización. Se borra 30 días después del cierre de la muestra (el {formatArDay(r.borraEl)}).
+        </p>
+      </section>
     </main>
   );
 }

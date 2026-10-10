@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findFirst: vi.fn(), update: vi.fn() },
-  culturalActivityRsvp: { findMany: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn() },
+  culturalActivity: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  culturalActivityRsvp: { findMany: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock("@/lib/correos/inauguracion", () => correo);
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { guardarInauguracion } = await import("./acciones");
+const { cambiarAsistencia, cerrarConfirmaciones, guardarInauguracion } = await import("./acciones");
 const { resetRateLimit } = await import("@/lib/limite");
 const tx = db;
 
@@ -87,5 +87,52 @@ describe("guardarInauguracion", () => {
     const data = tx.culturalActivity.update.mock.calls[0]![0].data;
     expect(data).toMatchObject({ lastEditedPart: "INAUGURACION", lastEditedByUserId: 2 });
     expect("editVersion" in data).toBe(false);
+  });
+});
+
+describe("cambiarAsistencia", () => {
+  beforeEach(() => {
+    db.culturalActivityRsvp.findUnique.mockResolvedValue({ id: "r1", activityId: "a1", status: "CONFIRMED" });
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra(), title: "Rosario", rsvpCapacity: 2, openingEndsAt: null, venueName: null, address: null, city: null });
+    db.culturalActivityRsvp.updateMany.mockResolvedValue({ count: 1 });
+  });
+  it("cancelar promueve a la siguiente de la espera", async () => {
+    db.culturalActivityRsvp.findMany.mockResolvedValue([{ id: "w1", status: "WAITLIST", companions: 0, email: "w@x.com", name: "W" }]);
+    expect(await cambiarAsistencia("r1", "cancel")).toEqual({ ok: true, id: "r1" });
+    expect(tx.culturalActivityRsvp.updateMany).toHaveBeenNthCalledWith(1, { where: { id: "r1", activityId: "a1", status: { not: "CANCELLED" } }, data: { status: "CANCELLED", cancelledAt: expect.any(Date) } });
+    expect(tx.culturalActivityRsvp.updateMany).toHaveBeenNthCalledWith(2, { where: { id: { in: ["w1"] }, status: "WAITLIST" }, data: expect.objectContaining({ status: "CONFIRMED" }) });
+    expect(correo.avisarLugarLiberado).toHaveBeenCalledWith(expect.objectContaining({ email: "w@x.com" }));
+  });
+  it("confirmar a mano aunque pase el cupo", async () => {
+    db.culturalActivityRsvp.findUnique.mockResolvedValue({ id: "r1", activityId: "a1", status: "WAITLIST" });
+    db.culturalActivityRsvp.findMany.mockResolvedValue(Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, status: "CONFIRMED", companions: 0 })));
+    expect(await cambiarAsistencia("r1", "confirm")).toEqual({ ok: true, id: "r1" });
+    expect(tx.culturalActivityRsvp.updateMany).toHaveBeenCalledWith({
+      where: { id: "r1", activityId: "a1", status: { not: "CONFIRMED" } }, data: { status: "CONFIRMED", cancelledAt: null, promotedAt: expect.any(Date) },
+    });
+  });
+  it("pasar a espera no vuelve a promover a la misma persona", async () => {
+    expect(await cambiarAsistencia("r1", "waitlist")).toEqual({ ok: true, id: "r1" });
+    expect(tx.culturalActivityRsvp.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.culturalActivityRsvp.updateMany.mock.calls[0]![0].data).toEqual({ status: "WAITLIST", cancelledAt: null, promotedAt: null });
+  });
+  it("con `rsvp` (textos no) y acción conocida", async () => {
+    expect((await cambiarAsistencia("r1", "borrar")).ok).toBe(false);
+    db.culturalActivity.findFirst.mockResolvedValue(null);
+    expect(await cambiarAsistencia("r1", "cancel")).toEqual({ ok: false, errores: ["No encontramos esa confirmación."] });
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toMatchObject({ id: "a1", type: "MUESTRA", AND: [{ OR: expect.any(Array) }] });
+    expect(tx.culturalActivityRsvp.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("cerrarConfirmaciones", () => {
+  it("pasa a CLOSED con el permiso en el where", async () => {
+    db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
+    expect(await cerrarConfirmaciones("a1")).toEqual({ ok: true, id: "a1" });
+    const arg = db.culturalActivity.updateMany.mock.calls[0]![0];
+    expect(arg.where).toMatchObject({ id: "a1", type: "MUESTRA", AND: [{ OR: [{ proposedByUserId: 2 }, expect.anything()] }] });
+    expect(arg.data).toMatchObject({ rsvpStatus: "CLOSED", lastEditedPart: "INAUGURACION" });
+    db.culturalActivity.updateMany.mockResolvedValue({ count: 0 });
+    expect((await cerrarConfirmaciones("a1")).ok).toBe(false);
   });
 });

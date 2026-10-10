@@ -1,18 +1,24 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
-import type { OpeningEvent } from "@repo/muestras";
+import { RSVP_LIMITS, RSVP_RETENTION_DAYS, rsvpPurgeDue, rsvpTotals, type OpeningEvent, type RsvpTotals } from "@repo/muestras";
 import { esTokenConForma, hashDeToken } from "@/lib/curaduria/token";
+import { purgarAsistencias } from "./limpieza";
 import { lugarDeLaInauguracion } from "./lugar";
+import { ordenarAsistencia } from "./orden";
 import type { Usuario } from "@/lib/usuario";
 import { dondePuede } from "@/lib/equipo/permisos";
 
 type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
 
-/** La inauguración de una muestra para el panel (`rsvp`: dueño, coorganización o super admin). */
+/**
+ * La inauguración de una muestra para el panel (`rsvp`: dueño, coorganización o super admin), con
+ * la lista. Si ya pasaron 30 días del cierre, primero se borran los datos personales (D22): nadie
+ * ve datos vencidos aunque el cron no haya corrido.
+ */
 export async function cargarInauguracionPanel(id: string, usuario: Quien) {
   if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
-  const a = await prisma.culturalActivity.findFirst({
+  const leer = () => prisma.culturalActivity.findFirst({
     where: { id, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
     select: {
       id: true, slug: true, title: true, type: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true,
@@ -20,8 +26,32 @@ export async function cargarInauguracionPanel(id: string, usuario: Quien) {
       rsvpStatus: true, rsvpCapacity: true, rsvpMaxCompanions: true, rsvpSummary: true, rsvpPurgedAt: true,
     },
   });
-  return a ? { muestra: a } : null;
+  let a = await leer();
+  if (!a) return null;
+  const ahora = new Date();
+  if (rsvpPurgeDue(a.endsAt, ahora) && !a.rsvpPurgedAt) {
+    await purgarAsistencias(a.id, ahora);
+    a = await leer();
+    if (!a) return null;
+  }
+  const filas = a.rsvpPurgedAt || rsvpPurgeDue(a.endsAt, ahora)
+    ? []
+    : await prisma.culturalActivityRsvp.findMany({
+        where: { activityId: a.id },
+        orderBy: { createdAt: "asc" },
+        take: RSVP_LIMITS.entries,
+        select: { id: true, name: true, email: true, companions: true, status: true, createdAt: true, promotedAt: true },
+      });
+  const resumen = a.rsvpSummary && typeof a.rsvpSummary === "object" ? (a.rsvpSummary as unknown as RsvpTotals) : null;
+  return {
+    muestra: a,
+    lista: ordenarAsistencia(filas),
+    totales: a.rsvpPurgedAt ? resumen ?? rsvpTotals([]) : rsvpTotals(filas),
+    borrado: a.rsvpPurgedAt,
+    borraEl: new Date(a.endsAt.getTime() + RSVP_RETENTION_DAYS * 24 * 60 * 60 * 1000),
+  };
 }
+export type AsistenciaDelPanel = NonNullable<Awaited<ReturnType<typeof cargarInauguracionPanel>>>["lista"][number];
 
 const SELECT_INVITACION = {
   id: true, slug: true, title: true, type: true, coverImageUrl: true, organizersText: true, venueName: true, address: true, city: true,

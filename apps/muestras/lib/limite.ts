@@ -107,6 +107,8 @@ export const LIMITES = {
   aceptarEquipo: { limit: 20, windowMs: 60 * 60_000 },
   guardarTextos: { limit: 120, windowMs: 60 * 60_000 },
   guardarInauguracion: { limit: 60, windowMs: 60 * 60_000 },
+  gestionarAsistencias: { limit: 600, windowMs: 10 * 60_000 },
+  exportarAsistencias: { limit: 30, windowMs: 60 * 60_000 },
 } as const;
 
 /**
