@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   DEFAULT_WALL_HEIGHT_CM, HANGING_LIMITS, formatCm, hangingLayout, newWallId, unassignedWorks,
   type HangingPlan, type HangingWall,
@@ -25,12 +25,29 @@ export function EditorMontaje({ id, obras, planInicial }: { id: string; obras: O
   const [pendiente, start] = useTransition();
   const sinPared = useMemo(() => unassignedWorks(plan, obras), [plan, obras]);
   const porId = useMemo(() => new Map(obras.map((o) => [o.id, o])), [obras]);
+  // Lo último guardado, para saber si hay cambios sin guardar (el PDF sale de lo guardado).
+  const [guardado, setGuardado] = useState(() => JSON.stringify(planInicial));
+  const sinGuardar = JSON.stringify(plan) !== guardado;
+
+  useEffect(() => {
+    if (!sinGuardar) return;
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [sinGuardar]);
 
   const cambiarPared = (wid: string, cambio: (w: HangingWall) => HangingWall) =>
     setPlan((p) => ({ ...p, walls: p.walls.map((w) => (w.id === wid ? cambio(w) : w)) }));
   const agregarPared = () =>
     setPlan((p) => ({ ...p, walls: [...p.walls, { id: newWallId(), name: `Pared ${p.walls.length + 1}`, widthCm: 400, heightCm: null, items: [] }] }));
-  const quitarPared = (wid: string) => setPlan((p) => ({ ...p, walls: p.walls.filter((w) => w.id !== wid) }));
+  const quitarPared = (w: HangingWall) => {
+    const cuantas = w.items.length;
+    if (cuantas > 0 && !window.confirm(`La pared "${w.name || "sin nombre"}" tiene ${cuantas === 1 ? "1 obra" : `${cuantas} obras`}. ¿La quitás igual? Las obras vuelven a quedar sin pared.`)) return;
+    setPlan((p) => ({ ...p, walls: p.walls.filter((x) => x.id !== w.id) }));
+  };
   const agregarObra = (wid: string, workId: string) => cambiarPared(wid, (w) => {
     const ultima = w.items.at(-1);
     return { ...w, items: [...w.items, { workId, frameWidthCm: ultima?.frameWidthCm ?? 40, frameHeightCm: ultima?.frameHeightCm ?? 50 }] };
@@ -47,9 +64,14 @@ export function EditorMontaje({ id, obras, planInicial }: { id: string; obras: O
   });
 
   const guardar = () => start(async () => {
-    const r = await guardarMontaje(id, JSON.stringify(plan));
-    if (!r.ok) setMensajes({ tipo: "error", textos: r.errores });
-    else setMensajes(r.avisos.length ? { tipo: "aviso", textos: ["Guardamos el plano.", ...r.avisos] } : { tipo: "ok", textos: ["Guardamos el plano."] });
+    const enviado = JSON.stringify(plan);
+    const r = await guardarMontaje(id, enviado);
+    if (!r.ok) {
+      setMensajes({ tipo: "error", textos: r.errores });
+      return;
+    }
+    setGuardado(enviado);
+    setMensajes(r.avisos.length ? { tipo: "aviso", textos: ["Guardamos el plano.", ...r.avisos] } : { tipo: "ok", textos: ["Guardamos el plano."] });
   });
 
   return (
@@ -138,7 +160,7 @@ export function EditorMontaje({ id, obras, planInicial }: { id: string; obras: O
                     {l.warnings.map((x) => <li key={x}>{x}</li>)}
                   </ul>
                 )}
-                <button type="button" className={botonChico} onClick={() => quitarPared(w.id)}>
+                <button type="button" className={botonChico} onClick={() => quitarPared(w)}>
                   Quitar pared {w.name ? `“${w.name}”` : iw + 1}
                 </button>
               </li>
@@ -150,9 +172,19 @@ export function EditorMontaje({ id, obras, planInicial }: { id: string; obras: O
       <div className="flex flex-wrap items-center gap-4">
         <button type="button" className={boton} onClick={agregarPared} disabled={plan.walls.length >= HANGING_LIMITS.walls}>Agregar pared</button>
         <button type="button" className={boton} onClick={guardar} disabled={pendiente}>{pendiente ? "Guardando…" : "Guardar plano"}</button>
-        <a href={`/api/piezas/${encodeURIComponent(id)}/montaje`} className={enlace}>Bajar el plano y la lista de montaje (PDF)</a>
+        {sinGuardar ? (
+          <span aria-disabled="true" aria-describedby="aviso-sin-guardar" className={`${enlace} cursor-not-allowed opacity-50`}>
+            Bajar el plano y la lista de montaje (PDF)
+          </span>
+        ) : (
+          <a href={`/api/piezas/${encodeURIComponent(id)}/montaje`} className={enlace}>Bajar el plano y la lista de montaje (PDF)</a>
+        )}
       </div>
-      <p className="text-sm text-[var(--mf-muted)]">El PDF sale del último plano guardado.</p>
+      {sinGuardar ? (
+        <p id="aviso-sin-guardar" role="status" className="text-sm text-[var(--mf-alerta)]">Guardá los cambios antes de bajar el plano.</p>
+      ) : (
+        <p className="text-sm text-[var(--mf-muted)]">El PDF sale del último plano guardado.</p>
+      )}
 
       {mensajes && (
         <div
