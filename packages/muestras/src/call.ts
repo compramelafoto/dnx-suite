@@ -1,4 +1,5 @@
 import { dayStartAr, toArDay } from "./dates";
+import { can } from "./team";
 
 /**
  * Convocatorias: el organizador de una muestra abre un llamado online y los fotógrafos envían
@@ -190,8 +191,9 @@ export function canCallAction(action: CallAction, c: CallForAction, actor: CallA
   if (!isCallStatus(c.status) || !CALL_TRANSITIONS[action][c.status]) {
     return { ok: false, reason: "La convocatoria no está en un estado que permita esta acción." };
   }
-  const esDueno = c.ownerUserId === actor.userId;
-  if (!esDueno && !actor.isSuperAdmin) return { ok: false, reason: "Sólo quien organiza la muestra puede hacer esto." };
+  // Etapa 5 (D4): la convocatoria sigue siendo sólo del dueño, pero pasa por la regla única.
+  const role = c.ownerUserId === actor.userId ? "OWNER" : null;
+  if (!can("manageCall", { role, isSuperAdmin: actor.isSuperAdmin })) return { ok: false, reason: "Sólo quien organiza la muestra puede hacer esto." };
   switch (action) {
     case "open":
       return ctx.missingForOpening.length ? { ok: false, reason: ctx.missingForOpening.join(" ") } : { ok: true };
