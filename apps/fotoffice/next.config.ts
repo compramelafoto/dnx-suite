@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
     "@repo/partners",
     // El motor de ¿Cuánto Cobro? (presupuestos, etapa 2): es TypeScript fuente, como en CompraMeLaFoto.
     "@repo/cuanto-cobro-core",
+    // "Muestras cerca tuyo" del portal: las reglas de Muestras Fotográficas y las distancias.
+    "@repo/muestras",
+    "@repo/geo",
   ],
   serverExternalPackages: [
     "@prisma/client",

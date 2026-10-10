@@ -616,6 +616,9 @@ importers:
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
+      '@repo/muestras':
+        specifier: workspace:*
+        version: link:../../packages/muestras
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners

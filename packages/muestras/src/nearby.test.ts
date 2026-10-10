@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_PLACE_LABEL, applyFilter, cleanPlaceLabel, distanceLabel, nearHref, parseNearParam, withDistance } from "./nearby";
+import { MAX_PLACE_LABEL, applyFilter, cleanPlaceLabel, distanceLabel, nearHref, parseNearParam, pickNearbyForPortal, withDistance } from "./nearby";
 import { dayEndAr, dayStartAr } from "./dates";
 
 const rosario = { latitude: -32.9468, longitude: -60.6393 };
@@ -84,5 +84,39 @@ describe("nearHref y distanceLabel", () => {
       { id: "rosario", latitude: -32.9468, longitude: -60.6393 },
     ]);
     expect(r.map((x) => [x.id, distanceLabel(x.distanceKm)])).toEqual([["rosario", "a 1 km"], ["cba", "a 374 km"]]);
+  });
+});
+
+describe("pickNearbyForPortal", () => {
+  const now = new Date("2026-11-10T15:00:00Z");
+  const base = { isCancelled: false, isVirtualOnly: false };
+  const abierta = (id: string, lat: number, lng: number, inicio = "2026-11-01") => ({
+    ...base, id, latitude: lat, longitude: lng, startsAt: dayStartAr(inicio), endsAt: dayEndAr("2026-11-30"),
+  });
+  const items = [
+    abierta("cba", -31.4201, -64.1888),
+    abierta("parana", -31.7413, -60.5115),
+    abierta("caba", -34.6037, -58.3816, "2026-10-20"),
+    { ...abierta("cerrada", -32.95, -60.65), startsAt: dayStartAr("2026-10-01"), endsAt: dayEndAr("2026-10-20") },
+    { ...abierta("cancelada", -32.95, -60.65), isCancelled: true },
+    { ...abierta("virtual", -32.95, -60.65), isVirtualOnly: true },
+    { ...abierta("sin-punto", 0, 0), latitude: null, longitude: null },
+    { ...abierta("proxima", -32.95, -60.65), startsAt: dayStartAr("2026-12-01"), endsAt: dayEndAr("2026-12-20") },
+  ];
+
+  it("con origen: descarta cerradas, canceladas, virtuales y sin punto, y ordena por distancia", () => {
+    const r = pickNearbyForPortal(rosario, items, now, 10);
+    expect(r.map((x) => x.id)).toEqual(["proxima", "parana", "caba", "cba"]);
+    expect(r[0]!.distanceKm).toBeLessThan(5);
+  });
+
+  it("recorta a 3 por defecto", () => {
+    expect(pickNearbyForPortal(rosario, items, now)).toHaveLength(3);
+  });
+
+  it("sin origen: abiertas primero y después próximas, por fecha de inicio, sin distancia", () => {
+    const r = pickNearbyForPortal(null, items, now, 10);
+    expect(r.map((x) => x.id)).toEqual(["caba", "cba", "parana", "proxima"]);
+    expect(r.every((x) => x.distanceKm === null)).toBe(true);
   });
 });

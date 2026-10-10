@@ -19,7 +19,43 @@ export function withDistance<A extends { latitude: number | null; longitude: num
     .sort((x, y) => (x.distanceKm ?? Infinity) - (y.distanceKm ?? Infinity));
 }
 
-export type PublicFilter = { province?: string; type?: ActivityType; openNow?: boolean; includeClosed?: boolean };
+type ParaPortal = {
+  latitude: number | null;
+  longitude: number | null;
+  startsAt: Date;
+  endsAt: Date;
+  isCancelled: boolean;
+  isVirtualOnly: boolean;
+};
+
+/**
+ * "Muestras cerca tuyo" del portal de FOTOFFICE: las abiertas o próximas con lugar en el mapa.
+ * Con origen, las más cercanas de todo el país; sin origen, las que ya abrieron y después las
+ * próximas, por fecha de inicio.
+ */
+export function pickNearbyForPortal<A extends ParaPortal>(
+  origin: Coords | null,
+  items: A[],
+  now: Date,
+  limit = 3,
+): (A & { distanceKm: number | null })[] {
+  const vigentes = items.filter(
+    (a) =>
+      !a.isCancelled &&
+      !a.isVirtualOnly &&
+      a.latitude != null &&
+      a.longitude != null &&
+      temporalStatus(a, now) !== "CLOSED",
+  );
+  if (origin) return withDistance(origin, vigentes).slice(0, limit);
+  const abiertaPrimero = (a: A) => (temporalStatus(a, now) === "OPEN" ? 0 : 1);
+  return [...vigentes]
+    .sort((x, y) => abiertaPrimero(x) - abiertaPrimero(y) || x.startsAt.getTime() - y.startsAt.getTime())
+    .slice(0, limit)
+    .map((a) => ({ ...a, distanceKm: null }));
+}
+
+export type PublicFilter ={ province?: string; type?: ActivityType; openNow?: boolean; includeClosed?: boolean };
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
