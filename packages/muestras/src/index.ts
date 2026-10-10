@@ -20,3 +20,4 @@ export * from "./social";
 export * from "./visibility";
 export * from "./exhibitors";
 export * from "./portfolio";
+export * from "./room";

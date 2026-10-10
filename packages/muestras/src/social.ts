@@ -35,7 +35,12 @@ export type SocialActivity = {
   title: string; venueName: string | null; city: string | null; province: string | null;
 };
 
-export function availableSocialVariants(a: SocialActivity, now: Date): SocialVariant[] {
+/**
+ * Las variantes que se pueden armar hoy. `onlineWorkCount`: cuántas obras expuestas se ven hoy
+ * online según la sorpresa de la muestra (etapa 6, spec D39): "Obra destacada" es publicación
+ * online, así que sin obras visibles no se ofrece. Sin el dato, cuenta todas las obras.
+ */
+export function availableSocialVariants(a: SocialActivity, now: Date, onlineWorkCount: number = a.worksCount): SocialVariant[] {
   if (a.reviewStatus !== "APPROVED" || a.type !== "MUESTRA" || a.isCancelled) return [];
   const t = now.getTime();
   const out: SocialVariant[] = [];
@@ -45,13 +50,13 @@ export function availableSocialVariants(a: SocialActivity, now: Date): SocialVar
     if (t < (openingHasTime(a.openingAt) ? inicio : inicio + 24 * 3600_000)) out.push("OPENING");
   }
   if (t <= a.endsAt.getTime()) out.push("LAST_DAYS");
-  if (a.worksCount > 0) out.push("WORK");
+  if (onlineWorkCount > 0) out.push("WORK");
   if (!a.isVirtualOnly && openingHasTime(a.openingAt) && t < a.openingAt.getTime()) out.push("INVITATION");
   return out;
 }
 
-export function recommendedVariant(a: SocialActivity, now: Date): SocialVariant | null {
-  const v = availableSocialVariants(a, now);
+export function recommendedVariant(a: SocialActivity, now: Date, onlineWorkCount: number = a.worksCount): SocialVariant | null {
+  const v = availableSocialVariants(a, now, onlineWorkCount);
   if (v.includes("OPENING")) return "OPENING";
   if (v.includes("LAST_DAYS") && isLastDays(a, now)) return "LAST_DAYS";
   return v.includes("WORK") ? "WORK" : v[0] ?? null;

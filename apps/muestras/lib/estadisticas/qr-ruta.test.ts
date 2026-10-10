@@ -49,6 +49,11 @@ describe("GET /q/[tipo]/[id]", () => {
     expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ AND: [{ id: "a1" }, expect.anything()] });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
+  it("un código de sala todavía lleva a la portada, sin buscarlo como si fuera una muestra", async () => {
+    expect((await pedir("s", "abcdefghjkmn")).headers.get("location")).toBe("/");
+    expect(db.culturalActivity.findUnique).not.toHaveBeenCalled();
+    expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
   it("algo despublicado, inexistente o mal formado va a la portada sin contar", async () => {
     db.culturalActivityWork.findUnique.mockResolvedValue({ id: "w1", activity: { ...muestra, reviewStatus: "UNPUBLISHED" } });
     expect((await pedir("o", "w1")).headers.get("location")).toBe("/");

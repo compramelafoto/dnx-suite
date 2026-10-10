@@ -25,6 +25,10 @@ describe("qué variantes hay", () => {
     expect(availableSocialVariants({ ...a, reviewStatus: "IN_REVIEW" }, new Date("2026-11-10T12:00:00Z"))).toEqual([]);
     expect(availableSocialVariants({ ...a, isCancelled: true }, new Date("2026-11-10T12:00:00Z"))).toEqual([]);
     expect(availableSocialVariants({ ...a, worksCount: 0 }, new Date("2026-11-10T12:00:00Z"))).not.toContain("WORK");
+    // Con obras en la sala pero ninguna visible online (sorpresa), tampoco hay "Obra destacada".
+    expect(availableSocialVariants(a, new Date("2026-11-10T12:00:00Z"), 0)).not.toContain("WORK");
+    expect(availableSocialVariants(a, new Date("2026-11-10T12:00:00Z"), 3)).toContain("WORK");
+    expect(recommendedVariant(a, new Date("2026-11-18T12:00:00Z"), 0)).toBe("LAST_DAYS");
     expect(availableSocialVariants({ ...a, openingAt: dayStartAr("2026-11-14") }, new Date("2026-11-10T12:00:00Z"))).toEqual(["OPENING", "LAST_DAYS", "WORK"]);
   });
   it("la recomendada según la fecha", () => {
