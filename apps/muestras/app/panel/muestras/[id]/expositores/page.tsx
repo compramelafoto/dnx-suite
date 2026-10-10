@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { toArDay } from "@repo/muestras";
+import { formatArDayLong, toArDay } from "@repo/muestras";
 import { AdministrarEnlace, GenerarEnlace } from "@/components/expositores/enlace-expositores";
 import { enlace, nota } from "@/components/expositores/estilos";
-import { enlaceDeExpositores } from "@/lib/expositores/consultas";
+import { RevisionExpositores } from "@/components/expositores/revision-expositores";
+import { enlaceDeExpositores, expositoresDeMuestra } from "@/lib/expositores/consultas";
+import { esUrlWeb } from "@/lib/url";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,7 @@ export default async function ExpositoresDeMuestra({ params }: Props) {
   const r = await enlaceDeExpositores(id, usuario);
   if (!r) notFound();
   const { muestra: a, enlace: e } = r;
+  const expositores = (await expositoresDeMuestra(a.id, usuario)) ?? [];
 
   return (
     <main className="max-w-3xl space-y-8">
@@ -52,6 +55,17 @@ export default async function ExpositoresDeMuestra({ params }: Props) {
       ) : (
         <GenerarEnlace activityId={a.id} pideVisibilidad={!r.tieneAjuste} />
       )}
+      {e || expositores.length ? (
+        <RevisionExpositores
+          expositores={expositores.map((x) => ({
+            id: x.id, status: x.status, displayName: x.displayName, seSumo: formatArDayLong(x.joinedAt),
+            perfil: x.profile
+              ? { slug: x.profile.slug, avatarUrl: esUrlWeb(x.profile.avatarUrl) ? x.profile.avatarUrl : null, fotosDePortfolio: x.profile._count.portfolio }
+              : null,
+            obras: x.works.map((o) => ({ ...o, imageUrl: esUrlWeb(o.imageUrl) ? o.imageUrl : null })),
+          }))}
+        />
+      ) : null}
     </main>
   );
 }

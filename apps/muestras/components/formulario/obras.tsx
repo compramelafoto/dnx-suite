@@ -9,8 +9,18 @@ import { VincularPerfil } from "./vincular-perfil";
 /** Desde cuántos lugares libres se avisa que se acerca el tope técnico (no es un tope de diseño). */
 const AVISO_TOPE = 20;
 
-/** `queSeVe`: qué ve el público online según la sorpresa de la muestra (lo arma el servidor con `queSeVeOnline`). */
-export function EditorObras({ obras, onCambio, queSeVe }: { obras: ObraForm[]; onCambio: (o: ObraForm[]) => void; queSeVe?: string }) {
+/**
+ * `queSeVe`: qué ve el público online según la sorpresa de la muestra (lo arma el servidor con `queSeVeOnline`).
+ * `deExpositor`: ids de las obras que cargó un expositor (etapa 6, D9): su imagen y su autor no se
+ * editan acá (el servidor los conserva igual); título, año y técnica sí.
+ */
+export function EditorObras({ obras, onCambio, queSeVe, deExpositor = [] }: {
+  obras: ObraForm[];
+  onCambio: (o: ObraForm[]) => void;
+  queSeVe?: string;
+  deExpositor?: readonly string[];
+}) {
+  const expositoras = new Set(deExpositor);
   const [subiendo, setSubiendo] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const destacadas = obras.filter((o) => o.isHighlight).length;
@@ -64,11 +74,17 @@ export function EditorObras({ obras, onCambio, queSeVe }: { obras: ObraForm[]; o
             <img src={o.imageUrl} alt="" className="h-24 w-24 rounded object-cover" />
             <div className="flex-1 space-y-1 text-sm">
               <input className="w-full border-b" value={o.title} onChange={(e) => cambiar(i, { title: e.target.value })} placeholder="Título" />
-              <input className="w-full border-b" value={o.authorName} onChange={(e) => cambiar(i, { authorName: e.target.value })} placeholder="Autor" />
-              <VincularPerfil
-                nombre={o.authorProfileName ?? null}
-                onVincular={(p) => cambiar(i, { authorProfileId: p?.id ?? null, authorProfileName: p?.displayName ?? null })}
-              />
+              {o.id && expositoras.has(o.id) ? (
+                <p className="text-[var(--mf-muted)]">{o.authorName} · Lo carga quien expone</p>
+              ) : (
+                <>
+                  <input className="w-full border-b" value={o.authorName} onChange={(e) => cambiar(i, { authorName: e.target.value })} placeholder="Autor" />
+                  <VincularPerfil
+                    nombre={o.authorProfileName ?? null}
+                    onVincular={(p) => cambiar(i, { authorProfileId: p?.id ?? null, authorProfileName: p?.displayName ?? null })}
+                  />
+                </>
+              )}
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1">
                   <input

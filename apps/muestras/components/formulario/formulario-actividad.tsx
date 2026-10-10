@@ -154,7 +154,7 @@ export function FormularioActividad({ inicial, visibilidad }: { inicial?: Activi
           <p className="text-sm text-[var(--mf-muted)]">
             {visibilidad?.queSeVe ?? "Mientras la muestra está abierta, la ficha muestra sólo las destacadas: un anticipo online para invitar a la visita. Cuando cierra, quedan todas como archivo de la muestra."}
           </p>
-          <EditorObras obras={obras} onCambio={setObras} queSeVe={visibilidad?.conAjuste ? "Qué obras se ven online lo elegís en Visibilidad." : inicial?.galleryMode === "FULL" ? "El público ve todas las obras online." : undefined} />
+          <EditorObras obras={obras} onCambio={setObras} deExpositor={inicial?.exhibitorWorkIds} queSeVe={visibilidad?.conAjuste ? "Qué obras se ven online lo elegís en Visibilidad." : inicial?.galleryMode === "FULL" ? "El público ve todas las obras online." : undefined} />
           {visibilidad?.conAjuste ? (
             <p className="text-[15px]">
               Qué obras se ven online lo elegís en{" "}

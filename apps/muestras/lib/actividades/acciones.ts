@@ -11,6 +11,7 @@ import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
 import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
+import { OBRA_DE_EXPOSITOR_QUITADA, copiarTextosAExpositores } from "@/lib/expositores/copiar";
 import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData, modoDeGaleriaAlGuardar, type FichaForm } from "./mapear";
@@ -50,12 +51,15 @@ function refrescar(slug?: string) {
  *   (el vínculo que la obra ya tenía, el perfil de quien propuso o ninguno). Lo demás se ignora y
  *   vuelve un aviso que no frena el guardado.
  */
+type Previa = { authorProfileId: string | null; authorUserId: number | null; imageUrl?: string; authorName?: string };
+
 async function obrasParaGuardar(
   works: FichaForm["works"],
-  previas: ReadonlyMap<string, { authorProfileId: string | null; authorUserId: number | null }>,
+  previas: ReadonlyMap<string, Previa>,
   duenoId: number,
   contexto: { status: string; isSuperAdmin: boolean } = { status: "DRAFT", isSuperAdmin: false },
   db: Pick<typeof prisma, "photographerProfile"> = prisma,
+  deExpositor: ReadonlySet<string> = new Set(),
 ) {
   const perfilPropio = await db.photographerProfile.findUnique({ where: { userId: duenoId }, select: { id: true, displayName: true } });
   const pedidos = [...new Set(works.map((w) => w.authorProfileId).filter((x): x is string => !!x))];
@@ -82,6 +86,16 @@ async function obrasParaGuardar(
       isSuperAdmin: contexto.isSuperAdmin,
     });
     if (permitido.blocked) bloqueado = true;
+    const previa = conserva ? previas.get(w.id!) : undefined;
+    // Una obra que cargó quien expone (etapa 6, D9) conserva su imagen y su autoría tal como están
+    // en la base: lo que llegue del formulario para esos campos se ignora.
+    if (previa && deExpositor.has(w.id!) && previa.imageUrl != null && previa.authorName != null) {
+      return {
+        id: w.id, imageUrl: previa.imageUrl, title: w.title, authorName: previa.authorName, year: w.year,
+        technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
+        authorProfileId: previa.authorProfileId, authorUserId: previa.authorUserId,
+      };
+    }
     return {
       ...(conserva ? { id: w.id } : {}),
       imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
@@ -173,14 +187,23 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
         if (!bloqueada || Number(bloqueada.editVersion) !== version) throw new Choque(id, bloqueada ?? null);
         const enLaBase = await tx.culturalActivityWork.findMany({
           where: { activityId: id },
-          select: { id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true },
+          select: { id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true, imageUrl: true, authorName: true },
         });
+        // Las obras que vinieron de un expositor (etapa 6): su imagen y su autor no se tocan desde acá.
+        const expositoras = await tx.culturalExhibitorWork.findMany({
+          where: { activityId: id, activityWorkId: { not: null } },
+          select: { id: true, activityWorkId: true },
+        });
+        const deExpositor = new Map(expositoras.flatMap((e) => (e.activityWorkId ? [[e.activityWorkId, e.id] as const] : [])));
         const r = await obrasParaGuardar(
           f.works,
-          new Map(enLaBase.map((w) => [w.id, { authorProfileId: w.authorProfileId ?? null, authorUserId: w.authorUserId ?? null }])),
+          new Map(enLaBase.map((w) => [w.id, {
+            authorProfileId: w.authorProfileId ?? null, authorUserId: w.authorUserId ?? null, imageUrl: w.imageUrl, authorName: w.authorName,
+          }])),
           actual.proposedByUserId,
           { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
           tx,
+          new Set(deExpositor.keys()),
         );
         const plan = editorGalleryPlan({
           current: enLaBase,
@@ -205,6 +228,15 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
           await tx.culturalCallWork.updateMany({
             where: { activityWorkId: { in: plan.removedIds }, call: { activityId: id } },
             data: { activityWorkId: OBRA_QUITADA_DE_LA_GALERIA },
+          });
+        }
+        await copiarTextosAExpositores(tx, id, r.obras, deExpositor);
+        // Una obra de expositor que el editor quitó deja de estar en la muestra (spec D9).
+        const quitadas = plan.removedIds.filter((w) => deExpositor.has(w));
+        if (quitadas.length) {
+          await tx.culturalExhibitorWork.updateMany({
+            where: { activityId: id, activityWorkId: { in: quitadas } },
+            data: { status: "REMOVED", activityWorkId: null, reviewNote: OBRA_DE_EXPOSITOR_QUITADA },
           });
         }
         return r.avisos;

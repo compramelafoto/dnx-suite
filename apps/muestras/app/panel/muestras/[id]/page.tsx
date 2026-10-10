@@ -10,6 +10,7 @@ import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarParaEditar } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
+import { pendientesPorMuestra } from "@/lib/expositores/consultas";
 import { textoDelUltimoCambio } from "@/lib/equipo/registro";
 import { queSeVeOnline } from "@/lib/visibilidad/texto";
 import { requireUsuario } from "@/lib/usuario";
@@ -44,9 +45,13 @@ export default async function EditarActividad({
   const editable = canEdit({ ...reglas, reviewStatus: estado }, actor);
   const soloTextos = !editable && a.type === "MUESTRA" && canEditTexts({ ...reglas, reviewStatus: estado }, actor);
   const ultimo = await textoDelUltimoCambio(a);
+  const revisaExpositores = a.type === "MUESTRA" && puede(usuario, "exhibitors", rol);
+  const paraRevisar = revisaExpositores ? (await pendientesPorMuestra([a.id])).get(a.id) ?? 0 : 0;
   const enlaces = a.type === "MUESTRA"
     ? [
-        puede(usuario, "exhibitors", rol) ? { href: `/panel/muestras/${a.id}/expositores`, texto: "Expositores" } : null,
+        revisaExpositores
+          ? { href: `/panel/muestras/${a.id}/expositores`, texto: paraRevisar ? `Expositores (${paraRevisar} para revisar)` : "Expositores" }
+          : null,
         puede(usuario, "visibility", rol)
           ? { href: `/panel/muestras/${a.id}/visibilidad`, texto: `Visibilidad (${VISIBILITY_PRESET_LABELS[parseVisibility(visibilidad.visibility, visibilidad.galleryMode).preset]})` }
           : null,

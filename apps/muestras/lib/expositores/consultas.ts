@@ -116,3 +116,51 @@ export async function miParticipacion(id: string, usuario: Quien) {
   if (!e) return null;
   return { ...e, estadoEnlace: exhibitorLinkState(e.activity.exhibitorLink, e.activity, new Date()) };
 }
+
+/**
+ * Expositores (activos y sacados) de una muestra con su perfil y sus obras, para quien tiene
+ * `exhibitors`. La organización ve todo lo de cada obra: precio y notas para el montaje incluidos
+ * (spec D5). `null` si no puede: la página responde 404.
+ */
+export async function expositoresDeMuestra(activityId: string, usuario: Quien) {
+  const a = await prisma.culturalActivity.findFirst({
+    where: conPermiso({ id: activityId, type: "MUESTRA" }, usuario, "exhibitors"),
+    select: {
+      id: true,
+      exhibitors: {
+        orderBy: { joinedAt: "asc" },
+        select: {
+          id: true, status: true, displayName: true, joinedAt: true,
+          profile: { select: { slug: true, displayName: true, avatarUrl: true, _count: { select: { portfolio: true } } } },
+          works: {
+            // Sólo las de esta muestra (la tabla guarda la muestra en cada obra).
+            where: { activityId },
+            orderBy: { sortOrder: "asc" },
+            select: {
+              id: true, status: true, imageUrl: true, title: true, year: true, technique: true, imageWidthCm: true, imageHeightCm: true,
+              frameWidthCm: true, frameHeightCm: true, edition: true, editionNumber: true, editionSize: true, statement: true,
+              forSale: true, priceArs: true, hangingNotes: true, reviewNote: true, submittedAt: true, activityWorkId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  return a ? a.exhibitors : null;
+}
+
+/** Cuántas obras de expositores esperan revisión en cada muestra ("3 obras para revisar"). */
+export async function pendientesPorMuestra(ids: string[]): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  const filas = await prisma.culturalExhibitorWork.groupBy({
+    by: ["activityId"],
+    where: { activityId: { in: ids }, status: "SUBMITTED", exhibitor: { status: "ACTIVE" } },
+    _count: { _all: true },
+  });
+  return new Map(filas.map((f) => [f.activityId, f._count._all]));
+}
+
+/** Para la tarjeta "Donde expongo" del inicio: obras propias con cambios pedidos. */
+export async function misObrasConCambios(usuario: Quien): Promise<number> {
+  return prisma.culturalExhibitorWork.count({ where: { status: "CHANGES_REQUESTED", exhibitor: { userId: usuario.id, status: "ACTIVE" } } });
+}

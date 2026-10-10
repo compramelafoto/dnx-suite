@@ -123,6 +123,8 @@ export const LIMITES = {
   // "Donde expongo": guardar, borrar y retirar obras (con 300 obras de tope técnico), y enviarlas.
   guardarObraExpositor: { limit: 300, windowMs: 60 * 60_000 },
   enviarObraExpositor: { limit: 60, windowMs: 60 * 60_000 },
+  // Quien organiza revisa con muchas obras: aprobar, pedir cambios, corregir y sacar.
+  revisarExpositores: { limit: 600, windowMs: 10 * 60_000 },
 } as const;
 
 /**
