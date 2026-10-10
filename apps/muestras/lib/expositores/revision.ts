@@ -231,14 +231,28 @@ export async function sacarExpositor(exhibitorId: string): Promise<ResultadoRevi
   const enLaMuestra = e.works.flatMap((w) => (w.activityWorkId && w.activityId === a.id ? [w.activityWorkId] : []));
   if (enLaMuestra.length && !editable(a, usuario, rol.role)) return error(EN_REVISION);
   const ahora = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.culturalExhibitor.update({ where: { id: e.id }, data: { status: "REMOVED", removedAt: ahora, removedByUserId: usuario.id } });
-    await tx.culturalExhibitorWork.updateMany({
-      where: { exhibitorId: e.id, activityId: a.id, status: { not: "REMOVED" } },
-      data: { status: "REMOVED", activityWorkId: null, reviewNote: OBRA_DE_EXPOSITOR_QUITADA, reviewedAt: ahora, reviewedByUserId: usuario.id },
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Con la muestra bloqueada (como al aprobar): nadie aprueba una obra de esta persona en el medio.
+      await bloquear(tx, a.id, usuario);
+      // Las obras se releen ya bloqueadas: una aprobada después de la primera lectura también sale.
+      const obras = await tx.culturalExhibitorWork.findMany({
+        where: { exhibitorId: e.id, activityId: a.id, status: { not: "REMOVED" } },
+        select: { activityWorkId: true },
+      });
+      const colgadas = obras.flatMap((w) => (w.activityWorkId ? [w.activityWorkId] : []));
+      if (colgadas.length && !editable(a, usuario, rol.role)) throw new Corte(EN_REVISION);
+      await tx.culturalExhibitor.update({ where: { id: e.id }, data: { status: "REMOVED", removedAt: ahora, removedByUserId: usuario.id } });
+      await tx.culturalExhibitorWork.updateMany({
+        where: { exhibitorId: e.id, activityId: a.id, status: { not: "REMOVED" } },
+        data: { status: "REMOVED", activityWorkId: null, reviewNote: OBRA_DE_EXPOSITOR_QUITADA, reviewedAt: ahora, reviewedByUserId: usuario.id },
+      });
+      if (colgadas.length) await tx.culturalActivityWork.deleteMany({ where: { id: { in: colgadas }, activityId: a.id } });
     });
-    if (enLaMuestra.length) await tx.culturalActivityWork.deleteMany({ where: { id: { in: enLaMuestra }, activityId: a.id } });
-  });
+  } catch (err) {
+    if (err instanceof Corte) return error(err.message);
+    throw err;
+  }
   refrescar(a);
   return { ok: true };
 }

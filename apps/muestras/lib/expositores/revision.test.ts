@@ -4,7 +4,7 @@ const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), count: vi.fn() },
   culturalActivityWork: { count: vi.fn(), aggregate: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
   culturalExhibitor: { findUnique: vi.fn(), update: vi.fn() },
-  culturalExhibitorWork: { findUnique: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+  culturalExhibitorWork: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
 }));
@@ -54,6 +54,7 @@ beforeEach(() => {
   db.culturalExhibitorWork.findUnique.mockImplementation(async () => obra);
   db.culturalExhibitorWork.findFirst.mockImplementation(async () => obra);
   db.culturalExhibitorWork.updateMany.mockResolvedValue({ count: 1 });
+  db.culturalExhibitorWork.findMany.mockResolvedValue([]);
   db.culturalActivityWork.count.mockResolvedValue(10);
   db.culturalActivityWork.aggregate.mockResolvedValue({ _max: { sortOrder: 9 } });
   db.culturalActivityWork.create.mockResolvedValue({ id: "aw-nueva" });
@@ -174,12 +175,31 @@ describe("sacar", () => {
       id: "e1", status: "ACTIVE", activityId: "a1",
       works: [{ id: "ew1", activityId: "a1", activityWorkId: "aw1" }, { id: "ew2", activityId: "a1", activityWorkId: null }],
     });
+    db.culturalExhibitorWork.findMany.mockResolvedValue([{ activityWorkId: "aw1" }, { activityWorkId: null }]);
     expect(await sacarExpositor("e1")).toEqual({ ok: true });
     expect(db.culturalExhibitor.update.mock.calls[0]![0].data).toMatchObject({ status: "REMOVED", removedByUserId: 7 });
     expect(db.culturalExhibitorWork.updateMany.mock.calls[0]![0]).toMatchObject({
       where: { exhibitorId: "e1", activityId: "a1", status: { not: "REMOVED" } }, data: { status: "REMOVED", activityWorkId: null },
     });
     expect(db.culturalActivityWork.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["aw1"] }, activityId: "a1" } });
+  });
+
+  it("bloquea la muestra y relee las obras: una aprobada después de la primera lectura también sale", async () => {
+    db.culturalExhibitor.findUnique.mockResolvedValue({ id: "e1", status: "ACTIVE", activityId: "a1", works: [{ id: "ew1", activityId: "a1", activityWorkId: null }] });
+    db.culturalExhibitorWork.findMany.mockResolvedValue([{ activityWorkId: "aw-recien" }]);
+    expect(await sacarExpositor("e1")).toEqual({ ok: true });
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toContain("FOR UPDATE");
+    expect(db.$queryRaw.mock.invocationCallOrder[0]!).toBeLessThan(db.culturalExhibitorWork.findMany.mock.invocationCallOrder[0]!);
+    expect(db.culturalActivityWork.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["aw-recien"] }, activityId: "a1" } });
+  });
+
+  it("si con la fila bloqueada aparece una obra colgada y la muestra está en revisión, no saca a nadie", async () => {
+    muestra = { ...muestra, reviewStatus: "IN_REVIEW" };
+    db.culturalExhibitor.findUnique.mockResolvedValue({ id: "e1", status: "ACTIVE", activityId: "a1", works: [] });
+    db.culturalExhibitorWork.findMany.mockResolvedValue([{ activityWorkId: "aw-recien" }]);
+    expect((await sacarExpositor("e1")).ok).toBe(false);
+    expect(db.culturalExhibitor.update).not.toHaveBeenCalled();
+    expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
   });
 
   it("textos no saca a nadie", async () => {
