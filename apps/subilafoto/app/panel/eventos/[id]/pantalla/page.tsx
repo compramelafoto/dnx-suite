@@ -93,6 +93,39 @@ export default async function PantallaYProyeccion({ params }: Props) {
             </ol>
           </div>
         </div>
+
+        {/*
+          Esto no es un consejo de prolijidad: es la causa número uno de que la pantalla
+          parezca colgada. Los navegadores frenan los temporizadores de las pestañas que
+          no se ven, así que la rotación se detiene y las fotos dejan de pasar.
+          Comprobado el 10/10/2026 midiendo la pantalla con el panel oculto: cien segundos
+          sin que cambiara nada.
+        */}
+        <div
+          className="mt-8 rounded-2xl p-5"
+          style={{ background: "#FFF4E5", border: "1px solid #E0A458" }}
+        >
+          <p className="font-extrabold" style={{ color: "#7A4A08" }}>
+            Dejala a pantalla completa y adelante toda la noche
+          </p>
+          <p className="mt-2 text-sm leading-relaxed" style={{ color: "#7A4A08" }}>
+            Si esa ventana queda tapada por otra, o la computadora apaga la pantalla, o
+            entra el protector de pantalla, <strong>las fotos dejan de pasar</strong>. No
+            es una falla nuestra: los navegadores frenan las pestañas que nadie está
+            mirando. Al volver a la ventana se reanuda sola.
+          </p>
+          <ul className="mt-3 space-y-1 pl-5 text-sm" style={{ color: "#7A4A08" }}>
+            <li>Dejá esa ventana adelante y a pantalla completa.</li>
+            <li>Apagá el protector de pantalla y el suspender automático.</li>
+            <li>
+              Si tenés que hacer otra cosa en esa computadora, usá otra ventana en la
+              pantalla chica, no encima de la proyección.
+            </li>
+          </ul>
+          <p className="mt-3 text-sm" style={{ color: "#7A4A08" }}>
+            Si en algún momento ves la pantalla clavada, esto es casi siempre el motivo.
+          </p>
+        </div>
       </section>
 
       <section className="mt-12">
