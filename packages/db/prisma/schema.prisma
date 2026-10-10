@@ -23431,6 +23431,10 @@ model CulturalActivity {
   /// FICHA | TEXTOS | MONTAJE | INAUGURACION
   lastEditedPart     String?
 
+  /// Sorpresa de la muestra (etapa 6): qué se ve de las obras expuestas según por dónde entra cada
+  /// persona. Vacío = como hasta la etapa 5 (según `galleryMode`). Se lee sólo con `parseVisibility`.
+  visibility Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -23448,6 +23452,14 @@ model CulturalActivity {
   members CulturalActivityMember[]
   /// Confirmaciones de asistencia a la inauguración (etapa 5).
   rsvps   CulturalActivityRsvp[]
+
+  /// Enlace de expositores (etapa 6). A lo sumo uno.
+  exhibitorLink  CulturalExhibitorLink?
+  exhibitors     CulturalExhibitor[]
+  exhibitorWorks CulturalExhibitorWork[]
+  /// Códigos impresos en las fichas que dan el pase de sala, y la llave que firma los pases.
+  roomCodes      CulturalActivityRoomCode[]
+  roomKey        CulturalActivityRoomKey?
 
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
@@ -23502,6 +23514,9 @@ model PhotographerProfile {
   updatedAt DateTime @updatedAt
 
   works CulturalActivityWork[]
+  /// Participaciones como expositor y portfolio (Muestras, etapa 6).
+  exhibitors CulturalExhibitor[]
+  portfolio  PhotographerPortfolioPhoto[]
 
   @@index([displayName])
 }
@@ -23741,4 +23756,133 @@ model CulturalActivityRsvp {
 
   @@unique([activityId, email])
   @@index([activityId, status, createdAt])
+}
+
+/// Enlace único por el que los expositores de una muestra se suman y cargan sus obras (Muestras,
+/// etapa 6). El token se guarda tal cual: se copia muchas veces y no da permisos sobre la muestra.
+model CulturalExhibitorLink {
+  id         String           @id @default(cuid())
+  activityId String           @unique
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  token                String    @unique
+  /// OPEN | CLOSED
+  status               String    @default("OPEN")
+  /// Fin del día argentino de la fecha límite. Vacío = sin fecha límite.
+  closesAt             DateTime?
+  /// Vacío = sin tope (lo decide quien organiza).
+  maxWorksPerExhibitor Int?
+  maxExhibitors        Int?
+  instructions         String?
+  createdByUserId      Int
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  rotatedAt            DateTime?
+}
+
+/// Una persona que expone en una muestra (etapa 6). Sin relación a `User` a propósito.
+model CulturalExhibitor {
+  id         String               @id @default(cuid())
+  activityId String
+  activity   CulturalActivity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId     Int
+  profileId  String?
+  profile    PhotographerProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  displayName      String
+  /// ACTIVE | REMOVED
+  status           String    @default("ACTIVE")
+  rightsAcceptedAt DateTime
+  joinedAt         DateTime  @default(now())
+  removedAt        DateTime?
+  removedByUserId  Int?
+
+  works CulturalExhibitorWork[]
+
+  @@unique([activityId, userId])
+  @@index([userId, status])
+  @@index([profileId])
+}
+
+/// Una obra que se cuelga, con los datos para ficha, catálogo y plano. Lo aprobado se copia a
+/// `CulturalActivityWork`; `activityWorkId` sin FK (el editor de la muestra reescribe sus obras).
+model CulturalExhibitorWork {
+  id          String            @id @default(cuid())
+  exhibitorId String
+  exhibitor   CulturalExhibitor @relation(fields: [exhibitorId], references: [id], onDelete: Cascade)
+  activityId  String
+  activity    CulturalActivity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  /// DRAFT | SUBMITTED | CHANGES_REQUESTED | APPROVED | REMOVED
+  status        String  @default("DRAFT")
+  imageUrl      String?
+  title         String  @default("")
+  year          Int?
+  technique     String?
+  imageWidthCm  Float?
+  imageHeightCm Float?
+  frameWidthCm  Float?
+  frameHeightCm Float?
+  /// UNIQUE | LIMITED | OPEN | NA
+  edition       String?
+  editionNumber Int?
+  editionSize   Int?
+  statement     String?
+  forSale       Boolean @default(false)
+  /// Pesos, sin centavos. Sólo lo ve la organización hasta que exista la venta.
+  priceArs      Int?
+  /// Sólo para la organización.
+  hangingNotes  String?
+  sortOrder     Int     @default(0)
+
+  reviewNote       String?
+  activityWorkId   String?
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewedByUserId Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([exhibitorId, sortOrder])
+  @@index([activityId, status])
+  @@index([activityWorkId])
+}
+
+/// Portfolio del artista (etapa 6): fotos que no se exponen, para todas sus muestras.
+model PhotographerPortfolioPhoto {
+  id        String              @id @default(cuid())
+  profileId String
+  profile   PhotographerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  imageUrl  String
+  title     String
+  year      Int?
+  technique String?
+  caption   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId, sortOrder])
+}
+
+/// Código impreso en el QR de la ficha (`/q/s/<code>`): lo único que da pase de sala.
+/// `workId` sin FK (el editor reescribe las obras conservando el id).
+model CulturalActivityRoomCode {
+  code       String           @id
+  activityId String
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  workId     String
+  createdAt  DateTime         @default(now())
+
+  @@unique([activityId, workId])
+}
+
+/// Llave con la que se firman los pases de sala de una muestra. Nunca en una consulta pública.
+model CulturalActivityRoomKey {
+  activityId String           @id
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  secret     String
+  createdAt  DateTime         @default(now())
+  rotatedAt  DateTime?
 }
