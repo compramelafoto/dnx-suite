@@ -114,6 +114,8 @@ export const LIMITES = {
   redes: { limit: 120, windowMs: 10 * 60_000 },
   // Etapa 6: sorpresa de la muestra.
   guardarVisibilidad: { limit: 60, windowMs: 60 * 60_000 },
+  // Portfolio del artista: subir, editar, borrar y ordenar (60 fotos a lo sumo).
+  guardarPortfolio: { limit: 300, windowMs: 60 * 60_000 },
 } as const;
 
 /**

@@ -127,4 +127,7 @@ describe("frenos de la sorpresa (etapa 6)", () => {
   it("guardar la visibilidad: 60 por hora por persona", () => {
     expect(LIMITES.guardarVisibilidad).toEqual({ limit: 60, windowMs: 60 * 60_000 });
   });
+  it("portfolio: 300 por hora por persona", () => {
+    expect(LIMITES.guardarPortfolio).toEqual({ limit: 300, windowMs: 60 * 60_000 });
+  });
 });
