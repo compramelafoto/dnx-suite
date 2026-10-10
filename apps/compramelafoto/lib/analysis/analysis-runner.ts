@@ -16,6 +16,7 @@ import {
   resolveMaxRunMs,
   shouldRunAnotherRound,
 } from "@/lib/analysis/analysis-throughput";
+import { analysisFailureKind, retryDelayMs } from "./analysis-failure-kind";
 import sharp from "sharp";
 
 const MAX_ATTEMPTS = 3;
@@ -573,18 +574,21 @@ async function processJob(
     return { ok: true, photoId, debugChecks };
   } catch (err: any) {
     const message = String(err?.message ?? err);
-    const errorLower = message.toLowerCase();
-    const isInvalidImage =
-      errorLower.includes("decoder") ||
-      errorLower.includes("unsupported") ||
-      errorLower.includes("invalid") ||
-      errorLower.includes("corrupt") ||
-      errorLower.includes("imagen inválida") ||
-      errorLower.includes("formato no soportado") ||
-      errorLower.includes("sin dimensiones");
+    const kind = analysisFailureKind(message);
+    const isInfrastructure = kind === "INFRASTRUCTURE";
 
-    const nextAttempts = (job.attempts ?? 0) + 1;
-    const shouldFail = isInvalidImage || nextAttempts >= MAX_ATTEMPTS;
+    /*
+      Una caída de infraestructura NUNCA da la foto por perdida, y tampoco le gasta
+      intentos: un trabajo en `ERROR` no se vuelve a tomar —la cola sólo reclama los
+      `PENDING`—, así que agotarle el presupuesto mientras AWS está caído borra el análisis
+      de esa foto para siempre.
+
+      Pasó el 7/10/2026: el mensaje de la credencial vencida ("...the request is invalid")
+      contenía la palabra `invalid`, el clasificador viejo lo leyó como imagen ilegible y
+      2233 fotos de álbumes con pedidos pagados murieron en el primer intento.
+    */
+    const nextAttempts = isInfrastructure ? (job.attempts ?? 0) : (job.attempts ?? 0) + 1;
+    const shouldFail = kind === "PHOTO" || (!isInfrastructure && nextAttempts >= MAX_ATTEMPTS);
 
     await prisma.photoAnalysisJob.update({
       where: { id: job.id },
@@ -592,7 +596,7 @@ async function processJob(
         status: shouldFail ? "ERROR" : "PENDING",
         attempts: nextAttempts,
         lastError: message,
-        runAfter: shouldFail ? null : new Date(Date.now() + 10 * 60 * 1000),
+        runAfter: shouldFail ? null : new Date(Date.now() + retryDelayMs(kind)),
         lockedAt: null,
       },
     });
@@ -601,7 +605,7 @@ async function processJob(
         where: { id: photoId },
         data: {
           analysisStatus: "ERROR",
-          analysisError: isInvalidImage ? `Imagen inválida o corrupta: ${message}` : message,
+          analysisError: kind === "PHOTO" ? `Imagen inválida o corrupta: ${message}` : message,
         },
       });
     }
@@ -611,6 +615,7 @@ async function processJob(
       photoId,
       jobId: job.id,
       error: message,
+      failure_kind: kind,
       retry_scheduled: !shouldFail,
     });
     return { ok: false, photoId, error: message, debugChecks };
