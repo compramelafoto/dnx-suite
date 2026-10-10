@@ -42,7 +42,7 @@ import {
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
 } from "@repo/template-editor-core";
-import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES } from "@repo/template-editor-core";
+import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES, isClassListConfig } from "@repo/template-editor-core";
 import {
   notifyTemplateTextEditingBlockId,
   registerTemplateTextInsert,
@@ -944,7 +944,8 @@ export function TemplateEditorCanvas({
             {/* Capa de hit-target para selección simple por click */}
             {orderedVisibleBlocks.map((b) => {
               const hitSelected = state.selectedBlockIds.includes(b.id);
-              const isTextKind = b.type === "TEXT" || b.type === "VARIABLE_TEXT";
+              const isTextKind =
+                (b.type === "TEXT" || b.type === "VARIABLE_TEXT") && !isClassListConfig(b.configJson);
               return (
               <button
                 key={`hit-${b.id}`}
@@ -1362,8 +1363,10 @@ export function TemplateEditorCanvas({
                           if (rotateRef.current) return;
                           gesturePersistSnapshotRef.current = takePersistSnapshot(state);
                           (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                          // El listado del curso se agranda como caja: la lista se reparte sola.
                           const isTextKind =
-                            primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT";
+                            (primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT") &&
+                            !isClassListConfig(primaryBlock.configJson);
                           const nb = normalizeBlockConfig(primaryBlock.type, primaryBlock.configJson) as {
                             fontSize?: number;
                           };

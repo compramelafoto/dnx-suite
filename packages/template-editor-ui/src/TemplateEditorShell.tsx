@@ -62,6 +62,7 @@ import {
   getInsertableImageVariablesForProduct,
   getQrVariablesForProduct,
   editorResolvedVariablesForProduct,
+  createDefaultClassListBlock,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -503,6 +504,12 @@ export function TemplateEditorShell({
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultVariableTextBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddClassList() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultClassListBlock(state.canvas, onPage, ap)));
   }
   function handleAddShape() {
     setCanvasTool("select");
@@ -1479,6 +1486,16 @@ export function TemplateEditorShell({
               <EditorToolButton label="Variable" onClick={handleAddVariable}>
                 <span className="font-mono text-sm font-semibold leading-none">{"{}"}</span>
               </EditorToolButton>
+              {producto === "school" ? (
+                <EditorToolButton label="Listado del curso" onClick={handleAddClassList}>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M9 6h11M9 12h11M9 18h11" strokeLinecap="round" />
+                    <circle cx="4.5" cy="6" r="1" />
+                    <circle cx="4.5" cy="12" r="1" />
+                    <circle cx="4.5" cy="18" r="1" />
+                  </svg>
+                </EditorToolButton>
+              ) : null}
               <EditorToolButton label="Forma" onClick={handleAddShape}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <rect x="4" y="4" width="16" height="16" rx="2" />

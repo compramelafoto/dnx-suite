@@ -7,7 +7,14 @@ import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
 import { FieldLabel, InspectorPanel } from "./inspector/InspectorPanel";
 import { NumberSliderField } from "./inspector/NumberSliderField";
 import { SegmentedControl } from "./inspector/SegmentedControl";
+import { ToggleSwitch } from "./inspector/ToggleSwitch";
 import type { CanvasQuickAlignment } from "@repo/template-editor-core";
+import {
+  CLASS_LIST_MAX_COLUMNS,
+  isClassListConfig,
+  readClassListOptions,
+  type ClassListOptions,
+} from "@repo/template-editor-core";
 import {
   alignBlocksToSelectionBounds,
   anySelectedBlockLocked,
@@ -295,7 +302,14 @@ export function TemplateEditorInspector({
         </p>
       ) : null}
 
-      {selectedBlock.type === "VARIABLE_TEXT" && (
+      {selectedBlock.type === "VARIABLE_TEXT" && isClassListConfig(cfg) && (
+        <ClassListOptionsPanel
+          options={readClassListOptions(cfg)}
+          onChange={(patch) => updateConfig({ classList: { ...readClassListOptions(cfg), ...patch } })}
+        />
+      )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && (
         <InspectorPanel title="Contenido">
           <div>
             <FieldLabel>Variable de datos</FieldLabel>
@@ -571,5 +585,80 @@ export function TemplateEditorInspector({
         </InspectorPanel>
       )}
     </div>
+  );
+}
+
+/** Opciones del «Listado del curso»: orden, cómo se escribe cada nombre y el destacado. */
+function ClassListOptionsPanel({
+  options,
+  onChange,
+}: {
+  options: ClassListOptions;
+  onChange: (patch: Partial<ClassListOptions>) => void;
+}) {
+  return (
+    <InspectorPanel title="Listado del curso">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Todos los alumnos del curso del diseño. En el lienzo se ve un curso de muestra; al armar cada diseño se
+        usa el curso real del alumno.
+      </p>
+      <div>
+        <FieldLabel>Ordenar por</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.sortBy}
+          onChange={(sortBy) => onChange({ sortBy })}
+          options={[
+            { value: "lastName", label: "Apellido" },
+            { value: "firstName", label: "Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Cómo se escribe</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.nameOrder}
+          onChange={(nameOrder) => onChange({ nameOrder })}
+          options={[
+            { value: "firstLast", label: "Nombre Apellido" },
+            { value: "lastFirst", label: "Apellido, Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Nombres</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.givenNames}
+          onChange={(givenNames) => onChange({ givenNames })}
+          options={[
+            { value: "all", label: "Todos (María Sol)" },
+            { value: "first", label: "Sólo el primero (María)" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Columnas</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={String(options.columns)}
+          onChange={(v) => onChange({ columns: Number(v) })}
+          options={Array.from({ length: CLASS_LIST_MAX_COLUMNS }, (_, i) => ({
+            value: String(i + 1),
+            label: String(i + 1),
+          }))}
+        />
+      </div>
+      <ToggleSwitch
+        checked={options.highlightOwner}
+        onChange={(highlightOwner) => onChange({ highlightOwner })}
+        label="Destacar en negrita al alumno del diseño"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño y el
+        color se eligen en la barra de texto.
+      </p>
+    </InspectorPanel>
   );
 }
