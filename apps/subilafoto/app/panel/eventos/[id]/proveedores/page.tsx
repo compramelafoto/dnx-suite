@@ -5,6 +5,7 @@ import { prisma } from "@repo/db";
 import { qrDelEvento } from "@/lib/qr";
 import { categoriaDelEnlace, nombreDeCategoria } from "@/lib/proveedores/categorias";
 import { BotonDeCategoria, BotonDeEnlace } from "./boton";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function ProveedoresDelEvento({ params }: Props) {
   }
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: {
       id: true,
       name: true,

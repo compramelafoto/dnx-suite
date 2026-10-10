@@ -7,6 +7,7 @@ import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { hashDeIp } from "@/lib/consentimiento";
 import { ipDelPedido } from "@/lib/consentimiento-db";
+import { medioDeUnEventoQueAdministra } from "@/lib/acceso-al-evento";
 import {
   estadoResultante,
   validarRevision,
@@ -41,7 +42,7 @@ export async function revisarFoto(formData: FormData): Promise<void> {
 
   // El filtro por dueño va en el where: una foto de un evento ajeno ni se trae.
   const foto = await prisma.subilafotoMedia.findFirst({
-    where: { id: mediaId, eventId: eventoId, event: { sellerProfile: { userId: usuario.id } } },
+    where: medioDeUnEventoQueAdministra(mediaId, eventoId, usuario.id),
     select: {
       id: true,
       status: true,

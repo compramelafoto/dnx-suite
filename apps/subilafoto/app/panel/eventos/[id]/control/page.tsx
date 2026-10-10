@@ -11,6 +11,7 @@ import {
 } from "@/lib/moderacion/vista";
 import { revisarFoto } from "@/app/actions/moderacion";
 import { Vigilancia } from "./vigilancia";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 /*
@@ -46,7 +47,7 @@ export default async function Control({ params }: Props) {
   if (!usuario) redirect(`/login?next=${encodeURIComponent(`/panel/eventos/${id}/control`)}`);
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: { id: true, name: true, screenCode: true },
   });
   if (!evento) notFound();
