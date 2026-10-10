@@ -108,8 +108,14 @@ export default async function Pantalla({ params }: Props) {
               oscuro de una plantilla no lo lee ninguna cámara. El marco toma el acento.
             */}
             <div
-              className="mt-10 rounded-3xl bg-white p-5"
-              style={{ border: `4px solid ${tema.acento}` }}
+              /*
+                El ancho explícito no es decoración: el SVG del QR viene al 100% de su
+                contenedor, así que sin ancho se colapsa a un punto blanco de un
+                centímetro. Mismas medidas que el QR de la proyección, que ya está
+                probado en un televisor.
+              */
+              className="mt-10 w-[min(24rem,42vh)] rounded-3xl bg-white p-6"
+              style={{ boxShadow: `0 0 0 0.6rem ${tema.acento}` }}
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
             <p
