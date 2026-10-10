@@ -97,6 +97,14 @@ describe("vistaDeSala", () => {
     expect(v?.portfolio).toHaveLength(1);
     expect(v?.otrasMuestras).toHaveLength(1);
   });
+  it("el Instagram del artista sale como usuario, aunque se haya guardado con @ o la dirección completa", async () => {
+    for (const guardado of ["@Ema.Foto", "https://www.instagram.com/ema.foto/", "ema.foto"]) {
+      db.photographerProfile.findUnique.mockResolvedValueOnce({
+        id: "p1", slug: "ema", displayName: "Ema", bio: null, city: null, province: null, website: null, instagram: guardado, avatarUrl: null, portfolio: [],
+      });
+      expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.artista?.instagram).toBe("ema.foto");
+    }
+  });
   it("'Adquirir obra' sólo con room.buy y la obra a la venta", async () => {
     expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(true);
     db.culturalExhibitorWork.findFirst.mockResolvedValue({ imageWidthCm: null, imageHeightCm: null, edition: null, editionNumber: null, editionSize: null, statement: null, forSale: false });

@@ -55,7 +55,7 @@ export function ObraDeSala({ d }: { d: DatosObraDeSala }) {
           {artista.bio ? <p className="max-w-[65ch] whitespace-pre-line text-[15px] leading-relaxed">{artista.bio}</p> : null}
           <p className="flex flex-wrap gap-x-5 gap-y-1 text-[15px]">
             {artista.website ? <a href={artista.website} className={enlace} rel="noopener noreferrer" target="_blank">Sitio web</a> : null}
-            {artista.instagram ? <a href={`https://instagram.com/${artista.instagram}`} className={enlace} rel="noopener noreferrer" target="_blank">Instagram</a> : null}
+            {artista.instagram ? <a href={`https://www.instagram.com/${encodeURIComponent(artista.instagram)}/`} className={enlace} rel="noopener noreferrer" target="_blank">Instagram</a> : null}
             <Link href={`/fotografos/${artista.slug}`} className={enlace}>Ver perfil</Link>
           </p>
         </section>

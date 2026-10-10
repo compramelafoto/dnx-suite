@@ -14,13 +14,9 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string; workId: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug, workId } = await params;
-  const p = await paseDeSala(slug).catch(() => null);
-  const v = p ? await vistaDeSala(p, workId).catch(() => null) : null;
-  // Sin `openGraph` con imagen: compartir la dirección no adelanta la obra.
-  return { title: v ? `${v.obra.title} · en la sala` : "En la sala", robots: { index: false, follow: false }, referrer: "no-referrer" };
-}
+// Título fijo: los metadatos no vuelven a leer el pase ni la base (y no esquivan el freno de la
+// página). Sin `openGraph` con imagen: compartir la dirección no adelanta la obra.
+export const metadata: Metadata = { title: "En la sala", robots: { index: false, follow: false }, referrer: "no-referrer" };
 
 /**
  * La obra con el pase de sala (spec D31). Sin pase (o vencido, de otra muestra, o la obra fuera de

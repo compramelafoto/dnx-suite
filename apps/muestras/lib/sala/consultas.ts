@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import {
-  fichaDetail, parseVisibility, roomExhibitedWorks, roomPassCookieName, roomPassValid, showBuyButton, visibleWorks, type RoomPass,
+  fichaDetail, normalizeInstagram, parseVisibility, roomExhibitedWorks, roomPassCookieName, roomPassValid, showBuyButton, visibleWorks, type RoomPass,
 } from "@repo/muestras";
 import { esDelEquipo } from "@/lib/equipo/permisos";
 import { esUrlWeb } from "@/lib/url";
@@ -126,7 +126,8 @@ export async function vistaDeSala(p: PaseDeSala, workId: string) {
     artista: perfil
       ? {
           slug: perfil.slug, nombre: perfil.displayName, bio: perfil.bio, ciudad: [perfil.city, perfil.province].filter(Boolean).join(", ") || null,
-          website: esUrlWeb(perfil.website) ? perfil.website : null, instagram: perfil.instagram,
+          // El usuario de Instagram, sin "@" ni la dirección completa (perfiles viejos o cargados a mano).
+          website: esUrlWeb(perfil.website) ? perfil.website : null, instagram: perfil.instagram ? normalizeInstagram(perfil.instagram) : null,
           avatarUrl: esUrlWeb(perfil.avatarUrl) ? perfil.avatarUrl : null,
         }
       : null,
