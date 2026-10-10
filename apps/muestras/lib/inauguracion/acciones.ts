@@ -8,6 +8,7 @@ import { dondePuede } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { frenarPorUsuario } from "@/lib/limite";
 import type { ResultadoAccion } from "@/lib/actividades/acciones";
+import { avisarLugarLiberado, type MuestraDelCorreo } from "@/lib/correos/inauguracion";
 import { promoverEnTx, type Promovida } from "./cupo";
 
 const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
@@ -40,12 +41,15 @@ export async function guardarInauguracion(fd: FormData): Promise<ResultadoAccion
   if (nota.length > RSVP_LIMITS.note) errores.push(`La nota puede tener hasta ${RSVP_LIMITS.note} caracteres.`);
   if (errores.length) return { ok: false, errores };
 
-  let r: { slug: string; promovidas: Promovida[] };
+  let r: { muestra: MuestraDelCorreo; promovidas: Promovida[] };
   try {
     r = await prisma.$transaction(async (tx) => {
       const a = await tx.culturalActivity.findFirst({
         where: { id, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
-        select: { id: true, slug: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true, openingAt: true },
+        select: {
+          id: true, slug: true, title: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true, openingAt: true, openingEndsAt: true,
+          venueName: true, address: true, city: true,
+        },
       });
       if (!a) throw new Corte("La muestra no existe.");
       // Bloquea la muestra: una confirmación que entra justo ahora espera a que se aplique el cupo nuevo.
@@ -60,14 +64,15 @@ export async function guardarInauguracion(fd: FormData): Promise<ResultadoAccion
         where: { id },
         data: { rsvpStatus: modo, rsvpCapacity: capacidad, rsvpMaxCompanions: maxAcomp, openingNote: nota || null, ...datosDeCambio(usuario.id, "INAUGURACION") },
       });
-      return { slug: a.slug, promovidas: await promoverEnTx(tx, id, capacidad) };
+      return { muestra: a, promovidas: await promoverEnTx(tx, id, capacidad) };
     });
   } catch (err) {
     if (err instanceof Corte) return { ok: false, errores: [err.message] };
     throw err;
   }
-  void r.promovidas;
-  revalidatePath(`/m/${r.slug}`, "layout");
+  // Se avisa después de la transacción: un correo que no sale no deshace el cambio.
+  for (const p of r.promovidas) if (p.email) await avisarLugarLiberado({ email: p.email, nombre: p.name, muestra: r.muestra });
+  revalidatePath(`/m/${r.muestra.slug}`, "layout");
   revalidatePath(`/panel/difusion/${id}/inauguracion`);
   return { ok: true, id };
 }

@@ -130,6 +130,12 @@ export const LIMITES_PUBLICOS = {
   libro: { limit: 10, windowMs: 10 * 60_000 },
   // Antes de buscar la muestra del libro: holgado, sólo para que un bucle no consulte la base.
   libroConsultas: { limit: 120, windowMs: 10 * 60_000 },
+  // Etapa 5: confirmación de asistencia. Por IP y por muestra (un grupo en la misma red puede anotarse).
+  asistencia: { limit: 10, windowMs: 10 * 60_000 },
+  // Antes de buscar la muestra: holgado, sólo para que un bucle no consulte la base.
+  asistenciaConsultas: { limit: 120, windowMs: 10 * 60_000 },
+  // Ver o cancelar con el enlace personal.
+  miAsistencia: { limit: 30, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
@@ -148,6 +154,7 @@ export function ipDeLaPeticion(h: { get(nombre: string): string | null }): strin
 /** Topes por muestra, sumando a todas las personas: frena una inundación repartida en muchas IPs. */
 export const LIMITES_POR_MUESTRA = {
   libro: { limit: 200, windowMs: 60 * 60_000 },
+  asistencia: { limit: 300, windowMs: 60 * 60_000 },
 } as const;
 
 // Sal al azar por instancia: la huella no se puede revertir ni cruzar entre instancias, y nunca se

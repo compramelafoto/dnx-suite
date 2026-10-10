@@ -8,7 +8,9 @@ const db = vi.hoisted(() => ({
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 
+const correo = vi.hoisted(() => ({ avisarLugarLiberado: vi.fn() }));
 vi.mock("@repo/db", () => ({ prisma: db }));
+vi.mock("@/lib/correos/inauguracion", () => correo);
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -77,6 +79,8 @@ describe("guardarInauguracion", () => {
     db.culturalActivityRsvp.updateMany.mockResolvedValue({ count: 1 });
     await guardarInauguracion(fd({ id: "a1", rsvpStatus: "OPEN", rsvpCapacity: "10" }));
     expect(tx.culturalActivityRsvp.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["s1"] }, status: "WAITLIST" }, data: expect.objectContaining({ status: "CONFIRMED", promotedAt: expect.any(Date) }) });
+    // Después de la transacción, "Se liberó un lugar" a quien dejó email.
+    expect(correo.avisarLugarLiberado).toHaveBeenCalledWith(expect.objectContaining({ email: "s@x.com", nombre: "S" }));
   });
   it("deja el registro INAUGURACION y no toca editVersion", async () => {
     await guardarInauguracion(fd({ id: "a1", rsvpStatus: "OFF" }));
