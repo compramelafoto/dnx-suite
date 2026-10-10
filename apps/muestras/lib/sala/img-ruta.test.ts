@@ -72,7 +72,10 @@ describe("GET /m/[slug]/sala/img/[id]", () => {
     expect((await pedir()).status).toBe(200);
   });
   it("pasado el tope de la red, 429 con el aviso (no una redirección muda)", async () => {
-    for (let i = 0; i < LIMITES_PUBLICOS.imagenSalaRed.limit; i++) m.pase.mockResolvedValueOnce(conPase(`p${i}`)), await pedir("w1", "9.9.9.9");
+    for (let i = 0; i < LIMITES_PUBLICOS.imagenSalaRed.limit; i++) {
+      m.pase.mockResolvedValueOnce(conPase(`p${i}`));
+      await pedir("w1", "9.9.9.9");
+    }
     const r = await pedir("w1", "9.9.9.9");
     expect(r.status).toBe(429);
     expect(await r.text()).toBe("Hay mucha gente consultando desde esta red. Probá en un minuto.");
