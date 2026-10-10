@@ -6,7 +6,7 @@ import {
 describe("secciones del panel", () => {
   it("una persona común ve todo menos Revisión", () => {
     expect(panelSections({ isSuperAdmin: false }).map((s) => s.key)).toEqual([
-      "inicio", "muestras", "proponer", "perfil", "envios", "convocatorias", "curaduria", "montaje", "difusion", "ventas", "estadisticas",
+      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "convocatorias", "curaduria", "montaje", "difusion", "ventas", "estadisticas",
     ]);
   });
   it("el super admin ve también Revisión", () => {
@@ -20,6 +20,13 @@ describe("secciones del panel", () => {
     expect(PANEL_SECTIONS.filter((s) => s.group === "ORGANIZAR").map((s) => s.label)).toEqual([
       "Convocatorias", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
     ]);
+  });
+  it("\"Donde expongo\" está lista, en \"Tu cuenta\", después de \"Mis envíos\"", () => {
+    const i = PANEL_SECTIONS.findIndex((s) => s.key === "expositor");
+    expect(PANEL_SECTIONS[i]).toMatchObject({ label: "Donde expongo", href: "/panel/expositor", group: "CUENTA", ready: true });
+    expect(PANEL_SECTIONS[i - 1]?.key).toBe("envios");
+    expect(upcomingSection("expositor")).toBeNull();
+    expect(activeSectionKey("/panel/expositor/abc")).toBe("expositor");
   });
   it("cada sección tiene un href único bajo /panel", () => {
     const hrefs = PANEL_SECTIONS.map((s) => s.href);
