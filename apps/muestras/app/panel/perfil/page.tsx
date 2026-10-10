@@ -2,7 +2,9 @@ import Link from "next/link";
 import { countsForPublicProfile } from "@repo/muestras";
 import { FormularioPerfil } from "@/components/perfil/formulario-perfil";
 import { ObrasVinculadas } from "@/components/perfil/obras-vinculadas";
+import { Portfolio } from "@/components/perfil/portfolio";
 import { buscarPerfilPropio, obrasVinculadas } from "@/lib/perfiles/consultas";
+import { portfolioPropio } from "@/lib/portfolio/consultas";
 import { esUrlWeb } from "@/lib/url";
 import { requireUsuario } from "@/lib/usuario";
 
@@ -12,7 +14,7 @@ export const metadata = { title: "Mi perfil de fotógrafo" };
 export default async function MiPerfil() {
   const usuario = await requireUsuario("/panel/perfil");
   const perfil = await buscarPerfilPropio(usuario.id);
-  const obras = perfil ? await obrasVinculadas(perfil.id) : [];
+  const [obras, fotos] = perfil ? await Promise.all([obrasVinculadas(perfil.id), portfolioPropio(usuario)]) : [[], null];
   // Mismo criterio que el perfil público: sólo cuentan las muestras publicadas.
   const publicado = obras.some((o) => countsForPublicProfile(o.activity));
   return (
@@ -39,6 +41,14 @@ export default async function MiPerfil() {
           avatarUrl: perfil?.avatarUrl ?? null,
         }}
       />
+      {perfil ? (
+        <Portfolio fotos={(fotos ?? []).filter((f) => esUrlWeb(f.imageUrl))} />
+      ) : (
+        <section id="portfolio" className="space-y-2 border-t border-[var(--mf-line)] pt-6">
+          <h2 className="text-lg">Portfolio</h2>
+          <p className="text-[15px] text-[var(--mf-muted)]">Creá tu perfil para armar tu portfolio.</p>
+        </section>
+      )}
       {perfil ? (
         <ObrasVinculadas
           obras={obras.filter((o) => esUrlWeb(o.imageUrl)).map((o) => ({

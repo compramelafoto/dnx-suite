@@ -5,7 +5,7 @@ import {
 import { baseUrlPublica } from "@/lib/fichas/cargar";
 import { frenarPorUsuario } from "@/lib/limite";
 import { errorEnTexto } from "@/lib/piezas/entregar";
-import { cargarMuestraParaRedes, motivoNoDisponible } from "@/lib/redes/cargar";
+import { cargarMuestraParaRedes, motivoNoDisponible, motivoSinObrasOnline, obrasParaDifundir } from "@/lib/redes/cargar";
 import { armarPiezaRedes } from "@/lib/redes/componer";
 import { invitacionImprimible } from "@/lib/redes/pdf";
 import { getUsuario } from "@/lib/usuario";
@@ -34,12 +34,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const a = await cargarMuestraParaRedes(id, usuario);
   if (!a) return errorEnTexto("No encontramos esa muestra entre las tuyas. Las piezas para redes piden la muestra publicada.", 404);
+  const ahora = new Date();
   const muestra = { ...a, worksCount: a.works.length };
-  if (!availableSocialVariants(muestra, new Date()).includes(variante)) return errorEnTexto(motivoNoDisponible(variante, a), 404);
+  // "Obra destacada" es publicación online: las que la sorpresa deja ver hoy; en "para cada visitante",
+  // cualquier expuesta (D23, D39).
+  const online = obrasParaDifundir(a, ahora);
+  if (!availableSocialVariants(muestra, ahora, online.length).includes(variante)) {
+    return errorEnTexto((variante === "WORK" && motivoSinObrasOnline(a, ahora)) || motivoNoDisponible(variante, a), 404);
+  }
 
   const pedida = q.get("obra");
   const obra = variante === "WORK"
-    ? (pedida ? a.works.find((w) => w.id === pedida) : a.works.find((w) => w.isHighlight) ?? a.works[0]) ?? null
+    ? (pedida ? online.find((w) => w.id === pedida) : online.find((w) => w.isHighlight) ?? online[0]) ?? null
     : null;
   if (variante === "WORK" && !obra) return errorEnTexto("Esa obra no es de esta muestra.", 404);
 

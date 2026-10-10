@@ -6,7 +6,21 @@ import type { ObraForm } from "@/lib/actividades/mapear";
 import { subirImagen } from "./subir-imagen";
 import { VincularPerfil } from "./vincular-perfil";
 
-export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: (o: ObraForm[]) => void }) {
+/** Desde cuántos lugares libres se avisa que se acerca el tope técnico (no es un tope de diseño). */
+const AVISO_TOPE = 20;
+
+/**
+ * `queSeVe`: qué ve el público online según la sorpresa de la muestra (lo arma el servidor con `queSeVeOnline`).
+ * `deExpositor`: ids de las obras que cargó un expositor (etapa 6, D9): su imagen y su autor no se
+ * editan acá (el servidor los conserva igual); título, año y técnica sí.
+ */
+export function EditorObras({ obras, onCambio, queSeVe, deExpositor = [] }: {
+  obras: ObraForm[];
+  onCambio: (o: ObraForm[]) => void;
+  queSeVe?: string;
+  deExpositor?: readonly string[];
+}) {
+  const expositoras = new Set(deExpositor);
   const [subiendo, setSubiendo] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const destacadas = obras.filter((o) => o.isHighlight).length;
@@ -15,7 +29,7 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
     if (!files) return;
     const lugar = MAX_WORKS - obras.length;
     const lista = Array.from(files).slice(0, lugar);
-    if (files.length > lugar) setError(`Sólo entran ${MAX_WORKS} obras; se agregaron ${lista.length}.`);
+    if (files.length > lugar) setError(`El tope técnico es de ${MAX_WORKS} obras por muestra; se agregaron ${lista.length}.`);
     setSubiendo(lista.length);
     const nuevas: ObraForm[] = [];
     for (const f of lista) {
@@ -42,8 +56,16 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--mf-muted)]">
-        {obras.length}/{MAX_WORKS} obras, {destacadas}/{MAX_HIGHLIGHTS} destacadas. Mientras la muestra está abierta, el público ve sólo las destacadas.
+        {obras.length === 1 ? "1 obra" : `${obras.length} obras`}, {destacadas}/{MAX_HIGHLIGHTS} destacadas.{" "}
+        {queSeVe ?? "Mientras la muestra está abierta, el público ve sólo las destacadas."}
       </p>
+      {MAX_WORKS - obras.length <= AVISO_TOPE ? (
+        <p className="text-sm text-[var(--mf-accent)]">
+          {obras.length >= MAX_WORKS
+            ? `Llegaste al tope técnico de ${MAX_WORKS} obras por muestra.`
+            : `Te ${MAX_WORKS - obras.length === 1 ? "queda 1 lugar" : `quedan ${MAX_WORKS - obras.length} lugares`}: el tope técnico es de ${MAX_WORKS} obras por muestra.`}
+        </p>
+      ) : null}
       <p className="text-sm text-[var(--mf-muted)]">Si el autor sos vos y tenés perfil de fotógrafo con el mismo nombre, las obras nuevas se vinculan solas al guardar.</p>
       <ul className="grid gap-3 sm:grid-cols-2">
         {obras.map((o, i) => (
@@ -52,11 +74,17 @@ export function EditorObras({ obras, onCambio }: { obras: ObraForm[]; onCambio: 
             <img src={o.imageUrl} alt="" className="h-24 w-24 rounded object-cover" />
             <div className="flex-1 space-y-1 text-sm">
               <input className="w-full border-b" value={o.title} onChange={(e) => cambiar(i, { title: e.target.value })} placeholder="Título" />
-              <input className="w-full border-b" value={o.authorName} onChange={(e) => cambiar(i, { authorName: e.target.value })} placeholder="Autor" />
-              <VincularPerfil
-                nombre={o.authorProfileName ?? null}
-                onVincular={(p) => cambiar(i, { authorProfileId: p?.id ?? null, authorProfileName: p?.displayName ?? null })}
-              />
+              {o.id && expositoras.has(o.id) ? (
+                <p className="text-[var(--mf-muted)]">{o.authorName} · Lo carga quien expone</p>
+              ) : (
+                <>
+                  <input className="w-full border-b" value={o.authorName} onChange={(e) => cambiar(i, { authorName: e.target.value })} placeholder="Autor" />
+                  <VincularPerfil
+                    nombre={o.authorProfileName ?? null}
+                    onVincular={(p) => cambiar(i, { authorProfileId: p?.id ?? null, authorProfileName: p?.displayName ?? null })}
+                  />
+                </>
+              )}
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1">
                   <input

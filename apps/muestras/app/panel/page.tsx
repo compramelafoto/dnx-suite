@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { REVIEW_STATUSES, REVIEW_STATUS_LABELS, countByStatus } from "@repo/muestras";
 import { contarParaRevisar, listarMias } from "@/lib/actividades/consultas";
+import { puede } from "@/lib/equipo/permisos";
+import { misObrasConCambios, misParticipaciones, pendientesPorMuestra } from "@/lib/expositores/consultas";
 import { buscarPerfilPropio } from "@/lib/perfiles/consultas";
 import { requireUsuario } from "@/lib/usuario";
 
@@ -17,6 +19,13 @@ export default async function InicioPanel() {
     usuario.esSuperAdmin ? contarParaRevisar() : Promise.resolve(0),
   ]);
   const cuenta = countByStatus(mias);
+  const [pendientes, participaciones, conCambios] = await Promise.all([
+    pendientesPorMuestra(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "exhibitors", m.rol)).map((m) => m.id)),
+    misParticipaciones(usuario),
+    misObrasConCambios(usuario),
+  ]);
+  const obrasParaRevisar = [...pendientes.values()].reduce((a, b) => a + b, 0);
+  const expongo = participaciones.filter((p) => p.status === "ACTIVE").length;
   const nombre = usuario.name?.split(" ")[0];
 
   return (
@@ -29,6 +38,25 @@ export default async function InicioPanel() {
             {paraRevisar === 1 ? "Hay 1 propuesta para revisar" : `Hay ${paraRevisar} propuestas para revisar`}
           </Link>
         </p>
+      ) : null}
+
+      {obrasParaRevisar > 0 ? (
+        <p className="border-l-2 border-[var(--mf-spot)] pl-4 text-lg">
+          <Link href="/panel/muestras" className="underline underline-offset-[6px]">
+            {obrasParaRevisar === 1 ? "Hay 1 obra de expositores para revisar" : `Hay ${obrasParaRevisar} obras de expositores para revisar`}
+          </Link>
+        </p>
+      ) : null}
+
+      {expongo > 0 ? (
+        <section aria-labelledby="t-expongo" className="space-y-2">
+          <h2 id="t-expongo" className="text-sm text-[var(--mf-muted)]">Dónde expongo</h2>
+          <p className="text-lg">
+            {expongo === 1 ? "Exponés en 1 muestra." : `Exponés en ${expongo} muestras.`}
+            {conCambios > 0 ? ` ${conCambios === 1 ? "Te pidieron cambios en 1 obra." : `Te pidieron cambios en ${conCambios} obras.`}` : ""}
+          </p>
+          <Link href="/panel/expositor" className="inline-block underline underline-offset-[6px]">Ir a mis obras</Link>
+        </section>
       ) : null}
 
       <section aria-labelledby="t-mias">

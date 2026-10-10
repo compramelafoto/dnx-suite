@@ -39,6 +39,7 @@ describe("QR con conteo", () => {
     expect(metricForQrKind("o")).toBe("SCAN");
     expect(metricForQrKind("m")).toBe("SCAN");
     expect(metricForQrKind("l")).toBe("GUESTBOOK_SCAN");
+    expect(metricForQrKind("s")).toBe("SCAN");
   });
 });
 

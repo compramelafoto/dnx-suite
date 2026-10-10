@@ -36,8 +36,12 @@ export function isPrefetch(h: { get(name: string): string | null }): boolean {
   return /prefetch|prerender/i.test(proposito) || h.get("next-router-prefetch") === "1" || h.get("x-middleware-prefetch") === "1";
 }
 
-/** `o`: ficha de una obra; `m`: cartel y catálogo (la muestra); `l`: afiche del libro de visitas. */
-export const QR_KINDS = ["o", "m", "l"] as const;
+/**
+ * `o`: ficha de una obra (etapa 4, no da pase); `m`: cartel y catálogo (la muestra); `l`: afiche
+ * del libro de visitas; `s`: código de sala impreso en la ficha (etapa 6), que da el pase de sala
+ * y cuenta como escaneo de esa obra.
+ */
+export const QR_KINDS = ["o", "m", "l", "s"] as const;
 export type QrKind = (typeof QR_KINDS)[number];
 export const isQrKind = (v: unknown): v is QrKind => (QR_KINDS as readonly unknown[]).includes(v);
 

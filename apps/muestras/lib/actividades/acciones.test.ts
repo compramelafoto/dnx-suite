@@ -4,6 +4,7 @@ const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), count: vi.fn() },
   culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   culturalCallWork: { updateMany: vi.fn() },
+  culturalExhibitorWork: { findMany: vi.fn(), updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
   photographerProfile: { findUnique: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
@@ -47,6 +48,8 @@ beforeEach(() => {
   );
   db.photographerProfile.findUnique.mockResolvedValue(null);
   db.photographerProfile.findMany.mockResolvedValue([]);
+  db.culturalExhibitorWork.findMany.mockResolvedValue([]);
+  db.culturalExhibitorWork.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("enviarARevision", () => {
@@ -148,6 +151,18 @@ describe("guardarBorrador sobre una ficha publicada", () => {
     expect(db.$transaction).not.toHaveBeenCalled();
     const nueva = await guardarBorrador(fd({ title: "Nueva", openingClock: "19:00" }));
     expect(nueva).toEqual({ ok: false, errores: ["Para poner la hora, elegí también el día de la inauguración."] });
+  });
+  it("con la sorpresa cargada (etapa 6), el formulario no cambia galleryMode: lo decide Visibilidad", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({
+      ...fila, reviewStatus: "APPROVED", galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: { v: 1, online: { exhibited: "NONE" } },
+    });
+    expect((await guardarBorrador(fd({ ...completa, galleryMode: "FULL" }))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data.galleryMode).toBe("HIGHLIGHTS_UNTIL_CLOSED");
+  });
+  it("sin ajuste de sorpresa, galleryMode sale del formulario como hasta hoy", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED", galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: null });
+    expect((await guardarBorrador(fd({ ...completa, galleryMode: "FULL" }))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data.galleryMode).toBe("FULL");
   });
 });
 
@@ -303,10 +318,10 @@ describe("guardarBorrador: obras sumadas con la pestaña abierta y obras quitada
     });
   });
   it("los topes cuentan las obras conservadas: si se pasan, no escribe", async () => {
-    enLaBase(Array.from({ length: 5 }, (_, i) => ({ id: `armada-${i}`, sortOrder: 40 + i })));
-    const muchas = Array.from({ length: 36 }, () => obra());
+    enLaBase(Array.from({ length: 5 }, (_, i) => ({ id: `armada-${i}`, sortOrder: 300 + i })));
+    const muchas = Array.from({ length: 296 }, () => obra());
     const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: "[]", works: JSON.stringify(muchas) }));
-    expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/quedarían 41 y el tope es 40/)] });
+    expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/quedarían 301 y el tope es 300/)] });
     expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
     expect(db.culturalActivityWork.createMany).not.toHaveBeenCalled();
   });
@@ -409,5 +424,64 @@ describe("equipo y versiones (etapa 5)", () => {
     expect((await enviarARevision("a1")).ok).toBe(true);
     db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("TEXT_EDITOR"));
     expect((await enviarARevision("a1")).ok).toBe(false);
+  });
+});
+
+describe("guardarBorrador: obras que cargó un expositor (etapa 6, D9)", () => {
+  const BASE = "https://pub-test.r2.dev";
+  const FOTO_EXPOSITOR = `${BASE}/muestras/50/foto.webp`;
+  function fd(o: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(k, v);
+    f.set("editVersion", "0");
+    return f;
+  }
+  const guardadas = () => db.culturalActivityWork.createMany.mock.calls[0]![0].data as Array<Record<string, unknown>>;
+
+  beforeEach(() => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, type: "MUESTRA", works: [] });
+    db.culturalActivityWork.findMany.mockResolvedValue([
+      { id: "aw1", isHighlight: false, sortOrder: 0, authorProfileId: "p50", authorUserId: 50, imageUrl: FOTO_EXPOSITOR, authorName: "Ema Expone" },
+      { id: "aw2", isHighlight: false, sortOrder: 1, authorProfileId: null, authorUserId: null, imageUrl: `${BASE}/muestras/7/b.webp`, authorName: "Dueña" },
+    ]);
+    db.culturalExhibitorWork.findMany.mockResolvedValue([{ id: "ew1", activityWorkId: "aw1" }]);
+  });
+
+  it("si el formulario intenta cambiar la imagen y el autor, quedan los de la base", async () => {
+    const r = await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2"]),
+      works: JSON.stringify([
+        { id: "aw1", imageUrl: `${BASE}/muestras/7/otra.webp`, title: "Silos", authorName: "Otra persona", authorProfileId: "pajeno123", isHighlight: false },
+        { id: "aw2", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false },
+      ]),
+    }));
+    expect(r).toEqual({ ok: true, id: "a1" });
+    expect(guardadas()[0]).toMatchObject({ id: "aw1", imageUrl: FOTO_EXPOSITOR, authorName: "Ema Expone", authorProfileId: "p50", authorUserId: 50, title: "Silos" });
+  });
+
+  it("el título editado se copia a la obra del expositor, sólo en esta muestra", async () => {
+    await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2"]),
+      works: JSON.stringify([
+        { id: "aw1", imageUrl: FOTO_EXPOSITOR, title: "Silos al amanecer", authorName: "Ema Expone", year: 2024, technique: "Giclée", isHighlight: false },
+        { id: "aw2", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false },
+      ]),
+    }));
+    expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledWith({
+      where: { id: "ew1", activityId: "a1", status: "APPROVED" }, data: { title: "Silos al amanecer", year: 2024, technique: "Giclée" },
+    });
+    expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("si el editor quita una obra de expositor, queda fuera de la muestra con la nota", async () => {
+    await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2"]),
+      works: JSON.stringify([{ id: "aw2", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false }]),
+    }));
+    expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledWith({
+      where: { activityId: "a1", activityWorkId: { in: ["aw1"] } },
+      data: { status: "REMOVED", activityWorkId: null, reviewNote: "La organización la sacó de la muestra." },
+    });
   });
 });

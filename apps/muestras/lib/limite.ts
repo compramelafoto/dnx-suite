@@ -81,10 +81,10 @@ export const LIMITES = {
   crearBorrador: { limit: 20, windowMs: 60 * 60_000 },
   guardarPerfil: { limit: 30, windowMs: 60 * 60_000 },
   buscarPerfiles: { limit: 60, windowMs: 60_000 },
-  // Una muestra llena son 40 obras (MAX_WORKS): bajar la ficha de cada una más el PDF completo en
-  // dos tamaños entra holgado. Contar sólo el PDF completo dejaría sin tope las fichas sueltas,
-  // que también arman un PDF en el servidor.
-  fichas: { limit: 100, windowMs: 10 * 60_000 },
+  // Una muestra grande llega al tope técnico de 300 obras (MAX_WORKS, etapa 6): bajar la ficha de
+  // cada una más el PDF completo en dos tamaños entra. Contar sólo el PDF completo dejaría sin tope
+  // las fichas sueltas, que también arman un PDF en el servidor.
+  fichas: { limit: 400, windowMs: 10 * 60_000 },
   enviarARevision: { limit: 10, windowMs: 60 * 60_000 },
   // Etapa 3: convocatorias y curaduría.
   crearConvocatoria: { limit: 10, windowMs: 60 * 60_000 },
@@ -97,8 +97,11 @@ export const LIMITES = {
   decidir: { limit: 600, windowMs: 10 * 60_000 },
   // La imagen anónima pasa por nuestra función (no por el bucket): frena el raspado.
   imagenCuraduria: { limit: 1500, windowMs: 10 * 60_000 },
-  // Etapa 4: la sala. Un PDF con 40 fotos tarda; una por obra en dos medidas entra holgado.
+  // Etapa 4: la sala. Un PDF de muchas obras (tanda de marcos, catálogo, cartel, plano) tarda:
+  // 60 cada 10 minutos. El marco de una sola obra es liviano y con 300 obras se pide uno por obra:
+  // va aparte, con 400 (etapa 6).
   piezas: { limit: 60, windowMs: 10 * 60_000 },
+  piezaObra: { limit: 400, windowMs: 10 * 60_000 },
   guardarMontaje: { limit: 120, windowMs: 60 * 60_000 },
   moderarLibro: { limit: 600, windowMs: 10 * 60_000 },
   cambiarModoLibro: { limit: 60, windowMs: 60 * 60_000 },
@@ -111,6 +114,19 @@ export const LIMITES = {
   exportarAsistencias: { limit: 30, windowMs: 60 * 60_000 },
   // Piezas para redes: cada vista previa arma una imagen en el servidor (≈ 0,5–1 s).
   redes: { limit: 120, windowMs: 10 * 60_000 },
+  // Etapa 6: sorpresa de la muestra.
+  guardarVisibilidad: { limit: 60, windowMs: 60 * 60_000 },
+  // Portfolio del artista: subir, editar, borrar y ordenar (60 fotos a lo sumo).
+  guardarPortfolio: { limit: 300, windowMs: 60 * 60_000 },
+  // Enlace de expositores: generar, guardar topes, cerrar, abrir y renovar.
+  enlaceExpositores: { limit: 30, windowMs: 60 * 60_000 },
+  // Sumarse con el enlace (crea el perfil y la participación).
+  sumarseExpositor: { limit: 20, windowMs: 60 * 60_000 },
+  // "Dónde expongo": guardar, borrar y retirar obras (con 300 obras de tope técnico), y enviarlas.
+  guardarObraExpositor: { limit: 300, windowMs: 60 * 60_000 },
+  enviarObraExpositor: { limit: 60, windowMs: 60 * 60_000 },
+  // Quien organiza revisa con muchas obras: aprobar, pedir cambios, corregir y sacar.
+  revisarExpositores: { limit: 600, windowMs: 10 * 60_000 },
 } as const;
 
 /**
@@ -140,6 +156,21 @@ export const LIMITES_PUBLICOS = {
   asistenciaConsultas: { limit: 120, windowMs: 10 * 60_000 },
   // Ver o cancelar con el enlace personal.
   miAsistencia: { limit: 30, windowMs: 10 * 60_000 },
+  // Etapa 6: "cambian para cada visitante". Cada pedido sortea otras obras: el tope frena a quien
+  // recarga en bucle para verlas todas (pasado el tope, recibe las mismas que la última vez).
+  anticipo: { limit: 60, windowMs: 10 * 60_000 },
+  // Y por IP y por muestra (el slug como ámbito): en una sola muestra se ven menos sorteos seguidos.
+  anticipoPorMuestra: { limit: 20, windowMs: 10 * 60_000 },
+  // La página del enlace de expositores: frena a quien prueba tokens (pasado el tope, el mismo 404).
+  paginaExpositores: { limit: 60, windowMs: 10 * 60_000 },
+  // Vista de sala y sus imágenes por proxy, contadas **por pase** (la huella de la cookie, ya
+  // validada; el equipo, por IP): holgado para quien recorre la sala, pero un bucle no lee el bucket
+  // sin fin.
+  vistaSala: { limit: 300, windowMs: 10 * 60_000 },
+  imagenSala: { limit: 600, windowMs: 10 * 60_000 },
+  // Y por IP, alto: todo el público de la sala comparte el Wi-Fi del lugar (como `qr`).
+  vistaSalaRed: { limit: 1500, windowMs: 10 * 60_000 },
+  imagenSalaRed: { limit: 6000, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
@@ -165,9 +196,32 @@ export const LIMITES_POR_MUESTRA = {
 // guarda en la base. La IP en claro no queda ni en memoria.
 const SAL = randomBytes(16).toString("hex");
 
-/** Huella de una IP para usar como clave del freno (decisión D15 de la etapa 4). */
+/**
+ * Lo que se cuenta de una IP. Una IPv4 tal cual. Una IPv6, sólo su prefijo /64: a una conexión
+ * hogareña o móvil le dan un /64 entero, y contar por dirección dejaría a cualquiera cambiar de IP en
+ * cada pedido. Una IPv4 escrita como IPv6 (`::ffff:1.2.3.4`) cuenta como la IPv4. Lo que no se
+ * entiende como IPv6 vuelve igual (cae en su propio balde).
+ */
+export function prefijoDeIp(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const mapeada = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
+  if (mapeada) return mapeada[1]!;
+  const partes = ip.split("::");
+  if (partes.length > 2) return ip;
+  const grupos = (s: string | undefined) => (s ? s.split(":") : []);
+  const izquierda = grupos(partes[0]);
+  const derecha = grupos(partes[1]);
+  const faltan = partes.length === 2 ? 8 - izquierda.length - derecha.length : 0;
+  if (faltan < 0) return ip;
+  const todos = [...izquierda, ...Array<string>(faltan).fill("0"), ...derecha];
+  const primeros = todos.slice(0, 4);
+  if (primeros.length < 4 || !primeros.every((g) => /^[0-9a-fA-F]{1,4}$/.test(g))) return ip;
+  return `${primeros.map((g) => parseInt(g, 16).toString(16)).join(":")}::/64`;
+}
+
+/** Huella de una IP (de su /64, si es IPv6) para usar como clave del freno (decisión D15 de la etapa 4). */
 export function huellaDeIp(ip: string, sal: string = SAL): string {
-  return createHash("sha256").update(sal).update(ip).digest("base64url").slice(0, 22);
+  return createHash("sha256").update(sal).update(prefijoDeIp(ip)).digest("base64url").slice(0, 22);
 }
 
 /**
@@ -177,6 +231,14 @@ export function huellaDeIp(ip: string, sal: string = SAL): string {
  */
 export function frenarPorIp(que: QueSeLimitaSinSesion, ip: string, ambito?: string): DecisionDeFreno {
   return checkRateLimit({ key: `ip:${que}:${ambito ?? "-"}:${huellaDeIp(ip)}`, ...LIMITES_PUBLICOS[que] });
+}
+
+/**
+ * Cuenta un uso de `que` para un pase de sala (spec D30), por la huella de su cookie. Llamar sólo con
+ * un pase ya validado: con cookies inventadas, cada pedido sumaría una clave nueva.
+ */
+export function frenarPorPase(que: QueSeLimitaSinSesion, huellaDePase: string): DecisionDeFreno {
+  return checkRateLimit({ key: `pase:${que}:${huellaDePase}`, ...LIMITES_PUBLICOS[que] });
 }
 
 export type QueSeLimitaPorMuestra = keyof typeof LIMITES_POR_MUESTRA;

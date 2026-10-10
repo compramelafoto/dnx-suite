@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatArDay, profileWorksInActivity, workPath } from "@repo/muestras";
+import { FotosPortfolio } from "@/components/ficha/fotos-portfolio";
+import { sinObrasExpuestas } from "@/lib/actividades/artistas";
 import { buscarPerfilPublico } from "@/lib/perfiles/consultas";
 import { esUrlWeb } from "@/lib/url";
 
@@ -27,6 +29,8 @@ export default async function PerfilPublico({ params }: Props) {
   const { perfil, muestras } = r;
   const ahora = new Date();
   const lugar = [perfil.city, perfil.province].filter(Boolean).join(", ");
+  // Sin las fotos que coinciden con una obra expuesta: la sorpresa de la sala la decide la muestra.
+  const portfolio = sinObrasExpuestas(perfil.portfolio, perfil.works.map((w) => w.imageUrl)).filter((f) => esUrlWeb(f.imageUrl));
 
   return (
     <main className="mf-marco space-y-16 py-10 sm:py-16">
@@ -49,6 +53,13 @@ export default async function PerfilPublico({ params }: Props) {
           </p>
         </div>
       </header>
+
+      {portfolio.length > 0 ? (
+        <section id="portfolio" aria-labelledby="t-portfolio" className="space-y-5">
+          <h2 id="t-portfolio" className="text-sm text-[var(--mf-muted)]">Portfolio</h2>
+          <FotosPortfolio fotos={portfolio} autor={perfil.displayName} columnas="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
+        </section>
+      ) : null}
 
       <section aria-labelledby="t-expuso" className="space-y-10">
         <h2 id="t-expuso" className="text-sm text-[var(--mf-muted)]">Expuso en</h2>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  FRAME_SIZES, TYPICAL_IMAGE, authorIndex, catalogPlan, expectedQuality, fitInside, frameLayout, isFrameSize,
+  FRAME_SIZES, TYPICAL_IMAGE, authorIndex, catalogImageSize, catalogPlan, expectedQuality, fitInside, frameBatches, frameLayout, isFrameSize,
   isOrientation, largestThatFits, pageRanges, printPpi, printQuality, resolveOrientation,
 } from "./print";
 
@@ -121,5 +121,19 @@ describe("pageRanges", () => {
     expect(pageRanges(Array.from({ length: 20 }, (_, i) => i + 3))).toBe("3–22");
     expect(pageRanges([7])).toBe("7");
     expect(pageRanges([])).toBe("");
+  });
+});
+
+describe("tandas de marcos y tamaño del catálogo", () => {
+  it("de a 40", () => {
+    expect(frameBatches(0)).toEqual([]);
+    expect(frameBatches(40)).toEqual([{ n: 1, from: 1, to: 40 }]);
+    expect(frameBatches(95)).toEqual([{ n: 1, from: 1, to: 40 }, { n: 2, from: 41, to: 80 }, { n: 3, from: 81, to: 95 }]);
+  });
+  it("imágenes más chicas cuanto más obras", () => {
+    expect(catalogImageSize(60)).toBe(1400);
+    expect(catalogImageSize(61)).toBe(1000);
+    expect(catalogImageSize(150)).toBe(1000);
+    expect(catalogImageSize(151)).toBe(800);
   });
 });

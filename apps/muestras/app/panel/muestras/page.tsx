@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ACTIVITY_ROLE_LABELS, ACTIVITY_TYPE_LABELS, REVIEW_STATUS_LABELS, toArDay, type ActivityType, type ReviewStatus } from "@repo/muestras";
 import { listarMias } from "@/lib/actividades/consultas";
+import { puede } from "@/lib/equipo/permisos";
+import { pendientesPorMuestra } from "@/lib/expositores/consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +12,8 @@ export default async function MisMuestras({ searchParams }: { searchParams: Prom
   const usuario = await requireUsuario("/panel/muestras");
   const { enviada } = await searchParams;
   const mias = await listarMias(usuario);
+  // Sólo donde esta persona revisa expositores (el rol de textos no ve el contador).
+  const pendientes = await pendientesPorMuestra(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "exhibitors", m.rol)).map((m) => m.id));
   return (
     <main className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
@@ -32,6 +36,13 @@ export default async function MisMuestras({ searchParams }: { searchParams: Prom
                   {m.isCancelled ? ". Cancelada" : ""}
                 </p>
                 {m.reviewStatus === "REJECTED" && m.rejectionReason ? <p className="text-sm text-[var(--mf-accent)]">Motivo: {m.rejectionReason}</p> : null}
+                {pendientes.get(m.id) ? (
+                  <p className="text-sm">
+                    <Link href={`/panel/muestras/${m.id}/expositores`} className="underline">
+                      {pendientes.get(m.id) === 1 ? "1 obra para revisar" : `${pendientes.get(m.id)} obras para revisar`}
+                    </Link>
+                  </p>
+                ) : null}
               </div>
               <span className="text-sm">{REVIEW_STATUS_LABELS[m.reviewStatus as ReviewStatus]}</span>
             </li>

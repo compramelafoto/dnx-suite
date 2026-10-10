@@ -11,6 +11,7 @@ vi.mock("@/lib/redes/pdf", () => pdf);
 const { GET } = await import("@/app/api/redes/[id]/route");
 const { conPermiso } = await import("@/lib/equipo/permisos");
 const { LIMITES, resetRateLimit } = await import("@/lib/limite");
+const { visibilityFromPreset, visibleWorks } = await import("@repo/muestras");
 
 const co = { id: 2, esSuperAdmin: false, email: "co@x.com", name: "Co" };
 const DIA = 86_400_000;
@@ -23,9 +24,10 @@ const muestra = (extra: Record<string, unknown> = {}) => ({
   // 19 h argentinas: tiene hora.
   openingAt: new Date(Math.floor((Date.now() + 5 * DIA) / DIA) * DIA + 22 * 3600_000), openingEndsAt: null,
   venueName: "Parque España", city: "Rosario", province: "Santa Fe", coverImageUrl: "https://pub-test.r2.dev/muestras/a1/p.webp",
+  galleryMode: "FULL", visibility: null,
   works: [
-    { id: "w1", title: "Uno", authorName: "Ana", year: 2025, imageUrl: "https://pub-test.r2.dev/w1.webp", isHighlight: false },
-    { id: "w2", title: "Dos", authorName: "Beto", year: null, imageUrl: "https://pub-test.r2.dev/w2.webp", isHighlight: true },
+    { id: "w1", title: "Uno", authorName: "Ana", year: 2025, imageUrl: "https://pub-test.r2.dev/w1.webp", isHighlight: false, sortOrder: 0 },
+    { id: "w2", title: "Dos", authorName: "Beto", year: null, imageUrl: "https://pub-test.r2.dev/w2.webp", isHighlight: true, sortOrder: 1 },
   ],
   ...extra,
 });
@@ -135,5 +137,50 @@ describe("GET /api/redes/[id]", () => {
   it("freno → 429", async () => {
     for (let i = 0; i < LIMITES.redes.limit; i++) expect((await GET(pedido("a1", "?formato=post&variante=inaugura"), ctx("a1"))).status).toBe(200);
     expect((await GET(pedido("a1", "?formato=post&variante=inaugura"), ctx("a1"))).status).toBe(429);
+  });
+
+  describe("la sorpresa de la muestra (etapa 6)", () => {
+    const muchas = Array.from({ length: 10 }, (_, i) => ({
+      id: `o${i}`, title: `Obra ${i}`, authorName: "Ana", year: null, imageUrl: `https://pub-test.r2.dev/o${i}.webp`, isHighlight: false, sortOrder: i,
+    }));
+
+    it("'Sorpresa total': no hay Obra destacada, con el motivo", async () => {
+      db.culturalActivity.findFirst.mockResolvedValue(muestra({ works: muchas, visibility: visibilityFromPreset("SURPRISE", "s") }));
+      const r = await GET(pedido("a1", "?formato=post&variante=obra"), ctx("a1"));
+      expect(r.status).toBe(404);
+      expect(await r.text()).toBe("Con 'Sorpresa total' no se difunden obras de la sala: usá 'Inaugura' o 'Invitación'.");
+      expect((await GET(pedido("a1", "?formato=post&variante=obra&obra=o3"), ctx("a1"))).status).toBe(404);
+      expect(componer.armarPiezaRedes).not.toHaveBeenCalled();
+    });
+
+    it("'Adelanto': sólo las 3 que se ven online; una oculta pedida a mano → 404", async () => {
+      const ajuste = visibilityFromPreset("PREVIEW", "semilla-fija");
+      const m = muestra({ works: muchas, visibility: ajuste });
+      db.culturalActivity.findFirst.mockResolvedValue(m);
+      const visibles = visibleWorks(m, muchas, new Date()).works.map((w) => w.id);
+      expect(visibles).toHaveLength(3);
+      for (const w of muchas) {
+        const r = await GET(pedido("a1", `?formato=post&variante=obra&obra=${w.id}`), ctx("a1"));
+        expect(r.status).toBe(visibles.includes(w.id) ? 200 : 404);
+      }
+      expect(componer.armarPiezaRedes).toHaveBeenCalledTimes(3);
+      // Sin obra pedida, una de las visibles.
+      await GET(pedido("a1", "?formato=post&variante=obra"), ctx("a1"));
+      expect(visibles).toContain(componer.armarPiezaRedes.mock.calls[3]![0].obra.id);
+    });
+
+    it("'cambian para cada visitante': quien organiza puede difundir cualquier obra expuesta (D23, D39)", async () => {
+      const ajuste = { ...visibilityFromPreset("PREVIEW", "s"), preset: "CUSTOM", online: { exhibited: "RANDOM", randomCount: 3, rotation: "PER_VISIT", seed: "s", artists: true } };
+      db.culturalActivity.findFirst.mockResolvedValue(muestra({ works: muchas, visibility: ajuste }));
+      const r = await GET(pedido("a1", `?formato=post&variante=obra&obra=${muchas[muchas.length - 1]!.id}`), ctx("a1"));
+      expect(r.status).toBe(200);
+      expect(componer.armarPiezaRedes.mock.calls[0]![0].obra.id).toBe(muchas[muchas.length - 1]!.id);
+    });
+
+    it("muestra sin ajuste con destacadas: como hasta hoy, sólo las destacadas mientras está abierta", async () => {
+      db.culturalActivity.findFirst.mockResolvedValue(muestra({ galleryMode: "HIGHLIGHTS_UNTIL_CLOSED" }));
+      expect((await GET(pedido("a1", "?formato=post&variante=obra&obra=w1"), ctx("a1"))).status).toBe(404);
+      expect((await GET(pedido("a1", "?formato=post&variante=obra&obra=w2"), ctx("a1"))).status).toBe(200);
+    });
   });
 });

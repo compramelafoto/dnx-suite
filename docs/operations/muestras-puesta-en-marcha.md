@@ -212,3 +212,32 @@ Cómo probarlo de punta a punta:
 - **Piezas para redes** (Panel → Difusión): posteo, historia y cuadrado con las variantes Inaugura,
   Últimos días, Obra destacada e Invitación, más la invitación en PDF A6 y A5. Sólo con la muestra
   publicada. Usan la fuente Roboto (Apache 2.0) incluida en `apps/muestras/assets/fonts`.
+
+## Etapa 6 — expositores por enlace y sorpresa de la muestra
+
+- **Migración:** `20261031120000_muestras_etapa_6_expositores` ya está aplicada y registrada en la
+  base de producción (columna `visibility` en `CulturalActivity` y seis tablas nuevas de expositores,
+  portfolio y sala). No hay que correr nada.
+- **Enlace de expositores** (Panel → la muestra → Expositores): un enlace por muestra para que los
+  artistas ya elegidos se den de alta con Google, completen su perfil, acepten los derechos y carguen
+  sus obras (la foto que se cuelga y todos sus datos). La organización aprueba o pide cambios; lo
+  aprobado entra a la galería, las fichas, el catálogo y el plano.
+- **Visibilidad** (Panel → la muestra → Visibilidad): qué se ve según por dónde se entra — página
+  online (todas, destacadas, N al azar fijas / diarias / por visitante, o ninguna), perfil del
+  artista y QR de la sala. Presets: Adelanto, Sorpresa total, Destacadas, Todo a la vista.
+- **Portfolio del artista** (hasta 60 fotos): son las obras que no se cuelgan; se ven en su perfil y
+  en "Artistas" de cada muestra.
+- **QR de sala:** las fichas nuevas llevan `/q/s/<código>`. Al escanear, la persona tiene un pase de
+  8 horas (cookie firmada) para ver esa obra, el artista, sus otras obras, sus muestras y
+  "Adquirir obra" (hoy: "La venta de esta obra todavía no está disponible"). Hay que **reimprimir las
+  fichas** para usarlo. Desde Visibilidad se pueden cortar los accesos o cambiar los códigos.
+- **Sin tope de 40 obras:** el máximo técnico es 300; los marcos con foto se bajan por tandas de 40 y
+  `/api/piezas` usa `maxDuration = 300` (el equipo de Vercel ya usa funciones largas en CLF).
+
+Cómo probarlo de punta a punta:
+
+1. En una muestra publicada con sala, elegir la visibilidad y generar el enlace de expositores.
+2. Con otra cuenta, abrir el enlace, darse de alta, cargar una obra y enviarla.
+3. Aprobarla desde Expositores y ver que entra a la galería.
+4. Bajar las fichas, escanear el QR con el celular y ver la vista de sala y "Adquirir obra".
+5. Abrir la muestra online en una ventana privada y confirmar que respeta la sorpresa.

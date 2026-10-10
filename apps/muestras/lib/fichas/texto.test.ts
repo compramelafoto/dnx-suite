@@ -42,4 +42,18 @@ describe("datosDeFicha", () => {
     const f = datosDeFicha({ title: "M", slug: "m" }, { id: "w", title: "T", authorName: " ", year: null, technique: null }, "https://x.com");
     expect([f.autor, f.detalle]).toEqual(["Autor sin indicar", null]);
   });
+  it("con código de sala, el QR va a /q/s/<código> y lleva el detalle del expositor", () => {
+    const f = datosDeFicha(
+      { title: "M", slug: "m" },
+      { id: "w1", title: "Silos", authorName: "Ema", year: 2024, technique: "Giclée" },
+      "https://muestrasfotograficas.com",
+      { codigo: "abcdefghjkmn", detalle: "2024. Giclée. 40 × 60 cm. Edición 2/10" },
+    );
+    expect(f.url).toBe("https://muestrasfotograficas.com/q/s/abcdefghjkmn");
+    expect(f.detalle).toBe("2024. Giclée. 40 × 60 cm. Edición 2/10");
+  });
+  it("sin código, el QR sigue yendo a /q/o/<id>", () => {
+    const f = datosDeFicha({ title: "M", slug: "m" }, { id: "w1", title: "T", authorName: "A", year: null, technique: null }, "https://x.com", { codigo: null });
+    expect(f.url).toBe("https://x.com/q/o/w1");
+  });
 });

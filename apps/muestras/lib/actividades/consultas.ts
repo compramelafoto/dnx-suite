@@ -29,14 +29,31 @@ export function listarPublicas() {
   });
 }
 
-/** Publicada, con sus obras y el perfil de cada autor. `cache`: metadatos y página la piden juntos. */
+/**
+ * Publicada, con sus obras, su ajuste de sorpresa (`visibility`) y el perfil de cada autor. Lo que se
+ * muestra de las obras lo decide `visibleWorks`/`workAccess`. `cache`: metadatos y página la piden juntos.
+ */
 export const buscarPorSlug = cache((slug: string) =>
   prisma.culturalActivity.findFirst({
     where: { slug, reviewStatus: "APPROVED" },
     include: {
       works: {
         orderBy: { sortOrder: "asc" },
-        include: { authorProfile: { select: { slug: true, displayName: true } } },
+        include: {
+          // "Artistas" (etapa 6): biografía y las primeras fotos del portfolio. Nunca obras expuestas.
+          authorProfile: {
+            select: {
+              id: true, slug: true, displayName: true, bio: true, city: true, province: true, avatarUrl: true,
+              portfolio: {
+                orderBy: { sortOrder: "asc" }, take: 8,
+                select: { id: true, imageUrl: true, title: true, year: true, technique: true, caption: true, sortOrder: true },
+              },
+              _count: { select: { portfolio: true } },
+              // Para sacar del portfolio una foto que sea la imagen de una obra expuesta (D15).
+              works: { select: { imageUrl: true } },
+            },
+          },
+        },
       },
     },
   }),
@@ -78,7 +95,7 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       curatorialText: true, curatorCredits: true, coverImageUrl: true,
       startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, scheduleText: true, priceText: true, externalUrl: true,
       isVirtualOnly: true, venueName: true, address: true, city: true, province: true, latitude: true, longitude: true,
-      galleryMode: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
+      galleryMode: true, visibility: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
       editVersion: true, updatedAt: true, lastEditedByUserId: true, lastEditedAt: true, lastEditedPart: true,
       proposedByUserId: true, workspaceId: true,
       works: {
@@ -89,12 +106,17 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
         },
       },
       members: miFila(usuario),
+      // Obras que cargó un expositor (etapa 6, D9): el editor no cambia su imagen ni su autor.
+      exhibitorWorks: { where: { activityWorkId: { not: null } }, select: { activityWorkId: true } },
     },
   });
   if (!a) return null;
-  const { members, proposedByUserId, workspaceId, ...actividad } = a;
+  // El ajuste de sorpresa no viaja al formulario (lleva la semilla del sorteo): va aparte.
+  const { members, proposedByUserId, workspaceId, visibility, exhibitorWorks, ...resto } = a;
+  const actividad = { ...resto, exhibitorWorkIds: exhibitorWorks.flatMap((e) => (e.activityWorkId ? [e.activityWorkId] : [])) };
   return {
     actividad,
+    visibilidad: { visibility, galleryMode: a.galleryMode },
     rol: activityRole({ proposedByUserId, members }, usuario.id),
     reglas: { reviewStatus: a.reviewStatus, proposedByUserId, workspaceId, isCancelled: a.isCancelled },
   };

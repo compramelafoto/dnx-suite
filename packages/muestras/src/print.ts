@@ -206,3 +206,28 @@ export function authorIndex(entries: ReadonlyArray<{ authorName: string; page: n
   for (const g of orden) g.pages.sort((a, b) => a - b);
   return sinAutor.length ? [...orden, { author: NO_AUTHOR, pages: sinAutor.sort((a, b) => a - b) }] : orden;
 }
+
+/**
+ * Marcos con foto por tandas (etapa 6, spec D18): con muchas obras, un PDF de todas tardaría más
+ * que una función. De a 40, cada tanda tarda lo mismo que el PDF completo de antes.
+ */
+export const FRAME_BATCH_SIZE = 40;
+
+/** Las tandas de marcos de una muestra: `n` desde 1 y las obras `from` a `to` (desde 1). */
+export function frameBatches(total: number): { n: number; from: number; to: number }[] {
+  const out: { n: number; from: number; to: number }[] = [];
+  for (let from = 1, n = 1; from <= total; from += FRAME_BATCH_SIZE, n += 1) {
+    out.push({ n, from, to: Math.min(total, from + FRAME_BATCH_SIZE - 1) });
+  }
+  return out;
+}
+
+/**
+ * Lado largo de las imágenes del catálogo según cuántas obras tiene: con muchas, más chicas para
+ * que el PDF se arme a tiempo y no pese de más. En A5 a 300 ppp, 800 px alcanzan para la caja.
+ */
+export function catalogImageSize(count: number): 1400 | 1000 | 800 {
+  if (count <= 60) return 1400;
+  if (count <= 150) return 1000;
+  return 800;
+}

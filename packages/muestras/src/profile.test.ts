@@ -75,7 +75,7 @@ describe("vínculo de una obra con un perfil", () => {
 });
 
 describe("obras de un perfil en una muestra", () => {
-  const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
+  const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: null as unknown, startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
   const obras = [
     { id: "w1", isHighlight: true, sortOrder: 0, authorProfileId: "p" },
     { id: "w2", isHighlight: false, sortOrder: 1, authorProfileId: "p" },
@@ -90,6 +90,21 @@ describe("obras de un perfil en una muestra", () => {
     const r = profileWorksInActivity(a, obras, "p", new Date("2026-11-25T15:00:00Z"));
     expect(r.visible.map((w) => w.id)).toEqual(["w1", "w2"]);
     expect(r.hiddenCount).toBe(0);
+  });
+  it("sorpresa total: ninguna de la sala, sólo se cuentan", () => {
+    const r = profileWorksInActivity({ ...a, visibility: { v: 1, online: { exhibited: "NONE" } } }, obras, "p", new Date("2026-11-10T15:00:00Z"));
+    expect(r).toEqual({ visible: [], hiddenCount: 2 });
+  });
+  it("para cada visitante: ninguna en el perfil", () => {
+    const v = { v: 1, online: { exhibited: "RANDOM", randomCount: 1, rotation: "PER_VISIT", seed: "s" } };
+    expect(profileWorksInActivity({ ...a, visibility: v }, obras, "p", new Date("2026-11-10T15:00:00Z")).visible).toEqual([]);
+  });
+  it("perfil sin expuestas aunque online se vean todas", () => {
+    const v = { v: 1, online: { exhibited: "ALL" }, profile: { exhibited: "NONE" } };
+    const r = profileWorksInActivity({ ...a, visibility: v }, obras, "p", new Date("2026-11-10T15:00:00Z"));
+    expect(r).toEqual({ visible: [], hiddenCount: 2 });
+    // Al cerrar (si se revela todo) vuelven a verse.
+    expect(profileWorksInActivity({ ...a, visibility: v }, obras, "p", new Date("2026-11-25T15:00:00Z")).visible).toHaveLength(2);
   });
 });
 

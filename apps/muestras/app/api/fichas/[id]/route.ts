@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { cargarFichas } from "@/lib/fichas/cargar";
 import { esTamanoFicha, pdfDeFichas } from "@/lib/fichas/pdf";
+import { entregarPdfDirecto } from "@/lib/piezas/entregar";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Con 300 obras (el tope técnico) las fichas son 300 páginas sin fotos: entran holgadas en un minuto.
+export const maxDuration = 60;
 
 /** PDF de fichas de sala: todas (`?tamano=A6`) o una (`&obra=<id>`). Sólo dueño o super admin. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,13 +27,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!datos) return NextResponse.json({ error: "No encontramos esa muestra publicada entre las tuyas." }, { status: 404 });
   try {
     const pdf = await pdfDeFichas(datos.fichas, tamano);
-    // El slug sólo tiene a-z, 0-9 y guiones: va seguro en la cabecera.
-    return new Response(pdf as BodyInit, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${datos.nombre}-${tamano}.pdf"`,
-        "Cache-Control": "private, no-store",
-      },
+    // Siempre directo, nunca a R2: las fichas llevan los códigos del pase de sala, y una dirección
+    // pública del bucket no vence. Sin fotos, 300 fichas pesan muy por debajo del tope.
+    return entregarPdfDirecto(pdf, {
+      nombre: `${datos.nombre}-${tamano}`,
+      siPesaMucho: "El PDF de fichas es muy pesado. Bajá las fichas de a una obra desde Montaje.",
     });
   } catch (err) {
     console.error("GET /api/fichas:", err instanceof Error ? err.message : String(err));

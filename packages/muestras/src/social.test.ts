@@ -15,22 +15,26 @@ const a = {
 
 describe("qué variantes hay", () => {
   it("antes de inaugurar, todas", () => {
-    expect(availableSocialVariants(a, new Date("2026-11-10T12:00:00Z"))).toEqual(["OPENING", "LAST_DAYS", "WORK", "INVITATION"]);
+    expect(availableSocialVariants(a, new Date("2026-11-10T12:00:00Z"), 12)).toEqual(["OPENING", "LAST_DAYS", "WORK", "INVITATION"]);
   });
   it("ya inaugurada: sin Inaugura ni Invitación; cerrada: sólo Obra", () => {
-    expect(availableSocialVariants(a, new Date("2026-11-20T12:00:00Z"))).toEqual(["LAST_DAYS", "WORK"]);
-    expect(availableSocialVariants(a, new Date("2026-12-05T12:00:00Z"))).toEqual(["WORK"]);
+    expect(availableSocialVariants(a, new Date("2026-11-20T12:00:00Z"), 12)).toEqual(["LAST_DAYS", "WORK"]);
+    expect(availableSocialVariants(a, new Date("2026-12-05T12:00:00Z"), 12)).toEqual(["WORK"]);
   });
   it("sin publicar o cancelada: nada; sin obras: sin Obra; sin hora: sin Invitación", () => {
-    expect(availableSocialVariants({ ...a, reviewStatus: "IN_REVIEW" }, new Date("2026-11-10T12:00:00Z"))).toEqual([]);
-    expect(availableSocialVariants({ ...a, isCancelled: true }, new Date("2026-11-10T12:00:00Z"))).toEqual([]);
-    expect(availableSocialVariants({ ...a, worksCount: 0 }, new Date("2026-11-10T12:00:00Z"))).not.toContain("WORK");
-    expect(availableSocialVariants({ ...a, openingAt: dayStartAr("2026-11-14") }, new Date("2026-11-10T12:00:00Z"))).toEqual(["OPENING", "LAST_DAYS", "WORK"]);
+    expect(availableSocialVariants({ ...a, reviewStatus: "IN_REVIEW" }, new Date("2026-11-10T12:00:00Z"), 12)).toEqual([]);
+    expect(availableSocialVariants({ ...a, isCancelled: true }, new Date("2026-11-10T12:00:00Z"), 12)).toEqual([]);
+    expect(availableSocialVariants({ ...a, worksCount: 0 }, new Date("2026-11-10T12:00:00Z"), 0)).not.toContain("WORK");
+    // Con obras en la sala pero ninguna visible online (sorpresa), tampoco hay "Obra destacada".
+    expect(availableSocialVariants(a, new Date("2026-11-10T12:00:00Z"), 0)).not.toContain("WORK");
+    expect(availableSocialVariants(a, new Date("2026-11-10T12:00:00Z"), 3)).toContain("WORK");
+    expect(recommendedVariant(a, new Date("2026-11-18T12:00:00Z"), 0)).toBe("LAST_DAYS");
+    expect(availableSocialVariants({ ...a, openingAt: dayStartAr("2026-11-14") }, new Date("2026-11-10T12:00:00Z"), 12)).toEqual(["OPENING", "LAST_DAYS", "WORK"]);
   });
   it("la recomendada según la fecha", () => {
-    expect(recommendedVariant(a, new Date("2026-11-10T12:00:00Z"))).toBe("OPENING");
-    expect(recommendedVariant(a, new Date("2026-11-26T12:00:00Z"))).toBe("LAST_DAYS");
-    expect(recommendedVariant(a, new Date("2026-11-18T12:00:00Z"))).toBe("WORK");
+    expect(recommendedVariant(a, new Date("2026-11-10T12:00:00Z"), 12)).toBe("OPENING");
+    expect(recommendedVariant(a, new Date("2026-11-26T12:00:00Z"), 12)).toBe("LAST_DAYS");
+    expect(recommendedVariant(a, new Date("2026-11-18T12:00:00Z"), 12)).toBe("WORK");
   });
   it("A6 y A5 sólo para la invitación", () => {
     expect(isFormatAllowed("INVITATION", "A6")).toBe(true);

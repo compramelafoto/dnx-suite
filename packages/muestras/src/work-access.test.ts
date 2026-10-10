@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import { neighborWorks, workAccess, workPath, workUrl } from "./work-access";
 
-const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
+const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: null as unknown, startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
 const obras = [
   { id: "w1", isHighlight: true, sortOrder: 0 },
   { id: "w2", isHighlight: false, sortOrder: 1 },
@@ -42,4 +42,15 @@ describe("anterior y siguiente", () => {
     expect(neighborWorks(v, "c")).toEqual({ prev: { id: "b" }, next: null });
   });
   it("si la obra no está entre las visibles, ninguna", () => expect(neighborWorks(v, "z")).toEqual({ prev: null, next: null }));
+});
+
+describe("acceso a una obra con la sorpresa (etapa 6)", () => {
+  it("sorpresa total: toda obra es sólo ficha mientras está abierta", () => {
+    expect(workAccess({ ...a, visibility: { v: 1, online: { exhibited: "NONE" } } }, obras, "w1", abierta)).toBe("TEASER");
+  });
+  it("para cada visitante: toda obra expuesta es sólo ficha mientras está abierta", () => {
+    const v = { v: 1, online: { exhibited: "RANDOM", randomCount: 1, rotation: "PER_VISIT", seed: "s" } };
+    expect(workAccess({ ...a, visibility: v }, obras, "w1", abierta)).toBe("TEASER");
+    expect(workAccess({ ...a, visibility: v }, obras, "w1", cerrada)).toBe("FULL");
+  });
 });

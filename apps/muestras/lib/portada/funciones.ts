@@ -32,7 +32,7 @@ export const PASOS_MUESTRA: PasoMuestra[] = [
   {
     titulo: "Gestioná obras y artistas",
     items: [
-      "Hasta 40 obras con título, autor, año y técnica, en el orden que elijas y con destacadas.",
+      "Todas las obras que entren en tu sala, con título, autor, año y técnica, en el orden que elijas y con destacadas.",
       "Perfil público de cada fotógrafo, con su biografía y las muestras donde expuso.",
       "Elegí obra por obra qué se cuelga, qué se imprime y qué se vende.",
       "Cada autor autoriza la exhibición y la venta con un clic.",

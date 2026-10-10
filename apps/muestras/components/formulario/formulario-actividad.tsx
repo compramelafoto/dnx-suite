@@ -17,7 +17,11 @@ export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarPara
 
 const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2";
 
-export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }) {
+/**
+ * `visibilidad`: con la sorpresa cargada (etapa 6), qué obras se ven online lo decide Visibilidad: la
+ * casilla "Mostrar todas" se reemplaza por un enlace y el texto dice lo que eligió quien organiza.
+ */
+export function FormularioActividad({ inicial, visibilidad }: { inicial?: ActividadEditable; visibilidad?: { conAjuste: boolean; queSeVe: string; enlace: string | null } }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
   const [errores, setErrores] = useState<string[]>([]);
@@ -147,12 +151,21 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       {tipo === "MUESTRA" ? (
         <fieldset className="space-y-3">
           <legend className="text-lg">Obras de la muestra</legend>
-          <p className="text-sm text-[var(--mf-muted)]">Mientras la muestra está abierta, la ficha muestra sólo las destacadas: un anticipo online para invitar a la visita. Cuando cierra, quedan todas como archivo de la muestra.</p>
-          <EditorObras obras={obras} onCambio={setObras} />
-          <label className="flex items-center gap-2">
-            <input type="checkbox" name="galleryMode" value="FULL" defaultChecked={inicial?.galleryMode === "FULL"} />
-            Mostrar todas las obras online desde el primer día
-          </label>
+          <p className="text-sm text-[var(--mf-muted)]">
+            {visibilidad?.queSeVe ?? "Mientras la muestra está abierta, la ficha muestra sólo las destacadas: un anticipo online para invitar a la visita. Cuando cierra, quedan todas como archivo de la muestra."}
+          </p>
+          <EditorObras obras={obras} onCambio={setObras} deExpositor={inicial?.exhibitorWorkIds} queSeVe={visibilidad?.conAjuste ? "Qué obras se ven online lo elegís en Visibilidad." : inicial?.galleryMode === "FULL" ? "El público ve todas las obras online." : undefined} />
+          {visibilidad?.conAjuste ? (
+            <p className="text-[15px]">
+              Qué obras se ven online lo elegís en{" "}
+              {visibilidad.enlace ? <a href={visibilidad.enlace} className="underline underline-offset-4">Visibilidad</a> : "Visibilidad"}.
+            </p>
+          ) : (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="galleryMode" value="FULL" defaultChecked={inicial?.galleryMode === "FULL"} />
+              Mostrar todas las obras online desde el primer día
+            </label>
+          )}
           <label className="flex items-start gap-2">
             <input type="checkbox" name="rightsConfirmed" defaultChecked={inicial?.rightsConfirmedAt != null} />
             Confirmo que tengo autorización de los autores para publicar estas imágenes, y que cada una lleva su crédito.

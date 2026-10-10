@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { pdfDeCatalogo, renglonesDelIndice } from "./catalogo";
 import { MM } from "./dibujo";
+import { obraDeCatalogo } from "./textos";
 
 const foto = async () => ({
   jpg: new Uint8Array(await sharp({ create: { width: 120, height: 80, channels: 3, background: "#777777" } }).jpeg().toBuffer()),
@@ -74,5 +75,23 @@ describe("índice de autores", () => {
     const a = await pdfDeCatalogo(d, "A5", fecha);
     const b2 = await pdfDeCatalogo(d, "A5", fecha);
     expect(Buffer.from(a).equals(Buffer.from(b2))).toBe(true);
+  });
+});
+
+describe("obras de expositores en el catálogo (etapa 6)", () => {
+  const ex = { imageWidthCm: 40, imageHeightCm: 60.5, edition: "LIMITED", editionNumber: 2, editionSize: 10, statement: "Una serie sobre el río.", priceArs: 120000 };
+  it("suma medidas, edición y el texto de la obra; el texto armado no contiene el precio", () => {
+    const o = obraDeCatalogo({ title: "Silos", authorName: "Ema", year: 2024, technique: "Giclée" }, ex);
+    expect(o).toEqual({ titulo: "Silos", autor: "Ema", detalle: "2024. Giclée. 40 × 60,5 cm. Edición 2/10", texto: "Una serie sobre el río." });
+    expect(JSON.stringify(o)).not.toMatch(/120[.]?000/);
+  });
+  it("sin datos de expositor, como antes", () => {
+    expect(obraDeCatalogo({ title: "T", authorName: "A", year: 2020, technique: null })).toEqual({ titulo: "T", autor: "A", detalle: "2020", texto: null });
+  });
+  it("el PDF se arma con el texto de la obra", async () => {
+    const d = await base();
+    const primera = { ...d.obras[0]!, ...obraDeCatalogo({ title: "Uno", authorName: "Zoe Ruiz", year: 2025, technique: "Giclée" }, { ...ex, statement: "Texto largo. ".repeat(80) }) };
+    const doc = await PDFDocument.load(await pdfDeCatalogo({ ...d, obras: [primera, ...d.obras.slice(1)] }, "A5", fecha));
+    expect(doc.getPageCount()).toBe(6);
   });
 });

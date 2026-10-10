@@ -6,6 +6,7 @@ import { activityRole, canEditTexts, type ReviewStatus } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
+import { copiarTextosAExpositores } from "@/lib/expositores/copiar";
 import { frenarPorUsuario } from "@/lib/limite";
 import type { ResultadoAccion } from "./acciones";
 import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
@@ -64,8 +65,21 @@ export async function guardarTextos(fd: FormData): Promise<ResultadoAccion> {
           ...datosDeCambio(usuario.id, "TEXTOS"),
         },
       });
+      // Los textos de antes, para copiar a quien expone sólo lo que cambió (D9).
+      const antes = obras.length
+        ? await tx.culturalActivityWork.findMany({ where: { activityId: id, id: { in: obras.map((o) => o.id) } }, select: { id: true, title: true, year: true, technique: true } })
+        : [];
       for (const o of obras) {
         await tx.culturalActivityWork.updateMany({ where: { id: o.id, activityId: id }, data: { title: o.title, year: o.year, technique: o.technique } });
+      }
+      // Las que cargó un expositor: quien expone ve el mismo título que se imprime (etapa 6, D9).
+      if (obras.length) {
+        const expositoras = await tx.culturalExhibitorWork.findMany({
+          where: { activityId: id, activityWorkId: { in: obras.map((o) => o.id) } },
+          select: { id: true, activityWorkId: true },
+        });
+        const deExpositor = new Map(expositoras.flatMap((e) => (e.activityWorkId ? [[e.activityWorkId, e.id] as const] : [])));
+        await copiarTextosAExpositores(tx, id, obras, deExpositor, new Map(antes.map((w) => [w.id, w])));
       }
     }, { timeout: 30_000, maxWait: 10_000 });
   } catch (err) {

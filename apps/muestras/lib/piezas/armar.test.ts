@@ -30,7 +30,7 @@ beforeEach(() => {
 
 describe("armarPieza", () => {
   it("marcos de todas las obras, foto en alta, una por vez, con la fecha de la muestra", async () => {
-    const r = await armarPieza(a, { pieza: "marcos", tamano: "A3", orientacion: "AUTO", conFoto: true, obra: null }, base);
+    const r = await armarPieza(a, { pieza: "marcos", tamano: "A3", orientacion: "AUTO", conFoto: true, obra: null, tanda: null }, base);
     expect(r?.nombre).toBe("marcos-miradas-abc-A3");
     expect(imagen.imagenParaPdf.mock.calls).toEqual([["u1", 2000, 88], ["u2", 2000, 88]]);
     const [, obras, , fecha] = pdfs.pdfDeMarcos.mock.calls[0]!;
@@ -38,12 +38,30 @@ describe("armarPieza", () => {
     expect(fecha).toEqual(a.updatedAt);
   });
   it("una sola obra y sólo el remarco: foto chica (sólo para la proporción)", async () => {
-    const r = await armarPieza(a, { pieza: "marcos", tamano: "A4", orientacion: "AUTO", conFoto: false, obra: "w2" }, base);
+    const r = await armarPieza(a, { pieza: "marcos", tamano: "A4", orientacion: "AUTO", conFoto: false, obra: "w2", tanda: null }, base);
     expect(r?.nombre).toBe("marcos-miradas-abc-A4-2-remarco");
     expect(imagen.imagenParaPdf.mock.calls).toEqual([["u2", 200, 88]]);
   });
   it("una obra que no es de la muestra no arma nada", async () => {
-    expect(await armarPieza(a, { pieza: "marcos", tamano: "A4", orientacion: "AUTO", conFoto: true, obra: "ajena" }, base)).toBeNull();
+    expect(await armarPieza(a, { pieza: "marcos", tamano: "A4", orientacion: "AUTO", conFoto: true, obra: "ajena", tanda: null }, base)).toBeNull();
+  });
+  it("marcos por tandas de 40 (etapa 6): la tanda 3 de 95 obras son las 81 a 95", async () => {
+    const muchas = { ...a, works: Array.from({ length: 95 }, (_, i) => ({ ...a.works[0]!, id: `w${i}`, imageUrl: `u${i}`, sortOrder: i })) };
+    const r = await armarPieza(muchas, { pieza: "marcos", tamano: "A4", orientacion: "AUTO", conFoto: true, obra: null, tanda: 3 }, base);
+    expect(r?.nombre).toBe("marcos-miradas-abc-A4-tanda-3");
+    expect(pdfs.pdfDeMarcos.mock.calls[0]![1]).toHaveLength(15);
+    expect(imagen.imagenParaPdf.mock.calls[0]).toEqual(["u80", 2000, 88]);
+    expect(await armarPieza(muchas, { pieza: "marcos", tamano: "A4", orientacion: "AUTO", conFoto: true, obra: null, tanda: 4 }, base)).toBeNull();
+  });
+  it("el catálogo pide imágenes más chicas cuantas más obras tiene", async () => {
+    const cien = { ...a, works: Array.from({ length: 100 }, (_, i) => ({ ...a.works[0]!, id: `w${i}`, imageUrl: `u${i}`, sortOrder: i })) };
+    await armarPieza(cien, { pieza: "catalogo", tamano: "A5" }, base);
+    const obras = imagen.imagenParaPdf.mock.calls.filter((c) => c[0] !== null);
+    expect(obras).toHaveLength(100);
+    expect(obras.every((c) => c[1] === 1000 && c[2] === 80)).toBe(true);
+    imagen.imagenParaPdf.mockClear();
+    await armarPieza(a, { pieza: "catalogo", tamano: "A5" }, base);
+    expect(imagen.imagenParaPdf.mock.calls.filter((c) => c[0] !== null).map((c) => c[1])).toEqual([1400, 1400]);
   });
   it("el afiche del libro lleva el QR con conteo y la dirección para escribir", async () => {
     await armarPieza(a, { pieza: "libro", tamano: "A3" }, base);

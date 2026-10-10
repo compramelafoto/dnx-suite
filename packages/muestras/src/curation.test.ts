@@ -115,9 +115,10 @@ describe("permisos de la curaduría", () => {
     expect(canViewCallImage({ ...base, status: "CURATING" })).toBe(false);
   });
   it("lugar para seleccionar", () => {
-    expect(selectionRoom(0, 0)).toBe(40);
-    expect(selectionRoom(30, 8)).toBe(2);
-    expect(selectionRoom(30, 20)).toBe(0);
+    expect(selectionRoom(0, 0)).toBe(300);
+    expect(selectionRoom(250, 40)).toBe(10);
+    expect(selectionRoom(290, 8)).toBe(2);
+    expect(selectionRoom(290, 20)).toBe(0);
   });
 });
 
@@ -147,10 +148,10 @@ describe("armar la muestra", () => {
       ["cw1", 5, true], ["cw2", 6, true], ["cw3", 7, false],
     ]);
   });
-  it("no se pasa del tope de 40", () => {
+  it("no se pasa del tope técnico de 300", () => {
     const sel = Array.from({ length: 11 }, (_, i) => src(i));
-    const msg = assemblyPlan(sel, { count: 30, highlights: 0 }).problems[0];
-    expect(msg).toMatch(/hasta 40 obras: ya tiene 30 y seleccionaste 11/);
+    const msg = assemblyPlan(sel, { count: 290, highlights: 0 }).problems[0];
+    expect(msg).toMatch(/hasta 300 obras: ya tiene 290 y seleccionaste 11/);
     expect(msg).toMatch(/quitá obras elegidas desde el editor \(no se vuelven a agregar\)/);
   });
   it("sin seleccionadas no arma nada", () => expect(assemblyPlan([], { count: 0, highlights: 0 }).problems).toEqual(["No hay obras seleccionadas."]));
@@ -177,10 +178,10 @@ describe("lo que el editor hace con la galería", () => {
   });
   it("los topes cuentan las conservadas", () => {
     const current = Array.from({ length: 5 }, (_, i) => fila(`n${i}`, i, i < 2));
-    const obras = editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 36, submittedHighlights: 0 });
-    expect(obras.problems[0]).toMatch(/se sumaron 5 obras.*quedarían 41 y el tope es 40/);
+    const obras = editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 296, submittedHighlights: 0 });
+    expect(obras.problems[0]).toMatch(/se sumaron 5 obras.*quedarían 301 y el tope es 300/);
     const destacadas = editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 10, submittedHighlights: 11 });
     expect(destacadas.problems[0]).toMatch(/quedarían 13 destacadas y el tope es 12/);
-    expect(editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 35, submittedHighlights: 10 }).problems).toEqual([]);
+    expect(editorGalleryPlan({ current, loadedIds: [], keptIds: [], submittedCount: 295, submittedHighlights: 10 }).problems).toEqual([]);
   });
 });

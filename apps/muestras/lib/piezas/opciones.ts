@@ -9,13 +9,15 @@ export type Pieza = (typeof PIEZAS)[number];
 export const PIEZAS_CON_QR: readonly Pieza[] = ["cartel", "catalogo", "libro"];
 
 export type OpcionesPieza =
-  | { pieza: "marcos"; tamano: FrameSize; orientacion: Orientation; conFoto: boolean; obra: string | null }
+  | { pieza: "marcos"; tamano: FrameSize; orientacion: Orientation; conFoto: boolean; obra: string | null; tanda: number | null }
   | { pieza: "cartel"; tamano: PosterSize }
   | { pieza: "catalogo"; tamano: CatalogSize }
   | { pieza: "libro"; tamano: GuestbookPosterSize }
   | { pieza: "montaje" };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** La tanda de marcos (`?tanda=2`, de a `FRAME_BATCH_SIZE` obras, etapa 6): un entero desde 1. */
+const TANDA = /^[1-9]\d{0,2}$/;
 
 /** Las opciones de la dirección, con valores por defecto para lo que no se entiende. */
 export function opcionesDePieza(pieza: string, sp: URLSearchParams): OpcionesPieza | null {
@@ -24,9 +26,11 @@ export function opcionesDePieza(pieza: string, sp: URLSearchParams): OpcionesPie
     case "marcos": {
       const o = sp.get("orientacion");
       const obra = sp.get("obra");
+      const tanda = sp.get("tanda");
       return {
         pieza, tamano: isFrameSize(t) ? t : "A4", orientacion: isOrientation(o) ? o : "AUTO",
         conFoto: sp.get("foto") !== "no", obra: obra && ID.test(obra) ? obra : null,
+        tanda: tanda && TANDA.test(tanda) ? Number(tanda) : null,
       };
     }
     case "cartel": return { pieza, tamano: isPosterSize(t) ? t : "A3" };
@@ -44,6 +48,7 @@ export function urlDePieza(id: string, o: OpcionesPieza): string {
     q.set("orientacion", o.orientacion);
     if (!o.conFoto) q.set("foto", "no");
     if (o.obra) q.set("obra", o.obra);
+    if (o.tanda) q.set("tanda", String(o.tanda));
   }
   const s = q.toString();
   return `/api/piezas/${encodeURIComponent(id)}/${o.pieza}${s ? `?${s}` : ""}`;

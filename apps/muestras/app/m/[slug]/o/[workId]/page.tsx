@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatArDay, neighborWorks, visibleWorks, workAccess, workPath } from "@repo/muestras";
+import { formatArDay, neighborWorks, parseVisibility, visibleWorks, workAccess, workPath } from "@repo/muestras";
 import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
@@ -18,7 +18,9 @@ async function cargar(slug: string, workId: string, ahora: Date) {
   const obra = a.works.find((w) => w.id === workId);
   const acceso = workAccess(a, a.works, workId, ahora);
   if (!obra || !acceso) return null;
-  return { a, obra, conFoto: acceso === "FULL" && esUrlWeb(obra.imageUrl) };
+  // Una obra reservada por la sorpresa (o cualquiera en "para cada visitante") queda como aviso
+  // sin imagen y `noindex`: ni la foto ni el `og:image` salen de acá.
+  return { a, obra, conFoto: acceso === "FULL" && esUrlWeb(obra.imageUrl), seRevela: parseVisibility(a.visibility, a.galleryMode).revealAfterClose };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -43,9 +45,10 @@ export default async function PaginaDeObra({ params }: Props) {
   const ahora = new Date();
   const r = await cargar(slug, workId, ahora);
   if (!r) notFound();
-  const { a, obra, conFoto } = r;
+  const { a, obra, conFoto, seRevela } = r;
   const autor = obra.authorName || "Autor sin indicar";
-  const datos = [obra.year ? String(obra.year) : null, obra.technique].filter(Boolean).join(". ");
+  // Reservada para la sala: sólo título y autor (ni año ni técnica, que la describen).
+  const datos = conFoto ? [obra.year ? String(obra.year) : null, obra.technique].filter(Boolean).join(". ") : "";
   const { prev, next } = conFoto ? neighborWorks(visibleWorks(a, a.works, ahora).works, obra.id) : { prev: null, next: null };
   const lugar = a.isVirtualOnly ? "Online" : [a.venueName, a.city].filter(Boolean).join(", ");
 
@@ -63,7 +66,7 @@ export default async function PaginaDeObra({ params }: Props) {
         </figure>
       ) : (
         <div className="flex min-h-[40vh] items-center justify-center bg-[var(--mf-surface)] p-8 text-center">
-          <p className="max-w-[36ch] text-lg leading-snug">Esta obra se ve en la sala. Cuando la muestra cierra, queda online en el archivo de la muestra.</p>
+          <p className="max-w-[36ch] text-lg leading-snug">Esta obra se ve en la sala.{seRevela ? " Cuando la muestra cierra, queda online en el archivo de la muestra." : ""}</p>
         </div>
       )}
 

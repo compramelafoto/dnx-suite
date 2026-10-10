@@ -1,5 +1,5 @@
 import "server-only";
-import { parseHangingPlan, scanUrl } from "@repo/muestras";
+import { FRAME_BATCH_SIZE, catalogImageSize, parseHangingPlan, scanUrl } from "@repo/muestras";
 import { pdfDeAficheLibro } from "./afiche-libro";
 import { pdfDeCartel } from "./cartel";
 import { pdfDeCatalogo, type ObraCatalogo } from "./catalogo";
@@ -7,24 +7,34 @@ import { imagenParaPdf } from "./imagen";
 import { pdfDeMarcos, type ObraParaMarco } from "./marco";
 import { pdfDeMontaje } from "./montaje";
 import type { OpcionesPieza } from "./opciones";
-import { autorDeObra, datosDeCartel, datosDeMontaje, detalleDeObra, nombreDePieza, urlVisible, type MuestraParaPiezas } from "./textos";
+import { autorDeObra, datosDeCartel, datosDeMontaje, detalleConExpositor, nombreDePieza, obraDeCatalogo, urlVisible, type MuestraParaPiezas } from "./textos";
 
 /**
- * Arma el PDF pedido. Las fotos se procesan **una por vez**: 40 fotos en paralelo llenarían la
- * memoria de la función. `null` = la obra pedida no es de esta muestra (o no hay obras).
+ * Arma el PDF pedido. Las fotos se procesan **una por vez**: en paralelo llenarían la memoria de la
+ * función. Los marcos con foto de una muestra grande van por tandas de `FRAME_BATCH_SIZE` y el
+ * catálogo achica las imágenes según la cantidad de obras (etapa 6, spec D18).
+ * `null` = la obra o la tanda pedida no es de esta muestra (o no hay obras).
  */
 export async function armarPieza(a: MuestraParaPiezas, o: OpcionesPieza, base: string): Promise<{ bytes: Uint8Array; nombre: string } | null> {
   const fecha = a.updatedAt;
   switch (o.pieza) {
     case "marcos": {
-      const obras = o.obra ? a.works.filter((w) => w.id === o.obra) : a.works;
+      const obras = o.obra
+        ? a.works.filter((w) => w.id === o.obra)
+        : o.tanda
+          ? a.works.slice((o.tanda - 1) * FRAME_BATCH_SIZE, o.tanda * FRAME_BATCH_SIZE)
+          : a.works;
       if (obras.length === 0) return null;
       const lista: ObraParaMarco[] = [];
       for (const w of obras) {
         // Sin foto igual se lee una chica: la ventana del remarco va a la proporción de la obra.
-        lista.push({ titulo: w.title, autor: autorDeObra(w.authorName), detalle: detalleDeObra(w), imagen: await imagenParaPdf(w.imageUrl, o.conFoto ? 2000 : 200, 88) });
+        lista.push({ titulo: w.title, autor: autorDeObra(w.authorName), detalle: detalleConExpositor(w, a.expositores?.get(w.id)), imagen: await imagenParaPdf(w.imageUrl, o.conFoto ? 2000 : 200, 88) });
       }
-      const extra = [o.tamano, ...(o.obra ? [String(obras[0]!.sortOrder + 1)] : []), ...(o.conFoto ? [] : ["remarco"])];
+      const extra = [
+        o.tamano,
+        ...(o.obra ? [String(obras[0]!.sortOrder + 1)] : o.tanda ? [`tanda-${o.tanda}`] : []),
+        ...(o.conFoto ? [] : ["remarco"]),
+      ];
       return { bytes: await pdfDeMarcos(a.title, lista, o, fecha), nombre: nombreDePieza("marcos", a.slug, extra) };
     }
     case "cartel":
@@ -32,8 +42,9 @@ export async function armarPieza(a: MuestraParaPiezas, o: OpcionesPieza, base: s
     case "catalogo": {
       if (a.works.length === 0) return null;
       const obras: ObraCatalogo[] = [];
+      const lado = catalogImageSize(a.works.length);
       for (const w of a.works) {
-        obras.push({ titulo: w.title, autor: w.authorName, detalle: detalleDeObra(w), imagen: await imagenParaPdf(w.imageUrl, 1400, 80) });
+        obras.push({ ...obraDeCatalogo(w, a.expositores?.get(w.id)), imagen: await imagenParaPdf(w.imageUrl, lado, 80) });
       }
       const datos = { ...datosDeCartel(a, base), urlVisible: urlVisible(base, `/m/${a.slug}`), portada: await imagenParaPdf(a.coverImageUrl, 1600, 82), obras };
       return { bytes: await pdfDeCatalogo(datos, o.tamano, fecha), nombre: nombreDePieza("catalogo", a.slug, [o.tamano]) };
