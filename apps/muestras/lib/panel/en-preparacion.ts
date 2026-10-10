@@ -17,23 +17,7 @@ export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>
       "Cada autor acepta la venta y el reparto con un clic.",
       "Seguimiento de cada impresión hasta la entrega.",
       "Ediciones limitadas y numeradas, con certificado y QR de autenticidad.",
-    ],
-  },
-  estadisticas: {
-    titulo: "Estadísticas",
-    bajada: "Cuánta gente escanea los QR de la sala, mira la ficha de tu muestra y compra.",
-    puntos: [
-      "Escaneos de los QR de las fichas de sala, obra por obra.",
-      "Visitas a la ficha de la muestra y a cada obra.",
-      "Ventas por obra y por autor.",
-      "Libro de visitas digital con los comentarios del público.",
+      "Ventas por obra y por autor, junto con las visitas y los escaneos.",
     ],
   },
 };
-
-/** Lo que Montaje e impresión todavía no tiene (las fichas con QR ya están). */
-export const MONTAJE_EN_PREPARACION: string[] = [
-  "Marcos y remarcos con plantilla, con título y autor.",
-  "Cartel con el texto curatorial y catálogo de la muestra en PDF.",
-  "Plano y lista de montaje: qué obra va en cada pared, con medidas.",
-];

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ACTIVITY_TYPE_LABELS, formatArDay, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
+import { ACTIVITY_TYPE_LABELS, formatArDay, guestbookState, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
+import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { Galeria } from "@/components/ficha/galeria";
+import { UltimosComentarios } from "@/components/libro/ultimos-comentarios";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
+import { entradasPublicadas } from "@/lib/libro/consultas";
 import { esUrlWeb } from "@/lib/url";
 
 export const revalidate = 300;
@@ -30,12 +33,16 @@ export default async function Ficha({ params }: Props) {
   const works = todas
     .filter((w) => esUrlWeb(w.imageUrl))
     .map(({ id, imageUrl, title, authorName, year, technique }) => ({ id, imageUrl, title, authorName, year, technique }));
+  // Libro de visitas: sólo en muestras publicadas; cerrado o apagado, se ven los comentarios que ya hay.
+  const libro = a.type === "MUESTRA" ? guestbookState(a, ahora) : "UNAVAILABLE";
+  const ultimas = libro === "UNAVAILABLE" ? [] : await entradasPublicadas(a.id, 6);
   const mapa = a.latitude != null && a.longitude != null
     ? `https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`
     : null;
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+      <ContarVisita actividad={a.id} />
       <Link href="/" className="text-sm text-[var(--mf-accent)] underline underline-offset-4">Volver a todas las muestras</Link>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {esUrlWeb(a.coverImageUrl) ? <img src={a.coverImageUrl} alt="" className="max-h-[60vh] w-full rounded-[2px] object-cover" /> : null}
@@ -56,7 +63,15 @@ export default async function Ficha({ params }: Props) {
         {esUrlWeb(a.externalUrl) ? <div className="sm:col-span-2"><a href={a.externalUrl} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Más información</a></div> : null}
       </dl>
       <div className="whitespace-pre-line">{a.description}</div>
+      {a.type === "MUESTRA" && a.curatorialText ? (
+        <section aria-labelledby="t-curatorial" className="space-y-3 border-t border-[var(--mf-line)] pt-6">
+          <h2 id="t-curatorial" className="mf-titulo text-[1.6rem]">Texto curatorial</h2>
+          <div className="max-w-[68ch] whitespace-pre-line leading-relaxed">{a.curatorialText}</div>
+          {a.curatorCredits ? <p className="text-[var(--mf-muted)]">{a.curatorCredits}</p> : null}
+        </section>
+      ) : null}
       {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} cerrada={temporalStatus(a, ahora) === "CLOSED"} slug={a.slug} /> : null}
+      {libro !== "UNAVAILABLE" ? <UltimosComentarios slug={a.slug} entradas={ultimas} abierto={libro === "OPEN"} /> : null}
     </main>
   );
 }

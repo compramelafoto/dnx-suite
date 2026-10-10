@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatArDay, neighborWorks, visibleWorks, workAccess, workPath } from "@repo/muestras";
+import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
 import { esUrlWeb } from "@/lib/url";
@@ -50,6 +51,7 @@ export default async function PaginaDeObra({ params }: Props) {
 
   return (
     <main className="mf-marco space-y-8 py-8 sm:py-12">
+      <ContarVisita actividad={a.id} obra={obra.id} />
       <Link href={`/m/${a.slug}`} className="text-sm text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">
         Volver a la muestra
       </Link>

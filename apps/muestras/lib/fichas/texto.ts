@@ -1,4 +1,4 @@
-import { workUrl } from "@repo/muestras";
+import { scanUrl } from "@repo/muestras";
 
 /** Lo que va impreso en la ficha de una obra. */
 export type FichaDeObra = { muestra: string; titulo: string; autor: string; detalle: string | null; url: string };
@@ -62,6 +62,10 @@ export function cortarEnLineas(texto: string, anchoMax: number, medir: (s: strin
   return recortadas;
 }
 
+/**
+ * El QR pasa por `/q/o/<obra>`, que cuenta el escaneo y redirige a la página de la obra (etapa 4).
+ * Las fichas impresas antes siguen apuntando directo a la obra y siguen andando.
+ */
 export function datosDeFicha(
   a: { title: string; slug: string },
   o: { id: string; title: string; authorName: string; year: number | null; technique: string | null },
@@ -73,6 +77,6 @@ export function datosDeFicha(
     titulo: o.title,
     autor: o.authorName.trim() || "Autor sin indicar",
     detalle: detalle || null,
-    url: workUrl(baseUrl, a.slug, o.id),
+    url: scanUrl(baseUrl, "o", o.id),
   };
 }

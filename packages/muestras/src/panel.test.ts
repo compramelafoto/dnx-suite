@@ -29,6 +29,7 @@ describe("secciones del panel", () => {
   it("upcomingSection devuelve sólo las que están en preparación", () => {
     expect(upcomingSection("ventas")?.label).toBe("Ventas");
     expect(upcomingSection("montaje")).toBeNull();
+    expect(upcomingSection("estadisticas")).toBeNull();
     expect(upcomingSection("convocatorias")).toBeNull();
     expect(upcomingSection("curaduria")).toBeNull();
     expect(upcomingSection("envios")).toBeNull();

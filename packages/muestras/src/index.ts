@@ -10,3 +10,7 @@ export * from "./work-access";
 export * from "./profile";
 export * from "./call";
 export * from "./curation";
+export * from "./print";
+export * from "./hanging";
+export * from "./stats";
+export * from "./guestbook";

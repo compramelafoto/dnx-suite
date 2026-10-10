@@ -30,12 +30,12 @@ describe("cargarFichas", () => {
     await cargarFichas("a1", { id: 1, esSuperAdmin: true }, null);
     expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).not.toHaveProperty("proposedByUserId");
   });
-  it("todas, con la URL pública de cada obra", async () => {
+  it("todas, con la URL del QR con conteo de cada obra", async () => {
     const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
     expect(r?.nombre).toBe("fichas-miradas-abc123");
     expect(r?.fichas.map((f) => f.url)).toEqual([
-      "https://muestrasfotograficas.com/m/miradas-abc123/o/w1",
-      "https://muestrasfotograficas.com/m/miradas-abc123/o/w2",
+      "https://muestrasfotograficas.com/q/o/w1",
+      "https://muestrasfotograficas.com/q/o/w2",
     ]);
   });
   it("una sola obra lleva su número en el nombre", async () => {

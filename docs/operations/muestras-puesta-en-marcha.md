@@ -164,3 +164,31 @@ Cómo probarlo de punta a punta:
 3. Invitar a un curador (con los correos apagados, copiar el enlace) y aceptarlo con su cuenta.
 4. Cerrar la recepción, empezar la curaduría y puntuar desde **Panel → Curaduría**.
 5. En **Selección**, elegir obras, cerrar la curaduría y tocar **Armar la muestra**.
+
+## Etapa 4 — la sala: piezas para imprimir, estadísticas y libro de visitas
+
+- **Migración:** `20261029120000_muestras_etapa_4_sala` ya está aplicada y registrada en la base de
+  producción (columnas `curatorialText`, `curatorCredits`, `guestbookMode` y `hangingPlan` en
+  `CulturalActivity`, y las tablas `CulturalActivityDailyStat` y `CulturalActivityGuestbookEntry`).
+  No hay que correr nada.
+- **Piezas para imprimir** (**Panel → Montaje e impresión**): remarcos y marcos, cartel de sala
+  con el texto curatorial, catálogo, afiche del libro de visitas y plano de montaje, en PDF. Los PDF
+  de más de 4 MB se suben a R2 (`muestras/piezas/`) y la descarga redirige ahí. Conviene una regla
+  de vencimiento en el bucket para ese prefijo (7 a 30 días).
+- **Calidad de impresión:** las fotos guardadas tienen 2000 px: bien en A4, aceptables hasta
+  40×50, blandas en 50×70 (el panel lo avisa y ofrece "sólo el remarco").
+- **QR con conteo:** las fichas, carteles y afiches nuevos usan `/q/o|m|l/<id>`, que cuenta el
+  escaneo y redirige. Las fichas impresas antes siguen andando, pero cuentan como visita.
+- **Visitas:** contadores diarios por muestra y obra, sin IP, sin cookies y sin datos de quien
+  visita. No cuentan robots ni a quien organiza.
+- **Libro de visitas:** sin cuenta, con campo trampa, tiempo mínimo y frenos. Por defecto publica
+  al instante; el organizador puede ocultar o borrar, o pasarlo a "revisar antes" o "cerrado".
+  Recibe hasta 15 días después del cierre.
+
+Cómo probarlo de punta a punta:
+
+1. Con una muestra publicada, cargar el texto curatorial en el editor y verlo en la ficha pública.
+2. En **Montaje e impresión**, bajar un marco A4, el cartel, el catálogo y el afiche del libro.
+3. Armar el plano: dos paredes, asignar obras, guardar y bajar el PDF.
+4. Escanear el QR del afiche con el celular, dejar un comentario y moderarlo desde el panel.
+5. Abrir la ficha desde otro dispositivo y ver al día siguiente las visitas en **Estadísticas**.

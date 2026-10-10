@@ -14,6 +14,10 @@ export default function Privacidad() {
       <p>Guardamos tu nombre y tu email de Google para identificarte cuando proponés una actividad y para avisarte cuando la revisamos. No los compartimos con terceros.</p>
       <p>Tu cuenta es la misma cuenta de DNX Suite que se usa en FOTOFFICE y FotoRank: si ya entraste a alguna de esas plataformas, Muestras Fotográficas usa ese mismo usuario.</p>
       <p>Las actividades publicadas, sus fotos y los nombres de los organizadores y autores son públicos.</p>
+      <h2 className="pt-2 text-xl font-medium">Visitas y escaneos</h2>
+      <p>Contamos cuántas veces se abre la página de cada muestra y de cada obra, y cuántas veces se escanean los códigos QR de la sala. Sólo guardamos totales por día: no guardamos tu IP, no usamos cookies y no sabemos quién sos.</p>
+      <h2 className="pt-2 text-xl font-medium">Libro de visitas</h2>
+      <p>Si dejás un comentario en el libro de visitas de una muestra, guardamos sólo lo que escribís: el comentario y, si los ponés, tu nombre y tu ciudad. Se publica en la página de la muestra y quien la organiza puede ocultarlo o borrarlo. No guardamos tu IP ni te pedimos cuenta.</p>
       <h2 className="pt-2 text-xl font-medium">Pedir la baja de tus datos</h2>
       {contacto ? (
         <p>Escribinos a <a href={`mailto:${contacto}`} className="underline">{contacto}</a> y la tramitamos.</p>

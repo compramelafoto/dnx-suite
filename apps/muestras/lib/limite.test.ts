@@ -1,6 +1,10 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
-import { LIMITES, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorUsuario, ipDeLaPeticion, resetRateLimit } from "./limite";
+import {
+  LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
+  ipDeLaPeticion, MAX_ENTRADAS, resetRateLimit, tamanoDelFreno,
+} from "./limite";
 
 beforeEach(() => resetRateLimit());
 
@@ -47,5 +51,46 @@ describe("frenarPorIp", () => {
     for (let i = 0; i < LIMITES_PUBLICOS.buscarCerca.limit; i++) expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(true);
     expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(false);
     expect(frenarPorIp("buscarCerca", "2.2.2.2").allowed).toBe(true);
+  });
+});
+
+
+describe("huella de IP", () => {
+  it("no es la IP, es estable y distingue IPs", () => {
+    const a = huellaDeIp("181.1.2.3");
+    expect(a).toBe(huellaDeIp("181.1.2.3"));
+    expect(a).not.toBe(huellaDeIp("181.1.2.4"));
+  });
+});
+
+describe("huella con sal fija", () => {
+  it("es el sha256 de sal + IP en base64url, cortado a 22", () => {
+    const esperado = createHash("sha256").update("s").update("181.1.2.3").digest("base64url").slice(0, 22);
+    expect(huellaDeIp("181.1.2.3", "s")).toBe(esperado);
+    expect(huellaDeIp("181.1.2.3", "s")).toHaveLength(22);
+  });
+});
+
+describe("tope de tamaño del freno", () => {
+  it("nunca pasa de MAX_ENTRADAS: se van las claves más viejas", () => {
+    resetRateLimit();
+    for (let i = 0; i < MAX_ENTRADAS + 50; i++) checkRateLimit({ key: `k${i}`, limit: 5, windowMs: 60_000 });
+    expect(tamanoDelFreno()).toBeLessThanOrEqual(MAX_ENTRADAS);
+    // La más vieja se fue (vuelve a empezar en 1); la más nueva sigue contando.
+    expect(checkRateLimit({ key: "k0", limit: 5, windowMs: 60_000 }).remaining).toBe(4);
+    expect(checkRateLimit({ key: `k${MAX_ENTRADAS + 49}`, limit: 5, windowMs: 60_000 }).remaining).toBe(3);
+    resetRateLimit();
+  });
+});
+
+describe("frenos de la sala", () => {
+  it("el libro se cuenta por IP y por muestra", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.libro.limit; i++) expect(frenarPorIp("libro", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("libro", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("libro", "1.1.1.1", "m2").allowed).toBe(true);
+  });
+  it("tope por muestra para todas las IPs juntas", () => {
+    for (let i = 0; i < LIMITES_POR_MUESTRA.libro.limit; i++) expect(frenarPorMuestra("libro", "m1").allowed).toBe(true);
+    expect(frenarPorMuestra("libro", "m1").allowed).toBe(false);
   });
 });

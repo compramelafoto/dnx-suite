@@ -21,6 +21,9 @@ export type FichaForm = {
   type: string;
   title: string;
   description: string;
+  /** Texto curatorial (sólo muestras): ficha pública, cartel y catálogo. */
+  curatorialText: string | null;
+  curatorCredits: string | null;
   coverImageUrl: string | null;
   organizersText: string;
   startDay: string;
@@ -55,6 +58,8 @@ export type FichaForm = {
 export const LARGOS = {
   title: 200,
   description: 10_000,
+  curatorialText: 6000,
+  curatorCredits: 300,
   organizersText: 500,
   scheduleText: 500,
   priceText: 200,
@@ -149,6 +154,8 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     type: txt(fd, "type"),
     title: txt(fd, "title", LARGOS.title),
     description: txt(fd, "description", LARGOS.description),
+    curatorialText: opt(fd, "curatorialText", LARGOS.curatorialText),
+    curatorCredits: opt(fd, "curatorCredits", LARGOS.curatorCredits),
     coverImageUrl: portada && esImagenPropia(portada, base) ? portada : null,
     organizersText: txt(fd, "organizersText", LARGOS.organizersText),
     startDay: txt(fd, "startDay"),
@@ -191,6 +198,9 @@ export function datosParaGuardar(f: FichaForm) {
     type: f.type,
     title: f.title,
     description: f.description,
+    // Sólo una muestra tiene curaduría; si cambió de tipo, se limpia.
+    curatorialText: f.type === "MUESTRA" ? f.curatorialText : null,
+    curatorCredits: f.type === "MUESTRA" ? f.curatorCredits : null,
     coverImageUrl: f.coverImageUrl,
     organizersText: f.organizersText,
     startsAt: dayStartAr(inicio),

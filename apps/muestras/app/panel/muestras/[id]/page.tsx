@@ -46,6 +46,7 @@ export default async function EditarActividad({
             <section className="space-y-2 border-t border-[var(--mf-line)] pt-4">
               <h2 className="text-sm text-[var(--mf-muted)]">Fichas de sala con QR</h2>
               <DescargarFichas id={a.id} obras={a.works} />
+              <p><Link href={`/panel/montaje/${a.id}`} className="underline">Montaje e impresión</Link> · <Link href={`/panel/estadisticas/${a.id}`} className="underline">Estadísticas y libro de visitas</Link></p>
             </section>
           ) : null}
         </>
