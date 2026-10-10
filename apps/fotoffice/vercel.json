@@ -49,6 +49,10 @@
       "schedule": "40 4 * * *"
     },
     {
+      "path": "/api/cron/galerias",
+      "schedule": "50 4 * * *"
+    },
+    {
       "path": "/api/cron/tienda",
       "schedule": "*/15 * * * *"
     },

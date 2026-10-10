@@ -45,3 +45,15 @@ describe("orden natural por nombre", () => {
     expect(ordenarPorNombre(f("x"))).toEqual(f("x"));
   });
 });
+
+describe("ordenarFotosDeGaleria", () => {
+  const f = (id: string, fileName: string, order: number) => ({ id, fileName, order });
+  it("NOMBRE ignora order y usa orden natural", async () => {
+    const { ordenarFotosDeGaleria } = await import("./orden");
+    expect(ordenarFotosDeGaleria([f("a", "IMG_10.jpg", 0), f("b", "IMG_2.jpg", 1)], "NOMBRE").map((x) => x.id)).toEqual(["b", "a"]);
+  });
+  it("MANUAL usa order y desempata por nombre natural e id", async () => {
+    const { ordenarFotosDeGaleria } = await import("./orden");
+    expect(ordenarFotosDeGaleria([f("a", "B.jpg", 3), f("b", "IMG_10.jpg", 3), f("c", "IMG_2.jpg", 3), f("d", "Z.jpg", 1)], "MANUAL").map((x) => x.id)).toEqual(["d", "a", "c", "b"]);
+  });
+});

@@ -46,3 +46,14 @@ export function ordenarPorNombre<T extends { fileName: string }>(fotos: readonly
     .sort((x, y) => compararNombres(x.f.fileName, y.f.fileName) || x.i - y.i)
     .map((x) => x.f);
 }
+
+type FotoOrdenable = { fileName: string; order: number; id: string };
+
+/**
+ * Orden de las fotos de una galería: `NOMBRE` = natural por nombre (en lectura, nunca se guarda);
+ * `MANUAL` = por `order` y, si empatan (subidas en paralelo), por nombre natural y id.
+ */
+export function ordenarFotosDeGaleria<T extends FotoOrdenable>(fotos: readonly T[], modo: "NOMBRE" | "MANUAL"): T[] {
+  if (modo === "NOMBRE") return ordenarPorNombre(fotos).sort((a, b) => compararNombres(a.fileName, b.fileName) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return [...fotos].sort((a, b) => a.order - b.order || compararNombres(a.fileName, b.fileName) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
