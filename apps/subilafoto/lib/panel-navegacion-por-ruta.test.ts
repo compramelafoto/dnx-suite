@@ -5,10 +5,15 @@ const titulos = (ruta: string) => gruposParaLaRuta(ruta).map((g) => g.titulo);
 
 describe("qué menú corresponde a cada pantalla", () => {
   test("dentro de un evento, el del evento", () => {
+    /*
+      No hay grupo "Después". Proveedores vivía ahí y es justo al revés: a los que
+      trabajaron esa noche se los invita antes o durante la fiesta, que es cuando el
+      fotógrafo los tiene enfrente. Terminada la fiesta todos se fueron a su casa y
+      conseguir que completen una ficha es mucho más difícil.
+    */
     expect(titulos("/panel/eventos/abc123/moderacion")).toEqual([
       "Antes",
       "Durante la fiesta",
-      "Después",
       "Mi cuenta",
     ]);
   });

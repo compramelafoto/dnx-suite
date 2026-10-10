@@ -96,30 +96,43 @@ export default async function PantallaYProyeccion({ params }: Props) {
       </section>
 
       <section className="mt-12">
-        <h2 className="text-lg font-extrabold">Los controles escondidos</h2>
+        <h2 className="text-lg font-extrabold">Los controles son teclas</h2>
         <p className="mt-2" style={{ color: "var(--slf-tinta-suave)" }}>
-          La pantalla no tiene botones a la vista: sería feo tenerlos toda la noche
-          proyectados en la pared. Están escondidos.
-        </p>
-        <p className="mt-3" style={{ color: "var(--slf-tinta-suave)" }}>
-          <strong>Para que aparezcan</strong>, hacé clic o tocá sobre el{" "}
-          <strong>borde izquierdo</strong> de la pantalla. Se abre una barra con tres
-          botones y se esconde sola a los cinco segundos.
+          La pantalla no tiene botones a la vista: serían una barra gris proyectada en la
+          pared toda la noche, al lado de las fotos. Se maneja desde el{" "}
+          <strong>teclado de la computadora</strong> que está conectada al televisor.
         </p>
 
         <ul className="mt-5 space-y-3" style={{ color: "var(--slf-tinta-suave)" }}>
           <li>
-            <strong>Pausar</strong> — deja fija la foto que está. Sirve para el brindis o
-            cuando hay un momento que quieren dejar puesto un rato.
+            <strong>Barra espaciadora</strong> — pausa y reanuda. Deja fija la foto que
+            está, para el brindis o cuando hay un momento que quieren dejar puesto un rato.
           </li>
           <li>
-            <strong>Pasar al azar</strong> — en vez de ir en orden, mezcla. No repite
-            ninguna hasta que no hayan pasado todas.
+            <strong>Flecha derecha</strong> (o la tecla <strong>N</strong>) — pasa a la
+            siguiente sin esperar.
           </li>
           <li>
-            <strong>Pasar a la siguiente</strong> — adelanta sin esperar.
+            <strong>A</strong> — alterna entre pasar en orden y pasar al azar. Al azar no
+            repite ninguna hasta que no hayan pasado todas.
+          </li>
+          <li>
+            <strong>H</strong> — muestra los atajos en pantalla, por si te olvidaste.
           </li>
         </ul>
+
+        <p className="mt-5 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+          Cada tecla muestra un cartelito abajo a la izquierda que confirma en qué quedó
+          («En pausa», «Pasa al azar»). Es la única señal de que la tecla llegó, así que si
+          apretás y no aparece nada, la computadora perdió el foco de la ventana: hacé un
+          clic sobre la pantalla y probá de nuevo.
+        </p>
+
+        <p className="mt-3 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+          Si el televisor se maneja sólo con control remoto, sin teclado, la pantalla
+          funciona igual sola —pasa las fotos e intercala el código QR— pero no vas a poder
+          pausar ni adelantar.
+        </p>
 
         <p className="mt-5 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
           Si la computadora se apaga o se recarga la página, vuelve sola a reproducir en

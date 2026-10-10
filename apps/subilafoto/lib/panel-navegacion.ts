@@ -50,6 +50,19 @@ export function gruposDelEvento(eventoId: string): Grupo[] {
         { href: en("/portada"), texto: "Portada y nombre", ayuda: "La foto y de quién es" },
         { href: en("/plantilla"), texto: "Estilo", ayuda: "Colores, letra y textura" },
         { href: en("/qr"), texto: "QR y materiales", ayuda: "Para imprimir" },
+        /*
+          Proveedores va en "Antes", no en un grupo "Después".
+
+          A los que trabajaron esa noche —el DJ, el salón, el catering— se los invita
+          antes o durante la fiesta, que es cuando el fotógrafo los tiene enfrente.
+          Terminada la fiesta todos se fueron a su casa y conseguir que completen una
+          ficha es mucho más difícil.
+        */
+        {
+          href: en("/proveedores"),
+          texto: "Proveedores",
+          ayuda: "Invitá a quienes trabajan con vos",
+        },
       ],
     },
     {
@@ -59,10 +72,6 @@ export function gruposDelEvento(eventoId: string): Grupo[] {
         { href: en("/control"), texto: "Control en vivo", ayuda: "Sacar algo al toque" },
         { href: en("/moderacion"), texto: "Moderación", ayuda: "Revisar lo retenido" },
       ],
-    },
-    {
-      titulo: "Después",
-      items: [{ href: en("/proveedores"), texto: "Proveedores", ayuda: "Quién más trabajó" }],
     },
     ...gruposDelPanel(),
   ];
