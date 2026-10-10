@@ -94,3 +94,13 @@ describe("frenos de la sala", () => {
     expect(frenarPorMuestra("libro", "m1").allowed).toBe(false);
   });
 });
+
+describe("frenos de difusión y equipo (etapa 5)", () => {
+  it("invitar al equipo 30 por hora y aceptar 20 por hora, por persona", () => {
+    expect(LIMITES.invitarEquipo).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+    expect(LIMITES.aceptarEquipo).toEqual({ limit: 20, windowMs: 60 * 60_000 });
+    for (let i = 0; i < 30; i++) expect(frenarPorUsuario("invitarEquipo", 1).allowed).toBe(true);
+    expect(frenarPorUsuario("invitarEquipo", 1).allowed).toBe(false);
+    expect(frenarPorUsuario("invitarEquipo", 2).allowed).toBe(true);
+  });
+});

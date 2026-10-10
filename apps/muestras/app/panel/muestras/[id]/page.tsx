@@ -44,6 +44,7 @@ export default async function EditarActividad({
         puede(usuario, "hanging", rol) ? { href: `/panel/montaje/${a.id}`, texto: "Montaje e impresión" } : null,
         estado === "APPROVED" && puede(usuario, "stats", rol) ? { href: `/panel/estadisticas/${a.id}`, texto: "Estadísticas y libro de visitas" } : null,
         estado === "APPROVED" && puede(usuario, "promote", rol) ? { href: `/panel/difusion/${a.id}`, texto: "Difusión" } : null,
+        puede(usuario, "view", rol) ? { href: `/panel/muestras/${a.id}/equipo`, texto: "Equipo" } : null,
       ].filter((x): x is { href: string; texto: string } => x !== null)
     : [];
   return (
