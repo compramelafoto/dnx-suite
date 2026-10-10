@@ -6,6 +6,14 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(appDir, "../..");
 
 const nextConfig: NextConfig = {
+  // El chequeo de tipos se apagó acá y corre en GitHub (.github/workflows/chequeos.yml).
+  // En Vercel se quedaba sin memoria en "Running TypeScript" y mataba el deploy con
+  // SIGKILL: el 09-10/10/2026 cayeron así casi todos los deploys de producción.
+  // Si alguna vez se saca el paso del workflow, hay que volver a prender esto o nadie
+  // estaría chequeando tipos en ningún lado.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   /**
    * pdf-to-png-converter → @napi-rs/canvas (binarios nativos). Turbopack no puede empaquetarlos;
    * deben resolverse en runtime con require en Node (Vercel incluye el paquete en node_modules).

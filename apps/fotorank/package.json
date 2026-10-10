@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "check-types": "pnpm --filter @repo/db exec prisma generate && next typegen && tsc --noEmit",
