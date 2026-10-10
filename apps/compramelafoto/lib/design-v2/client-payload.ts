@@ -1,3 +1,4 @@
+import { CLASS_LIST_VARIABLE_KEY } from "@repo/template-editor-core";
 import type { ClientPhotoSlot, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 
 /**
@@ -41,7 +42,8 @@ export function toDesignTemplatePayload(template: {
       blocks
         .filter((b) => b.type === "VARIABLE_TEXT")
         .map((b) => asRecord(b.configJson).variableKey)
-        .filter((k): k is string => typeof k === "string" && k.trim() !== ""),
+        // El listado del curso no se corrige a mano como un texto: sale del padrón.
+        .filter((k): k is string => typeof k === "string" && k.trim() !== "" && k !== CLASS_LIST_VARIABLE_KEY),
     ),
   ];
   return {

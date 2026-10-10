@@ -106,6 +106,21 @@ export {
   SCHOOL_TEMPLATE_ALIASES,
   SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
   SCHOOL_TEMPLATE_EXAMPLE_DATA,
+  CLASS_LIST_VARIABLE_KEY,
+  CLASS_LIST_MAX_COLUMNS,
+  CLASS_LIST_SAMPLE,
+  DEFAULT_CLASS_LIST_OPTIONS,
+  formatClassList,
+  isClassListConfig,
+  layoutClassList,
+  parseClassListValue,
+  readClassListOptions,
+  serializeClassList,
+  type ClassListCell,
+  type ClassListLayout,
+  type ClassListLine,
+  type ClassListOptions,
+  type ClassListStudent,
 } from "./plugins/school";
 
 export {

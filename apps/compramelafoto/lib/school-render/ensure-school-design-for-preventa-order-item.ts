@@ -3,6 +3,7 @@ import type { Prisma } from "@/lib/prisma";
 import type { PreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { createDesignV2Project } from "@/lib/design-v2/projects";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "@/lib/design-v2/template";
+import { loadCourseStudentList } from "@/lib/design-v2/class-list";
 import { buildDesignValues, courseDisplayName } from "@/lib/design-v2/values";
 import {
   pickSelectionPhotosForDesign,
@@ -48,6 +49,10 @@ export async function loadSchoolDesignContext(
       buyerName: true,
       studentFirstName: true,
       studentLastName: true,
+      studentId: true,
+      albumRosterEntryId: true,
+      studentLevelSnapshot: true,
+      studentShiftSnapshot: true,
       studentCourseSnapshot: true,
       studentDivisionSnapshot: true,
       schoolCourse: { select: { name: true, division: true } },
@@ -63,6 +68,17 @@ export async function loadSchoolDesignContext(
   });
   if (!order) return null;
   const studentName = [order.studentFirstName, order.studentLastName].filter(Boolean).join(" ");
+  const courseStudents = await loadCourseStudentList(db, {
+    albumId: order.albumId,
+    albumRosterEntryId: order.albumRosterEntryId,
+    studentId: order.studentId,
+    firstName: order.studentFirstName,
+    lastName: order.studentLastName,
+    level: order.studentLevelSnapshot,
+    shift: order.studentShiftSnapshot,
+    courseName: order.studentCourseSnapshot ?? order.schoolCourse?.name,
+    division: order.studentDivisionSnapshot ?? order.schoolCourse?.division,
+  });
   return {
     albumId: order.albumId,
     photographerUserId: order.album.userId,
@@ -77,6 +93,7 @@ export async function loadSchoolDesignContext(
       photographerName: order.album.user?.name,
       eventDate: order.album.eventDate,
       orderReference: `P-${preCompraOrderId}`,
+      courseStudents,
     }),
   };
 }

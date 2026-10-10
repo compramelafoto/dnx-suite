@@ -2,7 +2,13 @@ import "server-only";
 import sharp from "sharp";
 import { emitDesign, type ResourceResolver, type VariableDeclaration } from "@repo/design-studio";
 import { editorADocumento } from "@repo/template-editor-core/rendering";
-import { resolveTemplateDocument, type LegacyTemplateV2Payload } from "@repo/template-engine";
+import {
+  CLASS_LIST_VARIABLE_KEY,
+  isClassListConfig,
+  parseClassListValue,
+  resolveTemplateDocument,
+  type LegacyTemplateV2Payload,
+} from "@repo/template-engine";
 import {
   clientPhotoSlotNumber,
   computeCoverCropRect,
@@ -166,7 +172,8 @@ function editorBlocksFromResolved(
       if (type === "PHOTO" && src) type = "IMAGE";
     }
     // El texto ya viene resuelto: si siguiera como variable, el puente reescribiría el marcador.
-    if (type === "VARIABLE_TEXT") type = "TEXT";
+    // El listado del curso sigue como variable: el puente lo reparte con `listaDelCurso`.
+    if (type === "VARIABLE_TEXT" && !isClassListConfig(config)) type = "TEXT";
     blocks.push({
       id: block.id,
       type,
@@ -228,6 +235,7 @@ export async function renderDesignV2(input: {
     },
     blocks: editorBlocksFromResolved(resolvedDocument),
     nombre: template.name,
+    listaDelCurso: parseClassListValue(data.values[CLASS_LIST_VARIABLE_KEY]),
   });
 
   const slotSizeByBlock = new Map(

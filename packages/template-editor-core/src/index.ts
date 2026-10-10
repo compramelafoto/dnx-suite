@@ -19,6 +19,23 @@ export * from "./block-style-clipboard";
 export * from "./canvas-print-units";
 export * from "./block-size-aspect";
 export * from "./client-photo-slots";
+export {
+  CLASS_LIST_MAX_COLUMNS,
+  CLASS_LIST_SAMPLE,
+  CLASS_LIST_VARIABLE_KEY,
+  DEFAULT_CLASS_LIST_OPTIONS,
+  formatClassList,
+  isClassListConfig,
+  layoutClassList,
+  parseClassListValue,
+  readClassListOptions,
+  serializeClassList,
+  type ClassListCell,
+  type ClassListLayout,
+  type ClassListLine,
+  type ClassListOptions,
+  type ClassListStudent,
+} from "@repo/template-engine";
 export * from "./clamp-block-position";
 export * from "./create-default-blocks";
 export * from "./diagnostic-quick-fixes";

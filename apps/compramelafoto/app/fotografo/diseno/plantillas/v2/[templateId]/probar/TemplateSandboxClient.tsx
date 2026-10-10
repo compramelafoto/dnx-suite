@@ -5,7 +5,12 @@ import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import DesignEditor from "@/components/design-v2/DesignEditor";
-import { countClientPhotoInputs } from "@repo/template-editor-core";
+import {
+  CLASS_LIST_SAMPLE,
+  CLASS_LIST_VARIABLE_KEY,
+  countClientPhotoInputs,
+  serializeClassList,
+} from "@repo/template-editor-core";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { buildInitialDesignData, type DesignV2Data } from "@/lib/design-v2/design-data";
 
@@ -86,6 +91,7 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
           "student.fullName": "Nombre del Alumno",
           "course.displayName": "5.º A",
           "school.name": "Escuela de prueba",
+          [CLASS_LIST_VARIABLE_KEY]: serializeClassList(CLASS_LIST_SAMPLE),
         },
       }),
     );
