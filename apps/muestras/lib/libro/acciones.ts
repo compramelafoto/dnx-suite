@@ -6,7 +6,7 @@ import { prisma } from "@repo/db";
 import {
   GUESTBOOK_LIMITS, GUESTBOOK_RAW_MAX, guestbookInput, guestbookProblems, guestbookState, initialEntryStatus, isGuestbookMode, isModerationAction, isTooFast, nextEntryStatus,
 } from "@repo/muestras";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { frenarPorIp, frenarPorMuestra, frenarPorUsuario, ipDeLaPeticion } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
 
@@ -69,7 +69,7 @@ export async function moderarEntrada(entryId: string, accion: string): Promise<R
     where: { id: entryId },
     select: { id: true, activity: { select: { id: true, slug: true } } },
   });
-  const permitido = !!e && (await prisma.culturalActivity.count({ where: { id: e.activity.id, ...dondePuede(usuario, "guestbook") } })) > 0;
+  const permitido = !!e && (await prisma.culturalActivity.count({ where: conPermiso({ id: e.activity.id }, usuario, "guestbook") })) > 0;
   if (!e || !permitido) return { ok: false, error: "No encontramos ese comentario." };
   const estado = nextEntryStatus(accion);
   if (estado === null) await prisma.culturalActivityGuestbookEntry.deleteMany({ where: { id: e.id } });
@@ -87,7 +87,7 @@ export async function cambiarModoLibro(activityId: string, modo: string): Promis
   if (typeof activityId !== "string" || !ID.test(activityId) || !isGuestbookMode(modo)) return { ok: false, error: "No se puede hacer eso." };
   if (!frenarPorUsuario("cambiarModoLibro", usuario.id).allowed) return { ok: false, error: "Esperá unos minutos y seguí." };
   const { count } = await prisma.culturalActivity.updateMany({
-    where: { id: activityId, type: "MUESTRA", ...dondePuede(usuario, "guestbook") },
+    where: conPermiso({ id: activityId, type: "MUESTRA" }, usuario, "guestbook"),
     data: { guestbookMode: modo },
   });
   if (count === 0) return { ok: false, error: "No encontramos esa muestra entre las tuyas." };

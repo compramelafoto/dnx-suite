@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 import { datosDeFicha, type FichaDeObra } from "./texto";
 
@@ -46,7 +46,7 @@ export async function cargarFichas(
   obraId: string | null,
 ): Promise<{ nombre: string; fichas: FichaDeObra[] } | null> {
   const a = await prisma.culturalActivity.findFirst({
-    where: { id, reviewStatus: "APPROVED", type: "MUESTRA", ...dondePuede(usuario, "pieces") },
+    where: conPermiso({ id, reviewStatus: "APPROVED", type: "MUESTRA" }, usuario, "pieces"),
     select: {
       slug: true, title: true,
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, technique: true, sortOrder: true } },

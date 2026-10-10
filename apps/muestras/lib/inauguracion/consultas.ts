@@ -7,7 +7,7 @@ import { purgarAsistencias } from "./limpieza";
 import { lugarDeLaInauguracion } from "./lugar";
 import { ordenarAsistencia } from "./orden";
 import type { Usuario } from "@/lib/usuario";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 
 type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
 
@@ -19,7 +19,7 @@ type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
 export async function cargarInauguracionPanel(id: string, usuario: Quien) {
   if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
   const leer = () => prisma.culturalActivity.findFirst({
-    where: { id, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+    where: conPermiso({ id, type: "MUESTRA" }, usuario, "rsvp"),
     select: {
       id: true, slug: true, title: true, type: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true,
       openingAt: true, openingEndsAt: true, openingNote: true, endsAt: true,

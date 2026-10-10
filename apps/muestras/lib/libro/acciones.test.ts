@@ -11,7 +11,7 @@ vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor })
 vi.mock("next/cache", () => cache);
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "190.1.2.3" }) }));
 const { cambiarModoLibro, dejarComentario, moderarEntrada } = await import("./acciones");
-const { dondePuede } = await import("@/lib/equipo/permisos");
+const { conPermiso } = await import("@/lib/equipo/permisos");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const muestra = {
@@ -105,14 +105,14 @@ describe("moderación", () => {
   it("la coorganización modera; textos no (el permiso va en la consulta)", async () => {
     usuarioActual.valor = { id: 15, esSuperAdmin: false, email: "co@x", name: null };
     expect((await moderarEntrada("e1", "hide")).ok).toBe(true);
-    expect(db.culturalActivity.count.mock.calls[0]![0].where).toEqual({ id: "cka1b2c3d4", ...dondePuede({ id: 15, esSuperAdmin: false }, "guestbook") });
-    expect(db.culturalActivity.count.mock.calls[0]![0].where.AND[0].OR[1].members.some.role).toEqual({ in: ["CO_ORGANIZER"] });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toEqual(conPermiso({ id: "cka1b2c3d4" }, { id: 15, esSuperAdmin: false }, "guestbook"));
+    expect(db.culturalActivity.count.mock.calls[0]![0].where.AND[1].OR[1].members.some.role).toEqual({ in: ["CO_ORGANIZER"] });
   });
   it("cambiar el modo: sólo con `guestbook` y sólo modos válidos", async () => {
     usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
     db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
     expect((await cambiarModoLibro("cka1b2c3d4", "REVIEW")).ok).toBe(true);
-    expect(db.culturalActivity.updateMany).toHaveBeenCalledWith({ where: { id: "cka1b2c3d4", type: "MUESTRA", ...dondePuede({ id: 7, esSuperAdmin: false }, "guestbook") }, data: { guestbookMode: "REVIEW" } });
+    expect(db.culturalActivity.updateMany).toHaveBeenCalledWith({ where: conPermiso({ id: "cka1b2c3d4", type: "MUESTRA" }, { id: 7, esSuperAdmin: false }, "guestbook"), data: { guestbookMode: "REVIEW" } });
     expect(cache.revalidatePath).toHaveBeenCalledWith("/m/miradas-abc", "layout");
     expect((await cambiarModoLibro("cka1b2c3d4", "CUALQUIERA")).ok).toBe(false);
   });

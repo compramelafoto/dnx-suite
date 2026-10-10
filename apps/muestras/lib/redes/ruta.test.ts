@@ -9,7 +9,7 @@ vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor })
 vi.mock("@/lib/redes/componer", () => componer);
 vi.mock("@/lib/redes/pdf", () => pdf);
 const { GET } = await import("@/app/api/redes/[id]/route");
-const { dondePuede } = await import("@/lib/equipo/permisos");
+const { conPermiso } = await import("@/lib/equipo/permisos");
 const { LIMITES, resetRateLimit } = await import("@/lib/limite");
 
 const co = { id: 2, esSuperAdmin: false, email: "co@x.com", name: "Co" };
@@ -65,8 +65,8 @@ describe("GET /api/redes/[id]", () => {
   it("coorganización sí; textos o ajeno → 404 (el where lleva dondePuede promote y APPROVED)", async () => {
     expect((await GET(pedido("a1", "?formato=post&variante=inaugura"), ctx("a1"))).status).toBe(200);
     const where = db.culturalActivity.findFirst.mock.calls[0]![0].where;
-    expect(where).toEqual({ id: "a1", type: "MUESTRA", reviewStatus: "APPROVED", ...dondePuede(co, "promote") });
-    expect(where).toMatchObject({ AND: [{ OR: [{ proposedByUserId: 2 }, { members: { some: { userId: 2, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }] }] });
+    expect(where).toEqual(conPermiso({ id: "a1", type: "MUESTRA", reviewStatus: "APPROVED" }, co, "promote"));
+    expect(where).toMatchObject({ AND: [expect.anything(), { OR: [{ proposedByUserId: 2 }, { members: { some: { userId: 2, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }] }] });
     db.culturalActivity.findFirst.mockResolvedValue(null);
     const r = await GET(pedido("a1", "?formato=post&variante=inaugura"), ctx("a1"));
     expect(r.status).toBe(404);

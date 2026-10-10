@@ -4,7 +4,7 @@ const db = vi.hoisted(() => ({ culturalActivity: { findUnique: vi.fn(), count: v
 const sesion = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => sesion.valor }));
-const { dondePuede, esDelEquipo, rolEnMuestra } = await import("./permisos");
+const { conPermiso, dondePuede, esDelEquipo, rolEnMuestra } = await import("./permisos");
 
 const ana = { id: 7, esSuperAdmin: false, email: "ana@x", name: "Ana" };
 const admin = { id: 1, esSuperAdmin: true, email: "d@x", name: null };
@@ -13,15 +13,15 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("dondePuede", () => {
   it("dueño o integrante con un rol que tenga la capacidad", () => {
-    expect(dondePuede(ana, "rsvp")).toEqual({ AND: [{ OR: [
+    expect(dondePuede(ana, "rsvp")).toEqual({ OR: [
       { proposedByUserId: 7 },
       { members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } },
-    ] }] });
-    expect(dondePuede(ana, "manageCall")).toEqual({ AND: [{ OR: [{ proposedByUserId: 7 }] }] });
+    ] });
+    expect(dondePuede(ana, "manageCall")).toEqual({ OR: [{ proposedByUserId: 7 }] });
   });
   it("textos entra a la muestra, pero no a montaje, piezas, estadísticas, libro ni inauguración", () => {
     const roles = (cap: Parameters<typeof dondePuede>[1]) =>
-      (dondePuede(ana, cap).AND as { OR: { members?: { some: { role: { in: string[] } } } }[] }[])[0]!.OR
+      (dondePuede(ana, cap).OR as { members?: { some: { role: { in: string[] } } } }[])
         .flatMap((o) => o.members?.some.role.in ?? []);
     expect(roles("view")).toEqual(["CO_ORGANIZER", "TEXT_EDITOR"]);
     for (const cap of ["hanging", "pieces", "stats", "guestbook", "rsvp", "promote"] as const) {
@@ -31,6 +31,16 @@ describe("dondePuede", () => {
   it("super admin: todo, salvo en los listados (ve lo suyo)", () => {
     expect(dondePuede(admin, "stats")).toEqual({});
     expect(dondePuede(admin, "stats", { listado: true })).toEqual(dondePuede({ ...admin, esSuperAdmin: false }, "stats"));
+  });
+});
+
+describe("conPermiso", () => {
+  it("combina con AND: el OR propio del where no se pisa con el del permiso", () => {
+    const base = { type: "MUESTRA" as const, OR: [{ title: "x" }, { slug: "x" }] };
+    expect(conPermiso(base, ana, "manageCall")).toEqual({ AND: [base, { OR: [{ proposedByUserId: 7 }] }] });
+  });
+  it("super admin: la base sola (más un permiso vacío)", () => {
+    expect(conPermiso({ id: "a1" }, admin, "stats")).toEqual({ AND: [{ id: "a1" }, {}] });
   });
 });
 
@@ -54,6 +64,6 @@ describe("esDelEquipo", () => {
     sesion.valor = ana;
     db.culturalActivity.count.mockResolvedValue(1);
     expect(await esDelEquipo("a1")).toBe(true);
-    expect(db.culturalActivity.count.mock.calls[0]![0].where).toEqual({ id: "a1", ...dondePuede(ana, "view") });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toEqual(conPermiso({ id: "a1" }, ana, "view"));
   });
 });

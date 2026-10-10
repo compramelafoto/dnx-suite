@@ -46,7 +46,7 @@ describe("guardarInauguracion", () => {
   it("coorganización configura; textos no", async () => {
     expect(await guardarInauguracion(fd({ id: "a1", rsvpStatus: "OPEN", rsvpCapacity: "100", openingNote: "Brindis" }))).toEqual({ ok: true, id: "a1" });
     const where = db.culturalActivity.findFirst.mock.calls[0]![0].where;
-    expect(where).toMatchObject({ id: "a1", type: "MUESTRA", AND: [{ OR: [{ proposedByUserId: 2 }, { members: { some: { userId: 2, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }] }] });
+    expect(where).toMatchObject({ AND: [{ id: "a1", type: "MUESTRA" }, { OR: [{ proposedByUserId: 2 }, { members: { some: { userId: 2, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }] }] });
     db.culturalActivity.findFirst.mockResolvedValue(null);
     expect(await guardarInauguracion(fd({ id: "a1", rsvpStatus: "OPEN" }))).toEqual({ ok: false, errores: ["La muestra no existe."] });
   });
@@ -120,7 +120,7 @@ describe("cambiarAsistencia", () => {
     expect((await cambiarAsistencia("r1", "borrar")).ok).toBe(false);
     db.culturalActivity.findFirst.mockResolvedValue(null);
     expect(await cambiarAsistencia("r1", "cancel")).toEqual({ ok: false, errores: ["No encontramos esa confirmación."] });
-    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toMatchObject({ id: "a1", type: "MUESTRA", AND: [{ OR: expect.any(Array) }] });
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toMatchObject({ AND: [{ id: "a1", type: "MUESTRA" }, { OR: expect.any(Array) }] });
     expect(tx.culturalActivityRsvp.updateMany).not.toHaveBeenCalled();
   });
 });
@@ -130,7 +130,7 @@ describe("cerrarConfirmaciones", () => {
     db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
     expect(await cerrarConfirmaciones("a1")).toEqual({ ok: true, id: "a1" });
     const arg = db.culturalActivity.updateMany.mock.calls[0]![0];
-    expect(arg.where).toMatchObject({ id: "a1", type: "MUESTRA", AND: [{ OR: [{ proposedByUserId: 2 }, expect.anything()] }] });
+    expect(arg.where).toMatchObject({ AND: [{ id: "a1", type: "MUESTRA" }, { OR: [{ proposedByUserId: 2 }, expect.anything()] }] });
     expect(arg.data).toMatchObject({ rsvpStatus: "CLOSED", lastEditedPart: "INAUGURACION" });
     db.culturalActivity.updateMany.mockResolvedValue({ count: 0 });
     expect((await cerrarConfirmaciones("a1")).ok).toBe(false);

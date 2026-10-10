@@ -34,7 +34,7 @@ describe("GET /api/inauguracion/[id]/csv", () => {
     db.culturalActivity.findFirst.mockResolvedValue(null);
     expect((await pedir()).status).toBe(404);
     expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toMatchObject({
-      id: "a1", type: "MUESTRA", AND: [{ OR: [{ proposedByUserId: 2 }, { members: { some: { userId: 2, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }] }],
+      AND: [{ id: "a1", type: "MUESTRA" }, { OR: [{ proposedByUserId: 2 }, { members: { some: { userId: 2, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }] }],
     });
   });
   it("coorganización → el CSV para Excel, sin caché compartida", async () => {

@@ -28,7 +28,8 @@ export const puedeConDueno = (usuario: Quien, cap: Capability, ownerUserId: numb
 
 /**
  * Filtro de Prisma: "muestras donde esta persona tiene `cap`". `{ listado: true }` para los
- * listados del panel, donde el super admin ve sólo lo suyo (como hasta la etapa 4).
+ * listados del panel, donde el super admin ve sólo lo suyo (como hasta la etapa 4). Para sumarlo a
+ * otras condiciones, `conPermiso` (o como filtro de relación, `activity: dondePuede(...)`).
  */
 export function dondePuede(usuario: Quien, cap: Capability, { listado = false }: { listado?: boolean } = {}): Prisma.CulturalActivityWhereInput {
   if (usuario.esSuperAdmin && !listado) return {};
@@ -37,7 +38,17 @@ export function dondePuede(usuario: Quien, cap: Capability, { listado = false }:
   if (roles.includes("OWNER")) o.push({ proposedByUserId: usuario.id });
   const equipo = roles.filter((r): r is TeamRole => r !== "OWNER");
   if (equipo.length) o.push({ members: { some: { userId: usuario.id, status: "ACTIVE", role: { in: equipo } } } });
-  return { AND: [{ OR: o }] };
+  return { OR: o };
+}
+
+/**
+ * `base` y además el permiso, siempre combinados con `AND` (nunca con spread): así ningún `where`
+ * pisa un `OR`/`AND` propio con el del permiso, ni al revés.
+ */
+export function conPermiso(
+  base: Prisma.CulturalActivityWhereInput, usuario: Quien, cap: Capability, opciones: { listado?: boolean } = {},
+): Prisma.CulturalActivityWhereInput {
+  return { AND: [base, dondePuede(usuario, cap, opciones)] };
 }
 
 /** Las visitas y escaneos del equipo no cuentan (D10). Sin cookie de sesión no toca la base. */
@@ -45,5 +56,5 @@ export async function esDelEquipo(activityId: string): Promise<boolean> {
   const u = await getUsuario();
   if (!u) return false;
   if (u.esSuperAdmin) return true;
-  return (await prisma.culturalActivity.count({ where: { id: activityId, ...dondePuede(u, "view") } })) > 0;
+  return (await prisma.culturalActivity.count({ where: conPermiso({ id: activityId }, u, "view") })) > 0;
 }

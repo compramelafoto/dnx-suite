@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
 import { hasPhysicalVenue } from "@repo/muestras";
-import { dondePuede, puedeConDueno } from "@/lib/equipo/permisos";
+import { conPermiso, dondePuede, puedeConDueno } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 
 /** Datos de la muestra que se muestran junto a la convocatoria (nada de revisión). */
@@ -58,7 +58,7 @@ export function listarConvocatoriasMias(usuario: Usuario) {
 /** Muestras propias (`manageCall`) que todavía no tienen convocatoria. */
 export function muestrasSinConvocatoria(usuario: Pick<Usuario, "id" | "esSuperAdmin">) {
   return prisma.culturalActivity.findMany({
-    where: { type: "MUESTRA", call: null, reviewStatus: { not: "UNPUBLISHED" }, ...dondePuede(usuario, "manageCall", { listado: true }) },
+    where: conPermiso({ type: "MUESTRA", call: null, reviewStatus: { not: "UNPUBLISHED" } }, usuario, "manageCall", { listado: true }),
     select: { id: true, title: true, reviewStatus: true },
     orderBy: { updatedAt: "desc" },
   });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import { rsvpCsv, rsvpPurgeDue } from "@repo/muestras";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { purgarAsistencias } from "@/lib/inauguracion/limpieza";
 import { ordenarAsistencia } from "@/lib/inauguracion/orden";
 import { frenarPorUsuario } from "@/lib/limite";
@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return texto("No encontramos esa muestra.", 404);
   if (!frenarPorUsuario("exportarAsistencias", usuario.id).allowed) return texto("Bajaste la lista muchas veces seguidas. Esperá un rato.", 429);
   const a = await prisma.culturalActivity.findFirst({
-    where: { id, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+    where: conPermiso({ id, type: "MUESTRA" }, usuario, "rsvp"),
     select: {
       slug: true, endsAt: true, rsvpPurgedAt: true,
       rsvps: { orderBy: { createdAt: "asc" }, take: 2000, select: { name: true, email: true, companions: true, status: true, createdAt: true } },
