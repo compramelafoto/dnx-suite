@@ -35,6 +35,21 @@ export async function urlDeLecturaFoto(clave: string): Promise<string> {
   return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_LECTURA_FOTO });
 }
 
+/**
+ * GET firmado por 1 hora para BAJAR la vista (attachment). Sólo `vista.jpg`: nunca el original ni la
+ * miniatura. `nombre` ya viene saneado (`nombreDeDescarga`).
+ */
+export async function urlDeDescargaFoto(clave: string, nombre: { ascii: string; utf8: string }): Promise<string> {
+  if (analizarClave(claveSegura(clave))?.tipo !== "vista") throw new Error("Sólo se descarga la vista");
+  const cmd = new GetObjectCommand({
+    Bucket: bucketR2Privado(),
+    Key: clave,
+    ResponseContentDisposition: `attachment; filename="${nombre.ascii}"; filename*=UTF-8''${encodeURIComponent(nombre.utf8)}`,
+    ResponseContentType: "image/jpeg",
+  });
+  return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_LECTURA_FOTO });
+}
+
 export type FotoConClaves = { id: string; viewKey: string | null; thumbKey: string | null };
 export type UrlsDeFoto = { thumbUrl: string | null; viewUrl: string | null };
 

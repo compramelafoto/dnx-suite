@@ -16,6 +16,12 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   FOTO_BORRADA: "Foto borrada",
   PORTADA: "Portada cambiada",
   ORDEN: "Orden de las fotos cambiado",
+  ENTRO: "El cliente entró a la galería",
+  SELECCION_ENVIADA: "El cliente envió su selección",
+  CONFIRMACION_ENVIADA: "Correo de confirmación enviado al cliente",
+  CONFIRMACION_NO_ENVIADA: "El correo de confirmación al cliente no salió",
+  AVISO_ESTUDIO_ENVIADO: "Aviso al estudio enviado",
+  AVISO_ESTUDIO_NO_ENVIADO: "El aviso al estudio no salió",
 };
 
 export function etiquetaDeEvento(tipo: string): string {

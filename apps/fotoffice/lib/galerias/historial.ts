@@ -18,6 +18,8 @@ function detalleDe(tipo: string, data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
   if (tipo === "CORREO_NO_ENVIADO" && typeof d.motivo === "string") return `Motivo: ${MOTIVO_CORREO[d.motivo] ?? "no se pudo enviar"}`;
+  if (tipo === "SELECCION_ENVIADA" && typeof d.cantidad === "number") return d.cantidad === 1 ? "Eligió 1 foto" : `Eligió ${d.cantidad} fotos`;
+  if ((tipo === "CONFIRMACION_NO_ENVIADA" || tipo === "AVISO_ESTUDIO_NO_ENVIADO") && typeof d.motivo === "string") return `Motivo: ${MOTIVO_CORREO[d.motivo] ?? "no se pudo enviar"}`;
   if (tipo === "FOTO_BORRADA" && typeof d.selecciones === "number") {
     return d.selecciones === 0 ? null : d.selecciones === 1 ? "Se llevó 1 elección de un cliente" : `Se llevó ${d.selecciones} elecciones de clientes`;
   }
