@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import {
+  GUESTBOOK_LIMITS,
   guestbookInput, guestbookProblems, guestbookSignature, guestbookState, hasLinkOrEmail, initialEntryStatus, isTooFast,
   nextEntryStatus,
 } from "./guestbook";
@@ -33,7 +34,7 @@ describe("entrada del libro", () => {
     const rlo = "\u202Emoc.mpas\u202C";
     expect(guestbookInput({ comment: `Mirá ${rlo}` }).comment).toBe("Mirá moc.mpas");
     expect(guestbookInput({ comment: "Ho\u{E0041}\u{E0042}la\u3164\u115F\u034F" }).comment).toBe("Hola");
-    expect(guestbookInput({ comment: "a\u0085b\u2028c\u2029d\u009Fe" }).comment).toBe("abcde");
+    expect(guestbookInput({ comment: "a\u0085b\u2028c\u2029d\u009Fe" }).comment).toBe("ab\nc\nde");
     expect(guestbookInput({ comment: "Genial 👩\u200D💻 ❤\uFE0F 1\uFE0F\u20E3 👍🏽" }).comment).toBe("Genial 👩\u200D💻 ❤\uFE0F 1\uFE0F\u20E3 👍🏽");
     expect(guestbookInput({ comment: "ho\u200Dla\uFE0F" }).comment).toBe("hola");
   });
@@ -109,5 +110,32 @@ describe("moderación y firma", () => {
     expect(guestbookSignature({ name: "Ana", city: null })).toBe("Ana");
     expect(guestbookSignature({ name: null, city: "Rosario" })).toBe("Visitante de Rosario");
     expect(guestbookSignature({ name: null, city: null })).toBe("Visitante");
+  });
+});
+
+describe("textos enormes", () => {
+  it("un comentario gigante se rechaza por largo sin trabar las expresiones regulares", () => {
+    const enorme = "a".repeat(200_000);
+    const t0 = performance.now();
+    const p = guestbookProblems(guestbookInput({ comment: enorme }), [enorme]);
+    expect(performance.now() - t0).toBeLessThan(500);
+    expect(p).toEqual([`El comentario puede tener hasta ${GUESTBOOK_LIMITS.comment} caracteres.`]);
+  });
+
+  it("hasLinkOrEmail tarda poco aun con miles de letras seguidas", () => {
+    const t0 = performance.now();
+    expect(hasLinkOrEmail("a".repeat(20_000))).toBe(false);
+    expect(hasLinkOrEmail("@".repeat(5_000) + "a".repeat(5_000))).toBe(false);
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+
+  it("sigue viendo correos y dominios con las anclas", () => {
+    expect(hasLinkOrEmail("escribime a ana@spam.com")).toBe(true);
+    expect(hasLinkOrEmail("entrá a spam.com ya")).toBe(true);
+    expect(hasLinkOrEmail("muestra.Me encantó")).toBe(false);
+  });
+
+  it("los separadores de línea de Unicode pasan a salto, no pegan las palabras", () => {
+    expect(guestbookInput({ comment: "linda muestra" }).comment).toBe("linda\nmuestra");
   });
 });

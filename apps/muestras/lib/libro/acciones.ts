@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { prisma } from "@repo/db";
 import {
-  guestbookInput, guestbookProblems, guestbookState, initialEntryStatus, isGuestbookMode, isModerationAction, isTooFast, nextEntryStatus,
+  GUESTBOOK_LIMITS, GUESTBOOK_RAW_MAX, guestbookInput, guestbookProblems, guestbookState, initialEntryStatus, isGuestbookMode, isModerationAction, isTooFast, nextEntryStatus,
 } from "@repo/muestras";
 import { frenarPorIp, frenarPorMuestra, frenarPorUsuario, ipDeLaPeticion } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
@@ -24,6 +24,13 @@ export async function dejarComentario(fd: FormData): Promise<ResultadoLibro> {
   const t = String(fd.get("t") ?? "");
   if (isTooFast(/^\d{12,14}$/.test(t) ? Number(t) : null, Date.now())) return COMO_SI_NADA;
   const crudo = { name: fd.get("nombre"), city: fd.get("ciudad"), comment: fd.get("comentario") };
+  // Antes de limpiar nada: un campo enorme no se procesa (ver GUESTBOOK_RAW_MAX).
+  if (Object.values(crudo).some((v) => typeof v === "string" && v.length > GUESTBOOK_RAW_MAX)) {
+    return { ok: false, error: `El comentario puede tener hasta ${GUESTBOOK_LIMITS.comment} caracteres.` };
+  }
+  // Freno barato por IP, sin ámbito, antes de consultar la base (como en /q).
+  const ip = ipDeLaPeticion(await headers());
+  if (!frenarPorIp("libroConsultas", ip).allowed) return { ok: false, error: "Dejaste varios comentarios seguidos. Probá en unos minutos." };
   const entrada = guestbookInput(crudo);
   const problemas = guestbookProblems(entrada, [crudo.name, crudo.city, crudo.comment]);
   if (problemas.length) return { ok: false, error: problemas.join(" ") };
@@ -34,7 +41,7 @@ export async function dejarComentario(fd: FormData): Promise<ResultadoLibro> {
   if (!a || guestbookState(a, new Date()) !== "OPEN") return { ok: false, error: "El libro de visitas de esta muestra está cerrado." };
   // El freno va después de confirmar que la muestra existe: con ids inventados, cada pedido
   // sumaría una clave nueva al mapa del freno.
-  if (!frenarPorIp("libro", ipDeLaPeticion(await headers()), a.id).allowed) {
+  if (!frenarPorIp("libro", ip, a.id).allowed) {
     return { ok: false, error: "Dejaste varios comentarios seguidos. Probá en unos minutos." };
   }
   if (!frenarPorMuestra("libro", a.id).allowed) return { ok: false, error: "El libro recibió muchos comentarios en poco tiempo. Probá en un rato." };

@@ -123,6 +123,8 @@ export const LIMITES_PUBLICOS = {
   qr: { limit: 1000, windowMs: 10 * 60_000 },
   // Por IP y por muestra: un grupo escolar en la red del lugar comparte IP.
   libro: { limit: 10, windowMs: 10 * 60_000 },
+  // Antes de buscar la muestra del libro: holgado, sólo para que un bucle no consulte la base.
+  libroConsultas: { limit: 120, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
