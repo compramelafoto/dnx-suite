@@ -42,6 +42,12 @@ describe("decidir", () => {
     expect((await decidir("w1", "SELECTED")).ok).toBe(true);
     expect(db.culturalCallWork.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "w1", call: { status: "CURATING" } }, data: expect.objectContaining({ decision: "SELECTED" }) }));
   });
+  it("la coorganización de la muestra tampoco (etapa 5, D4)", async () => {
+    usuarioActual.valor = { ...ana, id: 15 };
+    db.culturalCallWork.findUnique.mockResolvedValue({ ...obra, call: { ...obra.call, activity: { ...obra.call.activity, members: [{ userId: 15, role: "CO_ORGANIZER", status: "ACTIVE" }] } } });
+    expect(await decidir("w1", "SELECTED")).toEqual({ ok: false, errores: ["La obra no existe."] });
+    expect(db.culturalCallWork.updateMany).not.toHaveBeenCalled();
+  });
   it("una decisión inventada no", async () => expect((await decidir("w1", "GANADORA")).ok).toBe(false));
   it("alguien que no organiza no", async () => {
     usuarioActual.valor = { ...ana, id: 8 };
@@ -152,6 +158,12 @@ describe("armarMuestra", () => {
   });
   it("una convocatoria ajena no existe", async () => {
     usuarioActual.valor = { ...ana, id: 8 };
+    expect(await armarMuestra("c1")).toEqual({ ok: false, errores: ["La convocatoria no existe."] });
+    expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
+  });
+  it("la coorganización no arma la muestra (etapa 5, D4)", async () => {
+    usuarioActual.valor = { ...ana, id: 15 };
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, members: [{ userId: 15, role: "CO_ORGANIZER", status: "ACTIVE" }] } });
     expect(await armarMuestra("c1")).toEqual({ ok: false, errores: ["La convocatoria no existe."] });
     expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
   });

@@ -50,6 +50,8 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     fd.set("latitude", lugar.latitude?.toString() ?? ""); fd.set("longitude", lugar.longitude?.toString() ?? "");
     fd.set("works", JSON.stringify(tipo === "MUESTRA" ? obras : []));
     fd.set("idsCargados", JSON.stringify(idsCargados));
+    // La versión con la que se abrió: si otra persona del equipo guardó en el medio, no se pisa.
+    if (inicial) fd.set("editVersion", String(inicial.editVersion));
     return fd;
   }
 

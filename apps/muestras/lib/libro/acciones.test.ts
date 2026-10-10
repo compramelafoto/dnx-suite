@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findUnique: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+  culturalActivity: { findUnique: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   culturalActivityGuestbookEntry: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
@@ -11,6 +11,7 @@ vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor })
 vi.mock("next/cache", () => cache);
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "190.1.2.3" }) }));
 const { cambiarModoLibro, dejarComentario, moderarEntrada } = await import("./acciones");
+const { dondePuede } = await import("@/lib/equipo/permisos");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const muestra = {
@@ -76,8 +77,11 @@ describe("dejarComentario", () => {
 });
 
 describe("moderación", () => {
-  const entrada = { id: "e1", activity: { id: "cka1b2c3d4", slug: "miradas-abc", proposedByUserId: 7 } };
+  const entrada = { id: "e1", activity: { id: "cka1b2c3d4", slug: "miradas-abc" } };
+  // La base dice si esta persona tiene `guestbook` en la muestra (dueño o coorganización activa).
+  const tienePermiso = (si: boolean) => db.culturalActivity.count.mockResolvedValue(si ? 1 : 0);
   beforeEach(() => {
+    tienePermiso(true);
     db.culturalActivityGuestbookEntry.findUnique.mockResolvedValue(entrada);
     db.culturalActivityGuestbookEntry.updateMany.mockResolvedValue({ count: 1 });
     db.culturalActivityGuestbookEntry.deleteMany.mockResolvedValue({ count: 1 });
@@ -91,16 +95,24 @@ describe("moderación", () => {
   });
   it("nadie más; y acciones desconocidas no", async () => {
     usuarioActual.valor = { id: 8, esSuperAdmin: false, email: "x", name: null };
+    tienePermiso(false);
     expect((await moderarEntrada("e1", "hide")).ok).toBe(false);
+    tienePermiso(true);
     usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
     expect((await moderarEntrada("e1", "borrarTodo" as never)).ok).toBe(false);
     expect(db.culturalActivityGuestbookEntry.updateMany).not.toHaveBeenCalled();
   });
-  it("cambiar el modo: sólo el dueño y sólo modos válidos", async () => {
+  it("la coorganización modera; textos no (el permiso va en la consulta)", async () => {
+    usuarioActual.valor = { id: 15, esSuperAdmin: false, email: "co@x", name: null };
+    expect((await moderarEntrada("e1", "hide")).ok).toBe(true);
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toEqual({ id: "cka1b2c3d4", ...dondePuede({ id: 15, esSuperAdmin: false }, "guestbook") });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where.AND[0].OR[1].members.some.role).toEqual({ in: ["CO_ORGANIZER"] });
+  });
+  it("cambiar el modo: sólo con `guestbook` y sólo modos válidos", async () => {
     usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
     db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
     expect((await cambiarModoLibro("cka1b2c3d4", "REVIEW")).ok).toBe(true);
-    expect(db.culturalActivity.updateMany).toHaveBeenCalledWith({ where: { id: "cka1b2c3d4", type: "MUESTRA", proposedByUserId: 7 }, data: { guestbookMode: "REVIEW" } });
+    expect(db.culturalActivity.updateMany).toHaveBeenCalledWith({ where: { id: "cka1b2c3d4", type: "MUESTRA", ...dondePuede({ id: 7, esSuperAdmin: false }, "guestbook") }, data: { guestbookMode: "REVIEW" } });
     expect(cache.revalidatePath).toHaveBeenCalledWith("/m/miradas-abc", "layout");
     expect((await cambiarModoLibro("cka1b2c3d4", "CUALQUIERA")).ok).toBe(false);
   });
