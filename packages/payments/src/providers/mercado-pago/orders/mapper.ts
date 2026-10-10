@@ -222,13 +222,17 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   };
 
   /**
-   * `additional_info.payer` es el nodo antifraude recomendado por MP. Ojo: los
-   * `items` del catálogo NUNCA van bajo `additional_info` — ese nodo quedó
-   * deprecado para ellos y MP responde 400.
+   * Señales antifraude del pagador. Van en `additional_info` con **claves
+   * planas** (`"payer.is_prime_user"`), no anidadas bajo un objeto `payer`:
+   * ese nodo pertenece a la API de Payments y Orders lo rechaza. Lo confirmó
+   * MP el 09/10/2026 (IXFS-16376).
+   *
+   * Los `items` del catálogo tampoco van acá: quedaron deprecados bajo
+   * `additional_info` y MP responde 400.
    */
   const additionalInfoPayer = buildMercadoPagoAdditionalInfoPayer(opts.payerProfile);
   if (additionalInfoPayer) {
-    body.additional_info = { payer: additionalInfoPayer };
+    body.additional_info = additionalInfoPayer;
   }
   const headers: Record<string, string> = {
     "x-meli-session-id": opts.deviceSessionId,

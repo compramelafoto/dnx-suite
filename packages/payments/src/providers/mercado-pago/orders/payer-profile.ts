@@ -17,7 +17,13 @@ export interface OrderPayerProfile {
   lastName?: string;
   identification?: { type: string; number: string };
   phone?: { areaCode?: string; number?: string };
-  address?: { zipCode?: string; streetName?: string; streetNumber?: string };
+  address?: {
+    zipCode?: string;
+    streetName?: string;
+    streetNumber?: string;
+    neighborhood?: string;
+    city?: string;
+  };
   /** ISO 8601 — fecha en que el cliente se registró en la plataforma. */
   registrationDate?: string;
   isPrimeUser?: boolean;
@@ -64,11 +70,15 @@ export function buildMercadoPagoPayer(
   const zipCode = clean(profile.address?.zipCode);
   const streetName = clean(profile.address?.streetName);
   const streetNumber = clean(profile.address?.streetNumber);
-  if (zipCode || streetName || streetNumber) {
+  const neighborhood = clean(profile.address?.neighborhood);
+  const city = clean(profile.address?.city);
+  if (zipCode || streetName || streetNumber || neighborhood || city) {
     payer.address = {
       ...(zipCode ? { zip_code: zipCode } : {}),
       ...(streetName ? { street_name: streetName } : {}),
       ...(streetNumber ? { street_number: streetNumber } : {}),
+      ...(neighborhood ? { neighborhood } : {}),
+      ...(city ? { city } : {}),
     };
   }
 
@@ -76,23 +86,45 @@ export function buildMercadoPagoPayer(
 }
 
 /**
- * La API de Orders **no acepta** `additional_info`: responde
- * `Properties not supported ('$.additional_info' - additionalProperties 'payer'
- * not allowed)` y la orden ni siquiera se crea (verificado el 07/10/2026 contra
- * sandbox MLA).
+ * Historial y contexto del pagador para `additional_info`.
  *
- * Ese nodo pertenece a la API de Payments (`/v1/payments`), no a Orders. Por eso
- * la identidad y el contacto —incluida la dirección— se envían dentro de `payer`,
- * y los cinco campos de historial (`registration_date`, `is_prime_user`,
- * `is_first_purchase_online`, `authentication_type`, `last_purchase`) quedan sin
- * destino en Orders: se conservan en `OrderPayerProfile` porque el checklist de
- * homologación los pide, pero no hay dónde ponerlos hasta que MP indique el campo.
+ * Mercado Pago lo aclaró el 09/10/2026 (IXFS-16376): el nodo **anidado**
+ * `additional_info.payer` pertenece a la API de Payments y Orders lo rechaza
+ * con `additionalProperties 'payer' not allowed`. En Orders estos campos van
+ * en `additional_info` con **claves planas**, con el prefijo `payer.` dentro
+ * del nombre de la clave:
  *
- * Se mantiene la función devolviendo `undefined` para no romper a quien la
- * importe, y para que el día que exista un destino se cambie en un solo lugar.
+ *     "additional_info": {
+ *       "payer.authentication_type": "WEB",
+ *       "payer.is_prime_user": true
+ *     }
+ *
+ * La identidad y el contacto —incluida la dirección— siguen yendo en `payer`.
+ *
+ * Devuelve `undefined` cuando no hay nada que informar, para no agregar un nodo
+ * vacío al payload.
  */
 export function buildMercadoPagoAdditionalInfoPayer(
-  _profile?: OrderPayerProfile,
+  profile?: OrderPayerProfile,
 ): Record<string, unknown> | undefined {
-  return undefined;
+  if (!profile) return undefined;
+  const info: Record<string, unknown> = {};
+
+  const registrationDate = clean(profile.registrationDate);
+  if (registrationDate) info["payer.registration_date"] = registrationDate;
+
+  const lastPurchase = clean(profile.lastPurchase);
+  if (lastPurchase) info["payer.last_purchase"] = lastPurchase;
+
+  const authenticationType = clean(profile.authenticationType);
+  if (authenticationType) info["payer.authentication_type"] = authenticationType;
+
+  if (typeof profile.isPrimeUser === "boolean") {
+    info["payer.is_prime_user"] = profile.isPrimeUser;
+  }
+  if (typeof profile.isFirstPurchaseOnline === "boolean") {
+    info["payer.is_first_purchase_online"] = profile.isFirstPurchaseOnline;
+  }
+
+  return Object.keys(info).length > 0 ? info : undefined;
 }
