@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  culturalActivity: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   culturalActivityRsvp: { findMany: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
@@ -16,6 +16,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const { cambiarAsistencia, cerrarConfirmaciones, guardarInauguracion } = await import("./acciones");
 const { resetRateLimit } = await import("@/lib/limite");
+const { revalidatePath } = await import("next/cache");
 const tx = db;
 
 const co = { id: 2, esSuperAdmin: false, email: "co@x.com", name: "Co" };
@@ -113,6 +114,8 @@ describe("cambiarAsistencia", () => {
   });
   it("pasar a espera no vuelve a promover a la misma persona", async () => {
     expect(await cambiarAsistencia("r1", "waitlist")).toEqual({ ok: true, id: "r1" });
+    // El panel es dinámico y la lista hace router.refresh(): no se revalida nada.
+    expect(revalidatePath).not.toHaveBeenCalled();
     expect(tx.culturalActivityRsvp.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.culturalActivityRsvp.updateMany.mock.calls[0]![0].data).toEqual({ status: "WAITLIST", cancelledAt: null, promotedAt: null });
   });
@@ -126,6 +129,14 @@ describe("cambiarAsistencia", () => {
 });
 
 describe("cerrarConfirmaciones", () => {
+  it("la página pública de la muestra deja de ofrecer \"Confirmá tu asistencia\"", async () => {
+    db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
+    db.culturalActivity.findUnique.mockResolvedValue({ slug: "rosario" });
+    await cerrarConfirmaciones("a1");
+    expect(revalidatePath).toHaveBeenCalledWith("/m/rosario", "layout");
+    // El panel es dinámico y el cliente hace router.refresh(): no se revalida.
+    expect(vi.mocked(revalidatePath).mock.calls.some(([p]) => String(p).startsWith("/panel/"))).toBe(false);
+  });
   it("pasa a CLOSED con el permiso en el where", async () => {
     db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
     expect(await cerrarConfirmaciones("a1")).toEqual({ ok: true, id: "a1" });

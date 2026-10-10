@@ -14,6 +14,7 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded
 
 const { cancelarMiAsistencia, confirmarAsistencia } = await import("./publicas");
 const { hashDeToken } = await import("@/lib/curaduria/token");
+const { revalidatePath } = await import("next/cache");
 const { LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, frenarPorMuestra, resetRateLimit } = await import("@/lib/limite");
 const tx = db;
 
@@ -37,7 +38,7 @@ beforeEach(() => {
   resetRateLimit();
   db.culturalActivity.findUnique.mockResolvedValue(muestra());
   db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
-  db.$queryRaw.mockResolvedValue([{ id: "a1", rsvpCapacity: null }]);
+  db.$queryRaw.mockResolvedValue([{ id: "a1", rsvpCapacity: null, rsvpStatus: "OPEN", isCancelled: false }]);
   db.culturalActivityRsvp.findUnique.mockResolvedValue(null);
   db.culturalActivityRsvp.findMany.mockResolvedValue([]);
   db.culturalActivityRsvp.count.mockResolvedValue(0);
@@ -71,7 +72,7 @@ describe("confirmarAsistencia", () => {
   });
   it("cupo lleno → lista de espera", async () => {
     db.culturalActivity.findUnique.mockResolvedValue(muestra({ rsvpCapacity: 10 }));
-    db.$queryRaw.mockResolvedValue([{ id: "a1", rsvpCapacity: 10 }]);
+    db.$queryRaw.mockResolvedValue([{ id: "a1", rsvpCapacity: 10, rsvpStatus: "OPEN", isCancelled: false }]);
     db.culturalActivityRsvp.findMany.mockResolvedValue(Array.from({ length: 9 }, () => ({ status: "CONFIRMED", companions: 0 })));
     const r = await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "Ana", acompanantes: "1" }));
     expect(r).toMatchObject({ ok: true, estado: "WAITLIST" });
@@ -83,6 +84,15 @@ describe("confirmarAsistencia", () => {
       expect(await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "Ana" }))).toEqual({ ok: false, error: "No se reciben confirmaciones para esta inauguración." });
     }
     expect(db.$transaction).not.toHaveBeenCalled();
+  });
+  it("cerrada o cancelada entre la lectura y el bloqueo: se relee con la fila bloqueada y no anota", async () => {
+    for (const fila of [{ rsvpStatus: "CLOSED", isCancelled: false }, { rsvpStatus: "OPEN", isCancelled: true }]) {
+      db.$queryRaw.mockResolvedValueOnce([{ id: "a1", rsvpCapacity: null, ...fila }]);
+      expect(await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "Ana" }))).toEqual({ ok: false, error: "No se reciben confirmaciones para esta inauguración." });
+    }
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toMatch(/"rsvpStatus", "isCancelled" FROM "CulturalActivity" WHERE id = \? FOR UPDATE/);
+    expect(tx.culturalActivityRsvp.create).not.toHaveBeenCalled();
+    expect(tx.culturalActivityRsvp.update).not.toHaveBeenCalled();
   });
   it("valida nombre y acompañantes", async () => {
     expect((await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "A" }))).ok).toBe(false);
@@ -144,5 +154,15 @@ describe("cancelarMiAsistencia", () => {
     db.culturalActivityRsvp.findUnique.mockResolvedValue(fila({ activity: { slug: "rosario", openingAt: new Date(Date.now() - 1000) } }));
     expect(await cancelarMiAsistencia(TOKEN)).toEqual({ ok: false, error: "La inauguración ya empezó: ya no se puede cancelar desde acá." });
     expect(db.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("sin revalidar el panel", () => {
+  it("confirmar y cancelar no revalidan rutas dinámicas", async () => {
+    await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "Ana" }));
+    db.culturalActivityRsvp.findUnique.mockResolvedValue({ id: "r1", activityId: "a1", status: "CONFIRMED", activity: { slug: "rosario", openingAt: FUTURO } });
+    db.culturalActivityRsvp.findMany.mockResolvedValue([]);
+    await cancelarMiAsistencia(TOKEN);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

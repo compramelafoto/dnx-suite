@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { prisma } from "@repo/db";
 import { RSVP_LIMITS, RSVP_RAW_MAX, isTooFast, partySize, rsvpInput, rsvpPlacement, rsvpProblems, rsvpState, rsvpTotals } from "@repo/muestras";
@@ -55,9 +54,13 @@ export async function confirmarAsistencia(fd: FormData): Promise<ResultadoAsiste
   try {
     estado = await prisma.$transaction(async (tx) => {
       // Bloquea la muestra: dos confirmaciones simultáneas no pasan el cupo (D16). El cupo se lee acá.
-      const [bloqueada] = await tx.$queryRaw<{ rsvpCapacity: number | null }[]>`
-        SELECT id, "rsvpCapacity" FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;
-      const capacidad = bloqueada?.rsvpCapacity == null ? null : Number(bloqueada.rsvpCapacity);
+      // También se relee si sigue abierta: el equipo pudo cerrar o cancelar entre la lectura y acá.
+      const [bloqueada] = await tx.$queryRaw<{ rsvpCapacity: number | null; rsvpStatus: string; isCancelled: boolean }[]>`
+        SELECT id, "rsvpCapacity", "rsvpStatus", "isCancelled" FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;
+      if (!bloqueada || rsvpState({ ...a, rsvpStatus: bloqueada.rsvpStatus, isCancelled: bloqueada.isCancelled }, new Date()) !== "OPEN") {
+        throw new Corte("No se reciben confirmaciones para esta inauguración.");
+      }
+      const capacidad = bloqueada.rsvpCapacity == null ? null : Number(bloqueada.rsvpCapacity);
       // Un email, una confirmación por muestra (D17). Quien había cancelado vuelve con su misma fila.
       const previo = entrada.email
         ? await tx.culturalActivityRsvp.findUnique({ where: { activityId_email: { activityId: a.id, email: entrada.email } }, select: { id: true, status: true } })
@@ -86,7 +89,6 @@ export async function confirmarAsistencia(fd: FormData): Promise<ResultadoAsiste
   }
   const enlace = `${baseUrlPublica()}/m/${a.slug}/inauguracion/r/${token}`;
   if (entrada.email) await avisarAsistencia({ email: entrada.email, nombre: entrada.name, estado, enlace, muestra: a });
-  revalidatePath(`/panel/difusion/${a.id}/inauguracion`);
   return { ok: true, estado, enlace };
 }
 
@@ -118,6 +120,5 @@ export async function cancelarMiAsistencia(token: string): Promise<ResultadoCanc
     const m = await prisma.culturalActivity.findUnique({ where: { id: k.activityId }, select: SELECT_CONFIRMAR });
     if (m) for (const p of promovidas) if (p.email) await avisarLugarLiberado({ email: p.email, nombre: p.name, muestra: m });
   }
-  revalidatePath(`/panel/difusion/${k.activityId}/inauguracion`);
   return { ok: true };
 }
