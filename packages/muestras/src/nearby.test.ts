@@ -30,6 +30,16 @@ describe("applyFilter", () => {
   it("filtra por provincia sin importar mayúsculas ni tildes", () => expect(applyFilter(items, { province: "cordoba" }, now).map((x) => x.id)).toEqual(["proxima"]));
   it("filtra por tipo", () => expect(applyFilter(items, { type: "TALLER" }, now).map((x) => x.id)).toEqual(["proxima"]));
   it("abiertas ahora", () => expect(applyFilter(items, { openNow: true }, now).map((x) => x.id)).toEqual(["abierta"]));
+  it("filtra por país; sin país cuenta como Argentina", () => {
+    const conPais = [
+      ...items,
+      { id: "montevideo", country: "Uruguay", province: "Montevideo", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30") },
+      { id: "sao-paulo", country: "Brasil", province: "São Paulo", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30") },
+    ];
+    expect(applyFilter(conPais, { country: "uruguay" }, now).map((x) => x.id)).toEqual(["montevideo"]);
+    expect(applyFilter(conPais, { country: "Argentina" }, now).map((x) => x.id)).toEqual(["abierta", "proxima"]);
+    expect(applyFilter(conPais, { country: "Brasil", province: "sao paulo" }, now).map((x) => x.id)).toEqual(["sao-paulo"]);
+  });
 });
 
 describe("parseNearParam", () => {
