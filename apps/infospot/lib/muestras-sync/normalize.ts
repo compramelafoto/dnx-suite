@@ -77,10 +77,33 @@ export function parseMuestrasFeed(json: unknown): MuestraFeedItem[] {
   return items;
 }
 
+const fold = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Las 24 jurisdicciones, como las escribe Muestras (y sus formas habituales). */
+const PROVINCIAS_AR = new Set(
+  [
+    "Buenos Aires", "Ciudad Autónoma de Buenos Aires", "CABA", "Capital Federal", "Catamarca", "Chaco", "Chubut",
+    "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones",
+    "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero",
+    "Tierra del Fuego", "Tucumán",
+  ].map(fold),
+);
+
+/**
+ * Muestras también lista muestras de otros países (en "provincia" va el país: "Uruguay", "Brasil").
+ * Info Spot es una agenda argentina: sólo pasan las de provincias argentinas.
+ */
+export function isArgentineProvince(province: string | null): boolean {
+  if (!province) return false;
+  const p = fold(province);
+  return PROVINCIAS_AR.has(p) || p.startsWith("tierra del fuego");
+}
+
 /** InfoSpot exige ciudad, provincia y un punto en el mapa para publicar. */
 export function isMuestraImportable(a: MuestraFeedItem): { importable: boolean; reason?: string } {
   if (a.isVirtualOnly) return { importable: false, reason: "Sólo virtual" };
   if (!a.city?.trim() || !a.province?.trim()) return { importable: false, reason: "Sin ciudad o provincia" };
+  if (!isArgentineProvince(a.province)) return { importable: false, reason: "Fuera de Argentina" };
   if (a.latitude == null || a.longitude == null || (a.latitude === 0 && a.longitude === 0)) {
     return { importable: false, reason: "Sin punto en el mapa" };
   }

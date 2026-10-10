@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import {
   buildMuestraUpdate,
+  isArgentineProvince,
   isMuestraImportable,
   normalizeMuestra,
   parseMuestrasFeed,
@@ -59,7 +60,17 @@ test("isMuestraImportable: virtual, sin ciudad o sin punto no se importan", () =
 });
 
 test("normalizeMuestra: id con prefijo, enlaces a la muestra, casilla de DNX y entrada libre", () => {
-  const n = normalizeMuestra(item);
+  test("isArgentineProvince: provincias argentinas sí, países no", () => {
+  for (const p of ["Santa Fe", "Ciudad Autónoma de Buenos Aires", "cordoba", "Tucumán", "Tierra del Fuego, Antártida e Islas del Atlántico Sur", "Entre  Ríos"]) {
+    assert.equal(isArgentineProvince(p), true, p);
+  }
+  for (const p of ["Uruguay", "Brasil", "Paraguay", "Bolivia", "Venezuela", "", null]) {
+    assert.equal(isArgentineProvince(p), false, String(p));
+  }
+  assert.equal(isMuestraImportable({ ...item, city: "Montevideo", province: "Uruguay" }).importable, false);
+});
+
+const n = normalizeMuestra(item);
   assert.equal(n.externalId, "muestras:c1");
   assert.equal(n.sourceUrl, item.url);
   assert.equal(n.registrationUrl, item.url);
