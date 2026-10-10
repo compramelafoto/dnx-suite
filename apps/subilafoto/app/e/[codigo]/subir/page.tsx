@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
@@ -84,13 +83,21 @@ export default async function Subir({ params }: Props) {
       <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
 
       {portada ? (
-        <Image
+        /*
+          Sin `next/image`: la dirección viene firmada y vence. El optimizador guarda el
+          resultado con la dirección entera como clave —firma incluida—, así que cada
+          visita genera una clave nueva y vuelve a bajar y recomprimir la foto. Además el
+          host del bucket no está en `images.remotePatterns` y contesta 400.
+
+          Tampoco lleva alto y ancho fijos: eran cuadrados y recortaban cualquier foto que
+          no lo fuera. Con `max-w` y `max-h` la foto entra entera y conserva su forma.
+        */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
           src={portada}
           alt=""
-          width={400}
-          height={400}
-          priority
-          className="mb-8 h-auto w-[min(11rem,42vw)] rounded-2xl object-cover"
+          decoding="async"
+          className="mb-8 max-h-[28vh] max-w-[min(11rem,42vw)] rounded-2xl"
         />
       ) : null}
 
