@@ -83,7 +83,7 @@ export default async function Ficha({ params }: Props) {
         <div><dt className="text-sm text-[var(--mf-muted)]">Horarios</dt><dd>{a.scheduleText}</dd></div>
         <div><dt className="text-sm text-[var(--mf-muted)]">Entrada</dt><dd>{a.priceText || "Libre y gratuita"}</dd></div>
         <div className="sm:col-span-2"><dt className="text-sm text-[var(--mf-muted)]">Lugar</dt>
-          <dd>{a.isVirtualOnly ? "Online" : <>{a.venueName ? `${a.venueName}, ` : ""}{a.address}{a.city ? `, ${a.city}` : ""}{a.province ? `, ${a.province}` : ""}{mapa ? <><br /><a href={mapa} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Cómo llegar</a></> : null}</>}</dd>
+          <dd>{a.isVirtualOnly ? "Online" : <>{a.venueName ? `${a.venueName}, ` : ""}{a.address}{a.city ? `, ${a.city}` : ""}{a.province ? `, ${a.province}` : ""}{a.country && a.country !== "Argentina" ? `, ${a.country}` : ""}{mapa ? <><br /><a href={mapa} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Cómo llegar</a></> : null}</>}</dd>
         </div>
         {esUrlWeb(a.externalUrl) ? <div className="sm:col-span-2"><a href={a.externalUrl} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Más información</a></div> : null}
       </dl>

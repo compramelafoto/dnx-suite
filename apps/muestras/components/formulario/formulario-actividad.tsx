@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, formatArClock, openingHasTime, toArDay } from "@repo/muestras";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, COUNTRIES, DEFAULT_COUNTRY, countryCode, formatArClock, openingHasTime, toArDay } from "@repo/muestras";
 import { enviarARevision, guardarBorrador } from "@/lib/actividades/acciones";
 import type { buscarParaEditar } from "@/lib/actividades/consultas";
 import type { ObraForm } from "@/lib/actividades/mapear";
@@ -31,6 +31,7 @@ export function FormularioActividad({ inicial, visibilidad }: { inicial?: Activi
   const esMuestra = tipo === "MUESTRA";
   const sinLugar = !esMuestra && soloOnline;
   const [portada, setPortada] = useState<string | null>(inicial?.coverImageUrl ?? null);
+  const [pais, setPais] = useState<string>(inicial?.country ?? DEFAULT_COUNTRY);
   const [lugar, setLugar] = useState({
     address: inicial?.address ?? "", city: inicial?.city ?? "", province: inicial?.province ?? "",
     latitude: inicial?.latitude ?? null as number | null, longitude: inicial?.longitude ?? null as number | null,
@@ -141,7 +142,12 @@ export function FormularioActividad({ inicial, visibilidad }: { inicial?: Activi
         {!sinLugar ? (
           <>
             <label className="block">{esMuestra ? "Nombre de la sede" : "Nombre del lugar"}<input name="venueName" className={campo} defaultValue={inicial?.venueName ?? ""} placeholder="Sala, galería, centro cultural…" /></label>
-            <BuscadorDireccion onElegir={(l) => setLugar({ address: l.address ?? l.displayName, city: l.city ?? "", province: l.province ?? "", latitude: l.latitude, longitude: l.longitude })} />
+            <label className="block">País
+              <select name="country" value={pais} onChange={(e) => setPais(e.target.value)} className={campo}>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </select>
+            </label>
+            <BuscadorDireccion pais={countryCode(pais) ?? "AR"} onElegir={(l) => setLugar({ address: l.address ?? l.displayName, city: l.city ?? "", province: l.province ?? "", latitude: l.latitude, longitude: l.longitude })} />
             <p className="text-sm text-[var(--mf-muted)]">{lugar.address || "Todavía no elegiste la dirección."} Si el punto quedó corrido, tocá el mapa o arrastrá el pin.</p>
             <MapaDelLugar latitude={lugar.latitude} longitude={lugar.longitude} editable onMover={(lat, lng) => setLugar((p) => ({ ...p, latitude: lat, longitude: lng }))} alto="280px" />
           </>
