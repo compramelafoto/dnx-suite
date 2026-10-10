@@ -469,7 +469,7 @@ describe("guardarBorrador: obras que cargó un expositor (etapa 6, D9)", () => {
       ]),
     }));
     expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledWith({
-      where: { id: "ew1", activityId: "a1" }, data: { title: "Silos al amanecer", year: 2024, technique: "Giclée" },
+      where: { id: "ew1", activityId: "a1", status: "APPROVED" }, data: { title: "Silos al amanecer", year: 2024, technique: "Giclée" },
     });
     expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledTimes(1);
   });

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), update: vi.fn(), count: vi.fn() },
-  culturalActivityWork: { updateMany: vi.fn() },
+  culturalActivityWork: { updateMany: vi.fn(), findMany: vi.fn() },
   culturalExhibitorWork: { findMany: vi.fn(), updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
   $transaction: vi.fn(),
@@ -38,6 +38,7 @@ beforeEach(() => {
   db.culturalActivity.update.mockResolvedValue({});
   db.culturalActivity.count.mockResolvedValue(1);
   db.culturalActivityWork.updateMany.mockResolvedValue({ count: 1 });
+  db.culturalActivityWork.findMany.mockResolvedValue([{ id: "w1", title: "Viejo", year: null, technique: null }, { id: "w2", title: "Otra", year: null, technique: null }]);
   db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
   db.$queryRaw.mockResolvedValue([{ editVersion: 2, lastEditedByUserId: 1, lastEditedPart: "FICHA" }]);
   db.user.findUnique.mockResolvedValue({ name: "Ana Pérez" });
@@ -102,6 +103,14 @@ describe("guardarTextos y las obras de expositores (etapa 6)", () => {
     expect(r.ok).toBe(true);
     expect(db.culturalExhibitorWork.findMany.mock.calls[0]![0].where).toEqual({ activityId: "a1", activityWorkId: { in: ["w1", "w2"] } });
     expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledTimes(1);
-    expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledWith({ where: { id: "ew1", activityId: "a1" }, data: { title: "Silos", year: 2024, technique: "Giclée" } });
+    // Sólo a obras aprobadas (una con cambios pedidos no se pisa) y sólo lo que cambió.
+    expect(db.culturalExhibitorWork.updateMany).toHaveBeenCalledWith({ where: { id: "ew1", activityId: "a1", status: "APPROVED" }, data: { title: "Silos", year: 2024, technique: "Giclée" } });
+  });
+
+  it("si el título no cambió, no se copia (no pisa lo que corrige quien expone)", async () => {
+    db.culturalExhibitorWork.findMany.mockResolvedValue([{ id: "ew1", activityWorkId: "w1" }]);
+    db.culturalActivityWork.findMany.mockResolvedValue([{ id: "w1", title: "Silos", year: 2024, technique: "Giclée" }]);
+    await guardarTextos(fd({ id: "a1", editVersion: "2", obras: JSON.stringify([{ id: "w1", title: "Silos", year: "2024", technique: "Giclée" }]) }));
+    expect(db.culturalExhibitorWork.updateMany).not.toHaveBeenCalled();
   });
 });

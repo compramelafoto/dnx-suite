@@ -187,7 +187,10 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
         if (!bloqueada || Number(bloqueada.editVersion) !== version) throw new Choque(id, bloqueada ?? null);
         const enLaBase = await tx.culturalActivityWork.findMany({
           where: { activityId: id },
-          select: { id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true, imageUrl: true, authorName: true },
+          select: {
+            id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true, imageUrl: true, authorName: true,
+            title: true, year: true, technique: true,
+          },
         });
         // Las obras que vinieron de un expositor (etapa 6): su imagen y su autor no se tocan desde acá.
         const expositoras = await tx.culturalExhibitorWork.findMany({
@@ -230,7 +233,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
             data: { activityWorkId: OBRA_QUITADA_DE_LA_GALERIA },
           });
         }
-        await copiarTextosAExpositores(tx, id, r.obras, deExpositor);
+        await copiarTextosAExpositores(tx, id, r.obras, deExpositor, new Map(enLaBase.map((w) => [w.id, w])));
         // Una obra de expositor que el editor quitó deja de estar en la muestra (spec D9).
         const quitadas = plan.removedIds.filter((w) => deExpositor.has(w));
         if (quitadas.length) {

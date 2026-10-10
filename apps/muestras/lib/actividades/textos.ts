@@ -65,6 +65,10 @@ export async function guardarTextos(fd: FormData): Promise<ResultadoAccion> {
           ...datosDeCambio(usuario.id, "TEXTOS"),
         },
       });
+      // Los textos de antes, para copiar a quien expone sólo lo que cambió (D9).
+      const antes = obras.length
+        ? await tx.culturalActivityWork.findMany({ where: { activityId: id, id: { in: obras.map((o) => o.id) } }, select: { id: true, title: true, year: true, technique: true } })
+        : [];
       for (const o of obras) {
         await tx.culturalActivityWork.updateMany({ where: { id: o.id, activityId: id }, data: { title: o.title, year: o.year, technique: o.technique } });
       }
@@ -75,7 +79,7 @@ export async function guardarTextos(fd: FormData): Promise<ResultadoAccion> {
           select: { id: true, activityWorkId: true },
         });
         const deExpositor = new Map(expositoras.flatMap((e) => (e.activityWorkId ? [[e.activityWorkId, e.id] as const] : [])));
-        await copiarTextosAExpositores(tx, id, obras, deExpositor);
+        await copiarTextosAExpositores(tx, id, obras, deExpositor, new Map(antes.map((w) => [w.id, w])));
       }
     }, { timeout: 30_000, maxWait: 10_000 });
   } catch (err) {

@@ -41,6 +41,7 @@ const perfil = {
   website: null, instagram: null,
   portfolio: [{ id: "f1", imageUrl: "https://pub-test.r2.dev/muestras/9/portfolio-1.webp", title: "Río", year: 2020, technique: null, caption: null, sortOrder: 0 }],
   _count: { portfolio: 1 },
+  works: [],
 };
 const obra = (n: number) => ({
   id: `obra-${n}`, activityId: "a1", imageUrl: `https://pub-test.r2.dev/muestras/a1/oculta-${n}.webp`, title: `Título ${n}`, authorName: "Ana",
