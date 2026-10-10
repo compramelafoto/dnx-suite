@@ -53,6 +53,9 @@ describe("cuándo se puede confirmar", () => {
     expect(rsvpState({ ...m, isCancelled: true }, antes)).toBe("CLOSED");
     expect(rsvpState({ ...m, rsvpStatus: "OFF" }, antes)).toBe("OFF");
   });
+  it("cancelada: cerrada aunque no pidiera confirmación (nunca \"Entrada libre\")", () => {
+    expect(rsvpState({ ...m, rsvpStatus: "OFF", isCancelled: true }, antes)).toBe("CLOSED");
+  });
   it("sin página: no es muestra, no publicada, virtual o sin hora", () => {
     for (const x of [{ type: "CHARLA" }, { reviewStatus: "DRAFT" }, { isVirtualOnly: true }, { openingAt: dayStartAr("2026-11-14") }, { openingAt: null }]) {
       expect(rsvpState({ ...m, ...x }, antes), JSON.stringify(x)).toBe("UNAVAILABLE");
