@@ -76,3 +76,70 @@ export async function guardarInauguracion(fd: FormData): Promise<ResultadoAccion
   revalidatePath(`/panel/difusion/${id}/inauguracion`);
   return { ok: true, id };
 }
+
+const ACCIONES = ["cancel", "confirm", "waitlist"] as const;
+type AccionAsistencia = (typeof ACCIONES)[number];
+const NO_ESTA: ResultadoAccion = { ok: false, errores: ["No encontramos esa confirmación."] };
+
+/**
+ * Cambios del equipo sobre una confirmación (D16, D20): cancelar (y pasar a la siguiente de la
+ * espera), confirmar a mano aunque se pase del cupo (el equipo conoce su sala) o pasar a espera.
+ */
+export async function cambiarAsistencia(rsvpId: string, accion: string): Promise<ResultadoAccion> {
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  if (typeof rsvpId !== "string" || !ID.test(rsvpId) || !(ACCIONES as readonly string[]).includes(accion)) return NO_ESTA;
+  if (!frenarPorUsuario("gestionarAsistencias", usuario.id).allowed) return { ok: false, errores: ["Esperá unos minutos y seguí."] };
+  const k = await prisma.culturalActivityRsvp.findUnique({ where: { id: rsvpId }, select: { id: true, activityId: true, status: true } });
+  if (!k) return NO_ESTA;
+  const que = accion as AccionAsistencia;
+  let r: { muestra: MuestraDelCorreo; promovidas: Promovida[] };
+  try {
+    r = await prisma.$transaction(async (tx) => {
+      const a = await tx.culturalActivity.findFirst({
+        where: { id: k.activityId, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+        select: { id: true, slug: true, title: true, rsvpCapacity: true, openingAt: true, openingEndsAt: true, venueName: true, address: true, city: true },
+      });
+      if (!a) throw new Corte("No encontramos esa confirmación.");
+      await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;
+      const ahora = new Date();
+      const donde = { id: k.id, activityId: a.id };
+      if (que === "cancel") {
+        const { count } = await tx.culturalActivityRsvp.updateMany({ where: { ...donde, status: { not: "CANCELLED" } }, data: { status: "CANCELLED", cancelledAt: ahora } });
+        return { muestra: a, promovidas: count ? await promoverEnTx(tx, a.id, a.rsvpCapacity, ahora) : [] };
+      }
+      if (que === "confirm") {
+        await tx.culturalActivityRsvp.updateMany({
+          where: { ...donde, status: { not: "CONFIRMED" } },
+          // La marca de "pasó de la espera" le recuerda al equipo avisarle a esa persona.
+          data: { status: "CONFIRMED", cancelledAt: null, promotedAt: k.status === "WAITLIST" ? ahora : null },
+        });
+        return { muestra: a, promovidas: [] };
+      }
+      // A espera: no se promueve en el momento (volvería a pasar la misma persona).
+      await tx.culturalActivityRsvp.updateMany({ where: { ...donde, status: { not: "WAITLIST" } }, data: { status: "WAITLIST", cancelledAt: null, promotedAt: null } });
+      return { muestra: a, promovidas: [] };
+    });
+  } catch (err) {
+    if (err instanceof Corte) return { ok: false, errores: [err.message] };
+    throw err;
+  }
+  for (const p of r.promovidas) if (p.email) await avisarLugarLiberado({ email: p.email, nombre: p.name, muestra: r.muestra });
+  revalidatePath(`/panel/difusion/${k.activityId}/inauguracion`);
+  return { ok: true, id: k.id };
+}
+
+/** "Cerrar confirmaciones": la invitación queda visible, pero ya no se anota nadie. */
+export async function cerrarConfirmaciones(activityId: string): Promise<ResultadoAccion> {
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  if (typeof activityId !== "string" || !ID.test(activityId)) return NO_EXISTE;
+  if (!frenarPorUsuario("guardarInauguracion", usuario.id).allowed) return { ok: false, errores: ["Esperá unos minutos y volvé a probar."] };
+  const { count } = await prisma.culturalActivity.updateMany({
+    where: { id: activityId, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+    data: { rsvpStatus: "CLOSED", ...datosDeCambio(usuario.id, "INAUGURACION") },
+  });
+  if (count === 0) return NO_EXISTE;
+  revalidatePath(`/panel/difusion/${activityId}/inauguracion`);
+  return { ok: true, id: activityId };
+}
