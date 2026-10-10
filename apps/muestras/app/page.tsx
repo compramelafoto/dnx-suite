@@ -7,6 +7,7 @@ import { Banner } from "@/components/portada/banner";
 import { listarPublicas } from "@/lib/actividades/consultas";
 import { FOTOS_PORTADA } from "@/lib/portada/fotos";
 import { PASOS_MUESTRA } from "@/lib/portada/funciones";
+import { TextoDePaso } from "@/components/portada/texto-de-paso";
 
 export const revalidate = 300;
 
@@ -62,7 +63,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
                 <h3 className="mf-titulo text-[clamp(1.5rem,2.4vw,2rem)]">{paso.titulo}</h3>
               </div>
               <ul className="grid gap-x-10 gap-y-3 pl-10 text-[15px] leading-snug sm:grid-cols-2 md:col-span-8 md:pl-0">
-                {paso.items.map((item) => <li key={item} className="max-w-[44ch]">{item}</li>)}
+                {paso.items.map((item) => <li key={item} className="max-w-[44ch]"><TextoDePaso texto={item} /></li>)}
               </ul>
             </li>
           ))}

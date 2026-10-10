@@ -1,5 +1,7 @@
 /**
- * Lo que se puede hacer con una muestra, paso a paso, para la portada. Es una secuencia real
+ * Lo que se puede hacer con una muestra, paso a paso, para la portada. `{FOTORANK}` en un texto
+ * se dibuja como el logo de FotoRank con enlace al sitio.
+ * Es una secuencia real
  * (de crear la muestra al archivo), por eso la portada la numera. Para cambiar el texto
  * alcanza con tocar esta lista.
  *
@@ -24,7 +26,7 @@ export const PASOS_MUESTRA: PasoMuestra[] = [
     items: [
       "Abrí una convocatoria para que los fotógrafos envíen sus obras desde cualquier lugar.",
       "Hacé la curaduría a distancia, privada y anónima: el equipo curatorial ve las obras sin el nombre del autor, las puntúa y las filtra.",
-      "O conectá tu concurso de FotoRank y llevá a la sala a los ganadores y preseleccionados.",
+      "O conectá tu concurso de {FOTORANK} y llevá a la sala a los ganadores y preseleccionados.",
     ],
   },
   {
