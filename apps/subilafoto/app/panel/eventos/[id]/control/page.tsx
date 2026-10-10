@@ -15,8 +15,12 @@ import { Vigilancia } from "./vigilancia";
 export const dynamic = "force-dynamic";
 /*
   `revalidate = 0` evita que la respuesta quede en caché, pero NO hace que la página se
-  vuelva a pedir: eso lo hace `<Vigilancia />`, que la refresca cada ocho segundos y
-  muestra hace cuánto. Sin ese componente la lista se queda en la de cuando se abrió.
+  vuelva a pedir. De eso se encarga el vigía, que cada ocho segundos pregunta cuántas cosas
+  llegaron y lo avisa — pero **no mueve la lista**: eso lo decide el fotógrafo tocando.
+
+  La lista está ordenada por lo último que llegó, así que refrescarla corre las fotos de
+  lugar, y acá un toque saca algo de la pared sin preguntar. Moviéndose sola, una foto que
+  aparece justo mientras el dedo baja hace que se saque la de al lado.
 */
 export const revalidate = 0;
 
@@ -66,9 +70,20 @@ export default async function Control({ params }: Props) {
       originalKey: true,
       caption: true,
       guestName: true,
+      /* El corte contra el que el vigía cuenta lo que llegó después. */
+      publishedAt: true,
       variants: SELECT_DE_VARIANTES,
     },
   });
+
+  /*
+    Lo más nuevo que esta lista ya muestra. El vigía pregunta cuántas cosas se publicaron
+    después de esta fecha, y la lista no se mueve hasta que el fotógrafo toque.
+
+    Sale de la base y no del reloj del teléfono: comparar contra la hora local daría de
+    más o de menos según cómo ande ese reloj.
+  */
+  const corte = enPantalla[0]?.publishedAt?.toISOString() ?? null;
 
   // La variante, nunca el original: regla anti-bypass.
   const enlaces = await enlacesDeVariantes(enPantalla, "pantalla", DURACION.proyeccion);
@@ -84,15 +99,16 @@ export default async function Control({ params }: Props) {
   return (
     <main className="sobre-claro mx-auto max-w-3xl px-4 py-8">
 
-      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-extrabold tracking-[-0.02em]">En la pantalla</h1>
-        <Vigilancia />
-      </div>
+      <h1 className="mt-4 text-2xl font-extrabold tracking-[-0.02em]">En la pantalla</h1>
       <p className="mt-2 leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>
         {enPantalla.length === 0
           ? "Todavía no hay nada proyectándose."
           : "Tocá Sacar y desaparece de la pantalla en el momento. Podés volver a mostrarla después desde Moderación."}
       </p>
+
+      <div className="mt-5">
+        <Vigilancia key={corte ?? "vacio"} eventoId={evento.id} desde={corte} />
+      </div>
 
       <ul className="mt-8 grid gap-5 sm:grid-cols-2">
         {enPantalla.map((foto, i) => (
