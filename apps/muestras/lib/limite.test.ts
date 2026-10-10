@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
 import {
   LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
-  ipDeLaPeticion, MAX_ENTRADAS, resetRateLimit, tamanoDelFreno,
+  ipDeLaPeticion, MAX_ENTRADAS, prefijoDeIp, resetRateLimit, tamanoDelFreno,
 } from "./limite";
 
 beforeEach(() => resetRateLimit());
@@ -60,6 +60,27 @@ describe("huella de IP", () => {
     const a = huellaDeIp("181.1.2.3");
     expect(a).toBe(huellaDeIp("181.1.2.3"));
     expect(a).not.toBe(huellaDeIp("181.1.2.4"));
+  });
+});
+
+describe("IPv6: se cuenta por el prefijo /64", () => {
+  it("dos direcciones de la misma red /64 dan la misma huella", () => {
+    expect(huellaDeIp("2800:810:1:2:aaaa::1")).toBe(huellaDeIp("2800:810:1:2:bbbb:cccc:dddd:2"));
+    expect(huellaDeIp("2800:0810:0001:0002::1")).toBe(huellaDeIp("2800:810:1:2::5"));
+    expect(huellaDeIp("2800:810:1:2::1")).not.toBe(huellaDeIp("2800:810:1:3::1"));
+  });
+  it("normaliza la forma comprimida y deja igual una IPv4", () => {
+    expect(prefijoDeIp("2800:810::1")).toBe("2800:810:0:0::/64");
+    expect(prefijoDeIp("::1")).toBe("0:0:0:0::/64");
+    expect(prefijoDeIp("2800:810:1:2:3:4:5:6")).toBe("2800:810:1:2::/64");
+    expect(prefijoDeIp("181.1.2.3")).toBe("181.1.2.3");
+    expect(prefijoDeIp("::ffff:181.1.2.3")).toBe("181.1.2.3");
+    expect(prefijoDeIp("sin-ip")).toBe("sin-ip");
+  });
+  it("el freno por IP también cuenta por /64", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.buscarCerca.limit; i++) frenarPorIp("buscarCerca", `2800:810:1:2::${i + 1}`);
+    expect(frenarPorIp("buscarCerca", "2800:810:1:2:ffff::9").allowed).toBe(false);
+    expect(frenarPorIp("buscarCerca", "2800:810:1:3::1").allowed).toBe(true);
   });
 });
 
@@ -123,6 +144,12 @@ describe("frenos de la sorpresa (etapa 6)", () => {
     for (let i = 0; i < 60; i++) expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(true);
     expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(false);
     expect(frenarPorIp("anticipo", "2.2.2.2").allowed).toBe(true);
+  });
+  it("anticipo por muestra: 20 cada 10 minutos por IP y por muestra", () => {
+    expect(LIMITES_PUBLICOS.anticipoPorMuestra).toEqual({ limit: 20, windowMs: 10 * 60_000 });
+    for (let i = 0; i < 20; i++) expect(frenarPorIp("anticipoPorMuestra", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("anticipoPorMuestra", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("anticipoPorMuestra", "1.1.1.1", "m2").allowed).toBe(true);
   });
   it("guardar la visibilidad: 60 por hora por persona", () => {
     expect(LIMITES.guardarVisibilidad).toEqual({ limit: 60, windowMs: 60 * 60_000 });

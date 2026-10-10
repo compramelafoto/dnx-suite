@@ -159,6 +159,8 @@ export const LIMITES_PUBLICOS = {
   // Etapa 6: "cambian para cada visitante". Cada pedido sortea otras obras: el tope frena a quien
   // recarga en bucle para verlas todas (pasado el tope, recibe las mismas que la última vez).
   anticipo: { limit: 60, windowMs: 10 * 60_000 },
+  // Y por IP y por muestra (el slug como ámbito): en una sola muestra se ven menos sorteos seguidos.
+  anticipoPorMuestra: { limit: 20, windowMs: 10 * 60_000 },
   // La página del enlace de expositores: frena a quien prueba tokens (pasado el tope, el mismo 404).
   paginaExpositores: { limit: 60, windowMs: 10 * 60_000 },
   // Vista de sala (con pase) y sus imágenes por proxy: holgado para quien recorre la sala, pero un
@@ -190,9 +192,32 @@ export const LIMITES_POR_MUESTRA = {
 // guarda en la base. La IP en claro no queda ni en memoria.
 const SAL = randomBytes(16).toString("hex");
 
-/** Huella de una IP para usar como clave del freno (decisión D15 de la etapa 4). */
+/**
+ * Lo que se cuenta de una IP. Una IPv4 tal cual. Una IPv6, sólo su prefijo /64: a una conexión
+ * hogareña o móvil le dan un /64 entero, y contar por dirección dejaría a cualquiera cambiar de IP en
+ * cada pedido. Una IPv4 escrita como IPv6 (`::ffff:1.2.3.4`) cuenta como la IPv4. Lo que no se
+ * entiende como IPv6 vuelve igual (cae en su propio balde).
+ */
+export function prefijoDeIp(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const mapeada = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
+  if (mapeada) return mapeada[1]!;
+  const partes = ip.split("::");
+  if (partes.length > 2) return ip;
+  const grupos = (s: string | undefined) => (s ? s.split(":") : []);
+  const izquierda = grupos(partes[0]);
+  const derecha = grupos(partes[1]);
+  const faltan = partes.length === 2 ? 8 - izquierda.length - derecha.length : 0;
+  if (faltan < 0) return ip;
+  const todos = [...izquierda, ...Array<string>(faltan).fill("0"), ...derecha];
+  const primeros = todos.slice(0, 4);
+  if (primeros.length < 4 || !primeros.every((g) => /^[0-9a-fA-F]{1,4}$/.test(g))) return ip;
+  return `${primeros.map((g) => parseInt(g, 16).toString(16)).join(":")}::/64`;
+}
+
+/** Huella de una IP (de su /64, si es IPv6) para usar como clave del freno (decisión D15 de la etapa 4). */
 export function huellaDeIp(ip: string, sal: string = SAL): string {
-  return createHash("sha256").update(sal).update(ip).digest("base64url").slice(0, 22);
+  return createHash("sha256").update(sal).update(prefijoDeIp(ip)).digest("base64url").slice(0, 22);
 }
 
 /**

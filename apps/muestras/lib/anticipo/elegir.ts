@@ -30,3 +30,20 @@ export async function obrasDelAnticipo(slug: string, randomInt: (max: number) =>
     id, imageUrl, title, authorName, year, technique,
   }));
 }
+
+/**
+ * Para la respuesta frenada (spec D23): los ids de las obras expuestas si **hoy** la muestra sigue
+ * publicada y en "para cada visitante"; si no, `null`. Así, si quien organiza pasó a "Sorpresa total"
+ * (o sacó una obra), lo que quedó en memoria no se repite. Sin las imágenes: sólo lo que pide la regla.
+ */
+export async function obrasDelAnticipoVigente(slug: string): Promise<Set<string> | null> {
+  const a = await prisma.culturalActivity.findFirst({
+    where: { slug, reviewStatus: "APPROVED", type: "MUESTRA" },
+    select: {
+      galleryMode: true, visibility: true, startsAt: true, endsAt: true,
+      works: { select: { id: true, isHighlight: true, sortOrder: true } },
+    },
+  });
+  if (!a || !visibleWorks(a, a.works, new Date()).perVisit) return null;
+  return new Set(a.works.map((w) => w.id));
+}

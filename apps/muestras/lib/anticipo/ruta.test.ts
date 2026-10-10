@@ -51,9 +51,10 @@ describe("GET /api/m/[slug]/anticipo", () => {
     expect(segundo).not.toEqual(primero);
   });
 
-  it("pasado el freno, la misma respuesta que la última vez para esa IP; sin respuesta previa, vacía", async () => {
+  it("pasado el freno de la muestra, la misma respuesta que la última vez para esa IP; sin respuesta previa, vacía", async () => {
+    const tope = LIMITES_PUBLICOS.anticipoPorMuestra.limit;
     let ultima: string[] = [];
-    for (let i = 0; i < LIMITES_PUBLICOS.anticipo.limit; i++) {
+    for (let i = 0; i < tope; i++) {
       azar.randomInt.mockImplementation((max: number) => i % max);
       ultima = await ids(await GET(...pedido("rosario")));
     }
@@ -62,9 +63,38 @@ describe("GET /api/m/[slug]/anticipo", () => {
     expect(frenado.status).toBe(200);
     expect(frenado.headers.get("cache-control")).toBe("private, no-store");
     expect(await ids(frenado)).toEqual(ultima);
-    expect(db.culturalActivity.findFirst).toHaveBeenCalledTimes(LIMITES_PUBLICOS.anticipo.limit);
-    // Otra muestra, sin respuesta previa para esa IP: vacía.
-    expect(await ids(await GET(...pedido("otra")))).toEqual([]);
+    // Frenado no sortea: sólo relee el ajuste (sin las imágenes de las obras).
+    expect(db.culturalActivity.findFirst).toHaveBeenCalledTimes(tope + 1);
+    expect(db.culturalActivity.findFirst.mock.calls[tope]![0].select.works.select).toEqual({ id: true, isHighlight: true, sortOrder: true });
+    // Otra muestra, sin respuesta previa para esa IP: se sortea (su propio tope).
+    expect(await ids(await GET(...pedido("otra")))).toHaveLength(3);
+  });
+
+  it("el tope general por IP frena aunque se repartan los pedidos entre muestras", async () => {
+    const tope = LIMITES_PUBLICOS.anticipo.limit;
+    for (let i = 0; i < tope; i++) await GET(...pedido(`m${i % 10}`));
+    const llamadas = db.culturalActivity.findFirst.mock.calls.length;
+    expect(await ids(await GET(...pedido("nueva")))).toEqual([]);
+    // Frenado por el tope general: relee el ajuste, nunca sortea.
+    expect(db.culturalActivity.findFirst.mock.calls.length).toBe(llamadas + 1);
+  });
+
+  it("frenado y el ajuste ya no es 'para cada visitante' → vacía (no repite obras que hoy son sorpresa)", async () => {
+    const tope = LIMITES_PUBLICOS.anticipoPorMuestra.limit;
+    for (let i = 0; i < tope; i++) await GET(...pedido("rosario"));
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra, visibility: { v: 1, online: { exhibited: "NONE" } } });
+    expect(await ids(await GET(...pedido("rosario")))).toEqual([]);
+    db.culturalActivity.findFirst.mockResolvedValue(null);
+    expect(await ids(await GET(...pedido("rosario")))).toEqual([]);
+  });
+
+  it("frenado: una obra que ya no está en la muestra no se repite", async () => {
+    const tope = LIMITES_PUBLICOS.anticipoPorMuestra.limit;
+    let ultima: string[] = [];
+    for (let i = 0; i < tope; i++) ultima = await ids(await GET(...pedido("rosario")));
+    const sinLaPrimera = muestra.works.filter((w) => w.id !== ultima[0]);
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra, works: sinLaPrimera });
+    expect(await ids(await GET(...pedido("rosario")))).toEqual(ultima.slice(1));
   });
 
   it("slug inexistente o ajuste que no es 'para cada visitante' → 404 vacío", async () => {
