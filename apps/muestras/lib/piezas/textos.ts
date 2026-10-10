@@ -1,4 +1,4 @@
-import { NO_AUTHOR, dateRangeText, scanUrl } from "@repo/muestras";
+import { NO_AUTHOR, dateRangeText, formatCm, hangingLayout, scanUrl, unassignedWorks, type HangingPlan, type WallLayout } from "@repo/muestras";
 
 /** Lo que las piezas leen de una muestra (lo arma `cargarMuestraParaPiezas`, Task 11). */
 export type MuestraParaPiezas = {
@@ -57,4 +57,35 @@ export function datosDeCartel(a: ParaCartel, base: string): DatosCartel {
  */
 export function nombreDePieza(pieza: string, slug: string, extra: string[]): string {
   return [pieza, slug, ...extra].join("-").replace(/[^A-Za-z0-9-]/g, "-");
+}
+
+export type ObraEnPared = { numero: number; titulo: string; autor: string; marco: string; centroDesdeIzquierda: string; bordeSuperior: string };
+export type ParedParaPdf = { nombre: string; anchoCm: number; altoCm: number | null; layout: WallLayout; obras: ObraEnPared[] };
+export type DatosMontaje = { muestra: string; centroCm: number; paredes: ParedParaPdf[]; sinPared: { titulo: string; autor: string }[] };
+
+/** El plano listo para dibujar. `plan` viene de `parseHangingPlan`: sus obras existen. */
+export function datosDeMontaje(muestra: string, plan: HangingPlan, works: { id: string; title: string; authorName: string }[]): DatosMontaje {
+  const porId = new Map(works.map((w) => [w.id, w]));
+  return {
+    muestra,
+    centroCm: plan.centerHeightCm,
+    paredes: plan.walls.map((w) => {
+      const layout = hangingLayout(w, plan.centerHeightCm);
+      return {
+        nombre: w.name, anchoCm: w.widthCm, altoCm: w.heightCm, layout,
+        obras: layout.positions.map((p) => {
+          const o = porId.get(p.workId);
+          return {
+            numero: p.number,
+            titulo: o?.title ?? "Obra quitada",
+            autor: autorDeObra(o?.authorName ?? ""),
+            marco: `${formatCm(p.widthCm)} × ${formatCm(p.heightCm)} cm`,
+            centroDesdeIzquierda: `${formatCm(p.centerFromLeftCm)} cm`,
+            bordeSuperior: `${formatCm(p.topCm)} cm`,
+          };
+        }),
+      };
+    }),
+    sinPared: unassignedWorks(plan, works).map((o) => ({ titulo: o.title, autor: autorDeObra(o.authorName) })),
+  };
 }

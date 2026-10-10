@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "@repo/muestras";
-import { autorDeObra, datosDeCartel, detalleDeObra, lugarDeMuestra, nombreDePieza, urlVisible } from "./textos";
+import { autorDeObra, datosDeCartel, datosDeMontaje, detalleDeObra, lugarDeMuestra, nombreDePieza, urlVisible } from "./textos";
 
 const a = {
   id: "cka1", slug: "miradas-abc", title: "Miradas del litoral", organizersText: "Foto Club Rosario",
@@ -36,5 +36,16 @@ describe("textos de las piezas", () => {
     expect(urlVisible("https://muestrasfotograficas.com/", "/m/x/libro")).toBe("muestrasfotograficas.com/m/x/libro");
     expect(nombreDePieza("marcos", "miradas-abc", ["A3", "remarco"])).toBe("marcos-miradas-abc-A3-remarco");
     expect(nombreDePieza("cartel", "a b/../c", ["50x70"])).toBe("cartel-a-b----c-50x70");
+  });
+});
+
+describe("datosDeMontaje", () => {
+  it("cada pared con sus medidas para colgar y las obras sin pared aparte", () => {
+    const d = datosDeMontaje("M", {
+      version: 1, centerHeightCm: 150,
+      walls: [{ id: "a", name: "Norte", widthCm: 400, heightCm: null, items: [{ workId: "w1", frameWidthCm: 80, frameHeightCm: 100 }] }],
+    }, [{ id: "w1", title: "Uno", authorName: "Ana" }, { id: "w2", title: "Dos", authorName: " " }]);
+    expect(d.paredes[0]!.obras).toEqual([{ numero: 1, titulo: "Uno", autor: "Ana", marco: "80 × 100 cm", centroDesdeIzquierda: "200 cm", bordeSuperior: "200 cm" }]);
+    expect(d.sinPared).toEqual([{ titulo: "Dos", autor: "Autor sin indicar" }]);
   });
 });
