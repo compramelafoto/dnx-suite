@@ -158,3 +158,23 @@ describe("perfil del autor en cada obra", () => {
     expect(f.works.map((w) => w.authorProfileId)).toEqual(["cm1abcdefghijklmnop", null, null]);
   });
 });
+
+describe("texto curatorial", () => {
+  it("lo lee, conserva los saltos de línea y lo recorta a 6000", () => {
+    const f = fichaDesdeFormData(fd({ ...base, curatorialText: `  Primer párrafo.\n\nSegundo.${"x".repeat(7000)}  `, curatorCredits: " Curaduría: Ana Pérez " }));
+    expect(f.curatorialText!.startsWith("Primer párrafo.\n\nSegundo.")).toBe(true);
+    expect(f.curatorialText!.length).toBeLessThanOrEqual(LARGOS.curatorialText);
+    expect(f.curatorCredits).toBe("Curaduría: Ana Pérez");
+  });
+  it("vacío es null", () => {
+    const f = fichaDesdeFormData(fd({ ...base, curatorialText: "   " }));
+    expect(f.curatorialText).toBeNull();
+    expect(f.curatorCredits).toBeNull();
+  });
+  it("sólo una muestra guarda texto curatorial", () => {
+    const muestra = datosParaGuardar(fichaDesdeFormData(fd({ ...base, curatorialText: "Texto" })));
+    const charla = datosParaGuardar(fichaDesdeFormData(fd({ ...base, type: "CHARLA", curatorialText: "Texto" })));
+    expect(muestra.curatorialText).toBe("Texto");
+    expect(charla.curatorialText).toBeNull();
+  });
+});

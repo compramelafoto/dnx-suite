@@ -85,6 +85,17 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
         <label className="block">Título<input name="title" className={campo} defaultValue={inicial?.title} required /></label>
         <label className="block">Descripción<textarea name="description" rows={5} className={campo} defaultValue={inicial?.description} /></label>
         <label className="block">Organizadores<input name="organizersText" className={campo} defaultValue={inicial?.organizersText} placeholder="Personas o instituciones que la organizan" /></label>
+        {esMuestra ? (
+          <>
+            <label className="block">Texto curatorial (optativo)
+              <textarea name="curatorialText" rows={8} maxLength={6000} className={campo} defaultValue={inicial?.curatorialText ?? ""} />
+              <span className="mt-1 block text-sm text-[var(--mf-muted)]">Va en la página de la muestra, en el cartel de sala y en el catálogo. Separá los párrafos con una línea en blanco.</span>
+            </label>
+            <label className="block">Curaduría (optativo)
+              <input name="curatorCredits" maxLength={300} className={campo} defaultValue={inicial?.curatorCredits ?? ""} placeholder="Curaduría: Ana Pérez" />
+            </label>
+          </>
+        ) : null}
         <div>
           <p>Foto de portada</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -56,6 +56,13 @@ export default async function Ficha({ params }: Props) {
         {esUrlWeb(a.externalUrl) ? <div className="sm:col-span-2"><a href={a.externalUrl} className="text-[var(--mf-accent)] underline underline-offset-4" target="_blank" rel="noreferrer">Más información</a></div> : null}
       </dl>
       <div className="whitespace-pre-line">{a.description}</div>
+      {a.type === "MUESTRA" && a.curatorialText ? (
+        <section aria-labelledby="t-curatorial" className="space-y-3 border-t border-[var(--mf-line)] pt-6">
+          <h2 id="t-curatorial" className="mf-titulo text-[1.6rem]">Texto curatorial</h2>
+          <div className="max-w-[68ch] whitespace-pre-line leading-relaxed">{a.curatorialText}</div>
+          {a.curatorCredits ? <p className="text-[var(--mf-muted)]">{a.curatorCredits}</p> : null}
+        </section>
+      ) : null}
       {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} cerrada={temporalStatus(a, ahora) === "CLOSED"} slug={a.slug} /> : null}
     </main>
   );
