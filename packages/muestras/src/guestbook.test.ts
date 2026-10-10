@@ -29,6 +29,37 @@ describe("entrada del libro", () => {
     expect(hasLinkOrEmail("Qué foto.Arriba la luz")).toBe(false);
     expect(hasLinkOrEmail("Gracias. Felicitaciones")).toBe(false);
   });
+  it("saca forzados de dirección, etiquetas y rellenos invisibles, pero conserva los emojis", () => {
+    const rlo = "\u202Emoc.mpas\u202C";
+    expect(guestbookInput({ comment: `Mirá ${rlo}` }).comment).toBe("Mirá moc.mpas");
+    expect(guestbookInput({ comment: "Ho\u{E0041}\u{E0042}la\u3164\u115F\u034F" }).comment).toBe("Hola");
+    expect(guestbookInput({ comment: "a\u0085b\u2028c\u2029d\u009Fe" }).comment).toBe("abcde");
+    expect(guestbookInput({ comment: "Genial 👩\u200D💻 ❤\uFE0F 1\uFE0F\u20E3 👍🏽" }).comment).toBe("Genial 👩\u200D💻 ❤\uFE0F 1\uFE0F\u20E3 👍🏽");
+    expect(guestbookInput({ comment: "ho\u200Dla\uFE0F" }).comment).toBe("hola");
+  });
+  it("ve el enlace escondido detrás de un forzado de dirección o de etiquetas", () => {
+    expect(hasLinkOrEmail("Mirá \u202Emoc.mpas\u202C")).toBe(true);
+    expect(hasLinkOrEmail("spam\u{E0020}.\u{E0020}com")).toBe(true);
+    expect(hasLinkOrEmail("spam.\u200Bcom")).toBe(true);
+    const crudo = "Mirá \u202Emoc.mpas\u202C";
+    expect(guestbookProblems(guestbookInput({ comment: crudo }), [crudo])).toEqual([
+      "Los comentarios no pueden llevar enlaces ni direcciones de correo.",
+    ]);
+  });
+  it("un punto sin espacio entre oraciones no es un dominio", () => {
+    expect(hasLinkOrEmail("Hermosa muestra.Me encantó")).toBe(false);
+    expect(hasLinkOrEmail("Gracias.Me voy feliz")).toBe(false);
+    expect(hasLinkOrEmail("gracias.me voy feliz")).toBe(false);
+    expect(hasLinkOrEmail("Un lindo recorrido.co")).toBe(false);
+    expect(hasLinkOrEmail("Leé spam.comentario")).toBe(false);
+    expect(hasLinkOrEmail("entrá a spam.com.")).toBe(true);
+    expect(hasLinkOrEmail("entrá a spam.com/oferta")).toBe(true);
+    expect(hasLinkOrEmail("spam.com, dale")).toBe(true);
+    expect(hasLinkOrEmail("spam.com.ar")).toBe(true);
+    expect(hasLinkOrEmail("bit.ly/abc")).toBe(true);
+    expect(hasLinkOrEmail("x.me/abc")).toBe(true);
+    expect(hasLinkOrEmail("WWW.ALGO.COM")).toBe(true);
+  });
   it("demasiado rápido para una persona", () => {
     expect(isTooFast(1000, 2000)).toBe(true);
     expect(isTooFast(1000, 4500)).toBe(false);

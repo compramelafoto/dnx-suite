@@ -24,8 +24,9 @@ export async function dejarComentario(fd: FormData): Promise<ResultadoLibro> {
   if (!frenarPorIp("libro", ipDeLaPeticion(await headers()), activityId).allowed) {
     return { ok: false, error: "Dejaste varios comentarios seguidos. Probá en unos minutos." };
   }
-  const entrada = guestbookInput({ name: fd.get("nombre"), city: fd.get("ciudad"), comment: fd.get("comentario") });
-  const problemas = guestbookProblems(entrada);
+  const crudo = { name: fd.get("nombre"), city: fd.get("ciudad"), comment: fd.get("comentario") };
+  const entrada = guestbookInput(crudo);
+  const problemas = guestbookProblems(entrada, [crudo.name, crudo.city, crudo.comment]);
   if (problemas.length) return { ok: false, error: problemas.join(" ") };
   const a = await prisma.culturalActivity.findUnique({
     where: { id: activityId },
