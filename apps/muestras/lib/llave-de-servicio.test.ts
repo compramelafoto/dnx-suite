@@ -21,8 +21,8 @@ describe("la llave que protege las rutas de servicio", () => {
   });
 
   test("una llave más corta que la buena no pasa", () => {
-    // La comparación de tiempo constante rompe si las longitudes difieren: hay que
-    // responder igual, no explotar.
+    // La comparación de tiempo constante rompe con largos distintos: hay que responder
+    // igual, no explotar.
     expect(revisarLlave("Bearer a", "abc123")).toBe("no-autorizado");
   });
 
@@ -34,5 +34,12 @@ describe("la llave que protege las rutas de servicio", () => {
   test("el secreto se compara sin los espacios de los costados", () => {
     // Pegar la variable en Vercel arrastra un salto de línea más veces de las que uno cree.
     expect(revisarLlave("Bearer abc123", " abc123\n")).toBe("ok");
+  });
+
+  test("mismo largo en caracteres pero distinto en bytes: no pasa y no explota", () => {
+    expect(() => revisarLlave("Bearer abñ", "abc")).not.toThrow();
+    expect(revisarLlave("Bearer abñ", "abc")).toBe("no-autorizado");
+    expect(revisarLlave("Bearer abc", "abñ")).toBe("no-autorizado");
+    expect(revisarLlave("Bearer abñ", "abñ")).toBe("ok");
   });
 });

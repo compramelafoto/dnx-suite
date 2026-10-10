@@ -1,16 +1,18 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 /**
  * La llave que protege las rutas que no tienen usuario: los cron y el diagnóstico.
  *
- * Está en un solo lugar porque estaba repetida en cinco rutas, y una regla de seguridad
- * copiada cinco veces es una regla que en algún momento va a estar bien en cuatro.
+ * Está en un solo lugar para que cada ruta nueva sin usuario la use tal cual: una regla de
+ * seguridad copiada en varias rutas es una regla que en algún momento va a estar mal en una.
  *
  * Sin secreto configurado **no se atiende a nadie**. La alternativa —dejar pasar cuando
  * falta la variable— convierte un olvido de configuración en una puerta abierta.
  */
 
 export type Veredicto = "ok" | "no-autorizado" | "sin-configurar";
+
+const sha256 = (v: string) => createHash("sha256").update(v, "utf8").digest();
 
 export function revisarLlave(
   encabezado: string | null,
@@ -23,13 +25,10 @@ export function revisarLlave(
   if (!encabezado || !encabezado.startsWith(prefijo)) return "no-autorizado";
 
   const recibido = encabezado.slice(prefijo.length);
-  // `timingSafeEqual` explota si los largos no coinciden, así que se descarta antes. El
-  // largo del secreto no es lo que hay que proteger: su contenido sí.
-  if (recibido.length !== esperado.length) return "no-autorizado";
-
-  return timingSafeEqual(Buffer.from(recibido), Buffer.from(esperado))
-    ? "ok"
-    : "no-autorizado";
+  // Se comparan los SHA-256 de los dos: siempre 32 bytes, así `timingSafeEqual` nunca explota
+  // (con el texto crudo, "ñ" y "n" miden lo mismo en caracteres pero no en bytes) y no se
+  // filtra ni el largo del secreto.
+  return timingSafeEqual(sha256(recibido), sha256(esperado)) ? "ok" : "no-autorizado";
 }
 
 /**
