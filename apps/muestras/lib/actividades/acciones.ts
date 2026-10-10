@@ -3,11 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
-  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, allowedAuthorProfileId, canEdit, canPerform, editorGalleryPlan,
-  missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId, toArDay, type ReviewAction, type ReviewStatus,
+  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, activityRole, allowedAuthorProfileId,
+  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, openingProblems, resolveAuthorProfileId, toArDay,
+  type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
+import { conPermiso } from "@/lib/equipo/permisos";
+import { datosDeCambio } from "@/lib/equipo/registro";
+import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData, type FichaForm } from "./mapear";
 
@@ -20,6 +24,12 @@ const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar.
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no existe."] };
 
 class Corte extends Error {}
+/** Ya no tiene el permiso cuando se bloquea la fila (la sacaron del equipo en el medio). */
+class SinPermiso extends Error {}
+
+/** La fila del equipo de quien actúa (sólo la suya y activa): alcanza para `activityRole`. */
+const filaPropia = (userId: number) =>
+  ({ where: { userId, status: "ACTIVE" }, select: { userId: true, role: true, status: true } }) as const;
 
 function refrescar(slug?: string) {
   revalidatePath("/");
@@ -95,6 +105,8 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   if (f.works.filter((w) => w.isHighlight).length > MAX_HIGHLIGHTS) {
     return { ok: false, errores: [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`] };
   }
+  const inauguracion = openingProblems({ openingDay: f.openingDay, openingClock: f.openingClock, openingEndClock: f.openingEndClock, endDay: f.endDay });
+  if (inauguracion.length) return { ok: false, errores: inauguracion };
   const datos: ReturnType<typeof datosParaGuardar> = datosParaGuardar(f);
 
   if (!f.id) {
@@ -105,19 +117,24 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     // Una actividad nueva es un borrador: todavía no hay límite de perfiles.
     const { obras } = await obrasParaGuardar(f.works, new Map(), usuario.id);
     const creada = await prisma.culturalActivity.create({
-      data: { ...datos, slug: newSlug(f.title), proposedByUserId: usuario.id, works: { create: obras } },
+      data: { ...datos, slug: newSlug(f.title), proposedByUserId: usuario.id, ...datosDeCambio(usuario.id, "FICHA"), works: { create: obras } },
       select: { id: true },
     });
     refrescar();
     return { ok: true, id: creada.id };
   }
 
-  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id }, include: { works: { select: { id: true, isHighlight: true } } } });
+  const actual = await prisma.culturalActivity.findUnique({
+    where: { id: f.id },
+    include: { works: { select: { id: true, isHighlight: true } }, members: filaPropia(usuario.id) },
+  });
   if (!actual) return NO_EXISTE;
-  const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin };
+  // El rol se lee en la base en cada guardado: sacar a alguien del equipo corta en el próximo pedido.
+  const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: activityRole(actual, usuario.id) };
   if (!canEdit({ ...actual, reviewStatus: actual.reviewStatus as ReviewStatus }, actor)) {
     return { ok: false, errores: ["No podés editar esta actividad ahora."] };
   }
+  if (f.editVersion == null) return { ok: false, errores: [PAGINA_VIEJA] };
   // Una ficha ya enviada o publicada no puede quedar incompleta por una edición. Cuentan también
   // las obras que se conservan aunque el editor no las haya visto (ver `editorGalleryPlan`).
   if (actual.reviewStatus !== "DRAFT" && actual.reviewStatus !== "REJECTED") {
@@ -136,13 +153,21 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   // Se conserva la primera confirmación de derechos.
   if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
   const id = f.id;
+  const version = f.editVersion;
   let avisos: string[];
   try {
     avisos = await prisma.$transaction(
       async (tx) => {
         // Bloquea la muestra: armarla desde una convocatoria (que también la bloquea) no puede
-        // sumar obras entre que se leen y se reescriben.
-        await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${id} FOR UPDATE`;
+        // sumar obras entre que se leen y se reescriben. De paso lee la versión: si otra persona
+        // del equipo guardó la ficha o los textos desde que se abrió el formulario, no se pisa.
+        // (`editVersion` es INTEGER: llega como número, no bigint.)
+        const [bloqueada] = await tx.$queryRaw<{ editVersion: number; lastEditedByUserId: number | null; lastEditedPart: string | null }[]>`
+          SELECT "editVersion", "lastEditedByUserId", "lastEditedPart" FROM "CulturalActivity" WHERE id = ${id} FOR UPDATE`;
+        // El permiso se vuelve a leer con la fila bloqueada: si a esta persona la sacaron del
+        // equipo (o le cambiaron el rol) después de la primera lectura, no guarda.
+        if (bloqueada && (await tx.culturalActivity.count({ where: conPermiso({ id }, usuario, "editActivity") })) === 0) throw new SinPermiso();
+        if (!bloqueada || Number(bloqueada.editVersion) !== version) throw new Choque(id, bloqueada ?? null);
         const enLaBase = await tx.culturalActivityWork.findMany({
           where: { activityId: id },
           select: { id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true },
@@ -163,7 +188,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
         });
         if (plan.problems.length) throw new Corte(plan.problems.join(" "));
         const conservadas = plan.preserved.map((w) => w.id);
-        await tx.culturalActivity.update({ where: { id }, data: datos });
+        await tx.culturalActivity.update({ where: { id }, data: { ...datos, editVersion: { increment: 1 }, ...datosDeCambio(usuario.id, "FICHA") } });
         // Se reescriben las enviadas (las que ya existían conservan su id) y se quitan las que el
         // editor sacó. Las conservadas no se tocan, salvo su orden: van después de las enviadas.
         await tx.culturalActivityWork.deleteMany({ where: { activityId: id, id: { notIn: conservadas } } });
@@ -185,6 +210,8 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     );
   } catch (err) {
     if (err instanceof Corte) return { ok: false, errores: [err.message] };
+    if (err instanceof SinPermiso) return { ok: false, errores: ["No podés editar esta actividad ahora."] };
+    if (err instanceof Choque) return { ok: false, errores: [await mensajeDeChoque(err)] };
     throw err;
   }
   refrescar(actual.slug);
@@ -202,10 +229,10 @@ async function transicion(
   if (!usuario) return SIN_SESION;
   const corte = antes?.(usuario);
   if (corte) return corte;
-  const fila = await prisma.culturalActivity.findUnique({ where: { id }, include: { works: true } });
+  const fila = await prisma.culturalActivity.findUnique({ where: { id }, include: { works: true, members: filaPropia(usuario.id) } });
   if (!fila) return NO_EXISTE;
   const estado = fila.reviewStatus as ReviewStatus;
-  const permiso = canPerform(accion, { ...fila, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin });
+  const permiso = canPerform(accion, { ...fila, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: activityRole(fila, usuario.id) });
   if (!permiso.ok) return { ok: false, errores: [permiso.reason] };
 
   if (accion === "submit") {

@@ -1,12 +1,13 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { parseHangingPlan } from "@repo/muestras";
+import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 
-/** La muestra con su plano ya leído, para el panel de montaje. Dueño o super admin; tipo muestra. */
+/** La muestra con su plano ya leído, para el panel de montaje. Con `hanging` (dueño, coorganización o super admin); tipo muestra. */
 export async function cargarMontaje(id: string, usuario: Pick<Usuario, "id" | "esSuperAdmin">) {
   const a = await prisma.culturalActivity.findFirst({
-    where: { id, type: "MUESTRA", ...(usuario.esSuperAdmin ? {} : { proposedByUserId: usuario.id }) },
+    where: conPermiso({ id, type: "MUESTRA" }, usuario, "hanging"),
     select: {
       id: true, slug: true, title: true, reviewStatus: true, curatorialText: true, hangingPlan: true,
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, sortOrder: true } },

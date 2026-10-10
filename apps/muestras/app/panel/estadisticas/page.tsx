@@ -9,7 +9,7 @@ export const metadata = { title: "Estadísticas" };
 
 export default async function Estadisticas() {
   const usuario = await requireUsuario("/panel/estadisticas");
-  const actividades = await listarConEstadisticas(usuario.id);
+  const actividades = await listarConEstadisticas(usuario);
   return (
     <main className="max-w-3xl space-y-10">
       <header className="space-y-3">

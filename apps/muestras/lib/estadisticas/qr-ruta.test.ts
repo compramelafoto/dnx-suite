@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   culturalActivityWork: { findUnique: vi.fn() },
-  culturalActivity: { findUnique: vi.fn() },
+  culturalActivity: { findUnique: vi.fn(), count: vi.fn() },
   $executeRaw: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean } }));
@@ -14,7 +14,7 @@ const { LIMITES_PUBLICOS, resetRateLimit } = await import("@/lib/limite");
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/129.0 Mobile Safari/537.36";
 const pedir = (tipo: string, id: string, ua = UA) =>
   GET(new Request(`http://localhost:3014/q/${tipo}/${id}`, { headers: { "user-agent": ua, "x-forwarded-for": "1.1.1.1" } }), { params: Promise.resolve({ tipo, id }) });
-const muestra = { id: "a1", slug: "miradas-abc", reviewStatus: "APPROVED", type: "MUESTRA", proposedByUserId: 7 };
+const muestra = { id: "a1", slug: "miradas-abc", reviewStatus: "APPROVED", type: "MUESTRA" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -23,6 +23,7 @@ beforeEach(() => {
   db.$executeRaw.mockResolvedValue(1);
   db.culturalActivityWork.findUnique.mockResolvedValue({ id: "w1", activity: muestra });
   db.culturalActivity.findUnique.mockResolvedValue(muestra);
+  db.culturalActivity.count.mockResolvedValue(0);
 });
 
 describe("GET /q/[tipo]/[id]", () => {
@@ -41,8 +42,11 @@ describe("GET /q/[tipo]/[id]", () => {
   });
   it("un robot o el organizador no cuentan, pero igual redirige", async () => {
     expect((await pedir("o", "w1", "facebookexternalhit/1.1")).status).toBe(302);
+    // Integrante del equipo (o dueño): `esDelEquipo` lo encuentra.
     usuarioActual.valor = { id: 7, esSuperAdmin: false };
+    db.culturalActivity.count.mockResolvedValue(1);
     expect((await pedir("o", "w1")).status).toBe(302);
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ AND: [{ id: "a1" }, expect.anything()] });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
   it("algo despublicado, inexistente o mal formado va a la portada sin contar", async () => {

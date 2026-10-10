@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, toArDay } from "@repo/muestras";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, formatArClock, openingHasTime, toArDay } from "@repo/muestras";
 import { enviarARevision, guardarBorrador } from "@/lib/actividades/acciones";
-import type { buscarPropia } from "@/lib/actividades/consultas";
+import type { buscarParaEditar } from "@/lib/actividades/consultas";
 import type { ObraForm } from "@/lib/actividades/mapear";
 import { BuscadorDireccion } from "./buscador-direccion";
 import { EditorObras } from "./obras";
@@ -13,7 +13,7 @@ import { subirImagen } from "./subir-imagen";
 
 const MapaDelLugar = dynamic(() => import("@/components/mapa/mapa-del-lugar"), { ssr: false });
 
-export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarPropia>>>;
+export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarParaEditar>>>["actividad"];
 
 const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2";
 
@@ -50,6 +50,8 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     fd.set("latitude", lugar.latitude?.toString() ?? ""); fd.set("longitude", lugar.longitude?.toString() ?? "");
     fd.set("works", JSON.stringify(tipo === "MUESTRA" ? obras : []));
     fd.set("idsCargados", JSON.stringify(idsCargados));
+    // La versión con la que se abrió: si otra persona del equipo guardó en el medio, no se pisa.
+    if (inicial) fd.set("editVersion", String(inicial.editVersion));
     return fd;
   }
 
@@ -112,6 +114,11 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
         <label>Desde<input type="date" name="startDay" className={campo} defaultValue={inicial ? toArDay(inicial.startsAt) : ""} /></label>
         <label>Hasta<input type="date" name="endDay" className={campo} defaultValue={inicial ? toArDay(inicial.endsAt) : ""} /></label>
         <label>Inauguración (opcional)<input type="date" name="openingDay" className={campo} defaultValue={inicial?.openingAt ? toArDay(inicial.openingAt) : ""} /></label>
+        <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+          <label>Hora<input type="time" name="openingClock" className={campo} defaultValue={openingHasTime(inicial?.openingAt) ? formatArClock(inicial!.openingAt!) : ""} /></label>
+          <label>Hasta, opcional<input type="time" name="openingEndClock" className={campo} defaultValue={inicial?.openingEndsAt && openingHasTime(inicial.openingAt) ? formatArClock(inicial.openingEndsAt) : ""} /></label>
+          <p className="col-span-2 text-sm text-[var(--mf-muted)]">Con la hora, podés pedir confirmación de asistencia y armar la invitación.</p>
+        </div>
         <label className="sm:col-span-2">Horarios<input name="scheduleText" className={campo} defaultValue={inicial?.scheduleText ?? ""} placeholder="Mar a dom de 16 a 20" /></label>
         <label>Entrada<input name="priceText" className={campo} defaultValue={inicial?.priceText ?? ""} placeholder="Vacío = libre y gratuita" /></label>
         <label className="sm:col-span-3">Enlace (opcional)<input name="externalUrl" type="url" className={campo} defaultValue={inicial?.externalUrl ?? ""} /></label>

@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { assemblyPlan, canDecide, canEdit, isWorkDecision, needsAssembly, rankWorks, selectionRoom, type ReviewStatus } from "@repo/muestras";
+import { activityRole, assemblyPlan, canDecide, canEdit, isWorkDecision, needsAssembly, rankWorks, selectionRoom, type ReviewStatus } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
+import { puedeConDueno } from "@/lib/equipo/permisos";
 import { frenarPorUsuario } from "@/lib/limite";
 import type { ResultadoAccion } from "@/lib/actividades/acciones";
 
@@ -29,7 +30,8 @@ export async function decidir(callWorkId: string, decision: string): Promise<Res
     },
   });
   if (!w || !w.anonymousCode) return NO_EXISTE;
-  if (w.call.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin) return NO_EXISTE;
+  // Selección: sólo el dueño (`manageCall`, etapa 5 D4).
+  if (!puedeConDueno(usuario, "manageCall", w.call.activity.proposedByUserId)) return NO_EXISTE;
   if (!canDecide(w.call.status)) return { ok: false, errores: ["Sólo se decide durante la curaduría."] };
   if (w.submission?.status === "WITHDRAWN") return { ok: false, errores: ["Esa persona retiró su envío."] };
   try {
@@ -93,10 +95,12 @@ export async function armarMuestra(callId: string): Promise<ResultadoAccion> {
             activity: { select: { id: true, slug: true, reviewStatus: true, proposedByUserId: true, workspaceId: true, isCancelled: true, rightsConfirmedAt: true } },
           },
         });
-        if (!c || (c.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) throw new Corte("La convocatoria no existe.");
+        if (!c || !puedeConDueno(usuario, "manageCall", c.activity.proposedByUserId)) throw new Corte("La convocatoria no existe.");
         if (c.status !== "DONE") throw new Corte("Primero cerrá la curaduría.");
         const a = c.activity;
-        if (!canEdit({ ...a, reviewStatus: a.reviewStatus as ReviewStatus }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin })) {
+        // Sólo el dueño llega acá (o el super admin): su rol sale de la regla única, sin leer el equipo.
+        const role = activityRole(a, usuario.id);
+        if (!canEdit({ ...a, reviewStatus: a.reviewStatus as ReviewStatus }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role })) {
           throw new Corte("La muestra no se puede editar ahora (está en revisión o despublicada).");
         }
 

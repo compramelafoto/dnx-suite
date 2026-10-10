@@ -64,6 +64,12 @@ describe("invitarCurador", () => {
     expect((await invitarCurador("c1", "x@y.com")).ok).toBe(false);
     expect(db.culturalCallCurator.create).not.toHaveBeenCalled();
   });
+  it("la coorganización de la muestra tampoco (etapa 5, D4)", async () => {
+    usuarioActual.valor = { id: 15, esSuperAdmin: false, email: "co@x", name: "Co" };
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { proposedByUserId: 7, members: [{ userId: 15, role: "CO_ORGANIZER", status: "ACTIVE" }] } });
+    expect(await invitarCurador("c1", "x@y.com")).toEqual({ ok: false, errores: ["La convocatoria no existe."] });
+    expect(db.culturalCallCurator.create).not.toHaveBeenCalled();
+  });
   it("no revela si la persona envió obras: invita igual", async () => {
     db.user.findMany.mockResolvedValue([{ id: 20 }]);
     db.culturalCallSubmission.findFirst.mockResolvedValue({ id: "s1" });

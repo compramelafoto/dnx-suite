@@ -5,6 +5,7 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 
 process.env.APP_URL = "https://muestrasfotograficas.com/";
 const { baseUrlPublica, cargarFichas } = await import("./cargar");
+const { conPermiso } = await import("@/lib/equipo/permisos");
 
 const muestra = {
   slug: "miradas-abc123", title: "Miradas",
@@ -20,15 +21,24 @@ beforeEach(() => {
 });
 
 describe("cargarFichas", () => {
-  it("sólo busca entre las publicadas propias", async () => {
-    await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+  it("sólo busca entre las publicadas donde tiene `pieces`", async () => {
+    const u = { id: 7, esSuperAdmin: false };
+    await cargarFichas("a1", u, null);
     expect(db.culturalActivity.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "a1", reviewStatus: "APPROVED", type: "MUESTRA", proposedByUserId: 7 },
+      where: conPermiso({ id: "a1", reviewStatus: "APPROVED", type: "MUESTRA" }, u, "pieces"),
     }));
+  });
+  it("dueño o coorganización activa ven las fichas; textos no", async () => {
+    await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+    const or = db.culturalActivity.findFirst.mock.calls[0]![0].where.AND[1].OR;
+    expect(or).toEqual([
+      { proposedByUserId: 7 },
+      { members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } },
+    ]);
   });
   it("el super admin no filtra por dueño", async () => {
     await cargarFichas("a1", { id: 1, esSuperAdmin: true }, null);
-    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).not.toHaveProperty("proposedByUserId");
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toEqual({ AND: [{ id: "a1", reviewStatus: "APPROVED", type: "MUESTRA" }, {}] });
   });
   it("todas, con la URL del QR con conteo de cada obra", async () => {
     const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
