@@ -6,7 +6,7 @@ import {
 describe("secciones del panel", () => {
   it("una persona común ve todo menos Revisión", () => {
     expect(panelSections({ isSuperAdmin: false }).map((s) => s.key)).toEqual([
-      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "convocatorias", "curaduria", "montaje", "difusion", "ventas", "estadisticas",
+      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "convocatorias", "concursos", "curaduria", "montaje", "difusion", "ventas", "estadisticas",
     ]);
   });
   it("el super admin ve también Revisión", () => {
@@ -18,7 +18,7 @@ describe("secciones del panel", () => {
   });
   it("están todas las funcionalidades del organizador, construidas o no", () => {
     expect(PANEL_SECTIONS.filter((s) => s.group === "ORGANIZAR").map((s) => s.label)).toEqual([
-      "Convocatorias", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
+      "Convocatorias", "Concursos", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
     ]);
   });
   it("\"Dónde expongo\" está lista, en \"Tu cuenta\", después de \"Mis envíos\"", () => {
@@ -27,6 +27,13 @@ describe("secciones del panel", () => {
     expect(PANEL_SECTIONS[i - 1]?.key).toBe("envios");
     expect(upcomingSection("expositor")).toBeNull();
     expect(activeSectionKey("/panel/expositor/abc")).toBe("expositor");
+  });
+  it("\"Concursos\" está lista, en \"Para organizar\", después de \"Convocatorias\" (etapa 7)", () => {
+    const i = PANEL_SECTIONS.findIndex((s) => s.key === "concursos");
+    expect(PANEL_SECTIONS[i]).toMatchObject({ label: "Concursos", href: "/panel/concursos", group: "ORGANIZAR", ready: true });
+    expect(PANEL_SECTIONS[i - 1]?.key).toBe("convocatorias");
+    expect(upcomingSection("concursos")).toBeNull();
+    expect(activeSectionKey("/panel/concursos/abc")).toBe("concursos");
   });
   it("cada sección tiene un href único bajo /panel", () => {
     const hrefs = PANEL_SECTIONS.map((s) => s.href);
