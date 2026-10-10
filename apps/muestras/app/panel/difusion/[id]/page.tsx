@@ -3,13 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   RSVP_MODE_LABELS, SOCIAL_VARIANT_LABELS, SOCIAL_VARIANT_PARAMS, availableSocialVariants, isRsvpMode, openingHasTime,
-  openingWhenText, recommendedVariant, type SocialVariant,
+  openingWhenText, parseVisibility, recommendedVariant, type SocialVariant,
 } from "@repo/muestras";
 import { enlace, nota, seccion } from "@/components/difusion/estilos";
 import { PiezasRedes } from "@/components/difusion/piezas-redes";
 import { CopiarEnlace } from "@/components/enlace/copiar-enlace";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
-import { cargarMuestraParaDifusion } from "@/lib/redes/cargar";
+import { cargarMuestraParaDifusion, motivoSinObrasOnline, obrasParaDifundir } from "@/lib/redes/cargar";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +28,16 @@ export default async function DifusionDeMuestra({ params }: Props) {
   const ahora = new Date();
   const publicada = a.reviewStatus === "APPROVED";
   const muestra = { ...a, worksCount: a.works.length };
-  const disponibles = availableSocialVariants(muestra, ahora);
-  const recomendada = recommendedVariant(muestra, ahora);
+  // Sólo las obras que hoy se ven online según la sorpresa (D25, D39).
+  const online = obrasParaDifundir(a, ahora);
+  const disponibles = availableSocialVariants(muestra, ahora, online.length);
+  const recomendada = recommendedVariant(muestra, ahora, online.length);
+  const sinObrasOnline = motivoSinObrasOnline(a, ahora);
+  const rotacion = parseVisibility(a.visibility, a.galleryMode).online;
+  const cambiaCadaDia = rotacion.exhibited === "RANDOM" && rotacion.rotation === "DAILY" && online.length < a.works.length;
   const paraRedes = disponibles.filter((v) => v !== "INVITATION");
   const inicial = recomendada && recomendada !== "INVITATION" ? recomendada : paraRedes[0];
-  const obras = [...a.works]
+  const obras = [...online]
     .sort((x, y) => Number(y.isHighlight) - Number(x.isHighlight))
     .map((w) => ({ id: w.id, etiqueta: `${w.title} — ${w.authorName}${w.isHighlight ? " (destacada)" : ""}` }));
   const conHora = openingHasTime(a.openingAt);
@@ -55,6 +60,8 @@ export default async function DifusionDeMuestra({ params }: Props) {
         <>
           <section className={seccion}>
             <h2 className="text-lg">Piezas para redes</h2>
+            {sinObrasOnline ? <p className={nota}>{sinObrasOnline}</p> : null}
+            {cambiaCadaDia ? <p className={nota}>Hoy se ven online estas obras. Mañana pueden ser otras.</p> : null}
             {paraRedes.length && inicial ? (
               <PiezasRedes
                 activityId={a.id}

@@ -13,7 +13,8 @@ import { visibleWorks } from "./gallery";
  */
 export type WorkAccess = "FULL" | "TEASER";
 
-type Gallery = { galleryMode: GalleryMode | string; visibility?: unknown; startsAt: Date; endsAt: Date };
+/** `visibility` es obligatorio a propósito: toda consulta que alimenta lo público tiene que traerlo (puede venir `null`). */
+type Gallery = { galleryMode: GalleryMode | string; visibility: unknown; startsAt: Date; endsAt: Date };
 
 export function workAccess<W extends { id: string; isHighlight: boolean; sortOrder: number }>(
   a: Gallery,

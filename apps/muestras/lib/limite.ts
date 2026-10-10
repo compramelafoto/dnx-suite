@@ -141,6 +141,9 @@ export const LIMITES_PUBLICOS = {
   asistenciaConsultas: { limit: 120, windowMs: 10 * 60_000 },
   // Ver o cancelar con el enlace personal.
   miAsistencia: { limit: 30, windowMs: 10 * 60_000 },
+  // Etapa 6: "cambian para cada visitante". Cada pedido sortea otras obras: el tope frena a quien
+  // recarga en bucle para verlas todas (pasado el tope, recibe las mismas que la última vez).
+  anticipo: { limit: 60, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;

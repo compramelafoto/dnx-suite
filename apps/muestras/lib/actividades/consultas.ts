@@ -29,14 +29,29 @@ export function listarPublicas() {
   });
 }
 
-/** Publicada, con sus obras y el perfil de cada autor. `cache`: metadatos y página la piden juntos. */
+/**
+ * Publicada, con sus obras, su ajuste de sorpresa (`visibility`) y el perfil de cada autor. Lo que se
+ * muestra de las obras lo decide `visibleWorks`/`workAccess`. `cache`: metadatos y página la piden juntos.
+ */
 export const buscarPorSlug = cache((slug: string) =>
   prisma.culturalActivity.findFirst({
     where: { slug, reviewStatus: "APPROVED" },
     include: {
       works: {
         orderBy: { sortOrder: "asc" },
-        include: { authorProfile: { select: { slug: true, displayName: true } } },
+        include: {
+          // "Artistas" (etapa 6): biografía y las primeras fotos del portfolio. Nunca obras expuestas.
+          authorProfile: {
+            select: {
+              id: true, slug: true, displayName: true, bio: true, city: true, province: true, avatarUrl: true,
+              portfolio: {
+                orderBy: { sortOrder: "asc" }, take: 8,
+                select: { id: true, imageUrl: true, title: true, year: true, technique: true, caption: true, sortOrder: true },
+              },
+              _count: { select: { portfolio: true } },
+            },
+          },
+        },
       },
     },
   }),

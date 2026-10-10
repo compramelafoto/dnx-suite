@@ -1,4 +1,4 @@
-import { MAX_HIGHLIGHTS } from "./constants";
+import { MAX_HIGHLIGHTS, MAX_WORKS } from "./constants";
 import { stableHash } from "./curation";
 import { temporalStatus, toArDay } from "./dates";
 import { sameName } from "./names";
@@ -126,7 +126,8 @@ export function parseVisibility(json: unknown, galleryMode: string): Visibility 
     preset: "CUSTOM",
     online: {
       exhibited: isOnlineExhibited(on.exhibited) ? on.exhibited : legado.online.exhibited,
-      randomCount: typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : DEFAULT_RANDOM_COUNT,
+      // Sin tope propio, pero nunca más que el tope técnico de obras de una muestra.
+      randomCount: typeof n === "number" && Number.isInteger(n) && n >= 1 ? Math.min(n, MAX_WORKS) : DEFAULT_RANDOM_COUNT,
       rotation: isRandomRotation(on.rotation) ? on.rotation : "FIXED",
       seed,
       artists: bool(on.artists, legado.online.artists),

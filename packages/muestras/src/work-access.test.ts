@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "./dates";
 import { neighborWorks, workAccess, workPath, workUrl } from "./work-access";
 
-const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
+const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: null as unknown, startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
 const obras = [
   { id: "w1", isHighlight: true, sortOrder: 0 },
   { id: "w2", isHighlight: false, sortOrder: 1 },

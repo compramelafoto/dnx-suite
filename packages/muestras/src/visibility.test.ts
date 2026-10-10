@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_WORKS } from "./constants";
 import {
   coverIsHiddenWork, onlineExhibitedWorks, parseVisibility, pickPerVisit, presetOf, roomExhibitedWorks,
   visibilityFromPreset, visibilitySummary, type Visibility,
@@ -32,6 +33,10 @@ describe("ajuste guardado o de legado", () => {
     const b = visibilityFromPreset("PREVIEW", "s");
     const g: Visibility = { ...b, preset: "CUSTOM", online: { ...b.online, randomCount: 80, rotation: "PER_VISIT" } };
     expect(parseVisibility(JSON.parse(JSON.stringify(g)), "FULL")).toEqual(g);
+  });
+  it("la cantidad al azar nunca pasa el tope técnico de obras", () => {
+    const v = parseVisibility({ v: 1, online: { exhibited: "RANDOM", randomCount: 1_000_000, rotation: "PER_VISIT", seed: "s" } }, "FULL");
+    expect(v.online.randomCount).toBe(MAX_WORKS);
   });
 });
 

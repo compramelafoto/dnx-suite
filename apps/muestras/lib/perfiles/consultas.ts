@@ -43,13 +43,17 @@ export const listarFotografos = cache(() =>
 export const buscarPerfilPublico = cache(async (slug: string) => {
   const perfil = await prisma.photographerProfile.findUnique({
     where: { slug },
-    select: { id: true, slug: true, displayName: true, bio: true, city: true, province: true, website: true, instagram: true, avatarUrl: true },
+    select: {
+      id: true, slug: true, displayName: true, bio: true, city: true, province: true, website: true, instagram: true, avatarUrl: true,
+      // El portfolio es del artista: se ve siempre en su perfil (spec D14).
+      portfolio: { orderBy: { sortOrder: "asc" }, select: { id: true, imageUrl: true, title: true, year: true, technique: true, caption: true } },
+    },
   });
   if (!perfil) return null;
   const muestras = await prisma.culturalActivity.findMany({
     where: { ...PUBLICADA, works: { some: { authorProfileId: perfil.id } } },
     select: {
-      id: true, slug: true, title: true, startsAt: true, endsAt: true, galleryMode: true, venueName: true, city: true,
+      id: true, slug: true, title: true, startsAt: true, endsAt: true, galleryMode: true, visibility: true, venueName: true, city: true,
       works: { select: { id: true, title: true, imageUrl: true, isHighlight: true, sortOrder: true, authorProfileId: true } },
     },
     orderBy: { startsAt: "desc" },

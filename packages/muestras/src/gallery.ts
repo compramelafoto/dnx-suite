@@ -10,11 +10,11 @@ import { onlineExhibitedWorks, parseVisibility } from "./visibility";
  * cada visitante" no devuelve obras: las trae `/api/m/<slug>/anticipo` (`perVisit` dice cuántas).
  */
 export function visibleWorks<W extends { id: string; isHighlight: boolean; sortOrder: number }>(
-  a: { galleryMode: GalleryMode | string; visibility?: unknown; startsAt: Date; endsAt: Date },
+  a: { galleryMode: GalleryMode | string; visibility: unknown; startsAt: Date; endsAt: Date },
   works: W[],
   now: Date,
 ): { works: W[]; isPartial: boolean; hiddenCount: number; perVisit: null | { count: number; total: number } } {
-  const r = onlineExhibitedWorks(parseVisibility(a.visibility ?? null, a.galleryMode), a, works, now);
+  const r = onlineExhibitedWorks(parseVisibility(a.visibility, a.galleryMode), a, works, now);
   if (r.mode === "PER_VISIT") return { works: [], isPartial: true, hiddenCount: r.total, perVisit: { count: r.count, total: r.total } };
   return { works: r.works, isPartial: r.isPartial, hiddenCount: r.hiddenCount, perVisit: null };
 }

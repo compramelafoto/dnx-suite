@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { REVIEW_STATUS_LABELS, SOCIAL_VARIANT_LABELS, formatArDay, recommendedVariant, type ReviewStatus } from "@repo/muestras";
+import { REVIEW_STATUS_LABELS, SOCIAL_VARIANT_LABELS, formatArDay, recommendedVariant, visibleWorks, type ReviewStatus } from "@repo/muestras";
 import { enlace, nota } from "@/components/difusion/estilos";
 import { listarMuestrasParaDifusion } from "@/lib/redes/cargar";
 import { requireUsuario } from "@/lib/usuario";
@@ -28,7 +28,7 @@ export default async function Difusion() {
         <ul className="border-t border-[var(--mf-line)]">
           {muestras.map((m) => {
             const publicada = m.reviewStatus === "APPROVED";
-            const recomendada = publicada ? recommendedVariant({ ...m, worksCount: m._count.works }, ahora) : null;
+            const recomendada = publicada ? recommendedVariant({ ...m, worksCount: m.works.length }, ahora, visibleWorks(m, m.works, ahora).works.length) : null;
             return (
               <li key={m.id} className="space-y-1 border-b border-[var(--mf-line)] py-5">
                 <h2 className="mf-titulo text-[1.6rem]"><Link href={`/panel/difusion/${m.id}`} className="underline-offset-[5px] hover:underline">{m.title}</Link></h2>

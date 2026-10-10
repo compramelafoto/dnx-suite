@@ -116,3 +116,12 @@ describe("frenos de la asistencia (etapa 5)", () => {
     expect(frenarPorIp("asistencia", "1.1.1.1", "m2").allowed).toBe(true);
   });
 });
+
+describe("frenos de la sorpresa (etapa 6)", () => {
+  it("anticipo: 60 cada 10 minutos por IP", () => {
+    expect(LIMITES_PUBLICOS.anticipo).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+    for (let i = 0; i < 60; i++) expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(true);
+    expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(false);
+    expect(frenarPorIp("anticipo", "2.2.2.2").allowed).toBe(true);
+  });
+});

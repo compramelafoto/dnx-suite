@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { openingHasTime, type SocialVariant } from "@repo/muestras";
+import { openingHasTime, visibleWorks, type SocialVariant } from "@repo/muestras";
 import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 
@@ -9,8 +9,8 @@ type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
 const SELECCION = {
   id: true, slug: true, title: true, type: true, reviewStatus: true, isCancelled: true, isVirtualOnly: true,
   startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, venueName: true, city: true, province: true,
-  coverImageUrl: true, rsvpStatus: true,
-  works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, imageUrl: true, isHighlight: true } },
+  coverImageUrl: true, rsvpStatus: true, galleryMode: true, visibility: true,
+  works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, imageUrl: true, isHighlight: true, sortOrder: true } },
 } as const;
 
 /** Para armar las piezas (D25, D29): la muestra publicada, si la persona puede difundirla (`promote`). */
@@ -36,7 +36,8 @@ export function listarMuestrasParaDifusion(usuario: Quien) {
     select: {
       id: true, title: true, type: true, reviewStatus: true, isCancelled: true, isVirtualOnly: true,
       startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, venueName: true, city: true, province: true,
-      _count: { select: { works: true } },
+      galleryMode: true, visibility: true,
+      works: { select: { id: true, isHighlight: true, sortOrder: true } },
     },
     orderBy: { startsAt: "desc" },
   });
@@ -59,4 +60,25 @@ export function motivoNoDisponible(
     case "WORK":
       return "La muestra todavía no tiene obras.";
   }
+}
+
+/**
+ * Las obras que una pieza para redes puede difundir hoy (spec D25, D39): sólo las que se ven online
+ * según la sorpresa. "Sorpresa total" → ninguna; "cambian para cada visitante" → ninguna (no hay un
+ * conjunto fijo: difundir una sería adelantar una obra que la publicación no muestra).
+ */
+export function obrasParaDifundir<W extends { id: string; isHighlight: boolean; sortOrder: number }>(
+  a: { galleryMode: string; visibility: unknown; startsAt: Date; endsAt: Date; works: W[] },
+  ahora: Date,
+): W[] {
+  return visibleWorks(a, a.works, ahora).works;
+}
+
+/** Por qué no hay "Obra destacada" aunque la muestra tenga obras: la sorpresa no deja ver ninguna online. */
+export function motivoSinObrasOnline(a: { galleryMode: string; visibility: unknown; startsAt: Date; endsAt: Date; works: { id: string; isHighlight: boolean; sortOrder: number }[] }, ahora: Date): string | null {
+  if (a.works.length === 0) return null;
+  const g = visibleWorks(a, a.works, ahora);
+  if (g.perVisit) return "Online cada visitante ve otras obras: con este ajuste no se difunden obras de la sala. Usá 'Inaugura' o 'Últimos días'.";
+  if (g.works.length === 0) return "Con 'Sorpresa total' no se difunden obras de la sala: usá 'Inaugura' o 'Invitación'.";
+  return null;
 }

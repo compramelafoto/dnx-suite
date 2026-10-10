@@ -38,9 +38,10 @@ export type SocialActivity = {
 /**
  * Las variantes que se pueden armar hoy. `onlineWorkCount`: cuántas obras expuestas se ven hoy
  * online según la sorpresa de la muestra (etapa 6, spec D39): "Obra destacada" es publicación
- * online, así que sin obras visibles no se ofrece. Sin el dato, cuenta todas las obras.
+ * online, así que sin obras visibles no se ofrece. Es obligatorio: sale de `onlineExhibitedWorks`
+ * (en "para cada visitante" es 0: no hay un conjunto fijo que difundir).
  */
-export function availableSocialVariants(a: SocialActivity, now: Date, onlineWorkCount: number = a.worksCount): SocialVariant[] {
+export function availableSocialVariants(a: SocialActivity, now: Date, onlineWorkCount: number): SocialVariant[] {
   if (a.reviewStatus !== "APPROVED" || a.type !== "MUESTRA" || a.isCancelled) return [];
   const t = now.getTime();
   const out: SocialVariant[] = [];
@@ -55,7 +56,7 @@ export function availableSocialVariants(a: SocialActivity, now: Date, onlineWork
   return out;
 }
 
-export function recommendedVariant(a: SocialActivity, now: Date, onlineWorkCount: number = a.worksCount): SocialVariant | null {
+export function recommendedVariant(a: SocialActivity, now: Date, onlineWorkCount: number): SocialVariant | null {
   const v = availableSocialVariants(a, now, onlineWorkCount);
   if (v.includes("OPENING")) return "OPENING";
   if (v.includes("LAST_DAYS") && isLastDays(a, now)) return "LAST_DAYS";

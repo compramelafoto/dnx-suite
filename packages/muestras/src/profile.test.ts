@@ -75,7 +75,7 @@ describe("vínculo de una obra con un perfil", () => {
 });
 
 describe("obras de un perfil en una muestra", () => {
-  const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
+  const a = { galleryMode: "HIGHLIGHTS_UNTIL_CLOSED", visibility: null as unknown, startsAt: dayStartAr("2026-11-05"), endsAt: dayEndAr("2026-11-20") };
   const obras = [
     { id: "w1", isHighlight: true, sortOrder: 0, authorProfileId: "p" },
     { id: "w2", isHighlight: false, sortOrder: 1, authorProfileId: "p" },

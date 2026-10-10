@@ -141,13 +141,13 @@ export const AVISO_PERFIL_EN_PUBLICADA =
 export function profileWorksInActivity<
   W extends { id: string; isHighlight: boolean; sortOrder: number; authorProfileId: string | null },
 >(
-  a: { galleryMode: GalleryMode | string; visibility?: unknown; startsAt: Date; endsAt: Date },
+  a: { galleryMode: GalleryMode | string; visibility: unknown; startsAt: Date; endsAt: Date },
   works: W[],
   profileId: string,
   now: Date,
 ): { visible: W[]; hiddenCount: number } {
   const mine = works.filter((w) => w.authorProfileId === profileId).sort((x, y) => x.sortOrder - y.sortOrder);
-  const v = parseVisibility(a.visibility ?? null, a.galleryMode);
+  const v = parseVisibility(a.visibility, a.galleryMode);
   const revelada = v.revealAfterClose && temporalStatus(a, now) === "CLOSED";
   if (v.profile.exhibited === "NONE" && !revelada) return { visible: [], hiddenCount: mine.length };
   const shown = new Set(visibleWorks(a, works, now).works.map((w) => w.id));
