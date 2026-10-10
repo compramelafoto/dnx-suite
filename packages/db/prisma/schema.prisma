@@ -23461,6 +23461,11 @@ model CulturalActivity {
   roomCodes      CulturalActivityRoomCode[]
   roomKey        CulturalActivityRoomKey?
 
+  /// Concurso de FotoRank del que salió (etapa 7). A lo sumo uno por muestra.
+  contestImport  CulturalContestImport?
+  contestWorks   CulturalContestWork[]
+  contestAuthors CulturalContestAuthor[]
+
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
   @@index([workspaceId])
@@ -23517,6 +23522,8 @@ model PhotographerProfile {
   /// Participaciones como expositor y portfolio (Muestras, etapa 6).
   exhibitors CulturalExhibitor[]
   portfolio  PhotographerPortfolioPhoto[]
+  /// Autor de obras traídas de un concurso (Muestras, etapa 7).
+  contestAuthors CulturalContestAuthor[]
 
   @@index([displayName])
 }
@@ -23885,4 +23892,117 @@ model CulturalActivityRoomKey {
   secret     String
   createdAt  DateTime         @default(now())
   rotatedAt  DateTime?
+}
+
+/// Concurso de FotoRank del que se armó una muestra (Muestras, etapa 7). Sin FK a FotoRank a propósito:
+/// las imágenes son copias y borrar el concurso no puede frenar ni romper la muestra.
+model CulturalContestImport {
+  id               String           @id @default(cuid())
+  activityId       String           @unique
+  activity         CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  contestId        String
+  contestSlug      String
+  contestTitle     String
+  organizationId   String
+  organizationName String
+  /// Niveles elegidos: WINNER | MENTION | FINALIST
+  tiers            String[]
+  /// Lote de resultados (FINALIZED | PUBLISHED) usado en el último armado o actualización, y su
+  /// `updatedAt`: si cambia, el panel avisa que FotoRank cambió.
+  resultBatchId     String
+  resultBatchStatus String
+  sourceVersion     DateTime
+  createdByUserId  Int
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  syncedAt         DateTime         @default(now())
+
+  works   CulturalContestWork[]
+  authors CulturalContestAuthor[]
+
+  @@index([contestId])
+}
+
+/// Una obra traída de un concurso. Lo que entra a la muestra se copia a `CulturalActivityWork`;
+/// `activityWorkId` sin FK (el editor de la muestra reescribe sus obras conservando los ids).
+model CulturalContestWork {
+  id         String                @id @default(cuid())
+  importId   String
+  import     CulturalContestImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  activityId String
+  activity   CulturalActivity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  entryId      String
+  authorUserId Int?
+  authorName   String
+  title        String
+  /// WINNER | MENTION | FINALIST
+  tier         String
+  awardType    String?
+  categoryId   String
+  categoryName String
+  /// "1.er premio · Paisaje"
+  distinction  String
+  rank         Int     @default(0)
+  /// CURRENT | GONE (ya no figura en los resultados del concurso)
+  sourceStatus String  @default("CURRENT")
+
+  /// PENDING | COPIED | FAILED
+  imageStatus String    @default("PENDING")
+  imageUrl    String?
+  imageError  String?
+  copiedAt    DateTime?
+
+  /// Galería virtual (está en la muestra), se imprime, a la venta.
+  include Boolean @default(true)
+  toPrint Boolean @default(true)
+  forSale Boolean @default(false)
+
+  /// RULES | EXPLICIT
+  exhibitBasis        String
+  /// Las bases que firmó el autor piden atribución: su nombre se publica sin esperar su respuesta (D28).
+  attributionRequired Boolean @default(false)
+  /// PENDING | ACCEPTED | DECLINED | WITHDRAWN
+  exhibitConsent String    @default("PENDING")
+  /// RULES | AUTHOR | ORGANIZER
+  consentBy      String?
+  consentAt      DateTime?
+  /// NOT_ASKED | PENDING | ACCEPTED | DECLINED
+  saleConsent    String    @default("NOT_ASKED")
+  saleConsentAt  DateTime?
+
+  activityWorkId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([activityId, entryId])
+  @@index([importId, rank])
+  @@index([authorUserId])
+  @@index([activityWorkId])
+  @@index([activityId, imageStatus])
+}
+
+/// Autor de obras traídas de un concurso, por muestra (Muestras, etapa 7). Sin token: la página del
+/// autor exige su cuenta (`userId`). Autores sin cuenta: `userId` nulo, una fila por obra.
+model CulturalContestAuthor {
+  id          String                @id @default(cuid())
+  importId    String
+  import      CulturalContestImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  activityId  String
+  activity    CulturalActivity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId      Int?
+  authorName  String
+  profileId   String?
+  profile     PhotographerProfile?  @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  /// Cómo firma (lo completa al aceptar).
+  displayName String?
+  notifiedAt  DateTime?
+  respondedAt DateTime?
+  textVersion String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([activityId, userId])
+  @@index([userId])
+  @@index([importId])
 }
