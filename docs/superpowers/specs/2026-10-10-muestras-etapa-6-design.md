@@ -225,8 +225,12 @@ aplica a mano en producción el controlador, antes de publicar el código** (Neo
 - Frenos por persona: `sumarseExpositor` 20/h, `guardarObraExpositor` 300/h, `enviarObraExpositor`
   60/h, `revisarExpositores` 600/10 min, `guardarVisibilidad` 60/h, `enlaceExpositores` 30/h,
   `guardarPortfolio` 300/h; `fichas` sube de 100 a **400** cada 10 min (una ficha por obra con 300
-  obras). Por huella de IP: `paginaExpositores` 60/10 min, `anticipo` 60/10 min, `imagenSala`
-  600/10 min, `vistaSala` 300/10 min. El freno `qr` existente cubre `/q/s`.
+  obras). Por huella de IP (las IPv6 por su /64): `paginaExpositores` 60/10 min, `anticipo` 60/10 min
+  y además `anticipoPorMuestra` 20/10 min (IP y slug). La vista de sala se cuenta **por pase** (huella
+  de la cookie ya validada; el equipo, por IP): `vistaSala` 300/10 min e `imagenSala` 600/10 min; por
+  IP, alto, porque el público comparte el Wi-Fi de la sala: `vistaSalaRed` 1500 e `imagenSalaRed`
+  6000 cada 10 min; pasado un tope se muestra "Hay mucha gente consultando desde esta red, probá en
+  un minuto" (nunca una redirección muda). El freno `qr` existente cubre `/q/s` y la suma en la sala.
 
 ## Privacidad y filtraciones (lista de control)
 

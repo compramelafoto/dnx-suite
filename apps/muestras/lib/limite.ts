@@ -163,10 +163,14 @@ export const LIMITES_PUBLICOS = {
   anticipoPorMuestra: { limit: 20, windowMs: 10 * 60_000 },
   // La página del enlace de expositores: frena a quien prueba tokens (pasado el tope, el mismo 404).
   paginaExpositores: { limit: 60, windowMs: 10 * 60_000 },
-  // Vista de sala (con pase) y sus imágenes por proxy: holgado para quien recorre la sala, pero un
-  // bucle no lee el bucket sin fin.
+  // Vista de sala y sus imágenes por proxy, contadas **por pase** (la huella de la cookie, ya
+  // validada; el equipo, por IP): holgado para quien recorre la sala, pero un bucle no lee el bucket
+  // sin fin.
   vistaSala: { limit: 300, windowMs: 10 * 60_000 },
   imagenSala: { limit: 600, windowMs: 10 * 60_000 },
+  // Y por IP, alto: todo el público de la sala comparte el Wi-Fi del lugar (como `qr`).
+  vistaSalaRed: { limit: 1500, windowMs: 10 * 60_000 },
+  imagenSalaRed: { limit: 6000, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
@@ -227,6 +231,14 @@ export function huellaDeIp(ip: string, sal: string = SAL): string {
  */
 export function frenarPorIp(que: QueSeLimitaSinSesion, ip: string, ambito?: string): DecisionDeFreno {
   return checkRateLimit({ key: `ip:${que}:${ambito ?? "-"}:${huellaDeIp(ip)}`, ...LIMITES_PUBLICOS[que] });
+}
+
+/**
+ * Cuenta un uso de `que` para un pase de sala (spec D30), por la huella de su cookie. Llamar sólo con
+ * un pase ya validado: con cookies inventadas, cada pedido sumaría una clave nueva.
+ */
+export function frenarPorPase(que: QueSeLimitaSinSesion, huellaDePase: string): DecisionDeFreno {
+  return checkRateLimit({ key: `pase:${que}:${huellaDePase}`, ...LIMITES_PUBLICOS[que] });
 }
 
 export type QueSeLimitaPorMuestra = keyof typeof LIMITES_POR_MUESTRA;

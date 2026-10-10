@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { workPath } from "@repo/muestras";
 import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { ObraDeSala } from "@/components/sala/obra-de-sala";
+import { AvisoDeSala } from "@/components/sala/aviso-de-sala";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
+import { MUCHAS_CONSULTAS, MUCHA_GENTE_EN_LA_RED, frenarEnSala } from "@/lib/sala/freno";
 import { paseDeSala, vistaDeSala } from "@/lib/sala/consultas";
 
 // Lee la cookie del pase: dinámica y privada. Nunca en caché, nunca indexada.
@@ -27,8 +29,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ObraEnLaSala({ params }: Props) {
   const { slug, workId } = await params;
   const publica = workPath(slug, workId);
-  if (!frenarPorIp("vistaSala", ipDeLaPeticion(await headers())).allowed) redirect(publica);
+  const ip = ipDeLaPeticion(await headers());
+  if (!frenarPorIp("vistaSalaRed", ip).allowed) return <AvisoDeSala texto={MUCHA_GENTE_EN_LA_RED} volver={`/m/${encodeURIComponent(slug)}`} />;
   const p = await paseDeSala(slug);
+  if (p && !frenarEnSala("vistaSala", p, ip)) return <AvisoDeSala texto={MUCHAS_CONSULTAS} volver={`/m/${encodeURIComponent(slug)}`} />;
   const v = p ? await vistaDeSala(p, workId) : null;
   if (!v) redirect(publica);
   return (

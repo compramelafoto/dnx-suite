@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { formatArClock } from "@repo/muestras";
+import { AvisoDeSala } from "@/components/sala/aviso-de-sala";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
+import { MUCHAS_CONSULTAS, MUCHA_GENTE_EN_LA_RED, frenarEnSala } from "@/lib/sala/freno";
 import { escaneadoEnSala, paseDeSala } from "@/lib/sala/consultas";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +17,10 @@ type Props = { params: Promise<{ slug: string }> };
 export default async function LoQueEscaneaste({ params }: Props) {
   const { slug } = await params;
   const publica = `/m/${encodeURIComponent(slug)}`;
-  if (!frenarPorIp("vistaSala", ipDeLaPeticion(await headers())).allowed) redirect(publica);
+  const ip = ipDeLaPeticion(await headers());
+  if (!frenarPorIp("vistaSalaRed", ip).allowed) return <AvisoDeSala texto={MUCHA_GENTE_EN_LA_RED} volver={publica} />;
   const p = await paseDeSala(slug);
+  if (p && !frenarEnSala("vistaSala", p, ip)) return <AvisoDeSala texto={MUCHAS_CONSULTAS} volver={publica} />;
   const e = p ? await escaneadoEnSala(p) : null;
   if (!e) redirect(publica);
   return (

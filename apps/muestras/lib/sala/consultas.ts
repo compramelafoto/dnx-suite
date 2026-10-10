@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import {
@@ -23,7 +24,8 @@ const MUESTRA = {
 } as const;
 
 export type MuestraDeSala = { id: string; slug: string; title: string; galleryMode: string; visibility: unknown; startsAt: Date; endsAt: Date };
-export type PaseDeSala = { actividad: MuestraDeSala; pase: RoomPass | null; equipo: boolean };
+/** `huella`: de la cookie del pase, sólo si es válido (para contar el freno por pase, nunca la cookie). */
+export type PaseDeSala = { actividad: MuestraDeSala; pase: RoomPass | null; equipo: boolean; huella?: string | null };
 
 /**
  * La muestra publicada, el pase de este teléfono (firma de esta muestra y vigente) y si quien mira
@@ -44,7 +46,8 @@ export async function paseDeSala(slug: string): Promise<PaseDeSala | null> {
     const leido = llave ? leerPase(valor, llave) : null;
     pase = roomPassValid(leido, a.id, new Date()) ? leido : null;
   }
-  return { actividad, pase, equipo: await esDelEquipo(a.id) };
+  const huella = pase && valor ? createHash("sha256").update(valor).digest("base64url").slice(0, 22) : null;
+  return { actividad, pase, equipo: await esDelEquipo(a.id), huella };
 }
 
 const OBRA = { id: true, title: true, authorName: true, authorProfileId: true, year: true, technique: true, isHighlight: true, sortOrder: true } as const;
@@ -152,9 +155,9 @@ export async function escaneadoEnSala(p: PaseDeSala) {
 }
 
 /** La URL del bucket de una obra que este pase deja ver; `null` si no (la ruta responde 404). */
-export async function imagenDeSalaPermitida(slug: string, id: string): Promise<string | null> {
+export async function imagenDeSalaPermitida(slug: string, id: string, leido?: PaseDeSala | null): Promise<string | null> {
   if (!ID.test(id)) return null;
-  const p = await paseDeSala(slug);
+  const p = leido === undefined ? await paseDeSala(slug) : leido;
   if (!p || (!p.pase && !p.equipo)) return null;
   const works = await obrasDe(p.actividad.id);
   if (!obrasPermitidas(p, works, new Date()).some((w) => w.id === id)) return null;

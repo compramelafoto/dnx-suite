@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SALES_ENABLED, SALE_ASK_TEXT, SALE_UNAVAILABLE_TEXT, saleState, workPath } from "@repo/muestras";
+import { AvisoDeSala } from "@/components/sala/aviso-de-sala";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
+import { MUCHAS_CONSULTAS, MUCHA_GENTE_EN_LA_RED, frenarEnSala } from "@/lib/sala/freno";
 import { obraParaAdquirir, paseDeSala } from "@/lib/sala/consultas";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +21,10 @@ type Props = { params: Promise<{ slug: string; workId: string }> };
 export default async function AdquirirObra({ params }: Props) {
   const { slug, workId } = await params;
   const publica = workPath(slug, workId);
-  if (!frenarPorIp("vistaSala", ipDeLaPeticion(await headers())).allowed) redirect(publica);
+  const ip = ipDeLaPeticion(await headers());
+  if (!frenarPorIp("vistaSalaRed", ip).allowed) return <AvisoDeSala texto={MUCHA_GENTE_EN_LA_RED} volver={`/m/${encodeURIComponent(slug)}`} />;
   const p = await paseDeSala(slug);
+  if (p && !frenarEnSala("vistaSala", p, ip)) return <AvisoDeSala texto={MUCHAS_CONSULTAS} volver={`/m/${encodeURIComponent(slug)}`} />;
   const o = p ? await obraParaAdquirir(p, workId) : null;
   if (!o) redirect(publica);
   if (!o.roomBuy || saleState({ salesEnabled: SALES_ENABLED, forSale: o.forSale }) === "NOT_FOR_SALE") notFound();
