@@ -48,6 +48,11 @@ export type FichaForm = {
    * muestra con la pestaña abierta) se conservan.
    */
   idsCargados: string[];
+  /**
+   * Versión de la ficha con la que se abrió el formulario (etapa 5, D7). Si otra persona del
+   * equipo guardó en el medio, no coincide y el guardado se frena. `null`: pestaña vieja.
+   */
+  editVersion: number | null;
 };
 
 /**
@@ -175,6 +180,7 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     rightsConfirmed: fd.get("rightsConfirmed") === "on",
     works: obras(txt(fd, "works") || "[]", base),
     idsCargados: ids(txt(fd, "idsCargados") || "[]"),
+    editVersion: /^\d{1,9}$/.test(txt(fd, "editVersion")) ? Number(txt(fd, "editVersion")) : null,
   };
 }
 

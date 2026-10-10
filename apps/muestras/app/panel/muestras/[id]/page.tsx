@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, type ReviewStatus } from "@repo/muestras";
+import { ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, type ReviewStatus } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
 import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarParaEditar } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
+import { textoDelUltimoCambio } from "@/lib/equipo/registro";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -33,12 +34,25 @@ export default async function EditarActividad({
   if (!r) notFound();
   const { actividad: a, rol } = r;
   const estado = a.reviewStatus as ReviewStatus;
-  const editable = canEdit({ ...a, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: rol });
+  const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: rol };
+  // Ficha completa (`editActivity`) o lectura. El rol de textos (`editTexts`) tendrá su propio
+  // formulario (FormularioTextos); hasta entonces, ve la ficha en modo lectura.
+  const editable = canEdit({ ...a, reviewStatus: estado }, actor);
+  const ultimo = await textoDelUltimoCambio(a);
+  const enlaces = a.type === "MUESTRA"
+    ? [
+        puede(usuario, "hanging", rol) ? { href: `/panel/montaje/${a.id}`, texto: "Montaje e impresión" } : null,
+        estado === "APPROVED" && puede(usuario, "stats", rol) ? { href: `/panel/estadisticas/${a.id}`, texto: "Estadísticas y libro de visitas" } : null,
+        estado === "APPROVED" && puede(usuario, "promote", rol) ? { href: `/panel/difusion/${a.id}`, texto: "Difusión" } : null,
+      ].filter((x): x is { href: string; texto: string } => x !== null)
+    : [];
   return (
     <main className="max-w-3xl space-y-6">
       <Link href="/panel/muestras" className="text-sm text-[var(--mf-accent)] underline underline-offset-4">Volver a mis muestras</Link>
+      {rol && rol !== "OWNER" ? <p className="text-sm text-[var(--mf-muted)]">Tu rol: {ACTIVITY_ROLE_LABELS[rol]}</p> : null}
       <h1 className="mf-titulo text-[2.45rem]">{a.title}</h1>
       <p>Estado: <strong>{REVIEW_STATUS_LABELS[estado]}</strong>{a.isCancelled ? ". Cancelada" : ""}</p>
+      {ultimo ? <p className="text-sm text-[var(--mf-muted)]">{ultimo}</p> : null}
       {estado === "REJECTED" && a.rejectionReason ? <p className="rounded-[2px] bg-red-50 p-3 text-red-800">Motivo del rechazo: {a.rejectionReason}. Corregí y volvé a enviarla.</p> : null}
       {estado === "APPROVED" ? (
         <>
@@ -48,11 +62,18 @@ export default async function EditarActividad({
             <section className="space-y-2 border-t border-[var(--mf-line)] pt-4">
               <h2 className="text-sm text-[var(--mf-muted)]">Fichas de sala con QR</h2>
               <DescargarFichas id={a.id} obras={a.works} />
-              <p><Link href={`/panel/montaje/${a.id}`} className="underline">Montaje e impresión</Link> · <Link href={`/panel/estadisticas/${a.id}`} className="underline">Estadísticas y libro de visitas</Link></p>
             </section>
           ) : null}
         </>
       ) : null}
+      {enlaces.length ? (
+        <p>
+          {enlaces.map((e, i) => (
+            <span key={e.href}>{i > 0 ? " · " : ""}<Link href={e.href} className="underline">{e.texto}</Link></span>
+          ))}
+        </p>
+      ) : null}
+      {!editable && estado !== "IN_REVIEW" && rol !== "OWNER" ? <p className="text-[var(--mf-muted)]">Tu rol no edita la ficha completa: la ves en modo lectura.</p> : null}
       {estado === "IN_REVIEW" ? <p className="text-[var(--mf-muted)]">Está en revisión. No se puede editar hasta que la revisemos.</p> : null}
       {faltan.length && editable ? (
         <div role="alert" className="rounded-[2px] bg-red-50 p-3 text-sm text-red-800">

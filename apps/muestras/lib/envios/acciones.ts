@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { acceptsSubmissions, callPhase, hasPhysicalVenue, submissionProblems, submitterConflict } from "@repo/muestras";
+import { acceptsSubmissions, activityRole, callPhase, hasPhysicalVenue, submissionProblems, submitterConflict } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { frenarPorUsuario } from "@/lib/limite";
 import { avisarEnvioRecibido } from "@/lib/correos/convocatorias";
@@ -59,7 +59,9 @@ export async function guardarEnvio(fd: FormData): Promise<ResultadoAccion> {
     where: { callId: c.id, status: { not: "REVOKED" }, OR: [{ userId: usuario.id }, { email: usuario.email.toLowerCase() }] },
     select: { id: true },
   });
-  const conflicto = submitterConflict({ isOwner: c.activity.proposedByUserId === usuario.id, isCurator: !!curador });
+  // Sólo el dueño choca: la coorganización puede enviar obras (etapa 5, D4). Sin leer el equipo,
+  // `activityRole` da "OWNER" o nada.
+  const conflicto = submitterConflict({ isOwner: activityRole(c.activity, usuario.id) === "OWNER", isCurator: !!curador });
   if (conflicto) return { ok: false, errores: [conflicto] };
   const problemas = submissionProblems(e, c.maxWorksPerPerson);
   if (e.descartadas > 0) problemas.push("Alguna imagen no es válida o no la subiste vos desde acá. Quitala y subila de nuevo.");

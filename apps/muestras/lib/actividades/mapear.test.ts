@@ -178,3 +178,15 @@ describe("texto curatorial", () => {
     expect(charla.curatorialText).toBeNull();
   });
 });
+
+describe("versión de la ficha (etapa 5)", () => {
+  it("lee la versión escondida; vacía o rara es null", () => {
+    expect(fichaDesdeFormData(fd({ ...base, editVersion: "4" })).editVersion).toBe(4);
+    expect(fichaDesdeFormData(fd(base)).editVersion).toBeNull();
+    expect(fichaDesdeFormData(fd({ ...base, editVersion: "-1" })).editVersion).toBeNull();
+    expect(fichaDesdeFormData(fd({ ...base, editVersion: "1e3" })).editVersion).toBeNull();
+  });
+  it("no se escribe en la tabla (la sube la acción)", () => {
+    expect("editVersion" in datosParaGuardar(fichaDesdeFormData(fd({ ...base, editVersion: "4" })))).toBe(false);
+  });
+});
