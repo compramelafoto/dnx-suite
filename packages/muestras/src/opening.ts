@@ -87,8 +87,10 @@ export function rsvpState(
   now: Date,
 ): RsvpState {
   if (a.type !== "MUESTRA" || a.reviewStatus !== "APPROVED" || a.isVirtualOnly || !openingHasTime(a.openingAt)) return "UNAVAILABLE";
+  // Cancelada va antes que OFF: una muestra cancelada no dice "Entrada libre".
+  if (a.isCancelled) return "CLOSED";
   if (a.rsvpStatus === "OFF") return "OFF";
-  if (a.isCancelled || a.rsvpStatus !== "OPEN" || now.getTime() >= a.openingAt.getTime()) return "CLOSED";
+  if (a.rsvpStatus !== "OPEN" || now.getTime() >= a.openingAt.getTime()) return "CLOSED";
   return "OPEN";
 }
 
