@@ -115,6 +115,12 @@ export const LIMITES_PUBLICOS = {
   // Etapa 4. Pasarse sólo deja de contar: la página y la redirección andan igual.
   visitas: { limit: 300, windowMs: 10 * 60_000 },
   escaneos: { limit: 120, windowMs: 10 * 60_000 },
+  // Además del tope general, por IP y por obra (o muestra): recargar una misma página no la infla.
+  visitasPorPagina: { limit: 30, windowMs: 10 * 60_000 },
+  escaneosPorPagina: { limit: 30, windowMs: 10 * 60_000 },
+  // Antes de mirar la base en /q: holgado (un grupo escolar en la red del lugar comparte IP), pero
+  // un bucle no consulta la base en cada vuelta.
+  qr: { limit: 1000, windowMs: 10 * 60_000 },
   // Por IP y por muestra: un grupo escolar en la red del lugar comparte IP.
   libro: { limit: 10, windowMs: 10 * 60_000 },
 } as const;

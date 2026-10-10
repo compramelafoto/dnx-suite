@@ -15,13 +15,15 @@ export function ContarVisita({ actividad, obra }: { actividad: string; obra?: st
     } catch {
       // Sin almacenamiento (modo privado estricto): se cuenta igual.
     }
+    // Texto plano: un tipo "simple" para el navegador, sin pedido previo de permiso (CORS); el
+    // servidor lo lee como JSON igual.
     const cuerpo = JSON.stringify(obra ? { a: actividad, o: obra } : { a: actividad });
     try {
-      if (navigator.sendBeacon?.("/api/visitas", new Blob([cuerpo], { type: "application/json" }))) return;
+      if (navigator.sendBeacon?.("/api/visitas", new Blob([cuerpo], { type: "text/plain;charset=UTF-8" }))) return;
     } catch {
       // Sigue con fetch.
     }
-    void fetch("/api/visitas", { method: "POST", body: cuerpo, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
+    void fetch("/api/visitas", { method: "POST", body: cuerpo, headers: { "Content-Type": "text/plain;charset=UTF-8" }, keepalive: true }).catch(() => {});
   }, [actividad, obra]);
   return null;
 }

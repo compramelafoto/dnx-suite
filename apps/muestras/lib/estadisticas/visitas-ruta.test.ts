@@ -9,7 +9,7 @@ const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; es
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 const { POST } = await import("@/app/api/visitas/route");
-const { resetRateLimit } = await import("@/lib/limite");
+const { LIMITES_PUBLICOS, resetRateLimit } = await import("@/lib/limite");
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15";
 const enviar = (cuerpo: unknown, ua = UA) =>
@@ -39,5 +39,31 @@ describe("POST /api/visitas", () => {
     usuarioActual.valor = { id: 7, esSuperAdmin: false };
     expect((await enviar({ a: "cka1b2c3d4" })).status).toBe(204);
     expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+  it("la misma página desde la misma IP cuenta hasta 30 veces cada 10 minutos; otra página sigue", async () => {
+    for (let i = 0; i < 35; i++) await enviar({ a: "cka1b2c3d4", o: "ckw1b2c3d4" });
+    expect(db.$executeRaw).toHaveBeenCalledTimes(LIMITES_PUBLICOS.visitasPorPagina.limit);
+    await enviar({ a: "cka1b2c3d4" });
+    expect(db.$executeRaw).toHaveBeenCalledTimes(LIMITES_PUBLICOS.visitasPorPagina.limit + 1);
+  });
+  it("un cuerpo de más de 1000 bytes no se cuenta, venga o no content-length", async () => {
+    // JSON válido seguido de espacios: cortado a 1000 bytes seguiría siendo válido.
+    const grande = `${JSON.stringify({ a: "cka1b2c3d4" })}${" ".repeat(2000)}`;
+    const sinLargo = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(grande));
+        c.close();
+      },
+    });
+    const r = await POST(new Request("http://localhost:3014/api/visitas", {
+      method: "POST", body: sinLargo, headers: { "user-agent": UA }, duplex: "half",
+    } as RequestInit & { duplex: "half" }));
+    expect(r.status).toBe(204);
+    expect((await POST(new Request("http://localhost:3014/api/visitas", { method: "POST", body: grande, headers: { "user-agent": UA } }))).status).toBe(204);
+    expect(db.$executeRaw).not.toHaveBeenCalled();
+  });
+  it("acepta el cuerpo como texto plano (lo que manda la baliza)", async () => {
+    await POST(new Request("http://localhost:3014/api/visitas", { method: "POST", body: JSON.stringify({ a: "cka1b2c3d4" }), headers: { "user-agent": UA, "content-type": "text/plain;charset=UTF-8" } }));
+    expect(db.$executeRaw).toHaveBeenCalledTimes(1);
   });
 });
