@@ -63,11 +63,11 @@ export function contarParaRevisar() {
   return prisma.culturalActivity.count({ where: { reviewStatus: "IN_REVIEW" } });
 }
 
-/** Muestras publicadas propias, con sus obras, para "Montaje e impresión". */
-export function listarPublicadasMias(userId: number) {
+/** Las muestras propias en cualquier estado, para "Montaje e impresión" (el plano se prepara antes de publicar). */
+export function listarMuestrasParaMontaje(userId: number) {
   return prisma.culturalActivity.findMany({
-    where: { proposedByUserId: userId, reviewStatus: "APPROVED", type: "MUESTRA" },
-    select: { id: true, slug: true, title: true, startsAt: true, endsAt: true, works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true } } },
+    where: { proposedByUserId: userId, type: "MUESTRA", reviewStatus: { not: "REJECTED" } },
+    select: { id: true, title: true, reviewStatus: true, startsAt: true, endsAt: true, _count: { select: { works: true } } },
     orderBy: { startsAt: "desc" },
   });
 }

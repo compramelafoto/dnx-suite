@@ -30,10 +30,3 @@ export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>
     ],
   },
 };
-
-/** Lo que Montaje e impresión todavía no tiene (las fichas con QR ya están). */
-export const MONTAJE_EN_PREPARACION: string[] = [
-  "Marcos y remarcos con plantilla, con título y autor.",
-  "Cartel con el texto curatorial y catálogo de la muestra en PDF.",
-  "Plano y lista de montaje: qué obra va en cada pared, con medidas.",
-];
