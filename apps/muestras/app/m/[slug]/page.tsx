@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ACTIVITY_TYPE_LABELS, formatArDay, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
+import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { Galeria } from "@/components/ficha/galeria";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
@@ -36,6 +37,7 @@ export default async function Ficha({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-8">
+      <ContarVisita actividad={a.id} />
       <Link href="/" className="text-sm text-[var(--mf-accent)] underline underline-offset-4">Volver a todas las muestras</Link>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {esUrlWeb(a.coverImageUrl) ? <img src={a.coverImageUrl} alt="" className="max-h-[60vh] w-full rounded-[2px] object-cover" /> : null}

@@ -27,7 +27,7 @@ describe("cortarEnLineas", () => {
 });
 
 describe("datosDeFicha", () => {
-  it("arma los textos y la URL de la obra", () => {
+  it("arma los textos y la URL del QR con conteo", () => {
     const f = datosDeFicha(
       { title: "Miradas del litoral", slug: "miradas-abc123" },
       { id: "w1", title: "El río", authorName: "Ana Pérez", year: 2025, technique: "Copia pigmentaria" },
@@ -35,7 +35,7 @@ describe("datosDeFicha", () => {
     );
     expect(f).toEqual({
       muestra: "Miradas del litoral", titulo: "El río", autor: "Ana Pérez", detalle: "2025. Copia pigmentaria",
-      url: "https://muestrasfotograficas.com/m/miradas-abc123/o/w1",
+      url: "https://muestrasfotograficas.com/q/o/w1",
     });
   });
   it("sin autor ni datos", () => {
