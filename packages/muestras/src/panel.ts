@@ -42,7 +42,7 @@ export const PANEL_SECTIONS: readonly PanelSection[] = [
   s("curaduria", "Curaduría", "/panel/curaduria", "ORGANIZAR"),
   s("montaje", "Montaje e impresión", "/panel/montaje", "ORGANIZAR"),
   s("ventas", "Ventas", "/panel/ventas", "ORGANIZAR", false),
-  s("estadisticas", "Estadísticas", "/panel/estadisticas", "ORGANIZAR", false),
+  s("estadisticas", "Estadísticas", "/panel/estadisticas", "ORGANIZAR"),
   s("revision", "Revisión", "/panel/revision", "ADMIN", true, true),
 ];
 
