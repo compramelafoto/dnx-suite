@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
 import { queMostrar } from "@/lib/pantalla-ritmo";
+import { AYUDA_DEL_MANDO, accionDeTecla, avisoDeAccion } from "@/lib/mando-teclado";
 import { sacarSiYaSeVio } from "@/lib/pantalla-una-sola-vez";
 import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
@@ -93,7 +94,14 @@ export function Proyeccion({
   */
   const [pausado, setPausado] = useState(false);
   const [aleatorio, setAleatorio] = useState(false);
-  const [mandoVisible, setMandoVisible] = useState(false);
+  /*
+    El cartelito que confirma la tecla. Se borra solo.
+
+    Arranca con la ayuda: un mando invisible que nadie sabe que existe es un mando que no
+    existe, y el DJ llega a la pantalla sin haber leído el instructivo del panel. Va como
+    valor inicial y no en un efecto, que daría un render de más con el cartel vacío.
+  */
+  const [aviso, setAviso] = useState<string | null>(AYUDA_DEL_MANDO);
   /*
     El contador, por foto. `porFoto[mediaId][emoji]`, más un total del evento bajo la
     clave vacía para las reacciones que llegaron sin foto —con la pantalla apagada o
@@ -242,10 +250,62 @@ export function Proyeccion({
     abierto sería una barra gris sobre la pantalla del salón toda la noche.
   */
   useEffect(() => {
-    if (!mandoVisible) return;
-    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
+    if (!aviso) return;
+    const reloj = setTimeout(() => setAviso(null), 4_000);
     return () => clearTimeout(reloj);
-  }, [mandoVisible, pausado, aleatorio]);
+  }, [aviso]);
+
+  /*
+    Las teclas del mando.
+
+    Va en `window` y no en un elemento con foco: el DJ no va a hacer clic en la pantalla
+    antes de apretar la barra, y una pantalla de proyección no tiene a dónde poner el foco.
+
+    `preventDefault` sólo para las teclas que son nuestras: la barra espaciadora, sin eso,
+    hace bajar la página.
+  */
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      const destino = e.target as HTMLElement | null;
+      const accion = accionDeTecla({
+        tecla: e.key,
+        conModificador: e.ctrlKey || e.metaKey || e.altKey,
+        escribiendo:
+          destino?.isContentEditable === true ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(destino?.tagName ?? ""),
+      });
+
+      if (e.key === "?" || e.key === "h" || e.key === "H") {
+        setAviso(AYUDA_DEL_MANDO);
+        return;
+      }
+      if (!accion) return;
+
+      e.preventDefault();
+
+      if (accion === "SIGUIENTE") {
+        setVuelta((v) => v + 1);
+        setAviso(avisoDeAccion("SIGUIENTE", { pausado, aleatorio }));
+        return;
+      }
+
+      // El cartel dice dónde QUEDÓ, así que se calcula con el valor nuevo.
+      if (accion === "PAUSA") {
+        const ahora = !pausado;
+        setPausado(ahora);
+        setAviso(avisoDeAccion("PAUSA", { pausado: ahora, aleatorio }));
+        return;
+      }
+
+      const ahora = !aleatorio;
+      setAleatorio(ahora);
+      setAviso(avisoDeAccion("AZAR", { pausado, aleatorio: ahora }));
+    };
+
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [pausado, aleatorio]);
+
 
   /*
     Lo que se muestra es el contador DE LA FOTO QUE SE ESTÁ VIENDO. Un número del evento
@@ -400,69 +460,25 @@ export function Proyeccion({
       ) : null}
 
       {/*
-        El mando del DJ.
+        El mando no se ve: son teclas.
 
-        Visible pero discreto: una pestaña en el borde izquierdo con el texto "Controles".
-        Antes era una franja invisible y nadie la encontraba —ni sabiéndolo—, que es lo
-        mismo que no tener controles. Un botón tenue que se puede ignorar molesta menos a
-        la proyección que uno que nadie usa.
+        Antes era una pestaña en el borde izquierdo que decía "CONTROLES", y antes de eso
+        una franja invisible que no encontraba nadie. Las dos compartían el problema de
+        ser píxeles proyectados en la pared de una fiesta, al lado de las fotos.
 
-        El panel se esconde solo a los cinco segundos de la última acción.
+        Lo único que queda en pantalla es este cartelito, y sólo por un rato: sin botonera
+        no hay nada que confirme que la tecla llegó, y apretar la barra sin que pase nada
+        visible es indistinguible de un televisor colgado.
       */}
-      <button
-        type="button"
-        onClick={() => setMandoVisible((v) => !v)}
-        aria-expanded={mandoVisible}
-        className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-xl px-2 py-6 text-xs font-extrabold tracking-widest text-white transition-opacity"
-        style={{
-          background: "rgba(0,0,0,0.45)",
-          opacity: mandoVisible ? 0 : 0.5,
-          pointerEvents: mandoVisible ? "none" : "auto",
-          writingMode: "vertical-rl",
-        }}
-      >
-        CONTROLES
-      </button>
-
       <div
-        className="absolute left-0 top-1/2 flex -translate-y-1/2 flex-col gap-3 rounded-r-3xl p-4 transition-transform duration-300"
+        className="pointer-events-none absolute bottom-8 left-8 rounded-2xl px-5 py-3 text-base font-extrabold text-white transition-opacity duration-500"
         style={{
-          background: "rgba(0,0,0,0.72)",
-          transform: mandoVisible ? "translate(0, -50%)" : "translate(-110%, -50%)",
+          background: "rgba(0,0,0,0.6)",
+          opacity: aviso ? 1 : 0,
         }}
-        aria-hidden={!mandoVisible}
+        aria-live="polite"
       >
-        <BotonDeMando
-          activo={!pausado}
-          onClick={() => setPausado((v) => !v)}
-          etiqueta={pausado ? "Reanudar" : "Pausar"}
-        >
-          {pausado ? "\u25B6" : "\u2759\u2759"}
-        </BotonDeMando>
-
-        <BotonDeMando
-          activo={aleatorio}
-          onClick={() => setAleatorio((v) => !v)}
-          etiqueta={aleatorio ? "Pasar en orden" : "Pasar al azar"}
-        >
-          {"\u2928"}
-        </BotonDeMando>
-
-        <BotonDeMando
-          activo={false}
-          onClick={() => setVuelta((v) => v + 1)}
-          etiqueta="Pasar a la siguiente"
-        >
-          {"\u23ED"}
-        </BotonDeMando>
-
-        <button
-          type="button"
-          onClick={() => setMandoVisible(false)}
-          className="mt-1 text-xs font-extrabold text-white underline underline-offset-4 opacity-70"
-        >
-          Ocultar
-        </button>
+        {aviso}
       </div>
 
       <style>{`
@@ -501,31 +517,6 @@ export function Proyeccion({
  * Grande y con el nombre escrito: lo toca alguien parado, de noche, con música fuerte y
  * sin haber visto nunca esta pantalla. Un ícono solo no alcanza.
  */
-function BotonDeMando({
-  activo,
-  onClick,
-  etiqueta,
-  children,
-}: {
-  activo: boolean;
-  onClick: () => void;
-  etiqueta: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={activo}
-      className="flex min-h-[64px] min-w-[150px] items-center gap-3 rounded-2xl px-4 text-left text-white"
-      style={{ background: activo ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)" }}
-    >
-      <span className="text-2xl leading-none">{children}</span>
-      <span className="text-sm font-extrabold">{etiqueta}</span>
-    </button>
-  );
-}
-
 /**
  * Un mensaje proyectado, como un globo de chat.
  *

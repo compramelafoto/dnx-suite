@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { TAMANO_MAXIMO_BANNER, validarBanner } from "@/lib/banner";
+import { MEDIDA_SUGERIDA_BANNER, TAMANO_MAXIMO_BANNER, validarBanner } from "@/lib/banner";
 
 /**
  * Subir el logo.
@@ -116,7 +116,7 @@ export function SubirBanner({
 
       <p className="mt-2 text-sm" style={{ color: "var(--slf-tinta-suave)" }} aria-live="polite">
         {error ??
-          `JPG, PNG o WEBP, hasta ${Math.round(TAMANO_MAXIMO_BANNER / 1024 / 1024)} MB. Se ve al pie de la pantalla de tus invitados, en todos tus eventos.`}
+          `Ideal: ${MEDIDA_SUGERIDA_BANNER.ancho} × ${MEDIDA_SUGERIDA_BANNER.alto} px (una franja apaisada, 4:1). JPG, PNG o WEBP, hasta ${Math.round(TAMANO_MAXIMO_BANNER / 1024 / 1024)} MB. Se ve al pie de la pantalla de tus invitados, en todos tus eventos.`}
       </p>
     </div>
   );
