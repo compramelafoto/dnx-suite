@@ -1,5 +1,8 @@
 import type { GalleryMode } from "./constants";
+import { temporalStatus } from "./dates";
 import { visibleWorks } from "./gallery";
+import { sameName } from "./names";
+import { parseVisibility } from "./visibility";
 
 /** Reglas del perfil público del fotógrafo (`/fotografos/<slug>`). */
 export const PROFILE_SLUG_MIN = 3;
@@ -71,14 +74,7 @@ export function normalizeWebsite(raw: string): string | null {
   }
 }
 
-export function normalizeName(s: string): string {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-export function sameName(a: string, b: string): boolean {
-  const x = normalizeName(a);
-  return x !== "" && x === normalizeName(b);
-}
+export { normalizeName, sameName } from "./names";
 
 /**
  * A qué perfil queda vinculada una obra al guardar.
@@ -137,16 +133,23 @@ export const AVISO_PERFIL_EN_PUBLICADA =
 /**
  * Las obras de un perfil dentro de una muestra, separadas en las que se pueden mostrar y las
  * que la galería todavía reserva para la visita (sólo se cuentan).
+ *
+ * Desde la etapa 6 manda el ajuste de sorpresa: con "perfil: ninguna" no se muestra ninguna
+ * expuesta (salvo que la muestra ya cerró y se revela todo), y en "para cada visitante" el perfil
+ * tampoco muestra ninguna (la galería no tiene un conjunto fijo que repetir).
  */
 export function profileWorksInActivity<
   W extends { id: string; isHighlight: boolean; sortOrder: number; authorProfileId: string | null },
 >(
-  a: { galleryMode: GalleryMode | string; startsAt: Date; endsAt: Date },
+  a: { galleryMode: GalleryMode | string; visibility?: unknown; startsAt: Date; endsAt: Date },
   works: W[],
   profileId: string,
   now: Date,
 ): { visible: W[]; hiddenCount: number } {
   const mine = works.filter((w) => w.authorProfileId === profileId).sort((x, y) => x.sortOrder - y.sortOrder);
+  const v = parseVisibility(a.visibility ?? null, a.galleryMode);
+  const revelada = v.revealAfterClose && temporalStatus(a, now) === "CLOSED";
+  if (v.profile.exhibited === "NONE" && !revelada) return { visible: [], hiddenCount: mine.length };
   const shown = new Set(visibleWorks(a, works, now).works.map((w) => w.id));
   const visible = mine.filter((w) => shown.has(w.id));
   return { visible, hiddenCount: mine.length - visible.length };

@@ -43,3 +43,14 @@ describe("anterior y siguiente", () => {
   });
   it("si la obra no está entre las visibles, ninguna", () => expect(neighborWorks(v, "z")).toEqual({ prev: null, next: null }));
 });
+
+describe("acceso a una obra con la sorpresa (etapa 6)", () => {
+  it("sorpresa total: toda obra es sólo ficha mientras está abierta", () => {
+    expect(workAccess({ ...a, visibility: { v: 1, online: { exhibited: "NONE" } } }, obras, "w1", abierta)).toBe("TEASER");
+  });
+  it("para cada visitante: toda obra expuesta es sólo ficha mientras está abierta", () => {
+    const v = { v: 1, online: { exhibited: "RANDOM", randomCount: 1, rotation: "PER_VISIT", seed: "s" } };
+    expect(workAccess({ ...a, visibility: v }, obras, "w1", abierta)).toBe("TEASER");
+    expect(workAccess({ ...a, visibility: v }, obras, "w1", cerrada)).toBe("FULL");
+  });
+});

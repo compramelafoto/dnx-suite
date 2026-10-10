@@ -17,3 +17,4 @@ export * from "./guestbook";
 export * from "./team";
 export * from "./opening";
 export * from "./social";
+export * from "./visibility";

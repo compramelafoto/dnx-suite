@@ -26,6 +26,8 @@ describe("capacidades por rol", () => {
     expect(rolesWith("editTexts")).toEqual(["OWNER", "CO_ORGANIZER", "TEXT_EDITOR"]);
     expect(rolesWith("rsvp")).toEqual(["OWNER", "CO_ORGANIZER"]);
     expect(rolesWith("manageCall")).toEqual(["OWNER"]);
+    expect(rolesWith("exhibitors")).toEqual(["OWNER", "CO_ORGANIZER"]);
+    expect(rolesWith("visibility")).toEqual(["OWNER", "CO_ORGANIZER"]);
   });
 });
 

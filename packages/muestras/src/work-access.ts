@@ -7,11 +7,13 @@ import { visibleWorks } from "./gallery";
  * `FULL`: la imagen y los datos. `TEASER`: sólo los datos, sin la imagen, porque la galería
  * todavía la reserva para la visita. No es un 404 a propósito: el QR de la ficha de sala lleva
  * acá y se escanea durante la muestra, frente a la obra. La regla es la misma de la galería
- * (`visibleWorks`), así que galería, página de obra y perfil nunca se contradicen.
+ * (`visibleWorks`), así que galería, página de obra y perfil nunca se contradicen. En "para cada
+ * visitante" (etapa 6), mientras la muestra no se revela, toda obra expuesta es `TEASER`: la
+ * galería no tiene un conjunto fijo y una página con imagen dejaría indexar obras que cambian.
  */
 export type WorkAccess = "FULL" | "TEASER";
 
-type Gallery = { galleryMode: GalleryMode | string; startsAt: Date; endsAt: Date };
+type Gallery = { galleryMode: GalleryMode | string; visibility?: unknown; startsAt: Date; endsAt: Date };
 
 export function workAccess<W extends { id: string; isHighlight: boolean; sortOrder: number }>(
   a: Gallery,

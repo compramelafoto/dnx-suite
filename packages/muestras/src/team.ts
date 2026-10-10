@@ -24,12 +24,14 @@ export const TEAM_ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
 export const CAPABILITIES = [
   "view", "editActivity", "editTexts", "submitForReview", "cancel", "hanging", "pieces",
   "promote", "rsvp", "stats", "guestbook", "manageTeam", "manageCall",
+  // Etapa 6: enlace y revisión de expositores; sorpresa de la muestra y accesos de sala.
+  "exhibitors", "visibility",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
 export const ROLE_CAPABILITIES: Record<ActivityRole, readonly Capability[]> = {
   OWNER: CAPABILITIES,
-  CO_ORGANIZER: ["view", "editActivity", "editTexts", "submitForReview", "hanging", "pieces", "promote", "rsvp", "stats", "guestbook"],
+  CO_ORGANIZER: ["view", "editActivity", "editTexts", "submitForReview", "hanging", "pieces", "promote", "rsvp", "stats", "guestbook", "exhibitors", "visibility"],
   TEXT_EDITOR: ["view", "editTexts"],
 };
 
