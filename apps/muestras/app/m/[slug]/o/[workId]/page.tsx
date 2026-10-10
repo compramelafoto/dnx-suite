@@ -47,7 +47,8 @@ export default async function PaginaDeObra({ params }: Props) {
   if (!r) notFound();
   const { a, obra, conFoto, seRevela } = r;
   const autor = obra.authorName || "Autor sin indicar";
-  const datos = [obra.year ? String(obra.year) : null, obra.technique].filter(Boolean).join(". ");
+  // Reservada para la sala: sólo título y autor (ni año ni técnica, que la describen).
+  const datos = conFoto ? [obra.year ? String(obra.year) : null, obra.technique].filter(Boolean).join(". ") : "";
   const { prev, next } = conFoto ? neighborWorks(visibleWorks(a, a.works, ahora).works, obra.id) : { prev: null, next: null };
   const lugar = a.isVirtualOnly ? "Online" : [a.venueName, a.city].filter(Boolean).join(", ");
 

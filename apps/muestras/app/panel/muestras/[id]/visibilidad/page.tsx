@@ -78,8 +78,13 @@ export default async function VisibilidadDeMuestra({ params }: Props) {
         ) : null}
         <p className={aviso}>{AVISO_FICHAS}</p>
         <p className="flex flex-wrap gap-x-5 text-[15px]">
-          {a.reviewStatus === "APPROVED" ? <Link href={`/m/${a.slug}`} className={enlace}>Ver la publicación online</Link> : null}
-          <Link href={`/m/${a.slug}/sala`} className={enlace}>Ver como en la sala</Link>
+          {/* La vista de sala existe sólo con la muestra publicada (sin publicar, redirige a una página que no existe). */}
+          {a.reviewStatus === "APPROVED" ? (
+            <>
+              <Link href={`/m/${a.slug}`} className={enlace}>Ver la publicación online</Link>
+              <Link href={`/m/${a.slug}/sala`} className={enlace}>Ver como en la sala</Link>
+            </>
+          ) : null}
         </p>
       </section>
 

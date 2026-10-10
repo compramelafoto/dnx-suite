@@ -26,7 +26,7 @@ function useAccion() {
  * Generar el enlace (spec D1, D6, D24). Si la muestra todavía no tiene ajuste de sorpresa, en el
  * mismo paso se elige qué se ve online, con "Adelanto" sugerido: sin confirmarlo no se genera.
  */
-export function GenerarEnlace({ activityId, pideVisibilidad }: { activityId: string; pideVisibilidad: boolean }) {
+export function GenerarEnlace({ activityId, pideVisibilidad, todoALaVista = false }: { activityId: string; pideVisibilidad: boolean; todoALaVista?: boolean }) {
   const { pendiente, correr, aviso } = useAccion();
   const [sinTope, setSinTope] = useState(false);
   const enviar = (fd: FormData) => {
@@ -41,7 +41,7 @@ export function GenerarEnlace({ activityId, pideVisibilidad }: { activityId: str
           <p className="text-[15px]">
             Te sugerimos &quot;Adelanto&quot;: 3 obras al azar, siempre las mismas. Podés cambiarlo cuando quieras en Visibilidad.
           </p>
-          <AjusteVisibilidad inicial={null} sugerencia="PREVIEW" />
+          <AjusteVisibilidad inicial={null} sugerencia="PREVIEW" todoALaVista={todoALaVista} />
           <label className="flex items-start gap-2">
             <input type="checkbox" name="visibilidadConfirmada" value="1" required className="mt-1" />
             Confirmo lo que se ve online.

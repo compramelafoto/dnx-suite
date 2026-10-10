@@ -8,24 +8,12 @@ import {
   visibilityFromPreset, type FixedVisibilityPreset, type VisibilityPreset,
 } from "@repo/muestras";
 import { guardarVisibilidad, volverASortear } from "@/lib/visibilidad/acciones";
-import { sinSemilla, type AjusteSinSemilla } from "@/lib/visibilidad/forma";
+import { avisosDeAjuste, sinSemilla, type AjusteSinSemilla } from "@/lib/visibilidad/forma";
 import { aviso, bloque, botonFino, botonLleno, campo, nota } from "./estilos";
 
 export type { AjusteSinSemilla };
 
 const desdePreset = (p: FixedVisibilityPreset): AjusteSinSemilla => sinSemilla(visibilityFromPreset(p, ""));
-
-/** Los avisos de lo elegido (spec D22, D23), para mostrar antes de guardar. */
-export function avisosDeAjuste(a: AjusteSinSemilla): string[] {
-  if (a.online.exhibited !== "RANDOM") return [];
-  if (a.online.rotation === "DAILY") return ["Quien vuelve seguido termina viendo más obras."];
-  if (a.online.rotation === "PER_VISIT") {
-    return [
-      `Cada visitante ve otras ${a.online.randomCount} obras. Quien entre varias veces (o use un programa) va a terminar viendo todas: si querés que la sala sea sorpresa, elegí 'Siempre las mismas' o 'Ninguna'.`,
-    ];
-  }
-  return [];
-}
 
 /**
  * Los campos del ajuste de visibilidad (spec D20–D24): presets con su descripción y "Personalizado"
@@ -33,7 +21,12 @@ export function avisosDeAjuste(a: AjusteSinSemilla): string[] {
  * expositores (Task 9), cada uno dentro de su propio formulario. Tocar cualquier opción pasa a
  * "Personalizado"; elegir un preset reescribe todo.
  */
-export function AjusteVisibilidad({ inicial, sugerencia }: { inicial: AjusteSinSemilla | null; sugerencia?: FixedVisibilityPreset }) {
+export function AjusteVisibilidad({ inicial, sugerencia, todoALaVista = false }: {
+  inicial: AjusteSinSemilla | null;
+  sugerencia?: FixedVisibilityPreset;
+  /** Sin ajuste guardado, si la muestra mostraba todas las obras (para el aviso de lo que ya circuló). */
+  todoALaVista?: boolean;
+}) {
   const [a, setA] = useState<AjusteSinSemilla>(() => inicial ?? desdePreset(sugerencia ?? "PREVIEW"));
   const [detalle, setDetalle] = useState(a.preset === "CUSTOM");
   const cambiar = (f: (x: AjusteSinSemilla) => AjusteSinSemilla) => setA((x) => ({ ...f(x), preset: "CUSTOM" as VisibilityPreset }));
@@ -43,7 +36,8 @@ export function AjusteVisibilidad({ inicial, sugerencia }: { inicial: AjusteSinS
       setDetalle(true);
     } else setA(desdePreset(p));
   };
-  const avisos = avisosDeAjuste(a);
+  // Contra lo guardado; en el alta del enlace (sin ajuste todavía), contra cómo se veía hasta ahora.
+  const avisos = avisosDeAjuste(a, inicial ?? (todoALaVista ? desdePreset("OPEN") : null));
   const radio = "flex items-start gap-2";
 
   return (

@@ -31,6 +31,8 @@ export async function enlaceDeExpositores(activityId: string, usuario: Quien) {
     cerrada: temporalStatus(a, ahora) === "CLOSED",
     muestra,
     tieneAjuste: visibility != null,
+    // Sin ajuste y con "todas las obras" (como hasta la etapa 5): para avisar que lo publicado ya circuló.
+    todoALaVista: visibility == null && a.galleryMode === "FULL",
     enlace,
     estado: exhibitorLinkState(enlace, a, ahora),
     url: enlace ? `${baseUrlPublica()}/expositores/${enlace.token}` : null,

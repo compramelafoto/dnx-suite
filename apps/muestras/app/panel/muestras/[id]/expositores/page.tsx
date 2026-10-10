@@ -53,7 +53,7 @@ export default async function ExpositoresDeMuestra({ params }: Props) {
       ) : r.cerrada ? (
         <p className="text-lg">La muestra ya cerró: no recibe expositores.</p>
       ) : (
-        <GenerarEnlace activityId={a.id} pideVisibilidad={!r.tieneAjuste} />
+        <GenerarEnlace activityId={a.id} pideVisibilidad={!r.tieneAjuste} todoALaVista={r.todoALaVista} />
       )}
       {e || expositores.length ? (
         <RevisionExpositores
