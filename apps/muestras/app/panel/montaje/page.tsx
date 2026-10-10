@@ -8,7 +8,7 @@ export const metadata = { title: "Montaje e impresión" };
 
 export default async function Montaje() {
   const usuario = await requireUsuario("/panel/montaje");
-  const muestras = await listarMuestrasParaMontaje(usuario.id);
+  const muestras = await listarMuestrasParaMontaje(usuario);
   return (
     <main className="max-w-3xl space-y-10">
       <header className="space-y-3">

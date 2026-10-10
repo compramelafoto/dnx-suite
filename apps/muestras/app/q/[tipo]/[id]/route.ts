@@ -1,4 +1,5 @@
-import { esDeQuienOrganiza, pedidoContable, sumarUno } from "@/lib/estadisticas/contar";
+import { esDelEquipo } from "@/lib/equipo/permisos";
+import { pedidoContable, sumarUno } from "@/lib/estadisticas/contar";
 import { destinoDelQr } from "@/lib/estadisticas/qr";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
 
@@ -35,7 +36,7 @@ export async function GET(req: Request, { params }: Ctx) {
       pedidoContable(req.headers) &&
       frenarPorIp("escaneos", ipDeLaPeticion(req.headers)).allowed &&
       frenarPorIp("escaneosPorPagina", ipDeLaPeticion(req.headers), `${destino.activityId}:${destino.workId}`).allowed &&
-      !(await esDeQuienOrganiza(destino.proposedByUserId))
+      !(await esDelEquipo(destino.activityId))
     ) {
       await sumarUno({ activityId: destino.activityId, workId: destino.workId, metric: destino.metric });
     }

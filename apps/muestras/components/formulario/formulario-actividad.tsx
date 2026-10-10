@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, toArDay } from "@repo/muestras";
 import { enviarARevision, guardarBorrador } from "@/lib/actividades/acciones";
-import type { buscarPropia } from "@/lib/actividades/consultas";
+import type { buscarParaEditar } from "@/lib/actividades/consultas";
 import type { ObraForm } from "@/lib/actividades/mapear";
 import { BuscadorDireccion } from "./buscador-direccion";
 import { EditorObras } from "./obras";
@@ -13,7 +13,7 @@ import { subirImagen } from "./subir-imagen";
 
 const MapaDelLugar = dynamic(() => import("@/components/mapa/mapa-del-lugar"), { ssr: false });
 
-export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarPropia>>>;
+export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarParaEditar>>>["actividad"];
 
 const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2";
 

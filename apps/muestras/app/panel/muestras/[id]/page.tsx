@@ -4,7 +4,8 @@ import { AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, type ReviewSt
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
 import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { BotonesPublicada } from "@/components/formulario/botones-publicada";
-import { buscarPropia } from "@/lib/actividades/consultas";
+import { buscarParaEditar } from "@/lib/actividades/consultas";
+import { puede } from "@/lib/equipo/permisos";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,11 @@ export default async function EditarActividad({
   // Sólo una marca conocida: el texto del aviso nunca sale de la URL.
   const avisoPerfiles = sp.aviso === "perfiles";
   const usuario = await requireUsuario(`/panel/muestras/${id}`);
-  const a = await buscarPropia(id, usuario);
-  if (!a) notFound();
+  const r = await buscarParaEditar(id, usuario);
+  if (!r) notFound();
+  const { actividad: a, rol } = r;
   const estado = a.reviewStatus as ReviewStatus;
-  const editable = canEdit({ ...a, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin });
+  const editable = canEdit({ ...a, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: rol });
   return (
     <main className="max-w-3xl space-y-6">
       <Link href="/panel/muestras" className="text-sm text-[var(--mf-accent)] underline underline-offset-4">Volver a mis muestras</Link>
@@ -41,8 +43,8 @@ export default async function EditarActividad({
       {estado === "APPROVED" ? (
         <>
           <p><Link href={`/m/${a.slug}`} className="underline">Ver publicada</Link>. Los cambios se publican sin volver a revisión.</p>
-          <BotonesPublicada id={a.id} cancelada={a.isCancelled} />
-          {a.type === "MUESTRA" ? (
+          {puede(usuario, "cancel", rol) ? <BotonesPublicada id={a.id} cancelada={a.isCancelled} /> : null}
+          {a.type === "MUESTRA" && puede(usuario, "pieces", rol) ? (
             <section className="space-y-2 border-t border-[var(--mf-line)] pt-4">
               <h2 className="text-sm text-[var(--mf-muted)]">Fichas de sala con QR</h2>
               <DescargarFichas id={a.id} obras={a.works} />

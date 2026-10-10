@@ -1,7 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { isBotUserAgent, isPrefetch, toArDay, type StatMetric } from "@repo/muestras";
-import { getUsuario } from "@/lib/usuario";
 
 /**
  * Suma uno al contador del día (hora argentina). `INSERT … ON CONFLICT` es atómico: dos visitas
@@ -20,11 +19,5 @@ export function pedidoContable(h: Headers): boolean {
   return !isBotUserAgent(h.get("user-agent")) && !isPrefetch(h);
 }
 
-/**
- * Quien organiza (o el super admin) mirando su propia muestra no cuenta. Sin cookie de sesión
- * `getUsuario` vuelve enseguida sin tocar la base: el caso del público no paga nada.
- */
-export async function esDeQuienOrganiza(proposedByUserId: number): Promise<boolean> {
-  const u = await getUsuario();
-  return !!u && (u.esSuperAdmin || u.id === proposedByUserId);
-}
+// Quién no cuenta (dueño, equipo o super admin) lo decide `esDelEquipo` de `lib/equipo/permisos`
+// (etapa 5, D10).
