@@ -26,6 +26,7 @@
     "@repo/db": "workspace:*",
     "@repo/design-studio": "workspace:*",
     "@repo/geo": "workspace:*",
+    "@repo/muestras": "workspace:*",
     "@repo/partners": "workspace:*",
     "@repo/payments": "workspace:*",
     "@repo/template-editor-core": "workspace:*",

@@ -23,6 +23,8 @@ import { SpotlightCard } from "@/components/spotlight/spotlight-card";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
 import { BirthdaysCard } from "@/components/birthdays/birthdays-card";
 import type { BirthdayView } from "@/lib/birthdays/week";
+import { MuestrasCercaCard } from "@/components/portal/muestras-cerca-card";
+import type { MuestrasCerca } from "@/lib/muestras/cerca";
 
 export type PortalHomeProps = {
   institution: string;
@@ -58,6 +60,8 @@ export type PortalHomeProps = {
   /** Proyectos de la comisión: invitar a proponer y a tomar tareas sin responsable. */
   /** La vitrina de concursos (FotoRank y Clickatón): lo abierto y lo que viene. */
   concursos?: ShowcaseItem[];
+  /** Muestras fotográficas cerca del socio (muestrasfotograficas.com). */
+  muestrasCerca?: MuestrasCerca | null;
   gobierno?: {
     tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
     totalLibres: number;
@@ -89,6 +93,7 @@ export function PortalHome({
   cumpleanos = [],
   gobierno = null,
   concursos = [],
+  muestrasCerca = null,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -401,6 +406,8 @@ export function PortalHome({
               <WhatsappGroupButton href={whatsappGroupUrl} className="self-start" />
             </div>
           ) : null}
+
+          {muestrasCerca ? <MuestrasCercaCard muestras={muestrasCerca} /> : null}
 
           {/*
             Los concursos van en la columna lateral, de a una ficha que va pasando sola: muestra

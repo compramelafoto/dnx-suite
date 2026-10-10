@@ -28,6 +28,7 @@ import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
 import type { BirthdayView } from "@/lib/birthdays/week";
 import { loadActivePlacement } from "@/lib/sponsors/placements";
 import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
+import { loadMuestrasCerca, type MuestrasCerca } from "@/lib/muestras/cerca";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,18 @@ export default async function PortalPage() {
   // La sección de sponsors arranca ya, en paralelo con todo lo demás. Nunca falla y tiene tope de
   // espera: si no hay o DNX Partners no responde, la portada sale sin la sección.
   const sponsorsPromesa = loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
+
+  // Las muestras cercanas también arrancan ya: ubicar la ciudad puede tardar hasta 3 s la primera
+  // vez. Si algo falla, el panel sale sin la tarjeta.
+  const muestrasPromesa: Promise<MuestrasCerca | null> = loadMuestrasCerca({
+    memberId: context.member.id,
+    workspaceId: context.workspace.id,
+  }).catch((error) => {
+    console.error("[fotoffice][muestras-cerca] no se pudieron cargar las muestras", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+    return null;
+  });
 
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
@@ -183,6 +196,7 @@ export default async function PortalPage() {
   }
 
   const sponsors = await sponsorsPromesa;
+  const muestrasCerca = await muestrasPromesa;
 
   return (
     <>
@@ -214,6 +228,7 @@ export default async function PortalPage() {
       cumpleanos={cumpleanos}
       gobierno={gobierno}
       concursos={concursos}
+      muestrasCerca={muestrasCerca}
     />
     <div className="mt-8">
       <PortalSponsorsSection sponsors={sponsors} />
