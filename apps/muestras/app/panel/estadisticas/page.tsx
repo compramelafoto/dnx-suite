@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { formatArDay } from "@repo/muestras";
+import { cantidad } from "@/lib/cantidad";
 import { listarConEstadisticas } from "@/lib/estadisticas/consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Estadísticas" };
-
-const cantidad = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 export default async function Estadisticas() {
   const usuario = await requireUsuario("/panel/estadisticas");

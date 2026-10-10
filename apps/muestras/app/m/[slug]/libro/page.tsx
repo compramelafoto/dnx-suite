@@ -30,13 +30,16 @@ export default async function LibroDeVisitas({ params }: Props) {
         <h1 className="mf-titulo text-[clamp(2rem,5vw,3rem)]">{a.title}</h1>
       </header>
       {estado === "OPEN" ? <FormularioLibro muestra={a.id} revisa={a.guestbookMode === "REVIEW"} /> : (
+        // Libro cerrado (por quien organiza, muestra cancelada o pasado el plazo): nunca un 404,
+        // porque el afiche impreso sigue colgado y alguien puede escanearlo.
         <p className="border-t border-[var(--mf-line)] pt-4 text-[15px] text-[var(--mf-muted)]">
-          {estado === "ENDED" ? "El libro de visitas de esta muestra ya cerró. Gracias a todas las personas que dejaron su comentario." : "El libro de visitas de esta muestra está cerrado."}
+          {estado === "ENDED" ? "El libro de visitas de esta muestra ya cerró. Gracias a todas las personas que dejaron su comentario." : "El libro de visitas de esta muestra está cerrado."}{" "}
+          <Link href={`/m/${a.slug}`} className="underline underline-offset-4">Ver la muestra</Link>
         </p>
       )}
       <section aria-labelledby="t-comentarios" className="space-y-4">
         <h2 id="t-comentarios" className="text-sm text-[var(--mf-muted)]">{entradas.length ? "Comentarios" : "Todavía no hay comentarios."}</h2>
-        <ul className="border-t border-[var(--mf-line)]">
+        <ul data-nosnippet className="border-t border-[var(--mf-line)]">
           {entradas.map((e) => (
             <li key={e.id} className="space-y-1 border-b border-[var(--mf-line)] py-4">
               <p className="whitespace-pre-line text-[17px] leading-relaxed">{e.comment}</p>

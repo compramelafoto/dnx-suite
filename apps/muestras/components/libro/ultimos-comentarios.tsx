@@ -16,7 +16,8 @@ export function UltimosComentarios({ slug, entradas, abierto }: { slug: string; 
         </p>
       ) : (
         <>
-          <ul className="max-w-[68ch] border-t border-[var(--mf-line)]">
+          {/* data-nosnippet: los buscadores no muestran comentarios del público en sus resultados. */}
+          <ul data-nosnippet className="max-w-[68ch] border-t border-[var(--mf-line)]">
             {entradas.slice(0, 6).map((e) => (
               <li key={e.id} className="space-y-1 border-b border-[var(--mf-line)] py-4">
                 <p className="whitespace-pre-line leading-relaxed">{e.comment}</p>

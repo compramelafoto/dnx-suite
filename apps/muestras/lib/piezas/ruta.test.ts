@@ -48,10 +48,23 @@ describe("GET /api/piezas/[id]/[pieza]", () => {
     expect(r.headers.get("content-disposition")).toBe('attachment; filename="cartel-m-A3.pdf"');
     expect(armar.armarPieza.mock.calls[0]![1]).toEqual({ pieza: "cartel", tamano: "A2" });
   });
-  it("si armar no encuentra la obra, 404; si se rompe, 500", async () => {
+  it("si armar no encuentra la obra, 404; si se rompe, 500; los errores en texto, en español", async () => {
     armar.armarPieza.mockResolvedValue(null);
-    expect((await pedir("marcos", "?obra=x")).status).toBe(404);
+    const r404 = await pedir("marcos", "?obra=x");
+    expect(r404.status).toBe(404);
+    expect(r404.headers.get("content-type")).toMatch(/^text\/plain/);
+    expect(await r404.text()).toBe("Esa obra no es de esta muestra.");
     armar.armarPieza.mockRejectedValue(new Error("pdf-lib"));
-    expect((await pedir("cartel")).status).toBe(500);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r500 = await pedir("cartel");
+    error.mockRestore();
+    expect(r500.status).toBe(500);
+    expect(await r500.text()).toBe("No pudimos armar el PDF. Probá de nuevo.");
+  });
+  it("pasado el tope, 429 en texto", async () => {
+    let r = await pedir("cartel");
+    for (let i = 0; i < 70 && r.status !== 429; i++) r = await pedir("cartel");
+    expect(r.status).toBe(429);
+    expect(await r.text()).toBe("Pediste muchos PDF seguidos. Esperá unos minutos.");
   });
 });

@@ -6,6 +6,7 @@ import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { DescargarMarcos } from "@/components/montaje/descargar-marcos";
 import { Descargas } from "@/components/montaje/descargas";
 import { EditorMontaje } from "@/components/montaje/editor-montaje";
+import { cantidad } from "@/lib/cantidad";
 import { cargarMontaje } from "@/lib/montaje/consultas";
 import { urlDePieza } from "@/lib/piezas/opciones";
 import { requireUsuario } from "@/lib/usuario";
@@ -66,7 +67,7 @@ export default async function MontajeDeMuestra({ params }: { params: Promise<{ i
       <section aria-labelledby="t-plano" className={seccion}>
         <h2 id="t-plano" className="mf-titulo text-[1.5rem]">Plano y lista de montaje</h2>
         <p className="text-[15px] text-[var(--mf-muted)]">Cargá las paredes y qué obra va en cada una, en orden. Calculamos dónde va cada marco: centro a 150 cm del piso y el mismo espacio entre obras.</p>
-        {m.droppedItems > 0 ? <p role="status" className="text-[15px] text-[var(--mf-alerta)]">Sacamos del plano {m.droppedItems} obra(s) que ya no están en la muestra.</p> : null}
+        {m.droppedItems > 0 ? <p role="status" className="text-[15px] text-[var(--mf-alerta)]">Sacamos del plano {cantidad(m.droppedItems, "obra que ya no está", "obras que ya no están")} en la muestra.</p> : null}
         <EditorMontaje id={m.id} obras={m.works} planInicial={m.plan} />
       </section>
     </main>

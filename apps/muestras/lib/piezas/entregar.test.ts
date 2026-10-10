@@ -26,7 +26,7 @@ describe("entregarPdf", () => {
     for (const activityId of ["", "a/b", "../x", "x".repeat(65)]) {
       const r = await entregarPdf(new Uint8Array(LIMITE_RESPUESTA_DIRECTA + 1), { nombre: "x", activityId });
       expect(r.status).toBe(400);
-      expect((await r.json()).error).toBe("No encontramos esa muestra.");
+      expect(await r.text()).toBe("No encontramos esa muestra.");
     }
     expect(r2.subirPdfAR2).not.toHaveBeenCalled();
   });
@@ -34,6 +34,7 @@ describe("entregarPdf", () => {
     r2.subirPdfAR2.mockRejectedValue(new Error("sin red"));
     const r = await entregarPdf(new Uint8Array(LIMITE_RESPUESTA_DIRECTA + 1), { nombre: "x", activityId: "a1" });
     expect(r.status).toBe(500);
-    expect((await r.json()).error).toMatch(/muy pesado/);
+    expect(r.headers.get("content-type")).toMatch(/^text\/plain/);
+    expect(await r.text()).toMatch(/muy pesado/);
   });
 });

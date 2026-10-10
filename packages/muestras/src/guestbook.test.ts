@@ -59,12 +59,19 @@ describe("entrada del libro", () => {
     expect(hasLinkOrEmail("bit.ly/abc")).toBe(true);
     expect(hasLinkOrEmail("x.me/abc")).toBe(true);
     expect(hasLinkOrEmail("WWW.ALGO.COM")).toBe(true);
+    expect(hasLinkOrEmail("entrá a spam\uFF0Ecom")).toBe(true);
+    expect(hasLinkOrEmail("ｗｗｗ.algo")).toBe(true);
   });
   it("demasiado rápido para una persona", () => {
     expect(isTooFast(1000, 2000)).toBe(true);
     expect(isTooFast(1000, 4500)).toBe(false);
     expect(isTooFast(null, 4500)).toBe(true);
     expect(isTooFast(Number.NaN, 4500)).toBe(true);
+    expect(isTooFast(0, 4500)).toBe(true);
+    expect(isTooFast(-5000, 4500)).toBe(true);
+    const ahora = Date.UTC(2026, 10, 10);
+    expect(isTooFast(ahora - 13 * 3_600_000, ahora)).toBe(true);
+    expect(isTooFast(ahora - 11 * 3_600_000, ahora)).toBe(false);
   });
 });
 

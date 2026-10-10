@@ -20,10 +20,9 @@ export async function dejarComentario(fd: FormData): Promise<ResultadoLibro> {
   const activityId = String(fd.get("muestra") ?? "");
   if (!ID.test(activityId)) return { ok: false, error: "No encontramos esta muestra." };
   if (String(fd.get("sitio") ?? "") !== "") return COMO_SI_NADA;
-  if (isTooFast(Number(fd.get("t")), Date.now())) return COMO_SI_NADA;
-  if (!frenarPorIp("libro", ipDeLaPeticion(await headers()), activityId).allowed) {
-    return { ok: false, error: "Dejaste varios comentarios seguidos. Probá en unos minutos." };
-  }
+  // `t`: milisegundos desde 1970 (13 dígitos hoy). Ausente, vacío, "0" o cualquier otra cosa: robot.
+  const t = String(fd.get("t") ?? "");
+  if (isTooFast(/^\d{12,14}$/.test(t) ? Number(t) : null, Date.now())) return COMO_SI_NADA;
   const crudo = { name: fd.get("nombre"), city: fd.get("ciudad"), comment: fd.get("comentario") };
   const entrada = guestbookInput(crudo);
   const problemas = guestbookProblems(entrada, [crudo.name, crudo.city, crudo.comment]);
@@ -33,6 +32,11 @@ export async function dejarComentario(fd: FormData): Promise<ResultadoLibro> {
     select: { id: true, slug: true, reviewStatus: true, type: true, isCancelled: true, guestbookMode: true, endsAt: true },
   });
   if (!a || guestbookState(a, new Date()) !== "OPEN") return { ok: false, error: "El libro de visitas de esta muestra está cerrado." };
+  // El freno va después de confirmar que la muestra existe: con ids inventados, cada pedido
+  // sumaría una clave nueva al mapa del freno.
+  if (!frenarPorIp("libro", ipDeLaPeticion(await headers()), a.id).allowed) {
+    return { ok: false, error: "Dejaste varios comentarios seguidos. Probá en unos minutos." };
+  }
   if (!frenarPorMuestra("libro", a.id).allowed) return { ok: false, error: "El libro recibió muchos comentarios en poco tiempo. Probá en un rato." };
   const status = initialEntryStatus(a.guestbookMode);
   await prisma.culturalActivityGuestbookEntry.create({
@@ -79,5 +83,8 @@ export async function cambiarModoLibro(activityId: string, modo: string): Promis
   });
   if (count === 0) return { ok: false, error: "No encontramos esa muestra entre las tuyas." };
   revalidatePath(`/panel/estadisticas/${activityId}/libro`);
+  // La página pública y la del libro muestran (o no) el formulario según el modo.
+  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { slug: true } });
+  if (a) revalidatePath(`/m/${a.slug}`, "layout");
   return { ok: true };
 }

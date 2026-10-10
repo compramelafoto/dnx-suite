@@ -49,6 +49,10 @@ describe("dejarComentario", () => {
   it("campo trampa o demasiado rápido: finge que salió bien y no guarda", async () => {
     expect((await dejarComentario(form({ sitio: "http://spam" }))).ok).toBe(true);
     expect((await dejarComentario(form({ t: String(Date.now()) }))).ok).toBe(true);
+    for (const t of ["", "0", "-1", "abc", "1e12", String(Date.now() - 13 * 3_600_000)]) expect((await dejarComentario(form({ t }))).ok).toBe(true);
+    const sinT = form();
+    sinT.delete("t");
+    expect(await dejarComentario(sinT)).toEqual({ ok: true, publicado: false });
     expect(db.culturalActivityGuestbookEntry.create).not.toHaveBeenCalled();
   });
   it("rechaza enlaces y libros cerrados", async () => {
@@ -62,6 +66,12 @@ describe("dejarComentario", () => {
   it("freno por IP en esa muestra", async () => {
     for (let i = 0; i < 10; i++) expect((await dejarComentario(form())).ok).toBe(true);
     expect(await dejarComentario(form())).toEqual({ ok: false, error: "Dejaste varios comentarios seguidos. Probá en unos minutos." });
+  });
+  it("una muestra inexistente no gasta el freno (se frena después de validar)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue(null);
+    for (let i = 0; i < 15; i++) await dejarComentario(form());
+    db.culturalActivity.findUnique.mockResolvedValue(muestra);
+    expect((await dejarComentario(form())).ok).toBe(true);
   });
 });
 
@@ -91,6 +101,7 @@ describe("moderación", () => {
     db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
     expect((await cambiarModoLibro("cka1b2c3d4", "REVIEW")).ok).toBe(true);
     expect(db.culturalActivity.updateMany).toHaveBeenCalledWith({ where: { id: "cka1b2c3d4", type: "MUESTRA", proposedByUserId: 7 }, data: { guestbookMode: "REVIEW" } });
+    expect(cache.revalidatePath).toHaveBeenCalledWith("/m/miradas-abc", "layout");
     expect((await cambiarModoLibro("cka1b2c3d4", "CUALQUIERA")).ok).toBe(false);
   });
 });

@@ -29,6 +29,8 @@ export const GUESTBOOK_LIMITS = { name: 60, city: 60, comment: 500 } as const;
 export const GUESTBOOK_DAYS_AFTER_CLOSE = 15;
 /** Nadie lee el formulario y escribe un comentario en menos de 3 segundos. */
 export const GUESTBOOK_MIN_MS = 3000;
+/** Y nadie deja la página abierta medio día antes de enviar. */
+export const GUESTBOOK_MAX_MS = 12 * 60 * 60 * 1000;
 
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u2028\u2029]/g;
@@ -79,13 +81,15 @@ const CORREO = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
  * espacio o de un signo que no tenga una minúscula pegada. Así "Hermosa muestra.Me encantó" o
  * "spam.comentario" no cuentan. `.me` y `.co` sólo con "/" detrás: son palabras.
  *
- * Fuera de alcance (lo modera quien organiza): otros dominios (.tv, .club…), "spam .com" con
- * espacio, mayúsculas ("SPAM.COM") y puntos de ancho completo ("spam．com").
+ * Los puntos de ancho completo ("spam．com") se normalizan antes (NFKC). Fuera de alcance (lo
+ * modera quien organiza): otros dominios (.tv, .club…), "spam . com" o "spam .com" con espacios
+ * y las mayúsculas ("SPAM.COM").
  */
 const DOMINIO = new RegExp(`[a-z0-9-]+\\.(?:(?:${TLD})(?=\\/|$|\\s|\\p{P}(?!\\p{Ll}))|(?:me|co)\\/)`, "u");
 
 export function hasLinkOrEmail(s: string): boolean {
-  const visto = sinInvisibles(s);
+  // NFKC: los puntos y letras de ancho completo ("spam．com") pasan a los comunes.
+  const visto = sinInvisibles(s).normalize("NFKC");
   const lecturas = DE_DERECHA_A_IZQUIERDA.test(s) ? [visto, Array.from(visto).reverse().join("")] : [visto];
   return lecturas.some((t) => ENLACE.test(t) || CORREO.test(t) || DOMINIO.test(t));
 }
@@ -109,7 +113,9 @@ export function guestbookProblems(i: GuestbookInput, crudo: unknown[] = []): str
 
 /** `startedAt`: cuándo se abrió el formulario (milisegundos). Sin dato, se trata como robot. */
 export function isTooFast(startedAt: number | null, now: number): boolean {
-  if (startedAt == null || !Number.isFinite(startedAt) || startedAt > now + 60_000) return true;
+  if (startedAt == null || !Number.isFinite(startedAt) || startedAt <= 0 || startedAt > now + 60_000) return true;
+  // Un formulario abierto hace más de 12 horas: un valor viejo reusado por un robot.
+  if (now - startedAt > GUESTBOOK_MAX_MS) return true;
   return now - startedAt < GUESTBOOK_MIN_MS;
 }
 

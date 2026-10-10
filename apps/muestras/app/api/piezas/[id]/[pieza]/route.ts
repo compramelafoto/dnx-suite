@@ -3,7 +3,7 @@ import { baseUrlPublica } from "@/lib/fichas/cargar";
 import { frenarPorUsuario } from "@/lib/limite";
 import { armarPieza } from "@/lib/piezas/armar";
 import { cargarMuestraParaPiezas } from "@/lib/piezas/cargar";
-import { entregarPdf } from "@/lib/piezas/entregar";
+import { entregarPdf, errorEnTexto } from "@/lib/piezas/entregar";
 import { PIEZAS_CON_QR, opcionesDePieza } from "@/lib/piezas/opciones";
 import { getUsuario } from "@/lib/usuario";
 
@@ -19,18 +19,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!usuario) return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent("/panel/montaje")}`, req.url), 307);
   const { id, pieza } = await params;
   const opciones = opcionesDePieza(pieza, new URL(req.url).searchParams);
-  if (!opciones) return NextResponse.json({ error: "Esa pieza no existe." }, { status: 404 });
+  if (!opciones) return errorEnTexto("Esa pieza no existe.", 404);
   if (!frenarPorUsuario("piezas", usuario.id).allowed) {
-    return NextResponse.json({ error: "Pediste muchos PDF seguidos. Esperá unos minutos." }, { status: 429 });
+    return errorEnTexto("Pediste muchos PDF seguidos. Esperá unos minutos.", 429);
   }
   const a = await cargarMuestraParaPiezas(id, usuario, { publicada: PIEZAS_CON_QR.includes(opciones.pieza) });
-  if (!a) return NextResponse.json({ error: "No encontramos esa muestra entre las tuyas. Las piezas con QR piden la muestra publicada." }, { status: 404 });
+  if (!a) return errorEnTexto("No encontramos esa muestra entre las tuyas. Las piezas con QR piden la muestra publicada.", 404);
   try {
     const r = await armarPieza(a, opciones, baseUrlPublica());
-    if (!r) return NextResponse.json({ error: "Esa obra no es de esta muestra." }, { status: 404 });
+    if (!r) return errorEnTexto("Esa obra no es de esta muestra.", 404);
     return await entregarPdf(r.bytes, { nombre: r.nombre, activityId: a.id });
   } catch (err) {
     console.error("GET /api/piezas:", err instanceof Error ? err.message : String(err));
-    return NextResponse.json({ error: "No pudimos armar el PDF. Probá de nuevo." }, { status: 500 });
+    return errorEnTexto("No pudimos armar el PDF. Probá de nuevo.", 500);
   }
 }
