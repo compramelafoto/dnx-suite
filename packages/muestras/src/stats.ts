@@ -13,7 +13,9 @@ export const ACTIVITY_LEVEL = "";
 
 const BOT_UA = new RegExp(
   [
-    "bot\\b", "bot/", "crawl", "spider", "slurp", "archiver", "facebookexternalhit", "facebookcatalog", "whatsapp",
+    // "Cubot X30" es un teléfono, no un robot. No se exige "bot" suelto: "Slackbot-LinkExpanding"
+    // o "TwitterBot" sí son robots y no traen "bot/".
+    "(?<!cu)bot\\b", "bot/", "crawl", "spider", "slurp", "archiver", "facebookexternalhit", "facebookcatalog", "whatsapp",
     "telegram", "preview", "embedly", "headless", "lighthouse", "pagespeed", "pingdom", "uptime", "monitor",
     "curl/", "wget/", "python", "httpclient", "okhttp", "go-http-client", "java/", "node-fetch", "undici", "axios",
     "postman", "insomnia", "scrapy", "ahrefs", "semrush", "petalbot", "yandex", "baidu", "bytespider", "gptbot",

@@ -62,6 +62,7 @@ describe("frameLayout", () => {
 describe("calidad de impresión", () => {
   it("puntos por pulgada de la foto en la caja", () => {
     expect(printPpi({ width: 2000, height: 1000 }, { x: 0, y: 0, width: 254, height: 127 })).toBe(200);
+    expect(printPpi({ width: 2000, height: 1000 }, { x: 0, y: 0, width: 0, height: 127 })).toBe(0);
   });
   it("umbrales 200 y 120", () => {
     expect(printQuality(200)).toBe("GOOD");
@@ -83,6 +84,7 @@ describe("largestThatFits", () => {
   it("el más grande que entra; si ninguno, el más chico", () => {
     expect(largestThatFits([16, 14, 12, 10], (s) => s <= 13)).toBe(12);
     expect(largestThatFits([16, 14, 12, 10], () => false)).toBe(10);
+    expect(() => largestThatFits([], () => true)).toThrow();
   });
 });
 

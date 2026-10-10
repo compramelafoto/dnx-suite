@@ -36,6 +36,17 @@ describe("parseHangingPlan", () => {
     const walls = Array.from({ length: 35 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, widthCm: 100, items: [] }));
     expect(parseHangingPlan({ walls }, []).plan.walls).toHaveLength(30);
   });
+  it("las obras de las paredes de más se cuentan como descartadas", () => {
+    const walls = Array.from({ length: 32 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, widthCm: 100, items: i >= 30 ? [{ workId: `w${i}` }, { workId: "x" }] : [] }));
+    expect(parseHangingPlan({ walls }, ["w30", "w31"]).droppedItems).toBe(4);
+  });
+  it("los ids de pared repetidos nunca chocan", () => {
+    const { plan } = parseHangingPlan({ walls: ["x-3", "x", "x", "x"].map((id) => ({ id, name: id, widthCm: 100, items: [] })) }, []);
+    const ids = plan.walls.map((w) => w.id);
+    expect(new Set(ids).size).toBe(4);
+    expect(ids[0]).toBe("x-3");
+    expect(ids[1]).toBe("x");
+  });
 });
 
 describe("hangingPlanProblems", () => {

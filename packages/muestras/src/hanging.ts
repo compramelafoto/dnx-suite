@@ -46,11 +46,18 @@ export function parseHangingPlan(raw: unknown, workIds: Iterable<string>): { pla
   let droppedItems = 0;
   const walls: HangingWall[] = [];
   const crudas = Array.isArray(r?.walls) ? (r.walls as unknown[]) : [];
+  // Las obras de las paredes que pasan del tope también se cuentan como descartadas.
+  for (const w0 of crudas.slice(HANGING_LIMITS.walls)) {
+    const items = objeto(w0)?.items;
+    if (Array.isArray(items)) droppedItems += items.length;
+  }
   crudas.slice(0, HANGING_LIMITS.walls).forEach((w0, i) => {
     const w = objeto(w0);
     if (!w) return;
-    let id = typeof w.id === "string" && WALL_ID.test(w.id) ? w.id : `pared-${i + 1}`;
-    if (ids.has(id)) id = `${id}-${i + 1}`.slice(-40);
+    const base = typeof w.id === "string" && WALL_ID.test(w.id) ? w.id : `pared-${i + 1}`;
+    let id = base;
+    // "x-3", "x", "x": la tercera no puede volver a ser "x-3".
+    for (let n = i + 1; ids.has(id); n += 1) id = `${base.slice(0, 40 - String(n).length - 1)}-${n}`;
     ids.add(id);
     const items: HangingItem[] = [];
     for (const it0 of Array.isArray(w.items) ? (w.items as unknown[]) : []) {

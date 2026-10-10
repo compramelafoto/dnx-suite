@@ -111,6 +111,7 @@ export function frameLayout(size: FrameSize, orientation: Orientation, image: Pi
 
 /** Puntos por pulgada con que sale la foto en la caja (el menor de los dos lados). */
 export function printPpi(img: PixelSize, box: Box): number {
+  if (!(box.width > 0 && box.height > 0)) return 0;
   return Math.floor(Math.min(img.width / (box.width / 25.4), img.height / (box.height / 25.4)));
 }
 
@@ -142,6 +143,7 @@ export function expectedQuality(size: FrameSize): PrintQuality {
 
 /** El primero de `sizes` (de mayor a menor) para el que `fits` da true; si ninguno, el último. */
 export function largestThatFits(sizes: readonly number[], fits: (size: number) => boolean): number {
+  if (sizes.length === 0) throw new Error("largestThatFits necesita al menos una medida.");
   for (const s of sizes) if (fits(s)) return s;
   return sizes[sizes.length - 1]!;
 }
