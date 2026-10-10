@@ -10,7 +10,6 @@ import { urlDelCodigo } from "@/lib/url-invitado";
 import {
   DURACION,
   SELECT_DE_VARIANTES,
-  enlaceParaMirar,
   enlacesDeVariantes,
 } from "@/lib/moderacion/vista";
 import { Proyeccion, type ItemEnVivo } from "./proyeccion";
@@ -71,6 +70,17 @@ export default async function Pantalla({ params }: Props) {
     que entre que vence la ventana y se marca `CLOSED` hay un rato en el que la
     base todavía dice `ACTIVE`. La pantalla no tiene por qué esperar al cron.
   */
+  /*
+    El QR se dibuja en el servidor y viaja ya hecho. El televisor del salón suele ser un
+    aparato lento: no tiene por qué calcular un código que nunca cambia en toda la noche.
+
+    Se arma antes de elegir el cartel porque la pantalla de espera también lo muestra: el
+    televisor se enciende mientras el salón se llena, y decía "escaneá el código QR" sin
+    mostrar ninguno.
+  */
+  const urlDelEvento = urlDelCodigo(baseUrl(), evento.code);
+  const qrSvg = await qrDelEvento(urlDelEvento);
+
   const cartel = cartelDePantalla({
     momento: estadoDeAcceso(evento, new Date()).momento,
     textoDeCierre: evento.closingCardText,
@@ -82,20 +92,34 @@ export default async function Pantalla({ params }: Props) {
         className="flex h-[100svh] w-full flex-col items-center justify-center px-16 text-center"
         style={estiloDeTema(tema)}
       >
-        <p className="text-balance text-[clamp(2rem,6vw,4.5rem)] font-extrabold leading-[1.1]">
-          {cartel.titulo}
-        </p>
-        {cartel.tipo === "ESPERANDO" ? (
-          <p
-            className="mt-8 text-balance text-[clamp(1.1rem,2.4vw,2rem)]"
-            style={{ opacity: 0.85 }}
-          >
-            {cartel.bajada}
-          </p>
-        ) : null}
-        <p className="mt-8 text-[clamp(1rem,2vw,1.75rem)]" style={{ opacity: 0.7 }}>
+        {/* Arriba de quién es la noche: desde tres metros, eso es lo primero que se lee. */}
+        <p className="text-[clamp(1rem,2vw,1.75rem)]" style={{ opacity: 0.7 }}>
           {evento.name}
         </p>
+
+        <p className="mt-6 text-balance text-[clamp(2rem,6vw,4.5rem)] font-extrabold leading-[1.1]">
+          {cartel.titulo}
+        </p>
+
+        {cartel.tipo === "ESPERANDO" ? (
+          <>
+            {/*
+              El QR, en blanco sobre un recuadro claro: un código impreso sobre el fondo
+              oscuro de una plantilla no lo lee ninguna cámara. El marco toma el acento.
+            */}
+            <div
+              className="mt-10 rounded-3xl bg-white p-5"
+              style={{ border: `4px solid ${tema.acento}` }}
+              dangerouslySetInnerHTML={{ __html: qrSvg }}
+            />
+            <p
+              className="mt-8 text-balance text-[clamp(1.1rem,2.4vw,2rem)]"
+              style={{ opacity: 0.85 }}
+            >
+              {cartel.bajada}
+            </p>
+          </>
+        ) : null}
       </main>
     );
   }
@@ -141,13 +165,6 @@ export default async function Pantalla({ params }: Props) {
     if (!url) return [];
     return [{ tipo: "FOTO", id: f.id, url, pie: f.caption, nombre: f.guestName }];
   });
-
-  /*
-    El QR se dibuja en el servidor y viaja ya hecho. El televisor del salón suele ser un
-    aparato lento: no tiene por qué calcular un código que nunca cambia en toda la noche.
-  */
-  const urlDelEvento = urlDelCodigo(baseUrl(), evento.code);
-  const qrSvg = await qrDelEvento(urlDelEvento);
 
   return (
     <Proyeccion
