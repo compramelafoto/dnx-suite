@@ -73,7 +73,6 @@ export async function guardarInauguracion(fd: FormData): Promise<ResultadoAccion
   // Se avisa después de la transacción: un correo que no sale no deshace el cambio.
   for (const p of r.promovidas) if (p.email) await avisarLugarLiberado({ email: p.email, nombre: p.name, muestra: r.muestra });
   revalidatePath(`/m/${r.muestra.slug}`, "layout");
-  revalidatePath(`/panel/difusion/${id}/inauguracion`);
   return { ok: true, id };
 }
 
@@ -125,7 +124,6 @@ export async function cambiarAsistencia(rsvpId: string, accion: string): Promise
     throw err;
   }
   for (const p of r.promovidas) if (p.email) await avisarLugarLiberado({ email: p.email, nombre: p.name, muestra: r.muestra });
-  revalidatePath(`/panel/difusion/${k.activityId}/inauguracion`);
   return { ok: true, id: k.id };
 }
 
@@ -140,6 +138,9 @@ export async function cerrarConfirmaciones(activityId: string): Promise<Resultad
     data: { rsvpStatus: "CLOSED", ...datosDeCambio(usuario.id, "INAUGURACION") },
   });
   if (count === 0) return NO_EXISTE;
-  revalidatePath(`/panel/difusion/${activityId}/inauguracion`);
+  // La página de la muestra deja de ofrecer "Confirmá tu asistencia". (El panel es dinámico y la
+  // lista hace router.refresh(): no hace falta revalidarlo.)
+  const m = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { slug: true } });
+  if (m) revalidatePath(`/m/${m.slug}`, "layout");
   return { ok: true, id: activityId };
 }
