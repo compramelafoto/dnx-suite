@@ -5,6 +5,7 @@ import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { perfilDeVenta } from "@/lib/perfil-de-venta";
 import { formatearPesos } from "@/lib/precios";
+import { eventosQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,12 @@ export default async function Panel() {
       },
     }),
     prisma.subilafotoEvent.findMany({
-      where: { sellerProfileId: perfilId },
+      /*
+        Los propios y aquellos en los que a esta persona la invitaron. Sin la segunda
+        rama, quien colabora entra al panel y ve una lista vacía aunque tenga permiso en
+        cada pantalla: no tiene por dónde llegar al evento.
+      */
+      where: eventosQueAdministra(perfilId, usuario.id),
       orderBy: [{ activationAt: "desc" }, { createdAt: "desc" }],
       take: 50,
       select: {
