@@ -1,6 +1,6 @@
 name: Chequeos
 
-# Chequea tipos y corre las pruebas de CompraMeLaFoto, Clickatón y FOTOFFICE antes de mergear.
+# Chequea tipos y corre las pruebas de CompraMeLaFoto, Clickatón, FOTOFFICE y FotoRank antes de mergear.
 #
 # Por qué existe: el chequeo de tipos lo hacía `next build` en la máquina de
 # Vercel, y ahí se quedaba sin memoria y mataba el deploy — la app tiene 250
@@ -77,6 +77,13 @@ jobs:
       # un error en un test frena el merge igual que uno en una pantalla.
       - name: Chequear tipos de FOTOFFICE
         run: pnpm --filter fotoffice typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      # FotoRank, lo mismo: el 09-10/10/2026 casi todos sus deploys de producción murieron
+      # por memoria en el paso de tipos y se apagó allá (`typescript.ignoreBuildErrors`).
+      - name: Chequear tipos de FotoRank
+        run: pnpm --filter fotorank typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
