@@ -205,3 +205,16 @@ describe("frenos de las piezas (etapa 6)", () => {
     expect(LIMITES.piezas).toEqual({ limit: 60, windowMs: 10 * 60_000 });
   });
 });
+
+describe("frenos del concurso de FotoRank (etapa 7)", () => {
+  it("armar 10 y actualizar 30 por hora; copiar imágenes y casillas 600 cada 10 minutos; respuestas del autor 120 por hora", () => {
+    expect(LIMITES.armarDesdeConcurso).toEqual({ limit: 10, windowMs: 60 * 60_000 });
+    expect(LIMITES.actualizarConcurso).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+    expect(LIMITES.copiarImagenesConcurso).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+    expect(LIMITES.opcionesConcurso).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+    expect(LIMITES.respuestaAutor).toEqual({ limit: 120, windowMs: 60 * 60_000 });
+  });
+  it("copiar las imágenes de una muestra llena (300 obras, de a 6) entra en el tope", () => {
+    for (let i = 0; i < Math.ceil(MAX_WORKS / 6) + 10; i++) expect(frenarPorUsuario("copiarImagenesConcurso", 1).allowed).toBe(true);
+  });
+});

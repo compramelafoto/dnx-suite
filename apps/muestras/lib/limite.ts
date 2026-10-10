@@ -139,6 +139,14 @@ export const LIMITES = {
   enviarObraExpositor: { limit: 60, windowMs: 60 * 60_000 },
   // Quien organiza revisa con muchas obras: aprobar, pedir cambios, corregir y sacar.
   revisarExpositores: { limit: 600, windowMs: 10 * 60_000 },
+  // Etapa 7: del concurso de FotoRank a la muestra. Armar lee todos los resultados y escribe hasta
+  // 300 obras: pocas veces por hora. Copiar imágenes va de a 6 por pedido (≈ 50 pedidos para 300
+  // obras) y las casillas por obra se tocan muchas veces seguidas: topes holgados.
+  armarDesdeConcurso: { limit: 10, windowMs: 60 * 60_000 },
+  actualizarConcurso: { limit: 30, windowMs: 60 * 60_000 },
+  copiarImagenesConcurso: { limit: 600, windowMs: 10 * 60_000 },
+  opcionesConcurso: { limit: 600, windowMs: 10 * 60_000 },
+  respuestaAutor: { limit: 120, windowMs: 60 * 60_000 },
 } as const;
 
 /**
