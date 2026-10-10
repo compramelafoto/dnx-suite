@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
+  culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), count: vi.fn() },
   culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   culturalCallWork: { updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
@@ -34,6 +34,8 @@ beforeEach(() => {
   resetRateLimit();
   db.culturalActivity.update.mockResolvedValue({});
   db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
+  // El permiso releído dentro de la transacción (y "es del equipo" para el nombre del choque).
+  db.culturalActivity.count.mockResolvedValue(1);
   db.$transaction.mockImplementation(async (arg: unknown) => (typeof arg === "function" ? arg(db) : []));
   // La fila bloqueada con su versión: los formularios de los tests mandan la 0.
   db.$queryRaw.mockResolvedValue([{ editVersion: 0, lastEditedByUserId: null, lastEditedPart: null }]);
@@ -349,9 +351,29 @@ describe("equipo y versiones (etapa 5)", () => {
   });
   it("otra persona guardó en el medio: no pisa", async () => {
     db.$queryRaw.mockResolvedValueOnce([{ id: "a1", editVersion: 5, lastEditedByUserId: 9, lastEditedPart: "TEXTOS" }]);
-    db.user.findUnique.mockResolvedValueOnce({ name: "Ana Pérez", email: "ana@x" });
+    db.user.findUnique.mockResolvedValueOnce({ name: "Ana Pérez" });
     const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
     expect(r).toEqual({ ok: false, errores: ["Mientras editabas, Ana Pérez guardó cambios en los textos. Recargá la página para ver la versión nueva (lo que escribiste se pierde: copialo antes)."] });
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+    expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
+  });
+  it("choque de alguien que no es del equipo (super admin): el equipo de Muestras Fotográficas, nunca su email", async () => {
+    db.$queryRaw.mockResolvedValueOnce([{ editVersion: 5, lastEditedByUserId: 1, lastEditedPart: "FICHA" }]);
+    db.culturalActivity.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    db.user.findUnique.mockResolvedValueOnce({ name: null });
+    const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(r).toEqual({ ok: false, errores: ["Mientras editabas, el equipo de Muestras Fotográficas guardó cambios en la ficha. Recargá la página para ver la versión nueva (lo que escribiste se pierde: copialo antes)."] });
+  });
+  it("sacada del equipo entre la lectura y el guardado: el permiso se relee con la fila bloqueada y no guarda", async () => {
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("CO_ORGANIZER"));
+    db.culturalActivity.count.mockResolvedValueOnce(0);
+    const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(r).toEqual({ ok: false, errores: ["No podés editar esta actividad ahora."] });
+    const where = db.culturalActivity.count.mock.calls[0]![0].where;
+    expect(where.AND[0]).toEqual({ id: "a1" });
+    expect(where.AND[1].OR).toEqual([{ proposedByUserId: 7 }, { members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }]);
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toMatch(/FOR UPDATE/);
+    expect(db.$queryRaw.mock.invocationCallOrder[0]!).toBeLessThan(db.culturalActivity.count.mock.invocationCallOrder[0]!);
     expect(db.culturalActivity.update).not.toHaveBeenCalled();
     expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
   });
