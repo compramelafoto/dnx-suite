@@ -4,6 +4,8 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   culturalActivity: { findUnique: vi.fn() },
   culturalActivityMember: { findUnique: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 const correo = vi.hoisted(() => ({ avisarInvitacionEquipo: vi.fn() }));
@@ -42,6 +44,8 @@ beforeEach(() => {
   db.culturalActivityMember.create.mockResolvedValue({ id: "m1" });
   db.culturalActivityMember.update.mockResolvedValue({ id: "m1" });
   db.culturalActivityMember.updateMany.mockResolvedValue({ count: 1 });
+  db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
+  db.$queryRaw.mockResolvedValue([{ id: "a1" }]);
   correo.avisarInvitacionEquipo.mockResolvedValue({ enviado: true, url: "https://muestrasfotograficas.com/panel/equipo/invitacion/TOKEN" });
 });
 
@@ -82,6 +86,14 @@ describe("invitarAlEquipo", () => {
     expect(await invitarAlEquipo("a1", "otra@ejemplo.com", "CO_ORGANIZER")).toEqual({ ok: false, errores: ["El equipo de una muestra puede tener hasta 10 personas."] });
     expect(await invitarAlEquipo("a1", "otra@ejemplo.com", "DUENO")).toEqual({ ok: false, errores: ["Elegí un rol."] });
     expect(db.culturalActivityMember.create).not.toHaveBeenCalled();
+  });
+  it("el tope de 10 se cuenta y se escribe con la muestra bloqueada (dos invitaciones a la vez no pasan de 10)", async () => {
+    await invitarAlEquipo("a1", "otra@ejemplo.com", "CO_ORGANIZER");
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toMatch(/FROM "CulturalActivity" WHERE id = \? FOR UPDATE/);
+    const bloqueo = db.$queryRaw.mock.invocationCallOrder[0]!;
+    expect(bloqueo).toBeLessThan(db.culturalActivityMember.count.mock.invocationCallOrder[0]!);
+    expect(bloqueo).toBeLessThan(db.culturalActivityMember.create.mock.invocationCallOrder[0]!);
   });
   it("sólo muestras (no otras actividades)", async () => {
     db.culturalActivity.findUnique.mockResolvedValue({ ...muestra(), type: "CHARLA" });
@@ -153,7 +165,7 @@ describe("aceptarInvitacionEquipo", () => {
   it("acepta: ACTIVE con userId, de un solo uso (updateMany where INVITED)", async () => {
     expect(await aceptarInvitacionEquipo(TOKEN)).toEqual({ ok: true, id: "a1" });
     const llamadas = db.culturalActivityMember.updateMany.mock.calls.map((c) => c[0]);
-    expect(llamadas).toContainEqual({ where: { id: "m1", status: "INVITED" }, data: expect.objectContaining({ status: "ACTIVE", userId: 2, acceptedAt: expect.any(Date) }) });
+    expect(llamadas).toContainEqual({ where: { id: "m1", status: "INVITED", tokenHash: hashDeToken(TOKEN) }, data: expect.objectContaining({ status: "ACTIVE", userId: 2, acceptedAt: expect.any(Date) }) });
     db.culturalActivityMember.updateMany.mockResolvedValue({ count: 0 });
     expect(await aceptarInvitacionEquipo(TOKEN)).toEqual({ ok: false, errores: ["Esta invitación ya se usó."] });
   });
