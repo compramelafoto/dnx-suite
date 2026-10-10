@@ -1,6 +1,6 @@
 import type { Prisma } from "@repo/db";
 import { encodeGeohash } from "@repo/geo";
-import { dayEndAr, dayStartAr, isGalleryMode, toArDay, type GalleryMode } from "@repo/muestras";
+import { MAX_WORKS, dayEndAr, dayStartAr, isGalleryMode, toArDay, type GalleryMode } from "@repo/muestras";
 
 export type ObraForm = {
   id?: string;
@@ -102,7 +102,7 @@ const txt = (fd: FormData, k: string, max?: number) => {
   const v = String(fd.get(k) ?? "").trim();
   return max ? v.slice(0, max).trim() : v;
 };
-const opt = (fd: FormData, k: string, max?: number) => txt(fd, k, max) || null;
+export const opt = (fd: FormData, k: string, max?: number) => txt(fd, k, max) || null;
 const num = (fd: FormData, k: string) => {
   const v = Number(txt(fd, k));
   return txt(fd, k) !== "" && Number.isFinite(v) ? v : null;
@@ -131,6 +131,37 @@ function obras(raw: string, base: string | null): ObraForm[] {
   } catch {
     return [];
   }
+}
+
+export type TextoDeObra = { id: string; title: string; year: number | null; technique: string | null };
+
+/**
+ * Las obras del formulario de textos (etapa 5, D9): sólo id, título, año y técnica. Cualquier otro
+ * campo (imagen, autor, orden, destacada) se ignora. Un título vacío queda vacío: la acción lo
+ * rechaza. Año entero entre 1800 y 2100, o nada.
+ */
+export function leerObrasDeTextos(raw: string): TextoDeObra[] {
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const vistos = new Set<string>();
+  return arr.flatMap((o): TextoDeObra[] => {
+    if (!o || typeof o !== "object") return [];
+    const r = o as Record<string, unknown>;
+    if (typeof r.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(r.id) || vistos.has(r.id)) return [];
+    vistos.add(r.id);
+    const anio = typeof r.year === "number" ? r.year : typeof r.year === "string" && /^\d{4}$/.test(r.year.trim()) ? Number(r.year.trim()) : null;
+    return [{
+      id: r.id,
+      title: corto(r.title, LARGOS.obraTitle),
+      year: anio != null && Number.isInteger(anio) && anio >= 1800 && anio <= 2100 ? anio : null,
+      technique: corto(r.technique, LARGOS.obraTechnique) || null,
+    }];
+  }).slice(0, MAX_WORKS);
 }
 
 function ids(raw: string): string[] {

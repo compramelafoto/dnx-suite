@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
-  AVISO_PERFIL_EN_PUBLICADA, EDIT_PART_LABELS, EDIT_PARTS, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, activityRole, allowedAuthorProfileId,
-  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId, toArDay, type EditPart,
+  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, activityRole, allowedAuthorProfileId,
+  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId, toArDay,
   type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
-import { datosDeCambio, nombreDeUsuario } from "@/lib/equipo/registro";
+import { datosDeCambio } from "@/lib/equipo/registro";
+import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData, type FichaForm } from "./mapear";
 
@@ -23,25 +24,9 @@ const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no exist
 
 class Corte extends Error {}
 
-/** Otra persona del equipo guardó la ficha o los textos entre que se abrió el formulario y ahora (D7). */
-class Choque extends Error {
-  constructor(readonly fila: { lastEditedByUserId: number | null; lastEditedPart: string | null } | null) {
-    super("choque");
-  }
-}
-
 /** La fila del equipo de quien actúa (sólo la suya y activa): alcanza para `activityRole`. */
 const filaPropia = (userId: number) =>
   ({ where: { userId, status: "ACTIVE" }, select: { userId: true, role: true, status: true } }) as const;
-
-const PAGINA_VIEJA = "La página quedó vieja. Recargala y volvé a guardar.";
-
-async function mensajeDeChoque(c: Choque): Promise<string> {
-  const quien = c.fila?.lastEditedByUserId != null ? await nombreDeUsuario(c.fila.lastEditedByUserId) : null;
-  const parte = (EDIT_PARTS as readonly string[]).includes(c.fila?.lastEditedPart ?? "") ? ` en ${EDIT_PART_LABELS[c.fila!.lastEditedPart as EditPart]}` : "";
-  const inicio = quien ? `Mientras editabas, ${quien} guardó cambios${parte}.` : "Mientras editabas, alguien del equipo guardó cambios.";
-  return `${inicio} Recargá la página para ver la versión nueva (lo que escribiste se pierde: copialo antes).`;
-}
 
 function refrescar(slug?: string) {
   revalidatePath("/");
