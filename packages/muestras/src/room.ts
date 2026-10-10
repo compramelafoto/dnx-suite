@@ -36,9 +36,10 @@ export function roomCodeFrom(bytes: Uint8Array): string | null {
 export const ROOM_PASS_HOURS = 8;
 /**
  * Cuántas obras escaneadas guarda un pase; pasado el tope quedan las últimas. Con ids de hasta
- * `ROOM_PASS_MAX_ID` caracteres, la cookie firmada queda cerca de 3 KB: lejos del tope de 4 KB.
+ * `ROOM_PASS_MAX_ID` caracteres, la cookie firmada queda cerca de 1,5 KB: viaja en cada pedido a la
+ * sala (y sólo a la sala: su `Path` es `/m/<slug>/sala`), así que se mantiene chica.
  */
-export const ROOM_PASS_MAX_WORKS = 60;
+export const ROOM_PASS_MAX_WORKS = 30;
 /** Los ids son cuid (25 caracteres): 32 deja margen sin dejar crecer la cookie. */
 export const ROOM_PASS_MAX_ID = 32;
 const idDePase = (x: unknown): x is string => typeof x === "string" && x.length > 0 && x.length <= ROOM_PASS_MAX_ID;

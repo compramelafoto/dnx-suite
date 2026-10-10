@@ -12,7 +12,7 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 const { GET, HEAD } = await import("@/app/q/[tipo]/[id]/route");
 const { LIMITES_PUBLICOS, resetRateLimit } = await import("@/lib/limite");
-const { firmarPase, leerPase } = await import("@/lib/sala/llave");
+const { escaneoValido } = await import("@/lib/sala/llave");
 const LLAVE = "c".repeat(64);
 
 const UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/129.0 Mobile Safari/537.36";
@@ -57,44 +57,24 @@ describe("GET /q/[tipo]/[id]", () => {
     expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ AND: [{ id: "a1" }, expect.anything()] });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
-  it("un código de sala cuenta un escaneo, da el pase y lleva a la vista de sala", async () => {
+  it("un código de sala cuenta un escaneo y manda a la sala con el escaneo firmado (la cookie la da la sala)", async () => {
+    const antes = Date.now();
     const r = await pedir("s", "abcdefghjkmn");
     expect(r.status).toBe(302);
-    expect(r.headers.get("location")).toBe("/m/miradas-abc/sala/o/w1");
     expect(r.headers.get("cache-control")).toBe("private, no-store");
-    const cookie = r.headers.get("set-cookie")!;
-    expect(cookie).toMatch(/^mf_sala_a1=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}; /);
-    expect(cookie).toContain("Path=/");
-    expect(cookie).toContain("Max-Age=28800");
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("SameSite=Lax");
-    const valor = cookie.split(";")[0]!.slice("mf_sala_a1=".length);
-    expect(leerPase(valor, LLAVE)).toMatchObject({ a: "a1", w: ["w1"] });
-    // La llave no sale nunca: ni en la cookie ni en la dirección.
-    expect(cookie).not.toContain(LLAVE);
+    // `/q` no recibe la cookie del pase (su Path es la sala): no la lee ni la escribe.
+    expect(r.headers.get("set-cookie")).toBeNull();
+    const destino = new URL(r.headers.get("location")!, "http://x");
+    expect(destino.pathname).toBe("/m/miradas-abc/sala/sumar/w1");
+    const ts = Number(destino.searchParams.get("t"));
+    expect(ts).toBeGreaterThanOrEqual(antes);
+    expect(escaneoValido({ activityId: "a1", workId: "w1", ts, firma: destino.searchParams.get("f") }, LLAVE, new Date())).toBe(true);
+    // La firma es de esa obra: no sirve para otra.
+    expect(escaneoValido({ activityId: "a1", workId: "w2", ts, firma: destino.searchParams.get("f") }, LLAVE, new Date())).toBe(false);
+    // La llave no sale nunca.
+    expect(r.headers.get("location")).not.toContain(LLAVE);
     expect(db.$executeRaw.mock.calls[0]!.slice(1)).toEqual(["a1", "w1", expect.any(String), "SCAN"]);
     expect(db.culturalActivity.findUnique).not.toHaveBeenCalled();
-  });
-  it("por https la cookie es Secure", async () => {
-    const r = await pedir("s", "abcdefghjkmn", UA, {}, "https://muestrasfotograficas.com");
-    expect(r.headers.get("set-cookie")).toContain("; Secure");
-  });
-  it("con un pase previo válido, el nuevo lleva las dos obras", async () => {
-    const previo = firmarPase({ v: 1, a: "a1", exp: Date.now() + 3600_000, w: ["w1"] }, LLAVE);
-    const r = await pedir("s", "nmkjhgfedcba", UA, { cookie: `otra=1; mf_sala_a1=${previo}` });
-    const valor = r.headers.get("set-cookie")!.split(";")[0]!.slice("mf_sala_a1=".length);
-    expect(leerPase(valor, LLAVE)?.w).toEqual(["w1", "w2"]);
-  });
-  it("un pase previo con otra firma, vencido o de otra muestra no se suma", async () => {
-    for (const previo of [
-      firmarPase({ v: 1, a: "a1", exp: Date.now() + 3600_000, w: ["w-oculta"] }, "d".repeat(64)),
-      firmarPase({ v: 1, a: "a1", exp: Date.now() - 1, w: ["w-oculta"] }, LLAVE),
-      firmarPase({ v: 1, a: "otra", exp: Date.now() + 3600_000, w: ["w-oculta"] }, LLAVE),
-    ]) {
-      const r = await pedir("s", "nmkjhgfedcba", UA, { cookie: `mf_sala_a1=${previo}` });
-      const valor = r.headers.get("set-cookie")!.split(";")[0]!.slice("mf_sala_a1=".length);
-      expect(leerPase(valor, LLAVE)?.w).toEqual(["w2"]);
-    }
   });
   it("un código inexistente o mal formado va a la portada sin cookie ni conteo", async () => {
     for (const code of ["zzzzzzzzzzzz", "corto", "w1"]) {

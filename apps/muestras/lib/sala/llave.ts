@@ -49,6 +49,36 @@ export async function rotarLlave(activityId: string): Promise<void> {
   });
 }
 
+/**
+ * Firma de un escaneo recién hecho en `/q` (spec D30): `/q` no recibe la cookie del pase (su `Path`
+ * es la sala), así que firma "esta obra se escaneó a esta hora" y la suma la hace la sala. Con su
+ * propio prefijo: nunca vale como firma de un pase.
+ */
+export function firmarEscaneo(activityId: string, workId: string, ts: number, llave: string): string {
+  return hmac(`escaneo:v1:${activityId}:${workId}:${ts}`, llave).toString("base64url");
+}
+
+/** Cuánto vale la firma de un escaneo: lo que tarda la redirección, con margen. */
+export const ESCANEO_VALIDEZ_MS = 2 * 60_000;
+
+/** Si la firma es de esta llave, para esta obra, y se hizo hace menos de `ESCANEO_VALIDEZ_MS`. Nunca lanza. */
+export function escaneoValido(
+  p: { activityId: string; workId: string; ts: number; firma: string | null },
+  llave: string,
+  ahora: Date,
+): boolean {
+  try {
+    if (!llave || !p.firma || !FIRMA.test(p.firma) || !Number.isSafeInteger(p.ts)) return false;
+    const edad = ahora.getTime() - p.ts;
+    if (edad < -30_000 || edad > ESCANEO_VALIDEZ_MS) return false;
+    const recibida = Buffer.from(p.firma, "base64url");
+    const esperada = hmac(`escaneo:v1:${p.activityId}:${p.workId}:${p.ts}`, llave);
+    return recibida.length === esperada.length && timingSafeEqual(recibida, esperada);
+  } catch {
+    return false;
+  }
+}
+
 /** `<pase en base64url>.<HMAC-SHA256 en base64url>`. */
 export function firmarPase(pase: RoomPass, llave: string): string {
   const payload = encodeRoomPass(pase);

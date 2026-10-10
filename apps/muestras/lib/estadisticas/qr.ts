@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { ACTIVITY_LEVEL, isQrKind, isRoomCode, metricForQrKind, workPath, type StatMetric } from "@repo/muestras";
 
 /** `pase`: el QR es un código de sala (etapa 6) y da el pase de sala de esa obra. */
-export type DestinoQr = { path: string; activityId: string; workId: string; metric: StatMetric; pase?: true };
+export type DestinoQr = { path: string; activityId: string; workId: string; metric: StatMetric; pase?: { slug: string } };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const publicada = (a: { reviewStatus: string; type: string }) => a.reviewStatus === "APPROVED" && a.type === "MUESTRA";
@@ -21,7 +21,7 @@ export async function destinoDelQr(tipo: string, id: string): Promise<DestinoQr 
     const w = await prisma.culturalActivityWork.findFirst({ where: { id: c.workId, activityId: c.activity.id }, select: { id: true } });
     if (!w) return null;
     const path = `/m/${encodeURIComponent(c.activity.slug)}/sala/o/${encodeURIComponent(w.id)}`;
-    return { path, activityId: c.activity.id, workId: w.id, metric: metricForQrKind("s"), pase: true };
+    return { path, activityId: c.activity.id, workId: w.id, metric: metricForQrKind("s"), pase: { slug: c.activity.slug } };
   }
   if (!ID.test(id)) return null;
   if (tipo === "o") {

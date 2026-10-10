@@ -46,10 +46,11 @@ describe("pase de sala", () => {
     expect(p2.exp).toBe(luego.getTime() + ROOM_PASS_HOURS * 3600_000);
     expect(mergeRoomPass(p2, { activityId: "b9", workId: "x", now: luego }).w).toEqual(["x"]);
   });
-  it("tope de 60 obras: quedan las últimas", () => {
+  it("tope de 30 obras: quedan las últimas", () => {
+    expect(ROOM_PASS_MAX_WORKS).toBe(30);
     let p = null;
-    for (let i = 0; i < 65; i++) p = mergeRoomPass(p, { activityId: "a1", workId: `w${i}`, now: ahora });
-    expect(p!.w).toHaveLength(60);
+    for (let i = 0; i < 35; i++) p = mergeRoomPass(p, { activityId: "a1", workId: `w${i}`, now: ahora });
+    expect(p!.w).toHaveLength(30);
     expect(p!.w[0]).toBe("w5");
   });
   it("basura no se lee", () => {
@@ -81,7 +82,7 @@ describe("tamaño del pase", () => {
     const p = { v: 1 as const, a: "a".repeat(32), exp: Date.now() + 8 * 3600_000, w };
     const codificado = encodeRoomPass(p);
     expect(decodeRoomPass(codificado)).toEqual(p);
-    // Más la firma (43) y el nombre de la cookie (≈ 40): sigue debajo de 3,5 KB.
-    expect(codificado.length + 43 + 1 + 40).toBeLessThan(3500);
+    // Más la firma (43) y el nombre de la cookie (≈ 40): debajo de 2 KB.
+    expect(codificado.length + 43 + 1 + 40).toBeLessThan(2000);
   });
 });
