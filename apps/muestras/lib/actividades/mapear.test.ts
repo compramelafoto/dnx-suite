@@ -65,6 +65,19 @@ describe("datosParaGuardar", () => {
     expect((d.endsAt as Date).toISOString()).toBe("2026-11-21T02:59:59.999Z");
     expect(typeof d.geohash).toBe("string");
   });
+  it("día y hora de la inauguración en hora argentina (etapa 5)", () => {
+    const d = datosParaGuardar(fichaDesdeFormData(fd({ ...base, openingDay: "2026-11-14", openingClock: "19:00", openingEndClock: "21:30" })));
+    expect((d.openingAt as Date).toISOString()).toBe("2026-11-14T22:00:00.000Z");
+    expect((d.openingEndsAt as Date).toISOString()).toBe("2026-11-15T00:30:00.000Z");
+  });
+  it("sin hora: comienzo del día y sin fin", () => {
+    const d = datosParaGuardar(fichaDesdeFormData(fd({ ...base, openingDay: "2026-11-14", openingEndClock: "21:30" })));
+    expect((d.openingAt as Date).toISOString()).toBe("2026-11-14T03:00:00.000Z");
+    expect(d.openingEndsAt).toBeNull();
+    const sin = datosParaGuardar(fichaDesdeFormData(fd(base)));
+    expect(sin.openingAt).toBeNull();
+    expect(sin.openingEndsAt).toBeNull();
+  });
   it("no toca el estado de revisión ni el dueño", () => {
     const d = datosParaGuardar(fichaDesdeFormData(fd(base)));
     expect("reviewStatus" in d).toBe(false);

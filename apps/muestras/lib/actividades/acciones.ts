@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
   AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, activityRole, allowedAuthorProfileId,
-  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, resolveAuthorProfileId, toArDay,
+  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, openingProblems, resolveAuthorProfileId, toArDay,
   type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
@@ -102,6 +102,8 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   if (f.works.filter((w) => w.isHighlight).length > MAX_HIGHLIGHTS) {
     return { ok: false, errores: [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`] };
   }
+  const inauguracion = openingProblems({ openingDay: f.openingDay, openingClock: f.openingClock, openingEndClock: f.openingEndClock, endDay: f.endDay });
+  if (inauguracion.length) return { ok: false, errores: inauguracion };
   const datos: ReturnType<typeof datosParaGuardar> = datosParaGuardar(f);
 
   if (!f.id) {

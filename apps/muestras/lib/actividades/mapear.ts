@@ -1,6 +1,6 @@
 import type { Prisma } from "@repo/db";
 import { encodeGeohash } from "@repo/geo";
-import { MAX_WORKS, dayEndAr, dayStartAr, isGalleryMode, toArDay, type GalleryMode } from "@repo/muestras";
+import { MAX_WORKS, dayEndAr, dayStartAr, isGalleryMode, openingAtFrom, toArDay, type GalleryMode } from "@repo/muestras";
 
 export type ObraForm = {
   id?: string;
@@ -29,6 +29,10 @@ export type FichaForm = {
   startDay: string;
   endDay: string;
   openingDay: string | null;
+  /** Hora de la inauguración, "19:30" (etapa 5, D12). Sin hora, la inauguración es "sólo día". */
+  openingClock: string | null;
+  /** Hora de fin, optativa. */
+  openingEndClock: string | null;
   scheduleText: string | null;
   priceText: string | null;
   externalUrl: string | null;
@@ -197,6 +201,8 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     startDay: txt(fd, "startDay"),
     endDay: txt(fd, "endDay"),
     openingDay: opt(fd, "openingDay"),
+    openingClock: opt(fd, "openingClock", 5),
+    openingEndClock: opt(fd, "openingEndClock", 5),
     scheduleText: opt(fd, "scheduleText", LARGOS.scheduleText),
     priceText: opt(fd, "priceText", LARGOS.priceText),
     externalUrl: opt(fd, "externalUrl", LARGOS.externalUrl),
@@ -242,7 +248,8 @@ export function datosParaGuardar(f: FichaForm) {
     organizersText: f.organizersText,
     startsAt: dayStartAr(inicio),
     endsAt: dayEndAr(fin),
-    openingAt: f.openingDay && diaValido(f.openingDay) ? dayStartAr(f.openingDay) : null,
+    openingAt: f.openingDay && diaValido(f.openingDay) ? openingAtFrom(f.openingDay, f.openingClock) : null,
+    openingEndsAt: f.openingDay && diaValido(f.openingDay) && f.openingClock && f.openingEndClock ? openingAtFrom(f.openingDay, f.openingEndClock) : null,
     scheduleText: f.scheduleText,
     priceText: f.priceText,
     externalUrl: f.externalUrl,

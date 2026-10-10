@@ -139,6 +139,13 @@ describe("guardarBorrador sobre una ficha publicada", () => {
     const r = await guardarBorrador(fd(completa));
     expect(r).toEqual({ ok: true, id: "a1" });
     expect(db.$transaction).toHaveBeenCalled();
+  });  it("la hora de la inauguración con problemas no se guarda (etapa 5)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED" });
+    const r = await guardarBorrador(fd({ ...completa, openingDay: "2026-11-05", openingClock: "19:00", openingEndClock: "18:00" }));
+    expect(r).toEqual({ ok: false, errores: ["La hora de fin tiene que ser después de la de inicio."] });
+    expect(db.$transaction).not.toHaveBeenCalled();
+    const nueva = await guardarBorrador(fd({ title: "Nueva", openingClock: "19:00" }));
+    expect(nueva).toEqual({ ok: false, errores: ["Para poner la hora, elegí también el día de la inauguración."] });
   });
 });
 
