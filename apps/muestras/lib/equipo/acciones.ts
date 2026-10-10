@@ -36,32 +36,40 @@ async function muestraParaEquipo(activityId: string, usuario: Usuario): Promise<
 /** Invitación nueva o renovada (token nuevo). Si el correo no sale, devuelve el enlace a quien invita. */
 async function invitar(a: Muestra, usuario: Usuario, emailCrudo: string, rol: unknown): Promise<ResultadoAccion> {
   const email = normalizeEmail(emailCrudo);
-  const [previo, ocupados] = await Promise.all([
-    email ? prisma.culturalActivityMember.findUnique({ where: { activityId_email: { activityId: a.id, email } }, select: { id: true, status: true } }) : null,
-    prisma.culturalActivityMember.count({ where: { activityId: a.id, status: { in: ["INVITED", "ACTIVE"] } } }),
-  ]);
-  const problemas = teamInviteProblems({ email, role: rol, ownerEmail: a.ownerEmail, occupied: ocupados, existing: previo });
-  if (problemas.length || !email || !isTeamRole(rol)) return { ok: false, errores: problemas.length ? problemas : ["Elegí un rol."] };
-  if (!frenarPorUsuario("invitarEquipo", usuario.id).allowed) return { ok: false, errores: ["Mandaste muchas invitaciones seguidas. Esperá un rato."] };
   const { token, hash } = nuevoTokenDeInvitacion();
   const ahora = new Date();
-  let fila: { id: string };
+  let r: { ok: true; fila: { id: string }; email: string; rol: TeamRole } | { ok: false; errores: string[] };
   try {
-    fila = previo
-      ? await prisma.culturalActivityMember.update({
-          // `status: { not: "ACTIVE" }`: si aceptó justo ahora, no se pisa su alta.
-          where: { id: previo.id, status: { not: "ACTIVE" } },
-          data: { tokenHash: hash, role: rol, status: "INVITED", invitedAt: ahora, invitedByUserId: usuario.id, revokedAt: null, acceptedAt: null, userId: null },
-          select: { id: true },
-        })
-      : await prisma.culturalActivityMember.create({
-          data: { activityId: a.id, email, role: rol, tokenHash: hash, invitedByUserId: usuario.id, invitedAt: ahora },
-          select: { id: true },
-        });
+    r = await prisma.$transaction(async (tx) => {
+      // Bloquea la muestra: dos invitaciones a la vez no pasan el tope de 10 (se cuenta y se
+      // escribe con la fila tomada).
+      await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;
+      const previo = email
+        ? await tx.culturalActivityMember.findUnique({ where: { activityId_email: { activityId: a.id, email } }, select: { id: true, status: true } })
+        : null;
+      const ocupados = await tx.culturalActivityMember.count({ where: { activityId: a.id, status: { in: ["INVITED", "ACTIVE"] } } });
+      const problemas = teamInviteProblems({ email, role: rol, ownerEmail: a.ownerEmail, occupied: ocupados, existing: previo });
+      if (problemas.length || !email || !isTeamRole(rol)) return { ok: false as const, errores: problemas.length ? problemas : ["Elegí un rol."] };
+      if (!frenarPorUsuario("invitarEquipo", usuario.id).allowed) return { ok: false as const, errores: ["Mandaste muchas invitaciones seguidas. Esperá un rato."] };
+      const fila = previo
+        ? await tx.culturalActivityMember.update({
+            // `status: { not: "ACTIVE" }`: si aceptó justo ahora, no se pisa su alta.
+            where: { id: previo.id, status: { not: "ACTIVE" } },
+            data: { tokenHash: hash, role: rol, status: "INVITED", invitedAt: ahora, invitedByUserId: usuario.id, revokedAt: null, acceptedAt: null, userId: null },
+            select: { id: true },
+          })
+        : await tx.culturalActivityMember.create({
+            data: { activityId: a.id, email, role: rol, tokenHash: hash, invitedByUserId: usuario.id, invitedAt: ahora },
+            select: { id: true },
+          });
+      return { ok: true as const, fila, email, rol };
+    }, { timeout: 15_000, maxWait: 10_000 });
   } catch {
     return CAMBIO;
   }
-  const aviso = await avisarInvitacionEquipo({ email, token, muestra: a.title, rol, invita: usuario.name?.trim() || usuario.email, invitedAt: ahora });
+  if (!r.ok) return { ok: false, errores: r.errores };
+  const { fila } = r;
+  const aviso = await avisarInvitacionEquipo({ email: r.email, token, muestra: a.title, rol: r.rol, invita: usuario.name?.trim() || usuario.email, invitedAt: ahora });
   revalidatePath(`/panel/muestras/${a.id}/equipo`);
   // Sin correo, el enlace vuelve sólo a quien invita (D6). El token crudo no se guarda.
   return aviso.enviado ? { ok: true, id: fila.id } : { ok: true, id: fila.id, enlace: aviso.url };
@@ -156,7 +164,8 @@ export async function aceptarInvitacionEquipo(token: string): Promise<ResultadoA
       data: { userId: null },
     });
     ({ count } = await prisma.culturalActivityMember.updateMany({
-      where: { id: k.id, status: "INVITED" },
+      // El mismo token que se leyó: si en el medio se reenvió (token nuevo), éste ya no sirve.
+      where: { id: k.id, status: "INVITED", tokenHash: hashDeToken(token) },
       data: { status: "ACTIVE", userId: usuario.id, acceptedAt: new Date() },
     }));
   } catch (e) {
