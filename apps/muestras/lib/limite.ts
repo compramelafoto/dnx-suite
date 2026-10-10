@@ -159,6 +159,10 @@ export const LIMITES_PUBLICOS = {
   anticipo: { limit: 60, windowMs: 10 * 60_000 },
   // La página del enlace de expositores: frena a quien prueba tokens (pasado el tope, el mismo 404).
   paginaExpositores: { limit: 60, windowMs: 10 * 60_000 },
+  // Vista de sala (con pase) y sus imágenes por proxy: holgado para quien recorre la sala, pero un
+  // bucle no lee el bucket sin fin.
+  vistaSala: { limit: 300, windowMs: 10 * 60_000 },
+  imagenSala: { limit: 600, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;

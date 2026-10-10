@@ -144,4 +144,8 @@ describe("frenos de la sorpresa (etapa 6)", () => {
   it("revisar expositores: 600 cada 10 minutos por persona", () => {
     expect(LIMITES.revisarExpositores).toEqual({ limit: 600, windowMs: 10 * 60_000 });
   });
+  it("vista de sala 300 e imágenes de sala 600, cada 10 minutos por IP", () => {
+    expect(LIMITES_PUBLICOS.vistaSala).toEqual({ limit: 300, windowMs: 10 * 60_000 });
+    expect(LIMITES_PUBLICOS.imagenSala).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+  });
 });

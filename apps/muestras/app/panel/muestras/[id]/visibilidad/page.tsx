@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VISIBILITY_PRESET_LABELS, coverIsHiddenWork, visibilitySummary, visibleWorks } from "@repo/muestras";
+import { AccesosDeSala } from "@/components/sala/accesos-de-sala";
 import { FormularioVisibilidad } from "@/components/visibilidad/ajuste-visibilidad";
 import { aviso, enlace, nota, seccion } from "@/components/visibilidad/estilos";
 import { requireUsuario } from "@/lib/usuario";
@@ -80,6 +81,16 @@ export default async function VisibilidadDeMuestra({ params }: Props) {
           {a.reviewStatus === "APPROVED" ? <Link href={`/m/${a.slug}`} className={enlace}>Ver la publicación online</Link> : null}
           <Link href={`/m/${a.slug}/sala`} className={enlace}>Ver como en la sala</Link>
         </p>
+      </section>
+
+      <section className={seccion} aria-labelledby="t-pase">
+        <h2 id="t-pase" className="text-lg">Pase de sala</h2>
+        <p className="text-[15px]">
+          Quien escanea el QR de una ficha ve, por 8 horas en su teléfono, lo que elegiste para la sala. Si una foto del QR circula,
+          podés cortar los pases vigentes: quien vuelva a escanear una ficha recibe uno nuevo. Si sigue pasando, cambiá los códigos
+          y volvé a imprimir las fichas.
+        </p>
+        <AccesosDeSala activityId={a.id} />
       </section>
     </main>
   );
