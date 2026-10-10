@@ -6,7 +6,7 @@ import {
 describe("secciones del panel", () => {
   it("una persona común ve todo menos Revisión", () => {
     expect(panelSections({ isSuperAdmin: false }).map((s) => s.key)).toEqual([
-      "inicio", "muestras", "proponer", "perfil", "envios", "convocatorias", "curaduria", "montaje", "ventas", "estadisticas",
+      "inicio", "muestras", "proponer", "perfil", "envios", "convocatorias", "curaduria", "montaje", "difusion", "ventas", "estadisticas",
     ]);
   });
   it("el super admin ve también Revisión", () => {
@@ -18,7 +18,7 @@ describe("secciones del panel", () => {
   });
   it("están todas las funcionalidades del organizador, construidas o no", () => {
     expect(PANEL_SECTIONS.filter((s) => s.group === "ORGANIZAR").map((s) => s.label)).toEqual([
-      "Convocatorias", "Curaduría", "Montaje e impresión", "Ventas", "Estadísticas",
+      "Convocatorias", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
     ]);
   });
   it("cada sección tiene un href único bajo /panel", () => {
@@ -52,5 +52,16 @@ describe("resumen por estado", () => {
   it("cuenta cada estado y arranca todos en cero", () => {
     const r = countByStatus([{ reviewStatus: "DRAFT" }, { reviewStatus: "APPROVED" }, { reviewStatus: "APPROVED" }, { reviewStatus: "RARO" }]);
     expect(r).toEqual({ DRAFT: 1, IN_REVIEW: 0, APPROVED: 2, REJECTED: 0, UNPUBLISHED: 0 });
+  });
+});
+
+describe("Difusión (etapa 5)", () => {
+  it("está en Para organizar, lista, en /panel/difusion", () => {
+    const d = PANEL_SECTIONS.find((x) => x.key === "difusion");
+    expect(d).toMatchObject({ label: "Difusión", href: "/panel/difusion", group: "ORGANIZAR", ready: true, superAdminOnly: false });
+    expect(upcomingSection("difusion")).toBeNull();
+  });
+  it("sus subrutas la marcan activa", () => {
+    expect(activeSectionKey("/panel/difusion/x/inauguracion")).toBe("difusion");
   });
 });
