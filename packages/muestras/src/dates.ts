@@ -86,3 +86,26 @@ export function dateRangeText(startsAt: Date, endsAt: Date): string {
 export function addArDays(day: string, n: number): string {
   return toArDay(new Date(dayStartAr(day).getTime() + n * DAY_MS));
 }
+
+/** Minutos desde la medianoche argentina (0 = 00:00). */
+export function arMinutesOfDay(d: Date): number {
+  const local = new Date(d.getTime() - OFFSET_MS);
+  return local.getUTCHours() * 60 + local.getUTCMinutes();
+}
+
+const dos = (n: number) => String(n).padStart(2, "0");
+
+/** "18:40" en hora argentina. */
+export function formatArClock(d: Date): string {
+  const m = arMinutesOfDay(d);
+  return `${dos(Math.floor(m / 60))}:${dos(m % 60)}`;
+}
+
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"] as const;
+
+/** "sábado 14 de noviembre", en hora argentina (sin año: para invitaciones). */
+export function formatArWeekdayLong(d: Date): string {
+  const p = partesAr(d);
+  const dia = DIAS[new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay()]!;
+  return `${dia} ${p.d} de ${MESES[p.m - 1]}`;
+}

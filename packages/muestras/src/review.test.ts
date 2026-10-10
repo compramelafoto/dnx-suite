@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canEdit, canPerform, nextStatus, type ActivityForReview } from "./review";
+import { canEdit, canEditTexts, canPerform, nextStatus, type ActivityForReview } from "./review";
 
 const owner = { userId: 7, isSuperAdmin: false };
 const other = { userId: 8, isSuperAdmin: false };
@@ -51,5 +51,25 @@ describe("edición", () => {
   it("el super admin edita siempre; un tercero nunca", () => {
     expect(canEdit(st("IN_REVIEW"), admin)).toBe(true);
     expect(canEdit(st("DRAFT"), other)).toBe(false);
+  });
+});
+
+describe("roles del equipo", () => {
+  const a = { reviewStatus: "APPROVED" as const, proposedByUserId: 1, workspaceId: null, isCancelled: false };
+  it("coorganización edita y envía, no cancela", () => {
+    const co = { userId: 2, isSuperAdmin: false, role: "CO_ORGANIZER" as const };
+    expect(canEdit(a, co)).toBe(true);
+    expect(canPerform("cancel", a, co).ok).toBe(false);
+    expect(canPerform("submit", { ...a, reviewStatus: "DRAFT" }, co).ok).toBe(true);
+  });
+  it("textos: edita textos, no la ficha", () => {
+    const t = { userId: 3, isSuperAdmin: false, role: "TEXT_EDITOR" as const };
+    expect(canEdit(a, t)).toBe(false);
+    expect(canEditTexts(a, t)).toBe(true);
+    expect(canEditTexts({ ...a, reviewStatus: "IN_REVIEW" }, t)).toBe(false);
+  });
+  it("sin `role`, se deduce del dueño (compatibilidad)", () => {
+    expect(canEdit(a, { userId: 1, isSuperAdmin: false })).toBe(true);
+    expect(canEdit(a, { userId: 2, isSuperAdmin: false })).toBe(false);
   });
 });
