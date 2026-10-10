@@ -109,6 +109,8 @@ export const LIMITES = {
   guardarInauguracion: { limit: 60, windowMs: 60 * 60_000 },
   gestionarAsistencias: { limit: 600, windowMs: 10 * 60_000 },
   exportarAsistencias: { limit: 30, windowMs: 60 * 60_000 },
+  // Piezas para redes: cada vista previa arma una imagen en el servidor (≈ 0,5–1 s).
+  redes: { limit: 120, windowMs: 10 * 60_000 },
 } as const;
 
 /**

@@ -18,6 +18,10 @@ export default function Privacidad() {
       <p>Contamos cuántas veces se abre la página de cada muestra y de cada obra, y cuántas veces se escanean los códigos QR de la sala. Sólo guardamos totales por día: no guardamos tu IP, no usamos cookies y no sabemos quién sos.</p>
       <h2 className="pt-2 text-xl font-medium">Libro de visitas</h2>
       <p>Si dejás un comentario en el libro de visitas de una muestra, guardamos sólo lo que escribís: el comentario y, si los ponés, tu nombre y tu ciudad. Se publica en la página de la muestra y quien la organiza puede ocultarlo o borrarlo. No guardamos tu IP ni te pedimos cuenta.</p>
+      <h2 className="pt-2 text-xl font-medium">Confirmación de asistencia</h2>
+      <p>Si confirmás que vas a una inauguración, guardamos sólo lo que escribís: tu nombre, tu email si lo dejás y cuántas personas te acompañan. Lo ven únicamente quienes organizan esa muestra. No guardamos tu dirección IP. Borramos estos datos 30 días después de que termina la muestra; queda sólo la cantidad total de personas.</p>
+      <h2 className="pt-2 text-xl font-medium">Equipo de una muestra</h2>
+      <p>Si te invitan a organizar una muestra, el resto del equipo ve tu nombre y tu email.</p>
       <h2 className="pt-2 text-xl font-medium">Pedir la baja de tus datos</h2>
       {contacto ? (
         <p>Escribinos a <a href={`mailto:${contacto}`} className="underline">{contacto}</a> y la tramitamos.</p>
