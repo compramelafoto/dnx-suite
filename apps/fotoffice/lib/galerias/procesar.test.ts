@@ -64,4 +64,18 @@ describe("generarVariantes (sharp real)", () => {
     expect(err).toBeInstanceOf(FotoNoProcesable);
     expect(err.definitivo).toBe(true);
   });
+
+  it("frena fotos que superan el límite de píxeles como error definitivo", async () => {
+    const err = await generarVariantes(await jpeg(300, 200), { maxPixeles: 1000 }).catch((e) => e);
+    expect(err).toBeInstanceOf(FotoNoProcesable);
+    expect(err.definitivo).toBe(true);
+    expect(err.message).toContain("100 megapíxeles");
+  });
+
+  it("aplana la transparencia de un PNG sobre blanco", async () => {
+    const png = await sharp({ create: { width: 40, height: 40, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const v = await generarVariantes(png);
+    const { data } = await sharp(v.vista).raw().toBuffer({ resolveWithObject: true });
+    expect([data[0], data[1], data[2]].every((c) => c > 250)).toBe(true);
+  });
 });

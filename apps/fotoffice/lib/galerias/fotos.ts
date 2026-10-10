@@ -80,7 +80,8 @@ export async function pedirSubidaFoto(
   const galeria = await galeriaDelWorkspace(ctx, galeriaId);
   if (!galeria) return { ok: false, error: MENSAJES_GALERIA.noExiste };
   if (galeria.status === "ARCHIVADA") return { ok: false, error: MENSAJES_GALERIA.archivada };
-  const cantidad = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: galeria.id as string } });
+  // Las fotos en ERROR definitivo no ocupan lugar: así se puede borrarlas o volver a subir.
+  const cantidad = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: galeria.id as string, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } } });
   if (cantidad >= MAX_FOTOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeFotos };
   const ultima = await prisma.fotofficeGaleriaFoto.aggregate({ where: { galeriaId: galeria.id as string }, _max: { order: true } });
   const orden = (ultima._max.order ?? -1) + 1;

@@ -17,10 +17,12 @@ const H = vi.hoisted(() => ({
 function cumple(f: Record<string, unknown>, where: Record<string, unknown>): boolean {
   return Object.entries(where).every(([k, c]) => {
     if (k === "galeria") return true;
+    if (k === "NOT") return !cumple(f, c as Record<string, unknown>);
     const v = f[k];
     if (c && typeof c === "object" && !(c instanceof Date)) {
-      const o = c as { in?: unknown[]; lt?: number };
+      const o = c as { in?: unknown[]; lt?: number; gte?: number };
       if (o.in) return o.in.includes(v);
+      if (o.gte !== undefined) return (v as number) >= o.gte;
       if (o.lt !== undefined) return (v as number) < o.lt;
     }
     return v === c;
@@ -135,6 +137,9 @@ describe("pedirSubidaFoto", () => {
     for (let i = 0; i < 3000; i++) H.fotos.push(foto(`t${i}`));
     expect(await F.pedirSubidaFoto(ctx(), "g1", archivo)).toMatchObject({ ok: false, error: expect.stringContaining("3.000") });
     expect(H.fotos).toHaveLength(3000);
+    H.fotos[0].status = "ERROR";
+    H.fotos[0].attempts = 3;
+    expect((await F.pedirSubidaFoto(ctx(), "g1", archivo)).ok).toBe(true); // ERROR definitivo no cuenta
   });
   it("si no puede firmar, no deja la fila", async () => {
     H.subida.mockRejectedValue(new Error("r2"));
