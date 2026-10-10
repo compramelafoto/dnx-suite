@@ -20,7 +20,22 @@ async function checksumDe(archivo: File): Promise<string | null> {
   }
 }
 
-export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
+export function Cargador({
+  codigo,
+  tema,
+  variasALaVez = false,
+}: {
+  codigo: string;
+  tema: Tema;
+  /**
+   * Si el selector deja marcar varias fotos de una.
+   *
+   * Apagado para el invitado: con el selector múltiple, el camino más corto es marcar la
+   * galería entera y mandar el carrete. Encendido para el organizador, que está cargando
+   * el material del evento. Ver `lib/quien-sube.ts`.
+   */
+  variasALaVez?: boolean;
+}) {
   const [items, setItems] = useState<Item[]>([]);
   const entrada = useRef<HTMLInputElement>(null);
 
@@ -129,7 +144,7 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
         id="fotos"
         type="file"
         accept="image/*"
-        multiple
+        multiple={variasALaVez}
         className="sr-only"
         onChange={(e) => void alElegir(e.target.files)}
       />
@@ -139,7 +154,11 @@ export function Cargador({ codigo, tema }: { codigo: string; tema: Tema }) {
         className="block w-full cursor-pointer rounded-2xl px-8 py-5 text-center text-lg font-extrabold"
         style={{ background: tema.acento, color: tema.textoSobreAcento }}
       >
-        {items.length === 0 ? "Elegir mis fotos" : "Agregar más"}
+        {items.length === 0
+          ? variasALaVez
+            ? "Elegir fotos"
+            : "Elegir una foto"
+          : "Agregar otra"}
       </label>
 
       {items.length > 0 ? (
