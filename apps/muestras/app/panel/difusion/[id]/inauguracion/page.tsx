@@ -67,7 +67,7 @@ export default async function InauguracionPanel({ params }: Props) {
           <ListaAsistencia activityId={a.id} filas={r.lista} abierta={a.rsvpStatus === "OPEN"} />
         )}
         <p className="text-sm text-[var(--mf-muted)]">
-          Esta lista la ven sólo vos y la coorganización. Se borra 30 días después del cierre de la muestra (el {formatArDay(r.borraEl)}).
+          Esta lista la ven sólo quien es responsable, la coorganización y el equipo de Muestras. Se borra 30 días después del cierre de la muestra (el {formatArDay(r.borraEl)}).
         </p>
       </section>
     </main>
