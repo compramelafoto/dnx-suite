@@ -33,12 +33,12 @@ export default async function EditarActividad({
   const usuario = await requireUsuario(`/panel/muestras/${id}`);
   const r = await buscarParaEditar(id, usuario);
   if (!r) notFound();
-  const { actividad: a, rol } = r;
+  const { actividad: a, rol, reglas } = r;
   const estado = a.reviewStatus as ReviewStatus;
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: rol };
   // Ficha completa (`editActivity`), sólo textos (`editTexts`, rol de textos) o lectura.
-  const editable = canEdit({ ...a, reviewStatus: estado }, actor);
-  const soloTextos = !editable && a.type === "MUESTRA" && canEditTexts({ ...a, reviewStatus: estado }, actor);
+  const editable = canEdit({ ...reglas, reviewStatus: estado }, actor);
+  const soloTextos = !editable && a.type === "MUESTRA" && canEditTexts({ ...reglas, reviewStatus: estado }, actor);
   const ultimo = await textoDelUltimoCambio(a);
   const enlaces = a.type === "MUESTRA"
     ? [

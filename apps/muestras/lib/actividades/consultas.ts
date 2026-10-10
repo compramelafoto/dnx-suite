@@ -67,18 +67,37 @@ export function listarParaRevisar() {
 /**
  * Una muestra del panel para quien tiene `view` (dueño, equipo activo o super admin), con el rol
  * de esta persona. Para el super admin que no es del equipo el rol es `null` (igual puede todo).
+ * Sólo lo que usan la página y los formularios (`actividad` viaja al navegador): quién la propuso,
+ * la institución y quién la revisó no salen; van aparte en `reglas`, para `canEdit`.
  */
 export async function buscarParaEditar(id: string, usuario: Quien) {
   const a = await prisma.culturalActivity.findFirst({
     where: conPermiso({ id }, usuario, "view"),
-    include: {
-      works: { orderBy: { sortOrder: "asc" }, include: { authorProfile: { select: { displayName: true } } } },
+    select: {
+      id: true, slug: true, type: true, title: true, description: true, organizersText: true,
+      curatorialText: true, curatorCredits: true, coverImageUrl: true,
+      startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, scheduleText: true, priceText: true, externalUrl: true,
+      isVirtualOnly: true, venueName: true, address: true, city: true, province: true, latitude: true, longitude: true,
+      galleryMode: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
+      editVersion: true, updatedAt: true, lastEditedByUserId: true, lastEditedAt: true, lastEditedPart: true,
+      proposedByUserId: true, workspaceId: true,
+      works: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, imageUrl: true, title: true, authorName: true, year: true, technique: true, isHighlight: true,
+          authorProfileId: true, authorProfile: { select: { displayName: true } },
+        },
+      },
       members: miFila(usuario),
     },
   });
   if (!a) return null;
-  const { members, ...actividad } = a;
-  return { actividad, rol: activityRole({ proposedByUserId: a.proposedByUserId, members }, usuario.id) };
+  const { members, proposedByUserId, workspaceId, ...actividad } = a;
+  return {
+    actividad,
+    rol: activityRole({ proposedByUserId, members }, usuario.id),
+    reglas: { reviewStatus: a.reviewStatus, proposedByUserId, workspaceId, isCancelled: a.isCancelled },
+  };
 }
 
 export function contarParaRevisar() {
