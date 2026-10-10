@@ -15,21 +15,33 @@ export function isRoomCode(s: unknown): s is string {
   return typeof s === "string" && ROOM_CODE_RE.test(s);
 }
 
+/** 256 = 8·31 + 8: los bytes desde 248 se descartan para que cada símbolo salga igual de seguido. */
+const ROOM_CODE_BYTE_LIMIT = 256 - (256 % ROOM_CODE_ALPHABET.length);
+
 /**
- * El código a partir de 12 bytes al azar (`crypto.randomBytes(12)`), cada uno módulo 31. El
- * módulo tiene un sesgo chico (256 = 8·31 + 8: los primeros 8 símbolos salen un 3 % más seguido);
- * con 12 símbolos quedan ≈ 59 bits, más que suficiente con el freno por IP del QR.
+ * El código a partir de bytes al azar (`crypto.randomBytes`), por muestreo por rechazo: cada byte
+ * menor que 248 da un símbolo (módulo 31, sin sesgo) y los demás se descartan. 12 símbolos de 31
+ * son ≈ 59 bits. `null` si los bytes no alcanzan (con 24 bytes, casi nunca: la app reintenta).
  */
-export function roomCodeFrom(bytes: Uint8Array): string {
-  if (bytes.length < ROOM_CODE_LENGTH) throw new Error(`Hacen falta ${ROOM_CODE_LENGTH} bytes para un código de sala.`);
+export function roomCodeFrom(bytes: Uint8Array): string | null {
   let s = "";
-  for (let i = 0; i < ROOM_CODE_LENGTH; i++) s += ROOM_CODE_ALPHABET[bytes[i]! % ROOM_CODE_ALPHABET.length];
-  return s;
+  for (const b of bytes) {
+    if (b >= ROOM_CODE_BYTE_LIMIT) continue;
+    s += ROOM_CODE_ALPHABET[b % ROOM_CODE_ALPHABET.length];
+    if (s.length === ROOM_CODE_LENGTH) return s;
+  }
+  return null;
 }
 
 export const ROOM_PASS_HOURS = 8;
-/** Cuántas obras escaneadas guarda un pase; pasado el tope quedan las últimas. */
+/**
+ * Cuántas obras escaneadas guarda un pase; pasado el tope quedan las últimas. Con ids de hasta
+ * `ROOM_PASS_MAX_ID` caracteres, la cookie firmada queda cerca de 3 KB: lejos del tope de 4 KB.
+ */
 export const ROOM_PASS_MAX_WORKS = 60;
+/** Los ids son cuid (25 caracteres): 32 deja margen sin dejar crecer la cookie. */
+export const ROOM_PASS_MAX_ID = 32;
+const idDePase = (x: unknown): x is string => typeof x === "string" && x.length > 0 && x.length <= ROOM_PASS_MAX_ID;
 const HORA_MS = 3600_000;
 
 export function roomPassCookieName(activityId: string): string {
@@ -74,9 +86,9 @@ export function decodeRoomPass(s: string): RoomPass | null {
   if (typeof x !== "object" || x === null || Array.isArray(x)) return null;
   const o = x as Record<string, unknown>;
   if (Object.keys(o).length !== 4 || o.v !== 1) return null;
-  if (typeof o.a !== "string" || !o.a) return null;
+  if (!idDePase(o.a)) return null;
   if (typeof o.exp !== "number" || !Number.isFinite(o.exp)) return null;
-  if (!Array.isArray(o.w) || o.w.length > ROOM_PASS_MAX_WORKS || !o.w.every((w) => typeof w === "string" && w.length > 0 && w.length <= 64)) return null;
+  if (!Array.isArray(o.w) || o.w.length > ROOM_PASS_MAX_WORKS || !o.w.every(idDePase)) return null;
   return { v: 1, a: o.a, exp: o.exp, w: o.w as string[] };
 }
 

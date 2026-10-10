@@ -7,7 +7,7 @@ import { imagenParaPdf } from "./imagen";
 import { pdfDeMarcos, type ObraParaMarco } from "./marco";
 import { pdfDeMontaje } from "./montaje";
 import type { OpcionesPieza } from "./opciones";
-import { autorDeObra, datosDeCartel, datosDeMontaje, detalleDeObra, nombreDePieza, urlVisible, type MuestraParaPiezas } from "./textos";
+import { autorDeObra, datosDeCartel, datosDeMontaje, detalleConExpositor, nombreDePieza, obraDeCatalogo, urlVisible, type MuestraParaPiezas } from "./textos";
 
 /**
  * Arma el PDF pedido. Las fotos se procesan **una por vez**: en paralelo llenarían la memoria de la
@@ -28,7 +28,7 @@ export async function armarPieza(a: MuestraParaPiezas, o: OpcionesPieza, base: s
       const lista: ObraParaMarco[] = [];
       for (const w of obras) {
         // Sin foto igual se lee una chica: la ventana del remarco va a la proporción de la obra.
-        lista.push({ titulo: w.title, autor: autorDeObra(w.authorName), detalle: detalleDeObra(w), imagen: await imagenParaPdf(w.imageUrl, o.conFoto ? 2000 : 200, 88) });
+        lista.push({ titulo: w.title, autor: autorDeObra(w.authorName), detalle: detalleConExpositor(w, a.expositores?.get(w.id)), imagen: await imagenParaPdf(w.imageUrl, o.conFoto ? 2000 : 200, 88) });
       }
       const extra = [
         o.tamano,
@@ -44,7 +44,7 @@ export async function armarPieza(a: MuestraParaPiezas, o: OpcionesPieza, base: s
       const obras: ObraCatalogo[] = [];
       const lado = catalogImageSize(a.works.length);
       for (const w of a.works) {
-        obras.push({ titulo: w.title, autor: w.authorName, detalle: detalleDeObra(w), imagen: await imagenParaPdf(w.imageUrl, lado, 80) });
+        obras.push({ ...obraDeCatalogo(w, a.expositores?.get(w.id)), imagen: await imagenParaPdf(w.imageUrl, lado, 80) });
       }
       const datos = { ...datosDeCartel(a, base), urlVisible: urlVisible(base, `/m/${a.slug}`), portada: await imagenParaPdf(a.coverImageUrl, 1600, 82), obras };
       return { bytes: await pdfDeCatalogo(datos, o.tamano, fecha), nombre: nombreDePieza("catalogo", a.slug, [o.tamano]) };

@@ -1,4 +1,4 @@
-import { NO_AUTHOR, dateRangeText, formatCm, hangingLayout, scanUrl, unassignedWorks, type HangingPlan, type WallLayout } from "@repo/muestras";
+import { NO_AUTHOR, dateRangeText, fichaDetail, formatCm, hangingLayout, scanUrl, unassignedWorks, type HangingPlan, type WallLayout } from "@repo/muestras";
 
 /** Lo que las piezas leen de una muestra (lo arma `cargarMuestraParaPiezas`, Task 11). */
 export type MuestraParaPiezas = {
@@ -8,12 +8,37 @@ export type MuestraParaPiezas = {
   venueName: string | null; address: string | null; city: string | null; province: string | null;
   coverImageUrl: string | null; hangingPlan: unknown; updatedAt: Date;
   works: { id: string; title: string; authorName: string; year: number | null; technique: string | null; imageUrl: string; sortOrder: number }[];
+  /** Lo que cargó quien expone, por id de la obra de la muestra (etapa 6). Nunca el precio. */
+  expositores?: ReadonlyMap<string, DatosDeExpositor>;
+};
+
+export type DatosDeExpositor = {
+  imageWidthCm: number | null; imageHeightCm: number | null;
+  edition: string | null; editionNumber: number | null; editionSize: number | null;
+  statement: string | null;
 };
 
 const lleno = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
 
 export function detalleDeObra(o: { year: number | null; technique: string | null }): string | null {
   return [o.year ? String(o.year) : null, lleno(o.technique)].filter(Boolean).join(". ") || null;
+}
+
+/**
+ * La línea de datos de una obra en las piezas: con los datos del expositor suma medidas y edición
+ * ("2024. Giclée. 40 × 60 cm. Edición 2/10"); si no, año y técnica. Nunca el precio (D38).
+ */
+export function detalleConExpositor(o: { year: number | null; technique: string | null }, ex?: DatosDeExpositor | null): string | null {
+  if (!ex) return detalleDeObra(o);
+  return fichaDetail({ ...ex, year: o.year, technique: o.technique }) || null;
+}
+
+/** Una página del catálogo: título, autor, la línea de datos y el texto de la obra. */
+export function obraDeCatalogo(
+  o: { title: string; authorName: string; year: number | null; technique: string | null },
+  ex?: DatosDeExpositor | null,
+): { titulo: string; autor: string; detalle: string | null; texto: string | null } {
+  return { titulo: o.title, autor: o.authorName, detalle: detalleConExpositor(o, ex), texto: lleno(ex?.statement) };
 }
 
 export function autorDeObra(nombre: string): string {

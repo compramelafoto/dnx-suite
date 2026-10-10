@@ -15,5 +15,11 @@ export async function cargarMontaje(id: string, usuario: Pick<Usuario, "id" | "e
   });
   if (!a) return null;
   const { plan, droppedItems } = parseHangingPlan(a.hangingPlan, a.works.map((w) => w.id));
-  return { ...a, plan, droppedItems };
+  // La medida con marco de las obras de expositores (etapa 6, D38): el editor la propone al colgarlas.
+  const marcos = await prisma.culturalExhibitorWork.findMany({
+    where: { activityId: a.id, activityWorkId: { in: a.works.map((w) => w.id) }, frameWidthCm: { not: null }, frameHeightCm: { not: null } },
+    select: { activityWorkId: true, frameWidthCm: true, frameHeightCm: true },
+  });
+  const porObra = new Map(marcos.map((m) => [m.activityWorkId, { widthCm: m.frameWidthCm!, heightCm: m.frameHeightCm! }]));
+  return { ...a, works: a.works.map((w) => ({ ...w, marco: porObra.get(w.id) ?? null })), plan, droppedItems };
 }

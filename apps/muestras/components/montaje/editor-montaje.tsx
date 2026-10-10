@@ -8,7 +8,8 @@ import {
 import { guardarMontaje } from "@/lib/montaje/acciones";
 import { boton, botonChico, campo, enlace } from "./estilos";
 
-type Obra = { id: string; title: string; authorName: string };
+/** `marco`: la medida con marco que cargó quien expone (etapa 6, D38); se propone al colgarla. */
+type Obra = { id: string; title: string; authorName: string; marco?: { widthCm: number; heightCm: number } | null };
 
 /** Lo que escribió la persona, aceptando coma decimal. Si no es un número queda NaN y el servidor avisa. */
 const numero = (v: string): number => Number(v.trim().replace(",", "."));
@@ -50,7 +51,12 @@ export function EditorMontaje({ id, obras, planInicial }: { id: string; obras: O
   };
   const agregarObra = (wid: string, workId: string) => cambiarPared(wid, (w) => {
     const ultima = w.items.at(-1);
-    return { ...w, items: [...w.items, { workId, frameWidthCm: ultima?.frameWidthCm ?? 40, frameHeightCm: ultima?.frameHeightCm ?? 50 }] };
+    // La medida que cargó quien expone, si la hay; si no, la de la obra anterior. Se puede cambiar.
+    const marco = porId.get(workId)?.marco;
+    return {
+      ...w,
+      items: [...w.items, { workId, frameWidthCm: marco?.widthCm ?? ultima?.frameWidthCm ?? 40, frameHeightCm: marco?.heightCm ?? ultima?.frameHeightCm ?? 50 }],
+    };
   });
   const sacarObra = (wid: string, workId: string) => cambiarPared(wid, (w) => ({ ...w, items: w.items.filter((i) => i.workId !== workId) }));
   const cambiarMarco = (wid: string, workId: string, lado: "frameWidthCm" | "frameHeightCm", v: string) =>

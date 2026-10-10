@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { fichaDetail } from "@repo/muestras";
 import { conPermiso } from "@/lib/equipo/permisos";
+import { asegurarCodigosDeSala } from "@/lib/sala/codigos";
 import type { Usuario } from "@/lib/usuario";
 import { datosDeFicha, type FichaDeObra } from "./texto";
 
@@ -39,25 +41,45 @@ export function baseUrlPublica(env: Record<string, string | undefined> = process
  * Las fichas de una muestra **publicada** de la persona (cualquiera, si es super admin): una
  * ficha con QR a una página que no existe no sirve. `null` = no corresponde (no existe, no es
  * suya, no está publicada, no es una muestra, o la obra pedida no es de esta muestra).
+ *
+ * Etapa 6: cada QR lleva el código de sala de su obra (se crea la primera vez y después es el
+ * mismo) y las obras de expositores suman medidas y edición. El precio nunca.
  */
 export async function cargarFichas(
   id: string,
   usuario: Pick<Usuario, "id" | "esSuperAdmin">,
   obraId: string | null,
-): Promise<{ nombre: string; fichas: FichaDeObra[] } | null> {
+): Promise<{ nombre: string; activityId: string; fichas: FichaDeObra[] } | null> {
   const a = await prisma.culturalActivity.findFirst({
     where: conPermiso({ id, reviewStatus: "APPROVED", type: "MUESTRA" }, usuario, "pieces"),
     select: {
-      slug: true, title: true,
+      id: true, slug: true, title: true,
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, technique: true, sortOrder: true } },
     },
   });
   if (!a) return null;
   const obras = obraId ? a.works.filter((w) => w.id === obraId) : a.works;
   if (obras.length === 0) return null;
+  const ids = obras.map((o) => o.id);
+  const [codigos, deExpositor] = await Promise.all([asegurarCodigosDeSala(a.id, ids), detallesDeExpositor(a.id, ids)]);
   const base = baseUrlPublica();
   return {
     nombre: obraId ? `ficha-${a.slug}-${obras[0]!.sortOrder + 1}` : `fichas-${a.slug}`,
-    fichas: obras.map((o) => datosDeFicha(a, o, base)),
+    activityId: a.id,
+    fichas: obras.map((o) => datosDeFicha(a, o, base, { codigo: codigos.get(o.id), detalle: deExpositor.get(o.id) })),
   };
+}
+
+/** La línea de datos de cada obra que cargó un expositor, por id de la obra de la muestra. */
+export async function detallesDeExpositor(activityId: string, workIds: readonly string[]): Promise<Map<string, string>> {
+  if (!workIds.length) return new Map();
+  const filas = await prisma.culturalExhibitorWork.findMany({
+    where: { activityId, activityWorkId: { in: [...workIds] } },
+    // Sin `priceArs`: no va en ninguna pieza (spec D38).
+    select: { activityWorkId: true, year: true, technique: true, imageWidthCm: true, imageHeightCm: true, edition: true, editionNumber: true, editionSize: true },
+  });
+  return new Map(filas.flatMap((f) => {
+    const d = fichaDetail(f);
+    return f.activityWorkId && d ? [[f.activityWorkId, d] as const] : [];
+  }));
 }

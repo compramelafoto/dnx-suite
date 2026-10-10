@@ -5,7 +5,8 @@ import { GRIS, LINEA, MM, TINTA, bloque, bloqueCentrado, cargarFuentes, dibujarL
 import type { ImagenPdf } from "./imagen";
 import type { DatosCartel } from "./textos";
 
-export type ObraCatalogo = { titulo: string; autor: string; detalle: string | null; imagen: ImagenPdf | null };
+/** `texto`: el texto de la obra que cargó quien expone (etapa 6); optativo. Nunca el precio. */
+export type ObraCatalogo = { titulo: string; autor: string; detalle: string | null; texto?: string | null; imagen: ImagenPdf | null };
 export type DatosCatalogo = Omit<DatosCartel, "horarios"> & { horarios?: string | null; urlVisible: string; portada: ImagenPdf | null; obras: ObraCatalogo[] };
 
 const INTERLINEA = 1.4;
@@ -96,7 +97,8 @@ export async function pdfDeCatalogo(d: DatosCatalogo, tamano: CatalogSize, fecha
     }
     let y = bloque(p, o.titulo, { x: m, y: bordeInferior - 4 * MM * e, ancho: util, size: 13 * e, font: f.negrita, color: TINTA, maxLineas: 2 });
     y = bloque(p, o.autor.trim() || NO_AUTHOR, { x: m, y, ancho: util, size: 11 * e, font: f.normal, color: TINTA, maxLineas: 1 });
-    if (o.detalle) bloque(p, o.detalle, { x: m, y, ancho: util, size: 9 * e, font: f.normal, color: GRIS, maxLineas: 2 });
+    if (o.detalle) y = bloque(p, o.detalle, { x: m, y, ancho: util, size: 9 * e, font: f.normal, color: GRIS, maxLineas: 2 });
+    if (o.texto) bloque(p, o.texto, { x: m, y: y - 2 * MM * e, ancho: util, size: 8.5 * e, font: f.normal, color: TINTA, maxLineas: 4 });
   }
 
   (paginasIndice.length ? paginasIndice : [[]]).forEach((entradas, i) => {

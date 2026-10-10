@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ROOM_PASS_HOURS, decodeRoomPass, encodeRoomPass, isRoomCode, mergeRoomPass, roomCodeFrom, roomPassCookieName,
+  ROOM_CODE_ALPHABET, ROOM_PASS_HOURS, ROOM_PASS_MAX_WORKS, decodeRoomPass, encodeRoomPass, isRoomCode, mergeRoomPass, roomCodeFrom, roomPassCookieName,
   roomPassValid, saleState, showBuyButton,
 } from "./room";
 
@@ -8,11 +8,24 @@ const ahora = new Date("2026-11-10T20:00:00Z");
 
 describe("código de sala", () => {
   it("12 símbolos del alfabeto, sin ambiguos", () => {
-    const c = roomCodeFrom(new Uint8Array([0, 1, 2, 30, 31, 62, 100, 200, 255, 7, 8, 9]));
+    const c = roomCodeFrom(new Uint8Array([0, 1, 2, 30, 31, 62, 100, 200, 247, 7, 8, 9]));
     expect(c).toHaveLength(12);
     expect(isRoomCode(c)).toBe(true);
     expect(isRoomCode("0123456789ab")).toBe(false);
     expect(isRoomCode("clx9a8b7c6d5e4f3g2h1i0j9")).toBe(false); // un id de obra no es un código
+  });
+  it("muestreo por rechazo: los bytes desde 248 se descartan y cada símbolo sale igual de seguido", () => {
+    expect(roomCodeFrom(new Uint8Array([248, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]))).toBe(roomCodeFrom(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])));
+    expect(roomCodeFrom(new Uint8Array(40).fill(250))).toBeNull();
+    expect(roomCodeFrom(new Uint8Array(11))).toBeNull();
+    // Los 248 bytes válidos reparten exactamente 8 veces cada uno de los 31 símbolos.
+    const cuenta = new Map<string, number>();
+    for (let b = 0; b < 248; b++) {
+      const c = roomCodeFrom(new Uint8Array([b, ...new Array(11).fill(0)]))![0]!;
+      cuenta.set(c, (cuenta.get(c) ?? 0) + 1);
+    }
+    expect(cuenta.size).toBe(ROOM_CODE_ALPHABET.length);
+    expect([...cuenta.values()].every((n) => n === 8)).toBe(true);
   });
 });
 
@@ -54,5 +67,21 @@ describe("adquirir obra", () => {
   it("mientras no hay venta, la página dice que no está disponible", () => {
     expect(saleState({ salesEnabled: false, forSale: true })).toBe("UNAVAILABLE");
     expect(saleState({ salesEnabled: false, forSale: false })).toBe("NOT_FOR_SALE");
+  });
+});
+
+describe("tamaño del pase", () => {
+  it("ids de más de 32 caracteres no se aceptan", () => {
+    const largo = "x".repeat(33);
+    expect(decodeRoomPass(encodeRoomPass({ v: 1, a: "a1", exp: 1, w: [largo] }))).toBeNull();
+    expect(decodeRoomPass(encodeRoomPass({ v: 1, a: largo, exp: 1, w: ["w1"] }))).toBeNull();
+  });
+  it("con el tope de obras y los ids más largos, el pase codificado queda lejos de 4 KB", () => {
+    const w = Array.from({ length: ROOM_PASS_MAX_WORKS }, (_, i) => `${i}`.padStart(32, "c"));
+    const p = { v: 1 as const, a: "a".repeat(32), exp: Date.now() + 8 * 3600_000, w };
+    const codificado = encodeRoomPass(p);
+    expect(decodeRoomPass(codificado)).toEqual(p);
+    // Más la firma (43) y el nombre de la cookie (≈ 40): sigue debajo de 3,5 KB.
+    expect(codificado.length + 43 + 1 + 40).toBeLessThan(3500);
   });
 });

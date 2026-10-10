@@ -63,20 +63,26 @@ export function cortarEnLineas(texto: string, anchoMax: number, medir: (s: strin
 }
 
 /**
- * El QR pasa por `/q/o/<obra>`, que cuenta el escaneo y redirige a la página de la obra (etapa 4).
- * Las fichas impresas antes siguen apuntando directo a la obra y siguen andando.
+ * El QR pasa por `/q/s/<código>` cuando la obra tiene código de sala (etapa 6, D29): cuenta el
+ * escaneo, da el pase de sala y lleva a la vista de sala. Sin código, por `/q/o/<obra>` (etapa 4),
+ * que cuenta y lleva a la página pública. Las fichas impresas antes siguen andando.
+ *
+ * `extra.detalle`: la línea de datos del expositor ("2024. Giclée. 40 × 60 cm. Edición 2/10"),
+ * que reemplaza a la de año y técnica. Nunca lleva el precio.
  */
 export function datosDeFicha(
   a: { title: string; slug: string },
   o: { id: string; title: string; authorName: string; year: number | null; technique: string | null },
   baseUrl: string,
+  extra: { codigo?: string | null; detalle?: string | null } = {},
 ): FichaDeObra {
-  const detalle = [o.year ? String(o.year) : null, o.technique?.trim() || null].filter(Boolean).join(". ");
+  const basico = [o.year ? String(o.year) : null, o.technique?.trim() || null].filter(Boolean).join(". ");
+  const detalle = extra.detalle?.trim() || basico;
   return {
     muestra: a.title,
     titulo: o.title,
     autor: o.authorName.trim() || "Autor sin indicar",
     detalle: detalle || null,
-    url: scanUrl(baseUrl, "o", o.id),
+    url: extra.codigo ? scanUrl(baseUrl, "s", extra.codigo) : scanUrl(baseUrl, "o", o.id),
   };
 }

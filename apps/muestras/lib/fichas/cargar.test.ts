@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ culturalActivity: { findFirst: vi.fn() } }));
+const db = vi.hoisted(() => ({ culturalActivity: { findFirst: vi.fn() }, culturalExhibitorWork: { findMany: vi.fn() } }));
+const codigos = vi.hoisted(() => ({ asegurarCodigosDeSala: vi.fn() }));
 vi.mock("@repo/db", () => ({ prisma: db }));
+vi.mock("@/lib/sala/codigos", () => codigos);
 
 process.env.APP_URL = "https://muestrasfotograficas.com/";
 const { baseUrlPublica, cargarFichas } = await import("./cargar");
 const { conPermiso } = await import("@/lib/equipo/permisos");
 
 const muestra = {
-  slug: "miradas-abc123", title: "Miradas",
+  id: "a1", slug: "miradas-abc123", title: "Miradas",
   works: [
     { id: "w1", title: "Uno", authorName: "Ana", year: null, technique: null, sortOrder: 0 },
     { id: "w2", title: "Dos", authorName: "Luis", year: 2024, technique: null, sortOrder: 1 },
@@ -18,6 +20,9 @@ const muestra = {
 beforeEach(() => {
   vi.clearAllMocks();
   db.culturalActivity.findFirst.mockResolvedValue(muestra);
+  db.culturalExhibitorWork.findMany.mockResolvedValue([]);
+  // Sin códigos de sala (como antes de la etapa 6), salvo que el test diga otra cosa.
+  codigos.asegurarCodigosDeSala.mockResolvedValue(new Map());
 });
 
 describe("cargarFichas", () => {
@@ -78,4 +83,22 @@ describe("baseUrlPublica (la dirección que va en el QR)", () => {
     aviso.mockRestore();
   });
   it("sin variables, el dominio público", () => expect(baseUrlPublica({})).toBe(DEFECTO));
+});
+
+describe("cargarFichas con código de sala y datos del expositor (etapa 6)", () => {
+  it("cada QR va a /q/s/<código> y la obra de expositor suma medidas y edición, sin precio", async () => {
+    codigos.asegurarCodigosDeSala.mockResolvedValue(new Map([["w1", "abcdefghjkmn"], ["w2", "nmkjhgfedcba"]]));
+    db.culturalExhibitorWork.findMany.mockResolvedValue([
+      { activityWorkId: "w2", year: 2024, technique: "Giclée", imageWidthCm: 40, imageHeightCm: 60, edition: "LIMITED", editionNumber: 2, editionSize: 10 },
+    ]);
+    const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+    expect(codigos.asegurarCodigosDeSala).toHaveBeenCalledWith("a1", ["w1", "w2"]);
+    expect(r?.fichas.map((f) => f.url)).toEqual([
+      "https://muestrasfotograficas.com/q/s/abcdefghjkmn",
+      "https://muestrasfotograficas.com/q/s/nmkjhgfedcba",
+    ]);
+    expect(r?.fichas[1]!.detalle).toBe("2024. Giclée. 40 × 60 cm. Edición 2/10");
+    expect(db.culturalExhibitorWork.findMany.mock.calls[0]![0].select).not.toHaveProperty("priceArs");
+    expect(db.culturalExhibitorWork.findMany.mock.calls[0]![0].where).toEqual({ activityId: "a1", activityWorkId: { in: ["w1", "w2"] } });
+  });
 });
