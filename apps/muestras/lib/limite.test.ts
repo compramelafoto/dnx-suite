@@ -1,8 +1,9 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
 import {
   LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
-  ipDeLaPeticion, resetRateLimit,
+  ipDeLaPeticion, MAX_ENTRADAS, resetRateLimit, tamanoDelFreno,
 } from "./limite";
 
 beforeEach(() => resetRateLimit());
@@ -57,9 +58,28 @@ describe("frenarPorIp", () => {
 describe("huella de IP", () => {
   it("no es la IP, es estable y distingue IPs", () => {
     const a = huellaDeIp("181.1.2.3");
-    expect(a).not.toContain("181");
     expect(a).toBe(huellaDeIp("181.1.2.3"));
     expect(a).not.toBe(huellaDeIp("181.1.2.4"));
+  });
+});
+
+describe("huella con sal fija", () => {
+  it("es el sha256 de sal + IP en base64url, cortado a 22", () => {
+    const esperado = createHash("sha256").update("s").update("181.1.2.3").digest("base64url").slice(0, 22);
+    expect(huellaDeIp("181.1.2.3", "s")).toBe(esperado);
+    expect(huellaDeIp("181.1.2.3", "s")).toHaveLength(22);
+  });
+});
+
+describe("tope de tamaño del freno", () => {
+  it("nunca pasa de MAX_ENTRADAS: se van las claves más viejas", () => {
+    resetRateLimit();
+    for (let i = 0; i < MAX_ENTRADAS + 50; i++) checkRateLimit({ key: `k${i}`, limit: 5, windowMs: 60_000 });
+    expect(tamanoDelFreno()).toBeLessThanOrEqual(MAX_ENTRADAS);
+    // La más vieja se fue (vuelve a empezar en 1); la más nueva sigue contando.
+    expect(checkRateLimit({ key: "k0", limit: 5, windowMs: 60_000 }).remaining).toBe(4);
+    expect(checkRateLimit({ key: `k${MAX_ENTRADAS + 49}`, limit: 5, windowMs: 60_000 }).remaining).toBe(3);
+    resetRateLimit();
   });
 });
 

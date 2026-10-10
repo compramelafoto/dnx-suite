@@ -1,5 +1,6 @@
 import "server-only";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CLAVE_PDF } from "./clave-pdf";
 
 /**
  * Bucket R2 de FOTOFFICE, bajo el prefijo `muestras/`. Mismas variables que
@@ -76,8 +77,6 @@ export async function leerBytesDeR2(urlPublica: string): Promise<Buffer | null> 
     return null;
   }
 }
-
-const CLAVE_PDF = /^muestras\/piezas\/[A-Za-z0-9_-]{1,64}\/[a-f0-9]{32}\.pdf$/;
 
 /**
  * Sube un PDF de piezas para imprimir (etapa 4, D4): Vercel corta las respuestas de más de

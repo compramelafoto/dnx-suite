@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { CLAVE_PDF, clavePdf } from "@/lib/imagenes/clave-pdf";
 import { subirPdfAR2 } from "@/lib/imagenes/r2";
 
 /** Vercel corta en 4,5 MB toda respuesta de una función: se deja margen. */
@@ -9,6 +10,10 @@ export const LIMITE_RESPUESTA_DIRECTA = 4 * 1024 * 1024;
 export async function entregarPdf(bytes: Uint8Array, o: { nombre: string; activityId: string }): Promise<Response> {
   // `nombre` sale de un slug (a-z, 0-9, guiones) y de opciones de una lista cerrada.
   const archivo = `${o.nombre}.pdf`;
+  // Se valida antes de armar la respuesta: con un id raro la subida fallaría y diríamos "muy pesado".
+  if (!CLAVE_PDF.test(clavePdf(o.activityId, "0".repeat(32)))) {
+    return Response.json({ error: "No encontramos esa muestra." }, { status: 400 });
+  }
   if (bytes.byteLength <= LIMITE_RESPUESTA_DIRECTA) {
     return new Response(bytes as BodyInit, {
       headers: {
@@ -20,7 +25,7 @@ export async function entregarPdf(bytes: Uint8Array, o: { nombre: string; activi
   }
   const huella = createHash("sha256").update(bytes).digest("hex").slice(0, 32);
   try {
-    const url = await subirPdfAR2(bytes, `muestras/piezas/${o.activityId}/${huella}.pdf`, archivo);
+    const url = await subirPdfAR2(bytes, clavePdf(o.activityId, huella), archivo);
     return new Response(null, { status: 303, headers: { Location: url, "Cache-Control": "private, no-store" } });
   } catch (err) {
     console.error("[piezas] no se pudo subir el PDF:", err instanceof Error ? err.message : String(err));

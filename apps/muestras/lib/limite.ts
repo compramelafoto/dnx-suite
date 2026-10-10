@@ -26,7 +26,16 @@ function limpiar(ahora: number) {
   for (const [clave, registro] of memoria.entries()) {
     if (registro.resetAt <= ahora) memoria.delete(clave);
   }
+  // Tope duro: si aun así quedan demasiadas (muchas IPs en poco tiempo), se van las más viejas.
+  // Un Map recorre en orden de alta, así que las primeras son las más antiguas.
+  for (const clave of memoria.keys()) {
+    if (memoria.size < MAX_ENTRADAS) break;
+    memoria.delete(clave);
+  }
 }
+
+/** Cuántas claves puede guardar el freno en una instancia. */
+export const MAX_ENTRADAS = 10_000;
 
 export type DecisionDeFreno = { allowed: boolean; remaining: number; resetAt: number };
 
@@ -42,6 +51,8 @@ export function checkRateLimit(params: {
   const registro = memoria.get(key);
   if (!registro || registro.resetAt <= ahora) {
     const nuevo: Registro = { count: 1, resetAt: ahora + windowMs };
+    // Se borra antes para que vuelva al final del orden de alta (el desalojo saca las primeras).
+    memoria.delete(key);
     memoria.set(key, nuevo);
     return { allowed: true, remaining: limit - 1, resetAt: nuevo.resetAt };
   }
@@ -58,6 +69,9 @@ export function checkRateLimit(params: {
 export function resetRateLimit() {
   memoria.clear();
 }
+
+/** Sólo para los tests: cuántas claves hay guardadas. */
+export const tamanoDelFreno = () => memoria.size;
 
 
 /** Los topes de cada cosa, todos por persona con sesión. */
@@ -128,17 +142,22 @@ export const LIMITES_POR_MUESTRA = {
 const SAL = randomBytes(16).toString("hex");
 
 /** Huella de una IP para usar como clave del freno (decisión D15 de la etapa 4). */
-export function huellaDeIp(ip: string): string {
-  return createHash("sha256").update(SAL).update(ip).digest("base64url").slice(0, 22);
+export function huellaDeIp(ip: string, sal: string = SAL): string {
+  return createHash("sha256").update(sal).update(ip).digest("base64url").slice(0, 22);
 }
 
-/** Cuenta un uso de `que` para esa IP (opcionalmente dentro de un `ambito`, p. ej. una muestra). */
+/**
+ * Cuenta un uso de `que` para esa IP (opcionalmente dentro de un `ambito`, p. ej. una muestra).
+ * Frenar después de validar el `activityId` (o lo que vaya en `ambito`): con valores inventados,
+ * cada pedido sumaría una clave nueva al mapa.
+ */
 export function frenarPorIp(que: QueSeLimitaSinSesion, ip: string, ambito?: string): DecisionDeFreno {
   return checkRateLimit({ key: `ip:${que}:${ambito ?? "-"}:${huellaDeIp(ip)}`, ...LIMITES_PUBLICOS[que] });
 }
 
 export type QueSeLimitaPorMuestra = keyof typeof LIMITES_POR_MUESTRA;
 
+/** Igual que `frenarPorIp`: llamar con un `activityId` ya validado. */
 export function frenarPorMuestra(que: QueSeLimitaPorMuestra, activityId: string): DecisionDeFreno {
   return checkRateLimit({ key: `muestra:${que}:${activityId}`, ...LIMITES_POR_MUESTRA[que] });
 }

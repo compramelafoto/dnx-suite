@@ -22,6 +22,14 @@ describe("entregarPdf", () => {
     expect(r2.subirPdfAR2.mock.calls[0]![1]).toMatch(/^muestras\/piezas\/a1\/[a-f0-9]{32}\.pdf$/);
     expect(r2.subirPdfAR2.mock.calls[0]![2]).toBe("marcos-m-A3.pdf");
   });
+  it("un id de muestra que no sirve para la clave da 400, no \"muy pesado\"", async () => {
+    for (const activityId of ["", "a/b", "../x", "x".repeat(65)]) {
+      const r = await entregarPdf(new Uint8Array(LIMITE_RESPUESTA_DIRECTA + 1), { nombre: "x", activityId });
+      expect(r.status).toBe(400);
+      expect((await r.json()).error).toBe("No encontramos esa muestra.");
+    }
+    expect(r2.subirPdfAR2).not.toHaveBeenCalled();
+  });
   it("si R2 falla, un error claro", async () => {
     r2.subirPdfAR2.mockRejectedValue(new Error("sin red"));
     const r = await entregarPdf(new Uint8Array(LIMITE_RESPUESTA_DIRECTA + 1), { nombre: "x", activityId: "a1" });
