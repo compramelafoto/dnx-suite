@@ -132,6 +132,22 @@ pantalla completa para Windows y Mac, y la explicación del mando.
 El enlace de la pantalla **no es el de los invitados** y no se comparte con ellos: ellos
 usan el QR.
 
+### La pestaña tiene que quedar adelante
+
+La rotación la lleva un `setTimeout` en el navegador, y **los navegadores frenan los
+temporizadores de las pestañas que nadie está mirando**. Si esa ventana queda tapada por
+otra, o la computadora apaga la pantalla, o entra el protector de pantalla, las fotos
+dejan de pasar hasta que alguien vuelva a la ventana.
+
+Comprobado el 2026-10-10 midiendo la pantalla de producción con el panel del navegador
+oculto: **cien segundos sin que cambiara nada**. Con el panel a la vista, el mismo ciclo
+dio 14,8 s de fotos y 21,3 s de QR, que es lo que corresponde al ritmo de arranque.
+
+No se puede arreglar desde el código —es el comportamiento del navegador, y además es el
+correcto para no gastar batería—. Está avisado en el instructivo del panel, en un recuadro
+al lado de los pasos de pantalla completa, porque es la causa número uno de que la pantalla
+*parezca* colgada.
+
 ## Dónde está cada cosa
 
 | Archivo | Qué |
