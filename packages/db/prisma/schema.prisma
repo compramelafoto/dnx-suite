@@ -18913,6 +18913,7 @@ enum SubilafotoMediaKind {
   PHOTO
   VIDEO
   MESSAGE
+  AUDIO
 }
 
 enum SubilafotoMediaOrigin {

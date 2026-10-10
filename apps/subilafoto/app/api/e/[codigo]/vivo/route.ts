@@ -117,6 +117,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ codigo: string 
             cayera en la rama de abajo, `varianteParaMirar` devolvería `null` y el
             mensaje no saldría nunca.
           */
+
           if (foto.kind === "MESSAGE") {
             cursor = anteriorCursor;
             if (!foto.caption) continue;

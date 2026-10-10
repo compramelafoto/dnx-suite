@@ -11,6 +11,7 @@ import { LogoDelFotografo } from "../logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { Cargador } from "./cargador";
+import { GrabarAudio } from "./grabar-audio";
 import { DejarMensaje } from "./mensaje";
 import { BarraDeReacciones } from "./reacciones";
 
@@ -89,7 +90,10 @@ export default async function Subir({ params }: Props) {
           <Cargador codigo={clave} tema={tema} />
           <BarraDeReacciones codigo={clave} acento={tema.acento} />
           {evento.allowMessages ? (
-            <DejarMensaje codigo={clave} acento={tema.acento} />
+            <>
+              <DejarMensaje codigo={clave} acento={tema.acento} />
+              <GrabarAudio codigo={clave} acento={tema.acento} />
+            </>
           ) : null}
         </>
       ) : (

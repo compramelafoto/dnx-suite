@@ -4,7 +4,12 @@ import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
-import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
+import {
+  DURACION,
+  SELECT_DE_VARIANTES,
+  enlaceParaMirar,
+  enlacesDeVariantes,
+} from "@/lib/moderacion/vista";
 import { revisarFoto } from "@/app/actions/moderacion";
 
 export const dynamic = "force-dynamic";
@@ -39,14 +44,38 @@ export default async function Control({ params }: Props) {
   if (!evento) notFound();
 
   const enPantalla = await prisma.subilafotoMedia.findMany({
-    where: { ...condicionDePublicadas(evento.id), kind: "PHOTO" },
+    where: {
+      ...condicionDePublicadas(evento.id),
+      /*
+        Fotos, mensajes y audios. Desde que no hay cola de revisión manual, sacar algo
+        acá es la ÚNICA forma de frenar lo que no corresponde: si esta pantalla sólo
+        mostrara fotos, un mensaje o un saludo grabado fuera de lugar no habría forma de
+        bajarlo de la pared del salón.
+      */
+      kind: { in: ["PHOTO", "MESSAGE", "AUDIO"] },
+    },
     orderBy: [{ publishedAt: "desc" }],
     take: 60,
-    select: { id: true, caption: true, guestName: true, variants: SELECT_DE_VARIANTES },
+    select: {
+      id: true,
+      kind: true,
+      originalKey: true,
+      caption: true,
+      guestName: true,
+      variants: SELECT_DE_VARIANTES,
+    },
   });
 
   // La variante, nunca el original: regla anti-bypass.
   const enlaces = await enlacesDeVariantes(enPantalla, "pantalla", DURACION.proyeccion);
+
+  // Los audios no tienen variante: se firma el original para poder escucharlos acá.
+  const audios: Record<string, string> = {};
+  for (const m of enPantalla) {
+    if (m.kind === "AUDIO" && m.originalKey) {
+      audios[m.id] = await enlaceParaMirar(m.originalKey, DURACION.proyeccion);
+    }
+  }
 
   return (
     <main className="sobre-claro mx-auto max-w-3xl px-4 py-8">
@@ -65,13 +94,35 @@ export default async function Control({ params }: Props) {
             className="overflow-hidden rounded-2xl border"
             style={{ borderColor: "var(--slf-borde)" }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={enlaces[i]!}
-              alt={foto.caption ?? "Foto en pantalla"}
-              className="aspect-[4/3] w-full bg-black/5 object-cover"
-              loading={i < 4 ? "eager" : "lazy"}
-            />
+            {foto.kind === "MESSAGE" ? (
+              // El texto entero, para poder leer qué dice antes de decidir.
+              <div
+                className="flex aspect-[4/3] w-full items-center justify-center p-5"
+                style={{ background: "var(--slf-crema)" }}
+              >
+                <p className="text-balance text-center text-base font-extrabold leading-snug">
+                  {foto.caption}
+                </p>
+              </div>
+            ) : foto.kind === "AUDIO" ? (
+              // Se puede escuchar acá antes de decidir si sacarlo.
+              <div
+                className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-4 p-5"
+                style={{ background: "var(--slf-crema)" }}
+              >
+                <p className="text-sm font-extrabold">Saludo grabado</p>
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <audio src={audios[foto.id]} controls className="w-full" preload="none" />
+              </div>
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={enlaces[i]!}
+                alt={foto.caption ?? "Foto en pantalla"}
+                className="aspect-[4/3] w-full bg-black/5 object-cover"
+                loading={i < 4 ? "eager" : "lazy"}
+              />
+            )}
 
             {foto.caption || foto.guestName ? (
               <p className="px-4 pt-3 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
