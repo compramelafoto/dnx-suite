@@ -18,7 +18,7 @@ export type RenglonIndice = { autor: string | null; paginas: string | null };
  * nombre (más del 60 % del ancho), pasan a renglones propios debajo, cortados al ancho.
  */
 export function renglonesDelIndice(indice: AuthorIndexEntry[], util: number, sangria: number, medir: (s: string) => number): RenglonIndice[] {
-  return indice.flatMap((ent) => {
+  return indice.flatMap((ent): RenglonIndice[] => {
     const paginas = pageRanges(ent.pages);
     if (medir(paginas) <= util * 0.6) return [{ autor: ent.author, paginas }];
     return [
