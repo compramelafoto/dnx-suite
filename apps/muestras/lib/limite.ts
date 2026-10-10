@@ -118,6 +118,8 @@ export const LIMITES = {
   guardarPortfolio: { limit: 300, windowMs: 60 * 60_000 },
   // Enlace de expositores: generar, guardar topes, cerrar, abrir y renovar.
   enlaceExpositores: { limit: 30, windowMs: 60 * 60_000 },
+  // Sumarse con el enlace (crea el perfil y la participación).
+  sumarseExpositor: { limit: 20, windowMs: 60 * 60_000 },
 } as const;
 
 /**
@@ -150,6 +152,8 @@ export const LIMITES_PUBLICOS = {
   // Etapa 6: "cambian para cada visitante". Cada pedido sortea otras obras: el tope frena a quien
   // recarga en bucle para verlas todas (pasado el tope, recibe las mismas que la última vez).
   anticipo: { limit: 60, windowMs: 10 * 60_000 },
+  // La página del enlace de expositores: frena a quien prueba tokens (pasado el tope, el mismo 404).
+  paginaExpositores: { limit: 60, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;

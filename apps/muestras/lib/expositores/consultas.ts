@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { exhibitorLinkState, temporalStatus } from "@repo/muestras";
+import { esTokenConForma } from "@/lib/curaduria/token";
 import { conPermiso } from "@/lib/equipo/permisos";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
 import type { Usuario } from "@/lib/usuario";
@@ -35,4 +36,37 @@ export async function enlaceDeExpositores(activityId: string, usuario: Quien) {
     url: enlace ? `${baseUrlPublica()}/expositores/${enlace.token}` : null,
     expositores: _count.exhibitors,
   };
+}
+
+/**
+ * El enlace de expositores por su token, para la página pública `/expositores/<token>` (spec D3).
+ * `null` si el token no tiene forma (ni se consulta la base) o no existe. Nunca devuelve el token:
+ * lo que sale de acá puede llegar a componentes cliente.
+ */
+export async function enlacePorToken(token: string) {
+  if (!esTokenConForma(token)) return null;
+  const e = await prisma.culturalExhibitorLink.findUnique({
+    where: { token },
+    select: {
+      status: true, closesAt: true, maxWorksPerExhibitor: true, maxExhibitors: true, instructions: true,
+      activity: {
+        select: {
+          id: true, slug: true, title: true, type: true, reviewStatus: true, isCancelled: true, startsAt: true, endsAt: true,
+          coverImageUrl: true, organizersText: true, venueName: true, city: true, province: true, isVirtualOnly: true,
+          _count: { select: { exhibitors: { where: { status: "ACTIVE" } } } },
+        },
+      },
+    },
+  });
+  if (!e) return null;
+  const { activity: { _count, ...muestra }, ...enlace } = e;
+  return { enlace, muestra, estado: exhibitorLinkState(e, e.activity, new Date()), expositores: _count.exhibitors };
+}
+
+/** La participación propia en una muestra (cualquier estado), o `null`. Siempre por la cuenta. */
+export async function miFilaEnMuestra(activityId: string, userId: number) {
+  return prisma.culturalExhibitor.findUnique({
+    where: { activityId_userId: { activityId, userId } },
+    select: { id: true, status: true },
+  });
 }

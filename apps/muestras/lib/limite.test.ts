@@ -133,4 +133,8 @@ describe("frenos de la sorpresa (etapa 6)", () => {
   it("enlace de expositores: 30 por hora por persona", () => {
     expect(LIMITES.enlaceExpositores).toEqual({ limit: 30, windowMs: 60 * 60_000 });
   });
+  it("sumarse como expositor: 20 por hora por persona; la página del enlace, 60 cada 10 minutos por IP", () => {
+    expect(LIMITES.sumarseExpositor).toEqual({ limit: 20, windowMs: 60 * 60_000 });
+    expect(LIMITES_PUBLICOS.paginaExpositores).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+  });
 });
