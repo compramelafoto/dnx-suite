@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { invitationState, isTeamRole, normalizeEmail, teamInviteProblems, type TeamRole } from "@repo/muestras";
+import { activityRole, invitationState, isTeamRole, normalizeEmail, teamInviteProblems, type TeamRole } from "@repo/muestras";
 import { getUsuario, type Usuario } from "@/lib/usuario";
 import { avisarInvitacionEquipo } from "@/lib/correos/equipo";
 import { esTokenConForma, hashDeToken, nuevoTokenDeInvitacion } from "@/lib/curaduria/token";
@@ -26,9 +26,10 @@ type Muestra = { id: string; title: string; ownerEmail: string | null };
 async function muestraParaEquipo(activityId: string, usuario: Usuario): Promise<Muestra | null> {
   const r = await rolEnMuestra(activityId, usuario);
   if (!r || !puede(usuario, "manageTeam", r.role)) return null;
-  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true, proposedByUserId: true } });
+  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true } });
   if (!a || a.type !== "MUESTRA") return null;
-  const dueno = await prisma.user.findUnique({ where: { id: a.proposedByUserId }, select: { email: true } });
+  // A quién no se puede invitar (al dueño): no es un permiso, es el email del responsable.
+  const dueno = await prisma.user.findUnique({ where: { id: r.ownerUserId }, select: { email: true } });
   return { id: a.id, title: a.title, ownerEmail: dueno?.email ?? null };
 }
 
@@ -142,7 +143,7 @@ export async function aceptarInvitacionEquipo(token: string): Promise<ResultadoA
   if (estado === "USED") return { ok: false, errores: ["Esta invitación ya se usó."] };
   if (estado === "EXPIRED") return { ok: false, errores: ["La invitación venció. Pedile a quien organiza que te la vuelva a mandar."] };
   if (estado === "REVOKED") return INVALIDA;
-  if (usuario.id === k.activity.proposedByUserId) return { ok: false, errores: ["Esta invitación no se puede aceptar con esta cuenta."] };
+  if (activityRole(k.activity, usuario.id) === "OWNER") return { ok: false, errores: ["Esta invitación no se puede aceptar con esta cuenta."] };
   if (usuario.email.trim().toLowerCase() !== k.email.trim().toLowerCase()) {
     return { ok: false, errores: [`Esta invitación es para ${k.email}. Entrá con esa cuenta de Google para aceptarla.`] };
   }
