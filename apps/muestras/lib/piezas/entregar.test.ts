@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const r2 = vi.hoisted(() => ({ subirPdfAR2: vi.fn() }));
 vi.mock("@/lib/imagenes/r2", () => r2);
-const { LIMITE_RESPUESTA_DIRECTA, entregarPdf } = await import("./entregar");
+const { LIMITE_RESPUESTA_DIRECTA, entregarPdf, entregarPdfDirecto } = await import("./entregar");
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -36,5 +36,20 @@ describe("entregarPdf", () => {
     expect(r.status).toBe(500);
     expect(r.headers.get("content-type")).toMatch(/^text\/plain/);
     expect(await r.text()).toMatch(/muy pesado/);
+  });
+});
+
+describe("entregarPdfDirecto", () => {
+  it("liviano: directo, privado y sin caché", async () => {
+    const r = entregarPdfDirecto(new Uint8Array([1, 2, 3]), { nombre: "fichas-m-A6", siPesaMucho: "pesado" });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-disposition")).toBe('attachment; filename="fichas-m-A6.pdf"');
+    expect(r.headers.get("cache-control")).toBe("private, no-store");
+  });
+  it("pesado: nunca a R2, un error que dice cómo bajarlo", async () => {
+    const r = entregarPdfDirecto(new Uint8Array(LIMITE_RESPUESTA_DIRECTA + 1), { nombre: "fichas-m-A6", siPesaMucho: "Bajalas de a una." });
+    expect(r.status).toBe(413);
+    expect(await r.text()).toBe("Bajalas de a una.");
+    expect(r.headers.get("location")).toBeNull();
   });
 });

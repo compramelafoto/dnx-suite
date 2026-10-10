@@ -14,6 +14,23 @@ export function errorEnTexto(mensaje: string, status: number): Response {
   return new Response(mensaje, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" } });
 }
 
+/**
+ * El PDF siempre directo, nunca a R2: para lo que lleva datos que no deben quedar en una dirección
+ * pública que no vence (las fichas llevan los códigos del pase de sala). Si pasa del tope de una
+ * respuesta, un error que dice cómo bajarlo en partes.
+ */
+export function entregarPdfDirecto(bytes: Uint8Array, o: { nombre: string; siPesaMucho: string }): Response {
+  if (bytes.byteLength > LIMITE_RESPUESTA_DIRECTA) return errorEnTexto(o.siPesaMucho, 413);
+  return new Response(bytes as BodyInit, {
+    headers: {
+      "Content-Type": "application/pdf",
+      // `nombre` sale de un slug (a-z, 0-9, guiones) y de opciones de una lista cerrada.
+      "Content-Disposition": `attachment; filename="${o.nombre}.pdf"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
 /** El PDF directo si es liviano; si no, a R2 y 303 a su dirección (decisión D4). */
 export async function entregarPdf(bytes: Uint8Array, o: { nombre: string; activityId: string }): Promise<Response> {
   // `nombre` sale de un slug (a-z, 0-9, guiones) y de opciones de una lista cerrada.

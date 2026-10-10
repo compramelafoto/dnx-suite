@@ -4,7 +4,8 @@ const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; es
 const cargar = vi.hoisted(() => ({ cargarFichas: vi.fn() }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("@/lib/fichas/cargar", () => cargar);
-vi.mock("@/lib/imagenes/r2", () => ({ subirPdfAR2: vi.fn() }));
+const r2 = vi.hoisted(() => ({ subirPdfAR2: vi.fn() }));
+vi.mock("@/lib/imagenes/r2", () => r2);
 
 const { GET } = await import("@/app/api/fichas/[id]/route");
 const { resetRateLimit } = await import("@/lib/limite");
@@ -32,7 +33,7 @@ describe("GET /api/fichas/[id]", () => {
     const r = await pedir("ajena");
     expect(r.status).toBe(404);
   });
-  it("entrega el PDF con entregarPdf (directo si es liviano) y declara un minuto de tope", async () => {
+  it("entrega el PDF siempre directo (nunca a R2: lleva los códigos de sala) y declara un minuto de tope", async () => {
     usuarioActual.valor = { id: 7, esSuperAdmin: false };
     cargar.cargarFichas.mockResolvedValue({
       nombre: "fichas-m", activityId: "a1",
@@ -43,6 +44,7 @@ describe("GET /api/fichas/[id]", () => {
     expect(r.headers.get("content-type")).toBe("application/pdf");
     expect(r.headers.get("content-disposition")).toBe('attachment; filename="fichas-m-A6.pdf"');
     expect(r.headers.get("cache-control")).toBe("private, no-store");
+    expect(r2.subirPdfAR2).not.toHaveBeenCalled();
     const ruta = await import("@/app/api/fichas/[id]/route");
     expect(ruta.maxDuration).toBe(60);
   });
