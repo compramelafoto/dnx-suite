@@ -51,7 +51,9 @@ export function canPerform(action: ReviewAction, a: ActivityForReview, actor: Ac
   }
   switch (action) {
     case "submit":
-      return puede("submitForReview", a, actor) ? { ok: true } : { ok: false, reason: "Sólo quien la propuso puede enviarla." };
+      if (puede("submitForReview", a, actor)) return { ok: true };
+      // A quien es del equipo pero su rol no envía, no se le dice "sólo quien la propuso" (la coorganización también puede).
+      return { ok: false, reason: actor.role ? "Tu rol en esta muestra no permite enviarla a revisión." : "Sólo quien la propuso puede enviarla." };
     case "approve":
     case "reject":
     case "unpublish":

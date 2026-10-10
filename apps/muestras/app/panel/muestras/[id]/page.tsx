@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, type ReviewStatus } from "@repo/muestras";
+import { ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, canEdit, canEditTexts, type ReviewStatus } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
+import { FormularioTextos } from "@/components/formulario/formulario-textos";
 import { DescargarFichas } from "@/components/panel/descargar-fichas";
 import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarParaEditar } from "@/lib/actividades/consultas";
@@ -35,9 +36,9 @@ export default async function EditarActividad({
   const { actividad: a, rol } = r;
   const estado = a.reviewStatus as ReviewStatus;
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: rol };
-  // Ficha completa (`editActivity`) o lectura. El rol de textos (`editTexts`) tendrá su propio
-  // formulario (FormularioTextos); hasta entonces, ve la ficha en modo lectura.
+  // Ficha completa (`editActivity`), sólo textos (`editTexts`, rol de textos) o lectura.
   const editable = canEdit({ ...a, reviewStatus: estado }, actor);
+  const soloTextos = !editable && a.type === "MUESTRA" && canEditTexts({ ...a, reviewStatus: estado }, actor);
   const ultimo = await textoDelUltimoCambio(a);
   const enlaces = a.type === "MUESTRA"
     ? [
@@ -74,7 +75,7 @@ export default async function EditarActividad({
           ))}
         </p>
       ) : null}
-      {!editable && estado !== "IN_REVIEW" && rol !== "OWNER" ? <p className="text-[var(--mf-muted)]">Tu rol no edita la ficha completa: la ves en modo lectura.</p> : null}
+      {!editable && !soloTextos && estado !== "IN_REVIEW" && rol !== "OWNER" ? <p className="text-[var(--mf-muted)]">Tu rol no edita la ficha completa: la ves en modo lectura.</p> : null}
       {estado === "IN_REVIEW" ? <p className="text-[var(--mf-muted)]">Está en revisión. No se puede editar hasta que la revisemos.</p> : null}
       {faltan.length && editable ? (
         <div role="alert" className="rounded-[2px] bg-red-50 p-3 text-sm text-red-800">
@@ -87,6 +88,19 @@ export default async function EditarActividad({
       ) : null}
       {/* La clave cambia con cada guardado: el editor vuelve a cargar las obras con sus ids nuevos. */}
       {editable ? <FormularioActividad key={a.updatedAt.toISOString()} inicial={a} /> : null}
+      {soloTextos ? (
+        <section className="space-y-4 border-t border-[var(--mf-line)] pt-6">
+          <p className="text-[15px] text-[var(--mf-muted)]">Tu rol en esta muestra es Textos y curaduría: podés editar el texto curatorial, los créditos y los textos de cada obra.</p>
+          {/* La clave son las obras: si cambian, el formulario se vuelve a armar; la versión llega por props al guardar. */}
+          <FormularioTextos
+            key={a.works.map((w) => w.id).join(",")}
+            inicial={{
+              id: a.id, editVersion: a.editVersion, curatorialText: a.curatorialText, curatorCredits: a.curatorCredits,
+              obras: a.works.map((w) => ({ id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique })),
+            }}
+          />
+        </section>
+      ) : null}
     </main>
   );
 }

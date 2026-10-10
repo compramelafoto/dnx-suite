@@ -68,6 +68,11 @@ describe("roles del equipo", () => {
     expect(canEditTexts(a, t)).toBe(true);
     expect(canEditTexts({ ...a, reviewStatus: "IN_REVIEW" }, t)).toBe(false);
   });
+  it("el mensaje de enviar a revisión depende del rol", () => {
+    const t = { userId: 3, isSuperAdmin: false, role: "TEXT_EDITOR" as const };
+    expect(canPerform("submit", { ...a, reviewStatus: "DRAFT" }, t)).toEqual({ ok: false, reason: "Tu rol en esta muestra no permite enviarla a revisión." });
+    expect(canPerform("submit", { ...a, reviewStatus: "DRAFT" }, { userId: 9, isSuperAdmin: false, role: null })).toEqual({ ok: false, reason: "Sólo quien la propuso puede enviarla." });
+  });
   it("sin `role`, se deduce del dueño (compatibilidad)", () => {
     expect(canEdit(a, { userId: 1, isSuperAdmin: false })).toBe(true);
     expect(canEdit(a, { userId: 2, isSuperAdmin: false })).toBe(false);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LARGOS, datosParaGuardar, esImagenPropia, fichaDesdeFormData as mapearConBase } from "./mapear";
+import { LARGOS, datosParaGuardar, esImagenPropia, leerObrasDeTextos, fichaDesdeFormData as mapearConBase } from "./mapear";
 
 const BASE = "https://pub-test.r2.dev";
 /** Los tests inyectan la base pública de imágenes en vez de depender del entorno. */
@@ -188,5 +188,28 @@ describe("versión de la ficha (etapa 5)", () => {
   });
   it("no se escribe en la tabla (la sube la acción)", () => {
     expect("editVersion" in datosParaGuardar(fichaDesdeFormData(fd({ ...base, editVersion: "4" })))).toBe(false);
+  });
+});
+
+describe("leerObrasDeTextos (etapa 5)", () => {
+  it("sólo id, título, año y técnica; año entero 1800–2100 o vacío", () => {
+    expect(leerObrasDeTextos(JSON.stringify([
+      { id: "w1", title: " Silos ", year: "2024", technique: " Gelatina ", imageUrl: "https://otro/x.jpg", authorName: "Otro", isHighlight: true },
+      { id: "w2", title: "B", year: 1500, technique: "" },
+      { id: "w3", title: "C", year: "abc" },
+    ]))).toEqual([
+      { id: "w1", title: "Silos", year: 2024, technique: "Gelatina" },
+      { id: "w2", title: "B", year: null, technique: null },
+      { id: "w3", title: "C", year: null, technique: null },
+    ]);
+  });
+  it("descarta ids sin forma y repetidos; JSON roto → nada", () => {
+    expect(leerObrasDeTextos(JSON.stringify([{ id: "a b", title: "x" }, { id: "w1", title: "x" }, { id: "w1", title: "y" }]))).toEqual([{ id: "w1", title: "x", year: null, technique: null }]);
+    expect(leerObrasDeTextos("{")).toEqual([]);
+  });
+  it("recorta el título al tope del editor y deja vacío lo vacío", () => {
+    const [o] = leerObrasDeTextos(JSON.stringify([{ id: "w1", title: "x".repeat(500) }]));
+    expect(o!.title).toHaveLength(LARGOS.obraTitle);
+    expect(leerObrasDeTextos(JSON.stringify([{ id: "w1", title: "  " }]))[0]!.title).toBe("");
   });
 });
