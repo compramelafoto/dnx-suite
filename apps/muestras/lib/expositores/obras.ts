@@ -44,9 +44,13 @@ const OBRA = {
   exhibitor: { select: EXPOSITOR },
 } as const;
 
-/** Siempre por la cuenta: una obra de otra participación "no existe" (spec D11). */
-function obraPropia(id: string, usuario: Usuario) {
-  return prisma.culturalExhibitorWork.findFirst({ where: { id, exhibitor: { userId: usuario.id } }, select: OBRA });
+/**
+ * Siempre por la cuenta: una obra de otra participación "no existe" (spec D11). Tampoco una cuya
+ * muestra no coincide con la de su participación (la base no lo impide: lo controla la app).
+ */
+async function obraPropia(id: string, usuario: Usuario) {
+  const w = await prisma.culturalExhibitorWork.findFirst({ where: { id, exhibitor: { userId: usuario.id } }, select: OBRA });
+  return w && w.activityId === w.exhibitor.activityId ? w : null;
 }
 
 /** Lo que frena cualquier cambio de quien expone, más allá del estado de la obra (spec D10). */

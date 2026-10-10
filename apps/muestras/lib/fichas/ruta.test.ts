@@ -4,6 +4,7 @@ const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; es
 const cargar = vi.hoisted(() => ({ cargarFichas: vi.fn() }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("@/lib/fichas/cargar", () => cargar);
+vi.mock("@/lib/imagenes/r2", () => ({ subirPdfAR2: vi.fn() }));
 
 const { GET } = await import("@/app/api/fichas/[id]/route");
 const { resetRateLimit } = await import("@/lib/limite");
@@ -30,5 +31,19 @@ describe("GET /api/fichas/[id]", () => {
     cargar.cargarFichas.mockResolvedValue(null);
     const r = await pedir("ajena");
     expect(r.status).toBe(404);
+  });
+  it("entrega el PDF con entregarPdf (directo si es liviano) y declara un minuto de tope", async () => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false };
+    cargar.cargarFichas.mockResolvedValue({
+      nombre: "fichas-m", activityId: "a1",
+      fichas: [{ muestra: "M", titulo: "T", autor: "A", detalle: null, url: "https://muestrasfotograficas.com/q/s/abcdefghjkmn" }],
+    });
+    const r = await pedir();
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toBe("application/pdf");
+    expect(r.headers.get("content-disposition")).toBe('attachment; filename="fichas-m-A6.pdf"');
+    expect(r.headers.get("cache-control")).toBe("private, no-store");
+    const ruta = await import("@/app/api/fichas/[id]/route");
+    expect(ruta.maxDuration).toBe(60);
   });
 });

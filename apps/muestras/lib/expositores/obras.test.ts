@@ -159,3 +159,12 @@ describe("borrar y retirar", () => {
     expect((await retirarObraDeExpositor("w1")).ok).toBe(false);
   });
 });
+
+describe("la muestra de la obra coincide con la de su participación", () => {
+  it("una obra guardada con otra muestra no existe para quien expone", async () => {
+    obra = { ...completa(), activityId: "otra" };
+    expect(await guardarObraDeExpositor(fd({ id: "w1", title: "x" }))).toEqual({ ok: false, errores: ["La obra no existe."] });
+    expect(await enviarObraDeExpositor("w1")).toEqual({ ok: false, errores: ["La obra no existe."] });
+    expect(db.culturalExhibitorWork.updateMany).not.toHaveBeenCalled();
+  });
+});

@@ -73,16 +73,17 @@ export async function miFilaEnMuestra(activityId: string, userId: number) {
 
 /** "Donde expongo": las muestras donde esta persona se sumó, con el estado de sus obras. */
 export async function misParticipaciones(usuario: Quien) {
-  return prisma.culturalExhibitor.findMany({
+  const filas = await prisma.culturalExhibitor.findMany({
     where: { userId: usuario.id },
     select: {
       id: true, status: true, displayName: true, joinedAt: true,
       activity: { select: { id: true, slug: true, title: true, startsAt: true, endsAt: true, isCancelled: true } },
-      works: { select: { status: true } },
+      works: { select: { status: true, activityId: true } },
     },
     orderBy: { joinedAt: "desc" },
     take: 200,
   });
+  return filas.map((e) => ({ ...e, works: e.works.filter((w) => w.activityId === e.activity.id) }));
 }
 
 /**
@@ -106,15 +107,17 @@ export async function miParticipacion(id: string, usuario: Quien) {
       works: {
         orderBy: { sortOrder: "asc" },
         select: {
-          id: true, status: true, imageUrl: true, title: true, year: true, technique: true, imageWidthCm: true, imageHeightCm: true,
-          frameWidthCm: true, frameHeightCm: true, edition: true, editionNumber: true, editionSize: true, statement: true,
-          forSale: true, priceArs: true, hangingNotes: true, reviewNote: true, activityWorkId: true,
+          id: true, activityId: true, status: true, imageUrl: true, title: true, year: true, technique: true, imageWidthCm: true,
+          imageHeightCm: true, frameWidthCm: true, frameHeightCm: true, edition: true, editionNumber: true, editionSize: true,
+          statement: true, forSale: true, priceArs: true, hangingNotes: true, reviewNote: true, activityWorkId: true,
         },
       },
     },
   });
   if (!e) return null;
-  return { ...e, estadoEnlace: exhibitorLinkState(e.activity.exhibitorLink, e.activity, new Date()) };
+  // Sólo las obras de la muestra de esta participación (la base no lo impide: lo controla la app).
+  const works = e.works.filter((w) => w.activityId === e.activity.id);
+  return { ...e, works, estadoEnlace: exhibitorLinkState(e.activity.exhibitorLink, e.activity, new Date()) };
 }
 
 /**

@@ -83,4 +83,19 @@ describe("GET /api/piezas/[id]/[pieza]", () => {
     expect(r.status).toBe(429);
     expect(await r.text()).toBe("Pediste muchos PDF seguidos. Esperá unos minutos.");
   });
+  it("una tanda fuera de rango: 'Esa tanda no existe' sin armar nada", async () => {
+    const works = Array.from({ length: 45 }, (_, i) => ({ id: `w${i}` }));
+    cargar.cargarMuestraParaPiezas.mockResolvedValue({ id: "a1", slug: "m", works });
+    const r = await pedir("marcos", "?tanda=3");
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe("Esa tanda no existe.");
+    expect(armar.armarPieza).not.toHaveBeenCalled();
+    expect((await pedir("marcos", "?tanda=2")).status).toBe(200);
+  });
+  it("el marco de una obra tiene su propio tope: pasado el de los PDF pesados, sigue andando", async () => {
+    let r = await pedir("cartel");
+    for (let i = 0; i < 70 && r.status !== 429; i++) r = await pedir("cartel");
+    expect(r.status).toBe(429);
+    expect((await pedir("marcos", "?obra=w1")).status).toBe(200);
+  });
 });

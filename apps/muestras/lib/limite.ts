@@ -97,9 +97,11 @@ export const LIMITES = {
   decidir: { limit: 600, windowMs: 10 * 60_000 },
   // La imagen anónima pasa por nuestra función (no por el bucket): frena el raspado.
   imagenCuraduria: { limit: 1500, windowMs: 10 * 60_000 },
-  // Etapa 4: la sala. Un PDF con fotos tarda (los marcos van por tandas); una por obra en dos
-  // medidas entra holgado.
+  // Etapa 4: la sala. Un PDF de muchas obras (tanda de marcos, catálogo, cartel, plano) tarda:
+  // 60 cada 10 minutos. El marco de una sola obra es liviano y con 300 obras se pide uno por obra:
+  // va aparte, con 400 (etapa 6).
   piezas: { limit: 60, windowMs: 10 * 60_000 },
+  piezaObra: { limit: 400, windowMs: 10 * 60_000 },
   guardarMontaje: { limit: 120, windowMs: 60 * 60_000 },
   moderarLibro: { limit: 600, windowMs: 10 * 60_000 },
   cambiarModoLibro: { limit: 60, windowMs: 60 * 60_000 },

@@ -149,3 +149,15 @@ describe("frenos de la sorpresa (etapa 6)", () => {
     expect(LIMITES_PUBLICOS.imagenSala).toEqual({ limit: 600, windowMs: 10 * 60_000 });
   });
 });
+
+describe("frenos de las piezas (etapa 6)", () => {
+  it("el marco de una obra va aparte: alcanza para pedir uno por obra de una muestra llena", () => {
+    expect(LIMITES.piezaObra).toEqual({ limit: 400, windowMs: 10 * 60_000 });
+    for (let i = 0; i < MAX_WORKS; i++) expect(frenarPorUsuario("piezaObra", 1).allowed).toBe(true);
+    // Y no gasta el de los PDF pesados.
+    expect(frenarPorUsuario("piezas", 1).allowed).toBe(true);
+  });
+  it("tandas, catálogo y demás siguen con 60 cada 10 minutos", () => {
+    expect(LIMITES.piezas).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+  });
+});
