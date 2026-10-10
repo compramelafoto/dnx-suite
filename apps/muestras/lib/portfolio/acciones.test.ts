@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   photographerPortfolioPhoto: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), create: vi.fn(), update: vi.fn(), deleteMany: vi.fn(), aggregate: vi.fn() },
   culturalExhibitorWork: { findMany: vi.fn() },
   culturalActivityWork: { findMany: vi.fn() },
+  culturalActivity: { findMany: vi.fn() },
   $transaction: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
@@ -42,6 +43,7 @@ beforeEach(() => {
   db.photographerPortfolioPhoto.deleteMany.mockResolvedValue({ count: 1 });
   db.culturalExhibitorWork.findMany.mockResolvedValue([]);
   db.culturalActivityWork.findMany.mockResolvedValue([]);
+  db.culturalActivity.findMany.mockResolvedValue([{ slug: "silos" }, { slug: "puerto" }]);
   db.$transaction.mockResolvedValue([]);
 });
 
@@ -58,6 +60,11 @@ describe("guardarFotoDePortfolio", () => {
     expect(await guardarFotoDePortfolio(fd({ imageUrl: PROPIA, title: "Río", year: "2019" }))).toEqual({ ok: true, id: "f-nueva" });
     expect(db.photographerPortfolioPhoto.create.mock.calls[0]![0].data).toMatchObject({ profileId: "p7", imageUrl: PROPIA, title: "Río", year: 2019, sortOrder: 5 });
     expect(revalidatePath).toHaveBeenCalledWith("/fotografos/ana");
+    // Sólo las muestras publicadas donde expone, nunca todo /m.
+    expect(revalidatePath).toHaveBeenCalledWith("/m/silos");
+    expect(revalidatePath).toHaveBeenCalledWith("/m/puerto");
+    expect(revalidatePath).not.toHaveBeenCalledWith("/m", "layout");
+    expect(db.culturalActivity.findMany.mock.calls[0]![0].where).toEqual({ type: "MUESTRA", reviewStatus: "APPROVED", works: { some: { authorProfileId: "p7" } } });
   });
 
   it("una foto de otra persona → 'Subí la foto desde acá.'", async () => {

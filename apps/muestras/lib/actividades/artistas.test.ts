@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { visibilityFromPreset } from "@repo/muestras";
-import { artistasDeMuestra } from "./artistas";
+import { artistasDeMuestra, sinObrasExpuestas } from "./artistas";
 
 const foto = (perfil: string, n: number) => ({
   id: `${perfil}-f${n}`, imageUrl: `https://pub-test.r2.dev/muestras/u/${perfil}-portfolio-${n}.webp`, title: `Foto ${n}`,
@@ -50,5 +50,29 @@ describe("artistasDeMuestra", () => {
     const json = JSON.stringify(artistasDeMuestra(muestra, v));
     expect(json).not.toContain("oculta-");
     expect(json).toContain("ana-portfolio-1.webp");
+  });
+});
+
+describe("portfolio sin obras expuestas", () => {
+  const v = visibilityFromPreset("SURPRISE", "s");
+
+  it("una foto del portfolio con la imagen de una obra expuesta no se muestra", () => {
+    const expuesta = foto("ana", 1).imageUrl;
+    const conObra = { ...ana, works: [{ imageUrl: expuesta }] };
+    const r = artistasDeMuestra({ works: [obra("w3", 3, "Ana", conObra)] }, v);
+    expect(r[0]!.portfolio.map((f) => f.imageUrl)).not.toContain(expuesta);
+    expect(r[0]!.portfolio).toHaveLength(7);
+  });
+
+  it("sinObrasExpuestas saca sólo las coincidencias exactas", () => {
+    const fotos = [{ imageUrl: "a" }, { imageUrl: "b" }, { imageUrl: "c" }];
+    expect(sinObrasExpuestas(fotos, ["b", "z"])).toEqual([{ imageUrl: "a" }, { imageUrl: "c" }]);
+  });
+
+  it("la clave de cada artista es su slug, nunca el id del perfil", () => {
+    const conId = { ...ana, id: "ckid123", slug: "ana-ok" };
+    const r = artistasDeMuestra({ works: [obra("w3", 3, "Ana", conId)] }, v);
+    expect(r[0]!.key).toBe("perfil:ana-ok");
+    expect(JSON.stringify(r)).not.toContain("ckid123");
   });
 });

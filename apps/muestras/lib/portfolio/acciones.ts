@@ -31,11 +31,19 @@ async function perfilParaPortfolio(usuario: Usuario, profileId: unknown): Promis
   return p && p.userId != null ? { id: p.id, slug: p.slug, userId: p.userId } : null;
 }
 
-function refrescar(slug: string) {
-  revalidatePath(`/fotografos/${slug}`);
-  // La sección "Artistas" de cada muestra muestra las primeras fotos.
-  revalidatePath("/m", "layout");
+/**
+ * Su perfil público y la sección "Artistas" de las muestras publicadas donde expone (que muestra
+ * las primeras fotos). Nunca todo `/m`: un cambio de portfolio no tira la caché de las demás.
+ */
+async function refrescar(perfil: Perfil) {
+  revalidatePath(`/fotografos/${perfil.slug}`);
   revalidatePath("/panel/perfil");
+  const muestras = await prisma.culturalActivity.findMany({
+    where: { type: "MUESTRA", reviewStatus: "APPROVED", works: { some: { authorProfileId: perfil.id } } },
+    select: { slug: true },
+    take: 200,
+  });
+  for (const m of muestras) revalidatePath(`/m/${m.slug}`);
 }
 
 /** Las imágenes de las obras que esta persona expone o expuso: no pueden ir al portfolio (spec D15). */
@@ -70,7 +78,7 @@ export async function guardarFotoDePortfolio(fd: FormData): Promise<ResultadoPor
   const datos = { imageUrl: f.imageUrl!, title: f.title.trim(), year: f.year, technique: f.technique?.trim() || null, caption: f.caption?.trim() || null };
   if (previa) {
     await prisma.photographerPortfolioPhoto.update({ where: { id: previa.id }, data: datos });
-    refrescar(perfil.slug);
+    await refrescar(perfil);
     return { ok: true, id: previa.id };
   }
   const ultimo = await prisma.photographerPortfolioPhoto.aggregate({ where: { profileId: perfil.id }, _max: { sortOrder: true } });
@@ -78,7 +86,7 @@ export async function guardarFotoDePortfolio(fd: FormData): Promise<ResultadoPor
     data: { ...datos, profileId: perfil.id, sortOrder: (ultimo._max.sortOrder ?? -1) + 1 },
     select: { id: true },
   });
-  refrescar(perfil.slug);
+  await refrescar(perfil);
   return { ok: true, id: creada.id };
 }
 
@@ -91,7 +99,7 @@ export async function borrarFotoDePortfolio(id: string, profileId?: string): Pro
   if (!perfil) return SIN_PERFIL;
   const r = await prisma.photographerPortfolioPhoto.deleteMany({ where: { id, profileId: perfil.id } });
   if (r.count === 0) return NO_EXISTE;
-  refrescar(perfil.slug);
+  await refrescar(perfil);
   return { ok: true };
 }
 
@@ -108,6 +116,6 @@ export async function ordenarPortfolio(ids: string[], profileId?: string): Promi
   const pedidas = [...new Set(ids.filter((i) => typeof i === "string" && suyas.has(i)))];
   const orden = [...pedidas, ...propias.map((p) => p.id).filter((i) => !pedidas.includes(i))];
   await prisma.$transaction(orden.map((id, i) => prisma.photographerPortfolioPhoto.update({ where: { id }, data: { sortOrder: i } })));
-  refrescar(perfil.slug);
+  await refrescar(perfil);
   return { ok: true };
 }

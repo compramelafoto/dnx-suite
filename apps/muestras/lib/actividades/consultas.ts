@@ -49,6 +49,8 @@ export const buscarPorSlug = cache((slug: string) =>
                 select: { id: true, imageUrl: true, title: true, year: true, technique: true, caption: true, sortOrder: true },
               },
               _count: { select: { portfolio: true } },
+              // Para sacar del portfolio una foto que sea la imagen de una obra expuesta (D15).
+              works: { select: { imageUrl: true } },
             },
           },
         },

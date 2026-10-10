@@ -17,7 +17,19 @@ type PerfilDeAutor = {
   id: string; slug: string; displayName: string; bio: string | null; city: string | null; province: string | null; avatarUrl: string | null;
   portfolio?: ReadonlyArray<FotoDePortfolio & { sortOrder: number }>;
   _count?: { portfolio: number };
+  /** Las imágenes de todas sus obras expuestas (de cualquier muestra), para `sinObrasExpuestas`. */
+  works?: ReadonlyArray<{ imageUrl: string }>;
 };
+
+/**
+ * El portfolio sin las fotos cuya imagen es la de una obra expuesta (spec D15): al subir una foto ya
+ * se rechaza, pero una obra puede llegar a la muestra después con la misma imagen. Al mostrar, se
+ * saca siempre: así el portfolio nunca adelanta una obra que la sorpresa reserva para la sala.
+ */
+export function sinObrasExpuestas<F extends { imageUrl: string }>(fotos: readonly F[], expuestas: Iterable<string>): F[] {
+  const urls = new Set(expuestas);
+  return fotos.filter((f) => !urls.has(f.imageUrl));
+}
 
 /**
  * "Artistas" de la página de la muestra (spec D26): uno por autor de las obras **expuestas**
@@ -33,9 +45,12 @@ export function artistasDeMuestra(
   const vistos = new Map<string, Artista>();
   for (const w of [...a.works].sort((x, y) => x.sortOrder - y.sortOrder)) {
     const p = w.authorProfile;
-    const key = p ? `perfil:${p.id}` : `nombre:${normalizeName(w.authorName)}`;
+    // El slug (público), nunca el id del perfil.
+    const key = p ? `perfil:${p.slug}` : `nombre:${normalizeName(w.authorName)}`;
     if (vistos.has(key) || (!p && !w.authorName.trim())) continue;
-    const fotos = p?.portfolio ? portfolioPreview(p.portfolio).filter((f) => esUrlWeb(f.imageUrl)) : [];
+    const fotos = p?.portfolio
+      ? sinObrasExpuestas(portfolioPreview(p.portfolio), (p.works ?? []).map((x) => x.imageUrl)).filter((f) => esUrlWeb(f.imageUrl))
+      : [];
     vistos.set(key, {
       key,
       nombre: p?.displayName ?? w.authorName.trim(),

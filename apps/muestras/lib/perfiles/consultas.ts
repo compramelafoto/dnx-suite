@@ -47,6 +47,8 @@ export const buscarPerfilPublico = cache(async (slug: string) => {
       id: true, slug: true, displayName: true, bio: true, city: true, province: true, website: true, instagram: true, avatarUrl: true,
       // El portfolio es del artista: se ve siempre en su perfil (spec D14).
       portfolio: { orderBy: { sortOrder: "asc" }, select: { id: true, imageUrl: true, title: true, year: true, technique: true, caption: true } },
+      // Las imágenes de sus obras expuestas (de cualquier muestra): ninguna se muestra como foto del portfolio (D15).
+      works: { select: { imageUrl: true } },
     },
   });
   if (!perfil) return null;
