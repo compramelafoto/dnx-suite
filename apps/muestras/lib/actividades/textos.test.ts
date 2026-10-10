@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findUnique: vi.fn(), update: vi.fn() },
+  culturalActivity: { findUnique: vi.fn(), update: vi.fn(), count: vi.fn() },
   culturalActivityWork: { updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
   $transaction: vi.fn(),
@@ -35,10 +35,11 @@ beforeEach(() => {
   usuarioActual.valor = textos;
   db.culturalActivity.findUnique.mockResolvedValue(muestra());
   db.culturalActivity.update.mockResolvedValue({});
+  db.culturalActivity.count.mockResolvedValue(1);
   db.culturalActivityWork.updateMany.mockResolvedValue({ count: 1 });
   db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
   db.$queryRaw.mockResolvedValue([{ editVersion: 2, lastEditedByUserId: 1, lastEditedPart: "FICHA" }]);
-  db.user.findUnique.mockResolvedValue({ name: "Ana Pérez", email: "ana@x.com" });
+  db.user.findUnique.mockResolvedValue({ name: "Ana Pérez" });
 });
 
 describe("guardarTextos", () => {
@@ -66,6 +67,13 @@ describe("guardarTextos", () => {
     const r = await guardarTextos(fd({ id: "a1", editVersion: "1" }));
     expect(r.ok).toBe(false);
     expect(!r.ok && r.errores[0]).toMatch(/^Mientras editabas, Ana Pérez guardó cambios en la ficha\./);
+    expect(tx.culturalActivity.update).not.toHaveBeenCalled();
+  });
+  it("sacada del equipo entre la lectura y el guardado: el permiso se relee con la fila bloqueada", async () => {
+    db.culturalActivity.count.mockResolvedValueOnce(0);
+    expect(await guardarTextos(fd({ id: "a1", editVersion: "2" }))).toEqual({ ok: false, errores: ["No podés editar los textos ahora."] });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where.AND[0]).toEqual({ id: "a1" });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where.AND[1].OR[1].members.some.role.in).toEqual(["CO_ORGANIZER", "TEXT_EDITOR"]);
     expect(tx.culturalActivity.update).not.toHaveBeenCalled();
   });
   it("una obra sin título no se guarda", async () => {

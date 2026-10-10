@@ -9,6 +9,7 @@ import {
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
@@ -23,6 +24,8 @@ const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar.
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no existe."] };
 
 class Corte extends Error {}
+/** Ya no tiene el permiso cuando se bloquea la fila (la sacaron del equipo en el medio). */
+class SinPermiso extends Error {}
 
 /** La fila del equipo de quien actúa (sólo la suya y activa): alcanza para `activityRole`. */
 const filaPropia = (userId: number) =>
@@ -161,7 +164,10 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
         // (`editVersion` es INTEGER: llega como número, no bigint.)
         const [bloqueada] = await tx.$queryRaw<{ editVersion: number; lastEditedByUserId: number | null; lastEditedPart: string | null }[]>`
           SELECT "editVersion", "lastEditedByUserId", "lastEditedPart" FROM "CulturalActivity" WHERE id = ${id} FOR UPDATE`;
-        if (!bloqueada || Number(bloqueada.editVersion) !== version) throw new Choque(bloqueada ?? null);
+        // El permiso se vuelve a leer con la fila bloqueada: si a esta persona la sacaron del
+        // equipo (o le cambiaron el rol) después de la primera lectura, no guarda.
+        if (bloqueada && (await tx.culturalActivity.count({ where: conPermiso({ id }, usuario, "editActivity") })) === 0) throw new SinPermiso();
+        if (!bloqueada || Number(bloqueada.editVersion) !== version) throw new Choque(id, bloqueada ?? null);
         const enLaBase = await tx.culturalActivityWork.findMany({
           where: { activityId: id },
           select: { id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true },
@@ -204,6 +210,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     );
   } catch (err) {
     if (err instanceof Corte) return { ok: false, errores: [err.message] };
+    if (err instanceof SinPermiso) return { ok: false, errores: ["No podés editar esta actividad ahora."] };
     if (err instanceof Choque) return { ok: false, errores: [await mensajeDeChoque(err)] };
     throw err;
   }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { activityRole, canEditTexts, type ReviewStatus } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { frenarPorUsuario } from "@/lib/limite";
 import type { ResultadoAccion } from "./acciones";
@@ -13,6 +14,8 @@ import { LARGOS, leerObrasDeTextos, opt } from "./mapear";
 const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La muestra no existe."] };
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const SIN_PERMISO: ResultadoAccion = { ok: false, errores: ["No podés editar los textos ahora."] };
+class SinPermiso extends Error {}
 
 /**
  * Textos de la muestra (etapa 5, D9): texto curatorial, créditos y título/año/técnica de cada
@@ -40,7 +43,7 @@ export async function guardarTextos(fd: FormData): Promise<ResultadoAccion> {
   if (!a || a.type !== "MUESTRA") return NO_EXISTE;
   // El rol se lee en la base en cada guardado: sacar a alguien del equipo corta en el próximo pedido.
   const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: activityRole(a, usuario.id) };
-  if (!canEditTexts({ ...a, reviewStatus: a.reviewStatus as ReviewStatus }, actor)) return { ok: false, errores: ["No podés editar los textos ahora."] };
+  if (!canEditTexts({ ...a, reviewStatus: a.reviewStatus as ReviewStatus }, actor)) return SIN_PERMISO;
   const propias = new Set(a.works.map((w) => w.id));
   // Sólo obras de esta muestra: un id ajeno se ignora (además, el `where` lleva el activityId).
   const obras = leerObrasDeTextos(String(fd.get("obras") ?? "[]")).filter((o) => propias.has(o.id));
@@ -49,7 +52,9 @@ export async function guardarTextos(fd: FormData): Promise<ResultadoAccion> {
     await prisma.$transaction(async (tx) => {
       const [fila] = await tx.$queryRaw<{ editVersion: number; lastEditedByUserId: number | null; lastEditedPart: string | null }[]>`
         SELECT "editVersion", "lastEditedByUserId", "lastEditedPart" FROM "CulturalActivity" WHERE id = ${id} FOR UPDATE`;
-      if (!fila || Number(fila.editVersion) !== version) throw new Choque(fila ?? null);
+      // El permiso se vuelve a leer con la fila bloqueada (sacar a alguien del equipo corta acá también).
+      if (fila && (await tx.culturalActivity.count({ where: conPermiso({ id }, usuario, "editTexts") })) === 0) throw new SinPermiso();
+      if (!fila || Number(fila.editVersion) !== version) throw new Choque(id, fila ?? null);
       await tx.culturalActivity.update({
         where: { id },
         data: {
@@ -64,6 +69,7 @@ export async function guardarTextos(fd: FormData): Promise<ResultadoAccion> {
       }
     }, { timeout: 30_000, maxWait: 10_000 });
   } catch (err) {
+    if (err instanceof SinPermiso) return SIN_PERMISO;
     if (err instanceof Choque) return { ok: false, errores: [await mensajeDeChoque(err)] };
     throw err;
   }
