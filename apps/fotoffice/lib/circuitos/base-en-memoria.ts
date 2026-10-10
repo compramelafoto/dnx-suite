@@ -53,6 +53,9 @@ const TABLAS = [
   // Contratos (etapa 5).
   "fotofficeContratoPlantilla", "fotofficePedidoContratante", "fotofficeContrato", "fotofficeContratoVersion",
   "fotofficeContratoFirmante", "fotofficeContratoEvento", "fotofficeContratoAjustes",
+  // Galería (etapa 7).
+  "fotofficeGaleria", "fotofficeGaleriaFoto", "fotofficeGaleriaCliente", "fotofficeGaleriaSeleccion", "fotofficeGaleriaEvento",
+  "fotofficeGaleriaAjustes",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -213,6 +216,24 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeContratoAjustes: () => ({
     companySignatureKey: null, companyName: null, companyTaxId: null, companyAddress: null, consentClause: null,
     reminderEnabled: false, reminderDays: 3, updatedAt: new Date(),
+  }),
+  fotofficeGaleria: () => ({
+    message: null, saleMode: "SELECCION", kind: "SELECCION", selectionMode: "LIBRE", minSelect: null, maxSelect: null,
+    allowComments: true, downloadMode: "VISTA", status: "BORRADOR", coverFotoId: null, orderMode: "NOMBRE", publishedAt: null,
+    archivedAt: null, ownerUserId: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeGaleriaFoto: () => ({
+    viewKey: null, thumbKey: null, status: "PENDIENTE", errorReason: null, sizeBytes: null, width: null, height: null, order: 0,
+    attempts: 0, uploadedByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeGaleriaCliente: () => ({
+    clientId: null, email: null, phone: null, revokedAt: null, status: "EN_PROGRESO", firstSeenAt: null, lastSeenAt: null,
+    submittedAt: null, submitMessage: null, finalizedAt: null, reopenedAt: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeGaleriaSeleccion: () => ({ createdAt: new Date() }),
+  fotofficeGaleriaEvento: () => ({ galeriaClienteId: null, actorUserId: null, data: null, createdAt: new Date() }),
+  fotofficeGaleriaAjustes: () => ({
+    defaultMessage: null, defaultSelectionMode: "LIBRE", defaultAllowComments: true, defaultDownloadMode: "VISTA", updatedAt: new Date(),
   }),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
@@ -408,6 +429,14 @@ export function crearBaseEnMemoria() {
     fotofficeContratoVersion: [{ columnas: ["contratoId", "number"] }],
     fotofficeContratoFirmante: [{ columnas: ["tokenHash"] }],
     fotofficeContratoAjustes: [{ columnas: ["workspaceId"] }],
+    // Etapa 7: los de la migración de galerías.
+    fotofficeGaleria: [{ columnas: ["workspaceId", "number"] }],
+    fotofficeGaleriaCliente: [
+      { columnas: ["tokenHash"] },
+      { columnas: ["galeriaId", "clientId"], aplica: (f) => f.clientId !== null && f.clientId !== undefined },
+    ],
+    fotofficeGaleriaSeleccion: [{ columnas: ["galeriaClienteId", "fotoId"] }],
+    fotofficeGaleriaAjustes: [{ columnas: ["workspaceId"] }],
     // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
     cashMovement: [
       { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },

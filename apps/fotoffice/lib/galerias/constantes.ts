@@ -17,6 +17,7 @@ export type ModoDescarga = (typeof MODOS_DESCARGA)[number];
 
 export const ESTADOS_GALERIA = ["BORRADOR", "PUBLICADA", "ARCHIVADA"] as const;
 export type EstadoGaleria = (typeof ESTADOS_GALERIA)[number];
+export const esEstadoGaleria = (v: unknown): v is EstadoGaleria => typeof v === "string" && (ESTADOS_GALERIA as readonly string[]).includes(v);
 
 export const MODOS_ORDEN = ["NOMBRE", "MANUAL"] as const;
 export type ModoOrden = (typeof MODOS_ORDEN)[number];
