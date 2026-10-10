@@ -56,7 +56,7 @@ export function Banner({ fotos }: { fotos: FotoPortada[] }) {
 
       <div className="mf-marco mf-texto-sobre-foto absolute inset-x-0 bottom-0 flex flex-col gap-8 pb-8 sm:flex-row sm:items-end sm:justify-between sm:pb-12">
         <div className="max-w-4xl">
-          <h1 id="titulo-portada" className="mf-nombre text-[clamp(3.6rem,10.5vw,10.5rem)]">
+          <h1 id="titulo-portada" className="mf-nombre text-[clamp(3.6rem,min(10.5vw,14svh),10.5rem)]">
             Muestras<br />Fotográficas
           </h1>
           <p className="mt-6 max-w-[36ch] text-balance text-lg leading-snug text-white/90 sm:text-xl">Muestras de fotografía para ver en persona, en todo el país.</p>
