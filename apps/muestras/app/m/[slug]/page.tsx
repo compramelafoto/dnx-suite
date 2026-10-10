@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ACTIVITY_TYPE_LABELS, formatArDay, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
+import { ACTIVITY_TYPE_LABELS, formatArDay, guestbookState, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
 import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { Galeria } from "@/components/ficha/galeria";
+import { UltimosComentarios } from "@/components/libro/ultimos-comentarios";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
+import { entradasPublicadas } from "@/lib/libro/consultas";
 import { esUrlWeb } from "@/lib/url";
 
 export const revalidate = 300;
@@ -31,6 +33,9 @@ export default async function Ficha({ params }: Props) {
   const works = todas
     .filter((w) => esUrlWeb(w.imageUrl))
     .map(({ id, imageUrl, title, authorName, year, technique }) => ({ id, imageUrl, title, authorName, year, technique }));
+  // Libro de visitas: sólo en muestras publicadas; cerrado o apagado, se ven los comentarios que ya hay.
+  const libro = a.type === "MUESTRA" ? guestbookState(a, ahora) : "UNAVAILABLE";
+  const ultimas = libro === "UNAVAILABLE" ? [] : await entradasPublicadas(a.id, 6);
   const mapa = a.latitude != null && a.longitude != null
     ? `https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`
     : null;
@@ -66,6 +71,7 @@ export default async function Ficha({ params }: Props) {
         </section>
       ) : null}
       {a.type === "MUESTRA" && works.length > 0 ? <Galeria obras={works} parcial={isPartial} cerrada={temporalStatus(a, ahora) === "CLOSED"} slug={a.slug} /> : null}
+      {libro !== "UNAVAILABLE" ? <UltimosComentarios slug={a.slug} entradas={ultimas} abierto={libro === "OPEN"} /> : null}
     </main>
   );
 }
