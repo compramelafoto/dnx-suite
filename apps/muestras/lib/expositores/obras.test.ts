@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   culturalExhibitor: { findFirst: vi.fn() },
   culturalExhibitorWork: { findFirst: vi.fn(), count: vi.fn(), aggregate: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
+  $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
@@ -54,6 +56,8 @@ beforeEach(() => {
   db.culturalExhibitorWork.create.mockResolvedValue({ id: "w9" });
   db.culturalExhibitorWork.updateMany.mockResolvedValue({ count: 1 });
   db.culturalExhibitorWork.deleteMany.mockResolvedValue({ count: 1 });
+  db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
+  db.$queryRaw.mockResolvedValue([{ id: "e1" }]);
 });
 
 describe("guardarObraDeExpositor", () => {
@@ -93,6 +97,23 @@ describe("guardarObraDeExpositor", () => {
     expositor.activity.exhibitorLink.maxWorksPerExhibitor = null;
     db.culturalExhibitorWork.count.mockResolvedValue(120);
     expect((await guardarObraDeExpositor(fd({ exhibitorId: "e1", title: "x" }))).ok).toBe(true);
+  });
+
+  it("cuenta y crea con la participación bloqueada (FOR UPDATE), dentro de la transacción", async () => {
+    await guardarObraDeExpositor(fd({ exhibitorId: "e1", title: "x" }));
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toMatch(/FROM "CulturalExhibitor" WHERE id = \? FOR UPDATE/);
+    expect(db.$queryRaw.mock.calls[0]![1]).toBe("e1");
+    const orden = (f: { mock: { invocationCallOrder: number[] } }) => f.mock.invocationCallOrder[0]!;
+    expect(orden(db.$queryRaw)).toBeLessThan(orden(db.culturalExhibitorWork.count));
+    expect(orden(db.culturalExhibitorWork.count)).toBeLessThan(orden(db.culturalExhibitorWork.create));
+  });
+
+  it("sin tope optativo, igual hay un techo: el tope técnico de obras de una muestra", async () => {
+    const { MAX_WORKS } = await import("@repo/muestras");
+    expositor.activity.exhibitorLink.maxWorksPerExhibitor = null;
+    db.culturalExhibitorWork.count.mockResolvedValue(MAX_WORKS);
+    expect(await guardarObraDeExpositor(fd({ exhibitorId: "e1", title: "x" }))).toEqual({ ok: false, errores: [`Podés cargar hasta ${MAX_WORKS} obras en esta muestra.`] });
+    expect(db.culturalExhibitorWork.create).not.toHaveBeenCalled();
   });
 
   it("una foto ajena no se acepta", async () => {

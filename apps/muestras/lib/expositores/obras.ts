@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
 import {
-  exhibitorCountProblem, exhibitorLinkState, exhibitorWorkProblems, exhibitorWorkTransition, temporalStatus,
+  MAX_WORKS, exhibitorCountProblem, exhibitorLinkState, exhibitorWorkProblems, exhibitorWorkTransition, temporalStatus,
 } from "@repo/muestras";
 import { baseImagenesPublicas } from "@/lib/actividades/mapear";
 import { frenarPorUsuario } from "@/lib/limite";
@@ -18,6 +18,17 @@ const NO_EXISTE = error("La obra no existe.");
 const SIN_PARTICIPACION = error("No encontramos tu participación en esa muestra.");
 const MUCHAS = error("Hiciste muchos cambios seguidos. Esperá un rato y probá de nuevo.");
 const CAMBIO = error("La obra cambió mientras la editabas. Recargá la página.");
+
+/** Para cortar una transacción con un mensaje para quien expone. */
+class Corte extends Error {}
+
+/**
+ * El tope optativo del enlace y, siempre, el techo técnico de obras de una muestra (aunque el enlace
+ * diga "sin tope"): una cuenta no llena la base de borradores.
+ */
+function topeDeObras(cuantas: number, max: number | null): string | null {
+  return exhibitorCountProblem({ current: cuantas, max }) ?? (cuantas >= MAX_WORKS ? `Podés cargar hasta ${MAX_WORKS} obras en esta muestra.` : null);
+}
 const ENLACE_CERRADO = error("El enlace de expositores está cerrado: ya no se reciben obras nuevas.");
 const SIN_BIO = error("Antes de enviar, completá tu biografía: es lo que el público lee de vos.");
 
@@ -101,9 +112,6 @@ export async function guardarObraDeExpositor(fd: FormData): Promise<ResultadoObr
     if (!t.ok) return error(t.reason);
   } else {
     if (!enlaceAbierto(e, ahora)) return ENLACE_CERRADO;
-    const cuantas = await prisma.culturalExhibitorWork.count({ where: { exhibitorId: e.id, status: { not: "REMOVED" } } });
-    const tope = exhibitorCountProblem({ current: cuantas, max: e.activity.exhibitorLink?.maxWorksPerExhibitor ?? null });
-    if (tope) return error(tope);
   }
 
   const problemas = exhibitorWorkProblems(obra.datos, { forSubmit: false, now: ahora });
@@ -117,11 +125,25 @@ export async function guardarObraDeExpositor(fd: FormData): Promise<ResultadoObr
     refrescar(e);
     return { ok: true, id: previa.id };
   }
-  const ultimo = await prisma.culturalExhibitorWork.aggregate({ where: { exhibitorId: e.id }, _max: { sortOrder: true } });
-  const creada = await prisma.culturalExhibitorWork.create({
-    data: { ...datos, exhibitorId: e.id, activityId: e.activityId, status: "DRAFT", sortOrder: (ultimo._max.sortOrder ?? -1) + 1 },
-    select: { id: true },
-  });
+  const exp = e;
+  let creada: { id: string };
+  try {
+    creada = await prisma.$transaction(async (tx) => {
+      // Con la participación bloqueada se cuenta y se crea: dos pestañas a la vez no pasan el tope.
+      await tx.$queryRaw`SELECT id FROM "CulturalExhibitor" WHERE id = ${exp.id} FOR UPDATE`;
+      const cuantas = await tx.culturalExhibitorWork.count({ where: { exhibitorId: exp.id, status: { not: "REMOVED" } } });
+      const tope = topeDeObras(cuantas, exp.activity.exhibitorLink?.maxWorksPerExhibitor ?? null);
+      if (tope) throw new Corte(tope);
+      const ultimo = await tx.culturalExhibitorWork.aggregate({ where: { exhibitorId: exp.id }, _max: { sortOrder: true } });
+      return tx.culturalExhibitorWork.create({
+        data: { ...datos, exhibitorId: exp.id, activityId: exp.activityId, status: "DRAFT", sortOrder: (ultimo._max.sortOrder ?? -1) + 1 },
+        select: { id: true },
+      });
+    });
+  } catch (err) {
+    if (err instanceof Corte) return error(err.message);
+    throw err;
+  }
   refrescar(e);
   return { ok: true, id: creada.id };
 }
