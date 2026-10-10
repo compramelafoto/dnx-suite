@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { puedeVerGalerias, type CtxGalerias } from "./acceso";
 import { listarEventos } from "./eventos";
-import { MOTIVO_CORREO, etiquetaDeEvento } from "./eventos-etiquetas";
+import { EVENTOS_DEL_CLIENTE, MOTIVO_CORREO, etiquetaDeEvento } from "./eventos-etiquetas";
 
 export type ItemHistorial = {
   id: string;
@@ -26,11 +26,23 @@ function detalleDe(tipo: string, data: unknown): string | null {
   return null;
 }
 
-/** El historial de una galería (del más nuevo al más viejo), con quién lo hizo y a qué cliente se refiere. */
-export async function cargarHistorial(ctx: CtxGalerias, galeriaId: string): Promise<ItemHistorial[]> {
-  if (!puedeVerGalerias(ctx)) return [];
+export const TAMANO_PAGINA_HISTORIAL = 50;
+
+export type PaginaHistorial = { items: ItemHistorial[]; pagina: number; hayMas: boolean };
+
+/**
+ * El historial de una galería, del más nuevo al más viejo y de a 50, con quién lo hizo (el usuario del
+ * estudio o, en lo que hace el cliente desde su enlace, el cliente) y a qué cliente se refiere. Todo acotado al
+ * workspace de la sesión.
+ */
+export async function cargarHistorial(ctx: CtxGalerias, galeriaId: string, pagina = 1): Promise<PaginaHistorial> {
+  const n = Number.isInteger(pagina) && pagina >= 1 && pagina <= 10_000 ? pagina : 1;
+  if (!puedeVerGalerias(ctx)) return { items: [], pagina: n, hayMas: false };
   const { workspaceId } = ctx;
-  const eventos = await listarEventos(workspaceId, galeriaId);
+  // Uno de más para saber si hay página siguiente.
+  const leidos = await listarEventos(workspaceId, galeriaId, TAMANO_PAGINA_HISTORIAL + 1, (n - 1) * TAMANO_PAGINA_HISTORIAL);
+  const hayMas = leidos.length > TAMANO_PAGINA_HISTORIAL;
+  const eventos = leidos.slice(0, TAMANO_PAGINA_HISTORIAL);
   const actorIds = [...new Set(eventos.map((e) => e.actorUserId).filter((x): x is number => x !== null))];
   const clienteIds = [...new Set(eventos.map((e) => e.galeriaClienteId).filter((x): x is string => x !== null))];
   const [usuarios, clientes] = await Promise.all([
@@ -39,12 +51,18 @@ export async function cargarHistorial(ctx: CtxGalerias, galeriaId: string): Prom
   ]);
   const nombreDeUsuario = new Map(usuarios.map((u) => [u.id, u.name?.trim() || u.email || "Equipo"]));
   const nombreDeCliente = new Map(clientes.map((c) => [c.id, c.name]));
-  return eventos.map((e) => ({
-    id: e.id,
-    fecha: e.createdAt.toISOString(),
-    actor: e.actorUserId !== null ? (nombreDeUsuario.get(e.actorUserId) ?? null) : null,
-    etiqueta: etiquetaDeEvento(e.tipo),
-    cliente: e.galeriaClienteId ? (nombreDeCliente.get(e.galeriaClienteId) ?? null) : null,
-    detalle: detalleDe(e.tipo, e.data),
-  }));
+  const items = eventos.map((e) => {
+    const cliente = e.galeriaClienteId ? (nombreDeCliente.get(e.galeriaClienteId) ?? null) : null;
+    const delCliente = e.actorUserId === null && EVENTOS_DEL_CLIENTE.includes(e.tipo);
+    return {
+      id: e.id,
+      fecha: e.createdAt.toISOString(),
+      actor: e.actorUserId !== null ? (nombreDeUsuario.get(e.actorUserId) ?? null) : delCliente ? cliente : null,
+      etiqueta: etiquetaDeEvento(e.tipo),
+      // Si el actor ya es el cliente no se repite al final.
+      cliente: delCliente ? null : cliente,
+      detalle: detalleDe(e.tipo, e.data),
+    };
+  });
+  return { items, pagina: n, hayMas };
 }

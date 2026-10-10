@@ -35,6 +35,16 @@ describe("acciones de galerías (fuente)", () => {
     expect(c).toMatch(/esId\(|esObjeto\(|typeof texto/);
   });
 
+  it.each(["responderComentarioGaleriaAction", "finalizarSeleccionGaleriaAction", "reactivarSeleccionGaleriaAction"])(
+    "%s exige Gestionar, valida la forma y delega en lib/galerias/revision",
+    (nombre) => {
+      const c = cuerpoDe(nombre);
+      expect(c).toContain('contextoDeGalerias("operar")');
+      expect(c).toMatch(/esId\(/);
+      expect(c).toMatch(/responderComentario\(ctx|finalizarSeleccion\(ctx|reactivarSeleccion\(ctx/);
+    },
+  );
+
   it("leer fotos sólo pide Ver; los ajustes piden `configurar` (lo mismo que la pantalla), sin exigir Ver en Galería", () => {
     expect(cuerpoDe("fotosPorIdsAction")).toContain('contextoDeGalerias("ver")');
     const c = cuerpoDe("guardarAjustesGaleriaAction");
@@ -73,7 +83,7 @@ describe("pantallas de galerías (fuente)", () => {
     expect(p).toContain("cargarFichaGaleria(ctx, id)");
     expect(p).toMatch(/if \(!ficha\) notFound\(\)/);
     expect(p).toContain('pestana === "fotos" ? await listarFotos(ctx, id) : []');
-    expect(p).toContain('pestana === "historial" ? await cargarHistorial(ctx, id) : []');
+    expect(p).toContain('pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: []');
     // Los componentes de cliente reciben fechas como texto, no objetos.
     expect(p).toContain(".toISOString()");
   });
@@ -112,5 +122,39 @@ describe("subida de fotos (fuente del uploader)", () => {
     expect(g).toContain("const TANDA = 120");
     expect(g).toContain('loading="lazy"');
     expect(g).toContain("slice(0, 100)");
+  });
+});
+
+describe("revisión de la selección (fuente)", () => {
+  it("la pantalla pide Ver antes de leer y cae en notFound con ids ajenos o mal formados", () => {
+    const p = leer("../../app/(shell)/galerias/[id]/clientes/[clienteId]/page.tsx");
+    expect(p.indexOf('requireGalerias("ver")')).toBeGreaterThan(-1);
+    expect(p.indexOf('requireGalerias("ver")')).toBeLessThan(p.indexOf("cargarRevisionCliente("));
+    expect(p).toContain("ID_VALIDO.test(id)");
+    expect(p).toContain("if (!r) notFound()");
+    expect(p).toContain("puedeGestionarGalerias(ctx)");
+  });
+  it("las pestañas llevan a la revisión de cada cliente en lugar del aviso provisorio", () => {
+    const c = leer("../../components/galerias/pestana-clientes.tsx");
+    expect(c).toContain("/clientes/${encodeURIComponent(c.id)}");
+    expect(c).not.toContain("próxima entrega");
+    expect(c).toContain("bg-violet-50");
+  });
+  it("finalizar y reactivar piden confirmación y las respuestas se limitan a 2.000 caracteres", () => {
+    const r = leer("../../components/galerias/revision-cliente.tsx");
+    expect(r.match(/window\.confirm\(/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(r).toContain("finalizarSeleccionGaleriaAction");
+    expect(r).toContain("reactivarSeleccionGaleriaAction");
+    expect(r).toContain("maxLength={MAX_COMENTARIO}");
+    expect(r).toContain("Con comentarios");
+    expect(r).toContain("Seleccionadas");
+  });
+  it("exportar explica Lightroom con 'Contiene', copia al portapapeles y descarga el CSV", () => {
+    const e = leer("../../components/galerias/exportar-seleccion.tsx");
+    expect(e).toContain("Biblioteca → Filtro de biblioteca → Texto → Nombre de archivo → <strong>Contiene</strong>");
+    expect(e).toContain("navigator.clipboard.writeText");
+    expect(e).toContain("Windows / Finder");
+    expect(e).toContain("Descargar CSV");
+    expect(e).toContain("/exportar");
   });
 });

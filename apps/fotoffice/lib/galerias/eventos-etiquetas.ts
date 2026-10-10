@@ -18,11 +18,16 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   ORDEN: "Orden de las fotos cambiado",
   ENTRO: "El cliente entró a la galería",
   SELECCION_ENVIADA: "El cliente envió su selección",
+  SELECCION_FINALIZADA: "Selección finalizada por el estudio",
+  SELECCION_REACTIVADA: "Selección devuelta al cliente para que siga eligiendo",
   CONFIRMACION_ENVIADA: "Correo de confirmación enviado al cliente",
   CONFIRMACION_NO_ENVIADA: "El correo de confirmación al cliente no salió",
   AVISO_ESTUDIO_ENVIADO: "Aviso al estudio enviado",
   AVISO_ESTUDIO_NO_ENVIADO: "El aviso al estudio no salió",
 };
+
+/** Eventos que hace el propio cliente desde su enlace (sin usuario del estudio): en el historial el actor es el cliente. */
+export const EVENTOS_DEL_CLIENTE: readonly string[] = ["ENTRO", "SELECCION_ENVIADA"];
 
 export function etiquetaDeEvento(tipo: string): string {
   return ETIQUETA_EVENTO_GALERIA[tipo] ?? tipo;

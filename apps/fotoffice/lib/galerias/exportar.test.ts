@@ -8,9 +8,22 @@ describe("nombre sin extensión", () => {
     expect(nombreSinExtension("IMG_0012.jpg")).toBe("IMG_0012");
     expect(nombreSinExtension("IMG_0012.CR2")).toBe("IMG_0012");
     expect(nombreSinExtension("boda.final.jpeg")).toBe("boda.final");
+    expect(nombreSinExtension("DSC_1.Nef")).toBe("DSC_1");
+    expect(nombreSinExtension("A.heic")).toBe("A");
+    expect(nombreSinExtension("A.tiff")).toBe("A");
     expect(nombreSinExtension("sin-extension")).toBe("sin-extension");
     expect(nombreSinExtension(".oculto")).toBe(".oculto");
+    expect(nombreSinExtension(".jpg")).toBe(".jpg");
     expect(nombreSinExtension("  IMG_1.png ")).toBe("IMG_1");
+  });
+});
+
+describe("nombre con punto que no es extensión", () => {
+  it("no corta lo que no es una extensión de imagen o RAW conocida", () => {
+    expect(nombreSinExtension("Boda v1.2")).toBe("Boda v1.2");
+    expect(nombreSinExtension("Boda v1.2.jpg")).toBe("Boda v1.2");
+    expect(nombreSinExtension("IMG 3.final")).toBe("IMG 3.final");
+    expect(nombreSinExtension("foto.webp")).toBe("foto.webp");
   });
 });
 
@@ -74,9 +87,9 @@ describe("CSV", () => {
     ]);
     expect(csv.startsWith("﻿")).toBe(true);
     const lineas = csv.replace("﻿", "").split("\r\n");
-    expect(lineas[0]).toBe("Foto;Archivo;Comentarios");
-    expect(lineas[1]).toBe("IMG_2;IMG_2.jpg;Más luz | Sacar el cartel de atrás");
-    expect(lineas[2]).toBe("IMG_10;IMG_10.jpg;");
+    expect(lineas[0]).toBe("Archivo;Nombre sin extensión;Comentarios del cliente");
+    expect(lineas[1]).toBe("IMG_2.jpg;IMG_2;Más luz | Sacar el cartel de atrás");
+    expect(lineas[2]).toBe("IMG_10.jpg;IMG_10;");
   });
 
   it("no deja pasar fórmulas en los comentarios", () => {

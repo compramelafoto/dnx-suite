@@ -481,8 +481,8 @@ export function crearBaseEnMemoria() {
         const f = ordenar(datos[tabla].filter((x) => cumple(x, a.where)), a.orderBy)[0];
         return f ? elegir(f, a.select) : null;
       },
-      findMany: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[]; take?: number } = {}) =>
-        ordenar(datos[tabla].filter((x) => cumple(x, a.where)), a.orderBy).slice(0, a.take ?? Infinity).map((x) => elegir(x, a.select)),
+      findMany: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[]; take?: number; skip?: number } = {}) =>
+        ordenar(datos[tabla].filter((x) => cumple(x, a.where)), a.orderBy).slice(a.skip ?? 0, (a.skip ?? 0) + (a.take ?? Infinity)).map((x) => elegir(x, a.select)),
       count: async (a: { where?: Where } = {}) => datos[tabla].filter((x) => cumple(x, a.where)).length,
       findUnique: async (a: { where: Where; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));

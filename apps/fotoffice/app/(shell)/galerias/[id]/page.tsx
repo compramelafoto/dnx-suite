@@ -20,6 +20,11 @@ import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 export const dynamic = "force-dynamic";
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
+function paginaPedida(v: string | string[] | undefined): number {
+  const n = Number(Array.isArray(v) ? v[0] : v);
+  return Number.isInteger(n) && n >= 1 && n <= 10_000 ? n : 1;
+}
+
 const PESTANAS = [
   { clave: "fotos", etiqueta: "Fotos" },
   { clave: "clientes", etiqueta: "Clientes" },
@@ -59,7 +64,8 @@ export default async function FichaGaleriaPage({
   const enRevision = clientes.filter((c) => c.estado === "EN_REVISION" && !c.anulado).length;
 
   const fotos = pestana === "fotos" ? await listarFotos(ctx, id) : [];
-  const historial = pestana === "historial" ? await cargarHistorial(ctx, id) : [];
+  const pagina = pestana === "historial" ? paginaPedida((await searchParams).pagina) : 1;
+  const historial = pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: [], pagina: 1, hayMas: false };
   const sugerido =
     veContactos && !clientes.some((c) => c.clientId === ficha.contacto.id)
       ? { id: ficha.contacto.id, nombre: ficha.contacto.nombre, email: ficha.contacto.email, telefono: ficha.contacto.telefono }
@@ -241,11 +247,11 @@ export default async function FichaGaleriaPage({
               <h2 id="historial-galeria-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
                 Historial
               </h2>
-              {historial.length === 0 ? (
+              {historial.items.length === 0 ? (
                 <p className="text-sm text-[var(--fo-muted)]">Todavía no pasó nada con esta galería.</p>
               ) : (
                 <ul className="space-y-4 text-sm">
-                  {historial.map((e) => (
+                  {historial.items.map((e) => (
                     <li key={e.id} className="space-y-0.5">
                       <p className="text-xs text-[var(--fo-muted)]">
                         <time dateTime={e.fecha}>{fechaHoraBA(e.fecha)}</time>
@@ -260,6 +266,25 @@ export default async function FichaGaleriaPage({
                   ))}
                 </ul>
               )}
+              {historial.pagina > 1 || historial.hayMas ? (
+                <nav aria-label="Páginas del historial" className="flex items-center justify-between gap-2 border-t border-[var(--fo-border)] pt-3 text-sm">
+                  {historial.pagina > 1 ? (
+                    <Link href={`/galerias/${encodeURIComponent(ficha.id)}?tab=historial&pagina=${historial.pagina - 1}`} className="fo-btn fo-btn-secondary text-sm">
+                      Más nuevos
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-xs text-[var(--fo-muted)]">Página {historial.pagina}</span>
+                  {historial.hayMas ? (
+                    <Link href={`/galerias/${encodeURIComponent(ficha.id)}?tab=historial&pagina=${historial.pagina + 1}`} className="fo-btn fo-btn-secondary text-sm">
+                      Más antiguos
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                </nav>
+              ) : null}
             </section>
           ) : null}
         </div>

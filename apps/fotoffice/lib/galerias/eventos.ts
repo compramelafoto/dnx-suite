@@ -45,11 +45,12 @@ export type EventoDeGaleria = {
 };
 
 /** Los eventos de una galería, del más nuevo al más viejo (sin permisos: lo llama código ya autorizado). */
-export async function listarEventos(workspaceId: string, galeriaId: string, limite = 200): Promise<EventoDeGaleria[]> {
+export async function listarEventos(workspaceId: string, galeriaId: string, limite = 200, saltear = 0): Promise<EventoDeGaleria[]> {
   const filas = await prisma.fotofficeGaleriaEvento.findMany({
     where: { workspaceId, galeriaId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limite,
+    ...(saltear > 0 ? { skip: saltear } : {}),
     select: { id: true, type: true, galeriaClienteId: true, actorUserId: true, data: true, createdAt: true },
   });
   return filas.map((f) => ({ id: f.id, tipo: f.type, galeriaClienteId: f.galeriaClienteId, actorUserId: f.actorUserId, data: f.data, createdAt: f.createdAt }));

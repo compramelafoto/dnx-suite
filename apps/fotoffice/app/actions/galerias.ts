@@ -11,6 +11,7 @@ import {
   agregarClienteGaleria, anularEnlace, enlaceDeCliente, pedirEnvioPorCorreo, regenerarEnlace, whatsappDeCliente,
   type ResultadoCliente, type ResultadoSimpleCliente,
 } from "@/lib/galerias/clientes";
+import { finalizarSeleccion, reactivarSeleccion, responderComentario, type ResultadoRespuesta, type ResultadoTransicion } from "@/lib/galerias/revision";
 import { contextoDeGalerias } from "@/lib/galerias/contexto";
 import { enviarCorreoEnlace } from "@/lib/galerias/correos";
 import {
@@ -246,5 +247,41 @@ export async function anularEnlaceGaleriaAction(galeriaClienteId: string): Promi
   if (!ctx) return SIN_PERMISO;
   const r = await anularEnlace(ctx, galeriaClienteId);
   if (r.ok) revalidatePath("/galerias");
+  return r;
+}
+
+// --- Revisión de la selección de un cliente (Gestionar) --------------------------------------------------
+
+function refrescarRevision(galeriaId: string, galeriaClienteId: string): void {
+  revalidatePath("/galerias");
+  revalidatePath(`/galerias/${galeriaId}`);
+  revalidatePath(`/galerias/${galeriaId}/clientes/${galeriaClienteId}`);
+}
+
+/** El estudio responde en la conversación de una foto del cliente (hasta 2.000 caracteres). */
+export async function responderComentarioGaleriaAction(galeriaId: string, galeriaClienteId: string, fotoId: string, texto: string): Promise<ResultadoRespuesta> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId) || !esId(fotoId) || typeof texto !== "string") return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  return responderComentario(ctx, galeriaId, galeriaClienteId, fotoId, texto);
+}
+
+/** Cierra la selección ya revisada (sólo si el cliente la envió y espera revisión). */
+export async function finalizarSeleccionGaleriaAction(galeriaId: string, galeriaClienteId: string): Promise<ResultadoTransicion> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await finalizarSeleccion(ctx, galeriaId, galeriaClienteId);
+  if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
+  return r;
+}
+
+/** Le devuelve la selección al cliente para que siga eligiendo (conserva lo elegido). */
+export async function reactivarSeleccionGaleriaAction(galeriaId: string, galeriaClienteId: string): Promise<ResultadoTransicion> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await reactivarSeleccion(ctx, galeriaId, galeriaClienteId);
+  if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
   return r;
 }

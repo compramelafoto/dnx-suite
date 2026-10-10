@@ -14,10 +14,14 @@ export const MAX_CARACTERES_BLOQUE = 1000;
 export const SEPARADOR_LIGHTROOM = ", ";
 export const SEPARADOR_WINDOWS = " OR ";
 
-/** El nombre sin la extensión (sólo la última, de hasta 5 letras o números): "IMG_0012.CR2" → "IMG_0012". */
+/** Extensiones de imagen y RAW que se sacan del nombre. Cualquier otra cosa tras el punto ("Boda v1.2") es parte del nombre. */
+export const EXTENSIONES_CONOCIDAS = ["jpg", "jpeg", "png", "arw", "cr2", "cr3", "nef", "raf", "dng", "orf", "rw2", "heic", "tif", "tiff"] as const;
+const EXTENSION_CONOCIDA = new RegExp(`(?<=.)\\.(?:${EXTENSIONES_CONOCIDAS.join("|")})$`, "i");
+
+/** El nombre sin la extensión, sólo si es de imagen o RAW conocida: "IMG_0012.CR2" → "IMG_0012", "Boda v1.2" queda igual. */
 export function nombreSinExtension(fileName: string): string {
   const nombre = fileName.trim();
-  const sinExt = nombre.replace(/(?<=.)\.[A-Za-z0-9]{1,5}$/, "");
+  const sinExt = nombre.replace(EXTENSION_CONOCIDA, "");
   return sinExt.length > 0 ? sinExt : nombre;
 }
 
@@ -80,9 +84,9 @@ export function exportarSeleccion(fotos: readonly FotoParaExportar[]): Seleccion
 export type FilaCsvSeleccion = { fileName: string; comentarios: readonly string[] };
 
 const COLUMNAS_CSV: ColumnaExport<FilaCsvSeleccion>[] = [
-  { titulo: "Foto", tipo: "texto", valor: (f) => nombreSinExtension(f.fileName) },
   { titulo: "Archivo", tipo: "texto", valor: (f) => f.fileName },
-  { titulo: "Comentarios", tipo: "texto", valor: (f) => f.comentarios.map((c) => c.replace(/\s*\n\s*/g, " ")).join(" | ") },
+  { titulo: "Nombre sin extensión", tipo: "texto", valor: (f) => nombreSinExtension(f.fileName) },
+  { titulo: "Comentarios del cliente", tipo: "texto", valor: (f) => f.comentarios.map((c) => c.replace(/\s*\n\s*/g, " ")).join(" | ") },
 ];
 
 /** CSV para Excel (separado por punto y coma, con BOM) con una fila por foto elegida, en orden natural. */
