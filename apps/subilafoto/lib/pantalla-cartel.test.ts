@@ -22,6 +22,20 @@ describe("qué muestra la pantalla del salón", () => {
     expect(titulo(cartel)).not.toContain("Gracias");
   });
 
+  test("antes de empezar no promete que ya se puede subir", () => {
+    /*
+      La pantalla se enciende cuando el salón se está llenando, y hasta la hora de inicio
+      la carga está cerrada: quien escanee va a leer "todavía no arrancó". Si el cartel
+      dijera "subí tus fotos" estaría mandando a la gente a una puerta con llave.
+
+      Lo que sí vale es guardar el código ahora, que es justo lo que ofrece esa pantalla.
+    */
+    const cartel = cartelDePantalla({ momento: "ANTES", textoDeCierre: null });
+
+    if (cartel.tipo !== "ESPERANDO") throw new Error("se esperaba ESPERANDO");
+    expect(cartel.bajada.toLowerCase()).toContain("guard");
+  });
+
   test("durante el evento proyecta las fotos", () => {
     const cartel = cartelDePantalla({ momento: "ABIERTO", textoDeCierre: null });
 
