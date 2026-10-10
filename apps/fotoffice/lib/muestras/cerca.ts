@@ -66,7 +66,8 @@ const geocodificar = unstable_cache(
 async function resolverOrigen(candidatos: string[]): Promise<{ texto: string; coords: Coords } | null> {
   for (const texto of candidatos) {
     try {
-      const coords = await geocodificar(texto);
+      // En minúsculas: "Santa Fe" y "santa fe" son el mismo lugar y la misma entrada del caché.
+      const coords = await geocodificar(texto.toLowerCase());
       if (coords) return { texto, coords };
     } catch (error) {
       console.error("[fotoffice][muestras-cerca] no se pudo ubicar el lugar", {
