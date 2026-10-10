@@ -2,6 +2,7 @@ import { PDFDocument } from "pdf-lib";
 import { formatCm, frameLayout, type FrameSize, type Orientation } from "@repo/muestras";
 import { GRIS, MM, TINTA, bloqueCentrado, cargarFuentes, lineaPunteada, prepararDocumento } from "./dibujo";
 import type { ImagenPdf } from "./imagen";
+import { autorDeObra } from "./textos";
 
 export type ObraParaMarco = { titulo: string; autor: string; detalle: string | null; imagen: ImagenPdf | null };
 export type OpcionesMarco = { tamano: FrameSize; orientacion: Orientation; conFoto: boolean };
@@ -32,7 +33,7 @@ export async function pdfDeMarcos(muestra: string, obras: ObraParaMarco[], o: Op
     // Título y autor centrados debajo de la foto, dentro de los márgenes.
     const pie = { x: mm(l.window.x), ancho: mm(l.window.width) };
     let y = bloqueCentrado(p, obra.titulo, { ...pie, y: mm(l.captionTop), size: l.titleSizePt, font: f.negrita, color: TINTA, maxLineas: 2, interlinea: 1.15 });
-    y = bloqueCentrado(p, obra.autor, { ...pie, y: y - l.authorSizePt * 0.2, size: l.authorSizePt, font: f.normal, color: TINTA, maxLineas: 1 });
+    y = bloqueCentrado(p, autorDeObra(obra.autor), { ...pie, y: y - l.authorSizePt * 0.2, size: l.authorSizePt, font: f.normal, color: TINTA, maxLineas: 1 });
     if (obra.detalle) bloqueCentrado(p, obra.detalle, { ...pie, y, size: l.authorSizePt * 0.85, font: f.normal, color: GRIS, maxLineas: 1 });
   }
   return pdf.save();

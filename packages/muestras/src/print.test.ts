@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FRAME_SIZES, TYPICAL_IMAGE, authorIndex, catalogPlan, expectedQuality, fitInside, frameLayout, isFrameSize,
-  isOrientation, largestThatFits, printPpi, printQuality, resolveOrientation,
+  isOrientation, largestThatFits, pageRanges, printPpi, printQuality, resolveOrientation,
 } from "./print";
 
 describe("orientación", () => {
@@ -112,5 +112,14 @@ describe("catálogo", () => {
       { author: "Zoe Ruiz", pages: [2] },
       { author: "Autor sin indicar", pages: [6] },
     ]);
+  });
+});
+
+describe("pageRanges", () => {
+  it("junta las páginas seguidas en rangos", () => {
+    expect(pageRanges([3, 4, 5, 9, 11, 12])).toBe("3–5, 9, 11–12");
+    expect(pageRanges(Array.from({ length: 20 }, (_, i) => i + 3))).toBe("3–22");
+    expect(pageRanges([7])).toBe("7");
+    expect(pageRanges([])).toBe("");
   });
 });

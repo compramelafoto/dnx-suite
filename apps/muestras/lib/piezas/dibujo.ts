@@ -43,6 +43,12 @@ export function bloque(p: PDFPage, texto: string, o: OpcionesTexto): number {
   return y;
 }
 
+/** Lo que va a ocupar `bloque` (o `bloqueCentrado`) con esas opciones, sin dibujar nada. */
+export function altoDeBloque(texto: string, o: Omit<OpcionesTexto, "x" | "y" | "color">): number {
+  const lineas = cortarEnLineas(paraWinAnsi(texto), o.ancho, (s) => o.font.widthOfTextAtSize(s, o.size), o.maxLineas);
+  return lineas.length * o.size * (o.interlinea ?? 1.2);
+}
+
 /** Como `bloque`, pero cada línea centrada en `x + ancho / 2`. */
 export function bloqueCentrado(p: PDFPage, texto: string, o: OpcionesTexto): number {
   const lineas = cortarEnLineas(paraWinAnsi(texto), o.ancho, (s) => o.font.widthOfTextAtSize(s, o.size), o.maxLineas);

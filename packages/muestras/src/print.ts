@@ -170,6 +170,19 @@ export function catalogPlan(curatorialPages: number, works: number, indexPages: 
 }
 
 export type AuthorIndexEntry = { author: string; pages: number[] };
+
+/** Páginas seguidas en rangos: [3, 4, 5, 9, 11, 12] → "3–5, 9, 11–12". Entrada ordenada. */
+export function pageRanges(pages: readonly number[]): string {
+  const out: string[] = [];
+  let i = 0;
+  while (i < pages.length) {
+    let j = i;
+    while (j + 1 < pages.length && pages[j + 1] === pages[j]! + 1) j += 1;
+    out.push(j > i ? `${pages[i]}–${pages[j]}` : String(pages[i]));
+    i = j + 1;
+  }
+  return out.join(", ");
+}
 export const NO_AUTHOR = "Autor sin indicar";
 
 /**

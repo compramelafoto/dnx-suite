@@ -11,4 +11,9 @@ describe("pdfDeAficheLibro", () => {
       expect([doc.getPageCount(), Math.round(doc.getPage(0).getWidth() / MM), Math.round(doc.getPage(0).getHeight() / MM)]).toEqual([1, w, h]);
     }
   });
+  it("con la misma fecha, los mismos bytes", async () => {
+    const d = { muestra: "M", url: "https://muestrasfotograficas.com/q/l/cka1", urlVisible: "muestrasfotograficas.com/m/m/libro" };
+    const f = new Date("2026-11-01T12:00:00Z");
+    expect(Buffer.from(await pdfDeAficheLibro(d, "A4", f)).equals(Buffer.from(await pdfDeAficheLibro(d, "A4", f)))).toBe(true);
+  });
 });

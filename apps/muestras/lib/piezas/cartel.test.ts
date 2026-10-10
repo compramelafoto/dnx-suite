@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import { pdfDeCartel } from "./cartel";
+import { AVISO_TEXTO_CORTADO, pdfDeCartel, textoDelCartel } from "./cartel";
 import { MM } from "./dibujo";
 
 const datos = {
@@ -28,5 +28,41 @@ describe("pdfDeCartel", () => {
     const a = await pdfDeCartel(datos, "A3", fecha);
     const b = await pdfDeCartel(datos, "A3", fecha);
     expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
+  });
+});
+
+describe("textoDelCartel", () => {
+  // Cada carácter mide medio punto por punto de letra.
+  const medir = (size: number) => (s: string) => s.length * size * 0.5;
+  it("un texto corto crece hasta 26 pt (por la escala) y no se corta", () => {
+    const t = textoDelCartel("Breve.", 500, 600, 1, medir);
+    expect(t.size).toBe(26);
+    expect(t.cortado).toBe(false);
+    expect(t.lineas).toEqual(["Breve."]);
+    expect(textoDelCartel("Breve.", 500, 600, 2, medir).size).toBe(52);
+  });
+  it("con más texto, la letra más grande que entra", () => {
+    const t = textoDelCartel("palabra ".repeat(200).trim(), 500, 600, 1, medir);
+    expect(t.size).toBeGreaterThanOrEqual(11);
+    expect(t.size).toBeLessThan(26);
+    expect(t.cortado).toBe(false);
+    expect(t.altoBloque).toBeLessThanOrEqual(600);
+  });
+  it("si ni con 11 pt entra, corta con \"…\" y avisa que sigue en la página", () => {
+    const t = textoDelCartel("palabra ".repeat(3000).trim(), 500, 600, 1, medir);
+    expect(t.size).toBe(11);
+    expect(t.cortado).toBe(true);
+    expect(t.lineas.at(-1)).toMatch(/…$/);
+    expect(t.altoBloque).toBeLessThanOrEqual(600);
+    expect(AVISO_TEXTO_CORTADO).toBe("Texto completo en la página de la muestra (QR)");
+  });
+  it("nunca deja el \"…\" solo en la línea vacía entre párrafos", () => {
+    // Párrafos de una línea: el corte cae justo en una línea vacía.
+    const parrafos = Array.from({ length: 200 }, (_, i) => `Párrafo ${i}.`).join("\n");
+    for (const alto of [100, 117, 130, 150, 171]) {
+      const t = textoDelCartel(parrafos, 500, alto, 1, medir);
+      expect(t.cortado).toBe(true);
+      expect(t.lineas.at(-1)).not.toBe("…");
+    }
   });
 });

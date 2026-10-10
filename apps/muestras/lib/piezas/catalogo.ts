@@ -1,6 +1,6 @@
 import { PDFDocument, type PDFPage } from "pdf-lib";
-import { CATALOG_SIZES, NO_AUTHOR, authorIndex, catalogPlan, fitInside, type CatalogSize } from "@repo/muestras";
-import { paraWinAnsi } from "@/lib/fichas/texto";
+import { CATALOG_SIZES, NO_AUTHOR, authorIndex, catalogPlan, fitInside, pageRanges, type AuthorIndexEntry, type CatalogSize } from "@repo/muestras";
+import { cortarEnLineas } from "@/lib/fichas/texto";
 import { GRIS, LINEA, MM, TINTA, bloque, bloqueCentrado, cargarFuentes, dibujarLineas, dibujarQr, lineasConParrafos, prepararDocumento, type Fuentes } from "./dibujo";
 import type { ImagenPdf } from "./imagen";
 import type { DatosCartel } from "./textos";
@@ -9,6 +9,24 @@ export type ObraCatalogo = { titulo: string; autor: string; detalle: string | nu
 export type DatosCatalogo = Omit<DatosCartel, "horarios"> & { horarios?: string | null; urlVisible: string; portada: ImagenPdf | null; obras: ObraCatalogo[] };
 
 const INTERLINEA = 1.4;
+
+/** Un renglón del índice: autor a la izquierda y páginas a la derecha, o páginas sueltas con sangría. */
+export type RenglonIndice = { autor: string | null; paginas: string | null };
+
+/**
+ * Los renglones del índice. Las páginas van en rangos ("3–22"); si aun así no entran al lado del
+ * nombre (más del 60 % del ancho), pasan a renglones propios debajo, cortados al ancho.
+ */
+export function renglonesDelIndice(indice: AuthorIndexEntry[], util: number, sangria: number, medir: (s: string) => number): RenglonIndice[] {
+  return indice.flatMap((ent) => {
+    const paginas = pageRanges(ent.pages);
+    if (medir(paginas) <= util * 0.6) return [{ autor: ent.author, paginas }];
+    return [
+      { autor: ent.author, paginas: null },
+      ...cortarEnLineas(paginas, util - sangria, medir, Number.POSITIVE_INFINITY).map((l) => ({ autor: null, paginas: l })),
+    ];
+  });
+}
 
 function trozos<T>(arr: T[], n: number): T[][] {
   const out: T[][] = [];
@@ -35,13 +53,16 @@ export async function pdfDeCatalogo(d: DatosCatalogo, tamano: CatalogSize, fecha
   // Primero se cortan texto e índice: de eso dependen los números de página.
   const cuerpo = 10 * e;
   const lineasPorPagina = Math.floor((H - 2 * m - 30 * e) / (cuerpo * INTERLINEA));
+  const medir = (s: string) => f.normal.widthOfTextAtSize(s, cuerpo);
+  // La curaduría también se corta al ancho: unos créditos largos no se salen de la página.
   const lineasTexto = d.texto
-    ? [...lineasConParrafos(d.texto, util, (s) => f.normal.widthOfTextAtSize(s, cuerpo)), ...(d.curaduria ? ["", paraWinAnsi(d.curaduria)] : [])]
+    ? [...lineasConParrafos(d.texto, util, medir), ...(d.curaduria ? ["", ...lineasConParrafos(d.curaduria, util, medir)] : [])]
     : [];
   const paginasTexto = trozos(lineasTexto, lineasPorPagina);
   const primeraObra = 2 + paginasTexto.length;
   const indice = authorIndex(d.obras.map((o, i) => ({ authorName: o.autor, page: primeraObra + i })));
-  const paginasIndice = trozos(indice, lineasPorPagina);
+  const sangria = 8 * e;
+  const paginasIndice = trozos(renglonesDelIndice(indice, util, sangria, medir), lineasPorPagina);
   const plan = catalogPlan(paginasTexto.length, d.obras.length, paginasIndice.length);
 
   const nueva = (n: number) => {
@@ -81,12 +102,15 @@ export async function pdfDeCatalogo(d: DatosCatalogo, tamano: CatalogSize, fecha
   (paginasIndice.length ? paginasIndice : [[]]).forEach((entradas, i) => {
     const p = nueva(plan.indexFirstPage + i);
     let y = i === 0 ? encabezado(p, "Índice de autores") : H - m;
-    for (const ent of entradas) {
+    for (const r of entradas) {
       y -= cuerpo * INTERLINEA;
-      const paginas = ent.pages.join(", ");
-      const anchoPag = f.normal.widthOfTextAtSize(paginas, cuerpo);
-      bloque(p, ent.author, { x: m, y: y + cuerpo * 1.2, ancho: util - anchoPag - 6 * e, size: cuerpo, font: f.normal, color: TINTA, maxLineas: 1 });
-      p.drawText(paginas, { x: W - m - anchoPag, y, size: cuerpo, font: f.normal, color: GRIS });
+      const anchoPag = r.paginas ? medir(r.paginas) : 0;
+      if (r.autor) {
+        bloque(p, r.autor, { x: m, y: y + cuerpo * 1.2, ancho: util - anchoPag - 6 * e, size: cuerpo, font: f.normal, color: TINTA, maxLineas: 1 });
+        if (r.paginas) p.drawText(r.paginas, { x: W - m - anchoPag, y, size: cuerpo, font: f.normal, color: GRIS });
+      } else if (r.paginas) {
+        p.drawText(r.paginas, { x: m + sangria, y, size: cuerpo, font: f.normal, color: GRIS });
+      }
     }
   });
 
