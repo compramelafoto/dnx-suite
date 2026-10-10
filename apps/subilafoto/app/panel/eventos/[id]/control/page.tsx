@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
@@ -11,9 +10,14 @@ import {
   enlacesDeVariantes,
 } from "@/lib/moderacion/vista";
 import { revisarFoto } from "@/app/actions/moderacion";
+import { Vigilancia } from "./vigilancia";
 
 export const dynamic = "force-dynamic";
-/** Se recarga sola: el fotógrafo no va a estar tocando "actualizar" en la fiesta. */
+/*
+  `revalidate = 0` evita que la respuesta quede en caché, pero NO hace que la página se
+  vuelva a pedir: eso lo hace `<Vigilancia />`, que la refresca cada ocho segundos y
+  muestra hace cuánto. Sin ese componente la lista se queda en la de cuando se abrió.
+*/
 export const revalidate = 0;
 
 type Props = { params: Promise<{ id: string }> };
@@ -80,7 +84,10 @@ export default async function Control({ params }: Props) {
   return (
     <main className="sobre-claro mx-auto max-w-3xl px-4 py-8">
 
-      <h1 className="mt-4 text-2xl font-extrabold tracking-[-0.02em]">En la pantalla</h1>
+      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-2xl font-extrabold tracking-[-0.02em]">En la pantalla</h1>
+        <Vigilancia />
+      </div>
       <p className="mt-2 leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>
         {enPantalla.length === 0
           ? "Todavía no hay nada proyectándose."
@@ -111,7 +118,6 @@ export default async function Control({ params }: Props) {
                 style={{ background: "var(--slf-crema)" }}
               >
                 <p className="text-sm font-extrabold">Saludo grabado</p>
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                 <audio src={audios[foto.id]} controls className="w-full" preload="none" />
               </div>
             ) : (

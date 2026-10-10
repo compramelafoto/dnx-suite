@@ -1,5 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
 import { estiloLegible } from "@/lib/estilo-de-tema";
@@ -10,6 +12,7 @@ import { BannerDelFotografo } from "../banner-del-fotografo";
 import { LogoDelFotografo } from "../logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
+import { puedeElegirVarias } from "@/lib/quien-sube";
 import { Cargador } from "./cargador";
 import { GrabarAudio } from "./grabar-audio";
 import { DejarMensaje } from "./mensaje";
@@ -36,12 +39,31 @@ export default async function Subir({ params }: Props) {
       hostsLabel: true,
       coverUrl: true,
       sellerProfile: {
-        select: { logoUrl: true, displayName: true, bannerUrl: true, bannerLinkUrl: true },
+        select: {
+          userId: true,
+          logoUrl: true,
+          displayName: true,
+          bannerUrl: true,
+          bannerLinkUrl: true,
+        },
       },
     },
   });
 
   if (!evento) notFound();
+
+  /*
+    Quién está mirando. El invitado entra por el QR sin cuenta y elige las fotos de a una;
+    el organizador entra con su sesión de la suite y las elige de a muchas, porque está
+    cargando el material del evento. La regla está en `lib/quien-sube.ts`.
+  */
+  const almacen = await cookies();
+  const token = almacen.get(DNX_SESSION_COOKIE)?.value;
+  const usuario = token ? await getSessionUserByRawToken(token) : null;
+  const variasALaVez = puedeElegirVarias({
+    usuarioId: usuario?.id ?? null,
+    duenoId: evento.sellerProfile.userId,
+  });
 
   const tema = resolverTema(evento.themeTokens);
   const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
@@ -87,7 +109,7 @@ export default async function Subir({ params }: Props) {
           <p className="mt-4 mb-10 max-w-[34ch] opacity-80">
             Elegí las fotos de tu galería o sacá una nueva.
           </p>
-          <Cargador codigo={clave} tema={tema} />
+          <Cargador codigo={clave} tema={tema} variasALaVez={variasALaVez} />
           <BarraDeReacciones codigo={clave} acento={tema.acento} />
           {evento.allowMessages ? (
             <>
