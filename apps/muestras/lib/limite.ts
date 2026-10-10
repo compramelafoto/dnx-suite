@@ -102,6 +102,9 @@ export const LIMITES = {
   guardarMontaje: { limit: 120, windowMs: 60 * 60_000 },
   moderarLibro: { limit: 600, windowMs: 10 * 60_000 },
   cambiarModoLibro: { limit: 60, windowMs: 60 * 60_000 },
+  // Etapa 5: equipo de la muestra.
+  invitarEquipo: { limit: 30, windowMs: 60 * 60_000 },
+  aceptarEquipo: { limit: 20, windowMs: 60 * 60_000 },
 } as const;
 
 /**
