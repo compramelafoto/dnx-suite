@@ -33,6 +33,7 @@ describe("catálogo de variables", () => {
       "cuota_vence", "cuota_importe", "cuota_link_pago",
       "cita_titulo", "cita_fecha", "cita_hora", "cita_lugar",
       "contrato_numero", "contrato_enlace", "contrato_codigo", "firmante_nombre",
+      "galeria_numero", "galeria_nombre", "galeria_enlace", "galeria_cantidad",
       "socio_numero",
     ]);
     for (const v of VARIABLES) {

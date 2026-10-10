@@ -38,6 +38,8 @@ export type ContextoVariables = {
   cita?: { titulo: string | null; fecha: string | null; hora: string | null; lugar: string | null };
   /** Sólo en los correos del contrato (etapa 5): ya formateados. El código nunca se guarda en el registro. */
   contrato?: { numero: string | null; enlace: string | null; codigo: string | null; firmante: string | null };
+  /** Sólo en los correos de la galería (etapa 7): ya formateados. */
+  galeria?: { numero: string | null; nombre: string | null; enlace: string | null; cantidad: string | null };
   /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
   listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
@@ -45,7 +47,7 @@ export type ContextoVariables = {
 };
 
 export type GrupoVariable =
-  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Contrato" | "Socio" | "Campos";
+  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Contrato" | "Galería" | "Socio" | "Campos";
 
 export type DefinicionVariable = {
   clave: string;
@@ -66,6 +68,7 @@ const SOCIO: readonly TipoPlantilla[] = ["SOCIO"];
 const PEDIDO: readonly TipoPlantilla[] = ["PEDIDO"];
 const CITA: readonly TipoPlantilla[] = ["CITA"];
 const CONTRATO: readonly TipoPlantilla[] = ["CONTRATO"];
+const GALERIA: readonly TipoPlantilla[] = ["GALERIA"];
 const CON_CAMPOS: readonly TipoPlantilla[] = ["CLIENTE", "SOCIO", "CONSULTA"];
 
 function limpio(v: string | null | undefined): string | null {
@@ -165,6 +168,11 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "contrato_enlace", etiqueta: "Enlace para firmar", descripcion: "La dirección personal de cada firmante para leer y firmar el contrato.", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.enlace) },
   { clave: "contrato_codigo", etiqueta: "Código de verificación", descripcion: "El código de 6 dígitos para firmar (sólo en el correo del código).", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.codigo) },
   { clave: "firmante_nombre", etiqueta: "Nombre del firmante", descripcion: "El nombre de quien tiene que firmar.", grupo: "Contrato", tipos: CONTRATO, obtener: (c) => limpio(c.contrato?.firmante) },
+  // Galería (etapa 7)
+  { clave: "galeria_numero", etiqueta: "Número de galería", descripcion: "El número de la galería.", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.numero) },
+  { clave: "galeria_nombre", etiqueta: "Nombre de la galería", descripcion: "El nombre de la galería.", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.nombre) },
+  { clave: "galeria_enlace", etiqueta: "Enlace a la galería", descripcion: "La dirección personal de cada cliente para ver las fotos y elegir.", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.enlace) },
+  { clave: "galeria_cantidad", etiqueta: "Fotos elegidas", descripcion: "La cantidad de fotos que el cliente eligió (sólo en la copia de la selección enviada).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.cantidad) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];

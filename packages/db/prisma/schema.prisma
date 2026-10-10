@@ -7242,6 +7242,13 @@ model Workspace {
   fotofficeContratoVersiones     FotofficeContratoVersion[]
   fotofficeContratoFirmantes     FotofficeContratoFirmante[]
   fotofficeContratoEventos       FotofficeContratoEvento[]
+  fotofficeGalerias              FotofficeGaleria[]
+  fotofficeGaleriaFotos          FotofficeGaleriaFoto[]
+  fotofficeGaleriaClientes       FotofficeGaleriaCliente[]
+  fotofficeGaleriaSelecciones    FotofficeGaleriaSeleccion[]
+  fotofficeGaleriaComentarios    FotofficeGaleriaComentario[]
+  fotofficeGaleriaEventos        FotofficeGaleriaEvento[]
+  fotofficeGaleriaAjustes        FotofficeGaleriaAjustes?
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -18613,6 +18620,7 @@ model Client {
   fotofficePedidoContratantes      FotofficePedidoContratante[]
   fotofficeContratos               FotofficeContrato[]
   fotofficeContratoFirmas          FotofficeContratoFirmante[]
+  fotofficeGaleriaClientes         FotofficeGaleriaCliente[]
   fotofficeCitaParticipaciones     FotofficeCitaParticipante[]
 
   @@unique([workspaceId, clientNumber])
@@ -21331,6 +21339,7 @@ model FotofficeProyecto {
   adjuntos      FotofficeProyectoAdjunto[]
   planes        FotofficeProyectoEtapaPlan[]
   citas         FotofficeCita[]
+  galerias      FotofficeGaleria[]
 
   @@unique([workspaceId, number])
   @@unique([pedidoId, pedidoItemIndex, circuitId])
@@ -23339,6 +23348,185 @@ model FotofficeContratoAjustes {
   reminderEnabled     Boolean  @default(false)
   reminderDays        Int      @default(3)
   updatedAt           DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Galería de fotos de un Proyecto (etapa 7): selección del cliente (A1), venta (A2) y entrega (B).
+/// Estados, modos y tipos van como texto con CHECK en el SQL (como Contratos): `saleMode`
+/// SELECCION|SELECCION_Y_VENTA|VENTA, `kind` SELECCION|ENTREGA, `selectionMode` LIBRE|CANTIDAD
+/// (con `minSelect`/`maxSelect` coherentes), `downloadMode` NINGUNA|VISTA|SELECCIONADAS,
+/// `status` BORRADOR|PUBLICADA|ARCHIVADA y `orderMode` NOMBRE|MANUAL.
+model FotofficeGaleria {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  proyectoId      String
+  number          String
+  name            String
+  message         String?
+  saleMode        String    @default("SELECCION")
+  kind            String    @default("SELECCION")
+  selectionMode   String    @default("LIBRE")
+  minSelect       Int?
+  maxSelect       Int?
+  allowComments   Boolean   @default(true)
+  downloadMode    String    @default("VISTA")
+  status          String    @default("BORRADOR")
+  coverFotoId     String?   @unique
+  orderMode       String    @default("NOMBRE")
+  publishedAt     DateTime?
+  archivedAt      DateTime?
+  ownerUserId     Int?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto         @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  coverFoto FotofficeGaleriaFoto?     @relation("GaleriaPortada", fields: [coverFotoId], references: [id], onDelete: SetNull)
+  fotos     FotofficeGaleriaFoto[]    @relation("GaleriaFotos")
+  clientes  FotofficeGaleriaCliente[]
+  eventos   FotofficeGaleriaEvento[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([proyectoId])
+}
+
+/// Foto de una galería. El original vive en el R2 privado; `viewKey` (2048 px) y `thumbKey` (480 px)
+/// los genera el servidor. `status` PENDIENTE|LISTA|ERROR (CHECK en el SQL).
+model FotofficeGaleriaFoto {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  galeriaId        String
+  fileName         String
+  originalKey      String   @unique
+  viewKey          String?
+  thumbKey         String?
+  status           String   @default("PENDIENTE")
+  errorReason      String?
+  sizeBytes        BigInt?
+  width            Int?
+  height           Int?
+  order            Int      @default(0)
+  attempts         Int      @default(0)
+  uploadedByUserId Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria     FotofficeGaleria             @relation("GaleriaFotos", fields: [galeriaId], references: [id], onDelete: Cascade)
+  portadaDe   FotofficeGaleria?            @relation("GaleriaPortada")
+  selecciones FotofficeGaleriaSeleccion[]
+  comentarios FotofficeGaleriaComentario[]
+
+  @@index([galeriaId, status])
+  @@index([galeriaId, order])
+  @@index([workspaceId])
+}
+
+/// Quien mira y elige en una galería. El enlace se guarda sólo como hash (`tokenHash`); el token se
+/// re-deriva con `tokenIssuedAt`. `status` EN_PROGRESO|EN_REVISION|FINALIZADO (CHECK en el SQL).
+/// En el SQL hay además un índice único parcial `(galeriaId, clientId)` cuando `clientId` no es nulo.
+model FotofficeGaleriaCliente {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  galeriaId     String
+  clientId      String?
+  name          String
+  email         String?
+  phone         String?
+  tokenHash     String    @unique
+  tokenIssuedAt DateTime
+  revokedAt     DateTime?
+  status        String    @default("EN_PROGRESO")
+  firstSeenAt   DateTime?
+  lastSeenAt    DateTime?
+  submittedAt   DateTime?
+  submitMessage String?
+  finalizedAt   DateTime?
+  reopenedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria     FotofficeGaleria             @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  client      Client?                      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  selecciones FotofficeGaleriaSeleccion[]
+  comentarios FotofficeGaleriaComentario[]
+  eventos     FotofficeGaleriaEvento[]
+
+  @@index([galeriaId, status])
+  @@index([clientId])
+  @@index([workspaceId])
+}
+
+/// Foto elegida por un cliente de la galería (única por cliente y foto).
+model FotofficeGaleriaSeleccion {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  galeriaClienteId String
+  fotoId           String
+  createdAt        DateTime @default(now())
+
+  workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+  foto           FotofficeGaleriaFoto    @relation(fields: [fotoId], references: [id], onDelete: Cascade)
+
+  @@unique([galeriaClienteId, fotoId])
+  @@index([fotoId])
+  @@index([workspaceId])
+}
+
+/// Comentario sobre una foto. `author` CLIENTE|ESTUDIO; `body` no vacío y de hasta 2000 caracteres (CHECK en el SQL).
+model FotofficeGaleriaComentario {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  galeriaClienteId String
+  fotoId           String
+  author           String
+  authorUserId     Int?
+  body             String
+  createdAt        DateTime @default(now())
+
+  workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+  foto           FotofficeGaleriaFoto    @relation(fields: [fotoId], references: [id], onDelete: Cascade)
+
+  @@index([galeriaClienteId, fotoId])
+  @@index([fotoId])
+  @@index([workspaceId])
+}
+
+/// Historial de la galería (sólo se agrega).
+model FotofficeGaleriaEvento {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  galeriaId        String
+  galeriaClienteId String?
+  type             String
+  actorUserId      Int?
+  data             Json?
+  createdAt        DateTime @default(now())
+
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria        FotofficeGaleria         @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente? @relation(fields: [galeriaClienteId], references: [id], onDelete: SetNull)
+
+  @@index([galeriaId, createdAt])
+  @@index([galeriaClienteId])
+  @@index([workspaceId])
+}
+
+/// Valores por omisión al crear una galería (Configuración → Galería).
+model FotofficeGaleriaAjustes {
+  id                   String   @id @default(cuid())
+  workspaceId          String   @unique
+  defaultMessage       String?
+  defaultSelectionMode String   @default("LIBRE")
+  defaultAllowComments Boolean  @default(true)
+  defaultDownloadMode  String   @default("VISTA")
+  updatedAt            DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

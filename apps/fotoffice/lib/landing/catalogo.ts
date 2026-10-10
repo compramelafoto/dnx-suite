@@ -298,6 +298,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "gallery",
+    cuadro: "26",
+    nombre: "Galería",
+    resuelve:
+      "Subís las fotos de un proyecto y cada cliente recibe su enlace personal: mira las fotos en el celular, elige las que quiere para el álbum o el fotolibro, deja un comentario en las que necesitan un ajuste y te manda su selección. Vos ves qué eligió cada uno, lo exportás con los nombres de archivo listos para pegar en Lightroom, y cerrás la selección cuando está lista.",
+    pantallas: [
+      "Subida de fotos con miniaturas y vistas livianas",
+      "Un enlace personal por cliente",
+      "Selección, comentarios y envío desde el celular",
+      "Revisión y exportación para Lightroom",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",
