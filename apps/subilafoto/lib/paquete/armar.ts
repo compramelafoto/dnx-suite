@@ -48,7 +48,12 @@ export async function armarPaquete(eventoId: string): Promise<ResultadoDelArmado
         fiesta, y un saludo proyectado en la pared esa noche es parte del material: se
         dibuja como imagen, igual que en la pantalla.
       */
-      kind: { in: ["PHOTO", "MESSAGE"] },
+      /*
+        Los audios también van al paquete, como archivo. El cliente pagó por todo el
+        material de su fiesta y un saludo grabado es parte: es la voz de alguien que
+        estuvo esa noche.
+      */
+      kind: { in: ["PHOTO", "MESSAGE", "AUDIO"] },
     },
     // El mismo orden en cada generación: si cambiara, la foto 007 de un cliente
     // no sería la misma que la de ayer.
@@ -147,7 +152,7 @@ export async function armarPaquete(eventoId: string): Promise<ResultadoDelArmado
 
 type FotoDelPaquete = {
   id: string;
-  kind: "PHOTO" | "VIDEO" | "MESSAGE";
+  kind: "PHOTO" | "VIDEO" | "MESSAGE" | "AUDIO";
   originalKey: string;
   originalBytes: number | null;
   checksum: string | null;

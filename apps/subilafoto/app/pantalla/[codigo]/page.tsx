@@ -7,7 +7,12 @@ import { qrDelEvento } from "@/lib/qr";
 import { estiloDeTema } from "@/lib/estilo-de-tema";
 import { resolverTema } from "@/lib/tema";
 import { urlDelCodigo } from "@/lib/url-invitado";
-import { DURACION, SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
+import {
+  DURACION,
+  SELECT_DE_VARIANTES,
+  enlaceParaMirar,
+  enlacesDeVariantes,
+} from "@/lib/moderacion/vista";
 import { Proyeccion, type ItemEnVivo } from "./proyeccion";
 
 export const dynamic = "force-dynamic";
@@ -99,6 +104,11 @@ export default async function Pantalla({ params }: Props) {
     where: {
       ...condicionDePublicadas(evento.id),
       // Los mensajes se proyectan entre las fotos, como un globo de chat.
+      /*
+        Sin audios: en un salón el DJ tiene la música puesta y el parlante de un
+        televisor no se escucha. Se graban y van a la descarga del cliente, pero no se
+        proyectan. El fotógrafo los escucha en Control en vivo.
+      */
       kind: { in: ["PHOTO", "MESSAGE"] },
     },
     orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
@@ -118,7 +128,9 @@ export default async function Pantalla({ params }: Props) {
   // proyecta —un recuadro roto en la pared del salón es peor que una foto de menos.
   const enlaces = await enlacesDeVariantes(enOrden, "pantalla", DURACION.proyeccion);
 
+
   const iniciales: ItemEnVivo[] = enOrden.flatMap((f, i): ItemEnVivo[] => {
+
     if (f.kind === "MESSAGE") {
       // Un mensaje no tiene archivo: su contenido es el texto.
       return f.caption

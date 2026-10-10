@@ -3,10 +3,12 @@ import { sacarSiYaSeVio } from "./pantalla-una-sola-vez";
 
 type Item =
   | { tipo: "FOTO"; id: string; url: string }
-  | { tipo: "MENSAJE"; id: string; texto: string };
+  | { tipo: "MENSAJE"; id: string; texto: string }
+  | { tipo: "AUDIO"; id: string; url: string };
 
 const foto = (id: string): Item => ({ tipo: "FOTO", id, url: `u/${id}` });
 const mensaje = (id: string): Item => ({ tipo: "MENSAJE", id, texto: "hola" });
+const audio = (id: string): Item => ({ tipo: "AUDIO", id, url: `a/${id}` });
 
 describe("qué sale de la rotación después de mostrarse", () => {
   test("un mensaje se muestra una vez y se va", () => {
@@ -18,6 +20,16 @@ describe("qué sale de la rotación después de mostrarse", () => {
     const lista = [foto("a"), mensaje("m1"), foto("b")];
 
     expect(sacarSiYaSeVio(lista, mensaje("m1")).map((i) => i.id)).toEqual(["a", "b"]);
+  });
+
+  test("un saludo grabado suena una vez y se va", () => {
+    /*
+      Con un audio es peor que con un texto: repetirlo es volver a hacer sonar la misma
+      voz por los parlantes del salón.
+    */
+    const lista = [foto("a"), audio("au1"), foto("b")];
+
+    expect(sacarSiYaSeVio(lista, audio("au1")).map((i) => i.id)).toEqual(["a", "b"]);
   });
 
   test("una foto se queda y vuelve a aparecer", () => {

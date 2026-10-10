@@ -485,6 +485,7 @@ export function Proyeccion({
         .slf-emoji-vuela {
           animation: slf-sube ${VUELO_MS}ms ease-out forwards;
         }
+
         /* Si alguien configuró su equipo para no ver animaciones, se respeta. */
         @media (prefers-reduced-motion: reduce) {
           .slf-emoji-vuela { animation-duration: 1ms; }
@@ -577,3 +578,4 @@ function GloboDeChat({
     </div>
   );
 }
+

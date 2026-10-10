@@ -391,3 +391,47 @@ los enlaces a mano.
 Ahora lo primero que muestra es la pregunta que trae al panel —si se puede vender o no—,
 con el enlace publicado o lo que falta para publicarlo, y si Mercado Pago está conectado.
 Después la lista, con el estado de cada evento y cuántas fotos tiene.
+
+## Lo que cambió después (2026-10-09)
+
+### El enlace de descarga nunca había funcionado
+
+Desde que se escribió hasta el 2026-10-09, **ninguna descarga funcionó**: R2 devolvía
+`403 SignatureDoesNotMatch` en todos los casos.
+
+La ruta firmaba la dirección y después le pegaba `&response-content-disposition=` con el
+nombre del archivo. SigV4 cubre los parámetros de la consulta, así que agregar uno
+después de firmar invalida la firma. Ahora el nombre viaja dentro del `GetObjectCommand`,
+antes de firmar.
+
+**Ningún test lo alcanzaba** y los tipos estaban bien: sólo se ve haciendo clic de verdad,
+con un archivo real, en producción. Es el mismo patrón de otros defectos de este
+proyecto: lo que no se ejercita como en la vida real, no está probado.
+
+De paso la firma de descarga pasó de 60 segundos a una hora. Un ZIP de varios gigas con
+mala conexión se corta y el navegador reintenta con la misma dirección; con un minuto la
+descarga fallaba a la mitad y el cliente creía que el enlace estaba roto.
+
+### El paquete ya no es sólo fotos
+
+| Qué | Cómo entra al ZIP |
+|---|---|
+| Fotos | El archivo original |
+| Mensajes escritos | **Como imagen**, con el mismo globo de chat que se proyecta |
+| Saludos grabados | El archivo de audio |
+
+Un `.txt` suelto entre trescientas fotos no lo abre nadie: lo que se guarda y se comparte
+es una imagen. Por eso los mensajes se dibujan en vez de escribirse.
+
+**Un SVG es XML**, así que el texto del mensaje se escapa antes de dibujarlo: sin eso, un
+saludo con `&` no parsea y **falla el armado del paquete entero**. Y el checksum del
+manifiesto se calcula sobre la imagen que entra al ZIP, no sobre el texto.
+
+Limitación conocida: los emojis de un mensaje salen monocromos o como cuadraditos, según
+las fuentes del servidor. Resolverlo pide empaquetar una fuente de emojis en la función.
+
+### Los saludos grabados no se proyectan
+
+Se graban, el fotógrafo los escucha en Control en vivo y van en la descarga, pero **no
+suenan en el salón**: el DJ tiene la música puesta y el parlante de un televisor no se
+escucha. El invitado lo sabe antes de grabar.
