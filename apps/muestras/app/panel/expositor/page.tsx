@@ -5,7 +5,7 @@ import { resumenDeObras } from "@/lib/expositores/mapear";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Donde expongo" };
+export const metadata = { title: "Dónde expongo" };
 
 export default async function DondeExpongo() {
   const usuario = await requireUsuario("/panel/expositor");
@@ -13,7 +13,7 @@ export default async function DondeExpongo() {
   return (
     <main className="max-w-3xl space-y-10">
       <header className="space-y-3">
-        <h1 className="mf-titulo text-[clamp(2.2rem,4vw,3rem)]">Donde expongo</h1>
+        <h1 className="mf-titulo text-[clamp(2.2rem,4vw,3rem)]">Dónde expongo</h1>
         <p className="text-lg leading-snug text-[var(--mf-muted)]">Las muestras a las que te sumaste con el enlace de quien organiza, y tus obras en cada una.</p>
       </header>
       {filas.length === 0 ? (

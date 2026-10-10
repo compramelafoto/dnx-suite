@@ -73,7 +73,7 @@ export async function miFilaEnMuestra(activityId: string, userId: number) {
   });
 }
 
-/** "Donde expongo": las muestras donde esta persona se sumó, con el estado de sus obras. */
+/** "Dónde expongo": las muestras donde esta persona se sumó, con el estado de sus obras. */
 export async function misParticipaciones(usuario: Quien) {
   const filas = await prisma.culturalExhibitor.findMany({
     where: { userId: usuario.id },
@@ -165,7 +165,7 @@ export async function pendientesPorMuestra(ids: string[]): Promise<Map<string, n
   return new Map(filas.map((f) => [f.activityId, f._count._all]));
 }
 
-/** Para la tarjeta "Donde expongo" del inicio: obras propias con cambios pedidos. */
+/** Para la tarjeta "Dónde expongo" del inicio: obras propias con cambios pedidos. */
 export async function misObrasConCambios(usuario: Quien): Promise<number> {
   return prisma.culturalExhibitorWork.count({ where: { status: "CHANGES_REQUESTED", exhibitor: { userId: usuario.id, status: "ACTIVE" } } });
 }

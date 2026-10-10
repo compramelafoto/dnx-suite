@@ -44,7 +44,7 @@ export default async function SumarseComoExpositor({ params }: Props) {
       {r.estado !== "OPEN" ? (
         <p className="text-lg">
           Este enlace ya no recibe expositores. Si ya te sumaste, entrá a{" "}
-          <Link href="/panel/expositor" className={claseEnlace}>&quot;Donde expongo&quot;</Link> en tu panel.
+          <Link href="/panel/expositor" className={claseEnlace}>&quot;Dónde expongo&quot;</Link> en tu panel.
         </p>
       ) : (
         <>

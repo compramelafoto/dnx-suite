@@ -30,7 +30,7 @@ const pesos = (s: string) => {
 };
 
 /**
- * Una obra del expositor desde el formulario de "Donde expongo" (spec D5). La foto sólo cuenta si
+ * Una obra del expositor desde el formulario de "Dónde expongo" (spec D5). La foto sólo cuenta si
  * la subió esta misma persona por nuestra ruta (`<R2>/muestras/<userId>/<id>.webp`).
  */
 export function obraDesdeFormData(fd: FormData, base: string | null, userId: number): ObraDelFormulario {

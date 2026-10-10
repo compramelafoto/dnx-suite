@@ -399,7 +399,7 @@ git commit -m "Muestras: regla única de visibilidad por punto de entrada, con s
   - `EDITIONS`, `EDITION_LABELS`; `EXHIBITOR_WORK_STATUSES`, `EXHIBITOR_WORK_STATUS_LABELS` (para quien expone), `EXHIBITOR_WORK_STATUS_LABELS_ORGANIZER`.
   - `exhibitorLinkState(link, activity, now)`; `exhibitorJoinProblems(p)` (`maxExhibitors: number | null`); `exhibitorCountProblem({ current, max: number | null })`; `exhibitorWorkProblems(w, { forSubmit })`; `exhibitorWorkTransition(action, status, ctx)`; `editionText`, `sizeText`, `fichaDetail`; `toActivityWork(ew, exhibitor, sortOrder)`; `pendingReviewCount(rows)`.
 - Produces (`portfolio.ts`): `PORTFOLIO_MAX_PHOTOS = 60`, `PORTFOLIO_PREVIEW = 8`, `PORTFOLIO_TEXT_LIMITS = { title: 160, technique: 160, caption: 300 }`, `portfolioPhotoProblems(p: { imageUrl; title; year; exhibitedUrls: ReadonlySet<string>; count; isNew })`, `portfolioPreview(photos)`.
-- `panel.ts`: sección `s("expositor", "Donde expongo", "/panel/expositor", "CUENTA")` después de "Mis envíos".
+- `panel.ts`: sección `s("expositor", "Dónde expongo", "/panel/expositor", "CUENTA")` después de "Mis envíos".
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
@@ -536,7 +536,7 @@ describe("foto del portfolio", () => {
   });
 });
 ```
-Sumar a `panel.test.ts`: "Donde expongo" lista, en "Tu cuenta".
+Sumar a `panel.test.ts`: "Dónde expongo" lista, en "Tu cuenta".
 
 - [ ] **Step 2: Correr y ver que fallan**
 
@@ -1345,7 +1345,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implementar**
 
-`app/expositores/[token]/page.tsx`: `dynamic = "force-dynamic"`; `robots: { index: false, follow: false }`, `referrer: "no-referrer"`; freno por IP (pasado el tope, el mismo 404). Inexistente o `UNAVAILABLE` → `notFound()`. `CLOSED`/`EXPIRED` → "Este enlace ya no recibe expositores. Si ya te sumaste, entrá a 'Donde expongo' en tu panel." Abierto: portada, "Te invitan a exponer en", título, organiza, fechas, sede, instrucciones, "Podés cargar hasta N obras." (sólo si hay tope), fecha límite. Sin sesión: "Ingresá con Google para sumarte" (`/login?next=/expositores/<token>`). Ya expositor: "Ya estás en esta muestra" + "Ir a mis obras". Con sesión: `AltaExpositor` con "Cómo firmás tus obras", el perfil (crear con nombre, biografía —"Contá quién sos y qué fotografiás. Es lo que va a leer el público de la muestra."—, ciudad, provincia, Instagram y foto; o completar la biografía), la casilla de derechos (D3) y "Sumarme a la muestra".
+`app/expositores/[token]/page.tsx`: `dynamic = "force-dynamic"`; `robots: { index: false, follow: false }`, `referrer: "no-referrer"`; freno por IP (pasado el tope, el mismo 404). Inexistente o `UNAVAILABLE` → `notFound()`. `CLOSED`/`EXPIRED` → "Este enlace ya no recibe expositores. Si ya te sumaste, entrá a 'Dónde expongo' en tu panel." Abierto: portada, "Te invitan a exponer en", título, organiza, fechas, sede, instrucciones, "Podés cargar hasta N obras." (sólo si hay tope), fecha límite. Sin sesión: "Ingresá con Google para sumarte" (`/login?next=/expositores/<token>`). Ya expositor: "Ya estás en esta muestra" + "Ir a mis obras". Con sesión: `AltaExpositor` con "Cómo firmás tus obras", el perfil (crear con nombre, biografía —"Contá quién sos y qué fotografiás. Es lo que va a leer el público de la muestra."—, ciudad, provincia, Instagram y foto; o completar la biografía), la casilla de derechos (D3) y "Sumarme a la muestra".
 
 - [ ] **Step 4: Correr**
 
@@ -1363,7 +1363,7 @@ git commit -m "Muestras: entrada pública para expositores — ingresar con Goog
 
 ---
 
-### Task 11: "Donde expongo" — el expositor carga sus obras
+### Task 11: "Dónde expongo" — el expositor carga sus obras
 
 **Files:**
 - Create: `apps/muestras/lib/expositores/obras.ts` (+ `obras.test.ts`), `apps/muestras/lib/expositores/mapear.ts` (+ `mapear.test.ts`), `apps/muestras/app/panel/expositor/page.tsx`, `apps/muestras/app/panel/expositor/[id]/page.tsx`, `apps/muestras/components/expositores/{obras-expositor.tsx, obra-expositor.tsx}`
@@ -1389,7 +1389,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implementar**
 
-- `/panel/expositor` (`requireUsuario("/panel/expositor")`): "Donde expongo"; una fila por muestra ("3 obras: 1 en la muestra, 1 enviada, 1 con cambios pedidos"). Vacío: "Todavía no expusiste por acá. Cuando una organización te mande su enlace, vas a ver la muestra en esta lista."
+- `/panel/expositor` (`requireUsuario("/panel/expositor")`): "Dónde expongo"; una fila por muestra ("3 obras: 1 en la muestra, 1 enviada, 1 con cambios pedidos"). Vacío: "Todavía no expusiste por acá. Cuando una organización te mande su enlace, vas a ver la muestra en esta lista."
 - `/panel/expositor/[id]` (`requireUsuario`; `miParticipacion` o `notFound()`): cabecera de la muestra y estado del enlace; "Tus obras" ("2 de 3" si hay tope); por obra, `ObraExpositor` con estado, nota de cambios destacada ("Quien organiza te pidió: …"), formulario (foto que se cuelga con vista previa; título; año; técnica y soporte; medida de la imagen; medida con marco; edición con número y total si es limitada; texto de la obra; "La quiero vender" + precio con "El precio sólo lo ve quien organiza. Se va a usar cuando la venta esté disponible."; notas para el montaje "Sólo las ve quien organiza"), "Guardar", "Enviar a la organización" (si falta algo, lista qué), "Retirar el envío", "Borrar". Aprobadas en lectura ("Ya está en la muestra"). "Agregar otra obra" mientras no haya tope o no se llegue. Atajo **"Tu portfolio"** → `/panel/perfil#portfolio` con "Sumá fotos que no se exponen para que el público te conozca."
 
 - [ ] **Step 4: Correr**
@@ -1405,7 +1405,7 @@ A organiza, E expone: A genera el enlace; E se suma en una ventana privada, carg
 
 ```bash
 git add apps/muestras
-git commit -m "Muestras: 'Donde expongo' — el expositor carga cada obra con la foto que se cuelga y todos sus datos, y la envía"
+git commit -m "Muestras: 'Dónde expongo' — el expositor carga cada obra con la foto que se cuelga y todos sus datos, y la envía"
 ```
 
 **Acceptance:** ninguna consulta del expositor devuelve datos de otra participación; una obra incompleta no se envía.
@@ -1439,7 +1439,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implementar**
 
-Parte de abajo de `/panel/muestras/[id]/expositores`: **"Para revisar (N)"** primero; después cada expositor (foto, nombre con enlace al perfil, "Se sumó el …", "Portfolio: 12 fotos") con sus obras: la foto grande (la organización ve la URL: es su muestra), `fichaDetail`, texto, **"A la venta" y el precio** (la organización sí lo ve), notas para el montaje; "Aprobar" / "Pedir cambios" (campo con la nota) / "Corregir datos" / "Sacar de la muestra" (confirmación: "La obra deja de estar en la muestra, en las fichas y en el plano."). Resumen arriba: "12 expositores · 30 obras en la muestra · 4 para revisar · 2 con cambios pedidos". Pie: "Sacar a esta persona de la muestra". Contadores en "Mis muestras", en la página de la muestra y en el inicio del panel (allí también la tarjeta "Donde expongo" con las obras con cambios pedidos para quien expone).
+Parte de abajo de `/panel/muestras/[id]/expositores`: **"Para revisar (N)"** primero; después cada expositor (foto, nombre con enlace al perfil, "Se sumó el …", "Portfolio: 12 fotos") con sus obras: la foto grande (la organización ve la URL: es su muestra), `fichaDetail`, texto, **"A la venta" y el precio** (la organización sí lo ve), notas para el montaje; "Aprobar" / "Pedir cambios" (campo con la nota) / "Corregir datos" / "Sacar de la muestra" (confirmación: "La obra deja de estar en la muestra, en las fichas y en el plano."). Resumen arriba: "12 expositores · 30 obras en la muestra · 4 para revisar · 2 con cambios pedidos". Pie: "Sacar a esta persona de la muestra". Contadores en "Mis muestras", en la página de la muestra y en el inicio del panel (allí también la tarjeta "Dónde expongo" con las obras con cambios pedidos para quien expone).
 
 - [ ] **Step 4: Correr y probar**
 
@@ -1611,7 +1611,7 @@ values (gen_random_uuid()::text, '<sha256 del paso anterior>', now(), '202610311
 
 Con `pnpm --filter muestras dev`, correo apagado, cuentas A (dueña), B (coorganización), C (textos), E1 y E2 (expositores):
 1. A genera el enlace: se le pide elegir la visibilidad (acepta la sugerencia). E1 y E2 se suman, cargan obras y portfolio y envían; una incompleta no se envía; una foto de portfolio igual a su obra se rechaza.
-2. B aprueba dos, pide cambios en otra; E1 corrige y reenvía; B aprueba. C no ve "Expositores" ni "Visibilidad" (404 por dirección) y edita un título que E1 ve en "Donde expongo".
+2. B aprueba dos, pide cambios en otra; E1 corrige y reenvía; B aprueba. C no ve "Expositores" ni "Visibilidad" (404 por dirección) y edita un título que E1 ve en "Dónde expongo".
 3. Página pública con "Adelanto", "Sorpresa total" y "Cambian para cada visitante": el código fuente no tiene URL de obras ocultas; en el modo por visitante cambian al recargar y el panel avisó.
 4. Fichas → escanear con el teléfono → vista de sala → "Adquirir obra" → "La venta de esta obra todavía no está disponible", sin precio. Compartir la dirección a otro teléfono → versión pública. Imagen de sala sin pase → 404.
 5. "Cortar los accesos de sala" → el teléfono vuelve a la versión pública hasta que escanea de nuevo.

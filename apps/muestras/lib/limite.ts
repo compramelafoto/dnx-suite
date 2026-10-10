@@ -122,7 +122,7 @@ export const LIMITES = {
   enlaceExpositores: { limit: 30, windowMs: 60 * 60_000 },
   // Sumarse con el enlace (crea el perfil y la participación).
   sumarseExpositor: { limit: 20, windowMs: 60 * 60_000 },
-  // "Donde expongo": guardar, borrar y retirar obras (con 300 obras de tope técnico), y enviarlas.
+  // "Dónde expongo": guardar, borrar y retirar obras (con 300 obras de tope técnico), y enviarlas.
   guardarObraExpositor: { limit: 300, windowMs: 60 * 60_000 },
   enviarObraExpositor: { limit: 60, windowMs: 60 * 60_000 },
   // Quien organiza revisa con muchas obras: aprobar, pedir cambios, corregir y sacar.

@@ -21,9 +21,9 @@ describe("secciones del panel", () => {
       "Convocatorias", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
     ]);
   });
-  it("\"Donde expongo\" está lista, en \"Tu cuenta\", después de \"Mis envíos\"", () => {
+  it("\"Dónde expongo\" está lista, en \"Tu cuenta\", después de \"Mis envíos\"", () => {
     const i = PANEL_SECTIONS.findIndex((s) => s.key === "expositor");
-    expect(PANEL_SECTIONS[i]).toMatchObject({ label: "Donde expongo", href: "/panel/expositor", group: "CUENTA", ready: true });
+    expect(PANEL_SECTIONS[i]).toMatchObject({ label: "Dónde expongo", href: "/panel/expositor", group: "CUENTA", ready: true });
     expect(PANEL_SECTIONS[i - 1]?.key).toBe("envios");
     expect(upcomingSection("expositor")).toBeNull();
     expect(activeSectionKey("/panel/expositor/abc")).toBe("expositor");

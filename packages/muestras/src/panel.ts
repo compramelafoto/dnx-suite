@@ -38,7 +38,7 @@ export const PANEL_SECTIONS: readonly PanelSection[] = [
   s("proponer", "Proponer muestra", "/panel/proponer", "CUENTA"),
   s("perfil", "Mi perfil de fotógrafo", "/panel/perfil", "CUENTA"),
   s("envios", "Mis envíos", "/panel/envios", "CUENTA"),
-  s("expositor", "Donde expongo", "/panel/expositor", "CUENTA"),
+  s("expositor", "Dónde expongo", "/panel/expositor", "CUENTA"),
   s("convocatorias", "Convocatorias", "/panel/convocatorias", "ORGANIZAR"),
   s("curaduria", "Curaduría", "/panel/curaduria", "ORGANIZAR"),
   s("montaje", "Montaje e impresión", "/panel/montaje", "ORGANIZAR"),

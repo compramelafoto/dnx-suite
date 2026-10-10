@@ -34,7 +34,7 @@ export default async function MisObrasEnLaMuestra({ params }: Props) {
 
   return (
     <main className="max-w-3xl space-y-10">
-      <Link href="/panel/expositor" className={`text-sm ${enlace}`}>Donde expongo</Link>
+      <Link href="/panel/expositor" className={`text-sm ${enlace}`}>Dónde expongo</Link>
       <header className="space-y-3">
         <p className={nota}>Exponés en</p>
         <h1 className="mf-titulo text-[clamp(2.2rem,4vw,3rem)]">{a.title}</h1>

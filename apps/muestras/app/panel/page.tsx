@@ -50,7 +50,7 @@ export default async function InicioPanel() {
 
       {expongo > 0 ? (
         <section aria-labelledby="t-expongo" className="space-y-2">
-          <h2 id="t-expongo" className="text-sm text-[var(--mf-muted)]">Donde expongo</h2>
+          <h2 id="t-expongo" className="text-sm text-[var(--mf-muted)]">Dónde expongo</h2>
           <p className="text-lg">
             {expongo === 1 ? "Exponés en 1 muestra." : `Exponés en ${expongo} muestras.`}
             {conCambios > 0 ? ` ${conCambios === 1 ? "Te pidieron cambios en 1 obra." : `Te pidieron cambios en ${conCambios} obras.`}` : ""}

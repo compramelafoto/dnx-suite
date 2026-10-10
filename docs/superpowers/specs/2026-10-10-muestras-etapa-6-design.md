@@ -75,13 +75,13 @@ Plan: `docs/superpowers/plans/2026-10-10-muestras-etapa-6.md`.
 | D9 | **Convivencia con el editor de la muestra.** En `guardarBorrador`, una obra que vino de un expositor **conserva su imagen y su autor** (el servidor ignora lo que llegue del formulario; el editor los muestra como "Lo carga quien expone"); título, año y técnica sí se editan y **se copian de vuelta** a la obra del expositor (y lo mismo en `guardarTextos` del rol de textos). Si el editor la quita de la galería, la obra del expositor pasa a `REMOVED` con la nota "La organización la sacó de la muestra". | Una sola versión de los textos en los dos lados; la imagen y la autoría son del expositor. |
 | D10 | **El enlace anda con la muestra en borrador, rechazada, en revisión, publicada y despublicada**; no anda si la muestra está **cancelada**, **ya cerró** o no es de tipo muestra. Enviar obras nuevas requiere el enlace abierto y antes de la fecha límite; corregir una obra con cambios pedidos se puede siempre que la muestra no esté cancelada ni cerrada. | Las obras se juntan **antes** de mandar la muestra a revisión. |
 | D11 | **Permisos.** Capacidad nueva **`exhibitors`** (dueño y coorganización): generar y cerrar el enlace, topes, ver expositores y obras, aprobar, pedir cambios, corregir datos, sacar. El rol de textos **no** la tiene. **El expositor no es un rol del equipo**: sólo ve y edita lo suyo (`CulturalExhibitor.userId = usuario.id`, estado `ACTIVE`), nunca la muestra en el panel ni las obras de otros. | Mantiene la tabla de capacidades de la etapa 5. |
-| D12 | **Sin correo.** Todo se ve en pantalla: el expositor ve el estado de cada obra y la nota en "Donde expongo" (`/panel/expositor`); quien organiza ve un contador "3 obras para revisar" en la muestra y en "Mis muestras". | El correo está apagado en producción (`MUESTRAS_CORREOS_EN_VIVO`). |
+| D12 | **Sin correo.** Todo se ve en pantalla: el expositor ve el estado de cada obra y la nota en "Dónde expongo" (`/panel/expositor`); quien organiza ve un contador "3 obras para revisar" en la muestra y en "Mis muestras". | El correo está apagado en producción (`MUESTRAS_CORREOS_EN_VIVO`). |
 
 ### Portfolio del artista
 
 | # | Decisión | Por qué |
 |---|---|---|
-| D13 | **Tabla `PhotographerPortfolioPhoto`** colgada de `PhotographerProfile` (FK cascade): imagen, título (obligatorio, ≤ 160), año, técnica (≤ 160), texto breve (≤ 300), orden. Tope técnico **60 fotos por perfil**. La carga **la persona dueña del perfil** (`PhotographerProfile.userId = usuario.id`) desde "Mi perfil de fotógrafo" y desde "Donde expongo" (atajo "Tu portfolio"); el super admin también. Las imágenes tienen que ser suyas (`esImagenDeUsuario`: `<R2>/muestras/<userId>/<id>.webp`). | Respuesta de Daniel: las fotos no expuestas son un portfolio del artista, reutilizable en todas sus muestras. 60 alcanza para presentar a alguien y acota el almacenamiento y la página del perfil. |
+| D13 | **Tabla `PhotographerPortfolioPhoto`** colgada de `PhotographerProfile` (FK cascade): imagen, título (obligatorio, ≤ 160), año, técnica (≤ 160), texto breve (≤ 300), orden. Tope técnico **60 fotos por perfil**. La carga **la persona dueña del perfil** (`PhotographerProfile.userId = usuario.id`) desde "Mi perfil de fotógrafo" y desde "Dónde expongo" (atajo "Tu portfolio"); el super admin también. Las imágenes tienen que ser suyas (`esImagenDeUsuario`: `<R2>/muestras/<userId>/<id>.webp`). | Respuesta de Daniel: las fotos no expuestas son un portfolio del artista, reutilizable en todas sus muestras. 60 alcanza para presentar a alguien y acota el almacenamiento y la página del perfil. |
 | D14 | **Dónde se ve el portfolio**: en el **perfil público** `/fotografos/<slug>` siempre (es del artista, no de una muestra), en la sección **"Artistas"** de cada muestra si `online.artists` (primeras 8 fotos y "Ver portfolio") y en la **vista de sala** si `room.portfolio`. | El perfil es del artista; cada muestra decide si lo presenta. |
 | D15 | **Una foto del portfolio no puede ser una obra expuesta**: al guardar, se rechaza una imagen cuya URL ya está en una obra del expositor o de una muestra (`CulturalExhibitorWork` o `CulturalActivityWork` con su `authorUserId`), con el mensaje "Esa foto es una obra que expusiste o vas a exponer: no la sumes al portfolio, así sigue siendo sorpresa en la sala." El formulario lo advierte arriba. Una copia del mismo archivo subida de nuevo tiene otra URL: es riesgo residual del artista. | El portfolio es público; si el artista sube la obra que cuelga, arruina la sorpresa. |
 | D16 | **Perfiles sin cuenta** (los crea un organizador en la etapa 2) no tienen portfolio hasta que la persona los reclama. | Nadie más que el artista decide qué muestra de sí. |
@@ -124,7 +124,7 @@ Plan: `docs/superpowers/plans/2026-10-10-muestras-etapa-6.md`.
 
 | # | Decisión | Por qué |
 |---|---|---|
-| D36 | **Panel.** En la muestra: **"Expositores"** y **"Visibilidad"**. Para quien expone: **"Donde expongo"** (`/panel/expositor`, grupo "Tu cuenta", `ready: true`). "Mi perfil de fotógrafo" suma **"Portfolio"**. Entrada pública `/expositores/<token>`. | Daniel quiere todo a la vista y construido. |
+| D36 | **Panel.** En la muestra: **"Expositores"** y **"Visibilidad"**. Para quien expone: **"Dónde expongo"** (`/panel/expositor`, grupo "Tu cuenta", `ready: true`). "Mi perfil de fotógrafo" suma **"Portfolio"**. Entrada pública `/expositores/<token>`. | Daniel quiere todo a la vista y construido. |
 | D37 | **Aviso de reimprimir fichas** (decisión de Daniel): **sólo** en Visibilidad y en Montaje e impresión: "El pase de sala necesita las fichas con el QR nuevo. Si imprimiste fichas antes, volvé a bajarlas." | Son los dos lugares donde se decide y se imprime. |
 | D38 | **Fichas, catálogo y plano usan los datos del expositor**: la ficha suma medidas y edición ("40 × 60 cm. Edición 2/10") y su QR pasa a `/q/s/<código>`; el catálogo suma medidas, edición y el texto de la obra; el editor del plano **propone** la medida con marco del expositor. El precio **no** va en ninguna pieza. | El expositor ya cargó lo que el montajista necesita. |
 | D39 | **Piezas para redes**: "Obra destacada" sólo ofrece obras visibles online hoy (D25); en `PER_VISIT`, **cualquier expuesta** (D23: publicitarla es decisión de quien organiza), con el aviso junto a la elección: "Esta obra se va a ver en redes aunque online sea sorpresa."; con "Sorpresa total" la variante no está disponible. | Una pieza para redes es publicación online. |
@@ -194,7 +194,7 @@ aplica a mano en producción el controlador, antes de publicar el código** (Neo
 | Ruta | Quién | Qué |
 |---|---|---|
 | `/expositores/[token]` | público; para sumarse, con sesión | Datos de la muestra, instrucciones, topes; alta (D3). `noindex`, `no-referrer`. |
-| `/panel/expositor`, `/panel/expositor/[id]` | el expositor | "Donde expongo" y sus obras de una muestra. |
+| `/panel/expositor`, `/panel/expositor/[id]` | el expositor | "Dónde expongo" y sus obras de una muestra. |
 | `/panel/perfil` | con sesión | Suma "Portfolio". |
 | `/panel/muestras/[id]/expositores` | `exhibitors` | Enlace (con la elección de visibilidad la primera vez), expositores y obras, revisión. |
 | `/panel/muestras/[id]/visibilidad` | `visibility` | Presets, personalizado, sortear, "qué ve cada uno", cortar accesos, cambiar códigos, aviso de fichas. |
@@ -270,7 +270,7 @@ otro sobre los datos de los expositores y el portfolio.
 - `room.ts`: código de sala, pase (sin firma), `ROOM_PASS_HOURS = 8`, `saleState`.
 - `constants.ts`: `MAX_WORKS = 300`; `print.ts`: `FRAME_BATCH_SIZE = 40`, `frameBatches`,
   `catalogImageSize`.
-- `team.ts`: capacidades `exhibitors` y `visibility`; `stats.ts`: QR `s`; `panel.ts`: "Donde expongo".
+- `team.ts`: capacidades `exhibitors` y `visibility`; `stats.ts`: QR `s`; `panel.ts`: "Dónde expongo".
 
 ## Riesgos
 
