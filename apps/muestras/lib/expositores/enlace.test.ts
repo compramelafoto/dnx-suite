@@ -9,6 +9,11 @@ const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; es
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const sinPermiso = vi.hoisted(() => ({ caps: new Set<string>() }));
+vi.mock("@/lib/equipo/permisos", async (original) => {
+  const real = await original<typeof import("@/lib/equipo/permisos")>();
+  return { ...real, puede: (u: Parameters<typeof real.puede>[0], cap: Parameters<typeof real.puede>[1], rol: Parameters<typeof real.puede>[2]) => !sinPermiso.caps.has(cap) && real.puede(u, cap, rol) };
+});
 
 const { cambiarEstadoEnlace, crearEnlaceExpositores, guardarEnlaceExpositores, renovarEnlaceExpositores } = await import("./enlace");
 const { resetRateLimit } = await import("@/lib/limite");
@@ -37,6 +42,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimit();
   usuarioActual.valor = dueno;
+  sinPermiso.caps.clear();
   muestra = base();
   db.culturalActivity.findUnique.mockImplementation(async (q: { select: Record<string, unknown> }) =>
     q.select.members
@@ -57,6 +63,23 @@ describe("crearEnlaceExpositores", () => {
     usuarioActual.valor = textos;
     expect(await crearEnlaceExpositores(fd({ visibilidadConfirmada: "1", preset: "PREVIEW" }))).toEqual({ ok: false, errores: ["No encontramos esa muestra entre las tuyas."] });
     expect(db.culturalExhibitorLink.create).not.toHaveBeenCalled();
+  });
+
+  it("sin ajuste y sin el permiso de visibilidad: no crea ni elige la visibilidad", async () => {
+    sinPermiso.caps.add("visibility");
+    expect(await crearEnlaceExpositores(fd({ visibilidadConfirmada: "1", preset: "OPEN" }))).toEqual({
+      ok: false, errores: ["Quien organiza la muestra tiene que elegir primero qué se ve online, en Visibilidad."],
+    });
+    expect(db.culturalExhibitorLink.create).not.toHaveBeenCalled();
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+  });
+
+  it("con ajuste ya elegido, el permiso de visibilidad no hace falta", async () => {
+    sinPermiso.caps.add("visibility");
+    muestra = { ...base(), visibility: visibilityFromPreset("PREVIEW", "s") };
+    expect(await crearEnlaceExpositores(fd({}))).toEqual({ ok: true });
+    expect(db.culturalExhibitorLink.create).toHaveBeenCalled();
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
   });
 
   it("sin ajuste y sin confirmar la visibilidad: no crea", async () => {

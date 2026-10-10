@@ -26,7 +26,7 @@ const SELECCION = {
 } as const;
 type Muestra = Prisma.CulturalActivityGetPayload<{ select: typeof SELECCION }>;
 
-type Preparado = { listo: false; error: ResultadoEnlace } | { listo: true; usuario: Usuario; a: Muestra };
+type Preparado = { listo: false; error: ResultadoEnlace } | { listo: true; usuario: Usuario; a: Muestra; puedeVisibilidad: boolean };
 
 /**
  * Sesión, permiso `exhibitors` leído en la base (dueño, coorganización o super admin; el rol de
@@ -43,7 +43,7 @@ async function preparar(activityId: unknown): Promise<Preparado> {
   }
   const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: SELECCION });
   if (!a || a.type !== "MUESTRA") return { listo: false, error: NO_EXISTE };
-  return { listo: true, usuario, a };
+  return { listo: true, usuario, a, puedeVisibilidad: puede(usuario, "visibility", rol.role) };
 }
 
 /** El enlace recibe expositores mientras la muestra no esté cancelada ni cerrada (spec D10). */
@@ -88,6 +88,8 @@ export async function crearEnlaceExpositores(fd: FormData): Promise<ResultadoEnl
 
   let visibilidad: Prisma.CulturalActivityUpdateInput | null = null;
   if (a.visibility == null) {
+    // Elegir qué se ve online es el permiso `visibility`, no el de expositores.
+    if (!r.puedeVisibilidad) return error("Quien organiza la muestra tiene que elegir primero qué se ve online, en Visibilidad.");
     if (fd.get("visibilidadConfirmada") !== "1") return error("Elegí qué se ve online antes de generar el enlace.");
     const base = parseVisibility(null, a.galleryMode);
     const v = visibilidadDesdeFormData(fd, { ...base, online: { ...base.online, seed: randomBytes(12).toString("base64url") } });
