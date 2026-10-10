@@ -15,3 +15,4 @@ export * from "./hanging";
 export * from "./stats";
 export * from "./guestbook";
 export * from "./team";
+export * from "./opening";
