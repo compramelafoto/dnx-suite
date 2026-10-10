@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { EXHIBITOR_TEXT_LIMITS } from "@repo/muestras";
+import { EXHIBITOR_TEXT_LIMITS, RIGHTS_TEXT, RIGHTS_TEXT_VERSION } from "@repo/muestras";
 import { subirImagen } from "@/components/formulario/subir-imagen";
 import { sumarmeComoExpositor } from "@/lib/expositores/alta";
 import { botonLleno, campo, nota, seccion } from "./estilos";
@@ -104,9 +104,8 @@ export function AltaExpositor({ nombreSugerido, perfil }: { nombreSugerido: stri
       <section className={seccion}>
         <label className="flex items-start gap-2 text-[15px]">
           <input type="checkbox" name="derechos" value="1" required className="mt-1" />
-          <span>
-            Soy autor/a de las obras que cargo. Autorizo a mostrarlas online según lo que elija la organización y a imprimir fichas, marcos y catálogo.
-          </span>
+          <input type="hidden" name="derechosVersion" value={RIGHTS_TEXT_VERSION} />
+          <span>{RIGHTS_TEXT}</span>
         </label>
       </section>
 

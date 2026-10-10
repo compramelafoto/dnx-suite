@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   culturalExhibitor: { findUnique: vi.fn(), create: vi.fn(), count: vi.fn() },
   photographerProfile: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
@@ -27,6 +28,7 @@ function fd(o: Record<string, string>) {
   f.set("token", TOKEN);
   f.set("firma", "Ana Pérez");
   f.set("derechos", "1");
+  f.set("derechosVersion", "2026-10-10");
   f.set("bio", "Fotógrafa de Rosario.");
   for (const [k, v] of Object.entries(o)) f.set(k, v);
   return f;
@@ -46,6 +48,33 @@ beforeEach(() => {
   db.photographerProfile.create.mockResolvedValue({ id: "p1", slug: "ana-perez" });
   db.photographerProfile.update.mockResolvedValue({});
   db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
+  db.$queryRaw.mockImplementation(async () => (enlace ? [{ status: enlace.status, closesAt: enlace.closesAt, maxExhibitors: enlace.maxExhibitors }] : []));
+});
+
+describe("sumarse con el enlace bloqueado (etapa 6)", () => {
+  it("bloquea el enlace (FOR UPDATE, con su token) y recuenta: si en el medio se llenó, no suma", async () => {
+    enlace = { ...enlace!, maxExhibitors: 2 };
+    // Afuera había lugar (1 de 2); con el enlace bloqueado ya hay 2.
+    db.culturalExhibitor.count.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+    const r = await sumarmeComoExpositor(fd({}));
+    expect(r).toEqual({ ok: false, errores: ["Ya se sumaron todas las personas que esta muestra espera. Escribile a quien organiza."] });
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toContain("FOR UPDATE");
+    expect(db.$queryRaw.mock.calls[0]!.slice(1)).toEqual(["l1", TOKEN]);
+    expect(db.culturalExhibitor.create).not.toHaveBeenCalled();
+  });
+
+  it("si el enlace se cerró o se renovó en el medio, no suma", async () => {
+    db.$queryRaw.mockResolvedValueOnce([{ status: "CLOSED", closesAt: null, maxExhibitors: null }]);
+    expect((await sumarmeComoExpositor(fd({}))).ok).toBe(false);
+    db.$queryRaw.mockResolvedValueOnce([]);
+    expect(await sumarmeComoExpositor(fd({}))).toEqual({ ok: false, errores: ["Este enlace ya no es válido. Pedile el nuevo a quien organiza."] });
+    expect(db.culturalExhibitor.create).not.toHaveBeenCalled();
+  });
+
+  it("sin la versión vigente del texto de derechos, no suma", async () => {
+    expect((await sumarmeComoExpositor(fd({ derechosVersion: "vieja" }))).ok).toBe(false);
+    expect(db.culturalExhibitor.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("sumarmeComoExpositor", () => {

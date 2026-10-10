@@ -24,6 +24,17 @@ export const EXHIBITOR_TEXT_LIMITS = {
   reviewNote: 600,
 } as const;
 export const EDITION_SIZE_MAX = 999;
+
+/**
+ * El texto de derechos que acepta quien se suma (spec D3) y su versión. Cambiar el texto obliga a
+ * cambiar la versión: el alta exige que el formulario mande la vigente (una página vieja no acepta
+ * un texto que ya no es el nuestro). Sin columna para la versión todavía (pendiente en el spec), qué
+ * texto aceptó cada persona se deduce de `rightsAcceptedAt` con este historial:
+ * - "2026-10-10": vigente desde la etapa 6.
+ */
+export const RIGHTS_TEXT_VERSION = "2026-10-10";
+export const RIGHTS_TEXT =
+  "Soy autor/a de las obras que cargo. Autorizo a mostrarlas online según lo que elija la organización y a imprimir fichas, marcos y catálogo.";
 /** Pesos, sin centavos. Sólo lo ve la organización hasta que exista la venta (spec D33). */
 export const PRICE_MAX_ARS = 100_000_000;
 /** El primer daguerrotipo conservado es de 1826: antes no hay fotografías. */

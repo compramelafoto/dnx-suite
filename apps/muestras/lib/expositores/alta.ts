@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { EXHIBITOR_TEXT_LIMITS, exhibitorJoinProblems, exhibitorLinkState } from "@repo/muestras";
+import { EXHIBITOR_TEXT_LIMITS, RIGHTS_TEXT_VERSION, exhibitorJoinProblems, exhibitorLinkState } from "@repo/muestras";
 import { esTokenConForma } from "@/lib/curaduria/token";
 import { frenarPorUsuario } from "@/lib/limite";
 import { crearOActualizarPerfil } from "@/lib/perfiles/crear";
@@ -13,6 +13,8 @@ export type ResultadoAlta = { ok: true; id: string } | { ok: false; errores: str
 
 const error = (texto: string): ResultadoAlta => ({ ok: false, errores: [texto] });
 const NO_EXISTE = error("Este enlace no existe.");
+/** Para cortar la transacción con un mensaje para quien se suma. */
+class Corte extends Error {}
 const esChoqueUnico = (err: unknown) => typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2002";
 
 /**
@@ -57,6 +59,10 @@ export async function sumarmeComoExpositor(fd: FormData): Promise<ResultadoAlta>
     rightsAccepted: fd.get("derechos") === "1" || fd.get("derechos") === "on",
   });
   if (problemas.length) return { ok: false, errores: problemas };
+  // Aceptó el texto de derechos vigente, no el de una página vieja (spec D3).
+  if (fd.get("derechosVersion") !== RIGHTS_TEXT_VERSION) {
+    return error("El texto de derechos cambió desde que abriste esta página. Recargala y volvé a leerlo.");
+  }
 
   // Si ya tiene perfil, del formulario sólo cuenta la biografía (y sólo si la suya está vacía).
   const tienePerfil = await prisma.photographerProfile.findUnique({ where: { userId: usuario.id }, select: { id: true } });
@@ -78,10 +84,24 @@ export async function sumarmeComoExpositor(fd: FormData): Promise<ResultadoAlta>
 
   try {
     const id = await prisma.$transaction(async (tx) => {
+      // Con el enlace bloqueado se vuelve a mirar su estado y se recuenta: dos personas a la vez no
+      // pasan el tope de expositores, y un enlace cerrado o renovado en el medio no suma a nadie.
+      const [bloqueado] = await tx.$queryRaw<{ status: string; closesAt: Date | null; maxExhibitors: number | null }[]>`
+        SELECT "status", "closesAt", "maxExhibitors" FROM "CulturalExhibitorLink" WHERE "id" = ${enlace.id} AND "token" = ${token} FOR UPDATE`;
+      if (!bloqueado) throw new Corte("Este enlace ya no es válido. Pedile el nuevo a quien organiza.");
+      const cuantos = bloqueado.maxExhibitors != null
+        ? await tx.culturalExhibitor.count({ where: { activityId: a.id, status: "ACTIVE" } })
+        : 0;
+      const ahora = exhibitorJoinProblems({
+        state: exhibitorLinkState(bloqueado, a, new Date()), exhibitors: cuantos, maxExhibitors: bloqueado.maxExhibitors,
+        displayName: firma, rightsAccepted: true,
+      });
+      if (ahora.length) throw new Corte(ahora[0]!);
       const perfil = await crearOActualizarPerfil(tx, usuario.id, datos);
       const fila = await tx.culturalExhibitor.create({
         data: {
           activityId: a.id, userId: usuario.id, profileId: perfil.id, displayName: firma,
+          // La versión del texto aceptado se deduce de esta fecha (RIGHTS_TEXT_VERSION; sin columna todavía).
           status: "ACTIVE", rightsAcceptedAt: new Date(),
         },
         select: { id: true },
@@ -91,6 +111,7 @@ export async function sumarmeComoExpositor(fd: FormData): Promise<ResultadoAlta>
     revalidatePath("/panel", "layout");
     return { ok: true, id };
   } catch (err) {
+    if (err instanceof Corte) return error(err.message);
     if (!esChoqueUnico(err)) throw err;
     // Dos pestañas a la vez (o el slug del perfil tomado en el medio): si la fila quedó, es esa.
     const ya = await prisma.culturalExhibitor.findUnique({
