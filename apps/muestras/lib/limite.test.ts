@@ -130,4 +130,7 @@ describe("frenos de la sorpresa (etapa 6)", () => {
   it("portfolio: 300 por hora por persona", () => {
     expect(LIMITES.guardarPortfolio).toEqual({ limit: 300, windowMs: 60 * 60_000 });
   });
+  it("enlace de expositores: 30 por hora por persona", () => {
+    expect(LIMITES.enlaceExpositores).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+  });
 });

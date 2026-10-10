@@ -116,6 +116,8 @@ export const LIMITES = {
   guardarVisibilidad: { limit: 60, windowMs: 60 * 60_000 },
   // Portfolio del artista: subir, editar, borrar y ordenar (60 fotos a lo sumo).
   guardarPortfolio: { limit: 300, windowMs: 60 * 60_000 },
+  // Enlace de expositores: generar, guardar topes, cerrar, abrir y renovar.
+  enlaceExpositores: { limit: 30, windowMs: 60 * 60_000 },
 } as const;
 
 /**

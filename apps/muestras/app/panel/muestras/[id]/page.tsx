@@ -46,6 +46,7 @@ export default async function EditarActividad({
   const ultimo = await textoDelUltimoCambio(a);
   const enlaces = a.type === "MUESTRA"
     ? [
+        puede(usuario, "exhibitors", rol) ? { href: `/panel/muestras/${a.id}/expositores`, texto: "Expositores" } : null,
         puede(usuario, "visibility", rol)
           ? { href: `/panel/muestras/${a.id}/visibilidad`, texto: `Visibilidad (${VISIBILITY_PRESET_LABELS[parseVisibility(visibilidad.visibility, visibilidad.galleryMode).preset]})` }
           : null,
