@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { RSVP_LIMITS, isRsvpMode, openingHasTime, rsvpState } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { frenarPorUsuario } from "@/lib/limite";
 import type { ResultadoAccion } from "@/lib/actividades/acciones";
@@ -45,7 +45,7 @@ export async function guardarInauguracion(fd: FormData): Promise<ResultadoAccion
   try {
     r = await prisma.$transaction(async (tx) => {
       const a = await tx.culturalActivity.findFirst({
-        where: { id, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+        where: conPermiso({ id, type: "MUESTRA" }, usuario, "rsvp"),
         select: {
           id: true, slug: true, title: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true, openingAt: true, openingEndsAt: true,
           venueName: true, address: true, city: true,
@@ -97,7 +97,7 @@ export async function cambiarAsistencia(rsvpId: string, accion: string): Promise
   try {
     r = await prisma.$transaction(async (tx) => {
       const a = await tx.culturalActivity.findFirst({
-        where: { id: k.activityId, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+        where: conPermiso({ id: k.activityId, type: "MUESTRA" }, usuario, "rsvp"),
         select: { id: true, slug: true, title: true, rsvpCapacity: true, openingAt: true, openingEndsAt: true, venueName: true, address: true, city: true },
       });
       if (!a) throw new Corte("No encontramos esa confirmación.");
@@ -136,7 +136,7 @@ export async function cerrarConfirmaciones(activityId: string): Promise<Resultad
   if (typeof activityId !== "string" || !ID.test(activityId)) return NO_EXISTE;
   if (!frenarPorUsuario("guardarInauguracion", usuario.id).allowed) return { ok: false, errores: ["Esperá unos minutos y volvé a probar."] };
   const { count } = await prisma.culturalActivity.updateMany({
-    where: { id: activityId, type: "MUESTRA", ...dondePuede(usuario, "rsvp") },
+    where: conPermiso({ id: activityId, type: "MUESTRA" }, usuario, "rsvp"),
     data: { rsvpStatus: "CLOSED", ...datosDeCambio(usuario.id, "INAUGURACION") },
   });
   if (count === 0) return NO_EXISTE;

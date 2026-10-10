@@ -41,7 +41,7 @@ describe("POST /api/visitas", () => {
     usuarioActual.valor = { id: 7, esSuperAdmin: false };
     db.culturalActivity.count.mockResolvedValue(1);
     expect((await enviar({ a: "cka1b2c3d4" })).status).toBe(204);
-    expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ id: "cka1b2c3d4" });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ AND: [{ id: "cka1b2c3d4" }, expect.anything()] });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
   it("una persona con sesión que no es del equipo sí cuenta", async () => {

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 import type { MuestraParaPiezas } from "./textos";
 
@@ -11,11 +11,7 @@ export function cargarMuestraParaPiezas(
   { publicada }: { publicada: boolean },
 ): Promise<MuestraParaPiezas | null> {
   return prisma.culturalActivity.findFirst({
-    where: {
-      id, type: "MUESTRA",
-      ...(publicada ? { reviewStatus: "APPROVED" } : {}),
-      ...dondePuede(usuario, "pieces"),
-    },
+    where: conPermiso({ id, type: "MUESTRA", ...(publicada ? { reviewStatus: "APPROVED" } : {}) }, usuario, "pieces"),
     select: {
       id: true, slug: true, title: true, organizersText: true, curatorialText: true, curatorCredits: true,
       startsAt: true, endsAt: true, scheduleText: true, venueName: true, address: true, city: true, province: true,

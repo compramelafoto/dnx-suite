@@ -6,7 +6,7 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const { guardarMontaje } = await import("./acciones");
-const { dondePuede } = await import("@/lib/equipo/permisos");
+const { conPermiso } = await import("@/lib/equipo/permisos");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const plan = (items: object[], extra: object = {}) => JSON.stringify({
@@ -34,11 +34,11 @@ describe("guardarMontaje", () => {
   });
   it("sólo quien tiene `hanging` (dueño, coorganización o super admin) y sólo muestras", async () => {
     await guardarMontaje("a1", plan([]));
-    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toEqual({ id: "a1", type: "MUESTRA", ...dondePuede({ id: 7, esSuperAdmin: false }, "hanging") });
-    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where.AND[0].OR[1]).toEqual({ members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } });
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toEqual(conPermiso({ id: "a1", type: "MUESTRA" }, { id: 7, esSuperAdmin: false }, "hanging"));
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where.AND[1].OR[1]).toEqual({ members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } });
     usuarioActual.valor = { id: 1, esSuperAdmin: true, email: "x", name: null };
     await guardarMontaje("a1", plan([]));
-    expect(db.culturalActivity.findFirst.mock.calls[1]![0].where).toEqual({ id: "a1", type: "MUESTRA" });
+    expect(db.culturalActivity.findFirst.mock.calls[1]![0].where).toEqual({ AND: [{ id: "a1", type: "MUESTRA" }, {}] });
     db.culturalActivity.findFirst.mockResolvedValue(null);
     expect(await guardarMontaje("ajena", plan([]))).toEqual({ ok: false, errores: ["No encontramos esa muestra entre las tuyas."] });
   });

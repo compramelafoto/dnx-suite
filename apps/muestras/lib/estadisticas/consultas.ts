@@ -1,14 +1,14 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { statsWindow } from "@repo/muestras";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 import { filasDeTotales, resumenPorMuestra } from "./resumen";
 
 /** Las actividades con `stats` (propias o en equipo) que alguna vez estuvieron publicadas, con sus totales. */
 export async function listarConEstadisticas(usuario: Pick<Usuario, "id" | "esSuperAdmin">) {
   const actividades = await prisma.culturalActivity.findMany({
-    where: { reviewStatus: { in: ["APPROVED", "UNPUBLISHED"] }, ...dondePuede(usuario, "stats", { listado: true }) },
+    where: conPermiso({ reviewStatus: { in: ["APPROVED", "UNPUBLISHED"] } }, usuario, "stats", { listado: true }),
     select: { id: true, title: true, type: true, reviewStatus: true, startsAt: true, endsAt: true },
     orderBy: { startsAt: "desc" },
   });
@@ -25,7 +25,7 @@ export async function listarConEstadisticas(usuario: Pick<Usuario, "id" | "esSup
 /** Detalle de una actividad: con `stats` (dueño, coorganización o super admin). Filas de la ventana del gráfico y totales de siempre. */
 export async function estadisticasDeMuestra(id: string, usuario: Pick<Usuario, "id" | "esSuperAdmin">, ahora: Date) {
   const a = await prisma.culturalActivity.findFirst({
-    where: { id, ...dondePuede(usuario, "stats") },
+    where: conPermiso({ id }, usuario, "stats"),
     select: {
       id: true, slug: true, title: true, type: true, reviewStatus: true, startsAt: true, endsAt: true,
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true } },

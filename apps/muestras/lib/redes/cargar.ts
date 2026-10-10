@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { openingHasTime, type SocialVariant } from "@repo/muestras";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 
 type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
@@ -16,7 +16,7 @@ const SELECCION = {
 /** Para armar las piezas (D25, D29): la muestra publicada, si la persona puede difundirla (`promote`). */
 export function cargarMuestraParaRedes(id: string, usuario: Quien) {
   return prisma.culturalActivity.findFirst({
-    where: { id, type: "MUESTRA", reviewStatus: "APPROVED", ...dondePuede(usuario, "promote") },
+    where: conPermiso({ id, type: "MUESTRA", reviewStatus: "APPROVED" }, usuario, "promote"),
     select: SELECCION,
   });
 }
@@ -24,7 +24,7 @@ export function cargarMuestraParaRedes(id: string, usuario: Quien) {
 /** Para la página de difusión de una muestra: también sin publicar (se ve el aviso). */
 export function cargarMuestraParaDifusion(id: string, usuario: Quien) {
   return prisma.culturalActivity.findFirst({
-    where: { id, type: "MUESTRA", ...dondePuede(usuario, "promote") },
+    where: conPermiso({ id, type: "MUESTRA" }, usuario, "promote"),
     select: SELECCION,
   });
 }
@@ -32,7 +32,7 @@ export function cargarMuestraParaDifusion(id: string, usuario: Quien) {
 /** El listado de "Difusión": las que se pueden difundir, también las que todavía no se publicaron. */
 export function listarMuestrasParaDifusion(usuario: Quien) {
   return prisma.culturalActivity.findMany({
-    where: { type: "MUESTRA", reviewStatus: { in: ["APPROVED", "IN_REVIEW", "DRAFT"] }, ...dondePuede(usuario, "promote", { listado: true }) },
+    where: conPermiso({ type: "MUESTRA", reviewStatus: { in: ["APPROVED", "IN_REVIEW", "DRAFT"] } }, usuario, "promote", { listado: true }),
     select: {
       id: true, title: true, type: true, reviewStatus: true, isCancelled: true, isVirtualOnly: true,
       startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, venueName: true, city: true, province: true,

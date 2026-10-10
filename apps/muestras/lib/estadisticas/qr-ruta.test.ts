@@ -46,7 +46,7 @@ describe("GET /q/[tipo]/[id]", () => {
     usuarioActual.valor = { id: 7, esSuperAdmin: false };
     db.culturalActivity.count.mockResolvedValue(1);
     expect((await pedir("o", "w1")).status).toBe(302);
-    expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ id: "a1" });
+    expect(db.culturalActivity.count.mock.calls[0]![0].where).toMatchObject({ AND: [{ id: "a1" }, expect.anything()] });
     expect(db.$executeRaw).not.toHaveBeenCalled();
   });
   it("algo despublicado, inexistente o mal formado va a la portada sin contar", async () => {

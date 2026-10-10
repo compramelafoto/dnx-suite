@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
 import { activityRole } from "@repo/muestras";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso, dondePuede } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 
 type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
@@ -70,7 +70,7 @@ export function listarParaRevisar() {
  */
 export async function buscarParaEditar(id: string, usuario: Quien) {
   const a = await prisma.culturalActivity.findFirst({
-    where: { id, ...dondePuede(usuario, "view") },
+    where: conPermiso({ id }, usuario, "view"),
     include: {
       works: { orderBy: { sortOrder: "asc" }, include: { authorProfile: { select: { displayName: true } } } },
       members: miFila(usuario),
@@ -88,7 +88,7 @@ export function contarParaRevisar() {
 /** Las muestras con `hanging` en cualquier estado, para "Montaje e impresión" (el plano se prepara antes de publicar). */
 export function listarMuestrasParaMontaje(usuario: Quien) {
   return prisma.culturalActivity.findMany({
-    where: { type: "MUESTRA", reviewStatus: { not: "REJECTED" }, ...dondePuede(usuario, "hanging", { listado: true }) },
+    where: conPermiso({ type: "MUESTRA", reviewStatus: { not: "REJECTED" } }, usuario, "hanging", { listado: true }),
     select: { id: true, title: true, reviewStatus: true, startsAt: true, endsAt: true, _count: { select: { works: true } } },
     orderBy: { startsAt: "desc" },
   });

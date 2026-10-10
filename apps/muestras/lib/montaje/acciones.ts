@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
 import { hangingLayout, hangingPlanProblems, parseHangingPlan } from "@repo/muestras";
-import { dondePuede } from "@/lib/equipo/permisos";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
@@ -31,7 +31,7 @@ export async function guardarMontaje(activityId: string, planJson: string): Prom
     return { ok: false, errores: ["No pudimos leer el plano. Recargá la página."] };
   }
   const a = await prisma.culturalActivity.findFirst({
-    where: { id: activityId, type: "MUESTRA", ...dondePuede(usuario, "hanging") },
+    where: conPermiso({ id: activityId, type: "MUESTRA" }, usuario, "hanging"),
     select: { id: true, works: { select: { id: true } } },
   });
   if (!a) return NO_EXISTE;
