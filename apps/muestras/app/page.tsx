@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ACTIVITY_TYPE_LABELS, applyFilter, cleanPlaceLabel, distanceLabel, formatArDay, formatNearParam, isActivityType, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
-import { EstadoActividad } from "@/components/ficha/estado";
+import { ACTIVITY_TYPE_LABELS, applyFilter, cleanPlaceLabel, formatArDay, formatNearParam, isActivityType, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
 import { Filtros } from "@/components/listado/filtros";
+import { TarjetaActividad } from "@/components/listado/tarjeta-actividad";
 import { MapaNacionalCliente } from "@/components/mapa/mapa-nacional-cliente";
 import { Banner } from "@/components/portada/banner";
 import { listarPublicas } from "@/lib/actividades/consultas";
@@ -96,27 +96,16 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
             <Link href="/#muestras" className="mt-3 inline-block text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">Ver todas</Link>
           </div>
         ) : (
-          <ul className="border-t border-[var(--mf-line)]">
-            {lista.map((a) => {
+          <ul className="grid gap-x-8 gap-y-14 border-t border-[var(--mf-line)] pt-10 sm:grid-cols-2 lg:grid-cols-3">
+            {lista.map((a, i) => {
               const tipo = ACTIVITY_TYPE_LABELS[a.type as ActivityType] ?? a.type;
               return (
-                <li key={a.id} className="border-b border-[var(--mf-line)]">
-                  <Link href={`/m/${a.slug}`} className="group grid gap-x-8 gap-y-1.5 py-5 sm:py-6 md:grid-cols-[minmax(0,1fr)_minmax(0,16rem)_11rem] md:items-baseline">
-                    <span className="min-w-0">
-                      <span className="mf-titulo block text-[clamp(1.35rem,2.2vw,1.75rem)] leading-[1.1] underline-offset-[5px] group-hover:underline">{a.title}</span>
-                      <span className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-[var(--mf-muted)]">
-                        {tipo}
-                        <EstadoActividad startsAt={a.startsAt} endsAt={a.endsAt} isCancelled={a.isCancelled} ahora={ahora} />
-                      </span>
-                    </span>
-                    <span className="min-w-0 text-[15px] text-[var(--mf-muted)] md:text-[var(--mf-ink)]">
-                      {lugarDe(a) || tipo}
-                      {distanceLabel(a.distanceKm) ? <span className="block text-[13px] text-[var(--mf-muted)]">{distanceLabel(a.distanceKm)}</span> : null}
-                    </span>
-                    <span className="text-[15px] tabular-nums text-[var(--mf-muted)] md:text-right md:text-[var(--mf-ink)]">
-                      {formatArDay(a.startsAt)} al {formatArDay(a.endsAt)}
-                    </span>
-                  </Link>
+                <li key={a.id} className="min-w-0">
+                  <TarjetaActividad
+                    slug={a.slug} title={a.title} coverImageUrl={a.coverImageUrl} tipo={tipo} lugar={lugarDe(a) || tipo}
+                    startsAt={a.startsAt} endsAt={a.endsAt} isCancelled={a.isCancelled} distanceKm={a.distanceKm} ahora={ahora}
+                    prioridad={i < 3}
+                  />
                 </li>
               );
             })}
