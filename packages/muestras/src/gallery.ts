@@ -6,7 +6,8 @@ import { onlineExhibitedWorks, parseVisibility } from "./visibility";
  *
  * Hasta la etapa 5, mientras la muestra estaba próxima o abierta se veían sólo las destacadas, y
  * al cerrar quedaba completa como archivo. Desde la etapa 6 lo decide el ajuste de sorpresa
- * (`visibility`); una muestra sin ajuste se comporta exactamente como antes (spec D24). En "para
+ * (`visibility`); una muestra sin ajuste muestra las mismas obras que antes (spec D24; lo único nuevo
+ * en su página es la sección "Artistas", que no lleva obras expuestas). En "para
  * cada visitante" no devuelve obras: las trae `/api/m/<slug>/anticipo` (`perVisit` dice cuántas).
  */
 export function visibleWorks<W extends { id: string; isHighlight: boolean; sortOrder: number }>(

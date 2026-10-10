@@ -9,7 +9,7 @@ import { enlace, nota, seccion } from "@/components/difusion/estilos";
 import { PiezasRedes } from "@/components/difusion/piezas-redes";
 import { CopiarEnlace } from "@/components/enlace/copiar-enlace";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
-import { cargarMuestraParaDifusion, motivoSinObrasOnline, obrasParaDifundir } from "@/lib/redes/cargar";
+import { avisoObraEnRedes, cargarMuestraParaDifusion, motivoSinObrasOnline, obrasParaDifundir } from "@/lib/redes/cargar";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +28,12 @@ export default async function DifusionDeMuestra({ params }: Props) {
   const ahora = new Date();
   const publicada = a.reviewStatus === "APPROVED";
   const muestra = { ...a, worksCount: a.works.length };
-  // Sólo las obras que hoy se ven online según la sorpresa (D25, D39).
+  // Las obras que hoy se ven online según la sorpresa; en "para cada visitante", cualquiera expuesta (D23, D39).
   const online = obrasParaDifundir(a, ahora);
   const disponibles = availableSocialVariants(muestra, ahora, online.length);
   const recomendada = recommendedVariant(muestra, ahora, online.length);
   const sinObrasOnline = motivoSinObrasOnline(a, ahora);
+  const avisoObra = avisoObraEnRedes(a, ahora);
   const rotacion = parseVisibility(a.visibility, a.galleryMode).online;
   const cambiaCadaDia = rotacion.exhibited === "RANDOM" && rotacion.rotation === "DAILY" && online.length < a.works.length;
   const paraRedes = disponibles.filter((v) => v !== "INVITATION");
@@ -69,6 +70,7 @@ export default async function DifusionDeMuestra({ params }: Props) {
                 variantes={paraRedes.map((v) => ({ param: PARAM[v], etiqueta: SOCIAL_VARIANT_LABELS[v] }))}
                 inicial={PARAM[inicial]}
                 obras={obras}
+                avisoObra={avisoObra}
               />
             ) : (
               <p className={nota}>Ya no hay piezas para armar: la muestra cerró.</p>

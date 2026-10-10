@@ -17,13 +17,15 @@ const FORMATOS = [
  * que está elegida. "Descargar" es la misma dirección con `descargar=1`.
  */
 export function PiezasRedes({
-  activityId, nombre, variantes, inicial, obras = [], impresos = false,
+  activityId, nombre, variantes, inicial, obras = [], impresos = false, avisoObra = null,
 }: {
   activityId: string;
   nombre: string;
   variantes: OpcionVariante[];
   inicial: string;
   obras?: OpcionObra[];
+  /** En "cambian para cada visitante": la obra elegida se ve en redes aunque online sea sorpresa (D39). */
+  avisoObra?: string | null;
   impresos?: boolean;
 }) {
   const [variante, setVariante] = useState(inicial);
@@ -84,6 +86,7 @@ export function PiezasRedes({
           <select className={campo} value={obra} onChange={(e) => setObra(e.target.value)}>
             {obras.map((o) => <option key={o.id} value={o.id}>{o.etiqueta}</option>)}
           </select>
+          {avisoObra ? <span role="status" className={`block ${nota}`}>{avisoObra}</span> : null}
         </label>
       ) : null}
 

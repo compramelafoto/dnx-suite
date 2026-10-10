@@ -36,7 +36,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!a) return errorEnTexto("No encontramos esa muestra entre las tuyas. Las piezas para redes piden la muestra publicada.", 404);
   const ahora = new Date();
   const muestra = { ...a, worksCount: a.works.length };
-  // "Obra destacada" es publicación online: sólo las obras que la sorpresa deja ver hoy (D25, D39).
+  // "Obra destacada" es publicación online: las que la sorpresa deja ver hoy; en "para cada visitante",
+  // cualquier expuesta (D23, D39).
   const online = obrasParaDifundir(a, ahora);
   if (!availableSocialVariants(muestra, ahora, online.length).includes(variante)) {
     return errorEnTexto((variante === "WORK" && motivoSinObrasOnline(a, ahora)) || motivoNoDisponible(variante, a), 404);

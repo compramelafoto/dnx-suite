@@ -169,13 +169,12 @@ describe("GET /api/redes/[id]", () => {
       expect(visibles).toContain(componer.armarPiezaRedes.mock.calls[3]![0].obra.id);
     });
 
-    it("'cambian para cada visitante': no se difunde ninguna obra de la sala", async () => {
+    it("'cambian para cada visitante': quien organiza puede difundir cualquier obra expuesta (D23, D39)", async () => {
       const ajuste = { ...visibilityFromPreset("PREVIEW", "s"), preset: "CUSTOM", online: { exhibited: "RANDOM", randomCount: 3, rotation: "PER_VISIT", seed: "s", artists: true } };
       db.culturalActivity.findFirst.mockResolvedValue(muestra({ works: muchas, visibility: ajuste }));
-      const r = await GET(pedido("a1", "?formato=post&variante=obra&obra=o1"), ctx("a1"));
-      expect(r.status).toBe(404);
-      expect(await r.text()).toContain("cada visitante");
-      expect(componer.armarPiezaRedes).not.toHaveBeenCalled();
+      const r = await GET(pedido("a1", `?formato=post&variante=obra&obra=${muchas[muchas.length - 1]!.id}`), ctx("a1"));
+      expect(r.status).toBe(200);
+      expect(componer.armarPiezaRedes.mock.calls[0]![0].obra.id).toBe(muchas[muchas.length - 1]!.id);
     });
 
     it("muestra sin ajuste con destacadas: como hasta hoy, sólo las destacadas mientras está abierta", async () => {
