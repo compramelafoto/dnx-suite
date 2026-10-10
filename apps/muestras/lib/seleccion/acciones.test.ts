@@ -54,10 +54,10 @@ describe("decidir", () => {
     expect((await decidir("w1", "DISCARDED")).ok).toBe(false);
     expect(db.culturalCallWork.updateMany).not.toHaveBeenCalled();
   });
-  it("no pasa del tope de 40 entre lo que ya tiene la muestra y lo elegido", async () => {
-    db.culturalActivityWork.count.mockResolvedValue(30);
+  it("no pasa del tope técnico de 300 entre lo que ya tiene la muestra y lo elegido", async () => {
+    db.culturalActivityWork.count.mockResolvedValue(290);
     db.culturalCallWork.count.mockResolvedValue(10);
-    expect(await decidir("w1", "SELECTED")).toMatchObject({ ok: false, errores: [expect.stringMatching(/hasta 40 obras/)] });
+    expect(await decidir("w1", "SELECTED")).toEqual({ ok: false, errores: ["La muestra admite hasta 300 obras: para elegir otra, sacá alguna de la selección."] });
   });
   it("descartar no mira el tope", async () => {
     db.culturalActivityWork.count.mockResolvedValue(40);
@@ -167,9 +167,9 @@ describe("armarMuestra", () => {
     expect(await armarMuestra("c1")).toEqual({ ok: false, errores: ["La convocatoria no existe."] });
     expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
   });
-  it("no pasa del tope de 40 contando lo que ya tiene la muestra", async () => {
-    db.culturalActivityWork.findMany.mockResolvedValue(galeria(39, false));
-    expect(await armarMuestra("c1")).toMatchObject({ ok: false, errores: [expect.stringMatching(/hasta 40 obras.*ya tiene 39.*editor/)] });
+  it("no pasa del tope técnico de 300 contando lo que ya tiene la muestra", async () => {
+    db.culturalActivityWork.findMany.mockResolvedValue(galeria(299, false));
+    expect(await armarMuestra("c1")).toMatchObject({ ok: false, errores: [expect.stringMatching(/hasta 300 obras.*ya tiene 299.*editor/)] });
     expect(db.culturalActivityWork.create).not.toHaveBeenCalled();
   });
   it("sólo completa las destacadas hasta 12", async () => {

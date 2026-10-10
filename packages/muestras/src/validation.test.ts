@@ -51,9 +51,10 @@ describe("missingForSubmission", () => {
   it("una charla no necesita obras", () => {
     expect(missingForSubmission({ ...ok, type: "CHARLA", worksCount: 0, highlightsCount: 0, rightsConfirmed: false })).toEqual([]);
   });
-  it("respeta los topes de la galería", () => {
-    const m = missingForSubmission({ ...ok, worksCount: 41, highlightsCount: 13 });
-    expect(m).toContain("La galería admite hasta 40 obras.");
+  it("respeta los topes de la galería (300 es el tope técnico, etapa 6)", () => {
+    expect(missingForSubmission({ ...ok, worksCount: 300 })).toEqual([]);
+    const m = missingForSubmission({ ...ok, worksCount: 301, highlightsCount: 13 });
+    expect(m).toContain("La galería admite hasta 300 obras.");
     expect(m).toContain("Podés destacar hasta 12 obras.");
   });
 });

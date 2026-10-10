@@ -303,10 +303,10 @@ describe("guardarBorrador: obras sumadas con la pestaña abierta y obras quitada
     });
   });
   it("los topes cuentan las obras conservadas: si se pasan, no escribe", async () => {
-    enLaBase(Array.from({ length: 5 }, (_, i) => ({ id: `armada-${i}`, sortOrder: 40 + i })));
-    const muchas = Array.from({ length: 36 }, () => obra());
+    enLaBase(Array.from({ length: 5 }, (_, i) => ({ id: `armada-${i}`, sortOrder: 300 + i })));
+    const muchas = Array.from({ length: 296 }, () => obra());
     const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: "[]", works: JSON.stringify(muchas) }));
-    expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/quedarían 41 y el tope es 40/)] });
+    expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/quedarían 301 y el tope es 300/)] });
     expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
     expect(db.culturalActivityWork.createMany).not.toHaveBeenCalled();
   });

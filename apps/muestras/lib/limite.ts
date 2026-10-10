@@ -81,10 +81,10 @@ export const LIMITES = {
   crearBorrador: { limit: 20, windowMs: 60 * 60_000 },
   guardarPerfil: { limit: 30, windowMs: 60 * 60_000 },
   buscarPerfiles: { limit: 60, windowMs: 60_000 },
-  // Una muestra llena son 40 obras (MAX_WORKS): bajar la ficha de cada una más el PDF completo en
-  // dos tamaños entra holgado. Contar sólo el PDF completo dejaría sin tope las fichas sueltas,
-  // que también arman un PDF en el servidor.
-  fichas: { limit: 100, windowMs: 10 * 60_000 },
+  // Una muestra grande llega al tope técnico de 300 obras (MAX_WORKS, etapa 6): bajar la ficha de
+  // cada una más el PDF completo en dos tamaños entra. Contar sólo el PDF completo dejaría sin tope
+  // las fichas sueltas, que también arman un PDF en el servidor.
+  fichas: { limit: 400, windowMs: 10 * 60_000 },
   enviarARevision: { limit: 10, windowMs: 60 * 60_000 },
   // Etapa 3: convocatorias y curaduría.
   crearConvocatoria: { limit: 10, windowMs: 60 * 60_000 },
@@ -97,7 +97,8 @@ export const LIMITES = {
   decidir: { limit: 600, windowMs: 10 * 60_000 },
   // La imagen anónima pasa por nuestra función (no por el bucket): frena el raspado.
   imagenCuraduria: { limit: 1500, windowMs: 10 * 60_000 },
-  // Etapa 4: la sala. Un PDF con 40 fotos tarda; una por obra en dos medidas entra holgado.
+  // Etapa 4: la sala. Un PDF con fotos tarda (los marcos van por tandas); una por obra en dos
+  // medidas entra holgado.
   piezas: { limit: 60, windowMs: 10 * 60_000 },
   guardarMontaje: { limit: 120, windowMs: 60 * 60_000 },
   moderarLibro: { limit: 600, windowMs: 10 * 60_000 },

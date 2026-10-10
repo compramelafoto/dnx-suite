@@ -23467,7 +23467,7 @@ model CulturalActivity {
   @@index([geohash])
 }
 
-/// Una obra de la galería virtual de una muestra. Tope: 40 por muestra, 12 destacadas.
+/// Una obra de la galería virtual de una muestra. Tope técnico: 300 por muestra (`MAX_WORKS`), 12 destacadas.
 model CulturalActivityWork {
   id         String           @id @default(cuid())
   activityId String

@@ -30,6 +30,10 @@ export default async function MontajeDeMuestra({ params }: { params: Promise<{ i
 
       <section aria-labelledby="t-fichas" className={seccion}>
         <h2 id="t-fichas" className="mf-titulo text-[1.5rem]">Fichas de sala con QR</h2>
+        {/* Aviso de la etapa 6 (spec D37): las fichas viejas llevan a la página pública, sin pase de sala. */}
+        <p className="border-l-2 border-[var(--mf-accent)] pl-3 text-[15px]">
+          El pase de sala necesita las fichas con el QR nuevo. Si imprimiste fichas antes, volvé a bajarlas.
+        </p>
         {publicada ? <DescargarFichas id={m.id} obras={m.works} /> : sinPublicar}
       </section>
 

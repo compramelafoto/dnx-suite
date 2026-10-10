@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { activityRole, assemblyPlan, canDecide, canEdit, isWorkDecision, needsAssembly, rankWorks, selectionRoom, type ReviewStatus } from "@repo/muestras";
+import { MAX_WORKS, activityRole, assemblyPlan, canDecide, canEdit, isWorkDecision, needsAssembly, rankWorks, selectionRoom, type ReviewStatus } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { puedeConDueno } from "@/lib/equipo/permisos";
 import { frenarPorUsuario } from "@/lib/limite";
@@ -46,7 +46,7 @@ export async function decidir(callWorkId: string, decision: string): Promise<Res
           tx.culturalCallWork.count({ where: { callId: w.callId, decision: "SELECTED" } }),
         ]);
         if (selectionRoom(enLaMuestra, elegidas) < 1) {
-          throw new Corte("La muestra admite hasta 40 obras: para elegir otra, sacá alguna de la selección.");
+          throw new Corte(`La muestra admite hasta ${MAX_WORKS} obras: para elegir otra, sacá alguna de la selección.`);
         }
       }
       const { count } = await tx.culturalCallWork.updateMany({
@@ -104,7 +104,7 @@ export async function armarMuestra(callId: string): Promise<ResultadoAccion> {
           throw new Corte("La muestra no se puede editar ahora (está en revisión o despublicada).");
         }
 
-        // Bloquea la muestra antes de contar sus obras para los topes de 40 y 12.
+        // Bloquea la muestra antes de contar sus obras para los topes de obras (MAX_WORKS) y destacadas.
         await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;
         const actuales = await tx.culturalActivityWork.findMany({ where: { activityId: a.id }, select: { id: true, isHighlight: true } });
         const enLaGaleria = new Set(actuales.map((w) => w.id));

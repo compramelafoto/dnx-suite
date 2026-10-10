@@ -2,20 +2,24 @@
 
 import { useState } from "react";
 import {
-  FRAME_SIZES, ORIENTATIONS, ORIENTATION_LABELS, QUALITY_LABELS, expectedQuality, isFrameSize, isOrientation,
-  type FrameSize, type Orientation,
+  FRAME_BATCH_SIZE, FRAME_SIZES, ORIENTATIONS, ORIENTATION_LABELS, QUALITY_LABELS, expectedQuality, frameBatches, isFrameSize,
+  isOrientation, type FrameSize, type Orientation,
 } from "@repo/muestras";
 import { urlDePieza } from "@/lib/piezas/opciones";
 import { campo, enlace } from "./estilos";
 
-/** Elegir medida, orientación, con o sin foto y una obra o todas; el enlace baja el PDF de marcos. */
+/**
+ * Elegir medida, orientación, con o sin foto y una obra o todas; el enlace baja el PDF de marcos.
+ * Con foto y más de `FRAME_BATCH_SIZE` obras, "todas" se baja por tandas (etapa 6, spec D18).
+ */
 export function DescargarMarcos({ id, obras }: { id: string; obras: { id: string; title: string }[] }) {
   const [tamano, setTamano] = useState<FrameSize>("A4");
   const [orientacion, setOrientacion] = useState<Orientation>("AUTO");
   const [conFoto, setConFoto] = useState(true);
   const [obra, setObra] = useState("");
   const calidad = expectedQuality(tamano);
-  const href = urlDePieza(id, { pieza: "marcos", tamano, orientacion, conFoto, obra: obra || null });
+  const href = urlDePieza(id, { pieza: "marcos", tamano, orientacion, conFoto, obra: obra || null, tanda: null });
+  const porTandas = conFoto && !obra && obras.length > FRAME_BATCH_SIZE;
   const etiqueta = "space-y-1 text-sm";
   const nombre = "block text-[var(--mf-muted)]";
 
@@ -49,7 +53,22 @@ export function DescargarMarcos({ id, obras }: { id: string; obras: { id: string
           </select>
         </label>
       </div>
-      <p className="text-[15px]"><a href={href} className={enlace}>Bajar los marcos (PDF)</a></p>
+      {porTandas ? (
+        <div className="space-y-1 text-[15px]">
+          <p className="text-sm text-[var(--mf-muted)]">Con fotos, los marcos se bajan de a {FRAME_BATCH_SIZE} obras:</p>
+          <ul className="flex flex-wrap gap-x-5 gap-y-1">
+            {frameBatches(obras.length).map((t) => (
+              <li key={t.n}>
+                <a href={urlDePieza(id, { pieza: "marcos", tamano, orientacion, conFoto, obra: null, tanda: t.n })} className={enlace}>
+                  {t.n === 1 ? `Marcos ${t.from} a ${t.to}` : `${t.from} a ${t.to}`}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-[15px]"><a href={href} className={enlace}>Bajar los marcos (PDF)</a></p>
+      )}
       <div className="space-y-1 text-sm text-[var(--mf-muted)]">
         {conFoto ? (
           <p>

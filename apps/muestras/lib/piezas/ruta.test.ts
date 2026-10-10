@@ -19,7 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimit();
   usuarioActual.valor = { id: 7, esSuperAdmin: false };
-  cargar.cargarMuestraParaPiezas.mockResolvedValue({ id: "a1", slug: "m" });
+  cargar.cargarMuestraParaPiezas.mockResolvedValue({ id: "a1", slug: "m", works: [] });
   armar.armarPieza.mockResolvedValue({ bytes: new Uint8Array([1, 2]), nombre: "cartel-m-A3" });
 });
 
@@ -60,6 +60,22 @@ describe("GET /api/piezas/[id]/[pieza]", () => {
     error.mockRestore();
     expect(r500.status).toBe(500);
     expect(await r500.text()).toBe("No pudimos armar el PDF. Probá de nuevo.");
+  });
+  it("marcos con foto de más de 40 obras, sin obra ni tanda: 404 que pide bajarlos por tandas (etapa 6)", async () => {
+    const works = Array.from({ length: 41 }, (_, i) => ({ id: `w${i}` }));
+    cargar.cargarMuestraParaPiezas.mockResolvedValue({ id: "a1", slug: "m", works });
+    const r = await pedir("marcos");
+    expect(r.status).toBe(404);
+    expect(await r.text()).toBe("Con más de 40 obras, bajá los marcos por tandas.");
+    expect(armar.armarPieza).not.toHaveBeenCalled();
+    // Por tandas, una obra sola o sin foto, sí.
+    expect((await pedir("marcos", "?tanda=2")).status).toBe(200);
+    expect((await pedir("marcos", "?obra=w3")).status).toBe(200);
+    expect((await pedir("marcos", "?foto=no")).status).toBe(200);
+  });
+  it("puede tardar hasta 5 minutos (catálogo de 300 obras)", async () => {
+    const ruta = await import("@/app/api/piezas/[id]/[pieza]/route");
+    expect(ruta.maxDuration).toBe(300);
   });
   it("pasado el tope, 429 en texto", async () => {
     let r = await pedir("cartel");
