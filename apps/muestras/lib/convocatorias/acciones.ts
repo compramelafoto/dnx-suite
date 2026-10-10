@@ -7,6 +7,7 @@ import {
   newSlug, nextCallStatus, toArDay, type CallAction,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
+import { puedeConDueno } from "@/lib/equipo/permisos";
 import { frenarPorUsuario } from "@/lib/limite";
 import { avisarConvocatoriaCerrada, avisarResultados } from "@/lib/correos/convocatorias";
 import type { ResultadoAccion } from "@/lib/actividades/acciones";
@@ -22,13 +23,17 @@ function refrescar(slug?: string) {
   if (slug) revalidatePath(`/convocatorias/${slug}`, "layout");
 }
 
-/** Crea la convocatoria de una muestra propia, en borrador y con textos sugeridos. */
+/**
+ * Crea la convocatoria de una muestra propia, en borrador y con textos sugeridos. Convocatoria y
+ * curaduría son sólo del dueño (`manageCall`, etapa 5 D4): la coorganización recibe la misma
+ * negativa que un extraño.
+ */
 export async function crearConvocatoria(activityId: string): Promise<ResultadoAccion> {
   if (typeof activityId !== "string") return NO_EXISTE;
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
   const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true, reviewStatus: true, proposedByUserId: true, call: { select: { id: true } } } });
-  if (!a || (a.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) return { ok: false, errores: ["La muestra no existe."] };
+  if (!a || !puedeConDueno(usuario, "manageCall", a.proposedByUserId)) return { ok: false, errores: ["La muestra no existe."] };
   if (a.type !== "MUESTRA") return { ok: false, errores: ["Sólo una muestra puede tener convocatoria."] };
   if (a.call) return { ok: true, id: a.call.id };
   if (a.reviewStatus === "UNPUBLISHED") return { ok: false, errores: ["La muestra está despublicada: no puede tener convocatoria."] };
@@ -67,7 +72,7 @@ export async function guardarConvocatoria(fd: FormData): Promise<ResultadoAccion
   const f = convocatoriaDesdeFormData(fd);
   if (!f.id) return NO_EXISTE;
   const c = await prisma.culturalCall.findUnique({ where: { id: f.id }, select: { id: true, slug: true, status: true, closesAt: true, activity: { select: { proposedByUserId: true } } } });
-  if (!c || (c.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) return NO_EXISTE;
+  if (!c || !puedeConDueno(usuario, "manageCall", c.activity.proposedByUserId)) return NO_EXISTE;
   if (c.status !== "DRAFT" && c.status !== "OPEN") return { ok: false, errores: ["La convocatoria ya cerró: no se puede editar."] };
   if (c.status === "OPEN" && !f.basesText) return { ok: false, errores: ["Con la convocatoria abierta, las bases no pueden quedar vacías."] };
   if (c.status === "OPEN" && !f.title) return { ok: false, errores: ["Falta el título de la convocatoria."] };
@@ -164,7 +169,7 @@ export async function empezarCuraduria(id: string): Promise<ResultadoAccion> {
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
   const c = await prisma.culturalCall.findUnique({ where: { id }, select: { status: true, activity: { select: { proposedByUserId: true } } } });
-  if (c && c.status === "CLOSED" && (c.activity.proposedByUserId === usuario.id || usuario.esSuperAdmin)) {
+  if (c && c.status === "CLOSED" && puedeConDueno(usuario, "manageCall", c.activity.proposedByUserId)) {
     try {
       await congelarCodigos(id);
     } catch {

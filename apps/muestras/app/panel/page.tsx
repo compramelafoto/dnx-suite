@@ -12,7 +12,7 @@ const accion = "inline-flex h-11 items-center border border-[var(--mf-ink)] px-5
 export default async function InicioPanel() {
   const usuario = await requireUsuario("/panel");
   const [mias, perfil, paraRevisar] = await Promise.all([
-    listarMias(usuario.id),
+    listarMias(usuario),
     buscarPerfilPropio(usuario.id),
     usuario.esSuperAdmin ? contarParaRevisar() : Promise.resolve(0),
   ]);
@@ -34,7 +34,7 @@ export default async function InicioPanel() {
       <section aria-labelledby="t-mias">
         <h2 id="t-mias" className="text-sm text-[var(--mf-muted)]">Tus muestras y actividades</h2>
         {mias.length === 0 ? (
-          <p className="mt-3 text-lg">Todavía no propusiste ninguna.</p>
+          <p className="mt-3 text-lg">Todavía no propusiste ninguna ni formás parte de un equipo.</p>
         ) : (
           <>
             <dl className="mt-4 grid grid-cols-2 border-t border-[var(--mf-line)] sm:grid-cols-5">

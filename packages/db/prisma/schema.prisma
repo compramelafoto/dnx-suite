@@ -23410,6 +23410,26 @@ model CulturalActivity {
   /// Sin FK a las obras a propósito: el editor de la muestra las borra y las vuelve a crear.
   hangingPlan    Json?
 
+  /// Fin de la inauguración (etapa 5). `openingAt` guarda día y hora; a las 00:00 argentinas = sin hora.
+  openingEndsAt     DateTime?
+  /// Nota de la invitación, p. ej. "Habrá un brindis".
+  openingNote       String?
+  /// Confirmación de asistencia: OFF | OPEN | CLOSED
+  rsvpStatus        String    @default("OFF")
+  /// Cupo en personas (incluye acompañantes). Vacío = sin cupo.
+  rsvpCapacity      Int?
+  rsvpMaxCompanions Int       @default(3)
+  /// Totales que quedan después de borrar los datos personales (30 días después del cierre).
+  rsvpSummary       Json?
+  rsvpPurgedAt      DateTime?
+
+  /// Sube con cada guardado de la ficha o de los textos: evita pisar cambios de otra persona del equipo.
+  editVersion        Int       @default(0)
+  lastEditedByUserId Int?
+  lastEditedAt       DateTime?
+  /// FICHA | TEXTOS | MONTAJE | INAUGURACION
+  lastEditedPart     String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -23422,6 +23442,11 @@ model CulturalActivity {
   dailyStats       CulturalActivityDailyStat[]
   /// Comentarios del libro de visitas (etapa 4).
   guestbookEntries CulturalActivityGuestbookEntry[]
+
+  /// Equipo de la muestra (etapa 5). El dueño es `proposedByUserId` y no está acá.
+  members CulturalActivityMember[]
+  /// Confirmaciones de asistencia a la inauguración (etapa 5).
+  rsvps   CulturalActivityRsvp[]
 
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
@@ -23668,5 +23693,51 @@ model CulturalActivityGuestbookEntry {
   moderatedByUserId Int?
   createdAt         DateTime  @default(now())
 
+  @@index([activityId, status, createdAt])
+}
+
+/// Integrante del equipo de una muestra (Muestras Fotográficas, etapa 5). Se invita por email; el
+/// enlace guarda sólo el SHA-256 del token y se acepta con la cuenta de ese email.
+model CulturalActivityMember {
+  id         String           @id @default(cuid())
+  activityId String
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  email           String
+  userId          Int?
+  /// CO_ORGANIZER | TEXT_EDITOR
+  role            String
+  /// INVITED | ACTIVE | REVOKED
+  status          String    @default("INVITED")
+  tokenHash       String    @unique
+  invitedByUserId Int
+  invitedAt       DateTime  @default(now())
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+
+  @@unique([activityId, email])
+  @@unique([activityId, userId])
+  @@index([userId, status])
+}
+
+/// Confirmación de asistencia a la inauguración (etapa 5). Sin cuenta, sin IP, sin user-agent.
+/// Se borra 30 días después del cierre de la muestra (queda `CulturalActivity.rsvpSummary`).
+model CulturalActivityRsvp {
+  id         String           @id @default(cuid())
+  activityId String
+  activity   CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  name            String
+  email           String?
+  companions      Int       @default(0)
+  /// CONFIRMED | WAITLIST | CANCELLED
+  status          String    @default("CONFIRMED")
+  manageTokenHash String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  cancelledAt     DateTime?
+  promotedAt      DateTime?
+
+  @@unique([activityId, email])
   @@index([activityId, status, createdAt])
 }

@@ -6,6 +6,7 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const { guardarMontaje } = await import("./acciones");
+const { conPermiso } = await import("@/lib/equipo/permisos");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const plan = (items: object[], extra: object = {}) => JSON.stringify({
@@ -31,14 +32,21 @@ describe("guardarMontaje", () => {
     const guardado = db.culturalActivity.update.mock.calls[0]![0].data.hangingPlan;
     expect(guardado.walls[0].items.map((i: { workId: string }) => i.workId)).toEqual(["w1", "w2"]);
   });
-  it("sólo el dueño (o el super admin) y sólo muestras", async () => {
+  it("sólo quien tiene `hanging` (dueño, coorganización o super admin) y sólo muestras", async () => {
     await guardarMontaje("a1", plan([]));
-    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toEqual({ id: "a1", type: "MUESTRA", proposedByUserId: 7 });
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where).toEqual(conPermiso({ id: "a1", type: "MUESTRA" }, { id: 7, esSuperAdmin: false }, "hanging"));
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].where.AND[1].OR[1]).toEqual({ members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } });
     usuarioActual.valor = { id: 1, esSuperAdmin: true, email: "x", name: null };
     await guardarMontaje("a1", plan([]));
-    expect(db.culturalActivity.findFirst.mock.calls[1]![0].where).toEqual({ id: "a1", type: "MUESTRA" });
+    expect(db.culturalActivity.findFirst.mock.calls[1]![0].where).toEqual({ AND: [{ id: "a1", type: "MUESTRA" }, {}] });
     db.culturalActivity.findFirst.mockResolvedValue(null);
     expect(await guardarMontaje("ajena", plan([]))).toEqual({ ok: false, errores: ["No encontramos esa muestra entre las tuyas."] });
+  });
+  it("deja el registro del último cambio y no toca la versión de la ficha", async () => {
+    await guardarMontaje("a1", plan([]));
+    const data = db.culturalActivity.update.mock.calls[0]![0].data;
+    expect(data).toMatchObject({ lastEditedByUserId: 7, lastEditedPart: "MONTAJE" });
+    expect(data).not.toHaveProperty("editVersion");
   });
   it("devuelve los problemas y no escribe", async () => {
     const r = await guardarMontaje("a1", plan([], { widthCm: 10 }));

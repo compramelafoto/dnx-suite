@@ -94,3 +94,25 @@ describe("frenos de la sala", () => {
     expect(frenarPorMuestra("libro", "m1").allowed).toBe(false);
   });
 });
+
+describe("frenos de difusión y equipo (etapa 5)", () => {
+  it("invitar al equipo 30 por hora y aceptar 20 por hora, por persona", () => {
+    expect(LIMITES.invitarEquipo).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+    expect(LIMITES.aceptarEquipo).toEqual({ limit: 20, windowMs: 60 * 60_000 });
+    for (let i = 0; i < 30; i++) expect(frenarPorUsuario("invitarEquipo", 1).allowed).toBe(true);
+    expect(frenarPorUsuario("invitarEquipo", 1).allowed).toBe(false);
+    expect(frenarPorUsuario("invitarEquipo", 2).allowed).toBe(true);
+  });
+});
+
+describe("frenos de la asistencia (etapa 5)", () => {
+  it("por IP y por muestra, con los topes del diseño", () => {
+    expect(LIMITES_PUBLICOS.asistencia).toEqual({ limit: 10, windowMs: 10 * 60_000 });
+    expect(LIMITES_PUBLICOS.asistenciaConsultas).toEqual({ limit: 120, windowMs: 10 * 60_000 });
+    expect(LIMITES_PUBLICOS.miAsistencia).toEqual({ limit: 30, windowMs: 10 * 60_000 });
+    expect(LIMITES_POR_MUESTRA.asistencia).toEqual({ limit: 300, windowMs: 60 * 60_000 });
+    for (let i = 0; i < 10; i++) expect(frenarPorIp("asistencia", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("asistencia", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("asistencia", "1.1.1.1", "m2").allowed).toBe(true);
+  });
+});

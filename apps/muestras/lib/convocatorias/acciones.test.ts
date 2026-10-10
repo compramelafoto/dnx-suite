@@ -205,3 +205,24 @@ describe("estados", () => {
     expect(correos.avisarResultados).not.toHaveBeenCalled();
   });
 });
+
+describe("la coorganización no toca la convocatoria (etapa 5, D4)", () => {
+  // Carla (15) coorganiza la muestra de Ana: para la convocatoria es como cualquier otra persona.
+  const carla = { id: 15, esSuperAdmin: false, email: "carla@x", name: "Carla" };
+  const equipo = { members: [{ userId: 15, role: "CO_ORGANIZER", status: "ACTIVE" }] };
+  beforeEach(() => {
+    usuarioActual.valor = carla;
+  });
+  it("no la crea", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ id: "a1", title: "Ciudad", type: "MUESTRA", proposedByUserId: 7, call: null, ...equipo });
+    expect(await crearConvocatoria("a1")).toEqual({ ok: false, errores: ["La muestra no existe."] });
+    expect(db.culturalCall.create).not.toHaveBeenCalled();
+  });
+  it("no la edita ni la abre", async () => {
+    db.culturalCall.findUnique.mockResolvedValue({ ...conv, activity: { ...conv.activity, ...equipo } });
+    expect(await guardarConvocatoria(fd({ id: "c1", title: "Otra" }))).toEqual({ ok: false, errores: ["La convocatoria no existe."] });
+    vi.useFakeTimers({ now: new Date("2026-10-20T15:00:00Z"), toFake: ["Date"] });
+    expect(await abrirConvocatoria("c1")).toEqual({ ok: false, errores: ["Sólo quien organiza la muestra puede hacer esto."] });
+    expect(db.culturalCall.updateMany).not.toHaveBeenCalled();
+  });
+});

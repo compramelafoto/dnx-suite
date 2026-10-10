@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ACTIVITY_TYPE_LABELS, formatArDay, guestbookState, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
+import { ACTIVITY_TYPE_LABELS, formatArDay, guestbookState, openingHasTime, openingWhenText, rsvpState, temporalStatus, visibleWorks, type ActivityType } from "@repo/muestras";
 import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { Galeria } from "@/components/ficha/galeria";
@@ -35,6 +35,8 @@ export default async function Ficha({ params }: Props) {
     .map(({ id, imageUrl, title, authorName, year, technique }) => ({ id, imageUrl, title, authorName, year, technique }));
   // Libro de visitas: sólo en muestras publicadas; cerrado o apagado, se ven los comentarios que ya hay.
   const libro = a.type === "MUESTRA" ? guestbookState(a, ahora) : "UNAVAILABLE";
+  // Invitación a la inauguración (etapa 5): con confirmación abierta, o sólo los datos si es entrada libre.
+  const asistencia = rsvpState(a, ahora);
   const ultimas = libro === "UNAVAILABLE" ? [] : await entradasPublicadas(a.id, 6);
   const mapa = a.latitude != null && a.longitude != null
     ? `https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`
@@ -54,7 +56,17 @@ export default async function Ficha({ params }: Props) {
       {a.isCancelled ? <p className="rounded-[2px] bg-[#a1251b]/10 p-3 text-[#8a1f17]">Esta actividad se suspendió.</p> : null}
       <dl className="grid gap-4 border-y border-[var(--mf-line)] py-5 sm:grid-cols-2">
         <div><dt className="text-sm text-[var(--mf-muted)]">Fechas</dt><dd>{formatArDay(a.startsAt)} al {formatArDay(a.endsAt)}</dd></div>
-        {a.openingAt ? <div><dt className="text-sm text-[var(--mf-muted)]">Inauguración</dt><dd>{formatArDay(a.openingAt)}</dd></div> : null}
+        {a.openingAt ? (
+          <div>
+            <dt className="text-sm text-[var(--mf-muted)]">Inauguración</dt>
+            <dd>{openingHasTime(a.openingAt) ? openingWhenText(a.openingAt, a.openingEndsAt) : formatArDay(a.openingAt)}</dd>
+            {asistencia === "OPEN" ? (
+              <dd><Link href={`/m/${a.slug}/inauguracion`} className="underline underline-offset-4">Confirmá tu asistencia</Link></dd>
+            ) : asistencia === "OFF" ? (
+              <dd><Link href={`/m/${a.slug}/inauguracion`} className="underline underline-offset-4">Ver la invitación</Link></dd>
+            ) : null}
+          </div>
+        ) : null}
         <div><dt className="text-sm text-[var(--mf-muted)]">Horarios</dt><dd>{a.scheduleText}</dd></div>
         <div><dt className="text-sm text-[var(--mf-muted)]">Entrada</dt><dd>{a.priceText || "Libre y gratuita"}</dd></div>
         <div className="sm:col-span-2"><dt className="text-sm text-[var(--mf-muted)]">Lugar</dt>

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
+  culturalActivity: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), count: vi.fn() },
   culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   culturalCallWork: { updateMany: vi.fn() },
+  user: { findUnique: vi.fn() },
   photographerProfile: { findUnique: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock("@/lib/correos/enviar", () => correos);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 process.env.R2_PUBLIC_URL = "https://pub-test.r2.dev";
-const { aprobar, enviarARevision, rechazar, guardarBorrador } = await import("./acciones");
+const { aprobar, cancelar, enviarARevision, rechazar, guardarBorrador } = await import("./acciones");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const fila = {
@@ -33,8 +34,11 @@ beforeEach(() => {
   resetRateLimit();
   db.culturalActivity.update.mockResolvedValue({});
   db.culturalActivity.updateMany.mockResolvedValue({ count: 1 });
+  // El permiso releído dentro de la transacción (y "es del equipo" para el nombre del choque).
+  db.culturalActivity.count.mockResolvedValue(1);
   db.$transaction.mockImplementation(async (arg: unknown) => (typeof arg === "function" ? arg(db) : []));
-  db.$queryRaw.mockResolvedValue([]);
+  // La fila bloqueada con su versión: los formularios de los tests mandan la 0.
+  db.$queryRaw.mockResolvedValue([{ editVersion: 0, lastEditedByUserId: null, lastEditedPart: null }]);
   // Salvo que el test diga otra cosa, la galería en la base es la de la fila que devuelve findUnique.
   db.culturalActivityWork.findMany.mockImplementation(async () =>
     (((await db.culturalActivity.findUnique.getMockImplementation()?.()) as { works?: object[] } | null)?.works ?? []).map((w) => ({
@@ -120,6 +124,7 @@ describe("guardarBorrador sobre una ficha publicada", () => {
   function fd(o: Record<string, string>) {
     const f = new FormData();
     for (const [k, v] of Object.entries(o)) f.set(k, v);
+    if (o.id && !("editVersion" in o)) f.set("editVersion", "0");
     return f;
   }
   beforeEach(() => {
@@ -136,6 +141,13 @@ describe("guardarBorrador sobre una ficha publicada", () => {
     const r = await guardarBorrador(fd(completa));
     expect(r).toEqual({ ok: true, id: "a1" });
     expect(db.$transaction).toHaveBeenCalled();
+  });  it("la hora de la inauguración con problemas no se guarda (etapa 5)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED" });
+    const r = await guardarBorrador(fd({ ...completa, openingDay: "2026-11-05", openingClock: "19:00", openingEndClock: "18:00" }));
+    expect(r).toEqual({ ok: false, errores: ["La hora de fin tiene que ser después de la de inicio."] });
+    expect(db.$transaction).not.toHaveBeenCalled();
+    const nueva = await guardarBorrador(fd({ title: "Nueva", openingClock: "19:00" }));
+    expect(nueva).toEqual({ ok: false, errores: ["Para poner la hora, elegí también el día de la inauguración."] });
   });
 });
 
@@ -143,6 +155,7 @@ describe("topes por persona", () => {
   function fd(o: Record<string, string>) {
     const f = new FormData();
     for (const [k, v] of Object.entries(o)) f.set(k, v);
+    if (o.id && !("editVersion" in o)) f.set("editVersion", "0");
     return f;
   }
   it("crear borradores tiene tope; editar uno existente no cuenta", async () => {
@@ -174,6 +187,7 @@ describe("obras: ids estables y perfil del autor", () => {
   function fd(o: Record<string, string>) {
     const f = new FormData();
     for (const [k, v] of Object.entries(o)) f.set(k, v);
+    if (o.id && !("editVersion" in o)) f.set("editVersion", "0");
     return f;
   }
   const guardadas = () => db.culturalActivityWork.createMany.mock.calls[0]![0].data as Array<Record<string, unknown>>;
@@ -256,6 +270,7 @@ describe("guardarBorrador: obras sumadas con la pestaña abierta y obras quitada
   function fd(o: Record<string, string>) {
     const f = new FormData();
     for (const [k, v] of Object.entries(o)) f.set(k, v);
+    if (o.id && !("editVersion" in o)) f.set("editVersion", "0");
     return f;
   }
   const enLaBase = (filas: Array<{ id: string; sortOrder: number; isHighlight?: boolean }>) =>
@@ -300,5 +315,99 @@ describe("guardarBorrador: obras sumadas con la pestaña abierta y obras quitada
     const destacadas = Array.from({ length: 12 }, () => obra({ isHighlight: true }));
     const r = await guardarBorrador(fd({ id: "a1", title: "Charla", idsCargados: "[]", works: JSON.stringify(destacadas) }));
     expect(r).toMatchObject({ ok: false, errores: [expect.stringMatching(/13 destacadas y el tope es 12/)] });
+  });
+});
+
+describe("equipo y versiones (etapa 5)", () => {
+  function fd(o: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(k, v);
+    return f;
+  }
+  const ficha = { title: "Charla", works: "[]" };
+  const conRol = (role: string, extra: Record<string, unknown> = {}) =>
+    ({ ...fila, ...extra, proposedByUserId: 3, members: [{ userId: 7, role, status: "ACTIVE" }] });
+  beforeEach(() => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.findUnique.mockResolvedValue(fila);
+    db.$queryRaw.mockResolvedValue([{ editVersion: 4, lastEditedByUserId: null, lastEditedPart: null }]);
+  });
+  it("lee sólo la fila activa de quien edita", async () => {
+    await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(db.culturalActivity.findUnique.mock.calls[0]![0].include.members).toEqual({
+      where: { userId: 7, status: "ACTIVE" }, select: { userId: true, role: true, status: true },
+    });
+  });
+  it("coorganización guarda la ficha; textos no", async () => {
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("CO_ORGANIZER"));
+    expect((await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }))).ok).toBe(true);
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("TEXT_EDITOR"));
+    expect(await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }))).toEqual({ ok: false, errores: ["No podés editar esta actividad ahora."] });
+  });
+  it("una persona sacada del equipo (fila no activa) no edita", async () => {
+    db.culturalActivity.findUnique.mockResolvedValueOnce({ ...fila, proposedByUserId: 3, members: [] });
+    expect((await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }))).ok).toBe(false);
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+  it("otra persona guardó en el medio: no pisa", async () => {
+    db.$queryRaw.mockResolvedValueOnce([{ id: "a1", editVersion: 5, lastEditedByUserId: 9, lastEditedPart: "TEXTOS" }]);
+    db.user.findUnique.mockResolvedValueOnce({ name: "Ana Pérez" });
+    const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(r).toEqual({ ok: false, errores: ["Mientras editabas, Ana Pérez guardó cambios en los textos. Recargá la página para ver la versión nueva (lo que escribiste se pierde: copialo antes)."] });
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+    expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
+  });
+  it("choque de alguien que no es del equipo (super admin): el equipo de Muestras Fotográficas, nunca su email", async () => {
+    db.$queryRaw.mockResolvedValueOnce([{ editVersion: 5, lastEditedByUserId: 1, lastEditedPart: "FICHA" }]);
+    db.culturalActivity.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    db.user.findUnique.mockResolvedValueOnce({ name: null });
+    const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(r).toEqual({ ok: false, errores: ["Mientras editabas, el equipo de Muestras Fotográficas guardó cambios en la ficha. Recargá la página para ver la versión nueva (lo que escribiste se pierde: copialo antes)."] });
+  });
+  it("sacada del equipo entre la lectura y el guardado: el permiso se relee con la fila bloqueada y no guarda", async () => {
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("CO_ORGANIZER"));
+    db.culturalActivity.count.mockResolvedValueOnce(0);
+    const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(r).toEqual({ ok: false, errores: ["No podés editar esta actividad ahora."] });
+    const where = db.culturalActivity.count.mock.calls[0]![0].where;
+    expect(where.AND[0]).toEqual({ id: "a1" });
+    expect(where.AND[1].OR).toEqual([{ proposedByUserId: 7 }, { members: { some: { userId: 7, status: "ACTIVE", role: { in: ["CO_ORGANIZER"] } } } }]);
+    expect(String(db.$queryRaw.mock.calls[0]![0].join("?"))).toMatch(/FOR UPDATE/);
+    expect(db.$queryRaw.mock.invocationCallOrder[0]!).toBeLessThan(db.culturalActivity.count.mock.invocationCallOrder[0]!);
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+    expect(db.culturalActivityWork.deleteMany).not.toHaveBeenCalled();
+  });
+  it("choque sin registro de quién: aviso genérico", async () => {
+    db.$queryRaw.mockResolvedValueOnce([{ editVersion: 5, lastEditedByUserId: null, lastEditedPart: null }]);
+    const r = await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    expect(r).toEqual({ ok: false, errores: ["Mientras editabas, alguien del equipo guardó cambios. Recargá la página para ver la versión nueva (lo que escribiste se pierde: copialo antes)."] });
+  });
+  it("sin versión (pestaña de antes del cambio): pide recargar", async () => {
+    expect(await guardarBorrador(fd({ id: "a1", ...ficha }))).toEqual({ ok: false, errores: ["La página quedó vieja. Recargala y volvé a guardar."] });
+  });
+  it("guarda subiendo la versión y deja el registro", async () => {
+    await guardarBorrador(fd({ id: "a1", editVersion: "4", ...ficha }));
+    const data = db.culturalActivity.update.mock.calls[0]![0].data;
+    expect(data.editVersion).toEqual({ increment: 1 });
+    expect(data).toMatchObject({ lastEditedByUserId: 7, lastEditedPart: "FICHA" });
+    expect(data.lastEditedAt).toBeInstanceOf(Date);
+  });
+  it("crear deja el registro", async () => {
+    db.culturalActivity.create.mockResolvedValue({ id: "n" });
+    await guardarBorrador(fd({ title: "Nueva" }));
+    expect(db.culturalActivity.create.mock.calls[0]![0].data).toMatchObject({ proposedByUserId: 7, lastEditedByUserId: 7, lastEditedPart: "FICHA" });
+  });
+  it("cancelar: sólo dueño", async () => {
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("CO_ORGANIZER", { reviewStatus: "APPROVED" }));
+    expect(await cancelar("a1")).toEqual({ ok: false, errores: ["No podés cancelar esta actividad."] });
+    expect(db.culturalActivity.updateMany).not.toHaveBeenCalled();
+    db.culturalActivity.findUnique.mockResolvedValueOnce({ ...fila, reviewStatus: "APPROVED", members: [] });
+    expect((await cancelar("a1")).ok).toBe(true);
+  });
+  it("coorganización envía a revisión", async () => {
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("CO_ORGANIZER"));
+    expect((await enviarARevision("a1")).ok).toBe(true);
+    db.culturalActivity.findUnique.mockResolvedValueOnce(conRol("TEXT_EDITOR"));
+    expect((await enviarARevision("a1")).ok).toBe(false);
   });
 });

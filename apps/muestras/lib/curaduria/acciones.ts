@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { CALL_TEXT_LIMITS, canScore, invitationState, isValidScore, normalizeEmail } from "@repo/muestras";
+import { CALL_TEXT_LIMITS, activityRole, canScore, invitationState, isValidScore, normalizeEmail } from "@repo/muestras";
 import { getUsuario, type Usuario } from "@/lib/usuario";
+import { puedeConDueno } from "@/lib/equipo/permisos";
 import { frenarPorUsuario } from "@/lib/limite";
 import { avisarInvitacionCurador } from "@/lib/correos/convocatorias";
 import type { ResultadoAccion } from "@/lib/actividades/acciones";
@@ -13,10 +14,13 @@ const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar.
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La convocatoria no existe."] };
 const INVITACION_INVALIDA: ResultadoAccion = { ok: false, errores: ["La invitación no es válida."] };
 
-/** Convocatoria del organizador (o super admin) que todavía admite cambios en el equipo. */
+/**
+ * Convocatoria del organizador (o super admin) que todavía admite cambios en el equipo
+ * curatorial. Sólo el dueño (`manageCall`, etapa 5 D4): la coorganización de la muestra no.
+ */
 async function convocatoriaParaEquipo(callId: string, usuario: Usuario) {
   const c = await prisma.culturalCall.findUnique({ where: { id: callId }, select: { id: true, title: true, status: true, activity: { select: { proposedByUserId: true } } } });
-  if (!c || (c.activity.proposedByUserId !== usuario.id && !usuario.esSuperAdmin)) return null;
+  if (!c || !puedeConDueno(usuario, "manageCall", c.activity.proposedByUserId)) return null;
   return c;
 }
 
@@ -106,7 +110,9 @@ export async function aceptarInvitacion(token: string): Promise<ResultadoAccion>
   if (estado === "USED") return { ok: false, errores: ["Esta invitación ya se usó."] };
   if (estado === "EXPIRED") return { ok: false, errores: ["La invitación venció. Pedile a quien organiza que te la vuelva a mandar."] };
   if (estado === "REVOKED") return INVITACION_INVALIDA;
-  if (usuario.id === k.invitedByUserId || usuario.id === k.call.createdByUserId || usuario.id === k.call.activity.proposedByUserId) {
+  // Conflicto de la etapa 3, sin cambios: quien invitó, quien creó la convocatoria o el dueño de la
+  // muestra no curan. La coorganización no entra (no ve el ranking: D4 de la etapa 5).
+  if (usuario.id === k.invitedByUserId || usuario.id === k.call.createdByUserId || activityRole(k.call.activity, usuario.id) === "OWNER") {
     return { ok: false, errores: ["Esta invitación no se puede aceptar con esta cuenta."] };
   }
   if (usuario.email.trim().toLowerCase() !== k.email.trim().toLowerCase()) {

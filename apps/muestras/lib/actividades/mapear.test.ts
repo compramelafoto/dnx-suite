@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LARGOS, datosParaGuardar, esImagenPropia, fichaDesdeFormData as mapearConBase } from "./mapear";
+import { LARGOS, datosParaGuardar, esImagenPropia, leerObrasDeTextos, fichaDesdeFormData as mapearConBase } from "./mapear";
 
 const BASE = "https://pub-test.r2.dev";
 /** Los tests inyectan la base pública de imágenes en vez de depender del entorno. */
@@ -64,6 +64,19 @@ describe("datosParaGuardar", () => {
     expect((d.startsAt as Date).toISOString()).toBe("2026-11-05T03:00:00.000Z");
     expect((d.endsAt as Date).toISOString()).toBe("2026-11-21T02:59:59.999Z");
     expect(typeof d.geohash).toBe("string");
+  });
+  it("día y hora de la inauguración en hora argentina (etapa 5)", () => {
+    const d = datosParaGuardar(fichaDesdeFormData(fd({ ...base, openingDay: "2026-11-14", openingClock: "19:00", openingEndClock: "21:30" })));
+    expect((d.openingAt as Date).toISOString()).toBe("2026-11-14T22:00:00.000Z");
+    expect((d.openingEndsAt as Date).toISOString()).toBe("2026-11-15T00:30:00.000Z");
+  });
+  it("sin hora: comienzo del día y sin fin", () => {
+    const d = datosParaGuardar(fichaDesdeFormData(fd({ ...base, openingDay: "2026-11-14", openingEndClock: "21:30" })));
+    expect((d.openingAt as Date).toISOString()).toBe("2026-11-14T03:00:00.000Z");
+    expect(d.openingEndsAt).toBeNull();
+    const sin = datosParaGuardar(fichaDesdeFormData(fd(base)));
+    expect(sin.openingAt).toBeNull();
+    expect(sin.openingEndsAt).toBeNull();
   });
   it("no toca el estado de revisión ni el dueño", () => {
     const d = datosParaGuardar(fichaDesdeFormData(fd(base)));
@@ -176,5 +189,40 @@ describe("texto curatorial", () => {
     const charla = datosParaGuardar(fichaDesdeFormData(fd({ ...base, type: "CHARLA", curatorialText: "Texto" })));
     expect(muestra.curatorialText).toBe("Texto");
     expect(charla.curatorialText).toBeNull();
+  });
+});
+
+describe("versión de la ficha (etapa 5)", () => {
+  it("lee la versión escondida; vacía o rara es null", () => {
+    expect(fichaDesdeFormData(fd({ ...base, editVersion: "4" })).editVersion).toBe(4);
+    expect(fichaDesdeFormData(fd(base)).editVersion).toBeNull();
+    expect(fichaDesdeFormData(fd({ ...base, editVersion: "-1" })).editVersion).toBeNull();
+    expect(fichaDesdeFormData(fd({ ...base, editVersion: "1e3" })).editVersion).toBeNull();
+  });
+  it("no se escribe en la tabla (la sube la acción)", () => {
+    expect("editVersion" in datosParaGuardar(fichaDesdeFormData(fd({ ...base, editVersion: "4" })))).toBe(false);
+  });
+});
+
+describe("leerObrasDeTextos (etapa 5)", () => {
+  it("sólo id, título, año y técnica; año entero 1800–2100 o vacío", () => {
+    expect(leerObrasDeTextos(JSON.stringify([
+      { id: "w1", title: " Silos ", year: "2024", technique: " Gelatina ", imageUrl: "https://otro/x.jpg", authorName: "Otro", isHighlight: true },
+      { id: "w2", title: "B", year: 1500, technique: "" },
+      { id: "w3", title: "C", year: "abc" },
+    ]))).toEqual([
+      { id: "w1", title: "Silos", year: 2024, technique: "Gelatina" },
+      { id: "w2", title: "B", year: null, technique: null },
+      { id: "w3", title: "C", year: null, technique: null },
+    ]);
+  });
+  it("descarta ids sin forma y repetidos; JSON roto → nada", () => {
+    expect(leerObrasDeTextos(JSON.stringify([{ id: "a b", title: "x" }, { id: "w1", title: "x" }, { id: "w1", title: "y" }]))).toEqual([{ id: "w1", title: "x", year: null, technique: null }]);
+    expect(leerObrasDeTextos("{")).toEqual([]);
+  });
+  it("recorta el título al tope del editor y deja vacío lo vacío", () => {
+    const [o] = leerObrasDeTextos(JSON.stringify([{ id: "w1", title: "x".repeat(500) }]));
+    expect(o!.title).toHaveLength(LARGOS.obraTitle);
+    expect(leerObrasDeTextos(JSON.stringify([{ id: "w1", title: "  " }]))[0]!.title).toBe("");
   });
 });

@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { ACTIVITY_LEVEL } from "@repo/muestras";
-import { esDeQuienOrganiza, pedidoContable, sumarUno } from "@/lib/estadisticas/contar";
+import { esDelEquipo } from "@/lib/equipo/permisos";
+import { pedidoContable, sumarUno } from "@/lib/estadisticas/contar";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
 
 export const runtime = "nodejs";
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
   const ip = ipDeLaPeticion(req.headers);
   if (!frenarPorIp("visitas", ip).allowed) return listo();
   try {
-    const actividad = await prisma.culturalActivity.findFirst({ where: { id: a, reviewStatus: "APPROVED" }, select: { id: true, proposedByUserId: true } });
+    const actividad = await prisma.culturalActivity.findFirst({ where: { id: a, reviewStatus: "APPROVED" }, select: { id: true } });
     if (!actividad) return listo();
     if (o) {
       const obra = await prisma.culturalActivityWork.findFirst({ where: { id: o, activityId: a }, select: { id: true } });
@@ -57,7 +58,8 @@ export async function POST(req: Request) {
     }
     // Con la muestra y la obra ya validadas: el ámbito no puede ser un valor inventado.
     if (!frenarPorIp("visitasPorPagina", ip, `${actividad.id}:${o ?? ACTIVITY_LEVEL}`).allowed) return listo();
-    if (await esDeQuienOrganiza(actividad.proposedByUserId)) return listo();
+    // El equipo de la muestra (y el super admin) no cuenta (D10).
+    if (await esDelEquipo(actividad.id)) return listo();
     await sumarUno({ activityId: a, workId: o ?? ACTIVITY_LEVEL, metric: "VIEW" });
   } catch (err) {
     console.error("[visitas] no se pudo contar:", err instanceof Error ? err.message : String(err));

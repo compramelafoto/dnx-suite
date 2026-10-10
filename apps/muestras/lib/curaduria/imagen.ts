@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { canViewCallImage } from "@repo/muestras";
+import { puedeConDueno } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 
 /**
@@ -26,7 +27,9 @@ export async function imagenAutorizada(callWorkId: string, usuario: Usuario): Pr
   const k = await prisma.culturalCallCurator.findFirst({ where: { callId: w.callId, userId: usuario.id }, select: { status: true } });
   const puede = canViewCallImage({
     status: w.call.status,
-    isOwner: w.call.activity.proposedByUserId === usuario.id,
+    // Sólo el dueño (`manageCall`, D4): la coorganización no ve la imagen anónima. El super admin
+    // entra por `isSuperAdmin`.
+    isOwner: puedeConDueno({ ...usuario, esSuperAdmin: false }, "manageCall", w.call.activity.proposedByUserId),
     isSuperAdmin: usuario.esSuperAdmin,
     curatorStatus: k?.status ?? null,
   });

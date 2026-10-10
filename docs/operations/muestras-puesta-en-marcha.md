@@ -192,3 +192,23 @@ Cómo probarlo de punta a punta:
 3. Armar el plano: dos paredes, asignar obras, guardar y bajar el PDF.
 4. Escanear el QR del afiche con el celular, dejar un comentario y moderarlo desde el panel.
 5. Abrir la ficha desde otro dispositivo y ver al día siguiente las visitas en **Estadísticas**.
+
+## Etapa 5 — difusión y equipo
+
+- **Migración:** `20261030120000_muestras_etapa_5_difusion` ya está aplicada y registrada en la base
+  de producción (11 columnas en `CulturalActivity` y las tablas `CulturalActivityMember` y
+  `CulturalActivityRsvp`). No hay que correr nada.
+- **Equipo de la muestra** (Panel → la muestra → Equipo): hasta 10 personas, con dos roles:
+  *Coorganización* (edita la muestra, montaje, piezas, difusión e inauguración, modera el libro y ve
+  estadísticas; no cancela ni maneja el equipo ni la convocatoria) y *Textos y curaduría* (sólo
+  textos). La invitación se acepta sólo con la cuenta de Google del mail invitado; con los correos
+  apagados, quien invita ve el enlace para copiarlo.
+- **Inauguración** (`/m/<slug>/inauguracion`): fecha, hora, mapa, agendar (.ics y Google Calendar) y
+  "Voy" sin cuenta, con cupo y lista de espera. El equipo ve la lista y baja un CSV. Nombres y mails
+  se borran 30 días después del cierre de la muestra (queda sólo el total).
+- **Tarea diaria de borrado:** está en `vercel.json` (06:00 hora argentina). Para encenderla hay que
+  crear la variable `CRON_SECRET` en Vercel (proyecto de Muestras). Sin ella la ruta responde 503 y
+  el borrado igual ocurre al abrir el panel.
+- **Piezas para redes** (Panel → Difusión): posteo, historia y cuadrado con las variantes Inaugura,
+  Últimos días, Obra destacada e Invitación, más la invitación en PDF A6 y A5. Sólo con la muestra
+  publicada. Usan la fuente Roboto (Apache 2.0) incluida en `apps/muestras/assets/fonts`.

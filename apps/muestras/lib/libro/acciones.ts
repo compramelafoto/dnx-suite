@@ -6,6 +6,7 @@ import { prisma } from "@repo/db";
 import {
   GUESTBOOK_LIMITS, GUESTBOOK_RAW_MAX, guestbookInput, guestbookProblems, guestbookState, initialEntryStatus, isGuestbookMode, isModerationAction, isTooFast, nextEntryStatus,
 } from "@repo/muestras";
+import { conPermiso } from "@/lib/equipo/permisos";
 import { frenarPorIp, frenarPorMuestra, frenarPorUsuario, ipDeLaPeticion } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
 
@@ -58,7 +59,7 @@ export async function dejarComentario(fd: FormData): Promise<ResultadoLibro> {
 
 type Resultado = { ok: true } | { ok: false; error: string };
 
-/** Publicar, ocultar o borrar (definitivo) un comentario. Dueño de la muestra o super admin. */
+/** Publicar, ocultar o borrar (definitivo) un comentario. Con `guestbook`: dueño, coorganización o super admin. */
 export async function moderarEntrada(entryId: string, accion: string): Promise<Resultado> {
   const usuario = await getUsuario();
   if (!usuario) return { ok: false, error: "Tu sesión venció. Volvé a ingresar." };
@@ -66,9 +67,10 @@ export async function moderarEntrada(entryId: string, accion: string): Promise<R
   if (!frenarPorUsuario("moderarLibro", usuario.id).allowed) return { ok: false, error: "Esperá unos minutos y seguí." };
   const e = await prisma.culturalActivityGuestbookEntry.findUnique({
     where: { id: entryId },
-    select: { id: true, activity: { select: { id: true, slug: true, proposedByUserId: true } } },
+    select: { id: true, activity: { select: { id: true, slug: true } } },
   });
-  if (!e || (!usuario.esSuperAdmin && e.activity.proposedByUserId !== usuario.id)) return { ok: false, error: "No encontramos ese comentario." };
+  const permitido = !!e && (await prisma.culturalActivity.count({ where: conPermiso({ id: e.activity.id }, usuario, "guestbook") })) > 0;
+  if (!e || !permitido) return { ok: false, error: "No encontramos ese comentario." };
   const estado = nextEntryStatus(accion);
   if (estado === null) await prisma.culturalActivityGuestbookEntry.deleteMany({ where: { id: e.id } });
   else await prisma.culturalActivityGuestbookEntry.updateMany({ where: { id: e.id }, data: { status: estado, moderatedAt: new Date(), moderatedByUserId: usuario.id } });
@@ -85,7 +87,7 @@ export async function cambiarModoLibro(activityId: string, modo: string): Promis
   if (typeof activityId !== "string" || !ID.test(activityId) || !isGuestbookMode(modo)) return { ok: false, error: "No se puede hacer eso." };
   if (!frenarPorUsuario("cambiarModoLibro", usuario.id).allowed) return { ok: false, error: "Esperá unos minutos y seguí." };
   const { count } = await prisma.culturalActivity.updateMany({
-    where: { id: activityId, type: "MUESTRA", ...(usuario.esSuperAdmin ? {} : { proposedByUserId: usuario.id }) },
+    where: conPermiso({ id: activityId, type: "MUESTRA" }, usuario, "guestbook"),
     data: { guestbookMode: modo },
   });
   if (count === 0) return { ok: false, error: "No encontramos esa muestra entre las tuyas." };

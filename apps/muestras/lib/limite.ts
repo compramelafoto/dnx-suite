@@ -102,6 +102,15 @@ export const LIMITES = {
   guardarMontaje: { limit: 120, windowMs: 60 * 60_000 },
   moderarLibro: { limit: 600, windowMs: 10 * 60_000 },
   cambiarModoLibro: { limit: 60, windowMs: 60 * 60_000 },
+  // Etapa 5: equipo de la muestra.
+  invitarEquipo: { limit: 30, windowMs: 60 * 60_000 },
+  aceptarEquipo: { limit: 20, windowMs: 60 * 60_000 },
+  guardarTextos: { limit: 120, windowMs: 60 * 60_000 },
+  guardarInauguracion: { limit: 60, windowMs: 60 * 60_000 },
+  gestionarAsistencias: { limit: 600, windowMs: 10 * 60_000 },
+  exportarAsistencias: { limit: 30, windowMs: 60 * 60_000 },
+  // Piezas para redes: cada vista previa arma una imagen en el servidor (≈ 0,5–1 s).
+  redes: { limit: 120, windowMs: 10 * 60_000 },
 } as const;
 
 /**
@@ -125,6 +134,12 @@ export const LIMITES_PUBLICOS = {
   libro: { limit: 10, windowMs: 10 * 60_000 },
   // Antes de buscar la muestra del libro: holgado, sólo para que un bucle no consulte la base.
   libroConsultas: { limit: 120, windowMs: 10 * 60_000 },
+  // Etapa 5: confirmación de asistencia. Por IP y por muestra (un grupo en la misma red puede anotarse).
+  asistencia: { limit: 10, windowMs: 10 * 60_000 },
+  // Antes de buscar la muestra: holgado, sólo para que un bucle no consulte la base.
+  asistenciaConsultas: { limit: 120, windowMs: 10 * 60_000 },
+  // Ver o cancelar con el enlace personal.
+  miAsistencia: { limit: 30, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
@@ -143,6 +158,7 @@ export function ipDeLaPeticion(h: { get(nombre: string): string | null }): strin
 /** Topes por muestra, sumando a todas las personas: frena una inundación repartida en muchas IPs. */
 export const LIMITES_POR_MUESTRA = {
   libro: { limit: 200, windowMs: 60 * 60_000 },
+  asistencia: { limit: 300, windowMs: 60 * 60_000 },
 } as const;
 
 // Sal al azar por instancia: la huella no se puede revertir ni cruzar entre instancias, y nunca se

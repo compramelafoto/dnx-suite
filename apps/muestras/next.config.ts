@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
       "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
       "../../packages/db/prisma/**",
     ],
+    // La fuente de las piezas para redes se lee con `fs` (lib/redes/fuentes.ts): el rastreo de
+    // Next no la ve solo. Sin ella, en Vercel el texto no se dibuja y la ruta responde 500.
+    "/api/redes/**": ["./assets/fonts/**"],
   },
   // Las URLs de la etapa 1 siguen andando: hay enlaces en correos ya enviados y en favoritos.
   // `/proponer` es temporal (307): es el enlace de difusión y mañana puede ser una página pública.
