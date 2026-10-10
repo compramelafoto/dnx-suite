@@ -70,3 +70,49 @@ export async function miFilaEnMuestra(activityId: string, userId: number) {
     select: { id: true, status: true },
   });
 }
+
+/** "Donde expongo": las muestras donde esta persona se sumó, con el estado de sus obras. */
+export async function misParticipaciones(usuario: Quien) {
+  return prisma.culturalExhibitor.findMany({
+    where: { userId: usuario.id },
+    select: {
+      id: true, status: true, displayName: true, joinedAt: true,
+      activity: { select: { id: true, slug: true, title: true, startsAt: true, endsAt: true, isCancelled: true } },
+      works: { select: { status: true } },
+    },
+    orderBy: { joinedAt: "desc" },
+    take: 200,
+  });
+}
+
+/**
+ * Una participación propia con sus obras, para `/panel/expositor/<id>`. Siempre filtrada por la
+ * cuenta: la de otra persona "no existe" (spec D11). Sólo trae lo propio, precio incluido.
+ */
+export async function miParticipacion(id: string, usuario: Quien) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
+  const e = await prisma.culturalExhibitor.findFirst({
+    where: { id, userId: usuario.id },
+    select: {
+      id: true, status: true, displayName: true,
+      profile: { select: { slug: true, bio: true } },
+      activity: {
+        select: {
+          id: true, slug: true, title: true, type: true, reviewStatus: true, isCancelled: true, startsAt: true, endsAt: true,
+          organizersText: true,
+          exhibitorLink: { select: { status: true, closesAt: true, maxWorksPerExhibitor: true, instructions: true } },
+        },
+      },
+      works: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, status: true, imageUrl: true, title: true, year: true, technique: true, imageWidthCm: true, imageHeightCm: true,
+          frameWidthCm: true, frameHeightCm: true, edition: true, editionNumber: true, editionSize: true, statement: true,
+          forSale: true, priceArs: true, hangingNotes: true, reviewNote: true, activityWorkId: true,
+        },
+      },
+    },
+  });
+  if (!e) return null;
+  return { ...e, estadoEnlace: exhibitorLinkState(e.activity.exhibitorLink, e.activity, new Date()) };
+}

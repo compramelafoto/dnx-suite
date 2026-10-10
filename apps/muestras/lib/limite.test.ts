@@ -137,4 +137,8 @@ describe("frenos de la sorpresa (etapa 6)", () => {
     expect(LIMITES.sumarseExpositor).toEqual({ limit: 20, windowMs: 60 * 60_000 });
     expect(LIMITES_PUBLICOS.paginaExpositores).toEqual({ limit: 60, windowMs: 10 * 60_000 });
   });
+  it("obras de quien expone: guardar 300 por hora y enviar 60 por hora", () => {
+    expect(LIMITES.guardarObraExpositor).toEqual({ limit: 300, windowMs: 60 * 60_000 });
+    expect(LIMITES.enviarObraExpositor).toEqual({ limit: 60, windowMs: 60 * 60_000 });
+  });
 });
