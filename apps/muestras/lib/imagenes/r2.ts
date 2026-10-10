@@ -1,5 +1,5 @@
 import "server-only";
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { CLAVE_PDF } from "./clave-pdf";
 
 /**
@@ -64,6 +64,19 @@ export async function leerDeR2(urlPublica: string): Promise<{ cuerpo: ReadableSt
     console.error("[muestras] R2 lectura:", err instanceof Error ? err.message : String(err));
     return null;
   }
+}
+
+/**
+ * Borra un objeto propio del bucket por su URL pública (sólo bajo `muestras/`). Lanza si falla:
+ * quien llama decide si es a mejor esfuerzo.
+ */
+export async function borrarDeR2(urlPublica: string): Promise<void> {
+  const c = config();
+  const prefijo = `${c.publicUrl}/`;
+  if (!urlPublica.startsWith(prefijo)) return;
+  const clave = urlPublica.slice(prefijo.length);
+  if (!/^muestras\/[A-Za-z0-9._/-]+$/.test(clave) || clave.includes("..")) return;
+  await s3(c).send(new DeleteObjectCommand({ Bucket: c.bucket, Key: clave }));
 }
 
 /** El objeto entero en memoria (para pasarlo por sharp). `null` en los mismos casos que `leerDeR2`. */

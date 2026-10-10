@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
 import {
   LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
@@ -101,6 +101,23 @@ describe("tope de tamaño del freno", () => {
     expect(checkRateLimit({ key: "k0", limit: 5, windowMs: 60_000 }).remaining).toBe(4);
     expect(checkRateLimit({ key: `k${MAX_ENTRADAS + 49}`, limit: 5, windowMs: 60_000 }).remaining).toBe(3);
     resetRateLimit();
+  });
+  it("barre lo vencido a lo sumo una vez por segundo", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
+      for (let i = 0; i < 600; i++) checkRateLimit({ key: `v${i}`, limit: 5, windowMs: 100 });
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.500Z"));
+      checkRateLimit({ key: "nueva", limit: 5, windowMs: 60_000 });
+      // Ya barrió al llegar a 500 claves (en el mismo segundo): las vencidas de después siguen.
+      expect(tamanoDelFreno()).toBeGreaterThan(1);
+      vi.setSystemTime(new Date("2026-10-10T12:00:02Z"));
+      checkRateLimit({ key: "otra", limit: 5, windowMs: 60_000 });
+      expect(tamanoDelFreno()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+      resetRateLimit();
+    }
   });
 });
 

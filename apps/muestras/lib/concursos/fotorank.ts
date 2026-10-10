@@ -21,7 +21,12 @@ import type { Usuario } from "@/lib/usuario";
  */
 export const ROLES_QUE_ARMAN = ["OWNER", "ADMIN", "EDITOR"] as const;
 const ES_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const ESTADOS_DE_OBRA_FUERA = ["REJECTED", "WITHDRAWN", "REPLACED", "DRAFT"] as const;
+/** Admisión técnica que deja la obra fuera (como la tienda y los diplomas). Sin admisión cargada, cuenta. */
+const ADMISION_FUERA = ["REJECTED", "EXCLUDED", "WITHDRAWN", "REPLACED"] as const;
+/** Inscripciones que dejan fuera sus obras. Una obra sin inscripción (concursos viejos) cuenta. */
+const INSCRIPCION_FUERA = ["DISQUALIFIED", "CANCELLED"] as const;
+/** Concursos que no se llevan a una muestra: borradores y cancelados. */
+const CONCURSO_FUERA = ["DRAFT", "CANCELLED"] as const;
 const SIN_NOMBRE = "Autor/a sin nombre";
 const TOPE_CONCURSOS = 50;
 
@@ -45,8 +50,8 @@ const esMaraton = (c: { experienceType: string; distributionChannel: string | nu
 /** D2/D3: super admin o miembro ACTIVE con rol OWNER/ADMIN/EDITOR de la organización del concurso. Se lee en cada acción. */
 export async function puedeArmarDesdeConcurso(usuario: Quien, contestId: string): Promise<boolean> {
   if (typeof contestId !== "string" || !ES_ID.test(contestId)) return false;
-  const c = await prisma.fotorankContest.findUnique({ where: { id: contestId }, select: { organizationId: true } });
-  if (!c) return false;
+  const c = await prisma.fotorankContest.findUnique({ where: { id: contestId }, select: { organizationId: true, status: true } });
+  if (!c || (CONCURSO_FUERA as readonly string[]).includes(c.status)) return false;
   if (usuario.esSuperAdmin) return true;
   const n = await prisma.contestOrganizationMember.count({
     where: { organizationId: c.organizationId, userId: usuario.id, status: "ACTIVE", role: { in: [...ROLES_QUE_ARMAN] } },
@@ -62,46 +67,77 @@ type Lote = { id: string; status: string; finalizedAt: Date | null; publishedAt:
 /** La fecha que se muestra: cuándo se publicó (si está publicado) o cuándo lo cerró el jurado. */
 const fechaDelLote = (l: Lote): Date | null => (l.status === "PUBLISHED" ? (l.publishedAt ?? l.finalizedAt) : (l.finalizedAt ?? l.publishedAt));
 
+/**
+ * Resultados con premio (ganadores, menciones y finalistas: FotoRank marca a los finalistas con
+ * `awardType = FINALIST`), con la cobertura del jurado completa y nunca descalificados, sin
+ * seleccionar ni a revisar. Mismo criterio que las imágenes de ganadores (`design/winners.ts`).
+ */
 const filtroDeSeleccionadas = {
-  resultStatus: { not: "DISQUALIFIED" as const },
-  OR: [{ awardType: { not: null } }, { resultStatus: { in: ["WINNER" as const, "MENTION" as const, "FINALIST" as const] } }],
+  awardType: { not: null },
+  resultStatus: { notIn: ["NOT_SELECTED" as const, "REVIEW_REQUIRED" as const, "DISQUALIFIED" as const] },
+  coverageStatus: "COMPLETE" as const,
 };
 
 /**
- * Obras vigentes del concurso a partir de los resultados del lote: resultado → foto del jurado → obra.
- * Devuelve, por obra, el mejor resultado (una obra en dos categorías sale una vez). Las obras
- * rechazadas, retiradas o reemplazadas no salen.
+ * Obras que pueden ir a una muestra: confirmadas y sin retirar (como la tienda de FOTOFFICE), con la
+ * admisión técnica sin rechazo y la inscripción sin descalificar ni cancelar.
  */
-async function seleccionadasVigentes(
-  contestId: string,
-  filas: readonly { juryEntrySnapshotId: string; categoryId: string; resultStatus: string; awardType: string | null; finalPosition: number | null; preliminaryPosition: number | null }[],
-) {
-  const snapshotIds = [...new Set(filas.map((f) => f.juryEntrySnapshotId))];
+const obraVigente = {
+  status: "CONFIRMED" as const,
+  withdrawnAt: null,
+  AND: [
+    { OR: [{ admissionStatus: null }, { admissionStatus: { notIn: [...ADMISION_FUERA] } }] },
+    { OR: [{ registrationId: null }, { registration: { status: { notIn: [...INSCRIPCION_FUERA] } } }] },
+  ],
+};
+
+type FilaDeResultado = {
+  juryEntrySnapshotId: string; categoryId: string; resultStatus: string; awardType: string | null;
+  finalPosition: number | null; preliminaryPosition: number | null;
+};
+
+/**
+ * Las obras vigentes de varios concursos a la vez (dos consultas en total, no dos por concurso):
+ * resultado → foto del jurado → obra. Cada foto y cada obra tiene que ser del concurso de su lote.
+ */
+async function leerObrasVigentes(porConcurso: ReadonlyMap<string, readonly FilaDeResultado[]>) {
+  const snapshotIds = [...new Set([...porConcurso.values()].flatMap((filas) => filas.map((f) => f.juryEntrySnapshotId)))];
   const snaps = snapshotIds.length
-    ? await prisma.fotorankJuryEntrySnapshot.findMany({ where: { id: { in: snapshotIds }, contestId }, select: { id: true, entryId: true } })
+    ? await prisma.fotorankJuryEntrySnapshot.findMany({
+        where: { id: { in: snapshotIds }, contestId: { in: [...porConcurso.keys()] } },
+        select: { id: true, entryId: true, contestId: true },
+      })
     : [];
-  const entryDeSnapshot = new Map(snaps.map((s) => [s.id, s.entryId]));
-  const entryIds = [...new Set(snaps.map((s) => s.entryId))];
+  const entryIds = [...new Set(snaps.map((x) => x.entryId))];
   const obras = entryIds.length
     ? await prisma.fotorankContestEntry.findMany({
-        where: { id: { in: entryIds }, contestId, withdrawnAt: null, status: { notIn: [...ESTADOS_DE_OBRA_FUERA] } },
+        where: { id: { in: entryIds }, contestId: { in: [...porConcurso.keys()] }, ...obraVigente },
         select: {
-          id: true, title: true, entryNumber: true, authorUserId: true, status: true, withdrawnAt: true,
+          id: true, contestId: true, title: true, entryNumber: true, authorUserId: true,
           // Las bases que firmó ESTE autor (no las vigentes), como `rightsAcceptedByAuthor` de la tienda.
           registration: { select: { rulesVersion: { select: { configurationVersion: { select: { configurationJson: true } } } } } },
         },
       })
     : [];
-  const obraPorId = new Map(obras.map((o) => [o.id, o]));
+  return { snapshot: new Map(snaps.map((x) => [x.id, x])), obra: new Map(obras.map((o) => [o.id, o])) };
+}
+
+type ObrasVigentes = Awaited<ReturnType<typeof leerObrasVigentes>>;
+
+/**
+ * Por obra, el mejor resultado del lote (una obra en dos categorías sale una vez). Sólo las obras
+ * vigentes de ese concurso.
+ */
+function seleccionadasDe(contestId: string, filas: readonly FilaDeResultado[], vigentes: ObrasVigentes) {
   // Se agrupa por obra (no por foto del jurado): así una obra repetida sale una vez, con su mejor premio.
-  const elegidas = contestSelections(
+  return contestSelections(
     filas.flatMap((f) => {
-      const entryId = entryDeSnapshot.get(f.juryEntrySnapshotId);
-      if (!entryId || !obraPorId.has(entryId)) return [];
-      return [{ snapshotId: entryId, categoryId: f.categoryId, resultStatus: f.resultStatus, awardType: f.awardType, position: f.finalPosition ?? f.preliminaryPosition }];
+      const snap = vigentes.snapshot.get(f.juryEntrySnapshotId);
+      const obra = snap && snap.contestId === contestId ? vigentes.obra.get(snap.entryId) : undefined;
+      if (!obra || obra.contestId !== contestId) return [];
+      return [{ snapshotId: obra.id, categoryId: f.categoryId, resultStatus: f.resultStatus, awardType: f.awardType, position: f.finalPosition ?? f.preliminaryPosition }];
     }),
   ).map(({ snapshotId, ...resto }) => ({ entryId: snapshotId, ...resto }));
-  return { elegidas, obraPorId };
 }
 
 /** Nombre del autor como la tienda (`authorNames`): perfil de FotoRank y, si no, la cuenta. Nunca el email. */
@@ -145,8 +181,13 @@ export type ResultadosDelConcurso =
       works: ObraDelConcurso[];
     };
 
-export async function resultadosDelConcurso(contestId: string): Promise<ResultadosDelConcurso> {
+/**
+ * Los resultados del jurado para armar una muestra. Pide el permiso adentro (D2/D3): quien no organiza
+ * el concurso recibe lo mismo que si no existiera.
+ */
+export async function resultadosDelConcurso(usuario: Quien, contestId: string): Promise<ResultadosDelConcurso> {
   if (typeof contestId !== "string" || !ES_ID.test(contestId)) return { ok: false, motivo: "NO_EXISTE" };
+  if (!(await puedeArmarDesdeConcurso(usuario, contestId))) return { ok: false, motivo: "NO_EXISTE" };
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: contestId },
     select: {
@@ -156,7 +197,7 @@ export async function resultadosDelConcurso(contestId: string): Promise<Resultad
       categories: { select: { id: true, name: true, sortOrder: true } },
     },
   });
-  if (!contest) return { ok: false, motivo: "NO_EXISTE" };
+  if (!contest || (CONCURSO_FUERA as readonly string[]).includes(contest.status)) return { ok: false, motivo: "NO_EXISTE" };
   if (esMaraton(contest)) return { ok: false, motivo: "MARATON" };
 
   const lotes = await prisma.fotorankResultBatch.findMany({
@@ -170,7 +211,9 @@ export async function resultadosDelConcurso(contestId: string): Promise<Resultad
     where: { resultBatchId: lote.id, ...filtroDeSeleccionadas },
     select: { juryEntrySnapshotId: true, categoryId: true, resultStatus: true, awardType: true, finalPosition: true, preliminaryPosition: true },
   });
-  const { elegidas, obraPorId } = await seleccionadasVigentes(contestId, filas);
+  const vigentes = await leerObrasVigentes(new Map([[contestId, filas]]));
+  const elegidas = seleccionadasDe(contestId, filas, vigentes);
+  const obraPorId = vigentes.obra;
   const nombres = await nombresDeAutores(
     elegidas.map((e) => obraPorId.get(e.entryId)?.authorUserId).filter((x): x is number => x != null),
   );
@@ -247,6 +290,7 @@ export async function concursosParaArmar(usuario: Quien): Promise<ConcursoParaAr
     where: {
       ...(organizaciones ? { organizationId: { in: organizaciones } } : {}),
       experienceType: "CONTEST",
+      status: { notIn: [...CONCURSO_FUERA] },
       resultBatches: { some: usables },
     },
     orderBy: { updatedAt: "desc" },
@@ -273,12 +317,12 @@ export async function concursosParaArmar(usuario: Quien): Promise<ConcursoParaAr
     select: { contestId: true, activity: { select: { id: true, title: true, reviewStatus: true } } },
   });
 
-  return Promise.all(
-    conLote.map(async ({ c, lote }): Promise<ConcursoParaArmar> => {
-      const { elegidas } = await seleccionadasVigentes(c.id, filas.filter((f) => f.resultBatchId === lote.id));
-      const counts: Record<ContestTier, number> = { WINNER: 0, MENTION: 0, FINALIST: 0 };
-      for (const e of elegidas) counts[e.tier] += 1;
-      return {
+  const filasDe = new Map(conLote.map(({ c, lote }) => [c.id, filas.filter((f) => f.resultBatchId === lote.id)]));
+  const vigentes = await leerObrasVigentes(filasDe);
+  return conLote.map(({ c, lote }): ConcursoParaArmar => {
+    const counts: Record<ContestTier, number> = { WINNER: 0, MENTION: 0, FINALIST: 0 };
+    for (const e of seleccionadasDe(c.id, filasDe.get(c.id) ?? [], vigentes)) counts[e.tier] += 1;
+    return {
       id: c.id,
       title: c.title,
       slug: c.slug,
@@ -286,8 +330,7 @@ export async function concursosParaArmar(usuario: Quien): Promise<ConcursoParaAr
       batchStatus: lote.status,
       batchDate: fechaDelLote(lote),
       counts,
-        muestras: importados.filter((i) => i.contestId === c.id).map((i) => i.activity),
-      };
-    }),
-  );
+      muestras: importados.filter((i) => i.contestId === c.id).map((i) => i.activity),
+    };
+  });
 }
