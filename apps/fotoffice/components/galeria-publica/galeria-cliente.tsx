@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import {
   comentarAction,
   descargarAction,
+  descargarOriginalAction,
   elegirFotoAction,
   enviarSeleccionAction,
   pagarFotosExtraAction,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/galerias/publico-tipos";
 import { BarraFija } from "./barra-fija";
 import { CarritoExtras } from "./carrito";
+import { DescargarTodas } from "./descargar-todas";
 import { Grilla } from "./grilla";
 import { Repaso } from "./repaso";
 import { Visor } from "./visor";
@@ -57,6 +59,7 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
   const [errorPago, setErrorPago] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [vistas, setVistas] = useState<Record<string, string>>({});
+  const [originales, setOriginales] = useState<ReadonlySet<string>>(() => new Set(vista.originales));
 
   const pendientes = useRef(new Set<string>());
   const pedidas = useRef(new Set<string>());
@@ -186,7 +189,8 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
   const descargar = useCallback(
     async (fotoId: string) => {
       try {
-        const r = await descargarAction(slug, token, fotoId);
+        // Si es una foto entregada en alta se baja el original; si no, la vista (cuando la galería la permite).
+        const r = originales.has(fotoId) ? await descargarOriginalAction(slug, token, fotoId) : await descargarAction(slug, token, fotoId);
         if (!r.ok) return avisar(r.error);
         const a = document.createElement("a");
         a.href = r.url;
@@ -198,7 +202,7 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
         avisar(MENSAJES_PUBLICO.generico);
       }
     },
-    [slug, token, avisar],
+    [slug, token, avisar, originales],
   );
 
   const enviar = useCallback(
@@ -211,12 +215,20 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
         }
         setEstado("EN_REVISION");
         setEnviadaEn(r.enviadaEn);
+        // Con la selección enviada, lo elegido (que ya no tiene extras sin pagar) pasa a poder bajarse en alta.
+        // Sólo las incluidas: las extras sin pagar siguen sin poder bajarse (el servidor lo vuelve a verificar).
+        if (vista.galeria.permiteOriginales) {
+          const incluidas = vista.venta
+            ? calcularCarrito({ config: vista.venta.config, seleccion: [...elegidasRef.current].map((fotoId, i) => ({ fotoId, seleccionadaEn: new Date(i) })), pagadas: new Set(vista.venta.pagadas) }).incluidas
+            : [...elegidasRef.current];
+          setOriginales((o) => new Set([...o, ...incluidas]));
+        }
         return { ok: true, cantidad: r.cantidad, enviadaEn: r.enviadaEn };
       } catch {
         return { ok: false, error: MENSAJES_PUBLICO.generico };
       }
     },
-    [slug, token, recargar],
+    [slug, token, recargar, vista.galeria.permiteOriginales, vista.venta],
   );
 
   // Carrito de fotos extra: la misma cuenta que hace el servidor (que es quien fija el importe al pagar).
@@ -327,6 +339,8 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
           </section>
         ) : null}
 
+        {originales.size > 0 ? <DescargarTodas slug={slug} token={token} ids={vista.fotos.map((f) => f.id).filter((id) => originales.has(id))} /> : null}
+
         {visibles.length === 0 ? (
           <p className="py-10 text-center opacity-70">
             {filtro === "SELECCIONADAS" ? "Todavía no elegiste ninguna foto." : filtro === "CON_COMENTARIOS" ? "Todavía no hay fotos con comentarios." : "Esta galería todavía no tiene fotos."}
@@ -338,9 +352,11 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
             seleccionadas={elegidas}
             comentariosPorFoto={conteoPorFoto}
             pagadas={pagadasSet}
+            descargables={originales}
             editable={editable}
             onAbrir={abrir}
             onAlternar={alternar}
+            onDescargar={descargar}
           />
         )}
       </main>
@@ -390,6 +406,7 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
           editable={editable}
           permiteComentarios={vista.galeria.permiteComentarios}
           permiteDescarga={vista.galeria.permiteDescarga}
+          descargables={originales}
           onIr={irA}
           onCerrar={cerrarVisor}
           onAlternar={alternar}

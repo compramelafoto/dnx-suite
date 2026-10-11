@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { archivarGaleriaAction, editarGaleriaAction, publicarGaleriaAction, reactivarGaleriaAction } from "@/app/actions/galerias";
 import {
-  ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, MAX_MENSAJE_GALERIA, MAX_NOMBRE_GALERIA,
+  ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, MODOS_DESCARGA, MAX_MENSAJE_GALERIA, MAX_NOMBRE_GALERIA,
   type EstadoGaleria, type ModoDescarga, type ModoSeleccion,
 } from "@/lib/galerias/constantes";
 
@@ -20,10 +20,6 @@ export type ConfiguracionVista = {
   downloadMode: ModoDescarga;
 };
 
-/** Las descargas del original (sólo seleccionadas) llegan con la venta y la entrega; si la galería ya la tiene, se conserva. */
-function opcionesDeDescarga(actual: ModoDescarga): ModoDescarga[] {
-  return actual === "SELECCIONADAS" ? ["NINGUNA", "VISTA", "SELECCIONADAS"] : ["NINGUNA", "VISTA"];
-}
 
 /**
  * Pestaña "Configuración" de la galería: estado (publicar, archivar, reactivar) y los datos que ve el cliente:
@@ -175,11 +171,11 @@ export function ConfiguracionGaleria({
           <div className="fo-field-stack max-w-sm">
             <label className="fo-label" htmlFor="gal-descarga">Descarga</label>
             <select id="gal-descarga" className="fo-input" value={v.downloadMode} onChange={(e) => setV({ ...v, downloadMode: e.target.value as ModoDescarga })} disabled={bloqueado}>
-              {opcionesDeDescarga(inicial.downloadMode).map((m) => (
+              {MODOS_DESCARGA.map((m) => (
                 <option key={m} value={m}>{ETIQUETA_MODO_DESCARGA[m]}</option>
               ))}
             </select>
-            <p className="text-xs text-[var(--fo-muted)]">“Vista de galería” permite bajar cada foto en tamaño liviano (2048 px), no el original.</p>
+            <p className="text-xs text-[var(--fo-muted)]">“Vista de galería” permite bajar cada foto en tamaño liviano (2048 px), no el original. “Sólo las fotos elegidas o compradas, en alta” entrega el original de las que el cliente pagó y, una vez enviada la selección, de las que elegió dentro de lo incluido.</p>
           </div>
         </section>
 

@@ -19,6 +19,7 @@ export const MENSAJES_PUBLICO = {
   topeComentarios: "Llegaste al máximo de comentarios que se pueden dejar en esta galería.",
   mensajeLargo: `El mensaje puede tener hasta ${MAX_MENSAJE_CLIENTE.toLocaleString("es-AR")} caracteres.`,
   sinDescarga: "En esta galería no se pueden descargar las fotos.",
+  originalNoDisponible: "Esa foto todavía no está disponible para descargar en alta.",
   demasiados: "Hiciste demasiados intentos. Esperá unos minutos y probá de nuevo.",
   generico: "No pudimos hacerlo. Probá de nuevo en un momento.",
 } as const;
@@ -47,6 +48,8 @@ export type VistaGaleria = {
     mensaje: string | null;
     permiteComentarios: boolean;
     permiteDescarga: boolean;
+    /** La galería entrega el original de las fotos elegidas o compradas. */
+    permiteOriginales: boolean;
     modo: ModoSeleccion;
     minimo: number | null;
     maximo: number | null;
@@ -60,6 +63,8 @@ export type VistaGaleria = {
   };
   /** Venta de fotos extra; null si la galería es sólo de selección. */
   venta: VistaVenta | null;
+  /** Fotos cuyo original puede bajar el cliente ahora (pagadas, o incluidas con la selección ya enviada). */
+  originales: string[];
   portadaUrl: string | null;
   fotos: FotoPublica[];
   seleccionadas: string[];
@@ -113,4 +118,20 @@ export function nombreDeDescarga(fileName: string): { ascii: string; utf8: strin
   const base = fileName.replace(/\.[^./\\]{1,6}$/, "").replace(/[\\/\r\n"';:*?<>|%\u0000-\u001f]/g, "_").trim().slice(0, 120) || "foto";
   const ascii = base.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]/g, "_");
   return { ascii: `${ascii}.jpg`, utf8: `${base}.jpg` };
+}
+
+/**
+ * Nombre con el que se baja el ORIGINAL: el de la foto, con su extensión, sin caracteres que rompan el
+ * encabezado (comillas, barras, saltos de línea, `%`, `;`, controles). `ascii` es la versión sin tildes.
+ */
+export function nombreDeOriginal(fileName: string): { ascii: string; utf8: string } {
+  const limpio = String(fileName ?? "").replace(/[\\/\r\n"';:*?<>|%\u0000-\u001f\u007f]/g, "_").replace(/^[.\s]+/, "").trim().slice(0, 150);
+  const utf8 = limpio || "foto";
+  const ascii = utf8.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "_");
+  return { ascii, utf8 };
+}
+
+/** ¿iPhone o iPad? (el iPad nuevo se presenta como Mac con pantalla táctil). Allí las descargas programáticas en cadena se bloquean. */
+export function esDispositivoIOS(userAgent: string, puntosTactiles: number): boolean {
+  return /iPad|iPhone|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && puntosTactiles > 1);
 }

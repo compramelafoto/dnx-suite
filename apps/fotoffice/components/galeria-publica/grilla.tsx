@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import type { FotoPublica } from "@/lib/galerias/publico-tipos";
-import { IconoCheck, IconoComentario } from "./iconos";
+import { IconoCheck, IconoComentario, IconoDescarga } from "./iconos";
 
 const sinMenu = (e: React.SyntheticEvent) => e.preventDefault();
 
@@ -12,13 +12,15 @@ type CeldaProps = {
   seleccionada: boolean;
   comentarios: number;
   comprada: boolean;
+  descargable: boolean;
   editable: boolean;
   onAbrir: (id: string) => void;
   onAlternar: (id: string) => void;
+  onDescargar: (id: string) => void;
 };
 
 /** Una miniatura: se abre al tocarla y se elige con el círculo de arriba. Memoizada: elegir una no redibuja las demás. */
-const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, comprada, editable, onAbrir, onAlternar }: CeldaProps) {
+const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, comprada, descargable, editable, onAbrir, onAlternar, onDescargar }: CeldaProps) {
   return (
     <li
       className={`relative aspect-square overflow-hidden rounded-md bg-neutral-200 [contain-intrinsic-size:160px] [content-visibility:auto] ${
@@ -66,6 +68,17 @@ const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, com
           <IconoCheck />
         </button>
       ) : null}
+      {descargable ? (
+        <button
+          type="button"
+          onClick={() => onDescargar(foto.id)}
+          aria-label={`Descargar la foto ${numero} en alta`}
+          className="absolute left-1 top-1 flex h-9 items-center gap-1 rounded-full bg-black/60 px-3 text-xs font-medium text-white shadow"
+        >
+          <IconoDescarga width={14} height={14} />
+          Descargar
+        </button>
+      ) : null}
       {comprada ? (
         <span className="pointer-events-none absolute bottom-1 right-1 rounded-full bg-green-700 px-2 py-0.5 text-xs font-medium text-white">Comprada</span>
       ) : null}
@@ -85,9 +98,11 @@ export function Grilla({
   seleccionadas,
   comentariosPorFoto,
   pagadas,
+  descargables,
   editable,
   onAbrir,
   onAlternar,
+  onDescargar,
 }: {
   fotos: FotoPublica[];
   /** Posición de cada foto en la galería completa (el número que ve el cliente). */
@@ -96,9 +111,12 @@ export function Grilla({
   comentariosPorFoto: ReadonlyMap<string, number>;
   /** Fotos ya pagadas por el cliente. */
   pagadas: ReadonlySet<string>;
+  /** Fotos cuyo original puede bajar el cliente. */
+  descargables: ReadonlySet<string>;
   editable: boolean;
   onAbrir: (id: string) => void;
   onAlternar: (id: string) => void;
+  onDescargar: (id: string) => void;
 }) {
   return (
     <ul className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2 md:grid-cols-5 lg:grid-cols-6" onContextMenu={sinMenu}>
@@ -110,9 +128,11 @@ export function Grilla({
           seleccionada={seleccionadas.has(f.id)}
           comentarios={comentariosPorFoto.get(f.id) ?? 0}
           comprada={pagadas.has(f.id)}
+          descargable={descargables.has(f.id)}
           editable={editable}
           onAbrir={onAbrir}
           onAlternar={onAlternar}
+          onDescargar={onDescargar}
         />
       ))}
     </ul>

@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
-import { urlDeDescargaFoto, urlDeLecturaFoto, urlsDeLecturaPorLote } from "./almacen";
+import { urlDeDescargaFoto, urlDeDescargaOriginal, urlDeLecturaFoto, urlsDeLecturaPorLote } from "./almacen";
 import {
   MAX_COMENTARIOS_POR_CLIENTE,
   type EstadoCliente,
@@ -13,6 +13,7 @@ import {
 import { hashDeToken, tokenConForma } from "./enlace";
 import { registrarEvento, registrarEventoSinFallar } from "./eventos";
 import { fotosPagadasDeCliente, carritoDeCliente } from "./carrito";
+import { fotosDescargables } from "./compras-reglas";
 import { ordenarFotosDeGaleria } from "./orden";
 import type { ConfigVenta } from "./precios";
 import {
@@ -20,6 +21,7 @@ import {
   MAX_VISTAS_POR_LOTE,
   MENSAJES_PUBLICO as M,
   nombreDeDescarga,
+  nombreDeOriginal,
   type ComentarioPublico,
   type VistaGaleria,
 } from "./publico-tipos";
@@ -39,6 +41,7 @@ import { estadoDespues, estadosDesde, puedeAgregar, puedeEditarElCliente, valida
 
 const AR = "America/Argentina/Buenos_Aires";
 const CINCO_MINUTOS = 5 * 60_000;
+const UNA_HORA = 60 * 60_000;
 
 export function fechaArgentina(d: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: AR, dateStyle: "long", timeStyle: "short" }).format(d);
@@ -145,6 +148,19 @@ export async function registrarEntrada(r: Resuelto, ahora: Date = new Date()): P
   }
 }
 
+/**
+ * Ids de las fotos cuyo ORIGINAL puede bajar este cliente ahora (vacío si la galería no entrega originales).
+ * Sale de la base cada vez: pagadas (compras PAGADAS) e incluidas una vez enviada la selección.
+ */
+async function idsDeOriginales(r: Resuelto): Promise<string[]> {
+  if (r.galeria.downloadMode !== "SELECCIONADAS") return [];
+  const [carrito, pagadas] = await Promise.all([
+    carritoDeCliente(prisma, r.workspaceId, r.cliente.id, r.galeria.venta),
+    fotosPagadasDeCliente(prisma, r.workspaceId, r.cliente.id),
+  ]);
+  return fotosDescargables({ downloadMode: r.galeria.downloadMode, estadoCliente: r.cliente.status, incluidas: carrito.incluidas, pagadas });
+}
+
 // --- La página ---------------------------------------------------------------------------------------------
 
 /**
@@ -179,16 +195,19 @@ export async function armarVistaGaleria(r: Resuelto): Promise<VistaGaleria> {
     }
   }
   const conLimites = g.selectionMode === "CANTIDAD";
+  const originales = (await idsDeOriginales(r)).filter((id) => ids.has(id));
   // Con venta, el navegador arma el carrito al instante con las mismas reglas; el precio que se cobra lo calcula el servidor.
   const venta = g.venta.saleMode === "SELECCION" ? null : { config: g.venta, pagadas: [...(await fotosPagadasDeCliente(prisma, workspaceId, c.id))].filter((id) => ids.has(id)) };
   return {
     venta,
+    originales,
     organizacion: { nombre: sitio?.nombre ?? "", logoUrl: sitio?.logoUrl ?? null },
     galeria: {
       nombre: g.name,
       mensaje: g.message?.trim() ? g.message : null,
       permiteComentarios: g.allowComments,
       permiteDescarga: g.downloadMode === "VISTA",
+      permiteOriginales: g.downloadMode === "SELECCIONADAS",
       modo: g.selectionMode,
       minimo: conLimites ? g.minSelect : null,
       maximo: conLimites ? g.maxSelect : null,
@@ -246,6 +265,47 @@ export async function urlDeDescarga(workspaceId: string, token: unknown, fotoId:
     return { ok: true, url: await urlDeDescargaFoto(foto.viewKey, nombreDeDescarga(foto.fileName)) };
   } catch {
     return falla(M.generico);
+  }
+}
+
+/**
+ * Enlace firmado (5 minutos, attachment, nombre original) para BAJAR el ORIGINAL de una foto. Sólo con
+ * `downloadMode = SELECCIONADAS` y si la foto es de este cliente: pagada, o incluida con la selección ya enviada.
+ * Deja constancia (DESCARGA) a lo sumo una vez por foto y por hora.
+ */
+export async function descargarOriginal(workspaceId: string, token: unknown, fotoId: unknown, ahora: Date = new Date()): Promise<{ ok: true; url: string } | Falla> {
+  const r = await resolverTokenGaleria(workspaceId, token);
+  if (!r.ok) return INVALIDO();
+  if (r.galeria.downloadMode !== "SELECCIONADAS") return falla(M.sinDescarga);
+  if (typeof fotoId !== "string" || !fotoId || fotoId.length > 40) return falla(M.fotoInvalida);
+  const foto = await prisma.fotofficeGaleriaFoto.findFirst({
+    where: { workspaceId, galeriaId: r.galeria.id, status: "LISTA", id: fotoId },
+    select: { id: true, originalKey: true, fileName: true },
+  });
+  if (!foto?.originalKey) return falla(M.fotoInvalida);
+  if (!(await idsDeOriginales(r)).includes(foto.id)) return falla(M.originalNoDisponible);
+  let url: string;
+  try {
+    url = await urlDeDescargaOriginal(foto.originalKey, nombreDeOriginal(foto.fileName));
+  } catch {
+    return falla(M.generico);
+  }
+  await registrarDescarga(r, foto.id, ahora);
+  return { ok: true, url };
+}
+
+/** DESCARGA en el historial, una vez por foto, cliente y hora (para no llenarlo con "Descargar todas"). Nunca lanza. */
+async function registrarDescarga(r: Resuelto, fotoId: string, ahora: Date): Promise<void> {
+  try {
+    const recientes = await prisma.fotofficeGaleriaEvento.findMany({
+      where: { workspaceId: r.workspaceId, galeriaId: r.galeria.id, galeriaClienteId: r.cliente.id, type: "DESCARGA", createdAt: { gte: new Date(ahora.getTime() - UNA_HORA) } },
+      take: 3000,
+      select: { data: true },
+    });
+    if (recientes.some((e) => (e.data as { fotoId?: unknown } | null)?.fotoId === fotoId)) return;
+    await registrarEvento(prisma, { workspaceId: r.workspaceId, galeriaId: r.galeria.id, galeriaClienteId: r.cliente.id, tipo: "DESCARGA", data: { fotoId } });
+  } catch (e) {
+    console.error("[galerias] no se pudo registrar la descarga", { codigo: (e as { code?: unknown } | null)?.code ?? "desconocido" });
   }
 }
 

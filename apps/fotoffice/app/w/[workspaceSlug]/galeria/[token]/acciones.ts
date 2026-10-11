@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import { avisarSeleccionEnviada } from "@/lib/galerias/avisos";
 import { iniciarPagoGaleria } from "@/lib/galerias/pago";
-import { comentarFoto, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
+import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
 import { MENSAJES_PUBLICO } from "@/lib/galerias/publico-tipos";
 import type { ComentarioPublico } from "@/lib/galerias/publico-tipos";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -66,4 +66,11 @@ export async function descargarAction(slug: unknown, token: unknown, fotoId: unk
   const e = await entrar("descargar", 60, slug);
   if (!e.ok) return e;
   return urlDeDescarga(e.workspaceId, token, fotoId);
+}
+
+/** Original de una foto pagada o incluida: enlace firmado de 5 minutos. Tope alto porque «Descargar todas» llama una vez por foto. */
+export async function descargarOriginalAction(slug: unknown, token: unknown, fotoId: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("descargar-original", 400, slug);
+  if (!e.ok) return e;
+  return descargarOriginal(e.workspaceId, token, fotoId);
 }

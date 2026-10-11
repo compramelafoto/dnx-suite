@@ -66,8 +66,9 @@ export function AjustesForm({ inicial, rubros }: { inicial: Inicial; rubros: { i
           <select id="gal-ajustes-descarga" className="fo-input" value={v.defaultDownloadMode} onChange={(e) => setV({ ...v, defaultDownloadMode: e.target.value as ModoDescarga })}>
             <option value="NINGUNA">{ETIQUETA_MODO_DESCARGA.NINGUNA}</option>
             <option value="VISTA">{ETIQUETA_MODO_DESCARGA.VISTA}</option>
+            <option value="SELECCIONADAS">{ETIQUETA_MODO_DESCARGA.SELECCIONADAS}</option>
           </select>
-          <p className="text-xs text-[var(--fo-muted)]">“Vista de galería” deja bajar cada foto en tamaño liviano (2048 px), no el original.</p>
+          <p className="text-xs text-[var(--fo-muted)]">“Vista de galería” deja bajar cada foto en tamaño liviano (2048 px), no el original. “Sólo las fotos elegidas o compradas, en alta” entrega el original de las que el cliente pagó y, una vez enviada la selección, de las que elegió dentro de lo incluido.</p>
         </div>
       </section>
 

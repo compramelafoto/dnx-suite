@@ -2,7 +2,7 @@ import "server-only";
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { bucketR2Privado, clienteR2Privado, esNoEncontrado } from "@/lib/ficha/adjuntos-r2";
-import { SEGUNDOS_LECTURA_FOTO, SEGUNDOS_SUBIDA_FOTO, TAMANO_MAXIMO_ORIGINAL, esTipoFotoPermitido } from "./constantes";
+import { SEGUNDOS_DESCARGA_ORIGINAL, SEGUNDOS_LECTURA_FOTO, SEGUNDOS_SUBIDA_FOTO, TAMANO_MAXIMO_ORIGINAL, esTipoFotoPermitido } from "./constantes";
 import { analizarClave, esClaveDeGaleria } from "./claves";
 
 /**
@@ -48,6 +48,25 @@ export async function urlDeDescargaFoto(clave: string, nombre: { ascii: string; 
     ResponseContentType: "image/jpeg",
   });
   return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_LECTURA_FOTO });
+}
+
+/** Codificación de `filename*` (RFC 5987): además de lo que escapa `encodeURIComponent`, ! ' ( ) *. */
+function encodeRfc5987(v: string): string {
+  return encodeURIComponent(v).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/**
+ * GET firmado por 5 minutos para BAJAR el ORIGINAL (attachment, con su nombre). Sólo `original`: lo llama
+ * únicamente la acción que ya validó token, foto y compra/inclusión. `nombre` ya viene saneado (`nombreDeOriginal`).
+ */
+export async function urlDeDescargaOriginal(clave: string, nombre: { ascii: string; utf8: string }): Promise<string> {
+  if (analizarClave(claveSegura(clave))?.tipo !== "original") throw new Error("Sólo se descarga el original");
+  const cmd = new GetObjectCommand({
+    Bucket: bucketR2Privado(),
+    Key: clave,
+    ResponseContentDisposition: `attachment; filename="${nombre.ascii}"; filename*=UTF-8''${encodeRfc5987(nombre.utf8)}`,
+  });
+  return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_DESCARGA_ORIGINAL });
 }
 
 export type FotoConClaves = { id: string; viewKey: string | null; thumbKey: string | null };
