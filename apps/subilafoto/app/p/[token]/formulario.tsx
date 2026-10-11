@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { enviarFichaDeProveedorAction, type EstadoFicha } from "@/app/actions/proveedores";
 import { nombreDeCategoria, type Categoria } from "@/lib/proveedores/categorias";
+import { SubirBanner } from "./subir-banner";
 
 const ETIQUETA = "block text-sm font-extrabold";
 const CAMPO =
@@ -136,6 +137,19 @@ export function FormularioProveedor({
             Sitio web {OPCIONAL}
           </label>
           <input id="sitioWeb" name="sitioWeb" className={CAMPO} style={BORDE} />
+        </div>
+
+        <div>
+          {/*
+            Lo que el proveedor recibe a cambio de completar la ficha: su banner al pie
+            del teléfono de todos los invitados, rotando con el del fotógrafo.
+          */}
+          <label htmlFor="banner" className={ETIQUETA}>
+            Tu banner para la pantalla de los invitados
+          </label>
+          <div className="mt-2">
+            <SubirBanner token={token} />
+          </div>
         </div>
       </div>
 

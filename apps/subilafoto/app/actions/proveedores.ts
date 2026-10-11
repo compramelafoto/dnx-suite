@@ -160,6 +160,18 @@ export async function enviarFichaDeProveedorAction(
       localidad: texto("localidad"),
       provincia: texto("provincia"),
       pais: texto("pais"),
+      /*
+        La clave del banner, no la imagen: el archivo ya se subió derecho al bucket. Se
+        valida en `registrarProveedor` contra el patrón de clave, así que lo que llegue
+        escrito a mano no se firma nunca.
+      */
+      bannerUrl: texto("bannerUrl") || null,
+      /*
+        Sólo el sitio web. Instagram suele venir como `@fulano`, que no es una dirección:
+        `enlaceDeBannerValido` lo descartaría igual, pero guardarlo haría creer que el
+        banner lleva a algún lado.
+      */
+      bannerLinkUrl: texto("sitioWeb") || null,
       aceptaContacto: formData.get("aceptaContacto") === "on",
       aceptaNovedades: formData.get("aceptaNovedades") === "on",
     },
