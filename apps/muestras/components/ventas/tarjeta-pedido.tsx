@@ -37,6 +37,12 @@ export function TarjetaPedido({ p, esDueno, esSuperAdmin, conMuestra = false }: 
       {p.regretRequestedAt && !p.refundedAt ? <p className={alerta}>Quien compró pidió el arrepentimiento el {formatArDay(p.regretRequestedAt)}.</p> : null}
       {p.refundRequestedAt && !p.refundedAt ? <p className={alerta}>Devolución pedida el {formatArDay(p.refundRequestedAt)}.</p> : null}
       {p.alertas.length ? <p className={alerta}>Alertas: {p.alertas.join(", ")}</p> : null}
+      {p.alertas.includes("ALERT_UNKNOWN_CREATE") && !p.providerOrderId ? (
+        <p className={alerta}>
+          Conciliar a mano: no sabemos si Mercado Pago creó la Order. El barrido la busca solo por su referencia; si no aparece, buscala en Mercado Pago por {`muestras-venta-${p.publicId}`}.
+        </p>
+      ) : null}
+      {p.alertas.includes("ALERT_PAID_ON_TERMINAL") ? <p className={alerta}>Mercado Pago cobró un pedido rechazado: hay que devolver el pago.</p> : null}
       <p>
         {p.buyerName} · {p.buyerEmail}{p.buyerPhone ? ` · ${p.buyerPhone}` : ""}
         {p.buyerOnCertificate ? " · figura en el certificado" : ""}
@@ -62,7 +68,9 @@ export function TarjetaPedido({ p, esDueno, esSuperAdmin, conMuestra = false }: 
       </div>
       <div className="flex flex-wrap gap-3">
         {esDueno && (pagado || p.status === "PAID_NO_COPY") && !p.refundRequestedAt ? <PedirDevolucion orderId={p.id} /> : null}
-        {esSuperAdmin && (pagado || p.status === "PAID_NO_COPY") && (devolucionPendiente || p.status === "PAID_NO_COPY" || p.isTest) ? <DevolverPago orderId={p.id} /> : null}
+        {esSuperAdmin && (((pagado || p.status === "PAID_NO_COPY") && (devolucionPendiente || p.status === "PAID_NO_COPY" || p.isTest)) || (p.status === "REJECTED" && p.refundRequestedAt && p.providerOrderId))
+          ? <DevolverPago orderId={p.id} />
+          : null}
       </div>
       {p.historial.length ? (
         <details>

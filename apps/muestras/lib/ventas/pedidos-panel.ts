@@ -100,7 +100,10 @@ export async function devolverPago(orderId: string, motivo: string): Promise<Res
   if (!frenarPorUsuario("pedidosPanel", usuario.id).allowed) return no("Hiciste muchos cambios seguidos. Esperá unos minutos.");
   const pedido = await prisma.culturalSaleOrder.findUnique({ where: { id: orderId }, select: PEDIDO });
   if (!pedido) return no(NO_EXISTE);
-  if (pedido.status !== "PAID" && pedido.status !== "PAID_NO_COPY") return no("Sólo se devuelven pedidos pagados.");
+  // También un pedido rechazado que Mercado Pago igual cobró (alerta ALERT_PAID_ON_TERMINAL, con la
+  // devolución pedida por la conciliación).
+  const cobradoSinPedido = pedido.status === "REJECTED" && pedido.refundRequestedAt != null;
+  if (pedido.status !== "PAID" && pedido.status !== "PAID_NO_COPY" && !cobradoSinPedido) return no("Sólo se devuelven pedidos pagados.");
   if (!pedido.providerOrderId) return no("El pedido no tiene una orden de Mercado Pago.");
   const texto = limpio(motivo);
   if (!texto) return no("Escribí el motivo de la devolución.");

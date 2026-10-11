@@ -15,10 +15,12 @@ import { leerPrivado, subirPrivado } from "./r2-privado";
 export type ArchivoFirmado = { bytes: Buffer; nombre: string };
 
 const ORIGINAL_MAX = 100 * 1024 * 1024;
+/** El mismo tope que al confirmar el original: 400 MP (una imagen más grande no se decodifica). */
+const ORIGINAL_MAX_PIXELES = 400_000_000;
 
 /** Arma el JPEG con XMP (sin base ni bucket). */
 export async function jpegConXmp(original: Buffer, xmp: string): Promise<Buffer> {
-  return sharp(original, { limitInputPixels: false })
+  return sharp(original, { limitInputPixels: ORIGINAL_MAX_PIXELES })
     .rotate()
     .withXmp(xmp)
     .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })

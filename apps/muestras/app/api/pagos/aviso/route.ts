@@ -25,7 +25,8 @@ export async function POST(req: Request) {
   if (Buffer.byteLength(cuerpo) > MAX_BYTES) return responder({ ok: false }, 413);
 
   const veredicto = verificarAviso(credencialesDeVentas().avisoSecret, req.headers.get(AVISO_ENCABEZADO), cuerpo, Math.floor(Date.now() / 1000));
-  if (veredicto === "sin-configurar") return responder({ ok: false, error: "Falta MUESTRAS_AVISO_PAGOS_SECRET." }, 503);
+  // Sin decir qué falta: el detalle queda en el panel del super admin.
+  if (veredicto === "sin-configurar") return responder({ ok: false }, 503);
   if (veredicto !== "ok") return responder({ ok: false }, 401);
   if (!frenarPorIp("avisoPagos", ipDeLaPeticion(req.headers)).allowed) return responder({ ok: false }, 429);
 

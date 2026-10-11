@@ -14,7 +14,7 @@ const PEDIDO = {
   id: true, publicId: true, activityId: true, offerId: true, copyId: true, isTest: true, buyerName: true, buyerEmail: true, buyerPhone: true,
   buyerOnCertificate: true, delivery: true, shippingAddress: true, priceArs: true, shippingArs: true, totalCents: true, platformCents: true,
   organizerCents: true, photographerCents: true, status: true, fulfillment: true, trackingText: true, providerStatus: true, createdAt: true,
-  paidAt: true, refundRequestedAt: true, regretRequestedAt: true, refundedAt: true, holdExpiresAt: true,
+  paidAt: true, refundRequestedAt: true, regretRequestedAt: true, refundedAt: true, holdExpiresAt: true, providerOrderId: true,
 } as const;
 type FilaPedido = Prisma.CulturalSaleOrderGetPayload<{ select: typeof PEDIDO }>;
 

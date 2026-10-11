@@ -188,6 +188,15 @@ describe("pagarPedido", () => {
     expect(mp.createSplitOrder).not.toHaveBeenCalled();
   });
 
+  it("si la conciliación falla después de crear la Order: 'no vuelvas a pagar', sin datos sensibles en el registro", async () => {
+    mp.createSplitOrder.mockResolvedValue(respuesta("processed", "accredited"));
+    conciliar.conciliarDesdeOrden.mockRejectedValue(Object.assign(new Error("tok_SECRETO_tarjeta_123 30111222"), { name: "PrismaClientKnownRequestError" }));
+    const r = await pagarPedido(entrada());
+    expect(r).toMatchObject({ ok: true, estado: "PENDING" });
+    expect((r as { mensaje: string }).mensaje).toMatch(/Mercado Pago está revisando tu pago/);
+    expect(mp.createSplitOrder).toHaveBeenCalledTimes(1);
+    nadaSensibleEnLogs();
+  });
   it("con cuotas o sin documento: no se paga", async () => {
     expect((await pagarPedido(entrada({ installments: 3 }))).ok).toBe(false);
     expect((await pagarPedido(entrada({ identification: null }))).ok).toBe(false);

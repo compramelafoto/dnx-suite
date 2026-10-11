@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { devolverTotal, invitarAReparto, leerConsentimiento, leerOrden } from "./mp";
+import { buscarOrdenPorReferencia, devolverTotal, invitarAReparto, leerConsentimiento, leerOrden } from "./mp";
 
 const TOKEN = "TEST-1111111111-aaaaaa-token-de-ejemplo";
 const fetchFalso = vi.fn<typeof fetch>();
@@ -123,11 +123,39 @@ describe("devolución total", () => {
     expect(init?.method).toBe("POST");
     expect((init?.headers as Record<string, string>)["X-Idempotency-Key"]).toBe("8d3c1f6e-1d2b-4a5c-9e7f-0a1b2c3d4e5f");
   });
+  it("mover plata nunca se reintenta solo: un 503 es un solo intento", async () => {
+    fetchFalso.mockResolvedValue(json({ message: "servicio caído" }, 503));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await devolverTotal("ORD01ABC", "8d3c1f6e-1d2b-4a5c-9e7f-0a1b2c3d4e5f")).ok).toBe(false);
+    expect(fetchFalso).toHaveBeenCalledTimes(1);
+  });
   it("en producción sin modo en vivo no devuelve", async () => {
     vi.stubEnv("MUESTRAS_MP_ENV", "production");
     vi.stubEnv("MUESTRAS_MP_ACCESS_TOKEN", "APP_USR-2222-bbbb-token-de-ejemplo");
     const r = await devolverTotal("ORD01ABC", "8d3c1f6e-1d2b-4a5c-9e7f-0a1b2c3d4e5f");
     expect(r.ok).toBe(false);
+    expect(fetchFalso).not.toHaveBeenCalled();
+  });
+});
+
+describe("buscar por referencia (pedidos sin saber si se creó la Order)", () => {
+  const REF = "muestras-venta-abcd1234abcd1234";
+  it("encuentra el pago, lee su Order y la devuelve", async () => {
+    fetchFalso.mockImplementation(async (url) =>
+      String(url).includes("/v1/payments/search")
+        ? json({ results: [{ id: 1, external_reference: REF, order: { id: "ORD01ABC" } }] })
+        : json(orden));
+    const r = await buscarOrdenPorReferencia(REF);
+    expect(r && "orden" in r ? r.orden.providerOrderId : null).toBe("ORD01ABC");
+    expect(String(fetchFalso.mock.calls[0]![0])).toContain("external_reference=muestras-venta-abcd1234abcd1234");
+  });
+  it("sin pagos: nada; con un pago sin Order: pago sin Order; referencia rara: no sale a la red", async () => {
+    fetchFalso.mockResolvedValueOnce(json({ results: [] }));
+    expect(await buscarOrdenPorReferencia(REF)).toEqual({ nada: true });
+    fetchFalso.mockResolvedValueOnce(json({ results: [{ id: 1, external_reference: REF }] }));
+    expect(await buscarOrdenPorReferencia(REF)).toEqual({ pagoSinOrden: true });
+    fetchFalso.mockClear();
+    expect(await buscarOrdenPorReferencia("clf-otra")).toBeNull();
     expect(fetchFalso).not.toHaveBeenCalled();
   });
 });

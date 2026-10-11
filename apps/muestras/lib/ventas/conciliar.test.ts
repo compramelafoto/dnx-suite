@@ -5,7 +5,7 @@ import type { OrdenLeida } from "./mp";
 
 type Fila = Record<string, unknown>;
 const t = vi.hoisted(() => ({ db: null as unknown as Record<string, unknown> }));
-const mp = vi.hoisted(() => ({ leerOrden: vi.fn() }));
+const mp = vi.hoisted(() => ({ leerOrden: vi.fn(), buscarOrdenPorReferencia: vi.fn() }));
 vi.mock("@repo/db", () => ({ prisma: new Proxy({}, { get: (_x, k: string) => t.db[k] }) }));
 vi.mock("./mp", () => mp);
 vi.mock("next/server", () => ({ after: (fn: () => unknown) => { void fn(); } }));
@@ -183,6 +183,37 @@ describe("conciliarDesdeOrden", () => {
     expect(eventos).toHaveLength(0);
   });
 
+  it("pedido real con una Order que no dice si es real (liveMode ausente): MISMATCH, no se emite", async () => {
+    pedidos[0]!.isTest = false;
+    copias[0]!.isTest = false;
+    await conciliarDesdeOrden(orden({ liveMode: null }), "NOTICE", ahora);
+    expect(eventos.map((e) => e.detail)).toEqual(["MISMATCH:liveMode"]);
+    expect(pedidos[0]!.status).toBe("PENDING_PAYMENT");
+  });
+
+  it("Mercado Pago cobró un pedido que ya se había rechazado: alerta y devolución pedida, sin copia", async () => {
+    pedidos[0] = { ...pedidos[0]!, status: "REJECTED", copyId: null, providerOrderId: null };
+    copias[0] = { ...copias[0]!, status: "RELEASED", orderId: null, reservedUntil: null };
+    expect(await conciliarDesdeOrden(orden(), "SWEEP", ahora)).toEqual({ estado: "REJECTED", cambio: false });
+    expect(pedidos[0]).toMatchObject({ status: "REJECTED", refundRequestedAt: ahora, providerOrderId: "ORD01ABC" });
+    expect(eventos.map((e) => e.detail)).toEqual(["ALERT_PAID_ON_TERMINAL: Mercado Pago cobró un pedido rechazado, hay que devolver"]);
+    await conciliarDesdeOrden(orden(), "SWEEP", new Date(ahora.getTime() + 60_000));
+    expect(eventos).toHaveLength(1);
+    expect(pedidos[0]!.refundRequestedAt).toEqual(ahora);
+    expect(copias[0]!.status).toBe("RELEASED");
+  });
+
+  it("pago tardío: si la fila libre cambió en el medio, no se emite nada (se reintenta después)", async () => {
+    pedidos[0]!.status = "EXPIRED";
+    pedidos[0]!.copyId = null;
+    copias[0] = { ...copias[0]!, status: "RELEASED", orderId: null, reservedUntil: null };
+    const db = t.db as Record<string, { updateMany: (q: { where: Record<string, unknown> }) => Promise<{ count: number }> }>;
+    const real = db.culturalEditionCopy!.updateMany;
+    db.culturalEditionCopy!.updateMany = async (q) => (q.where.status === "RELEASED" && q.where.id === "c1" ? { count: 0 } : real(q));
+    await expect(conciliarDesdeOrden(orden(), "NOTICE", ahora)).rejects.toThrow("La copia libre cambió");
+    db.culturalEditionCopy!.updateMany = real;
+  });
+
   it("un pedido sin id de Order guardado se encuentra por la referencia y lo guarda", async () => {
     pedidos[0]!.providerOrderId = null;
     await conciliarDesdeOrden(orden(), "NOTICE", ahora);
@@ -260,6 +291,59 @@ describe("barrerVentas", () => {
   });
 });
 
+describe("barrido: pedidos sin saber si se creó la Order (no depende del aviso de CLF)", () => {
+  it("vencido sin Order: lo busca por la referencia y, si está pagado, concilia (pago tardío)", async () => {
+    pedidos[0] = { ...pedidos[0]!, status: "EXPIRED", copyId: null, providerOrderId: null, providerStatus: "UNKNOWN_CREATE" };
+    copias[0] = { ...copias[0]!, status: "RELEASED", orderId: null, reservedUntil: null };
+    mp.buscarOrdenPorReferencia.mockResolvedValue({ orden: orden() });
+    const r = await barrerVentas(ahora);
+    expect(mp.buscarOrdenPorReferencia).toHaveBeenCalledWith("muestras-venta-abcd1234abcd1234");
+    expect(r).toMatchObject({ buscados: 1, encontrados: 1 });
+    expect(pedidos[0]).toMatchObject({ status: "PAID", providerOrderId: "ORD01ABC" });
+    expect(copias.find((c) => c.orderId === "o1")).toMatchObject({ status: "ISSUED" });
+  });
+  it("un pago con esa referencia pero sin Order: alerta 'conciliar a mano', una sola vez", async () => {
+    pedidos[0] = { ...pedidos[0]!, providerOrderId: null, providerStatus: "UNKNOWN_CREATE" };
+    mp.buscarOrdenPorReferencia.mockResolvedValue({ pagoSinOrden: true });
+    await barrerVentas(ahora);
+    await barrerVentas(ahora);
+    expect(eventos.filter((e) => String(e.detail).includes("conciliar a mano"))).toHaveLength(1);
+  });
+  it("uno que se está creando recién (menos de 2 minutos) todavía no se busca", async () => {
+    pedidos[0] = { ...pedidos[0]!, providerOrderId: null, providerStatus: "CREATING", createdAt: new Date(ahora.getTime() - 30_000) };
+    await barrerVentas(ahora);
+    expect(mp.buscarOrdenPorReferencia).not.toHaveBeenCalled();
+  });
+});
+
+describe("barrido: un pedido que falla no frena a los demás, y corta por tiempo", () => {
+  it("si conciliar un pedido explota: alerta en su historial y sigue con el siguiente", async () => {
+    pedidos.push({ ...pedidos[0]!, id: "o2", publicId: "zzzz1234abcd1234", externalReference: "muestras-venta-zzzz1234abcd1234", providerOrderId: "ORD02XYZ", copyId: null });
+    mp.leerOrden.mockImplementation(async (id: string) => {
+      if (id === "ORD01ABC") throw Object.assign(new Error("boom"), { name: "TypeError" });
+      return orden({ providerOrderId: "ORD02XYZ", externalReference: "muestras-venta-zzzz1234abcd1234", status: "OPEN", paymentStatus: "in_process" });
+    });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await barrerVentas(ahora);
+    spy.mockRestore();
+    expect(r).toMatchObject({ consultados: 2, errores: 1, cortado: false });
+    expect(eventos.find((e) => e.orderId === "o1")!.detail).toMatch(/^ALERT_SWEEP_ERROR/);
+    expect(mp.leerOrden).toHaveBeenCalledWith("ORD02XYZ");
+  });
+  it("pasados los 45 segundos corta y devuelve lo hecho", async () => {
+    pedidos.push({ ...pedidos[0]!, id: "o2", publicId: "zzzz1234abcd1234", providerOrderId: "ORD02XYZ", copyId: null });
+    let t0 = 0;
+    const reloj = () => t0;
+    mp.leerOrden.mockImplementation(async () => {
+      t0 += 50_000;
+      return orden({ status: "OPEN", paymentStatus: "in_process" });
+    });
+    const r = await barrerVentas(ahora, { reloj });
+    expect(r).toMatchObject({ consultados: 1, cortado: true });
+    expect(mp.leerOrden).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("rutas", () => {
   const SECRETO = "secreto-del-aviso-de-prueba";
   const cuerpo = JSON.stringify({ providerOrderId: "ORD01ABC" });
@@ -282,7 +366,10 @@ describe("rutas", () => {
     vi.stubEnv("MUESTRAS_AVISO_PAGOS_SECRET", "");
     const { POST } = await import("@/app/api/pagos/aviso/route");
     const { firmarAviso } = await import("./aviso-firma");
-    expect((await POST(new Request("http://x", { method: "POST", body: cuerpo }))).status).toBe(503);
+    const sinSecreto = await POST(new Request("http://x", { method: "POST", body: cuerpo }));
+    expect(sinSecreto.status).toBe(503);
+    // Sin decir qué variable falta.
+    expect(await sinSecreto.text()).not.toContain("MUESTRAS_");
     vi.stubEnv("MUESTRAS_AVISO_PAGOS_SECRET", SECRETO);
     const raro = JSON.stringify({ providerOrderId: "../../x" });
     expect((await POST(new Request("http://x", { method: "POST", body: raro, headers: { "x-dnx-aviso": firmarAviso(SECRETO, Math.floor(Date.now() / 1000), raro) } }))).status).toBe(400);

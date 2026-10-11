@@ -52,7 +52,7 @@ export async function verificarCodigo(crudo: string, ahora: Date = new Date()): 
   const n = (k: string) => (typeof d[k] === "number" ? (d[k] as number) : null);
   const numero = s("kind") === "PROOF" ? `P/A ${n("number")}/${n("size")}` : s("edition") === "UNIQUE" ? "Copia única" : `${n("number")}/${n("size")}`;
   const vista = certificateView({
-    status: copia.status, isTest: copia.isTest, voidedAt: copia.voidedAt, signatureValid: firmaValida && s("code") === codigo,
+    status: copia.status, isTest: copia.isTest || d.test === true, voidedAt: copia.voidedAt, signatureValid: firmaValida && s("code") === codigo,
     label: numero, workTitle: s("work"), authorName: s("author"), issuedAt: copia.issuedAt,
   });
 

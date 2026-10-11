@@ -47,8 +47,9 @@ function diferencia(p: Pedido, o: OrdenLeida): string | null {
   const foto = leerFotoDelReparto(p.splitSnapshot);
   if (!foto) return "splitSnapshot";
   if (!mismoReparto(repartoEsperado(foto), o.splits)) return "splits";
-  // Un pedido real sólo se paga con una Order real.
-  if (!p.isTest && o.liveMode === false) return "liveMode";
+  // Un pedido real sólo se paga con una Order que Mercado Pago marca como real: si no lo dice, no
+  // alcanza (revisión de las tareas 11 a 14).
+  if (!p.isTest && o.liveMode !== true) return "liveMode";
   return null;
 }
 
@@ -93,7 +94,13 @@ async function emitirParaPagado(tx: Prisma.TransactionClient, p: Pedido, ahora: 
   let copiaId: string;
   if ("reuseId" in decision) {
     await tx.culturalSaleOrder.updateMany({ where: { copyId: decision.reuseId }, data: { copyId: null } });
-    await tx.culturalEditionCopy.update({ where: { id: decision.reuseId }, data: { status: "ISSUED", issuedAt: ahora, reservedUntil: null, orderId: p.id } });
+    // Sólo una fila liberada (las reservas vencidas ya las soltó `vencerReservas`): si cambió en el
+    // medio, se deshace todo y el próximo camino lo vuelve a intentar.
+    const { count } = await tx.culturalEditionCopy.updateMany({
+      where: { id: decision.reuseId, status: "RELEASED" },
+      data: { status: "ISSUED", issuedAt: ahora, reservedUntil: null, orderId: p.id },
+    });
+    if (count !== 1) throw new Error("La copia libre cambió mientras se emitía el pago tardío.");
     copiaId = decision.reuseId;
   } else {
     const oferta2 = await tx.culturalWorkOffer.findUnique({ where: { id: p.offerId }, select: { activityId: true } });
@@ -148,6 +155,13 @@ export async function conciliarDesdeOrden(orden: OrdenLeida, origen: OrigenDeCon
 
   if (!next) {
     await prisma.culturalSaleOrder.updateMany({ where: { id: p.id }, data: datosDeMp });
+    // Mercado Pago dice "pagado" pero el pedido ya se dio por rechazado (por ejemplo, la creación
+    // falló sin respuesta y se reintentó): la plata entró y no hay copia. Alerta y devolución pedida.
+    if (actual === "REJECTED" && saleOrderTransition("PENDING_PAYMENT", { orderStatus: orden.status, paymentStatus: orden.paymentStatus }).next === "PAID") {
+      await prisma.culturalSaleOrder.updateMany({ where: { id: p.id, refundRequestedAt: null }, data: { refundRequestedAt: ahora } });
+      await alertar(p.id, origen, "ALERT_PAID_ON_TERMINAL: Mercado Pago cobró un pedido rechazado, hay que devolver", orden.status);
+      return { estado: actual, cambio: false };
+    }
     // Pendiente en Mercado Pago (en revisión): la reserva se extiende hasta 72 horas desde el pedido (D22).
     if (actual === "PENDING_PAYMENT") {
       const tope = new Date(p.createdAt.getTime() + PENDING_HOLD_HOURS * HORA);

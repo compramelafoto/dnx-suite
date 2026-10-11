@@ -177,6 +177,22 @@ describe("certificarCopia, archivo firmado y verificación", () => {
     expect(await verificarCodigo(codigo)).toMatchObject({ estado: "INVALID_SIGNATURE", miniatura: null });
   });
 
+  it("verificar: si el texto firmado dice prueba, es de prueba aunque la fila diga lo contrario", async () => {
+    copias[0]!.isTest = true;
+    await certificarCopia("c1", emitida);
+    expect(String(copias[0]!.certificatePayload)).toContain('"test":true');
+    copias[0]!.isTest = false;
+    expect(await verificarCodigo(String(copias[0]!.certificateCode))).toMatchObject({ estado: "TEST" });
+  });
+
+  it("una copia anulada no entrega su PDF, ni siquiera el ya guardado", async () => {
+    await certificarCopia("c1", emitida);
+    expect(await cert.pdfGuardado("c1", "certificado")).toBeInstanceOf(Uint8Array);
+    copias[0]!.status = "VOIDED";
+    expect(await cert.pdfGuardado("c1", "certificado")).toBeNull();
+    expect(await cert.pdfGuardado("c1", "etiqueta")).toBeNull();
+  });
+
   it("código mal escrito o inexistente: el mismo 'no encontrado'", async () => {
     expect(await verificarCodigo("hola")).toEqual({ encontrado: false });
     expect(await verificarCodigo("ABCDEFGHJKMN")).toEqual({ encontrado: false });

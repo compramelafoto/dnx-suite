@@ -126,6 +126,16 @@ function seguroNoSeCreo(error: unknown): boolean {
   return status != null && status >= 400 && status < 500 && ![408, 409, 423, 429].includes(status);
 }
 
+/** Concilia sin dejar que un error (base, firma, red) llegue al comprador: sólo se registra su nombre. */
+async function conciliarSinRomper(orden: OrdenLeida, origen: "CREATE" | "RETURN") {
+  try {
+    return await conciliarDesdeOrden(orden, origen);
+  } catch (error) {
+    console.error("[muestras][ventas] conciliar después de pagar:", { name: (error as { name?: unknown } | null)?.name ?? "Error" });
+    return "FALLO" as const;
+  }
+}
+
 const ROL: Record<"organizer" | "photographer" | "both", "ORGANIZER" | "PHOTOGRAPHER"> = { organizer: "ORGANIZER", photographer: "PHOTOGRAPHER", both: "ORGANIZER" };
 
 /**
@@ -160,7 +170,8 @@ export async function pagarPedido(e: EntradaDePago): Promise<ResultadoDePago> {
   // Doble clic o vuelta atrás: la Order ya existe, no se crea otra.
   if (pedido.providerOrderId) {
     const orden = await leerOrden(pedido.providerOrderId);
-    const r = orden ? await conciliarDesdeOrden(orden, "RETURN") : null;
+    const r = orden ? await conciliarSinRomper(orden, "RETURN") : null;
+    if (r === "FALLO") return { ok: true, estado: "PENDING", mensaje: EN_CURSO };
     return resultadoPorEstado(r?.estado ?? pedido.status, orden);
   }
   if (pedido.status !== "PENDING_PAYMENT") return resultadoPorEstado(pedido.status, null);
@@ -282,6 +293,9 @@ export async function pagarPedido(e: EntradaDePago): Promise<ResultadoDePago> {
   });
   const orden = ordenLeidaDesde(creada.raw) ?? (await leerOrden(creada.providerOrderId));
   if (!orden) return { ok: true, estado: "PENDING", mensaje: REVISANDO };
-  const r = await conciliarDesdeOrden(orden, "CREATE");
+  // La Order ya existe y quizás ya cobró: si la conciliación falla acá, el comprador NO tiene que
+  // volver a pagar; la terminan la página del pedido, el aviso o el barrido.
+  const r = await conciliarSinRomper(orden, "CREATE");
+  if (r === "FALLO") return { ok: true, estado: "PENDING", mensaje: REVISANDO };
   return resultadoPorEstado(r?.estado ?? "PENDING_PAYMENT", orden);
 }

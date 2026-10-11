@@ -270,3 +270,12 @@ Cómo probarlo de punta a punta:
 3. En "Del concurso", copiar las imágenes y revisar las casillas de cada obra.
 4. Con la cuenta de un autor, entrar a "Dónde expongo" y aceptar o retirar.
 5. Completar fechas y sede, enviar a revisión, aprobar y ver el premio en la ficha y en el catálogo.
+
+## Etapa 8 — pagos que quedaron "sin saber" (nota de operación)
+
+Si al pagar Mercado Pago no contesta (corte de red o error 5xx), el pedido queda como `UNKNOWN_CREATE`: no se sabe si la Order se creó. Muestras **no depende del aviso de CLF** para resolverlo (hoy CLF no procesa avisos en vivo):
+
+- El barrido (`/api/cron/ventas`, cada 10 minutos) busca esos pedidos en Mercado Pago por su referencia (`muestras-venta-<publicId>`, con `GET /v1/payments/search?external_reference=…`) durante 7 días. Si aparece la Order, la concilia: pagada → copia emitida (o pago tardío con otro número, o "cobrado sin copia").
+- Mientras no aparezca, el pedido se ve **en rojo** en `/panel/ventas` ("Conciliar a mano"). Si hay un pago con esa referencia pero no su Order, queda la alerta "hay un pago con esta referencia y no encontramos su Order": buscarlo a mano en Mercado Pago y devolverlo si corresponde.
+- Si Mercado Pago cobra un pedido que ya se había dado por rechazado, queda la alerta `ALERT_PAID_ON_TERMINAL` con la devolución pedida: el super admin la hace con "Devolver el pago".
+- Crear una Order y devolverla **nunca se reintentan solas**: ante la duda, el pedido queda pendiente y lo resuelve la conciliación.

@@ -29,7 +29,7 @@ type Contexto = { config: MercadoPagoProviderConfig; http: MercadoPagoHttpClient
  * `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED`, aunque la venta siga apagada: así organización y autores
  * dejan conectado su Mercado Pago antes de que se venda (D13).
  */
-function contexto(para: "ordenes" | "consentimientos" = "ordenes"): Contexto | null {
+function contexto(para: "ordenes" | "consentimientos" = "ordenes", { reintentos = 2 }: { reintentos?: number } = {}): Contexto | null {
   const cfg = leerConfigDeVentas();
   const cred = credencialesDeVentas();
   if (!cred.accessToken || !cfg.mpEnv) return null;
@@ -42,7 +42,7 @@ function contexto(para: "ordenes" | "consentimientos" = "ordenes"): Contexto | n
     ...(cred.publicKey ? { publicKey: cred.publicKey } : {}),
     platformId: "muestras",
     requestTimeoutMs: 15_000,
-    maxRetries: 2,
+    maxRetries: reintentos,
   });
   return { config, http: new MercadoPagoHttpClient(config), ownerUserId: cred.ownerUserId };
 }
@@ -52,9 +52,13 @@ const log = (que: string, error: unknown) => console.error(`[muestras][ventas] $
 /**
  * El adaptador de Orders 1:N, o `null` si falta configuración. La guarda de staging del paquete no
  * aplica (Muestras tiene sus propios modos); la de producción la pone el cliente HTTP.
+ *
+ * **Sin reintentos** (revisión de las tareas 11 a 14): crear una Order o devolverla mueve plata; si
+ * la primera llamada falla sin respuesta, el pedido queda "sin saber" y lo resuelve la conciliación
+ * (que busca la Order por su referencia), nunca un segundo intento automático.
  */
 export function adaptadorDeOrdenes(): MercadoPagoOrdersAdapter | null {
-  const c = contexto();
+  const c = contexto("ordenes", { reintentos: 0 });
   if (!c?.ownerUserId) return null;
   return new MercadoPagoOrdersAdapter({
     config: c.config,
@@ -118,6 +122,39 @@ export async function leerOrden(providerOrderId: string): Promise<OrdenLeida | n
     return ordenLeidaDesde(r.body);
   } catch (error) {
     log("leer orden", error);
+    return null;
+  }
+}
+
+export type BusquedaPorReferencia = { orden: OrdenLeida } | { pagoSinOrden: true } | { nada: true };
+
+/**
+ * Busca en Mercado Pago lo cobrado con esta referencia (`muestras-venta-<publicId>`): para los
+ * pedidos que quedaron "sin saber" si la Order se creó (revisión de las tareas 11 a 14). Usa
+ * `GET /v1/payments/search?external_reference=…` (los pagos de una Order llevan su referencia y el id
+ * de la Order) y después lee la Order. Así Muestras no depende del aviso de CLF. `null` si no se
+ * pudo preguntar.
+ */
+export async function buscarOrdenPorReferencia(externalReference: string): Promise<BusquedaPorReferencia | null> {
+  if (!/^muestras-venta-[a-z0-9]{16}$/.test(externalReference)) return null;
+  const c = contexto();
+  if (!c) return null;
+  try {
+    const r = await c.http.request<{ results?: { order?: { id?: unknown } | null; external_reference?: unknown }[] }>({
+      method: "GET",
+      path: "/v1/payments/search",
+      query: { external_reference: externalReference, sort: "date_created", criteria: "desc" },
+    });
+    const pagos = (r.body?.results ?? []).filter((p) => p?.external_reference === externalReference);
+    if (pagos.length === 0) return { nada: true };
+    const ids = [...new Set(pagos.map((p) => p.order?.id).filter((x): x is string => typeof x === "string" && ID_ORDEN_RE.test(x)))];
+    for (const id of ids) {
+      const orden = await leerOrden(id);
+      if (orden && orden.externalReference === externalReference) return { orden };
+    }
+    return { pagoSinOrden: true };
+  } catch (error) {
+    log("buscar por referencia", error);
     return null;
   }
 }

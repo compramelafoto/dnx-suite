@@ -264,8 +264,9 @@ const carpeta = (copia: { id: string; orderId: string | null }) => (copia.orderI
  * guarda y se devuelve. `null` si la copia todavía no tiene certificado.
  */
 export async function pdfGuardado(copyId: string, pieza: "certificado" | "etiqueta"): Promise<Uint8Array | null> {
-  const copia = await prisma.culturalEditionCopy.findUnique({ where: { id: copyId }, select: { id: true, orderId: true, certificateCode: true } });
-  if (!copia?.certificateCode) return null;
+  const copia = await prisma.culturalEditionCopy.findUnique({ where: { id: copyId }, select: { id: true, orderId: true, certificateCode: true, status: true } });
+  // Una copia anulada (devolución, contracargo) no se entrega más, ni siquiera la pieza ya guardada.
+  if (!copia?.certificateCode || copia.status !== "ISSUED") return null;
   const clave = `${carpeta(copia)}/${pieza}.pdf`;
   const guardado = await leerPrivado(clave, { maxBytes: 20 * 1024 * 1024 });
   if (guardado) return new Uint8Array(guardado);
