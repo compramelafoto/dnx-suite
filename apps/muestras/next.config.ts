@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   // Mismo criterio que fotoffice y clickaton — con webpack, el motor nativo no llega al
   // bundle si se transpila, y toda consulta falla en runtime.
   serverExternalPackages: ["@prisma/client", "@repo/db"],
-  transpilePackages: ["@repo/muestras", "@repo/geo", "@repo/auth-ui"],
+  transpilePackages: ["@repo/muestras", "@repo/geo", "@repo/auth-ui", "@repo/payments"],
   outputFileTracingRoot: path.join(appDir, "../.."),
   outputFileTracingIncludes: {
     "/**": [

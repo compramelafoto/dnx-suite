@@ -1069,6 +1069,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.972.0
         version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.972.0
+        version: 3.1079.0
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -1084,6 +1087,9 @@ importers:
       '@repo/muestras':
         specifier: workspace:*
         version: link:../../packages/muestras
+      '@repo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
