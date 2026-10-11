@@ -62,3 +62,16 @@ describe("configuración de la venta", () => {
     expect(credencialesDeVentas({}).accessToken).toBeNull();
   });
 });
+
+describe("valores con forma inválida (revisión de las tareas 1 a 5)", () => {
+  it("un owner que no es sólo dígitos cuenta como faltante", () => {
+    const c = leerConfigDeVentas({ ...completo, MUESTRAS_MP_OWNER_USER_ID: "12a" });
+    expect(c.modo).toBe("OFF");
+    expect(c.faltan).toContain("MUESTRAS_MP_OWNER_USER_ID");
+  });
+  it("el bucket privado no puede ser el público", () => {
+    const c = leerConfigDeVentas({ ...completo, R2_BUCKET_NAME: "muestras-privado" });
+    expect(c.modo).toBe("OFF");
+    expect(c.faltan).toContain("MUESTRAS_R2_PRIVATE_BUCKET");
+  });
+});

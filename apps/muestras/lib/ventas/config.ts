@@ -57,7 +57,17 @@ export type ConfigDeVentas = {
 
 export function leerConfigDeVentas(env: Entorno = process.env): ConfigDeVentas {
   const mpEnv = ambiente(env);
-  const faltan: string[] = VARIABLES_OBLIGATORIAS.filter((n) => (n === "MUESTRAS_MP_ENV" ? mpEnv == null : valor(env, n) == null));
+  // Además de estar, algunas tienen que tener forma válida: si no, cuentan como faltantes (la venta queda apagada).
+  const invalida = (n: string): boolean => {
+    if (n === "MUESTRAS_MP_ENV") return mpEnv == null;
+    const v = valor(env, n);
+    if (v == null) return true;
+    if (n === "MUESTRAS_MP_OWNER_USER_ID") return !/^\d{1,20}$/.test(v);
+    // Nunca el bucket público de Muestras (D17).
+    if (n === "MUESTRAS_R2_PRIVATE_BUCKET") return v === (valor(env, "R2_BUCKET_NAME") ?? valor(env, "R2_BUCKET"));
+    return false;
+  };
+  const faltan: string[] = VARIABLES_OBLIGATORIAS.filter(invalida);
   const token = valor(env, "MUESTRAS_MP_ACCESS_TOKEN");
   // Mercado Pago da tokens de prueba con forma `TEST-` o `APP_USR-` (usuarios de prueba), y los reales
   // son `APP_USR-`: en sandbox se acepta cualquiera de las dos; en producción, uno `TEST-` no corresponde.

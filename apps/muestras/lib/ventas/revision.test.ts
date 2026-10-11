@@ -77,9 +77,9 @@ describe("revisión de formatos", () => {
   it("pausar y reanudar", async () => {
     oferta = base({ status: "APPROVED", approvedPriceArs: 100_000 });
     expect(await pausarOferta("of1")).toEqual({ ok: true });
-    expect(oferta.status).toBe("PAUSED");
+    expect(oferta).toMatchObject({ status: "PAUSED", pausedBy: "ORGANIZER" });
     expect(await reanudarOferta("of1")).toEqual({ ok: true });
-    expect(oferta.status).toBe("APPROVED");
+    expect(oferta).toMatchObject({ status: "APPROVED", pausedBy: null });
   });
 
   it("no se pausa lo que no está aprobado", async () => {

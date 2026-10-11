@@ -1,5 +1,5 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { SALE_STATEMENT_DESCRIPTOR } from "@repo/muestras";
 import {
   MercadoPagoHttpClient,
@@ -187,4 +187,41 @@ export async function devolverTotal(providerOrderId: string, idempotencyKey: str
     log("devolver", error);
     return { ok: false, error: "Mercado Pago no aceptó la devolución. Probá de nuevo en unos minutos." };
   }
+}
+
+export type CuentaDelToken = { id: string; esDePrueba: boolean };
+
+const CUENTA_OK_MS = 60 * 60_000;
+const CUENTA_FALLA_MS = 60_000;
+let cacheCuenta: { huella: string; valor: CuentaDelToken | null; vence: number } | null = null;
+
+/** Para los tests: olvida la cuenta guardada. */
+export async function olvidarCuentaDelToken(): Promise<void> {
+  cacheCuenta = null;
+}
+
+/**
+ * `GET /users/me` con el token de la venta: el id de la cuenta y si es un usuario de prueba de
+ * Mercado Pago (etiqueta `test_user`). Se guarda una hora (un minuto si falló). `null` si no se pudo
+ * leer. Sirve para no vender en "prueba" con una cuenta real, ni en vivo con una de prueba.
+ */
+export async function cuentaDelToken(ahora = Date.now()): Promise<CuentaDelToken | null> {
+  const c = contexto();
+  const token = credencialesDeVentas().accessToken;
+  if (!c || !token) return null;
+  const huella = createHash("sha256").update(token).digest("hex").slice(0, 16);
+  if (cacheCuenta && cacheCuenta.huella === huella && cacheCuenta.vence > ahora) return cacheCuenta.valor;
+  let valor: CuentaDelToken | null = null;
+  try {
+    const r = await c.http.request<{ id?: number | string; tags?: unknown }>({ method: "GET", path: "/users/me" });
+    const id = r.body?.id;
+    if (id != null && /^\d{1,20}$/.test(String(id))) {
+      const tags = Array.isArray(r.body?.tags) ? (r.body!.tags as unknown[]).map(String) : [];
+      valor = { id: String(id), esDePrueba: tags.includes("test_user") };
+    }
+  } catch (error) {
+    log("leer la cuenta del token", error);
+  }
+  cacheCuenta = { huella, valor, vence: ahora + (valor ? CUENTA_OK_MS : CUENTA_FALLA_MS) };
+  return valor;
 }

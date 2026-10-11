@@ -30,7 +30,14 @@ function config() {
   const endpoint = process.env.R2_ENDPOINT || (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : "");
   const bucket = credencialesDeVentas().privateBucket;
   if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) throw new Error("Falta configurar el bucket privado de la venta (R2).");
+  // Nunca el bucket público de Muestras: sus direcciones son públicas y no vencen (D17).
+  if (bucket === bucketPublico()) throw new Error("El bucket privado de la venta no puede ser el bucket público de Muestras.");
   return { accessKeyId, secretAccessKey, endpoint, bucket };
+}
+
+/** El bucket público de Muestras (`lib/imagenes/r2.ts`). */
+export function bucketPublico(): string | null {
+  return (process.env.R2_BUCKET_NAME || process.env.R2_BUCKET || "").trim() || null;
 }
 
 let cliente: S3Client | null = null;
@@ -64,16 +71,40 @@ export async function subirPrivado(clave: string, bytes: Buffer | Uint8Array, co
   await s3(c).send(new PutObjectCommand({ Bucket: c.bucket, Key: clave, Body: bytes, ContentType: contentType, CacheControl: "private, no-store" }));
 }
 
-/** El objeto entero en memoria, o `null` si no existe. Otros errores se registran y también dan `null`. */
-export async function leerPrivado(clave: string): Promise<Buffer | null> {
+/**
+ * El objeto entero en memoria, o `null` si no existe (o si pesa más de `maxBytes`). Otros errores se
+ * registran y también dan `null`. Para entregar archivos grandes, `streamPrivado`.
+ */
+export async function leerPrivado(clave: string, { maxBytes = 100 * 1024 * 1024 }: { maxBytes?: number } = {}): Promise<Buffer | null> {
   exigirClave(clave);
   const c = config();
   try {
     const r = await s3(c).send(new GetObjectCommand({ Bucket: c.bucket, Key: clave }));
     if (!r.Body) return null;
+    if (r.ContentLength != null && r.ContentLength > maxBytes) {
+      console.error("[muestras] R2 privado, lectura: el objeto supera el tope para leerlo en memoria");
+      return null;
+    }
     return Buffer.from(await r.Body.transformToByteArray());
   } catch (err) {
     if (!noExiste(err)) console.error("[muestras] R2 privado, lectura:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+/**
+ * El objeto como stream (sin cargarlo en memoria), para entregar descargas grandes desde una ruta
+ * que ya validó el permiso. `null` si no existe.
+ */
+export async function streamPrivado(clave: string): Promise<{ stream: ReadableStream; bytes: number | null; contentType: string | null } | null> {
+  exigirClave(clave);
+  const c = config();
+  try {
+    const r = await s3(c).send(new GetObjectCommand({ Bucket: c.bucket, Key: clave }));
+    if (!r.Body) return null;
+    return { stream: r.Body.transformToWebStream(), bytes: r.ContentLength ?? null, contentType: r.ContentType ?? null };
+  } catch (err) {
+    if (!noExiste(err)) console.error("[muestras] R2 privado, stream:", err instanceof Error ? err.message : String(err));
     return null;
   }
 }

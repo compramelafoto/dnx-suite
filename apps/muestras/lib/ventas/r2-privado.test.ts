@@ -11,7 +11,7 @@ vi.mock("@aws-sdk/client-s3", () => ({
 }));
 vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl }));
 
-const { borrarPrivado, claveDelBucketPrivado, existePrivado, leerPrivado, subirPrivado, urlDeSubida } = await import("./r2-privado");
+const { borrarPrivado, claveDelBucketPrivado, existePrivado, leerPrivado, streamPrivado, subirPrivado, urlDeSubida } = await import("./r2-privado");
 
 beforeEach(() => {
   send.mockReset();
@@ -20,6 +20,7 @@ beforeEach(() => {
   vi.stubEnv("R2_SECRET_ACCESS_KEY", "b");
   vi.stubEnv("R2_ENDPOINT", "https://e.test");
   vi.stubEnv("MUESTRAS_R2_PRIVATE_BUCKET", "privado");
+  vi.stubEnv("R2_BUCKET_NAME", "publico");
 });
 
 describe("claves del bucket privado", () => {
@@ -62,6 +63,18 @@ describe("operaciones", () => {
     expect(await existePrivado("firmas/7.png")).toEqual({ bytes: 10, contentType: "image/png" });
     send.mockRejectedValueOnce(Object.assign(new Error("no"), { name: "NotFound", $metadata: { httpStatusCode: 404 } }));
     expect(await existePrivado("firmas/8.png")).toBeNull();
+  });
+  it("el bucket privado no puede ser el público (revisión)", async () => {
+    vi.stubEnv("R2_BUCKET_NAME", "privado");
+    await expect(subirPrivado("firmas/7.png", Buffer.from("x"), "image/png")).rejects.toThrow(/bucket público/);
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("un objeto más grande que el tope no se lee en memoria; se entrega por stream", async () => {
+    send.mockResolvedValueOnce({ ContentLength: 200, Body: { transformToByteArray: async () => new Uint8Array(200) } });
+    expect(await leerPrivado("originales/7/ck1", { maxBytes: 100 })).toBeNull();
+    const stream = new ReadableStream();
+    send.mockResolvedValueOnce({ ContentLength: 200, ContentType: "image/tiff", Body: { transformToWebStream: () => stream } });
+    expect(await streamPrivado("originales/7/ck1")).toEqual({ stream, bytes: 200, contentType: "image/tiff" });
   });
   it("sin bucket privado configurado, tira", async () => {
     vi.stubEnv("MUESTRAS_R2_PRIVATE_BUCKET", "");

@@ -6,7 +6,8 @@ import { prisma } from "@repo/db";
 import { SALE_TERMS_TEXT_VERSION, SALE_UNAVAILABLE_TEXT, isDelivery, normalizeEmail } from "@repo/muestras";
 import { frenarPorEmail, frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
-import { credencialesDeVentas, leerConfigDeVentas, puedeComprar } from "./config";
+import { credencialesDeVentas, puedeComprar } from "./config";
+import { configVerificada } from "./modo";
 import { cookieDePedido, hashDeToken, nuevoPublicId, tokenDePedido } from "./pedido";
 import { reservarEnTransaccion, type DireccionDeEnvio } from "./reservar-tx";
 
@@ -40,7 +41,8 @@ function direccionDesde(fd: FormData): DireccionDeEnvio | string {
 }
 
 export async function reservarCopia(fd: FormData): Promise<ResultadoReserva> {
-  const config = leerConfigDeVentas();
+  // El modo confirmado contra Mercado Pago (no sólo por la forma del token).
+  const config = await configVerificada();
   const usuario = await getUsuario();
   if (!puedeComprar(usuario, config)) return error(SALE_UNAVAILABLE_TEXT);
 

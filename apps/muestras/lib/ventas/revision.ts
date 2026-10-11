@@ -29,6 +29,7 @@ class Corte extends Error {}
 const OFERTA = {
   id: true, activityId: true, activityWorkId: true, authorUserId: true, format: true, editionKind: true, editionSize: true, proofCount: true,
   priceArs: true, approvedPriceArs: true, paper: true, widthCm: true, heightCm: true, status: true, reviewNote: true, firstSoldAt: true,
+  pausedBy: true,
 } as const;
 type Oferta = Prisma.CulturalWorkOfferGetPayload<{ select: typeof OFERTA }>;
 
@@ -76,6 +77,7 @@ async function transicion(
           status: t.status,
           ...(t.approvedPriceArs !== undefined ? { approvedPriceArs: t.approvedPriceArs } : {}),
           ...(t.reviewNote !== undefined ? { reviewNote: t.reviewNote } : {}),
+          ...(t.pausedBy !== undefined ? { pausedBy: t.pausedBy } : {}),
           ...extra(o, r.usuario),
         },
       });

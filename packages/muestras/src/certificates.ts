@@ -88,7 +88,8 @@ export function certificatePayload(d: CertificateData): string {
     issuedOn: toArDay(d.issuedAt),
   };
   if (impresa) {
-    if (d.paper) obj.paper = d.paper;
+    const papel = d.paper?.trim();
+    if (papel) obj.paper = papel;
     if (d.widthCm != null) obj.widthCm = d.widthCm;
     if (d.heightCm != null) obj.heightCm = d.heightCm;
   }

@@ -23,6 +23,7 @@ const galleta = vi.hoisted(() => ({ set: vi.fn() }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "203.0.113.9" }), cookies: async () => galleta }));
+vi.mock("./modo", () => ({ configVerificada: async () => ({ modo: cfg.modo, ambienteCuenta: "SANDBOX", motivo: null, faltan: [], probadores: new Set([60]) }) }));
 vi.mock("./config", () => ({
   leerConfigDeVentas: () => ({ modo: cfg.modo, ambienteCuenta: "SANDBOX", motivo: null, faltan: [], probadores: new Set([60]) }),
   puedeComprar: (u: { id: number; esSuperAdmin: boolean } | null, c: { modo: string; probadores: Set<number> }) =>

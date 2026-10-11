@@ -24319,6 +24319,8 @@ model CulturalWorkOffer {
   heightCm         Float?
   /// DRAFT | PROPOSED | CHANGES_REQUESTED | APPROVED | PAUSED | WITHDRAWN
   status           String           @default("DRAFT")
+  /// AUTHOR | ORGANIZER: quién la pausó (el autor no reanuda lo que pausó la organización).
+  pausedBy         String?
   reviewNote       String?
   proposedAt       DateTime?
   approvedAt       DateTime?

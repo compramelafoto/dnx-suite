@@ -107,6 +107,7 @@ CREATE TABLE "CulturalWorkOffer" (
     "widthCm" DOUBLE PRECISION,
     "heightCm" DOUBLE PRECISION,
     "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "pausedBy" TEXT,
     "reviewNote" TEXT,
     "proposedAt" TIMESTAMP(3),
     "approvedAt" TIMESTAMP(3),

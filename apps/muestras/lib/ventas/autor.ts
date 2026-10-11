@@ -61,6 +61,7 @@ async function obraPropia(activityWorkId: unknown, usuario: Usuario): Promise<{ 
 const OFERTA = {
   id: true, activityId: true, activityWorkId: true, authorUserId: true, format: true, editionKind: true, editionSize: true, proofCount: true,
   priceArs: true, approvedPriceArs: true, paper: true, widthCm: true, heightCm: true, status: true, reviewNote: true, firstSoldAt: true,
+  pausedBy: true,
 } as const;
 type Oferta = Prisma.CulturalWorkOfferGetPayload<{ select: typeof OFERTA }>;
 
@@ -259,6 +260,7 @@ async function transicionDelAutor(
           ...(t.priceArs !== undefined ? { priceArs: t.priceArs } : {}),
           ...(t.approvedPriceArs !== undefined ? { approvedPriceArs: t.approvedPriceArs } : {}),
           ...(t.editionSize !== undefined ? { editionSize: t.editionSize } : {}),
+          ...(t.pausedBy !== undefined ? { pausedBy: t.pausedBy } : {}),
           ...extra(o),
         },
       });

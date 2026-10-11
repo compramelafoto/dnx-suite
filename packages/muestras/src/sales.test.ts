@@ -107,6 +107,23 @@ describe("pedido y producción", () => {
     expect(saleOrderTransition("REFUNDED", { orderStatus: "PROCESSED_ACCREDITED", paymentStatus: "accredited" }).next).toBeNull();
     expect(saleOrderTransition("PAID_NO_COPY", { orderStatus: "REFUNDED", paymentStatus: "refunded" }).next).toBe("REFUNDED");
   });
+  it("una devolución o un contracargo que llega sin haber visto el pago se registra igual (revisión)", () => {
+    expect(saleOrderTransition("PENDING_PAYMENT", { orderStatus: "REFUNDED", paymentStatus: "refunded" }).next).toBe("REFUNDED");
+    expect(saleOrderTransition("EXPIRED", { orderStatus: "CHARGED_BACK", paymentStatus: "charged_back" }).next).toBe("CHARGED_BACK");
+    expect(saleOrderTransition("REJECTED", { orderStatus: "REFUNDED", paymentStatus: "refunded" }).next).toBeNull();
+  });
+  it("el redondeo nunca deja al fotógrafo en negativo: si pasara, lanza (revisión)", () => {
+    expect(() => saleAmounts({ priceArs: 1, shippingArs: 0, platformFeeBps: 50, organizerBps: 9950 })).toThrow(RangeError);
+  });
+  it("lo que pausó la organización no lo reanuda el autor (revisión)", () => {
+    const pausada = offerTransition("pause", { status: "APPROVED" }, { actor: "ORGANIZER" });
+    expect(pausada).toMatchObject({ ok: true, status: "PAUSED", pausedBy: "ORGANIZER" });
+    expect(offerTransition("resume", { status: "PAUSED", approvedPriceArs: 1000, pausedBy: "ORGANIZER" }, { actor: "AUTHOR" }))
+      .toEqual({ ok: false, error: "La organización pausó este formato: lo reanuda ella." });
+    expect(offerTransition("resume", { status: "PAUSED", approvedPriceArs: 1000, pausedBy: "ORGANIZER" }, { actor: "ORGANIZER" }))
+      .toMatchObject({ ok: true, status: "APPROVED", pausedBy: null });
+    expect(offerTransition("resume", { status: "PAUSED", approvedPriceArs: 1000, pausedBy: "AUTHOR" }, { actor: "AUTHOR" })).toMatchObject({ ok: true });
+  });
   it("circuito de impresión", () => {
     expect(fulfillmentTransition("PENDING", "IN_PRODUCTION", "PICKUP")).toBe(true);
     expect(fulfillmentTransition("IN_PRODUCTION", "SHIPPED", "PICKUP")).toBe(false);

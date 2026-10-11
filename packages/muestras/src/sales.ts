@@ -216,6 +216,7 @@ export function saleAmounts(p: { priceArs: number; shippingArs: number; platform
   const platformCents = Math.round((priceCents * p.platformFeeBps) / SPLIT_TOTAL_BPS);
   const organizerCents = Math.round((priceCents * p.organizerBps) / SPLIT_TOTAL_BPS);
   const photographerCents = priceCents - platformCents - organizerCents;
+  if (photographerCents < 0) throw new RangeError("Reparto fuera de rango: el fotógrafo quedaría en negativo");
   return { priceCents, shippingCents, totalCents: priceCents + shippingCents, platformCents, organizerCents, photographerCents };
 }
 
@@ -341,7 +342,11 @@ export type OfferAction = "propose" | "withdraw" | "reopen" | "approve" | "reque
 export type OfferActor = "AUTHOR" | "ORGANIZER";
 
 export type OfferTransitionResult =
-  | { ok: true; status: OfferStatus; priceArs?: number; approvedPriceArs?: number | null; editionSize?: number; reviewNote?: string | null }
+  | {
+      ok: true; status: OfferStatus; priceArs?: number; approvedPriceArs?: number | null; editionSize?: number; reviewNote?: string | null;
+      /** Quién la pausó (`null` al reanudar): el autor no reanuda lo que pausó la organización. */
+      pausedBy?: OfferActor | null;
+    }
   | { ok: false; error: string };
 
 /**
@@ -352,7 +357,7 @@ export type OfferTransitionResult =
  */
 export function offerTransition(
   action: OfferAction,
-  offer: { status: string; priceArs?: number; approvedPriceArs?: number | null; editionSize?: number; firstSoldAt?: Date | null },
+  offer: { status: string; priceArs?: number; approvedPriceArs?: number | null; editionSize?: number; firstSoldAt?: Date | null; pausedBy?: string | null },
   ctx: { actor: OfferActor; newPriceArs?: number; editionSize?: number; issuedOrReserved?: number; note?: string },
 ): OfferTransitionResult {
   const no = (error: string) => ({ ok: false as const, error });
@@ -389,10 +394,11 @@ export function offerTransition(
     }
     case "pause":
       if (st !== "APPROVED") return no("Sólo se pausa un formato aprobado.");
-      return { ok: true, status: "PAUSED" };
+      return { ok: true, status: "PAUSED", pausedBy: ctx.actor };
     case "resume":
       if (st !== "PAUSED") return no("Este formato no está pausado.");
-      return { ok: true, status: offer.approvedPriceArs != null ? "APPROVED" : "PROPOSED" };
+      if (autor && offer.pausedBy === "ORGANIZER") return no("La organización pausó este formato: lo reanuda ella.");
+      return { ok: true, status: offer.approvedPriceArs != null ? "APPROVED" : "PROPOSED", pausedBy: null };
     case "changePrice": {
       if (!autor) return no("Sólo el autor cambia el precio.");
       const nuevo = ctx.newPriceArs;
@@ -474,9 +480,11 @@ export function offerPurchasable(i: OfferPurchasableInput): { ok: true } | { ok:
 // Pedido (D30) y producción (D26)
 
 const ORDER_NEXT: Record<OrderStatus, readonly OrderStatus[]> = {
-  PENDING_PAYMENT: ["PAID", "REJECTED", "EXPIRED"],
+  // Una devolución o un contracargo pueden llegar sin que hayamos visto el pago (revisión de las
+  // tareas 1 a 5): se registran igual, para no perder el rastro de la plata.
+  PENDING_PAYMENT: ["PAID", "REJECTED", "EXPIRED", "REFUNDED", "CHARGED_BACK"],
   // Un pago que llega tarde nunca se pierde: la conciliación busca otro número o pasa a PAID_NO_COPY.
-  EXPIRED: ["PAID"],
+  EXPIRED: ["PAID", "REFUNDED", "CHARGED_BACK"],
   PAID: ["REFUNDED", "CHARGED_BACK"],
   PAID_NO_COPY: ["REFUNDED", "CHARGED_BACK"],
   REJECTED: [],

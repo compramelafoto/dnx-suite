@@ -64,6 +64,10 @@ describe("texto canónico", () => {
     expect(certificatePayload({ ...datos, isTest: true })).toContain('"test":true');
     expect(certificatePayload(datos)).not.toContain("test");
   });
+  it("el papel va sin espacios de más (revisión)", () => {
+    expect(JSON.parse(certificatePayload({ ...datos, paper: "  Hahnemühle Photo Rag 308 g  " }))).toMatchObject({ paper: "Hahnemühle Photo Rag 308 g" });
+    expect(certificatePayload({ ...datos, paper: "   " })).not.toContain("paper");
+  });
   it("lo digital no lleva papel ni medida; la P/A lleva su total", () => {
     const d = certificatePayload({ ...datos, format: "DIGITAL", paper: null, widthCm: null, heightCm: null });
     expect(d).not.toContain("paper");
