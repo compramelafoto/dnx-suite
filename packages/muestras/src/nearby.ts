@@ -44,12 +44,18 @@ export function applyFilter<A extends { country?: string | null; province: strin
  * "Cerca de" en la portada: `/?cerca=<lat>,<lng>&lugar=<texto>#muestras`.
  *
  * Los dos parámetros vienen de la URL, así que cualquiera puede escribirlos a mano. `cerca` se
- * valida estricto (dos números con punto decimal y dentro de Argentina) y `lugar` es texto plano
+ * valida estricto (dos números con punto decimal y dentro de la zona de `COUNTRIES`) y `lugar` es texto plano
  * acotado: sólo se muestra, nunca se interpreta.
  * ------------------------------------------------------------------------------------------- */
 
 /** Argentina con margen: de La Quiaca a Ushuaia y de la cordillera al mar (con Malvinas). */
 export const ARGENTINA_BOUNDS = { minLat: -56, maxLat: -21, minLng: -74, maxLng: -53 } as const;
+/**
+ * La zona de los países donde hay muestras (`COUNTRIES`): de Tierra del Fuego al Caribe venezolano
+ * y del Pacífico peruano a la punta este de Brasil. Un rectángulo, no las fronteras: alcanza para
+ * descartar coordenadas absurdas sin dejar afuera a nadie que pueda ir a una sala.
+ */
+export const SERVICE_BOUNDS = { minLat: -56, maxLat: 13, minLng: -82, maxLng: -34 } as const;
 /** Tope del texto de `lugar`: alcanza para "San Carlos de Bariloche" y corta lo que no es un lugar. */
 export const MAX_PLACE_LABEL = 60;
 
@@ -63,7 +69,13 @@ export function isInArgentina(c: { latitude: number; longitude: number }): boole
     && c.latitude >= minLat && c.latitude <= maxLat && c.longitude >= minLng && c.longitude <= maxLng;
 }
 
-/** `"-32.95,-60.65"` → coordenadas; cualquier otra cosa (o fuera de Argentina) → null. */
+export function isInServiceArea(c: { latitude: number; longitude: number }): boolean {
+  const { minLat, maxLat, minLng, maxLng } = SERVICE_BOUNDS;
+  return Number.isFinite(c.latitude) && Number.isFinite(c.longitude)
+    && c.latitude >= minLat && c.latitude <= maxLat && c.longitude >= minLng && c.longitude <= maxLng;
+}
+
+/** `"-32.95,-60.65"` → coordenadas; cualquier otra cosa (o fuera de la zona) → null. */
 export function parseNearParam(raw: unknown): Coords | null {
   const v = first(raw);
   if (typeof v !== "string" || v.length > 40) return null;
@@ -72,7 +84,7 @@ export function parseNearParam(raw: unknown): Coords | null {
   const [a, b] = parts.map((p) => p.trim()) as [string, string];
   if (!COORD.test(a) || !COORD.test(b)) return null;
   const c = { latitude: Number(a), longitude: Number(b) };
-  return isInArgentina(c) ? c : null;
+  return isInServiceArea(c) ? c : null;
 }
 
 /** Cuatro decimales son unos 10 m: de sobra para "cerca de" y no deja la casa exacta en la URL. */
