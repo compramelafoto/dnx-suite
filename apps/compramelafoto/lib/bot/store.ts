@@ -28,6 +28,8 @@ export async function loadHistory(conversationId: string): Promise<unknown[]> {
 export async function appendMessages(conversationId: string, msgs: { role: string; content: unknown }[]) {
   if (msgs.length === 0) return;
   await prisma.$transaction(async (tx) => {
+    // Bloquea la conversación: dos turnos simultáneos no pueden leer el mismo seq máximo.
+    await tx.$queryRaw`SELECT id FROM "BotConversation" WHERE id = ${conversationId} FOR UPDATE`;
     const agg = await tx.botMessage.aggregate({ where: { conversationId }, _max: { seq: true } });
     const start = (agg._max.seq ?? -1) + 1;
     await tx.botMessage.createMany({

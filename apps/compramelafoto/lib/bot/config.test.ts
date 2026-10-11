@@ -28,4 +28,22 @@ describe("config del bot", () => {
     findUnique.mockResolvedValue(null);
     expect(await isBotEnabledForUser(5)).toBe(false);
   });
+  it("si falla la base, queda apagado", async () => {
+    vi.stubEnv("CLF_BOT_ENABLED", "1");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    findUnique.mockRejectedValue(new Error("db"));
+    expect(await isBotEnabledForUser(5)).toBe(false);
+    spy.mockRestore();
+  });
+  it("iteraciones y mensajes por día: entero >= 1, si no el default", () => {
+    for (const v of ["0", "0.5"]) {
+      vi.stubEnv("CLF_BOT_MAX_ITERATIONS", v);
+      vi.stubEnv("CLF_BOT_MAX_MESSAGES_PER_DAY", v);
+      const c = readBotConfig();
+      expect(c.maxIterations).toBe(8);
+      expect(c.limits.maxMessagesPerUserPerDay).toBe(50);
+    }
+    vi.stubEnv("CLF_BOT_MAX_ITERATIONS", "3");
+    expect(readBotConfig().maxIterations).toBe(3);
+  });
 });
