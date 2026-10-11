@@ -31,6 +31,7 @@
     "vitest.cuantocobro.config.ts",
     "vitest.analysis.config.ts",
     "vitest.social.config.ts",
-    "vitest.payments.config.ts"
+    "vitest.payments.config.ts",
+    "vitest.mp-tokens.config.ts"
   ]
 }

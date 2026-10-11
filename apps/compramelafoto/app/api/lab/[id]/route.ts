@@ -1,4 +1,6 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, Role } from "@/lib/prisma";
+import { getAuthUser } from "@/lib/auth";
+import { withoutMpTokens } from "@/lib/mercadopago/without-mp-tokens";
 
 const POLAROID_SIZES = ["7.5x10", "9x13", "10x15"];
 const POLAROID_FINISHES = ["BRILLO", "MATE"];
@@ -93,7 +95,6 @@ export async function GET(
           showCarnetPrints: true,
           showPolaroidPrints: true,
           mpAccessToken: true,
-          mpRefreshToken: true,
           mpUserId: true,
           mpConnectedAt: true,
           radiusKm: true,
@@ -141,7 +142,6 @@ export async function GET(
         });
         if (lab) {
           lab.mpAccessToken = null;
-          lab.mpRefreshToken = null;
           lab.mpUserId = null;
           lab.mpConnectedAt = null;
         }
@@ -164,7 +164,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(lab);
+    return NextResponse.json(withoutMpTokens(lab));
   } catch (error: any) {
     console.error("Error obteniendo laboratorio:", error);
     return NextResponse.json(
@@ -184,6 +184,23 @@ export async function PATCH(
 
     if (isNaN(labId)) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+    }
+
+    // Sólo el dueño del laboratorio (o un admin) puede editarlo.
+    const authUser = await getAuthUser();
+    if (!authUser) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+    const lab = await prisma.lab.findUnique({
+      where: { id: labId },
+      select: { userId: true },
+    });
+    if (!lab) {
+      return NextResponse.json({ error: "Laboratorio no encontrado" }, { status: 404 });
+    }
+    const isOwner = lab.userId === authUser.id || authUser.labId === labId;
+    if (!isOwner && authUser.role !== Role.ADMIN) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -275,17 +292,8 @@ export async function PATCH(
       updateData.usePriceForPhotographerOrders = usePriceForPhotographerOrders;
     }
 
-    // Campos de Mercado Pago
-    if (body.mpAccessToken !== undefined) updateData.mpAccessToken = body.mpAccessToken;
-    if (body.mpRefreshToken !== undefined) updateData.mpRefreshToken = body.mpRefreshToken;
-    if (body.mpUserId !== undefined) updateData.mpUserId = body.mpUserId;
-    if (body.mpConnectedAt !== undefined) updateData.mpConnectedAt = body.mpConnectedAt ? new Date(body.mpConnectedAt) : null;
-
-    // Obtener userId del lab para actualizar User también (redes sociales)
-    const lab = await prisma.lab.findUnique({
-      where: { id: labId },
-      select: { userId: true },
-    });
+    // La conexión con Mercado Pago (tokens, usuario y fecha) la escribe sólo el flujo OAuth
+    // (`/api/mercadopago/oauth/*`); si llega en el cuerpo se ignora.
 
     let updatedLab: any;
     try {
@@ -313,7 +321,6 @@ export async function PATCH(
           showCarnetPrints: true,
           showPolaroidPrints: true,
           mpAccessToken: true,
-          mpRefreshToken: true,
           mpUserId: true,
           mpConnectedAt: true,
           radiusKm: true,
@@ -405,7 +412,6 @@ export async function PATCH(
         });
         if (updatedLab) {
           updatedLab.mpAccessToken = null;
-          updatedLab.mpRefreshToken = null;
           updatedLab.mpUserId = null;
           updatedLab.mpConnectedAt = null;
         }
@@ -425,7 +431,7 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json(updatedLab);
+    return NextResponse.json(withoutMpTokens(updatedLab));
   } catch (error: any) {
     console.error("Error actualizando laboratorio:", error);
     

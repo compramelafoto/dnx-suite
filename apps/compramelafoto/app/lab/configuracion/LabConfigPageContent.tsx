@@ -73,8 +73,7 @@ type LabData = {
   publicPageHandler: string | null;
   showCarnetPrints?: boolean;
   showPolaroidPrints?: boolean;
-  mpAccessToken?: string | null;
-  mpRefreshToken?: string | null;
+  mpConnected?: boolean;
   mpUserId?: string | null;
   mpConnectedAt?: string | null;
   radiusKm?: number | null;
@@ -1396,7 +1395,7 @@ export function LabConfigPageContent({ section: sectionProp }: { section?: strin
                 ) : (
                   <MercadoPagoIntegration
                     ownerType="LAB"
-                    mpAccessToken={lab?.mpAccessToken}
+                    mpConnected={lab?.mpConnected}
                     mpUserId={lab?.mpUserId}
                     mpConnectedAt={lab?.mpConnectedAt}
                     showWarning

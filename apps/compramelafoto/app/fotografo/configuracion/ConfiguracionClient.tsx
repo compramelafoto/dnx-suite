@@ -54,7 +54,7 @@ type PhotographerData = {
   showPolaroidPrints?: boolean;
   printSectionOnTop?: boolean;
   preferredLab?: { id: number; name: string } | null;
-  mpAccessToken?: string | null;
+  mpConnected?: boolean;
   mpUserId?: string | null;
   mpConnectedAt?: string | null;
 };
@@ -1657,7 +1657,7 @@ export default function ConfiguracionClient({
                 <h2 className="text-xl font-medium text-[#1a1a1a]">Mercado Pago</h2>
                 <MercadoPagoIntegration
                   ownerType="USER"
-                  mpAccessToken={photographer?.mpAccessToken}
+                  mpConnected={photographer?.mpConnected}
                   mpUserId={photographer?.mpUserId}
                   mpConnectedAt={photographer?.mpConnectedAt}
                   showWarning

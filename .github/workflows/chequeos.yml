@@ -187,6 +187,12 @@ jobs:
       - name: Pruebas de los frenos de gasto en Amazon
         run: pnpm --filter compramelafoto test:aws-costos
 
+      # Los tokens de Mercado Pago sólo los escribe el flujo OAuth y nunca viajan
+      # al navegador: ni el perfil del fotógrafo ni el del laboratorio pueden
+      # cargarlos desde el cuerpo del pedido, ni devolverlos.
+      - name: Pruebas de los tokens de Mercado Pago
+        run: pnpm --filter compramelafoto test:mp-tokens
+
       # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
       # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
       # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos

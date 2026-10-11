@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { withoutMpTokens } from "@/lib/mercadopago/without-mp-tokens";
 import { Role, LabApprovalStatus, LabType } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
 
@@ -182,7 +183,7 @@ export async function GET(req: NextRequest) {
         : null;
       const { referralCodeOwned, ...userRest } = lab.user || {};
       return {
-        ...lab,
+        ...withoutMpTokens(lab),
         user: lab.user ? { ...userRest } : null,
         referralUrl,
       };
