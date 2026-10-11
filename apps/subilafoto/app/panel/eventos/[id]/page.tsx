@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function DetalleEvento({ params }: Props) {
   const evento = await prisma.subilafotoEvent.findFirst({
     // El filtro por dueño va en el where, no en un if después de leer: así un evento
     // ajeno directamente no se trae de la base.
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: {
       name: true,
       code: true,

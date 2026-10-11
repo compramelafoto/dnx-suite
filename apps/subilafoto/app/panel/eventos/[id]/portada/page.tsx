@@ -4,6 +4,7 @@ import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { urlDePortada } from "@/lib/portada-url";
 import { FormularioDePortada } from "./formulario";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function PortadaDelEvento({ params }: Props) {
   if (!usuario) redirect(`/login?next=${encodeURIComponent(`/panel/eventos/${id}/portada`)}`);
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: { name: true, code: true, hostsLabel: true, coverUrl: true },
   });
   if (!evento) notFound();

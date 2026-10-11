@@ -23564,6 +23564,8 @@ model CulturalActivity {
   address       String?
   city          String?
   province      String?
+  /// País de la sede, en español ("Argentina", "Brasil"…). Ver `COUNTRIES` en `packages/muestras`.
+  country       String  @default("Argentina")
   latitude      Float?
   longitude     Float?
   geohash       String?

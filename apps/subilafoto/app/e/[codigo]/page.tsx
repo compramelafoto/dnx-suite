@@ -91,13 +91,21 @@ export default async function PuertaDelInvitado({ params }: Props) {
       <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
 
       {portada ? (
-        <Image
+        /*
+          Sin `next/image`: la dirección viene firmada y vence. El optimizador guarda el
+          resultado con la dirección entera como clave —firma incluida—, así que cada
+          visita genera una clave nueva y vuelve a bajar y recomprimir la foto. Además el
+          host del bucket no está en `images.remotePatterns` y contesta 400.
+
+          Tampoco lleva alto y ancho fijos: eran cuadrados y recortaban cualquier foto que
+          no lo fuera. Con `max-w` y `max-h` la foto entra entera y conserva su forma.
+        */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
           src={portada}
           alt=""
-          width={520}
-          height={520}
-          priority
-          className="mb-10 h-auto w-[min(20rem,72vw)] rounded-2xl object-cover"
+          decoding="async"
+          className="mb-10 max-h-[45vh] max-w-[min(20rem,72vw)] rounded-2xl"
         />
       ) : logo ? null : (
         /*

@@ -18,6 +18,19 @@ const TIPOS: Record<string, string> = {
 
 export type Veredicto = { ok: boolean; motivo?: string };
 
+/**
+ * La medida que conviene, para decírsela al fotógrafo.
+ *
+ * El banner se dibuja al ancho de la columna del invitado, que son 384 px de CSS. En un
+ * teléfono moderno eso son 2 o 3 píxeles reales por cada uno de CSS, así que **1200 px de
+ * ancho** es lo que hace falta para que no se vea borroso. Más que eso es peso de más
+ * cargando en el wifi de un salón.
+ *
+ * 4:1 porque va al pie: es una franja, no un afiche. Más alto le come la pantalla a lo
+ * que el invitado vino a hacer, que es subir una foto.
+ */
+export const MEDIDA_SUGERIDA_BANNER = { ancho: 1200, alto: 300 } as const;
+
 export function validarBanner(archivo: { tipo: string; bytes: number }): Veredicto {
   const tipo = archivo.tipo.toLowerCase().trim();
 

@@ -7,6 +7,7 @@ import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { almacenamiento, bucket } from "@/lib/almacenamiento";
 import { claveDePortada, validarPortada } from "@/lib/portada";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!usuario) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: { code: true },
   });
   if (!evento) return NextResponse.json({ error: "El evento no existe." }, { status: 404 });

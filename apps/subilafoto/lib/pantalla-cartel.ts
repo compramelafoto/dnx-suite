@@ -24,10 +24,15 @@ export function cartelDePantalla(entrada: {
   if (entrada.momento === "ABIERTO") return { tipo: "PROYECTANDO" };
 
   if (entrada.momento === "ANTES") {
+    /*
+      La carga todavía está cerrada: quien escanee ahora va a leer "todavía no arrancó".
+      Decirle "subí tus fotos" sería mandarlo a una puerta con llave. Lo que sí vale
+      hacer en este momento —y es lo que ofrece esa pantalla— es guardar el código.
+    */
     return {
       tipo: "ESPERANDO",
       titulo: "Ya podés ir sacando fotos",
-      bajada: "Escaneá el código QR y subilas. Van a aparecer acá.",
+      bajada: "Escaneá el código y guardalo. Cuando arranque, subilas y aparecen acá.",
     };
   }
 

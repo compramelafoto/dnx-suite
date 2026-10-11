@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "check-types": "pnpm --filter @repo/db exec prisma generate && next typegen && tsc --noEmit",
@@ -41,6 +42,7 @@
     "test:entries:multi-integration": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/entries-multi.integration.selfcheck.ts",
     "test:entries:upload-timeout": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/upload-timeout-config.selfcheck.ts",
     "test:entries:eligibility-form": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/eligibility-form.selfcheck.ts",
+    "test:entries:exif-nulos": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/entries/exif-nulos.test.ts",
     "test:entries:staged-upload": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/entries/staged-upload.selfcheck.ts",
     "test:jury:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/jury.selfcheck.ts",
     "test:jury:scoring": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/jury/scoring.selfcheck.ts",

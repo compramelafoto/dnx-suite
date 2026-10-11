@@ -9,6 +9,7 @@ import { hashDeIp } from "@/lib/consentimiento";
 import { ipDelPedido } from "@/lib/consentimiento-db";
 import { registrarProveedor } from "@/lib/proveedores/registrar";
 import { categoriaDelEnlace, esCategoriaValida, etiquetaDeCategoria } from "@/lib/proveedores/categorias";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 /**
  * Las dos acciones de la captación de proveedores: crear el enlace y recibir la ficha.
@@ -33,7 +34,7 @@ export async function crearEnlaceDeProveedoresAction(
   if (!usuario) return { error: "Tenés que iniciar sesión otra vez." };
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id: eventoId, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(eventoId, usuario.id),
     select: { id: true },
   });
   if (!evento) return { error: "No encontramos ese evento." };
@@ -78,7 +79,7 @@ export async function crearEnlaceDeCategoriaAction(
   if (!usuario) return { error: "Tenés que iniciar sesión otra vez." };
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id: eventoId, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(eventoId, usuario.id),
     select: { id: true },
   });
   if (!evento) return { error: "No encontramos ese evento." };

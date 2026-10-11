@@ -82,16 +82,35 @@ del servidor. Resolverlo pide empaquetar una fuente de emojis en la función.
 ## El mando del DJ
 
 La pantalla **no tiene botones a la vista**: serían una barra gris proyectada en la pared
-toda la noche.
+toda la noche. **Se maneja con el teclado** de la computadora conectada al televisor.
 
-Se abre tocando el **borde izquierdo** —una franja invisible del alto de la pantalla, así
-se encuentra a oscuras y sin apuntar— y se esconde sola a los cinco segundos.
+Hubo dos intentos antes de llegar acá. El primero fue una franja invisible en el borde
+izquierdo, que no encontraba nadie ni sabiéndolo. El segundo, una pestaña tenue que decía
+"CONTROLES": se encontraba, pero seguía siendo una caja gris al lado de las fotos durante
+toda la fiesta, y había que ir a buscarla con el mouse o con el dedo.
 
-| Botón | Qué hace |
+| Tecla | Qué hace |
 |---|---|
-| Pausar | Deja fija la foto que está. Para el brindis. |
-| Pasar al azar | Mezcla, sin repetir ninguna hasta que pasaron todas. |
-| Pasar a la siguiente | Adelanta sin esperar. |
+| Barra espaciadora | Pausa y reanuda. Deja fija la foto que está, para el brindis. |
+| Flecha derecha, o `N` | Pasa a la siguiente sin esperar. |
+| `A` | Alterna entre pasar en orden y pasar al azar. |
+| `H` o `?` | Muestra los atajos, por si se olvidaron. |
+
+Con `Ctrl`, `Cmd` o `Alt` apretado no hacemos nada: `Cmd+A` es "seleccionar todo" y
+`Ctrl+N` abre una ventana. Robarle esas teclas al navegador en la máquina que maneja la
+proyección es la forma más rápida de que alguien no pueda hacer algo urgente a mitad de
+la fiesta.
+
+**Cada tecla deja un cartelito abajo a la izquierda** que dice en qué quedó —«En pausa»,
+«Pasa al azar»— y se borra a los cuatro segundos. No es decoración: sin botonera, es la
+única señal de que la tecla llegó. Apretar la barra y que no pase nada visible es
+indistinguible de un televisor colgado. Por lo mismo, el cartel arranca mostrando los
+atajos al abrir la pantalla: un mando invisible que nadie sabe que existe es un mando que
+no existe.
+
+**El precio**: sin teclado no hay control. Si el televisor se maneja sólo con control
+remoto, la pantalla funciona igual sola —pasa las fotos e intercala el QR— pero no se
+puede pausar ni adelantar.
 
 **No se guarda.** Si el televisor se reinicia a mitad de la fiesta vuelve solo a
 reproducir en orden, en vez de quedarse en pausa por algo que alguien tocó hace dos horas.
@@ -112,6 +131,22 @@ pantalla completa para Windows y Mac, y la explicación del mando.
 
 El enlace de la pantalla **no es el de los invitados** y no se comparte con ellos: ellos
 usan el QR.
+
+### La pestaña tiene que quedar adelante
+
+La rotación la lleva un `setTimeout` en el navegador, y **los navegadores frenan los
+temporizadores de las pestañas que nadie está mirando**. Si esa ventana queda tapada por
+otra, o la computadora apaga la pantalla, o entra el protector de pantalla, las fotos
+dejan de pasar hasta que alguien vuelva a la ventana.
+
+Comprobado el 2026-10-10 midiendo la pantalla de producción con el panel del navegador
+oculto: **cien segundos sin que cambiara nada**. Con el panel a la vista, el mismo ciclo
+dio 14,8 s de fotos y 21,3 s de QR, que es lo que corresponde al ritmo de arranque.
+
+No se puede arreglar desde el código —es el comportamiento del navegador, y además es el
+correcto para no gastar batería—. Está avisado en el instructivo del panel, en un recuadro
+al lado de los pasos de pantalla completa, porque es la causa número uno de que la pantalla
+*parezca* colgada.
 
 ## Dónde está cada cosa
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
-import { queMostrar } from "@/lib/pantalla-ritmo";
+import { CADA_FOTO_MS, queMostrar, ritmoDePantalla } from "@/lib/pantalla-ritmo";
+import { AYUDA_DEL_MANDO, accionDeTecla, avisoDeAccion } from "@/lib/mando-teclado";
 import { sacarSiYaSeVio } from "@/lib/pantalla-una-sola-vez";
 import { totalesOrdenados } from "@/lib/reacciones";
 import { idsAQuitar } from "@/lib/vivo";
@@ -36,9 +37,6 @@ export type ItemEnVivo =
 /** Nombre viejo, conservado para no romper lo que todavía lo importe. */
 export type FotoEnVivo = Extract<ItemEnVivo, { tipo: "FOTO" }>;
 
-const CADA_FOTO_MS = 7_000;
-/** El QR se deja más tiempo: hay que sacar el teléfono, abrir la cámara y apuntar. */
-const EL_QR_MS = 12_000;
 /** Las URL vienen firmadas por un rato: no se puede guardar una lista infinita. */
 const MAXIMO_EN_MEMORIA = 40;
 /** Cuánto dura un emoji subiendo por la pantalla. */
@@ -66,6 +64,7 @@ export function Proyeccion({
   nombreDelEvento,
   anfitriones,
   acento,
+  ultimaFotoISO,
 }: {
   codigo: string;
   iniciales: ItemEnVivo[];
@@ -80,11 +79,51 @@ export function Proyeccion({
   /** El código QR ya dibujado en el servidor: la pantalla no tiene que calcularlo. */
   qrSvg: string;
   urlDelEvento: string;
+  /**
+   * Cuándo llegó la foto más nueva, según el servidor. `null` si no hay ninguna.
+   *
+   * Sin esto, una pantalla que se abre a mitad de la noche creería que recién llegó algo
+   * y usaría el ritmo equivocado.
+   */
+  ultimaFotoISO: string | null;
 }) {
   const [fotos, setFotos] = useState<ItemEnVivo[]>(iniciales);
   // Crece sin tope y el resto se saca con módulo. Así el reloj no necesita
   // saber cuántas fotos hay, y no hay que rearmarlo cada vez que llega una.
   const [vuelta, setVuelta] = useState(0);
+  /*
+    Cuándo llegó la última foto. Es la señal de "el flujo se cortó": con muchas fotos
+    pero nadie subiendo hace rato —se sentaron a comer, entró una tanda nueva— el QR
+    tiene que volver a pelear aunque el número sea alto.
+
+    Arranca con lo que diga el servidor sobre la más nueva que ya estaba, así una pantalla
+    que se abre a mitad de la noche no cree que recién llegó algo.
+  */
+  /*
+    `null` hasta que llegue la primera foto con la pantalla abierta. No se puede arrancar
+    con `Date.now()`: el valor inicial de un `useRef` se calcula durante el dibujado, y
+    ahí React exige que no se mire el reloj. Mientras sea `null` vale lo que dijo el
+    servidor.
+  */
+  const ultimaLlegada = useRef<number | null>(null);
+
+  /*
+    El ritmo depende del momento de la fiesta, no es fijo: el QR es el protagonista
+    mientras nadie subió nada y pasa a ser un recordatorio cuando las fotos ya llegan
+    solas. Ver `lib/pantalla-ritmo.ts`.
+
+    Va en estado y se recalcula **dentro del temporizador**, una vez por paso. Durante el
+    dibujado no se puede mirar el reloj —React exige que sea puro— y hace cuánto llegó la
+    última foto es justamente una pregunta sobre el reloj.
+  */
+  const [ritmo, setRitmo] = useState(() =>
+    /*
+      Al montar se decide sólo por la cantidad: averiguar hace cuánto llegó la última
+      exige mirar el reloj, y acá todavía estamos dibujando. El primer paso corrige, y
+      dura entre siete y veintidós segundos.
+    */
+    ritmoDePantalla({ cantidadDeFotos: iniciales.length, msDesdeLaUltimaFoto: 0 }),
+  );
   const [volando, setVolando] = useState<EmojiVolando[]>([]);
   /*
     El mando del DJ. Vive sólo en esta pantalla y no se guarda: si el televisor se
@@ -93,7 +132,14 @@ export function Proyeccion({
   */
   const [pausado, setPausado] = useState(false);
   const [aleatorio, setAleatorio] = useState(false);
-  const [mandoVisible, setMandoVisible] = useState(false);
+  /*
+    El cartelito que confirma la tecla. Se borra solo.
+
+    Arranca con la ayuda: un mando invisible que nadie sabe que existe es un mando que no
+    existe, y el DJ llega a la pantalla sin haber leído el instructivo del panel. Va como
+    valor inicial y no en un efecto, que daría un render de más con el cartel vacío.
+  */
+  const [aviso, setAviso] = useState<string | null>(AYUDA_DEL_MANDO);
   /*
     El contador, por foto. `porFoto[mediaId][emoji]`, más un total del evento bajo la
     clave vacía para las reacciones que llegaron sin foto —con la pantalla apagada o
@@ -110,11 +156,12 @@ export function Proyeccion({
       const item = JSON.parse((e as MessageEvent).data) as ItemEnVivo;
 
       const agregar = () =>
-        setFotos((previas) =>
-          previas.some((f) => f.id === item.id)
-            ? previas
-            : [...previas, item].slice(-MAXIMO_EN_MEMORIA),
-        );
+        setFotos((previas) => {
+          if (previas.some((f) => f.id === item.id)) return previas;
+          // Para el ritmo: una llegada nueva saca a la pantalla del modo "sequía".
+          ultimaLlegada.current = Date.now();
+          return [...previas, item].slice(-MAXIMO_EN_MEMORIA);
+        });
 
       // Un mensaje no tiene nada que descargar: entra enseguida.
       if (item.tipo === "MENSAJE") {
@@ -196,7 +243,11 @@ export function Proyeccion({
     [codigo],
   );
 
-  const paso = queMostrar({ vuelta, cantidadDeFotos: fotos.length });
+  const paso = queMostrar({
+    vuelta,
+    cantidadDeFotos: fotos.length,
+    cadaCuantasFotos: ritmo.cadaCuantasFotos,
+  });
 
   /*
     La rotación es independiente de la llegada de fotos: si deja de llegar gente nueva,
@@ -224,28 +275,92 @@ export function Proyeccion({
   useEffect(() => {
     // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
     if (pausado) return;
-    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
+    const cuanto = paso.tipo === "QR" ? ritmo.msDelQr : CADA_FOTO_MS;
     const reloj = setTimeout(() => {
       /*
         Al pasar de turno, el mensaje que se mostró sale de la rotación: se ve una vez.
         Se saca acá y no al mostrarlo, porque sacarlo mientras está en pantalla correría
         los índices y haría saltar la foto que se está viendo.
       */
-      setFotos((previas) => sacarSiYaSeVio(previas, actual));
+      setFotos((previas) => {
+        const quedan = sacarSiYaSeVio(previas, actual);
+        setRitmo(
+          ritmoDePantalla({
+            cantidadDeFotos: quedan.length,
+            msDesdeLaUltimaFoto:
+              Date.now() -
+              (ultimaLlegada.current ??
+                (ultimaFotoISO ? new Date(ultimaFotoISO).getTime() : 0)),
+          }),
+        );
+        return quedan;
+      });
       setVuelta((v) => v + 1);
     }, cuanto);
     return () => clearTimeout(reloj);
-  }, [vuelta, paso.tipo, pausado, actual]);
+  }, [vuelta, paso.tipo, pausado, actual, ritmo.msDelQr, ultimaFotoISO]);
 
   /*
     El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo
     abierto sería una barra gris sobre la pantalla del salón toda la noche.
   */
   useEffect(() => {
-    if (!mandoVisible) return;
-    const reloj = setTimeout(() => setMandoVisible(false), 5_000);
+    if (!aviso) return;
+    const reloj = setTimeout(() => setAviso(null), 4_000);
     return () => clearTimeout(reloj);
-  }, [mandoVisible, pausado, aleatorio]);
+  }, [aviso]);
+
+  /*
+    Las teclas del mando.
+
+    Va en `window` y no en un elemento con foco: el DJ no va a hacer clic en la pantalla
+    antes de apretar la barra, y una pantalla de proyección no tiene a dónde poner el foco.
+
+    `preventDefault` sólo para las teclas que son nuestras: la barra espaciadora, sin eso,
+    hace bajar la página.
+  */
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      const destino = e.target as HTMLElement | null;
+      const accion = accionDeTecla({
+        tecla: e.key,
+        conModificador: e.ctrlKey || e.metaKey || e.altKey,
+        escribiendo:
+          destino?.isContentEditable === true ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(destino?.tagName ?? ""),
+      });
+
+      if (e.key === "?" || e.key === "h" || e.key === "H") {
+        setAviso(AYUDA_DEL_MANDO);
+        return;
+      }
+      if (!accion) return;
+
+      e.preventDefault();
+
+      if (accion === "SIGUIENTE") {
+        setVuelta((v) => v + 1);
+        setAviso(avisoDeAccion("SIGUIENTE", { pausado, aleatorio }));
+        return;
+      }
+
+      // El cartel dice dónde QUEDÓ, así que se calcula con el valor nuevo.
+      if (accion === "PAUSA") {
+        const ahora = !pausado;
+        setPausado(ahora);
+        setAviso(avisoDeAccion("PAUSA", { pausado: ahora, aleatorio }));
+        return;
+      }
+
+      const ahora = !aleatorio;
+      setAleatorio(ahora);
+      setAviso(avisoDeAccion("AZAR", { pausado, aleatorio: ahora }));
+    };
+
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [pausado, aleatorio]);
+
 
   /*
     Lo que se muestra es el contador DE LA FOTO QUE SE ESTÁ VIENDO. Un número del evento
@@ -400,69 +515,25 @@ export function Proyeccion({
       ) : null}
 
       {/*
-        El mando del DJ.
+        El mando no se ve: son teclas.
 
-        Visible pero discreto: una pestaña en el borde izquierdo con el texto "Controles".
-        Antes era una franja invisible y nadie la encontraba —ni sabiéndolo—, que es lo
-        mismo que no tener controles. Un botón tenue que se puede ignorar molesta menos a
-        la proyección que uno que nadie usa.
+        Antes era una pestaña en el borde izquierdo que decía "CONTROLES", y antes de eso
+        una franja invisible que no encontraba nadie. Las dos compartían el problema de
+        ser píxeles proyectados en la pared de una fiesta, al lado de las fotos.
 
-        El panel se esconde solo a los cinco segundos de la última acción.
+        Lo único que queda en pantalla es este cartelito, y sólo por un rato: sin botonera
+        no hay nada que confirme que la tecla llegó, y apretar la barra sin que pase nada
+        visible es indistinguible de un televisor colgado.
       */}
-      <button
-        type="button"
-        onClick={() => setMandoVisible((v) => !v)}
-        aria-expanded={mandoVisible}
-        className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r-xl px-2 py-6 text-xs font-extrabold tracking-widest text-white transition-opacity"
-        style={{
-          background: "rgba(0,0,0,0.45)",
-          opacity: mandoVisible ? 0 : 0.5,
-          pointerEvents: mandoVisible ? "none" : "auto",
-          writingMode: "vertical-rl",
-        }}
-      >
-        CONTROLES
-      </button>
-
       <div
-        className="absolute left-0 top-1/2 flex -translate-y-1/2 flex-col gap-3 rounded-r-3xl p-4 transition-transform duration-300"
+        className="pointer-events-none absolute bottom-8 left-8 rounded-2xl px-5 py-3 text-base font-extrabold text-white transition-opacity duration-500"
         style={{
-          background: "rgba(0,0,0,0.72)",
-          transform: mandoVisible ? "translate(0, -50%)" : "translate(-110%, -50%)",
+          background: "rgba(0,0,0,0.6)",
+          opacity: aviso ? 1 : 0,
         }}
-        aria-hidden={!mandoVisible}
+        aria-live="polite"
       >
-        <BotonDeMando
-          activo={!pausado}
-          onClick={() => setPausado((v) => !v)}
-          etiqueta={pausado ? "Reanudar" : "Pausar"}
-        >
-          {pausado ? "\u25B6" : "\u2759\u2759"}
-        </BotonDeMando>
-
-        <BotonDeMando
-          activo={aleatorio}
-          onClick={() => setAleatorio((v) => !v)}
-          etiqueta={aleatorio ? "Pasar en orden" : "Pasar al azar"}
-        >
-          {"\u2928"}
-        </BotonDeMando>
-
-        <BotonDeMando
-          activo={false}
-          onClick={() => setVuelta((v) => v + 1)}
-          etiqueta="Pasar a la siguiente"
-        >
-          {"\u23ED"}
-        </BotonDeMando>
-
-        <button
-          type="button"
-          onClick={() => setMandoVisible(false)}
-          className="mt-1 text-xs font-extrabold text-white underline underline-offset-4 opacity-70"
-        >
-          Ocultar
-        </button>
+        {aviso}
       </div>
 
       <style>{`
@@ -501,31 +572,6 @@ export function Proyeccion({
  * Grande y con el nombre escrito: lo toca alguien parado, de noche, con música fuerte y
  * sin haber visto nunca esta pantalla. Un ícono solo no alcanza.
  */
-function BotonDeMando({
-  activo,
-  onClick,
-  etiqueta,
-  children,
-}: {
-  activo: boolean;
-  onClick: () => void;
-  etiqueta: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={activo}
-      className="flex min-h-[64px] min-w-[150px] items-center gap-3 rounded-2xl px-4 text-left text-white"
-      style={{ background: activo ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)" }}
-    >
-      <span className="text-2xl leading-none">{children}</span>
-      <span className="text-sm font-extrabold">{etiqueta}</span>
-    </button>
-  );
-}
-
 /**
  * Un mensaje proyectado, como un globo de chat.
  *
