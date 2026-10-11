@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({ culturalActivity: { findFirst: vi.fn() }, culturalExhibitorWork: { findMany: vi.fn() } }));
 const codigos = vi.hoisted(() => ({ asegurarCodigosDeSala: vi.fn() }));
+const pub = vi.hoisted(() => ({ distinctionsForWorks: vi.fn(), obrasSoloOnline: vi.fn() }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/sala/codigos", () => codigos);
+vi.mock("@/lib/concursos/publico", () => pub);
 
 process.env.APP_URL = "https://muestrasfotograficas.com/";
 const { baseUrlPublica, cargarFichas } = await import("./cargar");
@@ -23,6 +25,24 @@ beforeEach(() => {
   db.culturalExhibitorWork.findMany.mockResolvedValue([]);
   // Sin códigos de sala (como antes de la etapa 6), salvo que el test diga otra cosa.
   codigos.asegurarCodigosDeSala.mockResolvedValue(new Map());
+  // Sin concurso (como antes de la etapa 7), salvo que el test diga otra cosa.
+  pub.distinctionsForWorks.mockResolvedValue(new Map());
+  pub.obrasSoloOnline.mockResolvedValue(new Set());
+});
+
+describe("cargarFichas con obras de un concurso (etapa 7)", () => {
+  it("el premio va antes de los datos", async () => {
+    pub.distinctionsForWorks.mockResolvedValue(new Map([["w2", "1.er premio · Paisaje — Concurso X"]]));
+    const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+    expect(r?.fichas[1]?.detalle).toBe("1.er premio · Paisaje — Concurso X. 2024");
+    expect(r?.fichas[0]?.detalle).toBeNull();
+  });
+  it("una obra sólo online no tiene ficha (ni sola ni en el lote)", async () => {
+    pub.obrasSoloOnline.mockResolvedValue(new Set(["w1"]));
+    const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+    expect(r?.fichas.map((f) => f.titulo)).toEqual(["Dos"]);
+    expect(await cargarFichas("a1", { id: 7, esSuperAdmin: false }, "w1")).toBeNull();
+  });
 });
 
 describe("cargarFichas", () => {

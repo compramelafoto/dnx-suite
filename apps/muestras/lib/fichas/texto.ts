@@ -69,15 +69,18 @@ export function cortarEnLineas(texto: string, anchoMax: number, medir: (s: strin
  *
  * `extra.detalle`: la línea de datos del expositor ("2024. Giclée. 40 × 60 cm. Edición 2/10"),
  * que reemplaza a la de año y técnica. Nunca lleva el precio.
+ *
+ * `extra.distincion` (etapa 7, D23): el premio del concurso ("1.er premio · Paisaje — Concurso X"),
+ * que va antes de los datos.
  */
 export function datosDeFicha(
   a: { title: string; slug: string },
   o: { id: string; title: string; authorName: string; year: number | null; technique: string | null },
   baseUrl: string,
-  extra: { codigo?: string | null; detalle?: string | null } = {},
+  extra: { codigo?: string | null; detalle?: string | null; distincion?: string | null } = {},
 ): FichaDeObra {
   const basico = [o.year ? String(o.year) : null, o.technique?.trim() || null].filter(Boolean).join(". ");
-  const detalle = extra.detalle?.trim() || basico;
+  const detalle = [extra.distincion?.trim() || null, extra.detalle?.trim() || basico || null].filter(Boolean).join(". ");
   return {
     muestra: a.title,
     titulo: o.title,

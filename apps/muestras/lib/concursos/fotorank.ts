@@ -353,3 +353,25 @@ export async function loteVigente(contestId: string): Promise<{ id: string; vers
     return undefined;
   }
 }
+
+// ── Lo público ──────────────────────────────────────────────────────────────
+
+/** Estados con página pública en FotoRank (`/concursos/<slug>`): un concurso terminado da 404 allá. */
+const CONCURSO_PUBLICO = ["PUBLISHED", "ACTIVE"] as const;
+
+/**
+ * D24: el slug del concurso **sólo** si su página pública de FotoRank está abierta (existe, es
+ * `PUBLIC` y está `PUBLISHED`/`ACTIVE`); si no, `null` y la muestra muestra el texto sin enlace.
+ * Nunca rompe la página pública de la muestra: ante cualquier error, `null`.
+ */
+export async function estadoPublicoDelConcurso(contestId: string): Promise<{ slug: string } | null> {
+  if (typeof contestId !== "string" || !ES_ID.test(contestId)) return null;
+  try {
+    const c = await prisma.fotorankContest.findUnique({ where: { id: contestId }, select: { slug: true, visibility: true, status: true } });
+    if (!c || c.visibility !== "PUBLIC" || !(CONCURSO_PUBLICO as readonly string[]).includes(c.status)) return null;
+    return { slug: c.slug };
+  } catch (err) {
+    console.error("[muestras] concurso público:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}

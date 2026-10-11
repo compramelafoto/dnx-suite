@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { fichaDetail } from "@repo/muestras";
+import { distinctionsForWorks, obrasSoloOnline } from "@/lib/concursos/publico";
 import { conPermiso } from "@/lib/equipo/permisos";
 import { asegurarCodigosDeSala } from "@/lib/sala/codigos";
 import type { Usuario } from "@/lib/usuario";
@@ -44,6 +45,9 @@ export function baseUrlPublica(env: Record<string, string | undefined> = process
  *
  * Etapa 6: cada QR lleva el código de sala de su obra (se crea la primera vez y después es el
  * mismo) y las obras de expositores suman medidas y edición. El precio nunca.
+ *
+ * Etapa 7: las obras de un concurso marcadas "sólo online" (no se imprimen) no tienen ficha, y las
+ * que sí llevan su premio antes de los datos.
  */
 export async function cargarFichas(
   id: string,
@@ -58,15 +62,19 @@ export async function cargarFichas(
     },
   });
   if (!a) return null;
-  const obras = obraId ? a.works.filter((w) => w.id === obraId) : a.works;
+  const soloOnline = await obrasSoloOnline(a.id);
+  const imprimibles = a.works.filter((w) => !soloOnline.has(w.id));
+  const obras = obraId ? imprimibles.filter((w) => w.id === obraId) : imprimibles;
   if (obras.length === 0) return null;
   const ids = obras.map((o) => o.id);
-  const [codigos, deExpositor] = await Promise.all([asegurarCodigosDeSala(a.id, ids), detallesDeExpositor(a.id, ids)]);
+  const [codigos, deExpositor, premios] = await Promise.all([
+    asegurarCodigosDeSala(a.id, ids), detallesDeExpositor(a.id, ids), distinctionsForWorks(a.id, ids),
+  ]);
   const base = baseUrlPublica();
   return {
     nombre: obraId ? `ficha-${a.slug}-${obras[0]!.sortOrder + 1}` : `fichas-${a.slug}`,
     activityId: a.id,
-    fichas: obras.map((o) => datosDeFicha(a, o, base, { codigo: codigos.get(o.id), detalle: deExpositor.get(o.id) })),
+    fichas: obras.map((o) => datosDeFicha(a, o, base, { codigo: codigos.get(o.id), detalle: deExpositor.get(o.id), distincion: premios.get(o.id) })),
   };
 }
 
