@@ -278,3 +278,10 @@ export async function muestrasParaVender(usuario: Quien) {
   }
   return out;
 }
+
+/** Formatos esperando aprobación por muestra (contador de "Mis muestras"). Llamar con ids donde la persona tiene `sales`. */
+export async function formatosParaRevisar(ids: string[]): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  const filas = await prisma.culturalWorkOffer.groupBy({ by: ["activityId"], where: { activityId: { in: ids }, status: "PROPOSED" }, _count: { _all: true } });
+  return new Map(filas.map((f) => [f.activityId, f._count._all]));
+}

@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ACTIVITY_ROLE_LABELS, ACTIVITY_TYPE_LABELS, REVIEW_STATUS_LABELS, toArDay, type ActivityType, type ReviewStatus } from "@repo/muestras";
+import { ACTIVITY_ROLE_LABELS, ACTIVITY_TYPE_LABELS, REVIEW_STATUS_LABELS, activitySalesHref, toArDay, type ActivityType, type ReviewStatus } from "@repo/muestras";
 import { listarMias } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
 import { pendientesDelConcurso } from "@/lib/concursos/consultas";
 import { pendientesPorMuestra } from "@/lib/expositores/consultas";
+import { formatosParaRevisar } from "@/lib/ventas/consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,12 @@ export default async function MisMuestras({ searchParams }: { searchParams: Prom
   const { enviada } = await searchParams;
   const mias = await listarMias(usuario);
   // Sólo donde esta persona revisa expositores (el rol de textos no ve el contador).
-  const [pendientes, delConcurso] = await Promise.all([
+  const [pendientes, delConcurso, formatos] = await Promise.all([
     pendientesPorMuestra(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "exhibitors", m.rol)).map((m) => m.id)),
     // Obras de concursos que esperan al autor (etapa 7): las ve quien ve la muestra.
     pendientesDelConcurso(mias.filter((m) => m.type === "MUESTRA").map((m) => m.id)),
+    // Formatos a la venta esperando aprobación (etapa 8): sólo donde aprueba (`sales`).
+    formatosParaRevisar(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "sales", m.rol)).map((m) => m.id)),
   ]);
   return (
     <main className="max-w-3xl space-y-6">
@@ -45,6 +48,13 @@ export default async function MisMuestras({ searchParams }: { searchParams: Prom
                   <p className="text-sm">
                     <Link href={`/panel/muestras/${m.id}/expositores`} className="underline">
                       {pendientes.get(m.id) === 1 ? "1 obra para revisar" : `${pendientes.get(m.id)} obras para revisar`}
+                    </Link>
+                  </p>
+                ) : null}
+                {formatos.get(m.id) ? (
+                  <p className="text-sm">
+                    <Link href={activitySalesHref(m.id)} className="underline">
+                      Ventas: {formatos.get(m.id) === 1 ? "1 formato para revisar" : `${formatos.get(m.id)} formatos para revisar`}
                     </Link>
                   </p>
                 ) : null}

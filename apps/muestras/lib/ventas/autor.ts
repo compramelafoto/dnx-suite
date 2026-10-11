@@ -11,6 +11,7 @@ import {
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario, type Usuario } from "@/lib/usuario";
 import { obrasVendibles, type ObraVendible } from "./consultas";
+import { PEDIDO_PA } from "./evaluar";
 import { borrarPrivado, existePrivado, leerPrivado, subirPrivado, urlDeSubida } from "./r2-privado";
 
 /**
@@ -301,7 +302,7 @@ export async function pedirPruebaDeAutor(offerId: string): Promise<ResultadoAuto
     const emitidas = await tx.culturalEditionCopy.count({ where: { offerId: o.id, kind: "PROOF", status: { in: ["ISSUED", "VOIDED"] } } });
     if (emitidas >= o.proofCount) return { ok: false, error: "Ya se emitieron todas las pruebas de autor." };
     return { ok: true, status: o.status as "APPROVED" | "PAUSED" };
-  }, () => ({ reviewNote: `Pedido de P/A: el autor pidió sus pruebas de autor el ${formatArDay(new Date())}.` }));
+  }, () => ({ reviewNote: `${PEDIDO_PA} el autor pidió sus pruebas de autor el ${formatArDay(new Date())}.` }));
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -4,8 +4,10 @@ import {
   EDITION_KIND_LABELS, OFFER_FORMAT_LABELS, OFFER_STATUS_LABELS, ORDER_STATUS_LABELS, isEditionKind, isOfferFormat, isOfferStatus, isOrderStatus,
 } from "@repo/muestras";
 import { ConfigurarVenta, EstadoDeVenta, QuienCobra } from "@/components/ventas/configurar-venta";
+import { AccionesDeFormato, RevisionOfertas } from "@/components/ventas/revision-ofertas";
 import { alerta, aviso, enlace, nota, seccion } from "@/components/ventas/estilos";
 import { panelDeVentas, type PanelDeVentas } from "@/lib/ventas/consultas";
+import { PEDIDO_PA } from "@/lib/ventas/evaluar";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +59,17 @@ export default async function VentasDeLaMuestra({ params }: { params: Promise<{ 
         {p.edita ? <EstadoDeVenta activityId={p.actividad.id} status={s?.status ?? null} /> : null}
         {p.paraRevisar ? <p className={alerta}>{p.paraRevisar === 1 ? "Un formato para revisar." : `${p.paraRevisar} formatos para revisar.`}</p> : null}
       </section>
+
+      {p.edita ? (
+        <RevisionOfertas
+          formatos={p.obras.flatMap((o) =>
+            o.ofertas.filter((f) => f.status === "PROPOSED").map((f) => ({
+              id: f.id, imageUrl: o.imageUrl, title: o.title, authorName: o.authorName, format: f.format, editionKind: f.editionKind,
+              editionSize: f.editionSize, proofCount: f.proofCount, paper: f.paper, widthCm: f.widthCm, heightCm: f.heightCm,
+              priceArs: f.priceArs, approvedPriceArs: f.approvedPriceArs, firstSoldAt: f.firstSoldAt,
+            })))}
+        />
+      ) : null}
 
       <section className={seccion}>
         <h2 className="mf-titulo text-2xl">Cuenta de cobro de la organización</h2>
@@ -133,6 +146,8 @@ export default async function VentasDeLaMuestra({ params }: { params: Promise<{ 
                         {f.evaluacion.vendidas} vendidas · quedan {f.evaluacion.quedan} de {f.editionSize}
                         {f.evaluacion.comprable.ok ? " · Se puede comprar" : ` · No se puede comprar: ${f.evaluacion.comprable.reasons.join("; ")}`}
                       </p>
+                      {f.reviewNote ? <p className={nota}>{f.reviewNote.startsWith(PEDIDO_PA) ? f.reviewNote : `Nota para el autor: ${f.reviewNote}`}</p> : null}
+                      {p.edita ? <AccionesDeFormato id={f.id} status={f.status} proofCount={f.proofCount} pidioPA={f.reviewNote?.startsWith(PEDIDO_PA) ?? false} /> : null}
                     </li>
                   ))}
                 </ul>

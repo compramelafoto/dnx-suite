@@ -41,6 +41,9 @@ export type Evaluacion = {
   comprable: { ok: true } | { ok: false; reasons: string[] };
 };
 
+/** Prefijo de la nota con la que el autor pide sus pruebas de autor (sin tabla nueva). */
+export const PEDIDO_PA = "Pedido de P/A:";
+
 export const VENTA_CERRADA = "La venta de la muestra cerró (pasaron 30 días del cierre)";
 
 export function evaluarOferta(o: OfertaParaEvaluar, d: DatosDeEvaluacion): Evaluacion {
