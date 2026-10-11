@@ -402,6 +402,8 @@ export function offerTransition(
       if (st === "DRAFT" || st === "CHANGES_REQUESTED") return { ok: true, status: st, priceArs: nuevo };
       if (st === "APPROVED" || st === "PROPOSED") {
         const aprobado = offer.approvedPriceArs ?? null;
+        // Volver al precio aprobado lo re-aprueba sólo porque lo único pendiente era el precio: todo
+        // otro cambio (edición, papel, medida) borra `approvedPriceArs` (ver `editEdition` y la app).
         if (aprobado != null && nuevo === aprobado) return { ok: true, status: "APPROVED", priceArs: nuevo, approvedPriceArs: aprobado };
         return { ok: true, status: "PROPOSED", priceArs: nuevo, approvedPriceArs: aprobado };
       }
@@ -415,9 +417,14 @@ export function offerTransition(
       if (next == null || actual == null || !Number.isInteger(next) || next < 1 || next > LIMITED_EDITION_MAX) return no("Cantidad de copias inválida.");
       const cambio = canChangeEdition({ firstSoldAt: offer.firstSoldAt ?? null, currentSize: actual, nextSize: next, issuedOrReserved: ctx.issuedOrReserved ?? 0 });
       if (!cambio.ok) return no(cambio.error);
+      // Después de la primera venta sólo puede bajar (nunca por debajo de lo ocupado): no hace falta revisarlo.
       if (vendio) return { ok: true, status: st as OfferStatus, editionSize: next };
-      if (st === "APPROVED" || st === "PAUSED") return { ok: true, status: "PROPOSED", editionSize: next };
-      return { ok: true, status: st as OfferStatus, editionSize: next };
+      // Antes: una edición distinta es otro formato. Se borra el precio aprobado para que no se venda
+      // con la edición nueva sin que la organización la apruebe (invariante: `approvedPriceArs` sólo
+      // existe si todo salvo el precio está aprobado; así el atajo de `changePrice` es seguro).
+      if (next === actual) return { ok: true, status: st as OfferStatus, editionSize: next };
+      if (st === "APPROVED" || st === "PAUSED") return { ok: true, status: "PROPOSED", editionSize: next, approvedPriceArs: null };
+      return { ok: true, status: st as OfferStatus, editionSize: next, approvedPriceArs: null };
     }
   }
 }

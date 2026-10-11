@@ -3,6 +3,7 @@ import { dateRangeText } from "@repo/muestras";
 import { misObrasDeConcursos } from "@/lib/concursos/consultas";
 import { misParticipaciones } from "@/lib/expositores/consultas";
 import { resumenDeObras } from "@/lib/expositores/mapear";
+import { muestrasParaVender } from "@/lib/ventas/consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +11,29 @@ export const metadata = { title: "Dónde expongo" };
 
 export default async function DondeExpongo() {
   const usuario = await requireUsuario("/panel/expositor");
-  const [filas, concursos] = await Promise.all([misParticipaciones(usuario), misObrasDeConcursos(usuario)]);
+  const [filas, concursos, paraVender] = await Promise.all([misParticipaciones(usuario), misObrasDeConcursos(usuario), muestrasParaVender(usuario)]);
   return (
     <main className="max-w-3xl space-y-10">
       <header className="space-y-3">
         <h1 className="mf-titulo text-[clamp(2.2rem,4vw,3rem)]">Dónde expongo</h1>
         <p className="text-lg leading-snug text-[var(--mf-muted)]">Las muestras a las que te sumaste con el enlace de quien organiza, y tus obras en cada una.</p>
       </header>
+      {paraVender.length ? (
+        <section className="space-y-3">
+          <h2 className="mf-titulo text-2xl">Vender tus obras</h2>
+          <p className="text-[15px] text-[var(--mf-muted)]">Muestras con venta donde tenés obras marcadas para vender: elegí formatos y precios, subí el original y tu firma.</p>
+          <ul className="border-t border-[var(--mf-line)]">
+            {paraVender.map((v) => (
+              <li key={v.activityId} className="space-y-1 border-b border-[var(--mf-line)] py-4">
+                <Link href={`/panel/expositor/ventas/${v.activityId}`} className="mf-titulo text-xl underline-offset-[5px] hover:underline">{v.title}</Link>
+                <p className={v.faltan ? "text-[15px] text-[var(--mf-alerta)]" : "text-[15px]"}>
+                  {v.faltan === 0 ? "Todo listo para vender." : v.faltan === 1 ? "Falta una cosa para vender." : `Faltan ${v.faltan} cosas para vender.`}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {filas.length === 0 && concursos.length === 0 ? (
         <p className="border-t border-[var(--mf-line)] pt-6 text-lg">
           Todavía no expusiste por acá. Cuando una organización te mande su enlace, o arme una muestra con un concurso donde participaste, la vas a ver en esta lista.

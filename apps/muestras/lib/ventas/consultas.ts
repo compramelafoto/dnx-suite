@@ -206,3 +206,75 @@ export async function muestrasConVenta(usuario: Quien) {
   });
   return filas.map((f) => ({ ...f, href: activitySalesHref(f.id), paraRevisar: f._count.workOffers }));
 }
+
+/**
+ * Lo que ve el autor de una muestra (D8–D10): el reparto y si lo aceptó, su firma, su cuenta de
+ * cobro y, por obra suya, el original y los formatos. `null` si no tiene obras vendibles ahí.
+ */
+export async function ventaDelAutor(activityId: string, usuario: Quien) {
+  const config = leerConfigDeVentas();
+  const d = await datosDeVenta(activityId, config);
+  if (!d || d.actividad.type !== "MUESTRA") return null;
+  const mias = d.vendibles.filter((v) => v.authorUserId === usuario.id);
+  if (mias.length === 0) return null;
+  const [firma, terminos] = await Promise.all([
+    prisma.culturalAuthorSignature.findUnique({ where: { userId: usuario.id }, select: { updatedAt: true } }),
+    prisma.culturalSaleAuthorTerms.findUnique({ where: { activityId_userId: { activityId, userId: usuario.id } }, select: { splitVersion: true, acceptedAt: true } }),
+  ]);
+  const cuenta = d.cuentas.find((c) => c.userId === usuario.id) ?? null;
+  return {
+    actividad: { id: d.actividad.id, title: d.actividad.title, endsAt: d.actividad.endsAt },
+    modo: config.modo,
+    setup: d.setup
+      ? { status: d.setup.status, splitVersion: d.setup.splitVersion, platformFeeBps: d.setup.platformFeeBps, organizerBps: d.setup.organizerBps, photographerBps: d.setup.photographerBps }
+      : null,
+    terminos,
+    firma: firma?.updatedAt ?? null,
+    cobro: { status: cuenta?.consentStatus ?? "NONE", email: cuenta?.mpEmail ?? null },
+    obras: mias.map((v) => ({
+      ...v,
+      original: d.originales.find((f) => f.activityWorkId === v.activityWorkId) ?? null,
+      ofertas: d.ofertas
+        .filter((o) => o.activityWorkId === v.activityWorkId && o.authorUserId === usuario.id)
+        .map((o) => ({ ...o, evaluacion: evaluarOferta(o, d.datos) as Evaluacion })),
+    })),
+  };
+}
+
+export type VentaDelAutor = NonNullable<Awaited<ReturnType<typeof ventaDelAutor>>>;
+
+/** Cuántas cosas le faltan al autor para vender en esa muestra (para "Dónde expongo"). */
+export function faltasDelAutor(v: VentaDelAutor): number {
+  let n = 0;
+  if (!v.setup || v.terminos?.splitVersion !== v.setup.splitVersion) n++;
+  if (!v.firma) n++;
+  if (v.cobro.status !== "ACTIVE") n++;
+  for (const o of v.obras) {
+    if (o.original?.status !== "READY") n++;
+    if (!o.ofertas.some((f) => f.status !== "WITHDRAWN")) n++;
+  }
+  return n;
+}
+
+/** "Vender tus obras" en "Dónde expongo": las muestras con la venta configurada donde tiene obras vendibles. */
+export async function muestrasParaVender(usuario: Quien) {
+  const [expositor, concurso] = await Promise.all([
+    prisma.culturalExhibitorWork.findMany({
+      where: { status: "APPROVED", forSale: true, activityWorkId: { not: null }, exhibitor: { userId: usuario.id, status: "ACTIVE" } },
+      select: { activityId: true },
+    }),
+    prisma.culturalContestWork.findMany({
+      where: { authorUserId: usuario.id, forSale: true, saleConsent: "ACCEPTED", exhibitConsent: "ACCEPTED", activityWorkId: { not: null } },
+      select: { activityId: true },
+    }),
+  ]);
+  const ids = [...new Set([...expositor, ...concurso].map((x) => x.activityId))];
+  if (ids.length === 0) return [];
+  const setups = await prisma.culturalSaleSetup.findMany({ where: { activityId: { in: ids }, status: { in: ["OPEN", "PAUSED", "DRAFT"] } }, select: { activityId: true } });
+  const out: { activityId: string; title: string; faltan: number }[] = [];
+  for (const s of setups.slice(0, 20)) {
+    const v = await ventaDelAutor(s.activityId, usuario);
+    if (v) out.push({ activityId: s.activityId, title: v.actividad.title, faltan: faltasDelAutor(v) });
+  }
+  return out;
+}

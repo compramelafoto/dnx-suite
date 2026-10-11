@@ -184,6 +184,22 @@ describe("más reglas de la venta", () => {
     expect(offerTransition("editEdition", { status: "APPROVED", editionSize: 10, firstSoldAt: new Date() }, { actor: "AUTHOR", editionSize: 5, issuedOrReserved: 3 })).toMatchObject({ ok: true, editionSize: 5, status: "APPROVED" });
     expect(offerTransition("editEdition", { status: "APPROVED", editionSize: 10, firstSoldAt: null }, { actor: "AUTHOR", editionSize: 12, issuedOrReserved: 0 })).toMatchObject({ ok: true, editionSize: 12, status: "PROPOSED" });
   });
+  it("cambiar la edición sin ventas obliga a re-aprobar: borra el precio aprobado", () => {
+    const aprobada = { status: "APPROVED", priceArs: 100_000, approvedPriceArs: 100_000, editionSize: 10, firstSoldAt: null };
+    const r = offerTransition("editEdition", aprobada, { actor: "AUTHOR", editionSize: 12, issuedOrReserved: 0 });
+    expect(r).toEqual({ ok: true, status: "PROPOSED", editionSize: 12, approvedPriceArs: null });
+    // Con un cambio de precio en revisión (PROPOSED con precio aprobado) también se borra: deja de venderse.
+    const enRevision = { status: "PROPOSED", priceArs: 120_000, approvedPriceArs: 100_000, editionSize: 10, firstSoldAt: null };
+    expect(offerTransition("editEdition", enRevision, { actor: "AUTHOR", editionSize: 5, issuedOrReserved: 0 })).toEqual({ ok: true, status: "PROPOSED", editionSize: 5, approvedPriceArs: null });
+    expect(offerSellingPrice({ status: "PROPOSED", priceArs: 120_000, approvedPriceArs: null })).toBeNull();
+    // Y después, volver al precio viejo ya no la re-aprueba sola.
+    expect(offerTransition("changePrice", { status: "PROPOSED", priceArs: 120_000, approvedPriceArs: null }, { actor: "AUTHOR", newPriceArs: 100_000 }))
+      .toMatchObject({ ok: true, status: "PROPOSED" });
+  });
+  it("la misma edición no cambia nada", () => {
+    expect(offerTransition("editEdition", { status: "APPROVED", approvedPriceArs: 100_000, editionSize: 10, firstSoldAt: null }, { actor: "AUTHOR", editionSize: 10, issuedOrReserved: 0 }))
+      .toEqual({ ok: true, status: "APPROVED", editionSize: 10 });
+  });
   it("después de la primera venta el formato queda fijo", () => {
     const prev = { format: "PRINT", editionKind: "LIMITED", editionSize: 10, proofCount: 2, priceArs: 150_000, paper: "Baryta", widthCm: 40, heightCm: 60 } as const;
     expect(offerProblems({ ...prev, paper: "Otro" }, { hasFirstSale: true, previous: prev }).join()).toMatch(/primera venta/);

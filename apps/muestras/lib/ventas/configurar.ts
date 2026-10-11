@@ -24,7 +24,7 @@ const MUCHOS = error("Hiciste muchos cambios seguidos. Esperá unos minutos.");
 const PENDIENTES = "Hay ventas esperando el pago: probá en unos minutos.";
 const ES_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-export const LIMITES_TEXTOS_VENTA = { pickupText: 500, shippingText: 300, extraTerms: 1500 } as const;
+const LIMITES_TEXTOS_VENTA = { pickupText: 500, shippingText: 300, extraTerms: 1500 } as const;
 
 class Corte extends Error {}
 
