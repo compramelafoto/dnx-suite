@@ -3,8 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   culturalActivity: { findFirst: vi.fn(), findMany: vi.fn() },
   culturalContestWork: { findMany: vi.fn(), groupBy: vi.fn() },
-  culturalContestAuthor: { findMany: vi.fn() },
+  culturalContestAuthor: { findMany: vi.fn(), findFirst: vi.fn() },
   culturalContestImport: { findMany: vi.fn() },
+  photographerProfile: { findUnique: vi.fn() },
 }));
 const fr = vi.hoisted(() => ({ loteVigente: vi.fn() }));
 vi.mock("server-only", () => ({}));
@@ -13,7 +14,7 @@ vi.mock("@/lib/correos/enviar", () => ({ APP_URL: "https://muestras.test" }));
 vi.mock("./fotorank", () => fr);
 vi.mock("@/lib/usuario", () => ({ getUsuario: vi.fn() }));
 
-const { panelDelConcurso, pendientesDelConcurso } = await import("./consultas");
+const { miAutoriaEnMuestra, misObrasDeConcursos, panelDelConcurso, pendientesDelConcurso } = await import("./consultas");
 
 const ana = { id: 7, esSuperAdmin: false, email: "a@x", name: "Ana" };
 const muestra = (o: Record<string, unknown> = {}) => ({
@@ -87,5 +88,45 @@ describe("pendientesDelConcurso", () => {
     db.culturalContestWork.groupBy.mockResolvedValue([{ activityId: "a1", _count: { _all: 3 } }]);
     expect(await pendientesDelConcurso(["a1", "a2"])).toEqual(new Map([["a1", 3]]));
     expect(await pendientesDelConcurso([])).toEqual(new Map());
+  });
+});
+
+describe("el autor", () => {
+  const filaAutor = {
+    id: "au1", activityId: "a1", authorName: "Ana Pérez", displayName: null, respondedAt: null,
+    import: { contestTitle: "Paisajes 2026", organizationName: "SFPR" },
+    activity: { title: "Muestra Paisajes", slug: "muestra-paisajes", reviewStatus: "DRAFT", organizersText: "SFPR", startsAt: new Date("2026-11-09"), endsAt: new Date("2099-01-01"), venueName: null, city: null, isVirtualOnly: false, isCancelled: false },
+  };
+
+  it("otra cuenta: null, sin leer ninguna obra", async () => {
+    db.culturalContestAuthor.findFirst.mockResolvedValue(null);
+    expect(await miAutoriaEnMuestra("au1", { ...ana, id: 99 })).toBeNull();
+    expect(db.culturalContestAuthor.findFirst.mock.calls[0][0].where).toEqual({ id: "au1", userId: 99 });
+    expect(db.culturalContestWork.findMany).not.toHaveBeenCalled();
+  });
+
+  it("la suya: sólo sus obras que siguen en la muestra; la imagen sólo si está copiada; sin enlace público en borrador", async () => {
+    db.culturalContestAuthor.findFirst.mockResolvedValue(filaAutor);
+    db.photographerProfile.findUnique.mockResolvedValue(null);
+    db.culturalContestWork.findMany.mockResolvedValue([
+      { id: "cw1", title: "Amanecer", distinction: "1.er premio", imageStatus: "PENDING", imageUrl: "https://r2/x.webp", forSale: false, exhibitBasis: "EXPLICIT", attributionRequired: false, exhibitConsent: "PENDING", consentBy: null, saleConsent: "NOT_ASKED", activityWorkId: null },
+    ]);
+    const r = await miAutoriaEnMuestra("au1", { ...ana, id: 10 });
+    expect(db.culturalContestWork.findMany.mock.calls[0][0].where).toEqual({ activityId: "a1", authorUserId: 10, include: true });
+    expect(r?.obras[0]).toMatchObject({ imageUrl: null, enLaMuestra: false, seVeSuNombre: false });
+    expect(r?.muestra.slug).toBeNull();
+    expect(r?.cerrada).toBe(false);
+  });
+
+  it("Dónde expongo: por la cuenta, con cuántas esperan respuesta", async () => {
+    db.culturalContestAuthor.findMany.mockResolvedValue([{ ...filaAutor, activity: { ...filaAutor.activity, reviewStatus: "APPROVED" } }]);
+    db.culturalContestWork.findMany.mockResolvedValue([
+      { activityId: "a1", include: true, exhibitConsent: "PENDING", saleConsent: "NOT_ASKED" },
+      { activityId: "a1", include: true, exhibitConsent: "ACCEPTED", saleConsent: "NOT_ASKED" },
+    ]);
+    const r = await misObrasDeConcursos({ id: 10, esSuperAdmin: false });
+    expect(db.culturalContestAuthor.findMany.mock.calls[0][0].where).toEqual({ userId: 10 });
+    expect(db.culturalContestWork.findMany.mock.calls[0][0].where).toMatchObject({ authorUserId: 10 });
+    expect(r[0]).toMatchObject({ id: "au1", concurso: "Paisajes 2026", obras: 2, pendientes: 1, muestra: { slug: "muestra-paisajes" } });
   });
 });

@@ -157,3 +157,98 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
 }
 
 export type PanelDelConcurso = NonNullable<Awaited<ReturnType<typeof panelDelConcurso>>>;
+
+// ── El autor ("Dónde expongo", D18 a D20) ──────────────────────────────────
+
+/**
+ * "Tus obras de concursos": una fila por muestra donde hay obras de esta cuenta traídas de un
+ * concurso. Siempre por la cuenta (`userId` = la sesión). El enlace público de la muestra sólo si
+ * está publicada.
+ */
+export async function misObrasDeConcursos(usuario: Quien) {
+  const filas = await prisma.culturalContestAuthor.findMany({
+    where: { userId: usuario.id },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    select: {
+      id: true, activityId: true,
+      import: { select: { contestTitle: true, organizationName: true } },
+      activity: {
+        select: { title: true, slug: true, reviewStatus: true, startsAt: true, endsAt: true, venueName: true, city: true, isVirtualOnly: true, isCancelled: true },
+      },
+    },
+  });
+  if (filas.length === 0) return [];
+  const obras = await prisma.culturalContestWork.findMany({
+    where: { authorUserId: usuario.id, activityId: { in: filas.map((f) => f.activityId) } },
+    select: { activityId: true, include: true, exhibitConsent: true, saleConsent: true },
+  });
+  return filas.map((f) => {
+    const suyas = obras.filter((o) => o.activityId === f.activityId);
+    const { slug, reviewStatus, ...muestra } = f.activity;
+    return {
+      id: f.id,
+      concurso: f.import.contestTitle,
+      organizacion: f.import.organizationName,
+      muestra: { ...muestra, slug: reviewStatus === "APPROVED" ? slug : null },
+      obras: suyas.filter((o) => o.include).length,
+      pendientes: authorPendingCount(suyas),
+    };
+  });
+}
+
+/**
+ * La página del autor (`/panel/expositor/concurso/<id>`, D19, D20). `null` si la fila no es de esta
+ * cuenta: la página dice que el enlace es para otra cuenta, sin mostrar ningún dato de las obras.
+ * Sólo trae las obras que siguen en la muestra; la imagen es la copia de nuestro bucket.
+ */
+export async function miAutoriaEnMuestra(id: string, usuario: Quien) {
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
+  const autor = await prisma.culturalContestAuthor.findFirst({
+    where: { id, userId: usuario.id },
+    select: {
+      id: true, activityId: true, authorName: true, displayName: true, respondedAt: true,
+      import: { select: { contestTitle: true, organizationName: true } },
+      activity: {
+        select: {
+          title: true, slug: true, reviewStatus: true, organizersText: true, startsAt: true, endsAt: true, venueName: true, city: true,
+          isVirtualOnly: true, isCancelled: true,
+        },
+      },
+    },
+  });
+  if (!autor) return null;
+  const [obras, perfil] = await Promise.all([
+    prisma.culturalContestWork.findMany({
+      where: { activityId: autor.activityId, authorUserId: usuario.id, include: true },
+      orderBy: [{ rank: "asc" }, { id: "asc" }],
+      select: {
+        id: true, title: true, distinction: true, imageStatus: true, imageUrl: true, forSale: true, exhibitBasis: true, attributionRequired: true,
+        exhibitConsent: true, consentBy: true, saleConsent: true, activityWorkId: true,
+      },
+    }),
+    prisma.photographerProfile.findUnique({ where: { userId: usuario.id }, select: { displayName: true, bio: true } }),
+  ]);
+  const { slug, reviewStatus, ...muestra } = autor.activity;
+  return {
+    id: autor.id,
+    concurso: autor.import.contestTitle,
+    organizacion: autor.import.organizationName,
+    nombre: autor.authorName,
+    firma: autor.displayName,
+    perfil: perfil ? { displayName: perfil.displayName, tieneBio: !!perfil.bio?.trim() } : null,
+    muestra: { ...muestra, slug: reviewStatus === "APPROVED" ? slug : null },
+    cerrada: temporalStatus(autor.activity, new Date()) === "CLOSED",
+    obras: obras.map((o) => ({
+      ...o,
+      imageUrl: o.imageStatus === "COPIED" && esUrlWeb(o.imageUrl) ? o.imageUrl : null,
+      enLaMuestra: o.activityWorkId != null,
+      seVeSuNombre: authorCredit({
+        attributionRequired: o.attributionRequired, exhibitConsent: o.exhibitConsent, consentBy: o.consentBy,
+        signedName: autor.displayName, defaultName: autor.authorName,
+      }).show,
+    })),
+  };
+}
+
+export type MiAutoriaEnMuestra = NonNullable<Awaited<ReturnType<typeof miAutoriaEnMuestra>>>;
