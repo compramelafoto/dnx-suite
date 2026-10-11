@@ -201,12 +201,30 @@ describe("reservarCopia", () => {
     expect(db.culturalSaleOrder.create.mock.calls[0]![0].data.copyId).toBe("c9");
   });
 
-  it("una reserva vencida con el pago pendiente en Mercado Pago se extiende, no se libera", async () => {
+  it("una reserva vencida con Order en Mercado Pago (menos de 72 h) no se libera ni se reutiliza", async () => {
     copias = [{ id: "c9", offerId: "of1", number: 1, status: "RESERVED", reservedUntil: new Date(ahora - 60_000), kind: "COPY", isTest: true, orderId: "o-viejo" }];
     pedidos["o-viejo"] = { id: "o-viejo", status: "PENDING_PAYMENT", providerOrderId: "ORD1", copyId: "c9", createdAt: new Date(ahora - 30 * 60_000) };
     await reservarCopia(compra());
     expect(pedidos["o-viejo"]).toMatchObject({ status: "PENDING_PAYMENT", copyId: "c9" });
     expect(copias.find((c) => c.id === "c9")).toMatchObject({ status: "RESERVED", orderId: "o-viejo" });
+    expect(db.culturalSaleOrder.create.mock.calls[0]![0].data.copyId).toBe("c2");
+  });
+
+  it("pasadas las 72 horas sin confirmar, el pedido con Order vence, suelta la copia y el número se reutiliza", async () => {
+    copias = [{ id: "c9", offerId: "of1", number: 1, status: "RESERVED", reservedUntil: new Date(ahora - 60_000), kind: "COPY", isTest: true, orderId: "o-viejo" }];
+    pedidos["o-viejo"] = { id: "o-viejo", status: "PENDING_PAYMENT", providerOrderId: "ORD1", copyId: "c9", createdAt: new Date(ahora - 73 * 3_600_000) };
+    await reservarCopia(compra());
+    expect(pedidos["o-viejo"]).toMatchObject({ status: "EXPIRED", copyId: null });
+    expect(db.culturalSaleEvent.create.mock.calls[0]![0].data).toMatchObject({ orderId: "o-viejo", toStatus: "EXPIRED" });
+    expect(db.culturalSaleOrder.create.mock.calls[0]![0].data.copyId).toBe("c9");
+  });
+
+  it("una copia reservada de un pedido pagado nunca se suelta (la emisión puede venir después)", async () => {
+    copias = [{ id: "c9", offerId: "of1", number: 1, status: "RESERVED", reservedUntil: new Date(ahora - 60_000), kind: "COPY", isTest: true, orderId: "o-pago" }];
+    pedidos["o-pago"] = { id: "o-pago", status: "PAID", providerOrderId: "ORD1", copyId: "c9", createdAt: new Date(ahora - 30 * 60_000) };
+    await reservarCopia(compra());
+    expect(pedidos["o-pago"]).toMatchObject({ status: "PAID", copyId: "c9" });
+    expect(copias.find((c) => c.id === "c9")).toMatchObject({ status: "RESERVED", orderId: "o-pago" });
     expect(db.culturalSaleOrder.create.mock.calls[0]![0].data.copyId).toBe("c2");
   });
 

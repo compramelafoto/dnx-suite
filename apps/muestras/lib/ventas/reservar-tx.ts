@@ -45,42 +45,75 @@ export const NO_SE_PUEDE = "Esta obra no se puede comprar ahora.";
 const MIN = 60_000;
 const HORA = 60 * MIN;
 
-/** Vence las reservas viejas de la oferta y devuelve las filas de la numeración actualizadas. */
-async function vencerReservas(tx: Prisma.TransactionClient, offerId: string, isTest: boolean, ahora: Date): Promise<EditionRow[]> {
+/** Un pedido en estos estados ya no necesita su reserva: la copia se puede soltar. */
+const SUELTAN = new Set(["EXPIRED", "REJECTED", "REFUNDED", "CHARGED_BACK"]);
+/** Fecha lejana para marcar, sólo en memoria, una reserva vencida que todavía no se puede tocar. */
+const SIN_TOCAR = new Date("9999-12-31T00:00:00.000Z");
+
+/**
+ * Vence las reservas viejas de la oferta y devuelve las filas de la numeración actualizadas. Hay que
+ * llamarla con la oferta bloqueada (`FOR UPDATE`). La usan la reserva y la conciliación (pago tardío).
+ *
+ * Revisión de las tareas 6 a 10:
+ * - Una reserva vencida de un pedido que ya tiene Order en Mercado Pago no se toca hasta que la
+ *   conciliación diga qué pasó (si Mercado Pago dice "pendiente", la conciliación la extiende).
+ *   Pasadas las 72 horas, el pedido vence y suelta la copia; si después se paga, la conciliación
+ *   busca otro número o lo deja `PAID_NO_COPY` (D23).
+ * - Una copia sólo se suelta si su pedido vence, se rechaza o se devuelve: nunca si está pagado.
+ * Las filas que no se pueden tocar vuelven marcadas como reserva vigente (sólo en memoria), así
+ * `nextEditionNumber` no las reutiliza.
+ */
+export async function vencerReservas(tx: Prisma.TransactionClient, offerId: string, isTest: boolean, ahora: Date): Promise<EditionRow[]> {
   const vencidas = await tx.culturalEditionCopy.findMany({
     where: { offerId, isTest, kind: "COPY", status: "RESERVED", reservedUntil: { lte: ahora } },
     select: { id: true, orderId: true },
   });
+  const intocables = new Set<string>();
+  const soltar = (id: string) =>
+    tx.culturalEditionCopy.updateMany({ where: { id, status: "RESERVED" }, data: { status: "RELEASED", reservedUntil: null, orderId: null } });
   for (const c of vencidas) {
     const pedido = c.orderId
       ? await tx.culturalSaleOrder.findUnique({ where: { id: c.orderId }, select: { id: true, status: true, providerOrderId: true, createdAt: true } })
       : null;
     if (pedido?.status === "PENDING_PAYMENT" && pedido.providerOrderId) {
-      // Mercado Pago dejó el pago pendiente (D22): la reserva se extiende hasta 72 horas desde el pedido.
       const tope = new Date(pedido.createdAt.getTime() + PENDING_HOLD_HOURS * HORA);
       if (tope.getTime() > ahora.getTime()) {
-        await tx.culturalEditionCopy.updateMany({ where: { id: c.id, status: "RESERVED" }, data: { reservedUntil: tope } });
+        // Lo decide la conciliación (que pregunta a Mercado Pago): mientras tanto, nadie la toma.
+        intocables.add(c.id);
         continue;
       }
-      // Pasadas las 72 horas, lo resuelve la conciliación (que pregunta a Mercado Pago): no se libera acá.
+      const { count } = await tx.culturalSaleOrder.updateMany({ where: { id: pedido.id, status: "PENDING_PAYMENT" }, data: { status: "EXPIRED", copyId: null } });
+      if (count > 0) {
+        await tx.culturalSaleEvent.create({
+          data: { orderId: pedido.id, source: "SWEEP", fromStatus: "PENDING_PAYMENT", toStatus: "EXPIRED", detail: "Reserva vencida: Mercado Pago no confirmó el pago en 72 horas" },
+        });
+      }
+      await soltar(c.id);
       continue;
     }
     if (pedido?.status === "PENDING_PAYMENT") {
       // Sin Order: el pedido vence y suelta la copia. Un pago tardío nunca recupera esta fila (D23).
       const { count } = await tx.culturalSaleOrder.updateMany({ where: { id: pedido.id, status: "PENDING_PAYMENT", providerOrderId: null }, data: { status: "EXPIRED", copyId: null } });
-      if (count > 0) {
-        await tx.culturalSaleEvent.create({ data: { orderId: pedido.id, source: "SWEEP", fromStatus: "PENDING_PAYMENT", toStatus: "EXPIRED", detail: "Reserva vencida sin pago" } });
+      if (count === 0) {
+        // Justo le llegó una Order: que lo resuelva la conciliación.
+        intocables.add(c.id);
+        continue;
       }
+      await tx.culturalSaleEvent.create({ data: { orderId: pedido.id, source: "SWEEP", fromStatus: "PENDING_PAYMENT", toStatus: "EXPIRED", detail: "Reserva vencida sin pago" } });
+    } else if (pedido && !SUELTAN.has(pedido.status)) {
+      // Pagado (o un estado que no conocemos): la copia es suya aunque la emisión no haya terminado.
+      intocables.add(c.id);
+      continue;
     } else if (pedido) {
-      // Cualquier otro estado ya no necesita la reserva: el pedido la suelta.
       await tx.culturalSaleOrder.updateMany({ where: { id: pedido.id, copyId: c.id }, data: { copyId: null } });
     }
-    await tx.culturalEditionCopy.updateMany({ where: { id: c.id, status: "RESERVED" }, data: { status: "RELEASED", reservedUntil: null, orderId: null } });
+    await soltar(c.id);
   }
-  return tx.culturalEditionCopy.findMany({
+  const filas = await tx.culturalEditionCopy.findMany({
     where: { offerId, isTest, kind: "COPY" },
     select: { id: true, number: true, status: true, reservedUntil: true, kind: true, isTest: true },
   });
+  return filas.map((f) => (intocables.has(f.id) ? { ...f, reservedUntil: SIN_TOCAR } : f));
 }
 
 export async function reservarEnTransaccion(tx: Prisma.TransactionClient, e: EntradaDeReserva, ahora: Date): Promise<ResultadoDeReserva> {
