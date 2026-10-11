@@ -6,6 +6,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -381,6 +382,14 @@ export function TemplateEditorShell({
   const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
   /** El área donde se dibuja. De ahí sale la medida para ajustar el zoom. */
   const areaLienzoRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * La fila del editor (herramientas, lienzo, panel derecho) ocupa exactamente desde donde
+   * empieza hasta el borde inferior de la ventana. Sin ese tope, el panel de propiedades largo
+   * estiraba la fila: el lienzo quedaba centrado en un área más alta que la pantalla, corrido
+   * hacia abajo y cortado. Se mide en vivo porque cada app pone una cabecera de distinto alto.
+   */
+  const filaEditorRef = useRef<HTMLDivElement | null>(null);
+  const [altoFilaEditor, setAltoFilaEditor] = useState<number | null>(null);
   const [showCenterAxes, setShowCenterAxes] = useState(true);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -897,6 +906,18 @@ export function TemplateEditorShell({
   });
 
   const editorReady = state.loadStatus === "ready";
+
+  useLayoutEffect(() => {
+    const fila = filaEditorRef.current;
+    if (!fila || !editorReady) return;
+    const medir = () => {
+      const top = fila.getBoundingClientRect().top + window.scrollY;
+      setAltoFilaEditor(Math.max(360, Math.floor(window.innerHeight - top)));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [editorReady]);
 
   /*
    * Al abrir, la plantilla entra entera. Antes se abría al 100% y una pieza más grande que la
@@ -1453,7 +1474,11 @@ export function TemplateEditorShell({
         ) : !editorReady ? (
           <div className="flex flex-1 items-center justify-center py-20 text-sm text-[color:var(--te-ink-muted)]">Cargando editor…</div>
         ) : (
-          <div className="flex min-h-[min(88vh,calc(100vh-8rem))] w-full min-w-0 flex-1">
+          <div
+            ref={filaEditorRef}
+            className="flex min-h-[360px] w-full min-w-0 flex-1"
+            style={altoFilaEditor ? { height: altoFilaEditor } : { minHeight: "min(88vh, calc(100vh - 8rem))" }}
+          >
             <aside
               className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1a1d24] bg-[#2b3038] py-2"
               aria-label="Herramientas"
