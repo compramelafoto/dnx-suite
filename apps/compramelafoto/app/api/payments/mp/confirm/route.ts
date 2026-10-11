@@ -178,6 +178,8 @@ export async function POST(req: Request) {
     const paymentStatus = mapPaymentStatusToPaymentStatus(paymentInfo.status);
 
     let albumIdForClient: number | null = null;
+    /** El pago aprobado llegó sobre un pedido ya pagado con otro pago (cobro duplicado). */
+    let duplicatePaymentForClient = false;
     let preCompraOrderIdForClient: number | null = null;
 
     // Actualizar el pedido según su tipo
@@ -265,11 +267,25 @@ export async function POST(req: Request) {
       // ALBUM_ORDER
       const albumRow = await prisma.order.findUnique({
         where: { id: orderId },
-        select: { id: true, albumId: true, origin: true, preCompraPaymentRef: true, createdAt: true },
+        select: {
+          id: true,
+          albumId: true,
+          origin: true,
+          preCompraPaymentRef: true,
+          createdAt: true,
+          status: true,
+          mpPaymentId: true,
+        },
       });
       if (!albumRow) {
         return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
       }
+      // Pedido ya pagado con OTRO pago: este pago no puede cambiarle el estado (un segundo intento
+      // rechazado o la devolución de un cobro duplicado no anulan la compra original).
+      const foreignPaymentOnPaidOrder =
+        albumRow.status === "PAID" &&
+        !!albumRow.mpPaymentId &&
+        String(albumRow.mpPaymentId) !== String(paymentId);
       albumIdForClient = albumRow.albumId ?? null;
       if (
         albumRow.origin === OrderOrigin.PREVENTA_PACK &&
@@ -312,6 +328,9 @@ export async function POST(req: Request) {
             },
             { status: 400 }
           );
+        }
+        if ("skipped" in fin && fin.skipped === "duplicate_payment") {
+          duplicatePaymentForClient = true;
         }
         digitalDelivery = await ensureDigitalDelivery(orderId);
         if (digitalDelivery) {
@@ -372,6 +391,13 @@ export async function POST(req: Request) {
             }
           }
         }
+      } else if (foreignPaymentOnPaidOrder) {
+        console.warn("[duplicate-payment] confirm: pago ajeno a un pedido ya pagado, no se toca el pedido", {
+          orderId,
+          paymentId,
+          registeredPaymentId: albumRow.mpPaymentId,
+          mpStatus: paymentInfo.status,
+        });
       } else if (paymentInfo.status === "refunded" || paymentInfo.status === "charged_back") {
         try {
           await prisma.order.update({
@@ -420,6 +446,7 @@ export async function POST(req: Request) {
         orderType,
         albumId: albumIdForClient,
         preCompraOrderId: preCompraOrderIdForClient,
+        duplicatePayment: duplicatePaymentForClient,
         paymentId,
         paymentStatus: paymentInfo.status,
         orderStatus,

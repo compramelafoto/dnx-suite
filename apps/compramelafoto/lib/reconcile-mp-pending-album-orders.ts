@@ -99,8 +99,8 @@ async function reconcileOneAlbumOrder(
       paymentId: best.id,
       previousStatus: order.status,
     });
-  } else if (result.ok && "skipped" in result && result.skipped === "already_paid") {
-    /* noop */
+  } else if (result.ok && "skipped" in result) {
+    /* noop: ya pagado (o cobro duplicado, que se avisa dentro de finalize) */
   } else if (!result.ok) {
     out.errors.push({
       orderId: order.id,
@@ -224,7 +224,8 @@ export async function recoverAlbumOrderFromMercadoPagoPayment(opts: {
     accessTokenOverride,
   });
 
-  if (result.ok && "skipped" in result && result.skipped === "already_paid") {
+  if (result.ok && "skipped" in result) {
+    // "duplicate_payment": el pedido ya estaba pagado con otro pago; ya se avisó al admin y al fotógrafo.
     return { ok: true, skipped: "already_paid", paymentId };
   }
   if (result.ok && "applied" in result && result.applied) {

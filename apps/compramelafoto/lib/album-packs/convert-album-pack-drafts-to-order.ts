@@ -35,8 +35,15 @@ import { albumPackClientPriceArs } from "@/lib/album-packs/album-pack-client-pri
 import { resolveAlbumPackOrderExtensionTotals } from "@/lib/album-packs/resolve-album-pack-extension-pricing";
 import {
   AlbumPackDraftToOrderError,
+  assertAlbumPackDraftsNotConsumed,
   convertAlbumPackDraftToOrder,
+  findPaidAlbumPackDraftIds,
 } from "@/lib/album-packs/convert-draft-to-order";
+import {
+  ALBUM_PACK_ORDER_ALREADY_PAID_CODE,
+  ALBUM_PACK_ORDER_ALREADY_PAID_MESSAGE,
+  isAlbumPackDraftOrderConsumed,
+} from "@/lib/album-packs/album-pack-order-payable";
 
 export { AlbumPackDraftToOrderError };
 
@@ -224,6 +231,16 @@ export async function convertAlbumPackDraftsToOrder(params: {
     async (tx) => {
       const existing = await findExistingOrderByPaymentRef(tx, paymentRef);
       if (existing) {
+        // Borrador ya cobrado: no se reusa su pedido (devolvería el link de pago y el
+        // comprador lo pagaría otra vez). Tiene que armar una selección nueva.
+        if (isAlbumPackDraftOrderConsumed(existing.status)) {
+          throw new AlbumPackDraftToOrderError(
+            ALBUM_PACK_ORDER_ALREADY_PAID_MESSAGE,
+            ALBUM_PACK_ORDER_ALREADY_PAID_CODE,
+            409,
+            { paidDraftIds: draftIds }
+          );
+        }
         const draftsForReuse = await Promise.all(
           draftIds.map((draftId) => loadDraftForCreateOrder(tx, draftId))
         );
@@ -241,6 +258,10 @@ export async function convertAlbumPackDraftsToOrder(params: {
           draftIds,
         };
       }
+
+      assertAlbumPackDraftsNotConsumed(
+        await findPaidAlbumPackDraftIds(tx, draftIds)
+      );
 
       const drafts = await Promise.all(
         draftIds.map((draftId) => loadDraftForCreateOrder(tx, draftId))
