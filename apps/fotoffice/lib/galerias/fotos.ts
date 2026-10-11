@@ -202,6 +202,18 @@ async function borrarFilaYObjetos(f: { id: string; workspaceId: string; galeriaI
   await prisma.fotofficeGaleriaFoto.deleteMany({ where: { id: f.id, workspaceId: f.workspaceId } });
 }
 
+export const MENSAJE_FOTO_COMPRADA = "No se puede borrar: un cliente ya la pagó o tiene un pago en curso con esta foto.";
+
+/** ¿La foto está en una compra PAGADA o PENDIENTE de este workspace? */
+async function fotoEnCompraVigente(workspaceId: string, fotoId: string): Promise<boolean> {
+  const enlaces = await prisma.fotofficeGaleriaCompraFoto.findMany({ where: { fotoId }, select: { compraId: true } });
+  if (enlaces.length === 0) return false;
+  const vigentes = await prisma.fotofficeGaleriaCompra.count({
+    where: { workspaceId, id: { in: enlaces.map((e: { compraId: string }) => e.compraId) }, status: { in: ["PAGADA", "PENDIENTE"] } },
+  });
+  return vigentes > 0;
+}
+
 /** Borra una foto: original, vista y miniatura; si era la portada, la galería queda sin portada. */
 export async function borrarFoto(ctx: CtxGalerias, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
   if (!puedeGestionarGalerias(ctx)) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
@@ -211,6 +223,9 @@ export async function borrarFoto(ctx: CtxGalerias, galeriaId: unknown, fotoId: u
     select: { id: true, workspaceId: true, galeriaId: true },
   });
   if (!fila) return { ok: false, error: MENSAJES_GALERIA.fotoNoExiste };
+  // Una foto que un cliente pagó, o que está en un pago abierto, no se borra: perdería la descarga y la
+  // compra (y su movimiento de Caja) dejaría de cuadrar.
+  if (await fotoEnCompraVigente(ctx.workspaceId, fotoId)) return { ok: false, error: MENSAJE_FOTO_COMPRADA };
   try {
     await borrarFilaYObjetos(fila as { id: string; workspaceId: string; galeriaId: string });
   } catch {

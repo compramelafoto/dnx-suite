@@ -11,6 +11,8 @@ type Galeria = { id: string; workspaceId: string; status: string; orderMode: str
 const H = vi.hoisted(() => ({
   fotos: [] as Foto[],
   galerias: [] as Galeria[],
+  compraFotos: [] as { compraId: string; fotoId: string }[],
+  compras: [] as { id: string; workspaceId: string; status: string }[],
   tamano: vi.fn(), leer: vi.fn(), guardar: vi.fn(), borrar: vi.fn(), subida: vi.fn(), urls: vi.fn(), variantes: vi.fn(),
 }));
 
@@ -83,6 +85,12 @@ vi.mock("@repo/db", () => {
     prisma: {
       fotofficeGaleriaFoto: foto,
       fotofficeGaleria: galeria,
+      fotofficeGaleriaCompraFoto: {
+        findMany: async ({ where }: { where: Record<string, unknown> }) => H.compraFotos.filter((c) => cumple(c, where)),
+      },
+      fotofficeGaleriaCompra: {
+        count: async ({ where }: { where: Record<string, unknown> }) => H.compras.filter((c) => cumple(c, where)).length,
+      },
       $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
     },
   };
@@ -102,6 +110,8 @@ function foto(id: string, over: Partial<Foto> = {}): Foto {
 
 beforeEach(() => {
   H.fotos = [];
+  H.compraFotos = [];
+  H.compras = [];
   H.galerias = [{ id: "g1", workspaceId: "ws1", status: "BORRADOR", orderMode: "NOMBRE", coverFotoId: null }, { id: "g2", workspaceId: "ws2", status: "BORRADOR", orderMode: "NOMBRE", coverFotoId: null }];
   for (const m of [H.tamano, H.leer, H.guardar, H.borrar, H.subida, H.urls, H.variantes]) m.mockReset();
   H.subida.mockResolvedValue("https://put");
@@ -230,6 +240,17 @@ describe("borrarFoto", () => {
     H.borrar.mockRejectedValue(new Error("r2"));
     expect((await F.borrarFoto(ctx(), "g1", "a")).ok).toBe(false);
     expect(H.fotos).toHaveLength(1);
+  });
+  it("no borra una foto pagada o con un pago en curso; sí si la compra se canceló", async () => {
+    H.fotos.push(foto("a", { status: "LISTA" }));
+    H.compraFotos.push({ compraId: "c1", fotoId: "a" });
+    for (const status of ["PAGADA", "PENDIENTE"]) {
+      H.compras.splice(0, H.compras.length, { id: "c1", workspaceId: "ws1", status });
+      expect(await F.borrarFoto(ctx(), "g1", "a")).toEqual({ ok: false, error: F.MENSAJE_FOTO_COMPRADA });
+      expect(H.borrar).not.toHaveBeenCalled();
+    }
+    H.compras.splice(0, H.compras.length, { id: "c1", workspaceId: "ws1", status: "CANCELADA" });
+    expect(await F.borrarFoto(ctx(), "g1", "a")).toEqual({ ok: true });
   });
   it("no borra una foto de otro workspace", async () => {
     H.fotos.push(foto("a"));
