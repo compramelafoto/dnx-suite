@@ -114,16 +114,20 @@ ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_packageSize" CHE
 ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_packagePriceArs" CHECK ("packagePriceArs" IS NULL OR "packagePriceArs" > 0);
 ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_discountMode" CHECK ("discountMode" IN ('NINGUNO', 'UNICO', 'PROGRESIVO'));
 ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_discountPct" CHECK ("discountPct" IS NULL OR ("discountPct" >= 1 AND "discountPct" <= 90));
-ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_discountRules" CHECK ("discountRules" IS NULL OR (jsonb_typeof("discountRules") = 'array' AND jsonb_array_length("discountRules") <= 4));
+ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_discountRules" CHECK ("discountRules" IS NULL OR (CASE WHEN jsonb_typeof("discountRules") = 'array' THEN jsonb_array_length("discountRules") <= 4 ELSE false END));
+-- Con venta, el modo de precio es obligatorio y completo. Ninguna rama puede dar NULL (en un CHECK, NULL pasa).
 ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_ventaCompleta" CHECK (
   "saleMode" = 'SELECCION'
-  OR ("pricingMode" = 'POR_FOTO' AND "unitPriceArs" IS NOT NULL)
-  OR ("pricingMode" = 'PAQUETE' AND "packageSize" IS NOT NULL AND "packagePriceArs" IS NOT NULL)
+  OR ("pricingMode" IS NOT NULL AND (
+    ("pricingMode" = 'POR_FOTO' AND "unitPriceArs" IS NOT NULL)
+    OR ("pricingMode" = 'PAQUETE' AND "packageSize" IS NOT NULL AND "packagePriceArs" IS NOT NULL)
+  ))
 );
+-- El descuento se valida en todos los modos de venta (igual que `validarConfigVenta`).
 ALTER TABLE "FotofficeGaleria" ADD CONSTRAINT "FotofficeGaleria_descuentoCompleto" CHECK (
-  ("discountMode" = 'NINGUNO')
+  "discountMode" = 'NINGUNO'
   OR ("discountMode" = 'UNICO' AND "discountPct" IS NOT NULL)
-  OR ("discountMode" = 'PROGRESIVO' AND "discountRules" IS NOT NULL AND jsonb_array_length("discountRules") >= 1)
+  OR ("discountMode" = 'PROGRESIVO' AND "discountRules" IS NOT NULL AND (CASE WHEN jsonb_typeof("discountRules") = 'array' THEN jsonb_array_length("discountRules") >= 1 ELSE false END))
 );
 ALTER TABLE "FotofficeGaleriaCompra" ADD CONSTRAINT "FotofficeGaleriaCompra_status" CHECK ("status" IN ('PENDIENTE', 'PAGADA', 'CANCELADA'));
 ALTER TABLE "FotofficeGaleriaCompra" ADD CONSTRAINT "FotofficeGaleriaCompra_extraCount" CHECK ("extraCount" >= 1);

@@ -16,8 +16,21 @@ describe("dinero", () => {
   it("convierte a centavos y vuelta", () => {
     expect(arsACentavos("1234.50")).toBe(123450);
     expect(arsACentavos("1234,5")).toBe(123450);
-    expect(arsACentavos(0.1 + 0.2)).toBe(30);
+    expect(arsACentavos(0.1 + 0.2)).toBeNull();
     expect(arsACentavos("abc")).toBeNull();
+    expect(arsACentavos("1.005")).toBeNull();
+    expect(arsACentavos("1e3")).toBeNull();
+    expect(arsACentavos("")).toBeNull();
+    expect(arsACentavos("  ")).toBeNull();
+    expect(arsACentavos("-5")).toBeNull();
+    expect(arsACentavos(-5)).toBeNull();
+    expect(arsACentavos("1,234.50")).toBeNull();
+    expect(arsACentavos("1.")).toBeNull();
+    expect(arsACentavos("1.10")).toBe(110);
+    expect(arsACentavos("0.29")).toBe(29);
+    expect(arsACentavos("1.15")).toBe(115);
+    expect(arsACentavos(1.15)).toBe(115);
+    expect(arsACentavos("7")).toBe(700);
     expect(arsACentavos(null)).toBeNull();
     expect(centavosAArs(123450)).toBe("1234.50");
     expect(centavosAArs(5)).toBe("0.05");
@@ -74,6 +87,12 @@ describe("validarConfigVenta", () => {
     expect(validarConfigVenta({ ...base, discountMode: "UNICO", discountPct: 10 }).ok).toBe(true);
     expect(validarConfigVenta({ ...base, discountMode: "PROGRESIVO", discountRules: [] }).ok).toBe(false);
     expect(validarConfigVenta({ ...base, discountMode: "PROGRESIVO", discountRules: [{ pct: 5, desde: 2 }] }).ok).toBe(true);
+  });
+  it("el descuento se valida también en SELECCION (igual que el CHECK del SQL)", () => {
+    const sel0 = { ...base, saleMode: "SELECCION" as const, pricingMode: null, unitPriceCents: null };
+    expect(validarConfigVenta({ ...sel0, discountMode: "UNICO", discountPct: null }).ok).toBe(false);
+    expect(validarConfigVenta({ ...sel0, discountMode: "PROGRESIVO", discountRules: [] }).ok).toBe(false);
+    expect(validarConfigVenta({ ...sel0, discountMode: "UNICO", discountPct: 10 }).ok).toBe(true);
   });
   it("no usa la palabra plata", () => {
     const r = validarConfigVenta({ ...base, pricingMode: null, discountMode: "UNICO" });
@@ -180,6 +199,23 @@ describe("calcularCarrito por paquete", () => {
   });
 });
 
+describe("piso del total", () => {
+  it("90% sobre $1 deja el total en $1, no en cero", () => {
+    const c = calcularCarrito({ config: { ...base, unitPriceCents: 100, discountMode: "UNICO", discountPct: 90 }, seleccion: sel(1), pagadas: nada });
+    expect(c.descuentoCents).toBe(0);
+    expect(c.totalCents).toBe(100);
+  });
+  it("90% sobre $10 deja $1", () => {
+    const c = calcularCarrito({ config: { ...base, unitPriceCents: 1000, discountMode: "UNICO", discountPct: 90 }, seleccion: sel(1), pagadas: nada });
+    expect(c.totalCents).toBe(100);
+    expect(c.descuentoCents).toBe(900);
+  });
+  it("subtotal menor al piso sube al piso", () => {
+    const c = calcularCarrito({ config: { ...base, unitPriceCents: 50 }, seleccion: sel(1), pagadas: nada });
+    expect(c.totalCents).toBe(100);
+  });
+});
+
 describe("descuentos", () => {
   it("único sobre el subtotal", () => {
     const c = calcularCarrito({ config: { ...base, discountMode: "UNICO", discountPct: 20 }, seleccion: sel(5), pagadas: nada });
@@ -203,18 +239,10 @@ describe("descuentos", () => {
     expect(c.reglaAplicada).toBeNull();
   });
   it("redondea al centavo", () => {
-    // 3 fotos x $0,33 = 99 centavos; 10% = 9,9 -> 10
-    const c = calcularCarrito({ config: { ...base, unitPriceCents: 33, discountMode: "UNICO", discountPct: 10 }, seleccion: sel(3), pagadas: nada });
-    expect(c.subtotalCents).toBe(99);
-    expect(c.descuentoCents).toBe(10);
-    expect(c.totalCents).toBe(89);
-  });
-  it("redondea .5 hacia arriba y nunca deja negativo", () => {
-    const c = calcularCarrito({ config: { ...base, unitPriceCents: 5, discountMode: "UNICO", discountPct: 90 }, seleccion: sel(1), pagadas: nada });
-    expect(c.descuentoCents).toBe(5 - c.totalCents);
-    expect(c.totalCents).toBeGreaterThanOrEqual(0);
-    const d = calcularCarrito({ config: { ...base, unitPriceCents: 1, discountMode: "UNICO", discountPct: 90 }, seleccion: sel(1), pagadas: nada });
-    expect(d.descuentoCents).toBe(1);
-    expect(d.totalCents).toBe(0);
+    // 3 fotos x $1,33 = 399 centavos; 10% = 39,9 -> 40
+    const c = calcularCarrito({ config: { ...base, unitPriceCents: 133, discountMode: "UNICO", discountPct: 10 }, seleccion: sel(3), pagadas: nada });
+    expect(c.subtotalCents).toBe(399);
+    expect(c.descuentoCents).toBe(40);
+    expect(c.totalCents).toBe(359);
   });
 });

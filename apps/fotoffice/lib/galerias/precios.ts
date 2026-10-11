@@ -15,6 +15,8 @@ export const MAX_REGLAS_DESCUENTO = 4;
 export const DESCUENTO_MIN = 1;
 export const DESCUENTO_MAX = 90;
 export const TAMANO_PAQUETE_MIN = 2;
+/** Piso del total de una compra con extras: 1 peso. */
+export const PISO_TOTAL_CENTAVOS = 100;
 
 export type ReglaDescuento = { pct: number; desde: number };
 
@@ -55,12 +57,24 @@ const esCentavosPositivos = (v: unknown): v is number => esEntero(v) && v > 0;
 
 // --- Dinero --------------------------------------------------------------------------------------------
 
-/** "1234.50" / 1234.5 / Decimal → 123450. Redondea al centavo; devuelve null si no es un número finito. */
+/**
+ * "1234.50" / "1234,5" / 1234.5 → 123450, sin coma flotante en los textos. Acepta sólo dígitos con un separador
+ * decimal opcional (punto o coma) y hasta 2 decimales; rechaza vacío, signo, exponente, miles y más de 2
+ * decimales ("1.005" → null). Un número JS se convierte con `toFixed(2)` sólo si ya es de a lo sumo 2 decimales.
+ */
 export function arsACentavos(valor: unknown): number | null {
-  if (valor === null || valor === undefined) return null;
-  const n = typeof valor === "number" ? valor : Number(String(valor).trim().replace(",", "."));
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n * 100);
+  let texto: string;
+  if (typeof valor === "number") {
+    if (!Number.isFinite(valor) || valor < 0) return null;
+    texto = String(valor);
+    if (/e/i.test(texto)) return null;
+  } else if (typeof valor === "string") texto = valor.trim();
+  else if (valor !== null && valor !== undefined && typeof (valor as { toString?: unknown }).toString === "function") texto = String(valor).trim();
+  else return null;
+  const m = /^(\d+)(?:[.,](\d{1,2}))?$/.exec(texto);
+  if (!m) return null;
+  const centavos = Number(m[1]) * 100 + Number((m[2] ?? "").padEnd(2, "0") || "0");
+  return Number.isSafeInteger(centavos) ? centavos : null;
 }
 
 /** 123450 → "1234.50" (texto apto para `Decimal(14,2)`). */
@@ -103,7 +117,8 @@ export type ResultadoConfigVenta = { ok: true } | { ok: false; errores: string[]
 
 /**
  * Misma regla que los CHECK del SQL (`FotofficeGaleria_ventaCompleta`, `_descuentoCompleto`, rangos) más la
- * forma de `discountRules`. Con `SELECCION` no se exige precio ni se mira el descuento.
+ * forma de `discountRules`. Con `SELECCION` no se exige precio; el descuento se valida SIEMPRE, en todos los
+ * modos (el CHECK `_descuentoCompleto` tampoco depende de `saleMode`).
  */
 export function validarConfigVenta(c: ConfigVenta): ResultadoConfigVenta {
   const errores: string[] = [];
@@ -112,8 +127,12 @@ export function validarConfigVenta(c: ConfigVenta): ResultadoConfigVenta {
   }
   if (!esEntero(c.includedCount) || c.includedCount < 0) errores.push(MENSAJES_PRECIOS.incluidasInvalido);
   else if (c.saleMode === "VENTA" && c.includedCount !== 0) errores.push(MENSAJES_PRECIOS.ventaSinIncluidas);
-  if (c.saleMode === "SELECCION") return errores.length ? { ok: false, errores } : { ok: true };
+  if (c.saleMode !== "SELECCION") validarPrecios(c, errores);
+  validarDescuento(c, errores);
+  return errores.length ? { ok: false, errores } : { ok: true };
+}
 
+function validarPrecios(c: ConfigVenta, errores: string[]): void {
   if (c.pricingMode === "POR_FOTO") {
     if (!esCentavosPositivos(c.unitPriceCents)) errores.push(MENSAJES_PRECIOS.precioFotoInvalido);
   } else if (c.pricingMode === "PAQUETE") {
@@ -122,7 +141,9 @@ export function validarConfigVenta(c: ConfigVenta): ResultadoConfigVenta {
   } else {
     errores.push(MENSAJES_PRECIOS.modoPrecioInvalido);
   }
+}
 
+function validarDescuento(c: ConfigVenta, errores: string[]): void {
   if (c.discountMode === "UNICO") {
     if (!esEntero(c.discountPct) || c.discountPct < DESCUENTO_MIN || c.discountPct > DESCUENTO_MAX) errores.push(MENSAJES_PRECIOS.descuentoPctInvalido);
   } else if (c.discountMode === "PROGRESIVO") {
@@ -131,7 +152,6 @@ export function validarConfigVenta(c: ConfigVenta): ResultadoConfigVenta {
   } else if (c.discountMode !== "NINGUNO") {
     errores.push(MENSAJES_PRECIOS.modoDescuentoInvalido);
   }
-  return errores.length ? { ok: false, errores } : { ok: true };
 }
 
 // --- Carrito -------------------------------------------------------------------------------------------
@@ -234,7 +254,8 @@ export function calcularCarrito(args: {
       }
     }
   }
-  const descuento = Math.min(subtotal, Math.max(0, Math.round((subtotal * pct) / 100)));
+  // El total nunca baja de 1 peso (100 centavos) si hay extras: el CHECK `totalArs > 0` no puede rechazar la compra.
+  const descuento = Math.min(Math.max(0, subtotal - PISO_TOTAL_CENTAVOS), Math.max(0, Math.round((subtotal * pct) / 100)));
   return {
     incluidas: incluidasFinal,
     extras,
@@ -243,7 +264,8 @@ export function calcularCarrito(args: {
     fotosQueFaltanParaPaquete: faltan,
     subtotalCents: subtotal,
     descuentoCents: descuento,
-    totalCents: subtotal - descuento,
+    // Si el subtotal ya es menor al piso (precio menor a $1), el total sube al piso.
+    totalCents: Math.max(PISO_TOTAL_CENTAVOS, subtotal - descuento),
     reglaAplicada: regla,
   };
 }

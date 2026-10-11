@@ -76,6 +76,10 @@ describe("migración de la etapa 7, Entrega A2 (venta de fotos extra)", () => {
     ]) expect(sql, c).toContain(c);
     const venta = sql.slice(sql.indexOf(`"FotofficeGaleria_ventaCompleta"`), sql.indexOf(`"FotofficeGaleria_descuentoCompleto"`));
     expect(venta).toContain(`"saleMode" = 'SELECCION'`);
+    expect(venta).toContain(`"pricingMode" IS NOT NULL`);
+    const desc = sql.slice(sql.indexOf(`"FotofficeGaleria_descuentoCompleto"`), sql.indexOf(`"FotofficeGaleriaCompra_status"`));
+    expect(desc).not.toContain("saleMode");
+    expect(desc).toContain(`"discountMode" = 'UNICO' AND "discountPct" IS NOT NULL`);
     expect(venta).toContain(`"pricingMode" = 'POR_FOTO' AND "unitPriceArs" IS NOT NULL`);
     expect(venta).toContain(`"pricingMode" = 'PAQUETE' AND "packageSize" IS NOT NULL AND "packagePriceArs" IS NOT NULL`);
   });
