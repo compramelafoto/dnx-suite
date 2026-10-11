@@ -12,6 +12,7 @@ import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/cor
 import { conPermiso } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
 import { OBRA_DE_EXPOSITOR_QUITADA, copiarTextosAExpositores } from "@/lib/expositores/copiar";
+import { borrarImagenDeConcurso } from "@/lib/concursos/imagen";
 import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
 import { datosParaGuardar, fichaDesdeFormData, modoDeGaleriaAlGuardar, type FichaForm } from "./mapear";
@@ -59,7 +60,7 @@ async function obrasParaGuardar(
   duenoId: number,
   contexto: { status: string; isSuperAdmin: boolean } = { status: "DRAFT", isSuperAdmin: false },
   db: Pick<typeof prisma, "photographerProfile"> = prisma,
-  deExpositor: ReadonlySet<string> = new Set(),
+  conservaImagenYAutor: ReadonlySet<string> = new Set(),
 ) {
   const perfilPropio = await db.photographerProfile.findUnique({ where: { userId: duenoId }, select: { id: true, displayName: true } });
   const pedidos = [...new Set(works.map((w) => w.authorProfileId).filter((x): x is string => !!x))];
@@ -87,9 +88,10 @@ async function obrasParaGuardar(
     });
     if (permitido.blocked) bloqueado = true;
     const previa = conserva ? previas.get(w.id!) : undefined;
-    // Una obra que cargó quien expone (etapa 6, D9) conserva su imagen y su autoría tal como están
-    // en la base: lo que llegue del formulario para esos campos se ignora.
-    if (previa && deExpositor.has(w.id!) && previa.imageUrl != null && previa.authorName != null) {
+    // Una obra que cargó quien expone (etapa 6, D9) o que vino de un concurso (etapa 7, D17)
+    // conserva su imagen y su autoría tal como están en la base: lo que llegue del formulario para
+    // esos campos se ignora.
+    if (previa && conservaImagenYAutor.has(w.id!) && previa.imageUrl != null && previa.authorName != null) {
       return {
         id: w.id, imageUrl: previa.imageUrl, title: w.title, authorName: previa.authorName, year: w.year,
         technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
@@ -172,6 +174,8 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   const id = f.id;
   const version = f.editVersion;
   let avisos: string[];
+  // Copias de imágenes de concursos que salieron de la muestra: se borran después de la transacción.
+  let imagenesQuitadas: string[] = [];
   try {
     avisos = await prisma.$transaction(
       async (tx) => {
@@ -198,6 +202,12 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
           select: { id: true, activityWorkId: true },
         });
         const deExpositor = new Map(expositoras.flatMap((e) => (e.activityWorkId ? [[e.activityWorkId, e.id] as const] : [])));
+        // Y las que vinieron de un concurso de FotoRank (etapa 7, D17): tampoco.
+        const delConcurso = await tx.culturalContestWork.findMany({
+          where: { activityId: id, activityWorkId: { not: null } },
+          select: { id: true, activityWorkId: true, imageUrl: true },
+        });
+        const deConcurso = new Map(delConcurso.flatMap((c) => (c.activityWorkId ? [[c.activityWorkId, c] as const] : [])));
         const r = await obrasParaGuardar(
           f.works,
           new Map(enLaBase.map((w) => [w.id, {
@@ -206,7 +216,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
           actual.proposedByUserId,
           { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
           tx,
-          new Set(deExpositor.keys()),
+          new Set([...deExpositor.keys(), ...deConcurso.keys()]),
         );
         const plan = editorGalleryPlan({
           current: enLaBase,
@@ -242,6 +252,19 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
             data: { status: "REMOVED", activityWorkId: null, reviewNote: OBRA_DE_EXPOSITOR_QUITADA },
           });
         }
+        // Una obra del concurso que el editor quitó deja de estar en la muestra (D16) y no vuelve
+        // sola con "Actualizar desde FotoRank"; su copia de la imagen se borra.
+        const quitadasDelConcurso = plan.removedIds.filter((w) => deConcurso.has(w));
+        if (quitadasDelConcurso.length) {
+          await tx.culturalContestWork.updateMany({
+            where: { activityId: id, activityWorkId: { in: quitadasDelConcurso } },
+            data: { include: false, toPrint: false, activityWorkId: null, imageStatus: "PENDING", imageUrl: null, imageError: null, copiedAt: null },
+          });
+          imagenesQuitadas = quitadasDelConcurso.flatMap((w) => {
+            const u = deConcurso.get(w)?.imageUrl;
+            return u ? [u] : [];
+          });
+        }
         return r.avisos;
       },
       { timeout: 30_000, maxWait: 10_000 },
@@ -252,6 +275,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     if (err instanceof Choque) return { ok: false, errores: [await mensajeDeChoque(err)] };
     throw err;
   }
+  for (const u of imagenesQuitadas) await borrarImagenDeConcurso(u);
   refrescar(actual.slug);
   return avisos.length ? { ok: true, id: f.id, avisos } : { ok: true, id: f.id };
 }
