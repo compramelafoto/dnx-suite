@@ -17,7 +17,7 @@ export const PANEL_GROUP_LABELS: Record<PanelGroup, string> = {
 
 export type PanelSectionKey =
   | "inicio" | "muestras" | "proponer" | "perfil" | "envios" | "expositor" | "cobros"
-  | "convocatorias" | "concursos" | "curaduria" | "montaje" | "difusion" | "ventas" | "estadisticas"
+  | "convocatorias" | "concursos" | "curaduria" | "montaje" | "difusion" | "ventasMuestras" | "ventas" | "estadisticas"
   | "revision";
 
 export type PanelSection = {
@@ -45,6 +45,8 @@ export const PANEL_SECTIONS: readonly PanelSection[] = [
   s("curaduria", "Curaduría", "/panel/curaduria", "ORGANIZAR"),
   s("montaje", "Montaje e impresión", "/panel/montaje", "ORGANIZAR"),
   s("difusion", "Difusión", "/panel/difusion", "ORGANIZAR"),
+  // Etapa 8: la venta de cada muestra (lista de muestras con su "Ventas"), a la vista de todos.
+  s("ventasMuestras", "Ventas", "/panel/ventas-muestras", "ORGANIZAR"),
   s("estadisticas", "Estadísticas", "/panel/estadisticas", "ORGANIZAR"),
   s("revision", "Revisión", "/panel/revision", "ADMIN", true, true),
   // Etapa 8: los pedidos de toda la plataforma. La venta de cada muestra vive dentro de la muestra

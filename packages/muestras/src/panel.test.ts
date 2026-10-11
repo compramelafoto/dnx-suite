@@ -6,7 +6,7 @@ import {
 describe("secciones del panel", () => {
   it("una persona común ve todo menos Revisión y las ventas de la plataforma", () => {
     expect(panelSections({ isSuperAdmin: false }).map((s) => s.key)).toEqual([
-      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "cobros", "convocatorias", "concursos", "curaduria", "montaje", "difusion", "estadisticas",
+      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "cobros", "convocatorias", "concursos", "curaduria", "montaje", "difusion", "ventasMuestras", "estadisticas",
     ]);
   });
   it("el super admin ve también Revisión y las ventas de la plataforma", () => {
@@ -19,7 +19,7 @@ describe("secciones del panel", () => {
   });
   it("están todas las funcionalidades del organizador, construidas o no", () => {
     expect(PANEL_SECTIONS.filter((s) => s.group === "ORGANIZAR").map((s) => s.label)).toEqual([
-      "Convocatorias", "Concursos", "Curaduría", "Montaje e impresión", "Difusión", "Estadísticas",
+      "Convocatorias", "Concursos", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
     ]);
   });
   it("\"Dónde expongo\" está lista, en \"Tu cuenta\", después de \"Mis envíos\"", () => {
@@ -91,6 +91,11 @@ describe("Venta (etapa 8)", () => {
   it("las ventas de la plataforma son sólo del super admin", () => {
     expect(PANEL_SECTIONS.find((x) => x.key === "ventas")).toMatchObject({ label: "Ventas de la plataforma", href: "/panel/ventas", group: "ADMIN", ready: true, superAdminOnly: true });
     expect(panelSections({ isSuperAdmin: false }).some((x) => x.key === "ventas")).toBe(false);
+  });
+  it("\"Ventas\" está a la vista de quien organiza y lleva a la lista de sus muestras", () => {
+    expect(PANEL_SECTIONS.find((x) => x.key === "ventasMuestras")).toMatchObject({ label: "Ventas", href: "/panel/ventas-muestras", group: "ORGANIZAR", ready: true, superAdminOnly: false });
+    expect(activeSectionKey("/panel/ventas-muestras")).toBe("ventasMuestras");
+    expect(activeSectionKey("/panel/ventas")).toBe("ventas");
   });
   it("la venta de cada muestra vive dentro de la muestra", () => {
     expect(activitySalesHref("ck1")).toBe("/panel/muestras/ck1/ventas");
