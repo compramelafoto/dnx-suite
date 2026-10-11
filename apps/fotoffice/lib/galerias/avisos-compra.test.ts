@@ -95,4 +95,12 @@ describe("avisos de la compra pagada", () => {
     expect(internos[0]!.text).toMatch(/\$\s4\.500,00/);
     expect(clientes).toHaveLength(0);
   });
+
+  it("un segundo pago avisa al estudio que revise si corresponde devolverlo", async () => {
+    const r = await A.avisarSegundoPago({ workspaceId: "ws-1", galeriaId: "g1", galeriaClienteId: "gc1", compraId: "c1", pagadoCents: 450_000 }, deps());
+    expect(r).toBe("ENVIADO");
+    expect(internos[0]!.text).toContain("Llegó un segundo pago por la misma compra: revisá si corresponde devolverlo.");
+    expect(internos[0]!.text).toMatch(/\$\s4\.500,00/);
+    expect(clientes).toHaveLength(0);
+  });
 });

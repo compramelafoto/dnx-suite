@@ -22,22 +22,23 @@ export const dynamic = "force-dynamic";
  * organización cuyo token leyó el pago. Ignora todo pago cuya referencia no empiece con `fo-galcompra:`.
  */
 export async function POST(request: Request) {
-  const url = new URL(request.url);
-  const cuerpo = await request.json().catch(() => null);
-  const providerPaymentId = extractPaymentId(cuerpo, url);
-  if (!providerPaymentId) {
-    return NextResponse.json({ ignored: "sin identificador de pago" }, { status: 200 });
-  }
-
+  let providerPaymentId: string | null = null;
   try {
+    const url = new URL(request.url);
+    const cuerpo = await request.json().catch(() => null);
+    providerPaymentId = extractPaymentId(cuerpo, url);
+    if (!providerPaymentId) {
+      return NextResponse.json({ ignored: "sin identificador de pago" }, { status: 200 });
+    }
     // Ya acreditado: no hace falta volver a preguntarle a Mercado Pago.
     const yaPago = await prisma.fotofficeGaleriaCompra.findFirst({ where: { providerPaymentRef: providerPaymentId }, select: { id: true } });
     if (yaPago) return NextResponse.json({ ok: true, applied: false, motivo: "aviso repetido" });
 
     // Para leer el pago hace falta el token de alguna organización: se prueba con las que tienen compras sin
-    // pagar (pendientes o canceladas que igual pueden llegar a pagarse).
+    // pagar (pendientes o canceladas que igual pueden llegar a pagarse) o ya pagas (un segundo pago por la misma
+    // compra se registra y se avisa, sin tocar Caja).
     const candidatas = await prisma.fotofficeGaleriaCompra.findMany({
-      where: { status: { in: ["PENDIENTE", "CANCELADA"] } },
+      where: { status: { in: ["PENDIENTE", "CANCELADA", "PAGADA"] } },
       select: { workspaceId: true },
       distinct: ["workspaceId"],
       orderBy: { updatedAt: "desc" },

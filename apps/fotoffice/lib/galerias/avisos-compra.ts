@@ -180,3 +180,31 @@ export async function avisarPagoNoAcreditado(d: DatosPagoNoAcreditado, deps: Dep
     return "ERROR";
   }
 }
+
+/** Llegó un segundo pago aprobado por una compra que ya estaba paga: aviso interno (no se crea otro movimiento de Caja). */
+export async function avisarSegundoPago(d: { workspaceId: string; galeriaId: string; galeriaClienteId: string; compraId: string; pagadoCents: number }, deps: DepsEnvio & DepsAviso = {}): Promise<string> {
+  try {
+    const ahora = (deps.ahora ?? (() => new Date()))();
+    const [c, g] = await Promise.all([
+      prisma.fotofficeGaleriaCliente.findFirst({ where: { id: d.galeriaClienteId, workspaceId: d.workspaceId, galeriaId: d.galeriaId }, select: { id: true, name: true } }),
+      prisma.fotofficeGaleria.findFirst({ where: { id: d.galeriaId, workspaceId: d.workspaceId }, select: { id: true, number: true, name: true, ownerUserId: true } }),
+    ]);
+    if (!c || !g) return "ERROR";
+    const lineas = [
+      "Hola:",
+      "",
+      `${c.name} hizo un pago de ${formatearCentavos(d.pagadoCents)} con Mercado Pago por las fotos extra de la galería ${g.number} (${g.name}), pero esa compra ya estaba paga.`,
+      "Llegó un segundo pago por la misma compra: revisá si corresponde devolverlo.",
+    ];
+    const r = await avisoInterno(d.workspaceId, g, ahora, deps, { asunto: `Segundo pago de fotos extra en ${g.name}`, lineas });
+    await registrarEventoSinFallar({
+      workspaceId: d.workspaceId, galeriaId: g.id, galeriaClienteId: c.id,
+      tipo: r === "ENVIADO" ? "AVISO_ESTUDIO_ENVIADO" : "AVISO_ESTUDIO_NO_ENVIADO",
+      data: { compraId: d.compraId, ...(r === "ENVIADO" ? {} : { motivo: motivoDeAviso(r) }) },
+    });
+    return r;
+  } catch (e) {
+    console.error("[galerias] falló el aviso del segundo pago", { codigo: (e as { code?: unknown } | null)?.code ?? "desconocido" });
+    return "ERROR";
+  }
+}

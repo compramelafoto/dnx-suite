@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { sanitizeError } from "@/lib/payments/connect/log";
-import { avisarCompraPagada, avisarPagoNoAcreditado } from "./avisos-compra";
+import { avisarCompraPagada, avisarPagoNoAcreditado, avisarSegundoPago } from "./avisos-compra";
 import { registrarCompraPagada } from "./compras";
 import { registrarEventoSinFallar } from "./eventos";
 import { compraDeReferencia, hechosDelPago, pagoAprobado } from "./venta-publica";
@@ -67,6 +67,30 @@ async function fotosYaPagadas(workspaceId: string, compraId: string, galeriaClie
   return otras.filter((f) => ids.has(f.fotoId)).length;
 }
 
+type CompraLeida = { id: string; galeriaId: string; galeriaClienteId: string; providerPaymentRef: string | null };
+
+/**
+ * La compra ya estaba PAGADA. Si es el mismo pago, es un aviso repetido. Si es OTRO pago aprobado (se abrió el
+ * checkout dos veces, o el estudio la marcó paga a mano), el dinero llegó dos veces: NO se crea otro movimiento
+ * de Caja, pero queda `PAGO_DUPLICADO` (una sola vez por pago) con id, importe y fecha, y un aviso al estudio.
+ */
+async function segundoPago(workspaceId: string, compra: CompraLeida, hechos: ReturnType<typeof hechosDelPago>, deps: DepsAcreditarGaleria): Promise<ResultadoAcreditarGaleria> {
+  const compraId = compra.id;
+  if (compra.providerPaymentRef === hechos.providerPaymentId) return { resultado: "ya_acreditado", compraId };
+  // Un pago que ya está en OTRA compra es de ésa: no es un duplicado de ésta.
+  const enOtra = await prisma.fotofficeGaleriaCompra.findFirst({ where: { providerPaymentRef: hechos.providerPaymentId }, select: { id: true } });
+  if (enOtra) return { resultado: "ya_acreditado", compraId };
+  const previos = await prisma.fotofficeGaleriaEvento.findMany({ where: { workspaceId, galeriaId: compra.galeriaId, type: "PAGO_DUPLICADO" }, select: { data: true } });
+  if (previos.some((e) => (e.data as { pago?: unknown } | null)?.pago === hechos.providerPaymentId)) return { resultado: "ya_acreditado", compraId };
+  const base = { workspaceId, galeriaId: compra.galeriaId, galeriaClienteId: compra.galeriaClienteId };
+  await registrarEventoSinFallar({
+    ...base, tipo: "PAGO_DUPLICADO",
+    data: { compraId, motivo: "SEGUNDO_PAGO", pago: hechos.providerPaymentId, pagadoCents: hechos.amountMinor, fecha: (hechos.paidAt ?? new Date()).toISOString() },
+  });
+  programar(() => avisarSegundoPago({ ...base, compraId, pagadoCents: hechos.amountMinor }), deps);
+  return { resultado: "ya_acreditado", compraId };
+}
+
 /**
  * Acredita un pago de Mercado Pago ya leído con el token de `workspaceId`. Una compra CANCELADA que igual se
  * pagó SE ACREDITA (el dinero llegó: Caja tiene que coincidir con la realidad) y queda constancia; si sus fotos
@@ -79,7 +103,7 @@ export async function acreditarPagoGaleria(workspaceId: string, pago: PagoMp, de
     // El pago se leyó con el token de ESTA organización: la compra tiene que ser suya.
     const compra = await prisma.fotofficeGaleriaCompra.findFirst({
       where: { id: compraId, workspaceId },
-      select: { id: true, galeriaId: true, galeriaClienteId: true, status: true, totalArs: true },
+      select: { id: true, galeriaId: true, galeriaClienteId: true, status: true, totalArs: true, providerPaymentRef: true },
     });
     if (!compra) {
       console.warn("[galerias] aviso de un pago cuya compra no es de la organización que lo cobró");
@@ -91,7 +115,7 @@ export async function acreditarPagoGaleria(workspaceId: string, pago: PagoMp, de
     const totalCents = decimalArsToMinor(compra.totalArs);
     const base = { workspaceId, galeriaId: compra.galeriaId, galeriaClienteId: compra.galeriaClienteId };
 
-    if (compra.status === "PAGADA") return { resultado: "ya_acreditado", compraId };
+    if (compra.status === "PAGADA") return segundoPago(workspaceId, compra, hechos, deps);
 
     const motivo = hechos.currency !== "ARS" ? "MONEDA" : hechos.amountMinor < totalCents ? "IMPORTE_MENOR" : null;
     if (motivo) {
@@ -136,7 +160,11 @@ export async function acreditarPagoGaleria(workspaceId: string, pago: PagoMp, de
       console.warn("[galerias] pago aprobado sin acreditar", { codigo: r.codigo });
       return { resultado: "fallo" };
     }
-    if (r.yaEstabaPagada) return { resultado: "ya_acreditado", compraId };
+    if (r.yaEstabaPagada) {
+      // Otra corrida la acreditó entre la lectura y la escritura: si fue con otro pago, éste es el segundo.
+      const ahora = await prisma.fotofficeGaleriaCompra.findFirst({ where: { id: compraId, workspaceId }, select: { providerPaymentRef: true } });
+      return segundoPago(workspaceId, { ...compra, providerPaymentRef: ahora?.providerPaymentRef ?? null }, hechos, deps);
+    }
 
     if (eraCancelada) await registrarEventoSinFallar({ ...base, tipo: "COMPRA_CANCELADA_PAGADA", data: { compraId, pago: hechos.providerPaymentId } });
     if (repetidas > 0) await registrarEventoSinFallar({ ...base, tipo: "PAGO_DUPLICADO", data: { compraId, fotosRepetidas: repetidas, pago: hechos.providerPaymentId } });

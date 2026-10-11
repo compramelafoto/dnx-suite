@@ -14,6 +14,7 @@ const H = vi.hoisted(() => ({
   adaptadores: [] as { accessToken?: string }[],
   aviso: vi.fn(async (..._a: unknown[]) => ({ cliente: "ENVIADO", estudio: "ENVIADO" })),
   avisoNoAcreditado: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
+  avisoSegundo: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -25,7 +26,7 @@ vi.mock("@/lib/presupuestos/sitio", () => ({
 }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String((e as Error)?.message ?? e).slice(0, 40) }));
-vi.mock("./avisos-compra", () => ({ avisarCompraPagada: H.aviso, avisarPagoNoAcreditado: H.avisoNoAcreditado }));
+vi.mock("./avisos-compra", () => ({ avisarCompraPagada: H.aviso, avisarPagoNoAcreditado: H.avisoNoAcreditado, avisarSegundoPago: H.avisoSegundo }));
 vi.mock("@repo/payments/mercado-pago", () => ({
   createMercadoPagoCheckoutProLiveAdapter: (opts: { accessToken?: string }) => {
     H.adaptadores.push(opts);
@@ -100,6 +101,7 @@ beforeEach(() => {
   H.preferencia.mockClear();
   H.aviso.mockClear();
   H.avisoNoAcreditado.mockClear();
+  H.avisoSegundo.mockClear();
   H.search.mockReset().mockResolvedValue(null);
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.test");
   vi.stubEnv("LINK_SECRET", CLAVE);
@@ -279,6 +281,12 @@ describe("webhook de pagos de galerías", () => {
     expect(r.body.ignored).toBeTruthy();
   });
 
+  it("un cuerpo que no es JSON o una dirección inválida nunca da 500", async () => {
+    const mala = { url: "no-es-una-url", json: async () => { throw new Error("x"); } } as unknown as Request;
+    const r = (await webhookPOST(mala)) as unknown as { init: { status: number } };
+    expect(r.init.status).toBe(200);
+  });
+
   it("un pago de otra cosa (referencia de otro módulo) se ignora", async () => {
     pago("1002", "c1", 4500, "ws-1", { externalReference: "fo-pedcuota:cuota-1" });
     const r = await llamar("1002");
@@ -389,6 +397,53 @@ describe("webhook de pagos de galerías", () => {
     const otra = await A.acreditarPagoGaleria("ws-1", { ...(pago("1014", "c2", 4500) as object) } as never, { luego: () => undefined });
     expect(otra.resultado).toBe("ya_acreditado");
     expect(compras().find((c) => c.id === "c2")!.status).toBe("PENDIENTE");
+  });
+
+  it("un segundo pago aprobado por una compra ya paga queda registrado, avisa y no crea otro movimiento de Caja", async () => {
+    pago("2001", "c1", 4500);
+    await llamar("2001");
+    pago("2002", "c1", 4500);
+    const r = await llamar("2002");
+    expect(r.body).toMatchObject({ applied: false, resultado: "ya_acreditado" });
+    expect(movimientos()).toHaveLength(1);
+    expect(compras()[0]).toMatchObject({ status: "PAGADA", providerPaymentRef: "2001" });
+    const dup = B.datos.fotofficeGaleriaEvento.filter((e) => e.type === "PAGO_DUPLICADO");
+    expect(dup).toHaveLength(1);
+    expect(dup[0]!.data).toMatchObject({ compraId: "c1", pago: "2002", pagadoCents: 450_000, motivo: "SEGUNDO_PAGO" });
+    expect((dup[0]!.data as { fecha: string }).fecha).toBe("2026-10-10T14:00:00.000Z");
+    expect(H.avisoSegundo).toHaveBeenCalledTimes(1);
+    expect(H.avisoSegundo.mock.calls[0]![0]).toMatchObject({ compraId: "c1", pagadoCents: 450_000 });
+  });
+
+  it("un pago de Mercado Pago sobre una compra que el estudio marcó paga a mano también se registra y avisa", async () => {
+    compras()[0]!.status = "PAGADA";
+    compras()[0]!.providerPaymentRef = null;
+    pago("2003", "c1", 4500);
+    const r = await llamar("2003");
+    expect(r.body).toMatchObject({ applied: false, resultado: "ya_acreditado" });
+    expect(movimientos()).toHaveLength(0);
+    expect(compras()[0]!.providerPaymentRef).toBeNull();
+    expect(eventos()).toEqual(["PAGO_DUPLICADO"]);
+    expect(H.avisoSegundo).toHaveBeenCalledTimes(1);
+  });
+
+  it("el aviso repetido del segundo pago se registra y avisa una sola vez", async () => {
+    pago("2001", "c1", 4500);
+    await llamar("2001");
+    pago("2002", "c1", 4500);
+    await llamar("2002");
+    await llamar("2002");
+    expect(eventos().filter((t) => t === "PAGO_DUPLICADO")).toHaveLength(1);
+    expect(H.avisoSegundo).toHaveBeenCalledTimes(1);
+    expect(movimientos()).toHaveLength(1);
+  });
+
+  it("el mismo pago que ya acreditó la compra no cuenta como segundo pago", async () => {
+    pago("2001", "c1", 4500);
+    await llamar("2001");
+    await A.acreditarPagoGaleria("ws-1", pago("2001", "c1", 4500) as never, { luego: () => undefined });
+    expect(eventos()).not.toContain("PAGO_DUPLICADO");
+    expect(H.avisoSegundo).not.toHaveBeenCalled();
   });
 
   it("no loguea datos personales", async () => {
