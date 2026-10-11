@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Button from "../primitives/Button";
-import { FieldLabel, InspectorPanel } from "../inspector/InspectorPanel";
+import { InspectorPanel } from "../inspector/InspectorPanel";
 import {
   setVariableBindings,
   type TemplateV2EditorDispatch,
@@ -44,6 +43,9 @@ type Props = {
   /** La plataforma de esta plantilla. Gobierna qué imágenes se pueden atar. */
   product: TemplateProductId | "unknown";
 };
+
+const smallBtn =
+  "h-6 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2 text-[11px] font-medium text-[color:var(--te-ink)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] disabled:opacity-50";
 
 export function ImageBlockUploadSection({
   templateId,
@@ -140,28 +142,28 @@ export function ImageBlockUploadSection({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-2">
         {hasStaticImage && !isSchoolLogoDynamic ? (
-          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-chrome)]">
+          <div className="h-10 w-14 shrink-0 overflow-hidden rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt="" className="h-full w-full object-cover" />
           </div>
         ) : isSchoolLogoDynamic ? (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[color:var(--te-accent-wash)] bg-[#fffdfb] text-[9px] font-medium text-[color:var(--te-accent)]">
+          <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-dashed border-[color:var(--te-accent-wash)] bg-[#fffdfb] text-[9px] font-medium text-[color:var(--te-accent)]">
             Logo
           </div>
         ) : (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-[color:var(--te-ink-faint)] bg-[color:var(--te-chrome)] text-[10px] text-[color:var(--te-ink-faint)]">
+          <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-dashed border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome-sunken)] text-[10px] text-[color:var(--te-ink-faint)]">
             —
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-[color:var(--te-ink)]">
+          <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
             {isSchoolLogoDynamic
               ? "Vinculado al logo institucional"
               : hasStaticImage
                 ? "Imagen asignada al bloque"
-                : "Sin imagen fija (se verá el placeholder en el lienzo)"}
+                : "Sin imagen: en el lienzo se ve el recuadro de ejemplo"}
           </p>
           {uploading ? (
             <p className="mt-0.5 text-[11px] text-[color:var(--te-accent)]">Subiendo…</p>
@@ -174,26 +176,22 @@ export function ImageBlockUploadSection({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1">
         {!isSchoolLogoDynamic ? (
           <>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={uploading}
+            <button type="button" className={smallBtn} disabled={uploading}
               onClick={() => fileRef.current?.click()}
             >
               {hasStaticImage ? "Reemplazar imagen" : "Subir imagen"}
-            </Button>
+            </button>
             {hasStaticImage ? (
-              <Button type="button" variant="secondary" size="sm" disabled={uploading} onClick={clearImage}>
+              <button type="button" className={smallBtn} disabled={uploading} onClick={clearImage}>
                 Quitar imagen
-              </Button>
+              </button>
             ) : null}
             {imagenesDelProducto.length > 0 ? (
               <select
-                className={cn(inputBase, "h-9 w-auto text-[12px]")}
+                className={cn(inputBase, "w-full")}
                 value=""
                 disabled={uploading}
                 aria-label="Atar la imagen a un dato"
@@ -211,19 +209,18 @@ export function ImageBlockUploadSection({
             ) : null}
           </>
         ) : (
-          <Button type="button" variant="secondary" size="sm" disabled={uploading} onClick={clearImage}>
+          <button type="button" className={smallBtn} disabled={uploading} onClick={clearImage}>
             Cambiar a imagen fija o subir archivo
-          </Button>
+          </button>
         )}
       </div>
 
       {!isSchoolLogoDynamic ? (
-        <details className="mt-2 rounded-lg border border-dashed border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-2 py-1.5">
-          <summary className="cursor-pointer select-none text-[11px] font-medium text-[color:var(--te-ink-muted)]">
-            URL manual (opcional)
+        <details>
+          <summary className="cursor-pointer select-none text-[11px] text-[color:var(--te-ink-muted)]">
+            Pegar una dirección (URL)
           </summary>
-          <div className="mt-2 space-y-1">
-            <FieldLabel>URL de la imagen</FieldLabel>
+          <div className="mt-1">
             <input
               className={cn(inputBase, "font-mono text-[11px]")}
               value={src}
@@ -233,9 +230,6 @@ export function ImageBlockUploadSection({
                 dispatch(setVariableBindings(stripSrcBindingsForBlock(variableBindings, blockId)));
               }}
             />
-            <p className="text-[10px] text-[color:var(--te-ink-faint)]">
-              Podés pegar un enlace público o usar el botón de subida arriba.
-            </p>
           </div>
         </details>
       ) : null}

@@ -30,12 +30,12 @@ export function ColorField({ value, onChange, label, className, disabled }: Prop
   }, [value]);
 
   return (
-    <div className={cn("space-y-1.5", className)}>
-      {label ? <span className="text-xs font-medium text-[color:var(--te-ink)]">{label}</span> : null}
-      <div className="flex items-center gap-2">
+    <div className={cn("space-y-0.5", className)}>
+      {label ? <span className="block text-[11px] text-[color:var(--te-ink-muted)]">{label}</span> : null}
+      <div className="flex items-center gap-1">
         <input
           type="color"
-          className="h-9 w-11 cursor-pointer rounded-md border border-[color:var(--te-line)] bg-white p-0.5 shadow-sm disabled:opacity-50"
+          className="h-6 w-8 shrink-0 cursor-pointer rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] p-0.5 disabled:opacity-50"
           value={colorInputValue}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
@@ -43,7 +43,7 @@ export function ColorField({ value, onChange, label, className, disabled }: Prop
         />
         <input
           type="text"
-          className="min-w-0 flex-1 rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-1.5 font-mono text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]"
+          className="h-6 min-w-0 flex-1 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 font-mono text-[11px] text-[color:var(--te-ink)] focus:border-[color:var(--te-accent)] focus:outline-none"
           value={value}
           disabled={disabled}
           spellCheck={false}

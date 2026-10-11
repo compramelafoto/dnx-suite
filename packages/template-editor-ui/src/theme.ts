@@ -68,8 +68,8 @@ export const DEFAULT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
   danger: "#b4242a",
   dangerWash: "#fdf0f0",
   success: "#3f8f57",
-  radius: "6px",
-  control: "30px",
+  radius: "4px",
+  control: "28px",
 };
 
 const CSS_VAR: Record<TemplateEditorTokenName, string> = {
@@ -98,8 +98,24 @@ const CSS_VAR: Record<TemplateEditorTokenName, string> = {
  * Se aplican inline y no por hoja de estilos para no depender del orden de la cascada: el
  * paquete no controla en qué momento carga el CSS de cada aplicación.
  */
+/**
+ * Escala de redondeo propia del editor. Tailwind resuelve `rounded-md`, `rounded-xl`, etc. con
+ * variables `--radius-*` que cada app redefine: en CompraMeLaFoto `rounded-md` valía 16 px y el
+ * editor entero se veía hecho de píldoras, el pliego incluido. Redefinirlas en la raíz del
+ * editor hace que se vea igual en todas las apps.
+ */
+const EDITOR_RADIUS_SCALE: Record<string, string> = {
+  "--radius-xs": "2px",
+  "--radius-sm": "3px",
+  "--radius-md": "4px",
+  "--radius-lg": "5px",
+  "--radius-xl": "6px",
+  "--radius-2xl": "8px",
+  "--radius-3xl": "10px",
+};
+
 export function editorThemeStyle(theme?: TemplateEditorTheme): CSSProperties {
-  const style: Record<string, string> = {};
+  const style: Record<string, string> = { ...EDITOR_RADIUS_SCALE };
   for (const [name, cssVar] of Object.entries(CSS_VAR) as [
     TemplateEditorTokenName,
     string,
