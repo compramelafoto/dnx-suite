@@ -178,7 +178,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
       console.error("[event-organizer-commission] ensure_failed_already_paid", err);
     }
 
-    // Pedido ya pagado con OTRO pago: el comprador pagó dos veces (pedido 4645, 11/10/2026).
+    // Pedido ya pagado con OTRO pago: suele ser una compra nueva que quedó pegada al pedido viejo (pedido 4645, 11/10/2026).
     // Antes se ignoraba en silencio; ahora se confirma contra MP, se registra y se avisa.
     if (classifyApprovedPaymentOnAlbumOrder(order, paymentId) === "duplicate_payment") {
       const assignedElsewhere = await prisma.order.findFirst({

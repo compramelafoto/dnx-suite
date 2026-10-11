@@ -1,5 +1,5 @@
 /**
- * Cobro duplicado sobre un pedido de álbum ya pagado: avisar, no ignorar.
+ * Segundo pago sobre un pedido de álbum ya pagado (suele ser una compra nueva perdida): avisar, no ignorar.
  *
  * No devuelve plata sola (la devolución la decide una persona). Deja:
  * - un `console.error("[duplicate-payment]", …)` para los logs,
