@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), count: vi.fn() },
   culturalContestImport: { findFirst: vi.fn(), create: vi.fn() },
+  culturalContestWork: { findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   $queryRaw: vi.fn(),
   $executeRaw: vi.fn(),
   $transaction: vi.fn(),
@@ -10,6 +11,8 @@ const db = vi.hoisted(() => ({
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean; email: string; name: string | null } }));
 const fr = vi.hoisted(() => ({ resultadosDelConcurso: vi.fn() }));
 const armar = vi.hoisted(() => ({ aplicarResultados: vi.fn() }));
+const img = vi.hoisted(() => ({ copiarImagenDeConcurso: vi.fn(), borrarImagenDeConcurso: vi.fn() }));
+const gal = vi.hoisted(() => ({ sincronizarObraConGaleria: vi.fn() }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: db }));
@@ -24,7 +27,14 @@ vi.mock("./armar", async () => {
   return { CorteDeArmado: real.CorteDeArmado, aplicarResultados: armar.aplicarResultados };
 });
 
-const { actualizarDesdeConcurso, armarMuestraDesdeConcurso } = await import("./acciones");
+vi.mock("./imagen", async () => {
+  const real = await vi.importActual<typeof import("./imagen")>("./imagen");
+  return { ImagenDeConcursoError: real.ImagenDeConcursoError, ...img };
+});
+vi.mock("./galeria", () => gal);
+
+const { actualizarDesdeConcurso, armarMuestraDesdeConcurso, copiarImagenesDelConcurso, reintentarImagenes } = await import("./acciones");
+const { ImagenDeConcursoError } = await import("./imagen");
 const { CorteDeArmado } = await import("./armar");
 const { resetRateLimit } = await import("@/lib/limite");
 
@@ -207,5 +217,75 @@ describe("actualizarDesdeConcurso", () => {
     db.culturalActivity.findUnique.mockResolvedValue(muestra({ reviewStatus: "IN_REVIEW", contestImport: { id: "i1", contestId: "c1", tiers: [] } }));
     expect((await actualizarDesdeConcurso("a1")).ok).toBe(false);
     expect(armar.aplicarResultados).not.toHaveBeenCalled();
+  });
+});
+
+describe("copiarImagenesDelConcurso", () => {
+  const tanda = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `cw${i + 1}` }));
+  beforeEach(() => {
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra(), startsAt: new Date(), endsAt: new Date(), contestImport: { id: "i1" } });
+    db.culturalActivity.count.mockResolvedValue(1);
+    db.culturalContestWork.findMany.mockResolvedValue(tanda(6));
+    db.culturalContestWork.updateMany.mockResolvedValue({ count: 1 });
+    db.culturalContestWork.count.mockResolvedValueOnce(4).mockResolvedValueOnce(0);
+    img.copiarImagenDeConcurso.mockImplementation(async (id: string) => ({ url: `https://r2/${id}.webp`, width: 1, height: 1 }));
+    gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "CREADA" });
+  });
+  it("una tanda de hasta 6, sólo marcadas, con permiso y sin copiar, en orden del ranking", async () => {
+    const r = await copiarImagenesDelConcurso("a1");
+    expect(r).toEqual({ ok: true, copiadas: 6, faltan: 4, fallaron: 0 });
+    expect(db.culturalContestWork.findMany.mock.calls[0][0]).toMatchObject({
+      where: { activityId: "a1", include: true, imageStatus: "PENDING", exhibitConsent: "ACCEPTED" }, take: 6,
+      orderBy: [{ rank: "asc" }, { id: "asc" }],
+    });
+    // Copia por id de la fila (leída de la base), y cada una con la muestra bloqueada.
+    expect(img.copiarImagenDeConcurso.mock.calls.map((c) => c[0])).toEqual(["cw1", "cw2", "cw3", "cw4", "cw5", "cw6"]);
+    expect(gal.sincronizarObraConGaleria).toHaveBeenCalledTimes(6);
+    expect(db.$queryRaw).toHaveBeenCalledTimes(6);
+  });
+  it("una que falla queda FAILED con el mensaje y las demás siguen", async () => {
+    img.copiarImagenDeConcurso.mockImplementation(async (id: string) => {
+      if (id === "cw2") throw new ImagenDeConcursoError("FETCH_FAILED", "x");
+      return { url: `https://r2/${id}.webp`, width: 1, height: 1 };
+    });
+    const r = await copiarImagenesDelConcurso("a1");
+    expect(r).toMatchObject({ ok: true, copiadas: 5 });
+    expect(db.culturalContestWork.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["cw2"] }, activityId: "a1", imageStatus: "PENDING" },
+      data: { imageStatus: "FAILED", imageError: "No pudimos traer la imagen de FotoRank. Probá de nuevo en un rato." },
+    });
+  });
+  it("sin el secreto: las de la tanda quedan FAILED con el aviso y la acción lo devuelve", async () => {
+    img.copiarImagenDeConcurso.mockRejectedValue(new ImagenDeConcursoError("NOT_CONFIGURED", "Falta configurar la conexión con FotoRank (avisale a la administración)."));
+    const r = await copiarImagenesDelConcurso("a1");
+    expect(r).toEqual({ ok: false, errores: ["Falta configurar la conexión con FotoRank (avisale a la administración)."] });
+    expect(db.culturalContestWork.updateMany.mock.calls[0][0].where.id.in).toEqual(tanda(6).map((t) => t.id));
+    expect(img.copiarImagenDeConcurso).toHaveBeenCalledTimes(1);
+  });
+  it("si otra pestaña ya la copió, no la vuelve a llevar a la galería", async () => {
+    db.culturalContestWork.findMany.mockResolvedValue(tanda(1));
+    db.culturalContestWork.updateMany.mockResolvedValue({ count: 0 });
+    await copiarImagenesDelConcurso("a1");
+    expect(gal.sincronizarObraConGaleria).not.toHaveBeenCalled();
+  });
+  it("tope de la muestra: avisa", async () => {
+    db.culturalContestWork.findMany.mockResolvedValue(tanda(1));
+    gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "TOPE", aviso: "La muestra llegó al máximo técnico de 300 obras." });
+    expect(await copiarImagenesDelConcurso("a1")).toMatchObject({ ok: true, avisos: ["La muestra llegó al máximo técnico de 300 obras."] });
+  });
+  it("coorganización (sin `contest`): no existe, sin copiar nada", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue(null);
+    expect(await copiarImagenesDelConcurso("a1")).toEqual({ ok: false, errores: ["La muestra no existe."] });
+    expect(img.copiarImagenDeConcurso).not.toHaveBeenCalled();
+  });
+  it("en revisión: no", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra({ reviewStatus: "IN_REVIEW" }), contestImport: { id: "i1" } });
+    expect(await copiarImagenesDelConcurso("a1")).toEqual({ ok: false, errores: ["La muestra está en revisión: esperá a que se revise para cambiar sus obras."] });
+  });
+  it("reintentar pasa las FAILED a PENDING", async () => {
+    expect((await reintentarImagenes("a1")).ok).toBe(true);
+    expect(db.culturalContestWork.updateMany).toHaveBeenCalledWith({
+      where: { activityId: "a1", include: true, imageStatus: "FAILED" }, data: { imageStatus: "PENDING", imageError: null },
+    });
   });
 });

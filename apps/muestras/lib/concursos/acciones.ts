@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
 import {
-  activityRole, canEdit, dayEndAr, dayStartAr, newSlug, parseContestTiers, toArDay, type ContestTier, type ReviewStatus,
+  CONTEST_IMAGE_BATCH, activityRole, canEdit, dayEndAr, dayStartAr, newSlug, parseContestTiers, toArDay, type ContestTier, type ReviewStatus,
 } from "@repo/muestras";
 import { conPermiso, puede } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
@@ -11,6 +11,8 @@ import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario, type Usuario } from "@/lib/usuario";
 import { aplicarResultados, CorteDeArmado } from "./armar";
 import { mensajeDeResultados, resultadosDelConcurso, type ResultadosDelConcurso } from "./fotorank";
+import { sincronizarObraConGaleria } from "./galeria";
+import { borrarImagenDeConcurso, copiarImagenDeConcurso, ImagenDeConcursoError } from "./imagen";
 
 /**
  * Acciones del concurso de FotoRank en la muestra (etapa 7). Cada una vuelve a leer la sesión y el
@@ -19,6 +21,9 @@ import { mensajeDeResultados, resultadosDelConcurso, type ResultadosDelConcurso 
  * hace en una transacción que bloquea la muestra (`FOR UPDATE`).
  */
 export type ResultadoConcurso = { ok: true; id: string; avisos?: string[] } | { ok: false; errores: string[] };
+export type ResultadoCopia =
+  | { ok: true; copiadas: number; faltan: number; fallaron: number; avisos?: string[] }
+  | { ok: false; errores: string[] };
 
 const error = (texto: string): ResultadoConcurso => ({ ok: false, errores: [texto] });
 const SIN_SESION = error("Tenés que ingresar.");
@@ -29,6 +34,7 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 /** Dos "Armar" del mismo concurso y la misma persona con menos de esto de diferencia son un doble clic. */
 const VENTANA_DOBLE_CLIC_MS = 2 * 60 * 1000;
 const OPCIONES_TX = { timeout: 60_000, maxWait: 10_000 } as const;
+const NO_PUDIMOS_TRAER = "No pudimos traer la imagen de FotoRank. Probá de nuevo en un rato.";
 
 type Resultados = Extract<ResultadosDelConcurso, { ok: true }>;
 
@@ -147,7 +153,7 @@ export async function armarMuestraDesdeConcurso(fd: FormData): Promise<Resultado
       if (!importId) {
         importId = (await tx.culturalContestImport.create({ data: { activityId: a.id, ...datosDelImport(r, tiers, usuario.id) }, select: { id: true } })).id;
       }
-      await aplicarResultados(tx, { activityId: a.id, importId, resultados: r, tiers, ahora });
+      avisos = (await aplicarResultados(tx, { activityId: a.id, importId, resultados: r, tiers, ahora })).avisos ?? [];
       activityId = a.id;
       slug = a.slug;
     }, OPCIONES_TX);
@@ -185,12 +191,13 @@ export async function actualizarDesdeConcurso(activityId: string, tiersPedidos?:
   }
 
   let slug = "";
+  let avisos: string[] = [];
   const importId = a.contestImport.id;
   try {
     await prisma.$transaction(async (tx) => {
       const m = await bloquearMuestra(tx, activityId, usuario);
       if (m.contestImport?.id !== importId) throw new CorteDeArmado("La muestra cambió mientras tanto. Recargá la página.");
-      await aplicarResultados(tx, { activityId, importId, resultados: r, tiers });
+      avisos = (await aplicarResultados(tx, { activityId, importId, resultados: r, tiers })).avisos ?? [];
       slug = m.slug;
     }, OPCIONES_TX);
   } catch (err) {
@@ -198,5 +205,123 @@ export async function actualizarDesdeConcurso(activityId: string, tiersPedidos?:
     throw err;
   }
   refrescar(activityId, slug);
-  return { ok: true, id: activityId };
+  return avisos.length ? { ok: true, id: activityId, avisos } : { ok: true, id: activityId };
+}
+
+// ── Imágenes ────────────────────────────────────────────────────────────────
+
+/**
+ * Sesión, id, freno y la capacidad `contest` sobre la muestra, leída en la base (D3). La coorganización
+ * no la tiene: para ella la muestra "no existe" en estas acciones.
+ */
+async function prepararMuestra(activityId: unknown, freno: "copiarImagenesConcurso" | "opcionesConcurso") {
+  const usuario = await getUsuario();
+  if (!usuario) return { listo: false as const, error: SIN_SESION };
+  if (typeof activityId !== "string" || !ES_ID.test(activityId)) return { listo: false as const, error: error(MUESTRA_NO_EXISTE) };
+  if (!frenarPorUsuario(freno, usuario.id).allowed) return { listo: false as const, error: error("Hiciste muchos cambios seguidos. Esperá unos minutos.") };
+  const a = await prisma.culturalActivity.findFirst({
+    where: conPermiso({ id: activityId }, usuario, "contest"),
+    select: {
+      id: true, slug: true, reviewStatus: true, proposedByUserId: true, workspaceId: true, isCancelled: true, startsAt: true, endsAt: true,
+      members: filaPropia(usuario.id), contestImport: { select: { id: true } },
+    },
+  });
+  if (!a?.contestImport) return { listo: false as const, error: error(MUESTRA_NO_EXISTE) };
+  // Como el editor y la revisión de expositores: en revisión (o despublicada) no cambian sus obras.
+  const editable = canEdit({ ...a, reviewStatus: a.reviewStatus as ReviewStatus }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: activityRole(a, usuario.id) });
+  return { listo: true as const, usuario, activityId: a.id, muestra: a, editable };
+}
+
+const EN_REVISION = "La muestra está en revisión: esperá a que se revise para cambiar sus obras.";
+const noEditable = (reviewStatus: string) => error(reviewStatus === "IN_REVIEW" ? EN_REVISION : NO_EDITABLE);
+
+/** Las obras que esperan su imagen: marcadas, con permiso y sin copiar. Antes del permiso, la imagen no sale de FotoRank. */
+const esperanImagen = (activityId: string) => ({ activityId, include: true, imageStatus: "PENDING", exhibitConsent: "ACCEPTED" });
+
+/** Borra del bucket las copias de las obras que salieron de la muestra (después de la transacción). */
+async function borrarCopias(urls: readonly (string | undefined)[]) {
+  for (const u of urls) if (u) await borrarImagenDeConcurso(u);
+}
+
+/**
+ * Copia una tanda de imágenes (D12): hasta `CONTEST_IMAGE_BATCH`, en el orden del ranking. La copia
+ * (bajar de FotoRank, procesar y subir) va **fuera** de la transacción, una por una; después, por
+ * cada una, una transacción corta que bloquea la muestra, marca la imagen y lleva la obra a la
+ * galería. Lo copiado no se pierde: si se corta, la próxima vez sigue donde quedó. Una que falla
+ * queda `FAILED` con el motivo y las demás siguen; sin la conexión con FotoRank, frena y lo dice.
+ */
+export async function copiarImagenesDelConcurso(activityId: string): Promise<ResultadoCopia> {
+  const p = await prepararMuestra(activityId, "copiarImagenesConcurso");
+  if (!p.listo) return p.error as ResultadoCopia;
+  if (!p.editable) return noEditable(p.muestra.reviewStatus) as ResultadoCopia;
+  const { usuario } = p;
+  const tanda = await prisma.culturalContestWork.findMany({
+    where: esperanImagen(p.activityId),
+    orderBy: [{ rank: "asc" }, { id: "asc" }],
+    take: CONTEST_IMAGE_BATCH,
+    select: { id: true },
+  });
+
+  let copiadas = 0;
+  const avisos = new Set<string>();
+  const borrar: (string | undefined)[] = [];
+  const fallar = (ids: string[], motivo: string) =>
+    prisma.culturalContestWork.updateMany({ where: { id: { in: ids }, activityId: p.activityId, imageStatus: "PENDING" }, data: { imageStatus: "FAILED", imageError: motivo } });
+
+  for (let i = 0; i < tanda.length; i++) {
+    const { id } = tanda[i]!;
+    let copia: { url: string };
+    try {
+      copia = await copiarImagenDeConcurso(id);
+    } catch (err) {
+      if (err instanceof ImagenDeConcursoError && err.code === "NOT_CONFIGURED") {
+        await fallar(tanda.slice(i).map((t) => t.id), err.message);
+        return { ok: false, errores: [err.message] };
+      }
+      // Cambió mientras tanto (el autor la sacó o la quitaron): no es un error de la imagen.
+      if (err instanceof ImagenDeConcursoError && err.code === "NOT_ALLOWED") continue;
+      if (!(err instanceof ImagenDeConcursoError)) console.error("[muestras] concurso copia:", id, err instanceof Error ? err.message : String(err));
+      await fallar([id], err instanceof ImagenDeConcursoError && err.code === "INVALID" ? err.message : NO_PUDIMOS_TRAER);
+      continue;
+    }
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${p.activityId} FOR UPDATE`;
+        if ((await tx.culturalActivity.count({ where: conPermiso({ id: p.activityId }, usuario, "contest") })) === 0) throw new CorteDeArmado(MUESTRA_NO_EXISTE);
+        const { count } = await tx.culturalContestWork.updateMany({
+          where: { id, ...esperanImagen(p.activityId) },
+          data: { imageStatus: "COPIED", imageUrl: copia.url, imageError: null, copiedAt: new Date() },
+        });
+        // Otra pestaña ya la copió, o cambió en el medio: la próxima tanda lo resuelve.
+        if (count === 0) return;
+        const s = await sincronizarObraConGaleria(tx, p.activityId, id);
+        if (s.aviso) avisos.add(s.aviso);
+        borrar.push(s.borrarImagen);
+      }, { timeout: 30_000, maxWait: 10_000 });
+      copiadas += 1;
+    } catch (err) {
+      if (err instanceof CorteDeArmado) return error(err.message) as ResultadoCopia;
+      throw err;
+    }
+  }
+  await borrarCopias(borrar);
+
+  const [faltan, fallaron] = await Promise.all([
+    prisma.culturalContestWork.count({ where: esperanImagen(p.activityId) }),
+    prisma.culturalContestWork.count({ where: { activityId: p.activityId, include: true, imageStatus: "FAILED" } }),
+  ]);
+  if (copiadas) refrescar(p.activityId);
+  return avisos.size ? { ok: true, copiadas, faltan, fallaron, avisos: [...avisos] } : { ok: true, copiadas, faltan, fallaron };
+}
+
+/** "Reintentar": las imágenes que fallaron vuelven a esperar su copia. */
+export async function reintentarImagenes(activityId: string): Promise<ResultadoConcurso> {
+  const p = await prepararMuestra(activityId, "copiarImagenesConcurso");
+  if (!p.listo) return p.error;
+  await prisma.culturalContestWork.updateMany({
+    where: { activityId: p.activityId, include: true, imageStatus: "FAILED" },
+    data: { imageStatus: "PENDING", imageError: null },
+  });
+  refrescar(p.activityId);
+  return { ok: true, id: p.activityId };
 }

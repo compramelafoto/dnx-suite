@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@repo/db";
 import { MAX_WORKS, planContestImport, type ContestTier } from "@repo/muestras";
 import type { ObraDelConcurso, ResultadosDelConcurso } from "./fotorank";
+import { sincronizarObraConGaleria } from "./galeria";
 
 /**
  * Armar y actualizar una muestra desde un concurso de FotoRank (etapa 7, D10 y D11). No es una acción
@@ -38,7 +39,7 @@ const datosDelPremio = (w: ObraDelConcurso) => ({
   tier: w.tier, awardType: w.awardType, categoryId: w.categoryId, categoryName: w.categoryName, distinction: w.distinction, rank: w.rank,
 });
 
-export type ResultadoDelArmado = { creadas: number; actualizadas: number; gone: number; creadasIds: string[] };
+export type ResultadoDelArmado = { creadas: number; actualizadas: number; gone: number; creadasIds: string[]; avisos: string[] };
 
 export async function aplicarResultados(
   tx: Prisma.TransactionClient,
@@ -50,7 +51,7 @@ export async function aplicarResultados(
   const existentes = await tx.culturalContestWork.findMany({
     where: { activityId },
     select: {
-      id: true, entryId: true, include: true, sourceStatus: true,
+      id: true, entryId: true, include: true, sourceStatus: true, imageStatus: true, exhibitConsent: true, activityWorkId: true,
       tier: true, awardType: true, categoryId: true, categoryName: true, distinction: true, rank: true,
     },
   });
@@ -139,5 +140,14 @@ export async function aplicarResultados(
     },
   });
 
-  return { creadas: creadasIds.length, actualizadas, gone: plan.gone.length, creadasIds };
+  // Re-armar: las que ya tenían imagen y permiso pero no están en la galería (p. ej. no entraron por
+  // el tope) se vuelven a llevar. Las nuevas esperan su imagen.
+  const avisos = new Set<string>();
+  for (const e of existentes) {
+    if (!e.include || e.imageStatus !== "COPIED" || e.exhibitConsent !== "ACCEPTED" || e.activityWorkId) continue;
+    const s = await sincronizarObraConGaleria(tx, activityId, e.id);
+    if (s.aviso) avisos.add(s.aviso);
+  }
+
+  return { creadas: creadasIds.length, actualizadas, gone: plan.gone.length, creadasIds, avisos: [...avisos] };
 }
