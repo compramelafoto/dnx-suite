@@ -2286,6 +2286,11 @@ model Album {
   printPricingSource              PrintPricingSource             @default(PHOTOGRAPHER)
   deletedAt                       DateTime?
   /// Estado del pipeline de limpieza por retención (45 días).
+  /// Interruptor por álbum para la búsqueda por dorsal, patente o nombre.
+  ///
+  /// `null` significa "decidí vos" y cae a la regla por tipo de álbum (sólo SPORTS).
+  /// Leer el texto de las fotos lo cobra Amazon por foto. Ver `lib/analysis/should-run-ocr.ts`.
+  textSearchEnabled Boolean?
   cleanupStatus                   AlbumCleanupStatus             @default(NONE)
   cleanupPendingAt                DateTime?
   cleanupStartedAt                DateTime?

@@ -88,6 +88,17 @@ type Album = {
   expirationExtensionDays?: number | null;
   isHidden?: boolean;
   showComingSoonMessage?: boolean;
+  /**
+   * Si ofrecer el buscador por número o palabra.
+   *
+   * Desde el 2026-10-09 la lectura de texto sólo corre en álbumes deportivos, porque en
+   * los demás no hay nada que leer y se le pagaba a Amazon igual. Donde no corrió, el
+   * buscador devolvería siempre cero resultados: es peor ofrecerlo que no tenerlo.
+   *
+   * Opcional y por defecto `true`, para no cambiarle el comportamiento a nadie que no lo
+   * pase explícitamente.
+   */
+  textSearchAvailable?: boolean;
   hiddenPhotosEnabled?: boolean;
   /** Protección visual al ampliar fotos no compradas. Activada salvo que el fotógrafo la apague. */
   scanProtectionEnabled?: boolean;
@@ -2858,33 +2869,38 @@ export default function ClientAlbumView({
                     </p>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTab("text");
-                    setShowOcrModal(true);
-                  }}
-                  className={`flex w-full flex-col items-center justify-center gap-3 rounded-2xl border px-5 py-5 text-center shadow-md transition sm:min-h-[200px] ${
-                    searchTab === "text"
-                      ? "border-transparent"
-                      : "border-[#e5e7eb] hover:border-[#cbd5f5] bg-white"
-                  }`}
-                  style={searchTab === "text" ? { backgroundColor: `${accentColor}14` } : undefined}
-                >
-                  <img
-                    src="/OCR.png"
-                    alt="Buscar por número o palabra clave"
-                    className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white p-4 object-contain sm:h-[140px] sm:w-[140px]"
-                  />
-                  <div>
-                    <p className="text-base font-semibold text-[#1a1a1a]">
-                      Buscar por número o palabra clave
-                    </p>
-                    <p className="text-sm text-[#6b7280] mt-0.5 leading-snug">
-                      Camiseta, dorsal, patente, DNI o nombre
-                    </p>
-                  </div>
-                </button>
+                {/* Sin texto leído, este buscador siempre devolvería cero. Ver `textSearchAvailable`. */}
+                {album.textSearchAvailable !== false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTab("text");
+                      setShowOcrModal(true);
+                    }}
+                    className={`flex w-full flex-col items-center justify-center gap-3 rounded-2xl border px-5 py-5 text-center shadow-md transition sm:min-h-[200px] ${
+                      searchTab === "text"
+                        ? "border-transparent"
+                        : "border-[#e5e7eb] hover:border-[#cbd5f5] bg-white"
+                    }`}
+                    style={
+                      searchTab === "text" ? { backgroundColor: `${accentColor}14` } : undefined
+                    }
+                  >
+                    <img
+                      src="/OCR.png"
+                      alt="Buscar por número o palabra clave"
+                      className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white p-4 object-contain sm:h-[140px] sm:w-[140px]"
+                    />
+                    <div>
+                      <p className="text-base font-semibold text-[#1a1a1a]">
+                        Buscar por número o palabra clave
+                      </p>
+                      <p className="text-sm text-[#6b7280] mt-0.5 leading-snug">
+                        Camiseta, dorsal, patente, DNI o nombre
+                      </p>
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
             {searchError && !purchaseUxV2 && (
