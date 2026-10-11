@@ -89,6 +89,8 @@ export type OrdenLeida = {
   totalCents: number | null;
   splits: { receiverId: string; type: string; cents: number | null }[];
   paymentStatus: string | null;
+  /** El detalle del pago (`cc_rejected_…`): con esto se arma el mensaje para el comprador. */
+  paymentStatusDetail: string | null;
   liveMode: boolean | null;
 };
 
@@ -113,23 +115,33 @@ export async function leerOrden(providerOrderId: string): Promise<OrdenLeida | n
   if (!c) return null;
   try {
     const r = await c.http.request<OrdenCruda>({ method: "GET", path: `/v1/orders/${providerOrderId}` });
-    const body = r.body;
-    if (!body?.id) return null;
-    const mapeada = mapMercadoPagoOrderResponse(body as Parameters<typeof mapMercadoPagoOrderResponse>[0]);
-    return {
-      providerOrderId: body.id,
-      status: mapeada.status,
-      statusDetail: mapeada.statusDetail ?? null,
-      externalReference: body.external_reference ?? null,
-      totalCents: aCentavos(body.total_amount),
-      splits: (body.splits ?? []).map((s) => ({ receiverId: String(s.receiver_id), type: s.receiver_type, cents: aCentavos(s.amount) })),
-      paymentStatus: body.transactions?.payments?.[0]?.status ?? null,
-      liveMode: typeof body.live_mode === "boolean" ? body.live_mode : null,
-    };
+    return ordenLeidaDesde(r.body);
   } catch (error) {
     log("leer orden", error);
     return null;
   }
+}
+
+/**
+ * Traduce el cuerpo de una Order (la del `GET` o la respuesta de la creación) a `OrdenLeida`.
+ * `null` si no trae id o estado: entonces hay que preguntar con `leerOrden`.
+ */
+export function ordenLeidaDesde(cuerpo: unknown): OrdenLeida | null {
+  const body = cuerpo as OrdenCruda | null | undefined;
+  if (!body?.id || typeof body.status !== "string") return null;
+  const mapeada = mapMercadoPagoOrderResponse(body as Parameters<typeof mapMercadoPagoOrderResponse>[0]);
+  const pago = body.transactions?.payments?.[0];
+  return {
+    providerOrderId: body.id,
+    status: mapeada.status,
+    statusDetail: mapeada.statusDetail ?? null,
+    externalReference: body.external_reference ?? null,
+    totalCents: aCentavos(body.total_amount),
+    splits: (body.splits ?? []).map((s) => ({ receiverId: String(s.receiver_id), type: s.receiver_type, cents: aCentavos(s.amount) })),
+    paymentStatus: pago?.status ?? null,
+    paymentStatusDetail: pago?.status_detail ?? null,
+    liveMode: typeof body.live_mode === "boolean" ? body.live_mode : null,
+  };
 }
 
 export type Consentimiento = { receiverId: string; status: string; inviteUrl: string | null };

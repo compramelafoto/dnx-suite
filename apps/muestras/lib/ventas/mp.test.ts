@@ -46,6 +46,7 @@ describe("leerOrden", () => {
         { receiverId: "r-foto", type: "partner", cents: 127_550 },
       ],
       paymentStatus: "processed",
+      paymentStatusDetail: "accredited",
       liveMode: null,
     });
     const [url, init] = fetchFalso.mock.calls[0]!;
