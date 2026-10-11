@@ -5,6 +5,7 @@
 
 export const MODOS_VENTA = ["SELECCION", "SELECCION_Y_VENTA", "VENTA"] as const;
 export type ModoVenta = (typeof MODOS_VENTA)[number];
+export const esModoVenta = (v: unknown): v is ModoVenta => typeof v === "string" && (MODOS_VENTA as readonly string[]).includes(v);
 
 export const TIPOS_GALERIA = ["SELECCION", "ENTREGA"] as const;
 export type TipoGaleria = (typeof TIPOS_GALERIA)[number];

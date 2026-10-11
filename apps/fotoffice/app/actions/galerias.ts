@@ -18,6 +18,8 @@ import {
   archivarGaleria, borrarFotoDeGaleria, buscarProyectos, crearGaleria, editarGaleria, establecerModoOrden, fotosPorIds,
   publicarGaleria, reactivarGaleria, vistasPorIds, type ProyectoEncontrado, type ResultadoGaleria, type ResultadoSimpleGaleria,
 } from "@/lib/galerias/galerias";
+import { marcarCompraPagadaAMano, type ResultadoPagoAMano } from "@/lib/galerias/compras";
+import { guardarVentaGaleria, type ResultadoVenta } from "@/lib/galerias/venta";
 import { establecerPortada, pedirSubidaFoto, reordenarFotos, type FotoVisible } from "@/lib/galerias/fotos";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción revisa la forma de lo que llega, arma
@@ -290,6 +292,34 @@ export async function reactivarSeleccionGaleriaAction(galeriaId: string, galeria
   const ctx = await contextoDeGalerias("operar");
   if (!ctx) return SIN_PERMISO;
   const r = await reactivarSeleccion(ctx, galeriaId, galeriaClienteId);
+  if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
+  return r;
+}
+
+// --- Venta de fotos extra (Gestionar) -------------------------------------------------------------------------
+
+/**
+ * Guarda la pestaña Venta: modo de venta, incluidas, precio por foto o por paquete, descuentos y rubro de
+ * ingreso. Se valida en el servidor (`validarConfigVenta`); no toca las compras ya hechas.
+ */
+export async function guardarVentaGaleriaAction(galeriaId: string, datos: unknown): Promise<ResultadoVenta> {
+  if (!esId(galeriaId) || !esObjeto(datos)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await guardarVentaGaleria(ctx, galeriaId, datos);
+  if (r.ok) refrescar(galeriaId);
+  return r;
+}
+
+/**
+ * "Marcar pagada a mano": cobra las fotos extra que el cliente tiene elegidas hoy (el precio lo calcula el
+ * servidor), con el medio y la fecha indicados, y lo registra en Caja si está encendida.
+ */
+export async function marcarCompraPagadaAManoAction(galeriaId: string, galeriaClienteId: string, datos: unknown): Promise<ResultadoPagoAMano> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId) || !esObjeto(datos)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await marcarCompraPagadaAMano(ctx, galeriaId, galeriaClienteId, datos);
   if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
   return r;
 }

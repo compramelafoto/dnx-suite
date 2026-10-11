@@ -70,5 +70,6 @@ export const MENSAJES_GALERIA = {
   sinClaveEnlace: "El envío de enlaces no está configurado. Avisale a quien administra FOTOFFICE.",
   envioEnCurso: "Estamos mandando el correo. El resultado queda en el Historial de la galería.",
   // Ajustes
+  rubroIngreso: "Ese rubro de ingreso no existe o no está activo.",
   ajustesInvalidos: "Revisá los valores por omisión: no son válidos.",
 } as const;

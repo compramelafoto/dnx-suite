@@ -24,6 +24,10 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   CONFIRMACION_NO_ENVIADA: "El correo de confirmación al cliente no salió",
   AVISO_ESTUDIO_ENVIADO: "Aviso al estudio enviado",
   AVISO_ESTUDIO_NO_ENVIADO: "El aviso al estudio no salió",
+  VENTA_CONFIGURADA: "Venta de fotos extra configurada",
+  COMPRA_PAGADA: "Compra de fotos extra pagada",
+  COMPRA_SIN_CAJA: "Compra pagada sin registrar en Caja",
+  COMPRA_CANCELADA: "Compra de fotos extra cancelada",
 };
 
 /** Eventos que hace el propio cliente desde su enlace (sin usuario del estudio): en el historial el actor es el cliente. */

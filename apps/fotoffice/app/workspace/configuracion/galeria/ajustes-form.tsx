@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import { guardarAjustesGaleriaAction } from "@/app/actions/galerias";
 import { ETIQUETA_MODO_DESCARGA, MAX_MENSAJE_GALERIA, type ModoDescarga } from "@/lib/galerias/constantes";
 
-type Inicial = { defaultMessage: string; defaultAllowComments: boolean; defaultDownloadMode: ModoDescarga };
+type Inicial = { defaultMessage: string; defaultAllowComments: boolean; defaultDownloadMode: ModoDescarga; defaultIncomeCategoryId: string };
 
-/** Mensaje de bienvenida, comentarios y descarga por omisión de las galerías nuevas. */
-export function AjustesForm({ inicial }: { inicial: Inicial }) {
+/** Mensaje de bienvenida, comentarios y descarga por omisión de las galerías nuevas, y el rubro de ingreso de las ventas de fotos extra. */
+export function AjustesForm({ inicial, rubros }: { inicial: Inicial; rubros: { id: string; nombre: string }[] }) {
   const [pendiente, iniciar] = useTransition();
   const [v, setV] = useState(inicial);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +23,7 @@ export function AjustesForm({ inicial }: { inicial: Inicial }) {
           defaultMessage: v.defaultMessage,
           defaultAllowComments: v.defaultAllowComments,
           defaultDownloadMode: v.defaultDownloadMode,
+          defaultIncomeCategoryId: v.defaultIncomeCategoryId,
         });
         if (!r.ok) return setError(r.error);
         setOk("Guardado. Vale para las galerías que crees de ahora en adelante.");
@@ -67,6 +68,26 @@ export function AjustesForm({ inicial }: { inicial: Inicial }) {
             <option value="VISTA">{ETIQUETA_MODO_DESCARGA.VISTA}</option>
           </select>
           <p className="text-xs text-[var(--fo-muted)]">“Vista de galería” deja bajar cada foto en tamaño liviano (2048 px), no el original.</p>
+        </div>
+      </section>
+
+      <section className="fo-card space-y-4 p-5" aria-labelledby="gal-ajustes-ventas">
+        <div className="space-y-1">
+          <h2 id="gal-ajustes-ventas" className="text-base font-semibold">
+            Venta de fotos extra
+          </h2>
+          <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
+            Cuando un cliente paga fotos extra, el ingreso se anota en Caja. Elegí el rubro de ingreso con el que se anota por omisión; cada galería puede usar otro.
+          </p>
+        </div>
+        <div className="fo-field-stack max-w-sm">
+          <label className="fo-label" htmlFor="gal-ajustes-rubro">Rubro de ingreso por omisión</label>
+          <select id="gal-ajustes-rubro" className="fo-input" value={v.defaultIncomeCategoryId} onChange={(e) => setV({ ...v, defaultIncomeCategoryId: e.target.value })}>
+            <option value="">Sin rubro</option>
+            {rubros.map((r) => (
+              <option key={r.id} value={r.id}>{r.nombre}</option>
+            ))}
+          </select>
         </div>
       </section>
 
