@@ -6,8 +6,12 @@ const parana = { latitude: -31.73, longitude: -60.53, city: "Paraná", raw: { cl
 
 describe("elegirLugar", () => {
   it("salta el río y se queda con la ciudad", () => expect(elegirLugar([rio, parana])).toBe(parana));
-  it("salta lo que cae fuera de Argentina", () => {
+  it("salta lo que cae fuera de la zona", () => {
     expect(elegirLugar([{ latitude: 40.4, longitude: -3.7, city: "Madrid", raw: { class: "place" } }, parana])).toBe(parana);
+  });
+  it("acepta una ciudad de otro país con muestras", () => {
+    const montevideo = { latitude: -34.9011, longitude: -56.1645, city: "Montevideo", raw: { class: "boundary" } };
+    expect(elegirLugar([montevideo])).toBe(montevideo);
   });
   it("sin resultados útiles → null", () => {
     expect(elegirLugar([rio])).toBeNull();

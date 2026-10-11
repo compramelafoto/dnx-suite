@@ -86,7 +86,7 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
         {origen ? (
           <p className="mb-6 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-l-2 border-[var(--mf-spot)] pl-4 text-lg">
             <span>Muestras cerca de {lugarBuscado}</span>
-            <Link href={`/${sinCerca ? `?${sinCerca}` : ""}#muestras`} className="text-[15px] text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">Ver todo el país</Link>
+            <Link href={`/${sinCerca ? `?${sinCerca}` : ""}#muestras`} className="text-[15px] text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">Ver todas</Link>
           </p>
         ) : null}
         {todas.length > 0 ? <div className="mb-6"><Filtros paises={paises} provincias={provincias} actual={{ ...sp, provincia }} cerca={origen ? { cerca: formatNearParam(origen), lugar: cleanPlaceLabel(sp.lugar) } : null} /></div> : null}

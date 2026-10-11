@@ -10,7 +10,7 @@ export type EstadoBusquedaCerca = { error: string | null };
 
 /**
  * "Buscá muestras cerca tuyo", de la portada. Pública: no pide sesión, así que se frena por IP
- * (`LIMITES_PUBLICOS`) y sólo devuelve un lugar (el primero habitable, en Argentina) como
+ * (`LIMITES_PUBLICOS`) y sólo devuelve un lugar (el primero habitable, en alguno de los países con muestras) como
  * coordenadas. No es un proxy de Nominatim: no devuelve la lista ni los datos de la dirección.
  * Las búsquedas se guardan un día (`ubicarConCache`) y el pedido tiene tiempo máximo.
  *
@@ -31,7 +31,7 @@ export async function buscarCerca(_previo: EstadoBusquedaCerca, fd: FormData): P
     console.error("buscarCerca:", err instanceof Error ? err.message : String(err));
     return { error: "No pudimos buscar ese lugar. Probá de nuevo en un rato." };
   }
-  if (!punto) return { error: "No encontramos ese lugar en Argentina. Probá con el nombre de la ciudad." };
+  if (!punto) return { error: "No encontramos ese lugar. Probá con el nombre de la ciudad." };
 
   // Lo que escribió la persona es lo que reconoce; la ciudad sólo si escribió una dirección larga.
   const lugar = texto.length > 30 && punto.city ? punto.city : texto;
