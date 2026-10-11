@@ -322,7 +322,7 @@ describe("POST archivos", () => {
       [foto("a.jpg", 52_428_801)],
       [foto("a.jpg", 0)],
       [{ nombre: "", tipo: "image/jpeg", tamano: 10 }],
-      [{ nombre: "v.mp4", tipo: "video/mp4", tamano: 5_368_709_121 }],
+      [{ nombre: "v.mp4", tipo: "video/mp4", tamano: 5_000_000_001 }],
       "no es lista",
     ];
     for (const c of casos) expect((await pedir(id, c)).status).toBe(400);

@@ -105,8 +105,8 @@ export const TIPOS_MEDIO = ["FOTO", "VIDEO"] as const;
 export type TipoMedio = (typeof TIPOS_MEDIO)[number];
 export const esTipoMedio = (v: unknown): v is TipoMedio => typeof v === "string" && (TIPOS_MEDIO as readonly string[]).includes(v);
 
-/** 5 GB exactos por video (una sola URL firmada PUT). */
-export const TAMANO_MAXIMO_VIDEO = 5_368_709_120;
+/** 5 GB (decimales) por video: una sola URL firmada PUT; R2 admite un poco menos de 5 GiB en un PUT simple. */
+export const TAMANO_MAXIMO_VIDEO = 5_000_000_000;
 export const TIPOS_VIDEO_PERMITIDOS = ["video/mp4", "video/quicktime"] as const;
 export type TipoVideoPermitido = (typeof TIPOS_VIDEO_PERMITIDOS)[number];
 /** Videos por galería de entrega. */

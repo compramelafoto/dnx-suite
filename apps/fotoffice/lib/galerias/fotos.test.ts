@@ -178,7 +178,7 @@ describe("videos (galería de entrega)", () => {
     const f = H.fotos.find((x) => x.id === r.id)!;
     expect(f).toMatchObject({ status: "PENDIENTE", mediaType: "VIDEO", contentType: "video/mp4", sizeBytes: 2_000_000_000n, galeriaId: "ge" });
     expect(H.subida).toHaveBeenCalledWith(f.originalKey, "video/mp4", 2_000_000_000);
-    expect((await F.pedirSubidaFoto(ctx(), "ge", { nombre: "a.mov", tipo: "video/quicktime", tamano: 5_368_709_120 })).ok).toBe(true);
+    expect((await F.pedirSubidaFoto(ctx(), "ge", { nombre: "a.mov", tipo: "video/quicktime", tamano: 5_000_000_000 })).ok).toBe(true);
   });
   it("las fotos de una entrega quedan como FOTO con su contentType", async () => {
     const r = await F.pedirSubidaFoto(ctx(), "ge", archivo);
@@ -186,7 +186,7 @@ describe("videos (galería de entrega)", () => {
     expect(H.fotos.find((x) => x.id === r.id)).toMatchObject({ mediaType: "FOTO", contentType: "image/jpeg" });
   });
   it("rechaza más de 5 GB, tipos de video no admitidos, vacío y no entero", async () => {
-    expect(await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 5_368_709_121 })).toMatchObject({ ok: false, error: expect.stringContaining("5 GB") });
+    expect(await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 5_000_000_001 })).toMatchObject({ ok: false, error: expect.stringContaining("5 GB") });
     expect(await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tipo: "video/x-msvideo" })).toMatchObject({ ok: false, error: expect.stringContaining("MP4") });
     expect((await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 0 })).ok).toBe(false);
     expect((await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 10.5 })).ok).toBe(false);
