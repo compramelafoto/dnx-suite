@@ -1,5 +1,7 @@
 /**
- * Cron: muestras de muestrasfotograficas.com → eventos de Info Spot (cada 30 min).
+ * Cron: muestras de muestrasfotograficas.com → eventos de Info Spot.
+ * Una vez por semana, los jueves a las 10:00 hora argentina (13:00 UTC en vercel.json): decisión
+ * de Daniel del 10/10, para que las muestras se publiquen de a tandas.
  *
  * Auth: Authorization: Bearer $CRON_SECRET (o x-cron-secret). Sin secreto → 503.
  * `?dryRun=1` cuenta lo que haría sin escribir.

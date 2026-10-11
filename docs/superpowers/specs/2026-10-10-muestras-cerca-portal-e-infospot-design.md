@@ -42,7 +42,7 @@ aprobadas, no canceladas, que no cerraron hace más de 1 día. Sólo campos ya p
 id, slug, tipo, título, descripción, organizadores, portada, fechas, horario, precio, lugar, ciudad,
 provincia, dirección, coordenadas, virtual, url pública. Nunca mails, teléfonos ni ids de usuario.
 
-**InfoSpot sincroniza** con un cron nuevo `/api/cron/muestras-sync` cada 30 min (`CRON_SECRET`, igual
+**InfoSpot sincroniza** con un cron nuevo `/api/cron/muestras-sync` una vez por semana, jueves 10:00 hora argentina (`0 13 * * 4`, `CRON_SECRET`, igual
 que `clf-events-sync`), en `lib/muestras-sync/`:
 
 - Origen: `InfoSpotContentOrigin` con `sourceType API`, `externalEntityType EVENT`,

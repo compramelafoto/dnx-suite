@@ -8,7 +8,7 @@ const BASE = "https://muestrasfotograficas.com";
 
 /**
  * Las actividades publicadas, para que otras plataformas de la suite las difundan (InfoSpot las
- * lee cada 30 minutos). Público y sin sesión: sólo lleva lo que ya se ve en cada página.
+ * lee una vez por semana). Público y sin sesión: sólo lleva lo que ya se ve en cada página.
  * La CDN la guarda 10 minutos.
  */
 export async function GET() {

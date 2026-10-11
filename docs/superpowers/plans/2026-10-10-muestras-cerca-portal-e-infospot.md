@@ -79,7 +79,7 @@
 - Create: `apps/muestras/app/api/public/actividades/route.ts`, `apps/muestras/lib/actividades/exportables.ts`, `apps/muestras/lib/actividades/exportables.test.ts`
 - Create: `apps/infospot/lib/muestras-sync/{types.ts,normalize.ts,fetch.ts,sync.ts,reconcile.ts,muestras-sync.test.ts}`
 - Create: `apps/infospot/app/api/cron/muestras-sync/route.ts`
-- Modify: `apps/infospot/vercel.json` (cron `*/30 * * * *`), `apps/infospot/package.json` (`test:muestras-sync` y sumarlo a `test`).
+- Modify: `apps/infospot/vercel.json` (cron `0 13 * * 4`, jueves 10:00 hora argentina), `apps/infospot/package.json` (`test:muestras-sync` y sumarlo a `test`).
 
 **Interfaces:**
 - Muestras: `aExportable(a, base): ActividadExportable` (puro) y `export type ActividadExportable = { id; slug; type; title; description; organizersText; coverImageUrl; startsAt: string; endsAt: string; scheduleText; priceText; isVirtualOnly; venueName; address; city; province; latitude; longitude; url }`. Respuesta `{ v: 1, generatedAt, items }`, `Cache-Control: public, s-maxage=600, stale-while-revalidate=3600`. Filtro: APPROVED, no cancelada, `endsAt > now - 1 día`.
