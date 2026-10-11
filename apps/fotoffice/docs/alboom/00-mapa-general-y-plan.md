@@ -183,7 +183,7 @@ de prueba. Mientras tanto se sigue trabajando en Alboom. Nada se escribe en Albo
 1. **Drive** se sigue usando por ahora como entrega, en paralelo.
 2. A la galería van **las fotos que el fotógrafo eligió para entrega** en Aftershoot (4, 5 estrellas o ambas: lo que se exportó a Entregas).
 3. **Dos versiones en R2**: una liviana para ver (~2000 px) y el original en alta para descargar con enlace firmado. Entregas en un prefijo/bucket separado de los crudos (los crudos mantienen su regla de 180 días; la retención de entregas se define aparte).
-4. ~~Las galerías ya publicadas en Proof se migran~~ **Cambio del 10/10/2026: NO se migran.** La galería FOTOFFICE arranca de cero; lo de Proof (≈700 galerías, 334 GB, muchos años de trabajo) queda donde está. La migración de la Etapa 8 es sólo del CRM.
+4. ~~Las galerías ya publicadas en Proof se migran~~ **Cambio del 10/10/2026: NO se migran.** La galería FOTOFFICE arranca de cero; lo de Proof (≈700 galerías, 334 GB, muchos años de trabajo) queda donde está. La migración de la Etapa 8 es sólo del CRM. **Como mucho**, en la Etapa 8 cada contacto queda **vinculado con el enlace de su galería de Proof** (campo personalizado "Galería en Proof (enlace)"; se empareja por el número de pedido o el nombre del cliente que trae el nombre de la galería; lo que no coincida queda en una lista para revisar). No se copian fotos.
 5. La galería se ata al **Proyecto** de fotografía, que pertenece a un **Pedido** (un pedido puede tener varios proyectos: foto, video, fotolibro).
 6. DNX FLUX **se usará en Windows**: hay que calibrar Aftershoot ahí.
 7. No se venden fotos desde la galería. La venta, cuando exista, es a través de **CompraMeLaFoto** como brazo de venta de FOTOFFICE.
