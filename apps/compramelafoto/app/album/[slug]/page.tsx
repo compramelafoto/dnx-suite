@@ -546,6 +546,21 @@ export default async function AlbumPublicPage({
   );
   const signedPhotos = mappedPhotos.filter((p: { previewUrl: string }) => Boolean(p.previewUrl));
   const hiddenPhotosEnabled = Boolean((album as { hiddenPhotosEnabled?: boolean }).hiddenPhotosEnabled);
+
+  /*
+    Si este álbum tiene algún texto leído.
+
+    Desde el 2026-10-09 la lectura de texto sólo corre en álbumes deportivos: en los demás
+    no hay dorsales ni patentes que buscar y se le pagaba a Amazon por cada foto igual.
+    Donde no corrió, ofrecer el buscador por número sería ofrecer algo que devuelve
+    siempre cero. Se pregunta por el dato real y no por el tipo de álbum para que los
+    álbumes viejos —que sí tienen texto leído de antes— lo sigan mostrando.
+  */
+  const albumHasReadableText =
+    (await prisma.ocrToken.findFirst({
+      where: { photo: { albumId: album.id } },
+      select: { id: true },
+    })) !== null;
   const photographerBypassGrant = isOwner || isAdmin || Boolean(hasAccess);
   const grantCookie = (await cookies()).get(HIDDEN_ALBUM_GRANT_COOKIE)?.value ?? null;
   const hiddenVisitorPhotos = await filterPublicAlbumPhotosForHiddenVisitor(
@@ -688,6 +703,7 @@ export default async function AlbumPublicPage({
               coverImageUrl: albumCoverImageUrl,
               expirationExtensionDays: (album as any).expirationExtensionDays ?? 0,
               showComingSoonMessage: album.showComingSoonMessage,
+              textSearchAvailable: albumHasReadableText,
               hiddenPhotosEnabled,
               scanProtectionEnabled:
                 (album as { scanProtectionEnabled?: boolean }).scanProtectionEnabled !== false,
