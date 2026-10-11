@@ -174,7 +174,7 @@ describe("venta de fotos extra en el estudio (fuente)", () => {
     const s = leer("./compras.ts");
     const i = s.indexOf("export async function marcarCompraPagadaAMano(");
     const cuerpo = s.slice(i, s.indexOf("// --- Lectura para la revisión", i));
-    expect(s).toContain("return calcularCarrito(");
+    expect(leer("./carrito.ts")).toContain("return calcularCarrito(");
     expect(cuerpo).not.toMatch(/d\.(importe|total|monto|amount)/i);
     expect(cuerpo).toContain("carritoDeCliente(tx");
   });

@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { avisarSeleccionEnviada } from "@/lib/galerias/avisos";
+import { iniciarPagoGaleria } from "@/lib/galerias/pago";
 import { comentarFoto, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
 import { MENSAJES_PUBLICO } from "@/lib/galerias/publico-tipos";
 import type { ComentarioPublico } from "@/lib/galerias/publico-tipos";
@@ -44,6 +45,15 @@ export async function enviarSeleccionAction(slug: unknown, token: unknown, mensa
   // Los correos salen después de responder; si fallan, queda en el historial y el cliente ya no espera.
   after(() => avisarSeleccionEnviada(r.aviso));
   return { ok: true, cantidad: r.cantidad, enviadaEn: r.enviadaEn };
+}
+
+/** «Pagar fotos extra»: abre Checkout Pro con el carrito que calcula el servidor y devuelve la dirección de pago. */
+export async function pagarFotosExtraAction(slug: unknown, token: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("pagar", 15, slug);
+  if (!e.ok) return e;
+  const r = await iniciarPagoGaleria(e.workspaceId, token);
+  if (!r.ok) return r;
+  return { ok: true, url: r.checkoutUrl };
 }
 
 export async function vistasAction(slug: unknown, token: unknown, ids: unknown): Promise<Salida<{ urls: Record<string, string> }>> {

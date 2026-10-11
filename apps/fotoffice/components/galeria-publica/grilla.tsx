@@ -11,13 +11,14 @@ type CeldaProps = {
   numero: number;
   seleccionada: boolean;
   comentarios: number;
+  comprada: boolean;
   editable: boolean;
   onAbrir: (id: string) => void;
   onAlternar: (id: string) => void;
 };
 
 /** Una miniatura: se abre al tocarla y se elige con el círculo de arriba. Memoizada: elegir una no redibuja las demás. */
-const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, editable, onAbrir, onAlternar }: CeldaProps) {
+const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, comprada, editable, onAbrir, onAlternar }: CeldaProps) {
   return (
     <li
       className={`relative aspect-square overflow-hidden rounded-md bg-neutral-200 [contain-intrinsic-size:160px] [content-visibility:auto] ${
@@ -65,6 +66,9 @@ const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, edi
           <IconoCheck />
         </button>
       ) : null}
+      {comprada ? (
+        <span className="pointer-events-none absolute bottom-1 right-1 rounded-full bg-green-700 px-2 py-0.5 text-xs font-medium text-white">Comprada</span>
+      ) : null}
       {comentarios > 0 ? (
         <span className="pointer-events-none absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
           <IconoComentario width={12} height={12} />
@@ -80,6 +84,7 @@ export function Grilla({
   indices,
   seleccionadas,
   comentariosPorFoto,
+  pagadas,
   editable,
   onAbrir,
   onAlternar,
@@ -89,6 +94,8 @@ export function Grilla({
   indices: ReadonlyMap<string, number>;
   seleccionadas: ReadonlySet<string>;
   comentariosPorFoto: ReadonlyMap<string, number>;
+  /** Fotos ya pagadas por el cliente. */
+  pagadas: ReadonlySet<string>;
   editable: boolean;
   onAbrir: (id: string) => void;
   onAlternar: (id: string) => void;
@@ -102,6 +109,7 @@ export function Grilla({
           numero={(indices.get(f.id) ?? 0) + 1}
           seleccionada={seleccionadas.has(f.id)}
           comentarios={comentariosPorFoto.get(f.id) ?? 0}
+          comprada={pagadas.has(f.id)}
           editable={editable}
           onAbrir={onAbrir}
           onAlternar={onAlternar}

@@ -3,6 +3,7 @@
  * cálculos que ambos lados comparten (filtros, textos). Sin base, sin red, sin `server-only`.
  */
 import type { EstadoCliente, ModoSeleccion } from "./constantes";
+import type { VistaVenta } from "./venta-publica";
 
 /** Largo máximo del mensaje que el cliente le deja al estudio al enviar. */
 export const MAX_MENSAJE_CLIENTE = 1000;
@@ -57,6 +58,8 @@ export type VistaGaleria = {
     enviadaEn: string | null;
     mensajeEnviado: string | null;
   };
+  /** Venta de fotos extra; null si la galería es sólo de selección. */
+  venta: VistaVenta | null;
   portadaUrl: string | null;
   fotos: FotoPublica[];
   seleccionadas: string[];

@@ -51,6 +51,18 @@ Gracias por elegir con nosotros.
 
 [firma]`,
   },
+  GALERIA_COMPRA_PAGADA: {
+    asunto: "Recibimos tu pago: [galeria_nombre]",
+    cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Recibimos tu pago de [galeria_total] por [galeria_cantidad] fotos extra de "[galeria_nombre]". ¡Gracias!
+
+Podés volver a tu galería cuando quieras con este enlace: [galeria_enlace]
+
+Si tenés alguna duda, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si].
+
+[firma]`,
+  },
 };
 
 export function esClaveAutomaticoGaleria(v: unknown): v is ClaveAutomaticoGaleria {
@@ -94,8 +106,10 @@ export type DatosCorreoGaleria = {
   numero: string;
   nombreGaleria: string;
   enlace?: string | null;
-  /** Sólo GALERIA_SELECCION_ENVIADA. */
+  /** GALERIA_SELECCION_ENVIADA y GALERIA_COMPRA_PAGADA. */
   cantidad?: number | null;
+  /** Sólo GALERIA_COMPRA_PAGADA: el total pagado, ya en pesos para mostrar ("$ 4.500,00"). */
+  total?: string | null;
 };
 
 const ENLACE_OCULTO = "(enlace personal)";
@@ -137,7 +151,7 @@ export async function enviarCorreoGaleria(d: DatosCorreoGaleria, deps: DepsEnvio
         usuario: { nombre: null, email: null },
         hoy: ahora,
         campos: {},
-        galeria: { numero: d.numero, nombre: d.nombreGaleria, enlace, cantidad: d.cantidad === null || d.cantidad === undefined ? null : String(d.cantidad) },
+        galeria: { numero: d.numero, nombre: d.nombreGaleria, enlace, cantidad: d.cantidad === null || d.cantidad === undefined ? null : String(d.cantidad), total: d.total ?? null },
       },
       firma: { html: org.signature?.html ?? "", texto: org.signature?.text ?? "" },
       destino: { email: d.para, telefono: null },

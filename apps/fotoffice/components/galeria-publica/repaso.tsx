@@ -17,6 +17,7 @@ export function Repaso({
   config,
   fotos,
   nombre,
+  bloqueo,
   onVolver,
   onEnviar,
   onTerminar,
@@ -25,6 +26,8 @@ export function Repaso({
   /** Las fotos elegidas, en el orden de la galería. */
   fotos: FotoPublica[];
   nombre: string;
+  /** Si hay fotos extra sin pagar: el mensaje que impide enviar. */
+  bloqueo?: string | null;
   onVolver: () => void;
   onEnviar: (mensaje: string) => Promise<{ ok: true; cantidad: number; enviadaEn: string } | { ok: false; error: string }>;
   /** Cuando ya envió y cierra el agradecimiento. */
@@ -49,7 +52,7 @@ export function Repaso({
   }, [hecho]);
 
   async function confirmar() {
-    if (enviando || !validacion.ok) return;
+    if (enviando || !validacion.ok || bloqueo) return;
     setEnviando(true);
     setError(null);
     const r = await onEnviar(mensaje);
@@ -78,6 +81,7 @@ export function Repaso({
               Elegiste <strong>{cantidadTexto(fotos.length)}</strong>.
             </p>
             {!validacion.ok ? <p role="alert" className="fo-alert-warning">{validacion.error}</p> : null}
+            {bloqueo ? <p role="alert" className="fo-alert-warning">{bloqueo}</p> : null}
             {fotos.length > 0 ? (
               <ul className="grid grid-cols-5 gap-1 sm:grid-cols-8" aria-label="Fotos elegidas">
                 {fotos.slice(0, MAX_MINIATURAS).map((f) => (
@@ -108,7 +112,7 @@ export function Repaso({
             {error ? <p role="alert" className="fo-alert-error">{error}</p> : null}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" onClick={onVolver} disabled={enviando} className="fo-btn fo-btn-secondary">Volver a la galería</button>
-              <button ref={principal} type="button" onClick={confirmar} disabled={enviando || !validacion.ok} className="fo-btn fo-btn-primary">
+              <button ref={principal} type="button" onClick={confirmar} disabled={enviando || !validacion.ok || !!bloqueo} className="fo-btn fo-btn-primary">
                 {enviando ? "Enviando…" : "Sí, enviar mi selección"}
               </button>
             </div>

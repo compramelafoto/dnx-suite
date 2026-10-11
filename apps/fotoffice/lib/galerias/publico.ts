@@ -12,7 +12,9 @@ import {
 } from "./constantes";
 import { hashDeToken, tokenConForma } from "./enlace";
 import { registrarEvento, registrarEventoSinFallar } from "./eventos";
+import { fotosPagadasDeCliente, carritoDeCliente } from "./carrito";
 import { ordenarFotosDeGaleria } from "./orden";
+import type { ConfigVenta } from "./precios";
 import {
   MAX_MENSAJE_CLIENTE,
   MAX_VISTAS_POR_LOTE,
@@ -21,6 +23,8 @@ import {
   type ComentarioPublico,
   type VistaGaleria,
 } from "./publico-tipos";
+import { SELECT_CONFIG_VENTA, configVentaDeFila } from "./venta";
+import { MENSAJE_VENTA_SIN_ENVIO, mensajeExtrasSinPagar } from "./venta-publica";
 import { estadoDespues, estadosDesde, puedeAgregar, puedeEditarElCliente, validarComentario, validarEnvio } from "./seleccion";
 
 /**
@@ -53,6 +57,8 @@ export type DatosGaleriaDeToken = {
   orderMode: ModoOrden;
   coverFotoId: string | null;
   ownerUserId: number | null;
+  /** Configuración de venta de fotos extra (en centavos). */
+  venta: ConfigVenta;
 };
 
 export type DatosClienteDeToken = {
@@ -92,7 +98,7 @@ export async function resolverTokenGaleria(workspaceId: string, token: unknown):
     where: { id: c.galeriaId, workspaceId },
     select: {
       id: true, number: true, name: true, message: true, status: true, selectionMode: true, minSelect: true, maxSelect: true,
-      allowComments: true, downloadMode: true, orderMode: true, coverFotoId: true, ownerUserId: true,
+      allowComments: true, downloadMode: true, orderMode: true, coverFotoId: true, ownerUserId: true, ...SELECT_CONFIG_VENTA,
     },
   });
   if (!g || g.status !== "PUBLICADA") return { ok: false };
@@ -106,7 +112,7 @@ export async function resolverTokenGaleria(workspaceId: string, token: unknown):
     galeria: {
       id: g.id, number: g.number, name: g.name, message: g.message, selectionMode: g.selectionMode as ModoSeleccion, minSelect: g.minSelect,
       maxSelect: g.maxSelect, allowComments: g.allowComments, downloadMode: g.downloadMode as ModoDescarga, orderMode: g.orderMode as ModoOrden,
-      coverFotoId: g.coverFotoId, ownerUserId: g.ownerUserId,
+      coverFotoId: g.coverFotoId, ownerUserId: g.ownerUserId, venta: configVentaDeFila(g),
     },
   };
 }
@@ -153,7 +159,7 @@ export async function armarVistaGaleria(r: Resuelto): Promise<VistaGaleria> {
       where: { workspaceId, galeriaId: g.id, status: "LISTA" satisfies EstadoFoto },
       select: { id: true, fileName: true, order: true, thumbKey: true, viewKey: true, width: true, height: true },
     }),
-    prisma.fotofficeGaleriaSeleccion.findMany({ where: { workspaceId, galeriaClienteId: c.id }, select: { fotoId: true } }),
+    prisma.fotofficeGaleriaSeleccion.findMany({ where: { workspaceId, galeriaClienteId: c.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { fotoId: true } }),
     prisma.fotofficeGaleriaComentario.findMany({
       where: { workspaceId, galeriaClienteId: c.id },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -173,7 +179,10 @@ export async function armarVistaGaleria(r: Resuelto): Promise<VistaGaleria> {
     }
   }
   const conLimites = g.selectionMode === "CANTIDAD";
+  // Con venta, el navegador arma el carrito al instante con las mismas reglas; el precio que se cobra lo calcula el servidor.
+  const venta = g.venta.saleMode === "SELECCION" ? null : { config: g.venta, pagadas: [...(await fotosPagadasDeCliente(prisma, workspaceId, c.id))].filter((id) => ids.has(id)) };
   return {
+    venta,
     organizacion: { nombre: sitio?.nombre ?? "", logoUrl: sitio?.logoUrl ?? null },
     galeria: {
       nombre: g.name,
@@ -324,6 +333,12 @@ export async function enviarSeleccion(workspaceId: string, token: unknown, mensa
   if (!puedeEditarElCliente(r.cliente.status)) return falla(M.yaEnviada, "SOLO_LECTURA");
   const m = mensajeDeEnvio(mensaje);
   if (!m.ok) return falla(m.error);
+  // "Sólo venta": el final es el pago, no hay selección para enviar. Con venta, no se envía con extras sin pagar.
+  if (r.galeria.venta.saleMode === "VENTA") return falla(MENSAJE_VENTA_SIN_ENVIO);
+  if (r.galeria.venta.saleMode === "SELECCION_Y_VENTA") {
+    const carrito = await carritoDeCliente(prisma, workspaceId, r.cliente.id, r.galeria.venta);
+    if (carrito.extras.length > 0) return falla(mensajeExtrasSinPagar(carrito.extras.length));
+  }
   const cantidad = await prisma.fotofficeGaleriaSeleccion.count({ where: { workspaceId, galeriaClienteId: r.cliente.id } });
   const v = validarEnvio(config(r), cantidad);
   if (!v.ok) return falla(v.error);

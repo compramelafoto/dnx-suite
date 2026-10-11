@@ -64,6 +64,7 @@ export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlan
   CONTRATO_FIRMADO: { canal: "EMAIL", tipo: "CONTRATO", nombre: "Contrato firmado" },
   GALERIA_ENVIO: { canal: "EMAIL", tipo: "GALERIA", nombre: "Galería para elegir tus fotos" },
   GALERIA_SELECCION_ENVIADA: { canal: "EMAIL", tipo: "GALERIA", nombre: "Selección de fotos recibida" },
+  GALERIA_COMPRA_PAGADA: { canal: "EMAIL", tipo: "GALERIA", nombre: "Pago de fotos extra recibido" },
 };
 
 export const MENSAJES_PLANTILLAS = {
