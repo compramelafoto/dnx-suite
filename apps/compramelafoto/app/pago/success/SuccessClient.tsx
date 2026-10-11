@@ -11,6 +11,7 @@ import PaymentRecoveryActions from "@/components/checkout/PaymentRecoveryActions
 import { useMpPaymentRetry } from "@/lib/checkout/use-mp-payment-retry";
 import { readPendingOrderSession } from "@/lib/checkout/pending-order-session";
 import { trackFunnelEvent, FUNNEL_EVENTS } from "@/lib/funnel-track-client";
+import { clearAlbumPackCartForPaidOrder } from "@/lib/album-packs/album-pack-cart-storage";
 
 export default function SuccessClient() {
   const router = useRouter();
@@ -47,6 +48,8 @@ export default function SuccessClient() {
   } | null>(null);
   const [buyerEmail, setBuyerEmail] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  /** Este pago llegó sobre un pedido que ya estaba pagado con otro pago (cobro duplicado). */
+  const [duplicatePayment, setDuplicatePayment] = useState(false);
 
   const numericOrderId = orderId ? Number(orderId) : null;
   const isAlbumOrder = orderType === "ALBUM_ORDER" && numericOrderId != null && Number.isFinite(numericOrderId);
@@ -119,6 +122,23 @@ export default function SuccessClient() {
         setIsPreparing(true);
       } else {
         setIsPreparing(false);
+      }
+
+      if (data.duplicatePayment === true) {
+        setDuplicatePayment(true);
+      }
+      // Pedido de álbum cobrado: se limpia el carrito de packs guardado de ese pedido para que,
+      // si vuelve al álbum, arranque una compra nueva y no vuelva a pagar la misma.
+      if (
+        data.paymentStatus === "approved" &&
+        orderType === "ALBUM_ORDER" &&
+        typeof data.albumId === "number" &&
+        Number.isFinite(data.albumId) &&
+        typeof window !== "undefined"
+      ) {
+        try {
+          clearAlbumPackCartForPaidOrder(window.sessionStorage, data.albumId, Number(orderId));
+        } catch {}
       }
 
       if (data.paymentStatus === "approved") {
@@ -383,6 +403,19 @@ export default function SuccessClient() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {duplicatePayment && (
+        <div
+          role="alert"
+          className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4"
+        >
+          <p className="text-amber-950 font-medium">Este pago está duplicado</p>
+          <p className="text-amber-900/90 mt-2 text-sm leading-relaxed">
+            Este pedido ya estaba pagado con otro pago. No hace falta que hagas nada: ya le avisamos
+            al fotógrafo y te va a contactar para resolver la devolución.
+          </p>
         </div>
       )}
 

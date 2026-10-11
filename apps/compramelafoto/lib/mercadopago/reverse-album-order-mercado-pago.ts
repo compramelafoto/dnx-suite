@@ -33,6 +33,7 @@ export async function reverseAlbumOrderMercadoPagoIfWasPaid(params: {
       origin: true,
       redemptionPaymentRefsJson: true,
       redemptionOrderId: true,
+      mpPaymentId: true,
     },
   });
   if (!orderRow) {
@@ -40,6 +41,20 @@ export async function reverseAlbumOrderMercadoPagoIfWasPaid(params: {
   }
 
   if (orderRow.status !== OrderStatus.PAID) {
+    return { applied: false, previousStatus: orderRow.status };
+  }
+
+  // Un reembolso/anulación de OTRO pago (p. ej. la devolución de un cobro duplicado) no anula
+  // la compra que quedó pagada con el pago registrado en el pedido.
+  const registeredPaymentId = String(orderRow.mpPaymentId ?? "").trim();
+  if (registeredPaymentId && registeredPaymentId !== String(mpPaymentId).trim()) {
+    console.warn("[duplicate-payment] reversión ignorada: el pago no es el registrado en el pedido", {
+      orderId,
+      registeredPaymentId,
+      mpPaymentId,
+      mpStatus,
+      auditReason,
+    });
     return { applied: false, previousStatus: orderRow.status };
   }
 
