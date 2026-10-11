@@ -41,8 +41,20 @@ import { enBloques, zipEnFlujo, type ArchivoParaZip } from "./zip";
 
 const MINUTO = 60_000;
 const DIA = 24 * 60 * MINUTO;
-/** Si una parte lleva más que esto armándose se corta a propósito: Vercel mata la función a los 300 s. */
-const PRESUPUESTO_PARTE_MS = 270_000;
+/**
+ * Presupuesto de TODA la corrida (vencer + armar + cerrar + avisar), contado desde que arranca `procesarDescargas`:
+ * Vercel mata la función a los 300 s. La parte se corta a propósito para dejar `RESERVA_CIERRE_MS` a completar la
+ * subida, cerrar el pedido y mandar el aviso; vencer y avisar tienen su propio tope chico.
+ */
+const PRESUPUESTO_CORRIDA_MS = 270_000;
+const RESERVA_CIERRE_MS = 30_000;
+/** Menos que esto de margen y no se empieza a armar una parte: queda para la próxima corrida. */
+const MINIMO_PARA_ARMAR_MS = 30_000;
+const PRESUPUESTO_VENCER_MS = 25_000;
+/** Aviso de «descarga lista»: reintentos, espera entre ellos y arriendo de la reserva. */
+const MAX_INTENTOS_AVISO = 12;
+const ESPERA_AVISO_MS = 30 * MINUTO;
+const ARRIENDO_AVISO_MS = 10 * MINUTO;
 const LATIDO_MS = 60_000;
 const AR = "America/Argentina/Buenos_Aires";
 
@@ -381,17 +393,24 @@ export async function procesarDescargas(deps: DepsDescargas = {}): Promise<Resum
   const ahora = (deps.ahora ?? (() => new Date()))();
   const almacen = deps.almacen ?? almacenZipR2;
   const resumen: ResumenCronDescargas = { vencidas: 0, tomada: null, parteArmada: null, terminada: false, fallo: false, avisadas: 0 };
+  const arranque = Date.now();
+  const transcurrido = () => Date.now() - arranque;
 
-  resumen.vencidas = await vencerDescargas(ahora, almacen);
+  resumen.vencidas = await vencerDescargas(ahora, almacen, Date.now() + PRESUPUESTO_VENCER_MS);
 
   const corte = new Date(ahora.getTime() - MINUTOS_CANDADO * MINUTO);
   const candidatos = await prisma.fotofficeGaleriaDescarga.findMany({
     where: { OR: [{ status: "PENDIENTE" }, { status: "ARMANDO", updatedAt: { lt: corte } }] },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    // Turnos parejos: el que acaba de armar una parte (su `updatedAt` es nuevo) pasa al final de la cola, así un pedido
+    // enorme no deja sin servicio a los demás.
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
     take: 5,
     select: { id: true, status: true },
   });
+  // Con poco margen no se empieza una parte (se perdería el cierre): queda para la próxima corrida.
+  const presupuestoParte = deps.presupuestoMs ?? PRESUPUESTO_CORRIDA_MS - RESERVA_CIERRE_MS - transcurrido();
   for (const c of candidatos) {
+    if (deps.presupuestoMs === undefined && presupuestoParte < MINIMO_PARA_ARMAR_MS) break;
     // Candado: sólo uno gana la escritura condicional.
     const tomado = await prisma.fotofficeGaleriaDescarga.updateMany({
       where: c.status === "PENDIENTE" ? { id: c.id, status: "PENDIENTE" } : { id: c.id, status: "ARMANDO", updatedAt: { lt: corte } },
@@ -399,16 +418,16 @@ export async function procesarDescargas(deps: DepsDescargas = {}): Promise<Resum
     });
     if (tomado.count === 0) continue;
     resumen.tomada = c.id;
-    const r = await trabajarPedido(c.id, ahora, almacen, deps);
+    const r = await trabajarPedido(c.id, ahora, almacen, { ...deps, presupuestoMs: presupuestoParte });
     Object.assign(resumen, r);
     break;
   }
 
-  resumen.avisadas = await avisarPendientes(ahora, deps);
+  if (PRESUPUESTO_CORRIDA_MS - transcurrido() > 10_000) resumen.avisadas = await avisarPendientes(ahora, deps);
   return resumen;
 }
 
-async function vencerDescargas(ahora: Date, almacen: AlmacenZip): Promise<number> {
+async function vencerDescargas(ahora: Date, almacen: AlmacenZip, limite: number): Promise<number> {
   const filas = await prisma.fotofficeGaleriaDescarga.findMany({
     where: { status: { in: ["LISTA", "ERROR"] }, expiresAt: { lte: ahora } },
     orderBy: { expiresAt: "asc" },
@@ -417,6 +436,7 @@ async function vencerDescargas(ahora: Date, almacen: AlmacenZip): Promise<number
   });
   let n = 0;
   for (const f of filas) {
+    if (Date.now() > limite) break;
     try {
       for (const p of aPartes(f.parts)) {
         // Sólo se borra una clave que realmente sea de una parte de ESTA descarga.
@@ -518,10 +538,22 @@ async function armarParte(
   });
   const porId = new Map(fotos.map((f) => [f.id, f]));
   // En el orden del plan; lo que se borró de la galería después de pedir la descarga simplemente no entra.
-  const archivos: ArchivoParaZip[] = parte.fileIds
-    .map((fid) => porId.get(fid))
-    .filter((f): f is NonNullable<typeof f> => !!f && !!f.originalKey)
-    .map((f) => ({ nombre: f.fileName, fecha: f.createdAt, abrir: () => almacen.leer(f.originalKey) }));
+  // Los nombres ya vienen sin repetirse entre TODAS las partes (se calculan al crear el pedido).
+  const abiertos: unknown[] = [];
+  const archivos: ArchivoParaZip[] = [];
+  parte.fileIds.forEach((fid, i) => {
+    const f = porId.get(fid);
+    if (!f || !f.originalKey) return;
+    archivos.push({
+      nombre: parte.nombres?.[i] ?? f.fileName,
+      fecha: f.createdAt,
+      abrir: async () => {
+        const flujo = await almacen.leer(f.originalKey);
+        abiertos.push(flujo);
+        return flujo;
+      },
+    });
+  });
 
   const uploadId = await almacen.iniciarMultiparte(parte.key, "application/zip");
   // Queda anotado ANTES de subir: si la corrida muere, la siguiente sabe qué subida abortar.
@@ -531,7 +563,7 @@ async function armarParte(
   });
   const reloj = deps.ahora ?? (() => new Date());
   const inicio = Date.now();
-  const presupuesto = deps.presupuestoMs ?? PRESUPUESTO_PARTE_MS;
+  const presupuesto = deps.presupuestoMs ?? PRESUPUESTO_CORRIDA_MS - RESERVA_CIERRE_MS;
   const bloque = deps.bloque ?? BLOQUE_SUBIDA;
   const resultado = { archivos: 0, bytes: 0, omitidos: 0 };
   const etiquetas: { numero: number; etag: string }[] = [];
@@ -571,6 +603,9 @@ async function armarParte(
       // Si no se pudo abortar, la próxima corrida lo intenta con el uploadId del cursor.
     }
     throw err;
+  } finally {
+    // Si se cortó con una lectura de R2 abierta, se cierra el socket ya (no esperar a que la función se congele).
+    for (const f of abiertos) (f as { destroy?: () => void } | null)?.destroy?.();
   }
 }
 
@@ -604,20 +639,24 @@ async function terminar(d: FilaTrabajo, partes: ParteDescarga[], ahora: Date, de
   }
 }
 
-/** Descargas que quedaron LISTA sin aviso (el correo falló por el tope diario o por el proveedor): se reintenta durante un día. */
+/**
+ * Descargas LISTA cuyo aviso quedó pendiente (el correo falló por el tope diario o por el proveedor, o la corrida murió
+ * con la reserva puesta). Sólo las que quedaron listas hace menos de un día: se mide con `expiresAt` (listaEn + 7 días),
+ * que no se mueve, y NO con `updatedAt` (que Prisma refresca en cada escritura).
+ */
 async function avisarPendientes(ahora: Date, deps: DepsDescargas): Promise<number> {
   const filas = await prisma.fotofficeGaleriaDescarga.findMany({
-    where: { status: "LISTA", notifiedAt: null, expiresAt: { gt: ahora }, updatedAt: { gte: new Date(ahora.getTime() - DIA) } },
-    orderBy: { updatedAt: "asc" },
-    take: 5,
+    where: { status: "LISTA", notifiedAt: null, expiresAt: { gt: new Date(ahora.getTime() + (DIAS_VIGENCIA_DESCARGA - 1) * DIA) } },
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: 10,
     select: { id: true },
   });
   const avisar = deps.avisar ?? ((id: string, a: Date) => avisarDescargaLista(id, a, deps));
   let n = 0;
   for (const f of filas) {
     try {
-      await avisar(f.id, ahora);
-      n++;
+      const r = await avisar(f.id, ahora);
+      if (r !== "YA_AVISADA" && r !== "ESPERA") n++;
     } catch {
       /* se reintenta en la próxima pasada */
     }
@@ -627,74 +666,120 @@ async function avisarPendientes(ahora: Date, deps: DepsDescargas): Promise<numbe
 
 // --- El correo -------------------------------------------------------------------------------------------
 
+type EstadoAviso = { intentos: number; proximo: string | null; reservadaEn: string | null; falloRegistrado: boolean };
+
+/** El estado del aviso vive en `cursor.aviso` mientras la descarga está LISTA (el armado ya no usa el cursor). */
+function aAviso(cursor: unknown): EstadoAviso {
+  const a = cursor && typeof cursor === "object" ? (cursor as { aviso?: Partial<EstadoAviso> }).aviso : undefined;
+  return {
+    intentos: typeof a?.intentos === "number" ? a.intentos : 0,
+    proximo: typeof a?.proximo === "string" ? a.proximo : null,
+    reservadaEn: typeof a?.reservadaEn === "string" ? a.reservadaEn : null,
+    falloRegistrado: a?.falloRegistrado === true,
+  };
+}
+
 /**
- * Avisa que la descarga está lista. Se «reserva» el aviso con una escritura condicional (`notifiedAt`), así dos
- * corridas no mandan dos correos. Si el correo no salió por el tope diario o por el proveedor, se libera la reserva
- * para reintentar; los demás motivos (plantilla apagada, sin correo) no se reintentan.
+ * Avisa que la descarga está lista.
+ * - `notifiedAt` se escribe SÓLO cuando el proveedor aceptó el correo (o cuando ya no tiene sentido insistir).
+ * - Antes de mandar se «reserva» con una escritura condicional que guarda `reservadaEn` en `cursor.aviso`: es un
+ *   arriendo de 10 minutos; si la función muere a mitad, otra corrida lo retoma pasado ese plazo.
+ * - Si no salió por el tope diario o por el proveedor se reintenta con espera de 30 minutos o más, hasta 12 intentos
+ *   y dentro del día de haber quedado lista; por motivos permanentes (plantilla apagada, sin correo, enlace anulado) no.
+ * - Deja a lo sumo UN evento de falla por pedido.
  */
-export async function avisarDescargaLista(descargaId: string, ahora: Date, deps: Pick<DepsDescargas, "appOrigin"> & { clave?: string | null } = {}): Promise<ResultadoCorreoGaleria | "YA_AVISADA"> {
-  const reservada = await prisma.fotofficeGaleriaDescarga.updateMany({ where: { id: descargaId, status: "LISTA", notifiedAt: null }, data: { notifiedAt: ahora } });
-  if (reservada.count === 0) return "YA_AVISADA";
-  let resultado: ResultadoCorreoGaleria = "ERROR";
-  let d: { workspaceId: string; galeriaId: string; galeriaClienteId: string | null } | null = null;
-  try {
-    const fila = await prisma.fotofficeGaleriaDescarga.findFirst({
-      where: { id: descargaId },
-      select: {
-        workspaceId: true, galeriaId: true, galeriaClienteId: true, requestedEmail: true, expiresAt: true,
-      },
-    });
-    if (!fila) return "ERROR";
-    d = fila;
-    const galeria = await prisma.fotofficeGaleria.findFirst({ where: { id: fila.galeriaId, workspaceId: fila.workspaceId }, select: { number: true, name: true } });
-    if (!galeria) return "ERROR";
-    const cliente = fila.galeriaClienteId
-      ? await prisma.fotofficeGaleriaCliente.findFirst({
-          where: { id: fila.galeriaClienteId, workspaceId: fila.workspaceId, galeriaId: fila.galeriaId },
-          select: { id: true, name: true, email: true, tokenHash: true, tokenIssuedAt: true, revokedAt: true },
-        })
-      : null;
-    const origen = (deps.appOrigin ?? (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")).replace(/\/+$/, "");
-    let enlace: string | null = null;
-    let nombre = "";
-    let para = fila.requestedEmail ?? "";
-    if (fila.galeriaClienteId && cliente) {
-      const c = cliente;
-      nombre = c.name;
-      if (!para) para = c.email ?? "";
-      const clave = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
-      // El enlace personal sólo se arma si el cliente sigue vigente y el token coincide con el guardado.
-      if (clave && !c.revokedAt) {
-        const token = tokenDeGaleriaCliente(c.id, c.tokenIssuedAt, clave);
-        if (hashDeToken(token) === c.tokenHash) {
-          const sitio = await sitioDelWorkspace(fila.workspaceId);
-          if (sitio?.customDomain) enlace = `https://${sitio.customDomain}/galeria/${encodeURIComponent(token)}/descargas`;
-          else if (sitio?.slug && origen) enlace = `${origen}/w/${encodeURIComponent(sitio.slug)}/galeria/${encodeURIComponent(token)}/descargas`;
-        }
-      }
-    } else if (origen) {
-      enlace = `${origen}/galerias/${encodeURIComponent(fila.galeriaId)}?tab=descargas`;
+export async function avisarDescargaLista(descargaId: string, ahora: Date, deps: Pick<DepsDescargas, "appOrigin"> & { clave?: string | null } = {}): Promise<ResultadoCorreoGaleria | "YA_AVISADA" | "ESPERA"> {
+  const fila = await prisma.fotofficeGaleriaDescarga.findFirst({
+    where: { id: descargaId, status: "LISTA", notifiedAt: null },
+    select: { workspaceId: true, galeriaId: true, galeriaClienteId: true, requestedEmail: true, expiresAt: true, cursor: true, updatedAt: true },
+  });
+  if (!fila) return "YA_AVISADA";
+  const est = aAviso(fila.cursor);
+  const d = { workspaceId: fila.workspaceId, galeriaId: fila.galeriaId, galeriaClienteId: fila.galeriaClienteId };
+  if (est.reservadaEn && ahora.getTime() - new Date(est.reservadaEn).getTime() < ARRIENDO_AVISO_MS) return "YA_AVISADA";
+  if (est.proximo && ahora.getTime() < new Date(est.proximo).getTime()) return "ESPERA";
+
+  const cerrar = async (resultado: ResultadoCorreoGaleria) => {
+    await prisma.fotofficeGaleriaDescarga.updateMany({ where: { id: descargaId, status: "LISTA" }, data: { notifiedAt: ahora, cursor: Prisma.DbNull, updatedAt: ahora } });
+    if (!est.falloRegistrado) {
+      await registrarEventoSinFallar({ ...d, tipo: "DESCARGA_CORREO_NO_ENVIADO", data: { motivo: resultado } });
     }
-    if (!enlace) resultado = "ERROR";
+  };
+  const listaEn = fila.expiresAt.getTime() - DIAS_VIGENCIA_DESCARGA * DIA;
+  if (est.intentos >= MAX_INTENTOS_AVISO || (est.intentos > 0 && ahora.getTime() - listaEn > DIA)) {
+    await cerrar("NO_ENVIADO");
+    return "NO_ENVIADO";
+  }
+
+  // Reserva (arriendo). `updatedAt` hace de versión: si otra corrida escribió en el medio, no se gana.
+  const intentos = est.intentos + 1;
+  const reservada = await prisma.fotofficeGaleriaDescarga.updateMany({
+    where: { id: descargaId, status: "LISTA", notifiedAt: null, updatedAt: fila.updatedAt },
+    data: { cursor: json({ aviso: { ...est, intentos, reservadaEn: ahora.toISOString() } }), updatedAt: ahora },
+  });
+  if (reservada.count === 0) return "YA_AVISADA";
+
+  let resultado: ResultadoCorreoGaleria = "ERROR";
+  let terminal = false;
+  try {
+    const galeria = await prisma.fotofficeGaleria.findFirst({ where: { id: fila.galeriaId, workspaceId: fila.workspaceId }, select: { number: true, name: true } });
+    if (!galeria) terminal = true;
     else {
-      resultado = await enviarCorreoGaleria({
-        workspaceId: fila.workspaceId, clave: "GALERIA_DESCARGA_LISTA", galeriaId: fila.galeriaId, para, nombre,
-        numero: galeria.number, nombreGaleria: galeria.name, enlace, vence: fechaCorta(fila.expiresAt),
-      });
+      const cliente = fila.galeriaClienteId
+        ? await prisma.fotofficeGaleriaCliente.findFirst({
+            where: { id: fila.galeriaClienteId, workspaceId: fila.workspaceId, galeriaId: fila.galeriaId },
+            select: { id: true, name: true, email: true, tokenHash: true, tokenIssuedAt: true, revokedAt: true },
+          })
+        : null;
+      const origen = (deps.appOrigin ?? (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")).replace(/\/+$/, "");
+      let enlace: string | null = null;
+      let nombre = "";
+      let para = fila.requestedEmail ?? "";
+      if (fila.galeriaClienteId && cliente) {
+        nombre = cliente.name;
+        if (!para) para = cliente.email ?? "";
+        const clave = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
+        // El enlace personal sólo se arma si el cliente sigue vigente y el token coincide con el guardado.
+        if (clave && !cliente.revokedAt) {
+          const token = tokenDeGaleriaCliente(cliente.id, cliente.tokenIssuedAt, clave);
+          if (hashDeToken(token) === cliente.tokenHash) {
+            const sitio = await sitioDelWorkspace(fila.workspaceId);
+            if (sitio?.customDomain) enlace = `https://${sitio.customDomain}/galeria/${encodeURIComponent(token)}/descargas`;
+            else if (sitio?.slug && origen) enlace = `${origen}/w/${encodeURIComponent(sitio.slug)}/galeria/${encodeURIComponent(token)}/descargas`;
+          }
+        }
+      } else if (origen) {
+        enlace = `${origen}/galerias/${encodeURIComponent(fila.galeriaId)}?tab=descargas`;
+      }
+      if (!enlace) terminal = true;
+      else {
+        resultado = await enviarCorreoGaleria({
+          workspaceId: fila.workspaceId, clave: "GALERIA_DESCARGA_LISTA", galeriaId: fila.galeriaId, para, nombre,
+          numero: galeria.number, nombreGaleria: galeria.name, enlace, vence: fechaCorta(fila.expiresAt),
+        });
+        if (resultado === "APAGADA" || resultado === "SIN_CORREO" || resultado === "PLANTILLA_CON_ERRORES") terminal = true;
+      }
     }
   } catch (err) {
+    // Una falla transitoria (base caída) se trata como correo no enviado: se reintenta.
     console.error("[galerias] falló el correo de descarga lista", { codigo: (err as { code?: unknown } | null)?.code ?? "desconocido" });
     resultado = "ERROR";
   }
-  if (resultado === "TOPE" || resultado === "NO_ENVIADO") {
-    await prisma.fotofficeGaleriaDescarga.updateMany({ where: { id: descargaId, status: "LISTA" }, data: { notifiedAt: null } });
+
+  if (resultado === "ENVIADO") {
+    await prisma.fotofficeGaleriaDescarga.updateMany({ where: { id: descargaId, status: "LISTA" }, data: { notifiedAt: ahora, cursor: Prisma.DbNull, updatedAt: ahora } });
+    await registrarEventoSinFallar({ ...d, tipo: "DESCARGA_CORREO_ENVIADO" });
+    return resultado;
   }
-  if (d) {
-    await registrarEventoSinFallar({
-      workspaceId: d.workspaceId, galeriaId: d.galeriaId, galeriaClienteId: d.galeriaClienteId,
-      tipo: resultado === "ENVIADO" ? "DESCARGA_CORREO_ENVIADO" : "DESCARGA_CORREO_NO_ENVIADO",
-      ...(resultado === "ENVIADO" ? {} : { data: { motivo: resultado } }),
-    });
+  if (terminal || intentos >= MAX_INTENTOS_AVISO) {
+    await cerrar(resultado);
+    return resultado;
   }
+  // Reintentable: se suelta el arriendo y se espera 30 minutos o más antes del próximo intento.
+  await prisma.fotofficeGaleriaDescarga.updateMany({
+    where: { id: descargaId, status: "LISTA", notifiedAt: null },
+    data: { cursor: json({ aviso: { intentos, proximo: new Date(ahora.getTime() + ESPERA_AVISO_MS * Math.min(intentos, 4)).toISOString(), reservadaEn: null, falloRegistrado: true } }), updatedAt: ahora },
+  });
+  if (!est.falloRegistrado) await registrarEventoSinFallar({ ...d, tipo: "DESCARGA_CORREO_NO_ENVIADO", data: { motivo: resultado } });
   return resultado;
 }

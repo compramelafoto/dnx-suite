@@ -1,3 +1,5 @@
+import { nombresUnicos } from "./zip";
+
 /**
  * Reglas PURAS de «Recibir todo por correo» (etapa 7, Entrega B): topes, claves de las partes en el R2 privado,
  * partido de los archivos en partes de hasta 1 GB y textos. Sin base ni red.
@@ -7,17 +9,13 @@ export type EstadoDescarga = (typeof ESTADOS_DESCARGA)[number];
 
 /** Una parte pesa como mucho 1 GB exacto (1.073.741.824 bytes)... */
 export const PARTE_MAXIMA = 1_073_741_824;
-/**
- * ...salvo un archivo suelto más grande que eso (un video), que va solo en su parte. Sin ZIP64 el archivo, con
- * sus encabezados, tiene que entrar en 4 GB - 1: arriba de este tamaño (4 GB menos 1 MB de margen) el archivo NO se
- * mete en un ZIP y se ofrece para bajar suelto.
- */
-export const ARCHIVO_MAXIMO_EN_ZIP = 4_294_967_296 - 1_048_576;
+/** ...y un archivo (un video) de más de 1 GB NO se mete en ningún ZIP: se ofrece para bajarlo suelto, directo. */
 /** Bloque de la subida multiparte: todos iguales menos el último; R2 pide al menos 5 MB, acá 16 MB. */
 export const BLOQUE_SUBIDA = 16 * 1024 * 1024;
 /** Lo que ocupan los encabezados de un archivo (local + descriptor + central) además de su nombre, a favor de la seguridad. */
 export const SOBRECARGA_POR_ARCHIVO = 512;
-export const MAX_ARCHIVOS_POR_PARTE = 65_535;
+/** 65.535 es la marca de ZIP64 en el registro final: se queda uno por debajo. */
+export const MAX_ARCHIVOS_POR_PARTE = 65_534;
 
 export const DIAS_VIGENCIA_DESCARGA = 7;
 export const MAX_PEDIDOS_POR_DIA = 3;
@@ -31,7 +29,7 @@ export const SEGUNDOS_DESCARGA_PARTE = 5 * 60;
 export type ArchivoDeEntrega = { id: string; fileName: string; bytes: number };
 
 export type ParteDescarga =
-  | { tipo: "ZIP"; n: number; key: string; bytes: number; files: number; estado: "PENDIENTE" | "LISTA"; fileIds: string[] }
+  | { tipo: "ZIP"; n: number; key: string; bytes: number; files: number; estado: "PENDIENTE" | "LISTA"; fileIds: string[]; nombres?: string[] }
   /** Un archivo demasiado grande para un ZIP sin ZIP64: se baja suelto, con su enlace de original. */
   | { tipo: "SUELTO"; n: number; fotoId: string; nombre: string; bytes: number; files: 1; estado: "LISTA" };
 
@@ -58,8 +56,8 @@ export type PlanDeDescarga = { partes: ParteDescarga[]; totalFiles: number; tota
 /**
  * Reparte los archivos (ya en el orden de la galería) en partes de hasta 1 GB, sin cambiarles el orden:
  * - se llena la parte en curso mientras entre el siguiente archivo (contando la sobrecarga de los encabezados);
- * - un archivo de más de 1 GB va solo, en su propia parte (hasta `ARCHIVO_MAXIMO_EN_ZIP`);
- * - un archivo de más de `ARCHIVO_MAXIMO_EN_ZIP` no va en ningún ZIP: queda como «suelto» para bajarlo directo;
+ * - un archivo de más de 1 GB (un video) no va en ningún ZIP: queda como «suelto» para bajarlo directo;
+ * - uno de 1 GB o menos que con sus encabezados se pasaría del GB va solo en su parte;
  * - una parte nunca pasa de 65.535 archivos.
  */
 export function planificarPartes(archivos: readonly ArchivoDeEntrega[], clavePara: (n: number) => string): PlanDeDescarga {
@@ -67,32 +65,38 @@ export function planificarPartes(archivos: readonly ArchivoDeEntrega[], clavePar
   let n = 0;
   let sueltos = 0;
   let ids: string[] = [];
+  let nom: string[] = [];
   let bytes = 0;
+  // Nombres sin repetirse entre TODAS las partes: si el cliente las extrae juntas en una carpeta, ninguna pisa a otra.
+  const unicos = nombresUnicos(archivos.map((a) => a.fileName));
   const cerrar = () => {
     if (ids.length === 0) return;
     n++;
-    partes.push({ tipo: "ZIP", n, key: clavePara(n), bytes, files: ids.length, estado: "PENDIENTE", fileIds: ids });
+    partes.push({ tipo: "ZIP", n, key: clavePara(n), bytes, files: ids.length, estado: "PENDIENTE", fileIds: ids, nombres: nom });
     ids = [];
+    nom = [];
     bytes = 0;
   };
-  for (const a of archivos) {
+  for (const [i, a] of archivos.entries()) {
     const peso = Math.max(0, a.bytes) + SOBRECARGA_POR_ARCHIVO + Buffer.byteLength(a.fileName, "utf8") * 2;
-    if (a.bytes > ARCHIVO_MAXIMO_EN_ZIP) {
+    if (a.bytes > PARTE_MAXIMA) {
       cerrar();
       sueltos++;
-      partes.push({ tipo: "SUELTO", n: sueltos, fotoId: a.id, nombre: a.fileName, bytes: a.bytes, files: 1, estado: "LISTA" });
+      partes.push({ tipo: "SUELTO", n: sueltos, fotoId: a.id, nombre: unicos[i]!, bytes: a.bytes, files: 1, estado: "LISTA" });
       continue;
     }
     if (peso > PARTE_MAXIMA) {
       // Grande (video): solo en su parte.
       cerrar();
       ids = [a.id];
+      nom = [unicos[i]!];
       bytes = peso;
       cerrar();
       continue;
     }
     if (ids.length > 0 && (bytes + peso > PARTE_MAXIMA || ids.length >= MAX_ARCHIVOS_POR_PARTE)) cerrar();
     ids.push(a.id);
+    nom.push(unicos[i]!);
     bytes += peso;
   }
   cerrar();

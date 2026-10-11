@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ARCHIVO_MAXIMO_EN_ZIP, MAX_ARCHIVOS_POR_PARTE, PARTE_MAXIMA, SOBRECARGA_POR_ARCHIVO, analizarClaveDeParte, claveDeParte, esClaveDeParte, formatearBytes, planificarPartes,
+  MAX_ARCHIVOS_POR_PARTE, PARTE_MAXIMA, SOBRECARGA_POR_ARCHIVO, analizarClaveDeParte, claveDeParte, esClaveDeParte, formatearBytes, planificarPartes,
 } from "./descargas-reglas";
 
 const MB = 1024 * 1024;
@@ -54,10 +54,10 @@ describe("planificarPartes", () => {
     expect(p.partes.map((x) => x.n)).toEqual(p.partes.map((_, i) => i + 1));
   });
 
-  it("un video de más de 1 GB va solo, en su propia parte, entre las fotos", () => {
+  it("un video de más de 1 GB no se zipea: queda «suelto» entre las fotos", () => {
     const p = planificarPartes([f("a", 10), { id: "v", fileName: "v.mp4", bytes: 2 * GB }, f("b", 10)], clave);
-    expect(p.partes.map((x) => (x.tipo === "ZIP" ? x.fileIds : x.tipo))).toEqual([["a"], ["v"], ["b"]]);
-    expect(p.partes.every((x) => x.tipo === "ZIP" && x.estado === "PENDIENTE")).toBe(true);
+    expect(p.partes.map((x) => (x.tipo === "ZIP" ? x.fileIds : `${x.tipo}:${x.fotoId}`))).toEqual([["a"], "SUELTO:v", ["b"]]);
+    expect(p.partes[1]).toMatchObject({ estado: "LISTA", bytes: 2 * GB });
   });
 
   it("un archivo justo de 1 GB (con sus encabezados ya se pasa) también va solo", () => {
@@ -65,19 +65,19 @@ describe("planificarPartes", () => {
     expect(p.partes.map((x) => (x.tipo === "ZIP" ? x.fileIds : x.tipo))).toEqual([["a"], ["v"], ["b"]]);
   });
 
-  it("un video de más de 4 GB no se mete en un ZIP: queda «suelto» y ya listo", () => {
-    const grande = { id: "v5", fileName: "boda.mov", bytes: 5 * GB };
-    const p = planificarPartes([f("a", 10), grande, f("b", 10)], clave);
-    expect(p.partes).toHaveLength(3);
-    expect(p.partes[0]).toMatchObject({ tipo: "ZIP", n: 1, fileIds: ["a"] });
-    expect(p.partes[1]).toEqual({ tipo: "SUELTO", n: 1, fotoId: "v5", nombre: "boda.mov", bytes: 5 * GB, files: 1, estado: "LISTA" });
-    expect(p.partes[2]).toMatchObject({ tipo: "ZIP", n: 2, fileIds: ["b"] });
-    expect(p.totalBytes).toBe(20 * MB + 5 * GB);
+  it("el borde: 1 GB justo todavía se zipea (solo, por los encabezados); un byte más va suelto", () => {
+    expect(planificarPartes([{ id: "x", fileName: "x.mp4", bytes: PARTE_MAXIMA }], clave).partes[0]).toMatchObject({ tipo: "ZIP", fileIds: ["x"] });
+    expect(planificarPartes([{ id: "x", fileName: "x.mp4", bytes: PARTE_MAXIMA + 1 }], clave).partes[0]).toMatchObject({ tipo: "SUELTO" });
   });
 
-  it("el borde de 4 GB: apenas por debajo del máximo entra en un ZIP solo; apenas por encima va suelto", () => {
-    expect(planificarPartes([{ id: "x", fileName: "x.mp4", bytes: ARCHIVO_MAXIMO_EN_ZIP }], clave).partes[0]).toMatchObject({ tipo: "ZIP", fileIds: ["x"] });
-    expect(planificarPartes([{ id: "x", fileName: "x.mp4", bytes: ARCHIVO_MAXIMO_EN_ZIP + 1 }], clave).partes[0]).toMatchObject({ tipo: "SUELTO" });
+  it("los nombres no se repiten entre partes distintas (se guardan en el plan)", () => {
+    const archivos = Array.from({ length: 20 }, (_, i) => ({ id: `f${i}`, fileName: "IMG_0001.jpg", bytes: 100 * MB }));
+    const p = planificarPartes(archivos, clave);
+    expect(p.partes.length).toBeGreaterThan(1);
+    const todos = p.partes.flatMap((x) => (x.tipo === "ZIP" ? x.nombres! : []));
+    expect(todos).toHaveLength(20);
+    expect(new Set(todos.map((n) => n.toLowerCase())).size).toBe(20);
+    expect(todos.slice(0, 3)).toEqual(["IMG_0001.jpg", "IMG_0001 (2).jpg", "IMG_0001 (3).jpg"]);
   });
 
   it("nunca más de 65.535 archivos por parte", () => {

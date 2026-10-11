@@ -13,7 +13,7 @@
  */
 import { crc32 as crc32Nativo } from "node:zlib";
 
-export const MAX_ARCHIVOS_POR_ZIP = 65_535;
+export const MAX_ARCHIVOS_POR_ZIP = 65_534;
 /** Tope de cualquier tamaño o desplazamiento sin ZIP64. */
 export const MAX_ZIP32 = 0xffff_ffff;
 
@@ -60,6 +60,8 @@ export function nombreDentroDelZip(nombre: string, alternativo = "archivo"): str
 /** Nombres sin repetirse (sin distinguir mayúsculas): el segundo "IMG_1.jpg" pasa a "IMG_1 (2).jpg". Conserva el orden. */
 export function nombresUnicos(nombres: readonly string[]): string[] {
   const usados = new Set<string>();
+  // Próximo número a probar por nombre base: evita recorrer desde (2) cada vez cuando hay miles de repetidos.
+  const siguiente = new Map<string, number>();
   return nombres.map((original) => {
     const base = nombreDentroDelZip(original);
     let candidato = base;
@@ -67,9 +69,10 @@ export function nombresUnicos(nombres: readonly string[]): string[] {
       const punto = base.lastIndexOf(".");
       const cuerpo = punto > 0 ? base.slice(0, punto) : base;
       const ext = punto > 0 ? base.slice(punto) : "";
-      let n = 2;
+      let n = siguiente.get(base.toLowerCase()) ?? 2;
       candidato = `${cuerpo} (${n})${ext}`;
       while (usados.has(candidato.toLowerCase())) candidato = `${cuerpo} (${++n})${ext}`;
+      siguiente.set(base.toLowerCase(), n + 1);
     }
     usados.add(candidato.toLowerCase());
     return candidato;

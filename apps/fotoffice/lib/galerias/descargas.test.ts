@@ -51,16 +51,17 @@ const eventos = () => B.datos.fotofficeGaleriaEvento.map((e) => e.type);
 function crearAlmacen() {
   const objetos = new Map<string, Buffer>();
   const subidas = new Map<string, { key: string; bloques: Map<number, Buffer> }>();
-  const reg = { abortos: [] as string[], bloques: [] as number[], borrados: [] as string[], iniciadas: 0, fallarEnBloque: 0, lecturas: [] as string[] };
+  const reg = { destruidos: 0, abortos: [] as string[], bloques: [] as number[], borrados: [] as string[], iniciadas: 0, fallarEnBloque: 0, lecturas: [] as string[] };
   let n = 0;
   const almacen: AlmacenZip = {
     async leer(clave) {
       reg.lecturas.push(clave);
       const o = objetos.get(clave);
       if (!o) return null;
-      return (async function* () {
+      const flujo = (async function* () {
         for (let i = 0; i < o.length; i += 300) yield o.subarray(i, i + 300);
       })();
+      return Object.assign(flujo, { destroy: () => void reg.destruidos++ });
     },
     async iniciarMultiparte(clave) {
       reg.iniciadas++;
@@ -196,7 +197,7 @@ describe("crear el pedido", () => {
     expect(JSON.stringify(d, (_k, v) => (typeof v === "bigint" ? Number(v) : v))).not.toMatch(/Gómez|gc1.*token/);
   });
 
-  it("reparte en partes de hasta 1 GB, deja al video grande solo y marca «suelto» al de más de 4 GB", async () => {
+  it("reparte en partes de hasta 1 GB y deja «sueltos» (sin ZIP) los videos de más de 1 GB", async () => {
     for (let i = 1; i <= 15; i++) sembrarFoto(`f${String(i).padStart(2, "0")}`, 100 * MB);
     sembrarFoto("v-2gb", 2 * GB, { fileName: "z-video2.mp4", mediaType: "VIDEO" });
     sembrarFoto("v-5gb", 5 * GB, { fileName: "z-video5.mov", mediaType: "VIDEO" });
@@ -204,14 +205,12 @@ describe("crear el pedido", () => {
     if (!r.ok) throw new Error(r.error);
     const p = partes(r.id);
     const zips = p.filter((x) => x.tipo === "ZIP");
-    expect(zips.length).toBe(3);
-    expect(zips.map((x) => x.n)).toEqual([1, 2, 3]);
-    expect(zips.every((x) => x.bytes <= GB || x.fileIds!.length === 1)).toBe(true);
-    expect(zips.find((x) => x.fileIds!.includes("v-2gb"))!.fileIds).toEqual(["v-2gb"]);
-    const suelto = p.find((x) => x.tipo === "SUELTO");
-    expect(suelto).toMatchObject({ fotoId: "v-5gb", estado: "LISTA", bytes: 5 * GB });
-    // Entran todos, una sola vez.
-    expect(zips.flatMap((x) => x.fileIds!).sort()).toEqual([...Array.from({ length: 15 }, (_, i) => `f${String(i + 1).padStart(2, "0")}`), "v-2gb"].sort());
+    expect(zips.length).toBe(2);
+    expect(zips.map((x) => x.n)).toEqual([1, 2]);
+    expect(zips.every((x) => x.bytes <= GB)).toBe(true);
+    expect(p.filter((x) => x.tipo === "SUELTO")).toMatchObject([{ fotoId: "v-2gb", estado: "LISTA", bytes: 2 * GB }, { fotoId: "v-5gb", estado: "LISTA", bytes: 5 * GB }]);
+    // Las fotos entran todas, una sola vez; los videos grandes no están en ningún ZIP.
+    expect(zips.flatMap((x) => x.fileIds!).sort()).toEqual(Array.from({ length: 15 }, (_, i) => `f${String(i + 1).padStart(2, "0")}`));
   });
 
   it("si todo es «suelto» (sin nada que armar) queda LISTA de entrada", async () => {
@@ -541,14 +540,81 @@ describe("el aviso por correo", () => {
     expect(correo.enviar.mock.calls[0]![0]).toMatchObject({ para: "dani@estudio.com", nombre: "", enlace: "https://app.test/galerias/ge?tab=descargas" });
   });
 
-  it("si el correo no salió por el tope o por el proveedor se libera para reintentar; por otros motivos, no", async () => {
-    sembrarDescarga("d3");
+  const OPC = { appOrigin: "https://app.test", clave: CLAVE };
+  const aviso = (id: string) => descarga(id).cursor as { aviso?: { intentos: number; proximo: string | null; reservadaEn: string | null } } | null;
+
+  it("si el correo no salió por el tope o por el proveedor, no se marca como enviado: espera 30 minutos o más y reintenta; por otros motivos se cierra", async () => {
+    sembrarDescarga("d3", { expiresAt: new Date(AHORA.getTime() + 7 * DIA) });
     correo.enviar.mockResolvedValueOnce("TOPE");
-    expect(await D.avisarDescargaLista("d3", AHORA, { appOrigin: "https://app.test", clave: CLAVE })).toBe("TOPE");
+    expect(await D.avisarDescargaLista("d3", AHORA, OPC)).toBe("TOPE");
     expect(descarga("d3").notifiedAt).toBeNull();
-    expect(eventos()).toContain("DESCARGA_CORREO_NO_ENVIADO");
+    expect(aviso("d3")!.aviso).toMatchObject({ intentos: 1, reservadaEn: null, proximo: new Date(AHORA.getTime() + 30 * MIN).toISOString() });
+    // Antes de la espera no se vuelve a intentar.
+    expect(await D.avisarDescargaLista("d3", new Date(AHORA.getTime() + 10 * MIN), OPC)).toBe("ESPERA");
+    expect(correo.enviar).toHaveBeenCalledTimes(1);
     correo.enviar.mockResolvedValueOnce("APAGADA");
-    expect(await D.avisarDescargaLista("d3", AHORA, { appOrigin: "https://app.test", clave: CLAVE })).toBe("APAGADA");
+    const despues = new Date(AHORA.getTime() + 31 * MIN);
+    expect(await D.avisarDescargaLista("d3", despues, OPC)).toBe("APAGADA");
+    expect(descarga("d3").notifiedAt).toEqual(despues);
+    expect(descarga("d3").cursor).toBeNull();
+    // Una sola falla registrada en el historial aunque hubo dos intentos.
+    expect(eventos().filter((e) => e === "DESCARGA_CORREO_NO_ENVIADO")).toHaveLength(1);
+  });
+
+  it("aunque @updatedAt se mueva en cada escritura, el reintento se corta (máx. 12 intentos y 24 h) y deja UN solo evento de falla", async () => {
+    sembrarDescarga("d3", { expiresAt: new Date(AHORA.getTime() + 7 * DIA) });
+    const tabla = B.tablas.fotofficeGaleriaDescarga;
+    const original = tabla.updateMany;
+    let tictac = 0;
+    tabla.updateMany = async (a: Parameters<typeof original>[0]) => {
+      const r = await original(a);
+      for (const f of descargas()) f.updatedAt = new Date(Date.UTC(2030, 0, 1) + ++tictac * 1000); // como Prisma: cada escritura lo refresca
+      return r;
+    };
+    try {
+      correo.enviar.mockResolvedValue("NO_ENVIADO");
+      for (let k = 0; k < 40; k++) await D.avisarDescargaLista("d3", new Date(AHORA.getTime() + k * 130 * MIN), OPC);
+    } finally {
+      tabla.updateMany = original;
+    }
+    expect(correo.enviar.mock.calls.length).toBeGreaterThanOrEqual(5);
+    expect(correo.enviar.mock.calls.length).toBeLessThanOrEqual(12);
+    expect(descarga("d3").notifiedAt).not.toBeNull(); // cerrado: ya no se insiste
+    expect(eventos().filter((e) => e === "DESCARGA_CORREO_NO_ENVIADO")).toHaveLength(1);
+    // Y el cron ya no la toma.
+    const llamadas = correo.enviar.mock.calls.length;
+    await D.procesarDescargas({ almacen: a.almacen, ahora: () => new Date(AHORA.getTime() + 50 * 130 * MIN) });
+    expect(correo.enviar.mock.calls.length).toBe(llamadas);
+  });
+
+  it("una excepción transitoria (base caída) cuenta como no enviado y se reintenta; el éxito marca enviado recién cuando el proveedor aceptó", async () => {
+    sembrarDescarga("d3", { expiresAt: new Date(AHORA.getTime() + 7 * DIA) });
+    let notificadoAlEnviar: unknown = "no se llamó";
+    correo.enviar.mockImplementationOnce(async () => {
+      notificadoAlEnviar = descarga("d3").notifiedAt;
+      throw new Error("base caída");
+    });
+    expect(await D.avisarDescargaLista("d3", AHORA, OPC)).toBe("ERROR");
+    expect(notificadoAlEnviar).toBeNull();
+    expect(descarga("d3").notifiedAt).toBeNull();
+    expect(aviso("d3")!.aviso!.intentos).toBe(1);
+    correo.enviar.mockImplementationOnce(async () => {
+      notificadoAlEnviar = descarga("d3").notifiedAt;
+      return "ENVIADO";
+    });
+    const t = new Date(AHORA.getTime() + 31 * MIN);
+    expect(await D.avisarDescargaLista("d3", t, OPC)).toBe("ENVIADO");
+    expect(notificadoAlEnviar).toBeNull(); // durante el envío todavía no figuraba como enviado
+    expect(descarga("d3").notifiedAt).toEqual(t);
+  });
+
+  it("si la función murió con la reserva puesta, pasado el arriendo de 10 minutos otra corrida lo retoma; antes, no", async () => {
+    sembrarDescarga("d3", { expiresAt: new Date(AHORA.getTime() + 7 * DIA), cursor: { aviso: { intentos: 1, proximo: null, reservadaEn: new Date(AHORA.getTime() - 2 * MIN).toISOString(), falloRegistrado: false } } });
+    expect(await D.avisarDescargaLista("d3", AHORA, OPC)).toBe("YA_AVISADA");
+    expect(correo.enviar).not.toHaveBeenCalled();
+    descarga("d3").cursor = { aviso: { intentos: 1, proximo: null, reservadaEn: new Date(AHORA.getTime() - 11 * MIN).toISOString(), falloRegistrado: false } };
+    expect(await D.avisarDescargaLista("d3", AHORA, OPC)).toBe("ENVIADO");
+    expect(correo.enviar).toHaveBeenCalledTimes(1);
     expect(descarga("d3").notifiedAt).toEqual(AHORA);
   });
 
@@ -560,9 +626,10 @@ describe("el aviso por correo", () => {
   });
 
   it("el cron reintenta los avisos pendientes de las últimas 24 h, no de las más viejas", async () => {
-    sembrarDescarga("d5", { updatedAt: new Date(AHORA.getTime() - 2 * 60 * MIN) });
-    sembrarDescarga("d6", { updatedAt: new Date(AHORA.getTime() - 30 * 60 * MIN) });
-    sembrarDescarga("d7", { updatedAt: new Date(AHORA.getTime() - 2 * 60 * MIN), notifiedAt: AHORA });
+    // d5 quedó lista hace 2 h; d6 hace 2 días; d7 ya se avisó. La edad sale de expiresAt, no de updatedAt.
+    sembrarDescarga("d5", { expiresAt: new Date(AHORA.getTime() + 7 * DIA - 2 * 60 * MIN) });
+    sembrarDescarga("d6", { expiresAt: new Date(AHORA.getTime() + 5 * DIA) });
+    sembrarDescarga("d7", { expiresAt: new Date(AHORA.getTime() + 7 * DIA - 2 * 60 * MIN), notifiedAt: AHORA });
     const r = await corrida();
     expect(r.avisadas).toBe(1);
     expect(avisos).toEqual(["d5"]);
@@ -708,5 +775,48 @@ describe("el estudio", () => {
     sembrarDescarga("d-ajena", { workspaceId: "ws-2", galeriaId: "g-ajena", galeriaClienteId: null, parts: [{ tipo: "ZIP", n: 1, key: claveDeParte("ws-2", "g-ajena", "d-ajena", 1), bytes: 1, files: 1, estado: "LISTA", fileIds: [] }] });
     expect(await D.urlDeParteDelEstudio(ctx, "g-ajena", "d-ajena", "ZIP", 1, AHORA)).toEqual({ ok: false, error: M.noDisponible });
     expect(await D.urlDeParteDelEstudio(ctx, "ge", "d-ajena", "ZIP", 1, AHORA)).toEqual({ ok: false, error: M.noDisponible });
+  });
+});
+
+describe("turnos parejos, nombres y cierre de lecturas", () => {
+  it("un pedido grande no deja esperando a los demás: el que acaba de armar una parte pasa al final", async () => {
+    sembrarFoto("a", 600 * MB);
+    sembrarFoto("b", 600 * MB);
+    sembrarFoto("c", 600 * MB);
+    cargarOriginales(a, "a", "b", "c");
+    const grande = await D.pedirDescargaDeCliente("ws-1", TOKEN1, AHORA);
+    B.agregar("fotofficeGaleria", { id: "ge2", workspaceId: "ws-1", proyectoId: "pr2", number: "G-3", name: "Otra", kind: "ENTREGA", status: "PUBLICADA", orderMode: "NOMBRE" });
+    sembrarCliente("gc9", {}, "ge2");
+    sembrarFoto("z", 5 * MB, {}, "ge2");
+    cargarOriginales(a, "z");
+    const chico = await D.pedirDescargaDeCliente("ws-1", token("gc9"), new Date(AHORA.getTime() + MIN));
+    if (!grande.ok || !chico.ok) throw new Error();
+    expect(partes(grande.id).length).toBeGreaterThanOrEqual(3);
+    const orden: (string | null)[] = [];
+    for (let k = 0; k < 4; k++) orden.push((await corrida({}, new Date(AHORA.getTime() + (2 + k * 5) * MIN))).tomada);
+    expect(orden).toEqual([grande.id, chico.id, grande.id, grande.id]);
+    expect(descarga(chico.id).status).toBe("LISTA");
+  });
+
+  it("los nombres repetidos quedan distintos entre partes (se extraen todas juntas en una carpeta)", async () => {
+    sembrarFoto("a", 600 * MB, { fileName: "IMG_0001.jpg" });
+    sembrarFoto("b", 600 * MB, { fileName: "IMG_0001.jpg" });
+    cargarOriginales(a, "a", "b");
+    const r = await D.pedirDescargaDeCliente("ws-1", TOKEN1, AHORA);
+    if (!r.ok) throw new Error();
+    await corrida();
+    await corrida({}, new Date(AHORA.getTime() + 5 * MIN));
+    const n1 = leerZip(a.objetos.get(`galerias/ws-1/ge/descargas/${r.id}/parte-1.zip`)!).map((x) => x.nombre);
+    const n2 = leerZip(a.objetos.get(`galerias/ws-1/ge/descargas/${r.id}/parte-2.zip`)!).map((x) => x.nombre);
+    expect([...n1, ...n2].sort()).toEqual(["IMG_0001 (2).jpg", "IMG_0001.jpg"]);
+  });
+
+  it("al cortar por tiempo se cierran las lecturas de R2 que quedaron abiertas", async () => {
+    sembrarFoto("a");
+    cargarOriginales(a, "a");
+    const r = await D.pedirDescargaDeCliente("ws-1", TOKEN1, AHORA);
+    if (!r.ok) throw new Error();
+    expect((await corrida({ presupuestoMs: -1 })).fallo).toBe(true);
+    expect(a.reg.destruidos).toBeGreaterThanOrEqual(1);
   });
 });
