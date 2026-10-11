@@ -161,6 +161,10 @@ const nextConfig: NextConfig = {
       // `frame-ancestors *`.
       { source: "/w/:slug/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
+      // El enlace de una galería (etapa 7): token personal del cliente en la dirección, botón de enviar la
+      // selección (clickjacking) y fotos de un evento privado: ni se enmarca ni manda la dirección a otro sitio.
+      { source: "/w/:slug/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
     ];
   },
   images: {

@@ -40,7 +40,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos e informes", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos, informes y galería", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -66,6 +66,7 @@ describe("MODULE_REGISTRY", () => {
         "agenda",
         "contracts",
         "reports",
+        "gallery",
       ].sort(),
     );
   });

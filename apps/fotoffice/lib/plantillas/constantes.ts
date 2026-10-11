@@ -14,8 +14,11 @@ export type Canal = (typeof CANALES)[number];
  * código, recordatorio y firmado). Los textos de los contratos mismos NO viven acá: están en
  * `FotofficeContratoPlantilla` (Configuración → Contratos → Plantillas) y usan su propio catálogo de variables
  * (`lib/contratos/variables.ts`).
+ * GALERIA (etapa 7) tampoco es una ficha: reserva el tipo de los correos automáticos de una galería (el
+ * enlace al cliente y la copia de la selección enviada), con las variables comunes más las de la galería
+ * (`[galeria_enlace]`, etc.).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO", "GALERIA"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -43,10 +46,14 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   los correos del circuito de firma a cada firmante (enlace, código de verificación, recordatorio y
  *   PDF firmado). Son transaccionales: sin el freno de 24 h por dirección, con el tope diario de
  *   automáticos. Los manda `lib/contratos/correos.ts`; el del código NO guarda el código en el registro.
+ * - `GALERIA_ENVIO` y `GALERIA_SELECCION_ENVIADA` (etapa 7, Galería): el enlace personal de la galería al
+ *   cliente y la copia al cliente de la selección que envió (con la cantidad). Son transaccionales: sin el
+ *   freno de 24 h por dirección, con el tope diario de automáticos. Los manda `lib/galerias/correos.ts`.
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
   "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
+  "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
@@ -60,6 +67,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   PEDIDO: "Pedido",
   CITA: "Cita",
   CONTRATO: "Contrato",
+  GALERIA: "Galería",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",
