@@ -135,7 +135,7 @@ export async function vistaDeSala(p: PaseDeSala, workId: string) {
     portfolio: (perfil && "portfolio" in perfil && Array.isArray(perfil.portfolio) ? perfil.portfolio : []).filter((f) => esUrlWeb(f.imageUrl)),
     otrasObras: delArtista.map((w) => ({ id: w.id, title: w.title, imagen: imagenDeSala(a.slug, w.id) })),
     otrasMuestras,
-    mostrarAdquirir: showBuyButton({ roomBuy: v.room.buy, forSale: ex?.forSale ?? false }),
+    mostrarAdquirir: showBuyButton({ roomBuy: v.room.buy, hasOffers: ex?.forSale ?? false }),
     vence: p.pase?.exp ?? null,
   };
 }

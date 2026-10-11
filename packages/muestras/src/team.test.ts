@@ -13,7 +13,7 @@ describe("capacidades por rol", () => {
     }
   });
   it("coorganización: todo menos cancelar, el equipo y la convocatoria", () => {
-    const no: Capability[] = ["cancel", "manageTeam", "manageCall", "contest"];
+    const no: Capability[] = ["cancel", "manageTeam", "manageCall", "contest", "sales"];
     for (const c of CAPABILITIES) expect(can(c, como("CO_ORGANIZER")), c).toBe(!no.includes(c));
   });
   it("textos: sólo entrar y editar textos", () => {
@@ -35,6 +35,20 @@ describe("capacidades por rol", () => {
     expect(can("contest", como("CO_ORGANIZER"))).toBe(false);
     expect(can("contest", como("TEXT_EDITOR"))).toBe(false);
     expect(can("contest", como(null, true))).toBe(true);
+  });
+});
+
+describe("venta (etapa 8)", () => {
+  it("encender la venta es del dueño; los pedidos, también de la coorganización", () => {
+    expect(can("sales", como("OWNER"))).toBe(true);
+    expect(can("sales", como("CO_ORGANIZER"))).toBe(false);
+    expect(can("salesFulfill", como("CO_ORGANIZER"))).toBe(true);
+    expect(can("sales", como("TEXT_EDITOR"))).toBe(false);
+    expect(can("salesFulfill", como("TEXT_EDITOR"))).toBe(false);
+    expect(can("sales", como(null, true))).toBe(true);
+    expect(can("salesFulfill", como(null, true))).toBe(true);
+    expect(rolesWith("sales")).toEqual(["OWNER"]);
+    expect(rolesWith("salesFulfill")).toEqual(["OWNER", "CO_ORGANIZER"]);
   });
 });
 

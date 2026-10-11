@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
-  PANEL_SECTIONS, activeSectionKey, countByStatus, groupedPanelSections, panelSections, upcomingSection,
+  PANEL_SECTIONS, activeSectionKey, activitySalesHref, countByStatus, groupedPanelSections, panelSections, showActivitySales, upcomingSection,
 } from "./panel";
 
 describe("secciones del panel", () => {
-  it("una persona común ve todo menos Revisión", () => {
+  it("una persona común ve todo menos Revisión y las ventas de la plataforma", () => {
     expect(panelSections({ isSuperAdmin: false }).map((s) => s.key)).toEqual([
-      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "convocatorias", "concursos", "curaduria", "montaje", "difusion", "ventas", "estadisticas",
+      "inicio", "muestras", "proponer", "perfil", "envios", "expositor", "cobros", "convocatorias", "concursos", "curaduria", "montaje", "difusion", "estadisticas",
     ]);
   });
-  it("el super admin ve también Revisión", () => {
+  it("el super admin ve también Revisión y las ventas de la plataforma", () => {
     expect(panelSections({ isSuperAdmin: true }).map((s) => s.key)).toContain("revision");
+    expect(panelSections({ isSuperAdmin: true }).map((s) => s.key)).toContain("ventas");
   });
   it("agrupa en el orden de la barra y omite los grupos vacíos", () => {
     expect(groupedPanelSections({ isSuperAdmin: false }).map((g) => g.label)).toEqual(["Tu cuenta", "Para organizar"]);
@@ -18,7 +19,7 @@ describe("secciones del panel", () => {
   });
   it("están todas las funcionalidades del organizador, construidas o no", () => {
     expect(PANEL_SECTIONS.filter((s) => s.group === "ORGANIZAR").map((s) => s.label)).toEqual([
-      "Convocatorias", "Concursos", "Curaduría", "Montaje e impresión", "Difusión", "Ventas", "Estadísticas",
+      "Convocatorias", "Concursos", "Curaduría", "Montaje e impresión", "Difusión", "Estadísticas",
     ]);
   });
   it("\"Dónde expongo\" está lista, en \"Tu cuenta\", después de \"Mis envíos\"", () => {
@@ -41,7 +42,7 @@ describe("secciones del panel", () => {
     expect(hrefs.every((h) => h === "/panel" || h.startsWith("/panel/"))).toBe(true);
   });
   it("upcomingSection devuelve sólo las que están en preparación", () => {
-    expect(upcomingSection("ventas")?.label).toBe("Ventas");
+    expect(upcomingSection("ventas")).toBeNull();
     expect(upcomingSection("montaje")).toBeNull();
     expect(upcomingSection("estadisticas")).toBeNull();
     expect(upcomingSection("convocatorias")).toBeNull();
@@ -77,5 +78,24 @@ describe("Difusión (etapa 5)", () => {
   });
   it("sus subrutas la marcan activa", () => {
     expect(activeSectionKey("/panel/difusion/x/inauguracion")).toBe("difusion");
+  });
+});
+
+describe("Venta (etapa 8)", () => {
+  it("\"Cobros\" está lista, en \"Tu cuenta\", después de \"Dónde expongo\"", () => {
+    const i = PANEL_SECTIONS.findIndex((x) => x.key === "cobros");
+    expect(PANEL_SECTIONS[i]).toMatchObject({ label: "Cobros", href: "/panel/cobros", group: "CUENTA", ready: true, superAdminOnly: false });
+    expect(PANEL_SECTIONS[i - 1]?.key).toBe("expositor");
+    expect(activeSectionKey("/panel/cobros")).toBe("cobros");
+  });
+  it("las ventas de la plataforma son sólo del super admin", () => {
+    expect(PANEL_SECTIONS.find((x) => x.key === "ventas")).toMatchObject({ label: "Ventas de la plataforma", href: "/panel/ventas", group: "ADMIN", ready: true, superAdminOnly: true });
+    expect(panelSections({ isSuperAdmin: false }).some((x) => x.key === "ventas")).toBe(false);
+  });
+  it("la venta de cada muestra vive dentro de la muestra", () => {
+    expect(activitySalesHref("ck1")).toBe("/panel/muestras/ck1/ventas");
+    expect(activeSectionKey(activitySalesHref("ck1"))).toBe("muestras");
+    expect(showActivitySales({ canSales: false, canFulfill: true })).toBe(true);
+    expect(showActivitySales({ canSales: false, canFulfill: false })).toBe(false);
   });
 });
