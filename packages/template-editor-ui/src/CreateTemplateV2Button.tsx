@@ -122,7 +122,7 @@ export function CreateTemplateV2Button({
 
       {menuOpen ? (
         <div
-          className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[color:var(--te-line)] bg-white p-2 shadow-xl"
+          className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] p-2 shadow-xl"
           role="menu"
           data-testid="template-v2-create-menu"
         >
@@ -169,7 +169,7 @@ export function CreateTemplateV2Button({
 
       {error ? (
         <p
-          className="max-w-md text-right text-xs text-red-600"
+          className="max-w-md text-right text-xs text-[color:var(--te-danger)]"
           data-testid="template-v2-error-banner"
           role="alert"
         >

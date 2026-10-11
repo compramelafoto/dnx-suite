@@ -59,7 +59,7 @@ export function TemplateDiagnosticsPanel({ blocks, canvas, dispatch, embedded }:
                   {fixLabel ? (
                     <button
                       type="button"
-                      className="shrink-0 self-center rounded-md border border-[color:var(--te-accent-wash)] bg-white px-2 py-1 text-[10px] font-medium text-[color:var(--te-accent)] shadow-sm hover:bg-[color:var(--te-accent-wash)]"
+                      className="shrink-0 self-center rounded-md border border-[color:var(--te-accent-wash)] bg-[color:var(--te-surface)] px-2 py-1 text-[10px] font-medium text-[color:var(--te-accent)] shadow-sm hover:bg-[color:var(--te-accent-wash)]"
                       title="Acción rápida"
                       onClick={(e) => {
                         e.stopPropagation();

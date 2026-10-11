@@ -129,7 +129,7 @@ export function ImageBlockUploadSection({
       {isSchoolLogoDynamic ? (
         <div className="mb-3 rounded-lg border border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] px-2.5 py-2 text-[11px] leading-snug text-[color:var(--te-ink)]">
           <p className="font-medium text-[color:var(--te-accent)]">Logo de la escuela (dinámico)</p>
-          <p className="mt-1 text-[#6b5b4d]">
+          <p className="mt-1 text-[color:var(--te-ink-muted)]">
             En el pedido se usará el PNG con fondo transparente cargado al dar de alta la escuela en la plataforma. En el
             editor ves una vista previa de diseño.
           </p>
@@ -149,7 +149,7 @@ export function ImageBlockUploadSection({
             <img src={src} alt="" className="h-full w-full object-cover" />
           </div>
         ) : isSchoolLogoDynamic ? (
-          <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-dashed border-[color:var(--te-accent-wash)] bg-[#fffdfb] text-[9px] font-medium text-[color:var(--te-accent)]">
+          <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-dashed border-[color:var(--te-accent-wash)] bg-[color:var(--te-chrome-sunken)] text-[9px] font-medium text-[color:var(--te-accent)]">
             Logo
           </div>
         ) : (
@@ -169,7 +169,7 @@ export function ImageBlockUploadSection({
             <p className="mt-0.5 text-[11px] text-[color:var(--te-accent)]">Subiendo…</p>
           ) : null}
           {error ? (
-            <p className="mt-0.5 text-[11px] text-red-600" role="alert">
+            <p className="mt-0.5 text-[11px] text-[color:var(--te-danger)]" role="alert">
               {error}
             </p>
           ) : null}

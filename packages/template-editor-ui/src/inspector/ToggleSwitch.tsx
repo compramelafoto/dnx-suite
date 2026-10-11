@@ -18,7 +18,7 @@ export function ToggleSwitch({ checked, onChange, label, disabled, className }: 
       aria-checked={checked}
       disabled={disabled}
       className={cn(
-        "flex w-full items-center justify-between gap-3 rounded-lg border border-[color:var(--te-line)] bg-white px-3 py-2 text-left text-xs text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)]",
+        "flex w-full items-center justify-between gap-3 rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-3 py-2 text-left text-xs text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)]",
         disabled && "cursor-not-allowed opacity-50",
         className
       )}
@@ -33,7 +33,7 @@ export function ToggleSwitch({ checked, onChange, label, disabled, className }: 
       >
         <span
           className={cn(
-            "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+            "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-[color:var(--te-surface)] shadow transition-transform",
             checked ? "translate-x-[1.375rem]" : "translate-x-0"
           )}
         />
