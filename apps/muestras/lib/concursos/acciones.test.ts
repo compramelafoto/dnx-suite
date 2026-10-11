@@ -106,7 +106,7 @@ describe("armarMuestraDesdeConcurso", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-10T15:00:00Z"));
     const r = await armarMuestraDesdeConcurso(nueva());
-    expect(r).toEqual({ ok: true, id: "nueva1", avisos: ["Revisá fechas y sede: las pusimos provisorias."] });
+    expect(r).toEqual({ ok: true, id: "nueva1", avisos: ["Revisá fechas y sede: las pusimos provisorias."], nueva: true });
     const data = db.culturalActivity.create.mock.calls[0][0].data;
     expect(data).toMatchObject({
       type: "MUESTRA", title: "Muestra Paisajes 2026", organizersText: "SFPR", proposedByUserId: 7,
@@ -131,9 +131,10 @@ describe("armarMuestraDesdeConcurso", () => {
   });
   it("doble clic: la segunda encuentra la muestra recién armada y no crea otra", async () => {
     db.culturalContestImport.findFirst.mockResolvedValue({ activityId: "nueva1", activity: { slug: "s" } });
-    expect(await armarMuestraDesdeConcurso(nueva())).toEqual({ ok: true, id: "nueva1" });
+    expect(await armarMuestraDesdeConcurso(nueva())).toEqual({ ok: true, id: "nueva1", nueva: true });
     expect(db.culturalActivity.create).not.toHaveBeenCalled();
-    expect(db.culturalContestImport.findFirst.mock.calls[0][0].where).toMatchObject({ contestId: "c1", createdByUserId: 7 });
+    // Sólo con los mismos niveles: con otros niveles es otra muestra a propósito.
+    expect(db.culturalContestImport.findFirst.mock.calls[0][0].where).toMatchObject({ contestId: "c1", createdByUserId: 7, tiers: { equals: ["WINNER", "MENTION"] } });
   });
   it("el tope u otro corte del armado vuelve como mensaje", async () => {
     armar.aplicarResultados.mockRejectedValue(new CorteDeArmado("La muestra admite hasta 300 obras: ya tiene 300 y el concurso suma 1. Elegí menos niveles o sacá obras de la muestra."));
@@ -258,6 +259,21 @@ describe("copiarImagenesDelConcurso", () => {
       data: { imageStatus: "FAILED", imageError: "No pudimos traer la imagen de FotoRank. Probá de nuevo en un rato." },
     });
   });
+  it("si la fila cambió en el medio (count 0), la copia recién subida se manda a borrar (borrar mira si alguna fila la usa)", async () => {
+    db.culturalContestWork.findMany.mockResolvedValue(tanda(1));
+    db.culturalContestWork.updateMany.mockResolvedValue({ count: 0 });
+    const r = await copiarImagenesDelConcurso("a1");
+    expect(r).toMatchObject({ ok: true, copiadas: 0 });
+    expect(gal.sincronizarObraConGaleria).not.toHaveBeenCalled();
+    expect(img.borrarImagenDeConcurso).toHaveBeenCalledWith("https://r2/cw1.webp");
+  });
+  it("si se corta (ya no tiene permiso), la copia recién subida se manda a borrar", async () => {
+    db.culturalContestWork.findMany.mockResolvedValue(tanda(1));
+    db.culturalActivity.count.mockResolvedValue(0);
+    const r = await copiarImagenesDelConcurso("a1");
+    expect(r.ok).toBe(false);
+    expect(img.borrarImagenDeConcurso).toHaveBeenCalledWith("https://r2/cw1.webp");
+  });
   it("sin el secreto: las de la tanda quedan FAILED con el aviso y la acción lo devuelve", async () => {
     img.copiarImagenDeConcurso.mockRejectedValue(new ImagenDeConcursoError("NOT_CONFIGURED", "Falta configurar la conexión con FotoRank (avisale a la administración)."));
     const r = await copiarImagenesDelConcurso("a1");
@@ -290,6 +306,10 @@ describe("copiarImagenesDelConcurso", () => {
     expect(db.culturalContestWork.updateMany).toHaveBeenCalledWith({
       where: { activityId: "a1", include: true, imageStatus: "FAILED" }, data: { imageStatus: "PENDING", imageError: null },
     });
+  });  it("reintentar con la muestra en revisión: no", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra({ reviewStatus: "IN_REVIEW" }), startsAt: new Date(), endsAt: new Date(), contestImport: { id: "i1" } });
+    expect((await reintentarImagenes("a1")).ok).toBe(false);
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -313,23 +333,36 @@ describe("opciones por obra", () => {
     gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "SIN_CAMBIO" });
   });
   const escrito = () => db.culturalContestWork.updateMany.mock.calls.at(-1)![0];
+  const v = () => fila.updatedAt.toISOString();
 
   it("sacar la galería desmarca 'Se imprime', con la muestra bloqueada, y sincroniza", async () => {
-    expect((await guardarOpcionesDeObra("cw1", { include: false, toPrint: true, forSale: false })).ok).toBe(true);
+    expect((await guardarOpcionesDeObra("cw1", { include: false }, v())).ok).toBe(true);
     expect(escrito()).toMatchObject({ where: { id: "cw1", activityId: "a1", updatedAt: fila.updatedAt }, data: { include: false, toPrint: false } });
     expect(String(db.$queryRaw.mock.calls[0][0].join("?"))).toMatch(/FOR UPDATE/);
     expect(gal.sincronizarObraConGaleria).toHaveBeenCalledWith(db, "a1", "cw1");
   });
   it("marcar la venta le pregunta al autor; desmarcarla antes de que responda la retira", async () => {
-    await guardarOpcionesDeObra("cw1", { include: true, toPrint: true, forSale: true });
+    await guardarOpcionesDeObra("cw1", { forSale: true }, v());
     expect(escrito().data).toMatchObject({ forSale: true, saleConsent: "PENDING" });
     fila = { ...fila, forSale: true, saleConsent: "PENDING" };
-    await guardarOpcionesDeObra("cw1", { include: true, toPrint: true, forSale: false });
+    await guardarOpcionesDeObra("cw1", { forSale: false }, v());
     expect(escrito().data).toMatchObject({ forSale: false, saleConsent: "NOT_ASKED", saleConsentAt: null });
+  });
+  it("sólo cambia la casilla pedida: lo demás sale de la fila bloqueada", async () => {
+    fila = { ...fila, toPrint: false, forSale: true, saleConsent: "PENDING" };
+    await guardarOpcionesDeObra("cw1", { toPrint: true }, v());
+    expect(escrito().data).toMatchObject({ include: true, toPrint: true, forSale: true, saleConsent: "PENDING" });
+  });
+  it("si la obra cambió desde que se abrió el panel (otra pestaña, el autor), no se pisa", async () => {
+    const vieja = new Date("2026-10-09").toISOString();
+    expect(await guardarOpcionesDeObra("cw1", { include: false }, vieja)).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
+    expect(gal.sincronizarObraConGaleria).not.toHaveBeenCalled();
+    expect(await guardarOpcionesDeObra("cw1", { include: false }, "")).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
   });
   it("si el autor ya respondió la venta, su respuesta queda", async () => {
     fila = { ...fila, forSale: true, saleConsent: "DECLINED" };
-    await guardarOpcionesDeObra("cw1", { include: true, toPrint: true, forSale: false });
+    await guardarOpcionesDeObra("cw1", { forSale: false }, v());
     expect(escrito().data).toMatchObject({ forSale: false, saleConsent: "DECLINED" });
   });
   it("sacar de la muestra: include y toPrint en false; la copia se borra después", async () => {
@@ -348,7 +381,7 @@ describe("opciones por obra", () => {
   });
   it("la coorganización no cambia nada", async () => {
     db.culturalActivity.findFirst.mockResolvedValue(null);
-    expect(await guardarOpcionesDeObra("cw1", { include: false, toPrint: false, forSale: false })).toEqual({ ok: false, errores: ["La obra no existe."] });
+    expect(await guardarOpcionesDeObra("cw1", { include: false }, v())).toEqual({ ok: false, errores: ["La obra no existe."] });
     expect(await marcarAutorizacionEscrita("cw1")).toEqual({ ok: false, errores: ["La obra no existe."] });
     expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
   });

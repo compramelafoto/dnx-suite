@@ -92,7 +92,7 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
       select: {
         id: true, entryId: true, authorUserId: true, authorName: true, title: true, tier: true, distinction: true, sourceStatus: true,
         imageStatus: true, imageUrl: true, imageError: true, include: true, toPrint: true, forSale: true, exhibitBasis: true,
-        attributionRequired: true, exhibitConsent: true, consentBy: true, saleConsent: true, activityWorkId: true,
+        attributionRequired: true, exhibitConsent: true, consentBy: true, saleConsent: true, activityWorkId: true, updatedAt: true,
       },
     }),
     prisma.culturalContestAuthor.findMany({
@@ -112,6 +112,8 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
     });
     return {
       ...o,
+      // La coorganización (sólo lectura) ve el crédito público: con "Autoría reservada", no el nombre real.
+      authorName: puedeCambiar ? o.authorName : credito.name,
       imageUrl: esUrlWeb(o.imageUrl) ? o.imageUrl : null,
       enLaMuestra: o.activityWorkId != null,
       seVeSuNombre: credito.show,
@@ -121,7 +123,8 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
 
   const cerrada = temporalStatus(a, new Date()) === "CLOSED";
   const contest = imp.contestTitle;
-  const conCuenta = autores.filter((x) => x.userId != null).map((x) => {
+  // Los enlaces para mandar (con el nombre de cada autor) son de quien maneja la muestra.
+  const conCuenta = autores.filter((x) => puedeCambiar && x.userId != null).map((x) => {
     const suyas = obras.filter((o) => o.authorUserId === x.userId);
     const url = `${APP_URL}/panel/expositor/concurso/${x.id}`;
     const nombre = x.displayName?.trim() || x.authorName;

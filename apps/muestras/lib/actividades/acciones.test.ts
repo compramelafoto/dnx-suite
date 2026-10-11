@@ -553,6 +553,24 @@ describe("guardarBorrador: obras traídas de un concurso (etapa 7, D17)", () => 
     expect(db.culturalExhibitorWork.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "REMOVED" }) }));
   });
 
+  it("la coorganización no puede quitar obras del concurso: se conservan y se avisa", async () => {
+    // Puede editar (editActivity) pero no tiene `contest`.
+    db.culturalActivity.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    const r = await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2", "aw3"]),
+      works: JSON.stringify([
+        { id: "aw2", imageUrl: `${BASE}/muestras/50/foto.webp`, title: "Silos", authorName: "Ema Expone", isHighlight: false },
+        { id: "aw3", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false },
+      ]),
+    }));
+    expect(r).toEqual({ ok: true, id: "a1", avisos: [expect.stringMatching(/sólo las puede sacar quien armó la muestra/)] });
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
+    expect(imagenConcurso.borrarImagenDeConcurso).not.toHaveBeenCalled();
+    // No se borró: queda fuera del deleteMany y conserva su lugar después de las enviadas.
+    expect(db.culturalActivityWork.deleteMany.mock.calls[0]![0].where.id.notIn).toContain("aw1");
+    expect(db.culturalActivityWork.update).toHaveBeenCalledWith({ where: { id: "aw1" }, data: { sortOrder: 2 } });
+  });
+
   it("de punta a punta: la que se quitó no vuelve con Actualizar desde FotoRank", async () => {
     const { planContestImport } = await import("@repo/muestras");
     // Lo que quedó escrito al quitarla: include=false. Actualizar la ve como existente.

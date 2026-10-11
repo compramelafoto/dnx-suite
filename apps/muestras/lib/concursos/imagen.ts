@@ -18,8 +18,10 @@ import { borrarDeR2, subirAR2 } from "@/lib/imagenes/r2";
  * bases lo autorizan o el autor aceptó). Antes de eso la imagen no sale de FotoRank. Si el autor
  * después la saca o quien organiza la quita, se borra la copia (`borrarImagenDeConcurso`).
  *
- * La clave es fija por obra (copiar dos veces pisa el mismo objeto) pero no se adivina: lleva una
- * huella con el secreto, porque el bucket es público y el id de la obra viaja por FotoRank.
+ * La clave es fija por obra **y por muestra** (copiar dos veces pisa el mismo objeto; dos muestras del
+ * mismo concurso, por ejemplo una itinerante, tienen cada una su copia y sacarla de una no la borra de
+ * la otra) pero no se adivina: lleva una huella con el secreto, porque el bucket es público y el id de
+ * la obra viaja por FotoRank.
  */
 const BASE_POR_OMISION = "https://fotorank.dnxsuite.com";
 const VIGENCIA_MS = 10 * 60 * 1000;
@@ -40,11 +42,12 @@ export class ImagenDeConcursoError extends Error {
 
 const NO_CONFIGURADO = "Falta configurar la conexión con FotoRank (avisale a la administración).";
 
-/** `muestras/<autor>/fr-<obra>-<huella>.webp`: fija por obra y sin adivinar sin el secreto. */
-export function claveDeObraDeConcurso(authorUserId: number | null, entryId: string, secret: string): string {
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(entryId)) throw new ImagenDeConcursoError("INVALID", "Obra inválida.");
+/** `muestras/<autor>/fr-<obra>-<huella>.webp`: fija por obra y muestra, y sin adivinar sin el secreto. */
+export function claveDeObraDeConcurso(authorUserId: number | null, entryId: string, activityId: string, secret: string): string {
+  const id = /^[A-Za-z0-9_-]{1,64}$/;
+  if (!id.test(entryId) || !id.test(activityId)) throw new ImagenDeConcursoError("INVALID", "Obra inválida.");
   if (!secret) throw new ImagenDeConcursoError("NOT_CONFIGURED", NO_CONFIGURADO);
-  const huella = createHmac("sha256", secret).update(`muestras-key|${entryId}`).digest("base64url").slice(0, 22);
+  const huella = createHmac("sha256", secret).update(`muestras-key|${entryId}|${activityId}`).digest("base64url").slice(0, 22);
   const archivo = `fr-${entryId}-${huella}.webp`;
   return authorUserId != null ? `muestras/${authorUserId}/${archivo}` : `muestras/concursos/${archivo}`;
 }
@@ -58,7 +61,7 @@ export type DepsImagenDeConcurso = {
   leerObra: (contestWorkId: string) => Promise<ObraParaCopiar | null>;
 };
 
-type ObraParaCopiar = { entryId: string; authorUserId: number | null; include: boolean; imageStatus: string; imageUrl: string | null; exhibitConsent: string };
+type ObraParaCopiar = { entryId: string; activityId: string; authorUserId: number | null; include: boolean; imageStatus: string; imageUrl: string | null; exhibitConsent: string };
 
 const DEPS: DepsImagenDeConcurso = {
   fetch: (...args) => globalThis.fetch(...args),
@@ -68,7 +71,7 @@ const DEPS: DepsImagenDeConcurso = {
   leerObra: (id) =>
     prisma.culturalContestWork.findUnique({
       where: { id },
-      select: { entryId: true, authorUserId: true, include: true, imageStatus: true, imageUrl: true, exhibitConsent: true },
+      select: { entryId: true, activityId: true, authorUserId: true, include: true, imageStatus: true, imageUrl: true, exhibitConsent: true },
     }),
 };
 
@@ -107,7 +110,7 @@ export async function copiarImagenDeConcurso(
   }
   const secret = process.env.DNX_FOTORANK_LINK_SECRET?.trim();
   if (!secret) throw new ImagenDeConcursoError("NOT_CONFIGURED", NO_CONFIGURADO);
-  const clave = claveDeObraDeConcurso(obra.authorUserId, obra.entryId, secret);
+  const clave = claveDeObraDeConcurso(obra.authorUserId, obra.entryId, obra.activityId, secret);
   const baseUrl = process.env.FOTORANK_PUBLIC_BASE_URL?.trim() || BASE_POR_OMISION;
   const url = signEntryImageUrl({
     baseUrl,
@@ -143,16 +146,31 @@ export async function copiarImagenDeConcurso(
   }
 }
 
+/** Si alguna fila (del concurso o de la galería de cualquier muestra) todavía usa esta imagen. */
+async function imagenEnUso(url: string): Promise<boolean> {
+  const [delConcurso, enGaleria] = await Promise.all([
+    prisma.culturalContestWork.count({ where: { imageUrl: url } }),
+    prisma.culturalActivityWork.count({ where: { imageUrl: url } }),
+  ]);
+  return delConcurso + enGaleria > 0;
+}
+
 /**
  * Borra la copia de una obra del concurso que salió de la muestra (el autor no quiso, la sacó o
- * quien organiza la quitó). A mejor esfuerzo: si falla, queda registrado y la muestra sigue igual
- * (la URL ya no está en ninguna página).
+ * quien organiza la quitó). Antes mira que **ninguna** fila la siga usando (otra pestaña que la volvió
+ * a copiar, otra muestra, el editor): si alguna la usa, o no se puede saber, no se borra. A mejor
+ * esfuerzo: si falla, queda registrado y la muestra sigue igual.
  */
-export async function borrarImagenDeConcurso(url: string | null, borrar: typeof borrarDeR2 = borrarDeR2): Promise<void> {
+export async function borrarImagenDeConcurso(
+  url: string | null,
+  borrar: typeof borrarDeR2 = borrarDeR2,
+  enUso: (url: string) => Promise<boolean> = imagenEnUso,
+): Promise<void> {
   if (!url) return;
   // Sólo copias de concursos: nunca otra imagen del bucket.
   if (!/\/muestras\/(?:\d+|concursos)\/fr-[A-Za-z0-9_-]+\.webp$/.test(url)) return;
   try {
+    if (await enUso(url)) return;
     await borrar(url);
   } catch (err) {
     console.error("[muestras] concurso borrar imagen:", err instanceof Error ? err.message : String(err));

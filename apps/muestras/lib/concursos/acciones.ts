@@ -20,7 +20,7 @@ import { borrarImagenDeConcurso, copiarImagenDeConcurso, ImagenDeConcursoError }
  * admin) y, sobre la muestra, la capacidad `contest` (sólo el dueño). Todo lo que escribe obras lo
  * hace en una transacción que bloquea la muestra (`FOR UPDATE`).
  */
-export type ResultadoConcurso = { ok: true; id: string; avisos?: string[] } | { ok: false; errores: string[] };
+export type ResultadoConcurso = { ok: true; id: string; avisos?: string[]; nueva?: true } | { ok: false; errores: string[] };
 export type ResultadoCopia =
   | { ok: true; copiadas: number; faltan: number; fallaron: number; avisos?: string[] }
   | { ok: false; errores: string[] };
@@ -120,14 +120,17 @@ export async function armarMuestraDesdeConcurso(fd: FormData): Promise<Resultado
   let activityId = "";
   let slug = "";
   let avisos: string[] = [];
+  let nueva = false;
   try {
     await prisma.$transaction(async (tx) => {
       if (destino === "nueva") {
+        nueva = true;
         // Bloqueo por concurso (no toca tablas de FotoRank): un doble clic o dos pestañas esperan acá
         // y la segunda encuentra la muestra que armó la primera.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`muestras-concurso:${contestId}`}))`;
+        // Con los mismos niveles: si eligió otros, es otra muestra a propósito (no un doble clic).
         const reciente = await tx.culturalContestImport.findFirst({
-          where: { contestId, createdByUserId: usuario.id, createdAt: { gte: new Date(ahora.getTime() - VENTANA_DOBLE_CLIC_MS) } },
+          where: { contestId, createdByUserId: usuario.id, tiers: { equals: [...tiers] }, createdAt: { gte: new Date(ahora.getTime() - VENTANA_DOBLE_CLIC_MS) } },
           orderBy: { createdAt: "desc" },
           select: { activityId: true, activity: { select: { slug: true } } },
         });
@@ -162,7 +165,7 @@ export async function armarMuestraDesdeConcurso(fd: FormData): Promise<Resultado
     throw err;
   }
   refrescar(activityId, slug);
-  return avisos.length ? { ok: true, id: activityId, avisos } : { ok: true, id: activityId };
+  return { ok: true, id: activityId, ...(avisos.length ? { avisos } : {}), ...(nueva ? { nueva: true as const } : {}) };
 }
 
 /**
@@ -285,21 +288,28 @@ export async function copiarImagenesDelConcurso(activityId: string): Promise<Res
       continue;
     }
     try {
-      await prisma.$transaction(async (tx) => {
+      const quedo = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${p.activityId} FOR UPDATE`;
         if ((await tx.culturalActivity.count({ where: conPermiso({ id: p.activityId }, usuario, "contest") })) === 0) throw new CorteDeArmado(MUESTRA_NO_EXISTE);
         const { count } = await tx.culturalContestWork.updateMany({
           where: { id, ...esperanImagen(p.activityId) },
           data: { imageStatus: "COPIED", imageUrl: copia.url, imageError: null, copiedAt: new Date() },
         });
-        // Otra pestaña ya la copió, o cambió en el medio: la próxima tanda lo resuelve.
-        if (count === 0) return;
+        // Otra pestaña ya la copió, o cambió en el medio: la próxima tanda lo resuelve. La copia recién
+        // subida queda huérfana: se borra después (salvo que alguna fila la use, p. ej. la otra pestaña).
+        if (count === 0) {
+          borrar.push(copia.url);
+          return false;
+        }
         const s = await sincronizarObraConGaleria(tx, p.activityId, id);
         if (s.aviso) avisos.add(s.aviso);
         borrar.push(s.borrarImagen);
+        return true;
       }, { timeout: 30_000, maxWait: 10_000 });
-      copiadas += 1;
+      if (quedo) copiadas += 1;
     } catch (err) {
+      // La copia ya subió y no quedó en ninguna fila: no puede quedar suelta en el bucket público.
+      await borrarCopias([...borrar, copia.url]);
       if (err instanceof CorteDeArmado) return error(err.message) as ResultadoCopia;
       throw err;
     }
@@ -318,6 +328,8 @@ export async function copiarImagenesDelConcurso(activityId: string): Promise<Res
 export async function reintentarImagenes(activityId: string): Promise<ResultadoConcurso> {
   const p = await prepararMuestra(activityId, "copiarImagenesConcurso");
   if (!p.listo) return p.error;
+  // Como copiar: en revisión (o despublicada) no se tocan las obras.
+  if (!p.editable) return noEditable(p.muestra.reviewStatus);
   await prisma.culturalContestWork.updateMany({
     where: { activityId: p.activityId, include: true, imageStatus: "FAILED" },
     data: { imageStatus: "PENDING", imageError: null },
@@ -386,20 +398,31 @@ async function cambiarObra(
 
 /**
  * Las tres casillas por obra (D13, D15): "Galería virtual" (está en la muestra), "Se imprime" y "A la
- * venta". Sacar la galería desmarca "Se imprime". Marcar la venta le pregunta al autor; desmarcarla
- * antes de que responda retira la pregunta, y si ya respondió, su respuesta queda.
+ * venta". Llega **sólo la casilla que cambió** (lo demás se toma de la fila bloqueada) y la versión
+ * de la fila que vio el panel (`updatedAt`): si la obra cambió desde entonces (otra pestaña, el
+ * autor), no se pisa y se pide recargar. Sacar la galería desmarca "Se imprime". Marcar la venta le
+ * pregunta al autor; desmarcarla antes de que responda retira la pregunta, y si ya respondió, su
+ * respuesta queda.
  */
 export async function guardarOpcionesDeObra(
   contestWorkId: string,
-  opciones: { include: boolean; toPrint: boolean; forSale: boolean },
+  cambio: Partial<{ include: boolean; toPrint: boolean; forSale: boolean }>,
+  version: string,
 ): Promise<ResultadoConcurso> {
-  if (!opciones || typeof opciones !== "object") return error(OBRA_NO_EXISTE);
-  const include = opciones.include === true;
-  const toPrint = include && opciones.toPrint === true;
-  const forSale = opciones.forSale === true;
+  if (!cambio || typeof cambio !== "object") return error(OBRA_NO_EXISTE);
+  if (typeof version !== "string" || !version) return error(OBRA_CAMBIO);
+  const pedido = {
+    include: typeof cambio.include === "boolean" ? cambio.include : undefined,
+    toPrint: typeof cambio.toPrint === "boolean" ? cambio.toPrint : undefined,
+    forSale: typeof cambio.forSale === "boolean" ? cambio.forSale : undefined,
+  };
   const p = await prepararObra(contestWorkId);
   if (!p.listo) return p.error;
   return cambiarObra(p, (row) => {
+    if (row.updatedAt.toISOString() !== version) throw new CorteDeArmado(OBRA_CAMBIO);
+    const include = pedido.include ?? row.include;
+    const toPrint = include && (pedido.toPrint ?? (pedido.include === true && !row.include ? true : row.toPrint));
+    const forSale = pedido.forSale ?? row.forSale;
     let saleConsent = row.saleConsent;
     let saleConsentAt: Date | null | undefined;
     if (forSale && row.saleConsent === "NOT_ASKED") saleConsent = "PENDING";

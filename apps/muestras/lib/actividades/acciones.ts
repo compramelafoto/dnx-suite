@@ -208,6 +208,11 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
           select: { id: true, activityWorkId: true, imageUrl: true },
         });
         const deConcurso = new Map(delConcurso.flatMap((c) => (c.activityWorkId ? [[c.activityWorkId, c] as const] : [])));
+        // Sacar obras del concurso es de quien tiene `contest` (el dueño, D2): para la coorganización,
+        // las del concurso que no mandó se conservan como si no las hubiera visto (leído en la base).
+        const puedeSacarDelConcurso = deConcurso.size === 0
+          || (await tx.culturalActivity.count({ where: conPermiso({ id }, usuario, "contest") })) > 0;
+        const cargadasQueCuentan = puedeSacarDelConcurso ? f.idsCargados : f.idsCargados.filter((w) => !deConcurso.has(w));
         const r = await obrasParaGuardar(
           f.works,
           new Map(enLaBase.map((w) => [w.id, {
@@ -220,7 +225,7 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
         );
         const plan = editorGalleryPlan({
           current: enLaBase,
-          loadedIds: f.idsCargados,
+          loadedIds: cargadasQueCuentan,
           keptIds: r.obras.flatMap((o) => (o.id ? [o.id] : [])),
           submittedCount: r.obras.length,
           submittedHighlights: r.obras.filter((o) => o.isHighlight).length,
@@ -265,7 +270,10 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
             return u ? [u] : [];
           });
         }
-        return r.avisos;
+        const conservadasDelConcurso = puedeSacarDelConcurso ? 0 : plan.preserved.filter((w) => deConcurso.has(w.id)).length;
+        return conservadasDelConcurso
+          ? [...r.avisos, "Las obras que vienen del concurso sólo las puede sacar quien armó la muestra: las dejamos en la galería."]
+          : r.avisos;
       },
       { timeout: 30_000, maxWait: 10_000 },
     );

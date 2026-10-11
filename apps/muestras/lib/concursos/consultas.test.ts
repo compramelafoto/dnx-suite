@@ -130,3 +130,20 @@ describe("el autor", () => {
     expect(r[0]).toMatchObject({ id: "au1", concurso: "Paisajes 2026", obras: 2, pendientes: 1, muestra: { slug: "muestra-paisajes" } });
   });
 });
+
+describe("la coorganización (sólo lectura)", () => {
+  it("ve el crédito público, no el nombre real de una obra con Autoría reservada, ni los enlaces a autores", async () => {
+    // Coorganización: tiene `view` pero no `contest`.
+    db.culturalActivity.findFirst.mockResolvedValue(muestra({ proposedByUserId: 99, members: [{ userId: 7, role: "CO_ORGANIZER", status: "ACTIVE" }] }));
+    db.culturalContestWork.findMany.mockResolvedValue([obra({ exhibitBasis: "RULES", exhibitConsent: "ACCEPTED", consentBy: "RULES", attributionRequired: false })]);
+    const p = await panelDelConcurso("a1", ana);
+    expect(p?.puedeCambiar).toBe(false);
+    expect(p?.obras[0]?.authorName).toBe("Autoría reservada");
+    expect(p?.autores).toEqual([]);
+  });
+  it("el dueño ve el nombre real", async () => {
+    db.culturalContestWork.findMany.mockResolvedValue([obra({ attributionRequired: false })]);
+    const p = await panelDelConcurso("a1", ana);
+    expect(p?.obras[0]?.authorName).toBe("Ana Pérez");
+  });
+});

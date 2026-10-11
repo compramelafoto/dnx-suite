@@ -19,16 +19,26 @@ export function CopiarImagenes({ activityId, total, faltan: faltanAlEntrar, fall
   const [error, setError] = useState<string | null>(null);
   const [avisos, setAvisos] = useState<string[]>([]);
   const corriendo = useRef(false);
+  // Montado o no, en un ref (no en el cierre del efecto): en modo estricto React desmonta y vuelve a
+  // montar el efecto; la tanda que ya está en curso sigue con el segundo montaje en vez de quedar
+  // huérfana y trabar "Copiando…". Al desmontar de verdad, el bucle corta en la próxima vuelta.
+  const montado = useRef(true);
+
+  useEffect(() => {
+    montado.current = true;
+    return () => {
+      montado.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!copiando || corriendo.current) return;
     corriendo.current = true;
-    let vivo = true;
     (async () => {
       try {
         for (;;) {
           const r = await copiarImagenesDelConcurso(activityId);
-          if (!vivo) return;
+          if (!montado.current) return;
           if (!r.ok) {
             setError(r.errores.join(" "));
             break;
@@ -40,18 +50,15 @@ export function CopiarImagenes({ activityId, total, faltan: faltanAlEntrar, fall
           if (r.faltan === 0 || r.copiadas === 0) break;
         }
       } catch {
-        if (vivo) setError("Se cortó la copia. Recargá la página para seguir.");
+        if (montado.current) setError("Se cortó la copia. Recargá la página para seguir.");
       } finally {
         corriendo.current = false;
-        if (vivo) {
+        if (montado.current) {
           setCopiando(false);
           router.refresh();
         }
       }
     })();
-    return () => {
-      vivo = false;
-    };
   }, [activityId, copiando, router]);
 
   const reintentar = async () => {

@@ -72,6 +72,11 @@ export async function sincronizarObraConGaleria(tx: Prisma.TransactionClient, ac
       imageUrl: row.imageUrl!,
       authorName: credito.name,
       authorUserId: row.authorUserId,
+      // El perfil se vincula aunque la muestra ya esté publicada (APPROVED) y sin pasar por la revisión
+      // de Muestras: es el perfil **propio** del autor (lo creó o lo eligió él mismo al completar "Cómo
+      // firmás", `CulturalContestAuthor.profileId`), y sólo cuando su nombre ya se puede mostrar (D28).
+      // Es el mismo dato que la obra ya publica (su nombre) llevado a su página; con "Autoría reservada",
+      // nunca.
       authorProfileId: credito.show ? (autor?.profileId ?? null) : null,
     };
     if (actual) {

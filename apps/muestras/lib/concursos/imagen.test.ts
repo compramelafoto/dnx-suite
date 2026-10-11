@@ -9,8 +9,8 @@ import { borrarImagenDeConcurso, claveDeObraDeConcurso, copiarImagenDeConcurso, 
 
 const SECRETO = "secreto-de-prueba";
 const AHORA = new Date("2026-10-10T12:00:00Z");
-const OBRA = { entryId: "e1", authorUserId: 7, include: true, imageStatus: "PENDING", imageUrl: null, exhibitConsent: "ACCEPTED" };
-const CLAVE = claveDeObraDeConcurso(7, "e1", SECRETO);
+const OBRA = { entryId: "e1", activityId: "a1", authorUserId: 7, include: true, imageStatus: "PENDING", imageUrl: null, exhibitConsent: "ACCEPTED" };
+const CLAVE = claveDeObraDeConcurso(7, "e1", "a1", SECRETO);
 
 function respuesta(cuerpo: Uint8Array<ArrayBuffer> | null, init: { status?: number; headers?: Record<string, string> } = {}) {
   return new Response(cuerpo, { status: init.status ?? 200, headers: init.headers });
@@ -50,16 +50,16 @@ afterEach(() => {
 
 describe("clave de la obra en el bucket de Muestras", () => {
   it("fija por autor y obra, con una huella que no se adivina sin el secreto", () => {
-    expect(claveDeObraDeConcurso(7, "e1", SECRETO)).toMatch(/^muestras\/7\/fr-e1-[A-Za-z0-9_-]{22}\.webp$/);
-    expect(claveDeObraDeConcurso(7, "e1", SECRETO)).toBe(claveDeObraDeConcurso(7, "e1", SECRETO));
-    expect(claveDeObraDeConcurso(null, "e1", SECRETO)).toMatch(/^muestras\/concursos\/fr-e1-[A-Za-z0-9_-]{22}\.webp$/);
-    expect(claveDeObraDeConcurso(7, "e1", "otro")).not.toBe(claveDeObraDeConcurso(7, "e1", SECRETO));
-    expect(claveDeObraDeConcurso(7, "e2", SECRETO)).not.toBe(claveDeObraDeConcurso(7, "e1", SECRETO).replace("e1", "e2"));
+    expect(claveDeObraDeConcurso(7, "e1", "a1", SECRETO)).toMatch(/^muestras\/7\/fr-e1-[A-Za-z0-9_-]{22}\.webp$/);
+    expect(claveDeObraDeConcurso(7, "e1", "a1", SECRETO)).toBe(claveDeObraDeConcurso(7, "e1", "a1", SECRETO));
+    expect(claveDeObraDeConcurso(null, "e1", "a1", SECRETO)).toMatch(/^muestras\/concursos\/fr-e1-[A-Za-z0-9_-]{22}\.webp$/);
+    expect(claveDeObraDeConcurso(7, "e1", "a1", "otro")).not.toBe(claveDeObraDeConcurso(7, "e1", "a1", SECRETO));
+    expect(claveDeObraDeConcurso(7, "e2", "a1", SECRETO)).not.toBe(claveDeObraDeConcurso(7, "e1", "a1", SECRETO).replace("e1", "e2"));
   });
   it("un id con barra o vacío, o sin secreto, no arma clave", () => {
-    expect(() => claveDeObraDeConcurso(7, "../x", SECRETO)).toThrow(ImagenDeConcursoError);
-    expect(() => claveDeObraDeConcurso(7, "", SECRETO)).toThrow(ImagenDeConcursoError);
-    expect(() => claveDeObraDeConcurso(7, "e1", "")).toThrow(ImagenDeConcursoError);
+    expect(() => claveDeObraDeConcurso(7, "../x", "a1", SECRETO)).toThrow(ImagenDeConcursoError);
+    expect(() => claveDeObraDeConcurso(7, "", "a1", SECRETO)).toThrow(ImagenDeConcursoError);
+    expect(() => claveDeObraDeConcurso(7, "e1", "a1", "")).toThrow(ImagenDeConcursoError);
   });
 });
 
@@ -167,19 +167,51 @@ describe("copiar la imagen de FotoRank", () => {
   });
 });
 
+describe("clave por muestra", () => {
+  it("dos muestras del mismo concurso: cada una con su copia", () => {
+    const enA = claveDeObraDeConcurso(7, "e1", "a1", SECRETO);
+    const enB = claveDeObraDeConcurso(7, "e1", "a2", SECRETO);
+    expect(enA).not.toBe(enB);
+    expect(enB).toMatch(/^muestras\/7\/fr-e1-[A-Za-z0-9_-]{22}\.webp$/);
+    expect(() => claveDeObraDeConcurso(7, "e1", "../a", SECRETO)).toThrow(ImagenDeConcursoError);
+  });
+  it("copiar la misma obra en dos muestras sube a dos claves distintas", async () => {
+    const d = deps();
+    await copiarImagenDeConcurso("cw1", d);
+    d.leerObra.mockResolvedValue({ ...OBRA, activityId: "a2" });
+    await copiarImagenDeConcurso("cw2", d);
+    const [c1, c2] = d.subir.mock.calls.map((c) => c[1]);
+    expect(c1).toBe(CLAVE);
+    expect(c2).not.toBe(c1);
+  });
+});
+
 describe("borrar la copia", () => {
+  const libre = async () => false;
   it("borra sólo copias de concursos, a mejor esfuerzo", async () => {
     const borrar = vi.fn(async () => {});
-    await borrarImagenDeConcurso(`https://r2.test/${CLAVE}`, borrar);
+    await borrarImagenDeConcurso(`https://r2.test/${CLAVE}`, borrar, libre);
     expect(borrar).toHaveBeenCalledWith(`https://r2.test/${CLAVE}`);
     borrar.mockClear();
-    await borrarImagenDeConcurso("https://r2.test/muestras/7/obra-subida.webp", borrar);
-    await borrarImagenDeConcurso(null, borrar);
+    await borrarImagenDeConcurso("https://r2.test/muestras/7/obra-subida.webp", borrar, libre);
+    await borrarImagenDeConcurso(null, borrar, libre);
+    expect(borrar).not.toHaveBeenCalled();
+  });
+  it("no borra una imagen que otra fila todavía usa (otra muestra, otra pestaña, el editor)", async () => {
+    const borrar = vi.fn(async () => {});
+    const enUso = vi.fn(async () => true);
+    await borrarImagenDeConcurso(`https://r2.test/${CLAVE}`, borrar, enUso);
+    expect(enUso).toHaveBeenCalledWith(`https://r2.test/${CLAVE}`);
+    expect(borrar).not.toHaveBeenCalled();
+  });
+  it("si no se puede saber si está en uso, no la borra", async () => {
+    const borrar = vi.fn(async () => {});
+    await borrarImagenDeConcurso(`https://r2.test/${CLAVE}`, borrar, async () => { throw new Error("base caída"); });
     expect(borrar).not.toHaveBeenCalled();
   });
   it("si falla, lo registra y sigue", async () => {
     const borrar = vi.fn(async () => { throw new Error("R2 caído"); });
-    await expect(borrarImagenDeConcurso(`https://r2.test/${CLAVE}`, borrar)).resolves.toBeUndefined();
+    await expect(borrarImagenDeConcurso(`https://r2.test/${CLAVE}`, borrar, libre)).resolves.toBeUndefined();
     expect(console.error).toHaveBeenCalled();
   });
 });

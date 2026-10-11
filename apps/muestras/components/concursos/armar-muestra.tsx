@@ -23,7 +23,7 @@ export function ArmarMuestra({ contestId, counts, destinos }: Props) {
     start(async () => {
       setErrores([]);
       const r = await armarMuestraDesdeConcurso(fd);
-      if (r.ok) router.push(`/panel/muestras/${r.id}/concurso${r.avisos?.length ? "?nueva=1" : ""}`);
+      if (r.ok) router.push(`/panel/muestras/${r.id}/concurso${r.nueva ? "?nueva=1" : ""}`);
       else setErrores(r.errores);
     });
 
