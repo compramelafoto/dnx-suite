@@ -17,15 +17,17 @@ import { normalizePreviewUrl } from "@/lib/r2-client";
 import {
   collaborativeEventPricingFromPricingRow,
   loadCollaborativeEventPricingSnapshot,
-  MSG_ORGANIZER_CONTROLS_EVENT_DIGITAL_PRICING,
   type CollaborativeEventPricingLockSnapshot,
 } from "@/lib/events/collaborative-event-pricing-lock";
 import {
   buildAlbumEventScheduleFromDb,
   parseAlbumEventScheduleInput,
   validateAlbumEventSchedule,
-  type AlbumEventScheduleInput,
 } from "@/lib/albums/album-event-datetime";
+import {
+  buildAlbumSettingsUpdateData,
+  loadMinDigitalPhotoPrice,
+} from "@/lib/albums/album-settings-update";
 import { isEventOrganizerUser } from "@/lib/events/event-organizer-access";
 import {
   loadAlbumPhotoStats,
@@ -38,37 +40,6 @@ import { resolveAlbumStandaloneCoverUrl } from "@/lib/album/album-list-cover";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function mergeAlbumEventScheduleInput(
-  body: {
-    eventDate?: unknown;
-    eventStartTime?: unknown;
-    eventEndTime?: unknown;
-  },
-  existing: { eventDate: Date | null; startsAt: Date | null; endsAt: Date | null }
-): AlbumEventScheduleInput {
-  const current = buildAlbumEventScheduleFromDb(existing);
-  return {
-    eventDate:
-      body.eventDate !== undefined
-        ? body.eventDate != null && body.eventDate !== ""
-          ? String(body.eventDate)
-          : null
-        : current.eventDate || null,
-    eventStartTime:
-      body.eventStartTime !== undefined
-        ? body.eventStartTime != null && body.eventStartTime !== ""
-          ? String(body.eventStartTime)
-          : null
-        : current.eventStartTime || null,
-    eventEndTime:
-      body.eventEndTime !== undefined
-        ? body.eventEndTime != null && body.eventEndTime !== ""
-          ? String(body.eventEndTime)
-          : null
-        : current.eventEndTime || null,
-  };
-}
 
 async function photographerHasActiveProducts(userId: number): Promise<boolean> {
   const prismaAny = prisma as any;
@@ -529,19 +500,11 @@ export async function PATCH(
 
     const body = await req.json();
     const {
-      title,
-      location,
-      eventDate,
-      eventStartTime,
-      eventEndTime,
       albumProfitMarginPercent,
       digitalPhotoPriceCents,
       printPricingSource,
       selectedLabId,
       pickupBy,
-      digitalDiscount5Plus,
-      digitalDiscount10Plus,
-      digitalDiscount20Plus,
       enableDigitalPhotos,
       enablePrintedPhotos,
       includeDigitalWithPrint,
@@ -550,9 +513,6 @@ export async function PATCH(
       showComingSoonMessage,
       scanProtectionEnabled,
       textSearchEnabled,
-      isPublic,
-      hiddenPhotosEnabled,
-      hiddenSelfieRetentionDays,
       preCompraCloseAt,
       requireClientApproval,
       schoolId,
@@ -571,61 +531,44 @@ export async function PATCH(
       existingAlbum.eventId != null
         ? await loadCollaborativeEventPricingSnapshot(existingAlbum.eventId)
         : null;
-    if (
-      collaborativeEventPricing?.locksPhotographerDigitalPricing &&
-      digitalPhotoPriceCents !== undefined
-    ) {
-      return NextResponse.json(
-        { error: MSG_ORGANIZER_CONTROLS_EVENT_DIGITAL_PRICING },
-        { status: 403 }
-      );
-    }
 
     const updateData: { [k: string]: unknown } = {};
-    const linkedToEvent = existingAlbum.eventId != null;
 
     if (printPricingSource !== undefined) {
       const valid = printPricingSource === "PHOTOGRAPHER" || printPricingSource === "LAB_PREFERRED";
       updateData.printPricingSource = valid ? (printPricingSource as PrintPricingSource) : "PHOTOGRAPHER";
     }
 
-    if (title !== undefined && !linkedToEvent) {
-      if (!title || typeof title !== "string" || !title.trim()) {
-        return NextResponse.json(
-          { error: "El título no puede estar vacío" },
-          { status: 400 }
-        );
+    // Título, lugar, fecha, precio digital, descuentos, visibilidad y fotos ocultas:
+    // lógica compartida con DNX Bot (mismo orden de validación y mismos errores).
+    // Se evalúa acá porque es donde estaba la primera de esas validaciones.
+    const locksPhotographerDigitalPricing = Boolean(
+      collaborativeEventPricing?.locksPhotographerDigitalPricing
+    );
+    const priceNeedsSystemMinimum =
+      !locksPhotographerDigitalPricing &&
+      digitalPhotoPriceCents !== undefined &&
+      digitalPhotoPriceCents !== null &&
+      digitalPhotoPriceCents !== "" &&
+      Number.isFinite(Math.round(Number(digitalPhotoPriceCents))) &&
+      Math.round(Number(digitalPhotoPriceCents)) >= 0;
+    const builtSettings = buildAlbumSettingsUpdateData(
+      body,
+      {
+        eventId: existingAlbum.eventId,
+        eventDate: existingAlbum.eventDate,
+        startsAt: existingAlbum.startsAt,
+        endsAt: existingAlbum.endsAt,
+      },
+      {
+        minDigitalPhotoPrice: priceNeedsSystemMinimum ? await loadMinDigitalPhotoPrice() : 5000,
+        locksPhotographerDigitalPricing,
       }
-      updateData.title = title.trim();
+    );
+    if (!builtSettings.ok) {
+      return NextResponse.json({ error: builtSettings.error }, { status: builtSettings.status });
     }
-
-    if (location !== undefined && !linkedToEvent) {
-      updateData.location = location?.trim() || null;
-    }
-
-    if (
-      !linkedToEvent &&
-      (eventDate !== undefined ||
-        eventStartTime !== undefined ||
-        eventEndTime !== undefined)
-    ) {
-      const scheduleInput = mergeAlbumEventScheduleInput(
-        { eventDate, eventStartTime, eventEndTime },
-        {
-          eventDate: existingAlbum.eventDate,
-          startsAt: existingAlbum.startsAt,
-          endsAt: existingAlbum.endsAt,
-        }
-      );
-      const validation = validateAlbumEventSchedule(scheduleInput);
-      if (!validation.ok) {
-        return NextResponse.json({ error: validation.error }, { status: 400 });
-      }
-      const schedule = parseAlbumEventScheduleInput(scheduleInput);
-      updateData.eventDate = schedule.eventDate;
-      updateData.startsAt = schedule.startsAt;
-      updateData.endsAt = schedule.endsAt;
-    }
+    Object.assign(updateData, builtSettings.data);
 
     if (albumProfitMarginPercent !== undefined) {
       updateData.albumProfitMarginPercent = albumProfitMarginPercent
@@ -633,26 +576,6 @@ export async function PATCH(
         : null;
     }
 
-    if (digitalPhotoPriceCents !== undefined) {
-      if (digitalPhotoPriceCents === null || digitalPhotoPriceCents === "") {
-        updateData.digitalPhotoPriceCents = null;
-      } else {
-        const parsed = Math.round(Number(digitalPhotoPriceCents));
-        if (!Number.isFinite(parsed) || parsed < 0) {
-          updateData.digitalPhotoPriceCents = null;
-        } else {
-          const app = await prisma.appConfig.findUnique({ where: { id: 1 } });
-          const min = app?.minDigitalPhotoPrice ?? 5000;
-          if (parsed < min) {
-            return NextResponse.json(
-              { error: `El precio por foto digital no puede ser menor al mínimo del sistema (${min} pesos)` },
-              { status: 400 }
-            );
-          }
-          updateData.digitalPhotoPriceCents = parsed;
-        }
-      }
-    }
 
     if (selectedLabId !== undefined) {
       if (selectedLabId === null || selectedLabId === "") {
@@ -674,26 +597,6 @@ export async function PATCH(
       updateData.pickupBy = pickupBy === "PHOTOGRAPHER" ? "PHOTOGRAPHER" : "CLIENT";
     }
 
-    if (!collaborativeEventPricing?.locksPhotographerDigitalPricing) {
-      if (digitalDiscount5Plus !== undefined) {
-        updateData.digitalDiscount5Plus =
-          digitalDiscount5Plus !== null && digitalDiscount5Plus !== ""
-            ? parseFloat(String(digitalDiscount5Plus))
-            : null;
-      }
-      if (digitalDiscount10Plus !== undefined) {
-        updateData.digitalDiscount10Plus =
-          digitalDiscount10Plus !== null && digitalDiscount10Plus !== ""
-            ? parseFloat(String(digitalDiscount10Plus))
-            : null;
-      }
-      if (digitalDiscount20Plus !== undefined) {
-        updateData.digitalDiscount20Plus =
-          digitalDiscount20Plus !== null && digitalDiscount20Plus !== ""
-            ? parseFloat(String(digitalDiscount20Plus))
-            : null;
-      }
-    }
 
     if (enableDigitalPhotos !== undefined) {
       updateData.enableDigitalPhotos = Boolean(enableDigitalPhotos);
@@ -727,9 +630,6 @@ export async function PATCH(
       (updateData as { showComingSoonMessage?: boolean }).showComingSoonMessage =
         Boolean(showComingSoonMessage);
     }
-    if (isPublic !== undefined) {
-      (updateData as { isPublic?: boolean }).isPublic = Boolean(isPublic);
-    }
 
     if (textSearchEnabled !== undefined) {
       /*
@@ -746,17 +646,6 @@ export async function PATCH(
         Boolean(scanProtectionEnabled);
     }
 
-    if (hiddenPhotosEnabled !== undefined) {
-      updateData.hiddenPhotosEnabled = Boolean(hiddenPhotosEnabled);
-    }
-    if (hiddenSelfieRetentionDays !== undefined) {
-      if (hiddenSelfieRetentionDays === null || hiddenSelfieRetentionDays === "") {
-        updateData.hiddenSelfieRetentionDays = null;
-      } else {
-        const days = parseInt(String(hiddenSelfieRetentionDays), 10);
-        updateData.hiddenSelfieRetentionDays = Number.isFinite(days) && days >= 0 ? days : null;
-      }
-    }
 
     if (preCompraCloseAt !== undefined) {
       if (preCompraCloseAt == null || preCompraCloseAt === "") {
