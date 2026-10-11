@@ -19073,6 +19073,12 @@ model SubilafotoEvent {
   themeTokens        Json?
   coverUrl           String?
   closingCardText    String?
+  /// Lo que el fotógrafo confirmó sobre el salón, con la fecha de cada confirmación.
+  ///
+  /// `{ "pantalla": "2026-10-11T12:00:00.000Z" }`. Guarda la fecha y no un sí: una
+  /// confirmación hecha hace tres semanas vale menos que una de ayer. Ver
+  /// `lib/preparacion.ts`.
+  preparacion        Json?
   /// Qué foto está proyectándose ahora mismo, según la última vez que avisó la pantalla.
   ///
   /// La pantalla es la única que sabe qué se está viendo: la rotación la decide ella,
