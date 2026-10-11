@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { withoutMpTokens } from "@/lib/mercadopago/without-mp-tokens";
 import { Role, SchoolOrganizerStatus } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
 
@@ -121,7 +122,7 @@ export async function GET(req: NextRequest) {
       const referralUrl = referralCodeOwned
         ? `${APP_URL}${REFERRAL_SIGNUP_PATH}?ref=${encodeURIComponent(referralCodeOwned.code)}`
         : null;
-      return { ...rest, referralUrl };
+      return { ...withoutMpTokens(rest), referralUrl };
     });
 
     const totalPages = Math.max(1, Math.ceil(total / pageSize));

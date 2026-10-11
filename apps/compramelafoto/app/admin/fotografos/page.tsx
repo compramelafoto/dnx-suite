@@ -20,7 +20,7 @@ interface UserRow {
   /** Admin: ver nombre/email/tel de compradores en pedidos pendientes de pago */
   allowUnpaidOrderClientData?: boolean;
   platformCommissionPercentOverride?: number | null;
-  mpAccessToken: string | null;
+  mpConnected?: boolean;
   mpUserId: string | null;
   publicPageHandler: string | null;
   isPublicPageEnabled: boolean | null;
@@ -345,7 +345,7 @@ export default function AdminFotografosPage() {
                 </tr>
               ) : (
                 photographers.map((user) => {
-                  const hasMercadoPago = !!(user.mpAccessToken && user.mpUserId);
+                  const hasMercadoPago = !!(user.mpConnected && user.mpUserId);
                   const whatsappUrl = buildWhatsappWebUrl(user.phone, user.name);
                   return (
                     <tr key={user.id} className="hover:bg-gray-50">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAppConfig } from "@/lib/services/settingsService";
+import { withoutMpTokens } from "@/lib/mercadopago/without-mp-tokens";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,7 +73,6 @@ export async function GET(
         showPolaroidPrints: true,
         printSectionOnTop: true,
         mpAccessToken: true,
-        mpRefreshToken: true,
         mpUserId: true,
         mpConnectedAt: true,
         marketingOptIn: true,
@@ -167,7 +167,7 @@ export async function GET(
       user.defaultDigitalPhotoPrice = platformMinDigital;
     }
 
-    return NextResponse.json(user, { status: 200 });
+    return NextResponse.json(withoutMpTokens(user), { status: 200 });
   } catch (err: any) {
     console.error("GET /api/fotografo/[id] ERROR >>>", err);
     return NextResponse.json(

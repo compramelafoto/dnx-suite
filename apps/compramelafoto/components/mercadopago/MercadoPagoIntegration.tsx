@@ -6,7 +6,8 @@ import Button from "@/components/ui/Button";
 
 type MercadoPagoIntegrationProps = {
   ownerType: "USER" | "LAB";
-  mpAccessToken?: string | null;
+  /** Lo que informó el perfil al cargar; el estado real lo confirma `/api/mercadopago/connection-status`. */
+  mpConnected?: boolean | null;
   mpUserId?: string | null;
   mpConnectedAt?: string | null;
   showWarning?: boolean;
@@ -18,7 +19,7 @@ type MercadoPagoIntegrationProps = {
 
 export default function MercadoPagoIntegration({
   ownerType,
-  mpAccessToken,
+  mpConnected,
   mpUserId,
   mpConnectedAt,
   showWarning = false,
@@ -27,23 +28,23 @@ export default function MercadoPagoIntegration({
   onError,
   onSuccess,
 }: MercadoPagoIntegrationProps) {
-  const isConnected = Boolean(mpAccessToken);
   /**
-   * Tener token guardado no alcanza: Mercado Pago los vence a los ~180 días. Se consulta el
-   * estado real para no mostrar "Conectado" cuando en realidad ya no se puede cobrar.
+   * El token nunca llega al navegador: el perfil sólo trae `mpConnected`. Igual se consulta el
+   * estado real, porque Mercado Pago vence los tokens a los ~180 días y no hay que mostrar
+   * "Conectado" cuando en realidad ya no se puede cobrar.
    */
+  const [isConnected, setIsConnected] = useState(Boolean(mpConnected));
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
-    if (!isConnected) {
-      setIsExpired(false);
-      return;
-    }
+    setIsConnected(Boolean(mpConnected));
     let active = true;
     fetch(`/api/mercadopago/connection-status?ownerType=${ownerType}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (active && data) setIsExpired(data.status === "EXPIRED");
+        if (!active || !data) return;
+        setIsConnected(Boolean(data.connected));
+        setIsExpired(data.status === "EXPIRED");
       })
       .catch(() => {
         /* si no se puede confirmar, no se alarma al vendedor */
@@ -51,7 +52,7 @@ export default function MercadoPagoIntegration({
     return () => {
       active = false;
     };
-  }, [isConnected, ownerType, mpUserId]);
+  }, [mpConnected, ownerType, mpUserId]);
 
   function startConnect() {
     window.location.href = `/api/mercadopago/oauth/start?ownerType=${ownerType}`;

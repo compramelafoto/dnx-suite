@@ -21,7 +21,7 @@ interface Lab {
   isSuspended: boolean;
   commissionOverrideBps?: number | null;
   createdAt: string;
-  mpAccessToken: string | null;
+  mpConnected?: boolean;
   mpUserId: string | null;
   mpConnectedAt: string | null;
   publicPageHandler: string | null;
@@ -489,7 +489,7 @@ export default function LaboratoriosClient() {
                 </tr>
               ) : (
                 labs.map((lab) => {
-                  const hasMercadoPago = !!(lab.mpAccessToken && lab.mpUserId);
+                  const hasMercadoPago = !!(lab.mpConnected && lab.mpUserId);
                   const whatsappUrl = buildWhatsappWebUrl(lab.phone || lab.user?.phone || null, lab.user?.name || lab.name);
                   
                   return (

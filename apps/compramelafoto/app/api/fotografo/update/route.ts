@@ -55,6 +55,7 @@ import { getAppConfig } from "@/lib/services/settingsService";
 import { getAuthUser } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { normalizeWorkingCoverageRadiusKm } from "@/lib/photographer/working-coverage-radius";
+import { withoutMpTokens } from "@/lib/mercadopago/without-mp-tokens";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -415,11 +416,9 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // Campos de Mercado Pago
-    if (body.mpAccessToken !== undefined) updateData.mpAccessToken = body.mpAccessToken;
-    if (body.mpRefreshToken !== undefined) updateData.mpRefreshToken = body.mpRefreshToken;
-    if (body.mpUserId !== undefined) updateData.mpUserId = body.mpUserId;
-    if (body.mpConnectedAt !== undefined) updateData.mpConnectedAt = body.mpConnectedAt ? new Date(body.mpConnectedAt) : null;
+    // La conexión con Mercado Pago (tokens, usuario y fecha) la escribe sólo el flujo OAuth
+    // (`/api/mercadopago/oauth/*`). Si llegan en el cuerpo se ignoran: de lo contrario cualquier
+    // fotógrafo podría cargar el token de otra cuenta salteándose la autorización de MP.
 
     // Verificar que hay datos para actualizar
     if (Object.keys(updateData).length === 0) {
@@ -495,7 +494,6 @@ export async function PATCH(req: Request) {
             showPolaroidPrints: true,
             printSectionOnTop: true,
             mpAccessToken: true,
-            mpRefreshToken: true,
             mpUserId: true,
             mpConnectedAt: true,
           },
@@ -628,7 +626,7 @@ export async function PATCH(req: Request) {
       }
     }
 
-    return NextResponse.json(updated, { status: 200 });
+    return NextResponse.json(withoutMpTokens(updated), { status: 200 });
   } catch (err: any) {
     console.error("PATCH /api/fotografo/update ERROR >>>", err);
     
