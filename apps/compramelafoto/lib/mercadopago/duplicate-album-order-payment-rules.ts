@@ -79,31 +79,35 @@ export function buildDuplicatePaymentEmail(
   const album = input.albumTitle ? ` del álbum "${input.albumTitle}"` : "";
   const details =
     `Pedido: #${input.orderId}${album}\n` +
-    `Pago original (el que quedó registrado): ${input.originalPaymentId}\n` +
-    `Pago duplicado: ${input.duplicatePaymentId}\n` +
-    `Monto del pago duplicado: ${amount}\n` +
+    `Pago del pedido (el que quedó registrado): ${input.originalPaymentId}\n` +
+    `Segundo pago: ${input.duplicatePaymentId}\n` +
+    `Monto del segundo pago: ${amount}\n` +
     (input.approvedAtLabel ? `Aprobado: ${input.approvedAtLabel}\n` : "") +
     `\nComprador:\n${buyer}`;
 
   if (recipient === "admin") {
     return {
-      subject: `[Cobro duplicado] Pedido #${input.orderId} pagado dos veces`,
+      subject: `[Segundo pago] Pedido #${input.orderId}: entró otro pago sobre un pedido ya pagado`,
       body:
         `Mercado Pago aprobó un segundo pago sobre un pedido que ya estaba pagado.\n` +
-        `El sistema NO lo aplicó ni lo devolvió: hay que revisarlo y devolverlo a mano desde Mercado Pago.\n\n` +
+        `Puede ser una compra nueva: el cliente pudo haber elegido otras fotos y el pago quedó ` +
+        `pegado al pedido anterior. El sistema no lo aplicó a ningún pedido ni lo devolvió.\n\n` +
         `${details}\n\n` +
-        `Ojo: al devolver el pago duplicado, verificá que el pedido siga en PAID (la devolución no tiene que anular la compra original).`,
+        `Qué hacer: contactar al cliente para saber qué fotos eligió y armarle el pedido con ese pago. ` +
+        `Solo si de verdad pagó dos veces lo mismo, devolverlo desde Mercado Pago ` +
+        `(verificando que el pedido original siga en PAID).`,
     };
   }
   return {
-    subject: `Un cliente pagó dos veces el pedido #${input.orderId}`,
+    subject: `Entró un segundo pago del pedido #${input.orderId}`,
     body:
       `Hola ${photographerName || "fotógrafo/a"},\n\n` +
       `El pedido #${input.orderId}${album} ya estaba pagado y Mercado Pago aprobó un segundo pago del mismo cliente. ` +
-      `Ese segundo pago no corresponde a ninguna compra nueva: hay que devolvérselo.\n\n` +
+      `Puede ser una compra nueva: es posible que haya elegido otras fotos y que el pago haya quedado ` +
+      `pegado al pedido anterior.\n\n` +
       `${details}\n\n` +
-      `Podés devolverlo desde tu cuenta de Mercado Pago (Actividad → el pago duplicado → Devolver dinero). ` +
-      `Nosotros también estamos al tanto y te podemos ayudar.\n\n` +
+      `Te recomendamos contactar al cliente para saber qué fotos eligió. ` +
+      `Nosotros también estamos al tanto y te ayudamos a armarle el pedido.\n\n` +
       `Saludos,\nComprameLaFoto`,
   };
 }

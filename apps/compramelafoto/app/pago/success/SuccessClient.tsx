@@ -411,10 +411,10 @@ export default function SuccessClient() {
           role="alert"
           className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-4"
         >
-          <p className="text-amber-950 font-medium">Este pago está duplicado</p>
+          <p className="text-amber-950 font-medium">Recibimos tu pago</p>
           <p className="text-amber-900/90 mt-2 text-sm leading-relaxed">
-            Este pedido ya estaba pagado con otro pago. No hace falta que hagas nada: ya le avisamos
-            al fotógrafo y te va a contactar para resolver la devolución.
+            Tu pago quedó asociado a un pedido que ya estaba pagado. No te preocupes: ya le avisamos
+            al fotógrafo y te va a contactar para confirmar qué fotos elegiste y enviártelas.
           </p>
         </div>
       )}
