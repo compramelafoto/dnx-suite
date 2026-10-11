@@ -62,6 +62,7 @@
     "@repo/db": "workspace:*",
     "@repo/design-studio": "workspace:*",
     "@repo/design-system": "workspace:*",
+    "@repo/dnx-bot": "workspace:*",
     "@repo/finance-control": "workspace:*",
     "@repo/geo": "workspace:*",
     "@repo/media-composition": "workspace:*",

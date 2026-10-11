@@ -89,6 +89,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
     "@repo/quick-search",
+    "@repo/dnx-bot",
     "@repo/db",
     "@repo/partners",
     "@repo/auth",
