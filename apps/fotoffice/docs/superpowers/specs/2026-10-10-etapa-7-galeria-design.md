@@ -123,12 +123,38 @@ agua (DNX no la usa; queda para cuando otro estudio la pida), reconocimiento fac
 - Panel de **Ventas de galerías** (total, cantidad, ticket promedio) dentro de la galería y en Informes →
   Ventas no **[decisión: queda para después]**.
 
-## 5. Entrega B · Entrega en alta y DNX FLUX (resumen; se diseña en detalle al llegar)
+## 5. Entrega B · Entrega en alta, ZIP por correo y DNX FLUX
 
-- Galería tipo `ENTREGA` (fotos y video), descarga por foto y **todo en ZIP** armado en segundo plano.
-- **DNX FLUX publica por API** con clave de dispositivo (tabla nueva, revocable): crea la galería del
-  proyecto, sube directo a R2 y confirma; respeta orden por nombre.
-- Plazo y recordatorios automáticos; vencimiento con aviso.
+> **Decisiones de Daniel (11/10):** fotos **y videos**; "descargar todo" = **se arma en segundo plano y llega un
+> correo con el enlace** (en partes si es grande); **DNX FLUX publica solo al terminar**, con una clave de
+> dispositivo que se genera en FOTOFFICE y se puede anular.
+
+1. **Galería de entrega** (`kind = ENTREGA`), atada al Proyecto como la de selección:
+   - sin selección ni venta; cada foto o video se descarga **en original** (URL firmada de 5 min);
+   - **videos** MP4/MOV de hasta **5 GB** (una sola subida firmada); se ven con el reproductor del navegador
+     sobre el original (sin recodificar **[decisión]**), con una tapa genérica; las fotos siguen generando
+     vista y miniatura;
+   - mismos clientes con enlace personal, misma página pública en modo "entrega" (grilla, visor, descargar).
+2. **"Recibir todo por correo"** (en la página del cliente y "Preparar descarga" en el estudio):
+   - crea un pedido de descarga; un proceso en segundo plano arma **ZIP sin compresión en partes de hasta
+     1 GB** (fotos ya comprimidas; respetando el orden y el nombre original), leyendo de R2 y escribiendo a
+     R2 privado por partes (subida multiparte), sin pasar los archivos por la memoria entera;
+   - corre en las funciones de Vercel con el cron (una parte por corrida, hasta 5 minutos), sin servicios
+     nuevos **[decisión]**; escritor de ZIP propio (sin dependencias), con CRC32 de Node;
+   - al terminar manda un correo al cliente con el enlace a una página de descargas
+     (`/w/<slug>/galeria/<token>/descargas`) que firma cada parte al hacer clic; las partes se borran a los
+     **7 días** (se pueden volver a pedir); tope de 3 pedidos por cliente por día.
+3. **DNX FLUX publica:**
+   - **Dispositivos** en Configuración → Galería: "Conectar DNX FLUX" genera una clave (se muestra una sola
+     vez; en la base sólo su hash), con nombre, último uso y "Anular";
+   - API `/api/flux/v1/*` con `Authorization: Bearer <clave>`: buscar el proyecto por **número de pedido**,
+     crear o completar la **galería de entrega** de ese proyecto, pedir URLs firmadas por lote, confirmar cada
+     archivo; idempotente por nombre de archivo (re-correr no duplica); la galería queda en **borrador** para
+     que el estudio la revise y publique;
+   - en DNX FLUX: paso nuevo "Publicar en FOTOFFICE" después de exportar las entregas (en paralelo o en lugar
+     de Proof, configurable), con reintentos y registro; la clave se pega una vez en su ventana y se guarda en
+     el llavero, nunca en `config.json`.
+4. **Vencimiento** de la entrega con aviso: **[decisión: queda para después]**.
 
 ## 6. Entrega C · Aprobación de álbum (resumen)
 
