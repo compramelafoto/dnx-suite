@@ -75,6 +75,31 @@ export const DEFAULT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
 };
 
 /**
+ * El tema claro que el editor tenía antes del oscuro. Lo usan los componentes del paquete que
+ * viven fuera del editor, en páginas claras de cada app (el botón "Crear plantilla" de la
+ * lista): con el tema oscuro su menú quedaba como una mancha negra en una página blanca.
+ */
+export const LIGHT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
+  void: "#5b6068",
+  chrome: "#f7f8f9",
+  chromeSunken: "#eef0f2",
+  surface: "#ffffff",
+  line: "#dfe2e6",
+  lineStrong: "#c7ccd3",
+  ink: "#16181d",
+  inkMuted: "#666d78",
+  inkFaint: "#949aa4",
+  accent: "#4a5568",
+  accentInk: "#ffffff",
+  accentWash: "#eceef1",
+  danger: "#b4242a",
+  dangerWash: "#fdf0f0",
+  success: "#3f8f57",
+  radius: "4px",
+  control: "28px",
+};
+
+/**
  * Colores claros que rigen dentro del pliego. El pliego es papel: los recuadros de ejemplo, los
  * textos sin color propio y los tiradores de selección tienen que verse sobre blanco igual que
  * siempre, aunque el marco del editor sea oscuro. El acento no se toca: la selección sigue siendo
@@ -135,9 +160,12 @@ const EDITOR_RADIUS_SCALE: Record<string, string> = {
   "--radius-3xl": "10px",
 };
 
-export function editorThemeStyle(theme?: TemplateEditorTheme): CSSProperties {
+export function editorThemeStyle(
+  theme?: TemplateEditorTheme,
+  scheme: "dark" | "light" = "dark"
+): CSSProperties {
   // Los controles nativos (desplegables, selector de color, barras de scroll) siguen al tema.
-  const style: Record<string, string> = { ...EDITOR_RADIUS_SCALE, colorScheme: "dark" };
+  const style: Record<string, string> = { ...EDITOR_RADIUS_SCALE, colorScheme: scheme };
   for (const [name, cssVar] of Object.entries(CSS_VAR) as [
     TemplateEditorTokenName,
     string,

@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "./primitives/Button";
 import { templateV2EditorPath } from "./template-v2-base-path";
-import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
-import { useEditorThemeStyle } from "./theme-context";
+import { editorThemeStyle, LIGHT_EDITOR_THEME, type TemplateEditorTheme } from "./theme";
 
 type CreateResponse = {
   ok: boolean;
@@ -47,8 +46,11 @@ export function CreateTemplateV2Button({
   theme?: TemplateEditorTheme;
 }) {
   const router = useRouter();
-  const contextThemeStyle = useEditorThemeStyle();
-  const themeStyle = theme ? editorThemeStyle(theme) : contextThemeStyle;
+  /*
+   * Este botón vive en la lista de plantillas, una página clara de cada app, no dentro del
+   * editor oscuro: sin tema propio usa el claro.
+   */
+  const themeStyle = editorThemeStyle({ ...LIGHT_EDITOR_THEME, ...theme }, "light");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -122,7 +124,7 @@ export function CreateTemplateV2Button({
 
       {menuOpen ? (
         <div
-          className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] p-2 shadow-xl"
+          className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[color:var(--te-line)] bg-white p-2 shadow-xl"
           role="menu"
           data-testid="template-v2-create-menu"
         >
@@ -169,7 +171,7 @@ export function CreateTemplateV2Button({
 
       {error ? (
         <p
-          className="max-w-md text-right text-xs text-[color:var(--te-danger)]"
+          className="max-w-md text-right text-xs text-red-600"
           data-testid="template-v2-error-banner"
           role="alert"
         >
