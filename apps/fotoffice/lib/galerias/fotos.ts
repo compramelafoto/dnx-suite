@@ -52,14 +52,14 @@ function idValido(v: unknown): v is string {
   return typeof v === "string" && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_-]+$/.test(v);
 }
 
-async function galeriaDelWorkspace(ctx: CtxGalerias, galeriaId: string) {
+async function galeriaDelWorkspace(ctx: { workspaceId: string }, galeriaId: string) {
   return prisma.fotofficeGaleria.findFirst({
     where: { id: galeriaId, workspaceId: ctx.workspaceId },
     select: { id: true, status: true, orderMode: true, coverFotoId: true, kind: true },
   });
 }
 
-function nombreLimpio(v: unknown): string | null {
+export function nombreLimpio(v: unknown): string | null {
   if (typeof v !== "string") return null;
   // Sin rutas ni caracteres de control; el nombre se muestra y se exporta, no se usa en la clave.
   // eslint-disable-next-line no-control-regex
@@ -74,6 +74,27 @@ export async function pedirSubidaFoto(
   archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
 ): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
   if (!puedeGestionarGalerias(ctx) || ctx.userId === null) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
+  return crearSubida(ctx, ctx.userId, galeriaId, archivo);
+}
+
+/**
+ * Lo mismo para un dispositivo (DNX FLUX): sin usuario. El permiso lo da la clave del dispositivo, que ya
+ * validó quien llama (`lib/galerias/flux`); la fila queda con `uploadedByUserId` nulo.
+ */
+export async function pedirSubidaFotoDeDispositivo(
+  workspaceId: string,
+  galeriaId: unknown,
+  archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
+): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
+  return crearSubida({ workspaceId }, null, galeriaId, archivo);
+}
+
+async function crearSubida(
+  ctx: { workspaceId: string },
+  userId: number | null,
+  galeriaId: unknown,
+  archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
+): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
   if (!idValido(galeriaId) || !archivo || typeof archivo !== "object") return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
   const nombre = nombreLimpio(archivo.nombre);
   if (!nombre) return { ok: false, error: MENSAJES_GALERIA.nombre };
@@ -113,7 +134,7 @@ export async function pedirSubidaFoto(
       mediaType: medio,
       contentType: archivo.tipo as string,
       order: orden,
-      uploadedByUserId: ctx.userId,
+      uploadedByUserId: userId,
     },
     select: { id: true },
   });
@@ -198,6 +219,15 @@ async function procesarFila(fila: FilaProcesable): Promise<ResultadoProceso> {
  */
 export async function confirmarFoto(ctx: CtxGalerias, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
   if (!puedeGestionarGalerias(ctx)) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
+  return confirmarSubida(ctx, galeriaId, fotoId);
+}
+
+/** Confirmar desde un dispositivo (DNX FLUX): la clave ya autorizó; todo se acota al workspace. */
+export function confirmarFotoDeDispositivo(workspaceId: string, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
+  return confirmarSubida({ workspaceId }, galeriaId, fotoId);
+}
+
+async function confirmarSubida(ctx: { workspaceId: string }, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
   if (!idValido(galeriaId) || !idValido(fotoId)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
   const fila = await prisma.fotofficeGaleriaFoto.findFirst({
     where: { id: fotoId, galeriaId, workspaceId: ctx.workspaceId, galeria: { workspaceId: ctx.workspaceId } },

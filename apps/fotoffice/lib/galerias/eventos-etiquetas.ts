@@ -32,6 +32,7 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   COMPRA_CANCELADA_PAGADA: "Una compra cancelada igual se pagó: se acreditó",
   PAGO_DUPLICADO: "Llegó un pago por fotos que ya estaban pagas",
   PAGO_NO_ACREDITADO: "Llegó un pago que no se pudo acreditar",
+  ARCHIVOS_PEDIDOS_DISPOSITIVO: "DNX FLUX empezó a subir archivos",
 };
 
 /** Eventos que hace el propio cliente desde su enlace (sin usuario del estudio): en el historial el actor es el cliente. */

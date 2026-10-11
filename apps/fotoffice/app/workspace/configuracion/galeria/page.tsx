@@ -3,7 +3,9 @@ import { PageHeader } from "@/components/page-header";
 import { leerAjustesGaleria } from "@/lib/galerias/ajustes";
 import { prepararConfiguracionGalerias } from "@/lib/galerias/pagina";
 import { rubrosDeIngresoGalerias } from "@/lib/galerias/venta";
+import { listarDispositivos } from "@/lib/galerias/dispositivos";
 import { AjustesForm } from "./ajustes-form";
+import { DispositivosPanel } from "./dispositivos-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,7 @@ export default async function ConfiguracionGaleriaPage() {
   }
 
   const ajustes = await leerAjustesGaleria(c.ctx.workspaceId);
+  const dispositivos = await listarDispositivos(c.ctx);
   const rubros = await rubrosDeIngresoGalerias(c.ctx.workspaceId, [ajustes.defaultIncomeCategoryId]);
   return (
     <div className="max-w-3xl space-y-6">
@@ -51,6 +54,7 @@ export default async function ConfiguracionGaleriaPage() {
         }}
         rubros={rubros}
       />
+      <DispositivosPanel dispositivos={dispositivos} />
     </div>
   );
 }
