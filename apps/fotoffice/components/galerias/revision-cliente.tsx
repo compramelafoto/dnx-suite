@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { finalizarSeleccionGaleriaAction, fotosPorIdsAction, reactivarSeleccionGaleriaAction, responderComentarioGaleriaAction } from "@/app/actions/galerias";
+import { finalizarSeleccionGaleriaAction, reactivarSeleccionGaleriaAction, responderComentarioGaleriaAction, vistasPorIdsAction } from "@/app/actions/galerias";
 import { ETIQUETA_ESTADO_CLIENTE, MAX_COMENTARIO, type EstadoCliente } from "@/lib/galerias/constantes";
 import { fechaHoraBA } from "@/lib/ficha/formato";
 import type { ComentarioRevision, FotoRevision } from "@/lib/galerias/revision";
@@ -137,8 +137,8 @@ export function RevisionCliente({ d, puedeGestionar }: { d: DatosRevision; puede
     setAbiertaId(f.id);
     if (grande[f.id] === undefined) {
       setGrande((g) => ({ ...g, [f.id]: null }));
-      fotosPorIdsAction(d.galeriaId, [f.id])
-        .then((r) => setGrande((g) => ({ ...g, [f.id]: (r.ok ? r.fotos[0]?.viewUrl : null) ?? f.thumbUrl })))
+      vistasPorIdsAction(d.galeriaId, [f.id])
+        .then((r) => setGrande((g) => ({ ...g, [f.id]: (r.ok ? r.vistas[f.id] : null) ?? f.thumbUrl })))
         .catch(() => setGrande((g) => ({ ...g, [f.id]: f.thumbUrl })));
     }
   }
