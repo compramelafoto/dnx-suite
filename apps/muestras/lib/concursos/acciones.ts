@@ -360,8 +360,11 @@ async function prepararObra(contestWorkId: unknown) {
 }
 
 const OBRA_FILA = {
-  id: true, include: true, toPrint: true, forSale: true, exhibitBasis: true, exhibitConsent: true, saleConsent: true, updatedAt: true,
+  id: true, include: true, toPrint: true, forSale: true, exhibitBasis: true, exhibitConsent: true, saleConsent: true,
 } as const;
+
+/** Lo que el panel vio de las casillas de una obra: se compara contra la fila bloqueada antes de guardar. */
+export type CasillasDeObra = { include: boolean; toPrint: boolean; forSale: boolean; saleConsent: string };
 
 /**
  * Cambia una obra con la muestra bloqueada y el permiso vuelto a leer, y la deja en la galería como
@@ -380,8 +383,13 @@ async function cambiarObra(
       const row = await tx.culturalContestWork.findFirst({ where: { id: p.contestWorkId, activityId: p.activityId }, select: OBRA_FILA });
       if (!row) throw new CorteDeArmado(OBRA_NO_EXISTE);
       const data = cambios(row);
-      // Contra la fila leída: si cambió en el medio (otra pestaña, el autor), no se pisa.
-      const { count } = await tx.culturalContestWork.updateMany({ where: { id: row.id, activityId: p.activityId, updatedAt: row.updatedAt }, data });
+      // Contra la fila leída: si cambió en el medio (otra pestaña, el autor), no se pisa. Se comparan
+      // los campos de estado, no `updatedAt`: copiar la imagen no es un cambio que deba frenar esto.
+      const estado = {
+        include: row.include, toPrint: row.toPrint, forSale: row.forSale,
+        exhibitBasis: row.exhibitBasis, exhibitConsent: row.exhibitConsent, saleConsent: row.saleConsent,
+      };
+      const { count } = await tx.culturalContestWork.updateMany({ where: { id: row.id, activityId: p.activityId, ...estado }, data });
       if (count === 0) throw new CorteDeArmado(OBRA_CAMBIO);
       const s = await sincronizarObraConGaleria(tx, p.activityId, row.id);
       if (s.aviso) avisos.push(s.aviso);
@@ -399,18 +407,20 @@ async function cambiarObra(
 /**
  * Las tres casillas por obra (D13, D15): "Galería virtual" (está en la muestra), "Se imprime" y "A la
  * venta". Llega **sólo la casilla que cambió** (lo demás se toma de la fila bloqueada) y la versión
- * de la fila que vio el panel (`updatedAt`): si la obra cambió desde entonces (otra pestaña, el
- * autor), no se pisa y se pide recargar. Sacar la galería desmarca "Se imprime". Marcar la venta le
+ * de las casillas que vio el panel (galería, impresión, venta y respuesta del autor a la venta): si
+ * alguna cambió desde entonces (otra pestaña, el autor), no se pisa y se pide recargar. Copiar la
+ * imagen no cuenta como cambio. Sacar la galería desmarca "Se imprime". Marcar la venta le
  * pregunta al autor; desmarcarla antes de que responda retira la pregunta, y si ya respondió, su
  * respuesta queda.
  */
 export async function guardarOpcionesDeObra(
   contestWorkId: string,
   cambio: Partial<{ include: boolean; toPrint: boolean; forSale: boolean }>,
-  version: string,
+  vista: CasillasDeObra,
 ): Promise<ResultadoConcurso> {
   if (!cambio || typeof cambio !== "object") return error(OBRA_NO_EXISTE);
-  if (typeof version !== "string" || !version) return error(OBRA_CAMBIO);
+  if (!vista || typeof vista !== "object" || typeof vista.include !== "boolean" || typeof vista.toPrint !== "boolean"
+    || typeof vista.forSale !== "boolean" || typeof vista.saleConsent !== "string") return error(OBRA_CAMBIO);
   const pedido = {
     include: typeof cambio.include === "boolean" ? cambio.include : undefined,
     toPrint: typeof cambio.toPrint === "boolean" ? cambio.toPrint : undefined,
@@ -419,7 +429,9 @@ export async function guardarOpcionesDeObra(
   const p = await prepararObra(contestWorkId);
   if (!p.listo) return p.error;
   return cambiarObra(p, (row) => {
-    if (row.updatedAt.toISOString() !== version) throw new CorteDeArmado(OBRA_CAMBIO);
+    if (row.include !== vista.include || row.toPrint !== vista.toPrint || row.forSale !== vista.forSale || row.saleConsent !== vista.saleConsent) {
+      throw new CorteDeArmado(OBRA_CAMBIO);
+    }
     const include = pedido.include ?? row.include;
     const toPrint = include && (pedido.toPrint ?? (pedido.include === true && !row.include ? true : row.toPrint));
     const forSale = pedido.forSale ?? row.forSale;

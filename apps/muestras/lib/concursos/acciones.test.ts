@@ -314,13 +314,13 @@ describe("copiarImagenesDelConcurso", () => {
 });
 
 describe("opciones por obra", () => {
-  type Fila = { id: string; include: boolean; toPrint: boolean; forSale: boolean; exhibitBasis: string; exhibitConsent: string; saleConsent: string; updatedAt: Date };
+  type Fila = { id: string; include: boolean; toPrint: boolean; forSale: boolean; exhibitBasis: string; exhibitConsent: string; saleConsent: string };
   let fila: Fila;
   const extra = vi.hoisted(() => ({
     workFindUnique: vi.fn(), workFindFirst: vi.fn(), authorFindUnique: vi.fn(), authorUpdateMany: vi.fn(),
   }));
   beforeEach(() => {
-    fila = { id: "cw1", include: true, toPrint: true, forSale: false, exhibitBasis: "EXPLICIT", exhibitConsent: "PENDING", saleConsent: "NOT_ASKED", updatedAt: new Date("2026-10-10") };
+    fila = { id: "cw1", include: true, toPrint: true, forSale: false, exhibitBasis: "EXPLICIT", exhibitConsent: "PENDING", saleConsent: "NOT_ASKED" };
     Object.assign(db.culturalContestWork, { findUnique: extra.workFindUnique, findFirst: extra.workFindFirst });
     Object.assign(db, { culturalContestAuthor: { findUnique: extra.authorFindUnique, updateMany: extra.authorUpdateMany } });
     extra.workFindUnique.mockResolvedValue({ id: "cw1", activityId: "a1" });
@@ -333,11 +333,12 @@ describe("opciones por obra", () => {
     gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "SIN_CAMBIO" });
   });
   const escrito = () => db.culturalContestWork.updateMany.mock.calls.at(-1)![0];
-  const v = () => fila.updatedAt.toISOString();
+  // Las casillas que ve el panel: las de la fila actual.
+  const v = () => ({ include: fila.include, toPrint: fila.toPrint, forSale: fila.forSale, saleConsent: fila.saleConsent });
 
   it("sacar la galería desmarca 'Se imprime', con la muestra bloqueada, y sincroniza", async () => {
     expect((await guardarOpcionesDeObra("cw1", { include: false }, v())).ok).toBe(true);
-    expect(escrito()).toMatchObject({ where: { id: "cw1", activityId: "a1", updatedAt: fila.updatedAt }, data: { include: false, toPrint: false } });
+    expect(escrito()).toMatchObject({ where: { id: "cw1", activityId: "a1", include: true, toPrint: true, forSale: false, exhibitConsent: "PENDING", saleConsent: "NOT_ASKED" }, data: { include: false, toPrint: false } });
     expect(String(db.$queryRaw.mock.calls[0][0].join("?"))).toMatch(/FOR UPDATE/);
     expect(gal.sincronizarObraConGaleria).toHaveBeenCalledWith(db, "a1", "cw1");
   });
@@ -354,11 +355,17 @@ describe("opciones por obra", () => {
     expect(escrito().data).toMatchObject({ include: true, toPrint: true, forSale: true, saleConsent: "PENDING" });
   });
   it("si la obra cambió desde que se abrió el panel (otra pestaña, el autor), no se pisa", async () => {
-    const vieja = new Date("2026-10-09").toISOString();
+    const vieja = { ...v(), toPrint: false };
     expect(await guardarOpcionesDeObra("cw1", { include: false }, vieja)).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
+    expect(await guardarOpcionesDeObra("cw1", { forSale: false }, { ...v(), saleConsent: "PENDING" })).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
     expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
     expect(gal.sincronizarObraConGaleria).not.toHaveBeenCalled();
-    expect(await guardarOpcionesDeObra("cw1", { include: false }, "")).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
+    expect(await guardarOpcionesDeObra("cw1", { include: false }, "" as never)).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
+  });
+  it("copiar la imagen (sólo cambia la fecha de la fila) no frena las casillas", async () => {
+    extra.workFindFirst.mockImplementation(async () => ({ ...fila, imageStatus: "COPIED", updatedAt: new Date("2026-10-11") }));
+    expect((await guardarOpcionesDeObra("cw1", { forSale: true }, v())).ok).toBe(true);
+    expect(escrito().where).not.toHaveProperty("updatedAt");
   });
   it("si el autor ya respondió la venta, su respuesta queda", async () => {
     fila = { ...fila, forSale: true, saleConsent: "DECLINED" };

@@ -139,6 +139,9 @@ describe("la coorganización (sólo lectura)", () => {
     const p = await panelDelConcurso("a1", ana);
     expect(p?.puedeCambiar).toBe(false);
     expect(p?.obras[0]?.authorName).toBe("Autoría reservada");
+    // Ni la cuenta del autor ni su inscripción en FotoRank llegan al navegador.
+    expect(p?.obras[0]).not.toHaveProperty("authorUserId");
+    expect(p?.obras[0]).not.toHaveProperty("entryId");
     expect(p?.autores).toEqual([]);
   });
   it("el dueño ve el nombre real", async () => {

@@ -50,8 +50,8 @@ export function ObraConcurso({ obra: o, editable }: { obra: Obra; editable: bool
       router.refresh();
     });
   const opciones = (cambio: Partial<{ include: boolean; toPrint: boolean; forSale: boolean }>) =>
-    // Sólo la casilla que cambió y la versión de la obra que se ve: si cambió mientras tanto, no se pisa.
-    correr(() => guardarOpcionesDeObra(o.id, cambio, new Date(o.updatedAt).toISOString()));
+    // Sólo la casilla que cambió y las casillas que se ven: si cambiaron mientras tanto, no se pisa.
+    correr(() => guardarOpcionesDeObra(o.id, cambio, { include: o.include, toPrint: o.toPrint, forSale: o.forSale, saleConsent: o.saleConsent }));
 
   const imagen = estadoDeLaImagen(o);
   const casilla = "flex items-center gap-2 text-[15px]";

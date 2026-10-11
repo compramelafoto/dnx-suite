@@ -92,7 +92,7 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
       select: {
         id: true, entryId: true, authorUserId: true, authorName: true, title: true, tier: true, distinction: true, sourceStatus: true,
         imageStatus: true, imageUrl: true, imageError: true, include: true, toPrint: true, forSale: true, exhibitBasis: true,
-        attributionRequired: true, exhibitConsent: true, consentBy: true, saleConsent: true, activityWorkId: true, updatedAt: true,
+        attributionRequired: true, exhibitConsent: true, consentBy: true, saleConsent: true, activityWorkId: true,
       },
     }),
     prisma.culturalContestAuthor.findMany({
@@ -110,8 +110,13 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
       attributionRequired: o.attributionRequired, exhibitConsent: o.exhibitConsent, consentBy: o.consentBy,
       signedName: o.authorUserId != null ? (firmaDe.get(o.authorUserId) ?? null) : null, defaultName: o.authorName,
     });
+    // Campo por campo: al navegador no van la cuenta del autor (`authorUserId`) ni su inscripción
+    // en FotoRank (`entryId`), que tampoco debe ver la coorganización.
     return {
-      ...o,
+      id: o.id, title: o.title, tier: o.tier, distinction: o.distinction, sourceStatus: o.sourceStatus,
+      imageStatus: o.imageStatus, imageError: o.imageError, include: o.include, toPrint: o.toPrint, forSale: o.forSale,
+      exhibitBasis: o.exhibitBasis, attributionRequired: o.attributionRequired, exhibitConsent: o.exhibitConsent,
+      consentBy: o.consentBy, saleConsent: o.saleConsent, activityWorkId: o.activityWorkId,
       // La coorganización (sólo lectura) ve el crédito público: con "Autoría reservada", no el nombre real.
       authorName: puedeCambiar ? o.authorName : credito.name,
       imageUrl: esUrlWeb(o.imageUrl) ? o.imageUrl : null,
