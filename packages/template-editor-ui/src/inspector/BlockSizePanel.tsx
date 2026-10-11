@@ -18,11 +18,17 @@ import {
 } from "@repo/template-editor-core";
 import { cn } from "../primitives/cn";
 import { setBlockSizeUnit, useBlockSizeUnit } from "../useBlockSizeUnit";
-import { FieldLabel, InspectorPanel } from "./InspectorPanel";
-import { SegmentedControl } from "./SegmentedControl";
+import { InspectorPanel } from "./InspectorPanel";
 
 /** Lado mínimo de un bloque, en px del lienzo (el mismo piso que el estirado con el mouse). */
 const MIN_SIDE_PX = 24;
+
+const selectBase =
+  "h-7 rounded-md border border-[color:var(--te-line)] bg-white px-1 text-xs text-[color:var(--te-ink)] outline-none focus:border-[color:var(--te-accent)] disabled:opacity-50";
+
+/** Valores del desplegable de formato que no son un preset. */
+const FREE = "libre";
+const CUSTOM = "fijo";
 
 const UNIT_OPTIONS: { value: CanvasDimUnit; label: string }[] = [
   { value: "mm", label: "mm" },
@@ -32,7 +38,8 @@ const UNIT_OPTIONS: { value: CanvasDimUnit; label: string }[] = [
 
 /**
  * Tamaño del bloque en la unidad elegida y su proporción: muestra si el recuadro es 4:3, 1:1,
- * etc., ofrece los formatos de foto y redes, y un candado para que al estirarlo no se deforme.
+ * etc., ofrece los formatos de foto y redes en un desplegable, y un candado para que al
+ * estirarlo no se deforme.
  */
 export function BlockSizePanel({
   block,
@@ -91,14 +98,16 @@ export function BlockSizePanel({
     else apply({}, { ...cfg, aspectLock: width / height });
   }
 
-  const presetBtn =
-    "rounded-md border px-1.5 py-1 text-[11px] font-medium tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-45";
+  const formatHint = lock
+    ? "Proporción fijada: al estirar no se deforma."
+    : "Elegí un formato para ajustar el recuadro y fijarlo. Mayús al estirar también mantiene la proporción.";
 
   return (
     <InspectorPanel title="Tamaño y proporción">
-      <div className="flex items-end gap-2">
+      <div className="flex items-center gap-1">
         <DimField
-          label="Ancho"
+          label="An"
+          title="Ancho"
           value={sizeInUnit(width, unit, dpi)}
           disabled={lockedLayout}
           onCommit={(v) => commitSide("width", v)}
@@ -116,7 +125,7 @@ export function BlockSizePanel({
                 : "Fijar la proporción actual"
           }
           className={cn(
-            "mb-[3px] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
             lock
               ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)]"
               : "border-[color:var(--te-line)] bg-white text-[color:var(--te-ink-muted)] hover:text-[color:var(--te-ink)]"
@@ -125,70 +134,60 @@ export function BlockSizePanel({
           <LockGlyph closed={lock !== null} />
         </button>
         <DimField
-          label="Alto"
+          label="Al"
+          title="Alto"
           value={sizeInUnit(height, unit, dpi)}
           disabled={lockedLayout}
           onCommit={(v) => commitSide("height", v)}
         />
+        <select
+          aria-label="Unidad"
+          title="Unidad"
+          className={cn(selectBase, "w-14 shrink-0")}
+          value={unit}
+          onChange={(e) => setBlockSizeUnit(e.target.value as CanvasDimUnit)}
+        >
+          {UNIT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <SegmentedControl value={unit} onChange={setBlockSizeUnit} options={UNIT_OPTIONS} className="w-32" />
+      <div className="flex items-center gap-2">
+        {allowsAspect ? (
+          <select
+            aria-label="Formato"
+            title={formatHint}
+            className={cn(selectBase, "min-w-0 flex-1")}
+            disabled={lockedLayout}
+            value={lock === null ? FREE : (lockPreset?.label ?? CUSTOM)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === FREE) apply({}, withoutLock());
+              const preset = ASPECT_PRESETS.find((p) => p.label === v);
+              if (preset) applyPreset(preset.ratio);
+            }}
+          >
+            <option value={FREE}>Formato libre</option>
+            {lock !== null && !lockPreset ? (
+              <option value={CUSTOM}>Fijo en {describeAspect(lock, 1)}</option>
+            ) : null}
+            {ASPECT_PRESETS.map((p) => (
+              <option key={p.label} value={p.label}>
+                {p.label} · {p.hint}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <span
-          className="text-[11px] text-[color:var(--te-ink-muted)]"
-          title={current ? current.hint : "No coincide con un formato habitual"}
+          className="ml-auto shrink-0 text-[11px] font-semibold tabular-nums text-[color:var(--te-ink-muted)]"
+          title={current ? `Proporción: ${current.hint}` : "Proporción: no coincide con un formato habitual"}
         >
-          Proporción{" "}
-          <span className="font-semibold tabular-nums text-[color:var(--te-ink)]">{describeAspect(width, height)}</span>
+          {describeAspect(width, height)}
         </span>
       </div>
-
-      {allowsAspect ? (
-        <div>
-          <FieldLabel>Formato</FieldLabel>
-          <div className="grid grid-cols-5 gap-1">
-            <button
-              type="button"
-              disabled={lockedLayout}
-              onClick={() => apply({}, withoutLock())}
-              title="Sin proporción fija: se estira libre"
-              className={cn(
-                presetBtn,
-                lock === null
-                  ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)]"
-                  : "border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] hover:border-[color:var(--te-accent)]"
-              )}
-            >
-              Libre
-            </button>
-            {ASPECT_PRESETS.map((p) => {
-              const active = lockPreset?.label === p.label;
-              return (
-                <button
-                  key={p.label}
-                  type="button"
-                  disabled={lockedLayout}
-                  onClick={() => applyPreset(p.ratio)}
-                  title={p.hint}
-                  className={cn(
-                    presetBtn,
-                    active
-                      ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)]"
-                      : "border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] hover:border-[color:var(--te-accent)]"
-                  )}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-[11px] leading-snug text-[color:var(--te-ink-faint)]">
-            {lock
-              ? `Fijado en ${lockPreset?.label ?? describeAspect(lock, 1)}: al estirar desde la esquina no se deforma.`
-              : "Elegí un formato para ajustar el recuadro y fijarlo. Mayús al estirar también mantiene la proporción."}
-          </p>
-        </div>
-      ) : null}
     </InspectorPanel>
   );
 }
@@ -196,11 +195,13 @@ export function BlockSizePanel({
 /** Campo numérico que confirma al salir o con Enter; Escape vuelve al valor actual. */
 function DimField({
   label,
+  title,
   value,
   disabled,
   onCommit,
 }: {
   label: string;
+  title: string;
   value: number;
   disabled?: boolean;
   onCommit: (v: number) => void;
@@ -223,8 +224,11 @@ function DimField({
   }
 
   return (
-    <label className="min-w-0 flex-1">
-      <FieldLabel>{label}</FieldLabel>
+    <label
+      title={title}
+      className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md border border-[color:var(--te-line)] bg-white px-1.5 focus-within:border-[color:var(--te-accent)]"
+    >
+      <span className="shrink-0 text-[10px] font-medium text-[color:var(--te-ink-faint)]">{label}</span>
       <input
         type="text"
         inputMode="decimal"
@@ -241,7 +245,8 @@ function DimField({
             (e.currentTarget as HTMLInputElement).blur();
           }
         }}
-        className="h-8 w-full rounded-md border border-[color:var(--te-line)] bg-white px-2 text-xs tabular-nums text-[color:var(--te-ink)] outline-none focus:border-[color:var(--te-accent)] disabled:opacity-50"
+        aria-label={title}
+        className="w-full min-w-0 bg-transparent text-xs tabular-nums text-[color:var(--te-ink)] outline-none disabled:opacity-50"
       />
     </label>
   );
