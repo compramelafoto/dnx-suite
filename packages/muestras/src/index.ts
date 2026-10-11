@@ -22,3 +22,4 @@ export * from "./exhibitors";
 export * from "./portfolio";
 export * from "./room";
 export * from "./contest";
+export * from "./sales";

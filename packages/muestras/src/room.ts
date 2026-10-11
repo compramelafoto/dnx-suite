@@ -113,8 +113,8 @@ export function roomPassValid(p: RoomPass | null, activityId: string, now: Date)
  * La etapa de Ventas pone esto en `true` y suma el estado `AVAILABLE` (precio y compra).
  */
 export const SALES_ENABLED = false;
-export const SALE_UNAVAILABLE_TEXT = "La venta de esta obra todavía no está disponible.";
-export const SALE_ASK_TEXT = "Si te interesa, consultá a la organización en la sala.";
+/** Los textos viven en `sales.ts` (etapa 8); se reexportan acá por compatibilidad. */
+export { SALE_ASK_TEXT, SALE_UNAVAILABLE_TEXT } from "./sales";
 
 /** El botón aparece si la muestra lo ofrece en la sala y quien expone marcó la obra para vender. */
 export function showBuyButton(p: { roomBuy: boolean; forSale: boolean }): boolean {
