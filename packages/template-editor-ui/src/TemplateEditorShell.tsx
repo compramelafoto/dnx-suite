@@ -89,7 +89,7 @@ import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolC
 
 
 const sheetToolbarIconClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-[color:var(--te-ink-muted)] transition-colors disabled:pointer-events-none disabled:opacity-40 [&>svg]:pointer-events-none";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[color:var(--te-ink-muted)] transition-colors disabled:pointer-events-none disabled:opacity-40 [&>svg]:pointer-events-none";
 
 function IconToolbarUndo(props: SVGProps<SVGSVGElement>) {
   return (
@@ -241,11 +241,11 @@ function EditorToolButton({
       aria-label={label}
       aria-pressed={pressed ?? false}
       className={cn(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-transparent text-[color:var(--te-line-strong)] transition-colors",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent transition-colors",
         "hover:border-white/10 hover:bg-white/10 hover:text-white",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]",
         "disabled:pointer-events-none disabled:opacity-40",
-        pressed ? "border-white/15 bg-white/10 text-white" : "text-[color:var(--te-ink-faint)]",
+        pressed ? "border-white/15 bg-white/10 text-white" : "text-[color:var(--te-ink-muted)]",
         className
       )}
       {...props}
@@ -1212,8 +1212,8 @@ export function TemplateEditorShell({
                       className={cn(
                         "max-w-[160px] truncate rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                         active
-                          ? "border-[color:var(--te-accent)] bg-[color:var(--te-surface)] text-[color:var(--te-accent)] shadow-sm"
-                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-[color:var(--te-surface)] hover:text-[color:var(--te-ink)]",
+                          ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-ink)] shadow-sm"
+                          : "border-transparent bg-[color:var(--te-chrome-sunken)] text-[color:var(--te-ink-muted)] hover:bg-[color:var(--te-surface)] hover:text-[color:var(--te-ink)]",
                         canReorder && "cursor-grab active:cursor-grabbing",
                         sheetDragFrom === i && "opacity-60",
                         sheetDragOver === i && sheetDragFrom !== i && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1"
@@ -1269,7 +1269,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-dashed border-[color:var(--te-ink-faint)] bg-white/50 hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)]"
+                    "border-dashed border-[color:var(--te-line-strong)] bg-transparent text-[color:var(--te-ink-muted)] hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)]"
                   )}
                   onClick={() => dispatch(addTemplatePage())}
                   title="Añadir una hoja vacía (carpetas escolares, tapa/contraportada, etc.)"
@@ -1281,7 +1281,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]"
+                    "border-[color:var(--te-line)] bg-transparent text-[color:var(--te-ink-muted)] hover:border-[color:var(--te-danger-wash)] hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]"
                   )}
                   onClick={() => dispatch(removeTemplatePage())}
                   disabled={state.templatePageCount <= 1}
@@ -1478,7 +1478,7 @@ export function TemplateEditorShell({
             style={altoFilaEditor ? { height: altoFilaEditor } : { minHeight: "min(88vh, calc(100vh - 8rem))" }}
           >
             <aside
-              className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1a1d24] bg-[#2b3038] py-2"
+              className="flex w-[44px] shrink-0 flex-col items-center gap-0.5 border-r border-[color:var(--te-line)] bg-[color:var(--te-chrome)] py-2"
               aria-label="Herramientas"
             >
               <EditorToolButton
