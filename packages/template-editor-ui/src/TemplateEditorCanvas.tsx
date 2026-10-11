@@ -121,12 +121,6 @@ function axisRectsIntersect(
 /** Mínimo arrastre en coords de lienzo para considerar marquee (evita pisar el clic en vacío). */
 const MARQUEE_MIN_DRAG_CANVAS_PX = 4;
 
-/** Ancho útil del área scroll (sin padding horizontal del contenedor). */
-function getScrollAreaInnerWidth(el: HTMLElement): number {
-  const cs = getComputedStyle(el);
-  return el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-}
-
 function mergeSelectionIds(existing: readonly string[], found: readonly string[]): string[] {
   const out = [...existing];
   const seen = new Set(existing);
@@ -453,10 +447,6 @@ export function TemplateEditorCanvas({
   });
   const suppressNextBackgroundClickRef = useRef(false);
   const workAreaRef = useRef<HTMLDivElement | null>(null);
-  const zoomUserAdjustedRef = useRef(state.zoomUserAdjusted);
-  useLayoutEffect(() => {
-    zoomUserAdjustedRef.current = state.zoomUserAdjusted;
-  }, [state.zoomUserAdjusted]);
   /** True durante pointerdown Alt+duplicar hasta soltar: hace falta commit de historial aunque no se mueva el puntero. */
   const altDuplicateGestureRef = useRef(false);
   const canvasInnerRef = useRef<HTMLDivElement | null>(null);
@@ -618,25 +608,11 @@ export function TemplateEditorCanvas({
     return () => window.removeEventListener(TEMPLATE_V2_RESET_WORK_SCROLL_EVENT, onResetWorkScroll);
   }, []);
 
-  useLayoutEffect(() => {
-    const el = workAreaRef.current;
-    if (!el || state.canvas.width <= 0) return;
-
-    const cw = state.canvas.width;
-
-    const applyFitWidth = () => {
-      if (zoomUserAdjustedRef.current) return;
-      const innerW = getScrollAreaInnerWidth(el);
-      if (innerW <= 0) return;
-      const z = Math.min(4, Math.max(0.1, innerW / cw));
-      dispatch(setZoom(z, "auto"));
-    };
-
-    applyFitWidth();
-    const ro = new ResizeObserver(applyFitWidth);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [dispatch, state.canvas.width, state.canvas.height]);
+  /*
+   * El ajuste automático del zoom vive en TemplateEditorShell (`ajustarALaVentana`), que hace
+   * entrar la hoja entera. Acá había otro que sólo miraba el ancho: corría después y le ganaba,
+   * y una hoja apaisada quedaba cortada abajo.
+   */
 
   function clientToCanvas(clientX: number, clientY: number): { x: number; y: number } {
     const el = canvasInnerRef.current;

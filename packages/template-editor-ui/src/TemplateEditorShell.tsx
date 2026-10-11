@@ -568,12 +568,17 @@ export function TemplateEditorShell({
     const caja = areaLienzoRef.current?.getBoundingClientRect();
     if (!caja) return;
     const s = stateRef.current;
+    /*
+     * El área puede ser más alta que la pantalla: el panel de propiedades largo estira la fila
+     * entera. Lo que importa es lo que se ve, así que el alto se corta en el borde de la ventana.
+     */
+    const altoVisible = Math.min(caja.height, window.innerHeight - Math.max(caja.top, 0));
     const z = fitZoom({
       canvasWidth: s.canvas.width,
       canvasHeight: s.canvas.height,
       viewportWidth: caja.width,
       // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
-      viewportHeight: caja.height - BARRA_ESTADO_PX,
+      viewportHeight: altoVisible - BARRA_ESTADO_PX,
     });
     /*
      * El ajuste automático se marca como "auto" para no contar como zoom elegido a mano: si
@@ -906,11 +911,17 @@ export function TemplateEditorShell({
 
     ajustarALaVentana("auto");
 
-    const observer = new ResizeObserver(() => {
+    const reajustar = () => {
       if (!stateRef.current.zoomUserAdjusted) ajustarALaVentana("auto");
-    });
+    };
+    const observer = new ResizeObserver(reajustar);
     observer.observe(area);
-    return () => observer.disconnect();
+    // El alto que se ve depende de la ventana, no sólo del área: achicarla no siempre la redimensiona.
+    window.addEventListener("resize", reajustar);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", reajustar);
+    };
   }, [editorReady, ajustarALaVentana, state.canvas.width, state.canvas.height]);
 
 
