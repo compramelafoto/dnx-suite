@@ -2,6 +2,7 @@ import { defineTool, type BotActor, type BotTool } from "@repo/dnx-bot";
 import { z } from "zod";
 import { escalateToHuman, reportIncident } from "@/lib/bot/escalamiento";
 import { ALLOWED_REASONS } from "@/lib/support/sanitize";
+import { albumTools } from "./album";
 import { lecturaTools } from "./lectura";
 
 const PHOTOGRAPHER_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"]);
@@ -52,6 +53,6 @@ export function toolsForActor(actor: BotActor, ctx: { conversationId: string }):
     }),
   ];
   if (!PHOTOGRAPHER_ROLES.has(actor.role)) return comunes;
-  // Las herramientas de escritura (Tasks 10-12) se suman acá.
-  return [...lecturaTools, ...comunes];
+  // Las herramientas de escritura (Tasks 11-12) se suman acá.
+  return [...lecturaTools, ...albumTools, ...comunes];
 }
