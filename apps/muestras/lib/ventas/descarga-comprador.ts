@@ -7,16 +7,15 @@ import { abrirPedido } from "./pedido-comprador";
 
 /**
  * Las descargas del comprador (etapa 8): el certificado (PDF) y, si compró la copia digital, el
- * archivo firmado. Sólo con el token o la cookie del pedido, sólo si el pedido está conciliado como
+ * archivo firmado. Sólo con la cookie del pedido (el enlace `?t=` la deja puesta al entrar), sólo si el pedido está conciliado como
  * `PAID` y sólo para una copia `ISSUED` con certificado. Una copia anulada responde 410.
  */
 const SIN_CACHE = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 
 const texto = (cuerpo: string, status: number) => new Response(cuerpo, { status, headers: { ...SIN_CACHE, "Content-Type": "text/plain; charset=utf-8" } });
 
-export async function descargaDelComprador(req: Request, publicId: string, pieza: "certificado" | "archivo"): Promise<Response> {
-  const t = new URL(req.url).searchParams.get("t");
-  const abierto = await abrirPedido(publicId, t);
+export async function descargaDelComprador(publicId: string, pieza: "certificado" | "archivo"): Promise<Response> {
+  const abierto = await abrirPedido(publicId, null);
   if (!abierto) return texto("No encontramos este pedido.", 404);
   const { pedido } = abierto;
   if (!frenarPorPedido("descargaVenta", pedido.publicId).allowed) return texto("Hiciste muchas descargas seguidas. Esperá un rato.", 429);

@@ -76,9 +76,11 @@ export async function descargarPieza(req: Request, orderId: string, pieza: "cert
     if (!p?.copyId) return noHay();
     activityId = p.activityId;
     if (!(await puedePreparar(activityId))) return noHay();
-    const c = await prisma.culturalEditionCopy.findUnique({ where: { id: p.copyId }, select: { status: true } });
-    if (c?.status === "VOIDED") return noHay(410, "Esta copia fue anulada.");
-    if (p.status !== "PAID" || c?.status !== "ISSUED") return noHay();
+    const c = await prisma.culturalEditionCopy.findUnique({ where: { id: p.copyId }, select: { status: true, orderId: true } });
+    // La copia tiene que ser de este pedido (una copia soltada y vuelta a vender es de otro).
+    if (!c || c.orderId !== orderId) return noHay();
+    if (c.status === "VOIDED") return noHay(410, "Esta copia fue anulada.");
+    if (p.status !== "PAID" || c.status !== "ISSUED") return noHay();
     if (pieza === "etiqueta" && p.delivery === "DIGITAL") return noHay();
     copyId = p.copyId;
   }

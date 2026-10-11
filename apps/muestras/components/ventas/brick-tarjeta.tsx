@@ -77,7 +77,8 @@ export function BrickTarjeta({
   const [ahora, setAhora] = useState(() => Date.now());
   const controlador = useRef<ControladorBrick | null>(null);
   const quedan = minutosQueQuedan(holdExpiresAt, ahora);
-  const pedido = `/compras/${publicId}?t=${encodeURIComponent(token)}`;
+  // La cookie del pedido ya está (la pone la reserva y la exige el pago): no hace falta el `?t=`.
+  const pedido = `/compras/${publicId}`;
 
   useEffect(() => {
     const id = window.setInterval(() => setAhora(Date.now()), 15_000);

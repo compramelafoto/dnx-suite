@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn() },
   culturalSaleOrder: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() },
-  culturalSaleEvent: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+  culturalSaleEvent: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
   culturalEditionCopy: { findMany: vi.fn(), findUnique: vi.fn(), deleteMany: vi.fn() },
   culturalWorkOffer: { findMany: vi.fn() },
   culturalActivityWork: { findMany: vi.fn(), findUnique: vi.fn() },
@@ -14,17 +14,19 @@ const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; es
 const mp = vi.hoisted(() => ({ devolverTotal: vi.fn() }));
 const conciliar = vi.hoisted(() => ({ conciliarPedido: vi.fn() }));
 const r2 = vi.hoisted(() => ({ borrarPrivado: vi.fn(), streamPrivado: vi.fn() }));
+const venta = vi.hoisted(() => ({ modo: "LIVE" as "OFF" | "TEST" | "LIVE" }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("./mp", () => mp);
 vi.mock("./conciliar", () => conciliar);
 vi.mock("./r2-privado", () => r2);
+vi.mock("./config", async (original) => ({ ...(await original<typeof import("./config")>()), leerConfigDeVentas: () => ({ modo: venta.modo }) }));
 vi.mock("./certificado", () => ({ pdfGuardado: vi.fn(async () => new Uint8Array([1])) }));
 
 const { borrarVentasDePrueba, cambiarProduccion, devolverPago, pedirDevolucion } = await import("./pedidos-panel");
 const { pedidosDeLaMuestra, pedidosParaProducir, ventasDelAutor } = await import("./pedidos-consultas");
-const { descargarOriginal } = await import("./descarga-panel");
+const { descargarOriginal, descargarPieza } = await import("./descarga-panel");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const dueno = { id: 7, esSuperAdmin: false, email: "d@x", name: "Dueña" };
@@ -40,8 +42,9 @@ beforeEach(() => {
   usuarioActual.valor = dueno;
   pedido = {
     id: "o1", publicId: "abcd1234abcd1234", activityId: "a1", status: "PAID", delivery: "PICKUP", fulfillment: "PENDING", providerOrderId: "ORD1",
-    refundRequestedAt: null, isTest: false,
+    refundRequestedAt: null, refundedAt: null, isTest: false,
   };
+  venta.modo = "LIVE";
   db.culturalActivity.findUnique.mockImplementation(async () => {
     const u = usuarioActual.valor!;
     const roles: Record<number, string> = { 8: "CO_ORGANIZER", 9: "TEXT_EDITOR" };
@@ -52,6 +55,7 @@ beforeEach(() => {
   db.culturalSaleOrder.findMany.mockResolvedValue([]);
   db.culturalSaleOrder.count.mockResolvedValue(0);
   db.culturalSaleEvent.findMany.mockResolvedValue([]);
+  db.culturalSaleEvent.findFirst.mockResolvedValue(null);
   db.culturalEditionCopy.findMany.mockResolvedValue([]);
   db.culturalWorkOffer.findMany.mockResolvedValue([]);
   db.culturalActivityWork.findMany.mockResolvedValue([]);
@@ -116,6 +120,38 @@ describe("devoluciones", () => {
     expect((await devolverPago("o1", "x")).ok).toBe(false);
     expect(mp.devolverTotal).not.toHaveBeenCalled();
   });
+  it("el pedido y el modo de la venta tienen que coincidir: real con la venta en vivo, prueba con la de prueba", async () => {
+    usuarioActual.valor = admin;
+    venta.modo = "TEST";
+    expect(await devolverPago("o1", "x")).toEqual({ ok: false, error: "Este pedido es real y la venta no está en vivo: devolvelo a mano en Mercado Pago o encendé la venta en vivo." });
+    pedido = { ...pedido, isTest: true };
+    venta.modo = "LIVE";
+    expect(await devolverPago("o1", "x")).toEqual({ ok: false, error: "Este pedido es de prueba y la venta está en vivo: no se puede devolver con la cuenta real. Borralo con las ventas de prueba." });
+    expect(mp.devolverTotal).not.toHaveBeenCalled();
+    venta.modo = "TEST";
+    expect((await devolverPago("o1", "x")).ok).toBe(true);
+    expect(mp.devolverTotal).toHaveBeenCalledTimes(1);
+  });
+  it("un pedido de prueba con una Order real (ALERT_LIVE_ON_TEST) se devuelve con la venta en vivo", async () => {
+    usuarioActual.valor = admin;
+    pedido = { ...pedido, isTest: true, status: "PENDING_PAYMENT", refundRequestedAt: new Date() };
+    // Sin la alerta, un pendiente no se devuelve.
+    expect(await devolverPago("o1", "x")).toEqual({ ok: false, error: "Sólo se devuelven pedidos pagados." });
+    db.culturalSaleEvent.findFirst.mockResolvedValue({ id: "e1" });
+    expect(db.culturalSaleEvent.findFirst.mock.calls[0]![0].where).toEqual({ orderId: "o1", detail: { startsWith: "ALERT_LIVE_ON_TEST" } });
+    venta.modo = "TEST";
+    expect(await devolverPago("o1", "x")).toEqual({ ok: false, error: "Este pedido de prueba se cobró con plata real y la venta no está en vivo: devolvelo a mano en Mercado Pago." });
+    expect(mp.devolverTotal).not.toHaveBeenCalled();
+    venta.modo = "LIVE";
+    conciliar.conciliarPedido.mockResolvedValue({ estado: "PENDING_PAYMENT", cambio: false });
+    db.culturalSaleOrder.findUnique.mockResolvedValueOnce(pedido).mockResolvedValueOnce({ refundedAt: new Date() });
+    expect(await devolverPago("o1", "x")).toEqual({ ok: true, aviso: "Pago real devuelto: ya se puede borrar con las ventas de prueba." });
+    expect(mp.devolverTotal).toHaveBeenCalledWith("ORD1", "refund-o1");
+    // Ya devuelto: no se vuelve a devolver.
+    pedido = { ...pedido, refundedAt: new Date() };
+    expect((await devolverPago("o1", "x")).ok).toBe(false);
+    expect(mp.devolverTotal).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("ventas de prueba", () => {
@@ -128,10 +164,29 @@ describe("ventas de prueba", () => {
     expect((await borrarVentasDePrueba("a1")).ok).toBe(true);
     expect(db.culturalSaleOrder.findMany.mock.calls[0]![0].where).toEqual({ activityId: "a1", isTest: true });
     expect(db.culturalSaleOrder.deleteMany.mock.calls[0]![0].where).toEqual({ id: { in: ["t1"] }, isTest: true });
-    expect(db.culturalEditionCopy.deleteMany.mock.calls[0]![0].where).toEqual({ activityId: "a1", isTest: true });
+    expect(db.culturalEditionCopy.deleteMany.mock.calls[0]![0].where).toEqual({ id: { in: ["c1", "p1"] }, activityId: "a1", isTest: true });
     expect(r2.borrarPrivado.mock.calls.map((c) => c[0]).sort()).toEqual(
       ["ventas/pa-p1/certificado.pdf", "ventas/pa-p1/etiqueta.pdf", "ventas/t1/ABC.jpg", "ventas/t1/certificado.pdf", "ventas/t1/etiqueta.pdf"].sort(),
     );
+  });
+  it("no borra los de prueba con una devolución pendiente o una alerta sin devolver, ni sus copias", async () => {
+    usuarioActual.valor = admin;
+    db.culturalSaleOrder.findMany.mockResolvedValue([
+      { id: "t1", copyId: "c1", refundRequestedAt: null, refundedAt: null },
+      { id: "t2", copyId: "c2", refundRequestedAt: new Date(), refundedAt: null },
+      { id: "t3", copyId: "c3", refundRequestedAt: null, refundedAt: null },
+      { id: "t4", copyId: null, refundRequestedAt: new Date(), refundedAt: new Date() },
+    ]);
+    db.culturalSaleEvent.findMany.mockResolvedValue([{ orderId: "t3" }, { orderId: "t4" }]);
+    db.culturalEditionCopy.findMany.mockResolvedValue([
+      { id: "c1", orderId: "t1", certificateCode: null }, { id: "c2", orderId: "t2", certificateCode: "X" }, { id: "c3", orderId: "t3", certificateCode: null },
+    ]);
+    expect(await borrarVentasDePrueba("a1")).toEqual({ ok: true, aviso: "Borramos 2 pedidos y 1 copia de prueba. Quedan 2 con alertas: devolvelos a mano en Mercado Pago." });
+    expect(db.culturalSaleEvent.findMany.mock.calls[0]![0].where).toEqual({ orderId: { in: ["t1", "t2", "t3", "t4"] }, detail: { startsWith: "ALERT_" } });
+    expect(db.culturalSaleEvent.deleteMany.mock.calls[0]![0].where).toEqual({ orderId: { in: ["t1", "t4"] } });
+    expect(db.culturalSaleOrder.deleteMany.mock.calls[0]![0].where).toEqual({ id: { in: ["t1", "t4"] }, isTest: true });
+    expect(db.culturalEditionCopy.deleteMany.mock.calls[0]![0].where).toEqual({ id: { in: ["c1"] }, activityId: "a1", isTest: true });
+    expect(r2.borrarPrivado.mock.calls.map((c) => c[0])).not.toContain("ventas/t2/X.jpg");
   });
 });
 
@@ -170,6 +225,19 @@ describe("lo que ve cada uno", () => {
   });
 });
 
+describe("certificado y etiqueta del panel", () => {
+  it("la copia tiene que ser de ese pedido: si se volvió a vender a otro, 404", async () => {
+    usuarioActual.valor = coorg;
+    db.culturalSaleOrder.findUnique.mockResolvedValue({ activityId: "a1", status: "PAID", copyId: "c1", delivery: "PICKUP" });
+    db.culturalEditionCopy.findUnique.mockResolvedValue({ status: "ISSUED", orderId: "otro", certificateCode: "ABC" });
+    expect((await descargarPieza(new Request("https://x/api/ventas/certificado/o1"), "o1", "certificado")).status).toBe(404);
+    db.culturalEditionCopy.findUnique.mockResolvedValue({ status: "ISSUED", orderId: "o1", certificateCode: "ABC" });
+    const r = await descargarPieza(new Request("https://x/api/ventas/etiqueta/o1"), "o1", "etiqueta");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("Content-Disposition")).toContain('filename="etiqueta-ABC.pdf"');
+  });
+});
+
 describe("contadores del tablero", () => {
   it("pedidos para producir: sólo pagados de impresas sin entregar, de las muestras pedidas", async () => {
     db.culturalSaleOrder.groupBy.mockResolvedValue([{ activityId: "a1", _count: { _all: 2 } }]);
@@ -177,7 +245,7 @@ describe("contadores del tablero", () => {
     expect(db.culturalSaleOrder.groupBy).not.toHaveBeenCalled();
     expect(await pedidosParaProducir(["a1", "a2"])).toEqual(new Map([["a1", 2]]));
     expect(db.culturalSaleOrder.groupBy.mock.calls[0]![0].where).toEqual({
-      activityId: { in: ["a1", "a2"] }, status: "PAID", fulfillment: { in: ["PENDING", "IN_PRODUCTION"] },
+      activityId: { in: ["a1", "a2"] }, isTest: false, status: "PAID", fulfillment: { in: ["PENDING", "IN_PRODUCTION"] },
     });
   });
 });

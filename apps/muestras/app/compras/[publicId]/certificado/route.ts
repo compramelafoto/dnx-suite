@@ -6,8 +6,8 @@ export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ publicId: string }> };
 
-/** Descarga del comprador (etapa 8): sólo con su token o su cookie, pedido pagado y copia emitida. */
-export async function GET(req: Request, { params }: Ctx) {
+/** Descarga del comprador (etapa 8): sólo con la cookie del pedido, pedido pagado y copia emitida. */
+export async function GET(_req: Request, { params }: Ctx) {
   const { publicId } = await params;
-  return descargaDelComprador(req, publicId, "certificado");
+  return descargaDelComprador(publicId, "certificado");
 }

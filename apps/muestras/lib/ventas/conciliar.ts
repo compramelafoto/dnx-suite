@@ -132,7 +132,15 @@ export async function conciliarDesdeOrden(orden: OrdenLeida, origen: OrigenDeCon
 
   // Una Order real sobre un pedido de prueba: no se emite nada y hay que devolver (revisión de la tarea 10).
   if (p.isTest && orden.liveMode === true) {
-    await alertar(p.id, origen, "ALERT_LIVE_ON_TEST: Order real en un pedido de prueba, hay que devolver", orden.status, { refundRequestedAt: ahora });
+    await alertar(p.id, origen, "ALERT_LIVE_ON_TEST: Order real en un pedido de prueba, hay que devolver", orden.status);
+    // Cuando Mercado Pago confirma la devolución total, queda anotada (el pedido sigue sin emitir nada).
+    const devuelta = saleOrderTransition("PAID", { orderStatus: orden.status, paymentStatus: orden.paymentStatus }).next === "REFUNDED";
+    if (devuelta) {
+      const { count } = await prisma.culturalSaleOrder.updateMany({ where: { id: p.id, refundedAt: null }, data: { refundedAt: ahora } });
+      if (count) await prisma.culturalSaleEvent.create({ data: { orderId: p.id, source: origen, providerStatus: orden.status, detail: "Devuelta en Mercado Pago la Order real del pedido de prueba" } });
+    } else {
+      await prisma.culturalSaleOrder.updateMany({ where: { id: p.id, refundRequestedAt: null }, data: { refundRequestedAt: ahora } });
+    }
     return { estado: p.status, cambio: false };
   }
   const distinto = diferencia(p, orden);

@@ -29,6 +29,7 @@ const { pedirArrepentimiento } = await import("./arrepentimiento");
 const { ARREPENTIMIENTO_RECIBIDO, ARREPENTIMIENTO_VENCIDO } = await import("./pedido-comprador");
 const { hashDeToken } = await import("./pedido");
 const { proxy } = await import("@/proxy");
+const { GET: entrar } = await import("@/app/compras/[publicId]/entrar/route");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const ID = "abcd1234abcd1234";
@@ -135,7 +136,13 @@ describe("descargas del comprador", () => {
     expect(r.status).toBe(404);
     expect(piezas.pdfGuardado).not.toHaveBeenCalled();
   });
+  it("con el ?t= y sin la cookie: 404 (las descargas usan sólo la cookie)", async () => {
+    const r = await descargarCertificado(req(`https://x/compras/${ID}/certificado?t=${TOKEN}`), { params: Promise.resolve({ publicId: ID }) });
+    expect(r.status).toBe(404);
+    expect(piezas.pdfGuardado).not.toHaveBeenCalled();
+  });
   it("copia anulada: 410", async () => {
+    galletas.valor = new Map([[`mf_pedido_${ID}`, TOKEN]]);
     pedido = { ...base(), status: "REFUNDED" };
     copia = { ...copia!, status: "VOIDED" };
     const r = await descargarArchivo(req(`https://x/compras/${ID}/archivo?t=${TOKEN}`), { params: Promise.resolve({ publicId: ID }) });
@@ -143,6 +150,7 @@ describe("descargas del comprador", () => {
     expect(await r.text()).toBe("Esta copia fue anulada.");
   });
   it("pedido sin pagar o copia sin emitir: no hay descarga", async () => {
+    galletas.valor = new Map([[`mf_pedido_${ID}`, TOKEN]]);
     pedido = { ...base(), status: "PENDING_PAYMENT" };
     copia = { ...copia!, status: "RESERVED", certificateCode: null };
     const r = await descargarCertificado(req(`https://x/compras/${ID}/certificado?t=${TOKEN}`), { params: Promise.resolve({ publicId: ID }) });
@@ -150,6 +158,7 @@ describe("descargas del comprador", () => {
     expect(piezas.pdfGuardado).not.toHaveBeenCalled();
   });
   it("el archivo firmado sólo para la copia digital", async () => {
+    galletas.valor = new Map([[`mf_pedido_${ID}`, TOKEN]]);
     const ok = await descargarArchivo(req(`https://x/compras/${ID}/archivo?t=${TOKEN}`), { params: Promise.resolve({ publicId: ID }) });
     expect(ok.status).toBe(200);
     expect(ok.headers.get("Content-Disposition")).toContain("Rio-ABCD2345EFGH.jpg");
@@ -186,17 +195,32 @@ describe("arrepentimiento", () => {
 });
 
 describe("el enlace con ?t=", () => {
-  it("pasa el token a la cookie del pedido y redirige sin él (303)", () => {
+  const ctx = (publicId = ID) => ({ params: Promise.resolve({ publicId }) });
+  it("el proxy lo manda a /entrar sin tocar la cookie (303)", () => {
     const r = proxy(new NextRequest(`https://muestras.test/compras/${ID}?t=${TOKEN}`));
     expect(r.status).toBe(303);
-    expect(r.headers.get("location")).toBe(`https://muestras.test/compras/${ID}`);
-    const c = r.cookies.get(`mf_pedido_${ID}`);
-    expect(c?.value).toBe(TOKEN);
-    expect(c?.httpOnly).toBe(true);
-    expect(c?.path).toBe(`/compras/${ID}`);
+    expect(r.headers.get("location")).toBe(`https://muestras.test/compras/${ID}/entrar?t=${TOKEN}`);
+    expect(r.cookies.get(`mf_pedido_${ID}`)).toBeUndefined();
   });
   it("sin token o con uno sin forma: sigue de largo", () => {
     expect(proxy(new NextRequest(`https://muestras.test/compras/${ID}`)).headers.get("location")).toBeNull();
     expect(proxy(new NextRequest(`https://muestras.test/compras/${ID}?t=<script>`)).headers.get("location")).toBeNull();
+  });
+  it("/entrar con el token del pedido: lo pasa a la cookie y redirige sin él (303)", async () => {
+    const r = await entrar(new NextRequest(`https://muestras.test/compras/${ID}/entrar?t=${TOKEN}`), ctx());
+    expect(r.status).toBe(303);
+    expect(r.headers.get("location")).toBe(`https://muestras.test/compras/${ID}`);
+    expect(r.headers.get("Cache-Control")).toBe("private, no-store");
+    const cookie = r.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain(`mf_pedido_${ID}=${TOKEN}`);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain(`Path=/compras/${ID}`);
+  });
+  it("/entrar con un token que no abre el pedido: redirige sin pisar la cookie", async () => {
+    for (const [publicId, t] of [[ID, "x".repeat(43)], [OTRO, TOKEN], [ID, "<script>"], ["nada", TOKEN]] as const) {
+      const r = await entrar(new NextRequest(`https://muestras.test/compras/${publicId}/entrar?t=${encodeURIComponent(t)}`), ctx(publicId));
+      expect(r.status).toBe(303);
+      expect(r.headers.get("set-cookie")).toBeNull();
+    }
   });
 });

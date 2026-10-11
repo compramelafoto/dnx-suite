@@ -42,6 +42,7 @@ export function TarjetaPedido({ p, esDueno, esSuperAdmin, conMuestra = false }: 
           Conciliar a mano: no sabemos si Mercado Pago creó la Order. El barrido la busca solo por su referencia; si no aparece, buscala en Mercado Pago por {`muestras-venta-${p.publicId}`}.
         </p>
       ) : null}
+      {p.alertas.includes("ALERT_LIVE_ON_TEST") && !p.refundedAt ? <p className={alerta}>Este pedido de prueba se cobró con plata real: hay que devolver el pago (con la venta en vivo, o a mano en Mercado Pago).</p> : null}
       {p.alertas.includes("ALERT_PAID_ON_TERMINAL") ? <p className={alerta}>Mercado Pago cobró un pedido rechazado: hay que devolver el pago.</p> : null}
       <p>
         {p.buyerName} · {p.buyerEmail}{p.buyerPhone ? ` · ${p.buyerPhone}` : ""}
@@ -68,7 +69,8 @@ export function TarjetaPedido({ p, esDueno, esSuperAdmin, conMuestra = false }: 
       </div>
       <div className="flex flex-wrap gap-3">
         {esDueno && (pagado || p.status === "PAID_NO_COPY") && !p.refundRequestedAt ? <PedirDevolucion orderId={p.id} /> : null}
-        {esSuperAdmin && (((pagado || p.status === "PAID_NO_COPY") && (devolucionPendiente || p.status === "PAID_NO_COPY" || p.isTest)) || (p.status === "REJECTED" && p.refundRequestedAt && p.providerOrderId))
+        {esSuperAdmin && (((pagado || p.status === "PAID_NO_COPY") && (devolucionPendiente || p.status === "PAID_NO_COPY" || p.isTest)) || (p.status === "REJECTED" && p.refundRequestedAt && p.providerOrderId)
+          || (p.isTest && p.alertas.includes("ALERT_LIVE_ON_TEST") && p.refundRequestedAt && !p.refundedAt && p.providerOrderId))
           ? <DevolverPago orderId={p.id} />
           : null}
       </div>

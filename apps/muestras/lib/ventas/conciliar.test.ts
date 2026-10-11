@@ -121,6 +121,17 @@ describe("conciliarDesdeOrden", () => {
     expect(eventos[0]!.detail).toMatch(/^ALERT_LIVE_ON_TEST/);
   });
 
+  it("Order real sobre un pedido de prueba, devuelta en Mercado Pago: queda anotada una sola vez", async () => {
+    await conciliarDesdeOrden(orden({ liveMode: true }), "NOTICE", ahora);
+    const despues = new Date(ahora.getTime() + 60_000);
+    const devuelta = orden({ liveMode: true, status: "REFUNDED", paymentStatus: "refunded" });
+    await conciliarDesdeOrden(devuelta, "ADMIN", despues);
+    await conciliarDesdeOrden(devuelta, "SWEEP", despues);
+    expect(pedidos[0]).toMatchObject({ status: "PENDING_PAYMENT", refundRequestedAt: ahora, refundedAt: despues });
+    expect(copias[0]!.status).toBe("RESERVED");
+    expect(eventos.filter((e) => /devuelta/i.test(String(e.detail)))).toHaveLength(1);
+  });
+
   it("pagado con la reserva vencida y el número tomado: otro número", async () => {
     pedidos[0]!.status = "EXPIRED";
     pedidos[0]!.copyId = null;

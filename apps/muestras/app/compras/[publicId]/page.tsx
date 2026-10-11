@@ -9,8 +9,9 @@ export const metadata: Metadata = { title: "Tu pedido", robots: { index: false, 
 type Props = { params: Promise<{ publicId: string }>; searchParams: Promise<{ t?: string | string[] }> };
 
 /**
- * El pedido del comprador (etapa 8, D25). Se abre con la cookie del pedido (el `proxy` cambia el
- * `?t=` del enlace por la cookie y redirige) o, si la cookie no está, con el token del enlace. Sin
+ * El pedido del comprador (etapa 8, D25). Se abre con la cookie del pedido (el `proxy` manda el
+ * `?t=` del enlace a `/entrar`, que lo valida, lo guarda en la cookie y redirige) o, si la cookie no
+ * está, con el token del enlace. Sin
  * ninguno de los dos que lo abra, 404.
  */
 export default async function PaginaDelPedido({ params, searchParams }: Props) {
