@@ -108,12 +108,18 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       members: miFila(usuario),
       // Obras que cargó un expositor (etapa 6, D9): el editor no cambia su imagen ni su autor.
       exhibitorWorks: { where: { activityWorkId: { not: null } }, select: { activityWorkId: true } },
+      // Si salió de un concurso de FotoRank (etapa 7): el panel enlaza "Del concurso".
+      contestImport: { select: { id: true } },
     },
   });
   if (!a) return null;
   // El ajuste de sorpresa no viaja al formulario (lleva la semilla del sorteo): va aparte.
-  const { members, proposedByUserId, workspaceId, visibility, exhibitorWorks, ...resto } = a;
-  const actividad = { ...resto, exhibitorWorkIds: exhibitorWorks.flatMap((e) => (e.activityWorkId ? [e.activityWorkId] : [])) };
+  const { members, proposedByUserId, workspaceId, visibility, exhibitorWorks, contestImport, ...resto } = a;
+  const actividad = {
+    ...resto,
+    exhibitorWorkIds: exhibitorWorks.flatMap((e) => (e.activityWorkId ? [e.activityWorkId] : [])),
+    tieneConcurso: contestImport != null,
+  };
   return {
     actividad,
     visibilidad: { visibility, galleryMode: a.galleryMode },

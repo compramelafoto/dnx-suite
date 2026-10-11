@@ -11,6 +11,7 @@ import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarParaEditar } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
 import { pendientesPorMuestra } from "@/lib/expositores/consultas";
+import { pendientesDelConcurso } from "@/lib/concursos/consultas";
 import { textoDelUltimoCambio } from "@/lib/equipo/registro";
 import { queSeVeOnline } from "@/lib/visibilidad/texto";
 import { requireUsuario } from "@/lib/usuario";
@@ -47,10 +48,15 @@ export default async function EditarActividad({
   const ultimo = await textoDelUltimoCambio(a);
   const revisaExpositores = a.type === "MUESTRA" && puede(usuario, "exhibitors", rol);
   const paraRevisar = revisaExpositores ? (await pendientesPorMuestra([a.id])).get(a.id) ?? 0 : 0;
+  // Obras traídas de un concurso de FotoRank (etapa 7): el panel lo ve quien ve la muestra.
+  const delConcurso = a.type === "MUESTRA" && a.tieneConcurso ? (await pendientesDelConcurso([a.id])).get(a.id) ?? 0 : null;
   const enlaces = a.type === "MUESTRA"
     ? [
         revisaExpositores
           ? { href: `/panel/muestras/${a.id}/expositores`, texto: paraRevisar ? `Expositores (${paraRevisar} para revisar)` : "Expositores" }
+          : null,
+        delConcurso != null
+          ? { href: `/panel/muestras/${a.id}/concurso`, texto: delConcurso ? `Del concurso (${delConcurso} esperan al autor)` : "Del concurso" }
           : null,
         puede(usuario, "visibility", rol)
           ? { href: `/panel/muestras/${a.id}/visibilidad`, texto: `Visibilidad (${VISIBILITY_PRESET_LABELS[parseVisibility(visibilidad.visibility, visibilidad.galleryMode).preset]})` }

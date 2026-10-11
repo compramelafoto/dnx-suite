@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
 import {
-  CONTEST_IMAGE_BATCH, activityRole, canEdit, dayEndAr, dayStartAr, newSlug, parseContestTiers, toArDay, type ContestTier, type ReviewStatus,
+  CONTEST_IMAGE_BATCH, activityRole, canEdit, contestConsentTransition, temporalStatus, dayEndAr, dayStartAr, newSlug, parseContestTiers, toArDay, type ContestTier, type ReviewStatus,
 } from "@repo/muestras";
 import { conPermiso, puede } from "@/lib/equipo/permisos";
 import { datosDeCambio } from "@/lib/equipo/registro";
@@ -324,4 +324,126 @@ export async function reintentarImagenes(activityId: string): Promise<ResultadoC
   });
   refrescar(p.activityId);
   return { ok: true, id: p.activityId };
+}
+
+// ── Opciones por obra (panel "Del concurso") ────────────────────────────────
+
+const OBRA_NO_EXISTE = "La obra no existe.";
+const OBRA_CAMBIO = "La obra cambió mientras tanto. Recargá la página.";
+
+/** La obra del concurso, su muestra y el permiso `contest` (leído en la base). */
+async function prepararObra(contestWorkId: unknown) {
+  if (typeof contestWorkId !== "string" || !ES_ID.test(contestWorkId)) return { listo: false as const, error: error(OBRA_NO_EXISTE) };
+  const usuario = await getUsuario();
+  if (!usuario) return { listo: false as const, error: SIN_SESION };
+  const w = await prisma.culturalContestWork.findUnique({ where: { id: contestWorkId }, select: { id: true, activityId: true } });
+  if (!w) return { listo: false as const, error: error(OBRA_NO_EXISTE) };
+  const p = await prepararMuestra(w.activityId, "opcionesConcurso");
+  if (!p.listo) {
+    const r = p.error;
+    return { listo: false as const, error: !r.ok && r.errores[0] === MUESTRA_NO_EXISTE ? error(OBRA_NO_EXISTE) : r };
+  }
+  if (!p.editable) return { listo: false as const, error: noEditable(p.muestra.reviewStatus) };
+  return { ...p, listo: true as const, contestWorkId: w.id };
+}
+
+const OBRA_FILA = {
+  id: true, include: true, toPrint: true, forSale: true, exhibitBasis: true, exhibitConsent: true, saleConsent: true, updatedAt: true,
+} as const;
+
+/**
+ * Cambia una obra con la muestra bloqueada y el permiso vuelto a leer, y la deja en la galería como
+ * corresponde. `cambios` recibe la fila actual y devuelve lo que se escribe (o lanza `CorteDeArmado`).
+ */
+async function cambiarObra(
+  p: Extract<Awaited<ReturnType<typeof prepararObra>>, { listo: true }>,
+  cambios: (row: Prisma.CulturalContestWorkGetPayload<{ select: typeof OBRA_FILA }>) => Prisma.CulturalContestWorkUpdateManyMutationInput,
+): Promise<ResultadoConcurso> {
+  let borrar: string | undefined;
+  const avisos: string[] = [];
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${p.activityId} FOR UPDATE`;
+      if ((await tx.culturalActivity.count({ where: conPermiso({ id: p.activityId }, p.usuario, "contest") })) === 0) throw new CorteDeArmado(OBRA_NO_EXISTE);
+      const row = await tx.culturalContestWork.findFirst({ where: { id: p.contestWorkId, activityId: p.activityId }, select: OBRA_FILA });
+      if (!row) throw new CorteDeArmado(OBRA_NO_EXISTE);
+      const data = cambios(row);
+      // Contra la fila leída: si cambió en el medio (otra pestaña, el autor), no se pisa.
+      const { count } = await tx.culturalContestWork.updateMany({ where: { id: row.id, activityId: p.activityId, updatedAt: row.updatedAt }, data });
+      if (count === 0) throw new CorteDeArmado(OBRA_CAMBIO);
+      const s = await sincronizarObraConGaleria(tx, p.activityId, row.id);
+      if (s.aviso) avisos.push(s.aviso);
+      borrar = s.borrarImagen;
+    }, { timeout: 30_000, maxWait: 10_000 });
+  } catch (err) {
+    if (err instanceof CorteDeArmado) return error(err.message);
+    throw err;
+  }
+  await borrarCopias([borrar]);
+  refrescar(p.activityId, p.muestra.slug);
+  return avisos.length ? { ok: true, id: p.contestWorkId, avisos } : { ok: true, id: p.contestWorkId };
+}
+
+/**
+ * Las tres casillas por obra (D13, D15): "Galería virtual" (está en la muestra), "Se imprime" y "A la
+ * venta". Sacar la galería desmarca "Se imprime". Marcar la venta le pregunta al autor; desmarcarla
+ * antes de que responda retira la pregunta, y si ya respondió, su respuesta queda.
+ */
+export async function guardarOpcionesDeObra(
+  contestWorkId: string,
+  opciones: { include: boolean; toPrint: boolean; forSale: boolean },
+): Promise<ResultadoConcurso> {
+  if (!opciones || typeof opciones !== "object") return error(OBRA_NO_EXISTE);
+  const include = opciones.include === true;
+  const toPrint = include && opciones.toPrint === true;
+  const forSale = opciones.forSale === true;
+  const p = await prepararObra(contestWorkId);
+  if (!p.listo) return p.error;
+  return cambiarObra(p, (row) => {
+    let saleConsent = row.saleConsent;
+    let saleConsentAt: Date | null | undefined;
+    if (forSale && row.saleConsent === "NOT_ASKED") saleConsent = "PENDING";
+    if (!forSale && row.saleConsent === "PENDING") {
+      saleConsent = "NOT_ASKED";
+      saleConsentAt = null;
+    }
+    return { include, toPrint, forSale, saleConsent, ...(saleConsentAt === null ? { saleConsentAt } : {}) };
+  });
+}
+
+/** "Sacar de la muestra" (D16): queda marcada como sacada y no vuelve sola al actualizar. */
+export async function sacarObraDelConcurso(contestWorkId: string): Promise<ResultadoConcurso> {
+  const p = await prepararObra(contestWorkId);
+  if (!p.listo) return p.error;
+  return cambiarObra(p, () => ({ include: false, toPrint: false }));
+}
+
+/**
+ * "Tengo su autorización por escrito" (D22): sólo sobre lo que espera al autor; nunca pisa un "no".
+ * Cuenta como confirmación del nombre (D28).
+ */
+export async function marcarAutorizacionEscrita(contestWorkId: string): Promise<ResultadoConcurso> {
+  const p = await prepararObra(contestWorkId);
+  if (!p.listo) return p.error;
+  const ahora = new Date();
+  const cerrada = temporalStatus(p.muestra, ahora) === "CLOSED";
+  return cambiarObra(p, (row) => {
+    const t = contestConsentTransition("writtenConsent", row, { closed: cerrada });
+    if (!t.ok) throw new CorteDeArmado(t.reason);
+    return { exhibitConsent: t.next, consentBy: t.by, consentAt: ahora };
+  });
+}
+
+/** "Ya se lo mandé" (D21): sólo una marca para quien organiza. */
+export async function marcarEnlaceMandado(authorId: string): Promise<ResultadoConcurso> {
+  if (typeof authorId !== "string" || !ES_ID.test(authorId)) return error("No encontramos a esa persona.");
+  const usuario = await getUsuario();
+  if (!usuario) return SIN_SESION;
+  const autor = await prisma.culturalContestAuthor.findUnique({ where: { id: authorId }, select: { id: true, activityId: true } });
+  if (!autor) return error("No encontramos a esa persona.");
+  const p = await prepararMuestra(autor.activityId, "opcionesConcurso");
+  if (!p.listo) return error("No encontramos a esa persona.");
+  await prisma.culturalContestAuthor.updateMany({ where: { id: autor.id, activityId: p.activityId }, data: { notifiedAt: new Date() } });
+  revalidatePath(`/panel/muestras/${p.activityId}/concurso`);
+  return { ok: true, id: autor.id };
 }

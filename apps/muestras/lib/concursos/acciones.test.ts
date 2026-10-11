@@ -33,7 +33,10 @@ vi.mock("./imagen", async () => {
 });
 vi.mock("./galeria", () => gal);
 
-const { actualizarDesdeConcurso, armarMuestraDesdeConcurso, copiarImagenesDelConcurso, reintentarImagenes } = await import("./acciones");
+const {
+  actualizarDesdeConcurso, armarMuestraDesdeConcurso, copiarImagenesDelConcurso, guardarOpcionesDeObra, marcarAutorizacionEscrita, marcarEnlaceMandado,
+  reintentarImagenes, sacarObraDelConcurso,
+} = await import("./acciones");
 const { ImagenDeConcursoError } = await import("./imagen");
 const { CorteDeArmado } = await import("./armar");
 const { resetRateLimit } = await import("@/lib/limite");
@@ -287,5 +290,79 @@ describe("copiarImagenesDelConcurso", () => {
     expect(db.culturalContestWork.updateMany).toHaveBeenCalledWith({
       where: { activityId: "a1", include: true, imageStatus: "FAILED" }, data: { imageStatus: "PENDING", imageError: null },
     });
+  });
+});
+
+describe("opciones por obra", () => {
+  type Fila = { id: string; include: boolean; toPrint: boolean; forSale: boolean; exhibitBasis: string; exhibitConsent: string; saleConsent: string; updatedAt: Date };
+  let fila: Fila;
+  const extra = vi.hoisted(() => ({
+    workFindUnique: vi.fn(), workFindFirst: vi.fn(), authorFindUnique: vi.fn(), authorUpdateMany: vi.fn(),
+  }));
+  beforeEach(() => {
+    fila = { id: "cw1", include: true, toPrint: true, forSale: false, exhibitBasis: "EXPLICIT", exhibitConsent: "PENDING", saleConsent: "NOT_ASKED", updatedAt: new Date("2026-10-10") };
+    Object.assign(db.culturalContestWork, { findUnique: extra.workFindUnique, findFirst: extra.workFindFirst });
+    Object.assign(db, { culturalContestAuthor: { findUnique: extra.authorFindUnique, updateMany: extra.authorUpdateMany } });
+    extra.workFindUnique.mockResolvedValue({ id: "cw1", activityId: "a1" });
+    extra.workFindFirst.mockImplementation(async () => ({ ...fila }));
+    db.culturalContestWork.updateMany.mockResolvedValue({ count: 1 });
+    db.culturalActivity.findFirst.mockResolvedValue({
+      ...muestra(), startsAt: new Date("2026-11-01"), endsAt: new Date("2099-01-01"), contestImport: { id: "i1" },
+    });
+    db.culturalActivity.count.mockResolvedValue(1);
+    gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "SIN_CAMBIO" });
+  });
+  const escrito = () => db.culturalContestWork.updateMany.mock.calls.at(-1)![0];
+
+  it("sacar la galería desmarca 'Se imprime', con la muestra bloqueada, y sincroniza", async () => {
+    expect((await guardarOpcionesDeObra("cw1", { include: false, toPrint: true, forSale: false })).ok).toBe(true);
+    expect(escrito()).toMatchObject({ where: { id: "cw1", activityId: "a1", updatedAt: fila.updatedAt }, data: { include: false, toPrint: false } });
+    expect(String(db.$queryRaw.mock.calls[0][0].join("?"))).toMatch(/FOR UPDATE/);
+    expect(gal.sincronizarObraConGaleria).toHaveBeenCalledWith(db, "a1", "cw1");
+  });
+  it("marcar la venta le pregunta al autor; desmarcarla antes de que responda la retira", async () => {
+    await guardarOpcionesDeObra("cw1", { include: true, toPrint: true, forSale: true });
+    expect(escrito().data).toMatchObject({ forSale: true, saleConsent: "PENDING" });
+    fila = { ...fila, forSale: true, saleConsent: "PENDING" };
+    await guardarOpcionesDeObra("cw1", { include: true, toPrint: true, forSale: false });
+    expect(escrito().data).toMatchObject({ forSale: false, saleConsent: "NOT_ASKED", saleConsentAt: null });
+  });
+  it("si el autor ya respondió la venta, su respuesta queda", async () => {
+    fila = { ...fila, forSale: true, saleConsent: "DECLINED" };
+    await guardarOpcionesDeObra("cw1", { include: true, toPrint: true, forSale: false });
+    expect(escrito().data).toMatchObject({ forSale: false, saleConsent: "DECLINED" });
+  });
+  it("sacar de la muestra: include y toPrint en false; la copia se borra después", async () => {
+    gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "SACADA", borrarImagen: "https://r2/x.webp" });
+    expect((await sacarObraDelConcurso("cw1")).ok).toBe(true);
+    expect(escrito().data).toEqual({ include: false, toPrint: false });
+    expect(img.borrarImagenDeConcurso).toHaveBeenCalledWith("https://r2/x.webp");
+  });
+  it("autorización escrita sólo sobre lo pendiente", async () => {
+    expect((await marcarAutorizacionEscrita("cw1")).ok).toBe(true);
+    expect(escrito().data).toMatchObject({ exhibitConsent: "ACCEPTED", consentBy: "ORGANIZER" });
+    fila = { ...fila, exhibitConsent: "DECLINED" };
+    db.culturalContestWork.updateMany.mockClear();
+    expect((await marcarAutorizacionEscrita("cw1")).ok).toBe(false);
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
+  });
+  it("la coorganización no cambia nada", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue(null);
+    expect(await guardarOpcionesDeObra("cw1", { include: false, toPrint: false, forSale: false })).toEqual({ ok: false, errores: ["La obra no existe."] });
+    expect(await marcarAutorizacionEscrita("cw1")).toEqual({ ok: false, errores: ["La obra no existe."] });
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
+  });
+  it("con la muestra en revisión: no", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra({ reviewStatus: "IN_REVIEW" }), startsAt: new Date(), endsAt: new Date(), contestImport: { id: "i1" } });
+    expect(await sacarObraDelConcurso("cw1")).toEqual({ ok: false, errores: ["La muestra está en revisión: esperá a que se revise para cambiar sus obras."] });
+  });
+  it("si cambió en el medio, no pisa", async () => {
+    db.culturalContestWork.updateMany.mockResolvedValue({ count: 0 });
+    expect(await sacarObraDelConcurso("cw1")).toEqual({ ok: false, errores: ["La obra cambió mientras tanto. Recargá la página."] });
+  });
+  it("enlace mandado guarda la fecha", async () => {
+    extra.authorFindUnique.mockResolvedValue({ id: "au1", activityId: "a1" });
+    expect((await marcarEnlaceMandado("au1")).ok).toBe(true);
+    expect(extra.authorUpdateMany).toHaveBeenCalledWith({ where: { id: "au1", activityId: "a1" }, data: { notifiedAt: expect.any(Date) } });
   });
 });

@@ -334,3 +334,22 @@ export async function concursosParaArmar(usuario: Quien): Promise<ConcursoParaAr
     };
   });
 }
+
+// ── Lote vigente (aviso de "cambió") ────────────────────────────────────────
+
+/**
+ * Sólo el lote usable más nuevo (id y versión), para avisar en el panel "Del concurso" si los
+ * resultados cambiaron desde el armado (D11). Liviano: no lee obras ni resultados. Nunca rompe la
+ * página: ante cualquier error devuelve `undefined` (no se sabe) y el panel no avisa.
+ */
+export async function loteVigente(contestId: string): Promise<{ id: string; version: Date } | null | undefined> {
+  if (typeof contestId !== "string" || !ES_ID.test(contestId)) return null;
+  try {
+    const lotes = await prisma.fotorankResultBatch.findMany({ where: { contestId, status: { in: [...USABLE_BATCH_STATUSES] } }, select: LOTE_SELECT });
+    const lote = pickResultBatch(lotes);
+    return lote ? { id: lote.id, version: lote.updatedAt } : null;
+  } catch (err) {
+    console.error("[muestras] concurso lote vigente:", err instanceof Error ? err.message : String(err));
+    return undefined;
+  }
+}
