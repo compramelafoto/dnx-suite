@@ -707,7 +707,7 @@ export function TemplateEditorCanvas({
         }}
       >
         <div
-          className="relative shrink-0 overflow-hidden rounded-md bg-white shadow-[0_2px_14px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/[0.07]"
+          className="relative shrink-0 overflow-hidden rounded-none bg-white shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
           style={{ width: zw, height: zh }}
           title={`Lienzo ${Math.round(state.canvas.width)}×${Math.round(state.canvas.height)} px · zoom ${Math.round(state.zoom * 100)}%`}
           aria-label="Lienzo de la plantilla"

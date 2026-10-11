@@ -268,14 +268,18 @@ function RightSidebarSectionChevron({ open, className }: { open: boolean; classN
   );
 }
 
-/** Encabezado + botón para plegar/desplegar; el panel lateral hace scroll único. */
+/**
+ * Encabezado plegable al estilo de los paneles de Photoshop: una franja baja que se cliquea
+ * entera. El panel lateral hace scroll único. `flush` deja el contenido sin margen para los
+ * paneles que ya traen sus propias secciones con separadores.
+ */
 function RightSidebarSection({
   sectionId,
   title,
   open,
   onToggle,
   children,
-  variant = "muted",
+  flush = false,
 }: {
   sectionId: string;
   title: string;
@@ -283,38 +287,32 @@ function RightSidebarSection({
   onToggle: () => void;
   children: ReactNode;
   variant?: "muted" | "white";
+  flush?: boolean;
 }) {
   return (
-    <section
-      className={cn(
-        "border-b border-[color:var(--te-line)]",
-        variant === "muted" ? "bg-[color:var(--te-chrome)]" : "bg-white"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
+    <section className="border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)]">
+      <button
+        type="button"
+        className="flex h-7 w-full items-center gap-1.5 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 text-left transition-colors hover:bg-[color:var(--te-line)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--te-accent)]"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={`${sectionId}-content`}
+        title={open ? "Minimizar panel" : "Desplegar panel"}
+      >
+        <RightSidebarSectionChevron open={open} className="h-3 w-3" />
         <h3
           id={`${sectionId}-heading`}
-          className="text-xs font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]"
+          className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--te-ink)]"
         >
           {title}
         </h3>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-muted)] transition-colors hover:bg-black/[0.04] hover:text-[color:var(--te-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-controls={`${sectionId}-content`}
-          title={open ? "Minimizar bloque" : "Desplegar bloque"}
-        >
-          <RightSidebarSectionChevron open={open} />
-        </button>
-      </div>
+      </button>
       {open ? (
         <div
           id={`${sectionId}-content`}
           role="region"
           aria-labelledby={`${sectionId}-heading`}
-          className="px-3 pb-3 pt-0"
+          className={flush ? "" : "px-3 py-2"}
         >
           {children}
         </div>
@@ -1714,7 +1712,7 @@ export function TemplateEditorShell({
                   title="Propiedades"
                   open={rightPanelInspectorOpen}
                   onToggle={() => setRightPanelInspectorOpen((v) => !v)}
-                  variant="white"
+                  flush
                 >
                   <TemplateEditorInspector
                     selectedBlock={selectedBlock}

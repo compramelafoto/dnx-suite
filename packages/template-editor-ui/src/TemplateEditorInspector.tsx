@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { BackgroundImageField } from "./inspector/BackgroundImageField";
 import { BlockSizePanel } from "./inspector/BlockSizePanel";
 import { ColorField } from "./inspector/ColorField";
 import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
@@ -61,17 +62,17 @@ function clamp(n: number, min: number, max: number) {
 }
 
 const inputBase =
-  "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-2 text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
+  "h-6 w-full rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 text-[11px] text-[color:var(--te-ink)] focus:border-[color:var(--te-accent)] focus:outline-none";
 
 const selectBase =
-  "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-2 text-xs shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
+  "h-6 w-full rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 text-[11px] text-[color:var(--te-ink)] focus:border-[color:var(--te-accent)] focus:outline-none";
 
 const alignBtnClass =
-  "rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-1.5 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
+  "h-6 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2 text-[11px] font-medium text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
 
 /** Botón cuadrado con icono de alineación (zona segura / conjunto). */
 const alignIconBtnClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-white disabled:hover:text-[color:var(--te-ink)]";
+  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-white disabled:hover:text-[color:var(--te-ink)]";
 
 export function TemplateEditorInspector({
   selectedBlock,
@@ -94,27 +95,16 @@ export function TemplateEditorInspector({
   if (!selectedBlock) {
     const bg = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
     return (
-      <div className={cn("w-full min-w-0 space-y-4", className)}>
-        <div>
-          <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
-          <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Lienzo o bloques seleccionados.</p>
-        </div>
-
-        <InspectorPanel title="Fondo de la hoja">
-          <p className="text-[11px] leading-relaxed text-[color:var(--te-ink-muted)]">
-            Hacé clic en un área vacía del lienzo (sin bloques) para quitar la selección y ajustar el color de fondo.
-          </p>
-          <div className="mt-3">
-            <ColorField
-              label="Color de fondo del lienzo"
-              value={bg}
-              onChange={(hex) => dispatch(setCanvas({ background: hex }))}
-            />
-          </div>
+      <div className={cn("w-full min-w-0", className)}>
+        <InspectorPanel title="Hoja">
+          <ColorField
+            label="Color de fondo"
+            value={bg}
+            onChange={(hex) => dispatch(setCanvas({ background: hex }))}
+          />
         </InspectorPanel>
-
-        <p className="text-xs leading-relaxed text-[color:var(--te-ink-muted)]">
-          Elegí un bloque en el lienzo para ver y editar sus propiedades aquí.
+        <p className="px-3 py-2 text-[11px] leading-snug text-[color:var(--te-ink-faint)]">
+          Elegí un bloque en el lienzo para editar sus propiedades.
         </p>
       </div>
     );
@@ -167,11 +157,7 @@ export function TemplateEditorInspector({
   }
 
   return (
-    <div className={cn("w-full min-w-[280px] space-y-4", className)}>
-      <div>
-        <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
-        <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Cambios locales hasta que guardes.</p>
-      </div>
+    <div className={cn("w-full min-w-[240px]", className)}>
 
       <BlockSizePanel block={selectedBlock} canvas={canvas} dispatch={dispatch} />
 
@@ -181,20 +167,15 @@ export function TemplateEditorInspector({
         propiedades del bloque.
       */}
       <InspectorPanel title="Opacidad">
-        <div className="flex items-center gap-3">
-          <NumberSliderField
-            value={Math.round((selectedBlock.layout.opacity ?? 1) * 100)}
-            onChange={(v) => updateLayout({ opacity: v / 100 })}
-            min={0}
-            max={100}
-            step={1}
-            ariaLabel={`Opacidad de ${selectedBlock.name ?? "el bloque"}`}
-            className="flex-1"
-          />
-          <span className="w-11 shrink-0 text-right text-[11px] tabular-nums text-[color:var(--te-ink-muted)]">
-            {Math.round((selectedBlock.layout.opacity ?? 1) * 100)} %
-          </span>
-        </div>
+        {/* El número del deslizador ya muestra el valor; repetirlo con "%" al lado era ruido. */}
+        <NumberSliderField
+          value={Math.round((selectedBlock.layout.opacity ?? 1) * 100)}
+          onChange={(v) => updateLayout({ opacity: v / 100 })}
+          min={0}
+          max={100}
+          step={1}
+          ariaLabel={`Opacidad de ${selectedBlock.name ?? "el bloque"}`}
+        />
       </InspectorPanel>
 
       <TemplateVariableBraceInsertPanel
@@ -206,7 +187,8 @@ export function TemplateEditorInspector({
       />
 
       {selectedBlockCount > 1 ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-950">
+        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-50 px-3 py-1.5 text-[11px] leading-snug text-amber-950">
+          <span aria-hidden className="text-amber-600">⚠</span>
           Hay {selectedBlockCount} bloques seleccionados. Las propiedades de abajo siguen al{" "}
           <span className="font-medium">último seleccionado (primario)</span>. Usá la sección siguiente para alinear o
           distribuir todo el conjunto.
@@ -284,14 +266,15 @@ export function TemplateEditorInspector({
         </InspectorPanel>
       ) : null}
 
-      {primarySafeAreaStatus !== "inside" ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-950">
+      {primarySafeAreaStatus !== "inside" && selectedBlock.type !== "BACKGROUND" ? (
+        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-50 px-3 py-1.5 text-[11px] leading-snug text-amber-950">
+          <span aria-hidden className="text-amber-600">⚠</span>
           {primarySafeAreaStatus === "outside" ? (
             <>Fuera de la zona segura.</>
           ) : (
             <>Parcialmente fuera de la zona segura.</>
           )}{" "}
-          <span className="text-[10px] text-amber-900/80">(rectángulo de layout)</span>
+
         </p>
       ) : null}
 
@@ -546,18 +529,19 @@ export function TemplateEditorInspector({
       )}
 
       {selectedBlock.type === "BACKGROUND" && (
-        <InspectorPanel title="Fondo (legacy)">
+        <InspectorPanel title="Fondo">
           <ColorField
             label="Color de fondo"
             value={String(cfg.backgroundColor ?? "var(--te-surface)")}
             onChange={(hex) => updateConfig({ backgroundColor: hex })}
           />
           <div>
-            <FieldLabel>Imagen (URL)</FieldLabel>
-            <input
-              className={inputBase}
-              value={String(cfg.src ?? "")}
-              onChange={(e) => updateConfig({ src: e.target.value })}
+            <FieldLabel>Imagen</FieldLabel>
+            <BackgroundImageField
+              templateId={templateId}
+              versionId={versionId}
+              src={String(cfg.src ?? "")}
+              onChange={(src) => updateConfig({ src, fit: "cover" })}
             />
           </div>
         </InspectorPanel>
