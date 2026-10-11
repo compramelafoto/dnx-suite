@@ -241,3 +241,32 @@ Cómo probarlo de punta a punta:
 3. Aprobarla desde Expositores y ver que entra a la galería.
 4. Bajar las fichas, escanear el QR con el celular y ver la vista de sala y "Adquirir obra".
 5. Abrir la muestra online en una ventana privada y confirmar que respeta la sorpresa.
+
+## Etapa 7 — concurso de FotoRank → muestra
+
+- **Migración:** `20261101120000_muestras_etapa_7_fotorank` ya está aplicada y registrada en la base
+  de producción (tablas `CulturalContestImport`, `CulturalContestWork` y `CulturalContestAuthor`).
+  No hay que correr nada.
+- **Variable nueva en Vercel (proyecto Muestras):** `DNX_FOTORANK_LINK_SECRET`, con el mismo valor
+  que en FotoRank y FOTOFFICE, más `FOTORANK_PUBLIC_BASE_URL=https://fotorank.dnxsuite.com`. Sin la
+  clave, la muestra se arma igual pero las imágenes no se copian.
+- **Cómo funciona:** en FotoRank, Resultados del concurso → "Armar muestra" (sólo OWNER, ADMIN o
+  EDITOR de la organización, o super admin; nunca maratones). En Muestras se eligen los niveles
+  (ganadores y menciones marcados; finalistas opcionales) y se crea un borrador "Muestra <concurso>"
+  con fechas provisorias, o se suman las obras a una muestra existente. Se puede repetir sin duplicar.
+- **Permiso del autor:** si las bases del concurso autorizaban exhibir, la obra entra y el autor la
+  ve en "Dónde expongo" (puede retirarla); si no, tiene que aceptar. El nombre se muestra si las
+  bases piden atribución o el autor lo confirma; si no, "Autoría reservada".
+- **Imágenes:** se copian por tandas al bucket de Muestras, una copia por muestra, recién cuando la
+  obra entra a la galería; se borran si el autor la retira o la organización la saca.
+- **FotoRank** sólo suma el recuadro "Armar muestra" y el bloque "Muestras del concurso" en lo
+  público (si algo falla, no se muestra). Los resultados oficiales todavía no se pueden publicar en
+  producción: se usa el último lote cerrado por la organización.
+
+Cómo probarlo de punta a punta:
+
+1. Con un concurso de FotoRank con resultados cerrados, entrar a Resultados y tocar "Armar muestra".
+2. En Muestras, elegir los niveles y armar el borrador.
+3. En "Del concurso", copiar las imágenes y revisar las casillas de cada obra.
+4. Con la cuenta de un autor, entrar a "Dónde expongo" y aceptar o retirar.
+5. Completar fechas y sede, enviar a revisión, aprobar y ver el premio en la ficha y en el catálogo.
