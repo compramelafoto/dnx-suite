@@ -27,12 +27,16 @@ export function Cobros({ cuenta }: { cuenta: CuentaParaPantalla }) {
   const [pendiente, start] = useTransition();
   const [errores, setErrores] = useState<string[]>([]);
   const [cambiando, setCambiando] = useState(cuenta.email == null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [emailEscrito, setEmailEscrito] = useState(cuenta.email ?? "");
 
-  const correr = (fn: () => Promise<{ ok: true } | { ok: false; errores: string[] }>) => {
+  const correr = (fn: () => Promise<{ ok: true; aviso?: string } | { ok: false; errores: string[] }>) => {
     setErrores([]);
+    setAviso(null);
     start(async () => {
       const r = await fn();
       if (!r.ok) return setErrores(r.errores);
+      setAviso(r.aviso ?? null);
       setCambiando(false);
       router.refresh();
     });
@@ -44,6 +48,7 @@ export function Cobros({ cuenta }: { cuenta: CuentaParaPantalla }) {
   return (
     <div className="space-y-5">
       <p className="text-lg" role="status">{textoDelEstado(cuenta)}</p>
+      {aviso ? <p className={nota}>{aviso}</p> : null}
       {cuenta.estado === "PENDING" ? (
         <div className="flex flex-wrap gap-2">
           {invitacion ? (
@@ -64,8 +69,14 @@ export function Cobros({ cuenta }: { cuenta: CuentaParaPantalla }) {
           <label className={etiqueta}>
             <span>Email de tu cuenta de Mercado Pago</span>
             <span className={`block ${nota}`}>Te va a llegar un pedido de Mercado Pago para aceptar que te paguen tu parte de cada venta.</span>
-            <input name="email" type="email" required maxLength={254} autoComplete="email" defaultValue={cuenta.email ?? ""} className={campo} />
+            <input
+              name="email" type="email" required maxLength={254} autoComplete="email" value={emailEscrito}
+              onChange={(e) => setEmailEscrito(e.target.value)} className={campo}
+            />
           </label>
+          {emailEscrito.includes("@") ? (
+            <p className={nota}>Tu parte de cada venta quedará a nombre de la cuenta de Mercado Pago de <strong>{emailEscrito.trim().toLowerCase()}</strong>. Revisá que sea la tuya.</p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={botonLleno} disabled={pendiente}>{pendiente ? "Pidiendo…" : "Conectar mi Mercado Pago"}</button>
             {cuenta.email ? <button type="button" className={botonFino} disabled={pendiente} onClick={() => setCambiando(false)}>Cancelar</button> : null}

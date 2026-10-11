@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { prisma } from "@repo/db";
 import { editionLabel, xmpPacket } from "@repo/muestras";
@@ -56,6 +57,12 @@ export async function archivoFirmado(orderId: string): Promise<ArchivoFirmado | 
 
   const bytesOriginal = await leerPrivado(original.storageKey, { maxBytes: ORIGINAL_MAX });
   if (!bytesOriginal) return null;
+  // El archivo tiene que ser el mismo que se midió al confirmarlo (la huella está en el certificado):
+  // si alguien lo reemplazó en el bucket después, no se entrega.
+  if (createHash("sha256").update(bytesOriginal).digest("hex") !== original.sha256) {
+    console.error("[muestras][ventas] el original no coincide con su huella: no se arma la copia digital");
+    return null;
+  }
   const xmp = xmpPacket({
     title: obra.title,
     creator: obra.authorName,

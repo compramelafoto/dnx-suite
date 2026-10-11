@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
 import { activitySalesHref, nextEditionNumber, offerProblems, offerTransition, type OfferTransitionResult } from "@repo/muestras";
-import { puede, rolEnMuestra } from "@/lib/equipo/permisos";
+import { conPermiso, puede, rolEnMuestra } from "@/lib/equipo/permisos";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario, type Usuario } from "@/lib/usuario";
 import { leerConfigDeVentas } from "./config";
 import { certificarCopia } from "./conciliar";
+import { ventasDePrueba } from "./consultas";
 import { PEDIDO_PA } from "./evaluar";
 
 /**
@@ -46,10 +47,12 @@ async function preparar(id: unknown): Promise<{ listo: false; error: ResultadoRe
   return { listo: true, usuario, o };
 }
 
-async function bloquear(tx: Prisma.TransactionClient, id: string): Promise<Oferta> {
+/** Bloquea la oferta y vuelve a mirar el permiso dentro de la transacción (pudieron sacarlo recién). */
+async function bloquear(tx: Prisma.TransactionClient, id: string, usuario: Usuario): Promise<Oferta> {
   await tx.$queryRaw`SELECT id FROM "CulturalWorkOffer" WHERE id = ${id} FOR UPDATE`;
   const o = await tx.culturalWorkOffer.findUnique({ where: { id }, select: OFERTA });
   if (!o) throw new Corte(TEXTO_NO_EXISTE);
+  if ((await tx.culturalActivity.count({ where: conPermiso({ id: o.activityId }, usuario, "sales") })) === 0) throw new Corte(TEXTO_NO_EXISTE);
   return o;
 }
 
@@ -69,7 +72,7 @@ async function transicion(
   if (!r.listo) return r.error;
   try {
     await prisma.$transaction(async (tx) => {
-      const o = await bloquear(tx, r.o.id);
+      const o = await bloquear(tx, r.o.id, r.usuario);
       const t = calcular(o);
       if (!t.ok) throw new Corte(t.error);
       const { count } = await tx.culturalWorkOffer.updateMany({
@@ -122,19 +125,20 @@ export async function reanudarOferta(id: string): Promise<ResultadoRevisionVenta
 
 /**
  * Emitir la próxima prueba de autor (D24): toma el número libre más bajo de las P/A, sin comprador.
- * El certificado y la etiqueta se generan con el resto de las piezas (tarea 16). En prueba
- * (sandbox) o con la venta apagada, la P/A queda marcada como de prueba (D4).
+ * Sale con su certificado firmado. Con las cuentas de sandbox la P/A queda marcada como de prueba
+ * (D4), igual que la numeración de las copias.
  */
 export async function emitirPruebaDeAutor(offerId: string): Promise<ResultadoRevisionVenta> {
   const r = await preparar(offerId);
   if (!r.listo) return r.error;
-  const isTest = leerConfigDeVentas().modo !== "LIVE";
+  // El mismo criterio que la numeración y que "pedir P/A" del autor: el ambiente de las cuentas (D4).
+  const isTest = ventasDePrueba(leerConfigDeVentas());
   let numero = 0;
   let total = 0;
   let copiaId = "";
   try {
     await prisma.$transaction(async (tx) => {
-      const o = await bloquear(tx, r.o.id);
+      const o = await bloquear(tx, r.o.id, r.usuario);
       if (o.proofCount <= 0) throw new Corte("Este formato no tiene pruebas de autor.");
       if (o.status !== "APPROVED" && o.status !== "PAUSED") throw new Corte("Las pruebas de autor se emiten con el formato aprobado.");
       const ahora = new Date();

@@ -144,6 +144,27 @@ describe("guardarOferta", () => {
     expect(await autor.guardarOferta(impresa({ id: "of1", papel: "Canson Baryta 310 g" }))).toMatchObject({ ok: true });
     expect(oferta).toMatchObject({ paper: "Canson Baryta 310 g", approvedPriceArs: null });
   });
+  it("bajar N por debajo del número más alto ocupado (aunque sea de prueba) → mensaje", async () => {
+    oferta = ofertaBase({ status: "CHANGES_REQUESTED" });
+    const filas = [
+      { id: "c7", number: 7, status: "ISSUED", reservedUntil: null, isTest: true, kind: "COPY" },
+      { id: "p2", number: 2, status: "ISSUED", reservedUntil: null, isTest: false, kind: "PROOF" },
+    ];
+    db.culturalEditionCopy.findMany.mockImplementation(async (q: { where: { kind: string } }) => filas.filter((f) => f.kind === q.where.kind));
+    expect(await autor.guardarOferta(impresa({ id: "of1", copias: "5" }))).toEqual({
+      ok: false, errores: ["Ya hay una copia con el número 7: la edición no puede tener menos de 7 copias."],
+    });
+    expect(await autor.guardarOferta(impresa({ id: "of1", copias: "7" }))).toMatchObject({ ok: true });
+  });
+  it("bajar las P/A por debajo de la mayor emitida → mensaje", async () => {
+    oferta = ofertaBase({ status: "CHANGES_REQUESTED" });
+    db.culturalEditionCopy.findMany.mockImplementation(async (q: { where: { kind: string } }) =>
+      q.where.kind === "PROOF" ? [{ id: "p2", number: 2, status: "ISSUED", reservedUntil: null, isTest: false, kind: "PROOF" }] : []);
+    expect(await autor.guardarOferta(impresa({ id: "of1", pruebas: "1" }))).toEqual({
+      ok: false, errores: ["Ya se emitió la P/A 2: no puede haber menos de 2 pruebas de autor."],
+    });
+    expect(oferta).toMatchObject({ proofCount: 2 });
+  });
   it("un formato ya enviado no se edita (se cambia el precio o se retira)", async () => {
     oferta = ofertaBase({ status: "APPROVED", approvedPriceArs: 100_000 });
     expect(await autor.guardarOferta(impresa({ id: "of1" }))).toEqual({ ok: false, errores: ["Este formato ya fue enviado: podés cambiar el precio o retirarlo."] });
@@ -168,6 +189,15 @@ describe("transiciones del autor", () => {
     oferta = ofertaBase({ status: "APPROVED", approvedPriceArs: 100_000 });
     expect(await autor.pedirPruebaDeAutor("of1")).toEqual({ ok: true });
     expect(String(oferta!.reviewNote)).toMatch(/^Pedido de P\/A:/);
+    // Cuenta las P/A del mismo ambiente con el que las emite la organización (sandbox → de prueba).
+    expect(db.culturalEditionCopy.count.mock.calls.at(-1)![0].where).toMatchObject({ offerId: "of1", kind: "PROOF", isTest: true });
+  });
+  it("pedir las P/A en producción cuenta sólo las reales", async () => {
+    vi.stubEnv("MUESTRAS_MP_ENV", "production");
+    oferta = ofertaBase({ status: "APPROVED", approvedPriceArs: 100_000 });
+    await autor.pedirPruebaDeAutor("of1");
+    expect(db.culturalEditionCopy.count.mock.calls.at(-1)![0].where).toMatchObject({ isTest: false });
+    vi.unstubAllEnvs();
   });
 });
 
@@ -183,7 +213,7 @@ describe("original", () => {
   });
   it("con una copia ya emitida no se puede reemplazar", async () => {
     db.culturalEditionCopy.count.mockResolvedValue(1);
-    expect(await autor.pedirSubidaDeOriginal("aw1", { mime: "image/jpeg", bytes: 1000 })).toEqual({ ok: false, errores: ["Esta obra ya vendió copias: el original no se puede cambiar."] });
+    expect(await autor.pedirSubidaDeOriginal("aw1", { mime: "image/jpeg", bytes: 1000 })).toEqual({ ok: false, errores: ["Esta obra ya vendió copias (o tiene una compra en curso): el original no se puede cambiar."] });
   });
   it("confirmar calcula el SHA-256, mide y lo deja listo", async () => {
     const png = await sharp({ create: { width: 30, height: 20, channels: 3, background: "#808080" } }).png().toBuffer();
@@ -195,6 +225,24 @@ describe("original", () => {
       activityWorkId: "aw1", activityId: "a1", authorUserId: 50, storageKey: clave, status: "READY", mime: "image/png", widthPx: 30, heightPx: 20,
       sha256: createHash("sha256").update(png).digest("hex"), bytes: png.length,
     });
+  });
+  it("una compra real en curso (reserva vigente) también deja fijo el original", async () => {
+    db.culturalEditionCopy.count.mockImplementation(async (q: { where: { isTest: boolean; OR: Record<string, unknown>[] } }) => {
+      expect(q.where.isTest).toBe(false);
+      expect(q.where.OR).toContainEqual({ status: "RESERVED", reservedUntil: { gt: expect.any(Date) } });
+      return 1;
+    });
+    expect((await autor.pedirSubidaDeOriginal("aw1", { mime: "image/jpeg", bytes: 1000 })).ok).toBe(false);
+  });
+  it("confirmar hace cola por obra (también la primera vez, sin fila que bloquear)", async () => {
+    const png = await sharp({ create: { width: 30, height: 20, channels: 3, background: "#808080" } }).png().toBuffer();
+    r2.existePrivado.mockResolvedValue({ bytes: png.length, contentType: "image/png" });
+    r2.leerPrivado.mockResolvedValue(png);
+    await autor.confirmarOriginal("aw1", "originales/50/aw1-abcdefghijkl");
+    const cola = db.$queryRaw.mock.calls.find((c) => (c[0] as string[]).join("?").includes("pg_advisory_xact_lock"));
+    expect(cola?.[1]).toBe("muestras-original:aw1");
+    const orden = db.$queryRaw.mock.calls.map((c) => (c[0] as string[]).join("?"));
+    expect(orden.findIndex((x) => x.includes("pg_advisory_xact_lock"))).toBeLessThan(orden.findIndex((x) => x.includes('"CulturalSaleFile"')));
   });
   it("un archivo que no es imagen queda rechazado con el motivo", async () => {
     const basura = Buffer.from("esto no es una imagen");
@@ -224,6 +272,14 @@ describe("firma", () => {
     const meta = await sharp(bytes as Buffer).metadata();
     expect(meta.width).toBeLessThan(400);
     expect(db.culturalAuthorSignature.upsert.mock.calls[0]![0].create).toEqual({ userId: 50, storageKey: "firmas/50.png" });
+  });
+  it("más del tope (una acción no acepta 1 MB): mensaje claro, sin leerla ni subirla", async () => {
+    const { FIRMA_MAX_BYTES, FIRMA_DEMASIADO_GRANDE } = await import("./firma-tope");
+    expect(FIRMA_MAX_BYTES).toBeLessThan(1024 * 1024);
+    const f = new FormData();
+    f.set("firma", new Blob([new Uint8Array(FIRMA_MAX_BYTES + 1)], { type: "image/jpeg" }), "firma.jpg");
+    expect(await autor.guardarFirma(f)).toEqual({ ok: false, errores: [FIRMA_DEMASIADO_GRANDE] });
+    expect(r2.subirPrivado).not.toHaveBeenCalled();
   });
   it("un archivo de otro tipo → mensaje", async () => {
     const f = new FormData();

@@ -128,6 +128,9 @@ export async function reservarEnTransaccion(tx: Prisma.TransactionClient, e: Ent
     tx.culturalActivity.findUnique({ where: { id: oferta.activityId }, select: { reviewStatus: true, isCancelled: true, endsAt: true } }),
   ]);
   if (!setup || !actividad) return no(NO_SE_PUEDE);
+  // Las cuentas de cobro tampoco cambian hasta que el pedido quede guardado (revisión de las tareas 6
+  // a 10): "Cobros" las bloquea FOR UPDATE y, al destrabarse, ve este pedido pendiente.
+  await tx.$queryRaw`SELECT id FROM "CulturalPayoutAccount" WHERE "userId" IN (${setup.organizerUserId}, ${oferta.authorUserId}) AND environment = ${e.ambienteCuenta} FOR SHARE`;
 
   const filas = await vencerReservas(tx, oferta.id, e.isTest, ahora);
   const siguiente = nextEditionNumber(filas, oferta.editionSize, ahora, "COPY", e.isTest);

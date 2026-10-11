@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalPayoutAccount: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+  culturalPayoutAccount: { findUnique: vi.fn(), findFirst: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
   culturalSaleOrder: { count: vi.fn() },
   $transaction: vi.fn(),
   $queryRaw: vi.fn(),
@@ -49,6 +49,8 @@ beforeEach(() => {
     if (k) filas[k] = { ...filas[k], ...q.data };
     return { count: k ? 1 : 0 };
   });
+  db.culturalPayoutAccount.findFirst.mockImplementation(async (q: { where: { environment: string; userId: { not: number }; OR: Record<string, unknown>[] } }) =>
+    Object.values(filas).find((f) => f.environment === q.where.environment && f.userId !== q.where.userId.not && q.where.OR.some((c) => Object.entries(c).every(([k, v]) => f[k] === v))) ?? null);
   db.culturalSaleOrder.count.mockResolvedValue(0);
   db.$transaction.mockImplementation(async (fn: (t: typeof db) => Promise<unknown>) => fn(db));
   db.$queryRaw.mockResolvedValue([]);
@@ -70,13 +72,31 @@ describe("guardarCuentaDeCobro", () => {
   });
 
   it("invita y guarda la cuenta en minúsculas, por persona y ambiente", async () => {
-    expect(await guardarCuentaDeCobro(fd({ email: "  Ana@MP.com " }))).toEqual({ ok: true });
+    expect(await guardarCuentaDeCobro(fd({ email: "  Ana@MP.com " }))).toMatchObject({ ok: true, estado: "PENDING", aviso: expect.stringContaining("quedará a nombre de la cuenta de Mercado Pago de ana@mp.com") });
     expect(mp.invitarAReparto).toHaveBeenCalledWith("ana@mp.com");
     expect(filas[clave(50, "SANDBOX")]).toMatchObject({
       userId: 50, environment: "SANDBOX", mpEmail: "ana@mp.com", receiverId: RECEPTOR, consentStatus: "PENDING",
       inviteUrl: "https://www.mercadopago.com.ar/split-consent/abc",
     });
     expect(db.$queryRaw).toHaveBeenCalled();
+  });
+
+  it("aunque Mercado Pago ya lo dé por aceptado, queda pendiente hasta verificar (no revela qué emails aceptaron)", async () => {
+    mp.invitarAReparto.mockResolvedValue({ receiverId: RECEPTOR, status: "ACTIVE", inviteUrl: null });
+    expect(await guardarCuentaDeCobro(fd({ email: "ana@mp.com" }))).toMatchObject({ ok: true, estado: "PENDING" });
+    expect(filas[clave(50, "SANDBOX")]).toMatchObject({ consentStatus: "PENDING", receiverId: RECEPTOR });
+    expect(await verificarCuentaDeCobro()).toEqual({ ok: true, estado: "ACTIVE" });
+  });
+
+  it("el receptor (o el email) de otra persona no se toma: la fila queda sin receptor y la respuesta es la misma", async () => {
+    filas[clave(60, "SANDBOX")] = { id: "pa9", userId: 60, environment: "SANDBOX", mpEmail: "beto@mp.com", receiverId: RECEPTOR, consentStatus: "ACTIVE" };
+    mp.invitarAReparto.mockResolvedValue({ receiverId: RECEPTOR, status: "ACTIVE", inviteUrl: null });
+    const r = await guardarCuentaDeCobro(fd({ email: "beto@mp.com" }));
+    expect(r).toMatchObject({ ok: true, estado: "PENDING" });
+    expect(filas[clave(50, "SANDBOX")]).toMatchObject({ mpEmail: "beto@mp.com", receiverId: null, consentStatus: "PENDING" });
+    expect((await verificarCuentaDeCobro()).ok).toBe(false);
+    expect(mp.leerConsentimiento).not.toHaveBeenCalled();
+    expect(filas[clave(60, "SANDBOX")]).toMatchObject({ receiverId: RECEPTOR, consentStatus: "ACTIVE" });
   });
 
   it("un segundo pedido con el mismo email no duplica la fila (upsert)", async () => {

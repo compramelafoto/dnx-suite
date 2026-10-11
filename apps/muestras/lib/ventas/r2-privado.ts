@@ -1,5 +1,5 @@
 import "server-only";
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { credencialesDeVentas } from "./config";
 
@@ -54,7 +54,9 @@ const noExiste = (err: unknown) => {
 
 /**
  * URL firmada para subir directo al bucket con `PUT` (Vercel no acepta cuerpos de más de 4,5 MB).
- * Firma el tipo y el tamaño exacto declarado (ya validado contra el tope): otro archivo no entra.
+ * Quedan firmados sólo `host` y `content-length` (el tamaño exacto declarado, ya validado contra el
+ * tope): un archivo de otro tamaño no entra. El tipo (`Content-Type`) NO queda firmado: por eso
+ * `confirmarOriginal` vuelve a medir el archivo con sharp y rechaza lo que no sea JPEG, PNG o TIFF.
  */
 export async function urlDeSubida(clave: string, contentType: string, bytes: number): Promise<string> {
   exigirClave(clave);
@@ -127,4 +129,21 @@ export async function borrarPrivado(clave: string): Promise<void> {
   exigirClave(clave);
   const c = config();
   await s3(c).send(new DeleteObjectCommand({ Bucket: c.bucket, Key: clave }));
+}
+
+/**
+ * Objetos bajo un prefijo (`originales/`), con su fecha, hasta `max`. Para limpiar las subidas que
+ * nunca se confirmaron (la URL firmada se pidió y el autor no terminó).
+ */
+export async function listarPrivado(prefijo: string, max = 500): Promise<{ clave: string; modificado: Date | null }[]> {
+  if (!/^(originales|firmas|ventas)\/$/.test(prefijo)) throw new Error("Prefijo fuera del bucket privado.");
+  const c = config();
+  const out: { clave: string; modificado: Date | null }[] = [];
+  let token: string | undefined;
+  do {
+    const r = await s3(c).send(new ListObjectsV2Command({ Bucket: c.bucket, Prefix: prefijo, ContinuationToken: token, MaxKeys: Math.min(1000, max - out.length) }));
+    for (const o of r.Contents ?? []) if (o.Key) out.push({ clave: o.Key, modificado: o.LastModified ?? null });
+    token = r.IsTruncated ? r.NextContinuationToken : undefined;
+  } while (token && out.length < max);
+  return out;
 }

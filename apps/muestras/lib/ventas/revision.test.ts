@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
-  culturalActivity: { findUnique: vi.fn() },
+  culturalActivity: { findUnique: vi.fn(), count: vi.fn() },
   culturalWorkOffer: { findUnique: vi.fn(), updateMany: vi.fn() },
   culturalEditionCopy: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
   $transaction: vi.fn(),
@@ -13,7 +13,8 @@ vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor })
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const conciliar = vi.hoisted(() => ({ certificarCopia: vi.fn(async () => "OK") }));
 vi.mock("./conciliar", () => conciliar);
-vi.mock("./config", () => ({ leerConfigDeVentas: () => ({ modo: "TEST", ambienteCuenta: "SANDBOX" }) }));
+const cfg = vi.hoisted(() => ({ modo: "TEST", ambienteCuenta: "SANDBOX" }));
+vi.mock("./config", () => ({ leerConfigDeVentas: () => ({ ...cfg }) }));
 
 const { aprobarOferta, emitirPruebaDeAutor, pausarOferta, pedirCambiosOferta, reanudarOferta } = await import("./revision");
 const { resetRateLimit } = await import("@/lib/limite");
@@ -29,6 +30,8 @@ const base = (extra: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cfg.modo = "TEST";
+  cfg.ambienteCuenta = "SANDBOX";
   resetRateLimit();
   usuarioActual.valor = dueno;
   oferta = base();
@@ -37,6 +40,8 @@ beforeEach(() => {
     members: usuarioActual.valor!.id === 8 ? [{ userId: 8, role: "CO_ORGANIZER", status: "ACTIVE" }] : [],
   }));
   db.culturalWorkOffer.findUnique.mockImplementation(async () => oferta);
+  // El permiso releído dentro de la transacción: sólo el dueño (7) tiene `sales`.
+  db.culturalActivity.count.mockImplementation(async () => (usuarioActual.valor!.id === 7 || usuarioActual.valor!.esSuperAdmin ? 1 : 0));
   db.culturalWorkOffer.updateMany.mockImplementation(async (q: { where: { status?: string }; data: Record<string, unknown> }) => {
     if (q.where.status && q.where.status !== oferta.status) return { count: 0 };
     oferta = { ...oferta, ...q.data };
@@ -89,6 +94,14 @@ describe("revisión de formatos", () => {
   });
 });
 
+describe("permiso dentro de la transacción", () => {
+  it("si le sacan el permiso entre la lectura y el bloqueo, no aprueba", async () => {
+    db.culturalActivity.count.mockResolvedValue(0);
+    expect(await aprobarOferta("of1")).toEqual({ ok: false, errores: ["Ese formato no existe."] });
+    expect(db.culturalWorkOffer.updateMany).not.toHaveBeenCalled();
+  });
+});
+
 describe("pruebas de autor", () => {
   it("emite la P/A más baja libre, de prueba en modo sandbox", async () => {
     oferta = base({ status: "APPROVED", approvedPriceArs: 100_000, reviewNote: "Pedido de P/A: el autor pidió sus pruebas" });
@@ -99,6 +112,15 @@ describe("pruebas de autor", () => {
     expect(conciliar.certificarCopia).toHaveBeenCalledWith("c9");
     expect(db.culturalEditionCopy.create.mock.calls[0]![0].data).toMatchObject({ offerId: "of1", kind: "PROOF", number: 2, status: "ISSUED", isTest: true });
     expect(oferta.reviewNote).toBeNull();
+  });
+  it("con las cuentas de producción (aunque la venta esté apagada) la P/A es real: el mismo criterio que la numeración y que el autor", async () => {
+    cfg.modo = "OFF";
+    cfg.ambienteCuenta = "PRODUCTION";
+    oferta = base({ status: "APPROVED", approvedPriceArs: 100_000 });
+    db.culturalEditionCopy.create.mockResolvedValue({ id: "c9" });
+    expect((await emitirPruebaDeAutor("of1")).ok).toBe(true);
+    expect(db.culturalEditionCopy.findMany.mock.calls[0]![0].where).toMatchObject({ isTest: false });
+    expect(db.culturalEditionCopy.create.mock.calls[0]![0].data).toMatchObject({ isTest: false, number: 1 });
   });
   it("sin P/A libres → mensaje", async () => {
     oferta = base({ status: "APPROVED", approvedPriceArs: 100_000 });

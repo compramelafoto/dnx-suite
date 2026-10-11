@@ -56,8 +56,18 @@ export async function guardarCuentaDeCobro(fd: FormData): Promise<ResultadoCobro
 
   const r = await invitarAReparto(email);
   if ("error" in r) return error(r.error);
-  const estado = estadoDeConsentimiento(r.status);
-  const datos = { mpEmail: email, receiverId: r.receiverId, consentStatus: estado, inviteUrl: r.inviteUrl, lastCheckedAt: new Date() };
+  // Nunca se toma el receptor de otra persona sin que lo confirme (revisión de las tareas 6 a 10):
+  // si esa cuenta de Mercado Pago ya la usa otra persona de la plataforma, la fila queda sin
+  // receptor y pendiente. Y la respuesta es siempre la misma (pendiente hasta "Ya lo acepté,
+  // verificar"): así no se puede averiguar qué emails ya aceptaron el reparto.
+  const ajena = await prisma.culturalPayoutAccount.findFirst({
+    where: { environment: ambiente, userId: { not: usuario.id }, OR: [{ receiverId: r.receiverId }, { mpEmail: email }] },
+    select: { id: true },
+  });
+  const previaCompleta = await prisma.culturalPayoutAccount.findUnique({ where: clave, select: { receiverId: true, consentStatus: true } });
+  const mismaYaActiva = !ajena && previaCompleta?.receiverId === r.receiverId && previaCompleta.consentStatus === "ACTIVE";
+  const estado: ConsentStatus = mismaYaActiva ? estadoDeConsentimiento(r.status) : "PENDING";
+  const datos = { mpEmail: email, receiverId: ajena ? null : r.receiverId, consentStatus: estado, inviteUrl: r.inviteUrl, lastCheckedAt: new Date() };
   try {
     await prisma.$transaction(async (tx) => {
       // Con la fila bloqueada se vuelve a mirar: una reserva no puede tomar la cuenta vieja en el medio.
@@ -74,7 +84,7 @@ export async function guardarCuentaDeCobro(fd: FormData): Promise<ResultadoCobro
     throw err;
   }
   revalidatePath("/panel/cobros");
-  return { ok: true };
+  return { ok: true, estado, aviso: `Tu parte de cada venta quedará a nombre de la cuenta de Mercado Pago de ${email}. Aceptá el pedido en Mercado Pago y tocá "Ya lo acepté, verificar".` };
 }
 
 /** "Ya lo acepté, verificar": pregunta a Mercado Pago y guarda lo que dice. */
@@ -87,7 +97,8 @@ export async function verificarCuentaDeCobro(): Promise<ResultadoCobro> {
     where: { userId_environment: { userId: usuario.id, environment: ambiente } },
     select: { id: true, receiverId: true },
   });
-  if (!c?.receiverId) return error("Primero escribí el email de tu cuenta de Mercado Pago.");
+  if (!c) return error("Primero escribí el email de tu cuenta de Mercado Pago.");
+  if (!c.receiverId) return error("No pudimos confirmar esa cuenta de Mercado Pago. Revisá que el email sea el de tu cuenta y volvé a pedirlo.");
   const leido = await leerConsentimiento(c.receiverId);
   if (!leido) return error("No pudimos consultar a Mercado Pago. Probá de nuevo en unos minutos.");
   const estado = estadoDeConsentimiento(leido.status);

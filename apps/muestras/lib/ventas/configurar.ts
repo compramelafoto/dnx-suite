@@ -101,10 +101,6 @@ export async function guardarVenta(activityId: string, fd: FormData): Promise<Re
     if (Number.isNaN(costo) || costo > SHIPPING_MAX_ARS) return error("Poné el costo del envío en pesos enteros (0 si es gratis).");
     shippingCostArs = costo;
   }
-  if (!pickupText) {
-    const impresas = await prisma.culturalWorkOffer.count({ where: { activityId: a.id, format: "PRINT", status: { in: ["APPROVED", "PAUSED"] } } });
-    if (impresas > 0) return error("Escribí cómo se retiran las impresas en la sede.");
-  }
   const entrega = {
     pickupText: pickupText || null,
     shippingEnabled,
@@ -117,6 +113,11 @@ export async function guardarVenta(activityId: string, fd: FormData): Promise<Re
   try {
     await prisma.$transaction(async (tx) => {
       const s = await bloquear(tx, a.id, usuario);
+      // Con la muestra bloqueada: un formato impreso aprobado en el medio también cuenta.
+      if (!pickupText) {
+        const impresas = await tx.culturalWorkOffer.count({ where: { activityId: a.id, format: "PRINT", status: { in: ["APPROVED", "PAUSED"] } } });
+        if (impresas > 0) throw new Corte("Escribí cómo se retiran las impresas en la sede.");
+      }
       if (!s) {
         await tx.culturalSaleSetup.create({
           data: {
@@ -194,13 +195,14 @@ export async function cambiarQuienCobra(activityId: string, userId: number): Pro
   const { usuario, a } = r;
   if (r.ownerUserId !== usuario.id && !usuario.esSuperAdmin) return NO_EXISTE;
   if (!Number.isInteger(userId) || userId <= 0) return error("Elegí a una persona del equipo.");
-  if (userId !== r.ownerUserId) {
-    const enEquipo = await prisma.culturalActivityMember.count({ where: { activityId: a.id, userId, status: "ACTIVE", role: "CO_ORGANIZER" } });
-    if (enEquipo === 0) return error("Sólo puede cobrar quien organiza o alguien de la coorganización.");
-  }
   try {
     await prisma.$transaction(async (tx) => {
       const s = await bloquear(tx, a.id, usuario);
+      // La membresía se mira con la muestra bloqueada: si la sacaron del equipo recién, no cobra.
+      if (userId !== r.ownerUserId) {
+        const enEquipo = await tx.culturalActivityMember.count({ where: { activityId: a.id, userId, status: "ACTIVE", role: "CO_ORGANIZER" } });
+        if (enEquipo === 0) throw new Corte("Sólo puede cobrar quien organiza o alguien de la coorganización.");
+      }
       if (!s) throw new Corte("Primero guardá el reparto y la entrega.");
       if (s.organizerUserId === userId) return;
       if ((await pendientesDePago(tx, a.id)) > 0) throw new Corte(PENDIENTES);

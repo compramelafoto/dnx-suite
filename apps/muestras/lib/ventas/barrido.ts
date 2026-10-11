@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { PENDING_HOLD_HOURS, arMinutesOfDay } from "@repo/muestras";
 import { certificarCopia, conciliarPedido } from "./conciliar";
+import { borrarPrivado, listarPrivado } from "./r2-privado";
 
 /**
  * El barrido de la venta (etapa 8, D22, D29), cada 10 minutos desde `/api/cron/ventas`:
@@ -11,7 +12,7 @@ import { certificarCopia, conciliarPedido } from "./conciliar";
  * hechos fuera; (4) reintenta los certificados de las copias emitidas que todavía no lo tienen (por
  * ejemplo, si faltaba la clave). Devuelve sólo cantidades: nada de datos personales.
  */
-export type ResumenDelBarrido = { vencidos: number; consultados: number; alertas: number; repasados: number; certificados: number };
+export type ResumenDelBarrido = { vencidos: number; consultados: number; alertas: number; repasados: number; certificados: number; huerfanos: number };
 
 const HORA = 60 * 60_000;
 const DIA = 24 * HORA;
@@ -49,6 +50,24 @@ async function vencerSinOrden(ahora: Date): Promise<number> {
     if (hecho) vencidos++;
   }
   return vencidos;
+}
+
+/**
+ * Subidas de originales que nunca se confirmaron (o que quedaron reemplazadas): más de un día en
+ * `originales/` sin que ningún `CulturalSaleFile` las use. Se borran de a 200 por día.
+ */
+async function limpiarOriginalesHuerfanos(ahora: Date): Promise<number> {
+  const viejos = (await listarPrivado("originales/", 1000)).filter((o) => o.modificado && ahora.getTime() - o.modificado.getTime() > DIA).slice(0, 200);
+  if (!viejos.length) return 0;
+  const usados = new Set(
+    (await prisma.culturalSaleFile.findMany({ where: { storageKey: { in: viejos.map((o) => o.clave) } }, select: { storageKey: true } })).map((f) => f.storageKey),
+  );
+  let borrados = 0;
+  for (const o of viejos) {
+    if (usados.has(o.clave)) continue;
+    await borrarPrivado(o.clave).then(() => borrados++, () => undefined);
+  }
+  return borrados;
 }
 
 const ALERTA_PENDIENTE = "ALERT_STALE_PENDING: Mercado Pago no confirma el pago hace más de 72 horas";
@@ -90,6 +109,9 @@ export async function barrerVentas(ahora: Date = new Date()): Promise<ResumenDel
     }
   }
 
+  let huerfanos = 0;
+  if (minuto >= 4 * 60 && minuto < 4 * 60 + 10) huerfanos = await limpiarOriginalesHuerfanos(ahora).catch(() => 0);
+
   let certificados = 0;
   const sinCertificado = await prisma.culturalEditionCopy.findMany({
     where: { status: "ISSUED", certificateCode: null },
@@ -100,5 +122,5 @@ export async function barrerVentas(ahora: Date = new Date()): Promise<ResumenDel
     if ((await certificarCopia(c.id, ahora)) === "OK") certificados++;
   }
 
-  return { vencidos, consultados: pendientes.length, alertas, repasados, certificados };
+  return { vencidos, consultados: pendientes.length, alertas, repasados, certificados, huerfanos };
 }

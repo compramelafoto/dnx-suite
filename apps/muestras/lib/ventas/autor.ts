@@ -10,7 +10,9 @@ import {
 } from "@repo/muestras";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario, type Usuario } from "@/lib/usuario";
-import { obrasVendibles, type ObraVendible } from "./consultas";
+import { leerConfigDeVentas } from "./config";
+import { obrasVendibles, ventasDePrueba, type ObraVendible } from "./consultas";
+import { FIRMA_DEMASIADO_GRANDE, FIRMA_LADO_MAX, FIRMA_MAX_BYTES } from "./firma-tope";
 import { PEDIDO_PA } from "./evaluar";
 import { borrarPrivado, existePrivado, leerPrivado, subirPrivado, urlDeSubida } from "./r2-privado";
 
@@ -34,9 +36,8 @@ const ES_ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** Original: JPEG, PNG o TIFF de hasta 80 MB (D15). */
 const ORIGINAL_MAX_BYTES = 80 * 1024 * 1024;
 const MIMES_ORIGINAL: Record<string, string> = { "image/jpeg": "jpeg", "image/png": "png", "image/tiff": "tiff" };
-/** Firma escaneada: PNG o JPEG de hasta 5 MB, guardada como PNG de hasta 1200 px de ancho (D16). */
-const FIRMA_MAX_BYTES = 5 * 1024 * 1024;
-const FIRMA_ANCHO = 1200;
+/** Firma escaneada: PNG o JPEG (ya achicada en el navegador), guardada como PNG de hasta 1200 px de ancho (D16). */
+const FIRMA_ANCHO = FIRMA_LADO_MAX;
 /** Un original de cámara puede tener 100 MP o más: sólo se mide (no se decodifica entero). */
 const ORIGINAL_MAX_PIXELES = 400_000_000;
 
@@ -86,6 +87,17 @@ async function ocupadas(tx: Prisma.TransactionClient, offerId: string, ahora: Da
     return c.issued + c.voided + c.reserved;
   };
   return Math.max(de(false), de(true));
+}
+
+/**
+ * El número más alto que ocupa una fila (emitida, anulada o reservada vigente), entre prueba y real:
+ * bajar N (o las P/A) por debajo de ese número dejaría una copia con un número fuera de la edición.
+ */
+async function mayorNumeroOcupado(tx: Prisma.TransactionClient, offerId: string, kind: "COPY" | "PROOF", ahora: Date): Promise<number> {
+  const filas = await tx.culturalEditionCopy.findMany({ where: { offerId, kind }, select: { number: true, status: true, reservedUntil: true } });
+  return filas
+    .filter((f) => f.status === "ISSUED" || f.status === "VOIDED" || (f.status === "RESERVED" && f.reservedUntil != null && f.reservedUntil.getTime() > ahora.getTime()))
+    .reduce((m, f) => Math.max(m, f.number), 0);
 }
 
 function refrescar(activityId: string) {
@@ -215,9 +227,17 @@ export async function guardarOferta(fd: FormData): Promise<ResultadoAutor> {
       if (problemas.length) throw new Corte(problemas.join(" "));
       if (d.editionKind === "LIMITED" && !declara) throw new Corte("Marcá la declaración de la edición limitada.");
       let approvedPriceArs = o.approvedPriceArs;
+      const ahora = new Date();
       if (d.editionSize !== o.editionSize) {
-        const t = offerTransition("editEdition", o, { actor: "AUTHOR", editionSize: d.editionSize, issuedOrReserved: await ocupadas(tx, o.id, new Date()) });
+        const t = offerTransition("editEdition", o, { actor: "AUTHOR", editionSize: d.editionSize, issuedOrReserved: await ocupadas(tx, o.id, ahora) });
         if (!t.ok) throw new Corte(t.error);
+        // Además de cuántas, cuál: con la 7 emitida no se baja a 5 aunque haya sólo dos emitidas.
+        const mayor = await mayorNumeroOcupado(tx, o.id, "COPY", ahora);
+        if (d.editionSize < mayor) throw new Corte(`Ya hay una copia con el número ${mayor}: la edición no puede tener menos de ${mayor} copias.`);
+      }
+      if (d.proofCount < o.proofCount) {
+        const mayorPA = await mayorNumeroOcupado(tx, o.id, "PROOF", ahora);
+        if (d.proofCount < mayorPA) throw new Corte(`Ya se emitió la P/A ${mayorPA}: no puede haber menos de ${mayorPA} pruebas de autor.`);
       }
       // Lo aprobado vale sólo para lo que se aprobó: cualquier otro cambio vuelve a pedir aprobación.
       if (cambiaAlgoMasQueElPrecio(o, d)) approvedPriceArs = null;
@@ -301,7 +321,9 @@ export async function pedirPruebaDeAutor(offerId: string): Promise<ResultadoAuto
   return transicionDelAutor(offerId, async (o, tx) => {
     if (o.proofCount <= 0) return { ok: false, error: "Este formato no tiene pruebas de autor." };
     if (o.status !== "APPROVED" && o.status !== "PAUSED") return { ok: false, error: "Las pruebas de autor se piden cuando el formato está aprobado." };
-    const emitidas = await tx.culturalEditionCopy.count({ where: { offerId: o.id, kind: "PROOF", status: { in: ["ISSUED", "VOIDED"] } } });
+    // El mismo ambiente que usa la organización al emitirlas (`ventasDePrueba`).
+    const isTest = ventasDePrueba(leerConfigDeVentas());
+    const emitidas = await tx.culturalEditionCopy.count({ where: { offerId: o.id, kind: "PROOF", isTest, status: { in: ["ISSUED", "VOIDED"] } } });
     if (emitidas >= o.proofCount) return { ok: false, error: "Ya se emitieron todas las pruebas de autor." };
     return { ok: true, status: o.status as "APPROVED" | "PAUSED" };
   }, () => ({ reviewNote: `${PEDIDO_PA} el autor pidió sus pruebas de autor el ${formatArDay(new Date())}.` }));
@@ -310,15 +332,22 @@ export async function pedirPruebaDeAutor(offerId: string): Promise<ResultadoAuto
 // ---------------------------------------------------------------------------------------------
 // Archivo original (D15)
 
-/** ¿La obra ya vendió copias reales? Entonces el original queda fijo (el certificado cita su huella). */
-async function yaVendio(tx: Prisma.TransactionClient, activityWorkId: string): Promise<boolean> {
+/**
+ * ¿La obra ya vendió copias reales, o tiene una reserva real vigente (un pago en curso)? Entonces el
+ * original queda fijo: el certificado cita su huella y el comprador paga por ese archivo.
+ */
+async function yaVendio(tx: Prisma.TransactionClient, activityWorkId: string, ahora: Date = new Date()): Promise<boolean> {
   const n = await tx.culturalEditionCopy.count({
-    where: { isTest: false, status: { in: ["ISSUED", "VOIDED"] }, offer: { activityWorkId } },
+    where: {
+      isTest: false,
+      offer: { activityWorkId },
+      OR: [{ status: { in: ["ISSUED", "VOIDED"] } }, { status: "RESERVED", reservedUntil: { gt: ahora } }],
+    },
   });
   return n > 0;
 }
 
-const YA_VENDIO = "Esta obra ya vendió copias: el original no se puede cambiar.";
+const YA_VENDIO = "Esta obra ya vendió copias (o tiene una compra en curso): el original no se puede cambiar.";
 const claveDeOriginal = (userId: number, activityWorkId: string) =>
   `originales/${userId}/${activityWorkId}-${Array.from({ length: 12 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[randomInt(36)]).join("")}`;
 const CLAVE_ORIGINAL = (userId: number, activityWorkId: string) => new RegExp(`^originales/${userId}/${activityWorkId}-[a-z0-9]{12}$`);
@@ -382,6 +411,9 @@ export async function confirmarOriginal(activityWorkId: string, clave: string): 
   let conservado = false;
   try {
     await prisma.$transaction(async (tx) => {
+      // Una cola por obra (también la primera vez, cuando todavía no hay fila que bloquear): dos
+      // confirmaciones a la vez no se pisan.
+      await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`muestras-original:${awId}`}))) AS cola`;
       await tx.$queryRaw`SELECT id FROM "CulturalSaleFile" WHERE "activityWorkId" = ${awId} FOR UPDATE`;
       if (await yaVendio(tx, awId)) throw new Corte(YA_VENDIO);
       const previo = await tx.culturalSaleFile.findUnique({ where: { activityWorkId: awId }, select: { storageKey: true, status: true, authorUserId: true } });
@@ -425,7 +457,7 @@ export async function guardarFirma(fd: FormData): Promise<ResultadoAutor> {
   const { usuario } = s;
   const archivo = fd.get("firma");
   if (!(archivo instanceof Blob) || archivo.size === 0) return error("Elegí la imagen de tu firma.");
-  if (archivo.size > FIRMA_MAX_BYTES) return error("La firma puede pesar hasta 5 MB.");
+  if (archivo.size > FIRMA_MAX_BYTES) return error(FIRMA_DEMASIADO_GRANDE);
   if (archivo.type !== "image/png" && archivo.type !== "image/jpeg") return error("La firma tiene que ser PNG o JPEG.");
   let png: Buffer;
   try {

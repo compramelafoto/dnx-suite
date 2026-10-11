@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { generateKeyPairSync } from "node:crypto";
 import { PDFDocument, PDFPage } from "pdf-lib";
 import sharp from "sharp";
@@ -182,8 +183,11 @@ describe("certificarCopia, archivo firmado y verificación", () => {
   });
 
   it("archivo firmado: JPEG con el XMP (código y firma) y queda guardado", async () => {
+    const original = await sharp({ create: { width: 64, height: 48, channels: 3, background: "#336699" } }).png().toBuffer();
+    // La huella guardada es la del archivo de verdad (se vuelve a verificar al armar la copia).
+    (t.db.culturalSaleFile as { filas: Record<string, unknown>[] }).filas[0]!.sha256 = createHash("sha256").update(original).digest("hex");
     await certificarCopia("c1", emitida);
-    t.bucket.set("originales/50/aw1", await sharp({ create: { width: 64, height: 48, channels: 3, background: "#336699" } }).png().toBuffer());
+    t.bucket.set("originales/50/aw1", original);
     const a = await archivoFirmado("o1");
     expect(a).not.toBeNull();
     const meta = await sharp(a!.bytes).metadata();
@@ -194,6 +198,15 @@ describe("certificarCopia, archivo firmado y verificación", () => {
     expect(xmp).toContain(String(copias[0]!.certificateSignature));
     expect(xmp).toContain("/verificar/");
     expect(t.bucket.has(`ventas/o1/${copias[0]!.certificateCode}.jpg`)).toBe(true);
+  });
+
+  it("archivo firmado: si el original del bucket no coincide con su huella, no se entrega", async () => {
+    await certificarCopia("c1", emitida);
+    t.bucket.set("originales/50/aw1", await sharp({ create: { width: 64, height: 48, channels: 3, background: "#000000" } }).png().toBuffer());
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await archivoFirmado("o1")).toBeNull();
+    expect(t.bucket.has(`ventas/o1/${copias[0]!.certificateCode}.jpg`)).toBe(false);
+    spy.mockRestore();
   });
 
   it("jpegConXmp incrusta el paquete", async () => {

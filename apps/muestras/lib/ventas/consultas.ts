@@ -178,13 +178,27 @@ export async function panelDeVentas(activityId: string, usuario: Quien) {
     modo: config.modo,
     motivo: config.motivo,
     ambiente: config.ambienteCuenta,
-    cuentaOrganizacion: d.setup ? cuentaDe(d.setup.organizerUserId) : null,
+    // El email de Mercado Pago de quien cobra lo ven esa persona, el dueño y el super admin; la
+    // coorganización lo ve enmascarado (revisión de las tareas 6 a 10).
+    cuentaOrganizacion: (() => {
+      const c = d.setup ? cuentaDe(d.setup.organizerUserId) : null;
+      if (!c) return null;
+      const ve = esDueno || d.setup?.organizerUserId === usuario.id;
+      return { ...c, mpEmail: ve ? c.mpEmail : enmascararEmail(c.mpEmail) };
+    })(),
     autores,
     obras,
     sueltas: sueltas.length,
     pedidos: pedidos.map((p) => ({ status: p.status, cantidad: p._count._all, totalCents: p._sum.totalCents ?? 0 })),
     paraRevisar: d.ofertas.filter((o) => o.status === "PROPOSED").length,
   };
+}
+
+/** "ana.perez@gmail.com" → "a•••@gmail.com". */
+export function enmascararEmail(email: string): string {
+  const [usuario, dominio] = email.split("@");
+  if (!usuario || !dominio) return "•••";
+  return `${usuario[0]}•••@${dominio}`;
 }
 
 export type PanelDeVentas = NonNullable<Awaited<ReturnType<typeof panelDeVentas>>>;
@@ -257,25 +271,56 @@ export function faltasDelAutor(v: VentaDelAutor): number {
   return n;
 }
 
-/** "Vender tus obras" en "Dónde expongo": las muestras con la venta configurada donde tiene obras vendibles. */
+/**
+ * "Vender tus obras" en "Dónde expongo": las muestras con la venta configurada donde tiene obras
+ * vendibles, con cuántas cosas le faltan (lo mismo que `faltasDelAutor`). Una consulta por tabla
+ * para todas las muestras juntas (revisión de las tareas 6 a 10).
+ */
 export async function muestrasParaVender(usuario: Quien) {
   const [expositor, concurso] = await Promise.all([
     prisma.culturalExhibitorWork.findMany({
       where: { status: "APPROVED", forSale: true, activityWorkId: { not: null }, exhibitor: { userId: usuario.id, status: "ACTIVE" } },
-      select: { activityId: true },
+      select: { activityId: true, activityWorkId: true },
     }),
     prisma.culturalContestWork.findMany({
       where: { authorUserId: usuario.id, forSale: true, saleConsent: "ACCEPTED", exhibitConsent: "ACCEPTED", activityWorkId: { not: null } },
-      select: { activityId: true },
+      select: { activityId: true, activityWorkId: true },
     }),
   ]);
-  const ids = [...new Set([...expositor, ...concurso].map((x) => x.activityId))];
+  const candidatas = [...expositor, ...concurso].filter((x): x is { activityId: string; activityWorkId: string } => x.activityWorkId != null);
+  const ids = [...new Set(candidatas.map((x) => x.activityId))];
   if (ids.length === 0) return [];
-  const setups = await prisma.culturalSaleSetup.findMany({ where: { activityId: { in: ids }, status: { in: ["OPEN", "PAUSED", "DRAFT"] } }, select: { activityId: true } });
+  const setups = (await prisma.culturalSaleSetup.findMany({
+    where: { activityId: { in: ids }, status: { in: ["OPEN", "PAUSED", "DRAFT"] } },
+    select: { activityId: true, splitVersion: true },
+  })).slice(0, 20);
+  if (setups.length === 0) return [];
+  const conVenta = setups.map((x) => x.activityId);
+  const ambiente = leerConfigDeVentas().ambienteCuenta;
+  const [actividades, obras, terminos, firma, cuenta, originales, ofertas] = await Promise.all([
+    prisma.culturalActivity.findMany({ where: { id: { in: conVenta }, type: "MUESTRA" }, select: { id: true, title: true } }),
+    // Sólo las que siguen en la muestra (el editor pudo quitarlas).
+    prisma.culturalActivityWork.findMany({ where: { activityId: { in: conVenta }, id: { in: candidatas.map((x) => x.activityWorkId) } }, select: { id: true, activityId: true } }),
+    prisma.culturalSaleAuthorTerms.findMany({ where: { activityId: { in: conVenta }, userId: usuario.id }, select: { activityId: true, splitVersion: true } }),
+    prisma.culturalAuthorSignature.findUnique({ where: { userId: usuario.id }, select: { userId: true } }),
+    prisma.culturalPayoutAccount.findUnique({ where: { userId_environment: { userId: usuario.id, environment: ambiente } }, select: { consentStatus: true } }),
+    prisma.culturalSaleFile.findMany({ where: { activityId: { in: conVenta } }, select: { activityWorkId: true, status: true } }),
+    prisma.culturalWorkOffer.findMany({ where: { activityId: { in: conVenta }, authorUserId: usuario.id, status: { not: "WITHDRAWN" } }, select: { activityWorkId: true } }),
+  ]);
   const out: { activityId: string; title: string; faltan: number }[] = [];
-  for (const s of setups.slice(0, 20)) {
-    const v = await ventaDelAutor(s.activityId, usuario);
-    if (v) out.push({ activityId: s.activityId, title: v.actividad.title, faltan: faltasDelAutor(v) });
+  for (const s of setups) {
+    const a = actividades.find((x) => x.id === s.activityId);
+    const mias = obras.filter((w) => w.activityId === s.activityId);
+    if (!a || mias.length === 0) continue;
+    let faltan = 0;
+    if (terminos.find((t) => t.activityId === s.activityId)?.splitVersion !== s.splitVersion) faltan++;
+    if (!firma) faltan++;
+    if (cuenta?.consentStatus !== "ACTIVE") faltan++;
+    for (const w of mias) {
+      if (originales.find((f) => f.activityWorkId === w.id)?.status !== "READY") faltan++;
+      if (!ofertas.some((o) => o.activityWorkId === w.id)) faltan++;
+    }
+    out.push({ activityId: s.activityId, title: a.title, faltan });
   }
   return out;
 }

@@ -10,11 +10,14 @@ const sinCache = { "Cache-Control": "private, no-store" };
 /**
  * La URL firmada para subir el original de una obra directo al bucket privado (etapa 8, D15). La
  * arma la acción `pedirSubidaDeOriginal` (sesión, obra propia y vendible, tipo y tamaño); acá sólo
- * se exige la sesión y que el pedido venga del mismo sitio.
+ * se exige la sesión y que el pedido venga del mismo sitio (`Origin` o `Sec-Fetch-Site`).
  */
 export async function POST(req: Request) {
+  // Del mismo sitio, sí o sí: con `Origin` igual al nuestro o, si el navegador no lo manda, con
+  // `Sec-Fetch-Site: same-origin`. Sin ninguno de los dos, no.
   const origen = req.headers.get("origin");
-  if (origen && origen !== new URL(req.url).origin) return NextResponse.json({ error: "Pedido inválido." }, { status: 403, headers: sinCache });
+  const mismoSitio = origen ? origen === new URL(req.url).origin : req.headers.get("sec-fetch-site") === "same-origin";
+  if (!mismoSitio) return NextResponse.json({ error: "Pedido inválido." }, { status: 403, headers: sinCache });
   if (!(await getUsuario())) return NextResponse.json({ error: "Tenés que ingresar." }, { status: 401, headers: sinCache });
   let form: FormData;
   try {
