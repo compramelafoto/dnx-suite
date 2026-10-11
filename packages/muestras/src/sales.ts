@@ -1,3 +1,5 @@
+import { MAX_PROOFS, canChangeEdition } from "./editions";
+
 /**
  * Venta de obras (etapa 8, spec D1–D30). Reglas puras: modos de la venta, reparto en tres, montos
  * en centavos, receptores de Mercado Pago, referencia externa, ofertas (formatos), cuándo se puede
@@ -27,8 +29,6 @@ export const SIZE_MAX_CM = 300;
 /** Ediciones limitadas: de 2 a 999 copias. */
 export const LIMITED_EDITION_MIN = 2;
 export const LIMITED_EDITION_MAX = 999;
-/** Pruebas de autor por edición (decisión de Daniel del 2026-10-11). */
-export const MAX_PROOFS = 5;
 /** La venta cierra 30 días después del cierre de la muestra (decisión de Daniel del 2026-10-11). */
 export const SALE_CLOSE_DAYS_AFTER_END = 30;
 export const SALE_STATEMENT_DESCRIPTOR = "MUESTRAS FOTO";
@@ -413,12 +413,9 @@ export function offerTransition(
       const next = ctx.editionSize;
       const actual = offer.editionSize;
       if (next == null || actual == null || !Number.isInteger(next) || next < 1 || next > LIMITED_EDITION_MAX) return no("Cantidad de copias inválida.");
-      const ocupadas = ctx.issuedOrReserved ?? 0;
-      if (next < ocupadas) return no(`Ya hay ${ocupadas} copias emitidas o reservadas: la edición no puede ser menor.`);
-      if (vendio) {
-        if (next > actual) return no("Después de la primera venta, la edición no puede crecer.");
-        return { ok: true, status: st as OfferStatus, editionSize: next };
-      }
+      const cambio = canChangeEdition({ firstSoldAt: offer.firstSoldAt ?? null, currentSize: actual, nextSize: next, issuedOrReserved: ctx.issuedOrReserved ?? 0 });
+      if (!cambio.ok) return no(cambio.error);
+      if (vendio) return { ok: true, status: st as OfferStatus, editionSize: next };
       if (st === "APPROVED" || st === "PAUSED") return { ok: true, status: "PROPOSED", editionSize: next };
       return { ok: true, status: st as OfferStatus, editionSize: next };
     }
