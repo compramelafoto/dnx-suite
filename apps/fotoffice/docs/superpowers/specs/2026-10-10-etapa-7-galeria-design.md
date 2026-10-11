@@ -22,6 +22,9 @@
 > paquete, descuentos sin/único/progresivo, descarga "en vista de galería" o "sólo seleccionadas o
 > compradas", acceso privado/con contraseña/público, plazo con recordatorios.
 >
+> - **Proof no se migra (10/10):** la galería arranca de cero; las galerías viejas de Proof quedan donde
+>   están. No hay redirección de enlaces viejos.
+>
 > Lo demás va marcado **[decisión]**. **Sin staging.**
 
 ## 1. Qué problema resuelve
@@ -101,8 +104,7 @@ cliente, el pedido y el cobro por Mercado Pago: la galería se ata al Proyecto y
 9. **Configuración → Galería:** valores por omisión.
 
 **Fuera de A1:** venta (A2), entrega en alta/ZIP y DNX FLUX (B), plazo y recordatorios (B), marca de
-agua (DNX no la usa; queda para cuando otro estudio la pida), reconocimiento facial, migración de Proof
-(Etapa 8).
+agua (DNX no la usa; queda para cuando otro estudio la pida), reconocimiento facial. **Proof no se migra** (decisión del 10/10).
 
 ## 4. Entrega A2 · Venta de fotos extra
 
