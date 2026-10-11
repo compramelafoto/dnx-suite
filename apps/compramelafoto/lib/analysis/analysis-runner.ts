@@ -76,8 +76,23 @@ async function claimJobsAtomic(
       photo: {
         isRemoved: false,
         ...(scopedAlbum != null ? { albumId: scopedAlbum } : {}),
-        ...(ageCutoff ? { createdAt: { gte: ageCutoff } } : {}),
       },
+      /*
+        El tope de antigüedad no alcanza a lo que falló por algo nuestro. Es un `OR`:
+        sólo deja pasar MÁS trabajos, nunca excluye uno que antes entraba.
+      */
+      ...(ageCutoff
+        ? {
+            AND: [
+              {
+                OR: [
+                  { photo: { createdAt: { gte: ageCutoff } } },
+                  { infraFailureAt: { not: null } },
+                ],
+              },
+            ],
+          }
+        : {}),
     },
     orderBy: { createdAt: "asc" },
     take: batchSize,
@@ -114,7 +129,7 @@ async function claimJobsAtomic(
               WHERE j.status = 'PENDING'
                 AND (j."runAfter" IS NULL OR j."runAfter" <= ${now})
                 AND p."isRemoved" = false
-                AND p."createdAt" >= ${ageCutoff}
+                AND (p."createdAt" >= ${ageCutoff} OR j."infraFailureAt" IS NOT NULL)
               ORDER BY j."createdAt" ASC
               LIMIT ${batchSize}
               FOR UPDATE OF j SKIP LOCKED
@@ -554,7 +569,7 @@ async function processJob(
     });
     await prisma.photoAnalysisJob.update({
       where: { id: job.id },
-      data: { status: "DONE", lastError: null, lockedAt: null },
+      data: { status: "DONE", lastError: null, lockedAt: null, infraFailureAt: null },
     });
     jobCompleted = true;
 
@@ -596,6 +611,14 @@ async function processJob(
         status: shouldFail ? "ERROR" : "PENDING",
         attempts: nextAttempts,
         lastError: message,
+        /*
+          La marca exime a este trabajo del tope de antigüedad del cron. Una foto que no
+          se analizó porque se nos cayó la credencial no es vieja: es una que debemos.
+          Sin esto, la caída del 7/10/2026 dejaba 2000 fotos de álbumes pagados fuera del
+          alcance del cron al cumplir siete días — por un efecto colateral del tope, no
+          por una decisión.
+        */
+        infraFailureAt: isInfrastructure ? new Date() : null,
         runAfter: shouldFail ? null : new Date(Date.now() + retryDelayMs(kind)),
         lockedAt: null,
       },

@@ -3415,6 +3415,12 @@ model PhotoAnalysisJob {
   lockedAt  DateTime?
   runAfter  DateTime?
   lastError String?
+  /// Cuándo falló por algo nuestro: credenciales, cupo, red, caída del servicio.
+  ///
+  /// Exime a este trabajo del tope de antigüedad del cron. Una foto que no se analizó
+  /// porque se nos cayó la credencial no es vieja: es una que debemos. Se borra al
+  /// analizarla. Ver `lib/analysis/analysis-failure-kind.ts`.
+  infraFailureAt DateTime?
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
   photo     Photo               @relation(fields: [photoId], references: [id], onDelete: Cascade)
