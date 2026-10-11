@@ -63,10 +63,10 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
   if (!open) return null;
 
   const inputClass =
-    "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2.5 py-2 text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
+    "w-full rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2.5 py-2 text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
 
   const selectClass =
-    "rounded-lg border border-[color:var(--te-line)] bg-white px-2.5 py-2 text-xs shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
+    "rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2.5 py-2 text-xs shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
 
   function applyWidthFromString(s: string) {
     setWidthStr(s);
@@ -124,7 +124,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
       onClick={onClose}
     >
       <div
-        className="box-border mx-auto w-full max-w-lg min-w-[min(100%,300px)] shrink-0 rounded-2xl border border-[color:var(--te-line)] bg-white px-5 py-5 shadow-2xl"
+        className="box-border mx-auto w-full max-w-lg min-w-[min(100%,300px)] shrink-0 rounded-2xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-5 py-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="canvas-size-title" className="text-sm font-semibold text-[color:var(--te-ink)]">
@@ -180,7 +180,7 @@ export function CanvasSizeModal({ open, onClose, canvas, onApply }: Props) {
               "mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-[color:var(--te-ink-muted)] transition-colors",
               lockProportion
                 ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)] shadow-sm"
-                : "border-[color:var(--te-line)] bg-white hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)]"
+                : "border-[color:var(--te-line)] bg-[color:var(--te-surface)] hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)]"
             )}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

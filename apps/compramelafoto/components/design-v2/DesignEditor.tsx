@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TemplateCanvasRenderer, editorThemeStyle, type PhotoOverride } from "@repo/template-editor-ui";
+import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle, type PhotoOverride } from "@repo/template-editor-ui";
 import {
   clientPhotoSlotNumber,
   DEFAULT_PHOTO_CROP,
@@ -185,7 +185,9 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
             >
               <div
                 style={{
+                  // La pieza es papel: tokens del editor con los colores claros del pliego.
                   ...editorThemeStyle(),
+                  ...PAPER_TOKENS,
                   position: "absolute",
                   left: 0,
                   top: 0,

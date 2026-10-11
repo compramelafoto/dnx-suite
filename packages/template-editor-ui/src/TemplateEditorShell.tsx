@@ -1170,8 +1170,8 @@ export function TemplateEditorShell({
                         className={cn(
                           "min-w-[4.5rem] max-w-[160px] rounded-md border px-2 py-1 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm outline-none focus:ring-2 focus:ring-[color:var(--te-accent-wash)]",
                           active
-                            ? "border-[color:var(--te-accent)] bg-white"
-                            : "border-[color:var(--te-ink-faint)] bg-white"
+                            ? "border-[color:var(--te-accent)] bg-[color:var(--te-surface)]"
+                            : "border-[color:var(--te-ink-faint)] bg-[color:var(--te-surface)]"
                         )}
                         value={pageLabelEdit.value}
                         onChange={(e) => setPageLabelEdit({ index: i, value: e.target.value })}
@@ -1212,8 +1212,8 @@ export function TemplateEditorShell({
                       className={cn(
                         "max-w-[160px] truncate rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                         active
-                          ? "border-[color:var(--te-accent)] bg-white text-[color:var(--te-accent)] shadow-sm"
-                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-white hover:text-[color:var(--te-ink)]",
+                          ? "border-[color:var(--te-accent)] bg-[color:var(--te-surface)] text-[color:var(--te-accent)] shadow-sm"
+                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-[color:var(--te-surface)] hover:text-[color:var(--te-ink)]",
                         canReorder && "cursor-grab active:cursor-grabbing",
                         sheetDragFrom === i && "opacity-60",
                         sheetDragOver === i && sheetDragFrom !== i && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1"
@@ -1281,7 +1281,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[#fff1f2] hover:text-[color:var(--te-danger)]"
+                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]"
                   )}
                   onClick={() => dispatch(removeTemplatePage())}
                   disabled={state.templatePageCount <= 1}
@@ -1314,12 +1314,12 @@ export function TemplateEditorShell({
             {saveErrorMessage ? (
               <div
                 ref={conflictBannerRef}
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5"
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5"
                 data-testid="template-v2-error-banner"
                 role="alert"
                 tabIndex={-1}
               >
-                <p className="text-xs text-red-700">{saveErrorMessage}</p>
+                <p className="text-xs text-[color:var(--te-danger)]">{saveErrorMessage}</p>
                 {saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE ? (
                   <Button
                     type="button"
@@ -1335,9 +1335,9 @@ export function TemplateEditorShell({
               </div>
             ) : null}
             {backgroundUploadError ? (
-              <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{backgroundUploadError}</p>
+              <p className="border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5 text-xs text-[color:var(--te-danger)]">{backgroundUploadError}</p>
             ) : null}
-            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{saveAsNewError}</p> : null}
+            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5 text-xs text-[color:var(--te-danger)]">{saveAsNewError}</p> : null}
             </>
           ) : null}
         </header>
@@ -1352,31 +1352,31 @@ export function TemplateEditorShell({
             <ul className="mt-3 max-h-[min(50vh,420px)] space-y-2.5 overflow-y-auto text-xs text-[color:var(--te-ink)]">
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Guardar</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + S
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Herramienta texto / selección / mano</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   T · V · H
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover vista del lienzo (arrastrar el área gris)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Barra espaciadora + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Duplicar bloque (selección primaria)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + D
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Eliminar selección</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Supr / Retroceso
                 </kbd>
               </li>
@@ -1384,7 +1384,7 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">
                   Sumar o quitar de la selección · arrastrar en conjunto
                 </span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Mayús + clic
                 </kbd>
               </li>
@@ -1392,61 +1392,61 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">
                   Elegir lo que está debajo (una capa por clic)
                 </span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + clic
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover bloque · paso fino / grueso</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Flechas · Mayús + Flechas
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Deshacer</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Z
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Rehacer</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + Z · Ctrl + Y
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Copiar / pegar bloque (primario)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + C · ⌘/Ctrl + V
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Vista previa</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + P
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Quitar selección · cerrar preview</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Escape
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Zoom · vista 100% y centrar</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ± · ⌘/Ctrl + 0
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Duplicar y arrastrar copia (el original no se mueve)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Alt + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-[color:var(--te-ink-muted)]">Capa adelante / atrás (primario)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ] · ⌘/Ctrl + [
                 </kbd>
               </li>
@@ -1466,7 +1466,7 @@ export function TemplateEditorShell({
 
         {loadError ? (
           <Card className="m-4 p-6">
-            <p className="text-sm text-red-600">Error al cargar versión de plantilla.</p>
+            <p className="text-sm text-[color:var(--te-danger)]">Error al cargar versión de plantilla.</p>
             <p className="mt-2 break-all text-xs text-[color:var(--te-ink-muted)]">{loadError}</p>
           </Card>
         ) : !editorReady ? (
@@ -1702,7 +1702,7 @@ export function TemplateEditorShell({
                   title="Capas"
                   open={rightPanelLayersOpen}
                   onToggle={() => setRightPanelLayersOpen((v) => !v)}
-                  variant="muted"
+                  flush
                 >
                   <TemplateEditorLayers state={state} dispatch={dispatch} />
                 </RightSidebarSection>
@@ -1784,7 +1784,7 @@ export function TemplateEditorShell({
           onClick={closePreview}
         >
           <div
-            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-white shadow-2xl"
+            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-4 py-3">
@@ -1803,7 +1803,7 @@ export function TemplateEditorShell({
                 </div>
               ) : previewError ? (
                 <p
-                  className="text-center text-sm text-red-600"
+                  className="text-center text-sm text-[color:var(--te-danger)]"
                   data-testid="template-v2-preview-error"
                 >
                   {previewError}
@@ -1814,7 +1814,7 @@ export function TemplateEditorShell({
                     data-testid="template-v2-preview-image"
                     role="img"
                     aria-label="Vista previa de la plantilla"
-                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-white shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
+                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
                     // El dibujo lo produce el módulo de impresión de este mismo monorepo, no
                     // el navegador ni contenido de terceros: los textos van escapados y las
                     // imágenes se limitan a direcciones http(s) y a mapas de bits.
