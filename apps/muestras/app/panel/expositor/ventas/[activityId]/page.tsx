@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SALE_SPLIT_TEXT, formatArDayLong, splitExample } from "@repo/muestras";
+import { ORDER_STATUS_LABELS, SALE_SPLIT_TEXT, formatArDay, formatArDayLong, isOrderStatus, splitExample } from "@repo/muestras";
 import { aviso, enlace, nota, seccion } from "@/components/ventas/estilos";
 import { FirmaAutor } from "@/components/ventas/firma-autor";
 import { AceptarReparto, OfertasDeObra } from "@/components/ventas/ofertas-autor";
 import { SubirOriginal } from "@/components/ventas/subir-original";
 import { ventaDelAutor } from "@/lib/ventas/consultas";
+import { ventasDelAutor } from "@/lib/ventas/pedidos-consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function VenderTusObras({ params }: { params: Promise<{ act
   const usuario = await requireUsuario(`/panel/expositor/ventas/${activityId}`);
   const v = await ventaDelAutor(activityId, usuario);
   if (!v) notFound();
+  const ventas = await ventasDelAutor(activityId, usuario);
   const s = v.setup;
   const aceptado = s != null && v.terminos?.splitVersion === s.splitVersion;
   const ejemplo = s ? splitExample(100_000, { platformFeeBps: s.platformFeeBps, organizerBps: s.organizerBps }) : null;
@@ -103,6 +105,22 @@ export default async function VenderTusObras({ params }: { params: Promise<{ act
             );
           })}
         </ul>
+      </section>
+      <section className={seccion}>
+        <h2 className="mf-titulo text-2xl">Tus ventas</h2>
+        {ventas.length === 0 ? <p className={nota}>Todavía no vendiste copias en esta muestra.</p> : (
+          <ul className="border-t border-[var(--mf-line)] text-[15px]">
+            {ventas.map((x) => (
+              <li key={x.id} className="space-y-1 border-b border-[var(--mf-line)] py-3">
+                <p className="font-medium">{x.obra} · {x.formato === "PRINT" ? "impresa" : "digital"}{x.numero ? ` · ${x.numero}` : ""}{x.prueba ? " · Prueba" : ""}</p>
+                <p className={nota}>
+                  {x.fecha ? formatArDay(x.fecha) : ""} · {isOrderStatus(x.status) ? ORDER_STATUS_LABELS[x.status] : x.status} · tu parte {pesos(x.tuParteCents / 100)}
+                  {x.comprador ? ` · a nombre de ${x.comprador}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );

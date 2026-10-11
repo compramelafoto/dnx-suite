@@ -166,6 +166,7 @@ export default async function VentasDeLaMuestra({ params }: { params: Promise<{ 
             ))}
           </ul>
         )}
+        <p><Link href={`/panel/muestras/${p.actividad.id}/ventas/pedidos`} className={enlace}>Ver los pedidos: producción, certificados, etiquetas y P/A</Link></p>
       </section>
     </main>
   );

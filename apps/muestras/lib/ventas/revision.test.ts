@@ -11,6 +11,8 @@ const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; es
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const conciliar = vi.hoisted(() => ({ certificarCopia: vi.fn(async () => "OK") }));
+vi.mock("./conciliar", () => conciliar);
 vi.mock("./config", () => ({ leerConfigDeVentas: () => ({ modo: "TEST", ambienteCuenta: "SANDBOX" }) }));
 
 const { aprobarOferta, emitirPruebaDeAutor, pausarOferta, pedirCambiosOferta, reanudarOferta } = await import("./revision");
@@ -91,7 +93,10 @@ describe("pruebas de autor", () => {
   it("emite la P/A más baja libre, de prueba en modo sandbox", async () => {
     oferta = base({ status: "APPROVED", approvedPriceArs: 100_000, reviewNote: "Pedido de P/A: el autor pidió sus pruebas" });
     db.culturalEditionCopy.findMany.mockResolvedValue([{ id: "c1", number: 1, status: "ISSUED", reservedUntil: null, kind: "PROOF", isTest: true }]);
-    expect(await emitirPruebaDeAutor("of1")).toEqual({ ok: true, aviso: "Emitimos la P/A 2/2." });
+    db.culturalEditionCopy.create.mockResolvedValue({ id: "c9" });
+    expect(await emitirPruebaDeAutor("of1")).toEqual({ ok: true, aviso: "Emitimos la P/A 2/2 con su certificado." });
+    // La P/A sale con su certificado firmado (sin comprador).
+    expect(conciliar.certificarCopia).toHaveBeenCalledWith("c9");
     expect(db.culturalEditionCopy.create.mock.calls[0]![0].data).toMatchObject({ offerId: "of1", kind: "PROOF", number: 2, status: "ISSUED", isTest: true });
     expect(oferta.reviewNote).toBeNull();
   });
@@ -102,5 +107,7 @@ describe("pruebas de autor", () => {
       { id: "c2", number: 2, status: "VOIDED", reservedUntil: null, kind: "PROOF", isTest: true },
     ]);
     expect(await emitirPruebaDeAutor("of1")).toEqual({ ok: false, errores: ["Ya se emitieron todas las pruebas de autor."] });
+    expect(db.culturalEditionCopy.create).not.toHaveBeenCalled();
+    expect(conciliar.certificarCopia).not.toHaveBeenCalled();
   });
 });

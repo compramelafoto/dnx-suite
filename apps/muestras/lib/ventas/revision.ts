@@ -7,6 +7,7 @@ import { puede, rolEnMuestra } from "@/lib/equipo/permisos";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario, type Usuario } from "@/lib/usuario";
 import { leerConfigDeVentas } from "./config";
+import { certificarCopia } from "./conciliar";
 import { PEDIDO_PA } from "./evaluar";
 
 /**
@@ -130,6 +131,7 @@ export async function emitirPruebaDeAutor(offerId: string): Promise<ResultadoRev
   const isTest = leerConfigDeVentas().modo !== "LIVE";
   let numero = 0;
   let total = 0;
+  let copiaId = "";
   try {
     await prisma.$transaction(async (tx) => {
       const o = await bloquear(tx, r.o.id);
@@ -146,8 +148,10 @@ export async function emitirPruebaDeAutor(offerId: string): Promise<ResultadoRev
       if ("reuseId" in sig) {
         const { count } = await tx.culturalEditionCopy.updateMany({ where: { id: sig.reuseId, status: { in: ["RELEASED", "RESERVED"] } }, data: datos });
         if (count === 0) throw new Corte(CAMBIO);
+        copiaId = sig.reuseId;
       } else {
-        await tx.culturalEditionCopy.create({ data: { offerId: o.id, activityId: o.activityId, isTest, kind: "PROOF", number: sig.number, ...datos } });
+        const c = await tx.culturalEditionCopy.create({ data: { offerId: o.id, activityId: o.activityId, isTest, kind: "PROOF", number: sig.number, ...datos }, select: { id: true } });
+        copiaId = c.id;
       }
       numero = sig.number;
       total = o.proofCount;
@@ -160,6 +164,12 @@ export async function emitirPruebaDeAutor(offerId: string): Promise<ResultadoRev
     if (err instanceof Corte) return error(err.message);
     throw err;
   }
+  // El certificado firmado de la P/A (sin comprador). Si falta la clave o el original, la P/A queda
+  // emitida y el certificado se puede generar después (el barrido reintenta las copias sin código).
+  const cert = copiaId ? await certificarCopia(copiaId).catch(() => "SIN_DATOS" as const) : "SIN_DATOS";
   refrescar(r.o.activityId);
-  return { ok: true, aviso: `Emitimos la P/A ${numero}/${total}.` };
+  return {
+    ok: true,
+    aviso: cert === "OK" || cert === "YA_TENIA" ? `Emitimos la P/A ${numero}/${total} con su certificado.` : `Emitimos la P/A ${numero}/${total}. El certificado todavía no se pudo firmar: falta el original, la firma o la clave.`,
+  };
 }

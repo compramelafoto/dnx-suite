@@ -21,6 +21,7 @@ export default async function VentasDeMisMuestras() {
           Vendé copias digitales firmadas e impresas Fine Art de las obras de tu muestra, únicas o en ediciones limitadas con certificado y QR. Mercado Pago reparte cada cobro en el momento entre la organización, el fotógrafo/a y la plataforma.
         </p>
       </header>
+      {usuario.esSuperAdmin ? <p><Link href="/panel/ventas" className={enlace}>Ventas de toda la plataforma</Link></p> : null}
       {muestras.length === 0 ? (
         <p className="border-t border-[var(--mf-line)] pt-6 text-lg">
           Cuando organices una muestra, acá vas a encender su venta. <Link href="/panel/proponer" className={enlace}>Proponer una muestra</Link>
