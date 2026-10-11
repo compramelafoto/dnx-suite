@@ -1,0 +1,20 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
+export default defineConfig({
+  root,
+  resolve: { alias: { "@": root } },
+  test: {
+    environment: "node",
+    include: [
+      "lib/bot/**/*.test.ts",
+      "lib/support/create-ticket.test.ts",
+      "lib/albums/album-settings-update.test.ts",
+      "lib/album-packs/album-pack-basic-rules.test.ts",
+      "lib/fotografo/profile-field-rules.test.ts",
+      "app/api/bot/**/*.test.ts",
+    ],
+  },
+});
