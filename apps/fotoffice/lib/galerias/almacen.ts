@@ -2,7 +2,9 @@ import "server-only";
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { bucketR2Privado, clienteR2Privado, esNoEncontrado } from "@/lib/ficha/adjuntos-r2";
-import { SEGUNDOS_DESCARGA_ORIGINAL, SEGUNDOS_LECTURA_FOTO, SEGUNDOS_SUBIDA_FOTO, TAMANO_MAXIMO_ORIGINAL, esTipoFotoPermitido } from "./constantes";
+import {
+  SEGUNDOS_DESCARGA_ORIGINAL, SEGUNDOS_LECTURA_FOTO, SEGUNDOS_SUBIDA_FOTO, SEGUNDOS_SUBIDA_VIDEO, medioDeTipo, tamanoMaximoDe,
+} from "./constantes";
 import { analizarClave, esClaveDeGaleria } from "./claves";
 
 /**
@@ -16,14 +18,18 @@ function claveSegura(clave: string): string {
   return clave;
 }
 
-/** PUT firmado por 15 minutos. Tipo y largo quedan dentro de la firma. Solo para el original. */
+/**
+ * PUT firmado del ORIGINAL: 15 minutos para una foto (hasta 50 MB) y 60 para un video (MP4 o MOV, hasta 5 GB, una
+ * sola URL). Tipo y largo quedan dentro de la firma.
+ */
 export async function urlDeSubidaFoto(clave: string, tipo: string, tamano: number): Promise<string> {
   if (analizarClave(claveSegura(clave))?.tipo !== "original") throw new Error("Solo se sube el original");
-  if (!esTipoFotoPermitido(tipo)) throw new Error("Tipo de foto no permitido");
-  if (!Number.isInteger(tamano) || tamano <= 0 || tamano > TAMANO_MAXIMO_ORIGINAL) throw new Error("Tamaño de foto no permitido");
+  const medio = medioDeTipo(tipo);
+  if (!medio) throw new Error("Tipo de archivo no permitido");
+  if (!Number.isInteger(tamano) || tamano <= 0 || tamano > tamanoMaximoDe(medio)) throw new Error("Tamaño de archivo no permitido");
   const cmd = new PutObjectCommand({ Bucket: bucketR2Privado(), Key: clave, ContentType: tipo, ContentLength: tamano });
   return getSignedUrl(clienteR2Privado(), cmd, {
-    expiresIn: SEGUNDOS_SUBIDA_FOTO,
+    expiresIn: medio === "VIDEO" ? SEGUNDOS_SUBIDA_VIDEO : SEGUNDOS_SUBIDA_FOTO,
     signableHeaders: new Set(["content-type", "content-length"]),
   });
 }
@@ -31,6 +37,16 @@ export async function urlDeSubidaFoto(clave: string, tipo: string, tamano: numbe
 /** GET firmado por 1 hora, para mostrar en el navegador (inline). Nunca el original. */
 export async function urlDeLecturaFoto(clave: string): Promise<string> {
   if (analizarClave(claveSegura(clave))?.tipo === "original") throw new Error("El original no se muestra");
+  const cmd = new GetObjectCommand({ Bucket: bucketR2Privado(), Key: clave, ResponseContentDisposition: "inline" });
+  return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_LECTURA_FOTO });
+}
+
+/**
+ * GET firmado por 1 hora del ORIGINAL de un VIDEO, para reproducirlo en el navegador (inline). Lo llama
+ * únicamente la función que ya validó token, galería de entrega y que la fila sea un video LISTA.
+ */
+export async function urlDeReproduccionVideo(clave: string): Promise<string> {
+  if (analizarClave(claveSegura(clave))?.tipo !== "original") throw new Error("Sólo se reproduce el original");
   const cmd = new GetObjectCommand({ Bucket: bucketR2Privado(), Key: clave, ResponseContentDisposition: "inline" });
   return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_LECTURA_FOTO });
 }

@@ -23,6 +23,16 @@ describe("página pública de la galería (fuente)", () => {
     expect(page.indexOf("visitanteDelEnlace()")).toBeGreaterThan(-1);
     expect(page.indexOf("visitanteDelEnlace()")).toBeLessThan(page.indexOf("workspaceDelSlug("));
   });
+  it("una galería de entrega usa su propia pantalla (sin selección ni carrito)", () => {
+    expect(page).toMatch(/vista\.galeria\.tipo === "ENTREGA"\) return <GaleriaEntrega /);
+    const entrega = leer("../../components/galeria-publica/galeria-entrega.tsx");
+    expect(entrega).toContain("<video");
+    expect(entrega).toMatch(/controls/);
+    expect(entrega).toContain('preload="metadata"');
+    expect(entrega).toContain("reproducirVideoAction");
+    expect(entrega).toContain("descargarOriginalAction");
+    expect(entrega).not.toMatch(/elegirFotoAction|enviarSeleccionAction|pagarFotosExtraAction|comentarAction/);
+  });
   it("lo que abre el equipo no cuenta como 'entró'", () => {
     expect(page).toMatch(/!\(await abreAlguienDelEquipo\(workspaceId\)\)\) await registrarEntrada/);
   });
@@ -36,7 +46,7 @@ describe("acciones públicas (fuente)", () => {
   it("es 'use server' y sólo exporta funciones async", () => {
     expect(acciones.startsWith('"use server";')).toBe(true);
     expect(acciones).not.toMatch(/^export (const|let|var|type|interface|class)\b/m);
-    expect(NOMBRES.sort()).toEqual(["comentarAction", "descargarAction", "descargarOriginalAction", "elegirFotoAction", "enviarSeleccionAction", "pagarFotosExtraAction", "vistasAction"]);
+    expect(NOMBRES.sort()).toEqual(["comentarAction", "descargarAction", "descargarOriginalAction", "elegirFotoAction", "enviarSeleccionAction", "pagarFotosExtraAction", "reproducirVideoAction", "vistasAction"]);
   });
   it("toda acción pasa por el freno por IP y por el workspace del slug antes de tocar nada", () => {
     for (const n of NOMBRES) expect(cuerpoDe(n), n).toMatch(/await entrar\("/);

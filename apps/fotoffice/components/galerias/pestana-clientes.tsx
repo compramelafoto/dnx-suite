@@ -34,7 +34,7 @@ const CLASE_ESTADO: Record<EstadoCliente, string> = {
   FINALIZADO: "bg-green-100 text-green-800",
 };
 
-function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar }: { c: ClienteVista; galeriaId: string; estadoGaleria: EstadoGaleria; puedeGestionar: boolean }) {
+function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar, esEntrega }: { c: ClienteVista; galeriaId: string; estadoGaleria: EstadoGaleria; puedeGestionar: boolean; esEntrega: boolean }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +57,7 @@ function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar }: { c: Cl
       if (!r.ok) return setError(r.error);
       try {
         await navigator.clipboard.writeText(r.url);
-        setAviso("Enlace copiado. Quien lo tenga puede ver las fotos y elegir: mandáselo sólo a esa persona.");
+        setAviso("Enlace copiado. Quien lo tenga puede ver y descargar los archivos: mandáselo sólo a esa persona.");
       } catch {
         setManual(r.url);
       }
@@ -118,12 +118,12 @@ function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar }: { c: Cl
         </div>
       </div>
       <p className="text-xs text-[var(--fo-muted)]">
-        {c.elegidas === 1 ? "1 foto elegida" : `${c.elegidas.toLocaleString("es-AR")} fotos elegidas`}
-        {c.ultimaVez ? ` · Última visita: ${fechaHoraBA(c.ultimaVez)}` : " · Todavía no entró"}
-        {c.enviadoEn ? ` · Envió su selección el ${fechaHoraBA(c.enviadoEn)}` : ""}
+        {esEntrega ? null : c.elegidas === 1 ? "1 foto elegida" : `${c.elegidas.toLocaleString("es-AR")} fotos elegidas`}
+        {c.ultimaVez ? `${esEntrega ? "" : " · "}Última visita: ${fechaHoraBA(c.ultimaVez)}` : `${esEntrega ? "" : " · "}Todavía no entró`}
+        {c.enviadoEn && !esEntrega ? ` · Envió su selección el ${fechaHoraBA(c.enviadoEn)}` : ""}
         {c.finalizadoEn ? ` · Finalizada el ${fechaHoraBA(c.finalizadoEn)}` : ""}
       </p>
-      {c.estado !== "EN_PROGRESO" || c.elegidas > 0 ? (
+      {!esEntrega && (c.estado !== "EN_PROGRESO" || c.elegidas > 0) ? (
         <p className="text-sm">
           <Link href={`/galerias/${encodeURIComponent(galeriaId)}/clientes/${encodeURIComponent(c.id)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
             {c.estado === "EN_REVISION" ? "Revisar la selección" : "Ver la selección"}
@@ -194,8 +194,9 @@ function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar }: { c: Cl
  * Los enlaces sólo se comparten con la galería publicada. Las reglas las vuelve a mirar el servidor.
  */
 export function PestanaClientes({
-  galeriaId, estadoGaleria, clientes, sugerido, puedeGestionar, puedeBuscarContactos,
+  galeriaId, estadoGaleria, clientes, sugerido, puedeGestionar, puedeBuscarContactos, esEntrega = false,
 }: {
+  esEntrega?: boolean;
   galeriaId: string;
   estadoGaleria: EstadoGaleria;
   clientes: ClienteVista[];
@@ -229,11 +230,11 @@ export function PestanaClientes({
           Clientes de la galería ({clientes.length}/{MAX_CLIENTES_POR_GALERIA})
         </h2>
         {clientes.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">Todavía no agregaste a nadie. Cada cliente recibe su propio enlace y su selección es independiente.</p>
+          <p className="text-sm text-[var(--fo-muted)]">Todavía no agregaste a nadie. {esEntrega ? "Cada cliente recibe su propio enlace para descargar." : "Cada cliente recibe su propio enlace y su selección es independiente."}</p>
         ) : (
           <ul className="divide-y divide-[var(--fo-border)] text-sm">
             {clientes.map((c) => (
-              <TarjetaCliente key={`${c.id}:${c.anulado}:${c.estado}`} c={c} galeriaId={galeriaId} estadoGaleria={estadoGaleria} puedeGestionar={puedeGestionar} />
+              <TarjetaCliente key={`${c.id}:${c.anulado}:${c.estado}`} c={c} galeriaId={galeriaId} estadoGaleria={estadoGaleria} puedeGestionar={puedeGestionar} esEntrega={esEntrega} />
             ))}
           </ul>
         )}

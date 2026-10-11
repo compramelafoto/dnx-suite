@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GaleriaCliente } from "@/components/galeria-publica/galeria-cliente";
+import { GaleriaEntrega } from "@/components/galeria-publica/galeria-entrega";
 import { avisoDeVueltaGaleria, type ResultadoVueltaGaleria } from "@/lib/galerias/venta-publica";
 import { verificarVueltaGaleria } from "@/lib/galerias/pago";
 import { armarVistaGaleria, registrarEntrada, resolverTokenGaleria } from "@/lib/galerias/publico";
@@ -53,5 +54,7 @@ export default async function GaleriaPublicaPage({ params, searchParams }: Props
     verificacion = await verificarVueltaGaleria(workspaceId, token, { compraId: unico(q.compra), paymentId: unico(q.payment_id) });
   }
   const vista = await armarVistaGaleria(r);
+  // Galería de entrega: sin selección ni pago; la vuelta de Mercado Pago no aplica.
+  if (vista.galeria.tipo === "ENTREGA") return <GaleriaEntrega slug={workspaceSlug} token={token} vista={vista} />;
   return <GaleriaCliente slug={workspaceSlug} token={token} vista={vista} avisoPago={avisoDeVueltaGaleria(pago, verificacion)} />;
 }

@@ -5,7 +5,7 @@ import {
   borrarFotoAction, establecerModoOrdenAction, establecerPortadaAction, fotosPorIdsAction, reordenarFotosAction,
 } from "@/app/actions/galerias";
 import { UploaderFotos } from "@/components/galerias/uploader-fotos";
-import { MAX_FOTOS_POR_GALERIA, type ModoOrden } from "@/lib/galerias/constantes";
+import { MAX_FOTOS_POR_GALERIA, MAX_VIDEOS_POR_GALERIA, type ModoOrden } from "@/lib/galerias/constantes";
 import { fusionarFotos, moverAntesDe, moverUnLugar, reasignarOrden } from "@/lib/galerias/grilla";
 import { pesoLegible } from "@/lib/galerias/subida";
 import type { FotoVisible } from "@/lib/galerias/fotos";
@@ -58,7 +58,15 @@ const Tarjeta = memo(function Tarjeta({
       }}
     >
       <div className="relative aspect-square bg-[var(--fo-surface-hover)]">
-        {foto.status === "LISTA" && foto.thumbUrl ? (
+        {foto.status === "LISTA" && foto.mediaType === "VIDEO" ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 bg-neutral-800 p-2 text-center text-xs text-white" role="img" aria-label={`Video ${foto.fileName}`}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10 8l6 4-6 4z" />
+            </svg>
+            <span>Video</span>
+          </div>
+        ) : foto.status === "LISTA" && foto.thumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={foto.thumbUrl} alt={foto.fileName} loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />
         ) : foto.status === "ERROR" ? (
@@ -101,7 +109,7 @@ const Tarjeta = memo(function Tarjeta({
                 </button>
               </>
             ) : null}
-            {foto.status === "LISTA" && !esPortada ? (
+            {foto.status === "LISTA" && foto.mediaType !== "VIDEO" && !esPortada ? (
               <button type="button" className="fo-btn fo-btn-secondary px-2 py-0.5 text-xs" disabled={ocupada} aria-label={`Elegir ${foto.fileName} como portada`} onClick={() => acciones.portada(foto.id)}>
                 Portada
               </button>
@@ -122,9 +130,11 @@ const Tarjeta = memo(function Tarjeta({
  * Orden por nombre (natural) o manual (arrastrar o con las flechas ◀ ▶), portada y borrado.
  */
 export function PestanaFotos({
-  galeriaId, fotosIniciales, orderMode, coverFotoId, archivada, puedeGestionar,
+  galeriaId, fotosIniciales, orderMode, coverFotoId, archivada, puedeGestionar, esEntrega = false,
 }: {
   galeriaId: string;
+  /** Galería de entrega: acepta videos y no habla de selección. */
+  esEntrega?: boolean;
   fotosIniciales: FotoVisible[];
   orderMode: ModoOrden;
   coverFotoId: string | null;
@@ -253,7 +263,7 @@ export function PestanaFotos({
     async (id: string) => {
       const foto = fotosRef.current.find((f) => f.id === id);
       if (!foto) return;
-      if (!window.confirm(`¿Borrar "${foto.fileName}"? Se borra también la elección de los clientes que la hayan marcado. No se puede deshacer.`)) return;
+      if (!window.confirm(esEntrega ? `¿Borrar "${foto.fileName}"? No se puede deshacer.` : `¿Borrar "${foto.fileName}"? Se borra también la elección de los clientes que la hayan marcado. No se puede deshacer.`)) return;
       setError(null);
       setOcupada(true);
       const r = await borrarFotoAction(galeriaId, id).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
@@ -262,7 +272,7 @@ export function PestanaFotos({
       setFotos((a) => a.filter((f) => f.id !== id));
       setPortada((p) => (p === id ? null : p));
     },
-    [galeriaId],
+    [galeriaId, esEntrega],
   );
 
   const reintentar = useCallback(
@@ -291,6 +301,7 @@ export function PestanaFotos({
   const listas = fotos.filter((f) => f.status === "LISTA").length;
   const problemas = fotos.length - listas;
   const puedeSubir = puedeGestionar && !archivada;
+  const videosUsados = fotos.filter((f) => f.mediaType === "VIDEO").length;
 
   return (
     <div className="space-y-4">
@@ -298,8 +309,10 @@ export function PestanaFotos({
         <UploaderFotos
           galeriaId={galeriaId}
           lugaresLibres={Math.max(0, MAX_FOTOS_POR_GALERIA - fotos.length)}
+          admiteVideos={esEntrega}
+          videosLibres={Math.max(0, MAX_VIDEOS_POR_GALERIA - videosUsados)}
           deshabilitado={!puedeSubir}
-          motivoDeshabilitado={archivada ? "La galería está archivada: reactivala para subir fotos." : undefined}
+          motivoDeshabilitado={archivada ? "La galería está archivada: reactivala para subir archivos." : undefined}
           alProcesar={alProcesar}
         />
       ) : null}
@@ -307,7 +320,7 @@ export function PestanaFotos({
       <section aria-labelledby="fotos-titulo" className="fo-card space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="fotos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-            Fotos ({listas.toLocaleString("es-AR")}
+            {esEntrega ? "Archivos" : "Fotos"} ({listas.toLocaleString("es-AR")}
             {problemas > 0 ? ` listas · ${problemas} con problemas` : ""})
           </h2>
           {fotos.length > 1 ? (
@@ -338,7 +351,7 @@ export function PestanaFotos({
         </div>
 
         {fotos.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">Todavía no hay fotos. Subí las primeras con el cuadro de arriba.</p>
+          <p className="text-sm text-[var(--fo-muted)]">{esEntrega ? "Todavía no hay archivos. Subí las primeras fotos y videos con el cuadro de arriba." : "Todavía no hay fotos. Subí las primeras con el cuadro de arriba."}</p>
         ) : (
           <>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">

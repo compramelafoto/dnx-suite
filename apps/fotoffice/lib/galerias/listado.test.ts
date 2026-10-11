@@ -37,7 +37,7 @@ describe("lista de galerías", () => {
   });
   it("la definición: clave, filtros, sin acciones en lote y sin columnas de dinero", () => {
     expect(listadoGalerias.clave).toBe("galerias");
-    expect(listadoGalerias.filtros.map((f) => f.clave)).toEqual(["estado", "revision"]);
+    expect(listadoGalerias.filtros.map((f) => f.clave)).toEqual(["estado", "tipo", "revision"]);
     expect(listadoGalerias.acciones).toEqual([]);
     expect(listadoGalerias.hrefFicha("a b")).toBe("/galerias/a%20b");
     expect(JSON.stringify(listadoGalerias.exportar.columnas.map((x) => x.titulo))).not.toMatch(/total|precio|\$/i);

@@ -156,8 +156,12 @@ export async function guardarVentaGaleria(ctx: CtxGalerias, galeriaId: unknown, 
         discountRules: c.discountMode === "PROGRESIVO" ? (c.discountRules as Prisma.InputJsonValue) : Prisma.DbNull,
         incomeCategoryId: r.rubroId,
       };
-      const u = await tx.fotofficeGaleria.updateMany({ where: { id: galeriaId, workspaceId }, data });
-      if (u.count !== 1) return no(M.noExiste);
+      // Una galería de entrega no se vende: el cliente recibe todo lo que tiene.
+      const u = await tx.fotofficeGaleria.updateMany({ where: { id: galeriaId, workspaceId, kind: { not: "ENTREGA" } }, data });
+      if (u.count !== 1) {
+        const existe = await tx.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { id: true } });
+        return no(existe ? M.entregaSinVenta : M.noExiste);
+      }
       await registrarEvento(tx, {
         workspaceId, galeriaId, tipo: "VENTA_CONFIGURADA", actorUserId: ctx.userId,
         data: { modo: c.saleMode, incluidas: c.includedCount, precio: c.pricingMode ?? "", descuento: c.discountMode },

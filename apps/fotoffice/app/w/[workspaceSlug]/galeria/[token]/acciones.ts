@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import { avisarSeleccionEnviada } from "@/lib/galerias/avisos";
 import { iniciarPagoGaleria } from "@/lib/galerias/pago";
-import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
+import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlDeReproduccion, urlsDeVista, type Falla } from "@/lib/galerias/publico";
 import { MENSAJES_PUBLICO } from "@/lib/galerias/publico-tipos";
 import type { ComentarioPublico } from "@/lib/galerias/publico-tipos";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -73,4 +73,11 @@ export async function descargarOriginalAction(slug: unknown, token: unknown, fot
   const e = await entrar("descargar-original", 400, slug);
   if (!e.ok) return e;
   return descargarOriginal(e.workspaceId, token, fotoId);
+}
+
+/** Entrega: enlace firmado (1 hora, inline) del original de un video para el reproductor del visor; se pide al abrirlo. */
+export async function reproducirVideoAction(slug: unknown, token: unknown, fotoId: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("reproducir", 120, slug);
+  if (!e.ok) return e;
+  return urlDeReproduccion(e.workspaceId, token, fotoId);
 }

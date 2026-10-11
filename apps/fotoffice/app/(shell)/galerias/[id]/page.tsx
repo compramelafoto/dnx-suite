@@ -10,7 +10,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { fechaHoraBA } from "@/lib/ficha/formato";
 import { puedeGestionarGalerias } from "@/lib/galerias/acceso";
 import { listarClientesDeGaleria } from "@/lib/galerias/clientes";
-import { ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, ETIQUETA_MODO_SELECCION } from "@/lib/galerias/constantes";
+import { ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, ETIQUETA_MODO_SELECCION, ETIQUETA_TIPO_GALERIA } from "@/lib/galerias/constantes";
 import { claseDeEstadoGaleria } from "@/lib/galerias/estado-vista";
 import { listarFotos } from "@/lib/galerias/fotos";
 import { cargarFichaGaleria } from "@/lib/galerias/galerias";
@@ -31,6 +31,7 @@ function paginaPedida(v: string | string[] | undefined): number {
 const PESTANAS = [
   { clave: "fotos", etiqueta: "Fotos" },
   { clave: "clientes", etiqueta: "Clientes" },
+  // La entrega no tiene venta: el cliente recibe todo lo que se sube.
   { clave: "venta", etiqueta: "Venta" },
   { clave: "configuracion", etiqueta: "Configuración" },
   { clave: "historial", etiqueta: "Historial" },
@@ -57,8 +58,10 @@ export default async function FichaGaleriaPage({
   const ficha = await cargarFichaGaleria(ctx, id);
   if (!ficha) notFound();
 
+  const esEntrega = ficha.tipo === "ENTREGA";
+  const pestanas = PESTANAS.filter((p) => !(esEntrega && p.clave === "venta"));
   const pedida = (await searchParams).tab;
-  const pestana: Pestana = PESTANAS.find((p) => p.clave === (Array.isArray(pedida) ? pedida[0] : pedida))?.clave ?? "fotos";
+  const pestana: Pestana = pestanas.find((p) => p.clave === (Array.isArray(pedida) ? pedida[0] : pedida))?.clave ?? "fotos";
   const gestiona = puedeGestionarGalerias(ctx);
   const veProyecto = puedeEnContexto(ctx, "ver", PROJECTS_MODULE_KEY);
   const veContactos = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
@@ -82,7 +85,7 @@ export default async function FichaGaleriaPage({
     <div className="space-y-6">
       <PageHeader
         title={ficha.nombre}
-        description={`Galería N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
+        description={`${esEntrega ? "Galería de entrega" : "Galería"} N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
         actions={
           <Link href="/galerias" className="fo-btn fo-btn-secondary text-sm">
             Volver a Galerías
@@ -137,31 +140,45 @@ export default async function FichaGaleriaPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--fo-muted)]">Fotos</dt>
+                <dt className="text-xs text-[var(--fo-muted)]">Tipo</dt>
+                <dd>{ETIQUETA_TIPO_GALERIA[ficha.tipo]}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--fo-muted)]">{esEntrega ? "Archivos" : "Fotos"}</dt>
                 <dd>
-                  {ficha.fotos.listas.toLocaleString("es-AR")} listas
+                  {ficha.fotos.listas.toLocaleString("es-AR")} {esEntrega ? (ficha.fotos.listas === 1 ? "listo" : "listos") : "listas"}
+                  {esEntrega && ficha.fotos.videos > 0 ? ` (${ficha.fotos.videos} ${ficha.fotos.videos === 1 ? "video" : "videos"})` : ""}
                   {ficha.fotos.pendientes > 0 ? ` · ${ficha.fotos.pendientes} pendientes` : ""}
                   {ficha.fotos.conError > 0 ? ` · ${ficha.fotos.conError} con error` : ""}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-[var(--fo-muted)]">Selección</dt>
-                <dd>
-                  {ETIQUETA_MODO_SELECCION[ficha.selectionMode]}
-                  {ficha.selectionMode === "CANTIDAD"
-                    ? ` (${[ficha.minSelect !== null ? `mín. ${ficha.minSelect}` : null, ficha.maxSelect !== null ? `máx. ${ficha.maxSelect}` : null].filter(Boolean).join(" · ")})`
-                    : ""}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--fo-muted)]">Comentarios</dt>
-                <dd>{ficha.allowComments ? "Sí" : "No"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--fo-muted)]">Descarga</dt>
-                <dd>{ETIQUETA_MODO_DESCARGA[ficha.downloadMode]}</dd>
-              </div>
-              {vendido !== null ? (
+              {esEntrega ? (
+                <div>
+                  <dt className="text-xs text-[var(--fo-muted)]">Descarga</dt>
+                  <dd>Original de cada archivo</dd>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <dt className="text-xs text-[var(--fo-muted)]">Selección</dt>
+                    <dd>
+                      {ETIQUETA_MODO_SELECCION[ficha.selectionMode]}
+                      {ficha.selectionMode === "CANTIDAD"
+                        ? ` (${[ficha.minSelect !== null ? `mín. ${ficha.minSelect}` : null, ficha.maxSelect !== null ? `máx. ${ficha.maxSelect}` : null].filter(Boolean).join(" · ")})`
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-[var(--fo-muted)]">Comentarios</dt>
+                    <dd>{ficha.allowComments ? "Sí" : "No"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-[var(--fo-muted)]">Descarga</dt>
+                    <dd>{ETIQUETA_MODO_DESCARGA[ficha.downloadMode]}</dd>
+                  </div>
+                </>
+              )}
+              {vendido !== null && !esEntrega ? (
                 <div>
                   <dt className="text-xs text-[var(--fo-muted)]">Vendido</dt>
                   <dd className="tabular-nums">{vendido > 0 ? formatearCentavos(vendido) : "Todavía nada"}</dd>
@@ -183,7 +200,7 @@ export default async function FichaGaleriaPage({
 
         <div className="min-w-0 space-y-4">
           <nav aria-label="Secciones de la galería" className="flex flex-wrap gap-1 border-b border-[var(--fo-border)]">
-            {PESTANAS.map((p) => {
+            {pestanas.map((p) => {
               const activa = p.clave === pestana;
               return (
                 <Link
@@ -210,6 +227,7 @@ export default async function FichaGaleriaPage({
               coverFotoId={ficha.coverFotoId}
               archivada={ficha.estado === "ARCHIVADA"}
               puedeGestionar={gestiona}
+              esEntrega={esEntrega}
             />
           ) : null}
 
@@ -233,6 +251,7 @@ export default async function FichaGaleriaPage({
               sugerido={sugerido}
               puedeGestionar={gestiona}
               puedeBuscarContactos={veContactos}
+              esEntrega={esEntrega}
             />
           ) : null}
 
@@ -254,6 +273,7 @@ export default async function FichaGaleriaPage({
               estado={ficha.estado}
               fotosListas={ficha.fotos.listas}
               puedeGestionar={gestiona}
+              esEntrega={esEntrega}
               inicial={{
                 nombre: ficha.nombre,
                 mensaje: ficha.mensaje ?? "",

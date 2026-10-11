@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { borrarFotoAction, pedirSubidaFotoAction } from "@/app/actions/galerias";
-import { TAMANO_MAXIMO_ORIGINAL, type TipoFotoPermitido } from "@/lib/galerias/constantes";
+import { MAX_VIDEOS_POR_GALERIA, TAMANO_MAXIMO_ORIGINAL, type TipoFotoPermitido, type TipoVideoPermitido } from "@/lib/galerias/constantes";
 import {
-  ERRORES_SUBIDA, SUBIDAS_EN_PARALELO, clasificarArchivos, crearCola, pesoLegible, resumirSubidas, tipoDeFoto, type EstadoSubida,
+  ERRORES_SUBIDA, SUBIDAS_EN_PARALELO, clasificarArchivos, crearCola, pesoLegible, resumirSubidas, tipoDeArchivo, type EstadoSubida,
 } from "@/lib/galerias/subida";
 
 const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
@@ -17,7 +17,7 @@ type Entrada = {
   archivo: File;
   nombre: string;
   tamano: number;
-  tipo: TipoFotoPermitido;
+  tipo: TipoFotoPermitido | TipoVideoPermitido;
   estado: EstadoSubida;
   progreso: number;
   error: string | null;
@@ -72,8 +72,14 @@ export function UploaderFotos({
   deshabilitado,
   motivoDeshabilitado,
   alProcesar,
+  admiteVideos = false,
+  videosLibres = MAX_VIDEOS_POR_GALERIA,
 }: {
   galeriaId: string;
+  /** Galería de entrega: además de JPG y PNG acepta videos MP4 y MOV de hasta 5 GB. */
+  admiteVideos?: boolean;
+  /** Cuántos videos más entran (tope 200 por galería). */
+  videosLibres?: number;
   /** Cuántas fotos más entran en la galería (tope 3.000). */
   lugaresLibres: number;
   deshabilitado: boolean;
@@ -92,11 +98,13 @@ export function UploaderFotos({
   const [arrastrando, setArrastrando] = useState(false);
   const entrada = useRef<HTMLInputElement>(null);
   const lugares = useRef(lugaresLibres);
+  const videos = useRef(videosLibres);
   const alProcesarRef = useRef(alProcesar);
   useEffect(() => {
     lugares.current = lugaresLibres;
+    videos.current = videosLibres;
     alProcesarRef.current = alProcesar;
-  }, [lugaresLibres, alProcesar]);
+  }, [lugaresLibres, videosLibres, alProcesar]);
 
   // Un cambio de estado por foto, pero se dibuja a lo sumo cada 150 ms.
   const dibujar = useCallback(() => {
@@ -165,13 +173,13 @@ export function UploaderFotos({
 
   function agregar(archivos: File[]) {
     if (deshabilitado || archivos.length === 0) return;
-    const { aceptados, rechazados, sobrantes } = clasificarArchivos(archivos, lugares.current);
+    const { aceptados, rechazados, sobrantes } = clasificarArchivos(archivos, lugares.current, { admiteVideos, videosLibres: videos.current });
     const nuevos: Entrada[] = aceptados.map((archivo) => ({
       key: siguienteKey.current++,
       archivo,
       nombre: archivo.name,
       tamano: archivo.size,
-      tipo: tipoDeFoto(archivo.name, archivo.type) as TipoFotoPermitido,
+      tipo: tipoDeArchivo(archivo.name, archivo.type, admiteVideos) as TipoFotoPermitido | TipoVideoPermitido,
       estado: "ESPERA",
       progreso: 0,
       error: null,
@@ -239,7 +247,7 @@ export function UploaderFotos({
   return (
     <section aria-labelledby="subir-fotos-titulo" className="fo-card space-y-3 p-4">
       <h2 id="subir-fotos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        Subir fotos
+        {admiteVideos ? "Subir fotos y videos" : "Subir fotos"}
       </h2>
       <div
         onDragOver={(ev) => {
@@ -260,13 +268,15 @@ export function UploaderFotos({
         <p className="text-[var(--fo-muted)]">
           {deshabilitado
             ? motivoDeshabilitado ?? "No se pueden subir fotos ahora."
-            : "Arrastrá las fotos hasta acá o elegilas desde tu computadora. JPG o PNG, hasta 50 MB cada una."}
+            : admiteVideos
+              ? "Arrastrá los archivos hasta acá o elegilos desde tu computadora. Fotos JPG o PNG de hasta 50 MB y videos MP4 o MOV de hasta 5 GB."
+              : "Arrastrá las fotos hasta acá o elegilas desde tu computadora. JPG o PNG, hasta 50 MB cada una."}
         </p>
         <input
           ref={entrada}
           type="file"
           multiple
-          accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+          accept={admiteVideos ? "image/jpeg,image/png,video/mp4,video/quicktime,.jpg,.jpeg,.png,.mp4,.m4v,.mov" : "image/jpeg,image/png,.jpg,.jpeg,.png"}
           className="sr-only"
           id="galeria-elegir-fotos"
           disabled={deshabilitado}
@@ -276,9 +286,14 @@ export function UploaderFotos({
           }}
         />
         <label htmlFor="galeria-elegir-fotos" className={`fo-btn fo-btn-primary text-sm ${deshabilitado ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
-          Elegir fotos
+          {admiteVideos ? "Elegir archivos" : "Elegir fotos"}
         </label>
-        {!deshabilitado ? <p className="text-xs text-[var(--fo-muted)]">Entran {lugaresLibres.toLocaleString("es-AR")} fotos más en esta galería.</p> : null}
+        {!deshabilitado ? (
+          <p className="text-xs text-[var(--fo-muted)]">
+            Entran {lugaresLibres.toLocaleString("es-AR")} {admiteVideos ? "archivos" : "fotos"} más en esta galería
+            {admiteVideos ? ` (hasta ${videosLibres.toLocaleString("es-AR")} videos)` : ""}.
+          </p>
+        ) : null}
       </div>
 
       {avisos.map((a) => (
@@ -306,7 +321,7 @@ export function UploaderFotos({
           {enCurso.map((e) => (
             <li key={e.key} className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate">{e.nombre}</span>
-              <span className="shrink-0 text-[var(--fo-muted)]">{e.estado === "SUBIENDO" ? `Subiendo ${e.progreso}%` : "Preparando vistas…"}</span>
+              <span className="shrink-0 text-[var(--fo-muted)]">{e.estado === "SUBIENDO" ? `Subiendo ${e.progreso}%` : e.tipo.startsWith("video/") ? "Verificando…" : "Preparando vistas…"}</span>
             </li>
           ))}
         </ul>
@@ -345,7 +360,7 @@ export function UploaderFotos({
           {conError.length > MAX_FILAS_CON_ERROR ? <p className="text-xs text-[var(--fo-muted)]">Y {conError.length - MAX_FILAS_CON_ERROR} más. Usá “Reintentar todas”.</p> : null}
         </div>
       ) : null}
-      <p className="sr-only">Peso máximo por foto: {pesoLegible(TAMANO_MAXIMO_ORIGINAL)}.</p>
+      <p className="sr-only">Peso máximo por foto: {pesoLegible(TAMANO_MAXIMO_ORIGINAL)}.{admiteVideos ? " Peso máximo por video: 5 GB." : ""}</p>
     </section>
   );
 }

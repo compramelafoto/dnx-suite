@@ -52,6 +52,7 @@ function origenDeLaApp(): string {
 export async function iniciarPagoGaleria(workspaceId: string, token: unknown): Promise<ResultadoIniciarPagoGaleria> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok || typeof token !== "string") return falla(M.enlaceInvalido, "INVALIDO");
+  if (r.galeria.kind === "ENTREGA") return falla(M.sinVenta);
   const g = await prisma.fotofficeGaleria.findFirst({ where: { id: r.galeria.id, workspaceId }, select: { id: true, name: true, ...SELECT_CONFIG_VENTA } });
   if (!g) return falla(M.enlaceInvalido, "INVALIDO");
   const config = configVentaDeFila(g);

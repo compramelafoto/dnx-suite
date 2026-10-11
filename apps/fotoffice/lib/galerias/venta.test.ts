@@ -100,6 +100,11 @@ describe("formulario de venta (puro)", () => {
 });
 
 describe("guardarVentaGaleria", () => {
+  it("una galería de entrega no se vende: no se guarda nada", async () => {
+    B.agregar("fotofficeGaleria", { id: "ge", workspaceId: "ws-1", proyectoId: "pr1", number: "G-5", name: "Entrega", status: "PUBLICADA", kind: "ENTREGA", saleMode: "SELECCION" });
+    expect(await V.guardarVentaGaleria(GESTIONA, "ge", base())).toMatchObject({ ok: false, error: M.entregaSinVenta });
+    expect(B.datos.fotofficeGaleria.find((g) => g.id === "ge")).toMatchObject({ saleMode: "SELECCION" });
+  });
   it("guarda la configuración normalizada en centavos y deja constancia", async () => {
     const r = await V.guardarVentaGaleria(GESTIONA, "g1", base({ discountMode: "PROGRESIVO", reglas: [{ pct: "10", desde: "5" }], incomeCategoryId: "rubro-fotos" }));
     expect(r).toEqual({ ok: true });

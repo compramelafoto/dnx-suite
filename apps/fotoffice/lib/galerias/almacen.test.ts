@@ -36,6 +36,37 @@ beforeEach(() => {
   H.send.mockReset();
 });
 
+describe("urlDeSubidaFoto con videos", () => {
+  it("un MP4 o MOV de hasta 5 GB: una sola URL PUT de 60 minutos con tipo y largo en la firma", async () => {
+    await A.urlDeSubidaFoto(ORIG, "video/mp4", 5_368_709_120);
+    const [, cmd, opts] = H.firmar.mock.calls[0];
+    expect(cmd.constructor.name).toBe("PutObjectCommand");
+    expect(cmd.input).toEqual({ Bucket: "privado", Key: ORIG, ContentType: "video/mp4", ContentLength: 5_368_709_120 });
+    expect(opts.expiresIn).toBe(3600);
+    expect([...opts.signableHeaders].sort()).toEqual(["content-length", "content-type"]);
+    await A.urlDeSubidaFoto(ORIG, "video/quicktime", 10);
+    expect(H.firmar.mock.calls[1][2].expiresIn).toBe(3600);
+  });
+  it("rechaza más de 5 GB, otros videos y la foto de más de 50 MB", async () => {
+    await expect(A.urlDeSubidaFoto(ORIG, "video/mp4", 5_368_709_121)).rejects.toThrow();
+    await expect(A.urlDeSubidaFoto(ORIG, "video/x-msvideo", 10)).rejects.toThrow();
+    await expect(A.urlDeSubidaFoto(ORIG, "video/mp4", 0)).rejects.toThrow();
+    await expect(A.urlDeSubidaFoto(ORIG, "image/png", 52_428_801)).rejects.toThrow();
+  });
+});
+
+describe("urlDeReproduccionVideo", () => {
+  it("firma un GET inline de 1 hora, sólo del original", async () => {
+    await A.urlDeReproduccionVideo(ORIG);
+    const [, cmd, opts] = H.firmar.mock.calls[0];
+    expect(cmd.constructor.name).toBe("GetObjectCommand");
+    expect(cmd.input).toEqual({ Bucket: "privado", Key: ORIG, ResponseContentDisposition: "inline" });
+    expect(opts.expiresIn).toBe(3600);
+    await expect(A.urlDeReproduccionVideo(VISTA)).rejects.toThrow();
+    await expect(A.urlDeReproduccionVideo("adjuntos/ws1/x")).rejects.toThrow();
+  });
+});
+
 describe("urlDeSubidaFoto", () => {
   it("firma un PUT de 15 minutos con tipo y largo dentro de la firma, en el bucket privado", async () => {
     await A.urlDeSubidaFoto(ORIG, "image/jpeg", 1234);

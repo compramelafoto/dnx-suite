@@ -37,6 +37,11 @@ export const ETIQUETA_ESTADO_GALERIA: Record<EstadoGaleria, string> = {
   PUBLICADA: "Publicada",
   ARCHIVADA: "Archivada",
 };
+export const ETIQUETA_TIPO_GALERIA: Record<TipoGaleria, string> = {
+  SELECCION: "Selección",
+  ENTREGA: "Entrega",
+};
+export const esTipoGaleria = (v: unknown): v is TipoGaleria => typeof v === "string" && (TIPOS_GALERIA as readonly string[]).includes(v);
 export const ETIQUETA_ESTADO_CLIENTE: Record<EstadoCliente, string> = {
   EN_PROGRESO: "Eligiendo",
   EN_REVISION: "Esperando tu revisión",
@@ -92,4 +97,35 @@ export const HORAS_PENDIENTE_FOTO = 24;
 
 export function esTipoFotoPermitido(v: unknown): v is TipoFotoPermitido {
   return typeof v === "string" && (TIPOS_FOTO_PERMITIDOS as readonly string[]).includes(v);
+}
+
+// --- Videos (Entrega B) -------------------------------------------------------------------------------
+
+export const TIPOS_MEDIO = ["FOTO", "VIDEO"] as const;
+export type TipoMedio = (typeof TIPOS_MEDIO)[number];
+export const esTipoMedio = (v: unknown): v is TipoMedio => typeof v === "string" && (TIPOS_MEDIO as readonly string[]).includes(v);
+
+/** 5 GB exactos por video (una sola URL firmada PUT). */
+export const TAMANO_MAXIMO_VIDEO = 5_368_709_120;
+export const TIPOS_VIDEO_PERMITIDOS = ["video/mp4", "video/quicktime"] as const;
+export type TipoVideoPermitido = (typeof TIPOS_VIDEO_PERMITIDOS)[number];
+/** Videos por galería de entrega. */
+export const MAX_VIDEOS_POR_GALERIA = 200;
+/** Vida de la URL firmada de subida de un video: un archivo de varios GB tarda. */
+export const SEGUNDOS_SUBIDA_VIDEO = 60 * 60;
+
+export function esTipoVideoPermitido(v: unknown): v is TipoVideoPermitido {
+  return typeof v === "string" && (TIPOS_VIDEO_PERMITIDOS as readonly string[]).includes(v);
+}
+
+/** FOTO o VIDEO según el tipo MIME declarado; null si no es ninguno de los permitidos. */
+export function medioDeTipo(tipo: unknown): TipoMedio | null {
+  if (esTipoFotoPermitido(tipo)) return "FOTO";
+  if (esTipoVideoPermitido(tipo)) return "VIDEO";
+  return null;
+}
+
+/** Tamaño máximo de un original según su tipo de medio. */
+export function tamanoMaximoDe(medio: TipoMedio): number {
+  return medio === "VIDEO" ? TAMANO_MAXIMO_VIDEO : TAMANO_MAXIMO_ORIGINAL;
 }
