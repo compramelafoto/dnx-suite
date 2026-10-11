@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
@@ -35,6 +36,7 @@ export default async function Subir({ params }: Props) {
       themeTokens: true,
       allowPhotos: true,
       allowMessages: true,
+      guestsCanSeeLive: true,
       hostsLabel: true,
       coverUrl: true,
       sellerProfile: {
@@ -117,6 +119,20 @@ export default async function Subir({ params }: Props) {
             Elegí las fotos de tu galería o sacá una nueva.
           </p>
           <Cargador codigo={clave} tema={tema} variasALaVez={variasALaVez} />
+
+          {/*
+            El camino de vuelta. Sin pantalla en el salón —y la fiesta del 10/10/2026 se
+            perdió por eso— el invitado sube una foto y no recibe nada: no tiene ningún
+            motivo para subir una segunda.
+          */}
+          {evento.guestsCanSeeLive ? (
+            <Link
+              href={`/e/${clave}/muro`}
+              className="mt-6 text-sm font-extrabold underline underline-offset-4 opacity-85"
+            >
+              Ver lo que se está subiendo
+            </Link>
+          ) : null}
           <BarraDeReacciones codigo={clave} acento={tema.acento} />
           {evento.allowMessages ? (
             <>

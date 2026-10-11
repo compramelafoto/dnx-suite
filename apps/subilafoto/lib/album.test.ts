@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { condicionDePublicadas, estaPublicada, puedeVerElAlbum } from "./album";
+import { condicionDePublicadas, estaPublicada, puedeVerElAlbum, puedeVerElMuro } from "./album";
 
 describe("qué foto llega al álbum y a la pantalla", () => {
   test("una aprobada y publicada, sí", () => {
@@ -42,5 +42,32 @@ describe("quién puede ver el álbum", () => {
 
   test("al cliente no lo alcanza el interruptor: es su material", () => {
     expect(puedeVerElAlbum({ guestsCanSeeAlbum: false, esElCliente: true })).toBe(true);
+  });
+});
+
+describe("el muro en vivo no es el álbum", () => {
+  /*
+    La diferencia es el punto. El álbum es todo lo del evento, para siempre y con la foto
+    entera: por eso nace cerrado a los invitados. El muro es lo que está llegando ahora,
+    en chico, mientras la fiesta pasa.
+
+    Existe por la fiesta del 10/10/2026, que no se hizo porque el salón no tenía pantalla.
+    Sin pantalla el invitado sube una foto y no recibe nada: la manda a un pozo.
+  */
+  test("mientras la fiesta corre, se ve", () => {
+    expect(puedeVerElMuro({ guestsCanSeeLive: true, momento: "ABIERTO" })).toBe(true);
+  });
+
+  test("terminada la fiesta, no: ahí manda el álbum", () => {
+    expect(puedeVerElMuro({ guestsCanSeeLive: true, momento: "CERRADO" })).toBe(false);
+  });
+
+  test("antes de empezar tampoco: no hay nada en vivo todavía", () => {
+    expect(puedeVerElMuro({ guestsCanSeeLive: true, momento: "ANTES" })).toBe(false);
+  });
+
+  test("el fotógrafo lo puede apagar", () => {
+    // El que tiene pantalla y prefiere que el salón mire hacia arriba.
+    expect(puedeVerElMuro({ guestsCanSeeLive: false, momento: "ABIERTO" })).toBe(false);
   });
 });
