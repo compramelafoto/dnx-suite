@@ -49,6 +49,17 @@ export type FinalizeAlbumOrderMpResult =
       paymentId: string;
       originalPaymentId: string;
     }
+  /**
+   * El pago ya está asignado a OTRO pedido (p. ej. un duplicado que se resolvió a mano creando
+   * un pedido nuevo con ese mpPaymentId, como el 4646): ya está resuelto, sin avisos.
+   */
+  | {
+      ok: true;
+      skipped: "payment_assigned_elsewhere";
+      orderId: number;
+      paymentId: string;
+      assignedOrderId: number;
+    }
   | { ok: true; applied: true; orderId: number; paymentId: string }
   | { ok: false; orderId: number; paymentId?: string; error: string };
 
@@ -170,6 +181,19 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     // Pedido ya pagado con OTRO pago: el comprador pagó dos veces (pedido 4645, 11/10/2026).
     // Antes se ignoraba en silencio; ahora se confirma contra MP, se registra y se avisa.
     if (classifyApprovedPaymentOnAlbumOrder(order, paymentId) === "duplicate_payment") {
+      const assignedElsewhere = await prisma.order.findFirst({
+        where: { mpPaymentId: String(paymentId), id: { not: orderId } },
+        select: { id: true },
+      });
+      if (assignedElsewhere) {
+        return {
+          ok: true,
+          skipped: "payment_assigned_elsewhere",
+          orderId,
+          paymentId,
+          assignedOrderId: assignedElsewhere.id,
+        };
+      }
       const originalPaymentId = String(order.mpPaymentId);
       let duplicatePay: PaymentInfo | null = null;
       try {

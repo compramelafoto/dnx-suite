@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const orderFindUnique = vi.fn();
+const orderFindFirst = vi.fn();
 const userFindUnique = vi.fn();
 const getPaymentById = vi.fn();
 const queueEmail = vi.fn();
@@ -8,7 +9,11 @@ const registerAuditEvent = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    order: { findUnique: (...a: unknown[]) => orderFindUnique(...a), update: vi.fn() },
+    order: {
+      findUnique: (...a: unknown[]) => orderFindUnique(...a),
+      findFirst: (...a: unknown[]) => orderFindFirst(...a),
+      update: vi.fn(),
+    },
     user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
   },
 }));
@@ -92,6 +97,7 @@ function approvedPayment(id: string, externalReference = "4645") {
 describe("finalizeAlbumOrderMercadoPagoApproved — cobro duplicado", () => {
   beforeEach(() => {
     orderFindUnique.mockReset().mockResolvedValue(paidOrder);
+    orderFindFirst.mockReset().mockResolvedValue(null);
     userFindUnique.mockReset().mockResolvedValue({ name: "Ana", email: "ana@example.com" });
     getPaymentById.mockReset();
     queueEmail.mockReset().mockResolvedValue({ id: 1, queued: true });
@@ -148,5 +154,26 @@ describe("finalizeAlbumOrderMercadoPagoApproved — cobro duplicado", () => {
     expect(res.ok && "skipped" in res && res.skipped).toBe("already_paid");
     expect(queueEmail).not.toHaveBeenCalled();
     expect(registerAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("pago ya asignado a otro pedido (resuelto a mano, p. ej. 4646): sin avisos ni auditoría", async () => {
+    orderFindFirst.mockResolvedValue({ id: 4646 });
+    const res = await finalizeAlbumOrderMercadoPagoApproved(4645, "183660994910");
+    expect(res).toEqual({
+      ok: true,
+      skipped: "payment_assigned_elsewhere",
+      orderId: 4645,
+      paymentId: "183660994910",
+      assignedOrderId: 4646,
+    });
+    expect(orderFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { mpPaymentId: "183660994910", id: { not: 4645 } },
+      })
+    );
+    expect(getPaymentById).not.toHaveBeenCalled();
+    expect(queueEmail).not.toHaveBeenCalled();
+    expect(registerAuditEvent).not.toHaveBeenCalled();
+    expect(console.error).not.toHaveBeenCalledWith("[duplicate-payment]", expect.anything());
   });
 });
