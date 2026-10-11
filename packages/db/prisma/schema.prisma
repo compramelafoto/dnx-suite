@@ -19342,6 +19342,14 @@ model SubilafotoEventVendor {
   partnerId       String
   category        String
   roleNote        String?
+  /// Banner del proveedor, para el pie del teléfono del invitado.
+  ///
+  /// Va acá y no en `DnxPartner` porque ese modelo es compartido con las otras apps y
+  /// esto es de SubiLaFoto, y porque la ficha se completa **por evento**. Ver
+  /// `lib/banners-rotativos.ts`.
+  bannerUrl       String?
+  /// A dónde lleva al tocarlo. Sólo https. Ver `lib/banner.ts`.
+  bannerLinkUrl   String?
   invitedAt       DateTime?
   completedAt     DateTime?
   invitationToken String?   @unique
