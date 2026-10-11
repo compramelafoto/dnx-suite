@@ -2286,6 +2286,11 @@ model Album {
   printPricingSource              PrintPricingSource             @default(PHOTOGRAPHER)
   deletedAt                       DateTime?
   /// Estado del pipeline de limpieza por retención (45 días).
+  /// Interruptor por álbum para la búsqueda por dorsal, patente o nombre.
+  ///
+  /// `null` significa "decidí vos" y cae a la regla por tipo de álbum (sólo SPORTS).
+  /// Leer el texto de las fotos lo cobra Amazon por foto. Ver `lib/analysis/should-run-ocr.ts`.
+  textSearchEnabled Boolean?
   cleanupStatus                   AlbumCleanupStatus             @default(NONE)
   cleanupPendingAt                DateTime?
   cleanupStartedAt                DateTime?
@@ -3415,6 +3420,12 @@ model PhotoAnalysisJob {
   lockedAt  DateTime?
   runAfter  DateTime?
   lastError String?
+  /// Cuándo falló por algo nuestro: credenciales, cupo, red, caída del servicio.
+  ///
+  /// Exime a este trabajo del tope de antigüedad del cron. Una foto que no se analizó
+  /// porque se nos cayó la credencial no es vieja: es una que debemos. Se borra al
+  /// analizarla. Ver `lib/analysis/analysis-failure-kind.ts`.
+  infraFailureAt DateTime?
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
   photo     Photo               @relation(fields: [photoId], references: [id], onDelete: Cascade)
@@ -19077,6 +19088,12 @@ model SubilafotoEvent {
   themeTokens        Json?
   coverUrl           String?
   closingCardText    String?
+  /// Lo que el fotógrafo confirmó sobre el salón, con la fecha de cada confirmación.
+  ///
+  /// `{ "pantalla": "2026-10-11T12:00:00.000Z" }`. Guarda la fecha y no un sí: una
+  /// confirmación hecha hace tres semanas vale menos que una de ayer. Ver
+  /// `lib/preparacion.ts`.
+  preparacion        Json?
   /// Qué foto está proyectándose ahora mismo, según la última vez que avisó la pantalla.
   ///
   /// La pantalla es la única que sabe qué se está viendo: la rotación la decide ella,
@@ -19099,6 +19116,12 @@ model SubilafotoEvent {
   /// trabajo del fotógrafo antes de que lo venda, y además expone a todos los invitados
   /// a que cualquiera se lleve sus fotos.
   guestsCanSeeAlbum  Boolean                     @default(false)
+  /// Si el invitado ve en su teléfono lo que se está subiendo **ahora**.
+  ///
+  /// No es el álbum: es lo reciente, en chico, y sólo mientras el evento corre. Nace
+  /// **encendido** al revés que el álbum, porque sin pantalla en el salón el invitado
+  /// sube una foto y no recibe nada. Ver `lib/album.ts`.
+  guestsCanSeeLive   Boolean                     @default(true)
   guestsCanDownload  Boolean                     @default(false)
   moderationProfile  SubilafotoModerationProfile @default(SOCIAL)
   downloadStatus     SubilafotoDownloadStatus    @default(NOT_OFFERED)
@@ -19334,6 +19357,14 @@ model SubilafotoEventVendor {
   partnerId       String
   category        String
   roleNote        String?
+  /// Banner del proveedor, para el pie del teléfono del invitado.
+  ///
+  /// Va acá y no en `DnxPartner` porque ese modelo es compartido con las otras apps y
+  /// esto es de SubiLaFoto, y porque la ficha se completa **por evento**. Ver
+  /// `lib/banners-rotativos.ts`.
+  bannerUrl       String?
+  /// A dónde lleva al tocarlo. Sólo https. Ver `lib/banner.ts`.
+  bannerLinkUrl   String?
   invitedAt       DateTime?
   completedAt     DateTime?
   invitationToken String?   @unique
@@ -23730,6 +23761,14 @@ model CulturalActivity {
   contestWorks   CulturalContestWork[]
   contestAuthors CulturalContestAuthor[]
 
+  /// Venta de obras (etapa 8).
+  saleSetup       CulturalSaleSetup?
+  saleAuthorTerms CulturalSaleAuthorTerms[]
+  saleFiles       CulturalSaleFile[]
+  workOffers      CulturalWorkOffer[]
+  editionCopies   CulturalEditionCopy[]
+  saleOrders      CulturalSaleOrder[]
+
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
   @@index([workspaceId])
@@ -24269,4 +24308,241 @@ model CulturalContestAuthor {
   @@unique([activityId, userId])
   @@index([userId])
   @@index([importId])
+}
+
+/// Venta habilitada en una muestra (Muestras, etapa 8). Los porcentajes son puntos básicos sobre el
+/// precio de la obra: plataforma + organización + fotógrafo = 10000.
+model CulturalSaleSetup {
+  id              String           @id @default(cuid())
+  activityId      String           @unique
+  activity        CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  /// DRAFT | OPEN | PAUSED | CLOSED
+  status          String           @default("DRAFT")
+  /// Quién cobra por la organización (dueño de la muestra al encender la venta).
+  organizerUserId Int
+  platformFeeBps  Int
+  organizerBps    Int
+  photographerBps Int
+  splitVersion    Int              @default(1)
+  pickupText      String?
+  shippingEnabled Boolean          @default(false)
+  shippingCostArs Int?
+  shippingText    String?
+  extraTerms      String?
+  openedAt        DateTime?
+  createdByUserId Int
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+/// Aceptación del reparto por cada autor en una muestra.
+model CulturalSaleAuthorTerms {
+  id              String           @id @default(cuid())
+  activityId      String
+  activity        CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId          Int
+  splitVersion    Int
+  platformFeeBps  Int
+  organizerBps    Int
+  photographerBps Int
+  textVersion     String
+  acceptedAt      DateTime         @default(now())
+
+  @@unique([activityId, userId])
+  @@index([userId])
+}
+
+/// Cuenta de Mercado Pago que recibe reparto, por persona y ambiente (SANDBOX | PRODUCTION).
+/// El consentimiento vive en Mercado Pago; acá se guarda la última lectura.
+model CulturalPayoutAccount {
+  id            String    @id @default(cuid())
+  userId        Int
+  environment   String
+  mpEmail       String
+  receiverId    String?
+  /// NONE | PENDING | ACTIVE | REJECTED | CANCELED | EXPIRED
+  consentStatus String    @default("NONE")
+  inviteUrl     String?
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, environment])
+  @@index([receiverId])
+}
+
+/// Archivo original de una obra para la venta, en el bucket privado. `activityWorkId` sin FK.
+model CulturalSaleFile {
+  id             String           @id @default(cuid())
+  activityWorkId String           @unique
+  activityId     String
+  activity       CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  authorUserId   Int
+  storageKey     String
+  sha256         String?
+  bytes          Int?
+  mime           String?
+  widthPx        Int?
+  heightPx       Int?
+  /// PENDING_UPLOAD | READY | REJECTED
+  status         String           @default("PENDING_UPLOAD")
+  problem        String?
+  uploadedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([activityId])
+  @@index([authorUserId])
+}
+
+/// Firma manuscrita escaneada del autor (bucket privado). Sólo va dentro del certificado.
+model CulturalAuthorSignature {
+  userId     Int      @id
+  storageKey String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// Un formato a la venta de una obra: digital o impresa, única o edición limitada.
+model CulturalWorkOffer {
+  id               String           @id @default(cuid())
+  activityId       String
+  activity         CulturalActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityWorkId   String
+  authorUserId     Int
+  /// DIGITAL | PRINT
+  format           String
+  /// UNIQUE | LIMITED
+  editionKind      String
+  editionSize      Int
+  proofCount       Int              @default(0)
+  priceArs         Int
+  /// Precio vigente aprobado por la organización (se vende a este mientras un cambio espera aprobación).
+  approvedPriceArs Int?
+  paper            String?
+  widthCm          Float?
+  heightCm         Float?
+  /// DRAFT | PROPOSED | CHANGES_REQUESTED | APPROVED | PAUSED | WITHDRAWN
+  status           String           @default("DRAFT")
+  /// AUTHOR | ORGANIZER: quién la pausó (el autor no reanuda lo que pausó la organización).
+  pausedBy         String?
+  reviewNote       String?
+  proposedAt       DateTime?
+  approvedAt       DateTime?
+  approvedByUserId Int?
+  firstSoldAt      DateTime?
+  /// Para unir más adelante una misma edición vendida en varias muestras (sin uso en la etapa 8).
+  editionGroupId   String?
+  sortOrder        Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  copies CulturalEditionCopy[]
+  orders CulturalSaleOrder[]
+
+  @@index([activityId, status])
+  @@index([activityWorkId])
+  @@index([authorUserId])
+}
+
+/// Un número de una edición. Una copia ISSUED o VOIDED nunca se reutiliza.
+model CulturalEditionCopy {
+  id                   String            @id @default(cuid())
+  offerId              String
+  offer                CulturalWorkOffer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  activityId           String
+  activity             CulturalActivity  @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  isTest               Boolean           @default(false)
+  /// COPY | PROOF
+  kind                 String
+  number               Int
+  /// RESERVED | ISSUED | VOIDED | RELEASED
+  status               String
+  reservedUntil        DateTime?
+  orderId              String?
+  certificateCode      String?           @unique
+  certificateKid       String?
+  certificatePayload   String?
+  certificateSignature String?
+  issuedAt             DateTime?
+  voidedAt             DateTime?
+  voidReason           String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@unique([offerId, isTest, kind, number])
+  @@index([activityId])
+  @@index([orderId])
+}
+
+/// Pedido de compra de una copia. El comprador no necesita cuenta.
+model CulturalSaleOrder {
+  id                   String            @id @default(cuid())
+  publicId             String            @unique
+  accessTokenHash      String
+  activityId           String
+  activity             CulturalActivity  @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  offerId              String
+  offer                CulturalWorkOffer @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  copyId               String?           @unique
+  isTest               Boolean           @default(false)
+  buyerName            String
+  buyerEmail           String
+  buyerPhone           String?
+  buyerOnCertificate   Boolean           @default(false)
+  /// DIGITAL | PICKUP | SHIPPING
+  delivery             String
+  shippingAddress      Json?
+  priceArs             Int
+  shippingArs          Int               @default(0)
+  totalCents           Int
+  platformCents        Int
+  organizerCents       Int
+  photographerCents    Int
+  splitSnapshot        Json
+  /// PENDING_PAYMENT | PAID | REJECTED | EXPIRED | REFUNDED | CHARGED_BACK | PAID_NO_COPY
+  status               String            @default("PENDING_PAYMENT")
+  /// NONE | PENDING | IN_PRODUCTION | READY | SHIPPED | DELIVERED
+  fulfillment          String            @default("NONE")
+  trackingText         String?
+  externalReference    String            @unique
+  providerOrderId      String?           @unique
+  providerStatus       String?
+  providerStatusDetail String?
+  idempotencyKey       String            @unique
+  termsVersion         String
+  holdExpiresAt        DateTime
+  paidAt               DateTime?
+  readyAt              DateTime?
+  shippedAt            DateTime?
+  deliveredAt          DateTime?
+  refundRequestedAt    DateTime?
+  regretRequestedAt    DateTime?
+  refundedAt           DateTime?
+  lastSyncedAt         DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  events CulturalSaleEvent[]
+
+  @@index([activityId, status])
+  @@index([offerId])
+  @@index([status, holdExpiresAt])
+}
+
+/// Historial de un pedido: de dónde vino cada cambio.
+model CulturalSaleEvent {
+  id             String            @id @default(cuid())
+  orderId        String
+  order          CulturalSaleOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// CREATE | RETURN | NOTICE | SWEEP | ADMIN | STAFF | BUYER
+  source         String
+  fromStatus     String?
+  toStatus       String?
+  providerStatus String?
+  detail         String?
+  actorUserId    Int?
+  createdAt      DateTime          @default(now())
+
+  @@index([orderId, createdAt])
 }

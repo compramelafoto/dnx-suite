@@ -52,7 +52,7 @@ export function TemplateVariableBraceInsertPanel({
 
   return (
     <div
-      className="mb-4 rounded-xl border border-[#bbf7d0] bg-[color:var(--te-chrome-sunken)] px-3 py-2.5 shadow-sm"
+      className="mb-4 rounded-xl border border-[color:var(--te-success)] bg-[color:var(--te-chrome-sunken)] px-3 py-2.5 shadow-sm"
       data-testid="template-v2-variable-catalog"
     >
       <p className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--te-success)]">
@@ -77,7 +77,7 @@ export function TemplateVariableBraceInsertPanel({
                   type="button"
                   data-testid={`template-v2-variable-key-${v.key.replace(/\./g, "-")}`}
                   className={cn(
-                    "rounded-md border border-emerald-200/90 bg-white px-2 py-1.5 text-left transition-colors",
+                    "rounded-md border border-emerald-200/90 bg-[color:var(--te-surface)] px-2 py-1.5 text-left transition-colors",
                     "hover:border-[color:var(--te-accent-wash)] hover:bg-[color:var(--te-accent-wash)]"
                   )}
                   onMouseDown={(e) => e.preventDefault()}

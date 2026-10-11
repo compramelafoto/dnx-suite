@@ -549,6 +549,7 @@ export async function PATCH(
       termsAccepted,
       showComingSoonMessage,
       scanProtectionEnabled,
+      textSearchEnabled,
       isPublic,
       hiddenPhotosEnabled,
       hiddenSelfieRetentionDays,
@@ -728,6 +729,16 @@ export async function PATCH(
     }
     if (isPublic !== undefined) {
       (updateData as { isPublic?: boolean }).isPublic = Boolean(isPublic);
+    }
+
+    if (textSearchEnabled !== undefined) {
+      /*
+        Tri-estado: `null` es "no lo configuré" y deja decidir al tipo de álbum. Por eso
+        no se castea a booleano como los demás interruptores — un `Boolean(null)` acá
+        apagaría la lectura de texto en los álbumes deportivos que hoy funcionan.
+      */
+      (updateData as { textSearchEnabled?: boolean | null }).textSearchEnabled =
+        textSearchEnabled === null ? null : Boolean(textSearchEnabled);
     }
 
     if (scanProtectionEnabled !== undefined) {

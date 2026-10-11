@@ -42,7 +42,7 @@ export default function Button({
     variant === "primary"
       ? "text-white shadow-[0_4px_14px_0_rgba(0,0,0,0.1)] hover:shadow-[0_8px_25px_-5px_rgba(0,0,0,0.15)] active:scale-[0.98] focus-visible:ring-[var(--ds-btn-accent)]"
       : variant === "secondary"
-        ? "border border-[color:var(--te-ink-faint)] bg-white text-[color:var(--te-ink)] shadow-sm hover:border-[color:var(--te-ink-faint)] hover:text-[color:var(--te-ink)] hover:shadow-md active:scale-[0.98] focus-visible:ring-[color:var(--te-ink-faint)]"
+        ? "border border-[color:var(--te-ink-faint)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] shadow-sm hover:border-[color:var(--te-ink-faint)] hover:text-[color:var(--te-ink)] hover:shadow-md active:scale-[0.98] focus-visible:ring-[color:var(--te-ink-faint)]"
         : variant === "outline"
           ? "border border-[color:var(--te-line)] bg-transparent text-[color:var(--te-ink)] hover:bg-[color:var(--te-chrome)] active:scale-[0.98] focus-visible:ring-[color:var(--te-ink-faint)]"
           : "text-white shadow-[0_6px_18px_-8px_rgba(17,24,39,0.5)] active:scale-[0.98] focus-visible:ring-[var(--ds-btn-accent)]";

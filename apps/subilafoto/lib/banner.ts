@@ -69,6 +69,21 @@ export function esClaveDeBanner(valor: string | null | undefined): boolean {
  *
  * Sin enlace también vale: el banner puede ser sólo una imagen.
  */
+/**
+ * ¿Es la clave del banner de un proveedor?
+ *
+ * Cuelga del **evento** y no del perfil del vendedor: es de la participación de ese
+ * proveedor en esa fiesta, así que desaparece con ella a los 30 días. El del fotógrafo
+ * vive en `banners/` porque sobrevive a los eventos.
+ *
+ * Anclado y sin `..` ni barras dobles, por lo mismo que las otras claves: sin eso una
+ * dirección pegada a mano nos haría firmar cualquier cosa.
+ */
+export function esClaveDeBannerDeProveedor(valor: string | null | undefined): boolean {
+  if (!valor) return false;
+  return /^eventos\/[a-zA-Z0-9_-]+\/proveedor-[a-zA-Z0-9_-]+\.[a-z0-9]+$/.test(valor);
+}
+
 export function enlaceDeBannerValido(valor: string | null | undefined): string | null {
   const limpio = (valor ?? "").trim();
   if (!limpio) return null;

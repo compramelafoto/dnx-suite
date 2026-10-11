@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   // Mismo criterio que fotoffice y clickaton — con webpack, el motor nativo no llega al
   // bundle si se transpila, y toda consulta falla en runtime.
   serverExternalPackages: ["@prisma/client", "@repo/db"],
-  transpilePackages: ["@repo/muestras", "@repo/geo", "@repo/auth-ui"],
+  transpilePackages: ["@repo/muestras", "@repo/geo", "@repo/auth-ui", "@repo/payments"],
   outputFileTracingRoot: path.join(appDir, "../.."),
   outputFileTracingIncludes: {
     "/**": [
@@ -30,6 +30,16 @@ const nextConfig: NextConfig = {
       { source: "/admin", destination: "/panel/revision", permanent: true },
       { source: "/proponer", destination: "/panel/proponer", permanent: false },
     ];
+  },
+  // @repo/payments importa sus propios archivos .ts con extensión ".js" (estilo ESM de Node):
+  // webpack los busca como .ts. Mismo ajuste que compramelafoto, fotoffice y clickaton.
+  webpack(config) {
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
   },
   turbopack: {
     // Silencia la detección errónea de root por lockfiles fuera del monorepo.

@@ -129,7 +129,7 @@ async function main() {
         if (pending === 0) break;
 
         const response = await runAnalysisPipeline({
-          includeOcr: !noOcr,
+          // `--no-ocr` apaga; sin la bandera decide el tipo de álbum.\n          ocrRequested: noOcr ? false : null,
           debug: false,
           source: "admin",
           albumId,

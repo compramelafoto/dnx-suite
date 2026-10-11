@@ -184,6 +184,16 @@ jobs:
       - name: Pruebas de finanzas en la app
         run: pnpm --filter compramelafoto test:finance-dnx
 
+      - name: Pruebas de los frenos de gasto en Amazon
+        run: pnpm --filter compramelafoto test:aws-costos
+
+      # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
+      # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
+      # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos
+      # corredores a la vez, que es como se descubrió.
+      - name: Pruebas del motor de análisis
+        run: pnpm --filter compramelafoto test:analysis
+
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
 

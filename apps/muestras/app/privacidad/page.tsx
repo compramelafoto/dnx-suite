@@ -28,6 +28,11 @@ export default function Privacidad() {
       <p>Si exponés, tu perfil y tu portfolio son públicos; las fotos de tus obras se muestran según lo que elija quien organiza. Las notas para el montaje y el precio sólo los ve la organización.</p>
       <h2 className="pt-2 text-xl font-medium">Concursos de FotoRank</h2>
       <p>Si participaste en un concurso de FotoRank y la organización arma una muestra con sus obras, copiamos la imagen de tu obra, su título, tu nombre y el premio. Tu nombre sólo se publica si las bases que aceptaste lo piden o si lo confirmás; si no, la obra figura como &quot;Autoría reservada&quot;. Vos decidís si se expone y si se puede vender, desde &quot;Dónde expongo&quot;.</p>
+      <h2 className="pt-2 text-xl font-medium">Compras de obras</h2>
+      <p>Si comprás una copia de una obra, guardamos tu nombre, tu email, tu teléfono si lo dejás y, si elegís envío, la dirección: los usamos para entregarte la copia y, si aceptás que figure, tu nombre va en el certificado. Los ven la organización de la muestra y la plataforma; el autor sólo ve tu nombre si aceptaste que figure en el certificado. Tu documento y los datos de tu tarjeta los recibe sólo Mercado Pago: nosotros no los guardamos. Guardamos los datos del pedido mientras exista la copia y su certificado.</p>
+      <p>Si vendés obras, tu firma escaneada se guarda en un archivo privado y se usa sólo en los certificados de tus copias.</p>
+      <p>Para repartir cada cobro, guardamos el email de la cuenta de Mercado Pago de quien cobra (la organización y cada autor) y el permiso de reparto que da en Mercado Pago.</p>
+      <p>La página pública de verificación de un certificado muestra la obra, el autor, la muestra, el número de la copia y la fecha; el nombre de quien compró aparece sólo si aceptó que figure en el certificado.</p>
       <h2 className="pt-2 text-xl font-medium">Pedir la baja de tus datos</h2>
       {contacto ? (
         <p>Escribinos a <a href={`mailto:${contacto}`} className="underline">{contacto}</a> y la tramitamos.</p>

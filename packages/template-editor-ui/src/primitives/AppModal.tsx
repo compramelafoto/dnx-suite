@@ -105,7 +105,7 @@ export default function AppModal({
       <div className="relative z-[1] flex min-h-full items-center justify-center p-4 sm:p-6">
         <div
           className={cn(
-            "relative box-border flex w-full max-h-[min(92vh,900px)] shrink-0 flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-white text-left shadow-xl",
+            "relative box-border flex w-full max-h-[min(92vh,900px)] shrink-0 flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-left shadow-xl",
             SIZE_MAX_CLASS[size],
             panelClassName,
           )}

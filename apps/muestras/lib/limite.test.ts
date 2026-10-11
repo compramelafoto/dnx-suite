@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
 import {
-  LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
-  ipDeLaPeticion, MAX_ENTRADAS, prefijoDeIp, resetRateLimit, tamanoDelFreno,
+  LIMITES, LIMITES_POR_EMAIL, LIMITES_POR_MUESTRA, LIMITES_POR_PEDIDO, LIMITES_PUBLICOS, checkRateLimit, frenarPorEmail, frenarPorIp,
+  frenarPorMuestra, frenarPorPedido, frenarPorUsuario, huellaDeIp, ipDeLaPeticion, MAX_ENTRADAS, prefijoDeIp, resetRateLimit, tamanoDelFreno,
 } from "./limite";
 
 beforeEach(() => resetRateLimit());
@@ -216,5 +216,38 @@ describe("frenos del concurso de FotoRank (etapa 7)", () => {
   });
   it("copiar las imágenes de una muestra llena (300 obras, de a 6) entra en el tope", () => {
     for (let i = 0; i < Math.ceil(MAX_WORKS / 6) + 10; i++) expect(frenarPorUsuario("copiarImagenesConcurso", 1).allowed).toBe(true);
+  });
+});
+
+describe("frenos de la venta (etapa 8)", () => {
+  const h = 60 * 60_000;
+  const diez = 10 * 60_000;
+  it("con sesión", () => {
+    expect(LIMITES.invitarCobro).toEqual({ limit: 10, windowMs: h });
+    expect(LIMITES.verificarCobro).toEqual({ limit: 60, windowMs: h });
+    expect(LIMITES.ventaConfig).toEqual({ limit: 60, windowMs: h });
+    expect(LIMITES.ofertaAutor).toEqual({ limit: 300, windowMs: h });
+    expect(LIMITES.subirOriginal).toEqual({ limit: 30, windowMs: h });
+    expect(LIMITES.revisarOfertas).toEqual({ limit: 600, windowMs: diez });
+    expect(LIMITES.pedidosPanel).toEqual({ limit: 600, windowMs: diez });
+  });
+  it("sin sesión, por IP", () => {
+    expect(LIMITES_PUBLICOS.reservarCopia).toEqual({ limit: 20, windowMs: diez });
+    expect(LIMITES_PUBLICOS.verificar).toEqual({ limit: 60, windowMs: diez });
+    expect(LIMITES_PUBLICOS.avisoPagos).toEqual({ limit: 600, windowMs: diez });
+  });
+  it("por pedido", () => {
+    expect(LIMITES_POR_PEDIDO.pagarPedido).toEqual({ limit: 10, windowMs: diez });
+    expect(LIMITES_POR_PEDIDO.verPedido).toEqual({ limit: 120, windowMs: diez });
+    expect(LIMITES_POR_PEDIDO.descargaVenta).toEqual({ limit: 30, windowMs: h });
+    for (let i = 0; i < 10; i++) expect(frenarPorPedido("pagarPedido", "p1").allowed).toBe(true);
+    expect(frenarPorPedido("pagarPedido", "p1").allowed).toBe(false);
+    expect(frenarPorPedido("pagarPedido", "p2").allowed).toBe(true);
+  });
+  it("por email del comprador, sin guardar el email en claro", () => {
+    expect(LIMITES_POR_EMAIL.reservarCopia).toEqual({ limit: 10, windowMs: diez });
+    for (let i = 0; i < 10; i++) expect(frenarPorEmail("reservarCopia", "Ana@Example.com ").allowed).toBe(true);
+    expect(frenarPorEmail("reservarCopia", "ana@example.com").allowed).toBe(false);
+    expect(frenarPorEmail("reservarCopia", "otra@example.com").allowed).toBe(true);
   });
 });

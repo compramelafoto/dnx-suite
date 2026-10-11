@@ -47,3 +47,27 @@ export function puedeVerElAlbum(entrada: {
 }): boolean {
   return entrada.esElCliente || entrada.guestsCanSeeAlbum;
 }
+
+/**
+ * ¿Se puede ver el muro en vivo?
+ *
+ * **No es el álbum, y la diferencia es el punto.** El álbum es todo lo del evento, para
+ * siempre, con la foto entera: por eso nace cerrado a los invitados. El muro es lo que
+ * está llegando **ahora**, en chico, mientras la fiesta pasa, y se apaga cuando el evento
+ * cierra.
+ *
+ * Existe por la fiesta del 10/10/2026, que no se hizo porque el salón no tenía pantalla.
+ * Sin pantalla, el invitado escanea, sube una foto y no recibe absolutamente nada: la
+ * manda a un pozo. El muro es la pantalla del salón cuando no hay pantalla.
+ *
+ * Nace **encendido**, al revés que el álbum, porque sin él una fiesta sin televisor no
+ * funciona. El fotógrafo que prefiere que el salón mire hacia arriba lo apaga.
+ */
+export function puedeVerElMuro(entrada: {
+  guestsCanSeeLive: boolean;
+  /** `ABIERTO` sólo mientras el evento corre. Ver `lib/acceso-evento.ts`. */
+  momento: "ANTES" | "ABIERTO" | "CERRADO";
+}): boolean {
+  // Terminada la fiesta no hay nada "en vivo" que mostrar: ahí manda el álbum.
+  return entrada.guestsCanSeeLive && entrada.momento === "ABIERTO";
+}

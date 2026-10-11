@@ -1,36 +1,17 @@
-import type { TemplateEditorTheme } from "@repo/template-editor-ui";
+import { DEFAULT_EDITOR_THEME, type TemplateEditorTheme } from "@repo/template-editor-ui";
 
 /**
- * La paleta de FotoOffice, traducida a los tokens del editor.
+ * El diseñador en FotoOffice: el marco oscuro del editor (estilo Photoshop) con el acento de la
+ * institución.
  *
- * Los valores son referencias a las variables de la aplicación, no colores copiados: si mañana
- * la institución cambia su acento, el editor cambia con ella y nadie tiene que acordarse de
- * tocar este archivo.
- *
- * Dos tokens no salen de la aplicación y son decisiones propias del editor:
- *
- * - `void`, el fondo detrás del pliego, es un gris frío oscuro y no el fondo del panel. El
- *   papel tiene que leerse como papel, y contra un fondo claro un pliego blanco desaparece.
- * - `accentInk` es blanco fijo: el acento de FotoOffice es un celeste saturado y el texto
- *   encima tiene que contrastar sí o sí, sin depender de lo que la aplicación defina para otra
- *   cosa.
+ * Antes el marco copiaba los colores claros de la aplicación. Se pasó al tema oscuro común a
+ * todas las plataformas para que la pieza sea lo único claro de la pantalla; el pliego sigue
+ * blanco porque es papel. El acento sigue saliendo de la aplicación: si la institución lo
+ * cambia, el editor cambia con ella.
  */
 export const FOTOFFICE_EDITOR_THEME: TemplateEditorTheme = {
-  void: "#4c535d",
-  chrome: "var(--fo-bg)",
-  chromeSunken: "var(--fo-surface-hover)",
-  surface: "var(--fo-surface)",
-  line: "var(--fo-border)",
-  lineStrong: "var(--fo-border-strong)",
-  ink: "var(--fo-text)",
-  inkMuted: "var(--fo-muted)",
-  inkFaint: "var(--fo-muted-soft)",
+  ...DEFAULT_EDITOR_THEME,
   accent: "var(--fo-accent)",
   accentInk: "#ffffff",
-  accentWash: "var(--fo-accent-muted)",
-  danger: "var(--fo-danger)",
-  dangerWash: "var(--fo-danger-soft)",
-  success: "var(--fo-success)",
-  radius: "var(--fo-radius-sm)",
-  control: "30px",
+  accentWash: "color-mix(in srgb, var(--fo-accent) 24%, transparent)",
 };

@@ -97,7 +97,7 @@ function IconChevronDown({ className }: { className?: string }) {
 }
 
 const fmtMiniBtn =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-sm hover:bg-[#f8f9fa] disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] shadow-sm hover:bg-[color:var(--te-chrome-sunken)] disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Slider compacto para la barra de formato (accent = color de marca). */
 const fmtRange =
@@ -201,7 +201,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
           disabled={locked}
           onClick={() => setFontOpen((o) => !o)}
           className={cn(
-            "flex h-8 max-w-[min(100%,220px)] min-w-[148px] items-center justify-between gap-1 rounded border border-[#babfc5] bg-white px-2.5 text-left text-[12px] text-[color:var(--te-ink)] shadow-sm",
+            "flex h-8 max-w-[min(100%,220px)] min-w-[148px] items-center justify-between gap-1 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2.5 text-left text-[12px] text-[color:var(--te-ink)] shadow-sm",
             locked && "cursor-not-allowed opacity-50"
           )}
           style={{ fontFamily: formatFontFamilyCss(fontFamily) }}
@@ -212,7 +212,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         </button>
         {fontOpen && !locked ? (
           <div
-            className="absolute left-0 top-full z-50 mt-1 max-h-[min(70vh,320px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-md border border-[color:var(--te-line)] bg-white py-1 shadow-lg"
+            className="absolute left-0 top-full z-50 mt-1 max-h-[min(70vh,320px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-md border border-[color:var(--te-line)] bg-[color:var(--te-surface)] py-1 shadow-lg"
             role="listbox"
           >
             {categoryOrder.map((cat) => {
@@ -220,7 +220,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
               if (!items?.length) return null;
               return (
                 <div key={cat}>
-                  <p className="sticky top-0 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-faint)]">
+                  <p className="sticky top-0 bg-[color:var(--te-surface)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-faint)]">
                     {EDITOR_FONT_CATEGORY_LABELS[cat]}
                   </p>
                   {items.map((f) => (
@@ -230,7 +230,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
                       role="option"
                       className={cn(
                         "flex w-full items-center px-2.5 py-2 text-left text-[13px] hover:bg-[color:var(--te-chrome-sunken)]",
-                        f.family === fontFamily && "bg-[#e8f0fe]"
+                        f.family === fontFamily && "bg-[color:var(--te-accent-wash)]"
                       )}
                       style={{ fontFamily: formatFontFamilyCss(f.family) }}
                       onClick={() => {
@@ -267,7 +267,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         <input
           type="number"
           disabled={locked}
-          className="h-7 w-11 rounded border border-[color:var(--te-line)] bg-white px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
+          className="h-7 w-11 rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
           value={Math.round(fontSize)}
           min={8}
           max={400}
@@ -350,7 +350,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         </button>
         <label
           className={cn(
-            "inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border border-[color:var(--te-line)] bg-white shadow-sm",
+            "inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-sm",
             locked && "pointer-events-none opacity-40"
           )}
           title="Color del texto"

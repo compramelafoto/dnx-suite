@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
+  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, activitySalesHref, showActivitySales, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
   type ReviewStatus,
 } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
@@ -62,6 +62,9 @@ export default async function EditarActividad({
           ? { href: `/panel/muestras/${a.id}/visibilidad`, texto: `Visibilidad (${VISIBILITY_PRESET_LABELS[parseVisibility(visibilidad.visibility, visibilidad.galleryMode).preset]})` }
           : null,
         puede(usuario, "hanging", rol) ? { href: `/panel/montaje/${a.id}`, texto: "Montaje e impresión" } : null,
+        showActivitySales({ canSales: puede(usuario, "sales", rol), canFulfill: puede(usuario, "salesFulfill", rol) })
+          ? { href: activitySalesHref(a.id), texto: "Ventas" }
+          : null,
         estado === "APPROVED" && puede(usuario, "stats", rol) ? { href: `/panel/estadisticas/${a.id}`, texto: "Estadísticas y libro de visitas" } : null,
         estado === "APPROVED" && puede(usuario, "promote", rol) ? { href: `/panel/difusion/${a.id}`, texto: "Difusión" } : null,
         !a.isVirtualOnly && puede(usuario, "rsvp", rol) ? { href: `/panel/difusion/${a.id}/inauguracion`, texto: "Inauguración" } : null,

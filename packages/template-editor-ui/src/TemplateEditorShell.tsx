@@ -6,6 +6,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -267,14 +268,18 @@ function RightSidebarSectionChevron({ open, className }: { open: boolean; classN
   );
 }
 
-/** Encabezado + botón para plegar/desplegar; el panel lateral hace scroll único. */
+/**
+ * Encabezado plegable al estilo de los paneles de Photoshop: una franja baja que se cliquea
+ * entera. El panel lateral hace scroll único. `flush` deja el contenido sin margen para los
+ * paneles que ya traen sus propias secciones con separadores.
+ */
 function RightSidebarSection({
   sectionId,
   title,
   open,
   onToggle,
   children,
-  variant = "muted",
+  flush = false,
 }: {
   sectionId: string;
   title: string;
@@ -282,38 +287,32 @@ function RightSidebarSection({
   onToggle: () => void;
   children: ReactNode;
   variant?: "muted" | "white";
+  flush?: boolean;
 }) {
   return (
-    <section
-      className={cn(
-        "border-b border-[color:var(--te-line)]",
-        variant === "muted" ? "bg-[color:var(--te-chrome)]" : "bg-white"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
+    <section className="border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)]">
+      <button
+        type="button"
+        className="flex h-7 w-full items-center gap-1.5 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 text-left transition-colors hover:bg-[color:var(--te-line)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--te-accent)]"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={`${sectionId}-content`}
+        title={open ? "Minimizar panel" : "Desplegar panel"}
+      >
+        <RightSidebarSectionChevron open={open} className="h-3 w-3" />
         <h3
           id={`${sectionId}-heading`}
-          className="text-xs font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]"
+          className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--te-ink)]"
         >
           {title}
         </h3>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-muted)] transition-colors hover:bg-black/[0.04] hover:text-[color:var(--te-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-controls={`${sectionId}-content`}
-          title={open ? "Minimizar bloque" : "Desplegar bloque"}
-        >
-          <RightSidebarSectionChevron open={open} />
-        </button>
-      </div>
+      </button>
       {open ? (
         <div
           id={`${sectionId}-content`}
           role="region"
           aria-labelledby={`${sectionId}-heading`}
-          className="px-3 pb-3 pt-0"
+          className={flush ? "" : "px-3 py-2"}
         >
           {children}
         </div>
@@ -381,6 +380,14 @@ export function TemplateEditorShell({
   const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
   /** El área donde se dibuja. De ahí sale la medida para ajustar el zoom. */
   const areaLienzoRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * La fila del editor (herramientas, lienzo, panel derecho) ocupa exactamente desde donde
+   * empieza hasta el borde inferior de la ventana. Sin ese tope, el panel de propiedades largo
+   * estiraba la fila: el lienzo quedaba centrado en un área más alta que la pantalla, corrido
+   * hacia abajo y cortado. Se mide en vivo porque cada app pone una cabecera de distinto alto.
+   */
+  const filaEditorRef = useRef<HTMLDivElement | null>(null);
+  const [altoFilaEditor, setAltoFilaEditor] = useState<number | null>(null);
   const [showCenterAxes, setShowCenterAxes] = useState(true);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
@@ -568,12 +575,17 @@ export function TemplateEditorShell({
     const caja = areaLienzoRef.current?.getBoundingClientRect();
     if (!caja) return;
     const s = stateRef.current;
+    /*
+     * El área puede ser más alta que la pantalla: el panel de propiedades largo estira la fila
+     * entera. Lo que importa es lo que se ve, así que el alto se corta en el borde de la ventana.
+     */
+    const altoVisible = Math.min(caja.height, window.innerHeight - Math.max(caja.top, 0));
     const z = fitZoom({
       canvasWidth: s.canvas.width,
       canvasHeight: s.canvas.height,
       viewportWidth: caja.width,
       // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
-      viewportHeight: caja.height - BARRA_ESTADO_PX,
+      viewportHeight: altoVisible - BARRA_ESTADO_PX,
     });
     /*
      * El ajuste automático se marca como "auto" para no contar como zoom elegido a mano: si
@@ -893,6 +905,18 @@ export function TemplateEditorShell({
 
   const editorReady = state.loadStatus === "ready";
 
+  useLayoutEffect(() => {
+    const fila = filaEditorRef.current;
+    if (!fila || !editorReady) return;
+    const medir = () => {
+      const top = fila.getBoundingClientRect().top + window.scrollY;
+      setAltoFilaEditor(Math.max(360, Math.floor(window.innerHeight - top)));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [editorReady]);
+
   /*
    * Al abrir, la plantilla entra entera. Antes se abría al 100% y una pieza más grande que la
    * ventana aparecía cortada: había que alejar a mano antes de poder ver lo que se editaba.
@@ -906,11 +930,17 @@ export function TemplateEditorShell({
 
     ajustarALaVentana("auto");
 
-    const observer = new ResizeObserver(() => {
+    const reajustar = () => {
       if (!stateRef.current.zoomUserAdjusted) ajustarALaVentana("auto");
-    });
+    };
+    const observer = new ResizeObserver(reajustar);
     observer.observe(area);
-    return () => observer.disconnect();
+    // El alto que se ve depende de la ventana, no sólo del área: achicarla no siempre la redimensiona.
+    window.addEventListener("resize", reajustar);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", reajustar);
+    };
   }, [editorReady, ajustarALaVentana, state.canvas.width, state.canvas.height]);
 
 
@@ -1140,8 +1170,8 @@ export function TemplateEditorShell({
                         className={cn(
                           "min-w-[4.5rem] max-w-[160px] rounded-md border px-2 py-1 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm outline-none focus:ring-2 focus:ring-[color:var(--te-accent-wash)]",
                           active
-                            ? "border-[color:var(--te-accent)] bg-white"
-                            : "border-[color:var(--te-ink-faint)] bg-white"
+                            ? "border-[color:var(--te-accent)] bg-[color:var(--te-surface)]"
+                            : "border-[color:var(--te-ink-faint)] bg-[color:var(--te-surface)]"
                         )}
                         value={pageLabelEdit.value}
                         onChange={(e) => setPageLabelEdit({ index: i, value: e.target.value })}
@@ -1182,8 +1212,8 @@ export function TemplateEditorShell({
                       className={cn(
                         "max-w-[160px] truncate rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                         active
-                          ? "border-[color:var(--te-accent)] bg-white text-[color:var(--te-accent)] shadow-sm"
-                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-white hover:text-[color:var(--te-ink)]",
+                          ? "border-[color:var(--te-accent)] bg-[color:var(--te-surface)] text-[color:var(--te-accent)] shadow-sm"
+                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-[color:var(--te-surface)] hover:text-[color:var(--te-ink)]",
                         canReorder && "cursor-grab active:cursor-grabbing",
                         sheetDragFrom === i && "opacity-60",
                         sheetDragOver === i && sheetDragFrom !== i && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1"
@@ -1251,7 +1281,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[#fff1f2] hover:text-[color:var(--te-danger)]"
+                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]"
                   )}
                   onClick={() => dispatch(removeTemplatePage())}
                   disabled={state.templatePageCount <= 1}
@@ -1284,12 +1314,12 @@ export function TemplateEditorShell({
             {saveErrorMessage ? (
               <div
                 ref={conflictBannerRef}
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5"
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5"
                 data-testid="template-v2-error-banner"
                 role="alert"
                 tabIndex={-1}
               >
-                <p className="text-xs text-red-700">{saveErrorMessage}</p>
+                <p className="text-xs text-[color:var(--te-danger)]">{saveErrorMessage}</p>
                 {saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE ? (
                   <Button
                     type="button"
@@ -1305,9 +1335,9 @@ export function TemplateEditorShell({
               </div>
             ) : null}
             {backgroundUploadError ? (
-              <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{backgroundUploadError}</p>
+              <p className="border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5 text-xs text-[color:var(--te-danger)]">{backgroundUploadError}</p>
             ) : null}
-            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{saveAsNewError}</p> : null}
+            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5 text-xs text-[color:var(--te-danger)]">{saveAsNewError}</p> : null}
             </>
           ) : null}
         </header>
@@ -1322,31 +1352,31 @@ export function TemplateEditorShell({
             <ul className="mt-3 max-h-[min(50vh,420px)] space-y-2.5 overflow-y-auto text-xs text-[color:var(--te-ink)]">
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Guardar</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + S
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Herramienta texto / selección / mano</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   T · V · H
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover vista del lienzo (arrastrar el área gris)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Barra espaciadora + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Duplicar bloque (selección primaria)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + D
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Eliminar selección</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Supr / Retroceso
                 </kbd>
               </li>
@@ -1354,7 +1384,7 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">
                   Sumar o quitar de la selección · arrastrar en conjunto
                 </span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Mayús + clic
                 </kbd>
               </li>
@@ -1362,61 +1392,61 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">
                   Elegir lo que está debajo (una capa por clic)
                 </span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + clic
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover bloque · paso fino / grueso</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Flechas · Mayús + Flechas
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Deshacer</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Z
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Rehacer</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + Z · Ctrl + Y
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Copiar / pegar bloque (primario)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + C · ⌘/Ctrl + V
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Vista previa</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + P
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Quitar selección · cerrar preview</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Escape
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Zoom · vista 100% y centrar</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ± · ⌘/Ctrl + 0
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Duplicar y arrastrar copia (el original no se mueve)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Alt + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-[color:var(--te-ink-muted)]">Capa adelante / atrás (primario)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ] · ⌘/Ctrl + [
                 </kbd>
               </li>
@@ -1436,13 +1466,17 @@ export function TemplateEditorShell({
 
         {loadError ? (
           <Card className="m-4 p-6">
-            <p className="text-sm text-red-600">Error al cargar versión de plantilla.</p>
+            <p className="text-sm text-[color:var(--te-danger)]">Error al cargar versión de plantilla.</p>
             <p className="mt-2 break-all text-xs text-[color:var(--te-ink-muted)]">{loadError}</p>
           </Card>
         ) : !editorReady ? (
           <div className="flex flex-1 items-center justify-center py-20 text-sm text-[color:var(--te-ink-muted)]">Cargando editor…</div>
         ) : (
-          <div className="flex min-h-[min(88vh,calc(100vh-8rem))] w-full min-w-0 flex-1">
+          <div
+            ref={filaEditorRef}
+            className="flex min-h-[360px] w-full min-w-0 flex-1"
+            style={altoFilaEditor ? { height: altoFilaEditor } : { minHeight: "min(88vh, calc(100vh - 8rem))" }}
+          >
             <aside
               className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1a1d24] bg-[#2b3038] py-2"
               aria-label="Herramientas"
@@ -1668,7 +1702,7 @@ export function TemplateEditorShell({
                   title="Capas"
                   open={rightPanelLayersOpen}
                   onToggle={() => setRightPanelLayersOpen((v) => !v)}
-                  variant="muted"
+                  flush
                 >
                   <TemplateEditorLayers state={state} dispatch={dispatch} />
                 </RightSidebarSection>
@@ -1678,7 +1712,7 @@ export function TemplateEditorShell({
                   title="Propiedades"
                   open={rightPanelInspectorOpen}
                   onToggle={() => setRightPanelInspectorOpen((v) => !v)}
-                  variant="white"
+                  flush
                 >
                   <TemplateEditorInspector
                     selectedBlock={selectedBlock}
@@ -1750,7 +1784,7 @@ export function TemplateEditorShell({
           onClick={closePreview}
         >
           <div
-            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-white shadow-2xl"
+            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-4 py-3">
@@ -1769,7 +1803,7 @@ export function TemplateEditorShell({
                 </div>
               ) : previewError ? (
                 <p
-                  className="text-center text-sm text-red-600"
+                  className="text-center text-sm text-[color:var(--te-danger)]"
                   data-testid="template-v2-preview-error"
                 >
                   {previewError}
@@ -1780,7 +1814,7 @@ export function TemplateEditorShell({
                     data-testid="template-v2-preview-image"
                     role="img"
                     aria-label="Vista previa de la plantilla"
-                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-white shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
+                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
                     // El dibujo lo produce el módulo de impresión de este mismo monorepo, no
                     // el navegador ni contenido de terceros: los textos van escapados y las
                     // imágenes se limitan a direcciones http(s) y a mapas de bits.

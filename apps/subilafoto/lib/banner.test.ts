@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { enlaceDeBannerValido } from "./banner";
+import { enlaceDeBannerValido, esClaveDeBannerDeProveedor } from "./banner";
 
 describe("a dónde puede llevar el banner", () => {
   test("a un sitio con https", () => {
@@ -49,5 +49,23 @@ describe("a dónde puede llevar el banner", () => {
 
   test("se recortan los espacios de los bordes", () => {
     expect(enlaceDeBannerValido("  https://misitio.com  ")).toBe("https://misitio.com");
+  });
+});
+
+describe("la clave del banner de un proveedor", () => {
+  test("cuelga del evento, para que la borre la purga a los 30 días", () => {
+    // El del fotógrafo vive en `banners/` porque sobrevive a los eventos; el del
+    // proveedor es de esa fiesta y se va con ella.
+    expect(esClaveDeBannerDeProveedor("eventos/ABC123/proveedor-deadbeef.jpg")).toBe(true);
+  });
+
+  test("no se confunde con una foto ni con una portada del mismo evento", () => {
+    expect(esClaveDeBannerDeProveedor("eventos/ABC/portada-x.jpg")).toBe(false);
+    expect(esClaveDeBannerDeProveedor("eventos/ABC/cmua0tpzk0001l304or8j38la.jpg")).toBe(false);
+  });
+
+  test("una dirección pegada que empieza parecido, no", () => {
+    expect(esClaveDeBannerDeProveedor("https://ajeno.com/eventos/X/proveedor-y.jpg")).toBe(false);
+    expect(esClaveDeBannerDeProveedor("eventos/../../x/proveedor-y.jpg")).toBe(false);
   });
 });
