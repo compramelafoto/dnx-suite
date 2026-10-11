@@ -9,6 +9,10 @@ const db = vi.hoisted(() => ({
   culturalActivity: { findFirst: vi.fn(), findMany: vi.fn() },
   culturalActivityGuestbookEntry: { findMany: vi.fn() },
   photographerProfile: { findUnique: vi.fn() },
+  // Etapa 8: "Adquirir obra" en la página pública (dato sin precio).
+  culturalWorkOffer: { count: vi.fn(async () => 0) },
+  culturalExhibitorWork: { findFirst: vi.fn(async () => null) },
+  culturalContestWork: { findFirst: vi.fn(async () => null) },
 }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 
@@ -132,6 +136,12 @@ describe("la publicación online respeta la sorpresa", () => {
     expect(arbol(await PaginaDeObra(p({ slug: "m", workId: oculta.id })))).not.toContain(`oculta-${oculta.sortOrder}.webp`);
     const visible = m.works.find((w) => visibles.has(w.id))!;
     expect(arbol(await PaginaDeObra(p({ slug: "m", workId: visible.id })))).toContain(`oculta-${visible.sortOrder}.webp`);
+    // Sin formatos aprobados no hay "Adquirir obra"; con uno, el enlace a la página de compra (sin precio).
+    expect(arbol(await PaginaDeObra(p({ slug: "m", workId: visible.id })))).not.toContain("Adquirir obra");
+    db.culturalWorkOffer.count.mockResolvedValueOnce(1);
+    const conVenta = arbol(await PaginaDeObra(p({ slug: "m", workId: visible.id })));
+    expect(conVenta).toContain("Adquirir obra");
+    expect(conVenta).toContain(`/m/m/o/${visible.id}/adquirir`);
     // El perfil: las mismas 3.
     db.culturalActivity.findMany.mockResolvedValue([m]);
     const perfilHtml = arbol(await PerfilPublico(p({ slug: "ana" })));

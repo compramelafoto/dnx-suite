@@ -4,10 +4,14 @@ const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
   culturalActivityWork: { findMany: vi.fn(), findFirst: vi.fn() },
   culturalExhibitorWork: { findFirst: vi.fn() },
+  culturalWorkOffer: { count: vi.fn() },
+  culturalContestWork: { findFirst: vi.fn() },
   photographerProfile: { findUnique: vi.fn() },
   culturalActivityRoomKey: { findUnique: vi.fn() },
 }));
 const galletas = vi.hoisted(() => ({ valor: new Map<string, string>() }));
+/** La obra del expositor (con su marca "La quiero vender"). */
+const expo = vi.hoisted(() => ({ valor: null as null | Record<string, unknown> }));
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (n: string) => (galletas.valor.has(n) ? { value: galletas.valor.get(n) } : undefined) }) }));
@@ -40,9 +44,12 @@ beforeEach(() => {
   db.culturalActivity.count.mockResolvedValue(0);
   db.culturalActivityWork.findMany.mockResolvedValue(obras);
   db.culturalActivityWork.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ imageUrl: `${BUCKET}/${where.id}.webp` }));
-  db.culturalExhibitorWork.findFirst.mockResolvedValue({
-    imageWidthCm: 40, imageHeightCm: 60, edition: "UNIQUE", editionNumber: null, editionSize: null, statement: "Sobre el río.", forSale: true,
-  });
+  expo.valor = { imageWidthCm: 40, imageHeightCm: 60, edition: "UNIQUE", editionNumber: null, editionSize: null, statement: "Sobre el río.", forSale: true };
+  // `obraALaVenta` pregunta por la marca con `forSale: true` en el filtro.
+  db.culturalExhibitorWork.findFirst.mockImplementation(async ({ where }: { where: { forSale?: boolean } }) =>
+    where.forSale === true ? (expo.valor?.forSale ? { id: "e1" } : null) : expo.valor);
+  db.culturalWorkOffer.count.mockResolvedValue(0);
+  db.culturalContestWork.findFirst.mockResolvedValue(null);
   db.photographerProfile.findUnique.mockResolvedValue({
     id: "p1", slug: "ema", displayName: "Ema", bio: "Fotógrafa de Rosario.", city: "Rosario", province: null, website: null, instagram: "ema",
     avatarUrl: null, portfolio: [{ id: "f1", imageUrl: "https://pub-test.r2.dev/muestras/50/portfolio.webp", title: "Portfolio", year: null, technique: null, caption: null }],
@@ -107,12 +114,27 @@ describe("vistaDeSala", () => {
   });
   it("'Adquirir obra' sólo con room.buy y la obra a la venta", async () => {
     expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(true);
-    db.culturalExhibitorWork.findFirst.mockResolvedValue({ imageWidthCm: null, imageHeightCm: null, edition: null, editionNumber: null, editionSize: null, statement: null, forSale: false });
+    expo.valor = { imageWidthCm: null, imageHeightCm: null, edition: null, editionNumber: null, editionSize: null, statement: null, forSale: false };
     expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(false);
     const sinBoton = visibilityFromPreset("SURPRISE", "s");
     sinBoton.room.buy = false;
     db.culturalActivity.findUnique.mockResolvedValue({ ...muestra, visibility: sinBoton });
-    db.culturalExhibitorWork.findFirst.mockResolvedValue({ imageWidthCm: null, imageHeightCm: null, edition: null, editionNumber: null, editionSize: null, statement: null, forSale: true });
+    expo.valor = { imageWidthCm: null, imageHeightCm: null, edition: null, editionNumber: null, editionSize: null, statement: null, forSale: true };
+    expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(false);
+  });
+  it("obra de concurso (sin fila de expositor) con un formato aprobado: 'Adquirir obra' (cierra el hueco de la etapa 7)", async () => {
+    expo.valor = null;
+    db.culturalWorkOffer.count.mockResolvedValue(1);
+    expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(true);
+    expect(db.culturalWorkOffer.count.mock.calls[0]![0].where).toMatchObject({ activityId: "a1", activityWorkId: "a1w", status: "APPROVED" });
+  });
+  it("obra de concurso con la venta aceptada por su autor, todavía sin formatos: 'Adquirir obra'", async () => {
+    expo.valor = null;
+    db.culturalContestWork.findFirst.mockResolvedValue({ id: "cw1" });
+    expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(true);
+  });
+  it("sin formatos aprobados ni marca de venta: sin 'Adquirir obra'", async () => {
+    expo.valor = null;
     expect((await vistaDeSala((await paseDeSala("silos"))!, "a1w"))?.mostrarAdquirir).toBe(false);
   });
 });
@@ -131,6 +153,7 @@ describe("escaneado e imágenes", () => {
   });
   it("adquirir: obra permitida con su marca de venta, sin precio", async () => {
     const o = await obraParaAdquirir((await paseDeSala("silos"))!, "a1w");
-    expect(o).toEqual({ id: "a1w", title: "Uno", authorName: "Ema", forSale: true, roomBuy: true });
+    expect(o).toEqual({ id: "a1w", activityId: "a1", title: "Uno", authorName: "Ema", forSale: true, roomBuy: true, imagen: "/m/silos/sala/img/a1w" });
+    expect(JSON.stringify(o)).not.toContain("price");
   });
 });

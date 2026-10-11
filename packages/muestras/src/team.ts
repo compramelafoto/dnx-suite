@@ -17,7 +17,7 @@ export const ACTIVITY_ROLE_LABELS: Record<ActivityRole, string> = {
 };
 export const TEAM_ROLE_DESCRIPTIONS: Record<TeamRole, string> = {
   CO_ORGANIZER:
-    "Edita la muestra, las obras, el montaje, las piezas y la inauguración; modera el libro de visitas y ve las estadísticas. No cancela la muestra ni maneja el equipo.",
+    "Edita la muestra, las obras, el montaje, las piezas y la inauguración; modera el libro de visitas, ve las estadísticas y prepara los pedidos de las obras vendidas. No cancela la muestra, no maneja el equipo ni la venta.",
   TEXT_EDITOR: "Edita el texto curatorial, los créditos y los textos de cada obra (título, año y técnica).",
 };
 
@@ -28,12 +28,15 @@ export const CAPABILITIES = [
   "exhibitors", "visibility",
   // Etapa 7: armar desde un concurso de FotoRank (sólo el dueño).
   "contest",
+  // Etapa 8: encender la venta, reparto, aprobar formatos, P/A y pedir devoluciones (sólo el dueño);
+  // pedidos, producción de las impresas y descargas para imprimir (dueño y coorganización).
+  "sales", "salesFulfill",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
 export const ROLE_CAPABILITIES: Record<ActivityRole, readonly Capability[]> = {
   OWNER: CAPABILITIES,
-  CO_ORGANIZER: ["view", "editActivity", "editTexts", "submitForReview", "hanging", "pieces", "promote", "rsvp", "stats", "guestbook", "exhibitors", "visibility"],
+  CO_ORGANIZER: ["view", "editActivity", "editTexts", "submitForReview", "hanging", "pieces", "promote", "rsvp", "stats", "guestbook", "exhibitors", "visibility", "salesFulfill"],
   TEXT_EDITOR: ["view", "editTexts"],
 };
 

@@ -7,6 +7,7 @@ import {
 } from "@repo/muestras";
 import { esDelEquipo } from "@/lib/equipo/permisos";
 import { esUrlWeb } from "@/lib/url";
+import { obraALaVenta } from "@/lib/ventas/a-la-venta";
 import { leerPase, llaveExistente } from "./llave";
 
 /**
@@ -135,7 +136,8 @@ export async function vistaDeSala(p: PaseDeSala, workId: string) {
     portfolio: (perfil && "portfolio" in perfil && Array.isArray(perfil.portfolio) ? perfil.portfolio : []).filter((f) => esUrlWeb(f.imageUrl)),
     otrasObras: delArtista.map((w) => ({ id: w.id, title: w.title, imagen: imagenDeSala(a.slug, w.id) })),
     otrasMuestras,
-    mostrarAdquirir: showBuyButton({ roomBuy: v.room.buy, forSale: ex?.forSale ?? false }),
+    // Etapa 8: por los formatos aprobados (también en obras de concurso) o la marca de venta.
+    mostrarAdquirir: v.room.buy ? showBuyButton({ roomBuy: true, hasOffers: await tieneAlgoALaVenta(a.id, obra.id) }) : false,
     vence: p.pase?.exp ?? null,
   };
 }
@@ -166,13 +168,24 @@ export async function imagenDeSalaPermitida(slug: string, id: string, leido?: Pa
   return w?.imageUrl ?? null;
 }
 
-/** Para "Adquirir obra": la obra permitida y si está marcada para vender. Nunca el precio. */
+async function tieneAlgoALaVenta(activityId: string, workId: string): Promise<boolean> {
+  const r = await obraALaVenta(activityId, workId);
+  return r.ofertaAprobada || r.marcada;
+}
+
+/**
+ * Para "Adquirir obra": la obra permitida y si tiene algo a la venta (formatos aprobados o la marca
+ * de venta, de expositor o de concurso). Nunca el precio: lo trae la página de compra sólo cuando
+ * se puede comprar.
+ */
 export async function obraParaAdquirir(p: PaseDeSala, workId: string) {
   if (!ID.test(workId) || (!p.pase && !p.equipo)) return null;
   const permitidas = obrasPermitidas(p, await obrasDe(p.actividad.id), new Date());
   const obra = permitidas.find((w) => w.id === workId);
   if (!obra) return null;
-  const ex = await prisma.culturalExhibitorWork.findFirst({ where: { activityId: p.actividad.id, activityWorkId: obra.id }, select: { forSale: true } });
   const v = parseVisibility(p.actividad.visibility, p.actividad.galleryMode);
-  return { id: obra.id, title: obra.title, authorName: obra.authorName.trim() || "Autor sin indicar", forSale: ex?.forSale ?? false, roomBuy: v.room.buy };
+  return {
+    id: obra.id, activityId: p.actividad.id, title: obra.title, authorName: obra.authorName.trim() || "Autor sin indicar",
+    forSale: await tieneAlgoALaVenta(p.actividad.id, obra.id), roomBuy: v.room.buy, imagen: imagenDeSala(p.actividad.slug, obra.id),
+  };
 }
