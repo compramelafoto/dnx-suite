@@ -26,6 +26,8 @@ export const CAPABILITIES = [
   "promote", "rsvp", "stats", "guestbook", "manageTeam", "manageCall",
   // Etapa 6: enlace y revisión de expositores; sorpresa de la muestra y accesos de sala.
   "exhibitors", "visibility",
+  // Etapa 7: armar desde un concurso de FotoRank (sólo el dueño).
+  "contest",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 

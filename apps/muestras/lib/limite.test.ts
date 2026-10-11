@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_WORKS } from "@repo/muestras";
 import {
   LIMITES, LIMITES_POR_MUESTRA, LIMITES_PUBLICOS, checkRateLimit, frenarPorIp, frenarPorMuestra, frenarPorUsuario, huellaDeIp,
@@ -102,6 +102,23 @@ describe("tope de tamaño del freno", () => {
     expect(checkRateLimit({ key: `k${MAX_ENTRADAS + 49}`, limit: 5, windowMs: 60_000 }).remaining).toBe(3);
     resetRateLimit();
   });
+  it("barre lo vencido a lo sumo una vez por segundo", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
+      for (let i = 0; i < 600; i++) checkRateLimit({ key: `v${i}`, limit: 5, windowMs: 100 });
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.500Z"));
+      checkRateLimit({ key: "nueva", limit: 5, windowMs: 60_000 });
+      // Ya barrió al llegar a 500 claves (en el mismo segundo): las vencidas de después siguen.
+      expect(tamanoDelFreno()).toBeGreaterThan(1);
+      vi.setSystemTime(new Date("2026-10-10T12:00:02Z"));
+      checkRateLimit({ key: "otra", limit: 5, windowMs: 60_000 });
+      expect(tamanoDelFreno()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+      resetRateLimit();
+    }
+  });
 });
 
 describe("frenos de la sala", () => {
@@ -186,5 +203,18 @@ describe("frenos de las piezas (etapa 6)", () => {
   });
   it("tandas, catálogo y demás siguen con 60 cada 10 minutos", () => {
     expect(LIMITES.piezas).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+  });
+});
+
+describe("frenos del concurso de FotoRank (etapa 7)", () => {
+  it("armar 10 y actualizar 30 por hora; copiar imágenes y casillas 600 cada 10 minutos; respuestas del autor 120 por hora", () => {
+    expect(LIMITES.armarDesdeConcurso).toEqual({ limit: 10, windowMs: 60 * 60_000 });
+    expect(LIMITES.actualizarConcurso).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+    expect(LIMITES.copiarImagenesConcurso).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+    expect(LIMITES.opcionesConcurso).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+    expect(LIMITES.respuestaAutor).toEqual({ limit: 120, windowMs: 60 * 60_000 });
+  });
+  it("copiar las imágenes de una muestra llena (300 obras, de a 6) entra en el tope", () => {
+    for (let i = 0; i < Math.ceil(MAX_WORKS / 6) + 10; i++) expect(frenarPorUsuario("copiarImagenesConcurso", 1).allowed).toBe(true);
   });
 });

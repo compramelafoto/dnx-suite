@@ -17,9 +17,41 @@ import { ensurePublicationMeta } from "../../../../../lib/fotorank/results/publi
 import { PageContainer } from "../../../../../components/PageContainer";
 import { PageInfoRecuadro } from "../../../../../components/ui/PageInfoRecuadro";
 import { routes } from "../../../../../lib/routes";
+import { armarMuestraUrl } from "../../../../../lib/fotorank/external/muestras";
 import { PublicationGatesPanel } from "./PublicationGatesPanel";
 
 export const dynamic = "force-dynamic";
+
+/** Roles de la organización que pueden llevar los resultados a una muestra (etapa 7 de Muestras). */
+const ROLES_QUE_ARMAN_MUESTRA = ["OWNER", "ADMIN", "EDITOR"] as const;
+
+/**
+ * Recuadro "Armar muestra": sólo para quien organiza (OWNER/ADMIN/EDITOR activo de la organización
+ * del concurso) o super admin, y nunca en maratones. `LISTO` con un lote FINALIZED o PUBLISHED;
+ * `ESPERA` sin lote cerrado. Sólo lectura: ante cualquier error, no se muestra nada.
+ */
+async function estadoArmarMuestra(
+  contest: { id: string; organizationId: string; experienceType: string; distributionChannel: string | null },
+  user: { id: number; globalRole?: string | null; role?: string | null },
+): Promise<"LISTO" | "ESPERA" | null> {
+  try {
+    if (contest.experienceType === "MARATHON" || contest.distributionChannel === "CLICKATON") return null;
+    const superAdmin = user.globalRole === "SUPER_ADMIN" || user.role === "SUPER_ADMIN";
+    if (!superAdmin) {
+      const miembro = await prisma.contestOrganizationMember.count({
+        where: { organizationId: contest.organizationId, userId: user.id, status: "ACTIVE", role: { in: [...ROLES_QUE_ARMAN_MUESTRA] } },
+      });
+      if (miembro === 0) return null;
+    }
+    const lote = await prisma.fotorankResultBatch.findFirst({
+      where: { contestId: contest.id, status: { in: ["FINALIZED", "PUBLISHED"] } },
+      select: { id: true },
+    });
+    return lote ? "LISTO" : "ESPERA";
+  } catch {
+    return null;
+  }
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -91,6 +123,8 @@ export default async function ContestResultadosPage({ params }: PageProps) {
     ? await evaluateResultPublicationReadiness({ contestId, batchId: resultBatch.id })
     : null;
 
+  const armarMuestra = await estadoArmarMuestra(contest, user);
+
   // El "Legado JudgeVote" que se mostraba acá leía los votos del método viejo,
   // que ya no escribe nadie. Se quitó el 2026-09-25.
 
@@ -107,6 +141,29 @@ export default async function ContestResultadosPage({ params }: PageProps) {
           Panel jurado
         </Link>
       </div>
+
+      {armarMuestra ? (
+        <div className="mb-10">
+          <PageInfoRecuadro>
+            <h2 className="text-lg font-semibold text-fr-primary">Llevá los ganadores a una muestra</h2>
+            {armarMuestra === "LISTO" ? (
+              <>
+                <p className="fr-body text-fr-muted">
+                  Armá en Muestras Fotográficas una muestra con las obras ganadoras y preseleccionadas: te llega un borrador con las
+                  imágenes, los autores y los premios.
+                </p>
+                <div>
+                  <a href={armarMuestraUrl(contest.id)} className="fr-btn fr-btn-primary" target="_blank" rel="noopener noreferrer">
+                    Armar muestra
+                  </a>
+                </div>
+              </>
+            ) : (
+              <p className="fr-body text-fr-muted">Cuando el jurado cierre los resultados vas a poder armar una muestra con las obras.</p>
+            )}
+          </PageInfoRecuadro>
+        </div>
+      ) : null}
 
       {resultBatch && readiness ? (
         <PublicationGatesPanel

@@ -13,6 +13,7 @@ import { GaleriaRotativa } from "@/components/ficha/galeria-rotativa";
 import { UltimosComentarios } from "@/components/libro/ultimos-comentarios";
 import { artistasDeMuestra } from "@/lib/actividades/artistas";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
+import { concursoDeMuestra } from "@/lib/concursos/publico";
 import { entradasPublicadas } from "@/lib/libro/consultas";
 import { esUrlWeb } from "@/lib/url";
 
@@ -50,7 +51,11 @@ export default async function Ficha({ params }: Props) {
   const libro = a.type === "MUESTRA" ? guestbookState(a, ahora) : "UNAVAILABLE";
   // Invitación a la inauguración (etapa 5): con confirmación abierta, o sólo los datos si es entrada libre.
   const asistencia = rsvpState(a, ahora);
-  const ultimas = libro === "UNAVAILABLE" ? [] : await entradasPublicadas(a.id, 6);
+  const [ultimas, concurso] = await Promise.all([
+    libro === "UNAVAILABLE" ? Promise.resolve([]) : entradasPublicadas(a.id, 6),
+    // Etapa 7: "Muestra del concurso X". Sin concurso (o ante un error), nada cambia.
+    esMuestra ? concursoDeMuestra(a.id) : Promise.resolve(null),
+  ]);
   const mapa = a.latitude != null && a.longitude != null
     ? `https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=17/${a.latitude}/${a.longitude}`
     : null;
@@ -65,6 +70,14 @@ export default async function Ficha({ params }: Props) {
         <EstadoActividad startsAt={a.startsAt} endsAt={a.endsAt} isCancelled={a.isCancelled} ahora={ahora} />
         <h1 className="mf-titulo text-[clamp(2rem,5vw,3rem)]">{a.title}</h1>
         <p className="text-[var(--mf-muted)]">{ACTIVITY_TYPE_LABELS[a.type as ActivityType] ?? a.type}. Organiza {a.organizersText}</p>
+        {concurso ? (
+          <p className="text-[var(--mf-muted)]">
+            Muestra del concurso{" "}
+            {concurso.url ? (
+              <a href={concurso.url} className="underline underline-offset-4" target="_blank" rel="noopener">{concurso.title}</a>
+            ) : concurso.title}
+          </p>
+        ) : null}
       </header>
       {a.isCancelled ? <p className="rounded-[2px] bg-[#a1251b]/10 p-3 text-[#8a1f17]">Esta actividad se suspendió.</p> : null}
       <dl className="grid gap-4 border-y border-[var(--mf-line)] py-5 sm:grid-cols-2">

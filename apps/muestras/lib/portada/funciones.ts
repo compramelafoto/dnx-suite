@@ -26,7 +26,7 @@ export const PASOS_MUESTRA: PasoMuestra[] = [
     items: [
       "Abrí una convocatoria para que los fotógrafos envíen sus obras desde cualquier lugar.",
       "Hacé la curaduría a distancia, privada y anónima: el equipo curatorial ve las obras sin el nombre del autor, las puntúa y las filtra.",
-      "O conectá tu concurso de {FOTORANK} y llevá a la sala a los ganadores y preseleccionados.",
+      "O traé los ganadores y preseleccionados de tu concurso de {FOTORANK}: te armamos el borrador de la muestra con sus obras.",
     ],
   },
   {

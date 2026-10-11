@@ -15,22 +15,32 @@ type Registro = { count: number; resetAt: number };
 
 const memoria = new Map<string, Registro>();
 
+/** Cada cuánto, a lo sumo, se barre lo vencido. */
+const BARRIDO_MS = 1_000;
+let ultimoBarrido = 0;
+
 /**
- * Limpieza perezosa: sólo cuando el mapa ya creció, y sólo lo vencido.
- *
- * Sin esto, una instancia de larga vida acumula una entrada por cada persona que pasó alguna vez.
- * Con esto, el costo se paga una vez cada tanto y no en cada pedido.
+ * Limpieza perezosa: barre lo vencido sólo cuando el mapa ya creció y, como mucho, una vez por
+ * segundo. Sin esto, una instancia de larga vida acumula una entrada por cada persona que pasó
+ * alguna vez; barriendo en cada pedido, una ráfaga de claves nuevas recorría el mapa entero cada vez.
  */
 function limpiar(ahora: number) {
-  if (memoria.size < 500) return;
+  if (memoria.size < 500 || ahora - ultimoBarrido < BARRIDO_MS) return;
+  ultimoBarrido = ahora;
   for (const [clave, registro] of memoria.entries()) {
     if (registro.resetAt <= ahora) memoria.delete(clave);
   }
-  // Tope duro: si aun así quedan demasiadas (muchas IPs en poco tiempo), se van las más viejas.
-  // Un Map recorre en orden de alta, así que las primeras son las más antiguas.
-  for (const clave of memoria.keys()) {
-    if (memoria.size < MAX_ENTRADAS) break;
-    memoria.delete(clave);
+}
+
+/**
+ * Tope duro al dar de alta una clave: si el mapa está lleno (muchas IPs en poco tiempo), se va la
+ * más vieja. Un Map recorre en orden de alta, así que la primera es la más antigua: O(1).
+ */
+function hacerLugar() {
+  while (memoria.size >= MAX_ENTRADAS) {
+    const primera = memoria.keys().next();
+    if (primera.done) return;
+    memoria.delete(primera.value);
   }
 }
 
@@ -53,6 +63,7 @@ export function checkRateLimit(params: {
     const nuevo: Registro = { count: 1, resetAt: ahora + windowMs };
     // Se borra antes para que vuelva al final del orden de alta (el desalojo saca las primeras).
     memoria.delete(key);
+    hacerLugar();
     memoria.set(key, nuevo);
     return { allowed: true, remaining: limit - 1, resetAt: nuevo.resetAt };
   }
@@ -68,6 +79,7 @@ export function checkRateLimit(params: {
 /** Sólo para los tests: deja el conteo en cero entre casos. */
 export function resetRateLimit() {
   memoria.clear();
+  ultimoBarrido = 0;
 }
 
 /** Sólo para los tests: cuántas claves hay guardadas. */
@@ -127,6 +139,14 @@ export const LIMITES = {
   enviarObraExpositor: { limit: 60, windowMs: 60 * 60_000 },
   // Quien organiza revisa con muchas obras: aprobar, pedir cambios, corregir y sacar.
   revisarExpositores: { limit: 600, windowMs: 10 * 60_000 },
+  // Etapa 7: del concurso de FotoRank a la muestra. Armar lee todos los resultados y escribe hasta
+  // 300 obras: pocas veces por hora. Copiar imágenes va de a 6 por pedido (≈ 50 pedidos para 300
+  // obras) y las casillas por obra se tocan muchas veces seguidas: topes holgados.
+  armarDesdeConcurso: { limit: 10, windowMs: 60 * 60_000 },
+  actualizarConcurso: { limit: 30, windowMs: 60 * 60_000 },
+  copiarImagenesConcurso: { limit: 600, windowMs: 10 * 60_000 },
+  opcionesConcurso: { limit: 600, windowMs: 10 * 60_000 },
+  respuestaAutor: { limit: 120, windowMs: 60 * 60_000 },
 } as const;
 
 /**

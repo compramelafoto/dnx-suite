@@ -10,6 +10,8 @@ export type MuestraParaPiezas = {
   works: { id: string; title: string; authorName: string; year: number | null; technique: string | null; imageUrl: string; sortOrder: number }[];
   /** Lo que cargó quien expone, por id de la obra de la muestra (etapa 6). Nunca el precio. */
   expositores?: ReadonlyMap<string, DatosDeExpositor>;
+  /** El premio del concurso por id de la obra de la muestra (etapa 7): sólo en el catálogo. */
+  premios?: ReadonlyMap<string, string>;
 };
 
 export type DatosDeExpositor = {
@@ -33,12 +35,17 @@ export function detalleConExpositor(o: { year: number | null; technique: string 
   return fichaDetail({ ...ex, year: o.year, technique: o.technique }) || null;
 }
 
-/** Una página del catálogo: título, autor, la línea de datos y el texto de la obra. */
+/**
+ * Una página del catálogo: título, autor, la línea de datos y el texto de la obra. Con el premio del
+ * concurso (etapa 7, D23), el premio va antes de los datos.
+ */
 export function obraDeCatalogo(
   o: { title: string; authorName: string; year: number | null; technique: string | null },
   ex?: DatosDeExpositor | null,
+  premio?: string | null,
 ): { titulo: string; autor: string; detalle: string | null; texto: string | null } {
-  return { titulo: o.title, autor: o.authorName, detalle: detalleConExpositor(o, ex), texto: lleno(ex?.statement) };
+  const detalle = [lleno(premio), detalleConExpositor(o, ex)].filter(Boolean).join(". ") || null;
+  return { titulo: o.title, autor: o.authorName, detalle, texto: lleno(ex?.statement) };
 }
 
 export function autorDeObra(nombre: string): string {

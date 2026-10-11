@@ -26,6 +26,8 @@ export default function Privacidad() {
       <p>Cuando escaneás el QR de una ficha en la sala, tu teléfono guarda por 8 horas una cookie que sólo dice qué obras escaneaste en esa muestra y hasta cuándo vale. No te identifica y no la usamos para contar visitas.</p>
       <h2 className="pt-2 text-xl font-medium">Expositores y portfolio</h2>
       <p>Si exponés, tu perfil y tu portfolio son públicos; las fotos de tus obras se muestran según lo que elija quien organiza. Las notas para el montaje y el precio sólo los ve la organización.</p>
+      <h2 className="pt-2 text-xl font-medium">Concursos de FotoRank</h2>
+      <p>Si participaste en un concurso de FotoRank y la organización arma una muestra con sus obras, copiamos la imagen de tu obra, su título, tu nombre y el premio. Tu nombre sólo se publica si las bases que aceptaste lo piden o si lo confirmás; si no, la obra figura como &quot;Autoría reservada&quot;. Vos decidís si se expone y si se puede vender, desde &quot;Dónde expongo&quot;.</p>
       <h2 className="pt-2 text-xl font-medium">Pedir la baja de tus datos</h2>
       {contacto ? (
         <p>Escribinos a <a href={`mailto:${contacto}`} className="underline">{contacto}</a> y la tramitamos.</p>

@@ -17,7 +17,7 @@ export const PANEL_GROUP_LABELS: Record<PanelGroup, string> = {
 
 export type PanelSectionKey =
   | "inicio" | "muestras" | "proponer" | "perfil" | "envios" | "expositor"
-  | "convocatorias" | "curaduria" | "montaje" | "difusion" | "ventas" | "estadisticas"
+  | "convocatorias" | "concursos" | "curaduria" | "montaje" | "difusion" | "ventas" | "estadisticas"
   | "revision";
 
 export type PanelSection = {
@@ -40,6 +40,7 @@ export const PANEL_SECTIONS: readonly PanelSection[] = [
   s("envios", "Mis envíos", "/panel/envios", "CUENTA"),
   s("expositor", "Dónde expongo", "/panel/expositor", "CUENTA"),
   s("convocatorias", "Convocatorias", "/panel/convocatorias", "ORGANIZAR"),
+  s("concursos", "Concursos", "/panel/concursos", "ORGANIZAR"),
   s("curaduria", "Curaduría", "/panel/curaduria", "ORGANIZAR"),
   s("montaje", "Montaje e impresión", "/panel/montaje", "ORGANIZAR"),
   s("difusion", "Difusión", "/panel/difusion", "ORGANIZAR"),

@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   culturalActivityWork: { deleteMany: vi.fn(), createMany: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   culturalCallWork: { updateMany: vi.fn() },
   culturalExhibitorWork: { findMany: vi.fn(), updateMany: vi.fn() },
+  culturalContestWork: { findMany: vi.fn(), updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
   photographerProfile: { findUnique: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn(),
@@ -17,6 +18,8 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
 vi.mock("@/lib/correos/enviar", () => correos);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const imagenConcurso = vi.hoisted(() => ({ borrarImagenDeConcurso: vi.fn() }));
+vi.mock("@/lib/concursos/imagen", () => imagenConcurso);
 
 process.env.R2_PUBLIC_URL = "https://pub-test.r2.dev";
 const { aprobar, cancelar, enviarARevision, rechazar, guardarBorrador } = await import("./acciones");
@@ -50,6 +53,8 @@ beforeEach(() => {
   db.photographerProfile.findMany.mockResolvedValue([]);
   db.culturalExhibitorWork.findMany.mockResolvedValue([]);
   db.culturalExhibitorWork.updateMany.mockResolvedValue({ count: 1 });
+  db.culturalContestWork.findMany.mockResolvedValue([]);
+  db.culturalContestWork.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("enviarARevision", () => {
@@ -483,5 +488,99 @@ describe("guardarBorrador: obras que cargó un expositor (etapa 6, D9)", () => {
       where: { activityId: "a1", activityWorkId: { in: ["aw1"] } },
       data: { status: "REMOVED", activityWorkId: null, reviewNote: "La organización la sacó de la muestra." },
     });
+  });
+});
+
+describe("guardarBorrador: obras traídas de un concurso (etapa 7, D17)", () => {
+  const BASE = "https://pub-test.r2.dev";
+  const FOTO_CONCURSO = `${BASE}/muestras/10/fr-e1-abcdefghijklmnopqrstuv.webp`;
+  function fd(o: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) f.set(k, v);
+    f.set("editVersion", "0");
+    return f;
+  }
+  const guardadas = () => db.culturalActivityWork.createMany.mock.calls[0]![0].data as Array<Record<string, unknown>>;
+
+  beforeEach(() => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, type: "MUESTRA", works: [] });
+    db.culturalActivityWork.findMany.mockResolvedValue([
+      { id: "aw1", isHighlight: false, sortOrder: 0, authorProfileId: null, authorUserId: 10, imageUrl: FOTO_CONCURSO, authorName: "Autoría reservada" },
+      { id: "aw2", isHighlight: false, sortOrder: 1, authorProfileId: "p50", authorUserId: 50, imageUrl: `${BASE}/muestras/50/foto.webp`, authorName: "Ema Expone" },
+      { id: "aw3", isHighlight: false, sortOrder: 2, authorProfileId: null, authorUserId: null, imageUrl: `${BASE}/muestras/7/b.webp`, authorName: "Dueña" },
+    ]);
+    db.culturalExhibitorWork.findMany.mockResolvedValue([{ id: "ew1", activityWorkId: "aw2" }]);
+    db.culturalContestWork.findMany.mockResolvedValue([{ id: "cw1", activityWorkId: "aw1", imageUrl: FOTO_CONCURSO }]);
+  });
+
+  it("conserva imagen y autor de la base; título, año y técnica sí cambian", async () => {
+    const r = await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2", "aw3"]),
+      works: JSON.stringify([
+        { id: "aw1", imageUrl: `${BASE}/muestras/7/otra.webp`, title: "Nuevo título", authorName: "Otra persona", year: 2025, technique: "Giclée", isHighlight: false },
+        { id: "aw2", imageUrl: `${BASE}/muestras/50/foto.webp`, title: "Silos", authorName: "Ema Expone", isHighlight: false },
+        { id: "aw3", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false },
+      ]),
+    }));
+    expect(r).toEqual({ ok: true, id: "a1" });
+    expect(guardadas()[0]).toMatchObject({
+      id: "aw1", imageUrl: FOTO_CONCURSO, authorName: "Autoría reservada", authorUserId: 10, authorProfileId: null,
+      title: "Nuevo título", year: 2025, technique: "Giclée",
+    });
+    // Las de expositores siguen igual.
+    expect(guardadas()[1]).toMatchObject({ id: "aw2", imageUrl: `${BASE}/muestras/50/foto.webp`, authorName: "Ema Expone", authorProfileId: "p50" });
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
+    expect(db.culturalContestWork.findMany).toHaveBeenCalledWith({
+      where: { activityId: "a1", activityWorkId: { not: null } }, select: { id: true, activityWorkId: true, imageUrl: true },
+    });
+  });
+
+  it("quitarla en el editor la saca de la muestra: include=false, sin imprimir, y se borra la copia", async () => {
+    await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2", "aw3"]),
+      works: JSON.stringify([
+        { id: "aw2", imageUrl: `${BASE}/muestras/50/foto.webp`, title: "Silos", authorName: "Ema Expone", isHighlight: false },
+        { id: "aw3", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false },
+      ]),
+    }));
+    expect(db.culturalContestWork.updateMany).toHaveBeenCalledWith({
+      where: { activityId: "a1", activityWorkId: { in: ["aw1"] } },
+      data: { include: false, toPrint: false, activityWorkId: null, imageStatus: "PENDING", imageUrl: null, imageError: null, copiedAt: null },
+    });
+    expect(imagenConcurso.borrarImagenDeConcurso).toHaveBeenCalledWith(FOTO_CONCURSO);
+    // La de expositor no se tocó.
+    expect(db.culturalExhibitorWork.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "REMOVED" }) }));
+  });
+
+  it("la coorganización no puede quitar obras del concurso: se conservan y se avisa", async () => {
+    // Puede editar (editActivity) pero no tiene `contest`.
+    db.culturalActivity.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    const r = await guardarBorrador(fd({
+      id: "a1", title: "Charla", idsCargados: JSON.stringify(["aw1", "aw2", "aw3"]),
+      works: JSON.stringify([
+        { id: "aw2", imageUrl: `${BASE}/muestras/50/foto.webp`, title: "Silos", authorName: "Ema Expone", isHighlight: false },
+        { id: "aw3", imageUrl: `${BASE}/muestras/7/b.webp`, title: "B", authorName: "Dueña", isHighlight: false },
+      ]),
+    }));
+    expect(r).toEqual({ ok: true, id: "a1", avisos: [expect.stringMatching(/sólo las puede sacar quien armó la muestra/)] });
+    expect(db.culturalContestWork.updateMany).not.toHaveBeenCalled();
+    expect(imagenConcurso.borrarImagenDeConcurso).not.toHaveBeenCalled();
+    // No se borró: queda fuera del deleteMany y conserva su lugar después de las enviadas.
+    expect(db.culturalActivityWork.deleteMany.mock.calls[0]![0].where.id.notIn).toContain("aw1");
+    expect(db.culturalActivityWork.update).toHaveBeenCalledWith({ where: { id: "aw1" }, data: { sortOrder: 2 } });
+  });
+
+  it("de punta a punta: la que se quitó no vuelve con Actualizar desde FotoRank", async () => {
+    const { planContestImport } = await import("@repo/muestras");
+    // Lo que quedó escrito al quitarla: include=false. Actualizar la ve como existente.
+    const plan = planContestImport({
+      selected: [{ entryId: "e1", tier: "WINNER" as const }],
+      existing: new Map([["e1", { include: false, sourceStatus: "CURRENT" }]]),
+      tiers: ["WINNER"],
+      galleryCount: 0,
+    });
+    expect(plan.create).toEqual([]);
+    expect(plan.update.map((w) => w.entryId)).toEqual(["e1"]);
   });
 });

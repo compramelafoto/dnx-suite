@@ -7,6 +7,7 @@ import { ObraDeSala } from "@/components/sala/obra-de-sala";
 import { AvisoDeSala } from "@/components/sala/aviso-de-sala";
 import { frenarPorIp, ipDeLaPeticion } from "@/lib/limite";
 import { MUCHAS_CONSULTAS, MUCHA_GENTE_EN_LA_RED, frenarEnSala } from "@/lib/sala/freno";
+import { distinctionsForWorks } from "@/lib/concursos/publico";
 import { paseDeSala, vistaDeSala } from "@/lib/sala/consultas";
 
 // Lee la cookie del pase: dinámica y privada. Nunca en caché, nunca indexada.
@@ -31,11 +32,13 @@ export default async function ObraEnLaSala({ params }: Props) {
   if (p && !frenarEnSala("vistaSala", p, ip)) return <AvisoDeSala texto={MUCHAS_CONSULTAS} volver={`/m/${encodeURIComponent(slug)}`} />;
   const v = p ? await vistaDeSala(p, workId) : null;
   if (!v) redirect(publica);
+  // Etapa 7: el premio del concurso debajo del título (con el pase, la obra se ve con su imagen).
+  const premio = (await distinctionsForWorks(v.muestra.id, [v.obra.id])).get(v.obra.id) ?? null;
   return (
     <main className="mf-marco space-y-8 py-8 sm:py-12">
       <ContarVisita actividad={v.muestra.id} obra={v.obra.id} />
       <p className="text-sm text-[var(--mf-muted)]">En la sala · {v.muestra.title}</p>
-      <ObraDeSala d={v} />
+      <ObraDeSala d={{ ...v, obra: { ...v.obra, distincion: premio } }} />
     </main>
   );
 }
