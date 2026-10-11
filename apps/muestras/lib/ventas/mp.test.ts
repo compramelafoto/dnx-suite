@@ -84,6 +84,23 @@ describe("consentimiento de reparto", () => {
     expect(await invitarAReparto("ana@example.com")).toEqual({ error: "Mercado Pago todavía no habilitó esta función." });
     expect(fetchFalso).not.toHaveBeenCalled();
   });
+  it("en producción con la llave de la suite invita aunque la venta esté apagada (contexto propio de consentimientos)", async () => {
+    vi.stubEnv("MUESTRAS_MP_ENV", "production");
+    vi.stubEnv("MUESTRAS_MP_ACCESS_TOKEN", "APP_USR-2222-bbbb-token-de-ejemplo");
+    vi.stubEnv("DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED", "true");
+    vi.stubEnv("MUESTRAS_VENTAS_EN_VIVO", "");
+    fetchFalso.mockResolvedValue(json({ succeeded: [{ receiver_id: "r-2", seller_email: "ana@example.com", status: "PENDING", invite_url: "https://mp/aceptar" }] }));
+    expect(await invitarAReparto("ana@example.com")).toEqual({ receiverId: "r-2", status: "PENDING", inviteUrl: "https://mp/aceptar" });
+    expect(String(fetchFalso.mock.calls[0]![0])).toBe("https://api.mercadopago.com/v1/split-consent");
+  });
+  it("con la llave de consentimientos encendida, las órdenes en producción siguen bloqueadas fuera de LIVE", async () => {
+    vi.stubEnv("MUESTRAS_MP_ENV", "production");
+    vi.stubEnv("MUESTRAS_MP_ACCESS_TOKEN", "APP_USR-2222-bbbb-token-de-ejemplo");
+    vi.stubEnv("DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED", "true");
+    const r = await devolverTotal("ORD01ABC", "8d3c1f6e-1d2b-4a5c-9e7f-0a1b2c3d4e5f");
+    expect(r.ok).toBe(false);
+    expect(fetchFalso).not.toHaveBeenCalled();
+  });
   it("Mercado Pago no devuelve a nadie → error claro", async () => {
     fetchFalso.mockResolvedValue(json({ succeeded: [], failed: [{ seller_email: "x@testuser.com" }] }));
     expect(await invitarAReparto("x@testuser.com")).toEqual({ error: "Mercado Pago no pudo invitar a ese email. Revisá que sea el de tu cuenta." });

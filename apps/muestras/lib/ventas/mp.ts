@@ -23,14 +23,22 @@ import { credencialesDeVentas, leerConfigDeVentas } from "./config";
 
 type Contexto = { config: MercadoPagoProviderConfig; http: MercadoPagoHttpClient; ownerUserId: string | null };
 
-function contexto(): Contexto | null {
+/**
+ * `para`: "ordenes" (crear, devolver, leer) sólo escribe en producción en modo `LIVE`;
+ * "consentimientos" (invitar al reparto) escribe en producción con la llave de la suite
+ * `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED`, aunque la venta siga apagada: así organización y autores
+ * dejan conectado su Mercado Pago antes de que se venda (D13).
+ */
+function contexto(para: "ordenes" | "consentimientos" = "ordenes"): Contexto | null {
   const cfg = leerConfigDeVentas();
   const cred = credencialesDeVentas();
   if (!cred.accessToken || !cfg.mpEnv) return null;
+  const escribeEnProduccion =
+    cfg.mpEnv === "production" && (para === "ordenes" ? cfg.modo === "LIVE" : cfg.consentimientoProduccion);
   const config = createMercadoPagoProviderConfig({
     accessToken: cred.accessToken,
     environment: cfg.mpEnv,
-    ...(cfg.modo === "LIVE" && cfg.mpEnv === "production" ? { allowProductionWrites: true } : {}),
+    ...(escribeEnProduccion ? { allowProductionWrites: true } : {}),
     ...(cred.publicKey ? { publicKey: cred.publicKey } : {}),
     platformId: "muestras",
     requestTimeoutMs: 15_000,
@@ -132,7 +140,7 @@ export type Consentimiento = { receiverId: string; status: string; inviteUrl: st
  */
 export async function invitarAReparto(email: string): Promise<Consentimiento | { error: string }> {
   const cfg = leerConfigDeVentas();
-  const c = contexto();
+  const c = contexto("consentimientos");
   if (!c || !cfg.mpEnv) return { error: "Falta configurar Mercado Pago en la plataforma." };
   if (cfg.mpEnv === "production" && !cfg.consentimientoProduccion) return { error: "Mercado Pago todavía no habilitó esta función." };
   try {
@@ -150,7 +158,7 @@ export async function invitarAReparto(email: string): Promise<Consentimiento | {
 /** Estado actual de un consentimiento en Mercado Pago, o `null` si no se pudo leer. */
 export async function leerConsentimiento(receiverId: string): Promise<Consentimiento | null> {
   if (!ID_ORDEN_RE.test(receiverId)) return null;
-  const c = contexto();
+  const c = contexto("consentimientos");
   if (!c) return null;
   try {
     const r = await new MercadoPagoSplitConsentAdapter({ config: c.config, httpClient: c.http }).getConsent(receiverId);
