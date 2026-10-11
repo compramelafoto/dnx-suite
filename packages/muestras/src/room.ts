@@ -109,26 +109,9 @@ export function roomPassValid(p: RoomPass | null, activityId: string, now: Date)
 }
 
 /**
- * @deprecated Etapa 8: el estado de la página de compra sale de `salePageState` (`sales.ts`) con el
- * modo de la venta. Queda mientras la página de compra lo use.
- */
-export const SALES_ENABLED = false;
-/** Los textos viven en `sales.ts` (etapa 8); se reexportan acá por compatibilidad. */
-export { SALE_ASK_TEXT, SALE_UNAVAILABLE_TEXT } from "./sales";
-
-/**
  * El botón "Adquirir obra" aparece si la muestra lo ofrece en la sala y la obra tiene algo a la venta
- * (etapa 8: formatos de la obra; mientras la sala no los lea, la marca "La quiero vender").
+ * (etapa 8: algún formato aprobado o la marca de venta, de expositor o de concurso).
  */
 export function showBuyButton(p: { roomBuy: boolean; hasOffers: boolean }): boolean {
   return p.roomBuy && p.hasOffers;
-}
-
-/** @deprecated Etapa 8: usar `SalePageState` de `sales.ts`. */
-export type SaleState = "UNAVAILABLE" | "NOT_FOR_SALE";
-
-/** @deprecated Etapa 8: usar `salePageState` de `sales.ts`. Devuelve lo mismo que en la etapa 6. */
-export function saleState(p: { salesEnabled: boolean; forSale: boolean }): SaleState {
-  if (!p.forSale) return "NOT_FOR_SALE";
-  return "UNAVAILABLE";
 }

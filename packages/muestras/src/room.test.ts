@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ROOM_CODE_ALPHABET, ROOM_PASS_HOURS, ROOM_PASS_MAX_WORKS, decodeRoomPass, encodeRoomPass, isRoomCode, mergeRoomPass, roomCodeFrom, roomPassCookieName,
-  roomPassValid, saleState, showBuyButton,
+  roomPassValid, showBuyButton,
 } from "./room";
 
 const ahora = new Date("2026-11-10T20:00:00Z");
@@ -64,10 +64,6 @@ describe("adquirir obra", () => {
     expect(showBuyButton({ roomBuy: true, hasOffers: true })).toBe(true);
     expect(showBuyButton({ roomBuy: false, hasOffers: true })).toBe(false);
     expect(showBuyButton({ roomBuy: true, hasOffers: false })).toBe(false);
-  });
-  it("mientras no hay venta, la página dice que no está disponible", () => {
-    expect(saleState({ salesEnabled: false, forSale: true })).toBe("UNAVAILABLE");
-    expect(saleState({ salesEnabled: false, forSale: false })).toBe("NOT_FOR_SALE");
   });
 });
 

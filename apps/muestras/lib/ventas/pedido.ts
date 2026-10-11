@@ -4,13 +4,14 @@ import { prisma } from "@repo/db";
 import { isSalePublicId } from "@repo/muestras";
 import { credencialesDeVentas } from "./config";
 
+export { COOKIE_PEDIDO_DIAS, cookieDePedido, nombreCookieDePedido } from "./cookie-pedido";
+
 /**
  * El pedido del comprador sin cuenta (etapa 8, spec D25): un `publicId` opaco y un token HMAC con
  * `MUESTRAS_PEDIDOS_SECRET` (se guarda sólo su hash). Con el enlace `?t=` o la cookie del pedido se
  * vuelve a él. Toda comparación es en tiempo constante.
  */
 const ALFABETO = "abcdefghijklmnopqrstuvwxyz0123456789";
-export const COOKIE_PEDIDO_DIAS = 30;
 
 export function nuevoPublicId(): string {
   return Array.from({ length: 16 }, () => ALFABETO[randomInt(ALFABETO.length)]).join("");
@@ -47,8 +48,6 @@ export function tokenValido(token: string | null | undefined, accessTokenHash: s
   return iguales(hashDeToken(token), accessTokenHash);
 }
 
-export const nombreCookieDePedido = (publicId: string) => `mf_pedido_${publicId}`;
-
 /** El pedido, si el token del enlace o el de la cookie lo abren; si no, `null`. */
 export async function pedidoConAcceso(publicId: string, acceso: { token?: string | null; cookie?: string | null }) {
   if (!isSalePublicId(publicId)) return null;
@@ -56,17 +55,4 @@ export async function pedidoConAcceso(publicId: string, acceso: { token?: string
   if (!pedido) return null;
   const ok = tokenValido(acceso.token, pedido.accessTokenHash) || tokenValido(acceso.cookie, pedido.accessTokenHash);
   return ok ? pedido : null;
-}
-
-/** La cookie del pedido: sólo para `/compras/<publicId>`, 30 días. */
-export function cookieDePedido(publicId: string, token: string) {
-  return {
-    name: nombreCookieDePedido(publicId),
-    value: token,
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax" as const,
-    path: `/compras/${publicId}`,
-    maxAge: COOKIE_PEDIDO_DIAS * 24 * 60 * 60,
-  };
 }

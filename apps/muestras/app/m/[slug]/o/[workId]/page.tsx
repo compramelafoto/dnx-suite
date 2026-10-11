@@ -7,6 +7,7 @@ import { EstadoActividad } from "@/components/ficha/estado";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
 import { distinctionsForWorks, premioVisible } from "@/lib/concursos/publico";
 import { esUrlWeb } from "@/lib/url";
+import { obraALaVenta } from "@/lib/ventas/a-la-venta";
 
 export const revalidate = 300;
 
@@ -54,6 +55,9 @@ export default async function PaginaDeObra({ params }: Props) {
   const lugar = a.isVirtualOnly ? "Online" : [a.venueName, a.city].filter(Boolean).join(", ");
   // Etapa 7: el premio del concurso, sólo si la obra se ve con su imagen (respeta la sorpresa).
   const premio = conFoto ? premioVisible(a, a.works, obra.id, ahora, await distinctionsForWorks(a.id, [obra.id])) : null;
+  // Etapa 8: "Adquirir obra" si tiene algún formato aprobado (dato sin precio, se cachea igual). La
+  // página de compra decide si se puede comprar y si muestra precios.
+  const adquirir = conFoto && (await obraALaVenta(a.id, obra.id)).ofertaAprobada;
 
   return (
     <main className="mf-marco space-y-8 py-8 sm:py-12">
@@ -83,6 +87,16 @@ export default async function PaginaDeObra({ params }: Props) {
             ) : autor}
           </p>
           {datos ? <p className="text-[var(--mf-muted)]">{datos}</p> : null}
+          {adquirir ? (
+            <p className="pt-2">
+              <Link
+                href={`${workPath(a.slug, obra.id)}/adquirir`}
+                className="inline-flex h-11 items-center justify-center rounded-[2px] border border-[var(--mf-ink)] bg-[var(--mf-ink)] px-5 text-[var(--mf-bg)]"
+              >
+                Adquirir obra
+              </Link>
+            </p>
+          ) : null}
         </header>
         <aside className="space-y-2 border-t border-[var(--mf-line)] pt-4 text-[15px] md:col-span-5 md:border-t-0 md:pt-0">
           <p className="text-sm text-[var(--mf-muted)]">Forma parte de la muestra</p>
