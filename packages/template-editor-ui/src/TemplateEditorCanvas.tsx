@@ -21,7 +21,12 @@ import {
 } from "@repo/template-editor-core";
 import type { TemplateV2Block } from "@repo/template-editor-core";
 import { measureTextBlockBoundsPx } from "@repo/template-editor-core";
-import { snapDragPosition } from "@repo/template-editor-core";
+import {
+  buildSnapGuideLines,
+  SNAP_SCREEN_PX,
+  snapDragPosition,
+  snapResizeRect,
+} from "@repo/template-editor-core";
 import { normalizeRotationDeg, unwrapAngleDeltaRad } from "@repo/template-editor-core";
 import {
   addBlock,
@@ -1089,6 +1094,8 @@ export function TemplateEditorCanvas({
                   }
                   const rawX = drag.startX + deltaX;
                   const rawY = drag.startY + deltaY;
+                  // ⌘ / Ctrl apretado suelta el imán, como en los editores de imagen.
+                  const sinIman = e.metaKey || e.ctrlKey;
                   const snapped = snapDragPosition(
                     state.canvas.width,
                     state.canvas.height,
@@ -1104,7 +1111,9 @@ export function TemplateEditorCanvas({
                      */
                     drag.grupo
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
-                      : blocksOnPage
+                      : blocksOnPage,
+                    sinIman ? 0 : SNAP_SCREEN_PX / zoom,
+                    { safeArea: safeAreaRect }
                   );
                   setSnapGuides({ vx: snapped.guideVerticalX, hy: snapped.guideHorizontalY });
 
@@ -1389,19 +1398,42 @@ export function TemplateEditorCanvas({
                             dy,
                             { shift: e.shiftKey || aspectLock !== null, alt: e.altKey }
                           );
+                          // Imán al estirar: los bordes que se mueven se pegan a las guías. Alt (desde
+                          // el centro) y ⌘/Ctrl lo sueltan.
+                          let finalRect = next;
+                          if (!e.altKey && !e.metaKey && !e.ctrlKey) {
+                            const guides = buildSnapGuideLines(
+                              state.canvas.width,
+                              state.canvas.height,
+                              blocksOnPage,
+                              new Set([rz.blockId]),
+                              { safeArea: safeAreaRect }
+                            );
+                            const sr = snapResizeRect(
+                              rz.handle,
+                              next,
+                              guides,
+                              SNAP_SCREEN_PX / zoom,
+                              e.shiftKey || aspectLock !== null
+                            );
+                            finalRect = sr.rect;
+                            setSnapGuides({ vx: sr.guideVerticalX, hy: sr.guideHorizontalY });
+                          } else {
+                            setSnapGuides({ vx: null, hy: null });
+                          }
                           const layoutPatch = {
-                            x: next.x,
-                            y: next.y,
-                            width: next.width,
-                            height: next.height,
+                            x: finalRect.x,
+                            y: finalRect.y,
+                            width: finalRect.width,
+                            height: finalRect.height,
                           };
                           if (
                             rz.scaleTypography &&
                             rz.startWidth > 0 &&
                             rz.startHeight > 0
                           ) {
-                            const rw = next.width / rz.startWidth;
-                            const rh = next.height / rz.startHeight;
+                            const rw = finalRect.width / rz.startWidth;
+                            const rh = finalRect.height / rz.startHeight;
                             const scale = Math.sqrt(Math.max(1e-9, rw * rh));
                             const newFs = Math.round(
                               Math.max(8, Math.min(400, rz.startFontSize * scale))
@@ -1441,11 +1473,13 @@ export function TemplateEditorCanvas({
                           gesturePersistSnapshotRef.current = null;
                           resizeRef.current = null;
                           setResizingBlockId(null);
+                          setSnapGuides({ vx: null, hy: null });
                         }}
                         onPointerCancel={() => {
                           gesturePersistSnapshotRef.current = null;
                           resizeRef.current = null;
                           setResizingBlockId(null);
+                          setSnapGuides({ vx: null, hy: null });
                         }}
                       />
                       );
@@ -1517,19 +1551,20 @@ export function TemplateEditorCanvas({
               </div>
             ) : null}
 
-            {draggingBlockId !== null && (snapGuides.vx != null || snapGuides.hy != null) ? (
+            {(draggingBlockId !== null || resizingBlockId !== null) && (snapGuides.vx != null || snapGuides.hy != null) ? (
               <div className="pointer-events-none" style={{ position: "absolute", inset: 0, zIndex: 99990 }} aria-hidden>
                 {snapGuides.vx != null ? (
                   <div
                     style={{
                       position: "absolute",
-                      left: snapGuides.vx,
+                      // Grosor fijo en pantalla: la capa está escalada con el zoom y 2 px del
+                      // lienzo eran medio píxel con una carpeta al 25 %. Magenta, como las guías
+                      // inteligentes de los editores de imagen: se distingue de la selección.
+                      left: snapGuides.vx - 0.75 / (state.zoom || 1),
                       top: 0,
-                      width: 2,
+                      width: 1.5 / (state.zoom || 1),
                       height: "100%",
-                      transform: "translateX(-0.5px)",
-                      background: "rgba(59, 130, 246, 0.92)",
-                      boxShadow: "0 0 0 1px rgba(255,255,255,0.75)",
+                      background: "#ff2bd6",
                     }}
                   />
                 ) : null}
@@ -1537,13 +1572,11 @@ export function TemplateEditorCanvas({
                   <div
                     style={{
                       position: "absolute",
-                      top: snapGuides.hy,
+                      top: snapGuides.hy - 0.75 / (state.zoom || 1),
                       left: 0,
-                      height: 2,
+                      height: 1.5 / (state.zoom || 1),
                       width: "100%",
-                      transform: "translateY(-0.5px)",
-                      background: "rgba(59, 130, 246, 0.92)",
-                      boxShadow: "0 0 0 1px rgba(255,255,255,0.75)",
+                      background: "#ff2bd6",
                     }}
                   />
                 ) : null}
