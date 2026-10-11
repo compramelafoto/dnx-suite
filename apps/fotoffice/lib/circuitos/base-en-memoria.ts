@@ -55,7 +55,7 @@ const TABLAS = [
   "fotofficeContratoFirmante", "fotofficeContratoEvento", "fotofficeContratoAjustes",
   // Galería (etapa 7).
   "fotofficeGaleria", "fotofficeGaleriaFoto", "fotofficeGaleriaCliente", "fotofficeGaleriaSeleccion", "fotofficeGaleriaComentario", "fotofficeGaleriaEvento",
-  "fotofficeGaleriaAjustes",
+  "fotofficeGaleriaAjustes", "fotofficeGaleriaCompra", "fotofficeGaleriaCompraFoto",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -221,6 +221,8 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     message: null, saleMode: "SELECCION", kind: "SELECCION", selectionMode: "LIBRE", minSelect: null, maxSelect: null,
     allowComments: true, downloadMode: "VISTA", status: "BORRADOR", coverFotoId: null, orderMode: "NOMBRE", publishedAt: null,
     archivedAt: null, ownerUserId: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+    includedCount: 0, pricingMode: null, unitPriceArs: null, packageSize: null, packagePriceArs: null, discountMode: "NINGUNO",
+    discountPct: null, discountRules: null, incomeCategoryId: null,
   }),
   fotofficeGaleriaFoto: () => ({
     viewKey: null, thumbKey: null, status: "PENDIENTE", errorReason: null, sizeBytes: null, width: null, height: null, order: 0,
@@ -234,8 +236,14 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeGaleriaComentario: () => ({ authorUserId: null, createdAt: new Date() }),
   fotofficeGaleriaEvento: () => ({ galeriaClienteId: null, actorUserId: null, data: null, createdAt: new Date() }),
   fotofficeGaleriaAjustes: () => ({
-    defaultMessage: null, defaultSelectionMode: "LIBRE", defaultAllowComments: true, defaultDownloadMode: "VISTA", updatedAt: new Date(),
+    defaultMessage: null, defaultSelectionMode: "LIBRE", defaultAllowComments: true, defaultDownloadMode: "VISTA", defaultIncomeCategoryId: null,
+    updatedAt: new Date(),
   }),
+  fotofficeGaleriaCompra: () => ({
+    status: "PENDIENTE", discountArs: "0.00", mpPreferenceId: null, providerPaymentRef: null, paidAt: null, feeArs: null, netArs: null,
+    cashMovementId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeGaleriaCompraFoto: () => ({}),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
   cashMovement: () => ({
@@ -438,6 +446,11 @@ export function crearBaseEnMemoria() {
     ],
     fotofficeGaleriaSeleccion: [{ columnas: ["galeriaClienteId", "fotoId"] }],
     fotofficeGaleriaAjustes: [{ columnas: ["workspaceId"] }],
+    fotofficeGaleriaCompra: [
+      { columnas: ["providerPaymentRef"], aplica: (f) => f.providerPaymentRef !== null && f.providerPaymentRef !== undefined },
+      { columnas: ["cashMovementId"], aplica: (f) => f.cashMovementId !== null && f.cashMovementId !== undefined },
+    ],
+    fotofficeGaleriaCompraFoto: [{ columnas: ["compraId", "fotoId"] }],
     // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
     cashMovement: [
       { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },
@@ -509,12 +522,17 @@ export function crearBaseEnMemoria() {
         return elegir(f, a.select);
       },
       /** Mínimo: agrupa por columnas y sólo admite `_count: true` (cantidad de filas por grupo). */
-      groupBy: async (a: { by: string[]; where?: Where; _count?: true }) => {
+      groupBy: async (a: { by: string[]; where?: Where; _count?: true; _sum?: Record<string, true> }) => {
         const grupos = new Map<string, Fila>();
         for (const x of datos[tabla].filter((f) => cumple(f, a.where))) {
           const clave = JSON.stringify(a.by.map((c) => x[c] ?? null));
           const g = grupos.get(clave) ?? { ...Object.fromEntries(a.by.map((c) => [c, x[c] ?? null])), _count: 0 };
           g._count = (g._count as number) + 1;
+          if (a._sum) {
+            const suma = (g._sum ?? {}) as Record<string, number>;
+            for (const c of Object.keys(a._sum)) suma[c] = (suma[c] ?? 0) + Number(x[c] ?? 0);
+            g._sum = suma;
+          }
           grupos.set(clave, g);
         }
         return [...grupos.values()];

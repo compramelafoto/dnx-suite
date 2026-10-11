@@ -22,6 +22,8 @@ export type PropsVisor = {
   editable: boolean;
   permiteComentarios: boolean;
   permiteDescarga: boolean;
+  /** Fotos cuyo original puede bajar el cliente (además de la vista, si la galería la permite). */
+  descargables: ReadonlySet<string>;
   onIr: (indice: number) => void;
   onCerrar: () => void;
   onAlternar: (id: string) => void;
@@ -173,7 +175,7 @@ export function Visor(p: PropsVisor) {
               Comentarios{lista.length > 0 ? ` (${lista.length})` : ""}
             </button>
           ) : null}
-          {p.permiteDescarga ? (
+          {p.permiteDescarga || p.descargables.has(foto.id) ? (
             <button type="button" onClick={() => p.onDescargar(foto.id)} className="fo-btn fo-btn-secondary">
               <IconoDescarga />
               Descargar

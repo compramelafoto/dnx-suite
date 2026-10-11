@@ -2,13 +2,14 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { leerAjustesGaleria } from "@/lib/galerias/ajustes";
 import { prepararConfiguracionGalerias } from "@/lib/galerias/pagina";
+import { rubrosDeIngresoGalerias } from "@/lib/galerias/venta";
 import { AjustesForm } from "./ajustes-form";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Configuración → Galería: los valores con los que nace cada galería nueva (mensaje de bienvenida,
- * comentarios y descarga). Cada galería los puede cambiar después. Permiso: `configurar` (dueño o administrador).
+ * comentarios, descarga y rubro de ingreso de las ventas). Cada galería los puede cambiar después. Permiso: `configurar` (dueño o administrador).
  */
 export default async function ConfiguracionGaleriaPage() {
   const c = await prepararConfiguracionGalerias();
@@ -37,6 +38,7 @@ export default async function ConfiguracionGaleriaPage() {
   }
 
   const ajustes = await leerAjustesGaleria(c.ctx.workspaceId);
+  const rubros = await rubrosDeIngresoGalerias(c.ctx.workspaceId, [ajustes.defaultIncomeCategoryId]);
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader title="Galería" description="Los valores con los que nace cada galería nueva. Después se pueden cambiar en cada una." />
@@ -45,7 +47,9 @@ export default async function ConfiguracionGaleriaPage() {
           defaultMessage: ajustes.defaultMessage ?? "",
           defaultAllowComments: ajustes.defaultAllowComments,
           defaultDownloadMode: ajustes.defaultDownloadMode,
+          defaultIncomeCategoryId: ajustes.defaultIncomeCategoryId ?? "",
         }}
+        rubros={rubros}
       />
     </div>
   );

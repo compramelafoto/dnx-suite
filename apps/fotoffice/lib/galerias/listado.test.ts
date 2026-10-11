@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: {} }));
 
+const { recortarPorDinero } = await import("@/lib/listado/dinero");
 const { whereGalerias, ordenarGalerias, listadoGalerias, OPCIONES_ESTADO_GALERIA } = await import("./listado");
 
 const c = (parcial: Record<string, unknown> = {}) =>
@@ -40,5 +41,25 @@ describe("lista de galerías", () => {
     expect(listadoGalerias.acciones).toEqual([]);
     expect(listadoGalerias.hrefFicha("a b")).toBe("/galerias/a%20b");
     expect(JSON.stringify(listadoGalerias.exportar.columnas.map((x) => x.titulo))).not.toMatch(/total|precio|\$/i);
+  });
+  it("el total vendido es una columna de dinero (Caja): se recorta para quien no puede verlo, también en la exportación", () => {
+    expect(listadoGalerias.columnas.find((x) => x.clave === "vendido")?.dinero).toBe("cash");
+    expect(listadoGalerias.exportar.columnas.find((x) => x.titulo === "Vendido")?.dinero).toBe("cash");
+    const ctx = (levels: Record<string, string>, role = "STAFF") => ({ workspaceId: "ws-1", workspaceName: "W", userId: 1, userLabel: "A", role, acceso: { role, levels } as never });
+    const claves = (c: ReturnType<typeof ctx>) => recortarPorDinero(listadoGalerias, c).columnas.map((x) => x.clave);
+    expect(claves(ctx({ gallery: "VIEW" }))).not.toContain("vendido");
+    expect(recortarPorDinero(listadoGalerias, ctx({ gallery: "MANAGE" })).exportar.columnas.map((x) => x.titulo)).not.toContain("Vendido");
+    expect(claves(ctx({ gallery: "VIEW", cash: "VIEW" }))).toContain("vendido");
+    expect(claves(ctx({ gallery: "VIEW" }, "WORKSPACE_OWNER"))).toContain("vendido");
+  });
+  it("la celda del total vendido muestra pesos o un guion", () => {
+    const col = listadoGalerias.columnas.find((x) => x.clave === "vendido")!;
+    const fila = (vendidoCentavos: number | null) => ({ vendidoCentavos }) as never;
+    expect(JSON.stringify(col.celda(fila(450_000)))).toContain("4.500,00");
+    expect(JSON.stringify(col.celda(fila(0)))).toContain("—");
+    expect(JSON.stringify(col.celda(fila(null)))).toContain("—");
+    const exportado = listadoGalerias.exportar.columnas.find((x) => x.titulo === "Vendido")!;
+    expect(exportado.valor(fila(450_050))).toBe(4500.5);
+    expect(exportado.valor(fila(null))).toBeNull();
   });
 });

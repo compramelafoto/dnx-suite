@@ -2,7 +2,8 @@
 
 import { after } from "next/server";
 import { avisarSeleccionEnviada } from "@/lib/galerias/avisos";
-import { comentarFoto, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
+import { iniciarPagoGaleria } from "@/lib/galerias/pago";
+import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
 import { MENSAJES_PUBLICO } from "@/lib/galerias/publico-tipos";
 import type { ComentarioPublico } from "@/lib/galerias/publico-tipos";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -46,6 +47,15 @@ export async function enviarSeleccionAction(slug: unknown, token: unknown, mensa
   return { ok: true, cantidad: r.cantidad, enviadaEn: r.enviadaEn };
 }
 
+/** «Pagar fotos extra»: abre Checkout Pro con el carrito que calcula el servidor y devuelve la dirección de pago. */
+export async function pagarFotosExtraAction(slug: unknown, token: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("pagar", 15, slug);
+  if (!e.ok) return e;
+  const r = await iniciarPagoGaleria(e.workspaceId, token);
+  if (!r.ok) return r;
+  return { ok: true, url: r.checkoutUrl };
+}
+
 export async function vistasAction(slug: unknown, token: unknown, ids: unknown): Promise<Salida<{ urls: Record<string, string> }>> {
   const e = await entrar("vistas", 300, slug);
   if (!e.ok) return e;
@@ -56,4 +66,11 @@ export async function descargarAction(slug: unknown, token: unknown, fotoId: unk
   const e = await entrar("descargar", 60, slug);
   if (!e.ok) return e;
   return urlDeDescarga(e.workspaceId, token, fotoId);
+}
+
+/** Original de una foto pagada o incluida: enlace firmado de 5 minutos. Tope alto porque «Descargar todas» llama una vez por foto. */
+export async function descargarOriginalAction(slug: unknown, token: unknown, fotoId: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("descargar-original", 400, slug);
+  if (!e.ok) return e;
+  return descargarOriginal(e.workspaceId, token, fotoId);
 }

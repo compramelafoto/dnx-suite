@@ -36,7 +36,7 @@ describe("acciones públicas (fuente)", () => {
   it("es 'use server' y sólo exporta funciones async", () => {
     expect(acciones.startsWith('"use server";')).toBe(true);
     expect(acciones).not.toMatch(/^export (const|let|var|type|interface|class)\b/m);
-    expect(NOMBRES.sort()).toEqual(["comentarAction", "descargarAction", "elegirFotoAction", "enviarSeleccionAction", "vistasAction"]);
+    expect(NOMBRES.sort()).toEqual(["comentarAction", "descargarAction", "descargarOriginalAction", "elegirFotoAction", "enviarSeleccionAction", "pagarFotosExtraAction", "vistasAction"]);
   });
   it("toda acción pasa por el freno por IP y por el workspace del slug antes de tocar nada", () => {
     for (const n of NOMBRES) expect(cuerpoDe(n), n).toMatch(/await entrar\("/);
@@ -48,6 +48,11 @@ describe("acciones públicas (fuente)", () => {
   });
   it("los correos salen con after(), después de responder", () => {
     expect(cuerpoDe("enviarSeleccionAction")).toMatch(/after\(\(\) => avisarSeleccionEnviada\(/);
+  });
+  it("pagar fotos extra sólo manda slug y token (el precio lo calcula el servidor) y tiene su propio freno", () => {
+    expect(acciones).toMatch(/pagarFotosExtraAction\(slug: unknown, token: unknown\)/);
+    expect(cuerpoDe("pagarFotosExtraAction")).toContain('entrar("pagar", 15,');
+    expect(cuerpoDe("pagarFotosExtraAction")).not.toMatch(/importe|total|monto|amount/i);
   });
   it("enviar tiene el freno más estricto", () => {
     expect(cuerpoDe("enviarSeleccionAction")).toContain('entrar("enviar", 10,');

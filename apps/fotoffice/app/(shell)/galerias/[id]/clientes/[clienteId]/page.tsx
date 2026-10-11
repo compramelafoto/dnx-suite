@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { ExportarSeleccion } from "@/components/galerias/exportar-seleccion";
+import { ComprasCliente } from "@/components/galerias/compras-cliente";
 import { RevisionCliente } from "@/components/galerias/revision-cliente";
 import { puedeGestionarGalerias } from "@/lib/galerias/acceso";
 import { requireGalerias } from "@/lib/galerias/requerir";
+import { cargarResumenVentaCliente } from "@/lib/galerias/compras";
 import { cargarRevisionCliente } from "@/lib/galerias/revision";
+import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +25,7 @@ export default async function RevisionClientePage({ params }: { params: Promise<
   if (!ID_VALIDO.test(id) || !ID_VALIDO.test(clienteId)) notFound();
   const r = await cargarRevisionCliente(ctx, id, clienteId);
   if (!r) notFound();
+  const ventas = await cargarResumenVentaCliente(ctx, id, clienteId);
   const gestiona = puedeGestionarGalerias(ctx);
 
   return (
@@ -54,6 +58,7 @@ export default async function RevisionClientePage({ params }: { params: Promise<
           fotos: r.fotos,
         }}
       />
+      {ventas ? <ComprasCliente galeriaId={r.galeria.id} clienteId={r.cliente.id} d={ventas} hoy={diaEnBuenosAires(new Date())} puedeGestionar={gestiona} /> : null}
       <ExportarSeleccion galeriaId={r.galeria.id} clienteId={r.cliente.id} total={r.exportacion.total} lightroom={r.exportacion.lightroom} windows={r.exportacion.windows} />
     </div>
   );

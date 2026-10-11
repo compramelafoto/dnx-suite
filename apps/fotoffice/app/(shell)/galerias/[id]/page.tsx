@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { ConfiguracionGaleria } from "@/components/galerias/configuracion-galeria";
 import { PestanaClientes } from "@/components/galerias/pestana-clientes";
 import { PestanaFotos } from "@/components/galerias/pestana-fotos";
+import { PestanaVenta } from "@/components/galerias/pestana-venta";
 import { puedeEnContexto } from "@/lib/access/policy";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { fechaHoraBA } from "@/lib/ficha/formato";
@@ -15,6 +16,8 @@ import { listarFotos } from "@/lib/galerias/fotos";
 import { cargarFichaGaleria } from "@/lib/galerias/galerias";
 import { cargarHistorial } from "@/lib/galerias/historial";
 import { requireGalerias } from "@/lib/galerias/requerir";
+import { cargarVentaGaleria, puedeVerVentasGalerias, vendidoPorGaleria } from "@/lib/galerias/venta";
+import { formatearCentavos } from "@/lib/galerias/precios";
 import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 
 export const dynamic = "force-dynamic";
@@ -28,13 +31,14 @@ function paginaPedida(v: string | string[] | undefined): number {
 const PESTANAS = [
   { clave: "fotos", etiqueta: "Fotos" },
   { clave: "clientes", etiqueta: "Clientes" },
+  { clave: "venta", etiqueta: "Venta" },
   { clave: "configuracion", etiqueta: "Configuración" },
   { clave: "historial", etiqueta: "Historial" },
 ] as const;
 type Pestana = (typeof PESTANAS)[number]["clave"];
 
 /**
- * Ficha de una galería, con pestañas por la dirección (`?tab=`): Fotos, Clientes, Configuración e Historial.
+ * Ficha de una galería, con pestañas por la dirección (`?tab=`): Fotos, Clientes, Venta, Configuración e Historial.
  * Primero la guarda (módulo encendido y "Ver"), después la lectura acotada al workspace de la sesión: una
  * galería de otro workspace o inexistente cae en `notFound()`. Sólo se lee lo de la pestaña abierta (las
  * URLs firmadas de las miniaturas, por ejemplo, sólo se arman en "Fotos"). Con "Gestionar" se sube, ordena,
@@ -63,6 +67,9 @@ export default async function FichaGaleriaPage({
   const clientes = await listarClientesDeGaleria(ctx, id);
   const enRevision = clientes.filter((c) => c.estado === "EN_REVISION" && !c.anulado).length;
 
+  const venta = pestana === "venta" ? await cargarVentaGaleria(ctx, id) : null;
+  // Lo vendido sólo se lee si quien mira puede ver el dinero.
+  const vendido = puedeVerVentasGalerias(ctx) ? ((await vendidoPorGaleria(ctx, [id])).get(id) ?? 0) : null;
   const fotos = pestana === "fotos" ? await listarFotos(ctx, id) : [];
   const pagina = pestana === "historial" ? paginaPedida((await searchParams).pagina) : 1;
   const historial = pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: [], pagina: 1, hayMas: false };
@@ -75,7 +82,7 @@ export default async function FichaGaleriaPage({
     <div className="space-y-6">
       <PageHeader
         title={ficha.nombre}
-        description={`Galería N° ${ficha.numero} · ${ficha.contacto.nombre}`}
+        description={`Galería N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
         actions={
           <Link href="/galerias" className="fo-btn fo-btn-secondary text-sm">
             Volver a Galerías
@@ -154,6 +161,12 @@ export default async function FichaGaleriaPage({
                 <dt className="text-xs text-[var(--fo-muted)]">Descarga</dt>
                 <dd>{ETIQUETA_MODO_DESCARGA[ficha.downloadMode]}</dd>
               </div>
+              {vendido !== null ? (
+                <div>
+                  <dt className="text-xs text-[var(--fo-muted)]">Vendido</dt>
+                  <dd className="tabular-nums">{vendido > 0 ? formatearCentavos(vendido) : "Todavía nada"}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt className="text-xs text-[var(--fo-muted)]">Creada</dt>
                 <dd>{fechaHoraBA(ficha.createdAt)}</dd>
@@ -220,6 +233,17 @@ export default async function FichaGaleriaPage({
               sugerido={sugerido}
               puedeGestionar={gestiona}
               puedeBuscarContactos={veContactos}
+            />
+          ) : null}
+
+          {pestana === "venta" && venta ? (
+            <PestanaVenta
+              key={`${ficha.id}:${JSON.stringify(venta.formulario)}`}
+              galeriaId={ficha.id}
+              inicial={venta.formulario}
+              rubros={venta.rubros}
+              rubroPorOmision={venta.rubroPorOmision}
+              puedeGestionar={gestiona}
             />
           ) : null}
 

@@ -13,6 +13,7 @@ const P = vi.hoisted(() => ({
   comentarFoto: vi.fn(),
   enviarSeleccion: vi.fn(),
   urlDeDescarga: vi.fn(),
+  descargarOriginal: vi.fn(async () => ({ ok: true, url: "https://r2.test/o" })),
   urlsDeVista: vi.fn(),
 }));
 vi.mock("@/lib/galerias/publico", () => P);
@@ -28,6 +29,16 @@ beforeEach(() => {
   resetRateLimit();
   despues.length = 0;
   ip = "1.1.1.1";
+});
+
+describe("descarga del original", () => {
+  it("pasa el workspace del slug y 400 intentos por IP cada 10 minutos", async () => {
+    expect(await A.descargarOriginalAction("dnxestudio", "tok", "f1")).toEqual({ ok: true, url: "https://r2.test/o" });
+    expect(P.descargarOriginal).toHaveBeenCalledWith("ws-1", "tok", "f1");
+    for (let i = 0; i < 399; i++) await A.descargarOriginalAction("dnxestudio", "tok", "f1");
+    expect(await A.descargarOriginalAction("dnxestudio", "tok", "f1")).toMatchObject({ ok: false, codigo: "TOPE" });
+    expect(await A.descargarOriginalAction("nadie", "tok", "f1")).toMatchObject({ ok: false });
+  });
 });
 
 describe("acciones públicas: freno y workspace", () => {

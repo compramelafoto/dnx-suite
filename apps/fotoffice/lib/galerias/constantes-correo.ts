@@ -1,3 +1,3 @@
 /** Claves de los correos automáticos de la galería (módulo PURO). */
-export const CLAVES_AUTOMATICO_GALERIA = ["GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA"] as const;
+export const CLAVES_AUTOMATICO_GALERIA = ["GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA"] as const;
 export type ClaveAutomaticoGaleria = (typeof CLAVES_AUTOMATICO_GALERIA)[number];

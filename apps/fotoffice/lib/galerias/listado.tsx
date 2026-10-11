@@ -1,11 +1,15 @@
 import "server-only";
 import Link from "next/link";
 import { prisma, type Prisma } from "@repo/db";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { fechaBA } from "@/lib/ficha/formato";
-import type { ConsultaResuelta, DefinicionListado, Opcion } from "@/lib/listado/tipos";
+import { puedeEnContexto } from "@/lib/access/policy";
+import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { ESTADOS_GALERIA, ETIQUETA_ESTADO_GALERIA, esEstadoGaleria, type EstadoGaleria } from "./constantes";
 import { claseDeEstadoGaleria } from "./estado-vista";
+import { formatearCentavos } from "./precios";
+import { vendidoPorGaleria } from "./venta";
 
 /**
  * Lista de Galerías sobre el motor de listas (0.2). Columnas: número, galería, proyecto, contacto,
@@ -29,6 +33,8 @@ export type FilaGaleria = {
   fotos: number;
   clientes: number;
   enRevision: number;
+  /** Lo vendido (compras pagadas) en centavos; null para quien no puede ver el dinero. */
+  vendidoCentavos: number | null;
   createdAt: Date;
 };
 
@@ -44,7 +50,7 @@ const SELECT_GALERIA = {
 
 type FilaBase = Prisma.FotofficeGaleriaGetPayload<{ select: typeof SELECT_GALERIA }>;
 
-function aFila(f: FilaBase, enRevision: number): FilaGaleria {
+function aFila(f: FilaBase, enRevision: number, vendidoCentavos: number | null): FilaGaleria {
   return {
     id: f.id,
     numero: f.number,
@@ -57,6 +63,7 @@ function aFila(f: FilaBase, enRevision: number): FilaGaleria {
     fotos: f._count.fotos,
     clientes: f._count.clientes,
     enRevision,
+    vendidoCentavos,
     createdAt: f.createdAt,
   };
 }
@@ -109,16 +116,21 @@ async function enRevisionPorGaleria(workspaceId: string, ids: string[]): Promise
   return new Map(filas.map((f) => [f.galeriaId, f._count._all]));
 }
 
-async function filasConRevision(filas: FilaBase[], workspaceId: string): Promise<FilaGaleria[]> {
-  const rev = await enRevisionPorGaleria(workspaceId, filas.map((f) => f.id));
-  return filas.map((f) => aFila(f, rev.get(f.id) ?? 0));
+async function filasConRevision(filas: FilaBase[], ctx: ContextoListado): Promise<FilaGaleria[]> {
+  const ids = filas.map((f) => f.id);
+  const rev = await enRevisionPorGaleria(ctx.workspaceId, ids);
+  // El total vendido sólo se lee si quien mira puede ver el dinero: la cifra no llega ni a la fila.
+  const veDinero = puedeEnContexto(ctx, "verDinero", CASH_MODULE_KEY);
+  const vendido = veDinero ? await vendidoPorGaleria(ctx, ids) : null;
+  return filas.map((f) => aFila(f, rev.get(f.id) ?? 0, vendido ? (vendido.get(f.id) ?? 0) : null));
 }
 
-async function filasPorIds(workspaceId: string, ids: string[]): Promise<FilaGaleria[]> {
+async function filasPorIds(ctx: ContextoListado, ids: string[]): Promise<FilaGaleria[]> {
+  const workspaceId = ctx.workspaceId;
   const validos = ids.filter((id) => ID_VALIDO.test(id));
   if (validos.length === 0) return [];
   const filas = await prisma.fotofficeGaleria.findMany({ where: { workspaceId, id: { in: validos } }, select: SELECT_GALERIA });
-  const porId = new Map((await filasConRevision(filas, workspaceId)).map((f) => [f.id, f]));
+  const porId = new Map((await filasConRevision(filas, ctx)).map((f) => [f.id, f]));
   return validos.flatMap((id) => porId.get(id) ?? []);
 }
 
@@ -172,6 +184,13 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
         </span>
       ),
     },
+    {
+      clave: "vendido",
+      titulo: "Vendido",
+      alinear: "derecha",
+      dinero: CASH_MODULE_KEY,
+      celda: (f) => <span className="whitespace-nowrap tabular-nums">{f.vendidoCentavos === null ? "—" : f.vendidoCentavos > 0 ? formatearCentavos(f.vendidoCentavos) : "—"}</span>,
+    },
     { clave: "alta", titulo: "Creada", orden: "alta", celda: (f) => <span className="whitespace-nowrap">{fecha(f.createdAt)}</span>, secundaria: true },
   ],
   filtros: [
@@ -185,13 +204,13 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
   contar: async (ctx, c) => prisma.fotofficeGaleria.count({ where: whereGalerias(ctx.workspaceId, c) }),
   traer: async (ctx, c, { skip, take }) => {
     const filas = await prisma.fotofficeGaleria.findMany({ where: whereGalerias(ctx.workspaceId, c), select: SELECT_GALERIA, orderBy: ordenarGalerias(c), skip, take });
-    return filasConRevision(filas, ctx.workspaceId);
+    return filasConRevision(filas, ctx);
   },
   traerIds: async (ctx, c, tope) => {
     const filas = await prisma.fotofficeGaleria.findMany({ where: whereGalerias(ctx.workspaceId, c), select: { id: true }, orderBy: ordenarGalerias(c), take: tope });
     return filas.map((f) => f.id);
   },
-  traerPorIds: async (ctx, ids) => filasPorIds(ctx.workspaceId, ids),
+  traerPorIds: async (ctx, ids) => filasPorIds(ctx, ids),
   acciones: [],
   exportar: {
     columnas: [
@@ -203,6 +222,7 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
       { titulo: "Fotos", tipo: "numero", valor: (f) => f.fotos },
       { titulo: "Clientes", tipo: "numero", valor: (f) => f.clientes },
       { titulo: "Esperando revisión", tipo: "numero", valor: (f) => f.enRevision },
+      { titulo: "Vendido", tipo: "importe", dinero: CASH_MODULE_KEY, valor: (f) => (f.vendidoCentavos === null ? null : f.vendidoCentavos / 100) },
       { titulo: "Creada", tipo: "fechaHora", valor: (f) => f.createdAt },
     ],
   },

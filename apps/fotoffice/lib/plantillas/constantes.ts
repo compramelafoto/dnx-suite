@@ -46,14 +46,15 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   los correos del circuito de firma a cada firmante (enlace, código de verificación, recordatorio y
  *   PDF firmado). Son transaccionales: sin el freno de 24 h por dirección, con el tope diario de
  *   automáticos. Los manda `lib/contratos/correos.ts`; el del código NO guarda el código en el registro.
- * - `GALERIA_ENVIO` y `GALERIA_SELECCION_ENVIADA` (etapa 7, Galería): el enlace personal de la galería al
- *   cliente y la copia al cliente de la selección que envió (con la cantidad). Son transaccionales: sin el
+ * - `GALERIA_ENVIO`, `GALERIA_SELECCION_ENVIADA` y `GALERIA_COMPRA_PAGADA` (etapa 7, Galería): el enlace personal
+ *   de la galería al cliente, la copia de la selección que envió (con la cantidad) y la confirmación de las
+ *   fotos extra que pagó (con la cantidad y el total). Son transaccionales: sin el
  *   freno de 24 h por dirección, con el tope diario de automáticos. Los manda `lib/galerias/correos.ts`.
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
   "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
-  "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA",
+  "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 

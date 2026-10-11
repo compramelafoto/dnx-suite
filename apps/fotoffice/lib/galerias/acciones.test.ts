@@ -158,3 +158,41 @@ describe("revisión de la selección (fuente)", () => {
     expect(e).toContain("/exportar");
   });
 });
+
+describe("venta de fotos extra en el estudio (fuente)", () => {
+  it.each([
+    ["guardarVentaGaleriaAction", "guardarVentaGaleria(ctx"],
+    ["marcarCompraPagadaAManoAction", "marcarCompraPagadaAMano(ctx"],
+  ])("%s exige Gestionar, valida la forma y delega", (nombre, llamada) => {
+    const c = cuerpoDe(nombre);
+    expect(c).toContain('contextoDeGalerias("operar")');
+    expect(c).toMatch(/esId\(/);
+    expect(c).toMatch(/esObjeto\(/);
+    expect(c).toContain(llamada);
+  });
+  it("la acción de pagar a mano no recibe importes: sólo método, fecha y cuenta (el precio lo calcula el servidor)", () => {
+    const s = leer("./compras.ts");
+    const i = s.indexOf("export async function marcarCompraPagadaAMano(");
+    const cuerpo = s.slice(i, s.indexOf("// --- Lectura para la revisión", i));
+    expect(leer("./carrito.ts")).toContain("return calcularCarrito(");
+    expect(cuerpo).not.toMatch(/d\.(importe|total|monto|amount)/i);
+    expect(cuerpo).toContain("carritoDeCliente(tx");
+  });
+  it("la ficha pide la pestaña Venta sólo cuando se abre y el total vendido sólo a quien ve el dinero", () => {
+    const p = leer("../../app/(shell)/galerias/[id]/page.tsx");
+    expect(p).toContain('{ clave: "venta", etiqueta: "Venta" }');
+    expect(p).toContain('pestana === "venta" ? await cargarVentaGaleria');
+    expect(p).toContain("puedeVerVentasGalerias(ctx) ?");
+  });
+  it("la revisión del cliente lee las compras después de la guarda de Ver", () => {
+    const p = leer("../../app/(shell)/galerias/[id]/clientes/[clienteId]/page.tsx");
+    expect(p.indexOf('requireGalerias("ver")')).toBeLessThan(p.indexOf("cargarResumenVentaCliente("));
+    expect(p).toContain("<ComprasCliente");
+  });
+  it("los textos no usan la palabra 'plata' y los importes se piden como 'Ej.: 1.500,00'", () => {
+    for (const ruta of ["../../components/galerias/pestana-venta.tsx", "../../components/galerias/compras-cliente.tsx", "./compras.ts", "./venta.ts", "./venta-form.ts"]) {
+      expect(leer(ruta), ruta).not.toMatch(/\bplata\b/i);
+    }
+    expect(leer("./venta-form.ts")).toContain('EJEMPLO_IMPORTE = "Ej.: 1.500,00"');
+  });
+});

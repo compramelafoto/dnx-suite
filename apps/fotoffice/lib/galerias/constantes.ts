@@ -5,6 +5,7 @@
 
 export const MODOS_VENTA = ["SELECCION", "SELECCION_Y_VENTA", "VENTA"] as const;
 export type ModoVenta = (typeof MODOS_VENTA)[number];
+export const esModoVenta = (v: unknown): v is ModoVenta => typeof v === "string" && (MODOS_VENTA as readonly string[]).includes(v);
 
 export const TIPOS_GALERIA = ["SELECCION", "ENTREGA"] as const;
 export type TipoGaleria = (typeof TIPOS_GALERIA)[number];
@@ -48,7 +49,7 @@ export const ETIQUETA_MODO_SELECCION: Record<ModoSeleccion, string> = {
 export const ETIQUETA_MODO_DESCARGA: Record<ModoDescarga, string> = {
   NINGUNA: "Sin descarga",
   VISTA: "Vista de galería",
-  SELECCIONADAS: "Sólo las seleccionadas",
+  SELECCIONADAS: "Sólo las fotos elegidas o compradas, en alta",
 };
 
 // --- Topes ------------------------------------------------------------------------------------------
@@ -82,6 +83,8 @@ export const CALIDAD_MINIATURA = 75;
 /** Vida de la URL firmada de subida (PUT) y de las de lectura (GET). */
 export const SEGUNDOS_SUBIDA_FOTO = 15 * 60;
 export const SEGUNDOS_LECTURA_FOTO = 60 * 60;
+/** Vigencia del enlace firmado para bajar un original. */
+export const SEGUNDOS_DESCARGA_ORIGINAL = 5 * 60;
 /** Intentos de procesamiento antes de dejar la foto en ERROR para siempre. */
 export const MAX_INTENTOS_FOTO = 3;
 /** Una foto PENDIENTE sin objeto subido pasado este plazo se limpia. */

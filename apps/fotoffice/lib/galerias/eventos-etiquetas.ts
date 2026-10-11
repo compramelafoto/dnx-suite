@@ -24,10 +24,18 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   CONFIRMACION_NO_ENVIADA: "El correo de confirmación al cliente no salió",
   AVISO_ESTUDIO_ENVIADO: "Aviso al estudio enviado",
   AVISO_ESTUDIO_NO_ENVIADO: "El aviso al estudio no salió",
+  DESCARGA: "El cliente descargó una foto en alta",
+  VENTA_CONFIGURADA: "Venta de fotos extra configurada",
+  COMPRA_PAGADA: "Compra de fotos extra pagada",
+  COMPRA_SIN_CAJA: "Compra pagada sin registrar en Caja",
+  COMPRA_CANCELADA: "Compra de fotos extra cancelada",
+  COMPRA_CANCELADA_PAGADA: "Una compra cancelada igual se pagó: se acreditó",
+  PAGO_DUPLICADO: "Llegó un pago por fotos que ya estaban pagas",
+  PAGO_NO_ACREDITADO: "Llegó un pago que no se pudo acreditar",
 };
 
 /** Eventos que hace el propio cliente desde su enlace (sin usuario del estudio): en el historial el actor es el cliente. */
-export const EVENTOS_DEL_CLIENTE: readonly string[] = ["ENTRO", "SELECCION_ENVIADA"];
+export const EVENTOS_DEL_CLIENTE: readonly string[] = ["ENTRO", "SELECCION_ENVIADA", "DESCARGA"];
 
 export function etiquetaDeEvento(tipo: string): string {
   return ETIQUETA_EVENTO_GALERIA[tipo] ?? tipo;
