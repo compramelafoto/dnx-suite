@@ -190,6 +190,29 @@ describe("conciliarDesdeOrden", () => {
   });
 });
 
+describe("certificado al pagar", () => {
+  it("pagado con la clave configurada: la copia queda con código y firma; con MISMATCH, nada", async () => {
+    const { generateKeyPairSync } = await import("node:crypto");
+    const { privateKey } = generateKeyPairSync("ed25519");
+    vi.stubEnv("MUESTRAS_CERT_PRIVATE_KEY", Buffer.from(privateKey.export({ type: "pkcs8", format: "pem" }).toString()).toString("base64"));
+    vi.stubEnv("MUESTRAS_CERT_KEY_ID", "mf-test");
+    Object.assign(t.db, {
+      culturalActivity: { findUnique: async () => ({ title: "Silos" }) },
+      culturalActivityWork: { findUnique: async () => ({ title: "Obra", authorName: "Ana" }) },
+      culturalSaleFile: { findUnique: async () => ({ sha256: "a".repeat(64) }) },
+    });
+    ofertas[0] = { ...ofertas[0]!, format: "DIGITAL", editionKind: "LIMITED", proofCount: 0, paper: null, widthCm: null, heightCm: null, activityWorkId: "aw1" };
+    pedidos[0] = { ...pedidos[0]!, buyerName: "Bea", buyerOnCertificate: true };
+    await conciliarDesdeOrden(orden({ totalCents: 1 }), "CREATE", ahora);
+    expect(copias[0]!.certificateCode).toBeUndefined();
+    await conciliarDesdeOrden(orden(), "CREATE", ahora);
+    expect(copias[0]!.certificateCode).toMatch(/^[A-Z0-9]{12}$/);
+    expect(String(copias[0]!.certificatePayload)).toContain('"buyer":"Bea"');
+    expect(copias[0]!.certificateKid).toBe("mf-test");
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("conciliarPedido", () => {
   it("lee la Order en Mercado Pago; si no se puede leer, no cambia nada", async () => {
     mp.leerOrden.mockResolvedValueOnce(null);

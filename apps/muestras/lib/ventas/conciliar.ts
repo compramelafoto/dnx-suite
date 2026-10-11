@@ -1,6 +1,11 @@
 import "server-only";
+import { randomInt } from "node:crypto";
 import { prisma, type Prisma } from "@repo/db";
-import { PENDING_HOLD_HOURS, isOrderStatus, lateCopyDecision, marksFirstSale, parseSaleExternalReference, saleOrderTransition, type OrderStatus } from "@repo/muestras";
+import {
+  PENDING_HOLD_HOURS, certificatePayload, isOrderStatus, lateCopyDecision, marksFirstSale, newCertificateCode, parseSaleExternalReference,
+  saleOrderTransition, type OrderStatus,
+} from "@repo/muestras";
+import { firmarCertificado, kidActual } from "./certificado";
 import { leerFotoDelReparto, mismoReparto, repartoEsperado } from "./foto-reparto";
 import { leerOrden, type OrdenLeida } from "./mp";
 import { vencerReservas } from "./reservar-tx";
@@ -205,7 +210,10 @@ export async function conciliarDesdeOrden(orden: OrdenLeida, origen: OrigenDeCon
     const ahoraEs = await prisma.culturalSaleOrder.findUnique({ where: { id: p.id }, select: { status: true } });
     return { estado: ahoraEs?.status ?? actual, cambio: false };
   }
-  const final = await prisma.culturalSaleOrder.findUnique({ where: { id: p.id }, select: { status: true } });
+  const final = await prisma.culturalSaleOrder.findUnique({ where: { id: p.id }, select: { status: true, copyId: true } });
+  // El certificado va aparte de la transacción: si algo falla al firmarlo, el pago ya quedó
+  // registrado y el barrido lo vuelve a intentar.
+  if (final?.status === "PAID" && final.copyId) await certificarCopia(final.copyId, ahora);
   return { estado: final?.status ?? next, cambio: true };
 }
 
@@ -224,4 +232,86 @@ export async function conciliarPedido(cual: { publicId: string } | { providerOrd
   if (!providerOrderId) return null;
   const orden = await leerOrden(providerOrderId);
   return orden ? conciliarDesdeOrden(orden, origen) : null;
+}
+
+export type ResultadoDeCertificado = "OK" | "YA_TENIA" | "SIN_CLAVE" | "SIN_DATOS";
+
+const SIN_CLAVE = "ALERT_NO_CERT_KEY: falta la clave para firmar el certificado";
+const SIN_DATOS = "ALERT_NO_CERT_DATA: faltan datos para el certificado (original o firma)";
+
+/**
+ * Pone el certificado a una copia emitida (D18–D20, `emitirCopia` del plan): código nuevo (se
+ * reintenta si choca), el texto canónico con los datos congelados y la firma Ed25519. Si falta la
+ * clave, no emite: el pedido sigue pagado con una alerta y el barrido reintenta. Idempotente.
+ */
+export async function certificarCopia(copyId: string, ahora: Date = new Date()): Promise<ResultadoDeCertificado> {
+  const copia = await prisma.culturalEditionCopy.findUnique({
+    where: { id: copyId },
+    select: { id: true, status: true, kind: true, number: true, isTest: true, issuedAt: true, offerId: true, orderId: true, certificateCode: true },
+  });
+  if (!copia || copia.status !== "ISSUED") return "SIN_DATOS";
+  if (copia.certificateCode) return "YA_TENIA";
+  const avisar = async (detalle: string) => {
+    if (!copia.orderId) return;
+    const ya = await prisma.culturalSaleEvent.findFirst({ where: { orderId: copia.orderId, detail: detalle }, select: { id: true } });
+    if (!ya) await prisma.culturalSaleEvent.create({ data: { orderId: copia.orderId, source: "SWEEP", detail: detalle } });
+  };
+  const kid = kidActual();
+  if (!kid) {
+    await avisar(SIN_CLAVE);
+    return "SIN_CLAVE";
+  }
+  const oferta = await prisma.culturalWorkOffer.findUnique({
+    where: { id: copia.offerId },
+    select: { activityId: true, activityWorkId: true, format: true, editionKind: true, editionSize: true, proofCount: true, paper: true, widthCm: true, heightCm: true },
+  });
+  const [actividad, obra, archivo, pedido] = oferta
+    ? await Promise.all([
+        prisma.culturalActivity.findUnique({ where: { id: oferta.activityId }, select: { title: true } }),
+        prisma.culturalActivityWork.findUnique({ where: { id: oferta.activityWorkId }, select: { title: true, authorName: true } }),
+        prisma.culturalSaleFile.findUnique({ where: { activityWorkId: oferta.activityWorkId }, select: { sha256: true } }),
+        copia.orderId ? prisma.culturalSaleOrder.findUnique({ where: { id: copia.orderId }, select: { buyerName: true, buyerOnCertificate: true } }) : null,
+      ])
+    : [null, null, null, null];
+  if (!oferta || !actividad || !obra || !archivo?.sha256) {
+    await avisar(SIN_DATOS);
+    return "SIN_DATOS";
+  }
+  const emitida = copia.issuedAt ?? ahora;
+  for (let intento = 0; intento < 5; intento++) {
+    const code = newCertificateCode(randomInt);
+    const payload = certificatePayload({
+      code, kid,
+      activityTitle: actividad.title,
+      workTitle: obra.title,
+      authorName: obra.authorName,
+      format: oferta.format,
+      editionKind: oferta.editionKind,
+      kind: copia.kind,
+      number: copia.number,
+      editionSize: oferta.editionSize,
+      proofCount: oferta.proofCount,
+      paper: oferta.paper,
+      widthCm: oferta.widthCm,
+      heightCm: oferta.heightCm,
+      originalSha256: archivo.sha256,
+      issuedAt: emitida,
+      buyerName: pedido?.buyerName ?? null,
+      buyerOnCertificate: pedido?.buyerOnCertificate ?? false,
+      isTest: copia.isTest,
+    });
+    const firma = firmarCertificado(payload);
+    try {
+      await prisma.culturalEditionCopy.updateMany({
+        where: { id: copia.id, certificateCode: null },
+        data: { certificateCode: code, certificateKid: firma.kid, certificatePayload: payload, certificateSignature: firma.signature, issuedAt: emitida },
+      });
+      return "OK";
+    } catch (err) {
+      // El código chocó con otro (único): se prueba con uno nuevo.
+      if ((err as { code?: string })?.code === "P2002") continue;
+      throw err;
+    }
+  }
+  throw new Error("No se pudo generar un código de certificado único.");
 }

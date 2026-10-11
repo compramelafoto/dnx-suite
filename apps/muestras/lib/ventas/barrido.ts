@@ -1,16 +1,17 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { PENDING_HOLD_HOURS, arMinutesOfDay } from "@repo/muestras";
-import { conciliarPedido } from "./conciliar";
+import { certificarCopia, conciliarPedido } from "./conciliar";
 
 /**
  * El barrido de la venta (etapa 8, D22, D29), cada 10 minutos desde `/api/cron/ventas`:
  * (1) vence las reservas sin Order; (2) pregunta a Mercado Pago por los pedidos pendientes con
  * Order (los de más de 72 horas quedan con una alerta); (3) una vez por día, entre las 4:00 y las
  * 4:10 de Argentina, repasa los pagados de los últimos 60 días buscando devoluciones y contracargos
- * hechos fuera. Devuelve sólo cantidades: nada de datos personales.
+ * hechos fuera; (4) reintenta los certificados de las copias emitidas que todavía no lo tienen (por
+ * ejemplo, si faltaba la clave). Devuelve sólo cantidades: nada de datos personales.
  */
-export type ResumenDelBarrido = { vencidos: number; consultados: number; alertas: number; repasados: number };
+export type ResumenDelBarrido = { vencidos: number; consultados: number; alertas: number; repasados: number; certificados: number };
 
 const HORA = 60 * 60_000;
 const DIA = 24 * HORA;
@@ -89,5 +90,15 @@ export async function barrerVentas(ahora: Date = new Date()): Promise<ResumenDel
     }
   }
 
-  return { vencidos, consultados: pendientes.length, alertas, repasados };
+  let certificados = 0;
+  const sinCertificado = await prisma.culturalEditionCopy.findMany({
+    where: { status: "ISSUED", certificateCode: null },
+    select: { id: true },
+    take: LOTE_PENDIENTES,
+  });
+  for (const c of sinCertificado) {
+    if ((await certificarCopia(c.id, ahora)) === "OK") certificados++;
+  }
+
+  return { vencidos, consultados: pendientes.length, alertas, repasados, certificados };
 }
