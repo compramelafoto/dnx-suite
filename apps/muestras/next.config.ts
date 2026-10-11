@@ -31,6 +31,16 @@ const nextConfig: NextConfig = {
       { source: "/proponer", destination: "/panel/proponer", permanent: false },
     ];
   },
+  // @repo/payments importa sus propios archivos .ts con extensión ".js" (estilo ESM de Node):
+  // webpack los busca como .ts. Mismo ajuste que compramelafoto, fotoffice y clickaton.
+  webpack(config) {
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
   turbopack: {
     // Silencia la detección errónea de root por lockfiles fuera del monorepo.
     root: path.join(appDir, "../.."),
