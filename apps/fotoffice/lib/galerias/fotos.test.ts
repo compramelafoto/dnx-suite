@@ -268,7 +268,9 @@ describe("listarFotos", () => {
     H.urls.mockResolvedValue(new Map([["a", { thumbUrl: "t", viewUrl: "v" }]]));
     const r = await F.listarFotos(ctx(), "g1");
     expect(r.map((x) => x.fileName)).toEqual(["IMG_2.jpg", "IMG_10.jpg"]);
-    expect(r[1]).toMatchObject({ thumbUrl: "t", viewUrl: "v", sizeBytes: 1000 });
+    expect(r[1]).toMatchObject({ thumbUrl: "t", viewUrl: null, sizeBytes: 1000 });
+    // Sólo se firman miniaturas: nunca se pide la clave de la vista.
+    expect(H.urls.mock.calls[0]![0].every((x: { viewKey: unknown }) => x.viewKey === null)).toBe(true);
     expect(JSON.stringify(r)).not.toContain("galerias/");
     expect(H.urls).toHaveBeenCalledTimes(1);
   });

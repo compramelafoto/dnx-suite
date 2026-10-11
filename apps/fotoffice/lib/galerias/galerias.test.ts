@@ -246,7 +246,12 @@ describe("fotosPorIds", () => {
     F.urls.mockResolvedValue(new Map([["f1", { thumbUrl: "t1", viewUrl: "v1" }]]));
     const r = await G.fotosPorIds(SOLO_VER, id, ["f1", "f3"]);
     expect(r.map((f) => f.id)).toEqual(["f1"]);
-    expect(r[0]).toMatchObject({ thumbUrl: "t1", viewUrl: "v1" });
+    expect(r[0]).toMatchObject({ thumbUrl: "t1", viewUrl: null });
+    F.urls.mockResolvedValue(new Map([["f1", { thumbUrl: null, viewUrl: "v1" }]]));
+    expect(await G.vistasPorIds(SOLO_VER, id, ["f1", "f3"])).toEqual({ f1: "v1" });
+    expect(await G.vistasPorIds(OTRO_WS, id, ["f1"])).toEqual({});
+    expect(await G.vistasPorIds(SIN_ACCESO, id, ["f1"])).toEqual({});
+    expect(await G.vistasPorIds(SOLO_VER, id, Array.from({ length: 21 }, (_, i) => `x${i}`))).toEqual({});
     expect(JSON.stringify(r)).not.toContain("galerias/");
     expect(await G.fotosPorIds(OTRO_WS, id, ["f1"])).toEqual([]);
     expect(await G.fotosPorIds(SIN_ACCESO, id, ["f1"])).toEqual([]);

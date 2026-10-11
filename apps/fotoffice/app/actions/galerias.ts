@@ -16,7 +16,7 @@ import { contextoDeGalerias } from "@/lib/galerias/contexto";
 import { enviarCorreoEnlace } from "@/lib/galerias/correos";
 import {
   archivarGaleria, borrarFotoDeGaleria, buscarProyectos, crearGaleria, editarGaleria, establecerModoOrden, fotosPorIds,
-  publicarGaleria, reactivarGaleria, type ProyectoEncontrado, type ResultadoGaleria, type ResultadoSimpleGaleria,
+  publicarGaleria, reactivarGaleria, vistasPorIds, type ProyectoEncontrado, type ResultadoGaleria, type ResultadoSimpleGaleria,
 } from "@/lib/galerias/galerias";
 import { establecerPortada, pedirSubidaFoto, reordenarFotos, type FotoVisible } from "@/lib/galerias/fotos";
 
@@ -133,6 +133,14 @@ export async function fotosPorIdsAction(galeriaId: string, ids: string[]): Promi
   const ctx = await contextoDeGalerias("ver");
   if (!ctx) return SIN_PERMISO;
   return { ok: true, fotos: await fotosPorIds(ctx, galeriaId, ids) };
+}
+
+/** La vista grande (2048 px) de la foto que se abre y sus vecinas (hasta 20): se pide al abrirla, no al armar la ficha. */
+export async function vistasPorIdsAction(galeriaId: string, ids: string[]): Promise<{ ok: true; vistas: Record<string, string> } | { ok: false; error: string }> {
+  if (!esId(galeriaId) || !Array.isArray(ids) || ids.length > 20 || !ids.every(esId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("ver");
+  if (!ctx) return SIN_PERMISO;
+  return { ok: true, vistas: await vistasPorIds(ctx, galeriaId, ids) };
 }
 
 export async function borrarFotoAction(galeriaId: string, fotoId: string): Promise<ResultadoSimpleGaleria> {

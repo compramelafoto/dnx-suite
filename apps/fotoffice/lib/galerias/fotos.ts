@@ -294,7 +294,8 @@ export async function listarFotos(
   });
   const ordenadas = ordenarFotosDeGaleria(filas as { id: string; fileName: string; order: number }[], galeria.orderMode === "MANUAL" ? "MANUAL" : "NOMBRE") as unknown as typeof filas;
   const urls = await urlsDeLecturaPorLote(
-    ordenadas.map((f: { id: unknown; viewKey: unknown; thumbKey: unknown }) => ({ id: f.id as string, viewKey: f.viewKey as string | null, thumbKey: f.thumbKey as string | null })),
+    // Sólo miniaturas: la vista de 2048 px se pide al abrir una foto (`vistasPorIds`).
+    ordenadas.map((f: { id: unknown; thumbKey: unknown }) => ({ id: f.id as string, viewKey: null, thumbKey: f.thumbKey as string | null })),
   );
   return ordenadas.map((f: Record<string, unknown>) => ({
     id: f.id as string,
@@ -306,7 +307,7 @@ export async function listarFotos(
     sizeBytes: f.sizeBytes === null || f.sizeBytes === undefined ? null : Number(f.sizeBytes),
     order: f.order as number,
     thumbUrl: urls.get(f.id as string)?.thumbUrl ?? null,
-    viewUrl: urls.get(f.id as string)?.viewUrl ?? null,
+    viewUrl: null,
   }));
 }
 

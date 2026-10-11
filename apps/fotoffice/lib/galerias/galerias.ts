@@ -328,12 +328,31 @@ export async function fotosPorIds(ctx: CtxGalerias, galeriaId: unknown, ids: unk
     where: { galeriaId, workspaceId, id: { in: ids as string[] } },
     select: { id: true, fileName: true, status: true, errorReason: true, width: true, height: true, sizeBytes: true, order: true, viewKey: true, thumbKey: true },
   });
-  const urls = await urlsDeLecturaPorLote(filas.map((f) => ({ id: f.id, viewKey: f.viewKey, thumbKey: f.thumbKey })));
+  const urls = await urlsDeLecturaPorLote(filas.map((f) => ({ id: f.id, viewKey: null, thumbKey: f.thumbKey })));
   return filas.map((f) => ({
     id: f.id, fileName: f.fileName, status: f.status as FotoVisible["status"], errorReason: f.errorReason, width: f.width, height: f.height,
     sizeBytes: f.sizeBytes === null ? null : Number(f.sizeBytes), order: f.order,
-    thumbUrl: urls.get(f.id)?.thumbUrl ?? null, viewUrl: urls.get(f.id)?.viewUrl ?? null,
+    thumbUrl: urls.get(f.id)?.thumbUrl ?? null, viewUrl: null,
   }));
+}
+
+/**
+ * URLs firmadas de la vista grande (2048 px) de hasta 20 fotos LISTAS de la galería: la foto que se abre y sus
+ * vecinas. Sólo con Ver y sólo de este workspace; devuelve id → URL.
+ */
+export async function vistasPorIds(ctx: CtxGalerias, galeriaId: unknown, ids: unknown): Promise<Record<string, string>> {
+  if (!puedeVerGalerias(ctx) || !idValido(galeriaId) || !Array.isArray(ids) || ids.length === 0 || ids.length > 20 || !ids.every(idValido)) return {};
+  const filas = await prisma.fotofficeGaleriaFoto.findMany({
+    where: { galeriaId, workspaceId: ctx.workspaceId, status: "LISTA", id: { in: ids as string[] } },
+    select: { id: true, viewKey: true },
+  });
+  const urls = await urlsDeLecturaPorLote(filas.map((f) => ({ id: f.id, viewKey: f.viewKey, thumbKey: null })));
+  const salida: Record<string, string> = {};
+  for (const f of filas) {
+    const u = urls.get(f.id)?.viewUrl;
+    if (u) salida[f.id] = u;
+  }
+  return salida;
 }
 
 // --- Borrar una foto dejando constancia -----------------------------------------------------------------
