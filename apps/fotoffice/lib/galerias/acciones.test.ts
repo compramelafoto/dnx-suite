@@ -65,6 +65,17 @@ describe("acciones de galerías (fuente)", () => {
     expect(fuente).toContain('import { after } from "next/server"');
   });
 
+  it("preparar la descarga completa exige Gestionar y ver una parte sólo Ver; las dos validan la forma de lo que llega", () => {
+    const preparar = cuerpoDe("prepararDescargaGaleriaAction");
+    expect(preparar).toContain('contextoDeGalerias("operar")');
+    expect(preparar).toMatch(/esId\(galeriaId\)/);
+    expect(preparar.indexOf("contextoDeGalerias")).toBeLessThan(preparar.indexOf("prepararDescargaDelEstudio("));
+    const parte = cuerpoDe("urlParteDescargaGaleriaAction");
+    expect(parte).toContain('contextoDeGalerias("ver")');
+    expect(parte).toMatch(/esId\(galeriaId\)[\s\S]*esId\(descargaId\)/);
+    expect(parte).toContain("Number.isInteger(n)");
+  });
+
   it("las acciones no devuelven nunca la clave del original ni el token en claro salvo copiar/WhatsApp", () => {
     expect(fuente).not.toMatch(/originalKey|tokenHash|tokenIssuedAt/);
   });

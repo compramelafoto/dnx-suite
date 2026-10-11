@@ -50,11 +50,13 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   de la galería al cliente, la copia de la selección que envió (con la cantidad) y la confirmación de las
  *   fotos extra que pagó (con la cantidad y el total). Son transaccionales: sin el
  *   freno de 24 h por dirección, con el tope diario de automáticos. Los manda `lib/galerias/correos.ts`.
+ * - `GALERIA_ENTREGA_ENVIO` y `GALERIA_DESCARGA_LISTA` (etapa 7, Entrega B): el enlace de una galería de ENTREGA (fotos
+ *   y videos listos para ver y bajar) y el aviso de que la descarga completa en ZIP ya está lista (con su vencimiento).
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
   "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
-  "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA",
+  "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA", "GALERIA_ENTREGA_ENVIO", "GALERIA_DESCARGA_LISTA",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 

@@ -24,7 +24,8 @@ describe("página pública de la galería (fuente)", () => {
     expect(page.indexOf("visitanteDelEnlace()")).toBeLessThan(page.indexOf("workspaceDelSlug("));
   });
   it("una galería de entrega usa su propia pantalla (sin selección ni carrito)", () => {
-    expect(page).toMatch(/vista\.galeria\.tipo === "ENTREGA"\) return <GaleriaEntrega /);
+    expect(page).toMatch(/vista\.galeria\.tipo === "ENTREGA"\) \{[\s\S]*<GaleriaEntrega\s/);
+    expect(page).toContain("RecibirTodoPorCorreo");
     const entrega = leer("../../components/galeria-publica/galeria-entrega.tsx");
     expect(entrega).toContain("<video");
     expect(entrega).toMatch(/controls/);
@@ -32,6 +33,32 @@ describe("página pública de la galería (fuente)", () => {
     expect(entrega).toContain("reproducirVideoAction");
     expect(entrega).toContain("descargarOriginalAction");
     expect(entrega).not.toMatch(/elegirFotoAction|enviarSeleccionAction|pagarFotosExtraAction|comentarAction/);
+  });
+  it("«Recibir todo por correo» sólo se arma en la entrega y pasa por el freno de su acción", () => {
+    expect(page.indexOf("estadoDescargaDeCliente(")).toBeGreaterThan(page.indexOf('vista.galeria.tipo === "ENTREGA"'));
+    expect(page.indexOf("estadoDescargaDeCliente(")).toBeLessThan(page.indexOf("return <GaleriaCliente"));
+    const recibir = leer("../../components/galeria-publica/recibir-todo.tsx");
+    expect(recibir).toContain("pedirDescargaAction");
+    expect(recibir).toContain("Recibir todo por correo");
+    expect(cuerpoDe("pedirDescargaAction")).toMatch(/entrar\("pedir-descarga", 10, slug\)/);
+    expect(cuerpoDe("descargarParteAction")).toMatch(/entrar\("descargar-parte", \d+, slug\)/);
+  });
+  it("la página /descargas: dinámica, sin indexar, con freno por IP antes de leer, 404 si el enlace no resuelve y sólo lee lo del token", () => {
+    const d = leer(`${BASE}/descargas/page.tsx`);
+    expect(d).toContain('export const dynamic = "force-dynamic"');
+    expect(d).toMatch(/robots: \{ index: false, follow: false \}/);
+    expect(d).toContain('referrer: "no-referrer"');
+    expect(d.indexOf("visitanteDelEnlace()")).toBeLessThan(d.indexOf("workspaceDelSlug("));
+    expect(d).toMatch(/if \(!vista\) notFound\(\)/);
+    expect(d).toContain("vistaDeDescargas(workspaceId, token)");
+    expect(d).toContain("Pedí la descarga de nuevo");
+    const partes = leer(`${BASE}/descargas/descargar-partes.tsx`);
+    expect(partes).toContain("descargarParteAction");
+    expect(partes).not.toMatch(/originalKey|key:/);
+  });
+  it("las rutas /descargas llevan los mismos encabezados que la galería (sin referer, sin marco)", () => {
+    expect(config).toContain('source: "/w/:slug/galeria/:path*"');
+    expect(config).toContain('source: "/galeria/:path*"');
   });
   it("lo que abre el equipo no cuenta como 'entró'", () => {
     expect(page).toMatch(/!\(await abreAlguienDelEquipo\(workspaceId\)\)\) await registrarEntrada/);
@@ -46,7 +73,7 @@ describe("acciones públicas (fuente)", () => {
   it("es 'use server' y sólo exporta funciones async", () => {
     expect(acciones.startsWith('"use server";')).toBe(true);
     expect(acciones).not.toMatch(/^export (const|let|var|type|interface|class)\b/m);
-    expect(NOMBRES.sort()).toEqual(["comentarAction", "descargarAction", "descargarOriginalAction", "elegirFotoAction", "enviarSeleccionAction", "pagarFotosExtraAction", "reproducirVideoAction", "vistasAction"]);
+    expect(NOMBRES.sort()).toEqual(["comentarAction", "descargarAction", "descargarOriginalAction", "descargarParteAction", "elegirFotoAction", "enviarSeleccionAction", "pagarFotosExtraAction", "pedirDescargaAction", "reproducirVideoAction", "vistasAction"]);
   });
   it("toda acción pasa por el freno por IP y por el workspace del slug antes de tocar nada", () => {
     for (const n of NOMBRES) expect(cuerpoDe(n), n).toMatch(/await entrar\("/);

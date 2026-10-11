@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { ConfiguracionGaleria } from "@/components/galerias/configuracion-galeria";
 import { PestanaClientes } from "@/components/galerias/pestana-clientes";
+import { PestanaDescargas } from "@/components/galerias/pestana-descargas";
 import { PestanaFotos } from "@/components/galerias/pestana-fotos";
 import { PestanaVenta } from "@/components/galerias/pestana-venta";
 import { puedeEnContexto } from "@/lib/access/policy";
@@ -10,6 +11,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { fechaHoraBA } from "@/lib/ficha/formato";
 import { puedeGestionarGalerias } from "@/lib/galerias/acceso";
 import { listarClientesDeGaleria } from "@/lib/galerias/clientes";
+import { listarDescargasDeGaleria } from "@/lib/galerias/descargas";
 import { ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, ETIQUETA_MODO_SELECCION, ETIQUETA_TIPO_GALERIA } from "@/lib/galerias/constantes";
 import { claseDeEstadoGaleria } from "@/lib/galerias/estado-vista";
 import { listarFotos } from "@/lib/galerias/fotos";
@@ -33,6 +35,8 @@ const PESTANAS = [
   { clave: "clientes", etiqueta: "Clientes" },
   // La entrega no tiene venta: el cliente recibe todo lo que se sube.
   { clave: "venta", etiqueta: "Venta" },
+  // Sólo en las entregas: «Preparar descarga» (ZIP en partes de hasta 1 GB).
+  { clave: "descargas", etiqueta: "Descargas" },
   { clave: "configuracion", etiqueta: "Configuración" },
   { clave: "historial", etiqueta: "Historial" },
 ] as const;
@@ -59,7 +63,7 @@ export default async function FichaGaleriaPage({
   if (!ficha) notFound();
 
   const esEntrega = ficha.tipo === "ENTREGA";
-  const pestanas = PESTANAS.filter((p) => !(esEntrega && p.clave === "venta"));
+  const pestanas = PESTANAS.filter((p) => !(esEntrega && p.clave === "venta") && !(!esEntrega && p.clave === "descargas"));
   const pedida = (await searchParams).tab;
   const pestana: Pestana = pestanas.find((p) => p.clave === (Array.isArray(pedida) ? pedida[0] : pedida))?.clave ?? "fotos";
   const gestiona = puedeGestionarGalerias(ctx);
@@ -73,6 +77,7 @@ export default async function FichaGaleriaPage({
   const venta = pestana === "venta" ? await cargarVentaGaleria(ctx, id) : null;
   // Lo vendido sólo se lee si quien mira puede ver el dinero.
   const vendido = puedeVerVentasGalerias(ctx) ? ((await vendidoPorGaleria(ctx, [id])).get(id) ?? 0) : null;
+  const descargas = pestana === "descargas" ? await listarDescargasDeGaleria(ctx, id) : [];
   const fotos = pestana === "fotos" ? await listarFotos(ctx, id) : [];
   const pagina = pestana === "historial" ? paginaPedida((await searchParams).pagina) : 1;
   const historial = pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: [], pagina: 1, hayMas: false };
@@ -254,6 +259,8 @@ export default async function FichaGaleriaPage({
               esEntrega={esEntrega}
             />
           ) : null}
+
+          {pestana === "descargas" ? <PestanaDescargas galeriaId={ficha.id} descargas={descargas} puedeGestionar={gestiona} archivosListos={ficha.fotos.listas} /> : null}
 
           {pestana === "venta" && venta ? (
             <PestanaVenta

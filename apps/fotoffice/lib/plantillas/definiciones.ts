@@ -65,6 +65,8 @@ export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlan
   GALERIA_ENVIO: { canal: "EMAIL", tipo: "GALERIA", nombre: "Galería para elegir tus fotos" },
   GALERIA_SELECCION_ENVIADA: { canal: "EMAIL", tipo: "GALERIA", nombre: "Selección de fotos recibida" },
   GALERIA_COMPRA_PAGADA: { canal: "EMAIL", tipo: "GALERIA", nombre: "Pago de fotos extra recibido" },
+  GALERIA_ENTREGA_ENVIO: { canal: "EMAIL", tipo: "GALERIA", nombre: "Galería de entrega para ver y descargar" },
+  GALERIA_DESCARGA_LISTA: { canal: "EMAIL", tipo: "GALERIA", nombre: "Descarga completa lista" },
 };
 
 export const MENSAJES_PLANTILLAS = {

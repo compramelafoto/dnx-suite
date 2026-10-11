@@ -55,7 +55,7 @@ const TABLAS = [
   "fotofficeContratoFirmante", "fotofficeContratoEvento", "fotofficeContratoAjustes",
   // Galería (etapa 7).
   "fotofficeGaleria", "fotofficeGaleriaFoto", "fotofficeGaleriaCliente", "fotofficeGaleriaSeleccion", "fotofficeGaleriaComentario", "fotofficeGaleriaEvento",
-  "fotofficeGaleriaAjustes", "fotofficeGaleriaCompra", "fotofficeGaleriaCompraFoto",
+  "fotofficeGaleriaAjustes", "fotofficeGaleriaCompra", "fotofficeGaleriaCompraFoto", "fotofficeGaleriaDescarga",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -244,6 +244,10 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     cashMovementId: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeGaleriaCompraFoto: () => ({}),
+  fotofficeGaleriaDescarga: () => ({
+    galeriaClienteId: null, status: "PENDIENTE", parts: [], cursor: null, errorReason: null, requestedEmail: null, notifiedAt: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
   cashMovement: () => ({

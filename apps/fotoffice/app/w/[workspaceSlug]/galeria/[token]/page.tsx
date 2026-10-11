@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GaleriaCliente } from "@/components/galeria-publica/galeria-cliente";
 import { GaleriaEntrega } from "@/components/galeria-publica/galeria-entrega";
+import { RecibirTodoPorCorreo } from "@/components/galeria-publica/recibir-todo";
+import { estadoDescargaDeCliente } from "@/lib/galerias/descargas";
 import { avisoDeVueltaGaleria, type ResultadoVueltaGaleria } from "@/lib/galerias/venta-publica";
 import { verificarVueltaGaleria } from "@/lib/galerias/pago";
 import { armarVistaGaleria, registrarEntrada, resolverTokenGaleria } from "@/lib/galerias/publico";
@@ -55,6 +57,16 @@ export default async function GaleriaPublicaPage({ params, searchParams }: Props
   }
   const vista = await armarVistaGaleria(r);
   // Galería de entrega: sin selección ni pago; la vuelta de Mercado Pago no aplica.
-  if (vista.galeria.tipo === "ENTREGA") return <GaleriaEntrega slug={workspaceSlug} token={token} vista={vista} />;
+  if (vista.galeria.tipo === "ENTREGA") {
+    const descarga = await estadoDescargaDeCliente(workspaceId, r.galeria.id, r.cliente.id, r.cliente.email);
+    return (
+      <GaleriaEntrega
+        slug={workspaceSlug}
+        token={token}
+        vista={vista}
+        slotRecibirTodo={vista.fotos.length > 0 ? <RecibirTodoPorCorreo slug={workspaceSlug} token={token} tieneCorreo={descarga.tieneCorreo} activa={descarga.activa} lista={descarga.lista} topeAlcanzado={descarga.topeAlcanzado} /> : null}
+      />
+    );
+  }
   return <GaleriaCliente slug={workspaceSlug} token={token} vista={vista} avisoPago={avisoDeVueltaGaleria(pago, verificacion)} />;
 }

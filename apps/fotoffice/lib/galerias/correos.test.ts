@@ -74,6 +74,39 @@ describe("plantillas iniciales", () => {
   });
 });
 
+describe("textos de la entrega y de la descarga lista", () => {
+  it("el enlace de una entrega habla de ver y descargar, no de elegir", () => {
+    const t = C.TEXTOS_GALERIA_INICIALES.GALERIA_ENTREGA_ENVIO;
+    expect(t.cuerpo).toContain("ya están listas para ver y descargar");
+    expect(`${t.asunto} ${t.cuerpo}`).not.toMatch(/elegir|elegí|selección/i);
+    expect(t.cuerpo).toContain("[galeria_enlace]");
+    expect(AUTOMATICOS.GALERIA_ENTREGA_ENVIO.tipo).toBe("GALERIA");
+  });
+  it("el aviso de descarga lista trae el enlace y el vencimiento", () => {
+    const t = C.TEXTOS_GALERIA_INICIALES.GALERIA_DESCARGA_LISTA;
+    expect(t.cuerpo).toContain("[galeria_enlace]");
+    expect(t.cuerpo).toContain("[galeria_vence]");
+    expect(AUTOMATICOS.GALERIA_DESCARGA_LISTA).toMatchObject({ canal: "EMAIL", tipo: "GALERIA" });
+  });
+  it("el aviso sale con la fecha de vencimiento y el registro no guarda el enlace", async () => {
+    const r = await C.enviarCorreoGaleria({ ...base, clave: "GALERIA_DESCARGA_LISTA", enlace: `${URL_ENLACE}/descargas`, vence: "18 de octubre de 2026" }, { ...DEPS, enviar });
+    expect(r).toBe("ENVIADO");
+    expect(enviados[0]!.text).toContain("18 de octubre de 2026");
+    expect(enviados[0]!.text).toContain(`${URL_ENLACE}/descargas`);
+    expect(mensajes()[0]!.body).toContain("18 de octubre de 2026");
+    expect(String(mensajes()[0]!.body)).not.toContain(TOKEN);
+  });
+  it("enviarCorreoEnlace usa el texto de entrega cuando la galería es de entrega, y el de selección si no", async () => {
+    B.datos.fotofficeGaleria.find((g) => g.id === "g1")!.kind = "ENTREGA";
+    expect(await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar })).toBe("ENVIADO");
+    expect(enviados[0]!.subject).toBe("Tus fotos ya están listas: Boda Ana y Luis");
+    expect(enviados[0]!.text).toContain("para ver y descargar");
+    B.datos.fotofficeGaleria.find((g) => g.id === "g1")!.kind = "SELECCION";
+    await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar });
+    expect(enviados[1]!.subject).toBe("Elegí tus fotos: Boda Ana y Luis");
+  });
+});
+
 describe("enviarCorreoGaleria", () => {
   it("sale al cliente con su nombre y su enlace, y el registro NO guarda el enlace personal", async () => {
     const r = await C.enviarCorreoGaleria({ ...base, clave: "GALERIA_ENVIO", enlace: URL_ENLACE }, { ...DEPS, enviar });
