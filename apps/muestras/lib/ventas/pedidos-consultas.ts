@@ -187,3 +187,17 @@ export async function ventasDelAutor(activityId: string, usuario: Quien) {
     };
   });
 }
+
+/**
+ * Pedidos pagados de copias impresas que todavía no se entregaron, por muestra (contador del
+ * tablero). Llamar con ids donde la persona tiene `salesFulfill`.
+ */
+export async function pedidosParaProducir(ids: string[]): Promise<Map<string, number>> {
+  if (!ids.length) return new Map();
+  const filas = await prisma.culturalSaleOrder.groupBy({
+    by: ["activityId"],
+    where: { activityId: { in: ids }, status: "PAID", fulfillment: { in: ["PENDING", "IN_PRODUCTION"] } },
+    _count: { _all: true },
+  });
+  return new Map(filas.map((f) => [f.activityId, f._count._all]));
+}

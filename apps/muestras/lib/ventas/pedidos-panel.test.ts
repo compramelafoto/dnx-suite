@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   culturalActivity: { findUnique: vi.fn() },
-  culturalSaleOrder: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), count: vi.fn() },
+  culturalSaleOrder: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() },
   culturalSaleEvent: { create: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
   culturalEditionCopy: { findMany: vi.fn(), findUnique: vi.fn(), deleteMany: vi.fn() },
   culturalWorkOffer: { findMany: vi.fn() },
@@ -23,7 +23,7 @@ vi.mock("./r2-privado", () => r2);
 vi.mock("./certificado", () => ({ pdfGuardado: vi.fn(async () => new Uint8Array([1])) }));
 
 const { borrarVentasDePrueba, cambiarProduccion, devolverPago, pedirDevolucion } = await import("./pedidos-panel");
-const { pedidosDeLaMuestra, ventasDelAutor } = await import("./pedidos-consultas");
+const { pedidosDeLaMuestra, pedidosParaProducir, ventasDelAutor } = await import("./pedidos-consultas");
 const { descargarOriginal } = await import("./descarga-panel");
 const { resetRateLimit } = await import("@/lib/limite");
 
@@ -167,5 +167,17 @@ describe("lo que ve cada uno", () => {
     const r = await descargarOriginal("w1");
     expect(r.status).toBe(200);
     expect(r.headers.get("Content-Disposition")).toContain('filename="original-Rio-del-sur.jpg"');
+  });
+});
+
+describe("contadores del tablero", () => {
+  it("pedidos para producir: sólo pagados de impresas sin entregar, de las muestras pedidas", async () => {
+    db.culturalSaleOrder.groupBy.mockResolvedValue([{ activityId: "a1", _count: { _all: 2 } }]);
+    expect(await pedidosParaProducir([])).toEqual(new Map());
+    expect(db.culturalSaleOrder.groupBy).not.toHaveBeenCalled();
+    expect(await pedidosParaProducir(["a1", "a2"])).toEqual(new Map([["a1", 2]]));
+    expect(db.culturalSaleOrder.groupBy.mock.calls[0]![0].where).toEqual({
+      activityId: { in: ["a1", "a2"] }, status: "PAID", fulfillment: { in: ["PENDING", "IN_PRODUCTION"] },
+    });
   });
 });
