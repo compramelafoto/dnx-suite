@@ -20,7 +20,12 @@ export type CopyKind = (typeof COPY_KINDS)[number];
 export const COPY_STATUSES = ["RESERVED", "ISSUED", "VOIDED", "RELEASED"] as const;
 export type CopyStatus = (typeof COPY_STATUSES)[number];
 
-export type EditionRow = { id: string; number: number; status: CopyStatus | string; reservedUntil: Date | null; kind?: CopyKind | string };
+/**
+ * `isTest`: la numeración de prueba va aparte de la real (D4). Las funciones de abajo reciben el
+ * ambiente que se cuenta y descartan las filas del otro: nunca se mezclan, aunque quien llama mande
+ * todas las filas de la oferta. Una fila sin `isTest` cuenta como real.
+ */
+export type EditionRow = { id: string; number: number; status: CopyStatus | string; reservedUntil: Date | null; kind?: CopyKind | string; isTest?: boolean };
 
 /** "Copia única", "3/10" o "P/A 1/2". */
 export function editionLabel(p: { kind: string; number: number; size: number; editionKind: string; proofCount: number }): string {
@@ -35,11 +40,14 @@ const ocupa = (r: EditionRow, now: Date) => r.status === "ISSUED" || r.status ==
 /** Se puede volver a usar: liberada o reservada vencida (nunca emitida). */
 const reutilizable = (r: EditionRow, now: Date) => r.status === "RELEASED" || (r.status === "RESERVED" && !vigente(r, now));
 
-const deTipo = (rows: readonly EditionRow[], kind: CopyKind) => rows.filter((r) => (r.kind ?? "COPY") === kind);
+const deTipo = (rows: readonly EditionRow[], kind: CopyKind, isTest: boolean) =>
+  rows.filter((r) => (r.kind ?? "COPY") === kind && (r.isTest ?? false) === isTest);
 
 /** Emitidas, anuladas, reservadas vigentes y filas reutilizables (las reservas vencidas cuentan como libres). */
-export function copyCounts(rows: readonly EditionRow[], now: Date, kind: CopyKind = "COPY"): { issued: number; voided: number; reserved: number; free: number } {
-  const propias = deTipo(rows, kind);
+export function copyCounts(
+  rows: readonly EditionRow[], now: Date, kind: CopyKind = "COPY", isTest = false,
+): { issued: number; voided: number; reserved: number; free: number } {
+  const propias = deTipo(rows, kind, isTest);
   return {
     issued: propias.filter((r) => r.status === "ISSUED").length,
     voided: propias.filter((r) => r.status === "VOIDED").length,
@@ -49,8 +57,8 @@ export function copyCounts(rows: readonly EditionRow[], now: Date, kind: CopyKin
 }
 
 /** Cuántas quedan: N − emitidas − anuladas − reservadas vigentes. */
-export function editionRemaining(rows: readonly EditionRow[], size: number, now: Date, kind: CopyKind = "COPY"): number {
-  const c = copyCounts(rows, now, kind);
+export function editionRemaining(rows: readonly EditionRow[], size: number, now: Date, kind: CopyKind = "COPY", isTest = false): number {
+  const c = copyCounts(rows, now, kind, isTest);
   return Math.max(0, size - c.issued - c.voided - c.reserved);
 }
 
@@ -64,8 +72,9 @@ export function nextEditionNumber(
   size: number,
   now: Date,
   kind: CopyKind = "COPY",
+  isTest = false,
 ): { reuseId: string; number: number } | { create: true; number: number } | null {
-  const propias = deTipo(rows, kind);
+  const propias = deTipo(rows, kind, isTest);
   if (propias.filter((r) => ocupa(r, now)).length >= size) return null;
   const ocupados = new Set(propias.filter((r) => ocupa(r, now)).map((r) => r.number));
   for (let n = 1; n <= size; n++) {
@@ -84,4 +93,18 @@ export function canChangeEdition(p: { firstSoldAt: Date | null; currentSize: num
   if (p.nextSize < p.issuedOrReserved) return { ok: false, error: `Ya hay ${p.issuedOrReserved} copias emitidas o reservadas: la edición no puede ser menor.` };
   if (p.firstSoldAt != null && p.nextSize > p.currentSize) return { ok: false, error: "Después de la primera venta, la edición no puede crecer." };
   return { ok: true };
+}
+
+/**
+ * Pago tardío (D23, revisión de las tareas 1 a 5): cuando un pedido vencido se paga, su reserva ya
+ * se liberó (y el pedido perdió su `copyId`). Nunca se recupera esa fila: se busca el número libre
+ * más bajo como cualquier compra nueva, o el pedido pasa a `PAID_NO_COPY`.
+ */
+export function lateCopyDecision(rows: readonly EditionRow[], size: number, now: Date, isTest: boolean): { reuseId: string; number: number } | { create: true; number: number } | "PAID_NO_COPY" {
+  return nextEditionNumber(rows, size, now, "COPY", isTest) ?? "PAID_NO_COPY";
+}
+
+/** Una venta de prueba no marca la primera venta de la oferta: no fija formato, edición ni original. */
+export function marksFirstSale(p: { isTest: boolean; firstSoldAt: Date | null }): boolean {
+  return !p.isTest && p.firstSoldAt == null;
 }

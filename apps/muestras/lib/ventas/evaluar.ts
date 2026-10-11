@@ -20,6 +20,8 @@ export type DatosDeEvaluacion = {
   originales: ReadonlyMap<string, string>;
   firmas: ReadonlySet<number>;
   copias: ReadonlyMap<string, readonly EditionRow[]>;
+  /** Ambiente de la numeración que se cuenta (D4). */
+  isTest: boolean;
   ahora: Date;
 };
 
@@ -48,8 +50,8 @@ export const VENTA_CERRADA = "La venta de la muestra cerró (pasaron 30 días de
 
 export function evaluarOferta(o: OfertaParaEvaluar, d: DatosDeEvaluacion): Evaluacion {
   const filas = d.copias.get(o.id) ?? [];
-  const quedan = editionRemaining(filas, o.editionSize, d.ahora);
-  const vendidas = filas.filter((f) => f.status === "ISSUED").length;
+  const quedan = editionRemaining(filas, o.editionSize, d.ahora, "COPY", d.isTest);
+  const vendidas = filas.filter((f) => f.status === "ISSUED" && (f.isTest ?? false) === d.isTest && (f.kind ?? "COPY") === "COPY").length;
   const obra = d.vendibles.get(o.activityWorkId);
   const nombre = obra?.authorName ?? "El autor";
   const r = offerPurchasable({

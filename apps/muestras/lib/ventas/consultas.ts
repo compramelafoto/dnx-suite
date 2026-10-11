@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { activitySalesHref, type ActivityRole, type EditionRow } from "@repo/muestras";
 import { conPermiso, puede, rolEnMuestra } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
@@ -27,16 +27,16 @@ export type ObraVendible = {
  * Obras de la muestra que se pueden vender (D8): de expositor aprobadas y marcadas "La quiero
  * vender", o de concurso con la venta aceptada por su autor. Con `authorUserId`, sólo las suyas.
  */
-export async function obrasVendibles(activityId: string, authorUserId?: number): Promise<ObraVendible[]> {
+export async function obrasVendibles(activityId: string, authorUserId?: number, db: Prisma.TransactionClient = prisma): Promise<ObraVendible[]> {
   const [expositores, concurso] = await Promise.all([
-    prisma.culturalExhibitorWork.findMany({
+    db.culturalExhibitorWork.findMany({
       where: {
         activityId, status: "APPROVED", forSale: true, activityWorkId: { not: null },
         exhibitor: { activityId, status: "ACTIVE", ...(authorUserId != null ? { userId: authorUserId } : {}) },
       },
       select: { activityWorkId: true, priceArs: true, exhibitor: { select: { userId: true } } },
     }),
-    prisma.culturalContestWork.findMany({
+    db.culturalContestWork.findMany({
       where: {
         activityId, forSale: true, saleConsent: "ACCEPTED", exhibitConsent: "ACCEPTED", activityWorkId: { not: null },
         authorUserId: authorUserId != null ? authorUserId : { not: null },
@@ -49,7 +49,7 @@ export async function obrasVendibles(activityId: string, authorUserId?: number):
   for (const w of concurso) if (w.activityWorkId && w.authorUserId != null) candidatas.set(w.activityWorkId, { authorUserId: w.authorUserId, origen: "CONCURSO", precioSugerido: null });
   if (candidatas.size === 0) return [];
   // Sólo las que siguen en la muestra (el editor pudo quitarlas).
-  const enLaMuestra = await prisma.culturalActivityWork.findMany({
+  const enLaMuestra = await db.culturalActivityWork.findMany({
     where: { activityId, id: { in: [...candidatas.keys()] } },
     select: { id: true, title: true, imageUrl: true, authorName: true, sortOrder: true },
     orderBy: { sortOrder: "asc" },
@@ -70,7 +70,7 @@ const OFERTA = {
 } as const;
 
 /** Todo lo que hace falta para evaluar los formatos de una muestra, en una consulta por tabla. */
-export async function datosDeVenta(activityId: string, config: ConfigDeVentas, ahora = new Date()) {
+export async function datosDeVenta(activityId: string, config: Pick<ConfigDeVentas, "ambienteCuenta">, ahora = new Date()) {
   const isTest = ventasDePrueba(config);
   const [actividad, setup, vendibles, ofertas] = await Promise.all([
     prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, slug: true, reviewStatus: true, isCancelled: true, endsAt: true, proposedByUserId: true, type: true } }),
@@ -103,6 +103,7 @@ export async function datosDeVenta(activityId: string, config: ConfigDeVentas, a
     originales: new Map(originales.map((f) => [f.activityWorkId, f.status])),
     firmas: new Set(firmas.map((f) => f.userId)),
     copias: porOferta,
+    isTest,
     ahora,
   };
   return { actividad, setup, vendibles, ofertas, terminos, cuentas, originales, firmas: datos.firmas, datos, isTest };

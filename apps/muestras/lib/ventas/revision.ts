@@ -138,7 +138,7 @@ export async function emitirPruebaDeAutor(offerId: string): Promise<ResultadoRev
         where: { offerId: o.id, isTest, kind: "PROOF" },
         select: { id: true, number: true, status: true, reservedUntil: true, kind: true, isTest: true },
       });
-      const sig = nextEditionNumber(filas, o.proofCount, ahora, "PROOF");
+      const sig = nextEditionNumber(filas, o.proofCount, ahora, "PROOF", isTest);
       if (!sig) throw new Corte("Ya se emitieron todas las pruebas de autor.");
       const datos = { status: "ISSUED", issuedAt: ahora, reservedUntil: null, orderId: null };
       if ("reuseId" in sig) {

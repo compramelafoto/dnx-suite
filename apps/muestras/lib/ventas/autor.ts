@@ -81,7 +81,7 @@ async function bloquearOferta(tx: Prisma.TransactionClient, id: string, usuario:
 async function ocupadas(tx: Prisma.TransactionClient, offerId: string, ahora: Date): Promise<number> {
   const filas = await tx.culturalEditionCopy.findMany({ where: { offerId, kind: "COPY" }, select: { id: true, number: true, status: true, reservedUntil: true, isTest: true } });
   const de = (isTest: boolean) => {
-    const c = copyCounts(filas.filter((f) => f.isTest === isTest), ahora);
+    const c = copyCounts(filas, ahora, "COPY", isTest);
     return c.issued + c.voided + c.reserved;
   };
   return Math.max(de(false), de(true));
