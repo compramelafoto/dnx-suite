@@ -719,6 +719,9 @@ function coreTemplateV2EditorReducer(
       return {
         ...state,
         canvas: nextCanvas,
+        ...(dimChanged
+          ? { blocks: ajustarFondosAlLienzo(state.blocks, state.canvas, nextCanvas) }
+          : {}),
         ...(dimChanged ? { zoomUserAdjusted: false } : {}),
         isDirty: true,
         saveStatus: "idle",
@@ -771,6 +774,28 @@ function coreTemplateV2EditorReducer(
     default:
       return state;
   }
+}
+
+/**
+ * El fondo nace del tamaño de la hoja y queda bloqueado: si la hoja cambia de tamaño y el
+ * fondo no la acompaña, queda un rectángulo en una esquina que nadie puede estirar.
+ * Sólo se ajustan los fondos que cubrían la hoja entera; uno que el usuario achicó a
+ * propósito se respeta.
+ */
+export function ajustarFondosAlLienzo(
+  blocks: TemplateV2Block[],
+  anterior: Pick<TemplateV2Canvas, "width" | "height">,
+  nuevo: Pick<TemplateV2Canvas, "width" | "height">,
+): TemplateV2Block[] {
+  const casi = (a: number, b: number) => Math.abs(a - b) < 0.5;
+  return blocks.map((b) => {
+    if (b.type !== "BACKGROUND") return b;
+    const l = b.layout;
+    const cubriaLaHoja =
+      casi(l.x, 0) && casi(l.y, 0) && casi(l.width, anterior.width) && casi(l.height, anterior.height);
+    if (!cubriaLaHoja) return b;
+    return { ...b, layout: { ...l, width: nuevo.width, height: nuevo.height } };
+  });
 }
 
 export function templateV2EditorReducer(
