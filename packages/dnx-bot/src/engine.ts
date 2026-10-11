@@ -69,7 +69,8 @@ export async function runBotTurn(i: BotTurnInput): Promise<BotTurnResult> {
     const toolUses = (msg.content as any[]).filter((b) => b.type === "tool_use");
     // Un tool_use cortado por max_tokens quedaría sin tool_result y rompería el historial: no se guarda.
     if (msg.stop_reason === "max_tokens") {
-      if (toolUses.length === 0) appended.push({ role: "assistant", content: msg.content });
+      const hasText = (msg.content as any[]).some((b) => b.type === "text" && typeof b.text === "string" && b.text.length > 0);
+      if (toolUses.length === 0 && hasText) appended.push({ role: "assistant", content: msg.content });
       return { appended, usage, outcome: "max_tokens" };
     }
     appended.push({ role: "assistant", content: msg.content });
@@ -99,9 +100,16 @@ async function handleToolUse(i: BotTurnInput, tool: BotTool | undefined, tu: { i
     }
   }
 
-  const summary = await tool.describe!(parsed.data, i.actor);
-  const { actionId } = await i.proposeWrite({ toolName: tool.name, input: parsed.data, summary });
-  i.onProposal({ actionId, summary });
+  let actionId: string;
+  let summary: string;
+  try {
+    if (!tool.describe) throw new Error("la herramienta no tiene describe()");
+    summary = await tool.describe(parsed.data, i.actor);
+    ({ actionId } = await i.proposeWrite({ toolName: tool.name, input: parsed.data, summary }));
+    i.onProposal({ actionId, summary });
+  } catch (e) {
+    return err(`No se pudo preparar la acción: ${e instanceof Error ? e.message : String(e)}`);
+  }
   return {
     type: "tool_result",
     tool_use_id: tu.id,

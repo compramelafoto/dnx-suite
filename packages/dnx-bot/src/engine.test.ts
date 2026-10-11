@@ -126,4 +126,54 @@ describe("runBotTurn", () => {
     expect(p.thinking).toEqual({ type: "adaptive" });
     expect(p).not.toHaveProperty("tool_choice");
   });
+
+  const noop = { onText: () => {}, onProposal: vi.fn() };
+  const endTurn = { stop_reason: "end_turn", usage, content: [{ type: "text", text: "ok" }] };
+  const useWrite = { stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t1", name: "actualizar_album", input: { albumId: 3 } }] };
+
+  it("describe que falla → is_error, no corre, el turno sigue", async () => {
+    const rota = defineTool({ name: "actualizar_album", description: "d", kind: "write", input: z.strictObject({ albumId: z.number().int() }),
+      describe: async () => { throw new Error("boom"); }, run: vi.fn(async () => ({ ok: true as const, message: "x" })) });
+    const client = fakeClient([useWrite, endTurn]);
+    const proposeWrite = vi.fn();
+    const r = await runBotTurn({ ...base, ...noop, client, tools: [rota], userText: "x", proposeWrite });
+    expect(rota.run).not.toHaveBeenCalled();
+    expect(proposeWrite).not.toHaveBeenCalled();
+    expect((r.appended[2]!.content as any[])[0]).toMatchObject({ is_error: true });
+    expect(JSON.stringify(r.appended[2]!.content)).toContain("No se pudo preparar la acción");
+    expect(r.outcome).toBe("ok");
+  });
+
+  it("proposeWrite que falla → is_error y el turno sigue", async () => {
+    const client = fakeClient([useWrite, endTurn]);
+    const r = await runBotTurn({ ...base, ...noop, client, tools: [escribir], userText: "x", proposeWrite: async () => { throw new Error("db caída"); } });
+    expect((r.appended[2]!.content as any[])[0]).toMatchObject({ is_error: true });
+    expect(r.outcome).toBe("ok");
+  });
+
+  it("lectura que lanza → is_error Falló la consulta", async () => {
+    const mala = defineTool({ name: "ver_album", description: "d", kind: "read", input: z.strictObject({ albumId: z.number().int() }),
+      run: async () => { throw new Error("x"); } });
+    const client = fakeClient([{ stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t1", name: "ver_album", input: { albumId: 1 } }] }, endTurn]);
+    const r = await runBotTurn({ ...base, ...noop, client, tools: [mala], userText: "x", proposeWrite: vi.fn() });
+    const tr = (r.appended[2]!.content as any[])[0];
+    expect(tr.is_error).toBe(true);
+    expect(tr.content).toContain("Falló la consulta");
+  });
+
+  it("dos tool_use → un solo mensaje user con dos tool_result en orden", async () => {
+    const client = fakeClient([{ stop_reason: "tool_use", usage, content: [
+      { type: "tool_use", id: "a", name: "ver_album", input: { albumId: 1 } },
+      { type: "tool_use", id: "b", name: "ver_album", input: { albumId: 2 } }] }, endTurn]);
+    const r = await runBotTurn({ ...base, ...noop, client, tools: [leer], userText: "x", proposeWrite: vi.fn() });
+    expect(r.appended.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+    expect((r.appended[2]!.content as any[]).map((c) => c.tool_use_id)).toEqual(["a", "b"]);
+  });
+
+  it("max_tokens con contenido vacío → sólo el mensaje del usuario", async () => {
+    const client = fakeClient([{ stop_reason: "max_tokens", usage, content: [] }]);
+    const r = await runBotTurn({ ...base, ...noop, client, tools: [leer], userText: "x", proposeWrite: vi.fn() });
+    expect(r.outcome).toBe("max_tokens");
+    expect(r.appended).toEqual([{ role: "user", content: "x" }]);
+  });
 });
