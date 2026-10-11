@@ -7,6 +7,7 @@ import { estiloBotonDnx } from "@/lib/boton-dnx";
 import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 import { faltanImprescindibles, puntosDePreparacion } from "@/lib/preparacion";
 import { Preparacion } from "./preparacion";
+import { QueVen } from "./que-ven";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,8 @@ export default async function DetalleEvento({ params }: Props) {
       coverUrl: true,
       hostsLabel: true,
       preparacion: true,
+      guestsCanSeeAlbum: true,
+      guestsCanSeeLive: true,
       sellerProfile: { select: { logoUrl: true, bannerUrl: true } },
     },
   });
@@ -94,6 +97,32 @@ export default async function DetalleEvento({ params }: Props) {
           <dd style={{ color: "var(--slf-tinta-suave)" }}>{enZona(evento.deactivationAt)}</dd>
         </div>
       </dl>
+
+      <section className="mt-12">
+        <h2 className="text-lg font-extrabold">Qué ven los invitados</h2>
+        <p className="mt-2" style={{ color: "var(--slf-tinta-suave)" }}>
+          Dos cosas distintas, y conviene no confundirlas.
+        </p>
+        <QueVen
+          eventoId={id}
+          interruptores={[
+            {
+              campo: "guestsCanSeeLive",
+              titulo: "Muro en vivo",
+              ayuda:
+                "En su teléfono ven las últimas fotos que llegaron, en chico y sin poder bajarlas, sólo mientras la fiesta corre. Si el salón no tiene pantalla, esto es lo único que devuelve algo a quien sube una foto.",
+              encendido: evento.guestsCanSeeLive,
+            },
+            {
+              campo: "guestsCanSeeAlbum",
+              titulo: "Álbum completo",
+              ayuda:
+                "Todas las fotos del evento, para siempre. Encendido, cualquiera con el QR puede recorrer y guardarse el material antes de que lo vendas.",
+              encendido: evento.guestsCanSeeAlbum,
+            },
+          ]}
+        />
+      </section>
 
       <section className="mt-12">
         <h2 className="text-lg font-extrabold">Antes de la fiesta</h2>

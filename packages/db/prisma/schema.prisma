@@ -19101,6 +19101,12 @@ model SubilafotoEvent {
   /// trabajo del fotógrafo antes de que lo venda, y además expone a todos los invitados
   /// a que cualquiera se lleve sus fotos.
   guestsCanSeeAlbum  Boolean                     @default(false)
+  /// Si el invitado ve en su teléfono lo que se está subiendo **ahora**.
+  ///
+  /// No es el álbum: es lo reciente, en chico, y sólo mientras el evento corre. Nace
+  /// **encendido** al revés que el álbum, porque sin pantalla en el salón el invitado
+  /// sube una foto y no recibe nada. Ver `lib/album.ts`.
+  guestsCanSeeLive   Boolean                     @default(true)
   guestsCanDownload  Boolean                     @default(false)
   moderationProfile  SubilafotoModerationProfile @default(SOCIAL)
   downloadStatus     SubilafotoDownloadStatus    @default(NOT_OFFERED)
