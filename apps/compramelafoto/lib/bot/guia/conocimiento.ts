@@ -1,4 +1,5 @@
 import { FAQ_CATEGORIES } from "@/components/faq-data";
+import { seccionPantallasDelPanel } from "../rutas-panel";
 
 /*
  * Conocimiento fijo de CLF para DNX Bot. Cada afirmación sale del código o de los textos legales:
@@ -107,6 +108,8 @@ Si algunas fotos no se pudieron subir, el panel lo avisa y ofrece reintentar só
 - Las fotos siguen siendo del fotógrafo: subirlas no cede derechos a CLF, al laboratorio ni a nadie. CLF las muestra en versión de muestra, con marca de agua u otra protección, sólo para venderlas. Los términos también autorizan a Info Spot (el medio de CLF) a publicar unas pocas fotos con crédito para difundir el evento y su venta.
 - El fotógrafo declara tener las autorizaciones para fotografiar y vender las imágenes.
 - Cualquier persona puede pedir que se quite una foto. El pedido le llega al fotógrafo en su panel, que lo aprueba o lo rechaza; si lo aprueba, la foto deja de verse y de venderse. Vos no podés aprobarlo: explicá dónde hacerlo.
+
+${seccionPantallasDelPanel()}
 
 ${VENTA_ESCOLAR}
 

@@ -1,30 +1,20 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, Role } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const clientId = searchParams.get("clientId");
-
-    if (!clientId) {
-      return NextResponse.json(
-        { error: "clientId es requerido" },
-        { status: 400 }
-      );
+    // Sólo el cliente logueado ve sus pedidos: el clientId de la URL se ignora
+    // (antes cualquiera podía listar pedidos ajenos cambiando el número).
+    const { error, user: authUser } = await requireAuth([Role.CUSTOMER]);
+    if (error || !authUser) {
+      return NextResponse.json({ error: error || "No autorizado" }, { status: 401 });
     }
+    const id = authUser.id;
 
-    const id = Number(clientId);
-    if (!Number.isFinite(id)) {
-      return NextResponse.json(
-        { error: "clientId inválido" },
-        { status: 400 }
-      );
-    }
-
-    // Buscar pedidos donde clientId coincide, o donde customerEmail coincide con el email del usuario
     const user = await prisma.user.findUnique({
       where: { id },
       select: { email: true, role: true },

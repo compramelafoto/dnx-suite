@@ -209,3 +209,34 @@ export async function avisarSegundoPago(d: { workspaceId: string; galeriaId: str
     return "ERROR";
   }
 }
+
+/**
+ * Mercado Pago devolvió (o le reclamaron) el pago de una compra ya acreditada: aviso interno para que una
+ * persona anule la compra en Caja si corresponde (no se anula sola).
+ */
+export async function avisarPagoDevuelto(
+  d: { workspaceId: string; galeriaId: string; galeriaClienteId: string; compraId: string; texto: string },
+  deps: DepsEnvio & DepsAviso = {},
+): Promise<string> {
+  try {
+    const ahora = (deps.ahora ?? (() => new Date()))();
+    const g = await prisma.fotofficeGaleria.findFirst({ where: { id: d.galeriaId, workspaceId: d.workspaceId }, select: { id: true, number: true, name: true, ownerUserId: true } });
+    if (!g) return "ERROR";
+    const lineas = [
+      "Hola:",
+      "",
+      `${d.texto} Es una compra de fotos extra de la galería ${g.number} (${g.name}).`,
+      "No tocamos Caja ni la compra: lo tiene que resolver una persona.",
+    ];
+    const r = await avisoInterno(d.workspaceId, g, ahora, deps, { asunto: `Mercado Pago devolvió un pago de fotos extra en ${g.name}`, lineas });
+    await registrarEventoSinFallar({
+      workspaceId: d.workspaceId, galeriaId: g.id, galeriaClienteId: d.galeriaClienteId,
+      tipo: r === "ENVIADO" ? "AVISO_ESTUDIO_ENVIADO" : "AVISO_ESTUDIO_NO_ENVIADO",
+      data: { compraId: d.compraId, ...(r === "ENVIADO" ? {} : { motivo: motivoDeAviso(r) }) },
+    });
+    return r;
+  } catch (e) {
+    console.error("[galerias] falló el aviso del pago devuelto", { codigo: (e as { code?: unknown } | null)?.code ?? "desconocido" });
+    return "ERROR";
+  }
+}

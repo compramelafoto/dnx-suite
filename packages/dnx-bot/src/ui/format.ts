@@ -54,12 +54,23 @@ function pushText(out: BotSegment[], text: string, bold: boolean) {
   else out.push({ kind: "text", text, bold });
 }
 
-function inline(out: BotSegment[], text: string, bold: boolean) {
+export type FormatOptions = {
+  /** Prefijos de ruta que pueden ser enlace ("/dashboard/albums" cubre "/dashboard/albums/12"). Sin esto, toda ruta interna válida lo es. */
+  rutasPermitidas?: readonly string[];
+};
+
+/** true si no hay lista (comportamiento de siempre) o si la ruta es un prefijo permitido o cuelga de uno. */
+export function rutaPermitida(path: string, rutasPermitidas?: readonly string[]): boolean {
+  if (!rutasPermitidas) return true;
+  return rutasPermitidas.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+function inline(out: BotSegment[], text: string, bold: boolean, opts?: FormatOptions) {
   let last = 0;
   for (const m of text.matchAll(PATH_TOKEN)) {
     const [whole, lead = "", open, path = "", close] = m;
     // Paréntesis desparejo: no es "(/ruta)", se deja como texto.
-    if ((open && !close) || (!open && close) || !isInternalPath(path)) continue;
+    if ((open && !close) || (!open && close) || !isInternalPath(path) || !rutaPermitida(path, opts?.rutasPermitidas)) continue;
     const start = m.index! + lead.length;
     pushText(out, stripEmphasis(text.slice(last, start)), bold);
     out.push({ kind: "link", href: path, label: pathLabel(path) });
@@ -68,7 +79,7 @@ function inline(out: BotSegment[], text: string, bold: boolean) {
   pushText(out, stripEmphasis(text.slice(last)), bold);
 }
 
-function formatLine(raw: string): BotLine {
+function formatLine(raw: string, opts?: FormatOptions): BotLine {
   let line = raw.replace(/^\s{0,3}#{1,6}\s+/, "");
   line = line.replace(/^(\s*)[-*]\s+/, "$1• ");
   const out: BotSegment[] = [];
@@ -78,20 +89,20 @@ function formatLine(raw: string): BotLine {
   parts.forEach((part, idx) => {
     const isLast = idx === parts.length - 1;
     if (unmatchedTail && isLast) {
-      inline(out, `**${part}`, false);
+      inline(out, `**${part}`, false, opts);
       return;
     }
     const bold = idx % 2 === 1;
     if (bold && part.trim() === "") {
-      inline(out, `**${part}**`, false);
+      inline(out, `**${part}**`, false, opts);
       return;
     }
-    inline(out, part, bold);
+    inline(out, part, bold, opts);
   });
   return out;
 }
 
 /** Convierte el texto del bot en líneas de segmentos (negrita, texto, enlaces internos). */
-export function formatBotText(text: string): BotLine[] {
-  return text.split("\n").map(formatLine);
+export function formatBotText(text: string, opts?: FormatOptions): BotLine[] {
+  return text.split("\n").map((l) => formatLine(l, opts));
 }
