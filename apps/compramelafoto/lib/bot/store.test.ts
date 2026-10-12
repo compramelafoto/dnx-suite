@@ -88,4 +88,15 @@ describe("store", () => {
     expect(arg.where.platform_day_actorKey.actorKey).toBe("u:7");
     expect(arg.create).toMatchObject({ userId: 7, actorKey: "u:7", messages: 1, costMicroUsd: 5 });
   });
+  it("recordUsage: si la fila del día ya existe, suma (update por incrementos)", async () => {
+    m.usage.upsert.mockResolvedValue({});
+    m.conv.update.mockResolvedValue({});
+    await recordUsage({ userId: 7, conversationId: "c1", usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, costMicroUsd: 5, countMessage: false });
+    expect(m.usage.upsert.mock.calls[0]![0].update).toEqual({
+      messages: { increment: 0 },
+      inputTokens: { increment: 10 },
+      outputTokens: { increment: 20 },
+      costMicroUsd: { increment: 5 },
+    });
+  });
 });

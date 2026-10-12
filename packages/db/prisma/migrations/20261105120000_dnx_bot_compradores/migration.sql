@@ -1,4 +1,9 @@
 -- DNX Bot etapa 3 (compradores), fase A: sólo agrega. Idempotente. Se aplica ANTES del deploy.
+-- Todo en una transacción. lock_timeout: si una transacción larga tiene tomada una tabla (p. ej. "Order"),
+-- falla a los 5 s en vez de dejar en cola los checkouts; en ese caso, reintentar.
+
+BEGIN;
+SET LOCAL lock_timeout = '5s';
 
 DO $$ BEGIN
   CREATE TYPE "BotAudience" AS ENUM ('PHOTOGRAPHER', 'BUYER');
@@ -19,13 +24,12 @@ ALTER TABLE "BotAction" ALTER COLUMN "userId" DROP NOT NULL;
 -- actorKey: se agrega nullable y se completa; el índice viejo (platform, day, userId) se conserva
 -- hasta la fase B para que el código anterior siga funcionando mientras sale el deploy.
 ALTER TABLE "BotUsageDaily" ADD COLUMN IF NOT EXISTS "actorKey" TEXT;
-UPDATE "BotUsageDaily" SET "actorKey" = 'u:' || "userId" WHERE "actorKey" IS NULL AND "userId" IS NOT NULL;
-ALTER TABLE "BotUsageDaily" ALTER COLUMN "userId" DROP NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS "BotUsageDaily_platform_day_actorKey_key" ON "BotUsageDaily"("platform", "day", "actorKey");
 
 -- Ventana del deploy: el código anterior crea filas sin actorKey. Este trigger las completa con
 -- 'u:' || userId para que el código nuevo (upsert por actorKey) las encuentre y no choque con el
--- índice viejo (platform, day, userId). Se borra en la fase B.
+-- índice viejo (platform, day, userId). Se crea ANTES del backfill: CREATE TRIGGER espera a que
+-- terminen las inserciones en curso, así que el UPDATE de abajo cubre todo lo anterior y el trigger
+-- todo lo posterior (ninguna fila queda con actorKey nulo). Se borra en la fase B.
 CREATE OR REPLACE FUNCTION "BotUsageDaily_fill_actorKey"() RETURNS trigger AS $$
 BEGIN
   IF NEW."actorKey" IS NULL AND NEW."userId" IS NOT NULL THEN
@@ -37,6 +41,10 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS "BotUsageDaily_fill_actorKey" ON "BotUsageDaily";
 CREATE TRIGGER "BotUsageDaily_fill_actorKey" BEFORE INSERT ON "BotUsageDaily"
   FOR EACH ROW EXECUTE FUNCTION "BotUsageDaily_fill_actorKey"();
+
+UPDATE "BotUsageDaily" SET "actorKey" = 'u:' || "userId" WHERE "actorKey" IS NULL AND "userId" IS NOT NULL;
+ALTER TABLE "BotUsageDaily" ALTER COLUMN "userId" DROP NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS "BotUsageDaily_platform_day_actorKey_key" ON "BotUsageDaily"("platform", "day", "actorKey");
 
 CREATE TABLE IF NOT EXISTS "BotEmailCode" (
     "id" TEXT NOT NULL,
@@ -61,3 +69,5 @@ ALTER TABLE "SupportTicket" ADD COLUMN IF NOT EXISTS "orderId" INTEGER;
 CREATE INDEX IF NOT EXISTS "SupportTicket_orderId_idx" ON "SupportTicket"("orderId");
 
 ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "botGuestKey" TEXT;
+
+COMMIT;
