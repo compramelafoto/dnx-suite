@@ -94,6 +94,25 @@ describe("buildDailySummary", () => {
     expect(t).toContain("2026-10-12");
   });
 
+  it("caracterización: texto completo del resumen de fotógrafos", async () => {
+    const t = await buildDailySummary(NOW);
+    expect(t).toBe(
+      [
+        "🤖 DNX Bot · CLF · resumen al 2026-10-12",
+        "10 conversaciones, 8 resueltas sin ticket, 2 derivadas.",
+        "5 acciones hechas.",
+        "Errores del sistema:\n- 🚨 album: P2002 (×3)",
+        `Ventas del mes hasta hoy: 0 pedidos, ${formatPurchaseArs(0)} (sin ventas el mes anterior en el mismo período).`,
+        "Primeras ventas este mes: 0 fotógrafos.",
+        "Saludos: ninguno en las últimas 24 h.",
+        "Mails: 0 enviados.",
+        "Álbumes escolares con preventa publicada: 0.",
+        "Gasto del bot este mes: USD 1,50 de USD 30 (se factura en dólares).",
+        `Álbumes destrabados por el bot: 0 (ventas desde que el bot los cambió: ${formatPurchaseArs(0)}).`,
+      ].join("\n"),
+    );
+  });
+
   it("sin errores ni gasto lo dice", async () => {
     m.incidents.mockResolvedValue([]);
     m.usage.mockResolvedValue({ _sum: { costMicroUsd: null } });
