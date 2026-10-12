@@ -10,11 +10,16 @@ const H = vi.hoisted(() => ({
   recibo: vi.fn(async (..._a: unknown[]) => "ENVIADA"),
   preferencia: vi.fn(async (..._a: unknown[]) => ({ providerPreferenceId: "pref-1", checkoutUrl: "https://mp.test/checkout" })),
   pagos: new Map<string, unknown>(),
-  getPayment: vi.fn(async (id: string) => {
+  /** Dueño de cada pago (el token que puede leerlo); sin dueño, cualquiera lo lee. */
+  duenos: new Map<string, string>(),
+  getPayment: vi.fn(async (id: string, token?: string) => {
     const p = H.pagos.get(id);
     if (!p) throw new Error("no es de esta cuenta");
+    const dueno = H.duenos.get(id);
+    if (dueno && dueno !== token) throw new Error("no es de esta cuenta");
     return p;
   }),
+  enviar: vi.fn(async (..._a: unknown[]) => ({ status: "SENT" as const, providerId: "re-1" })),
   search: vi.fn(async (..._a: unknown[]) => null as unknown),
   collector: vi.fn(async (ws: string) => (ws === "ws-sin-cobros" ? { ok: false } : { ok: true, collector: { accessToken: `tok-${ws}` } })),
   adaptadores: [] as unknown[],
@@ -28,12 +33,13 @@ vi.mock("@/lib/presupuestos/sitio", () => ({
   sitioDelWorkspace: async (ws: string) => ({ workspaceId: ws, slug: "dnxestudio", customDomain: null, nombre: "DNX", logoUrl: null, whatsapp: null, email: null }),
 }));
 vi.mock("./recibos", () => ({ enviarReciboAutomatico: H.recibo }));
+vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: H.enviar }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String((e as Error)?.message ?? e).slice(0, 40) }));
 vi.mock("@repo/payments/mercado-pago", () => ({
-  createMercadoPagoCheckoutProLiveAdapter: (opts: unknown) => {
+  createMercadoPagoCheckoutProLiveAdapter: (opts: { accessToken?: string }) => {
     H.adaptadores.push(opts);
-    return { createPreference: H.preferencia, getPayment: H.getPayment, searchPaymentsByExternalReference: H.search };
+    return { createPreference: H.preferencia, getPayment: (id: string) => H.getPayment(id, opts.accessToken), searchPaymentsByExternalReference: H.search };
   },
 }));
 
@@ -71,6 +77,7 @@ function pago(id: string, cuotaId: string, bruto: number, extra: Record<string, 
 
 const imputaciones = (cobroId: string) => B.datos.fotofficeCobroImputacion.filter((i) => i.cobroId === cobroId).map((i) => [i.cuotaId, i.amountArs]);
 const tareas = () => B.datos.fotofficeTask;
+const checklist = () => B.datos.fotofficePedidoTarea.map((t) => ({ pedidoId: t.pedidoId, title: t.title, doneAt: t.doneAt }));
 
 let errores: ReturnType<typeof vi.spyOn>;
 let avisos: ReturnType<typeof vi.spyOn>;
@@ -81,6 +88,9 @@ beforeEach(() => {
   H.recibo.mockClear();
   H.preferencia.mockClear();
   H.getPayment.mockClear();
+  H.search.mockReset().mockResolvedValue(null);
+  H.enviar.mockClear();
+  H.duenos.clear();
   H.adaptadores.length = 0;
   process.env.APP_URL = "https://app.test";
   process.env.NEXT_PUBLIC_APP_URL = "https://app.test";
@@ -93,6 +103,8 @@ beforeEach(() => {
   B.agregar("workspaceFeatureModule", { workspaceId: "ws-1", moduleKey: "cash", enabled: true });
   B.agregar("workspaceMembership", { workspaceId: "ws-1", userId: 7, role: "STAFF" });
   B.agregar("workspaceMembership", { workspaceId: "ws-1", userId: 1, role: "WORKSPACE_OWNER", createdAt: new Date("2026-01-01") });
+  B.agregar("user", { id: 7, email: "responsable@estudio.test" });
+  B.agregar("user", { id: 1, email: "duena@estudio.test" });
   pedido("ped-1", [["2026-10-07", 40000], ["2026-11-07", 40000], ["2026-12-07", 40000]]);
   errores = vi.spyOn(console, "error").mockImplementation(() => {});
   avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -251,13 +263,51 @@ describe("acreditar un pago aprobado", () => {
     expect(tareas()).toHaveLength(1);
   });
 
-  it("sin consulta, no hay tarea: sólo un aviso en el registro, sin datos personales", async () => {
+  it("sin consulta igual queda rastro: tarea en el pedido y correo al responsable (B2-1)", async () => {
     B.datos.fotofficePedido[0]!.consultaLeadId = null;
     B.datos.fotofficePedido[0]!.status = "CANCELADO";
     const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
     expect(r).toMatchObject({ resultado: "sin_aplicar", motivo: "CANCELADO" });
     expect(tareas()).toHaveLength(0);
-    expect(avisos).toHaveBeenCalled();
+    expect(checklist()).toEqual([
+      { pedidoId: "ped-1", title: "Mercado Pago: llegó el pago N° pay-1 de $ 40.000,00 y no se pudo aplicar (el pedido está cancelado). Aplicalo a mano o devolvelo.", doneAt: null },
+    ]);
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    const correo = H.enviar.mock.calls[0]![0] as { to: string; subject: string; text: string };
+    expect(correo.to).toBe("responsable@estudio.test");
+    expect(correo.text).toContain("pago N° pay-1");
+    expect(correo.text).toContain("Es del pedido N° 2026-0001.");
+    expect(correo.text).toContain("https://app.test/pedidos/ped-1");
+    expect(correo.text).not.toMatch(/plata/i);
+  });
+
+  it("el mismo pago sin aplicar avisado dos veces deja una sola tarea y un solo correo", async () => {
+    B.datos.fotofficePedido[0]!.consultaLeadId = null;
+    B.datos.fotofficePedido[0]!.status = "CANCELADO";
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    expect(checklist()).toHaveLength(1);
+  });
+
+  it("con consulta deja la tarea de la consulta Y la del pedido", async () => {
+    B.datos.fotofficePedido[0]!.status = "CANCELADO";
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    expect(tareas()).toHaveLength(1);
+    expect(checklist()).toHaveLength(1);
+  });
+
+  it("si el responsable ya no está, el correo va a la dueña; con el tope del día, no sale", async () => {
+    B.datos.fotofficePedido[0]!.ownerUserId = 99;
+    B.datos.fotofficePedido[0]!.status = "CANCELADO";
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    expect((H.enviar.mock.calls[0]![0] as { to: string }).to).toBe("duena@estudio.test");
+    for (let i = 0; i < 60; i++) B.agregar("fotofficePedidoTarea", { workspaceId: "ws-1", pedidoId: "ped-1", position: 100 + i, title: `Mercado Pago: viejo ${i}`, createdAt: new Date() });
+    await MP.acreditarPagoMp("ws-1", pago("pay-2", "ped-1-c1", 40000));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect(checklist().filter((t) => String(t.title).includes("pay-2"))).toHaveLength(1);
   });
 
   it("otra moneda no se imputa", async () => {
@@ -286,8 +336,8 @@ describe("iniciar el pago de una cuota", () => {
     expect(r).toEqual({ ok: true, checkoutUrl: "https://mp.test/checkout" });
     const arg = H.preferencia.mock.calls[0]![0] as Record<string, unknown>;
     expect(arg).toMatchObject({
-      amountMinor: 4000000, currency: "ARS", externalReference: "fo-pedcuota:ped-1-c2", accessTokenOverride: "tok-ws-1",
-      notificationUrl: "https://app.test/api/payments/mp/pedidos-webhook", payerEmail: "laura@example.com",
+      amountMinor: 4000000, currency: "ARS", externalReference: "fo-pedcuota:ped-1:ped-1-c2", accessTokenOverride: "tok-ws-1",
+      notificationUrl: "https://app.test/api/payments/mp/pedidos-webhook?ws=ws-1", payerEmail: "laura@example.com",
     });
     expect(arg).not.toHaveProperty("marketplaceFeeMinor");
     expect(String(arg.successUrl)).toMatch(/^https:\/\/app\.test\/w\/dnxestudio\/pedido\/[^/?]+\?pago=ok&cuota=ped-1-c2$/);
@@ -367,10 +417,263 @@ describe("el aviso (webhook)", () => {
   });
 
   it("un error inesperado responde 200 igual", async () => {
-    B.tablas.fotofficeCobro.findFirst = async () => {
+    const tabla = B.tablas.fotofficeCobro as { findFirst: (...a: unknown[]) => Promise<unknown> };
+    const original = tabla.findFirst;
+    tabla.findFirst = async () => {
       throw new Error("base caída");
     };
-    const r = await aviso("999");
-    expect(r.init?.status).toBe(200);
+    try {
+      const r = await aviso("999");
+      expect(r.init?.status).toBe(200);
+    } finally {
+      tabla.findFirst = original;
+    }
+  });
+});
+
+describe("referencias: formato nuevo con pedido y formato viejo (B2-2)", () => {
+  const conRef = (id: string, ref: string, bruto: number) => ({ ...pago(id, "x", bruto), externalReference: ref });
+
+  it("lee los dos formatos y descarta lo que no se entiende", () => {
+    expect(PURO.referenciaCuota("c1", "p1")).toBe("fo-pedcuota:p1:c1");
+    expect(PURO.leerReferenciaCuota("fo-pedcuota:p1:c1")).toEqual({ pedidoId: "p1", cuotaId: "c1" });
+    expect(PURO.leerReferenciaCuota("fo-pedcuota:c1")).toEqual({ pedidoId: null, cuotaId: "c1" });
+    expect(PURO.cuotaDeReferencia("fo-pedcuota:p1:c1")).toBe("c1");
+    expect(PURO.leerReferenciaCuota("fo-pedcuota:p1:c1:x")).toBeNull();
+    expect(PURO.leerReferenciaCuota("fo-pedcuota::c1")).toBeNull();
+    expect(PURO.leerReferenciaCuota("fo-pedcuota:p1:")).toBeNull();
+  });
+
+  it("acredita con la referencia nueva y con la vieja", async () => {
+    expect(await MP.acreditarPagoMp("ws-1", conRef("pay-n", "fo-pedcuota:ped-1:ped-1-c1", 40000))).toEqual({ resultado: "acreditado", pedidoId: "ped-1" });
+    expect(await MP.acreditarPagoMp("ws-1", conRef("pay-v", "fo-pedcuota:ped-1-c2", 40000))).toEqual({ resultado: "acreditado", pedidoId: "ped-1" });
+    expect(B.datos.fotofficeCobro).toHaveLength(2);
+  });
+
+  it("una referencia nueva cuyo pedido no es el de la cuota no acredita", async () => {
+    pedido("ped-2", [["2026-10-07", 1000]]);
+    expect(await MP.acreditarPagoMp("ws-1", conRef("pay-x", "fo-pedcuota:ped-2:ped-1-c1", 40000))).toEqual({ resultado: "no_es_de_esta_organizacion" });
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+  });
+
+  it("cuota borrada después de abrir el pago (referencia nueva): no acredita, encuentra el pedido y deja el rastro", async () => {
+    B.datos.fotofficePedidoCuota = B.datos.fotofficePedidoCuota.filter((c) => c.id !== "ped-1-c3");
+    const r = await MP.acreditarPagoMp("ws-1", conRef("pay-3", "fo-pedcuota:ped-1:ped-1-c3", 40000));
+    expect(r).toEqual({ resultado: "sin_aplicar", motivo: "CUOTA_INEXISTENTE", pedidoId: "ped-1" });
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+    expect(checklist()).toEqual([
+      { pedidoId: "ped-1", title: "Mercado Pago: llegó el pago N° pay-3 de $ 40.000,00 por una cuota que ya no existe: aplicalo a mano o devolvelo.", doneAt: null },
+    ]);
+    expect(tareas()).toHaveLength(1); // la de la consulta
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    expect((H.enviar.mock.calls[0]![0] as { text: string }).text).toContain("llegó el pago N° pay-3 de $ 40.000,00 por una cuota que ya no existe: aplicalo a mano o devolvelo");
+  });
+
+  it("cuota borrada con la referencia vieja: no hay pedido donde dejar la tarea, pero sale el correo a la dueña", async () => {
+    const r = await MP.acreditarPagoMp("ws-1", conRef("pay-4", "fo-pedcuota:cuota-borrada", 40000));
+    expect(r).toEqual({ resultado: "sin_aplicar", motivo: "CUOTA_INEXISTENTE", pedidoId: null });
+    expect(checklist()).toHaveLength(0);
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    const correo = H.enviar.mock.calls[0]![0] as { to: string; text: string };
+    expect(correo.to).toBe("duena@estudio.test");
+    expect(correo.text).toContain("por una cuota que ya no existe");
+    expect(correo.text).toContain("No pudimos saber de qué pedido es");
+  });
+
+  it("cuota borrada con la referencia vieja: el aviso repetido de Mercado Pago no repite el correo", async () => {
+    for (let i = 0; i < 3; i++) await MP.acreditarPagoMp("ws-1", conRef("pay-4", "fo-pedcuota:cuota-borrada", 40000));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect((H.enviar.mock.calls[0]![0] as { subject: string }).subject).toContain("(pago N° pay-4)");
+    expect(B.datos.sentEmailLog).toEqual([expect.objectContaining({ templateKey: "fotoffice-mp-pago-sin-pedido:ws-1", status: "SENT" })]);
+  });
+
+  it("sin pedido: si el correo falló, el próximo aviso lo reintenta; y tiene su propio tope diario", async () => {
+    H.enviar.mockResolvedValueOnce({ status: "PROVIDER_REJECTED", detail: "x" } as never);
+    await MP.acreditarPagoMp("ws-1", conRef("pay-r", "fo-pedcuota:cuota-borrada", 40000));
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    await MP.acreditarPagoMp("ws-1", conRef("pay-r", "fo-pedcuota:cuota-borrada", 40000));
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(2));
+    for (let i = 0; i < 60; i++) B.agregar("sentEmailLog", { to: "x", subject: `viejo ${i}`, templateKey: "fotoffice-mp-pago-sin-pedido:ws-1", status: "SENT", createdAt: new Date() });
+    await MP.acreditarPagoMp("ws-1", conRef("pay-tope", "fo-pedcuota:cuota-borrada", 40000));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(H.enviar).toHaveBeenCalledTimes(2);
+  });
+
+  it("cuota borrada y pago no aprobado: nada que avisar", async () => {
+    B.datos.fotofficePedidoCuota = B.datos.fotofficePedidoCuota.filter((c) => c.id !== "ped-1-c3");
+    const r = await MP.acreditarPagoMp("ws-1", { ...conRef("pay-5", "fo-pedcuota:ped-1:ped-1-c3", 40000), status: "PENDING", rawSanitized: { status: "pending" } });
+    expect(r).toEqual({ resultado: "no_aprobado" });
+    expect(checklist()).toHaveLength(0);
+  });
+
+  it("el pedido de la referencia nueva es de otra organización: no deja nada", async () => {
+    pedido("ped-ajeno", [["2026-10-07", 1000]], { workspaceId: "ws-2" });
+    const r = await MP.acreditarPagoMp("ws-1", conRef("pay-6", "fo-pedcuota:ped-ajeno:cuota-borrada", 1000));
+    expect(r).toEqual({ resultado: "no_es_de_esta_organizacion" });
+    expect(checklist()).toHaveLength(0);
+    expect(H.enviar).not.toHaveBeenCalled();
+  });
+
+  it("la vuelta busca primero por la referencia nueva y después por la vieja", async () => {
+    H.search.mockImplementation(async (ref: unknown) => (ref === "fo-pedcuota:ped-1-c1" ? pago("pay-7", "ped-1-c1", 40000) : null));
+    expect(await MP.verificarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" })).toEqual({ resultado: "acreditado" });
+    expect(H.search.mock.calls.map((c) => c[0])).toEqual(["fo-pedcuota:ped-1:ped-1-c1", "fo-pedcuota:ped-1-c1"]);
+  });
+});
+
+describe("el aviso identifica la organización (B2-3)", () => {
+  type Resp = { body: Record<string, unknown>; init?: { status?: number } };
+  const aviso = (id: string, query = "") =>
+    webhookPOST(new Request(`https://app.test/api/payments/mp/pedidos-webhook?type=payment&data.id=${id}${query}`, { method: "POST", body: JSON.stringify({ data: { id }, type: "payment" }) })) as unknown as Promise<Resp>;
+
+  beforeEach(() => {
+    B.agregar("workspaceMembership", { workspaceId: "ws-2", userId: 20, role: "WORKSPACE_OWNER" });
+    pedido("ped-ws2", [["2026-10-07", 1000]], { workspaceId: "ws-2" });
+    B.datos.fotofficePedidoCuota.filter((c) => c.pedidoId === "ped-ws2").forEach((c) => (c.workspaceId = "ws-2"));
+  });
+
+  it("con ?ws= lee el pago sólo con ese token y acredita", async () => {
+    H.pagos.set("701", { ...pago("701", "ped-1-c1", 40000), externalReference: "fo-pedcuota:ped-1:ped-1-c1" });
+    H.duenos.set("701", "tok-ws-1");
+    const r = await aviso("701", "&ws=ws-1");
+    expect(r.body).toMatchObject({ ok: true, applied: true, resultado: "acreditado" });
+    expect(H.adaptadores).toEqual([{ accessToken: "tok-ws-1" }]);
+  });
+
+  it("un ?ws= equivocado se rechaza: su token no puede leer el pago y no se prueba con otros", async () => {
+    H.pagos.set("702", pago("702", "ped-1-c1", 40000));
+    H.duenos.set("702", "tok-ws-1");
+    const r = await aviso("702", "&ws=ws-2");
+    expect(r.body).toMatchObject({ ok: true, applied: false, motivo: "el pago no es de esa organización" });
+    expect(r.init).toBeUndefined();
+    expect(H.adaptadores).toEqual([{ accessToken: "tok-ws-2" }]);
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+  });
+
+  it("un ?ws= cuyo token lee el pago pero la cuota es de otra organización no acredita", async () => {
+    H.pagos.set("703", pago("703", "ped-1-c1", 40000));
+    H.duenos.set("703", "tok-ws-2");
+    expect((await aviso("703", "&ws=ws-2")).body).toMatchObject({ applied: false, resultado: "no_es_de_esta_organizacion" });
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+  });
+
+  it("un ?ws= con forma rara se ignora y se usa la prueba de siempre", async () => {
+    H.pagos.set("704", pago("704", "ped-1-c1", 40000));
+    H.duenos.set("704", "tok-ws-1");
+    expect((await aviso("704", "&ws=%27%3B%20drop")).body).toMatchObject({ applied: true });
+  });
+
+  it("sin ?ws= (preferencia vieja) también prueba organizaciones cuyo pedido está COMPLETADO", async () => {
+    B.datos.fotofficePedido.filter((p) => p.workspaceId === "ws-2").forEach((p) => (p.status = "CANCELADO"));
+    B.datos.fotofficePedido[0]!.status = "COMPLETADO"; // un completado con saldo admite cobros
+    H.pagos.set("705", pago("705", "ped-1-c1", 40000));
+    H.duenos.set("705", "tok-ws-1");
+    expect((await aviso("705")).body).toMatchObject({ applied: true, resultado: "acreditado" });
+  });
+
+  it("con más de 20 organizaciones, prueba primero las de actividad más reciente", async () => {
+    for (let i = 0; i < 25; i++) {
+      B.agregar("fotofficePedido", { id: `viejo-${i}`, workspaceId: `ws-v${i}`, number: `V-${i}`, clientId: "cli-x", status: "CONFIRMADO", items: [], totals: {}, totalArs: "1.00", updatedAt: new Date(2025, 0, 1) });
+    }
+    for (const p of B.datos.fotofficePedido) if (!String(p.workspaceId).startsWith("ws-v")) p.updatedAt = p.workspaceId === "ws-1" ? new Date(2026, 9, 10) : new Date(2024, 0, 1);
+    H.pagos.set("706", pago("706", "ped-1-c1", 40000));
+    H.duenos.set("706", "tok-ws-1");
+    expect((await aviso("706")).body).toMatchObject({ applied: true });
+    expect(H.adaptadores).toEqual([{ accessToken: "tok-ws-1" }]);
+  });
+
+  it("si ninguna organización puede leerlo, responde 200 sin acreditar", async () => {
+    H.pagos.set("707", pago("707", "ped-1-c1", 40000));
+    H.duenos.set("707", "tok-ws-nadie");
+    const r = await aviso("707");
+    expect(r.body).toMatchObject({ ok: true, applied: false, motivo: "no se pudo resolver el pago" });
+    expect(r.init).toBeUndefined();
+  });
+});
+
+describe("devoluciones y contracargos de un pago ya acreditado (B2-4)", () => {
+  type Resp = { body: Record<string, unknown>; init?: { status?: number } };
+  const aviso = (id: string) =>
+    webhookPOST(new Request(`https://app.test/api/payments/mp/pedidos-webhook?type=payment&data.id=${id}&ws=ws-1`, { method: "POST", body: "{}" })) as unknown as Promise<Resp>;
+  const comoQuedo = (id: string, status: string, raw: Record<string, unknown>) => H.pagos.set(id, pago(id, "ped-1-c1", 40000, { status }, raw));
+
+  beforeEach(async () => {
+    comoQuedo("801", "APPROVED", {});
+    await aviso("801");
+    expect(B.datos.fotofficeCobro).toHaveLength(1);
+    H.enviar.mockClear();
+  });
+
+  it("una devolución deja el aviso una sola vez, no anula el cobro ni toca Caja", async () => {
+    comoQuedo("801", "REFUNDED", { status: "refunded", status_detail: "refunded" });
+    expect((await aviso("801")).body).toMatchObject({ ok: true, applied: false, motivo: "devolución", resultado: "avisado" });
+    expect((await aviso("801")).body).toMatchObject({ resultado: "ya_avisado" });
+    expect(checklist()).toEqual([
+      { pedidoId: "ped-1", title: "Mercado Pago devolvió (o le reclamaron) el pago N° 801 de $ 40.000,00 (devuelto): anulá el cobro si corresponde.", doneAt: null },
+    ]);
+    expect(tareas().map((t) => t.title)).toEqual([PURO.TITULO_TAREA_PAGO_DEVUELTO]);
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    expect((H.enviar.mock.calls[0]![0] as { subject: string }).subject).toMatch(/devolvió/);
+    expect(B.datos.fotofficeCobro[0]!.voidedAt ?? null).toBeNull();
+    expect(B.datos.cashMovement).toHaveLength(1);
+  });
+
+  it("después de la devolución, un contracargo del mismo pago avisa de nuevo (otro estado)", async () => {
+    comoQuedo("801", "REFUNDED", { status: "refunded" });
+    await aviso("801");
+    comoQuedo("801", "CHARGEBACK", { status: "charged_back" });
+    expect((await aviso("801")).body).toMatchObject({ resultado: "avisado" });
+    expect(checklist().map((t) => t.title)).toEqual([
+      expect.stringContaining("(devuelto)"),
+      expect.stringContaining("(contracargo)"),
+    ]);
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(2));
+  });
+
+  it("devolución parcial (sigue approved con status_detail partially_refunded), reclamo y cancelado también avisan", async () => {
+    comoQuedo("801", "APPROVED", { status: "approved", status_detail: "partially_refunded" });
+    expect((await aviso("801")).body).toMatchObject({ resultado: "avisado" });
+    comoQuedo("801", "PROCESSING", { status: "in_mediation" });
+    expect((await aviso("801")).body).toMatchObject({ resultado: "avisado" });
+    comoQuedo("801", "CANCELLED", { status: "cancelled" });
+    expect((await aviso("801")).body).toMatchObject({ resultado: "avisado" });
+    expect(checklist().map((t) => /\(([^)]+)\): anulá/.exec(String(t.title))?.[1])).toEqual(["devuelto en parte", "en reclamo", "cancelado"]);
+  });
+
+  it("si sigue aprobado es un aviso repetido y no avisa nada", async () => {
+    expect((await aviso("801")).body).toMatchObject({ motivo: "aviso repetido" });
+    expect(checklist()).toHaveLength(0);
+    expect(H.enviar).not.toHaveBeenCalled();
+  });
+
+  it("si el cobro ya se anuló a mano, no hay nada que avisar", async () => {
+    B.datos.fotofficeCobro[0]!.voidedAt = new Date();
+    comoQuedo("801", "REFUNDED", { status: "refunded" });
+    expect((await aviso("801")).body).toMatchObject({ motivo: "aviso repetido" });
+    expect(checklist()).toHaveLength(0);
+  });
+
+  it("si Mercado Pago no responde al releerlo, o la base falla, responde 200 igual", async () => {
+    H.pagos.delete("801");
+    expect((await aviso("801")).body).toMatchObject({ motivo: "aviso repetido" });
+    const tabla = B.tablas.fotofficeCobro as { findFirst: (...a: unknown[]) => Promise<unknown> };
+    const original = tabla.findFirst;
+    tabla.findFirst = async () => {
+      throw new Error("base caída");
+    };
+    try {
+      expect((await aviso("801")).init?.status).toBe(200);
+    } finally {
+      tabla.findFirst = original;
+    }
+  });
+
+  it("los textos no dicen \"plata\" y los registros no tienen datos personales", async () => {
+    comoQuedo("801", "REFUNDED", { status: "refunded" });
+    await aviso("801");
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify([checklist(), H.enviar.mock.calls])).not.toMatch(/plata/i);
+    expect(JSON.stringify([errores.mock.calls, avisos.mock.calls])).not.toMatch(/estudio\.test/);
   });
 });

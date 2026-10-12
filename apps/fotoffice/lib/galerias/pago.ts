@@ -135,7 +135,8 @@ export async function iniciarPagoGaleria(workspaceId: string, token: unknown): P
       successUrl: vuelta("ok"),
       pendingUrl: vuelta("pendiente"),
       failureUrl: vuelta("error"),
-      notificationUrl: `${base}/api/payments/mp/galerias-webhook`,
+      // `ws`: el aviso lee el pago directo con el token de esta organización, sin adivinar.
+      notificationUrl: `${base}/api/payments/mp/galerias-webhook?ws=${encodeURIComponent(workspaceId)}`,
       accessTokenOverride: collector.collector.accessToken,
       itemId: `galcompra-${armado.compraId}`,
       sourceApp: "FOTOFFICE",

@@ -32,6 +32,7 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   COMPRA_CANCELADA_PAGADA: "Una compra cancelada igual se pagó: se acreditó",
   PAGO_DUPLICADO: "Llegó un pago por fotos que ya estaban pagas",
   PAGO_NO_ACREDITADO: "Llegó un pago que no se pudo acreditar",
+  PAGO_DEVUELTO: "Mercado Pago devolvió (o le reclamaron) un pago acreditado",
   DESCARGA_PEDIDA: "Se pidió la descarga completa",
   DESCARGA_LISTA: "La descarga completa quedó lista",
   DESCARGA_ERROR: "No se pudo armar la descarga completa",
