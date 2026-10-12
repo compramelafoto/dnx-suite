@@ -18,6 +18,7 @@ export type SituationAlert = { level: "bloquea_ventas" | "aviso"; text: string; 
 const DAY = 24 * 60 * 60 * 1000;
 const MAX_ALBUMS = 30;
 const SOON_DAYS = 7;
+const SCHOOL_ALBUM_OR = [{ schoolId: { not: null } }, { mode: "SCHOOL" as const }];
 
 const MP_STATUS_TEXT: Record<MercadoPagoConnectionStatus, string> = {
   CONNECTED: "conectado",
@@ -101,9 +102,12 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
     ),
   );
 
-  // Sólo si tiene algún álbum escolar: el progreso hace varias consultas acotadas.
-  const hasSchoolAlbum = albums.some((a) => a.mode === "SCHOOL" || a.schoolId != null);
-  const schoolLine = hasSchoolAlbum ? await schoolProgressLine(userId) : null;
+  // Sólo si tiene algún álbum escolar real (cualquiera, no sólo los últimos 30): el progreso hace
+  // varias consultas acotadas. Los de prueba no cuentan, igual que en el progreso.
+  const schoolAlbum = await prisma.album
+    .findFirst({ where: { userId, deletedAt: null, isTest: false, OR: SCHOOL_ALBUM_OR }, select: { id: true } })
+    .catch(() => null);
+  const schoolLine = schoolAlbum ? await schoolProgressLine(userId) : null;
 
   const alerts: SituationAlert[] = [];
   if (mp.status === "NOT_CONNECTED") {

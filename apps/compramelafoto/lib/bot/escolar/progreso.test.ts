@@ -263,7 +263,7 @@ describe("computeSchoolSetupProgress (consultas)", () => {
     expect(p.siguiente?.id).toBe("escuela");
     expect(m.albumFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: 7, deletedAt: null, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
+        where: { userId: 7, deletedAt: null, isTest: false, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
         orderBy: { createdAt: "desc" },
       })
     );
@@ -272,12 +272,21 @@ describe("computeSchoolSetupProgress (consultas)", () => {
     expect(m.catalog).not.toHaveBeenCalled();
   });
 
+  it("álbum de prueba pasado por albumId: no se usa (filtra isTest)", async () => {
+    m.albumFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    m.schoolFindFirst.mockResolvedValue(null);
+    const p = await computeSchoolSetupProgress(7, 12, NOW);
+    expect(m.albumFindFirst.mock.calls[0][0].where).toMatchObject({ id: 12, isTest: false });
+    expect(m.albumFindFirst.mock.calls[1][0].where).toMatchObject({ isTest: false });
+    expect(p.albumId).toBeNull();
+  });
+
   it("álbum ajeno pasado por albumId: se ignora y se busca el escolar más reciente del usuario", async () => {
     m.albumFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     m.schoolFindFirst.mockResolvedValue(null);
     const p = await computeSchoolSetupProgress(7, 999, NOW);
-    expect(m.albumFindFirst.mock.calls[0][0].where).toEqual({ id: 999, userId: 7, deletedAt: null });
-    expect(m.albumFindFirst.mock.calls[1][0].where).toMatchObject({ userId: 7, deletedAt: null });
+    expect(m.albumFindFirst.mock.calls[0][0].where).toEqual({ id: 999, userId: 7, deletedAt: null, isTest: false });
+    expect(m.albumFindFirst.mock.calls[1][0].where).toMatchObject({ userId: 7, deletedAt: null, isTest: false });
     expect(p.albumId).toBeNull();
   });
 

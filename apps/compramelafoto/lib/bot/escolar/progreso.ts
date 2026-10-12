@@ -3,7 +3,7 @@
  *
  * Determinístico: sólo consultas acotadas a la base, sin IA. Todas las consultas filtran por
  * el fotógrafo (álbum por `userId` + `deletedAt` nulo, escuela por `ownerId`); un `albumId`
- * ajeno se ignora como si no existiera.
+ * ajeno se ignora como si no existiera. Los álbumes de prueba (`isTest`) no cuentan como armado escolar.
  *
  * La lógica de armado de los pasos vive en `armarPasos` (pura) para poder probarla sin base.
  */
@@ -251,13 +251,13 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
 async function buscarAlbum(userId: number, albumId?: number): Promise<AlbumEscolar | null> {
   if (albumId != null) {
     const propio = await prisma.album.findFirst({
-      where: { id: albumId, userId, deletedAt: null },
+      where: { id: albumId, userId, deletedAt: null, isTest: false },
       select: SELECT_ALBUM,
     });
     if (propio) return propio;
   }
   return prisma.album.findFirst({
-    where: { userId, deletedAt: null, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
+    where: { userId, deletedAt: null, isTest: false, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
     orderBy: { createdAt: "desc" },
     select: SELECT_ALBUM,
   });

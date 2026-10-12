@@ -23,7 +23,7 @@ import { FAQ_CATEGORIES } from "@/components/faq-data";
 const VENTA_ESCOLAR = `## Venta escolar
 Cómo funciona en CLF:
 - Preventa: el fotógrafo arma packs (por ejemplo, una carpeta impresa más el digital) y las familias los pagan por Mercado Pago antes de la toma o antes de que se suban las fotos. Cada familia recibe su comprobante y el fotógrafo cobra su precio completo; CLF suma un recargo que paga la familia encima de ese precio.
-- Canje: cuando las fotos están subidas, cada familia entra con su link personal (/canje/preventa/…), elige las fotos que le corresponden según el pack que pagó y canjea. Si quiere más (otra impresa, el digital, una ampliación), lo puede sumar pagándolo por Mercado Pago.
+- Canje: cuando las fotos están subidas, cada familia entra con su link personal (/canje/preventa/…), elige las fotos que le corresponden según el pack que pagó y canjea. Si el álbum vende fotos sueltas, después puede comprar más fotos desde la galería del álbum (botón «Comprar más fotos»), pagándolas por Mercado Pago.
 - Cursos: la escuela tiene sus cursos cargados; la familia indica el curso al comprar y cada pedido queda con su curso.
 - Identificación del alumno, en palabras simples: sin identificación (la familia no dice de qué alumno es), carga manual (la familia escribe el nombre del alumno), lista opcional (la familia puede elegir al alumno de la lista del curso) o lista obligatoria (tiene que elegirlo de la lista). Para las dos con lista hay que cargar la lista de alumnos.
 - Plantillas: los productos impresos, como las carpetas, pueden llevar una plantilla de diseño con el nombre, el curso y la escuela.
@@ -48,7 +48,7 @@ Un álbum marcado como escolar pero sin escuela vinculada queda a medias: el pas
 Por qué conviene frente al sobre con plata:
 - La plata no pasa por las maestras: cada familia paga por Mercado Pago, con comprobante, y queda anotado pedido por pedido.
 - No hace falta imprimir antes de cobrar: se imprime lo que ya se pagó.
-- Cada familia elige sus fotos y puede sumar extras, cosa que con el sobre casi no pasa.
+- Cada familia elige sus fotos y puede comprar más, cosa que con el sobre casi no pasa.
 - Menos errores de nombres y cursos que con listas en papel y sobres escritos a mano.
 - Privacidad de las imágenes de los chicos: cada familia ve sólo lo suyo, en vez de pruebas de todo el curso circulando en papel o por grupos.
 

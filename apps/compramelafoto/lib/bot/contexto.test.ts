@@ -3,11 +3,14 @@ import { TERMS_VERSIONS_VALIDAS_PARA_VENTA } from "@/lib/terms/photographerTerms
 
 const m = vi.hoisted(() => ({
   albums: vi.fn(), products: vi.fn(), jobs: vi.fn(), orders: vi.fn(), health: vi.fn(), eventPricing: vi.fn(),
-  progreso: vi.fn(),
+  progreso: vi.fn(), schoolAlbum: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    album: { findMany: (...a: unknown[]) => m.albums(...a) },
+    album: {
+      findMany: (...a: unknown[]) => m.albums(...a),
+      findFirst: (...a: unknown[]) => m.schoolAlbum(...a),
+    },
     photographerProduct: { count: (...a: unknown[]) => m.products(...a) },
     cameraIngestJob: { groupBy: (...a: unknown[]) => m.jobs(...a) },
     order: { aggregate: (...a: unknown[]) => m.orders(...a) },
@@ -47,6 +50,7 @@ beforeEach(() => {
   m.orders.mockResolvedValue({ _count: { _all: 0 }, _sum: { totalCents: null } });
   m.health.mockResolvedValue({ status: "CONNECTED", selfHealed: false });
   m.eventPricing.mockResolvedValue(null);
+  m.schoolAlbum.mockResolvedValue(null);
   m.progreso.mockResolvedValue({
     albumId: 3, albumTitulo: "Egresados", schoolId: 5, pasos: [], hechos: 5, total: 11,
     siguiente: { n: 6, id: "preventa", titulo: "Armar los packs de preventa", estado: "pendiente", opcional: false, enlace: null },
@@ -155,9 +159,23 @@ describe("buildPhotographerSituation", () => {
 
   it("con álbum escolar muestra en qué paso del armado está", async () => {
     m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: 5 })]);
+    m.schoolAlbum.mockResolvedValue({ id: 3 });
     const s = await buildPhotographerSituation(7);
     expect(m.progreso).toHaveBeenCalledWith(7);
     expect(s.text).toContain("Escolar: paso 6 de 11 en «Egresados»");
+  });
+
+  it("busca álbumes escolares reales en toda la cuenta, sin contar los de prueba", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500 })]);
+    m.schoolAlbum.mockResolvedValue({ id: 1 });
+    const s = await buildPhotographerSituation(7);
+    expect(m.schoolAlbum.mock.calls[0][0].where).toEqual({
+      userId: 7,
+      deletedAt: null,
+      isTest: false,
+      OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }],
+    });
+    expect(s.text).toContain("Escolar: paso 6 de 11");
   });
 
   it("sin álbumes escolares no calcula el progreso", async () => {
@@ -169,9 +187,18 @@ describe("buildPhotographerSituation", () => {
 
   it("si el progreso escolar falla, la situación sale igual", async () => {
     m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: 5 })]);
+    m.schoolAlbum.mockResolvedValue({ id: 3 });
     m.progreso.mockRejectedValue(new Error("base caída"));
     const s = await buildPhotographerSituation(1);
     expect(s.text).toContain("Egresados");
     expect(s.text).not.toContain("Escolar:");
+  });
+
+  it("si la búsqueda del álbum escolar falla, la situación sale igual", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500 })]);
+    m.schoolAlbum.mockRejectedValue(new Error("base caída"));
+    const s = await buildPhotographerSituation(1);
+    expect(m.progreso).not.toHaveBeenCalled();
+    expect(s.text).toContain("Egresados");
   });
 });
