@@ -31,6 +31,9 @@ export default defineConfig({
       "app/api/admin/schools/*/organizers/invite/route.test.ts",
       "lib/schools/invite-organizer.test.ts",
       "app/pago/reintentar/*/page.test.ts",
+      "app/api/public/pack/recover/route.test.ts",
+      "lib/digital-download/reenviar-descarga.test.ts",
+      "lib/preventa-canjeable/recuperar-pack.test.ts",
     ],
   },
 });
