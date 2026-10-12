@@ -1,5 +1,5 @@
 import "server-only";
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { bucketR2Privado, clienteR2Privado, esNoEncontrado } from "@/lib/ficha/adjuntos-r2";
 import {
@@ -129,6 +129,25 @@ export async function guardarObjeto(clave: string, cuerpo: Buffer, tipo: string)
   await clienteR2Privado().send(
     new PutObjectCommand({ Bucket: bucketR2Privado(), Key: claveSegura(clave), Body: cuerpo, ContentType: tipo, ContentLength: cuerpo.length }),
   );
+}
+
+/**
+ * Copia un objeto de la galería a otra clave del mismo bucket (`CopyObject`, sin bajar ni subir el archivo). Origen y destino
+ * tienen que ser claves válidas del MISMO workspace y del MISMO tipo de objeto (original con original, vista con vista,
+ * miniatura con miniatura): así una copia nunca cruza de organización ni convierte un original en otra cosa. Devuelve false
+ * si el origen no existe.
+ */
+export async function copiarObjeto(origen: string, destino: string): Promise<boolean> {
+  const o = analizarClave(claveSegura(origen));
+  const d = analizarClave(claveSegura(destino));
+  if (!o || !d || o.workspaceId !== d.workspaceId || o.tipo !== d.tipo) throw new Error("Copia entre claves que no corresponden");
+  try {
+    await clienteR2Privado().send(new CopyObjectCommand({ Bucket: bucketR2Privado(), Key: destino, CopySource: `${bucketR2Privado()}/${origen}`, MetadataDirective: "COPY" }));
+    return true;
+  } catch (err) {
+    if (esNoEncontrado(err)) return false;
+    throw err;
+  }
 }
 
 /** Idempotente: borrar algo que ya no está no es un error. */

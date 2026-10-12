@@ -37,11 +37,16 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   DESCARGA_ERROR: "No se pudo armar la descarga completa",
   DESCARGA_CORREO_ENVIADO: "Correo de descarga lista enviado",
   DESCARGA_CORREO_NO_ENVIADO: "El correo de descarga lista no salió",
+  RONDA_ABIERTA: "Ronda nueva del álbum abierta",
+  ALBUM_APROBADO: "El cliente aprobó el álbum",
+  ALBUM_CAMBIOS_PEDIDOS: "El cliente pidió cambios en el álbum",
+  ALBUM_FINALIZADO: "Prueba de álbum finalizada por el estudio",
+  ALBUM_REACTIVADO: "Prueba de álbum devuelta al cliente para que decida de nuevo",
   ARCHIVOS_PEDIDOS_DISPOSITIVO: "DNX FLUX empezó a subir archivos",
 };
 
 /** Eventos que hace el propio cliente desde su enlace (sin usuario del estudio): en el historial el actor es el cliente. */
-export const EVENTOS_DEL_CLIENTE: readonly string[] = ["ENTRO", "SELECCION_ENVIADA", "DESCARGA"];
+export const EVENTOS_DEL_CLIENTE: readonly string[] = ["ENTRO", "SELECCION_ENVIADA", "DESCARGA", "ALBUM_APROBADO", "ALBUM_CAMBIOS_PEDIDOS"];
 
 export function etiquetaDeEvento(tipo: string): string {
   return ETIQUETA_EVENTO_GALERIA[tipo] ?? tipo;

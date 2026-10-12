@@ -99,6 +99,10 @@ export function NuevaGaleria() {
               <input type="radio" name={`${id}-tipo`} checked={tipo === "ENTREGA"} onChange={() => setTipo("ENTREGA")} />
               Entrega: fotos y videos en alta para descargar
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name={`${id}-tipo`} checked={tipo === "ALBUM"} onChange={() => setTipo("ALBUM")} />
+              Álbum: el cliente revisa las láminas, comenta y aprueba o pide cambios
+            </label>
           </fieldset>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="fo-btn fo-btn-primary text-sm" disabled={pendiente} onClick={crear}>

@@ -7,8 +7,12 @@ export const MODOS_VENTA = ["SELECCION", "SELECCION_Y_VENTA", "VENTA"] as const;
 export type ModoVenta = (typeof MODOS_VENTA)[number];
 export const esModoVenta = (v: unknown): v is ModoVenta => typeof v === "string" && (MODOS_VENTA as readonly string[]).includes(v);
 
-export const TIPOS_GALERIA = ["SELECCION", "ENTREGA"] as const;
+export const TIPOS_GALERIA = ["SELECCION", "ENTREGA", "ALBUM"] as const;
 export type TipoGaleria = (typeof TIPOS_GALERIA)[number];
+/** El tipo de una galería según su `kind` en la base: lo desconocido se lee como SELECCION. */
+export function tipoDeKind(kind: unknown): TipoGaleria {
+  return kind === "ENTREGA" ? "ENTREGA" : kind === "ALBUM" ? "ALBUM" : "SELECCION";
+}
 
 export const MODOS_SELECCION = ["LIBRE", "CANTIDAD"] as const;
 export type ModoSeleccion = (typeof MODOS_SELECCION)[number];
@@ -40,6 +44,7 @@ export const ETIQUETA_ESTADO_GALERIA: Record<EstadoGaleria, string> = {
 export const ETIQUETA_TIPO_GALERIA: Record<TipoGaleria, string> = {
   SELECCION: "Selección",
   ENTREGA: "Entrega",
+  ALBUM: "Álbum",
 };
 export const esTipoGaleria = (v: unknown): v is TipoGaleria => typeof v === "string" && (TIPOS_GALERIA as readonly string[]).includes(v);
 export const ETIQUETA_ESTADO_CLIENTE: Record<EstadoCliente, string> = {
@@ -72,6 +77,20 @@ export const MAX_MENSAJE_GALERIA = 2000;
 export const MAX_MENSAJE_ENVIO = 2000;
 /** Fotos que se piden firmar o procesan en una misma llamada. */
 export const MAX_LOTE_FOTOS = 100;
+
+// --- Álbum por rondas (Entrega C) ----------------------------------------------------------------------
+
+export const ESTADOS_RONDA = ["ABIERTA", "CERRADA"] as const;
+export type EstadoRonda = (typeof ESTADOS_RONDA)[number];
+export const DECISIONES_ALBUM = ["APROBADO", "CAMBIOS"] as const;
+export type DecisionAlbum = (typeof DECISIONES_ALBUM)[number];
+export const ETIQUETA_DECISION_ALBUM: Record<DecisionAlbum, string> = { APROBADO: "Aprobó el álbum", CAMBIOS: "Pidió cambios" };
+/** Láminas por ronda. */
+export const MAX_LAMINAS_POR_RONDA = 300;
+/** Largo de la nota del estudio al abrir una ronda y del mensaje de una decisión. */
+export const MAX_NOTA_RONDA = 2000;
+/** Comentarios de un cliente en una ronda de álbum. */
+export const MAX_COMENTARIOS_POR_RONDA = 300;
 
 // --- Fotos y almacenamiento --------------------------------------------------------------------------
 

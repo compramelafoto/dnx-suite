@@ -7262,6 +7262,8 @@ model Workspace {
   fotofficeGaleriaAjustes        FotofficeGaleriaAjustes?
   fotofficeGaleriaCompras        FotofficeGaleriaCompra[]
   fotofficeGaleriaDescargas      FotofficeGaleriaDescarga[]
+  fotofficeGaleriaRondas         FotofficeGaleriaRonda[]
+  fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
   fotofficeDispositivos          FotofficeDispositivo[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
@@ -23439,6 +23441,7 @@ model FotofficeGaleria {
   eventos   FotofficeGaleriaEvento[]
   compras   FotofficeGaleriaCompra[]
   descargas FotofficeGaleriaDescarga[]
+  rondas    FotofficeGaleriaRonda[]
   incomeCategory CashCategory?        @relation("FotofficeGaleriaRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, number])
@@ -23469,11 +23472,14 @@ model FotofficeGaleriaFoto {
   order            Int      @default(0)
   attempts         Int      @default(0)
   uploadedByUserId Int?
+  /// Ronda de una galería de ÁLBUM (Entrega C). Nulo en las galerías de selección y de entrega.
+  rondaId          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   galeria     FotofficeGaleria             @relation("GaleriaFotos", fields: [galeriaId], references: [id], onDelete: Cascade)
+  ronda       FotofficeGaleriaRonda?       @relation(fields: [rondaId], references: [id], onDelete: Cascade)
   portadaDe   FotofficeGaleria?            @relation("GaleriaPortada")
   selecciones FotofficeGaleriaSeleccion[]
   comentarios FotofficeGaleriaComentario[]
@@ -23481,6 +23487,7 @@ model FotofficeGaleriaFoto {
 
   @@index([galeriaId, status])
   @@index([galeriaId, order])
+  @@index([rondaId, order])
   @@index([workspaceId])
 }
 
@@ -23516,6 +23523,7 @@ model FotofficeGaleriaCliente {
   eventos     FotofficeGaleriaEvento[]
   compras     FotofficeGaleriaCompra[]
   descargas   FotofficeGaleriaDescarga[]
+  decisiones  FotofficeGaleriaDecision[]
 
   @@index([galeriaId, status])
   @@index([clientId])
@@ -23548,14 +23556,68 @@ model FotofficeGaleriaComentario {
   author           String
   authorUserId     Int?
   body             String
+  /// Ronda en la que se dejó (álbum). Nulo en las demás galerías.
+  rondaId          String?
+  /// Punto marcado en la lámina, relativo (0 a 1) a la imagen mostrada; ambos nulos o ambos con valor (CHECK).
+  pinX             Float?
+  pinY             Float?
+  /// Número del pin, correlativo por lámina y cliente.
+  pinNumber        Int?
   createdAt        DateTime @default(now())
 
   workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   galeriaCliente FotofficeGaleriaCliente @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
   foto           FotofficeGaleriaFoto    @relation(fields: [fotoId], references: [id], onDelete: Cascade)
+  ronda          FotofficeGaleriaRonda?  @relation(fields: [rondaId], references: [id], onDelete: SetNull)
 
   @@index([galeriaClienteId, fotoId])
   @@index([fotoId])
+  @@index([rondaId])
+  @@index([workspaceId])
+}
+
+/// Ronda de una galería de ÁLBUM (Entrega C): un juego de láminas que el cliente revisa. `status` ABIERTA|CERRADA (CHECK);
+/// `number` desde 1, único por galería. En el SQL hay además un índice único parcial `(galeriaId)` donde `status` es
+/// 'ABIERTA': una galería tiene a lo sumo una ronda abierta.
+model FotofficeGaleriaRonda {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  galeriaId       String
+  number          Int
+  status          String    @default("ABIERTA")
+  /// Nota del estudio para el cliente (hasta 2000 caracteres, CHECK).
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  closedAt        DateTime?
+
+  workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria     FotofficeGaleria             @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  fotos       FotofficeGaleriaFoto[]
+  comentarios FotofficeGaleriaComentario[]
+  decisiones  FotofficeGaleriaDecision[]
+
+  @@unique([galeriaId, number])
+  @@index([workspaceId])
+}
+
+/// Decisión de un cliente sobre una ronda de álbum: APROBADO|CAMBIOS (CHECK). Una por cliente y ronda.
+model FotofficeGaleriaDecision {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  galeriaClienteId String
+  rondaId          String
+  decision         String
+  /// Mensaje del cliente (hasta 2000 caracteres, CHECK).
+  message          String?
+  createdAt        DateTime @default(now())
+
+  workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+  ronda          FotofficeGaleriaRonda   @relation(fields: [rondaId], references: [id], onDelete: Cascade)
+
+  @@unique([galeriaClienteId, rondaId])
+  @@index([rondaId])
   @@index([workspaceId])
 }
 

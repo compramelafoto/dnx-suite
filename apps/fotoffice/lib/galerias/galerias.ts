@@ -8,13 +8,14 @@ import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { MENSAJES_GALERIA as M, puedeGestionarGalerias, puedeVerGalerias, type CtxGalerias } from "./acceso";
 import { leerAjustesGaleria } from "./ajustes";
 import {
-  MAX_MENSAJE_GALERIA, MAX_NOMBRE_GALERIA, MODOS_DESCARGA, MODOS_SELECCION, esEstadoGaleria, esTipoGaleria,
+  MAX_MENSAJE_GALERIA, MAX_NOMBRE_GALERIA, MODOS_DESCARGA, MODOS_SELECCION, esEstadoGaleria, esTipoGaleria, tipoDeKind,
   type EstadoGaleria, type TipoGaleria, type ModoDescarga, type ModoOrden, type ModoSeleccion,
 } from "./constantes";
 import { registrarEvento } from "./eventos";
 import { urlsDeLecturaPorLote } from "./almacen";
 import { validarConfigSeleccion } from "./seleccion";
 import { borrarFoto, type FotoVisible } from "./fotos";
+import { MENSAJES_RONDA, laminasAbiertasPorGaleria, rondaAbiertaDe } from "./rondas";
 
 /**
  * Galerías: crear, editar la configuración, publicar, archivar y reactivar, y las lecturas de la
@@ -56,8 +57,9 @@ function enteroOpcional(v: unknown): number | null | undefined {
 /**
  * Crea una galería en BORRADOR atada a un proyecto, con los valores por omisión de Configuración →
  * Galería. El nombre, si no se da, es el del proyecto. Número `GALERIA` correlativo del año.
- * `tipo` (opcional): "SELECCION" (por omisión) o "ENTREGA". Una entrega queda sin selección ni venta
- * (`saleMode` SELECCION) y entrega los originales de todo lo que tiene.
+ * `tipo` (opcional): "SELECCION" (por omisión), "ENTREGA" o "ALBUM". Una entrega queda sin selección ni venta
+ * (`saleMode` SELECCION) y entrega los originales de todo lo que tiene. Un álbum (aprobación de láminas) tampoco tiene
+ * selección ni venta, comenta en las láminas, no descarga por omisión y nace con la RONDA 1 ABIERTA.
  */
 export async function crearGaleria(ctx: CtxGalerias, datos: unknown, ahora: Date = new Date()): Promise<ResultadoGaleria> {
   if (!puedeGestionarGalerias(ctx) || ctx.userId === null) return no(M.sinPermiso);
@@ -65,7 +67,7 @@ export async function crearGaleria(ctx: CtxGalerias, datos: unknown, ahora: Date
   const d = datos as Record<string, unknown>;
   if (!idValido(d.proyectoId)) return no(M.datosInvalidos);
   if (d.tipo !== undefined && d.tipo !== null && !esTipoGaleria(d.tipo)) return no(M.datosInvalidos);
-  const tipo: TipoGaleria = d.tipo === "ENTREGA" ? "ENTREGA" : "SELECCION";
+  const tipo: TipoGaleria = tipoDeKind(d.tipo);
   const { workspaceId } = ctx;
   const proyecto = await prisma.fotofficeProyecto.findFirst({ where: { id: d.proyectoId, workspaceId }, select: { id: true, name: true, ownerUserId: true } });
   if (!proyecto) return no(M.proyecto);
@@ -84,14 +86,18 @@ export async function crearGaleria(ctx: CtxGalerias, datos: unknown, ahora: Date
           message: ajustes.defaultMessage,
           // El modo "por cantidad" necesita mínimo o máximo: una galería nueva siempre nace libre.
           selectionMode: "LIBRE", minSelect: null, maxSelect: null,
-          allowComments: tipo === "ENTREGA" ? false : ajustes.defaultAllowComments,
-          downloadMode: tipo === "ENTREGA" ? "SELECCIONADAS" : ajustes.defaultDownloadMode,
+          allowComments: tipo === "ENTREGA" ? false : tipo === "ALBUM" ? true : ajustes.defaultAllowComments,
+          downloadMode: tipo === "ENTREGA" ? "SELECCIONADAS" : tipo === "ALBUM" ? "NINGUNA" : ajustes.defaultDownloadMode,
           status: "BORRADOR", orderMode: "NOMBRE",
           ownerUserId: proyecto.ownerUserId ?? ctx.userId, createdByUserId: ctx.userId,
         },
         select: { id: true },
       });
-      await registrarEvento(tx, { workspaceId, galeriaId: id, tipo: "GALERIA_CREADA", actorUserId: ctx.userId, ...(tipo === "ENTREGA" ? { data: { tipo } } : {}) });
+      await registrarEvento(tx, { workspaceId, galeriaId: id, tipo: "GALERIA_CREADA", actorUserId: ctx.userId, ...(tipo !== "SELECCION" ? { data: { tipo } } : {}) });
+      if (tipo === "ALBUM") {
+        await tx.fotofficeGaleriaRonda.create({ data: { workspaceId, galeriaId: id, number: 1, status: "ABIERTA", createdByUserId: ctx.userId }, select: { id: true } });
+        await registrarEvento(tx, { workspaceId, galeriaId: id, tipo: "RONDA_ABIERTA", actorUserId: ctx.userId, data: { numero: 1 } });
+      }
       return { ok: true as const, id };
     }, OPCIONES_TRANSACCION);
   } catch (e) {
@@ -128,6 +134,11 @@ export async function editarGaleria(ctx: CtxGalerias, galeriaId: unknown, datos:
   if (typeof d.allowComments !== "boolean") return no(M.comentarios);
   if (typeof d.downloadMode !== "string" || !(MODOS_DESCARGA as readonly string[]).includes(d.downloadMode)) return no(M.modoDescarga);
   const { workspaceId } = ctx;
+  // Un álbum no tiene selección ni descarga de originales: sólo "sin descarga" o la vista de las láminas.
+  if (d.downloadMode === "SELECCIONADAS") {
+    const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { kind: true } });
+    if (g?.kind === "ALBUM") return no(MENSAJES_RONDA.descargaAlbum);
+  }
   try {
     return await prisma.$transaction(async (tx) => {
       const r = await tx.fotofficeGaleria.updateMany({
@@ -159,12 +170,15 @@ export async function publicarGaleria(ctx: CtxGalerias, galeriaId: unknown, ahor
   if (!puedeGestionarGalerias(ctx)) return no(M.sinPermiso);
   if (!idValido(galeriaId)) return no(M.datosInvalidos);
   const { workspaceId } = ctx;
-  const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { status: true } });
+  const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { status: true, kind: true } });
   if (!g) return no(M.noExiste);
   if (g.status === "PUBLICADA") return no(M.yaPublicada);
   if (g.status === "ARCHIVADA") return no(M.galeriaArchivada);
-  const listas = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId, workspaceId, status: "LISTA" } });
-  if (listas < 1) return no(M.sinFotosListas);
+  // En un álbum cuentan las láminas de la ronda abierta; en las demás, todas las fotos de la galería.
+  const ronda = g.kind === "ALBUM" ? await rondaAbiertaDe(workspaceId, galeriaId) : null;
+  if (g.kind === "ALBUM" && !ronda) return no(MENSAJES_RONDA.sinRonda);
+  const listas = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId, workspaceId, status: "LISTA", ...(ronda ? { rondaId: ronda.id } : {}) } });
+  if (listas < 1) return no(g.kind === "ALBUM" ? MENSAJES_RONDA.sinLaminasListas : M.sinFotosListas);
   return cambiarEstado(ctx, galeriaId, "BORRADOR", { status: "PUBLICADA", publishedAt: ahora }, "PUBLICADA", M.yaPublicada);
 }
 
@@ -260,8 +274,10 @@ export type FichaGaleria = {
   createdAt: Date;
   proyecto: { id: string; numero: string; nombre: string };
   contacto: { id: string; nombre: string; email: string | null; telefono: string | null };
-  /** `listas` cuenta fotos y videos; `videos` son los videos listos (incluidos en `listas`). */
+  /** `listas` cuenta fotos y videos; `videos` son los videos listos (incluidos en `listas`). En un álbum cuenta las láminas de la ronda abierta. */
   fotos: { listas: number; pendientes: number; conError: number; videos: number };
+  /** Álbum: la ronda abierta y cuántas rondas hubo en total. Nulo en las demás galerías. */
+  ronda: { id: string; numero: number; total: number } | null;
 };
 
 /** La galería con su proyecto, el contacto del proyecto y el conteo de fotos. null si no existe en el workspace o no hay "Ver". */
@@ -277,7 +293,9 @@ export async function cargarFichaGaleria(ctx: CtxGalerias, galeriaId: unknown): 
     },
   });
   if (!g) return null;
-  const cuentas = await prisma.fotofficeGaleriaFoto.groupBy({ by: ["status"], where: { galeriaId: g.id, workspaceId }, _count: { _all: true } });
+  const abierta = g.kind === "ALBUM" ? await rondaAbiertaDe(workspaceId, g.id) : null;
+  const totalRondas = g.kind === "ALBUM" ? await prisma.fotofficeGaleriaRonda.count({ where: { galeriaId: g.id, workspaceId } }) : 0;
+  const cuentas = await prisma.fotofficeGaleriaFoto.groupBy({ by: ["status"], where: { galeriaId: g.id, workspaceId, ...(g.kind === "ALBUM" ? { rondaId: abierta?.id ?? "-" } : {}) }, _count: { _all: true } });
   const n = (s: string) => cuentas.find((c) => c.status === s)?._count._all ?? 0;
   const videos = g.kind === "ENTREGA" ? await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: g.id, workspaceId, status: "LISTA", mediaType: "VIDEO" } }) : 0;
   const c = g.proyecto.client;
@@ -287,7 +305,7 @@ export async function cargarFichaGaleria(ctx: CtxGalerias, galeriaId: unknown): 
     nombre: g.name,
     mensaje: g.message,
     estado: esEstadoGaleria(g.status) ? g.status : "BORRADOR",
-    tipo: g.kind === "ENTREGA" ? "ENTREGA" : "SELECCION",
+    tipo: tipoDeKind(g.kind),
     selectionMode: g.selectionMode === "CANTIDAD" ? "CANTIDAD" : "LIBRE",
     minSelect: g.minSelect,
     maxSelect: g.maxSelect,
@@ -301,6 +319,7 @@ export async function cargarFichaGaleria(ctx: CtxGalerias, galeriaId: unknown): 
     proyecto: { id: g.proyecto.id, numero: g.proyecto.number, nombre: g.proyecto.name },
     contacto: { id: c.id, nombre: nombreDeContacto(c), email: c.email, telefono: c.phone },
     fotos: { listas: n("LISTA"), pendientes: n("PENDIENTE"), conError: n("ERROR"), videos },
+    ronda: abierta ? { id: abierta.id, numero: abierta.numero, total: totalRondas } : null,
   };
 }
 
@@ -320,9 +339,11 @@ export async function galeriasDeProyecto(ctx: CtxGalerias, proyectoId: string): 
       clientes: { where: { status: "EN_REVISION", revokedAt: null }, select: { id: true } },
     },
   });
+  // De un álbum cuentan las láminas de la ronda abierta, no las de todas las rondas.
+  const laminas = await laminasAbiertasPorGaleria(workspaceId, filas.filter((f) => f.kind === "ALBUM").map((f) => f.id));
   return filas.map((f) => ({
     id: f.id, numero: f.number, nombre: f.name, estado: esEstadoGaleria(f.status) ? f.status : "BORRADOR",
-    tipo: f.kind === "ENTREGA" ? "ENTREGA" : "SELECCION", fotos: f._count.fotos, enRevision: f.clientes.length,
+    tipo: tipoDeKind(f.kind), fotos: f.kind === "ALBUM" ? (laminas.get(f.id) ?? 0) : f._count.fotos, enRevision: f.clientes.length,
   }));
 }
 

@@ -6,9 +6,10 @@ import { fechaBA } from "@/lib/ficha/formato";
 import { puedeEnContexto } from "@/lib/access/policy";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
-import { ESTADOS_GALERIA, ETIQUETA_ESTADO_GALERIA, ETIQUETA_TIPO_GALERIA, TIPOS_GALERIA, esEstadoGaleria, esTipoGaleria, type EstadoGaleria, type TipoGaleria } from "./constantes";
+import { ESTADOS_GALERIA, ETIQUETA_ESTADO_GALERIA, ETIQUETA_TIPO_GALERIA, TIPOS_GALERIA, esEstadoGaleria, esTipoGaleria, tipoDeKind, type EstadoGaleria, type TipoGaleria } from "./constantes";
 import { claseDeEstadoGaleria } from "./estado-vista";
 import { formatearCentavos } from "./precios";
+import { laminasAbiertasPorGaleria } from "./rondas";
 import { vendidoPorGaleria } from "./venta";
 
 /**
@@ -54,10 +55,10 @@ const SELECT_GALERIA = {
 
 type FilaBase = Prisma.FotofficeGaleriaGetPayload<{ select: typeof SELECT_GALERIA }>;
 
-function aFila(f: FilaBase, enRevision: number, vendidoCentavos: number | null): FilaGaleria {
+function aFila(f: FilaBase, enRevision: number, vendidoCentavos: number | null, laminas?: number): FilaGaleria {
   return {
     id: f.id,
-    tipo: f.kind === "ENTREGA" ? "ENTREGA" : "SELECCION",
+    tipo: tipoDeKind(f.kind),
     numero: f.number,
     nombre: f.name,
     proyectoId: f.proyecto.id,
@@ -65,7 +66,8 @@ function aFila(f: FilaBase, enRevision: number, vendidoCentavos: number | null):
     proyectoNombre: f.proyecto.name,
     contacto: nombreDeContacto(f.proyecto.client),
     estado: esEstadoGaleria(f.status) ? f.status : "BORRADOR",
-    fotos: f._count.fotos,
+    // De un álbum cuentan las láminas de la ronda abierta, no las de todas las rondas.
+    fotos: laminas ?? f._count.fotos,
     clientes: f._count.clientes,
     enRevision,
     vendidoCentavos,
@@ -129,7 +131,8 @@ async function filasConRevision(filas: FilaBase[], ctx: ContextoListado): Promis
   // El total vendido sólo se lee si quien mira puede ver el dinero: la cifra no llega ni a la fila.
   const veDinero = puedeEnContexto(ctx, "verDinero", CASH_MODULE_KEY);
   const vendido = veDinero ? await vendidoPorGaleria(ctx, ids) : null;
-  return filas.map((f) => aFila(f, rev.get(f.id) ?? 0, vendido ? (vendido.get(f.id) ?? 0) : null));
+  const laminas = await laminasAbiertasPorGaleria(ctx.workspaceId, filas.filter((f) => f.kind === "ALBUM").map((f) => f.id));
+  return filas.map((f) => aFila(f, rev.get(f.id) ?? 0, vendido ? (vendido.get(f.id) ?? 0) : null, f.kind === "ALBUM" ? (laminas.get(f.id) ?? 0) : undefined));
 }
 
 async function filasPorIds(ctx: ContextoListado, ids: string[]): Promise<FilaGaleria[]> {

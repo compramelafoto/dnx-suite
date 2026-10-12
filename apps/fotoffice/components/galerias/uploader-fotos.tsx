@@ -73,11 +73,14 @@ export function UploaderFotos({
   motivoDeshabilitado,
   alProcesar,
   admiteVideos = false,
+  esAlbum = false,
   videosLibres = MAX_VIDEOS_POR_GALERIA,
 }: {
   galeriaId: string;
   /** Galería de entrega: además de JPG y PNG acepta videos MP4 y MOV de hasta 5 GB. */
   admiteVideos?: boolean;
+  /** Álbum: se suben láminas (una imagen por lámina) a la ronda abierta. */
+  esAlbum?: boolean;
   /** Cuántos videos más entran (tope 200 por galería). */
   videosLibres?: number;
   /** Cuántas fotos más entran en la galería (tope 3.000). */
@@ -247,7 +250,7 @@ export function UploaderFotos({
   return (
     <section aria-labelledby="subir-fotos-titulo" className="fo-card space-y-3 p-4">
       <h2 id="subir-fotos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        {admiteVideos ? "Subir fotos y videos" : "Subir fotos"}
+        {admiteVideos ? "Subir fotos y videos" : esAlbum ? "Subir láminas" : "Subir fotos"}
       </h2>
       <div
         onDragOver={(ev) => {
@@ -270,7 +273,9 @@ export function UploaderFotos({
             ? motivoDeshabilitado ?? "No se pueden subir fotos ahora."
             : admiteVideos
               ? "Arrastrá los archivos hasta acá o elegilos desde tu computadora. Fotos JPG o PNG de hasta 50 MB y videos MP4 o MOV de hasta 5 GB."
-              : "Arrastrá las fotos hasta acá o elegilas desde tu computadora. JPG o PNG, hasta 50 MB cada una."}
+              : esAlbum
+                ? "Arrastrá las láminas hasta acá o elegilas desde tu computadora. Una imagen JPG o PNG por lámina o pliego, hasta 50 MB cada una."
+                : "Arrastrá las fotos hasta acá o elegilas desde tu computadora. JPG o PNG, hasta 50 MB cada una."}
         </p>
         <input
           ref={entrada}
@@ -286,11 +291,11 @@ export function UploaderFotos({
           }}
         />
         <label htmlFor="galeria-elegir-fotos" className={`fo-btn fo-btn-primary text-sm ${deshabilitado ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
-          {admiteVideos ? "Elegir archivos" : "Elegir fotos"}
+          {admiteVideos ? "Elegir archivos" : esAlbum ? "Elegir láminas" : "Elegir fotos"}
         </label>
         {!deshabilitado ? (
           <p className="text-xs text-[var(--fo-muted)]">
-            Entran {lugaresLibres.toLocaleString("es-AR")} {admiteVideos ? "archivos" : "fotos"} más en esta galería
+            Entran {lugaresLibres.toLocaleString("es-AR")} {admiteVideos ? "archivos" : esAlbum ? "láminas" : "fotos"} más en {esAlbum ? "esta ronda" : "esta galería"}
             {admiteVideos ? ` (hasta ${videosLibres.toLocaleString("es-AR")} videos)` : ""}.
           </p>
         ) : null}

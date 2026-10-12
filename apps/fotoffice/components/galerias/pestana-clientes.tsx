@@ -34,7 +34,7 @@ const CLASE_ESTADO: Record<EstadoCliente, string> = {
   FINALIZADO: "bg-green-100 text-green-800",
 };
 
-function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar, esEntrega }: { c: ClienteVista; galeriaId: string; estadoGaleria: EstadoGaleria; puedeGestionar: boolean; esEntrega: boolean }) {
+function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar, esEntrega, esAlbum }: { c: ClienteVista; galeriaId: string; estadoGaleria: EstadoGaleria; puedeGestionar: boolean; esEntrega: boolean; esAlbum: boolean }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -121,8 +121,16 @@ function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar, esEntrega
         {esEntrega ? null : c.elegidas === 1 ? "1 foto elegida" : `${c.elegidas.toLocaleString("es-AR")} fotos elegidas`}
         {c.ultimaVez ? `${esEntrega ? "" : " · "}Última visita: ${fechaHoraBA(c.ultimaVez)}` : `${esEntrega ? "" : " · "}Todavía no entró`}
         {c.enviadoEn && !esEntrega ? ` · Envió su selección el ${fechaHoraBA(c.enviadoEn)}` : ""}
+        {c.enviadoEn && esAlbum ? ` · Decidió el ${fechaHoraBA(c.enviadoEn)}` : ""}
         {c.finalizadoEn ? ` · Finalizada el ${fechaHoraBA(c.finalizadoEn)}` : ""}
       </p>
+      {esAlbum && (c.estado !== "EN_PROGRESO" || c.ultimaVez) ? (
+        <p className="text-sm">
+          <Link href={`/galerias/${encodeURIComponent(galeriaId)}/clientes/${encodeURIComponent(c.id)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
+            {c.estado === "EN_REVISION" ? "Revisar la prueba" : "Ver la prueba"}
+          </Link>
+        </p>
+      ) : null}
       {!esEntrega && (c.estado !== "EN_PROGRESO" || c.elegidas > 0) ? (
         <p className="text-sm">
           <Link href={`/galerias/${encodeURIComponent(galeriaId)}/clientes/${encodeURIComponent(c.id)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
@@ -194,9 +202,12 @@ function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar, esEntrega
  * Los enlaces sólo se comparten con la galería publicada. Las reglas las vuelve a mirar el servidor.
  */
 export function PestanaClientes({
-  galeriaId, estadoGaleria, clientes, sugerido, puedeGestionar, puedeBuscarContactos, esEntrega = false,
+  galeriaId, estadoGaleria, clientes, sugerido, puedeGestionar, puedeBuscarContactos, esEntrega = false, esAlbum = false,
 }: {
+  /** Sin selección que revisar (entrega y álbum). */
   esEntrega?: boolean;
+  /** Álbum: los clientes revisan las láminas por rondas. */
+  esAlbum?: boolean;
   galeriaId: string;
   estadoGaleria: EstadoGaleria;
   clientes: ClienteVista[];
@@ -230,11 +241,11 @@ export function PestanaClientes({
           Clientes de la galería ({clientes.length}/{MAX_CLIENTES_POR_GALERIA})
         </h2>
         {clientes.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">Todavía no agregaste a nadie. {esEntrega ? "Cada cliente recibe su propio enlace para descargar." : "Cada cliente recibe su propio enlace y su selección es independiente."}</p>
+          <p className="text-sm text-[var(--fo-muted)]">Todavía no agregaste a nadie. {esAlbum ? "Cada cliente recibe su propio enlace para revisar las láminas, dejar comentarios y aprobar el álbum o pedir cambios." : esEntrega ? "Cada cliente recibe su propio enlace para descargar." : "Cada cliente recibe su propio enlace y su selección es independiente."}</p>
         ) : (
           <ul className="divide-y divide-[var(--fo-border)] text-sm">
             {clientes.map((c) => (
-              <TarjetaCliente key={`${c.id}:${c.anulado}:${c.estado}`} c={c} galeriaId={galeriaId} estadoGaleria={estadoGaleria} puedeGestionar={puedeGestionar} esEntrega={esEntrega} />
+              <TarjetaCliente key={`${c.id}:${c.anulado}:${c.estado}`} c={c} galeriaId={galeriaId} estadoGaleria={estadoGaleria} puedeGestionar={puedeGestionar} esEntrega={esEntrega} esAlbum={esAlbum} />
             ))}
           </ul>
         )}

@@ -6,6 +6,7 @@ import {
   HORAS_PENDIENTE_FOTO,
   MAX_FOTOS_POR_GALERIA,
   MAX_INTENTOS_FOTO,
+  MAX_LAMINAS_POR_RONDA,
   MAX_VIDEOS_POR_GALERIA,
   medioDeTipo,
   tamanoMaximoDe,
@@ -16,6 +17,7 @@ import { claveEsDe, clavesDeFoto } from "./claves";
 import { borrarObjetoFoto, guardarObjeto, leerObjeto, tamanoDeObjeto, urlDeSubidaFoto, urlsDeLecturaPorLote } from "./almacen";
 import { FotoNoProcesable, generarVariantes } from "./procesar";
 import { ordenarFotosDeGaleria } from "./orden";
+import { MENSAJES_RONDA, rondaAbiertaDe } from "./rondas";
 
 /**
  * Fotos de una galería (etapa 7, A1): pedir subida → el navegador sube el original directo al R2
@@ -116,8 +118,20 @@ async function crearSubida(
     if (videos >= MAX_VIDEOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeVideos };
   }
   // Las fotos en ERROR definitivo no ocupan lugar: así se puede borrarlas o volver a subir.
-  const cantidad = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: galeria.id as string, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } } });
-  if (cantidad >= MAX_FOTOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeFotos };
+  // En un álbum las láminas van siempre a la ronda ABIERTA (lo decide el servidor, no el navegador) y el tope es por ronda.
+  let rondaId: string | null = null;
+  if (galeria.kind === "ALBUM") {
+    const ronda = await rondaAbiertaDe(ctx.workspaceId, galeria.id as string);
+    if (!ronda) return { ok: false, error: MENSAJES_RONDA.sinRonda };
+    const enRonda = await prisma.fotofficeGaleriaFoto.count({
+      where: { galeriaId: galeria.id as string, workspaceId: ctx.workspaceId, rondaId: ronda.id, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } },
+    });
+    if (enRonda >= MAX_LAMINAS_POR_RONDA) return { ok: false, error: MENSAJES_RONDA.topeLaminas };
+    rondaId = ronda.id;
+  } else {
+    const cantidad = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: galeria.id as string, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } } });
+    if (cantidad >= MAX_FOTOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeFotos };
+  }
   const ultima = await prisma.fotofficeGaleriaFoto.aggregate({ where: { galeriaId: galeria.id as string }, _max: { order: true } });
   const orden = (ultima._max.order ?? -1) + 1;
   const fotoId = randomUUID();
@@ -135,6 +149,7 @@ async function crearSubida(
       contentType: archivo.tipo as string,
       order: orden,
       uploadedByUserId: userId,
+      ...(rondaId ? { rondaId } : {}),
     },
     select: { id: true },
   });
@@ -276,9 +291,14 @@ export async function borrarFoto(ctx: CtxGalerias, galeriaId: unknown, fotoId: u
   if (!idValido(galeriaId) || !idValido(fotoId)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
   const fila = await prisma.fotofficeGaleriaFoto.findFirst({
     where: { id: fotoId, galeriaId, workspaceId: ctx.workspaceId },
-    select: { id: true, workspaceId: true, galeriaId: true },
+    select: { id: true, workspaceId: true, galeriaId: true, rondaId: true },
   });
   if (!fila) return { ok: false, error: MENSAJES_GALERIA.fotoNoExiste };
+  // Las láminas de una ronda cerrada son el registro de lo que el cliente revisó: no se tocan.
+  if (fila.rondaId) {
+    const ronda = await prisma.fotofficeGaleriaRonda.findFirst({ where: { id: fila.rondaId as string, workspaceId: ctx.workspaceId }, select: { status: true } });
+    if (ronda?.status === "CERRADA") return { ok: false, error: MENSAJES_RONDA.rondaCerrada };
+  }
   // Una foto que un cliente pagó, o que está en un pago abierto, no se borra: perdería la descarga y la
   // compra (y su movimiento de Caja) dejaría de cuadrar.
   if (await fotoEnCompraVigente(ctx.workspaceId, fotoId)) return { ok: false, error: MENSAJE_FOTO_COMPRADA };
@@ -301,8 +321,11 @@ export async function reordenarFotos(ctx: CtxGalerias, galeriaId: unknown, ids: 
   }
   const galeria = await galeriaDelWorkspace(ctx, galeriaId);
   if (!galeria) return { ok: false, error: MENSAJES_GALERIA.noExiste };
+  // En un álbum se ordenan las láminas de la ronda abierta; las rondas cerradas no se tocan.
+  const ronda = galeria.kind === "ALBUM" ? await rondaAbiertaDe(ctx.workspaceId, galeriaId) : null;
+  if (galeria.kind === "ALBUM" && !ronda) return { ok: false, error: MENSAJES_RONDA.sinRonda };
   const filas = await prisma.fotofficeGaleriaFoto.findMany({
-    where: { galeriaId, workspaceId: ctx.workspaceId },
+    where: { galeriaId, workspaceId: ctx.workspaceId, ...(ronda ? { rondaId: ronda.id } : {}) },
     select: { id: true, order: true, fileName: true },
   });
   const existentes = new Set(filas.map((f: { id: unknown }) => f.id as string));
@@ -353,13 +376,19 @@ export async function establecerPortada(ctx: CtxGalerias, galeriaId: unknown, fo
 export async function listarFotos(
   ctx: CtxGalerias,
   galeriaId: unknown,
-  opciones: { estado?: EstadoFoto } = {},
+  opciones: { estado?: EstadoFoto; rondaId?: string } = {},
 ): Promise<FotoVisible[]> {
   if (!puedeVerGalerias(ctx) || !idValido(galeriaId)) return [];
   const galeria = await galeriaDelWorkspace(ctx, galeriaId);
   if (!galeria) return [];
+  // En un álbum se lista una ronda: la pedida (si es de esta galería) o la abierta. Las demás galerías no tienen rondas.
+  let rondaId: string | null = null;
+  if (galeria.kind === "ALBUM") {
+    rondaId = opciones.rondaId && idValido(opciones.rondaId) ? opciones.rondaId : ((await rondaAbiertaDe(ctx.workspaceId, galeriaId))?.id ?? null);
+    if (!rondaId) return [];
+  }
   const filas = await prisma.fotofficeGaleriaFoto.findMany({
-    where: { galeriaId, workspaceId: ctx.workspaceId, ...(opciones.estado ? { status: opciones.estado } : {}) },
+    where: { galeriaId, workspaceId: ctx.workspaceId, ...(rondaId ? { rondaId } : {}), ...(opciones.estado ? { status: opciones.estado } : {}) },
     take: MAX_FOTOS_POR_GALERIA,
     select: { id: true, fileName: true, status: true, errorReason: true, width: true, height: true, sizeBytes: true, order: true, viewKey: true, thumbKey: true, mediaType: true, contentType: true },
   });

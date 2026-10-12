@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { AbrirRondaNueva } from "@/components/galerias/abrir-ronda-nueva";
 import { ConfiguracionGaleria } from "@/components/galerias/configuracion-galeria";
 import { PestanaClientes } from "@/components/galerias/pestana-clientes";
+import { ResumenAlbum } from "@/components/galerias/resumen-album";
 import { PestanaDescargas } from "@/components/galerias/pestana-descargas";
 import { PestanaFotos } from "@/components/galerias/pestana-fotos";
 import { PestanaVenta } from "@/components/galerias/pestana-venta";
@@ -16,8 +18,10 @@ import { ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, ETIQUETA_MODO_SELECCIO
 import { claseDeEstadoGaleria } from "@/lib/galerias/estado-vista";
 import { listarFotos } from "@/lib/galerias/fotos";
 import { cargarFichaGaleria } from "@/lib/galerias/galerias";
+import { resumenDeAlbum } from "@/lib/galerias/revision-album";
 import { cargarHistorial } from "@/lib/galerias/historial";
 import { requireGalerias } from "@/lib/galerias/requerir";
+import { listarRondas } from "@/lib/galerias/rondas";
 import { cargarVentaGaleria, puedeVerVentasGalerias, vendidoPorGaleria } from "@/lib/galerias/venta";
 import { formatearCentavos } from "@/lib/galerias/precios";
 import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
@@ -63,7 +67,11 @@ export default async function FichaGaleriaPage({
   if (!ficha) notFound();
 
   const esEntrega = ficha.tipo === "ENTREGA";
-  const pestanas = PESTANAS.filter((p) => !(esEntrega && p.clave === "venta") && !(!esEntrega && p.clave === "descargas"));
+  const esAlbum = ficha.tipo === "ALBUM";
+  // La entrega y el álbum no tienen venta; la descarga completa es sólo de la entrega.
+  const pestanas = PESTANAS.filter((p) => !((esEntrega || esAlbum) && p.clave === "venta") && !(!esEntrega && p.clave === "descargas")).map((p) =>
+    esAlbum && p.clave === "fotos" ? { ...p, etiqueta: "Láminas" } : p,
+  );
   const pedida = (await searchParams).tab;
   const pestana: Pestana = pestanas.find((p) => p.clave === (Array.isArray(pedida) ? pedida[0] : pedida))?.clave ?? "fotos";
   const gestiona = puedeGestionarGalerias(ctx);
@@ -78,7 +86,12 @@ export default async function FichaGaleriaPage({
   // Lo vendido sólo se lee si quien mira puede ver el dinero.
   const vendido = puedeVerVentasGalerias(ctx) ? ((await vendidoPorGaleria(ctx, [id])).get(id) ?? 0) : null;
   const descargas = pestana === "descargas" ? await listarDescargasDeGaleria(ctx, id) : [];
-  const fotos = pestana === "fotos" ? await listarFotos(ctx, id) : [];
+  // Álbum: se mira una ronda a la vez (por omisión, la abierta); las cerradas son de sólo lectura. Sólo se leen en «Láminas».
+  const rondas = esAlbum && pestana === "fotos" ? await listarRondas(ctx, id) : [];
+  const rondaPedida = Number((await searchParams).ronda);
+  const rondaMirada = esAlbum ? (rondas.find((r) => r.numero === rondaPedida) ?? rondas.find((r) => r.estado === "ABIERTA") ?? rondas[rondas.length - 1] ?? null) : null;
+  const fotos = pestana === "fotos" ? await listarFotos(ctx, id, rondaMirada ? { rondaId: rondaMirada.id } : {}) : [];
+  const resumenAlbum = esAlbum && pestana === "clientes" ? await resumenDeAlbum(ctx, id) : [];
   const pagina = pestana === "historial" ? paginaPedida((await searchParams).pagina) : 1;
   const historial = pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: [], pagina: 1, hayMas: false };
   const sugerido =
@@ -90,7 +103,7 @@ export default async function FichaGaleriaPage({
     <div className="space-y-6">
       <PageHeader
         title={ficha.nombre}
-        description={`${esEntrega ? "Galería de entrega" : "Galería"} N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
+        description={`${esEntrega ? "Galería de entrega" : esAlbum ? "Prueba de álbum" : "Galería"} N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
         actions={
           <Link href="/galerias" className="fo-btn fo-btn-secondary text-sm">
             Volver a Galerías
@@ -100,7 +113,9 @@ export default async function FichaGaleriaPage({
 
       {enRevision > 0 ? (
         <div role="status" className="rounded-lg border border-violet-300 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-          {enRevision === 1 ? "1 cliente envió su selección y está esperando tu revisión." : `${enRevision} clientes enviaron su selección y están esperando tu revisión.`}{" "}
+          {esAlbum
+            ? enRevision === 1 ? "1 cliente decidió sobre la ronda y está esperando tu revisión." : `${enRevision} clientes decidieron sobre la ronda y están esperando tu revisión.`
+            : enRevision === 1 ? "1 cliente envió su selección y está esperando tu revisión." : `${enRevision} clientes enviaron su selección y están esperando tu revisión.`}{" "}
           <Link href="?tab=clientes" className="font-medium underline">
             Ver clientes
           </Link>
@@ -149,15 +164,28 @@ export default async function FichaGaleriaPage({
                 <dd>{ETIQUETA_TIPO_GALERIA[ficha.tipo]}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--fo-muted)]">{esEntrega ? "Archivos" : "Fotos"}</dt>
+                <dt className="text-xs text-[var(--fo-muted)]">{esEntrega ? "Archivos" : esAlbum ? "Láminas de la ronda abierta" : "Fotos"}</dt>
                 <dd>
-                  {ficha.fotos.listas.toLocaleString("es-AR")} {esEntrega ? (ficha.fotos.listas === 1 ? "listo" : "listos") : "listas"}
+                  {ficha.fotos.listas.toLocaleString("es-AR")} {esEntrega ? (ficha.fotos.listas === 1 ? "listo" : "listos") : ficha.fotos.listas === 1 ? "lista" : "listas"}
                   {esEntrega && ficha.fotos.videos > 0 ? ` (${ficha.fotos.videos} ${ficha.fotos.videos === 1 ? "video" : "videos"})` : ""}
                   {ficha.fotos.pendientes > 0 ? ` · ${ficha.fotos.pendientes} pendientes` : ""}
                   {ficha.fotos.conError > 0 ? ` · ${ficha.fotos.conError} con error` : ""}
                 </dd>
               </div>
-              {esEntrega ? (
+              {esAlbum ? (
+                <>
+                  <div>
+                    <dt className="text-xs text-[var(--fo-muted)]">Ronda abierta</dt>
+                    <dd>
+                      {ficha.ronda ? `Ronda ${ficha.ronda.numero}${ficha.ronda.total > 1 ? ` (de ${ficha.ronda.total})` : ""}` : "Ninguna"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-[var(--fo-muted)]">Descarga</dt>
+                    <dd>{ETIQUETA_MODO_DESCARGA[ficha.downloadMode]}</dd>
+                  </div>
+                </>
+              ) : esEntrega ? (
                 <div>
                   <dt className="text-xs text-[var(--fo-muted)]">Descarga</dt>
                   <dd>Original de cada archivo</dd>
@@ -183,7 +211,7 @@ export default async function FichaGaleriaPage({
                   </div>
                 </>
               )}
-              {vendido !== null && !esEntrega ? (
+              {vendido !== null && !esEntrega && !esAlbum ? (
                 <div>
                   <dt className="text-xs text-[var(--fo-muted)]">Vendido</dt>
                   <dd className="tabular-nums">{vendido > 0 ? formatearCentavos(vendido) : "Todavía nada"}</dd>
@@ -223,9 +251,50 @@ export default async function FichaGaleriaPage({
             })}
           </nav>
 
+          {pestana === "fotos" && esAlbum && rondaMirada ? (
+            <section aria-labelledby="rondas-titulo" className="fo-card space-y-3 p-4">
+              <h2 id="rondas-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                Rondas
+              </h2>
+              <ul className="flex flex-wrap gap-2" aria-label="Rondas del álbum">
+                {rondas.map((r) => {
+                  const activa = r.id === rondaMirada.id;
+                  return (
+                    <li key={r.id}>
+                      <Link
+                        href={`/galerias/${encodeURIComponent(ficha.id)}?tab=fotos&ronda=${r.numero}`}
+                        aria-current={activa ? "true" : undefined}
+                        className={`block rounded-lg border px-3 py-1.5 text-sm ${activa ? "border-[var(--fo-accent,#1d4ed8)] font-medium text-[var(--fo-text)]" : "border-[var(--fo-border)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"}`}
+                      >
+                        Ronda {r.numero}
+                        <span className="ml-1 text-xs">{r.estado === "ABIERTA" ? "· abierta" : "· cerrada"}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-[var(--fo-muted)]">
+                Ronda {rondaMirada.numero} · creada el {fechaHoraBA(rondaMirada.creadaEn)}
+                {rondaMirada.cerradaEn ? ` · cerrada el ${fechaHoraBA(rondaMirada.cerradaEn)}` : ""} · {rondaMirada.laminas.toLocaleString("es-AR")} {rondaMirada.laminas === 1 ? "lámina" : "láminas"}
+                {rondaMirada.aprobados > 0 ? ` · ${rondaMirada.aprobados} ${rondaMirada.aprobados === 1 ? "aprobó" : "aprobaron"}` : ""}
+                {rondaMirada.conCambios > 0 ? ` · ${rondaMirada.conCambios} pidió cambios` : ""}
+              </p>
+              {rondaMirada.nota ? (
+                <p className="whitespace-pre-line rounded-lg bg-[var(--fo-surface-muted)] px-3 py-2 text-sm">
+                  <span className="block text-xs text-[var(--fo-muted)]">Nota del estudio para esta ronda</span>
+                  {rondaMirada.nota}
+                </p>
+              ) : null}
+              {rondaMirada.estado === "CERRADA" ? <p className="text-sm text-[var(--fo-muted)]">Esta ronda está cerrada: se puede mirar, pero no se cambia.</p> : null}
+              {gestiona && ficha.estado !== "ARCHIVADA" && rondaMirada.estado === "ABIERTA" ? (
+                <AbrirRondaNueva key={rondaMirada.id} galeriaId={ficha.id} numeroActual={rondaMirada.numero} laminasActuales={rondaMirada.laminas} />
+              ) : null}
+            </section>
+          ) : null}
+
           {pestana === "fotos" ? (
             <PestanaFotos
-              key={ficha.id}
+              key={`${ficha.id}:${rondaMirada?.id ?? ""}`}
               galeriaId={ficha.id}
               fotosIniciales={fotos}
               orderMode={ficha.orderMode}
@@ -233,8 +302,12 @@ export default async function FichaGaleriaPage({
               archivada={ficha.estado === "ARCHIVADA"}
               puedeGestionar={gestiona}
               esEntrega={esEntrega}
+              esAlbum={esAlbum}
+              soloLectura={esAlbum && rondaMirada?.estado === "CERRADA"}
             />
           ) : null}
+
+          {pestana === "clientes" && esAlbum ? <ResumenAlbum galeriaId={ficha.id} rondas={resumenAlbum} /> : null}
 
           {pestana === "clientes" ? (
             <PestanaClientes
@@ -256,7 +329,8 @@ export default async function FichaGaleriaPage({
               sugerido={sugerido}
               puedeGestionar={gestiona}
               puedeBuscarContactos={veContactos}
-              esEntrega={esEntrega}
+              esEntrega={esEntrega || esAlbum}
+              esAlbum={esAlbum}
             />
           ) : null}
 
@@ -281,6 +355,7 @@ export default async function FichaGaleriaPage({
               fotosListas={ficha.fotos.listas}
               puedeGestionar={gestiona}
               esEntrega={esEntrega}
+              esAlbum={esAlbum}
               inicial={{
                 nombre: ficha.nombre,
                 mensaje: ficha.mensaje ?? "",
