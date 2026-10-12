@@ -40,6 +40,8 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   RONDA_ABIERTA: "Ronda nueva del álbum abierta",
   ALBUM_APROBADO: "El cliente aprobó el álbum",
   ALBUM_CAMBIOS_PEDIDOS: "El cliente pidió cambios en el álbum",
+  ALBUM_FINALIZADO: "Prueba de álbum finalizada por el estudio",
+  ALBUM_REACTIVADO: "Prueba de álbum devuelta al cliente para que decida de nuevo",
   ARCHIVOS_PEDIDOS_DISPOSITIVO: "DNX FLUX empezó a subir archivos",
 };
 

@@ -12,6 +12,7 @@ import {
   type ResultadoCliente, type ResultadoSimpleCliente,
 } from "@/lib/galerias/clientes";
 import { finalizarSeleccion, reactivarSeleccion, responderComentario, type ResultadoRespuesta, type ResultadoTransicion } from "@/lib/galerias/revision";
+import { finalizarAlbum, reactivarAlbum, responderLamina, type ResultadoRespuestaAlbum, type ResultadoTransicionAlbum } from "@/lib/galerias/revision-album";
 import { contextoDeGalerias } from "@/lib/galerias/contexto";
 import { prepararDescargaDelEstudio, urlDeParteDelEstudio, type ResultadoPedido, type SalidaUrl } from "@/lib/galerias/descargas";
 import { avisarRondaNueva, enviarCorreoEnlace } from "@/lib/galerias/correos";
@@ -294,6 +295,36 @@ export async function reactivarSeleccionGaleriaAction(galeriaId: string, galeria
   const ctx = await contextoDeGalerias("operar");
   if (!ctx) return SIN_PERMISO;
   const r = await reactivarSeleccion(ctx, galeriaId, galeriaClienteId);
+  if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
+  return r;
+}
+
+// --- Revisión de la prueba de álbum de un cliente (Gestionar) -------------------------------------------
+
+/** El estudio responde en la conversación de una lámina (a un pin con `pinNumber`, o a un comentario general con null). */
+export async function responderLaminaAlbumAction(galeriaId: string, galeriaClienteId: string, fotoId: string, pinNumber: number | null, texto: string): Promise<ResultadoRespuestaAlbum> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId) || !esId(fotoId) || typeof texto !== "string" || (pinNumber !== null && typeof pinNumber !== "number")) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  return responderLamina(ctx, galeriaId, galeriaClienteId, fotoId, pinNumber, texto);
+}
+
+/** Cierra la prueba del cliente (sólo si aprobó el álbum en la ronda actual). */
+export async function finalizarAlbumAction(galeriaId: string, galeriaClienteId: string): Promise<ResultadoTransicionAlbum> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await finalizarAlbum(ctx, galeriaId, galeriaClienteId);
+  if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
+  return r;
+}
+
+/** Le devuelve la prueba al cliente en la ronda abierta para que decida de nuevo. */
+export async function reactivarAlbumAction(galeriaId: string, galeriaClienteId: string): Promise<ResultadoTransicionAlbum> {
+  if (!esId(galeriaId) || !esId(galeriaClienteId)) return DATOS_INVALIDOS;
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return SIN_PERMISO;
+  const r = await reactivarAlbum(ctx, galeriaId, galeriaClienteId);
   if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
   return r;
 }

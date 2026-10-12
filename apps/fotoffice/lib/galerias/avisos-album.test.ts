@@ -40,14 +40,14 @@ beforeEach(() => {
 });
 
 describe("aviso al estudio por la decisión del álbum", () => {
-  it("avisa al responsable de la galería con la decisión, la ronda, los comentarios, el mensaje (escapado) y el enlace a la ficha", async () => {
+  it("avisa al responsable de la galería con la decisión, la ronda, los comentarios, el mensaje (escapado) y el enlace a la revisión del cliente", async () => {
     expect(await A.avisarDecisionAlbum(DATOS, deps())).toBe("ENVIADO");
     expect(internos).toHaveLength(1);
     expect(internos[0]!.to).toBe("admin@estudio.test");
     expect(internos[0]!.subject).toBe("Ana Gómez pidió cambios en el álbum Álbum boda");
     expect(internos[0]!.text).toContain("ronda 2");
     expect(internos[0]!.text).toContain("3 comentarios");
-    expect(internos[0]!.text).toContain("https://app.test/galerias/g1");
+    expect(internos[0]!.text).toContain("https://app.test/galerias/g1/clientes/gc1?ronda=2");
     expect(internos[0]!.html).toContain("&lt;b&gt;la tapa&lt;/b&gt;");
     expect(internos[0]!.html).not.toContain("<b>la tapa</b>");
     expect(eventos()).toEqual(["AVISO_ESTUDIO_ENVIADO"]);

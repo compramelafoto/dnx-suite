@@ -63,7 +63,7 @@ async function enviar(
   const usuario = await prisma.user.findUnique({ where: { id: para }, select: { email: true } });
   if (!correoValido(usuario?.email)) return "SIN_CORREO";
   const origen = (deps.appOrigin ?? (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "")).replace(/\/+$/, "");
-  const enlace = origen ? `${origen}/galerias/${encodeURIComponent(g.id)}` : null;
+  const enlace = origen ? `${origen}/galerias/${encodeURIComponent(g.id)}/clientes/${encodeURIComponent(d.galeriaClienteId)}?ronda=${d.rondaNumero}` : null;
   const aprobo = d.decision === "APROBADO";
   const comentarios = d.comentarios === 1 ? "1 comentario" : `${d.comentarios} comentarios`;
   const lineas = [
@@ -76,7 +76,7 @@ async function enviar(
     ...(d.mensaje ? ["", "Su mensaje:", d.mensaje] : []),
     ...(enlace ? ["", enlace] : []),
   ];
-  const html = lineas.map((l) => (l === "" ? "<br>" : l === enlace ? `<p><a href="${escapeHtml(l)}">Ver la prueba de álbum</a></p>` : `<p style="white-space:pre-line">${escapeHtml(l)}</p>`)).join("");
+  const html = lineas.map((l) => (l === "" ? "<br>" : l === enlace ? `<p><a href="${escapeHtml(l)}">Revisar la prueba de álbum</a></p>` : `<p style="white-space:pre-line">${escapeHtml(l)}</p>`)).join("");
   const mandar = deps.enviarInterno ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
   const asunto = aprobo ? `${c.name} aprobó el álbum ${g.name}` : `${c.name} pidió cambios en el álbum ${g.name}`;
   const r = await mandar({ to: usuario!.email!, subject: asunto, html, text: lineas.join("\n") });

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { AbrirRondaNueva } from "@/components/galerias/abrir-ronda-nueva";
 import { ConfiguracionGaleria } from "@/components/galerias/configuracion-galeria";
 import { PestanaClientes } from "@/components/galerias/pestana-clientes";
+import { ResumenAlbum } from "@/components/galerias/resumen-album";
 import { PestanaDescargas } from "@/components/galerias/pestana-descargas";
 import { PestanaFotos } from "@/components/galerias/pestana-fotos";
 import { PestanaVenta } from "@/components/galerias/pestana-venta";
@@ -17,6 +18,7 @@ import { ETIQUETA_ESTADO_GALERIA, ETIQUETA_MODO_DESCARGA, ETIQUETA_MODO_SELECCIO
 import { claseDeEstadoGaleria } from "@/lib/galerias/estado-vista";
 import { listarFotos } from "@/lib/galerias/fotos";
 import { cargarFichaGaleria } from "@/lib/galerias/galerias";
+import { resumenDeAlbum } from "@/lib/galerias/revision-album";
 import { cargarHistorial } from "@/lib/galerias/historial";
 import { requireGalerias } from "@/lib/galerias/requerir";
 import { listarRondas } from "@/lib/galerias/rondas";
@@ -89,6 +91,7 @@ export default async function FichaGaleriaPage({
   const rondaPedida = Number((await searchParams).ronda);
   const rondaMirada = esAlbum ? (rondas.find((r) => r.numero === rondaPedida) ?? rondas.find((r) => r.estado === "ABIERTA") ?? rondas[rondas.length - 1] ?? null) : null;
   const fotos = pestana === "fotos" ? await listarFotos(ctx, id, rondaMirada ? { rondaId: rondaMirada.id } : {}) : [];
+  const resumenAlbum = esAlbum && pestana === "clientes" ? await resumenDeAlbum(ctx, id) : [];
   const pagina = pestana === "historial" ? paginaPedida((await searchParams).pagina) : 1;
   const historial = pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: [], pagina: 1, hayMas: false };
   const sugerido =
@@ -303,6 +306,8 @@ export default async function FichaGaleriaPage({
               soloLectura={esAlbum && rondaMirada?.estado === "CERRADA"}
             />
           ) : null}
+
+          {pestana === "clientes" && esAlbum ? <ResumenAlbum galeriaId={ficha.id} rondas={resumenAlbum} /> : null}
 
           {pestana === "clientes" ? (
             <PestanaClientes
