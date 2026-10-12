@@ -6,6 +6,8 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root,
   resolve: { alias: { "@": root } },
+  // JSX con el runtime automático de React (como Next): sólo lo usan los tests de components/bot.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: [
@@ -40,6 +42,9 @@ export default defineConfig({
       "lib/public/crear-solicitud-remocion.test.ts",
       "lib/privacy/crear-solicitud-privacidad.test.ts",
       "lib/albums/registrar-interes.test.ts",
+      "app/api/a/*/orders/route.test.ts",
+      "app/api/precompra/order/route.test.ts",
+      "components/bot/*.test.ts",
     ],
   },
 });
