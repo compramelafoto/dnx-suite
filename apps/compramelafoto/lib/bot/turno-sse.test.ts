@@ -41,6 +41,25 @@ describe("respuestaDeTurnoSse", () => {
     for (const fn of m.after.splice(0)) await fn();
     expect(p.despuesDelTurno).toHaveBeenCalled();
   });
+  it("alTerminar corre una vez al final, también con corte o con falla, y su error no rompe la respuesta", async () => {
+    const corte = vi.fn(async () => {});
+    await respuestaDeTurnoSse(base({ verificarLimites: async () => "Cortado", alTerminar: corte })).text();
+    expect(corte).toHaveBeenCalledTimes(1);
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const falla = vi.fn(async () => { throw new Error("db"); });
+    const body = await respuestaDeTurnoSse(base({ preparar: async () => { throw new Error("x"); }, alTerminar: falla })).text();
+    expect(falla).toHaveBeenCalledTimes(1);
+    expect(body).toContain("event: error");
+    log.mockRestore();
+
+    m.turn.mockResolvedValue({ appended: [], usage, outcome: "ok" });
+    const ok = vi.fn(async () => {});
+    const p = base({ alTerminar: ok });
+    await respuestaDeTurnoSse(p).text();
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect((p.registrarUso as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!).toBeLessThan(ok.mock.invocationCallOrder[0]!);
+  });
   it("agrega los headers pedidos (cookie del invitado)", () => {
     const res = respuestaDeTurnoSse(base({ headers: { "set-cookie": "dnxbot_guest=x" } }));
     expect(res.headers.get("set-cookie")).toBe("dnxbot_guest=x");

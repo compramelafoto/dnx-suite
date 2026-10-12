@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   enabled: { v: true }, cap: { v: 30_000_000 },
   piloto: vi.fn(), resolver: vi.fn(), user: vi.fn(), buscar: vi.fn(), obtener: vi.fn(), proponer: vi.fn(),
-  uso: vi.fn(), registrar: vi.fn(), hist: vi.fn(), append: vi.fn(), sit: vi.fn(), turn: vi.fn(), tope: vi.fn(), inc: vi.fn(),
+  reservar: vi.fn(), liberar: vi.fn(), registrar: vi.fn(), hist: vi.fn(), append: vi.fn(), sit: vi.fn(), turn: vi.fn(), tope: vi.fn(), inc: vi.fn(),
   after: [] as (() => Promise<void>)[],
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -40,7 +40,8 @@ vi.mock("@/lib/bot/comprador/store", async (orig) => ({
 }));
 vi.mock("@/lib/bot/comprador/limites", async (orig) => ({
   ...(await orig<object>()),
-  leerUsoComprador: (...a: unknown[]) => m.uso(...a),
+  reservarTurnoComprador: (...a: unknown[]) => m.reservar(...a),
+  liberarReservaComprador: (...a: unknown[]) => m.liberar(...a),
   registrarUsoComprador: (...a: unknown[]) => m.registrar(...a),
 }));
 vi.mock("@/lib/bot/store", async (orig) => ({
@@ -66,6 +67,7 @@ const req = (body: unknown, cookie?: string) =>
     body: JSON.stringify(body),
     headers: { "x-forwarded-for": "9.9.9.9", ...(cookie ? { cookie } : {}) },
   });
+const RESERVA = { day: "2026-10-12", guestKey: KEY, ipHash: "hash(9.9.9.9)", costoReservado: 100_000 };
 const conv = { id: "cb1", status: "OPEN", supportTicketId: null, buyerEmail: null, verifiedUntil: null, ipHash: "hash(9.9.9.9)", albumId: 5, orderId: null };
 const okTurn = async (i: BotTurnInput) => {
   i.onText("Hola");
@@ -80,13 +82,14 @@ beforeEach(() => {
   m.enabled.v = true;
   m.cap.v = 30_000_000;
   m.after.splice(0);
-  for (const f of [m.piloto, m.resolver, m.user, m.buscar, m.obtener, m.proponer, m.uso, m.registrar, m.hist, m.append, m.sit, m.turn, m.tope, m.inc]) f.mockReset();
+  for (const f of [m.piloto, m.resolver, m.user, m.buscar, m.obtener, m.proponer, m.reservar, m.liberar, m.registrar, m.hist, m.append, m.sit, m.turn, m.tope, m.inc]) f.mockReset();
   m.piloto.mockResolvedValue({ todos: false, albumIds: [5] });
   m.resolver.mockResolvedValue({ albumId: 5, orderId: null, enlace: null });
   m.user.mockResolvedValue(null);
   m.buscar.mockResolvedValue(null);
   m.obtener.mockResolvedValue(conv);
-  m.uso.mockResolvedValue({ mensajesInvitado: 0, mensajesIp: 0, gastoMesMicroUsd: 0 });
+  m.reservar.mockResolvedValue({ permitido: true, reserva: RESERVA });
+  m.liberar.mockResolvedValue(undefined);
   m.hist.mockResolvedValue([]);
   m.sit.mockResolvedValue("SIT_COMPRADOR");
   m.inc.mockResolvedValue(undefined);
@@ -110,23 +113,42 @@ describe("POST /api/bot/comprador/chat", () => {
   it("mensaje vacío → 400", async () => {
     expect((await POST(req({ text: "   ", pagePath: "/a/5" }))).status).toBe(400);
   });
-  it("gasto en el 85 % del tope → corte con event: error y sin llamar al modelo", async () => {
-    m.uso.mockResolvedValue({ mensajesInvitado: 0, mensajesIp: 0, gastoMesMicroUsd: 25_500_000 });
+  it("reserva rechazada (gasto en el 85 % del tope) → corte con event: error y sin llamar al modelo", async () => {
+    m.reservar.mockResolvedValue({ permitido: false, motivo: "tope_compradores", mensaje: "Ahora no puedo responder automáticamente. X" });
     const body = await (await POST(req({ text: "hola", pagePath: "/a/5" }, `dnxbot_guest=${KEY}`))).text();
     expect(body).toContain("event: error");
     expect(body).toContain("Ahora no puedo responder automáticamente.");
     expect(body).toContain("offerTicket");
     expect(m.turn).not.toHaveBeenCalled();
-    expect(m.uso).toHaveBeenCalledWith(KEY, "hash(9.9.9.9)");
+    expect(m.reservar).toHaveBeenCalledWith({ guestKey: KEY, ipHash: "hash(9.9.9.9)", verificado: false, topeMensualMicroUsd: 30_000_000 });
+    expect(m.liberar).not.toHaveBeenCalled();
   });
-  it("si la base falla al leer los límites, el turno se corta (fail closed)", async () => {
-    m.uso.mockRejectedValue(new Error("db caída"));
+  it("si la base falla al reservar, el turno se corta (fail closed)", async () => {
+    m.reservar.mockRejectedValue(new Error("db caída"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const body = await (await POST(req({ text: "hola", pagePath: "/a/5" }, `dnxbot_guest=${KEY}`))).text();
     expect(body).toContain("event: error");
     expect(m.turn).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+  it("la reserva va antes de preparar el turno; si preparar falla, se libera el gasto reservado", async () => {
+    m.obtener.mockRejectedValue(new Error("db caída"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const body = await (await POST(req({ text: "hola", pagePath: "/a/5" }, `dnxbot_guest=${KEY}`))).text();
+    expect(body).toContain("event: error");
+    expect(m.reservar.mock.invocationCallOrder[0]!).toBeLessThan(m.obtener.mock.invocationCallOrder[0]!);
+    expect(m.turn).not.toHaveBeenCalled();
+    expect(m.registrar).not.toHaveBeenCalled();
+    expect(m.liberar).toHaveBeenCalledWith(RESERVA);
+    log.mockRestore();
+  });
+  it("turno que falla en la API con uso parcial → registra contra la reserva y no la libera", async () => {
+    const { BotTurnError } = await import("@repo/dnx-bot");
+    m.turn.mockRejectedValue(new BotTurnError(new Error("api"), { input_tokens: 5, output_tokens: 0 }));
+    await (await POST(req({ text: "hola", pagePath: "/a/5" }, `dnxbot_guest=${KEY}`))).text();
+    expect(m.registrar).toHaveBeenCalledWith(expect.objectContaining({ reserva: RESERVA, conversationId: "cb1" }));
+    expect(m.liberar).not.toHaveBeenCalled();
   });
   it("turno normal → herramientas de compradores, actor del motor de compradores y guía/situación propias", async () => {
     m.turn.mockImplementation(okTurn);
@@ -139,7 +161,8 @@ describe("POST /api/bot/comprador/chat", () => {
     expect(input.actor).toEqual(ACTOR_MOTOR_COMPRADOR);
     expect(input).toMatchObject({ systemGuide: "GUIA_COMPRADOR", situation: "SIT_COMPRADOR", effort: "low", maxIterations: 5 });
     expect(m.append).toHaveBeenCalledWith("cb1", expect.any(Array));
-    expect(m.registrar).toHaveBeenCalledWith(expect.objectContaining({ guestKey: KEY, ipHash: "hash(9.9.9.9)", conversationId: "cb1" }));
+    expect(m.registrar).toHaveBeenCalledWith(expect.objectContaining({ reserva: RESERVA, conversationId: "cb1" }));
+    expect(m.liberar).not.toHaveBeenCalled();
     await vi.waitFor(async () => {
       for (const fn of m.after.splice(0)) await fn();
       expect(m.tope).toHaveBeenCalledTimes(1);
@@ -182,10 +205,10 @@ describe("POST /api/bot/comprador/chat", () => {
   });
   it("visitante verificado por código: el límite usa el tope de verificado", async () => {
     m.buscar.mockResolvedValue({ ...conv, buyerEmail: "ju@x.com", verifiedUntil: new Date(Date.now() + 60_000) });
-    m.uso.mockResolvedValue({ mensajesInvitado: 25, mensajesIp: 0, gastoMesMicroUsd: 0 });
     m.turn.mockImplementation(okTurn);
     const body = await (await POST(req({ text: "hola", pagePath: "/a/5" }, `dnxbot_guest=${KEY}`))).text();
     expect(body).not.toContain("event: error");
     expect(m.turn).toHaveBeenCalled();
+    expect(m.reservar.mock.calls[0]![0]).toMatchObject({ verificado: true });
   });
 });

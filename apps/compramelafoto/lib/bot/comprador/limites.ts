@@ -34,52 +34,98 @@ export function decidirLimitesComprador(p: { uso: UsoComprador; verificado: bool
   return { permitido: true };
 }
 
-async function mensajesDelDia(day: string, actorKey: string): Promise<number> {
-  const fila = await prisma.botUsageDaily.findUnique({
-    where: { platform_day_actorKey: { platform: BOT_PLATFORM, day, actorKey } },
-    select: { messages: true },
-  });
-  return fila?.messages ?? 0;
+/**
+ * Gasto que se reserva antes de cada turno (0,10 USD, holgado para 5 vueltas con effort low). Se suma al
+ * gasto del mes ANTES de mirar el 80 %: así una ráfaga en paralelo ve las reservas de las otras y no puede
+ * pasar el corte de golpe. Al terminar se ajusta al costo real (o se devuelve si el turno no llegó al modelo).
+ */
+export const RESERVA_TURNO_MICRO_USD = 100_000;
+
+/** Lo que se reservó para un turno: se usa para ajustar al costo real o devolverlo. */
+export type ReservaComprador = { day: string; guestKey: string; ipHash: string; costoReservado: number };
+
+export type ResultadoReserva = { permitido: true; reserva: ReservaComprador } | Extract<DecisionComprador, { permitido: false }>;
+
+function clave(day: string, actorKey: string) {
+  return { platform_day_actorKey: { platform: BOT_PLATFORM, day, actorKey } };
 }
 
-/** Mensajes de hoy (día argentino) del navegador y de la IP, y el gasto del mes de todo el bot. */
-export async function leerUsoComprador(guestKey: string, ipHash: string): Promise<UsoComprador> {
-  const day = argentinaDay();
-  const [mensajesInvitado, mensajesIp, gastoMesMicroUsd] = await Promise.all([
-    mensajesDelDia(day, claveInvitado(guestKey)),
-    mensajesDelDia(day, claveIp(ipHash)),
-    monthCostMicroUsd(),
-  ]);
-  return { mensajesInvitado, mensajesIp, gastoMesMicroUsd };
+/** Suma de forma atómica y devuelve el valor ya sumado (dos sumas en paralelo nunca ven el mismo número). */
+async function sumarYLeer(day: string, actorKey: string, costo: number): Promise<number> {
+  const args = {
+    where: clave(day, actorKey),
+    create: { platform: BOT_PLATFORM, day, userId: null, actorKey, messages: 1, inputTokens: 0, outputTokens: 0, costMicroUsd: costo },
+    update: { messages: { increment: 1 }, costMicroUsd: { increment: costo } },
+    select: { messages: true },
+  };
+  try {
+    return (await prisma.botUsageDaily.upsert(args)).messages;
+  } catch (e) {
+    // Dos creaciones de la misma fila en paralelo: la segunda choca con el índice único y reintenta (ya es update).
+    if ((e as { code?: unknown } | null)?.code !== "P2002") throw e;
+    return (await prisma.botUsageDaily.upsert(args)).messages;
+  }
+}
+
+async function restar(day: string, actorKey: string, mensajes: number, costo: number): Promise<void> {
+  await prisma.botUsageDaily.updateMany({
+    where: { platform: BOT_PLATFORM, day, actorKey },
+    data: { messages: { decrement: mensajes }, costMicroUsd: { decrement: costo } },
+  });
 }
 
 /**
- * Registra un mensaje del comprador: fila `g:` con mensaje, tokens y costo; fila `ip:` sólo con el
- * mensaje (costo 0, para no contar dos veces el gasto); y tokens/costo en la conversación.
+ * Reserva el mensaje (filas `g:` e `ip:`) y el gasto estimado ANTES del turno, con sumas atómicas, y recién
+ * después decide con los valores ya sumados. Pedidos en paralelo no pueden pasar 20/40/60 por día ni el 80 %.
+ * Si no se permite, devuelve lo reservado. Tope 0 = sin tope de gasto (no reserva gasto).
  */
-export async function registrarUsoComprador(p: {
-  guestKey: string; ipHash: string; conversationId: string; usage: TokenUsage; costMicroUsd: number;
-}): Promise<void> {
+export async function reservarTurnoComprador(p: {
+  guestKey: string; ipHash: string; verificado: boolean; topeMensualMicroUsd: number;
+}): Promise<ResultadoReserva> {
   const day = argentinaDay();
   const invitado = claveInvitado(p.guestKey);
   const ip = claveIp(p.ipHash);
+  const costo = p.topeMensualMicroUsd > 0 ? RESERVA_TURNO_MICRO_USD : 0;
+  const [mensajesIp, mensajesInvitado] = await Promise.all([sumarYLeer(day, ip, 0), sumarYLeer(day, invitado, costo)]);
+  const gastoMes = await monthCostMicroUsd();
+  // Se decide con «lo que había antes de este mensaje», incluidas las reservas de los turnos en curso.
+  const d = decidirLimitesComprador({
+    uso: { mensajesInvitado: mensajesInvitado - 1, mensajesIp: mensajesIp - 1, gastoMesMicroUsd: gastoMes - costo },
+    verificado: p.verificado,
+    topeMensualMicroUsd: p.topeMensualMicroUsd,
+  });
+  if (d.permitido) return { permitido: true, reserva: { day, guestKey: p.guestKey, ipHash: p.ipHash, costoReservado: costo } };
+  await Promise.all([restar(day, ip, 1, 0), restar(day, invitado, 1, costo)]);
+  return d;
+}
+
+/** El turno no llegó a registrar uso (falló antes del modelo): se devuelve el gasto reservado; el mensaje queda contado. */
+export async function liberarReservaComprador(r: ReservaComprador): Promise<void> {
+  if (r.costoReservado > 0) await restar(r.day, claveInvitado(r.guestKey), 0, r.costoReservado);
+}
+
+/**
+ * Registra el uso real de un turno ya reservado: en la fila `g:` del día de la reserva suma tokens y ajusta
+ * el gasto (real − reservado); el mensaje ya se contó al reservar (en `g:` e `ip:`). Tokens y costo también
+ * en la conversación.
+ */
+export async function registrarUsoComprador(p: {
+  reserva: ReservaComprador; conversationId: string; usage: TokenUsage; costMicroUsd: number;
+}): Promise<void> {
+  const { reserva } = p;
+  const invitado = claveInvitado(reserva.guestKey);
+  const ajuste = p.costMicroUsd - reserva.costoReservado;
   await prisma.botUsageDaily.upsert({
-    where: { platform_day_actorKey: { platform: BOT_PLATFORM, day, actorKey: invitado } },
+    where: clave(reserva.day, invitado),
     create: {
-      platform: BOT_PLATFORM, day, userId: null, actorKey: invitado, messages: 1,
+      platform: BOT_PLATFORM, day: reserva.day, userId: null, actorKey: invitado, messages: 1,
       inputTokens: p.usage.input_tokens, outputTokens: p.usage.output_tokens, costMicroUsd: p.costMicroUsd,
     },
     update: {
-      messages: { increment: 1 },
       inputTokens: { increment: p.usage.input_tokens },
       outputTokens: { increment: p.usage.output_tokens },
-      costMicroUsd: { increment: p.costMicroUsd },
+      costMicroUsd: { increment: ajuste },
     },
-  });
-  await prisma.botUsageDaily.upsert({
-    where: { platform_day_actorKey: { platform: BOT_PLATFORM, day, actorKey: ip } },
-    create: { platform: BOT_PLATFORM, day, userId: null, actorKey: ip, messages: 1, inputTokens: 0, outputTokens: 0, costMicroUsd: 0 },
-    update: { messages: { increment: 1 } },
   });
   await prisma.botConversation.update({
     where: { id: p.conversationId },

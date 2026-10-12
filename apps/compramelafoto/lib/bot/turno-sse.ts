@@ -46,6 +46,8 @@ export type TurnoSseParams = {
   idsDeIncidente: (conversationId: string) => Record<string, string | number>;
   /** Corre con `after()` cuando el turno terminó y sólo si se registró uso (aviso de tope). */
   despuesDelTurno: () => Promise<void>;
+  /** Corre siempre al terminar el turno (haya pasado o no los límites): para liberar reservas. */
+  alTerminar?: () => Promise<void>;
   headers?: Record<string, string>;
 };
 
@@ -146,6 +148,13 @@ export function respuestaDeTurnoSse(p: TurnoSseParams): Response {
         console.error("[dnx-bot] chat", e);
         send("error", { message: FALLA_TURNO, offerTicket: true });
       } finally {
+        if (p.alTerminar) {
+          try {
+            await p.alTerminar();
+          } catch (err) {
+            console.error("[dnx-bot] al terminar el turno", err);
+          }
+        }
         turnFinished();
         if (open) {
           try {

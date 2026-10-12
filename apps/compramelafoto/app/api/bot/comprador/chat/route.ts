@@ -9,7 +9,12 @@ import {
 import { buildBuyerGuide } from "@/lib/bot/comprador/guia";
 import { herramientasComprador } from "@/lib/bot/comprador/herramientas";
 import { ACTOR_MOTOR_COMPRADOR, emailVerificadoDe, sesionVerificada } from "@/lib/bot/comprador/identidad";
-import { decidirLimitesComprador, leerUsoComprador, registrarUsoComprador } from "@/lib/bot/comprador/limites";
+import {
+  liberarReservaComprador,
+  registrarUsoComprador,
+  reservarTurnoComprador,
+  type ReservaComprador,
+} from "@/lib/bot/comprador/limites";
 import { buildBuyerSituation } from "@/lib/bot/comprador/situacion";
 import {
   buscarConversacionComprador,
@@ -38,6 +43,9 @@ export async function POST(req: Request) {
   const cfg = readBotConfig();
   const bcfg = readBuyerBotConfig();
   const sesion = await sesionVerificada();
+  // El mensaje y el gasto estimado se reservan antes del turno; al registrar el uso se ajusta al real.
+  // Si el turno termina sin registrar uso, `alTerminar` devuelve el gasto reservado.
+  let reserva: ReservaComprador | null = null;
   return respuestaDeTurnoSse({
     model: cfg.model,
     effort: bcfg.effort,
@@ -50,12 +58,15 @@ export async function POST(req: Request) {
     verificarLimites: async () => {
       const conv = await buscarConversacionComprador(inv.guestKey);
       const verificado = !!emailVerificadoDe(conv ?? { buyerEmail: null, verifiedUntil: null }, sesion);
-      const d = decidirLimitesComprador({
-        uso: await leerUsoComprador(inv.guestKey, inv.ipHash),
+      const r = await reservarTurnoComprador({
+        guestKey: inv.guestKey,
+        ipHash: inv.ipHash,
         verificado,
         topeMensualMicroUsd: cfg.limits.monthlyCapMicroUsd,
       });
-      return d.permitido ? null : d.mensaje;
+      if (!r.permitido) return r.mensaje;
+      reserva = r.reserva;
+      return null;
     },
     preparar: async () => {
       const conv = await obtenerConversacionComprador({
@@ -79,8 +90,14 @@ export async function POST(req: Request) {
         actor: ACTOR_MOTOR_COMPRADOR,
       };
     },
-    registrarUso: (conversationId, usage, cost) =>
-      registrarUsoComprador({ guestKey: inv.guestKey, ipHash: inv.ipHash, conversationId, usage, costMicroUsd: cost }),
+    registrarUso: async (conversationId, usage, cost) => {
+      if (!reserva) throw new Error("uso de comprador sin reserva");
+      await registrarUsoComprador({ reserva, conversationId, usage, costMicroUsd: cost });
+      reserva = null;
+    },
+    alTerminar: async () => {
+      if (reserva) await liberarReservaComprador(reserva);
+    },
     // En la conversación del comprador (con su ipHash): así cuentan los topes por IP de las tarjetas.
     proponer: (conversationId, w) => crearAccionPendienteComprador({ conversationId, ...w }),
     idsDeIncidente: (conversationId) => ({ conversationId, audiencia: "comprador" }),
