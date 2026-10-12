@@ -122,7 +122,8 @@ async function lineaVentas(since: Date): Promise<string> {
   let r = { pedidos: 0, pesos: 0 };
   if (albumes.length > 0) {
     const pedidos = await prisma.order.findMany({
-      where: { status: "PAID", isTest: false, createdAt: { gt: since }, albumId: { in: albumes } },
+      // Misma regla de venta que el resto del resumen: pagada, no de prueba y con monto.
+      where: { status: "PAID", isTest: false, totalCents: { gt: 0 }, createdAt: { gt: since }, albumId: { in: albumes } },
       select: { albumId: true, botGuestKey: true, buyerEmail: true, totalCents: true, createdAt: true },
     });
     r = ventasPosteriores(convs, pedidos);
@@ -149,7 +150,13 @@ export async function lineasCompradores(since: Date, _now: Date): Promise<string
     prisma.botEmailCode.count({ where: { createdAt: desde, usedAt: { not: null } } }),
     prisma.botAction.groupBy({
       by: ["toolName"],
-      where: { ...deCompradores, toolName: { in: ["reenviar_descarga", "reenviar_link_pack"] }, createdAt: desde },
+      // Sólo los que mandaron algo: "enviados:0" es un mail sin compras (o sin packs), no un reenvío.
+      where: {
+        ...deCompradores,
+        toolName: { in: ["reenviar_descarga", "reenviar_link_pack"] },
+        createdAt: desde,
+        resultMessage: { startsWith: "enviados:", not: "enviados:0" },
+      },
       _count: { _all: true },
     }),
     // Se crea al confirmar la tarjeta: cuenta por la fecha de ejecución, no por la de la propuesta.

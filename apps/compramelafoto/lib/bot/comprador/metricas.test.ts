@@ -178,6 +178,7 @@ describe("lineasCompradores", () => {
     expect(codigos).toEqual([{ createdAt: { gt: SINCE } }, { createdAt: { gt: SINCE }, usedAt: { not: null } }]);
     expect(m.action.groupBy.mock.calls[0]![0].where).toEqual({
       platform: "CLF", userId: null, toolName: { in: ["reenviar_descarga", "reenviar_link_pack"] }, createdAt: { gt: SINCE },
+      resultMessage: { startsWith: "enviados:", not: "enviados:0" },
     });
     expect(m.action.count.mock.calls[0]![0].where).toEqual({
       platform: "CLF", userId: null, toolName: "solicitar_quitar_foto", status: "EXECUTED", decidedAt: { gt: SINCE },
@@ -187,7 +188,7 @@ describe("lineasCompradores", () => {
       platform: "CLF", audience: "BUYER", albumId: { not: null }, createdAt: { gt: new Date(SINCE.getTime() - 48 * H) },
     });
     const pedidos = m.order.findMany.mock.calls[0]![0].where;
-    expect(pedidos).toEqual({ status: "PAID", isTest: false, createdAt: { gt: SINCE }, albumId: { in: [7, 8] } });
+    expect(pedidos).toEqual({ status: "PAID", isTest: false, totalCents: { gt: 0 }, createdAt: { gt: SINCE }, albumId: { in: [7, 8] } });
   });
 
   it("singular para una conversación y un pedido", async () => {
