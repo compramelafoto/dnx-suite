@@ -136,4 +136,18 @@ describe("POST /api/bot/chat", () => {
     expect(d).toBeLessThanOrEqual(Date.now() + 95_000);
     expect(m.tools).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }), { conversationId: "c1", currentUserText: "hola" });
   });
+  it("ver_progreso_escolar con éxito → evento progreso con los datos; otras lecturas o fallas no", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    const data = { albumId: 3, hechos: 4, total: 11, pasos: [] };
+    m.turn.mockImplementation(async (i: BotTurnInput) => {
+      i.onToolResult!("ver_album", { ok: true, message: "x", data: { secreto: 1 } });
+      i.onToolResult!("ver_progreso_escolar", { ok: false, message: "No encontrado" });
+      i.onToolResult!("ver_progreso_escolar", { ok: true, message: "ok", data });
+      return okTurn(i);
+    });
+    const body = await read(await POST(req("¿cómo voy?")));
+    expect(body.match(/event: progreso/g)).toHaveLength(1);
+    expect(body).toContain(`event: progreso\ndata: ${JSON.stringify(data)}\n\n`);
+    expect(body).not.toContain("secreto");
+  });
 });

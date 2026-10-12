@@ -85,6 +85,10 @@ export async function POST(req: Request) {
             onText: (delta) => send("text", { delta }),
             proposeWrite: (p) => createPendingAction({ conversationId: conv.id, userId: user.id, ...p }),
             onProposal: (p) => send("proposal", p),
+            // La tarjeta de progreso escolar de la burbuja se actualiza cada vez que el bot lo consulta.
+            onToolResult: (name, outcome) => {
+              if (name === "ver_progreso_escolar" && outcome.ok && outcome.data) send("progreso", outcome.data);
+            },
           });
         } catch (e) {
           // Los mensajes no se guardan (el historial queda como estaba), pero lo que ya se gastó se cobra igual.

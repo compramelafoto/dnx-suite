@@ -240,4 +240,27 @@ describe("runBotTurn", () => {
     expect(err.usage).toEqual(usage);
     expect((err.cause as Error).message).toBe("overloaded");
   });
+
+  it("onToolResult recibe cada lectura con su resultado, pero no las propuestas", async () => {
+    const client = fakeClient([
+      { stop_reason: "tool_use", usage, content: [
+        { type: "tool_use", id: "t1", name: "ver_album", input: { albumId: 3 } },
+        { type: "tool_use", id: "t2", name: "actualizar_album", input: { albumId: 3 } },
+      ] },
+      endTurn,
+    ]);
+    const onToolResult = vi.fn();
+    await runBotTurn({ ...base, ...noop, client, tools: [leer, escribir], userText: "x", proposeWrite: async () => ({ actionId: "a1" }), onToolResult });
+    expect(onToolResult).toHaveBeenCalledTimes(1);
+    expect(onToolResult).toHaveBeenCalledWith("ver_album", { ok: true, message: "álbum 3" });
+  });
+
+  it("onToolResult que lanza no rompe el turno ni cambia el tool_result", async () => {
+    const client = fakeClient([{ stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t1", name: "ver_album", input: { albumId: 3 } }] }, endTurn]);
+    const r = await runBotTurn({ ...base, ...noop, client, tools: [leer], userText: "x", proposeWrite: vi.fn(), onToolResult: () => { throw new Error("boom"); } });
+    expect(r.outcome).toBe("ok");
+    const tr = (r.appended[2]!.content as any[])[0];
+    expect(tr.is_error).toBeUndefined();
+    expect(JSON.parse(tr.content)).toEqual({ ok: true, message: "álbum 3" });
+  });
 });
