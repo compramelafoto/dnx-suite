@@ -132,6 +132,16 @@ describe("ver_album", () => {
     const r = await tool(actor({ albumId: 3 }), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
     expect(r.ok).toBe(true);
   });
+  it("un álbum oculto no se ve aunque sea la página donde está la persona", async () => {
+    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, isPublic: false, isHidden: true });
+    const r = await tool(actor({ albumId: 3 }), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
+    expect(r).toMatchObject({ ok: false, message: "No encontré ese álbum." });
+    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, isPublic: true, isHidden: true });
+    const r2 = await tool(actor({ albumId: 3 }), "cotizar_fotos").run({ albumId: 3, cantidad: 1 }, ACTOR_MOTOR_COMPRADOR);
+    expect(r2).toMatchObject({ ok: false, message: "No encontré ese álbum." });
+    expect(m.photo.count).not.toHaveBeenCalled();
+    expect(m.photo.findMany).not.toHaveBeenCalled();
+  });
   it("no muestra el precio que carga el fotógrafo", async () => {
     m.album.findFirst.mockResolvedValue(ALBUM_3);
     m.photo.count.mockResolvedValue(0);
@@ -246,6 +256,11 @@ describe("estado_de_pago", () => {
     expect((r as { data: { reintentar?: string } }).data.reintentar).toBeUndefined();
     expect(JSON.stringify(r)).not.toContain("juana@gmail.com");
   });
+  it("compara el mail verificado normalizado de los dos lados", async () => {
+    m.order.findFirst.mockResolvedValue({ ...PEDIDO_88, buyerEmail: " Juana@Gmail.com " });
+    const r = await tool(actor({ emailVerificado: "JUANA@gmail.com " }), "estado_de_pago").run({ pedido: 88 }, ACTOR_MOTOR_COMPRADOR);
+    expect(r).toMatchObject({ ok: true, data: { total: formatPurchaseArs(9000), reintentar: "/pago/reintentar/88" } });
+  });
   it("con enlace del pedido es propio y puede reintentar", async () => {
     m.order.findFirst.mockResolvedValue({ ...PEDIDO_88, status: "FAILED" });
     const a = actor({ enlace: { tipo: "descarga", orderId: 88, albumId: 3 } });
@@ -271,6 +286,11 @@ describe("mis_pedidos", () => {
     await tool(actor({ emailVerificado: "juana@gmail.com", userId: 4 }), "mis_pedidos").run({}, ACTOR_MOTOR_COMPRADOR);
     expect(m.order.findMany.mock.calls[0]![0].where).toMatchObject({ isTest: false, OR: [{ buyerEmail: { equals: "juana@gmail.com", mode: "insensitive" } }, { buyerUserId: 4 }] });
     expect(m.order.findMany.mock.calls[0]![0]).toMatchObject({ orderBy: { createdAt: "desc" }, take: 10 });
+  });
+  it("busca con el mail verificado normalizado", async () => {
+    m.order.findMany.mockResolvedValue([]);
+    await tool(actor({ emailVerificado: " Juana@Gmail.com" }), "mis_pedidos").run({}, ACTOR_MOTOR_COMPRADOR);
+    expect(m.order.findMany.mock.calls[0]![0].where.OR).toEqual([{ buyerEmail: { equals: "juana@gmail.com", mode: "insensitive" } }]);
   });
   it("lee el nivel en el momento: si verifica a mitad de turno ya funciona", async () => {
     const a = actor();

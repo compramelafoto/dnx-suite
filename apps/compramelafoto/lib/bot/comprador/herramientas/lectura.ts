@@ -1,6 +1,6 @@
 import { defineTool, type BotTool, type ToolOutcome } from "@repo/dnx-bot";
 import { z } from "zod";
-import { isAlbumPubliclyAccessible, publicAlbumFilter } from "@/lib/album-helpers";
+import { isAlbumPubliclyAccessible, isAlbumUnlistedWithDirectLink, publicAlbumFilter } from "@/lib/album-helpers";
 import { albumPhotoFileKey } from "@/lib/album-photo-ref";
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
 import { albumConOriginales } from "@/lib/digital-download/reenviar-descarga";
@@ -36,9 +36,14 @@ const albumId = z.number().int().positive();
 
 type AlbumVisible = { id: number; isPublic: boolean | null; isHidden: boolean | null };
 
-/** Se ve si es público o si es el álbum de la página donde está la persona (no listado, con link directo). */
+/**
+ * Se ve si es público o si es el álbum de la página donde está la persona y esa página lo muestra:
+ * no listado con link directo. Un álbum oculto (`isHidden`) no: `/a/[id]` y `/album/[slug]` bloquean
+ * la galería (sólo ofrecen pedir la reactivación), y `a.albumId` sale de un `pagePath` que manda el navegador.
+ */
 function albumVisiblePara(a: CompradorActor, album: AlbumVisible | null): boolean {
-  return album != null && (isAlbumPubliclyAccessible(album) || album.id === a.albumId);
+  if (!album) return false;
+  return isAlbumPubliclyAccessible(album) || (album.id === a.albumId && isAlbumUnlistedWithDirectLink(album));
 }
 
 /** Total de `cantidad` fotos digitales con el mismo cálculo del checkout (recargo incluido, en pesos). */
@@ -211,8 +216,9 @@ function estadoDePago(a: CompradorActor): BotTool {
       if (!o) return PEDIDO_NO_ENCONTRADO;
       const mailDelPedido = normalizeEmail(o.buyerEmail);
       // El orderId de la página de pago no prueba nada: sólo el enlace (descarga/pack), el mail verificado o la sesión.
+      const verificado = a.emailVerificado ? normalizeEmail(a.emailVerificado) : null;
       const propio =
-        (a.emailVerificado != null && a.emailVerificado === mailDelPedido) ||
+        (verificado != null && verificado === mailDelPedido) ||
         (a.userId != null && a.userId === o.buyerUserId) ||
         a.enlace?.orderId === pedido;
       const mailCoincide = email != null && normalizeEmail(email) === mailDelPedido;
@@ -235,7 +241,7 @@ function misPedidos(a: CompradorActor): BotTool {
     kind: "read",
     input: z.strictObject({}),
     run: async (): Promise<ToolOutcome> => {
-      const email = a.emailVerificado;
+      const email = a.emailVerificado ? normalizeEmail(a.emailVerificado) : null;
       const userId = a.userId;
       if (!email && !userId) return { ok: false, message: "Para ver tus pedidos primero verificá tu mail: pedime un código." };
       const pedidos = await prisma.order.findMany({
