@@ -19,6 +19,7 @@ export default defineConfig({
       "app/api/cron/bot-resumen/*.test.ts",
       "app/api/cron/bot-outreach/*.test.ts",
       "lib/email-marketing/unsubscribe-token.test.ts",
+      "lib/auth/registrar-ultimo-ingreso.test.ts",
       "app/api/dashboard/albums/*/route.patch.test.ts",
       "app/api/dashboard/albums/*/route.patch-school.test.ts",
       "app/api/fotografo/schools/route.test.ts",

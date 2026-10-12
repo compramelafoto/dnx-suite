@@ -5,13 +5,16 @@ import { formatBotText } from "./format";
 import { parseSseBuffer } from "../sse";
 import {
   botonGlobito,
+  campaniaInicial,
   estadoUrl,
   globitoBody,
+  olvidarCampaniaPendiente,
   parseDnxbotParam,
   parseGlobito,
   progresoInicial,
   stripDnxbotParam,
   tarjetaProgreso,
+  type AlmacenSimple,
   type Globito,
   type GlobitoAccion,
   type GlobitoBoton,
@@ -38,9 +41,17 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const campaign = parseDnxbotParam(location.search);
+    let almacen: AlmacenSimple | null = null;
+    try {
+      almacen = window.sessionStorage;
+    } catch {
+      almacen = null;
+    }
+    // Si viene del mail sin sesión, el login pierde el parámetro: queda guardado en sessionStorage
+    // hasta que la ventana se abra con el bot habilitado.
+    const campaign = campaniaInicial(location.search, almacen, Date.now());
     // Recargar la página no vuelve a abrir la ventana: el parámetro del mail se usa una sola vez.
-    if (campaign) history.replaceState(history.state, "", stripDnxbotParam(location.href));
+    if (parseDnxbotParam(location.search)) history.replaceState(history.state, "", stripDnxbotParam(location.href));
     fetch(estadoUrl(basePath, campaign))
       .then((r) => r.json())
       .then((e) => {
@@ -51,6 +62,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
         if (campaign && e?.enabled) {
           setGlobitoEnVentana(true);
           setOpen(true);
+          olvidarCampaniaPendiente(almacen);
         }
       })
       .catch(() => setEstado({ enabled: false }));

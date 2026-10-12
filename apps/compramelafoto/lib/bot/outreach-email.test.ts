@@ -46,6 +46,7 @@ function cumple(o: Obj, where: Obj): boolean {
         case "notIn": return !(arg as unknown[]).includes(v);
         case "lt": return v != null && (v as number | Date) < (arg as number | Date);
         case "gt": return v != null && (v as number | Date) > (arg as number | Date);
+        case "gte": return v != null && (v as number | Date) >= (arg as number | Date);
         case "not": return arg === null ? v !== null && v !== undefined : v !== arg;
         default: throw new Error(`operador no soportado: ${op}`);
       }
@@ -54,7 +55,7 @@ function cumple(o: Obj, where: Obj): boolean {
 }
 
 type Pedido = { status: string; isTest: boolean; totalCents: number };
-type Alb = { deletedAt: Date | null; schoolId: number | null; mode: string; orders: Pedido[] };
+type Alb = { deletedAt: Date | null; createdAt: Date; schoolId: number | null; mode: string; orders: Pedido[] };
 type U = {
   id: number; email: string; name: string | null; role: string; marketingOptIn: boolean;
   unsubscribedAt: Date | null; isBlocked: boolean; lastLoginAt: Date | null; albums: Alb[];
@@ -62,7 +63,7 @@ type U = {
 const NOW = new Date("2026-10-12T13:00:00Z");
 const hace = (dias: number) => new Date(NOW.getTime() - dias * 86_400_000);
 const pagado: Pedido = { status: "PAID", isTest: false, totalCents: 5000 };
-const alb = (p: Partial<Alb> = {}): Alb => ({ deletedAt: null, schoolId: null, mode: "NORMAL", orders: [], ...p });
+const alb = (p: Partial<Alb> = {}): Alb => ({ deletedAt: null, createdAt: hace(200), schoolId: null, mode: "NORMAL", orders: [], ...p });
 const user = (id: number, p: Partial<U> = {}): U => ({
   id, email: `u${id}@x.com`, name: `Foto ${id}`, role: "PHOTOGRAPHER", marketingOptIn: true, unsubscribedAt: null,
   isBlocked: false, lastLoginAt: hace(60), albums: [alb()], ...p,
@@ -70,6 +71,12 @@ const user = (id: number, p: Partial<U> = {}): U => ({
 
 let usuarios: U[] = [];
 let filasEmail: Array<{ userId: number; campaign: string }> = [];
+type FilaPanel = { userId: number; campaign: string; status: string; updatedAt: Date };
+let filasPanel: FilaPanel[] = [];
+function fakeOutreach(args: { where: Obj }) {
+  if (args.where.channel === "EMAIL") return Promise.resolve(filasEmail);
+  return Promise.resolve(filasPanel.filter((f) => cumple({ ...f, platform: "CLF", channel: "PANEL" } as Obj, args.where)));
+}
 function fakeFindMany(args: { where: Obj; take: number; orderBy: unknown }) {
   const r = usuarios
     .filter((u) => cumple(u as unknown as Obj, args.where))
@@ -87,8 +94,9 @@ beforeEach(() => {
   Object.values(m).forEach((f) => f.mockReset());
   usuarios = [];
   filasEmail = [];
+  filasPanel = [];
   m.alcance.mockResolvedValue("todos");
-  m.outreachFindMany.mockImplementation(() => Promise.resolve(filasEmail));
+  m.outreachFindMany.mockImplementation(fakeOutreach);
   m.userFindMany.mockImplementation(fakeFindMany);
   m.token.mockImplementation((id: number) => Promise.resolve(`tok${id}`));
   m.queue.mockResolvedValue({ id: 1, queued: true });
@@ -155,9 +163,35 @@ describe("elegirDestinatariosMail", () => {
     filasEmail = [{ userId: 1, campaign: "sin_ventas" }, { userId: 2, campaign: "sin_ventas" }];
     const r = await elegirDestinatariosMail(NOW);
     expect(r).toEqual([expect.objectContaining({ userId: 2, campaign: "sin_escolar" })]);
-    expect(m.outreachFindMany.mock.calls[0]![0].where).toEqual({
+    const llamadaEmail = m.outreachFindMany.mock.calls.find((c) => c[0].where.channel === "EMAIL")!;
+    expect(llamadaEmail[0].where).toEqual({
       platform: "CLF", channel: "EMAIL", campaign: { in: ["sin_ventas", "sin_escolar"] },
     });
+  });
+
+  it("actividad reciente cuenta aunque lastLoginAt sea viejo: globito tocado o álbum creado en 30 días", async () => {
+    usuarios = [
+      user(1),
+      user(2), // tocó el globito (otra campaña) hace 5 días
+      user(3, { albums: [alb(), alb({ createdAt: hace(4) })] }), // creó un álbum hace 4 días
+      user(4), // tocó el globito hace 40 días: no cuenta
+    ];
+    filasPanel = [
+      { userId: 2, campaign: "nuevo", status: "SHOWN", updatedAt: hace(5) },
+      { userId: 4, campaign: "nuevo", status: "SHOWN", updatedAt: hace(40) },
+    ];
+    expect((await elegirDestinatariosMail(NOW)).map((d) => d.userId)).toEqual([1, 4]);
+  });
+
+  it("«No, gracias» en el panel para esa campaña en los últimos 90 días frena el mail", async () => {
+    usuarios = [user(1), user(2), user(3), user(4)];
+    filasPanel = [
+      { userId: 1, campaign: "sin_ventas", status: "DECLINED", updatedAt: hace(60) },
+      { userId: 2, campaign: "sin_ventas", status: "DECLINED", updatedAt: hace(100) }, // venció
+      { userId: 3, campaign: "sin_escolar", status: "DECLINED", updatedAt: hace(60) }, // otra campaña
+      { userId: 4, campaign: "sin_ventas", status: "DISMISSED", updatedAt: hace(60) },
+    ];
+    expect((await elegirDestinatariosMail(NOW)).map((d) => d.userId)).toEqual([2, 3, 4]);
   });
 
   it("asigna la campaña según ventas y escuela", async () => {
@@ -189,8 +223,14 @@ describe("elegirDestinatariosMail", () => {
 
   it("modo piloto: sólo los de la lista; sin piloto no consulta usuarios", async () => {
     usuarios = [user(1), user(2)];
-    m.alcance.mockResolvedValue([2]);
+    m.alcance.mockResolvedValue([2, "1", 1.5, null]);
     expect((await elegirDestinatariosMail(NOW)).map((d) => d.userId)).toEqual([2]);
+    const ids = (m.userFindMany.mock.calls[0]![0].where.AND as Obj[]).find((w) => (w.id as Obj | undefined)?.in);
+    expect(ids).toEqual({ id: { in: [2] } });
+    m.userFindMany.mockClear();
+    m.alcance.mockResolvedValue(["x"]);
+    expect(await elegirDestinatariosMail(NOW)).toEqual([]);
+    expect(m.userFindMany).not.toHaveBeenCalled();
     m.userFindMany.mockClear();
     m.alcance.mockResolvedValue(null);
     expect(await elegirDestinatariosMail(NOW)).toEqual([]);
@@ -238,5 +278,15 @@ describe("enviarMailsOutreach", () => {
     expect(r).toEqual({ candidatos: 2, enviados: 1, fallidos: 1 });
     expect(m.registrar).toHaveBeenCalledWith({ userId: 1, campaign: "sin_ventas", channel: "EMAIL", status: "FAILED" });
     expect(m.registrar).toHaveBeenCalledWith({ userId: 2, campaign: "sin_ventas", channel: "EMAIL", status: "SENT" });
+  });
+  it("si el mail se encoló pero falla registrar SENT, no marca FAILED: sólo lo loguea", async () => {
+    usuarios = [user(1)];
+    m.registrar.mockRejectedValueOnce(new Error("upsert caído"));
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await enviarMailsOutreach(NOW);
+    expect(r).toEqual({ candidatos: 1, enviados: 1, fallidos: 0 });
+    expect(m.registrar).toHaveBeenCalledTimes(1);
+    expect(m.registrar).not.toHaveBeenCalledWith(expect.objectContaining({ status: "FAILED" }));
+    expect(err).toHaveBeenCalled();
   });
 });

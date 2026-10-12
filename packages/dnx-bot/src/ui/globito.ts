@@ -46,6 +46,51 @@ export function stripDnxbotParam(href: string): string {
   return u.pathname + u.search + u.hash;
 }
 
+/** Clave de sessionStorage donde queda la campaña del mail mientras la persona inicia sesión. */
+export const DNXBOT_PENDIENTE_KEY = "dnxbot:pendiente";
+/** Pasado este tiempo la campaña guardada ya no abre la ventana sola. */
+export const DNXBOT_PENDIENTE_TTL_MS = 60 * 60 * 1000;
+
+export type AlmacenSimple = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+/**
+ * Campaña con la que arranca la burbuja. Si la URL trae `?dnxbot=` válido, la guarda en sessionStorage
+ * (sobrevive al paso por el login, que pierde el parámetro) y la devuelve; si no, devuelve la guardada
+ * y vigente. Cualquier error del almacenamiento se ignora.
+ */
+export function campaniaInicial(search: string, almacen: AlmacenSimple | null, now: number): string | null {
+  const deUrl = parseDnxbotParam(search);
+  if (deUrl) {
+    try {
+      almacen?.setItem(DNXBOT_PENDIENTE_KEY, JSON.stringify({ c: deUrl, t: now }));
+    } catch {
+      /* sin almacenamiento: sólo se usa la URL */
+    }
+    return deUrl;
+  }
+  try {
+    const raw = almacen?.getItem(DNXBOT_PENDIENTE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { c?: unknown; t?: unknown };
+    const c = typeof v.c === "string" ? parseDnxbotParam(`?dnxbot=${encodeURIComponent(v.c)}`) : null;
+    const vigente = typeof v.t === "number" && now - v.t >= 0 && now - v.t < DNXBOT_PENDIENTE_TTL_MS;
+    if (c && vigente) return c;
+    almacen?.removeItem(DNXBOT_PENDIENTE_KEY);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Se llama recién cuando la ventana se abrió con el bot habilitado. */
+export function olvidarCampaniaPendiente(almacen: AlmacenSimple | null): void {
+  try {
+    almacen?.removeItem(DNXBOT_PENDIENTE_KEY);
+  } catch {
+    /* nada */
+  }
+}
+
 export function estadoUrl(basePath: string, campaign: string | null): string {
   return campaign ? `${basePath}/estado?campaign=${encodeURIComponent(campaign)}` : `${basePath}/estado`;
 }

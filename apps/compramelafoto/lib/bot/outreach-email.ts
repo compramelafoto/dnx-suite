@@ -11,6 +11,8 @@ export type CampaniaMail = (typeof CAMPANIAS_MAIL)[number];
 
 export const MAX_MAILS_POR_CORRIDA = 50;
 const DIAS_SIN_ENTRAR = 30;
+/** Igual que el globito: «No, gracias» en el panel frena esa campaña 90 días (lib/bot/segmentos.ts). */
+const DECLINED_DIAS = 90;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Misma base que los mails de campañas de CLF (lib/email-marketing/process-campaign-queue.ts). */
@@ -58,30 +60,56 @@ function compararPorLogin(a: DestinatarioMail, b: DestinatarioMail): number {
 }
 
 /**
- * Elige a quién mandarle el mail: fotógrafos con opt-in, sin baja, sin bloquear, que no entran hace 30+ días,
- * alcanzados por el bot (modo piloto) y sin fila EMAIL previa para esa campaña. Máximo 50, el que hace más
- * que no entra primero (nunca entró = primero de todos).
+ * Elige a quién mandarle el mail: fotógrafos con opt-in, sin baja, sin bloquear, que no entran hace 30+ días
+ * (ni tocaron el globito ni crearon un álbum en ese plazo), alcanzados por el bot (modo piloto), sin fila EMAIL
+ * previa para esa campaña y sin «No, gracias» en el panel para esa campaña en los últimos 90 días.
+ * Máximo 50, el que hace más que no entra primero (nunca entró = primero de todos).
  */
 export async function elegirDestinatariosMail(now: Date): Promise<DestinatarioMail[]> {
-  const alcance = await leerAlcancePiloto();
+  const alcanceCrudo = await leerAlcancePiloto();
+  const alcance = Array.isArray(alcanceCrudo) ? alcanceCrudo.filter((id) => Number.isInteger(id)) : alcanceCrudo;
   if (alcance === null || (Array.isArray(alcance) && alcance.length === 0)) return [];
 
-  const contactados = await prisma.botOutreach.findMany({
-    where: { platform: BOT_PLATFORM, channel: "EMAIL", campaign: { in: [...CAMPANIAS_MAIL] } },
-    select: { userId: true, campaign: true },
-  });
   const limite = new Date(now.getTime() - DIAS_SIN_ENTRAR * DIA_MS);
+  const limiteDeclined = new Date(now.getTime() - DECLINED_DIAS * DIA_MS);
+  const [contactados, panel] = await Promise.all([
+    prisma.botOutreach.findMany({
+      where: { platform: BOT_PLATFORM, channel: "EMAIL", campaign: { in: [...CAMPANIAS_MAIL] } },
+      select: { userId: true, campaign: true },
+    }),
+    prisma.botOutreach.findMany({
+      where: {
+        platform: BOT_PLATFORM,
+        channel: "PANEL",
+        OR: [
+          { updatedAt: { gte: limite } },
+          { status: "DECLINED", campaign: { in: [...CAMPANIAS_MAIL] }, updatedAt: { gte: limiteDeclined } },
+        ],
+      },
+      select: { userId: true, campaign: true, status: true, updatedAt: true },
+    }),
+  ]);
+  // Tocar el globito en los últimos 30 días es actividad, aunque lastLoginAt sea viejo.
+  const activosEnPanel = panel.filter((p) => p.updatedAt >= limite).map((p) => p.userId);
 
   const listas = await Promise.all(
     CAMPANIAS_MAIL.map(async (campaign) => {
-      const yaContactados = contactados.filter((c) => c.campaign === campaign).map((c) => c.userId);
+      const excluidos = [
+        ...new Set([
+          ...contactados.filter((c) => c.campaign === campaign).map((c) => c.userId),
+          ...panel.filter((p) => p.campaign === campaign && String(p.status) === "DECLINED").map((p) => p.userId),
+          ...activosEnPanel,
+        ]),
+      ];
       const where: Prisma.UserWhereInput = {
         AND: [
           { role: { in: ["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"] } },
           { marketingOptIn: true, unsubscribedAt: null, isBlocked: false },
           { OR: [{ lastLoginAt: null }, { lastLoginAt: { lt: limite } }] },
+          // Crear un álbum en los últimos 30 días también es actividad (Album no tiene updatedAt).
+          { NOT: { albums: { some: { createdAt: { gte: limite } } } } },
           ...(alcance === "todos" ? [] : [{ id: { in: alcance } }]),
-          ...(yaContactados.length ? [{ id: { notIn: yaContactados } }] : []),
+          ...(excluidos.length ? [{ id: { notIn: excluidos } }] : []),
           whereCampaniaMail(campaign),
         ],
       };
@@ -157,8 +185,6 @@ export async function enviarMailsOutreach(now: Date = new Date()): Promise<Resul
       const unsubscribeToken = await ensureUnsubscribeToken(d.userId);
       const mail = armarMailOutreach({ campaign: d.campaign, nombre: d.name, unsubscribeToken });
       await queueEmail({ to: d.email, ...mail, idempotencyKey: `dnx-bot-outreach-${d.campaign}-${d.userId}` });
-      await registrarOutreach({ userId: d.userId, campaign: d.campaign, channel: "EMAIL", status: "SENT" });
-      enviados++;
     } catch (e) {
       console.error("[bot-outreach] no se pudo encolar el mail", { userId: d.userId, campaign: d.campaign }, e);
       fallidos++;
@@ -167,6 +193,15 @@ export async function enviarMailsOutreach(now: Date = new Date()): Promise<Resul
       } catch (e2) {
         console.error("[bot-outreach] tampoco se pudo registrar el fallo", e2);
       }
+      continue;
+    }
+    // El mail ya quedó encolado: si falla el registro no se marca FAILED (sería mentira); la clave
+    // idempotente evita el duplicado si la próxima corrida lo vuelve a elegir.
+    enviados++;
+    try {
+      await registrarOutreach({ userId: d.userId, campaign: d.campaign, channel: "EMAIL", status: "SENT" });
+    } catch (e) {
+      console.error("[bot-outreach] mail encolado pero no se pudo registrar SENT", { userId: d.userId, campaign: d.campaign }, e);
     }
   }
   return { candidatos: destinatarios.length, enviados, fallidos };
