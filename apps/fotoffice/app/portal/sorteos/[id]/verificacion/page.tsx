@@ -11,6 +11,33 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 
 export const dynamic = "force-dynamic";
 
+/** La cuenta escrita, tal como se publica. La v2 es la de los sorteos con exclusiones. */
+const PSEUDO_EXTRACCION = `  i = 0
+  repetir:
+    resumen = SHA256("fotoffice-raffle-draw-v1\\n" + huella + "\\n" + tanda + "\\n" +
+                     numero + "\\n" + ordenDelPremio + "\\n" + i)
+    x      = primeros 8 bytes del resumen, como entero de 64 bits sin signo
+    limite = piso(2^64 / bolsa.length) * bolsa.length
+    si x < limite:  gana bolsa[x mod bolsa.length];  terminar
+    i = i + 1`;
+
+const PSEUDO_V1 = `huella = SHA256("fotoffice-raffle-v1\\n" + idDelSorteo + "\\n" +
+                participantes.map(p => p.posicion + ":" + p.numeroDeSocio).join("\\n"))
+
+para cada premio, con la bolsa de los que todavía no ganaron:
+${PSEUDO_EXTRACCION}`;
+
+const PSEUDO_V2 = `huella = SHA256("fotoffice-raffle-v2\\n" + idDelSorteo + "\\n" +
+                participantes.map(p => p.posicion + ":" + p.numeroDeSocio + ":" +
+                                       p.premiosQueNoPuedeGanar.deMenorAMayor.join(","))
+                             .join("\\n"))
+
+para cada premio, con los que todavía no ganaron:
+  bolsa = los que todavía no ganaron, sin los que no pueden ganar este premio, en orden
+  si bolsa está vacía:  bolsa = los que todavía no ganaron
+${PSEUDO_EXTRACCION}
+  quien ganó sale de los que todavía no ganaron`;
+
 /**
  * La pantalla que sostiene todo el módulo.
  *
@@ -44,7 +71,12 @@ export default async function VerificacionPage({ params }: { params: Promise<{ i
       drawnAt: true,
       entries: {
         orderBy: { position: "asc" },
-        select: { position: true, memberNumberSnapshot: true, fullNameSnapshot: true },
+        select: {
+          position: true,
+          memberNumberSnapshot: true,
+          fullNameSnapshot: true,
+          excludedPrizeOrders: true,
+        },
       },
       prizes: {
         orderBy: { order: "asc" },
@@ -73,6 +105,9 @@ export default async function VerificacionPage({ params }: { params: Promise<{ i
   }
 
   const control = recheck(datos);
+  const tituloPorOrden = new Map(datos.prizes.map((p) => [p.order, p.title]));
+  const nombresDePremios = (ordenes: number[]) =>
+    ordenes.map((o) => tituloPorOrden.get(o) ?? `Premio ${o}`).join(", ");
 
   return (
     <div className="space-y-8">
@@ -150,6 +185,12 @@ export default async function VerificacionPage({ params }: { params: Promise<{ i
             <li key={p.order} className="px-4 py-3 text-sm">
               <span className="font-medium">{p.title}</span> — salió la posición{" "}
               {p.winnerPosition}: {p.winnerLabel}
+              {control.relaxedPrizeOrders.includes(p.order) ? (
+                <span className="block text-[var(--fo-muted)]">
+                  Todos los que quedaban ya habían ganado este premio, así que se sorteó entre
+                  todos ellos.
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -177,24 +218,23 @@ export default async function VerificacionPage({ params }: { params: Promise<{ i
             Quien ganó sale de la bolsa, y se repite para el premio siguiente. Por eso nadie se
             lleva dos premios del mismo sorteo.
           </li>
+          {datos.hasExclusions ? (
+            <li>
+              Quien ganó un premio en los meses anteriores no puede volver a ganar ese mismo
+              premio por un tiempo. Por eso, para cada premio, la bolsa es la de los que todavía
+              no ganaron <strong>menos los que no pueden repetir ese premio</strong>. Quiénes
+              son quedó congelado junto con la lista, antes de que existiera el número, y es
+              parte de la huella: está en la tabla de abajo. Si para un premio no quedara nadie,
+              se sortea entre todos los que quedan.
+            </li>
+          ) : null}
         </ol>
         <details className="fo-card p-6 text-sm">
           <summary className="cursor-pointer font-medium">
             La cuenta escrita para quien quiera rehacerla en otro lenguaje
           </summary>
           <pre className="mt-4 overflow-x-auto rounded bg-[var(--fo-code-bg)] p-4 text-xs">
-{`huella = SHA256("fotoffice-raffle-v1\\n" + idDelSorteo + "\\n" +
-                participantes.map(p => p.posicion + ":" + p.numeroDeSocio).join("\\n"))
-
-para cada premio, con la bolsa de los que todavía no ganaron:
-  i = 0
-  repetir:
-    resumen = SHA256("fotoffice-raffle-draw-v1\\n" + huella + "\\n" + tanda + "\\n" +
-                     numero + "\\n" + ordenDelPremio + "\\n" + i)
-    x      = primeros 8 bytes del resumen, como entero de 64 bits sin signo
-    limite = piso(2^64 / bolsa.length) * bolsa.length
-    si x < limite:  gana bolsa[x mod bolsa.length];  terminar
-    i = i + 1`}
+{datos.hasExclusions ? PSEUDO_V2 : PSEUDO_V1}
           </pre>
           <p className="mt-3 text-[var(--fo-muted)]">
             El id de este sorteo es <span className="font-mono">{datos.raffleId}</span>.
@@ -229,7 +269,9 @@ para cada premio, con la bolsa de los que todavía no ganaron:
           Los {datos.entrants.length} participantes, en el orden que entró en la cuenta
         </h2>
         <p className="text-sm text-[var(--fo-muted)]">
-          {`Esta es la lista congelada el ${fechaHora(datos.sealedAt)}. Es con estos datos —la posición y el número de ${v.singular}— que se calcula la huella de arriba.`}
+          {datos.hasExclusions
+            ? `Esta es la lista congelada el ${fechaHora(datos.sealedAt)}. Es con estos datos —la posición, el número de ${v.singular} y los premios que cada uno no podía ganar porque ya lo había ganado hace poco— que se calcula la huella de arriba.`
+            : `Esta es la lista congelada el ${fechaHora(datos.sealedAt)}. Es con estos datos —la posición y el número de ${v.singular}— que se calcula la huella de arriba.`}
         </p>
         <div className="fo-card max-h-96 overflow-y-auto">
           <table className="w-full text-sm">
@@ -238,6 +280,9 @@ para cada premio, con la bolsa de los que todavía no ganaron:
                 <th className="px-4 py-2 font-medium">Posición</th>
                 <th className="px-4 py-2 font-medium">{v.Singular}</th>
                 <th className="px-4 py-2 font-medium">Nombre</th>
+                {datos.hasExclusions ? (
+                  <th className="px-4 py-2 font-medium">No podía ganar</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -246,6 +291,11 @@ para cada premio, con la bolsa de los que todavía no ganaron:
                   <td className="px-4 py-2 tabular-nums">{e.position}</td>
                   <td className="px-4 py-2 tabular-nums">{e.memberNumber}</td>
                   <td className="px-4 py-2">{e.fullName}</td>
+                  {datos.hasExclusions ? (
+                    <td className="px-4 py-2 text-[var(--fo-muted)]">
+                      {e.excludedPrizeOrders.length > 0 ? nombresDePremios(e.excludedPrizeOrders) : "—"}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
