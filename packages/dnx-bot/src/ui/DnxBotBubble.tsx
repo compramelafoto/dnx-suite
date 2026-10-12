@@ -22,9 +22,9 @@ import {
 } from "./globito";
 import { applyDecision, applySseEvent, dropEmptyBot, seedIntro, type Item } from "./items";
 
-export type DnxBotBubbleProps = { basePath: string; mascotSrc: string; bottomOffsetPx?: number };
+export type DnxBotBubbleProps = { basePath: string; mascotSrc: string; bottomOffsetPx?: number; rutasPermitidas?: string[] };
 
-export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBotBubbleProps) {
+export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPermitidas }: DnxBotBubbleProps) {
   const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
   const [globito, setGlobito] = useState<Globito | null>(null);
@@ -184,7 +184,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
             {items.length === 0 && (
               globitoEnVentana && globito ? (
                 <>
-                  <div style={bubble("bot")}><BotText text={globito.texto} /></div>
+                  <div style={bubble("bot")}><BotText text={globito.texto} rutas={rutasPermitidas} /></div>
                   {globito.botones.map((b) => (
                     <button key={b.label} onClick={() => tocarBoton(b)} disabled={busy} style={chip}>{b.label}</button>
                   ))}
@@ -201,7 +201,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
             {items.length === 0 && introProgreso && <ProgresoCard progreso={introProgreso} busy={busy} onHacelo={send} />}
             {items.map((it, i) => {
               if (it.kind === "user") return <div key={i} style={bubble("user")}>{it.text}</div>;
-              if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} /></div> : null;
+              if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} rutas={rutasPermitidas} /></div> : null;
               if (it.kind === "progreso") return <ProgresoCard key={i} progreso={it.progreso} busy={busy} onHacelo={send} />;
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
@@ -238,7 +238,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
       {globito && !open && !globitoEnVentana && (
         <div role="status" aria-label="Mensaje de DNX Bot" style={{ position: "absolute", right: 76, bottom: 8, width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
           <button onClick={cerrarGlobito} aria-label="Cerrar el mensaje de DNX Bot" style={{ position: "absolute", top: 2, right: 4, border: 0, background: "none", fontSize: 16, lineHeight: 1, cursor: "pointer", color: "#666" }}>×</button>
-          <div style={{ paddingRight: 14 }}><BotText text={globito.texto} /></div>
+          <div style={{ paddingRight: 14 }}><BotText text={globito.texto} rutas={rutasPermitidas} /></div>
           {globito.botones.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
               {globito.botones.map((b) => (
@@ -258,10 +258,10 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
 }
 
 /** Texto del bot con formato mínimo. Todo se arma con elementos de React: nunca innerHTML. */
-function BotText({ text }: { text: string }) {
+function BotText({ text, rutas }: { text: string; rutas?: readonly string[] }) {
   return (
     <>
-      {formatBotText(text).map((line, li) => (
+      {formatBotText(text, { rutasPermitidas: rutas }).map((line, li) => (
         <Fragment key={li}>
           {li > 0 && "\n"}
           {line.map((seg, si) =>

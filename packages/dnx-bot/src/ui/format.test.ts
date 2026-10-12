@@ -60,3 +60,23 @@ describe("rutas", () => {
     expect(pathLabel("/dashboard/albums/12")).toBe("Abrir álbumes 12");
   });
 });
+
+describe("formatBotText con rutasPermitidas", () => {
+  const permitidas = ["/dashboard/albums", "/fotografo/configuracion"];
+  const links = (t: string) => formatBotText(t, { rutasPermitidas: permitidas }).flat().filter((s) => s.kind === "link");
+
+  it("enlaza rutas permitidas y las que cuelgan de un prefijo", () => {
+    expect(links("Entrá: /dashboard/albums")).toHaveLength(1);
+    expect(links("Mirá /dashboard/albums/12.")).toHaveLength(1);
+    expect(links("Ahí: /fotografo/configuracion")).toHaveLength(1);
+  });
+  it("deja como texto una ruta inventada o que sólo comparte letras con un prefijo", () => {
+    expect(links("Entrá: /fotografo/albums")).toHaveLength(0);
+    expect(links("Entrá: /dashboard/albumsx")).toHaveLength(0);
+    const texto = formatBotText("Entrá: /fotografo/albums", { rutasPermitidas: permitidas })[0]!;
+    expect(texto.map((s) => (s.kind === "text" ? s.text : "")).join("")).toBe("Entrá: /fotografo/albums");
+  });
+  it("sin lista se comporta como siempre", () => {
+    expect(formatBotText("Entrá: /fotografo/albums").flat().some((s) => s.kind === "link")).toBe(true);
+  });
+});
