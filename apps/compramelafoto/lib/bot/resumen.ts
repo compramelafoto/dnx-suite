@@ -65,14 +65,14 @@ async function unlockedAlbums(monthStart: Date) {
     if (!prev || a.decidedAt < prev) firstChange.set(albumId, a.decidedAt);
   }
   if (firstChange.size === 0) return { albums: 0, pesos: 0 };
-  const r = await prisma.order.aggregate({
-    where: {
-      ...PAID_SALE,
-      OR: [...firstChange].map(([albumId, at]) => ({ albumId, createdAt: { gt: at } })),
-    },
-    _sum: { totalCents: true },
+  // Una consulta por lista de álbumes (sin un OR por álbum); el corte por álbum se hace acá.
+  const earliest = new Date(Math.min(...[...firstChange.values()].map((d) => d.getTime())));
+  const rows = await prisma.order.findMany({
+    where: { ...PAID_SALE, albumId: { in: [...firstChange.keys()] }, createdAt: { gt: earliest } },
+    select: { albumId: true, totalCents: true, createdAt: true },
   });
-  return { albums: firstChange.size, pesos: r._sum.totalCents ?? 0 };
+  const pesos = rows.reduce((sum, o) => (o.createdAt > firstChange.get(o.albumId)! ? sum + o.totalCents : sum), 0);
+  return { albums: firstChange.size, pesos };
 }
 
 function plural(n: number, one: string, many: string) {

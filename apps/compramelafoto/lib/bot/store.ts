@@ -184,3 +184,8 @@ export async function claimOnceMarker(p: { signature: string; title: string; dat
     throw e;
   }
 }
+
+/** Libera la marca para que otro turno vuelva a intentar (p. ej. si el aviso no salió). */
+export async function releaseOnceMarker(signature: string): Promise<void> {
+  await prisma.botIncident.deleteMany({ where: { platform: BOT_PLATFORM, signature } });
+}

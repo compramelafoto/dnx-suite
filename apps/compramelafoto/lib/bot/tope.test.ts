@@ -1,17 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Base en memoria: la firma única se comporta como el índice (platform, signature) → P2002 al repetir.
-const m = vi.hoisted(() => ({ spent: 0, signatures: new Set<string>(), tg: vi.fn(), create: vi.fn() }));
+const m = vi.hoisted(() => ({
+  spent: 0, signatures: new Set<string>(), tg: vi.fn(), create: vi.fn(),
+  telegram: { token: "t", chatId: "c" } as { token: string; chatId: string } | null,
+}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     botUsageDaily: { aggregate: async () => ({ _sum: { costMicroUsd: m.spent } }) },
-    botIncident: { create: (...a: unknown[]) => m.create(...a) },
+    botIncident: {
+      create: (...a: unknown[]) => m.create(...a),
+      deleteMany: async (a: { where: { platform: string; signature: string } }) => {
+        const had = m.signatures.delete(a.where.signature);
+        return { count: had ? 1 : 0 };
+      },
+    },
   },
 }));
 vi.mock("@repo/dnx-bot", async (orig) => ({ ...(await orig<object>()), sendTelegramMessage: (...a: unknown[]) => m.tg(...a) }));
 vi.mock("@/lib/bot/config", () => ({
   BOT_PLATFORM: "CLF",
-  readBotConfig: () => ({ limits: { maxMessagesPerUserPerDay: 50, monthlyCapMicroUsd: 30_000_000 }, telegram: { token: "t", chatId: "c" } }),
+  readBotConfig: () => ({ limits: { maxMessagesPerUserPerDay: 50, monthlyCapMicroUsd: 30_000_000 }, telegram: m.telegram }),
 }));
 import { notifyCapThresholds } from "./tope";
 
@@ -26,6 +35,7 @@ const realCreate = async (a: { data: { signature: string } }) => {
 beforeEach(() => {
   m.spent = 0;
   m.signatures.clear();
+  m.telegram = { token: "t", chatId: "c" };
   m.tg.mockReset().mockResolvedValue({ ok: true });
   m.create.mockReset().mockImplementation(realCreate);
 });
@@ -87,5 +97,27 @@ describe("notifyCapThresholds", () => {
     await expect(notifyCapThresholds(NOV)).resolves.toBeUndefined();
     m.create.mockRejectedValue(new Error("base caída"));
     await expect(notifyCapThresholds(new Date("2026-12-10T15:00:00Z"))).resolves.toBeUndefined();
+  });
+
+  it("si Telegram falla libera la marca y un turno posterior lo reintenta", async () => {
+    m.spent = 25_000_000;
+    m.tg.mockResolvedValueOnce({ ok: false, error: "timeout" });
+    await notifyCapThresholds(OCT);
+    expect(m.signatures.size).toBe(0);
+    await notifyCapThresholds(OCT);
+    await notifyCapThresholds(OCT);
+    expect(m.tg).toHaveBeenCalledTimes(2);
+    expect([...m.signatures]).toEqual(["cap-80-2026-10"]);
+  });
+
+  it("sin Telegram configurado no reserva la marca (el aviso sale cuando se configure)", async () => {
+    m.spent = 30_000_000;
+    m.telegram = null;
+    await notifyCapThresholds(OCT);
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.tg).not.toHaveBeenCalled();
+    m.telegram = { token: "t", chatId: "c" };
+    await notifyCapThresholds(OCT);
+    expect(m.tg).toHaveBeenCalledTimes(2);
   });
 });

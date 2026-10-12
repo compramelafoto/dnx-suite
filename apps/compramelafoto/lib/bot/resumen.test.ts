@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
 
 const m = vi.hoisted(() => ({
-  convCount: vi.fn(), convGroup: vi.fn(), actGroup: vi.fn(), actFind: vi.fn(), incidents: vi.fn(), usage: vi.fn(), orders: vi.fn(),
+  convCount: vi.fn(), convGroup: vi.fn(), actGroup: vi.fn(), actFind: vi.fn(), incidents: vi.fn(), usage: vi.fn(), orders: vi.fn(), orderRows: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -10,13 +10,13 @@ vi.mock("@/lib/prisma", () => ({
     botAction: { groupBy: (...a: unknown[]) => m.actGroup(...a), findMany: (...a: unknown[]) => m.actFind(...a) },
     botIncident: { findMany: (...a: unknown[]) => m.incidents(...a) },
     botUsageDaily: { aggregate: (...a: unknown[]) => m.usage(...a) },
-    order: { aggregate: (...a: unknown[]) => m.orders(...a) },
+    order: { aggregate: (...a: unknown[]) => m.orders(...a), findMany: (...a: unknown[]) => m.orderRows(...a) },
   },
 }));
 vi.mock("@/lib/bot/config", () => ({ BOT_PLATFORM: "CLF", readBotConfig: () => ({ limits: { monthlyCapMicroUsd: 30_000_000 } }) }));
 import { buildDailySummary, salesWindows } from "./resumen";
 
-type Where = { status?: string; isTest?: boolean; totalCents?: { gt: number }; createdAt?: { gte?: Date; lt?: Date; gt?: Date }; albumId?: number; OR?: Where[] };
+type Where = { status?: string; isTest?: boolean; totalCents?: { gt: number }; createdAt?: { gte?: Date; lt?: Date; gt?: Date }; albumId?: number | { in: number[] }; OR?: Where[] };
 type FakeOrder = { albumId: number; status: string; isTest: boolean; totalCents: number; createdAt: Date };
 
 /** Evalúa el `where` de prisma.order.aggregate sobre pedidos en memoria (sólo lo que usa el resumen). */
@@ -24,7 +24,8 @@ function matches(o: FakeOrder, w: Where): boolean {
   if (w.status && o.status !== w.status) return false;
   if (w.isTest !== undefined && o.isTest !== w.isTest) return false;
   if (w.totalCents && !(o.totalCents > w.totalCents.gt)) return false;
-  if (w.albumId !== undefined && o.albumId !== w.albumId) return false;
+  if (typeof w.albumId === "number" && o.albumId !== w.albumId) return false;
+  if (typeof w.albumId === "object" && !w.albumId.in.includes(o.albumId)) return false;
   const c = w.createdAt;
   if (c?.gte && o.createdAt < c.gte) return false;
   if (c?.lt && !(o.createdAt < c.lt)) return false;
@@ -50,6 +51,7 @@ beforeEach(() => {
     const hit = orders.filter((o) => matches(o, a.where));
     return { _count: { _all: hit.length }, _sum: { totalCents: hit.length ? hit.reduce((s, o) => s + o.totalCents, 0) : null } };
   });
+  m.orderRows.mockImplementation(async (a: { where: Where }) => orders.filter((o) => matches(o, a.where)));
 });
 
 const NOW = new Date("2026-10-12T12:00:00Z"); // 12/10 09:00 en Argentina
@@ -139,6 +141,7 @@ describe("buildDailySummary", () => {
     expect(t).toContain(`Álbumes destrabados por el bot: 2 (ventas desde que el bot los cambió: ${formatPurchaseArs(10_000)}).`);
     const where = m.actFind.mock.calls[0]![0].where;
     expect(where).toMatchObject({ platform: "CLF", status: "EXECUTED", decidedAt: { gte: new Date("2026-10-01T03:00:00Z") } });
+    expect(m.orderRows.mock.calls[0]![0].where).toMatchObject({ albumId: { in: [1, 2] }, createdAt: { gt: new Date("2026-10-03T12:00:00Z") } });
     expect(where.toolName.in).toEqual(["actualizar_album", "configurar_venta_por_reconocimiento", "crear_pack_digital", "editar_pack", "extender_vencimiento"]);
   });
 
@@ -146,5 +149,6 @@ describe("buildDailySummary", () => {
     const t = await buildDailySummary(NOW);
     expect(t).toContain(`Álbumes destrabados por el bot: 0 (ventas desde que el bot los cambió: ${formatPurchaseArs(0)}).`);
     expect(m.orders).toHaveBeenCalledTimes(2);
+    expect(m.orderRows).not.toHaveBeenCalled();
   });
 });
