@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   conv: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-  action: { create: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn(), count: vi.fn() },
+  action: { create: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { botConversation: m.conv, botAction: m.action } }));
 import {
   buscarConversacionComprador,
   contarAccionesComprador,
+  conversacionDeAccionPendienteComprador,
   crearAccionPendienteComprador,
   hashEmail,
   leerConversacionComprador,
@@ -189,5 +190,20 @@ describe("tope de solicitudes con tarjeta (T10)", () => {
     expect(where.conversation).toEqual({ is: { ipHash: "h1" } });
     // Sin filtro de status: cuentan propuestas pendientes, confirmadas y rechazadas.
     expect(where.status).toBeUndefined();
+  });
+});
+
+describe("conversación de una acción pendiente (T13)", () => {
+  it("sólo lee (no reclama) y filtra por navegador, BUYER, PENDING y vigente", async () => {
+    m.action.findFirst.mockResolvedValue({ conversationId: "c9" });
+    expect(await conversacionDeAccionPendienteComprador("a1", "g1")).toBe("c9");
+    const q = m.action.findFirst.mock.calls[0]![0];
+    expect(q.where).toMatchObject({ id: "a1", userId: null, status: "PENDING", conversation: { is: { guestKey: "g1", audience: "BUYER" } } });
+    expect(q.where.expiresAt.gt).toBeInstanceOf(Date);
+    expect(m.action.updateMany).not.toHaveBeenCalled();
+  });
+  it("de otro navegador, vencida o decidida → null", async () => {
+    m.action.findFirst.mockResolvedValue(null);
+    expect(await conversacionDeAccionPendienteComprador("a1", "g2")).toBeNull();
   });
 });

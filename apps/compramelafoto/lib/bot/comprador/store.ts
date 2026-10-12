@@ -122,6 +122,19 @@ function filtroAccionDelNavegador(actionId: string, guestKey: string) {
   return { id: actionId, userId: null, status: "PENDING" as const, conversation: { is: { guestKey, audience: "BUYER" as const } } };
 }
 
+/**
+ * Conversación de una acción todavía pendiente de este navegador (sólo lectura, no la reclama).
+ * La ruta de acciones la usa para cargar y validar la conversación ANTES de `tomar…`: así un 409
+ * nunca deja una acción EXECUTED sin haber corrido.
+ */
+export async function conversacionDeAccionPendienteComprador(actionId: string, guestKey: string): Promise<string | null> {
+  const r = await prisma.botAction.findFirst({
+    where: { ...filtroAccionDelNavegador(actionId, guestKey), expiresAt: { gt: new Date() } },
+    select: { conversationId: true },
+  });
+  return r?.conversationId ?? null;
+}
+
 /** PENDING → EXECUTED atómico; null si ya se decidió, venció o es de otro navegador (o doble clic). */
 export async function tomarAccionPendienteComprador(actionId: string, guestKey: string): Promise<BotActionRow | null> {
   const now = new Date();
