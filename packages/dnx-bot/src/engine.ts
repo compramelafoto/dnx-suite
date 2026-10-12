@@ -23,25 +23,53 @@ export type BotTurnInput = {
   history: unknown[];
   userText: string;
   maxIterations: number;
+  /** Momento límite (epoch ms). Pasado ese momento no se arranca otra vuelta: se corta con "iteration_cap". */
+  deadlineMs?: number;
   onText: (delta: string) => void;
   proposeWrite: (p: { toolName: string; input: unknown; summary: string }) => Promise<{ actionId: string }>;
   onProposal: (p: { actionId: string; summary: string }) => void;
 };
 
 type Msg = { role: "user" | "assistant"; content: unknown };
+export type BotUsage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number };
 export type BotTurnResult = {
   appended: Msg[];
-  usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number };
+  usage: BotUsage;
   outcome: "ok" | "refusal" | "max_tokens" | "iteration_cap";
 };
+
+/** Error de un turno que ya consumió tokens: lleva el uso parcial para poder cobrarlo igual. */
+export class BotTurnError extends Error {
+  readonly usage: BotUsage;
+  constructor(cause: unknown, usage: BotUsage) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "BotTurnError";
+    this.usage = usage;
+  }
+}
 
 export async function runBotTurn(i: BotTurnInput): Promise<BotTurnResult> {
   const toolDefs = i.tools.map((t) => ({ name: t.name, description: t.description, input_schema: toInputSchema(t.input) }));
   const byName = new Map(i.tools.map((t) => [t.name, t]));
   const appended: Msg[] = [{ role: "user", content: i.userText }];
-  const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+  const usage: BotUsage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+  try {
+    return await turnLoop(i, toolDefs, byName, appended, usage);
+  } catch (e) {
+    throw new BotTurnError(e, { ...usage });
+  }
+}
 
+async function turnLoop(
+  i: BotTurnInput,
+  toolDefs: unknown[],
+  byName: Map<string, BotTool>,
+  appended: Msg[],
+  usage: BotUsage,
+): Promise<BotTurnResult> {
   for (let iter = 0; iter < i.maxIterations; iter++) {
+    // Sin tiempo para otra vuelta: el historial queda válido (termina en el mensaje del usuario o en tool_results).
+    if (i.deadlineMs !== undefined && Date.now() > i.deadlineMs) return { appended, usage, outcome: "iteration_cap" };
     const stream = i.client.beta.messages.stream({
       model: i.model,
       max_tokens: 8000,
@@ -55,6 +83,8 @@ export async function runBotTurn(i: BotTurnInput): Promise<BotTurnResult> {
         { type: "text", text: i.situation },
       ],
       tools: toolDefs,
+      // Caché automático del último bloque cacheable: no se toca ningún mensaje guardado del historial.
+      cache_control: { type: "ephemeral" },
       messages: [...i.history, ...appended],
     });
     stream.on("text", i.onText);

@@ -41,6 +41,9 @@ export function applyDecision(
     if (it.kind !== "proposal" || it.actionId !== actionId) return it;
     // Resultado tardío o repetido: confirmar/rechazar solo valen sobre "pending"; deshacer solo sobre "done".
     if (decision === "deshacer" ? it.state !== "done" : it.state !== "pending") return it;
+    // Deshacer nunca cambia el estado: el cambio se hizo. Si falla, se muestra el motivo y el botón
+    // sólo sigue si el servidor dice que se puede reintentar (un 409 trae canUndo ausente/false).
+    if (decision === "deshacer") return { ...it, result: r.message, canUndo: !r.ok && r.canUndo === true };
     return { ...it, state: decision === "rechazar" ? "rejected" : r.ok ? "done" : "failed", result: r.message, canUndo: decision === "confirmar" && r.canUndo };
   });
 }

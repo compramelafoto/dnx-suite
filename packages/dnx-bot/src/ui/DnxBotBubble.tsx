@@ -74,8 +74,15 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
     setTicketBusy(true);
     try {
       const res = await fetch(`${basePath}/ticket`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-      const r = (await res.json().catch(() => ({}))) as { ticketId?: number };
-      setItems((x) => [...x, { kind: "notice", text: r.ticketId ? `Abrí el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.` : "No pude abrir el pedido. Escribinos desde Soporte." }]);
+      const r = (await res.json().catch(() => ({}))) as { ticketId?: number; reused?: boolean; error?: string };
+      const text = r.ticketId
+        ? r.reused
+          ? `Ya tenés abierto el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.`
+          : `Abrí el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.`
+        : res.status === 429 && r.error
+          ? r.error
+          : "No pude abrir el pedido. Escribinos desde Soporte.";
+      setItems((x) => [...x, { kind: "notice", text }]);
     } catch {
       setItems((x) => [...x, { kind: "notice", text: "No me pude conectar. Probá de nuevo." }]);
     } finally {

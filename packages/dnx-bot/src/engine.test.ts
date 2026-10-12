@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { runBotTurn } from "./engine";
+import { BotTurnError, runBotTurn } from "./engine";
 import { defineTool } from "./types";
 
 function fakeClient(responses: any[]) {
@@ -175,5 +175,58 @@ describe("runBotTurn", () => {
     const r = await runBotTurn({ ...base, ...noop, client, tools: [leer], userText: "x", proposeWrite: vi.fn() });
     expect(r.outcome).toBe("max_tokens");
     expect(r.appended).toEqual([{ role: "user", content: "x" }]);
+  });
+
+  it("pide caché automático a nivel de solicitud sin tocar el historial guardado", async () => {
+    const history = [{ role: "user", content: "antes" }, { role: "assistant", content: [{ type: "text", text: "r" }] }];
+    const snapshot = structuredClone(history);
+    const client = fakeClient([endTurn]);
+    await runBotTurn({ ...base, ...noop, history, client, tools: [leer], userText: "x", proposeWrite: vi.fn() });
+    expect(client.calls[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(client.calls[0].messages.slice(0, 2)).toEqual(snapshot);
+    expect(history).toEqual(snapshot);
+  });
+
+  it("plazo vencido antes de empezar → iteration_cap sin llamar a la API", async () => {
+    const client = fakeClient([endTurn]);
+    const r = await runBotTurn({ ...base, ...noop, deadlineMs: Date.now() - 1, client, tools: [leer], userText: "x", proposeWrite: vi.fn() });
+    expect(r.outcome).toBe("iteration_cap");
+    expect(client.calls).toHaveLength(0);
+    expect(r.appended).toEqual([{ role: "user", content: "x" }]);
+  });
+
+  it("plazo vencido entre vueltas → corta tras los tool_results, historial válido", async () => {
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValueOnce(1_000).mockReturnValue(10_000);
+    try {
+      const loop = { stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t", name: "ver_album", input: { albumId: 1 } }] };
+      const client = fakeClient([loop, endTurn]);
+      const r = await runBotTurn({ ...base, ...noop, deadlineMs: 5_000, client, tools: [leer], userText: "x", proposeWrite: vi.fn() });
+      expect(r.outcome).toBe("iteration_cap");
+      expect(client.calls).toHaveLength(1);
+      expect(r.appended.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+      expect((r.appended[2]!.content as any[])[0]).toMatchObject({ type: "tool_result", tool_use_id: "t" });
+      expect(r.usage.input_tokens).toBe(10);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("si la API falla a mitad del turno, el error lleva el uso ya consumido", async () => {
+    const calls: any[] = [];
+    let n = 0;
+    const client = {
+      calls,
+      beta: { messages: { stream: () => {
+        n++;
+        if (n === 1) return { on: () => {}, finalMessage: async () => ({ stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t", name: "ver_album", input: { albumId: 1 } }] }) };
+        return { on: () => {}, finalMessage: async () => { throw new Error("overloaded"); } };
+      } } },
+    };
+    const err = await runBotTurn({ ...base, ...noop, client, tools: [leer], userText: "x", proposeWrite: vi.fn() }).catch((e) => e);
+    expect(err).toBeInstanceOf(BotTurnError);
+    expect(err.message).toBe("overloaded");
+    expect(err.usage).toEqual(usage);
+    expect((err.cause as Error).message).toBe("overloaded");
   });
 });

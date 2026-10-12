@@ -19,4 +19,11 @@ describe("sendTelegramMessage", () => {
     const f = vi.fn(async () => new Response("no", { status: 500 }));
     expect(await sendTelegramMessage({ token: "T", chatId: "C" }, "x", f as any)).toMatchObject({ ok: false });
   });
+  it("un error de red no filtra el token en el mensaje", async () => {
+    const f = vi.fn(async () => { throw new Error("fetch failed: https://api.telegram.org/botSECRETO123/sendMessage"); });
+    const r = await sendTelegramMessage({ token: "SECRETO123", chatId: "C" }, "x", f as any);
+    expect(r.ok).toBe(false);
+    expect(r.error).not.toContain("SECRETO123");
+    expect(r.error).toContain("bot***");
+  });
 });

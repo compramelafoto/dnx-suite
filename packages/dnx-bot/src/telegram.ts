@@ -13,6 +13,8 @@ export async function sendTelegramMessage(
     if (!res.ok) return { ok: false, error: `http_${res.status}` };
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    // El mensaje de error de fetch puede incluir la URL, que lleva el token del bot: se tapa.
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: cfg.token ? msg.replaceAll(cfg.token, "***") : msg };
   }
 }

@@ -36,4 +36,16 @@ describe("items de la burbuja", () => {
     const done = applyDecision(base, "a1", "confirmar", { ok: true, message: "Listo", canUndo: true });
     expect(applyDecision(done, "a1", "deshacer", { ok: true, message: "Deshecho" })[0]).toMatchObject({ state: "done", result: "Deshecho", canUndo: false });
   });
+  it("deshacer rechazado (409) queda done, muestra el motivo y oculta Deshacer", () => {
+    const base = applySseEvent([], "proposal", { actionId: "a1", summary: "x" });
+    const done = applyDecision(base, "a1", "confirmar", { ok: true, message: "Listo", canUndo: true });
+    const r = applyDecision(done, "a1", "deshacer", { ok: false, message: "Ya no se puede deshacer." })[0];
+    expect(r).toMatchObject({ state: "done", result: "Ya no se puede deshacer.", canUndo: false });
+  });
+  it("deshacer que falló pero se puede reintentar mantiene el botón", () => {
+    const base = applySseEvent([], "proposal", { actionId: "a1", summary: "x" });
+    const done = applyDecision(base, "a1", "confirmar", { ok: true, message: "Listo", canUndo: true });
+    const r = applyDecision(done, "a1", "deshacer", { ok: false, message: "No pude deshacerlo.", canUndo: true })[0];
+    expect(r).toMatchObject({ state: "done", result: "No pude deshacerlo.", canUndo: true });
+  });
 });
