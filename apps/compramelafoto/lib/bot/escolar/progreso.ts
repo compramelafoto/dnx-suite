@@ -109,16 +109,29 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
     al.studentIdentificationMode != null &&
     (!rosterRequerido(al.studentIdentificationMode) || d.rosterActivos > 0);
 
+  const albumVinculado = !!al && al.mode === "SCHOOL" && al.schoolId != null && esc != null && esc.id === al.schoolId;
+  const preventaOk = !!al && d.packsConBeneficios > 0;
+  const fotosYAvisoOk = !!al && d.fotos > 0 && d.avisoEnviado;
+
+  // «No aplica» sólo cuando ya hay algo que mirar; en un álbum nuevo no infla `hechos`.
   let plantillas: EstadoPaso;
-  if (!al) plantillas = "pendiente";
-  else if (d.plantillasRequeridas === 0) plantillas = "no_aplica";
+  let plantillasDetalle: string | undefined;
+  if (!preventaOk) {
+    plantillas = "pendiente";
+    if (al) plantillasDetalle = "primero armá la preventa";
+  } else if (d.plantillasRequeridas === 0) plantillas = "no_aplica";
   else plantillas = est(d.plantillasRequeridasCargadas >= d.plantillasRequeridas);
 
   let entrega: EstadoPaso;
   let entregaDetalle: string | undefined;
   if (!al) entrega = "pendiente";
-  else if (d.itemsPreventa === 0) entrega = "no_aplica";
-  else if (d.itemsSinEntregar > 0) {
+  else if (d.itemsPreventa === 0) {
+    if (fotosYAvisoOk) entrega = "no_aplica";
+    else {
+      entrega = "pendiente";
+      entregaDetalle = "todavía sin pedidos";
+    }
+  } else if (d.itemsSinEntregar > 0) {
     entrega = "pendiente";
     entregaDetalle = `${d.itemsSinEntregar} por entregar`;
   } else entrega = "hecho";
@@ -154,7 +167,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       n: 4,
       id: "album_vinculado",
       titulo: "Crear el álbum escolar vinculado a la escuela",
-      estado: est(!!al && al.mode === "SCHOOL" && al.schoolId != null),
+      estado: est(albumVinculado),
       opcional: false,
       enlace: al ? tabAlbum(al.id, "configuracion") : "/dashboard/albums/new",
     },
@@ -170,7 +183,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       n: 6,
       id: "preventa",
       titulo: "Armar los packs de preventa",
-      estado: est(!!al && d.packsConBeneficios > 0),
+      estado: est(preventaOk),
       opcional: false,
       enlace: enlaceAlbum("preventa"),
     },
@@ -181,6 +194,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       estado: plantillas,
       opcional: false,
       enlace: enlaceAlbum("preventa"),
+      ...(plantillasDetalle ? { detalle: plantillasDetalle } : {}),
     },
     {
       n: 8,
@@ -202,7 +216,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       n: 10,
       id: "fotos_y_aviso",
       titulo: "Subir las fotos y avisar a las familias",
-      estado: est(!!al && d.fotos > 0 && d.avisoEnviado),
+      estado: est(fotosYAvisoOk),
       opcional: false,
       enlace: enlaceAlbum("fotos"),
       ...(al ? { detalle: `${d.fotos} fotos · aviso ${d.avisoEnviado ? "enviado" : "no enviado"}` } : {}),

@@ -121,6 +121,32 @@ describe("armarPasos (lógica pura)", () => {
     expect(paso(p, "album_vinculado").estado).toBe("pendiente");
   });
 
+  it("álbum vinculado a otra escuela que la del fotógrafo: paso 4 pendiente", () => {
+    const d = datosCompletos();
+    d.escuela = { id: 10, name: "Otra" };
+    expect(paso(armarPasos(d), "album_vinculado").estado).toBe("pendiente");
+    d.escuela = null;
+    expect(paso(armarPasos(d), "album_vinculado").estado).toBe("pendiente");
+  });
+
+  it("álbum nuevo vinculado: plantillas y entrega no inflan hechos", () => {
+    const d = datosVacios();
+    d.escuela = { id: 9, name: "Colegio Sur" };
+    d.album = { ...albumBase, studentIdentificationMode: null, organizerCommissionEnabled: false };
+    const p = armarPasos(d);
+    expect(paso(p, "plantillas")).toMatchObject({ estado: "pendiente", detalle: "primero armá la preventa" });
+    expect(paso(p, "entrega")).toMatchObject({ estado: "pendiente", detalle: "todavía sin pedidos" });
+    expect(p.pasos.filter((x) => x.estado === "hecho").map((x) => x.id)).toEqual(["escuela", "album_vinculado"]);
+    expect(p.hechos).toBe(2);
+  });
+
+  it("entrega sin pedidos con fotos subidas pero sin aviso → pendiente «todavía sin pedidos»", () => {
+    const d = datosCompletos();
+    d.itemsPreventa = 0;
+    d.avisoEnviado = false;
+    expect(paso(armarPasos(d), "entrega")).toMatchObject({ estado: "pendiente", detalle: "todavía sin pedidos" });
+  });
+
   it("roster requerido sin entradas → paso 5 pendiente; con entradas → hecho", () => {
     const d = datosCompletos();
     d.album = { ...albumBase, studentIdentificationMode: "ROSTER_REQUIRED" };
@@ -262,6 +288,7 @@ describe("computeSchoolSetupProgress (consultas)", () => {
     expect(m.schoolFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 9, ownerId: 7 } }));
     expect(p.schoolId).toBeNull();
     expect(paso(p, "escuela").estado).toBe("pendiente");
+    expect(paso(p, "album_vinculado").estado).toBe("pendiente");
     expect(m.courseCount).not.toHaveBeenCalled();
   });
 
