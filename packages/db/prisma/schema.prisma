@@ -34,6 +34,7 @@ datasource db {
 }
 
 model User {
+  botConversations BotConversation[] @relation("BotConversationUser")
   id                                    Int                                    @id @default(autoincrement())
   email                                 String                                 @unique
   password                              String?
@@ -24615,6 +24616,117 @@ model CulturalSaleEvent {
   createdAt      DateTime          @default(now())
 
   @@index([orderId, createdAt])
+}
+
+// ─── DNX Bot ─────────────────────────────────────────────────────────────
+enum BotConversationStatus {
+  OPEN
+  ESCALATED
+  CLOSED
+}
+
+enum BotActionStatus {
+  PENDING
+  EXECUTED
+  FAILED
+  REJECTED
+  EXPIRED
+  UNDONE
+}
+
+enum BotIncidentStatus {
+  OPEN
+  INVESTIGATING
+  FIXED
+  IGNORED
+}
+
+model BotConversation {
+  id              String                @id @default(cuid())
+  platform        String
+  userId          Int?
+  user            User?                 @relation("BotConversationUser", fields: [userId], references: [id], onDelete: SetNull)
+  pagePath        String?
+  status          BotConversationStatus @default(OPEN)
+  model           String
+  inputTokens     Int                   @default(0)
+  outputTokens    Int                   @default(0)
+  cacheReadTokens Int                   @default(0)
+  costMicroUsd    Int                   @default(0)
+  supportTicketId Int?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  messages        BotMessage[]
+  actions         BotAction[]
+
+  @@index([userId, updatedAt])
+  @@index([createdAt])
+}
+
+model BotMessage {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   BotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  seq            Int
+  role           String
+  /// Contenido tal cual se envía a la API (string o bloques). No se edita nunca.
+  content        Json
+  createdAt      DateTime        @default(now())
+
+  @@unique([conversationId, seq])
+}
+
+model BotAction {
+  id             String           @id @default(cuid())
+  conversationId String?
+  conversation   BotConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  platform       String
+  userId         Int
+  toolName       String
+  input          Json
+  summary        String
+  status         BotActionStatus  @default(PENDING)
+  before         Json?
+  after          Json?
+  resultMessage  String?
+  expiresAt      DateTime
+  decidedAt      DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+}
+
+model BotIncident {
+  id          String            @id @default(cuid())
+  platform    String
+  signature   String
+  title       String
+  data        Json
+  urgent      Boolean           @default(false)
+  occurrences Int               @default(1)
+  status      BotIncidentStatus @default(OPEN)
+  prUrl       String?
+  firstSeenAt DateTime          @default(now())
+  lastSeenAt  DateTime          @default(now())
+
+  @@unique([platform, signature])
+  @@index([status, lastSeenAt])
+}
+
+model BotUsageDaily {
+  id           String @id @default(cuid())
+  platform     String
+  /// Día argentino YYYY-MM-DD
+  day          String
+  userId       Int
+  messages     Int    @default(0)
+  inputTokens  Int    @default(0)
+  outputTokens Int    @default(0)
+  costMicroUsd Int    @default(0)
+
+  @@unique([platform, day, userId])
+  @@index([platform, day])
 }
 
 /// Pedido de descarga de una galería de entrega (ZIP en partes armado en segundo plano; Entrega B).
