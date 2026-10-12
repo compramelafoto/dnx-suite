@@ -14,6 +14,7 @@ import {
   recordUsage,
   usageSnapshot,
 } from "@/lib/bot/store";
+import { notifyCapThresholds } from "@/lib/bot/tope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,6 +101,7 @@ export async function POST(req: Request) {
             } catch (err) {
               console.error("[dnx-bot] uso parcial", err);
             }
+            await notifyCapThresholds();
           }
           const cause = e instanceof BotTurnError ? e.cause : e;
           await reportIncident({
@@ -121,6 +123,7 @@ export async function POST(req: Request) {
           costMicroUsd: costMicroUsd(cfg.model, result.usage),
           countMessage: true,
         });
+        await notifyCapThresholds();
         if (result.outcome !== "ok") {
           await reportIncident({
             area: "otro",

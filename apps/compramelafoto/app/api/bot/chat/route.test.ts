@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   user: vi.fn(), enabled: vi.fn(), snap: vi.fn(), turn: vi.fn(), conv: vi.fn(), hist: vi.fn(), append: vi.fn(),
-  usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(),
+  usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(), cap: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: () => m.user() }));
 vi.mock("@/lib/bot/config", () => ({
@@ -14,6 +14,7 @@ vi.mock("@/lib/bot/store", () => ({
   usageSnapshot: () => m.snap(), getOrCreateConversation: () => m.conv(), loadHistory: () => m.hist(),
   appendMessages: (...a: unknown[]) => m.append(...a), recordUsage: (...a: unknown[]) => m.usage(...a), createPendingAction: vi.fn(),
 }));
+vi.mock("@/lib/bot/tope", () => ({ notifyCapThresholds: (...a: unknown[]) => m.cap(...a) }));
 vi.mock("@/lib/bot/escalamiento", () => ({ reportIncident: (...a: unknown[]) => m.inc(...a) }));
 vi.mock("@/lib/bot/contexto", () => ({ buildPhotographerSituation: (...a: unknown[]) => m.sit(...a) }));
 vi.mock("@/lib/bot/anthropic", () => ({ getAnthropicClient: () => ({}) }));
@@ -40,6 +41,7 @@ beforeEach(() => {
   m.hist.mockResolvedValue([]);
   m.sit.mockResolvedValue({ text: "SIT", alerts: [] });
   m.inc.mockResolvedValue(undefined);
+  m.cap.mockResolvedValue(undefined);
 });
 
 describe("POST /api/bot/chat", () => {
@@ -80,6 +82,7 @@ describe("POST /api/bot/chat", () => {
     expect(body).not.toContain("event: error");
     expect(m.append).toHaveBeenCalledWith("c1", expect.any(Array));
     expect(m.usage).toHaveBeenCalled();
+    expect(m.cap).toHaveBeenCalledTimes(1);
     expect(m.turn.mock.calls[0]![0]).toEqual(expect.objectContaining({ systemGuide: "GUIA", situation: "SIT" }));
   });
   it("turno cortado (refusal) → guarda lo agregado, registra incidente y ofrece ticket", async () => {
@@ -124,6 +127,7 @@ describe("POST /api/bot/chat", () => {
     expect(m.append).not.toHaveBeenCalled();
     expect(m.usage).toHaveBeenCalledWith(expect.objectContaining({ conversationId: "c1", usage: partial, countMessage: true }));
     expect(m.usage.mock.calls[0]![0].costMicroUsd).toBeGreaterThan(0);
+    expect(m.cap).toHaveBeenCalledTimes(1);
     expect(m.inc).toHaveBeenCalledWith(expect.objectContaining({ codigo: "api_APIError", detalle: "overloaded" }));
   });
   it("pasa un plazo de ~95 s al motor y el texto del turno a las herramientas", async () => {

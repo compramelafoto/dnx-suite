@@ -157,3 +157,30 @@ export async function upsertIncident(p: { signature: string; title: string; data
   });
   return { id: row.id, occurrences: row.occurrences, isNew: !existing };
 }
+
+/** Suma del gasto del mes argentino (todas las personas). */
+export async function monthCostMicroUsd(now: Date = new Date()): Promise<number> {
+  const r = await prisma.botUsageDaily.aggregate({
+    where: { platform: BOT_PLATFORM, day: { startsWith: argentinaMonthPrefix(now) } },
+    _sum: { costMicroUsd: true },
+  });
+  return r._sum.costMicroUsd ?? 0;
+}
+
+/**
+ * Reserva una marca única (BotIncident con esa firma) y devuelve true sólo a quien la creó.
+ * El índice único (platform, signature) lo hace atómico entre instancias: la segunda creación
+ * choca con P2002 y devuelve false. Nace IGNORED para no figurar como error en el resumen.
+ */
+export async function claimOnceMarker(p: { signature: string; title: string; data: unknown }): Promise<boolean> {
+  try {
+    await prisma.botIncident.create({
+      data: { platform: BOT_PLATFORM, signature: p.signature, title: p.title, data: p.data as object, status: "IGNORED" },
+      select: { id: true },
+    });
+    return true;
+  } catch (e) {
+    if ((e as { code?: unknown } | null)?.code === "P2002") return false;
+    throw e;
+  }
+}
