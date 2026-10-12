@@ -3209,6 +3209,7 @@ export default function ClientAlbumView({
           type="button"
           onClick={handleContinuarCanje}
           disabled={selected.size === 0 || checkoutSubmitting}
+          data-dnxbot-evitar=""
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
             selected.size > 0 && !checkoutSubmitting
               ? "bg-[#c27b3d] hover:bg-[#a0652d]"
@@ -3230,6 +3231,7 @@ export default function ClientAlbumView({
           type="button"
           onClick={handleComprar}
           disabled={comprarBoton.disabled}
+          data-dnxbot-evitar=""
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
             !comprarBoton.disabled
               ? "bg-[#c27b3d] hover:bg-[#a0652d]"
@@ -3259,6 +3261,7 @@ export default function ClientAlbumView({
             packSelectionSaving ||
             packSelectionMode.photoIds.size !== packSelectionMode.requiredCount
           }
+          data-dnxbot-evitar=""
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
             packSelectionMode.photoIds.size === packSelectionMode.requiredCount &&
             !packSelectionSaving

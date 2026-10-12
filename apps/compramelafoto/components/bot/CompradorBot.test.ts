@@ -4,8 +4,7 @@ vi.mock("@repo/dnx-bot/ui", () => ({ DnxBotBubble: () => null }));
 const nav = vi.hoisted(() => ({ pathname: "/a/12" }));
 vi.mock("next/navigation", () => ({ usePathname: () => nav.pathname }));
 import { CompradorBot } from "./CompradorBot";
-import { CompradorBotBubble } from "./CompradorBotBubble";
-import { MARGEN_BURBUJA_NORMAL, MARGEN_BURBUJA_PREVENTA } from "@/lib/bot/comprador/pagina";
+import { BurbujaSobreBotones, CompradorBotBubble } from "./CompradorBotBubble";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -41,10 +40,10 @@ describe("CompradorBotBubble", () => {
     expect(CompradorBotBubble()?.key).toBe("/descargas/0123456789abcdef0123456789abcdef");
   });
 
-  it("en la preventa se monta por encima de la barra de pago", () => {
-    nav.pathname = "/album/fiesta/preventa";
-    expect(CompradorBotBubble()?.props.bottomOffsetPx).toBe(MARGEN_BURBUJA_PREVENTA);
-    nav.pathname = "/descargas/0123456789abcdef0123456789abcdef";
-    expect(CompradorBotBubble()?.props.bottomOffsetPx).toBe(MARGEN_BURBUJA_NORMAL);
+  it("en la preventa y el álbum monta la burbuja que se ubica sobre los botones de pago", () => {
+    for (const p of ["/album/fiesta/preventa", "/album/fiesta", "/a/12"]) {
+      nav.pathname = p;
+      expect(CompradorBotBubble()?.type).toBe(BurbujaSobreBotones);
+    }
   });
 });
