@@ -59,4 +59,22 @@ describe("crearSolicitudDePrivacidad", () => {
       expect.objectContaining({ to: "juana@mail.com", templateKey: "ADMIN_MANUAL", meta: {} }),
     );
   });
+  it("escapa el nombre (dato del usuario) en el HTML del mail", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    const malicioso = privacyRequestSchema.parse({
+      type: "ACCESO",
+      fullName: `<img src=x onerror="alert(1)"> & <a href='https://phish'>clic</a>`,
+      email: "juana@mail.com",
+      isRepresentative: true,
+    });
+    await crearSolicitudDePrivacidad(malicioso, META);
+    const html: string = m.mail.mock.calls[0][0].html;
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<a href='https://phish'");
+    expect(html).toContain(
+      "Hola &lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &lt;a href=&#39;https://phish&#39;&gt;clic&lt;/a&gt;,",
+    );
+    // El link propio de la política sigue siendo HTML real.
+    expect(html).toContain('/privacidad">Política de Privacidad</a>');
+  });
 });
