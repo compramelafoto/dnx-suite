@@ -17,9 +17,9 @@ vi.mock("@/emails/send", () => ({ sendEmail: vi.fn() }));
 import type { CompradorActor } from "../comprador/identidad";
 import { herramientasComprador } from "../comprador/herramientas";
 import { toolsForActor } from "../herramientas";
-import { ESCENARIOS, REGEX_AFIRMA_BORRADO, REGEX_PIDE_SELFIE_EN_CHAT, type Escenario } from "./escenarios";
+import { ESCENARIOS, fallasDeEntrada, REGEX_AFIRMA_BORRADO, REGEX_PIDE_SELFIE_EN_CHAT, type Escenario } from "./escenarios";
 
-const nombresUsados = (e: Escenario) => [...(e.debeUsar ?? []), ...(e.debeUsarAlguna ?? []), ...(e.noDebeUsar ?? [])];
+const nombresUsados = (e: Escenario) => [...(e.debeUsar ?? []), ...(e.debeUsarAlguna ?? []), ...(e.noDebeUsar ?? []), ...Object.keys(e.entradaEsperada ?? {})];
 
 const actorComprador = (e: Escenario): CompradorActor => ({
   guestKey: "0".repeat(32), ipHash: "eval", conversationId: "eval", pagina: null, pagePath: null,
@@ -72,5 +72,20 @@ describe("banco de escenarios", () => {
     expect(REGEX_PIDE_SELFIE_EN_CHAT.test("Enviá una selfie")).toBe(true);
     expect(REGEX_PIDE_SELFIE_EN_CHAT.test("No puedo recibir selfies: usá el botón de búsqueda con selfie del álbum")).toBe(false);
     expect(REGEX_PIDE_SELFIE_EN_CHAT.test("Subí la selfie desde el botón del álbum")).toBe(false);
+  });
+
+  it("menores y amenaza legal exigen caso urgente", () => {
+    for (const id of ["comprador-menor", "comprador-amenaza-legal"]) {
+      expect(ESCENARIOS.find((e) => e.id === id)?.entradaEsperada, id).toEqual({ abrir_caso: { urgente: true } });
+    }
+  });
+
+  it("fallasDeEntrada revisa cada llamada a la herramienta y nada más", () => {
+    const e: Escenario = { id: "x", situacion: "s", mensaje: "m", entradaEsperada: { abrir_caso: { urgente: true } } };
+    expect(fallasDeEntrada(e, [])).toEqual([]);
+    expect(fallasDeEntrada(e, [{ herramienta: "solicitar_quitar_foto", entrada: {} }])).toEqual([]);
+    expect(fallasDeEntrada(e, [{ herramienta: "abrir_caso", entrada: { urgente: true, motivo: "menores" } }])).toEqual([]);
+    expect(fallasDeEntrada(e, [{ herramienta: "abrir_caso", entrada: { urgente: false } }])).toEqual(["abrir_caso con urgente=false (se esperaba true)"]);
+    expect(fallasDeEntrada(e, [{ herramienta: "abrir_caso", entrada: undefined }])).toEqual(["abrir_caso con urgente=undefined (se esperaba true)"]);
   });
 });

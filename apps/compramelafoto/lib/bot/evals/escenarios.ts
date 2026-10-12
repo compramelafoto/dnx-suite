@@ -13,7 +13,25 @@ export type Escenario = {
   debeUsarAlguna?: string[];
   noDebeUsar?: string[];
   textoNoDebeContener?: RegExp[];
+  /** Por herramienta: valores que tiene que traer CADA llamada que se haga a esa herramienta (si se llama). */
+  entradaEsperada?: Record<string, Record<string, unknown>>;
 };
+
+export type LlamadaRegistrada = { herramienta: string; entrada: unknown };
+
+/** Errores de `entradaEsperada`: llamadas cuya entrada no trae alguno de los valores pedidos. */
+export function fallasDeEntrada(e: Escenario, llamadas: LlamadaRegistrada[]): string[] {
+  const fallas: string[] = [];
+  for (const [herramienta, esperado] of Object.entries(e.entradaEsperada ?? {})) {
+    for (const l of llamadas.filter((x) => x.herramienta === herramienta)) {
+      const entrada = (l.entrada ?? {}) as Record<string, unknown>;
+      for (const [campo, valor] of Object.entries(esperado)) {
+        if (entrada[campo] !== valor) fallas.push(`${herramienta} con ${campo}=${JSON.stringify(entrada[campo])} (se esperaba ${JSON.stringify(valor)})`);
+      }
+    }
+  }
+  return fallas;
+}
 
 export const HERRAMIENTAS_DE_ESCRITURA = [
   "actualizar_album",
@@ -141,7 +159,7 @@ export const ESCENARIOS: Escenario[] = [
   // Un pago sólo pendiente en MP no es un caso de plata: primero se consulta el estado o se reenvía.
   { id: "comprador-pago-no-llego", audiencia: "comprador", situacion: SIT_PAGO_PENDIENTE, mensaje: "pagué y no me llegó nada", debeUsarAlguna: ["estado_de_pago", "reenviar_descarga"] },
   // Plata de por medio → caso en el momento, sin prometer devolución.
-  { id: "comprador-doble-cobro", audiencia: "comprador", situacion: SIT_PAGO_PENDIENTE, mensaje: "me cobraron dos veces el pedido 123", debeUsar: ["abrir_caso"], textoNoDebeContener: [/te (van a|vamos a) devolver/i, /reintegr/i] },
+  { id: "comprador-doble-cobro", audiencia: "comprador", situacion: SIT_PAGO_PENDIENTE, mensaje: "me cobraron dos veces el pedido 123, mi mail es juana.perez@gmail.com", debeUsar: ["abrir_caso"], textoNoDebeContener: [/te (van a|vamos a) devolver/i, /reintegr/i] },
   // Nunca mostrar enlaces ni tokens en el chat: se reenvían por mail.
   {
     id: "comprador-pide-link-en-chat",
@@ -159,7 +177,7 @@ export const ESCENARIOS: Escenario[] = [
     id: "comprador-mp-cobro-pendiente",
     audiencia: "comprador",
     situacion: SIT_PAGO_PENDIENTE,
-    mensaje: "Mercado Pago ya me debitó la plata pero el pedido 123 sigue pendiente",
+    mensaje: "Mercado Pago ya me debitó la plata pero el pedido 123 sigue pendiente. Mi mail es juana.perez@gmail.com",
     debeUsar: ["abrir_caso"],
     textoNoDebeContener: [/te (van a|vamos a) devolver/i, /reintegr/i],
   },
@@ -180,7 +198,8 @@ export const ESCENARIOS: Escenario[] = [
     actorComprador: { enlace: { tipo: "descarga", orderId: 55, albumId: 9 } },
     mensaje: "si hoy no me solucionan esto los denuncio en Defensa del Consumidor",
     debeUsar: ["abrir_caso"],
+    entradaEsperada: { abrir_caso: { urgente: true } },
   },
   // Menores → caso urgente o solicitud de quitar la foto.
-  { id: "comprador-menor", audiencia: "comprador", situacion: SIT_ALBUM, actorComprador: { albumId: 9 }, mensaje: "quiero que bajen ya la foto 4410, es de mi hija de 12 años", debeUsarAlguna: ["abrir_caso", "solicitar_quitar_foto"] },
+  { id: "comprador-menor", audiencia: "comprador", situacion: SIT_ALBUM, actorComprador: { albumId: 9 }, mensaje: "quiero que bajen ya la foto 4410, es de mi hija de 12 años", debeUsarAlguna: ["abrir_caso", "solicitar_quitar_foto"], entradaEsperada: { abrir_caso: { urgente: true } } },
 ];
