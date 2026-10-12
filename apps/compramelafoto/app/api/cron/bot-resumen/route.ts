@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+const CODIGOS_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
   const unauthorized = assertCronAuth(req);
@@ -26,6 +27,8 @@ export async function GET(req: NextRequest) {
   const purged = await prisma.botConversation.deleteMany({
     where: { platform: BOT_PLATFORM, createdAt: { lt: new Date(now.getTime() - RETENTION_MS) } },
   });
+  // Los códigos por mail vencen a los 10 minutos: pasados 2 días ya no sirven ni para medir.
+  await prisma.botEmailCode.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - CODIGOS_RETENTION_MS) } } });
   const text = await buildDailySummary(now);
   const sent = await sendTelegramMessage(readBotConfig().telegram, text);
   // Red de seguridad: con el tope alcanzado ya no hay turnos que reintenten un aviso que no salió.

@@ -4,6 +4,7 @@ import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
 const m = vi.hoisted(() => ({
   convCount: vi.fn(), convGroup: vi.fn(), actGroup: vi.fn(), actFind: vi.fn(), incidents: vi.fn(), usage: vi.fn(), orders: vi.fn(), orderRows: vi.fn(),
   outGroup: vi.fn(), outFind: vi.fn(), users: vi.fn(), albums: vi.fn(), progreso: vi.fn(),
+  lineasCompradores: vi.fn(), gastoCompradores: vi.fn(), buyerCfg: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -19,6 +20,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 vi.mock("@/lib/bot/escolar/progreso", () => ({ computeSchoolSetupProgress: (...a: unknown[]) => m.progreso(...a) }));
 vi.mock("@/lib/bot/config", () => ({ BOT_PLATFORM: "CLF", readBotConfig: () => ({ limits: { monthlyCapMicroUsd: 30_000_000 } }) }));
+vi.mock("@/lib/bot/comprador/config", () => ({ readBuyerBotConfig: () => m.buyerCfg() }));
+vi.mock("@/lib/bot/comprador/metricas", () => ({
+  lineasCompradores: (...a: unknown[]) => m.lineasCompradores(...a),
+  gastoCompradoresMes: (...a: unknown[]) => m.gastoCompradores(...a),
+}));
 import { buildDailySummary, salesWindows } from "./resumen";
 
 type Where = { status?: string; isTest?: boolean; totalCents?: { gt: number }; createdAt?: { gte?: Date; lt?: Date; gt?: Date }; albumId?: number | { in: number[] }; OR?: Where[] };
@@ -39,6 +45,7 @@ function matches(o: FakeOrder, w: Where): boolean {
   return true;
 }
 let orders: FakeOrder[] = [];
+let compradoresHoy = 0;
 const paid = (pesos: number, iso: string, extra: Partial<FakeOrder> = {}): FakeOrder => ({
   albumId: 1, status: "PAID", isTest: false, totalCents: pesos, createdAt: new Date(iso), ...extra,
 });
@@ -46,7 +53,9 @@ const paid = (pesos: number, iso: string, extra: Partial<FakeOrder> = {}): FakeO
 beforeEach(() => {
   orders = [];
   Object.values(m).forEach((f) => f.mockReset());
-  m.convCount.mockResolvedValue(10);
+  // 10 conversaciones de fotógrafos; compradores según `compradoresHoy`.
+  compradoresHoy = 0;
+  m.convCount.mockImplementation(async (a: { where: { audience?: string } }) => (a.where.audience === "BUYER" ? compradoresHoy : 10));
   m.convGroup.mockResolvedValue([{ status: "ESCALATED", _count: { _all: 2 } }]);
   m.actGroup.mockResolvedValue([{ status: "EXECUTED", _count: { _all: 5 } }]);
   m.actFind.mockResolvedValue([]);
@@ -61,6 +70,9 @@ beforeEach(() => {
     return { _count: { _all: hit.length }, _sum: { totalCents: hit.length ? hit.reduce((s, o) => s + o.totalCents, 0) : null } };
   });
   m.orderRows.mockImplementation(async (a: { where: Where }) => orders.filter((o) => matches(o, a.where)));
+  m.buyerCfg.mockReturnValue({ enabled: false });
+  m.gastoCompradores.mockResolvedValue(0);
+  m.lineasCompradores.mockResolvedValue(["Compradores: línea 1.", "Compradores: línea 2."]);
 });
 
 const NOW = new Date("2026-10-12T12:00:00Z"); // 12/10 09:00 en Argentina
@@ -90,8 +102,46 @@ describe("buildDailySummary", () => {
     expect(t).toContain("2 derivadas");
     expect(t).toContain("5 acciones");
     expect(t).toContain("album: P2002 (×3)");
-    expect(t).toContain("Gasto del bot este mes: USD 1,50 de USD 30 (se factura en dólares).");
+    expect(t).toContain("Gasto del bot este mes: USD 1,50 de USD 30 (compradores: USD 0,00; se factura en dólares).");
     expect(t).toContain("2026-10-12");
+  });
+
+  it("las líneas de fotógrafos filtran audience PHOTOGRAPHER y acciones con userId", async () => {
+    await buildDailySummary(NOW);
+    const since = new Date(NOW.getTime() - 24 * 60 * 60 * 1000);
+    const fot = { platform: "CLF", audience: "PHOTOGRAPHER", createdAt: { gt: since } };
+    expect(m.convCount.mock.calls.map((c) => c[0].where)).toContainEqual(fot);
+    expect(m.convGroup.mock.calls[0]![0].where).toEqual(fot);
+    expect(m.actGroup.mock.calls[0]![0].where).toEqual({ platform: "CLF", userId: { not: null }, createdAt: { gt: since } });
+    expect(m.convCount.mock.calls.map((c) => c[0].where)).toContainEqual({ platform: "CLF", audience: "BUYER", createdAt: { gt: since } });
+  });
+
+  it("gasto: desglosa lo de compradores dentro del total del mes", async () => {
+    m.usage.mockResolvedValue({ _sum: { costMicroUsd: 12_340_000 } });
+    m.gastoCompradores.mockResolvedValue(2_500_000);
+    const t = await buildDailySummary(NOW);
+    expect(t).toContain("Gasto del bot este mes: USD 12,34 de USD 30 (compradores: USD 2,50; se factura en dólares).");
+    expect(m.gastoCompradores).toHaveBeenCalledWith(NOW);
+  });
+
+  it("compradores apagado y sin conversaciones de compradores: no agrega su sección", async () => {
+    const t = await buildDailySummary(NOW);
+    expect(t).not.toContain("Compradores:");
+    expect(m.lineasCompradores).not.toHaveBeenCalled();
+  });
+
+  it("compradores encendido: agrega su sección al final", async () => {
+    m.buyerCfg.mockReturnValue({ enabled: true });
+    const t = await buildDailySummary(NOW);
+    expect(t.endsWith("\nCompradores: línea 1.\nCompradores: línea 2.")).toBe(true);
+    expect(m.lineasCompradores).toHaveBeenCalledWith(new Date(NOW.getTime() - 24 * 60 * 60 * 1000), NOW);
+  });
+
+  it("compradores apagado pero con conversaciones de compradores en el día: también agrega la sección", async () => {
+    compradoresHoy = 3;
+    const t = await buildDailySummary(NOW);
+    expect(t).toContain("\nCompradores: línea 1.\nCompradores: línea 2.");
+    expect(t).toContain("10 conversaciones, 8 resueltas sin ticket, 2 derivadas.");
   });
 
   it("caracterización: texto completo del resumen de fotógrafos", async () => {
@@ -107,7 +157,7 @@ describe("buildDailySummary", () => {
         "Saludos: ninguno en las últimas 24 h.",
         "Mails: 0 enviados.",
         "Álbumes escolares con preventa publicada: 0.",
-        "Gasto del bot este mes: USD 1,50 de USD 30 (se factura en dólares).",
+        "Gasto del bot este mes: USD 1,50 de USD 30 (compradores: USD 0,00; se factura en dólares).",
         `Álbumes destrabados por el bot: 0 (ventas desde que el bot los cambió: ${formatPurchaseArs(0)}).`,
       ].join("\n"),
     );
