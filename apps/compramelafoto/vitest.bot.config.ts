@@ -30,6 +30,7 @@ export default defineConfig({
       "app/api/fotografo/update/*.test.ts",
       "app/api/admin/schools/*/organizers/invite/route.test.ts",
       "lib/schools/invite-organizer.test.ts",
+      "app/pago/reintentar/*/page.test.ts",
     ],
   },
 });
