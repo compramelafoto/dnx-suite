@@ -6,14 +6,25 @@ import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
-import { crearTareaDeConsulta, destinatarioDelPresupuesto } from "@/lib/presupuestos/avisos";
 import { registrarCobroDelSistema, type MotivoSinAcreditar } from "./cobros";
 import { enlaceDelPedidoDelSistema } from "./enlace";
 import { imputadoPorCuota } from "./estado";
 import { planesDe } from "./plan";
 import { aCentavos, desdeCentavos } from "./plan-cuotas";
 import { enviarReciboAutomatico } from "./recibos";
-import { cuotaDeReferencia, hechosDelPago, referenciaCuota, TITULO_TAREA_PAGO_SIN_APLICAR } from "./mp-puro";
+import {
+  cuotaDeReferencia,
+  hechosDelPago,
+  leerReferenciaCuota,
+  referenciaCuota,
+  reversoDelPago,
+  TITULO_TAREA_PAGO_DEVUELTO,
+  TITULO_TAREA_PAGO_SIN_APLICAR,
+  tituloPagoCuotaInexistente,
+  tituloPagoDevuelto,
+  tituloPagoSinAplicar,
+} from "./mp-puro";
+import { dejarRastroDePago, type DepsRastro } from "./mp-rastro";
 
 export { cuotaDeReferencia, hechosDelPago, referenciaCuota, TITULO_TAREA_PAGO_SIN_APLICAR };
 
@@ -88,12 +99,14 @@ export async function iniciarPagoCuota(input: {
       amountMinor: importeMinor,
       currency: "ARS",
       description: `Cuota ${cuota.position} del pedido N° ${pedido.number}`,
-      externalReference: referenciaCuota(cuota.id),
+      // Con el pedido: si la cuota se borra antes de que llegue el pago, igual se sabe de qué pedido es (B2-2).
+      externalReference: referenciaCuota(cuota.id, pedido.id),
       idempotencyKey: randomUUID(),
       successUrl: vuelta("ok"),
       pendingUrl: vuelta("pendiente"),
       failureUrl: vuelta("error"),
-      notificationUrl: `${base}/api/payments/mp/pedidos-webhook`,
+      // `ws`: el aviso lee el pago directo con el token de esta organización, sin adivinar (B2-3).
+      notificationUrl: `${base}/api/payments/mp/pedidos-webhook?ws=${encodeURIComponent(workspaceId)}`,
       accessTokenOverride: collector.collector.accessToken,
       itemId: `pedcuota-${cuota.id}`,
       sourceApp: "FOTOFFICE",
@@ -133,14 +146,11 @@ export type ResultadoAcreditar =
   | { resultado: "no_aprobado" }
   /** La referencia no es de una cuota, o la cuota no es de esta organización. */
   | { resultado: "no_es_de_esta_organizacion" }
-  /** Aprobado pero NO acreditado (pago de más, pedido cancelado…): quedó la tarea para el responsable. */
-  | { resultado: "sin_aplicar"; motivo: MotivoSinAcreditar; pedidoId: string }
+  /** Aprobado pero NO acreditado (pago de más, pedido cancelado, cuota borrada…): quedó el rastro para el estudio. */
+  | { resultado: "sin_aplicar"; motivo: MotivoSinAcreditar | "CUOTA_INEXISTENTE"; pedidoId: string | null }
   | { resultado: "fallo" };
 
-export type DepsAcreditar = {
-  /** Para las pruebas: ejecuta el envío del recibo (por omisión, `after()` de Next). */
-  luego?: (tarea: () => Promise<unknown>) => void;
-};
+export type DepsAcreditar = DepsRastro;
 
 /**
  * Acredita un pago de Mercado Pago ya leído con el token de `workspaceId`. El pago tiene que ser
@@ -148,12 +158,14 @@ export type DepsAcreditar = {
  */
 export async function acreditarPagoMp(workspaceId: string, pago: PagoMp, deps: DepsAcreditar = {}): Promise<ResultadoAcreditar> {
   try {
-    const cuotaId = cuotaDeReferencia(pago.externalReference);
-    if (!cuotaId) return { resultado: "no_es_de_esta_organizacion" };
+    const ref = leerReferenciaCuota(pago.externalReference);
+    if (!ref) return { resultado: "no_es_de_esta_organizacion" };
     // El pago se leyó con el token de ESTA organización: la cuota (y su pedido) tienen que ser suyos.
-    const cuota = await prisma.fotofficePedidoCuota.findFirst({ where: { id: cuotaId, workspaceId }, select: { id: true, pedidoId: true } });
-    if (!cuota) {
-      console.warn("[fotoffice][pedidos] aviso de un pago cuya cuota no es de la organización que lo cobró");
+    const cuota = await prisma.fotofficePedidoCuota.findFirst({ where: { id: ref.cuotaId, workspaceId }, select: { id: true, pedidoId: true } });
+    if (!cuota) return cuotaQueNoEsta(workspaceId, pago, ref.pedidoId, ref.cuotaId, deps);
+    // La referencia nueva nombra el pedido: tiene que ser el de la cuota.
+    if (ref.pedidoId && ref.pedidoId !== cuota.pedidoId) {
+      console.warn("[fotoffice][pedidos] aviso de un pago cuya referencia no coincide con su pedido");
       return { resultado: "no_es_de_esta_organizacion" };
     }
     if (!pagoAprobado(pago)) return { resultado: "no_aprobado" };
@@ -180,12 +192,48 @@ export async function acreditarPagoMp(workspaceId: string, pago: PagoMp, deps: D
       return { resultado: "acreditado", pedidoId: r.pedidoId };
     }
     console.warn("[fotoffice][pedidos] pago aprobado sin acreditar", { motivo: r.motivo });
-    await avisarPagoSinAplicar(workspaceId, cuota.pedidoId);
+    await avisarPagoSinAplicar(workspaceId, cuota.pedidoId, { providerPaymentId: hechos.providerPaymentId, centavos: hechos.amountMinor, motivo: r.motivo }, deps);
     return { resultado: "sin_aplicar", motivo: r.motivo, pedidoId: cuota.pedidoId };
   } catch (error) {
     console.error("[fotoffice][pedidos] falló la acreditación de un pago", { detalle: sanitizeError(error) });
     return { resultado: "fallo" };
   }
+}
+
+/**
+ * La cuota de la referencia no está en esta organización. Si es de otra, el pago no es de acá. Si no existe
+ * en ningún lado, se borró al editar el plan después de abrir el pago (B2-2): el dinero igual entró en la
+ * cuenta de esta organización (su token leyó el pago), así que queda el rastro en el pedido de la referencia
+ * nueva (o, con la vieja, sólo el correo al dueño). No acredita: lo decide una persona.
+ */
+async function cuotaQueNoEsta(workspaceId: string, pago: PagoMp, pedidoId: string | null, cuotaId: string, deps: DepsAcreditar): Promise<ResultadoAcreditar> {
+  const ajena = await prisma.fotofficePedidoCuota.findFirst({ where: { id: cuotaId }, select: { id: true } });
+  if (ajena) {
+    console.warn("[fotoffice][pedidos] aviso de un pago cuya cuota no es de la organización que lo cobró");
+    return { resultado: "no_es_de_esta_organizacion" };
+  }
+  let pedido: { id: string } | null = null;
+  if (pedidoId) {
+    pedido = await prisma.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { id: true } });
+    if (!pedido) {
+      console.warn("[fotoffice][pedidos] aviso de un pago cuyo pedido no es de la organización que lo cobró");
+      return { resultado: "no_es_de_esta_organizacion" };
+    }
+  }
+  if (!pagoAprobado(pago)) return { resultado: "no_aprobado" };
+  const hechos = hechosDelPago(pago);
+  console.warn("[fotoffice][pedidos] pago aprobado de una cuota que ya no existe", { conPedido: pedido !== null });
+  await dejarRastroDePago(
+    workspaceId,
+    {
+      pedidoId: pedido?.id ?? null,
+      titulo: tituloPagoCuotaInexistente(hechos.providerPaymentId, hechos.amountMinor),
+      tituloConsulta: TITULO_TAREA_PAGO_SIN_APLICAR,
+      asunto: "Llegó un pago de Mercado Pago por una cuota que ya no existe",
+    },
+    deps,
+  );
+  return { resultado: "sin_aplicar", motivo: "CUOTA_INEXISTENTE", pedidoId: pedido?.id ?? null };
 }
 
 /** Manda el recibo automático sin demorar la respuesta; si no hay solicitud (cron, pruebas), lo manda ya. */
@@ -200,21 +248,58 @@ function programarRecibo(workspaceId: string, cobroId: string, deps: DepsAcredit
 }
 
 /**
- * Una tarea para el responsable del pedido: hay plata cobrada que el sistema no pudo aplicar. Va a
- * la consulta del pedido (como la del presupuesto aceptado); sin consulta, queda sólo el aviso en el
- * registro, con códigos. No lanza.
+ * Hay dinero cobrado que el sistema no pudo aplicar (B2-1): tarea en el pedido (aunque no tenga consulta),
+ * tarea de la consulta si tiene, y correo interno al responsable. No lanza.
  */
-export async function avisarPagoSinAplicar(workspaceId: string, pedidoId: string): Promise<void> {
+export async function avisarPagoSinAplicar(
+  workspaceId: string,
+  pedidoId: string,
+  pago: { providerPaymentId: string; centavos: number; motivo: string },
+  deps: DepsRastro = {},
+): Promise<void> {
+  await dejarRastroDePago(
+    workspaceId,
+    {
+      pedidoId,
+      titulo: tituloPagoSinAplicar(pago.providerPaymentId, pago.centavos, pago.motivo),
+      tituloConsulta: TITULO_TAREA_PAGO_SIN_APLICAR,
+      asunto: "Llegó un pago de Mercado Pago que no se pudo aplicar",
+    },
+    deps,
+  ).catch(() => undefined);
+}
+
+export type ResultadoDevolucion = "avisado" | "ya_avisado" | "sigue_aprobado" | "cobro_anulado" | "sin_cobro" | "fallo";
+
+/**
+ * Un aviso de un pago YA acreditado (B2-4): si Mercado Pago lo devolvió, hubo contracargo, está en reclamo o
+ * se canceló, deja el rastro "anulá el cobro si corresponde" (una vez por pago y estado). NO anula el cobro ni
+ * toca Caja: lo confirma una persona. Si el cobro ya está anulado, no hay nada que avisar. No lanza.
+ */
+export async function avisarDevolucionMp(workspaceId: string, pago: PagoMp, deps: DepsRastro = {}): Promise<ResultadoDevolucion> {
   try {
-    const p = await prisma.fotofficePedido.findFirst({ where: { id: pedidoId, workspaceId }, select: { consultaLeadId: true, ownerUserId: true } });
-    if (!p?.consultaLeadId) {
-      console.warn("[fotoffice][pedidos] pago sin aplicar en un pedido sin consulta: no hay dónde dejar la tarea");
-      return;
-    }
-    const para = await destinatarioDelPresupuesto(workspaceId, p.ownerUserId);
-    await crearTareaDeConsulta(workspaceId, p.consultaLeadId, TITULO_TAREA_PAGO_SIN_APLICAR, para, new Date(), { unaSolaAbierta: true });
+    const reverso = reversoDelPago(pago);
+    if (!reverso) return "sigue_aprobado";
+    const cobro = await prisma.fotofficeCobro.findFirst({
+      where: { workspaceId, providerPaymentRef: pago.providerPaymentId },
+      select: { pedidoId: true, amountArs: true, voidedAt: true },
+    });
+    if (!cobro) return "sin_cobro";
+    if (cobro.voidedAt) return "cobro_anulado";
+    const r = await dejarRastroDePago(
+      workspaceId,
+      {
+        pedidoId: cobro.pedidoId,
+        titulo: tituloPagoDevuelto(pago.providerPaymentId, decimalArsToMinor(cobro.amountArs), reverso),
+        tituloConsulta: TITULO_TAREA_PAGO_DEVUELTO,
+        asunto: "Mercado Pago devolvió (o le reclamaron) un pago ya acreditado",
+      },
+      deps,
+    );
+    return r.tarea === "YA_EXISTIA" ? "ya_avisado" : "avisado";
   } catch (error) {
-    console.error("[fotoffice][pedidos] no se pudo dejar la tarea del pago sin aplicar", { detalle: sanitizeError(error) });
+    console.error("[fotoffice][pedidos] falló el aviso de una devolución", { detalle: sanitizeError(error) });
+    return "fallo";
   }
 }
 
@@ -243,7 +328,7 @@ export async function verificarPagoCuota(input: {
   providerPaymentId?: string | null;
 }): Promise<VerificacionPago> {
   const { workspaceId, pedidoId, cuotaId } = input;
-  const cuota = await prisma.fotofficePedidoCuota.findFirst({ where: { id: cuotaId, pedidoId, workspaceId }, select: { id: true } });
+  const cuota = await prisma.fotofficePedidoCuota.findFirst({ where: { id: cuotaId, pedidoId, workspaceId }, select: { id: true, pedidoId: true } });
   if (!cuota) return { resultado: "sin_pago" };
 
   const collector = await resolveWorkspaceCollector(workspaceId);
@@ -254,7 +339,9 @@ export async function verificarPagoCuota(input: {
   try {
     pago = input.providerPaymentId
       ? await adapter.getPayment(input.providerPaymentId)
-      : await adapter.searchPaymentsByExternalReference(referenciaCuota(cuota.id));
+      : // Primero la referencia nueva (con el pedido); si no hay, la vieja (preferencias abiertas antes).
+        ((await adapter.searchPaymentsByExternalReference(referenciaCuota(cuota.id, cuota.pedidoId))) ??
+        (await adapter.searchPaymentsByExternalReference(referenciaCuota(cuota.id))));
   } catch (error) {
     // Un `payment_id` inventado, o de otra organización, también cae acá: no es un error nuestro.
     console.warn("[fotoffice][pedidos] no se pudo consultar el pago en Mercado Pago", { detalle: sanitizeError(error) });

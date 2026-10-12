@@ -15,6 +15,7 @@ const H = vi.hoisted(() => ({
   aviso: vi.fn(async (..._a: unknown[]) => ({ cliente: "ENVIADO", estudio: "ENVIADO" })),
   avisoNoAcreditado: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
   avisoSegundo: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
+  avisoDevuelto: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -26,7 +27,7 @@ vi.mock("@/lib/presupuestos/sitio", () => ({
 }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String((e as Error)?.message ?? e).slice(0, 40) }));
-vi.mock("./avisos-compra", () => ({ avisarCompraPagada: H.aviso, avisarPagoNoAcreditado: H.avisoNoAcreditado, avisarSegundoPago: H.avisoSegundo }));
+vi.mock("./avisos-compra", () => ({ avisarCompraPagada: H.aviso, avisarPagoNoAcreditado: H.avisoNoAcreditado, avisarSegundoPago: H.avisoSegundo, avisarPagoDevuelto: H.avisoDevuelto }));
 vi.mock("@repo/payments/mercado-pago", () => ({
   createMercadoPagoCheckoutProLiveAdapter: (opts: { accessToken?: string }) => {
     H.adaptadores.push(opts);
@@ -102,6 +103,7 @@ beforeEach(() => {
   H.aviso.mockClear();
   H.avisoNoAcreditado.mockClear();
   H.avisoSegundo.mockClear();
+  H.avisoDevuelto.mockClear();
   H.search.mockReset().mockResolvedValue(null);
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.test");
   vi.stubEnv("LINK_SECRET", CLAVE);
@@ -131,7 +133,7 @@ describe("iniciarPagoGaleria", () => {
     const p = H.preferencia.mock.calls[0]![0] as Record<string, unknown>;
     expect(p).toMatchObject({
       amountMinor: 450_000, currency: "ARS", externalReference: `fo-galcompra:${id}`, accessTokenOverride: "tok-ws-1",
-      notificationUrl: "https://app.test/api/payments/mp/galerias-webhook", payerEmail: "lucia@x.com",
+      notificationUrl: "https://app.test/api/payments/mp/galerias-webhook?ws=ws-1", payerEmail: "lucia@x.com",
     });
     expect(p.description).toBe("Fotos extra · Boda");
     expect(p).not.toHaveProperty("marketplaceFee");
@@ -453,6 +455,86 @@ describe("webhook de pagos de galerías", () => {
     await llamar("1015");
     const todo = JSON.stringify(logs.flatMap((l) => l.mock.calls));
     expect(todo).not.toMatch(/lucia@x\.com|Lucía/);
+  });
+});
+
+describe("webhook de galerías: organización por ?ws= y devoluciones", () => {
+  beforeEach(() => {
+    compra("c1", "PENDIENTE", ["f3", "f4", "f5"]);
+  });
+  const conWs = async (id: string, ws: string) =>
+    ((await webhookPOST(aviso(id, `https://app.test/api/payments/mp/galerias-webhook?ws=${ws}`))) as unknown as { body: Record<string, unknown>; init?: { status?: number } });
+
+  it("con ?ws= lee el pago sólo con el token de esa organización y acredita", async () => {
+    pago("3001", "c1", 4500);
+    const r = await conWs("3001", "ws-1");
+    expect(r.body).toMatchObject({ ok: true, applied: true, resultado: "acreditado" });
+    expect(H.adaptadores.map((a) => a.accessToken)).toEqual(["tok-ws-1"]);
+  });
+
+  it("un ?ws= equivocado se descarta: ws solo no alcanza si su token no puede leer el pago", async () => {
+    pago("3002", "c1", 4500);
+    const r = await conWs("3002", "ws-2");
+    expect(r.body).toMatchObject({ ok: true, applied: false, motivo: "el pago no es de esa organización" });
+    expect(r.init).toBeUndefined();
+    expect(compras()[0]!.status).toBe("PENDIENTE");
+    expect(H.adaptadores.map((a) => a.accessToken)).toEqual(["tok-ws-2"]);
+  });
+
+  it("un ?ws= cuyo token lee un pago que nombra una compra de otra organización no acredita", async () => {
+    pago("3003", "c1", 4500, "ws-2");
+    expect((await conWs("3003", "ws-2")).body).toMatchObject({ applied: false, resultado: "no_es_de_esta_organizacion" });
+    expect(compras()[0]!.status).toBe("PENDIENTE");
+  });
+
+  it("sin ?ws= (preferencia vieja) prueba las organizaciones, las más activas primero", async () => {
+    for (let i = 0; i < 25; i++) {
+      B.agregar("fotofficeGaleriaCompra", { id: `otra-${i}`, workspaceId: `ws-x${i}`, galeriaId: "g-x", galeriaClienteId: "gc-x", status: "PENDIENTE", extraCount: 1, totalArs: "1.00", updatedAt: new Date(2026, 0, 1) });
+    }
+    compras().find((c) => c.id === "c1")!.updatedAt = new Date(2026, 9, 10);
+    pago("3004", "c1", 4500);
+    expect((await llamar("3004")).body).toMatchObject({ applied: true });
+    expect(H.adaptadores[0]!.accessToken).toBe("tok-ws-1");
+  });
+
+  it("una devolución o un contracargo de una compra ya acreditada avisa una vez por estado y no toca Caja", async () => {
+    pago("3005", "c1", 4500);
+    await llamar("3005");
+    expect(movimientos()).toHaveLength(1);
+    pago("3005", "c1", 4500, "ws-1", { status: "REFUNDED" }, { status: "refunded", status_detail: "refunded" });
+    expect((await llamar("3005")).body).toMatchObject({ applied: false, motivo: "devolución", resultado: "avisado" });
+    expect((await llamar("3005")).body).toMatchObject({ resultado: "ya_avisado" });
+    expect(H.avisoDevuelto).toHaveBeenCalledTimes(1);
+    expect(String((H.avisoDevuelto.mock.calls[0]![0] as { texto: string }).texto)).toMatch(/Mercado Pago devolvió \(o le reclamaron\) el pago N° 3005 de \$ 4\.500,00 \(devuelto\): anulá la compra en Caja si corresponde/);
+    pago("3005", "c1", 4500, "ws-1", { status: "CHARGEBACK" }, { status: "charged_back" });
+    expect((await llamar("3005")).body).toMatchObject({ resultado: "avisado" });
+    expect(H.avisoDevuelto).toHaveBeenCalledTimes(2);
+    expect(eventos().filter((e) => e === "PAGO_DEVUELTO")).toHaveLength(2);
+    expect(compras()[0]!.status).toBe("PAGADA");
+    expect(movimientos()).toHaveLength(1);
+  });
+
+  it("un aviso repetido de un pago que sigue aprobado no avisa nada", async () => {
+    pago("3006", "c1", 4500);
+    await llamar("3006");
+    expect((await llamar("3006")).body).toMatchObject({ motivo: "aviso repetido" });
+    expect(H.avisoDevuelto).not.toHaveBeenCalled();
+  });
+
+  it("si la base falla en el camino de la devolución, responde 200 igual", async () => {
+    pago("3007", "c1", 4500);
+    await llamar("3007");
+    const tabla = B.tablas.fotofficeGaleriaCompra as { findFirst: (...a: unknown[]) => Promise<unknown> };
+    const original = tabla.findFirst;
+    tabla.findFirst = async () => {
+      throw new Error("base caída");
+    };
+    try {
+      const r = await llamar("3007");
+      expect(r.init?.status).toBe(200);
+    } finally {
+      tabla.findFirst = original;
+    }
   });
 });
 

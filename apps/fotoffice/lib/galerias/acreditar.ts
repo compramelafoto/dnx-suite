@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { sanitizeError } from "@/lib/payments/connect/log";
-import { avisarCompraPagada, avisarPagoNoAcreditado, avisarSegundoPago } from "./avisos-compra";
+import { reversoDelPago, tituloPagoDevuelto } from "@/lib/pedidos/mp-puro";
+import { avisarCompraPagada, avisarPagoDevuelto, avisarPagoNoAcreditado, avisarSegundoPago } from "./avisos-compra";
 import { registrarCompraPagada } from "./compras";
 import { registrarEventoSinFallar } from "./eventos";
 import { compraDeReferencia, hechosDelPago, pagoAprobado } from "./venta-publica";
@@ -173,5 +174,39 @@ export async function acreditarPagoGaleria(workspaceId: string, pago: PagoMp, de
   } catch (error) {
     console.error("[galerias] falló la acreditación de un pago", { detalle: sanitizeError(error) });
     return { resultado: "fallo" };
+  }
+}
+
+export type ResultadoDevolucionGaleria = "avisado" | "ya_avisado" | "sigue_aprobado" | "sin_compra" | "fallo";
+
+/**
+ * Un aviso de un pago YA acreditado en una compra: si Mercado Pago lo devolvió, hubo contracargo, está en
+ * reclamo o se canceló, queda `PAGO_DEVUELTO` en el historial y el aviso al estudio, una sola vez por pago y
+ * estado. NO anula la compra ni toca Caja: lo confirma una persona. Nunca lanza.
+ */
+export async function avisarDevolucionGaleria(workspaceId: string, pago: PagoMp, deps: DepsAcreditarGaleria = {}): Promise<ResultadoDevolucionGaleria> {
+  try {
+    const reverso = reversoDelPago(pago);
+    if (!reverso) return "sigue_aprobado";
+    const compra = await prisma.fotofficeGaleriaCompra.findFirst({
+      where: { workspaceId, providerPaymentRef: pago.providerPaymentId },
+      select: { id: true, galeriaId: true, galeriaClienteId: true, totalArs: true },
+    });
+    if (!compra) return "sin_compra";
+    const previos = await prisma.fotofficeGaleriaEvento.findMany({ where: { workspaceId, galeriaId: compra.galeriaId, type: "PAGO_DEVUELTO" }, select: { data: true } });
+    const ya = previos.some((e) => {
+      const d = e.data as { pago?: unknown; estado?: unknown } | null;
+      return d?.pago === pago.providerPaymentId && d?.estado === reverso;
+    });
+    if (ya) return "ya_avisado";
+    const base = { workspaceId, galeriaId: compra.galeriaId, galeriaClienteId: compra.galeriaClienteId };
+    await registrarEventoSinFallar({ ...base, tipo: "PAGO_DEVUELTO", data: { compraId: compra.id, pago: pago.providerPaymentId, estado: reverso } });
+    const texto = tituloPagoDevuelto(pago.providerPaymentId, decimalArsToMinor(compra.totalArs), reverso, "la compra en Caja");
+    console.warn("[galerias] Mercado Pago dio vuelta un pago acreditado", { estado: reverso });
+    programar(() => avisarPagoDevuelto({ ...base, compraId: compra.id, texto }), deps);
+    return "avisado";
+  } catch (error) {
+    console.error("[galerias] falló el aviso de una devolución", { detalle: sanitizeError(error) });
+    return "fallo";
   }
 }
