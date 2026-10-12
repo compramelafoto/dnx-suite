@@ -364,7 +364,7 @@ describe("ver_mi_pack", () => {
     const r = await tool(a(), "ver_mi_pack").run({}, ACTOR_MOTOR_COMPRADOR);
     expect(r).toMatchObject({
       ok: true,
-      data: { pedido: 9, estado: "pagado", pack: "Pack egresados", fechaLimiteCanje: "20/12/2026", canjeado: false, hayFotos: false, siguientePaso: "Cuando el fotógrafo suba las fotos te llega un mail y elegís desde este mismo enlace." },
+      data: { pedido: 9, estado: "pagado", pack: "Pack egresados", fechaLimiteCanje: "20/12/2026", canjeado: false, hayFotos: false, siguientePaso: "Todavía no hay fotos. Cuando el fotógrafo las suba y mande el aviso, vas a poder elegir desde este mismo enlace." },
     });
   });
   it("con fotos y sin canjear; snapshot roto → pack null", async () => {

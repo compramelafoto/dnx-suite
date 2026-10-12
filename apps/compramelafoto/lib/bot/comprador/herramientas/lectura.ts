@@ -364,7 +364,7 @@ function verMiPack(a: CompradorActor): BotTool {
         ? "Ya elegiste tus fotos."
         : hayFotos
           ? "Ya podés elegir tus fotos desde este enlace."
-          : "Cuando el fotógrafo suba las fotos te llega un mail y elegís desde este mismo enlace.";
+          : "Todavía no hay fotos. Cuando el fotógrafo las suba y mande el aviso, vas a poder elegir desde este mismo enlace.";
       return {
         ok: true,
         message: `Pack del pedido #${o.id}`,
