@@ -16,6 +16,8 @@ export default defineConfig({
       "lib/fotografo/profile-field-rules.test.ts",
       "app/api/bot/**/*.test.ts",
       "app/api/dashboard/albums/*/route.patch.test.ts",
+      "app/api/dashboard/albums/*/packs/**/*.test.ts",
+      "app/api/fotografo/update/*.test.ts",
     ],
   },
 });

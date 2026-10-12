@@ -29,6 +29,12 @@ import {
   deriveAlbumPackTypeFromComponents,
   serializeAlbumPackForDashboardApi,
 } from "@/lib/album-packs/album-pack-dashboard-api";
+import {
+  checkSelectionNeedsPhotoCount,
+  parseIncludedPhotoCount,
+  parsePackName,
+  parsePackPrice,
+} from "@/lib/album-packs/album-pack-basic-rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,15 +126,17 @@ export async function POST(
 
     const body = await req.json();
 
-    const name = String(body?.name ?? "").trim();
-    if (!name) {
-      return NextResponse.json({ error: "name es requerido" }, { status: 400 });
+    const nameRule = parsePackName(body?.name, "create");
+    if (!nameRule.ok) {
+      return NextResponse.json({ error: nameRule.error }, { status: 400 });
     }
+    const name = nameRule.value;
 
-    const price = Number(body?.price);
-    if (!Number.isInteger(price) || price < 0) {
-      return NextResponse.json({ error: "price debe ser un entero >= 0" }, { status: 400 });
+    const priceRule = parsePackPrice(body?.price);
+    if (!priceRule.ok) {
+      return NextResponse.json({ error: priceRule.error }, { status: 400 });
     }
+    const price = priceRule.value;
 
     const availabilityPhaseRaw = String(body?.availabilityPhase ?? "").trim();
     if (!availabilityPhaseRaw) {
@@ -189,25 +197,14 @@ export async function POST(
         ? null
         : String(body.description).trim() || null;
 
-    const includedPhotoCountRaw = body?.includedPhotoCount;
-    const includedPhotoCount =
-      includedPhotoCountRaw === undefined || includedPhotoCountRaw === null
-        ? null
-        : Number(includedPhotoCountRaw);
-    if (
-      includedPhotoCount !== null &&
-      (!Number.isInteger(includedPhotoCount) || includedPhotoCount < 1)
-    ) {
-      return NextResponse.json(
-        { error: "includedPhotoCount debe ser un entero >= 1 o null" },
-        { status: 400 }
-      );
+    const includedPhotoCountRule = parseIncludedPhotoCount(body?.includedPhotoCount);
+    if (!includedPhotoCountRule.ok) {
+      return NextResponse.json({ error: includedPhotoCountRule.error }, { status: 400 });
     }
-    if (requiresSelection && includedPhotoCount == null) {
-      return NextResponse.json(
-        { error: "includedPhotoCount es obligatorio cuando requiresSelection = true" },
-        { status: 400 }
-      );
+    const includedPhotoCount = includedPhotoCountRule.value;
+    const selectionRule = checkSelectionNeedsPhotoCount(requiresSelection, includedPhotoCount);
+    if (!selectionRule.ok) {
+      return NextResponse.json({ error: selectionRule.error }, { status: 400 });
     }
     if (requiresDesign && !requiresSelection) {
       return NextResponse.json(

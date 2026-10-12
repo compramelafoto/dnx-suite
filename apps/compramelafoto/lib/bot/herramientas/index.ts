@@ -4,6 +4,8 @@ import { escalateToHuman, reportIncident } from "@/lib/bot/escalamiento";
 import { ALLOWED_REASONS } from "@/lib/support/sanitize";
 import { albumTools } from "./album";
 import { lecturaTools } from "./lectura";
+import { packTools } from "./packs";
+import { perfilTools } from "./perfil";
 
 const PHOTOGRAPHER_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"]);
 
@@ -53,6 +55,6 @@ export function toolsForActor(actor: BotActor, ctx: { conversationId: string }):
     }),
   ];
   if (!PHOTOGRAPHER_ROLES.has(actor.role)) return comunes;
-  // Las herramientas de escritura (Tasks 11-12) se suman acá.
-  return [...lecturaTools, ...albumTools, ...comunes];
+  // Las herramientas de escritura (Task 12) se suman acá.
+  return [...lecturaTools, ...albumTools, ...packTools, ...perfilTools, ...comunes];
 }
