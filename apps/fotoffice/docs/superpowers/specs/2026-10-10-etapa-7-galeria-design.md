@@ -156,9 +156,26 @@ agua (DNX no la usa; queda para cuando otro estudio la pida), reconocimiento fac
      el llavero, nunca en `config.json`.
 4. **Vencimiento** de la entrega con aviso: **[decisión: queda para después]**.
 
-## 6. Entrega C · Aprobación de álbum (resumen)
+## 6. Entrega C · Aprobación de álbum
 
-Láminas del álbum (desde el Diseñador), comentario marcado en un punto, aprobar o pedir cambios, rondas.
+> **Decisiones (11/10, tomadas por el controlador con el pedido de Daniel de "seguir sin detenerse", siguiendo la
+> "Prueba de Álbum" de Proof que DNX usa hoy):** las láminas se **suben como imágenes** (JPG/PNG, una por lámina
+> o pliego, igual que se exportan del diagramador); el Diseñador de FOTOFFICE queda para después.
+
+1. **Galería de álbum** (`kind = ALBUM`), atada al Proyecto como las demás; las láminas usan el mismo
+   almacenamiento y la misma vista de 2048 px (se ven nítidas a pantalla completa).
+2. **Rondas:** la primera subida es la **ronda 1**; el estudio puede abrir la **ronda 2, 3…** con las láminas
+   corregidas. Cada ronda guarda sus láminas, comentarios y decisiones; el cliente ve siempre la última ronda
+   abierta y puede mirar las anteriores en sólo lectura. Al abrir una ronda nueva los clientes vuelven a
+   `EN_PROGRESO` y se les avisa por correo.
+3. **Cliente:** hojea las láminas en orden (flechas, teclado, deslizar), ve el número de lámina, **toca un punto
+   de la lámina para dejar un comentario marcado ahí** (pin numerado; también comentario general de la
+   lámina) y termina con **"Aprobar el álbum"** (con mensaje opcional) o **"Pedir cambios"** (mensaje
+   obligatorio si no dejó comentarios). Después queda sólo lectura hasta la próxima ronda.
+4. **Estudio:** ve cada lámina con los pines de cada cliente, responde, ve la decisión y el historial de rondas;
+   "Abrir ronda nueva" (sube láminas corregidas: se pueden reemplazar todas o sólo algunas, copiando las no
+   tocadas); correo al estudio cuando el cliente decide; "Finalizar" cuando el álbum está aprobado.
+5. **Fuera de C:** vista 3D, integración con el Diseñador, plazos y recordatorios.
 
 ## 7. Datos (A1)
 
