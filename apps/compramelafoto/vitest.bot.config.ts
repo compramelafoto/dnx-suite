@@ -25,6 +25,8 @@ export default defineConfig({
       "lib/albums/album-school-settings.test.ts",
       "app/api/dashboard/albums/*/packs/**/*.test.ts",
       "app/api/fotografo/update/*.test.ts",
+      "app/api/admin/schools/*/organizers/invite/route.test.ts",
+      "lib/schools/invite-organizer.test.ts",
     ],
   },
 });
