@@ -11,8 +11,54 @@ import { FAQ_CATEGORIES } from "@/components/faq-data";
  * - Selfies: lib/legal/biometric-consent-content.ts, lib/legal/retention-policy-content.ts,
  *   components/dashboard/albums/AlbumConfigurationSection.tsx.
  * - Mercado Pago: app/ayuda/mercadopago/seguridad/page.tsx. Términos: lib/terms/photographerTerms.ts.
+ * - Venta escolar: lib/bot/escolar/progreso.ts (los 11 pasos y sus títulos), app/canje/preventa/[token],
+ *   lib/school-roster/student-identification-mode-ui.ts (modos de identificación),
+ *   lib/school-organizer-commission.ts (comisión de la escuela: sólo se registra),
+ *   app/api/fotografo/escuelas/pedidos/[orderId]/labels y app/escolar/entrega/[token] (entrega con QR),
+ *   docs/compramelafoto/AUDITORIA-VENTA-ESCOLAR.md. El porcentaje del recargo a la familia vive en la
+ *   base (con excepciones por fotógrafo), así que acá no va ningún número.
  * Texto fijo: sin fechas ni montos que cambien por configuración (va en el prompt cacheado).
  */
+
+const VENTA_ESCOLAR = `## Venta escolar
+Cómo funciona en CLF:
+- Preventa: el fotógrafo arma packs (por ejemplo, una carpeta impresa más el digital) y las familias los pagan por Mercado Pago antes de la toma o antes de que se suban las fotos. Cada familia recibe su comprobante y el fotógrafo cobra su precio completo; CLF suma un recargo que paga la familia encima de ese precio.
+- Canje: cuando las fotos están subidas, cada familia entra con su link personal (/canje/preventa/…), elige las fotos que le corresponden según el pack que pagó y canjea. Si quiere más (otra impresa, el digital, una ampliación), lo puede sumar pagándolo por Mercado Pago.
+- Cursos: la escuela tiene sus cursos cargados; la familia indica el curso al comprar y cada pedido queda con su curso.
+- Identificación del alumno, en palabras simples: sin identificación (la familia no dice de qué alumno es), carga manual (la familia escribe el nombre del alumno), lista opcional (la familia puede elegir al alumno de la lista del curso) o lista obligatoria (tiene que elegirlo de la lista). Para las dos con lista hay que cargar la lista de alumnos.
+- Plantillas: los productos impresos, como las carpetas, pueden llevar una plantilla de diseño con el nombre, el curso y la escuela.
+- Comisión de la escuela: si el fotógrafo arregló una comisión con la escuela, el sistema la deja anotada en cada venta para que la tenga clara. La paga el fotógrafo directamente a la escuela; CLF no la cobra ni la paga.
+- Entrega: hay etiquetas con QR para cada sobre y una ficha para seguir qué pedido se entregó.
+- El diseño automático con las plantillas y la entrega con QR son nuevos: todavía no hay colegios que los hayan usado de punta a punta. Ofrecelos así: "está recién estrenado; te acompañamos". La opción segura es que el fotógrafo descargue las fotos elegidas y diseñe e imprima como siempre.
+
+Los 11 pasos del armado, en orden (los opcionales no frenan la venta):
+1. Crear la escuela
+2. Cargar cursos o alumnos
+3. Invitar a alguien de la escuela (opcional)
+4. Crear el álbum escolar vinculado a la escuela
+5. Definir cómo se identifica a cada alumno
+6. Armar los packs de preventa
+7. Elegir las plantillas de los productos impresos
+8. Configurar la comisión para la escuela (opcional)
+9. Publicar la preventa para las familias
+10. Subir las fotos y avisar a las familias (el aviso no sale solo: el fotógrafo tiene que mandarlo)
+11. Entregar los pedidos
+Un álbum marcado como escolar pero sin escuela vinculada queda a medias: el paso 4 no está hecho.
+
+Por qué conviene frente al sobre con plata:
+- La plata no pasa por las maestras: cada familia paga por Mercado Pago, con comprobante, y queda anotado pedido por pedido.
+- No hace falta imprimir antes de cobrar: se imprime lo que ya se pagó.
+- Cada familia elige sus fotos y puede sumar extras, cosa que con el sobre casi no pasa.
+- Menos errores de nombres y cursos que con listas en papel y sobres escritos a mano.
+- Privacidad de las imágenes de los chicos: cada familia ve sólo lo suyo, en vez de pruebas de todo el curso circulando en papel o por grupos.
+
+Respuestas cortas a dudas frecuentes:
+- "Las familias no tienen tarjeta": el pago es por Mercado Pago, que ofrece otros medios además de la tarjeta; no prometas un medio en particular.
+- "El colegio prefiere efectivo": contale que con la preventa la plata no pasa por el colegio ni por las maestras y queda registrada con comprobante, y que cada familia elige sus fotos desde el celular. No ofrezcas cargar pagos hechos por fuera.
+- "Me van a copiar las fotos": cada familia entra con su link y ve sólo lo suyo, las muestras se ven con protección y se pueden activar las "fotos ocultas" del álbum. Un consejo: incluir el digital en el pack, así no hay nada que copiar.
+- "La comisión": el fotógrafo cobra su precio completo; el recargo de CLF lo paga la familia encima. La comisión de la escuela la arregla y la paga el fotógrafo; el sistema sólo la anota.
+- "El colegio ya cobró por fuera": es un caso especial para fotógrafos que se sumaron con el proceso empezado. Nunca lo ofrezcas vos. Si el fotógrafo dice que ya cobró, explicale que es un caso especial que arma el equipo y abrí un pedido de soporte con abrir_ticket (motivo OTHER).
+- Si preguntan por algo escolar que no está en esta sección, no lo prometas: decí que no lo sabés y ofrecé un pedido de soporte.`;
 
 const FAQ = FAQ_CATEGORIES.map(
   (c) => `## ${c.title}\n` + c.items.map((i) => `- P: ${i.q}\n  R: ${i.a}`).join("\n"),
@@ -60,6 +106,8 @@ Si algunas fotos no se pudieron subir, el panel lo avisa y ofrece reintentar só
 - Las fotos siguen siendo del fotógrafo: subirlas no cede derechos a CLF, al laboratorio ni a nadie. CLF las muestra en versión de muestra, con marca de agua u otra protección, sólo para venderlas. Los términos también autorizan a Info Spot (el medio de CLF) a publicar unas pocas fotos con crédito para difundir el evento y su venta.
 - El fotógrafo declara tener las autorizaciones para fotografiar y vender las imágenes.
 - Cualquier persona puede pedir que se quite una foto. El pedido le llega al fotógrafo en su panel, que lo aprueba o lo rechaza; si lo aprueba, la foto deja de verse y de venderse. Vos no podés aprobarlo: explicá dónde hacerlo.
+
+${VENTA_ESCOLAR}
 
 ## Preguntas frecuentes
 ${FAQ}`;

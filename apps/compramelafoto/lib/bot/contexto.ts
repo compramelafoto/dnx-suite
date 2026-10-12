@@ -11,6 +11,7 @@ import {
   type MercadoPagoConnectionStatus,
 } from "@/lib/mercadopago/mp-connection-health";
 import { prisma } from "@/lib/prisma";
+import { computeSchoolSetupProgress, type ProgresoEscolar } from "@/lib/bot/escolar/progreso";
 
 export type SituationAlert = { level: "bloquea_ventas" | "aviso"; text: string; albumId?: number };
 
@@ -36,6 +37,20 @@ function daysUntil(date: Date, now: number): number {
   return Math.ceil((date.getTime() - now) / DAY);
 }
 
+/** Una línea con el avance del armado escolar; si algo falla, no rompe la situación. */
+async function schoolProgressLine(userId: number): Promise<string | null> {
+  let p: ProgresoEscolar;
+  try {
+    p = await computeSchoolSetupProgress(userId);
+  } catch {
+    return null;
+  }
+  if (p.albumTitulo == null) return null;
+  return p.siguiente
+    ? `Escolar: paso ${p.siguiente.n} de ${p.total} en «${p.albumTitulo}» (sigue: ${p.siguiente.titulo.toLowerCase()}; ${p.hechos} de ${p.total} hechos)`
+    : `Escolar: los ${p.total} pasos están hechos en «${p.albumTitulo}»`;
+}
+
 function organizerFixedPrice(pricing: CollaborativeEventPricingLockSnapshot | null): number | null {
   if (!pricing?.locksPhotographerDigitalPricing) return null;
   const fixed = pricing.fixedPhotoPrice;
@@ -58,7 +73,7 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
         firstPhotoDate: true, expirationExtensionDays: true, isHidden: true, deletedAt: true, cleanupStatus: true,
         enableDigitalPhotos: true, enablePrintedPhotos: true, digitalPhotoPriceCents: true,
         termsAcceptedAt: true, termsVersion: true, albumProfitMarginPercent: true,
-        selectedLabId: true, pickupBy: true, printPricingSource: true,
+        selectedLabId: true, pickupBy: true, printPricingSource: true, mode: true, schoolId: true,
         _count: { select: { photos: { where: { isRemoved: false } } } },
       },
     }),
@@ -85,6 +100,10 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
       eventIds.map(async (id) => [id, await loadCollaborativeEventPricingSnapshot(id).catch(() => null)] as const),
     ),
   );
+
+  // Sólo si tiene algún álbum escolar: el progreso hace varias consultas acotadas.
+  const hasSchoolAlbum = albums.some((a) => a.mode === "SCHOOL" || a.schoolId != null);
+  const schoolLine = hasSchoolAlbum ? await schoolProgressLine(userId) : null;
 
   const alerts: SituationAlert[] = [];
   if (mp.status === "NOT_CONNECTED") {
@@ -150,6 +169,13 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
     );
 
     if (a.isTest) continue;
+    if (a.mode === "SCHOOL" && a.schoolId == null) {
+      alerts.push({
+        level: "bloquea_ventas",
+        albumId: a.id,
+        text: `«${a.title}» está marcado como escolar pero no tiene escuela: queda a medias.`,
+      });
+    }
     if (a.isPublic && !hiddenByExpiry && !r.readyToSell) {
       alerts.push({ level: "bloquea_ventas", albumId: a.id, text: `«${a.title}» está publicado pero no puede vender: falta ${gaps}.` });
     }
@@ -175,6 +201,7 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
       ? `Álbumes (más recientes primero${albums.length === MAX_ALBUMS ? `, sólo los últimos ${MAX_ALBUMS}` : ""}):`
       : "No tiene álbumes.",
     ...lines,
+    ...(schoolLine ? [schoolLine] : []),
     alerts.length ? "Alertas:\n" + alerts.map((x) => `- [${x.level}] ${x.text}`).join("\n") : "Sin alertas.",
   ].join("\n");
   return { text, alerts };

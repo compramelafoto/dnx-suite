@@ -3,6 +3,7 @@ import { TERMS_VERSIONS_VALIDAS_PARA_VENTA } from "@/lib/terms/photographerTerms
 
 const m = vi.hoisted(() => ({
   albums: vi.fn(), products: vi.fn(), jobs: vi.fn(), orders: vi.fn(), health: vi.fn(), eventPricing: vi.fn(),
+  progreso: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -19,6 +20,9 @@ vi.mock("@/lib/mercadopago/mp-connection-health", () => ({
 vi.mock("@/lib/events/collaborative-event-pricing-lock", () => ({
   loadCollaborativeEventPricingSnapshot: (...a: unknown[]) => m.eventPricing(...a),
 }));
+vi.mock("@/lib/bot/escolar/progreso", () => ({
+  computeSchoolSetupProgress: (...a: unknown[]) => m.progreso(...a),
+}));
 import { buildPhotographerSituation } from "./contexto";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -30,7 +34,7 @@ function album(over: Record<string, unknown> = {}) {
     firstPhotoDate: null, expirationExtensionDays: 0, isHidden: false, deletedAt: null, cleanupStatus: "NONE",
     enableDigitalPhotos: true, enablePrintedPhotos: false, digitalPhotoPriceCents: null,
     termsAcceptedAt: new Date(), termsVersion: VALID_TERMS, albumProfitMarginPercent: null, selectedLabId: null,
-    pickupBy: null, printPricingSource: null, _count: { photos: 10 },
+    pickupBy: null, printPricingSource: null, mode: "STANDARD", schoolId: null, _count: { photos: 10 },
     ...over,
   };
 }
@@ -43,6 +47,11 @@ beforeEach(() => {
   m.orders.mockResolvedValue({ _count: { _all: 0 }, _sum: { totalCents: null } });
   m.health.mockResolvedValue({ status: "CONNECTED", selfHealed: false });
   m.eventPricing.mockResolvedValue(null);
+  m.progreso.mockResolvedValue({
+    albumId: 3, albumTitulo: "Egresados", schoolId: 5, pasos: [], hechos: 5, total: 11,
+    siguiente: { n: 6, id: "preventa", titulo: "Armar los packs de preventa", estado: "pendiente", opcional: false, enlace: null },
+    aMedias: false,
+  });
 });
 
 describe("buildPhotographerSituation", () => {
@@ -126,5 +135,43 @@ describe("buildPhotographerSituation", () => {
     expect(m.orders.mock.calls[0][0].where).toMatchObject({ album: { userId: 42 }, isTest: false, status: "PAID" });
     expect(m.jobs.mock.calls[0][0].where).toMatchObject({ album: { userId: 42 }, status: "FAILED" });
     expect(m.health).toHaveBeenCalledWith({ ownerType: "USER", ownerId: 42 });
+  });
+
+  it("álbum escolar sin escuela → alerta «a medias» que bloquea ventas", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: null })]);
+    const s = await buildPhotographerSituation(1);
+    expect(s.alerts).toContainEqual({
+      level: "bloquea_ventas",
+      albumId: 3,
+      text: "«Egresados» está marcado como escolar pero no tiene escuela: queda a medias.",
+    });
+  });
+
+  it("álbum escolar de prueba sin escuela no genera la alerta", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: null, isTest: true })]);
+    const s = await buildPhotographerSituation(1);
+    expect(s.alerts.some((a) => a.text.includes("a medias"))).toBe(false);
+  });
+
+  it("con álbum escolar muestra en qué paso del armado está", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: 5 })]);
+    const s = await buildPhotographerSituation(7);
+    expect(m.progreso).toHaveBeenCalledWith(7);
+    expect(s.text).toContain("Escolar: paso 6 de 11 en «Egresados»");
+  });
+
+  it("sin álbumes escolares no calcula el progreso", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500 })]);
+    const s = await buildPhotographerSituation(1);
+    expect(m.progreso).not.toHaveBeenCalled();
+    expect(s.text).not.toContain("Escolar:");
+  });
+
+  it("si el progreso escolar falla, la situación sale igual", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: 5 })]);
+    m.progreso.mockRejectedValue(new Error("base caída"));
+    const s = await buildPhotographerSituation(1);
+    expect(s.text).toContain("Egresados");
+    expect(s.text).not.toContain("Escolar:");
   });
 });

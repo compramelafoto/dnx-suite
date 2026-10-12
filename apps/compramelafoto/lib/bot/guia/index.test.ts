@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { armarPasos } from "@/lib/bot/escolar/progreso";
 import { buildSystemGuide } from "./index";
 
 describe("buildSystemGuide", () => {
@@ -26,5 +27,22 @@ describe("buildSystemGuide", () => {
   });
   it("incluye las preguntas frecuentes del sitio", () => {
     expect(buildSystemGuide()).toContain("¿Para qué sirve ComprameLaFoto?");
+  });
+  it("enseña la venta escolar sin prometer lo que no existe", () => {
+    const g = buildSystemGuide();
+    expect(g).toContain("## Venta escolar");
+    expect(g).toContain("ver_progreso_escolar");
+    expect(g).toContain("recién estrenado");
+    expect(g).not.toMatch(/descarga gratuita/i);
+    expect(g).not.toMatch(/selfie escolar/i);
+  });
+  it("lista los 11 pasos escolares con los mismos títulos que el progreso", () => {
+    const g = buildSystemGuide();
+    const vacio = {
+      escuela: null, tieneCursos: false, admin: null, album: null, rosterActivos: 0, packsConBeneficios: 0,
+      plantillasRequeridas: 0, plantillasRequeridasCargadas: 0, packsPublicados: 0, fotos: 0, avisoEnviado: false,
+      itemsPreventa: 0, itemsSinEntregar: 0,
+    };
+    for (const p of armarPasos(vacio).pasos) expect(g).toContain(`${p.n}. ${p.titulo}`);
   });
 });
