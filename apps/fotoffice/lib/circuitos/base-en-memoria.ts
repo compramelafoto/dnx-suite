@@ -30,6 +30,8 @@ const TABLAS = [
   "fotofficeRolParticipante", "fotofficeConsultaParticipante", "fotofficeConsultaAjustes",
   // Usuarios del equipo (el aviso de consulta nueva lee su correo).
   "user",
+  // Registro de correos enviados (el aviso de un pago de Mercado Pago sin pedido se deduplica ahí).
+  "sentEmailLog",
   // Bitácora de las listas (la importación de consultas deja su registro).
   "fotofficeListActivity",
   // Catálogo de Ventas y su ampliación para presupuestos (etapa 2).

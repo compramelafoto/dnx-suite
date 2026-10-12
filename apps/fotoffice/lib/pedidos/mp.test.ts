@@ -480,6 +480,26 @@ describe("referencias: formato nuevo con pedido y formato viejo (B2-2)", () => {
     expect(correo.text).toContain("No pudimos saber de qué pedido es");
   });
 
+  it("cuota borrada con la referencia vieja: el aviso repetido de Mercado Pago no repite el correo", async () => {
+    for (let i = 0; i < 3; i++) await MP.acreditarPagoMp("ws-1", conRef("pay-4", "fo-pedcuota:cuota-borrada", 40000));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(H.enviar).toHaveBeenCalledTimes(1);
+    expect((H.enviar.mock.calls[0]![0] as { subject: string }).subject).toContain("(pago N° pay-4)");
+    expect(B.datos.sentEmailLog).toEqual([expect.objectContaining({ templateKey: "fotoffice-mp-pago-sin-pedido:ws-1", status: "SENT" })]);
+  });
+
+  it("sin pedido: si el correo falló, el próximo aviso lo reintenta; y tiene su propio tope diario", async () => {
+    H.enviar.mockResolvedValueOnce({ status: "PROVIDER_REJECTED", detail: "x" } as never);
+    await MP.acreditarPagoMp("ws-1", conRef("pay-r", "fo-pedcuota:cuota-borrada", 40000));
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
+    await MP.acreditarPagoMp("ws-1", conRef("pay-r", "fo-pedcuota:cuota-borrada", 40000));
+    await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(2));
+    for (let i = 0; i < 60; i++) B.agregar("sentEmailLog", { to: "x", subject: `viejo ${i}`, templateKey: "fotoffice-mp-pago-sin-pedido:ws-1", status: "SENT", createdAt: new Date() });
+    await MP.acreditarPagoMp("ws-1", conRef("pay-tope", "fo-pedcuota:cuota-borrada", 40000));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(H.enviar).toHaveBeenCalledTimes(2);
+  });
+
   it("cuota borrada y pago no aprobado: nada que avisar", async () => {
     B.datos.fotofficePedidoCuota = B.datos.fotofficePedidoCuota.filter((c) => c.id !== "ped-1-c3");
     const r = await MP.acreditarPagoMp("ws-1", { ...conRef("pay-5", "fo-pedcuota:ped-1:ped-1-c3", 40000), status: "PENDING", rawSanitized: { status: "pending" } });

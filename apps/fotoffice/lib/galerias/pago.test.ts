@@ -514,6 +514,28 @@ describe("webhook de galerías: organización por ?ws= y devoluciones", () => {
     expect(movimientos()).toHaveLength(1);
   });
 
+  it("la devolución de un segundo pago (registrado en PAGO_DUPLICADO) también avisa, una vez, sin tocar Caja", async () => {
+    pago("3101", "c1", 4500);
+    await llamar("3101");
+    pago("3102", "c1", 4500);
+    await llamar("3102");
+    expect(eventos()).toContain("PAGO_DUPLICADO");
+    pago("3102", "c1", 4500, "ws-1", { status: "REFUNDED" }, { status: "refunded" });
+    expect((await llamar("3102")).body).toMatchObject({ applied: false, resultado: "ya_acreditado" });
+    await llamar("3102");
+    expect(H.avisoDevuelto).toHaveBeenCalledTimes(1);
+    expect(String((H.avisoDevuelto.mock.calls[0]![0] as { texto: string }).texto)).toMatch(/pago N° 3102 de \$ 4\.500,00 \(devuelto\): era un segundo pago que no se anotó en Caja/);
+    expect(eventos().filter((e) => e === "PAGO_DEVUELTO")).toHaveLength(1);
+    expect(movimientos()).toHaveLength(1);
+    expect(compras()[0]).toMatchObject({ status: "PAGADA", providerPaymentRef: "3101" });
+  });
+
+  it("un pago devuelto que nunca se registró no avisa nada", async () => {
+    pago("3103", "c1", 4500, "ws-1", { status: "REFUNDED" }, { status: "refunded" });
+    expect((await llamar("3103")).body).toMatchObject({ applied: false, resultado: "no_aprobado" });
+    expect(H.avisoDevuelto).not.toHaveBeenCalled();
+  });
+
   it("un aviso repetido de un pago que sigue aprobado no avisa nada", async () => {
     pago("3006", "c1", 4500);
     await llamar("3006");

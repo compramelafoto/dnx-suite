@@ -96,6 +96,11 @@ const QUE_PASO: Record<ReversoMp, string> = {
   cancelled: "cancelado",
 };
 
+/** Igual, para un segundo pago que nunca entró en Caja (galerías: `PAGO_DUPLICADO`): no hay nada que anular. */
+export function tituloPagoDuplicadoDevuelto(providerPaymentId: string, centavos: number, reverso: ReversoMp): string {
+  return `Mercado Pago devolvió (o le reclamaron) el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} (${QUE_PASO[reverso]}): era un segundo pago que no se anotó en Caja, así que no hay nada que anular.`;
+}
+
 /** El aviso de una devolución o un contracargo (B2-4). Uno por pago y estado: el texto cambia con el estado. */
 export function tituloPagoDevuelto(providerPaymentId: string, centavos: number, reverso: ReversoMp, queAnular = "el cobro"): string {
   return `Mercado Pago devolvió (o le reclamaron) el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} (${QUE_PASO[reverso]}): anulá ${queAnular} si corresponde.`;

@@ -26,6 +26,9 @@ import { crearTareaDeConsulta, destinatarioDelPresupuesto } from "@/lib/presupue
 export const TOPE_AVISOS_MP_DIA = 50;
 /** Todas las tareas del rastro empiezan así: sirve para contar el tope del día. */
 const MARCA = "Mercado Pago";
+/** Clave de `SentEmailLog` de los avisos de pagos sin pedido (más el workspace: la tabla no tiene esa columna). */
+export const CLAVE_CORREO_SIN_PEDIDO = "fotoffice-mp-pago-sin-pedido";
+const claveSinPedido = (workspaceId: string) => `${CLAVE_CORREO_SIN_PEDIDO}:${workspaceId}`;
 
 export type DepsRastro = {
   /** Para las pruebas: ejecuta el correo (por omisión, `after()` de Next). */
@@ -43,6 +46,11 @@ export type RastroDePago = {
   /** La tarea de la consulta, si el pedido tiene; null = no dejarla. */
   tituloConsulta: string | null;
   asunto: string;
+  /**
+   * El id del pago de Mercado Pago. Sin pedido no hay tarea que frene el aviso repetido: el correo se
+   * deduplica por este id en `SentEmailLog` (una vez por pago y organización) y tiene su propio tope diario.
+   */
+  pagoId?: string;
 };
 
 export type ResultadoRastro = {
@@ -111,6 +119,23 @@ export async function dejarRastroDePago(workspaceId: string, r: RastroDePago, de
   return salida;
 }
 
+/**
+ * Reserva el correo de un pago sin pedido: con candado por pago, si ya hay uno que no falló, no se repite; y
+ * hay un tope diario por organización propio (no hay tareas que contar). Devuelve el id de la fila reservada.
+ */
+async function reservarCorreoSinPedido(workspaceId: string, para: string, asunto: string, ahora: Date): Promise<number | "YA_ENVIADO" | "TOPE"> {
+  const templateKey = claveSinPedido(workspaceId);
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${templateKey}:${asunto}`}))`;
+    const ya = await tx.sentEmailLog.findFirst({ where: { templateKey, subject: asunto, status: { not: "FAILED" } }, select: { id: true } });
+    if (ya) return "YA_ENVIADO" as const;
+    const hoy = await tx.sentEmailLog.count({ where: { templateKey, createdAt: { gte: inicioDelDiaAR(ahora) } } });
+    if (hoy >= TOPE_AVISOS_MP_DIA) return "TOPE" as const;
+    const fila = await tx.sentEmailLog.create({ data: { to: para, subject: asunto, templateKey, status: "RESERVADO", createdAt: ahora }, select: { id: true } });
+    return fila.id;
+  });
+}
+
 async function correoInterno(
   workspaceId: string,
   pedido: { id: string; number: string } | null,
@@ -121,13 +146,15 @@ async function correoInterno(
 ): Promise<"ENVIADO" | "NO_ENVIADO" | "TOPE" | "SIN_DESTINATARIO" | "SIN_CORREO" | "ERROR"> {
   try {
     if (para === null) return "SIN_DESTINATARIO";
-    // La tarea de este aviso ya cuenta: la que hace pasar el tope no manda correo.
-    const hoy = await prisma.fotofficePedidoTarea.count({
-      where: { workspaceId, title: { contains: MARCA }, createdAt: { gte: inicioDelDiaAR(ahora) } },
-    });
-    if (hoy > TOPE_AVISOS_MP_DIA) {
-      console.warn("[fotoffice][pedidos] tope de avisos de Mercado Pago alcanzado", { codigo: "TOPE_AVISOS_MP" });
-      return "TOPE";
+    if (pedido) {
+      // La tarea de este aviso ya cuenta: la que hace pasar el tope no manda correo.
+      const hoy = await prisma.fotofficePedidoTarea.count({
+        where: { workspaceId, title: { contains: MARCA }, createdAt: { gte: inicioDelDiaAR(ahora) } },
+      });
+      if (hoy > TOPE_AVISOS_MP_DIA) {
+        console.warn("[fotoffice][pedidos] tope de avisos de Mercado Pago alcanzado", { codigo: "TOPE_AVISOS_MP" });
+        return "TOPE";
+      }
     }
     const usuario = await prisma.user.findUnique({ where: { id: para }, select: { email: true } });
     if (!correoValido(usuario?.email)) return "SIN_CORREO";
@@ -140,12 +167,28 @@ async function correoInterno(
       pedido ? `Es del pedido N° ${pedido.number}.` : "No pudimos saber de qué pedido es: buscalo por el número de pago en tu cuenta de Mercado Pago.",
       "No tocamos Caja ni los cobros: lo tiene que resolver una persona.",
     ];
+    // Sin pedido: el asunto lleva el pago, y la fila de `SentEmailLog` es la reserva que frena el repetido.
+    const asunto = pedido || !r.pagoId ? r.asunto : `${r.asunto} (pago N° ${r.pagoId})`;
+    let reserva: number | null = null;
+    if (!pedido) {
+      const ok = await reservarCorreoSinPedido(workspaceId, usuario!.email!, asunto, ahora);
+      if (ok === "YA_ENVIADO" || ok === "TOPE") {
+        if (ok === "TOPE") console.warn("[fotoffice][pedidos] tope de avisos de Mercado Pago alcanzado", { codigo: "TOPE_AVISOS_MP" });
+        return ok === "TOPE" ? "TOPE" : "NO_ENVIADO";
+      }
+      reserva = ok;
+    }
     const html =
       lineas.map((l) => (l === "" ? "<br>" : `<p>${escapeHtml(l)}</p>`)).join("") +
       (enlace ? `<p><a href="${escapeHtml(enlace)}">Ver el pedido</a></p>` : "");
     const texto = [...lineas, ...(enlace ? ["", enlace] : [])].join("\n");
     const enviar = deps.enviar ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
-    const res = await enviar({ to: usuario!.email!, subject: r.asunto, html, text: texto });
+    const res = await enviar({ to: usuario!.email!, subject: asunto, html, text: texto });
+    if (reserva !== null) {
+      await prisma.sentEmailLog
+        .update({ where: { id: reserva }, data: { status: res.status === "SENT" ? "SENT" : "FAILED", resendId: res.status === "SENT" ? (res.providerId ?? null) : null }, select: { id: true } })
+        .catch(() => undefined);
+    }
     if (res.status !== "SENT") console.warn("[fotoffice][pedidos] el aviso de Mercado Pago no salió", { codigo: res.status });
     return res.status === "SENT" ? "ENVIADO" : "NO_ENVIADO";
   } catch (error) {

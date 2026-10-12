@@ -230,6 +230,7 @@ async function cuotaQueNoEsta(workspaceId: string, pago: PagoMp, pedidoId: strin
       titulo: tituloPagoCuotaInexistente(hechos.providerPaymentId, hechos.amountMinor),
       tituloConsulta: TITULO_TAREA_PAGO_SIN_APLICAR,
       asunto: "Llegó un pago de Mercado Pago por una cuota que ya no existe",
+      pagoId: hechos.providerPaymentId,
     },
     deps,
   );
