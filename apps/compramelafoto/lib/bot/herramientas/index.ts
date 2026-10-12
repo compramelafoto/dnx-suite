@@ -10,7 +10,13 @@ import { perfilTools } from "./perfil";
 
 const PHOTOGRAPHER_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"]);
 
-export function toolsForActor(actor: BotActor, ctx: { conversationId: string }): BotTool[] {
+export type ToolsContext = {
+  conversationId: string;
+  /** Mensaje del turno en curso: todavía no está guardado cuando la herramienta abre un ticket. */
+  currentUserText?: string;
+};
+
+export function toolsForActor(actor: BotActor, ctx: ToolsContext): BotTool[] {
   const comunes: BotTool[] = [
     defineTool({
       name: "abrir_ticket",
@@ -23,16 +29,19 @@ export function toolsForActor(actor: BotActor, ctx: { conversationId: string }):
         urgente: z.boolean().describe("true si hay cobros, ventas bloqueadas o enojo"),
       }),
       run: async (i) => {
-        const { ticketId } = await escalateToHuman({
+        const { ticketId, reused } = await escalateToHuman({
           actor,
           conversationId: ctx.conversationId,
           motivo: i.motivo,
           resumen: i.resumen,
           urgente: i.urgente,
+          currentUserText: ctx.currentUserText,
         });
         return {
           ok: true,
-          message: `Abrí el pedido de soporte #${ticketId}. La respuesta le aparece en Soporte y le llega por mail.`,
+          message: reused
+            ? `Esta conversación ya tiene el pedido de soporte #${ticketId}; no abrí otro. La respuesta le aparece en Soporte y le llega por mail.`
+            : `Abrí el pedido de soporte #${ticketId}. La respuesta le aparece en Soporte y le llega por mail.`,
           data: { ticketId },
         };
       },

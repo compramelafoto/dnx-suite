@@ -29,6 +29,12 @@ describe("reenviar_link_de_descarga", () => {
     expect(m.order.mock.calls[0]![0].where).toMatchObject({ id: 5, album: { userId: 7 }, isTest: false });
     expect(m.resend).not.toHaveBeenCalled();
   });
+  it("describe de un pedido ajeno o inexistente lanza (sin tarjeta)", async () => {
+    m.order.mockResolvedValue(null);
+    await expect(t.describe!({ orderId: 5 }, actor)).rejects.toThrow("No encontré el pedido #5 en tu cuenta.");
+    m.order.mockResolvedValue(paid);
+    expect(await t.describe!({ orderId: 5 }, actor)).toContain("co***@gmail.com");
+  });
   it("pedido no pagado → no reenvía", async () => {
     m.order.mockResolvedValue({ ...paid, status: "PENDING" });
     expect(await t.run({ orderId: 5 }, actor)).toMatchObject({ ok: false });

@@ -15,20 +15,29 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: (fn: any) => fn({ botMessage: m.msg, $queryRaw: m.raw }),
   },
 }));
-import { appendMessages, claimPendingAction, getOrCreateConversation, usageSnapshot } from "./store";
+import { appendMessages, claimPendingAction, getOrCreateConversation, MAX_MESSAGES_PER_CONVERSATION, usageSnapshot } from "./store";
 
 beforeEach(() => Object.values(m).forEach((g: any) => typeof g === "function" ? g.mockReset() : Object.values(g).forEach((f: any) => f.mockReset())));
 
 describe("store", () => {
-  it("reusa la conversación abierta de las últimas 6 horas", async () => {
-    m.conv.findFirst.mockResolvedValue({ id: "c1" });
-    expect(await getOrCreateConversation({ userId: 1, pagePath: "/x", model: "m" })).toEqual({ id: "c1" });
+  it("reusa la conversación abierta o escalada de las últimas 6 horas", async () => {
+    m.conv.findFirst.mockResolvedValue({ id: "c1", status: "ESCALATED", supportTicketId: 9, _count: { messages: 12 } });
+    expect(await getOrCreateConversation({ userId: 1, pagePath: "/x", model: "m" })).toEqual({ id: "c1", status: "ESCALATED", supportTicketId: 9 });
     expect(m.conv.create).not.toHaveBeenCalled();
+    expect(m.conv.findFirst.mock.calls[0]![0].where.status).toEqual({ in: ["OPEN", "ESCALATED"] });
   });
   it("crea una nueva si no hay", async () => {
     m.conv.findFirst.mockResolvedValue(null);
-    m.conv.create.mockResolvedValue({ id: "c2" });
-    expect(await getOrCreateConversation({ userId: 1, pagePath: "/x", model: "m" })).toEqual({ id: "c2" });
+    m.conv.create.mockResolvedValue({ id: "c2", status: "OPEN", supportTicketId: null });
+    expect(await getOrCreateConversation({ userId: 1, pagePath: "/x", model: "m" })).toEqual({ id: "c2", status: "OPEN", supportTicketId: null });
+  });
+  it("con más de 40 mensajes abre una conversación nueva; con 40 justos la reusa", async () => {
+    m.conv.findFirst.mockResolvedValueOnce({ id: "c1", status: "OPEN", supportTicketId: null, _count: { messages: MAX_MESSAGES_PER_CONVERSATION + 1 } });
+    m.conv.create.mockResolvedValue({ id: "c3", status: "OPEN", supportTicketId: null });
+    expect((await getOrCreateConversation({ userId: 1, pagePath: null, model: "m" })).id).toBe("c3");
+    m.conv.findFirst.mockResolvedValueOnce({ id: "c1", status: "OPEN", supportTicketId: null, _count: { messages: MAX_MESSAGES_PER_CONVERSATION } });
+    expect((await getOrCreateConversation({ userId: 1, pagePath: null, model: "m" })).id).toBe("c1");
+    expect(m.conv.create).toHaveBeenCalledTimes(1);
   });
   it("claimPendingAction es atómico: sólo gana un updateMany con count 1", async () => {
     m.action.updateMany.mockResolvedValue({ count: 0 });

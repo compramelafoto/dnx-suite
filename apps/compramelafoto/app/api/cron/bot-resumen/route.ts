@@ -14,6 +14,8 @@ const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 export async function GET(req: NextRequest) {
   const unauthorized = assertCronAuth(req);
   if (unauthorized) return unauthorized;
+  // Con el bot apagado no se manda el resumen diario ni se limpia nada.
+  if (!readBotConfig().enabled) return Response.json({ ok: true, skipped: true });
   const now = new Date();
   const expired = await prisma.botAction.updateMany({
     where: { platform: BOT_PLATFORM, status: "PENDING", expiresAt: { lt: now } },

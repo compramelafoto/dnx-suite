@@ -1,4 +1,4 @@
-import { checkLimits, costMicroUsd, encodeSse, runBotTurn, type BotTurnResult } from "@repo/dnx-bot";
+import { BotTurnError, checkLimits, costMicroUsd, encodeSse, runBotTurn, type BotTurnResult } from "@repo/dnx-bot";
 import { getAuthUser } from "@/lib/auth";
 import { getAnthropicClient } from "@/lib/bot/anthropic";
 import { isBotEnabledForUser, readBotConfig } from "@/lib/bot/config";
@@ -19,12 +19,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+/** Margen para no arrancar otra vuelta con el modelo cerca del límite de la función (maxDuration 120 s). */
+const TURN_BUDGET_MS = 95_000;
+
 const FALLA = "Tuve un problema para responder. Probá de nuevo en un rato o tocá «Hablar con una persona».";
 const PHOTOGRAPHER_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"]);
 const SITUACION_NEUTRA =
   "La persona no es fotógrafa en CompraMeLaFoto (o no tiene panel de fotógrafo). No tenés datos de su cuenta: ayudala con dudas generales o derivala a una persona.";
 
 export async function POST(req: Request) {
+  const deadlineMs = Date.now() + TURN_BUDGET_MS;
   const user = await getAuthUser();
   if (!user) return new Response("No autenticado", { status: 401 });
   if (!(await isBotEnabledForUser(user.id))) return new Response("No encontrado", { status: 404 });
@@ -72,21 +76,37 @@ export async function POST(req: Request) {
             effort: cfg.effort,
             systemGuide: buildSystemGuide(),
             situation,
-            tools: toolsForActor(actor, { conversationId: conv.id }),
+            tools: toolsForActor(actor, { conversationId: conv.id, currentUserText: text }),
             actor,
             history,
             userText: text,
             maxIterations: cfg.maxIterations,
+            deadlineMs,
             onText: (delta) => send("text", { delta }),
             proposeWrite: (p) => createPendingAction({ conversationId: conv.id, userId: user.id, ...p }),
             onProposal: (p) => send("proposal", p),
           });
         } catch (e) {
+          // Los mensajes no se guardan (el historial queda como estaba), pero lo que ya se gastó se cobra igual.
+          if (e instanceof BotTurnError) {
+            try {
+              await recordUsage({
+                userId: user.id,
+                conversationId: conv.id,
+                usage: e.usage,
+                costMicroUsd: costMicroUsd(cfg.model, e.usage),
+                countMessage: true,
+              });
+            } catch (err) {
+              console.error("[dnx-bot] uso parcial", err);
+            }
+          }
+          const cause = e instanceof BotTurnError ? e.cause : e;
           await reportIncident({
             area: "otro",
-            codigo: `api_${e instanceof Error ? e.name : "error"}`,
+            codigo: `api_${cause instanceof Error ? cause.name : "error"}`,
             ids: { userId: user.id, conversationId: conv.id },
-            detalle: e instanceof Error ? e.message : String(e),
+            detalle: cause instanceof Error ? cause.message : String(cause),
             urgente: false,
           }).catch(() => {});
           send("error", { message: FALLA, offerTicket: true });

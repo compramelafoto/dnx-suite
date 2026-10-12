@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
-  update: vi.fn(), album: vi.fn(), albumUpd: vi.fn(), photo: vi.fn(), photoUpd: vi.fn(), ext: vi.fn(), job: vi.fn(), reset: vi.fn(), lock: vi.fn(),
+  update: vi.fn(), album: vi.fn(), albumUpd: vi.fn(), photo: vi.fn(), photoUpd: vi.fn(), ext: vi.fn(), job: vi.fn(), reset: vi.fn(), lock: vi.fn(), surcharge: vi.fn(),
 }));
+vi.mock("@/lib/pricing/album-extension-surcharge", () => ({ loadAlbumExtensionSurchargeModeForPhotographer: (...a: unknown[]) => m.surcharge(...a) }));
 vi.mock("@/lib/albums/album-settings-update", () => ({ updateAlbumSettingsForOwner: (...a: unknown[]) => m.update(...a) }));
 vi.mock("@/lib/album-extensions/request-album-extension", () => ({ requestAlbumExtension: (...a: unknown[]) => m.ext(...a) }));
 vi.mock("@/lib/camera-connection/camera-ingest-job", () => ({ resetCameraIngestJobForRetry: (...a: unknown[]) => m.reset(...a) }));
@@ -14,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
     cameraIngestJob: { findFirst: (...a: unknown[]) => m.job(...a) },
   },
 }));
+import { runBotTurn } from "@repo/dnx-bot";
 import { albumTools } from "./album";
 
 const actor = { userId: 7, role: "PHOTOGRAPHER", email: "f@x.com", name: "F" };
@@ -30,10 +32,10 @@ describe("acciones de álbum", () => {
     expect(d).toContain("Publicar");
     expect(m.lock).not.toHaveBeenCalled();
   });
-  it("actualizar_album: álbum ajeno → no encontrado (no llama a update)", async () => {
+  it("actualizar_album: álbum ajeno → describe lanza 'no encontré' (sin tarjeta, no llama a update)", async () => {
     m.album.mockResolvedValue(null);
-    const d = await tool("actualizar_album").describe!({ albumId: 3, cambios: { isPublic: true } }, actor);
-    expect(d).toContain("no encontré");
+    await expect(tool("actualizar_album").describe!({ albumId: 3, cambios: { isPublic: true } }, actor)).rejects.toThrow("No encontré ese álbum en tu cuenta.");
+    expect(m.album).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 3, userId: 7, deletedAt: null } }));
     expect(m.update).not.toHaveBeenCalled();
   });
   it("actualizar_album: en un evento avisa que nombre, lugar y fecha los maneja el organizador", async () => {
@@ -176,5 +178,67 @@ describe("acciones de álbum", () => {
     m.job.mockResolvedValue({ id: "j", status: "FAILED", album: { userId: 7 } });
     expect(await tool("reintentar_subida").run({ albumId: 3, jobId: "j" }, actor)).toMatchObject({ ok: true });
     expect(m.reset).toHaveBeenCalledTimes(1);
+  });
+  it("configurar_venta_por_reconocimiento: describe de álbum ajeno lanza", async () => {
+    m.album.mockResolvedValue(null);
+    await expect(tool("configurar_venta_por_reconocimiento").describe!({ albumId: 3, habilitar: false }, actor)).rejects.toThrow("No encontré ese álbum");
+  });
+  it("cambiar_venta_de_foto: describe verifica dueño (foto ajena o inexistente lanza)", async () => {
+    m.photo.mockResolvedValue(null);
+    await expect(tool("cambiar_venta_de_foto").describe!({ albumId: 3, photoId: 1, sellPrint: false }, actor)).rejects.toThrow("No encontré esa foto");
+    expect(m.photo).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 1, albumId: 3, album: { userId: 7, deletedAt: null } }) }));
+    m.photo.mockResolvedValue({ id: 1 });
+    expect(await tool("cambiar_venta_de_foto").describe!({ albumId: 3, photoId: 1, sellPrint: false }, actor)).toContain("no vender impresa");
+  });
+  it("reintentar_subida: describe verifica dueño (subida ajena lanza)", async () => {
+    m.job.mockResolvedValue(null);
+    await expect(tool("reintentar_subida").describe!({ albumId: 3, jobId: "j" }, actor)).rejects.toThrow("No encontré esa subida");
+    expect(m.job).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "j", albumId: 3, album: { userId: 7, deletedAt: null } } }));
+    m.job.mockResolvedValue({ id: "j" });
+    expect(await tool("reintentar_subida").describe!({ albumId: 3, jobId: "j" }, actor)).toContain("j");
+  });
+  it("extender_vencimiento: describe de álbum ajeno lanza", async () => {
+    m.album.mockResolvedValue(null);
+    await expect(tool("extender_vencimiento").describe!({ albumId: 3, dias: 30 }, actor)).rejects.toThrow("No encontré ese álbum");
+  });
+  it("extender_vencimiento: describe avisa el recargo para compradores (porcentaje o monto fijo)", async () => {
+    m.album.mockResolvedValue({ id: 3, title: "A", cleanupStatus: "NONE" });
+    m.surcharge.mockResolvedValue({ kind: "PERCENT_OF_SUBTOTAL", percent: 15 });
+    const d = await tool("extender_vencimiento").describe!({ albumId: 3, dias: 30 }, actor);
+    expect(d).toContain("Mientras dure la extensión, los compradores pagan un recargo");
+    expect(d).toContain("15%");
+    expect(m.surcharge).toHaveBeenCalledWith(expect.anything(), 7);
+    m.surcharge.mockResolvedValue({ kind: "FIXED_PER_30_DAYS", priceArs: 3000 });
+    expect(await tool("extender_vencimiento").describe!({ albumId: 3, dias: 30 }, actor)).toContain("3.000");
+  });
+  it.each(["PENDING", "PROCESSING", "COMPLETED", "COMPLETED_WITH_REFERENCES"])(
+    "extender_vencimiento: con limpieza %s no se propone ni se extiende",
+    async (cleanupStatus) => {
+      m.album.mockResolvedValue({ id: 3, title: "A", cleanupStatus });
+      await expect(tool("extender_vencimiento").describe!({ albumId: 3, dias: 30 }, actor)).rejects.toThrow("ya se eliminaron o se están eliminando");
+      expect(await tool("extender_vencimiento").run({ albumId: 3, dias: 30 }, actor)).toEqual({
+        ok: false,
+        message: "Las fotos de este álbum ya se eliminaron o se están eliminando; no se puede extender.",
+      });
+      expect(m.ext).not.toHaveBeenCalled();
+    },
+  );
+  it("con el motor real: álbum ajeno → no se crea propuesta y el modelo recibe el error", async () => {
+    m.album.mockResolvedValue(null);
+    const responses = [
+      { stop_reason: "tool_use", usage: {}, content: [{ type: "tool_use", id: "t1", name: "actualizar_album", input: { albumId: 99, cambios: { isPublic: true } } }] },
+      { stop_reason: "end_turn", usage: {}, content: [{ type: "text", text: "No lo encontré." }] },
+    ];
+    const client = { beta: { messages: { stream: () => { const msg = responses.shift(); return { on: () => {}, finalMessage: async () => msg }; } } } };
+    const proposeWrite = vi.fn();
+    const onProposal = vi.fn();
+    const r = await runBotTurn({
+      client, model: "m", effort: "medium", systemGuide: "G", situation: "S", tools: albumTools, actor, history: [],
+      userText: "publicá el 99", maxIterations: 3, onText: () => {}, proposeWrite, onProposal,
+    });
+    expect(proposeWrite).not.toHaveBeenCalled();
+    expect(onProposal).not.toHaveBeenCalled();
+    expect((r.appended[2]!.content as { is_error?: boolean }[])[0]).toMatchObject({ is_error: true });
+    expect(JSON.stringify(r.appended[2]!.content)).toContain("No encontré ese álbum en tu cuenta.");
   });
 });

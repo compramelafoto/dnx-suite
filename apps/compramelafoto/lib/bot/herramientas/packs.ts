@@ -56,7 +56,8 @@ export const packTools: BotTool[] = [
         where: { id: i.albumId, userId: actor.userId, deletedAt: null },
         select: { title: true },
       });
-      if (!a) return NO_ALBUM;
+      // Lanzar (en vez de devolver texto) evita que se cree una tarjeta de confirmación para algo ajeno.
+      if (!a) throw new Error(NO_ALBUM);
       return `Crear en «${a.title}» el pack «${i.nombre.trim()}»: ${i.cantidadFotos} fotos digitales a ${formatPurchaseArs(i.precio)}. El comprador elige las fotos.`;
     },
     run: async (i, actor) => {
@@ -109,7 +110,7 @@ export const packTools: BotTool[] = [
     }),
     describe: async (i, actor) => {
       const p = await findOwnPack(i.albumId, i.packId, actor.userId);
-      if (!p) return NO_PACK;
+      if (!p) throw new Error(NO_PACK);
       const cambios = [
         i.nombre !== undefined ? `cambiarle el nombre a «${i.nombre.trim()}»` : null,
         i.precio !== undefined ? `poner el precio en ${formatPurchaseArs(i.precio)}` : null,

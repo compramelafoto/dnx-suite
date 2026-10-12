@@ -6,9 +6,16 @@ import { updateAlbumSettingsForOwner, type AlbumSettingsPatch } from "@/lib/albu
 import { resetCameraIngestJobForRetry } from "@/lib/camera-connection/camera-ingest-job";
 import { buildAlbumEventScheduleFromDb } from "@/lib/albums/album-event-datetime";
 import { loadCollaborativeEventPricingSnapshot } from "@/lib/events/collaborative-event-pricing-lock";
+import { loadAlbumExtensionSurchargeModeForPhotographer, type AlbumExtensionSurchargeMode } from "@/lib/pricing/album-extension-surcharge";
 import { prisma } from "@/lib/prisma";
 
-const NO = "no encontré ese álbum en tu cuenta";
+/** describe() que lanza = el motor devuelve el error al modelo y NO crea la tarjeta de confirmación. */
+const NO_ALBUM = "No encontré ese álbum en tu cuenta.";
+const NO_FOTO = "No encontré esa foto en tu cuenta.";
+const NO_SUBIDA = "No encontré esa subida en tu cuenta.";
+const FOTOS_BORRADAS = "Las fotos de este álbum ya se eliminaron o se están eliminando; no se puede extender.";
+/** Estados de limpieza en los que las fotos ya no están (o se están borrando): extender no las trae de vuelta. */
+const CLEANUP_SIN_FOTOS = new Set(["PENDING", "PROCESSING", "COMPLETED", "COMPLETED_WITH_REFERENCES"]);
 const pct = z.number().min(0).max(100).nullable();
 
 const cambiosSchema = z.strictObject({
@@ -91,6 +98,28 @@ async function ownedAlbum(albumId: number, userId: number) {
   return prisma.album.findFirst({ where: { id: albumId, userId, deletedAt: null }, select: { id: true, title: true } });
 }
 
+async function ownedAlbumForExtension(albumId: number, userId: number) {
+  return prisma.album.findFirst({
+    where: { id: albumId, userId, deletedAt: null },
+    select: { id: true, title: true, cleanupStatus: true },
+  });
+}
+
+async function ownedPhoto(albumId: number, photoId: number, userId: number) {
+  return prisma.photo.findFirst({
+    where: { id: photoId, albumId, isRemoved: false, album: { userId, deletedAt: null } },
+    select: { id: true },
+  });
+}
+
+function recargoTexto(mode: AlbumExtensionSurchargeMode): string {
+  const detalle =
+    mode.kind === "FIXED_PER_30_DAYS"
+      ? `${formatPurchaseArs(mode.priceArs)} por cada 30 días de extensión`
+      : `${mode.percent}% de la compra por cada 30 días de extensión`;
+  return `Mientras dure la extensión, los compradores pagan un recargo en cada compra (${detalle}).`;
+}
+
 export const albumTools: BotTool[] = [
   defineTool({
     name: "actualizar_album",
@@ -102,7 +131,7 @@ export const albumTools: BotTool[] = [
         where: { id: albumId, userId: actor.userId, deletedAt: null },
         select: { id: true, title: true, eventId: true },
       });
-      if (!a) return `(${NO}; si confirma, no se va a cambiar nada)`;
+      if (!a) throw new Error(NO_ALBUM);
       const enEvento = a.eventId != null;
       const skip = { agenda: enEvento && tocaAgenda(cambios), precio: false, descuentos: false };
       const avisos: string[] = [];
@@ -151,11 +180,13 @@ export const albumTools: BotTool[] = [
     description: "Propone activar o desactivar la venta digital y/o impresa de una foto puntual.",
     kind: "write",
     input: z.strictObject({ albumId: z.number().int().positive(), photoId: z.number().int().positive(), sellDigital: z.boolean().optional(), sellPrint: z.boolean().optional() }),
-    describe: async (i) =>
-      `Foto #${i.photoId}: ${[i.sellDigital !== undefined ? `${i.sellDigital ? "vender" : "no vender"} en digital` : null, i.sellPrint !== undefined ? `${i.sellPrint ? "vender" : "no vender"} impresa` : null].filter(Boolean).join(" y ")}.`,
+    describe: async (i, actor) => {
+      if (!(await ownedPhoto(i.albumId, i.photoId, actor.userId))) throw new Error(NO_FOTO);
+      return `Foto #${i.photoId}: ${[i.sellDigital !== undefined ? `${i.sellDigital ? "vender" : "no vender"} en digital` : null, i.sellPrint !== undefined ? `${i.sellPrint ? "vender" : "no vender"} impresa` : null].filter(Boolean).join(" y ")}.`;
+    },
     run: async (i, actor) => {
       const p = await prisma.photo.findFirst({ where: { id: i.photoId, albumId: i.albumId, isRemoved: false, album: { deletedAt: null } }, select: { id: true, sellDigital: true, sellPrint: true, album: { select: { userId: true } } } });
-      if (!p || p.album.userId !== actor.userId) return { ok: false, message: "No encontré esa foto en tu cuenta." };
+      if (!p || p.album.userId !== actor.userId) return { ok: false, message: NO_FOTO };
       const next = { sellDigital: i.sellDigital ?? p.sellDigital, sellPrint: i.sellPrint ?? p.sellPrint };
       if (!next.sellDigital && !next.sellPrint) return { ok: false, message: "Al menos una opción de venta tiene que quedar activa." };
       await prisma.photo.update({ where: { id: p.id }, data: next });
@@ -176,7 +207,7 @@ export const albumTools: BotTool[] = [
     input: z.strictObject({ albumId: z.number().int().positive(), habilitar: z.boolean(), precio: z.number().int().positive().optional().describe("Pesos enteros") }),
     describe: async (i, actor) => {
       const a = await ownedAlbum(i.albumId, actor.userId);
-      if (!a) return `(${NO})`;
+      if (!a) throw new Error(NO_ALBUM);
       if (i.habilitar && !i.precio) return `En «${a.title}»: vender «todas mis fotos», pero falta el precio.`;
       return i.habilitar ? `En «${a.title}»: vender «todas mis fotos» a ${formatPurchaseArs(i.precio ?? 0)}.` : `En «${a.title}»: dejar de vender «todas mis fotos».`;
     },
@@ -187,7 +218,7 @@ export const albumTools: BotTool[] = [
         where: { id: i.albumId, userId: actor.userId, deletedAt: null },
         select: { id: true, enableFaceBulkPurchase: true, faceBulkPriceCents: true },
       });
-      if (!prev) return { ok: false, message: "No encontré ese álbum en tu cuenta." };
+      if (!prev) return { ok: false, message: NO_ALBUM };
       const data = { enableFaceBulkPurchase: i.habilitar, faceBulkPriceCents: i.habilitar ? i.precio! : null };
       await prisma.album.update({ where: { id: i.albumId }, data });
       return { ok: true, message: "Listo.", before: { albumId: i.albumId, enableFaceBulkPurchase: prev.enableFaceBulkPurchase, faceBulkPriceCents: prev.faceBulkPriceCents }, after: data };
@@ -205,11 +236,16 @@ export const albumTools: BotTool[] = [
     kind: "write",
     input: z.strictObject({ albumId: z.number().int().positive(), dias: z.number().int().min(1).max(90).default(30) }),
     describe: async (i, actor) => {
-      const a = await ownedAlbum(i.albumId, actor.userId);
-      return a ? `Extender «${a.title}» ${i.dias} días. También se reactivan los avisos a interesados. No se puede deshacer.` : `(${NO})`;
+      const a = await ownedAlbumForExtension(i.albumId, actor.userId);
+      if (!a) throw new Error(NO_ALBUM);
+      if (CLEANUP_SIN_FOTOS.has(a.cleanupStatus)) throw new Error(FOTOS_BORRADAS);
+      const recargo = recargoTexto(await loadAlbumExtensionSurchargeModeForPhotographer(prisma, actor.userId));
+      return `Extender «${a.title}» ${i.dias} días. También se reactivan los avisos a interesados. ${recargo} No se puede deshacer.`;
     },
     run: async (i, actor) => {
-      if (!(await ownedAlbum(i.albumId, actor.userId))) return { ok: false, message: "No encontré ese álbum en tu cuenta." };
+      const a = await ownedAlbumForExtension(i.albumId, actor.userId);
+      if (!a) return { ok: false, message: NO_ALBUM };
+      if (CLEANUP_SIN_FOTOS.has(a.cleanupStatus)) return { ok: false, message: FOTOS_BORRADAS };
       let r;
       try {
         r = await requestAlbumExtension({ albumId: i.albumId, daysToAdd: i.dias, requestedByRole: actor.role === "LAB_PHOTOGRAPHER" ? "LAB_PHOTOGRAPHER" : "PHOTOGRAPHER", requestedByUserId: actor.userId });
@@ -225,10 +261,17 @@ export const albumTools: BotTool[] = [
     description: "Propone reintentar una subida de fotos que falló.",
     kind: "write",
     input: z.strictObject({ albumId: z.number().int().positive(), jobId: z.string().min(1) }),
-    describe: async (i) => `Reintentar la subida fallida ${i.jobId}.`,
+    describe: async (i, actor) => {
+      const job = await prisma.cameraIngestJob.findFirst({
+        where: { id: i.jobId, albumId: i.albumId, album: { userId: actor.userId, deletedAt: null } },
+        select: { id: true },
+      });
+      if (!job) throw new Error(NO_SUBIDA);
+      return `Reintentar la subida fallida ${i.jobId}.`;
+    },
     run: async (i, actor) => {
       const job = await prisma.cameraIngestJob.findFirst({ where: { id: i.jobId, albumId: i.albumId, album: { deletedAt: null } }, select: { id: true, status: true, album: { select: { userId: true } } } });
-      if (!job || job.album.userId !== actor.userId) return { ok: false, message: "No encontré esa subida en tu cuenta." };
+      if (!job || job.album.userId !== actor.userId) return { ok: false, message: NO_SUBIDA };
       if (job.status !== "FAILED") return { ok: false, message: "Esa subida no está fallida." };
       await resetCameraIngestJobForRetry(job.id, "Reintento pedido desde DNX Bot");
       return { ok: true, message: "Listo, la subida se va a reintentar en unos minutos." };

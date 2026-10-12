@@ -47,7 +47,8 @@ async function undoAction(id: string, actor: BotActor) {
       },
     ]);
   }
-  return Response.json({ ok: r.ok, message: r.message });
+  // Si el undo falló, la acción volvió a EXECUTED: la burbuja puede ofrecer reintentar.
+  return Response.json({ ok: r.ok, message: r.message, canUndo: !r.ok });
 }
 
 // La escritura la corre el servidor, nunca el modelo: sólo tras la decisión explícita de la persona.
@@ -107,5 +108,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       },
     ]);
   }
-  return Response.json({ ok: out.ok, message: out.message, canUndo: out.ok && !!tool.undo });
+  return Response.json({ ok: out.ok, message: out.message, canUndo: out.ok && !!tool.undo && out.before !== undefined });
 }

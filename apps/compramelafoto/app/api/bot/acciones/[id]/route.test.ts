@@ -131,7 +131,13 @@ describe("POST /api/bot/acciones/[id]", () => {
     m.find.mockResolvedValue({ id: "a1", toolName: "actualizar_album", before: { b: 1 }, decidedAt: new Date(), conversationId: "c1" });
     m.undo.mockResolvedValue({ ok: false, message: "No se pudo" });
     const res = await POST(req("deshacer"), params);
-    expect((await res.json()).ok).toBe(false);
+    expect(await res.json()).toMatchObject({ ok: false, canUndo: true });
     expect(m.upd).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: "a1", status: "UNDONE" }, data: { status: "EXECUTED" } }));
+  });
+  it("confirmar sin before guardado → no ofrece deshacer", async () => {
+    m.claim.mockResolvedValue({ id: "a1", userId: 7, toolName: "actualizar_album", input: { albumId: 3 }, summary: "s", conversationId: "c1" });
+    m.run.mockResolvedValue({ ok: true, message: "Listo" });
+    const res = await POST(req("confirmar"), params);
+    expect(await res.json()).toEqual({ ok: true, message: "Listo", canUndo: false });
   });
 });

@@ -1,9 +1,9 @@
-import type { BotTurnInput } from "@repo/dnx-bot";
+import { BotTurnError, type BotTurnInput } from "@repo/dnx-bot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   user: vi.fn(), enabled: vi.fn(), snap: vi.fn(), turn: vi.fn(), conv: vi.fn(), hist: vi.fn(), append: vi.fn(),
-  usage: vi.fn(), inc: vi.fn(), sit: vi.fn(),
+  usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: () => m.user() }));
 vi.mock("@/lib/bot/config", () => ({
@@ -17,7 +17,7 @@ vi.mock("@/lib/bot/store", () => ({
 vi.mock("@/lib/bot/escalamiento", () => ({ reportIncident: (...a: unknown[]) => m.inc(...a) }));
 vi.mock("@/lib/bot/contexto", () => ({ buildPhotographerSituation: (...a: unknown[]) => m.sit(...a) }));
 vi.mock("@/lib/bot/anthropic", () => ({ getAnthropicClient: () => ({}) }));
-vi.mock("@/lib/bot/herramientas", () => ({ toolsForActor: () => [] }));
+vi.mock("@/lib/bot/herramientas", () => ({ toolsForActor: (...a: unknown[]) => { m.tools(...a); return []; } }));
 vi.mock("@/lib/bot/guia", () => ({ buildSystemGuide: () => "GUIA" }));
 vi.mock("@repo/dnx-bot", async (orig) => ({ ...(await orig<object>()), runBotTurn: (...a: unknown[]) => m.turn(...a) }));
 import { POST } from "./route";
@@ -112,5 +112,28 @@ describe("POST /api/bot/chat", () => {
     await new Promise((r) => setTimeout(r, 20));
     await vi.waitFor(() => expect(m.usage).toHaveBeenCalled());
     expect(m.append).toHaveBeenCalledWith("c1", expect.any(Array));
+  });
+  it("falla de la API a mitad del turno → cobra el uso parcial sin guardar mensajes", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    const partial = { input_tokens: 500, output_tokens: 80, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+    const cause = new Error("overloaded");
+    cause.name = "APIError";
+    m.turn.mockRejectedValue(new BotTurnError(cause, partial));
+    const body = await read(await POST(req("hola")));
+    expect(body).toContain("offerTicket");
+    expect(m.append).not.toHaveBeenCalled();
+    expect(m.usage).toHaveBeenCalledWith(expect.objectContaining({ conversationId: "c1", usage: partial, countMessage: true }));
+    expect(m.usage.mock.calls[0]![0].costMicroUsd).toBeGreaterThan(0);
+    expect(m.inc).toHaveBeenCalledWith(expect.objectContaining({ codigo: "api_APIError", detalle: "overloaded" }));
+  });
+  it("pasa un plazo de ~95 s al motor y el texto del turno a las herramientas", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockImplementation(okTurn);
+    const before = Date.now();
+    await read(await POST(req("hola")));
+    const d = m.turn.mock.calls[0]![0].deadlineMs as number;
+    expect(d).toBeGreaterThanOrEqual(before + 95_000);
+    expect(d).toBeLessThanOrEqual(Date.now() + 95_000);
+    expect(m.tools).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }), { conversationId: "c1", currentUserText: "hola" });
   });
 });

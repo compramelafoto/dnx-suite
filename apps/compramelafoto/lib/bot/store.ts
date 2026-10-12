@@ -6,18 +6,31 @@ import { argentinaDay, argentinaMonthPrefix } from "./dia-argentino";
 const OPEN_WINDOW_MS = 6 * 60 * 60 * 1000;
 const ACTION_TTL_MS = 60 * 60 * 1000;
 
-export async function getOrCreateConversation(p: { userId: number; pagePath: string | null; model: string }) {
+/** Más mensajes que esto en la conversación abierta → se abre una nueva (cada turno reenvía todo el historial). */
+export const MAX_MESSAGES_PER_CONVERSATION = 40;
+
+export type ConversationRef = { id: string; status: "OPEN" | "ESCALATED" | "CLOSED"; supportTicketId: number | null };
+
+export async function getOrCreateConversation(p: { userId: number; pagePath: string | null; model: string }): Promise<ConversationRef> {
+  // ESCALATED sigue siendo continuable: después de abrir un ticket, el próximo mensaje conserva el contexto.
   const open = await prisma.botConversation.findFirst({
-    where: { platform: BOT_PLATFORM, userId: p.userId, status: "OPEN", updatedAt: { gt: new Date(Date.now() - OPEN_WINDOW_MS) } },
+    where: {
+      platform: BOT_PLATFORM,
+      userId: p.userId,
+      status: { in: ["OPEN", "ESCALATED"] },
+      updatedAt: { gt: new Date(Date.now() - OPEN_WINDOW_MS) },
+    },
     orderBy: { updatedAt: "desc" },
-    select: { id: true },
+    select: { id: true, status: true, supportTicketId: true, _count: { select: { messages: true } } },
   });
-  if (open) return { id: open.id };
+  if (open && open._count.messages <= MAX_MESSAGES_PER_CONVERSATION) {
+    return { id: open.id, status: open.status, supportTicketId: open.supportTicketId };
+  }
   const created = await prisma.botConversation.create({
     data: { platform: BOT_PLATFORM, userId: p.userId, pagePath: p.pagePath, model: p.model },
-    select: { id: true },
+    select: { id: true, status: true, supportTicketId: true },
   });
-  return { id: created.id };
+  return { id: created.id, status: created.status, supportTicketId: created.supportTicketId };
 }
 
 export async function loadHistory(conversationId: string): Promise<unknown[]> {

@@ -8,7 +8,7 @@ export function getAnthropicClient(): BotStreamClient {
   const key = readBotConfig().anthropicApiKey;
   if (!key) throw new Error("Falta ANTHROPIC_API_KEY");
   if (!client || clientKey !== key) {
-    client = new Anthropic({ apiKey: key, maxRetries: 2, timeout: 60_000 });
+    client = new Anthropic({ apiKey: key, maxRetries: 1, timeout: 45_000 });
     clientKey = key;
   }
   return client as unknown as BotStreamClient;

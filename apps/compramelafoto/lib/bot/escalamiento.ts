@@ -3,9 +3,17 @@ import { readBotConfig } from "@/lib/bot/config";
 import { loadHistory, upsertIncident } from "@/lib/bot/store";
 import { prisma } from "@/lib/prisma";
 import { createSupportTicket } from "@/lib/support/create-ticket";
-import type { ALLOWED_REASONS } from "@/lib/support/sanitize";
+import { SUPPORT_MESSAGE_MAX_LENGTH, type ALLOWED_REASONS } from "@/lib/support/sanitize";
 
 type Reason = (typeof ALLOWED_REASONS)[number];
+
+const NOTE_HEADER = "Derivado por DNX Bot.\n\n";
+
+/** Recorta por el principio: lo más reciente de la charla es lo que más importa para soporte. */
+function keepTail(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `…${text.slice(text.length - (max - 1))}`;
+}
 
 function transcript(history: unknown[]): string {
   return (history as { role: string; content: unknown }[])
@@ -28,8 +36,21 @@ export async function escalateToHuman(p: {
   motivo: Reason;
   resumen: string;
   urgente: boolean;
-}): Promise<{ ticketId: number }> {
+  /** Texto del turno en curso (todavía no está guardado en el historial cuando lo pide la herramienta). */
+  currentUserText?: string;
+}): Promise<{ ticketId: number; reused: boolean }> {
+  // Un ticket por conversación: si ya se derivó, se devuelve el mismo en vez de abrir otro.
+  const conv = await prisma.botConversation.findUnique({
+    where: { id: p.conversationId },
+    select: { status: true, supportTicketId: true },
+  });
+  if (conv?.status === "ESCALATED" && conv.supportTicketId != null) {
+    return { ticketId: conv.supportTicketId, reused: true };
+  }
+
   const history = await loadHistory(p.conversationId);
+  const turn = p.currentUserText?.trim() ? [{ role: "user", content: p.currentUserText.trim() }] : [];
+  const charla = keepTail(transcript([...history, ...turn]), SUPPORT_MESSAGE_MAX_LENGTH - NOTE_HEADER.length);
   const ticket = await createSupportTicket({
     data: {
       reason: p.motivo,
@@ -41,7 +62,7 @@ export async function escalateToHuman(p: {
       requesterRole: p.actor.role,
     },
     requesterLabel: `${p.actor.name || p.actor.email} · ${p.actor.email}`,
-    internalNote: `Derivado por DNX Bot.\n\n${transcript(history)}`,
+    internalNote: `${NOTE_HEADER}${charla}`,
     adminTitle: p.urgente ? "URGENTE · DNX Bot derivó un caso" : "DNX Bot derivó un caso",
   });
   await prisma.botConversation.update({
@@ -54,7 +75,24 @@ export async function escalateToHuman(p: {
       `🚨 CLF · Ticket #${ticket.id} (${p.motivo})\n${p.actor.name ?? ""} ${p.actor.email}\n\n${p.resumen}`,
     );
   }
-  return { ticketId: ticket.id };
+  return { ticketId: ticket.id, reused: false };
+}
+
+/** Tope de avisos urgentes por Telegram por proceso: pasado el tope, el incidente queda sólo en la base. */
+export const MAX_INCIDENT_ALERTS_PER_HOUR = 5;
+const HOUR_MS = 60 * 60 * 1000;
+let alertTimes: number[] = [];
+
+function takeAlertSlot(now = Date.now()): boolean {
+  alertTimes = alertTimes.filter((t) => now - t < HOUR_MS);
+  if (alertTimes.length >= MAX_INCIDENT_ALERTS_PER_HOUR) return false;
+  alertTimes.push(now);
+  return true;
+}
+
+/** Sólo para tests. */
+export function resetIncidentAlertBudget() {
+  alertTimes = [];
 }
 
 export async function reportIncident(p: {
@@ -71,7 +109,7 @@ export async function reportIncident(p: {
     data: { ids: p.ids, detalle: p.detalle.slice(0, 500) },
     urgent: p.urgente,
   });
-  if (p.urgente && r.isNew) {
+  if (p.urgente && r.isNew && takeAlertSlot()) {
     await sendTelegramMessage(
       readBotConfig().telegram,
       `🐞 CLF · Error nuevo en ${p.area}: ${p.codigo}\n${p.detalle.slice(0, 300)}`,

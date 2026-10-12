@@ -28,9 +28,9 @@ export const pedidosTools: BotTool[] = [
         where: { id: orderId, ...dueno(actor.userId) },
         select: { buyerEmail: true },
       });
-      return o
-        ? `Reenviar el link de descarga del pedido #${orderId} a ${maskEmail(o.buyerEmail)}.`
-        : `(no encontré el pedido #${orderId} en tu cuenta)`;
+      // Lanzar evita crear la tarjeta de confirmación para un pedido ajeno o inexistente.
+      if (!o) throw new Error(`No encontré el pedido #${orderId} en tu cuenta.`);
+      return `Reenviar el link de descarga del pedido #${orderId} a ${maskEmail(o.buyerEmail)}.`;
     },
     run: async ({ orderId }, actor) => {
       const o = await prisma.order.findFirst({

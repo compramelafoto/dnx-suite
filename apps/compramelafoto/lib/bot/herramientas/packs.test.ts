@@ -45,7 +45,7 @@ describe("crear_pack_digital", () => {
     expect(d).toContain("15.000");
     expect(d).toContain("Egresados");
     m.album.mockResolvedValue(null);
-    expect(await tool("crear_pack_digital").describe!({ albumId: 3, nombre: "x", precio: 1, cantidadFotos: 1 }, actor)).toContain("No encontré");
+    await expect(tool("crear_pack_digital").describe!({ albumId: 3, nombre: "x", precio: 1, cantidadFotos: 1 }, actor)).rejects.toThrow("No encontré ese álbum");
   });
   it("no tiene deshacer (borrar packs está prohibido)", () => {
     expect(tool("crear_pack_digital").undo).toBeUndefined();
@@ -61,6 +61,11 @@ describe("editar_pack", () => {
     expect(m.pack.mock.calls[0]![0].where).toMatchObject({ id: "pk11", albumId: 3, album: { userId: 7, deletedAt: null } });
     expect(m.update.mock.calls[0]![0]).toEqual({ where: { id: "pk11" }, data: { price: 200 } });
     expect(r).toMatchObject({ ok: true, before: { albumId: 3, packId: "pk11", valores: { price: 100 } } });
+  });
+  it("describe de un pack ajeno o inexistente lanza (sin tarjeta)", async () => {
+    m.pack.mockResolvedValue(null);
+    await expect(tool("editar_pack").describe!({ albumId: 3, packId: "pk11", activo: false }, actor)).rejects.toThrow("No encontré ese pack");
+    expect(m.pack.mock.calls[0]![0].where).toMatchObject({ id: "pk11", albumId: 3, album: { userId: 7, deletedAt: null } });
   });
   it("pack ajeno → no encontrado, no actualiza", async () => {
     m.pack.mockResolvedValue(null);
