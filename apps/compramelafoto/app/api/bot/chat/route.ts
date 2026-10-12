@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { BotTurnError, checkLimits, costMicroUsd, encodeSse, runBotTurn, type BotTurnResult } from "@repo/dnx-bot";
 import { getAuthUser } from "@/lib/auth";
 import { getAnthropicClient } from "@/lib/bot/anthropic";
@@ -14,6 +15,7 @@ import {
   recordUsage,
   usageSnapshot,
 } from "@/lib/bot/store";
+import { notifyCapThresholds } from "@/lib/bot/tope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,6 +44,20 @@ export async function POST(req: Request) {
   const actor = { userId: user.id, role: String(user.role), email: user.email, name: user.name };
   const isPhotographer = PHOTOGRAPHER_ROLES.has(actor.role);
   const encoder = new TextEncoder();
+
+  // El aviso de tope (base + Telegram) corre cuando el turno ya terminó, sin demorar la respuesta.
+  let usageRecorded = false;
+  let turnFinished!: () => void;
+  const finished = new Promise<void>((r) => (turnFinished = r));
+  const capCheck = async () => {
+    await finished;
+    if (usageRecorded) await notifyCapThresholds();
+  };
+  try {
+    after(capCheck);
+  } catch {
+    void capCheck().catch(() => {}); // fuera del contexto de una petición (no debería pasar)
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -104,6 +120,7 @@ export async function POST(req: Request) {
             } catch (err) {
               console.error("[dnx-bot] uso parcial", err);
             }
+            usageRecorded = true;
           }
           const cause = e instanceof BotTurnError ? e.cause : e;
           await reportIncident({
@@ -125,6 +142,7 @@ export async function POST(req: Request) {
           costMicroUsd: costMicroUsd(cfg.model, result.usage),
           countMessage: true,
         });
+        usageRecorded = true;
         if (result.outcome !== "ok") {
           await reportIncident({
             area: "otro",
@@ -140,6 +158,7 @@ export async function POST(req: Request) {
         console.error("[dnx-bot] chat", e);
         send("error", { message: FALLA, offerTicket: true });
       } finally {
+        turnFinished();
         if (open) {
           try {
             controller.close();

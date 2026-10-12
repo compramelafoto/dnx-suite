@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { sendTelegramMessage } from "@repo/dnx-bot";
 import { BOT_PLATFORM, readBotConfig } from "@/lib/bot/config";
 import { buildDailySummary } from "@/lib/bot/resumen";
+import { notifyCapThresholds } from "@/lib/bot/tope";
 import { assertCronAuth } from "@/lib/cron-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -27,5 +28,7 @@ export async function GET(req: NextRequest) {
   });
   const text = await buildDailySummary(now);
   const sent = await sendTelegramMessage(readBotConfig().telegram, text);
+  // Red de seguridad: con el tope alcanzado ya no hay turnos que reintenten un aviso que no salió.
+  await notifyCapThresholds(now);
   return Response.json({ ok: true, expired: expired.count, purged: purged.count, telegram: sent });
 }
