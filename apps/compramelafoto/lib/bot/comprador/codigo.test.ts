@@ -15,6 +15,7 @@ import {
   generarCodigo,
   hashCodigo,
   pedirCodigo,
+  PREFIJO_SENUELO,
   RESPUESTA_CODIGO,
   VERIFICACION_DURA_MS,
   verificarCodigo,
@@ -46,13 +47,22 @@ describe("generarCodigo y hashCodigo", () => {
 });
 
 describe("pedirCodigo", () => {
-  it("mail que nunca compró → mensaje genérico, sin fila y sin mail", async () => {
+  it("mail que nunca compró → mensaje genérico, fila señuelo (cuenta para los topes) y sin mail", async () => {
     m.order.count.mockResolvedValue(0);
+    const antes = Date.now();
     const r = await pedirCodigo(pedido);
     expect(r).toEqual({ mensaje: RESPUESTA_CODIGO, enviado: false });
-    expect(m.code.create).not.toHaveBeenCalled();
     expect(m.sendEmail).not.toHaveBeenCalled();
     expect(m.order.count).toHaveBeenCalledWith({ where: { buyerEmail: { equals: "juana@gmail.com", mode: "insensitive" }, isTest: false } });
+    const data = m.code.create.mock.calls[0]![0].data;
+    expect(data).toMatchObject({ email: "juana@gmail.com", conversationId: "c1", ipHash: "ip1" });
+    expect(data.codeHash.startsWith(PREFIJO_SENUELO)).toBe(true);
+    expect(data.expiresAt.getTime() - antes).toBeGreaterThanOrEqual(CODIGO_TTL_MS - 1000);
+    // Ningún código de 6 dígitos produce ese valor: es al azar y no es hex.
+    expect(data.codeHash).not.toMatch(/^[0-9a-f]{64}$/);
+    // Dos señuelos nunca repiten valor.
+    await pedirCodigo(pedido);
+    expect(m.code.create.mock.calls[1]![0].data.codeHash).not.toBe(data.codeHash);
   });
 
   it("mail con compras → mismo mensaje exacto, fila con hash y mail con el código", async () => {
@@ -68,7 +78,9 @@ describe("pedirCodigo", () => {
     const codigo = /<strong>(\d{6})<\/strong>/.exec(envio.html)![1]!;
     expect(data.codeHash).not.toBe(codigo);
     expect(data.codeHash).toBe(hashCodigo("c1", codigo));
-    expect(envio.html).toContain("Vence en 10 minutos. Si no lo pediste, ignorá este mail.");
+    expect(envio.html).toContain("Vence en 10 minutos.");
+    expect(envio.html).toContain("No se lo compartas a nadie");
+    expect(envio.html).toContain("Si no lo pediste, ignorá este mail.");
   });
 
   it("mail inválido → genérico sin consultar nada", async () => {
@@ -222,5 +234,61 @@ describe("verificarCodigo", () => {
     expect(m.marcarVerificada).toHaveBeenCalledTimes(1);
     expect([a, b]).toContainEqual({ ok: true, email: "juana@gmail.com" });
     expect([a, b]).toContainEqual({ ok: false, motivo: "usado", mensaje: "Ese código ya se usó. Si hace falta, pedime uno nuevo." });
+  });
+
+  it("señuelo: ni siquiera un hash forjado que coincida verifica", async () => {
+    m.code.findFirst.mockResolvedValue(fila({ codeHash: `${PREFIJO_SENUELO}${hashCodigo("c1", "123456")}` }));
+    expect(await verificarCodigo(verif)).toMatchObject({ ok: false, motivo: "incorrecto" });
+    expect(m.marcarVerificada).not.toHaveBeenCalled();
+  });
+});
+
+describe("pedir y verificar no revelan si el mail compró", () => {
+  /** Simula la tabla de códigos en memoria: lo que crea `pedirCodigo` es lo que lee `verificarCodigo`. */
+  async function recorrido(compras: number): Promise<unknown[]> {
+    const filas: Array<Record<string, unknown>> = [];
+    m.order.count.mockResolvedValue(compras);
+    m.code.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+      filas.push({ id: `k${filas.length}`, attempts: 0, usedAt: null, ...data });
+      return filas.at(-1);
+    });
+    m.code.findFirst.mockImplementation(async () => filas.filter((f) => f.usedAt === null).at(-1) ?? null);
+    m.code.updateMany.mockImplementation(async ({ where, data }: { where: { id: string; attempts?: { lt: number } }; data: Record<string, unknown> }) => {
+      const f = filas.find((x) => x.id === where.id)!;
+      if (data.attempts) {
+        if ((f.attempts as number) >= where.attempts!.lt) return { count: 0 };
+        f.attempts = (f.attempts as number) + 1;
+        return { count: 1 };
+      }
+      f.usedAt = data.usedAt;
+      return { count: 1 };
+    });
+    const salida: unknown[] = [await verificarCodigo({ conversationId: "c1", guestKey: "g1", codigo: "000000" })];
+    salida.push(await pedirCodigo({ conversationId: "c1", ipHash: "ip1", email: "x@y.com" }).then((r) => r.mensaje));
+    // Siete intentos con códigos que no son el real (el real, si existe, se excluye: nadie fuera del mail lo conoce).
+    const real = compras > 0 ? /<strong>(\d{6})<\/strong>/.exec(m.sendEmail.mock.calls.at(-1)![0].html)![1] : null;
+    const probados = ["000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777"].filter((c) => c !== real).slice(0, 7);
+    for (const codigo of probados) salida.push(await verificarCodigo({ conversationId: "c1", guestKey: "g1", codigo }));
+    return salida;
+  }
+
+  it("con compras y sin compras, las respuestas son idénticas paso a paso", async () => {
+    const conCompras = await recorrido(2);
+    expect(m.sendEmail).toHaveBeenCalledTimes(1);
+    m.sendEmail.mockClear();
+    const sinCompras = await recorrido(0);
+    expect(m.sendEmail).not.toHaveBeenCalled();
+    expect(sinCompras).toEqual(conCompras);
+    expect(m.marcarVerificada).not.toHaveBeenCalled();
+  });
+
+  it("los señuelos cuentan para el tope por IP: el 4.º mail sin compras de la hora no crea fila", async () => {
+    m.order.count.mockResolvedValue(0);
+    let filasDeLaIp = 0;
+    m.code.count.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => ("ipHash" in where ? filasDeLaIp : 0));
+    m.code.create.mockImplementation(async () => { filasDeLaIp += 1; return {}; });
+    for (const email of ["a@x.com", "b@x.com", "c@x.com", "d@x.com"]) await pedirCodigo({ conversationId: "c1", ipHash: "ip1", email });
+    expect(m.code.create).toHaveBeenCalledTimes(3);
+    expect(m.order.count).toHaveBeenCalledTimes(3);
   });
 });

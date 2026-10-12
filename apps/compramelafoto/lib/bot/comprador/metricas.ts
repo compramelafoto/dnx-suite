@@ -3,6 +3,7 @@ import { normalizeEmail } from "@/lib/order-claims";
 import { prisma } from "@/lib/prisma";
 import { PREFIJO_INVITADO } from "../actor-key";
 import { BOT_PLATFORM } from "../config";
+import { PREFIJO_SENUELO } from "./codigo";
 import { argentinaMonthPrefix } from "../dia-argentino";
 
 /** Ventana para atribuirle una venta a una conversación del bot. */
@@ -146,7 +147,8 @@ export async function lineasCompradores(since: Date, _now: Date): Promise<string
       select: { input: true },
       take: MAX_CASOS,
     }),
-    prisma.botEmailCode.count({ where: { createdAt: desde } }),
+    // Los señuelos (mails sin compras, ver `codigo.ts`) no son códigos mandados.
+    prisma.botEmailCode.count({ where: { createdAt: desde, NOT: { codeHash: { startsWith: PREFIJO_SENUELO } } } }),
     prisma.botEmailCode.count({ where: { createdAt: desde, usedAt: { not: null } } }),
     prisma.botAction.groupBy({
       by: ["toolName"],

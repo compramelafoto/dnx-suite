@@ -1,4 +1,4 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { sendEmail } from "@/emails/send";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/order-claims";
@@ -11,6 +11,12 @@ export const CODIGOS_POR_HORA = 3;
 export const VERIFICACION_DURA_MS = 24 * 60 * 60 * 1000;
 export const RESPUESTA_CODIGO =
   "Si hay compras con ese mail, te llegó un código de 6 números. Revisá también spam y promociones. Vence en 10 minutos.";
+
+/**
+ * Marca de las filas señuelo (mails sin compras). No es hex, así que el valor nunca puede coincidir con
+ * `hashCodigo` (64 caracteres hex); además `verificarCodigo` las rechaza explícitamente antes de comparar.
+ */
+export const PREFIJO_SENUELO = "senuelo:";
 
 const UNA_HORA_MS = 60 * 60 * 1000;
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -53,7 +59,21 @@ export async function pedirCodigo(p: { conversationId: string; ipHash: string; e
   if (porMail >= CODIGOS_POR_HORA || porIp >= CODIGOS_POR_HORA) return generica(false);
 
   const compras = await prisma.order.count({ where: { buyerEmail: { equals: email, mode: "insensitive" }, isTest: false } });
-  if (compras === 0) return generica(false);
+  const expiresAt = new Date(Date.now() + CODIGO_TTL_MS);
+  if (compras === 0) {
+    // Señuelo: misma fila que un pedido real (cuenta para los topes por hora y `verificarCodigo` responde
+    // «no coincide» / «intentos» igual), pero sin código posible ni mail. Así no se puede averiguar si el mail compró.
+    await prisma.botEmailCode.create({
+      data: {
+        email,
+        codeHash: `${PREFIJO_SENUELO}${randomBytes(32).toString("base64url")}`,
+        conversationId: p.conversationId,
+        ipHash: p.ipHash,
+        expiresAt,
+      },
+    });
+    return generica(false);
+  }
 
   const codigo = generarCodigo();
   await prisma.botEmailCode.create({
@@ -62,7 +82,7 @@ export async function pedirCodigo(p: { conversationId: string; ipHash: string; e
       codeHash: hashCodigo(p.conversationId, codigo),
       conversationId: p.conversationId,
       ipHash: p.ipHash,
-      expiresAt: new Date(Date.now() + CODIGO_TTL_MS),
+      expiresAt,
     },
   });
 
@@ -71,7 +91,7 @@ export async function pedirCodigo(p: { conversationId: string; ipHash: string; e
     const r = await sendEmail({
       to: email,
       subject: "Tu código de CompraMeLaFoto",
-      html: `Hola: tu código para ver tus compras en CompraMeLaFoto es <strong>${codigo}</strong>. Vence en 10 minutos. Si no lo pediste, ignorá este mail.`,
+      html: `Hola: tu código para ver tus compras en CompraMeLaFoto es <strong>${codigo}</strong>. Vence en 10 minutos. No se lo compartas a nadie: nadie de CompraMeLaFoto te lo va a pedir. Si no lo pediste, ignorá este mail.`,
       templateKey: "BOT_CODIGO",
     });
     if (!r?.success) {
@@ -118,7 +138,9 @@ export async function verificarCodigo(p: { conversationId: string; guestKey: str
   });
   if (reserva.count === 0) return fallo("intentos");
 
-  if (!mismoHash(hashCodigo(fila.conversationId, codigo), fila.codeHash)) {
+  // Un señuelo nunca verifica (y nunca da acceso a pedidos): falla igual que un código equivocado.
+  const esSenuelo = fila.codeHash.startsWith(PREFIJO_SENUELO);
+  if (esSenuelo || !mismoHash(hashCodigo(fila.conversationId, codigo), fila.codeHash)) {
     return fila.attempts + 1 >= CODIGO_MAX_INTENTOS ? fallo("intentos") : fallo("incorrecto");
   }
 

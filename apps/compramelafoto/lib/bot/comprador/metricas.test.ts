@@ -175,7 +175,10 @@ describe("lineasCompradores", () => {
       platform: "CLF", userId: null, toolName: "abrir_caso", createdAt: { gt: SINCE },
     });
     const codigos = m.code.count.mock.calls.map((c) => c[0].where);
-    expect(codigos).toEqual([{ createdAt: { gt: SINCE } }, { createdAt: { gt: SINCE }, usedAt: { not: null } }]);
+    expect(codigos).toEqual([
+      { createdAt: { gt: SINCE }, NOT: { codeHash: { startsWith: "senuelo:" } } },
+      { createdAt: { gt: SINCE }, usedAt: { not: null } },
+    ]);
     expect(m.action.groupBy.mock.calls[0]![0].where).toEqual({
       platform: "CLF", userId: null, toolName: { in: ["reenviar_descarga", "reenviar_link_pack"] }, createdAt: { gt: SINCE },
       resultMessage: { startsWith: "enviados:", not: "enviados:0" },
