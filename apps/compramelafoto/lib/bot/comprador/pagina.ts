@@ -99,29 +99,21 @@ export function esRutaClienteConBot(pathname: string): boolean {
 
 /** Distancia normal de la burbuja al borde de abajo (la de `DnxBotBubble`). */
 export const MARGEN_BURBUJA_NORMAL = 24;
-/**
- * Preventa (`/album/{slug}/preventa`): barra fija de pago en celular (PreventaPage.tsx, `sm:hidden`).
- * Alto máximo: borde 1 + `py-3` 12 + aviso «Estamos preparando…» 16 + `gap-2` 8 + botón «Pagar» 48
- * + `pb-[max(0.75rem, safe-area)]` hasta 34 en iPhone = 119 px, más 16 de aire.
- */
-export const MARGEN_BURBUJA_PREVENTA = 136;
-/**
- * Página del álbum (`/album/{slug}`, `/a/{id}`): `PurchaseStickyBar` (compra V2) o el botón flotante
- * «Comprar» de ClientAlbumView (abajo a la derecha). Sólo aparecen con fotos elegidas: se usa el máximo.
- * Barra V2: borde 1 + `py-3` 24 + hasta 4 líneas de resumen con `space-y-1` 92 + `mb-3` 12 + botón 48
- * + acción secundaria 28 + safe-area 34 = 239 px, más aire.
- */
-export const MARGEN_BURBUJA_ALBUM = 248;
+/** Aire entre la burbuja y el botón o la barra de pago que tiene abajo. */
+export const AIRE_SOBRE_BOTON = 12;
+/** Atributo que marcan los botones y barras de pago fijos que la burbuja no tiene que tapar. */
+export const ATRIBUTO_EVITAR = "data-dnxbot-evitar";
 
 /**
- * Cuánto se separa la burbuja del borde de abajo para no tapar las barras de pago fijas de cada página.
- * Puro: lo usa la burbuja en el navegador con el `pathname`.
+ * Cuánto se separa la burbuja del borde de abajo, medido en el navegador: justo por encima del más alto
+ * de los botones o barras de pago fijos que están visibles (`tops` = su borde de arriba). Sin ninguno,
+ * queda en su lugar de siempre. Puro.
  */
-export function margenBurbujaComprador(pathname: string): number {
-  const s = pathname.split("/").slice(1);
-  if (s.length > 1 && s[s.length - 1] === "") s.pop();
-  if (s[0] === "album" && s.length === 3 && (s[2] === "preventa" || s[2] === "precompra")) return MARGEN_BURBUJA_PREVENTA;
-  const p = contextoDePagina(pathname);
-  if ((p?.tipo === "album" && s.length === 2) || (p?.tipo === "album_id" && p.photoId === null)) return MARGEN_BURBUJA_ALBUM;
-  return MARGEN_BURBUJA_NORMAL;
+export function margenSobreBotones(tops: number[], altoVentana: number): number {
+  let margen = MARGEN_BURBUJA_NORMAL;
+  for (const top of tops) {
+    if (!Number.isFinite(top) || top >= altoVentana || top < 0) continue;
+    margen = Math.max(margen, Math.ceil(altoVentana - top) + AIRE_SOBRE_BOTON);
+  }
+  return margen;
 }

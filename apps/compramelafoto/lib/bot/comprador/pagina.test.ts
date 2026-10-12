@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   contextoDePagina,
   esRutaClienteConBot,
-  margenBurbujaComprador,
-  MARGEN_BURBUJA_ALBUM,
+  margenSobreBotones,
   MARGEN_BURBUJA_NORMAL,
-  MARGEN_BURBUJA_PREVENTA,
   pagePathSeguro,
 } from "./pagina";
 
@@ -62,23 +60,23 @@ describe("contextoDePagina", () => {
   });
 });
 
-describe("margenBurbujaComprador", () => {
-  it("en la preventa sube la burbuja por encima de la barra de pago", () => {
-    expect(margenBurbujaComprador("/album/fiesta/preventa")).toBe(MARGEN_BURBUJA_PREVENTA);
-    expect(margenBurbujaComprador("/album/fiesta/preventa/")).toBe(MARGEN_BURBUJA_PREVENTA);
-    expect(margenBurbujaComprador("/album/fiesta/precompra")).toBe(MARGEN_BURBUJA_PREVENTA);
-    expect(MARGEN_BURBUJA_PREVENTA).toBeGreaterThanOrEqual(1 + 12 + 16 + 8 + 48 + 34);
+describe("margenSobreBotones", () => {
+  it("sin botones de pago visibles queda en su lugar de siempre", () => {
+    expect(margenSobreBotones([], 812)).toBe(MARGEN_BURBUJA_NORMAL);
+    expect(margenSobreBotones([900], 812)).toBe(MARGEN_BURBUJA_NORMAL); // fuera de pantalla
   });
 
-  it("en la página del álbum la sube por encima de la barra o el botón de compra", () => {
-    expect(margenBurbujaComprador("/album/fiesta")).toBe(MARGEN_BURBUJA_ALBUM);
-    expect(margenBurbujaComprador("/a/12")).toBe(MARGEN_BURBUJA_ALBUM);
-    expect(MARGEN_BURBUJA_ALBUM).toBeGreaterThanOrEqual(1 + 24 + 92 + 12 + 48 + 28 + 34);
+  it("se ubica justo por encima del botón flotante de comprar", () => {
+    // Botón de 44 px a 20 px del borde: arriba en 812 - 64 = 748 → 64 + 12 de aire.
+    expect(margenSobreBotones([748], 812)).toBe(76);
   });
 
-  it("en las demás páginas queda en su lugar de siempre", () => {
-    for (const p of ["/a/12/remover/5", "/descargas/abc", "/pago/success", "/cliente/pedidos", "/cliente/pack/xyz"]) {
-      expect(margenBurbujaComprador(p)).toBe(MARGEN_BURBUJA_NORMAL);
-    }
+  it("con varios elementos usa el más alto (barra de compra)", () => {
+    expect(margenSobreBotones([748, 640.4], 812)).toBe(184);
+  });
+
+  it("nunca baja del margen normal ni toma valores raros", () => {
+    expect(margenSobreBotones([808], 812)).toBe(MARGEN_BURBUJA_NORMAL);
+    expect(margenSobreBotones([Number.NaN, -5], 812)).toBe(MARGEN_BURBUJA_NORMAL);
   });
 });
