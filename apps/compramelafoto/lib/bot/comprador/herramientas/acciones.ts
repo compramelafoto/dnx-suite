@@ -13,6 +13,12 @@ import { enmascararEmail } from "../mascara";
 import { contarAccionesComprador, registrarAccionComprador } from "../store";
 import { albumVisiblePara } from "./visibilidad";
 
+/**
+ * Error pensado para que lo lea la persona (vía el modelo). Cualquier otro error que lance una
+ * herramienta de compradores llega al modelo como mensaje genérico (ver `herramientasComprador`).
+ */
+export class AvisoAlComprador extends Error {}
+
 export const LIMITES_ACCIONES = {
   reenviosPorMailHora: 3,
   reenviosPorIpHora: 5,
@@ -254,7 +260,7 @@ async function topeDeSolicitudes(a: CompradorActor): Promise<void> {
   const n = await contarAccionesComprador({
     toolName: ["solicitar_quitar_foto", "solicitud_de_privacidad"], desde: haceUnaHora(), ipHash: a.ipHash,
   });
-  if (n >= LIMITES_ACCIONES.solicitudesPorIpHora) throw new Error("Ya mandaste varias solicitudes en la última hora.");
+  if (n >= LIMITES_ACCIONES.solicitudesPorIpHora) throw new AvisoAlComprador("Ya mandaste varias solicitudes en la última hora.");
 }
 
 function solicitarQuitarFoto(a: CompradorActor): BotTool {
@@ -282,7 +288,7 @@ function solicitarQuitarFoto(a: CompradorActor): BotTool {
         },
       });
       if (!foto || foto.albumId !== albumId || foto.isRemoved || foto.album.isTest || foto.album.deletedAt) {
-        throw new Error("No encontré esa foto en ese álbum.");
+        throw new AvisoAlComprador("No encontré esa foto en ese álbum.");
       }
       // Se acepta aunque el álbum esté oculto (la persona puede llegar a su foto por selfie),
       // pero el título sólo se muestra si la persona puede ver el álbum: los ids se pueden recorrer.

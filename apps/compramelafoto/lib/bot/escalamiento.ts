@@ -7,15 +7,15 @@ import { SUPPORT_MESSAGE_MAX_LENGTH, type ALLOWED_REASONS } from "@/lib/support/
 
 type Reason = (typeof ALLOWED_REASONS)[number];
 
-const NOTE_HEADER = "Derivado por DNX Bot.\n\n";
+export const NOTE_HEADER = "Derivado por DNX Bot.\n\n";
 
 /** Recorta por el principio: lo más reciente de la charla es lo que más importa para soporte. */
-function keepTail(text: string, max: number): string {
+export function keepTail(text: string, max: number): string {
   if (text.length <= max) return text;
   return `…${text.slice(text.length - (max - 1))}`;
 }
 
-function transcript(history: unknown[]): string {
+export function transcript(history: unknown[]): string {
   return (history as { role: string; content: unknown }[])
     .map((m) => {
       const text =

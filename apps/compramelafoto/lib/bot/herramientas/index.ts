@@ -1,6 +1,6 @@
 import { defineTool, type BotActor, type BotTool } from "@repo/dnx-bot";
 import { z } from "zod";
-import { escalateToHuman, reportIncident } from "@/lib/bot/escalamiento";
+import { escalateToHuman } from "@/lib/bot/escalamiento";
 import { escolarTools } from "@/lib/bot/escolar/herramientas";
 import { ALLOWED_REASONS } from "@/lib/support/sanitize";
 import { albumTools } from "./album";
@@ -8,6 +8,9 @@ import { lecturaTools } from "./lectura";
 import { packTools } from "./packs";
 import { pedidosTools } from "./pedidos";
 import { perfilTools } from "./perfil";
+import { herramientaReportarProblema } from "./reportar-problema";
+
+export { herramientaReportarProblema };
 
 const PHOTOGRAPHER_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"]);
 
@@ -47,23 +50,7 @@ export function toolsForActor(actor: BotActor, ctx: ToolsContext): BotTool[] {
         };
       },
     }),
-    defineTool({
-      name: "reportar_problema_del_sistema",
-      description:
-        "Registra una falla del sistema (no un error de la persona) para que el equipo técnico la corrija. Sólo datos técnicos; no copies textos de la persona.",
-      kind: "read",
-      input: z.strictObject({
-        area: z.enum(["album", "precios", "packs", "fotos", "subidas", "pedidos", "descargas", "mercadopago", "perfil", "otro"]),
-        codigo: z.string().min(2).max(80).describe("Código o mensaje de error exacto"),
-        ids: z.record(z.string(), z.union([z.string(), z.number()])).describe("IDs involucrados, ej. {albumId: 3}"),
-        detalle: z.string().max(500),
-        urgente: z.boolean().describe("true si impide vender o cobrar"),
-      }),
-      run: async (i) => {
-        await reportIncident(i);
-        return { ok: true, message: "Quedó registrado para el equipo técnico." };
-      },
-    }),
+    herramientaReportarProblema(),
   ];
   if (!PHOTOGRAPHER_ROLES.has(actor.role)) return comunes;
   return [...lecturaTools, ...albumTools, ...packTools, ...perfilTools, ...pedidosTools, ...escolarTools, ...comunes];
