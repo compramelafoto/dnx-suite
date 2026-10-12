@@ -1,6 +1,9 @@
 import { getAuthUser } from "@/lib/auth";
 import { isBotEnabledForUser, readBotConfig } from "@/lib/bot/config";
 import { buildPhotographerSituation } from "@/lib/bot/contexto";
+import { CAMPANIAS, registrarVisto, type Campania } from "@/lib/bot/outreach";
+import type { ProgresoEscolar } from "@/lib/bot/escolar/progreso";
+import { cargarDatosSegmento, elegirCampania, type Globito } from "@/lib/bot/segmentos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +12,7 @@ const PHOTOGRAPHER_ROLES = new Set(["PHOTOGRAPHER", "LAB_PHOTOGRAPHER"]);
 const SALUDO = "Hola, soy DNX Bot. ¿En qué te ayudo?";
 const SUGERENCIAS_FOTOGRAFO = ["¿Por qué mi álbum no vende?", "Cambiar el precio de un álbum", "Reenviar un link de descarga"];
 
-export async function GET() {
+export async function GET(req?: Request) {
   // Con el bot apagado no se toca la sesión ni la base: cada panel llama a esta ruta al cargar.
   if (!readBotConfig().enabled) return Response.json({ enabled: false });
   const user = await getAuthUser();
@@ -20,6 +23,8 @@ export async function GET() {
       alerta: false,
       saludo: SALUDO,
       sugerencias: ["¿Cómo funciona CLF?", "Quiero hablar con una persona"],
+      globito: null,
+      progresoEscolar: null,
     });
   }
   let bloqueo: { text: string } | undefined;
@@ -30,10 +35,26 @@ export async function GET() {
     // Si falla armar la situación, la burbuja igual aparece con el saludo de siempre.
     console.error("[dnx-bot] estado", e);
   }
+  // El globito es un extra: si algo falla, el estado sale igual sin él.
+  let globito: Globito | null = null;
+  let progresoEscolar: ProgresoEscolar | null = null;
+  try {
+    const pedida = req ? new URL(req.url).searchParams.get("campaign") : null;
+    const forzar = (CAMPANIAS as readonly string[]).includes(pedida ?? "") ? (pedida as Campania) : undefined;
+    const datos = await cargarDatosSegmento(user.id);
+    progresoEscolar = datos.progreso;
+    globito = elegirCampania(datos, new Date(), { forzar });
+    if (globito) await registrarVisto(user.id, globito.campaign).catch((e) => console.error("[dnx-bot] registrar visto", e));
+  } catch (e) {
+    console.error("[dnx-bot] estado globito", e);
+    globito = null;
+  }
   return Response.json({
     enabled: true,
     alerta: !!bloqueo,
     saludo: bloqueo ? `${bloqueo.text} ¿Te ayudo a resolverlo?` : SALUDO,
     sugerencias: SUGERENCIAS_FOTOGRAFO,
+    globito,
+    progresoEscolar,
   });
 }

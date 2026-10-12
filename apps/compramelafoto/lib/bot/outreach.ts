@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { BOT_PLATFORM } from "./config";
 
-export type Campania = "nuevo" | "sin_ventas" | "sin_escolar" | "escolar_en_curso";
+export const CAMPANIAS = ["nuevo", "sin_ventas", "sin_escolar", "escolar_en_curso"] as const;
+export type Campania = (typeof CAMPANIAS)[number];
 export type OutreachStatus = "SHOWN" | "CLICKED" | "DISMISSED" | "DECLINED" | "SENT" | "FAILED";
 export type OutreachParams = {
   userId: number;

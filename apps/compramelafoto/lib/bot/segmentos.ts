@@ -29,11 +29,12 @@ function primerNombre(nombre: string | null): string {
   return nombre?.trim().split(/\s+/)[0] ?? "";
 }
 
-function suprimida(c: Campania, d: DatosSegmento, now: Date): boolean {
+function suprimida(c: Campania, d: DatosSegmento, now: Date, soloDeclined = false): boolean {
   for (const o of d.outreach) {
     if (o.campaign !== c) continue;
     const edad = now.getTime() - o.updatedAt.getTime();
     if (o.status === "DECLINED" && edad < DECLINED_DIAS * DIA_MS) return true;
+    if (soloDeclined) continue; // forzada: sólo «No, gracias» la frena
     if (o.status === "DISMISSED" && edad < DISMISSED_DIAS * DIA_MS) return true;
     if (o.status === "CLICKED") {
       if (c !== "escolar_en_curso") return true;
@@ -58,8 +59,13 @@ function aplica(c: Campania, d: DatosSegmento): boolean {
 
 const PRIORIDAD: Campania[] = ["escolar_en_curso", "nuevo", "sin_ventas", "sin_escolar"];
 
-export function elegirCampania(d: DatosSegmento, now: Date): Globito | null {
-  const campaign = PRIORIDAD.find((c) => aplica(c, d) && !suprimida(c, d, now));
+/** Con `forzar` se muestra esa campaña si su condición se cumple, aunque esté CLICKED/DISMISSED; nunca si fue DECLINED (90 días). */
+export function elegirCampania(d: DatosSegmento, now: Date, opts: { forzar?: Campania } = {}): Globito | null {
+  const campaign = opts.forzar
+    ? aplica(opts.forzar, d) && !suprimida(opts.forzar, d, now, true)
+      ? opts.forzar
+      : undefined
+    : PRIORIDAD.find((c) => aplica(c, d) && !suprimida(c, d, now));
   if (!campaign) return null;
   const s = saludoPorHora(now);
   const n = primerNombre(d.nombre);

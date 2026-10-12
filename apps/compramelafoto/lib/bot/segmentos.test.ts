@@ -89,4 +89,20 @@ describe("elegirCampania", () => {
       expect(elegirCampania(d, NOW)!.campaign).toBe("sin_escolar");
     });
   });
+
+  describe("forzar", () => {
+    const sinEsc = (status: string, d: number) => base({ tuvoEscolar: false, outreach: [{ campaign: "sin_escolar", status, updatedAt: dias(d) }] });
+    it("fuerza aunque esté CLICKED o DISMISSED", () => {
+      expect(elegirCampania(sinEsc("CLICKED", 3), NOW, { forzar: "sin_escolar" })!.campaign).toBe("sin_escolar");
+      expect(elegirCampania(sinEsc("DISMISSED", 1), NOW, { forzar: "sin_escolar" })!.campaign).toBe("sin_escolar");
+    });
+    it("nunca fuerza una DECLINED de menos de 90 días", () => {
+      expect(elegirCampania(sinEsc("DECLINED", 10), NOW, { forzar: "sin_escolar" })).toBeNull();
+      expect(elegirCampania(sinEsc("DECLINED", 91), NOW, { forzar: "sin_escolar" })!.campaign).toBe("sin_escolar");
+    });
+    it("no fuerza si la condición no se cumple, ni cae a otra campaña", () => {
+      expect(elegirCampania(base({ tuvoEscolar: true }), NOW, { forzar: "sin_escolar" })).toBeNull();
+      expect(elegirCampania(base({ tuvoEscolar: false, tieneAlbum: true, vendio: false }), NOW, { forzar: "sin_escolar" })).toBeNull();
+    });
+  });
 });
