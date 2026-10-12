@@ -1,5 +1,6 @@
 import { defineTool, type BotTool, type ToolOutcome } from "@repo/dnx-bot";
 import { z } from "zod";
+import { computeAlbumHideAt, computeAlbumPurgeAt } from "@/lib/album-cleanup/eligibility";
 import { publicAlbumFilter } from "@/lib/album-helpers";
 import { albumPhotoFileKey } from "@/lib/album-photo-ref";
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
@@ -109,7 +110,8 @@ function verAlbum(a: CompradorActor): BotTool {
       const album = await prisma.album.findFirst({
         where: { id, isTest: false },
         select: {
-          id: true, title: true, isPublic: true, isHidden: true, deletedAt: true, cleanupStatus: true, expiresAt: true,
+          id: true, title: true, isPublic: true, isHidden: true, deletedAt: true, cleanupStatus: true,
+          firstPhotoDate: true, expirationExtensionDays: true,
           publicSlug: true, hiddenPhotosEnabled: true, enablePrintedPhotos: true,
           digitalDiscount5Plus: true, digitalDiscount10Plus: true, digitalDiscount20Plus: true,
           user: { select: { name: true, companyName: true } },
@@ -118,11 +120,18 @@ function verAlbum(a: CompradorActor): BotTool {
       if (!album || !albumVisiblePara(a, album)) return ALBUM_NO_ENCONTRADO;
 
       const ahora = new Date();
+      // Mismos plazos que la página y la limpieza: desde la primera foto (no `expiresAt`, que nace en la creación).
+      const visibleHasta = computeAlbumHideAt(album);
+      const borradoEl = computeAlbumPurgeAt(album);
       const estado = !albumConOriginales(album)
         ? "ya no está disponible"
-        : album.expiresAt.getTime() < ahora.getTime()
-          ? `venció el ${diaMesAR(album.expiresAt)}`
-          : `disponible hasta el ${diaMesAR(album.expiresAt)}`;
+        : !visibleHasta || !borradoEl
+          ? "disponible"
+          : visibleHasta.getTime() > ahora.getTime()
+            ? `disponible hasta el ${diaMesAR(visibleHasta)}`
+            : borradoEl.getTime() > ahora.getTime()
+              ? `venció el ${diaMesAR(visibleHasta)}; se puede pedir una extensión hasta el ${diaMesAR(borradoEl)}`
+              : "ya no está disponible";
 
       const [fotos, preventa, packs] = await Promise.all([
         prisma.photo.count({ where: { albumId: id, isRemoved: false } }),
