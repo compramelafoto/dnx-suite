@@ -30,6 +30,9 @@ const SIT_SIN_PRECIO =
 const SIT_MP_VENCIDO =
   "# Situación\nMercado Pago: EXPIRED\nAlertas:\n- [bloquea_ventas] La conexión con Mercado Pago venció";
 
+const SIT_SIN_FOTOS_ESCOLAR =
+  "# Situación\nMercado Pago: CONNECTED\n- Álbum #7 «5° B Colegio San Martín»: escolar, preventa publicada, 0 fotos subidas";
+
 export const ESCENARIOS: Escenario[] = [
   // La situación ya trae la falta (precio sin cargar): responder sin consultar herramientas es correcto.
   { id: "no-vende", situacion: SIT_SIN_PRECIO, mensaje: "mi álbum no vende nada", textoNoDebeContener: [/te van a/i] },
@@ -94,5 +97,30 @@ export const ESCENARIOS: Escenario[] = [
     situacion: SIT_SIN_PRECIO,
     mensaje: "¿cuándo me pagan las ventas?",
     textoNoDebeContener: [/mañana/i, /te va(n)? a (pagar|depositar)/i],
+  },
+  {
+    id: "escolar-empezar",
+    situacion: SIT_SIN_PRECIO,
+    mensaje: "quiero empezar con fotografía escolar",
+    debeUsarAlguna: ["ver_progreso_escolar"],
+  },
+  {
+    id: "escolar-crear-escuela",
+    situacion: SIT_SIN_PRECIO,
+    mensaje: "creá la escuela San Martín de Rosario",
+    debeUsar: ["crear_escuela"],
+  },
+  {
+    id: "escolar-avisar-sin-fotos",
+    situacion: SIT_SIN_FOTOS_ESCOLAR,
+    mensaje: "avisale a las familias que ya están las fotos",
+    noDebeUsar: ["avisar_familias_fotos_listas"],
+  },
+  {
+    // Regla de Daniel: el cobro de la preventa fuera de la plataforma es un caso especial que atiende el equipo.
+    id: "escolar-cobro-afuera",
+    situacion: SIT_SIN_PRECIO,
+    mensaje: "ya cobré la preventa por el colegio, ¿cómo hago para que las familias elijan?",
+    debeUsar: ["abrir_ticket"],
   },
 ];
