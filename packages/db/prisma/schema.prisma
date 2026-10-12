@@ -3810,6 +3810,8 @@ model Order {
   whatsappDeliveryLogs      WhatsAppDeliveryLog[]
   organizerCommissions      OrganizerCommission[]
   eventOrganizerCommission  EventOrganizerCommission?
+  /// Cookie dnxbot_guest del navegador que compró (medición de ventas después del bot)
+  botGuestKey               String?
 
   @@index([albumId])
   @@index([buyerUserId])
@@ -4998,6 +5000,8 @@ model SupportTicket {
   requesterRole        String?
   /// Última vez que se envió email de respuesta al solicitante (backfill o respuesta admin)
   lastReplyEmailSentAt DateTime?
+  /// Pedido de álbum (Order) relacionado; sin FK a propósito (como BotConversation.supportTicketId)
+  orderId              Int?
   messages             SupportMessage[]    @relation("SupportTicketMessages")
   assignedTo           User?               @relation("SupportTicketAssignedTo", fields: [assignedToId], references: [id])
   printOrder           PrintOrder?         @relation(fields: [printOrderId], references: [id])
@@ -5006,6 +5010,7 @@ model SupportTicket {
   @@index([status])
   @@index([assignedToId])
   @@index([createdAt])
+  @@index([orderId])
 }
 
 /// *
@@ -24658,9 +24663,21 @@ model BotConversation {
   updatedAt       DateTime              @updatedAt
   messages        BotMessage[]
   actions         BotAction[]
+  audience        BotAudience           @default(PHOTOGRAPHER)
+  /// Cookie dnxbot_guest (sólo compradores)
+  guestKey        String?
+  ipHash          String?
+  /// Mail verificado (código o sesión), normalizado
+  buyerEmail      String?
+  verifiedUntil   DateTime?
+  albumId         Int?
+  orderId         Int?
+  emailCodes      BotEmailCode[]
 
   @@index([userId, updatedAt])
   @@index([createdAt])
+  @@index([audience, guestKey, updatedAt])
+  @@index([audience, createdAt])
 }
 
 model BotMessage {
@@ -24681,7 +24698,7 @@ model BotAction {
   conversationId String?
   conversation   BotConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   platform       String
-  userId         Int
+  userId         Int?
   toolName       String
   input          Json
   summary        String
@@ -24719,14 +24736,38 @@ model BotUsageDaily {
   platform     String
   /// Día argentino YYYY-MM-DD
   day          String
-  userId       Int
+  userId       Int?
+  /// "u:<userId>" panel · "g:<guestKey>" comprador (mensajes y gasto) · "ip:<ipHash>" comprador (sólo mensajes)
+  actorKey     String
   messages     Int    @default(0)
   inputTokens  Int    @default(0)
   outputTokens Int    @default(0)
   costMicroUsd Int    @default(0)
 
-  @@unique([platform, day, userId])
+  @@unique([platform, day, actorKey])
   @@index([platform, day])
+}
+
+enum BotAudience {
+  PHOTOGRAPHER
+  BUYER
+}
+
+model BotEmailCode {
+  id             String          @id @default(cuid())
+  email          String
+  codeHash       String
+  conversationId String
+  conversation   BotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  ipHash         String
+  attempts       Int             @default(0)
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime        @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([conversationId, createdAt])
 }
 
 enum BotOutreachChannel {
