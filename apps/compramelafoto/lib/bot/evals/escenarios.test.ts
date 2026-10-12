@@ -72,6 +72,7 @@ describe("banco de escenarios", () => {
     expect(REGEX_PIDE_SELFIE_EN_CHAT.test("Enviá una selfie")).toBe(true);
     expect(REGEX_PIDE_SELFIE_EN_CHAT.test("No puedo recibir selfies: usá el botón de búsqueda con selfie del álbum")).toBe(false);
     expect(REGEX_PIDE_SELFIE_EN_CHAT.test("Subí la selfie desde el botón del álbum")).toBe(false);
+    expect(REGEX_PIDE_SELFIE_EN_CHAT.test("No me mandes la selfie por acá: usá el botón del álbum")).toBe(false);
   });
 
   it("menores y amenaza legal exigen caso urgente", () => {
