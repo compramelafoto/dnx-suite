@@ -21,12 +21,23 @@ import {
   type ProgresoEscolar,
 } from "./globito";
 import { applyDecision, applySseEvent, dropEmptyBot, seedIntro, type Item } from "./items";
+import { debeMostrarGlobitoDiferido, estadoUrlComprador, marcarGlobitoVisto, paginaActual, textoTicket, type Audiencia } from "./comprador";
 
-export type DnxBotBubbleProps = { basePath: string; mascotSrc: string; bottomOffsetPx?: number; rutasPermitidas?: string[] };
+export type DnxBotBubbleProps = {
+  basePath: string;
+  mascotSrc: string;
+  bottomOffsetPx?: number;
+  rutasPermitidas?: string[];
+  /** Sin la prop (o "fotografo") la burbuja funciona como siempre. "comprador": página con búsqueda, globito diferido y nunca se abre sola. */
+  audiencia?: Audiencia;
+};
 
-export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPermitidas }: DnxBotBubbleProps) {
-  const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; progresoEscolar?: unknown } | null>(null);
+export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo" }: DnxBotBubbleProps) {
+  const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; globitoDemoraMs?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
+  // El temporizador del globito diferido lee si la ventana está abierta en el momento de dispararse.
+  const openRef = useRef(false);
+  useEffect(() => { openRef.current = open; }, [open]);
   const [globito, setGlobito] = useState<Globito | null>(null);
   // true cuando la persona llegó desde el mail (?dnxbot=): el globito es el saludo dentro de la ventana.
   const [globitoEnVentana, setGlobitoEnVentana] = useState(false);
@@ -47,6 +58,32 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
     } catch {
       almacen = null;
     }
+    if (audiencia === "comprador") {
+      // Compradores: sin `?dnxbot=` ni campaña pendiente; la ventana nunca se abre sola.
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let vivo = true;
+      fetch(estadoUrlComprador(basePath, location.pathname, location.search))
+        .then((r) => r.json())
+        .then((e) => {
+          if (!vivo) return;
+          setEstado(e);
+          setIntroProgreso(progresoInicial(e));
+          const g = e?.enabled ? parseGlobito(e?.globito) : null;
+          const demora = typeof e?.globitoDemoraMs === "number" ? e.globitoDemoraMs : 0;
+          if (g && demora > 0) {
+            timer = setTimeout(() => {
+              if (openRef.current || !debeMostrarGlobitoDiferido(almacen, g.campaign)) return;
+              setGlobito(g);
+              marcarGlobitoVisto(almacen, g.campaign);
+            }, demora);
+          }
+        })
+        .catch(() => { if (vivo) setEstado({ enabled: false }); });
+      return () => {
+        vivo = false;
+        if (timer) clearTimeout(timer);
+      };
+    }
     // Si viene del mail sin sesión, el login pierde el parámetro: queda guardado en sessionStorage
     // hasta que la ventana se abra con el bot habilitado.
     const campaign = campaniaInicial(location.search, almacen, Date.now());
@@ -66,7 +103,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
         }
       })
       .catch(() => setEstado({ enabled: false }));
-  }, [basePath]);
+  }, [basePath, audiencia]);
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [items]);
 
   // Lo que se ve como saludo antes del primer mensaje; send() lo pasa a la conversación.
@@ -82,7 +119,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
     const intro = introRef.current;
     setItems((x) => [...seedIntro(x, intro), { kind: "user", text }, { kind: "bot", text: "" }]);
     try {
-      const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: location.pathname }) });
+      const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: audiencia === "comprador" ? paginaActual(location.pathname, location.search) : location.pathname }) });
       if (!res.ok || !res.body) throw new Error(String(res.status));
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -103,7 +140,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
       setItems(dropEmptyBot);
       setBusy(false);
     }
-  }, [basePath, busy]);
+  }, [basePath, busy, audiencia]);
 
   const decide = useCallback(async (actionId: string, decision: "confirmar" | "rechazar" | "deshacer") => {
     if (decidingRef.current.has(actionId)) return;
@@ -128,13 +165,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
     try {
       const res = await fetch(`${basePath}/ticket`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
       const r = (await res.json().catch(() => ({}))) as { ticketId?: number; reused?: boolean; error?: string };
-      const text = r.ticketId
-        ? r.reused
-          ? `Ya tenés abierto el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.`
-          : `Abrí el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.`
-        : res.status === 429 && r.error
-          ? r.error
-          : "No pude abrir el pedido. Escribinos desde Soporte.";
+      const text = textoTicket(res.status, r, audiencia);
       setItems((x) => [...x, { kind: "notice", text }]);
     } catch {
       setItems((x) => [...x, { kind: "notice", text: "No me pude conectar. Probá de nuevo." }]);
@@ -142,7 +173,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
       ticketRef.current = false;
       setTicketBusy(false);
     }
-  }, [basePath]);
+  }, [basePath, audiencia]);
 
   const registrarGlobito = useCallback((campaign: string, accion: GlobitoAccion, answer?: string) => {
     // Registrar es un extra: si falla, el globito igual se oculta.

@@ -51,6 +51,8 @@ export type CreateTicketInput = {
   reason: string;
   description: string;
   printOrderId: number | null;
+  /** Pedido de fotos digitales (sólo lo manda DNX Bot de compradores; la ruta pública no). */
+  orderId?: number | null;
   requesterName: string | null;
   requesterEmail: string | null;
   requesterPhone: string | null;

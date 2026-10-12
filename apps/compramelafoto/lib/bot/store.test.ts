@@ -15,7 +15,7 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: (fn: any) => fn({ botMessage: m.msg, $queryRaw: m.raw }),
   },
 }));
-import { appendMessages, claimPendingAction, getOrCreateConversation, MAX_MESSAGES_PER_CONVERSATION, usageSnapshot } from "./store";
+import { appendMessages, claimPendingAction, getOrCreateConversation, MAX_MESSAGES_PER_CONVERSATION, recordUsage, usageSnapshot } from "./store";
 
 beforeEach(() => Object.values(m).forEach((g: any) => typeof g === "function" ? g.mockReset() : Object.values(g).forEach((f: any) => f.mockReset())));
 
@@ -67,5 +67,36 @@ describe("store", () => {
     m.msg.aggregate.mockResolvedValue({ _max: { seq: null } });
     await appendMessages("c1", [{ role: "user", content: "a" }]);
     expect(m.msg.createMany.mock.calls[0]![0].data[0].seq).toBe(0);
+  });
+  it("sólo continúa conversaciones de fotógrafos", async () => {
+    m.conv.findFirst.mockResolvedValue(null);
+    m.conv.create.mockResolvedValue({ id: "c9", status: "OPEN", supportTicketId: null });
+    await getOrCreateConversation({ userId: 1, pagePath: null, model: "m" });
+    expect(m.conv.findFirst.mock.calls[0]![0].where.audience).toBe("PHOTOGRAPHER");
+  });
+  it("usageSnapshot lee el día por actorKey u:<userId>", async () => {
+    m.usage.findUnique.mockResolvedValue({ messages: 2 });
+    m.usage.aggregate.mockResolvedValue({ _sum: { costMicroUsd: 0 } });
+    await usageSnapshot(7);
+    expect(m.usage.findUnique.mock.calls[0]![0].where.platform_day_actorKey).toMatchObject({ actorKey: "u:7" });
+  });
+  it("recordUsage hace upsert por actorKey y guarda userId", async () => {
+    m.usage.upsert.mockResolvedValue({});
+    m.conv.update.mockResolvedValue({});
+    await recordUsage({ userId: 7, conversationId: "c1", usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, costMicroUsd: 5, countMessage: true });
+    const arg = m.usage.upsert.mock.calls[0]![0];
+    expect(arg.where.platform_day_actorKey.actorKey).toBe("u:7");
+    expect(arg.create).toMatchObject({ userId: 7, actorKey: "u:7", messages: 1, costMicroUsd: 5 });
+  });
+  it("recordUsage: si la fila del día ya existe, suma (update por incrementos)", async () => {
+    m.usage.upsert.mockResolvedValue({});
+    m.conv.update.mockResolvedValue({});
+    await recordUsage({ userId: 7, conversationId: "c1", usage: { input_tokens: 10, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, costMicroUsd: 5, countMessage: false });
+    expect(m.usage.upsert.mock.calls[0]![0].update).toEqual({
+      messages: { increment: 0 },
+      inputTokens: { increment: 10 },
+      outputTokens: { increment: 20 },
+      costMicroUsd: { increment: 5 },
+    });
   });
 });

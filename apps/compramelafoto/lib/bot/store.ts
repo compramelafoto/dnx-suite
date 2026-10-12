@@ -1,5 +1,6 @@
 import type { BotUsageSnapshot, TokenUsage } from "@repo/dnx-bot";
 import { prisma } from "@/lib/prisma";
+import { claveUsuario } from "./actor-key";
 import { BOT_PLATFORM } from "./config";
 import { argentinaDay, argentinaMonthPrefix } from "./dia-argentino";
 
@@ -16,6 +17,7 @@ export async function getOrCreateConversation(p: { userId: number; pagePath: str
   const open = await prisma.botConversation.findFirst({
     where: {
       platform: BOT_PLATFORM,
+      audience: "PHOTOGRAPHER",
       userId: p.userId,
       status: { in: ["OPEN", "ESCALATED"] },
       updatedAt: { gt: new Date(Date.now() - OPEN_WINDOW_MS) },
@@ -55,10 +57,11 @@ export async function recordUsage(p: {
   userId: number; conversationId: string; usage: TokenUsage; costMicroUsd: number; countMessage: boolean;
 }) {
   const day = argentinaDay();
+  const actorKey = claveUsuario(p.userId);
   await prisma.botUsageDaily.upsert({
-    where: { platform_day_userId: { platform: BOT_PLATFORM, day, userId: p.userId } },
+    where: { platform_day_actorKey: { platform: BOT_PLATFORM, day, actorKey } },
     create: {
-      platform: BOT_PLATFORM, day, userId: p.userId, messages: p.countMessage ? 1 : 0,
+      platform: BOT_PLATFORM, day, userId: p.userId, actorKey, messages: p.countMessage ? 1 : 0,
       inputTokens: p.usage.input_tokens, outputTokens: p.usage.output_tokens, costMicroUsd: p.costMicroUsd,
     },
     update: {
@@ -82,7 +85,7 @@ export async function recordUsage(p: {
 export async function usageSnapshot(userId: number): Promise<BotUsageSnapshot> {
   const [today, month] = await Promise.all([
     prisma.botUsageDaily.findUnique({
-      where: { platform_day_userId: { platform: BOT_PLATFORM, day: argentinaDay(), userId } },
+      where: { platform_day_actorKey: { platform: BOT_PLATFORM, day: argentinaDay(), actorKey: claveUsuario(userId) } },
       select: { messages: true },
     }),
     prisma.botUsageDaily.aggregate({
@@ -106,7 +109,7 @@ export async function createPendingAction(p: {
   return { actionId: a.id };
 }
 
-export type BotActionRow = { id: string; userId: number; toolName: string; input: unknown; summary: string; conversationId: string | null };
+export type BotActionRow = { id: string; userId: number | null; toolName: string; input: unknown; summary: string; conversationId: string | null };
 
 /** Pasa PENDING → (en curso) de forma atómica. Devuelve null si ya se decidió, venció o no es del usuario. */
 export async function claimPendingAction(actionId: string, userId: number): Promise<BotActionRow | null> {

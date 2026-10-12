@@ -5,10 +5,12 @@ const m = vi.hoisted(() => ({
   user: vi.fn(), enabled: vi.fn(), snap: vi.fn(), turn: vi.fn(), conv: vi.fn(), hist: vi.fn(), append: vi.fn(),
   usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(), cap: vi.fn(), after: [] as (() => Promise<void>)[],
 }));
+// Aparte de `m`: el beforeEach resetea las funciones de `m`. Tope 1 en los casos de siempre.
+const cfg = vi.hoisted(() => ({ cap: 1 }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: () => m.user() }));
 vi.mock("@/lib/bot/config", () => ({
   isBotEnabledForUser: () => m.enabled(),
-  readBotConfig: () => ({ enabled: true, model: "claude-sonnet-5-5", effort: "medium", maxIterations: 8, limits: { maxMessagesPerUserPerDay: 50, monthlyCapMicroUsd: 1 }, telegram: null, anthropicApiKey: "k" }),
+  readBotConfig: () => ({ enabled: true, model: "claude-sonnet-5-5", effort: "medium", maxIterations: 8, limits: { maxMessagesPerUserPerDay: 50, monthlyCapMicroUsd: cfg.cap }, telegram: null, anthropicApiKey: "k" }),
 }));
 vi.mock("@/lib/bot/store", () => ({
   usageSnapshot: () => m.snap(), getOrCreateConversation: () => m.conv(), loadHistory: () => m.hist(),
@@ -36,6 +38,7 @@ const okTurn = async (i: Pick<BotTurnInput, "onText">) => {
   };
 };
 beforeEach(() => {
+  cfg.cap = 1;
   Object.values(m).forEach((f) => (Array.isArray(f) ? f.splice(0) : f.mockReset()));
   m.user.mockResolvedValue({ id: 7, role: "PHOTOGRAPHER", email: "f@x.com", name: "F" });
   m.enabled.mockResolvedValue(true);
@@ -54,6 +57,15 @@ describe("POST /api/bot/chat", () => {
   it("apagado para el usuario → 404", async () => {
     m.enabled.mockResolvedValue(false);
     expect((await POST(req("hola"))).status).toBe(404);
+  });
+  it("gasto en el 85 % del tope (compradores ya cortados) → fotógrafos siguen respondiendo", async () => {
+    cfg.cap = 30_000_000;
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 25_500_000 });
+    m.turn.mockImplementation(okTurn);
+    const body = await read(await POST(req("hola")));
+    expect(m.turn).toHaveBeenCalled();
+    expect(body).toContain("event: done");
+    expect(body).not.toContain("event: error");
   });
   it("mensaje vacío → 400", async () => {
     expect((await POST(req("   "))).status).toBe(400);
@@ -174,5 +186,38 @@ describe("POST /api/bot/chat", () => {
     await read(await POST(req("hola")));
     await runAfter();
     expect(m.cap).not.toHaveBeenCalled();
+  });
+  it("BotTurnError → el incidente lleva userId y conversationId y el uso parcial cuenta el mensaje", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    const partial = { input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+    m.turn.mockRejectedValue(new BotTurnError(new Error("boom"), partial));
+    const body = await read(await POST(req("hola")));
+    expect(m.inc).toHaveBeenCalledWith({ area: "otro", codigo: "api_Error", ids: { userId: 7, conversationId: "c1" }, detalle: "boom", urgente: false });
+    expect(m.usage).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, conversationId: "c1", usage: partial, countMessage: true }));
+    expect(body).toContain("event: error");
+    expect(body).not.toContain("event: done");
+  });
+  it("turno cortado por max_tokens → manda error y después done, con incidente turno_max_tokens", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockResolvedValue({ appended: [{ role: "user", content: "hola" }], usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, outcome: "max_tokens" });
+    const body = await read(await POST(req("hola")));
+    expect(m.inc).toHaveBeenCalledWith({ area: "otro", codigo: "turno_max_tokens", ids: { conversationId: "c1" }, detalle: "max_tokens", urgente: false });
+    const iErr = body.indexOf("event: error");
+    const iDone = body.indexOf("event: done");
+    expect(iErr).toBeGreaterThanOrEqual(0);
+    expect(iDone).toBeGreaterThan(iErr);
+    expect(body).toContain("Tuve un problema para responder. Probá de nuevo en un rato o tocá «Hablar con una persona».");
+    expect(body).toContain('"conversationId":"c1"');
+    await runAfter();
+    expect(m.cap).toHaveBeenCalledTimes(1);
+  });
+  it("respuesta SSE con los headers de siempre", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockImplementation(okTurn);
+    const res = await POST(req("hola"));
+    expect(res.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+    expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    await read(res);
   });
 });

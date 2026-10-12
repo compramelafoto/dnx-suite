@@ -44,6 +44,7 @@ import {
   type ExternalVoucher,
 } from "@/lib/canje-externo/external-voucher";
 import { completePrepaidAlbumOrder } from "@/lib/canje-externo/complete-prepaid-order";
+import { vincularPedidoConBot } from "@/lib/bot/comprador/vincular-pedido";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -593,6 +594,9 @@ export async function POST(
         throw createErr;
       }
     }
+
+    // Medición de DNX Bot: nunca lanza y sin la cookie del bot no consulta la base.
+    await vincularPedidoConBot(order.id, req.headers.get("cookie"));
 
     if (voucher) {
       try {

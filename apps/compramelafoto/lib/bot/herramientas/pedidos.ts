@@ -1,12 +1,7 @@
 import { defineTool, type BotTool } from "@repo/dnx-bot";
 import { z } from "zod";
-import { resolveDownloadLinkDays } from "@/lib/digital-download/download-link-policy";
-import { createClientDownloadToken } from "@/lib/download-tokens";
+import { reenviarDescargaDePedido } from "@/lib/digital-download/reenviar-descarga";
 import { prisma } from "@/lib/prisma";
-import { getAppConfig } from "@/lib/services/settingsService";
-import { resendDigitalDownloadEmailForOrder } from "@/lib/zip-job-notifications";
-
-const DAY = 24 * 60 * 60 * 1000;
 
 function maskEmail(e: string | null | undefined) {
   if (!e || !e.includes("@")) return "el mail del comprador";
@@ -46,28 +41,12 @@ export const pedidosTools: BotTool[] = [
         message: "No pude reenviar el link en este momento. Probá de nuevo más tarde o abrí un pedido de soporte.",
         code: "RESEND_FAILED",
       };
-      try {
-        const vigente = await prisma.orderDownloadToken.findFirst({
-          where: { orderId: o.id, type: "CLIENT_DIGITAL", photoId: null, expiresAt: { gt: new Date() } },
-          select: { id: true },
-        });
-        if (!vigente) {
-          const days = resolveDownloadLinkDays(await getAppConfig());
-          await createClientDownloadToken({
-            orderId: o.id,
-            albumId: o.albumId,
-            expiresAt: new Date(Date.now() + days * DAY),
-          });
-        }
-        const r = await resendDigitalDownloadEmailForOrder(o.id, {
-          idempotencyKey: `dnx-bot-resend-${o.id}-${new Date().toISOString().slice(0, 13)}`,
-        });
-        if (!r.queued) {
-          console.error("[dnx-bot] reenvío de link falló", { orderId: o.id, error: r.error });
-          return falla;
-        }
-      } catch (err) {
-        console.error("[dnx-bot] reenvío de link falló", { orderId: o.id, err });
+      const r = await reenviarDescargaDePedido(
+        o,
+        `dnx-bot-resend-${o.id}-${new Date().toISOString().slice(0, 13)}`,
+      );
+      if (!r.ok) {
+        console.error("[dnx-bot] reenvío de link falló", { orderId: o.id, error: r.error, err: r.causa });
         return falla;
       }
       return { ok: true, message: `Listo, le reenvié el link a ${maskEmail(o.buyerEmail)}.` };

@@ -16,6 +16,7 @@ export async function createSupportTicket(p: {
   const ticket = await prisma.supportTicket.create({
     data: {
       printOrderId: data.printOrderId,
+      ...(data.orderId != null ? { orderId: data.orderId } : {}),
       reason: data.reason,
       description: data.description,
       requesterName: data.requesterName,

@@ -28,4 +28,15 @@ describe("createSupportTicket", () => {
     m.admin.mockRejectedValue(new Error("x"));
     await expect(createSupportTicket({ data, requesterLabel: "x" })).resolves.toEqual({ id: 9, createdAt: new Date(0) });
   });
+  it("guarda orderId si viene", async () => {
+    await createSupportTicket({ data: { ...data, orderId: 7 }, requesterLabel: "x" });
+    expect(m.ticket.mock.calls[0]![0].data).toMatchObject({ orderId: 7 });
+  });
+  it("sin orderId el create es el mismo de hoy", async () => {
+    await createSupportTicket({ data, requesterLabel: "x" });
+    expect(m.ticket.mock.calls[0]![0].data).toEqual({
+      printOrderId: null, reason: "TECHNICAL_ISSUE", description: "No puedo subir", requesterName: "Ana",
+      requesterEmail: "a@x.com", requesterPhone: null, requesterRole: "PHOTOGRAPHER", status: "OPEN",
+    });
+  });
 });

@@ -1,4 +1,6 @@
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
+import { readBuyerBotConfig } from "@/lib/bot/comprador/config";
+import { gastoCompradoresMes, lineasCompradores } from "@/lib/bot/comprador/metricas";
 import { BOT_PLATFORM, readBotConfig } from "@/lib/bot/config";
 import { argentinaDay, argentinaMonthPrefix } from "@/lib/bot/dia-argentino";
 import { computeSchoolSetupProgress } from "@/lib/bot/escolar/progreso";
@@ -203,13 +205,18 @@ function usd(microUsd: number, minDecimals: number) {
 
 export async function buildDailySummary(now: Date): Promise<string> {
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const where = { platform: BOT_PLATFORM, createdAt: { gt: since } };
+  const desde = { gt: since };
+  const where = { platform: BOT_PLATFORM, audience: "PHOTOGRAPHER" as const, createdAt: desde };
+  // Hoy las acciones con userId son todas de fotógrafos; las de compradores van con userId null.
+  const whereAcciones = { platform: BOT_PLATFORM, userId: { not: null }, createdAt: desde };
   const w = salesWindows(now);
-  const [total, byStatus, actions, incidents, month, salesNow, salesPrev, unlocked, saludos, mails, primeras, escolares] =
-    await Promise.all([
+  const [
+    total, byStatus, actions, incidents, month, salesNow, salesPrev, unlocked, saludos, mails, primeras, escolares,
+    gastoCompradores, conversacionesCompradores,
+  ] = await Promise.all([
     prisma.botConversation.count({ where }),
     prisma.botConversation.groupBy({ by: ["status"], where, _count: { _all: true } }),
-    prisma.botAction.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    prisma.botAction.groupBy({ by: ["status"], where: whereAcciones, _count: { _all: true } }),
     prisma.botIncident.findMany({
       where: { platform: BOT_PLATFORM, status: { in: ["OPEN", "INVESTIGATING"] }, lastSeenAt: { gt: since } },
       orderBy: { occurrences: "desc" },
@@ -231,6 +238,8 @@ export async function buildDailySummary(now: Date): Promise<string> {
     lineaMails(since),
     lineaPrimerasVentas(w.currentStart),
     lineaEscolares(now),
+    gastoCompradoresMes(now),
+    prisma.botConversation.count({ where: { platform: BOT_PLATFORM, audience: "BUYER", createdAt: desde } }),
   ]);
   const esc = byStatus.find((s) => s.status === "ESCALATED")?._count._all ?? 0;
   const done = actions.find((s) => s.status === "EXECUTED")?._count._all ?? 0;
@@ -238,7 +247,7 @@ export async function buildDailySummary(now: Date): Promise<string> {
   // La factura de la API de Claude es genuinamente en dólares (no son pesos).
   const spent = usd(month._sum.costMicroUsd ?? 0, 2);
   const cap = usd(readBotConfig().limits.monthlyCapMicroUsd, 0);
-  return [
+  const lineas = [
     `🤖 DNX Bot · CLF · resumen al ${argentinaDay(now)}`,
     `${total} conversaciones, ${total - esc} resueltas sin ticket, ${esc} derivadas.`,
     `${done} acciones hechas${failed ? `, ${failed} fallidas` : ""}.`,
@@ -250,7 +259,12 @@ export async function buildDailySummary(now: Date): Promise<string> {
     lineaSaludos(saludos as FilaSaludo[]),
     mails,
     escolares,
-    `Gasto del bot este mes: USD ${spent} de USD ${cap} (se factura en dólares).`,
+    `Gasto del bot este mes: USD ${spent} de USD ${cap} (compradores: USD ${usd(gastoCompradores, 2)}; se factura en dólares).`,
     `Álbumes destrabados por el bot: ${unlocked.albums} (ventas desde que el bot los cambió: ${formatPurchaseArs(unlocked.pesos)}).`,
-  ].join("\n");
+  ];
+  // Sección de compradores: sólo con el bot de compradores prendido o si igual hubo conversaciones hoy.
+  if (readBuyerBotConfig().enabled || conversacionesCompradores > 0) {
+    lineas.push(...(await lineasCompradores(since, now)));
+  }
+  return lineas.join("\n");
 }
