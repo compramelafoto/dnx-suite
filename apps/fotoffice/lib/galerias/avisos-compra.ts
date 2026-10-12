@@ -1,3 +1,4 @@
+import { limpiarAsunto } from "./asunto";
 import "server-only";
 import { prisma } from "@repo/db";
 import { escapeHtml } from "@/lib/communications/html";
@@ -57,7 +58,7 @@ async function avisoInterno(
     const lineas = [...texto.lineas, ...(enlace ? ["", enlace] : [])];
     const html = lineas.map((l) => (l === "" ? "<br>" : l === enlace ? `<p><a href="${escapeHtml(l)}">Ver la galería</a></p>` : `<p>${escapeHtml(l)}</p>`)).join("");
     const enviar = deps.enviarInterno ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
-    const r = await enviar({ to: usuario!.email!, subject: texto.asunto, html, text: lineas.join("\n") });
+    const r = await enviar({ to: usuario!.email!, subject: limpiarAsunto(texto.asunto), html, text: lineas.join("\n") });
     return r.status === "SENT" ? "ENVIADO" : "NO_ENVIADO";
   } catch (e) {
     console.error("[galerias] falló el aviso interno de la compra", { codigo: (e as { code?: unknown } | null)?.code ?? "desconocido" });

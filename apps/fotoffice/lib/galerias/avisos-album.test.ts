@@ -52,6 +52,11 @@ describe("aviso al estudio por la decisión del álbum", () => {
     expect(internos[0]!.html).not.toContain("<b>la tapa</b>");
     expect(eventos()).toEqual(["AVISO_ESTUDIO_ENVIADO"]);
   });
+  it("el asunto no lleva saltos de línea aunque el nombre los tenga", async () => {
+    B.datos.fotofficeGaleriaCliente[0]!.name = "Ana\r\nBcc: x@y.com";
+    await A.avisarDecisionAlbum(DATOS, deps());
+    expect(internos[0]!.subject).not.toMatch(/[\r\n]/);
+  });
   it("si aprobó lo dice, y sin responsable va al dueño del estudio", async () => {
     B.datos.fotofficeGaleria[0]!.ownerUserId = null;
     expect(await A.avisarDecisionAlbum({ ...DATOS, decision: "APROBADO", mensaje: null, comentarios: 0 }, deps())).toBe("ENVIADO");

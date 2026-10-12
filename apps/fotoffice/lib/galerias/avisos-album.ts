@@ -7,6 +7,7 @@ import { inicioDelDiaAR } from "@/lib/plantillas/envio";
 import { destinatarioDelPresupuesto } from "@/lib/presupuestos/avisos";
 import { TOPE_AVISOS_ESTUDIO_DIA } from "./avisos";
 import type { DecisionAlbum } from "./constantes";
+import { limpiarAsunto } from "./asunto";
 import { registrarEventoSinFallar } from "./eventos";
 
 /**
@@ -78,7 +79,7 @@ async function enviar(
   ];
   const html = lineas.map((l) => (l === "" ? "<br>" : l === enlace ? `<p><a href="${escapeHtml(l)}">Revisar la prueba de álbum</a></p>` : `<p style="white-space:pre-line">${escapeHtml(l)}</p>`)).join("");
   const mandar = deps.enviarInterno ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
-  const asunto = aprobo ? `${c.name} aprobó el álbum ${g.name}` : `${c.name} pidió cambios en el álbum ${g.name}`;
+  const asunto = limpiarAsunto(aprobo ? `${c.name} aprobó el álbum ${g.name}` : `${c.name} pidió cambios en el álbum ${g.name}`);
   const r = await mandar({ to: usuario!.email!, subject: asunto, html, text: lineas.join("\n") });
   return r.status === "SENT" ? "ENVIADO" : "NO_ENVIADO";
 }

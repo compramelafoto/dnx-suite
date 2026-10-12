@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { puntoRelativo, rectDeImagenContenida, type Pin } from "@/lib/galerias/album-reglas";
+import { direccionDeDeslizar, ubicarCaja } from "@/lib/galerias/album-gestos";
 import { MAX_COMENTARIO } from "@/lib/galerias/constantes";
 import type { ComentarioLamina, LaminaPublica } from "@/lib/galerias/publico-tipos";
 import { IconoCerrar, IconoFlechaDer, IconoFlechaIzq } from "./iconos";
 
 const sinMenu = (e: React.SyntheticEvent) => e.preventDefault();
-const UMBRAL_DESLIZAR = 50;
-const ANCHO_CAJA = 288;
 
 /** Los pines de una lámina: uno por número, con la posición del primer comentario que lo marcó. */
 export function pinesDeLamina(comentarios: readonly ComentarioLamina[]): { numero: number; x: number; y: number }[] {
@@ -56,6 +55,9 @@ type PropsVisor = {
   onVistaFallida: (id: string) => void;
   /** Guarda el comentario con pin; devuelve el error o null si salió bien. */
   onComentarPin: (texto: string, pin: Pin) => Promise<string | null>;
+  /** Lo que ya había escrito en el borrador de esta lámina, y aviso de cada cambio (para no perderlo al hojear). */
+  textoBorrador: string;
+  onTextoBorrador: (t: string) => void;
 };
 
 /**
@@ -64,7 +66,7 @@ type PropsVisor = {
  */
 export function AlbumVisor(p: PropsVisor) {
   const caja = useRef<HTMLDivElement>(null);
-  const inicio = useRef<{ x: number; y: number } | null>(null);
+  const inicio = useRef<{ x: number; y: number; enCaja: boolean } | null>(null);
   const ultimoDeslizar = useRef(0);
   const [tam, setTam] = useState({ w: 0, h: 0 });
   const [natural, setNatural] = useState<{ id: string; w: number; h: number } | null>(null);
@@ -96,7 +98,7 @@ export function AlbumVisor(p: PropsVisor) {
     else p.onCerrarCaja();
   }
   function empezar(e: React.TouchEvent) {
-    inicio.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    inicio.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, enCaja: !!(e.target as HTMLElement).closest("[data-no-toque]") } : null;
   }
   function terminar(e: React.TouchEvent) {
     const i = inicio.current;
@@ -104,10 +106,11 @@ export function AlbumVisor(p: PropsVisor) {
     if (!i || e.changedTouches.length === 0) return;
     const dx = e.changedTouches[0].clientX - i.x;
     const dy = e.changedTouches[0].clientY - i.y;
-    if (Math.abs(dx) < UMBRAL_DESLIZAR || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const dir = direccionDeDeslizar(dx, dy, p.borrador !== null || p.pinAbierto !== null, i.enCaja);
+    if (dir === 0) return;
     ultimoDeslizar.current = Date.now();
-    if (dx < 0 && p.indice < p.total - 1) p.onIr(p.indice + 1);
-    else if (dx > 0 && p.indice > 0) p.onIr(p.indice - 1);
+    const destino = p.indice + dir;
+    if (destino >= 0 && destino < p.total) p.onIr(destino);
   }
 
   // La cajita de comentario se ancla al punto: debajo si el punto está en la parte de arriba, encima si no.
@@ -115,14 +118,8 @@ export function AlbumVisor(p: PropsVisor) {
     const pin = pines.find((x) => x.numero === p.pinAbierto);
     return pin ? enPantalla(pin.x, pin.y) : null;
   })() : null;
-  const anchoCaja = Math.max(0, Math.min(ANCHO_CAJA, tam.w - 8));
-  const estiloCaja = ancla
-    ? {
-        width: anchoCaja,
-        left: Math.min(Math.max(ancla.left - anchoCaja / 2, 4), Math.max(4, tam.w - anchoCaja - 4)),
-        ...(ancla.top < tam.h * 0.55 ? { top: ancla.top + 18 } : { bottom: tam.h - ancla.top + 18 }),
-      }
-    : null;
+  // En pantallas angostas la cajita es una hoja pegada al borde de abajo: nunca queda cortada.
+  const estiloCaja: React.CSSProperties | null = ancla ? (ubicarCaja(tam.w, tam.h, ancla) ?? { left: 4, right: 4, bottom: 4 }) : null;
   const hiloAbierto = p.pinAbierto !== null ? p.comentarios.filter((c) => c.pinNumber === p.pinAbierto) : [];
 
   return (
@@ -199,10 +196,10 @@ export function AlbumVisor(p: PropsVisor) {
 
       {/* Cajita anclada al punto */}
       {estiloCaja && p.borrador ? (
-        <CajaNueva estilo={estiloCaja} numero={proximoPin(p.comentarios)} onCancelar={p.onCerrarCaja} onGuardar={(t) => p.onComentarPin(t, p.borrador!)} />
+        <CajaNueva key={`${lamina.id}`} estilo={estiloCaja} textoInicial={p.textoBorrador} onTexto={p.onTextoBorrador} numero={proximoPin(p.comentarios)} onCancelar={p.onCerrarCaja} onGuardar={(t) => p.onComentarPin(t, p.borrador!)} />
       ) : null}
       {estiloCaja && !p.borrador && p.pinAbierto !== null ? (
-        <div data-no-toque style={estiloCaja} className="absolute z-20 max-h-[60%] cursor-default overflow-y-auto rounded-xl bg-white p-3 text-neutral-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div data-no-toque style={estiloCaja} className="absolute z-20 max-h-[85%] cursor-default overflow-y-auto rounded-xl bg-white p-3 text-neutral-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold">Comentario {p.pinAbierto}</p>
             <button type="button" onClick={p.onCerrarCaja} aria-label="Cerrar" className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-neutral-100">
@@ -227,8 +224,8 @@ export function AlbumVisor(p: PropsVisor) {
   );
 }
 
-function CajaNueva({ estilo, numero, onCancelar, onGuardar }: { estilo: React.CSSProperties; numero: number; onCancelar: () => void; onGuardar: (texto: string) => Promise<string | null> }) {
-  const [texto, setTexto] = useState("");
+function CajaNueva({ estilo, numero, textoInicial, onTexto, onCancelar, onGuardar }: { estilo: React.CSSProperties; numero: number; textoInicial: string; onTexto: (t: string) => void; onCancelar: () => void; onGuardar: (texto: string) => Promise<string | null> }) {
+  const [texto, setTexto] = useState(textoInicial);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
@@ -243,7 +240,7 @@ function CajaNueva({ estilo, numero, onCancelar, onGuardar }: { estilo: React.CS
     if (e) setError(e);
   }
   return (
-    <div data-no-toque style={estilo} className="absolute z-20 cursor-default rounded-xl bg-white p-3 text-neutral-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div data-no-toque style={estilo} className="absolute z-20 max-h-[90%] cursor-default overflow-y-auto rounded-xl bg-white p-3 text-neutral-900 shadow-2xl" onClick={(e) => e.stopPropagation()}>
       <label htmlFor="album-comentario-pin" className="mb-1 block text-sm font-semibold">
         Comentario {numero}
       </label>
@@ -251,7 +248,10 @@ function CajaNueva({ estilo, numero, onCancelar, onGuardar }: { estilo: React.CS
         id="album-comentario-pin"
         ref={campo}
         value={texto}
-        onChange={(e) => setTexto(e.target.value)}
+        onChange={(e) => {
+          setTexto(e.target.value);
+          onTexto(e.target.value);
+        }}
         maxLength={MAX_COMENTARIO}
         rows={3}
         placeholder="¿Qué querés cambiar en este punto?"

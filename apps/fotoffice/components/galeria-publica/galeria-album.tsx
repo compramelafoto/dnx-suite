@@ -29,6 +29,8 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
   const [enviandoGeneral, setEnviandoGeneral] = useState(false);
   const pedidas = useRef(new Set<string>());
   const reintentadas = useRef(new Set<string>());
+  const [textos, setTextos] = useState<Record<string, string>>({});
+  const pinesPendientes = useRef(new Map<string, Pin>());
   const tira = useRef<HTMLUListElement>(null);
 
   const laminas = vista.laminas;
@@ -84,15 +86,30 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
     setBorrador(null);
     setPinAbierto(null);
   }, []);
+  /** Descarta el borrador de la lámina actual (se canceló o se guardó). */
+  const descartarBorrador = useCallback(() => {
+    if (lamina) {
+      setTextos((t) => {
+        const n = { ...t };
+        delete n[lamina.id];
+        return n;
+      });
+      pinesPendientes.current.delete(lamina.id);
+    }
+    cerrarCaja();
+  }, [lamina, cerrarCaja]);
   const irA = useCallback(
     (i: number) => {
       if (i < 0 || i >= total) return;
+      // Un borrador a medias se guarda para cuando vuelva a esa lámina.
+      if (lamina && borrador) pinesPendientes.current.set(lamina.id, borrador);
       setIndice(i);
-      cerrarCaja();
+      setPinAbierto(null);
+      setBorrador(pinesPendientes.current.get(laminas[i]!.id) ?? null);
       setGeneral("");
       setErrorGeneral(null);
     },
-    [total, cerrarCaja],
+    [total, lamina, borrador, laminas],
   );
 
   // Teclado: flechas para hojear, Escape para cerrar la cajita. Si se está escribiendo o hay una pantalla encima, no.
@@ -101,14 +118,14 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
       if (confirmando) return;
       const t = e.target as HTMLElement | null;
       const escribiendo = t?.tagName === "TEXTAREA" || t?.tagName === "INPUT" || t?.tagName === "SELECT" || t?.isContentEditable;
-      if (e.key === "Escape") cerrarCaja();
+      if (e.key === "Escape") descartarBorrador();
       else if (escribiendo) return;
       else if (e.key === "ArrowLeft") irA(indice - 1);
       else if (e.key === "ArrowRight") irA(indice + 1);
     }
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
-  }, [confirmando, cerrarCaja, irA, indice]);
+  }, [confirmando, descartarBorrador, irA, indice]);
 
   // La tira de miniaturas lleva la lámina actual al centro (sin mover la página).
   useEffect(() => {
@@ -130,10 +147,7 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
   }
   async function comentarConPin(texto: string, pin: Pin): Promise<string | null> {
     const e = await comentar(texto, pin);
-    if (!e) {
-      setBorrador(null);
-      setPinAbierto(null);
-    }
+    if (!e) descartarBorrador();
     return e;
   }
   async function comentarGeneral() {
@@ -248,7 +262,9 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
                 setPinAbierto(null);
                 setBorrador(p);
               }}
-              onCerrarCaja={cerrarCaja}
+              onCerrarCaja={descartarBorrador}
+              textoBorrador={lamina ? (textos[lamina.id] ?? "") : ""}
+              onTextoBorrador={(t) => lamina && setTextos((x) => ({ ...x, [lamina.id]: t }))}
               onAbrirPin={(n) => {
                 setBorrador(null);
                 setPinAbierto((a) => (a === n ? null : n));

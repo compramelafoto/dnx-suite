@@ -7,6 +7,7 @@ import { correoValido, type ContextoMensaje } from "@/lib/plantillas/contexto";
 import { AUTOMATICOS, leerAutomatico } from "@/lib/plantillas/definiciones";
 import { armarCorreoFinal, completarTextos, correosEnviadosHoy, type DepsEnvio } from "@/lib/plantillas/envio";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
+import { limpiarAsunto } from "./asunto";
 import { CLAVES_AUTOMATICO_GALERIA, type ClaveAutomaticoGaleria } from "./constantes-correo";
 import { hashDeToken, resolverClaveDeEnlace, tokenDeGaleriaCliente, urlDeGaleria } from "./enlace";
 import { registrarEventoSinFallar } from "./eventos";
@@ -217,7 +218,7 @@ export async function enviarCorreoGaleria(d: DatosCorreoGaleria, deps: DepsEnvio
     const enviar = deps.enviar ?? ((m: OutboundEmail) => sendTransactionalEmail(m));
     const resultado = await enviar({
       to: d.para,
-      subject: correo.asunto,
+      subject: limpiarAsunto(correo.asunto),
       html: correo.html,
       text: correo.texto,
       fromName: real.remitente.nombre,
