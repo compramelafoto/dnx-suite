@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { GaleriaAlbum } from "@/components/galeria-publica/galeria-album";
 import { GaleriaCliente } from "@/components/galeria-publica/galeria-cliente";
 import { GaleriaEntrega } from "@/components/galeria-publica/galeria-entrega";
 import { RecibirTodoPorCorreo } from "@/components/galeria-publica/recibir-todo";
 import { estadoDescargaDeCliente } from "@/lib/galerias/descargas";
 import { avisoDeVueltaGaleria, type ResultadoVueltaGaleria } from "@/lib/galerias/venta-publica";
 import { verificarVueltaGaleria } from "@/lib/galerias/pago";
+import { armarVistaAlbum } from "@/lib/galerias/publico-album";
 import { armarVistaGaleria, registrarEntrada, resolverTokenGaleria } from "@/lib/galerias/publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 import { abreAlguienDelEquipo, pasaElFrenoDePagosGaleria, visitanteDelEnlace } from "./visitante";
@@ -48,6 +50,12 @@ export default async function GaleriaPublicaPage({ params, searchParams }: Props
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) notFound();
   if (!(await abreAlguienDelEquipo(workspaceId))) await registrarEntrada(r);
+  // Prueba de álbum: láminas por ronda, con pines; la ronda que se mira sale de `?ronda=N` (por omisión, la abierta).
+  if (r.galeria.kind === "ALBUM") {
+    const pedida = /^[1-9][0-9]{0,5}$/.test(unico(q.ronda) ?? "") ? Number(unico(q.ronda)) : null;
+    const album = await armarVistaAlbum(r, pedida);
+    return <GaleriaAlbum key={album.ronda.numero} slug={workspaceSlug} token={token} vista={album} />;
+  }
   // La vuelta de Mercado Pago no se cree: con `pago=ok` se le pregunta a Mercado Pago (con cupo propio) ANTES
   // de armar la vista, así la página ya muestra las fotos como compradas.
   const pago = unico(q.pago);

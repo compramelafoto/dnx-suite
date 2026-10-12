@@ -2,11 +2,13 @@
 
 import { after } from "next/server";
 import { avisarSeleccionEnviada } from "@/lib/galerias/avisos";
+import { avisarDecisionAlbum } from "@/lib/galerias/avisos-album";
 import { pedirDescargaDeCliente, urlDeParteDeCliente } from "@/lib/galerias/descargas";
 import { iniciarPagoGaleria } from "@/lib/galerias/pago";
 import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlDeReproduccion, urlsDeVista, type Falla } from "@/lib/galerias/publico";
+import { comentarLamina, decidirAlbum } from "@/lib/galerias/publico-album";
 import { MENSAJES_PUBLICO } from "@/lib/galerias/publico-tipos";
-import type { ComentarioPublico } from "@/lib/galerias/publico-tipos";
+import type { ComentarioLamina, ComentarioPublico } from "@/lib/galerias/publico-tipos";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 import { visitanteDeAccion } from "./visitante";
 
@@ -46,6 +48,23 @@ export async function enviarSeleccionAction(slug: unknown, token: unknown, mensa
   // Los correos salen después de responder; si fallan, queda en el historial y el cliente ya no espera.
   after(() => avisarSeleccionEnviada(r.aviso));
   return { ok: true, cantidad: r.cantidad, enviadaEn: r.enviadaEn };
+}
+
+/** Álbum: comentario en una lámina de la ronda abierta, con pin (x, y entre 0 y 1) o general. */
+export async function comentarLaminaAction(slug: unknown, token: unknown, fotoId: unknown, texto: unknown, pin: unknown): Promise<Salida<{ comentario: ComentarioLamina }>> {
+  const e = await entrar("comentar-lamina", 90, slug);
+  if (!e.ok) return e;
+  return comentarLamina(e.workspaceId, token, fotoId, texto, pin);
+}
+
+/** Álbum: «Aprobar el álbum» o «Pedir cambios» sobre la ronda abierta. El correo al estudio sale después de responder. */
+export async function decidirAlbumAction(slug: unknown, token: unknown, decision: unknown, mensaje: unknown): Promise<Salida<{ decision: "APROBADO" | "CAMBIOS"; fecha: string }>> {
+  const e = await entrar("decidir-album", 10, slug);
+  if (!e.ok) return e;
+  const r = await decidirAlbum(e.workspaceId, token, decision, mensaje);
+  if (!r.ok) return r;
+  after(() => avisarDecisionAlbum(r.aviso));
+  return { ok: true, decision: r.decision, fecha: r.fecha };
 }
 
 /** «Pagar fotos extra»: abre Checkout Pro con el carrito que calcula el servidor y devuelve la dirección de pago. */

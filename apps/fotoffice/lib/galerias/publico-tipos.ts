@@ -2,7 +2,7 @@
  * Tipos y reglas PURAS de la página del cliente (etapa 7): lo que viaja del servidor al navegador y los
  * cálculos que ambos lados comparten (filtros, textos). Sin base, sin red, sin `server-only`.
  */
-import type { EstadoCliente, ModoSeleccion, TipoGaleria, TipoMedio } from "./constantes";
+import type { DecisionAlbum, EstadoCliente, EstadoRonda, ModoSeleccion, TipoGaleria, TipoMedio } from "./constantes";
 import type { VistaVenta } from "./venta-publica";
 
 /** Largo máximo del mensaje que el cliente le deja al estudio al enviar. */
@@ -141,3 +141,36 @@ export function nombreDeOriginal(fileName: string): { ascii: string; utf8: strin
 export function esDispositivoIOS(userAgent: string, puntosTactiles: number): boolean {
   return /iPad|iPhone|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && puntosTactiles > 1);
 }
+
+// --- Prueba de álbum (Entrega C) ------------------------------------------------------------------------------
+
+export type LaminaPublica = { id: string; thumbUrl: string | null; width: number | null; height: number | null };
+
+export type ComentarioLamina = {
+  id: string;
+  fotoId: string;
+  autor: "CLIENTE" | "ESTUDIO";
+  texto: string;
+  fecha: string;
+  /** Número del pin (correlativo por lámina y cliente); null en un comentario general. Las respuestas del estudio llevan el del pin que contestan. */
+  pinNumber: number | null;
+  /** Posición del pin, 0 a 1 respecto de la imagen mostrada; null sin pin. */
+  pinX: number | null;
+  pinY: number | null;
+};
+
+export type VistaAlbum = {
+  organizacion: { nombre: string; logoUrl: string | null };
+  galeria: { nombre: string; mensaje: string | null };
+  cliente: { nombre: string };
+  /** Todas las rondas, de la 1 a la última. */
+  rondas: { numero: number; estado: EstadoRonda }[];
+  /** La ronda que se está mirando (por omisión, la abierta). */
+  ronda: { numero: number; estado: EstadoRonda; nota: string | null };
+  /** Sólo en la ronda abierta y mientras el cliente no decidió: se puede marcar, comentar y decidir. */
+  puedeComentar: boolean;
+  /** La decisión del cliente sobre la ronda que mira, en hora argentina; null si todavía no decidió. */
+  decision: { decision: DecisionAlbum; mensaje: string | null; fecha: string } | null;
+  laminas: LaminaPublica[];
+  comentarios: ComentarioLamina[];
+};

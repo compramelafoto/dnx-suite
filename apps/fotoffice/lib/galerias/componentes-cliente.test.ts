@@ -47,12 +47,14 @@ function alcanzables(entrada: string): { archivo: string; fuente: string }[] {
 }
 
 const DIR = join(RAIZ, "components", "galerias");
-const componentes = readdirSync(DIR).filter((f) => f.endsWith(".tsx")).map((f) => join(DIR, f)).filter((f) => /^\s*["']use client["']/.test(readFileSync(f, "utf8")));
+const DIR_PUBLICA = join(RAIZ, "components", "galeria-publica");
+const delDirectorio = (d: string) => readdirSync(d).filter((f) => f.endsWith(".tsx")).map((f) => join(d, f)).filter((f) => /^\s*["']use client["']/.test(readFileSync(f, "utf8")));
+const componentes = [...delDirectorio(DIR), ...delDirectorio(DIR_PUBLICA)];
 
 describe("componentes de cliente de Galería", () => {
   it("hay componentes de cliente (incluidos los del álbum) y se están revisando todos", () => {
     const nombres = componentes.map((c) => c.split("/").pop());
-    expect(nombres).toEqual(expect.arrayContaining(["abrir-ronda-nueva.tsx", "pestana-fotos.tsx", "uploader-fotos.tsx", "configuracion-galeria.tsx", "nueva-galeria.tsx", "tarjeta-galerias-proyecto.tsx"]));
+    expect(nombres).toEqual(expect.arrayContaining(["abrir-ronda-nueva.tsx", "pestana-fotos.tsx", "uploader-fotos.tsx", "configuracion-galeria.tsx", "nueva-galeria.tsx", "tarjeta-galerias-proyecto.tsx", "galeria-album.tsx", "album-visor.tsx", "album-decision.tsx"]));
   });
   it.each(componentes.map((c) => [c.split("/").pop()!, c] as const))("%s no arrastra módulos de servidor", (_n, archivo) => {
     const malos = alcanzables(archivo).filter((x) => PROHIBIDO.test(x.fuente) && !/^\s*["']use server["']/.test(x.fuente)).map((x) => x.archivo.replace(RAIZ, ""));

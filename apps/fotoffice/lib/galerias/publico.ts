@@ -384,7 +384,8 @@ export async function elegirFoto(workspaceId: string, token: unknown, fotoId: un
 export async function comentarFoto(workspaceId: string, token: unknown, fotoId: unknown, texto: unknown): Promise<{ ok: true; comentario: ComentarioPublico } | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
-  if (r.galeria.kind === "ENTREGA") return falla(M.entregaSinSeleccion);
+  // Un álbum tiene sus propios comentarios (con pin y por ronda): `comentarLamina`.
+  if (r.galeria.kind !== "SELECCION") return falla(M.entregaSinSeleccion);
   if (!r.galeria.allowComments) return falla(M.sinComentarios);
   if (!puedeEditarElCliente(r.cliente.status)) return SOLO_LECTURA();
   const v = validarComentario(texto);
