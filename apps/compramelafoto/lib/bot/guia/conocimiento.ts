@@ -32,7 +32,7 @@ Cuando falta algo, el comprador ve "Las fotos ya están disponibles, pero la ven
 
 ## Vencimiento de álbumes
 El plazo arranca con la primera foto subida al álbum. Los compradores lo ven durante 30 días; después se oculta. Las fotos quedan guardadas hasta los 45 días; después se eliminan automáticamente y dejan de estar disponibles para la venta. Se puede extender: el fotógrafo, o un comprador desde el link de un álbum ya oculto, puede pedir la extensión, y se suman días a los dos plazos. Mientras corre el tiempo extendido, las compras pueden tener un recargo.
-A las personas que se anotaron para recibir avisos de un álbum les llegan recordatorios por mail cuando faltan 3 semanas, 2 semanas y 1 semana para que se elimine.
+A las personas que se anotaron para recibir avisos de un álbum les llegan recordatorios por mail a los 9, 16 y 23 días contados desde que se creó el álbum (3, 2 y 1 semana antes del día 30 desde la creación). Esos avisos no tienen en cuenta cuándo se subió la primera foto ni las extensiones. Si la situación de la cuenta muestra otras fechas, valen esas.
 
 ## Descuentos por cantidad
 En las fotos digitales se puede poner un porcentaje de descuento a partir de 5, de 10 y de 20 fotos. Se aplica el escalón más alto que alcance la compra. Un escalón sin porcentaje no hace nada.
@@ -46,7 +46,7 @@ En las fotos digitales se puede poner un porcentaje de descuento a partir de 5, 
 Combos con precio fijo dentro de un álbum (por ejemplo, una cantidad de fotos digitales, impresiones o carpeta escolar). Si el pack pide elegir fotos, se indica cuántas fotos incluye y el comprador las elige.
 
 ## Pedidos y descargas
-Cuando un pedido de fotos digitales se paga, el comprador recibe por mail el link de descarga. Si no le llegó: que revise spam y promociones. Desde Pedidos, el fotógrafo puede sacar el link de descarga de un pedido pagado y pasárselo. Si el comprador se equivocó de mail, eso lo resuelve soporte con el comprobante de pago.
+Cuando un pedido de fotos digitales se paga, el comprador recibe por mail el link de descarga. Si no le llegó: que revise spam y promociones. El fotógrafo puede pedirle a DNX Bot que le reenvíe el mail con el link al comprador (sólo pedidos pagados; si el link venció, se genera uno nuevo). Desde el panel, en Pedidos, también puede copiar el link de descarga de un pedido pagado y pasárselo. Si el comprador se equivocó de mail, eso lo resuelve soporte con el comprobante de pago.
 
 ## Subidas
 Si algunas fotos no se pudieron subir, el panel lo avisa y ofrece reintentar sólo esas. El logo de una escuela no puede superar 5 MB.
