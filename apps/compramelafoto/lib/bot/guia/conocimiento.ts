@@ -29,7 +29,8 @@ Cómo funciona en CLF:
 - Plantillas: los productos impresos, como las carpetas, pueden llevar una plantilla de diseño con el nombre, el curso y la escuela.
 - Comisión de la escuela: si el fotógrafo arregló una comisión con la escuela, el sistema la deja anotada en cada venta para que la tenga clara. La paga el fotógrafo directamente a la escuela; CLF no la cobra ni la paga.
 - Entrega: hay etiquetas con QR para cada sobre y una ficha para seguir qué pedido se entregó.
-- El diseño automático con las plantillas y la entrega con QR son nuevos: todavía no hay colegios que los hayan usado de punta a punta. Ofrecelos así: "está recién estrenado; te acompañamos". La opción segura es que el fotógrafo descargue las fotos elegidas y diseñe e imprima como siempre.
+- Si el fotógrafo no hace fotografía escolar (la situación de la cuenta lo dice), cuando termines de resolver su consulta ofrecele en una línea aprender a vender fotografía escolar. Una sola vez por conversación; si dice que no, no insistas. En la situación aparece como «Fotografía escolar: nunca la usó».
+- El diseño automático con las plantillas y la entrega con QR son nuevos: todavía no hay colegios que los hayan usado de punta a punta. Ofrecelos como parte del sistema escolar; aclará que son nuevos y que lo acompañamos en el primer uso ("está recién estrenado; te acompañamos"). La opción segura es que el fotógrafo descargue las fotos elegidas y diseñe e imprima como siempre.
 
 Los 11 pasos del armado, en orden (los opcionales no frenan la venta):
 1. Crear la escuela

@@ -279,7 +279,7 @@ function BotText({ text }: { text: string }) {
   );
 }
 
-/** Tarjeta del armado escolar: «Paso k de 11», la lista de pasos y el siguiente con «Abrir» y «Hacelo por mí». */
+/** Tarjeta del armado escolar: «Paso k de 11», la lista de pasos y el siguiente con «Abrir» y, si el bot puede hacerlo, «Hacelo por mí». */
 function ProgresoCard({ progreso, busy, onHacelo }: { progreso: ProgresoEscolar; busy: boolean; onHacelo: (text: string) => void }) {
   const t = tarjetaProgreso(progreso);
   return (
@@ -304,7 +304,9 @@ function ProgresoCard({ progreso, busy, onHacelo }: { progreso: ProgresoEscolar;
           {t.siguiente.enlace && (
             <a href={t.siguiente.enlace} aria-label={`Abrir el paso: ${t.siguiente.titulo}`} style={{ ...btn, color: "#111", textDecoration: "none", display: "inline-block" }}>Abrir</a>
           )}
-          <button onClick={() => onHacelo(t.siguiente!.mensaje)} disabled={busy} aria-label={`Hacelo por mí: ${t.siguiente.titulo}`} style={{ ...btn, background: "#111", color: "#fff" }}>Hacelo por mí</button>
+          {t.siguiente.mensaje && (
+            <button onClick={() => onHacelo(t.siguiente!.mensaje!)} disabled={busy} aria-label={`Hacelo por mí: ${t.siguiente.titulo}`} style={{ ...btn, background: "#111", color: "#fff" }}>Hacelo por mí</button>
+          )}
         </div>
       )}
     </section>

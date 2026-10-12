@@ -62,28 +62,28 @@ async function lineaMails(since: Date): Promise<string> {
   return `Mails: ${enviados.length} enviados; ${entraron} de esos fotógrafos entraron después.`;
 }
 
-/** Fotógrafos cuyo primer pedido pagado (no de prueba, con monto) de toda su historia cayó en este mes argentino. */
+/**
+ * Fotógrafos cuyo primer pedido pagado (no de prueba, con monto) de toda su historia cayó en este mes argentino.
+ * Ambas consultas devuelven fotógrafos distintos (no pedidos), así un vendedor con muchos pedidos
+ * no desplaza a otros del tope.
+ */
 async function lineaPrimerasVentas(now: Date): Promise<string> {
   const inicioMes = new Date(`${argentinaMonthPrefix(now)}-01T00:00:00-03:00`);
-  const delMes = await prisma.order.findMany({
-    where: { status: "PAID", isTest: false, totalCents: { gt: 0 }, createdAt: { gte: inicioMes } },
-    select: { album: { select: { userId: true } } },
+  const pagado = { status: "PAID" as const, isTest: false, totalCents: { gt: 0 } };
+  const delMes = await prisma.album.findMany({
+    where: { orders: { some: { ...pagado, createdAt: { gte: inicioMes } } } },
+    select: { userId: true },
+    distinct: ["userId"],
     take: MAX_VENDEDORES,
   });
-  const candidatos = [...new Set(delMes.map((o) => o.album.userId))];
+  const candidatos = delMes.map((a) => a.userId);
   if (candidatos.length === 0) return "Primeras ventas este mes: 0 fotógrafos.";
-  const previos = await prisma.order.findMany({
-    where: {
-      status: "PAID",
-      isTest: false,
-      totalCents: { gt: 0 },
-      createdAt: { lt: inicioMes },
-      album: { userId: { in: candidatos } },
-    },
-    select: { album: { select: { userId: true } } },
-    take: MAX_VENDEDORES * 4,
+  const previos = await prisma.album.findMany({
+    where: { userId: { in: candidatos }, orders: { some: { ...pagado, createdAt: { lt: inicioMes } } } },
+    select: { userId: true },
+    distinct: ["userId"],
   });
-  const yaVendian = new Set(previos.map((o) => o.album.userId));
+  const yaVendian = new Set(previos.map((a) => a.userId));
   const nuevos = candidatos.filter((id) => !yaVendian.has(id)).length;
   return `Primeras ventas este mes: ${nuevos} fotógrafos.`;
 }

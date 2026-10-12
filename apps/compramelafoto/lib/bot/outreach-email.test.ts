@@ -55,7 +55,7 @@ function cumple(o: Obj, where: Obj): boolean {
 }
 
 type Pedido = { status: string; isTest: boolean; totalCents: number };
-type Alb = { deletedAt: Date | null; createdAt: Date; schoolId: number | null; mode: string; orders: Pedido[] };
+type Alb = { deletedAt: Date | null; createdAt: Date; isTest: boolean; schoolId: number | null; mode: string; orders: Pedido[] };
 type U = {
   id: number; email: string; name: string | null; role: string; marketingOptIn: boolean;
   unsubscribedAt: Date | null; isBlocked: boolean; lastLoginAt: Date | null; albums: Alb[];
@@ -63,7 +63,7 @@ type U = {
 const NOW = new Date("2026-10-12T13:00:00Z");
 const hace = (dias: number) => new Date(NOW.getTime() - dias * 86_400_000);
 const pagado: Pedido = { status: "PAID", isTest: false, totalCents: 5000 };
-const alb = (p: Partial<Alb> = {}): Alb => ({ deletedAt: null, createdAt: hace(200), schoolId: null, mode: "NORMAL", orders: [], ...p });
+const alb = (p: Partial<Alb> = {}): Alb => ({ deletedAt: null, createdAt: hace(200), isTest: false, schoolId: null, mode: "NORMAL", orders: [], ...p });
 const user = (id: number, p: Partial<U> = {}): U => ({
   id, email: `u${id}@x.com`, name: `Foto ${id}`, role: "PHOTOGRAPHER", marketingOptIn: true, unsubscribedAt: null,
   isBlocked: false, lastLoginAt: hace(60), albums: [alb()], ...p,
@@ -128,11 +128,14 @@ describe("campaniaMail coincide con elegirCampania (segmentos.ts)", () => {
       [alb({ orders: [pagado], mode: "SCHOOL" })],
       [alb({ orders: [pagado] }), alb({ mode: "SCHOOL", deletedAt: hace(1) })],
       [alb({ schoolId: 9 })],
+      // Un álbum escolar de prueba no cuenta como «ya hace escolar» (igual que cargarDatosSegmento).
+      [alb({ orders: [pagado] }), alb({ mode: "SCHOOL", isTest: true })],
+      [alb({ orders: [pagado], schoolId: 4, isTest: true })],
     ];
     for (const albums of casos) {
       const tieneAlbum = albums.some((a) => !a.deletedAt);
       const vendio = albums.some((a) => a.orders.some((o) => o.status === "PAID" && !o.isTest && o.totalCents > 0));
-      const tuvoEscolar = albums.some((a) => !a.deletedAt && (a.schoolId !== null || a.mode === "SCHOOL"));
+      const tuvoEscolar = albums.some((a) => !a.deletedAt && !a.isTest && (a.schoolId !== null || a.mode === "SCHOOL"));
       const porWhere = (["sin_ventas", "sin_escolar"] as CampaniaMail[]).filter((c) =>
         cumple({ albums } as Obj, whereCampaniaMail(c) as Obj),
       );

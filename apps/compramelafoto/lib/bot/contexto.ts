@@ -38,6 +38,13 @@ function daysUntil(date: Date, now: number): number {
   return Math.ceil((date.getTime() - now) / DAY);
 }
 
+function lineaDeProgreso(p: ProgresoEscolar | null): string | null {
+  if (p == null || p.albumTitulo == null) return null;
+  return p.siguiente
+    ? `Escolar: paso ${p.siguiente.n} de ${p.total} en «${p.albumTitulo}» (sigue: ${p.siguiente.titulo.toLowerCase()}; ${p.hechos} de ${p.total} hechos)`
+    : `Escolar: los ${p.total} pasos están hechos en «${p.albumTitulo}»`;
+}
+
 /** Una línea con el avance del armado escolar; si algo falla, no rompe la situación. */
 async function schoolProgressLine(userId: number): Promise<string | null> {
   let p: ProgresoEscolar;
@@ -46,10 +53,7 @@ async function schoolProgressLine(userId: number): Promise<string | null> {
   } catch {
     return null;
   }
-  if (p.albumTitulo == null) return null;
-  return p.siguiente
-    ? `Escolar: paso ${p.siguiente.n} de ${p.total} en «${p.albumTitulo}» (sigue: ${p.siguiente.titulo.toLowerCase()}; ${p.hechos} de ${p.total} hechos)`
-    : `Escolar: los ${p.total} pasos están hechos en «${p.albumTitulo}»`;
+  return lineaDeProgreso(p);
 }
 
 function organizerFixedPrice(pricing: CollaborativeEventPricingLockSnapshot | null): number | null {
@@ -62,7 +66,16 @@ function organizerFixedPrice(pricing: CollaborativeEventPricingLockSnapshot | nu
  * Diagnóstico de la cuenta del fotógrafo para DNX Bot: se arma en cada pedido y va
  * fuera de la guía cacheada. Todos los importes son pesos enteros (no centavos).
  */
-export async function buildPhotographerSituation(userId: number): Promise<{ text: string; alerts: SituationAlert[] }> {
+export async function buildPhotographerSituation(
+  userId: number,
+  opts: {
+    /**
+     * Progreso escolar ya calculado en este mismo pedido (p. ej. por /api/bot/estado para el globito):
+     * si viene (aunque sea `null`), se usa tal cual y no se vuelve a calcular.
+     */
+    progresoEscolar?: ProgresoEscolar | null;
+  } = {},
+): Promise<{ text: string; alerts: SituationAlert[] }> {
   const now = Date.now();
   const [albums, activeProducts, failedJobs, orders30, mp] = await Promise.all([
     prisma.album.findMany({
@@ -104,10 +117,18 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
 
   // Sólo si tiene algún álbum escolar real (cualquiera, no sólo los últimos 30): el progreso hace
   // varias consultas acotadas. Los de prueba no cuentan, igual que en el progreso.
-  const schoolAlbum = await prisma.album
-    .findFirst({ where: { userId, deletedAt: null, isTest: false, OR: SCHOOL_ALBUM_OR }, select: { id: true } })
-    .catch(() => null);
-  const schoolLine = schoolAlbum ? await schoolProgressLine(userId) : null;
+  let schoolLine: string | null;
+  if (opts.progresoEscolar !== undefined) {
+    schoolLine = lineaDeProgreso(opts.progresoEscolar);
+  } else {
+    // `undefined` = la búsqueda falló: no se afirma nada sobre la fotografía escolar.
+    const schoolAlbum = await prisma.album
+      .findFirst({ where: { userId, deletedAt: null, isTest: false, OR: SCHOOL_ALBUM_OR }, select: { id: true } })
+      .catch(() => undefined);
+    // Sin ningún álbum escolar real: la guía le pide al bot ofrecer aprender venta escolar (una vez).
+    if (schoolAlbum === null) schoolLine = "Fotografía escolar: nunca la usó";
+    else schoolLine = schoolAlbum ? await schoolProgressLine(userId) : null;
+  }
 
   const alerts: SituationAlert[] = [];
   if (mp.status === "NOT_CONNECTED") {
@@ -174,8 +195,9 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
 
     if (a.isTest) continue;
     if (a.mode === "SCHOOL" && a.schoolId == null) {
+      // Aviso, no bloqueo: el álbum puede vender igual; lo que falta es vincular la escuela.
       alerts.push({
-        level: "bloquea_ventas",
+        level: "aviso",
         albumId: a.id,
         text: `«${a.title}» está marcado como escolar pero no tiene escuela: queda a medias.`,
       });

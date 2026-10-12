@@ -13,6 +13,8 @@ export type PasoProgreso = {
   titulo: string;
   estado: PasoEstado;
   opcional: boolean;
+  /** Hay una herramienta del bot para este paso: sólo entonces se ofrece «Hacelo por mí». */
+  accion: boolean;
   enlace: string | null;
   detalle?: string;
 };
@@ -135,6 +137,8 @@ function parsePaso(v: unknown): PasoProgreso | null {
     titulo: p.titulo,
     estado: p.estado as PasoEstado,
     opcional: p.opcional === true,
+    // Sin el dato, no se ofrece «Hacelo por mí» (mejor sólo «Abrir» que un botón que no puede cumplir).
+    accion: p.accion === true,
     enlace: typeof p.enlace === "string" ? p.enlace : null,
     ...(typeof p.detalle === "string" ? { detalle: p.detalle } : {}),
   };
@@ -187,7 +191,8 @@ export type TarjetaProgreso = {
   titulo: string | null;
   aviso: string | null;
   filas: FilaPaso[];
-  siguiente: { n: number; titulo: string; enlace: string | null; mensaje: string } | null;
+  /** `mensaje` es null cuando el bot no tiene herramienta para ese paso: entonces sólo «Abrir». */
+  siguiente: { n: number; titulo: string; enlace: string | null; mensaje: string | null } | null;
 };
 
 const MARCA: Record<PasoEstado, MarcaPaso> = { hecho: "✓", pendiente: "○", no_aplica: "—" };
@@ -220,6 +225,6 @@ export function tarjetaProgreso(p: ProgresoEscolar): TarjetaProgreso {
       esSiguiente: sig?.n === x.n,
       ...(x.detalle ? { detalle: x.detalle } : {}),
     })),
-    siguiente: sig ? { n: sig.n, titulo: sig.titulo, enlace: enlaceInterno(sig.enlace), mensaje: haceloPorMiMensaje(sig.titulo) } : null,
+    siguiente: sig ? { n: sig.n, titulo: sig.titulo, enlace: enlaceInterno(sig.enlace), mensaje: sig.accion ? haceloPorMiMensaje(sig.titulo) : null } : null,
   };
 }

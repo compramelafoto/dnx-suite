@@ -33,8 +33,15 @@ describe("buildSystemGuide", () => {
     expect(g).toContain("## Venta escolar");
     expect(g).toContain("ver_progreso_escolar");
     expect(g).toContain("recién estrenado");
+    expect(g).toContain("Ofrecelos como parte del sistema escolar; aclará que son nuevos y que lo acompañamos en el primer uso");
+    expect(g).toContain("Fotografía escolar: nunca la usó");
     expect(g).not.toMatch(/descarga gratuita/i);
     expect(g).not.toMatch(/selfie escolar/i);
+  });
+  it("ofrece aprender fotografía escolar una sola vez a quien no la hace", () => {
+    expect(buildSystemGuide()).toContain(
+      "Si el fotógrafo no hace fotografía escolar (la situación de la cuenta lo dice), cuando termines de resolver su consulta ofrecele en una línea aprender a vender fotografía escolar. Una sola vez por conversación; si dice que no, no insistas."
+    );
   });
   it("lista los 11 pasos escolares con los mismos títulos que el progreso", () => {
     const g = buildSystemGuide();

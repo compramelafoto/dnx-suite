@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   album: vi.fn(),
   photoCount: vi.fn(),
   userFind: vi.fn(),
+  schoolFindMany: vi.fn(),
 }));
 vi.mock("@/lib/bot/escolar/progreso", () => ({ computeSchoolSetupProgress: (...a: unknown[]) => m.progreso(...a) }));
 vi.mock("@/lib/schools/school-setup", () => ({
@@ -32,6 +33,7 @@ vi.mock("@/lib/prisma", () => ({
     album: { findFirst: (...a: unknown[]) => m.album(...a) },
     photo: { count: (...a: unknown[]) => m.photoCount(...a) },
     user: { findUnique: (...a: unknown[]) => m.userFind(...a) },
+    school: { findMany: (...a: unknown[]) => m.schoolFindMany(...a) },
   },
 }));
 
@@ -51,6 +53,7 @@ beforeEach(() => {
   Object.values(m).forEach((f) => f.mockReset());
   m.album.mockResolvedValue({ id: 3, title: "Egresados 2026", organizerCommissionPercentage: null, organizerCommissionAppliesTo: ["PREVENTA"] });
   m.ownedSchool.mockResolvedValue({ id: 5, name: "Escuela Norte" });
+  m.schoolFindMany.mockResolvedValue([]);
 });
 
 describe("herramientas escolares", () => {
@@ -101,6 +104,16 @@ describe("herramientas escolares", () => {
       const r = await tool("crear_escuela").run({ nombre: "Escuela Norte", localidad: "Rosario" }, actor);
       expect(m.createSchool).toHaveBeenCalledWith(7, { name: "Escuela Norte", city: "Rosario", province: undefined });
       expect(r).toMatchObject({ ok: true, data: { schoolId: 5 } });
+      expect(m.schoolFindMany.mock.calls[0][0].where).toEqual({ ownerId: 7 });
+    });
+    it("ya tiene una escuela con el mismo nombre (sin importar mayúsculas ni espacios) → describe lanza y run no crea", async () => {
+      m.schoolFindMany.mockResolvedValue([{ id: 2, name: "Otra" }, { id: 9, name: "Escuela  NORTE " }]);
+      await expect(tool("crear_escuela").describe!({ nombre: "escuela norte" }, actor)).rejects.toThrow(
+        "Ya tenés una escuela llamada «Escuela  NORTE ». Usá esa"
+      );
+      const r = await tool("crear_escuela").run({ nombre: "  Escuela   Norte" }, actor);
+      expect(r).toMatchObject({ ok: false, code: "DUPLICATE", data: { schoolId: 9 } });
+      expect(m.createSchool).not.toHaveBeenCalled();
     });
   });
 
@@ -171,8 +184,11 @@ describe("herramientas escolares", () => {
     });
     it("run: el mail no salió → lo dice", async () => {
       m.invite.mockResolvedValue({ ok: true, invitation: { id: 1 }, emailSent: false, emailError: "rebotó" });
+      vi.spyOn(console, "error").mockImplementation(() => {});
       const r = (await tool("invitar_admin_escuela").run(input, actor)) as { message: string };
-      expect(r.message).toContain("no salió");
+      expect(r.message).toContain("no pude mandar el mail de invitación; podés reenviarla desde la ficha de la escuela");
+      expect(r.message).not.toContain("rebotó");
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining("invitar_admin_escuela"), expect.objectContaining({ error: "rebotó" }));
     });
   });
 

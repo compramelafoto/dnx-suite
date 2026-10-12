@@ -77,6 +77,26 @@ describe("GET /api/bot/estado", () => {
       expect(r.progresoEscolar).toMatchObject({ albumId: 5, hechos: 3 });
       expect(r.globito.campaign).toBe("escolar_en_curso");
     });
+    it("calcula el progreso escolar una sola vez: lo pasa a la situación", async () => {
+      const progreso = { albumId: 5, albumTitulo: "5to A", schoolId: 1, pasos: [], hechos: 3, total: 11, siguiente: null, aMedias: false };
+      m.datos.mockResolvedValue(datos({ tuvoEscolar: true, progreso }));
+      await get();
+      expect(m.sit).toHaveBeenCalledWith(7, { progresoEscolar: progreso });
+      m.datos.mockResolvedValue(datos());
+      await get();
+      expect(m.sit).toHaveBeenLastCalledWith(7, { progresoEscolar: null });
+    });
+    it("si falla el globito, la situación calcula el progreso por su cuenta", async () => {
+      m.datos.mockRejectedValue(new Error("db"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await get();
+      expect(m.sit).toHaveBeenCalledWith(7, {});
+    });
+    it("alerta «a medias» (nivel aviso) no cambia el saludo", async () => {
+      m.sit.mockResolvedValue({ alerts: [{ level: "aviso", albumId: 3, text: "«E» está marcado como escolar pero no tiene escuela: queda a medias." }] });
+      const r = await (await get()).json();
+      expect(r).toMatchObject({ alerta: false, saludo: "Hola, soy DNX Bot. ¿En qué te ayudo?" });
+    });
     it("?campaign=sin_escolar fuerza aunque esté CLICKED o DISMISSED", async () => {
       const hace = new Date(Date.now() - 2 * 86_400_000);
       for (const status of ["CLICKED", "DISMISSED"]) {

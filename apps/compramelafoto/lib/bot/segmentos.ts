@@ -46,8 +46,11 @@ function suprimida(c: Campania, d: DatosSegmento, now: Date, soloDeclined = fals
 
 function aplica(c: Campania, d: DatosSegmento): boolean {
   switch (c) {
-    case "escolar_en_curso":
-      return !!d.progreso && d.progreso.albumId != null && d.progreso.siguiente != null;
+    case "escolar_en_curso": {
+      // Sólo insiste si lo que sigue es un paso obligatorio pendiente (los opcionales no molestan).
+      const sig = d.progreso?.siguiente;
+      return !!d.progreso && d.progreso.albumId != null && !!sig && !sig.opcional && sig.estado === "pendiente";
+    }
     case "nuevo":
       return d.registradoHace <= 14 && !d.tieneAlbum;
     case "sin_ventas":
@@ -71,6 +74,7 @@ export function elegirCampania(d: DatosSegmento, now: Date, opts: { forzar?: Cam
   const n = primerNombre(d.nombre);
   const conNombre = n ? `${s}, ${n}` : s;
   const ahoraNo = { label: "Ahora no", mensaje: null, accion: "DISMISSED" as const };
+  const noGracias = { label: "No, gracias", mensaje: null, accion: "DECLINED" as const };
   switch (campaign) {
     case "escolar_en_curso": {
       const p = d.progreso!;
@@ -80,7 +84,11 @@ export function elegirCampania(d: DatosSegmento, now: Date, opts: { forzar?: Cam
       return {
         campaign,
         texto,
-        botones: [{ label: p.aMedias ? "Arreglemos" : "Seguimos", mensaje: "Quiero seguir con mi álbum escolar", accion: "CLICKED" }, ahoraNo],
+        botones: [
+          { label: p.aMedias ? "Arreglemos" : "Seguimos", mensaje: "Quiero seguir con mi álbum escolar", accion: "CLICKED" },
+          ahoraNo,
+          noGracias,
+        ],
       };
     }
     case "nuevo":
@@ -102,12 +110,16 @@ export function elegirCampania(d: DatosSegmento, now: Date, opts: { forzar?: Cam
         botones: [
           { label: "Sí, quiero aprender", mensaje: "Quiero aprender a vender fotografía escolar", accion: "CLICKED" },
           { label: "Ya lo hago", mensaje: "Ya hago fotografía escolar, ¿cómo me ayudás?", accion: "CLICKED" },
-          { label: "No, gracias", mensaje: null, accion: "DECLINED" },
+          noGracias,
         ],
       };
   }
 }
 
+/**
+ * Datos del fotógrafo para elegir el globito. El progreso escolar sólo mira álbumes escolares
+ * creados en los últimos 120 días (`soloRecientes`): uno viejo sin terminar no insiste para siempre.
+ */
 export async function cargarDatosSegmento(userId: number): Promise<DatosSegmento> {
   const now = new Date();
   const albumes = { userId, deletedAt: null };
@@ -118,8 +130,9 @@ export async function cargarDatosSegmento(userId: number): Promise<DatosSegmento
       where: { status: "PAID", isTest: false, totalCents: { gt: 0 }, album: { userId } },
       select: { id: true },
     }),
+    // Igual que TUVO_ESCOLAR en outreach-email.ts: los álbumes de prueba no cuentan.
     prisma.album.findFirst({
-      where: { ...albumes, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
+      where: { ...albumes, isTest: false, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
       select: { id: true },
     }),
     leerOutreachPanel(userId),
@@ -131,7 +144,7 @@ export async function cargarDatosSegmento(userId: number): Promise<DatosSegmento
     tieneAlbum: albumCount > 0,
     vendio: !!orden,
     tuvoEscolar,
-    progreso: tuvoEscolar ? await computeSchoolSetupProgress(userId, undefined, now) : null,
+    progreso: tuvoEscolar ? await computeSchoolSetupProgress(userId, undefined, now, { soloRecientes: true }) : null,
     outreach,
   };
 }

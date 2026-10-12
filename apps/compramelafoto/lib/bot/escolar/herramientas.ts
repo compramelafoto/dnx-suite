@@ -29,6 +29,28 @@ const NO_DESHACER = "No pude deshacer: los datos guardados no son válidos.";
 const URL_SITIO = "https://www.compramelafoto.com";
 
 const id = z.number().int().positive();
+const MAX_ESCUELAS_REVISADAS = 500;
+
+/** Nombre de escuela comparable: sin mayúsculas ni espacios de más. */
+function normalizarNombreEscuela(nombre: string): string {
+  return nombre.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Escuela del fotógrafo con el mismo nombre (sin distinguir mayúsculas ni espacios), si la hay. */
+async function escuelaConMismoNombre(userId: number, nombre: string): Promise<{ id: number; name: string } | null> {
+  const buscado = normalizarNombreEscuela(nombre);
+  const escuelas = await prisma.school.findMany({
+    where: { ownerId: userId },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "desc" },
+    take: MAX_ESCUELAS_REVISADAS,
+  });
+  return escuelas.find((e) => normalizarNombreEscuela(e.name) === buscado) ?? null;
+}
+
+function mensajeEscuelaRepetida(e: { name: string }): string {
+  return `Ya tenés una escuela llamada «${e.name}». Usá esa en lugar de crear otra igual.`;
+}
 
 const MODOS_IDENTIFICACION = ["NONE", "MANUAL", "ROSTER_OPTIONAL", "ROSTER_REQUIRED"] as const;
 const TIPOS_COMISION = ["PREVENTA", "POST_EVENT", "EXTRAS"] as const;
@@ -159,11 +181,15 @@ export const escolarTools: BotTool[] = [
       localidad: z.string().trim().max(120).optional(),
       provincia: z.string().trim().max(120).optional(),
     }),
-    describe: async (i) => {
+    describe: async (i, actor) => {
+      const repetida = await escuelaConMismoNombre(actor.userId, i.nombre);
+      if (repetida) throw new Error(mensajeEscuelaRepetida(repetida));
       const lugar = [i.localidad, i.provincia].filter(Boolean).join(", ");
       return `Crear la escuela «${i.nombre}»${lugar ? ` (${lugar})` : ""}.`;
     },
     run: async (i, actor) => {
+      const repetida = await escuelaConMismoNombre(actor.userId, i.nombre);
+      if (repetida) return { ok: false, code: "DUPLICATE", message: mensajeEscuelaRepetida(repetida), data: { schoolId: repetida.id } };
       const r = await createSchoolForOwner(actor.userId, { name: i.nombre, city: i.localidad, province: i.provincia });
       if (!r.ok) return { ok: false, code: String(r.status), message: r.error };
       return { ok: true, message: `Listo, creé la escuela «${r.school.name}».`, data: { schoolId: r.school.id } };
@@ -218,9 +244,11 @@ export const escolarTools: BotTool[] = [
       const r = await inviteSchoolOrganizerForOwner({ owner: { id: actor.userId, name: actor.name }, schoolId, name: nombre, email });
       if (!r.ok) return r.status === 404 ? { ok: false, code: "NOT_FOUND", message: NO_ESCUELA } : { ok: false, code: String(r.status), message: r.error };
       if (!r.emailSent) {
+        // El detalle técnico va al log, no al fotógrafo.
+        console.error("[dnx-bot] invitar_admin_escuela: el mail no salió", { invitationId: r.invitation.id, error: r.emailError });
         return {
           ok: true,
-          message: `Quedó creada la invitación para ${r.invitation.email}, pero el mail no salió (${r.emailError}). Se puede reenviar desde la escuela, en el panel.`,
+          message: `Quedó creada la invitación para ${r.invitation.email}, pero no pude mandar el mail de invitación; podés reenviarla desde la ficha de la escuela.`,
           data: { invitationId: r.invitation.id, emailSent: false },
         };
       }

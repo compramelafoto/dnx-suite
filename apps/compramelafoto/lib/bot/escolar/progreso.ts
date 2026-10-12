@@ -31,6 +31,8 @@ export type PasoEscolar = {
   titulo: string;
   estado: EstadoPaso;
   opcional: boolean;
+  /** Hay una herramienta del bot que hace este paso («Hacelo por mí»); si no, sólo se abre el enlace. */
+  accion: boolean;
   enlace: string | null;
   detalle?: string;
 };
@@ -88,6 +90,9 @@ const SELECT_ALBUM = {
 } as const;
 
 const AVISO_REF_KEY = "fotosListasAvisoAt";
+/** Para el saludo: sólo cuenta un álbum escolar creado en los últimos 120 días. */
+export const VENTANA_SALUDO_ESCOLAR_DIAS = 120;
+const DIA_MS = 24 * 60 * 60 * 1000;
 const MAX_PACKS = 100;
 
 function tabAlbum(albumId: number, tab: string): string {
@@ -143,6 +148,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Crear la escuela",
       estado: est(!!esc),
       opcional: false,
+      accion: true,
       enlace: esc ? `/fotografo/escuelas/${esc.id}` : "/fotografo/escuelas/nueva",
       ...(esc ? { detalle: esc.name } : {}),
     },
@@ -152,6 +158,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Cargar cursos o alumnos",
       estado: est(!!esc && d.tieneCursos),
       opcional: false,
+      accion: true,
       enlace: esc ? `/fotografo/escuelas/${esc.id}` : null,
     },
     {
@@ -160,6 +167,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Invitar a alguien de la escuela",
       estado: est(!!esc && d.admin != null),
       opcional: true,
+      accion: true,
       enlace: esc ? `/fotografo/escuelas/${esc.id}` : null,
       ...(esc && d.admin ? { detalle: d.admin === "activo" ? "activo" : "invitación enviada" } : {}),
     },
@@ -169,6 +177,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Crear el álbum escolar vinculado a la escuela",
       estado: est(albumVinculado),
       opcional: false,
+      accion: true,
       enlace: al ? tabAlbum(al.id, "configuracion") : "/dashboard/albums/new",
     },
     {
@@ -177,6 +186,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Definir cómo se identifica a cada alumno",
       estado: est(identificacionOk),
       opcional: false,
+      accion: true,
       enlace: enlaceAlbum("escuela"),
     },
     {
@@ -185,6 +195,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Armar los packs de preventa",
       estado: est(preventaOk),
       opcional: false,
+      accion: false,
       enlace: enlaceAlbum("preventa"),
     },
     {
@@ -193,6 +204,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Elegir las plantillas de los productos impresos",
       estado: plantillas,
       opcional: false,
+      accion: false,
       enlace: enlaceAlbum("preventa"),
       ...(plantillasDetalle ? { detalle: plantillasDetalle } : {}),
     },
@@ -202,6 +214,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Configurar la comisión para la escuela",
       estado: est(!!al && al.organizerCommissionEnabled && (al.organizerCommissionPercentage ?? 0) > 0),
       opcional: true,
+      accion: true,
       enlace: enlaceAlbum("comision-escolar"),
     },
     {
@@ -210,6 +223,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Publicar la preventa para las familias",
       estado: est(!!al && d.packsPublicados > 0),
       opcional: false,
+      accion: false,
       enlace: al ? `${tabAlbum(al.id, "publicacion")}&pub=compartir` : null,
     },
     {
@@ -218,6 +232,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Subir las fotos y avisar a las familias",
       estado: est(fotosYAvisoOk),
       opcional: false,
+      accion: true,
       enlace: enlaceAlbum("fotos"),
       ...(al ? { detalle: `${d.fotos} fotos · aviso ${d.avisoEnviado ? "enviado" : "no enviado"}` } : {}),
     },
@@ -227,6 +242,7 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
       titulo: "Entregar los pedidos",
       estado: entrega,
       opcional: false,
+      accion: false,
       enlace: "/fotografo/escuelas/pedidos",
       ...(entregaDetalle ? { detalle: entregaDetalle } : {}),
     },
@@ -248,7 +264,20 @@ export function armarPasos(d: DatosEscolares): ProgresoEscolar {
   };
 }
 
-async function buscarAlbum(userId: number, albumId?: number): Promise<AlbumEscolar | null> {
+export type OpcionesProgreso = {
+  /**
+   * Sólo para el saludo: si no se pide un `albumId`, buscar el álbum escolar más reciente entre los
+   * creados en los últimos 120 días (un álbum viejo sin terminar no debe insistir para siempre).
+   */
+  soloRecientes?: boolean;
+};
+
+async function buscarAlbum(
+  userId: number,
+  albumId: number | undefined,
+  now: Date,
+  opts: OpcionesProgreso
+): Promise<AlbumEscolar | null> {
   if (albumId != null) {
     const propio = await prisma.album.findFirst({
       where: { id: albumId, userId, deletedAt: null, isTest: false },
@@ -257,7 +286,13 @@ async function buscarAlbum(userId: number, albumId?: number): Promise<AlbumEscol
     if (propio) return propio;
   }
   return prisma.album.findFirst({
-    where: { userId, deletedAt: null, isTest: false, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] },
+    where: {
+      userId,
+      deletedAt: null,
+      isTest: false,
+      OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }],
+      ...(opts.soloRecientes ? { createdAt: { gte: new Date(now.getTime() - VENTANA_SALUDO_ESCOLAR_DIAS * DIA_MS) } } : {}),
+    },
     orderBy: { createdAt: "desc" },
     select: SELECT_ALBUM,
   });
@@ -347,9 +382,10 @@ async function datosDeAlbum(album: AlbumEscolar, now: Date) {
 export async function computeSchoolSetupProgress(
   userId: number,
   albumId?: number,
-  now: Date = new Date()
+  now: Date = new Date(),
+  opts: OpcionesProgreso = {}
 ): Promise<ProgresoEscolar> {
-  const album = await buscarAlbum(userId, albumId);
+  const album = await buscarAlbum(userId, albumId, now, opts);
   const escuela = await buscarEscuela(userId, album?.schoolId ?? null);
 
   const [deEscuela, deAlbum] = await Promise.all([

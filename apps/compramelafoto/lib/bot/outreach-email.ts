@@ -36,7 +36,7 @@ const VENDIO: Prisma.UserWhereInput = {
   albums: { some: { orders: { some: { status: "PAID", isTest: false, totalCents: { gt: 0 } } } } },
 };
 const TUVO_ESCOLAR: Prisma.UserWhereInput = {
-  albums: { some: { deletedAt: null, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] } },
+  albums: { some: { deletedAt: null, isTest: false, OR: [{ schoolId: { not: null } }, { mode: "SCHOOL" }] } },
 };
 
 /** Traducción a Prisma de `campaniaMail`. */

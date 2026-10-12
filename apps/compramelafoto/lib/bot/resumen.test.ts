@@ -17,6 +17,7 @@ vi.mock("@/lib/bot/escolar/progreso", () => ({ computeSchoolSetupProgress: (...a
 import { buildDailySummary } from "./resumen";
 
 beforeEach(() => {
+  vi.clearAllMocks();
   m.convCount.mockResolvedValue(10);
   m.convGroup.mockResolvedValue([{ status: "ESCALATED", _count: { _all: 2 } }]);
   m.actGroup.mockResolvedValue([{ status: "EXECUTED", _count: { _all: 5 } }]);
@@ -85,16 +86,31 @@ describe("buildDailySummary", () => {
     expect(t).toContain("Mails: 3 enviados; 1 de esos fotógrafos entraron después.");
   });
 
-  it("primeras ventas: excluye a quien ya había vendido antes del mes", async () => {
-    m.orders
-      .mockResolvedValueOnce([{ album: { userId: 1 } }, { album: { userId: 1 } }, { album: { userId: 2 } }, { album: { userId: 3 } }])
-      .mockResolvedValueOnce([{ album: { userId: 2 } }]);
+  it("primeras ventas: fotógrafos distintos, excluye a quien ya había vendido antes del mes", async () => {
+    const primeras = (q: { distinct?: string[]; where: { userId?: unknown } }) => {
+      if (!q.distinct) return Promise.resolve([]); // lineaEscolares
+      return Promise.resolve(q.where.userId ? [{ userId: 2 }] : [{ userId: 1 }, { userId: 2 }, { userId: 3 }]);
+    };
+    m.albums.mockImplementation(primeras);
     const t = await buildDailySummary(new Date("2026-10-12T12:00:00Z"));
     expect(t).toContain("Primeras ventas este mes: 2 fotógrafos.");
-    const dentro = m.orders.mock.calls[0][0].where;
+    const llamadas = m.albums.mock.calls.map((c) => c[0]).filter((q) => q.distinct);
+    expect(llamadas).toHaveLength(2);
+    const [mes, antes] = llamadas;
+    expect(mes.distinct).toEqual(["userId"]);
+    expect(mes.take).toBe(500);
+    const dentro = mes.where.orders.some;
     expect(dentro.createdAt.gte.toISOString()).toBe("2026-10-01T03:00:00.000Z");
-    expect(dentro.isTest).toBe(false);
-    expect(dentro.totalCents).toEqual({ gt: 0 });
+    expect(dentro).toMatchObject({ status: "PAID", isTest: false, totalCents: { gt: 0 } });
+    expect(antes.where.userId).toEqual({ in: [1, 2, 3] });
+    expect(antes.where.orders.some.createdAt.lt.toISOString()).toBe("2026-10-01T03:00:00.000Z");
+    expect(antes.where.orders.some).toMatchObject({ status: "PAID", isTest: false, totalCents: { gt: 0 } });
+    expect(m.orders).not.toHaveBeenCalled();
+  });
+
+  it("primeras ventas: sin candidatos no hace la segunda consulta", async () => {
+    await buildDailySummary(new Date("2026-10-12T12:00:00Z"));
+    expect(m.albums.mock.calls.map((c) => c[0]).filter((q) => q.distinct)).toHaveLength(1);
   });
 
   it("escolares: cuenta el paso 9 hecho y acota la cantidad evaluada", async () => {
@@ -108,7 +124,7 @@ describe("buildDailySummary", () => {
     const t = await buildDailySummary(new Date("2026-10-12T12:00:00Z"));
     expect(t).toContain("Álbumes escolares con preventa publicada: 1.");
     expect(m.progreso).toHaveBeenCalledWith(1, 10, expect.any(Date));
-    const q = m.albums.mock.calls[0][0];
+    const q = m.albums.mock.calls.map((c) => c[0]).find((x) => !x.distinct);
     expect(q.take).toBe(50);
     expect(q.where.isTest).toBe(false);
     expect(q.where.deletedAt).toBeNull();

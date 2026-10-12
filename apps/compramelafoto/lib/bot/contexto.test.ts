@@ -141,11 +141,12 @@ describe("buildPhotographerSituation", () => {
     expect(m.health).toHaveBeenCalledWith({ ownerType: "USER", ownerId: 42 });
   });
 
-  it("álbum escolar sin escuela → alerta «a medias» que bloquea ventas", async () => {
+  it("álbum escolar sin escuela → alerta «a medias» de nivel aviso (no bloquea ventas)", async () => {
     m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500, mode: "SCHOOL", schoolId: null })]);
     const s = await buildPhotographerSituation(1);
+    expect(s.alerts.some((a) => a.level === "bloquea_ventas")).toBe(false);
     expect(s.alerts).toContainEqual({
-      level: "bloquea_ventas",
+      level: "aviso",
       albumId: 3,
       text: "«Egresados» está marcado como escolar pero no tiene escuela: queda a medias.",
     });
@@ -178,11 +179,35 @@ describe("buildPhotographerSituation", () => {
     expect(s.text).toContain("Escolar: paso 6 de 11");
   });
 
-  it("sin álbumes escolares no calcula el progreso", async () => {
+  it("con progreso ya calculado lo reusa: no busca el álbum escolar ni recalcula", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500 })]);
+    const progresoEscolar = {
+      albumId: 3, albumTitulo: "Egresados", schoolId: 5, pasos: [], hechos: 5, total: 11 as const,
+      siguiente: { n: 6, id: "preventa" as const, titulo: "Armar los packs de preventa", estado: "pendiente" as const, opcional: false, accion: false, enlace: null },
+      aMedias: false,
+    };
+    const s = await buildPhotographerSituation(7, { progresoEscolar });
+    expect(m.schoolAlbum).not.toHaveBeenCalled();
+    expect(m.progreso).not.toHaveBeenCalled();
+    expect(s.text).toContain("Escolar: paso 6 de 11 en «Egresados»");
+    const sinEscolar = await buildPhotographerSituation(7, { progresoEscolar: null });
+    expect(sinEscolar.text).not.toContain("Escolar:");
+    expect(m.progreso).not.toHaveBeenCalled();
+  });
+
+  it("sin álbumes escolares no calcula el progreso y dice que nunca la usó", async () => {
     m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500 })]);
     const s = await buildPhotographerSituation(1);
     expect(m.progreso).not.toHaveBeenCalled();
     expect(s.text).not.toContain("Escolar:");
+    expect(s.text).toContain("Fotografía escolar: nunca la usó");
+  });
+
+  it("con álbum escolar real no dice que nunca la usó", async () => {
+    m.albums.mockResolvedValue([album({ digitalPhotoPriceCents: 2500 })]);
+    m.schoolAlbum.mockResolvedValue({ id: 3 });
+    const s = await buildPhotographerSituation(1);
+    expect(s.text).not.toContain("nunca la usó");
   });
 
   it("si el progreso escolar falla, la situación sale igual", async () => {
@@ -200,5 +225,6 @@ describe("buildPhotographerSituation", () => {
     const s = await buildPhotographerSituation(1);
     expect(m.progreso).not.toHaveBeenCalled();
     expect(s.text).toContain("Egresados");
+    expect(s.text).not.toContain("nunca la usó");
   });
 });

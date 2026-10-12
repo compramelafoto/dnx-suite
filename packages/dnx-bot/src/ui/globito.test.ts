@@ -16,7 +16,7 @@ import {
 } from "./globito";
 
 const paso = (n: number, estado: "hecho" | "pendiente" | "no_aplica", extra: Record<string, unknown> = {}) => ({
-  n, id: `p${n}`, titulo: `Paso ${n}`, estado, opcional: false, enlace: `/dashboard/albums/9?tab=t${n}`, ...extra,
+  n, id: `p${n}`, titulo: `Paso ${n}`, estado, opcional: false, accion: true, enlace: `/dashboard/albums/9?tab=t${n}`, ...extra,
 });
 const progreso = (over: Partial<ProgresoEscolar> = {}): ProgresoEscolar => {
   const pasos = [paso(1, "hecho"), paso(2, "no_aplica"), paso(3, "hecho"), paso(4, "pendiente", { opcional: true }), paso(5, "pendiente")];
@@ -103,6 +103,19 @@ describe("progreso escolar", () => {
     expect(t.filas.filter((f) => f.esSiguiente).map((f) => f.n)).toEqual([5]);
     expect(t.siguiente).toEqual({ n: 5, titulo: "Paso 5", enlace: "/dashboard/albums/9?tab=t5", mensaje: "Hacé por mí el paso: Paso 5" });
     expect(t.aviso).toBeNull();
+  });
+  it("sin herramienta para el paso: sólo «Abrir», sin «Hacelo por mí»", () => {
+    const pasos = [paso(1, "hecho"), paso(6, "pendiente", { id: "preventa", accion: false })];
+    const t = tarjetaProgreso(progreso({ pasos: pasos as never, siguiente: pasos[1] as never }));
+    expect(t.siguiente).toEqual({ n: 6, titulo: "Paso 6", enlace: "/dashboard/albums/9?tab=t6", mensaje: null });
+  });
+  it("parseProgreso: accion sólo si viene true (sin el dato, no se ofrece)", () => {
+    const sinDato = { ...paso(5, "pendiente") } as Record<string, unknown>;
+    delete sinDato.accion;
+    const p = parseProgreso({ ...progreso(), pasos: [paso(1, "hecho"), sinDato], siguiente: sinDato })!;
+    expect(p.pasos.map((x) => x.accion)).toEqual([true, false]);
+    expect(p.siguiente!.accion).toBe(false);
+    expect(tarjetaProgreso(p).siguiente!.mensaje).toBeNull();
   });
   it("tarjeta completa y a medias", () => {
     const listo = tarjetaProgreso(progreso({ siguiente: null, pasos: [paso(1, "hecho")] as never }));

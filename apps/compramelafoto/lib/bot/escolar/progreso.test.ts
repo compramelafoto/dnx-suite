@@ -240,6 +240,16 @@ describe("armarPasos (lógica pura)", () => {
   });
 });
 
+describe("accion («Hacelo por mí»)", () => {
+  it("sólo los pasos con herramienta del bot tienen accion", () => {
+    const p = armarPasos(datosCompletos());
+    const conAccion = p.pasos.filter((x) => x.accion).map((x) => x.id);
+    expect(conAccion).toEqual(["escuela", "cursos", "admin_escuela", "album_vinculado", "identificacion", "comision", "fotos_y_aviso"]);
+    const sinAccion = p.pasos.filter((x) => !x.accion).map((x) => x.id);
+    expect(sinAccion).toEqual(["preventa", "plantillas", "preventa_publicada", "entrega"]);
+  });
+});
+
 describe("computeSchoolSetupProgress (consultas)", () => {
   beforeEach(() => {
     Object.values(m).forEach((f) => f.mockReset());
@@ -270,6 +280,23 @@ describe("computeSchoolSetupProgress (consultas)", () => {
     expect(m.schoolFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerId: 7 }, orderBy: { createdAt: "desc" } }));
     expect(m.packFindMany).not.toHaveBeenCalled();
     expect(m.catalog).not.toHaveBeenCalled();
+  });
+
+  it("soloRecientes (saludo): el álbum de respaldo se busca entre los creados en los últimos 120 días", async () => {
+    m.albumFindFirst.mockResolvedValue(null);
+    m.schoolFindFirst.mockResolvedValue(null);
+    await computeSchoolSetupProgress(7, undefined, NOW, { soloRecientes: true });
+    const where = m.albumFindFirst.mock.calls[0][0].where;
+    expect(where).toMatchObject({ userId: 7, deletedAt: null, isTest: false });
+    expect(where.createdAt.gte.toISOString()).toBe(new Date(NOW.getTime() - 120 * 86_400_000).toISOString());
+  });
+
+  it("soloRecientes con albumId explícito: el álbum pedido no se restringe por fecha", async () => {
+    m.albumFindFirst.mockResolvedValueOnce({ ...albumBase });
+    m.schoolFindFirst.mockResolvedValue(null);
+    const p = await computeSchoolSetupProgress(7, 40, NOW, { soloRecientes: true });
+    expect(m.albumFindFirst.mock.calls[0][0].where).toEqual({ id: 40, userId: 7, deletedAt: null, isTest: false });
+    expect(p.albumId).toBe(40);
   });
 
   it("álbum de prueba pasado por albumId: no se usa (filtra isTest)", async () => {

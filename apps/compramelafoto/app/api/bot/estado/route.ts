@@ -27,27 +27,30 @@ export async function GET(req?: Request) {
       progresoEscolar: null,
     });
   }
-  let bloqueo: { text: string } | undefined;
-  try {
-    const s = await buildPhotographerSituation(user.id);
-    bloqueo = s.alerts.find((a) => a.level === "bloquea_ventas");
-  } catch (e) {
-    // Si falla armar la situación, la burbuja igual aparece con el saludo de siempre.
-    console.error("[dnx-bot] estado", e);
-  }
   // El globito es un extra: si algo falla, el estado sale igual sin él.
   let globito: Globito | null = null;
   let progresoEscolar: ProgresoEscolar | null = null;
+  let progresoCalculado = false;
   try {
     const pedida = req ? new URL(req.url).searchParams.get("campaign") : null;
     const forzar = (CAMPANIAS as readonly string[]).includes(pedida ?? "") ? (pedida as Campania) : undefined;
     const datos = await cargarDatosSegmento(user.id);
     progresoEscolar = datos.progreso;
+    progresoCalculado = true;
     globito = elegirCampania(datos, new Date(), { forzar });
     if (globito) await registrarVisto(user.id, globito.campaign).catch((e) => console.error("[dnx-bot] registrar visto", e));
   } catch (e) {
     console.error("[dnx-bot] estado globito", e);
     globito = null;
+  }
+  let bloqueo: { text: string } | undefined;
+  try {
+    // El progreso escolar se calcula una sola vez por pedido: si ya salió para el globito, se reusa.
+    const s = await buildPhotographerSituation(user.id, progresoCalculado ? { progresoEscolar } : {});
+    bloqueo = s.alerts.find((a) => a.level === "bloquea_ventas");
+  } catch (e) {
+    // Si falla armar la situación, la burbuja igual aparece con el saludo de siempre.
+    console.error("[dnx-bot] estado", e);
   }
   return Response.json({
     enabled: true,
