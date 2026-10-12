@@ -6,7 +6,7 @@ import { fechaBA } from "@/lib/ficha/formato";
 import { puedeEnContexto } from "@/lib/access/policy";
 import type { ConsultaResuelta, ContextoListado, DefinicionListado, Opcion } from "@/lib/listado/tipos";
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
-import { ESTADOS_GALERIA, ETIQUETA_ESTADO_GALERIA, esEstadoGaleria, type EstadoGaleria } from "./constantes";
+import { ESTADOS_GALERIA, ETIQUETA_ESTADO_GALERIA, ETIQUETA_TIPO_GALERIA, TIPOS_GALERIA, esEstadoGaleria, esTipoGaleria, type EstadoGaleria, type TipoGaleria } from "./constantes";
 import { claseDeEstadoGaleria } from "./estado-vista";
 import { formatearCentavos } from "./precios";
 import { vendidoPorGaleria } from "./venta";
@@ -21,8 +21,11 @@ const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const OPCIONES_ESTADO_GALERIA: readonly Opcion[] = ESTADOS_GALERIA.map((e) => ({ valor: e, etiqueta: ETIQUETA_ESTADO_GALERIA[e] }));
 
+export const OPCIONES_TIPO_GALERIA: readonly Opcion[] = TIPOS_GALERIA.map((t) => ({ valor: t, etiqueta: ETIQUETA_TIPO_GALERIA[t] }));
+
 export type FilaGaleria = {
   id: string;
+  tipo: TipoGaleria;
   numero: string;
   nombre: string;
   proyectoId: string;
@@ -43,6 +46,7 @@ const SELECT_GALERIA = {
   number: true,
   name: true,
   status: true,
+  kind: true,
   createdAt: true,
   proyecto: { select: { id: true, number: true, name: true, client: { select: { firstName: true, lastName: true, businessName: true } } } },
   _count: { select: { fotos: { where: { status: "LISTA" } }, clientes: true } },
@@ -53,6 +57,7 @@ type FilaBase = Prisma.FotofficeGaleriaGetPayload<{ select: typeof SELECT_GALERI
 function aFila(f: FilaBase, enRevision: number, vendidoCentavos: number | null): FilaGaleria {
   return {
     id: f.id,
+    tipo: f.kind === "ENTREGA" ? "ENTREGA" : "SELECCION",
     numero: f.number,
     nombre: f.name,
     proyectoId: f.proyecto.id,
@@ -90,6 +95,8 @@ export function whereGalerias(workspaceId: string, c: ConsultaResuelta): Prisma.
   }
   const estado = c.filtros.estado;
   if (estado && esEstadoGaleria(estado)) and.push({ status: estado });
+  const tipo = c.filtros.tipo;
+  if (tipo && esTipoGaleria(tipo)) and.push({ kind: tipo });
   if (c.filtros.revision === "si") and.push({ clientes: { some: ESPERANDO } });
   else if (c.filtros.revision === "no") and.push({ NOT: { clientes: { some: ESPERANDO } } });
   return and.length > 0 ? { workspaceId, AND: and } : { workspaceId };
@@ -152,6 +159,7 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
       ),
     },
     { clave: "nombre", titulo: "Galería", celda: (f) => <span className="text-[var(--fo-text)]">{f.nombre}</span> },
+    { clave: "tipo", titulo: "Tipo", celda: (f) => <span>{ETIQUETA_TIPO_GALERIA[f.tipo]}</span>, secundaria: true },
     {
       clave: "proyecto",
       titulo: "Proyecto",
@@ -195,6 +203,7 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
   ],
   filtros: [
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: OPCIONES_ESTADO_GALERIA },
+    { tipo: "opcion", clave: "tipo", etiqueta: "Tipo", opciones: OPCIONES_TIPO_GALERIA },
     { tipo: "siNo", clave: "revision", etiqueta: "Revisión", si: "Esperando revisión", no: "Sin selecciones por revisar" },
   ],
   ordenes: ["alta", "actualizado"],
@@ -218,6 +227,7 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
       { titulo: "Galería", tipo: "texto", valor: (f) => f.nombre },
       { titulo: "Proyecto", tipo: "texto", valor: (f) => `${f.proyectoNumero} · ${f.proyectoNombre}` },
       { titulo: "Cliente", tipo: "texto", valor: (f) => f.contacto },
+      { titulo: "Tipo", tipo: "texto", valor: (f) => ETIQUETA_TIPO_GALERIA[f.tipo] },
       { titulo: "Estado", tipo: "texto", valor: (f) => ETIQUETA_ESTADO_GALERIA[f.estado] },
       { titulo: "Fotos", tipo: "numero", valor: (f) => f.fotos },
       { titulo: "Clientes", tipo: "numero", valor: (f) => f.clientes },

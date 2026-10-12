@@ -63,6 +63,32 @@ Si tenés alguna duda, respondé este correo[si:organizacion_whatsapp] o escribi
 
 [firma]`,
   },
+  GALERIA_ENTREGA_ENVIO: {
+    asunto: "Tus fotos ya están listas: [galeria_nombre]",
+    cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Tus fotos de "[galeria_nombre]" de [organizacion] ya están listas para ver y descargar.
+
+Abrí este enlace: [galeria_enlace]
+
+Podés bajar cada archivo en su calidad original o pedir que te mandemos todo junto por correo. El enlace es personal: no lo compartas.
+
+Si tenés alguna duda, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si].
+
+[firma]`,
+  },
+  GALERIA_DESCARGA_LISTA: {
+    asunto: "Tu descarga de [galeria_nombre] está lista",
+    cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Ya armamos tu descarga completa de "[galeria_nombre]" de [organizacion]. Si es grande, viene dividida en varias partes de hasta 1 GB.
+
+Para bajarla, abrí este enlace: [galeria_enlace]
+
+Las partes se pueden descargar hasta el [galeria_vence]. Pasada esa fecha tenés que pedirla de nuevo desde tu galería.
+
+[firma]`,
+  },
 };
 
 export function esClaveAutomaticoGaleria(v: unknown): v is ClaveAutomaticoGaleria {
@@ -110,6 +136,8 @@ export type DatosCorreoGaleria = {
   cantidad?: number | null;
   /** Sólo GALERIA_COMPRA_PAGADA: el total pagado, ya en pesos para mostrar ("$ 4.500,00"). */
   total?: string | null;
+  /** Sólo GALERIA_DESCARGA_LISTA: el día hasta el que se puede bajar la descarga, ya formateado. */
+  vence?: string | null;
 };
 
 const ENLACE_OCULTO = "(enlace personal)";
@@ -151,7 +179,7 @@ export async function enviarCorreoGaleria(d: DatosCorreoGaleria, deps: DepsEnvio
         usuario: { nombre: null, email: null },
         hoy: ahora,
         campos: {},
-        galeria: { numero: d.numero, nombre: d.nombreGaleria, enlace, cantidad: d.cantidad === null || d.cantidad === undefined ? null : String(d.cantidad), total: d.total ?? null },
+        galeria: { numero: d.numero, nombre: d.nombreGaleria, enlace, cantidad: d.cantidad === null || d.cantidad === undefined ? null : String(d.cantidad), total: d.total ?? null, vence: d.vence ?? null },
       },
       firma: { html: org.signature?.html ?? "", texto: org.signature?.text ?? "" },
       destino: { email: d.para, telefono: null },
@@ -231,7 +259,7 @@ export async function enviarCorreoEnlace(workspaceId: string, galeriaClienteId: 
     });
     if (!c) return "ERROR";
     galeriaId = c.galeriaId;
-    const g = await prisma.fotofficeGaleria.findFirst({ where: { id: c.galeriaId, workspaceId }, select: { number: true, name: true, status: true } });
+    const g = await prisma.fotofficeGaleria.findFirst({ where: { id: c.galeriaId, workspaceId }, select: { number: true, name: true, status: true, kind: true } });
     if (!g || c.revokedAt || g.status !== "PUBLICADA") return "ERROR";
     const token = tokenDeGaleriaCliente(c.id, c.tokenIssuedAt, clave);
     if (hashDeToken(token) !== c.tokenHash) return "ERROR";
@@ -245,7 +273,7 @@ export async function enviarCorreoEnlace(workspaceId: string, galeriaClienteId: 
       return "SIN_CORREO";
     }
     const r = await enviarCorreoGaleria(
-      { workspaceId, clave: "GALERIA_ENVIO", galeriaId, para: c.email, nombre: c.name, numero: g.number, nombreGaleria: g.name, enlace },
+      { workspaceId, clave: g.kind === "ENTREGA" ? "GALERIA_ENTREGA_ENVIO" : "GALERIA_ENVIO", galeriaId, para: c.email, nombre: c.name, numero: g.number, nombreGaleria: g.name, enlace },
       deps,
     );
     await registrarEventoSinFallar({

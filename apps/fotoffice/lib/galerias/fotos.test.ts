@@ -4,9 +4,9 @@ type Foto = {
   id: string; workspaceId: string; galeriaId: string; fileName: string; originalKey: string;
   viewKey: string | null; thumbKey: string | null; status: string; errorReason: string | null;
   sizeBytes: bigint | null; width: number | null; height: number | null; order: number; attempts: number;
-  uploadedByUserId: number | null; createdAt: Date;
+  uploadedByUserId: number | null; createdAt: Date; mediaType?: string; contentType?: string | null;
 };
-type Galeria = { id: string; workspaceId: string; status: string; orderMode: string; coverFotoId: string | null };
+type Galeria = { id: string; workspaceId: string; status: string; orderMode: string; coverFotoId: string | null; kind?: string };
 
 const H = vi.hoisted(() => ({
   fotos: [] as Foto[],
@@ -160,6 +160,99 @@ describe("pedirSubidaFoto", () => {
     const r = await F.pedirSubidaFoto(ctx(), "g1", { ...archivo, nombre: "C:\\fotos\\../IMG_9\u0000.jpg" });
     if (!r.ok) throw new Error();
     expect(H.fotos[0].fileName).toBe("IMG_9.jpg");
+  });
+});
+
+describe("videos (galería de entrega)", () => {
+  const enGaleria = (id: string, galeriaId: string, over: Partial<Foto> = {}) =>
+    foto(id, { galeriaId, workspaceId: galeriaId === "ge2" ? "ws2" : "ws1", originalKey: `galerias/${galeriaId === "ge2" ? "ws2" : "ws1"}/${galeriaId}/${id}/original`, ...over });
+  const MP4 = { nombre: "Clip.mp4", tipo: "video/mp4", tamano: 2_000_000_000 };
+  beforeEach(() => {
+    H.galerias.push({ id: "ge", workspaceId: "ws1", status: "BORRADOR", orderMode: "NOMBRE", coverFotoId: null, kind: "ENTREGA" });
+    H.galerias.push({ id: "ge2", workspaceId: "ws2", status: "BORRADOR", orderMode: "NOMBRE", coverFotoId: null, kind: "ENTREGA" });
+  });
+  it("pide un PUT para un MP4 o MOV de hasta 5 GB y guarda tipo de medio y contentType", async () => {
+    const r = await F.pedirSubidaFoto(ctx(), "ge", MP4);
+    expect(r).toMatchObject({ ok: true, url: "https://put" });
+    if (!r.ok) throw new Error();
+    const f = H.fotos.find((x) => x.id === r.id)!;
+    expect(f).toMatchObject({ status: "PENDIENTE", mediaType: "VIDEO", contentType: "video/mp4", sizeBytes: 2_000_000_000n, galeriaId: "ge" });
+    expect(H.subida).toHaveBeenCalledWith(f.originalKey, "video/mp4", 2_000_000_000);
+    expect((await F.pedirSubidaFoto(ctx(), "ge", { nombre: "a.mov", tipo: "video/quicktime", tamano: 5_000_000_000 })).ok).toBe(true);
+  });
+  it("las fotos de una entrega quedan como FOTO con su contentType", async () => {
+    const r = await F.pedirSubidaFoto(ctx(), "ge", archivo);
+    if (!r.ok) throw new Error();
+    expect(H.fotos.find((x) => x.id === r.id)).toMatchObject({ mediaType: "FOTO", contentType: "image/jpeg" });
+  });
+  it("rechaza más de 5 GB, tipos de video no admitidos, vacío y no entero", async () => {
+    expect(await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 5_000_000_001 })).toMatchObject({ ok: false, error: expect.stringContaining("5 GB") });
+    expect(await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tipo: "video/x-msvideo" })).toMatchObject({ ok: false, error: expect.stringContaining("MP4") });
+    expect((await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 0 })).ok).toBe(false);
+    expect((await F.pedirSubidaFoto(ctx(), "ge", { ...MP4, tamano: 10.5 })).ok).toBe(false);
+    // una foto sigue con su tope de 50 MB aunque la galería sea de entrega
+    expect(await F.pedirSubidaFoto(ctx(), "ge", { ...archivo, tamano: 52_428_801 })).toMatchObject({ ok: false, error: expect.stringContaining("50 MB") });
+    expect(H.fotos).toHaveLength(0);
+  });
+  it("una galería de selección, archivada o de otro workspace no recibe videos", async () => {
+    expect(await F.pedirSubidaFoto(ctx(), "g1", MP4)).toMatchObject({ ok: false, error: expect.stringContaining("entrega") });
+    expect((await F.pedirSubidaFoto(ctx(), "ge2", MP4)).ok).toBe(false);
+    H.galerias.find((g) => g.id === "ge")!.status = "ARCHIVADA";
+    expect((await F.pedirSubidaFoto(ctx(), "ge", MP4)).ok).toBe(false);
+    expect((await F.pedirSubidaFoto(ctx({ userId: null }), "ge", MP4)).ok).toBe(false);
+    expect(H.fotos).toHaveLength(0);
+  });
+  it("tope de 200 videos por galería; las fotos no cuentan y un video en ERROR definitivo tampoco", async () => {
+    for (let i = 0; i < 200; i++) H.fotos.push(enGaleria(`v${i}`, "ge", { mediaType: "VIDEO" }));
+    for (let i = 0; i < 5; i++) H.fotos.push(enGaleria(`p${i}`, "ge"));
+    expect(await F.pedirSubidaFoto(ctx(), "ge", MP4)).toMatchObject({ ok: false, error: expect.stringContaining("200 videos") });
+    expect((await F.pedirSubidaFoto(ctx(), "ge", archivo)).ok).toBe(true);
+    H.fotos[0].status = "ERROR";
+    H.fotos[0].attempts = 3;
+    expect((await F.pedirSubidaFoto(ctx(), "ge", MP4)).ok).toBe(true);
+  });
+  it("confirmar un video sólo compara el tamaño real: no lee el archivo ni usa sharp ni genera vistas", async () => {
+    H.fotos.push(enGaleria("v", "ge", { mediaType: "VIDEO", sizeBytes: 2_000_000_000n }));
+    H.tamano.mockResolvedValue(2_000_000_000);
+    expect(await F.confirmarFoto(ctx(), "ge", "v")).toEqual({ ok: true });
+    expect(H.fotos[0]).toMatchObject({ status: "LISTA", viewKey: null, thumbKey: null, width: null, height: null, errorReason: null });
+    expect(H.leer).not.toHaveBeenCalled();
+    expect(H.variantes).not.toHaveBeenCalled();
+    expect(H.guardar).not.toHaveBeenCalled();
+  });
+  it("un video con tamaño distinto al declarado queda en ERROR y se borra", async () => {
+    H.fotos.push(enGaleria("v", "ge", { mediaType: "VIDEO", sizeBytes: 2_000_000_000n }));
+    H.tamano.mockResolvedValue(1_999_999_999);
+    expect(await F.confirmarFoto(ctx(), "ge", "v")).toMatchObject({ ok: false, error: expect.stringContaining("tamaño") });
+    expect(H.fotos[0]).toMatchObject({ status: "ERROR", attempts: 3 });
+    expect(H.borrar).toHaveBeenCalledWith("galerias/ws1/ge/v/original");
+    expect(H.leer).not.toHaveBeenCalled();
+  });
+  it("un video todavía sin subir sigue PENDIENTE", async () => {
+    H.fotos.push(enGaleria("v", "ge", { mediaType: "VIDEO" }));
+    H.tamano.mockResolvedValue(null);
+    expect(await F.confirmarFoto(ctx(), "ge", "v")).toMatchObject({ ok: false });
+    expect(H.fotos[0]).toMatchObject({ status: "PENDIENTE", attempts: 0 });
+  });
+  it("IDOR: no se confirma un video de otra galería ni de otro workspace", async () => {
+    H.fotos.push(enGaleria("v", "ge2", { mediaType: "VIDEO", originalKey: "galerias/ws2/ge2/v/original" }));
+    H.tamano.mockResolvedValue(1000);
+    expect((await F.confirmarFoto(ctx(), "ge2", "v")).ok).toBe(false);
+    expect((await F.confirmarFoto(ctx(), "ge", "v")).ok).toBe(false);
+    expect(H.fotos[0].status).toBe("PENDIENTE");
+  });
+  it("un video no puede ser la portada", async () => {
+    H.fotos.push(enGaleria("v", "ge", { status: "LISTA", mediaType: "VIDEO" }), enGaleria("p", "ge", { status: "LISTA" }));
+    expect((await F.establecerPortada(ctx(), "ge", "v")).ok).toBe(false);
+    expect((await F.establecerPortada(ctx(), "ge", "p")).ok).toBe(true);
+  });
+  it("el reintento diario también deja LISTO un video subido sin pasar por sharp", async () => {
+    H.fotos.push(enGaleria("v", "ge", { mediaType: "VIDEO", sizeBytes: 500n }));
+    H.tamano.mockResolvedValue(500);
+    const r = await F.reintentarYLimpiarFotos(new Date("2026-10-02T10:00:00Z"));
+    expect(r.procesadas).toBe(1);
+    expect(H.fotos[0].status).toBe("LISTA");
+    expect(H.variantes).not.toHaveBeenCalled();
   });
 });
 

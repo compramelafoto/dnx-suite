@@ -17,6 +17,11 @@ const P = vi.hoisted(() => ({
   urlsDeVista: vi.fn(),
 }));
 vi.mock("@/lib/galerias/publico", () => P);
+const DL = vi.hoisted(() => ({
+  pedirDescargaDeCliente: vi.fn(async () => ({ ok: true, id: "d1", yaEnCurso: false })),
+  urlDeParteDeCliente: vi.fn(async () => ({ ok: true, url: "https://r2.test/parte" })),
+}));
+vi.mock("@/lib/galerias/descargas", () => DL);
 const aviso = vi.hoisted(() => vi.fn(async () => ({ cliente: "ENVIADO", estudio: "ENVIADO" })));
 vi.mock("@/lib/galerias/avisos", () => ({ avisarSeleccionEnviada: aviso }));
 
@@ -87,5 +92,29 @@ describe("enviar y los correos", () => {
     P.enviarSeleccion.mockResolvedValueOnce({ ok: false, error: "ya", codigo: "SOLO_LECTURA" });
     expect(await A.enviarSeleccionAction("dnxestudio", "t", "")).toMatchObject({ ok: false });
     expect(despues).toHaveLength(0);
+  });
+});
+
+describe("descarga completa por correo", () => {
+  it("pedirla pasa el workspace del slug y el token, y frena a 10 intentos por IP", async () => {
+    expect(await A.pedirDescargaAction("dnxestudio", "tok")).toEqual({ ok: true, yaEnCurso: false });
+    expect(DL.pedirDescargaDeCliente).toHaveBeenCalledWith("ws-1", "tok");
+    for (let i = 0; i < 9; i++) await A.pedirDescargaAction("dnxestudio", "tok");
+    expect(await A.pedirDescargaAction("dnxestudio", "tok")).toMatchObject({ ok: false, codigo: "TOPE" });
+    ip = "2.2.2.2";
+    expect(await A.pedirDescargaAction("nadie", "tok")).toMatchObject({ ok: false, codigo: "INVALIDO" });
+  });
+  it("las fallas llegan con su mensaje (y el tope diario como TOPE)", async () => {
+    DL.pedirDescargaDeCliente.mockResolvedValueOnce({ ok: false, error: "Ya pediste 3 veces", codigo: "TOPE" } as never);
+    expect(await A.pedirDescargaAction("dnxestudio", "tok")).toEqual({ ok: false, error: "Ya pediste 3 veces", codigo: "TOPE" });
+    DL.pedirDescargaDeCliente.mockResolvedValueOnce({ ok: false, error: "Sin correo", codigo: "GENERICO" } as never);
+    expect(await A.pedirDescargaAction("dnxestudio", "tok")).toEqual({ ok: false, error: "Sin correo", codigo: "REGLA" });
+  });
+  it("bajar una parte pasa workspace, token, descarga, tipo y número tal cual (la lógica revalida todo)", async () => {
+    expect(await A.descargarParteAction("dnxestudio", "tok", "d1", "ZIP", 2)).toEqual({ ok: true, url: "https://r2.test/parte" });
+    expect(DL.urlDeParteDeCliente).toHaveBeenCalledWith("ws-1", "tok", "d1", "ZIP", 2);
+    expect(await A.descargarParteAction("nadie", "tok", "d1", "ZIP", 2)).toMatchObject({ ok: false, codigo: "INVALIDO" });
+    DL.urlDeParteDeCliente.mockResolvedValueOnce({ ok: false, error: "Ya no está" } as never);
+    expect(await A.descargarParteAction("dnxestudio", "tok", "d1", "ZIP", 2)).toEqual({ ok: false, error: "Ya no está", codigo: "REGLA" });
   });
 });

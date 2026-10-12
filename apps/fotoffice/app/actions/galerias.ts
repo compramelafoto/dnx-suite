@@ -13,6 +13,7 @@ import {
 } from "@/lib/galerias/clientes";
 import { finalizarSeleccion, reactivarSeleccion, responderComentario, type ResultadoRespuesta, type ResultadoTransicion } from "@/lib/galerias/revision";
 import { contextoDeGalerias } from "@/lib/galerias/contexto";
+import { prepararDescargaDelEstudio, urlDeParteDelEstudio, type ResultadoPedido, type SalidaUrl } from "@/lib/galerias/descargas";
 import { enviarCorreoEnlace } from "@/lib/galerias/correos";
 import {
   archivarGaleria, borrarFotoDeGaleria, buscarProyectos, crearGaleria, editarGaleria, establecerModoOrden, fotosPorIds,
@@ -322,4 +323,27 @@ export async function marcarCompraPagadaAManoAction(galeriaId: string, galeriaCl
   const r = await marcarCompraPagadaAMano(ctx, galeriaId, galeriaClienteId, datos);
   if (r.ok) refrescarRevision(galeriaId, galeriaClienteId);
   return r;
+}
+
+// --- Descarga completa (entrega) ------------------------------------------------------------------------
+
+/**
+ * «Preparar descarga» (galería de entrega): arma en segundo plano el ZIP de todos los archivos, en partes de hasta
+ * 1 GB, y avisa por correo al usuario que la pidió. Tope de 3 por día y uno activo a la vez.
+ */
+export async function prepararDescargaGaleriaAction(galeriaId: string): Promise<ResultadoPedido> {
+  if (!esId(galeriaId)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos, codigo: "GENERICO" };
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return { ok: false, error: MENSAJES_GALERIA.sinPermiso, codigo: "GENERICO" };
+  const r = await prepararDescargaDelEstudio(ctx, galeriaId);
+  if (r.ok) refrescar(galeriaId);
+  return r;
+}
+
+/** Enlace firmado (5 minutos) de una parte ya armada, para bajarla desde la ficha. Con permiso de Ver. */
+export async function urlParteDescargaGaleriaAction(galeriaId: string, descargaId: string, tipo: "ZIP" | "SUELTO", n: number): Promise<SalidaUrl> {
+  if (!esId(galeriaId) || !esId(descargaId) || (tipo !== "ZIP" && tipo !== "SUELTO") || typeof n !== "number" || !Number.isInteger(n)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
+  const ctx = await contextoDeGalerias("ver");
+  if (!ctx) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
+  return urlDeParteDelEstudio(ctx, galeriaId, descargaId, tipo, n);
 }

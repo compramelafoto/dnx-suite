@@ -2,7 +2,7 @@
  * Tipos y reglas PURAS de la página del cliente (etapa 7): lo que viaja del servidor al navegador y los
  * cálculos que ambos lados comparten (filtros, textos). Sin base, sin red, sin `server-only`.
  */
-import type { EstadoCliente, ModoSeleccion } from "./constantes";
+import type { EstadoCliente, ModoSeleccion, TipoGaleria, TipoMedio } from "./constantes";
 import type { VistaVenta } from "./venta-publica";
 
 /** Largo máximo del mensaje que el cliente le deja al estudio al enviar. */
@@ -20,6 +20,8 @@ export const MENSAJES_PUBLICO = {
   mensajeLargo: `El mensaje puede tener hasta ${MAX_MENSAJE_CLIENTE.toLocaleString("es-AR")} caracteres.`,
   sinDescarga: "En esta galería no se pueden descargar las fotos.",
   originalNoDisponible: "Esa foto todavía no está disponible para descargar en alta.",
+  entregaSinSeleccion: "Esta galería es una entrega: no hay nada para elegir ni para enviar.",
+  videoNoDisponible: "No pudimos abrir ese video. Probá de nuevo en un momento.",
   demasiados: "Hiciste demasiados intentos. Esperá unos minutos y probá de nuevo.",
   generico: "No pudimos hacerlo. Probá de nuevo en un momento.",
 } as const;
@@ -30,6 +32,8 @@ export type FotoPublica = {
   thumbUrl: string | null;
   width: number | null;
   height: number | null;
+  /** FOTO o VIDEO. Un video no tiene miniatura: se muestra una tapa genérica con un ícono de play. */
+  tipo: TipoMedio;
 };
 
 export type ComentarioPublico = {
@@ -44,6 +48,8 @@ export type ComentarioPublico = {
 export type VistaGaleria = {
   organizacion: { nombre: string; logoUrl: string | null };
   galeria: {
+    /** ENTREGA: grilla, visor y descarga por archivo, sin selección ni venta. */
+    tipo: TipoGaleria;
     nombre: string;
     mensaje: string | null;
     permiteComentarios: boolean;

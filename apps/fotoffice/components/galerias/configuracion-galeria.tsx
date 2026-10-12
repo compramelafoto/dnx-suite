@@ -26,9 +26,11 @@ export type ConfiguracionVista = {
  * nombre, mensaje de bienvenida, cómo elige (libre o por cantidad), comentarios y descarga.
  */
 export function ConfiguracionGaleria({
-  galeriaId, estado, inicial, fotosListas, puedeGestionar,
+  galeriaId, estado, inicial, fotosListas, puedeGestionar, esEntrega = false,
 }: {
   galeriaId: string;
+  /** Galería de entrega: no hay selección, comentarios ni descarga que configurar. */
+  esEntrega?: boolean;
   estado: EstadoGaleria;
   inicial: ConfiguracionVista;
   fotosListas: number;
@@ -81,13 +83,13 @@ export function ConfiguracionGaleria({
         </h2>
         {estado === "BORRADOR" ? (
           <p className="text-sm text-[var(--fo-muted)]">
-            Mientras es un borrador, los clientes no pueden entrar y los enlaces no se pueden compartir. Publicala cuando las fotos estén listas.
-            {fotosListas < 1 ? " Primero subí al menos una foto." : ""}
+            Mientras es un borrador, los clientes no pueden entrar y los enlaces no se pueden compartir. Publicala cuando {esEntrega ? "los archivos" : "las fotos"} estén {esEntrega ? "listos" : "listas"}.
+            {fotosListas < 1 ? (esEntrega ? " Primero subí al menos un archivo." : " Primero subí al menos una foto.") : ""}
           </p>
         ) : estado === "PUBLICADA" ? (
-          <p className="text-sm text-[var(--fo-muted)]">Los clientes con enlace pueden ver las fotos y elegir.</p>
+          <p className="text-sm text-[var(--fo-muted)]">{esEntrega ? "Los clientes con enlace pueden ver y descargar las fotos y los videos en alta." : "Los clientes con enlace pueden ver las fotos y elegir."}</p>
         ) : (
-          <p className="text-sm text-[var(--fo-muted)]">Archivada: los enlaces no abren la galería y no se le pueden subir fotos.</p>
+          <p className="text-sm text-[var(--fo-muted)]">Archivada: los enlaces no abren la galería y no se le pueden subir {esEntrega ? "archivos" : "fotos"}.</p>
         )}
         {puedeGestionar ? (
           <div className="flex flex-wrap gap-2">
@@ -130,6 +132,7 @@ export function ConfiguracionGaleria({
           </div>
         </section>
 
+        {esEntrega ? null : (
         <section className="fo-card space-y-4 p-5" aria-labelledby="seleccion-titulo">
           <h2 id="seleccion-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
             Cómo elige
@@ -178,6 +181,7 @@ export function ConfiguracionGaleria({
             <p className="text-xs text-[var(--fo-muted)]">“Vista de galería” permite bajar cada foto en tamaño liviano (2048 px), no el original. “Sólo las fotos elegidas o compradas, en alta” entrega el original de las que el cliente pagó y, una vez enviada la selección, de las que elegió dentro de lo incluido.</p>
           </div>
         </section>
+        )}
 
         {puedeGestionar ? (
           <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={bloqueado}>

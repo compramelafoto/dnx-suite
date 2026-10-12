@@ -2,8 +2,9 @@
 
 import { after } from "next/server";
 import { avisarSeleccionEnviada } from "@/lib/galerias/avisos";
+import { pedirDescargaDeCliente, urlDeParteDeCliente } from "@/lib/galerias/descargas";
 import { iniciarPagoGaleria } from "@/lib/galerias/pago";
-import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlsDeVista, type Falla } from "@/lib/galerias/publico";
+import { comentarFoto, descargarOriginal, elegirFoto, enviarSeleccion, urlDeDescarga, urlDeReproduccion, urlsDeVista, type Falla } from "@/lib/galerias/publico";
 import { MENSAJES_PUBLICO } from "@/lib/galerias/publico-tipos";
 import type { ComentarioPublico } from "@/lib/galerias/publico-tipos";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -73,4 +74,31 @@ export async function descargarOriginalAction(slug: unknown, token: unknown, fot
   const e = await entrar("descargar-original", 400, slug);
   if (!e.ok) return e;
   return descargarOriginal(e.workspaceId, token, fotoId);
+}
+
+/** Entrega: enlace firmado (1 hora, inline) del original de un video para el reproductor del visor; se pide al abrirlo. */
+export async function reproducirVideoAction(slug: unknown, token: unknown, fotoId: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("reproducir", 120, slug);
+  if (!e.ok) return e;
+  return urlDeReproduccion(e.workspaceId, token, fotoId);
+}
+
+/**
+ * Entrega: «Recibir todo por correo». Crea el pedido de descarga completa (se arma en segundo plano y llega un correo
+ * con el enlace a /descargas). Freno propio, más corto: armar un ZIP es caro.
+ */
+export async function pedirDescargaAction(slug: unknown, token: unknown): Promise<Salida<{ yaEnCurso: boolean }>> {
+  const e = await entrar("pedir-descarga", 10, slug);
+  if (!e.ok) return e;
+  const r = await pedirDescargaDeCliente(e.workspaceId, token);
+  if (!r.ok) return { ok: false, error: r.error, codigo: r.codigo === "TOPE" ? "TOPE" : "REGLA" };
+  return { ok: true, yaEnCurso: r.yaEnCurso };
+}
+
+/** Página /descargas: firma (5 minutos, attachment) una parte de la descarga completa, o el archivo suelto que no entra en un ZIP. */
+export async function descargarParteAction(slug: unknown, token: unknown, descargaId: unknown, tipo: unknown, n: unknown): Promise<Salida<{ url: string }>> {
+  const e = await entrar("descargar-parte", 120, slug);
+  if (!e.ok) return e;
+  const r = await urlDeParteDeCliente(e.workspaceId, token, descargaId, tipo, n);
+  return r.ok ? { ok: true, url: r.url } : { ok: false, error: r.error, codigo: "REGLA" };
 }

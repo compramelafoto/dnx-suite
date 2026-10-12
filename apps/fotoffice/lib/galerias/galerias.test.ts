@@ -69,6 +69,22 @@ describe("crear", () => {
     await crear();
     expect(galerias()[0]).toMatchObject({ selectionMode: "LIBRE", minSelect: null, maxSelect: null });
   });
+  it("una galería de entrega nace sin selección ni venta, sin comentarios y entregando los originales", async () => {
+    const id = await crear(GESTIONA, { proyectoId: "pr1", tipo: "ENTREGA" });
+    expect(galerias().find((g) => g.id === id)).toMatchObject({
+      kind: "ENTREGA", saleMode: "SELECCION", status: "BORRADOR", selectionMode: "LIBRE", minSelect: null, maxSelect: null, allowComments: false, downloadMode: "SELECCIONADAS",
+    });
+  });
+  it("sin tipo (o SELECCION) es de selección; un tipo inventado se rechaza", async () => {
+    const id = await crear();
+    expect(galerias().find((g) => g.id === id)).toMatchObject({ kind: "SELECCION", saleMode: "SELECCION" });
+    expect(await G.crearGaleria(GESTIONA, { proyectoId: "pr1", tipo: "VIDEO" }, AHORA)).toMatchObject({ ok: false, error: M.datosInvalidos });
+    expect(galerias()).toHaveLength(1);
+  });
+  it("la entrega se crea sólo con un proyecto del propio workspace", async () => {
+    expect(await G.crearGaleria(GESTIONA, { proyectoId: "pr-ajeno", tipo: "ENTREGA" }, AHORA)).toMatchObject({ ok: false, error: M.proyecto });
+    expect(await G.crearGaleria(SOLO_VER, { proyectoId: "pr1", tipo: "ENTREGA" }, AHORA)).toMatchObject({ ok: false, error: M.sinPermiso });
+  });
   it("los números son correlativos", async () => {
     await crear();
     await crear();

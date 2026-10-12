@@ -7261,6 +7261,8 @@ model Workspace {
   fotofficeGaleriaEventos        FotofficeGaleriaEvento[]
   fotofficeGaleriaAjustes        FotofficeGaleriaAjustes?
   fotofficeGaleriaCompras        FotofficeGaleriaCompra[]
+  fotofficeGaleriaDescargas      FotofficeGaleriaDescarga[]
+  fotofficeDispositivos          FotofficeDispositivo[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -23436,6 +23438,7 @@ model FotofficeGaleria {
   clientes  FotofficeGaleriaCliente[]
   eventos   FotofficeGaleriaEvento[]
   compras   FotofficeGaleriaCompra[]
+  descargas FotofficeGaleriaDescarga[]
   incomeCategory CashCategory?        @relation("FotofficeGaleriaRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, number])
@@ -23459,6 +23462,10 @@ model FotofficeGaleriaFoto {
   sizeBytes        BigInt?
   width            Int?
   height           Int?
+  /// FOTO|VIDEO (CHECK). Un VIDEO no tiene vista ni miniatura (`viewKey`/`thumbKey` nulos) ni medidas.
+  mediaType        String   @default("FOTO")
+  /// Tipo MIME declarado al subir (image/jpeg, image/png, video/mp4, video/quicktime).
+  contentType      String?
   order            Int      @default(0)
   attempts         Int      @default(0)
   uploadedByUserId Int?
@@ -23508,6 +23515,7 @@ model FotofficeGaleriaCliente {
   comentarios FotofficeGaleriaComentario[]
   eventos     FotofficeGaleriaEvento[]
   compras     FotofficeGaleriaCompra[]
+  descargas   FotofficeGaleriaDescarga[]
 
   @@index([galeriaId, status])
   @@index([clientId])
@@ -24545,4 +24553,52 @@ model CulturalSaleEvent {
   createdAt      DateTime          @default(now())
 
   @@index([orderId, createdAt])
+}
+
+/// Pedido de descarga de una galería de entrega (ZIP en partes armado en segundo plano; Entrega B).
+/// `status` PENDIENTE|ARMANDO|LISTA|ERROR|VENCIDA (CHECK). `parts` es una lista `{ n, key, bytes, files, estado }`;
+/// `cursor` guarda el estado de la parte en curso. `galeriaClienteId` es nulo si lo pidió el estudio.
+model FotofficeGaleriaDescarga {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  galeriaId        String
+  galeriaClienteId String?
+  status           String    @default("PENDIENTE")
+  totalFiles       Int
+  totalBytes       BigInt
+  parts            Json      @default("[]")
+  cursor           Json?
+  errorReason      String?
+  requestedEmail   String?
+  notifiedAt       DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria        FotofficeGaleria         @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente? @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
+  @@index([galeriaClienteId, createdAt])
+  @@index([workspaceId])
+  @@index([galeriaId])
+}
+
+/// Dispositivo autorizado a publicar entregas (DNX FLUX). La clave completa se muestra una sola vez; en la base
+/// sólo su hash SHA-256 en hexadecimal (`keyHash`, 64 caracteres) y los primeros 8 caracteres (`keyPrefix`).
+model FotofficeDispositivo {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  keyHash         String    @unique
+  keyPrefix       String
+  createdByUserId Int?
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, revokedAt])
 }
