@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { contextoDePagina, esRutaClienteConBot, pagePathSeguro } from "./pagina";
+import {
+  contextoDePagina,
+  esRutaClienteConBot,
+  margenBurbujaComprador,
+  MARGEN_BURBUJA_ALBUM,
+  MARGEN_BURBUJA_NORMAL,
+  MARGEN_BURBUJA_PREVENTA,
+  pagePathSeguro,
+} from "./pagina";
 
 const TOKEN = "a".repeat(64);
 describe("contextoDePagina", () => {
@@ -51,5 +59,26 @@ describe("contextoDePagina", () => {
     expect(esRutaClienteConBot("/cliente/pedidos")).toBe(true);
     expect(esRutaClienteConBot("/cliente/pack/AbC_def-1234567890xyz")).toBe(true);
     expect(esRutaClienteConBot("/cliente/dashboard")).toBe(false);
+  });
+});
+
+describe("margenBurbujaComprador", () => {
+  it("en la preventa sube la burbuja por encima de la barra de pago", () => {
+    expect(margenBurbujaComprador("/album/fiesta/preventa")).toBe(MARGEN_BURBUJA_PREVENTA);
+    expect(margenBurbujaComprador("/album/fiesta/preventa/")).toBe(MARGEN_BURBUJA_PREVENTA);
+    expect(margenBurbujaComprador("/album/fiesta/precompra")).toBe(MARGEN_BURBUJA_PREVENTA);
+    expect(MARGEN_BURBUJA_PREVENTA).toBeGreaterThanOrEqual(1 + 12 + 16 + 8 + 48 + 34);
+  });
+
+  it("en la página del álbum la sube por encima de la barra o el botón de compra", () => {
+    expect(margenBurbujaComprador("/album/fiesta")).toBe(MARGEN_BURBUJA_ALBUM);
+    expect(margenBurbujaComprador("/a/12")).toBe(MARGEN_BURBUJA_ALBUM);
+    expect(MARGEN_BURBUJA_ALBUM).toBeGreaterThanOrEqual(1 + 24 + 92 + 12 + 48 + 28 + 34);
+  });
+
+  it("en las demás páginas queda en su lugar de siempre", () => {
+    for (const p of ["/a/12/remover/5", "/descargas/abc", "/pago/success", "/cliente/pedidos", "/cliente/pack/xyz"]) {
+      expect(margenBurbujaComprador(p)).toBe(MARGEN_BURBUJA_NORMAL);
+    }
   });
 });
