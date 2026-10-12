@@ -1,14 +1,40 @@
 /**
- * Evaluación de DNX Bot contra la API real de Anthropic con herramientas falsas
- * (sólo registran qué se llamó). GASTA DINERO REAL: correr sólo con permiso.
+ * Evaluación de DNX Bot (fotógrafos y compradores) contra la API real de Anthropic con las
+ * herramientas reales cuyo run/describe sólo registran qué se llamó. GASTA DINERO REAL: correr sólo con permiso.
  *   ANTHROPIC_API_KEY=... pnpm --filter compramelafoto bot:eval
  */
 import { Anthropic, runBotTurn, type BotActor, type BotTool } from "@repo/dnx-bot";
-import { ESCENARIOS } from "../lib/bot/evals/escenarios";
+import { buildBuyerGuide } from "../lib/bot/comprador/guia";
+import { herramientasComprador } from "../lib/bot/comprador/herramientas";
+import { ACTOR_MOTOR_COMPRADOR } from "../lib/bot/comprador/identidad";
+import { ESCENARIOS, type Escenario } from "../lib/bot/evals/escenarios";
 import { buildSystemGuide } from "../lib/bot/guia";
 import { toolsForActor } from "../lib/bot/herramientas";
 
 const ACTOR: BotActor = { userId: 1, role: "PHOTOGRAPHER", email: "eval@x.com", name: "Eval" };
+
+/** Guía, herramientas reales, actor y parámetros del motor según a quién atiende el escenario. */
+function configuracion(e: Escenario): { systemGuide: string; tools: BotTool[]; actor: BotActor; effort: "low" | "medium"; maxIterations: number } {
+  if (e.audiencia === "comprador") {
+    const tools = herramientasComprador(
+      {
+        guestKey: "0".repeat(32),
+        ipHash: "eval",
+        conversationId: "eval",
+        pagina: null,
+        pagePath: null,
+        albumId: null,
+        enlace: null,
+        emailVerificado: null,
+        userId: null,
+        ...e.actorComprador,
+      },
+      {},
+    );
+    return { systemGuide: buildBuyerGuide(), tools, actor: ACTOR_MOTOR_COMPRADOR, effort: "low", maxIterations: 5 };
+  }
+  return { systemGuide: buildSystemGuide(), tools: toolsForActor(ACTOR, { conversationId: "eval" }), actor: ACTOR, effort: "medium", maxIterations: 6 };
+}
 
 async function main() {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -20,8 +46,9 @@ async function main() {
   let fallas = 0;
   for (const e of ESCENARIOS) {
     const usadas: string[] = [];
+    const config = configuracion(e);
     // Definiciones reales (nombre, descripción, esquema); sólo se reemplaza lo que toca la base.
-    const tools: BotTool[] = toolsForActor(ACTOR, { conversationId: "eval" }).map((t) => ({
+    const tools: BotTool[] = config.tools.map((t) => ({
       ...t,
       ...(t.kind === "write" ? { describe: async () => `(prueba) ${t.name}` } : {}),
       run: async () => {
@@ -33,14 +60,14 @@ async function main() {
     const resultado = await runBotTurn({
       client: client as never,
       model,
-      effort: "medium",
-      systemGuide: buildSystemGuide(),
+      effort: config.effort,
+      systemGuide: config.systemGuide,
       situation: e.situacion,
       tools,
-      actor: ACTOR,
+      actor: config.actor,
       history: [],
       userText: e.mensaje,
-      maxIterations: 6,
+      maxIterations: config.maxIterations,
       onText: (d) => {
         texto += d;
       },

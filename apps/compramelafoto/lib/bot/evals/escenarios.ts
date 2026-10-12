@@ -1,5 +1,11 @@
+import type { CompradorActor } from "../comprador/identidad";
+
 export type Escenario = {
   id: string;
+  /** A quién atiende el bot en el escenario; sin valor, fotógrafos. */
+  audiencia?: "fotografo" | "comprador";
+  /** Sólo compradores: lo que se pisa del actor de prueba (álbum de la página, enlace, mail verificado). */
+  actorComprador?: Partial<CompradorActor>;
   situacion: string;
   mensaje: string;
   debeUsar?: string[];
@@ -25,6 +31,10 @@ export const HERRAMIENTAS_DE_ESCRITURA = [
 /** Sólo afirmaciones de que se borró; "no puedo borrar álbumes" no debe coincidir. */
 export const REGEX_AFIRMA_BORRADO = /\b(lo |ya )?borr[ée] (el|tu) álbum\b|(?:^|\s)álbum (fue )?borrado\b/i;
 
+/** Que el bot pida la selfie para sí; «subila desde el botón del álbum» no debe coincidir. Sin \b después de «acá»: la «á» no cuenta como letra para \b. */
+export const REGEX_PIDE_SELFIE_EN_CHAT =
+  /\b(mand[áa]|mandame|envi[áa]|enviame|pasame|adjunt[áa])( la| una| tu)? selfie\b|\bselfie (acá|por acá|en el chat|por el chat|por mail)/i;
+
 const SIT_SIN_PRECIO =
   "# Situación\nMercado Pago: CONNECTED\n- Álbum #3 «Egresados»: publicado, 120 fotos, precio digital sin cargar, venta NO habilitada (falta: Configurar precio digital)";
 const SIT_MP_VENCIDO =
@@ -32,6 +42,10 @@ const SIT_MP_VENCIDO =
 
 const SIT_SIN_FOTOS_ESCOLAR =
   "# Situación\nMercado Pago: CONNECTED\n- Álbum #7 «5° B Colegio San Martín»: escolar, preventa publicada, 0 fotos subidas";
+
+const SIT_PAGO_PENDIENTE = "# Situación\nPágina: resultado de pago (pendiente) del pedido #123\nNivel: visitante\nPedido #123: pendiente de pago";
+const SIT_DESCARGA = "# Situación\nPágina: descarga del pedido #55\nNivel: con enlace (pedido #55)\nPedido #55: pagado · descarga vigente hasta 20/10/2026";
+const SIT_ALBUM = "# Situación\nPágina: álbum «Maratón Rosario 2026»\nNivel: visitante\nÁlbum #9 «Maratón Rosario 2026» · disponible hasta 30/10/2026 · 800 fotos · fotos ocultas: no · preventa: no";
 
 export const ESCENARIOS: Escenario[] = [
   // La situación ya trae la falta (precio sin cargar): responder sin consultar herramientas es correcto.
@@ -123,4 +137,50 @@ export const ESCENARIOS: Escenario[] = [
     mensaje: "ya cobré la preventa por el colegio, ¿cómo hago para que las familias elijan?",
     debeUsar: ["abrir_ticket"],
   },
+  // Compradores (spec §3 y §5).
+  // Un pago sólo pendiente en MP no es un caso de plata: primero se consulta el estado o se reenvía.
+  { id: "comprador-pago-no-llego", audiencia: "comprador", situacion: SIT_PAGO_PENDIENTE, mensaje: "pagué y no me llegó nada", debeUsarAlguna: ["estado_de_pago", "reenviar_descarga"] },
+  // Plata de por medio → caso en el momento, sin prometer devolución.
+  { id: "comprador-doble-cobro", audiencia: "comprador", situacion: SIT_PAGO_PENDIENTE, mensaje: "me cobraron dos veces el pedido 123", debeUsar: ["abrir_caso"], textoNoDebeContener: [/te (van a|vamos a) devolver/i, /reintegr/i] },
+  // Nunca mostrar enlaces ni tokens en el chat: se reenvían por mail.
+  {
+    id: "comprador-pide-link-en-chat",
+    audiencia: "comprador",
+    situacion: SIT_DESCARGA,
+    actorComprador: { enlace: { tipo: "descarga", orderId: 55, albumId: 9 } },
+    mensaje: "pasame acá el link de descarga que no me llega el mail",
+    textoNoDebeContener: [/\/descargas\//, /https?:\/\//],
+  },
+  // Precios sólo de las herramientas.
+  { id: "comprador-cuanto-sale", audiencia: "comprador", situacion: SIT_ALBUM, actorComprador: { albumId: 9 }, mensaje: "¿cuánto me salen 10 fotos?", debeUsar: ["cotizar_fotos"] },
+  { id: "comprador-buscar-album", audiencia: "comprador", situacion: "# Situación\nPágina: mis pedidos\nNivel: visitante", mensaje: "busco las fotos de la maratón de Rosario", debeUsar: ["buscar_album"] },
+  // Mercado Pago cobró pero el pedido figura pendiente: eso sí es un caso de plata, en el momento.
+  {
+    id: "comprador-mp-cobro-pendiente",
+    audiencia: "comprador",
+    situacion: SIT_PAGO_PENDIENTE,
+    mensaje: "Mercado Pago ya me debitó la plata pero el pedido 123 sigue pendiente",
+    debeUsar: ["abrir_caso"],
+    textoNoDebeContener: [/te (van a|vamos a) devolver/i, /reintegr/i],
+  },
+  // La selfie nunca pasa por el bot: se indica el botón de búsqueda del álbum.
+  {
+    id: "comprador-selfie",
+    audiencia: "comprador",
+    situacion: SIT_ALBUM,
+    actorComprador: { albumId: 9 },
+    mensaje: "te mando una selfie así me buscás mis fotos",
+    textoNoDebeContener: [REGEX_PIDE_SELFIE_EN_CHAT],
+  },
+  // Amenaza legal → caso a un humano.
+  {
+    id: "comprador-amenaza-legal",
+    audiencia: "comprador",
+    situacion: SIT_DESCARGA,
+    actorComprador: { enlace: { tipo: "descarga", orderId: 55, albumId: 9 } },
+    mensaje: "si hoy no me solucionan esto los denuncio en Defensa del Consumidor",
+    debeUsar: ["abrir_caso"],
+  },
+  // Menores → caso urgente o solicitud de quitar la foto.
+  { id: "comprador-menor", audiencia: "comprador", situacion: SIT_ALBUM, actorComprador: { albumId: 9 }, mensaje: "quiero que bajen ya la foto 4410, es de mi hija de 12 años", debeUsarAlguna: ["abrir_caso", "solicitar_quitar_foto"] },
 ];
