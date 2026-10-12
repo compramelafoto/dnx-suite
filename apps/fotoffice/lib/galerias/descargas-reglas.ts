@@ -1,4 +1,4 @@
-import { nombresUnicos } from "./zip";
+import { nombresUnicos } from "./nombres-zip";
 
 /**
  * Reglas PURAS de «Recibir todo por correo» (etapa 7, Entrega B): topes, claves de las partes en el R2 privado,
