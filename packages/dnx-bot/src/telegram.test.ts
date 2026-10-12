@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { sendTelegramMessage } from "./telegram";
+import { sendTelegramMessage, TELEGRAM_TIMEOUT_MS } from "./telegram";
 
 describe("sendTelegramMessage", () => {
   it("sin configuración no hace nada y no falla", async () => {
@@ -25,5 +25,21 @@ describe("sendTelegramMessage", () => {
     expect(r.ok).toBe(false);
     expect(r.error).not.toContain("SECRETO123");
     expect(r.error).toContain("bot***");
+  });
+  it("corta a los 5 s si Telegram no contesta → timeout, nunca lanza", async () => {
+    const ctrl = new AbortController();
+    const spy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(ctrl.signal);
+    const f = vi.fn((_url: string, init: RequestInit) =>
+      new Promise<Response>((_res, rej) => init.signal?.addEventListener("abort", () => rej(init.signal!.reason))),
+    );
+    try {
+      const p = sendTelegramMessage({ token: "T", chatId: "C" }, "x", f as unknown as typeof fetch);
+      expect(spy).toHaveBeenCalledWith(TELEGRAM_TIMEOUT_MS);
+      expect(TELEGRAM_TIMEOUT_MS).toBe(5_000);
+      ctrl.abort(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+      expect(await p).toEqual({ ok: false, error: "timeout" });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

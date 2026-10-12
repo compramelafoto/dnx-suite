@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   user: vi.fn(), enabled: vi.fn(), snap: vi.fn(), turn: vi.fn(), conv: vi.fn(), hist: vi.fn(), append: vi.fn(),
-  usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(),
+  usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(), cap: vi.fn(), after: [] as (() => Promise<void>)[],
 }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: () => m.user() }));
 vi.mock("@/lib/bot/config", () => ({
@@ -14,6 +14,8 @@ vi.mock("@/lib/bot/store", () => ({
   usageSnapshot: () => m.snap(), getOrCreateConversation: () => m.conv(), loadHistory: () => m.hist(),
   appendMessages: (...a: unknown[]) => m.append(...a), recordUsage: (...a: unknown[]) => m.usage(...a), createPendingAction: vi.fn(),
 }));
+vi.mock("next/server", () => ({ after: (fn: () => Promise<void>) => m.after.push(fn) }));
+vi.mock("@/lib/bot/tope", () => ({ notifyCapThresholds: (...a: unknown[]) => m.cap(...a) }));
 vi.mock("@/lib/bot/escalamiento", () => ({ reportIncident: (...a: unknown[]) => m.inc(...a) }));
 vi.mock("@/lib/bot/contexto", () => ({ buildPhotographerSituation: (...a: unknown[]) => m.sit(...a) }));
 vi.mock("@/lib/bot/anthropic", () => ({ getAnthropicClient: () => ({}) }));
@@ -24,6 +26,7 @@ import { POST } from "./route";
 
 const req = (text: string) => new Request("http://x/api/bot/chat", { method: "POST", body: JSON.stringify({ text }) });
 const read = async (res: Response) => await res.text();
+const runAfter = async () => { for (const fn of m.after.splice(0)) await fn(); };
 const okTurn = async (i: Pick<BotTurnInput, "onText">) => {
   i.onText("Hola");
   return {
@@ -33,13 +36,14 @@ const okTurn = async (i: Pick<BotTurnInput, "onText">) => {
   };
 };
 beforeEach(() => {
-  Object.values(m).forEach((f) => f.mockReset());
+  Object.values(m).forEach((f) => (Array.isArray(f) ? f.splice(0) : f.mockReset()));
   m.user.mockResolvedValue({ id: 7, role: "PHOTOGRAPHER", email: "f@x.com", name: "F" });
   m.enabled.mockResolvedValue(true);
   m.conv.mockResolvedValue({ id: "c1" });
   m.hist.mockResolvedValue([]);
   m.sit.mockResolvedValue({ text: "SIT", alerts: [] });
   m.inc.mockResolvedValue(undefined);
+  m.cap.mockResolvedValue(undefined);
 });
 
 describe("POST /api/bot/chat", () => {
@@ -80,6 +84,8 @@ describe("POST /api/bot/chat", () => {
     expect(body).not.toContain("event: error");
     expect(m.append).toHaveBeenCalledWith("c1", expect.any(Array));
     expect(m.usage).toHaveBeenCalled();
+    await runAfter();
+    expect(m.cap).toHaveBeenCalledTimes(1);
     expect(m.turn.mock.calls[0]![0]).toEqual(expect.objectContaining({ systemGuide: "GUIA", situation: "SIT" }));
   });
   it("turno cortado (refusal) → guarda lo agregado, registra incidente y ofrece ticket", async () => {
@@ -124,6 +130,8 @@ describe("POST /api/bot/chat", () => {
     expect(m.append).not.toHaveBeenCalled();
     expect(m.usage).toHaveBeenCalledWith(expect.objectContaining({ conversationId: "c1", usage: partial, countMessage: true }));
     expect(m.usage.mock.calls[0]![0].costMicroUsd).toBeGreaterThan(0);
+    await runAfter();
+    expect(m.cap).toHaveBeenCalledTimes(1);
     expect(m.inc).toHaveBeenCalledWith(expect.objectContaining({ codigo: "api_APIError", detalle: "overloaded" }));
   });
   it("pasa un plazo de ~95 s al motor y el texto del turno a las herramientas", async () => {
@@ -135,5 +143,22 @@ describe("POST /api/bot/chat", () => {
     expect(d).toBeGreaterThanOrEqual(before + 95_000);
     expect(d).toBeLessThanOrEqual(Date.now() + 95_000);
     expect(m.tools).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }), { conversationId: "c1", currentUserText: "hola" });
+  });
+  it("el aviso de tope corre con after(): la respuesta termina aunque el aviso tarde", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockImplementation(okTurn);
+    m.cap.mockReturnValue(new Promise(() => {})); // Telegram/base colgados
+    const body = await read(await POST(req("hola")));
+    expect(body).toContain("event: done");
+    expect(m.cap).not.toHaveBeenCalled();
+    expect(m.after).toHaveLength(1);
+    void m.after[0]!();
+    await vi.waitFor(() => expect(m.cap).toHaveBeenCalledTimes(1));
+  });
+  it("si no se registró uso (tope ya alcanzado) no revisa el tope", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 5 });
+    await read(await POST(req("hola")));
+    await runAfter();
+    expect(m.cap).not.toHaveBeenCalled();
   });
 });
