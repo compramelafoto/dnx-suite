@@ -80,8 +80,10 @@ describe("resolverPagina", () => {
   });
   it("si la base falla → todo null, sin lanzar", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    m.token.mockRejectedValueOnce(new Error("db"));
+    m.token.mockRejectedValueOnce(Object.assign(new Error(`Invalid where: { token: "${TOKEN}" }`), { code: "P2023" }));
     expect(await resolverPagina({ tipo: "descarga", token: TOKEN })).toEqual(VACIO);
+    expect(JSON.stringify(spy.mock.calls)).not.toContain(TOKEN);
+    expect(spy.mock.calls[0]![1]).toEqual({ name: "Error", code: "P2023" });
     m.pack.mockRejectedValueOnce(new Error("db"));
     expect(await resolverPagina({ tipo: "pack", token: "t".repeat(30) })).toEqual(VACIO);
     expect(spy).toHaveBeenCalled();

@@ -59,7 +59,9 @@ export async function resolverPagina(p: PaginaComprador | null): Promise<DatosPa
   try {
     return await resolver(p);
   } catch (e) {
-    console.error("[bot comprador] no se pudo resolver la página", e);
+    // Sólo nombre y código: el mensaje de Prisma puede traer el `where` con el token de la página.
+    const err = e as { name?: unknown; code?: unknown } | null;
+    console.error("[bot comprador] no se pudo resolver la página", { name: err?.name, code: err?.code });
     return VACIO;
   }
 }
