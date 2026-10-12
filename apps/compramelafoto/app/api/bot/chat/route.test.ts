@@ -175,4 +175,37 @@ describe("POST /api/bot/chat", () => {
     await runAfter();
     expect(m.cap).not.toHaveBeenCalled();
   });
+  it("BotTurnError → el incidente lleva userId y conversationId y el uso parcial cuenta el mensaje", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    const partial = { input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+    m.turn.mockRejectedValue(new BotTurnError(new Error("boom"), partial));
+    const body = await read(await POST(req("hola")));
+    expect(m.inc).toHaveBeenCalledWith({ area: "otro", codigo: "api_Error", ids: { userId: 7, conversationId: "c1" }, detalle: "boom", urgente: false });
+    expect(m.usage).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, conversationId: "c1", usage: partial, countMessage: true }));
+    expect(body).toContain("event: error");
+    expect(body).not.toContain("event: done");
+  });
+  it("turno cortado por max_tokens → manda error y después done, con incidente turno_max_tokens", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockResolvedValue({ appended: [{ role: "user", content: "hola" }], usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }, outcome: "max_tokens" });
+    const body = await read(await POST(req("hola")));
+    expect(m.inc).toHaveBeenCalledWith({ area: "otro", codigo: "turno_max_tokens", ids: { conversationId: "c1" }, detalle: "max_tokens", urgente: false });
+    const iErr = body.indexOf("event: error");
+    const iDone = body.indexOf("event: done");
+    expect(iErr).toBeGreaterThanOrEqual(0);
+    expect(iDone).toBeGreaterThan(iErr);
+    expect(body).toContain("Tuve un problema para responder. Probá de nuevo en un rato o tocá «Hablar con una persona».");
+    expect(body).toContain('"conversationId":"c1"');
+    await runAfter();
+    expect(m.cap).toHaveBeenCalledTimes(1);
+  });
+  it("respuesta SSE con los headers de siempre", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockImplementation(okTurn);
+    const res = await POST(req("hola"));
+    expect(res.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+    expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    await read(res);
+  });
 });
