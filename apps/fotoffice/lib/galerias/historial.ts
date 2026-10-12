@@ -22,6 +22,7 @@ function detalleDe(tipo: string, data: unknown): string | null {
   if (tipo === "CORREO_NO_ENVIADO" && typeof d.motivo === "string") return `Motivo: ${MOTIVO_CORREO[d.motivo] ?? "no se pudo enviar"}`;
   if (tipo === "SELECCION_ENVIADA" && typeof d.cantidad === "number") return d.cantidad === 1 ? "Eligió 1 foto" : `Eligió ${d.cantidad} fotos`;
   if ((tipo === "CONFIRMACION_NO_ENVIADA" || tipo === "AVISO_ESTUDIO_NO_ENVIADO") && typeof d.motivo === "string") return `Motivo: ${MOTIVO_CORREO[d.motivo] ?? "no se pudo enviar"}`;
+  if (tipo === "RONDA_ABIERTA" && typeof d.numero === "number") return `Ronda ${d.numero}${d.forzada === true ? " (abierta sin decisiones del cliente)" : ""}`;
   if (tipo === "COMPRA_PAGADA" && typeof d.totalCents === "number") {
     const fotos = typeof d.fotos === "number" ? `${d.fotos} ${d.fotos === 1 ? "foto" : "fotos"} · ` : "";
     const medio = typeof d.medio === "string" ? ` · ${ETIQUETA_MEDIO_COMPRA[d.medio] ?? d.medio}` : "";

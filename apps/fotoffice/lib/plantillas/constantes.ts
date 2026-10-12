@@ -52,11 +52,14 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   freno de 24 h por dirección, con el tope diario de automáticos. Los manda `lib/galerias/correos.ts`.
  * - `GALERIA_ENTREGA_ENVIO` y `GALERIA_DESCARGA_LISTA` (etapa 7, Entrega B): el enlace de una galería de ENTREGA (fotos
  *   y videos listos para ver y bajar) y el aviso de que la descarga completa en ZIP ya está lista (con su vencimiento).
+ * - `GALERIA_ALBUM_RONDA` (etapa 7, Entrega C): el aviso a cada cliente de un álbum de que hay una ronda nueva de láminas para
+ *   revisar (con la nota del estudio y su enlace).
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
   "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
   "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA", "GALERIA_ENTREGA_ENVIO", "GALERIA_DESCARGA_LISTA",
+  "GALERIA_ALBUM_RONDA",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 

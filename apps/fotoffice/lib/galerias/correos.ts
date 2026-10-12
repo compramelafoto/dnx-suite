@@ -89,6 +89,20 @@ Las partes se pueden descargar hasta el [galeria_vence]. Pasada esa fecha tenés
 
 [firma]`,
   },
+  GALERIA_ALBUM_RONDA: {
+    asunto: "Hay una ronda nueva de tu álbum para revisar: [galeria_nombre]",
+    cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Preparamos la ronda [galeria_ronda] de "[galeria_nombre]" de [organizacion] con los cambios. Ya podés revisar las láminas.
+
+[si:galeria_nota]Esto nos dejó el estudio: [galeria_nota][/si]
+
+Para verla, abrí este enlace: [galeria_enlace]
+
+Podés marcar un punto de cada lámina para dejar un comentario y, cuando termines, aprobar el álbum o pedir cambios. El enlace es personal: no lo compartas.
+
+[firma]`,
+  },
 };
 
 export function esClaveAutomaticoGaleria(v: unknown): v is ClaveAutomaticoGaleria {
@@ -138,6 +152,9 @@ export type DatosCorreoGaleria = {
   total?: string | null;
   /** Sólo GALERIA_DESCARGA_LISTA: el día hasta el que se puede bajar la descarga, ya formateado. */
   vence?: string | null;
+  /** Sólo GALERIA_ALBUM_RONDA: el número de ronda y la nota del estudio. */
+  ronda?: number | null;
+  nota?: string | null;
 };
 
 const ENLACE_OCULTO = "(enlace personal)";
@@ -179,7 +196,7 @@ export async function enviarCorreoGaleria(d: DatosCorreoGaleria, deps: DepsEnvio
         usuario: { nombre: null, email: null },
         hoy: ahora,
         campos: {},
-        galeria: { numero: d.numero, nombre: d.nombreGaleria, enlace, cantidad: d.cantidad === null || d.cantidad === undefined ? null : String(d.cantidad), total: d.total ?? null, vence: d.vence ?? null },
+        galeria: { numero: d.numero, nombre: d.nombreGaleria, enlace, cantidad: d.cantidad === null || d.cantidad === undefined ? null : String(d.cantidad), total: d.total ?? null, vence: d.vence ?? null, ronda: d.ronda === null || d.ronda === undefined ? null : String(d.ronda), nota: d.nota ?? null },
       },
       firma: { html: org.signature?.html ?? "", texto: org.signature?.text ?? "" },
       destino: { email: d.para, telefono: null },
@@ -241,7 +258,12 @@ export async function enviarCorreoGaleria(d: DatosCorreoGaleria, deps: DepsEnvio
   }
 }
 
-export type DepsEnlace = DepsEnvio & { clave?: string | null; appOrigin?: string };
+export type DepsEnlace = DepsEnvio & {
+  clave?: string | null;
+  appOrigin?: string;
+  /** Otro correo con el enlace del cliente en lugar del de envío (el aviso de ronda nueva del álbum: `GALERIA_ALBUM_RONDA`). */
+  correo?: { clave: ClaveAutomaticoGaleria; ronda?: number | null; nota?: string | null };
+};
 
 /**
  * Manda `GALERIA_ENVIO` a un cliente con su enlace vigente (la acción lo llama con `after()`) y deja el
@@ -273,7 +295,10 @@ export async function enviarCorreoEnlace(workspaceId: string, galeriaClienteId: 
       return "SIN_CORREO";
     }
     const r = await enviarCorreoGaleria(
-      { workspaceId, clave: g.kind === "ENTREGA" ? "GALERIA_ENTREGA_ENVIO" : "GALERIA_ENVIO", galeriaId, para: c.email, nombre: c.name, numero: g.number, nombreGaleria: g.name, enlace },
+      {
+        workspaceId, clave: deps.correo?.clave ?? (g.kind === "ENTREGA" ? "GALERIA_ENTREGA_ENVIO" : "GALERIA_ENVIO"), galeriaId, para: c.email, nombre: c.name,
+        numero: g.number, nombreGaleria: g.name, enlace, ronda: deps.correo?.ronda ?? null, nota: deps.correo?.nota ?? null,
+      },
       deps,
     );
     await registrarEventoSinFallar({
@@ -287,4 +312,40 @@ export async function enviarCorreoEnlace(workspaceId: string, galeriaClienteId: 
     if (galeriaId) await registrarEventoSinFallar({ workspaceId, galeriaId, galeriaClienteId, tipo: "CORREO_NO_ENVIADO", actorUserId, data: { motivo: "ERROR" } });
     return "ERROR";
   }
+}
+
+/**
+ * Avisa por correo (`GALERIA_ALBUM_RONDA`, con la nota del estudio y el enlace personal) a los clientes de un álbum que
+ * tienen el enlace vigente y un correo cargado, cuando el estudio abre una ronda nueva. La acción lo llama con `after()`.
+ * Topes: como mucho 30 clientes (el máximo de la galería), de a uno, y se corta al llegar al tope diario de correos
+ * automáticos. Nunca lanza; cada resultado queda en el historial de la galería (`CORREO_ENVIADO` / `CORREO_NO_ENVIADO`).
+ */
+export async function avisarRondaNueva(
+  workspaceId: string,
+  galeriaId: string,
+  ronda: number,
+  nota: string | null,
+  actorUserId: number | null,
+  deps: DepsEnlace = {},
+): Promise<{ enviados: number; fallidos: number }> {
+  let enviados = 0;
+  let fallidos = 0;
+  try {
+    const clientes = await prisma.fotofficeGaleriaCliente.findMany({
+      where: { workspaceId, galeriaId, revokedAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 30,
+      select: { id: true, email: true },
+    });
+    for (const c of clientes) {
+      if (!c.email) continue;
+      const r = await enviarCorreoEnlace(workspaceId, c.id, actorUserId, { ...deps, correo: { clave: "GALERIA_ALBUM_RONDA", ronda, nota } });
+      if (r === "ENVIADO") enviados += 1;
+      else fallidos += 1;
+      if (r === "TOPE") break;
+    }
+  } catch (e) {
+    console.error("[galerias] falló el aviso de ronda nueva", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+  }
+  return { enviados, fallidos };
 }

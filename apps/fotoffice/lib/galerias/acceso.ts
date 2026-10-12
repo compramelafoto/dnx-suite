@@ -50,7 +50,7 @@ export const MENSAJES_GALERIA = {
   modoOrden: "Elegí cómo se ordenan las fotos.",
   comentarios: "Indicá si el cliente puede comentar.",
   sinFotosListas: "Subí al menos una foto antes de publicar la galería.",
-  entregaSinVenta: "Una galería de entrega no tiene venta: el cliente recibe todo lo que subiste.",
+  entregaSinVenta: "Una galería de entrega o de álbum no tiene venta.",
   yaPublicada: "La galería ya está publicada.",
   yaArchivada: "La galería ya está archivada.",
   noEstaArchivada: "La galería no está archivada.",

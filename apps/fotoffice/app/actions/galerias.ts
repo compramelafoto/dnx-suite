@@ -14,7 +14,8 @@ import {
 import { finalizarSeleccion, reactivarSeleccion, responderComentario, type ResultadoRespuesta, type ResultadoTransicion } from "@/lib/galerias/revision";
 import { contextoDeGalerias } from "@/lib/galerias/contexto";
 import { prepararDescargaDelEstudio, urlDeParteDelEstudio, type ResultadoPedido, type SalidaUrl } from "@/lib/galerias/descargas";
-import { enviarCorreoEnlace } from "@/lib/galerias/correos";
+import { avisarRondaNueva, enviarCorreoEnlace } from "@/lib/galerias/correos";
+import { abrirRondaNueva } from "@/lib/galerias/rondas";
 import {
   archivarGaleria, borrarFotoDeGaleria, buscarProyectos, crearGaleria, editarGaleria, establecerModoOrden, fotosPorIds,
   publicarGaleria, reactivarGaleria, vistasPorIds, type ProyectoEncontrado, type ResultadoGaleria, type ResultadoSimpleGaleria,
@@ -346,4 +347,29 @@ export async function urlParteDescargaGaleriaAction(galeriaId: string, descargaI
   const ctx = await contextoDeGalerias("ver");
   if (!ctx) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
   return urlDeParteDelEstudio(ctx, galeriaId, descargaId, tipo, n);
+}
+
+// --- Rondas del álbum (Gestionar) -------------------------------------------------------------------------
+
+/**
+ * «Abrir ronda nueva» (álbum): cierra la ronda abierta, abre la siguiente con la nota del estudio, vuelve a
+ * «eligiendo» a los clientes y, si se pide, copia las láminas de la ronda anterior. Sin decisiones de los clientes
+ * hace falta `forzar`. El correo a los clientes sale con `after()` y nunca antes de validar y abrir la ronda.
+ */
+export async function abrirRondaNuevaGaleriaAction(
+  galeriaId: string,
+  datos: { nota?: string; copiar?: boolean; forzar?: boolean },
+): Promise<
+  | { ok: true; numero: number; copiadas: number; noCopiadas: number }
+  | { ok: false; error: string; codigo: "SIN_DECISION" | "GENERICO" }
+> {
+  if (!esId(galeriaId) || !esObjeto(datos)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos, codigo: "GENERICO" };
+  const ctx = await contextoDeGalerias("operar");
+  if (!ctx) return { ok: false, error: MENSAJES_GALERIA.sinPermiso, codigo: "GENERICO" };
+  const r = await abrirRondaNueva(ctx, galeriaId, datos);
+  if (!r.ok) return r;
+  const { workspaceId, userId } = ctx;
+  after(() => avisarRondaNueva(workspaceId, galeriaId, r.numero, r.nota, userId).then(() => undefined));
+  refrescar(galeriaId);
+  return { ok: true, numero: r.numero, copiadas: r.copiadas, noCopiadas: r.noCopiadas };
 }

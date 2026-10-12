@@ -10,6 +10,7 @@ import {
   type ModoOrden,
   type ModoSeleccion,
   type TipoGaleria,
+  tipoDeKind,
 } from "./constantes";
 import { hashDeToken, tokenConForma } from "./enlace";
 import { registrarEvento, registrarEventoSinFallar } from "./eventos";
@@ -116,7 +117,7 @@ export async function resolverTokenGaleria(workspaceId: string, token: unknown):
       submittedAt: c.submittedAt, submitMessage: c.submitMessage,
     },
     galeria: {
-      id: g.id, kind: g.kind === "ENTREGA" ? "ENTREGA" : "SELECCION", number: g.number, name: g.name, message: g.message, selectionMode: g.selectionMode as ModoSeleccion, minSelect: g.minSelect,
+      id: g.id, kind: tipoDeKind(g.kind), number: g.number, name: g.name, message: g.message, selectionMode: g.selectionMode as ModoSeleccion, minSelect: g.minSelect,
       maxSelect: g.maxSelect, allowComments: g.allowComments, downloadMode: g.downloadMode as ModoDescarga, orderMode: g.orderMode as ModoOrden,
       coverFotoId: g.coverFotoId, ownerUserId: g.ownerUserId, venta: configVentaDeFila(g),
     },
@@ -348,7 +349,7 @@ async function registrarDescarga(r: Resuelto, fotoId: string, ahora: Date): Prom
 export async function elegirFoto(workspaceId: string, token: unknown, fotoId: unknown, marcar: unknown): Promise<{ ok: true; cantidad: number } | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
-  if (r.galeria.kind === "ENTREGA") return falla(M.entregaSinSeleccion);
+  if (r.galeria.kind !== "SELECCION") return falla(M.entregaSinSeleccion);
   if (!puedeEditarElCliente(r.cliente.status)) return SOLO_LECTURA();
   if (typeof marcar !== "boolean") return falla(M.generico);
   const [foto] = await fotosDeLaGaleria(r, [fotoId]);
@@ -425,7 +426,7 @@ export function mensajeDeEnvio(raw: unknown): { ok: true; texto: string | null }
 export async function enviarSeleccion(workspaceId: string, token: unknown, mensaje: unknown, ahora: Date = new Date()): Promise<EnvioHecho | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
-  if (r.galeria.kind === "ENTREGA") return falla(M.entregaSinSeleccion);
+  if (r.galeria.kind !== "SELECCION") return falla(M.entregaSinSeleccion);
   if (!puedeEditarElCliente(r.cliente.status)) return falla(M.yaEnviada, "SOLO_LECTURA");
   const m = mensajeDeEnvio(mensaje);
   if (!m.ok) return falla(m.error);

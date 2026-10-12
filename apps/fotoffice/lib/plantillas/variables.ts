@@ -39,7 +39,7 @@ export type ContextoVariables = {
   /** Sólo en los correos del contrato (etapa 5): ya formateados. El código nunca se guarda en el registro. */
   contrato?: { numero: string | null; enlace: string | null; codigo: string | null; firmante: string | null };
   /** Sólo en los correos de la galería (etapa 7): ya formateados. */
-  galeria?: { numero: string | null; nombre: string | null; enlace: string | null; cantidad: string | null; total?: string | null; vence?: string | null };
+  galeria?: { numero: string | null; nombre: string | null; enlace: string | null; cantidad: string | null; total?: string | null; vence?: string | null; nota?: string | null; ronda?: string | null };
   /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
   listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
@@ -175,6 +175,8 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "galeria_cantidad", etiqueta: "Fotos elegidas", descripcion: "La cantidad de fotos que el cliente eligió (sólo en la copia de la selección enviada).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.cantidad) },
   { clave: "galeria_total", etiqueta: "Total pagado", descripcion: "El total que el cliente pagó por sus fotos extra, en pesos (sólo en la confirmación del pago).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.total) },
   { clave: "galeria_vence", etiqueta: "Vencimiento de la descarga", descripcion: "El día hasta el que se puede bajar la descarga completa (sólo en el aviso de descarga lista).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.vence) },
+  { clave: "galeria_ronda", etiqueta: "Número de ronda", descripcion: "El número de la ronda del álbum que hay para revisar (sólo en el aviso de ronda nueva).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.ronda) },
+  { clave: "galeria_nota", etiqueta: "Nota del estudio", descripcion: "El mensaje que el estudio dejó al abrir la ronda nueva del álbum (sólo en el aviso de ronda nueva).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.nota) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];

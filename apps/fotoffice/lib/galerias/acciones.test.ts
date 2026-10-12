@@ -65,6 +65,16 @@ describe("acciones de galerías (fuente)", () => {
     expect(fuente).toContain('import { after } from "next/server"');
   });
 
+  it("abrir una ronda nueva exige Gestionar, valida la forma y manda el correo con after() sólo si la ronda se abrió", () => {
+    const c = cuerpoDe("abrirRondaNuevaGaleriaAction");
+    expect(c).toContain('contextoDeGalerias("operar")');
+    expect(c).toMatch(/esId\(galeriaId\)/);
+    expect(c.indexOf("contextoDeGalerias")).toBeLessThan(c.indexOf("abrirRondaNueva(ctx"));
+    expect(c.indexOf("abrirRondaNueva(ctx")).toBeLessThan(c.indexOf("after("));
+    expect(c.indexOf("if (!r.ok) return r;")).toBeLessThan(c.indexOf("after("));
+    expect(c).toContain("avisarRondaNueva(");
+  });
+
   it("preparar la descarga completa exige Gestionar y ver una parte sólo Ver; las dos validan la forma de lo que llega", () => {
     const preparar = cuerpoDe("prepararDescargaGaleriaAction");
     expect(preparar).toContain('contextoDeGalerias("operar")');
@@ -93,7 +103,10 @@ describe("pantallas de galerías (fuente)", () => {
     expect(p).toContain("ID_VALIDO.test(id)");
     expect(p).toContain("cargarFichaGaleria(ctx, id)");
     expect(p).toMatch(/if \(!ficha\) notFound\(\)/);
-    expect(p).toContain('pestana === "fotos" ? await listarFotos(ctx, id) : []');
+    expect(p).toContain('pestana === "fotos" ? await listarFotos(ctx, id, rondaMirada ? { rondaId: rondaMirada.id } : {}) : []');
+    // El álbum sólo lee sus rondas en la pestaña de láminas y nunca ofrece venta.
+    expect(p).toContain('esAlbum && pestana === "fotos" ? await listarRondas(ctx, id) : []');
+    expect(p).toMatch(/\(esEntrega \|\| esAlbum\) && p\.clave === "venta"/);
     expect(p).toContain('pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: []');
     // Los componentes de cliente reciben fechas como texto, no objetos.
     expect(p).toContain(".toISOString()");

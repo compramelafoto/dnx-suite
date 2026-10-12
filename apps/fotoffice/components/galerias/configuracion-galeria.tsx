@@ -26,11 +26,13 @@ export type ConfiguracionVista = {
  * nombre, mensaje de bienvenida, cómo elige (libre o por cantidad), comentarios y descarga.
  */
 export function ConfiguracionGaleria({
-  galeriaId, estado, inicial, fotosListas, puedeGestionar, esEntrega = false,
+  galeriaId, estado, inicial, fotosListas, puedeGestionar, esEntrega = false, esAlbum = false,
 }: {
   galeriaId: string;
   /** Galería de entrega: no hay selección, comentarios ni descarga que configurar. */
   esEntrega?: boolean;
+  /** Álbum: sin selección ni venta; los clientes revisan láminas por rondas. La descarga es «sin descarga» o la vista. */
+  esAlbum?: boolean;
   estado: EstadoGaleria;
   inicial: ConfiguracionVista;
   fotosListas: number;
@@ -51,10 +53,10 @@ export function ConfiguracionGaleria({
       const r = await editarGaleriaAction(galeriaId, {
         nombre: v.nombre,
         mensaje: v.mensaje,
-        selectionMode: v.selectionMode,
-        minSelect: v.selectionMode === "CANTIDAD" ? v.minSelect : null,
-        maxSelect: v.selectionMode === "CANTIDAD" ? v.maxSelect : null,
-        allowComments: v.allowComments,
+        selectionMode: esAlbum ? "LIBRE" : v.selectionMode,
+        minSelect: !esAlbum && v.selectionMode === "CANTIDAD" ? v.minSelect : null,
+        maxSelect: !esAlbum && v.selectionMode === "CANTIDAD" ? v.maxSelect : null,
+        allowComments: esAlbum ? true : v.allowComments,
         downloadMode: v.downloadMode,
       }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
       if (!r.ok) return setError(r.error);
@@ -83,13 +85,13 @@ export function ConfiguracionGaleria({
         </h2>
         {estado === "BORRADOR" ? (
           <p className="text-sm text-[var(--fo-muted)]">
-            Mientras es un borrador, los clientes no pueden entrar y los enlaces no se pueden compartir. Publicala cuando {esEntrega ? "los archivos" : "las fotos"} estén {esEntrega ? "listos" : "listas"}.
-            {fotosListas < 1 ? (esEntrega ? " Primero subí al menos un archivo." : " Primero subí al menos una foto.") : ""}
+            Mientras es un borrador, los clientes no pueden entrar y los enlaces no se pueden compartir. Publicala cuando {esEntrega ? "los archivos" : esAlbum ? "las láminas" : "las fotos"} estén {esEntrega ? "listos" : "listas"}.
+            {fotosListas < 1 ? (esEntrega ? " Primero subí al menos un archivo." : esAlbum ? " Primero subí al menos una lámina a la ronda abierta." : " Primero subí al menos una foto.") : ""}
           </p>
         ) : estado === "PUBLICADA" ? (
-          <p className="text-sm text-[var(--fo-muted)]">{esEntrega ? "Los clientes con enlace pueden ver y descargar las fotos y los videos en alta." : "Los clientes con enlace pueden ver las fotos y elegir."}</p>
+          <p className="text-sm text-[var(--fo-muted)]">{esEntrega ? "Los clientes con enlace pueden ver y descargar las fotos y los videos en alta." : esAlbum ? "Los clientes con enlace pueden revisar las láminas de la ronda abierta, dejar comentarios y aprobar el álbum o pedir cambios." : "Los clientes con enlace pueden ver las fotos y elegir."}</p>
         ) : (
-          <p className="text-sm text-[var(--fo-muted)]">Archivada: los enlaces no abren la galería y no se le pueden subir {esEntrega ? "archivos" : "fotos"}.</p>
+          <p className="text-sm text-[var(--fo-muted)]">Archivada: los enlaces no abren la galería y no se le pueden subir {esEntrega ? "archivos" : esAlbum ? "láminas" : "fotos"}.</p>
         )}
         {puedeGestionar ? (
           <div className="flex flex-wrap gap-2">
@@ -128,11 +130,28 @@ export function ConfiguracionGaleria({
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="gal-mensaje">Mensaje de bienvenida</label>
             <textarea id="gal-mensaje" className="fo-input min-h-28" maxLength={MAX_MENSAJE_GALERIA} value={v.mensaje} onChange={(e) => setV({ ...v, mensaje: e.target.value })} disabled={bloqueado} />
-            <p className="text-xs text-[var(--fo-muted)]">Se muestra arriba de las fotos. Si lo dejás vacío, no se muestra ninguno.</p>
+            <p className="text-xs text-[var(--fo-muted)]">Se muestra arriba de {esAlbum ? "las láminas" : "las fotos"}. Si lo dejás vacío, no se muestra ninguno.</p>
           </div>
         </section>
 
-        {esEntrega ? null : (
+        {esAlbum ? (
+          <section className="fo-card space-y-4 p-5" aria-labelledby="descarga-album-titulo">
+            <h2 id="descarga-album-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+              Descarga
+            </h2>
+            <div className="fo-field-stack max-w-sm">
+              <label className="fo-label" htmlFor="gal-descarga-album">Los clientes pueden bajar</label>
+              <select id="gal-descarga-album" className="fo-input" value={v.downloadMode === "VISTA" ? "VISTA" : "NINGUNA"} onChange={(e) => setV({ ...v, downloadMode: e.target.value as ModoDescarga })} disabled={bloqueado}>
+                {(["NINGUNA", "VISTA"] as const).map((m) => (
+                  <option key={m} value={m}>{ETIQUETA_MODO_DESCARGA[m]}</option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--fo-muted)]">Por omisión las láminas se miran en pantalla y no se bajan. “Vista de galería” permite bajar cada lámina en tamaño liviano (2048 px).</p>
+            </div>
+          </section>
+        ) : null}
+
+        {esEntrega || esAlbum ? null : (
         <section className="fo-card space-y-4 p-5" aria-labelledby="seleccion-titulo">
           <h2 id="seleccion-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
             Cómo elige

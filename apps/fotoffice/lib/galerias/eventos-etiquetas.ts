@@ -37,6 +37,7 @@ export const ETIQUETA_EVENTO_GALERIA: Record<string, string> = {
   DESCARGA_ERROR: "No se pudo armar la descarga completa",
   DESCARGA_CORREO_ENVIADO: "Correo de descarga lista enviado",
   DESCARGA_CORREO_NO_ENVIADO: "El correo de descarga lista no salió",
+  RONDA_ABIERTA: "Ronda nueva del álbum abierta",
   ARCHIVOS_PEDIDOS_DISPOSITIVO: "DNX FLUX empezó a subir archivos",
 };
 

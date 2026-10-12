@@ -194,9 +194,12 @@ function TarjetaCliente({ c, galeriaId, estadoGaleria, puedeGestionar, esEntrega
  * Los enlaces sólo se comparten con la galería publicada. Las reglas las vuelve a mirar el servidor.
  */
 export function PestanaClientes({
-  galeriaId, estadoGaleria, clientes, sugerido, puedeGestionar, puedeBuscarContactos, esEntrega = false,
+  galeriaId, estadoGaleria, clientes, sugerido, puedeGestionar, puedeBuscarContactos, esEntrega = false, esAlbum = false,
 }: {
+  /** Sin selección que revisar (entrega y álbum). */
   esEntrega?: boolean;
+  /** Álbum: los clientes revisan las láminas por rondas. */
+  esAlbum?: boolean;
   galeriaId: string;
   estadoGaleria: EstadoGaleria;
   clientes: ClienteVista[];
@@ -230,7 +233,7 @@ export function PestanaClientes({
           Clientes de la galería ({clientes.length}/{MAX_CLIENTES_POR_GALERIA})
         </h2>
         {clientes.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">Todavía no agregaste a nadie. {esEntrega ? "Cada cliente recibe su propio enlace para descargar." : "Cada cliente recibe su propio enlace y su selección es independiente."}</p>
+          <p className="text-sm text-[var(--fo-muted)]">Todavía no agregaste a nadie. {esAlbum ? "Cada cliente recibe su propio enlace para revisar las láminas, dejar comentarios y aprobar el álbum o pedir cambios." : esEntrega ? "Cada cliente recibe su propio enlace para descargar." : "Cada cliente recibe su propio enlace y su selección es independiente."}</p>
         ) : (
           <ul className="divide-y divide-[var(--fo-border)] text-sm">
             {clientes.map((c) => (

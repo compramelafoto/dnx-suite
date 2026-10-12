@@ -20,7 +20,7 @@ export const MENSAJES_PUBLICO = {
   mensajeLargo: `El mensaje puede tener hasta ${MAX_MENSAJE_CLIENTE.toLocaleString("es-AR")} caracteres.`,
   sinDescarga: "En esta galería no se pueden descargar las fotos.",
   originalNoDisponible: "Esa foto todavía no está disponible para descargar en alta.",
-  entregaSinSeleccion: "Esta galería es una entrega: no hay nada para elegir ni para enviar.",
+  entregaSinSeleccion: "Esta galería no tiene selección: no hay nada para elegir ni para enviar.",
   videoNoDisponible: "No pudimos abrir ese video. Probá de nuevo en un momento.",
   demasiados: "Hiciste demasiados intentos. Esperá unos minutos y probá de nuevo.",
   generico: "No pudimos hacerlo. Probá de nuevo en un momento.",
