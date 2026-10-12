@@ -37,9 +37,10 @@ export function applyDecision(
   decision: "confirmar" | "rechazar" | "deshacer",
   r: { ok: boolean; message: string; canUndo?: boolean },
 ): Item[] {
-  return items.map((it) =>
-    it.kind === "proposal" && it.actionId === actionId
-      ? { ...it, state: decision === "rechazar" ? "rejected" : r.ok ? "done" : "failed", result: r.message, canUndo: decision === "confirmar" && r.canUndo }
-      : it,
-  );
+  return items.map((it) => {
+    if (it.kind !== "proposal" || it.actionId !== actionId) return it;
+    // Resultado tardío o repetido: confirmar/rechazar solo valen sobre "pending"; deshacer solo sobre "done".
+    if (decision === "deshacer" ? it.state !== "done" : it.state !== "pending") return it;
+    return { ...it, state: decision === "rechazar" ? "rejected" : r.ok ? "done" : "failed", result: r.message, canUndo: decision === "confirmar" && r.canUndo };
+  });
 }

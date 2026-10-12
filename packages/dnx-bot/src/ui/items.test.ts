@@ -23,4 +23,17 @@ describe("items de la burbuja", () => {
     expect(applyDecision(base, "a1", "rechazar", { ok: true, message: "Ok", canUndo: true })[0]).toMatchObject({ state: "rejected", canUndo: false });
     expect(applyDecision(base, "a1", "confirmar", { ok: false, message: "No" })[0]).toMatchObject({ state: "failed" });
   });
+  it("un 409 tardío después de confirmar no pisa done ni canUndo", () => {
+    const base = applySseEvent([], "proposal", { actionId: "a1", summary: "x" });
+    const done = applyDecision(base, "a1", "confirmar", { ok: true, message: "Listo", canUndo: true });
+    const late = applyDecision(done, "a1", "confirmar", { ok: false, message: "Ya ejecutada" });
+    expect(late).toEqual(done);
+    expect(applyDecision(done, "a1", "rechazar", { ok: true, message: "x" })).toEqual(done);
+  });
+  it("deshacer solo aplica sobre done", () => {
+    const base = applySseEvent([], "proposal", { actionId: "a1", summary: "x" });
+    expect(applyDecision(base, "a1", "deshacer", { ok: true, message: "x" })).toEqual(base);
+    const done = applyDecision(base, "a1", "confirmar", { ok: true, message: "Listo", canUndo: true });
+    expect(applyDecision(done, "a1", "deshacer", { ok: true, message: "Deshecho" })[0]).toMatchObject({ state: "done", result: "Deshecho", canUndo: false });
+  });
 });

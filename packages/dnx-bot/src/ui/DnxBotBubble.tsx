@@ -12,6 +12,10 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deciding, setDeciding] = useState<Set<string>>(new Set());
+  const decidingRef = useRef<Set<string>>(new Set());
+  const [ticketBusy, setTicketBusy] = useState(false);
+  const ticketRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,15 +53,35 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
   }, [basePath, busy]);
 
   const decide = useCallback(async (actionId: string, decision: "confirmar" | "rechazar" | "deshacer") => {
-    const res = await fetch(`${basePath}/acciones/${actionId}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
-    const r = (await res.json().catch(() => ({ ok: false, message: "Error" }))) as { ok: boolean; message: string; canUndo?: boolean };
-    setItems((x) => applyDecision(x, actionId, decision, r));
+    if (decidingRef.current.has(actionId)) return;
+    decidingRef.current.add(actionId);
+    setDeciding(new Set(decidingRef.current));
+    try {
+      const res = await fetch(`${basePath}/acciones/${actionId}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision }) });
+      const r = (await res.json().catch(() => ({ ok: false, message: "Error" }))) as { ok: boolean; message: string; canUndo?: boolean };
+      setItems((x) => applyDecision(x, actionId, decision, r));
+    } catch {
+      setItems((x) => [...x, { kind: "notice", text: "No me pude conectar. Probá de nuevo." }]);
+    } finally {
+      decidingRef.current.delete(actionId);
+      setDeciding(new Set(decidingRef.current));
+    }
   }, [basePath]);
 
   const ticket = useCallback(async () => {
-    const res = await fetch(`${basePath}/ticket`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-    const r = (await res.json().catch(() => ({}))) as { ticketId?: number };
-    setItems((x) => [...x, { kind: "notice", text: r.ticketId ? `Abrí el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.` : "No pude abrir el pedido. Escribinos desde Soporte." }]);
+    if (ticketRef.current) return;
+    ticketRef.current = true;
+    setTicketBusy(true);
+    try {
+      const res = await fetch(`${basePath}/ticket`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const r = (await res.json().catch(() => ({}))) as { ticketId?: number };
+      setItems((x) => [...x, { kind: "notice", text: r.ticketId ? `Abrí el pedido de soporte #${r.ticketId}. La respuesta te aparece en Soporte y te llega por mail.` : "No pude abrir el pedido. Escribinos desde Soporte." }]);
+    } catch {
+      setItems((x) => [...x, { kind: "notice", text: "No me pude conectar. Probá de nuevo." }]);
+    } finally {
+      ticketRef.current = false;
+      setTicketBusy(false);
+    }
   }, [basePath]);
 
   if (!estado?.enabled) return null;
@@ -65,7 +89,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
   return (
     <div style={{ position: "fixed", right: 24, bottom: bottomOffsetPx, zIndex: 9990 }}>
       {open && (
-        <div role="dialog" aria-label="DNX Bot" style={{ width: "min(380px, calc(100vw - 32px))", height: "min(560px, calc(100vh - 140px))", marginBottom: 12, background: "#fff", color: "#111", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", fontSize: 14 }}>
+        <div role="dialog" aria-label="DNX Bot" style={{ width: "min(380px, calc(100vw - 32px))", height: `min(560px, calc(100vh - ${bottomOffsetPx + 116}px))`, marginBottom: 12, background: "#fff", color: "#111", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", fontSize: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid #eee" }}>
             <img src={mascotSrc} alt="" width={32} height={32} />
             <div style={{ flex: 1 }}>
@@ -89,7 +113,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
                   {it.text}
-                  {it.offerTicket && <div><button onClick={ticket} style={linkBtn}>Hablar con una persona</button></div>}
+                  {it.offerTicket && <div><button onClick={ticket} disabled={ticketBusy} style={linkBtn}>Hablar con una persona</button></div>}
                 </div>
               );
               return (
@@ -98,13 +122,13 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
                   <div>{it.summary}</div>
                   {it.state === "pending" ? (
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button onClick={() => decide(it.actionId, "confirmar")} style={{ ...btn, background: "#111", color: "#fff" }}>Confirmar</button>
-                      <button onClick={() => decide(it.actionId, "rechazar")} style={btn}>No</button>
+                      <button onClick={() => decide(it.actionId, "confirmar")} disabled={deciding.has(it.actionId)} style={{ ...btn, background: "#111", color: "#fff" }}>Confirmar</button>
+                      <button onClick={() => decide(it.actionId, "rechazar")} disabled={deciding.has(it.actionId)} style={btn}>No</button>
                     </div>
                   ) : (
                     <div style={{ marginTop: 6, color: it.state === "done" ? "#0a7a2f" : "#a33" }}>
                       {it.result}
-                      {it.canUndo && <button onClick={() => decide(it.actionId, "deshacer")} style={linkBtn}> Deshacer</button>}
+                      {it.canUndo && <button onClick={() => decide(it.actionId, "deshacer")} disabled={deciding.has(it.actionId)} style={linkBtn}> Deshacer</button>}
                     </div>
                   )}
                 </div>
@@ -115,7 +139,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
             <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Escribí tu consulta" placeholder="Escribí tu consulta…" maxLength={2000} disabled={busy} style={{ flex: 1, border: "1px solid #ddd", borderRadius: 10, padding: "8px 10px", fontSize: 16 }} />
             <button type="submit" aria-label="Enviar mensaje" disabled={busy || !input.trim()} style={{ ...btn, background: "#111", color: "#fff" }}>Enviar</button>
           </form>
-          <button onClick={ticket} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>
+          <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>
         </div>
       )}
       <button onClick={() => setOpen((o) => !o)} aria-label={open ? "Cerrar DNX Bot" : "Abrir DNX Bot"} style={{ position: "relative", marginLeft: "auto", display: "block", width: 64, height: 64, borderRadius: 999, border: 0, background: "#fff", boxShadow: "0 6px 20px rgba(0,0,0,.2)", cursor: "pointer", padding: 4 }}>
