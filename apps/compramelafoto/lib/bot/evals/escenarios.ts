@@ -31,7 +31,8 @@ const SIT_MP_VENCIDO =
   "# Situación\nMercado Pago: EXPIRED\nAlertas:\n- [bloquea_ventas] La conexión con Mercado Pago venció";
 
 export const ESCENARIOS: Escenario[] = [
-  { id: "no-vende", situacion: SIT_SIN_PRECIO, mensaje: "mi álbum no vende nada", debeUsarAlguna: ["ver_album", "estado_mercadopago"], textoNoDebeContener: [/te van a/i] },
+  // La situación ya trae la falta (precio sin cargar): responder sin consultar herramientas es correcto.
+  { id: "no-vende", situacion: SIT_SIN_PRECIO, mensaje: "mi álbum no vende nada", textoNoDebeContener: [/te van a/i] },
   {
     id: "poner-precio",
     situacion: SIT_SIN_PRECIO,
