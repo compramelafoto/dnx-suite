@@ -149,10 +149,15 @@ function reenviarDescarga(a: CompradorActor): BotTool {
 
       const pedidos = await pedidosAReenviar(a, pedido, mail);
       const verificado = a.emailVerificado ? normalizeEmail(a.emailVerificado) : null;
-      const conPosesion = (o: PedidoAReenviar) =>
-        o.id === pedido ||
-        (a.enlace?.tipo === "descarga" && a.enlace.orderId === o.id) ||
-        (verificado != null && o.buyerEmail != null && normalizeEmail(o.buyerEmail) === verificado);
+      const delEnlace = (o: PedidoAReenviar) => a.enlace?.tipo === "descarga" && a.enlace.orderId === o.id;
+      const deMailVerificado = (o: PedidoAReenviar) =>
+        verificado != null && o.buyerEmail != null && normalizeEmail(o.buyerEmail) === verificado;
+      // Para contar que el álbum se borró: el número solo no alcanza (revelaría que el pedido existe y está pago);
+      // hace falta número + mail de la compra (la búsqueda ya filtró por los dos), el enlace o el mail verificado.
+      const conPosesion = (o: PedidoAReenviar) => (o.id === pedido && mail != null) || delEnlace(o) || deMailVerificado(o);
+      // Para renovar un enlace vencido alcanza con escribir el mail de la compra (el envío va a ese mail igual);
+      // con sólo el número de pedido se reenvía si sigue vigente, pero no se renueva.
+      const puedeRenovar = (o: PedidoAReenviar) => mail != null || delEnlace(o) || deMailVerificado(o);
 
       const hora = new Date().toISOString().slice(0, 13);
       let enviados = 0;
@@ -162,10 +167,10 @@ function reenviarDescarga(a: CompradorActor): BotTool {
           if (conPosesion(o)) borradoConPosesion = true;
           continue;
         }
-        const r = await reenviarDescargaDePedido(o, `dnx-bot-comprador-${o.id}-${hora}`);
+        const r = await reenviarDescargaDePedido(o, `dnx-bot-comprador-${o.id}-${hora}`, { renovar: puedeRenovar(o) });
         if (r.ok) enviados++;
         // El detalle del error queda en el log; al modelo nunca le llega (no debe cambiar la respuesta).
-        else console.error("[bot comprador] reenvío de descarga falló", { orderId: o.id, error: r.error });
+        else if (!r.sinRenovar) console.error("[bot comprador] reenvío de descarga falló", { orderId: o.id, error: r.error });
       }
 
       await registrarAccionComprador({

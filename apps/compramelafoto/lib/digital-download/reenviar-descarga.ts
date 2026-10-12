@@ -17,16 +17,19 @@ export function albumConOriginales(a: { deletedAt: Date | null; cleanupStatus: s
 /**
  * Reenvía el mail de descarga de un pedido; si no hay link vigente, crea uno nuevo
  * con los días de la configuración. No valida dueño ni estado: eso lo hace quien llama.
+ * Con `renovar: false` (quien pide no probó ser dueño) un enlace vencido no se renueva ni se reenvía.
  */
 export async function reenviarDescargaDePedido(
   o: { id: number; albumId: number },
   idempotencyKey: string,
-): Promise<{ ok: true; renovado: boolean } | { ok: false; error: string; causa?: unknown }> {
+  opciones: { renovar?: boolean } = {},
+): Promise<{ ok: true; renovado: boolean } | { ok: false; error: string; causa?: unknown; sinRenovar?: true }> {
   try {
     const vigente = await prisma.orderDownloadToken.findFirst({
       where: { orderId: o.id, type: "CLIENT_DIGITAL", photoId: null, expiresAt: { gt: new Date() } },
       select: { id: true },
     });
+    if (!vigente && opciones.renovar === false) return { ok: false, error: "enlace vencido sin renovar", sinRenovar: true };
     if (!vigente) {
       const days = resolveDownloadLinkDays(await getAppConfig());
       await createClientDownloadToken({

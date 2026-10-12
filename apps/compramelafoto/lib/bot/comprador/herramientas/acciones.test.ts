@@ -156,16 +156,46 @@ describe("reenviar_descarga", () => {
     log.mockRestore();
   });
 
-  it("con número de pedido de álbum borrado → albumBorrado (el número ya prueba posesión)", async () => {
+  it("con sólo el número de pedido de álbum borrado no lo revela", async () => {
     m.order.findFirst.mockResolvedValue(pedido(77, BORRADO));
     const r = await correr(actor(), "reenviar_descarga", { pedido: 77 });
     expect(m.order.findFirst.mock.calls[0]![0].where).toMatchObject({ id: 77, status: "PAID", isTest: false });
+    expect(r).toEqual({ ok: true, message: RESPUESTA_REENVIO });
+    expect(m.reenviar).not.toHaveBeenCalled();
+  });
+
+  it("con número de pedido y el mail de la compra, álbum borrado → albumBorrado", async () => {
+    m.order.findFirst.mockResolvedValue(pedido(77, BORRADO));
+    const r = await correr(actor(), "reenviar_descarga", { pedido: 77, email: "juana@gmail.com" });
     expect(r).toEqual({
       ok: true,
       message: "El álbum de ese pedido ya se borró, así que no puedo generar un enlace nuevo. Si querés, abro un caso para que lo vea una persona.",
       data: { albumBorrado: true },
     });
-    expect(m.reenviar).not.toHaveBeenCalled();
+  });
+
+  it("con sólo el número de pedido reenvía sin renovar; un enlace vencido no se renueva ni se loguea como error", async () => {
+    m.order.findFirst.mockResolvedValue(pedido(77));
+    m.reenviar.mockResolvedValue({ ok: false, error: "enlace vencido sin renovar", sinRenovar: true });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await correr(actor(), "reenviar_descarga", { pedido: 77 });
+    expect(m.reenviar.mock.calls[0]![2]).toEqual({ renovar: false });
+    expect(r).toEqual({ ok: true, message: RESPUESTA_REENVIO });
+    expect(m.registrar).toHaveBeenLastCalledWith(expect.objectContaining({ resultado: "enviados:0" }));
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("con el mail de la compra, el enlace del pedido o el mail verificado sí renueva", async () => {
+    m.order.findMany.mockResolvedValue([pedido(10)]);
+    await correr(actor(), "reenviar_descarga", { email: "juana@gmail.com" });
+    expect(m.reenviar.mock.calls.at(-1)![2]).toEqual({ renovar: true });
+    m.order.findFirst.mockResolvedValue(pedido(5));
+    await correr(actor({ enlace: { tipo: "descarga", orderId: 5, albumId: 3 } }), "reenviar_descarga", {});
+    expect(m.reenviar.mock.calls.at(-1)![2]).toEqual({ renovar: true });
+    m.order.findFirst.mockResolvedValue(pedido(9));
+    await correr(actor({ emailVerificado: "juana@gmail.com" }), "reenviar_descarga", { pedido: 9 });
+    expect(m.reenviar.mock.calls.at(-1)![2]).toEqual({ renovar: true });
   });
 
   it("con número de pedido y un mail que no es el de la compra no reenvía", async () => {

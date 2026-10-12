@@ -36,6 +36,17 @@ describe("reenviarDescargaDePedido", () => {
     expect(dias).toBeGreaterThan(14.99);
     expect(dias).toBeLessThan(15.01);
   });
+  it("sin token vigente y renovar: false → ni crea ni reenvía", async () => {
+    m.token.mockResolvedValue(null);
+    expect(await reenviarDescargaDePedido(o, "k", { renovar: false })).toEqual({ ok: false, error: "enlace vencido sin renovar", sinRenovar: true });
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.resend).not.toHaveBeenCalled();
+  });
+  it("con token vigente y renovar: false → reenvía igual", async () => {
+    m.token.mockResolvedValue({ id: 1 });
+    m.resend.mockResolvedValue({ queued: true });
+    expect(await reenviarDescargaDePedido(o, "k", { renovar: false })).toEqual({ ok: true, renovado: false });
+  });
   it("queued: false → ok: false con el error", async () => {
     m.token.mockResolvedValue({ id: 1 });
     m.resend.mockResolvedValue({ queued: false, error: "Sin token de descarga" });
