@@ -85,6 +85,43 @@ describe("acciones de álbum", () => {
     await tool("actualizar_album").undo!({ albumId: 3, valores: { isPublic: false } }, actor);
     expect(m.update).toHaveBeenCalledWith({ actorUserId: 7, albumId: 3, patch: { isPublic: false } });
   });
+  it("actualizar_album: undo de fecha/hora vuelve al formato de parche (ida y vuelta por JSON)", async () => {
+    const original = {
+      eventDate: new Date("2026-11-02T03:00:00Z"),
+      startsAt: new Date("2026-11-02T22:00:00Z"), // 19:00 ART
+      endsAt: new Date("2026-11-03T01:30:00Z"), // 22:30 ART
+    };
+    m.update.mockResolvedValueOnce({ ok: true, before: { ...original }, after: {} });
+    const r = (await tool("actualizar_album").run({ albumId: 3, cambios: { eventDate: "2026-12-01", eventStartTime: "10:00" } }, actor)) as { before: unknown };
+    const guardado = JSON.parse(JSON.stringify(r.before));
+    m.update.mockResolvedValueOnce({ ok: true, before: {}, after: {} });
+    await tool("actualizar_album").undo!(guardado, actor);
+    expect(m.update).toHaveBeenLastCalledWith({
+      actorUserId: 7,
+      albumId: 3,
+      patch: { eventDate: "2026-11-02", eventStartTime: "19:00", eventEndTime: "22:30" },
+    });
+  });
+  it("actualizar_album: describe de selfies sin días dice 'el tiempo por defecto'", async () => {
+    m.album.mockResolvedValue({ id: 3, title: "A", eventId: null });
+    const d = await tool("actualizar_album").describe!({ albumId: 3, cambios: { hiddenSelfieRetentionDays: null } }, actor);
+    expect(d).toContain("el tiempo por defecto");
+    expect(d).not.toContain("días");
+  });
+  it("configurar_venta_por_reconocimiento: describe sin precio dice que falta", async () => {
+    m.album.mockResolvedValue({ id: 3, title: "A" });
+    const d = await tool("configurar_venta_por_reconocimiento").describe!({ albumId: 3, habilitar: true }, actor);
+    expect(d).toContain("falta el precio");
+    expect(d).not.toContain("$0");
+  });
+  it("extender_vencimiento: si falla la extensión devuelve mensaje claro", async () => {
+    m.album.mockResolvedValue({ id: 3, title: "A" });
+    m.ext.mockRejectedValue(new Error("boom"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await tool("extender_vencimiento").run({ albumId: 3, dias: 30 }, actor);
+    spy.mockRestore();
+    expect(r).toMatchObject({ ok: false, message: "No pude extender el álbum. Probá de nuevo o abrí un pedido de soporte." });
+  });
   it("descuentos fuera de 0-100 no pasan el esquema", () => {
     expect(tool("actualizar_album").input.safeParse({ albumId: 3, cambios: { digitalDiscount5Plus: 150 } }).success).toBe(false);
   });
