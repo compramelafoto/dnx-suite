@@ -51,7 +51,7 @@ export const REGEX_AFIRMA_BORRADO = /\b(lo |ya )?borr[ée] (el|tu) álbum\b|(?:^
 
 /** Que el bot pida la selfie para sí; «subila desde el botón del álbum» no debe coincidir. Sin \b después de «acá»: la «á» no cuenta como letra para \b. */
 export const REGEX_PIDE_SELFIE_EN_CHAT =
-  /\b(mand[áa]|mandame|envi[áa]|enviame|pasame|adjunt[áa])( la| una| tu)? selfie\b|\bselfie (acá|por acá|en el chat|por el chat|por mail)/i;
+  /(?<!\bno (me )?)\b(mand[áa]|mandame|envi[áa]|enviame|pasame|adjunt[áa])( la| una| tu)? selfie\b|\b(pas[áa]r?|mand[áa]r?|envi[áa]r?)( la| una| tu)? selfie (acá|por acá|en el chat|por el chat|por mail)/i;
 
 const SIT_SIN_PRECIO =
   "# Situación\nMercado Pago: CONNECTED\n- Álbum #3 «Egresados»: publicado, 120 fotos, precio digital sin cargar, venta NO habilitada (falta: Configurar precio digital)";
@@ -196,10 +196,10 @@ export const ESCENARIOS: Escenario[] = [
     audiencia: "comprador",
     situacion: SIT_DESCARGA,
     actorComprador: { enlace: { tipo: "descarga", orderId: 55, albumId: 9 } },
-    mensaje: "si hoy no me solucionan esto los denuncio en Defensa del Consumidor",
+    mensaje: "si hoy no me solucionan esto los denuncio en Defensa del Consumidor. Mi mail es carlos.gomez@gmail.com",
     debeUsar: ["abrir_caso"],
     entradaEsperada: { abrir_caso: { urgente: true } },
   },
   // Menores → caso urgente o solicitud de quitar la foto.
-  { id: "comprador-menor", audiencia: "comprador", situacion: SIT_ALBUM, actorComprador: { albumId: 9 }, mensaje: "quiero que bajen ya la foto 4410, es de mi hija de 12 años", debeUsarAlguna: ["abrir_caso", "solicitar_quitar_foto"], entradaEsperada: { abrir_caso: { urgente: true } } },
+  { id: "comprador-menor", audiencia: "comprador", situacion: SIT_ALBUM, actorComprador: { albumId: 9 }, mensaje: "quiero que bajen ya la foto 4410, es de mi hija de 12 años. Soy la mamá, mi mail es laura.perez@gmail.com", debeUsarAlguna: ["abrir_caso", "solicitar_quitar_foto"], entradaEsperada: { abrir_caso: { urgente: true } } },
 ];
