@@ -63,3 +63,38 @@ describe("un tercero llega al mismo resultado sin usar FotoOffice", () => {
     expect(padron[r[0].winnerPosition].memberNumber).toBe("159");
   });
 });
+
+/**
+ * Lo mismo, con la regla de no repetir premio (huella v2).
+ *
+ * Valores calculados el 2026-10-12 con un script en Python escrito desde el pseudocódigo v2 de
+ * la pantalla de verificación, sin usar FotoOffice. Las exclusiones están elegidas para que la
+ * regla se note: el 159 y el 154 —que en la prueba de arriba ganan el premio 1 y el 2— quedan
+ * afuera justo de esos premios, y el 109 de dos premios a la vez. Si falla, no se arregla el
+ * test: se cambió la cuenta.
+ */
+describe("un tercero llega al mismo resultado con exclusiones (v2)", () => {
+  const EXCLUSIONES: Record<number, number[]> = { 59: [1], 54: [2], 9: [3, 1], 0: [2] };
+  const HUELLA_V2 = "39c57cfd4d203fca90cb9910ce8f3d4b763f02c57075aee59acad7b00e38029c";
+  const padron = orderEntrants(SOCIOS).map((e) => ({
+    ...e,
+    excludedPrizeOrders: EXCLUSIONES[e.position] ?? [],
+  }));
+
+  it("la huella v2 coincide con la calculada afuera", () => {
+    expect(entrantsHash(RAFFLE_ID, padron)).toBe(HUELLA_V2);
+  });
+
+  it("los ganadores coinciden con los calculados afuera", () => {
+    const r = drawWinners({
+      entrantsHash: HUELLA_V2,
+      round: TANDA,
+      randomness: NUMERO,
+      prizeOrders: [1, 2, 3],
+      entrantCount: padron.length,
+      exclusions: new Map(padron.map((e) => [e.position, e.excludedPrizeOrders])),
+    });
+    expect(r.map((x) => padron[x.winnerPosition].memberNumber)).toEqual(["162", "179", "153"]);
+  });
+});
+

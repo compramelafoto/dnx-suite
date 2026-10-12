@@ -13,8 +13,9 @@ afuera de todos los premios— se descartó).
 - **Mismo premio** = misma serie mensual (`RafflePrize.commitmentId`). Un premio suelto, sin
   serie, es "el mismo" que otro cuando coinciden aliado (`partnerId`, o el nombre si no hay id)
   y título (sin mayúsculas ni espacios de más).
-- **Ventana**: el premio ganado en un sorteo con `drawnAt = D` bloquea los sorteos cuyo acto
-  (`drawsAt`) sea anterior a `D + N meses`. Ganó el 11/10 20:00 → bloqueado de noviembre a marzo;
+- **Ventana**: el premio ganado en un sorteo con acto (`drawsAt`) en `D` bloquea los sorteos cuyo acto
+  (`drawsAt`) sea anterior a `D + N meses`. Se cuenta desde la hora del acto, no desde
+  `drawnAt` (que llega segundos después y correría la ventana un mes). Ganó el 11/10 20:00 → bloqueado de noviembre a marzo;
   desde el sorteo del 11/04 20:00 vuelve a poder ganarlo.
 - **Cuenta como ganado** todo premio adjudicado salvo `ANULADO`. `NO_RETIRADO` cuenta: tuvo el
   premio y no lo retiró.

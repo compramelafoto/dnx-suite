@@ -9374,6 +9374,10 @@ model RaffleEntry {
   memberNumberSnapshot String
   fullNameSnapshot     String
 
+  /// Órdenes de premio de este sorteo que no puede ganar, por la regla de no repetir premio.
+  /// Se congelan al sellar y entran en la huella (v2): no se tocan nunca después.
+  excludedPrizeOrders Int[] @default([])
+
   createdAt DateTime @default(now())
 
   raffle Raffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
@@ -9554,6 +9558,9 @@ model RaffleSettings {
   pickupDays              Int     @default(15)
   /// Con cuántos días de anticipación se crea el sorteo del mes.
   createDaysAhead         Int     @default(10)
+  /// Meses durante los que quien ganó un premio no puede volver a ganar ESE premio (puede
+  /// ganar otros). 0 = regla apagada. Se aplica al sellar el padrón.
+  samePrizeCooldownMonths Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
