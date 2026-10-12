@@ -35,8 +35,9 @@ export async function POST(req: Request) {
     motivo: "otro",
     resumen: (typeof resumen === "string" && resumen.trim().slice(0, 1500)) || RESUMEN_POR_DEFECTO,
     urgente: false,
-    // El pedido guardado puede venir de la página de pago, que no prueba que sea suyo: no se anota.
-    orderId: null,
+    // El pedido guardado puede venir de la página de pago, que no prueba que sea suyo: `abrirCasoComprador`
+    // sólo lo vincula si se prueba la posesión; si no, queda como «Pedido declarado (sin verificar)».
+    orderId: conv.orderId ?? null,
   });
   if (!r.ok) return Response.json({ error: r.mensaje }, { status: 429 });
   return Response.json({ ticketId: r.ticketId, reused: r.reused });

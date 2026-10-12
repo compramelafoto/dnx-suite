@@ -68,7 +68,7 @@ describe("POST /api/bot/comprador/ticket", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ticketId: 44, reused: false });
     const p = m.abrir.mock.calls[0]![0];
-    expect(p).toMatchObject({ email: null, resumen: "No me llegó el mail", urgente: false, motivo: "otro" });
+    expect(p).toMatchObject({ email: null, resumen: "No me llegó el mail", urgente: false, motivo: "otro", orderId: 7 });
     expect(p.actor).toMatchObject({ conversationId: "cb1", guestKey: KEY, ipHash: "hash(9.9.9.9)", emailVerificado: "ju@x.com", enlace: null });
   });
   it("sin resumen → texto por defecto", async () => {

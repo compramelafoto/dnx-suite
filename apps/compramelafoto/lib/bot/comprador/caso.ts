@@ -41,6 +41,20 @@ function razonDe(m: MotivoCaso): string {
   return "OTHER";
 }
 
+/**
+ * ¿La persona probó que el pedido es suyo? Sólo así el caso queda vinculado al pedido: enlace con token válido
+ * de ese pedido, mail verificado igual al de la compra o sesión del comprador del pedido. Un número que dicta
+ * el modelo (o el que trae la página de pago) no prueba nada.
+ */
+export async function pedidoProbado(a: CompradorActor, orderId: number): Promise<boolean> {
+  if (a.enlace?.orderId === orderId) return true;
+  if (!a.emailVerificado && a.userId == null) return false;
+  const o = await prisma.order.findUnique({ where: { id: orderId }, select: { buyerEmail: true, buyerUserId: true } });
+  if (!o) return false;
+  if (a.userId != null && o.buyerUserId === a.userId) return true;
+  return !!a.emailVerificado && !!o.buyerEmail && normalizeEmail(o.buyerEmail) === normalizeEmail(a.emailVerificado);
+}
+
 export async function abrirCasoComprador(p: {
   actor: CompradorActor;
   email: string | null;
@@ -48,6 +62,7 @@ export async function abrirCasoComprador(p: {
   motivo: MotivoCaso;
   resumen: string;
   urgente: boolean;
+  /** Pedido que menciona la persona: sólo se vincula al ticket si `pedidoProbado`. */
   orderId: number | null;
   /** Texto del turno en curso (todavía no está guardado en el historial). */
   currentUserText?: string;
@@ -83,14 +98,17 @@ export async function abrirCasoComprador(p: {
   const history = await loadHistory(a.conversationId);
   const turno = p.currentUserText?.trim() ? [{ role: "user", content: p.currentUserText.trim() }] : [];
   const charla = keepTail(transcript([...history, ...turno]), SUPPORT_MESSAGE_MAX_LENGTH - NOTE_HEADER.length);
-  const pedido = p.orderId ? ` Pedido #${p.orderId}.` : "";
+  const probado = p.orderId != null && (await pedidoProbado(a, p.orderId));
+  const orderId = probado ? p.orderId : null;
+  const textoPedido = p.orderId == null ? "" : probado ? `Pedido #${p.orderId}` : `Pedido declarado #${p.orderId} (sin verificar)`;
+  const pedido = textoPedido ? ` ${textoPedido}.` : "";
 
   const ticket = await createSupportTicket({
     data: {
       reason: razonDe(p.motivo),
       description: `[Comprador · ${marca}]${pedido} Motivo: ${p.motivo}.\n${p.resumen}`.slice(0, SUPPORT_DESCRIPTION_MAX_LENGTH),
       printOrderId: null,
-      orderId: p.orderId,
+      orderId,
       requesterName: p.nombre,
       requesterEmail: email,
       requesterPhone: null,
@@ -110,14 +128,14 @@ export async function abrirCasoComprador(p: {
     toolName: "abrir_caso",
     email,
     resultado: `ticket:${ticket.id}`,
-    datos: { motivo: p.motivo, urgente: p.urgente, orderId: p.orderId },
+    datos: { motivo: p.motivo, urgente: p.urgente, orderId, ...(p.orderId != null && !probado ? { pedidoDeclarado: p.orderId } : {}) },
   });
 
   if (p.urgente || plata) {
     try {
       await sendTelegramMessage(
         readBotConfig().telegram,
-        `🚨 CLF · Caso de comprador #${ticket.id} (${p.motivo})\n${p.orderId ? `Pedido #${p.orderId} · ` : ""}${enmascarado} (${verificado ? "verificado" : "sin verificar"})\n\n${p.resumen}`,
+        `🚨 CLF · Caso de comprador #${ticket.id} (${p.motivo})\n${textoPedido ? `${textoPedido} · ` : ""}${enmascarado} (${verificado ? "verificado" : "sin verificar"})\n\n${p.resumen}`,
       );
     } catch (e) {
       // El caso ya quedó abierto: un Telegram caído no lo deshace.

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
-  create: vi.fn(), history: vi.fn(), find: vi.fn(), update: vi.fn(), tg: vi.fn(), registrar: vi.fn(), contar: vi.fn(),
+  create: vi.fn(), history: vi.fn(), find: vi.fn(), update: vi.fn(), tg: vi.fn(), registrar: vi.fn(), contar: vi.fn(), order: vi.fn(),
 }));
 vi.mock("@/lib/support/create-ticket", () => ({ createSupportTicket: m.create }));
 vi.mock("@/lib/bot/store", () => ({ loadHistory: m.history, upsertIncident: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ prisma: { botConversation: { findUnique: m.find, update: m.update } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { botConversation: { findUnique: m.find, update: m.update }, order: { findUnique: m.order } } }));
 vi.mock("@repo/dnx-bot", async (orig) => ({ ...(await orig<object>()), sendTelegramMessage: m.tg }));
 vi.mock("@/lib/bot/config", () => ({ BOT_PLATFORM: "CLF", readBotConfig: () => ({ telegram: { token: "t", chatId: "c" } }) }));
 vi.mock("./store", () => ({ registrarAccionComprador: m.registrar, contarAccionesComprador: m.contar }));
@@ -29,6 +29,7 @@ beforeEach(() => {
   m.find.mockResolvedValue({ status: "OPEN", supportTicketId: null });
   m.contar.mockResolvedValue(0);
   m.tg.mockResolvedValue(undefined);
+  m.order.mockResolvedValue({ buyerEmail: "Juana@Gmail.com", buyerUserId: 9 });
 });
 
 describe("esCasoDePlata", () => {
@@ -54,9 +55,9 @@ describe("abrirCasoComprador", () => {
     expect(arg.requesterLabel).toContain("ju***@gmail.com");
     expect(arg.requesterLabel).not.toContain("juana@gmail.com");
     expect(arg.data).toMatchObject({
-      orderId: 88, printOrderId: null, requesterRole: "CUSTOMER", requesterEmail: "juana@gmail.com", requesterName: "Juana", reason: "OTHER",
+      orderId: null, printOrderId: null, requesterRole: "CUSTOMER", requesterEmail: "juana@gmail.com", requesterName: "Juana", reason: "OTHER",
     });
-    expect(arg.data.description).toBe("[Comprador · mail sin verificar] Pedido #88. Motivo: otro.\nNo encuentra su álbum");
+    expect(arg.data.description).toBe("[Comprador · mail sin verificar] Pedido declarado #88 (sin verificar). Motivo: otro.\nNo encuentra su álbum");
     expect(arg.internalNote).toMatch(/^Derivado por DNX Bot\.\n\n/);
     expect(arg.internalNote).toContain("no encuentro mis fotos");
     expect(arg.internalNote).toContain("me cobraron");
@@ -64,7 +65,7 @@ describe("abrirCasoComprador", () => {
     expect(m.update.mock.calls[0]![0]).toMatchObject({ where: { id: "c1" }, data: { status: "ESCALATED", supportTicketId: 31 } });
     expect(m.registrar).toHaveBeenCalledWith({
       conversationId: "c1", toolName: "abrir_caso", email: "juana@gmail.com", resultado: "ticket:31",
-      datos: { motivo: "otro", urgente: false, orderId: 88 },
+      datos: { motivo: "otro", urgente: false, orderId: null, pedidoDeclarado: 88 },
     });
   });
 
@@ -96,7 +97,7 @@ describe("abrirCasoComprador", () => {
     expect(m.create.mock.calls[0]![0].adminTitle).toBe("URGENTE · DNX Bot derivó un caso de comprador");
     expect(m.tg).toHaveBeenCalledTimes(1);
     const texto = m.tg.mock.calls[0]![1] as string;
-    expect(texto).toBe("🚨 CLF · Caso de comprador #31 (pago_duplicado)\nPedido #88 · ju***@gmail.com (sin verificar)\n\nNo encuentra su álbum");
+    expect(texto).toBe("🚨 CLF · Caso de comprador #31 (pago_duplicado)\nPedido declarado #88 (sin verificar) · ju***@gmail.com (sin verificar)\n\nNo encuentra su álbum");
   });
 
   it("otro no urgente no manda Telegram; urgente sí", async () => {
@@ -137,5 +138,59 @@ describe("abrirCasoComprador", () => {
   it("la descripción se recorta a 8000", async () => {
     await abrirCasoComprador(base({ resumen: "x".repeat(9000) }));
     expect(m.create.mock.calls[0]![0].data.description.length).toBe(8000);
+  });
+
+  describe("vínculo con el pedido", () => {
+    it("pedido ajeno con mail verificado distinto → orderId null y «sin verificar» en ticket, acción y Telegram", async () => {
+      m.order.mockResolvedValue({ buyerEmail: "duenia@gmail.com", buyerUserId: 3 });
+      await abrirCasoComprador(base({
+        actor: actor({ emailVerificado: "juana@gmail.com" }), email: null, motivo: "cambio_de_mail", urgente: true, orderId: 4512,
+      }));
+      const arg = m.create.mock.calls[0]![0];
+      expect(arg.data.orderId).toBeNull();
+      expect(arg.data.description).toContain("Pedido declarado #4512 (sin verificar).");
+      expect(arg.data.description).not.toMatch(/ Pedido #4512/);
+      expect(m.tg.mock.calls[0]![1]).toContain("Pedido declarado #4512 (sin verificar) · ");
+      expect(m.registrar.mock.calls[0]![0].datos).toMatchObject({ orderId: null, pedidoDeclarado: 4512 });
+    });
+
+    it("visitante sin verificar ni enlace → no consulta el pedido ni lo vincula", async () => {
+      await abrirCasoComprador(base({ orderId: 4512 }));
+      expect(m.order).not.toHaveBeenCalled();
+      expect(m.create.mock.calls[0]![0].data.orderId).toBeNull();
+    });
+
+    it("pedido inexistente → no se vincula", async () => {
+      m.order.mockResolvedValue(null);
+      await abrirCasoComprador(base({ actor: actor({ emailVerificado: "juana@gmail.com" }), email: null, orderId: 999 }));
+      expect(m.create.mock.calls[0]![0].data.orderId).toBeNull();
+    });
+
+    it("mail verificado igual al de la compra (normalizado) → se vincula", async () => {
+      await abrirCasoComprador(base({ actor: actor({ emailVerificado: "juana@gmail.com" }), email: null, orderId: 88, motivo: "reembolso" }));
+      const arg = m.create.mock.calls[0]![0];
+      expect(arg.data.orderId).toBe(88);
+      expect(arg.data.description).toMatch(/^\[Comprador · mail verificado\] Pedido #88\. Motivo: reembolso\./);
+      expect(m.tg.mock.calls[0]![1]).toContain("\nPedido #88 · ");
+      expect(m.order).toHaveBeenCalledWith({ where: { id: 88 }, select: { buyerEmail: true, buyerUserId: true } });
+    });
+
+    it("sesión del comprador del pedido → se vincula aunque el mail del pedido sea otro", async () => {
+      m.order.mockResolvedValue({ buyerEmail: "viejo@gmail.com", buyerUserId: 9 });
+      await abrirCasoComprador(base({ actor: actor({ emailVerificado: "juana@gmail.com", userId: 9 }), email: null, orderId: 88 }));
+      expect(m.create.mock.calls[0]![0].data.orderId).toBe(88);
+    });
+
+    it("enlace con token de ese pedido → se vincula sin consultar", async () => {
+      await abrirCasoComprador(base({ actor: actor({ enlace: { tipo: "descarga", orderId: 88, albumId: 3 } }), orderId: 88 }));
+      expect(m.order).not.toHaveBeenCalled();
+      expect(m.create.mock.calls[0]![0].data.orderId).toBe(88);
+    });
+
+    it("enlace de otro pedido no prueba el pedido declarado", async () => {
+      m.order.mockResolvedValue({ buyerEmail: "duenia@gmail.com", buyerUserId: null });
+      await abrirCasoComprador(base({ actor: actor({ enlace: { tipo: "descarga", orderId: 5, albumId: 3 } }), orderId: 88 }));
+      expect(m.create.mock.calls[0]![0].data.orderId).toBeNull();
+    });
   });
 });
