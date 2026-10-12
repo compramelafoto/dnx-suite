@@ -168,6 +168,14 @@ describe("reenviar_descarga", () => {
     expect(m.reenviar).not.toHaveBeenCalled();
   });
 
+  it("con número de pedido y un mail que no es el de la compra no reenvía", async () => {
+    m.order.findFirst.mockResolvedValue(null);
+    const r = await correr(actor(), "reenviar_descarga", { pedido: 77, email: "otra@gmail.com" });
+    expect(m.order.findFirst.mock.calls[0]![0].where).toMatchObject({ id: 77, buyerEmail: { equals: "otra@gmail.com", mode: "insensitive" } });
+    expect(m.reenviar).not.toHaveBeenCalled();
+    expect(r).toEqual({ ok: true, message: RESPUESTA_REENVIO });
+  });
+
   it("con sólo el mail de un álbum borrado no lo revela", async () => {
     m.order.findMany.mockResolvedValue([pedido(77, BORRADO)]);
     const r = await correr(actor(), "reenviar_descarga", { email: "juana@gmail.com" });
@@ -294,13 +302,15 @@ describe("avisame_cuando_haya_fotos", () => {
     const r = await correr(actor(), "avisame_cuando_haya_fotos", { albumId: 3, nombre: "Juana", email: "juana@gmail.com" });
     expect(r.ok).toBe(false);
     expect(m.interes).not.toHaveBeenCalled();
+    expect(m.album.findFirst).not.toHaveBeenCalled();
     expect(Date.now() - m.contar.mock.calls[0]![0].desde.getTime()).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 1000);
   });
 });
 
 describe("solicitar_quitar_foto", () => {
   const INPUT = { albumId: 3, photoId: 40, nombre: "Juana Pérez", email: "Juana@Gmail.com", telefono: "3415551234", motivo: "Soy yo y no quiero que se vea." };
-  const FOTO = { id: 40, albumId: 3, isRemoved: false, album: { title: "Maratón", isTest: false } };
+  const ALBUM_FOTO = { id: 3, title: "Maratón", isTest: false, deletedAt: null, isPublic: true, isHidden: false };
+  const FOTO = { id: 40, albumId: 3, isRemoved: false, album: ALBUM_FOTO };
 
   it("describe con foto de otro álbum lanza", async () => {
     m.photo.findUnique.mockResolvedValue({ ...FOTO, albumId: 99 });
@@ -308,8 +318,9 @@ describe("solicitar_quitar_foto", () => {
   });
 
   it("describe con foto removida o álbum de prueba lanza", async () => {
-    m.photo.findUnique.mockResolvedValueOnce({ ...FOTO, isRemoved: true }).mockResolvedValueOnce({ ...FOTO, album: { title: "x", isTest: true } }).mockResolvedValueOnce(null);
-    for (let i = 0; i < 3; i++) await expect(describir(actor(), "solicitar_quitar_foto", INPUT)).rejects.toThrow();
+    m.photo.findUnique.mockResolvedValueOnce({ ...FOTO, isRemoved: true }).mockResolvedValueOnce({ ...FOTO, album: { ...ALBUM_FOTO, isTest: true } }).mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...FOTO, album: { ...ALBUM_FOTO, deletedAt: new Date("2026-09-01T00:00:00Z") } });
+    for (let i = 0; i < 4; i++) await expect(describir(actor(), "solicitar_quitar_foto", INPUT)).rejects.toThrow();
   });
 
   it("describe arma la tarjeta con el mail enmascarado", async () => {
@@ -321,11 +332,24 @@ describe("solicitar_quitar_foto", () => {
     sinFuga(t);
   });
 
+  it("álbum oculto: acepta la solicitud pero no muestra el título", async () => {
+    m.photo.findUnique.mockResolvedValue({ ...FOTO, album: { ...ALBUM_FOTO, title: "Secreto", isHidden: true } });
+    const t = await describir(actor({ albumId: 3 }), "solicitar_quitar_foto", INPUT);
+    expect(t).toMatch(/^Pedirle al fotógrafo que quite la foto #40 del álbum\. Lo decide/);
+    expect(t).not.toContain("Secreto");
+  });
+
+  it("álbum no listado: título sólo en su página", async () => {
+    m.photo.findUnique.mockResolvedValue({ ...FOTO, album: { ...ALBUM_FOTO, title: "Privado", isPublic: false } });
+    expect(await describir(actor(), "solicitar_quitar_foto", INPUT)).not.toContain("Privado");
+    expect(await describir(actor({ albumId: 3 }), "solicitar_quitar_foto", INPUT)).toContain("del álbum «Privado»");
+  });
+
   it("describe con 10 solicitudes de la IP en la hora lanza", async () => {
     m.photo.findUnique.mockResolvedValue(FOTO);
     m.contar.mockResolvedValue(10);
     await expect(describir(actor(), "solicitar_quitar_foto", INPUT)).rejects.toThrow("Ya mandaste varias solicitudes en la última hora.");
-    expect(m.contar.mock.calls[0]![0]).toMatchObject({ ipHash: "h".repeat(64) });
+    expect(m.contar.mock.calls[0]![0]).toMatchObject({ ipHash: "h".repeat(64), toolName: ["solicitar_quitar_foto", "solicitud_de_privacidad"] });
   });
 
   it("run crea la solicitud con declarationOk", async () => {
@@ -356,6 +380,11 @@ describe("solicitud_de_privacidad", () => {
     );
     expect(await describir(actor(), "solicitud_de_privacidad", { ...INPUT, tipo: "DESACTIVAR_BIOMETRIA" })).toContain("borrar los datos de tu selfie");
     sinFuga(t);
+  });
+
+  it("describe con el tope compartido de solicitudes lanza", async () => {
+    m.contar.mockResolvedValue(10);
+    await expect(describir(actor(), "solicitud_de_privacidad", INPUT)).rejects.toThrow("Ya mandaste varias solicitudes en la última hora.");
   });
 
   it("run crea la solicitud con los datos del bot", async () => {

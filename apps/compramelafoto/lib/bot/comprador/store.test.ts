@@ -171,3 +171,23 @@ describe("store del comprador", () => {
     expect(m.action.count.mock.calls[0]![0].where).toEqual({ platform: "CLF", userId: null, toolName: "a", createdAt: { gte: desde } });
   });
 });
+
+describe("tope de solicitudes con tarjeta (T10)", () => {
+  it("las propuestas que guarda crearAccionPendienteComprador entran en el conteo de contarAccionesComprador", async () => {
+    m.action.create.mockResolvedValue({ id: "a1" });
+    m.action.count.mockResolvedValue(1);
+    await crearAccionPendienteComprador({ conversationId: "c1", toolName: "solicitar_quitar_foto", input: {}, summary: "s" });
+    const guardada = m.action.create.mock.calls[0]![0].data;
+    await contarAccionesComprador({ toolName: ["solicitar_quitar_foto", "solicitud_de_privacidad"], desde: new Date(0), ipHash: "h1" });
+    const where = m.action.count.mock.calls[0]![0].where;
+    // Mismos platform y userId; el toolName entra en el `in`; la IP se mira en la conversación de la fila (c1).
+    expect(where.platform).toBe(guardada.platform);
+    expect(where.userId).toBe(guardada.userId);
+    expect(guardada.userId).toBeNull();
+    expect(where.toolName.in).toContain(guardada.toolName);
+    expect(guardada.conversationId).toBe("c1");
+    expect(where.conversation).toEqual({ is: { ipHash: "h1" } });
+    // Sin filtro de status: cuentan propuestas pendientes, confirmadas y rechazadas.
+    expect(where.status).toBeUndefined();
+  });
+});

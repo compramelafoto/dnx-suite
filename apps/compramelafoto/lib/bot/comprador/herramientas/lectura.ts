@@ -1,6 +1,6 @@
 import { defineTool, type BotTool, type ToolOutcome } from "@repo/dnx-bot";
 import { z } from "zod";
-import { isAlbumPubliclyAccessible, isAlbumUnlistedWithDirectLink, publicAlbumFilter } from "@/lib/album-helpers";
+import { publicAlbumFilter } from "@/lib/album-helpers";
 import { albumPhotoFileKey } from "@/lib/album-photo-ref";
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
 import { albumConOriginales } from "@/lib/digital-download/reenviar-descarga";
@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import type { CompradorActor } from "../identidad";
 import { etiquetaEstadoPedido } from "../mascara";
 import { enlaceAlbum, enlaceReintento } from "../rutas";
+import { albumVisiblePara } from "./visibilidad";
 
 const ZONA_AR = "America/Argentina/Buenos_Aires";
 const FECHA_AR = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA_AR, day: "2-digit", month: "2-digit", year: "numeric" });
@@ -33,18 +34,6 @@ const PEDIDO_NO_ENCONTRADO = { ok: false as const, message: "No encontré ese pe
 const ACLARACION_COTIZACION = "Es el total de fotos digitales; si el álbum tiene precios distintos por foto puede variar un poco.";
 
 const albumId = z.number().int().positive();
-
-type AlbumVisible = { id: number; isPublic: boolean | null; isHidden: boolean | null };
-
-/**
- * Se ve si es público o si es el álbum de la página donde está la persona y esa página lo muestra:
- * no listado con link directo. Un álbum oculto (`isHidden`) no: `/a/[id]` y `/album/[slug]` bloquean
- * la galería (sólo ofrecen pedir la reactivación), y `a.albumId` sale de un `pagePath` que manda el navegador.
- */
-function albumVisiblePara(a: CompradorActor, album: AlbumVisible | null): boolean {
-  if (!album) return false;
-  return isAlbumPubliclyAccessible(album) || (album.id === a.albumId && isAlbumUnlistedWithDirectLink(album));
-}
 
 /** Total de `cantidad` fotos digitales con el mismo cálculo del checkout (recargo incluido, en pesos). */
 async function cotizar(id: number, fotos: { id: number }[]): Promise<number> {

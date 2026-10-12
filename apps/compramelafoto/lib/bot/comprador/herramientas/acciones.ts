@@ -1,6 +1,5 @@
 import { defineTool, type BotTool, type ToolOutcome } from "@repo/dnx-bot";
 import { z } from "zod";
-import { isAlbumPubliclyAccessible, isAlbumUnlistedWithDirectLink } from "@/lib/album-helpers";
 import { guardarInteresEnAlbum } from "@/lib/albums/registrar-interes";
 import { albumConOriginales, reenviarDescargaDePedido } from "@/lib/digital-download/reenviar-descarga";
 import { normalizeEmail } from "@/lib/order-claims";
@@ -12,6 +11,7 @@ import { pedirCodigo, verificarCodigo } from "../codigo";
 import type { CompradorActor } from "../identidad";
 import { enmascararEmail } from "../mascara";
 import { contarAccionesComprador, registrarAccionComprador } from "../store";
+import { albumVisiblePara } from "./visibilidad";
 
 export const LIMITES_ACCIONES = {
   reenviosPorMailHora: 3,
@@ -223,16 +223,15 @@ function avisameCuandoHayaFotos(a: CompradorActor): BotTool {
       whatsapp: z.string().min(8).max(30).optional(),
     }),
     run: async ({ albumId, nombre, email: crudo, whatsapp }) => {
+      // El tope va primero: agotado, no sirve para averiguar qué álbumes existen.
+      const n = await contarAccionesComprador({ toolName: "avisame_cuando_haya_fotos", desde: new Date(Date.now() - UN_DIA_MS), ipHash: a.ipHash });
+      if (n >= LIMITES_ACCIONES.avisosPorIpDia) return { ok: false, message: "Ya anotaste varios avisos hoy. Probá de nuevo mañana." };
+
       const album = await prisma.album.findFirst({
         where: { id: albumId, isTest: false, deletedAt: null },
         select: { id: true, title: true, isPublic: true, isHidden: true },
       });
-      // Público, o el de la página si la página lo muestra (no listado con link directo; nunca oculto).
-      const visible = album && (isAlbumPubliclyAccessible(album) || (album.id === a.albumId && isAlbumUnlistedWithDirectLink(album)));
-      if (!album || !visible) return { ok: false, message: "No encontré ese álbum." };
-
-      const n = await contarAccionesComprador({ toolName: "avisame_cuando_haya_fotos", desde: new Date(Date.now() - UN_DIA_MS), ipHash: a.ipHash });
-      if (n >= LIMITES_ACCIONES.avisosPorIpDia) return { ok: false, message: "Ya anotaste varios avisos hoy. Probá de nuevo mañana." };
+      if (!album || !albumVisiblePara(a, album)) return { ok: false, message: "No encontré ese álbum." };
 
       const mail = normalizeEmail(crudo);
       // Sin apellido y sin WhatsApp vacío: si la persona ya estaba anotada, no se pisan sus datos.
@@ -277,12 +276,18 @@ function solicitarQuitarFoto(a: CompradorActor): BotTool {
       await topeDeSolicitudes(a);
       const foto = await prisma.photo.findUnique({
         where: { id: photoId },
-        select: { albumId: true, isRemoved: true, album: { select: { title: true, isTest: true } } },
+        select: {
+          albumId: true, isRemoved: true,
+          album: { select: { id: true, title: true, isTest: true, deletedAt: true, isPublic: true, isHidden: true } },
+        },
       });
-      if (!foto || foto.albumId !== albumId || foto.isRemoved || foto.album.isTest) {
+      if (!foto || foto.albumId !== albumId || foto.isRemoved || foto.album.isTest || foto.album.deletedAt) {
         throw new Error("No encontré esa foto en ese álbum.");
       }
-      return `Pedirle al fotógrafo que quite la foto #${photoId} del álbum «${foto.album.title}». Lo decide el fotógrafo y no es inmediato. Te avisamos a ${enmascararEmail(crudo)}. Al confirmar declarás que sos la persona de la foto o su representante.`;
+      // Se acepta aunque el álbum esté oculto (la persona puede llegar a su foto por selfie),
+      // pero el título sólo se muestra si la persona puede ver el álbum: los ids se pueden recorrer.
+      const delAlbum = albumVisiblePara(a, foto.album) ? `del álbum «${foto.album.title}»` : "del álbum";
+      return `Pedirle al fotógrafo que quite la foto #${photoId} ${delAlbum}. Lo decide el fotógrafo y no es inmediato. Te avisamos a ${enmascararEmail(crudo)}. Al confirmar declarás que sos la persona de la foto o su representante.`;
     },
     run: async ({ albumId, photoId, nombre, email: crudo, telefono, motivo }) => {
       const r = await crearSolicitudDeRemocion({
