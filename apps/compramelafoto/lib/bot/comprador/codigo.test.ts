@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
-  code: { count: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  code: { count: vi.fn(), create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   order: { count: vi.fn() },
   sendEmail: vi.fn(),
   marcarVerificada: vi.fn(),
@@ -24,7 +24,6 @@ beforeEach(() => {
   m.code.count.mockReset().mockResolvedValue(0);
   m.code.create.mockReset().mockResolvedValue({ id: "k1" });
   m.code.findFirst.mockReset();
-  m.code.update.mockReset();
   m.code.updateMany.mockReset().mockResolvedValue({ count: 1 });
   m.order.count.mockReset().mockResolvedValue(1);
   m.sendEmail.mockReset().mockResolvedValue({ success: true });
@@ -125,7 +124,10 @@ describe("verificarCodigo", () => {
     m.code.findFirst.mockResolvedValue(fila());
     const antes = Date.now();
     expect(await verificarCodigo(verif)).toEqual({ ok: true, email: "juana@gmail.com" });
-    expect(m.code.updateMany).toHaveBeenCalledWith({ where: { id: "k1", usedAt: null }, data: { usedAt: expect.any(Date) } });
+    expect(m.code.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "k1", usedAt: null, attempts: { lt: CODIGO_MAX_INTENTOS } }, data: { attempts: { increment: 1 } },
+    });
+    expect(m.code.updateMany).toHaveBeenNthCalledWith(2, { where: { id: "k1", usedAt: null }, data: { usedAt: expect.any(Date) } });
     const [conv, email, hasta] = m.marcarVerificada.mock.calls[0]!;
     expect(conv).toBe("c1");
     expect(email).toBe("juana@gmail.com");
@@ -150,29 +152,58 @@ describe("verificarCodigo", () => {
     expect(m.code.findFirst).not.toHaveBeenCalled();
   });
 
-  it("incorrecto suma un intento", async () => {
+  it("incorrecto reserva (suma) un intento antes de comparar", async () => {
     m.code.findFirst.mockResolvedValue(fila());
-    m.code.update.mockResolvedValue({ attempts: 1 });
     expect(await verificarCodigo({ ...verif, codigo: "654321" })).toEqual({
       ok: false, motivo: "incorrecto", mensaje: "Ese código no coincide. Revisalo y probá de nuevo.",
     });
-    expect(m.code.update).toHaveBeenCalledWith({ where: { id: "k1" }, data: { attempts: { increment: 1 } }, select: { attempts: true } });
-    expect(m.code.updateMany).not.toHaveBeenCalled();
+    expect(m.code.updateMany).toHaveBeenCalledTimes(1);
+    expect(m.code.updateMany).toHaveBeenCalledWith({
+      where: { id: "k1", usedAt: null, attempts: { lt: CODIGO_MAX_INTENTOS } },
+      data: { attempts: { increment: 1 } },
+    });
     expect(m.marcarVerificada).not.toHaveBeenCalled();
   });
 
   it("el 5.º incorrecto responde intentos", async () => {
     m.code.findFirst.mockResolvedValue(fila({ attempts: CODIGO_MAX_INTENTOS - 1 }));
-    m.code.update.mockResolvedValue({ attempts: CODIGO_MAX_INTENTOS });
     expect(await verificarCodigo({ ...verif, codigo: "654321" })).toEqual({
       ok: false, motivo: "intentos", mensaje: "Hubo demasiados intentos con ese código. Pedime uno nuevo.",
     });
   });
 
+  it("si la reserva del intento no entra (tope ya alcanzado en paralelo) → intentos, aunque el código sea correcto", async () => {
+    m.code.findFirst.mockResolvedValue(fila({ attempts: 0 }));
+    m.code.updateMany.mockResolvedValueOnce({ count: 0 });
+    expect(await verificarCodigo(verif)).toMatchObject({ ok: false, motivo: "intentos" });
+    expect(m.code.updateMany).toHaveBeenCalledTimes(1);
+    expect(m.marcarVerificada).not.toHaveBeenCalled();
+  });
+
+  it("ráfaga de 8 verificaciones en paralelo: sólo 5 llegan a comparar y el correcto llega tarde", async () => {
+    // Simula la fila en la base: todas leen attempts 0, pero el updateMany con `attempts < 5` es atómico.
+    let attempts = 0;
+    m.code.findFirst.mockResolvedValue(fila({ attempts: 0 }));
+    m.code.updateMany.mockImplementation(async ({ where, data }: { where: { attempts?: { lt: number } }; data: Record<string, unknown> }) => {
+      if (data.attempts) {
+        if (attempts >= where.attempts!.lt) return { count: 0 };
+        attempts += 1;
+        return { count: 1 };
+      }
+      return { count: 1 };
+    });
+    const malos = Array.from({ length: 7 }, (_, i) => verificarCodigo({ ...verif, codigo: `00000${i}` }));
+    const r = await Promise.all([...malos, verificarCodigo(verif)]);
+    expect(attempts).toBe(CODIGO_MAX_INTENTOS);
+    expect(r.filter((x) => !x.ok && x.motivo === "intentos")).toHaveLength(3);
+    expect(r[7]).toMatchObject({ ok: false, motivo: "intentos" });
+    expect(m.marcarVerificada).not.toHaveBeenCalled();
+  });
+
   it("con 5 intentos ya hechos no deja probar ni el correcto", async () => {
     m.code.findFirst.mockResolvedValue(fila({ attempts: CODIGO_MAX_INTENTOS }));
     expect(await verificarCodigo(verif)).toMatchObject({ ok: false, motivo: "intentos" });
-    expect(m.code.update).not.toHaveBeenCalled();
+    expect(m.code.updateMany).not.toHaveBeenCalled();
     expect(m.marcarVerificada).not.toHaveBeenCalled();
   });
 
@@ -182,11 +213,14 @@ describe("verificarCodigo", () => {
     expect(m.marcarVerificada).not.toHaveBeenCalled();
   });
 
-  it("doble verificación concurrente (updateMany count 0) → no marca dos veces", async () => {
+  it("doble verificación concurrente (updateMany de uso count 0) → no marca dos veces y responde usado", async () => {
     m.code.findFirst.mockResolvedValue(fila());
-    m.code.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    let usos = 0;
+    m.code.updateMany.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
+      data.usedAt ? { count: usos++ === 0 ? 1 : 0 } : { count: 1 });
     const [a, b] = await Promise.all([verificarCodigo(verif), verificarCodigo(verif)]);
     expect(m.marcarVerificada).toHaveBeenCalledTimes(1);
-    expect([a.ok, b.ok].sort()).toEqual([false, true]);
+    expect([a, b]).toContainEqual({ ok: true, email: "juana@gmail.com" });
+    expect([a, b]).toContainEqual({ ok: false, motivo: "usado", mensaje: "Ese código ya se usó. Si hace falta, pedime uno nuevo." });
   });
 });

@@ -17,13 +17,13 @@ const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const MENSAJES = {
   sin_codigo: "Primero pedime un código con tu mail.",
-  ya_usado: "Ese código ya se usó. Si hace falta, pedime uno nuevo.",
+  usado: "Ese código ya se usó. Si hace falta, pedime uno nuevo.",
   vencido: "Ese código venció. Pedime uno nuevo.",
   intentos: "Hubo demasiados intentos con ese código. Pedime uno nuevo.",
   incorrecto: "Ese código no coincide. Revisalo y probá de nuevo.",
 } as const;
 
-type MotivoFallo = "sin_codigo" | "vencido" | "intentos" | "incorrecto";
+type MotivoFallo = "sin_codigo" | "usado" | "vencido" | "intentos" | "incorrecto";
 type ResultadoVerificacion = { ok: true; email: string } | { ok: false; motivo: MotivoFallo; mensaje: string };
 
 /** 6 dígitos con ceros a la izquierda, al azar criptográfico. */
@@ -110,18 +110,21 @@ export async function verificarCodigo(p: { conversationId: string; guestKey: str
   if (fila.expiresAt.getTime() <= Date.now()) return fallo("vencido");
   if (fila.attempts >= CODIGO_MAX_INTENTOS) return fallo("intentos");
 
+  // Reserva el intento antes de comparar, con el tope en el `where`: verificaciones en paralelo no pueden
+  // probar más de 5 códigos (un acierto también consume un intento).
+  const reserva = await prisma.botEmailCode.updateMany({
+    where: { id: fila.id, usedAt: null, attempts: { lt: CODIGO_MAX_INTENTOS } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (reserva.count === 0) return fallo("intentos");
+
   if (!mismoHash(hashCodigo(fila.conversationId, codigo), fila.codeHash)) {
-    const r = await prisma.botEmailCode.update({
-      where: { id: fila.id },
-      data: { attempts: { increment: 1 } },
-      select: { attempts: true },
-    });
-    return r.attempts >= CODIGO_MAX_INTENTOS ? fallo("intentos") : fallo("incorrecto");
+    return fila.attempts + 1 >= CODIGO_MAX_INTENTOS ? fallo("intentos") : fallo("incorrecto");
   }
 
   const ahora = new Date();
   const usado = await prisma.botEmailCode.updateMany({ where: { id: fila.id, usedAt: null }, data: { usedAt: ahora } });
-  if (usado.count !== 1) return fallo("sin_codigo", MENSAJES.ya_usado);
+  if (usado.count !== 1) return fallo("usado");
   await marcarVerificada(p.conversationId, fila.email, new Date(ahora.getTime() + VERIFICACION_DURA_MS));
   return { ok: true, email: fila.email };
 }
