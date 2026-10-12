@@ -7261,6 +7261,11 @@ model Workspace {
   fotofficeGaleriaComentarios    FotofficeGaleriaComentario[]
   fotofficeGaleriaEventos        FotofficeGaleriaEvento[]
   fotofficeGaleriaAjustes        FotofficeGaleriaAjustes?
+  fotofficeGaleriaCompras        FotofficeGaleriaCompra[]
+  fotofficeGaleriaDescargas      FotofficeGaleriaDescarga[]
+  fotofficeGaleriaRondas         FotofficeGaleriaRonda[]
+  fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
+  fotofficeDispositivos          FotofficeDispositivo[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -18726,6 +18731,8 @@ model CashCategory {
   fotofficePedidosIngreso       FotofficePedido[]           @relation("FotofficePedidoRubroIngreso")
   fotofficeCuentasPagarCosto    FotofficeCuentaPagar[]      @relation("FotofficeCuentaPagarRubroCosto")
   fotofficePedidoAjustesIngreso FotofficePedidoAjustes[]    @relation("FotofficePedidoAjustesRubroIngreso")
+  fotofficeGaleriasIngreso      FotofficeGaleria[]          @relation("FotofficeGaleriaRubroIngreso")
+  fotofficeGaleriaAjustesIngreso FotofficeGaleriaAjustes[]  @relation("FotofficeGaleriaAjustesRubroIngreso")
 
   @@unique([workspaceId, kind, name])
   @@index([workspaceId, kind, isActive])
@@ -18826,6 +18833,7 @@ model CashMovement {
   fotofficeCobroAnulado      FotofficeCobro?       @relation("FotofficeCobroContramovimiento")
   fotofficeCuentaPagada      FotofficeCuentaPagar? @relation("FotofficeCuentaPagarMovimiento")
   fotofficeCuentaPagoAnulado FotofficeCuentaPagar? @relation("FotofficeCuentaPagarContramovimiento")
+  fotofficeGaleriaCompra     FotofficeGaleriaCompra? @relation("FotofficeGaleriaCompraMovimiento")
 
   /// Lo que hace idempotente al depósito automático: una reserva no puede entrar dos veces.
   /// Los manuales no chocan entre sí porque `sourceRef` es nulo y Postgres no considera
@@ -23405,6 +23413,19 @@ model FotofficeGaleria {
   downloadMode    String    @default("VISTA")
   status          String    @default("BORRADOR")
   coverFotoId     String?   @unique
+  /// Venta de fotos extra (Entrega A2). Fotos incluidas sin costo (CHECK >= 0).
+  includedCount   Int       @default(0)
+  /// POR_FOTO|PAQUETE (CHECK); nulo mientras `saleMode` es SELECCION.
+  pricingMode     String?
+  unitPriceArs    Decimal?  @db.Decimal(14, 2)
+  packageSize     Int?
+  packagePriceArs Decimal?  @db.Decimal(14, 2)
+  /// NINGUNO|UNICO|PROGRESIVO (CHECK).
+  discountMode    String    @default("NINGUNO")
+  discountPct     Int?
+  /// Hasta 4 reglas `{ pct 1-90, desde >= 2 }`; las valida el código (`lib/galerias/precios`).
+  discountRules   Json?
+  incomeCategoryId String?
   orderMode       String    @default("NOMBRE")
   publishedAt     DateTime?
   archivedAt      DateTime?
@@ -23419,8 +23440,13 @@ model FotofficeGaleria {
   fotos     FotofficeGaleriaFoto[]    @relation("GaleriaFotos")
   clientes  FotofficeGaleriaCliente[]
   eventos   FotofficeGaleriaEvento[]
+  compras   FotofficeGaleriaCompra[]
+  descargas FotofficeGaleriaDescarga[]
+  rondas    FotofficeGaleriaRonda[]
+  incomeCategory CashCategory?        @relation("FotofficeGaleriaRubroIngreso", fields: [incomeCategoryId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, number])
+  @@index([incomeCategoryId])
   @@index([workspaceId, status])
   @@index([proyectoId])
 }
@@ -23440,20 +23466,29 @@ model FotofficeGaleriaFoto {
   sizeBytes        BigInt?
   width            Int?
   height           Int?
+  /// FOTO|VIDEO (CHECK). Un VIDEO no tiene vista ni miniatura (`viewKey`/`thumbKey` nulos) ni medidas.
+  mediaType        String   @default("FOTO")
+  /// Tipo MIME declarado al subir (image/jpeg, image/png, video/mp4, video/quicktime).
+  contentType      String?
   order            Int      @default(0)
   attempts         Int      @default(0)
   uploadedByUserId Int?
+  /// Ronda de una galería de ÁLBUM (Entrega C). Nulo en las galerías de selección y de entrega.
+  rondaId          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   galeria     FotofficeGaleria             @relation("GaleriaFotos", fields: [galeriaId], references: [id], onDelete: Cascade)
+  ronda       FotofficeGaleriaRonda?       @relation(fields: [rondaId], references: [id], onDelete: Cascade)
   portadaDe   FotofficeGaleria?            @relation("GaleriaPortada")
   selecciones FotofficeGaleriaSeleccion[]
   comentarios FotofficeGaleriaComentario[]
+  compras     FotofficeGaleriaCompraFoto[]
 
   @@index([galeriaId, status])
   @@index([galeriaId, order])
+  @@index([rondaId, order])
   @@index([workspaceId])
 }
 
@@ -23487,6 +23522,9 @@ model FotofficeGaleriaCliente {
   selecciones FotofficeGaleriaSeleccion[]
   comentarios FotofficeGaleriaComentario[]
   eventos     FotofficeGaleriaEvento[]
+  compras     FotofficeGaleriaCompra[]
+  descargas   FotofficeGaleriaDescarga[]
+  decisiones  FotofficeGaleriaDecision[]
 
   @@index([galeriaId, status])
   @@index([clientId])
@@ -23519,14 +23557,68 @@ model FotofficeGaleriaComentario {
   author           String
   authorUserId     Int?
   body             String
+  /// Ronda en la que se dejó (álbum). Nulo en las demás galerías.
+  rondaId          String?
+  /// Punto marcado en la lámina, relativo (0 a 1) a la imagen mostrada; ambos nulos o ambos con valor (CHECK).
+  pinX             Float?
+  pinY             Float?
+  /// Número del pin, correlativo por lámina y cliente.
+  pinNumber        Int?
   createdAt        DateTime @default(now())
 
   workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   galeriaCliente FotofficeGaleriaCliente @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
   foto           FotofficeGaleriaFoto    @relation(fields: [fotoId], references: [id], onDelete: Cascade)
+  ronda          FotofficeGaleriaRonda?  @relation(fields: [rondaId], references: [id], onDelete: SetNull)
 
   @@index([galeriaClienteId, fotoId])
   @@index([fotoId])
+  @@index([rondaId])
+  @@index([workspaceId])
+}
+
+/// Ronda de una galería de ÁLBUM (Entrega C): un juego de láminas que el cliente revisa. `status` ABIERTA|CERRADA (CHECK);
+/// `number` desde 1, único por galería. En el SQL hay además un índice único parcial `(galeriaId)` donde `status` es
+/// 'ABIERTA': una galería tiene a lo sumo una ronda abierta.
+model FotofficeGaleriaRonda {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  galeriaId       String
+  number          Int
+  status          String    @default("ABIERTA")
+  /// Nota del estudio para el cliente (hasta 2000 caracteres, CHECK).
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  closedAt        DateTime?
+
+  workspace   Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria     FotofficeGaleria             @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  fotos       FotofficeGaleriaFoto[]
+  comentarios FotofficeGaleriaComentario[]
+  decisiones  FotofficeGaleriaDecision[]
+
+  @@unique([galeriaId, number])
+  @@index([workspaceId])
+}
+
+/// Decisión de un cliente sobre una ronda de álbum: APROBADO|CAMBIOS (CHECK). Una por cliente y ronda.
+model FotofficeGaleriaDecision {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  galeriaClienteId String
+  rondaId          String
+  decision         String
+  /// Mensaje del cliente (hasta 2000 caracteres, CHECK).
+  message          String?
+  createdAt        DateTime @default(now())
+
+  workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+  ronda          FotofficeGaleriaRonda   @relation(fields: [rondaId], references: [id], onDelete: Cascade)
+
+  @@unique([galeriaClienteId, rondaId])
+  @@index([rondaId])
   @@index([workspaceId])
 }
 
@@ -23558,9 +23650,61 @@ model FotofficeGaleriaAjustes {
   defaultSelectionMode String   @default("LIBRE")
   defaultAllowComments Boolean  @default(true)
   defaultDownloadMode  String   @default("VISTA")
+  /// Rubro de ingreso por omisión de las ventas de fotos extra (Entrega A2).
+  defaultIncomeCategoryId String?
   updatedAt            DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  defaultIncomeCategory CashCategory? @relation("FotofficeGaleriaAjustesRubroIngreso", fields: [defaultIncomeCategoryId], references: [id], onDelete: SetNull)
+
+  @@index([defaultIncomeCategoryId])
+}
+
+/// Compra de fotos extra de un cliente de la galería (Entrega A2). `status` PENDIENTE|PAGADA|CANCELADA
+/// (CHECK en el SQL); `totalArs` > 0. `pricingSnapshot` guarda los precios y el descuento usados.
+/// `providerPaymentRef` y `cashMovementId` son únicos: acreditar es idempotente.
+model FotofficeGaleriaCompra {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  galeriaId          String
+  galeriaClienteId   String
+  status             String    @default("PENDIENTE")
+  extraCount         Int
+  subtotalArs        Decimal   @db.Decimal(14, 2)
+  discountArs        Decimal   @default(0) @db.Decimal(14, 2)
+  totalArs           Decimal   @db.Decimal(14, 2)
+  pricingSnapshot    Json
+  mpPreferenceId     String?
+  providerPaymentRef String?   @unique
+  paidAt             DateTime?
+  feeArs             Decimal?  @db.Decimal(14, 2)
+  netArs             Decimal?  @db.Decimal(14, 2)
+  cashMovementId     String?   @unique
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace      Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria        FotofficeGaleria             @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente      @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+  cashMovement   CashMovement?                @relation("FotofficeGaleriaCompraMovimiento", fields: [cashMovementId], references: [id], onDelete: SetNull)
+  fotos          FotofficeGaleriaCompraFoto[]
+
+  @@index([galeriaClienteId, status])
+  @@index([galeriaId, status])
+  @@index([workspaceId])
+}
+
+/// Foto de una compra (instantánea de lo que se cobró). Única por compra y foto.
+model FotofficeGaleriaCompraFoto {
+  id       String @id @default(cuid())
+  compraId String
+  fotoId   String
+
+  compra FotofficeGaleriaCompra @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  foto   FotofficeGaleriaFoto   @relation(fields: [fotoId], references: [id], onDelete: Cascade)
+
+  @@unique([compraId, fotoId])
+  @@index([fotoId])
 }
 
 /// Una actividad cultural de Muestras Fotográficas (muestrasfotograficas.com): muestra,
@@ -24583,4 +24727,52 @@ model BotUsageDaily {
 
   @@unique([platform, day, userId])
   @@index([platform, day])
+}
+
+/// Pedido de descarga de una galería de entrega (ZIP en partes armado en segundo plano; Entrega B).
+/// `status` PENDIENTE|ARMANDO|LISTA|ERROR|VENCIDA (CHECK). `parts` es una lista `{ n, key, bytes, files, estado }`;
+/// `cursor` guarda el estado de la parte en curso. `galeriaClienteId` es nulo si lo pidió el estudio.
+model FotofficeGaleriaDescarga {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  galeriaId        String
+  galeriaClienteId String?
+  status           String    @default("PENDIENTE")
+  totalFiles       Int
+  totalBytes       BigInt
+  parts            Json      @default("[]")
+  cursor           Json?
+  errorReason      String?
+  requestedEmail   String?
+  notifiedAt       DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  galeria        FotofficeGaleria         @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  galeriaCliente FotofficeGaleriaCliente? @relation(fields: [galeriaClienteId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
+  @@index([galeriaClienteId, createdAt])
+  @@index([workspaceId])
+  @@index([galeriaId])
+}
+
+/// Dispositivo autorizado a publicar entregas (DNX FLUX). La clave completa se muestra una sola vez; en la base
+/// sólo su hash SHA-256 en hexadecimal (`keyHash`, 64 caracteres) y los primeros 8 caracteres (`keyPrefix`).
+model FotofficeDispositivo {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  name            String
+  keyHash         String    @unique
+  keyPrefix       String
+  createdByUserId Int?
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, revokedAt])
 }

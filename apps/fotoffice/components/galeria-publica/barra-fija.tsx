@@ -16,6 +16,15 @@ export type PropsBarra = {
   /** Texto de sólo lectura (ya enviada). */
   textoLectura: string | null;
   onEnviar: () => void;
+  /** Galería con venta: el carrito en la barra. null si no hay venta. */
+  venta?: {
+    /** "Sólo venta": no hay «Enviar selección». */
+    soloVenta: boolean;
+    extras: number;
+    /** «3 extra · $ 4.500,00». */
+    textoExtras: string;
+    onPagar: () => void;
+  } | null;
 };
 
 /** Barra fija abajo: filtros, contador de elegidas y "Enviar selección" siempre a mano. */
@@ -46,8 +55,9 @@ export function BarraFija(p: PropsBarra) {
             {p.editable ? (
               <>
                 <p className="font-semibold" aria-live="polite">
-                  {p.contador} {p.contador === "1" ? "seleccionada" : "seleccionadas"}
+                  {p.contador} {p.venta?.soloVenta ? "para comprar" : p.contador === "1" ? "seleccionada" : "seleccionadas"}
                 </p>
+                {p.venta && p.venta.extras > 0 ? <p className="text-xs font-medium">{p.venta.textoExtras}</p> : null}
                 {p.requisito ? <p className={`text-xs ${p.cumpleMinimo ? "opacity-70" : "text-amber-700"}`}>{p.requisito}</p> : null}
               </>
             ) : (
@@ -55,9 +65,23 @@ export function BarraFija(p: PropsBarra) {
             )}
           </div>
           {p.editable ? (
-            <button type="button" onClick={p.onEnviar} disabled={p.cantidades.seleccionadas === 0} className="fo-btn fo-btn-primary shrink-0">
-              Enviar selección
-            </button>
+            <div className="flex shrink-0 gap-2">
+              {p.venta && p.venta.extras > 0 ? (
+                <button type="button" onClick={p.venta.onPagar} className="fo-btn fo-btn-primary">
+                  Pagar fotos extra
+                </button>
+              ) : null}
+              {!p.venta?.soloVenta ? (
+                <button
+                  type="button"
+                  onClick={p.onEnviar}
+                  disabled={p.cantidades.seleccionadas === 0}
+                  className={p.venta && p.venta.extras > 0 ? "fo-btn fo-btn-secondary" : "fo-btn fo-btn-primary"}
+                >
+                  Enviar selección
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

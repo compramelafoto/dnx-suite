@@ -15,11 +15,13 @@ const firmarLote = vi.fn(async (fotos: { id: string; viewKey: string | null; thu
   new Map(fotos.map((f) => [f.id, { thumbUrl: f.thumbKey ? `https://r2.test/${f.thumbKey}?firma` : null, viewUrl: f.viewKey ? `https://r2.test/${f.viewKey}?firma` : null }])),
 );
 const firmarUna = vi.fn(async (clave: string) => `https://r2.test/${clave}?firma`);
+const firmarOriginal = vi.fn(async (clave: string, nombre: { ascii: string }) => `https://r2.test/${clave}?original=${nombre.ascii}`);
 const firmarDescarga = vi.fn(async (clave: string, nombre: { ascii: string }) => `https://r2.test/${clave}?descarga=${nombre.ascii}`);
 vi.mock("./almacen", () => ({
   urlsDeLecturaPorLote: firmarLote,
   urlDeLecturaFoto: firmarUna,
   urlDeDescargaFoto: firmarDescarga,
+  urlDeDescargaOriginal: firmarOriginal,
 }));
 
 const P = await import("./publico");
@@ -377,5 +379,115 @@ describe("mensajeDeEnvio", () => {
   it("normaliza", () => {
     expect(P.mensajeDeEnvio(undefined)).toEqual({ ok: true, texto: null });
     expect(P.mensajeDeEnvio(" hola\r\nchau ")).toEqual({ ok: true, texto: "hola\nchau" });
+  });
+});
+
+describe("descarga del original", () => {
+  const galeria = () => B.datos.fotofficeGaleria.find((g) => g.id === "g1")!;
+  const pagar = (fotoIds: string[], galeriaClienteId = "gc1", status = "PAGADA") => {
+    const id = `c-${Math.random()}`;
+    B.agregar("fotofficeGaleriaCompra", { id, workspaceId: "ws-1", galeriaId: "g1", galeriaClienteId, status, extraCount: fotoIds.length, subtotalArs: "1.00", totalArs: "1.00", pricingSnapshot: {} });
+    for (const fotoId of fotoIds) B.agregar("fotofficeGaleriaCompraFoto", { compraId: id, fotoId });
+  };
+  const elegir = (...ids: string[]) => ids.forEach((fotoId, i) => B.agregar("fotofficeGaleriaSeleccion", { workspaceId: "ws-1", galeriaClienteId: "gc1", fotoId, createdAt: new Date(1000 + i) }));
+  const descargar = (id = "f1", ahora = AHORA) => P.descargarOriginal("ws-1", TOKEN1, id, ahora);
+
+  beforeEach(() => {
+    galeria().downloadMode = "SELECCIONADAS";
+    galeria().saleMode = "SELECCION_Y_VENTA";
+    galeria().includedCount = 1;
+    galeria().pricingMode = "POR_FOTO";
+    galeria().unitPriceArs = "1500.00";
+  });
+
+  it("una foto pagada se baja: URL del ORIGINAL con el nombre de la foto y queda un evento DESCARGA", async () => {
+    pagar(["f1"]);
+    expect(await descargar("f1")).toEqual({ ok: true, url: "https://r2.test/o/f1?original=f1.jpg" });
+    expect(firmarOriginal).toHaveBeenCalledWith("o/f1", { ascii: "f1.jpg", utf8: "f1.jpg" });
+    expect(B.datos.fotofficeGaleriaEvento.filter((e) => e.type === "DESCARGA").map((e) => e.data)).toEqual([{ fotoId: "f1" }]);
+  });
+  it("el evento se registra una sola vez por foto y por hora", async () => {
+    pagar(["f1", "f2"]);
+    // El evento queda con la hora real de la base: la prueba mueve el reloj de la acción a partir de ahora.
+    const t0 = Date.now();
+    await descargar("f1", new Date(t0));
+    await descargar("f1", new Date(t0 + 10 * 60_000));
+    await descargar("f2", new Date(t0 + 11 * 60_000));
+    expect(eventos().filter((t) => t === "DESCARGA")).toHaveLength(2);
+    await descargar("f1", new Date(t0 + 61 * 60_000));
+    expect(eventos().filter((t) => t === "DESCARGA")).toHaveLength(3);
+  });
+  it("las incluidas se bajan recién cuando la selección fue enviada", async () => {
+    elegir("f2");
+    expect(await descargar("f2")).toMatchObject({ ok: false, error: M.originalNoDisponible });
+    cliente().status = "EN_REVISION";
+    expect(await descargar("f2")).toMatchObject({ ok: true });
+    cliente().status = "FINALIZADO";
+    expect(await descargar("f2")).toMatchObject({ ok: true });
+  });
+  it("una extra sin pagar no se baja aunque la selección esté enviada; con la compra pendiente tampoco", async () => {
+    elegir("f2", "f3");
+    cliente().status = "EN_REVISION";
+    expect(await descargar("f2")).toMatchObject({ ok: true });
+    expect(await descargar("f3")).toMatchObject({ ok: false, error: M.originalNoDisponible });
+    pagar(["f3"], "gc1", "PENDIENTE");
+    expect(await descargar("f3")).toMatchObject({ ok: false, error: M.originalNoDisponible });
+    pagar(["f3"], "gc1", "CANCELADA");
+    expect(await descargar("f3")).toMatchObject({ ok: false });
+  });
+  it.each(["VISTA", "NINGUNA"])("con downloadMode %s no hay originales", async (modo) => {
+    pagar(["f1"]);
+    galeria().downloadMode = modo;
+    expect(await descargar("f1")).toMatchObject({ ok: false, error: M.sinDescarga });
+    expect(firmarOriginal).not.toHaveBeenCalled();
+  });
+  it("la foto de otro cliente (pagada por él) no se baja con mi enlace", async () => {
+    sembrarCliente("gc2");
+    pagar(["f2"], "gc2");
+    expect(await descargar("f2")).toMatchObject({ ok: false, error: M.originalNoDisponible });
+  });
+  it("fotos de otra galería o de otra organización, pendientes o inexistentes: 'no encontramos esa foto'", async () => {
+    pagar(["f-otra-galeria", "f-ajena", "f-pendiente"]);
+    for (const id of ["f-otra-galeria", "f-ajena", "f-pendiente", "no-existe", "", 7, null]) {
+      expect(await P.descargarOriginal("ws-1", TOKEN1, id)).toMatchObject({ ok: false, error: M.fotoInvalida });
+    }
+  });
+  it("enlace anulado, galería en borrador o de otra organización: no válido", async () => {
+    pagar(["f1"]);
+    expect(await P.descargarOriginal("ws-2", TOKEN1, "f1")).toMatchObject({ ok: false, codigo: "INVALIDO" });
+    galeria().status = "BORRADOR";
+    expect(await descargar("f1")).toMatchObject({ ok: false, codigo: "INVALIDO" });
+    galeria().status = "PUBLICADA";
+    cliente().revokedAt = AHORA;
+    expect(await descargar("f1")).toMatchObject({ ok: false, codigo: "INVALIDO" });
+    expect(firmarOriginal).not.toHaveBeenCalled();
+  });
+  it("sólo venta: se baja lo pagado y nada más", async () => {
+    galeria().saleMode = "VENTA";
+    galeria().includedCount = 0;
+    elegir("f2");
+    pagar(["f1"]);
+    expect(await descargar("f1")).toMatchObject({ ok: true });
+    expect(await descargar("f2")).toMatchObject({ ok: false });
+  });
+  it("la vista lista los originales descargables (y sólo de fotos de esta galería)", async () => {
+    pagar(["f1", "f-otra-galeria"]);
+    elegir("f2");
+    const r = await P.resolverTokenGaleria("ws-1", TOKEN1);
+    if (!r.ok) throw new Error();
+    let v = await P.armarVistaGaleria(r);
+    expect(v.galeria.permiteOriginales).toBe(true);
+    expect(v.originales).toEqual(["f1"]);
+    cliente().status = "EN_REVISION";
+    const r2 = await P.resolverTokenGaleria("ws-1", TOKEN1);
+    if (!r2.ok) throw new Error();
+    v = await P.armarVistaGaleria(r2);
+    expect([...v.originales].sort()).toEqual(["f1", "f2"]);
+    galeria().downloadMode = "VISTA";
+    const r3 = await P.resolverTokenGaleria("ws-1", TOKEN1);
+    if (!r3.ok) throw new Error();
+    v = await P.armarVistaGaleria(r3);
+    expect(v.originales).toEqual([]);
+    expect(v.galeria.permiteOriginales).toBe(false);
   });
 });

@@ -24,7 +24,7 @@ import { InspectorPanel } from "./InspectorPanel";
 const MIN_SIDE_PX = 24;
 
 const selectBase =
-  "h-7 rounded-md border border-[color:var(--te-line)] bg-white px-1 text-xs text-[color:var(--te-ink)] outline-none focus:border-[color:var(--te-accent)] disabled:opacity-50";
+  "h-7 rounded-md border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1 text-xs text-[color:var(--te-ink)] outline-none focus:border-[color:var(--te-accent)] disabled:opacity-50";
 
 /** Valores del desplegable de formato que no son un preset. */
 const FREE = "libre";
@@ -128,7 +128,7 @@ export function BlockSizePanel({
             "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
             lock
               ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)]"
-              : "border-[color:var(--te-line)] bg-white text-[color:var(--te-ink-muted)] hover:text-[color:var(--te-ink)]"
+              : "border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink-muted)] hover:text-[color:var(--te-ink)]"
           )}
         >
           <LockGlyph closed={lock !== null} />
@@ -226,7 +226,7 @@ function DimField({
   return (
     <label
       title={title}
-      className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md border border-[color:var(--te-line)] bg-white px-1.5 focus-within:border-[color:var(--te-accent)]"
+      className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 focus-within:border-[color:var(--te-accent)]"
     >
       <span className="shrink-0 text-[10px] font-medium text-[color:var(--te-ink-faint)]">{label}</span>
       <input

@@ -68,11 +68,11 @@ const selectBase =
   "h-6 w-full rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 text-[11px] text-[color:var(--te-ink)] focus:border-[color:var(--te-accent)] focus:outline-none";
 
 const alignBtnClass =
-  "h-6 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2 text-[11px] font-medium text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
+  "h-6 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2 text-[11px] font-medium text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-[color:var(--te-surface)]";
 
 /** Botón cuadrado con icono de alineación (zona segura / conjunto). */
 const alignIconBtnClass =
-  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-white disabled:hover:text-[color:var(--te-ink)]";
+  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-[color:var(--te-surface)] disabled:hover:text-[color:var(--te-ink)]";
 
 export function TemplateEditorInspector({
   selectedBlock,
@@ -187,8 +187,8 @@ export function TemplateEditorInspector({
       />
 
       {selectedBlockCount > 1 ? (
-        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-50 px-3 py-1.5 text-[11px] leading-snug text-amber-950">
-          <span aria-hidden className="text-amber-600">⚠</span>
+        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-400/10 px-3 py-1.5 text-[11px] leading-snug text-amber-200">
+          <span aria-hidden className="text-amber-400">⚠</span>
           Hay {selectedBlockCount} bloques seleccionados. Las propiedades de abajo siguen al{" "}
           <span className="font-medium">último seleccionado (primario)</span>. Usá la sección siguiente para alinear o
           distribuir todo el conjunto.
@@ -201,7 +201,7 @@ export function TemplateEditorInspector({
             Respecto del rectángulo que envuelve los seleccionados (no del lienzo). La selección se mantiene.
           </p>
           {multiLocked ? (
-            <p className="mt-1.5 text-[10px] leading-snug text-amber-900">
+            <p className="mt-1.5 text-[10px] leading-snug text-amber-200">
               Desbloqueá todos los bloques seleccionados para alinear, distribuir o mover el conjunto.
             </p>
           ) : null}
@@ -261,14 +261,14 @@ export function TemplateEditorInspector({
             </p>
           ) : null}
           {canDistribute && multiLocked ? (
-            <p className="mt-1.5 text-[10px] text-amber-900/90">Quitá el candado de todos los seleccionados para distribuir.</p>
+            <p className="mt-1.5 text-[10px] text-amber-200">Quitá el candado de todos los seleccionados para distribuir.</p>
           ) : null}
         </InspectorPanel>
       ) : null}
 
       {primarySafeAreaStatus !== "inside" && selectedBlock.type !== "BACKGROUND" ? (
-        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-50 px-3 py-1.5 text-[11px] leading-snug text-amber-950">
-          <span aria-hidden className="text-amber-600">⚠</span>
+        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-400/10 px-3 py-1.5 text-[11px] leading-snug text-amber-200">
+          <span aria-hidden className="text-amber-400">⚠</span>
           {primarySafeAreaStatus === "outside" ? (
             <>Fuera de la zona segura.</>
           ) : (
@@ -311,7 +311,7 @@ export function TemplateEditorInspector({
                 {variableCatalogHint.description}
               </p>
             ) : variableKeyStr ? (
-              <p className="mt-1.5 text-[11px] text-amber-800/90">
+              <p className="mt-1.5 text-[11px] text-amber-300/90">
                 Esta clave no está en el catálogo v1; se guarda igual por compatibilidad.
               </p>
             ) : null}

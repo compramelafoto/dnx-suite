@@ -53,6 +53,10 @@
       "schedule": "50 4 * * *"
     },
     {
+      "path": "/api/cron/galerias-zip",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/tienda",
       "schedule": "*/15 * * * *"
     },

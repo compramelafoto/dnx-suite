@@ -28,7 +28,7 @@ describe("ajustes de galería", () => {
   });
   it("guarda con `configurar` (dueño o administrador), y la lectura devuelve lo guardado", async () => {
     expect(await A.guardarAjustesGaleria(DUENO, BUENOS)).toEqual({ ok: true });
-    expect(await A.leerAjustesGaleria("ws-1")).toEqual({ defaultMessage: "Hola, elegí tus fotos", defaultSelectionMode: "LIBRE", defaultAllowComments: false, defaultDownloadMode: "NINGUNA" });
+    expect(await A.leerAjustesGaleria("ws-1")).toEqual({ defaultMessage: "Hola, elegí tus fotos", defaultSelectionMode: "LIBRE", defaultAllowComments: false, defaultDownloadMode: "NINGUNA", defaultIncomeCategoryId: null });
     expect(await A.guardarAjustesGaleria(ADMIN, { ...BUENOS, defaultAllowComments: true })).toEqual({ ok: true });
     expect(B.datos.fotofficeGaleriaAjustes).toHaveLength(1);
   });
@@ -56,5 +56,22 @@ describe("ajustes de galería", () => {
     expect((await A.guardarAjustesGaleria(DUENO, { ...BUENOS, defaultMessage: "x".repeat(2001) })).ok).toBe(false);
     expect((await A.guardarAjustesGaleria(DUENO, { ...BUENOS, defaultMessage: 5 })).ok).toBe(false);
     expect(B.datos.fotofficeGaleriaAjustes).toHaveLength(0);
+  });
+  it("el rubro de ingreso de las ventas: se guarda, se conserva si no viene, se quita con vacío y se valida", async () => {
+    B.agregar("cashCategory", { id: "rubro-fotos", workspaceId: "ws-1", name: "Fotos extra", kind: "INGRESO" });
+    B.agregar("cashCategory", { id: "rubro-egreso", workspaceId: "ws-1", name: "Gasto", kind: "EGRESO" });
+    B.agregar("cashCategory", { id: "rubro-inactivo", workspaceId: "ws-1", name: "Viejo", kind: "INGRESO", isActive: false });
+    B.agregar("cashCategory", { id: "rubro-ajeno", workspaceId: "ws-2", name: "Ajeno", kind: "INGRESO" });
+    expect(await A.guardarAjustesGaleria(DUENO, { ...BUENOS, defaultIncomeCategoryId: "rubro-fotos" })).toEqual({ ok: true });
+    expect((await A.leerAjustesGaleria("ws-1")).defaultIncomeCategoryId).toBe("rubro-fotos");
+    // Sin la clave se conserva el que había.
+    await A.guardarAjustesGaleria(DUENO, BUENOS);
+    expect((await A.leerAjustesGaleria("ws-1")).defaultIncomeCategoryId).toBe("rubro-fotos");
+    for (const malo of ["rubro-egreso", "rubro-inactivo", "rubro-ajeno", "no-existe", 5]) {
+      expect(await A.guardarAjustesGaleria(DUENO, { ...BUENOS, defaultIncomeCategoryId: malo })).toEqual({ ok: false, error: M.rubroIngreso });
+    }
+    expect((await A.leerAjustesGaleria("ws-1")).defaultIncomeCategoryId).toBe("rubro-fotos");
+    await A.guardarAjustesGaleria(DUENO, { ...BUENOS, defaultIncomeCategoryId: "" });
+    expect((await A.leerAjustesGaleria("ws-1")).defaultIncomeCategoryId).toBeNull();
   });
 });

@@ -4,10 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import {
   comentarAction,
   descargarAction,
+  descargarOriginalAction,
   elegirFotoAction,
   enviarSeleccionAction,
+  pagarFotosExtraAction,
   vistasAction,
 } from "@/app/w/[workspaceSlug]/galeria/[token]/acciones";
+import { calcularCarrito } from "@/lib/galerias/precios";
+import { MENSAJES_PAGO_GALERIA, mensajeExtrasSinPagar, textoBarraExtras, type AvisoDePagoGaleria } from "@/lib/galerias/venta-publica";
 import { puedeAgregar, progresoSeleccion, puedeEditarElCliente, type ConfigSeleccion } from "@/lib/galerias/seleccion";
 import {
   MAX_VISTAS_POR_LOTE,
@@ -21,6 +25,8 @@ import {
   type VistaGaleria,
 } from "@/lib/galerias/publico-tipos";
 import { BarraFija } from "./barra-fija";
+import { CarritoExtras } from "./carrito";
+import { DescargarTodas } from "./descargar-todas";
 import { Grilla } from "./grilla";
 import { Repaso } from "./repaso";
 import { Visor } from "./visor";
@@ -40,7 +46,7 @@ function conCambio(s: ReadonlySet<string>, id: string, marcar: boolean): Set<str
  * comentar, enviar) pasa por acciones que revalidan el token; acá el estado se actualiza al instante y se
  * deshace si el servidor dice que no.
  */
-export function GaleriaCliente({ slug, token, vista }: { slug: string; token: string; vista: VistaGaleria }) {
+export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug: string; token: string; vista: VistaGaleria; avisoPago?: AvisoDePagoGaleria | null }) {
   const [estado, setEstado] = useState(vista.cliente.estado);
   const [enviadaEn, setEnviadaEn] = useState(vista.cliente.enviadaEn);
   const [elegidas, setElegidas] = useState<Set<string>>(() => new Set(vista.seleccionadas));
@@ -48,8 +54,12 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
   const [filtro, setFiltro] = useState<FiltroGaleria>("TODAS");
   const [visor, setVisor] = useState<{ ids: string[]; indice: number } | null>(null);
   const [repaso, setRepaso] = useState(false);
+  const [carritoAbierto, setCarritoAbierto] = useState(false);
+  const [pagando, setPagando] = useState(false);
+  const [errorPago, setErrorPago] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [vistas, setVistas] = useState<Record<string, string>>({});
+  const [originales, setOriginales] = useState<ReadonlySet<string>>(() => new Set(vista.originales));
 
   const pendientes = useRef(new Set<string>());
   const pedidas = useRef(new Set<string>());
@@ -179,7 +189,8 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
   const descargar = useCallback(
     async (fotoId: string) => {
       try {
-        const r = await descargarAction(slug, token, fotoId);
+        // Si es una foto entregada en alta se baja el original; si no, la vista (cuando la galería la permite).
+        const r = originales.has(fotoId) ? await descargarOriginalAction(slug, token, fotoId) : await descargarAction(slug, token, fotoId);
         if (!r.ok) return avisar(r.error);
         const a = document.createElement("a");
         a.href = r.url;
@@ -191,7 +202,7 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
         avisar(MENSAJES_PUBLICO.generico);
       }
     },
-    [slug, token, avisar],
+    [slug, token, avisar, originales],
   );
 
   const enviar = useCallback(
@@ -204,13 +215,53 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
         }
         setEstado("EN_REVISION");
         setEnviadaEn(r.enviadaEn);
+        // Con la selección enviada, lo elegido (que ya no tiene extras sin pagar) pasa a poder bajarse en alta.
+        // Sólo las incluidas: las extras sin pagar siguen sin poder bajarse (el servidor lo vuelve a verificar).
+        if (vista.galeria.permiteOriginales) {
+          const incluidas = vista.venta
+            ? calcularCarrito({ config: vista.venta.config, seleccion: [...elegidasRef.current].map((fotoId, i) => ({ fotoId, seleccionadaEn: new Date(i) })), pagadas: new Set(vista.venta.pagadas) }).incluidas
+            : [...elegidasRef.current];
+          setOriginales((o) => new Set([...o, ...incluidas]));
+        }
         return { ok: true, cantidad: r.cantidad, enviadaEn: r.enviadaEn };
       } catch {
         return { ok: false, error: MENSAJES_PUBLICO.generico };
       }
     },
-    [slug, token, recargar],
+    [slug, token, recargar, vista.galeria.permiteOriginales, vista.venta],
   );
+
+  // Carrito de fotos extra: la misma cuenta que hace el servidor (que es quien fija el importe al pagar).
+  const venta = vista.venta;
+  const pagadasSet = useMemo(() => new Set(venta?.pagadas ?? []), [venta]);
+  const carrito = useMemo(
+    () =>
+      venta
+        ? calcularCarrito({ config: venta.config, seleccion: [...elegidas].map((fotoId, i) => ({ fotoId, seleccionadaEn: new Date(i) })), pagadas: pagadasSet })
+        : null,
+    [venta, elegidas, pagadasSet],
+  );
+  const extras = carrito?.extras.length ?? 0;
+  const bloqueoEnvio = extras > 0 ? mensajeExtrasSinPagar(extras) : null;
+
+  const pagar = useCallback(async () => {
+    if (pagando) return;
+    setPagando(true);
+    setErrorPago(null);
+    try {
+      const r = await pagarFotosExtraAction(slug, token);
+      if (r.ok) {
+        // El checkout es de Mercado Pago: se sale de la página y se vuelve con ?pago=...
+        window.location.assign(r.url);
+        return;
+      }
+      setErrorPago(r.error);
+      if (r.codigo === "SOLO_LECTURA" || r.codigo === "INVALIDO") setTimeout(recargar, 2500);
+    } catch {
+      setErrorPago(MENSAJES_PAGO_GALERIA.fallo);
+    }
+    setPagando(false);
+  }, [pagando, slug, token, recargar]);
 
   const progreso = progresoSeleccion(config, elegidas.size);
   const requisito =
@@ -224,7 +275,9 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
   const hayComentarios = vista.galeria.permiteComentarios || comentarios.length > 0;
   const elegidasEnOrden = useMemo(() => vista.fotos.filter((f) => elegidas.has(f.id)), [vista.fotos, elegidas]);
   const textoLectura =
-    estado === "FINALIZADO"
+    venta?.config.saleMode === "VENTA" && venta.pagadas.length > 0
+      ? "¡Gracias por tu compra! Recibimos tu pago."
+      : estado === "FINALIZADO"
       ? `Tu selección quedó cerrada${enviadaEn ? ` (la enviaste el ${enviadaEn})` : ""}.`
       : `Tu selección fue enviada${enviadaEn ? ` el ${enviadaEn}` : ""}.`;
 
@@ -259,7 +312,20 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
           {vista.galeria.mensaje ? <p className="max-w-3xl whitespace-pre-line text-base">{vista.galeria.mensaje}</p> : null}
           {editable ? (
             <p className="text-sm opacity-80">
-              Tocá una foto para verla en grande y el círculo de arriba a la derecha para elegirla. Cuando termines, tocá «Enviar selección».
+              {venta?.config.saleMode === "VENTA"
+                ? "Tocá una foto para verla en grande y el círculo de arriba a la derecha para elegirla para comprar. Cuando termines, tocá «Pagar fotos extra»."
+                : "Tocá una foto para verla en grande y el círculo de arriba a la derecha para elegirla. Cuando termines, tocá «Enviar selección»."}
+              {venta && venta.config.saleMode === "SELECCION_Y_VENTA" && venta.config.includedCount > 0
+                ? ` Tu galería incluye ${venta.config.includedCount === 1 ? "1 foto" : `${venta.config.includedCount} fotos`}; las demás que elijas se pagan.`
+                : ""}
+            </p>
+          ) : null}
+          {avisoPago ? (
+            <p
+              role="status"
+              className={`rounded-lg p-3 text-sm ${avisoPago.tono === "ok" ? "bg-green-50 text-green-900" : avisoPago.tono === "error" ? "bg-red-50 text-red-900" : "bg-sky-50 text-sky-900"}`}
+            >
+              {avisoPago.texto}
             </p>
           ) : null}
         </header>
@@ -273,6 +339,8 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
           </section>
         ) : null}
 
+        {originales.size > 0 ? <DescargarTodas slug={slug} token={token} ids={vista.fotos.map((f) => f.id).filter((id) => originales.has(id))} /> : null}
+
         {visibles.length === 0 ? (
           <p className="py-10 text-center opacity-70">
             {filtro === "SELECCIONADAS" ? "Todavía no elegiste ninguna foto." : filtro === "CON_COMENTARIOS" ? "Todavía no hay fotos con comentarios." : "Esta galería todavía no tiene fotos."}
@@ -283,9 +351,12 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
             indices={numeros}
             seleccionadas={elegidas}
             comentariosPorFoto={conteoPorFoto}
+            pagadas={pagadasSet}
+            descargables={originales}
             editable={editable}
             onAbrir={abrir}
             onAlternar={alternar}
+            onDescargar={descargar}
           />
         )}
       </main>
@@ -304,7 +375,23 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
           setVisor(null);
           setRepaso(true);
         }}
+        venta={
+          venta && carrito
+            ? {
+                soloVenta: venta.config.saleMode === "VENTA",
+                extras,
+                textoExtras: textoBarraExtras(extras, carrito.totalCents),
+                onPagar: () => {
+                  setVisor(null);
+                  setErrorPago(null);
+                  setCarritoAbierto(true);
+                },
+              }
+            : null
+        }
       />
+
+      {carritoAbierto && carrito ? <CarritoExtras carrito={carrito} pagando={pagando} error={errorPago} onPagar={pagar} onCerrar={() => setCarritoAbierto(false)} /> : null}
 
       {visor ? (
         <Visor
@@ -319,6 +406,7 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
           editable={editable}
           permiteComentarios={vista.galeria.permiteComentarios}
           permiteDescarga={vista.galeria.permiteDescarga}
+          descargables={originales}
           onIr={irA}
           onCerrar={cerrarVisor}
           onAlternar={alternar}
@@ -333,6 +421,7 @@ export function GaleriaCliente({ slug, token, vista }: { slug: string; token: st
           config={config}
           fotos={elegidasEnOrden}
           nombre={vista.cliente.nombre}
+          bloqueo={bloqueoEnvio}
           onVolver={() => setRepaso(false)}
           onEnviar={enviar}
           onTerminar={() => setRepaso(false)}

@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "./primitives/Button";
 import { templateV2EditorPath } from "./template-v2-base-path";
-import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
-import { useEditorThemeStyle } from "./theme-context";
+import { editorThemeStyle, LIGHT_EDITOR_THEME, type TemplateEditorTheme } from "./theme";
 
 type CreateResponse = {
   ok: boolean;
@@ -47,8 +46,11 @@ export function CreateTemplateV2Button({
   theme?: TemplateEditorTheme;
 }) {
   const router = useRouter();
-  const contextThemeStyle = useEditorThemeStyle();
-  const themeStyle = theme ? editorThemeStyle(theme) : contextThemeStyle;
+  /*
+   * Este botón vive en la lista de plantillas, una página clara de cada app, no dentro del
+   * editor oscuro: sin tema propio usa el claro.
+   */
+  const themeStyle = editorThemeStyle({ ...LIGHT_EDITOR_THEME, ...theme }, "light");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);

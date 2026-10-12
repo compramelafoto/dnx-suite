@@ -5,9 +5,14 @@
 
 export const MODOS_VENTA = ["SELECCION", "SELECCION_Y_VENTA", "VENTA"] as const;
 export type ModoVenta = (typeof MODOS_VENTA)[number];
+export const esModoVenta = (v: unknown): v is ModoVenta => typeof v === "string" && (MODOS_VENTA as readonly string[]).includes(v);
 
-export const TIPOS_GALERIA = ["SELECCION", "ENTREGA"] as const;
+export const TIPOS_GALERIA = ["SELECCION", "ENTREGA", "ALBUM"] as const;
 export type TipoGaleria = (typeof TIPOS_GALERIA)[number];
+/** El tipo de una galería según su `kind` en la base: lo desconocido se lee como SELECCION. */
+export function tipoDeKind(kind: unknown): TipoGaleria {
+  return kind === "ENTREGA" ? "ENTREGA" : kind === "ALBUM" ? "ALBUM" : "SELECCION";
+}
 
 export const MODOS_SELECCION = ["LIBRE", "CANTIDAD"] as const;
 export type ModoSeleccion = (typeof MODOS_SELECCION)[number];
@@ -36,6 +41,12 @@ export const ETIQUETA_ESTADO_GALERIA: Record<EstadoGaleria, string> = {
   PUBLICADA: "Publicada",
   ARCHIVADA: "Archivada",
 };
+export const ETIQUETA_TIPO_GALERIA: Record<TipoGaleria, string> = {
+  SELECCION: "Selección",
+  ENTREGA: "Entrega",
+  ALBUM: "Álbum",
+};
+export const esTipoGaleria = (v: unknown): v is TipoGaleria => typeof v === "string" && (TIPOS_GALERIA as readonly string[]).includes(v);
 export const ETIQUETA_ESTADO_CLIENTE: Record<EstadoCliente, string> = {
   EN_PROGRESO: "Eligiendo",
   EN_REVISION: "Esperando tu revisión",
@@ -48,7 +59,7 @@ export const ETIQUETA_MODO_SELECCION: Record<ModoSeleccion, string> = {
 export const ETIQUETA_MODO_DESCARGA: Record<ModoDescarga, string> = {
   NINGUNA: "Sin descarga",
   VISTA: "Vista de galería",
-  SELECCIONADAS: "Sólo las seleccionadas",
+  SELECCIONADAS: "Sólo las fotos elegidas o compradas, en alta",
 };
 
 // --- Topes ------------------------------------------------------------------------------------------
@@ -67,6 +78,20 @@ export const MAX_MENSAJE_ENVIO = 2000;
 /** Fotos que se piden firmar o procesan en una misma llamada. */
 export const MAX_LOTE_FOTOS = 100;
 
+// --- Álbum por rondas (Entrega C) ----------------------------------------------------------------------
+
+export const ESTADOS_RONDA = ["ABIERTA", "CERRADA"] as const;
+export type EstadoRonda = (typeof ESTADOS_RONDA)[number];
+export const DECISIONES_ALBUM = ["APROBADO", "CAMBIOS"] as const;
+export type DecisionAlbum = (typeof DECISIONES_ALBUM)[number];
+export const ETIQUETA_DECISION_ALBUM: Record<DecisionAlbum, string> = { APROBADO: "Aprobó el álbum", CAMBIOS: "Pidió cambios" };
+/** Láminas por ronda. */
+export const MAX_LAMINAS_POR_RONDA = 300;
+/** Largo de la nota del estudio al abrir una ronda y del mensaje de una decisión. */
+export const MAX_NOTA_RONDA = 2000;
+/** Comentarios de un cliente en una ronda de álbum. */
+export const MAX_COMENTARIOS_POR_RONDA = 300;
+
 // --- Fotos y almacenamiento --------------------------------------------------------------------------
 
 /** 50 MB exactos por original. */
@@ -82,6 +107,8 @@ export const CALIDAD_MINIATURA = 75;
 /** Vida de la URL firmada de subida (PUT) y de las de lectura (GET). */
 export const SEGUNDOS_SUBIDA_FOTO = 15 * 60;
 export const SEGUNDOS_LECTURA_FOTO = 60 * 60;
+/** Vigencia del enlace firmado para bajar un original. */
+export const SEGUNDOS_DESCARGA_ORIGINAL = 5 * 60;
 /** Intentos de procesamiento antes de dejar la foto en ERROR para siempre. */
 export const MAX_INTENTOS_FOTO = 3;
 /** Una foto PENDIENTE sin objeto subido pasado este plazo se limpia. */
@@ -89,4 +116,35 @@ export const HORAS_PENDIENTE_FOTO = 24;
 
 export function esTipoFotoPermitido(v: unknown): v is TipoFotoPermitido {
   return typeof v === "string" && (TIPOS_FOTO_PERMITIDOS as readonly string[]).includes(v);
+}
+
+// --- Videos (Entrega B) -------------------------------------------------------------------------------
+
+export const TIPOS_MEDIO = ["FOTO", "VIDEO"] as const;
+export type TipoMedio = (typeof TIPOS_MEDIO)[number];
+export const esTipoMedio = (v: unknown): v is TipoMedio => typeof v === "string" && (TIPOS_MEDIO as readonly string[]).includes(v);
+
+/** 5 GB (decimales) por video: una sola URL firmada PUT; R2 admite un poco menos de 5 GiB en un PUT simple. */
+export const TAMANO_MAXIMO_VIDEO = 5_000_000_000;
+export const TIPOS_VIDEO_PERMITIDOS = ["video/mp4", "video/quicktime"] as const;
+export type TipoVideoPermitido = (typeof TIPOS_VIDEO_PERMITIDOS)[number];
+/** Videos por galería de entrega. */
+export const MAX_VIDEOS_POR_GALERIA = 200;
+/** Vida de la URL firmada de subida de un video: un archivo de varios GB tarda. */
+export const SEGUNDOS_SUBIDA_VIDEO = 60 * 60;
+
+export function esTipoVideoPermitido(v: unknown): v is TipoVideoPermitido {
+  return typeof v === "string" && (TIPOS_VIDEO_PERMITIDOS as readonly string[]).includes(v);
+}
+
+/** FOTO o VIDEO según el tipo MIME declarado; null si no es ninguno de los permitidos. */
+export function medioDeTipo(tipo: unknown): TipoMedio | null {
+  if (esTipoFotoPermitido(tipo)) return "FOTO";
+  if (esTipoVideoPermitido(tipo)) return "VIDEO";
+  return null;
+}
+
+/** Tamaño máximo de un original según su tipo de medio. */
+export function tamanoMaximoDe(medio: TipoMedio): number {
+  return medio === "VIDEO" ? TAMANO_MAXIMO_VIDEO : TAMANO_MAXIMO_ORIGINAL;
 }

@@ -62,6 +62,7 @@ import {
   type TemplateEditorCanvasTool,
 } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
+import { PAPER_TOKENS } from "./theme";
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
@@ -695,7 +696,7 @@ export function TemplateEditorCanvas({
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}
-        className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-auto bg-[color:var(--te-line)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
+        className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-auto bg-[color:var(--te-void)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
         style={{ cursor: workAreaCursor }}
         onPointerDownCapture={onWorkAreaPointerDownCapture}
         onPointerMove={onWorkAreaPointerMove}
@@ -707,8 +708,9 @@ export function TemplateEditorCanvas({
         }}
       >
         <div
-          className="relative shrink-0 overflow-hidden rounded-none bg-white shadow-[0_1px_6px_rgba(0,0,0,0.25)]"
-          style={{ width: zw, height: zh }}
+          className="relative shrink-0 overflow-hidden rounded-none bg-white shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
+          // El pliego es papel: no hereda el tema oscuro del editor (ver PAPER_TOKENS).
+          style={{ ...PAPER_TOKENS, width: zw, height: zh }}
           title={`Lienzo ${Math.round(state.canvas.width)}×${Math.round(state.canvas.height)} px · zoom ${Math.round(state.zoom * 100)}%`}
           aria-label="Lienzo de la plantilla"
           onClick={(e) => {
