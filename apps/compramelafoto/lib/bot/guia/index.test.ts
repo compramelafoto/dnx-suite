@@ -14,6 +14,13 @@ describe("buildSystemGuide", () => {
     expect(g).toContain("Nunca prometas");
     expect(g).toContain("pesos");
   });
+  it("pide mensajes cortos, una pregunta por vez y rutas sueltas", () => {
+    const g = buildSystemGuide();
+    expect(g).toContain("1 a 3 oraciones");
+    expect(g).toContain("UNA pregunta corta");
+    expect(g).toContain("no lo anuncies");
+    expect(g).toContain("Entrá acá: /fotografo/configuracion");
+  });
   it("es lo bastante larga para cachearse (>4096 caracteres)", () => {
     expect(buildSystemGuide().length).toBeGreaterThan(4096);
   });

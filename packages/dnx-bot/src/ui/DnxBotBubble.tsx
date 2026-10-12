@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { formatBotText } from "./format";
 import { parseSseBuffer } from "../sse";
 import { applyDecision, applySseEvent, dropEmptyBot, type Item } from "./items";
 
@@ -116,7 +117,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
             )}
             {items.map((it, i) => {
               if (it.kind === "user") return <div key={i} style={bubble("user")}>{it.text}</div>;
-              if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}>{it.text}</div> : null;
+              if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} /></div> : null;
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
                   {it.text}
@@ -154,6 +155,28 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
         {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
       </button>
     </div>
+  );
+}
+
+/** Texto del bot con formato mínimo. Todo se arma con elementos de React: nunca innerHTML. */
+function BotText({ text }: { text: string }) {
+  return (
+    <>
+      {formatBotText(text).map((line, li) => (
+        <Fragment key={li}>
+          {li > 0 && "\n"}
+          {line.map((seg, si) =>
+            seg.kind === "link" ? (
+              <a key={si} href={seg.href} title={seg.href} style={{ color: "#2563eb", textDecoration: "underline", fontWeight: 600 }}>{seg.label}</a>
+            ) : seg.bold ? (
+              <strong key={si}>{seg.text}</strong>
+            ) : (
+              <Fragment key={si}>{seg.text}</Fragment>
+            ),
+          )}
+        </Fragment>
+      ))}
+    </>
   );
 }
 

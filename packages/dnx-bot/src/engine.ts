@@ -67,6 +67,9 @@ async function turnLoop(
   appended: Msg[],
   usage: BotUsage,
 ): Promise<BotTurnResult> {
+  // Si en una vuelta anterior ya se mostró texto, el de la vuelta nueva arranca en otro párrafo
+  // (si no, queda "Voy a revisarlo.Tu cuenta…" pegado).
+  let emittedText = false;
   for (let iter = 0; iter < i.maxIterations; iter++) {
     // Sin tiempo para otra vuelta: el historial queda válido (termina en el mensaje del usuario o en tool_results).
     if (i.deadlineMs !== undefined && Date.now() > i.deadlineMs) return { appended, usage, outcome: "iteration_cap" };
@@ -87,7 +90,14 @@ async function turnLoop(
       cache_control: { type: "ephemeral" },
       messages: [...i.history, ...appended],
     });
-    stream.on("text", i.onText);
+    let separated = false;
+    stream.on("text", (delta: string) => {
+      if (!delta) return;
+      if (emittedText && iter > 0 && !separated) i.onText("\n\n");
+      separated = true;
+      emittedText = true;
+      i.onText(delta);
+    });
     const msg = await stream.finalMessage();
 
     usage.input_tokens += msg.usage?.input_tokens ?? 0;
