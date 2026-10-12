@@ -1,6 +1,7 @@
 import { defineTool, type BotActor, type BotTool } from "@repo/dnx-bot";
 import { z } from "zod";
 import { escalateToHuman, reportIncident } from "@/lib/bot/escalamiento";
+import { escolarTools } from "@/lib/bot/escolar/herramientas";
 import { ALLOWED_REASONS } from "@/lib/support/sanitize";
 import { albumTools } from "./album";
 import { lecturaTools } from "./lectura";
@@ -65,5 +66,5 @@ export function toolsForActor(actor: BotActor, ctx: ToolsContext): BotTool[] {
     }),
   ];
   if (!PHOTOGRAPHER_ROLES.has(actor.role)) return comunes;
-  return [...lecturaTools, ...albumTools, ...packTools, ...perfilTools, ...pedidosTools, ...comunes];
+  return [...lecturaTools, ...albumTools, ...packTools, ...perfilTools, ...pedidosTools, ...escolarTools, ...comunes];
 }
