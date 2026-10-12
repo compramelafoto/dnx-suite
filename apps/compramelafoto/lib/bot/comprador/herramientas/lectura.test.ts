@@ -112,7 +112,7 @@ describe("buscar_album", () => {
 
 const ALBUM_3 = {
   id: 3, title: "X", isPublic: true, isHidden: false, isTest: false, deletedAt: null, cleanupStatus: "NONE",
-  expiresAt: new Date(Date.now() + 10 * DIA), digitalPhotoPriceCents: 1234, hiddenPhotosEnabled: false,
+  firstPhotoDate: new Date(Date.now() - 5 * DIA), expirationExtensionDays: 0, digitalPhotoPriceCents: 1234, hiddenPhotosEnabled: false,
   enablePrintedPhotos: false, publicSlug: "x", user: { name: "F", companyName: null },
   digitalDiscount5Plus: null, digitalDiscount10Plus: 10, digitalDiscount20Plus: null,
 };
@@ -177,15 +177,25 @@ describe("ver_album", () => {
       },
     });
     expect(JSON.stringify(r)).toContain("selfie");
-    expect(JSON.stringify(r)).toMatch(/disponible hasta el \d{2}\/\d{2}/);
+    expect(JSON.stringify(r)).toMatch(/disponible hasta el \d{1,2}\/\d{1,2}/);
   });
   it("álbum vencido o sin originales lo dice", async () => {
     m.photo.count.mockResolvedValue(0);
     m.packs.mockResolvedValue([]);
     m.albumPack.findMany.mockResolvedValue([]);
-    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, expiresAt: new Date(Date.now() - 2 * DIA) });
+    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, firstPhotoDate: new Date(Date.now() - 35 * DIA) });
     const vencido = await tool(actor(), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
-    expect(JSON.stringify(vencido)).toMatch(/venció el \d{2}\/\d{2}/);
+    expect(JSON.stringify(vencido)).toMatch(/venció el \d{1,2}\/\d{1,2}; se puede pedir una extensión hasta el \d{1,2}\/\d{1,2}/);
+    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, firstPhotoDate: new Date(Date.now() - 50 * DIA) });
+    const borrado = await tool(actor(), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
+    expect(JSON.stringify(borrado)).toContain("ya no está disponible");
+    // Caso real (álbum 1099): creado y con primera foto hace 7 días → sigue disponible aunque `expiresAt` haya quedado en la creación.
+    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, firstPhotoDate: new Date(Date.now() - 7 * DIA), expiresAt: new Date(Date.now() - 7 * DIA) });
+    const vigente = await tool(actor(), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
+    expect(JSON.stringify(vigente)).toMatch(/disponible hasta el \d{1,2}\/\d{1,2}/);
+    m.album.findFirst.mockResolvedValue({ ...ALBUM_3, firstPhotoDate: null });
+    const sinFotos = await tool(actor(), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
+    expect(JSON.stringify(sinFotos)).toContain('"disponible"');
     m.album.findFirst.mockResolvedValue({ ...ALBUM_3, cleanupStatus: "COMPLETED" });
     const limpio = await tool(actor(), "ver_album").run({ albumId: 3 }, ACTOR_MOTOR_COMPRADOR);
     expect(JSON.stringify(limpio)).toContain("ya no está disponible");
