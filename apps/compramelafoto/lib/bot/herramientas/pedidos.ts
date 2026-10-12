@@ -46,7 +46,7 @@ export const pedidosTools: BotTool[] = [
         `dnx-bot-resend-${o.id}-${new Date().toISOString().slice(0, 13)}`,
       );
       if (!r.ok) {
-        console.error("[dnx-bot] reenvío de link falló", { orderId: o.id, error: r.error });
+        console.error("[dnx-bot] reenvío de link falló", { orderId: o.id, error: r.error, err: r.causa });
         return falla;
       }
       return { ok: true, message: `Listo, le reenvié el link a ${maskEmail(o.buyerEmail)}.` };

@@ -42,8 +42,9 @@ describe("reenviarDescargaDePedido", () => {
     expect(await reenviarDescargaDePedido(o, "k")).toEqual({ ok: false, error: "Sin token de descarga" });
   });
   it("excepción → ok: false con el error como texto", async () => {
-    m.token.mockRejectedValue(new Error("db caída"));
-    expect(await reenviarDescargaDePedido(o, "k")).toEqual({ ok: false, error: "Error: db caída" });
+    const e = new Error("db caída");
+    m.token.mockRejectedValue(e);
+    expect(await reenviarDescargaDePedido(o, "k")).toEqual({ ok: false, error: "Error: db caída", causa: e });
     expect(m.resend).not.toHaveBeenCalled();
   });
 });

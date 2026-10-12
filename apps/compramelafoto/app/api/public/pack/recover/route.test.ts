@@ -24,19 +24,23 @@ beforeEach(() => {
 describe("POST /api/public/pack/recover", () => {
   it("mail inválido → respuesta genérica sin consultar", async () => {
     const r = await POST(req({ email: "nada" }));
+    expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true, message: "Si encontramos pedidos con ese email, te enviamos un link." });
     expect(m.find).not.toHaveBeenCalled();
   });
   it("sin pedidos → misma respuesta y sin mail", async () => {
     m.find.mockResolvedValue([]);
     const r = await POST(req({ email: "a@b.com" }));
+    expect(r.status).toBe(200);
     expect((await r.json()).message).toBe("Si encontramos pedidos con ese email, te enviamos un link.");
     expect(m.mail).not.toHaveBeenCalled();
   });
   it("con pedidos → token nuevo revocando el anterior y un mail con los packs", async () => {
     m.find.mockResolvedValue([{ id: 5, album: { title: "Egresados" } }]);
     m.token.mockResolvedValue({ token: "tok" });
-    await POST(req({ email: "A@B.com" }));
+    const r = await POST(req({ email: "A@B.com" }));
+    expect(r.status).toBe(200);
+    expect((await r.json()).message).toBe("Si encontramos pedidos con ese email, te enviamos un link.");
     expect(m.token).toHaveBeenCalledWith(5, { revokeExisting: true });
     expect(m.mail).toHaveBeenCalledWith({
       email: "a@b.com",

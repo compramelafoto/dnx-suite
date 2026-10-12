@@ -21,7 +21,7 @@ export function albumConOriginales(a: { deletedAt: Date | null; cleanupStatus: s
 export async function reenviarDescargaDePedido(
   o: { id: number; albumId: number },
   idempotencyKey: string,
-): Promise<{ ok: true; renovado: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true; renovado: boolean } | { ok: false; error: string; causa?: unknown }> {
   try {
     const vigente = await prisma.orderDownloadToken.findFirst({
       where: { orderId: o.id, type: "CLIENT_DIGITAL", photoId: null, expiresAt: { gt: new Date() } },
@@ -39,6 +39,6 @@ export async function reenviarDescargaDePedido(
     if (!r.queued) return { ok: false, error: r.error ?? "sin detalle" };
     return { ok: true, renovado: !vigente };
   } catch (e) {
-    return { ok: false, error: String(e) };
+    return { ok: false, error: String(e), causa: e };
   }
 }
