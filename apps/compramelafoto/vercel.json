@@ -101,6 +101,10 @@
     {
       "path": "/api/cron/analyze-video-frames",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/bot-resumen",
+      "schedule": "0 12 * * *"
     }
   ]
 }
