@@ -62,6 +62,17 @@ describe("runBotTurn", () => {
     expect(r.usage.input_tokens).toBe(20);
   });
 
+  it("separa con un párrafo el texto de vueltas distintas", async () => {
+    const client = fakeClient([
+      { stop_reason: "tool_use", usage, content: [{ type: "text", text: "Miro." }, { type: "tool_use", id: "t1", name: "ver_album", input: { albumId: 3 } }] },
+      { stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t2", name: "ver_album", input: { albumId: 4 } }] },
+      { stop_reason: "end_turn", usage, content: [{ type: "text", text: "Tu cuenta" }, { type: "text", text: " está bien." }] },
+    ]);
+    const texts: string[] = [];
+    await runBotTurn({ ...base, client, tools: [leer], userText: "hola", onText: (d) => texts.push(d), proposeWrite: vi.fn(), onProposal: vi.fn() });
+    expect(texts.join("")).toBe("Miro.\n\nTu cuenta está bien.");
+  });
+
   it("una herramienta de escritura NO corre: se propone", async () => {
     const client = fakeClient([
       { stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t1", name: "actualizar_album", input: { albumId: 3 } }] },
