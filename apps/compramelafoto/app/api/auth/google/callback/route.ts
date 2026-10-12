@@ -8,6 +8,7 @@ import { hashToken } from "@/lib/token-hash";
 import { sendEmail } from "@/emails/send";
 import { buildVerifyEmail } from "@/emails/templates/auth";
 import { getPostLoginDestination } from "@/lib/auth/post-login-destination";
+import { registrarUltimoIngreso } from "@/lib/auth/registrar-ultimo-ingreso";
 import { decodeGoogleOAuthState } from "@/lib/auth/google-oauth-state";
 import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
 import { inferReferralProgramForReferredUserRole } from "@/lib/referral/referral-program";
@@ -339,6 +340,8 @@ export async function GET(req: Request) {
         `${baseUrl}${loginPath}?error=${encodeURIComponent("No se pudo crear la sesión")}`,
       );
     }
+    // Igual que el login con contraseña: marca el último ingreso sin demorar la respuesta.
+    registrarUltimoIngreso(user.id, "GOOGLE CALLBACK");
     if (isNewUser) {
       appendClearReferralCookies(response.headers);
     }

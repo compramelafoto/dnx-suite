@@ -42,21 +42,31 @@ export function readBotConfig(): BotConfig {
   };
 }
 
-export async function isBotEnabledForUser(userId: number): Promise<boolean> {
-  if (!readBotConfig().enabled) return false;
+/**
+ * A quién alcanza el bot según el modo piloto: `"todos"`, una lista de ids o `null` (nadie).
+ * No mira `CLF_BOT_ENABLED`: eso lo decide quien llama.
+ */
+export async function leerAlcancePiloto(): Promise<"todos" | number[] | null> {
   let row;
   try {
     row = await prisma.systemSettings.findUnique({ where: { key: PILOT_SETTINGS_KEY } });
   } catch (e) {
     console.error("[bot] no se pudo leer el modo piloto; bot apagado", e);
-    return false;
+    return null;
   }
-  if (!row || !row.isActive) return false;
+  if (!row || !row.isActive) return null;
   try {
     const p = JSON.parse(row.value) as { soloPiloto?: boolean; userIds?: number[] };
-    if (p.soloPiloto === false) return true;
-    return Array.isArray(p.userIds) && p.userIds.includes(userId);
+    if (p.soloPiloto === false) return "todos";
+    return Array.isArray(p.userIds) ? p.userIds : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function isBotEnabledForUser(userId: number): Promise<boolean> {
+  if (!readBotConfig().enabled) return false;
+  const alcance = await leerAlcancePiloto();
+  if (alcance === "todos") return true;
+  return !!alcance && alcance.includes(userId);
 }

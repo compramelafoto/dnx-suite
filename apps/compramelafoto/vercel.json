@@ -105,6 +105,10 @@
     {
       "path": "/api/cron/bot-resumen",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/bot-outreach",
+      "schedule": "0 13 * * *"
     }
   ]
 }

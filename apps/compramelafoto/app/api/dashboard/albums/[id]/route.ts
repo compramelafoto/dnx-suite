@@ -6,9 +6,6 @@ import {
   Role,
   Prisma,
   PrintPricingSource,
-  AlbumMode,
-  StudentIdentificationMode,
-  OrganizerCommissionAppliesTo,
   EventFolderScope,
 } from "@/lib/prisma";
 // Nota: Ya no usamos fs/promises para eliminar archivos, ahora usamos R2
@@ -28,6 +25,7 @@ import {
   buildAlbumSettingsUpdateData,
   loadMinDigitalPhotoPrice,
 } from "@/lib/albums/album-settings-update";
+import { buildAlbumSchoolSettingsUpdateData } from "@/lib/albums/album-school-settings";
 import { isEventOrganizerUser } from "@/lib/events/event-organizer-access";
 import {
   loadAlbumPhotoStats,
@@ -515,14 +513,7 @@ export async function PATCH(
       textSearchEnabled,
       preCompraCloseAt,
       requireClientApproval,
-      schoolId,
       type,
-      mode,
-      studentIdentificationMode,
-      allowManualStudentFallback,
-      organizerCommissionEnabled,
-      organizerCommissionPercentage,
-      organizerCommissionAppliesTo,
       isTest,
       albumPackPayEnabled,
     } = body;
@@ -659,87 +650,19 @@ export async function PATCH(
       (updateData as any).requireClientApproval = Boolean(requireClientApproval);
     }
 
-    if (schoolId !== undefined) {
-      const sid = schoolId == null || schoolId === "" ? null : (Number.isFinite(Number(schoolId)) ? Number(schoolId) : null);
-      if (sid != null) {
-        const school = await prisma.school.findUnique({ where: { id: sid }, select: { ownerId: true } });
-        if (!school || school.ownerId !== user.id) {
-          return NextResponse.json({ error: "Escuela no encontrada o no te pertenece" }, { status: 400 });
-        }
-      }
-      (updateData as any).schoolId = sid;
+    // Escuela, modo, identificación de alumnos y comisión del organizador:
+    // lógica compartida con DNX Bot (mismo orden de validación y mismos errores).
+    const builtSchoolSettings = await buildAlbumSchoolSettingsUpdateData(body, user.id);
+    if (!builtSchoolSettings.ok) {
+      return NextResponse.json(
+        { error: builtSchoolSettings.error },
+        { status: builtSchoolSettings.status }
+      );
     }
+    Object.assign(updateData, builtSchoolSettings.data);
     if (type !== undefined) {
       const validTypes = ["SCHOOL", "WEDDING", "BIRTHDAY", "GRADUATION", "SPORTS", "CONCERT", "CORPORATE", "OTHER", "PUBLIC_SESSION", "PRIVATE_SESSION", "PUBLIC_PHOTOGRAPHY", "THEMATIC_SESSIONS", "COMMERCIAL_SESSIONS", "RELIGIOUS", "FESTIVAL", "CONFERENCE"];
       (updateData as any).type = validTypes.includes(type) ? type : null;
-    }
-    if (mode !== undefined) {
-      const validModes: AlbumMode[] = ["SIMPLE", "EVENT", "SCHOOL", "COLLABORATIVE"];
-      if (typeof mode !== "string" || !validModes.includes(mode as AlbumMode)) {
-        return NextResponse.json({ error: "mode inválido" }, { status: 400 });
-      }
-      (updateData as any).mode = mode as AlbumMode;
-    }
-
-    if (studentIdentificationMode !== undefined) {
-      const allowed: StudentIdentificationMode[] = [
-        "NONE",
-        "MANUAL",
-        "ROSTER_OPTIONAL",
-        "ROSTER_REQUIRED",
-      ];
-      if (studentIdentificationMode === null || studentIdentificationMode === "") {
-        (updateData as any).studentIdentificationMode = null;
-      } else if (
-        typeof studentIdentificationMode === "string" &&
-        allowed.includes(studentIdentificationMode as StudentIdentificationMode)
-      ) {
-        (updateData as any).studentIdentificationMode =
-          studentIdentificationMode as StudentIdentificationMode;
-      } else {
-        return NextResponse.json(
-          { error: "studentIdentificationMode inválido (NONE, MANUAL, ROSTER_OPTIONAL, ROSTER_REQUIRED o vacío)" },
-          { status: 400 }
-        );
-      }
-    }
-    if (allowManualStudentFallback !== undefined) {
-      (updateData as any).allowManualStudentFallback = Boolean(allowManualStudentFallback);
-    }
-    if (organizerCommissionEnabled !== undefined) {
-      (updateData as any).organizerCommissionEnabled = Boolean(organizerCommissionEnabled);
-    }
-    if (organizerCommissionPercentage !== undefined) {
-      if (
-        organizerCommissionPercentage === null ||
-        organizerCommissionPercentage === ""
-      ) {
-        (updateData as any).organizerCommissionPercentage = null;
-      } else {
-        const value = Number(organizerCommissionPercentage);
-        if (!Number.isFinite(value) || value < 0 || value > 100) {
-          return NextResponse.json(
-            { error: "organizerCommissionPercentage inválido (0-100)" },
-            { status: 400 }
-          );
-        }
-        (updateData as any).organizerCommissionPercentage = value;
-      }
-    }
-    if (organizerCommissionAppliesTo !== undefined) {
-      const allowed: OrganizerCommissionAppliesTo[] = ["PREVENTA", "POST_EVENT", "EXTRAS"];
-      if (!Array.isArray(organizerCommissionAppliesTo)) {
-        return NextResponse.json(
-          { error: "organizerCommissionAppliesTo debe ser un array" },
-          { status: 400 }
-        );
-      }
-      const parsed = organizerCommissionAppliesTo
-        .map((entry) => String(entry))
-        .filter((entry): entry is OrganizerCommissionAppliesTo =>
-          allowed.includes(entry as OrganizerCommissionAppliesTo)
-        );
-      (updateData as any).organizerCommissionAppliesTo = parsed;
     }
     if (isTest !== undefined) {
       (updateData as any).isTest = Boolean(isTest);

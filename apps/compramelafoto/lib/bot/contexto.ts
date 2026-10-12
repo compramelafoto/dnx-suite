@@ -11,12 +11,14 @@ import {
   type MercadoPagoConnectionStatus,
 } from "@/lib/mercadopago/mp-connection-health";
 import { prisma } from "@/lib/prisma";
+import { computeSchoolSetupProgress, type ProgresoEscolar } from "@/lib/bot/escolar/progreso";
 
 export type SituationAlert = { level: "bloquea_ventas" | "aviso"; text: string; albumId?: number };
 
 const DAY = 24 * 60 * 60 * 1000;
 const MAX_ALBUMS = 30;
 const SOON_DAYS = 7;
+const SCHOOL_ALBUM_OR = [{ schoolId: { not: null } }, { mode: "SCHOOL" as const }];
 
 const MP_STATUS_TEXT: Record<MercadoPagoConnectionStatus, string> = {
   CONNECTED: "conectado",
@@ -36,6 +38,24 @@ function daysUntil(date: Date, now: number): number {
   return Math.ceil((date.getTime() - now) / DAY);
 }
 
+function lineaDeProgreso(p: ProgresoEscolar | null): string | null {
+  if (p == null || p.albumTitulo == null) return null;
+  return p.siguiente
+    ? `Escolar: paso ${p.siguiente.n} de ${p.total} en «${p.albumTitulo}» (sigue: ${p.siguiente.titulo.toLowerCase()}; ${p.hechos} de ${p.total} hechos)`
+    : `Escolar: los ${p.total} pasos están hechos en «${p.albumTitulo}»`;
+}
+
+/** Una línea con el avance del armado escolar; si algo falla, no rompe la situación. */
+async function schoolProgressLine(userId: number): Promise<string | null> {
+  let p: ProgresoEscolar;
+  try {
+    p = await computeSchoolSetupProgress(userId);
+  } catch {
+    return null;
+  }
+  return lineaDeProgreso(p);
+}
+
 function organizerFixedPrice(pricing: CollaborativeEventPricingLockSnapshot | null): number | null {
   if (!pricing?.locksPhotographerDigitalPricing) return null;
   const fixed = pricing.fixedPhotoPrice;
@@ -46,7 +66,16 @@ function organizerFixedPrice(pricing: CollaborativeEventPricingLockSnapshot | nu
  * Diagnóstico de la cuenta del fotógrafo para DNX Bot: se arma en cada pedido y va
  * fuera de la guía cacheada. Todos los importes son pesos enteros (no centavos).
  */
-export async function buildPhotographerSituation(userId: number): Promise<{ text: string; alerts: SituationAlert[] }> {
+export async function buildPhotographerSituation(
+  userId: number,
+  opts: {
+    /**
+     * Progreso escolar ya calculado en este mismo pedido (p. ej. por /api/bot/estado para el globito):
+     * si viene (aunque sea `null`), se usa tal cual y no se vuelve a calcular.
+     */
+    progresoEscolar?: ProgresoEscolar | null;
+  } = {},
+): Promise<{ text: string; alerts: SituationAlert[] }> {
   const now = Date.now();
   const [albums, activeProducts, failedJobs, orders30, mp] = await Promise.all([
     prisma.album.findMany({
@@ -58,7 +87,7 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
         firstPhotoDate: true, expirationExtensionDays: true, isHidden: true, deletedAt: true, cleanupStatus: true,
         enableDigitalPhotos: true, enablePrintedPhotos: true, digitalPhotoPriceCents: true,
         termsAcceptedAt: true, termsVersion: true, albumProfitMarginPercent: true,
-        selectedLabId: true, pickupBy: true, printPricingSource: true,
+        selectedLabId: true, pickupBy: true, printPricingSource: true, mode: true, schoolId: true,
         _count: { select: { photos: { where: { isRemoved: false } } } },
       },
     }),
@@ -85,6 +114,21 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
       eventIds.map(async (id) => [id, await loadCollaborativeEventPricingSnapshot(id).catch(() => null)] as const),
     ),
   );
+
+  // Sólo si tiene algún álbum escolar real (cualquiera, no sólo los últimos 30): el progreso hace
+  // varias consultas acotadas. Los de prueba no cuentan, igual que en el progreso.
+  let schoolLine: string | null;
+  if (opts.progresoEscolar !== undefined) {
+    schoolLine = lineaDeProgreso(opts.progresoEscolar);
+  } else {
+    // `undefined` = la búsqueda falló: no se afirma nada sobre la fotografía escolar.
+    const schoolAlbum = await prisma.album
+      .findFirst({ where: { userId, deletedAt: null, isTest: false, OR: SCHOOL_ALBUM_OR }, select: { id: true } })
+      .catch(() => undefined);
+    // Sin ningún álbum escolar real: la guía le pide al bot ofrecer aprender venta escolar (una vez).
+    if (schoolAlbum === null) schoolLine = "Fotografía escolar: nunca la usó";
+    else schoolLine = schoolAlbum ? await schoolProgressLine(userId) : null;
+  }
 
   const alerts: SituationAlert[] = [];
   if (mp.status === "NOT_CONNECTED") {
@@ -150,6 +194,14 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
     );
 
     if (a.isTest) continue;
+    if (a.mode === "SCHOOL" && a.schoolId == null) {
+      // Aviso, no bloqueo: el álbum puede vender igual; lo que falta es vincular la escuela.
+      alerts.push({
+        level: "aviso",
+        albumId: a.id,
+        text: `«${a.title}» está marcado como escolar pero no tiene escuela: queda a medias.`,
+      });
+    }
     if (a.isPublic && !hiddenByExpiry && !r.readyToSell) {
       alerts.push({ level: "bloquea_ventas", albumId: a.id, text: `«${a.title}» está publicado pero no puede vender: falta ${gaps}.` });
     }
@@ -175,6 +227,7 @@ export async function buildPhotographerSituation(userId: number): Promise<{ text
       ? `Álbumes (más recientes primero${albums.length === MAX_ALBUMS ? `, sólo los últimos ${MAX_ALBUMS}` : ""}):`
       : "No tiene álbumes.",
     ...lines,
+    ...(schoolLine ? [schoolLine] : []),
     alerts.length ? "Alertas:\n" + alerts.map((x) => `- [${x.level}] ${x.text}`).join("\n") : "Sin alertas.",
   ].join("\n");
   return { text, alerts };

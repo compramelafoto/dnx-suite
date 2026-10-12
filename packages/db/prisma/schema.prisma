@@ -24729,6 +24729,35 @@ model BotUsageDaily {
   @@index([platform, day])
 }
 
+enum BotOutreachChannel {
+  PANEL
+  EMAIL
+}
+
+enum BotOutreachStatus {
+  SHOWN
+  CLICKED
+  DISMISSED
+  DECLINED
+  SENT
+  FAILED
+}
+
+model BotOutreach {
+  id        String             @id @default(cuid())
+  platform  String
+  userId    Int
+  campaign  String
+  channel   BotOutreachChannel
+  status    BotOutreachStatus
+  answer    String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([platform, userId, campaign, channel])
+  @@index([platform, campaign, status])
+}
+
 /// Pedido de descarga de una galería de entrega (ZIP en partes armado en segundo plano; Entrega B).
 /// `status` PENDIENTE|ARMANDO|LISTA|ERROR|VENCIDA (CHECK). `parts` es una lista `{ n, key, bytes, files, estado }`;
 /// `cursor` guarda el estado de la parte en curso. `galeriaClienteId` es nulo si lo pidió el estudio.

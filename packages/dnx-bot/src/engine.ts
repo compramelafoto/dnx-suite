@@ -1,5 +1,5 @@
 import { toInputSchema } from "./schema";
-import type { BotActor, BotTool } from "./types";
+import type { BotActor, BotTool, ToolOutcome } from "./types";
 
 export type BotStreamClient = {
   beta: {
@@ -28,6 +28,8 @@ export type BotTurnInput = {
   onText: (delta: string) => void;
   proposeWrite: (p: { toolName: string; input: unknown; summary: string }) => Promise<{ actionId: string }>;
   onProposal: (p: { actionId: string; summary: string }) => void;
+  /** Se llama tras correr cada herramienta de lectura (no con las propuestas). Si lanza, se ignora. */
+  onToolResult?: (name: string, outcome: ToolOutcome) => void;
 };
 
 type Msg = { role: "user" | "assistant"; content: unknown };
@@ -134,6 +136,13 @@ async function handleToolUse(i: BotTurnInput, tool: BotTool | undefined, tu: { i
   if (tool.kind === "read") {
     try {
       const out = await tool.run(parsed.data, i.actor);
+      if (i.onToolResult) {
+        try {
+          i.onToolResult(tool.name, out);
+        } catch {
+          // Un aviso a la burbuja que falla no rompe el turno.
+        }
+      }
       return { type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(out), ...(out.ok ? {} : { is_error: true }) };
     } catch (e) {
       return err(`Falló la consulta: ${e instanceof Error ? e.message : String(e)}`);

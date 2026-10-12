@@ -3,13 +3,34 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { formatBotText } from "./format";
 import { parseSseBuffer } from "../sse";
-import { applyDecision, applySseEvent, dropEmptyBot, type Item } from "./items";
+import {
+  botonGlobito,
+  campaniaInicial,
+  estadoUrl,
+  globitoBody,
+  olvidarCampaniaPendiente,
+  parseDnxbotParam,
+  parseGlobito,
+  progresoInicial,
+  stripDnxbotParam,
+  tarjetaProgreso,
+  type AlmacenSimple,
+  type Globito,
+  type GlobitoAccion,
+  type GlobitoBoton,
+  type ProgresoEscolar,
+} from "./globito";
+import { applyDecision, applySseEvent, dropEmptyBot, seedIntro, type Item } from "./items";
 
 export type DnxBotBubbleProps = { basePath: string; mascotSrc: string; bottomOffsetPx?: number };
 
 export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBotBubbleProps) {
-  const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[] } | null>(null);
+  const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
+  const [globito, setGlobito] = useState<Globito | null>(null);
+  // true cuando la persona llegó desde el mail (?dnxbot=): el globito es el saludo dentro de la ventana.
+  const [globitoEnVentana, setGlobitoEnVentana] = useState(false);
+  const [introProgreso, setIntroProgreso] = useState<ProgresoEscolar | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,15 +41,46 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`${basePath}/estado`).then((r) => r.json()).then(setEstado).catch(() => setEstado({ enabled: false }));
+    let almacen: AlmacenSimple | null = null;
+    try {
+      almacen = window.sessionStorage;
+    } catch {
+      almacen = null;
+    }
+    // Si viene del mail sin sesión, el login pierde el parámetro: queda guardado en sessionStorage
+    // hasta que la ventana se abra con el bot habilitado.
+    const campaign = campaniaInicial(location.search, almacen, Date.now());
+    // Recargar la página no vuelve a abrir la ventana: el parámetro del mail se usa una sola vez.
+    if (parseDnxbotParam(location.search)) history.replaceState(history.state, "", stripDnxbotParam(location.href));
+    fetch(estadoUrl(basePath, campaign))
+      .then((r) => r.json())
+      .then((e) => {
+        setEstado(e);
+        setGlobito(parseGlobito(e?.globito));
+        setIntroProgreso(progresoInicial(e));
+        // Único caso en que la ventana se abre sola: la persona tocó el enlace del mail.
+        if (campaign && e?.enabled) {
+          setGlobitoEnVentana(true);
+          setOpen(true);
+          olvidarCampaniaPendiente(almacen);
+        }
+      })
+      .catch(() => setEstado({ enabled: false }));
   }, [basePath]);
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [items]);
+
+  // Lo que se ve como saludo antes del primer mensaje; send() lo pasa a la conversación.
+  const introRef = useRef<{ texto: string | null; progreso: ProgresoEscolar | null }>({ texto: null, progreso: null });
+  useEffect(() => {
+    introRef.current = { texto: globitoEnVentana && globito ? globito.texto : null, progreso: introProgreso };
+  }, [globitoEnVentana, globito, introProgreso]);
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || busy) return;
     setBusy(true);
     setInput("");
-    setItems((x) => [...x, { kind: "user", text }, { kind: "bot", text: "" }]);
+    const intro = introRef.current;
+    setItems((x) => [...seedIntro(x, intro), { kind: "user", text }, { kind: "bot", text: "" }]);
     try {
       const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: location.pathname }) });
       if (!res.ok || !res.body) throw new Error(String(res.status));
@@ -92,6 +144,28 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
     }
   }, [basePath]);
 
+  const registrarGlobito = useCallback((campaign: string, accion: GlobitoAccion, answer?: string) => {
+    // Registrar es un extra: si falla, el globito igual se oculta.
+    fetch(`${basePath}/globito`, { method: "POST", headers: { "content-type": "application/json" }, body: globitoBody(campaign, accion, answer) }).catch(() => {});
+  }, [basePath]);
+
+  const tocarBoton = useCallback((b: GlobitoBoton) => {
+    if (!globito) return;
+    const r = botonGlobito(b);
+    registrarGlobito(globito.campaign, r.accion, r.mensaje ? b.label : undefined);
+    if (r.mensaje) {
+      setOpen(true);
+      void send(r.mensaje);
+    }
+    setGlobito(null);
+  }, [globito, registrarGlobito, send]);
+
+  const cerrarGlobito = useCallback(() => {
+    if (!globito) return;
+    registrarGlobito(globito.campaign, "DISMISSED");
+    setGlobito(null);
+  }, [globito, registrarGlobito]);
+
   if (!estado?.enabled) return null;
 
   return (
@@ -108,16 +182,27 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
           </div>
           <div ref={listRef} style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
             {items.length === 0 && (
-              <>
-                <div style={bubble("bot")}>{estado.saludo}</div>
-                {estado.sugerencias?.map((s) => (
-                  <button key={s} onClick={() => send(s)} style={{ alignSelf: "flex-start", border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px", background: "#fafafa", cursor: "pointer" }}>{s}</button>
-                ))}
-              </>
+              globitoEnVentana && globito ? (
+                <>
+                  <div style={bubble("bot")}><BotText text={globito.texto} /></div>
+                  {globito.botones.map((b) => (
+                    <button key={b.label} onClick={() => tocarBoton(b)} disabled={busy} style={chip}>{b.label}</button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <div style={bubble("bot")}>{estado.saludo}</div>
+                  {estado.sugerencias?.map((s) => (
+                    <button key={s} onClick={() => send(s)} style={chip}>{s}</button>
+                  ))}
+                </>
+              )
             )}
+            {items.length === 0 && introProgreso && <ProgresoCard progreso={introProgreso} busy={busy} onHacelo={send} />}
             {items.map((it, i) => {
               if (it.kind === "user") return <div key={i} style={bubble("user")}>{it.text}</div>;
               if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} /></div> : null;
+              if (it.kind === "progreso") return <ProgresoCard key={i} progreso={it.progreso} busy={busy} onHacelo={send} />;
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
                   {it.text}
@@ -150,6 +235,20 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24 }: DnxBo
           <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>
         </div>
       )}
+      {globito && !open && !globitoEnVentana && (
+        <div role="status" aria-label="Mensaje de DNX Bot" style={{ position: "absolute", right: 76, bottom: 8, width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
+          <button onClick={cerrarGlobito} aria-label="Cerrar el mensaje de DNX Bot" style={{ position: "absolute", top: 2, right: 4, border: 0, background: "none", fontSize: 16, lineHeight: 1, cursor: "pointer", color: "#666" }}>×</button>
+          <div style={{ paddingRight: 14 }}><BotText text={globito.texto} /></div>
+          {globito.botones.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {globito.botones.map((b) => (
+                <button key={b.label} onClick={() => tocarBoton(b)} style={b.mensaje ? { ...btn, padding: "4px 10px", background: "#111", color: "#fff" } : { ...btn, padding: "4px 10px" }}>{b.label}</button>
+              ))}
+            </div>
+          )}
+          <span aria-hidden="true" style={{ position: "absolute", right: -6, bottom: 18, width: 12, height: 12, background: "#fff", transform: "rotate(45deg)" }} />
+        </div>
+      )}
       <button onClick={() => setOpen((o) => !o)} aria-label={open ? "Cerrar DNX Bot" : "Abrir DNX Bot"} style={{ position: "relative", marginLeft: "auto", display: "block", width: 64, height: 64, borderRadius: 999, border: 0, background: "#fff", boxShadow: "0 6px 20px rgba(0,0,0,.2)", cursor: "pointer", padding: 4 }}>
         <img src={mascotSrc} alt="" width={56} height={56} style={{ objectFit: "contain" }} />
         {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
@@ -180,6 +279,42 @@ function BotText({ text }: { text: string }) {
   );
 }
 
+/** Tarjeta del armado escolar: «Paso k de 11», la lista de pasos y el siguiente con «Abrir» y, si el bot puede hacerlo, «Hacelo por mí». */
+function ProgresoCard({ progreso, busy, onHacelo }: { progreso: ProgresoEscolar; busy: boolean; onHacelo: (text: string) => void }) {
+  const t = tarjetaProgreso(progreso);
+  return (
+    <section aria-label="Progreso del álbum escolar" style={{ border: "1px solid #d6e9d8", background: "#f4fbf5", borderRadius: 12, padding: 10 }}>
+      <div style={{ fontWeight: 600 }}>{t.encabezado}</div>
+      {t.titulo && <div style={{ fontSize: 12, color: "#555", marginBottom: 6 }}>{t.titulo}</div>}
+      {t.aviso && <div style={{ fontSize: 12, color: "#a33", marginBottom: 6 }}>{t.aviso}</div>}
+      <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+        {t.filas.map((f) => (
+          <li key={f.n} aria-current={f.esSiguiente ? "step" : undefined} style={{ display: "flex", gap: 6, padding: "2px 4px", borderRadius: 6, background: f.esSiguiente ? "#fff" : "transparent", fontWeight: f.esSiguiente ? 600 : 400, color: f.marca === "—" ? "#888" : "#111" }}>
+            <span aria-hidden="true" style={{ width: 14, textAlign: "center", color: f.marca === "✓" ? "#0a7a2f" : undefined }}>{f.marca}</span>
+            <span>
+              <span style={visuallyHidden}>{`${f.estadoTexto}: `}</span>
+              {f.titulo}
+              {f.opcional && <span style={{ color: "#888", fontWeight: 400 }}> (opcional)</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {t.siguiente && (
+        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+          {t.siguiente.enlace && (
+            <a href={t.siguiente.enlace} aria-label={`Abrir el paso: ${t.siguiente.titulo}`} style={{ ...btn, color: "#111", textDecoration: "none", display: "inline-block" }}>Abrir</a>
+          )}
+          {t.siguiente.mensaje && (
+            <button onClick={() => onHacelo(t.siguiente!.mensaje!)} disabled={busy} aria-label={`Hacelo por mí: ${t.siguiente.titulo}`} style={{ ...btn, background: "#111", color: "#fff" }}>Hacelo por mí</button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+const visuallyHidden: React.CSSProperties = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" };
+const chip: React.CSSProperties = { alignSelf: "flex-start", border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px", background: "#fafafa", cursor: "pointer" };
 const btn: React.CSSProperties = { border: "1px solid #ddd", borderRadius: 10, padding: "6px 12px", background: "#fff", cursor: "pointer" };
 const linkBtn: React.CSSProperties = { border: 0, background: "none", color: "#2563eb", cursor: "pointer", textDecoration: "underline", fontSize: 13 };
 function bubble(who: "user" | "bot"): React.CSSProperties {
