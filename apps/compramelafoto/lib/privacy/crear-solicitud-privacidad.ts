@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/emails/send";
+import { escapeHtml } from "@/lib/preventa-canjeable/pack-access-email-content";
 
 export const PRIVACY_REQUEST_TYPES = [
   "ACCESO",
@@ -65,10 +66,10 @@ export async function crearSolicitudDePrivacidad(
         to: data.email,
         subject: `ComprameLaFoto - Recibimos tu solicitud #${request.id}`,
         html: `
-          <p>Hola ${data.fullName},</p>
-          <p>Recibimos tu solicitud de ${data.type} (ticket #${request.id}).</p>
+          <p>Hola ${escapeHtml(data.fullName)},</p>
+          <p>Recibimos tu solicitud de ${escapeHtml(data.type)} (ticket #${request.id}).</p>
           <p>La vamos a revisar y te contestaremos a la brevedad al mismo correo.</p>
-          <p>Para consultas: ${contactEmail}</p>
+          <p>Para consultas: ${escapeHtml(contactEmail)}</p>
           <p><a href="${appUrl}/privacidad">Política de Privacidad</a></p>
         `,
         templateKey: "ADMIN_MANUAL",

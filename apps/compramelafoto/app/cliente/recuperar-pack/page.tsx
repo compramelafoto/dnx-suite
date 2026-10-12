@@ -22,7 +22,9 @@ export default function RecuperarPackPage() {
         body: JSON.stringify({ email }),
       });
       if (!res.ok) {
-        throw new Error("No se pudo enviar la solicitud.");
+        throw new Error(
+          res.status === 429 ? "Demasiadas solicitudes. Intentá más tarde." : "No se pudo enviar la solicitud.",
+        );
       }
       setSubmitted(true);
     } catch (err) {
