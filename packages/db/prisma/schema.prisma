@@ -7271,6 +7271,8 @@ model Workspace {
   fotofficeGaleriaRondas         FotofficeGaleriaRonda[]
   fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
   fotofficeDispositivos          FotofficeDispositivo[]
+  fotofficeAlboomCrudos          FotofficeAlboomCrudo[]
+  fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -24845,4 +24847,50 @@ model FotofficeDispositivo {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, revokedAt])
+}
+
+/// Etapa 8A: respuesta CRUDA de Alboom, un registro por entidad e identificador de Alboom. Sólo la escribe el
+/// extractor (`lib/alboom`); nunca va al navegador (la pantalla muestra contadores). `hash` es el sha256 del JSON
+/// canónico de `payload` (64 caracteres, CHECK): si no cambió, "Volver a extraer" no lo reescribe.
+model FotofficeAlboomCrudo {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Clave del catálogo de entidades (`lib/alboom/entidades.ts`), p. ej. "contactos".
+  entity      String
+  /// Identificador en Alboom. En los hijos de otro registro va con el padre adelante: "<idPadre>/<id>".
+  alboomId    String
+  payload     Json
+  hash        String
+  fetchedAt   DateTime @default(now())
+  firstSeenAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, entity, alboomId])
+  @@index([workspaceId, entity])
+}
+
+/// Etapa 8A: una extracción del CRM de Alboom. status PENDIENTE|CORRIENDO|LISTA|ERROR|CANCELADA (CHECK); a lo sumo
+/// una PENDIENTE o CORRIENDO por workspace (índice único parcial, no lo modela Prisma). `progress` guarda el avance
+/// por entidad (página, cantidades, errores) para retomar en la próxima tanda del cron. `lockedUntil` evita que
+/// dos tandas corran la misma extracción a la vez.
+model FotofficeAlboomExtraccion {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  status          String    @default("PENDIENTE")
+  /// TODO|INCREMENTAL (CHECK): "Extraer todo" o "Volver a extraer".
+  mode            String    @default("TODO")
+  progress        Json      @default("{}")
+  startedByUserId Int?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  /// Motivo legible del error (sin datos de la cuenta, hasta 500 caracteres, CHECK).
+  errorReason     String?
+  lockedUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startedAt])
+  @@index([status, updatedAt])
 }

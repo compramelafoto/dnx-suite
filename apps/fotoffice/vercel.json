@@ -79,6 +79,10 @@
     {
       "path": "/api/cron/contratos-recordatorios",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/alboom-extraccion",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
