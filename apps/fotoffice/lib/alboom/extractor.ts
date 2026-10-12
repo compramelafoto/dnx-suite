@@ -2,6 +2,7 @@ import type { Avance, AvanceEntidad } from "./avance";
 import { AlboomApiError, AlboomLoginError, AlboomRutaNoPermitidaError, type ClienteAlboom, type PedidoLectura } from "./client";
 import { ENTIDADES, TAMANO_PAGINA, filasDeLista, type Entidad } from "./entidades";
 import { huella } from "./huella";
+import { redactarSecretos } from "./redactar";
 
 /**
  * El motor de la extracción: recorre el catálogo en orden y, para cada entidad, pide a Alboom, arma los registros
@@ -81,7 +82,9 @@ export function detectarId(fila: unknown, claves: readonly string[] = []): strin
 export function armarFilas(entidad: Entidad, filas: unknown[], prefijo: string | null, mismoId = false): { filas: FilaCruda[]; dudas: number } {
   const porId = new Map<string, FilaCruda>();
   let dudas = 0;
-  for (const payload of filas) {
+  for (const crudo of filas) {
+    // Sin secretos de terceros (claves API, tarjetas, SMTP, tokens): ver `redactar.ts`.
+    const payload = redactarSecretos(crudo);
     const hash = huella(payload);
     let id: string;
     if (mismoId && prefijo) id = prefijo;
@@ -108,6 +111,8 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
   const avance = o.avance;
   const entidades = o.entidades ?? ENTIDADES;
   const tam = o.tamanoPagina ?? TAMANO_PAGINA;
+  // 25 s antes del límite de la tanda (270 s) no se arranca otro pedido. El peor caso de un pedido (espera de 1 s +
+  // pedido con 401 + nuevo inicio de sesión + reintento, 15 s cada uno) termina antes de los 300 s de la función.
   const margen = o.margenMs ?? 25_000;
 
   async function guardarAvance(e: AvanceEntidad): Promise<void> {
@@ -144,14 +149,35 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
     await guardarAvance(e);
   }
 
-  /** ¿Es un error que corta TODA la tanda? Si no, lo maneja la entidad. */
-  function esDeTanda(error: unknown): boolean {
-    return (
-      error instanceof SinTiempo ||
-      error instanceof Cancelada ||
-      error instanceof AlboomLoginError ||
-      (error instanceof AlboomApiError && error.transitorio)
-    );
+  /**
+   * ¿Es un error que se queda en la entidad (o en el padre)? Sólo los de Alboom que no se arreglan esperando: 404,
+   * 400, respuesta no JSON, redirección, ruta fuera de la lista blanca. Todo lo demás corta la tanda: sin tiempo,
+   * cancelada, 401, 429/5xx/red, y también un error de la base (se reintenta en la próxima tanda).
+   */
+  function esDeEntidad(error: unknown): boolean {
+    return (error instanceof AlboomApiError && !error.transitorio) || error instanceof AlboomRutaNoPermitidaError;
+  }
+
+  /** Firma de una página: cantidad, primer y último id. Si se repite, Alboom está ignorando la paginación. */
+  function firmaDePagina(filas: unknown[], claves: readonly string[] = []): string {
+    const id = (x: unknown) => detectarId(redactarSecretos(x), claves) ?? huella(redactarSecretos(x));
+    return `${filas.length}|${id(filas[0])}|${id(filas[filas.length - 1])}`;
+  }
+
+  async function paginaRepetida(e: AvanceEntidad): Promise<void> {
+    e.dudas++;
+    e.ultimoError = "Alboom devolvió la misma página dos veces: se frenó para no quedar dando vueltas";
+    e.estado = "LISTA";
+    await guardarAvance(e);
+  }
+
+  /** Terminó con menos registros que los que Alboom dijo tener: queda la duda a la vista. */
+  function faltantes(e: AvanceEntidad, total: number): void {
+    const leidas = e.leidas ?? 0;
+    if (Number.isFinite(total) && leidas < total) {
+      e.dudas++;
+      e.ultimoError = `Alboom informó ${total} registros y llegaron ${leidas}`;
+    }
   }
 
   async function procesar(entidad: Entidad, e: AvanceEntidad): Promise<void> {
@@ -183,7 +209,7 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
               e.ultimoError = `${FORMA} (${clave})`;
             } else await guardarFilas(entidad, e, filas, clave);
           } catch (error) {
-            if (esDeTanda(error)) throw error;
+            if (!esDeEntidad(error)) throw error;
             e.errores++;
             e.ultimoError = mensaje(error);
           }
@@ -201,11 +227,22 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
           const json = await pedir(e, { method: "POST", ruta: f.ruta, body: f.body(pagina, tam) });
           const filas = filasDeLista(json);
           if (filas === null) return errorDeEntidad(e, FORMA, true);
+          const total = esObjeto(json) && json.count != null && json.count !== "" ? Number(json.count) : NaN;
+          if (filas.length > 0) {
+            const firma = firmaDePagina(filas, entidad.claves);
+            if (firma === e.huellaPagina) return paginaRepetida(e);
+            e.huellaPagina = firma;
+          }
           await guardarFilas(entidad, e, filas, null);
-          const total = esObjeto(json) ? Number(json.count) : NaN;
+          e.leidas = (e.leidas ?? 0) + filas.length;
           e.pagina = pagina + 1;
-          const fin = filas.length === 0 || filas.length < tam || (Number.isFinite(total) && pagina * tam >= total);
-          if (fin) e.estado = "LISTA";
+          // Con `count`, sólo termina al llegar al total o con una página vacía: una página corta (Alboom puede
+          // limitar el tamaño) no es el final. Sin `count`, la página corta sí lo es.
+          const fin = Number.isFinite(total) ? filas.length === 0 || e.leidas >= total : filas.length === 0 || filas.length < tam;
+          if (fin) {
+            if (Number.isFinite(total)) faltantes(e, total);
+            e.estado = "LISTA";
+          }
           await guardarAvance(e);
           if (fin) return;
         }
@@ -258,14 +295,17 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
             for (;;) {
               const offset = e.offset ?? 0;
               let filas: unknown[] | null;
+              let total = NaN;
               try {
-                filas = f.filas(await pedir(e, f.pedido(p.alboomId, offset)));
+                const json = await pedir(e, f.pedido(p.alboomId, offset));
+                filas = f.filas(json);
+                if (esObjeto(json) && json.count != null && json.count !== "") total = Number(json.count);
               } catch (error) {
                 // Un 5xx que se repite en el MISMO registro después de varias tandas no puede trabar toda la
                 // extracción: ese registro se cuenta como error y se sigue. Un 429 no se saltea nunca.
                 const atascado =
                   error instanceof AlboomApiError && error.transitorio && (error.status ?? 0) >= 500 && avance.reintentos >= REINTENTOS_PARA_SALTEAR;
-                if (esDeTanda(error) && !atascado) throw error;
+                if (!esDeEntidad(error) && !atascado) throw error;
                 if (atascado) avance.reintentos = 0;
                 e.errores++;
                 e.ultimoError = mensaje(error);
@@ -277,9 +317,21 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
                 e.ultimoError = FORMA;
                 break;
               }
+              if (f.paginaDe && filas.length > 0) {
+                const firma = firmaDePagina(filas, entidad.claves);
+                if (offset > 0 && firma === e.huellaPagina) {
+                  e.dudas++;
+                  e.ultimoError = "Alboom devolvió la misma página dos veces: se pasó al registro siguiente";
+                  break;
+                }
+                e.huellaPagina = firma;
+              }
               await guardarFilas(entidad, e, filas, p.alboomId, f.mismoId);
-              if (f.paginaDe && filas.length >= f.paginaDe && offset + f.paginaDe <= MAX_OFFSET_POR_PADRE) {
-                e.offset = offset + f.paginaDe;
+              // Con `count`, sigue hasta el total aunque la página venga corta; sin `count`, mientras venga llena.
+              const leidas = offset + filas.length;
+              const hayMas = Number.isFinite(total) ? filas.length > 0 && leidas < total : filas.length >= (f.paginaDe ?? Infinity);
+              if (f.paginaDe && hayMas && leidas <= MAX_OFFSET_POR_PADRE) {
+                e.offset = leidas;
                 await guardarAvance(e);
                 continue;
               }
@@ -287,6 +339,7 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
             }
             e.padre = p.alboomId;
             delete e.offset;
+            delete e.huellaPagina;
             await guardarAvance(e);
           }
           // Un lote entero de padres filtrados no hizo pedidos: igual se guarda el cursor.
@@ -334,7 +387,7 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
       try {
         await procesar(entidad, e);
       } catch (error) {
-        if (esDeTanda(error)) throw error;
+        if (!esDeEntidad(error)) throw error;
         // 404, 400, ruta fuera de la lista blanca, respuesta no JSON: falla esta entidad y se sigue con la próxima.
         await errorDeEntidad(e, mensaje(error));
       }

@@ -10,6 +10,7 @@ import {
   guardarAvance,
   leerAvanceDe,
   reclamarExtraccion,
+  soltarCancelada,
   soltarExtraccion,
   terminarExtraccion,
 } from "./extracciones";
@@ -123,6 +124,7 @@ export async function correrExtraccionesAlboom(deps: DepsCorrida = {}): Promise<
           await soltarExtraccion(c.id, c.workspaceId, avance);
           break;
         case "CANCELADA":
+          await soltarCancelada(c.id, c.workspaceId);
           break;
         case "CREDENCIAL":
           await marcarAlboomParaReconectar(c.workspaceId);
@@ -135,7 +137,8 @@ export async function correrExtraccionesAlboom(deps: DepsCorrida = {}): Promise<
       if (r.resultado !== "REINTENTAR") anotar(r.resultado);
       await marcarAlboomUsada(c.workspaceId);
     } catch (error) {
-      // Algo inesperado (la base, por ejemplo): cuenta como falla transitoria; tras varias, la extracción falla.
+      // Algo inesperado (la base, por ejemplo): cuenta como falla transitoria y se reintenta en la próxima tanda;
+      // tras varias seguidas, la extracción falla.
       console.error("[fotoffice][alboom] falló una tanda", { workspaceId: c.workspaceId, extraccionId: c.id, detalle: sanitizeError(error) });
       if (avance) await reintentar("Error inesperado.").catch(() => undefined);
     } finally {

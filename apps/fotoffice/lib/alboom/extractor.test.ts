@@ -135,6 +135,57 @@ describe("extractor", () => {
     expect(c2.pedidos).toHaveLength(2);
   });
 
+  it("con `count`, una página corta NO es el final: sigue hasta el total (Alboom puede limitar el tamaño)", async () => {
+    const todos = contactos(130);
+    // El servidor devuelve como mucho 50 por página, aunque se pidan 100 (desplazamiento por lo devuelto).
+    let entregadas = 0;
+    const { cliente, pedidos } = clienteFalso(() => {
+      const filas = todos.slice(entregadas, entregadas + 50);
+      entregadas += filas.length;
+      return { rows: filas, count: 130 };
+    });
+    const m = almacenEnMemoria();
+    const r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT_CONTACTOS] });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(pedidos).toHaveLength(3);
+    expect(m.de("contactos")).toHaveLength(130);
+    expect(r.avance.entidades.contactos).toMatchObject({ estado: "LISTA", dudas: 0 });
+
+    // Si se acaba antes del total (página vacía), termina pero deja la duda a la vista.
+    const corto = clienteFalso((p) => {
+      const b = p.body as { pageNumber: number };
+      return { rows: b.pageNumber === 1 ? contactos(40) : [], count: 90 };
+    });
+    const r2 = await tanda({ cliente: corto.cliente, almacen: almacenEnMemoria().almacen, entidades: [ENT_CONTACTOS] });
+    expect(r2.avance.entidades.contactos).toMatchObject({ estado: "LISTA", dudas: 1, ultimoError: "Alboom informó 90 registros y llegaron 40" });
+    expect(corto.pedidos).toHaveLength(2);
+  });
+
+  it("si Alboom ignora la página y repite la misma, frena con una duda en vez de dar vueltas", async () => {
+    const todos = contactos(100);
+    const sinCount = clienteFalso(() => ({ rows: todos }));
+    const r = await tanda({ cliente: sinCount.cliente, almacen: almacenEnMemoria().almacen, entidades: [ENT_CONTACTOS] });
+    expect(sinCount.pedidos).toHaveLength(2);
+    expect(r.avance.entidades.contactos).toMatchObject({ estado: "LISTA", dudas: 1 });
+    expect(r.avance.entidades.contactos!.ultimoError).toMatch(/misma página/);
+
+    const conCount = clienteFalso(() => ({ rows: todos.slice(0, 50), count: 500 }));
+    const r2 = await tanda({ cliente: conCount.cliente, almacen: almacenEnMemoria().almacen, entidades: [ENT_CONTACTOS] });
+    expect(conCount.pedidos).toHaveLength(2);
+    expect(r2.avance.entidades.contactos).toMatchObject({ estado: "LISTA", dudas: 1 });
+  });
+
+  it("un error que no es de Alboom (la base) corta la tanda en vez de dejar la entidad en ERROR", async () => {
+    const { cliente } = clienteFalso((p) => paginar(contactos(10), p));
+    const m = almacenEnMemoria();
+    m.almacen.guardarFilas = async () => {
+      throw new Error("conexión cortada");
+    };
+    const avance = avanceInicial();
+    await expect(tanda({ cliente, almacen: m.almacen, entidades: [ENT_CONTACTOS], avance })).rejects.toThrow("conexión cortada");
+    expect(avance.entidades.contactos!.estado).not.toBe("ERROR");
+  });
+
   it("se frena por tiempo y la tanda siguiente retoma desde la página guardada, sin repetir", async () => {
     const todos = contactos(450);
     const r0 = reloj();
@@ -264,6 +315,36 @@ describe("extractor", () => {
       ["1", 2],
       ["3", 0],
     ]);
+  });
+
+  it("hijos con `count`: siguen aunque la página venga corta, y frenan si se repite", async () => {
+    const padre: Entidad = { clave: "oportunidades", nombre: "Op", fuente: { tipo: "paginada", ruta: "/leads/paginate", body: (p, t) => ({ pageNumber: p, pageSize: t }) } };
+    const notas: Entidad = {
+      clave: "oportunidades_notas",
+      nombre: "Notas",
+      fuente: {
+        tipo: "porPadre",
+        padre: "oportunidades",
+        paginaDe: 50,
+        pedido: (id, offset) => ({ method: "POST", ruta: "/notes/paginate", body: { type: "leads", id, offset, count: 50 } }),
+        filas: (j) => (j as { rows: unknown[] }).rows,
+      },
+    };
+    const notasDe = Array.from({ length: 45 }, (_, i) => ({ id: 100 + i }));
+    const { cliente, pedidos } = clienteFalso((p) => {
+      if (p.ruta === "/leads/paginate") return paginar([{ id: "1" }, { id: "2" }], p);
+      const b = p.body as { id: string; offset: number };
+      // Lead 1: de a 20 con total 45. Lead 2: repite siempre la misma página con un total enorme.
+      if (b.id === "1") return { rows: notasDe.slice(b.offset, b.offset + 20), count: 45 };
+      return { rows: [{ id: 900 }], count: 1000 };
+    });
+    const m = almacenEnMemoria();
+    const r = await tanda({ cliente, almacen: m.almacen, entidades: [padre, notas] });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(m.de("oportunidades_notas").filter((f) => f.alboomId.startsWith("1/"))).toHaveLength(45);
+    expect(pedidos.filter((p) => (p.body as { id?: string }).id === "1").map((p) => (p.body as { offset: number }).offset)).toEqual([0, 20, 40]);
+    expect(pedidos.filter((p) => (p.body as { id?: string }).id === "2")).toHaveLength(2);
+    expect(r.avance.entidades.oportunidades_notas).toMatchObject({ estado: "LISTA", dudas: 1 });
   });
 
   it("un 5xx que se repite en el mismo hijo varias tandas se saltea como error; un 429 nunca", async () => {

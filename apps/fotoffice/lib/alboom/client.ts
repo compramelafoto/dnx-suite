@@ -127,6 +127,11 @@ export function horaLocalAlboom(d: Date): string {
   return new Date(d.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, -1);
 }
 
+/** 3xx, o la respuesta opaca que da `redirect: "manual"` en algunos entornos (status 0). */
+function esRedireccion(res: Response): boolean {
+  return res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400);
+}
+
 function esTransitorio(status: number): boolean {
   return status === 429 || status >= 500;
 }
@@ -141,7 +146,8 @@ export async function crearClienteAlboom(cred: CredencialAlboom, opciones: Opcio
   const ahora = opciones.ahora ?? (() => Date.now());
   const esperar = opciones.esperar ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const intervaloMs = opciones.intervaloMs ?? 1000;
-  const timeoutMs = opciones.timeoutMs ?? 20_000;
+  // 15 s: el peor caso de un pedido (pedido + nuevo inicio de sesión + reintento) entra en el margen de la tanda.
+  const timeoutMs = opciones.timeoutMs ?? 15_000;
   const base = `https://${cred.subdomain.toLowerCase()}.alboomcrm.com/api`;
   let token = "";
   let ultimo: number | null = null;
@@ -172,10 +178,13 @@ export async function crearClienteAlboom(cred: CredencialAlboom, opciones: Opcio
           keepme: true,
         }),
         signal: AbortSignal.timeout(timeoutMs),
+        // Nunca seguir redirecciones: un 307/308 reenviaría el usuario y la contraseña a donde diga `Location`.
+        redirect: "manual",
       });
     } catch {
       throw new AlboomApiError("No se pudo conectar con Alboom", undefined, true);
     }
+    if (esRedireccion(res)) throw new AlboomApiError("Alboom respondió con una redirección al iniciar sesión: no se sigue", res.status);
     // Sólo un rechazo EXPLÍCITO de la credencial es AlboomLoginError (un 401, o un 2xx que dice
     // `status: "error"`), porque ese error pide volver a conectar. Un 429 o un 5xx son de Alboom.
     if (res.status === 401) throw new AlboomLoginError();
@@ -198,10 +207,13 @@ export async function crearClienteAlboom(cred: CredencialAlboom, opciones: Opcio
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         body: pedido.method === "POST" ? JSON.stringify(pedido.body ?? {}) : undefined,
         signal: AbortSignal.timeout(timeoutMs),
+        // Nunca seguir redirecciones: la lista blanca vale para la ruta pedida, no para la de `Location`.
+        redirect: "manual",
       });
     } catch {
       throw new AlboomApiError(`No se pudo leer ${pedido.ruta.slice(0, 120)}`, undefined, true);
     }
+    if (esRedireccion(res)) throw new AlboomApiError(`Alboom respondió con una redirección en ${pedido.ruta.slice(0, 120)}: no se sigue`, res.status);
     if (res.status === 401 && reintento) {
       await login();
       return pedir(pedido, false);

@@ -23,13 +23,15 @@ export type AvanceEntidad = {
   dudas: number;
   /** Cursor para retomar. Página (listados, desde 1) o desplazamiento (`porDesplazamiento`). */
   pagina?: number;
+  /** Filas recibidas en los listados paginados (para comparar con el `count` de Alboom). */
+  leidas?: number;
   /** Índice del próximo pedido en las fuentes `varias`. */
   sub?: number;
   /** Último padre terminado (fuentes `porPadre` y `derivada`). */
   padre?: string | null;
   /** Desplazamiento dentro del padre en curso. */
   offset?: number;
-  /** Ids de la página anterior (sólo `porDesplazamiento`), para frenar si Alboom repite la misma página. */
+  /** Firma de la página anterior, para frenar si Alboom repite la misma página. */
   huellaPagina?: string;
   /** Mensaje legible del último error. Nunca lleva datos de la cuenta ni de clientes. */
   ultimoError?: string;
@@ -87,6 +89,7 @@ export function leerAvance(json: unknown): Avance {
       errores: numero(r.errores),
       dudas: numero(r.dudas),
       ...(typeof r.pagina === "number" ? { pagina: numero(r.pagina) } : {}),
+      ...(typeof r.leidas === "number" ? { leidas: numero(r.leidas) } : {}),
       ...(typeof r.sub === "number" ? { sub: numero(r.sub) } : {}),
       ...(typeof r.padre === "string" || r.padre === null ? { padre: r.padre as string | null } : {}),
       ...(typeof r.offset === "number" ? { offset: numero(r.offset) } : {}),

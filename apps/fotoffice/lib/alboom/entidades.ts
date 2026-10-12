@@ -64,7 +64,7 @@ function esObjeto(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-/** Un arreglo, `{ rows: [...] }` o un objeto indexado (`{ "1": {...}, "2": {...} }`) → filas. */
+/** Un arreglo, `{ rows: [...] }` o `{ data: [...] }` → filas. Cualquier otra forma es `null` (forma desconocida). */
 export const filasDeLista: Filas = (json) => {
   if (Array.isArray(json)) return json;
   if (esObjeto(json)) {

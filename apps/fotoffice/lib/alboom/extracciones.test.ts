@@ -128,9 +128,16 @@ describe("ciclo de la extracción", () => {
     expect(await X.cancelarExtraccion("ws-2")).toBe(false);
     expect(await X.cancelarExtraccion("ws-1")).toBe(true);
     expect(await X.guardarAvance(id, "ws-1", avance)).toBe(false);
-    expect(B.datos.extracciones[0]).toMatchObject({ status: "CANCELADA", lockedUntil: null });
+    expect(B.datos.extracciones[0]).toMatchObject({ status: "CANCELADA" });
     expect(B.datos.extracciones[0]!.finishedAt).toBeInstanceOf(Date);
-    // Cancelada, se puede volver a extraer.
+    // Hasta que la tanda en vuelo suelta el turno, no se borra ni se arranca otra (no quedan filas sueltas ni dos
+    // tandas a la vez).
+    expect(B.datos.extracciones[0]!.lockedUntil).toBeInstanceOf(Date);
+    expect(await X.borrarLoExtraido("ws-1")).toEqual({ ok: false, error: "La última tanda todavía está terminando. Probá de nuevo en unos minutos." });
+    expect(await X.iniciarExtraccion("ws-1", 7, "INCREMENTAL")).toMatchObject({ ok: false });
+    await X.soltarCancelada(id, "ws-1");
+    expect(B.datos.extracciones[0]!.lockedUntil).toBeNull();
+    // Cancelada y soltada, se puede volver a extraer.
     expect(await X.iniciarExtraccion("ws-1", 7, "INCREMENTAL")).toMatchObject({ ok: true });
   });
 
@@ -205,6 +212,35 @@ describe("tanda del cron", () => {
     const logs = JSON.stringify([...vi.mocked(console.info).mock.calls, ...vi.mocked(console.error).mock.calls]);
     expect(logs).not.toContain(PASS);
     expect(logs).not.toContain("C17");
+  });
+
+  it("un error de la base durante la tanda se reintenta en la próxima, no deja la extracción en ERROR", async () => {
+    await preparar();
+    const reloj = relojFalso();
+    const red = alboomFetch();
+    vi.spyOn(B.prisma.fotofficeAlboomCrudo, "createMany").mockRejectedValueOnce(new Error("conexión cortada"));
+    const r = await correrExtraccionesAlboom({ ahora: reloj.ahora, opcionesCliente: { fetchImpl: red.impl, esperar: reloj.esperar } });
+    expect(r[0]!.resultado).toBe("REINTENTAR");
+    expect(B.datos.extracciones[0]).toMatchObject({ status: "CORRIENDO", lockedUntil: null });
+    const a = leerAvance(B.datos.extracciones[0]!.progress);
+    expect(a.reintentos).toBe(1);
+    expect(a.entidades.configuracion!.estado).not.toBe("ERROR");
+  });
+
+  it("al notar la cancelación, la tanda suelta el turno", async () => {
+    await preparar();
+    const reloj = relojFalso();
+    const red = alboomFetch();
+    let n = 0;
+    const guardar = B.prisma.fotofficeAlboomExtraccion.updateMany;
+    vi.spyOn(B.prisma.fotofficeAlboomExtraccion, "updateMany").mockImplementation(async (a) => {
+      // Cancelan desde la pantalla en medio de la tanda.
+      if ((a.data as { progress?: unknown }).progress && ++n === 3) await X.cancelarExtraccion("ws-1");
+      return guardar(a);
+    });
+    const r = await correrExtraccionesAlboom({ ahora: reloj.ahora, opcionesCliente: { fetchImpl: red.impl, esperar: reloj.esperar } });
+    expect(r[0]!.resultado).toBe("CANCELADA");
+    expect(B.datos.extracciones[0]).toMatchObject({ status: "CANCELADA", lockedUntil: null });
   });
 
   it("un 401 marca la conexión para volver a conectar y frena con ERROR", async () => {

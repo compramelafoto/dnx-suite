@@ -66,6 +66,18 @@ SELECT conname FROM pg_constraint
 - **Sólo lectura:** el cliente tiene una lista blanca exacta de rutas de lectura (`lib/alboom/client.ts`) y
   rechaza cualquier otra antes de salir a la red, incluidos los `GET` de Alboom que escriben
   (`/settings/erase_finance`, `/settings/update_apikey`, `/products/clone_costs/…`).
+- **Sin redirecciones:** ningún pedido sigue un 3xx (`redirect: "manual"`): una redirección es un error. Así la
+  lista blanca vale para lo que realmente se pide y la contraseña nunca viaja a otro host.
+- **Secretos de terceros:** antes de guardar (y de calcular la huella), en TODAS las entidades, cualquier clave
+  cuyo nombre coincida con `/pass(word)?|secret|token|api_?key|card|cvv|smtp_pass/i` queda con el valor
+  `"[oculto]"` (clave API de Alboom, Mailchimp, tarjeta de la suscripción, SMTP, tokens). Ver
+  `apps/fotoffice/lib/alboom/redactar.ts`. También se quita el carácter nulo, que JSONB no acepta.
+- **Listados completos:** si Alboom informa un total (`count`), un listado sólo termina al llegar a ese total o con
+  una página vacía (una página corta no es el final); si termina antes, queda una duda a la vista. Una página
+  repetida frena con una duda en vez de dar vueltas.
+- **Cancelar y borrar:** una extracción cancelada conserva su turno hasta que la tanda en vuelo lo suelta; mientras
+  tanto no se puede borrar lo extraído ni arrancar otra. Un error de la base durante una tanda se reintenta en la
+  próxima (como un 5xx).
 - **Privacidad:** el contenido crudo nunca va al navegador (sólo contadores); la contraseña nunca aparece en
   registros, eventos ni respuestas. «Borrar lo extraído» (escribiendo BORRAR) borra los datos crudos y el
   historial de extracciones del workspace.

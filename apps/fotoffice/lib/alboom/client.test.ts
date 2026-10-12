@@ -205,6 +205,33 @@ describe("cliente de Alboom", () => {
     }
   });
 
+  it("nunca sigue redirecciones: ni al iniciar sesión ni al leer, y no manda credenciales ni token a otro lado", async () => {
+    for (const status of [301, 302, 307, 308]) {
+      const login = fetchFalso(() => new Response(null, { status, headers: { location: "https://otro.example/robar" } }));
+      const err = await crearClienteAlboom(CRED, { fetchImpl: login.impl, ...relojFalso() }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AlboomApiError);
+      expect((err as AlboomApiError).transitorio).toBe(false);
+      expect(login.llamadas).toHaveLength(1);
+      expect(login.impl).toHaveBeenCalledWith(expect.stringContaining("estudio-prueba.alboomcrm.com"), expect.objectContaining({ redirect: "manual" }));
+
+      const lectura = fetchFalso((url) => loginOk(url) ?? new Response(null, { status, headers: { location: "/api/settings/erase_finance" } }));
+      const c = await crearClienteAlboom(CRED, { fetchImpl: lectura.impl, ...relojFalso() });
+      const e2 = await c.leer({ method: "GET", ruta: "/settings/" }).catch((e: unknown) => e);
+      expect(e2).toBeInstanceOf(AlboomApiError);
+      expect((e2 as AlboomApiError).transitorio).toBe(false);
+      expect(lectura.llamadas.map((l) => l.url)).toEqual([
+        "https://estudio-prueba.alboomcrm.com/api/users/login",
+        "https://estudio-prueba.alboomcrm.com/api/settings/",
+      ]);
+      for (const call of vi.mocked(lectura.impl).mock.calls) expect((call[1] as RequestInit).redirect).toBe("manual");
+    }
+    // La respuesta opaca de `redirect: "manual"` (status 0 en navegadores) tampoco se acepta.
+    const opaca = { type: "opaqueredirect", status: 0, ok: false } as unknown as Response;
+    const o = fetchFalso((url) => loginOk(url) ?? opaca);
+    const c = await crearClienteAlboom(CRED, { fetchImpl: o.impl, ...relojFalso() });
+    await expect(c.leer({ method: "GET", ruta: "/eventtypes" })).rejects.toBeInstanceOf(AlboomApiError);
+  });
+
   it("la red caída es transitoria", async () => {
     const impl = vi.fn(async () => {
       throw new TypeError("fetch failed");

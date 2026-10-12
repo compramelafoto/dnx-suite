@@ -36,13 +36,27 @@ export async function hayExtraccionActiva(workspaceId: string): Promise<boolean>
   return fila !== null;
 }
 
+/**
+ * ¿Hay una tanda que todavía puede estar escribiendo? Una extracción recién cancelada conserva su turno
+ * (`lockedUntil`) hasta que la tanda que la corría lo nota y lo suelta (o vence). Mientras tanto no se borra ni se
+ * arranca otra: así "Cancelar" y enseguida "Borrar" no dejan filas sueltas, y no hay dos tandas a la vez.
+ */
+async function tandaEnVuelo(workspaceId: string, ahora: Date): Promise<boolean> {
+  const fila = await prisma.fotofficeAlboomExtraccion.findFirst({ where: { workspaceId, lockedUntil: { gt: ahora } }, select: { id: true } });
+  return fila !== null;
+}
+
+const ESPERAR_TANDA = "La última tanda todavía está terminando. Probá de nuevo en unos minutos.";
+
 /** "Extraer todo" (TODO) o "Volver a extraer" (INCREMENTAL). La corre el cron en tandas. */
 export async function iniciarExtraccion(
   workspaceId: string,
   userId: number,
   mode: ModoExtraccion,
+  ahora = new Date(),
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (await hayExtraccionActiva(workspaceId)) return { ok: false, error: "Ya hay una extracción en curso." };
+  if (await tandaEnVuelo(workspaceId, ahora)) return { ok: false, error: ESPERAR_TANDA };
   try {
     const fila = await prisma.fotofficeAlboomExtraccion.create({
       data: { workspaceId, status: "PENDIENTE", mode, progress: avanceInicial() as unknown as Prisma.InputJsonValue, startedByUserId: userId },
@@ -56,18 +70,25 @@ export async function iniciarExtraccion(
   }
 }
 
-/** Cancela la activa, si hay. La tanda que esté corriendo lo nota al guardar su próximo avance y frena. */
+/**
+ * Cancela la activa, si hay. La tanda que esté corriendo lo nota al guardar su próximo avance, frena y suelta el
+ * turno (`soltarCancelada`); hasta entonces el turno sigue tomado.
+ */
 export async function cancelarExtraccion(workspaceId: string, ahora = new Date()): Promise<boolean> {
   const r = await prisma.fotofficeAlboomExtraccion.updateMany({
     where: { workspaceId, status: activa },
-    data: { status: "CANCELADA", finishedAt: ahora, lockedUntil: null },
+    data: { status: "CANCELADA", finishedAt: ahora },
   });
   return r.count > 0;
 }
 
 /** "Borrar lo extraído": los datos crudos y el historial de extracciones. No con una extracción en curso. */
-export async function borrarLoExtraido(workspaceId: string): Promise<{ ok: true; registros: number } | { ok: false; error: string }> {
+export async function borrarLoExtraido(
+  workspaceId: string,
+  ahora = new Date(),
+): Promise<{ ok: true; registros: number } | { ok: false; error: string }> {
   if (await hayExtraccionActiva(workspaceId)) return { ok: false, error: "Hay una extracción en curso: cancelala antes de borrar." };
+  if (await tandaEnVuelo(workspaceId, ahora)) return { ok: false, error: ESPERAR_TANDA };
   const crudos = await prisma.fotofficeAlboomCrudo.deleteMany({ where: { workspaceId } });
   await prisma.fotofficeAlboomExtraccion.deleteMany({ where: { workspaceId, status: { notIn: [...ESTADOS_ACTIVOS] } } });
   return { ok: true, registros: crudos.count };
@@ -129,6 +150,11 @@ export async function guardarAvance(id: string, workspaceId: string, avance: Ava
     data: { progress: avance as unknown as Prisma.InputJsonValue },
   });
   return r.count === 1;
+}
+
+/** La tanda notó la cancelación: suelta el turno para que se pueda borrar o volver a extraer. */
+export async function soltarCancelada(id: string, workspaceId: string): Promise<void> {
+  await prisma.fotofficeAlboomExtraccion.updateMany({ where: { id, workspaceId, status: "CANCELADA" }, data: { lockedUntil: null } });
 }
 
 /** Suelta el turno sin terminar (pausa por tiempo o espera por 429/5xx). */
