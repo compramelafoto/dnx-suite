@@ -11,6 +11,7 @@ import { urlToR2Key } from "@/lib/r2-client";
 import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import type { PrintExportPlan } from "./stream-print-export-zip";
+import { chosenProductNameFromMetadata, resolveExportProductName } from "./export-product-name";
 
 export type PlanResult = { ok: true; plan: PrintExportPlan } | { ok: false; status: number; error: string };
 
@@ -33,27 +34,15 @@ function formatDate(d: Date) {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-function productNameFromRows(
-  productRows: { name: string; size: string | null; acabado: string | null }[],
-  size: string,
-  acabado: string
-): string {
-  const product = productRows.find((p) => (p.size || "") === size && (p.acabado || "") === acabado);
-  if (product) return product.name;
-  const bySize = productRows.find((p) => (p.size || "") === size);
-  if (bySize) return bySize.name;
-  return "Foto Impresa";
-}
-
 async function buildPdf(
   order: {
     id: number;
     createdAt: Date;
     totalCents: number;
-    items: { finish?: string | null; size?: string | null; quantity: number }[];
+    items: { finish?: string | null; size?: string | null; quantity: number; metadata?: unknown }[];
   },
   buyer: { name: string | null; email: string | null; phone: string | null },
-  getProductName: (size: string, acabado: string) => string
+  getProductName: (size: string, acabado: string, metadata?: unknown) => string
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -84,7 +73,7 @@ async function buildPdf(
   for (const it of order.items) {
     const finish = String(it.finish || "BRILLO");
     const size = String(it.size || "");
-    const productName = getProductName(size, finish);
+    const productName = getProductName(size, finish, it.metadata);
     summary[productName] ??= {};
     summary[productName][finish] ??= {};
     summary[productName][finish][size] ??= { photos: 0, copies: 0 };
@@ -138,7 +127,8 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     where: { userId: order.album!.userId, isActive: true },
     select: { name: true, size: true, acabado: true },
   });
-  const getProductName = (size: string, acabado: string) => productNameFromRows(productRows, size, acabado);
+  const getProductName = (size: string, acabado: string, metadata?: unknown) =>
+    resolveExportProductName(productRows, size, acabado, chosenProductNameFromMetadata(metadata));
 
   const buyer = formatBuyerContactForPhotographer(order, order.buyerUser);
   if (!buyer.phone) {
@@ -158,7 +148,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     const finish = safeName(String(it.finish || "BRILLO"));
     const size = safeName(String(it.size || ""));
     const qty = Number(it.quantity || 0);
-    const productName = safeName(getProductName(size, finish));
+    const productName = safeName(getProductName(size, finish, it.metadata));
     const originalKey = it.photo?.originalKey ?? "";
     const baseName = path.basename(originalKey) || `foto-${it.photoId}`;
     const ext = path.extname(baseName) || ".jpg";
