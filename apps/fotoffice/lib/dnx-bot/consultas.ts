@@ -113,6 +113,13 @@ async function armar(workspaceId: string, leads: { id: string; name: string; eve
 
 const SELECT_LEAD = { id: true, name: true, eventType: true, eventDate: true, status: true } as const;
 
+/** El resumen (sin contacto) de varias consultas del workspace, por id. */
+export async function consultasPorId(workspaceId: string, leadIds: readonly string[]): Promise<Map<string, ConsultaBot>> {
+  if (leadIds.length === 0) return new Map();
+  const leads = await prisma.serviceSalesLead.findMany({ where: { workspaceId, id: { in: [...new Set(leadIds)] } }, select: SELECT_LEAD });
+  return new Map((await armar(workspaceId, leads)).map((x) => [x.consulta.leadId, x.consulta]));
+}
+
 export async function buscarConsultasDelBot(ctx: CtxPresupuestos, filtros: FiltrosConsultasBot): Promise<ConsultaBot[]> {
   const leads = await prisma.serviceSalesLead.findMany({
     where: { workspaceId: ctx.workspaceId },
