@@ -293,7 +293,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
           if (!g.ok) return { ok: false, message: g.error };
           return {
             ok: true,
-            message: `Listo: sumé ${v.r.items.length} ítems al borrador. Está en /presupuestos/${v.d.id}.`,
+            message: `Listo: sumé ${v.r.items.length} ítems al borrador. Está en /presupuestos/${v.d.id}: si lo tenés abierto, recargalo antes de seguir editando (si guardás lo de antes, se pierden).`,
             before: { presupuestoId: v.d.id, entrada: entradaCon(v.existentes, v.borrador), idsDespues: todos.map((i) => i.id) },
           };
         },

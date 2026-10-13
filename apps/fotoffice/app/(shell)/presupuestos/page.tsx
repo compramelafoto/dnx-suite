@@ -5,6 +5,8 @@ import { puedeGestionarPresupuestos, QUOTES_MODULE_KEY } from "@/lib/presupuesto
 import { contextoListadoDePagina } from "@/lib/listado/acceso";
 import { listadoPresupuestos } from "@/lib/presupuestos/listado";
 import { requirePresupuestos } from "@/lib/presupuestos/pagina";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 
 export const dynamic = "force-dynamic";
 
@@ -19,18 +21,24 @@ export default async function PresupuestosPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { user, workspace, ctx } = await requirePresupuestos("ver");
-  const ctxListado = await contextoListadoDePagina(user, workspace, QUOTES_MODULE_KEY);
+  const [ctxListado, bot] = await Promise.all([contextoListadoDePagina(user, workspace, QUOTES_MODULE_KEY), botEnPanel()]);
   return (
     <div className="space-y-6">
       <PageHeader
         title="Presupuestos"
         description="Los presupuestos de las consultas, con su estado y vencimiento."
         actions={
-          puedeGestionarPresupuestos(ctx) ? (
-            <Link href="/presupuestos/nuevo" className="fo-btn fo-btn-primary text-sm">
-              Nuevo presupuesto
-            </Link>
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            {/* DNX Bot (etapa 2): sólo si está encendido y la persona puede usar ¿Cuánto Cobro?. */}
+            {bot?.capacidades.configurar ? (
+              <PreguntaleAlBot etiqueta="¿Cuánto cobro esto?" mensaje="Quiero saber cuánto cobrar un trabajo." contexto={{ pantalla: "presupuestos" }} />
+            ) : null}
+            {puedeGestionarPresupuestos(ctx) ? (
+              <Link href="/presupuestos/nuevo" className="fo-btn fo-btn-primary text-sm">
+                Nuevo presupuesto
+              </Link>
+            ) : null}
+          </div>
         }
       />
       <Listado def={listadoPresupuestos} ctx={ctxListado} ruta="/presupuestos" searchParams={searchParams} />
