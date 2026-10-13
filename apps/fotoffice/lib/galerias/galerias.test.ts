@@ -13,6 +13,7 @@ vi.mock("./almacen", () => ({ urlsDeLecturaPorLote: F.urls }));
 
 const G = await import("./galerias");
 const { MENSAJES_GALERIA: M } = await import("./acceso");
+const { MENSAJES_RONDA } = await import("./rondas");
 const { MENSAJE_DE_BIENVENIDA_DE_FABRICA } = await import("./ajustes");
 
 type Nivel = "NONE" | "VIEW" | "MANAGE";
@@ -68,6 +69,22 @@ describe("crear", () => {
     B.agregar("fotofficeGaleriaAjustes", { workspaceId: "ws-1", defaultSelectionMode: "CANTIDAD" });
     await crear();
     expect(galerias()[0]).toMatchObject({ selectionMode: "LIBRE", minSelect: null, maxSelect: null });
+  });
+  it("una galería de entrega nace sin selección ni venta, sin comentarios y entregando los originales", async () => {
+    const id = await crear(GESTIONA, { proyectoId: "pr1", tipo: "ENTREGA" });
+    expect(galerias().find((g) => g.id === id)).toMatchObject({
+      kind: "ENTREGA", saleMode: "SELECCION", status: "BORRADOR", selectionMode: "LIBRE", minSelect: null, maxSelect: null, allowComments: false, downloadMode: "SELECCIONADAS",
+    });
+  });
+  it("sin tipo (o SELECCION) es de selección; un tipo inventado se rechaza", async () => {
+    const id = await crear();
+    expect(galerias().find((g) => g.id === id)).toMatchObject({ kind: "SELECCION", saleMode: "SELECCION" });
+    expect(await G.crearGaleria(GESTIONA, { proyectoId: "pr1", tipo: "VIDEO" }, AHORA)).toMatchObject({ ok: false, error: M.datosInvalidos });
+    expect(galerias()).toHaveLength(1);
+  });
+  it("la entrega se crea sólo con un proyecto del propio workspace", async () => {
+    expect(await G.crearGaleria(GESTIONA, { proyectoId: "pr-ajeno", tipo: "ENTREGA" }, AHORA)).toMatchObject({ ok: false, error: M.proyecto });
+    expect(await G.crearGaleria(SOLO_VER, { proyectoId: "pr1", tipo: "ENTREGA" }, AHORA)).toMatchObject({ ok: false, error: M.sinPermiso });
   });
   it("los números son correlativos", async () => {
     await crear();
@@ -266,5 +283,105 @@ describe("buscarProyectos", () => {
     expect(await G.buscarProyectos(GESTIONA, "boda")).toEqual({ ok: false, error: M.buscarProyectos });
     expect(await G.buscarProyectos(ctx("VIEW", "ws-1", { projects: "VIEW" }), "boda")).toEqual({ ok: false, error: M.sinPermiso });
     expect(await G.buscarProyectos(conProyectos, "a")).toEqual({ ok: true, proyectos: [] });
+  });
+});
+
+describe("álbum (Entrega C)", () => {
+  const rondas = () => B.datos.fotofficeGaleriaRonda;
+  async function crearAlbum() {
+    return crear(GESTIONA, { proyectoId: "pr1", tipo: "ALBUM" });
+  }
+  function lamina(galeriaId: string, id: string, rondaId: string | null, status = "LISTA") {
+    B.agregar("fotofficeGaleriaFoto", { id, workspaceId: "ws-1", galeriaId, rondaId, fileName: `${id}.jpg`, originalKey: `galerias/ws-1/${galeriaId}/${id}/original`, status });
+  }
+
+  it("nace en borrador con comentarios, sin descarga y con la ronda 1 abierta", async () => {
+    const id = await crearAlbum();
+    expect(galerias()[0]).toMatchObject({
+      id, kind: "ALBUM", saleMode: "SELECCION", status: "BORRADOR", selectionMode: "LIBRE", minSelect: null, maxSelect: null, allowComments: true, downloadMode: "NINGUNA",
+    });
+    expect(rondas()).toHaveLength(1);
+    expect(rondas()[0]).toMatchObject({ workspaceId: "ws-1", galeriaId: id, number: 1, status: "ABIERTA", note: null, createdByUserId: 7, closedAt: null });
+    expect(eventos()).toEqual(["GALERIA_CREADA", "RONDA_ABIERTA"]);
+    expect(B.datos.fotofficeGaleriaEvento[0]!.data).toEqual({ tipo: "ALBUM" });
+  });
+  it("los ajustes de la organización no pisan lo propio del álbum", async () => {
+    B.agregar("fotofficeGaleriaAjustes", { workspaceId: "ws-1", defaultAllowComments: false, defaultDownloadMode: "SELECCIONADAS" });
+    await crearAlbum();
+    expect(galerias()[0]).toMatchObject({ allowComments: true, downloadMode: "NINGUNA" });
+  });
+  it("las galerías de selección y de entrega no crean rondas", async () => {
+    await crear();
+    await crear(GESTIONA, { proyectoId: "pr1", tipo: "ENTREGA" });
+    expect(rondas()).toHaveLength(0);
+  });
+  it("si crear la ronda falla, no queda la galería a medias", async () => {
+    const original = B.tablas.fotofficeGaleriaRonda.create;
+    B.tablas.fotofficeGaleriaRonda.create = async () => {
+      throw new Error("boom");
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await G.crearGaleria(GESTIONA, { proyectoId: "pr1", tipo: "ALBUM" }, AHORA)).toEqual({ ok: false, error: M.guardar });
+    B.tablas.fotofficeGaleriaRonda.create = original;
+    expect(galerias()).toHaveLength(0);
+    expect(B.datos.fotofficeGaleriaEvento).toHaveLength(0);
+  });
+  it("publicar exige láminas listas en la ronda ABIERTA: las de una ronda cerrada o pendientes no alcanzan", async () => {
+    const id = await crearAlbum();
+    expect(await G.publicarGaleria(GESTIONA, id, AHORA)).toEqual({ ok: false, error: MENSAJES_RONDA.sinLaminasListas });
+    lamina(id, "p1", rondas()[0]!.id as string, "PENDIENTE");
+    B.agregar("fotofficeGaleriaRonda", { id: "r-vieja", workspaceId: "ws-1", galeriaId: id, number: 0, status: "CERRADA", closedAt: AHORA });
+    lamina(id, "v1", "r-vieja");
+    expect(await G.publicarGaleria(GESTIONA, id, AHORA)).toEqual({ ok: false, error: MENSAJES_RONDA.sinLaminasListas });
+    expect(galerias()[0]!.status).toBe("BORRADOR");
+    lamina(id, "l1", rondas()[0]!.id as string);
+    expect(await G.publicarGaleria(GESTIONA, id, AHORA)).toEqual({ ok: true });
+    expect(galerias()[0]).toMatchObject({ status: "PUBLICADA", publishedAt: AHORA });
+  });
+  it("un álbum sin ronda abierta no se puede publicar", async () => {
+    const id = await crearAlbum();
+    rondas().length = 0;
+    lamina(id, "l1", null);
+    expect(await G.publicarGaleria(GESTIONA, id, AHORA)).toEqual({ ok: false, error: MENSAJES_RONDA.sinRonda });
+  });
+  it("publicar una galería de selección sigue contando todas sus fotos", async () => {
+    const id = await crear();
+    foto(id, "f1");
+    expect(await G.publicarGaleria(GESTIONA, id, AHORA)).toEqual({ ok: true });
+  });
+  it("en un álbum la descarga es sin descarga o vista: 'sólo las elegidas' se rechaza", async () => {
+    const id = await crearAlbum();
+    const base = { nombre: "Álbum", mensaje: "", selectionMode: "LIBRE", allowComments: true };
+    expect(await G.editarGaleria(GESTIONA, id, { ...base, downloadMode: "SELECCIONADAS" })).toEqual({ ok: false, error: MENSAJES_RONDA.descargaAlbum });
+    expect(await G.editarGaleria(GESTIONA, id, { ...base, downloadMode: "VISTA" })).toEqual({ ok: true });
+    expect(galerias()[0]!.downloadMode).toBe("VISTA");
+    const sel = await crear();
+    expect(await G.editarGaleria(GESTIONA, sel, { ...base, downloadMode: "SELECCIONADAS" })).toEqual({ ok: true });
+  });
+  it("la ficha de un álbum cuenta las láminas de la ronda abierta y dice en qué ronda está", async () => {
+    const id = await crearAlbum();
+    const abierta = rondas()[0]!.id as string;
+    B.agregar("fotofficeGaleriaRonda", { id: "r-vieja", workspaceId: "ws-1", galeriaId: id, number: 0, status: "CERRADA", closedAt: AHORA });
+    lamina(id, "a", abierta);
+    lamina(id, "b", abierta, "ERROR");
+    lamina(id, "c", "r-vieja");
+    const fila = galerias()[0]!;
+    const original = B.tablas.fotofficeGaleria.findFirst;
+    B.tablas.fotofficeGaleria.findFirst = async () =>
+      ({ ...fila, proyecto: { id: "pr1", number: "PY-1", name: "Boda", client: { id: "c1", firstName: "Ana", lastName: "G", businessName: null, email: null, phone: null } } }) as never;
+    const ficha = await G.cargarFichaGaleria(SOLO_VER, id);
+    B.tablas.fotofficeGaleria.findFirst = original;
+    expect(ficha).toMatchObject({ tipo: "ALBUM", fotos: { listas: 1, pendientes: 0, conError: 1, videos: 0 }, ronda: { id: abierta, numero: 1, total: 2 } });
+  });
+  it("la ficha de una galería de selección no tiene ronda", async () => {
+    const id = await crear();
+    foto(id, "f1");
+    const fila = galerias()[0]!;
+    const original = B.tablas.fotofficeGaleria.findFirst;
+    B.tablas.fotofficeGaleria.findFirst = async () =>
+      ({ ...fila, proyecto: { id: "pr1", number: "PY-1", name: "Boda", client: { id: "c1", firstName: "Ana", lastName: "G", businessName: null, email: null, phone: null } } }) as never;
+    const ficha = await G.cargarFichaGaleria(SOLO_VER, id);
+    B.tablas.fotofficeGaleria.findFirst = original;
+    expect(ficha).toMatchObject({ tipo: "SELECCION", fotos: { listas: 1 }, ronda: null });
   });
 });

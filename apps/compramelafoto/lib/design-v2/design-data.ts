@@ -40,14 +40,23 @@ export function buildInitialDesignData(input: {
   slots: ClientPhotoSlot[];
   photoIds: number[];
   values?: Record<string, string>;
+  /** Cómo acomodó la familia cada foto en el canje (zoom y encuadre), por foto. */
+  cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
 }): DesignV2Data {
+  const slots = autoAssignClientPhotos(input.slots, input.photoIds);
+  if (input.cropsByPhotoId?.size) {
+    for (const assignment of Object.values(slots)) {
+      const crop = assignment.photoId != null ? input.cropsByPhotoId.get(assignment.photoId) : undefined;
+      if (crop) assignment.crop = normalizePhotoCrop(crop);
+    }
+  }
   return {
     schemaVersion: DESIGN_V2_SCHEMA_VERSION,
     engine: "TEMPLATE_V2",
     templateV2Id: input.templateV2Id,
     templateV2VersionId: input.templateV2VersionId,
     photoIds: [...input.photoIds],
-    slots: autoAssignClientPhotos(input.slots, input.photoIds),
+    slots,
     values: { ...(input.values ?? {}) },
     export: null,
     exportError: null,

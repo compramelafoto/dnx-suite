@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, useTransition } from "react";
 import { buscarProyectosGaleriaAction, crearGaleriaAction } from "@/app/actions/galerias";
+import type { TipoGaleria } from "@/lib/galerias/constantes";
 import type { ProyectoEncontrado } from "@/lib/galerias/galerias";
 
 const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
@@ -19,6 +20,7 @@ export function NuevaGaleria() {
   const [resultados, setResultados] = useState<ProyectoEncontrado[]>([]);
   const [elegido, setElegido] = useState<ProyectoEncontrado | null>(null);
   const [nombre, setNombre] = useState("");
+  const [tipo, setTipo] = useState<TipoGaleria>("SELECCION");
   const [error, setError] = useState<string | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [pendiente, iniciar] = useTransition();
@@ -50,7 +52,7 @@ export function NuevaGaleria() {
     if (!elegido) return;
     setError(null);
     iniciar(async () => {
-      const r = await crearGaleriaAction({ proyectoId: elegido.id, nombre }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
+      const r = await crearGaleriaAction({ proyectoId: elegido.id, nombre, tipo }).catch(() => ({ ok: false as const, error: ERROR_CONEXION }));
       if (!r.ok) return setError(r.error);
       router.push(`/galerias/${encodeURIComponent(r.id)}`);
     });
@@ -87,6 +89,21 @@ export function NuevaGaleria() {
             <input id={`${id}-nombre`} className="fo-input" maxLength={120} placeholder={elegido.nombre} value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={pendiente} />
             <p className="text-xs text-[var(--fo-muted)]">Si lo dejás vacío, usa el nombre del proyecto.</p>
           </div>
+          <fieldset className="space-y-1" disabled={pendiente}>
+            <legend className="fo-label">Tipo de galería</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name={`${id}-tipo`} checked={tipo === "SELECCION"} onChange={() => setTipo("SELECCION")} />
+              Selección: el cliente elige sus fotos (y puede comprar extras)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name={`${id}-tipo`} checked={tipo === "ENTREGA"} onChange={() => setTipo("ENTREGA")} />
+              Entrega: fotos y videos en alta para descargar
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name={`${id}-tipo`} checked={tipo === "ALBUM"} onChange={() => setTipo("ALBUM")} />
+              Álbum: el cliente revisa las láminas, comenta y aprueba o pide cambios
+            </label>
+          </fieldset>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="fo-btn fo-btn-primary text-sm" disabled={pendiente} onClick={crear}>
               {pendiente ? "Creando…" : "Crear galería"}

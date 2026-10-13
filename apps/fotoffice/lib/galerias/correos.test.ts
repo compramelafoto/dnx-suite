@@ -74,6 +74,39 @@ describe("plantillas iniciales", () => {
   });
 });
 
+describe("textos de la entrega y de la descarga lista", () => {
+  it("el enlace de una entrega habla de ver y descargar, no de elegir", () => {
+    const t = C.TEXTOS_GALERIA_INICIALES.GALERIA_ENTREGA_ENVIO;
+    expect(t.cuerpo).toContain("ya están listas para ver y descargar");
+    expect(`${t.asunto} ${t.cuerpo}`).not.toMatch(/elegir|elegí|selección/i);
+    expect(t.cuerpo).toContain("[galeria_enlace]");
+    expect(AUTOMATICOS.GALERIA_ENTREGA_ENVIO.tipo).toBe("GALERIA");
+  });
+  it("el aviso de descarga lista trae el enlace y el vencimiento", () => {
+    const t = C.TEXTOS_GALERIA_INICIALES.GALERIA_DESCARGA_LISTA;
+    expect(t.cuerpo).toContain("[galeria_enlace]");
+    expect(t.cuerpo).toContain("[galeria_vence]");
+    expect(AUTOMATICOS.GALERIA_DESCARGA_LISTA).toMatchObject({ canal: "EMAIL", tipo: "GALERIA" });
+  });
+  it("el aviso sale con la fecha de vencimiento y el registro no guarda el enlace", async () => {
+    const r = await C.enviarCorreoGaleria({ ...base, clave: "GALERIA_DESCARGA_LISTA", enlace: `${URL_ENLACE}/descargas`, vence: "18 de octubre de 2026" }, { ...DEPS, enviar });
+    expect(r).toBe("ENVIADO");
+    expect(enviados[0]!.text).toContain("18 de octubre de 2026");
+    expect(enviados[0]!.text).toContain(`${URL_ENLACE}/descargas`);
+    expect(mensajes()[0]!.body).toContain("18 de octubre de 2026");
+    expect(String(mensajes()[0]!.body)).not.toContain(TOKEN);
+  });
+  it("enviarCorreoEnlace usa el texto de entrega cuando la galería es de entrega, y el de selección si no", async () => {
+    B.datos.fotofficeGaleria.find((g) => g.id === "g1")!.kind = "ENTREGA";
+    expect(await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar })).toBe("ENVIADO");
+    expect(enviados[0]!.subject).toBe("Tus fotos ya están listas: Boda Ana y Luis");
+    expect(enviados[0]!.text).toContain("para ver y descargar");
+    B.datos.fotofficeGaleria.find((g) => g.id === "g1")!.kind = "SELECCION";
+    await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar });
+    expect(enviados[1]!.subject).toBe("Elegí tus fotos: Boda Ana y Luis");
+  });
+});
+
 describe("enviarCorreoGaleria", () => {
   it("sale al cliente con su nombre y su enlace, y el registro NO guarda el enlace personal", async () => {
     const r = await C.enviarCorreoGaleria({ ...base, clave: "GALERIA_ENVIO", enlace: URL_ENLACE }, { ...DEPS, enviar });
@@ -154,5 +187,80 @@ describe("enviarCorreoEnlace (lo que corre en after())", () => {
     B.datos.fotofficeGaleriaCliente[0]!.email = null;
     expect(await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar })).toBe("SIN_CORREO");
     expect(eventos()[0]).toMatchObject({ type: "CORREO_NO_ENVIADO", data: { motivo: "SIN_CORREO" } });
+  });
+});
+
+describe("aviso de ronda nueva del álbum (GALERIA_ALBUM_RONDA)", () => {
+  function clienteExtra(id: string, nombre: string, email: string | null, extra: Record<string, unknown> = {}) {
+    const token = tokenDeGaleriaCliente(id, AHORA, CLAVE);
+    B.agregar("fotofficeGaleriaCliente", { id, workspaceId: "ws-1", galeriaId: "g1", name: nombre, email, tokenHash: hashDeToken(token), tokenIssuedAt: AHORA, ...extra });
+    return token;
+  }
+  beforeEach(() => {
+    B.datos.fotofficeGaleria.find((g) => g.id === "g1")!.kind = "ALBUM";
+  });
+
+  it("el texto trae el enlace, el número de ronda y la nota del estudio (sólo si hay nota)", () => {
+    const t = C.TEXTOS_GALERIA_INICIALES.GALERIA_ALBUM_RONDA;
+    for (const v of ["[galeria_enlace]", "[galeria_ronda]", "[galeria_nota]", "[si:galeria_nota]"]) expect(t.cuerpo, v).toContain(v);
+    expect(AUTOMATICOS.GALERIA_ALBUM_RONDA).toMatchObject({ canal: "EMAIL", tipo: "GALERIA" });
+    expect(CLAVES_AUTOMATICO_GALERIA).toContain("GALERIA_ALBUM_RONDA");
+  });
+  it("sale con la nota y el enlace personal, y el registro no guarda el enlace", async () => {
+    const r = await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar, correo: { clave: "GALERIA_ALBUM_RONDA", ronda: 2, nota: "Cambiamos la tapa." } });
+    expect(r).toBe("ENVIADO");
+    expect(enviados[0]!.subject).toBe("Hay una ronda nueva de tu álbum para revisar: Boda Ana y Luis");
+    expect(enviados[0]!.text).toContain("ronda 2");
+    expect(enviados[0]!.text).toContain("Cambiamos la tapa.");
+    expect(enviados[0]!.text).toContain(URL_ENLACE);
+    expect(String(mensajes()[0]!.body)).not.toContain(TOKEN);
+    expect(mensajes()[0]).toMatchObject({ entityType: "GALERIA", entityId: "g1", automatic: true, status: "SENT" });
+  });
+  it("sin nota, la línea de la nota no aparece", async () => {
+    await C.enviarCorreoEnlace("ws-1", "gc1", 7, { ...DEPS, enviar, correo: { clave: "GALERIA_ALBUM_RONDA", ronda: 3, nota: null } });
+    expect(enviados[0]!.text).not.toContain("Esto nos dejó el estudio");
+    expect(enviados[0]!.text).toContain("ronda 3");
+  });
+  it("avisarRondaNueva manda a cada cliente con enlace vigente y correo, y se salta al anulado y al que no tiene correo", async () => {
+    clienteExtra("gc2", "Luis", "luis@x.com");
+    clienteExtra("gc3", "Sin correo", null);
+    clienteExtra("gc4", "Anulado", "anulado@x.com", { revokedAt: AHORA });
+    const r = await C.avisarRondaNueva("ws-1", "g1", 2, "Hola", 7, { ...DEPS, enviar });
+    expect(r).toEqual({ enviados: 2, fallidos: 0 });
+    expect(enviados.map((e) => e.to).sort()).toEqual(["ana@x.com", "luis@x.com"]);
+    expect(eventos().map((e) => e.type)).toEqual(["CORREO_ENVIADO", "CORREO_ENVIADO"]);
+    // Cada uno recibe SU enlace.
+    expect(enviados.find((e) => e.to === "luis@x.com")!.text).toContain(tokenDeGaleriaCliente("gc2", AHORA, CLAVE));
+    expect(enviados.find((e) => e.to === "luis@x.com")!.text).not.toContain(TOKEN);
+  });
+  it("un envío rechazado cuenta como fallido y queda en el historial sin datos personales", async () => {
+    resultado = { status: "PROVIDER_REJECTED", detail: "HTTP 500" };
+    const r = await C.avisarRondaNueva("ws-1", "g1", 2, null, 7, { ...DEPS, enviar });
+    expect(r).toEqual({ enviados: 0, fallidos: 1 });
+    expect(eventos()[0]).toMatchObject({ type: "CORREO_NO_ENVIADO", data: { motivo: "NO_ENVIADO" } });
+    expect(JSON.stringify(eventos())).not.toContain("ana@x.com");
+  });
+  it("al llegar al tope diario deja de mandar", async () => {
+    clienteExtra("gc2", "Luis", "luis@x.com");
+    clienteExtra("gc3", "Eva", "eva@x.com");
+    for (let i = 0; i < TOPE_AUTOMATICOS_DIA; i++) {
+      B.agregar("fotofficeMessage", { workspaceId: "ws-1", channel: "EMAIL", entityType: "GENERAL", entityId: `e${i}`, toAddress: `x${i}@x.com`, body: "x", status: "SENT", automatic: true, createdAt: AHORA });
+    }
+    const r = await C.avisarRondaNueva("ws-1", "g1", 2, null, 7, { ...DEPS, enviar });
+    expect(r).toEqual({ enviados: 0, fallidos: 1 });
+    expect(enviados).toHaveLength(0);
+  });
+  it("nunca avisa a clientes de otra galería ni de otro workspace", async () => {
+    B.agregar("fotofficeGaleria", { id: "g2", workspaceId: "ws-1", proyectoId: "pr1", number: "G-2", name: "Otra", status: "PUBLICADA", kind: "ALBUM" });
+    B.agregar("fotofficeGaleriaCliente", { id: "gcx", workspaceId: "ws-1", galeriaId: "g2", name: "Otro", email: "otro@x.com", tokenHash: "x", tokenIssuedAt: AHORA });
+    expect(await C.avisarRondaNueva("ws-2", "g1", 2, null, 7, { ...DEPS, enviar })).toEqual({ enviados: 0, fallidos: 0 });
+    const r = await C.avisarRondaNueva("ws-1", "g1", 2, null, 7, { ...DEPS, enviar });
+    expect(r.enviados).toBe(1);
+    expect(enviados.map((e) => e.to)).toEqual(["ana@x.com"]);
+  });
+  it("si la galería no está publicada no manda nada (borrador o archivada)", async () => {
+    B.datos.fotofficeGaleria.find((g) => g.id === "g1")!.status = "BORRADOR";
+    expect(await C.avisarRondaNueva("ws-1", "g1", 2, null, 7, { ...DEPS, enviar })).toEqual({ enviados: 0, fallidos: 1 });
+    expect(enviados).toHaveLength(0);
   });
 });

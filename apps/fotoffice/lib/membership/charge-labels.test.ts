@@ -110,3 +110,11 @@ describe("cargos de la tarjeta impresa", () => {
     expect(chargePeriodLabel("TARJETA-2026-09")).toBe("Carnet impreso");
   });
 });
+
+describe("renovación del club", () => {
+  it("se nombra por el día en que se renovó, no como una cuota mensual", () => {
+    expect(chargePeriodLabel("RENOV-20261013-153045")).toBe("Renovación del 13 de octubre de 2026");
+    expect(chargeConceptLabel("OTRO", "RENOV-20261013-153045")).toBe("Renovación");
+  });
+});
+

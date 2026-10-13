@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { sanitizeRemovalRequestBody } from "@/lib/public/removal-request";
+import { crearSolicitudDeRemocion } from "@/lib/public/crear-solicitud-remocion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,80 +39,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: parsed.status });
     }
 
-    const data = parsed.data;
-
-    const photo = await prisma.photo.findUnique({
-      where: { id: data.photoId },
-      select: {
-        id: true,
-        albumId: true,
-        isRemoved: true,
-        album: { select: { userId: true } },
-      },
-    });
-
-    if (!photo) {
-      return NextResponse.json({ error: "La foto no existe" }, { status: 404 });
+    const resultado = await crearSolicitudDeRemocion(parsed.data);
+    if (!resultado.ok) {
+      return NextResponse.json({ error: resultado.error }, { status: resultado.status });
     }
-
-    if (photo.albumId !== data.albumId) {
-      return NextResponse.json(
-        { error: "La foto no pertenece a este álbum" },
-        { status: 400 }
-      );
-    }
-
-    if (photo.isRemoved) {
-      return NextResponse.json(
-        { error: "La foto ya no está disponible" },
-        { status: 400 }
-      );
-    }
-
-    const existing = await prisma.removalRequest.findFirst({
-      where: {
-        albumId: data.albumId,
-        photoId: data.photoId,
-        requesterEmail: data.requesterEmail,
-        status: "PENDING",
-      },
-      select: { id: true, createdAt: true },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        {
-          success: true,
-          message: "Ya tenemos una solicitud pendiente para esta foto.",
-          requestId: existing.id,
-          duplicate: true,
-        },
-        { status: 200 }
-      );
-    }
-
-    const request = await prisma.removalRequest.create({
-      data: {
-        albumId: data.albumId,
-        photoId: data.photoId,
-        photographerId: photo.album.userId,
-        requesterName: data.requesterName,
-        requesterEmail: data.requesterEmail,
-        requesterPhone: data.requesterPhone,
-        reason: data.reason,
-        declarationOk: true,
-        status: "PENDING",
-      },
-      select: { id: true, createdAt: true },
-    });
 
     return NextResponse.json(
       {
         success: true,
-        message: "Recibimos tu solicitud. El fotógrafo la revisará.",
-        requestId: request.id,
+        message: resultado.message,
+        requestId: resultado.requestId,
+        ...(resultado.duplicate ? { duplicate: true } : {}),
       },
-      { status: 201 }
+      { status: resultado.status }
     );
   } catch (err: unknown) {
     console.error("POST /api/removal-requests ERROR >>>", err);

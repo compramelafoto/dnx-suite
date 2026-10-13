@@ -17,6 +17,7 @@ vi.mock("@aws-sdk/client-s3", () => {
     GetObjectCommand: class GetObjectCommand extends Cmd {},
     HeadObjectCommand: class HeadObjectCommand extends Cmd {},
     DeleteObjectCommand: class DeleteObjectCommand extends Cmd {},
+    CopyObjectCommand: class CopyObjectCommand extends Cmd {},
   };
 });
 process.env.R2_ACCOUNT_ID = "acc";
@@ -34,6 +35,37 @@ const MINI = "galerias/ws1/g1/f1/mini.jpg";
 beforeEach(() => {
   H.firmar.mockReset().mockImplementation(async (_c: unknown, cmd: { input: { Key: string } }) => `https://firmada/${cmd.input.Key}`);
   H.send.mockReset();
+});
+
+describe("urlDeSubidaFoto con videos", () => {
+  it("un MP4 o MOV de hasta 5 GB: una sola URL PUT de 60 minutos con tipo y largo en la firma", async () => {
+    await A.urlDeSubidaFoto(ORIG, "video/mp4", 5_000_000_000);
+    const [, cmd, opts] = H.firmar.mock.calls[0];
+    expect(cmd.constructor.name).toBe("PutObjectCommand");
+    expect(cmd.input).toEqual({ Bucket: "privado", Key: ORIG, ContentType: "video/mp4", ContentLength: 5_000_000_000 });
+    expect(opts.expiresIn).toBe(3600);
+    expect([...opts.signableHeaders].sort()).toEqual(["content-length", "content-type"]);
+    await A.urlDeSubidaFoto(ORIG, "video/quicktime", 10);
+    expect(H.firmar.mock.calls[1][2].expiresIn).toBe(3600);
+  });
+  it("rechaza más de 5 GB, otros videos y la foto de más de 50 MB", async () => {
+    await expect(A.urlDeSubidaFoto(ORIG, "video/mp4", 5_000_000_001)).rejects.toThrow();
+    await expect(A.urlDeSubidaFoto(ORIG, "video/x-msvideo", 10)).rejects.toThrow();
+    await expect(A.urlDeSubidaFoto(ORIG, "video/mp4", 0)).rejects.toThrow();
+    await expect(A.urlDeSubidaFoto(ORIG, "image/png", 52_428_801)).rejects.toThrow();
+  });
+});
+
+describe("urlDeReproduccionVideo", () => {
+  it("firma un GET inline de 1 hora, sólo del original", async () => {
+    await A.urlDeReproduccionVideo(ORIG);
+    const [, cmd, opts] = H.firmar.mock.calls[0];
+    expect(cmd.constructor.name).toBe("GetObjectCommand");
+    expect(cmd.input).toEqual({ Bucket: "privado", Key: ORIG, ResponseContentDisposition: "inline" });
+    expect(opts.expiresIn).toBe(3600);
+    await expect(A.urlDeReproduccionVideo(VISTA)).rejects.toThrow();
+    await expect(A.urlDeReproduccionVideo("adjuntos/ws1/x")).rejects.toThrow();
+  });
 });
 
 describe("urlDeSubidaFoto", () => {
@@ -102,6 +134,30 @@ describe("objetos", () => {
   it("nunca toca claves fuera del formato de galería", async () => {
     await expect(A.tamanoDeObjeto("galerias/ws1/../x/original")).rejects.toThrow();
     await expect(A.borrarObjetoFoto("adjuntos/ws1/uuid")).rejects.toThrow();
+    expect(H.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("copiarObjeto", () => {
+  const ORIG2 = "galerias/ws1/g1/f2/original";
+  it("copia dentro del bucket privado sin bajar el archivo (CopyObject con la clave de origen)", async () => {
+    H.send.mockResolvedValueOnce({});
+    expect(await A.copiarObjeto(ORIG, ORIG2)).toBe(true);
+    expect(H.send.mock.calls[0][0].constructor.name).toBe("CopyObjectCommand");
+    expect(H.send.mock.calls[0][0].input).toEqual({ Bucket: "privado", Key: ORIG2, CopySource: `privado/${ORIG}`, MetadataDirective: "COPY" });
+  });
+  it("devuelve false si el origen no existe y propaga cualquier otro error", async () => {
+    H.send.mockRejectedValueOnce({ name: "NoSuchKey" });
+    expect(await A.copiarObjeto(ORIG, ORIG2)).toBe(false);
+    H.send.mockRejectedValueOnce(new Error("boom"));
+    await expect(A.copiarObjeto(ORIG, ORIG2)).rejects.toThrow("boom");
+  });
+  it("no copia entre workspaces, ni entre tipos de objeto, ni con claves raras", async () => {
+    await expect(A.copiarObjeto(ORIG, "galerias/ws2/g1/f2/original")).rejects.toThrow();
+    await expect(A.copiarObjeto(ORIG, "galerias/ws1/g1/f2/vista.jpg")).rejects.toThrow();
+    await expect(A.copiarObjeto(VISTA, "galerias/ws1/g1/f2/mini.jpg")).rejects.toThrow();
+    await expect(A.copiarObjeto("adjuntos/ws1/uuid", ORIG2)).rejects.toThrow();
+    await expect(A.copiarObjeto(ORIG, "galerias/ws1/../f2/original")).rejects.toThrow();
     expect(H.send).not.toHaveBeenCalled();
   });
 });

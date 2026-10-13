@@ -13,6 +13,7 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { mensajeDePadron } from "@/lib/members/mensajes";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { grantBookingCreditsForPayment } from "./booking-credits";
 
 /**
  * Medios que la Secretaría puede registrar a mano.
@@ -201,6 +202,9 @@ export async function registerManualPayment(input: {
   // Un cobro en efectivo o por transferencia cierra el alta igual que uno por Mercado Pago:
   // la regla es del ingreso, no del medio de pago.
   await completeApplicationIfPaid(input.memberId);
+
+  // Si su categoría incluye turnos (Club VIP), este pago abre su bolsa. Nunca lanza.
+  await grantBookingCreditsForPayment(resultado.paymentId);
 
   return { ok: true, ...resultado };
 }

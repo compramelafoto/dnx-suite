@@ -99,6 +99,28 @@ export async function getPreventaPhotosReadyStatus(albumId: number): Promise<Pho
   return { pendientes, canjeados, ultimoAvisoAt: ultimo };
 }
 
+/** Los packs cobrados por fuera no tienen email real hasta que la familia canjea. */
+function tieneEmailReal(email: string | null): email is string {
+  return Boolean(email?.includes("@")) && !isPlaceholderEmail(email);
+}
+
+/**
+ * A cuántas familias pendientes les llegaría el aviso (`conEmail`) y cuántas quedan afuera
+ * por no tener email real (`sinEmail`, packs cobrados por fuera). Mismo criterio que
+ * `notifyPreventaPhotosReady`: sirve para decir el número antes de mandar.
+ */
+export async function countPreventaPhotosReadyRecipients(
+  albumId: number
+): Promise<{ conEmail: number; sinEmail: number }> {
+  const orders = await prisma.order.findMany({
+    where: pendingWhere(albumId),
+    select: { buyerEmail: true },
+  });
+  let conEmail = 0;
+  for (const o of orders) if (tieneEmailReal(o.buyerEmail)) conEmail++;
+  return { conEmail, sinEmail: orders.length - conEmail };
+}
+
 export async function notifyPreventaPhotosReady(params: {
   albumId: number;
   baseUrl: string;
@@ -130,7 +152,7 @@ export async function notifyPreventaPhotosReady(params: {
   const avisar = async (o: (typeof orders)[number]) => {
     // Los packs cobrados por fuera no tienen email hasta que la familia canjea: a esos les
     // llega el link por el chat de la fotógrafa (panel Canjes), no por correo.
-    if (!o.buyerEmail?.includes("@") || isPlaceholderEmail(o.buyerEmail)) {
+    if (!tieneEmailReal(o.buyerEmail)) {
       sinEmail++;
       return;
     }

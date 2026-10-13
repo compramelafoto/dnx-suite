@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib/shell/nav-groups";
 import {
+  ArrowDownToLine,
   Building2,
   Calculator,
   CalendarDays,
@@ -585,6 +586,14 @@ export function ShellNav({
           description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
           icon: Hash,
           isActive: under("/workspace/configuracion/numeracion"),
+        },
+        // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
+        {
+          href: "/workspace/configuracion/alboom",
+          label: "Migración desde Alboom",
+          description: "Conectar la cuenta de Alboom y copiar todo su CRM para migrarlo.",
+          icon: ArrowDownToLine,
+          isActive: under("/workspace/configuracion/alboom"),
         },
       ]
     : [];

@@ -11,7 +11,17 @@ import {
   type PhotoCrop,
   type TemplateV2Canvas,
 } from "@repo/template-editor-core";
-import { resolveBracePlaceholdersInText } from "@repo/template-editor-core";
+import {
+  CLIENT_PHOTO_ROLE_SLOTS,
+  CLIENT_PHOTO_VARIABLE_PATTERN,
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  formatClassList,
+  isClassListConfig,
+  layoutClassList,
+  parseClassListValue,
+  readClassListOptions,
+  resolveBracePlaceholdersInText,
+} from "@repo/template-editor-core";
 
 type TemplateCanvasRendererProps = {
   canvas: TemplateV2Canvas;
@@ -132,6 +142,80 @@ function TextBlockRenderer({
   );
 }
 
+/** «Listado del curso»: la misma cuenta de columnas y cuerpo que usa la impresión. */
+function ClassListBlockRenderer({
+  config,
+  resolvedVariables,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  resolvedVariables?: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const key = String(config.variableKey ?? "");
+  const options = readClassListOptions(config);
+  const t = getTextVisualConfig(config);
+  const { cells, fontSize } = layoutClassList({
+    lines: formatClassList(parseClassListValue(resolvedVariables?.[key]), options),
+    width: layoutWidth,
+    height: layoutHeight,
+    fontSize: t.fontSize,
+    lineHeight: t.lineHeight,
+    columns: options.columns,
+  });
+  if (cells.length === 0) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px dashed #94a3b8",
+          color: "#64748b",
+          fontSize: Math.max(12, Math.min(layoutWidth, layoutHeight) * 0.08),
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        Listado del curso (sin alumnos)
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {cells.map((cell, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: cell.x,
+            top: cell.y,
+            width: cell.width,
+            height: cell.height,
+            color: t.color,
+            fontFamily: t.fontFamilyCss,
+            fontSize,
+            fontWeight: cell.bold ? 700 : t.fontWeight,
+            fontStyle: t.fontStyle,
+            textDecoration: t.textDecoration,
+            textTransform: t.textTransform,
+            lineHeight: String(t.lineHeight),
+            letterSpacing: `${t.letterSpacing}px`,
+            textAlign: t.textAlign,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          {cell.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function VariableTextBlockRenderer({
   config,
   resolvedVariables,
@@ -164,6 +248,68 @@ function imagePlaceholderTypography(layoutWidth: number, layoutHeight: number): 
   return { titlePx, subtitlePx, padPx };
 }
 
+/**
+ * El nombre de un hueco de foto del cliente para mostrar mientras se diseña: "Foto individual",
+ * "Foto grupal" o "Foto del cliente 3". `null` si el bloque no es un hueco de foto del cliente.
+ */
+function clientPhotoSlotTitle(variableKey: string): string | null {
+  const conNombre = CLIENT_PHOTO_ROLE_SLOTS[variableKey];
+  if (conNombre) return conNombre.label;
+  const m = CLIENT_PHOTO_VARIABLE_PATTERN.exec(variableKey);
+  return m ? `Foto del cliente ${m[1]}` : null;
+}
+
+/**
+ * Hueco de foto sin foto todavía. Dice qué foto va y dónde queda arriba: gira junto con el
+ * recuadro, así quien diseña lo orienta como quiere que se coloque la foto.
+ */
+function ClientPhotoSlotPlaceholder({
+  title,
+  layoutWidth,
+  layoutHeight,
+}: {
+  title: string;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const minSide = Math.min(Math.max(1, layoutWidth), Math.max(1, layoutHeight));
+  const titlePx = Math.max(18, Math.round(minSide * 0.12));
+  const hintPx = Math.max(12, Math.round(titlePx * 0.5));
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        display: "grid",
+        placeItems: "center",
+        border: "2px dashed #64748b",
+        background: "#e2e8f0",
+        color: "#1e293b",
+        textAlign: "center",
+        boxSizing: "border-box",
+        fontFamily: "system-ui, sans-serif",
+        overflow: "hidden",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: Math.round(hintPx * 0.6),
+          left: 0,
+          right: 0,
+          fontSize: hintPx,
+          fontWeight: 600,
+          color: "#475569",
+        }}
+      >
+        ▲ arriba
+      </span>
+      <span style={{ fontSize: titlePx, fontWeight: 700, lineHeight: 1.1, padding: "0 6%" }}>{title}</span>
+    </div>
+  );
+}
+
 function ImageBlockRenderer({
   config,
   resolvedVariables,
@@ -185,6 +331,10 @@ function ImageBlockRenderer({
   const photoMode = String(config.photoMode ?? "free").toLowerCase();
   const maskShape = String(config.maskShape ?? "rect").toLowerCase();
   const modeLabel = PHOTO_MODE_LABEL[photoMode] ?? PHOTO_MODE_LABEL.free;
+  const slotTitle = clientPhotoSlotTitle(variableKey);
+  if (slotTitle && (!src || src === SCHOOL_CLIENT_PHOTO_PLACEHOLDER)) {
+    return <ClientPhotoSlotPlaceholder title={slotTitle} layoutWidth={layoutWidth} layoutHeight={layoutHeight} />;
+  }
 
   const imgStyle: React.CSSProperties = {
     width: "100%",
@@ -527,6 +677,13 @@ export function TemplateCanvasRenderer({
             {block.type === "VARIABLE_TEXT" ? (
               hideTextBodyForBlockId === block.id ? (
                 <div style={{ width: "100%", height: "100%" }} aria-hidden />
+              ) : isClassListConfig(block.configJson) ? (
+                <ClassListBlockRenderer
+                  config={block.configJson}
+                  resolvedVariables={resolvedVariables}
+                  layoutWidth={block.layout.width}
+                  layoutHeight={block.layout.height}
+                />
               ) : (
                 <VariableTextBlockRenderer config={block.configJson} resolvedVariables={resolvedVariables} />
               )

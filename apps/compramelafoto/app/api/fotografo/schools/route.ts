@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
+import { createSchoolForOwner } from "@/lib/schools/school-setup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,30 +59,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const name = String(body.name ?? "").trim();
-    if (!name) {
-      return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
+    const created = await createSchoolForOwner(user.id, body);
+    if (!created.ok) {
+      return NextResponse.json({ error: created.error }, { status: created.status });
     }
-
-    const school = await prisma.school.create({
-      data: {
-        ownerId: user.id,
-        name,
-        contactEmail: body.contactEmail ? String(body.contactEmail).trim() : null,
-        contactPhone: body.contactPhone ? String(body.contactPhone).trim() : null,
-        notes: body.notes ? String(body.notes).trim() : null,
-        address: body.address ? String(body.address).trim() : null,
-        city: body.city ? String(body.city).trim() : null,
-        province: body.province ? String(body.province).trim() : null,
-        country: body.country ? String(body.country).trim() : null,
-        latitude: typeof body.latitude === "number" && Number.isFinite(body.latitude) ? body.latitude : null,
-        longitude: typeof body.longitude === "number" && Number.isFinite(body.longitude) ? body.longitude : null,
-        logoUrl:
-          typeof body.logoUrl === "string" && body.logoUrl.trim()
-            ? String(body.logoUrl).trim()
-            : null,
-      },
-    });
+    const school = created.school;
 
     return NextResponse.json(school);
   } catch (err: any) {

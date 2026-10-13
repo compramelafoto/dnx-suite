@@ -27,7 +27,14 @@ export const MENSAJES_REVISION = {
   noReactivable: "Sólo se puede reactivar una selección enviada o finalizada.",
   galeriaArchivada: "La galería está archivada: reactivala antes de devolverle la selección al cliente.",
   clienteAnulado: "El enlace de este cliente está anulado: habilitalo con un enlace nuevo antes de reactivar su selección.",
+  esAlbum: "Esta galería es una prueba de álbum: se revisa por rondas desde la ficha del cliente.",
 } as const;
+
+/** Una prueba de álbum no pasa por la revisión de la selección: tiene la suya (`revision-album.ts`). */
+async function esDeAlbum(workspaceId: string, galeriaId: string): Promise<boolean> {
+  const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { kind: true } });
+  return g?.kind === "ALBUM";
+}
 
 export type ComentarioRevision = {
   id: string;
@@ -196,6 +203,7 @@ export async function responderComentario(
   const v = validarComentario(texto);
   if (!v.ok) return no(v.error);
   const { workspaceId } = ctx;
+  if (await esDeAlbum(workspaceId, galeriaId)) return no(MENSAJES_REVISION.esAlbum);
   const cliente = await prisma.fotofficeGaleriaCliente.findFirst({ where: { id: galeriaClienteId, galeriaId, workspaceId }, select: { id: true } });
   if (!cliente) return no(M.clienteNoExiste);
   const foto = await prisma.fotofficeGaleriaFoto.findFirst({ where: { id: fotoId, galeriaId, workspaceId }, select: { id: true } });
@@ -227,6 +235,7 @@ export async function finalizarSeleccion(ctx: CtxGalerias, galeriaId: unknown, g
   if (!puedeGestionarGalerias(ctx)) return no(M.sinPermiso);
   if (!idValido(galeriaId) || !idValido(galeriaClienteId)) return no(M.datosInvalidos);
   const { workspaceId } = ctx;
+  if (await esDeAlbum(workspaceId, galeriaId)) return no(MENSAJES_REVISION.esAlbum);
   try {
     return await prisma.$transaction(async (tx) => {
       const r = await tx.fotofficeGaleriaCliente.updateMany({
@@ -256,6 +265,7 @@ export async function reactivarSeleccion(ctx: CtxGalerias, galeriaId: unknown, g
   const galeria = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { status: true } });
   if (!galeria) return no(M.noExiste);
   if (galeria.status === "ARCHIVADA") return no(MENSAJES_REVISION.galeriaArchivada);
+  if (await esDeAlbum(workspaceId, galeriaId)) return no(MENSAJES_REVISION.esAlbum);
   try {
     return await prisma.$transaction(async (tx) => {
       const r = await tx.fotofficeGaleriaCliente.updateMany({

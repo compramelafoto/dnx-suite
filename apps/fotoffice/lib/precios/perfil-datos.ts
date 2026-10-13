@@ -153,3 +153,40 @@ function serializar(p: CuantoCobroProfileInput): string {
 export function perfilesIguales(a: CuantoCobroProfileInput, b: CuantoCobroProfileInput): boolean {
   return serializar(a) === serializar(b);
 }
+
+/** Las tareas del tiempo semanal, en el orden del formulario. */
+export const CLAVES_DISTRIBUCION = ["coverage", "editing", "administration", "sales", "marketing", "training"] as const;
+export type ClaveDistribucion = (typeof CLAVES_DISTRIBUCION)[number];
+
+/**
+ * DNX Bot pregunta horas por tarea ("¿cuántas horas por semana editás?"), pero el perfil guarda
+ * porcentajes. Convierte con cuatro decimales: el motor redondea las horas de cada tarea
+ * (`isTimeDistributionValid`), así que vuelven exactas. Si no suman las horas por semana, el
+ * motor la rechaza igual que en el formulario. Sin horas por semana no hay distribución.
+ */
+export function distribucionDesdeHoras(
+  horas: Partial<Record<ClaveDistribucion, number>>,
+  horasSemana: number,
+): CuantoCobroProfileInput["timeDistribution"] | null {
+  if (!(horasSemana > 0)) return null;
+  const pct = (h: number | undefined) => String(Math.round(((h ?? 0) / horasSemana) * 100 * 10_000) / 10_000);
+  return {
+    coverage: pct(horas.coverage),
+    editing: pct(horas.editing),
+    administration: pct(horas.administration),
+    sales: pct(horas.sales),
+    marketing: pct(horas.marketing),
+    training: pct(horas.training),
+  };
+}
+
+/** Horas por semana de cada tarea, como las muestra el formulario (redondeadas). */
+export function horasPorTarea(p: Pick<CuantoCobroProfileInput, "weeklyHours" | "timeDistribution">): Record<ClaveDistribucion, number> {
+  const semanal = Math.round(parseCuantoCobroAmount(p.weeklyHours) ?? 0);
+  const horas = {} as Record<ClaveDistribucion, number>;
+  for (const k of CLAVES_DISTRIBUCION) {
+    const pct = Number(String(p.timeDistribution[k] ?? "").replace(",", "."));
+    horas[k] = Number.isFinite(pct) ? Math.round((semanal * pct) / 100) : 0;
+  }
+  return horas;
+}

@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { puedeVerGalerias, type CtxGalerias } from "./acceso";
 import { listarEventos } from "./eventos";
+import { ETIQUETA_MEDIO_COMPRA } from "./medios";
+import { formatearCentavos } from "./precios";
 import { EVENTOS_DEL_CLIENTE, MOTIVO_CORREO, etiquetaDeEvento } from "./eventos-etiquetas";
 
 export type ItemHistorial = {
@@ -20,6 +22,13 @@ function detalleDe(tipo: string, data: unknown): string | null {
   if (tipo === "CORREO_NO_ENVIADO" && typeof d.motivo === "string") return `Motivo: ${MOTIVO_CORREO[d.motivo] ?? "no se pudo enviar"}`;
   if (tipo === "SELECCION_ENVIADA" && typeof d.cantidad === "number") return d.cantidad === 1 ? "Eligió 1 foto" : `Eligió ${d.cantidad} fotos`;
   if ((tipo === "CONFIRMACION_NO_ENVIADA" || tipo === "AVISO_ESTUDIO_NO_ENVIADO") && typeof d.motivo === "string") return `Motivo: ${MOTIVO_CORREO[d.motivo] ?? "no se pudo enviar"}`;
+  if (tipo === "RONDA_ABIERTA" && typeof d.numero === "number") return `Ronda ${d.numero}${d.forzada === true ? " (abierta sin decisiones del cliente)" : ""}`;
+  if (tipo === "COMPRA_PAGADA" && typeof d.totalCents === "number") {
+    const fotos = typeof d.fotos === "number" ? `${d.fotos} ${d.fotos === 1 ? "foto" : "fotos"} · ` : "";
+    const medio = typeof d.medio === "string" ? ` · ${ETIQUETA_MEDIO_COMPRA[d.medio] ?? d.medio}` : "";
+    return `${fotos}${formatearCentavos(d.totalCents)}${medio}`;
+  }
+  if (tipo === "COMPRA_SIN_CAJA") return d.motivo === "SIN_CUENTA" ? "Motivo: no hay una cuenta de Caja donde depositarla" : "Motivo: el módulo Caja está apagado";
   if (tipo === "FOTO_BORRADA" && typeof d.selecciones === "number") {
     return d.selecciones === 0 ? null : d.selecciones === 1 ? "Se llevó 1 elección de un cliente" : `Se llevó ${d.selecciones} elecciones de clientes`;
   }

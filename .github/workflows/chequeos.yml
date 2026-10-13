@@ -197,6 +197,19 @@ jobs:
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
 
+      # DNX Bot: el motor compartido (historial que sólo se agrega, propuestas que no corren
+      # sin confirmación, topes) y, en CompraMeLaFoto, las herramientas, las rutas y el
+      # escalamiento. `test:bot` usa el vitest de services/dnx-mcp, igual que `test:analysis`
+      # (lo instala el `pnpm install` de arriba: services/* es parte del workspace).
+      - name: Chequear tipos de DNX Bot
+        run: pnpm --filter @repo/dnx-bot check-types
+
+      - name: Pruebas del motor de DNX Bot
+        run: pnpm --filter @repo/dnx-bot test
+
+      - name: Pruebas de DNX Bot en CompraMeLaFoto
+        run: pnpm --filter compramelafoto test:bot
+
       # Todas las de FotoOffice: socios, cuotas, carnets, reservas, sorteos,
       # caja, coberturas, portal y el resto. Trabajan con la base simulada, así
       # que no necesitan DATABASE_URL ni tocan ninguna base real. Antes no las

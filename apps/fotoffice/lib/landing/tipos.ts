@@ -132,7 +132,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
   },
   {
     id: "sociedad",
-    label: "Soy una sociedad o asociación de fotógrafos",
+    label: "Soy una sociedad, asociación o fotoclub",
     resumen: "Tengo socios, una cuota que vence todos los meses y carnets que emitir.",
     icono: "tipo-sociedad",
     destacados: [
@@ -155,6 +155,12 @@ export const TIPOS: TipoDeOrganizacion[] = [
     ademas: [
       "portal",
       "raffles",
+      "sponsors",
+      "concursos",
+      "muestras",
+      "governance",
+      "portfolio",
+      "communications",
       "bookings",
       "courses-sales",
       "website",
@@ -165,7 +171,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "clients",
       "evaluaciones",
     ],
-    proximo: "17",
+    proximo: "19",
   },
   {
     id: "agrupacion",

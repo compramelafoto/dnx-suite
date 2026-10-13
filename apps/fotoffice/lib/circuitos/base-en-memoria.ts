@@ -30,6 +30,8 @@ const TABLAS = [
   "fotofficeRolParticipante", "fotofficeConsultaParticipante", "fotofficeConsultaAjustes",
   // Usuarios del equipo (el aviso de consulta nueva lee su correo).
   "user",
+  // Registro de correos enviados (el aviso de un pago de Mercado Pago sin pedido se deduplica ahí).
+  "sentEmailLog",
   // Bitácora de las listas (la importación de consultas deja su registro).
   "fotofficeListActivity",
   // Catálogo de Ventas y su ampliación para presupuestos (etapa 2).
@@ -55,7 +57,8 @@ const TABLAS = [
   "fotofficeContratoFirmante", "fotofficeContratoEvento", "fotofficeContratoAjustes",
   // Galería (etapa 7).
   "fotofficeGaleria", "fotofficeGaleriaFoto", "fotofficeGaleriaCliente", "fotofficeGaleriaSeleccion", "fotofficeGaleriaComentario", "fotofficeGaleriaEvento",
-  "fotofficeGaleriaAjustes",
+  "fotofficeGaleriaAjustes", "fotofficeGaleriaCompra", "fotofficeGaleriaCompraFoto", "fotofficeGaleriaDescarga",
+  "fotofficeGaleriaRonda", "fotofficeGaleriaDecision",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
@@ -221,20 +224,34 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     message: null, saleMode: "SELECCION", kind: "SELECCION", selectionMode: "LIBRE", minSelect: null, maxSelect: null,
     allowComments: true, downloadMode: "VISTA", status: "BORRADOR", coverFotoId: null, orderMode: "NOMBRE", publishedAt: null,
     archivedAt: null, ownerUserId: null, createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+    includedCount: 0, pricingMode: null, unitPriceArs: null, packageSize: null, packagePriceArs: null, discountMode: "NINGUNO",
+    discountPct: null, discountRules: null, incomeCategoryId: null,
   }),
   fotofficeGaleriaFoto: () => ({
     viewKey: null, thumbKey: null, status: "PENDIENTE", errorReason: null, sizeBytes: null, width: null, height: null, order: 0,
-    attempts: 0, uploadedByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+    attempts: 0, uploadedByUserId: null, rondaId: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeGaleriaCliente: () => ({
     clientId: null, email: null, phone: null, revokedAt: null, status: "EN_PROGRESO", firstSeenAt: null, lastSeenAt: null,
     submittedAt: null, submitMessage: null, finalizedAt: null, reopenedAt: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeGaleriaSeleccion: () => ({ createdAt: new Date() }),
-  fotofficeGaleriaComentario: () => ({ authorUserId: null, createdAt: new Date() }),
+  fotofficeGaleriaComentario: () => ({ authorUserId: null, rondaId: null, pinX: null, pinY: null, pinNumber: null, createdAt: new Date() }),
+  fotofficeGaleriaRonda: () => ({ status: "ABIERTA", note: null, createdByUserId: null, createdAt: new Date(), closedAt: null }),
+  fotofficeGaleriaDecision: () => ({ message: null, createdAt: new Date() }),
   fotofficeGaleriaEvento: () => ({ galeriaClienteId: null, actorUserId: null, data: null, createdAt: new Date() }),
   fotofficeGaleriaAjustes: () => ({
-    defaultMessage: null, defaultSelectionMode: "LIBRE", defaultAllowComments: true, defaultDownloadMode: "VISTA", updatedAt: new Date(),
+    defaultMessage: null, defaultSelectionMode: "LIBRE", defaultAllowComments: true, defaultDownloadMode: "VISTA", defaultIncomeCategoryId: null,
+    updatedAt: new Date(),
+  }),
+  fotofficeGaleriaCompra: () => ({
+    status: "PENDIENTE", discountArs: "0.00", mpPreferenceId: null, providerPaymentRef: null, paidAt: null, feeArs: null, netArs: null,
+    cashMovementId: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeGaleriaCompraFoto: () => ({}),
+  fotofficeGaleriaDescarga: () => ({
+    galeriaClienteId: null, status: "PENDIENTE", parts: [], cursor: null, errorReason: null, requestedEmail: null, notifiedAt: null,
+    createdAt: new Date(), updatedAt: new Date(),
   }),
   cashAccount: () => ({ kind: "EFECTIVO", isVault: false, isDefault: false, isActive: true, order: 0, fixedFloatArs: null }),
   cashShift: () => ({ status: "ABIERTO", openedAt: new Date(), closedAt: null }),
@@ -270,6 +287,8 @@ export function crearBaseEnMemoria() {
       if (cond === undefined) return true;
       if (k === "OR") return (cond as Where[]).some((w) => cumple(f, w));
       if (k === "AND") return (cond as Where[]).every((w) => cumple(f, w));
+      // Como Prisma: NOT { a, b } = no (a y b); NOT [x, y] = no x y no y.
+      if (k === "NOT") return (Array.isArray(cond) ? (cond as Where[]) : [cond as Where]).every((w) => !cumple(f, w));
       const rel = RELACIONES[k];
       if (rel && cond && typeof cond === "object") {
         const destino = datos[rel.tabla].find((x) => x.id === f[rel.columna]);
@@ -437,7 +456,15 @@ export function crearBaseEnMemoria() {
       { columnas: ["galeriaId", "clientId"], aplica: (f) => f.clientId !== null && f.clientId !== undefined },
     ],
     fotofficeGaleriaSeleccion: [{ columnas: ["galeriaClienteId", "fotoId"] }],
+    // Entrega C: único por galería y número, una sola ronda abierta por galería y una decisión por cliente y ronda.
+    fotofficeGaleriaRonda: [{ columnas: ["galeriaId", "number"] }, { columnas: ["galeriaId"], aplica: (f) => f.status === "ABIERTA" }],
+    fotofficeGaleriaDecision: [{ columnas: ["galeriaClienteId", "rondaId"] }],
     fotofficeGaleriaAjustes: [{ columnas: ["workspaceId"] }],
+    fotofficeGaleriaCompra: [
+      { columnas: ["providerPaymentRef"], aplica: (f) => f.providerPaymentRef !== null && f.providerPaymentRef !== undefined },
+      { columnas: ["cashMovementId"], aplica: (f) => f.cashMovementId !== null && f.cashMovementId !== undefined },
+    ],
+    fotofficeGaleriaCompraFoto: [{ columnas: ["compraId", "fotoId"] }],
     // Caja: el depósito automático es idempotente por (sourceModule, sourceRef); un asiento se anula una vez.
     cashMovement: [
       { columnas: ["sourceModule", "sourceRef"], aplica: (f) => f.sourceRef !== null && f.sourceRef !== undefined },
@@ -508,16 +535,31 @@ export function crearBaseEnMemoria() {
         verificarUnicidad(tabla, f);
         return elegir(f, a.select);
       },
-      /** Mínimo: agrupa por columnas y sólo admite `_count: true` (cantidad de filas por grupo). */
-      groupBy: async (a: { by: string[]; where?: Where; _count?: true }) => {
+      /** Mínimo: agrupa por columnas y sólo admite `_count: true` o `{ _all: true }` (cantidad de filas por grupo). */
+      groupBy: async (a: { by: string[]; where?: Where; _count?: true | { _all: true }; _sum?: Record<string, true> }) => {
         const grupos = new Map<string, Fila>();
         for (const x of datos[tabla].filter((f) => cumple(f, a.where))) {
           const clave = JSON.stringify(a.by.map((c) => x[c] ?? null));
           const g = grupos.get(clave) ?? { ...Object.fromEntries(a.by.map((c) => [c, x[c] ?? null])), _count: 0 };
           g._count = (g._count as number) + 1;
+          if (a._sum) {
+            const suma = (g._sum ?? {}) as Record<string, number>;
+            for (const c of Object.keys(a._sum)) suma[c] = (suma[c] ?? 0) + Number(x[c] ?? 0);
+            g._sum = suma;
+          }
           grupos.set(clave, g);
         }
-        return [...grupos.values()];
+        // Como Prisma: `_count: true` da un número; `_count: { _all: true }`, un objeto.
+        return [...grupos.values()].map((g) => (typeof a._count === "object" ? { ...g, _count: { _all: g._count } } : g));
+      },
+      /** Mínimo: sólo `_max` de columnas numéricas (null si no hay filas). */
+      aggregate: async (a: { where?: Where; _max?: Record<string, true> }) => {
+        const filas = datos[tabla].filter((x) => cumple(x, a.where));
+        const _max = Object.fromEntries(Object.keys(a._max ?? {}).map((c) => {
+          const v = filas.map((x) => x[c]).filter((x): x is number => typeof x === "number");
+          return [c, v.length ? Math.max(...v) : null];
+        }));
+        return { _max };
       },
       create: async (a: { data: Fila; select?: Record<string, boolean> }) => elegir(insertar(tabla, a.data), a.select),
       /** Con `skipDuplicates` (ON CONFLICT DO NOTHING) saltea las filas que chocan con un único. */
@@ -698,7 +740,9 @@ export function crearBaseEnMemoria() {
 
   const FUERA = "uso de prisma fuera de la transacción";
   const prisma: Record<string, unknown> = cliente(() => (abiertas > 0 ? FUERA : null));
-  prisma.$transaction = async (fn: (tx: unknown) => Promise<unknown>, opciones?: unknown) => {
+  prisma.$transaction = async (fn: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[], opciones?: unknown) => {
+    // Forma de lista: las operaciones ya se lanzaron al armarla (la base en memoria no las difiere).
+    if (Array.isArray(fn)) return Promise.all(fn);
     if (abiertas > 0) throw new Error(FUERA);
     transacciones.push({ opciones });
     const foto = Object.fromEntries(TABLAS.map((t) => [t, datos[t].map((f) => clonar(f) as Fila)])) as Record<Tabla, Fila[]>;

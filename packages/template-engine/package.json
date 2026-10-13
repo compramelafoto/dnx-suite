@@ -17,7 +17,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test src/schema/schema.test.ts src/bindings/bindings.test.ts src/variables/registry.test.ts src/bridge/bridge.test.ts src/core/resolve-document.test.ts src/plugins/clickaton/clickaton-plugin.test.ts src/presets/clickaton/clickaton-presets.test.ts src/presets/sponsor/sponsor-presets.test.ts",
+    "test": "tsx --test src/plugins/school/class-list.test.ts src/schema/schema.test.ts src/bindings/bindings.test.ts src/variables/registry.test.ts src/bridge/bridge.test.ts src/core/resolve-document.test.ts src/plugins/clickaton/clickaton-plugin.test.ts src/presets/clickaton/clickaton-presets.test.ts src/presets/sponsor/sponsor-presets.test.ts",
     "lint": "eslint ."
   },
   "dependencies": {

@@ -21,6 +21,15 @@ const BodySchema = z.object({
       z.object({
         benefitStableKey: z.string().min(1),
         units: z.array(z.array(z.number().int().positive())),
+        crops: z
+          .array(
+            z.array(
+              z
+                .object({ zoom: z.number().finite(), x: z.number().finite(), y: z.number().finite() })
+                .nullable()
+            )
+          )
+          .optional(),
       })
     )
     .min(1),

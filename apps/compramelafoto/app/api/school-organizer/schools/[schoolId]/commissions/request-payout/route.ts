@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OrganizerCommissionStatus } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerAccess } from "@/lib/school-organizer-auth";
+import { buildRequestPayoutWhere } from "@/lib/school-organizer-commission-logic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,12 +30,18 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
+    // Comisiones PENDING de esta escuela a nombre del usuario, sin organizador asignado, o
+    // asignadas a alguien que ya no es organizador activo. Nunca las de otro organizador activo.
+    const activeOrganizers = await prisma.schoolOrganizer.findMany({
+      where: { schoolId, status: "ACTIVE" },
+      select: { userId: true },
+    });
     const result = await prisma.organizerCommission.updateMany({
-      where: {
+      where: buildRequestPayoutWhere({
         schoolId,
-        organizerUserId: access.user.id,
-        status: OrganizerCommissionStatus.PENDING,
-      },
+        userId: access.user.id,
+        activeOrganizerUserIds: activeOrganizers.map((o) => o.userId),
+      }),
       data: {
         status: OrganizerCommissionStatus.REQUESTED,
         requestedAt: new Date(),

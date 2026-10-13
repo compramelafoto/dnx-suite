@@ -18,6 +18,8 @@ export type AjustesGaleria = {
   defaultSelectionMode: ModoSeleccion;
   defaultAllowComments: boolean;
   defaultDownloadMode: ModoDescarga;
+  /** Rubro de ingreso de Caja para las ventas de fotos extra; null = sin rubro. */
+  defaultIncomeCategoryId: string | null;
 };
 
 export const AJUSTES_GALERIA_DE_FABRICA: AjustesGaleria = {
@@ -25,12 +27,13 @@ export const AJUSTES_GALERIA_DE_FABRICA: AjustesGaleria = {
   defaultSelectionMode: "LIBRE",
   defaultAllowComments: true,
   defaultDownloadMode: "VISTA",
+  defaultIncomeCategoryId: null,
 };
 
 export async function leerAjustesGaleria(workspaceId: string): Promise<AjustesGaleria> {
   const f = await prisma.fotofficeGaleriaAjustes.findUnique({
     where: { workspaceId },
-    select: { defaultMessage: true, defaultSelectionMode: true, defaultAllowComments: true, defaultDownloadMode: true },
+    select: { defaultMessage: true, defaultSelectionMode: true, defaultAllowComments: true, defaultDownloadMode: true, defaultIncomeCategoryId: true },
   });
   if (!f) return { ...AJUSTES_GALERIA_DE_FABRICA };
   return {
@@ -38,6 +41,7 @@ export async function leerAjustesGaleria(workspaceId: string): Promise<AjustesGa
     defaultSelectionMode: f.defaultSelectionMode === "CANTIDAD" ? "CANTIDAD" : "LIBRE",
     defaultAllowComments: f.defaultAllowComments,
     defaultDownloadMode: (MODOS_DESCARGA as readonly string[]).includes(f.defaultDownloadMode) ? (f.defaultDownloadMode as ModoDescarga) : "VISTA",
+    defaultIncomeCategoryId: f.defaultIncomeCategoryId ?? null,
   };
 }
 
@@ -57,12 +61,24 @@ export async function guardarAjustesGaleria(ctx: CtxGalerias, datos: unknown): P
     if (t.length > MAX_MENSAJE_GALERIA) return { ok: false, error: M.mensajeGaleria };
     mensaje = t === "" ? null : t;
   }
-  const valores = {
+  // El rubro de ingreso es opcional: si la clave no viene, se conserva el que había; "" o null lo quitan.
+  const valores: { defaultMessage: string | null; defaultSelectionMode: string; defaultAllowComments: boolean; defaultDownloadMode: string; defaultIncomeCategoryId?: string | null } = {
     defaultMessage: mensaje,
     defaultSelectionMode: "LIBRE",
     defaultAllowComments: d.defaultAllowComments,
     defaultDownloadMode: d.defaultDownloadMode,
   };
+  if ("defaultIncomeCategoryId" in d) {
+    const r = d.defaultIncomeCategoryId;
+    if (r === null || r === undefined || r === "") {
+      valores.defaultIncomeCategoryId = null;
+    } else {
+      if (typeof r !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(r)) return { ok: false, error: M.rubroIngreso };
+      const rubro = await prisma.cashCategory.findFirst({ where: { id: r, workspaceId: ctx.workspaceId, kind: "INGRESO", isActive: true }, select: { id: true } });
+      if (!rubro) return { ok: false, error: M.rubroIngreso };
+      valores.defaultIncomeCategoryId = rubro.id;
+    }
+  }
   try {
     await prisma.fotofficeGaleriaAjustes.upsert({
       where: { workspaceId: ctx.workspaceId },

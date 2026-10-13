@@ -416,6 +416,11 @@ export type RedeemUnitSelectionInput = {
   benefitStableKey: string;
   /** Por beneficio: una fila por unidad incluida; cada fila son photoIds de esa unidad */
   units: number[][];
+  /**
+   * Cómo acomodó la familia cada foto en la vista del librito, alineado con `units`. Opcional:
+   * sin esto el diseño arranca con las fotos centradas.
+   */
+  crops?: Array<Array<{ zoom: number; x: number; y: number } | null>>;
 };
 
 export class PreventaPackRedeemValidationError extends Error {

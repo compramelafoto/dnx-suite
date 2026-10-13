@@ -7,7 +7,8 @@ export type TemplateVariableValueType =
   /** Extensión alineada a V2 (QR como texto URL). */
   | "qrUrl";
 
-export type TemplateVariableUsableIn = "TEXT" | "IMAGE";
+/** `LIST`: sólo el bloque de listado del curso (la variable trae una lista, no un texto). */
+export type TemplateVariableUsableIn = "TEXT" | "IMAGE" | "LIST";
 
 export type TemplateVariableDefinition = {
   path: string;

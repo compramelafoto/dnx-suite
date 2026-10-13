@@ -8,7 +8,16 @@ import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
 import { FieldLabel, InspectorPanel } from "./inspector/InspectorPanel";
 import { NumberSliderField } from "./inspector/NumberSliderField";
 import { SegmentedControl } from "./inspector/SegmentedControl";
+import { ToggleSwitch } from "./inspector/ToggleSwitch";
 import type { CanvasQuickAlignment } from "@repo/template-editor-core";
+import {
+  CLASS_LIST_MAX_COLUMNS,
+  CLASS_LIST_VARIABLE_KEY,
+  DEFAULT_CLASS_LIST_OPTIONS,
+  isClassListConfig,
+  readClassListOptions,
+  type ClassListOptions,
+} from "@repo/template-editor-core";
 import {
   alignBlocksToSelectionBounds,
   anySelectedBlockLocked,
@@ -88,6 +97,8 @@ export function TemplateEditorInspector({
   className,
 }: Props) {
   const TEXT_VARIABLE_GROUPS = getTextVariableGroupsForProduct(product);
+  /** El listado del curso existe sólo en las plantillas escolares (CLF). */
+  const offersClassList = product === "school" || product === "unknown";
   const TEXT_VARIABLE_CATALOG_KEYS = new Set(
     TEXT_VARIABLE_GROUPS.flatMap((g) => g.variables.map((v) => v.key))
   );
@@ -278,16 +289,44 @@ export function TemplateEditorInspector({
         </p>
       ) : null}
 
-      {selectedBlock.type === "VARIABLE_TEXT" && (
+      {selectedBlock.type === "VARIABLE_TEXT" && isClassListConfig(cfg) && (
+        <ClassListOptionsPanel
+          options={readClassListOptions(cfg)}
+          onChange={(patch) => updateConfig({ classList: { ...readClassListOptions(cfg), ...patch } })}
+          onUseOtherVariable={() => {
+            const next: Record<string, unknown> = { ...cfg, variableKey: "student.fullName" };
+            delete next.classList;
+            dispatch({
+              type: "updateBlock",
+              payload: { blockId: selectedBlock.id, patch: { configJson: next } },
+            });
+          }}
+        />
+      )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && (
         <InspectorPanel title="Contenido">
           <div>
             <FieldLabel>Variable de datos</FieldLabel>
             <select
               className={selectBase}
               value={String(cfg.variableKey ?? "")}
-              onChange={(e) => updateConfig({ variableKey: e.target.value })}
+              onChange={(e) =>
+                e.target.value === CLASS_LIST_VARIABLE_KEY
+                  ? updateConfig({
+                      variableKey: CLASS_LIST_VARIABLE_KEY,
+                      classList: { ...DEFAULT_CLASS_LIST_OPTIONS },
+                      textAlign: "LEFT",
+                    })
+                  : updateConfig({ variableKey: e.target.value })
+              }
             >
               <option value="">— Elegir variable —</option>
+              {offersClassList ? (
+                <optgroup label="Listados">
+                  <option value={CLASS_LIST_VARIABLE_KEY}>Listado de alumnos del curso</option>
+                </optgroup>
+              ) : null}
               {TEXT_VARIABLE_GROUPS.map((group) => (
                 <optgroup key={group.id} label={group.label}>
                   {group.variables.map((v) => (
@@ -555,5 +594,89 @@ export function TemplateEditorInspector({
         </InspectorPanel>
       )}
     </div>
+  );
+}
+
+/** Opciones del «Listado del curso»: orden, cómo se escribe cada nombre y el destacado. */
+function ClassListOptionsPanel({
+  options,
+  onChange,
+  onUseOtherVariable,
+}: {
+  options: ClassListOptions;
+  onChange: (patch: Partial<ClassListOptions>) => void;
+  onUseOtherVariable: () => void;
+}) {
+  return (
+    <InspectorPanel title="Listado del curso">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Todos los alumnos del curso del diseño. En el lienzo se ve un curso de muestra; al armar cada diseño se
+        usa el curso real del alumno.
+      </p>
+      <div>
+        <FieldLabel>Ordenar por</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.sortBy}
+          onChange={(sortBy) => onChange({ sortBy })}
+          options={[
+            { value: "lastName", label: "Apellido" },
+            { value: "firstName", label: "Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Cómo se escribe</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.nameOrder}
+          onChange={(nameOrder) => onChange({ nameOrder })}
+          options={[
+            { value: "firstLast", label: "Nombre Apellido" },
+            { value: "lastFirst", label: "Apellido, Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Nombres</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.givenNames}
+          onChange={(givenNames) => onChange({ givenNames })}
+          options={[
+            { value: "all", label: "Todos (María Sol)" },
+            { value: "first", label: "Sólo el primero (María)" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Columnas</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={String(options.columns)}
+          onChange={(v) => onChange({ columns: Number(v) })}
+          options={Array.from({ length: CLASS_LIST_MAX_COLUMNS }, (_, i) => ({
+            value: String(i + 1),
+            label: String(i + 1),
+          }))}
+        />
+      </div>
+      <ToggleSwitch
+        checked={options.highlightOwner}
+        onChange={(highlightOwner) => onChange({ highlightOwner })}
+        label="Destacar en negrita al alumno del diseño"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño y el
+        color se eligen en la barra de texto.
+      </p>
+      <button
+        type="button"
+        className="text-left text-[11px] font-medium text-[color:var(--te-ink-muted)] underline hover:text-[color:var(--te-ink)]"
+        onClick={onUseOtherVariable}
+      >
+        Usar otro dato en este bloque
+      </button>
+    </InspectorPanel>
   );
 }

@@ -9,9 +9,11 @@ import { IconoDe } from "./iconos";
 import {
   BASE_DEL_SISTEMA,
   EN_CONSTRUCCION,
+  MODULOS_DE_LA_SUITE,
   MODULOS_DISPONIBLES,
   PASOS,
 } from "@/lib/landing/catalogo";
+import type { SeleccionInicial } from "@/lib/landing/enlace";
 import styles from "./landing.module.css";
 
 /**
@@ -26,7 +28,7 @@ const archivo = Archivo({
   display: "swap",
 });
 
-const CATALOGO = [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA];
+const CATALOGO = [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA, ...MODULOS_DE_LA_SUITE];
 
 /** Un renglón de lista con su ícono. Se usa en las dos puertas y en los cobros. */
 function Punto({ icono, children }: { icono: string; children: React.ReactNode }) {
@@ -40,7 +42,13 @@ function Punto({ icono, children }: { icono: string; children: React.ReactNode }
   );
 }
 
-export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean }) {
+export function FotofficeLanding({
+  dbUnavailable,
+  seleccion,
+}: {
+  dbUnavailable?: boolean;
+  seleccion?: SeleccionInicial;
+}) {
   return (
     <div className={`${styles.pagina} ${archivo.variable}`}>
       <header className={styles.barra}>
@@ -62,7 +70,7 @@ export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean })
           </div>
         ) : null}
 
-        <ElegiTuCaso>
+        <ElegiTuCaso inicial={seleccion}>
         {/* ── Cómo funciona ── */}
         <section id="como-funciona" className={`${styles.seccion} ${styles.seccionBlanca}`}>
           <div className={styles.ancho}>
@@ -158,6 +166,12 @@ export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean })
                     Reservar el salón, el estudio o el coworking con su precio de socio.
                   </Punto>
                   <Punto icono="raffles">El sorteo del mes y los resultados de los anteriores.</Punto>
+                  <Punto icono="sponsors">
+                    Los beneficios y convenios de las marcas aliadas, todos juntos.
+                  </Punto>
+                  <Punto icono="governance">
+                    Los proyectos de la institución: proponer una idea, apoyar y ofrecerse para una tarea.
+                  </Punto>
                   <Punto icono="verificado">
                     A quién recomendó y cuánto le bonificaron la cuota por eso.
                   </Punto>

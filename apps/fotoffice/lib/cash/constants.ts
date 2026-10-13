@@ -40,6 +40,8 @@ export const MOVEMENT_SOURCES = [
   "pedidos",
   /** Pago de una cuenta a pagar de un pedido (a un proveedor): se anula desde el pedido. */
   "pedidos-pagos",
+  /** Venta de fotos extra de una galería (cobro a mano o por Mercado Pago): `sourceRef` es la compra. */
+  "galerias",
 ] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 

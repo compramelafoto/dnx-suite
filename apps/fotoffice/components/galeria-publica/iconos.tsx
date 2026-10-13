@@ -20,3 +20,6 @@ export const IconoComentario = (p: SVGProps<SVGSVGElement>) => (
 export const IconoDescarga = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" /></svg>
 );
+export const IconoPlay = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base({ fill: "currentColor", stroke: "none", ...p })}><path d="M8 5.5v13l11-6.5z" /></svg>
+);

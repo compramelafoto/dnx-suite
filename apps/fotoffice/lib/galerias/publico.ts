@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
-import { urlDeDescargaFoto, urlDeLecturaFoto, urlsDeLecturaPorLote } from "./almacen";
+import { urlDeDescargaFoto, urlDeDescargaOriginal, urlDeLecturaFoto, urlDeReproduccionVideo, urlsDeLecturaPorLote } from "./almacen";
 import {
   MAX_COMENTARIOS_POR_CLIENTE,
   type EstadoCliente,
@@ -9,18 +9,26 @@ import {
   type ModoDescarga,
   type ModoOrden,
   type ModoSeleccion,
+  type TipoGaleria,
+  tipoDeKind,
 } from "./constantes";
 import { hashDeToken, tokenConForma } from "./enlace";
 import { registrarEvento, registrarEventoSinFallar } from "./eventos";
+import { fotosPagadasDeCliente, carritoDeCliente } from "./carrito";
+import { fotosDescargables } from "./compras-reglas";
 import { ordenarFotosDeGaleria } from "./orden";
+import type { ConfigVenta } from "./precios";
 import {
   MAX_MENSAJE_CLIENTE,
   MAX_VISTAS_POR_LOTE,
   MENSAJES_PUBLICO as M,
   nombreDeDescarga,
+  nombreDeOriginal,
   type ComentarioPublico,
   type VistaGaleria,
 } from "./publico-tipos";
+import { SELECT_CONFIG_VENTA, configVentaDeFila } from "./venta";
+import { MENSAJE_VENTA_SIN_ENVIO, mensajeExtrasSinPagar } from "./venta-publica";
 import { estadoDespues, estadosDesde, puedeAgregar, puedeEditarElCliente, validarComentario, validarEnvio } from "./seleccion";
 
 /**
@@ -35,6 +43,7 @@ import { estadoDespues, estadosDesde, puedeAgregar, puedeEditarElCliente, valida
 
 const AR = "America/Argentina/Buenos_Aires";
 const CINCO_MINUTOS = 5 * 60_000;
+const UNA_HORA = 60 * 60_000;
 
 export function fechaArgentina(d: Date): string {
   return new Intl.DateTimeFormat("es-AR", { timeZone: AR, dateStyle: "long", timeStyle: "short" }).format(d);
@@ -42,6 +51,8 @@ export function fechaArgentina(d: Date): string {
 
 export type DatosGaleriaDeToken = {
   id: string;
+  /** SELECCION o ENTREGA. */
+  kind: TipoGaleria;
   number: string;
   name: string;
   message: string | null;
@@ -53,6 +64,8 @@ export type DatosGaleriaDeToken = {
   orderMode: ModoOrden;
   coverFotoId: string | null;
   ownerUserId: number | null;
+  /** Configuración de venta de fotos extra (en centavos). */
+  venta: ConfigVenta;
 };
 
 export type DatosClienteDeToken = {
@@ -91,8 +104,8 @@ export async function resolverTokenGaleria(workspaceId: string, token: unknown):
   const g = await prisma.fotofficeGaleria.findFirst({
     where: { id: c.galeriaId, workspaceId },
     select: {
-      id: true, number: true, name: true, message: true, status: true, selectionMode: true, minSelect: true, maxSelect: true,
-      allowComments: true, downloadMode: true, orderMode: true, coverFotoId: true, ownerUserId: true,
+      id: true, number: true, name: true, message: true, status: true, kind: true, selectionMode: true, minSelect: true, maxSelect: true,
+      allowComments: true, downloadMode: true, orderMode: true, coverFotoId: true, ownerUserId: true, ...SELECT_CONFIG_VENTA,
     },
   });
   if (!g || g.status !== "PUBLICADA") return { ok: false };
@@ -104,9 +117,9 @@ export async function resolverTokenGaleria(workspaceId: string, token: unknown):
       submittedAt: c.submittedAt, submitMessage: c.submitMessage,
     },
     galeria: {
-      id: g.id, number: g.number, name: g.name, message: g.message, selectionMode: g.selectionMode as ModoSeleccion, minSelect: g.minSelect,
+      id: g.id, kind: tipoDeKind(g.kind), number: g.number, name: g.name, message: g.message, selectionMode: g.selectionMode as ModoSeleccion, minSelect: g.minSelect,
       maxSelect: g.maxSelect, allowComments: g.allowComments, downloadMode: g.downloadMode as ModoDescarga, orderMode: g.orderMode as ModoOrden,
-      coverFotoId: g.coverFotoId, ownerUserId: g.ownerUserId,
+      coverFotoId: g.coverFotoId, ownerUserId: g.ownerUserId, venta: configVentaDeFila(g),
     },
   };
 }
@@ -139,6 +152,24 @@ export async function registrarEntrada(r: Resuelto, ahora: Date = new Date()): P
   }
 }
 
+/**
+ * Ids de las fotos cuyo ORIGINAL puede bajar este cliente ahora (vacío si la galería no entrega originales).
+ * Sale de la base cada vez: pagadas (compras PAGADAS) e incluidas una vez enviada la selección.
+ */
+async function idsDeOriginales(r: Resuelto): Promise<string[]> {
+  // Una entrega regala todo lo que tiene (fotos y videos, en original) a cualquier cliente con enlace vigente.
+  if (r.galeria.kind === "ENTREGA") {
+    const filas = await prisma.fotofficeGaleriaFoto.findMany({ where: { workspaceId: r.workspaceId, galeriaId: r.galeria.id, status: "LISTA" }, select: { id: true } });
+    return filas.map((f) => f.id);
+  }
+  if (r.galeria.downloadMode !== "SELECCIONADAS") return [];
+  const [carrito, pagadas] = await Promise.all([
+    carritoDeCliente(prisma, r.workspaceId, r.cliente.id, r.galeria.venta),
+    fotosPagadasDeCliente(prisma, r.workspaceId, r.cliente.id),
+  ]);
+  return fotosDescargables({ downloadMode: r.galeria.downloadMode, estadoCliente: r.cliente.status, incluidas: carrito.incluidas, pagadas });
+}
+
 // --- La página ---------------------------------------------------------------------------------------------
 
 /**
@@ -151,9 +182,9 @@ export async function armarVistaGaleria(r: Resuelto): Promise<VistaGaleria> {
     sitioDelWorkspace(workspaceId),
     prisma.fotofficeGaleriaFoto.findMany({
       where: { workspaceId, galeriaId: g.id, status: "LISTA" satisfies EstadoFoto },
-      select: { id: true, fileName: true, order: true, thumbKey: true, viewKey: true, width: true, height: true },
+      select: { id: true, fileName: true, order: true, thumbKey: true, viewKey: true, width: true, height: true, mediaType: true },
     }),
-    prisma.fotofficeGaleriaSeleccion.findMany({ where: { workspaceId, galeriaClienteId: c.id }, select: { fotoId: true } }),
+    prisma.fotofficeGaleriaSeleccion.findMany({ where: { workspaceId, galeriaClienteId: c.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { fotoId: true } }),
     prisma.fotofficeGaleriaComentario.findMany({
       where: { workspaceId, galeriaClienteId: c.id },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -173,13 +204,21 @@ export async function armarVistaGaleria(r: Resuelto): Promise<VistaGaleria> {
     }
   }
   const conLimites = g.selectionMode === "CANTIDAD";
+  const esEntrega = g.kind === "ENTREGA";
+  const originales = (await idsDeOriginales(r)).filter((id) => ids.has(id));
+  // Con venta, el navegador arma el carrito al instante con las mismas reglas; el precio que se cobra lo calcula el servidor.
+  const venta = esEntrega || g.venta.saleMode === "SELECCION" ? null : { config: g.venta, pagadas: [...(await fotosPagadasDeCliente(prisma, workspaceId, c.id))].filter((id) => ids.has(id)) };
   return {
+    venta,
+    originales,
     organizacion: { nombre: sitio?.nombre ?? "", logoUrl: sitio?.logoUrl ?? null },
     galeria: {
+      tipo: g.kind,
       nombre: g.name,
       mensaje: g.message?.trim() ? g.message : null,
-      permiteComentarios: g.allowComments,
-      permiteDescarga: g.downloadMode === "VISTA",
+      permiteComentarios: esEntrega ? false : g.allowComments,
+      permiteDescarga: esEntrega ? false : g.downloadMode === "VISTA",
+      permiteOriginales: esEntrega ? true : g.downloadMode === "SELECCIONADAS",
       modo: g.selectionMode,
       minimo: conLimites ? g.minSelect : null,
       maximo: conLimites ? g.maxSelect : null,
@@ -191,9 +230,11 @@ export async function armarVistaGaleria(r: Resuelto): Promise<VistaGaleria> {
       mensajeEnviado: c.submitMessage,
     },
     portadaUrl,
-    fotos: ordenadas.map((f) => ({ id: f.id, thumbUrl: urls.get(f.id)?.thumbUrl ?? null, width: f.width, height: f.height })),
-    seleccionadas: selecciones.map((s) => s.fotoId).filter((id) => ids.has(id)),
-    comentarios: comentarios.filter((x) => ids.has(x.fotoId)).map((x) => aComentarioPublico(x)),
+    fotos: ordenadas.map((f) => ({
+      id: f.id, thumbUrl: urls.get(f.id)?.thumbUrl ?? null, width: f.width, height: f.height, tipo: f.mediaType === "VIDEO" ? ("VIDEO" as const) : ("FOTO" as const),
+    })),
+    seleccionadas: esEntrega ? [] : selecciones.map((s) => s.fotoId).filter((id) => ids.has(id)),
+    comentarios: esEntrega ? [] : comentarios.filter((x) => ids.has(x.fotoId)).map((x) => aComentarioPublico(x)),
   };
 }
 
@@ -230,7 +271,7 @@ export async function urlsDeVista(workspaceId: string, token: unknown, ids: unkn
 export async function urlDeDescarga(workspaceId: string, token: unknown, fotoId: unknown): Promise<{ ok: true; url: string } | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
-  if (r.galeria.downloadMode !== "VISTA") return falla(M.sinDescarga);
+  if (r.galeria.kind === "ENTREGA" || r.galeria.downloadMode !== "VISTA") return falla(M.sinDescarga);
   const [foto] = await fotosDeLaGaleria(r, [fotoId]);
   if (!foto?.viewKey) return falla(M.fotoInvalida);
   try {
@@ -240,12 +281,75 @@ export async function urlDeDescarga(workspaceId: string, token: unknown, fotoId:
   }
 }
 
+/**
+ * Enlace firmado (5 minutos, attachment, nombre original) para BAJAR el ORIGINAL de una foto. Sólo con
+ * `downloadMode = SELECCIONADAS` y si la foto es de este cliente: pagada, o incluida con la selección ya enviada.
+ * Deja constancia (DESCARGA) a lo sumo una vez por foto y por hora.
+ */
+export async function descargarOriginal(workspaceId: string, token: unknown, fotoId: unknown, ahora: Date = new Date()): Promise<{ ok: true; url: string } | Falla> {
+  const r = await resolverTokenGaleria(workspaceId, token);
+  if (!r.ok) return INVALIDO();
+  if (r.galeria.kind !== "ENTREGA" && r.galeria.downloadMode !== "SELECCIONADAS") return falla(M.sinDescarga);
+  if (typeof fotoId !== "string" || !fotoId || fotoId.length > 40) return falla(M.fotoInvalida);
+  const foto = await prisma.fotofficeGaleriaFoto.findFirst({
+    where: { workspaceId, galeriaId: r.galeria.id, status: "LISTA", id: fotoId },
+    select: { id: true, originalKey: true, fileName: true },
+  });
+  if (!foto?.originalKey) return falla(M.fotoInvalida);
+  if (!(await idsDeOriginales(r)).includes(foto.id)) return falla(M.originalNoDisponible);
+  let url: string;
+  try {
+    url = await urlDeDescargaOriginal(foto.originalKey, nombreDeOriginal(foto.fileName));
+  } catch {
+    return falla(M.generico);
+  }
+  await registrarDescarga(r, foto.id, ahora);
+  return { ok: true, url };
+}
+
+/**
+ * Enlace firmado (1 hora, inline) del ORIGINAL de un VIDEO, para el reproductor del visor. Sólo en una galería de
+ * entrega y sólo para un video LISTO de esa galería: la URL se pide al abrirlo, no al armar la página.
+ */
+export async function urlDeReproduccion(workspaceId: string, token: unknown, fotoId: unknown): Promise<{ ok: true; url: string } | Falla> {
+  const r = await resolverTokenGaleria(workspaceId, token);
+  if (!r.ok) return INVALIDO();
+  if (r.galeria.kind !== "ENTREGA") return falla(M.videoNoDisponible);
+  if (typeof fotoId !== "string" || !fotoId || fotoId.length > 40) return falla(M.fotoInvalida);
+  const video = await prisma.fotofficeGaleriaFoto.findFirst({
+    where: { workspaceId, galeriaId: r.galeria.id, status: "LISTA", mediaType: "VIDEO", id: fotoId },
+    select: { originalKey: true },
+  });
+  if (!video?.originalKey) return falla(M.fotoInvalida);
+  try {
+    return { ok: true, url: await urlDeReproduccionVideo(video.originalKey) };
+  } catch {
+    return falla(M.generico);
+  }
+}
+
+/** DESCARGA en el historial, una vez por foto, cliente y hora (para no llenarlo con "Descargar todas"). Nunca lanza. */
+async function registrarDescarga(r: Resuelto, fotoId: string, ahora: Date): Promise<void> {
+  try {
+    const recientes = await prisma.fotofficeGaleriaEvento.findMany({
+      where: { workspaceId: r.workspaceId, galeriaId: r.galeria.id, galeriaClienteId: r.cliente.id, type: "DESCARGA", createdAt: { gte: new Date(ahora.getTime() - UNA_HORA) } },
+      take: 3000,
+      select: { data: true },
+    });
+    if (recientes.some((e) => (e.data as { fotoId?: unknown } | null)?.fotoId === fotoId)) return;
+    await registrarEvento(prisma, { workspaceId: r.workspaceId, galeriaId: r.galeria.id, galeriaClienteId: r.cliente.id, tipo: "DESCARGA", data: { fotoId } });
+  } catch (e) {
+    console.error("[galerias] no se pudo registrar la descarga", { codigo: (e as { code?: unknown } | null)?.code ?? "desconocido" });
+  }
+}
+
 // --- Elegir y quitar ----------------------------------------------------------------------------------------
 
 /** Marca o desmarca una foto. Idempotente (marcar dos veces no duplica). Sólo mientras el cliente está eligiendo. */
 export async function elegirFoto(workspaceId: string, token: unknown, fotoId: unknown, marcar: unknown): Promise<{ ok: true; cantidad: number } | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
+  if (r.galeria.kind !== "SELECCION") return falla(M.entregaSinSeleccion);
   if (!puedeEditarElCliente(r.cliente.status)) return SOLO_LECTURA();
   if (typeof marcar !== "boolean") return falla(M.generico);
   const [foto] = await fotosDeLaGaleria(r, [fotoId]);
@@ -280,6 +384,8 @@ export async function elegirFoto(workspaceId: string, token: unknown, fotoId: un
 export async function comentarFoto(workspaceId: string, token: unknown, fotoId: unknown, texto: unknown): Promise<{ ok: true; comentario: ComentarioPublico } | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
+  // Un álbum tiene sus propios comentarios (con pin y por ronda): `comentarLamina`.
+  if (r.galeria.kind !== "SELECCION") return falla(M.entregaSinSeleccion);
   if (!r.galeria.allowComments) return falla(M.sinComentarios);
   if (!puedeEditarElCliente(r.cliente.status)) return SOLO_LECTURA();
   const v = validarComentario(texto);
@@ -321,9 +427,16 @@ export function mensajeDeEnvio(raw: unknown): { ok: true; texto: string | null }
 export async function enviarSeleccion(workspaceId: string, token: unknown, mensaje: unknown, ahora: Date = new Date()): Promise<EnvioHecho | Falla> {
   const r = await resolverTokenGaleria(workspaceId, token);
   if (!r.ok) return INVALIDO();
+  if (r.galeria.kind !== "SELECCION") return falla(M.entregaSinSeleccion);
   if (!puedeEditarElCliente(r.cliente.status)) return falla(M.yaEnviada, "SOLO_LECTURA");
   const m = mensajeDeEnvio(mensaje);
   if (!m.ok) return falla(m.error);
+  // "Sólo venta": el final es el pago, no hay selección para enviar. Con venta, no se envía con extras sin pagar.
+  if (r.galeria.venta.saleMode === "VENTA") return falla(MENSAJE_VENTA_SIN_ENVIO);
+  if (r.galeria.venta.saleMode === "SELECCION_Y_VENTA") {
+    const carrito = await carritoDeCliente(prisma, workspaceId, r.cliente.id, r.galeria.venta);
+    if (carrito.extras.length > 0) return falla(mensajeExtrasSinPagar(carrito.extras.length));
+  }
   const cantidad = await prisma.fotofficeGaleriaSeleccion.count({ where: { workspaceId, galeriaClienteId: r.cliente.id } });
   const v = validarEnvio(config(r), cantidad);
   if (!v.ok) return falla(v.error);

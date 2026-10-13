@@ -142,6 +142,16 @@ async function persistSchoolSelectionsFromRedeem(
 
   const templateCache = new Map<string, DesignTemplateVersion | null>();
   const designContext = await loadSchoolDesignContext(tx, preCompraOrderId);
+  // Una foto no se repite en el canje, así que el encuadre se puede guardar por foto.
+  const cropsByPhotoId = new Map<number, { zoom: number; x: number; y: number }>();
+  for (const sel of selections) {
+    sel.units.forEach((unit, u) =>
+      unit.forEach((photoId, p) => {
+        const crop = sel.crops?.[u]?.[p];
+        if (crop) cropsByPhotoId.set(photoId, crop);
+      })
+    );
+  }
 
   for (const chunk of perItemPhotoIds) {
     if (chunk.photoIds.length === 0) continue;
@@ -209,6 +219,7 @@ async function persistSchoolSelectionsFromRedeem(
           context: designContext,
           redemptionOrderId,
           templateCache,
+          cropsByPhotoId,
         })
       : ({ outcome: "skipped", reason: "context_missing" } as const);
     if (designResult.outcome === "skipped") {
