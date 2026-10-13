@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { herramientasPara } from "../herramientas";
-import { ESCENARIOS, fallasDeCifras, fallasDeEntrada, fallasDeTexto, type Escenario } from "./escenarios";
+import { CONSULTAS_DE_PRUEBA, ESCENARIOS, fallasDeCifras, fallasDeEntrada, fallasDeEntradaEnAlguna, fallasDeTexto, type Escenario } from "./escenarios";
 
 describe("banco de escenarios", () => {
   it("ids únicos y cada escenario con situación, mensaje y alguna expectativa", () => {
@@ -9,7 +9,8 @@ describe("banco de escenarios", () => {
       expect(e.situacion.length, e.id).toBeGreaterThan(0);
       expect(e.mensaje.length, e.id).toBeGreaterThan(0);
       const expectativas =
-        (e.debeUsar?.length ?? 0) + (e.debeUsarAlguna?.length ?? 0) + (e.noDebeUsar?.length ?? 0) + (e.textoNoDebeContener?.length ?? 0);
+        (e.debeUsar?.length ?? 0) + (e.debeUsarAlguna?.length ?? 0) + (e.noDebeUsar?.length ?? 0) + (e.textoNoDebeContener?.length ?? 0) +
+        (e.textoDebeContener?.length ?? 0) + Object.keys(e.entradaEnAlguna ?? {}).length;
       expect(expectativas, e.id).toBeGreaterThan(0);
     }
   });
@@ -21,13 +22,23 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
       expect.arrayContaining(["perfil-vacio-una-pregunta", "perfil-lo-normal", "perfil-horas-no-suman", "perfil-todos-los-datos", "perfil-staff-sin-configurar"]),
     );
   });
+  it("están los ocho de la etapa 2 (casos 6 a 13)", () => {
+    expect(ESCENARIOS.map((e) => e.id)).toEqual(
+      expect.arrayContaining([
+        "cotizar-casamiento", "cotizar-sin-edicion", "cotizar-sumar-album", "cotizar-perfil-incompleto",
+        "pasar-a-consulta-de-lucia", "consulta-con-borrador", "precio-de-la-competencia", "precio-a-mano",
+      ]),
+    );
+    for (const e of ESCENARIOS) if (e.consultas) expect(CONSULTAS_DE_PRUEBA[e.consultas].length, e.id).toBeGreaterThan(0);
+  });
+
   it("sólo nombran herramientas que existen", () => {
     const dueno = herramientasPara({
       workspaceId: "e", workspaceNombre: "e", userId: 1, userLabel: "e", role: "WORKSPACE_OWNER", email: "e", nombre: null,
       capacidades: { configurar: true, gestionarPresupuestos: true, verConsultas: true }, plataforma: "FOTOFFICE:e",
     }).map((t) => t.name);
     for (const e of ESCENARIOS) {
-      for (const n of [...(e.debeUsar ?? []), ...(e.debeUsarAlguna ?? []), ...(e.noDebeUsar ?? []), ...Object.keys(e.entradaEsperada ?? {})]) {
+      for (const n of [...(e.debeUsar ?? []), ...(e.debeUsarAlguna ?? []), ...(e.noDebeUsar ?? []), ...Object.keys(e.entradaEsperada ?? {}), ...Object.keys(e.entradaEnAlguna ?? {})]) {
         expect(dueno, `${e.id}: ${n}`).toContain(n);
       }
     }
@@ -43,6 +54,14 @@ describe("fallasDeTexto y fallasDeCifras", () => {
   it("cifras: sólo valen las del mensaje, las de las herramientas y las permitidas", () => {
     expect(fallasDeCifras(e, "Anoto $600.000 y $1.000; tu valor hora $31.250.", ['{"valorHora":"$ 31.250"}'])).toEqual([]);
     expect(fallasDeCifras(e, "La mayoría paga $50.000.", [])).toEqual(["cifra no respaldada: $50000"]);
+  });
+});
+
+describe("fallasDeEntradaEnAlguna", () => {
+  const e: Escenario = { id: "x", situacion: "s", mensaje: "m", entradaEnAlguna: { cotizar_trabajo: { precioTotalElegido: "1100000" } } };
+  it("alcanza con una llamada que lo traiga", () => {
+    expect(fallasDeEntradaEnAlguna(e, [{ herramienta: "cotizar_trabajo", entrada: {} }, { herramienta: "cotizar_trabajo", entrada: { precioTotalElegido: "1100000" } }])).toEqual([]);
+    expect(fallasDeEntradaEnAlguna(e, [{ herramienta: "cotizar_trabajo", entrada: {} }])).toHaveLength(1);
   });
 });
 

@@ -12,9 +12,11 @@ import { Anthropic, runBotTurn, type BotActor, type BotTool } from "@repo/dnx-bo
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 import type { CtxBot } from "../lib/dnx-bot/acceso";
 import {
+  CONSULTAS_DE_PRUEBA,
   ESCENARIOS,
   fallasDeCifras,
   fallasDeEntrada,
+  fallasDeEntradaEnAlguna,
   fallasDeTexto,
   type Escenario,
   type LlamadaRegistrada,
@@ -41,12 +43,26 @@ function ctxDe(e: Escenario): CtxBot {
 
 function herramientasDe(e: Escenario): BotTool[] {
   const perfil = e.perfil === "completo" ? createBaseCompleteProfile() : null;
+  const leer = async () => (perfil ? { perfil, source: "manual", actualizado: new Date() } : null);
+  const nunca = async (): Promise<never> => {
+    throw new Error("bot:eval nunca escribe");
+  };
+  const consultas = e.consultas ? CONSULTAS_DE_PRUEBA[e.consultas] : [];
+  let n = 0;
   return herramientasPara(ctxDe(e), {
-    perfil: {
-      leer: async () => (perfil ? { perfil, source: "manual", actualizado: new Date() } : null),
-      guardar: async () => {
-        throw new Error("bot:eval nunca guarda");
+    perfil: { leer, guardar: nunca },
+    presupuestos: {
+      leerPerfil: leer,
+      buscarConsultas: async () => consultas,
+      consulta: async (_c, id) => {
+        const k = consultas.find((x) => x.leadId === id);
+        return k ? { ...k, categoriaId: null } : null;
       },
+      leerPresupuesto: async () => null,
+      crearPresupuesto: nunca,
+      guardarBorrador: nunca,
+      itemsDePropuestaModelo: async () => 0,
+      nuevaClave: () => `eval${++n}`,
     },
   });
 }
@@ -111,6 +127,7 @@ async function main() {
       ...fallasDeTexto(e, texto),
       ...fallasDeCifras(e, texto, salidas),
       ...fallasDeEntrada(e, llamadas),
+      ...fallasDeEntradaEnAlguna(e, llamadas),
     ];
     if (errores.length) fallas++;
     console.log(

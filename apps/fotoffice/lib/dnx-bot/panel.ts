@@ -1,5 +1,5 @@
 import "server-only";
-import { resolverBot } from "./acceso";
+import { resolverBot, type Capacidades } from "./acceso";
 import { prefijosPermitidos } from "./rutas";
 
 /**
@@ -8,10 +8,10 @@ import { prefijosPermitidos } from "./rutas";
  * interruptor apagado (por omisión) no toca ni la sesión ni la base. Si algo falla, el panel sigue
  * sin la burbuja.
  */
-export async function botEnPanel(): Promise<{ rutas: string[] } | null> {
+export async function botEnPanel(): Promise<{ rutas: string[]; capacidades: Capacidades } | null> {
   try {
     const r = await resolverBot();
-    return r.ok ? { rutas: prefijosPermitidos(r.ctx.capacidades) } : null;
+    return r.ok ? { rutas: prefijosPermitidos(r.ctx.capacidades), capacidades: r.ctx.capacidades } : null;
   } catch (e) {
     console.error("[dnx-bot] panel", e);
     return null;

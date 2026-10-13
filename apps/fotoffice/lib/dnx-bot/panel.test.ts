@@ -19,6 +19,7 @@ describe("botEnPanel", () => {
     expect(r!.rutas).toContain("/presupuestos");
     expect(r!.rutas).toContain("/consultas");
     expect(r!.rutas).not.toContain("/workspace/configuracion/precios");
+    expect(r!.capacidades).toEqual({ configurar: false, gestionarPresupuestos: false, verConsultas: true });
   });
   it("si algo falla, el panel sigue sin la burbuja", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

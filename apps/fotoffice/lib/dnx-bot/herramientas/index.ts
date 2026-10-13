@@ -1,6 +1,7 @@
 import type { BotTool } from "@repo/dnx-bot";
 import type { CtxBot } from "../acceso";
 import { herramientasDePerfil, type DepsPerfil } from "./perfil";
+import { herramientasDePresupuestos, type DepsPresupuestosBot } from "./presupuestos";
 
 /**
  * Las herramientas de DNX Bot se arman por persona (spec §8): quien no tiene el permiso no recibe
@@ -10,8 +11,12 @@ import { herramientasDePerfil, type DepsPerfil } from "./perfil";
  * herramienta de envío.
  *
  * - Etapa 1 (perfil de precios): sólo con `configurar`.
- * - Etapas 2 y 3: las suman los PR siguientes.
+ * - Etapa 2 (cotizar → presupuesto): ver `./presupuestos.ts`.
+ * - Etapa 3: la suma el PR siguiente.
  */
-export function herramientasPara(ctx: CtxBot, deps?: { perfil?: DepsPerfil }): BotTool[] {
-  return [...(ctx.capacidades.configurar ? herramientasDePerfil(ctx, deps?.perfil) : [])];
+export function herramientasPara(ctx: CtxBot, deps?: { perfil?: DepsPerfil; presupuestos?: Partial<DepsPresupuestosBot> }): BotTool[] {
+  return [
+    ...(ctx.capacidades.configurar ? herramientasDePerfil(ctx, deps?.perfil) : []),
+    ...herramientasDePresupuestos(ctx, deps?.presupuestos),
+  ];
 }

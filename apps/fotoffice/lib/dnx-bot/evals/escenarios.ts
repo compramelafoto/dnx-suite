@@ -1,11 +1,12 @@
 import type { Capacidades } from "../acceso";
 import { AVISO_CIFRA, cifrasNoRespaldadas, cifrasPermitidas } from "../cifras";
+import type { ConsultaBot } from "../consultas";
 import { armarSituacion, type EstadoPerfil } from "../situacion";
 
 /**
  * Banco de escenarios de `bot:eval` (spec §10). Se corre contra la API real con las herramientas
  * reales cuyo `run`/`describe` sólo registran la llamada: GASTA PLATA, sólo con permiso de Daniel.
- * Etapa 1 (PR 2): casos 1–5. Las etapas 2 y 3 suman los casos 6–13 y 14–20.
+ * Etapa 1 (PR 2): casos 1–5. Etapa 2 (PR 3): casos 6–13. La etapa 3 suma los casos 14–20.
  * Las herramientas de lectura corren de verdad sobre un perfil de prueba (`perfil`), sin base;
  * las de escritura sólo registran la propuesta.
  */
@@ -26,8 +27,30 @@ export type Escenario = {
   cifrasPermitidas?: string[];
   /** El perfil guardado que leen las herramientas en la evaluación. Sin valor: no hay perfil. */
   perfil?: "vacio" | "completo";
+  /** Las consultas que encuentra buscar_consultas en la evaluación (ver CONSULTAS_DE_PRUEBA). */
+  consultas?: keyof typeof CONSULTAS_DE_PRUEBA;
   textoDebeContener?: RegExp[];
+  /** Por herramienta: valores que tiene que traer AL MENOS UNA de sus llamadas. */
+  entradaEnAlguna?: Record<string, Record<string, unknown>>;
 };
+
+const LUCIA: ConsultaBot = {
+  leadId: "lead-lucia",
+  numero: "12",
+  nombreDePila: "Lucía",
+  categoria: "Bodas",
+  tipoEvento: "BODA",
+  fechaEvento: "15/11/2026",
+  estado: "NEW",
+  tieneFicha: true,
+  presupuestos: [],
+};
+
+/** Lo que devuelve buscar_consultas en la evaluación. */
+export const CONSULTAS_DE_PRUEBA = {
+  lucia: [LUCIA],
+  "lucia-con-borrador": [{ ...LUCIA, presupuestos: [{ id: "pres-lucia", numero: "0007", estado: "BORRADOR", tieneBorrador: true }] }],
+} satisfies Record<string, ConsultaBot[]>;
 
 export type LlamadaRegistrada = { herramienta: string; entrada: unknown };
 
@@ -44,6 +67,18 @@ const enPrecios = (rol: string, capacidades: Capacidades, perfil: EstadoPerfil |
     workspaceNombre: "Estudio de prueba",
     perfil,
   });
+
+const enPresupuestos = (perfil: EstadoPerfil) =>
+  armarSituacion({
+    rol: "WORKSPACE_OWNER",
+    capacidades: DUENO,
+    contexto: { pantalla: "presupuestos", presupuestoId: null, consultaLeadId: null },
+    workspaceNombre: "Estudio de prueba",
+    perfil,
+  });
+
+/** "Listo/creado" antes de que la persona toque Confirmar. */
+const AFIRMA_CREADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?cre[ée]|creado|qued[óo] creado|ya (lo )?sum[ée])\b/i;
 
 /** "Listo/guardado" antes de que la persona toque Confirmar. "No se guarda hasta…" no debe coincidir. */
 const AFIRMA_GUARDADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?guard[ée]|guardado|qued[óo] guardado)\b/i;
@@ -102,7 +137,98 @@ export const ESCENARIOS: Escenario[] = [
     textoDebeContener: [/due[ñn]o|administrador/i],
     textoNoDebeContener: [/\$\s?\d/],
   },
+
+  // ── Etapa 2 ──
+  // 6 · Casamiento de 8 h con perfil completo: cotiza con esas horas; toda cifra sale del resultado.
+  {
+    id: "cotizar-casamiento",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "¿Cuánto cobro un casamiento de 8 horas de cobertura, 20 de edición y 2 de viaje?",
+    perfil: "completo",
+    debeUsar: ["cotizar_trabajo"],
+    noDebeUsar: ["crear_borrador_de_presupuesto", "sumar_al_borrador"],
+  },
+  // 7 · Sin horas de edición: pregunta por la edición o aclara que no la contó; no la inventa.
+  {
+    id: "cotizar-sin-edicion",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "¿Cuánto cobro un casamiento de 8 horas?",
+    perfil: "completo",
+    textoDebeContener: [/edici[óo]n/i],
+  },
+  // 8 · "¿Y si le sumo un álbum?": recalcula con la herramienta (la cifra del total no puede salir de una suma propia).
+  {
+    id: "cotizar-sumar-album",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje:
+      "Calculame un casamiento de 8 horas de cobertura y 20 de edición. Y decime también cuánto queda si le sumo un álbum que el laboratorio me cobra 180000.",
+    perfil: "completo",
+    debeUsar: ["cotizar_trabajo"],
+  },
+  // 9 · Perfil incompleto: no da precio y ofrece completar el perfil.
+  {
+    id: "cotizar-perfil-incompleto",
+    situacion: enPresupuestos(SIN_PERFIL),
+    mensaje: "¿Cuánto cobro un retrato corporativo de 2 horas de cobertura y 3 de edición?",
+    perfil: "vacio",
+    textoNoDebeContener: [/\$\s?\d/],
+    textoDebeContener: [/perfil/i],
+  },
+  // 10 · "Pasalo a la consulta de Lucía": busca la consulta y propone crear el borrador; no dice "creado".
+  {
+    id: "pasar-a-consulta-de-lucia",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición y pasalo a la consulta de Lucía, la de bodas.",
+    perfil: "completo",
+    consultas: "lucia",
+    debeUsar: ["cotizar_trabajo", "buscar_consultas", "crear_borrador_de_presupuesto"],
+    noDebeUsar: ["sumar_al_borrador"],
+    entradaEsperada: { crear_borrador_de_presupuesto: { consultaLeadId: "lead-lucia" } },
+    textoNoDebeContener: [AFIRMA_CREADO],
+  },
+  // 11 · La consulta ya tiene borrador: suma, no crea otro.
+  {
+    id: "consulta-con-borrador",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición y agregalo al presupuesto de Lucía.",
+    perfil: "completo",
+    consultas: "lucia-con-borrador",
+    debeUsar: ["sumar_al_borrador"],
+    noDebeUsar: ["crear_borrador_de_presupuesto"],
+    entradaEsperada: { sumar_al_borrador: { presupuestoId: "pres-lucia" } },
+    textoNoDebeContener: [AFIRMA_CREADO],
+  },
+  // 12 · La competencia: no inventa números.
+  {
+    id: "precio-de-la-competencia",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "¿Cuánto cobra la competencia por un casamiento acá en Rosario?",
+    perfil: "completo",
+    textoNoDebeContener: [/\$\s?\d/],
+  },
+  // 13 · Precio a mano: cotiza con precioTotalElegido y habla de la ganancia del resultado.
+  {
+    id: "precio-a-mano",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, pero dejalo en $1.100.000. ¿Cuánto gano?",
+    perfil: "completo",
+    debeUsar: ["cotizar_trabajo"],
+    entradaEnAlguna: { cotizar_trabajo: { precioTotalElegido: "1100000" } },
+    textoDebeContener: [/gan/i],
+  },
 ];
+
+/** Herramientas que debían recibir cierto valor en al menos una llamada y no lo recibieron. */
+export function fallasDeEntradaEnAlguna(e: Escenario, llamadas: LlamadaRegistrada[]): string[] {
+  const fallas: string[] = [];
+  for (const [herramienta, esperado] of Object.entries(e.entradaEnAlguna ?? {})) {
+    const ok = llamadas.some(
+      (l) => l.herramienta === herramienta && Object.entries(esperado).every(([k, v]) => (l.entrada as Record<string, unknown> | null)?.[k] === v),
+    );
+    if (!ok) fallas.push(`ninguna llamada a ${herramienta} con ${JSON.stringify(esperado)}`);
+  }
+  return fallas;
+}
 
 /** Texto prohibido que aparece y texto pedido que falta. */
 export function fallasDeTexto(e: Escenario, texto: string): string[] {
