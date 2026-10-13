@@ -9,7 +9,6 @@
  * texto tiene que salir del mensaje o de un resultado de herramienta.
  */
 import { Anthropic, runBotTurn, type BotActor, type BotTool } from "@repo/dnx-bot";
-import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 import type { CtxBot } from "../lib/dnx-bot/acceso";
 import {
   CONSULTAS_DE_PRUEBA,
@@ -21,9 +20,12 @@ import {
   fallasDeEntradaContiene,
   fallasDeEntradaEnAlguna,
   fallasDeTexto,
+  informeDeEscenario,
+  presupuestoDePrueba,
   type Escenario,
   type LlamadaRegistrada,
 } from "../lib/dnx-bot/evals/escenarios";
+import { perfilDePrueba } from "../lib/dnx-bot/evals/perfil-de-prueba";
 import { guiaDelBot } from "../lib/dnx-bot/guia";
 import { herramientasPara } from "../lib/dnx-bot/herramientas";
 
@@ -45,7 +47,7 @@ function ctxDe(e: Escenario): CtxBot {
 }
 
 function herramientasDe(e: Escenario): BotTool[] {
-  const perfil = e.perfil === "completo" ? createBaseCompleteProfile() : null;
+  const perfil = e.perfil === "completo" ? perfilDePrueba() : null;
   const leer = async () => (perfil ? { perfil, source: "manual", actualizado: new Date() } : null);
   const nunca = async (): Promise<never> => {
     throw new Error("bot:eval nunca escribe");
@@ -61,7 +63,7 @@ function herramientasDe(e: Escenario): BotTool[] {
         const k = consultas.find((x) => x.leadId === id);
         return k ? { ...k, categoriaId: null } : null;
       },
-      leerPresupuesto: async () => null,
+      leerPresupuesto: async (_c, id) => presupuestoDePrueba(id),
       crearPresupuesto: nunca,
       guardarBorrador: nunca,
       itemsDePropuestaModelo: async () => 0,
@@ -69,7 +71,7 @@ function herramientasDe(e: Escenario): BotTool[] {
     },
     consultas: {
       consulta: async (_c, id) => CONSULTAS_PARA_RESPONDER[id] ?? null,
-      leerPresupuesto: async (_c, id) => (id === "pres-lucia" ? ({ id } as never) : null),
+      leerPresupuesto: async (_c, id) => presupuestoDePrueba(id),
       sinRespuesta: async (_c, o) => ({ dias: o?.dias ?? 3, seguimientoActivo: true, presupuestos: SIN_RESPUESTA_DE_PRUEBA }),
     },
   });
@@ -139,9 +141,7 @@ async function main() {
       ...fallasDeEntradaContiene(e, llamadas),
     ];
     if (errores.length) fallas++;
-    console.log(
-      `${errores.length ? "✗" : "✓"} ${e.id} [${usadas.join(", ") || "sin herramientas"}]${errores.length ? ` — ${errores.join("; ")}` : ""}\n   ${texto.replace(/\n/g, " ").slice(0, 200)}`,
-    );
+    console.log(informeDeEscenario(e.id, usadas, errores, texto));
   }
   console.log(`\n${escenarios.length - fallas}/${escenarios.length} escenarios OK`);
   process.exit(fallas ? 1 : 0);

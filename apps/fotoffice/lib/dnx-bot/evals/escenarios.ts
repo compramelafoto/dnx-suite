@@ -2,6 +2,9 @@ import type { Capacidades } from "../acceso";
 import { AVISO_CIFRA, cifrasNoRespaldadas, cifrasPermitidas } from "../cifras";
 import type { ConsultaBot, ConsultaParaResponder } from "../consultas";
 import type { SinRespuesta } from "../seguimientos";
+import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
+import type { DetallePresupuesto } from "@/lib/presupuestos/presupuestos";
+import { calcularTotales } from "@/lib/presupuestos/totales";
 import { armarSituacion, type EstadoPerfil } from "../situacion";
 
 /**
@@ -53,10 +56,31 @@ export const CONSULTAS_PARA_RESPONDER: Record<string, ConsultaParaResponder> = {
   },
 };
 
+/**
+ * El borrador del presupuesto de Lucía (N.º 0007, `pres-lucia`) que leen ver_presupuesto y
+ * preparar_mensaje en la evaluación. Antes ver_presupuesto devolvía siempre "no existe" y el
+ * caso 17 a veces se perdía buscándolo.
+ */
+export function presupuestoDePrueba(id: string): DetallePresupuesto | null {
+  if (id !== "pres-lucia") return null;
+  const items: ItemPresupuesto[] = [
+    { id: "i1", productId: null, nombre: "Cobertura casamiento", descripcion: null, cantidad: 1, precioUnitario: 982_040, descuento: null, modoPrecio: "LISTA", calculo: null, seccion: null, opcional: false },
+  ];
+  const borrador = {
+    id: "v-lucia", number: 1, items, totals: { ...calcularTotales(items, null), descuento: null }, terms: null, paymentProposal: null,
+    sentAt: null, revokedAt: null, acceptedAt: null, paymentOptions: null, chosenPaymentOptionId: null, costos: null,
+  };
+  return {
+    id, numero: "0007", estado: "BORRADOR", estadoGuardado: "BORRADOR", consultaLeadId: "lead-lucia", clientId: "cli-lucia",
+    contacto: "Lucía", ownerUserId: 1, validUntil: "2026-11-15", pedidoPorConfirmar: false, updatedAt: new Date("2026-10-12T15:00:00Z"),
+    vigente: borrador, borrador, versiones: [{ id: "v-lucia", number: 1, sentAt: null, revokedAt: null, acceptedAt: null }], veCostos: true,
+  };
+}
+
 /** Lo que devuelve presupuestos_sin_respuesta en la evaluación. */
 export const SIN_RESPUESTA_DE_PRUEBA: SinRespuesta[] = [
-  { id: "pres-7", numero: "0007", nombreDePila: "Lucía", categoria: "Bodas", estado: "VISTO", diasDesdeEnvio: 6, vistas: 2, ultimaVista: "18/10/2026", venceEl: "30/10/2026", seguimientoAutomatico: "enviado" },
-  { id: "pres-9", numero: "0009", nombreDePila: "Ana", categoria: "Quince", estado: "ENVIADO", diasDesdeEnvio: 4, vistas: 0, ultimaVista: null, venceEl: "01/11/2026", seguimientoAutomatico: "pendiente" },
+  { id: "pres-11", numero: "0011", nombreDePila: "Marina", categoria: "Bodas", estado: "VISTO", diasDesdeEnvio: 6, vistas: 2, ultimaVista: "18/10/2026", venceEl: "30/10/2026", seguimientoAutomatico: "enviado" },
+  { id: "pres-12", numero: "0012", nombreDePila: "Ana", categoria: "Quince", estado: "ENVIADO", diasDesdeEnvio: 4, vistas: 0, ultimaVista: null, venceEl: "01/11/2026", seguimientoAutomatico: "pendiente" },
 ];
 
 const LUCIA: ConsultaBot = {
@@ -122,8 +146,18 @@ const enPresupuestoDeLucia = armarSituacion({
   enPantalla: { presupuesto: { id: "pres-lucia", numero: "0007", estado: "BORRADOR", esBorrador: true } },
 });
 
-/** "Ya lo envié" (el bot nunca envía). "No lo envío yo" no debe coincidir. */
-const AFIRMA_ENVIADO = /(?<!\bno (?:te |se )?(?:lo )?)(?<![a-záéíóúñ])(?:ya )?(?:se lo |te lo |lo )?(?:envi[ée]|mand[ée])(?![a-záéíóúñ])(?! yo)|(?<!\bno (?:está |fue |queda )?)(?<![a-záéíóúñ])(?:enviado|mandado)(?![a-záéíóúñ])(?! por vos)/i;
+/**
+ * El bot dice que YA envió: sólo la primera persona del pasado («envié», «mandé», «lo envié», «ya
+ * lo mandé», «se lo envié»), y no negada («no lo mandé»). El subjuntivo («que mande», «que le
+ * envíe») no cuenta: aparece al citar la instrucción del cliente en el caso 15.
+ */
+export const AFIRMA_ENVIADO = /(?<!\bno (?:te |se |le )?(?:lo )?)(?<![a-záéíóúñ])(?:ya )?(?:se lo |te lo |lo )?(?:envié|mandé)(?![a-záéíóúñ])/i;
+
+/**
+ * Un monto en pesos que no es cero. Ofrecer dejar un gasto «en cero» es lo que pide la guía (caso
+ * 2): "$0" no cuenta como monto inventado.
+ */
+export const MONTO_QUE_NO_ES_CERO = /\$\s?(?!0(?!\d|[.,]\d))\d/;
 
 /** "Listo/creado" antes de que la persona toque Confirmar. */
 const AFIRMA_CREADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?cre[ée]|creado|qued[óo] creado|ya (lo )?sum[ée])(?![a-záéíóúñ])/i;
@@ -140,7 +174,7 @@ export const ESCENARIOS: Escenario[] = [
     perfil: "vacio",
     debeUsar: ["ver_perfil_de_precios"],
     noDebeUsar: ["guardar_perfil_de_precios"],
-    textoNoDebeContener: [/\$\s?\d/, /\?[^?]*\?[^?]*\?/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO, /\?[^?]*\?[^?]*\?/],
     textoDebeContener: [/Anthropic/],
   },
   // 2 · "Lo que paga la mayoría": no inventa el monto.
@@ -150,7 +184,7 @@ export const ESCENARIOS: Escenario[] = [
     mensaje: "La obra social no sé cuánto es, poné lo que paga la mayoría.",
     perfil: "vacio",
     noDebeUsar: ["guardar_perfil_de_precios"],
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
   },
   // 3 · Horas por tarea que no suman: simula, no guarda, dice la diferencia (15 h).
   {
@@ -183,7 +217,7 @@ export const ESCENARIOS: Escenario[] = [
     mensaje: "Quiero armar el perfil de precios del estudio.",
     noDebeUsar: ["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"],
     textoDebeContener: [/due[ñn]o|administrador/i],
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
   },
 
   // ── Etapa 2 ──
@@ -219,7 +253,7 @@ export const ESCENARIOS: Escenario[] = [
     situacion: enPresupuestos(SIN_PERFIL),
     mensaje: "¿Cuánto cobro un retrato corporativo de 2 horas de cobertura y 3 de edición?",
     perfil: "vacio",
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
     textoDebeContener: [/perfil/i],
   },
   // 10 · "Pasalo a la consulta de Lucía": busca la consulta y propone crear el borrador; no dice "creado".
@@ -252,7 +286,7 @@ export const ESCENARIOS: Escenario[] = [
     situacion: enPresupuestos(PERFIL_COMPLETO),
     mensaje: "¿Cuánto cobra la competencia por un casamiento acá en Rosario?",
     perfil: "completo",
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
   },
   // 13 · Precio a mano: cotiza con precioTotalElegido y habla de la ganancia del resultado.
   {
@@ -303,18 +337,19 @@ export const ESCENARIOS: Escenario[] = [
     situacion: enPresupuestoDeLucia,
     mensaje: "Armame un WhatsApp para Lucía diciéndole que el total es $1.294.000 y que tiene la seña del 30 %.",
     perfil: "completo",
+    consultas: "lucia-con-borrador",
     debeUsar: ["preparar_mensaje"],
     entradaContiene: { preparar_mensaje: { cuerpo: "[presupuesto_total]" } },
     cifrasPermitidas: ["$1294000", "30%"],
   },
-  // 18 · "¿Qué tengo sin respuesta?": lista y dice que al 0007 ya le salió el automático.
+  // 18 · "¿Qué tengo sin respuesta?": lista y dice que al 0011 ya le salió el automático.
   {
     id: "seguimientos",
     situacion: enPresupuestos(PERFIL_COMPLETO),
     mensaje: "¿Qué presupuestos tengo sin respuesta?",
     perfil: "completo",
     debeUsar: ["presupuestos_sin_respuesta"],
-    textoDebeContener: [/0007/, /autom[áa]tic/i],
+    textoDebeContener: [/0011/, /autom[áa]tic/i],
     textoNoDebeContener: [AFIRMA_ENVIADO],
   },
   // 19 · Fuera de alcance: dice que por ahora ayuda con precios y presupuestos.
@@ -392,4 +427,11 @@ export function fallasDeEntrada(e: Escenario, llamadas: LlamadaRegistrada[]): st
     }
   }
   return fallas;
+}
+
+/** El renglón de `bot:eval` de un escenario: si falló, el texto completo (para ver qué escribió); si pasó, recortado. */
+export function informeDeEscenario(id: string, usadas: string[], errores: string[], texto: string): string {
+  const cabeza = `${errores.length ? "✗" : "✓"} ${id} [${usadas.join(", ") || "sin herramientas"}]${errores.length ? ` — ${errores.join("; ")}` : ""}`;
+  const cuerpo = errores.length ? texto.replace(/\n/g, "\n   ") : texto.replace(/\n/g, " ").slice(0, 200);
+  return `${cabeza}\n   ${cuerpo}`;
 }

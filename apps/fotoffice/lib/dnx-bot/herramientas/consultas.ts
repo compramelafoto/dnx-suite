@@ -63,7 +63,7 @@ export function herramientasDeConsultas(ctx: CtxBot, parciales: Partial<DepsCons
       defineTool({
         name: "preparar_mensaje",
         description:
-          "Prepara el texto para el cliente (WhatsApp o correo) y lo muestra en una tarjeta con «Abrir para enviar». NO envía nada: lo manda la persona desde la pantalla de envío. Escribilo con variables: [nombre] (nombre de pila), [presupuesto_enlace] (obligatorio si es de un presupuesto), [presupuesto_total]. Nunca escribas montos, correos ni teléfonos. Usá presupuestoId para un presupuesto o consultaLeadId para responder una consulta sin presupuesto.",
+          "Prepara el texto para el cliente (WhatsApp o correo) y lo muestra en una tarjeta con «Abrir para enviar». NO envía nada: lo manda la persona desde la pantalla de envío. Escribilo con variables: [nombre] (nombre de pila), [presupuesto_enlace] (obligatorio si es de un presupuesto), [presupuesto_total]. Nunca escribas montos, correos ni teléfonos. Usá presupuestoId (el id que da la situación o buscar_consultas, no el número N.º) para un presupuesto, o consultaLeadId para responder una consulta sin presupuesto.",
         input: z.object({
           presupuestoId: id.optional(),
           consultaLeadId: id.optional(),

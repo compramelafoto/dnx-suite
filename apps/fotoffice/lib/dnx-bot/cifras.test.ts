@@ -41,3 +41,11 @@ describe("textosDelTurno", () => {
     expect(t).toEqual(["gano 600000", '{"a":"$ 31.250"}']);
   });
 });
+
+describe("el cero no es una cifra inventada", () => {
+  it("$0, $ 0 y 0 % siempre están respaldados (ofrecer dejar un gasto en cero es lo que pide la guía)", () => {
+    const ok = cifrasPermitidas(["poné lo que paga la mayoría"]);
+    expect(cifrasNoRespaldadas("Si no pagás, lo dejo en $0. O en $ 0, como quieras: 0 % de ganancia.", ok)).toEqual([]);
+    expect(cifrasNoRespaldadas("La mayoría paga $50.000.", ok)).toEqual(["$50000"]);
+  });
+});
