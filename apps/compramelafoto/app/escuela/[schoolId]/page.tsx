@@ -10,6 +10,12 @@ import Textarea from "@/components/ui/Textarea";
 import SchoolOrganizerHeader from "@/components/school-organizer/SchoolOrganizerHeader";
 import { RosterImportChatGptTipPanel } from "@/components/roster/RosterImportChatGptTipPanel";
 import { ensureSchoolOrganizerSession } from "@/lib/school-organizer-session-client";
+import {
+  emptyOrganizerCommissionTotals,
+  ORGANIZER_COMMISSION_BASE_DESCRIPTION,
+  type OperationBucketTotals,
+  type OrganizerCommissionTotals,
+} from "@/lib/school-organizer-commission-logic";
 
 type SchoolDetailResponse = {
   school: {
@@ -43,6 +49,12 @@ type SchoolAlbum = {
   studentsCount: number;
   photosCount: number;
   ordersCount: number;
+  ordersByStatus?: {
+    pagadas: number;
+    pendientes: number;
+    canceladas: number;
+    reembolsadas: number;
+  };
   commissionConfig: {
     enabled: boolean;
     percentage: number | null;
@@ -65,9 +77,63 @@ type SchoolOrganizerCommission = {
   createdAt: string;
   requestedAt: string | null;
   paidAt: string | null;
+  paymentMethod: string | null;
+  paymentProofUrl: string | null;
+  paidThenCancelled: boolean;
+  assignedToMe: boolean;
+  requestableByMe: boolean;
   album: { id: number; title: string };
-  order: { id: number };
+  order: { id: number; status: string };
 };
+
+type SchoolOperationsResponse = {
+  basis: string;
+  albums: Array<{
+    id: number;
+    title: string;
+    percentage: number | null;
+    orders: OperationBucketTotals;
+    commission: OrganizerCommissionTotals;
+  }>;
+  payouts: Array<{
+    commissionId: number;
+    albumId: number;
+    albumTitle: string;
+    orderId: number;
+    amount: number;
+    paidAt: string;
+    paymentMethod: string | null;
+    paymentProofUrl: string | null;
+    paidThenCancelled: boolean;
+  }>;
+};
+
+function safeHttpUrl(value: string | null): string | null {
+  if (!value) return null;
+  return /^https?:\/\//i.test(value.trim()) ? value.trim() : null;
+}
+
+function formatArs(value: number): string {
+  return `$${Number(value || 0).toLocaleString("es-AR")}`;
+}
+
+function commissionStatusLabel(commission: SchoolOrganizerCommission): string {
+  if (commission.paidThenCancelled) return "Pagada y anulada (a compensar)";
+  switch (commission.status) {
+    case "PENDING":
+      return "Pendiente";
+    case "REQUESTED":
+      return "Cobro solicitado";
+    case "PAID":
+      return "Pagada";
+    case "REJECTED":
+      return "Rechazada";
+    case "CANCELLED":
+      return "Anulada (venta devuelta o cancelada)";
+    default:
+      return commission.status;
+  }
+}
 
 type SchoolStudentRow = {
   id: number;
@@ -134,12 +200,10 @@ export default function EscuelaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [commissions, setCommissions] = useState<SchoolOrganizerCommission[]>([]);
-  const [commissionSummary, setCommissionSummary] = useState<{
-    acumulado: number;
-    pendiente: number;
-    solicitado: number;
-    pagado: number;
-  }>({ acumulado: 0, pendiente: 0, solicitado: 0, pagado: 0 });
+  const [commissionSummary, setCommissionSummary] = useState<OrganizerCommissionTotals>(
+    emptyOrganizerCommissionTotals()
+  );
+  const [operations, setOperations] = useState<SchoolOperationsResponse | null>(null);
   const [requestPayoutLoading, setRequestPayoutLoading] = useState(false);
   const [students, setStudents] = useState<SchoolStudentRow[]>([]);
   const [studentsTotal, setStudentsTotal] = useState(0);
@@ -230,13 +294,21 @@ export default function EscuelaDetailPage() {
             : []
         );
         setCommissionSummary(
-          commissionsData?.summary ?? {
-            acumulado: 0,
-            pendiente: 0,
-            solicitado: 0,
-            pagado: 0,
-          }
+          commissionsData?.summary
+            ? { ...emptyOrganizerCommissionTotals(), ...commissionsData.summary }
+            : emptyOrganizerCommissionTotals()
         );
+        // El reporte de operaciones no bloquea el resto del portal si falla.
+        void fetch(`/api/school-organizer/schools/${schoolId}/operations`, {
+          credentials: "include",
+        })
+          .then(async (res) => (res.ok ? ((await res.json()) as SchoolOperationsResponse) : null))
+          .then((data) => {
+            if (active) setOperations(data);
+          })
+          .catch(() => {
+            if (active) setOperations(null);
+          });
       } catch (err) {
         setError(err instanceof Error ? err.message : "No se pudo cargar la escuela");
       } finally {
@@ -364,12 +436,9 @@ export default function EscuelaDetailPage() {
             : []
         );
         setCommissionSummary(
-          refreshData?.summary ?? {
-            acumulado: 0,
-            pendiente: 0,
-            solicitado: 0,
-            pagado: 0,
-          }
+          refreshData?.summary
+            ? { ...emptyOrganizerCommissionTotals(), ...refreshData.summary }
+            : emptyOrganizerCommissionTotals()
         );
       }
     } catch (err) {
@@ -650,7 +719,7 @@ export default function EscuelaDetailPage() {
                   <span className="text-gray-500">Alumnos:</span> {detail.summary.studentsCount}
                 </p>
                 <p>
-                  <span className="text-gray-500">Preventas/Pedidos:</span> {detail.summary.ordersCount}
+                  <span className="text-gray-500">Preventas pagadas:</span> {detail.summary.ordersCount}
                 </p>
               </div>
             </Card>
@@ -669,14 +738,19 @@ export default function EscuelaDetailPage() {
                   variant="secondary"
                   size="sm"
                   onClick={() => void handleRequestPayout()}
-                  disabled={requestPayoutLoading}
+                  disabled={requestPayoutLoading || !commissions.some((c) => c.requestableByMe)}
                 >
                   {requestPayoutLoading ? "Solicitando..." : "Solicitar cobro"}
                 </Button>
               </div>
               <p className="mt-2 text-xs text-gray-600">
-                La comisión se calcula sobre el precio del servicio sin incluir el costo de la
-                plataforma. La plataforma no realiza el pago. Es responsabilidad del fotógrafo.
+                Cómo se calcula: {ORGANIZER_COMMISSION_BASE_DESCRIPTION} Sólo cuentan las compras con
+                pago confirmado. La plataforma no realiza el pago. Es responsabilidad del fotógrafo.
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Todos los organizadores activos de la escuela ven estas comisiones. «Solicitar cobro»
+                incluye las pendientes a tu nombre, sin organizador asignado o asignadas a alguien que
+                ya no es organizador activo.
               </p>
               <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 La comisión configurada para administradores de escuela es un acuerdo directo entre
@@ -689,21 +763,31 @@ export default function EscuelaDetailPage() {
                 El pago de las comisiones es responsabilidad exclusiva del fotógrafo.
               </p>
               <div className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-4">
-                <p>
-                  <span className="text-gray-500">Acumulado:</span> $
-                  {commissionSummary.acumulado.toLocaleString("es-AR")}
+                <p className="font-medium">
+                  <span className="text-gray-500">Beneficio vigente:</span>{" "}
+                  {formatArs(commissionSummary.beneficioVigente)}
                 </p>
                 <p>
-                  <span className="text-gray-500">Pendiente:</span> $
-                  {commissionSummary.pendiente.toLocaleString("es-AR")}
+                  <span className="text-gray-500">Pendiente:</span>{" "}
+                  {formatArs(commissionSummary.pendiente)}
                 </p>
                 <p>
-                  <span className="text-gray-500">Solicitado:</span> $
-                  {commissionSummary.solicitado.toLocaleString("es-AR")}
+                  <span className="text-gray-500">Cobro solicitado:</span>{" "}
+                  {formatArs(commissionSummary.solicitado)}
                 </p>
                 <p>
-                  <span className="text-gray-500">Pagado:</span> $
-                  {commissionSummary.pagado.toLocaleString("es-AR")}
+                  <span className="text-gray-500">Pagado:</span> {formatArs(commissionSummary.pagado)}
+                </p>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-gray-600 md:grid-cols-3">
+                <p>
+                  Anuladas (ventas devueltas o canceladas, no se pagan):{" "}
+                  {formatArs(commissionSummary.cancelado)}
+                </p>
+                <p>Rechazadas: {formatArs(commissionSummary.rechazado)}</p>
+                <p className={commissionSummary.aCompensar > 0 ? "font-medium text-amber-800" : ""}>
+                  A compensar por devoluciones (ya pagadas y luego anuladas):{" "}
+                  {formatArs(commissionSummary.aCompensar)}
                 </p>
               </div>
               <div className="mt-3 overflow-x-auto">
@@ -720,7 +804,7 @@ export default function EscuelaDetailPage() {
                         Pedido
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-600">
-                        Neto venta
+                        Base (venta − plataforma)
                       </th>
                       <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-600">
                         Monto
@@ -755,7 +839,7 @@ export default function EscuelaDetailPage() {
                           <td className="px-3 py-3">
                             ${commission.amount.toLocaleString("es-AR")}
                           </td>
-                          <td className="px-3 py-3">{commission.status}</td>
+                          <td className="px-3 py-3">{commissionStatusLabel(commission)}</td>
                           <td className="px-3 py-3">{formatDate(commission.requestedAt)}</td>
                           <td className="px-3 py-3">{formatDate(commission.paidAt)}</td>
                         </tr>
@@ -764,6 +848,118 @@ export default function EscuelaDetailPage() {
                   </tbody>
                 </table>
               </div>
+            </Card>
+
+            <Card className="p-4">
+              <h2 className="font-semibold text-gray-900">Operaciones por álbum</h2>
+              <p className="mt-1 text-xs text-gray-600">
+                Pedidos reales de cada álbum (sin pedidos de prueba ni canjes de pack sin importe),
+                separados por estado. Importes en pesos. Beneficio: {ORGANIZER_COMMISSION_BASE_DESCRIPTION}
+              </p>
+              {!operations ? (
+                <p className="mt-3 text-sm text-gray-600">No se pudo cargar el reporte de operaciones.</p>
+              ) : operations.albums.length === 0 ? (
+                <p className="mt-3 text-sm text-gray-600">Todavía no hay álbumes con operaciones.</p>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {[
+                          "Álbum",
+                          "Pagadas",
+                          "Pendientes de pago",
+                          "Canceladas",
+                          "Reembolsadas",
+                          "Beneficio vigente",
+                          "A compensar",
+                        ].map((label) => (
+                          <th
+                            key={label}
+                            className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-600"
+                          >
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {operations.albums.map((row) => (
+                        <tr key={row.id}>
+                          <td className="px-3 py-3">
+                            {row.title}
+                            {row.percentage != null ? (
+                              <span className="block text-xs text-gray-500">{row.percentage}% acordado</span>
+                            ) : null}
+                          </td>
+                          {(["pagadas", "pendientes", "canceladas", "reembolsadas"] as const).map((bucket) => (
+                            <td key={bucket} className="px-3 py-3">
+                              {row.orders[bucket].count}
+                              <span className="block text-xs text-gray-500">
+                                {formatArs(row.orders[bucket].amount)}
+                              </span>
+                            </td>
+                          ))}
+                          <td className="px-3 py-3 font-medium">{formatArs(row.commission.beneficioVigente)}</td>
+                          <td className="px-3 py-3">{formatArs(row.commission.aCompensar)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <h3 className="mt-5 text-sm font-semibold text-gray-900">Liquidaciones registradas</h3>
+              {!operations || operations.payouts.length === 0 ? (
+                <p className="mt-2 text-sm text-gray-600">Todavía no hay pagos registrados por el fotógrafo.</p>
+              ) : (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {["Fecha de pago", "Álbum", "Pedido", "Importe", "Medio", "Comprobante", "Estado"].map(
+                          (label) => (
+                            <th
+                              key={label}
+                              className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-600"
+                            >
+                              {label}
+                            </th>
+                          )
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {operations.payouts.map((payout) => (
+                        <tr key={payout.commissionId}>
+                          <td className="px-3 py-3">{formatDate(payout.paidAt)}</td>
+                          <td className="px-3 py-3">{payout.albumTitle}</td>
+                          <td className="px-3 py-3">#{payout.orderId}</td>
+                          <td className="px-3 py-3">{formatArs(payout.amount)}</td>
+                          <td className="px-3 py-3">{payout.paymentMethod || "—"}</td>
+                          <td className="px-3 py-3">
+                            {safeHttpUrl(payout.paymentProofUrl) ? (
+                              <a
+                                href={safeHttpUrl(payout.paymentProofUrl) ?? undefined}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-700 underline"
+                              >
+                                Ver
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            {payout.paidThenCancelled ? "Venta devuelta: a compensar" : "Vigente"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
 
             <Card className="p-4">
@@ -818,7 +1014,12 @@ export default function EscuelaDetailPage() {
                       <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-gray-600 md:grid-cols-3">
                         <p>Alumnos: {album.studentsCount}</p>
                         <p>Fotos: {album.photosCount}</p>
-                        <p>Preventas/Pedidos: {album.ordersCount}</p>
+                        <p>
+                          Preventas pagadas: {album.ordersByStatus?.pagadas ?? album.ordersCount}
+                          {album.ordersByStatus
+                            ? ` · pendientes ${album.ordersByStatus.pendientes} · canceladas ${album.ordersByStatus.canceladas} · reembolsadas ${album.ordersByStatus.reembolsadas}`
+                            : ""}
+                        </p>
                       </div>
                       <div className="mt-2 text-xs text-gray-600">
                         <p>Link público: {album.publicAlbumUrl || "—"}</p>

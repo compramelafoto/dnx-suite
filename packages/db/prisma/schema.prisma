@@ -2891,6 +2891,44 @@ model SchoolLead {
   @@index([convertedSchoolId])
 }
 
+/// Prospecto de una campaña de correo a colegios (DNX escolar). Una fila por administración
+/// (niveles agrupados), nunca por nivel. Sólo se importan los que superaron los filtros
+/// (exclusiones, cruce con School, radio y contacto). El envío lo hace
+/// `apps/compramelafoto/scripts/campana-escolar-dnx.ts`; estados en `lib/dnx-escolar/campaign-states.ts`.
+model SchoolOutreachProspect {
+  id                Int       @id @default(autoincrement())
+  campaignKey       String
+  /// IDs de la planilla agrupados (ej. "ROS-PRIM-1012+ROS-SEC-2043")
+  groupKey          String
+  institutionName   String
+  locality          String
+  levels            String?
+  sourceIds         String[]
+  /// Email normalizado (minúsculas, sin espacios). Uno solo por administración.
+  email             String
+  phone             String?
+  notes             String?
+  /// PENDIENTE_VALIDACION | LISTO | ENVIANDO | ENVIADO | FALLIDO | REBOTADO | RESPONDIO | NO_CONTACTAR
+  status            String    @default("PENDIENTE_VALIDACION")
+  /// School.id coincidente en CLF (si se decidió contactar igual)
+  clfSchoolId       Int?
+  clfCheckedAt      DateTime?
+  providerMessageId String?
+  attempts          Int       @default(0)
+  lastError         String?
+  claimedAt         DateTime?
+  sentAt            DateTime?
+  lastAction        String?
+  lastActionAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([campaignKey, groupKey])
+  @@unique([campaignKey, email])
+  @@index([email])
+  @@index([status])
+}
+
 model SchoolOrganizer {
   id        String                @id @default(cuid())
   schoolId  Int

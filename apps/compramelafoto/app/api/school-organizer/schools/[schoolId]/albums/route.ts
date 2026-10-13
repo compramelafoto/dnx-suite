@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerAccess } from "@/lib/school-organizer-auth";
+import {
+  emptyOperationBucketTotals,
+  ORGANIZER_COMMISSION_BASE_DESCRIPTION,
+} from "@/lib/school-organizer-commission-logic";
+import { loadPreCompraBucketsByAlbum } from "@/lib/school-organizer-operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,7 +63,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     });
 
     const albumIds = albums.map((album) => album.id);
-    const [studentCounts, photoCounts, orderCounts] = await Promise.all([
+    const [studentCounts, photoCounts, preCompraBuckets] = await Promise.all([
       albumIds.length
         ? prisma.albumStudentRosterEntry.groupBy({
             by: ["albumId"],
@@ -73,18 +78,12 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
             _count: { _all: true },
           })
         : Promise.resolve([]),
-      albumIds.length
-        ? prisma.preCompraOrder.groupBy({
-            by: ["albumId"],
-            where: { albumId: { in: albumIds } },
-            _count: { _all: true },
-          })
-        : Promise.resolve([]),
+      // Sin pedidos de prueba; separados por estado (el reembolso sale del Order de preventa).
+      loadPreCompraBucketsByAlbum(schoolId, albumIds),
     ]);
 
     const studentCountByAlbumId = new Map(studentCounts.map((row) => [row.albumId, row._count._all]));
     const photoCountByAlbumId = new Map(photoCounts.map((row) => [row.albumId, row._count._all]));
-    const orderCountByAlbumId = new Map(orderCounts.map((row) => [row.albumId, row._count._all]));
 
     return NextResponse.json(
       albums.map((album) => {
@@ -100,13 +99,22 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
           owner: album.user,
           studentsCount: studentCountByAlbumId.get(album.id) ?? 0,
           photosCount: photoCountByAlbumId.get(album.id) ?? 0,
-          ordersCount: orderCountByAlbumId.get(album.id) ?? 0,
+          // Compat: ordersCount = preventas PAGADAS (antes contaba todas, incluso canceladas y de prueba).
+          ordersCount: (preCompraBuckets.get(album.id) ?? emptyOperationBucketTotals()).pagadas.count,
+          ordersByStatus: (() => {
+            const b = preCompraBuckets.get(album.id) ?? emptyOperationBucketTotals();
+            return {
+              pagadas: b.pagadas.count,
+              pendientes: b.pendientes.count,
+              canceladas: b.canceladas.count,
+              reembolsadas: b.reembolsadas.count,
+            };
+          })(),
           commissionConfig: {
             enabled: album.organizerCommissionEnabled,
             percentage: album.organizerCommissionPercentage,
             appliesTo: album.organizerCommissionAppliesTo,
-            disclaimer:
-              "Se calcula sobre valor neto del servicio, sin incluir fee de plataforma.",
+            disclaimer: ORGANIZER_COMMISSION_BASE_DESCRIPTION,
           },
           links: {
             album: basePublicUrl,

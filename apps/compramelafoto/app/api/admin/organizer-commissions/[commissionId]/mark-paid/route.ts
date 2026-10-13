@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OrganizerCommissionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerManagementAccess } from "@/lib/school-organizer-management-access";
+import { canMarkCommissionPaid } from "@/lib/school-organizer-commission-logic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,8 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    if (commission.status !== OrganizerCommissionStatus.REQUESTED) {
+    // Nunca se marca pagada una comisión anulada (venta reembolsada) ni rechazada.
+    if (!canMarkCommissionPaid(commission.status)) {
       return NextResponse.json(
         { error: "Solo se pueden marcar como pagadas las comisiones solicitadas." },
         { status: 400 }
@@ -54,14 +56,26 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const paymentMethod = String(body.paymentMethod ?? "").trim();
     const paymentProofUrl = String(body.paymentProofUrl ?? "").trim();
 
-    const updated = await prisma.organizerCommission.update({
-      where: { id: commissionId },
+    // Guarda de estado en la misma escritura: si un reembolso la anuló entre la lectura y
+    // esta escritura, no se pisa el CANCELLED.
+    const result = await prisma.organizerCommission.updateMany({
+      where: { id: commissionId, status: OrganizerCommissionStatus.REQUESTED },
       data: {
         status: OrganizerCommissionStatus.PAID,
         paidAt: new Date(),
         paymentMethod: paymentMethod || null,
         paymentProofUrl: paymentProofUrl || null,
       },
+    });
+    if (result.count === 0) {
+      return NextResponse.json(
+        { error: "La comisión cambió de estado (por ejemplo, la venta se reembolsó). Recargá la página." },
+        { status: 409 }
+      );
+    }
+
+    const updated = await prisma.organizerCommission.findUnique({
+      where: { id: commissionId },
       select: {
         id: true,
         status: true,

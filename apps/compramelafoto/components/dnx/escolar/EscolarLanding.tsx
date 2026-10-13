@@ -1,0 +1,351 @@
+import Image from "next/image";
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Banknote,
+  BarChart3,
+  Camera,
+  ClipboardCheck,
+  Download,
+  FileSpreadsheet,
+  HandCoins,
+  Headset,
+  Images,
+  Landmark,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Package,
+  Percent,
+  QrCode,
+  ShoppingBag,
+  Store,
+  Users,
+} from "lucide-react";
+
+import EscolarLeadForm from "@/components/dnx/escolar/EscolarLeadForm";
+import {
+  DNX_CONTACTO,
+  FORM_SECTION_ID,
+  MAILTO_URL,
+  WHATSAPP_URL,
+  beneficios,
+  faqs,
+  pasos,
+  razonesPreventa,
+  ventaPosterior,
+} from "@/components/dnx/escolar/data";
+
+const ICONOS_BENEFICIOS: LucideIcon[] = [ClipboardCheck, Banknote, FileSpreadsheet, ShoppingBag, Percent, Headset, Camera, Store];
+
+const BTN = "inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition";
+const BTN_PRIMARY = `${BTN} bg-zinc-900 text-white hover:bg-zinc-700`;
+const BTN_SECONDARY = `${BTN} border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50`;
+
+function Encabezado({ eyebrow, titulo, children }: { eyebrow?: string; titulo: string; children?: ReactNode }) {
+  return (
+    <div className="max-w-3xl">
+      {eyebrow ? (
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">{eyebrow}</p>
+      ) : null}
+      <h2 className="mt-2 text-2xl font-semibold leading-tight tracking-[-0.02em] text-balance md:text-4xl">{titulo}</h2>
+      {children ? <div className="mt-3 text-base leading-relaxed text-zinc-700">{children}</div> : null}
+    </div>
+  );
+}
+
+/** Ilustración abstracta del recorrido de una familia (sin fotos de menores). */
+function RecorridoFamilia() {
+  const filas: Array<{ icon: LucideIcon; titulo: string; texto: string }> = [
+    { icon: QrCode, titulo: "Reserva en preventa", texto: "Con el enlace o QR del colegio, antes de la jornada" },
+    { icon: HandCoins, titulo: "Paga online", texto: "Mercado Pago, sin efectivo ni sobres" },
+    { icon: Images, titulo: "Elige sus fotos", texto: "Con su enlace personal, cuando están listas" },
+    { icon: Download, titulo: "Recibe sus imágenes", texto: "Descarga digital e impresos en el colegio" },
+  ];
+  return (
+    <div aria-hidden className="relative rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm md:p-7">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Lo que hace cada familia · preventa</p>
+      <ol className="mt-4 space-y-3">
+        {filas.map(({ icon: Icon, titulo, texto }, i) => (
+          <li key={titulo} className="flex items-center gap-4 rounded-2xl bg-[#f4f2ee] p-3.5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-white">
+              <Icon className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-zinc-900">
+                {i + 1}. {titulo}
+              </span>
+              <span className="block text-sm text-zinc-600">{texto}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-zinc-300 p-3.5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-zinc-900 ring-1 ring-zinc-200">
+          <BarChart3 className="h-5 w-5" />
+        </span>
+        <span className="text-sm text-zinc-700">
+          <span className="font-semibold text-zinc-900">El colegio</span> ve las ventas y su beneficio en su panel.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export default function EscolarLanding() {
+  return (
+    <main className="overflow-x-hidden bg-[#f4f2ee] pb-28 text-zinc-900 md:pb-0">
+      {/* Barra superior */}
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+        <div className="flex items-center gap-3">
+          <Image src="/dnx/logo-dnx.png" alt="Logo DNX Estudio" width={44} height={44} className="h-10 w-10 rounded-full object-cover" priority />
+          <span className="text-sm font-semibold leading-tight">
+            DNX Estudio
+            <span className="block text-xs font-normal text-zinc-500">Fotografía escolar</span>
+          </span>
+        </div>
+        <a href={`#${FORM_SECTION_ID}`} className="hidden text-sm font-semibold text-zinc-700 underline underline-offset-4 hover:text-zinc-900 sm:inline">
+          Pedir propuesta
+        </a>
+      </header>
+
+      {/* 1. Hero */}
+      <section className="mx-auto max-w-6xl px-4 pb-14 pt-6 md:px-6 md:pb-20 md:pt-10">
+        <div className="grid gap-10 md:grid-cols-[1.15fr_1fr] md:items-center">
+          <div className="space-y-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+              Para colegios privados · Rosario, Funes, Roldán y alrededores
+            </p>
+            <h1 className="text-[2rem] font-semibold leading-[1.08] tracking-[-0.03em] text-balance md:text-5xl">
+              Fotografía escolar sin gestionar cobros ni pedidos
+            </h1>
+            <p className="text-base leading-relaxed text-zinc-700 md:text-lg">
+              DNX Estudio realiza las fotos. Las familias eligen, pagan online y reciben sus imágenes mediante nuestro
+              sistema. El colegio puede obtener un beneficio sobre las ventas con rendición transparente.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <a href={`#${FORM_SECTION_ID}`} className={BTN_PRIMARY}>
+                Quiero una propuesta para mi colegio
+              </a>
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className={BTN_SECONDARY}>
+                <MessageCircle className="h-4 w-4" aria-hidden />
+                WhatsApp
+              </a>
+              <a href={MAILTO_URL} className={BTN_SECONDARY}>
+                <Mail className="h-4 w-4" aria-hidden />
+                Email
+              </a>
+            </div>
+            <p className="text-sm text-zinc-500">
+              {DNX_CONTACTO.responsable}, {DNX_CONTACTO.descripcion.toLowerCase()} · Estudio en Funes
+            </p>
+          </div>
+          <RecorridoFamilia />
+        </div>
+      </section>
+
+      {/* 2. Cómo funciona: preventa recomendada */}
+      <section className="border-y border-zinc-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+          <span className="inline-flex rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white">Recomendado</span>
+          <div className="mt-3">
+            <Encabezado eyebrow="Cómo funciona" titulo="Preventa: las familias reservan y pagan antes de la jornada">
+              <p>
+                Es la forma que recomendamos. Cada familia compra su pack con anticipación, DNX hace las fotos sabiendo qué
+                pidió cada una, y después la familia elige sus fotos con el enlace que recibió por email.
+              </p>
+            </Encabezado>
+          </div>
+          <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pasos.map((paso, i) => (
+              <li key={paso.titulo} className="rounded-2xl border border-zinc-200 bg-[#faf9f7] p-5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white">
+                  {i + 1}
+                </span>
+                <h3 className="mt-4 text-base font-semibold">{paso.titulo}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">{paso.texto}</p>
+              </li>
+            ))}
+          </ol>
+
+          <h3 className="mt-12 text-lg font-semibold">Por qué conviene la preventa</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {razonesPreventa.map((r) => (
+              <article key={r.titulo} className="rounded-2xl border border-zinc-900/10 bg-[#f4f2ee] p-5">
+                <h4 className="text-sm font-semibold">{r.titulo}</h4>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">{r.texto}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-6 flex items-start gap-4 rounded-2xl border border-dashed border-zinc-300 p-5">
+            <Images className="mt-0.5 h-6 w-6 shrink-0" aria-hidden />
+            <div>
+              <h3 className="text-base font-semibold">{ventaPosterior.titulo}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">{ventaPosterior.texto}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Qué cambia para el colegio */}
+      <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+        <Encabezado eyebrow="Para la administración" titulo="Qué cambia para el colegio">
+          <p>
+            El colegio conserva lo institucional: fechas, espacios, cursos y autorizaciones. Lo que se va de la
+            secretaría es el cobro, el armado de pedidos y la atención de cada familia.
+          </p>
+        </Encabezado>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {beneficios.map((b, i) => {
+            const Icon = ICONOS_BENEFICIOS[i] ?? ClipboardCheck;
+            return (
+              <article key={b.titulo} className="rounded-2xl border border-zinc-200 bg-white p-5">
+                <Icon className="h-6 w-6 text-zinc-900" aria-hidden />
+                <h3 className="mt-3 text-base font-semibold">{b.titulo}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">{b.texto}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 4. Servicios y productos */}
+      <section className="border-y border-zinc-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+          <Encabezado eyebrow="Servicios" titulo="Qué fotografiamos y qué reciben las familias" />
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            <article className="rounded-2xl border border-zinc-200 bg-[#faf9f7] p-6">
+              <Users className="h-6 w-6" aria-hidden />
+              <h3 className="mt-3 text-lg font-semibold">Fotografía anual</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+                Retratos individuales y fotos grupales por curso, organizadas en la jornada que acordemos.
+              </p>
+            </article>
+            <article className="rounded-2xl border border-zinc-200 bg-[#faf9f7] p-6">
+              <Landmark className="h-6 w-6" aria-hidden />
+              <h3 className="mt-3 text-lg font-semibold">Actos, jornadas y egresos</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+                Coberturas de actos escolares, jornadas especiales y ceremonias de egreso.
+              </p>
+            </article>
+            <article className="rounded-2xl border border-zinc-200 bg-[#faf9f7] p-6">
+              <Package className="h-6 w-6" aria-hidden />
+              <h3 className="mt-3 text-lg font-semibold">Digitales e impresos</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+                En preventa, la familia elige sus fotos y las digitales quedan para descargar; los impresos se entregan
+                en el colegio, identificados por alumno. En la galería posterior, la descarga se habilita al confirmarse
+                el pago.
+              </p>
+            </article>
+          </div>
+          <p className="mt-6 text-sm text-zinc-600">
+            Los productos, precios y plazos de entrega se acuerdan con cada colegio antes de empezar.
+          </p>
+        </div>
+      </section>
+
+      {/* 5. Beneficio y costos, sin cifras */}
+      <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
+        <Encabezado eyebrow="Rendición transparente" titulo="Quién se queda con qué">
+          <p>En cada venta intervienen tres conceptos distintos, y conviene tenerlos claros desde el principio.</p>
+        </Encabezado>
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
+          <article className="rounded-2xl border-2 border-zinc-900 bg-white p-6">
+            <h3 className="text-base font-semibold">Beneficio del colegio</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+              Un porcentaje acordado previamente con DNX, sobre las ventas pagadas. El colegio lo ve en su panel y DNX lo
+              liquida según el acuerdo.
+            </p>
+          </article>
+          <article className="rounded-2xl border border-zinc-200 bg-white p-6">
+            <h3 className="text-base font-semibold">Procesador de pago</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+              Mercado Pago cobra su propio costo por procesar cada pago online.
+            </p>
+          </article>
+          <article className="rounded-2xl border border-zinc-200 bg-white p-6">
+            <h3 className="text-base font-semibold">Plataforma</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-700">
+              ComprameLaFoto, el sistema que gestiona galerías, pagos y pedidos, tiene su propia comisión.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      {/* 6. Preguntas frecuentes */}
+      <section className="border-y border-zinc-200 bg-white">
+        <div className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
+          <Encabezado eyebrow="Preguntas frecuentes" titulo="Lo que suelen preguntar las administraciones" />
+          <div className="mt-8 divide-y divide-zinc-200 border-y border-zinc-200">
+            {faqs.map((f) => (
+              <details key={f.q} className="group py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-semibold [&::-webkit-details-marker]:hidden">
+                  {f.q}
+                  <span aria-hidden className="text-xl leading-none text-zinc-400 transition group-open:rotate-45">
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-zinc-700">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Formulario + datos del estudio */}
+      <section id={FORM_SECTION_ID} className="mx-auto max-w-6xl scroll-mt-6 px-4 py-14 md:px-6 md:py-20">
+        <div className="grid gap-10 md:grid-cols-[1fr_1.4fr]">
+          <div>
+            <Encabezado eyebrow="Propuesta" titulo="Contanos sobre tu colegio">
+              <p>Con estos datos armamos una propuesta a medida. Te respondemos por email o teléfono.</p>
+            </Encabezado>
+            <div className="mt-8 space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 text-sm">
+              <p className="font-semibold text-zinc-900">
+                {DNX_CONTACTO.estudio}
+                <span className="block font-normal text-zinc-600">
+                  {DNX_CONTACTO.responsable} · {DNX_CONTACTO.descripcion}
+                </span>
+              </p>
+              <p className="flex items-start gap-2.5 text-zinc-700">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span>
+                  {DNX_CONTACTO.direccion}
+                  <br />
+                  {DNX_CONTACTO.localidad}
+                </span>
+              </p>
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-zinc-700 hover:text-zinc-900">
+                <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
+                WhatsApp {DNX_CONTACTO.telefonoVisible}
+              </a>
+              <a href={MAILTO_URL} className="flex items-center gap-2.5 break-all text-zinc-700 hover:text-zinc-900">
+                <Mail className="h-4 w-4 shrink-0" aria-hidden />
+                {DNX_CONTACTO.email}
+              </a>
+            </div>
+          </div>
+          <EscolarLeadForm />
+        </div>
+      </section>
+
+      <footer className="border-t border-zinc-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-8 text-xs text-zinc-500 md:px-6">
+          DNX Estudio · {DNX_CONTACTO.direccion}, {DNX_CONTACTO.localidad}. Las ventas se gestionan con ComprameLaFoto.
+        </div>
+      </footer>
+
+      {/* Barra fija en celulares */}
+      <div className="fixed bottom-3 left-1/2 z-50 w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-2xl border border-zinc-200 bg-white/95 p-2 shadow-lg backdrop-blur md:hidden">
+        <div className="grid grid-cols-[1.6fr_1fr] gap-2">
+          <a href={`#${FORM_SECTION_ID}`} className={`${BTN_PRIMARY} w-full !px-3`}>
+            Pedir propuesta
+          </a>
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className={`${BTN_SECONDARY} w-full !px-3`}>
+            WhatsApp
+          </a>
+        </div>
+      </div>
+    </main>
+  );
+}
