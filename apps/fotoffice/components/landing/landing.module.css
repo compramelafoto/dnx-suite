@@ -575,6 +575,122 @@
   color: #ffffff;
 }
 
+/* ─────────────────────────── Propuesta institucional ─────────────────────────── */
+
+/* Va dentro de la respuesta oscura, después de los tres destacados. */
+.propuesta {
+  margin-top: 72px;
+  padding-top: 56px;
+  border-top: 1px solid rgba(146, 196, 255, 0.18);
+  scroll-margin-top: 80px;
+}
+
+.paraComision {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-width: 72ch;
+}
+
+.paraComision li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: #dbe9fa;
+}
+
+.paraComision svg {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: var(--ambar);
+}
+
+.puntos {
+  display: grid;
+  gap: 14px;
+  margin-top: 36px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 720px) {
+  .puntos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1040px) {
+  .puntos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.punto {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(146, 196, 255, 0.2);
+  border-radius: var(--r);
+  padding: 22px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scroll-margin-top: 80px;
+}
+
+.puntoTitulo {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: #f2f8ff;
+}
+
+.puntoTexto {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: #b9cfe9;
+}
+
+.puntoPendiente,
+.puntoPendienteClaro {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.puntoPendiente {
+  border: 1px dashed rgba(146, 196, 255, 0.3);
+  color: #a9c2e0;
+}
+
+.puntoPendiente strong {
+  color: #dbe9fa;
+}
+
+.puntoPendienteClaro {
+  border: 1px dashed var(--borde);
+  color: var(--ink-2);
+  background: var(--papel);
+}
+
+.puntoPendienteClaro strong {
+  color: var(--ink);
+}
+
+.cuadroApp {
+  display: inline-block;
+  margin-top: -6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--azul-700);
+}
+
 /* ─────────────────────────── Tira de película ─────────────────────────── */
 
 

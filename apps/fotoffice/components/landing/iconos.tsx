@@ -19,6 +19,10 @@ import {
   FileText,
   Gavel,
   Globe,
+  Handshake,
+  Trophy,
+  Images,
+  FolderKanban,
   GraduationCap,
   Image as ImageIcon,
   Inbox,
@@ -62,6 +66,13 @@ const ICONOS: Record<string, LucideIcon> = {
   equipo: UserCog,
   quotes: FileText,
   orders: ClipboardList,
+  sponsors: Handshake,
+  governance: FolderKanban,
+  portfolio: Images,
+  communications: Megaphone,
+
+  // De otras aplicaciones de DNX Suite
+  concursos: Trophy,
 
   // En construcción
   pedidos: ClipboardList,

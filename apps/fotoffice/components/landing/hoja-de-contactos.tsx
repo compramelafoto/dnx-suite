@@ -14,7 +14,7 @@ import type { FichaModulo } from "@/lib/landing/catalogo";
  * organización elegido arriba. Y nada se oculta — los módulos que no le sirven a este caso
  * siguen ahí, sin marcar, porque mañana puede necesitarlos.
  */
-export function HojaDeContactos({ modulos }: { modulos: FichaModulo[] }) {
+export function HojaDeContactos({ modulos }: { modulos: (FichaModulo & { app?: string })[] }) {
   const elegidas = useClavesElegidas();
 
   return (
@@ -22,8 +22,8 @@ export function HojaDeContactos({ modulos }: { modulos: FichaModulo[] }) {
       <div className={styles.ancho}>
         <h2 className={styles.tituloSeccion}>Todo lo que hace, cuadro por cuadro</h2>
         <p className={styles.textoSeccion}>
-          Los quince módulos del sistema, sin recortar. Si elegiste tu caso arriba, los que te
-          sirven están marcados.
+          Los módulos del sistema, sin recortar, y lo que suman otras aplicaciones de DNX Suite.
+          Si elegiste tu caso arriba, los que te sirven están marcados.
         </p>
       </div>
 
@@ -49,6 +49,7 @@ export function HojaDeContactos({ modulos }: { modulos: FichaModulo[] }) {
                     <span className={styles.cuadroNumero}>{m.cuadro}</span>
                   </div>
                   <h3 className={styles.cuadroNombre}>{m.nombre}</h3>
+                  {m.app ? <span className={styles.cuadroApp}>De {m.app}, en DNX Suite</span> : null}
                   <p className={styles.cuadroResuelve}>{m.resuelve}</p>
                   <ul className={styles.cuadroPantallas}>
                     {m.pantallas.map((pantalla) => (
