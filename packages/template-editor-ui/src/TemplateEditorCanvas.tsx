@@ -1094,8 +1094,18 @@ export function TemplateEditorCanvas({
                   if (!drag.moved && (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1)) {
                     drag.moved = true;
                   }
-                  const rawX = drag.startX + deltaX;
-                  const rawY = drag.startY + deltaY;
+                  /*
+                   * Shift bloquea un eje, como en Photoshop: si el arrastre va más en horizontal,
+                   * la posición vertical queda fija, y al revés. Se decide en cada movimiento,
+                   * así se puede cambiar de eje sin soltar.
+                   */
+                  const ejeFijo: "x" | "y" | null = e.shiftKey
+                    ? Math.abs(deltaX) >= Math.abs(deltaY)
+                      ? "y"
+                      : "x"
+                    : null;
+                  const rawX = ejeFijo === "x" ? drag.startX : drag.startX + deltaX;
+                  const rawY = ejeFijo === "y" ? drag.startY : drag.startY + deltaY;
                   // ⌘ / Ctrl apretado suelta el imán, como en los editores de imagen.
                   const sinIman = e.metaKey || e.ctrlKey;
                   const snapped = snapDragPosition(
@@ -1115,9 +1125,16 @@ export function TemplateEditorCanvas({
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
                       : blocksOnPage,
                     sinIman ? 0 : SNAP_SCREEN_PX / zoom,
-                    // Zona segura siempre; con Shift, imán fuerte.
-                    { safeArea: safeAreaRect, magnet: e.shiftKey && !sinIman }
+                    { safeArea: safeAreaRect }
                   );
+                  // El eje bloqueado no se imanta: el bloque no puede salirse de la línea.
+                  if (ejeFijo === "x") {
+                    snapped.x = drag.startX;
+                    snapped.guideVerticalX = null;
+                  } else if (ejeFijo === "y") {
+                    snapped.y = drag.startY;
+                    snapped.guideHorizontalY = null;
+                  }
                   setSnapGuides({ vx: snapped.guideVerticalX, hy: snapped.guideHorizontalY });
 
                   if (drag.grupo) {
