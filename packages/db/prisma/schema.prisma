@@ -9054,6 +9054,13 @@ model BookingSpace {
   /// Horas bonificadas por mes para socios. 0 = este espacio no bonifica.
   memberFreeHoursPerMonth Int     @default(0)
   allowsNonMembers        Boolean @default(true)
+  /// Agenda de profesionales (barbería): la parte de cada turno que le corresponde a quien
+  /// atiende, en centésimos de punto (6000 = 60 %). 0 = todo para la institución.
+  professionalShareBps    Int     @default(0)
+  /// La cuenta de quien atiende en este espacio, para que vea su agenda y su liquidación.
+  professionalUserId      Int?
+  /// Si los turnos incluidos del club (Club VIP) se pueden usar acá. En Gus Barbers, sólo Gus.
+  acceptsClubCredits      Boolean @default(true)
 
   /// Calendario de Google que espeja este espacio. Uno por espacio: es la única forma de
   /// saber qué espacio ocupa un evento cargado a mano.
@@ -9144,6 +9151,12 @@ model Booking {
   /// gastados; cancelada o vencida, vuelven a la bolsa solos (no hay saldo que devolver).
   creditGrantId String?
   creditsUsed   Int     @default(0)
+  /// La parte del profesional, congelada al reservar: si mañana cambia su porcentaje, lo ya
+  /// reservado no se recalcula. Sale del total (turno + extras).
+  professionalShareBps Int     @default(0)
+  professionalShareArs Decimal @default(0) @db.Decimal(12, 2)
+  /// La liquidación que ya le pagó esta parte al profesional. null = todavía se le debe.
+  settlementId         String?
   userId       Int?
   contactName  String
   contactEmail String
@@ -9194,13 +9207,38 @@ model Booking {
   extraLines       BookingExtraLine[]
   /// La bolsa del club (p. ej. el VIP de una barbería) de la que salió este turno, si salió de una.
   creditGrant      MemberBookingCreditGrant? @relation(fields: [creditGrantId], references: [id], onDelete: SetNull)
+  settlement       BookingSettlement?        @relation(fields: [settlementId], references: [id], onDelete: SetNull)
   feeLedgerEntries WorkspaceFeeLedgerEntry[]
 
   @@index([workspaceId, startAt])
   @@index([spaceId, startAt])
   @@index([memberId, startAt])
   @@index([creditGrantId])
+  @@index([spaceId, settlementId])
   @@index([status, holdExpiresAt])
+}
+
+/// Un pago de la institución a un profesional por sus turnos (la liquidación de un barbero).
+///
+/// Cierra las reservas que cubre (`Booking.settlementId`), así no se pagan dos veces. El monto
+/// se congela al registrarla: es lo que se le pagó, aunque después alguien toque una reserva.
+model BookingSettlement {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  spaceId         String
+  amountArs       Decimal  @db.Decimal(12, 2)
+  bookingsCount   Int
+  /// Los turnos que cubre: del primero al último.
+  fromAt          DateTime
+  toAt            DateTime
+  paidAt          DateTime @default(now())
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  bookings Booking[]
+
+  @@index([workspaceId, spaceId, paidAt])
 }
 
 /// Evento traído de Google que ocupa un espacio. **No lo creó FotoOffice.**

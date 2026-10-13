@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireBookingsConfigurer } from "@/lib/bookings/access";
-import { getSpace, listCompatibilities, listSpaces } from "@/lib/bookings/repository";
+import { getSpace, listCompatibilities, listSpaces, listTeamPeople } from "@/lib/bookings/repository";
 import { compatibleSpaceIds } from "@/lib/bookings/conflicts";
 import { SpaceForm } from "../space-form";
 
@@ -32,6 +32,7 @@ export default async function EditarEspacioPage({
         description="Horarios, tarifas y convivencia de este espacio."
       />
       <SpaceForm
+        equipo={await listTeamPeople(workspace.id)}
         space={espacio}
         otrosEspacios={espacios
           .filter((e) => e.id !== spaceId)

@@ -70,7 +70,7 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
     workspaceId: context.workspace.id,
     memberId: context.member.id,
   });
-  const usarClub = canCoverWithCredits({
+  const usarClub = space.acceptsClubCredits && canCoverWithCredits({
     balance: club,
     needed: creditsNeededFor({ pricingMode: space.pricingMode, blockMinutes: space.blockMinutes, minutes: minutos }),
     startAt: range.startAt,

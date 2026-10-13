@@ -68,6 +68,16 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
     if (propio === 0) redirect(`${ESPACIOS}?error=${encodeURIComponent("Ese espacio no existe.")}`);
   }
 
+  // Sólo se puede vincular a alguien del equipo de ESTA institución.
+  if (v.professionalUserId !== null) {
+    const enElEquipo = await prisma.workspaceMembership.count({
+      where: { workspaceId: workspace.id, userId: v.professionalUserId },
+    });
+    if (enElEquipo === 0) {
+      redirect(`${destinoError}?error=${encodeURIComponent("Esa persona no es del equipo.")}`);
+    }
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       const datos = {
@@ -88,6 +98,9 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
         nonMemberBlockPriceArs: minorToDecimalString(v.nonMemberBlockPriceMinor),
         memberFreeHoursPerMonth: v.memberFreeHoursPerMonth,
         allowsNonMembers: v.allowsNonMembers,
+        professionalShareBps: v.professionalShareBps,
+        professionalUserId: v.professionalUserId,
+        acceptsClubCredits: v.acceptsClubCredits,
       };
 
       const espacio = spaceId

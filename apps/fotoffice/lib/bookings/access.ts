@@ -1,5 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { prisma } from "@repo/db";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { getModuleLevel, hasModuleAction } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
@@ -19,6 +20,11 @@ import { BOOKINGS_MODULE_KEY } from "./constants";
  *   una transferencia. El STAFF de antes (sin roles) queda acá por la compatibilidad de `levels.ts`.
  * - MANAGE + `bookings.configure`: espacios, extras, tarifas y reglas. Dueño y admin la tienen
  *   siempre; el STAFF de antes, nunca (igual que hoy).
+ *
+ * Y un recorte: quien sólo puede VER y además atiende en algún espacio (un barbero vinculado
+ * a su puesto, `BookingSpace.professionalUserId`) ve únicamente lo suyo: su agenda y su
+ * liquidación. `ownSpaceIds` es esa lista, o `null` = todo. Quien ve sin atender en ningún
+ * espacio (un rol "Ver" de la Comisión) sigue viendo todo, como siempre.
  */
 
 async function contextoBase() {
@@ -32,7 +38,15 @@ async function contextoBase() {
   const canOperate = hasLevel(level, "MANAGE");
   // La acción sólo vale con MANAGE: `resolveModuleAction` ya lo exige, esto lo repite por las dudas.
   const canConfigure = canOperate && tieneAccion;
-  return { user, workspace, level, canOperate, canConfigure };
+  let ownSpaceIds: string[] | null = null;
+  if (!canOperate) {
+    const propios = await prisma.bookingSpace.findMany({
+      where: { workspaceId: workspace.id, professionalUserId: user.id },
+      select: { id: true },
+    });
+    if (propios.length > 0) ownSpaceIds = propios.map((p) => p.id);
+  }
+  return { user, workspace, level, canOperate, canConfigure, ownSpaceIds };
 }
 
 /** Ver: layout, agenda y lista. */

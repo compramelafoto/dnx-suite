@@ -198,11 +198,11 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
   });
 
   it("Reservas: espacios, extras y tarifas exigen bookings.configure; la agenda alcanza con ver", () => {
-    expect(hrefs("bookings", { levels: { bookings: "VIEW" }, actions: [] })).toEqual(["/reservas"]);
-    expect(hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [] })).toEqual(["/reservas"]);
+    expect(hrefs("bookings", { levels: { bookings: "VIEW" }, actions: [] })).toEqual(["/reservas", "/reservas/liquidaciones"]);
+    expect(hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [] })).toEqual(["/reservas", "/reservas/liquidaciones"]);
     expect(
       hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [BOOKINGS_CONFIGURE_ACTION] }),
-    ).toEqual(["/reservas", "/reservas/espacios", "/reservas/extras", "/reservas/configuracion"]);
+    ).toEqual(["/reservas", "/reservas/liquidaciones", "/reservas/espacios", "/reservas/extras", "/reservas/configuracion"]);
   });
 
   it("Sorteos: la lista y las entregas alcanzan con ver", () => {
