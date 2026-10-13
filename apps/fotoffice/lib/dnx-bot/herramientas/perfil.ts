@@ -13,13 +13,17 @@ import { cambiosEntre, esquemaParchePerfil, perfilBase, simularPerfil, tarjetaDe
 
 const entradaParche = z.object({ parche: esquemaParchePerfil });
 
-async function base(ctx: CtxBot) {
-  const g = await leerPerfilPrecios(ctx);
+/** Lectura y guardado del perfil. Se inyectan sólo en `bot:eval` (perfil de prueba, sin base). */
+export type DepsPerfil = { leer: typeof leerPerfilPrecios; guardar: typeof guardarPerfilPrecios };
+const DEPS: DepsPerfil = { leer: leerPerfilPrecios, guardar: guardarPerfilPrecios };
+
+async function base(ctx: CtxBot, deps: DepsPerfil = DEPS) {
+  const g = await deps.leer(ctx);
   return { guardado: g, perfil: perfilBase(g?.perfil ?? null), source: g?.source ?? null };
 }
 
-async function prepararGuardado(ctx: CtxBot, parche: z.infer<typeof esquemaParchePerfil>) {
-  const b = await base(ctx);
+async function prepararGuardado(ctx: CtxBot, parche: z.infer<typeof esquemaParchePerfil>, deps: DepsPerfil) {
+  const b = await base(ctx, deps);
   const s = simularPerfil(b.perfil, parche, "dnx-bot");
   const cambios = cambiosEntre(b.perfil, s.perfil);
   const antes = vistaDelPerfil(b.perfil, b.source).resumen.valorHora ?? "sin calcular";
@@ -35,7 +39,7 @@ export async function estadoDelPerfil(ctx: CtxBot): Promise<EstadoPerfil | null>
   return { existe: !!b.guardado, completo: v.completo, faltan: v.faltan, origen: v.origen };
 }
 
-export function herramientasDePerfil(ctx: CtxBot): BotTool[] {
+export function herramientasDePerfil(ctx: CtxBot, deps: DepsPerfil = DEPS): BotTool[] {
   return [
     defineTool({
       name: "ver_perfil_de_precios",
@@ -44,7 +48,7 @@ export function herramientasDePerfil(ctx: CtxBot): BotTool[] {
       input: z.object({}),
       kind: "read",
       run: async () => {
-        const b = await base(ctx);
+        const b = await base(ctx, deps);
         return { ok: true, message: b.guardado ? "Perfil guardado." : "Todavía no hay perfil guardado.", data: { existe: !!b.guardado, ...vistaDelPerfil(b.perfil, b.source) } };
       },
     }),
@@ -55,7 +59,7 @@ export function herramientasDePerfil(ctx: CtxBot): BotTool[] {
       input: entradaParche,
       kind: "read",
       run: async ({ parche }) => {
-        const b = await base(ctx);
+        const b = await base(ctx, deps);
         const s = simularPerfil(b.perfil, parche, b.source);
         return {
           ok: true,
@@ -71,7 +75,7 @@ export function herramientasDePerfil(ctx: CtxBot): BotTool[] {
       input: entradaParche,
       kind: "write",
       describe: async ({ parche }) => {
-        const { s, cambios, antes, ahora } = await prepararGuardado(ctx, parche);
+        const { s, cambios, antes, ahora } = await prepararGuardado(ctx, parche, deps);
         if (s.errores.length) throw new Error(s.errores.join(" "));
         if (cambios.length === 0) throw new Error("No hay cambios para guardar.");
         const n = cambios.length;
@@ -82,9 +86,9 @@ export function herramientasDePerfil(ctx: CtxBot): BotTool[] {
       },
       run: async ({ parche }) => {
         // Se relee el perfil: si cambió desde la propuesta, se guarda sobre lo actual.
-        const { b, s, ahora } = await prepararGuardado(ctx, parche);
+        const { b, s, ahora } = await prepararGuardado(ctx, parche, deps);
         if (s.errores.length) return { ok: false, message: s.errores.join(" ") };
-        const r = await guardarPerfilPrecios(ctx, s.perfil, { source: "dnx-bot" });
+        const r = await deps.guardar(ctx, s.perfil, { source: "dnx-bot" });
         if (!r.ok) return { ok: false, message: r.error };
         return {
           ok: true,
@@ -97,7 +101,7 @@ export function herramientasDePerfil(ctx: CtxBot): BotTool[] {
         const b = before as { perfil?: unknown; source?: unknown } | null;
         const perfil = b && typeof b === "object" ? normalizarPerfil(b.perfil) : null;
         if (!perfil) return { ok: false, message: "No tengo el perfil anterior para volver atrás." };
-        const r = await guardarPerfilPrecios(ctx, perfil, { source: b?.source === "dnx-bot" ? "dnx-bot" : "manual" });
+        const r = await deps.guardar(ctx, perfil, { source: b?.source === "dnx-bot" ? "dnx-bot" : "manual" });
         return r.ok ? { ok: true, message: "Listo, volví a dejar el perfil como estaba." } : { ok: false, message: r.error };
       },
     }),

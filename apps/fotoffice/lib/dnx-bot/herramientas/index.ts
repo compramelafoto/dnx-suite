@@ -1,6 +1,6 @@
 import type { BotTool } from "@repo/dnx-bot";
 import type { CtxBot } from "../acceso";
-import { herramientasDePerfil } from "./perfil";
+import { herramientasDePerfil, type DepsPerfil } from "./perfil";
 
 /**
  * Las herramientas de DNX Bot se arman por persona (spec §8): quien no tiene el permiso no recibe
@@ -12,6 +12,6 @@ import { herramientasDePerfil } from "./perfil";
  * - Etapa 1 (perfil de precios): sólo con `configurar`.
  * - Etapas 2 y 3: las suman los PR siguientes.
  */
-export function herramientasPara(ctx: CtxBot): BotTool[] {
-  return [...(ctx.capacidades.configurar ? herramientasDePerfil(ctx) : [])];
+export function herramientasPara(ctx: CtxBot, deps?: { perfil?: DepsPerfil }): BotTool[] {
+  return [...(ctx.capacidades.configurar ? herramientasDePerfil(ctx, deps?.perfil) : [])];
 }
