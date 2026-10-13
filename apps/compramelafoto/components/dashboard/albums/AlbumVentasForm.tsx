@@ -476,6 +476,33 @@ export default function AlbumVentasForm({
     ]
   );
 
+  /*
+   * El tilde guarda al marcarlo. Antes sólo cambiaba un estado local y los términos recién se
+   * guardaban al activar una venta o guardar precios: quien tildaba y se iba no los aceptaba, y
+   * el álbum seguía sin poder vender (ni extras en el canje).
+   */
+  const [guardandoTerminos, setGuardandoTerminos] = useState(false);
+  async function aceptarTerminosAhora() {
+    setGuardandoTerminos(true);
+    try {
+      const res = await fetch(`/api/dashboard/albums/${albumId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ termsAccepted: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTermsAccepted(false);
+        showToast(typeof data.error === "string" ? data.error : "No se pudieron guardar los términos", "error");
+        return;
+      }
+      onPricingSaved({ termsAcceptedAt: new Date().toISOString(), termsVersion: TERMS_VERSION });
+      showToast("Términos aceptados. El álbum ya puede vender.", "success");
+    } finally {
+      setGuardandoTerminos(false);
+    }
+  }
+
   async function ensureTermsIfNeeded(options?: { silent?: boolean }): Promise<boolean> {
     if (!needsTermsAcceptance) return true;
     if (!termsAccepted) {
@@ -889,7 +916,12 @@ export default function AlbumVentasForm({
               type="checkbox"
               className="mt-1 h-5 w-5 accent-[#c27b3d]"
               checked={termsAccepted}
-              onChange={(e) => setTermsAccepted(e.target.checked)}
+              disabled={guardandoTerminos}
+              onChange={(e) => {
+                const marcado = e.target.checked;
+                setTermsAccepted(marcado);
+                if (marcado) void aceptarTerminosAhora();
+              }}
             />
             <span className="text-sm text-[#374151]">
               Leí y acepto los{" "}
