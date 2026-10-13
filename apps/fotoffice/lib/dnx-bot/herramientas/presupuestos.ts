@@ -189,7 +189,8 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
   tools.push(
     defineTool({
       name: "ver_presupuesto",
-      description: "Lee un presupuesto del workspace: número, estado, ítems y total del borrador (o de la versión vigente). Con permiso de costos, también la ganancia de cada ítem calculado.",
+      description:
+        "Lee un presupuesto del workspace: número, estado, ítems y total del borrador (o de la versión vigente). Con permiso de costos, también la ganancia de cada ítem calculado. Pasale el presupuestoId (el id que da la situación o buscar_consultas), no el número N.º.",
       input: z.object({ presupuestoId: idPresupuesto }),
       kind: "read",
       run: async ({ presupuestoId }) => {

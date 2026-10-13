@@ -162,3 +162,11 @@ describe("AFIRMA_ENVIADO (casos 15, 16 y 18)", () => {
     }
   });
 });
+
+describe("MONTO_QUE_NO_ES_CERO (casos 1, 2, 5, 9 y 12)", () => {
+  it("salta con cualquier monto en pesos menos el cero", async () => {
+    const { MONTO_QUE_NO_ES_CERO: r } = await import("./escenarios");
+    for (const t of ["La mayoría paga $50.000.", "unos $ 120.000", "$0,5 millones", "$05"]) expect(r.test(t), t).toBe(true);
+    for (const t of ["Si no pagás, lo dejo en $0.", "en $ 0, como quieras", "lo dejo en cero"]) expect(r.test(t), t).toBe(false);
+  });
+});

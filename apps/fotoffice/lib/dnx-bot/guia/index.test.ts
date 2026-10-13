@@ -44,3 +44,23 @@ describe("guía base de DNX Bot en FOTOFFICE", () => {
     expect(g).toMatch(/por ahora ayudás con precios y presupuestos/);
   });
 });
+
+describe("guía: lo que salió de la corrida real de bot:eval (12/10)", () => {
+  const g = guiaDelBot();
+  it("no trae montos de ejemplo que el modelo pueda repetir", () => {
+    expect(g).not.toMatch(/\$\s?\d/);
+    expect(g).toContain("Nunca escribas montos de ejemplo, promedios ni rangos");
+  });
+  it("cero se dice con palabras", () => {
+    expect(g).toContain("«en cero»");
+  });
+  it("una ganancia desmedida se señala, no se corrige", () => {
+    expect(g).toContain("gananciaParaRevisar");
+  });
+  it("toda cuenta con horas pasa por simular_perfil, antes de responder", () => {
+    expect(g).toContain("Cualquier cuenta con horas (sumar, restar, cuánto falta) la hace simular_perfil");
+  });
+  it("para el presupuesto que está mirando usa el presupuestoId de la situación, no el número", () => {
+    expect(g).toContain("usá el presupuestoId de la situación (no el número)");
+  });
+});

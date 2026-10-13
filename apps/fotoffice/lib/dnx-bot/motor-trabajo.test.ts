@@ -108,3 +108,17 @@ describe("tarjetaDeCotizacion", () => {
     expect(t.filas.length).toBeLessThanOrEqual(12);
   });
 });
+
+describe("ganancia desmedida: la tarjeta pide revisar (no cambia la cuenta del motor)", () => {
+  it("con un precio a mano muy por encima del costo, avisa; con uno normal, no", () => {
+    // El perfil de las pruebas del motor tiene un valor hora de $1.848: $1.100.000 da una ganancia de miles por ciento.
+    const alto = cotizar(perfil(), { tipoDeTrabajo: "Boda", conceptos: BODA, precioTotalElegido: "1100000" }, { nuevaClave: claves(), ahora: AHORA });
+    if (alto.estado !== "OK") throw new Error(alto.estado);
+    const t = tarjetaDeCotizacion(alto.resumen, "Boda");
+    expect(t.avisos[0]).toBe("La ganancia es más de 3 veces el costo: revisá que las horas y los costos del trabajo estén completos.");
+    expect(t.filas.find((f) => f.etiqueta === "Ganancia")!.valor).toBe(`${alto.resumen.total.ganancia} (${alto.resumen.total.gananciaPct})`);
+    const normal = cotizar(perfil(), { tipoDeTrabajo: "Boda", conceptos: BODA }, { nuevaClave: claves(), ahora: AHORA });
+    if (normal.estado !== "OK") throw new Error(normal.estado);
+    expect(tarjetaDeCotizacion(normal.resumen, "Boda").avisos.join(" ")).not.toMatch(/revisá/);
+  });
+});

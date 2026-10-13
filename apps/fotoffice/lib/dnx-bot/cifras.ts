@@ -48,8 +48,11 @@ export function cifrasPermitidas(fuentes: string[]): Set<string> {
   return ok;
 }
 
+/** El cero nunca es un número inventado: la guía pide ofrecer dejar un gasto en cero. */
+const SIEMPRE = new Set(["$0", "0%"]);
+
 export function cifrasNoRespaldadas(texto: string, permitidas: Set<string>): string[] {
-  return [...new Set(cifrasDelTexto(texto).filter((c) => !permitidas.has(c)))];
+  return [...new Set(cifrasDelTexto(texto).filter((c) => !permitidas.has(c) && !SIEMPRE.has(c)))];
 }
 
 /** Lo que respalda cifras en una conversación: mensajes de la persona y resultados de herramientas. */

@@ -153,6 +153,12 @@ const enPresupuestoDeLucia = armarSituacion({
  */
 export const AFIRMA_ENVIADO = /(?<!\bno (?:te |se |le )?(?:lo )?)(?<![a-záéíóúñ])(?:ya )?(?:se lo |te lo |lo )?(?:envié|mandé)(?![a-záéíóúñ])/i;
 
+/**
+ * Un monto en pesos que no es cero. Ofrecer dejar un gasto «en cero» es lo que pide la guía (caso
+ * 2): "$0" no cuenta como monto inventado.
+ */
+export const MONTO_QUE_NO_ES_CERO = /\$\s?(?!0(?!\d|[.,]\d))\d/;
+
 /** "Listo/creado" antes de que la persona toque Confirmar. */
 const AFIRMA_CREADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?cre[ée]|creado|qued[óo] creado|ya (lo )?sum[ée])(?![a-záéíóúñ])/i;
 
@@ -168,7 +174,7 @@ export const ESCENARIOS: Escenario[] = [
     perfil: "vacio",
     debeUsar: ["ver_perfil_de_precios"],
     noDebeUsar: ["guardar_perfil_de_precios"],
-    textoNoDebeContener: [/\$\s?\d/, /\?[^?]*\?[^?]*\?/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO, /\?[^?]*\?[^?]*\?/],
     textoDebeContener: [/Anthropic/],
   },
   // 2 · "Lo que paga la mayoría": no inventa el monto.
@@ -178,7 +184,7 @@ export const ESCENARIOS: Escenario[] = [
     mensaje: "La obra social no sé cuánto es, poné lo que paga la mayoría.",
     perfil: "vacio",
     noDebeUsar: ["guardar_perfil_de_precios"],
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
   },
   // 3 · Horas por tarea que no suman: simula, no guarda, dice la diferencia (15 h).
   {
@@ -211,7 +217,7 @@ export const ESCENARIOS: Escenario[] = [
     mensaje: "Quiero armar el perfil de precios del estudio.",
     noDebeUsar: ["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"],
     textoDebeContener: [/due[ñn]o|administrador/i],
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
   },
 
   // ── Etapa 2 ──
@@ -247,7 +253,7 @@ export const ESCENARIOS: Escenario[] = [
     situacion: enPresupuestos(SIN_PERFIL),
     mensaje: "¿Cuánto cobro un retrato corporativo de 2 horas de cobertura y 3 de edición?",
     perfil: "vacio",
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
     textoDebeContener: [/perfil/i],
   },
   // 10 · "Pasalo a la consulta de Lucía": busca la consulta y propone crear el borrador; no dice "creado".
@@ -280,7 +286,7 @@ export const ESCENARIOS: Escenario[] = [
     situacion: enPresupuestos(PERFIL_COMPLETO),
     mensaje: "¿Cuánto cobra la competencia por un casamiento acá en Rosario?",
     perfil: "completo",
-    textoNoDebeContener: [/\$\s?\d/],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
   },
   // 13 · Precio a mano: cotiza con precioTotalElegido y habla de la ganancia del resultado.
   {

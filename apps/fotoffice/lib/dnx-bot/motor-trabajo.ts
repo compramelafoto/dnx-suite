@@ -107,6 +107,8 @@ export type ResumenCotizacion = {
   total: { recomendado: string; minimo: string; elegido: string; ganancia: string; gananciaPct: string | null };
   /** El total quedó a mano (distinto del recomendado). */
   ajustado: boolean;
+  /** La ganancia del total es más de `GANANCIA_PARA_REVISAR` veces el costo: casi siempre faltan horas o costos. */
+  gananciaParaRevisar: boolean;
   valorHora: string;
   posicionamiento: string;
 };
@@ -122,6 +124,9 @@ const ESTADO: Record<string, string> = {
   profitable: "rentable",
   unknown: "sin datos",
 };
+
+/** Más de 3 veces el costo (300 %) no es imposible, pero casi siempre es un dato que falta: se pide revisar. */
+export const GANANCIA_PARA_REVISAR = 3;
 
 const porcentaje = (p: number | null) => (p === null || !Number.isFinite(p) ? null : `${Math.round(p * 100)} %`);
 const horasTexto = (h: number) => `${Math.round(h * 10) / 10} h`;
@@ -157,6 +162,7 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean): ResumenCotizacion
       gananciaPct: porcentaje(costoBase > 0 ? ganancia / costoBase : null),
     },
     ajustado,
+    gananciaParaRevisar: costoBase > 0 && ganancia / costoBase > GANANCIA_PARA_REVISAR,
     valorHora: $(calc[0]?.valorHora ?? 0),
     posicionamiento: calc[0]?.posicionamiento ?? "",
   };
@@ -212,6 +218,8 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
     ...r.conceptos.map((c) => ({ etiqueta: c.nombre, valor: c.precio })),
   ].slice(0, 12);
   const avisos = [
+    // Sólo un aviso: el número es el del motor, tal cual.
+    ...(r.gananciaParaRevisar ? ["La ganancia es más de 3 veces el costo: revisá que las horas y los costos del trabajo estén completos."] : []),
     ...r.conceptos.filter((c) => c.estado === "pierde plata").map((c) => `${c.nombre}: con este precio pierde plata.`),
     ...new Set(r.conceptos.flatMap((c) => c.advertencias)),
   ].slice(0, 6);
