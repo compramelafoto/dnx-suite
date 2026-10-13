@@ -13,9 +13,12 @@ import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/
 import type { CtxBot } from "../lib/dnx-bot/acceso";
 import {
   CONSULTAS_DE_PRUEBA,
+  CONSULTAS_PARA_RESPONDER,
+  SIN_RESPUESTA_DE_PRUEBA,
   ESCENARIOS,
   fallasDeCifras,
   fallasDeEntrada,
+  fallasDeEntradaContiene,
   fallasDeEntradaEnAlguna,
   fallasDeTexto,
   type Escenario,
@@ -63,6 +66,11 @@ function herramientasDe(e: Escenario): BotTool[] {
       guardarBorrador: nunca,
       itemsDePropuestaModelo: async () => 0,
       nuevaClave: () => `eval${++n}`,
+    },
+    consultas: {
+      consulta: async (_c, id) => CONSULTAS_PARA_RESPONDER[id] ?? null,
+      leerPresupuesto: async (_c, id) => (id === "pres-lucia" ? ({ id } as never) : null),
+      sinRespuesta: async (_c, o) => ({ dias: o?.dias ?? 3, seguimientoActivo: true, presupuestos: SIN_RESPUESTA_DE_PRUEBA }),
     },
   });
 }
@@ -128,6 +136,7 @@ async function main() {
       ...fallasDeCifras(e, texto, salidas),
       ...fallasDeEntrada(e, llamadas),
       ...fallasDeEntradaEnAlguna(e, llamadas),
+      ...fallasDeEntradaContiene(e, llamadas),
     ];
     if (errores.length) fallas++;
     console.log(
