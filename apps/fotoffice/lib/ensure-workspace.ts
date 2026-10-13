@@ -144,6 +144,48 @@ export async function findFotofficeWorkspaceForUser(params: {
 }
 
 /**
+ * El negocio PROPIO de esta persona, o `null`.
+ *
+ * Es su negocio el workspace del que es dueña y del que **no** es socia: la misma regla con la
+ * que `institutionChoices` decide cuál mostrar como "Tu negocio". Ser administrador de la
+ * institución de la que se es socio no cuenta.
+ *
+ * Existe porque antes la idempotencia de la creación miraba "¿tiene alguna membresía?", y con
+ * esa pregunta toda la Comisión Directiva de una sociedad quedaba inhabilitada de por vida
+ * para administrar su estudio: pedir el negocio propio devolvía la institución y no creaba
+ * nada. El caso —socio de una sociedad que además usa FotoOffice para lo suyo— está
+ * documentado como el esperado en `lib/portal/profiles.ts`.
+ */
+async function findOwnBusinessForUser(userId: number): Promise<EnsuredWorkspace | null> {
+  const owned = await prisma.workspaceMembership.findMany({
+    where: { userId, role: "WORKSPACE_OWNER" },
+    select: {
+      workspaceId: true,
+      workspace: { select: { fotofficeBranding: { select: { onboardingCompletedAt: true } } } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  if (owned.length === 0) return null;
+
+  // `ACTIVE` por el mismo criterio que `listUserProfiles`: una ficha dada de baja no convierte
+  // el estudio de alguien en la institución de la que fue socio.
+  const fichas = await prisma.member.findMany({
+    where: { userId, status: "ACTIVE", workspaceId: { in: owned.map((o) => o.workspaceId) } },
+    select: { workspaceId: true },
+  });
+  const esSocia = new Set(fichas.map((f) => f.workspaceId));
+
+  const propio = owned.find((o) => !esSocia.has(o.workspaceId));
+  if (!propio) return null;
+
+  return {
+    workspaceId: propio.workspaceId,
+    created: false,
+    onboardingCompleted: propio.workspace.fotofficeBranding?.onboardingCompletedAt != null,
+  };
+}
+
+/**
  * Crea la institución propia de alguien que la pidió.
  *
  * **Único lugar del código donde nace un `Workspace` de FotoOffice.** Es deliberadamente
@@ -151,16 +193,22 @@ export async function findFotofficeWorkspaceForUser(params: {
  * (`lib/entrada/sin-institucion-fantasma.test.ts`) que falla si aparece en cualquier archivo
  * que no sea la acción explícita del selector de perfil.
  *
- * Idempotente igual: si la persona ya tiene workspace devuelve ese, para que un doble clic no
- * le deje dos negocios.
+ * Idempotente igual: si la persona ya tiene SU negocio devuelve ese, para que un doble clic no
+ * le deje dos. Ser equipo de una institución ajena no la inhabilita.
  */
 export async function createFotofficeWorkspaceForUser(params: {
   userId: number;
   email: string;
   name?: string | null;
 }): Promise<EnsuredWorkspace> {
-  const existing = await findFotofficeWorkspaceForUser(params);
-  if (existing) return existing;
+  // Termina de armar lo que ya exista —promueve una membresía de la tabla vieja, completa el
+  // branding faltante— sin dar de alta nada: `findFotofficeWorkspaceForUser` nunca crea un
+  // `Workspace`. Sin este paso, quien sólo figura en la tabla legacy se llevaría un negocio
+  // nuevo además del que ya tenía.
+  await findFotofficeWorkspaceForUser(params);
+
+  const propio = await findOwnBusinessForUser(params.userId);
+  if (propio) return propio;
 
   const commercialName =
     params.name?.trim() ||

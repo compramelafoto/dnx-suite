@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ContestCarousel } from "@/components/contests/contest-carousel";
 import type { ShowcaseItem } from "@/lib/contests/showcase";
-import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
+import { createOwnBusinessAction } from "@/app/actions/profile-choice";
 import type { MemberBalance } from "@/lib/membership/balance";
 import { formatMinorArs } from "@/lib/membership/money";
 import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
@@ -45,7 +45,6 @@ export type PortalHomeProps = {
   /** Porcentaje del beneficio por recomendar, o null si la sección no está disponible. */
   recommendationBenefitPercent: number | null;
   perfilVacio: boolean;
-  puedeCambiarPerfil: boolean;
   tieneNegocio: boolean;
   /** El sorteo abierto, si hay uno y el módulo está prendido. */
   sorteo: PortalRaffleView | null;
@@ -81,7 +80,6 @@ export function PortalHome({
   vocabulary: v,
   recommendationBenefitPercent,
   perfilVacio,
-  puedeCambiarPerfil,
   tieneNegocio,
   sorteo,
   whatsappGroupUrl,
@@ -457,13 +455,6 @@ export function PortalHome({
         creación del negocio es siempre explícita: nunca ocurre por visitar una ruta.
       */}
       <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--fo-border)] pt-4 text-xs text-[var(--fo-muted)]">
-        {puedeCambiarPerfil ? (
-          <form action={switchProfileAction}>
-            <button type="submit" className="underline underline-offset-2 hover:text-[var(--fo-text)]">
-              Cambiar de perfil
-            </button>
-          </form>
-        ) : null}
         {!tieneNegocio ? (
           <form action={createOwnBusinessAction} className="leading-relaxed">
             {`¿Tenés tu propio estudio o querés enseñar? Creá tu espacio en FotoOffice para administrar tu negocio o subir tus cursos y que las instituciones los vendan, aparte de tu ficha de ${v.singular}.`}{" "}
