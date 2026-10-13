@@ -6,7 +6,7 @@ const B = await vi.hoisted(async () => {
   const { crearBaseEnMemoria } = await import("../../circuitos/base-en-memoria");
   return crearBaseEnMemoria();
 });
-const H = vi.hoisted(() => ({ nivel: vi.fn(async (..._a: unknown[]) => true) }));
+const H = vi.hoisted(() => ({ nivel: vi.fn(async () => true) }));
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
