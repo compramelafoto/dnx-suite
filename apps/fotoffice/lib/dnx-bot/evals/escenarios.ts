@@ -65,6 +65,8 @@ export function presupuestoDePrueba(id: string): DetallePresupuesto | null {
   if (id !== "pres-lucia") return null;
   const items: ItemPresupuesto[] = [
     { id: "i1", productId: null, nombre: "Cobertura casamiento", descripcion: null, cantidad: 1, precioUnitario: 982_040, descuento: null, modoPrecio: "LISTA", calculo: null, seccion: null, opcional: false },
+    // El caso 17 dice "el total es $1.294.000": el borrador tiene que dar eso, o el bot (con razón) frena por la diferencia.
+    { id: "i2", productId: null, nombre: "Álbum", descripcion: null, cantidad: 1, precioUnitario: 311_960, descuento: null, modoPrecio: "LISTA", calculo: null, seccion: null, opcional: false },
   ];
   const borrador = {
     id: "v-lucia", number: 1, items, totals: { ...calcularTotales(items, null), descuento: null }, terms: null, paymentProposal: null,
