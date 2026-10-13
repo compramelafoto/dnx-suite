@@ -31,6 +31,8 @@ type DesignContext = {
   orderId: number | null;
   albumTitle: string | null;
   photographer: { name: string | null; email: string | null } | null;
+  /** Diseño de un canje de prueba del fotógrafo (pedido DEMO): no se manda ningún correo. */
+  esPrueba: boolean;
 };
 
 async function loadDesignContext(projectId: number): Promise<DesignContext | null> {
@@ -48,11 +50,13 @@ async function loadDesignContext(projectId: number): Promise<DesignContext | nul
 
   let buyerEmail: string | null = null;
   let buyerName: string | null = null;
+  let esPrueba = false;
   if (project.albumOrderId) {
     const order = await prisma.order.findUnique({
       where: { id: project.albumOrderId },
-      select: { buyerEmail: true, buyerName: true },
+      select: { buyerEmail: true, buyerName: true, isTest: true },
     });
+    esPrueba = order?.isTest === true;
     buyerEmail = order?.buyerEmail ?? null;
     buyerName = order?.buyerName ?? null;
   } else if (project.orderItemId) {
@@ -80,6 +84,7 @@ async function loadDesignContext(projectId: number): Promise<DesignContext | nul
     orderId: project.albumOrderId,
     albumTitle: album?.title ?? null,
     photographer,
+    esPrueba,
   };
 }
 
@@ -105,6 +110,7 @@ function photographerLabel(ctx: DesignContext): string {
 export async function notifyPhotographerDesignToReview(projectId: number): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
+    if (ctx?.esPrueba) return;
     if (!ctx?.photographer?.email) return;
     const url = `${APP_URL}/fotografo/disenos/${projectId}`;
     const album = ctx.albumTitle ? ` del álbum "${ctx.albumTitle}"` : "";
@@ -124,6 +130,7 @@ export async function notifyPhotographerDesignToReview(projectId: number): Promi
 export async function notifyBuyerDesignReady(projectId: number, generatedAt: string): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
+    if (ctx?.esPrueba) return;
     if (!ctx?.buyerEmail) return;
     const url = await downloadLinkFor(ctx.orderId);
     await queueEmail({
@@ -143,6 +150,7 @@ export async function notifyBuyerDesignReady(projectId: number, generatedAt: str
 export async function notifyBuyerDesignChanges(projectId: number, note: string): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
+    if (ctx?.esPrueba) return;
     if (!ctx?.buyerEmail) return;
     const who = photographerLabel(ctx);
     const contact = ctx.photographer?.email ? `\n\nRespondele a ${ctx.photographer.email}.` : "";

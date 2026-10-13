@@ -10,7 +10,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const { token } = await params;
   const viewer = await getAuthUser().catch(() => null);
   if (!viewer) return NextResponse.json({ error: "Iniciá sesión con tu cuenta." }, { status: 401 });
-  const r = await reiniciarPackDePrueba(token, viewer.id);
+  const r = await reiniciarPackDePrueba(token, viewer);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
   return NextResponse.json({ ok: true });
 }

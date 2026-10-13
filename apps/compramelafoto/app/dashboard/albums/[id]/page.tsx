@@ -22,6 +22,7 @@ import PhotographerDashboardHeader from "@/components/photographer/PhotographerD
 import PreventaPackDashboardSection from "@/components/dashboard/preventa-packs/PreventaPackDashboardSection";
 import AlbumUpsellConfigCard from "@/components/dashboard/preventa-packs/AlbumUpsellConfigCard";
 import PreventaAvisoFamiliasCard from "@/components/dashboard/preventa-packs/PreventaAvisoFamiliasCard";
+import ProbarComoClienteButton from "@/components/dashboard/preventa-packs/ProbarComoClienteButton";
 import AlbumStudentRosterSection from "@/components/dashboard/album-school/AlbumStudentRosterSection";
 import AlbumSchoolOperationsSection from "@/components/dashboard/album-school/AlbumSchoolOperationsSection";
 import AlbumPacksSection from "@/components/dashboard/album-packs/AlbumPacksSection";
@@ -2377,6 +2378,8 @@ export default function DashboardAlbumDetailPage() {
                 </div>
 
                 <PreventaAvisoFamiliasCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} />
+
+                <ProbarComoClienteButton albumId={album.id} />
 
                 <PreventaPackDashboardSection
                   albumId={album.id}

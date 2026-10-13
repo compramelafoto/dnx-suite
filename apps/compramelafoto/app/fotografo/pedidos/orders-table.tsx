@@ -1,5 +1,7 @@
 "use client";
 
+import { sinPedidosDemo } from "@/lib/canje-externo/pack-de-prueba";
+
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { OrderVisualProvider } from "@/components/fotografo/orders/OrderVisualContext";
@@ -68,6 +70,8 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     () => filterOrders(orders, quickFilter, q),
     [orders, quickFilter, q]
   );
+  /** Sin los pedidos DEMO: para indicadores, alertas, analítica y actividad. */
+  const realOrders = useMemo(() => sinPedidosDemo(orders), [orders]);
 
   const visibleKeys = useMemo(() => filtered.map(rowKey), [filtered]);
 
@@ -407,7 +411,7 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     <OrderVisualProvider>
     <div className={cn("flex flex-col gap-5 w-full min-w-0", hasBulkSelection && "pb-24")}>
       <OrdersNeedsAttention
-        orders={orders}
+        orders={realOrders}
         automationHandlers={automationHandlers}
         onViewOrders={() => {
           setQuickFilter("ALL");
@@ -416,9 +420,9 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
         }}
       />
 
-      <OrdersOperationalInsights orders={orders} automationHandlers={automationHandlers} />
+      <OrdersOperationalInsights orders={realOrders} automationHandlers={automationHandlers} />
 
-      <OrdersAnalyticsWorkspace orders={orders} />
+      <OrdersAnalyticsWorkspace orders={realOrders} />
 
       <div ref={listAnchorRef} className="scroll-mt-4 w-full min-w-0 space-y-3 border-t border-gray-100 pt-5">
       <OrdersWorkspaceHeader
@@ -503,7 +507,7 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
       </div>
 
       <OrdersActivityFeed
-        orders={orders}
+        orders={realOrders}
         automationHandlers={automationHandlers}
         variant="compact"
       />
