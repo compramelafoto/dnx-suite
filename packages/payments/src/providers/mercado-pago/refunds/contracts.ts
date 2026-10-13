@@ -2,21 +2,31 @@
  * Mercado Pago Orders API — Refund order
  * POST /v1/orders/{order_id}/refund
  *
- * Total refund: empty body (no transactions).
- * Partial refund: transactions[{ id, amount }].
+ * En órdenes con split el reembolso se dirige **al participante**, no a la
+ * transacción de pago. MP lo confirmó el 13/10/2026 (IXFS-16376) después de que
+ * todos nuestros intentos con `transactions` dieran `split_validation_error`:
+ *
+ *     total de la orden     → body vacío
+ *     total a 1 participante → { splits: [{ receiver_id }] }
+ *     parcial a 1           → { splits: [{ receiver_id, amount }] }
+ *     combinado             → varias entradas, con o sin amount cada una
+ *
+ * Siempre `splits`, nunca `transactions`, y nunca mezclados. Montos, no
+ * porcentajes. Un `receiver_id` sin `amount` reembolsa la pata completa de ese
+ * participante.
  *
  * @see https://www.mercadopago.com.ar/developers/en/reference/online-payments/checkout-api/refund-order/post
  */
 
-export type MpOrderRefundTransactionInput = {
-  /** Payment transaction id from the order (PAY…). */
-  id: string;
-  /** Decimal amount string, e.g. "24.50" — never float in our layer. */
-  amount: string;
+export type MpOrderRefundSplitInput = {
+  /** Receptor al que se le reembolsa: owner user id o partner receiver id. */
+  receiver_id: string;
+  /** Monto decimal, p. ej. "24.50". Omitido = su pata completa. */
+  amount?: string;
 };
 
 export type MpOrderRefundRequestBody = {
-  transactions?: MpOrderRefundTransactionInput[];
+  splits?: MpOrderRefundSplitInput[];
 };
 
 export type MpOrderRefundEntry = {

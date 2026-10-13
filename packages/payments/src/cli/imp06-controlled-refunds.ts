@@ -258,10 +258,15 @@ async function main() {
 
       const partialAmount = 1_000n;
       const idem = randomUUID();
+      /**
+       * Orders dirige el reembolso al participante, no a la transacción de pago
+       * (confirmado por MP el 13/10/2026). Se reembolsa sobre la pata del
+       * partner, que es la más chica y deja margen para el parcial.
+       */
+      const refundTarget = env.partnerReceiverId!;
       const partial = await adapter.refund({
         providerOrderId: order.providerOrderId,
-        amount: money("ARS", partialAmount),
-        providerTransactionId: order.payTxId,
+        splits: [{ receiverId: refundTarget, amount: money("ARS", partialAmount) }],
         idempotencyKey: idem,
       });
 
@@ -269,8 +274,7 @@ async function main() {
       if (caseName === "idempotency") {
         const retry = await adapter.refund({
           providerOrderId: order.providerOrderId,
-          amount: money("ARS", partialAmount),
-          providerTransactionId: order.payTxId,
+          splits: [{ receiverId: refundTarget, amount: money("ARS", partialAmount) }],
           idempotencyKey: idem,
         });
         idempotency = {
@@ -469,8 +473,9 @@ async function main() {
     await new Promise((r) => setTimeout(r, settleMs));
     const partial = await adapter.refund({
       providerOrderId: order.providerOrderId,
-      amount: money("ARS", 1_000n),
-      providerTransactionId: order.payTxId,
+      splits: [
+        { receiverId: env.partnerReceiverId!, amount: money("ARS", 1_000n) },
+      ],
       idempotencyKey: randomUUID(),
     });
     const after = await adapter.getOrder(order.providerOrderId, "sandbox");

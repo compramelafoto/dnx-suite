@@ -254,10 +254,9 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
     const result = await createMercadoPagoOrderRefund(this.http, {
       providerOrderId: input.providerOrderId,
       idempotencyKey: input.idempotencyKey,
-      ...(input.amount ? { amount: input.amount } : {}),
-      ...(input.providerTransactionId
-        ? { providerTransactionId: input.providerTransactionId }
-        : {}),
+      // Orders reembolsa al participante: `amount` y `providerTransactionId`
+      // del contrato genérico no aplican acá.
+      ...(input.splits?.length ? { splits: input.splits } : {}),
     });
     return {
       providerRefundId: result.providerRefundIds[0] ?? result.providerOrderId,
