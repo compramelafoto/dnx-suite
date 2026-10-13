@@ -469,3 +469,11 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 
 ### Tarea 4.8: Limpieza a 90 días, revisión de seguridad y verificación
 - [ ] `/api/cron/adjuntos` borra `BotConversation` con `platform startsWith "FOTOFFICE:"` y `updatedAt` > 90 días (las de CLF no se tocan). Prueba. Revisión de seguridad. Verificación completa y PR.
+
+**Notas de ejecución del PR 4 (13/10):**
+- Pedidos aparte, incluidos: el editor de presupuestos no pisa un borrador que cambió mientras estaba abierto (concurrencia optimista con el `updatedAt` del presupuesto más una firma del contenido del borrador, sin migración; un cambio que sólo mueve la fecha —estado, vistas— no frena) y la mascota de la foto de CLF (`mascota.webp` + `mascota-foto.webp`, `mascotSpriteSrc`).
+- La precarga del mensaje de la ficha de la consulta completa el texto con los datos de la ficha: `prepararMensaje` acepta un texto propio además de una plantilla.
+- `preparar_mensaje` rechaza todo monto o porcentaje escrito a mano (no sólo los que no salieron del cálculo): el total va siempre como `[presupuesto_total]`.
+- `ver_consulta` no informa propuesta modelo ni borrador automático (los presupuestos de la consulta ya muestran lo que hay).
+- La limpieza a 90 días corre en `/api/cron/adjuntos` antes del chequeo de R2, así funciona aunque los adjuntos no estén configurados.
+- Revisión de seguridad: ver la sección «Revisión de seguridad» del PR 4.
