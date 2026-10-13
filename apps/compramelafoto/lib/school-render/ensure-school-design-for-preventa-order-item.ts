@@ -85,6 +85,8 @@ export async function loadSchoolDesignContext(
     photographerUserId: order.album.userId,
     values: buildDesignValues({
       studentName,
+      studentFirstName: order.studentFirstName,
+      studentLastName: order.studentLastName,
       courseName:
         courseDisplayName(order.schoolCourse?.name, order.schoolCourse?.division) ??
         courseDisplayName(order.studentCourseSnapshot, order.studentDivisionSnapshot),
