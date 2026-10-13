@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle, type PhotoOverride } from "@repo/template-editor-ui";
 import {
@@ -29,6 +30,16 @@ import {
  * manda con el canje. Lo que se ve es lo que se imprime: el encuadre usa la misma cuenta que la
  * exportación (`computeCoverCropRect`).
  */
+
+/** El visor 3D trae three.js: se carga recién cuando la familia lo abre. */
+const Librito3DVisor = dynamic(() => import("./librito-3d/Librito3DVisor"), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-[#f7f3ee] text-[14px] text-[#6b6f76]" role="status">
+      Cargando la vista 3D…
+    </div>
+  ),
+});
 
 /** Encuadre de la foto de un lugar del canje. Vale mientras ese lugar tenga esa foto. */
 export type CanjeCropEntry = { photoId: number; crop: PhotoCrop };
@@ -124,6 +135,7 @@ export default function CanjeLibritoStep({
   const deCostado = giro % 180 !== 0;
   const [sheet, setSheet] = useState<{ blockId: string; tab: "cambiar" | "acomodar" } | null>(null);
   const [verTodas, setVerTodas] = useState(false);
+  const [ver3d, setVer3d] = useState(false);
   const [deshacer, setDeshacer] = useState<{ texto: string; filled: Array<number | null>; crops: Record<number, CanjeCropEntry> } | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const areaWidth = useWidth(areaRef);
@@ -141,7 +153,7 @@ export default function CanjeLibritoStep({
   // El total de hojas se calcula acá: el hook va antes de la salida anticipada de abajo.
   const totalHojas = Math.max(1, libro?.template.pageCount ?? 1);
   useEffect(() => {
-    if (sheet) return;
+    if (sheet || ver3d) return;
     const pageCount = totalHojas;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -159,7 +171,7 @@ export default function CanjeLibritoStep({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sheet, totalHojas]);
+  }, [sheet, ver3d, totalHojas]);
 
   if (!libro) return null;
   const t = libro.template;
@@ -237,6 +249,21 @@ export default function CanjeLibritoStep({
   const sheetPlace = sheet ? libro.placeByBlock.get(sheet.blockId) ?? null : null;
   const sheetBlock = sheet ? blockById.get(sheet.blockId) : undefined;
 
+  const boton3d = (
+    <button
+      type="button"
+      onClick={() => setVer3d(true)}
+      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1f2328] ring-1 ring-[#e7e1da] hover:ring-[#c27b3d]"
+      aria-label="Ver el librito en 3D"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden>
+        <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+        <path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />
+      </svg>
+      Ver en 3D
+    </button>
+  );
+
   return (
     <section className="mx-auto max-w-xl">
       <div className="mb-3">
@@ -289,13 +316,12 @@ export default function CanjeLibritoStep({
               </button>
             ))}
           </div>
-          <span className="whitespace-nowrap rounded-full border border-dashed border-[#cfc5ba] px-2.5 py-1 text-xs font-semibold text-[#6b6f76]">
-            Ver en 3D · pronto
-          </span>
+          {boton3d}
         </div>
       ) : null}
 
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex items-center justify-end gap-2">
+        {pageCount > 1 ? null : boton3d}
         <button
           type="button"
           onClick={() => setGiro((g) => (g + 90) % 360)}
@@ -506,6 +532,19 @@ export default function CanjeLibritoStep({
             </div>
           </div>
         </>
+      ) : null}
+
+      {ver3d ? (
+        <Librito3DVisor
+          titulo={libro.title}
+          canvas={t.canvas}
+          blocks={visibleBlocks}
+          values={values}
+          photoOverrides={overrides}
+          pageCount={pageCount}
+          giro={giro}
+          onClose={() => setVer3d(false)}
+        />
       ) : null}
 
       {deshacer ? (
