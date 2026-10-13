@@ -50,7 +50,8 @@ import {
 import { createAreaTextBlockInRect, createPointTextBlockAt } from "@repo/template-editor-core";
 import {
   canvasDpi,
-  computeResizeRect,
+  computeResizeRectRotated,
+  snapRotationDeg,
   describeAspect,
   findAspectPreset,
   formatBlockSize,
@@ -1105,7 +1106,14 @@ export function TemplateEditorCanvas({
                      */
                     drag.grupo
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
-                      : blocksOnPage
+                      : blocksOnPage,
+                    undefined,
+                    // Con Shift, imán fuerte: bordes enfrentados de otros bloques y la zona segura.
+                    {
+                      magnet: e.shiftKey,
+                      guidesX: [safeAreaRect.x, safeAreaRect.x + safeAreaRect.width],
+                      guidesY: [safeAreaRect.y, safeAreaRect.y + safeAreaRect.height],
+                    }
                   );
                   setSnapGuides({ vx: snapped.guideVerticalX, hy: snapped.guideHorizontalY });
 
@@ -1270,7 +1278,8 @@ export function TemplateEditorCanvas({
                           rz.rotationAccumDeg = normalizeRotationDeg(
                             rz.rotationAccumDeg + (deltaRad * 180) / Math.PI
                           );
-                          const nextDeg = rz.rotationAccumDeg;
+                          // Con Shift, imán a los ángulos rectos (y de a 15° entre medio).
+                          const nextDeg = e.shiftKey ? snapRotationDeg(rz.rotationAccumDeg) : rz.rotationAccumDeg;
                           dispatch(
                             updateBlock(
                               primaryBlock.id,
@@ -1380,7 +1389,7 @@ export function TemplateEditorCanvas({
                           // Con proporción fijada en el inspector, la esquina estira siempre en
                           // proporción, como si Mayús estuviera apretada.
                           const aspectLock = getBlockAspectLock(primaryBlock.configJson);
-                          const next = computeResizeRect(
+                          const next = computeResizeRectRotated(
                             rz.handle,
                             {
                               x: rz.startX,
@@ -1390,7 +1399,8 @@ export function TemplateEditorCanvas({
                             },
                             dx,
                             dy,
-                            { shift: e.shiftKey || aspectLock !== null, alt: e.altKey }
+                            { shift: e.shiftKey || aspectLock !== null, alt: e.altKey },
+                            primaryBlock.layout.rotation ?? 0
                           );
                           const layoutPatch = {
                             x: next.x,
