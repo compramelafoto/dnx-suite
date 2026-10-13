@@ -1,12 +1,6 @@
-// Lógica pura (sin React) de la entrada animada de la mascota y de los «llamados» en reposo.
+// Lógica pura (sin React) de la animación de la mascota y de los «llamados» en reposo.
 // Apta para el navegador: sólo importa de src/ui.
-import type { AlmacenSimple } from "./globito";
-
-export type TipoEntrada = "grande" | "corta" | "ninguna";
-export type FaseMascota = "entrada-grande" | "entrada-corta" | "reposo" | "llamado";
-
-/** Marca en sessionStorage: la entrada grande se ve una sola vez por visita. */
-export const ENTRADA_VISTA_KEY = "dnxbot:entrada-vista";
+export type FaseMascota = "entrada" | "reposo" | "llamado";
 
 /**
  * La animación de la mascota (la de Daniel: se agacha, levanta la cámara, saca la foto con flash y
@@ -20,19 +14,17 @@ export const DURACION_FOTO_MS = DURACIONES_CUADROS_MS.reduce((a, b) => a + b, 0)
 /** Ancho/alto de cada cuadro de la tira (291×400 px). */
 export const PROPORCION_CUADRO = 291 / 400;
 
-/** Aparecer en grande, achicarse al final y aparecer en tamaño normal (ms). */
-export const APARECER_GRANDE_MS = 300;
+/** Crecer (o aparecer) hasta la pose grande y, después de la foto, achicarse a su tamaño (ms). */
+export const CRECER_MS = 300;
 export const ACHICAR_MS = 450;
-export const APARECER_CORTA_MS = 250;
 
-/** Duraciones (ms). El globito aparece recién cuando termina la entrada. */
-export const DURACION_ENTRADA: Record<TipoEntrada, number> = {
-  grande: APARECER_GRANDE_MS + DURACION_FOTO_MS + ACHICAR_MS,
-  corta: APARECER_CORTA_MS + DURACION_FOTO_MS,
-  ninguna: 0,
-};
-/** Un «llamado» en reposo repite la animación de la foto una vez, en tamaño normal. */
-export const DURACION_LLAMADO_MS = DURACION_FOTO_MS;
+/**
+ * Cada vez que saca la foto lo hace en grande: en la entrada de cada página y en cada llamado.
+ * Crece (300 ms), saca la foto (2830 ms) y se achica a su tamaño (450 ms). El globito aparece
+ * recién cuando termina la entrada, y se oculta mientras dura un llamado.
+ */
+export const DURACION_ENTRADA_MS = CRECER_MS + DURACION_FOTO_MS + ACHICAR_MS;
+export const DURACION_LLAMADO_MS = DURACION_ENTRADA_MS;
 /** Primer llamado en reposo, cada cuánto se repite y cuántos como máximo por página. */
 export const PRIMER_LLAMADO_MS = 20000;
 export const CADA_LLAMADO_MS = 25000;
@@ -40,20 +32,9 @@ export const MAX_LLAMADOS = 3;
 /** Si la tira no terminó de cargar en este tiempo, la mascota aparece quieta (sin animación). */
 export const ESPERA_TIRA_MS = 4000;
 
-/**
- * Qué entrada hace la mascota. Con movimiento reducido: ninguna (aparece y listo). La primera vez de
- * la visita: la grande, y queda marcada. Después: la corta. Si el almacenamiento falla, la corta
- * (mejor no repetir la grande en cada página que repetirla sin control).
- */
-export function tipoEntrada(almacen: AlmacenSimple | null, reducirMovimiento: boolean): TipoEntrada {
-  if (reducirMovimiento) return "ninguna";
-  try {
-    if (!almacen || almacen.getItem(ENTRADA_VISTA_KEY)) return "corta";
-    almacen.setItem(ENTRADA_VISTA_KEY, "1");
-    return "grande";
-  } catch {
-    return "corta";
-  }
+/** Hay animación salvo con movimiento reducido o sin la tira de cuadros: entonces queda quieta. */
+export function hayAnimacion(reducirMovimiento: boolean, tieneTira: boolean): boolean {
+  return tieneTira && !reducirMovimiento;
 }
 
 function pct(n: number): string {
@@ -76,16 +57,15 @@ export function keyframesFoto(): string {
   return `@keyframes dnxbot-foto {\n${filas.join("\n")}\n}`;
 }
 
-const GRANDE_TOTAL = DURACION_ENTRADA.grande;
-const finAparecer = (APARECER_GRANDE_MS / GRANDE_TOTAL) * 100;
-const inicioAchicar = ((APARECER_GRANDE_MS + DURACION_FOTO_MS) / GRANDE_TOTAL) * 100;
+const finCrecer = (CRECER_MS / DURACION_ENTRADA_MS) * 100;
+const inicioAchicar = ((CRECER_MS + DURACION_FOTO_MS) / DURACION_ENTRADA_MS) * 100;
 
 /**
  * Animaciones de la mascota, sólo CSS. La mascota va recortada, sin círculo, con una sombra ovalada
  * en el «piso». La única animación del robot es la tira de la foto; el botón sólo aparece y escala
  * (origen en su esquina de abajo a la derecha): la pose grande crece hacia arriba y a la izquierda,
  * lejos de los botones de pago que la burbuja tiene debajo, y nunca baja de su lugar.
- * Tamaños: en reposo 90 px de alto (76 en móvil); en la pose grande, 200 px (150 en móvil).
+ * Tamaños: en reposo 90 px de alto (76 en móvil); cada vez que saca la foto, 200 px (150 en móvil).
  */
 export const CSS_MASCOTA = `
 .dnxbot-raiz { --dnxbot-alto: 90px; --dnxbot-ancho: calc(var(--dnxbot-alto) * ${PROPORCION_CUADRO}); --dnxbot-pico: 2.22; }
@@ -107,31 +87,28 @@ export const CSS_MASCOTA = `
   .dnxbot-raiz { --dnxbot-alto: 76px; --dnxbot-pico: 1.97; }
 }
 ${keyframesFoto()}
-@keyframes dnxbot-entrada-grande {
+@keyframes dnxbot-entrada {
   0% { opacity: 0; transform: scale(calc(var(--dnxbot-pico) * .8)); }
-  ${pct(finAparecer)} { opacity: 1; transform: scale(var(--dnxbot-pico)); }
+  ${pct(finCrecer)} { opacity: 1; transform: scale(var(--dnxbot-pico)); }
   ${pct(inicioAchicar)} { opacity: 1; transform: scale(var(--dnxbot-pico)); animation-timing-function: ease-in-out; }
   100% { opacity: 1; transform: scale(1); }
 }
-@keyframes dnxbot-entrada-corta {
-  0% { opacity: 0; transform: scale(.85); }
-  100% { opacity: 1; transform: scale(1); }
+@keyframes dnxbot-llamado {
+  0% { transform: scale(1); animation-timing-function: ease-out; }
+  ${pct(finCrecer)} { transform: scale(var(--dnxbot-pico)); }
+  ${pct(inicioAchicar)} { transform: scale(var(--dnxbot-pico)); animation-timing-function: ease-in-out; }
+  100% { transform: scale(1); }
 }
 @keyframes dnxbot-globito {
   0% { opacity: 0; transform: translateX(8px) scale(.85); }
   100% { opacity: 1; transform: none; }
 }
-.dnxbot-mascota[data-fase="entrada-grande"] { animation: dnxbot-entrada-grande ${GRANDE_TOTAL}ms ease-out both; }
-.dnxbot-mascota[data-fase="entrada-corta"] { animation: dnxbot-entrada-corta ${APARECER_CORTA_MS}ms ease-out both; }
-.dnxbot-mascota[data-fase="entrada-grande"] .dnxbot-tira,
-.dnxbot-mascota[data-fase="entrada-corta"] .dnxbot-tira,
-.dnxbot-mascota[data-fase="llamado"] .dnxbot-tira { display: block; }
-.dnxbot-mascota[data-fase="entrada-grande"] img,
-.dnxbot-mascota[data-fase="entrada-corta"] img,
+.dnxbot-mascota[data-fase="entrada"] { animation: dnxbot-entrada ${DURACION_ENTRADA_MS}ms ease-out both; }
+.dnxbot-mascota[data-fase="llamado"] { animation: dnxbot-llamado ${DURACION_LLAMADO_MS}ms both; }
+.dnxbot-mascota[data-fase="entrada"] .dnxbot-tira,
+.dnxbot-mascota[data-fase="llamado"] .dnxbot-tira { display: block; animation: dnxbot-foto ${DURACION_FOTO_MS}ms ${CRECER_MS}ms steps(1, end) both; }
+.dnxbot-mascota[data-fase="entrada"] img,
 .dnxbot-mascota[data-fase="llamado"] img { visibility: hidden; }
-.dnxbot-mascota[data-fase="entrada-grande"] .dnxbot-tira { animation: dnxbot-foto ${DURACION_FOTO_MS}ms ${APARECER_GRANDE_MS}ms steps(1, end) both; }
-.dnxbot-mascota[data-fase="entrada-corta"] .dnxbot-tira { animation: dnxbot-foto ${DURACION_FOTO_MS}ms ${APARECER_CORTA_MS}ms steps(1, end) both; }
-.dnxbot-mascota[data-fase="llamado"] .dnxbot-tira { animation: dnxbot-foto ${DURACION_FOTO_MS}ms steps(1, end) both; }
 .dnxbot-globito { transform-origin: 100% 100%; animation: dnxbot-globito 280ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
   .dnxbot-mascota, .dnxbot-mascota *, .dnxbot-globito { animation: none !important; }
