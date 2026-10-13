@@ -300,6 +300,7 @@ export async function executePreventaPackRedeemV1InTransaction(
       preventaPackSnapshotJson: true,
       organizerSchoolId: true,
       organizerReferralApplied: true,
+      isTest: true,
     },
   });
   if (!parent) {
@@ -505,6 +506,8 @@ export async function executePreventaPackRedeemV1InTransaction(
       redeemsOrderId: parent.id,
       organizerSchoolId: parent.organizerSchoolId,
       organizerReferralApplied: parent.organizerReferralApplied,
+      // El canje de un pack de prueba es de prueba: no entra en ventas ni en informes.
+      isTest: parent.isTest,
       pricingSnapshot: pricingSnapshot,
       items: {
         create: itemsToCreate,

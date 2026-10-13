@@ -47,3 +47,19 @@ export function parseExternalPreventaRefs(raw: unknown): ExternalPreventaRefs | 
     label: texto(r.label),
   };
 }
+
+
+/**
+ * Parte el nombre de un alumno tal como vino en el Excel de una preventa cobrada por fuera.
+ *
+ * Esos listados traen el apellido primero («Araujo Ines»): se toma la primera palabra como
+ * apellido y el resto como nombre. Un apellido compuesto («De La Fuente Juan») queda mal
+ * partido; para el listado del curso y los formatos del nombre es un mal menor frente a no
+ * tenerlos, y el nombre completo se sigue imprimiendo tal como vino.
+ */
+export function splitExcelStudentName(raw: string | null | undefined): { firstName: string; lastName: string } | null {
+  const partes = (raw ?? "").trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return null;
+  if (partes.length === 1) return { firstName: "", lastName: partes[0]! };
+  return { lastName: partes[0]!, firstName: partes.slice(1).join(" ") };
+}
