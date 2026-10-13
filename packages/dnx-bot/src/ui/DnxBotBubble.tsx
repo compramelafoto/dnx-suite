@@ -254,12 +254,14 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
   if (!estado?.enabled) return null;
 
   return (
-    <div style={{ position: "fixed", right: 24, bottom: bottomOffsetPx, zIndex: 9990 }}>
+    <div className="dnxbot-raiz" style={{ position: "fixed", right: 24, bottom: bottomOffsetPx, zIndex: 9990 }}>
       <style>{CSS_MASCOTA}</style>
       {open && (
-        <div role="dialog" aria-label="DNX Bot" style={{ width: "min(380px, calc(100vw - 32px))", height: `min(560px, calc(100vh - ${bottomOffsetPx + 116}px))`, marginBottom: 12, background: "#fff", color: "#111", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", fontSize: 14 }}>
+        <div role="dialog" aria-label="DNX Bot" style={{ width: "min(380px, calc(100vw - 32px))", height: `min(560px, calc(100vh - ${bottomOffsetPx + 148}px))`, marginBottom: 12, background: "#fff", color: "#111", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", fontSize: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid #eee" }}>
-            <img src={mascotSrc} alt="" width={32} height={32} />
+            <span aria-hidden="true" style={{ width: 32, height: 32, flex: "none", borderRadius: 999, background: "#fff3e8", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <img src={mascotSrc} alt="" width={18} height={28} style={{ objectFit: "contain" }} />
+            </span>
             <div style={{ flex: 1 }}>
               <strong>DNX Bot</strong>
               <div style={{ fontSize: 11, color: "#666" }}>Soy un asistente automático</div>
@@ -322,7 +324,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
         </div>
       )}
       {globito && !open && !globitoEnVentana && entradaLista && (
-        <div role="status" aria-label="Mensaje de DNX Bot" className={sinMovimiento ? undefined : "dnxbot-globito"} style={{ position: "absolute", right: 76, bottom: 8, width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
+        <div role="status" aria-label="Mensaje de DNX Bot" className={sinMovimiento ? "dnxbot-globito-pos" : "dnxbot-globito dnxbot-globito-pos"} style={{ position: "absolute", width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
           <button onClick={cerrarGlobito} aria-label="Cerrar el mensaje de DNX Bot" style={{ position: "absolute", top: 2, right: 4, border: 0, background: "none", fontSize: 16, lineHeight: 1, cursor: "pointer", color: "#666" }}>×</button>
           <div style={{ paddingRight: 14 }}><BotText text={globito.texto} rutas={rutasPermitidas} /></div>
           {globito.botones.length > 0 && (
@@ -341,11 +343,13 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
         className="dnxbot-mascota"
         data-fase={fase ?? undefined}
         // Hasta decidir la entrada no se muestra: evita que se vea un instante quieta antes de entrar.
-        style={{ position: "relative", marginLeft: "auto", display: "block", width: 64, height: 64, borderRadius: 999, border: "2px solid #ffd9b8", background: "#fff", boxShadow: "0 6px 20px rgba(0,0,0,.2)", cursor: "pointer", padding: 2, opacity: fase ? 1 : 0 }}
+        style={{ opacity: fase ? 1 : 0 }}
       >
-        <span className="dnxbot-onda" aria-hidden="true" />
-        <img src={mascotSrc} alt="" width={56} height={56} style={{ display: "block", objectFit: "contain" }} />
-        {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
+        <span className="dnxbot-sombra" aria-hidden="true" />
+        <span className="dnxbot-cuerpo">
+          <img src={mascotSrc} alt="" width={57} height={90} />
+        </span>
+        {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", zIndex: 2, top: 0, right: -4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
       </button>
     </div>
   );
