@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { indiceDeFoto } from "@/lib/pantalla-reproduccion";
-import { queMostrar } from "@/lib/pantalla-ritmo";
+import { CADA_FOTO_MS, queMostrar, ritmoDePantalla } from "@/lib/pantalla-ritmo";
 import { AYUDA_DEL_MANDO, accionDeTecla, avisoDeAccion } from "@/lib/mando-teclado";
 import { sacarSiYaSeVio } from "@/lib/pantalla-una-sola-vez";
 import { totalesOrdenados } from "@/lib/reacciones";
@@ -37,9 +37,6 @@ export type ItemEnVivo =
 /** Nombre viejo, conservado para no romper lo que todavía lo importe. */
 export type FotoEnVivo = Extract<ItemEnVivo, { tipo: "FOTO" }>;
 
-const CADA_FOTO_MS = 7_000;
-/** El QR se deja más tiempo: hay que sacar el teléfono, abrir la cámara y apuntar. */
-const EL_QR_MS = 12_000;
 /** Las URL vienen firmadas por un rato: no se puede guardar una lista infinita. */
 const MAXIMO_EN_MEMORIA = 40;
 /** Cuánto dura un emoji subiendo por la pantalla. */
@@ -67,6 +64,7 @@ export function Proyeccion({
   nombreDelEvento,
   anfitriones,
   acento,
+  ultimaFotoISO,
 }: {
   codigo: string;
   iniciales: ItemEnVivo[];
@@ -81,11 +79,51 @@ export function Proyeccion({
   /** El código QR ya dibujado en el servidor: la pantalla no tiene que calcularlo. */
   qrSvg: string;
   urlDelEvento: string;
+  /**
+   * Cuándo llegó la foto más nueva, según el servidor. `null` si no hay ninguna.
+   *
+   * Sin esto, una pantalla que se abre a mitad de la noche creería que recién llegó algo
+   * y usaría el ritmo equivocado.
+   */
+  ultimaFotoISO: string | null;
 }) {
   const [fotos, setFotos] = useState<ItemEnVivo[]>(iniciales);
   // Crece sin tope y el resto se saca con módulo. Así el reloj no necesita
   // saber cuántas fotos hay, y no hay que rearmarlo cada vez que llega una.
   const [vuelta, setVuelta] = useState(0);
+  /*
+    Cuándo llegó la última foto. Es la señal de "el flujo se cortó": con muchas fotos
+    pero nadie subiendo hace rato —se sentaron a comer, entró una tanda nueva— el QR
+    tiene que volver a pelear aunque el número sea alto.
+
+    Arranca con lo que diga el servidor sobre la más nueva que ya estaba, así una pantalla
+    que se abre a mitad de la noche no cree que recién llegó algo.
+  */
+  /*
+    `null` hasta que llegue la primera foto con la pantalla abierta. No se puede arrancar
+    con `Date.now()`: el valor inicial de un `useRef` se calcula durante el dibujado, y
+    ahí React exige que no se mire el reloj. Mientras sea `null` vale lo que dijo el
+    servidor.
+  */
+  const ultimaLlegada = useRef<number | null>(null);
+
+  /*
+    El ritmo depende del momento de la fiesta, no es fijo: el QR es el protagonista
+    mientras nadie subió nada y pasa a ser un recordatorio cuando las fotos ya llegan
+    solas. Ver `lib/pantalla-ritmo.ts`.
+
+    Va en estado y se recalcula **dentro del temporizador**, una vez por paso. Durante el
+    dibujado no se puede mirar el reloj —React exige que sea puro— y hace cuánto llegó la
+    última foto es justamente una pregunta sobre el reloj.
+  */
+  const [ritmo, setRitmo] = useState(() =>
+    /*
+      Al montar se decide sólo por la cantidad: averiguar hace cuánto llegó la última
+      exige mirar el reloj, y acá todavía estamos dibujando. El primer paso corrige, y
+      dura entre siete y veintidós segundos.
+    */
+    ritmoDePantalla({ cantidadDeFotos: iniciales.length, msDesdeLaUltimaFoto: 0 }),
+  );
   const [volando, setVolando] = useState<EmojiVolando[]>([]);
   /*
     El mando del DJ. Vive sólo en esta pantalla y no se guarda: si el televisor se
@@ -118,11 +156,12 @@ export function Proyeccion({
       const item = JSON.parse((e as MessageEvent).data) as ItemEnVivo;
 
       const agregar = () =>
-        setFotos((previas) =>
-          previas.some((f) => f.id === item.id)
-            ? previas
-            : [...previas, item].slice(-MAXIMO_EN_MEMORIA),
-        );
+        setFotos((previas) => {
+          if (previas.some((f) => f.id === item.id)) return previas;
+          // Para el ritmo: una llegada nueva saca a la pantalla del modo "sequía".
+          ultimaLlegada.current = Date.now();
+          return [...previas, item].slice(-MAXIMO_EN_MEMORIA);
+        });
 
       // Un mensaje no tiene nada que descargar: entra enseguida.
       if (item.tipo === "MENSAJE") {
@@ -204,7 +243,11 @@ export function Proyeccion({
     [codigo],
   );
 
-  const paso = queMostrar({ vuelta, cantidadDeFotos: fotos.length });
+  const paso = queMostrar({
+    vuelta,
+    cantidadDeFotos: fotos.length,
+    cadaCuantasFotos: ritmo.cadaCuantasFotos,
+  });
 
   /*
     La rotación es independiente de la llegada de fotos: si deja de llegar gente nueva,
@@ -232,18 +275,30 @@ export function Proyeccion({
   useEffect(() => {
     // En pausa el reloj no se programa: la foto que está se queda hasta que la suelten.
     if (pausado) return;
-    const cuanto = paso.tipo === "QR" ? EL_QR_MS : CADA_FOTO_MS;
+    const cuanto = paso.tipo === "QR" ? ritmo.msDelQr : CADA_FOTO_MS;
     const reloj = setTimeout(() => {
       /*
         Al pasar de turno, el mensaje que se mostró sale de la rotación: se ve una vez.
         Se saca acá y no al mostrarlo, porque sacarlo mientras está en pantalla correría
         los índices y haría saltar la foto que se está viendo.
       */
-      setFotos((previas) => sacarSiYaSeVio(previas, actual));
+      setFotos((previas) => {
+        const quedan = sacarSiYaSeVio(previas, actual);
+        setRitmo(
+          ritmoDePantalla({
+            cantidadDeFotos: quedan.length,
+            msDesdeLaUltimaFoto:
+              Date.now() -
+              (ultimaLlegada.current ??
+                (ultimaFotoISO ? new Date(ultimaFotoISO).getTime() : 0)),
+          }),
+        );
+        return quedan;
+      });
       setVuelta((v) => v + 1);
     }, cuanto);
     return () => clearTimeout(reloj);
-  }, [vuelta, paso.tipo, pausado, actual]);
+  }, [vuelta, paso.tipo, pausado, actual, ritmo.msDelQr, ultimaFotoISO]);
 
   /*
     El mando se esconde solo a los cinco segundos. El DJ lo abre, toca y se va; dejarlo

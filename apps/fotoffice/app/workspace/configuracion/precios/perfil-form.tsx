@@ -20,8 +20,10 @@ import {
  * Formulario del perfil de precios. El estado es el perfil completo (`CuantoCobroProfileInput`);
  * el resumen se recalcula en vivo con el mismo cálculo que usan los presupuestos.
  */
-export function PerfilForm({ inicial }: { inicial: CuantoCobroProfileInput }) {
+export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileInput; version: string | null }) {
   const [perfil, setPerfil] = useState(inicial);
+  /** Cuándo se guardó el perfil que se está editando (null: no había): para no pisar un cambio de otro (o de DNX Bot). */
+  const [versionCargada, setVersionCargada] = useState(version);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [guardando, empezar] = useTransition();
@@ -42,9 +44,11 @@ export function PerfilForm({ inicial }: { inicial: CuantoCobroProfileInput }) {
       return;
     }
     empezar(async () => {
-      const r = await guardarPerfilPreciosAction(perfil);
-      if (r.ok) setOk("Perfil guardado.");
-      else setError(r.error);
+      const r = await guardarPerfilPreciosAction(perfil, versionCargada);
+      if (r.ok) {
+        setVersionCargada(r.actualizado);
+        setOk("Perfil guardado.");
+      } else setError(r.error);
     });
   }
 

@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { pdfDelCentroDeMesa } from "@/lib/impresos/centro-de-mesa";
 import { resolverTema } from "@/lib/tema";
 import { urlDelCodigo } from "@/lib/url-invitado";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!usuario) return new Response("Iniciá sesión.", { status: 401 });
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: {
       name: true,
       code: true,

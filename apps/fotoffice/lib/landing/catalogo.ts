@@ -107,12 +107,15 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     cuadro: "03c",
     nombre: "Proyectos de la comisión",
     resuelve:
-      "Lo que hoy se pierde en el grupo de WhatsApp queda en un solo lugar: cada proyecto con sus etapas, sus tareas repartidas con responsable y fecha, los archivos y un historial de todo lo que se decidió. Los proyectos que ya estaban en marcha se cargan como aprobados, sin hacerlos votar de nuevo.",
+      "Lo que hoy se pierde en el grupo de WhatsApp queda en un solo lugar: cada proyecto con sus etapas, sus tareas repartidas con responsable y fecha, los archivos, lo que cuesta y lo que se gastó, y un historial de todo lo que se decidió. La comisión vota cada proyecto y lo trata en reunión, con temario y acta. Los socios proponen ideas, siguen en qué paso está la suya, apoyan los proyectos que la comisión les muestra y se ofrecen para las tareas sin responsable.",
     pantallas: [
       "Proyectos ordenados por urgencia",
       "Ficha del proyecto con etapas, tareas y archivos",
-      "Tablero de tareas: quién tiene qué y qué está vencido",
-      "Tipos de proyecto con sus etapas armadas",
+      "Presupuesto, cotizaciones y gastos del proyecto",
+      "Votación de la comisión",
+      "Reuniones con temario, resoluciones y acta",
+      "Propuestas y apoyo de los socios desde el portal",
+      "Tareas para socios voluntarios",
     ],
   },
   {
@@ -298,6 +301,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: "gallery",
+    cuadro: "26",
+    nombre: "Galería",
+    resuelve:
+      "Subís las fotos de un proyecto y cada cliente recibe su enlace personal: mira las fotos en el celular, elige las que quiere para el álbum o el fotolibro, deja un comentario en las que necesitan un ajuste y te manda su selección. Vos ves qué eligió cada uno, lo exportás con los nombres de archivo listos para pegar en Lightroom, y cerrás la selección cuando está lista.",
+    pantallas: [
+      "Subida de fotos con miniaturas y vistas livianas",
+      "Un enlace personal por cliente",
+      "Selección, comentarios y envío desde el celular",
+      "Revisión y exportación para Lightroom",
+    ],
+  },
+  {
     key: SALES_MODULE_KEY,
     cuadro: "12",
     nombre: "Ventas",
@@ -397,6 +413,55 @@ export const BASE_DEL_SISTEMA: FichaModulo[] = [
   },
 ];
 
+/**
+ * Lo que una institución usa de las otras aplicaciones de DNX Suite.
+ *
+ * No son módulos de FOTOFFICE ni se encienden desde su panel: viven en su propia aplicación,
+ * con la misma cuenta. Se cuentan acá porque forman parte de la propuesta a una institución, y
+ * por eso cada ficha dice de qué aplicación viene. Las claves no pueden chocar con el registro
+ * (lo controla `catalogo.test.ts`). Lo que la aplicación todavía no hace va en `pendiente`.
+ */
+export const MODULOS_DE_LA_SUITE: (FichaModulo & { app: string; dominio: string; pendiente?: string })[] = [
+  {
+    key: "concursos",
+    cuadro: "S1",
+    app: "FotoRank",
+    dominio: "fotorank.dnxsuite.com",
+    nombre: "Concursos fotográficos",
+    resuelve:
+      "La institución arma su organización y publica el concurso con sus bases, sus categorías y sus fechas. Los participantes se inscriben y suben sus fotos desde la página del concurso; ustedes admiten las obras, invitan a los jurados y les asignan categorías. Cada jurado evalúa desde su propio portal —por puntaje, sí o no, selección con cupo o por criterios— y los resultados se publican cuando están cerrados, con diplomas verificables.",
+    pantallas: [
+      "Concurso con bases versionadas y categorías",
+      "Inscripción y subida de fotos",
+      "Admisión de obras",
+      "Jurados invitados, asignados por categoría",
+      "Portal del jurado para evaluar",
+      "Resultados públicos, ganadores y diplomas",
+    ],
+    pendiente:
+      "cobrar la inscripción en línea. Hoy un concurso con inscripción gratuita funciona de punta a punta; el pago con Mercado Pago dentro de FotoRank todavía no está conectado.",
+  },
+  {
+    key: "muestras",
+    cuadro: "S2",
+    app: "Muestras Fotográficas",
+    dominio: "muestrasfotograficas.com",
+    nombre: "Muestras fotográficas",
+    resuelve:
+      "Cada muestra tiene su ficha pública con fechas, sede y mapa, una página por obra y por autor, la inauguración con confirmación de asistencia y el libro de visitas. Se puede abrir una convocatoria para recibir obras, hacer la curaduría y la selección, preparar el montaje con fichas de sala con código QR y difundirla con piezas para redes. Si la muestra sale de un concurso de FotoRank, las obras se traen de ahí.",
+    pantallas: [
+      "Ficha pública con fechas, sede y mapa nacional",
+      "Obras y autores, cada uno con su página",
+      "Convocatoria, curaduría y selección",
+      "Montaje y fichas de sala con QR",
+      "Inauguración y libro de visitas",
+      "Piezas para redes y difusión",
+    ],
+    pendiente:
+      "es un módulo propio del panel de la institución. Muestras Fotográficas es un portal de toda la suite: cada muestra se propone ahí y DNX la aprueba antes de publicarla. La venta de obras todavía no está habilitada.",
+  },
+];
+
 /** Lo que está previsto y todavía no se puede usar. Se muestra sin revelar, nunca como promesa. */
 export const EN_CONSTRUCCION: {
   cuadro: string;
@@ -412,16 +477,11 @@ export const EN_CONSTRUCCION: {
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "17",
-    icono: "gobierno",
-    nombre: "Gobierno institucional",
-    resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
-  },
-  {
     cuadro: "18",
     icono: "muestras",
-    nombre: "Muestras",
-    resuelve: "Las muestras de la institución, con sus obras y sus autores.",
+    nombre: "Muestras dentro del panel",
+    resuelve:
+      "Que las muestras de la institución se carguen desde FOTOFFICE y aparezcan en su sitio. Hoy se arman en Muestras Fotográficas, la aplicación de DNX Suite.",
   },
   {
     cuadro: "19",

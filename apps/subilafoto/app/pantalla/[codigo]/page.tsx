@@ -148,6 +148,8 @@ export default async function Pantalla({ params }: Props) {
       kind: true,
       caption: true,
       guestName: true,
+      /* Para el ritmo: hace cuánto que no sube nadie. Ver `lib/pantalla-ritmo.ts`. */
+      publishedAt: true,
       variants: SELECT_DE_VARIANTES,
     },
   });
@@ -172,6 +174,16 @@ export default async function Pantalla({ params }: Props) {
     return [{ tipo: "FOTO", id: f.id, url, pie: f.caption, nombre: f.guestName }];
   });
 
+  /*
+    Hace cuánto llegó la más nueva. Decide el ritmo: con muchas fotos pero nadie subiendo
+    hace rato —se sentaron a comer, entró una tanda de invitados nueva— el QR vuelve a ser
+    el protagonista aunque el número sea alto.
+
+    Viaja como fecha y no como antigüedad: calcular la resta acá sería mirar el reloj
+    mientras se dibuja, y la antigüedad se calcula igual en el cliente, en el temporizador.
+  */
+  const ultimaFotoISO = ultimas[0]?.publishedAt?.toISOString() ?? null;
+
   return (
     <Proyeccion
       qrSvg={qrSvg}
@@ -183,6 +195,7 @@ export default async function Pantalla({ params }: Props) {
       iniciales={iniciales}
       estilo={estiloDeTema(tema)}
       fondo={tema.fondo}
+      ultimaFotoISO={ultimaFotoISO}
     />
   );
 }

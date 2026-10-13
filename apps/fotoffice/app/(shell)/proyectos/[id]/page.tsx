@@ -13,11 +13,15 @@ import { ParticipantesProyecto } from "@/components/proyectos/participantes-proy
 import { PlanProyecto } from "@/components/proyectos/plan-proyecto";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
+import { TarjetaGaleriasProyecto } from "@/components/galerias/tarjeta-galerias-proyecto";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { citasDeOrigen } from "@/lib/agenda/de-origen";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
+import { puedeGestionarGalerias } from "@/lib/galerias/acceso";
+import { galeriasEncendidas } from "@/lib/galerias/contexto";
+import { galeriasDeProyecto } from "@/lib/galerias/galerias";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { cargarFichaProyecto } from "@/lib/proyectos/ficha";
@@ -44,6 +48,9 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   if (!ficha) notFound();
   // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda (si no, null y no se lee nada).
   const citas = await citasDeOrigen(ctx, { proyectoId: ficha.id });
+
+  // Tarjeta "Galerías": sólo con el módulo Galería encendido y "Ver" en Galería (si no, null y no se lee nada).
+  const galerias = (await galeriasEncendidas(workspace.id)) ? await galeriasDeProyecto(ctx, ficha.id) : null;
 
   const puedeEditar = puedeEnContexto(ctx, "operar", PROJECTS_MODULE_KEY);
   const configura = puedeEnContexto(ctx, "configurar");
@@ -107,6 +114,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
               </Link>
             </section>
           ) : null}
+          {galerias ? <TarjetaGaleriasProyecto proyectoId={ficha.id} galerias={galerias} puedeCrear={puedeGestionarGalerias(ctx)} /> : null}
           <ParticipantesProyecto
             proyectoId={ficha.id}
             participantes={ficha.participantes}

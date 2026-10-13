@@ -5,6 +5,7 @@ import {
   IndexFacesCommand,
   SearchFacesByImageCommand,
   DeleteFacesCommand,
+  ListFacesCommand,
   DetectFacesCommand,
 } from "@aws-sdk/client-rekognition";
 import { prepareRekognitionImageBytes } from "./rekognition-image";
@@ -175,4 +176,69 @@ export async function deleteFace(faceId: string): Promise<boolean> {
     console.error("Error eliminando cara de Rekognition:", err);
     throw err;
   }
+}
+
+/**
+ * Todos los identificadores de cara que tiene hoy la colección.
+ *
+ * Viene paginado de a 1.000 como máximo. Una colección de 674.580 caras son ~675 vueltas,
+ * así que esto se usa desde un script, nunca dentro de un pedido web.
+ */
+export async function listAllFaceIds(
+  onPage?: (acumuladas: number) => void
+): Promise<string[]> {
+  const rekognition = getRekognitionClient();
+  const collectionId = getCollectionId();
+  await ensureCollectionExists();
+
+  const ids: string[] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const res = await rekognition.send(
+      new ListFacesCommand({
+        CollectionId: collectionId,
+        MaxResults: 1000,
+        NextToken: nextToken,
+      })
+    );
+    for (const f of res.Faces ?? []) {
+      if (f.FaceId) ids.push(f.FaceId);
+    }
+    nextToken = res.NextToken;
+    onPage?.(ids.length);
+  } while (nextToken);
+
+  return ids;
+}
+
+/** Tope que acepta Amazon por llamada a DeleteFaces. */
+const BORRADO_POR_LOTE = 1000;
+
+/**
+ * Borra varias caras de una. Devuelve las que Amazon confirmó.
+ *
+ * Importa quedarse con la lista confirmada y no suponer: si se pidió borrar mil y Amazon
+ * borró novecientas, las cien restantes siguen facturándose.
+ */
+export async function deleteFacesInBatches(
+  faceIds: readonly string[],
+  onBatch?: (borradas: number) => void
+): Promise<string[]> {
+  const rekognition = getRekognitionClient();
+  const collectionId = getCollectionId();
+  await ensureCollectionExists();
+
+  const borradas: string[] = [];
+
+  for (let i = 0; i < faceIds.length; i += BORRADO_POR_LOTE) {
+    const lote = faceIds.slice(i, i + BORRADO_POR_LOTE);
+    const res = await rekognition.send(
+      new DeleteFacesCommand({ CollectionId: collectionId, FaceIds: [...lote] })
+    );
+    borradas.push(...(res.DeletedFaces ?? []));
+    onBatch?.(borradas.length);
+  }
+
+  return borradas;
 }

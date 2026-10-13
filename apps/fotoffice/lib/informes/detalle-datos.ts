@@ -36,6 +36,7 @@ export const ETIQUETAS_ORIGEN_CAJA: Record<string, string> = {
   "work-orders": "Orden de trabajo",
   pedidos: "Cobro de pedido",
   "pedidos-pagos": "Pago a proveedor",
+  galerias: "Venta de fotos de galería",
 };
 
 export type DetalleCargado = {

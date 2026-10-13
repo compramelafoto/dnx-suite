@@ -22,7 +22,7 @@ export type PlacedSponsor = {
   description: string | null;
 };
 
-function enlaceDe(p: { destinationUrl: string | null; websiteUrl: string | null; instagram: string | null }) {
+export function enlaceDe(p: { destinationUrl: string | null; websiteUrl: string | null; instagram: string | null }) {
   for (const candidato of [p.destinationUrl, p.websiteUrl]) {
     const r = normalizarSitioWeb(candidato);
     if (r.ok && r.valor) return r.valor;

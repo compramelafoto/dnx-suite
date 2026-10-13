@@ -36,17 +36,24 @@ export default async function AgendaPage({
   }>;
 }) {
   // Con VIEW se ve la agenda; cargar, cancelar, aprobar y confirmar piden operar (MANAGE).
-  const { workspace, canOperate, canConfigure } = await requireBookingsViewer();
+  const { workspace, canOperate, canConfigure, ownSpaceIds } = await requireBookingsViewer();
   const params = await searchParams;
 
   const ahora = new Date();
   const { ymd, view } = parseCalendarParams(params, ahora, BOOKINGS_TIME_ZONE);
   const rango = viewInterval(view, ymd, BOOKINGS_TIME_ZONE);
 
-  const [espacios, reservas] = await Promise.all([
+  const [todosLosEspacios, todasLasReservas] = await Promise.all([
     listSpaces(workspace.id, { includeInactive: true }),
     listBookingsInRange(workspace.id, rango),
   ]);
+  // Un barbero ve sólo su puesto (ver `ownSpaceIds` en `lib/bookings/access.ts`).
+  const espacios = ownSpaceIds
+    ? todosLosEspacios.filter((e) => ownSpaceIds.includes(e.id))
+    : todosLosEspacios;
+  const reservas = ownSpaceIds
+    ? todasLasReservas.filter((r) => ownSpaceIds.includes(r.spaceId))
+    : todasLasReservas;
 
   const eventos: AgendaEvent[] = reservas.map((r) => {
     const desde = localMoment(r.startAt, BOOKINGS_TIME_ZONE);

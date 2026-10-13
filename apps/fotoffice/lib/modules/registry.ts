@@ -340,10 +340,11 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   {
     key: "gallery",
     label: "Galería",
-    description: "Galerías para entregar y mostrar las fotos de cada proyecto.",
+    description: "Galerías de fotos de cada proyecto: el cliente mira, elige las que quiere y te manda su selección.",
     category: "GENERAL",
     order: 29,
-    status: "PLANNED",
+    status: "AVAILABLE",
+    route: "/galerias",
     family: "negocio",
     dependsOn: ["projects"],
   },

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib/shell/nav-groups";
 import {
+  ArrowDownToLine,
   Building2,
   Calculator,
   CalendarDays,
@@ -16,6 +17,7 @@ import {
   FolderKanban,
   Hash,
   Globe,
+  Images,
   Link2,
   Plug,
   Inbox,
@@ -69,6 +71,8 @@ const PROJECTS_MODULE_KEY = "projects";
 const AGENDA_MODULE_KEY = "agenda";
 // Ídem `lib/contratos/acceso`.
 const CONTRACTS_MODULE_KEY = "contracts";
+// Ídem `lib/galerias/acceso`.
+const GALLERY_MODULE_KEY = "gallery";
 // Ídem `lib/informes/constantes`.
 const REPORTS_MODULE_KEY = "reports";
 
@@ -404,6 +408,18 @@ export function ShellNav({
           },
         ]
       : []),
+    // Galería (etapa 7): módulo propio (`gallery`, depende de Proyectos), con su nivel.
+    ...(ve(GALLERY_MODULE_KEY)
+      ? [
+          {
+            href: "/galerias",
+            label: "Galerías",
+            description: "Las fotos de cada proyecto para que los clientes elijan: subirlas, compartir el enlace y revisar lo que eligieron.",
+            icon: Images,
+            isActive: under("/galerias"),
+          },
+        ]
+      : []),
   ];
 
   // Informes (etapa 6): módulo propio (`reports`), con su nivel. Apagado, nadie tiene nivel y no aparece.
@@ -545,6 +561,18 @@ export function ShellNav({
               },
             ]
           : []),
+        // Etapa 7: valores por omisión de las galerías, sólo con el módulo encendido.
+        ...(ve(GALLERY_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/galeria",
+                label: "Galería",
+                description: "Mensaje de bienvenida, comentarios y descarga con los que nace cada galería.",
+                icon: Images,
+                isActive: under("/workspace/configuracion/galeria"),
+              },
+            ]
+          : []),
         {
           href: "/workspace/configuracion/plantillas",
           label: "Plantillas",
@@ -558,6 +586,14 @@ export function ShellNav({
           description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
           icon: Hash,
           isActive: under("/workspace/configuracion/numeracion"),
+        },
+        // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
+        {
+          href: "/workspace/configuracion/alboom",
+          label: "Migración desde Alboom",
+          description: "Conectar la cuenta de Alboom y copiar todo su CRM para migrarlo.",
+          icon: ArrowDownToLine,
+          isActive: under("/workspace/configuracion/alboom"),
         },
       ]
     : [];

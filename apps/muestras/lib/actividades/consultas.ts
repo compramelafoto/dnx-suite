@@ -14,7 +14,7 @@ const miFila = (usuario: Quien) =>
 const CAMPOS_PUBLICOS = {
   id: true, slug: true, type: true, title: true, coverImageUrl: true, organizersText: true,
   startsAt: true, endsAt: true, scheduleText: true, isVirtualOnly: true, venueName: true,
-  city: true, province: true, latitude: true, longitude: true, isCancelled: true,
+  city: true, province: true, country: true, latitude: true, longitude: true, isCancelled: true,
 } as const;
 
 export type ActividadPublica = Awaited<ReturnType<typeof listarPublicas>>[number];
@@ -94,7 +94,7 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       id: true, slug: true, type: true, title: true, description: true, organizersText: true,
       curatorialText: true, curatorCredits: true, coverImageUrl: true,
       startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, scheduleText: true, priceText: true, externalUrl: true,
-      isVirtualOnly: true, venueName: true, address: true, city: true, province: true, latitude: true, longitude: true,
+      isVirtualOnly: true, venueName: true, address: true, city: true, province: true, country: true, latitude: true, longitude: true,
       galleryMode: true, visibility: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
       editVersion: true, updatedAt: true, lastEditedByUserId: true, lastEditedAt: true, lastEditedPart: true,
       proposedByUserId: true, workspaceId: true,
@@ -108,12 +108,21 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       members: miFila(usuario),
       // Obras que cargó un expositor (etapa 6, D9): el editor no cambia su imagen ni su autor.
       exhibitorWorks: { where: { activityWorkId: { not: null } }, select: { activityWorkId: true } },
+      // Si salió de un concurso de FotoRank (etapa 7): el panel enlaza "Del concurso".
+      contestImport: { select: { id: true } },
+      // Obras traídas de un concurso (etapa 7, D17): el editor tampoco cambia su imagen ni su autor.
+      contestWorks: { where: { activityWorkId: { not: null } }, select: { activityWorkId: true } },
     },
   });
   if (!a) return null;
   // El ajuste de sorpresa no viaja al formulario (lleva la semilla del sorteo): va aparte.
-  const { members, proposedByUserId, workspaceId, visibility, exhibitorWorks, ...resto } = a;
-  const actividad = { ...resto, exhibitorWorkIds: exhibitorWorks.flatMap((e) => (e.activityWorkId ? [e.activityWorkId] : [])) };
+  const { members, proposedByUserId, workspaceId, visibility, exhibitorWorks, contestImport, contestWorks, ...resto } = a;
+  const actividad = {
+    ...resto,
+    exhibitorWorkIds: exhibitorWorks.flatMap((e) => (e.activityWorkId ? [e.activityWorkId] : [])),
+    tieneConcurso: contestImport != null,
+    contestWorkIds: contestWorks.flatMap((c) => (c.activityWorkId ? [c.activityWorkId] : [])),
+  };
   return {
     actividad,
     visibilidad: { visibility, galleryMode: a.galleryMode },

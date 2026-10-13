@@ -15,6 +15,10 @@ type CategoryInitial = {
   description: string | null;
   order: number;
   isActive: boolean;
+  bookingCreditsPerPayment: number;
+  bookingCreditValidityDays: number;
+  bookingCreditLabel: string | null;
+  selfRenew: boolean;
 };
 
 export function CategoryForm({ category }: { category?: CategoryInitial }) {
@@ -86,6 +90,79 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
             <span className="fo-helper block mt-1">
               Una categoría desactivada no se ofrece en altas nuevas, pero quienes ya la tienen
               la conservan.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className="fo-card space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Turnos incluidos</h2>
+          <p className="fo-helper mt-1">
+            Para un club con turnos incluidos, como el VIP de una barbería: cada pago acreditado
+            abre una bolsa con estos turnos, que vence a los días indicados desde ese pago. No se
+            acumulan: si paga de nuevo, lo que no usó se pierde. Dejá 0 si la categoría no incluye
+            turnos.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="bookingCreditsPerPayment">
+              Turnos por pago
+            </label>
+            <input
+              id="bookingCreditsPerPayment"
+              name="bookingCreditsPerPayment"
+              type="number"
+              min={0}
+              max={100}
+              defaultValue={category?.bookingCreditsPerPayment ?? 0}
+              className="fo-input"
+            />
+            {fe?.bookingCreditsPerPayment ? (
+              <p className="text-xs text-[var(--fo-danger)]">{fe.bookingCreditsPerPayment}</p>
+            ) : null}
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="bookingCreditValidityDays">
+              Vencen a los (días)
+            </label>
+            <input
+              id="bookingCreditValidityDays"
+              name="bookingCreditValidityDays"
+              type="number"
+              min={1}
+              max={366}
+              defaultValue={category?.bookingCreditValidityDays ?? 30}
+              className="fo-input"
+            />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="bookingCreditLabel">
+              Cómo se llaman
+            </label>
+            <input
+              id="bookingCreditLabel"
+              name="bookingCreditLabel"
+              maxLength={40}
+              defaultValue={category?.bookingCreditLabel ?? ""}
+              className="fo-input"
+              placeholder="turnos, cortes…"
+            />
+          </div>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="selfRenew"
+            defaultChecked={category?.selfRenew ?? false}
+            className="mt-1 size-4 rounded border-[var(--fo-border)]"
+          />
+          <span>
+            <span className="fo-label !inline">Se renueva cuando quiere, sin deuda</span>
+            <span className="fo-helper block mt-1">
+              No se le genera la cuota de cada mes: desde su portal paga &ldquo;Renovar&rdquo; cuando
+              decide. Si un mes no renueva, no debe nada.
             </span>
           </span>
         </label>

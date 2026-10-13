@@ -1,6 +1,6 @@
 name: Chequeos
 
-# Chequea tipos y corre las pruebas de CompraMeLaFoto, Clickatón y FOTOFFICE antes de mergear.
+# Chequea tipos y corre las pruebas de CompraMeLaFoto, Clickatón, FOTOFFICE y FotoRank antes de mergear.
 #
 # Por qué existe: el chequeo de tipos lo hacía `next build` en la máquina de
 # Vercel, y ahí se quedaba sin memoria y mataba el deploy — la app tiene 250
@@ -77,6 +77,13 @@ jobs:
       # un error en un test frena el merge igual que uno en una pantalla.
       - name: Chequear tipos de FOTOFFICE
         run: pnpm --filter fotoffice typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      # FotoRank, lo mismo: el 09-10/10/2026 casi todos sus deploys de producción murieron
+      # por memoria en el paso de tipos y se apagó allá (`typescript.ignoreBuildErrors`).
+      - name: Chequear tipos de FotoRank
+        run: pnpm --filter fotorank typecheck
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
@@ -177,8 +184,31 @@ jobs:
       - name: Pruebas de finanzas en la app
         run: pnpm --filter compramelafoto test:finance-dnx
 
+      - name: Pruebas de los frenos de gasto en Amazon
+        run: pnpm --filter compramelafoto test:aws-costos
+
+      # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
+      # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
+      # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos
+      # corredores a la vez, que es como se descubrió.
+      - name: Pruebas del motor de análisis
+        run: pnpm --filter compramelafoto test:analysis
+
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
+
+      # DNX Bot: el motor compartido (historial que sólo se agrega, propuestas que no corren
+      # sin confirmación, topes) y, en CompraMeLaFoto, las herramientas, las rutas y el
+      # escalamiento. `test:bot` usa el vitest de services/dnx-mcp, igual que `test:analysis`
+      # (lo instala el `pnpm install` de arriba: services/* es parte del workspace).
+      - name: Chequear tipos de DNX Bot
+        run: pnpm --filter @repo/dnx-bot check-types
+
+      - name: Pruebas del motor de DNX Bot
+        run: pnpm --filter @repo/dnx-bot test
+
+      - name: Pruebas de DNX Bot en CompraMeLaFoto
+        run: pnpm --filter compramelafoto test:bot
 
       # Todas las de FotoOffice: socios, cuotas, carnets, reservas, sorteos,
       # caja, coberturas, portal y el resto. Trabajan con la base simulada, así

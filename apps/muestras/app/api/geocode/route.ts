@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createNominatimProvider } from "@repo/geo";
+import { COUNTRIES } from "@repo/muestras";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
 
@@ -21,10 +22,13 @@ export async function GET(req: NextRequest) {
   }
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim().slice(0, 200);
   if (q.length < 3) return NextResponse.json({ error: "Escribí al menos 3 caracteres." }, { status: 400 });
+  // País de la sede (código ISO de la lista): sin él, Nominatim busca sólo en Argentina.
+  const pedido = (req.nextUrl.searchParams.get("pais") ?? "").toUpperCase();
+  const countryCode = COUNTRIES.some((c) => c.code === pedido) ? pedido : "AR";
   try {
     const lugares = await createNominatimProvider({
       userAgent: process.env.GEOCODING_USER_AGENT || "MuestrasFotograficas/1.0 (+https://muestrasfotograficas.com)",
-    }).search(q, { limit: 5 });
+    }).search(q, { limit: 5, countryCode });
     return NextResponse.json(
       lugares.map((p) => ({
         latitude: p.latitude,

@@ -13,14 +13,17 @@ const AVISO_TOPE = 20;
  * `queSeVe`: qué ve el público online según la sorpresa de la muestra (lo arma el servidor con `queSeVeOnline`).
  * `deExpositor`: ids de las obras que cargó un expositor (etapa 6, D9): su imagen y su autor no se
  * editan acá (el servidor los conserva igual); título, año y técnica sí.
+ * `deConcurso`: lo mismo para las obras traídas de un concurso de FotoRank (etapa 7, D17).
  */
-export function EditorObras({ obras, onCambio, queSeVe, deExpositor = [] }: {
+export function EditorObras({ obras, onCambio, queSeVe, deExpositor = [], deConcurso = [] }: {
   obras: ObraForm[];
   onCambio: (o: ObraForm[]) => void;
   queSeVe?: string;
   deExpositor?: readonly string[];
+  deConcurso?: readonly string[];
 }) {
   const expositoras = new Set(deExpositor);
+  const delConcurso = new Set(deConcurso);
   const [subiendo, setSubiendo] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const destacadas = obras.filter((o) => o.isHighlight).length;
@@ -76,6 +79,8 @@ export function EditorObras({ obras, onCambio, queSeVe, deExpositor = [] }: {
               <input className="w-full border-b" value={o.title} onChange={(e) => cambiar(i, { title: e.target.value })} placeholder="Título" />
               {o.id && expositoras.has(o.id) ? (
                 <p className="text-[var(--mf-muted)]">{o.authorName} · Lo carga quien expone</p>
+              ) : o.id && delConcurso.has(o.id) ? (
+                <p className="text-[var(--mf-muted)]">{o.authorName} · Viene del concurso</p>
               ) : (
                 <>
                   <input className="w-full border-b" value={o.authorName} onChange={(e) => cambiar(i, { authorName: e.target.value })} placeholder="Autor" />

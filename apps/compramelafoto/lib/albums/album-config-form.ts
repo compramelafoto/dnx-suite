@@ -17,6 +17,14 @@ export type AlbumConfigFormSnapshot = {
   hiddenSelfieRetentionDays: string;
   showComingSoonMessage: boolean;
   scanProtectionEnabled: boolean;
+  /**
+   * El interruptor de la búsqueda por dorsal.
+   *
+   * `null` es "no lo configuré": decide el tipo de álbum. Entra en el aviso de cambios
+   * sin guardar como cualquier otro campo — apagarlo y recargar sin guardar tiene que
+   * avisar igual que cambiar el título, porque cuesta plata.
+   */
+  textSearchEnabled: boolean | null;
 };
 
 function normalize(snapshot: AlbumConfigFormSnapshot): AlbumConfigFormSnapshot {

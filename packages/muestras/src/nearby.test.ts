@@ -30,6 +30,16 @@ describe("applyFilter", () => {
   it("filtra por provincia sin importar mayúsculas ni tildes", () => expect(applyFilter(items, { province: "cordoba" }, now).map((x) => x.id)).toEqual(["proxima"]));
   it("filtra por tipo", () => expect(applyFilter(items, { type: "TALLER" }, now).map((x) => x.id)).toEqual(["proxima"]));
   it("abiertas ahora", () => expect(applyFilter(items, { openNow: true }, now).map((x) => x.id)).toEqual(["abierta"]));
+  it("filtra por país; sin país cuenta como Argentina", () => {
+    const conPais = [
+      ...items,
+      { id: "montevideo", country: "Uruguay", province: "Montevideo", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30") },
+      { id: "sao-paulo", country: "Brasil", province: "São Paulo", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30") },
+    ];
+    expect(applyFilter(conPais, { country: "uruguay" }, now).map((x) => x.id)).toEqual(["montevideo"]);
+    expect(applyFilter(conPais, { country: "Argentina" }, now).map((x) => x.id)).toEqual(["abierta", "proxima"]);
+    expect(applyFilter(conPais, { country: "Brasil", province: "sao paulo" }, now).map((x) => x.id)).toEqual(["sao-paulo"]);
+  });
 });
 
 describe("parseNearParam", () => {
@@ -42,9 +52,14 @@ describe("parseNearParam", () => {
     for (const v of ["", "-32.95", "-32.95,-60.65,1", "abc,def", "1e1,-60", "-32,95;-60", "NaN,NaN", "Infinity,-60", "-32.95,", "0x1,-60", undefined, null, 42])
       expect(parseNearParam(v), String(v)).toBeNull();
   });
-  it("rechaza puntos fuera de Argentina", () => {
+  it("acepta los otros países donde hay muestras", () => {
+    expect(parseNearParam("-34.9011,-56.1645")).toEqual({ latitude: -34.9011, longitude: -56.1645 }); // Montevideo
+    expect(parseNearParam("-23.55,-46.63")).toEqual({ latitude: -23.55, longitude: -46.63 }); // San Pablo
+    expect(parseNearParam("10.4806,-66.9036")).toEqual({ latitude: 10.4806, longitude: -66.9036 }); // Caracas
+  });
+  it("rechaza puntos fuera de la zona", () => {
     expect(parseNearParam("40.4,-3.7")).toBeNull(); // Madrid
-    expect(parseNearParam("-23.55,-46.63")).toBeNull(); // San Pablo
+    expect(parseNearParam("19.43,-99.13")).toBeNull(); // Ciudad de México
     expect(parseNearParam("-91,-60")).toBeNull();
   });
   it("rechaza textos larguísimos", () => expect(parseNearParam(`-32.${"1".repeat(50)},-60.6`)).toBeNull());

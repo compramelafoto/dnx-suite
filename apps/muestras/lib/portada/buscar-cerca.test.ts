@@ -40,8 +40,14 @@ describe("buscarCerca", () => {
     await expect(buscar("Paraná")).rejects.toThrow("NEXT_REDIRECT");
     expect(redirect).toHaveBeenCalledWith("/?cerca=-31.7330%2C-60.5299&lugar=Paran%C3%A1#muestras");
     const url = new URL(String(fetchSimulado.mock.calls[0]![0]));
-    expect(url.searchParams.get("countrycodes")).toBe("ar");
+    expect(url.searchParams.get("countrycodes")).toBe("ar,bo,br,cl,py,pe,uy,ve");
     expect(url.searchParams.get("q")).toBe("paraná");
+  });
+  it("encuentra una ciudad de otro país con muestras", async () => {
+    const montevideo = { lat: "-34.9011", lon: "-56.1645", class: "boundary", display_name: "Montevideo, Uruguay", address: { city: "Montevideo", country_code: "uy" } };
+    fetchSimulado.mockResolvedValue(respuesta([montevideo]));
+    await expect(buscar("Montevideo")).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/?cerca=-34.9011%2C-56.1645&lugar=Montevideo#muestras");
   });
   it("texto corto: no busca", async () => {
     expect(await buscar(" ab ")).toEqual({ error: "Escribí una ciudad o una dirección." });
@@ -58,7 +64,7 @@ describe("buscarCerca", () => {
   });
   it("sin resultado habitable avisa", async () => {
     fetchSimulado.mockResolvedValue(respuesta([rio]));
-    expect(await buscar("Paraná")).toEqual({ error: "No encontramos ese lugar en Argentina. Probá con el nombre de la ciudad." });
+    expect(await buscar("Paraná")).toEqual({ error: "No encontramos ese lugar. Probá con el nombre de la ciudad." });
     expect(redirect).not.toHaveBeenCalled();
   });
   it("error del proveedor: mensaje fijo", async () => {

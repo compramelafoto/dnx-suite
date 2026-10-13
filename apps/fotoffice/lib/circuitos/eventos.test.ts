@@ -480,7 +480,7 @@ describe("engancharConsultas: numeración (0.5)", () => {
     ]);
     expect(numero("c-ajena")).toBeNull();
     // Las secuencias se crearon antes de numerar, y la del año corriente siguió en 2026.
-    expect(B.datos.fotofficeSequence.filter((s) => s.workspaceId === "ws-1")).toHaveLength(6);
+    expect(B.datos.fotofficeSequence.filter((s) => s.workspaceId === "ws-1")).toHaveLength(7);
     const antes = foto();
     expect(await E.engancharConsultas("ws-1")).toEqual({ enganchadas: 0, quedan: 0 });
     expect(foto()).toBe(antes);

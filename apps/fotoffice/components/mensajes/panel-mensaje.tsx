@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { tomarMensajePrecargado } from "@repo/dnx-bot/ui";
 import { Mail, MessageCircle } from "lucide-react";
 import { abrirWhatsappAction, enviarCorreoAction, prepararMensajeAction } from "@/app/actions/mensajes";
 import { ETIQUETA_CANAL, MAX_ASUNTO, MAX_CUERPO, type Canal } from "@/lib/plantillas/constantes";
@@ -57,6 +58,43 @@ export function PanelMensaje({ entityType, entityId, panel }: { entityType: Tipo
 
   function cerrar() {
     setCanal(null);
+  }
+
+  // DNX Bot («Abrir para enviar» de la tarjeta de mensaje): el texto llega por sessionStorage, una
+  // sola vez, y se completa con los datos de la consulta igual que una plantilla. Enviar lo hace la persona.
+  useEffect(() => {
+    if (entityType !== "CONSULTA") return;
+    // En el próximo ciclo: con el doble montaje de desarrollo, el primero se cancela antes de tomarlo.
+    const t = setTimeout(() => tomarYPreparar(), 0);
+    return () => clearTimeout(t);
+    // Sólo al montar: el mensaje se toma una vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function tomarYPreparar() {
+    let almacen: Storage | null = null;
+    try {
+      almacen = window.sessionStorage;
+    } catch {
+      almacen = null;
+    }
+    const m = tomarMensajePrecargado(almacen, "CONSULTA", entityId);
+    if (!m) return;
+    abrir(m.canal);
+    iniciarPreparar(async () => {
+      try {
+        const r = await prepararMensajeAction({ canal: m.canal, entityType, entityId, texto: { asunto: m.asunto, cuerpo: m.cuerpo } });
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setAsunto(r.asunto);
+        setCuerpo(r.cuerpo);
+        setVacias(r.vacias);
+      } catch {
+        setError(ERROR_CONEXION);
+      }
+    });
   }
 
   function elegirPlantilla(id: string) {

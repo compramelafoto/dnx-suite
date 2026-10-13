@@ -8,13 +8,14 @@ import { estiloLegible } from "@/lib/estilo-de-tema";
 import { urlDelBanner } from "@/lib/banner-url";
 import { enlaceDeBannerValido } from "@/lib/banner";
 import { urlDelLogo } from "@/lib/logo-url";
-import { BannerDelFotografo } from "./banner-del-fotografo";
+import { PieRotativo } from "./pie-rotativo";
 import { LogoDelFotografo } from "./logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
 import { yaAcepto } from "@/lib/consentimiento-db";
 import { aceptarYEntrar } from "@/app/actions/consentimiento";
+import { bannersDeProveedores } from "@/lib/banners-del-evento";
 
 /**
  * La puerta del invitado: lo que se ve al escanear el QR.
@@ -81,6 +82,12 @@ export default async function PuertaDelInvitado({ params }: Props) {
   const tema = resolverTema(evento.themeTokens);
   const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
   const banner = await urlDelBanner(evento.sellerProfile.bannerUrl);
+  /*
+    Los proveedores que subieron banner comparten el pie con el fotógrafo. Es lo que
+    reciben a cambio de completar la ficha: hasta ahora era un renglón al pie del álbum,
+    que casi nadie abre.
+  */
+  const bannersDeLosProveedores = await bannersDeProveedores(evento.id);
   const hora = FORMATO_HORA(evento.timezone);
 
   return (
@@ -91,13 +98,21 @@ export default async function PuertaDelInvitado({ params }: Props) {
       <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
 
       {portada ? (
-        <Image
+        /*
+          Sin `next/image`: la dirección viene firmada y vence. El optimizador guarda el
+          resultado con la dirección entera como clave —firma incluida—, así que cada
+          visita genera una clave nueva y vuelve a bajar y recomprimir la foto. Además el
+          host del bucket no está en `images.remotePatterns` y contesta 400.
+
+          Tampoco lleva alto y ancho fijos: eran cuadrados y recortaban cualquier foto que
+          no lo fuera. Con `max-w` y `max-h` la foto entra entera y conserva su forma.
+        */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
           src={portada}
           alt=""
-          width={520}
-          height={520}
-          priority
-          className="mb-10 h-auto w-[min(20rem,72vw)] rounded-2xl object-cover"
+          decoding="async"
+          className="mb-10 max-h-[45vh] max-w-[min(20rem,72vw)] rounded-2xl"
         />
       ) : logo ? null : (
         /*
@@ -246,10 +261,17 @@ export default async function PuertaDelInvitado({ params }: Props) {
           ) : null}
         </>
       )}
-      <BannerDelFotografo
-        url={banner}
-        enlace={enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl)}
-        nombre={evento.sellerProfile.displayName}
+      <PieRotativo
+        fotografo={
+          banner
+            ? {
+                url: banner,
+                enlace: enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl),
+                nombre: evento.sellerProfile.displayName,
+              }
+            : null
+        }
+        proveedores={bannersDeLosProveedores}
       />
     </main>
   );

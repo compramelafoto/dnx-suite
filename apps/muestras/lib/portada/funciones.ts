@@ -26,7 +26,7 @@ export const PASOS_MUESTRA: PasoMuestra[] = [
     items: [
       "Abrí una convocatoria para que los fotógrafos envíen sus obras desde cualquier lugar.",
       "Hacé la curaduría a distancia, privada y anónima: el equipo curatorial ve las obras sin el nombre del autor, las puntúa y las filtra.",
-      "O conectá tu concurso de {FOTORANK} y llevá a la sala a los ganadores y preseleccionados.",
+      "O traé los ganadores y preseleccionados de tu concurso de {FOTORANK}: te armamos el borrador de la muestra con sus obras.",
     ],
   },
   {
@@ -62,11 +62,9 @@ export const PASOS_MUESTRA: PasoMuestra[] = [
   {
     titulo: "Vendé copias de las obras",
     items: [
-      "Quien recorre la muestra compra desde el QR de la ficha de sala.",
-      "Copias impresas y archivos digitales.",
-      "Cobro con Mercado Pago, repartido entre organizador, fotógrafo y plataforma.",
+      "Vendé copias digitales firmadas y copias impresas Fine Art, únicas o en edición limitada, con certificado y QR de autenticidad; el cobro se reparte solo entre la organización, el fotógrafo y la plataforma.",
+      "Quien recorre la muestra compra desde el QR de la ficha de sala, y quien la ve online, desde la página de la obra.",
       "Seguimiento de cada impresión hasta la entrega.",
-      "Ediciones limitadas y numeradas, con certificado de autenticidad y QR para verificarlas.",
     ],
   },
   {

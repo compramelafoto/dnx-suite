@@ -8,6 +8,7 @@ import { clearProfileChoice, readProfileChoice, setProfileChoice } from "@/lib/p
 import {
   counterpartProfile,
   entryProfileForInstitution,
+  institutionChoices,
   listUserProfiles,
   profileDestination,
   profileKey,
@@ -95,11 +96,15 @@ export async function createOwnBusinessAction(): Promise<void> {
   const user = await requireAuth();
 
   const profiles = await listUserProfiles(user.id);
-  const already = profiles.find((p) => p.kind === "TEAM");
-  if (already) {
-    // Ya tiene negocio: un clic repetido no puede crearle un segundo.
-    await setProfileChoice(profileKey(already));
-    await setActiveWorkspaceCookie(already.workspaceId);
+  // "Ya tiene negocio" es ser dueña de un workspace del que no es socia, no tener cualquier
+  // perfil de equipo: con la regla vieja, administrar la sociedad de la que se es socio dejaba
+  // sin poder crear el estudio propio, que es justo el caso que esta acción existe para servir.
+  const propio = institutionChoices(profiles).find((c) => c.ownBusiness);
+  if (propio) {
+    // Un clic repetido no puede crearle un segundo.
+    const entrada = entryProfileForInstitution(profiles, propio.workspaceId, null);
+    if (entrada) await setProfileChoice(profileKey(entrada));
+    await setActiveWorkspaceCookie(propio.workspaceId);
     redirect("/workspace");
   }
 

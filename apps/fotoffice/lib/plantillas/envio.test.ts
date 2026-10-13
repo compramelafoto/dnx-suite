@@ -84,6 +84,16 @@ describe("prepararMensaje", () => {
     expect(mensajes()).toHaveLength(0);
   });
 
+  it("con un texto propio (el que trae DNX Bot): lo completa igual que una plantilla; no escribe", async () => {
+    const r = await E.prepararMensaje(CTX, { canal: "EMAIL", entityType: "CLIENTE", entityId: "c1", texto: { asunto: "Hola [nombre]", cuerpo: "Gracias [nombre]. [PONÉ EL HORARIO]" } });
+    expect(r).toMatchObject({ ok: true, asunto: "Hola Lucía", cuerpo: "Gracias Lucía. [PONÉ EL HORARIO]", pendientes: true });
+    expect(mensajes()).toHaveLength(0);
+  });
+
+  it("un texto propio con una variable que no existe: error, como una plantilla rota", async () => {
+    expect((await E.prepararMensaje(CTX, { canal: "WHATSAPP", entityType: "CLIENTE", entityId: "c1", texto: { asunto: null, cuerpo: "Hola [apodo]" } })).ok).toBe(false);
+  });
+
   it("sin plantilla devuelve textos vacíos; marca los marcadores en mayúsculas", async () => {
     expect(await E.prepararMensaje(CTX, { canal: "EMAIL", entityType: "CLIENTE", entityId: "c1" })).toMatchObject({ ok: true, asunto: "", cuerpo: "" });
     const id = plantilla({ body: "Te paso el enlace: [PEGÁ ACÁ EL ENLACE]" });

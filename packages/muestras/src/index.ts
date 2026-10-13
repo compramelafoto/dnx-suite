@@ -21,3 +21,7 @@ export * from "./visibility";
 export * from "./exhibitors";
 export * from "./portfolio";
 export * from "./room";
+export * from "./contest";
+export * from "./sales";
+export * from "./editions";
+export * from "./certificates";

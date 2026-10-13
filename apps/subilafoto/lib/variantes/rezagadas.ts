@@ -4,6 +4,7 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@repo/db";
 import { almacenamiento, bucket } from "@/lib/almacenamiento";
 import { generarVariantes } from "./generar";
+import { SIN_VARIANTE } from "./sin-variante";
 
 /**
  * Las fotos decididas que se quedaron sin variante.
@@ -27,12 +28,7 @@ export async function generarVariantesRezagadas(limite = TOPE): Promise<{
   fallidas: number;
 }> {
   const fotos = await prisma.subilafotoMedia.findMany({
-    where: {
-      // Una bloqueada no se muestra en ningún lado: no necesita variante.
-      status: { in: ["APPROVED", "REVIEW_REQUIRED"] },
-      variants: { none: {} },
-      originalKey: { not: "" },
-    },
+    where: SIN_VARIANTE,
     orderBy: { createdAt: "asc" },
     take: limite,
     select: { id: true, originalKey: true },

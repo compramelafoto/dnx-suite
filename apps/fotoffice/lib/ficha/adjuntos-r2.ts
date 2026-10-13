@@ -53,6 +53,18 @@ function s3(): S3Client {
   return cliente;
 }
 
+/**
+ * Cliente y bucket del R2 privado para otros módulos que guardan archivos ahí con su propio
+ * formato de clave (Galería). Quien los use valida la clave con su propia regex.
+ */
+export function clienteR2Privado(): S3Client {
+  return s3();
+}
+export function bucketR2Privado(): string {
+  return bucket();
+}
+export { esNoEncontrado };
+
 function claveSegura(clave: string): string {
   if (!esClaveDeAdjunto(clave)) throw new Error("Clave de adjunto inválida");
   return clave;

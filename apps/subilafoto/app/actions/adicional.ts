@@ -8,6 +8,7 @@ import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-
 import { estadoDelAdicional } from "@/lib/adicional";
 import { precioDeLaDescarga } from "@/lib/pagos/venta";
 import { referenciaDeOrden } from "@/lib/pagos/referencia";
+import { resumenDeFalla } from "@/lib/pagos/motivo-del-rechazo";
 
 /**
  * El cliente compra la descarga de todo el material.
@@ -130,9 +131,25 @@ export async function comprarAdicional(formData: FormData): Promise<void> {
 
     checkoutUrl = preferencia.checkoutUrl;
   } catch (error) {
+    /*
+      Se guarda el motivo. El 10/10/2026 una orden de $150.000 quedó en PENDING sin
+      preferencia y al día siguiente no había nada que mirar: sólo `error.name` en un
+      registro de Vercel que ya se había borrado. Una venta que falla en silencio es peor
+      que una que falla ruidosamente.
+    */
+    const falla = resumenDeFalla(error);
     console.error("[subilafoto][adicional] Mercado Pago rechazó la preferencia", {
       orden: orden.id,
-      detalle: error instanceof Error ? error.name : "desconocido",
+      detalle: falla.detalle,
+    });
+    await prisma.subilafotoAudit.create({
+      data: {
+        actorKind: "SYSTEM",
+        action: "COBRO_RECHAZADO",
+        targetType: "SubilafotoOrder",
+        targetId: orden.id,
+        metadata: { paraElFotografo: falla.paraElFotografo, detalle: falla.detalle },
+      },
     });
     volver("No pudimos abrir el pago. Probá de nuevo en un momento.");
     return;

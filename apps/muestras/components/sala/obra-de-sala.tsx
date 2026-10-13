@@ -5,7 +5,7 @@ import { BotonAdquirir } from "./boton-adquirir";
 
 export type DatosObraDeSala = {
   muestra: { id: string; slug: string; title: string };
-  obra: { id: string; title: string; authorName: string; detalle: string; statement: string | null; imagen: string };
+  obra: { id: string; title: string; authorName: string; detalle: string; statement: string | null; imagen: string; distincion?: string | null };
   artista: {
     slug: string; nombre: string; bio: string | null; ciudad: string | null; website: string | null; instagram: string | null; avatarUrl: string | null;
   } | null;
@@ -34,6 +34,7 @@ export function ObraDeSala({ d }: { d: DatosObraDeSala }) {
 
       <header className="space-y-3">
         <h1 className="mf-titulo text-[clamp(2rem,5vw,3.25rem)]">{obra.title}</h1>
+        {obra.distincion ? <p className="text-[15px]">{obra.distincion}</p> : null}
         <p className="text-lg">{obra.authorName}</p>
         {obra.detalle ? <p className="text-[var(--mf-muted)]">{obra.detalle}</p> : null}
         {obra.statement ? <p className="max-w-[65ch] whitespace-pre-line text-[15px] leading-relaxed">{obra.statement}</p> : null}

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { condicionDePublicadas } from "@/lib/album";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   // El evento tiene que ser de quien pregunta. Sin esto, cualquiera con cuenta sabría
   // cuánto se está subiendo en la fiesta de otro.
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: { id: true },
   });
   if (!evento) return NextResponse.json({ error: "No encontrado." }, { status: 404 });

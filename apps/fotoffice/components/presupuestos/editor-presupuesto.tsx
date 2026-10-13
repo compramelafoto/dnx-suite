@@ -16,6 +16,7 @@ import {
   type DatosEditor,
 } from "@/lib/presupuestos/editor";
 import { calcularTotales } from "@/lib/presupuestos/totales";
+import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { AsistenteCuantoCobro } from "./asistente-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
 import { PanelCuantoCobro } from "./panel-cuanto-cobro";
@@ -97,7 +98,16 @@ function DescuentoCampos({ valor, onCambio, etiqueta }: { valor: Descuento | nul
 const guardadosRecientes = new Map<string, number>();
 const RECIENTE_MS = 10_000;
 
-export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor; puedeGuardar: boolean }) {
+export function EditorPresupuesto({
+  datos,
+  puedeGuardar,
+  botPresupuestoId = null,
+}: {
+  datos: DatosEditor;
+  puedeGuardar: boolean;
+  /** Con DNX Bot encendido (y `configurar`): el presupuesto para «Calcular con el bot». */
+  botPresupuestoId?: string | null;
+}) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [items, setItems] = useState<ItemPresupuesto[]>(datos.items);
@@ -169,6 +179,8 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
         condiciones,
         propuestaPago,
         ...(datos.opcionesPago ? { opcionesPago } : {}),
+        // No pisar un borrador que cambió mientras el editor estaba abierto (por ejemplo, DNX Bot).
+        ...(datos.control ? { control: datos.control } : {}),
       }).catch(() => ({ ok: false as const, error: "No se pudo guardar. Probá de nuevo." }));
       if (r.ok) {
         guardadosRecientes.set(datos.presupuestoId, Date.now());
@@ -217,6 +229,13 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                 <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setAsistente(true)}>
                   Armar con ¿Cuánto Cobro?
                 </button>
+                {botPresupuestoId ? (
+                  <PreguntaleAlBot
+                    etiqueta="Calcular con el bot"
+                    mensaje="Quiero sumar ítems calculados a este presupuesto."
+                    contexto={{ pantalla: "presupuesto", presupuestoId: botPresupuestoId }}
+                  />
+                ) : null}
               </>
             ) : null}
           </div>

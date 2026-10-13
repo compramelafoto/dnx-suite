@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
-import { isInArgentina, nearHref } from "@repo/muestras";
+import { isInServiceArea, nearHref } from "@repo/muestras";
 import { buscarCerca, type EstadoBusquedaCerca } from "@/lib/portada/buscar-cerca";
 
 const INICIAL: EstadoBusquedaCerca = { error: null };
@@ -30,8 +30,8 @@ export function BuscarCerca() {
       ({ coords }) => {
         setUbicando(false);
         const punto = { latitude: coords.latitude, longitude: coords.longitude };
-        if (!isInArgentina(punto)) {
-          setErrorUbicacion("Tu ubicación queda fuera de Argentina. Escribí una ciudad.");
+        if (!isInServiceArea(punto)) {
+          setErrorUbicacion("Tu ubicación queda lejos de las muestras publicadas. Escribí una ciudad.");
           return;
         }
         router.push(nearHref(punto, "tu ubicación"));

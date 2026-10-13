@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
@@ -8,7 +8,7 @@ import { estiloLegible } from "@/lib/estilo-de-tema";
 import { urlDelBanner } from "@/lib/banner-url";
 import { enlaceDeBannerValido } from "@/lib/banner";
 import { urlDelLogo } from "@/lib/logo-url";
-import { BannerDelFotografo } from "../banner-del-fotografo";
+import { PieRotativo } from "../pie-rotativo";
 import { LogoDelFotografo } from "../logo-del-fotografo";
 import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
@@ -17,6 +17,7 @@ import { Cargador } from "./cargador";
 import { GrabarAudio } from "./grabar-audio";
 import { DejarMensaje } from "./mensaje";
 import { BarraDeReacciones } from "./reacciones";
+import { bannersDeProveedores } from "@/lib/banners-del-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function Subir({ params }: Props) {
   const evento = await prisma.subilafotoEvent.findUnique({
     where: { code: clave },
     select: {
+      id: true,
       name: true,
       status: true,
       activationAt: true,
@@ -36,6 +38,7 @@ export default async function Subir({ params }: Props) {
       themeTokens: true,
       allowPhotos: true,
       allowMessages: true,
+      guestsCanSeeLive: true,
       hostsLabel: true,
       coverUrl: true,
       sellerProfile: {
@@ -68,6 +71,12 @@ export default async function Subir({ params }: Props) {
   const tema = resolverTema(evento.themeTokens);
   const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
   const banner = await urlDelBanner(evento.sellerProfile.bannerUrl);
+  /*
+    Los proveedores que subieron banner comparten el pie con el fotógrafo. Es lo que
+    reciben a cambio de completar la ficha: hasta ahora era un renglón al pie del álbum,
+    que casi nadie abre.
+  */
+  const bannersDeLosProveedores = await bannersDeProveedores(evento.id);
   const acceso = estadoDeAcceso(evento, new Date());
   const portada = await urlDePortada(evento.coverUrl);
 
@@ -84,13 +93,21 @@ export default async function Subir({ params }: Props) {
       <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
 
       {portada ? (
-        <Image
+        /*
+          Sin `next/image`: la dirección viene firmada y vence. El optimizador guarda el
+          resultado con la dirección entera como clave —firma incluida—, así que cada
+          visita genera una clave nueva y vuelve a bajar y recomprimir la foto. Además el
+          host del bucket no está en `images.remotePatterns` y contesta 400.
+
+          Tampoco lleva alto y ancho fijos: eran cuadrados y recortaban cualquier foto que
+          no lo fuera. Con `max-w` y `max-h` la foto entra entera y conserva su forma.
+        */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
           src={portada}
           alt=""
-          width={400}
-          height={400}
-          priority
-          className="mb-8 h-auto w-[min(11rem,42vw)] rounded-2xl object-cover"
+          decoding="async"
+          className="mb-8 max-h-[28vh] max-w-[min(11rem,42vw)] rounded-2xl"
         />
       ) : null}
 
@@ -110,6 +127,20 @@ export default async function Subir({ params }: Props) {
             Elegí las fotos de tu galería o sacá una nueva.
           </p>
           <Cargador codigo={clave} tema={tema} variasALaVez={variasALaVez} />
+
+          {/*
+            El camino de vuelta. Sin pantalla en el salón —y la fiesta del 10/10/2026 se
+            perdió por eso— el invitado sube una foto y no recibe nada: no tiene ningún
+            motivo para subir una segunda.
+          */}
+          {evento.guestsCanSeeLive ? (
+            <Link
+              href={`/e/${clave}/muro`}
+              className="mt-6 text-sm font-extrabold underline underline-offset-4 opacity-85"
+            >
+              Ver lo que se está subiendo
+            </Link>
+          ) : null}
           <BarraDeReacciones codigo={clave} acento={tema.acento} />
           {evento.allowMessages ? (
             <>
@@ -125,10 +156,17 @@ export default async function Subir({ params }: Props) {
             : "El evento terminó y ya no se pueden subir fotos."}
         </p>
       )}
-      <BannerDelFotografo
-        url={banner}
-        enlace={enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl)}
-        nombre={evento.sellerProfile.displayName}
+      <PieRotativo
+        fotografo={
+          banner
+            ? {
+                url: banner,
+                enlace: enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl),
+                nombre: evento.sellerProfile.displayName,
+              }
+            : null
+        }
+        proveedores={bannersDeLosProveedores}
       />
     </main>
   );

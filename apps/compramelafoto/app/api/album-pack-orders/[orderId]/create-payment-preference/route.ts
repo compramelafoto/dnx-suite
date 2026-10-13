@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CheckoutPaymentSource, OrderOrigin, OrderStatus } from "@prisma/client";
+import { CheckoutPaymentSource, OrderOrigin } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { createPreference } from "@/lib/mercadopago";
@@ -16,6 +16,7 @@ import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-m
 import { buildAlbumOrderMercadoPagoMarketplaceFeeWithEventOrganizer } from "@/lib/event-organizer-commission-mp-checkout";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { buildMercadoPagoUnauthorizedRefresher } from "@/lib/mercadopago/mp-oauth-token-refresh";
+import { checkAlbumPackOrderPayable } from "@/lib/album-packs/album-pack-order-payable";
 import { readAlbumPackCartDraftIdsFromSnapshot } from "@/lib/album-packs/album-pack-cart-payment-ref";
 import {
   getAlbumPackNameFromSnapshot,
@@ -92,6 +93,16 @@ export async function POST(
       return NextResponse.json({ error: "Order no encontrado." }, { status: 404 });
     }
 
+    // Primero el estado: un pedido pagado (o cerrado) nunca devuelve el link de pago
+    // guardado, porque Mercado Pago deja pagarlo otra vez (pedido 4645, 11/10/2026).
+    const payable = checkAlbumPackOrderPayable(order.status);
+    if (!payable.ok) {
+      return NextResponse.json(
+        { error: payable.error, code: payable.code, orderId: order.id },
+        { status: payable.httpStatus }
+      );
+    }
+
     if (order.mpInitPoint && order.mpPreferenceId) {
       return NextResponse.json(
         {
@@ -102,10 +113,6 @@ export async function POST(
         },
         { status: 200 }
       );
-    }
-
-    if (order.status !== OrderStatus.PENDING) {
-      return NextResponse.json({ error: "El order debe estar en estado PENDING." }, { status: 400 });
     }
     if (order.origin !== OrderOrigin.STANDARD_CHECKOUT) {
       return NextResponse.json({ error: "El order no corresponde al flujo esperado." }, { status: 400 });

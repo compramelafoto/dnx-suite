@@ -16,8 +16,8 @@ export const PANEL_GROUP_LABELS: Record<PanelGroup, string> = {
 };
 
 export type PanelSectionKey =
-  | "inicio" | "muestras" | "proponer" | "perfil" | "envios" | "expositor"
-  | "convocatorias" | "curaduria" | "montaje" | "difusion" | "ventas" | "estadisticas"
+  | "inicio" | "muestras" | "proponer" | "perfil" | "envios" | "expositor" | "cobros"
+  | "convocatorias" | "concursos" | "curaduria" | "montaje" | "difusion" | "ventasMuestras" | "ventas" | "estadisticas"
   | "revision";
 
 export type PanelSection = {
@@ -39,14 +39,30 @@ export const PANEL_SECTIONS: readonly PanelSection[] = [
   s("perfil", "Mi perfil de fotógrafo", "/panel/perfil", "CUENTA"),
   s("envios", "Mis envíos", "/panel/envios", "CUENTA"),
   s("expositor", "Dónde expongo", "/panel/expositor", "CUENTA"),
+  s("cobros", "Cobros", "/panel/cobros", "CUENTA"),
   s("convocatorias", "Convocatorias", "/panel/convocatorias", "ORGANIZAR"),
+  s("concursos", "Concursos", "/panel/concursos", "ORGANIZAR"),
   s("curaduria", "Curaduría", "/panel/curaduria", "ORGANIZAR"),
   s("montaje", "Montaje e impresión", "/panel/montaje", "ORGANIZAR"),
   s("difusion", "Difusión", "/panel/difusion", "ORGANIZAR"),
-  s("ventas", "Ventas", "/panel/ventas", "ORGANIZAR", false),
+  // Etapa 8: la venta de cada muestra (lista de muestras con su "Ventas"), a la vista de todos.
+  s("ventasMuestras", "Ventas", "/panel/ventas-muestras", "ORGANIZAR"),
   s("estadisticas", "Estadísticas", "/panel/estadisticas", "ORGANIZAR"),
   s("revision", "Revisión", "/panel/revision", "ADMIN", true, true),
+  // Etapa 8: los pedidos de toda la plataforma. La venta de cada muestra vive dentro de la muestra
+  // (`activitySalesHref`), para el dueño y la coorganización.
+  s("ventas", "Ventas de la plataforma", "/panel/ventas", "ADMIN", true, true),
 ];
+
+/** Dónde se maneja la venta de una muestra (capacidad `sales` o `salesFulfill`). */
+export function activitySalesHref(activityId: string): string {
+  return `/panel/muestras/${encodeURIComponent(activityId)}/ventas`;
+}
+
+/** "Ventas" aparece en la muestra para quien enciende la venta o prepara los pedidos. */
+export function showActivitySales(p: { canSales: boolean; canFulfill: boolean }): boolean {
+  return p.canSales || p.canFulfill;
+}
 
 export function panelSections(actor: { isSuperAdmin: boolean }): PanelSection[] {
   return PANEL_SECTIONS.filter((x) => !x.superAdminOnly || actor.isSuperAdmin);

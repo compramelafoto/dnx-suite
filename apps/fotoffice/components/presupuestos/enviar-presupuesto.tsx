@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { tomarMensajePrecargado } from "@repo/dnx-bot/ui";
 import { enviarPresupuestoAction } from "@/app/actions/presupuestos";
 import type { Canal } from "@/lib/plantillas/constantes";
 import type { OpcionesDeEnvio } from "@/lib/presupuestos/envio";
@@ -25,6 +26,29 @@ export function EnviarPresupuesto({ presupuestoId, opciones }: { presupuestoId: 
   const [hecho, setHecho] = useState<string | null>(null);
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+
+  // DNX Bot («Abrir para enviar» de la tarjeta de mensaje): el texto llega por sessionStorage, una
+  // sola vez, y abre el envío con ese canal y ese texto. Enviar lo hace la persona.
+  useEffect(() => {
+    // Se lee en el próximo ciclo (no al montar en sí): con el doble montaje de desarrollo, el primero
+    // se cancela antes de tomar el mensaje y no se pierde.
+    const t = setTimeout(() => {
+      let almacen: Storage | null = null;
+      try {
+        almacen = window.sessionStorage;
+      } catch {
+        almacen = null;
+      }
+      const m = tomarMensajePrecargado(almacen, "PRESUPUESTO", presupuestoId);
+      if (!m) return;
+      setCanal(m.canal);
+      setTemplateId("");
+      setAsunto(m.asunto ?? "");
+      setCuerpo(m.cuerpo);
+      setAbierto(true);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [presupuestoId]);
 
   const reenviar = !opciones.hayBorrador;
   if (opciones.bloqueo && !opciones.enlace) {

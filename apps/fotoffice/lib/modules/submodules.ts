@@ -197,6 +197,15 @@ const RESERVAS: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    // Sin `requiresAction`: el barbero vinculado a su puesto ve acá "Mi liquidación".
+    href: "/reservas/liquidaciones",
+    label: "Liquidaciones",
+    icon: "Wallet",
+    description: "Cuánto se le debe a cada profesional por sus turnos, y los pagos que ya se le hicieron.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/reservas/espacios",
     label: "Espacios",
     icon: "DoorOpen",

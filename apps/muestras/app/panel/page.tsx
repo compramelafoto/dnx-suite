@@ -4,6 +4,8 @@ import { contarParaRevisar, listarMias } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
 import { misObrasConCambios, misParticipaciones, pendientesPorMuestra } from "@/lib/expositores/consultas";
 import { buscarPerfilPropio } from "@/lib/perfiles/consultas";
+import { formatosParaRevisar } from "@/lib/ventas/consultas";
+import { pedidosParaProducir } from "@/lib/ventas/pedidos-consultas";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +21,19 @@ export default async function InicioPanel() {
     usuario.esSuperAdmin ? contarParaRevisar() : Promise.resolve(0),
   ]);
   const cuenta = countByStatus(mias);
-  const [pendientes, participaciones, conCambios] = await Promise.all([
-    pendientesPorMuestra(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "exhibitors", m.rol)).map((m) => m.id)),
+  const muestras = mias.filter((m) => m.type === "MUESTRA");
+  const [pendientes, participaciones, conCambios, formatos, paraProducir] = await Promise.all([
+    pendientesPorMuestra(muestras.filter((m) => puede(usuario, "exhibitors", m.rol)).map((m) => m.id)),
     misParticipaciones(usuario),
     misObrasConCambios(usuario),
+    // Etapa 8: formatos que esperan aprobación (`sales`) y copias impresas pagadas por producir (`salesFulfill`).
+    formatosParaRevisar(muestras.filter((m) => puede(usuario, "sales", m.rol)).map((m) => m.id)),
+    pedidosParaProducir(muestras.filter((m) => puede(usuario, "salesFulfill", m.rol)).map((m) => m.id)),
   ]);
   const obrasParaRevisar = [...pendientes.values()].reduce((a, b) => a + b, 0);
+  const suma = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+  const formatosPendientes = suma(formatos);
+  const pedidosPendientes = suma(paraProducir);
   const expongo = participaciones.filter((p) => p.status === "ACTIVE").length;
   const nombre = usuario.name?.split(" ")[0];
 
@@ -45,6 +54,28 @@ export default async function InicioPanel() {
           <Link href="/panel/muestras" className="underline underline-offset-[6px]">
             {obrasParaRevisar === 1 ? "Hay 1 obra de expositores para revisar" : `Hay ${obrasParaRevisar} obras de expositores para revisar`}
           </Link>
+        </p>
+      ) : null}
+
+      {formatosPendientes > 0 ? (
+        <p className="border-l-2 border-[var(--mf-spot)] pl-4 text-lg">
+          <Link href="/panel/ventas-muestras" className="underline underline-offset-[6px]">
+            {formatosPendientes === 1 ? "1 formato para revisar" : `${formatosPendientes} formatos para revisar`}
+          </Link>
+        </p>
+      ) : null}
+
+      {pedidosPendientes > 0 ? (
+        <p className="border-l-2 border-[var(--mf-spot)] pl-4 text-lg">
+          {paraProducir.size === 1 ? (
+            <Link href={`/panel/muestras/${[...paraProducir.keys()][0]}/ventas/pedidos?estado=PAID`} className="underline underline-offset-[6px]">
+              {pedidosPendientes === 1 ? "1 pedido para producir" : `${pedidosPendientes} pedidos para producir`}
+            </Link>
+          ) : (
+            <Link href="/panel/ventas-muestras" className="underline underline-offset-[6px]">
+              {`${pedidosPendientes} pedidos para producir`}
+            </Link>
+          )}
         </p>
       ) : null}
 

@@ -92,3 +92,71 @@ describe("la extracción", () => {
     expect(r[0].iterations).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("la extracción con premios que alguien no puede repetir", () => {
+  it("sin exclusiones da exactamente lo mismo que antes", () => {
+    const antes = drawWinners({ ...base, prizeOrders: [1, 2, 3], entrantCount: 30 });
+    const ahora = drawWinners({
+      ...base,
+      prizeOrders: [1, 2, 3],
+      entrantCount: 30,
+      exclusions: new Map(),
+    });
+    expect(ahora).toEqual(antes);
+  });
+
+  it("quien está excluido de un premio no lo gana nunca", () => {
+    for (let k = 0; k < 200; k++) {
+      const r = drawWinners({
+        ...base,
+        randomness: k.toString(16).padStart(64, "0"),
+        prizeOrders: [1, 2],
+        entrantCount: 4,
+        exclusions: new Map([
+          [0, [1]],
+          [1, [1]],
+        ]),
+      });
+      expect([0, 1]).not.toContain(r[0].winnerPosition);
+    }
+  });
+
+  it("el excluido de un premio sí puede ganar otro", () => {
+    const ganados = new Set<number>();
+    for (let k = 0; k < 200; k++) {
+      const r = drawWinners({
+        ...base,
+        randomness: k.toString(16).padStart(64, "0"),
+        prizeOrders: [1, 2],
+        entrantCount: 3,
+        exclusions: new Map([[0, [1]]]),
+      });
+      ganados.add(r[1].winnerPosition);
+    }
+    expect(ganados.has(0)).toBe(true);
+  });
+
+  it("si para un premio no queda nadie habilitado, se sortea entre todos los que quedan y lo informa", () => {
+    const r = drawWinners({
+      ...base,
+      prizeOrders: [1],
+      entrantCount: 2,
+      exclusions: new Map([
+        [0, [1]],
+        [1, [1]],
+      ]),
+    });
+    expect(r[0].ruleRelaxed).toBe(true);
+    expect([0, 1]).toContain(r[0].winnerPosition);
+  });
+
+  it("cuando la regla no cede, lo dice", () => {
+    const r = drawWinners({
+      ...base,
+      prizeOrders: [1],
+      entrantCount: 3,
+      exclusions: new Map([[0, [1]]]),
+    });
+    expect(r[0].ruleRelaxed).toBe(false);
+  });
+});

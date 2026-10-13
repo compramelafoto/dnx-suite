@@ -1,6 +1,6 @@
 import type { Prisma } from "@repo/db";
 import { encodeGeohash } from "@repo/geo";
-import { MAX_WORKS, dayEndAr, dayStartAr, isGalleryMode, openingAtFrom, toArDay, type GalleryMode } from "@repo/muestras";
+import { DEFAULT_COUNTRY, MAX_WORKS, dayEndAr, dayStartAr, isCountry, isGalleryMode, openingAtFrom, toArDay, type GalleryMode } from "@repo/muestras";
 
 export type ObraForm = {
   id?: string;
@@ -41,6 +41,8 @@ export type FichaForm = {
   address: string | null;
   city: string | null;
   province: string | null;
+  /** Uno de `COUNTRIES`; lo que no esté en la lista vuelve a Argentina. */
+  country: string;
   latitude: number | null;
   longitude: number | null;
   galleryMode: GalleryMode;
@@ -211,6 +213,7 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     address: virtual ? null : opt(fd, "address", LARGOS.address),
     city: virtual ? null : opt(fd, "city", LARGOS.city),
     province: virtual ? null : opt(fd, "province", LARGOS.province),
+    country: isCountry(fd.get("country")) ? (fd.get("country") as string) : DEFAULT_COUNTRY,
     latitude: virtual ? null : num(fd, "latitude"),
     longitude: virtual ? null : num(fd, "longitude"),
     galleryMode: isGalleryMode(modo) ? modo : "HIGHLIGHTS_UNTIL_CLOSED",
@@ -258,6 +261,7 @@ export function datosParaGuardar(f: FichaForm) {
     address: f.address,
     city: f.city,
     province: f.province,
+    country: f.country,
     latitude: f.latitude,
     longitude: f.longitude,
     geohash: f.latitude != null && f.longitude != null ? encodeGeohash(f.latitude, f.longitude) : null,

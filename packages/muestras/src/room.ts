@@ -109,22 +109,9 @@ export function roomPassValid(p: RoomPass | null, activityId: string, now: Date)
 }
 
 /**
- * La venta todavía no existe (spec D33): el botón "Adquirir obra" lleva a una página que lo dice.
- * La etapa de Ventas pone esto en `true` y suma el estado `AVAILABLE` (precio y compra).
+ * El botón "Adquirir obra" aparece si la muestra lo ofrece en la sala y la obra tiene algo a la venta
+ * (etapa 8: algún formato aprobado o la marca de venta, de expositor o de concurso).
  */
-export const SALES_ENABLED = false;
-export const SALE_UNAVAILABLE_TEXT = "La venta de esta obra todavía no está disponible.";
-export const SALE_ASK_TEXT = "Si te interesa, consultá a la organización en la sala.";
-
-/** El botón aparece si la muestra lo ofrece en la sala y quien expone marcó la obra para vender. */
-export function showBuyButton(p: { roomBuy: boolean; forSale: boolean }): boolean {
-  return p.roomBuy && p.forSale;
-}
-
-export type SaleState = "UNAVAILABLE" | "NOT_FOR_SALE";
-
-export function saleState(p: { salesEnabled: boolean; forSale: boolean }): SaleState {
-  if (!p.forSale) return "NOT_FOR_SALE";
-  // Con `salesEnabled` la etapa de Ventas devolverá "AVAILABLE"; hoy no hay venta.
-  return "UNAVAILABLE";
+export function showBuyButton(p: { roomBuy: boolean; hasOffers: boolean }): boolean {
+  return p.roomBuy && p.hasOffers;
 }

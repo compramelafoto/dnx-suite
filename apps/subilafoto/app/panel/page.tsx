@@ -5,6 +5,7 @@ import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { perfilDeVenta } from "@/lib/perfil-de-venta";
 import { formatearPesos } from "@/lib/precios";
+import { eventosQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export default async function Panel() {
 
   const perfilId = await perfilDeVenta(usuario.id, usuario.name);
 
-  const [perfil, eventos, fila] = await Promise.all([
+  const [perfil, eventos, fila, cobrosRechazados] = await Promise.all([
     prisma.subilafotoSellerProfile.findUnique({
       where: { id: perfilId },
       select: {
@@ -54,7 +55,12 @@ export default async function Panel() {
       },
     }),
     prisma.subilafotoEvent.findMany({
-      where: { sellerProfileId: perfilId },
+      /*
+        Los propios y aquellos en los que a esta persona la invitaron. Sin la segunda
+        rama, quien colabora entra al panel y ve una lista vacía aunque tenga permiso en
+        cada pantalla: no tiene por dónde llegar al evento.
+      */
+      where: eventosQueAdministra(perfilId, usuario.id),
       orderBy: [{ activationAt: "desc" }, { createdAt: "desc" }],
       take: 50,
       select: {
@@ -67,6 +73,24 @@ export default async function Panel() {
       },
     }),
     prisma.user.findUnique({ where: { id: usuario.id }, select: { globalRole: true } }),
+    /*
+      Las ventas que Mercado Pago rechazó. Hasta el 11/10/2026 una venta que fallaba no
+      dejaba rastro: el cliente se iba, el fotógrafo no se enteraba, y cuando alguien
+      preguntaba ya no quedaba nada que mirar. Mostrarlas es la mitad del arreglo.
+    */
+    /*
+      Con el reloj de la base y no con el de acá: mirar la hora mientras se dibuja no
+      está permitido —React exige que el dibujado sea puro— y además el reloj que importa
+      para comparar contra `createdAt` es el mismo que lo escribió.
+    */
+    prisma.$queryRaw<{ id: string; createdAt: Date; metadata: unknown }[]>`
+      SELECT id, "createdAt", metadata
+      FROM "SubilafotoAudit"
+      WHERE action = 'COBRO_RECHAZADO'
+        AND "createdAt" >= now() - interval '30 days'
+      ORDER BY "createdAt" DESC
+      LIMIT 5
+    `,
   ]);
 
   const esAdmin = fila?.globalRole === "SUPER_ADMIN" || fila?.globalRole === "PLATFORM_SUPPORT";
@@ -85,6 +109,41 @@ export default async function Panel() {
           </button>
         </form>
       </div>
+
+      {/*
+        Antes que nada, si alguien quiso comprar y no pudo. Es más urgente que cualquier
+        otra cosa del panel: hay un cliente que puso sus datos, no pudo pagar y se fue.
+      */}
+      {cobrosRechazados.length > 0 ? (
+        <section
+          className="mt-8 rounded-2xl p-6"
+          style={{ background: "#FFF4E5", border: "1px solid #E0A458" }}
+        >
+          <p className="font-extrabold" style={{ color: "#7A4A08" }}>
+            {cobrosRechazados.length === 1
+              ? "Alguien quiso comprar y no pudo"
+              : `${cobrosRechazados.length} personas quisieron comprar y no pudieron`}
+          </p>
+          <ul className="mt-3 space-y-2 text-sm" style={{ color: "#7A4A08" }}>
+            {cobrosRechazados.map((c) => {
+              const datos = (c.metadata ?? {}) as { paraElFotografo?: string };
+              return (
+                <li key={c.id}>
+                  <span className="font-extrabold">
+                    {new Intl.DateTimeFormat("es-AR", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(c.createdAt)}
+                  </span>{" "}
+                  — {datos.paraElFotografo ?? "Mercado Pago rechazó el cobro."}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Lo primero: si se puede vender o no. Es la pregunta que trae al panel. */}
       <section

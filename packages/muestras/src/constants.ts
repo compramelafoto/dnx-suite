@@ -51,3 +51,28 @@ export function isActivityType(v: unknown): v is ActivityType {
 export function isGalleryMode(v: unknown): v is GalleryMode {
   return typeof v === "string" && (GALLERY_MODES as readonly string[]).includes(v);
 }
+
+/**
+ * Países en los que se pueden cargar muestras, con su código ISO para buscar direcciones.
+ * `country` se guarda con el nombre en español; el primero es el de siempre.
+ */
+export const COUNTRIES = [
+  { name: "Argentina", code: "AR" },
+  { name: "Bolivia", code: "BO" },
+  { name: "Brasil", code: "BR" },
+  { name: "Chile", code: "CL" },
+  { name: "Paraguay", code: "PY" },
+  { name: "Perú", code: "PE" },
+  { name: "Uruguay", code: "UY" },
+  { name: "Venezuela", code: "VE" },
+] as const;
+export const DEFAULT_COUNTRY = "Argentina";
+
+export function isCountry(v: unknown): v is (typeof COUNTRIES)[number]["name"] {
+  return typeof v === "string" && COUNTRIES.some((c) => c.name === v);
+}
+
+/** Código ISO de un país de la lista (para el buscador de direcciones); `null` si no está. */
+export function countryCode(name: string | null | undefined): string | null {
+  return COUNTRIES.find((c) => c.name === name)?.code ?? null;
+}

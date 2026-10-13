@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALBOOM_INTEGRATION_KEY,
   ANDREANI_INTEGRATION_KEY,
   CORREO_ARGENTINO_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
@@ -16,12 +17,13 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar, Contacts, Correo Argentino y Andreani son las implementadas hoy", () => {
+  it("Google Calendar, Contacts, Correo Argentino, Andreani y Alboom son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
       GOOGLE_CONTACTS_INTEGRATION_KEY,
       CORREO_ARGENTINO_INTEGRATION_KEY,
       ANDREANI_INTEGRATION_KEY,
+      ALBOOM_INTEGRATION_KEY,
     ]);
   });
 
@@ -103,5 +105,17 @@ describe("Andreani", () => {
     expect(andreani?.status).toBe("AVAILABLE");
     expect(andreani?.scopes).toEqual([]);
     expect(andreani?.requiredByModules).toEqual([]);
+  });
+});
+
+describe("Alboom CRM", () => {
+  it("se ofrece sin permisos OAuth, sin módulos que la exijan y fuera de la pantalla de Google", () => {
+    const alboom = getIntegrationDefinition(ALBOOM_INTEGRATION_KEY);
+    expect(alboom?.key).toBe("alboom-crm");
+    expect(alboom?.provider).toBe("ALBOOM");
+    expect(alboom?.status).toBe("AVAILABLE");
+    expect(alboom?.scopes).toEqual([]);
+    expect(alboom?.requiredByModules).toEqual([]);
+    expect(listIntegrations({ status: "AVAILABLE", provider: "GOOGLE" }).map((i) => i.key)).not.toContain(ALBOOM_INTEGRATION_KEY);
   });
 });

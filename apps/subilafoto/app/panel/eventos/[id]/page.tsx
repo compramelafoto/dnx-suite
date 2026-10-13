@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
+import { faltanImprescindibles, puntosDePreparacion } from "@/lib/preparacion";
+import { Preparacion } from "./preparacion";
+import { QueVen } from "./que-ven";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +24,7 @@ export default async function DetalleEvento({ params }: Props) {
   const evento = await prisma.subilafotoEvent.findFirst({
     // El filtro por dueño va en el where, no en un if después de leer: así un evento
     // ajeno directamente no se trae de la base.
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: {
       name: true,
       code: true,
@@ -30,10 +34,37 @@ export default async function DetalleEvento({ params }: Props) {
       deactivationAt: true,
       timezone: true,
       venueName: true,
+      themeTokens: true,
+      coverUrl: true,
+      hostsLabel: true,
+      preparacion: true,
+      guestsCanSeeAlbum: true,
+      guestsCanSeeLive: true,
+      sellerProfile: { select: { logoUrl: true, bannerUrl: true } },
     },
   });
 
   if (!evento) notFound();
+
+  /*
+    La preparación del evento. Nace de la fiesta del 10/10/2026, que no se hizo porque el
+    salón no tenía pantalla: el producto depende de cosas del mundo físico que nadie le
+    preguntó a nadie. Lo que el sistema puede ver, lo comprueba; lo del salón, se confirma.
+  */
+  const guardado = (evento.preparacion ?? {}) as Record<string, string>;
+  const puntos = puntosDePreparacion(
+    {
+      tieneHorario: Boolean(evento.activationAt && evento.deactivationAt),
+      tienePlantilla: evento.themeTokens !== null,
+      tienePortada: Boolean(evento.coverUrl),
+      tieneAnfitriones: Boolean(evento.hostsLabel?.trim()),
+      tieneLogo: Boolean(evento.sellerProfile.logoUrl),
+      tieneBanner: Boolean(evento.sellerProfile.bannerUrl),
+      confirmado: guardado,
+    },
+    id,
+  );
+  const faltan = faltanImprescindibles(puntos);
 
   const enZona = (fecha: Date | null) =>
     fecha
@@ -66,6 +97,44 @@ export default async function DetalleEvento({ params }: Props) {
           <dd style={{ color: "var(--slf-tinta-suave)" }}>{enZona(evento.deactivationAt)}</dd>
         </div>
       </dl>
+
+      <section className="mt-12">
+        <h2 className="text-lg font-extrabold">Qué ven los invitados</h2>
+        <p className="mt-2" style={{ color: "var(--slf-tinta-suave)" }}>
+          Dos cosas distintas, y conviene no confundirlas.
+        </p>
+        <QueVen
+          eventoId={id}
+          interruptores={[
+            {
+              campo: "guestsCanSeeLive",
+              titulo: "Muro en vivo",
+              ayuda:
+                "En su teléfono ven las últimas fotos que llegaron, en chico y sin poder bajarlas, sólo mientras la fiesta corre. Si el salón no tiene pantalla, esto es lo único que devuelve algo a quien sube una foto.",
+              encendido: evento.guestsCanSeeLive,
+            },
+            {
+              campo: "guestsCanSeeAlbum",
+              titulo: "Álbum completo",
+              ayuda:
+                "Todas las fotos del evento, para siempre. Encendido, cualquiera con el QR puede recorrer y guardarse el material antes de que lo vendas.",
+              encendido: evento.guestsCanSeeAlbum,
+            },
+          ]}
+        />
+      </section>
+
+      <section className="mt-12">
+        <h2 className="text-lg font-extrabold">Antes de la fiesta</h2>
+        <p className="mt-2" style={{ color: "var(--slf-tinta-suave)" }}>
+          {faltan === 0
+            ? "Está todo listo."
+            : faltan === 1
+              ? "Falta 1 cosa sin la que la fiesta se queda sin sistema."
+              : `Faltan ${faltan} cosas sin las que la fiesta se queda sin sistema.`}
+        </p>
+        <Preparacion eventoId={id} puntos={puntos} />
+      </section>
 
       <section
         className="mt-10 rounded-2xl p-7"

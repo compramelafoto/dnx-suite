@@ -44,7 +44,7 @@ export async function armarPieza(a: MuestraParaPiezas, o: OpcionesPieza, base: s
       const obras: ObraCatalogo[] = [];
       const lado = catalogImageSize(a.works.length);
       for (const w of a.works) {
-        obras.push({ ...obraDeCatalogo(w, a.expositores?.get(w.id)), imagen: await imagenParaPdf(w.imageUrl, lado, 80) });
+        obras.push({ ...obraDeCatalogo(w, a.expositores?.get(w.id), a.premios?.get(w.id)), imagen: await imagenParaPdf(w.imageUrl, lado, 80) });
       }
       const datos = { ...datosDeCartel(a, base), urlVisible: urlVisible(base, `/m/${a.slug}`), portada: await imagenParaPdf(a.coverImageUrl, 1600, 82), obras };
       return { bytes: await pdfDeCatalogo(datos, o.tamano, fecha), nombre: nombreDePieza("catalogo", a.slug, [o.tamano]) };

@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
@@ -7,6 +6,7 @@ import { revisarFoto } from "@/app/actions/moderacion";
 import { SELECT_DE_VARIANTES, enlacesDeVariantes } from "@/lib/moderacion/vista";
 import { accionesPosibles, exigeMotivo, type AccionDeRevision, type EstadoFoto } from "@/lib/moderacion/revision";
 import { estiloBotonDnx } from "@/lib/boton-dnx";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,7 @@ export default async function Moderacion({ params, searchParams }: Props) {
   }
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: { id: true, name: true, moderationProfile: true },
   });
   if (!evento) notFound();

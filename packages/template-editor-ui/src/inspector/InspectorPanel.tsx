@@ -14,14 +14,14 @@ export function InspectorPanel({
   return (
     <section
       className={cn(
-        "rounded-xl border border-[color:var(--te-line)] bg-[color:var(--te-chrome)] p-3 shadow-sm",
+        "border-b border-[color:var(--te-line)] px-3 py-2.5",
         className
       )}
     >
-      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]">
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--te-ink-muted)]">
         {title}
       </h3>
-      <div className="space-y-3">{children}</div>
+      <div className="space-y-2">{children}</div>
     </section>
   );
 }
@@ -34,7 +34,7 @@ export function FieldLabel({
   className?: string;
 }) {
   return (
-    <span className={cn("mb-1 block text-xs font-medium text-[color:var(--te-ink)]", className)}>
+    <span className={cn("mb-0.5 block text-[11px] text-[color:var(--te-ink-muted)]", className)}>
       {children}
     </span>
   );

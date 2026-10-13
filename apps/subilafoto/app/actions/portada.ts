@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { esClaveDePortada } from "@/lib/portada";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export type EstadoPortada = { error?: string; guardado?: boolean };
 
@@ -53,7 +54,7 @@ export async function guardarPortadaAction(
 
   // El filtro por dueño va en el update: un evento ajeno no se toca ni por error.
   const actualizados = await prisma.subilafotoEvent.updateMany({
-    where: { id: eventoId, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(eventoId, usuario.id),
     data: datos,
   });
 

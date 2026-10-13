@@ -68,17 +68,33 @@ export async function guardarBorradorAction(datos: {
   condiciones?: string | null;
   propuestaPago?: string | null;
   opcionesPago?: unknown;
+  /** Lo que tenía el editor al abrirse: si otro (DNX Bot u otra persona) guardó el borrador después, no se pisa. */
+  control?: { version: string; firma: string };
 }): Promise<Resultado> {
   if (!esObjeto(datos) || !esId(datos.presupuestoId) || !Array.isArray(datos.items)) return INVALIDO;
+  let control: { version: Date; firma: string } | undefined;
+  if (datos.control !== undefined) {
+    const c = datos.control as unknown;
+    if (!esObjeto(c) || typeof c.version !== "string" || typeof c.firma !== "string" || c.firma.length > 64) return INVALIDO;
+    const version = new Date(c.version);
+    if (Number.isNaN(version.getTime())) return INVALIDO;
+    control = { version, firma: c.firma };
+  }
   const ctx = await contextoDePresupuestos("operar");
   if (!ctx) return SIN_ACCESO;
-  const r = await guardarBorrador(ctx, datos.presupuestoId, {
-    items: datos.items,
-    descuento: datos.descuento,
-    condiciones: datos.condiciones,
-    propuestaPago: datos.propuestaPago,
-    opcionesPago: datos.opcionesPago,
-  });
+  const r = await guardarBorrador(
+    ctx,
+    datos.presupuestoId,
+    {
+      items: datos.items,
+      descuento: datos.descuento,
+      condiciones: datos.condiciones,
+      propuestaPago: datos.propuestaPago,
+      opcionesPago: datos.opcionesPago,
+    },
+    {},
+    control,
+  );
   if (r.ok) revalidar(datos.presupuestoId);
   return r;
 }

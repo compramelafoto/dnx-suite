@@ -224,7 +224,8 @@ select.fo-input {
 
 .fo-btn-primary {
   background: var(--fo-accent);
-  color: #ffffff;
+  /* `--fo-on-accent` lo define el modo oscuro del sitio público cuando el acento es claro. */
+  color: var(--fo-on-accent, #ffffff);
   box-shadow: var(--fo-shadow-xs);
 }
 

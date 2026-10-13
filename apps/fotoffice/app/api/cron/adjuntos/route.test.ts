@@ -5,6 +5,8 @@ vi.mock("@/lib/proyectos/adjuntos", () => ({ purgarAdjuntos: H.purgarProy }));
 vi.mock("@/lib/ficha/adjuntos", () => ({ purgarAdjuntos: H.purgar }));
 vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.configurado }));
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String(e) }));
+const L = vi.hoisted(() => ({ limpiar: vi.fn() }));
+vi.mock("@/lib/dnx-bot/limpieza", () => ({ borrarConversacionesViejas: L.limpiar }));
 
 const { POST, GET, maxDuration } = await import("./route");
 
@@ -19,8 +21,28 @@ beforeEach(() => {
   H.purgar.mockReset().mockResolvedValue({ purgados: 2, pendientesLimpios: 1, fallidos: 0 });
   H.purgarProy.mockReset().mockResolvedValue({ purgados: 0, pendientesLimpios: 0, fallidos: 0 });
   H.configurado.mockReset().mockReturnValue(true);
+  L.limpiar.mockReset().mockResolvedValue({ conversaciones: 0, acciones: 0 });
   process.env.CRON_SECRET = "s3creto";
   delete process.env.FOTOFFICE_CRON_SECRET;
+});
+
+describe("cron de adjuntos: limpieza de DNX Bot", () => {
+  it("borra las conversaciones viejas aunque los adjuntos no estén configurados", async () => {
+    H.configurado.mockReturnValue(false);
+    await POST(pedido("Bearer s3creto"));
+    expect(L.limpiar).toHaveBeenCalledTimes(1);
+  });
+  it("sin autorización no borra nada", async () => {
+    await POST(pedido());
+    expect(L.limpiar).not.toHaveBeenCalled();
+  });
+  it("si la limpieza falla, la purga de adjuntos sigue", async () => {
+    L.limpiar.mockRejectedValue(new Error("db"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await POST(pedido("Bearer s3creto"));
+    expect(r.status).toBe(200);
+    expect(H.purgar).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("cron de adjuntos", () => {

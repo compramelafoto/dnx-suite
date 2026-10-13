@@ -241,3 +241,88 @@ Cómo probarlo de punta a punta:
 3. Aprobarla desde Expositores y ver que entra a la galería.
 4. Bajar las fichas, escanear el QR con el celular y ver la vista de sala y "Adquirir obra".
 5. Abrir la muestra online en una ventana privada y confirmar que respeta la sorpresa.
+
+## Etapa 7 — concurso de FotoRank → muestra
+
+- **Migración:** `20261101120000_muestras_etapa_7_fotorank` ya está aplicada y registrada en la base
+  de producción (tablas `CulturalContestImport`, `CulturalContestWork` y `CulturalContestAuthor`).
+  No hay que correr nada.
+- **Variable nueva en Vercel (proyecto Muestras):** `DNX_FOTORANK_LINK_SECRET`, con el mismo valor
+  que en FotoRank y FOTOFFICE, más `FOTORANK_PUBLIC_BASE_URL=https://fotorank.dnxsuite.com`. Sin la
+  clave, la muestra se arma igual pero las imágenes no se copian.
+- **Cómo funciona:** en FotoRank, Resultados del concurso → "Armar muestra" (sólo OWNER, ADMIN o
+  EDITOR de la organización, o super admin; nunca maratones). En Muestras se eligen los niveles
+  (ganadores y menciones marcados; finalistas opcionales) y se crea un borrador "Muestra <concurso>"
+  con fechas provisorias, o se suman las obras a una muestra existente. Se puede repetir sin duplicar.
+- **Permiso del autor:** si las bases del concurso autorizaban exhibir, la obra entra y el autor la
+  ve en "Dónde expongo" (puede retirarla); si no, tiene que aceptar. El nombre se muestra si las
+  bases piden atribución o el autor lo confirma; si no, "Autoría reservada".
+- **Imágenes:** se copian por tandas al bucket de Muestras, una copia por muestra, recién cuando la
+  obra entra a la galería; se borran si el autor la retira o la organización la saca.
+- **FotoRank** sólo suma el recuadro "Armar muestra" y el bloque "Muestras del concurso" en lo
+  público (si algo falla, no se muestra). Los resultados oficiales todavía no se pueden publicar en
+  producción: se usa el último lote cerrado por la organización.
+
+Cómo probarlo de punta a punta:
+
+1. Con un concurso de FotoRank con resultados cerrados, entrar a Resultados y tocar "Armar muestra".
+2. En Muestras, elegir los niveles y armar el borrador.
+3. En "Del concurso", copiar las imágenes y revisar las casillas de cada obra.
+4. Con la cuenta de un autor, entrar a "Dónde expongo" y aceptar o retirar.
+5. Completar fechas y sede, enviar a revisión, aprobar y ver el premio en la ficha y en el catálogo.
+
+## Etapa 8 — pagos que quedaron "sin saber" (nota de operación)
+
+Si al pagar Mercado Pago no contesta (corte de red o error 5xx), el pedido queda como `UNKNOWN_CREATE`: no se sabe si la Order se creó. Muestras **no depende del aviso de CLF** para resolverlo (hoy CLF no procesa avisos en vivo):
+
+- El barrido (`/api/cron/ventas`, cada 10 minutos) busca esos pedidos en Mercado Pago por su referencia (`muestras-venta-<publicId>`, con `GET /v1/payments/search?external_reference=…`) durante 7 días. Si aparece la Order, la concilia: pagada → copia emitida (o pago tardío con otro número, o "cobrado sin copia").
+- Mientras no aparezca, el pedido se ve **en rojo** en `/panel/ventas` ("Conciliar a mano"). Si hay un pago con esa referencia pero no su Order, queda la alerta "hay un pago con esta referencia y no encontramos su Order": buscarlo a mano en Mercado Pago y devolverlo si corresponde.
+- Si Mercado Pago cobra un pedido que ya se había dado por rechazado, queda la alerta `ALERT_PAID_ON_TERMINAL` con la devolución pedida: el super admin la hace con "Devolver el pago".
+- Crear una Order y devolverla **nunca se reintentan solas**: ante la duda, el pedido queda pendiente y lo resuelve la conciliación.
+
+## Etapa 8 — venta de obras, ediciones limitadas y certificados
+
+- **Migración:** `20261102120000_muestras_etapa_8_venta` ya está aplicada y registrada en la base de
+  producción (9 tablas nuevas, ninguna columna en tablas existentes). No hay que correr nada.
+- **La venta sale APAGADA.** Hay tres modos según las variables:
+  - **OFF** (por defecto): el público ve "La venta de esta obra todavía no está disponible" y ningún precio.
+  - **TEST**: `MUESTRAS_MP_ENV=sandbox` + credenciales de un usuario de prueba de Mercado Pago. Sólo
+    compran el super admin y `MUESTRAS_VENTAS_PROBADORES`; numeración y certificados "de prueba".
+    La app verifica con `GET /users/me` que la cuenta sea `test_user`; si no, queda en OFF.
+  - **LIVE**: `MUESTRAS_VENTAS_EN_VIVO=true` + `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED=true` +
+    `MUESTRAS_MP_ENV=production` + todo lo demás. Recién cuando Mercado Pago cierre la homologación.
+- **Reparto:** 15 % plataforma (absorbe la comisión de Mercado Pago); el resto lo reparte cada
+  organización entre ella y el fotógrafo/a, y cada autor lo acepta. El envío es de la organización.
+- **Precios:** los propone el autor por formato (digital única/limitada, impresa única/limitada
+  Fine Art con papel y medida), entre $1.000 y $20.000.000, y la organización los aprueba.
+- **Ediciones:** números reservados 20 minutos; nunca se pasa de N (probado con 25 compras
+  simultáneas sobre una edición de 10 en una base descartable); los anulados no se reutilizan;
+  hasta 5 P/A; la venta cierra 30 días después del cierre de la muestra.
+- **Certificados:** firmados con Ed25519, PDF con la firma escaneada del autor, etiqueta con QR de
+  10×6 cm para el dorso, archivo digital con XMP y página `/verificar/<código>`.
+- **Confirmación del pago:** al crear, al volver el comprador, por aviso de CLF y por barrido cada
+  10 minutos (`/api/cron/ventas`, con `CRON_SECRET`). Siempre se lee la orden en Mercado Pago.
+- **Devoluciones:** sólo el super admin, y sólo totales (la parcial con reparto falla en MP).
+
+### Variables nuevas en Vercel (las secretas las carga Daniel)
+
+Proyecto **muestras-dnxsuite**:
+- `MUESTRAS_MP_ENV` (`sandbox` / `production`), `MUESTRAS_MP_ACCESS_TOKEN` (secreta),
+  `MUESTRAS_MP_PUBLIC_KEY`, `MUESTRAS_MP_OWNER_USER_ID` (sólo dígitos; la cuenta del token).
+- `MUESTRAS_VENTAS_EN_VIVO`, `MUESTRAS_VENTAS_PROBADORES` (emails o ids separados por coma).
+- `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED` y `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` (sólo al pasar a vivo).
+- `MUESTRAS_PEDIDOS_SECRET` (secreta, al azar: `openssl rand -hex 32`).
+- `MUESTRAS_CERT_PRIVATE_KEY` (secreta) y `MUESTRAS_CERT_KEY_ID`: clave Ed25519 en PEM. Se genera con
+  `openssl genpkey -algorithm ed25519`. `MUESTRAS_CERT_OLD_PUBLIC_KEYS` sólo si se rota.
+- `MUESTRAS_AVISO_PAGOS_SECRET` (secreta, al azar) — **el mismo valor** en Comprame la Foto.
+- `MUESTRAS_R2_PRIVATE_BUCKET`: bucket R2 **privado** (distinto de `fotoffice-media`) para originales,
+  firmas y piezas; con CORS que permita `PUT` desde `https://muestrasfotograficas.com`.
+- `CRON_SECRET` (ya pedido en la Etapa 5).
+
+Proyecto **compramelafoto-dnxsuite**:
+- `MUESTRAS_AVISO_PAGOS_URL=https://muestrasfotograficas.com/api/pagos/aviso`
+- `MUESTRAS_AVISO_PAGOS_SECRET` (el mismo que en Muestras).
+
+Antes de vender con dinero real: revisión legal de los términos y del botón de arrepentimiento,
+prueba de 3-D Secure en sandbox, confirmar que la Order de producción devuelve `splits` y que
+`/v1/payments/search` encuentra pagos por `external_reference`.

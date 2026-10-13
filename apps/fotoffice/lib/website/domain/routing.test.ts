@@ -74,3 +74,13 @@ describe("formulario insertable en el dominio propio", () => {
     expect(decide("/insertar.js")).toEqual({ kind: "pass" });
   });
 });
+
+describe("enlaces personales de módulos (galería, contrato, presupuesto)", () => {
+  it("/galeria/<token> en el dominio propio se sirve internamente bajo /w/<slug> (sin redirigir a FOTOFFICE)", () => {
+    expect(decide("/galeria/abc123")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/galeria/abc123" });
+    expect(decide("/contrato/abc123")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/contrato/abc123" });
+  });
+  it("el enlace con /w/<slug> se limpia con un salto,", () => {
+    expect(decide("/w/sfpr/galeria/abc123")).toEqual({ kind: "redirect", url: "/galeria/abc123" });
+  });
+});

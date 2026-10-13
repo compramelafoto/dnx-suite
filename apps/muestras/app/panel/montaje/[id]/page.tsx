@@ -27,6 +27,11 @@ export default async function MontajeDeMuestra({ params }: { params: Promise<{ i
     <main className="max-w-3xl space-y-10">
       <Link href="/panel/montaje" className="text-sm text-[var(--mf-muted)] underline underline-offset-[6px]">Volver a Montaje e impresión</Link>
       <h1 className="mf-titulo text-[clamp(2rem,4vw,2.8rem)]">{m.title}</h1>
+      {m.soloOnline > 0 ? (
+        <p role="status" className="text-[15px] text-[var(--mf-muted)]">
+          {cantidad(m.soloOnline, "obra sólo online no se imprime", "obras sólo online no se imprimen")}: no tienen ficha, marco, catálogo ni lugar en el plano.
+        </p>
+      ) : null}
 
       <section aria-labelledby="t-fichas" className={seccion}>
         <h2 id="t-fichas" className="mf-titulo text-[1.5rem]">Fichas de sala con QR</h2>

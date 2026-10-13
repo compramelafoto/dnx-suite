@@ -15,22 +15,32 @@ type Registro = { count: number; resetAt: number };
 
 const memoria = new Map<string, Registro>();
 
+/** Cada cuánto, a lo sumo, se barre lo vencido. */
+const BARRIDO_MS = 1_000;
+let ultimoBarrido = 0;
+
 /**
- * Limpieza perezosa: sólo cuando el mapa ya creció, y sólo lo vencido.
- *
- * Sin esto, una instancia de larga vida acumula una entrada por cada persona que pasó alguna vez.
- * Con esto, el costo se paga una vez cada tanto y no en cada pedido.
+ * Limpieza perezosa: barre lo vencido sólo cuando el mapa ya creció y, como mucho, una vez por
+ * segundo. Sin esto, una instancia de larga vida acumula una entrada por cada persona que pasó
+ * alguna vez; barriendo en cada pedido, una ráfaga de claves nuevas recorría el mapa entero cada vez.
  */
 function limpiar(ahora: number) {
-  if (memoria.size < 500) return;
+  if (memoria.size < 500 || ahora - ultimoBarrido < BARRIDO_MS) return;
+  ultimoBarrido = ahora;
   for (const [clave, registro] of memoria.entries()) {
     if (registro.resetAt <= ahora) memoria.delete(clave);
   }
-  // Tope duro: si aun así quedan demasiadas (muchas IPs en poco tiempo), se van las más viejas.
-  // Un Map recorre en orden de alta, así que las primeras son las más antiguas.
-  for (const clave of memoria.keys()) {
-    if (memoria.size < MAX_ENTRADAS) break;
-    memoria.delete(clave);
+}
+
+/**
+ * Tope duro al dar de alta una clave: si el mapa está lleno (muchas IPs en poco tiempo), se va la
+ * más vieja. Un Map recorre en orden de alta, así que la primera es la más antigua: O(1).
+ */
+function hacerLugar() {
+  while (memoria.size >= MAX_ENTRADAS) {
+    const primera = memoria.keys().next();
+    if (primera.done) return;
+    memoria.delete(primera.value);
   }
 }
 
@@ -53,6 +63,7 @@ export function checkRateLimit(params: {
     const nuevo: Registro = { count: 1, resetAt: ahora + windowMs };
     // Se borra antes para que vuelva al final del orden de alta (el desalojo saca las primeras).
     memoria.delete(key);
+    hacerLugar();
     memoria.set(key, nuevo);
     return { allowed: true, remaining: limit - 1, resetAt: nuevo.resetAt };
   }
@@ -68,6 +79,7 @@ export function checkRateLimit(params: {
 /** Sólo para los tests: deja el conteo en cero entre casos. */
 export function resetRateLimit() {
   memoria.clear();
+  ultimoBarrido = 0;
 }
 
 /** Sólo para los tests: cuántas claves hay guardadas. */
@@ -127,6 +139,24 @@ export const LIMITES = {
   enviarObraExpositor: { limit: 60, windowMs: 60 * 60_000 },
   // Quien organiza revisa con muchas obras: aprobar, pedir cambios, corregir y sacar.
   revisarExpositores: { limit: 600, windowMs: 10 * 60_000 },
+  // Etapa 7: del concurso de FotoRank a la muestra. Armar lee todos los resultados y escribe hasta
+  // 300 obras: pocas veces por hora. Copiar imágenes va de a 6 por pedido (≈ 50 pedidos para 300
+  // obras) y las casillas por obra se tocan muchas veces seguidas: topes holgados.
+  armarDesdeConcurso: { limit: 10, windowMs: 60 * 60_000 },
+  actualizarConcurso: { limit: 30, windowMs: 60 * 60_000 },
+  copiarImagenesConcurso: { limit: 600, windowMs: 10 * 60_000 },
+  opcionesConcurso: { limit: 600, windowMs: 10 * 60_000 },
+  respuestaAutor: { limit: 120, windowMs: 60 * 60_000 },
+  // Etapa 8: la venta. Invitar al reparto llama a Mercado Pago: pocas por hora. Verificar se aprieta
+  // varias veces mientras la persona acepta en otra pestaña.
+  invitarCobro: { limit: 10, windowMs: 60 * 60_000 },
+  verificarCobro: { limit: 60, windowMs: 60 * 60_000 },
+  ventaConfig: { limit: 60, windowMs: 60 * 60_000 },
+  // Un autor con muchas obras arma hasta 6 formatos por obra.
+  ofertaAutor: { limit: 300, windowMs: 60 * 60_000 },
+  subirOriginal: { limit: 30, windowMs: 60 * 60_000 },
+  revisarOfertas: { limit: 600, windowMs: 10 * 60_000 },
+  pedidosPanel: { limit: 600, windowMs: 10 * 60_000 },
 } as const;
 
 /**
@@ -171,6 +201,13 @@ export const LIMITES_PUBLICOS = {
   // Y por IP, alto: todo el público de la sala comparte el Wi-Fi del lugar (como `qr`).
   vistaSalaRed: { limit: 1500, windowMs: 10 * 60_000 },
   imagenSalaRed: { limit: 6000, windowMs: 10 * 60_000 },
+  // Etapa 8. Reservar un número de copia lo bloquea 20 minutos: tope bajo por IP (y por email,
+  // `LIMITES_POR_EMAIL`), para que nadie acapare una edición sin pagar.
+  reservarCopia: { limit: 20, windowMs: 10 * 60_000 },
+  // La página pública de verificación de certificados: frena a quien prueba códigos.
+  verificar: { limit: 60, windowMs: 10 * 60_000 },
+  // El aviso firmado de CLF ("la orden X cambió"): llega desde los servidores de CLF.
+  avisoPagos: { limit: 600, windowMs: 10 * 60_000 },
 } as const;
 
 export type QueSeLimitaSinSesion = keyof typeof LIMITES_PUBLICOS;
@@ -253,4 +290,33 @@ export type QueSeLimita = keyof typeof LIMITES;
 /** Cuenta un uso de `que` para la persona y dice si todavía está dentro del tope. */
 export function frenarPorUsuario(que: QueSeLimita, userId: number): DecisionDeFreno {
   return checkRateLimit({ key: `${que}:${userId}`, ...LIMITES[que] });
+}
+
+/**
+ * Etapa 8: topes por pedido de compra (su `publicId`, ya validado contra la base). Pagar llama a
+ * Mercado Pago; ver el pedido puede conciliar; cada descarga lee el bucket privado.
+ */
+export const LIMITES_POR_PEDIDO = {
+  pagarPedido: { limit: 10, windowMs: 10 * 60_000 },
+  verPedido: { limit: 120, windowMs: 10 * 60_000 },
+  descargaVenta: { limit: 30, windowMs: 60 * 60_000 },
+} as const;
+
+export type QueSeLimitaPorPedido = keyof typeof LIMITES_POR_PEDIDO;
+
+/** Llamar con un `publicId` que ya existe: con ids inventados, cada pedido sumaría una clave nueva. */
+export function frenarPorPedido(que: QueSeLimitaPorPedido, publicId: string): DecisionDeFreno {
+  return checkRateLimit({ key: `pedido:${que}:${publicId}`, ...LIMITES_POR_PEDIDO[que] });
+}
+
+/** Topes por email de quien compra (sin cuenta): se cuenta su huella, nunca el email en claro. */
+export const LIMITES_POR_EMAIL = {
+  reservarCopia: { limit: 10, windowMs: 10 * 60_000 },
+} as const;
+
+export type QueSeLimitaPorEmail = keyof typeof LIMITES_POR_EMAIL;
+
+export function frenarPorEmail(que: QueSeLimitaPorEmail, email: string, sal: string = SAL): DecisionDeFreno {
+  const huella = createHash("sha256").update(sal).update(email.trim().toLowerCase()).digest("base64url").slice(0, 22);
+  return checkRateLimit({ key: `email:${que}:${huella}`, ...LIMITES_POR_EMAIL[que] });
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
+  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, activitySalesHref, showActivitySales, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
   type ReviewStatus,
 } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
@@ -11,6 +11,7 @@ import { BotonesPublicada } from "@/components/formulario/botones-publicada";
 import { buscarParaEditar } from "@/lib/actividades/consultas";
 import { puede } from "@/lib/equipo/permisos";
 import { pendientesPorMuestra } from "@/lib/expositores/consultas";
+import { pendientesDelConcurso } from "@/lib/concursos/consultas";
 import { textoDelUltimoCambio } from "@/lib/equipo/registro";
 import { queSeVeOnline } from "@/lib/visibilidad/texto";
 import { requireUsuario } from "@/lib/usuario";
@@ -47,15 +48,23 @@ export default async function EditarActividad({
   const ultimo = await textoDelUltimoCambio(a);
   const revisaExpositores = a.type === "MUESTRA" && puede(usuario, "exhibitors", rol);
   const paraRevisar = revisaExpositores ? (await pendientesPorMuestra([a.id])).get(a.id) ?? 0 : 0;
+  // Obras traídas de un concurso de FotoRank (etapa 7): el panel lo ve quien ve la muestra.
+  const delConcurso = a.type === "MUESTRA" && a.tieneConcurso ? (await pendientesDelConcurso([a.id])).get(a.id) ?? 0 : null;
   const enlaces = a.type === "MUESTRA"
     ? [
         revisaExpositores
           ? { href: `/panel/muestras/${a.id}/expositores`, texto: paraRevisar ? `Expositores (${paraRevisar} para revisar)` : "Expositores" }
           : null,
+        delConcurso != null
+          ? { href: `/panel/muestras/${a.id}/concurso`, texto: delConcurso ? `Del concurso (${delConcurso} esperan al autor)` : "Del concurso" }
+          : null,
         puede(usuario, "visibility", rol)
           ? { href: `/panel/muestras/${a.id}/visibilidad`, texto: `Visibilidad (${VISIBILITY_PRESET_LABELS[parseVisibility(visibilidad.visibility, visibilidad.galleryMode).preset]})` }
           : null,
         puede(usuario, "hanging", rol) ? { href: `/panel/montaje/${a.id}`, texto: "Montaje e impresión" } : null,
+        showActivitySales({ canSales: puede(usuario, "sales", rol), canFulfill: puede(usuario, "salesFulfill", rol) })
+          ? { href: activitySalesHref(a.id), texto: "Ventas" }
+          : null,
         estado === "APPROVED" && puede(usuario, "stats", rol) ? { href: `/panel/estadisticas/${a.id}`, texto: "Estadísticas y libro de visitas" } : null,
         estado === "APPROVED" && puede(usuario, "promote", rol) ? { href: `/panel/difusion/${a.id}`, texto: "Difusión" } : null,
         !a.isVirtualOnly && puede(usuario, "rsvp", rol) ? { href: `/panel/difusion/${a.id}/inauguracion`, texto: "Inauguración" } : null,

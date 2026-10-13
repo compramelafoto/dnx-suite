@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
     "@repo/partners",
     // El motor de ¿Cuánto Cobro? (presupuestos, etapa 2): es TypeScript fuente, como en CompraMeLaFoto.
     "@repo/cuanto-cobro-core",
+    // DNX Bot (¿Cuánto Cobro? conversado): motor de turnos y burbuja, TypeScript fuente como en CLF.
+    // El SDK de Anthropic entra por este paquete y sólo en las rutas del bot.
+    "@repo/dnx-bot",
   ],
   serverExternalPackages: [
     "@prisma/client",
@@ -161,6 +164,10 @@ const nextConfig: NextConfig = {
       // `frame-ancestors *`.
       { source: "/w/:slug/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
+      // El enlace de una galería (etapa 7): token personal del cliente en la dirección, botón de enviar la
+      // selección (clickjacking) y fotos de un evento privado: ni se enmarca ni manda la dirección a otro sitio.
+      { source: "/w/:slug/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
     ];
   },
   images: {

@@ -1,10 +1,15 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { distinctionsForWorks, obrasSoloOnline } from "@/lib/concursos/publico";
 import { conPermiso } from "@/lib/equipo/permisos";
 import type { Usuario } from "@/lib/usuario";
 import type { DatosDeExpositor, MuestraParaPiezas } from "./textos";
 
-/** Una muestra con `pieces` (dueño, coorganización o super admin), de tipo muestra; publicada si se pide. */
+/**
+ * Una muestra con `pieces` (dueño, coorganización o super admin), de tipo muestra; publicada si se pide.
+ * Etapa 7: sin las obras de un concurso marcadas "sólo online" (no van en catálogo, marcos ni plano),
+ * y con el premio del concurso para el catálogo (el marco no lo lleva).
+ */
 export async function cargarMuestraParaPiezas(
   id: string,
   usuario: Pick<Usuario, "id" | "esSuperAdmin">,
@@ -20,12 +25,15 @@ export async function cargarMuestraParaPiezas(
     },
   });
   if (!a) return null;
+  const soloOnline = await obrasSoloOnline(a.id);
+  const works = soloOnline.size ? a.works.filter((w) => !soloOnline.has(w.id)) : a.works;
   // Medidas, edición y texto de las obras de expositores (etapa 6, D38). Sin `priceArs`: el precio
   // no va en ninguna pieza.
-  const filas = await prisma.culturalExhibitorWork.findMany({
-    where: { activityId: a.id, activityWorkId: { in: a.works.map((w) => w.id) } },
+  const ids = works.map((w) => w.id);
+  const [filas, premios] = await Promise.all([prisma.culturalExhibitorWork.findMany({
+    where: { activityId: a.id, activityWorkId: { in: ids } },
     select: { activityWorkId: true, imageWidthCm: true, imageHeightCm: true, edition: true, editionNumber: true, editionSize: true, statement: true },
-  });
+  }), distinctionsForWorks(a.id, ids)]);
   const expositores = new Map<string, DatosDeExpositor>(filas.flatMap(({ activityWorkId, ...d }) => (activityWorkId ? [[activityWorkId, d] as const] : [])));
-  return { ...a, expositores };
+  return { ...a, works, expositores, premios };
 }

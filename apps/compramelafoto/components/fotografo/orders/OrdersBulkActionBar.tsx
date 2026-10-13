@@ -75,7 +75,8 @@ export function buildDefaultBulkActions(input: {
     },
     {
       id: "export",
-      label: "Exportar",
+      label: "Exportar impresiones en un ZIP",
+      shortLabel: "Impresiones ZIP",
       icon: <IconExport className="shrink-0" />,
       onClick: input.onExport,
       disabled: !input.canExport,

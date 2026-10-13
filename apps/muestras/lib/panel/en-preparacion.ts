@@ -6,18 +6,5 @@ import type { PanelSectionKey } from "@repo/muestras";
  */
 export type TextoEnPreparacion = { titulo: string; bajada: string; puntos: string[] };
 
-export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>> = {
-  ventas: {
-    titulo: "Ventas",
-    bajada: "Vendé copias impresas y archivos digitales de las obras de tu muestra.",
-    puntos: [
-      "Quien recorre la sala compra desde el QR de cada ficha.",
-      "Precios y medidas por muestra.",
-      "Cobro con Mercado Pago, repartido entre organizador, fotógrafo y plataforma.",
-      "Cada autor acepta la venta y el reparto con un clic.",
-      "Seguimiento de cada impresión hasta la entrega.",
-      "Ediciones limitadas y numeradas, con certificado y QR de autenticidad.",
-      "Ventas por obra y por autor, junto con las visitas y los escaneos.",
-    ],
-  },
-};
+/** Etapa 8: "Ventas" quedó construida (cada muestra tiene la suya; el super admin ve todas). */
+export const EN_PREPARACION: Partial<Record<PanelSectionKey, TextoEnPreparacion>> = {};
