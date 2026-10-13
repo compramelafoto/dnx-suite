@@ -101,6 +101,7 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(prep.tools.map((t) => t.name)).toEqual([
       "ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios",
       "cotizar_trabajo", "buscar_consultas", "ver_presupuesto", "crear_borrador_de_presupuesto", "sumar_al_borrador",
+      "ver_consulta", "preparar_mensaje", "presupuestos_sin_respuesta",
     ]);
     expect(prep.actor).toEqual({ userId: 7, role: "WORKSPACE_OWNER", email: "d@x.test", name: "Daniel" });
   });
@@ -146,6 +147,8 @@ describe("POST /api/dnx-bot/chat", () => {
     params().alResultado!(send, "ver_perfil_de_precios", { ok: true, message: "", data: { tarjeta } });
     params().alResultado!(send, "cotizar_trabajo", { ok: true, message: "", data: { tarjeta } });
     expect(send).toHaveBeenCalledTimes(2);
+    params().alResultado!(send, "preparar_mensaje", { ok: true, message: "", data: { tarjeta } });
+    expect(send).toHaveBeenLastCalledWith("mensaje", tarjeta);
     expect(send).toHaveBeenCalledWith("calculo", tarjeta);
   });
 });

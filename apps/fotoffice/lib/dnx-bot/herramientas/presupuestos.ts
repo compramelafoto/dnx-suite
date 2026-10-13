@@ -76,7 +76,7 @@ function sinPrecio(r: Exclude<ResultadoCotizacion, { estado: "OK" }>): string {
   return r.faltan.length ? `${r.error} Falta: ${r.faltan.join(", ")}.` : r.error;
 }
 
-function siguientePaso(c: ConsultaBot): string {
+export function siguientePaso(c: ConsultaBot): string {
   if (!c.tieneFicha) return `Le falta el contacto: hay que completarla en /consultas/${c.leadId} antes de presupuestar.`;
   const borrador = c.presupuestos.find((p) => p.tieneBorrador);
   if (borrador) return `Ya tiene un presupuesto en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.`;
