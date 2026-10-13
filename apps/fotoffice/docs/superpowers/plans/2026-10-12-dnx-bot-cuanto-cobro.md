@@ -238,8 +238,8 @@ Molde de `apps/compramelafoto/lib/bot/turno-sse.ts` sin tickets: los `error` sal
 export type RutaBot = { ruta: string; proposito: string; pagina: string; requiere: "ver" | "configurar" | "verConsultas" };
 export const RUTAS_BOT: readonly RutaBot[]; // las 9 de §6.6
 export function rutasPara(c: Capacidades): RutaBot[];
-export function prefijosPermitidos(c?: Capacidades): string[];
-export function seccionPantallas(c: Capacidades): string;
+export function prefijosPermitidos(c: Capacidades): string[];
+export function seccionPantallas(): string;              // todas: la guía se cachea; la situación dice cuáles no puede abrir
 // guia
 export function guiaDelBot(): string; // determinística, sin fechas ni datos
 // contexto.ts
