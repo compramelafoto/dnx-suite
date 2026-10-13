@@ -269,14 +269,20 @@ export function traducirCosto(c: Crudo, ctx: CtxCostos): Decision {
     daysFromEvent: dias === null ? null : Math.max(-MAX_DIAS, Math.min(MAX_DIAS, dias)),
     supplierClientId,
   };
-  const extraDudas = dudas.length ? { dudas } : {};
+  const extraDudas: Partial<Decision> = dudas.length ? { dudas } : {};
+  const conflictosCosto: string[] = [];
   let existente: CostoExistente | undefined;
   if (mapa) existente = ctx.costos.find((x) => x.id === mapa.targetId);
   else {
     // Sólo con un costo previo y único del mismo producto y concepto; nunca con lo creado en esta corrida.
     const candidatos = ctx.costos.filter((x) => (!ctx.previos || ctx.previos.has(x.id)) && x.productId === productId && clave(x.concept) === clave(concept));
     if (candidatos.length === 1) existente = candidatos[0];
+    // Otro costo de Alboom del mismo producto con el mismo concepto ya se cargó en esta corrida: se crea aparte.
+    else if (candidatos.length === 0 && ctx.costos.some((x) => x.productId === productId && clave(x.concept) === clave(concept))) {
+      conflictosCosto.push(CONFLICTOS.nombreRepetido);
+    }
   }
+  if (conflictosCosto.length) (extraDudas as Partial<Decision>).conflictos = conflictosCosto;
   if (existente) {
     const actual: Campos = {
       concept: existente.concept,

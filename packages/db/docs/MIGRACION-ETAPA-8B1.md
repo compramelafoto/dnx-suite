@@ -76,7 +76,8 @@ SELECT conname FROM pg_constraint
   descartados, duplicados de Alboom fusionados, emparejados por correo y teléfono), productos con su catálogo,
   combos y costos-plantilla.
 - **Nunca fusiona personas ni productos distintos:** un correo o un teléfono solos no alcanzan; además el nombre
-  tiene que ser compatible (mismo nombre, uno contiene nombre + apellido del otro, o 60 % de palabras en común). Los
+  tiene que ser compatible (regla estricta: sin partículas, el nombre más corto tiene al menos dos palabras y todas
+  están en el más largo; un nombre de una sola palabra nunca empareja). Por teléfono sólo se completan teléfonos. Los
   correos de relleno (`sincorreo@`, `no@`, `@example.`…) y los del propio estudio (miembros, contacto del branding) no
   se guardan ni se usan; un correo o teléfono que en Alboom usan 3 o más contactos de nombres distintos no se usa
   para emparejar. Mismo correo con otro nombre → dos clientes y conflicto «correo compartido». Productos con el mismo

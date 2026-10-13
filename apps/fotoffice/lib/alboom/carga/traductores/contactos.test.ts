@@ -132,13 +132,14 @@ describe("contactos → clientes", () => {
       const a = crudo("contactos", "8001", { ...juan, email: "familia@correo.test" });
       registrarContacto(ctx, a, traducirContacto(a, ctx), "cli-juan");
       const d = traducirContacto(crudo("contactos", "8002", { ...maria, email: "familia@correo.test" }), ctx);
-      expect(d).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.correoCompartido], datos: { email: "familia@correo.test" } });
+      // El correo es de otra persona: a éste no se le guarda.
+      expect(d).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.correoCompartido], datos: { email: null } });
     });
 
     it("mismo correo que un cliente existente con otro nombre: no se le completa nada, se crea aparte", () => {
       const existente: ClienteExistente = { id: "c1", campos: vacio({ firstName: "Juan", lastName: "Pérez", email: "familia@correo.test" }), tagKeys: [] };
       const d = traducirContacto(crudo("contactos", "8002", { ...maria, email: "familia@correo.test" }), crearCtxContactos({ clientes: [existente] }));
-      expect(d).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.correoCompartido] });
+      expect(d).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.correoCompartido], datos: { email: null } });
       expect(existente.campos.docNumber).toBeNull();
     });
 
@@ -148,7 +149,7 @@ describe("contactos → clientes", () => {
       expect([...correos]).toEqual(["oficina@colegio.test"]);
       const existente: ClienteExistente = { id: "c1", campos: vacio({ firstName: "Juan", lastName: "Pérez", email: "oficina@colegio.test" }), tagKeys: [] };
       const d = traducirContacto(crudo("contactos", "8001", lista[0]), crearCtxContactos({ clientes: [existente], correosCompartidos: correos }));
-      expect(d).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.correoDeVarios] });
+      expect(d).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.correoDeVarios], datos: { email: null } });
     });
 
     it("mismo correo y nombre compatible: se empareja con el existente", () => {
@@ -169,5 +170,13 @@ describe("contactos → clientes", () => {
       expect(traducirContacto(crudo("contactos", "8001", { ...juan, email: "" }), ctx).accion).toBe("CREAR");
       expect(traducirContacto(crudo("contactos", "8001", { ...juan, email: "" }), crearCtxContactos({ clientes: [existente] }))).toMatchObject({ targetId: "c1" });
     });
+  });
+
+  it("sólo por teléfono (nombre compatible): no le pasa correo, documento, cumpleaños, domicilio ni etiquetas", () => {
+    const existente: ClienteExistente = { id: "c1", campos: vacio({ firstName: "Lucía", lastName: "Fernández", phone: null, mobile: "5493415551234" }), tagKeys: [] };
+    const d = traducirContacto(crudo("contactos", "7001", { ...CONTACTO, phone: "341 4000000" }), crearCtxContactos({ clientes: [existente] }));
+    expect(d).toMatchObject({ accion: "ACTUALIZAR", targetId: "c1", datos: { phone: "543414000000" } });
+    expect(Object.keys(d.datos!)).toEqual(["phone"]);
+    expect(d.extra).toBeUndefined();
   });
 });

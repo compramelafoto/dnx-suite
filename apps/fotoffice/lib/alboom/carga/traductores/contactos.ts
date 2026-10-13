@@ -243,8 +243,12 @@ export function traducirContacto(c: Crudo, ctx: CtxContactos): Decision {
     nuevos.email = null;
     dudas.push(DUDAS.correoDeRelleno);
   }
-  if (typeof nuevos.email2 === "string" && esCorreoDeRelleno(nuevos.email2, ctx.delEstudio)) nuevos.email2 = null;
-  if (correoInfo.deVarios) conflictos.push(CONFLICTOS.correoDeVarios);
+  if (typeof nuevos.email2 === "string" && (esCorreoDeRelleno(nuevos.email2, ctx.delEstudio) || ctx.correosCompartidos.has(nuevos.email2))) nuevos.email2 = null;
+  if (correoInfo.deVarios) {
+    // Un correo que usan varias personas no se guarda en ningún cliente.
+    nuevos.email = null;
+    conflictos.push(CONFLICTOS.correoDeVarios);
+  }
   const usable = correoInfo.usable;
   const nombre = nombreDe(nuevos);
 
@@ -254,7 +258,11 @@ export function traducirContacto(c: Crudo, ctx: CtxContactos): Decision {
     const cifrado = nombreCifrado(nombre, ctx.sal);
     const mismo = vistos.find((v) => nombresCompatibles(cifrado, v.n));
     if (mismo) return { accion: "OMITIR", motivo: MOTIVOS.duplicadoAlboom, targetId: mismo.t, fusionadoCon: mismo.a, escribirMapa: true, huellas: {} };
-    if (vistos.length > 0) conflictos.push(CONFLICTOS.correoCompartido);
+    if (vistos.length > 0) {
+      // Compartido con otra persona: no se guarda en éste (es de otro).
+      conflictos.push(CONFLICTOS.correoCompartido);
+      nuevos.email = null;
+    }
   }
 
   const claves = etiquetas.map(claveEtiqueta);
@@ -268,19 +276,28 @@ export function traducirContacto(c: Crudo, ctx: CtxContactos): Decision {
   };
 
   let existente: ClienteExistente | undefined;
+  let soloTelefono = false;
   if (mapa) existente = ctx.clientes.find((x) => x.id === mapa.targetId);
   else {
     const porCorreo = usable ? (ctx.porCorreo.get(usable) ?? []) : [];
     existente = porCorreo.find((x) => nombresCompatibles(nombre, nombreDe(x.campos)));
-    if (!existente && porCorreo.length > 0 && !extra.conflictos?.includes(CONFLICTOS.correoCompartido)) {
-      extra.conflictos = [...(extra.conflictos ?? []), CONFLICTOS.correoCompartido];
+    if (!existente && porCorreo.length > 0) {
+      if (!extra.conflictos?.includes(CONFLICTOS.correoCompartido)) extra.conflictos = [...(extra.conflictos ?? []), CONFLICTOS.correoCompartido];
+      nuevos.email = null;
     }
-    existente ??= porTelefono(ctx, nuevos, nombre, correoValido);
+    if (!existente) {
+      existente = porTelefono(ctx, nuevos, nombre, correoValido);
+      // Sólo por teléfono: no se le pasa ningún otro dato (correo, documento, cumpleaños, domicilio…), sólo teléfonos.
+      if (existente) {
+        soloTelefono = true;
+        for (const k of Object.keys(nuevos)) if (k !== "phone" && k !== "mobile") delete nuevos[k];
+      }
+    }
   }
 
   if (existente) {
     // Etiquetas: sólo las que no tiene y que no venían ya en la carga anterior (si alguien la sacó, no vuelve).
-    const aAgregar = etiquetas.filter((n, i) => !existente.tagKeys.includes(claves[i]!) && !(mapa && mapa.fieldHashes[huellaEtiqueta(claves[i]!)]));
+    const aAgregar = soloTelefono ? [] : etiquetas.filter((n, i) => !existente.tagKeys.includes(claves[i]!) && !(mapa && mapa.fieldHashes[huellaEtiqueta(claves[i]!)]));
     const d = actualizarOIgual(existente.id, nuevos, existente.campos, mapa, extra);
     d.huellas = { ...d.huellas, ...huellasEtiquetas };
     if (aAgregar.length > 0) {

@@ -164,6 +164,6 @@ describe("nunca se fusionan productos distintos", () => {
     const cs: CtxCostos = { productoDe: new Map([["55", "p1"]]), contactoDe: new Map(), costos: [], mapa: new Map(), previos: new Set() };
     const c1 = traducirCosto(crudo("costos_producto", "55/9", COSTO), cs);
     registrarCosto(cs, c1, "k1");
-    expect(traducirCosto(crudo("costos_producto", "55/10", { ...COSTO, id: "10" }), cs).accion).toBe("CREAR");
+    expect(traducirCosto(crudo("costos_producto", "55/10", { ...COSTO, id: "10" }), cs)).toMatchObject({ accion: "CREAR", conflictos: [CONFLICTOS.nombreRepetido] });
   });
 });
