@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle, type PhotoOverride } from "@repo/template-editor-ui";
-import {
-  clientPhotoSlotNumber,
-  DEFAULT_PHOTO_CROP,
-  imageBlockVariableKey,
-  PHOTO_CROP_MAX_ZOOM,
-  type PhotoCrop,
-} from "@repo/template-editor-core";
+import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/template-editor-ui";
+import { DEFAULT_PHOTO_CROP, PHOTO_CROP_MAX_ZOOM, type PhotoCrop } from "@repo/template-editor-core";
 import { applyDesignV2Edit, type DesignV2Data, type DesignV2Edit } from "@/lib/design-v2/design-data";
+import { designPhotoOverrides, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 import {
   textVariableLabel,
   type DesignPhotoPayload,
@@ -85,30 +80,9 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
   // Entra entero: a lo ancho y a lo alto de lo que queda de pantalla.
   const scale = area.width > 0 ? Math.min(1, area.width / canvasW, area.height / canvasH) : 0;
 
-  /*
-   * Lo que se ve tiene que ser lo que se imprime: una imagen atada a un dato que no llegó (el logo
-   * de la escuela, si la escuela no lo cargó) no sale en el archivo final, así que tampoco se
-   * muestra acá como recuadro gris.
-   */
-  const visibleBlocks = useMemo(
-    () =>
-      template.blocks.filter((b) => {
-        if (b.type !== "IMAGE" && b.type !== "PHOTO") return true;
-        if (clientPhotoSlotNumber(b) != null) return true;
-        const key = imageBlockVariableKey(b.configJson);
-        return !key || Boolean(data.values[key]?.trim());
-      }),
-    [template.blocks, data.values],
-  );
-
-  const overrides = useMemo(() => {
-    const result: Record<string, PhotoOverride> = {};
-    for (const [blockId, s] of Object.entries(data.slots)) {
-      const url = s.photoId != null ? photoUrlById.get(s.photoId) : null;
-      if (url) result[blockId] = { src: url, crop: s.crop };
-    }
-    return result;
-  }, [data.slots, photoUrlById]);
+  // Lo que se ve tiene que ser lo que se imprime.
+  const visibleBlocks = useMemo(() => visibleDesignBlocks(template.blocks, data.values), [template.blocks, data.values]);
+  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById), [data.slots, photoUrlById]);
 
   function apply(edit: DesignV2Edit) {
     if (readOnly) return;

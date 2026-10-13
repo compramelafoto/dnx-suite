@@ -61,9 +61,14 @@ export function toDesignTemplatePayload(template: {
 
 const TEXT_VARIABLE_LABELS: Record<string, string> = {
   "student.fullName": "Nombre del alumno",
+  "student.firstName": "Nombre del alumno (sin apellido)",
+  "student.lastName": "Apellido del alumno",
+  "student.lastNameFirst": "Apellido y nombre del alumno",
   "buyer.fullName": "Nombre del cliente",
   "school.name": "Escuela",
   "course.displayName": "Curso",
+  "course.withSchool": "Curso y colegio",
+  "school.withCourse": "Colegio y curso",
   "order.referenceShort": "Referencia del pedido",
   "photographer.displayName": "Fotógrafo",
   "event.dateFormatted": "Fecha",
