@@ -285,7 +285,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       studentFirstName: partes?.firstName,
       studentLastName: partes?.lastName,
       courseName: externo.courseName,
-      schoolName: album.school?.name,
+      schoolName: album.school?.name ?? externo.schoolName,
       buyerName: familia,
       photographerName: album.user?.name,
       courseStudents,
