@@ -7273,6 +7273,8 @@ model Workspace {
   fotofficeDispositivos          FotofficeDispositivo[]
   fotofficeAlboomCrudos          FotofficeAlboomCrudo[]
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
+  fotofficeAlboomMapas           FotofficeAlboomMapa[]
+  fotofficeAlboomCargas          FotofficeAlboomCarga[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -24899,6 +24901,57 @@ model FotofficeAlboomExtraccion {
   startedAt       DateTime  @default(now())
   finishedAt      DateTime?
   /// Motivo legible del error (sin datos de la cuenta, hasta 500 caracteres, CHECK).
+  errorReason     String?
+  lockedUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startedAt])
+  @@index([status, updatedAt])
+}
+
+/// Etapa 8B-1: qué registro de FOTOFFICE corresponde a cada registro de Alboom. Hace la carga idempotente (volver a
+/// cargar nunca duplica) y guarda lo último cargado: `payloadHash` (huella del crudo) y `fieldHashes` (huella de
+/// cada campo tal como vino de Alboom, sin el dato) para no pisar lo que se editó en FOTOFFICE después.
+/// `targetType` es texto (CLIENT, PRODUCT, ORIGEN…); `targetId` no es FK porque apunta a tablas distintas.
+model FotofficeAlboomMapa {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Entidad cruda de la 8A ("contactos", "productos"…) o derivada ("posicion_embudo").
+  entity      String
+  alboomId    String
+  targetType  String
+  targetId    String
+  payloadHash String
+  fieldHashes Json     @default("{}")
+  loadedAt    DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, entity, alboomId])
+  @@index([workspaceId, targetType, targetId])
+}
+
+/// Etapa 8B-1: una simulación o carga desde los datos crudos de Alboom. mode SIMULACION|CARGA y status
+/// PENDIENTE|CORRIENDO|LISTA|ERROR|CANCELADA (CHECK); a lo sumo una PENDIENTE o CORRIENDO por workspace (índice
+/// único parcial, no lo modela Prisma). `report` sólo lleva cantidades, motivos e ids de Alboom (nunca nombres,
+/// correos ni teléfonos). `fingerprint` es la huella de los datos crudos simulados: la CARGA exige una simulación
+/// LISTA con la misma huella. `progress` guarda el cursor para retomar; `lockedUntil` es el turno de la tanda.
+model FotofficeAlboomCarga {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  mode            String
+  status          String    @default("PENDIENTE")
+  entities        Json      @default("[]")
+  report          Json      @default("{}")
+  progress        Json      @default("{}")
+  fingerprint     String?
+  startedByUserId Int?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  /// Motivo legible del error (sin datos de clientes, hasta 500 caracteres, CHECK).
   errorReason     String?
   lockedUntil     DateTime?
   updatedAt       DateTime  @updatedAt

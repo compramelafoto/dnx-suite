@@ -58,7 +58,7 @@ let secuencia = 0;
 const nuevoId = () => `id${++secuencia}`;
 
 export function crearBaseAlboom() {
-  const datos = { crudos: [] as Fila[], extracciones: [] as Fila[], integraciones: [] as Fila[] };
+  const datos = { crudos: [] as Fila[], extracciones: [] as Fila[], integraciones: [] as Fila[], cargas: [] as Fila[] };
 
   const consulta = (tabla: () => Fila[]) => ({
     findMany: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Record<string, "asc" | "desc">; take?: number } = {}) =>
@@ -129,6 +129,8 @@ export function crearBaseAlboom() {
         return { count: antes - datos.extracciones.length };
       },
     },
+    /** Etapa 8B-1: sólo para que la extracción vea si hay una carga activa. */
+    fotofficeAlboomCarga: consulta(() => datos.cargas),
     workspaceIntegration: {
       upsert: async ({ create }: { create: Fila }) => {
         datos.integraciones = datos.integraciones.filter((r) => r.workspaceId !== create.workspaceId || r.integrationKey !== create.integrationKey);
@@ -160,6 +162,7 @@ export function crearBaseAlboom() {
       datos.crudos = [];
       datos.extracciones = [];
       datos.integraciones = [];
+      datos.cargas = [];
     },
   };
 }

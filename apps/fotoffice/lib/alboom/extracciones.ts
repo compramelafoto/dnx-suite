@@ -47,6 +47,13 @@ async function tandaEnVuelo(workspaceId: string, ahora: Date): Promise<boolean> 
 }
 
 const ESPERAR_TANDA = "La última tanda todavía está terminando. Probá de nuevo en unos minutos.";
+const HAY_CARGA = "Hay una simulación o carga desde Alboom en curso: esperá a que termine.";
+
+/** Etapa 8B-1: mientras se simula o carga no se extrae ni se borra (cambiarían los datos crudos a mitad). */
+async function hayCargaActiva(workspaceId: string): Promise<boolean> {
+  const fila = await prisma.fotofficeAlboomCarga.findFirst({ where: { workspaceId, status: activa }, select: { id: true } });
+  return fila !== null;
+}
 
 /** "Extraer todo" (TODO) o "Volver a extraer" (INCREMENTAL). La corre el cron en tandas. */
 export async function iniciarExtraccion(
@@ -57,6 +64,7 @@ export async function iniciarExtraccion(
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (await hayExtraccionActiva(workspaceId)) return { ok: false, error: "Ya hay una extracción en curso." };
   if (await tandaEnVuelo(workspaceId, ahora)) return { ok: false, error: ESPERAR_TANDA };
+  if (await hayCargaActiva(workspaceId)) return { ok: false, error: HAY_CARGA };
   try {
     const fila = await prisma.fotofficeAlboomExtraccion.create({
       data: { workspaceId, status: "PENDIENTE", mode, progress: avanceInicial() as unknown as Prisma.InputJsonValue, startedByUserId: userId },
@@ -89,6 +97,7 @@ export async function borrarLoExtraido(
 ): Promise<{ ok: true; registros: number } | { ok: false; error: string }> {
   if (await hayExtraccionActiva(workspaceId)) return { ok: false, error: "Hay una extracción en curso: cancelala antes de borrar." };
   if (await tandaEnVuelo(workspaceId, ahora)) return { ok: false, error: ESPERAR_TANDA };
+  if (await hayCargaActiva(workspaceId)) return { ok: false, error: HAY_CARGA };
   const crudos = await prisma.fotofficeAlboomCrudo.deleteMany({ where: { workspaceId } });
   await prisma.fotofficeAlboomExtraccion.deleteMany({ where: { workspaceId, status: { notIn: [...ESTADOS_ACTIVOS] } } });
   return { ok: true, registros: crudos.count };
