@@ -2,6 +2,31 @@
 
 export type ResizeCorner = "nw" | "ne" | "sw" | "se";
 
+/**
+ * Tiradores del medio de cada lado: estiran en una sola dirección (sólo el ancho o sólo el alto)
+ * y dejan quieto el lado opuesto. Desde una esquina con la proporción fijada no había forma de
+ * alargar una foto hacia un solo lado.
+ */
+export type ResizeEdge = "n" | "s" | "e" | "w";
+
+export type ResizeHandle = ResizeCorner | ResizeEdge;
+
+export function isResizeEdge(handle: ResizeHandle): handle is ResizeEdge {
+  return handle === "n" || handle === "s" || handle === "e" || handle === "w";
+}
+
+/** Estira desde el medio de un lado: cambia sólo el ancho (e/w) o sólo el alto (n/s). */
+function resizeFromEdge(handle: ResizeEdge, start: Rect, deltaX: number, deltaY: number): Rect {
+  if (handle === "e") return { ...start, width: Math.max(MIN, start.width + deltaX) };
+  if (handle === "s") return { ...start, height: Math.max(MIN, start.height + deltaY) };
+  if (handle === "w") {
+    const width = Math.max(MIN, start.width - deltaX);
+    return { ...start, x: start.x + (start.width - width), width };
+  }
+  const height = Math.max(MIN, start.height - deltaY);
+  return { ...start, y: start.y + (start.height - height), height };
+}
+
 export type Rect = { x: number; y: number; width: number; height: number };
 
 const MIN = 24;
@@ -88,14 +113,16 @@ export type ResizeModifiers = {
  * - Alt+Shift: ambos.
  */
 export function computeResizeRect(
-  handle: ResizeCorner,
+  handle: ResizeHandle,
   start: Rect,
   deltaX: number,
   deltaY: number,
   modifiers: ResizeModifiers
 ): Rect {
   let next: Rect;
-  if (modifiers.shift) {
+  if (isResizeEdge(handle)) {
+    next = resizeFromEdge(handle, start, deltaX, deltaY);
+  } else if (modifiers.shift) {
     next = resizeProportional(handle, start, deltaX, deltaY);
   } else {
     next = resizeFromCornerFree(handle, start, deltaX, deltaY);
@@ -115,8 +142,15 @@ function rotatedPoint(rect: Rect, px: number, py: number, rad: number): { x: num
   return { x: cx + dx * Math.cos(rad) - dy * Math.sin(rad), y: cy + dx * Math.sin(rad) + dy * Math.cos(rad) };
 }
 
-/** La esquina opuesta a la que se arrastra: la que tiene que quedarse quieta. */
-function oppositeCorner(handle: ResizeCorner, r: Rect): { x: number; y: number } {
+/**
+ * El punto que tiene que quedarse quieto: la esquina opuesta, o el medio del lado opuesto si se
+ * arrastra un lado.
+ */
+function oppositeCorner(handle: ResizeHandle, r: Rect): { x: number; y: number } {
+  if (handle === "e") return { x: r.x, y: r.y + r.height / 2 };
+  if (handle === "w") return { x: r.x + r.width, y: r.y + r.height / 2 };
+  if (handle === "s") return { x: r.x + r.width / 2, y: r.y };
+  if (handle === "n") return { x: r.x + r.width / 2, y: r.y + r.height };
   return {
     x: handle === "nw" || handle === "sw" ? r.x + r.width : r.x,
     y: handle === "nw" || handle === "ne" ? r.y + r.height : r.y,
@@ -134,7 +168,7 @@ function oppositeCorner(handle: ResizeCorner, r: Rect): { x: number; y: number }
  * para que la esquina opuesta (o el centro, con Alt) quede en el mismo lugar de la pantalla.
  */
 export function computeResizeRectRotated(
-  handle: ResizeCorner,
+  handle: ResizeHandle,
   start: Rect,
   deltaX: number,
   deltaY: number,

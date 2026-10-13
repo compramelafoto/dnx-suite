@@ -146,15 +146,18 @@ export type SnapResizeResult = {
  * quedó más cerca y el otro lado acompaña, para no deformar.
  */
 export function snapResizeRect(
-  handle: "nw" | "ne" | "sw" | "se",
+  handle: "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w",
   rect: { x: number; y: number; width: number; height: number },
   guides: { xs: number[]; ys: number[] },
   thresholdPx: number,
   keepAspect: boolean,
   minSide = 24
 ): SnapResizeResult {
-  const movesLeft = handle === "nw" || handle === "sw";
-  const movesTop = handle === "nw" || handle === "ne";
+  const movesLeft = handle === "nw" || handle === "sw" || handle === "w";
+  const movesTop = handle === "nw" || handle === "ne" || handle === "n";
+  // Un lado mueve un solo borde: el otro eje no se imanta.
+  const movesX = handle !== "n" && handle !== "s";
+  const movesY = handle !== "e" && handle !== "w";
   const left = rect.x;
   const right = rect.x + rect.width;
   const top = rect.y;
@@ -169,8 +172,8 @@ export function snapResizeRect(
     }
     return best;
   };
-  let gx = nearest(edgeX, guides.xs);
-  let gy = nearest(edgeY, guides.ys);
+  let gx = movesX ? nearest(edgeX, guides.xs) : null;
+  let gy = movesY ? nearest(edgeY, guides.ys) : null;
 
   if (keepAspect && gx !== null && gy !== null) {
     // Las dos guías no pueden cumplirse a la vez sin deformar: queda la más cercana.
