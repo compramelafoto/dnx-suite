@@ -46,6 +46,7 @@ export default defineConfig({
       "app/api/a/*/orders/route.test.ts",
       "app/api/precompra/order/route.test.ts",
       "components/bot/*.test.ts",
+      "components/canje-externo/librito-3d/*.test.ts",
     ],
   },
 });
