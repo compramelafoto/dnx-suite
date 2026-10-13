@@ -68,6 +68,8 @@ export function ReservarForm({
   extras,
   vocabulary,
   memberHint,
+  resourceSingular = "espacio",
+  baseItemLabel,
 }: {
   /** La acción del servidor que crea la reserva. */
   action: (formData: FormData) => Promise<void>;
@@ -95,7 +97,12 @@ export function ReservarForm({
   vocabulary: PersonVocabulary;
   /** Para el no socio: cuánto pagaría siendo socio y dónde ingresar para eso. */
   memberHint?: { priceLabel: string; freeHoursPerMonth: number; loginHref: string };
+  /** Cómo se llama lo que se reserva ("espacio", "barbero"): sale del tipo de agenda. */
+  resourceSingular?: string;
+  /** Cómo se nombra el precio base cuando hay extras ("Espacio", "Turno"). */
+  baseItemLabel?: string;
 }) {
+  const recurso = baseItemLabel ?? resourceSingular.charAt(0).toUpperCase() + resourceSingular.slice(1);
   const [primero, setPrimero] = useState<string | null>(null);
   const [segundo, setSegundo] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -341,7 +348,7 @@ export function ReservarForm({
 
         {grid.rows.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-[var(--fo-muted-soft)]">
-            Este espacio todavía no tiene horarios cargados.
+            {`Este ${resourceSingular} todavía no tiene horarios cargados.`}
           </p>
         ) : (
           <TimeGrid
@@ -585,8 +592,7 @@ export function ReservarForm({
                   ))}
                   {extrasElegidos.length > 0 ? (
                     <p className="text-xs text-[var(--fo-muted)]">
-                      Los extras se suman al total. Las horas bonificadas cubren el espacio, no
-                      el equipamiento.
+                      {`Los extras se suman al total. Las horas bonificadas cubren el ${resourceSingular}, no los extras.`}
                     </p>
                   ) : null}
                 </div>
@@ -594,7 +600,7 @@ export function ReservarForm({
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pl-[1.625rem]">
                 <p className="text-base font-semibold tabular-nums text-[var(--fo-text)]">
-                  {extrasElegidos.length > 0 ? "Espacio" : "Total"} {formatMinorArs(quote.totalMinor)}
+                  {extrasElegidos.length > 0 ? recurso : "Total"} {formatMinorArs(quote.totalMinor)}
                 </p>
                 <button type="submit" className="fo-btn fo-btn-primary text-sm">
                   {quote.totalMinor > 0 || extrasElegidos.length > 0

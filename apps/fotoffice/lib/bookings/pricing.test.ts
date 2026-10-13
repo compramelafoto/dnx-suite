@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeQuote, etiquetaDePrecio, quoteBooking, quoteForSpace, spacePriceLabel } from "./pricing";
+import { describeQuote, etiquetaDePrecio, quoteBooking, quoteForSpace, spacePriceLabel, turnPriceLabel } from "./pricing";
 
 const precios = { memberHourlyPriceMinor: 300_000, nonMemberHourlyPriceMinor: 500_000 };
 
@@ -303,5 +303,11 @@ describe("el precio según cómo cobra el espacio (SFPR)", () => {
     expect(spacePriceLabel(estudio, "MEMBER")).toMatch(/30\.000.*cada 2 h/);
     expect(spacePriceLabel(salon, "NON_MEMBER")).toMatch(/200\.000.*por jornada/);
     expect(spacePriceLabel(estudio, "MEMBER")).not.toMatch(/hora/);
+  });
+
+  it("como turno, un corte se anuncia por turno y no 'cada 0,5 h'", () => {
+    const corte = { ...estudio, blockMinutes: 30, nonMemberBlockPriceMinor: 1_500_000 };
+    expect(turnPriceLabel(corte, "NON_MEMBER")).toMatch(/15\.000.*el turno de 30 min/);
+    expect(turnPriceLabel(salon, "NON_MEMBER")).toBe(spacePriceLabel(salon, "NON_MEMBER"));
   });
 });

@@ -9191,6 +9191,13 @@ model BookingSettings {
   holdHours         Int      @default(24)
   /// Hasta cuántas horas antes puede cancelar solo quien reservó.
   cancelWindowHours Int      @default(24)
+  /// Cómo se presenta la agenda al público. ESPACIOS = se alquila una sala por hora (SFPR);
+  /// PROFESIONALES = se saca turno con una persona (una barbería: se elige al barbero).
+  agendaKind        String   @default("ESPACIOS")
+  /// Cómo se llama lo que se reserva, en singular y plural ("barbero"/"barberos").
+  /// null = el nombre por defecto del tipo de agenda ("espacio" o "profesional").
+  resourceSingular  String?
+  resourcePlural    String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
