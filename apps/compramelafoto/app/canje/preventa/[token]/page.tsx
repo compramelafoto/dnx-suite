@@ -12,6 +12,8 @@ import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificationGate";
 import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
+import type { CanjeExtrasConfig } from "@/components/canje-externo/CanjeExtrasStep";
+import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
 import {
   isPlaceholderEmail,
@@ -77,6 +79,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       status: true,
       buyerName: true,
       buyerEmail: true,
+      buyerPhone: true,
       redemptionOrderId: true,
       redemptionPaymentRefsJson: true,
       preventaPackSnapshotJson: true,
@@ -95,6 +98,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
           hiddenPhotosEnabled: true,
           scanProtectionEnabled: true,
           enableDigitalPhotos: true,
+          includeDigitalWithPrint: true,
           enablePrintedPhotos: true,
           digitalPhotoPriceCents: true,
           albumProfitMarginPercent: true,
@@ -248,6 +252,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     .map((p) => ({ id: p.id, sellPrint: p.sellPrint !== false, sellDigital: p.sellDigital !== false }));
   const sellsSingles = await isAlbumReadyToSellForCheckout(album).catch(() => false);
 
+
   // Si la plantilla del beneficio nombra sus huecos (foto individual, foto grupal), cada lugar
   // del canje lleva ese nombre. Las plantillas con huecos numerados siguen como siempre.
   // Los beneficios con diseño obligatorio (el librito) se muestran armados antes de confirmar.
@@ -323,6 +328,46 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     for (const id of ids) facesById.set(id, porFoto.get(id) ?? (vistas.has(id) ? 0 : null));
   }
 
+  /*
+   * Extras que se ofrecen apenas se confirma el canje: fotos sueltas (impresa con el producto
+   * de impresión del álbum, o digital) y otro librito igual. Sólo si el álbum está listo para
+   * vender; en modo prueba se muestran igual para que el fotógrafo vea la pantalla, sin cobrar.
+   */
+  let extras: CanjeExtrasConfig | null = null;
+  if (sellsSingles || modoPrueba) {
+    const productos = productsForAlbum(
+      await prisma.photographerProduct.findMany({
+        where: { userId: album.userId, isActive: true },
+        select: { id: true, name: true, size: true, acabado: true, albumId: true },
+        orderBy: { id: "asc" },
+      }),
+      album.id
+    );
+    const libritoProductId =
+      snapshot.benefits.find((b) => designs.some((d) => d.benefitKey === b.stableKey))?.photographerProductId ?? null;
+    const libritoRow = libritoProductId ? productos.find((p) => p.id === libritoProductId) : null;
+    const puntaje = (n: string) => {
+      const t = n.trim().toLowerCase();
+      return t === "foto impresa" ? 0 : t.startsWith("foto impresa") ? 1 : t.includes("impres") ? 2 : 3;
+    };
+    const impresaRow = productos
+      .filter((p) => p.id !== libritoProductId && p.size)
+      .sort((a, b) => puntaje(a.name) - puntaje(b.name) || a.id - b.id)[0];
+    const aProducto = (p: { id: number; name: string; size: string | null; acabado: string | null }) => ({
+      productId: p.id,
+      name: p.name,
+      size: p.size ?? "",
+      finish: p.acabado ?? null,
+    });
+    extras = {
+      digital: album.enableDigitalPhotos !== false,
+      impresa: album.enablePrintedPhotos !== false && impresaRow ? aProducto(impresaRow) : null,
+      librito: libritoRow?.size ? aProducto(libritoRow) : null,
+      includeDigitalWithPrint: album.includeDigitalWithPrint === true,
+    };
+    if (!extras.digital && !extras.impresa && !extras.librito) extras = null;
+  }
+
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
       {modoPrueba ? (
@@ -353,6 +398,13 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         designs={designs}
         designValues={designValues}
         pedirContacto={isPlaceholderEmail(order.buyerEmail)}
+        extras={extras}
+        modoPrueba={modoPrueba}
+        comprador={{
+          nombre: familia ?? "",
+          email: isPlaceholderEmail(order.buyerEmail) ? "" : (order.buyerEmail ?? ""),
+          telefono: order.buyerPhone ?? "",
+        }}
       />
     </ProtectedAlbumWrapper>
   );

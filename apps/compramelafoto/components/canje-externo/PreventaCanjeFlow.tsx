@@ -17,10 +17,11 @@ import {
 import ComboFrames from "./ComboFrames";
 import CanjeSteps, { type CanjeStepKey } from "./CanjeSteps";
 import PhotoPickGrid from "./PhotoPickGrid";
+import CanjeExtrasStep, { type CanjeExtrasConfig } from "./CanjeExtrasStep";
 import CanjeLibritoStep, { type CanjeCropEntry } from "./CanjeLibritoStep";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 
-type Paso = "intro" | "elegir" | "librito" | "revisar" | "listo";
+type Paso = "intro" | "elegir" | "librito" | "revisar" | "extras" | "listo";
 
 type Props = {
   token: string;
@@ -64,6 +65,15 @@ type Props = {
   designs?: Array<{ benefitKey: string; template: DesignTemplatePayload }>;
   /** Textos del diseño: alumno, curso, escuela, listado del curso. */
   designValues?: Record<string, string>;
+  /**
+   * Fotos y libritos extra que se ofrecen apenas se confirma el canje. `null` si el álbum no
+   * está listo para vender (sin productos o sin términos aceptados).
+   */
+  extras?: CanjeExtrasConfig | null;
+  /** Comprador del pack, para el pedido de extras cuando no se le pidieron los datos. */
+  comprador?: { nombre: string; email: string; telefono: string };
+  /** Pack de prueba del fotógrafo: los extras no se cobran. */
+  modoPrueba?: boolean;
 };
 
 function primerNombre(nombre: string | null): string | null {
@@ -93,6 +103,9 @@ export default function PreventaCanjeFlow({
   pedirContacto = false,
   designs = [],
   designValues = {},
+  extras = null,
+  comprador,
+  modoPrueba = false,
 }: Props) {
   const plan = useMemo(() => buildCanjeSlotPlan(pack.benefits), [pack.benefits]);
   const beneficio = useMemo(() => new Map(pack.benefits.map((b) => [b.stableKey, b])), [pack.benefits]);
@@ -141,6 +154,13 @@ export default function PreventaCanjeFlow({
   const entregaImpresas = `${impresas === 1 ? "La foto impresa te la entrega" : "Las fotos impresas te las entrega"} ${album.photographerName ?? "el fotógrafo"}.`;
   const stepKey: CanjeStepKey =
     paso === "intro" || paso === "elegir" ? "combo" : paso === "revisar" || paso === "librito" ? "extras" : "confirmar";
+  // Una foto del librito del pack: un librito extra se pide sobre ella.
+  const libritoPhotoId = (() => {
+    const clave = designs[0]?.benefitKey;
+    const grupo = clave ? plan.groups.find((g) => g.benefitKey === clave) : null;
+    const id = grupo?.slotIndexes.map((i) => filled[i]).find((x) => x != null);
+    return id ?? null;
+  })();
 
   const irA = (p: Paso) => {
     setAviso(null);
@@ -234,7 +254,9 @@ export default function PreventaCanjeFlow({
         pedido: Number(data.redemptionOrderId),
         downloadUrl: typeof data.downloadUrl === "string" ? data.downloadUrl : null,
       });
-      irA("listo");
+      // Apenas queda confirmado el canje se ofrecen extras: la familia tiene todas las fotos
+      // de su hijo a la vista y es cuando más ganas tiene de sumar.
+      irA(extras ? "extras" : "listo");
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pudimos confirmar el canje.");
     } finally {
@@ -503,6 +525,25 @@ export default function PreventaCanjeFlow({
               </div>
             ) : null}
           </section>
+        ) : null}
+
+        {paso === "extras" && extras ? (
+          <CanjeExtrasStep
+            albumId={album.id}
+            photos={photos}
+            usadasEnPack={elegidas}
+            libritoPhotoId={libritoPhotoId}
+            config={extras}
+            comprador={
+              pedirContacto
+                ? { nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() }
+                : (comprador ?? { nombre: nombre.trim(), email: "", telefono: "" })
+            }
+            alumnoCorto={alumnoCorto}
+            modoPrueba={modoPrueba}
+            thumbUrl={thumbUrl}
+            onTerminar={() => irA("listo")}
+          />
         ) : null}
 
         {paso === "listo" && resultado ? (
