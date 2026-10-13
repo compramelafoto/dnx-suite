@@ -166,6 +166,12 @@ export function FotofficeLanding({
                     Reservar el salón, el estudio o el coworking con su precio de socio.
                   </Punto>
                   <Punto icono="raffles">El sorteo del mes y los resultados de los anteriores.</Punto>
+                  <Punto icono="sponsors">
+                    Los beneficios y convenios de las marcas aliadas, todos juntos.
+                  </Punto>
+                  <Punto icono="governance">
+                    Los proyectos de la institución: proponer una idea, apoyar y ofrecerse para una tarea.
+                  </Punto>
                   <Punto icono="verificado">
                     A quién recomendó y cuánto le bonificaron la cuota por eso.
                   </Punto>

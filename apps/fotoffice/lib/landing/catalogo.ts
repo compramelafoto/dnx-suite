@@ -107,12 +107,15 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     cuadro: "03c",
     nombre: "Proyectos de la comisión",
     resuelve:
-      "Lo que hoy se pierde en el grupo de WhatsApp queda en un solo lugar: cada proyecto con sus etapas, sus tareas repartidas con responsable y fecha, los archivos y un historial de todo lo que se decidió. Los proyectos que ya estaban en marcha se cargan como aprobados, sin hacerlos votar de nuevo.",
+      "Lo que hoy se pierde en el grupo de WhatsApp queda en un solo lugar: cada proyecto con sus etapas, sus tareas repartidas con responsable y fecha, los archivos, lo que cuesta y lo que se gastó, y un historial de todo lo que se decidió. La comisión vota cada proyecto y lo trata en reunión, con temario y acta. Los socios proponen ideas, siguen en qué paso está la suya, apoyan los proyectos que la comisión les muestra y se ofrecen para las tareas sin responsable.",
     pantallas: [
       "Proyectos ordenados por urgencia",
       "Ficha del proyecto con etapas, tareas y archivos",
-      "Tablero de tareas: quién tiene qué y qué está vencido",
-      "Tipos de proyecto con sus etapas armadas",
+      "Presupuesto, cotizaciones y gastos del proyecto",
+      "Votación de la comisión",
+      "Reuniones con temario, resoluciones y acta",
+      "Propuestas y apoyo de los socios desde el portal",
+      "Tareas para socios voluntarios",
     ],
   },
   {
@@ -472,12 +475,6 @@ export const EN_CONSTRUCCION: {
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
-  },
-  {
-    cuadro: "17",
-    icono: "gobierno",
-    nombre: "Gobierno institucional",
-    resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
   },
   {
     cuadro: "18",
