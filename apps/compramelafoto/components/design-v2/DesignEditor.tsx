@@ -195,7 +195,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
         <div ref={areaRef} className="flex w-full justify-center">
           {scale > 0 ? (
             <div
-              className="relative overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-[#e5e7eb]"
+              className="relative overflow-hidden rounded-none bg-white shadow-sm ring-1 ring-[#e5e7eb]"
               style={{ width: canvasW * scale, height: canvasH * scale }}
             >
               <div
