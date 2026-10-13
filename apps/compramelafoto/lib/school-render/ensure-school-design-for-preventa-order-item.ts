@@ -1,4 +1,5 @@
 import "server-only";
+import type { PhotoCrop } from "@repo/template-editor-core";
 import type { Prisma } from "@/lib/prisma";
 import type { PreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { createDesignV2Project } from "@/lib/design-v2/projects";
@@ -111,6 +112,8 @@ export type EnsureSchoolDesignForPreCompraOrderItemParams = {
   context: SchoolDesignContext;
   /** Pedido del canje, donde el cliente ve sus descargas. */
   redemptionOrderId?: number | null;
+  /** Cómo acomodó la familia cada foto en la vista del librito del canje. */
+  cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
   /** Cache por plantilla dentro del mismo canje (varios ítems con la misma carpeta). */
   templateCache?: Map<string, DesignTemplateVersion | null>;
 };
@@ -161,6 +164,7 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     albumId: params.context.albumId,
     albumOrderId: params.redemptionOrderId ?? null,
     orderItemId: orderItem.id,
+    cropsByPhotoId: params.cropsByPhotoId,
   });
 
   await tx.preCompraOrderItem.updateMany({

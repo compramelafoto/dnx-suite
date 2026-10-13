@@ -14,6 +14,8 @@ import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificat
 import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
 import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
+import { toDesignTemplatePayload, type DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import { loadSchoolDesignContext } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
 import { clientPhotoInputs } from "@repo/template-editor-core";
 
 export const dynamic = "force-dynamic";
@@ -204,14 +206,26 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
 
   // Si la plantilla del beneficio nombra sus huecos (foto individual, foto grupal), cada lugar
   // del canje lleva ese nombre. Las plantillas con huecos numerados siguen como siempre.
+  // Los beneficios con diseño obligatorio (el librito) se muestran armados antes de confirmar.
+  const designs: Array<{ benefitKey: string; template: DesignTemplatePayload }> = [];
   const benefits = await Promise.all(
     snapshot.benefits.map(async (b) => {
       if (!b.templateV2Id) return b;
       const template = await loadDesignTemplateVersion({ templateId: b.templateV2Id }).catch(() => null);
+      if (template && b.templatePolicy === "REQUIRED" && template.slots.length > 0) {
+        designs.push({ benefitKey: b.stableKey, template: toDesignTemplatePayload(template) });
+      }
       const inputs = template ? clientPhotoInputs(template.slots) : [];
       return inputs.some((i) => i.role) ? { ...b, photoInputs: inputs } : b;
     })
   );
+  // Los mismos textos que va a llevar el diseño real: alumno, curso, escuela, listado del curso.
+  const designContext =
+    designs.length > 0 && preCompraId
+      ? await loadSchoolDesignContext(prisma as never, preCompraId).catch(() => null)
+      : null;
+  const designValues: Record<string, string> =
+    designContext?.values ?? (alumno ? { "student.fullName": alumno } : {});
 
   // Rostros por foto, para ofrecer como grupales sólo las fotos con mucha gente. `null` = la
   // foto todavía no se analizó.
@@ -248,6 +262,8 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
           studentName: alumno,
         }}
         photos={photos.map((p) => ({ ...p, faces: facesById.get(p.id) ?? null }))}
+        designs={designs}
+        designValues={designValues}
         pedirContacto={isPlaceholderEmail(order.buyerEmail)}
       />
     </ProtectedAlbumWrapper>

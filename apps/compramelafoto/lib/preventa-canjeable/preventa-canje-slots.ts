@@ -183,17 +183,30 @@ export function isCanjeComplete(filled: Array<number | null>): boolean {
 }
 
 /** Lo que espera `POST /api/public/pack/[token]/redeem`: una selección por beneficio. */
+export type CanjeCrop = { zoom: number; x: number; y: number };
+
 export function buildRedeemSelections(
   plan: CanjeSlotPlan,
-  filled: Array<number | null>
+  filled: Array<number | null>,
+  /** Cómo acomodó la familia la foto de cada lugar (índice del lugar), si la acomodó. */
+  crops?: Readonly<Record<number, CanjeCrop>>
 ): RedeemUnitSelectionInput[] {
   return plan.groups.map((g) => {
     const units: number[][] = Array.from({ length: g.units }, () => []);
+    const unitCrops: Array<Array<CanjeCrop | null>> = Array.from({ length: g.units }, () => []);
+    let anyCrop = false;
     for (const i of g.slotIndexes) {
       const pid = filled[i];
-      if (pid != null) units[plan.slots[i].unitIndex].push(pid);
+      if (pid == null) continue;
+      const u = plan.slots[i].unitIndex;
+      units[u].push(pid);
+      const crop = crops?.[i] ?? null;
+      if (crop) anyCrop = true;
+      unitCrops[u].push(crop);
     }
-    return { benefitStableKey: g.benefitKey, units };
+    return anyCrop
+      ? { benefitStableKey: g.benefitKey, units, crops: unitCrops }
+      : { benefitStableKey: g.benefitKey, units };
   });
 }
 

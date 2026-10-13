@@ -1,4 +1,5 @@
 import "server-only";
+import type { PhotoCrop } from "@repo/template-editor-core";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -95,6 +96,8 @@ export type CreateDesignInput = {
   albumOrderId?: number | null;
   albumPackDraftId?: string | null;
   orderItemId?: number | null;
+  /** Cómo acomodó la familia cada foto en el canje; sin esto, centradas. */
+  cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
 };
 
 /**
@@ -117,6 +120,7 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
     slots: input.template.slots,
     photoIds: input.photoIds,
     values: input.values,
+    cropsByPhotoId: input.cropsByPhotoId,
   });
 
   const project = await db.designProject.create({
