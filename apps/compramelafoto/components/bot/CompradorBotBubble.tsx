@@ -60,7 +60,7 @@ export function BurbujaSobreBotones() {
   return (
     <DnxBotBubble
       basePath="/api/bot/comprador"
-      mascotSrc="/dnx-bot/mascota.webp"
+      mascotSrc="/dnx-bot/mascota.webp" mascotSpriteSrc="/dnx-bot/mascota-foto.webp"
       bottomOffsetPx={margen}
       audiencia="comprador"
       rutasPermitidas={RUTAS_PERMITIDAS_COMPRADOR}

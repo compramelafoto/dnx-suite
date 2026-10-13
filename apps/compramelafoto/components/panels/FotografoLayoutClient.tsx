@@ -27,7 +27,7 @@ function isTemplateV2EditorPath(pathname: string | null): boolean {
 function BotBubbleMount() {
   const upload = useUploadProgress();
   const uploading = Boolean(upload?.state.uploading && upload.state.total > 0);
-  return <DnxBotBubble basePath="/api/bot" mascotSrc="/dnx-bot/mascota.webp" bottomOffsetPx={uploading ? 96 : 24} rutasPermitidas={RUTAS_PERMITIDAS_BOT} />;
+  return <DnxBotBubble basePath="/api/bot" mascotSrc="/dnx-bot/mascota.webp" mascotSpriteSrc="/dnx-bot/mascota-foto.webp" bottomOffsetPx={uploading ? 96 : 24} rutasPermitidas={RUTAS_PERMITIDAS_BOT} />;
 }
 
 function FotografoLayoutInner({ children }: { children: React.ReactNode }) {

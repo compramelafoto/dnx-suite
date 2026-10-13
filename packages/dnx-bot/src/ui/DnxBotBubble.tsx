@@ -27,6 +27,7 @@ import {
   CSS_MASCOTA,
   DURACION_ENTRADA,
   DURACION_LLAMADO_MS,
+  ESPERA_TIRA_MS,
   MAX_LLAMADOS,
   PRIMER_LLAMADO_MS,
   tipoEntrada,
@@ -36,13 +37,15 @@ import {
 export type DnxBotBubbleProps = {
   basePath: string;
   mascotSrc: string;
+  /** Tira de cuadros de la animación de la foto (mismo tamaño de cuadro que `mascotSrc`). Sin ella, la mascota queda quieta. */
+  mascotSpriteSrc?: string;
   bottomOffsetPx?: number;
   rutasPermitidas?: string[];
   /** Sin la prop (o "fotografo") la burbuja funciona como siempre. "comprador": página con búsqueda, globito diferido y nunca se abre sola. */
   audiencia?: Audiencia;
 };
 
-export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo" }: DnxBotBubbleProps) {
+export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo" }: DnxBotBubbleProps) {
   const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; globitoDemoraMs?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
   // El temporizador del globito diferido lee si la ventana está abierta en el momento de dispararse.
@@ -138,27 +141,44 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
     } catch {
       reducir = false;
     }
-    const tipo = tipoEntrada(almacen, reducir);
+    const tipo = mascotSpriteSrc ? tipoEntrada(almacen, reducir) : "ninguna";
     setSinMovimiento(tipo === "ninguna");
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const acomodar = () => {
+    let vivo = true;
+    const acomodar = (conLlamados: boolean) => {
       setFase("reposo");
       setEntradaLista(true);
-      if (tipo === "ninguna") return;
-      // Unos pocos llamados suaves en reposo, y después nada más.
+      if (!conLlamados) return;
+      // Unos pocos llamados en reposo (repite la foto), y después nada más.
       for (let i = 0; i < MAX_LLAMADOS; i++) {
         const t = PRIMER_LLAMADO_MS + i * CADA_LLAMADO_MS;
         timers.push(setTimeout(() => { if (!yaAbrioRef.current) setFase("llamado"); }, t));
         timers.push(setTimeout(() => setFase((f) => (f === "llamado" ? "reposo" : f)), t + DURACION_LLAMADO_MS));
       }
     };
-    if (tipo === "ninguna") acomodar();
+    if (tipo === "ninguna" || !mascotSpriteSrc) acomodar(false);
     else {
-      setFase(tipo === "grande" ? "entrada-grande" : "entrada-corta");
-      timers.push(setTimeout(acomodar, DURACION_ENTRADA[tipo]));
+      // La animación arranca recién con la tira cargada: si no, se vería un hueco en vez del robot.
+      // Si tarda demasiado o falla, la mascota aparece quieta y sale el globito.
+      let resuelto = false;
+      const empezar = (ok: boolean) => {
+        if (resuelto || !vivo) return;
+        resuelto = true;
+        if (!ok) return acomodar(false);
+        setFase(tipo === "grande" ? "entrada-grande" : "entrada-corta");
+        timers.push(setTimeout(() => acomodar(true), DURACION_ENTRADA[tipo]));
+      };
+      const tira = new Image();
+      tira.onload = () => empezar(true);
+      tira.onerror = () => empezar(false);
+      timers.push(setTimeout(() => empezar(false), ESPERA_TIRA_MS));
+      tira.src = mascotSpriteSrc;
     }
-    return () => timers.forEach(clearTimeout);
-  }, [habilitado]);
+    return () => {
+      vivo = false;
+      timers.forEach(clearTimeout);
+    };
+  }, [habilitado, mascotSpriteSrc]);
 
   // Lo que se ve como saludo antes del primer mensaje; send() lo pasa a la conversación.
   const introRef = useRef<{ texto: string | null; progreso: ProgresoEscolar | null }>({ texto: null, progreso: null });
@@ -347,7 +367,8 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
       >
         <span className="dnxbot-sombra" aria-hidden="true" />
         <span className="dnxbot-cuerpo">
-          <img src={mascotSrc} alt="" width={57} height={90} />
+          <img src={mascotSrc} alt="" width={65} height={90} />
+          {mascotSpriteSrc && <span className="dnxbot-tira" aria-hidden="true" style={{ backgroundImage: `url("${mascotSpriteSrc}")` }} />}
         </span>
         {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", zIndex: 2, top: 0, right: -4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
       </button>
