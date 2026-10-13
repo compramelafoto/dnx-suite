@@ -38,18 +38,30 @@ type Props = {
 const DRAG_SLOT = "application/x-design-slot";
 const DRAG_PHOTO = "application/x-design-photo";
 
-function useWidth(ref: React.RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0);
+/**
+ * El espacio para dibujar el diseño: el ancho del contenedor y el alto que queda hasta el borde
+ * de abajo de la ventana. Con sólo el ancho, un diseño vertical quedaba cortado y había que
+ * desplazarse para verlo entero.
+ */
+function useFitBox(ref: React.RefObject<HTMLElement | null>): { width: number; height: number } {
+  const [box, setBox] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const update = () => setWidth(el.clientWidth);
+    const update = () => {
+      const top = Math.max(0, el.getBoundingClientRect().top);
+      setBox({ width: el.clientWidth, height: Math.max(280, window.innerHeight - top - 24) });
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
   }, [ref]);
-  return width;
+  return box;
 }
 
 export default function DesignEditor({ template, photos, data, onChange, readOnly = false, photosTitle }: Props) {
@@ -58,7 +70,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
-  const areaWidth = useWidth(areaRef);
+  const area = useFitBox(areaRef);
   const pan = useRef<{ id: string; x0: number; y0: number; crop: PhotoCrop; w: number; h: number } | null>(null);
 
   const photoUrlById = useMemo(() => new Map(photos.map((p) => [p.id, p.url])), [photos]);
@@ -70,7 +82,8 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
 
   const canvasW = Number(template.canvas.width) || 1;
   const canvasH = Number(template.canvas.height) || 1;
-  const scale = areaWidth > 0 ? Math.min(1, areaWidth / canvasW) : 0;
+  // Entra entero: a lo ancho y a lo alto de lo que queda de pantalla.
+  const scale = area.width > 0 ? Math.min(1, area.width / canvasW, area.height / canvasH) : 0;
 
   /*
    * Lo que se ve tiene que ser lo que se imprime: una imagen atada a un dato que no llegó (el logo
@@ -121,7 +134,9 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
   }
 
   function onSlotPointerDown(e: React.PointerEvent<HTMLDivElement>, blockId: string) {
-    if (readOnly || selectedId !== blockId) return;
+    if (readOnly) return;
+    // Tocar una foto la elige y arrastrarla la reencuadra ahí mismo, sin pasos previos.
+    setSelectedId(blockId);
     const slot = data.slots[blockId];
     const block = blockById.get(blockId);
     if (!slot || slot.photoId == null || !block) return;
@@ -177,7 +192,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
           </div>
         ) : null}
 
-        <div ref={areaRef} className="w-full">
+        <div ref={areaRef} className="flex w-full justify-center">
           {scale > 0 ? (
             <div
               className="relative overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-[#e5e7eb]"
@@ -220,15 +235,19 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
                       tabIndex={0}
                       aria-label={`${slot.label}${isEmpty ? " (vacío)" : ""}`}
                       aria-pressed={isSelected}
-                      draggable={!readOnly && !isSelected && !isEmpty}
-                      onClick={() => setSelectedId(isSelected ? null : slot.blockId)}
+                      onClick={() => setSelectedId(slot.blockId)}
+                      onWheel={(e) => {
+                        // La rueda del mouse acerca o aleja la foto del hueco elegido.
+                        if (readOnly || !isSelected || isEmpty || !assignment) return;
+                        const zoom = Math.min(PHOTO_CROP_MAX_ZOOM, Math.max(1, assignment.crop.zoom - e.deltaY * 0.002));
+                        setCrop(slot.blockId, { ...assignment.crop, zoom });
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           setSelectedId(isSelected ? null : slot.blockId);
                         }
                       }}
-                      onDragStart={(e) => e.dataTransfer.setData(DRAG_SLOT, slot.blockId)}
                       onDragOver={(e) => {
                         if (readOnly) return;
                         e.preventDefault();
@@ -259,7 +278,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
                         height: block.layout.height,
                         transform: `rotate(${block.layout.rotation ?? 0}deg)`,
                         zIndex: 10_000,
-                        cursor: readOnly ? "default" : isSelected && !isEmpty ? "grab" : "pointer",
+                        cursor: readOnly ? "default" : !isEmpty ? "grab" : "pointer",
                         outline: isSelected
                           ? `${lineW}px solid #c27b3d`
                           : isDrop
@@ -269,7 +288,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
                               : "none",
                         outlineOffset: -lineW,
                         background: isEmpty ? "rgba(220,38,38,0.06)" : undefined,
-                        touchAction: isSelected ? "none" : undefined,
+                        touchAction: !readOnly && !isEmpty ? "none" : undefined,
                       }}
                     >
                       {isEmpty ? (
@@ -291,8 +310,8 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
         </div>
         {!readOnly ? (
           <p className="mt-2 text-xs text-[#6b7280]">
-            Tocá un hueco para elegirlo. Arrastrá un hueco sobre otro para intercambiar las fotos, o una foto de la
-            lista sobre un hueco para cambiarla. Con el hueco elegido, arrastrá la foto para encuadrarla.
+            Arrastrá una foto para reencuadrarla ahí mismo y usá la rueda del mouse para acercarla. Para cambiarla,
+            arrastrá una foto de la lista sobre el hueco; para intercambiar dos, usá «Intercambiar con…».
           </p>
         ) : null}
         {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
@@ -342,6 +361,23 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
                     >
                       Centrar
                     </button>
+                    {template.slots
+                      .filter((o) => o.blockId !== selected.blockId && o.slotNumber !== selected.slotNumber)
+                      .filter((o, i, arr) => arr.findIndex((x) => x.slotNumber === o.slotNumber) === i)
+                      .map((o) => (
+                        <button
+                          key={o.blockId}
+                          type="button"
+                          onClick={() => {
+                            apply({ kind: "swap", blockIdA: selected.blockId, blockIdB: o.blockId });
+                            setPage(o.pageIndex);
+                            setSelectedId(o.blockId);
+                          }}
+                          className="rounded-full px-3 py-1 text-xs font-medium text-[#374151] ring-1 ring-[#e5e7eb] hover:bg-[#f9fafb]"
+                        >
+                          Intercambiar con {o.label}
+                        </button>
+                      ))}
                     <button
                       type="button"
                       onClick={() => apply({ kind: "set-photo", blockId: selected.blockId, photoId: null })}
