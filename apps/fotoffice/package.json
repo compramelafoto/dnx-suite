@@ -24,6 +24,7 @@
     "@repo/auth-ui": "workspace:*",
     "@repo/communications": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/dnx-bot": "workspace:*",
     "@repo/design-studio": "workspace:*",
     "@repo/geo": "workspace:*",
     "@repo/partners": "workspace:*",

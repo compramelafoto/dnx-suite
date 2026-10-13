@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
     "@repo/partners",
     // El motor de ¿Cuánto Cobro? (presupuestos, etapa 2): es TypeScript fuente, como en CompraMeLaFoto.
     "@repo/cuanto-cobro-core",
+    // DNX Bot (¿Cuánto Cobro? conversado): motor de turnos y burbuja, TypeScript fuente como en CLF.
+    // El SDK de Anthropic entra por este paquete y sólo en las rutas del bot.
+    "@repo/dnx-bot",
   ],
   serverExternalPackages: [
     "@prisma/client",
