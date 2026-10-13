@@ -29,6 +29,9 @@ import type { BirthdayView } from "@/lib/birthdays/week";
 import { loadActivePlacement } from "@/lib/sponsors/placements";
 import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
 import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
+import { loadRenewalOffer } from "@/lib/membership/enrollment-store";
+import { renewMembershipAction } from "@/app/actions/renew-membership";
+import { formatMinorArs } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
 
@@ -190,6 +193,10 @@ export default async function PortalPage() {
     workspaceId: context.workspace.id,
     memberId: context.member.id,
   });
+  const renovacionOferta = await loadRenewalOffer({
+    workspaceId: context.workspace.id,
+    memberId: context.member.id,
+  });
   const reservasDisponibles = secciones.some(
     (s) => s.href === "/portal/reservas" && s.state === "DISPONIBLE",
   );
@@ -237,6 +244,15 @@ export default async function PortalPage() {
       gobierno={gobierno}
       concursos={concursos}
       club={club}
+      renovacion={
+        renovacionOferta.available
+          ? {
+              categoryName: renovacionOferta.categoryName,
+              amountLabel: formatMinorArs(renovacionOferta.amountMinor).replace(/,00$/, ""),
+              action: renewMembershipAction,
+            }
+          : null
+      }
     />
     <div className="mt-8">
       <PortalSponsorsSection sponsors={sponsors} />

@@ -33,7 +33,8 @@ export type ApproveResult = {
 export async function approveApplication(input: {
   applicationId: string;
   workspaceId: string;
-  resolvedByUserId: number;
+  /** null = la aprobó el sistema (alta sin aprobación, ver `lib/membership/enrollment.ts`). */
+  resolvedByUserId: number | null;
   now?: Date;
   /** Reintentos ante colisión de número. Con más de un par de secretarios simultáneos igual alcanza. */
   maxRetries?: number;

@@ -10,6 +10,8 @@ import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { sendDuesReminders } from "@/lib/membership/dues-reminder";
 import { CommunityLinkForm, DuesSettingsForm, FeeValueForm, SendReminderButton } from "./forms";
+import { getEnrollmentSettings } from "@/lib/membership/enrollment-store";
+import { saveEnrollmentSettingsAction } from "@/app/actions/enrollment-settings";
 
 export const dynamic = "force-dynamic";
 /** El recordatorio manual sale de esta página: unos 100 correos con pausa entre uno y otro. */
@@ -27,13 +29,18 @@ function fechaLegible(d: Date): string {
  * Sin un valor cargado la institución no puede cobrar nada: ni generar cuotas ni ponerle
  * precio a la tarjeta impresa. Es lo primero que hay que completar.
  */
-export default async function ConfiguracionCuotasPage() {
+export default async function ConfiguracionCuotasPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ alta?: string; error?: string }>;
+}) {
+  const query = (await searchParams) ?? {};
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) redirect("/workspace");
   if (!(await hasModuleLevel(user.id, workspace.id, MEMBERSHIP_DUES_MODULE_KEY, "MANAGE"))) redirect("/members/cuotas");
 
   const ahora = new Date();
-  const [settings, categorias, valores, vocab, previa] = await Promise.all([
+  const [settings, categorias, valores, vocab, previa, alta] = await Promise.all([
     getDuesSettings(workspace.id),
     prisma.memberCategory.findMany({
       where: { workspaceId: workspace.id, isActive: true },
@@ -55,6 +62,7 @@ export default async function ConfiguracionCuotasPage() {
     }),
     loadPersonVocabulary(workspace.id),
     sendDuesReminders({ workspaceId: workspace.id, mode: "MANUAL", dryRun: true }),
+    getEnrollmentSettings(workspace.id),
   ]);
 
   const hoy = `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, "0")}-${String(ahora.getUTCDate()).padStart(2, "0")}`;
@@ -141,6 +149,49 @@ export default async function ConfiguracionCuotasPage() {
           {previa.sorteo ? ` Incluye el sorteo «${previa.sorteo}».` : " No hay ningún sorteo anunciado para incluir."}
         </p>
         <SendReminderButton recipients={previa.enviados} />
+      </section>
+
+      <section className="fo-card space-y-3 p-5">
+        <h2 className="text-sm font-semibold">Alta desde el sitio</h2>
+        {query.alta ? <p className="text-sm text-[var(--fo-success)]">Listo, se guardó.</p> : null}
+        {query.error ? <p className="text-sm text-[var(--fo-danger)]">{query.error}</p> : null}
+        <form action={saveEnrollmentSettingsAction} className="space-y-3">
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="autoApproveApplications" defaultChecked={alta.autoApprove} className="mt-1" />
+            <span>
+              Sin aprobación: quien se asocia va directo a pagar y queda dado de alta al acreditarse.
+              <span className="fo-helper block">Apagado, cada solicitud la revisa una persona.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="simpleApplicationForm" defaultChecked={alta.simpleForm} className="mt-1" />
+            <span>
+              Formulario corto: nombre, apellido, email y teléfono.
+              <span className="fo-helper block">Para un club de clientes. Apagado, se pide el formulario completo.</span>
+            </span>
+          </label>
+          <div className="fo-field-stack sm:max-w-xs">
+            <label className="fo-label" htmlFor="applicationCategoryId">
+              Categoría con la que entra
+            </label>
+            <select
+              id="applicationCategoryId"
+              name="applicationCategoryId"
+              className="fo-input"
+              defaultValue={alta.category?.id ?? ""}
+            >
+              <option value="">Según lo que declare</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="fo-btn fo-btn-secondary text-sm">
+            Guardar
+          </button>
+        </form>
       </section>
 
       <section className="fo-card space-y-3 p-5">

@@ -7905,6 +7905,9 @@ model MemberCategory {
   bookingCreditValidityDays Int     @default(30)
   /// Cómo se llaman los turnos incluidos, en plural ("cortes"). null = "turnos".
   bookingCreditLabel        String?
+  /// Se renueva cuando la persona quiere, sin deuda: no se le generan cuotas mensuales y desde
+  /// su portal paga "Renovar" cuando decide. Si un mes no paga, no debe nada.
+  selfRenew                 Boolean @default(false)
 
   workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members    Member[]
@@ -8270,6 +8273,13 @@ model MembershipDuesSettings {
   /// Enlace de invitación al grupo de WhatsApp de los socios (`https://chat.whatsapp.com/...`).
   /// Va en el correo de bienvenida y como botón en el inicio del portal. `null` = no hay grupo.
   communityWhatsappUrl         String?
+  /// Alta sin aprobación (un club como el VIP de una barbería): la solicitud se aprueba sola
+  /// y la persona va directo a pagar. false = la Secretaría revisa cada una (SFPR).
+  autoApproveApplications      Boolean @default(false)
+  /// Formulario de alta corto: nombre, apellido, email y teléfono. false = el completo (SFPR).
+  simpleApplicationForm        Boolean @default(false)
+  /// La categoría que recibe quien se asocia desde el sitio. null = se deduce de la condición.
+  applicationCategoryId        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

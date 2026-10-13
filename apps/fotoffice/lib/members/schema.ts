@@ -44,6 +44,8 @@ export const memberCategorySchema = z.object({
   bookingCreditsPerPayment: z.number().int().min(0, "No puede ser negativo").max(100),
   bookingCreditValidityDays: z.number().int().min(1, "Al menos un día").max(366),
   bookingCreditLabel: z.string().max(40).optional().nullable(),
+  /** Se renueva cuando quiere, sin deuda (VIP). Con esto, la categoría no genera cuotas mensuales. */
+  selfRenew: z.boolean().optional(),
 });
 
 export type MemberCategoryFormValues = z.infer<typeof memberCategorySchema>;

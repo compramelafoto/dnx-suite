@@ -208,6 +208,7 @@ function clubFields(formData: FormData) {
     bookingCreditsPerPayment: entero("bookingCreditsPerPayment", 0),
     bookingCreditValidityDays: entero("bookingCreditValidityDays", 30),
     bookingCreditLabel: formData.get("bookingCreditLabel")?.toString()?.trim() || null,
+    selfRenew: formData.get("selfRenew") === "on",
   };
 }
 
@@ -258,7 +259,12 @@ export async function updateMemberCategoryAction(
 
   let updated;
   try {
-    updated = await updateMemberCategory(workspace.id, id, parsed.data);
+    // Lo que se renueva cuando quiere no genera la cuota del día 1. Al destildarlo no se toca
+    // `generatesDues`: puede haber sido apagado a propósito (una categoría honoraria).
+    updated = await updateMemberCategory(workspace.id, id, {
+      ...parsed.data,
+      ...(parsed.data.selfRenew ? { generatesDues: false } : {}),
+    });
   } catch (e) {
     return { error: friendlyMemberCategoryError(e) };
   }
