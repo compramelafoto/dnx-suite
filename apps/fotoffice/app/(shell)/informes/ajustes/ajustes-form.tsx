@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { guardarAjustesInformesAction } from "@/app/actions/informes";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 type Inicial = { minBalanceArs: string; monotributoCategory: string; monotributoCapArs: string; monotributoWarnPct: string };
 
-const AYUDA_IMPORTE = "Ej.: 1.234.567,89 (punto para los miles, coma para los centavos). Dejalo vacío si no querés usarlo.";
+const AYUDA_IMPORTE = "Ej.: 1.234.567,89 (los puntos de miles se ponen solos; los centavos van después de la coma). Dejalo vacío si no querés usarlo.";
 
 /** Saldo mínimo de alerta y datos del monotributo (categoría, tope anual y porcentaje de aviso). */
 export function AjustesInformesForm({ inicial }: { inicial: Inicial }) {
@@ -44,8 +45,8 @@ export function AjustesInformesForm({ inicial }: { inicial: Inicial }) {
           </p>
         </div>
         <div className="fo-field-stack max-w-xs">
-          <label className="fo-label" htmlFor="aj-minimo">Saldo mínimo de alerta ($)</label>
-          <input id="aj-minimo" className="fo-input" inputMode="decimal" placeholder="Ej.: 1.234.567,89" value={v.minBalanceArs} onChange={(e) => setV({ ...v, minBalanceArs: e.target.value })} aria-describedby="aj-minimo-ayuda" />
+          <label className="fo-label" htmlFor="aj-minimo">Saldo mínimo de alerta</label>
+          <InputMoneda id="aj-minimo" placeholder="1.234.567,89" value={v.minBalanceArs} onChange={(valor) => setV({ ...v, minBalanceArs: valor })} aria-describedby="aj-minimo-ayuda" />
           <p id="aj-minimo-ayuda" className="text-xs text-[var(--fo-muted)]">{AYUDA_IMPORTE}</p>
         </div>
       </section>
@@ -62,8 +63,8 @@ export function AjustesInformesForm({ inicial }: { inicial: Inicial }) {
           <input id="aj-categoria" className="fo-input" maxLength={20} placeholder="Ej.: C" value={v.monotributoCategory} onChange={(e) => setV({ ...v, monotributoCategory: e.target.value })} />
         </div>
         <div className="fo-field-stack max-w-xs">
-          <label className="fo-label" htmlFor="aj-tope">Tope anual ($)</label>
-          <input id="aj-tope" className="fo-input" inputMode="decimal" placeholder="Ej.: 1.234.567,89" value={v.monotributoCapArs} onChange={(e) => setV({ ...v, monotributoCapArs: e.target.value })} aria-describedby="aj-tope-ayuda" />
+          <label className="fo-label" htmlFor="aj-tope">Tope anual</label>
+          <InputMoneda id="aj-tope" placeholder="1.234.567,89" value={v.monotributoCapArs} onChange={(valor) => setV({ ...v, monotributoCapArs: valor })} aria-describedby="aj-tope-ayuda" />
           <p id="aj-tope-ayuda" className="text-xs text-[var(--fo-muted)]">{AYUDA_IMPORTE}</p>
         </div>
         <div className="fo-field-stack max-w-xs">

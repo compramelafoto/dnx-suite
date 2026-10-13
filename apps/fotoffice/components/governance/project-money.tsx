@@ -5,6 +5,7 @@ import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { fecha, tamanioArchivo } from "@/lib/governance/labels";
 import type { CashAccountRow, CashCategoryRow } from "@/lib/cash/repository";
 import { QuoteForm } from "./quote-form";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import {
   addReservationAction,
   recordProjectMovementAction,
@@ -97,10 +98,10 @@ export function ProjectMoneySection({
                 <form action={setStageEstimateAction} className="flex items-center gap-2">
                   <input type="hidden" name="projectId" value={projectId} />
                   <input type="hidden" name="stageId" value={s.id} />
-                  <input
+                  <InputMoneda
                     name="amount"
+                    envio="coma"
                     className="fo-input w-36 text-sm"
-                    inputMode="decimal"
                     placeholder="Estimado"
                     aria-label={`Costo estimado de ${s.title}`}
                     defaultValue={s.estimatedCostArs ? String(s.estimatedCostArs).replace(".", ",") : ""}
@@ -230,7 +231,7 @@ export function ProjectMoneySection({
                     <label className="fo-label" htmlFor="res-amount">
                       Monto
                     </label>
-                    <input id="res-amount" name="amount" className="fo-input" required inputMode="decimal" />
+                    <InputMoneda id="res-amount" name="amount" envio="coma" className="fo-input" required />
                   </div>
                   <div className="fo-field-stack">
                     <label className="fo-label" htmlFor="res-kind">
@@ -280,7 +281,7 @@ export function ProjectMoneySection({
                       <label className="fo-label" htmlFor={`mv-amt-${kind}`}>
                         Monto
                       </label>
-                      <input id={`mv-amt-${kind}`} name="amountArs" className="fo-input" required inputMode="decimal" />
+                      <InputMoneda id={`mv-amt-${kind}`} name="amountArs" envio="coma" className="fo-input" required />
                     </div>
                     <div className="fo-field-stack">
                       <label className="fo-label" htmlFor={`mv-cat-${kind}`}>
@@ -366,19 +367,19 @@ export function ProjectMoneySection({
                   <label className="fo-label" htmlFor="op-assigned">
                     Ya asignado
                   </label>
-                  <input id="op-assigned" name="assigned" className="fo-input" inputMode="decimal" defaultValue={money.opening.openingAssignedArs ? String(money.opening.openingAssignedArs).replace(".", ",") : ""} />
+                  <InputMoneda id="op-assigned" name="assigned" envio="coma" className="fo-input" defaultValue={money.opening.openingAssignedArs ? String(money.opening.openingAssignedArs).replace(".", ",") : ""} />
                 </div>
                 <div className="fo-field-stack">
                   <label className="fo-label" htmlFor="op-spent">
                     Ya gastado
                   </label>
-                  <input id="op-spent" name="spent" className="fo-input" inputMode="decimal" defaultValue={money.opening.openingSpentArs ? String(money.opening.openingSpentArs).replace(".", ",") : ""} />
+                  <InputMoneda id="op-spent" name="spent" envio="coma" className="fo-input" defaultValue={money.opening.openingSpentArs ? String(money.opening.openingSpentArs).replace(".", ",") : ""} />
                 </div>
                 <div className="fo-field-stack">
                   <label className="fo-label" htmlFor="op-manual">
                     Costo aproximado del proyecto
                   </label>
-                  <input id="op-manual" name="manualNeeded" className="fo-input" inputMode="decimal" defaultValue={money.opening.manualNeededArs ? String(money.opening.manualNeededArs).replace(".", ",") : ""} />
+                  <InputMoneda id="op-manual" name="manualNeeded" envio="coma" className="fo-input" defaultValue={money.opening.manualNeededArs ? String(money.opening.manualNeededArs).replace(".", ",") : ""} />
                 </div>
                 <div className="fo-field-stack">
                   <label className="fo-label" htmlFor="op-at">

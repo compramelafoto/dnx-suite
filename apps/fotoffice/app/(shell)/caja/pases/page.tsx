@@ -1,3 +1,4 @@
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { PageHeader } from "@/components/page-header";
 import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listTransfers, userDisplayNames } from "@/lib/cash/repository";
@@ -70,7 +71,7 @@ export default async function PasesPage({
             <label className="fo-label" htmlFor="amountArs">
               Importe
             </label>
-            <input id="amountArs" name="amountArs" className="fo-input" placeholder="10.000" required />
+            <InputMoneda id="amountArs" name="amountArs" placeholder="10.000" required />
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="note">

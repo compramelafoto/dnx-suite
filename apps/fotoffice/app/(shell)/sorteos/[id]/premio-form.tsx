@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { savePrizeAction } from "../actions";
 import { buscarAliadosAction } from "../actions-partners";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 /**
  * Alta de un premio, con buscador de aliados.
@@ -201,7 +202,7 @@ export function PremioForm({
           <label className="fo-label" htmlFor="estimatedValue">
             Valor estimado
           </label>
-          <input id="estimatedValue" name="estimatedValue" className="fo-input" inputMode="decimal" />
+          <InputMoneda id="estimatedValue" name="estimatedValue" envio="coma" className="fo-input" />
           <p className="fo-helper">Informativo. No se cobra nada.</p>
         </div>
       </div>

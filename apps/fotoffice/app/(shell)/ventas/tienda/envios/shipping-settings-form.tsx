@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { MAX_HANDLING_NOTE, type ShippingSettingsValues } from "@/lib/store/shipping/settings-form";
 import { saveShippingSettingsAction, type ShippingActionResult } from "./actions";
 
@@ -152,18 +153,29 @@ export function ShippingSettingsForm({
           {surchargeKind !== "NONE" ? (
             <div className="fo-field-stack">
               <label className="fo-label" htmlFor="surchargeValue">
-                {surchargeKind === "PERCENT" ? "Porcentaje (%)" : "Monto ($)"}
+                {surchargeKind === "PERCENT" ? "Porcentaje (%)" : "Monto"}
               </label>
-              <input
-                // La clave cambia con el tipo: el valor de un porcentaje no sirve como monto.
-                key={surchargeKind}
-                id="surchargeValue"
-                name="surchargeValue"
-                className="fo-input max-w-[10rem]"
-                defaultValue={surchargeKind === settings.surchargeKind ? surchargeText : ""}
-                inputMode="decimal"
-                placeholder={surchargeKind === "PERCENT" ? "10" : "1500"}
-              />
+              {/* La clave cambia con el tipo: el valor de un porcentaje no sirve como monto. */}
+              {surchargeKind === "PERCENT" ? (
+                <input
+                  key={surchargeKind}
+                  id="surchargeValue"
+                  name="surchargeValue"
+                  className="fo-input max-w-[10rem]"
+                  defaultValue={surchargeKind === settings.surchargeKind ? surchargeText : ""}
+                  inputMode="decimal"
+                  placeholder="10"
+                />
+              ) : (
+                <InputMoneda
+                  key={surchargeKind}
+                  id="surchargeValue"
+                  name="surchargeValue"
+                  wrapperClassName="max-w-[10rem]"
+                  defaultValue={surchargeKind === settings.surchargeKind ? surchargeText : ""}
+                  placeholder="1.500"
+                />
+              )}
             </div>
           ) : null}
         </div>

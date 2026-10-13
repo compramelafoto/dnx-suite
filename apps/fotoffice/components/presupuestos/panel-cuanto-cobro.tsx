@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { pesos } from "@/lib/presupuestos/editor";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { perfilesIguales } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import {
@@ -35,9 +36,21 @@ export function CampoTexto({
   valor: string;
   onCambio: (v: string) => void;
   ayuda?: string;
-  tipo?: "number" | "text";
+  /** "moneda": pesos enteros con $ y punto de miles. */
+  tipo?: "number" | "text" | "moneda";
 }) {
   const id = useId();
+  if (tipo === "moneda") {
+    return (
+      <div className="fo-field-stack">
+        <label htmlFor={id} className="fo-label">
+          {etiqueta.replace(/\s*\(\$\)$/, "")}
+        </label>
+        <InputMoneda id={id} decimales={false} value={valor} onChange={onCambio} />
+        {ayuda ? <p className="text-xs text-[var(--fo-muted)]">{ayuda}</p> : null}
+      </div>
+    );
+  }
   return (
     <div className="fo-field-stack">
       <label htmlFor={id} className="fo-label">
@@ -110,32 +123,32 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
           <CampoTexto etiqueta="Horas de edición" valor={trabajo.horasEdicion} onCambio={set("horasEdicion")} />
           <CampoTexto etiqueta="Horas de entrega" valor={trabajo.horasEntrega} onCambio={set("horasEntrega")} />
           <CampoTexto etiqueta="Horas de viaje" valor={trabajo.horasViaje} onCambio={set("horasViaje")} />
-          <CampoTexto etiqueta="Costos directos ($)" valor={trabajo.costoDirecto} onCambio={set("costoDirecto")} ayuda="Asistente, traslado, insumos." />
+          <CampoTexto tipo="moneda" etiqueta="Costos directos ($)" valor={trabajo.costoDirecto} onCambio={set("costoDirecto")} ayuda="Asistente, traslado, insumos." />
         </>
       ) : null}
       {trabajo.tipo === "physical-product" ? (
         <>
-          <CampoTexto etiqueta="Costo del proveedor ($)" valor={trabajo.costoProveedor} onCambio={set("costoProveedor")} />
+          <CampoTexto tipo="moneda" etiqueta="Costo del proveedor ($)" valor={trabajo.costoProveedor} onCambio={set("costoProveedor")} />
           <CampoTexto etiqueta="Horas de diseño" valor={trabajo.horasDiseno} onCambio={set("horasDiseno")} />
-          <CampoTexto etiqueta="Envío ($)" valor={trabajo.costoEnvio} onCambio={set("costoEnvio")} />
+          <CampoTexto tipo="moneda" etiqueta="Envío ($)" valor={trabajo.costoEnvio} onCambio={set("costoEnvio")} />
           <CampoTexto etiqueta="Ganancia deseada (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
       {trabajo.tipo === "outsourced" ? (
         <>
-          <CampoTexto etiqueta="Costo tercerizado ($)" valor={trabajo.costoTercerizado} onCambio={set("costoTercerizado")} />
+          <CampoTexto tipo="moneda" etiqueta="Costo tercerizado ($)" valor={trabajo.costoTercerizado} onCambio={set("costoTercerizado")} />
           <CampoTexto etiqueta="Horas de gestión" valor={trabajo.horasGestion} onCambio={set("horasGestion")} />
           <CampoTexto etiqueta="Margen (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
       {trabajo.tipo === "expense" ? (
         <>
-          <CampoTexto etiqueta="Costo del gasto ($)" valor={trabajo.costoGasto} onCambio={set("costoGasto")} />
+          <CampoTexto tipo="moneda" etiqueta="Costo del gasto ($)" valor={trabajo.costoGasto} onCambio={set("costoGasto")} />
           <CampoTexto etiqueta="Recargo (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
       <CampoTexto etiqueta="Horas con el cliente" valor={trabajo.horasCliente} onCambio={set("horasCliente")} ayuda="Reuniones, ventas, coordinación." />
-      <CampoTexto etiqueta="Precio a mano en el motor ($)" valor={trabajo.precioManual} onCambio={set("precioManual")} ayuda="Vacío: el recomendado." />
+      <CampoTexto tipo="moneda" etiqueta="Precio a mano en el motor ($)" valor={trabajo.precioManual} onCambio={set("precioManual")} ayuda="Vacío: el recomendado." />
     </div>
   );
 }

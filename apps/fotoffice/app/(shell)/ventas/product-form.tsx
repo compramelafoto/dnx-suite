@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { formatMinorArs } from "@/lib/membership/money";
 import { PRODUCT_KINDS, PRODUCT_KIND_LABELS, type ProductKind } from "@/lib/sales/constants";
@@ -210,10 +211,9 @@ export function ProductForm({
             <label className="fo-label" htmlFor="priceArs">
               Precio de venta
             </label>
-            <input
+            <InputMoneda
               id="priceArs"
               name="priceArs"
-              className="fo-input"
               defaultValue={minorToInputText(product?.priceMinor ?? null)}
               placeholder="0,00"
               required
@@ -223,10 +223,9 @@ export function ProductForm({
             <label className="fo-label" htmlFor="costArs">
               Costo
             </label>
-            <input
+            <InputMoneda
               id="costArs"
               name="costArs"
-              className="fo-input"
               defaultValue={minorToInputText(product?.costMinor ?? null)}
               placeholder="0,00"
             />

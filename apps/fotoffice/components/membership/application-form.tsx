@@ -8,6 +8,7 @@ import {
   type ApplicationFormState,
 } from "@/app/actions/membership-applications";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 const initial: ApplicationFormState = { error: null, ok: null };
 
@@ -215,13 +216,7 @@ export function MembershipApplicationForm({
             <label className="fo-label" htmlFor="ownDuesAmount">
               ¿Con cuánto querés aportar por mes?
             </label>
-            <input
-              id="ownDuesAmount"
-              name="ownDuesAmount"
-              inputMode="decimal"
-              className="fo-input"
-              required
-            />
+            <InputMoneda id="ownDuesAmount" name="ownDuesAmount" envio="coma" className="fo-input" required />
             {monthlyAmountLabel ? (
               <p className="fo-helper">El mínimo es {monthlyAmountLabel} por mes.</p>
             ) : null}

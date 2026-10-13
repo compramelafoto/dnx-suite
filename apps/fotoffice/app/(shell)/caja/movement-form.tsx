@@ -1,5 +1,6 @@
 "use client";
 
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { useState } from "react";
 import { createMovementAction } from "./actions";
 import { MOVEMENT_KINDS, PAYMENT_METHODS, type MovementKind, type PaymentMethod } from "@/lib/cash/constants";
@@ -96,7 +97,7 @@ export function MovementForm({
           <label className="fo-label" htmlFor="mov-amount">
             Importe
           </label>
-          <input id="mov-amount" name="amountArs" className="fo-input" placeholder="5.000" required />
+          <InputMoneda id="mov-amount" name="amountArs" placeholder="5.000" required />
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="mov-category">

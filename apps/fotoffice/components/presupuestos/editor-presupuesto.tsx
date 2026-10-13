@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { guardarBorradorAction } from "@/app/actions/presupuestos";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import type { Descuento, ItemPresupuesto, ModoPrecio, TipoDescuento } from "@/lib/presupuestos/constantes";
 import {
   ajustadosIniciales,
@@ -40,6 +41,30 @@ const TEXTO_SIN_SECCION = "Sin sección";
 function aNumero(v: string): number {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Precio unitario con "$" y punto de miles. Guarda lo escrito ("1500.50") mientras coincida con el
+ * número del ítem, para que un cero decimal a medio escribir no se pierda; si el precio cambia desde
+ * afuera (catálogo, "¿Cuánto Cobro?"), muestra el nuevo.
+ */
+function CampoPrecio({ precio, onCambio, disabled, "aria-label": etiqueta }: { precio: number; onCambio: (n: number) => void; disabled?: boolean; "aria-label": string }) {
+  const [escrito, setEscrito] = useState<string | null>(null);
+  const valor = escrito !== null && aNumero(escrito) === precio ? escrito : precio;
+  return (
+    <InputMoneda
+      envio="punto"
+      aria-label={etiqueta}
+      wrapperClassName="w-32"
+      className="fo-input w-full text-right"
+      value={valor}
+      disabled={disabled}
+      onChange={(v) => {
+        setEscrito(v);
+        onCambio(aNumero(v));
+      }}
+    />
+  );
 }
 
 /** Las secciones en el orden en que aparecen por primera vez. */
@@ -388,16 +413,13 @@ export function EditorPresupuesto({
                               />
                             </td>
                             <td className="py-2 pr-2">
-                              <input
+                              <CampoPrecio
                                 aria-label={`Precio unitario de ${etiquetaFila}`}
-                                type="number"
-                                min={0}
-                                className="fo-input w-32 text-right"
-                                value={it.precioUnitario}
+                                precio={it.precioUnitario}
                                 disabled={!puedeGuardar}
-                                onChange={(e) => {
+                                onCambio={(n) => {
                                   if (calculado) marcarAjuste(it.id, true);
-                                  actualizar(it.id, { precioUnitario: aNumero(e.target.value) });
+                                  actualizar(it.id, { precioUnitario: n });
                                 }}
                               />
                             </td>

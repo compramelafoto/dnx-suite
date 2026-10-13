@@ -1,5 +1,6 @@
 "use client";
 
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { useState } from "react";
 import { saveAccountAction } from "./actions";
 import { CASH_ACCOUNT_KINDS, type CashAccountKind } from "@/lib/cash/constants";
@@ -67,10 +68,9 @@ export function AccountForm({ account }: { account: CashAccountRow | null }) {
             <label className="fo-label" htmlFor={`acc-float-${account?.id ?? "nueva"}`}>
               Fondo fijo
             </label>
-            <input
+            <InputMoneda
               id={`acc-float-${account?.id ?? "nueva"}`}
               name="fixedFloatArs"
-              className="fo-input"
               defaultValue={fondoFijo}
               placeholder="20.000"
             />

@@ -9,6 +9,7 @@ import {
   type FormatsActionResult,
 } from "./actions";
 import { FormatsResult } from "./formats-result";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 export type PrintFormatView = {
   id: string;
@@ -73,12 +74,12 @@ function FormatForm({ formato, onDone }: { formato: PrintFormatView | null; onDo
           <input id={`${uid}-heightCm`} name="heightCm" type="number" min={5} max={200} step={1} className="fo-input" defaultValue={f?.heightCm ?? ""} required />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label" htmlFor={`${uid}-price`}>Precio de venta ($)</label>
-          <input id={`${uid}-price`} name="price" inputMode="decimal" className="fo-input" defaultValue={f?.price ?? ""} placeholder="12500" required />
+          <label className="fo-label" htmlFor={`${uid}-price`}>Precio de venta</label>
+          <InputMoneda id={`${uid}-price`} name="price" defaultValue={f?.price ?? ""} placeholder="12.500" required />
         </div>
         <div className="fo-field-stack">
-          <label className="fo-label" htmlFor={`${uid}-cost`}>Costo ($, opcional)</label>
-          <input id={`${uid}-cost`} name="cost" inputMode="decimal" className="fo-input" defaultValue={f?.cost ?? ""} placeholder="4000" />
+          <label className="fo-label" htmlFor={`${uid}-cost`}>Costo (opcional)</label>
+          <InputMoneda id={`${uid}-cost`} name="cost" defaultValue={f?.cost ?? ""} placeholder="4.000" />
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor={`${uid}-weightGrams`}>Peso (gramos, opcional)</label>

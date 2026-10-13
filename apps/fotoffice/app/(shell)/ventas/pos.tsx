@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Package } from "lucide-react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
 import { normalizeBarcode } from "@/lib/sales/barcode";
@@ -446,13 +447,7 @@ export function Pos({
               placeholder="Descripción"
               className="fo-input"
             />
-            <input
-              value={sueltoPrecio}
-              onChange={(e) => setSueltoPrecio(e.target.value)}
-              placeholder="Precio"
-              className="fo-input"
-              inputMode="decimal"
-            />
+            <InputMoneda value={sueltoPrecio} onChange={setSueltoPrecio} placeholder="Precio" aria-label="Precio" />
             <button type="button" onClick={agregarSuelto} className="fo-btn fo-btn-secondary w-full text-sm">
               Agregar al ticket
             </button>
@@ -484,11 +479,12 @@ export function Pos({
                     className="fo-input w-16 text-sm"
                   />
                   <span className="text-[var(--fo-muted)]">×</span>
-                  <input
+                  <InputMoneda
                     defaultValue={formatMinorArs(r.unitPriceMinor).replace("$", "").trim()}
                     onBlur={(e) => actualizarPrecio(r.key, e.target.value)}
-                    className="fo-input flex-1 text-sm"
-                    inputMode="decimal"
+                    className="fo-input text-sm"
+                    wrapperClassName="min-w-0 flex-1"
+                    aria-label={`Precio unitario de ${r.description}`}
                   />
                   <span className="w-24 shrink-0 text-right text-sm font-semibold">
                     {formatMinorArs(r.qty * r.unitPriceMinor)}
@@ -512,12 +508,13 @@ export function Pos({
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="text-[var(--fo-muted)]">Descuento</span>
-            <input
+            <InputMoneda
               value={discountText}
-              onChange={(e) => setDiscountText(e.target.value)}
+              onChange={setDiscountText}
               placeholder="0"
-              className="fo-input w-28 text-right text-sm"
-              inputMode="decimal"
+              className="fo-input text-right text-sm"
+              wrapperClassName="w-28"
+              aria-label="Descuento"
             />
           </div>
           <div className="flex items-center justify-between text-base font-semibold">

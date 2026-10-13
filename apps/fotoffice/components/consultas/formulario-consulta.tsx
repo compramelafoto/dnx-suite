@@ -1,5 +1,6 @@
 "use client";
 
+import { InputMoneda } from "@/components/campos/input-moneda";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, useTransition } from "react";
@@ -274,7 +275,7 @@ export function FormularioConsulta({
           </label>
           <label className="fo-field-stack">
             <span className="fo-label">Valor estimado</span>
-            <input className="fo-input" inputMode="decimal" placeholder="Ej.: 350.000" value={valor} maxLength={20} {...marca("valor")} onChange={(e) => setValor(e.target.value)} />
+            <InputMoneda envio="coma" placeholder="Ej.: 350.000" value={valor} maxLength={20} {...marca("valor")} onChange={setValor} />
           </label>
           <label className="fo-field-stack">
             <span className="fo-label">Cierre previsto</span>
