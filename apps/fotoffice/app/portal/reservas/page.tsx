@@ -189,6 +189,13 @@ export default async function PortalReservasPage({
         </div>
       ) : (
         <>
+          {club && elegido && !elegido.acceptsClubCredits ? (
+            <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">
+              {`Tus ${club.plural} incluidos se usan con ${
+                espacios.filter((e) => e.acceptsClubCredits).map((e) => e.name).join(" o ") || "otro profesional"
+              }. Con ${elegido.name} el turno se paga.`}
+            </p>
+          ) : null}
           {elegido && oferta && grid ? (
             <ReservarForm
               key={`${elegido.id}-${semana.startAt.toISOString()}`}
@@ -211,7 +218,7 @@ export default async function PortalReservasPage({
               resourceSingular={wording.singular}
               baseItemLabel={turnos ? "Turno" : undefined}
               club={
-                club && vencimientoClub
+                club && vencimientoClub && elegido.acceptsClubCredits
                   ? {
                       available: club.available,
                       credits: club.credits,

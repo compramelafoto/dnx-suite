@@ -39,6 +39,11 @@ export type SpaceRecord = {
   nonMemberBlockPriceMinor: number;
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
+  /** Parte de cada turno para quien atiende, en centésimos de punto. Ver `settlement.ts`. */
+  professionalShareBps: number;
+  professionalUserId: number | null;
+  /** Si acá se pueden usar los turnos incluidos del club (Club VIP). */
+  acceptsClubCredits: boolean;
   googleCalendarId: string | null;
   weeklyHours: WeeklyHour[];
 };
@@ -66,6 +71,9 @@ type FilaEspacio = {
   nonMemberBlockPriceArs: { toString(): string };
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
+  professionalShareBps: number;
+  professionalUserId: number | null;
+  acceptsClubCredits: boolean;
   googleCalendarId: string | null;
   hours: { weekday: number; startMinute: number; endMinute: number }[];
 };
@@ -102,6 +110,9 @@ function toRecord(fila: FilaEspacio): SpaceRecord {
     nonMemberBlockPriceMinor: decimalArsToMinor(fila.nonMemberBlockPriceArs),
     memberFreeHoursPerMonth: fila.memberFreeHoursPerMonth,
     allowsNonMembers: fila.allowsNonMembers,
+    professionalShareBps: fila.professionalShareBps ?? 0,
+    professionalUserId: fila.professionalUserId ?? null,
+    acceptsClubCredits: fila.acceptsClubCredits ?? true,
     googleCalendarId: fila.googleCalendarId,
     weeklyHours: fila.hours,
   };
@@ -381,4 +392,16 @@ export async function listResourceCommitments(
       units: l.unitsConsumed,
       range: { startAt: l.booking.startAt, endAt: l.booking.endAt },
     }));
+}
+
+
+/** Las personas del equipo de la institución, para vincular a cada profesional con su cuenta. */
+export async function listTeamPeople(workspaceId: string): Promise<{ id: number; name: string }[]> {
+  const filas = await prisma.workspaceMembership.findMany({
+    where: { workspaceId },
+    select: { user: { select: { id: true, name: true, email: true } } },
+  });
+  return filas
+    .map((f) => ({ id: f.user.id, name: f.user.name?.trim() || f.user.email }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
 }

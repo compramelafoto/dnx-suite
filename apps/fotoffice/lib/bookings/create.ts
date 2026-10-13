@@ -7,6 +7,7 @@ import { checkRange, rejectionMessage } from "./availability";
 import { blockingSpaceIds } from "./conflicts";
 import { quoteForSpace, type CustomerType, type Quote } from "./pricing";
 import { canCoverWithCredits, clubBalanceOf, creditsNeededFor } from "./club-credits";
+import { professionalShareMinor } from "./settlement";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getBookingSettings, getSpace, listCompatibilities, listSpaces } from "./repository";
@@ -227,6 +228,9 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       // gasten el mismo turno, y el saldo se cuenta recién ahí adentro.
       let creditGrantId: string | null = null;
       let creditsUsed = 0;
+      if (input.useClubCredits && !espacio.acceptsClubCredits) {
+        throw new BookingRejected("Los turnos incluidos no se pueden usar con este profesional.");
+      }
       if (input.useClubCredits && input.customerType === "MEMBER" && input.memberId) {
         const bolsas = await tx.$queryRaw<
           { id: string; credits: number; validFrom: Date; validUntil: Date }[]
@@ -282,6 +286,11 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
           totalArs: minorToDecimalString(totalMinor),
           creditGrantId,
           creditsUsed,
+          // La parte de quien atiende, congelada: corte y extras, al porcentaje de hoy.
+          professionalShareBps: espacio.professionalShareBps,
+          professionalShareArs: minorToDecimalString(
+            professionalShareMinor(totalMinor, espacio.professionalShareBps),
+          ),
           paymentMethod: sinCargo ? "SIN_CARGO" : input.paymentMethod,
           paymentStatus: sinCargo ? "NOT_REQUIRED" : "PENDING",
           notes: input.notes ?? null,

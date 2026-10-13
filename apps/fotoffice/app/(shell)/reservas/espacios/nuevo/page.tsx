@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { requireBookingsConfigurer } from "@/lib/bookings/access";
-import { listSpaces } from "@/lib/bookings/repository";
+import { listSpaces, listTeamPeople } from "@/lib/bookings/repository";
 import { SpaceForm } from "../space-form";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,7 @@ export default async function NuevoEspacioPage({
     <div className="space-y-8">
       <PageHeader title="Nuevo espacio" description="Un espacio que la institución alquila." />
       <SpaceForm
+        equipo={await listTeamPeople(workspace.id)}
         space={null}
         otrosEspacios={espacios.map((e) => ({ id: e.id, name: e.name }))}
         compatibleCon={[]}
