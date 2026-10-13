@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import EscolarLanding from "@/components/dnx/escolar/EscolarLanding";
+import { DNX_ESCOLAR_BRAND } from "@/lib/dnx-escolar/landing-brand";
 
 const TITLE = "Fotografía escolar en Rosario, Funes y Roldán | DNX Estudio";
 const DESCRIPTION =
@@ -28,5 +29,5 @@ export const metadata: Metadata = {
 };
 
 export default function DnxEscolarLandingPage() {
-  return <EscolarLanding />;
+  return <EscolarLanding brand={DNX_ESCOLAR_BRAND} />;
 }

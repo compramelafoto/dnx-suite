@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   buildDnxEscolarLeadEmail,
+  buildPhotographerEscolarLeadEmail,
   buildSchoolLeadNotes,
   escapeHtml,
   sanitizeLevels,
@@ -105,4 +106,52 @@ test("buildDnxEscolarLeadEmail muestra guiones cuando faltan datos opcionales", 
   });
   assert.ok(html.includes("—"));
   assert.ok(!html.includes("Mensaje"));
+});
+
+test("buildSchoolLeadNotes registra la landing del fotógrafo", () => {
+  assert.equal(
+    buildSchoolLeadNotes({ source: "escolar-fotografo", photographerHandler: "estudio-perez", levels: ["Primario"] }),
+    "Origen: escolar-fotografo · Landing: /estudio-perez/escolar · Niveles: Primario",
+  );
+  assert.equal(buildSchoolLeadNotes({ photographerHandler: null }), null);
+});
+
+test("buildPhotographerEscolarLeadEmail saluda al fotógrafo, nombra su landing y escapa todo", () => {
+  const { subject, html } = buildPhotographerEscolarLeadEmail({
+    leadId: 9,
+    schoolName: "Colegio <b>San José</b>",
+    city: "Rosario",
+    contactName: "Marta",
+    email: null,
+    phone: "+5493415551234",
+    approxStudents: 300,
+    levels: ["Inicial"],
+    message: null,
+    utm: {},
+    photographerName: "Estudio <Pérez>",
+    photographerHandler: "estudio-perez",
+  });
+  assert.equal(subject, "Nueva consulta escolar: Colegio <b>San José</b> (Rosario)");
+  assert.match(html, /Nueva consulta desde tu landing escolar \(\/estudio-perez\/escolar\)/);
+  assert.match(html, /Hola Estudio &lt;Pérez&gt;/);
+  assert.match(html, /no dejó email: contactalo por teléfono/);
+  assert.doesNotMatch(html, /<b>San José<\/b>/);
+  assert.doesNotMatch(html, /dnx\/escolar/);
+});
+
+test("buildDnxEscolarLeadEmail sigue con el mismo encabezado", () => {
+  const { html } = buildDnxEscolarLeadEmail({
+    leadId: 1,
+    schoolName: "Colegio",
+    city: "Funes",
+    contactName: "Ana",
+    email: "ana@example.com",
+    phone: "341",
+    approxStudents: null,
+    levels: [],
+    message: null,
+    utm: {},
+  });
+  assert.match(html, /Nueva consulta desde \/dnx\/escolar/);
+  assert.doesNotMatch(html, /Hola /);
 });

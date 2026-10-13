@@ -862,7 +862,7 @@ export default function DashboardAlbumsPage() {
                           </h3>
                           <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                             <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${album.isPublic !== false ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-700"}`}>
-                              {album.isPublic !== false ? "Público" : "Privado"}
+                              {album.isPublic !== false ? "Público" : "No listado"}
                             </span>
                             {(album as any).isCollaborative && (
                             <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full whitespace-nowrap">
@@ -1188,14 +1188,14 @@ export default function DashboardAlbumsPage() {
                               <input
                                 type="number"
                                 min={0}
-                                max={365}
+                                max={90}
                                 placeholder="0 = no guardar"
                                 value={hiddenSelfieRetentionDays}
                                 onChange={(e) => setHiddenSelfieRetentionDays(e.target.value)}
                                 disabled={creating || albumDataLoading}
                                 className="w-full max-w-[120px] border border-slate-300 rounded px-2 py-1.5 text-sm"
                               />
-                              <span className="block text-xs text-slate-500 mt-1">Ej: 7 o 30 para auditoría; la selfie se borra al cumplir los días.</span>
+                              <span className="block text-xs text-slate-500 mt-1">Ej: 7 o 30 para auditoría (máximo 90); la selfie se borra al cumplir los días.</span>
                             </div>
                           )}
                         </div>

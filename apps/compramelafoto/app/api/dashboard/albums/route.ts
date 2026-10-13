@@ -1,3 +1,4 @@
+import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare-hidden-album-photos";
@@ -591,8 +592,7 @@ export async function POST(req: NextRequest) {
     const parsedHiddenPhotosEnabled = Boolean(hiddenPhotosEnabled);
     let parsedHiddenSelfieRetentionDays: number | null = null;
     if (hiddenSelfieRetentionDays !== undefined && hiddenSelfieRetentionDays !== null && hiddenSelfieRetentionDays !== "") {
-      const days = parseInt(String(hiddenSelfieRetentionDays), 10);
-      parsedHiddenSelfieRetentionDays = Number.isFinite(days) && days >= 0 ? days : null;
+      parsedHiddenSelfieRetentionDays = parseHiddenSelfieRetentionDays(hiddenSelfieRetentionDays);
     }
 
     const { enableDigital, enablePrinted } = resolveCreateAlbumSaleChannels({

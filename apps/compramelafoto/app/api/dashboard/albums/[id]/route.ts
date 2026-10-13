@@ -1,3 +1,4 @@
+import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
 import { NextRequest, NextResponse } from "next/server";
 import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare-hidden-album-photos";
 import { prisma } from "@/lib/prisma";
@@ -1005,8 +1006,7 @@ export async function PUT(
       if (hiddenSelfieRetentionDays === null || hiddenSelfieRetentionDays === "") {
         updateData.hiddenSelfieRetentionDays = null;
       } else {
-        const days = parseInt(String(hiddenSelfieRetentionDays), 10);
-        updateData.hiddenSelfieRetentionDays = Number.isFinite(days) && days >= 0 ? days : null;
+        updateData.hiddenSelfieRetentionDays = parseHiddenSelfieRetentionDays(hiddenSelfieRetentionDays);
       }
     }
 
