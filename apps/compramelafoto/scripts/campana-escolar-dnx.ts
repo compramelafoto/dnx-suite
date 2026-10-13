@@ -11,6 +11,7 @@
  *   tsx scripts/campana-escolar-dnx.ts vista-previa [groupKey]       escribe .html y .txt en ./tmp-campana-escolar/
  *   tsx scripts/campana-escolar-dnx.ts prueba <email>                 envía UNA prueba con [PRUEBA] (sin tocar la base)
  *   tsx scripts/campana-escolar-dnx.ts enviar --confirmar=ENVIAR [--limite=N]
+ *   tsx scripts/campana-escolar-dnx.ts enviar-archivo <entrada.json> <resultado.json> --confirmar=ENVIAR   (sin base)
  *   tsx scripts/campana-escolar-dnx.ts estado                         consulta a Resend rebotes/quejas y resume
  *   tsx scripts/campana-escolar-dnx.ts marcar <groupKey> <RESPONDIO|NO_CONTACTAR|LISTO|PENDIENTE_VALIDACION> [nota]
  *
@@ -299,6 +300,78 @@ async function enviar() {
   console.log(JSON.stringify(resultado));
 }
 
+/**
+ * Envío sin conexión a la base: lee [{groupKey, institutionName, email}] (ya reservados en ENVIANDO
+ * por SQL) y escribe el resultado de cada uno para registrarlo después. Misma clave de idempotencia
+ * que `enviar`, así que repetir el archivo no duplica correos.
+ */
+async function enviarArchivo(inFile: string, outFile: string) {
+  if (arg("confirmar") !== "ENVIAR") {
+    throw new Error("Para enviar a colegios hay que pasar --confirmar=ENVIAR");
+  }
+  const lista = JSON.parse(readFileSync(resolve(inFile), "utf8")) as Array<{
+    groupKey: string;
+    institutionName: string;
+    email: string;
+  }>;
+  const emails = lista.map((p) => normalizeEmail(p.email));
+  if (emails.some((e) => !e) || new Set(emails).size !== emails.length) {
+    throw new Error("El archivo tiene emails inválidos o repetidos");
+  }
+  const resend = resendClient();
+  const resultados: Array<{
+    groupKey: string;
+    email: string;
+    status: ProspectState;
+    providerMessageId?: string;
+    error?: string;
+    at: string;
+  }> = [];
+  for (const p of lista) {
+    const email = buildCampaignEmail({ institutionName: p.institutionName });
+    for (let intento = 1; ; intento++) {
+      let sendError: SendError | null = null;
+      let providerId: string | undefined;
+      try {
+        const { data, error } = await resend.emails.send(
+          {
+            from: email.from,
+            to: p.email,
+            replyTo: email.replyTo,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+            headers: email.headers,
+            tags: [{ name: "campana", value: CAMPAIGN.replace(/[^a-zA-Z0-9_-]/g, "_") }],
+          },
+          { idempotencyKey: sendIdempotencyKey(CAMPAIGN, p.groupKey) }
+        );
+        if (error) sendError = { statusCode: error.statusCode, name: error.name, message: error.message };
+        providerId = data?.id;
+      } catch (e) {
+        sendError = { statusCode: null, name: "network_error", message: e instanceof Error ? e.message : String(e) };
+      }
+      if (!sendError && providerId) {
+        resultados.push({ groupKey: p.groupKey, email: p.email, status: "ENVIADO", providerMessageId: providerId, at: new Date().toISOString() });
+        console.log(`✓ ${p.institutionName} <${p.email}> ${providerId}`);
+        break;
+      }
+      const decision = decideAfterFailure(sendError ?? {}, intento);
+      if (decision.retry) {
+        await esperar(PAUSA_MS * 2 * intento);
+        continue;
+      }
+      resultados.push({ groupKey: p.groupKey, email: p.email, status: "FALLIDO", error: `${sendError?.name}: ${sendError?.message}`, at: new Date().toISOString() });
+      console.log(`✗ ${p.institutionName} <${p.email}> ${sendError?.name}: ${sendError?.message}`);
+      break;
+    }
+    writeFileSync(resolve(outFile), JSON.stringify(resultados, null, 2));
+    await esperar(PAUSA_MS);
+  }
+  const enviados = resultados.filter((r) => r.status === "ENVIADO").length;
+  console.log(JSON.stringify({ enviados, fallidos: resultados.length - enviados }));
+}
+
 async function estado() {
   const resend = resendClient();
   const enviados = await prisma.schoolOutreachProspect.findMany({
@@ -359,6 +432,9 @@ async function main() {
       return prueba(a, b);
     case "enviar":
       return enviar();
+    case "enviar-archivo":
+      if (!a || !b) throw new Error("Uso: enviar-archivo <entrada.json> <resultado.json> --confirmar=ENVIAR");
+      return enviarArchivo(a, b);
     case "estado":
       return estado();
     case "marcar":
