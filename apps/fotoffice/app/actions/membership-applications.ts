@@ -17,6 +17,7 @@ import {
   buildApplicationApprovedEmail,
   buildApplicationReceivedEmail,
   buildApplicationRejectedEmail,
+  buildSelfEnrollmentAccessEmail,
 } from "@/lib/membership/application-emails";
 import { fechaLegible } from "@/lib/membership/charge-labels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
@@ -28,6 +29,11 @@ import { MEMBERSHIP_EMAIL_KEYS } from "@/lib/communications/constants";
 import { inviteOneMember } from "@/lib/members/invite-member";
 import { INVITATION_TTL_LABEL } from "@/lib/members/invitations";
 import { appUrl } from "@/lib/app-url";
+import { redirect } from "next/navigation";
+import { withSimpleFormDefaults } from "@/lib/membership/enrollment";
+import { getEnrollmentSettings } from "@/lib/membership/enrollment-store";
+import { startMemberDuesCheckout } from "@/lib/membership/dues-checkout";
+import { loadMemberBalance } from "@/lib/membership/balance";
 
 /**
  * `warn` es para lo que salió a medias: la resolución ocurrió pero el aviso a la persona no
@@ -76,8 +82,29 @@ export async function submitApplicationAction(
     return fail("Las inscripciones no están abiertas en este momento.");
   }
 
-  const parsed = parseApplication(readForm(formData));
+  // Alta sin aprobación y formulario corto: apagados por defecto (la SFPR revisa cada una).
+  const alta = await getEnrollmentSettings(branding.workspaceId);
+  const crudo = readForm(formData);
+  const parsed = parseApplication(alta.simpleForm ? withSimpleFormDefaults(crudo) : crudo);
   if (!parsed.ok) return fail(parsed.error);
+
+  if (alta.autoApprove) {
+    // Si ya empezó y no pagó, retoma ese mismo pago en vez de abrir un alta nueva.
+    const enCurso = await prisma.membershipApplication.findFirst({
+      where: { workspaceId: branding.workspaceId, email: parsed.data.email, status: "APROBADA_IMPAGA" },
+      select: { memberId: true },
+    });
+    if (enCurso?.memberId) return irAPagarElAlta(workspaceSlug, branding.workspaceId, enCurso.memberId);
+
+    const yaEsSocio = await prisma.member.findFirst({
+      where: { workspaceId: branding.workspaceId, email: parsed.data.email, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (yaEsSocio) {
+      const v = await loadPersonVocabulary(branding.workspaceId);
+      return done(aplicarVocabulario("Ya sos {persona}: entrá a tu portal para renovar.", v));
+    }
+  }
 
   // Una solicitud pendiente del mismo email no se duplica: se le dice que ya está en curso.
   const yaExiste = await prisma.membershipApplication.findFirst({
@@ -109,14 +136,20 @@ export async function submitApplicationAction(
   // El código no se guarda: lo que importa es a qué socio quedó atribuida el alta.
   const { recommendationCode: _codigo, ...datosSolicitud } = parsed.data;
 
-  await prisma.membershipApplication.create({
+  const solicitud = await prisma.membershipApplication.create({
     data: {
       workspaceId: branding.workspaceId,
       ...datosSolicitud,
       recommenderMemberId: recomendante?.memberId ?? null,
+      // La categoría de las altas desde el sitio, si la institución eligió una (el VIP).
+      categoryId: alta.category?.id ?? null,
     },
     select: { id: true },
   });
+
+  if (alta.autoApprove) {
+    return aprobarSolaEIrAPagar(workspaceSlug, branding.workspaceId, solicitud.id);
+  }
 
   // Los avisos salen DESPUÉS de que la solicitud está guardada, y su fracaso no la deshace:
   // el pedido ya entró y la Secretaría lo va a ver igual en la bandeja.
@@ -327,4 +360,76 @@ export async function rejectApplicationAction(
     };
   }
   return done(`Solicitud rechazada. Le avisamos a ${rechazada.applicant.email} con el motivo.`);
+}
+
+
+/**
+ * Alta sin aprobación: la solicitud se aprueba sola, se le manda el acceso al portal por email
+ * y la persona va directo a pagar su ingreso. El cierre (carnet, bienvenida y, si la categoría
+ * los incluye, los turnos del club) lo hace la acreditación del pago, como en cualquier alta.
+ */
+async function aprobarSolaEIrAPagar(
+  workspaceSlug: string,
+  workspaceId: string,
+  applicationId: string,
+): Promise<ApplicationFormState> {
+  let r: Awaited<ReturnType<typeof approveApplication>>;
+  try {
+    r = await approveApplication({ applicationId, workspaceId, resolvedByUserId: null });
+  } catch (error) {
+    if (error instanceof ApprovalError) return fail(error.message);
+    console.error("[fotoffice][alta] la aprobación automática falló");
+    return fail("No pudimos completar tu alta. Probá de nuevo en un rato.");
+  }
+
+  // El acceso al portal sale ya: es por donde va a renovar y ver sus turnos. Si el email no
+  // sale, el alta sigue: puede pagar igual y la institución reenvía el acceso desde la ficha.
+  const categoria = await prisma.member.findUnique({
+    where: { id: r.memberId },
+    select: { category: { select: { name: true } } },
+  });
+  const vocab = await loadPersonVocabulary(workspaceId);
+  const invitacion = await inviteOneMember({ id: workspaceId }, { kind: "SYSTEM", label: "Alta desde el sitio" }, r.memberId, {
+    buildBody: ({ memberFirstName, institution, invitationUrl, signature }) =>
+      buildSelfEnrollmentAccessEmail({
+        firstName: memberFirstName,
+        institution,
+        membershipName: categoria?.category?.name ?? vocab.plural,
+        activationUrl: invitationUrl,
+        totalLabel: formatMinorArs(decimalArsToMinor(r.totalArs)),
+        activationTtlLabel: INVITATION_TTL_LABEL,
+        signature,
+      }),
+  });
+  if (!invitacion.ok) {
+    console.error("[fotoffice][alta] no salió el acceso del alta automática", { memberId: r.memberId });
+  }
+
+  revalidatePath("/members");
+  return irAPagarElAlta(workspaceSlug, workspaceId, r.memberId);
+}
+
+/** Abre el pago de lo que el alta dejó pendiente y lleva a la persona a Mercado Pago. */
+async function irAPagarElAlta(
+  workspaceSlug: string,
+  workspaceId: string,
+  memberId: string,
+): Promise<ApplicationFormState> {
+  const [cuenta, socio] = await Promise.all([
+    loadMemberBalance(memberId),
+    prisma.member.findUnique({ where: { id: memberId }, select: { memberNumber: true } }),
+  ]);
+  if (!socio || cuenta.dueMinor <= 0) {
+    return done("Tu alta quedó hecha. Revisá tu email para entrar a tu portal.");
+  }
+  const pago = await startMemberDuesCheckout({
+    workspaceId,
+    memberId,
+    memberNumber: socio.memberNumber,
+    totalMinor: cuenta.dueMinor,
+    title: "Alta",
+    returnPath: `/w/${workspaceSlug}/asociarse`,
+  });
+  if (!pago.ok) return fail(pago.error);
+  redirect(pago.checkoutUrl);
 }

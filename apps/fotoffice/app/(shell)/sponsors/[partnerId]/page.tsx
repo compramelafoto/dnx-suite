@@ -260,8 +260,9 @@ export default async function SponsorPage({
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Lo que muestra la institución</h2>
           <p className="text-sm text-[var(--fo-muted)]">
-            Sólo para esta institución. El título y el texto salen en la sección de sponsors del portal y en la
-            ventana de bienvenida.
+            Sólo para esta institución. El título y el texto son el beneficio para los socios: salen en
+            «Beneficios» del portal, en la sección de sponsors y en la ventana de bienvenida. Si los dejás vacíos,
+            la marca no aparece en «Beneficios».
           </p>
         </div>
         <form action={guardarDatosPropiosAction} className="grid gap-4">

@@ -88,3 +88,25 @@ describe("la huella del padrón", () => {
     );
   });
 });
+
+describe("la huella con exclusiones", () => {
+  const padron = orderEntrants(socios);
+
+  it("sin exclusiones es la huella de siempre", () => {
+    const conVacias = padron.map((e) => ({ ...e, excludedPrizeOrders: [] }));
+    expect(entrantsHash("r-1", conVacias)).toBe(entrantsHash("r-1", padron));
+  });
+
+  it("con exclusiones cambia, y cambia si cambia de qué premio quedó afuera", () => {
+    const a = padron.map((e, i) => ({ ...e, excludedPrizeOrders: i === 0 ? [1] : [] }));
+    const b = padron.map((e, i) => ({ ...e, excludedPrizeOrders: i === 0 ? [2] : [] }));
+    expect(entrantsHash("r-1", a)).not.toBe(entrantsHash("r-1", padron));
+    expect(entrantsHash("r-1", a)).not.toBe(entrantsHash("r-1", b));
+  });
+
+  it("el orden en que vienen las exclusiones no cambia la huella", () => {
+    const a = padron.map((e, i) => ({ ...e, excludedPrizeOrders: i === 0 ? [3, 1] : [] }));
+    const b = padron.map((e, i) => ({ ...e, excludedPrizeOrders: i === 0 ? [1, 3] : [] }));
+    expect(entrantsHash("r-1", a)).toBe(entrantsHash("r-1", b));
+  });
+});

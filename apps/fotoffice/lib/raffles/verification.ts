@@ -14,11 +14,14 @@ import { drawWinners } from "./draw";
  */
 
 const ETIQUETA_PADRON = "fotoffice-raffle-v1";
+const ETIQUETA_PADRON_V2 = "fotoffice-raffle-v2";
 
 export type VerificationEntrant = {
   position: number;
   memberNumber: string;
   fullName: string;
+  /** Órdenes de premio que no podía ganar por la regla de no repetir premio. */
+  excludedPrizeOrders: number[];
 };
 
 export type VerificationPrize = {
@@ -44,6 +47,8 @@ export type VerificationData = {
   drandUrl: string;
   entrants: VerificationEntrant[];
   prizes: VerificationPrize[];
+  /** Si algún participante quedó afuera de algún premio: define qué huella corresponde. */
+  hasExclusions: boolean;
 };
 
 type SorteoParaVerificar = {
@@ -58,7 +63,12 @@ type SorteoParaVerificar = {
   drandSignature: string | null;
   sealedAt: Date | null;
   drawnAt: Date | null;
-  entries: { position: number; memberNumberSnapshot: string; fullNameSnapshot: string }[];
+  entries: {
+    position: number;
+    memberNumberSnapshot: string;
+    fullNameSnapshot: string;
+    excludedPrizeOrders?: number[];
+  }[];
   prizes: { order: number; title: string; award: { winnerPosition: number } | null }[];
 };
 
@@ -89,6 +99,7 @@ export function buildVerification(sorteo: SorteoParaVerificar): VerificationData
       position: e.position,
       memberNumber: e.memberNumberSnapshot,
       fullName: e.fullNameSnapshot,
+      excludedPrizeOrders: [...(e.excludedPrizeOrders ?? [])].sort((a, b) => a - b),
     }));
 
   const porPosicion = new Map(entrants.map((e) => [e.position, e]));
@@ -124,12 +135,19 @@ export function buildVerification(sorteo: SorteoParaVerificar): VerificationData
     drandUrl: `https://api.drand.sh/${sorteo.drandChainHash}/public/${sorteo.drandRound}`,
     entrants,
     prizes,
+    hasExclusions: entrants.some((e) => e.excludedPrizeOrders.length > 0),
   };
 }
 
 /** La cuenta rehecha: la misma que haría alguien de afuera con estos datos. */
-export function recheck(data: VerificationData): { ok: boolean; mismatches: string[] } {
+export function recheck(data: VerificationData): {
+  ok: boolean;
+  mismatches: string[];
+  /** Premios en los que todos los que quedaban estaban excluidos y la regla cedió. */
+  relaxedPrizeOrders: number[];
+} {
   const mismatches: string[] = [];
+  const relaxedPrizeOrders: number[] = [];
 
   // 1. ¿La lista publicada produce la huella publicada?
   //
@@ -138,7 +156,11 @@ export function recheck(data: VerificationData): { ok: boolean; mismatches: stri
   // socio—, así que cualquiera puede repetirla.
   const recalculada = hashDeNumeros(
     data.raffleId,
-    data.entrants.map((e) => ({ position: e.position, memberNumber: e.memberNumber })),
+    data.entrants.map((e) => ({
+      position: e.position,
+      memberNumber: e.memberNumber,
+      excludedPrizeOrders: e.excludedPrizeOrders,
+    })),
   );
   if (recalculada !== data.entrantsHash) {
     mismatches.push(
@@ -154,8 +176,10 @@ export function recheck(data: VerificationData): { ok: boolean; mismatches: stri
       randomness: data.randomness,
       prizeOrders: data.prizes.map((p) => p.order),
       entrantCount: data.entrants.length,
+      exclusions: new Map(data.entrants.map((e) => [e.position, e.excludedPrizeOrders])),
     });
     for (const r of recalculados) {
+      if (r.ruleRelaxed) relaxedPrizeOrders.push(r.prizeOrder);
       const guardado = data.prizes.find((p) => p.order === r.prizeOrder);
       if (guardado && guardado.winnerPosition !== r.winnerPosition) {
         mismatches.push(
@@ -165,7 +189,7 @@ export function recheck(data: VerificationData): { ok: boolean; mismatches: stri
     }
   }
 
-  return { ok: mismatches.length === 0, mismatches };
+  return { ok: mismatches.length === 0, mismatches, relaxedPrizeOrders };
 }
 
 /**
@@ -178,8 +202,20 @@ export function recheck(data: VerificationData): { ok: boolean; mismatches: stri
  */
 export function hashDeNumeros(
   raffleId: string,
-  entrants: readonly { position: number; memberNumber: string }[],
+  entrants: readonly { position: number; memberNumber: string; excludedPrizeOrders?: readonly number[] }[],
 ): string {
+  // Con alguna exclusión publicada, la v2: cada línea suma de qué premios quedó afuera.
+  if (entrants.some((e) => (e.excludedPrizeOrders?.length ?? 0) > 0)) {
+    const cuerpo = entrants
+      .map((e) => {
+        const excluidos = [...(e.excludedPrizeOrders ?? [])].sort((a, b) => a - b).join(",");
+        return `${e.position}:${e.memberNumber}:${excluidos}`;
+      })
+      .join("\n");
+    return createHash("sha256")
+      .update(`${ETIQUETA_PADRON_V2}\n${raffleId}\n${cuerpo}`, "utf8")
+      .digest("hex");
+  }
   const cuerpo = entrants.map((e) => `${e.position}:${e.memberNumber}`).join("\n");
   return createHash("sha256")
     .update(`${ETIQUETA_PADRON}\n${raffleId}\n${cuerpo}`, "utf8")

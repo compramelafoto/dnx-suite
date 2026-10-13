@@ -19,6 +19,7 @@ import {
   mergePackLines,
   parsePrecompraRequest,
 } from "@/lib/preventa-canjeable/precompra-order-request-helpers";
+import { vincularPedidoConBot } from "@/lib/bot/comprador/vincular-pedido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -338,6 +339,9 @@ export async function POST(req: NextRequest) {
         organizerReferralSchoolId: resolvedOrganizerReferralSchoolId,
       })
     );
+
+    // Medición de DNX Bot: nunca lanza y sin la cookie del bot no consulta la base.
+    await vincularPedidoConBot(albumPackOrder.id, req.headers.get("cookie"));
 
     const created = await prisma.preCompraOrder.findUnique({
       where: { id: preCompraOrder.id },

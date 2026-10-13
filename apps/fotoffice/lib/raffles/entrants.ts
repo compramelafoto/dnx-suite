@@ -17,6 +17,8 @@ export type EntrantInput = {
 export type Entrant = EntrantInput & {
   /** Posición en la bolsa, desde 0. Es lo que la extracción devuelve. */
   position: number;
+  /** Órdenes de premio de este sorteo que no puede ganar (regla de no repetir premio). */
+  excludedPrizeOrders?: readonly number[];
 };
 
 /**
@@ -27,6 +29,8 @@ export type Entrant = EntrantInput & {
  * función nueva al lado de esta, nunca una edición de esta línea.
  */
 const ETIQUETA = "fotoffice-raffle-v1";
+/** La huella cuando hay exclusiones: cada línea suma de qué premios quedó afuera. */
+const ETIQUETA_V2 = "fotoffice-raffle-v2";
 
 /**
  * Ordena el padrón de manera determinística.
@@ -77,6 +81,21 @@ export function orderEntrants(input: readonly EntrantInput[]): Entrant[] {
  * invalidar la prueba de un sorteo.
  */
 export function entrantsHash(raffleId: string, entrants: readonly Entrant[]): string {
-  const cuerpo = entrants.map((e) => `${e.position}:${e.memberNumber}`).join("\n");
-  return createHash("sha256").update(`${ETIQUETA}\n${raffleId}\n${cuerpo}`, "utf8").digest("hex");
+  // ── v1 y v2 ──
+  // Con la regla de no repetir premio, de qué premios quedó afuera cada socio también se
+  // congela al sellar, así que tiene que entrar en la huella. Pero sólo cambia el formato
+  // cuando hay alguna exclusión: sin ninguna, la huella es la v1 de siempre y los sorteos ya
+  // hechos siguen verificando igual. La versión se deduce de los datos publicados.
+  const conExclusiones = entrants.some((e) => (e.excludedPrizeOrders?.length ?? 0) > 0);
+  if (!conExclusiones) {
+    const cuerpo = entrants.map((e) => `${e.position}:${e.memberNumber}`).join("\n");
+    return createHash("sha256").update(`${ETIQUETA}\n${raffleId}\n${cuerpo}`, "utf8").digest("hex");
+  }
+  const cuerpo = entrants
+    .map((e) => {
+      const excluidos = [...(e.excludedPrizeOrders ?? [])].sort((a, b) => a - b).join(",");
+      return `${e.position}:${e.memberNumber}:${excluidos}`;
+    })
+    .join("\n");
+  return createHash("sha256").update(`${ETIQUETA_V2}\n${raffleId}\n${cuerpo}`, "utf8").digest("hex");
 }

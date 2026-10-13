@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ContestCarousel } from "@/components/contests/contest-carousel";
 import type { ShowcaseItem } from "@/lib/contests/showcase";
-import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
+import { createOwnBusinessAction } from "@/app/actions/profile-choice";
 import type { MemberBalance } from "@/lib/membership/balance";
 import { formatMinorArs } from "@/lib/membership/money";
 import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
@@ -45,7 +45,6 @@ export type PortalHomeProps = {
   /** Porcentaje del beneficio por recomendar, o null si la sección no está disponible. */
   recommendationBenefitPercent: number | null;
   perfilVacio: boolean;
-  puedeCambiarPerfil: boolean;
   tieneNegocio: boolean;
   /** El sorteo abierto, si hay uno y el módulo está prendido. */
   sorteo: PortalRaffleView | null;
@@ -58,6 +57,17 @@ export type PortalHomeProps = {
   /** Proyectos de la comisión: invitar a proponer y a tomar tareas sin responsable. */
   /** La vitrina de concursos (FotoRank y Clickatón): lo abierto y lo que viene. */
   concursos?: ShowcaseItem[];
+  /** La bolsa del club con turnos incluidos (Club VIP), si tiene una abierta. */
+  club?: {
+    available: number;
+    credits: number;
+    plural: string;
+    validUntilLabel: string;
+    /** Si la institución tiene Reservas prendido, el atajo para usarlos. */
+    reservarHref: string | null;
+  } | null;
+  /** Si su categoría se renueva cuando quiere (VIP): el precio y la acción de renovar. */
+  renovacion?: { categoryName: string; amountLabel: string; action: () => Promise<void> } | null;
   gobierno?: {
     tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
     totalLibres: number;
@@ -81,7 +91,6 @@ export function PortalHome({
   vocabulary: v,
   recommendationBenefitPercent,
   perfilVacio,
-  puedeCambiarPerfil,
   tieneNegocio,
   sorteo,
   whatsappGroupUrl,
@@ -89,6 +98,8 @@ export function PortalHome({
   cumpleanos = [],
   gobierno = null,
   concursos = [],
+  club = null,
+  renovacion = null,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -267,6 +278,47 @@ export function PortalHome({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {alDia ? null : cuotasCard}
+
+          {club || renovacion ? (
+            <section className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-5">
+              <h2 className="text-base font-semibold">
+                {!club
+                  ? `Tu ${renovacion?.categoryName ?? "membresía"} no está vigente`
+                  : club.available === 0
+                    ? `Usaste tus ${club.credits} ${club.plural} incluidos`
+                    : `Te quedan ${club.available} de ${club.credits} ${club.plural} incluidos`}
+              </h2>
+              <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                {!club
+                  ? "Renová cuando quieras: no se te acumula deuda por los meses que no renovaste."
+                  : club.available === 0
+                    ? "Con tu próximo pago se renuevan."
+                    : `Vencen el ${club.validUntilLabel}. Lo que no uses hasta entonces no se acumula.`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {club?.reservarHref && club.available > 0 ? (
+                  <Link href={club.reservarHref} className="fo-btn fo-btn-primary inline-flex text-sm">
+                    Reservar turno
+                  </Link>
+                ) : null}
+                {renovacion ? (
+                  <form action={renovacion.action}>
+                    <button
+                      type="submit"
+                      className={`fo-btn ${club && club.available > 0 ? "fo-btn-secondary" : "fo-btn-primary"} text-sm`}
+                    >
+                      {`Renovar ${renovacion.categoryName} — ${renovacion.amountLabel}`}
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+              {renovacion && club && club.available > 0 ? (
+                <p className="text-xs text-[var(--fo-muted)]">
+                  {`Si renovás ahora, los ${club.available} ${club.plural} que te quedan se reemplazan por los nuevos.`}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
           {/* Sólo cuando hay algo para tomar: si no, la tarjeta no le pide nada al socio. */}
           {gobierno && gobierno.totalLibres > 0 ? (
@@ -457,13 +509,6 @@ export function PortalHome({
         creación del negocio es siempre explícita: nunca ocurre por visitar una ruta.
       */}
       <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--fo-border)] pt-4 text-xs text-[var(--fo-muted)]">
-        {puedeCambiarPerfil ? (
-          <form action={switchProfileAction}>
-            <button type="submit" className="underline underline-offset-2 hover:text-[var(--fo-text)]">
-              Cambiar de perfil
-            </button>
-          </form>
-        ) : null}
         {!tieneNegocio ? (
           <form action={createOwnBusinessAction} className="leading-relaxed">
             {`¿Tenés tu propio estudio o querés enseñar? Creá tu espacio en FotoOffice para administrar tu negocio o subir tus cursos y que las instituciones los vendan, aparte de tu ficha de ${v.singular}.`}{" "}

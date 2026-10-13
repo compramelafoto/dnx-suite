@@ -309,16 +309,22 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     const eligible = getBulkExportableOrders(bulkSelectedOrders);
     if (eligible.length === 0) return;
 
+    if (eligible.length > 15) {
+      alert(
+        `Elegiste ${eligible.length} pedidos con impresiones. Se pueden bajar hasta 15 juntos: elegí menos y descargá en tandas.`
+      );
+      return;
+    }
     setBulkLoading((prev) => ({ ...prev, export: true }));
-    const origin = window.location.origin;
     try {
-      for (const order of eligible) {
-        if (order.source === "PRINT_ORDER") {
-          window.open(`${origin}/api/print-orders/${order.id}/export`, "_blank");
-        } else {
-          window.open(`${origin}/api/fotografo/pedidos/${order.id}/export-print`, "_blank");
-        }
-      }
+      // Un solo ZIP con una carpeta por pedido. Antes se abría una pestaña por pedido y el
+      // navegador bloqueaba todas menos la primera como ventanas emergentes.
+      const albumes = eligible.filter((o) => o.source !== "PRINT_ORDER").map((o) => o.id);
+      const impresion = eligible.filter((o) => o.source === "PRINT_ORDER").map((o) => o.id);
+      const params = new URLSearchParams();
+      if (albumes.length) params.set("albumes", albumes.join(","));
+      if (impresion.length) params.set("impresion", impresion.join(","));
+      window.location.href = `/api/fotografo/pedidos/export-print-lote?${params.toString()}`;
     } finally {
       setTimeout(() => setBulkLoading((prev) => ({ ...prev, export: false })), 400);
     }

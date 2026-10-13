@@ -6,6 +6,9 @@ import { getCheckoutEmailValidationError } from "@/lib/email-validation";
 import type { PreventaPackSnapshotBenefitV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import {
   buildCanjeSlotPlan,
+  currentCanjeSlotIndex,
+  photosForCanjeRole,
+  type CanjePhotoInput,
   buildRedeemSelections,
   emptyCanjeFill,
   isCanjeComplete,
@@ -14,8 +17,10 @@ import {
 import ComboFrames from "./ComboFrames";
 import CanjeSteps, { type CanjeStepKey } from "./CanjeSteps";
 import PhotoPickGrid from "./PhotoPickGrid";
+import CanjeLibritoStep, { type CanjeCropEntry } from "./CanjeLibritoStep";
+import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 
-type Paso = "intro" | "elegir" | "revisar" | "listo";
+type Paso = "intro" | "elegir" | "librito" | "revisar" | "listo";
 
 type Props = {
   token: string;
@@ -43,7 +48,7 @@ type Props = {
         | "name"
         | "includesDigital"
         | "previewImageUrl"
-      >
+      > & { photoInputs?: CanjePhotoInput[] | null }
     >;
     parentName: string | null;
     studentName: string | null;
@@ -53,7 +58,12 @@ type Props = {
    * confirmar (ahí le llegan los digitales y el comprobante).
    */
   pedirContacto?: boolean;
-  photos: Array<{ id: number; sellPrint: boolean; sellDigital: boolean }>;
+  /** `faces`: rostros detectados; `null` si la foto todavía no se analizó. */
+  photos: Array<{ id: number; sellPrint: boolean; sellDigital: boolean; faces?: number | null }>;
+  /** Beneficios con diseño (el librito): se muestran armados antes de confirmar. */
+  designs?: Array<{ benefitKey: string; template: DesignTemplatePayload }>;
+  /** Textos del diseño: alumno, curso, escuela, listado del curso. */
+  designValues?: Record<string, string>;
 };
 
 function primerNombre(nombre: string | null): string | null {
@@ -75,7 +85,15 @@ function describirGrupo(g: { kind: string; units: number; photosPerUnit: number 
  * cobrados por fuera: casilleros que se llenan, grilla para tocar fotos y un cierre con la
  * descarga. Los casilleros salen de lo que incluye el pack (copia grupal, librito, digitales).
  */
-export default function PreventaCanjeFlow({ token, album, pack, photos, pedirContacto = false }: Props) {
+export default function PreventaCanjeFlow({
+  token,
+  album,
+  pack,
+  photos,
+  pedirContacto = false,
+  designs = [],
+  designValues = {},
+}: Props) {
   const plan = useMemo(() => buildCanjeSlotPlan(pack.benefits), [pack.benefits]);
   const beneficio = useMemo(() => new Map(pack.benefits.map((b) => [b.stableKey, b])), [pack.benefits]);
   const [boceto, setBoceto] = useState<{ url: string; titulo: string } | null>(null);
@@ -84,6 +102,11 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
   const [telefono, setTelefono] = useState("");
   const [paso, setPaso] = useState<Paso>("intro");
   const [filled, setFilled] = useState<Array<number | null>>(() => emptyCanjeFill(plan));
+  /** Cómo acomodó la familia la foto de cada lugar en la vista del librito. */
+  const [crops, setCrops] = useState<Record<number, CanjeCropEntry>>({});
+  const hayLibrito = designs.length > 0;
+  /** El lugar que tocó la familia para llenarlo ahora ("la grupal"). */
+  const [destino, setDestino] = useState<number | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoomId, setZoomId] = useState<number | null>(null);
@@ -103,14 +126,21 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
     (id: number) => `/api/photos/${id}/view?albumId=${album.id}&mode=thumb`,
     [album.id]
   );
-  const visibles = useMemo(
-    () => (filtro ? photos.filter((p) => filtro.includes(p.id)) : photos).map((p) => p.id),
-    [photos, filtro]
-  );
+  const actual = currentCanjeSlotIndex(filled, destino);
+  const lugarActual = actual != null ? plan.slots[actual] : null;
+  const [verTodasParaGrupal, setVerTodasParaGrupal] = useState(false);
+  const facesById = useMemo(() => new Map(photos.map((p) => [p.id, p.faces ?? null])), [photos]);
+  const paraElLugar = useMemo(() => {
+    const base = (filtro ? photos.filter((p) => filtro.includes(p.id)) : photos).map((p) => p.id);
+    if (verTodasParaGrupal) return { ids: base, filtered: false };
+    return photosForCanjeRole(base, facesById, lugarActual?.role);
+  }, [photos, filtro, facesById, lugarActual?.role, verTodasParaGrupal]);
+  const visibles = paraElLugar.ids;
   const hayImpresas = plan.groups.some((g) => g.kind === "PHYSICAL");
   const impresas = plan.slots.filter((s) => s.kind === "PHYSICAL").length;
   const entregaImpresas = `${impresas === 1 ? "La foto impresa te la entrega" : "Las fotos impresas te las entrega"} ${album.photographerName ?? "el fotógrafo"}.`;
-  const stepKey: CanjeStepKey = paso === "intro" || paso === "elegir" ? "combo" : paso === "revisar" ? "extras" : "confirmar";
+  const stepKey: CanjeStepKey =
+    paso === "intro" || paso === "elegir" ? "combo" : paso === "revisar" || paso === "librito" ? "extras" : "confirmar";
 
   const irA = (p: Paso) => {
     setAviso(null);
@@ -121,9 +151,11 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
 
   function tocar(id: number) {
     setAviso(null);
-    const r = toggleCanjePhoto(plan, filled, id, byId.get(id));
+    const r = toggleCanjePhoto(plan, filled, id, byId.get(id), destino);
     if (r.ok) {
       setFilled(r.filled);
+      setDestino(null);
+      setVerTodasParaGrupal(false);
       return;
     }
     setAviso(
@@ -182,7 +214,15 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          selections: buildRedeemSelections(plan, filled),
+          selections: buildRedeemSelections(
+            plan,
+            filled,
+            Object.fromEntries(
+              Object.entries(crops)
+                .filter(([i, c]) => filled[Number(i)] === c.photoId)
+                .map(([i, c]) => [Number(i), c.crop])
+            )
+          ),
           ...(pedirContacto
             ? { contacto: { nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() } }
             : {}),
@@ -209,6 +249,16 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
           <ComboFrames
             slots={g.slotIndexes.length}
             photoIds={g.slotIndexes.map((i) => filled[i]) as number[]}
+            labels={g.slotIndexes.map((i) => plan.slots[i].label)}
+            activeIndex={editable && actual != null ? g.slotIndexes.indexOf(actual) : -1}
+            onPickEmpty={
+              editable
+                ? (pos) => {
+                    setDestino(g.slotIndexes[pos] ?? null);
+                    setVerTodasParaGrupal(false);
+                  }
+                : undefined
+            }
             thumbUrl={thumbUrl}
             onRemove={editable ? tocar : undefined}
             size={size}
@@ -307,6 +357,25 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
                   : `${elegidas.length} de ${total} elegidas · te ${total - elegidas.length === 1 ? "falta" : "faltan"} ${total - elegidas.length}`}
               </p>
               {casilleros("sm", true)}
+              {lugarActual?.label && !completo ? (
+                <p className="m-0 mt-3 text-center text-sm text-[#1f2328]">
+                  Ahora elegí: <strong>{lugarActual.label}</strong>
+                  {paraElLugar.filtered ? (
+                    <>
+                      {" "}
+                      · te mostramos las fotos grupales.{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-[#a8652e] underline"
+                        onClick={() => setVerTodasParaGrupal(true)}
+                      >
+                        Ver todas
+                      </button>
+                    </>
+                  ) : null}
+                  <span className="block text-xs text-[#6b6f76]">Tocá otro lugar vacío para elegir esa foto primero.</span>
+                </p>
+              ) : null}
             </div>
             {album.selfieSearch ? (
               <div className="mb-4 rounded-xl border border-[#e7e1da] bg-white p-4">
@@ -357,6 +426,23 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
               accent="combo"
             />
           </section>
+        ) : null}
+
+        {paso === "librito" ? (
+          <CanjeLibritoStep
+            plan={plan}
+            filled={filled}
+            crops={crops}
+            onChange={(f, c) => {
+              setFilled(f);
+              setCrops(c);
+            }}
+            designs={designs}
+            values={designValues}
+            photoUrl={(id) => `/api/photos/${id}/view?mode=preview&albumId=${album.id}`}
+            photos={byId}
+            studentName={alumno}
+          />
         ) : null}
 
         {paso === "revisar" ? (
@@ -471,12 +557,14 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
         ) : null}
       </main>
 
-      {paso === "elegir" || paso === "revisar" ? (
+      {paso === "elegir" || paso === "librito" || paso === "revisar" ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#e7e1da] bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
             <button
               type="button"
-              onClick={() => irA(paso === "elegir" ? "intro" : "elegir")}
+              onClick={() =>
+                irA(paso === "elegir" ? "intro" : paso === "revisar" && hayLibrito ? "librito" : "elegir")
+              }
               className="min-h-12 px-2 text-sm font-medium text-[#6b6f76] underline"
             >
               Volver
@@ -485,7 +573,7 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
               <button
                 type="button"
                 disabled={!completo}
-                onClick={() => irA("revisar")}
+                onClick={() => irA(hayLibrito ? "librito" : "revisar")}
                 className="min-h-12 flex-1 rounded-xl bg-[#2f7d5b] px-5 text-base font-semibold text-white disabled:bg-[#c9c3bc] sm:flex-none"
               >
                 {completo
@@ -493,6 +581,14 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
                     ? "Listo, es esta"
                     : `Listo, son mis ${total} fotos`
                   : `Elegí ${total - elegidas.length} más`}
+              </button>
+            ) : paso === "librito" ? (
+              <button
+                type="button"
+                onClick={() => irA("revisar")}
+                className="min-h-12 flex-1 rounded-xl bg-[#2f7d5b] px-5 text-base font-semibold text-white sm:flex-none"
+              >
+                Me gusta así, seguir
               </button>
             ) : (
               <button

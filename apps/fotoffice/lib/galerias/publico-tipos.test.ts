@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comentariosPorFoto, filtrarFotos, fotosConComentarios, idsParaPrecargar, nombreDeDescarga } from "./publico-tipos";
+import { comentariosPorFoto, filtrarFotos, fotosConComentarios, idsParaPrecargar, nombreDeDescarga, nombreDeOriginal, esDispositivoIOS } from "./publico-tipos";
 
 const fotos = ["a", "b", "c", "d"].map((id) => ({ id }));
 
@@ -43,5 +43,36 @@ describe("nombre de descarga", () => {
   it("nombre vacío o larguísimo", () => {
     expect(nombreDeDescarga("").ascii).toBe("foto.jpg");
     expect(nombreDeDescarga("a".repeat(500) + ".jpg").utf8.length).toBeLessThanOrEqual(124);
+  });
+});
+
+describe("nombre del original", () => {
+  it("conserva la extensión y el nombre", () => {
+    expect(nombreDeOriginal("IMG_0042.JPG")).toEqual({ ascii: "IMG_0042.JPG", utf8: "IMG_0042.JPG" });
+  });
+  it("saca lo que rompería el encabezado: comillas, barras, saltos de línea, % y ;", () => {
+    const n = nombreDeOriginal('a"b\\c/d\r\ne;f%g.jpg');
+    expect(n.utf8).toBe("a_b_c_d__e_f_g.jpg");
+    expect(n.ascii).not.toMatch(/["\\/\r\n;%]/);
+  });
+  it("tildes: ascii sin tildes y utf8 intacto; vacío o sólo puntos: 'foto'", () => {
+    expect(nombreDeOriginal("Canción día.jpg")).toEqual({ ascii: "Cancion dia.jpg", utf8: "Canción día.jpg" });
+    expect(nombreDeOriginal("...")).toEqual({ ascii: "foto", utf8: "foto" });
+    expect(nombreDeOriginal("").utf8).toBe("foto");
+  });
+  it("no pasa de 150 caracteres", () => {
+    expect(nombreDeOriginal("a".repeat(400) + ".jpg").utf8.length).toBe(150);
+  });
+});
+
+describe("dispositivo iOS", () => {
+  it("iPhone, iPad y iPad que se presenta como Mac", () => {
+    expect(esDispositivoIOS("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", 5)).toBe(true);
+    expect(esDispositivoIOS("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", 5)).toBe(true);
+    expect(esDispositivoIOS("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 5)).toBe(true);
+  });
+  it("Mac de escritorio y Android no", () => {
+    expect(esDispositivoIOS("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 0)).toBe(false);
+    expect(esDispositivoIOS("Mozilla/5.0 (Linux; Android 14)", 5)).toBe(false);
   });
 });

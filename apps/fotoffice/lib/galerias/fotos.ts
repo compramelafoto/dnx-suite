@@ -6,14 +6,18 @@ import {
   HORAS_PENDIENTE_FOTO,
   MAX_FOTOS_POR_GALERIA,
   MAX_INTENTOS_FOTO,
-  TAMANO_MAXIMO_ORIGINAL,
-  esTipoFotoPermitido,
+  MAX_LAMINAS_POR_RONDA,
+  MAX_VIDEOS_POR_GALERIA,
+  medioDeTipo,
+  tamanoMaximoDe,
   type EstadoFoto,
+  type TipoMedio,
 } from "./constantes";
 import { claveEsDe, clavesDeFoto } from "./claves";
 import { borrarObjetoFoto, guardarObjeto, leerObjeto, tamanoDeObjeto, urlDeSubidaFoto, urlsDeLecturaPorLote } from "./almacen";
 import { FotoNoProcesable, generarVariantes } from "./procesar";
 import { ordenarFotosDeGaleria } from "./orden";
+import { MENSAJES_RONDA, rondaAbiertaDe } from "./rondas";
 
 /**
  * Fotos de una galería (etapa 7, A1): pedir subida → el navegador sube el original directo al R2
@@ -33,6 +37,9 @@ export type FotoVisible = {
   height: number | null;
   sizeBytes: number | null;
   order: number;
+  /** FOTO o VIDEO. Un video no tiene miniatura: la grilla muestra una tapa genérica. */
+  mediaType: TipoMedio;
+  contentType: string | null;
   thumbUrl: string | null;
   viewUrl: string | null;
 };
@@ -47,14 +54,14 @@ function idValido(v: unknown): v is string {
   return typeof v === "string" && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_-]+$/.test(v);
 }
 
-async function galeriaDelWorkspace(ctx: CtxGalerias, galeriaId: string) {
+async function galeriaDelWorkspace(ctx: { workspaceId: string }, galeriaId: string) {
   return prisma.fotofficeGaleria.findFirst({
     where: { id: galeriaId, workspaceId: ctx.workspaceId },
-    select: { id: true, status: true, orderMode: true, coverFotoId: true },
+    select: { id: true, status: true, orderMode: true, coverFotoId: true, kind: true },
   });
 }
 
-function nombreLimpio(v: unknown): string | null {
+export function nombreLimpio(v: unknown): string | null {
   if (typeof v !== "string") return null;
   // Sin rutas ni caracteres de control; el nombre se muestra y se exporta, no se usa en la clave.
   // eslint-disable-next-line no-control-regex
@@ -69,20 +76,62 @@ export async function pedirSubidaFoto(
   archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
 ): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
   if (!puedeGestionarGalerias(ctx) || ctx.userId === null) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
+  return crearSubida(ctx, ctx.userId, galeriaId, archivo);
+}
+
+/**
+ * Lo mismo para un dispositivo (DNX FLUX): sin usuario. El permiso lo da la clave del dispositivo, que ya
+ * validó quien llama (`lib/galerias/flux`); la fila queda con `uploadedByUserId` nulo.
+ */
+export async function pedirSubidaFotoDeDispositivo(
+  workspaceId: string,
+  galeriaId: unknown,
+  archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
+): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
+  return crearSubida({ workspaceId }, null, galeriaId, archivo);
+}
+
+async function crearSubida(
+  ctx: { workspaceId: string },
+  userId: number | null,
+  galeriaId: unknown,
+  archivo: { nombre: unknown; tipo: unknown; tamano: unknown },
+): Promise<{ ok: true; id: string; url: string } | { ok: false; error: string }> {
   if (!idValido(galeriaId) || !archivo || typeof archivo !== "object") return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
   const nombre = nombreLimpio(archivo.nombre);
   if (!nombre) return { ok: false, error: MENSAJES_GALERIA.nombre };
-  if (!esTipoFotoPermitido(archivo.tipo)) return { ok: false, error: MENSAJES_GALERIA.tipo };
+  const medio = medioDeTipo(archivo.tipo);
+  if (!medio) return { ok: false, error: MENSAJES_GALERIA.tipo };
   const tamano = archivo.tamano;
-  if (typeof tamano !== "number" || !Number.isInteger(tamano) || tamano <= 0 || tamano > TAMANO_MAXIMO_ORIGINAL) {
-    return { ok: false, error: MENSAJES_GALERIA.tamano };
+  if (typeof tamano !== "number" || !Number.isInteger(tamano) || tamano <= 0 || tamano > tamanoMaximoDe(medio)) {
+    return { ok: false, error: medio === "VIDEO" ? MENSAJES_GALERIA.tamanoVideo : MENSAJES_GALERIA.tamano };
   }
   const galeria = await galeriaDelWorkspace(ctx, galeriaId);
   if (!galeria) return { ok: false, error: MENSAJES_GALERIA.noExiste };
   if (galeria.status === "ARCHIVADA") return { ok: false, error: MENSAJES_GALERIA.archivada };
+  // Los videos sólo viven en las galerías de entrega (la selección es de fotos).
+  if (medio === "VIDEO" && galeria.kind !== "ENTREGA") return { ok: false, error: MENSAJES_GALERIA.videoSoloEntrega };
+  if (medio === "VIDEO") {
+    const videos = await prisma.fotofficeGaleriaFoto.count({
+      where: { galeriaId: galeria.id as string, workspaceId: ctx.workspaceId, mediaType: "VIDEO", NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } },
+    });
+    if (videos >= MAX_VIDEOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeVideos };
+  }
   // Las fotos en ERROR definitivo no ocupan lugar: así se puede borrarlas o volver a subir.
-  const cantidad = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: galeria.id as string, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } } });
-  if (cantidad >= MAX_FOTOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeFotos };
+  // En un álbum las láminas van siempre a la ronda ABIERTA (lo decide el servidor, no el navegador) y el tope es por ronda.
+  let rondaId: string | null = null;
+  if (galeria.kind === "ALBUM") {
+    const ronda = await rondaAbiertaDe(ctx.workspaceId, galeria.id as string);
+    if (!ronda) return { ok: false, error: MENSAJES_RONDA.sinRonda };
+    const enRonda = await prisma.fotofficeGaleriaFoto.count({
+      where: { galeriaId: galeria.id as string, workspaceId: ctx.workspaceId, rondaId: ronda.id, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } },
+    });
+    if (enRonda >= MAX_LAMINAS_POR_RONDA) return { ok: false, error: MENSAJES_RONDA.topeLaminas };
+    rondaId = ronda.id;
+  } else {
+    const cantidad = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: galeria.id as string, NOT: { status: "ERROR", attempts: { gte: MAX_INTENTOS_FOTO } } } });
+    if (cantidad >= MAX_FOTOS_POR_GALERIA) return { ok: false, error: MENSAJES_GALERIA.topeFotos };
+  }
   const ultima = await prisma.fotofficeGaleriaFoto.aggregate({ where: { galeriaId: galeria.id as string }, _max: { order: true } });
   const orden = (ultima._max.order ?? -1) + 1;
   const fotoId = randomUUID();
@@ -96,13 +145,16 @@ export async function pedirSubidaFoto(
       originalKey: claves.original,
       status: "PENDIENTE",
       sizeBytes: BigInt(tamano),
+      mediaType: medio,
+      contentType: archivo.tipo as string,
       order: orden,
-      uploadedByUserId: ctx.userId,
+      uploadedByUserId: userId,
+      ...(rondaId ? { rondaId } : {}),
     },
     select: { id: true },
   });
   try {
-    return { ok: true, id: fotoId, url: await urlDeSubidaFoto(claves.original, archivo.tipo, tamano) };
+    return { ok: true, id: fotoId, url: await urlDeSubidaFoto(claves.original, archivo.tipo as string, tamano) };
   } catch {
     await prisma.fotofficeGaleriaFoto.deleteMany({ where: { id: fotoId, workspaceId: ctx.workspaceId } });
     return { ok: false, error: MENSAJES_GALERIA.preparar };
@@ -116,9 +168,11 @@ type FilaProcesable = {
   originalKey: string;
   sizeBytes: bigint | number | null;
   attempts: number;
+  /** Ausente se lee como FOTO. */
+  mediaType?: string;
 };
 
-const SELECT_PROCESABLE = { id: true, workspaceId: true, galeriaId: true, originalKey: true, sizeBytes: true, attempts: true } as const;
+const SELECT_PROCESABLE = { id: true, workspaceId: true, galeriaId: true, originalKey: true, sizeBytes: true, attempts: true, mediaType: true } as const;
 
 async function registrarFallo(fila: FilaProcesable, motivo: string, definitivo: boolean): Promise<void> {
   await prisma.fotofficeGaleriaFoto.updateMany({
@@ -148,6 +202,14 @@ async function procesarFila(fila: FilaProcesable): Promise<ResultadoProceso> {
     return "ERROR";
   }
   const claves = clavesDeFoto(fila.workspaceId, fila.galeriaId, fila.id);
+  if (fila.mediaType === "VIDEO") {
+    // Un video no se lee ni se procesa (pesa hasta 5 GB): alcanza con que el tamaño real sea el declarado.
+    const r = await prisma.fotofficeGaleriaFoto.updateMany({
+      where: { id: fila.id, workspaceId: fila.workspaceId, status: { in: ["PENDIENTE", "ERROR"] } },
+      data: { status: "LISTA", errorReason: null, viewKey: null, thumbKey: null },
+    });
+    return r.count === 1 ? "LISTA" : "YA_ERA_FINAL";
+  }
   try {
     const original = await leerObjeto(fila.originalKey);
     const v = await generarVariantes(original);
@@ -172,6 +234,15 @@ async function procesarFila(fila: FilaProcesable): Promise<ResultadoProceso> {
  */
 export async function confirmarFoto(ctx: CtxGalerias, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
   if (!puedeGestionarGalerias(ctx)) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
+  return confirmarSubida(ctx, galeriaId, fotoId);
+}
+
+/** Confirmar desde un dispositivo (DNX FLUX): la clave ya autorizó; todo se acota al workspace. */
+export function confirmarFotoDeDispositivo(workspaceId: string, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
+  return confirmarSubida({ workspaceId }, galeriaId, fotoId);
+}
+
+async function confirmarSubida(ctx: { workspaceId: string }, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
   if (!idValido(galeriaId) || !idValido(fotoId)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
   const fila = await prisma.fotofficeGaleriaFoto.findFirst({
     where: { id: fotoId, galeriaId, workspaceId: ctx.workspaceId, galeria: { workspaceId: ctx.workspaceId } },
@@ -202,15 +273,35 @@ async function borrarFilaYObjetos(f: { id: string; workspaceId: string; galeriaI
   await prisma.fotofficeGaleriaFoto.deleteMany({ where: { id: f.id, workspaceId: f.workspaceId } });
 }
 
+export const MENSAJE_FOTO_COMPRADA = "No se puede borrar: un cliente ya la pagó o tiene un pago en curso con esta foto.";
+
+/** ¿La foto está en una compra PAGADA o PENDIENTE de este workspace? */
+async function fotoEnCompraVigente(workspaceId: string, fotoId: string): Promise<boolean> {
+  const enlaces = await prisma.fotofficeGaleriaCompraFoto.findMany({ where: { fotoId }, select: { compraId: true } });
+  if (enlaces.length === 0) return false;
+  const vigentes = await prisma.fotofficeGaleriaCompra.count({
+    where: { workspaceId, id: { in: enlaces.map((e: { compraId: string }) => e.compraId) }, status: { in: ["PAGADA", "PENDIENTE"] } },
+  });
+  return vigentes > 0;
+}
+
 /** Borra una foto: original, vista y miniatura; si era la portada, la galería queda sin portada. */
 export async function borrarFoto(ctx: CtxGalerias, galeriaId: unknown, fotoId: unknown): Promise<ResultadoFoto> {
   if (!puedeGestionarGalerias(ctx)) return { ok: false, error: MENSAJES_GALERIA.sinPermiso };
   if (!idValido(galeriaId) || !idValido(fotoId)) return { ok: false, error: MENSAJES_GALERIA.datosInvalidos };
   const fila = await prisma.fotofficeGaleriaFoto.findFirst({
     where: { id: fotoId, galeriaId, workspaceId: ctx.workspaceId },
-    select: { id: true, workspaceId: true, galeriaId: true },
+    select: { id: true, workspaceId: true, galeriaId: true, rondaId: true },
   });
   if (!fila) return { ok: false, error: MENSAJES_GALERIA.fotoNoExiste };
+  // Las láminas de una ronda cerrada son el registro de lo que el cliente revisó: no se tocan.
+  if (fila.rondaId) {
+    const ronda = await prisma.fotofficeGaleriaRonda.findFirst({ where: { id: fila.rondaId as string, workspaceId: ctx.workspaceId }, select: { status: true } });
+    if (ronda?.status === "CERRADA") return { ok: false, error: MENSAJES_RONDA.rondaCerrada };
+  }
+  // Una foto que un cliente pagó, o que está en un pago abierto, no se borra: perdería la descarga y la
+  // compra (y su movimiento de Caja) dejaría de cuadrar.
+  if (await fotoEnCompraVigente(ctx.workspaceId, fotoId)) return { ok: false, error: MENSAJE_FOTO_COMPRADA };
   try {
     await borrarFilaYObjetos(fila as { id: string; workspaceId: string; galeriaId: string });
   } catch {
@@ -230,8 +321,11 @@ export async function reordenarFotos(ctx: CtxGalerias, galeriaId: unknown, ids: 
   }
   const galeria = await galeriaDelWorkspace(ctx, galeriaId);
   if (!galeria) return { ok: false, error: MENSAJES_GALERIA.noExiste };
+  // En un álbum se ordenan las láminas de la ronda abierta; las rondas cerradas no se tocan.
+  const ronda = galeria.kind === "ALBUM" ? await rondaAbiertaDe(ctx.workspaceId, galeriaId) : null;
+  if (galeria.kind === "ALBUM" && !ronda) return { ok: false, error: MENSAJES_RONDA.sinRonda };
   const filas = await prisma.fotofficeGaleriaFoto.findMany({
-    where: { galeriaId, workspaceId: ctx.workspaceId },
+    where: { galeriaId, workspaceId: ctx.workspaceId, ...(ronda ? { rondaId: ronda.id } : {}) },
     select: { id: true, order: true, fileName: true },
   });
   const existentes = new Set(filas.map((f: { id: unknown }) => f.id as string));
@@ -266,7 +360,7 @@ export async function establecerPortada(ctx: CtxGalerias, galeriaId: unknown, fo
   if (!galeria) return { ok: false, error: MENSAJES_GALERIA.noExiste };
   if (fotoId !== null) {
     const foto = await prisma.fotofficeGaleriaFoto.findFirst({
-      where: { id: fotoId, galeriaId, workspaceId: ctx.workspaceId, status: "LISTA" },
+      where: { id: fotoId, galeriaId, workspaceId: ctx.workspaceId, status: "LISTA", NOT: { mediaType: "VIDEO" } },
       select: { id: true },
     });
     if (!foto) return { ok: false, error: MENSAJES_GALERIA.portada };
@@ -282,15 +376,21 @@ export async function establecerPortada(ctx: CtxGalerias, galeriaId: unknown, fo
 export async function listarFotos(
   ctx: CtxGalerias,
   galeriaId: unknown,
-  opciones: { estado?: EstadoFoto } = {},
+  opciones: { estado?: EstadoFoto; rondaId?: string } = {},
 ): Promise<FotoVisible[]> {
   if (!puedeVerGalerias(ctx) || !idValido(galeriaId)) return [];
   const galeria = await galeriaDelWorkspace(ctx, galeriaId);
   if (!galeria) return [];
+  // En un álbum se lista una ronda: la pedida (si es de esta galería) o la abierta. Las demás galerías no tienen rondas.
+  let rondaId: string | null = null;
+  if (galeria.kind === "ALBUM") {
+    rondaId = opciones.rondaId && idValido(opciones.rondaId) ? opciones.rondaId : ((await rondaAbiertaDe(ctx.workspaceId, galeriaId))?.id ?? null);
+    if (!rondaId) return [];
+  }
   const filas = await prisma.fotofficeGaleriaFoto.findMany({
-    where: { galeriaId, workspaceId: ctx.workspaceId, ...(opciones.estado ? { status: opciones.estado } : {}) },
+    where: { galeriaId, workspaceId: ctx.workspaceId, ...(rondaId ? { rondaId } : {}), ...(opciones.estado ? { status: opciones.estado } : {}) },
     take: MAX_FOTOS_POR_GALERIA,
-    select: { id: true, fileName: true, status: true, errorReason: true, width: true, height: true, sizeBytes: true, order: true, viewKey: true, thumbKey: true },
+    select: { id: true, fileName: true, status: true, errorReason: true, width: true, height: true, sizeBytes: true, order: true, viewKey: true, thumbKey: true, mediaType: true, contentType: true },
   });
   const ordenadas = ordenarFotosDeGaleria(filas as { id: string; fileName: string; order: number }[], galeria.orderMode === "MANUAL" ? "MANUAL" : "NOMBRE") as unknown as typeof filas;
   const urls = await urlsDeLecturaPorLote(
@@ -306,6 +406,8 @@ export async function listarFotos(
     height: (f.height as number | null) ?? null,
     sizeBytes: f.sizeBytes === null || f.sizeBytes === undefined ? null : Number(f.sizeBytes),
     order: f.order as number,
+    mediaType: f.mediaType === "VIDEO" ? "VIDEO" : "FOTO",
+    contentType: (f.contentType as string | null) ?? null,
     thumbUrl: urls.get(f.id as string)?.thumbUrl ?? null,
     viewUrl: null,
   }));

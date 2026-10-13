@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OrganizerCommissionStatus } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerAccess } from "@/lib/school-organizer-auth";
+import {
+  buildSchoolPortalCommissionWhere,
+  isCommissionPaidThenCancelled,
+  isCommissionRequestableBy,
+  ORGANIZER_COMMISSION_BASE_DESCRIPTION,
+  summarizeOrganizerCommissions,
+} from "@/lib/school-organizer-commission-logic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,12 +35,11 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const where = {
-      schoolId,
-      organizerUserId: access.user.id,
-    } as const;
+    // Todas las comisiones de ESTA escuela (cualquier organizador activo de la escuela las ve).
+    // El acceso ya verificó membresía ACTIVE en schoolId; el where siempre fija ese schoolId.
+    const where = buildSchoolPortalCommissionWhere(schoolId);
 
-    const [rows, aggregatesByStatus] = await Promise.all([
+    const [rows, activeOrganizers] = await Promise.all([
       prisma.organizerCommission.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -49,41 +54,38 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
           paidAt: true,
           paymentMethod: true,
           paymentProofUrl: true,
+          organizerUserId: true,
           album: {
             select: { id: true, title: true },
           },
           order: {
-            select: { id: true },
+            select: { id: true, status: true, origin: true },
           },
         },
       }),
-      prisma.organizerCommission.groupBy({
-        by: ["status"],
-        where,
-        _sum: { amount: true },
+      prisma.schoolOrganizer.findMany({
+        where: { schoolId, status: "ACTIVE" },
+        select: { userId: true },
       }),
     ]);
 
-    const totals = {
-      acumulado: 0,
-      pendiente: 0,
-      solicitado: 0,
-      pagado: 0,
-    };
-    for (const row of aggregatesByStatus) {
-      const amount = Number(row._sum.amount ?? 0);
-      totals.acumulado += amount;
-      if (row.status === OrganizerCommissionStatus.PENDING) totals.pendiente += amount;
-      if (row.status === OrganizerCommissionStatus.REQUESTED) totals.solicitado += amount;
-      if (row.status === OrganizerCommissionStatus.PAID) totals.pagado += amount;
-    }
+    const activeOrganizerUserIds = activeOrganizers.map((o) => o.userId);
+    const totals = summarizeOrganizerCommissions(rows);
+    const commissions = rows.map(({ organizerUserId, ...row }) => ({
+      ...row,
+      paidThenCancelled: isCommissionPaidThenCancelled(row),
+      assignedToMe: organizerUserId === access.user.id,
+      requestableByMe: isCommissionRequestableBy(
+        { status: row.status, organizerUserId },
+        { userId: access.user.id, activeOrganizerUserIds }
+      ),
+    }));
 
     return NextResponse.json({
       summary: totals,
-      commissions: rows,
+      commissions,
       disclaimer: {
-        calculation:
-          "La comisión se calcula sobre el precio del servicio sin incluir el costo de la plataforma.",
+        calculation: ORGANIZER_COMMISSION_BASE_DESCRIPTION,
         payout:
           "La plataforma no realiza el pago. Es responsabilidad del fotógrafo.",
       },

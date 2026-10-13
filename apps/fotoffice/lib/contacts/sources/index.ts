@@ -1,10 +1,11 @@
+import { clientContactSource } from "./clients";
 import { memberContactSource } from "./members";
 import type { ContactSource } from "./types";
 
 /**
  * Las fuentes de contactos registradas. **Sumar un módulo se hace acá y en ningún otro lado.**
  */
-const FUENTES: readonly ContactSource[] = [memberContactSource] as const;
+const FUENTES: readonly ContactSource[] = [memberContactSource, clientContactSource] as const;
 
 export function listContactSources(): ContactSource[] {
   return FUENTES.slice();

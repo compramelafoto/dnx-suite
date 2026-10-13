@@ -65,6 +65,27 @@ describe("acciones de galerías (fuente)", () => {
     expect(fuente).toContain('import { after } from "next/server"');
   });
 
+  it("abrir una ronda nueva exige Gestionar, valida la forma y manda el correo con after() sólo si la ronda se abrió", () => {
+    const c = cuerpoDe("abrirRondaNuevaGaleriaAction");
+    expect(c).toContain('contextoDeGalerias("operar")');
+    expect(c).toMatch(/esId\(galeriaId\)/);
+    expect(c.indexOf("contextoDeGalerias")).toBeLessThan(c.indexOf("abrirRondaNueva(ctx"));
+    expect(c.indexOf("abrirRondaNueva(ctx")).toBeLessThan(c.indexOf("after("));
+    expect(c.indexOf("if (!r.ok) return r;")).toBeLessThan(c.indexOf("after("));
+    expect(c).toContain("avisarRondaNueva(");
+  });
+
+  it("preparar la descarga completa exige Gestionar y ver una parte sólo Ver; las dos validan la forma de lo que llega", () => {
+    const preparar = cuerpoDe("prepararDescargaGaleriaAction");
+    expect(preparar).toContain('contextoDeGalerias("operar")');
+    expect(preparar).toMatch(/esId\(galeriaId\)/);
+    expect(preparar.indexOf("contextoDeGalerias")).toBeLessThan(preparar.indexOf("prepararDescargaDelEstudio("));
+    const parte = cuerpoDe("urlParteDescargaGaleriaAction");
+    expect(parte).toContain('contextoDeGalerias("ver")');
+    expect(parte).toMatch(/esId\(galeriaId\)[\s\S]*esId\(descargaId\)/);
+    expect(parte).toContain("Number.isInteger(n)");
+  });
+
   it("las acciones no devuelven nunca la clave del original ni el token en claro salvo copiar/WhatsApp", () => {
     expect(fuente).not.toMatch(/originalKey|tokenHash|tokenIssuedAt/);
   });
@@ -82,7 +103,10 @@ describe("pantallas de galerías (fuente)", () => {
     expect(p).toContain("ID_VALIDO.test(id)");
     expect(p).toContain("cargarFichaGaleria(ctx, id)");
     expect(p).toMatch(/if \(!ficha\) notFound\(\)/);
-    expect(p).toContain('pestana === "fotos" ? await listarFotos(ctx, id) : []');
+    expect(p).toContain('pestana === "fotos" ? await listarFotos(ctx, id, rondaMirada ? { rondaId: rondaMirada.id } : {}) : []');
+    // El álbum sólo lee sus rondas en la pestaña de láminas y nunca ofrece venta.
+    expect(p).toContain('esAlbum && pestana === "fotos" ? await listarRondas(ctx, id) : []');
+    expect(p).toMatch(/\(esEntrega \|\| esAlbum\) && p\.clave === "venta"/);
     expect(p).toContain('pestana === "historial" ? await cargarHistorial(ctx, id, pagina) : { items: []');
     // Los componentes de cliente reciben fechas como texto, no objetos.
     expect(p).toContain(".toISOString()");
@@ -156,5 +180,43 @@ describe("revisión de la selección (fuente)", () => {
     expect(e).toContain("Windows / Finder");
     expect(e).toContain("Descargar CSV");
     expect(e).toContain("/exportar");
+  });
+});
+
+describe("venta de fotos extra en el estudio (fuente)", () => {
+  it.each([
+    ["guardarVentaGaleriaAction", "guardarVentaGaleria(ctx"],
+    ["marcarCompraPagadaAManoAction", "marcarCompraPagadaAMano(ctx"],
+  ])("%s exige Gestionar, valida la forma y delega", (nombre, llamada) => {
+    const c = cuerpoDe(nombre);
+    expect(c).toContain('contextoDeGalerias("operar")');
+    expect(c).toMatch(/esId\(/);
+    expect(c).toMatch(/esObjeto\(/);
+    expect(c).toContain(llamada);
+  });
+  it("la acción de pagar a mano no recibe importes: sólo método, fecha y cuenta (el precio lo calcula el servidor)", () => {
+    const s = leer("./compras.ts");
+    const i = s.indexOf("export async function marcarCompraPagadaAMano(");
+    const cuerpo = s.slice(i, s.indexOf("// --- Lectura para la revisión", i));
+    expect(leer("./carrito.ts")).toContain("return calcularCarrito(");
+    expect(cuerpo).not.toMatch(/d\.(importe|total|monto|amount)/i);
+    expect(cuerpo).toContain("carritoDeCliente(tx");
+  });
+  it("la ficha pide la pestaña Venta sólo cuando se abre y el total vendido sólo a quien ve el dinero", () => {
+    const p = leer("../../app/(shell)/galerias/[id]/page.tsx");
+    expect(p).toContain('{ clave: "venta", etiqueta: "Venta" }');
+    expect(p).toContain('pestana === "venta" ? await cargarVentaGaleria');
+    expect(p).toContain("puedeVerVentasGalerias(ctx) ?");
+  });
+  it("la revisión del cliente lee las compras después de la guarda de Ver", () => {
+    const p = leer("../../app/(shell)/galerias/[id]/clientes/[clienteId]/page.tsx");
+    expect(p.indexOf('requireGalerias("ver")')).toBeLessThan(p.indexOf("cargarResumenVentaCliente("));
+    expect(p).toContain("<ComprasCliente");
+  });
+  it("los textos no usan la palabra 'plata' y los importes se piden como 'Ej.: 1.500,00'", () => {
+    for (const ruta of ["../../components/galerias/pestana-venta.tsx", "../../components/galerias/compras-cliente.tsx", "./compras.ts", "./venta.ts", "./venta-form.ts"]) {
+      expect(leer(ruta), ruta).not.toMatch(/\bplata\b/i);
+    }
+    expect(leer("./venta-form.ts")).toContain('EJEMPLO_IMPORTE = "Ej.: 1.500,00"');
   });
 });

@@ -1,4 +1,12 @@
 import { FONT_CATALOG, type FontId } from "@repo/design-studio";
+import {
+  CLASS_LIST_SAMPLE,
+  CLASS_LIST_VARIABLE_KEY,
+  formatClassList,
+  layoutClassList,
+  readClassListOptions,
+  type ClassListStudent,
+} from "@repo/template-engine";
 
 /**
  * Puente entre el diseñador de plantillas y el módulo que imprime.
@@ -148,6 +156,11 @@ export function editorADocumento(input: {
    * es lo correcto cuando no se sabe cuáles son válidos.
    */
   variablesConocidas?: ReadonlySet<string>;
+  /**
+   * Los alumnos del curso para el bloque «Listado del curso». Sin esto se dibuja el curso de
+   * muestra (la vista previa del editor); una lista vacía no dibuja nada.
+   */
+  listaDelCurso?: readonly ClassListStudent[];
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -236,6 +249,47 @@ export function editorADocumento(input: {
             const clave = texto(cfg.variableKey);
             if (!clave) {
               avisos.push(`Un bloque de dato variable quedó sin variable elegida; no se imprimió.`);
+              break;
+            }
+            if (clave === CLASS_LIST_VARIABLE_KEY) {
+              /*
+               * design-studio no mezcla negrita y normal dentro de un mismo texto, así que el
+               * listado se imprime como un texto por alumno, cada uno con su peso. La cuenta de
+               * columnas y filas es la misma que usa el lienzo del editor.
+               */
+              const opciones = readClassListOptions(cfg);
+              const pesoBase = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
+              const reparto = layoutClassList({
+                lines: formatClassList(input.listaDelCurso ?? CLASS_LIST_SAMPLE, opciones),
+                width: num(b.width, 0),
+                height: num(b.height, 0),
+                fontSize: num(cfg.fontSize, 20),
+                lineHeight: num(cfg.lineHeight, 1.2),
+                columns: opciones.columns,
+              });
+              const comun = {
+                type: "text" as const,
+                fontId: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
+                fontSize: pt(reparto.fontSize),
+                fontStyle: cfg.fontItalic === true ? "italic" : "normal",
+                color: texto(cfg.color, "#111111"),
+                align: alineacion(cfg.textAlign),
+                textTransform: conversionDeLetras(cfg.textTransform),
+              };
+              reparto.cells.forEach((celda, i) => {
+                dibujables.push({
+                  ...geo,
+                  ...comun,
+                  id: `${b.id}__${i}`,
+                  x: mm(num(b.x, 0) + celda.x),
+                  y: mm(num(b.y, 0) + celda.y),
+                  width: mm(celda.width),
+                  height: mm(celda.height),
+                  rotation: undefined,
+                  content: celda.text,
+                  fontWeight: celda.bold ? "bold" : pesoBase,
+                });
+              });
               break;
             }
             dibujables.push({

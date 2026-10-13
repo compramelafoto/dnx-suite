@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MAX_FOTOS_POR_GALERIA, TAMANO_MAXIMO_ORIGINAL } from "./constantes";
-import { SUBIDAS_EN_PARALELO, clasificarArchivos, crearCola, pesoLegible, resumirSubidas, revisarFotoParaSubir, tipoDeFoto } from "./subida";
+import { MAX_FOTOS_POR_GALERIA, MAX_VIDEOS_POR_GALERIA, TAMANO_MAXIMO_ORIGINAL, TAMANO_MAXIMO_VIDEO } from "./constantes";
+import { SUBIDAS_EN_PARALELO, clasificarArchivos, crearCola, pesoLegible, resumirSubidas, revisarArchivoParaSubir, revisarFotoParaSubir, tipoDeArchivo, tipoDeFoto, tipoDeVideo } from "./subida";
 
 const f = (name: string, type: string, size = 1000) => ({ name, type, size });
 
@@ -94,5 +94,44 @@ describe("resumen", () => {
     expect(pesoLegible(3.2 * 1024 * 1024)).toBe("3,2 MB");
     expect(pesoLegible(850 * 1024)).toBe("850 KB");
     expect(pesoLegible(10)).toBe("1 KB");
+  });
+});
+
+describe("videos en una galería de entrega", () => {
+  it("MP4 y MOV por tipo o por extensión; nada más", () => {
+    expect(tipoDeVideo("a.mp4", "video/mp4")).toBe("video/mp4");
+    expect(tipoDeVideo("a.MOV", "")).toBe("video/quicktime");
+    expect(tipoDeVideo("a.mov", "video/quicktime")).toBe("video/quicktime");
+    expect(tipoDeVideo("a.avi", "video/x-msvideo")).toBeNull();
+    expect(tipoDeVideo("a.mp4", "application/pdf")).toBeNull();
+    expect(tipoDeVideo("a.mkv", "")).toBeNull();
+  });
+  it("una galería de selección no admite videos; una de entrega sí", () => {
+    expect(tipoDeArchivo("a.mp4", "video/mp4", false)).toBeNull();
+    expect(tipoDeArchivo("a.mp4", "video/mp4", true)).toBe("video/mp4");
+    expect(tipoDeArchivo("a.jpg", "image/jpeg", true)).toBe("image/jpeg");
+  });
+  it("tope de 5 GB para un video (justos pasan) y 50 MB para una foto", () => {
+    expect(revisarArchivoParaSubir(f("a.mp4", "video/mp4", TAMANO_MAXIMO_VIDEO), true)).toBeNull();
+    expect(revisarArchivoParaSubir(f("a.mp4", "video/mp4", TAMANO_MAXIMO_VIDEO + 1), true)).toMatch(/5 GB/);
+    expect(revisarArchivoParaSubir(f("a.mp4", "video/mp4", 0), true)).toMatch(/vacío/);
+    expect(revisarArchivoParaSubir(f("a.jpg", "image/jpeg", TAMANO_MAXIMO_ORIGINAL + 1), true)).toMatch(/50 MB/);
+    expect(revisarArchivoParaSubir(f("a.avi", "video/x-msvideo"), true)).toMatch(/MP4 o MOV/);
+    expect(revisarArchivoParaSubir(f("a.mp4", "video/mp4"), false)).toMatch(/JPG o PNG/);
+  });
+  it("clasificarArchivos mezcla fotos y videos y respeta el tope de videos", () => {
+    const r = clasificarArchivos([f("1.jpg", "image/jpeg"), f("2.mp4", "video/mp4"), f("3.mov", "video/quicktime"), f("4.avi", "video/x-msvideo")], 10, { admiteVideos: true, videosLibres: 1 });
+    expect(r.aceptados.map((a) => a.name)).toEqual(["1.jpg", "2.mp4"]);
+    expect(r.rechazados.map((a) => a.archivo.name)).toEqual(["3.mov", "4.avi"]);
+    expect(r.rechazados[0].motivo).toMatch(/200 videos/);
+    expect(MAX_VIDEOS_POR_GALERIA).toBe(200);
+  });
+  it("sin admiteVideos un video se rechaza como antes", () => {
+    const r = clasificarArchivos([f("2.mp4", "video/mp4")], 10);
+    expect(r.aceptados).toEqual([]);
+    expect(r.rechazados).toHaveLength(1);
+  });
+  it("pesoLegible llega a GB", () => {
+    expect(pesoLegible(1.5 * 1024 * 1024 * 1024)).toMatch(/1,5 GB/);
   });
 });

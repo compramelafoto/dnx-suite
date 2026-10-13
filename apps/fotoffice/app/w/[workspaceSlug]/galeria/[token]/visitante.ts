@@ -23,6 +23,12 @@ export async function visitanteDeAccion(accion: string, tope: number): Promise<{
   return { permitido: checkRateLimit({ key: `galeria-${accion}:${ip}`, limit: tope, windowMs: DIEZ_MINUTOS }).allowed };
 }
 
+/** Verificar la vuelta de Mercado Pago le pregunta a Mercado Pago: cupo propio y más corto. */
+export async function pasaElFrenoDePagosGaleria(): Promise<boolean> {
+  const ip = clientIp(await headers());
+  return checkRateLimit({ key: `galeria-vuelta:${ip}`, limit: 15, windowMs: DIEZ_MINUTOS }).allowed;
+}
+
 /** ¿Quien abre tiene sesión y es del equipo de esta organización? Su apertura no cuenta como "entró". */
 export async function abreAlguienDelEquipo(workspaceId: string): Promise<boolean> {
   try {

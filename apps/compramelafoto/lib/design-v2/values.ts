@@ -1,3 +1,5 @@
+import { CLASS_LIST_VARIABLE_KEY, serializeClassList, type ClassListStudent } from "@repo/template-engine";
+
 /**
  * Los textos que llenan las variables de una plantilla (alumno, curso, escuela, comprador…).
  *
@@ -14,6 +16,8 @@ export type DesignValueSources = {
   photographerLogoUrl?: string | null;
   eventDate?: Date | null;
   orderReference?: string | null;
+  /** Los alumnos del curso, para el bloque «Listado del curso». */
+  courseStudents?: ClassListStudent[] | null;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
@@ -37,6 +41,7 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
   put("photographer.displayName", src.photographerName);
   put("branding.photographerLogoUrl", src.photographerLogoUrl);
   put("order.referenceShort", src.orderReference);
+  if (src.courseStudents?.length) values[CLASS_LIST_VARIABLE_KEY] = serializeClassList(src.courseStudents);
   if (src.eventDate && !Number.isNaN(src.eventDate.getTime())) {
     put("event.dateFormatted", DATE_FORMAT.format(src.eventDate));
   }

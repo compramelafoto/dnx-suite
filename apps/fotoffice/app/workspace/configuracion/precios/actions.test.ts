@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const H = vi.hoisted(() => ({
   role: vi.fn(),
   revalidate: vi.fn(),
-  guardar: vi.fn(async (..._a: unknown[]): Promise<{ ok: true } | { ok: false; error: string }> => ({ ok: true })),
+  guardar: vi.fn(async (..._a: unknown[]): Promise<{ ok: true; actualizado: Date } | { ok: false; error: string }> => ({ ok: true, actualizado: new Date("2026-10-12T15:00:00.123Z") })),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -38,12 +38,31 @@ describe("guardarPerfilPreciosAction", () => {
   it("pasa el contexto de la sesión (nunca un workspaceId del argumento) y revalida", async () => {
     const perfil = { workspaceId: "otro", weeklyHours: "40" };
     const r = await A.guardarPerfilPreciosAction(perfil);
-    expect(r).toEqual({ ok: true });
+    expect(r).toEqual({ ok: true, actualizado: "2026-10-12T15:00:00.123Z" });
     const [ctx, datos] = H.guardar.mock.calls[0]! as [{ workspaceId: string; userId: number }, unknown];
     expect(ctx.workspaceId).toBe("ws-1");
     expect(ctx.userId).toBe(7);
     expect(datos).toBe(perfil);
     expect(H.revalidate).toHaveBeenCalledWith("/workspace/configuracion/precios");
+  });
+
+  it("manda la versión que cargó el formulario (fecha o null) para no pisar cambios", async () => {
+    await A.guardarPerfilPreciosAction({}, "2026-10-12T14:00:00.456Z");
+    expect(H.guardar.mock.calls[0]![2]).toEqual({ esperado: new Date("2026-10-12T14:00:00.456Z") });
+    await A.guardarPerfilPreciosAction({}, null);
+    expect(H.guardar.mock.calls[1]![2]).toEqual({ esperado: null });
+  });
+
+  it("una versión que no es una fecha no guarda", async () => {
+    expect(await A.guardarPerfilPreciosAction({}, "ayer")).toEqual({ ok: false, error: "Los datos del perfil no son válidos." });
+    expect(H.guardar).not.toHaveBeenCalled();
+  });
+
+  it("si el perfil cambió mientras tanto, devuelve el aviso sin revalidar", async () => {
+    const aviso = "El perfil cambió mientras lo tenías abierto (lo guardó DNX Bot). Recargá para ver los datos nuevos.";
+    H.guardar.mockResolvedValueOnce({ ok: false, error: aviso });
+    expect(await A.guardarPerfilPreciosAction({}, "2026-10-12T14:00:00.456Z")).toEqual({ ok: false, error: aviso });
+    expect(H.revalidate).not.toHaveBeenCalled();
   });
 
   it("devuelve el error de la validación sin revalidar", async () => {

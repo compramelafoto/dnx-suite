@@ -119,6 +119,8 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
   if (type === "VARIABLE_TEXT") {
     return {
       variableKey: typeof cfg.variableKey === "string" ? cfg.variableKey : "",
+      // Opciones del «Listado del curso»; se leen con `readClassListOptions`.
+      ...(cfg.classList && typeof cfg.classList === "object" ? { classList: cfg.classList } : {}),
       fallback:
         typeof cfg.fallback === "string"
           ? cfg.fallback

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { redirectMock, requireActiveWorkspaceMock, levelMock, actionMock } = vi.hoisted(() => ({
+const { redirectMock, requireActiveWorkspaceMock, levelMock, actionMock, spacesMock } = vi.hoisted(() => ({
+  spacesMock: vi.fn(),
   redirectMock: vi.fn((destino: string) => {
     throw new Error(`REDIRECT:${destino}`);
   }),
@@ -11,6 +12,7 @@ const { redirectMock, requireActiveWorkspaceMock, levelMock, actionMock } = vi.h
 
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("@/lib/workspace", () => ({ requireActiveWorkspace: requireActiveWorkspaceMock }));
+vi.mock("@repo/db", () => ({ prisma: { bookingSpace: { findMany: spacesMock } } }));
 vi.mock("@/lib/permissions/module-access", () => ({
   getModuleLevel: levelMock,
   hasModuleAction: actionMock,
@@ -25,6 +27,7 @@ beforeEach(() => {
   requireActiveWorkspaceMock.mockReset().mockResolvedValue({ user: { id: 7 }, workspace: ws });
   levelMock.mockReset().mockResolvedValue("MANAGE");
   actionMock.mockReset().mockResolvedValue(true);
+  spacesMock.mockReset().mockResolvedValue([]);
 });
 
 describe("la puerta del módulo Reservas", () => {
@@ -77,5 +80,26 @@ describe("la puerta del módulo Reservas", () => {
       canOperate: true,
       canConfigure: true,
     });
+  });
+
+  it("quien sólo ve y atiende en un puesto (un barbero) ve únicamente lo suyo", async () => {
+    levelMock.mockResolvedValue("VIEW");
+    actionMock.mockResolvedValue(false);
+    spacesMock.mockResolvedValue([{ id: "bruno" }]);
+    await expect(requireBookingsViewer()).resolves.toMatchObject({ ownSpaceIds: ["bruno"] });
+    expect(spacesMock).toHaveBeenCalledWith({
+      where: { workspaceId: "ws-1", professionalUserId: 7 },
+      select: { id: true },
+    });
+  });
+
+  it("quien ve sin atender en ningún puesto sigue viendo todo; quien opera, también", async () => {
+    levelMock.mockResolvedValue("VIEW");
+    actionMock.mockResolvedValue(false);
+    await expect(requireBookingsViewer()).resolves.toMatchObject({ ownSpaceIds: null });
+    levelMock.mockResolvedValue("MANAGE");
+    spacesMock.mockClear();
+    await expect(requireBookingsViewer()).resolves.toMatchObject({ ownSpaceIds: null });
+    expect(spacesMock).not.toHaveBeenCalled();
   });
 });

@@ -8,13 +8,14 @@ import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { MENSAJES_GALERIA as M, puedeGestionarGalerias, puedeVerGalerias, type CtxGalerias } from "./acceso";
 import { leerAjustesGaleria } from "./ajustes";
 import {
-  MAX_MENSAJE_GALERIA, MAX_NOMBRE_GALERIA, MODOS_DESCARGA, MODOS_SELECCION, esEstadoGaleria,
-  type EstadoGaleria, type ModoDescarga, type ModoOrden, type ModoSeleccion,
+  MAX_MENSAJE_GALERIA, MAX_NOMBRE_GALERIA, MODOS_DESCARGA, MODOS_SELECCION, esEstadoGaleria, esTipoGaleria, tipoDeKind,
+  type EstadoGaleria, type TipoGaleria, type ModoDescarga, type ModoOrden, type ModoSeleccion,
 } from "./constantes";
 import { registrarEvento } from "./eventos";
 import { urlsDeLecturaPorLote } from "./almacen";
 import { validarConfigSeleccion } from "./seleccion";
 import { borrarFoto, type FotoVisible } from "./fotos";
+import { MENSAJES_RONDA, laminasAbiertasPorGaleria, rondaAbiertaDe } from "./rondas";
 
 /**
  * Galerías: crear, editar la configuración, publicar, archivar y reactivar, y las lecturas de la
@@ -56,12 +57,17 @@ function enteroOpcional(v: unknown): number | null | undefined {
 /**
  * Crea una galería en BORRADOR atada a un proyecto, con los valores por omisión de Configuración →
  * Galería. El nombre, si no se da, es el del proyecto. Número `GALERIA` correlativo del año.
+ * `tipo` (opcional): "SELECCION" (por omisión), "ENTREGA" o "ALBUM". Una entrega queda sin selección ni venta
+ * (`saleMode` SELECCION) y entrega los originales de todo lo que tiene. Un álbum (aprobación de láminas) tampoco tiene
+ * selección ni venta, comenta en las láminas, no descarga por omisión y nace con la RONDA 1 ABIERTA.
  */
 export async function crearGaleria(ctx: CtxGalerias, datos: unknown, ahora: Date = new Date()): Promise<ResultadoGaleria> {
   if (!puedeGestionarGalerias(ctx) || ctx.userId === null) return no(M.sinPermiso);
   if (!datos || typeof datos !== "object") return no(M.datosInvalidos);
   const d = datos as Record<string, unknown>;
   if (!idValido(d.proyectoId)) return no(M.datosInvalidos);
+  if (d.tipo !== undefined && d.tipo !== null && !esTipoGaleria(d.tipo)) return no(M.datosInvalidos);
+  const tipo: TipoGaleria = tipoDeKind(d.tipo);
   const { workspaceId } = ctx;
   const proyecto = await prisma.fotofficeProyecto.findFirst({ where: { id: d.proyectoId, workspaceId }, select: { id: true, name: true, ownerUserId: true } });
   if (!proyecto) return no(M.proyecto);
@@ -76,17 +82,22 @@ export async function crearGaleria(ctx: CtxGalerias, datos: unknown, ahora: Date
       const numero = await asignarNumero(tx, { workspaceId, key: "GALERIA", entityType: "GALERIA", entityId: id, fecha: ahora });
       await tx.fotofficeGaleria.create({
         data: {
-          id, workspaceId, proyectoId: proyecto.id, number: numero.display, name: nombre,
+          id, workspaceId, proyectoId: proyecto.id, number: numero.display, name: nombre, kind: tipo, saleMode: "SELECCION",
           message: ajustes.defaultMessage,
           // El modo "por cantidad" necesita mínimo o máximo: una galería nueva siempre nace libre.
           selectionMode: "LIBRE", minSelect: null, maxSelect: null,
-          allowComments: ajustes.defaultAllowComments, downloadMode: ajustes.defaultDownloadMode,
+          allowComments: tipo === "ENTREGA" ? false : tipo === "ALBUM" ? true : ajustes.defaultAllowComments,
+          downloadMode: tipo === "ENTREGA" ? "SELECCIONADAS" : tipo === "ALBUM" ? "NINGUNA" : ajustes.defaultDownloadMode,
           status: "BORRADOR", orderMode: "NOMBRE",
           ownerUserId: proyecto.ownerUserId ?? ctx.userId, createdByUserId: ctx.userId,
         },
         select: { id: true },
       });
-      await registrarEvento(tx, { workspaceId, galeriaId: id, tipo: "GALERIA_CREADA", actorUserId: ctx.userId });
+      await registrarEvento(tx, { workspaceId, galeriaId: id, tipo: "GALERIA_CREADA", actorUserId: ctx.userId, ...(tipo !== "SELECCION" ? { data: { tipo } } : {}) });
+      if (tipo === "ALBUM") {
+        await tx.fotofficeGaleriaRonda.create({ data: { workspaceId, galeriaId: id, number: 1, status: "ABIERTA", createdByUserId: ctx.userId }, select: { id: true } });
+        await registrarEvento(tx, { workspaceId, galeriaId: id, tipo: "RONDA_ABIERTA", actorUserId: ctx.userId, data: { numero: 1 } });
+      }
       return { ok: true as const, id };
     }, OPCIONES_TRANSACCION);
   } catch (e) {
@@ -123,6 +134,11 @@ export async function editarGaleria(ctx: CtxGalerias, galeriaId: unknown, datos:
   if (typeof d.allowComments !== "boolean") return no(M.comentarios);
   if (typeof d.downloadMode !== "string" || !(MODOS_DESCARGA as readonly string[]).includes(d.downloadMode)) return no(M.modoDescarga);
   const { workspaceId } = ctx;
+  // Un álbum no tiene selección ni descarga de originales: sólo "sin descarga" o la vista de las láminas.
+  if (d.downloadMode === "SELECCIONADAS") {
+    const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { kind: true } });
+    if (g?.kind === "ALBUM") return no(MENSAJES_RONDA.descargaAlbum);
+  }
   try {
     return await prisma.$transaction(async (tx) => {
       const r = await tx.fotofficeGaleria.updateMany({
@@ -154,12 +170,15 @@ export async function publicarGaleria(ctx: CtxGalerias, galeriaId: unknown, ahor
   if (!puedeGestionarGalerias(ctx)) return no(M.sinPermiso);
   if (!idValido(galeriaId)) return no(M.datosInvalidos);
   const { workspaceId } = ctx;
-  const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { status: true } });
+  const g = await prisma.fotofficeGaleria.findFirst({ where: { id: galeriaId, workspaceId }, select: { status: true, kind: true } });
   if (!g) return no(M.noExiste);
   if (g.status === "PUBLICADA") return no(M.yaPublicada);
   if (g.status === "ARCHIVADA") return no(M.galeriaArchivada);
-  const listas = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId, workspaceId, status: "LISTA" } });
-  if (listas < 1) return no(M.sinFotosListas);
+  // En un álbum cuentan las láminas de la ronda abierta; en las demás, todas las fotos de la galería.
+  const ronda = g.kind === "ALBUM" ? await rondaAbiertaDe(workspaceId, galeriaId) : null;
+  if (g.kind === "ALBUM" && !ronda) return no(MENSAJES_RONDA.sinRonda);
+  const listas = await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId, workspaceId, status: "LISTA", ...(ronda ? { rondaId: ronda.id } : {}) } });
+  if (listas < 1) return no(g.kind === "ALBUM" ? MENSAJES_RONDA.sinLaminasListas : M.sinFotosListas);
   return cambiarEstado(ctx, galeriaId, "BORRADOR", { status: "PUBLICADA", publishedAt: ahora }, "PUBLICADA", M.yaPublicada);
 }
 
@@ -242,6 +261,7 @@ export type FichaGaleria = {
   nombre: string;
   mensaje: string | null;
   estado: EstadoGaleria;
+  tipo: TipoGaleria;
   selectionMode: ModoSeleccion;
   minSelect: number | null;
   maxSelect: number | null;
@@ -254,7 +274,10 @@ export type FichaGaleria = {
   createdAt: Date;
   proyecto: { id: string; numero: string; nombre: string };
   contacto: { id: string; nombre: string; email: string | null; telefono: string | null };
-  fotos: { listas: number; pendientes: number; conError: number };
+  /** `listas` cuenta fotos y videos; `videos` son los videos listos (incluidos en `listas`). En un álbum cuenta las láminas de la ronda abierta. */
+  fotos: { listas: number; pendientes: number; conError: number; videos: number };
+  /** Álbum: la ronda abierta y cuántas rondas hubo en total. Nulo en las demás galerías. */
+  ronda: { id: string; numero: number; total: number } | null;
 };
 
 /** La galería con su proyecto, el contacto del proyecto y el conteo de fotos. null si no existe en el workspace o no hay "Ver". */
@@ -264,14 +287,17 @@ export async function cargarFichaGaleria(ctx: CtxGalerias, galeriaId: unknown): 
   const g = await prisma.fotofficeGaleria.findFirst({
     where: { id: galeriaId, workspaceId },
     select: {
-      id: true, number: true, name: true, message: true, status: true, selectionMode: true, minSelect: true, maxSelect: true,
+      id: true, number: true, name: true, message: true, status: true, kind: true, selectionMode: true, minSelect: true, maxSelect: true,
       allowComments: true, downloadMode: true, orderMode: true, coverFotoId: true, publishedAt: true, archivedAt: true, createdAt: true,
       proyecto: { select: { id: true, number: true, name: true, client: { select: { id: true, firstName: true, lastName: true, businessName: true, email: true, phone: true } } } },
     },
   });
   if (!g) return null;
-  const cuentas = await prisma.fotofficeGaleriaFoto.groupBy({ by: ["status"], where: { galeriaId: g.id, workspaceId }, _count: { _all: true } });
+  const abierta = g.kind === "ALBUM" ? await rondaAbiertaDe(workspaceId, g.id) : null;
+  const totalRondas = g.kind === "ALBUM" ? await prisma.fotofficeGaleriaRonda.count({ where: { galeriaId: g.id, workspaceId } }) : 0;
+  const cuentas = await prisma.fotofficeGaleriaFoto.groupBy({ by: ["status"], where: { galeriaId: g.id, workspaceId, ...(g.kind === "ALBUM" ? { rondaId: abierta?.id ?? "-" } : {}) }, _count: { _all: true } });
   const n = (s: string) => cuentas.find((c) => c.status === s)?._count._all ?? 0;
+  const videos = g.kind === "ENTREGA" ? await prisma.fotofficeGaleriaFoto.count({ where: { galeriaId: g.id, workspaceId, status: "LISTA", mediaType: "VIDEO" } }) : 0;
   const c = g.proyecto.client;
   return {
     id: g.id,
@@ -279,6 +305,7 @@ export async function cargarFichaGaleria(ctx: CtxGalerias, galeriaId: unknown): 
     nombre: g.name,
     mensaje: g.message,
     estado: esEstadoGaleria(g.status) ? g.status : "BORRADOR",
+    tipo: tipoDeKind(g.kind),
     selectionMode: g.selectionMode === "CANTIDAD" ? "CANTIDAD" : "LIBRE",
     minSelect: g.minSelect,
     maxSelect: g.maxSelect,
@@ -291,11 +318,12 @@ export async function cargarFichaGaleria(ctx: CtxGalerias, galeriaId: unknown): 
     createdAt: g.createdAt,
     proyecto: { id: g.proyecto.id, numero: g.proyecto.number, nombre: g.proyecto.name },
     contacto: { id: c.id, nombre: nombreDeContacto(c), email: c.email, telefono: c.phone },
-    fotos: { listas: n("LISTA"), pendientes: n("PENDIENTE"), conError: n("ERROR") },
+    fotos: { listas: n("LISTA"), pendientes: n("PENDIENTE"), conError: n("ERROR"), videos },
+    ronda: abierta ? { id: abierta.id, numero: abierta.numero, total: totalRondas } : null,
   };
 }
 
-export type GaleriaDeTarjeta = { id: string; numero: string; nombre: string; estado: EstadoGaleria; fotos: number; enRevision: number };
+export type GaleriaDeTarjeta = { id: string; numero: string; nombre: string; estado: EstadoGaleria; tipo: TipoGaleria; fotos: number; enRevision: number };
 
 /** Galerías de un proyecto, para su tarjeta. null si no hay "Ver" en Galería. */
 export async function galeriasDeProyecto(ctx: CtxGalerias, proyectoId: string): Promise<GaleriaDeTarjeta[] | null> {
@@ -306,14 +334,16 @@ export async function galeriasDeProyecto(ctx: CtxGalerias, proyectoId: string): 
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 50,
     select: {
-      id: true, number: true, name: true, status: true,
+      id: true, number: true, name: true, status: true, kind: true,
       _count: { select: { fotos: { where: { status: "LISTA" } } } },
       clientes: { where: { status: "EN_REVISION", revokedAt: null }, select: { id: true } },
     },
   });
+  // De un álbum cuentan las láminas de la ronda abierta, no las de todas las rondas.
+  const laminas = await laminasAbiertasPorGaleria(workspaceId, filas.filter((f) => f.kind === "ALBUM").map((f) => f.id));
   return filas.map((f) => ({
     id: f.id, numero: f.number, nombre: f.name, estado: esEstadoGaleria(f.status) ? f.status : "BORRADOR",
-    fotos: f._count.fotos, enRevision: f.clientes.length,
+    tipo: tipoDeKind(f.kind), fotos: f.kind === "ALBUM" ? (laminas.get(f.id) ?? 0) : f._count.fotos, enRevision: f.clientes.length,
   }));
 }
 
@@ -326,12 +356,13 @@ export async function fotosPorIds(ctx: CtxGalerias, galeriaId: unknown, ids: unk
   const { workspaceId } = ctx;
   const filas = await prisma.fotofficeGaleriaFoto.findMany({
     where: { galeriaId, workspaceId, id: { in: ids as string[] } },
-    select: { id: true, fileName: true, status: true, errorReason: true, width: true, height: true, sizeBytes: true, order: true, viewKey: true, thumbKey: true },
+    select: { id: true, fileName: true, status: true, errorReason: true, width: true, height: true, sizeBytes: true, order: true, viewKey: true, thumbKey: true, mediaType: true, contentType: true },
   });
   const urls = await urlsDeLecturaPorLote(filas.map((f) => ({ id: f.id, viewKey: null, thumbKey: f.thumbKey })));
   return filas.map((f) => ({
     id: f.id, fileName: f.fileName, status: f.status as FotoVisible["status"], errorReason: f.errorReason, width: f.width, height: f.height,
     sizeBytes: f.sizeBytes === null ? null : Number(f.sizeBytes), order: f.order,
+    mediaType: f.mediaType === "VIDEO" ? "VIDEO" : "FOTO", contentType: f.contentType,
     thumbUrl: urls.get(f.id)?.thumbUrl ?? null, viewUrl: null,
   }));
 }

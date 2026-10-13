@@ -56,6 +56,8 @@ export const MENSAJES_PRESUPUESTO = {
   sinBorrador: "No hay un borrador para editar.",
   transicion: "El presupuesto no puede pasar a ese estado.",
   cambio: "El presupuesto cambió mientras tanto. Volvé a abrirlo.",
+  cambioConEditorAbierto:
+    "El presupuesto cambió mientras lo tenías abierto (por ejemplo, DNX Bot le sumó ítems). Recargá la página para ver los cambios: si guardás ahora, se pierden.",
   fallo: "No se pudo guardar el presupuesto.",
   falloConConsulta: "La consulta se creó, pero el presupuesto no. Abrila y creá el presupuesto desde ahí.",
 } as const;

@@ -23,6 +23,8 @@ const {
   roleSelector,
   institutionChoices,
   entryProfileForInstitution,
+  hasOwnBusiness,
+  accountMenu,
 } = await import("./profiles");
 
 const TEAM = { role: "WORKSPACE_OWNER", workspace: { id: "ws-dnx", name: "DNX Owner" } };
@@ -340,5 +342,64 @@ describe("entryProfileForInstitution", () => {
 
   it("un recordado de otra institución no cuenta", () => {
     expect(entryProfileForInstitution([adminSfpr, socioSfpr, ownerDnx], "ws-sfpr", "TEAM:ws-dnx")).toBe(adminSfpr);
+  });
+});
+
+describe("hasOwnBusiness", () => {
+  const ownerDnx = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX", role: "WORKSPACE_OWNER" } as const;
+  const adminSfpr = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" } as const;
+  const socioSfpr = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" } as const;
+
+  /**
+   * El caso que estaba roto: administrar una institución de la que sos socio NO es tener tu
+   * propio estudio, y daba `true`, así que la invitación a crearlo no aparecía nunca y la
+   * acción de crear devolvía la institución. Todo socio con rol en su sociedad quedaba
+   * inhabilitado para administrar su negocio con FotoOffice.
+   */
+  it("administrar la institución de la que sos socio no es tener negocio propio", () => {
+    expect(hasOwnBusiness([adminSfpr, socioSfpr])).toBe(false);
+  });
+
+  it("ser dueño de un workspace del que no sos socio sí lo es", () => {
+    expect(hasOwnBusiness([ownerDnx])).toBe(true);
+    expect(hasOwnBusiness([ownerDnx, adminSfpr, socioSfpr])).toBe(true);
+  });
+
+  /** Dueño Y socio de la misma institución: es su institución, no su negocio. */
+  it("dueño y socio de la misma institución: no", () => {
+    expect(hasOwnBusiness([{ ...adminSfpr, role: "WORKSPACE_OWNER" }, socioSfpr])).toBe(false);
+  });
+
+  it("sin perfiles: no", () => {
+    expect(hasOwnBusiness([])).toBe(false);
+  });
+});
+
+describe("accountMenu", () => {
+  const ownerDnx = { kind: "TEAM", workspaceId: "ws-dnx", workspaceName: "DNX Estudio", role: "WORKSPACE_OWNER" } as const;
+  const adminSfpr = { kind: "TEAM", workspaceId: "ws-sfpr", workspaceName: "SFPR", role: "WORKSPACE_ADMIN" } as const;
+  const socioSfpr = { kind: "MEMBER", workspaceId: "ws-sfpr", workspaceName: "SFPR", memberId: "m", memberNumber: "556" } as const;
+
+  it("el negocio propio va primero, y la activa queda marcada", () => {
+    expect(accountMenu([adminSfpr, socioSfpr, ownerDnx], "ws-sfpr")).toEqual({
+      places: [
+        { workspaceId: "ws-dnx", name: "DNX Estudio", ownBusiness: true, memberNumber: null, isTeam: true, active: false },
+        { workspaceId: "ws-sfpr", name: "SFPR", ownBusiness: false, memberNumber: "556", isTeam: true, active: true },
+      ],
+      canCreateBusiness: false,
+    });
+  });
+
+  it("sin negocio propio: ofrece crearlo", () => {
+    expect(accountMenu([adminSfpr, socioSfpr], "ws-sfpr").canCreateBusiness).toBe(true);
+  });
+
+  /** Sin institución activa (el selector de entrada) ninguna se marca, y no rompe. */
+  it("sin institución activa: ninguna marcada", () => {
+    expect(accountMenu([ownerDnx], null).places[0]?.active).toBe(false);
+  });
+
+  it("sin perfiles: nada que mostrar, pero puede crear su negocio", () => {
+    expect(accountMenu([], null)).toEqual({ places: [], canCreateBusiness: true });
   });
 });

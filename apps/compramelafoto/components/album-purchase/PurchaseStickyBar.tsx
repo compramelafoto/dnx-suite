@@ -59,6 +59,7 @@ export default function PurchaseStickyBar({
 
   return createPortal(
     <div
+      data-dnxbot-evitar=""
       className="fixed inset-x-0 bottom-0 z-[45] border-t border-[#e5e7eb] bg-white/95 backdrop-blur-md shadow-[0_-8px_30px_rgba(0,0,0,0.08)]"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       role="region"
