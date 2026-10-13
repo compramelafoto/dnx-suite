@@ -1,4 +1,5 @@
-import { FONT_CATALOG, type FontId } from "@repo/design-studio";
+import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, type FontId } from "@repo/design-studio";
+import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
 import {
   CLASS_LIST_SAMPLE,
   CLASS_LIST_VARIABLE_KEY,
@@ -75,7 +76,7 @@ export type PuenteResultado = {
 };
 
 const DPI_POR_DEFECTO = 300;
-const FUENTE_POR_DEFECTO: FontId = "dmSans";
+const FUENTE_POR_DEFECTO = "dmSans" as const;
 
 function num(v: unknown, porDefecto: number): number {
   return typeof v === "number" && Number.isFinite(v) ? v : porDefecto;
@@ -90,27 +91,57 @@ function texto(v: unknown, porDefecto = ""): string {
   return typeof v === "string" ? v : porDefecto;
 }
 
+/*
+ * Las tipografías del sistema que ofrece el editor no existen en Google. Se imprimen con su
+ * equivalente métrico libre: mismo ancho letra por letra, así el texto ocupa lo mismo que en
+ * pantalla y se ve casi igual.
+ */
+const EQUIVALENTES_DE_SISTEMA: Record<string, string> = {
+  helvetica: "Arimo",
+  "helvetica neue": "Arimo",
+  arial: "Arimo",
+  "sans-serif": "Arimo",
+  "times new roman": "Tinos",
+  times: "Tinos",
+  serif: "Tinos",
+  georgia: "Gelasio",
+};
+
+const FAMILIAS_DEL_EDITOR = new Map(EDITOR_FONT_CATALOG.map((f) => [f.family.toLowerCase(), f.family]));
+
 /**
  * Elige la tipografía de design-studio a partir de la familia CSS del editor.
  *
- * El catálogo es cerrado: si la familia no está, se usa DM Sans y se avisa. Es preferible a
- * fallar la impresión, y preferible también a un cambio silencioso de familia que nadie ve
- * hasta que llegan las tarjetas de la imprenta.
+ * Las incrustadas se usan por su id; el resto de las familias del editor se bajan de Google al
+ * imprimir (`google:Familia`). Sólo una familia que el editor no ofrece cae en DM Sans, y avisa:
+ * es preferible a fallar la impresión, y preferible también a un cambio silencioso de familia
+ * que nadie ve hasta que llegan las tarjetas de la imprenta.
  */
 function fuenteDesde(familia: string, avisos: string[]): FontId {
-  const normal = familia.trim().toLowerCase().replace(/['"]/g, "");
+  // El editor guarda a veces la pila CSS entera ("Lato, sans-serif"): manda la primera.
+  const normal = (familia.split(",")[0] ?? "").trim().toLowerCase().replace(/['"]/g, "");
   if (!normal) return FUENTE_POR_DEFECTO;
 
   for (const [id, def] of Object.entries(FONT_CATALOG)) {
-    if (
-      id.toLowerCase() === normal ||
-      def.label.toLowerCase() === normal ||
-      def.cssFamily.toLowerCase() === normal ||
-      normal.startsWith(def.cssFamily.toLowerCase())
-    ) {
+    if (id.toLowerCase() === normal || def.label.toLowerCase() === normal || def.cssFamily.toLowerCase() === normal) {
       return id as FontId;
     }
   }
+
+  const equivalente = EQUIVALENTES_DE_SISTEMA[normal];
+  if (equivalente) return `${GOOGLE_FONT_PREFIX}${equivalente}` as FontId;
+
+  const delEditor = FAMILIAS_DEL_EDITOR.get(normal);
+  if (delEditor) {
+    const id = `${GOOGLE_FONT_PREFIX}${delEditor}`;
+    if (isFontId(id)) return id;
+  }
+
+  // Variantes con apellido de una incrustada ("DM Sans Medium"): la familia base.
+  for (const [id, def] of Object.entries(FONT_CATALOG)) {
+    if (normal.startsWith(def.cssFamily.toLowerCase())) return id as FontId;
+  }
+
   avisos.push(
     `La tipografía "${familia}" no está en el catálogo de impresión; se usó ${FONT_CATALOG[FUENTE_POR_DEFECTO].label}.`,
   );
@@ -523,8 +554,9 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
         // puede cambiar la variable desde el inspector en vez de editar llaves a mano.
         const soloMarcador = contenido.match(/^\{\{\s*([\w.]+)\s*\}\}$/);
         const tipografia = {
-          fontFamily: FONT_CATALOG[(texto(b.fontId, FUENTE_POR_DEFECTO) as FontId)]?.cssFamily
-            ?? FONT_CATALOG[FUENTE_POR_DEFECTO].cssFamily,
+          fontFamily: isFontId(b.fontId)
+            ? fontDefinition(b.fontId).cssFamily
+            : FONT_CATALOG[FUENTE_POR_DEFECTO].cssFamily,
           fontSize: pxDePt(num(b.fontSize, 10)),
           fontWeight: texto(b.fontWeight) === "bold" ? 700 : 400,
           fontItalic: texto(b.fontStyle) === "italic",

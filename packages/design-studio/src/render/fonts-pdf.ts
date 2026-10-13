@@ -1,6 +1,6 @@
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, type PDFFont } from "pdf-lib";
-import { FONT_CATALOG, type FontId, type FontSlot } from "../fonts/catalog";
+import { fontDefinition, isGoogleFontId, type FontId, type FontSlot } from "../fonts/catalog";
 import { readFontBytes } from "../fonts/load";
 import type { TextMeasurer } from "../layout/plan";
 
@@ -41,14 +41,27 @@ export async function createPdfFontSet(
     if (vistos.has(k)) continue;
     vistos.add(k);
     const bytes = await readFontBytes(ref.fontId, ref.slot);
-    fuentes.set(k, await doc.embedFont(bytes, { subset: true }));
+    /*
+     * Las de Google (Fontsource, TrueType del juego latino) se incrustan enteras: son chicas y
+     * el subconjunto de fontkit pierde letras en algunas. Las ligaduras y alternativas de
+     * contexto van apagadas: pdf-lib las sustituye pero ubica cada letra con el ancho de la
+     * original, y Pacifico o Caveat salían con huecos en medio de las palabras ("Cavea t").
+     */
+    const deGoogle = isGoogleFontId(ref.fontId);
+    fuentes.set(
+      k,
+      await doc.embedFont(bytes, {
+        subset: !deGoogle,
+        ...(deGoogle ? { features: { liga: false, clig: false, calt: false, dlig: false } } : {}),
+      }),
+    );
   }
 
   function get(fontId: FontId, slot: FontSlot): PDFFont {
     const f = fuentes.get(clave(fontId, slot));
     if (!f) {
       throw new Error(
-        `La tipografía ${FONT_CATALOG[fontId].label} (${slot}) no fue incrustada. Es un error del propio módulo.`,
+        `La tipografía ${fontDefinition(fontId).label} (${slot}) no fue incrustada. Es un error del propio módulo.`,
       );
     }
     return f;

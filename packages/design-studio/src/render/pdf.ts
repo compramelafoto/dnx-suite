@@ -334,7 +334,13 @@ export async function renderPdf(
   resolved: ResolvedVariables,
   options: RenderPdfOptions,
 ): Promise<Result<Uint8Array>> {
-  const fuentes = await createPdfFontSet(fuentesUsadas(doc));
+  let fuentes: PdfFontSet;
+  try {
+    fuentes = await createPdfFontSet(fuentesUsadas(doc));
+  } catch (e) {
+    // Una tipografía de Google que no se pudo bajar: mejor no emitir que imprimir con otra letra.
+    return { ok: false, errors: [e instanceof Error ? e.message : String(e)] };
+  }
 
   const plan = buildLayoutPlan(doc, resolved, {
     measurer: fuentes.measurer,
