@@ -41,6 +41,7 @@ import {
 } from "@repo/template-editor-core";
 import { AlignmentGlyph } from "./alignment-glyph";
 import { TemplateVariableBraceInsertPanel } from "./TemplateVariableBraceInsertPanel";
+import { variableTextFormatsFor } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
 
 type Props = {
@@ -345,6 +346,22 @@ export function TemplateEditorInspector({
                 </optgroup>
               ) : null}
             </select>
+            {variableTextFormatsFor(String(cfg.variableKey ?? "")) ? (
+              <div className="mt-2">
+                <FieldLabel>Formato</FieldLabel>
+                <select
+                  className={selectBase}
+                  value={String(cfg.variableKey ?? "")}
+                  onChange={(e) => updateConfig({ variableKey: e.target.value })}
+                >
+                  {variableTextFormatsFor(String(cfg.variableKey ?? ""))!.map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {variableCatalogHint ? (
               <p className="mt-1.5 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
                 {variableCatalogHint.description}

@@ -106,6 +106,8 @@ test("los textos se arman con lo que se sabe y omiten lo vacío", () => {
   assert.deepEqual(v, {
     "student.fullName": "Juana Pérez",
     "course.displayName": "5.º A",
+    "course.withSchool": "5.º A",
+    "school.withCourse": "5.º A",
     "event.dateFormatted": "08/10/2026",
   });
 });

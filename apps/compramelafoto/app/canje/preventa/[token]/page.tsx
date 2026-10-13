@@ -12,7 +12,13 @@ import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificationGate";
 import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
-import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
+import {
+  isPlaceholderEmail,
+  parseExternalPreventaRefs,
+  splitExcelStudentName,
+} from "@/lib/canje-externo/external-preventa";
+import { buildDesignValues } from "@/lib/design-v2/values";
+import { getAuthUser } from "@/lib/auth";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
 import { toDesignTemplatePayload, type DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { loadSchoolDesignContext } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
@@ -74,9 +80,11 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       redemptionPaymentRefsJson: true,
       preventaPackSnapshotJson: true,
       preCompraPaymentRef: true,
+      isTest: true,
       album: {
         select: {
           id: true,
+          school: { select: { name: true } },
           title: true,
           publicSlug: true,
           userId: true,
@@ -145,6 +153,26 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     );
   }
 
+  /*
+   * Modo prueba: un pack marcado `isTest` lo arma el equipo para que el fotógrafo recorra el
+   * canje exactamente como una familia (elegir fotos, ver el librito armado, confirmar) sin
+   * tocar el pack de ninguna familia real. Sólo lo abre el dueño del álbum con su sesión, y
+   * entra sin selfie: él no aparece en las fotos.
+   */
+  let modoPrueba = false;
+  if (order.isTest) {
+    const viewer = await getAuthUser().catch(() => null);
+    if (!viewer || viewer.id !== album.userId) {
+      return (
+        <Aviso
+          titulo="Este pack es de prueba"
+          texto="Sólo lo puede abrir el fotógrafo del álbum, con su cuenta iniciada."
+        />
+      );
+    }
+    modoPrueba = true;
+  }
+
   let snapshot;
   try {
     snapshot = parsePreventaPackSnapshotV1(order.preventaPackSnapshotJson);
@@ -179,7 +207,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     album.id,
     album.hiddenPhotosEnabled,
     album.photos.map((p) => ({ id: p.id, previewUrl: p.previewUrl ?? "", originalKey: p.originalKey })),
-    { photographerBypassGrant: false, simulateClientView: false, grantCookieValue: grantCookie }
+    { photographerBypassGrant: modoPrueba, simulateClientView: false, grantCookieValue: grantCookie }
   );
 
   if (album.hiddenPhotosEnabled && !visible.initialHasGrant) {
@@ -224,8 +252,45 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     designs.length > 0 && preCompraId
       ? await loadSchoolDesignContext(prisma as never, preCompraId).catch(() => null)
       : null;
-  const designValues: Record<string, string> =
+  /*
+   * Pack cobrado por fuera: no hay PreCompraOrder, así que el curso y el listado salen de los
+   * packs cargados del Excel. Sin esto el librito mostraba sólo el nombre y «—» en curso y
+   * colegio.
+   */
+  let designValues: Record<string, string> =
     designContext?.values ?? (alumno ? { "student.fullName": alumno } : {});
+  if (designs.length > 0 && !designContext && externo) {
+    const partes = splitExcelStudentName(externo.studentName);
+    const delCurso = externo.courseName
+      ? await prisma.order.findMany({
+          where: { albumId: album.id, origin: OrderOrigin.PREVENTA_PACK, isTest: false },
+          select: { redemptionPaymentRefsJson: true },
+        })
+      : [];
+    const vistos = new Set<string>();
+    const courseStudents = delCurso
+      .map((o) => parseExternalPreventaRefs(o.redemptionPaymentRefsJson))
+      .filter((r) => r?.courseName === externo.courseName && r.studentName)
+      .flatMap((r) => {
+        const clave = r!.studentName!.trim().toLowerCase();
+        if (vistos.has(clave)) return [];
+        vistos.add(clave);
+        const p = splitExcelStudentName(r!.studentName);
+        return p
+          ? [{ ...p, isOwner: clave === (externo.studentName ?? "").trim().toLowerCase() }]
+          : [];
+      });
+    designValues = buildDesignValues({
+      studentName: externo.studentName,
+      studentFirstName: partes?.firstName,
+      studentLastName: partes?.lastName,
+      courseName: externo.courseName,
+      schoolName: album.school?.name,
+      buyerName: familia,
+      photographerName: album.user?.name,
+      courseStudents,
+    });
+  }
 
   // Rostros por foto, para ofrecer como grupales sólo las fotos con mucha gente. `null` = la
   // foto todavía no se analizó.
@@ -244,6 +309,13 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
 
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
+      {modoPrueba ? (
+        <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+          <strong>Modo prueba.</strong> Estás viendo el canje como una familia. Ves todas las fotos
+          del álbum sin selfie; una familia real primero se verifica y ve sólo las suyas. Lo que
+          confirmes queda como pedido de prueba: no se cobra ni entra en tus ventas.
+        </div>
+      ) : null}
       <PreventaCanjeFlow
         token={token}
         album={{

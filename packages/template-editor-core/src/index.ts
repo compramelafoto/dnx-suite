@@ -59,6 +59,7 @@ export * from "./revision-conflict";
 export * from "./rotation-math";
 export * from "./snap-drag-to-canvas";
 export * from "./editor-guides";
+export * from "./variable-text-formats";
 export * from "./template-diagnostics";
 export * from "./template-engine-compat";
 export * from "./template-v2-api-client";
