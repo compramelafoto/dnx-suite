@@ -28,6 +28,7 @@ export const MENU_KEYWORDS: Record<string, string[]> = {
   "/fotografo/remociones": ["bajas", "borrar foto", "eliminar", "privacidad", "quitar foto", "reclamo"],
   "/fotografo/escuelas": ["colegio", "escuela", "jardin", "instituciones", "escolar", "egresados"],
   "/fotografo/escuelas/pedidos": ["colegio", "pedidos del colegio", "escolar", "padres", "ventas escolares"],
+  "/fotografo/escuelas/landing": ["landing escolar", "colegio", "consultas de colegios", "pagina para colegios", "qr escolar"],
   "/dashboard/designs": ["plantillas", "diseño", "editor", "carpeta", "orla", "mural", "fotolibro"],
   "/dashboard/design-projects": ["revision", "aprobar", "proyectos de diseño", "correcciones"],
   "/dashboard/sales-settings": ["precios", "precio por foto", "vender", "cobrar", "tarifas", "descuentos"],

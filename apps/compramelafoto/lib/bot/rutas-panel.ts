@@ -25,6 +25,7 @@ export const RUTAS_PANEL: readonly RutaPanel[] = [
   { ruta: "/fotografo/escuelas", proposito: "escuelas (fotografía escolar)", pagina: "app/fotografo/escuelas/page.tsx" },
   { ruta: "/fotografo/escuelas/nueva", proposito: "cargar una escuela nueva", pagina: "app/fotografo/escuelas/nueva/page.tsx" },
   { ruta: "/fotografo/escuelas/pedidos", proposito: "pedidos escolares de las familias", pagina: "app/fotografo/escuelas/pedidos/page.tsx" },
+  { ruta: "/fotografo/escuelas/landing", proposito: "landing escolar del fotógrafo para colegios y consultas de colegios recibidas", pagina: "app/fotografo/escuelas/landing/page.tsx" },
   { ruta: "/fotografo/escuelas/{id}", proposito: "una escuela en particular: cursos y datos", pagina: "app/fotografo/escuelas/[id]/page.tsx" },
   { ruta: "/fotografo/disenos", proposito: "diseños guardados", pagina: "app/fotografo/disenos/page.tsx" },
   { ruta: "/dashboard/designs", proposito: "diseños de productos", pagina: "app/dashboard/designs/page.tsx" },
