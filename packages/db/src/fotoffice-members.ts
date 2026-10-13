@@ -730,7 +730,14 @@ export function getMemberCategory(workspaceId: string, categoryId: string): Prom
 
 export function createMemberCategory(
   workspaceId: string,
-  input: { name: string; description?: string | null; order?: number },
+  input: {
+    name: string;
+    description?: string | null;
+    order?: number;
+    bookingCreditsPerPayment?: number;
+    bookingCreditValidityDays?: number;
+    bookingCreditLabel?: string | null;
+  },
 ): Promise<MemberCategory> {
   return prisma.memberCategory.create({
     data: {
@@ -738,6 +745,9 @@ export function createMemberCategory(
       name: input.name,
       description: input.description ?? null,
       order: input.order ?? 0,
+      bookingCreditsPerPayment: input.bookingCreditsPerPayment ?? 0,
+      bookingCreditValidityDays: input.bookingCreditValidityDays ?? 30,
+      bookingCreditLabel: input.bookingCreditLabel ?? null,
     },
   });
 }
@@ -747,6 +757,9 @@ export type UpdateMemberCategoryInput = {
   description?: string | null;
   order?: number;
   isActive?: boolean;
+  bookingCreditsPerPayment?: number;
+  bookingCreditValidityDays?: number;
+  bookingCreditLabel?: string | null;
 };
 
 export async function updateMemberCategory(

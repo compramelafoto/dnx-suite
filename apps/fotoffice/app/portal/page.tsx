@@ -28,6 +28,7 @@ import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
 import type { BirthdayView } from "@/lib/birthdays/week";
 import { loadActivePlacement } from "@/lib/sponsors/placements";
 import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
+import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 
 export const dynamic = "force-dynamic";
 
@@ -184,6 +185,28 @@ export default async function PortalPage() {
 
   const sponsors = await sponsorsPromesa;
 
+  // Club con turnos incluidos (Club VIP): cuántos le quedan y hasta cuándo.
+  const clubSaldo = await loadMemberClubBalance({
+    workspaceId: context.workspace.id,
+    memberId: context.member.id,
+  });
+  const reservasDisponibles = secciones.some(
+    (s) => s.href === "/portal/reservas" && s.state === "DISPONIBLE",
+  );
+  const club = clubSaldo
+    ? {
+        available: clubSaldo.available,
+        credits: clubSaldo.credits,
+        plural: clubSaldo.plural,
+        validUntilLabel: clubSaldo.validUntil.toLocaleDateString("es-AR", {
+          timeZone: "America/Argentina/Buenos_Aires",
+          day: "numeric",
+          month: "numeric",
+        }),
+        reservarHref: reservasDisponibles ? "/portal/reservas" : null,
+      }
+    : null;
+
   return (
     <>
     <PortalHome
@@ -213,6 +236,7 @@ export default async function PortalPage() {
       cumpleanos={cumpleanos}
       gobierno={gobierno}
       concursos={concursos}
+      club={club}
     />
     <div className="mt-8">
       <PortalSponsorsSection sponsors={sponsors} />
