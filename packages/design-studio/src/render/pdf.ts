@@ -3,7 +3,6 @@ import {
   clip,
   closePath,
   concatTransformationMatrix,
-  degrees,
   endPath,
   lineTo,
   moveTo,
@@ -64,6 +63,27 @@ function dibujarTexto(
   const ascenso = font.heightAtSize(item.sizePt, { descender: false });
   const color = hexToRgb(item.color);
 
+  /*
+   * Un texto girado se gira alrededor del centro de su caja, igual que las imágenes y que el
+   * lienzo del editor. Antes cada línea llevaba su propio `rotate`, que pdf-lib aplica alrededor
+   * del inicio de la línea: a 90° el texto terminaba fuera de su lugar —o fuera de la hoja— y
+   * los textos verticales del costado no salían en el PDF.
+   */
+  const gira = Boolean(item.rotation);
+  if (gira) {
+    const cx = item.xPt + item.widthPt / 2;
+    const cy = altoPagina - (item.yPt + item.heightPt / 2);
+    const rad = (-item.rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sen = Math.sin(rad);
+    page.pushOperators(
+      pushGraphicsState(),
+      concatTransformationMatrix(1, 0, 0, 1, cx, cy),
+      concatTransformationMatrix(cos, sen, -sen, cos, 0, 0),
+      concatTransformationMatrix(1, 0, 0, 1, -cx, -cy),
+    );
+  }
+
   item.lines.forEach((linea, i) => {
     const ancho = font.widthOfTextAtSize(linea, item.sizePt);
     const desplazamiento =
@@ -80,9 +100,10 @@ function dibujarTexto(
       font,
       color,
       opacity: item.opacity,
-      ...(item.rotation ? { rotate: degrees(-item.rotation) } : {}),
     });
   });
+
+  if (gira) page.pushOperators(popGraphicsState());
 }
 
 async function dibujarPagina(
@@ -106,6 +127,18 @@ async function dibujarPagina(
     const yPdf = alto - item.yPt - item.heightPt;
 
     if (item.kind === "rect") {
+      // Igual que textos e imágenes: el giro es alrededor del centro de la caja.
+      if (item.rotation) {
+        const cx = item.xPt + item.widthPt / 2;
+        const cy = yPdf + item.heightPt / 2;
+        const rad = (-item.rotation * Math.PI) / 180;
+        page.pushOperators(
+          pushGraphicsState(),
+          concatTransformationMatrix(1, 0, 0, 1, cx, cy),
+          concatTransformationMatrix(Math.cos(rad), Math.sin(rad), -Math.sin(rad), Math.cos(rad), 0, 0),
+          concatTransformationMatrix(1, 0, 0, 1, -cx, -cy),
+        );
+      }
       page.drawRectangle({
         x: item.xPt,
         y: yPdf,
@@ -115,8 +148,8 @@ async function dibujarPagina(
         ...(item.fillColor ? { color: hexToRgb(item.fillColor) } : {}),
         ...(item.strokeColor ? { borderColor: hexToRgb(item.strokeColor) } : {}),
         ...(item.strokeWidthPt ? { borderWidth: item.strokeWidthPt } : {}),
-        ...(item.rotation ? { rotate: degrees(-item.rotation) } : {}),
       });
+      if (item.rotation) page.pushOperators(popGraphicsState());
       continue;
     }
 

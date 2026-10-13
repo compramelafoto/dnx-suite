@@ -276,16 +276,32 @@ export function editorADocumento(input: {
                 align: alineacion(cfg.textAlign),
                 textTransform: conversionDeLetras(cfg.textTransform),
               };
+              /*
+               * Un listado girado (la carpeta de San Patricio lo lleva a 90°) se arma derecho y
+               * después cada alumno se lleva a su lugar girando alrededor del centro del bloque,
+               * con el mismo giro. Antes cada celda salía sin giro y en su posición derecha: el
+               * PDF mostraba el listado acostado y encimado con lo que lo rodeaba.
+               */
+              const giro = num(b.rotation, 0);
+              const rad = (giro * Math.PI) / 180;
+              const bx = num(b.x, 0);
+              const by = num(b.y, 0);
+              const centroX = bx + num(b.width, 0) / 2;
+              const centroY = by + num(b.height, 0) / 2;
               reparto.cells.forEach((celda, i) => {
+                const dx = bx + celda.x + celda.width / 2 - centroX;
+                const dy = by + celda.y + celda.height / 2 - centroY;
+                const cx = centroX + dx * Math.cos(rad) - dy * Math.sin(rad);
+                const cy = centroY + dx * Math.sin(rad) + dy * Math.cos(rad);
                 dibujables.push({
                   ...geo,
                   ...comun,
                   id: `${b.id}__${i}`,
-                  x: mm(num(b.x, 0) + celda.x),
-                  y: mm(num(b.y, 0) + celda.y),
+                  x: mm(cx - celda.width / 2),
+                  y: mm(cy - celda.height / 2),
                   width: mm(celda.width),
                   height: mm(celda.height),
-                  rotation: undefined,
+                  rotation: giro || undefined,
                   content: celda.text,
                   fontWeight: celda.bold ? "bold" : pesoBase,
                 });
