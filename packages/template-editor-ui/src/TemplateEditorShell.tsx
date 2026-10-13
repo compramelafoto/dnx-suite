@@ -388,6 +388,29 @@ export function TemplateEditorShell({
    * hacia abajo y cortado. Se mide en vivo porque cada app pone una cabecera de distinto alto.
    */
   const filaEditorRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * Chrome convierte el pellizco del trackpad (y Ctrl/⌘ + rueda) en zoom de la página y lo
+   * recuerda para todo el sitio. El lienzo ya lo toma para ampliar la hoja, pero hecho sobre un
+   * panel o una barra ampliaba la página entera: la próxima vez el diseñador abría mostrando sólo
+   * una esquina de la mesa, sin barras, y había que apretar ⌘0. En todo el editor se frena.
+   */
+  const raizEditorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const raiz = raizEditorRef.current;
+    if (!raiz) return;
+    const frenarZoom = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    };
+    const frenarGesto = (e: Event) => e.preventDefault();
+    raiz.addEventListener("wheel", frenarZoom, { passive: false });
+    raiz.addEventListener("gesturestart", frenarGesto);
+    raiz.addEventListener("gesturechange", frenarGesto);
+    return () => {
+      raiz.removeEventListener("wheel", frenarZoom);
+      raiz.removeEventListener("gesturestart", frenarGesto);
+      raiz.removeEventListener("gesturechange", frenarGesto);
+    };
+  }, []);
   const [altoFilaEditor, setAltoFilaEditor] = useState<number | null>(null);
   const [showCenterAxes, setShowCenterAxes] = useState(true);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
@@ -965,6 +988,7 @@ export function TemplateEditorShell({
   return (
     <EditorThemeProvider theme={theme}>
     <div
+      ref={raizEditorRef}
       className={cn("flex h-full min-h-0 flex-col", className)}
       style={editorThemeStyle(theme)}
       data-testid="template-v2-editor"
