@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   buildCanjeSlotPlan,
   buildRedeemSelections,
+  currentCanjeSlotIndex,
   emptyCanjeFill,
+  photosForCanjeRole,
   isCanjeComplete,
   studentNameForGreeting,
   toggleCanjePhoto,
@@ -147,5 +149,64 @@ describe("studentNameForGreeting", () => {
   });
   it("sin alumno no inventa", () => {
     assert.equal(studentNameForGreeting("  ", "Ana"), null);
+  });
+});
+
+describe("lugares con nombre (foto individual y grupal)", () => {
+  const librito = ben({
+    name: "Librito (individual + grupal)",
+    selectionMode: "MULTI_PHOTO_FIXED" as const,
+    requiredPhotoCount: 2,
+    photoInputs: [
+      { label: "Foto individual", role: "individual" as const },
+      { label: "Foto grupal", role: "group" as const },
+    ],
+  });
+
+  it("cada lugar lleva el nombre del hueco de la plantilla", () => {
+    const plan = buildCanjeSlotPlan([librito]);
+    assert.deepEqual(
+      plan.slots.map((s) => [s.label, s.role]),
+      [
+        ["Foto individual", "individual"],
+        ["Foto grupal", "group"],
+      ],
+    );
+  });
+
+  it("la foto va al lugar que tocó la familia, aunque el primero esté libre", () => {
+    const plan = buildCanjeSlotPlan([librito]);
+    const r = toggleCanjePhoto(plan, emptyCanjeFill(plan), 77, IMPRESA_Y_DIGITAL, 1);
+    assert.ok(r.ok);
+    assert.deepEqual(r.filled, [null, 77]);
+    // Y el armado la recibe como segunda foto de la unidad: la grupal.
+    assert.deepEqual(buildRedeemSelections(plan, [10, 77]), [
+      { benefitStableKey: librito.stableKey, units: [[10, 77]] },
+    ]);
+  });
+
+  it("el lugar actual es el tocado o el primero libre", () => {
+    assert.equal(currentCanjeSlotIndex([null, null], 1), 1);
+    assert.equal(currentCanjeSlotIndex([5, null], null), 1);
+    assert.equal(currentCanjeSlotIndex([5, 6], null), null);
+  });
+
+  it("para la grupal se ofrecen sólo fotos con más de 5 rostros", () => {
+    const faces = new Map<number, number | null>([
+      [1, 1],
+      [2, 5],
+      [3, 12],
+      [4, null],
+    ]);
+    assert.deepEqual(photosForCanjeRole([1, 2, 3, 4], faces, "group"), { ids: [3], filtered: true });
+    assert.deepEqual(photosForCanjeRole([1, 2, 3, 4], faces, "individual"), { ids: [1, 2, 3, 4], filtered: false });
+  });
+
+  it("si el álbum no se analizó, la grupal muestra todas", () => {
+    const faces = new Map<number, number | null>([
+      [1, null],
+      [2, null],
+    ]);
+    assert.deepEqual(photosForCanjeRole([1, 2], faces, "group"), { ids: [1, 2], filtered: false });
   });
 });

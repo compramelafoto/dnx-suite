@@ -20,6 +20,7 @@ export * from "./canvas-print-units";
 export * from "./block-size-aspect";
 export * from "./client-photo-slots";
 export {
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   CLASS_LIST_MAX_COLUMNS,
   CLASS_LIST_SAMPLE,
   CLASS_LIST_VARIABLE_KEY,
