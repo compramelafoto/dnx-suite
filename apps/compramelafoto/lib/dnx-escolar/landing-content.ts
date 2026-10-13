@@ -49,7 +49,7 @@ export function buildCuidadoItems(nombre: string): TextoItem[] {
     {
       titulo: "Cada familia ve sólo sus fotos",
       texto:
-        "Con el modo de fotos ocultas, la galería no muestra nada hasta que la persona se identifica con una selfie tomada en el momento con el celular, después de aceptar el consentimiento biométrico. Entonces ve sólo las fotos en las que aparece ese rostro, más las fotos sin personas (carteles, detalles). Las fotos grupales en las que aparece se ven completas.",
+        "Con el modo de fotos ocultas, la galería no muestra nada hasta que la familia se identifica con una selfie tomada en el momento con el celular, después de aceptar el consentimiento biométrico. Entonces ve sólo las fotos de su hijo o hija, incluidas las grupales en las que aparece.",
     },
     {
       titulo: "Vistas previas protegidas",
@@ -170,7 +170,7 @@ export function buildEscolarContent(brand: Pick<EscolarBrand, "nombre" | "benefi
     },
     {
       q: "¿Una familia puede ver las fotos de otros chicos?",
-      a: "Con el modo de fotos ocultas, cada familia sólo ve las fotos donde aparece el rostro con el que se identificó, más las fotos sin personas. En las fotos grupales aparecen también sus compañeros, como en cualquier foto de curso. Sin ese modo, la galería privada la ve quien tenga el enlace, siempre con vistas previas protegidas.",
+      a: "Con el modo de fotos ocultas, no: cada familia se identifica con una selfie y ve sólo las fotos de su hijo o hija, incluidas las grupales en las que aparece (con sus compañeros, como en cualquier foto de curso). Sin ese modo, la galería privada la ve quien tenga el enlace, siempre con vistas previas protegidas.",
     },
     {
       q: "¿Qué es ComprameLaFoto?",
