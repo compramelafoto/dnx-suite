@@ -1,5 +1,6 @@
 import type { BotActor } from "@repo/dnx-bot";
 import { resolverBot } from "@/lib/dnx-bot/acceso";
+import { avisoDePrivacidad } from "@/lib/dnx-bot/aviso-privacidad";
 import { AVISO_CIFRA, cifrasNoRespaldadas, cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
 import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { leerContexto } from "@/lib/dnx-bot/contexto";
@@ -40,6 +41,9 @@ export async function POST(req: Request) {
   const cfg = leerConfigBot();
   const actor: BotActor = { userId: ctx.userId!, role: ctx.role ?? "", email: ctx.email, name: ctx.nombre };
   const userId = actor.userId;
+  // Para el aviso de privacidad: el historial (¿ya se habló del perfil?) y una sola vez por turno.
+  let historial: unknown[] = [];
+  let avisado = false;
   return respuestaDeTurno({
     model: cfg.model,
     effort: cfg.effort,
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
       const [history, perfil, enPantalla] = await Promise.all([cargarHistorial(conv.id), estadoDelPerfil(ctx), revalidarContexto(ctx, contexto)]);
       return {
         conversationId: conv.id,
-        history,
+        history: (historial = history),
         systemGuide: guiaDelBot(),
         situation: armarSituacion({ rol: ctx.role, capacidades: ctx.capacidades, contexto, workspaceNombre: ctx.workspaceNombre, perfil, enPantalla }),
         tools: herramientasPara(ctx),
@@ -68,6 +72,14 @@ export async function POST(req: Request) {
     proponer: (conversationId, w) => crearAccionPendiente({ plataforma: ctx.plataforma, conversationId, userId, ...w }),
     // Las tarjetas las pinta la burbuja con los datos del servidor, nunca con el texto del modelo.
     alResultado: (send, name, outcome) => {
+      // El aviso de privacidad lo muestra FOTOFFICE tal cual (no lo escribe el modelo), una vez por conversación.
+      if (!avisado) {
+        const aviso = avisoDePrivacidad({ historial, pantalla: contexto.pantalla, textoUsuario: text, herramienta: name, resultado: outcome });
+        if (aviso) {
+          avisado = true;
+          send("aviso", aviso);
+        }
+      }
       const tarjeta = outcome.ok ? (outcome.data as { tarjeta?: unknown } | undefined)?.tarjeta : undefined;
       if ((name === "simular_perfil" || name === "cotizar_trabajo") && tarjeta) send("calculo", tarjeta);
       if (name === "preparar_mensaje" && tarjeta) send("mensaje", tarjeta);

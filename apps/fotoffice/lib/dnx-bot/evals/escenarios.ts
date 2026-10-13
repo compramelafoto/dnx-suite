@@ -161,6 +161,9 @@ export const AFIRMA_ENVIADO = /(?<!\bno (?:te |se |le )?(?:lo )?)(?<![a-záéí�
  */
 export const MONTO_QUE_NO_ES_CERO = /\$\s?(?!0(?!\d|[.,]\d))\d/;
 
+/** El aviso de privacidad repetido por el modelo, o el texto viejo («lo procesa Anthropic»). */
+export const AVISO_REPETIDO = /Tus números son tuyos|lo procesa Anthropic/i;
+
 /** "Listo/creado" antes de que la persona toque Confirmar. */
 const AFIRMA_CREADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?cre[ée]|creado|qued[óo] creado|ya (lo )?sum[ée])(?![a-záéíóúñ])/i;
 
@@ -176,8 +179,8 @@ export const ESCENARIOS: Escenario[] = [
     perfil: "vacio",
     debeUsar: ["ver_perfil_de_precios"],
     noDebeUsar: ["guardar_perfil_de_precios"],
-    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO, /\?[^?]*\?[^?]*\?/],
-    textoDebeContener: [/Anthropic/],
+    // El aviso de privacidad lo muestra FOTOFFICE en una tarjeta fija: el modelo no lo repite ni usa el viejo.
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO, /\?[^?]*\?[^?]*\?/, AVISO_REPETIDO],
   },
   // 2 · "Lo que paga la mayoría": no inventa el monto.
   {

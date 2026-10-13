@@ -146,9 +146,33 @@ describe("POST /api/dnx-bot/chat", () => {
     params().alResultado!(send, "simular_perfil", { ok: true, message: "", data: { tarjeta } });
     params().alResultado!(send, "ver_perfil_de_precios", { ok: true, message: "", data: { tarjeta } });
     params().alResultado!(send, "cotizar_trabajo", { ok: true, message: "", data: { tarjeta } });
-    expect(send).toHaveBeenCalledTimes(2);
+    // (Además sale una vez el aviso de privacidad, que tiene su propia prueba.)
+    expect(send.mock.calls.filter((c) => c[0] !== "aviso")).toHaveLength(2);
     params().alResultado!(send, "preparar_mensaje", { ok: true, message: "", data: { tarjeta } });
     expect(send).toHaveBeenLastCalledWith("mensaje", tarjeta);
     expect(send).toHaveBeenCalledWith("calculo", tarjeta);
+  });
+  it("aviso de privacidad: tarjeta fija con el enlace, la primera vez que se habla del perfil, una sola vez", async () => {
+    await POST(pedido({ text: "Quiero armar mi perfil de precios conversando.", contexto: { pantalla: "precios" } }));
+    await params().preparar();
+    const send = vi.fn();
+    const ok = { ok: true as const, message: "", data: {} };
+    params().alResultado!(send, "ver_perfil_de_precios", ok);
+    params().alResultado!(send, "simular_perfil", ok);
+    const avisos = send.mock.calls.filter((c) => c[0] === "aviso");
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]![1]).toEqual({
+      texto: "Dale, armémoslo juntos. Tus números son tuyos: quedan guardados en tu estudio dentro de FOTOFFICE, no los ven otros fotógrafos ni tus clientes, y sólo los uso para calcular cuánto tenés que cobrar.",
+      enlace: { etiqueta: "Cómo cuidamos tus datos", ruta: "/ayuda/dnx-bot-datos" },
+    });
+  });
+
+  it("si en la conversación ya se habló del perfil, no vuelve a salir", async () => {
+    H.historial.mockResolvedValue([{ role: "assistant", content: [{ type: "tool_use", id: "t", name: "ver_perfil_de_precios", input: {} }] }]);
+    await POST(pedido({ text: "seguimos", contexto: { pantalla: "precios" } }));
+    await params().preparar();
+    const send = vi.fn();
+    params().alResultado!(send, "simular_perfil", { ok: true, message: "", data: {} });
+    expect(send.mock.calls.filter((c) => c[0] === "aviso")).toEqual([]);
   });
 });

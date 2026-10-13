@@ -46,7 +46,9 @@ describe("Configuración → Precios y DNX Bot", () => {
       mensaje: "Quiero armar mi perfil de precios conversando.",
       contexto: { pantalla: "precios" },
     });
-    expect(textos(arbol)).toContain("lo procesa Anthropic");
+    expect(textos(arbol)).toContain("Tus números son tuyos: quedan guardados en tu estudio dentro de FOTOFFICE, no los ven otros fotógrafos ni tus clientes, y sólo los uso para calcular cuánto tenés que cobrar.");
+    expect(textos(arbol)).toContain("Cómo cuidamos tus datos");
+    expect(textos(arbol)).not.toContain("Anthropic");
   });
   it("perfil guardado por el bot: lo dice", async () => {
     H.source = "dnx-bot";

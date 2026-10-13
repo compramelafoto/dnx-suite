@@ -4,7 +4,9 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
+import Link from "next/link";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { AVISO_PRIVACIDAD, ENLACE_DATOS } from "@/lib/dnx-bot/aviso-privacidad";
 import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { PerfilForm } from "./perfil-form";
 
@@ -58,8 +60,11 @@ export default async function ConfiguracionPreciosPage() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-[var(--fo-text)]">¿Preferís contarlo con tus palabras?</p>
             <p className="text-xs text-[var(--fo-muted)]">
-              DNX Bot te pregunta de a una cosa y te muestra tu valor hora. No guarda nada hasta que confirmes. Lo que le
-              cuentes queda en la conversación y lo procesa Anthropic.
+              DNX Bot te pregunta de a una cosa y te muestra tu valor hora. No guarda nada hasta que confirmes.{" "}
+              {AVISO_PRIVACIDAD}{" "}
+              <Link href={ENLACE_DATOS.ruta} className="text-[var(--fo-accent)] hover:underline">
+                {ENLACE_DATOS.etiqueta}
+              </Link>
             </p>
           </div>
           <PreguntaleAlBot

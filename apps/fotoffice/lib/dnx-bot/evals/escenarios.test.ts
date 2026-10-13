@@ -172,3 +172,15 @@ describe("MONTO_QUE_NO_ES_CERO (casos 1, 2, 5, 9 y 12)", () => {
     for (const t of ["Si no pagás, lo dejo en $0.", "en $ 0, como quieras", "lo dejo en cero"]) expect(r.test(t), t).toBe(false);
   });
 });
+
+describe("aviso de privacidad en las evaluaciones", () => {
+  it("el caso 1 no espera que el modelo diga el aviso (lo muestra FOTOFFICE) y frena si lo repite o usa el viejo", async () => {
+    const { ESCENARIOS: E, AVISO_REPETIDO } = await import("./escenarios");
+    const caso = E.find((e) => e.id === "perfil-vacio-una-pregunta")!;
+    expect(caso.textoDebeContener ?? []).toEqual([]);
+    expect(caso.textoNoDebeContener).toContain(AVISO_REPETIDO);
+    expect(AVISO_REPETIDO.test("Lo que me cuentes queda guardado en esta conversación y lo procesa Anthropic.")).toBe(true);
+    expect(AVISO_REPETIDO.test("Tus números son tuyos: quedan guardados en tu estudio…")).toBe(true);
+    expect(AVISO_REPETIDO.test("Primero: ¿vivís sólo de la fotografía?")).toBe(false);
+  });
+});

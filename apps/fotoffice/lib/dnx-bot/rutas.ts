@@ -23,6 +23,7 @@ export const RUTAS_BOT: readonly RutaBot[] = [
   { ruta: "/consultas", proposito: "lista de consultas", pagina: "app/(shell)/consultas/page.tsx", requiere: "verConsultas" },
   { ruta: "/consultas/{id}", proposito: "ficha de una consulta: contacto, evento, mensajes, presupuestos", pagina: "app/(shell)/consultas/[id]/page.tsx", requiere: "verConsultas" },
   { ruta: "/consultas/nueva", proposito: "cargar una consulta nueva", pagina: "app/(shell)/consultas/nueva/page.tsx", requiere: "verConsultas" },
+  { ruta: "/ayuda/dnx-bot-datos", proposito: "cómo cuida DNX Bot tus datos (qué se guarda, quién lo ve, cuándo se borra)", pagina: "app/(shell)/ayuda/dnx-bot-datos/page.tsx", requiere: "ver" },
   { ruta: "/ventas/catalogo", proposito: "catálogo de productos y servicios con precio de lista", pagina: "app/(shell)/ventas/catalogo/page.tsx", requiere: "gestionarPresupuestos" },
 ];
 

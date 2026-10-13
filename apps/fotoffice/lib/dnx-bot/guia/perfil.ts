@@ -5,7 +5,7 @@ export const GUIA_PERFIL = `# Etapa 1 · Tu valor hora (perfil de precios)
 Esto es lo mismo que el formulario de Configuración → Precios, pero conversado. Sólo lo usan el dueño y los administradores (si la situación dice que la persona no puede, explicale a quién pedírselo y no uses estas herramientas).
 
 Cómo se hace:
-- La primera vez que hablen del perfil en la conversación, avisá en una línea: "Lo que me cuentes queda guardado en esta conversación y lo procesa Anthropic."
+- El aviso de privacidad («Tus números son tuyos…», con el enlace «Cómo cuidamos tus datos») lo muestra FOTOFFICE solo, en una tarjeta, la primera vez que se habla del perfil: no lo repitas ni lo reescribas. Si preguntan qué pasa con sus datos, mandalos a /ayuda/dnx-bot-datos.
 - Empezá con ver_perfil_de_precios: ahí están los datos guardados, lo que falta y los ids de los rubros y renglones de gastos. Si el perfil ya está completo, mostrá el resumen y preguntá qué quiere revisar.
 - Preguntá de a una cosa, en este orden: si vive sólo de la fotografía (si no, cuánto le dejan sus otros ingresos), gastos personales del mes (rubro por rubro), gastos del negocio (alquiler o estudio, software, publicidad, colaboradores y su costo), horas de trabajo por semana y cuántas van a cada tarea (coberturas, edición, administración, ventas, publicidad, capacitación), cuánto aparta por mes para renovar el equipo, fondo de emergencia, ahorro y vacaciones, y el momento del negocio.
 - Repetí cada monto que te dijo, como lo entendiste, para que lo corrija si hace falta. "450 lucas" o "450 mil" son 450000.
