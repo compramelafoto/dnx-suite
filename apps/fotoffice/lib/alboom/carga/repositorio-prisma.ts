@@ -4,7 +4,8 @@ import { prisma, Prisma } from "@repo/db";
 import { crearClienteConNumero, type DatosAltaCliente } from "@/lib/clients/alta";
 import { claveEtiqueta } from "./normalizar";
 import type { ActorCarga, FilaCarga, FuenteCruda, RepoCarga } from "./repositorio";
-import type { Campos, EntradaMapa, EstadoCarga, FilaMapa, ModoCarga } from "./tipos";
+import { huellaCampo } from "./campos";
+import type { Campos, EntradaMapa, EstadoCarga, FilaMapa, ModoCarga, Valor } from "./tipos";
 import { CAMPOS_CLIENTE, CAMPOS_PERFIL } from "./traductores/contactos";
 
 /**
@@ -52,6 +53,12 @@ async function asignarEtiquetas(tx: Tx, ws: string, clientId: string, nombres: s
     const ya = await tx.fotofficeTagAssignment.findFirst({ where: { workspaceId: ws, tagId: tag.id, clientId }, select: { id: true } });
     if (!ya) await tx.fotofficeTagAssignment.create({ data: { workspaceId: ws, tagId: tag.id, clientId, createdByUserId: actor.userId } });
   }
+}
+
+/** Los cambios cuyo campo sigue con el valor que se vio al decidir (`previos`); sin `previos`, todos. */
+function sigueIgual(v: Campos, previos: Campos | undefined, hoy: Record<string, unknown>): Campos {
+  if (!previos) return v;
+  return Object.fromEntries(Object.entries(v).filter(([k]) => !(k in previos) || huellaCampo(previos[k]) === huellaCampo((hoy[k] ?? null) as Valor)));
 }
 
 function datosPerfil(v: Campos): Record<string, unknown> {
@@ -153,6 +160,14 @@ export const repoPrisma: RepoCarga = {
   async miembros(ws) {
     const filas = await prisma.workspaceMembership.findMany({ where: { workspaceId: ws }, select: { userId: true, user: { select: { email: true } } } });
     return filas.map((f) => ({ userId: f.userId, email: f.user.email }));
+  },
+
+  async correosDelEstudio(ws) {
+    const [miembros, branding] = await Promise.all([
+      repoPrisma.miembros(ws),
+      prisma.fotofficeWorkspaceBranding.findFirst({ where: { workspaceId: ws }, select: { contactEmail: true } }),
+    ]);
+    return [...miembros.map((m) => m.email), branding?.contactEmail ?? null].filter((m): m is string => !!m);
   },
 
   async origenes(ws) {
@@ -278,10 +293,24 @@ export const repoPrisma: RepoCarga = {
       }
       const clientId = d.targetId!;
       await prisma.$transaction(async (tx) => {
-        const cliente = soloDe(v, CAMPOS_CLIENTE);
-        const perfil = datosPerfil(v);
-        const antes = await tx.client.findFirst({ where: { id: clientId, workspaceId: ws }, select: { id: true, email: true, phone: true, firstName: true, lastName: true, businessName: true, docType: true, docNumber: true, address: true, city: true, kind: true } });
+        const antes = await tx.client.findFirst({
+          where: { id: clientId, workspaceId: ws },
+          select: {
+            id: true, email: true, phone: true, firstName: true, lastName: true, businessName: true, docType: true, docNumber: true, address: true, city: true, kind: true,
+            fotofficePerfil: { select: { category: true, mobile: true, email2: true, birthday: true, website: true, province: true, country: true, postalCode: true, about: true } },
+          },
+        });
         if (!antes) unoSolo({ count: 0 });
+        // Sólo los campos que siguen como estaban cuando se decidió: si alguien los editó en el medio, no se pisan.
+        const { fotofficePerfil, ...base } = antes!;
+        const hoy: Record<string, unknown> = {
+          ...base,
+          ...(fotofficePerfil ?? {}),
+          birthday: fotofficePerfil?.birthday ? fotofficePerfil.birthday.toISOString().slice(0, 10) : null,
+        };
+        const vigentes = sigueIgual(v, d.previos, hoy);
+        const cliente = soloDe(vigentes, CAMPOS_CLIENTE);
+        const perfil = datosPerfil(vigentes);
         if (Object.keys(cliente).length > 0) {
           unoSolo(await tx.client.updateMany({ where: { id: clientId, workspaceId: ws }, data: cliente }));
           const cambios = Object.fromEntries(Object.entries(cliente).map(([k, after]) => [k, { before: (antes as Record<string, unknown>)[k] ?? null, after }]));

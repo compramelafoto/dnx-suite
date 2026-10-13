@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..", "..", "..", "..");
-const NOMBRE = "20261106120000_fotoffice_etapa_8b_alboom_carga";
+const NOMBRE = "20261114120000_fotoffice_etapa_8b_alboom_carga";
 const sql = readFileSync(join(RAIZ, `packages/db/prisma/migrations/${NOMBRE}/migration.sql`), "utf8");
 const schema = readFileSync(join(RAIZ, "packages/db/prisma/schema.prisma"), "utf8");
 const doc = readFileSync(join(RAIZ, "packages/db/docs/MIGRACION-ETAPA-8B1.md"), "utf8");

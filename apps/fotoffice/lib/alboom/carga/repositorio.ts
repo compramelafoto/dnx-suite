@@ -47,6 +47,8 @@ export interface RepoCarga {
 
   // ── Lo que ya existe en FOTOFFICE (contexto de los traductores) ──
   miembros(workspaceId: string): Promise<{ userId: number; email: string | null }[]>;
+  /** Correos del propio estudio (miembros y contacto del branding): para un cliente son de relleno. */
+  correosDelEstudio(workspaceId: string): Promise<string[]>;
   origenes(workspaceId: string): Promise<(OrigenExistente & { order: number })[]>;
   categoriasConsulta(workspaceId: string): Promise<(CategoriaExistente & { order: number })[]>;
   etiquetas(workspaceId: string): Promise<{ id: string; nameKey: string }[]>;

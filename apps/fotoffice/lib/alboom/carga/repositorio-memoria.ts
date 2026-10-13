@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { huella } from "../huella";
 import type { ActorCarga, FilaCarga, FuenteCruda, RepoCarga } from "./repositorio";
+import { huellaCampo } from "./campos";
 import { claveEtiqueta } from "./normalizar";
 import type { Campos, Crudo, Decision, EntradaMapa, FilaMapa } from "./tipos";
 import type { ProductoExistente } from "./traductores/productos";
@@ -22,6 +23,7 @@ export function crearRepoMemoria() {
     cargas: [] as FilaCarga[],
     extraccionesActivas: new Set<string>(),
     miembros: [] as ConWs<{ userId: number; email: string | null }>[],
+    correosEstudio: [] as ConWs<{ email: string }>[],
     origenes: [] as ConWs<{ id: string; name: string; order: number }>[],
     categorias: [] as ConWs<{ id: string; name: string; group: string; order: number; archivada?: boolean }>[],
     etiquetas: [] as ConWs<{ id: string; name: string; nameKey: string }>[],
@@ -101,6 +103,9 @@ export function crearRepoMemoria() {
     async miembros(ws) {
       return deWs(d.miembros, ws).map(({ userId, email }) => ({ userId, email }));
     },
+    async correosDelEstudio(ws) {
+      return [...deWs(d.miembros, ws).map((m) => m.email), ...deWs(d.correosEstudio, ws).map((c) => c.email)].filter((m): m is string => !!m);
+    },
     async origenes(ws) {
       return deWs(d.origenes, ws).map(({ id, name, order }) => ({ id, name, order }));
     },
@@ -161,7 +166,9 @@ export function crearRepoMemoria() {
             d.clientes.push({ workspaceId: ws, id, clientNumber: numero, campos: { ...v, category: v.category ?? "CLIENTE" }, creadoPor: actor });
           } else {
             const c = d.clientes.find((x) => x.id === id && x.workspaceId === ws)!;
-            Object.assign(c.campos, v);
+            // Como el de Prisma: sólo lo que sigue igual a lo visto al decidir.
+            const previos = dec.previos;
+            Object.assign(c.campos, previos ? Object.fromEntries(Object.entries(v).filter(([k]) => !(k in previos) || huellaCampo(previos[k]) === huellaCampo(c.campos[k] ?? null))) : v);
           }
           for (const n of (dec.extra?.etiquetas as string[] | undefined) ?? []) {
             const tagId = etiquetaPorNombre(ws, n);

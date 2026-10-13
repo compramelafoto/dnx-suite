@@ -53,6 +53,7 @@ export const MENSAJES_CARGA = {
   simulacionVieja: "Después de esa simulación hubo una carga: simulá de nuevo.",
   datosCambiaron: "Los datos extraídos de Alboom cambiaron desde la simulación: simulá de nuevo.",
   cambiaronDurante: "Los datos extraídos de Alboom cambiaron mientras se simulaba: simulá de nuevo.",
+  cambiaronDuranteCarga: "Los datos extraídos de Alboom cambiaron durante la carga: simulá y cargá de nuevo (no duplica).",
 } as const;
 
 type Inicio = { ok: true; id: string } | { ok: false; error: string };
@@ -161,10 +162,10 @@ export async function correrCargas(repo: RepoCarga, deps: DepsCorrida = {}): Pro
       });
       if (r === "COMPLETA") {
         let error: string | null = null;
-        if (fila.mode === "SIMULACION") {
-          const { huella } = await repo.huellaCrudos(c.workspaceId, fuentesDe(fila.entities));
-          if (huella !== fila.fingerprint) error = MENSAJES_CARGA.cambiaronDurante;
-        }
+        // Los crudos tienen que seguir iguales a los simulados también al terminar una carga (la exclusión con la
+        // extracción es "leer y después crear", sin bloqueo común).
+        const { huella } = await repo.huellaCrudos(c.workspaceId, fuentesDe(fila.entities));
+        if (huella !== fila.fingerprint) error = fila.mode === "SIMULACION" ? MENSAJES_CARGA.cambiaronDurante : MENSAJES_CARGA.cambiaronDuranteCarga;
         await repo.terminar(c.id, c.workspaceId, error ? "ERROR" : "LISTA", informe, progreso, error, new Date(ahora()));
         anotar(error ? "ERROR" : "LISTA");
       } else if (r === "PAUSADA") {

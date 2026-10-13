@@ -92,6 +92,17 @@ describe("simular y cargar", () => {
   });
 });
 
+describe("huella al terminar la carga", () => {
+  it("si los crudos cambian durante la carga, termina en error (volver a cargar no duplica)", async () => {
+    await iniciarSimulacion(M.repo, WS, 7, ["contactos"]);
+    await hastaTerminar();
+    await iniciarCarga(M.repo, WS, 7);
+    M.crudo(WS, "contactos", "7999", { ...CONTACTO, id: "7999", name: "Nueva", email: "nueva@correo.test" });
+    await hastaTerminar();
+    expect(await M.repo.ultimaCarga(WS, "CARGA")).toMatchObject({ status: "ERROR", errorReason: MENSAJES_CARGA.cambiaronDuranteCarga });
+  });
+});
+
 describe("cron: presupuesto, turno y reanudación", () => {
   it("con poco tiempo pausa, suelta el turno y la tanda siguiente retoma", async () => {
     await iniciarSimulacion(M.repo, WS, 7, []);

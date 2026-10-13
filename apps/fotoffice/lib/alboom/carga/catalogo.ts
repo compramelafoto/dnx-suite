@@ -1,8 +1,9 @@
+import { randomBytes } from "node:crypto";
 import type { FuenteCruda, RepoCarga } from "./repositorio";
 import type { Crudo, Decision, EntradaMapa } from "./tipos";
 import { PREFIJO_CATEGORIA, TIPO_CATEGORIA, registrarCategoria, traducirCategoria, type CtxCategorias } from "./traductores/categorias";
 import { TIPO_CIRCUITO, TIPO_ETAPA, traducirCircuito, traducirEtapa, type CtxCircuitos, type CtxEtapas } from "./traductores/circuitos";
-import { TIPO_CLIENTE, crearCtxContactos, registrarContacto, traducirContacto, type CtxContactos } from "./traductores/contactos";
+import { TIPO_CLIENTE, compartidos, crearCtxContactos, registrarContacto, traducirContacto, type CtxContactos, type Visto } from "./traductores/contactos";
 import { TIPO_ETIQUETA, registrarEtiqueta, traducirEtiqueta, type CtxEtiquetas } from "./traductores/etiquetas";
 import { TIPO_ORIGEN, registrarOrigen, traducirOrigen, type CtxOrigenes } from "./traductores/origenes";
 import {
@@ -15,6 +16,8 @@ import {
   traducirCosto,
   traducirItemCombo,
   traducirProducto,
+  nombresDeProductos,
+  previosDe,
   type CtxCombos,
   type CtxCostos,
   type CtxProductos,
@@ -35,8 +38,10 @@ export type Progreso = {
   fuente: number;
   /** Último id de Alboom procesado de esa fuente. */
   cursor: string | null;
-  /** Correos vistos (por huella) → [id de Alboom, cliente]: duplicados de Alboom entre tandas. */
-  vistos: Record<string, [string, string]>;
+  /** Correos vistos (por huella con sal) → contactos que lo usaron (nombre cifrado): duplicados entre tandas. */
+  vistos: Record<string, Visto[]>;
+  /** Sal de esta corrida para las huellas de `vistos` (no reversibles con un diccionario de correos). */
+  sal: string;
   /** Sólo en la simulación: lo que se habría creado o vinculado, para que las partes que dependen lo vean. */
   simulados: Record<string, Record<string, string>>;
   /** Fallas inesperadas seguidas (la base, por ejemplo). */
@@ -46,7 +51,7 @@ export type Progreso = {
 };
 
 export function progresoInicial(extra: Partial<Progreso> = {}): Progreso {
-  return { indice: 0, fuente: 0, cursor: null, vistos: {}, simulados: {}, reintentos: 0, ...extra };
+  return { indice: 0, fuente: 0, cursor: null, vistos: {}, sal: randomBytes(16).toString("hex"), simulados: {}, reintentos: 0, ...extra };
 }
 
 export function leerProgreso(json: unknown): Progreso {
@@ -56,6 +61,7 @@ export function leerProgreso(json: unknown): Progreso {
     fuente: typeof p.fuente === "number" ? p.fuente : 0,
     cursor: typeof p.cursor === "string" ? p.cursor : null,
     vistos: typeof p.vistos === "object" && p.vistos !== null ? p.vistos : {},
+    sal: typeof p.sal === "string" ? p.sal : "",
     simulados: typeof p.simulados === "object" && p.simulados !== null ? p.simulados : {},
     reintentos: typeof p.reintentos === "number" ? p.reintentos : 0,
     ...(typeof p.simulacionId === "string" ? { simulacionId: p.simulacionId } : {}),
@@ -191,7 +197,20 @@ export const PARTES: readonly ParteCarga[] = [
     exporta: true,
     async contexto(repo, ws, progreso): Promise<CtxContactos> {
       const etiquetas = new Map((await repo.etiquetas(ws)).map((e) => [e.nameKey, e.id]));
+      // Correos y teléfonos que usan varios contactos de nombres distintos: se miran todos los crudos.
+      const payloads: unknown[] = [];
+      for (let cursor: string | null = null; ; ) {
+        const lote = await repo.leerCrudos(ws, { entity: "contactos" }, cursor, 1000);
+        if (lote.length === 0) break;
+        for (const c of lote) payloads.push(c.payload);
+        cursor = lote[lote.length - 1]!.alboomId;
+      }
+      const { correos, telefonos } = compartidos(payloads);
       return crearCtxContactos({
+        sal: progreso.sal,
+        delEstudio: await repo.correosDelEstudio(ws),
+        correosCompartidos: correos,
+        telefonosCompartidos: telefonos,
         clientes: await repo.clientes(ws),
         etiquetas,
         mapa: porAlboomId(await repo.leerMapa(ws, ["contactos"]), "contactos"),
@@ -210,7 +229,16 @@ export const PARTES: readonly ParteCarga[] = [
     targetType: TIPO_PRODUCTO,
     exporta: true,
     async contexto(repo, ws): Promise<CtxProductos> {
-      return { productos: await repo.productos(ws), mapa: porAlboomId(await repo.leerMapa(ws, ["productos"]), "productos") };
+      const productos = await repo.productos(ws);
+      const mapa = porAlboomId(await repo.leerMapa(ws, ["productos"]), "productos");
+      const crudos: { alboomId: string; payload: unknown }[] = [];
+      for (let cursor: string | null = null; ; ) {
+        const lote = await repo.leerCrudos(ws, { entity: "productos" }, cursor, 1000);
+        if (lote.length === 0) break;
+        crudos.push(...lote);
+        cursor = lote[lote.length - 1]!.alboomId;
+      }
+      return { productos, mapa, previos: previosDe(productos.map((p) => p.id), mapa.values()), nombresAlboom: nombresDeProductos(crudos) };
     },
     traducir: (c, ctx) => traducirProducto(c, ctx as CtxProductos),
     registrar: (ctx, _c, d, id) => registrarProducto(ctx as CtxProductos, d, id),
@@ -225,8 +253,11 @@ export const PARTES: readonly ParteCarga[] = [
     async contexto(repo, ws, progreso): Promise<CtxCombos> {
       return {
         productoDe: await idsDe(repo, ws, progreso, "productos"),
-        items: await repo.itemsCombo(ws),
-        mapa: porAlboomId(await repo.leerMapa(ws, ["combos"]), "combos"),
+        ...(await (async () => {
+          const items = await repo.itemsCombo(ws);
+          const mapa = porAlboomId(await repo.leerMapa(ws, ["combos"]), "combos");
+          return { items, mapa, previos: previosDe(items.map((i) => i.id), mapa.values()) };
+        })()),
       };
     },
     traducir: (c, ctx) => traducirItemCombo(c, ctx as CtxCombos),
@@ -243,8 +274,11 @@ export const PARTES: readonly ParteCarga[] = [
       return {
         productoDe: await idsDe(repo, ws, progreso, "productos"),
         contactoDe: await idsDe(repo, ws, progreso, "contactos"),
-        costos: await repo.costos(ws),
-        mapa: porAlboomId(await repo.leerMapa(ws, ["costos_producto"]), "costos_producto"),
+        ...(await (async () => {
+          const costos = await repo.costos(ws);
+          const mapa = porAlboomId(await repo.leerMapa(ws, ["costos_producto"]), "costos_producto");
+          return { costos, mapa, previos: previosDe(costos.map((x) => x.id), mapa.values()) };
+        })()),
       };
     },
     traducir: (c, ctx) => traducirCosto(c, ctx as CtxCostos),

@@ -1,5 +1,6 @@
 import { huella } from "../../huella";
-import { DUDAS, MOTIVOS, actualizarOIgual, huellasDe, porMapa } from "../campos";
+import { CONFLICTOS, DUDAS, MOTIVOS, actualizarOIgual, huellasDe, porMapa } from "../campos";
+import { UMBRAL_COMPARTIDO, esCorreoDeRelleno, nombreCifrado, nombrePersona, nombresCompatibles, type NombrePersona } from "../identidad";
 import { campos, clave, claveEtiqueta, correo, esDatoDePrueba, fecha, partirEtiquetas, siNo, telefonoAr, texto, textoLargo } from "../normalizar";
 import type { Campos, Crudo, Decision, EntradaMapa } from "../tipos";
 
@@ -11,10 +12,15 @@ import type { Campos, Crudo, Decision, EntradaMapa } from "../tipos";
  *   celular si no hay fijo) y `cellular` al perfil.
  * - Se descartan los datos de prueba evidentes (correos `usuario@`, `test@`, de dominios de ejemplo; nombres
  *   "prueba"/"test").
- * - Duplicados dentro de Alboom (mismo correo): queda uno solo; los demás se atan al mismo cliente y el informe
- *   los lista como fusionados.
- * - Se empareja con los clientes que ya existen por correo y, si no, por teléfono: de esos sólo se completan los
- *   campos vacíos. Si no hay pareja, se crea con el próximo número de cliente.
+ * - Un correo o un teléfono SOLOS nunca alcanzan para decir que son la misma persona: además los nombres tienen
+ *   que ser compatibles (`identidad.ts`). Los correos de relleno (`sincorreo@`, el del propio estudio…) no se
+ *   guardan ni se usan; un correo o teléfono que en Alboom usan 3 o más contactos de nombres distintos no se usa
+ *   para emparejar.
+ * - Duplicados dentro de Alboom (mismo correo y nombre compatible): queda uno solo; los demás se atan al mismo
+ *   cliente y el informe los lista como fusionados. Mismo correo con otro nombre: se cargan por separado
+ *   (conflicto "correo compartido").
+ * - Se empareja con los clientes que ya existen por correo y, si no, por teléfono (siempre con nombre compatible):
+ *   de esos sólo se completan los campos vacíos. Si no hay pareja, se crea con el próximo número de cliente.
  * - Documento (DNI/CUIT), domicilio, cumpleaños, web y "Sobre" si vienen.
  * - Etiquetas (`tags`, texto separado por comas): se asignan sin quitar nunca ninguna; una etiqueta que no está
  *   en el catálogo se crea (duda).
@@ -42,46 +48,89 @@ const CATEGORIAS: Record<string, string> = {
 
 export type ClienteExistente = { id: string; campos: Campos; tagKeys: string[] };
 
+/** Un contacto ya visto en esta corrida (sin datos: el nombre va cifrado con la sal de la corrida). */
+export type Visto = { a: string; t: string; n: NombrePersona };
+
 export type CtxContactos = {
   clientes: ClienteExistente[];
   /** nameKey → id de la etiqueta del catálogo (o simulada). */
   etiquetas: Map<string, string>;
   mapa: Map<string, EntradaMapa>;
   /**
-   * Correos ya vistos en esta corrida (por huella, nunca el correo) → [id de Alboom, cliente]. Se guarda en el
-   * avance para detectar duplicados entre tandas, también en la simulación.
+   * Correos ya vistos en esta corrida (por huella con sal, nunca el correo) → contactos que lo usaron. Se guarda en
+   * el avance para detectar duplicados entre tandas, también en la simulación.
    */
-  vistos: Map<string, [string, string]>;
+  vistos: Map<string, Visto[]>;
+  /** Sal de la corrida para las huellas de `vistos`. */
+  sal: string;
+  /** Correos del propio estudio (miembros, contacto del branding): son de relleno para un cliente. */
+  delEstudio: Set<string>;
+  /** Correos y teléfonos nacionales que en Alboom usan 3 o más contactos de nombres distintos. */
+  correosCompartidos: Set<string>;
+  telefonosCompartidos: Set<string>;
   /** Índices por correo y por teléfono nacional (los arma `crearCtxContactos`). */
-  porCorreo: Map<string, ClienteExistente>;
-  porTelefono: Map<string, ClienteExistente>;
-  /** Clientes que ya vienen de otro contacto de Alboom: nunca se emparejan por teléfono (una pareja comparte teléfono). */
+  porCorreo: Map<string, ClienteExistente[]>;
+  porTelefono: Map<string, ClienteExistente[]>;
+  /** Clientes que ya vienen de otro contacto de Alboom: nunca se emparejan por teléfono. */
   deAlboom: Set<string>;
 };
 
 /** Huella de un correo para `vistos` (no se guarda el correo). */
-export const claveVisto = (mail: string) => huella(`correo:${mail}`).slice(0, 20);
+export const claveVisto = (mail: string, sal = "") => huella(`correo:${sal}:${mail}`).slice(0, 20);
+
+function agregar<K, V>(m: Map<K, V[]>, k: K, v: V) {
+  const l = m.get(k);
+  if (l) l.push(v);
+  else m.set(k, [v]);
+}
 
 function indexar(ctx: Pick<CtxContactos, "porCorreo" | "porTelefono">, c: ClienteExistente) {
   const mail = correo(c.campos.email).valor;
-  if (mail && !ctx.porCorreo.has(mail)) ctx.porCorreo.set(mail, c);
-  for (const t of [c.campos.phone, c.campos.mobile]) {
-    const n = telefonoAr(t, false).nacional;
-    if (n && !ctx.porTelefono.has(n)) ctx.porTelefono.set(n, c);
+  if (mail) agregar(ctx.porCorreo, mail, c);
+  const tels = new Set([c.campos.phone, c.campos.mobile].map((t) => telefonoAr(t, false).nacional).filter((n): n is string => n !== null));
+  for (const n of tels) agregar(ctx.porTelefono, n, c);
+}
+
+/**
+ * Correos y teléfonos compartidos: los que en los contactos de Alboom aparecen con `UMBRAL_COMPARTIDO` o más
+ * nombres distintos. Se calcula con todos los crudos antes de traducir.
+ */
+export function compartidos(payloads: Iterable<unknown>): { correos: Set<string>; telefonos: Set<string> } {
+  const porCorreo = new Map<string, Set<string>>();
+  const porTel = new Map<string, Set<string>>();
+  for (const payload of payloads) {
+    const p = campos(payload);
+    const nombre = nombrePersona(p.name, p.lastname, p.company).tokens.sort().join(" ");
+    const mail = correo(p.email).valor;
+    if (mail) (porCorreo.get(mail) ?? porCorreo.set(mail, new Set()).get(mail)!).add(nombre);
+    for (const t of [p.phone, p.cellular]) {
+      const n = telefonoAr(t, false).nacional;
+      if (n) (porTel.get(n) ?? porTel.set(n, new Set()).get(n)!).add(nombre);
+    }
   }
+  const muchos = (m: Map<string, Set<string>>) => new Set([...m].filter(([, s]) => s.size >= UMBRAL_COMPARTIDO).map(([k]) => k));
+  return { correos: muchos(porCorreo), telefonos: muchos(porTel) };
 }
 
 export function crearCtxContactos(d: {
   clientes: ClienteExistente[];
   etiquetas?: Map<string, string>;
   mapa?: Map<string, EntradaMapa>;
-  vistos?: Map<string, [string, string]>;
+  vistos?: Map<string, Visto[]>;
+  sal?: string;
+  delEstudio?: Iterable<string>;
+  correosCompartidos?: Set<string>;
+  telefonosCompartidos?: Set<string>;
 }): CtxContactos {
   const ctx: CtxContactos = {
     clientes: d.clientes,
     etiquetas: d.etiquetas ?? new Map(),
     mapa: d.mapa ?? new Map(),
     vistos: d.vistos ?? new Map(),
+    sal: d.sal ?? "",
+    delEstudio: new Set([...(d.delEstudio ?? [])].map((m) => correo(m).valor).filter((m): m is string => m !== null)),
+    correosCompartidos: d.correosCompartidos ?? new Set(),
+    telefonosCompartidos: d.telefonosCompartidos ?? new Set(),
     porCorreo: new Map(),
     porTelefono: new Map(),
     deAlboom: new Set([...(d.mapa?.values() ?? [])].map((m) => m.targetId)),
@@ -148,18 +197,30 @@ export function camposDeContacto(payload: unknown): { nuevos: Campos; etiquetas:
   return { nuevos, etiquetas: etiquetas.nombres, dudas, correoValido: mail.valor };
 }
 
+const nombreDe = (v: Campos) => nombrePersona(v.firstName, v.lastName, v.businessName);
+
+/** El correo que sirve para emparejar (ni de relleno ni compartido por muchos) y lo que hay que avisar. */
+function analizarCorreo(ctx: CtxContactos, mail: string | null): { usable: string | null; relleno: boolean; deVarios: boolean } {
+  if (!mail) return { usable: null, relleno: false, deVarios: false };
+  if (esCorreoDeRelleno(mail, ctx.delEstudio)) return { usable: null, relleno: true, deVarios: false };
+  if (ctx.correosCompartidos.has(mail)) return { usable: null, relleno: false, deVarios: true };
+  return { usable: mail, relleno: false, deVarios: false };
+}
+
 /**
- * Emparejar por teléfono sólo con un cliente que ya estaba en FOTOFFICE (no con otro contacto de Alboom) y cuando
- * los correos no se contradicen: dos personas distintas comparten teléfono más seguido que correo.
+ * Emparejar por teléfono sólo con un cliente que ya estaba en FOTOFFICE (no con otro contacto de Alboom), con
+ * nombre compatible y sin correos que se contradigan; nunca por un teléfono que usan varios contactos de Alboom.
  */
-function porTelefono(ctx: CtxContactos, nuevos: Campos, correoValido: string | null): ClienteExistente | undefined {
+function porTelefono(ctx: CtxContactos, nuevos: Campos, nombre: NombrePersona, correoValido: string | null): ClienteExistente | undefined {
   for (const t of [nuevos.phone, nuevos.mobile]) {
     const n = telefonoAr(t, false).nacional;
-    const c = n ? ctx.porTelefono.get(n) : undefined;
-    if (!c || ctx.deAlboom.has(c.id)) continue;
-    const suyo = correo(c.campos.email).valor;
-    if (correoValido && suyo && suyo !== correoValido) continue;
-    return c;
+    if (!n || ctx.telefonosCompartidos.has(n)) continue;
+    for (const c of ctx.porTelefono.get(n) ?? []) {
+      if (ctx.deAlboom.has(c.id) || !nombresCompatibles(nombre, nombreDe(c.campos))) continue;
+      const suyo = correo(c.campos.email).valor;
+      if (correoValido && suyo && suyo !== correoValido) continue;
+      return c;
+    }
   }
   return undefined;
 }
@@ -176,13 +237,24 @@ export function traducirContacto(c: Crudo, ctx: CtxContactos): Decision {
   if (esDatoDePrueba({ correo: correoValido, nombres: [nuevos.firstName as string | null, nuevos.lastName as string | null, nuevos.businessName as string | null] })) {
     return { accion: "OMITIR", motivo: MOTIVOS.datoDePrueba };
   }
+  const conflictos: string[] = [];
+  const correoInfo = analizarCorreo(ctx, correoValido);
+  if (correoInfo.relleno) {
+    nuevos.email = null;
+    dudas.push(DUDAS.correoDeRelleno);
+  }
+  if (typeof nuevos.email2 === "string" && esCorreoDeRelleno(nuevos.email2, ctx.delEstudio)) nuevos.email2 = null;
+  if (correoInfo.deVarios) conflictos.push(CONFLICTOS.correoDeVarios);
+  const usable = correoInfo.usable;
+  const nombre = nombreDe(nuevos);
 
-  // Duplicado dentro de Alboom: mismo correo que uno ya visto en esta corrida.
-  if (!mapa && correoValido) {
-    const visto = ctx.vistos.get(claveVisto(correoValido));
-    if (visto && visto[0] !== c.alboomId) {
-      return { accion: "OMITIR", motivo: MOTIVOS.duplicadoAlboom, targetId: visto[1], fusionadoCon: visto[0], escribirMapa: true, huellas: {} };
-    }
+  // Duplicado dentro de Alboom: mismo correo y nombre compatible que uno ya visto en esta corrida.
+  if (!mapa && usable) {
+    const vistos = (ctx.vistos.get(claveVisto(usable, ctx.sal)) ?? []).filter((v) => v.a !== c.alboomId);
+    const cifrado = nombreCifrado(nombre, ctx.sal);
+    const mismo = vistos.find((v) => nombresCompatibles(cifrado, v.n));
+    if (mismo) return { accion: "OMITIR", motivo: MOTIVOS.duplicadoAlboom, targetId: mismo.t, fusionadoCon: mismo.a, escribirMapa: true, huellas: {} };
+    if (vistos.length > 0) conflictos.push(CONFLICTOS.correoCompartido);
   }
 
   const claves = etiquetas.map(claveEtiqueta);
@@ -190,20 +262,33 @@ export function traducirContacto(c: Crudo, ctx: CtxContactos): Decision {
   const huellasEtiquetas = Object.fromEntries(claves.map((k) => [huellaEtiqueta(k), "1"]));
   const dudasEtiquetas = nuevasEnCatalogo > 0 ? [DUDAS.etiquetaNueva] : [];
   const todasLasDudas = [...dudas, ...dudasEtiquetas];
-  const extraDudas = todasLasDudas.length ? { dudas: todasLasDudas } : {};
+  const extra: Partial<Decision> = {
+    ...(todasLasDudas.length ? { dudas: todasLasDudas } : {}),
+    ...(conflictos.length ? { conflictos: [...new Set(conflictos)] } : {}),
+  };
 
-  const existente = mapa ? ctx.clientes.find((x) => x.id === mapa.targetId) : (correoValido ? ctx.porCorreo.get(correoValido) : undefined) ?? porTelefono(ctx, nuevos, correoValido);
+  let existente: ClienteExistente | undefined;
+  if (mapa) existente = ctx.clientes.find((x) => x.id === mapa.targetId);
+  else {
+    const porCorreo = usable ? (ctx.porCorreo.get(usable) ?? []) : [];
+    existente = porCorreo.find((x) => nombresCompatibles(nombre, nombreDe(x.campos)));
+    if (!existente && porCorreo.length > 0 && !extra.conflictos?.includes(CONFLICTOS.correoCompartido)) {
+      extra.conflictos = [...(extra.conflictos ?? []), CONFLICTOS.correoCompartido];
+    }
+    existente ??= porTelefono(ctx, nuevos, nombre, correoValido);
+  }
 
   if (existente) {
     // Etiquetas: sólo las que no tiene y que no venían ya en la carga anterior (si alguien la sacó, no vuelve).
     const aAgregar = etiquetas.filter((n, i) => !existente.tagKeys.includes(claves[i]!) && !(mapa && mapa.fieldHashes[huellaEtiqueta(claves[i]!)]));
-    const d = actualizarOIgual(existente.id, nuevos, existente.campos, mapa, extraDudas);
+    const d = actualizarOIgual(existente.id, nuevos, existente.campos, mapa, extra);
     d.huellas = { ...d.huellas, ...huellasEtiquetas };
     if (aAgregar.length > 0) {
       d.extra = { etiquetas: aAgregar };
       if (d.accion === "IGUAL") {
         d.accion = "ACTUALIZAR";
         d.datos = {};
+        d.previos = {};
       }
     }
     return d;
@@ -213,14 +298,19 @@ export function traducirContacto(c: Crudo, ctx: CtxContactos): Decision {
     datos: nuevos,
     extra: { etiquetas },
     huellas: { ...huellasDe(nuevos), ...huellasEtiquetas },
-    ...extraDudas,
+    ...extra,
   };
 }
 
 export function registrarContacto(ctx: CtxContactos, c: Crudo, d: Decision, targetId: string): void {
   if (d.accion === "OMITIR") return;
-  const mail = camposDeContacto(c.payload).correoValido;
-  if (mail && !ctx.vistos.has(claveVisto(mail))) ctx.vistos.set(claveVisto(mail), [c.alboomId, targetId]);
+  const { nuevos, correoValido } = camposDeContacto(c.payload);
+  const usable = analizarCorreo(ctx, correoValido).usable;
+  if (usable) {
+    const k = claveVisto(usable, ctx.sal);
+    const lista = ctx.vistos.get(k) ?? [];
+    if (!lista.some((v) => v.a === c.alboomId)) ctx.vistos.set(k, [...lista, { a: c.alboomId, t: targetId, n: nombreCifrado(nombreDe(nuevos), ctx.sal) }]);
+  }
   const etiquetas = Array.isArray(d.extra?.etiquetas) ? (d.extra.etiquetas as string[]) : [];
   for (const n of etiquetas) {
     const k = claveEtiqueta(n);
@@ -231,7 +321,5 @@ export function registrarContacto(ctx: CtxContactos, c: Crudo, d: Decision, targ
     ctx.clientes.push(nuevo);
     indexar(ctx, nuevo);
   }
-  if (d.accion === "CREAR" || d.vincula) {
-    ctx.deAlboom.add(targetId);
-  }
+  if (d.accion === "CREAR" || d.vincula) ctx.deAlboom.add(targetId);
 }

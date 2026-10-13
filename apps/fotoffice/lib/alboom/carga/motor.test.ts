@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { CLAVES_CARGA, progresoInicial } from "./catalogo";
-import { MOTIVOS } from "./campos";
+import { CONFLICTOS, MOTIVOS } from "./campos";
 import { CATEGORIA_15, COMBO, CONTACTO, COSTO, EMBUDO, ETAPA_1, ETIQUETA, ITEM_COMBO, ORIGEN, PRODUCTO, USUARIO } from "./ejemplos-alboom";
 import { informeVacio, type Informe } from "./informe";
 import { ejecutarMotor, type OpcionesMotor } from "./motor";
@@ -31,7 +31,7 @@ function sembrarCrudos(ws: string) {
   M.crudo(ws, "embudos", "1611", EMBUDO);
   M.crudo(ws, "etapas_embudo", "9001", ETAPA_1);
   M.crudo(ws, "contactos", "7001", CONTACTO);
-  M.crudo(ws, "contactos", "7002", { ...CONTACTO, id: "7002", name: "Lu", email: "LUCIA.FERNANDEZ@correo.test" });
+  M.crudo(ws, "contactos", "7002", { ...CONTACTO, id: "7002", name: "Lucia", lastname: "Fernandez", email: "LUCIA.FERNANDEZ@correo.test" });
   M.crudo(ws, "contactos", "7003", { ...CONTACTO, id: "7003", name: "Contacto", lastname: "de prueba", email: "test@estudio.test" });
   M.crudo(ws, "contactos", "7004", { ...CONTACTO, id: "7004", name: "Martín", lastname: "Ruiz", email: "martin@correo.test", cellular: "3416000000", rg: "", tags: "" });
   M.crudo(ws, "productos", "55", PRODUCTO);
@@ -156,7 +156,7 @@ describe("carga", () => {
   });
 
   it("empareja con clientes que ya existían (por correo) en vez de duplicarlos", async () => {
-    M.datos.clientes.push({ workspaceId: WS, id: "viejo", clientNumber: 1, campos: { kind: "PERSONA", firstName: "Martín", email: "martin@correo.test", phone: null }, creadoPor: { userId: 1, label: "x" } });
+    M.datos.clientes.push({ workspaceId: WS, id: "viejo", clientNumber: 1, campos: { kind: "PERSONA", firstName: "Martín", lastName: "Ruiz", email: "martin@correo.test", phone: null }, creadoPor: { userId: 1, label: "x" } });
     const { informe } = await correr("CARGA");
     expect(informe.entidades.contactos).toMatchObject({ crear: 1, actualizar: 1, vinculados: 1 });
     expect(M.datos.clientes.find((c) => c.id === "viejo")!.campos).toMatchObject({ firstName: "Martín", lastName: "Ruiz", phone: "5493416000000" });
@@ -186,6 +186,45 @@ describe("carga", () => {
     expect(M.datos.mapa.every((m) => m.workspaceId === WS)).toBe(true);
     // El circuito de OTRO tiene el mismo nombre pero nunca se elige.
     expect(M.datos.mapa.filter((m) => m.entity === "embudos").map((m) => m.targetId)).toEqual([`${WS}-v1`]);
+  });
+});
+
+describe("no fusionar personas ni productos distintos (carga real)", () => {
+  it("mismo correo con otro nombre → dos clientes; correo de relleno → no se usa; conflicto en el informe sin datos", async () => {
+    M.crudo(WS, "contactos", "7005", { ...CONTACTO, id: "7005", name: "Pablo", lastname: "Fernández", email: "lucia.fernandez@correo.test", rg: "", tags: "" });
+    M.crudo(WS, "contactos", "7006", { ...CONTACTO, id: "7006", name: "Rosa", lastname: "Díaz", email: "sincorreo@gmail.com", cellular: "", tags: "" });
+    M.crudo(WS, "contactos", "7007", { ...CONTACTO, id: "7007", name: "Tomás", lastname: "Vera", email: "sincorreo@gmail.com", cellular: "", tags: "" });
+    const { informe } = await correr("CARGA");
+    const clientes = M.datos.clientes.filter((c) => c.workspaceId === WS);
+    expect(clientes.map((c) => c.campos.firstName).sort()).toEqual(["Lucía", "Martín", "Pablo", "Rosa", "Tomás"]);
+    expect(clientes.filter((c) => c.campos.email === "sincorreo@gmail.com")).toHaveLength(0);
+    expect(informe.entidades.contactos!.motivos.conflictos).toMatchObject({ [CONFLICTOS.correoCompartido]: 1 });
+    expect(informe.entidades.contactos!.ejemplos[CONFLICTOS.correoCompartido]).toEqual(["7005"]);
+    expect(JSON.stringify(informe)).not.toMatch(/pablo|sincorreo/i);
+  });
+
+  it("productos con el mismo nombre: el inactivo se saltea, dos activos se crean por separado", async () => {
+    M.crudo(WS, "productos", "70", { ...PRODUCTO, id: "70", code: "AL-1", name: "Álbum 30x30", active: "0" });
+    M.crudo(WS, "productos", "71", { ...PRODUCTO, id: "71", code: "AL-2", name: "Album 30x30", active: "1" });
+    M.crudo(WS, "productos", "72", { ...PRODUCTO, id: "72", code: "AL-3", name: "Álbum 30x30", active: "1" });
+    const { informe } = await correr("CARGA");
+    const albums = M.datos.productos.filter((p) => p.workspaceId === WS && p.name.toLowerCase().includes("30x30"));
+    expect(albums).toHaveLength(2);
+    expect(albums.every((a) => a.isActive)).toBe(true);
+    expect(informe.entidades.productos).toMatchObject({ crear: 4, omitidos: 1, conflictos: 2 });
+    const ids = new Set(M.datos.mapa.filter((m) => m.entity === "productos").map((m) => m.targetId));
+    expect(ids.size).toBe(M.datos.mapa.filter((m) => m.entity === "productos").length);
+  });
+
+  it("si alguien edita un campo entre la decisión y la escritura, no se pisa", async () => {
+    M.datos.clientes.push({ workspaceId: WS, id: "viejo", clientNumber: 1, campos: { kind: "PERSONA", firstName: "Martín", lastName: "Ruiz", email: "martin@correo.test", phone: null, city: null }, creadoPor: { userId: 1, label: "x" } });
+    const escribir = M.repo.escribir;
+    M.repo.escribir = async (ws, clave, d, filas, actor) => {
+      if (d.targetId === "viejo") M.datos.clientes.find((c) => c.id === "viejo")!.campos.city = "Editada a mano";
+      return escribir(ws, clave, d, filas, actor);
+    };
+    await correr("CARGA");
+    expect(M.datos.clientes.find((c) => c.id === "viejo")!.campos).toMatchObject({ city: "Editada a mano", phone: "5493416000000" });
   });
 });
 

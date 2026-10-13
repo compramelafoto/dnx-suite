@@ -45,6 +45,13 @@ export type Decision = {
   conservados?: string[];
   /** Cosas que no cerraron (textos fijos). */
   dudas?: string[];
+  /** Conflictos que no son un campo conservado (p. ej. correo compartido con otro nombre). Textos fijos. */
+  conflictos?: string[];
+  /**
+   * ACTUALIZAR: el valor que tenía cada campo a cambiar cuando se decidió. El escritor sólo lo cambia si en la base
+   * sigue igual (si alguien lo editó entre la lectura y la escritura, no se pisa).
+   */
+  previos?: Campos;
   /** Huella por campo de lo que vino de Alboom (va al mapa). */
   huellas?: Record<string, string>;
   /** Id de Alboom del registro con el que se fusionó un duplicado de Alboom. */

@@ -76,7 +76,10 @@ export function actualizarOIgual(
     vincula: !mapa,
     ...extra,
   };
-  if (base.accion === "ACTUALIZAR") base.datos = r.cambios;
+  if (base.accion === "ACTUALIZAR") {
+    base.datos = r.cambios;
+    base.previos = Object.fromEntries(Object.keys(r.cambios).map((k) => [k, actual[k] ?? null]));
+  }
   if (r.conservados.length > 0) base.conservados = r.conservados;
   return base;
 }
@@ -100,6 +103,16 @@ export const MOTIVOS = {
   componenteSinCargar: "Un producto del combo no se cargó",
   componenteEsCombo: "El componente es otro combo",
   formaDesconocida: "Forma desconocida",
+  productoInactivoRepetido: "Producto inactivo con el mismo nombre que otro de Alboom: no se cargó",
+  itemRepetido: "Ítem repetido en el mismo combo",
+} as const;
+
+/** Conflictos que no son un campo conservado. Textos fijos. */
+export const CONFLICTOS = {
+  correoCompartido: "Correo compartido con otro contacto de nombre distinto: se cargaron por separado",
+  correoDeVarios: "Correo usado por varios contactos de Alboom: no se usó para emparejar",
+  nombreRepetido: "Nombre repetido en Alboom: se cargaron por separado",
+  variosEnFotoffice: "Varios registros de FOTOFFICE con ese nombre: se creó uno nuevo",
 } as const;
 
 export const DUDAS = {
@@ -116,4 +129,5 @@ export const DUDAS = {
   proveedorSinCargar: "El proveedor del costo no se cargó (quedó sin proveedor)",
   costoSinImporte: "Costo sin importe (quedó en 0)",
   documentoRaro: "Documento con formato raro (no se guardó)",
+  correoDeRelleno: "Correo de relleno o del propio estudio (no se guardó ni se usó para emparejar)",
 } as const;

@@ -10,13 +10,13 @@ Procedimiento manual, sin staging: el SQL va directo a la base de producción de
 
 | | |
 |---|---|
-| Migración | `20261106120000_fotoffice_etapa_8b_alboom_carga` |
-| Archivo | `packages/db/prisma/migrations/20261106120000_fotoffice_etapa_8b_alboom_carga/migration.sql` |
+| Migración | `20261114120000_fotoffice_etapa_8b_alboom_carga` |
+| Archivo | `packages/db/prisma/migrations/20261114120000_fotoffice_etapa_8b_alboom_carga/migration.sql` |
 | Checksum (sha256) | `2eae37280f25f47a54f800800ef9783ca42a89ea269a2e401114dd3bfc12b3f0` |
 | Qué hace | Crea `FotofficeAlboomMapa` (`workspaceId`, `entity`, `alboomId`, `targetType`, `targetId`, `payloadHash` sha256 de 64 hex, `fieldHashes` JSONB, `loadedAt`, `updatedAt`; único `(workspaceId, entity, alboomId)`, índice `(workspaceId, targetType, targetId)`) y `FotofficeAlboomCarga` (`mode` SIMULACION/CARGA, `status` PENDIENTE/CORRIENDO/LISTA/ERROR/CANCELADA, `entities`, `report` y `progress` JSONB, `fingerprint` sha256, `startedByUserId`, `startedAt`, `finishedAt`, `errorReason` ≤ 500, `lockedUntil`, `updatedAt`), las dos con clave foránea a `Workspace` en cascada y CHECK. Un índice único parcial impide dos simulaciones/cargas activas en el mismo workspace. No toca ninguna tabla existente ni filas. |
 
 Si la copia que vas a correr tiene otro checksum que el de arriba, **no la corras**: el archivo cambió. Se
-comprueba con `shasum -a 256 packages/db/prisma/migrations/20261106120000_fotoffice_etapa_8b_alboom_carga/migration.sql`.
+comprueba con `shasum -a 256 packages/db/prisma/migrations/20261114120000_fotoffice_etapa_8b_alboom_carga/migration.sql`.
 
 ## Aplicar
 
@@ -75,6 +75,14 @@ SELECT conname FROM pg_constraint
   `posicion_embudo`/`posicion_flujo` para la 8B-2), contactos (correo y teléfono normalizados, datos de prueba
   descartados, duplicados de Alboom fusionados, emparejados por correo y teléfono), productos con su catálogo,
   combos y costos-plantilla.
+- **Nunca fusiona personas ni productos distintos:** un correo o un teléfono solos no alcanzan; además el nombre
+  tiene que ser compatible (mismo nombre, uno contiene nombre + apellido del otro, o 60 % de palabras en común). Los
+  correos de relleno (`sincorreo@`, `no@`, `@example.`…) y los del propio estudio (miembros, contacto del branding) no
+  se guardan ni se usan; un correo o teléfono que en Alboom usan 3 o más contactos de nombres distintos no se usa
+  para emparejar. Mismo correo con otro nombre → dos clientes y conflicto «correo compartido». Productos con el mismo
+  nombre en Alboom: el inactivo se saltea si hay otro (informado); dos activos se crean por separado (conflicto). Con
+  productos o costos que ya estaban en FOTOFFICE se empareja sólo si hay exactamente un candidato, y nunca con lo
+  creado en la misma carga ni sólo por código.
 - **Privacidad:** el informe sólo guarda cantidades, motivos (textos fijos) e ids de Alboom como ejemplo. Nunca
   nombres, correos ni teléfonos.
 - **Sin Alboom:** esta etapa no llama a Alboom: sólo lee `FotofficeAlboomCrudo`. Mientras hay una simulación o

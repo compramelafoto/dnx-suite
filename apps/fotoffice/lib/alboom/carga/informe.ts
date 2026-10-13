@@ -123,9 +123,10 @@ export function sumarDecision(inf: Informe, clave: string, alboomId: string, d: 
       break;
   }
   if (d.vincula && d.accion !== "OMITIR") e.vinculados++;
-  if (d.conservados && d.conservados.length > 0) {
+  if ((d.conservados?.length ?? 0) + (d.conflictos?.length ?? 0) > 0) {
     e.conflictos++;
-    for (const c of d.conservados) anotar(e, "conflictos", motivoConservado(c), alboomId);
+    for (const c of d.conservados ?? []) anotar(e, "conflictos", motivoConservado(c), alboomId);
+    for (const c of d.conflictos ?? []) anotar(e, "conflictos", c, alboomId);
   }
   for (const duda of d.dudas ?? []) {
     e.dudas++;
