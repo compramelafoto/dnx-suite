@@ -63,9 +63,12 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
           isActive: true,
         },
       }),
+      // Preventas pagadas reales (sin pruebas ni canceladas).
       prisma.preCompraOrder.count({
         where: {
           album: { schoolId },
+          isTest: false,
+          status: "PAID_HELD",
         },
       }),
     ]);
