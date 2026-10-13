@@ -110,7 +110,7 @@ export function SchoolCommissionsTab({ schoolId }: Props) {
         r.album.title.replace(/"/g, '""'),
         r.order.id,
         r.amount,
-        r.status,
+        r.paidThenCancelled ? "CANCELLED_AFTER_PAID" : r.status,
         (r.paymentMethod ?? "").replace(/"/g, '""'),
       ]
         .map((cell) => `"${String(cell)}"`)
@@ -150,10 +150,13 @@ export function SchoolCommissionsTab({ schoolId }: Props) {
                   <Wallet className="h-5 w-5" aria-hidden />
                 </span>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Acumulado</p>
-                  <p className="mt-1 text-2xl font-semibold text-[#111827]">
-                    {formatCurrencyArs(summary.acumulado)}
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+                    Beneficio vigente
                   </p>
+                  <p className="mt-1 text-2xl font-semibold text-[#111827]">
+                    {formatCurrencyArs(summary.beneficioVigente ?? summary.acumulado)}
+                  </p>
+                  <p className="mt-1 text-xs text-[#6b7280]">Sin anuladas ni rechazadas.</p>
                 </div>
               </div>
             </Card>
@@ -201,6 +204,20 @@ export function SchoolCommissionsTab({ schoolId }: Props) {
           <p className="col-span-full text-sm text-[#6b7280]">No hay resumen de comisiones.</p>
         )}
       </div>
+      {summary ? (
+        <div className="grid gap-2 text-sm text-[#374151] sm:grid-cols-3">
+          <p>
+            Anuladas (no se pagan): <strong>{formatCurrencyArs(summary.cancelado ?? 0)}</strong>
+          </p>
+          <p>
+            Rechazadas: <strong>{formatCurrencyArs(summary.rechazado ?? 0)}</strong>
+          </p>
+          <p className={(summary.aCompensar ?? 0) > 0 ? "text-amber-800" : undefined}>
+            A compensar por devoluciones (pagadas y luego anuladas):{" "}
+            <strong>{formatCurrencyArs(summary.aCompensar ?? 0)}</strong>
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-4 rounded-2xl border border-[#e5e7eb] bg-[#fafafa] px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
@@ -308,7 +325,7 @@ export function SchoolCommissionsTab({ schoolId }: Props) {
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE[r.status]}`}
                       >
-                        {STATUS_LABEL[r.status]}
+                        {r.paidThenCancelled ? "Pagado y anulado (a compensar)" : STATUS_LABEL[r.status]}
                       </span>
                     </td>
                     <td className="border-b border-[#f9fafb] px-4 py-4 text-[#374151]">

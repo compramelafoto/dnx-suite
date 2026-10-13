@@ -3,6 +3,15 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { sendEmail } from "@/emails/send";
+import {
+  DNX_ESCOLAR_SOURCE,
+  buildDnxEscolarLeadEmail,
+  buildSchoolLeadNotes,
+  sanitizeLevels,
+  sanitizeSource,
+  sanitizeUtm,
+} from "@/lib/dnx-escolar/lead-notes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +60,30 @@ function normalizeApproxStudents(value: unknown): number | null {
   if (!Number.isFinite(parsed)) return null;
   const intParsed = Math.floor(parsed);
   return intParsed >= 0 ? intParsed : null;
+}
+
+/**
+ * Aviso a la casilla de DNX. Nunca rompe la solicitud: el lead ya quedó guardado.
+ * `sendEmail` de emails/send.ts registra el envío en SentEmailLog; si falta RESEND_API_KEY
+ * o EMAIL_FROM tira antes de enviar, y eso se loguea acá.
+ */
+async function notifyDnxEscolarLead(lead: Parameters<typeof buildDnxEscolarLeadEmail>[0]): Promise<void> {
+  const to = process.env.DNX_ESCOLAR_LEADS_EMAIL?.trim() || "dnxfotografia@gmail.com";
+  try {
+    const { subject, html } = buildDnxEscolarLeadEmail(lead);
+    const result = await sendEmail({
+      to,
+      subject,
+      html,
+      replyTo: lead.email ?? undefined,
+      templateKey: "SCHOOL_LEAD_DNX",
+    });
+    if (!result.success) {
+      console.error("POST /api/school-leads: no se pudo enviar el aviso a DNX", { leadId: lead.leadId, error: result.error });
+    }
+  } catch (err) {
+    console.error("POST /api/school-leads: falló el aviso a DNX", { leadId: lead.leadId, err });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -102,6 +135,12 @@ export async function POST(req: NextRequest) {
   }
 
   const data = parsed.data;
+  // Campos opcionales de la landing /dnx/escolar. Se limpian en vez de rechazar: un valor
+  // inválido se descarta y la solicitud sigue (las de /escuelas no los mandan).
+  const levels = sanitizeLevels((payload as { levels?: unknown }).levels);
+  const source = sanitizeSource((payload as { source?: unknown }).source);
+  const utm = sanitizeUtm((payload as { utm?: unknown }).utm);
+  const notes = buildSchoolLeadNotes({ source, levels, utm });
   const normalizedWhatsapp = normalizeWhatsapp(data.whatsapp);
   if (countDigits(normalizedWhatsapp) < 8) {
     return NextResponse.json({ error: "Ingresá un WhatsApp válido." }, { status: 400 });
@@ -143,9 +182,25 @@ export async function POST(req: NextRequest) {
         referralCode: data.referralCode || null,
         referredByUserId,
         referrerRole,
+        notes,
       },
       select: { id: true },
     });
+
+    if (source === DNX_ESCOLAR_SOURCE) {
+      await notifyDnxEscolarLead({
+        leadId: created.id,
+        schoolName: data.schoolName,
+        city: data.city,
+        contactName: data.contactName,
+        email: normalizeOptionalString(data.email),
+        phone: normalizedWhatsapp,
+        approxStudents: typeof data.approxStudents === "number" ? data.approxStudents : null,
+        levels,
+        message: normalizeOptionalString(data.message),
+        utm,
+      });
+    }
 
     return NextResponse.json({ ok: true, leadId: created.id });
   } catch (err) {

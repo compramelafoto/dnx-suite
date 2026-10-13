@@ -16,7 +16,8 @@ export type EmailTemplateKey =
   | "ALBUM_INTEREST_DIGEST"
   | "ADMIN_MANUAL"
   | "SUPPORT_REPLY"
-  | "BOT_CODIGO";
+  | "BOT_CODIGO"
+  | "SCHOOL_LEAD_DNX";
 
 export type SendEmailParams = {
   to: string;
