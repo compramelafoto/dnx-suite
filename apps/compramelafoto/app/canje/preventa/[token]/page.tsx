@@ -12,6 +12,7 @@ import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificationGate";
 import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
+import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
 import {
   isPlaceholderEmail,
   parseExternalPreventaRefs,
@@ -127,6 +128,40 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       />
     );
   }
+  /*
+   * Modo prueba: un pack marcado `isTest` lo arma el equipo para que el fotógrafo recorra el
+   * canje exactamente como una familia (elegir fotos, ver el librito armado, confirmar) sin
+   * tocar el pack de ninguna familia real. Sólo lo abre el dueño del álbum con su sesión, y
+   * entra sin selfie: él no aparece en las fotos.
+   */
+  let modoPrueba = false;
+  if (order.isTest) {
+    const viewer = await getAuthUser().catch(() => null);
+    if (!viewer || viewer.id !== album.userId) {
+      return (
+        <Aviso
+          titulo="Este pack es de prueba"
+          texto="Sólo lo puede abrir el fotógrafo del álbum, con su cuenta iniciada."
+        />
+      );
+    }
+    modoPrueba = true;
+  }
+
+  if (order.redemptionOrderId != null && modoPrueba) {
+    return (
+      <section className="mx-auto max-w-lg px-4 py-16">
+        <div className="rounded-2xl border border-[#e7e1da] bg-white p-6">
+          <h1 className="m-0 text-xl font-semibold text-[#1f2328]">Esta prueba ya se canjeó</h1>
+          <p className="m-0 mt-2 text-[#4b4f56]">
+            El canje quedó como pedido de prueba: no se cobra ni entra en tus ventas. Reiniciala para
+            volver a recorrerla desde el principio con este mismo link.
+          </p>
+          <ReiniciarPruebaButton token={token} />
+        </div>
+      </section>
+    );
+  }
   if (order.redemptionOrderId != null) {
     return (
       <Aviso
@@ -153,25 +188,6 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     );
   }
 
-  /*
-   * Modo prueba: un pack marcado `isTest` lo arma el equipo para que el fotógrafo recorra el
-   * canje exactamente como una familia (elegir fotos, ver el librito armado, confirmar) sin
-   * tocar el pack de ninguna familia real. Sólo lo abre el dueño del álbum con su sesión, y
-   * entra sin selfie: él no aparece en las fotos.
-   */
-  let modoPrueba = false;
-  if (order.isTest) {
-    const viewer = await getAuthUser().catch(() => null);
-    if (!viewer || viewer.id !== album.userId) {
-      return (
-        <Aviso
-          titulo="Este pack es de prueba"
-          texto="Sólo lo puede abrir el fotógrafo del álbum, con su cuenta iniciada."
-        />
-      );
-    }
-    modoPrueba = true;
-  }
 
   let snapshot;
   try {
