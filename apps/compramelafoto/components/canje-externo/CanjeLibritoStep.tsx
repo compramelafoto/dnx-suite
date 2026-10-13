@@ -115,6 +115,13 @@ export default function CanjeLibritoStep({
 
   const [libroIdx, setLibroIdx] = useState(0);
   const [page, setPage] = useState(0);
+  /*
+   * Giro de la vista, de a 90°. En un diseño apaisado con textos de costado (la carpeta de San
+   * Patricio) la familia lo puede poner derecho para leerlo. Sólo cambia cómo se ve acá: lo
+   * impreso no se gira.
+   */
+  const [giro, setGiro] = useState(0);
+  const deCostado = giro % 180 !== 0;
   const [sheet, setSheet] = useState<{ blockId: string; tab: "cambiar" | "acomodar" } | null>(null);
   const [verTodas, setVerTodas] = useState(false);
   const [deshacer, setDeshacer] = useState<{ texto: string; filled: Array<number | null>; crops: Record<number, CanjeCropEntry> } | null>(null);
@@ -129,13 +136,45 @@ export default function CanjeLibritoStep({
     return () => clearTimeout(t);
   }, [deshacer]);
 
+  // Teclado: ← y → pasan de hoja, ↑ gira la vista. No mientras se acomoda una foto ni al
+  // escribir en un campo.
+  // El total de hojas se calcula acá: el hook va antes de la salida anticipada de abajo.
+  const totalHojas = Math.max(1, libro?.template.pageCount ?? 1);
+  useEffect(() => {
+    if (sheet) return;
+    const pageCount = totalHojas;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (e.key === "ArrowRight" && pageCount > 1) {
+        e.preventDefault();
+        setPage((p) => Math.min(pageCount - 1, p + 1));
+      } else if (e.key === "ArrowLeft" && pageCount > 1) {
+        e.preventDefault();
+        setPage((p) => Math.max(0, p - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setGiro((g) => (g + 90) % 360);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheet, totalHojas]);
+
   if (!libro) return null;
   const t = libro.template;
   const canvasW = Number(t.canvas.width) || 1;
   const canvasH = Number(t.canvas.height) || 1;
   const pageCount = Math.max(1, t.pageCount);
+
   const maxW = Math.min(areaWidth, 420);
-  const scale = maxW > 0 ? Math.min(maxW / canvasW, 560 / canvasH) : 0;
+  // Girado un cuarto de vuelta, el ancho que ocupa en pantalla es el alto del diseño.
+  const scale =
+    maxW > 0
+      ? deCostado
+        ? Math.min(maxW / canvasH, 560 / canvasW)
+        : Math.min(maxW / canvasW, 560 / canvasH)
+      : 0;
   const pageLabel = (i: number) =>
     t.pageLabels[i]?.trim() ||
     (pageCount === 1 ? "Diseño" : i === 0 ? "Tapa" : i === pageCount - 1 ? "Contratapa" : `Página ${i + 1}`);
@@ -256,9 +295,63 @@ export default function CanjeLibritoStep({
         </div>
       ) : null}
 
-      <div ref={areaRef} className="flex w-full justify-center">
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setGiro((g) => (g + 90) % 360)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-[#1f2328] ring-1 ring-[#e7e1da] hover:ring-[#c27b3d]"
+          aria-label="Girar la vista 90 grados"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+            <path d="M20 4v5h-5" />
+          </svg>
+          Girar
+        </button>
+      </div>
+
+      <div ref={areaRef} className="relative flex w-full items-center justify-center">
+        {pageCount > 1 && scale > 0 ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              aria-label="Hoja anterior"
+              className="absolute left-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-xl text-[#1f2328] shadow-[0_2px_8px_rgba(0,0,0,.2)] disabled:opacity-0"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={page === pageCount - 1}
+              aria-label="Hoja siguiente"
+              className="absolute right-0 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-xl text-[#1f2328] shadow-[0_2px_8px_rgba(0,0,0,.2)] disabled:opacity-0"
+            >
+              ›
+            </button>
+          </>
+        ) : null}
         {scale > 0 ? (
-          <div className="relative" style={{ width: canvasW * scale, height: canvasH * scale }}>
+          <div
+            className="relative"
+            style={{
+              width: (deCostado ? canvasH : canvasW) * scale,
+              height: (deCostado ? canvasW : canvasH) * scale,
+            }}
+          >
+          <div
+            className="absolute"
+            style={{
+              width: canvasW * scale,
+              height: canvasH * scale,
+              left: "50%",
+              top: "50%",
+              transform: `translate(-50%, -50%) rotate(${giro}deg)`,
+              transition: "transform 200ms ease",
+            }}
+          >
             <div className="absolute inset-0 overflow-hidden rounded-[4px_10px_10px_4px] bg-white shadow-[0_1px_1px_rgba(40,30,20,.08),0_10px_28px_-10px_rgba(40,30,20,.35)]">
               <div
                 style={{
@@ -315,6 +408,7 @@ export default function CanjeLibritoStep({
                 </button>
               );
             })}
+          </div>
           </div>
         ) : (
           <div className="aspect-[3/4] w-full max-w-sm animate-pulse rounded-lg bg-[#efe9e2]" />
