@@ -62,8 +62,9 @@ export const DEFAULT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
   line: "#454545",
   lineStrong: "#5c5c5c",
   ink: "#e6e6e6",
-  inkMuted: "#a6a6a6",
-  inkFaint: "#7c7c7c",
+  // Contraste mínimo 4,5:1 sobre los paneles (#323232) para el texto secundario.
+  inkMuted: "#b4b4b4",
+  inkFaint: "#a3a3a3",
   accent: "#3b8eea",
   accentInk: "#ffffff",
   accentWash: "rgba(59, 142, 234, 0.22)",
