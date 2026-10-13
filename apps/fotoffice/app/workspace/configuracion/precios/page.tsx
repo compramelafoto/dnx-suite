@@ -42,6 +42,11 @@ export default async function ConfiguracionPreciosPage() {
           Importado de ¿Cuánto Cobro? de CompraMeLaFoto.
         </p>
       ) : null}
+      {guardado?.source === "dnx-bot" ? (
+        <p role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">
+          Armado con DNX Bot.
+        </p>
+      ) : null}
       <PerfilForm inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE} />
     </div>
   );
