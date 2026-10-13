@@ -32,6 +32,8 @@ export type PrintExportPlan = {
   manifestHeader: string[];
   files: PrintExportFile[];
   pdfBytes: Uint8Array;
+  /** Avisos de texto dentro de la carpeta del pedido (p. ej. un diseño todavía sin aprobar). */
+  notes?: Array<{ name: string; content: string }>;
 };
 
 function appendAndWait(archive: Archiver, data: Buffer | string, name: string): Promise<void> {
@@ -70,6 +72,9 @@ async function writePlan(archive: Archiver, plan: PrintExportPlan): Promise<void
       console.error("[print-export] no se pudo leer", file.r2Key, err);
     }
     lines.push(ok ? file.manifestLine : file.missingLine);
+  }
+  for (const note of plan.notes ?? []) {
+    await appendAndWait(archive, note.content, `${plan.folder}/${note.name}`);
   }
   await appendAndWait(archive, lines.join("\n"), `${plan.folder}/MANIFEST.txt`);
   await appendAndWait(archive, Buffer.from(plan.pdfBytes), `${plan.folder}/RESUMEN_PEDIDO.pdf`);
