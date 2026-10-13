@@ -1,13 +1,24 @@
 /**
- * Evaluación de DNX Bot en FOTOFFICE contra la API real de Anthropic, con las herramientas reales
- * cuyo run/describe sólo registran qué se llamó (spec §10). GASTA DINERO REAL (≈ USD 1 por corrida
- * completa): correr sólo con permiso de Daniel.
+ * Evaluación de DNX Bot en FOTOFFICE contra la API real de Anthropic (spec §10). GASTA DINERO REAL
+ * (≈ USD 1 por corrida completa): correr sólo con permiso de Daniel.
  *   ANTHROPIC_API_KEY=... pnpm --filter fotoffice bot:eval
  * Un solo caso: BOT_EVAL_ID=<id>.
+ *
+ * Las herramientas de lectura corren de verdad sobre un perfil de prueba (sin base); las de
+ * escritura sólo registran la propuesta. Además de lo que pide cada escenario, toda cifra del
+ * texto tiene que salir del mensaje o de un resultado de herramienta.
  */
 import { Anthropic, runBotTurn, type BotActor, type BotTool } from "@repo/dnx-bot";
+import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 import type { CtxBot } from "../lib/dnx-bot/acceso";
-import { ESCENARIOS, fallasDeEntrada, type Escenario, type LlamadaRegistrada } from "../lib/dnx-bot/evals/escenarios";
+import {
+  ESCENARIOS,
+  fallasDeCifras,
+  fallasDeEntrada,
+  fallasDeTexto,
+  type Escenario,
+  type LlamadaRegistrada,
+} from "../lib/dnx-bot/evals/escenarios";
 import { guiaDelBot } from "../lib/dnx-bot/guia";
 import { herramientasPara } from "../lib/dnx-bot/herramientas";
 
@@ -28,11 +39,23 @@ function ctxDe(e: Escenario): CtxBot {
   };
 }
 
+function herramientasDe(e: Escenario): BotTool[] {
+  const perfil = e.perfil === "completo" ? createBaseCompleteProfile() : null;
+  return herramientasPara(ctxDe(e), {
+    perfil: {
+      leer: async () => (perfil ? { perfil, source: "manual", actualizado: new Date() } : null),
+      guardar: async () => {
+        throw new Error("bot:eval nunca guarda");
+      },
+    },
+  });
+}
+
 async function main() {
   const filtro = process.env.BOT_EVAL_ID?.trim();
   const escenarios = filtro ? ESCENARIOS.filter((e) => e.id === filtro) : ESCENARIOS;
   if (escenarios.length === 0) {
-    console.log("No hay escenarios para correr todavía: no se llamó a la API.");
+    console.log("No hay escenarios para correr: no se llamó a la API.");
     process.exit(0);
   }
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -44,15 +67,20 @@ async function main() {
   let fallas = 0;
   for (const e of escenarios) {
     const llamadas: LlamadaRegistrada[] = [];
-    // Definiciones reales (nombre, descripción, esquema); sólo se reemplaza lo que toca la base.
-    const tools: BotTool[] = herramientasPara(ctxDe(e)).map((t) => ({
-      ...t,
-      ...(t.kind === "write" ? { describe: async () => `(prueba) ${t.name}` } : {}),
-      run: async (input) => {
-        llamadas.push({ herramienta: t.name, entrada: input });
-        return { ok: true, message: "ok (prueba)", data: {} };
-      },
-    }));
+    const salidas: string[] = [];
+    const tools: BotTool[] = herramientasDe(e).map((t) =>
+      t.kind === "write"
+        ? { ...t, describe: async () => `(prueba) ${t.name}`, run: async () => ({ ok: true, message: "ok (prueba)" }) }
+        : {
+            ...t,
+            run: async (input, actor) => {
+              llamadas.push({ herramienta: t.name, entrada: input });
+              const out = await t.run(input, actor);
+              salidas.push(JSON.stringify(out));
+              return out;
+            },
+          },
+    );
     let texto = "";
     const resultado = await runBotTurn({
       client: client as never,
@@ -80,7 +108,8 @@ async function main() {
       ...(e.debeUsarAlguna && !e.debeUsarAlguna.some((t) => usadas.includes(t)) ? [`no usó ninguna de ${e.debeUsarAlguna.join("/")}`] : []),
       ...(e.debeUsar ?? []).filter((t) => !usadas.includes(t)).map((t) => `no usó ${t}`),
       ...(e.noDebeUsar ?? []).filter((t) => usadas.includes(t)).map((t) => `usó ${t}`),
-      ...(e.textoNoDebeContener ?? []).filter((r) => r.test(texto)).map((r) => `texto contiene ${r}`),
+      ...fallasDeTexto(e, texto),
+      ...fallasDeCifras(e, texto, salidas),
       ...fallasDeEntrada(e, llamadas),
     ];
     if (errores.length) fallas++;

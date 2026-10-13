@@ -70,3 +70,30 @@ export async function avisarSinClave(ahora: Date = new Date()): Promise<void> {
     console.error("[dnx-bot] aviso sin clave", e);
   }
 }
+
+/**
+ * El texto del bot tuvo una cifra que no salió del cálculo ni de la persona (spec §5.4). Una firma
+ * por workspace y día; al tercer caso del día, aviso por Telegram. Sólo la cantidad: nunca las
+ * cifras (pueden ser gastos personales del perfil).
+ */
+export async function reportarCifraNoRespaldada(p: {
+  plataforma: string;
+  ids: Record<string, string | number>;
+  cantidad: number;
+  ahora?: Date;
+}): Promise<void> {
+  const dia = diaArgentino(p.ahora ?? new Date());
+  const r = await registrarIncidente({
+    plataforma: p.plataforma,
+    signature: incidentSignature({ area: "cifras", codigo: "cifra_no_respaldada", dia }),
+    title: `cifras: cifra_no_respaldada (${dia})`,
+    data: { ids: p.ids, cantidad: p.cantidad },
+    urgent: false,
+  });
+  if (r.occurrences === 3 && tomarCupo()) {
+    await sendTelegramMessage(
+      leerConfigBot().telegram,
+      `⚠️ FOTOFFICE · DNX Bot escribió hoy por tercera vez una cifra que no salió del cálculo (${p.plataforma}). Revisar las conversaciones.`,
+    );
+  }
+}

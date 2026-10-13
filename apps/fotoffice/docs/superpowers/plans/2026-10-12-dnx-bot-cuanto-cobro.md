@@ -397,6 +397,12 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 - [ ] Escenarios 1–5 de §10 en `evals/escenarios.ts` (+ test). **No correr `bot:eval` sin permiso de Daniel.**
 - [ ] Verificación completa (como 1.15) y PR.
 
+**Notas de ejecución del PR 2 (12/10):**
+- La distribución del tiempo se pregunta en horas y el perfil la guarda en porcentajes: la conversión vive en `lib/precios/perfil-datos.ts` (`distribucionDesdeHoras`, `horasPorTarea`), no en `lib/dnx-bot`.
+- `herramientasDePerfil(ctx, deps?)` recibe la lectura y el guardado del perfil para que `bot:eval` corra las herramientas de lectura de verdad sobre un perfil de prueba, sin base. `bot:eval` carga `scripts/sin-server-only.mjs` (fuera de Next, `server-only` no existe).
+- El verificador de cifras no agrega un evento nuevo a la burbuja: su aviso sale como texto al final del turno (`revisarRespuesta` en `turno-sse.ts`).
+- `Escenario` suma `perfil` y `textoDebeContener`; `bot:eval` además exige que toda cifra del texto salga del mensaje o de una herramienta.
+
 ---
 
 # PR 3 · Etapa 2 · Cotizar y pasar a presupuesto

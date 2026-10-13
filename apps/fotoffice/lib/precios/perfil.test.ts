@@ -36,6 +36,19 @@ describe("perfil de precios", () => {
     expect(fila).toMatchObject({ workspaceId: "ws-1", schemaVersion: 1, updatedByUserId: 1 });
   });
 
+  it("con source dnx-bot guarda ese origen; sin opción, manual", async () => {
+    expect(await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { source: "dnx-bot" })).toEqual({ ok: true });
+    expect((await leerPerfilPrecios(DUENO))?.source).toBe("dnx-bot");
+    await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());
+    expect((await leerPerfilPrecios(DUENO))?.source).toBe("manual");
+  });
+
+  it("un origen desconocido no se guarda", async () => {
+    const r = await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { source: "otro" as never });
+    expect(r.ok).toBe(false);
+    expect(B.datos.fotofficePerfilPrecios).toHaveLength(0);
+  });
+
   it("guardar dos veces deja una sola fila", async () => {
     await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());
     await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());

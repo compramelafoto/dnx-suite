@@ -25,4 +25,17 @@ describe("armarSituacion", () => {
     const s = armarSituacion({ rol: "WORKSPACE_OWNER", capacidades: DUENO, contexto: ctx, workspaceNombre: null });
     expect(s).not.toContain("cm999");
   });
+  it("estado del perfil: completo, incompleto con lo que falta, o sin armar; nunca montos", () => {
+    const base = { rol: "WORKSPACE_OWNER", capacidades: DUENO, contexto: ctx, workspaceNombre: null };
+    expect(armarSituacion({ ...base, perfil: { existe: true, completo: true, faltan: [], origen: "clf-import" } })).toContain(
+      "Perfil de precios: completo (importado de CompraMeLaFoto).",
+    );
+    expect(armarSituacion({ ...base, perfil: { existe: true, completo: false, faltan: ["Software y herramientas"], origen: "manual" } })).toContain(
+      "Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.",
+    );
+    expect(armarSituacion({ ...base, perfil: { existe: false, completo: false, faltan: ["x"], origen: null } })).toContain(
+      "Perfil de precios: todavía no está armado.",
+    );
+    expect(armarSituacion({ ...base, perfil: null })).not.toContain("Perfil de precios");
+  });
 });

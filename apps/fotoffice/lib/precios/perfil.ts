@@ -12,6 +12,10 @@ export type PerfilGuardado = { perfil: CuantoCobroProfileInput; source: string |
 
 const SIN_PERMISO = "Sólo el dueño o un administrador pueden configurar los precios.";
 
+/** De dónde salió el perfil guardado: el formulario o DNX Bot ("clf-import" lo escribe sólo el script de importación). */
+export const ORIGENES_DE_GUARDADO = ["manual", "dnx-bot"] as const;
+export type OrigenDeGuardado = (typeof ORIGENES_DE_GUARDADO)[number];
+
 export async function leerPerfilPrecios(ctx: CtxPresupuestos): Promise<PerfilGuardado | null> {
   if (!veCostos(ctx)) return null;
   const fila = await prisma.fotofficePerfilPrecios.findUnique({
@@ -27,16 +31,19 @@ export async function leerPerfilPrecios(ctx: CtxPresupuestos): Promise<PerfilGua
 export async function guardarPerfilPrecios(
   ctx: CtxPresupuestos,
   datos: unknown,
+  opciones: { source?: OrigenDeGuardado } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!veCostos(ctx)) return { ok: false, error: SIN_PERMISO };
+  const source = opciones.source ?? "manual";
+  if (!ORIGENES_DE_GUARDADO.includes(source)) return { ok: false, error: "Los datos del perfil no son válidos." };
   const v = validarPerfil(datos);
   if (!v.ok) return { ok: false, error: v.error };
   try {
     const profileData = JSON.parse(JSON.stringify(v.perfil));
     await prisma.fotofficePerfilPrecios.upsert({
       where: { workspaceId: ctx.workspaceId },
-      create: { workspaceId: ctx.workspaceId, schemaVersion: 1, profileData, source: "manual", updatedByUserId: ctx.userId },
-      update: { schemaVersion: 1, profileData, source: "manual", updatedByUserId: ctx.userId },
+      create: { workspaceId: ctx.workspaceId, schemaVersion: 1, profileData, source, updatedByUserId: ctx.userId },
+      update: { schemaVersion: 1, profileData, source, updatedByUserId: ctx.userId },
     });
     return { ok: true };
   } catch (e) {

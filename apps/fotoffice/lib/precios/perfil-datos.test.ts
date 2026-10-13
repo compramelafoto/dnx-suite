@@ -131,3 +131,21 @@ describe("tope del perfil frente al motor", () => {
     expect(entradaDelMotor(entrada)).not.toBeNull();
   });
 });
+
+describe("distribución en horas (DNX Bot)", () => {
+  it("de horas por tarea a porcentajes que el motor acepta, y de vuelta", async () => {
+    const { distribucionDesdeHoras, horasPorTarea } = await import("./perfil-datos");
+    const { isTimeDistributionValid } = await import("@repo/cuanto-cobro-core");
+    const horas = { coverage: 10, editing: 15, administration: 7, sales: 5, marketing: 5, training: 3 };
+    const d = distribucionDesdeHoras(horas, 45)!;
+    expect(isTimeDistributionValid(d, 45)).toBe(true);
+    expect(horasPorTarea({ weeklyHours: "45", timeDistribution: d })).toEqual(horas);
+  });
+  it("sin horas por semana no hay distribución; si no suman, el motor la rechaza", async () => {
+    const { distribucionDesdeHoras } = await import("./perfil-datos");
+    const { isTimeDistributionValid } = await import("@repo/cuanto-cobro-core");
+    expect(distribucionDesdeHoras({ coverage: 10 }, 0)).toBeNull();
+    const d = distribucionDesdeHoras({ coverage: 10, editing: 10 }, 45)!;
+    expect(isTimeDistributionValid(d, 45)).toBe(false);
+  });
+});

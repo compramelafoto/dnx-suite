@@ -1,12 +1,14 @@
 // Lógica pura (sin React) de la burbuja: convierte eventos SSE en la lista de mensajes.
 import { parseProgreso, type ProgresoEscolar } from "./globito";
+import { parseTarjetaCalculo, type TarjetaCalculo } from "./calculo";
 
 export type Item =
   | { kind: "user"; text: string }
   | { kind: "bot"; text: string }
   | { kind: "proposal"; actionId: string; summary: string; state: "pending" | "done" | "rejected" | "failed"; result?: string; canUndo?: boolean }
   | { kind: "notice"; text: string; offerTicket?: boolean }
-  | { kind: "progreso"; progreso: ProgresoEscolar };
+  | { kind: "progreso"; progreso: ProgresoEscolar }
+  | { kind: "calculo"; tarjeta: TarjetaCalculo };
 
 /** Pone la tarjeta de progreso al final y saca la anterior: siempre queda una sola, la más nueva. */
 export function withProgreso(items: Item[], progreso: ProgresoEscolar): Item[] {
@@ -33,6 +35,10 @@ export function applySseEvent(items: Item[], event: string, d: Record<string, un
     const p = parseProgreso(d);
     // Como la propuesta: la tarjeta y después un bot vacío para que el texto siga debajo.
     return p ? [...withProgreso(items, p), { kind: "bot", text: "" }] : items;
+  }
+  if (event === "calculo") {
+    const t = parseTarjetaCalculo(d);
+    return t ? [...items, { kind: "calculo", tarjeta: t }, { kind: "bot", text: "" }] : items;
   }
   if (event === "error") {
     return [...items, { kind: "notice", text: String(d.message), offerTicket: Boolean(d.offerTicket) }];
