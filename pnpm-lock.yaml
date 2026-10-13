@@ -616,6 +616,9 @@ importers:
       '@repo/design-studio':
         specifier: workspace:*
         version: link:../../packages/design-studio
+      '@repo/dnx-bot':
+        specifier: workspace:*
+        version: link:../../packages/dnx-bot
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
