@@ -154,6 +154,18 @@ describe("ciclo de la extracción", () => {
   });
 });
 
+describe("con una simulación o carga de la 8B-1 en curso", () => {
+  it("no se extrae ni se borra lo extraído (cambiarían los datos a mitad); otro workspace sí", async () => {
+    B.datos.cargas.push({ id: "c1", workspaceId: "ws-1", status: "CORRIENDO" });
+    const mensaje = { ok: false, error: "Hay una simulación o carga desde Alboom en curso: esperá a que termine." };
+    expect(await X.iniciarExtraccion("ws-1", 7, "TODO")).toEqual(mensaje);
+    expect(await X.borrarLoExtraido("ws-1")).toEqual(mensaje);
+    expect(await X.iniciarExtraccion("ws-2", 7, "TODO")).toMatchObject({ ok: true });
+    B.datos.cargas[0]!.status = "LISTA";
+    expect(await X.iniciarExtraccion("ws-1", 7, "TODO")).toMatchObject({ ok: true });
+  });
+});
+
 describe("credencial de Alboom", () => {
   it("valida el inicio de sesión, guarda cifrado y nunca deja la contraseña en claro", async () => {
     const { impl } = alboomFetch();

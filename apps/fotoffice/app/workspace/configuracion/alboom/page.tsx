@@ -6,9 +6,13 @@ import { resumirAvance, type EstadoEntidad } from "@/lib/alboom/avance";
 import { resumenConexionAlboom } from "@/lib/alboom/credenciales";
 import { ENTIDADES } from "@/lib/alboom/entidades";
 import { ultimaExtraccion, type EstadoExtraccion } from "@/lib/alboom/extracciones";
+import { PARTES } from "@/lib/alboom/carga/catalogo";
+import { estadoCargaAlboom } from "@/lib/alboom/carga/servidor";
 import { fechaHoraBA } from "@/lib/ficha/formato";
 import { AutoRefresco, BorrarLoExtraido, Cancelar, Desconectar, Extraer, ProbarConexion } from "./botones";
+import { CancelarCarga, Cargar, Simular } from "./carga-botones";
 import { ConexionForm } from "./conexion-form";
+import { InformeCarga } from "./informe-carga";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +52,14 @@ export default async function MigracionAlboomPage() {
     );
   }
 
-  const [conexion, extraccion, crudos] = await Promise.all([
+  const [conexion, extraccion, crudos, cargas] = await Promise.all([
     resumenConexionAlboom(workspace.id),
     ultimaExtraccion(workspace.id),
     contarCrudosPorEntidad(workspace.id),
+    estadoCargaAlboom(workspace.id),
   ]);
+  const nombresPartes = Object.fromEntries(PARTES.map((p) => [p.clave, p.nombre]));
+  const cargaActiva = cargas.activa;
   const totalCrudos = Object.values(crudos).reduce((s, v) => s + v, 0);
   const activa = extraccion?.status === "PENDIENTE" || extraccion?.status === "CORRIENDO";
   const resumen = extraccion ? resumirAvance(extraccion.avance) : null;
@@ -187,7 +194,47 @@ export default async function MigracionAlboomPage() {
         </div>
       </section>
 
-      {totalCrudos > 0 && !activa ? (
+      {totalCrudos > 0 ? (
+        <section className="fo-card space-y-5 p-5" aria-labelledby="alboom-cargar">
+          <div className="space-y-2">
+            <h2 id="alboom-cargar" className="text-base font-semibold">
+              Cargar en FOTOFFICE
+            </h2>
+            <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
+              Primero se simula: FotoOffice traduce lo extraído y te muestra qué crearía, qué completaría y qué dejaría
+              afuera, sin cambiar nada. Si estás de acuerdo, cargás. Volver a cargar nunca duplica, y lo que editaste en
+              FotoOffice después de una carga no se pisa. En esta etapa se cargan los datos base: equipo, orígenes,
+              categorías, etiquetas, embudos y flujos, contactos y productos.
+            </p>
+          </div>
+
+          {cargaActiva ? (
+            <div className="space-y-3">
+              <InformeCarga titulo={cargaActiva.mode === "SIMULACION" ? "Simulación en curso" : "Carga en curso"} carga={cargaActiva} nombres={nombresPartes} />
+              <CancelarCarga />
+              <AutoRefresco />
+            </div>
+          ) : activa ? (
+            <p className="text-sm">Esperá a que termine la extracción para simular o cargar.</p>
+          ) : (
+            <div className="space-y-4">
+              <Simular partes={PARTES.map((p) => ({ clave: p.clave, nombre: p.nombre }))} />
+              {cargas.cargaHabilitada.ok ? (
+                <Cargar />
+              ) : (
+                <p className="text-sm text-[var(--fo-muted)]">{cargas.cargaHabilitada.error}</p>
+              )}
+            </div>
+          )}
+
+          {cargas.simulacion && cargas.simulacion.id !== cargaActiva?.id ? (
+            <InformeCarga titulo="Última simulación" carga={cargas.simulacion} nombres={nombresPartes} />
+          ) : null}
+          {cargas.carga && cargas.carga.id !== cargaActiva?.id ? <InformeCarga titulo="Última carga" carga={cargas.carga} nombres={nombresPartes} /> : null}
+        </section>
+      ) : null}
+
+      {totalCrudos > 0 && !activa && !cargaActiva ? (
         <section className="fo-card space-y-3 p-5" aria-labelledby="alboom-borrar">
           <h2 id="alboom-borrar" className="text-base font-semibold">
             Datos extraídos

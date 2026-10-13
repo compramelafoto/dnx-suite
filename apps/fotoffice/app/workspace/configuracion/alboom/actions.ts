@@ -13,6 +13,7 @@ import {
   resumenConexionAlboom,
 } from "@/lib/alboom/credenciales";
 import { borrarLoExtraido, cancelarExtraccion, iniciarExtraccion } from "@/lib/alboom/extracciones";
+import { cancelarCargaAlboom, cargarAlboom, simularAlboom } from "@/lib/alboom/carga/servidor";
 import { IntegrationsVaultError } from "@/lib/integrations/vault";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import type { EstadoAlboom } from "./estado";
@@ -133,4 +134,37 @@ export async function borrarLoExtraidoAction(_prev: EstadoAlboom | undefined, fd
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);
   return { error: null, ok: `Se borraron ${r.registros.toLocaleString("es-AR")} registros extraídos.` };
+}
+
+// ── Etapa 8B-1: cargar en FOTOFFICE ─────────────────────────────────────────
+
+/** "Simular": arma el informe de lo que se cargaría, sin escribir nada. Las partes elegidas llegan como `entidad`. */
+export async function simularCargaAction(_prev: EstadoAlboom | undefined, fd: FormData): Promise<EstadoAlboom> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO;
+  const elegidas = fd.getAll("entidad").filter((v): v is string => typeof v === "string" && v.length <= 40);
+  if (elegidas.length === 0) return { error: "Elegí al menos una parte para simular." };
+  const r = await simularAlboom(ctx.workspaceId, ctx.userId, elegidas);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: "Listo: la simulación arranca en los próximos minutos. No cambia nada en FotoOffice." };
+}
+
+/** "Cargar": sólo con una simulación vigente (la verifica el servidor de nuevo) y escribiendo CARGAR. */
+export async function cargarAction(_prev: EstadoAlboom | undefined, fd: FormData): Promise<EstadoAlboom> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO;
+  if (String(fd.get("confirmacion") ?? "").trim().toUpperCase() !== "CARGAR") return { error: "Escribí CARGAR para confirmar." };
+  const r = await cargarAlboom(ctx.workspaceId, ctx.userId);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: "Listo: la carga arranca en los próximos minutos y sigue sola en segundo plano." };
+}
+
+export async function cancelarCargaAction(_prev: EstadoAlboom | undefined, _fd: FormData): Promise<EstadoAlboom> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO;
+  const hubo = await cancelarCargaAlboom(ctx.workspaceId);
+  revalidatePath(RUTA);
+  return hubo ? { error: null, ok: "Cancelada. Lo que ya se cargó queda cargado (volver a cargar no lo duplica)." } : { error: "No hay una simulación ni una carga en curso." };
 }

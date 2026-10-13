@@ -14,6 +14,9 @@ const H = vi.hoisted(() => ({
   cancelar: vi.fn(),
   borrar: vi.fn(),
   cliente: vi.fn(),
+  simular: vi.fn(),
+  cargar: vi.fn(),
+  cancelarCarga: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
@@ -30,6 +33,7 @@ vi.mock("@/lib/alboom/credenciales", () => ({
   resumenConexionAlboom: H.resumen,
 }));
 vi.mock("@/lib/alboom/extracciones", () => ({ iniciarExtraccion: H.iniciar, cancelarExtraccion: H.cancelar, borrarLoExtraido: H.borrar }));
+vi.mock("@/lib/alboom/carga/servidor", () => ({ simularAlboom: H.simular, cargarAlboom: H.cargar, cancelarCargaAlboom: H.cancelarCarga }));
 vi.mock("@/lib/alboom/client", async (original) => ({ ...(await original<typeof import("@/lib/alboom/client")>()), crearClienteAlboom: H.cliente }));
 
 const A = await import("./actions");
@@ -52,6 +56,9 @@ beforeEach(() => {
   H.cancelar.mockResolvedValue(true);
   H.leerCred.mockResolvedValue({ subdomain: "estudio", username: "a@b.test", password: PASS });
   H.cliente.mockResolvedValue({});
+  H.simular.mockResolvedValue({ ok: true, id: "s1" });
+  H.cargar.mockResolvedValue({ ok: true, id: "c1" });
+  H.cancelarCarga.mockResolvedValue(true);
 });
 
 const TODAS = [
@@ -61,6 +68,9 @@ const TODAS = [
   () => A.extraerAction(undefined, fd({ modo: "TODO" })),
   () => A.cancelarExtraccionAction(undefined, fd({})),
   () => A.borrarLoExtraidoAction(undefined, fd({ confirmacion: "BORRAR" })),
+  () => A.simularCargaAction(undefined, fd({ entidad: "contactos" })),
+  () => A.cargarAction(undefined, fd({ confirmacion: "CARGAR" })),
+  () => A.cancelarCargaAction(undefined, fd({})),
 ];
 
 describe("permisos", () => {
@@ -69,7 +79,9 @@ describe("permisos", () => {
       H.role.mockReturnValue(rol);
       for (const accion of TODAS) expect((await accion()).error).toMatch(/dueño o un administrador/);
     }
-    for (const f of [H.conectar, H.leerCred, H.borrarCred, H.resumen, H.iniciar, H.cancelar, H.borrar, H.cliente]) expect(f).not.toHaveBeenCalled();
+    for (const f of [H.conectar, H.leerCred, H.borrarCred, H.resumen, H.iniciar, H.cancelar, H.borrar, H.cliente, H.simular, H.cargar, H.cancelarCarga]) {
+      expect(f).not.toHaveBeenCalled();
+    }
   });
 
   it("dueño y administrador pueden", async () => {
@@ -138,5 +150,34 @@ describe("extraer, cancelar, borrar y desconectar", () => {
     await A.desconectarAlboomAction(undefined, fd({}));
     expect(H.borrarCred).toHaveBeenCalledWith("ws-1");
     expect(H.cancelar).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("cargar en FOTOFFICE", () => {
+  it("simular pasa las partes elegidas con el workspace y el usuario de la sesión", async () => {
+    const f = fd({ workspaceId: "otro" });
+    f.append("entidad", "contactos");
+    f.append("entidad", "productos");
+    expect((await A.simularCargaAction(undefined, f)).ok).toMatch(/simulación/);
+    expect(H.simular).toHaveBeenCalledWith("ws-1", 7, ["contactos", "productos"]);
+    expect((await A.simularCargaAction(undefined, fd({}))).error).toMatch(/al menos una/);
+    H.simular.mockResolvedValue({ ok: false, error: "Ya hay una simulación o carga en curso." });
+    expect((await A.simularCargaAction(undefined, f)).error).toBe("Ya hay una simulación o carga en curso.");
+  });
+
+  it("cargar pide escribir CARGAR y devuelve el motivo si no hay simulación vigente", async () => {
+    expect((await A.cargarAction(undefined, fd({ confirmacion: "si" }))).error).toMatch(/CARGAR/);
+    expect(H.cargar).not.toHaveBeenCalled();
+    expect((await A.cargarAction(undefined, fd({ confirmacion: "cargar" }))).ok).toMatch(/carga arranca/);
+    expect(H.cargar).toHaveBeenCalledWith("ws-1", 7);
+    H.cargar.mockResolvedValue({ ok: false, error: "Primero simulá: la carga sólo se habilita con una simulación terminada." });
+    expect((await A.cargarAction(undefined, fd({ confirmacion: "CARGAR" }))).error).toMatch(/Primero simulá/);
+  });
+
+  it("cancelar va por el workspace de la sesión", async () => {
+    expect((await A.cancelarCargaAction(undefined, fd({ workspaceId: "otro" }))).ok).toMatch(/Cancelada/);
+    expect(H.cancelarCarga).toHaveBeenCalledWith("ws-1");
+    H.cancelarCarga.mockResolvedValue(false);
+    expect((await A.cancelarCargaAction(undefined, fd({}))).error).toMatch(/No hay/);
   });
 });
