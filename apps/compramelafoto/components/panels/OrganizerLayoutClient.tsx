@@ -18,7 +18,7 @@ export default function OrganizerLayoutClient({ children }: { children: React.Re
       <PanelLayout topBar2={<OrganizerSidebarTopBar />} sidebar={<OrganizerSidebar showHeader={false} />}>
         {children}
       </PanelLayout>
-      <DnxBotBubble basePath="/api/bot" mascotSrc="/dnx-bot/mascota.webp" rutasPermitidas={RUTAS_PERMITIDAS_BOT} />
+      <DnxBotBubble basePath="/api/bot" mascotSrc="/dnx-bot/mascota.webp" mascotSpriteSrc="/dnx-bot/mascota-foto.webp" rutasPermitidas={RUTAS_PERMITIDAS_BOT} />
     </Suspense>
   );
 }
