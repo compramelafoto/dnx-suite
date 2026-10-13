@@ -134,7 +134,9 @@ describe("presupuestoDePrueba", () => {
     const { presupuestoDePrueba, CONSULTAS_DE_PRUEBA } = await import("./escenarios");
     const d = presupuestoDePrueba("pres-lucia")!;
     expect(d).toMatchObject({ numero: "0007", estado: "BORRADOR", consultaLeadId: "lead-lucia" });
-    expect(d.borrador?.items).toHaveLength(1);
+    expect(d.borrador?.items).toHaveLength(2);
+    // El caso 17 le dice al bot "el total es $1.294.000": el borrador tiene que coincidir.
+    expect(d.borrador?.totals.total).toBe(1_294_000);
     expect(presupuestoDePrueba("0007")).toBeNull();
     expect(CONSULTAS_DE_PRUEBA["lucia-con-borrador"][0]!.presupuestos[0]!.id).toBe("pres-lucia");
   });
