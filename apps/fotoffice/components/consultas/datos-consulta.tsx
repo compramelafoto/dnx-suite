@@ -1,5 +1,6 @@
 "use client";
 
+import { InputMoneda } from "@/components/campos/input-moneda";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
@@ -251,7 +252,7 @@ export function DatosConsulta({
             )}
             <label className="fo-field-stack">
               <span className="fo-label">Valor estimado</span>
-              <input className="fo-input" inputMode="decimal" maxLength={20} value={form.valor} {...marca("valor")} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+              <InputMoneda envio="coma" maxLength={20} value={form.valor} {...marca("valor")} onChange={(valor) => setForm({ ...form, valor })} />
             </label>
             <label className="fo-field-stack">
               <span className="fo-label">Cierre previsto</span>

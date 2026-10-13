@@ -5,6 +5,7 @@ import type { ComboDetalle } from "@/lib/catalogo/combos";
 import type { CostoDetalle, ProveedorOpcion } from "@/lib/catalogo/costos";
 import type { RubroIngresoOpcion } from "@/lib/catalogo/perfil";
 import { pesosSinDecimales, resumenCombo, textoDias, type PerfilCatalogo } from "@/lib/catalogo/reglas";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import {
   guardarComboAction,
@@ -373,13 +374,12 @@ function CostosSection({
                 </select>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <input
-                  className="fo-input w-36"
-                  inputMode="decimal"
+                <InputMoneda
+                  wrapperClassName="w-36"
                   aria-label="Importe"
                   placeholder="Importe"
                   value={f.amount}
-                  onChange={(e) => cambiar(i, { amount: e.target.value })}
+                  onChange={(valor) => cambiar(i, { amount: valor })}
                 />
                 <select
                   className="fo-input w-36"

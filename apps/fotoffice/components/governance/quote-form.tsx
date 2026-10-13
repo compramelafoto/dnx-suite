@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createQuoteAction, registerQuoteFilesAction } from "@/app/(shell)/gobierno/dinero-actions";
 import { uploadGovernanceFile } from "./upload";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 /**
  * Cargar una cotización recibida, con el archivo que mandó el proveedor. Primero se crea la
@@ -80,7 +81,7 @@ export function QuoteForm({ projectId, stages }: { projectId: string; stages: { 
         <label className="fo-label" htmlFor="q-amount">
           Monto
         </label>
-        <input id="q-amount" name="amount" className="fo-input" required inputMode="decimal" placeholder="300.000" />
+        <InputMoneda id="q-amount" name="amount" envio="coma" className="fo-input" required placeholder="300.000" />
       </div>
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="q-date">

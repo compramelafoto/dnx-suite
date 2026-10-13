@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { registerProposalFilesAction, submitProposalAction } from "@/app/portal/proyectos/actions";
 import { uploadGovernanceFile } from "./upload";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 const PORTAL_UPLOAD = "/api/portal/gobierno/upload-url";
 
@@ -84,7 +85,7 @@ export function ProposalForm() {
           <label className="fo-label" htmlFor="approxCost">
             Costo aproximado (opcional)
           </label>
-          <input id="approxCost" name="approxCost" className="fo-input" inputMode="decimal" placeholder="Ej.: 150.000" />
+          <InputMoneda id="approxCost" name="approxCost" envio="coma" className="fo-input" placeholder="150.000" />
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="deadline">

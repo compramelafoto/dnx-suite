@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { guardarVentaGaleriaAction } from "@/app/actions/galerias";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { MODOS_VENTA, type ModoVenta } from "@/lib/galerias/constantes";
 import { MAX_REGLAS_DESCUENTO, textoFaltanParaPaquete } from "@/lib/galerias/precios";
 import {
@@ -106,7 +107,7 @@ export function PestanaVenta({
             {v.pricingMode === "POR_FOTO" ? (
               <div className="fo-field-stack max-w-xs">
                 <label className="fo-label" htmlFor="venta-precio-foto">Precio por foto</label>
-                <input id="venta-precio-foto" className="fo-input" inputMode="decimal" maxLength={20} placeholder={EJEMPLO_IMPORTE} value={v.unitPrice} onChange={(e) => cambiar({ unitPrice: e.target.value })} disabled={bloqueado} />
+                <InputMoneda id="venta-precio-foto" envio="coma" maxLength={20} placeholder={EJEMPLO_IMPORTE} value={v.unitPrice} onChange={(valor) => cambiar({ unitPrice: valor })} disabled={bloqueado} />
               </div>
             ) : null}
             {v.pricingMode === "PAQUETE" ? (
@@ -117,7 +118,7 @@ export function PestanaVenta({
                 </div>
                 <div className="fo-field-stack">
                   <label className="fo-label" htmlFor="venta-paquete-precio">Precio del paquete</label>
-                  <input id="venta-paquete-precio" className="fo-input" inputMode="decimal" maxLength={20} placeholder={EJEMPLO_IMPORTE} value={v.packagePrice} onChange={(e) => cambiar({ packagePrice: e.target.value })} disabled={bloqueado} />
+                  <InputMoneda id="venta-paquete-precio" envio="coma" maxLength={20} placeholder={EJEMPLO_IMPORTE} value={v.packagePrice} onChange={(valor) => cambiar({ packagePrice: valor })} disabled={bloqueado} />
                 </div>
                 <p className="text-xs text-[var(--fo-muted)] sm:col-span-2">Las fotos extra se agrupan en paquetes; el último se cobra entero y el cliente ve cuántas fotos más entran sin costo.</p>
               </div>

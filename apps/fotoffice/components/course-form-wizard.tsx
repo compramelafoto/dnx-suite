@@ -7,6 +7,7 @@ import {
   type CourseFormState,
 } from "@/app/actions/courses";
 import { toDatetimeLocalInput } from "@/lib/format";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { Plus, Trash2 } from "lucide-react";
 
 export type ProgramLesson = { title: string; summary: string };
@@ -499,13 +500,7 @@ export function CourseFormWizard({
               <label className="fo-label" htmlFor="price">
                 Precio
               </label>
-              <input
-                id="price"
-                name="price"
-                required
-                defaultValue={initial?.price ?? ""}
-                className="fo-input"
-              />
+              <InputMoneda id="price" name="price" envio="coma" required defaultValue={initial?.price ?? ""} className="fo-input" />
               {fe.price ? <p className="text-xs text-[var(--fo-danger)]">{fe.price}</p> : null}
             </div>
             <div className="fo-field-stack">
@@ -523,9 +518,10 @@ export function CourseFormWizard({
               <label className="fo-label" htmlFor="discountPrice">
                 Precio promocional
               </label>
-              <input
+              <InputMoneda
                 id="discountPrice"
                 name="discountPrice"
+                envio="coma"
                 defaultValue={initial?.discountPrice ?? ""}
                 className="fo-input"
                 placeholder="Opcional"

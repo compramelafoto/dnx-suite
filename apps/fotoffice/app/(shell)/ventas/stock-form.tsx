@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import type { ProductRow } from "@/lib/sales/repository";
 import { recordAdjustmentAction, recordStockEntryAction } from "./actions";
 
@@ -86,12 +87,7 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
             <label className="fo-label" htmlFor={`entrada-costo-${product.id}`}>
               Costo unitario (opcional)
             </label>
-            <input
-              id={`entrada-costo-${product.id}`}
-              name="unitCostArs"
-              className="fo-input"
-              placeholder="$"
-            />
+            <InputMoneda id={`entrada-costo-${product.id}`} name="unitCostArs" />
           </div>
           <button type="submit" className="fo-btn fo-btn-primary text-sm">
             Confirmar entrada

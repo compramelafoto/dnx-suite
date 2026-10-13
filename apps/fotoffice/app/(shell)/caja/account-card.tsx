@@ -1,3 +1,4 @@
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { CashAccountRow, OpenShiftRow } from "@/lib/cash/repository";
 import { openShiftAction } from "./actions";
@@ -60,13 +61,7 @@ export function AccountCard({
               <label className="fo-label" htmlFor={`apertura-${cuenta.id}`}>
                 Abrir turno — con cuánto
               </label>
-              <input
-                id={`apertura-${cuenta.id}`}
-                name="openingAmountArs"
-                className="fo-input"
-                placeholder="20.000"
-                required
-              />
+              <InputMoneda id={`apertura-${cuenta.id}`} name="openingAmountArs" placeholder="20.000" required />
             </div>
             <div className="self-end">
               <button type="submit" className="fo-btn fo-btn-secondary text-sm">

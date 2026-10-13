@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { crearPedidoManualAction } from "@/app/actions/pedidos";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { BuscadorCatalogo } from "@/components/presupuestos/buscador-catalogo";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { itemDesdeProducto, itemLibre, nuevaClave, type ProductoParaEditor } from "@/lib/presupuestos/editor";
@@ -101,14 +102,13 @@ export function NuevoPedido({ clientId, catalogo, plantillas = [] }: { clientId:
                         />
                       </td>
                       <td className="py-2 pr-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          className="fo-input w-32 tabular-nums"
+                        <InputMoneda
+                          envio="punto"
+                          wrapperClassName="w-32"
+                          className="fo-input w-full"
                           aria-label={`Precio unitario de ${etiqueta}`}
                           value={i.precioUnitario}
-                          onChange={(e) => cambiar(i.id, { precioUnitario: Number(e.target.value) || 0 })}
+                          onChange={(valor) => cambiar(i.id, { precioUnitario: Number(valor) || 0 })}
                         />
                       </td>
                       <td className="py-2 pr-2 text-right tabular-nums">{pesosPedido(totales.renglones[i.id]?.neto ?? 0)}</td>
