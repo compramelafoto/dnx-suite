@@ -27,7 +27,7 @@ describe("perfil de precios", () => {
 
   it("guarda y vuelve a leer el mismo perfil con fuente manual", async () => {
     const perfil = createBaseCompleteProfile();
-    expect(await guardarPerfilPrecios(DUENO, perfil)).toEqual({ ok: true });
+    expect(await guardarPerfilPrecios(DUENO, perfil)).toEqual({ ok: true, actualizado: expect.any(Date) });
     const leido = await leerPerfilPrecios(DUENO);
     expect(leido?.perfil).toEqual(perfil);
     expect(leido?.source).toBe("manual");
@@ -37,7 +37,7 @@ describe("perfil de precios", () => {
   });
 
   it("con source dnx-bot guarda ese origen; sin opción, manual", async () => {
-    expect(await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { source: "dnx-bot" })).toEqual({ ok: true });
+    expect(await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { source: "dnx-bot" })).toMatchObject({ ok: true });
     expect((await leerPerfilPrecios(DUENO))?.source).toBe("dnx-bot");
     await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());
     expect((await leerPerfilPrecios(DUENO))?.source).toBe("manual");
@@ -93,6 +93,50 @@ describe("perfil de precios", () => {
     } finally {
       B.tablas.fotofficePerfilPrecios.upsert = original;
     }
+  });
+});
+
+describe("guardar con la versión que se cargó (concurrencia optimista)", () => {
+  const CAMBIO_BOT = "El perfil cambió mientras lo tenías abierto (lo guardó DNX Bot). Recargá para ver los datos nuevos.";
+  const CAMBIO = "El perfil cambió mientras lo tenías abierto. Recargá para ver los datos nuevos.";
+
+  it("con la versión vigente guarda y devuelve la nueva", async () => {
+    const primero = await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());
+    if (!primero.ok) throw new Error("no guardó");
+    await new Promise((r) => setTimeout(r, 2));
+    const segundo = await guardarPerfilPrecios(DUENO, createBaseCompleteProfile({ businessSoftware: "1" }), { esperado: primero.actualizado });
+    expect(segundo).toMatchObject({ ok: true });
+    expect((await leerPerfilPrecios(DUENO))?.perfil.businessSoftware).toBe("1");
+    if (segundo.ok) expect(segundo.actualizado.getTime()).toBeGreaterThan(primero.actualizado.getTime());
+  });
+
+  it("si lo guardó DNX Bot mientras el formulario estaba abierto: no pisa y lo dice", async () => {
+    const cargado = await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());
+    if (!cargado.ok) throw new Error("no guardó");
+    await new Promise((r) => setTimeout(r, 2));
+    await guardarPerfilPrecios(DUENO, createBaseCompleteProfile({ businessSoftware: "999" }), { source: "dnx-bot", esperado: cargado.actualizado });
+    const viejo = await guardarPerfilPrecios(DUENO, createBaseCompleteProfile({ businessSoftware: "5" }), { esperado: cargado.actualizado });
+    expect(viejo).toEqual({ ok: false, error: CAMBIO_BOT, conflicto: true });
+    expect((await leerPerfilPrecios(DUENO))?.perfil.businessSoftware).toBe("999");
+  });
+
+  it("si lo cambió otra persona, el mismo freno con el texto general", async () => {
+    const cargado = await guardarPerfilPrecios(DUENO, createBaseCompleteProfile());
+    if (!cargado.ok) throw new Error("no guardó");
+    await new Promise((r) => setTimeout(r, 2));
+    await guardarPerfilPrecios(DUENO, createBaseCompleteProfile({ businessSoftware: "2" }));
+    expect(await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { esperado: cargado.actualizado })).toEqual({ ok: false, error: CAMBIO, conflicto: true });
+  });
+
+  it("el formulario se abrió sin perfil (esperado null) y mientras tanto se creó uno: no lo pisa", async () => {
+    await guardarPerfilPrecios(DUENO, createBaseCompleteProfile({ businessSoftware: "7" }), { source: "dnx-bot" });
+    expect(await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { esperado: null })).toEqual({ ok: false, error: CAMBIO_BOT, conflicto: true });
+    expect(B.datos.fotofficePerfilPrecios).toHaveLength(1);
+  });
+
+  it("sin perfil y esperado null: lo crea", async () => {
+    expect(await guardarPerfilPrecios(DUENO, createBaseCompleteProfile(), { esperado: null })).toMatchObject({ ok: true });
+    expect(B.datos.fotofficePerfilPrecios).toHaveLength(1);
   });
 });
 

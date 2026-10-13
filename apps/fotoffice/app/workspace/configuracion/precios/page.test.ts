@@ -5,12 +5,14 @@ const H = vi.hoisted(() => ({ bot: null as { rutas: string[] } | null, role: "WO
 vi.mock("@/lib/access/active-context", () => ({
   requireActiveWorkspaceRole: async () => ({ user: { id: 7, name: "Daniel", email: "d@x.test" }, workspace: { id: "ws1" }, role: H.role }),
 }));
-vi.mock("@/lib/precios/perfil", () => ({ leerPerfilPrecios: async () => (H.source ? { perfil: {}, source: H.source, actualizado: new Date() } : null) }));
+vi.mock("@/lib/precios/perfil", () => ({ leerPerfilPrecios: async () => (H.source ? { perfil: {}, source: H.source, actualizado: new Date("2026-10-12T14:00:00.456Z") } : null) }));
 vi.mock("@/lib/dnx-bot/panel", () => ({ botEnPanel: async () => H.bot }));
 vi.mock("./perfil-form", () => ({ PerfilForm: () => null }));
+const ACTUALIZADO = new Date("2026-10-12T14:00:00.456Z");
 
 const { default: Page } = await import("./page");
 const { PreguntaleAlBot } = await import("@/components/dnx-bot/preguntale-al-bot");
+const { PerfilForm } = await import("./perfil-form");
 
 function buscar(nodo: ReactNode, tipo: unknown): ReactElement[] {
   if (Array.isArray(nodo)) return nodo.flatMap((n) => buscar(n, tipo));
@@ -49,5 +51,10 @@ describe("Configuración → Precios y DNX Bot", () => {
   it("perfil guardado por el bot: lo dice", async () => {
     H.source = "dnx-bot";
     expect(textos(await Page())).toContain("Armado con DNX Bot.");
+  });
+  it("el formulario recibe la versión del perfil que muestra (o null si no hay)", async () => {
+    expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ version: ACTUALIZADO.toISOString() });
+    H.source = null;
+    expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ version: null });
   });
 });

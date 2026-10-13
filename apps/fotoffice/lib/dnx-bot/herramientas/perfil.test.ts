@@ -27,8 +27,8 @@ const actor = { userId: 7, role: "WORKSPACE_OWNER", email: "d@x.test", name: "Da
 const tool = (nombre: string): BotTool => herramientasDePerfil(ctx(true)).find((t) => t.name === nombre)!;
 
 beforeEach(() => {
-  H.leer.mockReset().mockResolvedValue({ perfil: createBaseCompleteProfile(), source: "clf-import", actualizado: new Date() });
-  H.guardar.mockReset().mockResolvedValue({ ok: true });
+  H.leer.mockReset().mockResolvedValue({ perfil: createBaseCompleteProfile(), source: "clf-import", actualizado: new Date("2026-10-12T15:00:00.000Z") });
+  H.guardar.mockReset().mockResolvedValue({ ok: true, actualizado: new Date("2026-10-12T16:00:00.000Z") });
 });
 
 describe("quién recibe las herramientas de perfil", () => {
@@ -90,9 +90,18 @@ describe("guardar_perfil_de_precios", () => {
     const [c, perfil, opciones] = H.guardar.mock.calls[0]!;
     expect(c).toMatchObject({ workspaceId: "ws1", userId: 7 });
     expect((perfil as { businessSoftware: string }).businessSoftware).toBe("20000");
-    expect(opciones).toEqual({ source: "dnx-bot" });
-    expect((r as { before: { perfil: { businessSoftware: string } } }).before.perfil.businessSoftware).toBe("15000");
+    // Con la versión recién leída: si alguien guardó en el medio, no se pisa.
+    expect(opciones).toEqual({ source: "dnx-bot", esperado: new Date("2026-10-12T15:00:00.000Z") });
+    const before = (r as { before: { perfil: { businessSoftware: string }; guardadoPorElBot: string } }).before;
+    expect(before.perfil.businessSoftware).toBe("15000");
+    expect(before.guardadoPorElBot).toBe("2026-10-12T16:00:00.000Z");
   });
+  it("undo: si el perfil cambió después del bot, no lo pisa y lo dice", async () => {
+    H.guardar.mockResolvedValue({ ok: false, error: "El perfil cambió mientras lo tenías abierto. Recargá para ver los datos nuevos.", conflicto: true });
+    const r = await tool("guardar_perfil_de_precios").undo!({ perfil: createBaseCompleteProfile(), source: "manual", guardadoPorElBot: "2026-10-12T16:00:00.000Z" }, actor);
+    expect(r).toEqual({ ok: false, message: "El perfil cambió mientras lo tenías abierto. Recargá para ver los datos nuevos." });
+  });
+
   it("run: si guardar falla, devuelve el error", async () => {
     H.guardar.mockResolvedValue({ ok: false, error: "Sólo el dueño o un administrador pueden configurar los precios." });
     const r = await tool("guardar_perfil_de_precios").run({ parche }, actor);
@@ -103,12 +112,14 @@ describe("guardar_perfil_de_precios", () => {
     const r = await tool("guardar_perfil_de_precios").run({ parche: { viveSoloDeFotografia: "si" } }, actor);
     expect(r.ok).toBe(true);
     expect((r as { before?: unknown }).before).toBeUndefined();
+    expect(H.guardar.mock.calls[0]![2]).toEqual({ source: "dnx-bot", esperado: null });
   });
   it("undo: vuelve a guardar el perfil anterior", async () => {
-    const before = { perfil: createBaseCompleteProfile(), source: "manual" };
+    const before = { perfil: createBaseCompleteProfile(), source: "manual", guardadoPorElBot: "2026-10-12T16:00:00.000Z" };
     const r = await tool("guardar_perfil_de_precios").undo!(before, actor);
     expect(r.ok).toBe(true);
-    expect(H.guardar.mock.calls[0]![2]).toEqual({ source: "manual" });
+    // Sólo si sigue siendo lo que guardó el bot: no pisa un cambio posterior.
+    expect(H.guardar.mock.calls[0]![2]).toEqual({ source: "manual", esperado: new Date("2026-10-12T16:00:00.000Z") });
     expect(await tool("guardar_perfil_de_precios").undo!({ basura: 1 }, actor)).toMatchObject({ ok: false });
   });
 });
