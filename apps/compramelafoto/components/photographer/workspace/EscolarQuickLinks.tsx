@@ -27,11 +27,17 @@ const LINKS = [
     hint: "Aprobaciones de diseño",
     href: "/fotografo/disenos",
   },
+  {
+    id: "landing",
+    label: "Mi landing escolar",
+    hint: "Tu página para colegios y sus consultas",
+    href: "/fotografo/escuelas/landing",
+  },
 ] as const;
 
 export default function EscolarQuickLinks() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
       {LINKS.map((link) => (
         <Link
           key={link.id}

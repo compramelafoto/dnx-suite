@@ -109,6 +109,7 @@ export function getPhotographerSidebarItems(icons: {
         { id: "escolar-pedidos", label: "Pedidos escolares", path: "/fotografo/escuelas/pedidos" },
         { id: "escolar-disenos", label: "Diseños escolares", path: "/dashboard/designs" },
         { id: "escolar-revisiones", label: "Revisiones", path: "/fotografo/disenos" },
+        { id: "escolar-landing", label: "Mi landing escolar", path: "/fotografo/escuelas/landing" },
       ],
     },
     {

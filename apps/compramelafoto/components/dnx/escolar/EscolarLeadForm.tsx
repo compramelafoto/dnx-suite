@@ -4,7 +4,7 @@ import { track } from "@vercel/analytics";
 import { CheckCircle2 } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 
-import { DNX_ESCOLAR_SOURCE, SCHOOL_LEAD_LEVELS, UTM_KEYS, type UtmParams } from "@/lib/dnx-escolar/lead-notes";
+import { SCHOOL_LEAD_LEVELS, UTM_KEYS, type UtmParams } from "@/lib/dnx-escolar/lead-notes";
 
 type FormState = {
   schoolName: string;
@@ -53,7 +53,16 @@ function Campo({ label, opcional, children }: { label: string; opcional?: boolea
   );
 }
 
-export default function EscolarLeadForm() {
+type Props = {
+  /** Origen guardado con la solicitud ("dnx-escolar" o "escolar-fotografo"). */
+  source: string;
+  /** Handler del fotógrafo dueño de la landing; null en /dnx/escolar. */
+  photographerHandler: string | null;
+  /** Ejemplo del campo Localidad (las ciudades de la zona de quien firma la landing). */
+  cityPlaceholder: string;
+};
+
+export default function EscolarLeadForm({ source, photographerHandler, cityPlaceholder }: Props) {
   const [form, setForm] = useState<FormState>(INITIAL);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +95,8 @@ export default function EscolarLeadForm() {
           approxStudents: approx ? Number(approx) : null,
           message: form.message,
           levels: form.levels,
-          source: DNX_ESCOLAR_SOURCE,
+          source,
+          ...(photographerHandler ? { photographerHandler } : {}),
           utm: readUtmFromLocation(),
         }),
       });
@@ -94,7 +104,7 @@ export default function EscolarLeadForm() {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "No pudimos enviar la solicitud. Probá de nuevo o escribinos por WhatsApp.");
       }
-      track("dnx_escolar_lead_enviado");
+      track(photographerHandler ? "escolar_fotografo_lead_enviado" : "dnx_escolar_lead_enviado");
       setEnviado(true);
       setForm(INITIAL);
     } catch (err) {
@@ -144,7 +154,7 @@ export default function EscolarLeadForm() {
             minLength={2}
             maxLength={120}
             autoComplete="address-level2"
-            placeholder="Rosario, Funes, Roldán…"
+            placeholder={cityPlaceholder}
             value={form.city}
             onChange={(e) => set("city")(e.target.value)}
           />
@@ -206,7 +216,7 @@ export default function EscolarLeadForm() {
               <label
                 key={level}
                 className={`flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-                  checked ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-500"
+                  checked ? "border-[var(--escolar-accent)] bg-[var(--escolar-accent)] text-white" : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-500"
                 }`}
               >
                 <input type="checkbox" className="sr-only" checked={checked} onChange={() => toggleLevel(level)} />
@@ -235,7 +245,7 @@ export default function EscolarLeadForm() {
       <button
         type="submit"
         disabled={loading}
-        className="inline-flex w-full items-center justify-center rounded-full bg-zinc-900 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center rounded-full bg-[var(--escolar-accent)] px-5 py-3.5 text-sm font-semibold text-white transition hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Enviando…" : "Quiero una propuesta para mi colegio"}
       </button>

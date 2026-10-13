@@ -219,13 +219,16 @@ export default function AlbumConfigurationSection({
               <Input
                 type="number"
                 min={0}
-                max={365}
+                max={90}
                 placeholder="0 = no guardar"
                 value={hiddenSelfieRetentionDays}
                 onChange={(e) => onHiddenSelfieRetentionChange(e.target.value)}
                 disabled={saving}
                 className="w-full max-w-[140px]"
               />
+              <span className="block text-xs text-[#6b7280]">
+                Vacío o 0: la selfie no se guarda. Máximo 90 días; al vencer se borra sola.
+              </span>
             </label>
           ) : null}
 

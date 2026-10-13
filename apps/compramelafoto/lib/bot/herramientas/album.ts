@@ -30,7 +30,7 @@ const cambiosSchema = z.strictObject({
   digitalDiscount10Plus: pct.optional(),
   digitalDiscount20Plus: pct.optional(),
   hiddenPhotosEnabled: z.boolean().optional().describe("Reconocimiento facial: el comprador busca sus fotos con una selfie"),
-  hiddenSelfieRetentionDays: z.number().int().min(1).max(365).nullable().optional(),
+  hiddenSelfieRetentionDays: z.number().int().min(1).max(90).nullable().optional(),
 });
 
 const DISCOUNT_KEYS = [
