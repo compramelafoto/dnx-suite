@@ -435,6 +435,15 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 
 ### Tarea 3.9: Guía de la etapa, evals 6–13 y verificación del PR 3
 
+**Notas de ejecución del PR 3 (12/10):**
+- Arreglo pedido aparte: Configuración → Precios guarda con concurrencia optimista sobre el `updatedAt` existente (sin migración); si el perfil cambió con el formulario abierto (por ejemplo, lo guardó DNX Bot), no se pisa y avisa. El bot guarda y deshace con la misma marca.
+- La capa del trabajo vive en `lib/dnx-bot/motor-trabajo.ts` (no en `motor.ts`) y los accesos a la base de las consultas en `lib/dnx-bot/consultas.ts`; la revalidación del contexto en `lib/dnx-bot/contexto-validado.ts`.
+- «Si el total cambió, falla»: el total que vio la persona viaja en la entrada de las escrituras (`totalEsperado`, copiado de `totalParaConfirmar` de `cotizar_trabajo`); `describe` y `run` recalculan y comparan.
+- `guardarBorrador` reemplaza condiciones, propuesta de pago y descuento con lo que recibe: el bot siempre manda los del borrador actual.
+- `buscar_consultas` sólo para quien además configura y no es COLLABORATOR (es para elegir dónde va el borrador). `ver_presupuesto` no cuenta vistas (eso es de la etapa 3).
+- Los botones aparecen sólo para quien usa ¿Cuánto Cobro? (`configurar`).
+- `Escenario` suma `consultas` (datos de prueba de `buscar_consultas`) y `entradaEnAlguna`.
+
 ---
 
 # PR 4 · Etapa 3 · Consultas, seguimientos y cierre
