@@ -67,13 +67,41 @@ export default function Librito3DVisor({
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Escape cierra; mientras está abierto, la página de atrás no se mueve.
+  /*
+   * El teclado hace lo mismo que en la vista plana: ↑ gira (↓ al revés), ← y → abren y cierran
+   * el plegado o pasan de hoja, y Escape cierra. Mientras el visor está abierto la página de
+   * atrás no escucha las flechas ni se mueve.
+   */
+  const teclasRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    teclasRef.current = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "ArrowUp") setGiro((g) => g + 90);
+      else if (e.key === "ArrowDown") setGiro((g) => g - 90);
+      else if (e.key === "ArrowRight") {
+        if (modelo.tipo === "plegado") setAbierto(true);
+        else {
+          setHoja((h) => Math.min(hojas - 1, h + 1));
+          setVolteada(false);
+        }
+      } else if (e.key === "ArrowLeft") {
+        if (modelo.tipo === "plegado") setAbierto(false);
+        else {
+          setHoja((h) => Math.max(0, h - 1));
+          setVolteada(false);
+        }
+      } else return;
+      e.preventDefault();
+    };
+  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onCloseRef.current();
+        return;
       }
+      teclasRef.current(e);
     };
     window.addEventListener("keydown", onKey);
     const overflow = document.body.style.overflow;
@@ -249,7 +277,7 @@ export default function Librito3DVisor({
           )}
           <button
             type="button"
-            onClick={() => setGiro((g) => (g + 90) % 360)}
+            onClick={() => setGiro((g) => g + 90)}
             className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-white px-4 text-[14px] font-semibold text-[#1f2328] ring-1 ring-[#e7e1da]"
             aria-label="Girar el librito 90 grados"
           >
