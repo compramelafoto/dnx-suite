@@ -2,6 +2,7 @@ import { defineTool, z, type BotTool } from "@repo/dnx-bot";
 import { guardarPerfilPrecios, leerPerfilPrecios } from "@/lib/precios/perfil";
 import { normalizarPerfil } from "@/lib/precios/perfil-datos";
 import type { CtxBot } from "../acceso";
+import type { EstadoPerfil } from "../situacion";
 import { cambiosEntre, esquemaParchePerfil, perfilBase, simularPerfil, tarjetaDelPerfil, vistaDelPerfil } from "../motor";
 
 /**
@@ -24,6 +25,14 @@ async function prepararGuardado(ctx: CtxBot, parche: z.infer<typeof esquemaParch
   const antes = vistaDelPerfil(b.perfil, b.source).resumen.valorHora ?? "sin calcular";
   const ahora = s.vista.resumen.valorHora ?? "sin calcular";
   return { b, s, cambios, antes, ahora };
+}
+
+/** Estado del perfil para la situación del turno (sin montos). null para quien no configura. */
+export async function estadoDelPerfil(ctx: CtxBot): Promise<EstadoPerfil | null> {
+  if (!ctx.capacidades.configurar) return null;
+  const b = await base(ctx);
+  const v = vistaDelPerfil(b.perfil, b.source);
+  return { existe: !!b.guardado, completo: v.completo, faltan: v.faltan, origen: v.origen };
 }
 
 export function herramientasDePerfil(ctx: CtxBot): BotTool[] {

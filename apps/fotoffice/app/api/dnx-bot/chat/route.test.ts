@@ -12,6 +12,10 @@ const H = vi.hoisted(() => ({
   topes: vi.fn(),
   cifra: vi.fn(),
 }));
+vi.mock("@/lib/dnx-bot/herramientas/perfil", async (orig) => ({
+  ...(await orig<object>()),
+  estadoDelPerfil: async () => ({ existe: true, completo: false, faltan: ["Software y herramientas"], origen: "manual" }),
+}));
 vi.mock("@/lib/dnx-bot/incidentes", () => ({ reportarCifraNoRespaldada: (...a: unknown[]) => H.cifra(...a) }));
 vi.mock("@/lib/dnx-bot/acceso", () => ({ resolverBot: () => H.resolver() }));
 vi.mock("@/lib/dnx-bot/turno-sse", () => ({
@@ -88,6 +92,7 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(H.conv).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: "/presupuestos", model: "claude-sonnet-5-5" });
     expect(prep.systemGuide).toContain("Nunca inventes precios");
     expect(prep.situation).toContain("Pantalla: lista de presupuestos");
+    expect(prep.situation).toContain("Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.");
     expect(prep.tools.map((t) => t.name)).toEqual(["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"]);
     expect(prep.actor).toEqual({ userId: 7, role: "WORKSPACE_OWNER", email: "d@x.test", name: "Daniel" });
   });

@@ -5,6 +5,7 @@ import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { leerContexto } from "@/lib/dnx-bot/contexto";
 import { guiaDelBot } from "@/lib/dnx-bot/guia";
 import { herramientasPara } from "@/lib/dnx-bot/herramientas";
+import { estadoDelPerfil } from "@/lib/dnx-bot/herramientas/perfil";
 import { reportarCifraNoRespaldada } from "@/lib/dnx-bot/incidentes";
 import { decidirLimites } from "@/lib/dnx-bot/limites";
 import { armarSituacion } from "@/lib/dnx-bot/situacion";
@@ -51,11 +52,12 @@ export async function POST(req: Request) {
     },
     preparar: async () => {
       const conv = await conversacionAbierta({ plataforma: ctx.plataforma, userId, pagePath, model: cfg.model });
+      const [history, perfil] = await Promise.all([cargarHistorial(conv.id), estadoDelPerfil(ctx)]);
       return {
         conversationId: conv.id,
-        history: await cargarHistorial(conv.id),
+        history,
         systemGuide: guiaDelBot(),
-        situation: armarSituacion({ rol: ctx.role, capacidades: ctx.capacidades, contexto, workspaceNombre: ctx.workspaceNombre }),
+        situation: armarSituacion({ rol: ctx.role, capacidades: ctx.capacidades, contexto, workspaceNombre: ctx.workspaceNombre, perfil }),
         tools: herramientasPara(ctx),
         actor,
       };

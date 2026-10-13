@@ -9,7 +9,7 @@ vi.mock("@/lib/precios/perfil", () => ({
 }));
 
 import type { CtxBot } from "../acceso";
-import { herramientasDePerfil } from "./perfil";
+import { estadoDelPerfil, herramientasDePerfil } from "./perfil";
 import { herramientasPara } from "./index";
 
 const ctx = (configurar: boolean): CtxBot => ({
@@ -110,5 +110,14 @@ describe("guardar_perfil_de_precios", () => {
     expect(r.ok).toBe(true);
     expect(H.guardar.mock.calls[0]![2]).toEqual({ source: "manual" });
     expect(await tool("guardar_perfil_de_precios").undo!({ basura: 1 }, actor)).toMatchObject({ ok: false });
+  });
+});
+
+describe("estadoDelPerfil (para la situación)", () => {
+  it("completo con su origen; sin perfil, no existe; sin configurar, null", async () => {
+    expect(await estadoDelPerfil(ctx(true))).toEqual({ existe: true, completo: true, faltan: [], origen: "clf-import" });
+    H.leer.mockResolvedValue(null);
+    expect(await estadoDelPerfil(ctx(true))).toMatchObject({ existe: false, completo: false, origen: null });
+    expect(await estadoDelPerfil(ctx(false))).toBeNull();
   });
 });
