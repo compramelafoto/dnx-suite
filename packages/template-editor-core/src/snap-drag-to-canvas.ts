@@ -7,6 +7,20 @@ import type { TemplateV2Block } from "./render-core";
  */
 export const CANVAS_DRAG_SNAP_THRESHOLD_PX = 9;
 
+/** Con Shift el imán es fuerte: atrae desde más lejos. */
+export const CANVAS_DRAG_MAGNET_THRESHOLD_PX = 28;
+
+export type SnapDragOptions = {
+  /**
+   * Imán fuerte (tecla Shift): más distancia de atracción, bordes enfrentados (pegar un bloque
+   * al costado de otro) y las líneas de ayuda extra.
+   */
+  magnet?: boolean;
+  /** Líneas de ayuda verticales y horizontales (por ejemplo, la zona segura). */
+  guidesX?: number[];
+  guidesY?: number[];
+};
+
 type SnapCandidate = { target: number; guide: number };
 
 function pickClosestSnap(
@@ -75,6 +89,28 @@ function pushBlockSnapCandidates(
   );
 }
 
+/** Bordes enfrentados: el borde izquierdo de uno contra el derecho del otro, arriba contra abajo. */
+function pushFacingEdgeCandidates(
+  xCandidates: SnapCandidate[],
+  yCandidates: SnapCandidate[],
+  ox: number,
+  oy: number,
+  ow: number,
+  oh: number,
+  blockWidth: number,
+  blockHeight: number
+): void {
+  xCandidates.push({ target: ox + ow, guide: ox + ow }, { target: ox - blockWidth, guide: ox });
+  yCandidates.push({ target: oy + oh, guide: oy + oh }, { target: oy - blockHeight, guide: oy });
+}
+
+/** Una línea de ayuda atrae los dos bordes y el centro del bloque. */
+function pushGuideCandidates(candidates: SnapCandidate[], guides: number[], size: number): void {
+  for (const g of guides) {
+    candidates.push({ target: g, guide: g }, { target: g - size, guide: g }, { target: g - size / 2, guide: g });
+  }
+}
+
 /**
  * Snap al mover: lienzo + otros bloques visibles (misma tolerancia por eje; gana el candidato más cercano).
  * No cruza bordes (solo izq–izq, centro–centro, etc.).
@@ -88,7 +124,8 @@ export function snapDragPosition(
   rawY: number,
   draggedBlockId: string,
   blocks: TemplateV2Block[],
-  thresholdPx: number = CANVAS_DRAG_SNAP_THRESHOLD_PX
+  thresholdPx: number = CANVAS_DRAG_SNAP_THRESHOLD_PX,
+  options: SnapDragOptions = {}
 ): CanvasDragSnapResult {
   const xCandidates: SnapCandidate[] = [...buildCanvasXCandidates(canvasWidth, blockWidth)];
   const yCandidates: SnapCandidate[] = [...buildCanvasYCandidates(canvasHeight, blockHeight)];
@@ -98,10 +135,16 @@ export function snapDragPosition(
     if (!b.layout.visible) continue;
     const { x: ox, y: oy, width: ow, height: oh } = b.layout;
     pushBlockSnapCandidates(xCandidates, yCandidates, ox, oy, ow, oh, blockWidth, blockHeight);
+    if (options.magnet) pushFacingEdgeCandidates(xCandidates, yCandidates, ox, oy, ow, oh, blockWidth, blockHeight);
+  }
+  if (options.magnet) {
+    pushGuideCandidates(xCandidates, options.guidesX ?? [], blockWidth);
+    pushGuideCandidates(yCandidates, options.guidesY ?? [], blockHeight);
   }
 
-  const sx = pickClosestSnap(rawX, xCandidates, thresholdPx);
-  const sy = pickClosestSnap(rawY, yCandidates, thresholdPx);
+  const threshold = options.magnet ? Math.max(thresholdPx, CANVAS_DRAG_MAGNET_THRESHOLD_PX) : thresholdPx;
+  const sx = pickClosestSnap(rawX, xCandidates, threshold);
+  const sy = pickClosestSnap(rawY, yCandidates, threshold);
 
   const clamped = clampBlockPosition(canvasWidth, canvasHeight, sx.snapped, sy.snapped, blockWidth, blockHeight);
 
