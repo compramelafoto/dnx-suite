@@ -69,7 +69,10 @@ export default async function ConfiguracionPreciosPage() {
           />
         </div>
       ) : null}
-      <PerfilForm inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE} />
+      <PerfilForm
+        inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE}
+        version={guardado ? guardado.actualizado.toISOString() : null}
+      />
     </div>
   );
 }

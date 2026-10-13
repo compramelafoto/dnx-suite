@@ -38,4 +38,15 @@ describe("armarSituacion", () => {
     );
     expect(armarSituacion({ ...base, perfil: null })).not.toContain("Perfil de precios");
   });
+  it("lo que está mirando, ya revalidado: presupuesto y consulta con sus ids para usar en herramientas", () => {
+    const s = armarSituacion({
+      rol: "WORKSPACE_OWNER", capacidades: DUENO, contexto: ctx, workspaceNombre: null,
+      enPantalla: {
+        presupuesto: { id: "p1", numero: "0007", estado: "BORRADOR", esBorrador: true },
+        consulta: { leadId: "l1", numero: "12", nombreDePila: "Lucía", categoria: "Bodas", fechaEvento: "15/11/2026", tieneFicha: true },
+      },
+    });
+    expect(s).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
+    expect(s).toContain("Está mirando la consulta N.º 12 (consultaLeadId l1): Bodas · 15/11/2026 · de Lucía.");
+  });
 });

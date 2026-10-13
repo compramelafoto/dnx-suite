@@ -120,7 +120,7 @@ export function correspondeSeguimiento(args: {
 type LectorMensajes = Pick<Prisma.TransactionClient, "fotofficeMessage">;
 
 /** ¿Ya hay un seguimiento (enviado, fallido o reservado) de este presupuesto desde el envío de la vigente? */
-async function yaTieneSeguimiento(
+export async function yaTieneSeguimiento(
   cliente: LectorMensajes,
   workspaceId: string,
   templateId: string,

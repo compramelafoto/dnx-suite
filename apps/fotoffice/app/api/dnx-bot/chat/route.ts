@@ -3,6 +3,7 @@ import { resolverBot } from "@/lib/dnx-bot/acceso";
 import { AVISO_CIFRA, cifrasNoRespaldadas, cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
 import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { leerContexto } from "@/lib/dnx-bot/contexto";
+import { revalidarContexto } from "@/lib/dnx-bot/contexto-validado";
 import { guiaDelBot } from "@/lib/dnx-bot/guia";
 import { herramientasPara } from "@/lib/dnx-bot/herramientas";
 import { estadoDelPerfil } from "@/lib/dnx-bot/herramientas/perfil";
@@ -52,12 +53,12 @@ export async function POST(req: Request) {
     },
     preparar: async () => {
       const conv = await conversacionAbierta({ plataforma: ctx.plataforma, userId, pagePath, model: cfg.model });
-      const [history, perfil] = await Promise.all([cargarHistorial(conv.id), estadoDelPerfil(ctx)]);
+      const [history, perfil, enPantalla] = await Promise.all([cargarHistorial(conv.id), estadoDelPerfil(ctx), revalidarContexto(ctx, contexto)]);
       return {
         conversationId: conv.id,
         history,
         systemGuide: guiaDelBot(),
-        situation: armarSituacion({ rol: ctx.role, capacidades: ctx.capacidades, contexto, workspaceNombre: ctx.workspaceNombre, perfil }),
+        situation: armarSituacion({ rol: ctx.role, capacidades: ctx.capacidades, contexto, workspaceNombre: ctx.workspaceNombre, perfil, enPantalla }),
         tools: herramientasPara(ctx),
         actor,
       };
@@ -68,7 +69,8 @@ export async function POST(req: Request) {
     // Las tarjetas las pinta la burbuja con los datos del servidor, nunca con el texto del modelo.
     alResultado: (send, name, outcome) => {
       const tarjeta = outcome.ok ? (outcome.data as { tarjeta?: unknown } | undefined)?.tarjeta : undefined;
-      if (name === "simular_perfil" && tarjeta) send("calculo", tarjeta);
+      if ((name === "simular_perfil" || name === "cotizar_trabajo") && tarjeta) send("calculo", tarjeta);
+      if (name === "preparar_mensaje" && tarjeta) send("mensaje", tarjeta);
     },
     // Red de seguridad (spec §5.4): toda cifra del texto tiene que salir de una herramienta o de la persona.
     revisarRespuesta: async ({ texto, appended, history, conversationId }) => {

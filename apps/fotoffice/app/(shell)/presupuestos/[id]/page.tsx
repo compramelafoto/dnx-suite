@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { ConfirmarPedido } from "@/components/pedidos/confirmar-pedido";
 import { AccionesPresupuesto } from "@/components/presupuestos/acciones-presupuesto";
 import { EditorPresupuesto } from "@/components/presupuestos/editor-presupuesto";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { EnviarPresupuesto } from "@/components/presupuestos/enviar-presupuesto";
 import { VistaPresupuesto } from "@/components/presupuestos/vista-presupuesto";
 import { claseDeEstado } from "@/lib/presupuestos/listado";
@@ -69,10 +70,20 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
       costosCatalogo,
       perfil,
       opcionesPago,
+      version: detalle.updatedAt,
     });
     // La clave cambia con cada guardado: después de `router.refresh()` el editor se vuelve a montar
     // con lo que guardó el servidor (precios recalculados, ítems validados), no con su estado viejo.
-    editor = <EditorPresupuesto key={`${borrador.id}:${detalle.updatedAt.getTime()}`} datos={datos} puedeGuardar />;
+    // DNX Bot (etapa 2): «Calcular con el bot» sólo si está encendido y la persona usa ¿Cuánto Cobro?.
+    const bot = await botEnPanel();
+    editor = (
+      <EditorPresupuesto
+        key={`${borrador.id}:${detalle.updatedAt.getTime()}`}
+        datos={datos}
+        puedeGuardar
+        botPresupuestoId={bot?.capacidades.configurar ? detalle.id : null}
+      />
+    );
   }
 
   // Enviar / Reenviar / Copiar enlace: con "Gestionar" y mientras no esté aceptado (el enlace se

@@ -435,6 +435,15 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 
 ### Tarea 3.9: Guía de la etapa, evals 6–13 y verificación del PR 3
 
+**Notas de ejecución del PR 3 (12/10):**
+- Arreglo pedido aparte: Configuración → Precios guarda con concurrencia optimista sobre el `updatedAt` existente (sin migración); si el perfil cambió con el formulario abierto (por ejemplo, lo guardó DNX Bot), no se pisa y avisa. El bot guarda y deshace con la misma marca.
+- La capa del trabajo vive en `lib/dnx-bot/motor-trabajo.ts` (no en `motor.ts`) y los accesos a la base de las consultas en `lib/dnx-bot/consultas.ts`; la revalidación del contexto en `lib/dnx-bot/contexto-validado.ts`.
+- «Si el total cambió, falla»: el total que vio la persona viaja en la entrada de las escrituras (`totalEsperado`, copiado de `totalParaConfirmar` de `cotizar_trabajo`); `describe` y `run` recalculan y comparan.
+- `guardarBorrador` reemplaza condiciones, propuesta de pago y descuento con lo que recibe: el bot siempre manda los del borrador actual.
+- `buscar_consultas` sólo para quien además configura y no es COLLABORATOR (es para elegir dónde va el borrador). `ver_presupuesto` no cuenta vistas (eso es de la etapa 3).
+- Los botones aparecen sólo para quien usa ¿Cuánto Cobro? (`configurar`).
+- `Escenario` suma `consultas` (datos de prueba de `buscar_consultas`) y `entradaEnAlguna`.
+
 ---
 
 # PR 4 · Etapa 3 · Consultas, seguimientos y cierre
@@ -460,3 +469,11 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 
 ### Tarea 4.8: Limpieza a 90 días, revisión de seguridad y verificación
 - [ ] `/api/cron/adjuntos` borra `BotConversation` con `platform startsWith "FOTOFFICE:"` y `updatedAt` > 90 días (las de CLF no se tocan). Prueba. Revisión de seguridad. Verificación completa y PR.
+
+**Notas de ejecución del PR 4 (13/10):**
+- Pedidos aparte, incluidos: el editor de presupuestos no pisa un borrador que cambió mientras estaba abierto (concurrencia optimista con el `updatedAt` del presupuesto más una firma del contenido del borrador, sin migración; un cambio que sólo mueve la fecha —estado, vistas— no frena) y la mascota de la foto de CLF (`mascota.webp` + `mascota-foto.webp`, `mascotSpriteSrc`).
+- La precarga del mensaje de la ficha de la consulta completa el texto con los datos de la ficha: `prepararMensaje` acepta un texto propio además de una plantilla.
+- `preparar_mensaje` rechaza todo monto o porcentaje escrito a mano (no sólo los que no salieron del cálculo): el total va siempre como `[presupuesto_total]`.
+- `ver_consulta` no informa propuesta modelo ni borrador automático (los presupuestos de la consulta ya muestran lo que hay).
+- La limpieza a 90 días corre en `/api/cron/adjuntos` antes del chequeo de R2, así funciona aunque los adjuntos no estén configurados.
+- Revisión de seguridad: ver la sección «Revisión de seguridad» del PR 4.

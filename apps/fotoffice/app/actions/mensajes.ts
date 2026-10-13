@@ -69,6 +69,8 @@ export async function prepararMensajeAction(datos: {
   entityType: string;
   entityId: string;
   templateId?: string | null;
+  /** El texto que dejó DNX Bot para esta ficha (con variables): se completa igual que una plantilla. */
+  texto?: { asunto: string | null; cuerpo: string } | null;
 }): Promise<MensajePreparado | Falla> {
   if (
     !esObjeto(datos) || !esCanal(datos.canal) || !esTipoFichaMensaje(datos.entityType) || !idValido(datos.entityId)
@@ -76,10 +78,21 @@ export async function prepararMensajeAction(datos: {
   ) {
     return DATOS_INVALIDOS;
   }
+  let texto: { asunto: string | null; cuerpo: string } | null = null;
+  if (datos.texto !== undefined && datos.texto !== null) {
+    const t = datos.texto as unknown;
+    if (
+      !esObjeto(t) || !textoValido(t.cuerpo, MAX_CUERPO[datos.canal])
+      || !(t.asunto === null || t.asunto === undefined || textoValido(t.asunto, MAX_ASUNTO))
+    ) {
+      return DATOS_INVALIDOS;
+    }
+    texto = { asunto: typeof t.asunto === "string" ? t.asunto : null, cuerpo: t.cuerpo };
+  }
   const a = await acceso(datos.entityType, datos.entityId);
   if (!a.ok) return a.falla;
   return prepararMensaje(a.ctx, {
-    canal: datos.canal, entityType: datos.entityType, entityId: datos.entityId, templateId: datos.templateId ?? null,
+    canal: datos.canal, entityType: datos.entityType, entityId: datos.entityId, templateId: datos.templateId ?? null, texto,
   });
 }
 

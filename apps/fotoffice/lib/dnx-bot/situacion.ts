@@ -1,5 +1,6 @@
 import type { Capacidades } from "./acceso";
 import type { ContextoPedido, Pantalla } from "./contexto";
+import type { EnPantalla } from "./contexto-validado";
 import { RUTAS_BOT, rutasPara } from "./rutas";
 
 /**
@@ -43,11 +44,26 @@ export function armarSituacion(p: {
   workspaceNombre: string | null;
   /** Sólo para quien tiene `configurar` (si no, null): estado, sin montos. */
   perfil?: EstadoPerfil | null;
+  /** Lo que está mirando, ya revalidado contra el workspace (`revalidarContexto`). */
+  enPantalla?: EnPantalla;
 }): string {
   const lineas = ["# Situación"];
   if (p.workspaceNombre) lineas.push(`Workspace: «${p.workspaceNombre}»`);
   lineas.push(`Rol: ${ROLES[p.rol ?? ""] ?? "equipo"}`);
   lineas.push(`Pantalla: ${PANTALLA[p.contexto.pantalla]}`);
+  const pr = p.enPantalla?.presupuesto;
+  if (pr) {
+    lineas.push(
+      `Está mirando el presupuesto ${pr.numero ? `N.º ${pr.numero}` : "sin número"} (presupuestoId ${pr.id}), ${pr.esBorrador ? "en borrador" : `sin borrador editable (${pr.estado.toLowerCase()})`}.`,
+    );
+  }
+  const co = p.enPantalla?.consulta;
+  if (co) {
+    const datos = [co.categoria, co.fechaEvento, co.nombreDePila ? `de ${co.nombreDePila}` : null].filter(Boolean).join(" · ");
+    lineas.push(
+      `Está mirando la consulta ${co.numero ? `N.º ${co.numero}` : "sin número"} (consultaLeadId ${co.leadId})${datos ? `: ${datos}` : ""}.${co.tieneFicha ? "" : " Le falta el contacto: hay que completarla antes de presupuestar."}`,
+    );
+  }
   if (p.capacidades.configurar) {
     lineas.push("Puede usar ¿Cuánto Cobro? (perfil de precios, cálculo y costos).");
   } else {

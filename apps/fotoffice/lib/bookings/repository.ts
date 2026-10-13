@@ -7,6 +7,7 @@ import type { AvailabilityInput, SpaceRules, WeeklyHour } from "./availability";
 import type { Commitment, ExtraDefinition } from "./extras";
 import { BOOKINGS_TIME_ZONE, type Interval } from "./time";
 import { esPricingMode, type PricingMode } from "./pricing";
+import { bookingWording, normalizeAgendaKind, type AgendaKind, type BookingWording } from "./wording";
 
 /**
  * Única puerta a las tablas de reservas.
@@ -263,15 +264,38 @@ export async function listBookingsInRange(
   })) as unknown as BookingRow[];
 }
 
+export type BookingSettingsValues = {
+  holdHours: number;
+  cancelWindowHours: number;
+  agendaKind: AgendaKind;
+  resourceSingular: string | null;
+  resourcePlural: string | null;
+};
+
 /** Sin fila configurada rigen los valores por defecto. No se crea nada al leer. */
-export async function getBookingSettings(
-  workspaceId: string,
-): Promise<{ holdHours: number; cancelWindowHours: number }> {
+export async function getBookingSettings(workspaceId: string): Promise<BookingSettingsValues> {
   const fila = await prisma.bookingSettings.findUnique({
     where: { workspaceId },
-    select: { holdHours: true, cancelWindowHours: true },
+    select: {
+      holdHours: true,
+      cancelWindowHours: true,
+      agendaKind: true,
+      resourceSingular: true,
+      resourcePlural: true,
+    },
   });
-  return { holdHours: fila?.holdHours ?? 24, cancelWindowHours: fila?.cancelWindowHours ?? 24 };
+  return {
+    holdHours: fila?.holdHours ?? 24,
+    cancelWindowHours: fila?.cancelWindowHours ?? 24,
+    agendaKind: normalizeAgendaKind(fila?.agendaKind),
+    resourceSingular: fila?.resourceSingular ?? null,
+    resourcePlural: fila?.resourcePlural ?? null,
+  };
+}
+
+/** Los textos de la agenda pública de la institución (ver `wording.ts`). */
+export async function getBookingWording(workspaceId: string): Promise<BookingWording> {
+  return bookingWording(await getBookingSettings(workspaceId));
 }
 
 export type ExtraRecord = ExtraDefinition & {

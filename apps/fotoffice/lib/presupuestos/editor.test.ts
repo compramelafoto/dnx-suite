@@ -79,3 +79,26 @@ describe("ítems del editor", () => {
     expect(buscarEnCatalogo(PRODUCTOS, "").map((p) => p.id)).toEqual(["p2", "p1", "p3"]);
   });
 });
+
+describe("control de concurrencia del editor", () => {
+  const items = [
+    { id: "a", productId: "p1", nombre: "Álbum", descripcion: null, cantidad: 1, precioUnitario: 1000, descuento: null, modoPrecio: "LISTA" as const, calculo: null, seccion: null, opcional: false },
+  ];
+  const borrador = { id: "v1", number: 1, items, totals: { descuento: null }, terms: "Seña", paymentProposal: null };
+  it("con la versión, el editor recibe fecha y firma; la firma es la misma con o sin costos", async () => {
+    const { armarDatosEditor, firmaDelBorrador } = await import("./editor");
+    const version = new Date("2026-10-12T15:00:00.123Z");
+    const conCostos = armarDatosEditor({ presupuestoId: "p", borrador, catalogo: [], veCostos: true, version });
+    const sinCostos = armarDatosEditor({ presupuestoId: "p", borrador, catalogo: [], veCostos: false, version });
+    expect(conCostos.control).toEqual({ version: version.toISOString(), firma: firmaDelBorrador(items, "Seña", null, null) });
+    expect(sinCostos.control).toEqual(conCostos.control);
+    expect(armarDatosEditor({ presupuestoId: "p", borrador, catalogo: [], veCostos: true }).control).toBeUndefined();
+  });
+  it("la firma cambia si cambia un ítem o las condiciones", async () => {
+    const { firmaDelBorrador } = await import("./editor");
+    const base = firmaDelBorrador(items, "Seña", null, null);
+    expect(firmaDelBorrador([...items, { ...items[0]!, id: "b" }], "Seña", null, null)).not.toBe(base);
+    expect(firmaDelBorrador(items, "Otra", null, null)).not.toBe(base);
+    expect(firmaDelBorrador(items, "Seña", null, null)).toBe(base);
+  });
+});

@@ -88,20 +88,28 @@ export function herramientasDePerfil(ctx: CtxBot, deps: DepsPerfil = DEPS): BotT
         // Se relee el perfil: si cambió desde la propuesta, se guarda sobre lo actual.
         const { b, s, ahora } = await prepararGuardado(ctx, parche, deps);
         if (s.errores.length) return { ok: false, message: s.errores.join(" ") };
-        const r = await deps.guardar(ctx, s.perfil, { source: "dnx-bot" });
+        // Con la versión recién leída: si alguien guardó en el medio, no se pisa.
+        const r = await deps.guardar(ctx, s.perfil, { source: "dnx-bot", esperado: b.guardado ? b.guardado.actualizado : null });
         if (!r.ok) return { ok: false, message: r.error };
         return {
           ok: true,
           message: `Guardado. Valor hora: ${ahora}. Si tenés abierto Configuración → Precios, recargala para ver los datos.`,
-          ...(b.guardado ? { before: { perfil: b.guardado.perfil, source: b.guardado.source } } : {}),
+          ...(b.guardado
+            ? { before: { perfil: b.guardado.perfil, source: b.guardado.source, guardadoPorElBot: r.actualizado.toISOString() } }
+            : {}),
           after: { valorHora: ahora },
         };
       },
       undo: async (before) => {
-        const b = before as { perfil?: unknown; source?: unknown } | null;
+        const b = before as { perfil?: unknown; source?: unknown; guardadoPorElBot?: unknown } | null;
         const perfil = b && typeof b === "object" ? normalizarPerfil(b.perfil) : null;
         if (!perfil) return { ok: false, message: "No tengo el perfil anterior para volver atrás." };
-        const r = await deps.guardar(ctx, perfil, { source: b?.source === "dnx-bot" ? "dnx-bot" : "manual" });
+        // Sólo si el perfil sigue siendo el que guardó el bot: deshacer no pisa un cambio posterior.
+        const esperado = typeof b?.guardadoPorElBot === "string" ? new Date(b.guardadoPorElBot) : undefined;
+        const r = await deps.guardar(ctx, perfil, {
+          source: b?.source === "dnx-bot" ? "dnx-bot" : "manual",
+          ...(esperado && !Number.isNaN(esperado.getTime()) ? { esperado } : {}),
+        });
         return r.ok ? { ok: true, message: "Listo, volví a dejar el perfil como estaba." } : { ok: false, message: r.error };
       },
     }),

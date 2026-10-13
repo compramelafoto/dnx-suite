@@ -273,3 +273,16 @@ export function spacePriceLabel(space: SpacePricing, customerType: CustomerType)
     blockMinutes: space.blockMinutes,
   });
 }
+
+/**
+ * El precio dicho como turno, para las agendas de profesionales: "$ 15.000 el turno de 30 min".
+ * "Cada 0,5 h" es como se cobra una sala; un corte de pelo se anuncia por turno. Fuera del modo
+ * bloque con tamaño no hay turno que nombrar y se usa la etiqueta de siempre.
+ */
+export function turnPriceLabel(space: SpacePricing, customerType: CustomerType): string {
+  if (space.pricingMode !== "BLOCK" || !space.blockMinutes) {
+    return spacePriceLabel(space, customerType);
+  }
+  const precio = customerType === "MEMBER" ? space.memberBlockPriceMinor : space.nonMemberBlockPriceMinor;
+  return `${formatMinorArs(precio)} el turno de ${space.blockMinutes} min`;
+}

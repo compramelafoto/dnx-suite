@@ -113,10 +113,26 @@ export function completarTextos(
  */
 export async function prepararMensaje(
   ctx: CtxEnvio,
-  datos: { canal: Canal; entityType: TipoFichaMensaje; entityId: string; templateId?: string | null },
+  datos: {
+    canal: Canal;
+    entityType: TipoFichaMensaje;
+    entityId: string;
+    templateId?: string | null;
+    /** Un texto con variables que trae DNX Bot (en vez de una plantilla): se completa igual. */
+    texto?: { asunto: string | null; cuerpo: string } | null;
+  },
 ): Promise<MensajePreparado | Falla> {
   const contexto = await contextoDe(ctx.workspaceId, datos.entityType, datos.entityId, usuarioDe(ctx));
   if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
+  if (datos.texto) {
+    const r = completarTextos(contexto, datos.entityType, datos.canal === "EMAIL" ? datos.texto.asunto : null, datos.texto.cuerpo);
+    if (!r.ok) return r;
+    return {
+      ...r,
+      pendientes: tieneMarcadorSinCompletar(r.asunto) || tieneMarcadorSinCompletar(r.cuerpo),
+      destino: contexto.destino,
+    };
+  }
   if (datos.templateId == null || datos.templateId === "") {
     return { ok: true, asunto: "", cuerpo: "", vacias: [], pendientes: false, destino: contexto.destino };
   }
