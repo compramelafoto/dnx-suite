@@ -66,6 +66,8 @@ export type PortalHomeProps = {
     /** Si la institución tiene Reservas prendido, el atajo para usarlos. */
     reservarHref: string | null;
   } | null;
+  /** Si su categoría se renueva cuando quiere (VIP): el precio y la acción de renovar. */
+  renovacion?: { categoryName: string; amountLabel: string; action: () => Promise<void> } | null;
   gobierno?: {
     tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
     totalLibres: number;
@@ -97,6 +99,7 @@ export function PortalHome({
   gobierno = null,
   concursos = [],
   club = null,
+  renovacion = null,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -276,22 +279,43 @@ export function PortalHome({
         <div className="space-y-6 lg:col-span-2">
           {alDia ? null : cuotasCard}
 
-          {club ? (
+          {club || renovacion ? (
             <section className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-5">
               <h2 className="text-base font-semibold">
-                {club.available === 0
-                  ? `Usaste tus ${club.credits} ${club.plural} incluidos`
-                  : `Te quedan ${club.available} de ${club.credits} ${club.plural} incluidos`}
+                {!club
+                  ? `Tu ${renovacion?.categoryName ?? "membresía"} no está vigente`
+                  : club.available === 0
+                    ? `Usaste tus ${club.credits} ${club.plural} incluidos`
+                    : `Te quedan ${club.available} de ${club.credits} ${club.plural} incluidos`}
               </h2>
               <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
-                {club.available === 0
-                  ? `Con tu próximo pago se renuevan.`
-                  : `Vencen el ${club.validUntilLabel}. Lo que no uses hasta entonces no se acumula.`}
+                {!club
+                  ? "Renová cuando quieras: no se te acumula deuda por los meses que no renovaste."
+                  : club.available === 0
+                    ? "Con tu próximo pago se renuevan."
+                    : `Vencen el ${club.validUntilLabel}. Lo que no uses hasta entonces no se acumula.`}
               </p>
-              {club.reservarHref && club.available > 0 ? (
-                <Link href={club.reservarHref} className="fo-btn fo-btn-primary inline-flex text-sm">
-                  Reservar turno
-                </Link>
+              <div className="flex flex-wrap gap-2">
+                {club?.reservarHref && club.available > 0 ? (
+                  <Link href={club.reservarHref} className="fo-btn fo-btn-primary inline-flex text-sm">
+                    Reservar turno
+                  </Link>
+                ) : null}
+                {renovacion ? (
+                  <form action={renovacion.action}>
+                    <button
+                      type="submit"
+                      className={`fo-btn ${club && club.available > 0 ? "fo-btn-secondary" : "fo-btn-primary"} text-sm`}
+                    >
+                      {`Renovar ${renovacion.categoryName} — ${renovacion.amountLabel}`}
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+              {renovacion && club && club.available > 0 ? (
+                <p className="text-xs text-[var(--fo-muted)]">
+                  {`Si renovás ahora, los ${club.available} ${club.plural} que te quedan se reemplazan por los nuevos.`}
+                </p>
               ) : null}
             </section>
           ) : null}

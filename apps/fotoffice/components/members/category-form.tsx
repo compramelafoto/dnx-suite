@@ -18,6 +18,7 @@ type CategoryInitial = {
   bookingCreditsPerPayment: number;
   bookingCreditValidityDays: number;
   bookingCreditLabel: string | null;
+  selfRenew: boolean;
 };
 
 export function CategoryForm({ category }: { category?: CategoryInitial }) {
@@ -150,6 +151,21 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
             />
           </div>
         </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="selfRenew"
+            defaultChecked={category?.selfRenew ?? false}
+            className="mt-1 size-4 rounded border-[var(--fo-border)]"
+          />
+          <span>
+            <span className="fo-label !inline">Se renueva cuando quiere, sin deuda</span>
+            <span className="fo-helper block mt-1">
+              No se le genera la cuota de cada mes: desde su portal paga &ldquo;Renovar&rdquo; cuando
+              decide. Si un mes no renueva, no debe nada.
+            </span>
+          </span>
+        </label>
       </section>
 
       {state.error ? (
