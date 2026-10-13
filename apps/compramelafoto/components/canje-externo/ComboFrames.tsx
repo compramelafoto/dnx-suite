@@ -11,6 +11,12 @@ type Props = {
   thumbUrl: (photoId: number) => string;
   onRemove?: (photoId: number) => void;
   size?: "lg" | "md" | "sm";
+  /** Qué foto va en cada lugar ("Foto individual", "Foto grupal"), si la plantilla lo dice. */
+  labels?: Array<string | undefined>;
+  /** El lugar que se está llenando ahora; se resalta. */
+  activeIndex?: number;
+  /** Tocar un lugar vacío lo elige como el próximo a llenar. */
+  onPickEmpty?: (index: number) => void;
 };
 
 const SIZES = {
@@ -19,13 +25,24 @@ const SIZES = {
   sm: "w-12 h-16",
 };
 
-export default function ComboFrames({ slots, photoIds, thumbUrl, onRemove, size = "md" }: Props) {
+export default function ComboFrames({
+  slots,
+  photoIds,
+  thumbUrl,
+  onRemove,
+  size = "md",
+  labels,
+  activeIndex = -1,
+  onPickEmpty,
+}: Props) {
   return (
     <ol className="m-0 flex list-none justify-center gap-2.5 p-0 sm:gap-3" aria-label="Fotos de tu combo">
       {Array.from({ length: slots }, (_, i) => {
         const id = photoIds[i];
+        const label = labels?.[i];
+        const activo = i === activeIndex && id == null;
         return (
-          <li key={i} className="relative">
+          <li key={i} className="relative flex flex-col items-center">
             {id != null ? (
               <div
                 className={`${SIZES[size]} overflow-hidden rounded-md border-[3px] border-white bg-[#efe9e2] shadow-[0_1px_3px_rgba(60,40,20,0.25)] ring-1 ring-[#2f7d5b]/40`}
@@ -44,13 +61,23 @@ export default function ComboFrames({ slots, photoIds, thumbUrl, onRemove, size 
                 ) : null}
               </div>
             ) : (
-              <div
-                className={`${SIZES[size]} flex items-center justify-center rounded-md border-2 border-dashed border-[#c9bfb3] bg-[#faf8f6] text-lg font-medium text-[#a89c8f]`}
-                aria-label={`Lugar ${i + 1} vacío`}
+              <button
+                type="button"
+                disabled={!onPickEmpty}
+                onClick={() => onPickEmpty?.(i)}
+                className={`${SIZES[size]} flex items-center justify-center rounded-md border-2 border-dashed px-1 text-center font-medium leading-tight disabled:cursor-default ${
+                  activo
+                    ? "border-[#c27b3d] bg-[#fdf3ea] text-[#a8652e]"
+                    : "border-[#c9bfb3] bg-[#faf8f6] text-[#a89c8f]"
+                } ${label ? "text-[11px]" : "text-lg"}`}
+                aria-label={label ? `Lugar vacío: ${label}` : `Lugar ${i + 1} vacío`}
               >
-                {i + 1}
-              </div>
+                {label ?? i + 1}
+              </button>
             )}
+            {label && id != null ? (
+              <span className="mt-1 max-w-[7rem] text-[10px] leading-tight text-[#6b6f76]">{label}</span>
+            ) : null}
           </li>
         );
       })}

@@ -33,6 +33,44 @@ const SCHOOL_CLIENT_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = Array.from
 );
 
 /**
+ * Huecos con nombre: la foto individual del alumno y la foto grupal del curso.
+ *
+ * Van antes que `photo_1…`: la familia elige primero la individual y después la grupal, cada
+ * una en su lugar con su nombre, así no depende del orden en que toca las fotos.
+ */
+export const SCHOOL_INDIVIDUAL_PHOTO_KEY = "photo_individual";
+export const SCHOOL_GROUP_PHOTO_KEY = "photo_group";
+
+const SCHOOL_ROLE_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = [
+  {
+    path: SCHOOL_INDIVIDUAL_PHOTO_KEY,
+    label: "Foto individual del alumno",
+    description: "La foto individual que elige la familia al canjear el pack.",
+    valueType: "image",
+    required: false,
+    example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    formatters: ["none"],
+    usableIn: ["IMAGE"],
+    defaultFallback: null,
+    group: "photos",
+    groupLabel: "Fotos del cliente",
+  },
+  {
+    path: SCHOOL_GROUP_PHOTO_KEY,
+    label: "Foto grupal del curso",
+    description: "La foto grupal del curso que elige la familia al canjear el pack.",
+    valueType: "image",
+    required: false,
+    example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    formatters: ["none"],
+    usableIn: ["IMAGE"],
+    defaultFallback: null,
+    group: "photos",
+    groupLabel: "Fotos del cliente",
+  },
+];
+
+/**
  * Definiciones escolares (solo catálogo).
  * Sin Prisma, pedidos ni resolución de negocio — el caller entrega `data`.
  */
@@ -189,5 +227,6 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     group: "branding",
     groupLabel: "Marca",
   },
+  ...SCHOOL_ROLE_PHOTO_DEFINITIONS,
   ...SCHOOL_CLIENT_PHOTO_DEFINITIONS,
 ];

@@ -4,6 +4,8 @@ import { CLASS_LIST_SAMPLE, CLASS_LIST_VARIABLE_KEY, serializeClassList } from "
 import {
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   SCHOOL_CLIENT_PHOTO_SLOT_COUNT,
+  SCHOOL_GROUP_PHOTO_KEY,
+  SCHOOL_INDIVIDUAL_PHOTO_KEY,
   SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
 } from "./definitions";
 
@@ -12,6 +14,8 @@ export * from "./class-list";
 export {
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   SCHOOL_CLIENT_PHOTO_SLOT_COUNT,
+  SCHOOL_GROUP_PHOTO_KEY,
+  SCHOOL_INDIVIDUAL_PHOTO_KEY,
   SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
 } from "./definitions";
 
@@ -28,6 +32,8 @@ export const SCHOOL_TEMPLATE_EXAMPLE_DATA: Record<string, unknown> = {
   "event.dateFormatted": "17/04/2026",
   "branding.schoolLogoUrl": "https://cdn.example.com/school-logo.png",
   "branding.photographerLogoUrl": "https://cdn.example.com/photographer-logo.png",
+  [SCHOOL_INDIVIDUAL_PHOTO_KEY]: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  [SCHOOL_GROUP_PHOTO_KEY]: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   ...Object.fromEntries(
     Array.from({ length: SCHOOL_CLIENT_PHOTO_SLOT_COUNT }, (_, i) => [
       `photo_${i + 1}`,

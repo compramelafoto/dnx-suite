@@ -13,6 +13,17 @@
 
 export const CLIENT_PHOTO_VARIABLE_PATTERN = /^photo_(\d+)$/;
 
+/**
+ * Huecos con nombre. Su "número" es negativo para ordenarse antes que `photo_1…`: la familia
+ * elige primero la individual y después la grupal, y el armado respeta ese orden.
+ */
+export const CLIENT_PHOTO_ROLE_SLOTS: Record<string, { slotNumber: number; label: string; role: ClientPhotoRole }> = {
+  photo_individual: { slotNumber: -2, label: "Foto individual", role: "individual" },
+  photo_group: { slotNumber: -1, label: "Foto grupal", role: "group" },
+};
+
+export type ClientPhotoRole = "individual" | "group";
+
 /** Encuadre de una foto en su hueco. `zoom` ≥ 1; `x` e `y` entre -1 y 1 (0 = centrada). */
 export type PhotoCrop = { zoom: number; x: number; y: number };
 
@@ -28,6 +39,8 @@ export type ClientPhotoSlot = {
   pageIndex: number;
   /** Para mostrar: la etiqueta de `metaJson.photoInputs` si la hay, si no "Foto n". */
   label: string;
+  /** Si es la foto individual o la grupal; `null` en los huecos numerados. */
+  role: ClientPhotoRole | null;
   width: number;
   height: number;
 };
@@ -65,10 +78,27 @@ export function clientPhotoSlotNumber(block: Pick<BlockLike, "type" | "configJso
   if (block.type !== "IMAGE" && block.type !== "PHOTO") return null;
   const key = imageBlockVariableKey(block.configJson);
   if (!key) return null;
+  const conNombre = CLIENT_PHOTO_ROLE_SLOTS[key];
+  if (conNombre) return conNombre.slotNumber;
   const match = CLIENT_PHOTO_VARIABLE_PATTERN.exec(key);
   if (!match) return null;
   const n = Number(match[1]);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Lo que se le pide a la familia, una entrada por foto distinta y en el orden del armado:
+ * "Foto individual", "Foto grupal", "Foto 3"…
+ */
+export function clientPhotoInputs(slots: ClientPhotoSlot[]): Array<{ label: string; role: ClientPhotoRole | null }> {
+  const seen = new Set<number>();
+  const out: Array<{ label: string; role: ClientPhotoRole | null }> = [];
+  for (const s of slots) {
+    if (seen.has(s.slotNumber)) continue;
+    seen.add(s.slotNumber);
+    out.push({ label: s.label, role: s.role });
+  }
+  return out;
 }
 
 function labelsFromMeta(metaJson: unknown): Map<string, string> {
@@ -91,13 +121,15 @@ export function listClientPhotoSlots(blocks: BlockLike[], metaJson?: unknown): C
   for (const block of blocks) {
     const slotNumber = clientPhotoSlotNumber(block);
     if (slotNumber == null) continue;
-    const variableKey = `photo_${slotNumber}`;
+    const variableKey = imageBlockVariableKey(block.configJson) ?? `photo_${slotNumber}`;
+    const conNombre = CLIENT_PHOTO_ROLE_SLOTS[variableKey];
     slots.push({
       blockId: block.id,
       slotNumber,
       variableKey,
       pageIndex: block.pageIndex ?? 0,
-      label: labels.get(variableKey) ?? `Foto ${slotNumber}`,
+      label: labels.get(variableKey) ?? conNombre?.label ?? `Foto ${slotNumber}`,
+      role: conNombre?.role ?? null,
       width: Number(block.layout?.width ?? block.width ?? 0),
       height: Number(block.layout?.height ?? block.height ?? 0),
     });

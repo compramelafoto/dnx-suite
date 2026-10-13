@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   autoAssignClientPhotos,
+  clientPhotoInputs,
   clientPhotoSlotNumber,
   computeCoverCropRect,
   countClientPhotoInputs,
@@ -83,4 +84,28 @@ test("recorte con desplazamiento y zoom queda dentro de la foto", () => {
     crop: { zoom: 2, x: 1, y: 1 },
   });
   assert.deepEqual(zoom, { left: 3000, top: 1000, width: 1000, height: 1000 });
+});
+
+test("la foto individual y la grupal van primero, con su nombre", () => {
+  const bloque = (id: string, key: string) => ({
+    id,
+    type: "IMAGE",
+    pageIndex: 0,
+    configJson: { source: { variableKey: key } },
+    layout: { width: 100, height: 100 },
+  });
+  const slots = listClientPhotoSlots([bloque("c", "photo_1"), bloque("g", "photo_group"), bloque("i", "photo_individual")]);
+  assert.deepEqual(
+    slots.map((s) => [s.blockId, s.label, s.role]),
+    [
+      ["i", "Foto individual", "individual"],
+      ["g", "Foto grupal", "group"],
+      ["c", "Foto 1", null],
+    ],
+  );
+  const asignado = autoAssignClientPhotos(slots, [10, 20, 30]);
+  assert.equal(asignado.i!.photoId, 10);
+  assert.equal(asignado.g!.photoId, 20);
+  assert.equal(asignado.c!.photoId, 30);
+  assert.deepEqual(clientPhotoInputs(slots).map((x) => x.label), ["Foto individual", "Foto grupal", "Foto 1"]);
 });

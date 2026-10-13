@@ -6,6 +6,9 @@ import { getCheckoutEmailValidationError } from "@/lib/email-validation";
 import type { PreventaPackSnapshotBenefitV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import {
   buildCanjeSlotPlan,
+  currentCanjeSlotIndex,
+  photosForCanjeRole,
+  type CanjePhotoInput,
   buildRedeemSelections,
   emptyCanjeFill,
   isCanjeComplete,
@@ -43,7 +46,7 @@ type Props = {
         | "name"
         | "includesDigital"
         | "previewImageUrl"
-      >
+      > & { photoInputs?: CanjePhotoInput[] | null }
     >;
     parentName: string | null;
     studentName: string | null;
@@ -53,7 +56,8 @@ type Props = {
    * confirmar (ahí le llegan los digitales y el comprobante).
    */
   pedirContacto?: boolean;
-  photos: Array<{ id: number; sellPrint: boolean; sellDigital: boolean }>;
+  /** `faces`: rostros detectados; `null` si la foto todavía no se analizó. */
+  photos: Array<{ id: number; sellPrint: boolean; sellDigital: boolean; faces?: number | null }>;
 };
 
 function primerNombre(nombre: string | null): string | null {
@@ -84,6 +88,8 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
   const [telefono, setTelefono] = useState("");
   const [paso, setPaso] = useState<Paso>("intro");
   const [filled, setFilled] = useState<Array<number | null>>(() => emptyCanjeFill(plan));
+  /** El lugar que tocó la familia para llenarlo ahora ("la grupal"). */
+  const [destino, setDestino] = useState<number | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoomId, setZoomId] = useState<number | null>(null);
@@ -103,10 +109,16 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
     (id: number) => `/api/photos/${id}/view?albumId=${album.id}&mode=thumb`,
     [album.id]
   );
-  const visibles = useMemo(
-    () => (filtro ? photos.filter((p) => filtro.includes(p.id)) : photos).map((p) => p.id),
-    [photos, filtro]
-  );
+  const actual = currentCanjeSlotIndex(filled, destino);
+  const lugarActual = actual != null ? plan.slots[actual] : null;
+  const [verTodasParaGrupal, setVerTodasParaGrupal] = useState(false);
+  const facesById = useMemo(() => new Map(photos.map((p) => [p.id, p.faces ?? null])), [photos]);
+  const paraElLugar = useMemo(() => {
+    const base = (filtro ? photos.filter((p) => filtro.includes(p.id)) : photos).map((p) => p.id);
+    if (verTodasParaGrupal) return { ids: base, filtered: false };
+    return photosForCanjeRole(base, facesById, lugarActual?.role);
+  }, [photos, filtro, facesById, lugarActual?.role, verTodasParaGrupal]);
+  const visibles = paraElLugar.ids;
   const hayImpresas = plan.groups.some((g) => g.kind === "PHYSICAL");
   const impresas = plan.slots.filter((s) => s.kind === "PHYSICAL").length;
   const entregaImpresas = `${impresas === 1 ? "La foto impresa te la entrega" : "Las fotos impresas te las entrega"} ${album.photographerName ?? "el fotógrafo"}.`;
@@ -121,9 +133,11 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
 
   function tocar(id: number) {
     setAviso(null);
-    const r = toggleCanjePhoto(plan, filled, id, byId.get(id));
+    const r = toggleCanjePhoto(plan, filled, id, byId.get(id), destino);
     if (r.ok) {
       setFilled(r.filled);
+      setDestino(null);
+      setVerTodasParaGrupal(false);
       return;
     }
     setAviso(
@@ -209,6 +223,16 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
           <ComboFrames
             slots={g.slotIndexes.length}
             photoIds={g.slotIndexes.map((i) => filled[i]) as number[]}
+            labels={g.slotIndexes.map((i) => plan.slots[i].label)}
+            activeIndex={editable && actual != null ? g.slotIndexes.indexOf(actual) : -1}
+            onPickEmpty={
+              editable
+                ? (pos) => {
+                    setDestino(g.slotIndexes[pos] ?? null);
+                    setVerTodasParaGrupal(false);
+                  }
+                : undefined
+            }
             thumbUrl={thumbUrl}
             onRemove={editable ? tocar : undefined}
             size={size}
@@ -307,6 +331,25 @@ export default function PreventaCanjeFlow({ token, album, pack, photos, pedirCon
                   : `${elegidas.length} de ${total} elegidas · te ${total - elegidas.length === 1 ? "falta" : "faltan"} ${total - elegidas.length}`}
               </p>
               {casilleros("sm", true)}
+              {lugarActual?.label && !completo ? (
+                <p className="m-0 mt-3 text-center text-sm text-[#1f2328]">
+                  Ahora elegí: <strong>{lugarActual.label}</strong>
+                  {paraElLugar.filtered ? (
+                    <>
+                      {" "}
+                      · te mostramos las fotos grupales.{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-[#a8652e] underline"
+                        onClick={() => setVerTodasParaGrupal(true)}
+                      >
+                        Ver todas
+                      </button>
+                    </>
+                  ) : null}
+                  <span className="block text-xs text-[#6b6f76]">Tocá otro lugar vacío para elegir esa foto primero.</span>
+                </p>
+              ) : null}
             </div>
             {album.selfieSearch ? (
               <div className="mb-4 rounded-xl border border-[#e7e1da] bg-white p-4">

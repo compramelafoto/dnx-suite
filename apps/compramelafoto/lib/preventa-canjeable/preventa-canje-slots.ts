@@ -15,10 +15,18 @@ import type {
 
 export type CanjeSlotKind = "PHYSICAL" | "DIGITAL";
 
+/** Qué foto pide un lugar cuando la plantilla del beneficio lo dice. */
+export type CanjePhotoRole = "individual" | "group";
+
+export type CanjePhotoInput = { label: string; role: CanjePhotoRole | null };
+
 export type CanjeSlot = {
   benefitKey: string;
   kind: CanjeSlotKind;
   unitIndex: number;
+  /** "Foto individual", "Foto grupal"… Sólo si la plantilla del beneficio nombra sus huecos. */
+  label?: string;
+  role?: CanjePhotoRole | null;
 };
 
 export type CanjeSlotGroup = {
@@ -37,7 +45,13 @@ export type CanjeSlotPlan = { slots: CanjeSlot[]; groups: CanjeSlotGroup[] };
 type BenefitInput = Pick<
   PreventaPackSnapshotBenefitV1,
   "stableKey" | "kind" | "selectionMode" | "includedQuantity" | "requiredPhotoCount" | "sortOrder" | "name"
->;
+> & {
+  /**
+   * Lo que pide la plantilla del beneficio, en el orden del armado. La foto `p` de cada unidad
+   * va al hueco `p` del diseño, así que el lugar `p` lleva ese nombre.
+   */
+  photoInputs?: CanjePhotoInput[] | null;
+};
 
 function photosPerUnit(b: BenefitInput): number {
   if (b.selectionMode === "SINGLE_PHOTO") return 1;
@@ -68,7 +82,12 @@ export function buildCanjeSlotPlan(benefits: BenefitInput[]): CanjeSlotPlan {
     for (let u = 0; u < units; u++) {
       for (let p = 0; p < per; p++) {
         slotIndexes.push(slots.length);
-        slots.push({ benefitKey: b.stableKey, kind: b.kind, unitIndex: u });
+        const input = b.photoInputs?.[p];
+        slots.push(
+          input
+            ? { benefitKey: b.stableKey, kind: b.kind, unitIndex: u, label: input.label, role: input.role }
+            : { benefitKey: b.stableKey, kind: b.kind, unitIndex: u },
+        );
       }
     }
     if (units > 0) {
@@ -104,12 +123,20 @@ export function toggleCanjePhoto(
   plan: CanjeSlotPlan,
   filled: Array<number | null>,
   photoId: number,
-  photo: CanjePhotoSales | undefined
+  photo: CanjePhotoSales | undefined,
+  /** El lugar que la familia tocó antes de elegir la foto ("ahora la grupal"). */
+  targetIndex?: number | null
 ): ToggleResult {
   const at = filled.indexOf(photoId);
   if (at >= 0) {
     const next = [...filled];
     next[at] = null;
+    return { ok: true, filled: next };
+  }
+  if (targetIndex != null && targetIndex >= 0 && targetIndex < plan.slots.length && filled[targetIndex] == null) {
+    if (!fits(plan.slots[targetIndex].kind, photo)) return { ok: false, reason: "no_corresponde", filled };
+    const next = [...filled];
+    next[targetIndex] = photoId;
     return { ok: true, filled: next };
   }
   const free = plan.slots.findIndex((s, i) => filled[i] == null && fits(s.kind, photo));
@@ -120,6 +147,31 @@ export function toggleCanjePhoto(
   const next = [...filled];
   next[free] = photoId;
   return { ok: true, filled: next };
+}
+
+/** El lugar que se está llenando: el que tocó la familia o, si no, el primero libre. */
+export function currentCanjeSlotIndex(filled: Array<number | null>, targetIndex?: number | null): number | null {
+  if (targetIndex != null && filled[targetIndex] == null) return targetIndex;
+  const free = filled.findIndex((x) => x == null);
+  return free >= 0 ? free : null;
+}
+
+/** Cuántos rostros necesita una foto para ofrecerse como grupal. */
+export const GROUP_PHOTO_MIN_FACES = 5;
+
+/**
+ * Las fotos para el lugar que se está llenando. Para la grupal, sólo las que tienen más de
+ * `GROUP_PHOTO_MIN_FACES` rostros; si el álbum todavía no se analizó (ninguna foto con
+ * rostros contados) se muestran todas, para no dejar a la familia sin opciones.
+ */
+export function photosForCanjeRole(
+  photoIds: number[],
+  facesById: ReadonlyMap<number, number | null>,
+  role: CanjePhotoRole | null | undefined
+): { ids: number[]; filtered: boolean } {
+  if (role !== "group") return { ids: photoIds, filtered: false };
+  const grupales = photoIds.filter((id) => (facesById.get(id) ?? 0) > GROUP_PHOTO_MIN_FACES);
+  return grupales.length > 0 ? { ids: grupales, filtered: true } : { ids: photoIds, filtered: false };
 }
 
 export function emptyCanjeFill(plan: CanjeSlotPlan): Array<number | null> {
