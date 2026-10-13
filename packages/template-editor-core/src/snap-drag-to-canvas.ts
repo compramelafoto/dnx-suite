@@ -11,6 +11,12 @@ export const CANVAS_DRAG_SNAP_THRESHOLD_PX = 9;
 /** Distancia del imán en px de pantalla, la misma con cualquier zoom. */
 export const SNAP_SCREEN_PX = 8;
 
+/** Piso del imán fuerte (Shift al mover), en px del lienzo. */
+export const CANVAS_DRAG_MAGNET_THRESHOLD_PX = 28;
+
+/** Con Shift el imán atrae desde unas tres veces y media más lejos que el normal. */
+const MAGNET_FACTOR = 3.5;
+
 export type CanvasDragSnapResult = {
   x: number;
   y: number;
@@ -20,8 +26,18 @@ export type CanvasDragSnapResult = {
   guideHorizontalY: number | null;
 };
 
-/** Rectángulo opcional de zona segura: sus bordes también imantan. */
-export type SnapOptions = { safeArea?: { x: number; y: number; width: number; height: number } | null };
+export type SnapOptions = {
+  /** Rectángulo de la zona segura: sus bordes también imantan. */
+  safeArea?: { x: number; y: number; width: number; height: number } | null;
+  /** Imán fuerte (tecla Shift al mover): atrae desde más lejos. */
+  magnet?: boolean;
+  /** Líneas de ayuda extra, verticales y horizontales. */
+  guidesX?: number[];
+  guidesY?: number[];
+};
+
+/** Nombre anterior de las opciones; se conserva para quien ya lo use. */
+export type SnapDragOptions = SnapOptions;
 
 /**
  * Líneas guía del imán, en px del lienzo: bordes y centro de la hoja, bordes de la zona segura y
@@ -41,6 +57,8 @@ export function buildSnapGuideLines(
     xs.push(sa.x, sa.x + sa.width);
     ys.push(sa.y, sa.y + sa.height);
   }
+  xs.push(...(options.guidesX ?? []));
+  ys.push(...(options.guidesY ?? []));
   for (const b of blocks) {
     if (excludeIds.has(b.id) || !b.layout.visible) continue;
     // El fondo ocupa la hoja entera: sus bordes ya son los de la hoja.
@@ -93,8 +111,11 @@ export function snapDragPosition(
   options: SnapOptions = {}
 ): CanvasDragSnapResult {
   const { xs, ys } = buildSnapGuideLines(canvasWidth, canvasHeight, blocks, new Set([draggedBlockId]), options);
-  const sx = snapAxis(rawX, blockWidth, xs, thresholdPx);
-  const sy = snapAxis(rawY, blockHeight, ys, thresholdPx);
+  const threshold = options.magnet
+    ? Math.max(thresholdPx * MAGNET_FACTOR, CANVAS_DRAG_MAGNET_THRESHOLD_PX)
+    : thresholdPx;
+  const sx = snapAxis(rawX, blockWidth, xs, threshold);
+  const sy = snapAxis(rawY, blockHeight, ys, threshold);
 
   const clamped = clampBlockPosition(
     canvasWidth,

@@ -105,3 +105,51 @@ export function computeResizeRect(
   }
   return next;
 }
+
+/** Un punto del rectángulo, girado alrededor de su centro (convención de CSS `rotate()`). */
+function rotatedPoint(rect: Rect, px: number, py: number, rad: number): { x: number; y: number } {
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const dx = px - cx;
+  const dy = py - cy;
+  return { x: cx + dx * Math.cos(rad) - dy * Math.sin(rad), y: cy + dx * Math.sin(rad) + dy * Math.cos(rad) };
+}
+
+/** La esquina opuesta a la que se arrastra: la que tiene que quedarse quieta. */
+function oppositeCorner(handle: ResizeCorner, r: Rect): { x: number; y: number } {
+  return {
+    x: handle === "nw" || handle === "sw" ? r.x + r.width : r.x,
+    y: handle === "nw" || handle === "ne" ? r.y + r.height : r.y,
+  };
+}
+
+/**
+ * Como `computeResizeRect`, pero para un bloque girado.
+ *
+ * El bloque se guarda sin girar (x, y, ancho, alto) y se gira alrededor de su centro. Sin tener
+ * en cuenta el giro, con una imagen a 90° arrastrar hacia la derecha agrandaba el alto, y la
+ * esquina opuesta se corría porque al cambiar el tamaño cambia el centro del giro.
+ *
+ * Primero el movimiento del mouse se lleva a los ejes del bloque; después se corre el resultado
+ * para que la esquina opuesta (o el centro, con Alt) quede en el mismo lugar de la pantalla.
+ */
+export function computeResizeRectRotated(
+  handle: ResizeCorner,
+  start: Rect,
+  deltaX: number,
+  deltaY: number,
+  modifiers: ResizeModifiers,
+  rotationDeg: number
+): Rect {
+  const rad = ((Number.isFinite(rotationDeg) ? rotationDeg : 0) * Math.PI) / 180;
+  if (Math.abs(rad) < 1e-9) return computeResizeRect(handle, start, deltaX, deltaY, modifiers);
+  const localX = deltaX * Math.cos(rad) + deltaY * Math.sin(rad);
+  const localY = -deltaX * Math.sin(rad) + deltaY * Math.cos(rad);
+  const next = computeResizeRect(handle, start, localX, localY, modifiers);
+  if (modifiers.alt) return next;
+  const a = oppositeCorner(handle, start);
+  const b = oppositeCorner(handle, next);
+  const fijo = rotatedPoint(start, a.x, a.y, rad);
+  const ahora = rotatedPoint(next, b.x, b.y, rad);
+  return { ...next, x: next.x + (fijo.x - ahora.x), y: next.y + (fijo.y - ahora.y) };
+}

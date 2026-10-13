@@ -55,7 +55,8 @@ import {
 import { createAreaTextBlockInRect, createPointTextBlockAt } from "@repo/template-editor-core";
 import {
   canvasDpi,
-  computeResizeRect,
+  computeResizeRectRotated,
+  snapRotationDeg,
   describeAspect,
   findAspectPreset,
   formatBlockSize,
@@ -1114,7 +1115,8 @@ export function TemplateEditorCanvas({
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
                       : blocksOnPage,
                     sinIman ? 0 : SNAP_SCREEN_PX / zoom,
-                    { safeArea: safeAreaRect }
+                    // Zona segura siempre; con Shift, imán fuerte.
+                    { safeArea: safeAreaRect, magnet: e.shiftKey && !sinIman }
                   );
                   setSnapGuides({ vx: snapped.guideVerticalX, hy: snapped.guideHorizontalY });
 
@@ -1279,7 +1281,8 @@ export function TemplateEditorCanvas({
                           rz.rotationAccumDeg = normalizeRotationDeg(
                             rz.rotationAccumDeg + (deltaRad * 180) / Math.PI
                           );
-                          const nextDeg = rz.rotationAccumDeg;
+                          // Con Shift, imán a los ángulos rectos (y de a 15° entre medio).
+                          const nextDeg = e.shiftKey ? snapRotationDeg(rz.rotationAccumDeg) : rz.rotationAccumDeg;
                           dispatch(
                             updateBlock(
                               primaryBlock.id,
@@ -1389,7 +1392,7 @@ export function TemplateEditorCanvas({
                           // Con proporción fijada en el inspector, la esquina estira siempre en
                           // proporción, como si Mayús estuviera apretada.
                           const aspectLock = getBlockAspectLock(primaryBlock.configJson);
-                          const next = computeResizeRect(
+                          const next = computeResizeRectRotated(
                             rz.handle,
                             {
                               x: rz.startX,
@@ -1399,12 +1402,15 @@ export function TemplateEditorCanvas({
                             },
                             dx,
                             dy,
-                            { shift: e.shiftKey || aspectLock !== null, alt: e.altKey }
+                            { shift: e.shiftKey || aspectLock !== null, alt: e.altKey },
+                            primaryBlock.layout.rotation ?? 0
                           );
                           // Imán al estirar: los bordes que se mueven se pegan a las guías. Alt (desde
-                          // el centro) y ⌘/Ctrl lo sueltan.
+                          // el centro) y ⌘/Ctrl lo sueltan. En un bloque girado no: las guías son
+                          // horizontales y verticales, y pegarle un borde inclinado lo deformaría.
                           let finalRect = next;
-                          if (!e.altKey && !e.metaKey && !e.ctrlKey) {
+                          const girado = Math.abs(primaryBlock.layout.rotation ?? 0) % 360 !== 0;
+                          if (!girado && !e.altKey && !e.metaKey && !e.ctrlKey) {
                             const guides = buildSnapGuideLines(
                               state.canvas.width,
                               state.canvas.height,
