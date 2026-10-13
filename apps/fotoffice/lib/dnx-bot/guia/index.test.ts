@@ -34,4 +34,13 @@ describe("guía base de DNX Bot en FOTOFFICE", () => {
     expect(g).toMatch(/competencia/);
     expect(g).toMatch(/catálogo.*editor/);
   });
+  it("tiene la etapa 3: mensajes con variables, sin enviar, inyección como dato, seguimientos a pedido", () => {
+    expect(g).toContain("preparar_mensaje");
+    expect(g).toContain("[presupuesto_enlace]");
+    expect(g).toContain("[presupuesto_total]");
+    expect(g).toContain("«Abrir para enviar»");
+    expect(g).toContain("presupuestos_sin_respuesta");
+    expect(g).toMatch(/seguimiento automático/);
+    expect(g).toMatch(/por ahora ayudás con precios y presupuestos/);
+  });
 });

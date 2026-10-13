@@ -18,12 +18,14 @@ import { leerAjustes, type AjustesPresupuestos } from "./ajustes";
 import { entradaGuardada, validarOpcionesPago } from "./opciones-pago";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
+import { firmaDelBorrador } from "./editor";
 import { leerPropuestaModelo } from "./propuestas-modelo";
 import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde, vencio } from "./estados";
 import {
   bloquearPresupuesto,
   costosVacios,
   entradasGuardadas,
+  itemsGuardados,
   normalizarBorrador,
   SELECT_VERSION,
   totalesVacios,
@@ -257,6 +259,11 @@ export async function guardarBorrador(
   presupuestoId: unknown,
   entrada: EntradaBorrador,
   deps: DepsPresupuestos = {},
+  /**
+   * Concurrencia optimista (sin migración): la fecha del presupuesto y la firma del borrador que
+   * tenía el editor al abrirse. Si la fecha cambió y el borrador también, no se pisa.
+   */
+  control?: { version: Date; firma: string },
 ): Promise<Resultado> {
   if (!puedeGestionarPresupuestos(ctx)) return { ok: false, error: MENSAJES_PRESUPUESTO.sinPermiso };
   if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
@@ -289,9 +296,21 @@ export async function guardarBorrador(
   try {
     return await prisma.$transaction(async (tx): Promise<Resultado> => {
       await bloquearPresupuesto(tx, presupuestoId);
-      const actual = await tx.fotofficePresupuesto.findFirst({ where: { id: presupuestoId, workspaceId }, select: { status: true } });
+      const actual = await tx.fotofficePresupuesto.findFirst({ where: { id: presupuestoId, workspaceId }, select: { status: true, updatedAt: true } });
       if (!actual) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste };
       if (actual.status === "ACEPTADO") return { ok: false, error: MENSAJES_PRESUPUESTO.aceptado };
+      if (control && actual.updatedAt.getTime() !== control.version.getTime()) {
+        // La fecha se mueve también con cambios que no tocan el borrador (estado, vistas): sólo
+        // frena si el contenido del borrador es otro que el que tenía el editor.
+        const hoy = await tx.fotofficePresupuestoVersion.findFirst({
+          where: { id: borrador.id, workspaceId },
+          select: { items: true, terms: true, paymentProposal: true, totals: true },
+        });
+        const firmaHoy = hoy
+          ? firmaDelBorrador(itemsGuardados(hoy.items), hoy.terms, hoy.paymentProposal, (hoy.totals as TotalesGuardados | null)?.descuento ?? null)
+          : null;
+        if (firmaHoy !== control.firma) return { ok: false, error: MENSAJES_PRESUPUESTO.cambioConEditorAbierto };
+      }
       const r = await tx.fotofficePresupuestoVersion.updateMany({
         where: { id: borrador.id, workspaceId, presupuestoId, sentAt: null },
         data: {

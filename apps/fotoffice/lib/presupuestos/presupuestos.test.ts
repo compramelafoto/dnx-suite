@@ -704,3 +704,44 @@ describe("fuente", () => {
     expect([...pos].sort((a, b) => a - b)).toEqual(pos);
   });
 });
+
+const E = await import("./editor");
+
+describe("borrador: no pisar cambios hechos con el editor abierto", () => {
+  const CAMBIO_EDITOR = M.cambioConEditorAbierto;
+  const mas = (min: number) => ({ ...deps, ahora: () => new Date(AHORA.getTime() + min * 60_000) });
+
+  async function abierto() {
+    const p = await nuevo();
+    await P.guardarBorrador(DUENO, p.presupuestoId, { items: [itemLista("a")] }, mas(1));
+    const d = (await P.leerPresupuesto(DUENO, p.presupuestoId, deps))!;
+    const b = d.borrador!;
+    // Lo que tiene el editor al abrir: la versión (updatedAt) y la firma del borrador.
+    const control = { version: d.updatedAt, firma: E.firmaDelBorrador(b.items as never, b.terms, b.paymentProposal, b.totals.descuento ?? null) };
+    return { id: p.presupuestoId, control };
+  }
+
+  it("si nadie lo tocó, guarda", async () => {
+    const { id, control } = await abierto();
+    expect(await P.guardarBorrador(DUENO, id, { items: [itemLista("a"), itemLista("b")] }, mas(2), control)).toEqual({ ok: true });
+  });
+
+  it("si DNX Bot le sumó ítems mientras tanto, no pisa y pide recargar", async () => {
+    const { id, control } = await abierto();
+    await P.guardarBorrador(DUENO, id, { items: [itemLista("a"), itemLista("bot")] }, mas(2));
+    expect(await P.guardarBorrador(DUENO, id, { items: [itemLista("a"), itemLista("mio")] }, mas(3), control)).toEqual({ ok: false, error: CAMBIO_EDITOR });
+    expect((versionesDe(id).find((v) => v.sentAt === null)!.items as { id: string }[]).map((i) => i.id)).toEqual(["a", "bot"]);
+  });
+
+  it("si cambió sólo el presupuesto (no el borrador), guarda igual: no es un falso aviso", async () => {
+    const { id, control } = await abierto();
+    // Otro cambio del presupuesto (estado, aviso…) que mueve su updatedAt sin tocar el borrador.
+    presupuesto(id).updatedAt = new Date(AHORA.getTime() + 5 * 60_000);
+    expect(await P.guardarBorrador(DUENO, id, { items: [itemLista("a"), itemLista("b")] }, mas(6), control)).toEqual({ ok: true });
+  });
+
+  it("el mensaje es claro y en castellano", () => {
+    expect(CAMBIO_EDITOR).toMatch(/cambió mientras lo tenías abierto/);
+    expect(CAMBIO_EDITOR).toMatch(/Recargá/);
+  });
+});

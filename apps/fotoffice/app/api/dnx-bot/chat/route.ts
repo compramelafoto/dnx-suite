@@ -70,6 +70,7 @@ export async function POST(req: Request) {
     alResultado: (send, name, outcome) => {
       const tarjeta = outcome.ok ? (outcome.data as { tarjeta?: unknown } | undefined)?.tarjeta : undefined;
       if ((name === "simular_perfil" || name === "cotizar_trabajo") && tarjeta) send("calculo", tarjeta);
+      if (name === "preparar_mensaje" && tarjeta) send("mensaje", tarjeta);
     },
     // Red de seguridad (spec §5.4): toda cifra del texto tiene que salir de una herramienta o de la persona.
     revisarRespuesta: async ({ texto, appended, history, conversationId }) => {

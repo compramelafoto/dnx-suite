@@ -8,5 +8,13 @@ import { DnxBotBubble } from "@repo/dnx-bot/ui";
  * FOTOFFICE no hay «Hablar con una persona».
  */
 export function BurbujaDnxBot({ rutas }: { rutas: string[] }) {
-  return <DnxBotBubble basePath="/api/dnx-bot" mascotSrc="/dnx-bot/mascota.webp" rutasPermitidas={rutas} conTickets={false} />;
+  return (
+    <DnxBotBubble
+      basePath="/api/dnx-bot"
+      mascotSrc="/dnx-bot/mascota.webp"
+      mascotSpriteSrc="/dnx-bot/mascota-foto.webp"
+      rutasPermitidas={rutas}
+      conTickets={false}
+    />
+  );
 }

@@ -179,6 +179,8 @@ export function EditorPresupuesto({
         condiciones,
         propuestaPago,
         ...(datos.opcionesPago ? { opcionesPago } : {}),
+        // No pisar un borrador que cambió mientras el editor estaba abierto (por ejemplo, DNX Bot).
+        ...(datos.control ? { control: datos.control } : {}),
       }).catch(() => ({ ok: false as const, error: "No se pudo guardar. Probá de nuevo." }));
       if (r.ok) {
         guardadosRecientes.set(datos.presupuestoId, Date.now());

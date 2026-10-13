@@ -4,7 +4,7 @@ import { formatCuantoCobroCurrency } from "@repo/cuanto-cobro-core";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { MENSAJES_PRESUPUESTO } from "@/lib/presupuestos/acceso";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
-import { ajustadosIniciales, itemsParaGuardar } from "@/lib/presupuestos/editor";
+import { ajustadosIniciales, firmaDelBorrador, itemsParaGuardar } from "@/lib/presupuestos/editor";
 import { perfilParaPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { leerPropuestaModelo } from "@/lib/presupuestos/propuestas-modelo";
 import { crearPresupuesto, guardarBorrador, leerPresupuesto, type DetallePresupuesto } from "@/lib/presupuestos/presupuestos";
@@ -35,7 +35,7 @@ export type DepsPresupuestosBot = {
   consulta: typeof consultaParaBorrador;
   leerPresupuesto: (ctx: CtxBot, id: string) => Promise<DetallePresupuesto | null>;
   crearPresupuesto: (ctx: CtxBot, datos: { consultaLeadId: string }) => ReturnType<typeof crearPresupuesto>;
-  guardarBorrador: (ctx: CtxBot, id: string, entrada: EntradaBorrador) => ReturnType<typeof guardarBorrador>;
+  guardarBorrador: (ctx: CtxBot, id: string, entrada: EntradaBorrador, control?: { version: Date; firma: string }) => ReturnType<typeof guardarBorrador>;
   itemsDePropuestaModelo: (workspaceId: string, categoriaId: string | null) => Promise<number>;
   ahora: () => Date;
   nuevaClave: () => string;
@@ -47,7 +47,7 @@ const DEPS: DepsPresupuestosBot = {
   consulta: consultaParaBorrador,
   leerPresupuesto: (ctx, id) => leerPresupuesto(ctx, id),
   crearPresupuesto: (ctx, datos) => crearPresupuesto(ctx, datos),
-  guardarBorrador: (ctx, id, entrada) => guardarBorrador(ctx, id, entrada),
+  guardarBorrador: (ctx, id, entrada, control) => guardarBorrador(ctx, id, entrada, {}, control),
   itemsDePropuestaModelo: async (workspaceId, categoriaId) => (categoriaId ? ((await leerPropuestaModelo(workspaceId, categoriaId))?.items.length ?? 0) : 0),
   ahora: () => new Date(),
   nuevaClave: () => `bot${randomUUID().replace(/-/g, "").slice(0, 20)}`,
@@ -76,7 +76,7 @@ function sinPrecio(r: Exclude<ResultadoCotizacion, { estado: "OK" }>): string {
   return r.faltan.length ? `${r.error} Falta: ${r.faltan.join(", ")}.` : r.error;
 }
 
-function siguientePaso(c: ConsultaBot): string {
+export function siguientePaso(c: ConsultaBot): string {
   if (!c.tieneFicha) return `Le falta el contacto: hay que completarla en /consultas/${c.leadId} antes de presupuestar.`;
   const borrador = c.presupuestos.find((p) => p.tieneBorrador);
   if (borrador) return `Ya tiene un presupuesto en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.`;
@@ -289,7 +289,12 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
           const v = await validarSuma(ctx, input, deps);
           if (!v.ok) return { ok: false, message: v.error };
           const todos = [...v.existentes, ...v.r.items];
-          const g = await deps.guardarBorrador(ctx, v.d.id, entradaCon(todos, v.borrador));
+          // Con lo que se acaba de leer: si alguien guardó el borrador en el medio, no se pisa.
+          const control = {
+            version: v.d.updatedAt,
+            firma: firmaDelBorrador(v.existentes, v.borrador.terms, v.borrador.paymentProposal, v.borrador.totals.descuento ?? null),
+          };
+          const g = await deps.guardarBorrador(ctx, v.d.id, entradaCon(todos, v.borrador), control);
           if (!g.ok) return { ok: false, message: g.error };
           return {
             ok: true,

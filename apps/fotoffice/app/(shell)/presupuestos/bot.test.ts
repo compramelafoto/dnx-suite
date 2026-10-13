@@ -13,6 +13,10 @@ vi.mock("@/lib/presupuestos/pagina", () => ({
 vi.mock("@/lib/listado/acceso", () => ({ contextoListadoDePagina: async () => ({}) }));
 vi.mock("@/lib/presupuestos/listado", () => ({ listadoPresupuestos: {} }));
 vi.mock("@/components/listado/listado", () => ({ Listado: () => null }));
+const S = vi.hoisted(() => ({ cantidad: 0 }));
+vi.mock("@/lib/dnx-bot/seguimientos", () => ({
+  presupuestosSinRespuesta: async () => ({ dias: 3, seguimientoActivo: false, presupuestos: Array.from({ length: S.cantidad }, (_, i) => ({ id: `p${i}` })) }),
+}));
 
 const { default: Lista } = await import("./page");
 const { PreguntaleAlBot } = await import("@/components/dnx-bot/preguntale-al-bot");
@@ -28,6 +32,7 @@ const lista = () => Lista({ searchParams: Promise.resolve({}) });
 
 beforeEach(() => {
   H.bot = null;
+  S.cantidad = 0;
 });
 
 describe("lista de Presupuestos", () => {
@@ -42,6 +47,28 @@ describe("lista de Presupuestos", () => {
   it("con bot pero sin configurar: no (el cálculo es del dueño y los administradores)", async () => {
     H.bot = { rutas: [], capacidades: { configurar: false, gestionarPresupuestos: true, verConsultas: true } };
     expect(buscar(await lista(), PreguntaleAlBot)).toEqual([]);
+  });
+});
+
+describe("«Seguimientos» en la lista", () => {
+  it("sólo con el bot encendido y presupuestos sin respuesta", async () => {
+    H.bot = { rutas: [], capacidades: { configurar: false, gestionarPresupuestos: true, verConsultas: true } };
+    expect(buscar(await lista(), PreguntaleAlBot)).toEqual([]);
+    S.cantidad = 2;
+    const [b] = buscar(await lista(), PreguntaleAlBot);
+    expect(b!.props).toMatchObject({ etiqueta: "Seguimientos (2)", mensaje: "¿Qué presupuestos tengo sin respuesta?" });
+    H.bot = null;
+    expect(buscar(await lista(), PreguntaleAlBot)).toEqual([]);
+  });
+});
+
+describe("ficha de la consulta (fuente)", () => {
+  it("«Preguntale al bot» con la consulta como contexto, sólo con el bot y «Ver» en Consultas", () => {
+    const p = readFileSync(join(__dirname, "../consultas/[id]/page.tsx"), "utf8");
+    expect(p).toContain("botEnPanel()");
+    expect(p).toContain("bot?.capacidades.verConsultas ?");
+    expect(p).toContain('mensaje="Ayudame a responder esta consulta."');
+    expect(p).toContain('contexto={{ pantalla: "consulta", consultaLeadId: id }}');
   });
 });
 

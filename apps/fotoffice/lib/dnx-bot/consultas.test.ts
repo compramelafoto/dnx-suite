@@ -7,7 +7,7 @@ const B = await vi.hoisted(async () => {
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
-const { buscarConsultasDelBot, consultaParaBorrador } = await import("./consultas");
+const { buscarConsultasDelBot, consultaParaBorrador, consultaParaResponder } = await import("./consultas");
 
 const niveles = { quotes: "MANAGE", "service-leads": "MANAGE" };
 const CTX = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: niveles } as never };
@@ -91,5 +91,36 @@ describe("consultaParaBorrador", () => {
     expect(await consultaParaBorrador(CTX, "nada")).toBeNull();
     consulta({ leadId: "l9", ws: "ws-2", nombre: "Otra" });
     expect(await consultaParaBorrador(CTX, "l9")).toBeNull();
+  });
+});
+
+describe("consultaParaResponder", () => {
+  it("lo necesario para responder: evento, lugar, invitados, mensaje redactado y por dónde se puede contestar (sin los datos)", async () => {
+    consulta({ leadId: "l1", nombre: "Lucía", apellido: "Gómez", numero: "14", fecha: "2026-11-22T00:00:00Z", categoria: "Quince" });
+    const lead = B.datos.serviceSalesLead.find((l) => l.id === "l1")!;
+    lead.message = "Hola, queremos fotos y video. Llamame al 341 555 1234 o a lucia@gmail.com";
+    lead.eventSubtype = "Fiesta";
+    const ficha = B.datos.fotofficeConsulta.find((f) => f.leadId === "l1")!;
+    Object.assign(ficha, { city: "Rosario", venue: "Salón Uno", guests: 150 });
+    const r = await consultaParaResponder(CTX, "l1");
+    expect(r).toMatchObject({
+      leadId: "l1", numero: "14", nombreDePila: "Lucía", categoria: "Quince", subtipo: "Fiesta",
+      fechaEvento: "22/11/2026", ciudad: "Rosario", lugar: "Salón Uno", invitados: 150,
+      canales: { correo: true, whatsapp: true },
+    });
+    expect(r!.mensajeDelCliente).toBe("Hola, queremos fotos y video. Llamame al [teléfono] o a [correo]");
+    const texto = JSON.stringify(r);
+    for (const dato of ["Gómez", "3415550000", "x@y.test", "341 555 1234", "lucia@gmail.com"]) expect(texto).not.toContain(dato);
+  });
+  it("sin correo ni teléfono: los canales lo dicen", async () => {
+    consulta({ leadId: "l1", nombre: "Ana", ficha: false });
+    const lead = B.datos.serviceSalesLead.find((l) => l.id === "l1")!;
+    lead.email = null;
+    lead.phone = null;
+    expect((await consultaParaResponder(CTX, "l1"))!.canales).toEqual({ correo: false, whatsapp: false });
+  });
+  it("ajena o inexistente: null", async () => {
+    consulta({ leadId: "l9", ws: "ws-2", nombre: "Otra" });
+    expect(await consultaParaResponder(CTX, "l9")).toBeNull();
   });
 });

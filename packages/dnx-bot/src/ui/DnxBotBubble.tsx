@@ -35,6 +35,7 @@ import {
 } from "./entrada";
 import { EVENTO_ABRIR, leerPedidoAbrir } from "./abrir";
 import { CalculoCard } from "./CalculoCard";
+import { MensajeCard } from "./MensajeCard";
 
 export type DnxBotBubbleProps = {
   basePath: string;
@@ -325,6 +326,7 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
               if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} rutas={rutasPermitidas} /></div> : null;
               if (it.kind === "progreso") return <ProgresoCard key={i} progreso={it.progreso} busy={busy} onHacelo={send} />;
               if (it.kind === "calculo") return <CalculoCard key={i} tarjeta={it.tarjeta} />;
+              if (it.kind === "mensaje") return <MensajeCard key={i} tarjeta={it.tarjeta} />;
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
                   {it.text}

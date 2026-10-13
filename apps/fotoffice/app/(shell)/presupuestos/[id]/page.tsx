@@ -70,6 +70,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
       costosCatalogo,
       perfil,
       opcionesPago,
+      version: detalle.updatedAt,
     });
     // La clave cambia con cada guardado: después de `router.refresh()` el editor se vuelve a montar
     // con lo que guardó el servidor (precios recalculados, ítems validados), no con su estado viejo.

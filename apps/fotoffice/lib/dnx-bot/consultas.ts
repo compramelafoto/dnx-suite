@@ -5,6 +5,7 @@ import { numeroDe } from "@/lib/numeracion/asignar";
 import type { CtxPresupuestos } from "@/lib/presupuestos/acceso";
 import { ENTIDAD_NUMERACION } from "@/lib/presupuestos/constantes";
 import { TIPO_CONSULTA } from "@/lib/service-leads/numero";
+import { redactarMensajeDelCliente } from "./redactar";
 
 /**
  * Consultas para DNX Bot (spec §6.2 y §9). Al modelo va lo mínimo para reconocer la consulta y
@@ -112,6 +113,13 @@ async function armar(workspaceId: string, leads: { id: string; name: string; eve
 
 const SELECT_LEAD = { id: true, name: true, eventType: true, eventDate: true, status: true } as const;
 
+/** El resumen (sin contacto) de varias consultas del workspace, por id. */
+export async function consultasPorId(workspaceId: string, leadIds: readonly string[]): Promise<Map<string, ConsultaBot>> {
+  if (leadIds.length === 0) return new Map();
+  const leads = await prisma.serviceSalesLead.findMany({ where: { workspaceId, id: { in: [...new Set(leadIds)] } }, select: SELECT_LEAD });
+  return new Map((await armar(workspaceId, leads)).map((x) => [x.consulta.leadId, x.consulta]));
+}
+
 export async function buscarConsultasDelBot(ctx: CtxPresupuestos, filtros: FiltrosConsultasBot): Promise<ConsultaBot[]> {
   const leads = await prisma.serviceSalesLead.findMany({
     where: { workspaceId: ctx.workspaceId },
@@ -136,4 +144,47 @@ export async function consultaParaBorrador(ctx: CtxPresupuestos, leadId: string)
   const [x] = await armar(ctx.workspaceId, [lead]);
   const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId: ctx.workspaceId, leadId }, select: { categoryId: true } });
   return { ...x!.consulta, categoriaId: ficha?.categoryId ?? null };
+}
+
+export type ConsultaParaResponder = ConsultaBot & {
+  subtipo: string | null;
+  ciudad: string | null;
+  lugar: string | null;
+  invitados: number | null;
+  /** Lo que escribió el cliente, con correos, teléfonos, enlaces y documentos tapados. */
+  mensajeDelCliente: string;
+  /** dd/mm/aaaa de cuando llegó. */
+  recibida: string;
+  /** Por dónde se puede contestar; nunca los datos (spec §9). */
+  canales: { correo: boolean; whatsapp: boolean };
+};
+
+/** La consulta para responderla (spec §6.3, `ver_consulta`), o null si no es del workspace. */
+export async function consultaParaResponder(ctx: CtxPresupuestos, leadId: string): Promise<ConsultaParaResponder | null> {
+  const lead = await prisma.serviceSalesLead.findFirst({
+    where: { id: leadId, workspaceId: ctx.workspaceId },
+    select: { ...SELECT_LEAD, eventSubtype: true, eventLocation: true, message: true, email: true, phone: true, createdAt: true },
+  });
+  if (!lead) return null;
+  const [x] = await armar(ctx.workspaceId, [lead]);
+  const ficha = await prisma.fotofficeConsulta.findFirst({
+    where: { workspaceId: ctx.workspaceId, leadId },
+    select: { clientId: true, city: true, venue: true, guests: true },
+  });
+  const cliente = ficha
+    ? await prisma.client.findFirst({ where: { id: ficha.clientId, workspaceId: ctx.workspaceId }, select: { email: true, phone: true } })
+    : null;
+  const correo = (cliente?.email ?? lead.email ?? "").trim();
+  const telefono = (cliente?.phone ?? lead.phone ?? "").trim();
+  const recibida = diaDeCalendario(lead.createdAt);
+  return {
+    ...x!.consulta,
+    subtipo: lead.eventSubtype?.trim() || null,
+    ciudad: ficha?.city?.trim() || null,
+    lugar: ficha?.venue?.trim() || lead.eventLocation?.trim() || null,
+    invitados: ficha?.guests ?? null,
+    mensajeDelCliente: redactarMensajeDelCliente(lead.message),
+    recibida: `${recibida.slice(8, 10)}/${recibida.slice(5, 7)}/${recibida.slice(0, 4)}`,
+    canales: { correo: correo.length > 0, whatsapp: telefono.replace(/\D/g, "").length >= 7 },
+  };
 }
