@@ -68,8 +68,8 @@ function resolvePublicationVisibilityLabel(props: {
   }
   if (props.isPublic === false) {
     return {
-      label: "Privado",
-      detail: "No está publicado para venta pública. Solo accesible con link directo.",
+      label: "No listado",
+      detail: "No aparece en los listados públicos. Solo entra quien tenga el enlace.",
     };
   }
   return {
