@@ -31,10 +31,10 @@ describe("armarSituacion", () => {
       "Perfil de precios: completo (importado de CompraMeLaFoto).",
     );
     expect(armarSituacion({ ...base, perfil: { existe: true, completo: false, faltan: ["Software y herramientas"], origen: "manual" } })).toContain(
-      "Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.",
+      "Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas. Se completa en el formulario de /workspace/configuracion/precios; armarlo conversando, sólo si la persona lo pide o dice que no puede.",
     );
     expect(armarSituacion({ ...base, perfil: { existe: false, completo: false, faltan: ["x"], origen: null } })).toContain(
-      "Perfil de precios: todavía no está armado.",
+      "Perfil de precios: todavía no está armado. Se completa en el formulario de /workspace/configuracion/precios; armarlo conversando, sólo si la persona lo pide o dice que no puede.",
     );
     expect(armarSituacion({ ...base, perfil: null })).not.toContain("Perfil de precios");
   });

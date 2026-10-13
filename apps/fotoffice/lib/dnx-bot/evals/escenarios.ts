@@ -161,6 +161,9 @@ export const AFIRMA_ENVIADO = /(?<!\bno (?:te |se |le )?(?:lo )?)(?<![a-záéí�
  */
 export const MONTO_QUE_NO_ES_CERO = /\$\s?(?!0(?!\d|[.,]\d))\d/;
 
+/** Manda al formulario de Configuración → Precios (la ruta o el nombre de la pantalla). */
+export const VA_AL_FORMULARIO = /\/workspace\/configuracion\/precios|Configuraci[óo]n → Precios/;
+
 /** El aviso de privacidad repetido por el modelo, o el texto viejo («lo procesa Anthropic»). */
 export const AVISO_REPETIDO = /Tus números son tuyos|lo procesa Anthropic/i;
 
@@ -258,8 +261,10 @@ export const ESCENARIOS: Escenario[] = [
     situacion: enPresupuestos(SIN_PERFIL),
     mensaje: "¿Cuánto cobro un retrato corporativo de 2 horas de cobertura y 3 de edición?",
     perfil: "vacio",
+    // Primero el formulario: no arranca la entrevista conversada (cara) si no se la piden.
+    noDebeUsar: ["simular_perfil", "guardar_perfil_de_precios"],
     textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
-    textoDebeContener: [/perfil/i],
+    textoDebeContener: [/perfil/i, VA_AL_FORMULARIO],
   },
   // 10 · "Pasalo a la consulta de Lucía": busca la consulta y propone crear el borrador; no dice "creado".
   {
@@ -302,6 +307,29 @@ export const ESCENARIOS: Escenario[] = [
     debeUsar: ["cotizar_trabajo"],
     entradaEnAlguna: { cotizar_trabajo: { precioTotalElegido: "1100000" } },
     textoDebeContener: [/gan/i],
+  },
+
+  // ── El formulario primero (pedido de Daniel, 13/10) ──
+  // 9b · Pregunta por su precio con el perfil sin armar: manda al formulario, no arranca la entrevista.
+  {
+    id: "precio-sin-perfil-va-al-formulario",
+    situacion: enPresupuestos(SIN_PERFIL),
+    mensaje: "¿Cuánto debería cobrar la hora?",
+    perfil: "vacio",
+    noDebeUsar: ["simular_perfil", "guardar_perfil_de_precios"],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
+    textoDebeContener: [VA_AL_FORMULARIO],
+  },
+  // 9c · Dice que no puede con el formulario y pide ayuda: ahí sí, la entrevista (de a una pregunta).
+  {
+    id: "perfil-pide-ayuda-hace-la-entrevista",
+    situacion: enPrecios("WORKSPACE_OWNER", DUENO, SIN_PERFIL),
+    mensaje: "No sé cómo completar el formulario de precios, me cuesta. ¿Me ayudás?",
+    perfil: "vacio",
+    debeUsar: ["ver_perfil_de_precios"],
+    noDebeUsar: ["guardar_perfil_de_precios"],
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO, /\?[^?]*\?[^?]*\?/],
+    textoDebeContener: [/\?/],
   },
 
   // ── Etapa 3 ──

@@ -16,11 +16,15 @@ const ORIGEN: Record<string, string> = {
   "dnx-bot": "armado con DNX Bot",
 };
 
+/** El camino principal es el formulario: la entrevista conversada (cara) sólo si la persona la pide o no puede. */
+const COMO_SE_COMPLETA =
+  "Se completa en el formulario de /workspace/configuracion/precios; armarlo conversando, sólo si la persona lo pide o dice que no puede.";
+
 function lineaPerfil(p: EstadoPerfil): string {
-  if (!p.existe) return "Perfil de precios: todavía no está armado.";
+  if (!p.existe) return `Perfil de precios: todavía no está armado. ${COMO_SE_COMPLETA}`;
   const origen = p.origen ? ` (${ORIGEN[p.origen]})` : "";
   if (p.completo) return `Perfil de precios: completo${origen}.`;
-  return `Perfil de precios: incompleto${origen}. Falta: ${p.faltan.join(", ")}.`;
+  return `Perfil de precios: incompleto${origen}. Falta: ${p.faltan.join(", ")}. ${COMO_SE_COMPLETA}`;
 }
 
 const ROLES: Record<string, string> = {

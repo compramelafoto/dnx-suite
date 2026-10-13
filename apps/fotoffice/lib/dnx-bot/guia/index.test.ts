@@ -67,3 +67,12 @@ describe("guía: lo que salió de la corrida real de bot:eval (12/10)", () => {
     expect(g).toContain("usá el presupuestoId de la situación (no el número)");
   });
 });
+
+describe("guía: el formulario primero (pedido de Daniel, 13/10)", () => {
+  const g = guiaDelBot();
+  it("con el perfil incompleto, primero manda al formulario; la entrevista sólo si la pide o no puede", () => {
+    expect(g).toContain("«Completá tu perfil en Configuración → Precios»");
+    expect(g).toContain("Ofrecé armarlo conversando sólo si la persona pide ayuda, dice que no sabe cómo o que prefiere hacerlo por chat");
+    expect(g).toContain("Si pide armarlo conversando, hacelo");
+  });
+});
