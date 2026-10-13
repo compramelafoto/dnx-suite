@@ -216,3 +216,12 @@ jobs:
       # corría nadie en los PR.
       - name: Pruebas de FotoOffice
         run: pnpm --filter fotoffice test
+
+      # El motor que arma los PDF y el editor de plantillas. Antes no las corría nadie: un
+      # texto girado salía fuera de la hoja y ninguna prueba avisaba. Incluyen que cada
+      # tipografía del editor se pueda bajar e incrustar en el PDF.
+      - name: Pruebas del motor de PDF
+        run: pnpm --filter @repo/design-studio test
+
+      - name: Pruebas del editor de plantillas
+        run: pnpm --filter @repo/template-editor-core test
