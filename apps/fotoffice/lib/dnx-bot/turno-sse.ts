@@ -48,6 +48,11 @@ export type TurnoParams = {
   /** Tras cada herramienta de lectura: para mandar tarjetas a la burbuja (etapas 1–3). */
   alResultado?: (send: (event: string, data: unknown) => void, name: string, outcome: ToolOutcome) => void;
   idsDeIncidente: (conversationId: string) => Record<string, string | number>;
+  /**
+   * Revisión del texto final (verificador de cifras, etapa 1). Si devuelve un aviso, sale como
+   * texto antes de `done`. Si falla, el turno termina igual.
+   */
+  revisarRespuesta?: (p: { texto: string; appended: unknown[]; history: unknown[]; conversationId: string }) => Promise<string | null>;
   /** Corre con `after()` cuando el turno terminó y sólo si se registró uso (avisos de tope). */
   despuesDelTurno: () => Promise<void>;
 };
@@ -93,6 +98,7 @@ export function respuestaDeTurno(p: TurnoParams): Response {
         const prep = await p.preparar();
 
         let result: BotTurnResult;
+        let texto = "";
         try {
           result = await runBotTurn({
             client: clienteAnthropic(),
@@ -106,7 +112,10 @@ export function respuestaDeTurno(p: TurnoParams): Response {
             userText: p.text,
             maxIterations: p.maxIterations,
             deadlineMs: p.deadlineMs,
-            onText: (delta) => send("text", { delta }),
+            onText: (delta) => {
+              texto += delta;
+              send("text", { delta });
+            },
             proposeWrite: (w) => p.proponer(prep.conversationId, w),
             onProposal: (w) => send("proposal", w),
             onToolResult: p.alResultado ? (name, outcome) => p.alResultado!(send, name, outcome) : undefined,
@@ -136,6 +145,13 @@ export function respuestaDeTurno(p: TurnoParams): Response {
         if (result.outcome !== "ok") {
           await incidente(`turno_${result.outcome}`, p.idsDeIncidente(prep.conversationId), result.outcome);
           error(FALLA_TURNO);
+        } else if (p.revisarRespuesta) {
+          try {
+            const aviso = await p.revisarRespuesta({ texto, appended: result.appended, history: prep.history, conversationId: prep.conversationId });
+            if (aviso) send("text", { delta: `\n\n${aviso}` });
+          } catch (e) {
+            console.error("[dnx-bot] revisar respuesta", e);
+          }
         }
         send("done", { conversationId: prep.conversationId });
       } catch (e) {

@@ -25,18 +25,22 @@ import { debeMostrarGlobitoDiferido, estadoUrlComprador, marcarGlobitoVisto, pag
 import {
   CADA_LLAMADO_MS,
   CSS_MASCOTA,
-  DURACION_ENTRADA,
+  DURACION_ENTRADA_MS,
   DURACION_LLAMADO_MS,
+  ESPERA_TIRA_MS,
   MAX_LLAMADOS,
   PRIMER_LLAMADO_MS,
-  tipoEntrada,
+  hayAnimacion,
   type FaseMascota,
 } from "./entrada";
 import { EVENTO_ABRIR, leerPedidoAbrir } from "./abrir";
+import { CalculoCard } from "./CalculoCard";
 
 export type DnxBotBubbleProps = {
   basePath: string;
   mascotSrc: string;
+  /** Tira de cuadros de la animación de la foto (mismo tamaño de cuadro que `mascotSrc`). Sin ella, la mascota queda quieta. */
+  mascotSpriteSrc?: string;
   bottomOffsetPx?: number;
   rutasPermitidas?: string[];
   /** Sin la prop (o "fotografo") la burbuja funciona como siempre. "comprador": página con búsqueda, globito diferido y nunca se abre sola. */
@@ -45,7 +49,7 @@ export type DnxBotBubbleProps = {
   conTickets?: boolean;
 };
 
-export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo", conTickets = true }: DnxBotBubbleProps) {
+export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo", conTickets = true }: DnxBotBubbleProps) {
   const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; globitoDemoraMs?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
   // El temporizador del globito diferido lee si la ventana está abierta en el momento de dispararse.
@@ -129,39 +133,50 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
   const habilitado = estado?.enabled === true;
   useEffect(() => {
     if (!habilitado) return;
-    let almacen: AlmacenSimple | null = null;
     let reducir = false;
-    try {
-      almacen = window.sessionStorage;
-    } catch {
-      almacen = null;
-    }
     try {
       reducir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     } catch {
       reducir = false;
     }
-    const tipo = tipoEntrada(almacen, reducir);
-    setSinMovimiento(tipo === "ninguna");
+    const animar = hayAnimacion(reducir, Boolean(mascotSpriteSrc));
+    setSinMovimiento(!animar);
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const acomodar = () => {
+    let vivo = true;
+    const acomodar = (conLlamados: boolean) => {
       setFase("reposo");
       setEntradaLista(true);
-      if (tipo === "ninguna") return;
-      // Unos pocos llamados suaves en reposo, y después nada más.
+      if (!conLlamados) return;
+      // Unos pocos llamados en reposo (vuelve a sacar la foto en grande), y después nada más.
       for (let i = 0; i < MAX_LLAMADOS; i++) {
         const t = PRIMER_LLAMADO_MS + i * CADA_LLAMADO_MS;
         timers.push(setTimeout(() => { if (!yaAbrioRef.current) setFase("llamado"); }, t));
         timers.push(setTimeout(() => setFase((f) => (f === "llamado" ? "reposo" : f)), t + DURACION_LLAMADO_MS));
       }
     };
-    if (tipo === "ninguna") acomodar();
+    if (!animar || !mascotSpriteSrc) acomodar(false);
     else {
-      setFase(tipo === "grande" ? "entrada-grande" : "entrada-corta");
-      timers.push(setTimeout(acomodar, DURACION_ENTRADA[tipo]));
+      // La animación arranca recién con la tira cargada: si no, se vería un hueco en vez del robot.
+      // Si tarda demasiado o falla, la mascota aparece quieta y sale el globito.
+      let resuelto = false;
+      const empezar = (ok: boolean) => {
+        if (resuelto || !vivo) return;
+        resuelto = true;
+        if (!ok) return acomodar(false);
+        setFase("entrada");
+        timers.push(setTimeout(() => acomodar(true), DURACION_ENTRADA_MS));
+      };
+      const tira = new Image();
+      tira.onload = () => empezar(true);
+      tira.onerror = () => empezar(false);
+      timers.push(setTimeout(() => empezar(false), ESPERA_TIRA_MS));
+      tira.src = mascotSpriteSrc;
     }
-    return () => timers.forEach(clearTimeout);
-  }, [habilitado]);
+    return () => {
+      vivo = false;
+      timers.forEach(clearTimeout);
+    };
+  }, [habilitado, mascotSpriteSrc]);
 
   // Lo que se ve como saludo antes del primer mensaje; send() lo pasa a la conversación.
   const introRef = useRef<{ texto: string | null; progreso: ProgresoEscolar | null }>({ texto: null, progreso: null });
@@ -309,6 +324,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
               if (it.kind === "user") return <div key={i} style={bubble("user")}>{it.text}</div>;
               if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} rutas={rutasPermitidas} /></div> : null;
               if (it.kind === "progreso") return <ProgresoCard key={i} progreso={it.progreso} busy={busy} onHacelo={send} />;
+              if (it.kind === "calculo") return <CalculoCard key={i} tarjeta={it.tarjeta} />;
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
                   {it.text}
@@ -341,7 +357,7 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
           {conTickets && <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>}
         </div>
       )}
-      {globito && !open && !globitoEnVentana && entradaLista && (
+      {globito && !open && !globitoEnVentana && entradaLista && fase !== "llamado" && (
         <div role="status" aria-label="Mensaje de DNX Bot" className={sinMovimiento ? "dnxbot-globito-pos" : "dnxbot-globito dnxbot-globito-pos"} style={{ position: "absolute", width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
           <button onClick={cerrarGlobito} aria-label="Cerrar el mensaje de DNX Bot" style={{ position: "absolute", top: 2, right: 4, border: 0, background: "none", fontSize: 16, lineHeight: 1, cursor: "pointer", color: "#666" }}>×</button>
           <div style={{ paddingRight: 14 }}><BotText text={globito.texto} rutas={rutasPermitidas} /></div>
@@ -365,7 +381,8 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
       >
         <span className="dnxbot-sombra" aria-hidden="true" />
         <span className="dnxbot-cuerpo">
-          <img src={mascotSrc} alt="" width={57} height={90} />
+          <img src={mascotSrc} alt="" width={65} height={90} />
+          {mascotSpriteSrc && <span className="dnxbot-tira" aria-hidden="true" style={{ backgroundImage: `url("${mascotSpriteSrc}")` }} />}
         </span>
         {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", zIndex: 2, top: 0, right: -4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
       </button>

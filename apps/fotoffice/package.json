@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run --config vitest.config.ts",
-    "bot:eval": "../../packages/db/node_modules/.bin/tsx scripts/bot-eval.ts"
+    "bot:eval": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/bot-eval.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

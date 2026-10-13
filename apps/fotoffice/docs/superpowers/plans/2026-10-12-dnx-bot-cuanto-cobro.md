@@ -397,6 +397,12 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 - [ ] Escenarios 1–5 de §10 en `evals/escenarios.ts` (+ test). **No correr `bot:eval` sin permiso de Daniel.**
 - [ ] Verificación completa (como 1.15) y PR.
 
+**Notas de ejecución del PR 2 (12/10):**
+- La distribución del tiempo se pregunta en horas y el perfil la guarda en porcentajes: la conversión vive en `lib/precios/perfil-datos.ts` (`distribucionDesdeHoras`, `horasPorTarea`), no en `lib/dnx-bot`.
+- `herramientasDePerfil(ctx, deps?)` recibe la lectura y el guardado del perfil para que `bot:eval` corra las herramientas de lectura de verdad sobre un perfil de prueba, sin base. `bot:eval` carga `scripts/sin-server-only.mjs` (fuera de Next, `server-only` no existe).
+- El verificador de cifras no agrega un evento nuevo a la burbuja: su aviso sale como texto al final del turno (`revisarRespuesta` en `turno-sse.ts`).
+- `Escenario` suma `perfil` y `textoDebeContener`; `bot:eval` además exige que toda cifra del texto salga del mensaje o de una herramienta.
+
 ---
 
 # PR 3 · Etapa 2 · Cotizar y pasar a presupuesto
@@ -428,6 +434,15 @@ Con `conTickets={false}` no se pinta «Hablar con una persona» ni el aviso con 
 - [ ] `app/(shell)/presupuestos/page.tsx` y el editor del borrador; contexto `presupuestoId`. Commit.
 
 ### Tarea 3.9: Guía de la etapa, evals 6–13 y verificación del PR 3
+
+**Notas de ejecución del PR 3 (12/10):**
+- Arreglo pedido aparte: Configuración → Precios guarda con concurrencia optimista sobre el `updatedAt` existente (sin migración); si el perfil cambió con el formulario abierto (por ejemplo, lo guardó DNX Bot), no se pisa y avisa. El bot guarda y deshace con la misma marca.
+- La capa del trabajo vive en `lib/dnx-bot/motor-trabajo.ts` (no en `motor.ts`) y los accesos a la base de las consultas en `lib/dnx-bot/consultas.ts`; la revalidación del contexto en `lib/dnx-bot/contexto-validado.ts`.
+- «Si el total cambió, falla»: el total que vio la persona viaja en la entrada de las escrituras (`totalEsperado`, copiado de `totalParaConfirmar` de `cotizar_trabajo`); `describe` y `run` recalculan y comparan.
+- `guardarBorrador` reemplaza condiciones, propuesta de pago y descuento con lo que recibe: el bot siempre manda los del borrador actual.
+- `buscar_consultas` sólo para quien además configura y no es COLLABORATOR (es para elegir dónde va el borrador). `ver_presupuesto` no cuenta vistas (eso es de la etapa 3).
+- Los botones aparecen sólo para quien usa ¿Cuánto Cobro? (`configurar`).
+- `Escenario` suma `consultas` (datos de prueba de `buscar_consultas`) y `entradaEnAlguna`.
 
 ---
 

@@ -104,6 +104,27 @@ describe("respuestaDeTurno", () => {
     log.mockRestore();
   });
 
+  it("revisarRespuesta: recibe el texto y lo nuevo del turno; su aviso sale como texto antes de done", async () => {
+    m.turn.mockImplementation(async (i: { onText: (d: string) => void }) => {
+      i.onText("Cobrá ");
+      i.onText("$999.999");
+      return { appended: [{ role: "user", content: "hola" }], usage, outcome: "ok" };
+    });
+    const revisar = vi.fn(async () => "Ojo: revisá");
+    const body = await respuestaDeTurno(base({ revisarRespuesta: revisar })).text();
+    expect(revisar).toHaveBeenCalledWith({ texto: "Cobrá $999.999", appended: [{ role: "user", content: "hola" }], history: [], conversationId: "c1" });
+    expect(body.indexOf("Ojo: revisá")).toBeGreaterThan(-1);
+    expect(body.indexOf("Ojo: revisá")).toBeLessThan(body.indexOf("event: done"));
+  });
+
+  it("si revisarRespuesta falla, el turno termina igual", async () => {
+    m.turn.mockResolvedValue({ appended: [], usage, outcome: "ok" });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const body = await respuestaDeTurno(base({ revisarRespuesta: async () => { throw new Error("x"); } })).text();
+    expect(body).toContain("event: done");
+    log.mockRestore();
+  });
+
   it("FALLA_TURNO no ofrece hablar con una persona", () => {
     expect(FALLA_TURNO).not.toMatch(/persona/i);
   });

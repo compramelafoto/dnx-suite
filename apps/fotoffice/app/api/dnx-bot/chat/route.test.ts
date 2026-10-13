@@ -10,7 +10,17 @@ const H = vi.hoisted(() => ({
   registrar: vi.fn(),
   accion: vi.fn(),
   topes: vi.fn(),
+  cifra: vi.fn(),
 }));
+vi.mock("@/lib/dnx-bot/herramientas/perfil", async (orig) => ({
+  ...(await orig<object>()),
+  estadoDelPerfil: async () => ({ existe: true, completo: false, faltan: ["Software y herramientas"], origen: "manual" }),
+}));
+vi.mock("@/lib/dnx-bot/contexto-validado", () => ({
+  revalidarContexto: async (_c: unknown, k: { presupuestoId: string | null }) =>
+    k.presupuestoId === "p1" ? { presupuesto: { id: "p1", numero: "0007", estado: "BORRADOR", esBorrador: true } } : {},
+}));
+vi.mock("@/lib/dnx-bot/incidentes", () => ({ reportarCifraNoRespaldada: (...a: unknown[]) => H.cifra(...a) }));
 vi.mock("@/lib/dnx-bot/acceso", () => ({ resolverBot: () => H.resolver() }));
 vi.mock("@/lib/dnx-bot/turno-sse", () => ({
   respuestaDeTurno: (p: unknown) => {
@@ -78,7 +88,7 @@ describe("POST /api/dnx-bot/chat", () => {
     expect((await POST(new Request("http://x", { method: "POST", body: "no es json" }))).status).toBe(400);
   });
   it("arma el turno con la plataforma del workspace de la sesión, no la del cuerpo", async () => {
-    await POST(pedido({ text: "x".repeat(3000), pagePath: "/presupuestos", workspaceId: "ajeno", contexto: { pantalla: "presupuestos" } }));
+    await POST(pedido({ text: "x".repeat(3000), pagePath: "/presupuestos", workspaceId: "ajeno", contexto: { pantalla: "presupuestos", presupuestoId: "p1" } }));
     const p = params();
     expect(p.plataforma).toBe("FOTOFFICE:ws1");
     expect(p.text).toHaveLength(2000);
@@ -86,7 +96,12 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(H.conv).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: "/presupuestos", model: "claude-sonnet-5-5" });
     expect(prep.systemGuide).toContain("Nunca inventes precios");
     expect(prep.situation).toContain("Pantalla: lista de presupuestos");
-    expect(prep.tools).toEqual([]);
+    expect(prep.situation).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
+    expect(prep.situation).toContain("Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.");
+    expect(prep.tools.map((t) => t.name)).toEqual([
+      "ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios",
+      "cotizar_trabajo", "buscar_consultas", "ver_presupuesto", "crear_borrador_de_presupuesto", "sumar_al_borrador",
+    ]);
     expect(prep.actor).toEqual({ userId: 7, role: "WORKSPACE_OWNER", email: "d@x.test", name: "Daniel" });
   });
   it("límites: corta con el mensaje propio; debajo, sigue", async () => {
@@ -107,5 +122,30 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(H.accion).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", conversationId: "c1", userId: 7, toolName: "t", input: {}, summary: "s" });
     await p.despuesDelTurno();
     expect(H.topes).toHaveBeenCalledWith({ workspaceId: "ws1" });
+  });
+  it("verificador de cifras: una cifra inventada se reporta y avisa; una respaldada, no", async () => {
+    H.cifra.mockResolvedValue(undefined);
+    await POST(pedido({ text: "hola" }));
+    const revisar = params().revisarRespuesta!;
+    const appended = [
+      { role: "user", content: "Pago 450 lucas de alquiler" },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t", content: '{"valorHora":"$ 31.250"}' }] },
+    ];
+    expect(await revisar({ texto: "Anoto $450.000; tu valor hora da $31.250.", appended, history: [], conversationId: "c1" })).toBeNull();
+    expect(H.cifra).not.toHaveBeenCalled();
+    const aviso = await revisar({ texto: "La mayoría cobra $25.000.", appended, history: [], conversationId: "c1" });
+    expect(aviso).toMatch(/^Ojo: un número/);
+    expect(H.cifra).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", ids: { userId: 7, conversationId: "c1" }, cantidad: 1 });
+  });
+
+  it("la tarjeta de cálculo sale cuando simular_perfil o cotizar_trabajo traen una", async () => {
+    await POST(pedido({ text: "hola" }));
+    const send = vi.fn();
+    const tarjeta = { titulo: "Tu perfil de precios", filas: [], avisos: [] };
+    params().alResultado!(send, "simular_perfil", { ok: true, message: "", data: { tarjeta } });
+    params().alResultado!(send, "ver_perfil_de_precios", { ok: true, message: "", data: { tarjeta } });
+    params().alResultado!(send, "cotizar_trabajo", { ok: true, message: "", data: { tarjeta } });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledWith("calculo", tarjeta);
   });
 });

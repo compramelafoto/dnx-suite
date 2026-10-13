@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BASE_DEL_SISTEMA, EN_CONSTRUCCION, MODULOS_DISPONIBLES } from "./catalogo";
+import { BASE_DEL_SISTEMA, EN_CONSTRUCCION, MODULOS_DE_LA_SUITE, MODULOS_DISPONIBLES } from "./catalogo";
 import { TIPOS, clavesDe, tipoPorId } from "./tipos";
 
 const CLAVES_DEL_CATALOGO = new Set(
-  [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA].map((m) => m.key),
+  [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA, ...MODULOS_DE_LA_SUITE].map((m) => m.key),
 );
 const CUADROS_SIN_REVELAR = new Set(EN_CONSTRUCCION.map((m) => m.cuadro));
 
