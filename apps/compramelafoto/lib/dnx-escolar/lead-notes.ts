@@ -62,11 +62,14 @@ export function sanitizeUtm(input: unknown): UtmParams {
  */
 export function buildSchoolLeadNotes(input: {
   source?: string | null;
+  /** Handler del fotógrafo cuya landing escolar recibió la solicitud. */
+  photographerHandler?: string | null;
   levels?: readonly string[];
   utm?: UtmParams;
 }): string | null {
   const parts: string[] = [];
   if (input.source) parts.push(`Origen: ${input.source}`);
+  if (input.photographerHandler) parts.push(`Landing: /${input.photographerHandler}/escolar`);
   if (input.levels && input.levels.length > 0) parts.push(`Niveles: ${input.levels.join(", ")}`);
   for (const key of UTM_KEYS) {
     const value = input.utm?.[key];
@@ -97,8 +100,11 @@ export type DnxEscolarLeadEmailInput = {
   utm: UtmParams;
 };
 
-/** Aviso interno a DNX: asunto en una sola línea y HTML con todo el contenido escapado. */
-export function buildDnxEscolarLeadEmail(lead: DnxEscolarLeadEmailInput): { subject: string; html: string } {
+/** Arma el aviso (asunto en una sola línea y HTML con todo el contenido escapado). */
+function renderEscolarLeadEmail(
+  lead: DnxEscolarLeadEmailInput,
+  opts: { heading: string; intro: string | null },
+): { subject: string; html: string } {
   const subject = `Nueva consulta escolar: ${lead.schoolName} (${lead.city})`.replace(/[\r\n]+/g, " ").slice(0, 200);
 
   const filas: Array<[string, string]> = [
@@ -129,11 +135,33 @@ export function buildDnxEscolarLeadEmail(lead: DnxEscolarLeadEmailInput): { subj
 
   const html =
     `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">` +
-    `<h2 style="margin:0 0 12px;font-size:18px;color:#111827">Nueva consulta desde /dnx/escolar</h2>` +
+    `<h2 style="margin:0 0 12px;font-size:18px;color:#111827">${escapeHtml(opts.heading)}</h2>` +
+    (opts.intro ? `<p style="margin:0 0 12px;color:#374151">${escapeHtml(opts.intro)}</p>` : "") +
     `<table style="border-collapse:collapse">${filasHtml}</table>` +
     mensajeHtml +
     `<p style="margin:20px 0 0;color:#6b7280;font-size:12px">Solicitud n.º ${escapeHtml(String(lead.leadId))} guardada en ComprameLaFoto (SchoolLead).</p>` +
     `</div>`;
 
   return { subject, html };
+}
+
+/** Aviso interno a DNX: asunto en una sola línea y HTML con todo el contenido escapado. */
+export function buildDnxEscolarLeadEmail(lead: DnxEscolarLeadEmailInput): { subject: string; html: string } {
+  return renderEscolarLeadEmail(lead, {
+    heading: "Nueva consulta desde /dnx/escolar",
+    intro: null,
+  });
+}
+
+/**
+ * Aviso al fotógrafo cuando un colegio completa el formulario de su landing `/<handler>/escolar`.
+ * La solicitud también queda en su panel (SchoolLead con referredByUserId = fotógrafo).
+ */
+export function buildPhotographerEscolarLeadEmail(
+  lead: DnxEscolarLeadEmailInput & { photographerName: string; photographerHandler: string },
+): { subject: string; html: string } {
+  return renderEscolarLeadEmail(lead, {
+    heading: `Nueva consulta desde tu landing escolar (/${lead.photographerHandler}/escolar)`,
+    intro: `Hola ${lead.photographerName}: un colegio completó el formulario de tu landing escolar. Respondé a este correo para escribirle${lead.email ? "" : " (no dejó email: contactalo por teléfono)"}.`,
+  });
 }
