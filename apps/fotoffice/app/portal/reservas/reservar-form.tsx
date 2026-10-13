@@ -12,6 +12,7 @@ import { CalendarToolbar } from "@/components/bookings/calendar/calendar-toolbar
 import { MiniMonth } from "@/components/bookings/calendar/mini-month";
 import { TimeGrid, minuteToPx } from "@/components/bookings/calendar/time-grid";
 import { quoteForSpace, type CustomerType, type SpacePricing } from "@/lib/bookings/pricing";
+import { creditsNeededFor } from "@/lib/bookings/club-credits";
 
 type ExtraVista = {
   id: string;
@@ -70,6 +71,7 @@ export function ReservarForm({
   memberHint,
   resourceSingular = "espacio",
   baseItemLabel,
+  club,
 }: {
   /** La acción del servidor que crea la reserva. */
   action: (formData: FormData) => Promise<void>;
@@ -101,6 +103,8 @@ export function ReservarForm({
   resourceSingular?: string;
   /** Cómo se nombra el precio base cuando hay extras ("Espacio", "Turno"). */
   baseItemLabel?: string;
+  /** La bolsa del club (Club VIP) de quien reserva, si tiene una abierta. */
+  club?: { available: number; credits: number; validUntilISO: string; validUntilLabel: string; singular: string; plural: string } | null;
 }) {
   const recurso = baseItemLabel ?? resourceSingular.charAt(0).toUpperCase() + resourceSingular.slice(1);
   const [primero, setPrimero] = useState<string | null>(null);
@@ -159,12 +163,23 @@ export function ReservarForm({
   }
 
   const minutos = seleccion?.minutes ?? 0;
+  // Club VIP: el mismo criterio que el servidor (`canCoverWithCredits`). Si la bolsa alcanza y el
+  // turno cae antes del vencimiento, el turno sale de ahí y las horas bonificadas no se usan.
+  const turnosNecesarios = creditsNeededFor({
+    pricingMode: pricing.pricingMode,
+    blockMinutes: pricing.blockMinutes,
+    minutes: minutos,
+  });
+  const delClub = Boolean(
+    club && seleccion && club.available >= turnosNecesarios && seleccion.startISO < club.validUntilISO,
+  );
   // El mismo cálculo que hace el servidor al recibir: lo que se muestra es lo que se cobra.
-  const quote = quoteForSpace(pricing, {
+  const cotizado = quoteForSpace(pricing, {
     minutes: minutos,
     customerType,
-    freeMinutesAvailable: freeHours.availableMinutes,
+    freeMinutesAvailable: delClub ? 0 : freeHours.availableMinutes,
   });
+  const quote = delClub ? { ...cotizado, totalMinor: 0 } : cotizado;
   const porBloque = quote.mode === "BLOCK";
   // Lo mismo, pero como socio: sin bonificación y usando las horas gratis del mes.
   const comoSocio = memberHint
@@ -201,8 +216,19 @@ export function ReservarForm({
     grid.days.find((d) => d.cells.some((c) => c.state === "FREE"))?.ymd ?? todayYmd;
   const unSoloToque = Boolean(primero && !segundo && seleccion);
 
+  const saldoClub = club ? (
+    <p className="flex items-start gap-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] px-3 py-2 text-xs leading-relaxed text-[var(--fo-success)]">
+      <Gift className="mt-0.5 size-4 flex-none" />
+      <span>
+        Te quedan <strong>{club.available}</strong> de {club.credits} {club.plural} incluidos. Vencen el{" "}
+        {club.validUntilLabel}.
+      </span>
+    </p>
+  ) : null;
+
   const saldo =
-    freeHours.grantedMinutes > 0 ? (
+    saldoClub ??
+    (freeHours.grantedMinutes > 0 ? (
       <p className="flex items-start gap-2 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] px-3 py-2 text-xs leading-relaxed text-[var(--fo-success)]">
         <Gift className="mt-0.5 size-4 flex-none" />
         <span>
@@ -210,7 +236,7 @@ export function ReservarForm({
           {horas(freeHours.grantedMinutes)} bonificadas este mes.
         </span>
       </p>
-    ) : null;
+    ) : null);
 
   /** Agrupa casilleros seguidos con el mismo estado, para dibujar un bloque y no diez. */
   const tramos = (cells: GridCell[]) => {
@@ -487,7 +513,13 @@ export function ReservarForm({
               </div>
 
               <div className="mt-3 space-y-1 pl-[1.625rem] text-sm">
-                {porBloque ? (
+                {delClub && club ? (
+                  <p className="text-[var(--fo-success)]">
+                    {turnosNecesarios === 1
+                      ? `Usás 1 ${club.singular} de los incluidos — sin cargo`
+                      : `Usás ${turnosNecesarios} ${club.plural} de los incluidos — sin cargo`}
+                  </p>
+                ) : porBloque ? (
                   <>
                     {quote.blocksFree > 0 ? (
                       <p className="text-[var(--fo-success)]">
@@ -605,7 +637,9 @@ export function ReservarForm({
                 <button type="submit" className="fo-btn fo-btn-primary text-sm">
                   {quote.totalMinor > 0 || extrasElegidos.length > 0
                     ? "Reservar y pagar"
-                    : `Reservar ${horas(minutos)}`}
+                    : delClub && club
+                      ? `Reservar con ${club.singular} incluido`
+                      : `Reservar ${horas(minutos)}`}
                 </button>
               </div>
             </div>

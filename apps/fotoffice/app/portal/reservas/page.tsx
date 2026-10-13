@@ -17,6 +17,8 @@ import {
   ymdOf,
 } from "@/lib/bookings/calendar-view";
 import { listSpaces, getBookingSettings } from "@/lib/bookings/repository";
+import { bookingWording } from "@/lib/bookings/wording";
+import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 import { loadPortalOffer } from "@/lib/bookings/portal";
 import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
@@ -98,8 +100,9 @@ export default async function PortalReservasPage({
   const semanaPasada = viewInterval("semana", shiftYmd("semana", ymd, -1), BOOKINGS_TIME_ZONE);
   const hayAnterior = semanaPasada.endAt > ahora;
 
-  const [settings, mias] = await Promise.all([
+  const [settings, club, mias] = await Promise.all([
     getBookingSettings(context.workspace.id),
+    loadMemberClubBalance({ workspaceId: context.workspace.id, memberId: context.member.id, at: ahora }),
     prisma.booking.findMany({
       where: { workspaceId: context.workspace.id, memberId: context.member.id },
       orderBy: { startAt: "desc" },
@@ -121,6 +124,12 @@ export default async function PortalReservasPage({
     }),
   ]);
 
+  const wording = bookingWording(settings);
+  const turnos = wording.kind === "PROFESIONALES";
+  const vencimientoClub = club
+    ? club.validUntil.toLocaleDateString("es-AR", { timeZone: BOOKINGS_TIME_ZONE, day: "numeric", month: "numeric" })
+    : null;
+
   const proximas = mias.filter((r) => r.endAt >= ahora);
   const pasadas = mias.filter((r) => r.endAt < ahora);
 
@@ -138,9 +147,11 @@ export default async function PortalReservasPage({
         <Link href="/portal" className="text-sm text-[var(--fo-muted)] underline underline-offset-4">
           Volver al inicio
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Reservas</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{turnos ? "Turnos" : "Reservas"}</h1>
         <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
-          Reservá el estudio, el salón o el coworking.
+          {turnos
+            ? `Elegí a tu ${wording.singular}, el día y la hora.`
+            : `Elegí el ${wording.singular} y el horario.`}
         </p>
       </header>
 
@@ -173,7 +184,7 @@ export default async function PortalReservasPage({
       {espacios.length === 0 ? (
         <div className="fo-card p-6 text-center">
           <p className="text-sm text-[var(--fo-muted)]">
-            La institución todavía no publicó espacios para reservar.
+            {`La institución todavía no publicó ${wording.plural} para reservar.`}
           </p>
         </div>
       ) : (
@@ -197,6 +208,20 @@ export default async function PortalReservasPage({
                 href: calendarHref("/portal/reservas", { ymd }, { espacio: e.id }),
               }))}
               vocabulary={v}
+              resourceSingular={wording.singular}
+              baseItemLabel={turnos ? "Turno" : undefined}
+              club={
+                club && vencimientoClub
+                  ? {
+                      available: club.available,
+                      credits: club.credits,
+                      validUntilISO: club.validUntil.toISOString(),
+                      validUntilLabel: vencimientoClub,
+                      singular: club.singular,
+                      plural: club.plural,
+                    }
+                  : null
+              }
               freeHours={oferta.freeHours}
               grid={grid}
               ymd={ymd}

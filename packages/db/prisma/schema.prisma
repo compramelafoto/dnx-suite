@@ -7896,6 +7896,14 @@ model MemberCategory {
   /// La Secretaría debe confirmar que corresponde (p. ej. condición de estudiante).
   requiresConfirmation Boolean @default(false)
 
+  /// Club con turnos incluidos (el VIP de una barbería): cada pago acreditado de una persona de
+  /// esta categoría abre una bolsa con estos turnos, que vence a los N días de ese pago y no se
+  /// acumula. 0 = la categoría no incluye turnos.
+  bookingCreditsPerPayment  Int     @default(0)
+  bookingCreditValidityDays Int     @default(30)
+  /// Cómo se llaman los turnos incluidos, en plural ("cortes"). null = "turnos".
+  bookingCreditLabel        String?
+
   workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members    Member[]
   duesPrices MembershipFeeValue[]
@@ -7903,6 +7911,28 @@ model MemberCategory {
   @@unique([workspaceId, name])
   @@index([workspaceId, isActive])
   @@index([workspaceId, order])
+}
+
+/// La bolsa de turnos incluidos que abre un pago (Club VIP: 4 cortes desde cada pago).
+///
+/// Una fila por pago acreditado (`paymentId` único: acreditar dos veces no da dos bolsas). No se
+/// acumulan: al abrirse una bolsa nueva, la anterior se cierra en ese instante. Lo gastado no se
+/// guarda acá sino en `Booking.creditsUsed`, así cancelar un turno lo devuelve sin escribir nada.
+model MemberBookingCreditGrant {
+  id          String   @id @default(cuid())
+  workspaceId String
+  memberId    String
+  paymentId   String   @unique
+  credits     Int
+  validFrom   DateTime
+  validUntil  DateTime
+  createdAt   DateTime @default(now())
+
+  member   Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  payment  MembershipPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([workspaceId, memberId, validUntil])
 }
 
 /// Socio/miembro institucional de un Workspace. Independiente de `User`:
@@ -8038,6 +8068,7 @@ model Member {
   recommendationBenefits          MembershipRecommendationBenefit[] @relation("BenefitEarner")
   originatedRecommendationBenefit MembershipRecommendationBenefit?  @relation("BenefitOrigin")
   bookings                        Booking[]
+  bookingCreditGrants             MemberBookingCreditGrant[]
   raffleEntries                   RaffleEntry[]
   raffleAwards                    RafflePrizeAward[]
   /// Ficha de cliente de este mismo socio, cuando también le compra algo al negocio.
@@ -8330,6 +8361,7 @@ model MembershipPayment {
   workspace                 Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   member                    Member                    @relation(fields: [memberId], references: [id], onDelete: Restrict)
   allocations               MembershipAllocation[]
+  bookingCreditGrant        MemberBookingCreditGrant?
   workspaceFeeLedgerEntries WorkspaceFeeLedgerEntry[]
 
   @@index([workspaceId, status])
@@ -9106,6 +9138,10 @@ model Booking {
 
   /// Quién reserva. `memberId` para socios; `userId` para cualquiera con cuenta.
   memberId     String?
+  /// Turnos del club usados por esta reserva. Mientras la reserva está activa cuentan como
+  /// gastados; cancelada o vencida, vuelven a la bolsa solos (no hay saldo que devolver).
+  creditGrantId String?
+  creditsUsed   Int     @default(0)
   userId       Int?
   contactName  String
   contactEmail String
@@ -9154,11 +9190,14 @@ model Booking {
   space            BookingSpace              @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   member           Member?                   @relation(fields: [memberId], references: [id], onDelete: SetNull)
   extraLines       BookingExtraLine[]
+  /// La bolsa del club (p. ej. el VIP de una barbería) de la que salió este turno, si salió de una.
+  creditGrant      MemberBookingCreditGrant? @relation(fields: [creditGrantId], references: [id], onDelete: SetNull)
   feeLedgerEntries WorkspaceFeeLedgerEntry[]
 
   @@index([workspaceId, startAt])
   @@index([spaceId, startAt])
   @@index([memberId, startAt])
+  @@index([creditGrantId])
   @@index([status, holdExpiresAt])
 }
 

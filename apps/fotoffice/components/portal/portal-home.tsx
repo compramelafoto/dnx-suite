@@ -57,6 +57,15 @@ export type PortalHomeProps = {
   /** Proyectos de la comisión: invitar a proponer y a tomar tareas sin responsable. */
   /** La vitrina de concursos (FotoRank y Clickatón): lo abierto y lo que viene. */
   concursos?: ShowcaseItem[];
+  /** La bolsa del club con turnos incluidos (Club VIP), si tiene una abierta. */
+  club?: {
+    available: number;
+    credits: number;
+    plural: string;
+    validUntilLabel: string;
+    /** Si la institución tiene Reservas prendido, el atajo para usarlos. */
+    reservarHref: string | null;
+  } | null;
   gobierno?: {
     tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
     totalLibres: number;
@@ -87,6 +96,7 @@ export function PortalHome({
   cumpleanos = [],
   gobierno = null,
   concursos = [],
+  club = null,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -265,6 +275,26 @@ export function PortalHome({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {alDia ? null : cuotasCard}
+
+          {club ? (
+            <section className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-5">
+              <h2 className="text-base font-semibold">
+                {club.available === 0
+                  ? `Usaste tus ${club.credits} ${club.plural} incluidos`
+                  : `Te quedan ${club.available} de ${club.credits} ${club.plural} incluidos`}
+              </h2>
+              <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                {club.available === 0
+                  ? `Con tu próximo pago se renuevan.`
+                  : `Vencen el ${club.validUntilLabel}. Lo que no uses hasta entonces no se acumula.`}
+              </p>
+              {club.reservarHref && club.available > 0 ? (
+                <Link href={club.reservarHref} className="fo-btn fo-btn-primary inline-flex text-sm">
+                  Reservar turno
+                </Link>
+              ) : null}
+            </section>
+          ) : null}
 
           {/* Sólo cuando hay algo para tomar: si no, la tarjeta no le pide nada al socio. */}
           {gobierno && gobierno.totalLibres > 0 ? (
