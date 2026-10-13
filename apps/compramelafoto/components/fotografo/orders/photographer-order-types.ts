@@ -36,6 +36,13 @@ export type PhotographerOrderRow = {
   clientPaidAmount?: number;
   eventOrganizerSale?: EventOrganizerSaleBreakdown | null;
   albumEventId?: number | null;
+  /**
+   * Canje de prueba del fotógrafo ("Probar como cliente"): se lista con la etiqueta DEMO, en $0,
+   * y queda fuera de totales, indicadores y acciones de cobro.
+   */
+  isDemo?: boolean;
+  /** Diseños armados en el pedido (p. ej. el librito del canje), para abrirlos y descargarlos. */
+  designProjectIds?: number[];
 };
 
 export type OrdersQuickFilter =
@@ -318,6 +325,7 @@ export function getOperationalStatuses(o: PhotographerOrderRow): OperationalStat
 }
 
 export function getPaymentStatusLabel(o: PhotographerOrderRow): string {
+  if (o.isDemo) return "Demo · sin cobro";
   if (o.paymentStatus === "REFUNDED" || o.status === "REFUNDED") return "Reembolsado";
   if (isOrderPaid(o)) return "Pagado";
   return "Pago pendiente";

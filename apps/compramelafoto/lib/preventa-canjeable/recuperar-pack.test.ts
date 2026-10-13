@@ -34,6 +34,8 @@ describe("recuperarLinksDePack", () => {
     expect(where).toEqual({
       origin: "PREVENTA_PACK",
       status: "PAID",
+      // El pack de prueba del fotógrafo no se manda a nadie.
+      isTest: false,
       buyerEmail: { equals: "a@b.com", mode: "insensitive" },
     });
     expect(m.mail).not.toHaveBeenCalled();

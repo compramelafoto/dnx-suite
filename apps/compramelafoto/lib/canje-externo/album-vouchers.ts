@@ -35,6 +35,8 @@ export async function listAlbumVouchers(albumId: number): Promise<AlbumVoucherRo
       albumId,
       origin: "PREVENTA_PACK",
       status: "PAID",
+      // El pack de prueba del fotógrafo no es una familia.
+      isTest: false,
       OR: [
         { redemptionPaymentRefsJson: { path: ["kind"], equals: EXTERNAL_VOUCHER_KIND } },
         { redemptionPaymentRefsJson: { path: ["kind"], equals: EXTERNAL_PREVENTA_KIND } },

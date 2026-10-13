@@ -8,6 +8,7 @@ import {
   resolveAlbumOrderBuyerName,
   resolveAlbumOrderBuyerPhone,
 } from "@/lib/orders/resolve-album-order-buyer-contact";
+import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -117,10 +118,18 @@ export async function GET(req: Request) {
 
     const digitalOrders = await prisma.order.findMany({
       where: {
-        isTest: false,
-        OR: [
-          { album: { userId: id } },
-          { album: { photos: { some: { userId: id } } } },
+        AND: [
+          {
+            OR: [
+              { album: { userId: id } },
+              { album: { photos: { some: { userId: id } } } },
+            ],
+          },
+          {
+            // Pedidos de prueba fuera, salvo el canje que hace el fotógrafo con "Probar como
+            // cliente": ése se lista como DEMO, en $0, y queda fuera de todo total.
+            OR: [{ isTest: false }, { isTest: true, origin: "PACK_REDEMPTION" }],
+          },
         ],
         status: { in: ["PAID", "PENDING", "FAILED", "REFUNDED"] },
       },
@@ -136,8 +145,23 @@ export async function GET(req: Request) {
       },
     });
 
+    // Diseños armados en el pedido (el librito del canje): el fotógrafo los abre desde el pedido.
+    const designsByOrderId = new Map<number, number[]>();
+    const preventaOrderIds = digitalOrders.filter((o) => o.origin === "PACK_REDEMPTION").map((o) => o.id);
+    if (preventaOrderIds.length > 0) {
+      const designs = await prisma.designProject.findMany({
+        where: { albumOrderId: { in: preventaOrderIds } },
+        select: { id: true, albumOrderId: true },
+        orderBy: { id: "asc" },
+      });
+      for (const d of designs) {
+        if (d.albumOrderId == null) continue;
+        designsByOrderId.set(d.albumOrderId, [...(designsByOrderId.get(d.albumOrderId) ?? []), d.id]);
+      }
+    }
+
     const paidAlbumOrderIds = digitalOrders
-      .filter((o) => o.status === "PAID")
+      .filter((o) => o.status === "PAID" && !o.isTest)
       .map((o) => o.id);
     const organizerCommissionByOrderId = new Map<
       number,
@@ -189,8 +213,9 @@ export async function GET(req: Request) {
         resolveAlbumOrderBuyerPhone(o, o.buyerUser) ??
         mirrorPhoneByAlbumOrderId.get(o.id) ??
         null;
-      const eventOrganizerSale = organizerCommissionByOrderId.get(o.id) ?? null;
-      const orderTotal = Math.round(o.totalCents);
+      const isDemo = esPedidoDemo(o);
+      const eventOrganizerSale = isDemo ? null : (organizerCommissionByOrderId.get(o.id) ?? null);
+      const orderTotal = isDemo ? 0 : Math.round(o.totalCents);
       const photographerReceivedAmount =
         eventOrganizerSale?.photographerNetAmount ?? orderTotal;
       return {
@@ -240,6 +265,8 @@ export async function GET(req: Request) {
         downloadLinkViewedAt: o.downloadLinkViewedAt?.toISOString() ?? null,
         _dataProtected: !reveal,
         photographerInstagram,
+        isDemo,
+        designProjectIds: designsByOrderId.get(o.id) ?? [],
       };
     });
 

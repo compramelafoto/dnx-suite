@@ -27,6 +27,7 @@ export async function recuperarLinksDePack(
       ...(opts?.soloPedidoId != null ? { id: opts.soloPedidoId } : {}),
       origin: OrderOrigin.PREVENTA_PACK,
       status: OrderStatus.PAID,
+      isTest: false,
       buyerEmail: { equals: email, mode: "insensitive" },
     },
     select: {

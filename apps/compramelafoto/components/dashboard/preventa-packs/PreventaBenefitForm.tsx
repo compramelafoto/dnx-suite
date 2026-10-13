@@ -7,6 +7,7 @@ import Input from "@/components/ui/Input";
 import { preventaSelectClassName } from "./preventa-form-controls";
 import { buildBenefitDashboardSummary } from "@/lib/preventa-canjeable/benefit-copy";
 import type { BenefitRow, PhotographerProductOption, TemplateOption } from "./types";
+import ProbarComoClienteButton from "./ProbarComoClienteButton";
 
 export type BenefitFormPayload = {
   kind: "DIGITAL" | "PHYSICAL";
@@ -48,6 +49,7 @@ export default function PreventaBenefitForm({
   templateOptions,
   saving,
   hideHeading = false,
+  albumId,
   onCancel,
   onSubmit,
 }: {
@@ -57,6 +59,8 @@ export default function PreventaBenefitForm({
   saving: boolean;
   /** Oculta el título del formulario cuando el contenedor padre ya lo indica (modal / wizard). */
   hideHeading?: boolean;
+  /** Álbum del pack: habilita "Probar como cliente" (el canje real, en vez del sandbox de la plantilla). */
+  albumId?: number;
   onCancel: () => void;
   onSubmit: (payload: BenefitFormPayload) => Promise<void>;
 }) {
@@ -471,17 +475,10 @@ export default function PreventaBenefitForm({
               <p className="mt-1 text-xs text-[#6b7280]">
                 Al canjear, el diseño se arma solo con las fotos que eligió la familia y te llega a{" "}
                 <Link href="/fotografo/disenos" className="underline">Diseños</Link> para revisarlo.
-                {templateId.trim() ? (
+                {templateId.trim() && albumId ? (
                   <>
                     {" "}
-                    <a
-                      href={`/fotografo/diseno/plantillas/v2/${encodeURIComponent(templateId.trim())}/probar`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-[#c27b3d] underline"
-                    >
-                      Probar con fotos
-                    </a>
+                    <ProbarComoClienteButton albumId={albumId} variant="link" />
                   </>
                 ) : null}
               </p>

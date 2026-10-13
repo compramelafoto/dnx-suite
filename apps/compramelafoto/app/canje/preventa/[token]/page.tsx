@@ -15,6 +15,7 @@ import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
 import type { CanjeExtrasConfig } from "@/components/canje-externo/CanjeExtrasStep";
 import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
+import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
 import {
   isPlaceholderEmail,
   parseExternalPreventaRefs,
@@ -133,15 +134,15 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     );
   }
   /*
-   * Modo prueba: un pack marcado `isTest` lo arma el equipo para que el fotógrafo recorra el
-   * canje exactamente como una familia (elegir fotos, ver el librito armado, confirmar) sin
-   * tocar el pack de ninguna familia real. Sólo lo abre el dueño del álbum con su sesión, y
-   * entra sin selfie: él no aparece en las fotos.
+   * Modo prueba: un pack marcado `isTest` lo arma el fotógrafo con "Probar como cliente" (o el
+   * equipo) para recorrer el canje exactamente como una familia (elegir fotos, ver el librito
+   * armado, confirmar) sin tocar el pack de ninguna familia real. Sólo lo abre el dueño del
+   * álbum (o un admin) con su sesión, y entra sin selfie: él no aparece en las fotos.
    */
   let modoPrueba = false;
   if (order.isTest) {
     const viewer = await getAuthUser().catch(() => null);
-    if (!viewer || viewer.id !== album.userId) {
+    if (!puedeUsarPackDePrueba(viewer, album.userId)) {
       return (
         <Aviso
           titulo="Este pack es de prueba"
@@ -158,8 +159,12 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         <div className="rounded-2xl border border-[#e7e1da] bg-white p-6">
           <h1 className="m-0 text-xl font-semibold text-[#1f2328]">Esta prueba ya se canjeó</h1>
           <p className="m-0 mt-2 text-[#4b4f56]">
-            El canje quedó como pedido de prueba: no se cobra ni entra en tus ventas. Reiniciala para
-            volver a recorrerla desde el principio con este mismo link.
+            El canje quedó como pedido de prueba: no se cobra ni entra en tus ventas. Lo ves en{" "}
+            <Link href="/fotografo/pedidos" className="font-medium text-[#a8652e] underline">
+              Pedidos
+            </Link>{" "}
+            con la etiqueta DEMO, con las descargas igual que un pedido real. Reiniciala para volver a
+            recorrerla desde el principio con este mismo link.
           </p>
           <ReiniciarPruebaButton token={token} />
         </div>
@@ -374,7 +379,8 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
           <strong>Modo prueba.</strong> Estás viendo el canje como una familia. Ves todas las fotos
           del álbum sin selfie; una familia real primero se verifica y ve sólo las suyas. Lo que
-          confirmes queda como pedido de prueba: no se cobra ni entra en tus ventas.
+          confirmes queda en tus Pedidos como DEMO, en $0: no se cobra, no entra en tus ventas y no
+          se manda ningún correo ni WhatsApp. Los extras tampoco se cobran.
         </div>
       ) : null}
       <PreventaCanjeFlow
