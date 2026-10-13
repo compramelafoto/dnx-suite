@@ -33,6 +33,7 @@ import {
   tipoEntrada,
   type FaseMascota,
 } from "./entrada";
+import { EVENTO_ABRIR, leerPedidoAbrir } from "./abrir";
 
 export type DnxBotBubbleProps = {
   basePath: string;
@@ -43,9 +44,11 @@ export type DnxBotBubbleProps = {
   rutasPermitidas?: string[];
   /** Sin la prop (o "fotografo") la burbuja funciona como siempre. "comprador": página con búsqueda, globito diferido y nunca se abre sola. */
   audiencia?: Audiencia;
+  /** false: la app no tiene tickets del bot (FOTOFFICE): no se ofrece «Hablar con una persona». */
+  conTickets?: boolean;
 };
 
-export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo" }: DnxBotBubbleProps) {
+export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo", conTickets = true }: DnxBotBubbleProps) {
   const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; globitoDemoraMs?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
   // El temporizador del globito diferido lee si la ventana está abierta en el momento de dispararse.
@@ -186,14 +189,14 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
     introRef.current = { texto: globitoEnVentana && globito ? globito.texto : null, progreso: introProgreso };
   }, [globitoEnVentana, globito, introProgreso]);
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, contexto?: Record<string, string>) => {
     if (!text.trim() || busy) return;
     setBusy(true);
     setInput("");
     const intro = introRef.current;
     setItems((x) => [...seedIntro(x, intro), { kind: "user", text }, { kind: "bot", text: "" }]);
     try {
-      const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: audiencia === "comprador" ? paginaActual(location.pathname, location.search) : location.pathname }) });
+      const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: audiencia === "comprador" ? paginaActual(location.pathname, location.search) : location.pathname, ...(contexto ? { contexto } : {}) }) });
       if (!res.ok || !res.body) throw new Error(String(res.status));
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -215,6 +218,21 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
       setBusy(false);
     }
   }, [basePath, busy, audiencia]);
+
+  // Abrir desde otra parte de la página (`abrirDnxBot`): abre la ventana y manda el primer mensaje con su contexto.
+  const sendRef = useRef(send);
+  useEffect(() => { sendRef.current = send; }, [send]);
+  useEffect(() => {
+    if (!habilitado) return;
+    const alAbrir = (e: Event) => {
+      const pedido = leerPedidoAbrir((e as CustomEvent).detail);
+      if (!pedido) return;
+      setOpen(true);
+      void sendRef.current(pedido.texto, pedido.contexto);
+    };
+    window.addEventListener(EVENTO_ABRIR, alAbrir);
+    return () => window.removeEventListener(EVENTO_ABRIR, alAbrir);
+  }, [habilitado]);
 
   const decide = useCallback(async (actionId: string, decision: "confirmar" | "rechazar" | "deshacer") => {
     if (decidingRef.current.has(actionId)) return;
@@ -314,7 +332,7 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
               if (it.kind === "notice") return (
                 <div key={i} style={{ ...bubble("bot"), background: "#fff7e6" }}>
                   {it.text}
-                  {it.offerTicket && <div><button onClick={ticket} disabled={ticketBusy} style={linkBtn}>Hablar con una persona</button></div>}
+                  {it.offerTicket && conTickets && <div><button onClick={ticket} disabled={ticketBusy} style={linkBtn}>Hablar con una persona</button></div>}
                 </div>
               );
               return (
@@ -340,7 +358,7 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
             <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Escribí tu consulta" placeholder="Escribí tu consulta…" maxLength={2000} disabled={busy} style={{ flex: 1, border: "1px solid #ddd", borderRadius: 10, padding: "8px 10px", fontSize: 16 }} />
             <button type="submit" aria-label="Enviar mensaje" disabled={busy || !input.trim()} style={{ ...btn, background: "#111", color: "#fff" }}>Enviar</button>
           </form>
-          <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>
+          {conTickets && <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>}
         </div>
       )}
       {globito && !open && !globitoEnVentana && entradaLista && (

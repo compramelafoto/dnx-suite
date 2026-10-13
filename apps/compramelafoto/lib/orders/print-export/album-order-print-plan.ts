@@ -12,6 +12,7 @@ import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import type { PrintExportPlan } from "./stream-print-export-zip";
 import { chosenProductNameFromMetadata, resolveExportProductName } from "./export-product-name";
+import { loadOrderDesigns, photoIdsInDesigns } from "./order-designs";
 
 export type PlanResult = { ok: true; plan: PrintExportPlan } | { ok: false; status: number; error: string };
 
@@ -42,7 +43,8 @@ async function buildPdf(
     items: { finish?: string | null; size?: string | null; quantity: number; metadata?: unknown }[];
   },
   buyer: { name: string | null; email: string | null; phone: string | null },
-  getProductName: (size: string, acabado: string, metadata?: unknown) => string
+  getProductName: (size: string, acabado: string, metadata?: unknown) => string,
+  extraLines: string[] = []
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -96,6 +98,14 @@ async function buildPdf(
     if (y < 80) break;
   }
 
+  if (extraLines.length > 0 && y > 80) {
+    y -= 6;
+    for (const line of extraLines) {
+      if (y < 60) break;
+      draw(line, line.startsWith("  ") ? 10 : 13);
+    }
+  }
+
   return await pdfDoc.save();
 }
 
@@ -119,7 +129,12 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
   if (order.status !== "PAID") {
     return { ok: false, status: 403, error: "La descarga está disponible solo cuando el pago está aprobado." };
   }
-  if (order.items.length === 0) {
+  // Productos con plantilla (carpeta escolar, librito): se imprimen como el PDF del diseño,
+  // no como las fotos sueltas que lo forman.
+  const designs = await loadOrderDesigns(order.id);
+  const enDiseno = photoIdsInDesigns(designs);
+  const sueltas = order.items.filter((it) => !enDiseno.has(it.photoId));
+  if (sueltas.length === 0 && designs.length === 0) {
     return { ok: false, status: 400, error: "Este pedido no tiene ítems de impresión" };
   }
 
@@ -144,7 +159,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
   const customerLabel = safeName(buyer.name || buyer.email || "Cliente");
   const folder = `Pedido-Album-${pad(order.id)} - ${customerLabel}`;
 
-  const files = order.items.map((it) => {
+  const files = sueltas.map((it) => {
     const finish = safeName(String(it.finish || "BRILLO"));
     const size = safeName(String(it.size || ""));
     const qty = Number(it.quantity || 0);
@@ -162,10 +177,57 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     };
   });
 
+  // Carpeta del producto de cada diseño: la de las fotos que lo forman.
+  const productoDeDiseno = (photoIds: number[]) => {
+    const it = order.items.find((i) => photoIds.includes(i.photoId));
+    return safeName(
+      it ? getProductName(String(it.size || ""), String(it.finish || "BRILLO"), it.metadata) : "Disenos"
+    );
+  };
+  const notes: Array<{ name: string; content: string }> = [];
+  const designLines: string[] = [];
+  for (const d of designs) {
+    const producto = productoDeDiseno(d.photoIds);
+    const titulo = safeName(`Diseno ${d.id}${d.templateName ? ` - ${d.templateName}` : ""}`);
+    if (d.ready && d.pdfUrl) {
+      const pdfPath = `${folder}/${producto}/${titulo}.pdf`;
+      files.push({
+        zipPath: pdfPath,
+        r2Key: urlToR2Key(d.pdfUrl),
+        manifestLine: `${producto} | DISEÑO | ${d.id} | 1 | ${pdfPath}`,
+        missingLine: `${producto} | DISEÑO | ${d.id} | 1 | (FALTA EL PDF DEL DISEÑO)`,
+      });
+      d.jpgUrls.forEach((url, i) => {
+        const jpgPath = `${folder}/${producto}/${titulo} - caras/Cara ${i + 1}.jpg`;
+        files.push({
+          zipPath: jpgPath,
+          r2Key: urlToR2Key(url),
+          manifestLine: `${producto} | DISEÑO cara ${i + 1} | ${d.id} | 1 | ${jpgPath}`,
+          missingLine: `${producto} | DISEÑO cara ${i + 1} | ${d.id} | 1 | (FALTA ARCHIVO)`,
+        });
+      });
+      designLines.push(`  • ${producto}: diseño ${d.id} listo (PDF incluido)`);
+    } else {
+      notes.push({
+        name: `${producto} - DISENO ${d.id} PENDIENTE DE APROBAR.txt`,
+        content: [
+          `El diseño ${d.id}${d.templateName ? ` (${d.templateName})` : ""} todavía no está aprobado.`,
+          "",
+          "Aprobalo desde el panel, en Diseños. Cuando esté aprobado, volvé a exportar este pedido:",
+          "el PDF listo para imprimir va a aparecer en esta carpeta.",
+          "",
+          `Fotos que lleva: ${d.photoIds.length}. No se incluyen sueltas porque se imprimen dentro del diseño.`,
+        ].join("\n"),
+      });
+      designLines.push(`  • ${producto}: diseño ${d.id} PENDIENTE DE APROBAR`);
+    }
+  }
+
   return {
     ok: true,
     plan: {
       folder,
+      notes,
       manifestHeader: [
         `Pedido Álbum: ${order.id}`,
         `Nombre: ${buyer.name || "-"}`,
@@ -178,7 +240,12 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
         "Producto | Acabado | Tamaño | Cantidad | Ruta ZIP",
       ],
       files,
-      pdfBytes: await buildPdf(order, buyer, getProductName),
+      pdfBytes: await buildPdf(
+        { ...order, items: sueltas },
+        buyer,
+        getProductName,
+        designLines.length ? ["Diseños (carpetas, libritos)", ...designLines] : []
+      ),
     },
   };
 }
