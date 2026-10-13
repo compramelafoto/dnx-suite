@@ -23,33 +23,51 @@ export const MAILTO_URL = `mailto:${DNX_CONTACTO.email}?subject=${encodeURICompo
   "Consulta fotografía escolar",
 )}`;
 
+/** Recorrido recomendado: preventa. Respaldado por /album/[slug]/preventa, el email con el enlace de canje
+ * (lib/preventa-canjeable/pack-access-email-content.ts) y los estados de entrega en el colegio. */
 export const pasos = [
   {
     titulo: "Coordinamos con el colegio",
-    texto: "Acordamos fecha, cursos, espacios y autorizaciones con la administración.",
+    texto: "Fecha de la jornada, cursos, lista de alumnos, autorizaciones y qué incluye cada pack (digitales y/o impresas).",
+  },
+  {
+    titulo: "El colegio comparte la preventa",
+    texto:
+      "Antes de la jornada, envía a las familias el enlace de preventa con su enlace propio del panel (también como QR). Así esas ventas quedan registradas a favor del colegio.",
+  },
+  {
+    titulo: "Cada familia reserva y paga",
+    texto:
+      "Elige el pack, indica alumno y curso desde la lista del colegio y paga online por Mercado Pago. Recibe por email su enlace personal.",
   },
   {
     titulo: "DNX hace las fotos",
-    texto: "Retratos, fotos grupales y/o la cobertura que se haya acordado.",
+    texto: "La jornada se trabaja sabiendo de antemano qué pidió cada familia y cuántos impresos preparar.",
   },
   {
-    titulo: "Cada familia accede a su galería",
-    texto: "Por un enlace que también compartimos como código QR, en pantalla o en un cartel impreso.",
-  },
-  {
-    titulo: "La familia elige y compra",
-    texto: "Lo hace por su cuenta y paga exclusivamente online, a través de Mercado Pago.",
-  },
-  {
-    titulo: "El sistema registra pago y pedido",
-    texto: "DNX atiende las consultas de las familias y entrega según el producto acordado.",
-  },
-  {
-    titulo: "El colegio ve sus números",
+    titulo: "La familia elige sus fotos",
     texto:
-      "En su panel consulta las ventas atribuidas y el beneficio acumulado. DNX lo liquida según lo acordado.",
+      "Con las fotos listas, entra con su enlace (sin crear cuenta) y elige las que incluye su pack. Las digitales se descargan; los impresos se preparan por alumno.",
+  },
+  {
+    titulo: "Entrega y rendición",
+    texto:
+      "Los impresos llegan al colegio identificados por alumno y curso. El colegio ve en su panel las ventas y su beneficio; DNX lo liquida según lo acordado.",
   },
 ] as const;
+
+export const razonesPreventa = [
+  { titulo: "Sin sobres ni dinero en el aula", texto: "Cada familia paga online antes de la jornada. Nadie del colegio recauda." },
+  { titulo: "Impresos justos", texto: "Se imprime lo que se vendió, sin copias de más ni listas a mano." },
+  { titulo: "Entrega ordenada", texto: "Cada impreso sale identificado por alumno y curso, con su estado registrado hasta la entrega." },
+  { titulo: "Beneficio claro para el colegio", texto: "Las compras hechas con el enlace del colegio quedan atribuidas a la institución." },
+] as const;
+
+export const ventaPosterior = {
+  titulo: "Y después de la jornada, la galería",
+  texto:
+    "Además de la preventa, las fotos quedan en una galería por enlace: las familias que no reservaron, o que quieren más fotos, pueden comprarlas ahí, también pagando online.",
+} as const;
 
 export const beneficios = [
   { titulo: "Menos trabajo administrativo", texto: "No hay que juntar sobres, armar listas de pedidos ni perseguir pagos." },
@@ -64,16 +82,20 @@ export const beneficios = [
 
 export const faqs = [
   {
+    q: "¿Qué es la preventa y por qué la recomendamos?",
+    a: "Las familias reservan y pagan su pack antes de la jornada de fotos. Con eso sabemos cuántos impresos preparar, nadie tiene que juntar dinero y la entrega en el colegio sale ordenada por alumno. Después de la jornada cada familia elige sus fotos con el enlace que recibió por email.",
+  },
+  {
     q: "¿Quién cobra?",
     a: "Las familias pagan online, a través de Mercado Pago, dentro del sistema. El colegio no maneja dinero ni tiene que cobrar a nadie.",
   },
   {
     q: "¿Cómo se calcula el beneficio del colegio?",
-    a: "Es un porcentaje que se acuerda antes de empezar. Se calcula sobre el valor del servicio de cada venta pagada, sin incluir la comisión de la plataforma. El colegio ve el detalle en su panel y DNX lo liquida según lo acordado.",
+    a: "Es un porcentaje que se acuerda antes de empezar, sobre cada venta pagada y sin incluir la comisión de la plataforma. En la preventa cuentan las compras hechas con el enlace propio del colegio; en la galería posterior, las ventas del álbum del colegio. El detalle está en su panel y DNX lo liquida según lo acordado.",
   },
   {
     q: "¿Qué tiene que hacer el colegio?",
-    a: "La coordinación institucional: definir fechas y espacios, indicar cursos y gestionar las autorizaciones. Después, compartir el enlace de la galería con las familias. Cobros, pedidos y entregas los resuelven DNX y el sistema.",
+    a: "La coordinación institucional: definir fechas y espacios, pasar la lista de cursos y alumnos y gestionar las autorizaciones. Después, compartir con las familias el enlace de preventa y, más tarde, el de la galería. Cobros, pedidos y entregas los resuelven DNX y el sistema.",
   },
   {
     q: "¿Qué pasa si una familia cancela o pide una devolución?",

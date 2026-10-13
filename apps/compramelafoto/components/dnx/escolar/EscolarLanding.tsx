@@ -32,6 +32,8 @@ import {
   beneficios,
   faqs,
   pasos,
+  razonesPreventa,
+  ventaPosterior,
 } from "@/components/dnx/escolar/data";
 
 const ICONOS_BENEFICIOS: LucideIcon[] = [ClipboardCheck, Banknote, FileSpreadsheet, ShoppingBag, Percent, Headset, Camera, Store];
@@ -55,14 +57,14 @@ function Encabezado({ eyebrow, titulo, children }: { eyebrow?: string; titulo: s
 /** Ilustración abstracta del recorrido de una familia (sin fotos de menores). */
 function RecorridoFamilia() {
   const filas: Array<{ icon: LucideIcon; titulo: string; texto: string }> = [
-    { icon: QrCode, titulo: "Enlace o QR", texto: "La familia entra a la galería del curso" },
-    { icon: Images, titulo: "Elige sus fotos", texto: "Vistas previas protegidas" },
-    { icon: HandCoins, titulo: "Paga online", texto: "Mercado Pago, sin efectivo" },
-    { icon: Download, titulo: "Recibe sus imágenes", texto: "Descarga digital o impresos acordados" },
+    { icon: QrCode, titulo: "Reserva en preventa", texto: "Con el enlace o QR del colegio, antes de la jornada" },
+    { icon: HandCoins, titulo: "Paga online", texto: "Mercado Pago, sin efectivo ni sobres" },
+    { icon: Images, titulo: "Elige sus fotos", texto: "Con su enlace personal, cuando están listas" },
+    { icon: Download, titulo: "Recibe sus imágenes", texto: "Descarga digital e impresos en el colegio" },
   ];
   return (
     <div aria-hidden className="relative rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm md:p-7">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Lo que hace cada familia</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Lo que hace cada familia · preventa</p>
       <ol className="mt-4 space-y-3">
         {filas.map(({ icon: Icon, titulo, texto }, i) => (
           <li key={titulo} className="flex items-center gap-4 rounded-2xl bg-[#f4f2ee] p-3.5">
@@ -142,10 +144,18 @@ export default function EscolarLanding() {
         </div>
       </section>
 
-      {/* 2. Cómo funciona */}
+      {/* 2. Cómo funciona: preventa recomendada */}
       <section className="border-y border-zinc-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
-          <Encabezado eyebrow="Cómo funciona" titulo="Seis pasos: el colegio coordina al principio y controla al final" />
+          <span className="inline-flex rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white">Recomendado</span>
+          <div className="mt-3">
+            <Encabezado eyebrow="Cómo funciona" titulo="Preventa: las familias reservan y pagan antes de la jornada">
+              <p>
+                Es la forma que recomendamos. Cada familia compra su pack con anticipación, DNX hace las fotos sabiendo qué
+                pidió cada una, y después la familia elige sus fotos con el enlace que recibió por email.
+              </p>
+            </Encabezado>
+          </div>
           <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pasos.map((paso, i) => (
               <li key={paso.titulo} className="rounded-2xl border border-zinc-200 bg-[#faf9f7] p-5">
@@ -157,6 +167,24 @@ export default function EscolarLanding() {
               </li>
             ))}
           </ol>
+
+          <h3 className="mt-12 text-lg font-semibold">Por qué conviene la preventa</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {razonesPreventa.map((r) => (
+              <article key={r.titulo} className="rounded-2xl border border-zinc-900/10 bg-[#f4f2ee] p-5">
+                <h4 className="text-sm font-semibold">{r.titulo}</h4>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">{r.texto}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-6 flex items-start gap-4 rounded-2xl border border-dashed border-zinc-300 p-5">
+            <Images className="mt-0.5 h-6 w-6 shrink-0" aria-hidden />
+            <div>
+              <h3 className="text-base font-semibold">{ventaPosterior.titulo}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">{ventaPosterior.texto}</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -205,8 +233,9 @@ export default function EscolarLanding() {
               <Package className="h-6 w-6" aria-hidden />
               <h3 className="mt-3 text-lg font-semibold">Digitales e impresos</h3>
               <p className="mt-2 text-sm leading-relaxed text-zinc-700">
-                Las fotos digitales se habilitan para descargar una vez confirmado el pago. Los impresos se entregan
-                según lo acordado con el colegio.
+                En preventa, la familia elige sus fotos y las digitales quedan para descargar; los impresos se entregan
+                en el colegio, identificados por alumno. En la galería posterior, la descarga se habilita al confirmarse
+                el pago.
               </p>
             </article>
           </div>
