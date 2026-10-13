@@ -14,7 +14,7 @@ vi.mock("./store", () => ({
 }));
 vi.mock("@repo/dnx-bot", async (orig) => ({ ...(await orig<object>()), sendTelegramMessage: (...a: unknown[]) => m.tg(...a) }));
 vi.mock("./config", async (orig) => ({ ...(await orig<object>()), leerConfigBot: () => ({ telegram: m.telegram }) }));
-import { avisarSinClave, reportarIncidente, reiniciarCupoDeAvisos } from "./incidentes";
+import { avisarSinClave, reportarCifraNoRespaldada, reportarIncidente, reiniciarCupoDeAvisos } from "./incidentes";
 
 beforeEach(() => {
   m.registrar.mockReset();
@@ -67,5 +67,29 @@ describe("avisarSinClave", () => {
     m.reservar.mockRejectedValue(new Error("db"));
     await expect(avisarSinClave()).resolves.toBeUndefined();
     log.mockRestore();
+  });
+});
+
+describe("reportarCifraNoRespaldada", () => {
+  it("una firma por workspace y día; al tercer caso del día avisa por Telegram, sin las cifras", async () => {
+    m.registrar
+      .mockResolvedValueOnce({ occurrences: 1, isNew: true })
+      .mockResolvedValueOnce({ occurrences: 2, isNew: false })
+      .mockResolvedValueOnce({ occurrences: 3, isNew: false })
+      .mockResolvedValueOnce({ occurrences: 4, isNew: false });
+    const p = { plataforma: "FOTOFFICE:ws1", ids: { conversationId: "c1" }, cantidad: 1, ahora: new Date("2026-10-20T15:00:00Z") };
+    for (let i = 0; i < 4; i++) await reportarCifraNoRespaldada(p);
+    const firmas = new Set(m.registrar.mock.calls.map((c) => (c[0] as { signature: string }).signature));
+    expect(firmas.size).toBe(1);
+    expect(m.registrar.mock.calls[0]![0]).toMatchObject({ plataforma: "FOTOFFICE:ws1", title: "cifras: cifra_no_respaldada (2026-10-20)" });
+    expect(m.tg).toHaveBeenCalledTimes(1);
+    expect(m.tg.mock.calls[0]![1]).toMatch(/^⚠️ FOTOFFICE · /);
+  });
+  it("otro día, otra firma", async () => {
+    m.registrar.mockResolvedValue({ occurrences: 1, isNew: true });
+    await reportarCifraNoRespaldada({ plataforma: "FOTOFFICE:ws1", ids: {}, cantidad: 1, ahora: new Date("2026-10-20T15:00:00Z") });
+    await reportarCifraNoRespaldada({ plataforma: "FOTOFFICE:ws1", ids: {}, cantidad: 1, ahora: new Date("2026-10-21T15:00:00Z") });
+    const [a, b] = m.registrar.mock.calls.map((c) => (c[0] as { signature: string }).signature);
+    expect(a).not.toBe(b);
   });
 });

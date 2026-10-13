@@ -1,9 +1,11 @@
 import type { BotActor } from "@repo/dnx-bot";
 import { resolverBot } from "@/lib/dnx-bot/acceso";
+import { AVISO_CIFRA, cifrasNoRespaldadas, cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
 import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { leerContexto } from "@/lib/dnx-bot/contexto";
 import { guiaDelBot } from "@/lib/dnx-bot/guia";
 import { herramientasPara } from "@/lib/dnx-bot/herramientas";
+import { reportarCifraNoRespaldada } from "@/lib/dnx-bot/incidentes";
 import { decidirLimites } from "@/lib/dnx-bot/limites";
 import { armarSituacion } from "@/lib/dnx-bot/situacion";
 import { cargarHistorial, conversacionAbierta, crearAccionPendiente, registrarUso, usoActual } from "@/lib/dnx-bot/store";
@@ -61,6 +63,21 @@ export async function POST(req: Request) {
     registrarUso: (conversationId, usage, costMicroUsd) =>
       registrarUso({ plataforma: ctx.plataforma, userId, conversationId, usage, costMicroUsd, contarMensaje: true }),
     proponer: (conversationId, w) => crearAccionPendiente({ plataforma: ctx.plataforma, conversationId, userId, ...w }),
+    // Las tarjetas las pinta la burbuja con los datos del servidor, nunca con el texto del modelo.
+    alResultado: (send, name, outcome) => {
+      const tarjeta = outcome.ok ? (outcome.data as { tarjeta?: unknown } | undefined)?.tarjeta : undefined;
+      if (name === "simular_perfil" && tarjeta) send("calculo", tarjeta);
+    },
+    // Red de seguridad (spec §5.4): toda cifra del texto tiene que salir de una herramienta o de la persona.
+    revisarRespuesta: async ({ texto, appended, history, conversationId }) => {
+      const permitidas = cifrasPermitidas([...textosDelTurno(history), ...textosDelTurno(appended)]);
+      const malas = cifrasNoRespaldadas(texto, permitidas);
+      if (malas.length === 0) return null;
+      await reportarCifraNoRespaldada({ plataforma: ctx.plataforma, ids: { userId, conversationId }, cantidad: malas.length }).catch(
+        (e: unknown) => console.error("[dnx-bot] cifra no respaldada", e),
+      );
+      return AVISO_CIFRA;
+    },
     idsDeIncidente: (conversationId) => ({ userId, conversationId }),
     despuesDelTurno: () => avisarTopes({ workspaceId: ctx.workspaceId }),
   });
