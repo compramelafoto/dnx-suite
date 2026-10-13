@@ -36,6 +36,7 @@ import {
 import { EVENTO_ABRIR, leerPedidoAbrir } from "./abrir";
 import { CalculoCard } from "./CalculoCard";
 import { MensajeCard } from "./MensajeCard";
+import { debeVolverAlInput, esOtroCampoDeTexto } from "./foco";
 
 export type DnxBotBubbleProps = {
   basePath: string;
@@ -56,6 +57,12 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
   // El temporizador del globito diferido lee si la ventana está abierta en el momento de dispararse.
   const openRef = useRef(false);
   useEffect(() => { openRef.current = open; }, [open]);
+  // Al abrir la ventana en computadora, el cursor ya queda en el renglón (en celular no: abriría el teclado solo).
+  useEffect(() => {
+    if (!open || (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches)) return;
+    const id = requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(id);
+  }, [open]);
   const [globito, setGlobito] = useState<Globito | null>(null);
   // true cuando la persona llegó desde el mail (?dnxbot=): el globito es el saludo dentro de la ventana.
   const [globitoEnVentana, setGlobitoEnVentana] = useState(false);
@@ -68,6 +75,9 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
   const [ticketBusy, setTicketBusy] = useState(false);
   const ticketRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // El renglón de escribir: no se deshabilita mientras el bot responde (perdería el foco) y el cursor vuelve solo.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const veniaEscribiendoRef = useRef(false);
   // Mascota: entra animada (grande la primera vez de la visita), se acomoda y recién ahí aparece el globito.
   const [fase, setFase] = useState<FaseMascota | null>(null);
   const [entradaLista, setEntradaLista] = useState(false);
@@ -185,8 +195,21 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
     introRef.current = { texto: globitoEnVentana && globito ? globito.texto : null, progreso: introProgreso };
   }, [globitoEnVentana, globito, introProgreso]);
 
+  const volverAlInput = useCallback(() => {
+    // Después del render que vuelve a habilitar el botón: el cursor queda listo para seguir escribiendo.
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      const punteroTactil = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+      if (debeVolverAlInput({ ventanaAbierta: openRef.current, punteroTactil, veniaEscribiendo: veniaEscribiendoRef.current, focoEnOtroCampo: esOtroCampoDeTexto(document.activeElement, el) })) {
+        el.focus({ preventScroll: true });
+      }
+    });
+  }, []);
+
   const send = useCallback(async (text: string, contexto?: Record<string, string>) => {
     if (!text.trim() || busy) return;
+    veniaEscribiendoRef.current = typeof document !== "undefined" && document.activeElement === inputRef.current;
     setBusy(true);
     setInput("");
     const intro = introRef.current;
@@ -212,6 +235,7 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
     } finally {
       setItems(dropEmptyBot);
       setBusy(false);
+      volverAlInput();
     }
   }, [basePath, busy, audiencia]);
 
@@ -353,7 +377,7 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
             })}
           </div>
           <form onSubmit={(e) => { e.preventDefault(); void send(input); }} style={{ display: "flex", gap: 8, padding: 10, borderTop: "1px solid #eee" }}>
-            <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Escribí tu consulta" placeholder="Escribí tu consulta…" maxLength={2000} disabled={busy} style={{ flex: 1, border: "1px solid #ddd", borderRadius: 10, padding: "8px 10px", fontSize: 16 }} />
+            <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} aria-label="Escribí tu consulta" aria-busy={busy} placeholder="Escribí tu consulta…" maxLength={2000} readOnly={busy} style={{ flex: 1, border: "1px solid #ddd", borderRadius: 10, padding: "8px 10px", fontSize: 16 }} />
             <button type="submit" aria-label="Enviar mensaje" disabled={busy || !input.trim()} style={{ ...btn, background: "#111", color: "#fff" }}>Enviar</button>
           </form>
           {conTickets && <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>}
