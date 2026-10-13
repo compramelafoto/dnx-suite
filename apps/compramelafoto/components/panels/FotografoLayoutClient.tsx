@@ -10,6 +10,7 @@ import { RUTAS_PERMITIDAS_BOT } from "@/lib/bot/rutas-panel";
 import { UploadProgressProvider, useUploadProgress } from "@/contexts/UploadProgressContext";
 import FloatingUploadBar from "@/components/photo/FloatingUploadBar";
 import PhotographerWorkLocationPromptGate from "@/components/photographer/PhotographerWorkLocationPromptGate";
+import { isTemplateV2EditorPath } from "./template-v2-editor-path";
 
 const fallback = (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -18,11 +19,6 @@ const fallback = (
 );
 
 /** Editor de plantilla V2: una versión concreta (sin listado). */
-function isTemplateV2EditorPath(pathname: string | null): boolean {
-  if (!pathname) return false;
-  return /^\/fotografo\/diseno\/plantillas\/v2\/[^/]+\/[^/]+\/?$/.test(pathname);
-}
-
 /** La burbuja sube por encima de la barra de subida sólo mientras hay una subida en curso. */
 function BotBubbleMount() {
   const upload = useUploadProgress();
