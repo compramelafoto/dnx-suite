@@ -65,6 +65,7 @@ import { createAreaTextBlockInRect, createPointTextBlockAt } from "@repo/templat
 import {
   canvasDpi,
   computeResizeRectRotated,
+  isResizeEdge,
   snapRotationDeg,
   describeAspect,
   findAspectPreset,
@@ -107,12 +108,12 @@ type Props = {
   onExitTextPlacementMode?: () => void;
 };
 
-type ResizeHandle = {
-  key: "nw" | "ne" | "sw" | "se";
-  cursor: "nwse-resize" | "nesw-resize";
-  left?: number;
+type ResizeHandleDef = {
+  key: "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
+  cursor: "nwse-resize" | "nesw-resize" | "ns-resize" | "ew-resize";
+  left?: number | string;
   right?: number;
-  top?: number;
+  top?: number | string;
   bottom?: number;
 };
 
@@ -120,11 +121,21 @@ type ResizeHandle = {
 const RESIZE_HANDLE_SIZE_PX = 32;
 const RESIZE_HANDLE_INSET = -RESIZE_HANDLE_SIZE_PX / 2;
 
-const RESIZE_HANDLES: ResizeHandle[] = [
+const MEDIO = `calc(50% - ${RESIZE_HANDLE_SIZE_PX / 2}px)`;
+
+const RESIZE_HANDLES: ResizeHandleDef[] = [
   { key: "nw", left: RESIZE_HANDLE_INSET, top: RESIZE_HANDLE_INSET, cursor: "nwse-resize" },
   { key: "ne", right: RESIZE_HANDLE_INSET, top: RESIZE_HANDLE_INSET, cursor: "nesw-resize" },
   { key: "sw", left: RESIZE_HANDLE_INSET, bottom: RESIZE_HANDLE_INSET, cursor: "nesw-resize" },
   { key: "se", right: RESIZE_HANDLE_INSET, bottom: RESIZE_HANDLE_INSET, cursor: "nwse-resize" },
+  /*
+   * Medio de cada lado: estiran en una sola dirección, como en Photoshop. Desde una esquina con la
+   * proporción fijada no había forma de alargar una foto hacia un solo lado para llenar un hueco.
+   */
+  { key: "n", left: MEDIO, top: RESIZE_HANDLE_INSET, cursor: "ns-resize" },
+  { key: "s", left: MEDIO, bottom: RESIZE_HANDLE_INSET, cursor: "ns-resize" },
+  { key: "w", left: RESIZE_HANDLE_INSET, top: MEDIO, cursor: "ew-resize" },
+  { key: "e", right: RESIZE_HANDLE_INSET, top: MEDIO, cursor: "ew-resize" },
 ];
 
 /** Intersección parcial entre rectángulos alineados a ejes (layout sin rotación). */
@@ -495,7 +506,7 @@ export function TemplateEditorCanvas({
   const resizeRef = useRef<{
     pointerId: number;
     blockId: string;
-    handle: "se" | "sw" | "ne" | "nw";
+    handle: ResizeHandleDef["key"];
     startClientX: number;
     startClientY: number;
     startX: number;
@@ -1559,7 +1570,16 @@ export function TemplateEditorCanvas({
                           borderRadius: 9999,
                           border: "2.5px solid var(--te-accent)",
                           background: "var(--te-surface)",
-                          cursor: h.cursor,
+                          // Girado un cuarto de vuelta, la flecha del cursor sigue al lado girado.
+                          cursor:
+                            Math.round(Math.abs(primaryBlock.layout.rotation ?? 0) / 90) % 2 === 1
+                              ? ({
+                                  "ns-resize": "ew-resize",
+                                  "ew-resize": "ns-resize",
+                                  "nwse-resize": "nesw-resize",
+                                  "nesw-resize": "nwse-resize",
+                                } as const)[h.cursor]
+                              : h.cursor,
                           pointerEvents: "auto",
                           boxShadow:
                             "0 1px 2px rgba(255,255,255,0.9) inset, 0 2px 8px rgba(0,0,0,0.30)",
@@ -1576,9 +1596,11 @@ export function TemplateEditorCanvas({
                           gesturePersistSnapshotRef.current = takePersistSnapshot(state);
                           (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
                           // El listado del curso se agranda como caja: la lista se reparte sola.
+                          // Un lado estira la caja sin cambiar la tipografía.
                           const isTextKind =
                             (primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT") &&
-                            !isClassListConfig(primaryBlock.configJson);
+                            !isClassListConfig(primaryBlock.configJson) &&
+                            !isResizeEdge(h.key);
                           const nb = normalizeBlockConfig(primaryBlock.type, primaryBlock.configJson) as {
                             fontSize?: number;
                           };
@@ -1614,20 +1636,18 @@ export function TemplateEditorCanvas({
                           // Con proporción fijada en el inspector, la esquina estira siempre en
                           // proporción, como si Mayús estuviera apretada.
                           /*
-                           * Shift invierte la proporción, como en Photoshop: sin candado, Shift la
-                           * mantiene; con el candado cerrado, Shift la libera y al soltar el bloque
-                           * queda con el candado abierto. Sin esto, un bloque con proporción fijada
-                           * (por ejemplo, uno duplicado de otro que la tenía) no había forma de
-                           * estirarlo libre desde la hoja.
+                           * Esquinas: Shift invierte la proporción, como en Photoshop. Sin candado,
+                           * Shift la mantiene; con el candado cerrado, Shift la libera y al soltar
+                           * queda abierto.
+                           * Lados: estiran en una sola dirección; si el candado estaba cerrado,
+                           * sigue cerrado pero con la proporción nueva, así las esquinas después
+                           * respetan la forma que se le dio.
                            */
                           const aspectLock = getBlockAspectLock(rz.startConfigJson);
-                          const liberaProporcion = aspectLock !== null && e.shiftKey;
-                          const proporcional = aspectLock !== null ? !e.shiftKey : e.shiftKey;
-                          const configSinCandado = (() => {
-                            const c = { ...rz.startConfigJson };
-                            delete c.aspectLock;
-                            return c;
-                          })();
+                          const esLado = isResizeEdge(rz.handle);
+                          const liberaProporcion = !esLado && aspectLock !== null && e.shiftKey;
+                          const proporcional =
+                            !esLado && (aspectLock !== null ? !e.shiftKey : e.shiftKey);
                           const next = computeResizeRectRotated(
                             rz.handle,
                             {
@@ -1672,6 +1692,17 @@ export function TemplateEditorCanvas({
                             width: finalRect.width,
                             height: finalRect.height,
                           };
+                          const configTrasLado = (() => {
+                            if (liberaProporcion) {
+                              const c = { ...rz.startConfigJson };
+                              delete c.aspectLock;
+                              return c;
+                            }
+                            if (esLado && aspectLock !== null && finalRect.height > 0) {
+                              return { ...rz.startConfigJson, aspectLock: finalRect.width / finalRect.height };
+                            }
+                            return rz.startConfigJson;
+                          })();
                           if (
                             rz.scaleTypography &&
                             rz.startWidth > 0 &&
@@ -1689,7 +1720,7 @@ export function TemplateEditorCanvas({
                                 {
                                   layout: layoutPatch,
                                   configJson: {
-                                    ...(liberaProporcion ? configSinCandado : rz.startConfigJson),
+                                    ...configTrasLado,
                                     fontSize: newFs,
                                   },
                                 },
@@ -1701,10 +1732,7 @@ export function TemplateEditorCanvas({
                               updateBlock(
                                 rz.blockId,
                                 aspectLock !== null
-                                  ? {
-                                      layout: layoutPatch,
-                                      configJson: liberaProporcion ? configSinCandado : rz.startConfigJson,
-                                    }
+                                  ? { layout: layoutPatch, configJson: configTrasLado }
                                   : { layout: layoutPatch },
                                 { skipHistory: true }
                               )
