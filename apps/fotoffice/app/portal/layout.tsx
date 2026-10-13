@@ -10,7 +10,7 @@ import { getDuesSettings } from "@/lib/membership/settings";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { PortalShell } from "@/components/portal/portal-shell";
-import { listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 import { loadActivePlacement } from "@/lib/sponsors/placements";
 import { SponsorLogoMarquee } from "@/components/sponsors/logo-marquee";
 import { PortalSponsorWelcome } from "@/components/sponsors/portal-welcome";
@@ -91,6 +91,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       })}
       vocabulary={vocabulary}
       roleSelector={selector}
+      account={{ userEmail: user.email, menu: accountMenu(perfiles, context.workspace.id) }}
       notifications
       institution={{
         name: branding?.commercialName?.trim() || context.workspace.name,

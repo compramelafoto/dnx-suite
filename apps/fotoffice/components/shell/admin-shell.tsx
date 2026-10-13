@@ -13,7 +13,7 @@ import { ShellFrame } from "@/components/shell/shell-frame";
 import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
 import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
-import { hasProfilesInSeveralWorkspaces, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 
 type PanelUser = {
   id: number;
@@ -108,7 +108,8 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           userAvatarUrl={perfil?.avatarUrl ?? null}
           workspaceRole={activeRole}
           workspaceLogoUrl={branding?.logoUrl ?? null}
-          canSwitchProfile={hasProfilesInSeveralWorkspaces(perfiles)}
+          menu={accountMenu(perfiles, workspace?.id ?? null)}
+          roleSelector={selector}
           userEmail={user.email}
           memberships={memberships.map((m) => ({
             workspaceId: m.workspaceId,
