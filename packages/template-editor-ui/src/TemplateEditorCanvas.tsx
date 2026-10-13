@@ -911,7 +911,7 @@ export function TemplateEditorCanvas({
         <div
           // `m-auto` y no `items-center`/`justify-center` en el padre: centrar con flex deja fuera del
           // scroll la parte izquierda y de arriba de una hoja más grande que el área.
-          className="relative m-auto shrink-0 overflow-hidden rounded-none bg-white shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
+          className="relative m-auto shrink-0 rounded-none bg-white shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
           // El pliego es papel: no hereda el tema oscuro del editor (ver PAPER_TOKENS).
           style={{ ...PAPER_TOKENS, width: zw, height: zh }}
           title={`Lienzo ${Math.round(state.canvas.width)}×${Math.round(state.canvas.height)} px · zoom ${Math.round(state.zoom * 100)}%`}
@@ -937,16 +937,24 @@ export function TemplateEditorCanvas({
               position: "relative",
             }}
           >
-            <TemplateCanvasRenderer
-              canvas={state.canvas}
-              blocks={blocksOnPage}
-              readOnly
-              resolvedVariables={valoresDeMuestra}
-              selectedBlockIds={state.selectedBlockIds}
-              primarySelectedBlockId={primaryId}
-              diagnosticHighlightByBlockId={diagnosticHighlightByBlockId}
-              hideTextBodyForBlockId={editingTextBlockId}
-            />
+            {/*
+              Sólo el diseño se recorta al borde de la hoja. Antes se recortaba la hoja entera, con
+              los tiradores incluidos: un bloque agrandado o girado que asomaba por fuera quedaba
+              con una esquina imposible de agarrar. Como en Photoshop, el recuadro de selección y
+              sus tiradores se ven y se usan aunque salgan del lienzo.
+            */}
+            <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+              <TemplateCanvasRenderer
+                canvas={state.canvas}
+                blocks={blocksOnPage}
+                readOnly
+                resolvedVariables={valoresDeMuestra}
+                selectedBlockIds={state.selectedBlockIds}
+                primarySelectedBlockId={primaryId}
+                diagnosticHighlightByBlockId={diagnosticHighlightByBlockId}
+                hideTextBodyForBlockId={editingTextBlockId}
+              />
+            </div>
 
             {showSafeArea ? (
               <div
@@ -1605,18 +1613,32 @@ export function TemplateEditorCanvas({
                           }
                           // Con proporción fijada en el inspector, la esquina estira siempre en
                           // proporción, como si Mayús estuviera apretada.
-                          const aspectLock = getBlockAspectLock(primaryBlock.configJson);
+                          /*
+                           * Shift invierte la proporción, como en Photoshop: sin candado, Shift la
+                           * mantiene; con el candado cerrado, Shift la libera y al soltar el bloque
+                           * queda con el candado abierto. Sin esto, un bloque con proporción fijada
+                           * (por ejemplo, uno duplicado de otro que la tenía) no había forma de
+                           * estirarlo libre desde la hoja.
+                           */
+                          const aspectLock = getBlockAspectLock(rz.startConfigJson);
+                          const liberaProporcion = aspectLock !== null && e.shiftKey;
+                          const proporcional = aspectLock !== null ? !e.shiftKey : e.shiftKey;
+                          const configSinCandado = (() => {
+                            const c = { ...rz.startConfigJson };
+                            delete c.aspectLock;
+                            return c;
+                          })();
                           const next = computeResizeRectRotated(
                             rz.handle,
                             {
                               x: rz.startX,
                               y: rz.startY,
                               width: rz.startWidth,
-                              height: aspectLock ? rz.startWidth / aspectLock : rz.startHeight,
+                              height: aspectLock && proporcional ? rz.startWidth / aspectLock : rz.startHeight,
                             },
                             dx,
                             dy,
-                            { shift: e.shiftKey || aspectLock !== null, alt: e.altKey },
+                            { shift: proporcional, alt: e.altKey },
                             primaryBlock.layout.rotation ?? 0
                           );
                           // Imán al estirar: los bordes que se mueven se pegan a las guías. Alt (desde
@@ -1637,7 +1659,7 @@ export function TemplateEditorCanvas({
                               next,
                               lineas,
                               SNAP_SCREEN_PX / zoom,
-                              e.shiftKey || aspectLock !== null
+                              proporcional
                             );
                             finalRect = sr.rect;
                             setSnapGuides({ vx: sr.guideVerticalX, hy: sr.guideHorizontalY });
@@ -1667,7 +1689,7 @@ export function TemplateEditorCanvas({
                                 {
                                   layout: layoutPatch,
                                   configJson: {
-                                    ...rz.startConfigJson,
+                                    ...(liberaProporcion ? configSinCandado : rz.startConfigJson),
                                     fontSize: newFs,
                                   },
                                 },
@@ -1678,7 +1700,12 @@ export function TemplateEditorCanvas({
                             dispatch(
                               updateBlock(
                                 rz.blockId,
-                                { layout: layoutPatch },
+                                aspectLock !== null
+                                  ? {
+                                      layout: layoutPatch,
+                                      configJson: liberaProporcion ? configSinCandado : rz.startConfigJson,
+                                    }
+                                  : { layout: layoutPatch },
                                 { skipHistory: true }
                               )
                             );
