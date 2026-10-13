@@ -9,6 +9,7 @@
  *
  * Importes: `digitalPhotoPriceCents` son PESOS enteros (no centavos).
  */
+import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
 import { prisma } from "@/lib/prisma";
 import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare-hidden-album-photos";
 import {
@@ -202,8 +203,7 @@ export function buildAlbumSettingsUpdateData(
     if (hiddenSelfieRetentionDays === null || hiddenSelfieRetentionDays === "") {
       data.hiddenSelfieRetentionDays = null;
     } else {
-      const days = parseInt(String(hiddenSelfieRetentionDays), 10);
-      data.hiddenSelfieRetentionDays = Number.isFinite(days) && days >= 0 ? days : null;
+      data.hiddenSelfieRetentionDays = parseHiddenSelfieRetentionDays(hiddenSelfieRetentionDays);
     }
   }
 

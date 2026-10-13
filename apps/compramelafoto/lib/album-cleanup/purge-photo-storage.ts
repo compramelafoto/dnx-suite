@@ -8,6 +8,7 @@ import {
   type FaceDeletionOutcome,
 } from "@/lib/album-cleanup/face-rows-safe-to-forget";
 import { deletePhotoR2Assets } from "@/lib/photo-r2-cleanup";
+import { deleteFromR2 } from "@/lib/r2-client";
 import { isPrismaFkViolation } from "@/lib/album-cleanup/destructive-delete";
 
 export type PhotoPurgeSource = {
@@ -233,4 +234,39 @@ export async function deletePhotoRowIfAllowed(
     }
     throw err;
   }
+}
+
+/**
+ * Selfies guardadas del álbum con fotos ocultas (`hidden-selfies/…` en R2).
+ *
+ * Sus claves no cuelgan del prefijo del álbum, así que se buscan por los intentos
+ * (`HiddenAlbumAttempt`) que todavía tienen selfie. Se limpia la clave sólo si R2
+ * confirmó el borrado; si falla, queda para el cron `hidden-album-cleanup`.
+ * Devuelve la cantidad de operaciones externas hechas.
+ */
+export async function purgeAlbumHiddenSelfies(albumId: number): Promise<number> {
+  let externalOps = 0;
+  const attempts = await prisma.hiddenAlbumAttempt.findMany({
+    where: { albumId, selfieObjectKey: { not: null } },
+    select: { id: true, selfieObjectKey: true },
+  });
+  for (const attempt of attempts) {
+    const key = attempt.selfieObjectKey;
+    if (!key) continue;
+    externalOps += 1;
+    try {
+      await deleteFromR2(key);
+    } catch (err: unknown) {
+      console.warn(
+        "[album-cleanup] hidden selfie delete failed",
+        JSON.stringify({ albumId, attemptId: attempt.id, error: err instanceof Error ? err.message : String(err) })
+      );
+      continue;
+    }
+    await prisma.hiddenAlbumAttempt.update({
+      where: { id: attempt.id },
+      data: { selfieStored: false, selfieObjectKey: null, selfieExpiresAt: null },
+    });
+  }
+  return externalOps;
 }
