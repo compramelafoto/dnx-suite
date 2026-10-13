@@ -42,6 +42,14 @@ import {
   setSelectedBlockIds,
   setZoom,
   clampZoom,
+  addGuide,
+  isGuideInsideCanvas,
+  moveGuide,
+  readGuides,
+  removeGuide,
+  setGuides,
+  type EditorGuides,
+  type GuideAxis,
   takePersistSnapshot,
   toggleBlockInSelection,
   updateBlock,
@@ -70,6 +78,7 @@ import {
 } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
 import { PAPER_TOKENS } from "./theme";
+import { EditorRuler, RULER_SIZE_PX } from "./EditorRuler";
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
@@ -699,6 +708,99 @@ export function TemplateEditorCanvas({
     };
   }
 
+  /*
+   * Guías de diseño (estilo Photoshop). Se sacan arrastrando desde las reglas, se mueven
+   * arrastrándolas, se borran soltándolas fuera de la hoja o con clic derecho. Mientras se
+   * arrastra, el cambio vive sólo acá; al soltar se guarda una vez, así deshacer revierte el
+   * gesto entero y no cada píxel.
+   */
+  const guides = useMemo(() => readGuides(state.versionMeta), [state.versionMeta]);
+  const [guideDrag, setGuideDrag] = useState<{ axis: GuideAxis; index: number | null; pos: number } | null>(null);
+  const [guideMenu, setGuideMenu] = useState<{ axis: GuideAxis; index: number; x: number; y: number } | null>(null);
+  const guidesRef = useRef(guides);
+  guidesRef.current = guides;
+
+  const startGuideDrag = useCallback(
+    (axis: GuideAxis, index: number | null, e: ReactPointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setGuideMenu(null);
+      const toPos = (cx: number, cy: number) => {
+        const inner = canvasInnerRef.current;
+        if (!inner) return 0;
+        const r = inner.getBoundingClientRect();
+        const z = zoomRef.current > 0 ? zoomRef.current : 1;
+        return axis === "v" ? (cx - r.left) / z : (cy - r.top) / z;
+      };
+      setGuideDrag({ axis, index, pos: toPos(e.clientX, e.clientY) });
+      const onMove = (ev: PointerEvent) => setGuideDrag({ axis, index, pos: toPos(ev.clientX, ev.clientY) });
+      const onUp = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        setGuideDrag(null);
+        const pos = toPos(ev.clientX, ev.clientY);
+        const g = guidesRef.current;
+        const inside = isGuideInsideCanvas(axis, pos, state.canvas.width, state.canvas.height);
+        let next: EditorGuides;
+        if (index === null) {
+          if (!inside) return;
+          next = addGuide(g, axis, pos);
+        } else {
+          next = inside ? moveGuide(g, axis, index, pos) : removeGuide(g, axis, index);
+        }
+        dispatch(setGuides(next));
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    },
+    [dispatch, state.canvas.width, state.canvas.height]
+  );
+
+  useEffect(() => {
+    if (!guideMenu) return;
+    const close = () => setGuideMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [guideMenu]);
+
+  /** Dónde cae el 0 de la hoja en cada regla, y cuánto miden. Se mide del DOM real. */
+  const [rulerFrame, setRulerFrame] = useState({ ox: 0, oy: 0, w: 0, h: 0 });
+  const measureRulers = useCallback(() => {
+    const wa = workAreaRef.current;
+    const inner = canvasInnerRef.current;
+    if (!wa || !inner) return;
+    const a = wa.getBoundingClientRect();
+    const r = inner.getBoundingClientRect();
+    setRulerFrame((prev) => {
+      const next = { ox: r.left - a.left, oy: r.top - a.top, w: a.width, h: a.height };
+      return prev.ox === next.ox && prev.oy === next.oy && prev.w === next.w && prev.h === next.h ? prev : next;
+    });
+  }, []);
+  useLayoutEffect(() => {
+    measureRulers();
+  });
+  useEffect(() => {
+    const wa = workAreaRef.current;
+    if (!wa) return;
+    const ro = new ResizeObserver(measureRulers);
+    ro.observe(wa);
+    wa.addEventListener("scroll", measureRulers, { passive: true });
+    return () => {
+      ro.disconnect();
+      wa.removeEventListener("scroll", measureRulers);
+    };
+  }, [measureRulers]);
+
   const zw = state.canvas.width * state.zoom;
   const zh = state.canvas.height * state.zoom;
 
@@ -766,6 +868,32 @@ export function TemplateEditorCanvas({
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
       data-testid="template-v2-canvas"
     >
+      <div className="flex shrink-0" style={{ height: RULER_SIZE_PX }}>
+        <div
+          className="shrink-0 border-b border-r border-[color:var(--te-line)] bg-[color:var(--te-chrome)]"
+          style={{ width: RULER_SIZE_PX }}
+          aria-hidden
+        />
+        <EditorRuler
+          orientation="horizontal"
+          lengthPx={rulerFrame.w}
+          originPx={rulerFrame.ox}
+          zoom={state.zoom}
+          dpi={state.canvas.dpi}
+          onPointerDown={(e) => startGuideDrag("h", null, e)}
+        />
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="shrink-0" style={{ width: RULER_SIZE_PX }}>
+          <EditorRuler
+            orientation="vertical"
+            lengthPx={rulerFrame.h}
+            originPx={rulerFrame.oy}
+            zoom={state.zoom}
+            dpi={state.canvas.dpi}
+            onPointerDown={(e) => startGuideDrag("v", null, e)}
+          />
+        </div>
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}
@@ -1194,7 +1322,7 @@ export function TemplateEditorCanvas({
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
                       : blocksOnPage,
                     sinIman ? 0 : SNAP_SCREEN_PX / zoom,
-                    { safeArea: safeAreaRect }
+                    { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
                   );
                   // El eje bloqueado no se imanta: el bloque no puede salirse de la línea.
                   if (ejeFijo === "x") {
@@ -1497,17 +1625,17 @@ export function TemplateEditorCanvas({
                           let finalRect = next;
                           const girado = Math.abs(primaryBlock.layout.rotation ?? 0) % 360 !== 0;
                           if (!girado && !e.altKey && !e.metaKey && !e.ctrlKey) {
-                            const guides = buildSnapGuideLines(
+                            const lineas = buildSnapGuideLines(
                               state.canvas.width,
                               state.canvas.height,
                               blocksOnPage,
                               new Set([rz.blockId]),
-                              { safeArea: safeAreaRect }
+                              { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
                             );
                             const sr = snapResizeRect(
                               rz.handle,
                               next,
-                              guides,
+                              lineas,
                               SNAP_SCREEN_PX / zoom,
                               e.shiftKey || aspectLock !== null
                             );
@@ -1713,9 +1841,97 @@ export function TemplateEditorCanvas({
                 aria-hidden
               />
             ) : null}
+
+            {/* Guías de diseño. La franja que se agarra es más ancha que la línea que se ve. */}
+            {(["v", "h"] as const).map((axis) =>
+              guides[axis].map((pos, i) => {
+                const z = state.zoom > 0 ? state.zoom : 1;
+                const moving = guideDrag && guideDrag.axis === axis && guideDrag.index === i;
+                const p = moving ? guideDrag!.pos : pos;
+                const hit = 7 / z;
+                return (
+                  <div
+                    key={`${axis}-${i}`}
+                    title="Guía: arrastrala para moverla; soltala fuera de la hoja o clic derecho para borrarla"
+                    onPointerDown={(e) => startGuideDrag(axis, i, e)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setGuideMenu({ axis, index: i, x: e.clientX, y: e.clientY });
+                    }}
+                    style={{
+                      position: "absolute",
+                      zIndex: 99970,
+                      cursor: axis === "v" ? "col-resize" : "row-resize",
+                      ...(axis === "v"
+                        ? { left: p - hit / 2, top: 0, width: hit, height: "100%" }
+                        : { top: p - hit / 2, left: 0, height: hit, width: "100%" }),
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        background: "#00b7ff",
+                        ...(axis === "v"
+                          ? { left: hit / 2 - 0.5 / z, top: 0, width: 1 / z, height: "100%" }
+                          : { top: hit / 2 - 0.5 / z, left: 0, height: 1 / z, width: "100%" }),
+                      }}
+                    />
+                  </div>
+                );
+              })
+            )}
+            {guideDrag && guideDrag.index === null ? (
+              <div
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  zIndex: 99970,
+                  pointerEvents: "none",
+                  background: "#00b7ff",
+                  ...(guideDrag.axis === "v"
+                    ? { left: guideDrag.pos, top: 0, width: 1 / (state.zoom || 1), height: "100%" }
+                    : { top: guideDrag.pos, left: 0, height: 1 / (state.zoom || 1), width: "100%" }),
+                }}
+              />
+            ) : null}
           </div>
         </div>
       </div>
+      </div>
+
+      {guideMenu ? (
+        <div
+          role="menu"
+          className="fixed z-[100000] min-w-[11rem] overflow-hidden rounded-[var(--te-radius)] border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] py-1 text-[12px] text-[color:var(--te-ink)] shadow-lg"
+          style={{ left: guideMenu.x, top: guideMenu.y }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left hover:bg-[color:var(--te-accent-wash)]"
+            onClick={() => {
+              dispatch(setGuides(removeGuide(guides, guideMenu.axis, guideMenu.index)));
+              setGuideMenu(null);
+            }}
+          >
+            Eliminar guía
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left hover:bg-[color:var(--te-accent-wash)]"
+            onClick={() => {
+              dispatch(setGuides({ v: [], h: [] }));
+              setGuideMenu(null);
+            }}
+          >
+            Eliminar todas las guías
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

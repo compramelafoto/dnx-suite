@@ -1,5 +1,6 @@
 import { getBlockDisplayName } from "./block-display-name";
 import { clampBlockPosition } from "./clamp-block-position";
+import { readGuides, TEMPLATE_V2_GUIDES_META_KEY, type EditorGuides } from "./editor-guides";
 import type {
   TemplateV2Block,
   TemplateV2BlockLayout,
@@ -115,6 +116,7 @@ export type TemplateV2EditorAction =
   | { type: "setZoom"; payload: { zoom: number; source?: "user" | "auto" | "fit" } }
   | { type: "setPan"; payload: { pan: Partial<TemplateV2EditorPan> } }
   | { type: "setCanvas"; payload: { canvas: Partial<TemplateV2Canvas> } }
+  | { type: "setGuides"; payload: { guides: EditorGuides } }
   | { type: "setVariableBindings"; payload: { variableBindings: TemplateV2VariableBinding[] } }
   | { type: "markDirty" }
   | { type: "markSaved"; payload?: { at?: string | null; revision?: number } }
@@ -315,6 +317,7 @@ function shouldRecordHistory(action: TemplateV2EditorAction): boolean {
     case "duplicateBlock":
     case "pasteBlockFromClipboard":
     case "setCanvas":
+    case "setGuides":
     case "setVariableBindings":
     case "markDirty":
     case "updateBlock":
@@ -728,6 +731,14 @@ function coreTemplateV2EditorReducer(
       };
     }
 
+    case "setGuides":
+      return {
+        ...state,
+        versionMeta: { ...state.versionMeta, [TEMPLATE_V2_GUIDES_META_KEY]: action.payload.guides },
+        isDirty: true,
+        saveStatus: "idle",
+      };
+
     case "setVariableBindings":
       return {
         ...state,
@@ -957,6 +968,16 @@ export function markSaved(at?: string | null, revision?: number): TemplateV2Edit
 
 export function syncRevisionFromServer(revision: number): TemplateV2EditorAction {
   return { type: "syncRevisionFromServer", payload: { revision } };
+}
+
+/** Reemplaza las guías de diseño (se guardan en la meta de la versión). */
+export function setGuides(guides: EditorGuides): TemplateV2EditorAction {
+  return { type: "setGuides", payload: { guides } };
+}
+
+/** Las guías de diseño de la plantilla abierta. */
+export function selectGuides(state: TemplateV2EditorState): EditorGuides {
+  return readGuides(state.versionMeta);
 }
 
 export function setCanvas(canvas: Partial<TemplateV2Canvas>): TemplateV2EditorAction {
