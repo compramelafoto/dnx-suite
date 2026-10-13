@@ -109,26 +109,26 @@ function entradaCon(items: ItemPresupuesto[], borrador: VersionVista): EntradaBo
 
 async function validarCreacion(ctx: CtxBot, input: Cotizacion & { consultaLeadId: string; totalEsperado: string; seccion?: string }, deps: DepsPresupuestosBot) {
   const consulta = await deps.consulta(ctx, input.consultaLeadId);
-  if (!consulta) return { error: MENSAJES_PRESUPUESTO.consulta } as const;
-  if (!consulta.tieneFicha) return { error: `${MENSAJES_PRESUPUESTO.consultaSinContacto} Está en /consultas/${consulta.leadId}.` } as const;
+  if (!consulta) return { ok: false, error: MENSAJES_PRESUPUESTO.consulta } as const;
+  if (!consulta.tieneFicha) return { ok: false, error: `${MENSAJES_PRESUPUESTO.consultaSinContacto} Está en /consultas/${consulta.leadId}.` } as const;
   const borrador = consulta.presupuestos.find((p) => p.tieneBorrador);
   if (borrador) {
-    return { error: `Esa consulta ya tiene el presupuesto ${borrador.numero ? `N.º ${borrador.numero}` : ""} en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.` } as const;
+    return { ok: false, error: `Esa consulta ya tiene el presupuesto ${borrador.numero ? `N.º ${borrador.numero}` : ""} en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.` } as const;
   }
   const r = await cotizarCon(ctx, input, deps, input.seccion);
-  if (r.estado !== "OK") return { error: sinPrecio(r) } as const;
-  if (String(totalDe(r.items)) !== input.totalEsperado) return { error: CAMBIO_EL_CALCULO } as const;
-  return { consulta, r } as const;
+  if (r.estado !== "OK") return { ok: false, error: sinPrecio(r) } as const;
+  if (String(totalDe(r.items)) !== input.totalEsperado) return { ok: false, error: CAMBIO_EL_CALCULO } as const;
+  return { ok: true, consulta, r } as const;
 }
 
 async function validarSuma(ctx: CtxBot, input: Cotizacion & { presupuestoId: string; totalEsperado: string; seccion?: string }, deps: DepsPresupuestosBot) {
   const d = await deps.leerPresupuesto(ctx, input.presupuestoId);
-  if (!d) return { error: MENSAJES_PRESUPUESTO.noExiste } as const;
-  if (!d.borrador) return { error: `${MENSAJES_PRESUPUESTO.sinBorrador} Si ya se envió, creá una versión nueva desde /presupuestos/${d.id}.` } as const;
+  if (!d) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste } as const;
+  if (!d.borrador) return { ok: false, error: `${MENSAJES_PRESUPUESTO.sinBorrador} Si ya se envió, creá una versión nueva desde /presupuestos/${d.id}.` } as const;
   const r = await cotizarCon(ctx, input, deps, input.seccion);
-  if (r.estado !== "OK") return { error: sinPrecio(r) } as const;
-  if (String(totalDe(r.items)) !== input.totalEsperado) return { error: CAMBIO_EL_CALCULO } as const;
-  return { d, borrador: d.borrador, existentes: d.borrador.items as ItemPresupuesto[], r } as const;
+  if (r.estado !== "OK") return { ok: false, error: sinPrecio(r) } as const;
+  if (String(totalDe(r.items)) !== input.totalEsperado) return { ok: false, error: CAMBIO_EL_CALCULO } as const;
+  return { ok: true, d, borrador: d.borrador, existentes: d.borrador.items as ItemPresupuesto[], r } as const;
 }
 
 export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<DepsPresupuestosBot> = {}): BotTool[] {
@@ -238,7 +238,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
         kind: "write",
         describe: async (input) => {
           const v = await validarCreacion(ctx, input, deps);
-          if ("error" in v) throw new Error(v.error);
+          if (!v.ok) throw new Error(v.error);
           const modelo = await deps.itemsDePropuestaModelo(ctx.workspaceId, v.consulta.categoriaId);
           return [
             `Crear el borrador del presupuesto de ${textoConsulta(v.consulta)} con ${v.r.items.length} ${v.r.items.length === 1 ? "ítem" : "ítems"}: ${lineaItems(v.r.items)}.`,
@@ -249,7 +249,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
         },
         run: async (input) => {
           const v = await validarCreacion(ctx, input, deps);
-          if ("error" in v) return { ok: false, message: v.error };
+          if (!v.ok) return { ok: false, message: v.error };
           const creado = await deps.crearPresupuesto(ctx, { consultaLeadId: input.consultaLeadId });
           if (!creado.ok) return { ok: false, message: creado.error };
           const d = await deps.leerPresupuesto(ctx, creado.presupuestoId);
@@ -271,7 +271,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
         kind: "write",
         describe: async (input) => {
           const v = await validarSuma(ctx, input, deps);
-          if ("error" in v) throw new Error(v.error);
+          if (!v.ok) throw new Error(v.error);
           const descuento = v.borrador.totals.descuento ?? null;
           const antes = calcularTotales(v.existentes, descuento).total;
           const despues = calcularTotales([...v.existentes, ...v.r.items], descuento).total;
@@ -287,7 +287,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
         },
         run: async (input) => {
           const v = await validarSuma(ctx, input, deps);
-          if ("error" in v) return { ok: false, message: v.error };
+          if (!v.ok) return { ok: false, message: v.error };
           const todos = [...v.existentes, ...v.r.items];
           const g = await deps.guardarBorrador(ctx, v.d.id, entradaCon(todos, v.borrador));
           if (!g.ok) return { ok: false, message: g.error };
