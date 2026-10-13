@@ -34,7 +34,7 @@
     "test:template-v2": "pnpm --filter @repo/template-editor-core test",
     "test:template-v2:render": "pnpm --filter @repo/template-editor-core test:render",
     "test:album-cover": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album/album-list-cover.test.ts",
-    "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts lib/design-v2/design-data.test.ts lib/design-v2/values-formatos.test.ts",
+    "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts lib/design-v2/design-data.test.ts lib/design-v2/values-formatos.test.ts lib/design-v2/book-leaves.test.ts",
     "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/preventa-canjeable/pack-savings.test.ts lib/preventa-canjeable/preventa-redeem-url.test.ts lib/preventa-canjeable/preventa-canje-slots.test.ts lib/albums/album-share-image.test.ts",
     "test:video-cleanup": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/videos/video-cleanup.test.ts",
     "test:pricing-digital": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/pricing/album-digital-base-price.test.ts lib/pricing/album-scoped-products.test.ts lib/clipboard/copy-pending-text.test.ts",
