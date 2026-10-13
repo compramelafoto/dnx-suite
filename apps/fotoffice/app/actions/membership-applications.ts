@@ -17,6 +17,7 @@ import {
   buildApplicationApprovedEmail,
   buildApplicationReceivedEmail,
   buildApplicationRejectedEmail,
+  buildSelfEnrollmentAccessEmail,
 } from "@/lib/membership/application-emails";
 import { fechaLegible } from "@/lib/membership/charge-labels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
@@ -383,17 +384,19 @@ async function aprobarSolaEIrAPagar(
 
   // El acceso al portal sale ya: es por donde va a renovar y ver sus turnos. Si el email no
   // sale, el alta sigue: puede pagar igual y la institución reenvía el acceso desde la ficha.
+  const categoria = await prisma.member.findUnique({
+    where: { id: r.memberId },
+    select: { category: { select: { name: true } } },
+  });
+  const vocab = await loadPersonVocabulary(workspaceId);
   const invitacion = await inviteOneMember({ id: workspaceId }, { kind: "SYSTEM", label: "Alta desde el sitio" }, r.memberId, {
     buildBody: ({ memberFirstName, institution, invitationUrl, signature }) =>
-      buildApplicationApprovedEmail({
+      buildSelfEnrollmentAccessEmail({
         firstName: memberFirstName,
         institution,
-        memberNumber: r.memberNumber,
+        membershipName: categoria?.category?.name ?? vocab.plural,
         activationUrl: invitationUrl,
         totalLabel: formatMinorArs(decimalArsToMinor(r.totalArs)),
-        duesCount: r.chargeCount,
-        deadlineLabel: fechaLegible(r.expiresAt),
-        includesPrintedCard: r.includesPrintedCard,
         activationTtlLabel: INVITATION_TTL_LABEL,
         signature,
       }),
