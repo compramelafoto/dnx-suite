@@ -210,3 +210,18 @@ describe("lugares con nombre (foto individual y grupal)", () => {
     assert.deepEqual(photosForCanjeRole([1, 2], faces, "group"), { ids: [1, 2], filtered: false });
   });
 });
+
+describe("encuadre de la vista del librito", () => {
+  it("viaja con la selección, alineado con las unidades", () => {
+    const plan = buildCanjeSlotPlan([
+      ben({ selectionMode: "MULTI_PHOTO_FIXED" as const, requiredPhotoCount: 2 }),
+    ]);
+    const sel = buildRedeemSelections(plan, [10, 20], { 1: { zoom: 2, x: 0.5, y: 0 } });
+    assert.deepEqual(sel[0].crops, [[null, { zoom: 2, x: 0.5, y: 0 }]]);
+  });
+
+  it("sin encuadres, la selección queda como siempre", () => {
+    const plan = buildCanjeSlotPlan([ben({})]);
+    assert.deepEqual(buildRedeemSelections(plan, [10]), [{ benefitStableKey: "1:benefit:1", units: [[10]] }]);
+  });
+});
