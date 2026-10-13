@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import type { ReferralSharePath } from "@/lib/referral-link";
@@ -92,7 +93,7 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function ReferralStepsCard() {
+function ReferralStepsCard({ showEscolarLanding = false }: { showEscolarLanding?: boolean }) {
   return (
     <Card className="p-6 md:p-8 border-[#c27b3d]/25 bg-gradient-to-br from-[#fffaf5] via-white to-[#f8fafc]">
       <h2 className="text-lg font-semibold text-[#1a1a1a]">Cómo conseguir más referidos</h2>
@@ -123,6 +124,14 @@ function ReferralStepsCard() {
         Si hablás con una institución, elegí «Recomendar a una escuela» en tu link de referido.
         Para otros rubros, usá la landing general.
       </p>
+      {showEscolarLanding ? (
+        <p className="mt-3 text-sm text-[#4b5563]">
+          ¿Trabajás con colegios? Además de recomendar, compartí tu propia landing escolar para que te contraten.{" "}
+          <Link href="/fotografo/escuelas/landing" className="font-semibold text-[#9a5c2a] hover:underline">
+            Ver mi landing escolar →
+          </Link>
+        </p>
+      ) : null}
     </Card>
   );
 }
@@ -483,7 +492,7 @@ export default function ReferralCenter() {
         onCopyLink={() => void copyCommercialLink()}
       />
 
-      <ReferralStepsCard />
+      <ReferralStepsCard showEscolarLanding={authRole === "PHOTOGRAPHER" || authRole === "LAB_PHOTOGRAPHER"} />
 
       {canUseAdvancedReferralPanel ? (
         <AdvancedReferralManagement

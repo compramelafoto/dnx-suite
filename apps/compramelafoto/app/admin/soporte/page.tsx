@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import { formatDate, getStatusBadgeColor, getStatusLabel } from "@/lib/admin/helpers";
+import { getSupportReasonLabel } from "@/lib/support-url";
 
 interface SupportTicket {
   id: number;
@@ -144,7 +145,7 @@ export default function AdminSoportePage() {
                       #{ticket.id}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {ticket.reason}
+                      {getSupportReasonLabel(ticket.reason)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {ticket.printOrder ? (

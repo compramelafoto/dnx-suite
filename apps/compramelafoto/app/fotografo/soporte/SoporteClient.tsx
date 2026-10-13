@@ -13,7 +13,7 @@ import { TERMS_TEXT } from "@/lib/terms/photographerTerms";
 import { REFERRAL_TERMS_TEXT } from "@/lib/terms/referralTerms";
 import { FAQ_CATEGORIES } from "@/components/FaqSection";
 import TutorialCard from "@/components/tutorials/TutorialCard";
-import { getSupportStatusLabel } from "@/lib/support-url";
+import { getSupportReasonLabel, getSupportStatusLabel } from "@/lib/support-url";
 import { supportTicketSectionId, useSupportTicketDeepLink } from "@/hooks/useSupportTicketDeepLink";
 
 const REASON_OPTIONS = [
@@ -312,7 +312,7 @@ export default function SoporteClient() {
                         }`}
                       >
                         <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium text-[#1a1a1a]">Ticket #{ticket.id} · {ticket.reason}</span>
+                          <span className="font-medium text-[#1a1a1a]">Ticket #{ticket.id} · {getSupportReasonLabel(ticket.reason)}</span>
                           <span className="text-[#6b7280]">{getSupportStatusLabel(ticket.status)}</span>
                         </div>
                         <p className="text-sm text-[#1a1a1a] whitespace-pre-wrap break-words">{ticket.description}</p>

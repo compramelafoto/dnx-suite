@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Textarea from "@/components/ui/Textarea";
+import { getSupportReasonLabel } from "@/lib/support-url";
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -127,7 +128,7 @@ export default function AdminSoporteDetallePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Ticket #{ticket.id}</h1>
           <p className="text-gray-600 mt-1">
-            {ticket.reason} • {formatDate(ticket.createdAt)}
+            {getSupportReasonLabel(ticket.reason)} • {formatDate(ticket.createdAt)}
           </p>
         </div>
         <Button variant="secondary" onClick={() => router.push("/admin/soporte")}>
