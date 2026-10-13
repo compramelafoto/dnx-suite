@@ -93,7 +93,10 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(prep.systemGuide).toContain("Nunca inventes precios");
     expect(prep.situation).toContain("Pantalla: lista de presupuestos");
     expect(prep.situation).toContain("Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.");
-    expect(prep.tools.map((t) => t.name)).toEqual(["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"]);
+    expect(prep.tools.map((t) => t.name)).toEqual([
+      "ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios",
+      "cotizar_trabajo", "buscar_consultas", "ver_presupuesto", "crear_borrador_de_presupuesto", "sumar_al_borrador",
+    ]);
     expect(prep.actor).toEqual({ userId: 7, role: "WORKSPACE_OWNER", email: "d@x.test", name: "Daniel" });
   });
   it("límites: corta con el mensaje propio; debajo, sigue", async () => {
@@ -130,13 +133,14 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(H.cifra).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", ids: { userId: 7, conversationId: "c1" }, cantidad: 1 });
   });
 
-  it("la tarjeta de cálculo sale cuando simular_perfil trae una", async () => {
+  it("la tarjeta de cálculo sale cuando simular_perfil o cotizar_trabajo traen una", async () => {
     await POST(pedido({ text: "hola" }));
     const send = vi.fn();
     const tarjeta = { titulo: "Tu perfil de precios", filas: [], avisos: [] };
     params().alResultado!(send, "simular_perfil", { ok: true, message: "", data: { tarjeta } });
     params().alResultado!(send, "ver_perfil_de_precios", { ok: true, message: "", data: { tarjeta } });
-    expect(send).toHaveBeenCalledTimes(1);
+    params().alResultado!(send, "cotizar_trabajo", { ok: true, message: "", data: { tarjeta } });
+    expect(send).toHaveBeenCalledTimes(2);
     expect(send).toHaveBeenCalledWith("calculo", tarjeta);
   });
 });

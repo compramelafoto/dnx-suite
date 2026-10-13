@@ -33,8 +33,9 @@ beforeEach(() => {
 
 describe("quién recibe las herramientas de perfil", () => {
   it("dueño o admin: las tres; sin configurar: ninguna", () => {
-    expect(herramientasPara(ctx(true)).map((t) => t.name)).toEqual(["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"]);
-    expect(herramientasPara(ctx(false))).toEqual([]);
+    const PERFIL = ["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"];
+    expect(herramientasPara(ctx(true)).map((t) => t.name)).toEqual(expect.arrayContaining(PERFIL));
+    expect(herramientasPara(ctx(false)).map((t) => t.name).filter((n) => PERFIL.includes(n))).toEqual([]);
   });
   it("guardar es de escritura; ver y simular, de lectura", () => {
     expect(tool("ver_perfil_de_precios").kind).toBe("read");

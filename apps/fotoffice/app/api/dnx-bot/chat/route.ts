@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     // Las tarjetas las pinta la burbuja con los datos del servidor, nunca con el texto del modelo.
     alResultado: (send, name, outcome) => {
       const tarjeta = outcome.ok ? (outcome.data as { tarjeta?: unknown } | undefined)?.tarjeta : undefined;
-      if (name === "simular_perfil" && tarjeta) send("calculo", tarjeta);
+      if ((name === "simular_perfil" || name === "cotizar_trabajo") && tarjeta) send("calculo", tarjeta);
     },
     // Red de seguridad (spec §5.4): toda cifra del texto tiene que salir de una herramienta o de la persona.
     revisarRespuesta: async ({ texto, appended, history, conversationId }) => {
