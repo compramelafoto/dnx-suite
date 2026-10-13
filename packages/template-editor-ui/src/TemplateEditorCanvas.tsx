@@ -36,6 +36,7 @@ import {
   offsetsWithinSelection,
   setSelectedBlockIds,
   setZoom,
+  clampZoom,
   takePersistSnapshot,
   toggleBlockInSelection,
   updateBlock,
@@ -616,6 +617,72 @@ export function TemplateEditorCanvas({
    * y una hoja apaisada quedaba cortada abajo.
    */
 
+  /*
+   * Zoom con el gesto de pellizcar del trackpad o con Ctrl/⌘ + rueda, sólo sobre el área de
+   * trabajo. Sin esto el navegador ampliaba la página entera, paneles incluidos. El punto de la
+   * hoja que está bajo el puntero queda bajo el puntero, como en los editores de imagen.
+   *
+   * El listener va a mano y no como `onWheel` de React: React lo registra pasivo y entonces
+   * `preventDefault` no frena el zoom del navegador.
+   */
+  const zoomRef = useRef(state.zoom);
+  zoomRef.current = state.zoom;
+  useEffect(() => {
+    const area = workAreaRef.current;
+    if (!area) return;
+
+    function zoomAround(nextZoom: number, clientX: number, clientY: number) {
+      const inner = canvasInnerRef.current;
+      const wa = workAreaRef.current;
+      const prev = zoomRef.current > 0 ? zoomRef.current : 1;
+      const next = clampZoom(nextZoom);
+      if (!inner || !wa || next === prev) return;
+      const r = inner.getBoundingClientRect();
+      // Punto de la hoja (en px del lienzo) que está bajo el puntero.
+      const px = (clientX - r.left) / prev;
+      const py = (clientY - r.top) / prev;
+      // Se adelanta el valor: los pasos de un pellizco llegan antes de que React vuelva a dibujar.
+      zoomRef.current = next;
+      dispatch(setZoom(next, "user"));
+      requestAnimationFrame(() => {
+        const r2 = inner.getBoundingClientRect();
+        wa.scrollLeft += r2.left + px * next - clientX;
+        wa.scrollTop += r2.top + py * next - clientY;
+      });
+    }
+
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      // El pellizco manda pasos chicos y la rueda pasos de ~100: se acota para que un clic de
+      // rueda no salte demasiado.
+      const delta = Math.max(-60, Math.min(60, e.deltaY));
+      zoomAround(zoomRef.current * Math.exp(-delta * 0.005), e.clientX, e.clientY);
+    }
+
+    // Safari no manda el pellizco como rueda sino como `gesture*`.
+    let gestureStartZoom = zoomRef.current;
+    type GestureLike = Event & { scale: number; clientX: number; clientY: number };
+    function onGestureStart(e: Event) {
+      e.preventDefault();
+      gestureStartZoom = zoomRef.current;
+    }
+    function onGestureChange(e: Event) {
+      e.preventDefault();
+      const g = e as GestureLike;
+      zoomAround(gestureStartZoom * g.scale, g.clientX, g.clientY);
+    }
+
+    area.addEventListener("wheel", onWheel, { passive: false });
+    area.addEventListener("gesturestart", onGestureStart);
+    area.addEventListener("gesturechange", onGestureChange);
+    return () => {
+      area.removeEventListener("wheel", onWheel);
+      area.removeEventListener("gesturestart", onGestureStart);
+      area.removeEventListener("gesturechange", onGestureChange);
+    };
+  }, [dispatch]);
+
   function clientToCanvas(clientX: number, clientY: number): { x: number; y: number } {
     const el = canvasInnerRef.current;
     if (!el) return { x: 0, y: 0 };
@@ -697,7 +764,7 @@ export function TemplateEditorCanvas({
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}
-        className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-auto bg-[color:var(--te-void)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
+        className="flex min-h-0 w-full min-w-0 flex-1 overflow-auto overscroll-contain bg-[color:var(--te-void)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
         style={{ cursor: workAreaCursor }}
         onPointerDownCapture={onWorkAreaPointerDownCapture}
         onPointerMove={onWorkAreaPointerMove}
@@ -709,7 +776,9 @@ export function TemplateEditorCanvas({
         }}
       >
         <div
-          className="relative shrink-0 overflow-hidden rounded-none bg-white shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
+          // `m-auto` y no `items-center`/`justify-center` en el padre: centrar con flex deja fuera del
+          // scroll la parte izquierda y de arriba de una hoja más grande que el área.
+          className="relative m-auto shrink-0 overflow-hidden rounded-none bg-white shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
           // El pliego es papel: no hereda el tema oscuro del editor (ver PAPER_TOKENS).
           style={{ ...PAPER_TOKENS, width: zw, height: zh }}
           title={`Lienzo ${Math.round(state.canvas.width)}×${Math.round(state.canvas.height)} px · zoom ${Math.round(state.zoom * 100)}%`}
