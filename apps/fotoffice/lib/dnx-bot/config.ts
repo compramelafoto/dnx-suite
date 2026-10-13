@@ -40,7 +40,7 @@ function noNegativo(v: string | undefined, def: number): number {
 
 const microUsd = (usd: number) => Math.round(usd * 1_000_000);
 
-export function leerConfigBot(env: NodeJS.ProcessEnv = process.env): BotConfigFotoffice {
+export function leerConfigBot(env: Record<string, string | undefined> = process.env): BotConfigFotoffice {
   const effort = env.FOTOFFICE_BOT_EFFORT?.trim();
   const token = env.FOTOFFICE_BOT_TELEGRAM_TOKEN?.trim();
   const chatId = env.FOTOFFICE_BOT_TELEGRAM_CHAT_ID?.trim();
