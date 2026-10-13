@@ -5,6 +5,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -132,7 +133,8 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     href: "/portal/beneficios",
     description: "Descuentos y convenios con comercios y escuelas.",
     icon: "gift",
-    built: false,
+    requiresModule: SPONSORS_MODULE_KEY,
+    built: true,
   },
   {
     order: 60,

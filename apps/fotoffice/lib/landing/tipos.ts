@@ -171,7 +171,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "clients",
       "evaluaciones",
     ],
-    proximo: "17",
+    proximo: "19",
   },
   {
     id: "agrupacion",

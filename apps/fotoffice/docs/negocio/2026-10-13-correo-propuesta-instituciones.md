@@ -14,15 +14,15 @@ que todas sus claves existan en el catálogo.
 
 Hola, ¿cómo están?
 
-Soy Daniel Cuart, fotógrafo y parte de la comisión de la SFPR. Les escribo para presentarles
-FOTOFFICE, el sistema de gestión de DNX Suite pensado para sociedades, asociaciones y
-fotoclubes como {Institución}.
+Soy Daniel Cuart, fotógrafo. Les escribo para presentarles FOTOFFICE, el sistema de gestión de
+DNX Suite pensado para sociedades, asociaciones y fotoclubes como {Institución}.
 
 Reúne en un solo lugar las altas y el padrón de socios, el cobro y el seguimiento de las cuotas,
 los carnets con código verificable, los sorteos con premios de sponsors y los beneficios que
-ofrecen las marcas aliadas. Cada institución enciende y configura sólo los módulos que necesita,
-y la comisión trabaja con permisos por rol y un registro de cada cambio, lo que ayuda a ordenar
-la gestión y a hacerla más transparente.
+ofrecen las marcas aliadas. Cada institución enciende y configura sólo los módulos que necesita.
+La comisión trabaja con permisos por rol, registro de cada cambio, reuniones con acta y
+proyectos que los socios pueden seguir y apoyar, lo que ayuda a ordenar la gestión y a hacerla
+más transparente.
 
 La propuesta también incluye los concursos fotográficos, con FotoRank, y las muestras
 fotográficas, con Muestras Fotográficas, dos aplicaciones de la misma suite.

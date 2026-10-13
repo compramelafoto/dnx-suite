@@ -60,19 +60,24 @@ export const PUNTOS_INSTITUCIONALES: PuntoInstitucional[] = [
     id: "beneficios",
     titulo: "Sponsors, convenios y beneficios",
     texto:
-      "Cada marca carga sus propios datos —logo, redes, contacto y el beneficio que ofrece a los socios— desde un enlace que le manda la institución. Ustedes eligen dónde aparece (el sitio, el portal, el aviso al entrar) y hasta cuándo; al vencer, el logo se baja solo.",
-    claves: ["sponsors"],
-    pendiente:
-      "la sección «Beneficios» del portal, con todos los convenios juntos. Hoy el beneficio queda cargado en la ficha de cada sponsor.",
+      "Cada marca carga sus propios datos —logo, redes, contacto y el beneficio que ofrece a los socios— desde un enlace que le manda la institución. Los socios encuentran todos los convenios juntos en «Beneficios», dentro de su portal, y ustedes eligen además dónde aparece cada logo (el sitio, el portal, el aviso al entrar) y hasta cuándo.",
+    claves: ["sponsors", "portal"],
   },
   {
     id: "transparencia",
     titulo: "Gestión ordenada y con registro",
     texto:
-      "Cada integrante de la comisión entra con su rol —Presidencia, Secretaría, Tesorería, Revisor de cuentas y otros— y ve o gestiona sólo lo que le toca. Los cambios en el padrón y los pagos quedan firmados con quién y cuándo, y los proyectos de la comisión guardan sus tareas, archivos y decisiones.",
+      "Cada integrante de la comisión entra con su rol —Presidencia, Secretaría, Tesorería, Revisor de cuentas y otros— y ve o gestiona sólo lo que le toca. Los cambios en el padrón y los pagos quedan firmados con quién y cuándo. Las reuniones se arman con su temario, cada tema queda con lo resuelto y el acta se aprueba y se cierra.",
     claves: ["equipo", "governance"],
     pendiente:
-      "publicar el balance y la rendición para los socios, ni llevar actas y votaciones dentro del sistema.",
+      "publicar el balance y la rendición de cuentas para los socios. Hoy el balance de la Caja y las actas los ve sólo la comisión.",
+  },
+  {
+    id: "proyectos",
+    titulo: "Proyectos a la vista de los socios",
+    texto:
+      "Cada proyecto de la comisión tiene etapas, tareas con responsable, archivos, presupuesto y gastos, y pasa por la votación de la comisión. Ustedes deciden qué proyectos ven los socios: en esos, el socio sigue el avance y cuánto se necesita, se asignó y se gastó, apoya o no con su voto y puede ofrecerse para una tarea. También puede proponer su propia idea y ver en qué paso está.",
+    claves: ["governance", "portal"],
   },
   {
     id: "participacion",
