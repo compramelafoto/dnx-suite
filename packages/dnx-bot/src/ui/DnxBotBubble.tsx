@@ -22,6 +22,16 @@ import {
 } from "./globito";
 import { applyDecision, applySseEvent, dropEmptyBot, seedIntro, type Item } from "./items";
 import { debeMostrarGlobitoDiferido, estadoUrlComprador, marcarGlobitoVisto, paginaActual, textoTicket, type Audiencia } from "./comprador";
+import {
+  CADA_LLAMADO_MS,
+  CSS_MASCOTA,
+  DURACION_ENTRADA,
+  DURACION_LLAMADO_MS,
+  MAX_LLAMADOS,
+  PRIMER_LLAMADO_MS,
+  tipoEntrada,
+  type FaseMascota,
+} from "./entrada";
 
 export type DnxBotBubbleProps = {
   basePath: string;
@@ -50,6 +60,13 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
   const [ticketBusy, setTicketBusy] = useState(false);
   const ticketRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // Mascota: entra animada (grande la primera vez de la visita), se acomoda y recién ahí aparece el globito.
+  const [fase, setFase] = useState<FaseMascota | null>(null);
+  const [entradaLista, setEntradaLista] = useState(false);
+  const [sinMovimiento, setSinMovimiento] = useState(false);
+  // Una vez abierta la ventana, la mascota deja de llamar la atención.
+  const yaAbrioRef = useRef(false);
+  useEffect(() => { if (open) yaAbrioRef.current = true; }, [open]);
 
   useEffect(() => {
     let almacen: AlmacenSimple | null = null;
@@ -105,6 +122,43 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
       .catch(() => setEstado({ enabled: false }));
   }, [basePath, audiencia]);
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [items]);
+
+  const habilitado = estado?.enabled === true;
+  useEffect(() => {
+    if (!habilitado) return;
+    let almacen: AlmacenSimple | null = null;
+    let reducir = false;
+    try {
+      almacen = window.sessionStorage;
+    } catch {
+      almacen = null;
+    }
+    try {
+      reducir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+      reducir = false;
+    }
+    const tipo = tipoEntrada(almacen, reducir);
+    setSinMovimiento(tipo === "ninguna");
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const acomodar = () => {
+      setFase("reposo");
+      setEntradaLista(true);
+      if (tipo === "ninguna") return;
+      // Unos pocos llamados suaves en reposo, y después nada más.
+      for (let i = 0; i < MAX_LLAMADOS; i++) {
+        const t = PRIMER_LLAMADO_MS + i * CADA_LLAMADO_MS;
+        timers.push(setTimeout(() => { if (!yaAbrioRef.current) setFase("llamado"); }, t));
+        timers.push(setTimeout(() => setFase((f) => (f === "llamado" ? "reposo" : f)), t + DURACION_LLAMADO_MS));
+      }
+    };
+    if (tipo === "ninguna") acomodar();
+    else {
+      setFase(tipo === "grande" ? "entrada-grande" : "entrada-corta");
+      timers.push(setTimeout(acomodar, DURACION_ENTRADA[tipo]));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [habilitado]);
 
   // Lo que se ve como saludo antes del primer mensaje; send() lo pasa a la conversación.
   const introRef = useRef<{ texto: string | null; progreso: ProgresoEscolar | null }>({ texto: null, progreso: null });
@@ -200,11 +254,14 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
   if (!estado?.enabled) return null;
 
   return (
-    <div style={{ position: "fixed", right: 24, bottom: bottomOffsetPx, zIndex: 9990 }}>
+    <div className="dnxbot-raiz" style={{ position: "fixed", right: 24, bottom: bottomOffsetPx, zIndex: 9990 }}>
+      <style>{CSS_MASCOTA}</style>
       {open && (
-        <div role="dialog" aria-label="DNX Bot" style={{ width: "min(380px, calc(100vw - 32px))", height: `min(560px, calc(100vh - ${bottomOffsetPx + 116}px))`, marginBottom: 12, background: "#fff", color: "#111", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", fontSize: 14 }}>
+        <div role="dialog" aria-label="DNX Bot" style={{ width: "min(380px, calc(100vw - 32px))", height: `min(560px, calc(100vh - ${bottomOffsetPx + 148}px))`, marginBottom: 12, background: "#fff", color: "#111", borderRadius: 16, boxShadow: "0 12px 40px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", fontSize: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid #eee" }}>
-            <img src={mascotSrc} alt="" width={32} height={32} />
+            <span aria-hidden="true" style={{ width: 32, height: 32, flex: "none", borderRadius: 999, background: "#fff3e8", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              <img src={mascotSrc} alt="" width={18} height={28} style={{ objectFit: "contain" }} />
+            </span>
             <div style={{ flex: 1 }}>
               <strong>DNX Bot</strong>
               <div style={{ fontSize: 11, color: "#666" }}>Soy un asistente automático</div>
@@ -266,8 +323,8 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
           <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>
         </div>
       )}
-      {globito && !open && !globitoEnVentana && (
-        <div role="status" aria-label="Mensaje de DNX Bot" style={{ position: "absolute", right: 76, bottom: 8, width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
+      {globito && !open && !globitoEnVentana && entradaLista && (
+        <div role="status" aria-label="Mensaje de DNX Bot" className={sinMovimiento ? "dnxbot-globito-pos" : "dnxbot-globito dnxbot-globito-pos"} style={{ position: "absolute", width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
           <button onClick={cerrarGlobito} aria-label="Cerrar el mensaje de DNX Bot" style={{ position: "absolute", top: 2, right: 4, border: 0, background: "none", fontSize: 16, lineHeight: 1, cursor: "pointer", color: "#666" }}>×</button>
           <div style={{ paddingRight: 14 }}><BotText text={globito.texto} rutas={rutasPermitidas} /></div>
           {globito.botones.length > 0 && (
@@ -280,9 +337,19 @@ export function DnxBotBubble({ basePath, mascotSrc, bottomOffsetPx = 24, rutasPe
           <span aria-hidden="true" style={{ position: "absolute", right: -6, bottom: 18, width: 12, height: 12, background: "#fff", transform: "rotate(45deg)" }} />
         </div>
       )}
-      <button onClick={() => setOpen((o) => !o)} aria-label={open ? "Cerrar DNX Bot" : "Abrir DNX Bot"} style={{ position: "relative", marginLeft: "auto", display: "block", width: 64, height: 64, borderRadius: 999, border: 0, background: "#fff", boxShadow: "0 6px 20px rgba(0,0,0,.2)", cursor: "pointer", padding: 4 }}>
-        <img src={mascotSrc} alt="" width={56} height={56} style={{ objectFit: "contain" }} />
-        {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label={open ? "Cerrar DNX Bot" : "Abrir DNX Bot"}
+        className="dnxbot-mascota"
+        data-fase={fase ?? undefined}
+        // Hasta decidir la entrada no se muestra: evita que se vea un instante quieta antes de entrar.
+        style={{ opacity: fase ? 1 : 0 }}
+      >
+        <span className="dnxbot-sombra" aria-hidden="true" />
+        <span className="dnxbot-cuerpo">
+          <img src={mascotSrc} alt="" width={57} height={90} />
+        </span>
+        {estado.alerta && !open && <span aria-label="Hay algo para revisar" style={{ position: "absolute", zIndex: 2, top: 0, right: -4, width: 14, height: 14, borderRadius: 999, background: "#e5484d", border: "2px solid #fff" }} />}
       </button>
     </div>
   );
