@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { loadExternalVoucherByToken, EXTERNAL_VOUCHER_ERROR_MESSAGES } from "@/lib/canje-externo/external-voucher";
+import {
+  loadExternalVoucherByToken,
+  EXTERNAL_VOUCHER_ERROR_MESSAGES,
+  resolveGalleryForDisabledVoucher,
+} from "@/lib/canje-externo/external-voucher";
 import { resolveComboPrintProduct } from "@/lib/canje-externo/combo-print-product";
 import { filterPublicAlbumPhotosForHiddenVisitor } from "@/lib/hidden-album/filter-public-album-photos";
 import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
@@ -45,6 +50,10 @@ export default async function CanjePage({ params }: { params: Promise<{ token: s
   const { token } = await params;
   const lookup = await loadExternalVoucherByToken(token);
   if (!lookup.ok) {
+    // Combo deshabilitado (link anulado, combo cancelado o vencido): a la galería, a
+    // comprar normalmente, sin el combo. Un link que no existe sigue diciendo que no vale.
+    const galeria = await resolveGalleryForDisabledVoucher(token);
+    if (galeria) redirect(galeria);
     return <Aviso titulo="No pudimos abrir tu combo" texto={EXTERNAL_VOUCHER_ERROR_MESSAGES[lookup.error]} />;
   }
   const { voucher } = lookup;
