@@ -16,6 +16,10 @@ vi.mock("@/lib/dnx-bot/herramientas/perfil", async (orig) => ({
   ...(await orig<object>()),
   estadoDelPerfil: async () => ({ existe: true, completo: false, faltan: ["Software y herramientas"], origen: "manual" }),
 }));
+vi.mock("@/lib/dnx-bot/contexto-validado", () => ({
+  revalidarContexto: async (_c: unknown, k: { presupuestoId: string | null }) =>
+    k.presupuestoId === "p1" ? { presupuesto: { id: "p1", numero: "0007", estado: "BORRADOR", esBorrador: true } } : {},
+}));
 vi.mock("@/lib/dnx-bot/incidentes", () => ({ reportarCifraNoRespaldada: (...a: unknown[]) => H.cifra(...a) }));
 vi.mock("@/lib/dnx-bot/acceso", () => ({ resolverBot: () => H.resolver() }));
 vi.mock("@/lib/dnx-bot/turno-sse", () => ({
@@ -84,7 +88,7 @@ describe("POST /api/dnx-bot/chat", () => {
     expect((await POST(new Request("http://x", { method: "POST", body: "no es json" }))).status).toBe(400);
   });
   it("arma el turno con la plataforma del workspace de la sesión, no la del cuerpo", async () => {
-    await POST(pedido({ text: "x".repeat(3000), pagePath: "/presupuestos", workspaceId: "ajeno", contexto: { pantalla: "presupuestos" } }));
+    await POST(pedido({ text: "x".repeat(3000), pagePath: "/presupuestos", workspaceId: "ajeno", contexto: { pantalla: "presupuestos", presupuestoId: "p1" } }));
     const p = params();
     expect(p.plataforma).toBe("FOTOFFICE:ws1");
     expect(p.text).toHaveLength(2000);
@@ -92,6 +96,7 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(H.conv).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: "/presupuestos", model: "claude-sonnet-5-5" });
     expect(prep.systemGuide).toContain("Nunca inventes precios");
     expect(prep.situation).toContain("Pantalla: lista de presupuestos");
+    expect(prep.situation).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
     expect(prep.situation).toContain("Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.");
     expect(prep.tools.map((t) => t.name)).toEqual([
       "ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios",
