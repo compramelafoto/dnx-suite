@@ -12,6 +12,7 @@ import { getExportFolderName } from "@/lib/print-products";
 import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import type { PlanResult, PrintExportUser } from "./album-order-print-plan";
+import { resolveExportProductName } from "./export-product-name";
 
 /** Referencia lógica del carrito de álbum en PrintOrderItem.fileKey (no es key de R2). */
 const PRINT_ORDER_FILE_KEY_PHOTO_REF = /^photo:(\d+)$/i;
@@ -170,13 +171,8 @@ export async function loadPrintOrderPrintPlan(orderId: number, user: PrintExport
       select: { name: true, size: true, acabado: true },
     });
   }
-  const getProductName = (size: string, acabado: string): string => {
-    const product = productRows.find((p) => (p.size || "") === size && (p.acabado || "") === acabado);
-    if (product) return product.name;
-    const productBySize = productRows.find((p) => (p.size || "") === size);
-    if (productBySize) return productBySize.name;
-    return "Foto Impresa";
-  };
+  const getProductName = (size: string, acabado: string): string =>
+    resolveExportProductName(productRows, size, acabado);
 
   const photoIds = new Set<number>();
   for (const it of order.items) {

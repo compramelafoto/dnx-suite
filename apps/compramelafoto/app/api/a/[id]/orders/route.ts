@@ -322,7 +322,26 @@ export async function POST(
       quantity: number;
       priceCents: number;
       subtotalCents: number;
+      metadata?: Prisma.InputJsonValue;
     }> = [];
+
+    // Producto que eligió el cliente para cada impresa (p. ej. "Foto grupal" vs "Foto
+    // impresa", mismo tamaño): queda en el ítem para que la carpeta de impresión lleve el
+    // nombre correcto. Se toma de la lista del dueño del álbum, no del texto del navegador.
+    const chosenProductIds = Array.from(
+      new Set(
+        normalizedItems
+          .map((it: { productId?: unknown }) => Number(it.productId))
+          .filter((n: number) => Number.isInteger(n) && n > 0)
+      )
+    ) as number[];
+    const chosenProducts = chosenProductIds.length
+      ? await prisma.photographerProduct.findMany({
+          where: { id: { in: chosenProductIds }, userId: album.userId },
+          select: { id: true, name: true },
+        })
+      : [];
+    const productNameById = new Map(chosenProducts.map((p) => [p.id, p.name] as const));
 
     totals.items.forEach((computed) => {
       const original = normalizedItems[computed.inputIndex];
@@ -350,6 +369,14 @@ export async function POST(
         quantity: computed.quantity,
         priceCents: computed.unitPriceCents,
         subtotalCents: computed.subtotalCents,
+        ...(!isDigital && productNameById.has(Number(original?.productId))
+          ? {
+              metadata: {
+                productId: Number(original?.productId),
+                productName: productNameById.get(Number(original?.productId)),
+              },
+            }
+          : {}),
       });
     });
 
