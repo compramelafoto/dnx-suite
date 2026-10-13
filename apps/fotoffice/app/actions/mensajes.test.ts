@@ -56,8 +56,16 @@ describe("acciones de mensajes", () => {
   it("preparar usa el workspace de la sesión y no revalida", async () => {
     expect(await A.prepararMensajeAction(PREPARAR)).toMatchObject({ ok: true });
     expect(H.registro).toHaveBeenCalledWith("ws-1", "CLIENTE", "c1");
-    expect(H.preparar).toHaveBeenCalledWith(CTX, { canal: "EMAIL", entityType: "CLIENTE", entityId: "c1", templateId: "t1" });
+    expect(H.preparar).toHaveBeenCalledWith(CTX, { canal: "EMAIL", entityType: "CLIENTE", entityId: "c1", templateId: "t1", texto: null });
     expect(H.revalidate).not.toHaveBeenCalled();
+  });
+
+  it("preparar con el texto de DNX Bot: lo pasa; uno mal formado no", async () => {
+    await A.prepararMensajeAction({ ...PREPARAR, texto: { asunto: "Hola [nombre]", cuerpo: "Gracias [nombre]" } });
+    expect(H.preparar.mock.calls.at(-1)![1]).toMatchObject({ texto: { asunto: "Hola [nombre]", cuerpo: "Gracias [nombre]" } });
+    const n = H.preparar.mock.calls.length;
+    expect((await A.prepararMensajeAction({ ...PREPARAR, texto: { asunto: null, cuerpo: 3 } as never })).ok).toBe(false);
+    expect(H.preparar.mock.calls.length).toBe(n);
   });
 
   it("correo: envía con el contexto de la sesión y revalida la ficha", async () => {
