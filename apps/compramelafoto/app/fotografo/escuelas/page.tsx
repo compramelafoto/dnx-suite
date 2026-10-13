@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
 import EscolarQuickLinks from "@/components/photographer/workspace/EscolarQuickLinks";
+import EscolarAsistenciaButton from "@/components/escolar/EscolarAsistenciaButton";
 import { DsDashboardInner, DsPageShell } from "@/components/ui/DsLayout";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
 
@@ -84,6 +85,21 @@ export default function FotografoEscuelasPage() {
             <div className="ds-split-panel__aside flex shrink-0 justify-start sm:justify-end">
               <Link href="/fotografo/escuelas/nueva">
                 <Button variant="primary">Nueva institución</Button>
+              </Link>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-xl border border-[#c27b3d]/20 bg-[#fffaf5] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-[#4b3621]">
+              ¿Primera vez con el módulo escolar? Te ayudamos a dejarlo listo, o mirá cómo ven los colegios tu landing.
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:shrink-0">
+              <EscolarAsistenciaButton appearance="solid" />
+              <Link
+                href="/fotografo/escuelas/landing"
+                className="text-sm font-semibold text-[#9a5c2a] hover:underline"
+              >
+                Mi landing escolar →
               </Link>
             </div>
           </div>

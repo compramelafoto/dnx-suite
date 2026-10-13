@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PhotographerOrdersTable from "./orders-table";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
+import EscolarPromoBanner from "@/components/escolar/EscolarPromoBanner";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
 
 export default function PhotographerPedidosPage() {
@@ -139,6 +140,8 @@ export default function PhotographerPedidosPage() {
             tu cargo, podés actualizar el estado de pedidos de impresión.
           </p>
         </header>
+
+        <EscolarPromoBanner variant="compact" placement="pedidos" className="mb-5" />
 
         <PhotographerOrdersTable orders={rows} photographerId={photographerId} />
       </div>

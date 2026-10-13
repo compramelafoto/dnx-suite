@@ -9,6 +9,22 @@ export function getSupportStatusLabel(status: string): string {
   return SUPPORT_STATUS_LABELS[status] ?? status;
 }
 
+const SUPPORT_REASON_LABELS: Record<string, string> = {
+  PAYMENT_FAILED: "Problema con el pago",
+  ORDER_STATUS: "Consulta sobre estado del pedido",
+  LAB_ISSUE: "Problema con el laboratorio",
+  COMMISSION_ISSUE: "Consulta sobre comisiones",
+  TECHNICAL_ISSUE: "Problema técnico",
+  OTHER: "Otro",
+  SCHOOL_MODULE_ASSISTANCE: "Asistencia módulo escolar",
+};
+
+/** Motivo legible; los motivos libres (texto viejo o de DNX Bot) se muestran tal cual. */
+export function getSupportReasonLabel(reason: string | null | undefined): string {
+  const raw = String(reason ?? "");
+  return SUPPORT_REASON_LABELS[raw] ?? raw;
+}
+
 /**
  * Añade ?ticket= o &ticket= a una URL de panel de soporte (deep link).
  */

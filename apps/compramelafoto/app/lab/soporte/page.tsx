@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
-import { getSupportStatusLabel } from "@/lib/support-url";
+import { getSupportReasonLabel, getSupportStatusLabel } from "@/lib/support-url";
 import { supportTicketSectionId, useSupportTicketDeepLink } from "@/hooks/useSupportTicketDeepLink";
 
 const REASON_OPTIONS = [
@@ -336,7 +336,7 @@ export default function LabSoportePage() {
                     >
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-medium text-[#1a1a1a]">
-                          Ticket #{ticket.id} · {ticket.reason}
+                          Ticket #{ticket.id} · {getSupportReasonLabel(ticket.reason)}
                         </span>
                         <span className="text-[#6b7280]">{getSupportStatusLabel(ticket.status)}</span>
                       </div>

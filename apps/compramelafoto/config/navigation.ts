@@ -103,7 +103,7 @@ export function getPhotographerSidebarItems(icons: {
       label: "Escolar",
       path: "/fotografo/escuelas",
       icon: icons.schools ?? icons.albums,
-      badge: "BETA",
+      badge: "NUEVO",
       children: [
         { id: "escolar-instituciones", label: "Instituciones", path: "/fotografo/escuelas" },
         { id: "escolar-pedidos", label: "Pedidos escolares", path: "/fotografo/escuelas/pedidos" },

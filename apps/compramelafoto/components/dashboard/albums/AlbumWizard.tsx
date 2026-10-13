@@ -1254,6 +1254,29 @@ export default function AlbumWizard({ variant = "page" }: AlbumWizardProps) {
               );
             })}
           </div>
+          {albumType !== "SCHOOL" ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-[#c27b3d]/20 bg-[#fffaf5] px-4 py-3 text-sm text-[#4b3621] sm:flex-row sm:items-center sm:justify-between">
+              <p className="flex min-w-0 items-start gap-2">
+                <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-[#c27b3d]" aria-hidden />
+                <span>
+                  <strong className="font-semibold">¿Hacés fotos escolares?</strong> El tipo Escolar trae preventa y
+                  fotos sólo con selfie.
+                </span>
+              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:shrink-0">
+                <button
+                  type="button"
+                  onClick={() => selectAlbumType("SCHOOL")}
+                  className="font-semibold text-[#9a5c2a] hover:underline"
+                >
+                  Elegir Escolar
+                </button>
+                <Link href="/fotografo/escuelas" className="text-[#6b7280] hover:text-[#9a5c2a] hover:underline">
+                  Conocer el módulo escolar
+                </Link>
+              </div>
+            </div>
+          ) : null}
           <div className="flex justify-end pt-2">
             <Button type="button" variant="primary" disabled={!canGoNextStep1} onClick={() => setStep(2)}>
               Siguiente

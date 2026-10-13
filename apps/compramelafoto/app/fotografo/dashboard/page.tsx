@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
 import PhotographerHomeWorkspace from "@/components/photographer/workspace/PhotographerHomeWorkspace";
+import EscolarPromoBanner from "@/components/escolar/EscolarPromoBanner";
 import { DsDashboardInner, DsPageShell } from "@/components/ui/DsLayout";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
 
@@ -150,6 +151,7 @@ export default function PhotographerDashboardPage() {
       <PhotographerDashboardHeader photographer={photographer} />
       <DsPageShell className="py-6 md:py-8">
         <DsDashboardInner>
+          <EscolarPromoBanner variant="full" placement="dashboard" whenInUse="accesos" className="mb-6" />
           <PhotographerHomeWorkspace
             stats={stats}
             photographer={photographer}

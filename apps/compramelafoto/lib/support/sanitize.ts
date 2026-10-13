@@ -17,6 +17,8 @@ export const ALLOWED_REASONS = [
   "COMMISSION_ISSUE",
   "TECHNICAL_ISSUE",
   "OTHER",
+  /** Pedido de asistencia para configurar el módulo escolar (botón del panel del fotógrafo). */
+  "SCHOOL_MODULE_ASSISTANCE",
 ] as const;
 const ALLOWED_REASONS_SET = new Set<string>(ALLOWED_REASONS);
 

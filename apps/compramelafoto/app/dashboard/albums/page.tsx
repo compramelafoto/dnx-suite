@@ -15,6 +15,7 @@ const EventLocationSearch = dynamic(
 );
 import { TERMS_VERSION, TERMS_TEXT } from "@/lib/terms/photographerTerms";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
+import EscolarPromoBanner from "@/components/escolar/EscolarPromoBanner";
 import CenteredProse from "@/components/ui/CenteredProse";
 import { Settings, Sparkles } from "lucide-react";
 import GalleryMediaTypeBadges from "@/components/gallery/GalleryMediaTypeBadges";
@@ -688,6 +689,8 @@ export default function DashboardAlbumsPage() {
               </Button>
             </div>
           </div>
+
+          <EscolarPromoBanner variant="compact" placement="albumes" />
 
           {error && (
             <Card className="bg-[#ef4444]/10 border-[#ef4444]">
