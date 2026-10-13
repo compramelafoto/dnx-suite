@@ -14,6 +14,8 @@ import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
 import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
 import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { BurbujaDnxBot } from "@/components/dnx-bot/burbuja";
 
 type PanelUser = {
   id: number;
@@ -64,7 +66,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
 
   // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
   // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
-  const [branding, perfil, perfiles] = await Promise.all([
+  const [branding, perfil, perfiles, bot] = await Promise.all([
     workspace !== null
       ? prisma.fotofficeWorkspaceBranding.findUnique({
           where: { workspaceId: workspace.id },
@@ -76,6 +78,8 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
       select: { displayName: true, avatarUrl: true },
     }),
     listUserProfiles(user.id),
+    // DNX Bot: sólo si pasan todas sus puertas (apagado por omisión; ver lib/dnx-bot/acceso.ts).
+    botEnPanel(),
   ]);
   const institucion = branding?.commercialName?.trim() || workspace?.name || null;
   // Si quien administra también es socio de ESTA institución, el selector de rol del menú
@@ -120,6 +124,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
       }
     >
       {children}
+      {bot && <BurbujaDnxBot rutas={bot.rutas} />}
     </ShellFrame>
   );
 }
