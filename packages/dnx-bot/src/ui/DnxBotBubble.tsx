@@ -25,12 +25,12 @@ import { debeMostrarGlobitoDiferido, estadoUrlComprador, marcarGlobitoVisto, pag
 import {
   CADA_LLAMADO_MS,
   CSS_MASCOTA,
-  DURACION_ENTRADA,
+  DURACION_ENTRADA_MS,
   DURACION_LLAMADO_MS,
   ESPERA_TIRA_MS,
   MAX_LLAMADOS,
   PRIMER_LLAMADO_MS,
-  tipoEntrada,
+  hayAnimacion,
   type FaseMascota,
 } from "./entrada";
 import { EVENTO_ABRIR, leerPedidoAbrir } from "./abrir";
@@ -133,34 +133,28 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
   const habilitado = estado?.enabled === true;
   useEffect(() => {
     if (!habilitado) return;
-    let almacen: AlmacenSimple | null = null;
     let reducir = false;
-    try {
-      almacen = window.sessionStorage;
-    } catch {
-      almacen = null;
-    }
     try {
       reducir = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     } catch {
       reducir = false;
     }
-    const tipo = mascotSpriteSrc ? tipoEntrada(almacen, reducir) : "ninguna";
-    setSinMovimiento(tipo === "ninguna");
+    const animar = hayAnimacion(reducir, Boolean(mascotSpriteSrc));
+    setSinMovimiento(!animar);
     const timers: ReturnType<typeof setTimeout>[] = [];
     let vivo = true;
     const acomodar = (conLlamados: boolean) => {
       setFase("reposo");
       setEntradaLista(true);
       if (!conLlamados) return;
-      // Unos pocos llamados en reposo (repite la foto), y después nada más.
+      // Unos pocos llamados en reposo (vuelve a sacar la foto en grande), y después nada más.
       for (let i = 0; i < MAX_LLAMADOS; i++) {
         const t = PRIMER_LLAMADO_MS + i * CADA_LLAMADO_MS;
         timers.push(setTimeout(() => { if (!yaAbrioRef.current) setFase("llamado"); }, t));
         timers.push(setTimeout(() => setFase((f) => (f === "llamado" ? "reposo" : f)), t + DURACION_LLAMADO_MS));
       }
     };
-    if (tipo === "ninguna" || !mascotSpriteSrc) acomodar(false);
+    if (!animar || !mascotSpriteSrc) acomodar(false);
     else {
       // La animación arranca recién con la tira cargada: si no, se vería un hueco en vez del robot.
       // Si tarda demasiado o falla, la mascota aparece quieta y sale el globito.
@@ -169,8 +163,8 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
         if (resuelto || !vivo) return;
         resuelto = true;
         if (!ok) return acomodar(false);
-        setFase(tipo === "grande" ? "entrada-grande" : "entrada-corta");
-        timers.push(setTimeout(() => acomodar(true), DURACION_ENTRADA[tipo]));
+        setFase("entrada");
+        timers.push(setTimeout(() => acomodar(true), DURACION_ENTRADA_MS));
       };
       const tira = new Image();
       tira.onload = () => empezar(true);
@@ -363,7 +357,7 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
           {conTickets && <button onClick={ticket} disabled={ticketBusy} aria-label="Hablar con una persona" style={{ ...linkBtn, padding: "0 0 10px" }}>Hablar con una persona</button>}
         </div>
       )}
-      {globito && !open && !globitoEnVentana && entradaLista && (
+      {globito && !open && !globitoEnVentana && entradaLista && fase !== "llamado" && (
         <div role="status" aria-label="Mensaje de DNX Bot" className={sinMovimiento ? "dnxbot-globito-pos" : "dnxbot-globito dnxbot-globito-pos"} style={{ position: "absolute", width: "max-content", maxWidth: "min(260px, calc(100vw - 112px))", background: "#fff", color: "#111", borderRadius: 14, boxShadow: "0 6px 20px rgba(0,0,0,.18)", padding: "10px 12px", fontSize: 13, whiteSpace: "pre-wrap" }}>
           <button onClick={cerrarGlobito} aria-label="Cerrar el mensaje de DNX Bot" style={{ position: "absolute", top: 2, right: 4, border: 0, background: "none", fontSize: 16, lineHeight: 1, cursor: "pointer", color: "#666" }}>×</button>
           <div style={{ paddingRight: 14 }}><BotText text={globito.texto} rutas={rutasPermitidas} /></div>
