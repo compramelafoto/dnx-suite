@@ -11,7 +11,14 @@ import {
   type PhotoCrop,
   type TemplateV2Canvas,
 } from "@repo/template-editor-core";
-import { resolveBracePlaceholdersInText } from "@repo/template-editor-core";
+import {
+  formatClassList,
+  isClassListConfig,
+  layoutClassList,
+  parseClassListValue,
+  readClassListOptions,
+  resolveBracePlaceholdersInText,
+} from "@repo/template-editor-core";
 
 type TemplateCanvasRendererProps = {
   canvas: TemplateV2Canvas;
@@ -128,6 +135,80 @@ function TextBlockRenderer({
       }}
     >
       {t.content}
+    </div>
+  );
+}
+
+/** «Listado del curso»: la misma cuenta de columnas y cuerpo que usa la impresión. */
+function ClassListBlockRenderer({
+  config,
+  resolvedVariables,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  resolvedVariables?: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const key = String(config.variableKey ?? "");
+  const options = readClassListOptions(config);
+  const t = getTextVisualConfig(config);
+  const { cells, fontSize } = layoutClassList({
+    lines: formatClassList(parseClassListValue(resolvedVariables?.[key]), options),
+    width: layoutWidth,
+    height: layoutHeight,
+    fontSize: t.fontSize,
+    lineHeight: t.lineHeight,
+    columns: options.columns,
+  });
+  if (cells.length === 0) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px dashed #94a3b8",
+          color: "#64748b",
+          fontSize: Math.max(12, Math.min(layoutWidth, layoutHeight) * 0.08),
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        Listado del curso (sin alumnos)
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {cells.map((cell, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: cell.x,
+            top: cell.y,
+            width: cell.width,
+            height: cell.height,
+            color: t.color,
+            fontFamily: t.fontFamilyCss,
+            fontSize,
+            fontWeight: cell.bold ? 700 : t.fontWeight,
+            fontStyle: t.fontStyle,
+            textDecoration: t.textDecoration,
+            textTransform: t.textTransform,
+            lineHeight: String(t.lineHeight),
+            letterSpacing: `${t.letterSpacing}px`,
+            textAlign: t.textAlign,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          {cell.text}
+        </div>
+      ))}
     </div>
   );
 }
@@ -527,6 +608,13 @@ export function TemplateCanvasRenderer({
             {block.type === "VARIABLE_TEXT" ? (
               hideTextBodyForBlockId === block.id ? (
                 <div style={{ width: "100%", height: "100%" }} aria-hidden />
+              ) : isClassListConfig(block.configJson) ? (
+                <ClassListBlockRenderer
+                  config={block.configJson}
+                  resolvedVariables={resolvedVariables}
+                  layoutWidth={block.layout.width}
+                  layoutHeight={block.layout.height}
+                />
               ) : (
                 <VariableTextBlockRenderer config={block.configJson} resolvedVariables={resolvedVariables} />
               )

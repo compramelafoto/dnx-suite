@@ -1,4 +1,5 @@
 import type { TemplateVariableDefinition } from "../../variables/types";
+import { CLASS_LIST_SAMPLE, CLASS_LIST_VARIABLE_KEY, serializeClassList } from "./class-list";
 
 /** Cuántos huecos de "foto del cliente" ofrece el catálogo: `photo_1` … `photo_12`. */
 export const SCHOOL_CLIENT_PHOTO_SLOT_COUNT = 12;
@@ -89,6 +90,20 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     formatters: ["none", "uppercase", "titleCase", "truncate"],
     usableIn: ["TEXT"],
     defaultFallback: "—",
+    group: "course",
+    groupLabel: "Curso",
+  },
+  {
+    path: CLASS_LIST_VARIABLE_KEY,
+    label: "Curso - Listado de alumnos",
+    description: "Todos los alumnos del curso, para el bloque «Listado del curso».",
+    valueType: "text",
+    required: false,
+    example: serializeClassList(CLASS_LIST_SAMPLE),
+    formatters: ["none"],
+    // No es un texto para insertar: es una lista que sólo sabe dibujar su propio bloque.
+    usableIn: ["LIST"],
+    defaultFallback: null,
     group: "course",
     groupLabel: "Curso",
   },

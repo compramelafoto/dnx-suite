@@ -16,7 +16,7 @@ export type TemplateV2VariableGroupId =
 
 export type TemplateV2VariableValueType = "string" | "date" | "imageUrl" | "qrUrl";
 
-export type TemplateV2VariableUsableIn = "TEXT" | "IMAGE";
+export type TemplateV2VariableUsableIn = "TEXT" | "IMAGE" | "LIST";
 
 export type TemplateV2VariableFormatterV1 =
   | "none"
