@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/template-editor-ui";
 import type { DesignV2Data } from "@/lib/design-v2/design-data";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
@@ -11,6 +11,9 @@ import { designPhotoOverrides, visibleDesignBlocks } from "@/lib/design-v2/rende
  * El librito armado, encuadernado y con giro de páginas en 3D. Solo para que el fotógrafo vea
  * cómo queda en la mano antes de ofrecerlo: dibuja las mismas caras que el editor (mismas fotos,
  * mismos encuadres), cortando cada pliego doble por el medio.
+ *
+ * Se puede girar de a 90° (botón «Girar» o flechas ↑ ↓), para los diseños que se leen de costado
+ * como la carpeta de San Patricio, y arrastrar para inclinarlo y verlo desde otro ángulo.
  */
 
 type Props = {
@@ -40,6 +43,12 @@ export default function BookPreview3D({ template, photos, data, onClose }: Props
   // La hoja que está girando va arriba de todas mientras dura el giro.
   const [moving, setMoving] = useState<number | null>(null);
   const viewport = useViewport();
+  // Giro de a 90°, acumulado: así siempre gira para el mismo lado.
+  const [giro, setGiro] = useState(0);
+  // Inclinación al arrastrar, en grados.
+  const [orbita, setOrbita] = useState({ x: 0, y: 0 });
+  const arrastre = useRef<{ x: number; y: number; ox: number; oy: number; movio: boolean } | null>(null);
+  const deCostado = Math.abs(giro % 180) === 90;
 
   const photoUrlById = useMemo(() => new Map(photos.map((p) => [p.id, p.url])), [photos]);
   const blocks = useMemo(() => visibleDesignBlocks(template.blocks, data.values), [template.blocks, data.values]);
@@ -47,9 +56,14 @@ export default function BookPreview3D({ template, photos, data, onClose }: Props
 
   const canvasW = Number(template.canvas.width) || 1;
   const canvasH = Number(template.canvas.height) || 1;
+  // De costado, el libro abierto ocupa el alto de la pantalla con su ancho.
+  const anchoDisponible = Math.min(viewport.width, 1400) - 48;
+  const altoDisponible = viewport.height - 220;
   const scale =
     viewport.width > 0
-      ? Math.min((Math.min(viewport.width, 1400) - 48) / canvasW, (viewport.height - 200) / canvasH)
+      ? deCostado
+        ? Math.min(altoDisponible / canvasW, anchoDisponible / canvasH)
+        : Math.min(anchoDisponible / canvasW, altoDisponible / canvasH)
       : 0;
   const pageW = (canvasW * scale) / 2;
   const pageH = canvasH * scale;
@@ -76,6 +90,14 @@ export default function BookPreview3D({ template, photos, data, onClose }: Props
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowRight") go(1);
       if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setGiro((g) => g + 90);
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setGiro((g) => g - 90);
+      }
     };
     window.addEventListener("keydown", onKey);
     const overflow = document.body.style.overflow;
@@ -162,14 +184,55 @@ export default function BookPreview3D({ template, photos, data, onClose }: Props
       </div>
 
       {scale > 0 ? (
-        <div style={{ perspective: 2400 }} onClick={(e) => e.stopPropagation()}>
+        <div
+          style={{ perspective: 2400, touchAction: "none", cursor: arrastre.current ? "grabbing" : "grab" }}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => {
+            arrastre.current = { x: e.clientX, y: e.clientY, ox: orbita.x, oy: orbita.y, movio: false };
+          }}
+          onPointerMove={(e) => {
+            const a = arrastre.current;
+            if (!a) return;
+            const dx = e.clientX - a.x;
+            const dy = e.clientY - a.y;
+            if (!a.movio && Math.hypot(dx, dy) < 5) return;
+            if (!a.movio) {
+              a.movio = true;
+              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            }
+            setOrbita({
+              x: Math.max(-45, Math.min(45, a.ox - dy * 0.3)),
+              y: Math.max(-60, Math.min(60, a.oy + dx * 0.3)),
+            });
+          }}
+          onPointerUp={() => {
+            // Un arrastre no es un clic: la hoja no se pasa al soltar.
+            const a = arrastre.current;
+            arrastre.current = null;
+            if (a?.movio) {
+              const anular = (ev: MouseEvent) => {
+                ev.stopPropagation();
+                ev.preventDefault();
+              };
+              window.addEventListener("click", anular, { capture: true, once: true });
+              window.setTimeout(() => window.removeEventListener("click", anular, { capture: true }), 0);
+            }
+          }}
+          onPointerCancel={() => {
+            arrastre.current = null;
+          }}
+          onDoubleClick={() => setOrbita({ x: 0, y: 0 })}
+        >
           <div
             className="relative transition-transform duration-700 ease-out motion-reduce:transition-none"
             style={{
               width: pageW * 2,
               height: pageH,
               transformStyle: "preserve-3d",
-              transform: `rotateX(6deg) translateX(${shift}px)`,
+              transform:
+                `rotateX(${6 + orbita.x}deg) rotateY(${orbita.y}deg) rotateZ(${giro}deg) ` +
+                `translateX(${shift}px)`,
+              transitionDuration: arrastre.current?.movio ? "0ms" : undefined,
             }}
           >
             {leaves.map((leaf, i) => {
@@ -225,8 +288,23 @@ export default function BookPreview3D({ template, photos, data, onClose }: Props
         >
           →
         </button>
+        <button
+          type="button"
+          onClick={() => setGiro((g) => g + 90)}
+          aria-label="Girar el librito 90 grados"
+          className="ml-2 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium ring-1 ring-white/40 hover:bg-white/10"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+            <path d="M20 4v5h-5" />
+          </svg>
+          Girar
+        </button>
       </div>
-      <p className="mt-2 text-xs text-white/60">Hacé clic en una hoja o usá las flechas del teclado. Esc cierra.</p>
+      <p className="mt-2 text-xs text-white/60">
+        Clic en una hoja o ← → para pasarla · ↑ ↓ o «Girar» para girarlo · arrastrá para inclinarlo
+        (doble clic lo endereza) · Esc cierra.
+      </p>
     </div>
   );
 }
