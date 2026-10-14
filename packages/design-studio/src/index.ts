@@ -57,8 +57,8 @@ export {
  * y necesita que la familia viaje dentro del SVG. */
 export { readFontBytes } from "./fonts/load";
 /* librsvg ignora ese `@font-face`: para que el texto salga igual en el servidor, mejor en trazos. */
-export { textoATrazos, medirTexto } from "./fonts/trazos";
-export type { TextoEnTrazos } from "./fonts/trazos";
+export { textoATrazos, medirTexto, trazosDeTexto } from "./fonts/trazos";
+export type { TextoEnTrazos, TrazosDeTexto } from "./fonts/trazos";
 export type { CuratedFontId, FontId, FontSlot, FontDefinition, GoogleFontId } from "./fonts/catalog";
 
 export { RENDERER_VERSION } from "./render/version";

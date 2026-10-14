@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { readFromR2 } from "@/lib/r2-client";
-import { isServePregeneratedVariantsEnabled } from "@/lib/images/photo-variant-config";
+import {
+  isCurrentWatermarkVariantKey,
+  isServePregeneratedVariantsEnabled,
+} from "@/lib/images/photo-variant-config";
 
 export type PhotoVariantRow = {
   thumbWatermarkedKey?: string | null;
@@ -39,7 +42,8 @@ export async function tryServePregeneratedVariant(params: {
     return null;
   }
   const key = getPregeneratedKeyForMode(params.photo, params.mode);
-  if (!key) {
+  // Una vista guardada con la marca vieja (letras como cuadraditos) no se sirve: se dibuja de nuevo.
+  if (!key || !isCurrentWatermarkVariantKey(key)) {
     return null;
   }
   try {
