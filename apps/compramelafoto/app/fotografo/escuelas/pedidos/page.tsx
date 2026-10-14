@@ -14,6 +14,9 @@ import {
 import { isPreventaUxV2EnabledClient } from "@/lib/preventa-canjeable/preventa-ux-v2-feature-flag";
 
 type Order = {
+  /** Pedido de la tienda escolar, o pack cobrado por fuera (San Patricio) y sus pruebas DEMO. */
+  kind?: "TIENDA_ESCOLAR" | "PACK_EXTERNO";
+  redemptionOrderId?: number | null;
   id: number;
   buyerEmail: string;
   buyerName: string | null;
@@ -231,6 +234,9 @@ export default function FotografoEscuelasPedidosPage() {
                 <option value="CREATED">Pendiente pago</option>
                 <option value="PAID_HELD">Pagado</option>
                 <option value="CANCELED">Cancelado</option>
+                <option value="POR_CANJEAR">Por canjear</option>
+                <option value="CANJEADO">Canjeado</option>
+                <option value="DEMO">DEMO (pruebas)</option>
               </select>
             </div>
           </div>
@@ -264,7 +270,7 @@ export default function FotografoEscuelasPedidosPage() {
                 </thead>
                 <tbody>
                   {orders.map((o) => (
-                    <tr key={o.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={`${o.kind ?? "TIENDA_ESCOLAR"}-${o.id}`} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-3 px-3">
                         {new Date(o.createdAt).toLocaleDateString("es-AR", {
                           day: "2-digit",
@@ -291,7 +297,25 @@ export default function FotografoEscuelasPedidosPage() {
                       </td>
                       <td className="py-3 px-3 text-right">{formatARS(o.totalCents)}</td>
                       <td className="py-3 px-3 align-top">
-                        {(() => {
+                        {o.kind === "PACK_EXTERNO" ? (
+                          (o.items ?? []).length > 0 ? (
+                            <div className="flex flex-col gap-0.5">
+                              {(o.items ?? []).map((it, i) => (
+                                <Link
+                                  key={it.designProjectId ?? i}
+                                  href={`/fotografo/disenos/${it.designProjectId}`}
+                                  className="text-[#c27b3d] hover:underline text-xs"
+                                >
+                                  {(o.items ?? []).length > 1 ? `Ver librito ${i + 1}` : "Ver librito"}
+                                </Link>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-xs">
+                              {o.redemptionOrderId != null ? "Sin librito" : "Se arma al canjear"}
+                            </span>
+                          )
+                        ) : (() => {
                           const items = o.items ?? [];
                           const designIds = items
                             .map((i) => i.designProjectId)
@@ -434,6 +458,24 @@ export default function FotografoEscuelasPedidosPage() {
                         })()}
                       </td>
                       <td className="py-3 px-3">
+                        {o.kind === "PACK_EXTERNO" ? (
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${
+                              o.status === "DEMO"
+                                ? "bg-fuchsia-100 text-fuchsia-800"
+                                : o.status === "CANJEADO"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-amber-100 text-amber-800"
+                            }`}
+                            title={
+                              o.status === "DEMO"
+                                ? "Tu prueba del canje con «Probar canje»: no se cobra ni entra en tus ventas."
+                                : "Pack cobrado por fuera de la plataforma."
+                            }
+                          >
+                            {o.status === "DEMO" ? "DEMO" : o.status === "CANJEADO" ? "Canjeado" : "Por canjear"}
+                          </span>
+                        ) : (
                         <span
                           className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                             o.status === "PAID_HELD"
@@ -447,8 +489,12 @@ export default function FotografoEscuelasPedidosPage() {
                             ? labelPreCompraOrderStatus(o.status)
                             : statusLabel[o.status] ?? o.status}
                         </span>
+                        )}
                       </td>
                       <td className="py-3 px-3 align-top whitespace-nowrap">
+                        {o.kind === "PACK_EXTERNO" ? (
+                          <span className="text-gray-400 text-xs">—</span>
+                        ) : (
                         <a
                           href={`/api/fotografo/escuelas/pedidos/${o.id}/labels`}
                           target="_blank"
@@ -457,6 +503,7 @@ export default function FotografoEscuelasPedidosPage() {
                         >
                           Imprimir etiquetas
                         </a>
+                        )}
                       </td>
                     </tr>
                   ))}
