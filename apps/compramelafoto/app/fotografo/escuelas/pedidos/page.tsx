@@ -881,38 +881,48 @@ export default function FotografoEscuelasPedidosPage() {
             </div>
           </div>
 
-          {/* Los pasos de la línea */}
+          {/*
+            Los pasos de la línea, como un embudo de ventas: flechas encadenadas, cada una entra en
+            la siguiente. El tono se va oscureciendo a medida que el pedido avanza; el paso elegido
+            va en naranja lleno y los pasos vacíos quedan apagados.
+          */}
           <nav aria-label="Pasos del pedido" className="overflow-x-auto pb-1">
-            <ol className="m-0 grid min-w-[760px] list-none grid-cols-7 gap-2 p-0">
-              {PASOS_EMBUDO.map((p) => {
+            <ol className="m-0 flex min-w-[860px] list-none p-0">
+              {PASOS_EMBUDO.map((p, i) => {
                 const activo = vistaEfectiva === p;
                 const n = conteo[p];
-                const proximamente = n === 0 && PASOS_PROXIMAMENTE.includes(p);
+                const primero = i === 0;
+                const ultimo = i === PASOS_EMBUDO.length - 1;
+                const punta = 18;
+                const forma = `polygon(0 0, calc(100% - ${ultimo ? 0 : punta}px) 0, 100% 50%, calc(100% - ${
+                  ultimo ? 0 : punta
+                }px) 100%, 0 100%, ${primero ? 0 : punta}px 50%)`;
+                const tono = 96 - i * 4;
+                const fondo = activo ? "#c27b3d" : n === 0 ? "#f3f4f6" : `hsl(28 45% ${tono}%)`;
+                const tinta = activo ? "#ffffff" : n === 0 ? "#9ca3af" : "#5b3518";
                 return (
-                  <li key={p}>
+                  <li key={p} className="relative min-w-0 flex-1" style={{ marginLeft: primero ? 0 : -punta + 4 }}>
                     <button
                       type="button"
                       onClick={() => elegirVista(p)}
                       aria-current={activo ? "step" : undefined}
                       title={INFO_PASOS[p].ayuda}
-                      className={`flex h-full w-full flex-col items-start rounded-xl border px-3 py-2.5 text-left transition ${
-                        activo
-                          ? "border-[#c27b3d] bg-[#c27b3d] text-white shadow-sm"
-                          : "border-gray-200 bg-white text-gray-900 hover:border-[#c27b3d]/50"
-                      }`}
+                      className="group flex h-[72px] w-full items-center gap-2.5 text-left transition-[filter] hover:brightness-95 focus-visible:outline-none focus-visible:brightness-90"
+                      style={{
+                        clipPath: forma,
+                        background: fondo,
+                        color: tinta,
+                        paddingLeft: primero ? 14 : punta + 10,
+                        paddingRight: ultimo ? 12 : punta + 4,
+                      }}
                     >
-                      <span className={`text-[11px] font-medium ${activo ? "text-white/80" : "text-gray-500"}`}>
-                        Paso {INFO_PASOS[p].numero}
-                      </span>
-                      <span className="text-sm font-semibold leading-tight">{INFO_PASOS[p].titulo}</span>
-                      <span className={`mt-1 text-2xl font-bold tabular-nums ${!activo && n === 0 ? "text-gray-300" : ""}`}>
-                        {n}
-                      </span>
-                      {proximamente ? (
-                        <span className={`text-[10px] ${activo ? "text-white/80" : "text-gray-400"}`}>
-                          Próximamente para packs
+                      <span className="text-[26px] font-bold leading-none tabular-nums">{n}</span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
+                          Paso {INFO_PASOS[p].numero}
                         </span>
-                      ) : null}
+                        <span className="text-[13px] font-semibold leading-tight">{INFO_PASOS[p].titulo}</span>
+                      </span>
                     </button>
                   </li>
                 );
