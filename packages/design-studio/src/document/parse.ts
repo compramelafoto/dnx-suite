@@ -105,6 +105,7 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
     if (!fontId || fontSize === null || fontSize < 4 || contenido === null || !col) return null;
     const align = raw.align === "center" || raw.align === "right" ? raw.align : "left";
     const maxLines = numeroFinito(raw.maxLines);
+    const interlineado = numeroFinito(raw.lineHeight);
     const transform =
       raw.textTransform === "uppercase" ||
       raw.textTransform === "lowercase" ||
@@ -124,6 +125,7 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       textTransform: transform,
       content: contenido,
       ...(maxLines !== null && maxLines > 0 ? { maxLines: Math.floor(maxLines) } : {}),
+      ...(interlineado !== null && interlineado >= 0.5 && interlineado <= 4 ? { lineHeight: interlineado } : {}),
     };
   }
 

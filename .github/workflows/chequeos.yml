@@ -225,3 +225,20 @@ jobs:
 
       - name: Pruebas del editor de plantillas
         run: pnpm --filter @repo/template-editor-core test
+
+      # Cada diseño de prueba se dibuja como en la pantalla (Chromium) y como en el PDF, y las
+      # dos imágenes se comparan. Si algo se corre, cambia de letra o desaparece, falla, y deja
+      # las imágenes y el informe en el artefacto "pantalla-vs-pdf".
+      - name: Instalar Chromium para comparar pantalla y PDF
+        run: pnpm --filter compramelafoto exec playwright install --with-deps chromium
+
+      - name: Comparar pantalla y PDF
+        run: pnpm --filter compramelafoto test:pantalla-vs-pdf
+
+      - name: Guardar la comparación si falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pantalla-vs-pdf
+          path: apps/compramelafoto/lib/design-v2/pantalla-vs-pdf/salida/
+          if-no-files-found: ignore

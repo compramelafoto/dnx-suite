@@ -7,3 +7,4 @@ node_modules/
 .env.*.local
 *.tsbuildinfo
 **/._*
+lib/design-v2/pantalla-vs-pdf/salida/

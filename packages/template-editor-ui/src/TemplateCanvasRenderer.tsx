@@ -388,6 +388,11 @@ function ImageBlockRenderer({
   }
 
   if (maskShape === "circle") {
+    /*
+     * El círculo va inscripto en el lado corto, como en la impresión, y fuera de él no se pinta
+     * nada: antes el recuadro llevaba un fondo gris que se veía en pantalla y no se imprimía.
+     */
+    const lado = Math.min(layoutWidth, layoutHeight);
     return (
       <div
         style={{
@@ -396,16 +401,13 @@ function ImageBlockRenderer({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "var(--te-chrome-sunken)",
         }}
       >
         <div
           style={{
-            width: "auto",
-            height: "auto",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            aspectRatio: "1",
+            width: lado,
+            height: lado,
+            flex: "none",
             borderRadius: "50%",
             overflow: "hidden",
             background: "var(--te-line)",
@@ -506,7 +508,15 @@ function CroppedPhotoRenderer({
   );
 }
 
-function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
+function ShapeBlockRenderer({
+  config,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
   const variant = String(config.variant ?? "rectangle").toLowerCase();
   const fill = typeof config.fill === "string" ? config.fill : "var(--te-line)";
   const stroke = typeof config.stroke === "string" ? config.stroke : "transparent";
@@ -543,11 +553,10 @@ function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
       >
         <div
           style={{
-            width: "auto",
-            height: "auto",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            aspectRatio: "1",
+            // Con tamaño "auto" el círculo medía cero y no se veía; la impresión sí lo dibujaba.
+            width: Math.min(layoutWidth, layoutHeight),
+            height: Math.min(layoutWidth, layoutHeight),
+            flex: "none",
             background: fill,
             border: `${sw}px solid ${stroke}`,
             borderRadius: "50%",
@@ -704,7 +713,13 @@ export function TemplateCanvasRenderer({
                 layoutHeight={block.layout.height}
               />
             ) : null}
-            {block.type === "SHAPE" ? <ShapeBlockRenderer config={block.configJson} /> : null}
+            {block.type === "SHAPE" ? (
+              <ShapeBlockRenderer
+                config={block.configJson}
+                layoutWidth={block.layout.width}
+                layoutHeight={block.layout.height}
+              />
+            ) : null}
             {block.type === "QR" ? (
               <QrBlockRenderer
                 config={block.configJson}

@@ -3,6 +3,7 @@ import {
   googleFamilyOf,
   isCuratedFontId,
   isGoogleFontId,
+  type CuratedFontId,
   type FontId,
   type FontSlot,
   type GoogleFontId,
@@ -111,17 +112,41 @@ async function bajarVariante(familia: string, slot: FontSlot): Promise<Uint8Arra
   return pendiente;
 }
 
+/**
+ * La variante que de verdad se usó. Una familia sin negrita o sin cursiva (las caligráficas)
+ * devuelve la normal, y quien dibuja tiene que simularla como el navegador.
+ */
+export type FuenteLeida = { bytes: Uint8Array; slot: FontSlot };
+
+const variantesUsadas = new Map<string, FontSlot>();
+
+/** La variante real detrás de `readFontBytes`, una vez leída. */
+export function varianteLeida(id: FontId, slot: FontSlot): FontSlot {
+  return variantesUsadas.get(`${id}:${slot}`) ?? slot;
+}
+
 async function readGoogleFontBytes(id: GoogleFontId, slot: FontSlot): Promise<Uint8Array> {
   const familia = googleFamilyOf(id);
   let ultimoError: unknown = null;
   for (const variante of ALTERNATIVAS[slot]) {
     try {
       const bytes = await bajarVariante(familia, variante);
-      if (bytes) return bytes;
+      if (bytes) {
+        variantesUsadas.set(`${id}:${slot}`, variante);
+        return bytes;
+      }
     } catch (e) {
       ultimoError = e;
     }
   }
+  /*
+   * Si Fontsource no contesta y la familia está entre las incrustadas, se imprime con esa:
+   * puede ser una versión anterior de la misma letra, pero es la misma letra.
+   */
+  const incrustada = (Object.keys(FONT_CATALOG) as CuratedFontId[]).find(
+    (k) => FONT_CATALOG[k].cssFamily.toLowerCase() === familia.toLowerCase(),
+  );
+  if (incrustada) return readFontBytes(incrustada, slot);
   const detalle = ultimoError instanceof Error ? ` (${ultimoError.message})` : "";
   throw new Error(`No se pudo bajar la tipografía ${familia}${detalle}.`);
 }
