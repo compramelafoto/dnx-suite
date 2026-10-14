@@ -34,7 +34,7 @@
     "test:template-v2": "pnpm --filter @repo/template-editor-core test",
     "test:template-v2:render": "pnpm --filter @repo/template-editor-core test:render",
     "test:album-cover": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album/album-list-cover.test.ts",
-    "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts lib/design-v2/design-data.test.ts lib/design-v2/values-formatos.test.ts lib/design-v2/book-leaves.test.ts",
+    "test:school-design": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-render/ensure-school-design-for-preventa-order-item.test.ts lib/design-v2/design-data.test.ts lib/design-v2/values-formatos.test.ts lib/design-v2/book-leaves.test.ts lib/design-v2/imagen-de-plantilla.test.ts",
     "test:pantalla-vs-pdf": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/design-v2/pantalla-vs-pdf/comparar.test.ts && ../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json lib/design-v2/pantalla-vs-pdf/correr.ts",
     "test:canje-prueba": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/canje-externo/pack-de-prueba.test.ts",
     "test:preventa-copy": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/preventa-canjeable/benefit-copy.test.ts lib/preventa-canjeable/pack-savings.test.ts lib/preventa-canjeable/preventa-redeem-url.test.ts lib/preventa-canjeable/preventa-canje-slots.test.ts lib/albums/album-share-image.test.ts",

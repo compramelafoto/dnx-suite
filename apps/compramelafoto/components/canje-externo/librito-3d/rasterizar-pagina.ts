@@ -39,9 +39,24 @@ function blobADataUrl(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * Una imagen de otro dominio (el almacenamiento de R2 donde están los fondos de las plantillas)
+ * se pide a través del nuestro: R2 no autoriza que el navegador la copie y la tapa salía en
+ * blanco. Las del mismo sitio (las fotos del canje) van directo.
+ */
+function direccionLegible(src: string): string {
+  try {
+    const url = new URL(src, window.location.href);
+    if (url.origin === window.location.origin) return url.href;
+    return `/api/design-v2/imagen?url=${encodeURIComponent(url.href)}`;
+  } catch {
+    return src;
+  }
+}
+
 async function imagenEmbebida(src: string): Promise<string> {
   if (src.startsWith("data:")) return src;
-  const res = await fetch(src, { mode: "cors", credentials: "same-origin" });
+  const res = await fetch(direccionLegible(src), { mode: "cors", credentials: "same-origin" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const blob = await res.blob();
   const tipo = blob.type || "";

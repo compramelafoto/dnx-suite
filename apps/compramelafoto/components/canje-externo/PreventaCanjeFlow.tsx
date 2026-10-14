@@ -19,6 +19,7 @@ import CanjeSteps, { type CanjeStepKey } from "./CanjeSteps";
 import PhotoPickGrid from "./PhotoPickGrid";
 import CanjeExtrasStep, { type CanjeExtrasConfig } from "./CanjeExtrasStep";
 import CanjeLibritoStep, { type CanjeCropEntry } from "./CanjeLibritoStep";
+import MiniaturaDelLibrito from "./MiniaturaDelLibrito";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 
 type Paso = "intro" | "elegir" | "librito" | "revisar" | "extras" | "listo";
@@ -264,10 +265,35 @@ export default function PreventaCanjeFlow({
     }
   }
 
+  // Los beneficios con diseño (el librito) se muestran como miniatura del diseño real.
+  const disenoPorBeneficio = new Map(designs.map((d) => [d.benefitKey, d.template]));
   const casilleros = (size: "lg" | "md" | "sm", editable: boolean) => (
     <div className="flex flex-wrap justify-center gap-x-6 gap-y-4">
       {plan.groups.map((g) => (
         <div key={g.benefitKey} className="text-center">
+          {disenoPorBeneficio.get(g.benefitKey) ? (
+            <MiniaturaDelLibrito
+              template={disenoPorBeneficio.get(g.benefitKey)!}
+              slotIndexes={g.slotIndexes}
+              units={g.units}
+              photosPerUnit={g.photosPerUnit}
+              labels={plan.slots.map((s) => s.label ?? "Foto")}
+              filled={filled}
+              activePlace={editable ? actual : null}
+              thumbUrl={thumbUrl}
+              onPickEmpty={
+                editable
+                  ? (place) => {
+                      setDestino(place);
+                      setVerTodasParaGrupal(false);
+                    }
+                  : undefined
+              }
+              onRemove={editable ? tocar : undefined}
+              alto={size === "sm" ? 130 : size === "md" ? 200 : 260}
+              values={designValues}
+            />
+          ) : (
           <ComboFrames
             slots={g.slotIndexes.length}
             photoIds={g.slotIndexes.map((i) => filled[i]) as number[]}
@@ -285,6 +311,7 @@ export default function PreventaCanjeFlow({
             onRemove={editable ? tocar : undefined}
             size={size}
           />
+          )}
           <p className="m-0 mt-2 text-sm font-medium text-[#1f2328]">{g.label}</p>
           <p className="m-0 text-xs text-[#6b6f76]">
             {describirGrupo(g, beneficio.get(g.benefitKey)?.includesDigital === true)}
