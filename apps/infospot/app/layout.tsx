@@ -7,20 +7,20 @@ import { getInfoSpotSettings, getSiteUrl } from "@/lib/settings";
 import "./globals.css";
 
 /*
- * Tipografías guardadas en el proyecto (app/fonts, del juego latino de Fontsource) en lugar de
+ * Tipografías guardadas en el proyecto (app/_fonts, del juego latino de Fontsource) en lugar de
  * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
  * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"). Son las
  * mismas familias, en su versión variable (todos los pesos).
  */
 const infoSans = localFont({
   variable: "--font-info-sans",
-  src: [{ path: "./fonts/plus-jakarta-sans-variable.woff2", weight: "200 800", style: "normal" }],
+  src: [{ path: "./_fonts/plus-jakarta-sans-variable.woff2", weight: "200 800", style: "normal" }],
   display: "swap",
 });
 
 const infoSerif = localFont({
   variable: "--font-source-serif",
-  src: [{ path: "./fonts/source-serif-4-variable.woff2", weight: "200 900", style: "normal" }],
+  src: [{ path: "./_fonts/source-serif-4-variable.woff2", weight: "200 900", style: "normal" }],
   display: "swap",
   adjustFontFallback: "Times New Roman",
 });

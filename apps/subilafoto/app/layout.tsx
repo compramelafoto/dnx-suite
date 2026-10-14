@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 
 /*
- * Tipografías guardadas en el proyecto (app/fonts, del juego latino de Fontsource) en lugar de
+ * Tipografías guardadas en el proyecto (app/_fonts, del juego latino de Fontsource) en lugar de
  * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
  * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"). Son las
  * mismas familias y pesos de antes.
@@ -14,9 +14,9 @@ import "./globals.css";
 const montserrat = localFont({
   variable: "--slf-font",
   src: [
-    { path: "./fonts/montserrat-400.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/montserrat-500.woff2", weight: "500", style: "normal" },
-    { path: "./fonts/montserrat-800.woff2", weight: "800", style: "normal" },
+    { path: "./_fonts/montserrat-400.woff2", weight: "400", style: "normal" },
+    { path: "./_fonts/montserrat-500.woff2", weight: "500", style: "normal" },
+    { path: "./_fonts/montserrat-800.woff2", weight: "800", style: "normal" },
   ],
   display: "swap",
 });
@@ -26,9 +26,9 @@ const montserrat = localFont({
 const cormorant = localFont({
   variable: "--slf-font-serif",
   src: [
-    { path: "./fonts/cormorant-garamond-400.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/cormorant-garamond-600.woff2", weight: "600", style: "normal" },
-    { path: "./fonts/cormorant-garamond-700.woff2", weight: "700", style: "normal" },
+    { path: "./_fonts/cormorant-garamond-400.woff2", weight: "400", style: "normal" },
+    { path: "./_fonts/cormorant-garamond-600.woff2", weight: "600", style: "normal" },
+    { path: "./_fonts/cormorant-garamond-700.woff2", weight: "700", style: "normal" },
   ],
   display: "swap",
   adjustFontFallback: "Times New Roman",
@@ -39,7 +39,7 @@ const cormorant = localFont({
 // tiene la familia.
 const bebas = localFont({
   variable: "--slf-font-cartel",
-  src: [{ path: "./fonts/bebas-neue-400.woff2", weight: "400", style: "normal" }],
+  src: [{ path: "./_fonts/bebas-neue-400.woff2", weight: "400", style: "normal" }],
   display: "swap",
 });
 
@@ -48,8 +48,8 @@ const bebas = localFont({
 const caveat = localFont({
   variable: "--slf-font-mano",
   src: [
-    { path: "./fonts/caveat-400.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/caveat-700.woff2", weight: "700", style: "normal" },
+    { path: "./_fonts/caveat-400.woff2", weight: "400", style: "normal" },
+    { path: "./_fonts/caveat-700.woff2", weight: "700", style: "normal" },
   ],
   display: "swap",
 });

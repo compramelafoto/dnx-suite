@@ -8,12 +8,12 @@ import "./globals.css";
  * Una sola familia para todo el sitio: Archivo, variable en peso y en ancho. El texto va con el
  * ancho normal; los títulos (`.mf-titulo`) y el nombre del banner (`.mf-nombre`) se angostan.
  *
- * El archivo está en el proyecto (app/fonts, juego latino de Fontsource, con los ejes de peso y
+ * El archivo está en el proyecto (app/_fonts, juego latino de Fontsource, con los ejes de peso y
  * de ancho) en lugar de `next/font/google`: esa opción lo bajaba de Google en cada publicación y,
  * cuando Google tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font").
  */
 const fuente = localFont({
-  src: [{ path: "./fonts/archivo-variable-wdth.woff2", weight: "100 900", style: "normal" }],
+  src: [{ path: "./_fonts/archivo-variable-wdth.woff2", weight: "100 900", style: "normal" }],
   declarations: [{ prop: "font-stretch", value: "62% 125%" }],
   variable: "--mf-font",
 });
