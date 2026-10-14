@@ -16,12 +16,8 @@ import type { CanjeExtrasConfig } from "@/components/canje-externo/CanjeExtrasSt
 import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
 import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
-import {
-  isPlaceholderEmail,
-  parseExternalPreventaRefs,
-  splitExcelStudentName,
-} from "@/lib/canje-externo/external-preventa";
-import { buildDesignValues } from "@/lib/design-v2/values";
+import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
+import { valoresDelPackExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { getAuthUser } from "@/lib/auth";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
 import { toDesignTemplatePayload, type DesignTemplatePayload } from "@/lib/design-v2/client-payload";
@@ -286,35 +282,12 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
   let designValues: Record<string, string> =
     designContext?.values ?? (alumno ? { "student.fullName": alumno } : {});
   if (designs.length > 0 && !designContext && externo) {
-    const partes = splitExcelStudentName(externo.studentName);
-    const delCurso = externo.courseName
-      ? await prisma.order.findMany({
-          where: { albumId: album.id, origin: OrderOrigin.PREVENTA_PACK, isTest: false },
-          select: { redemptionPaymentRefsJson: true },
-        })
-      : [];
-    const vistos = new Set<string>();
-    const courseStudents = delCurso
-      .map((o) => parseExternalPreventaRefs(o.redemptionPaymentRefsJson))
-      .filter((r) => r?.courseName === externo.courseName && r.studentName)
-      .flatMap((r) => {
-        const clave = r!.studentName!.trim().toLowerCase();
-        if (vistos.has(clave)) return [];
-        vistos.add(clave);
-        const p = splitExcelStudentName(r!.studentName);
-        return p
-          ? [{ ...p, isOwner: clave === (externo.studentName ?? "").trim().toLowerCase() }]
-          : [];
-      });
-    designValues = buildDesignValues({
-      studentName: externo.studentName,
-      studentFirstName: partes?.firstName,
-      studentLastName: partes?.lastName,
-      courseName: externo.courseName,
-      schoolName: album.school?.name ?? externo.schoolName,
+    designValues = await valoresDelPackExterno({
+      albumId: album.id,
+      externo,
+      schoolName: album.school?.name,
       buyerName: familia,
       photographerName: album.user?.name,
-      courseStudents,
     });
   }
 
