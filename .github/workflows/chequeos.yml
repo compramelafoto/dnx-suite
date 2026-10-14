@@ -232,6 +232,9 @@ jobs:
       - name: Instalar Chromium para comparar pantalla y PDF
         run: pnpm --filter compramelafoto exec playwright install --with-deps chromium
 
+      - name: Pruebas de producción escolar y marca de agua
+        run: pnpm --filter compramelafoto test:produccion-escolar && pnpm --filter compramelafoto test:marca-de-agua
+
       - name: Comparar pantalla y PDF
         run: pnpm --filter compramelafoto test:pantalla-vs-pdf
 

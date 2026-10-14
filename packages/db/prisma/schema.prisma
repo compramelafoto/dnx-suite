@@ -4529,6 +4529,12 @@ model DesignProject {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   approvedAt          DateTime?
+  /// Producción del librito (pedidos escolares): lote de impresión al que se mandó, cuándo se
+  /// mandó a imprimir, cuándo volvió impreso y cuándo se entregó. Nulos hasta cada paso.
+  printBatchName      String?
+  sentToPrintAt       DateTime?
+  printedAt           DateTime?
+  deliveredAt         DateTime?
   approvedByUserId    Int?
   rejectedAt          DateTime?
   rejectedByUserId    Int?
@@ -4545,6 +4551,7 @@ model DesignProject {
   @@index([status])
   @@index([photographerUserId, status])
   @@index([albumOrderId])
+  @@index([photographerUserId, printBatchName])
 }
 
 model DesignRevision {
