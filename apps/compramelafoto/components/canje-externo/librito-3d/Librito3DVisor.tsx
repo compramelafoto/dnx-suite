@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle, type PhotoOverride } from "@repo/template-editor-ui";
 import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 import LibritoEscena from "./LibritoEscena";
-import { modeloDelLibrito, tamanoTextura } from "./modelo-librito";
+import { giroMasCercano, giroParaLeer, modeloDelLibrito, tamanoTextura } from "./modelo-librito";
 import { esperarImagenes, paginaEnBlanco, rasterizarPagina } from "./rasterizar-pagina";
 
 /**
@@ -66,6 +66,39 @@ export default function Librito3DVisor({
   const [volteada, setVolteada] = useState(false);
   const [giro, setGiro] = useState(giroInicial);
   const [webgl] = useState(hayWebGL);
+
+  /*
+   * Cada cara puede estar diseñada con otra orientación (en San Patricio la contratapa lleva el
+   * listado a +90° y el interior los textos a -90°). Al pasar de tapa a interior o contratapa
+   * (o de hoja, o al darla vuelta) el visor gira solo para que esa cara se lea derecha, siempre
+   * por el camino corto. Si la cara no tiene textos, el giro queda como está. "Girar" y ↑↓
+   * siguen sirviendo para acomodarlo a mano.
+   *
+   * Al abrir: si la vista plana ya venía girada, se respeta ese giro (lo eligió la persona); si
+   * venía sin girar, se endereza la tapa.
+   */
+  const caraALeer = useMemo(() => {
+    if (modelo.tipo === "plegado") {
+      if (paso === 0) return { pageIndex: modelo.exterior, mitad: "derecha" as const, deEspaldas: false };
+      if (paso === 1) return { pageIndex: modelo.interior, mitad: null, deEspaldas: false };
+      return { pageIndex: modelo.exterior, mitad: "izquierda" as const, deEspaldas: true };
+    }
+    const h = modelo.hojas[Math.min(hoja, modelo.hojas.length - 1)]!;
+    const pagina = volteada ? h.dorso : h.frente;
+    return pagina == null ? null : { pageIndex: pagina, mitad: null, deEspaldas: false };
+  }, [modelo, paso, hoja, volteada]);
+  const giroDeLectura = useMemo(
+    () => (caraALeer ? giroParaLeer(blocks, { ...caraALeer, canvasW }) : null),
+    [blocks, caraALeer, canvasW],
+  );
+  const primeraCara = useRef(caraALeer);
+  useEffect(() => {
+    if (giroDeLectura == null) return;
+    if (caraALeer === primeraCara.current && giroInicial % 360 !== 0) return;
+    setGiro((g) => giroMasCercano(g, giroDeLectura));
+    // Sólo cuando cambia la cara que se mira, no cuando la persona gira a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [giroDeLectura, caraALeer]);
   const paginasRef = useRef<Array<HTMLDivElement | null>>([]);
   const cerrarRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
