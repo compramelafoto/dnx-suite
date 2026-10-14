@@ -28,6 +28,8 @@ type Props = {
   paginas: HTMLCanvasElement[];
   /** Plegado: si está abierto. */
   abierto: boolean;
+  /** Plegado y cerrado: se muestra de espaldas, con la contratapa al frente. */
+  deEspaldas?: boolean;
   /** Hojas: cuál se ve y si está dada vuelta. */
   hoja: number;
   volteada: boolean;
@@ -77,10 +79,12 @@ function Plegado({
   modelo,
   paginas,
   abierto,
+  deEspaldas,
 }: {
   modelo: Extract<ModeloLibrito, { tipo: "plegado" }>;
   paginas: HTMLCanvasElement[];
   abierto: boolean;
+  deEspaldas: boolean;
 }) {
   const { mk } = useTexturas();
   const ext = paginas[modelo.exterior];
@@ -99,10 +103,14 @@ function Plegado({
 
   const libro = useRef<THREE.Group>(null);
   const tapa = useRef<THREE.Group>(null);
+  // Para ver la contratapa el librito cerrado se da vuelta entero, alrededor de su centro.
+  const vuelta = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     const t = tapa.current;
     const l = libro.current;
-    if (!t || !l) return;
+    const v = vuelta.current;
+    if (!t || !l || !v) return;
+    v.rotation.y = THREE.MathUtils.damp(v.rotation.y, deEspaldas ? Math.PI : 0, 5, Math.min(dt, 0.1));
     const destino = abierto ? ABIERTO : Math.PI;
     t.rotation.y = THREE.MathUtils.damp(t.rotation.y, destino, 5, Math.min(dt, 0.1));
     // Cerrado ocupa sólo la mitad derecha: se corre para que quede centrado.
@@ -110,15 +118,17 @@ function Plegado({
   });
 
   return (
-    <group ref={libro}>
-      <mesh position={[mitad / 2, 0, 0]} material={fijaMats}>
-        <boxGeometry args={[mitad, 1, GROSOR]} />
-      </mesh>
-      {/* Arranca cerrado: se ve la tapa. */}
-      <group ref={tapa} position={[0, 0, GROSOR * 1.2]} rotation={[0, Math.PI, 0]}>
-        <mesh position={[-mitad / 2, 0, 0]} material={tapaMats}>
+    <group ref={vuelta}>
+      <group ref={libro}>
+        <mesh position={[mitad / 2, 0, 0]} material={fijaMats}>
           <boxGeometry args={[mitad, 1, GROSOR]} />
         </mesh>
+        {/* Arranca cerrado: se ve la tapa. */}
+        <group ref={tapa} position={[0, 0, GROSOR * 1.2]} rotation={[0, Math.PI, 0]}>
+          <mesh position={[-mitad / 2, 0, 0]} material={tapaMats}>
+            <boxGeometry args={[mitad, 1, GROSOR]} />
+          </mesh>
+        </group>
       </group>
     </group>
   );
@@ -261,7 +271,12 @@ function Contenido(props: Props) {
       <group ref={modeloRef}>
         <group ref={roll}>
           {modelo.tipo === "plegado" ? (
-            <Plegado modelo={modelo} paginas={props.paginas} abierto={props.abierto} />
+            <Plegado
+              modelo={modelo}
+              paginas={props.paginas}
+              abierto={props.abierto}
+              deEspaldas={!props.abierto && props.deEspaldas === true}
+            />
           ) : (
             <Hoja modelo={modelo} paginas={props.paginas} hoja={props.hoja} volteada={props.volteada} />
           )}
