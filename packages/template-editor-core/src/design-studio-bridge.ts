@@ -122,19 +122,25 @@ function fuenteDesde(familia: string, avisos: string[]): FontId {
   const normal = (familia.split(",")[0] ?? "").trim().toLowerCase().replace(/['"]/g, "");
   if (!normal) return FUENTE_POR_DEFECTO;
 
-  for (const [id, def] of Object.entries(FONT_CATALOG)) {
-    if (id.toLowerCase() === normal || def.label.toLowerCase() === normal || def.cssFamily.toLowerCase() === normal) {
-      return id as FontId;
-    }
-  }
-
   const equivalente = EQUIVALENTES_DE_SISTEMA[normal];
   if (equivalente) return `${GOOGLE_FONT_PREFIX}${equivalente}` as FontId;
 
+  /*
+   * Una familia que el editor carga de Google se imprime con la de Google aunque haya una
+   * incrustada del mismo nombre: la incrustada puede ser una versión anterior (Merriweather
+   * cambió de dibujo) y el PDF salía con otras proporciones que la pantalla. Si no se puede
+   * bajar, el cargador usa la incrustada.
+   */
   const delEditor = FAMILIAS_DEL_EDITOR.get(normal);
   if (delEditor) {
     const id = `${GOOGLE_FONT_PREFIX}${delEditor}`;
     if (isFontId(id)) return id;
+  }
+
+  for (const [id, def] of Object.entries(FONT_CATALOG)) {
+    if (id.toLowerCase() === normal || def.label.toLowerCase() === normal || def.cssFamily.toLowerCase() === normal) {
+      return id as FontId;
+    }
   }
 
   // Variantes con apellido de una incrustada ("DM Sans Medium"): la familia base.
@@ -272,6 +278,7 @@ export function editorADocumento(input: {
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
               textTransform: conversionDeLetras(cfg.textTransform),
+              lineHeight: num(cfg.lineHeight, 1.2),
             });
             break;
           }
@@ -306,6 +313,7 @@ export function editorADocumento(input: {
                 color: texto(cfg.color, "#111111"),
                 align: alineacion(cfg.textAlign),
                 textTransform: conversionDeLetras(cfg.textTransform),
+                lineHeight: num(cfg.lineHeight, 1.2),
               };
               /*
                * Un listado girado (la carpeta de San Patricio lo lleva a 90°) se arma derecho y
@@ -350,6 +358,7 @@ export function editorADocumento(input: {
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
               textTransform: conversionDeLetras(cfg.textTransform),
+              lineHeight: num(cfg.lineHeight, 1.2),
             });
             break;
           }

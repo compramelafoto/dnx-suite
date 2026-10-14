@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readDesignDocument, validateForPublish, type TextMeasurer } from "@repo/design-studio";
+import {
+  fontDefinition,
+  readDesignDocument,
+  validateForPublish,
+  type FontId,
+  type TextMeasurer,
+} from "@repo/design-studio";
 import { documentoAEditor, editorADocumento, type EditorBlock } from "./bridge";
 import { carnetDesignDocument, CARNET_VARIABLE_CONTRACT } from "./template";
 
@@ -75,7 +81,11 @@ describe("ida y vuelta del diseño de fábrica", () => {
     a.forEach((bloque, i) => {
       if (bloque.type !== "text" || b[i]?.type !== "text") return;
       expect(b[i].fontSize).toBeCloseTo(bloque.fontSize, 2);
-      expect(b[i].fontId).toBe(bloque.fontId);
+      // La misma familia: al pasar por el editor, DM Sans se imprime con la versión de Google
+      // que muestra la pantalla (`google:DM Sans`) en vez de la incrustada.
+      expect(fontDefinition(b[i].fontId as FontId).cssFamily).toBe(
+        fontDefinition(bloque.fontId as FontId).cssFamily,
+      );
       expect(b[i].color).toBe(bloque.color);
     });
   });

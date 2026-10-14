@@ -53,9 +53,14 @@ describe("tipografías del editor en el PDF", () => {
     assert.equal(fuenteImpresa("Georgia").fontId, "google:Gelasio");
   });
 
-  it("las incrustadas siguen usando su archivo propio", () => {
-    assert.equal(fuenteImpresa("Inter").fontId, "inter");
-    assert.equal(fuenteImpresa("Playfair Display").fontId, "playfairDisplay");
+  it("las del editor usan la versión de Google aunque haya una incrustada", () => {
+    // La incrustada puede ser de otra versión que la que muestra el editor (Merriweather).
+    assert.equal(fuenteImpresa("Merriweather").fontId, "google:Merriweather");
+    assert.equal(fuenteImpresa("Playfair Display").fontId, "google:Playfair Display");
+  });
+
+  it("una familia incrustada que el editor no ofrece sigue con su archivo", () => {
+    assert.equal(fuenteImpresa("Cinzel").fontId, "cinzel");
   });
 
   it("una familia desconocida avisa, no falla", () => {
