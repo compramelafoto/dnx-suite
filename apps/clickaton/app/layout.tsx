@@ -1,27 +1,38 @@
 import type { Metadata, Viewport } from "next";
-import { Bebas_Neue, Caveat, Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import { siteConfig } from "@/config/site";
 import { resolveClickatonPublicOrigin } from "@/lib/site/public-origin";
 import "./globals.css";
 
-const display = Bebas_Neue({
+/*
+ * Tipografías guardadas en el proyecto (app/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"), aunque el
+ * cambio no tocara Clickatón. Son las mismas familias y pesos de antes.
+ */
+const display = localFont({
   variable: "--font-ck-display",
-  subsets: ["latin"],
-  weight: "400",
+  src: [{ path: "./fonts/bebas-neue-400.woff2", weight: "400", style: "normal" }],
   display: "swap",
 });
 
-const sans = Montserrat({
+const sans = localFont({
   variable: "--font-ck-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  src: [
+    { path: "./fonts/montserrat-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/montserrat-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/montserrat-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/montserrat-700.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
 });
 
-const accent = Caveat({
+const accent = localFont({
   variable: "--font-ck-accent",
-  subsets: ["latin"],
-  weight: ["400", "600"],
+  src: [
+    { path: "./fonts/caveat-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/caveat-600.woff2", weight: "600", style: "normal" },
+  ],
   display: "swap",
 });
 
