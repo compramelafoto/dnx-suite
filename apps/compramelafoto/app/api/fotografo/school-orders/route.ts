@@ -4,6 +4,31 @@ import { parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { logLegacyPreventaUsage } from "@/lib/observability/legacy-preventa-usage";
+import { emptySlotIds, parseDesignV2Data } from "@/lib/design-v2/design-data";
+import { ubicarPedido } from "@/lib/schools/embudo-pedidos-escolares";
+
+type DisenoFila = {
+  id: number;
+  status: string;
+  reviewNote: string | null;
+  /** Huecos sin foto (sólo se calcula para los que esperan revisión). */
+  emptySlots: number;
+};
+
+/** Huecos vacíos de los diseños que esperan revisión: aprobar en lote avisa si van a salir vacíos. */
+async function huecosVaciosDe(ids: number[]): Promise<Map<number, number>> {
+  if (ids.length === 0) return new Map();
+  const rows = await prisma.designProject.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, currentRevision: { select: { dataJson: true } } },
+  });
+  const out = new Map<number, number>();
+  for (const r of rows) {
+    const data = parseDesignV2Data(r.currentRevision?.dataJson);
+    out.set(r.id, data ? emptySlotIds(data).length : 0);
+  }
+  return out;
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +75,7 @@ export async function GET(req: NextRequest) {
               select: {
                 id: true,
                 status: true,
+                reviewNote: true,
               },
             },
           },
@@ -59,11 +85,33 @@ export async function GET(req: NextRequest) {
       take: 200,
     });
 
+    const pendientesTienda = orders.flatMap((o) =>
+      o.items
+        .map((i) => i.designProject)
+        .filter((d): d is NonNullable<typeof d> => d?.status === "PENDING_PHOTOGRAPHER_APPROVAL")
+        .map((d) => d.id),
+    );
+    const huecosTienda = await huecosVaciosDe(pendientesTienda);
+
     const payload: Array<Record<string, unknown>> = orders.map((o) => {
       const { items: rawItems, ...orderRest } = o;
+      const disenos: DisenoFila[] = rawItems
+        .map((i) => i.designProject)
+        .filter((d): d is NonNullable<typeof d> => d != null)
+        .map((d) => ({ id: d.id, status: d.status, reviewNote: d.reviewNote, emptySlots: huecosTienda.get(d.id) ?? 0 }));
       return {
         ...orderRest,
         kind: "TIENDA_ESCOLAR",
+        isDemo: false,
+        paso: ubicarPedido({
+          kind: "TIENDA_ESCOLAR",
+          orderStatus: o.status,
+          items: rawItems.map((i) => ({
+            status: i.status,
+            diseno: i.designProject ? { status: i.designProject.status } : null,
+          })),
+        }),
+        disenos,
         items: rawItems.map((item) => ({
           id: item.id,
           status: item.status,
@@ -110,12 +158,25 @@ export async function GET(req: NextRequest) {
         take: 1000,
       });
       const canjes = packs.map((p) => p.redemptionOrderId).filter((id): id is number => id != null);
-      const disenos = canjes.length
-        ? await prisma.designProject.findMany({
-            where: { albumOrderId: { in: canjes } },
-            select: { id: true, status: true, albumOrderId: true },
-          })
-        : [];
+      const [disenos, conCopias] = canjes.length
+        ? await Promise.all([
+            prisma.designProject.findMany({
+              where: { albumOrderId: { in: canjes } },
+              select: { id: true, status: true, albumOrderId: true, reviewNote: true },
+              orderBy: { id: "asc" },
+            }),
+            // Canjes con copias impresas o cuadros: sin librito, igual hay algo para imprimir.
+            prisma.orderItem.findMany({
+              where: { orderId: { in: canjes }, productType: { not: "DIGITAL" } },
+              select: { orderId: true },
+              distinct: ["orderId"],
+            }),
+          ])
+        : [[], []];
+      const canjesConCopias = new Set(conCopias.map((c) => c.orderId));
+      const huecosPacks = await huecosVaciosDe(
+        disenos.filter((d) => d.status === "PENDING_PHOTOGRAPHER_APPROVAL").map((d) => d.id),
+      );
       for (const p of packs) {
         const externo = parseExternalPreventaRefs(p.redemptionPaymentRefsJson);
         // Sólo los packs cargados del Excel y las pruebas: los packs comprados en la plataforma
@@ -129,6 +190,7 @@ export async function GET(req: NextRequest) {
           if (!coincide) continue;
         }
         const nombre = externo?.studentName?.trim() ?? "";
+        const delCanje = disenos.filter((d) => p.redemptionOrderId != null && d.albumOrderId === p.redemptionOrderId);
         payload.push({
           kind: "PACK_EXTERNO",
           id: p.id,
@@ -142,11 +204,19 @@ export async function GET(req: NextRequest) {
           totalCents: p.isTest ? 0 : Math.round(Number(p.totalCents ?? 0) * 100),
           status: p.isTest ? "DEMO" : p.redemptionOrderId != null ? "CANJEADO" : "POR_CANJEAR",
           redemptionOrderId: p.redemptionOrderId,
+          isDemo: p.isTest,
+          paso: ubicarPedido({
+            kind: "PACK_EXTERNO",
+            canjeado: p.redemptionOrderId != null,
+            disenos: delCanje.map((d) => ({ status: d.status })),
+            tieneCopiasFisicas: p.redemptionOrderId != null && canjesConCopias.has(p.redemptionOrderId),
+          }),
+          disenos: delCanje.map(
+            (d): DisenoFila => ({ id: d.id, status: d.status, reviewNote: d.reviewNote, emptySlots: huecosPacks.get(d.id) ?? 0 }),
+          ),
           album: p.album ? { ...p.album, school: escuela } : null,
           schoolCourse: externo?.courseName ? { id: 0, name: externo.courseName, division: null } : null,
-          items: disenos
-            .filter((d) => d.albumOrderId === p.redemptionOrderId)
-            .map((d) => ({ id: 0, status: "", designProjectId: d.id, designProjectStatus: d.status })),
+          items: delCanje.map((d) => ({ id: 0, status: "", designProjectId: d.id, designProjectStatus: d.status })),
         });
       }
       payload.sort((a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime());

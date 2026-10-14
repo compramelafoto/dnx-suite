@@ -12,7 +12,7 @@ const LINKS = [
   {
     id: "pedidos",
     label: "Pedidos escolares",
-    hint: "Preventa y entregas",
+    hint: "De la compra a la entrega, paso a paso",
     href: "/fotografo/escuelas/pedidos",
   },
   {
@@ -20,12 +20,6 @@ const LINKS = [
     label: "Diseños escolares",
     hint: "Plantillas y biblioteca",
     href: "/dashboard/designs",
-  },
-  {
-    id: "revisiones",
-    label: "Revisiones",
-    hint: "Aprobaciones de diseño",
-    href: "/fotografo/disenos",
   },
   {
     id: "landing",
@@ -37,7 +31,7 @@ const LINKS = [
 
 export default function EscolarQuickLinks() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       {LINKS.map((link) => (
         <Link
           key={link.id}
