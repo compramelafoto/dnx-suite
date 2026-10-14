@@ -30,7 +30,25 @@ import {
  * casillas y una acción principal por paso.
  */
 
-type Diseno = { id: number; status: string; reviewNote: string | null; emptySlots: number };
+type Diseno = {
+  id: number;
+  status: string;
+  reviewNote: string | null;
+  emptySlots: number;
+  printBatchName?: string | null;
+  sentToPrintAt?: string | null;
+  printedAt?: string | null;
+  deliveredAt?: string | null;
+};
+
+type Lote = { nombre: string; cantidad: number; enviadoAt: string | null; impresos: number; entregados: number };
+
+const APROBADO = new Set(["APPROVED_FOR_EXPORT", "EXPORTED"]);
+
+/** Diseños de los pedidos elegidos (o de todo el paso) que cumplen una condición. */
+function disenosDe(pedidos: Order[], cumple: (d: Diseno) => boolean): number[] {
+  return [...new Set(pedidos.flatMap((o) => o.disenos).filter(cumple).map((d) => d.id))];
+}
 
 type Order = {
   /** Pedido de la tienda escolar, o pack cobrado por fuera (San Patricio) y sus pruebas DEMO. */
@@ -56,7 +74,7 @@ type Order = {
 type Vista = PasoEmbudo | "FUERA";
 
 /** Pasos que para los packs cobrados por fuera todavía no se registran (tanda 2). */
-const PASOS_PROXIMAMENTE: PasoEmbudo[] = ["EN_IMPRENTA", "PARA_ENTREGAR", "ENTREGADO"];
+const PASOS_PROXIMAMENTE: PasoEmbudo[] = [];
 
 const clave = (o: Order) => `${o.kind ?? "TIENDA_ESCOLAR"}-${o.id}`;
 const alumnoDe = (o: Order) =>
@@ -363,6 +381,81 @@ export default function FotografoEscuelasPedidosPage() {
     void recargar();
   }
 
+  // ------------------------------------------------------------------ lotes de impresión
+
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const cargarLotes = useCallback(async () => {
+    const r = await fetch("/api/fotografo/escolar/lotes", { credentials: "include", cache: "no-store" });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && Array.isArray(d.lotes)) setLotes(d.lotes);
+  }, []);
+  useEffect(() => {
+    void cargarLotes();
+  }, [cargarLotes]);
+
+  const descargar = (ruta: string, filtro: { ids?: number[]; lote?: string }) => {
+    const q = new URLSearchParams();
+    if (filtro.ids?.length) q.set("ids", filtro.ids.join(","));
+    if (filtro.lote) q.set("lote", filtro.lote);
+    window.open(`/api/fotografo/escolar/${ruta}?${q.toString()}`, "_blank");
+  };
+
+  /** Para imprimir · principal: junta los aprobados en un lote nuevo y los pasa a «En imprenta». */
+  async function crearLote() {
+    const ids = disenosDe(elegidas.length ? elegidas : filas, (d) => APROBADO.has(d.status) && !d.sentToPrintAt);
+    if (ids.length === 0) return;
+    const ok = window.confirm(
+      `Vas a mandar a imprimir ${plural(ids.length, "librito", "librititos")}${elegidas.length ? "" : " (todos los de este paso)"}. ` +
+        "Se arma un lote nuevo y pasan a «En imprenta». Después bajás el ZIP o el PDF único para la imprenta.\n\n¿Seguimos?",
+    );
+    if (!ok) return;
+    setOcupado("lote");
+    setMensaje(null);
+    try {
+      const r = await fetch("/api/fotografo/escolar/lotes", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "No se pudo armar el lote.");
+      setMensaje({
+        tono: "ok",
+        texto: `Listo: ${d.nombre} con ${plural(d.cantidad, "librito", "librititos")}. Lo encontrás en «En imprenta» para descargarlo.`,
+      });
+      setSeleccion(new Set());
+      await Promise.all([recargar(), cargarLotes()]);
+    } catch (e) {
+      setMensaje({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo armar el lote." });
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  async function marcar(paso: "IMPRESO" | "ENTREGADO" | "VOLVER_A_IMPRIMIR", filtro: { ids?: number[]; lote?: string }, texto: string) {
+    if (!window.confirm(texto)) return;
+    setOcupado(paso);
+    setMensaje(null);
+    try {
+      const r = await fetch("/api/fotografo/escolar/lotes/marcar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...filtro, paso }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "No se pudo actualizar.");
+      setMensaje({ tono: "ok", texto: `Actualizados: ${plural(d.actualizados ?? 0, "librito", "librititos")}.` });
+      setSeleccion(new Set());
+      await Promise.all([recargar(), cargarLotes()]);
+    } catch (e) {
+      setMensaje({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo actualizar." });
+    } finally {
+      setOcupado(null);
+    }
+  }
+
   // ------------------------------------------------------------------ acciones por fila (tienda escolar)
 
   async function accionDeFila(o: Order, url: string, generico: string) {
@@ -471,6 +564,9 @@ export default function FotografoEscuelasPedidosPage() {
           </div>
         );
       case "EN_IMPRENTA":
+        if (o.kind === "PACK_EXTERNO") {
+          return <span className="text-xs text-gray-600">{o.disenos.find((d) => d.printBatchName)?.printBatchName ?? "En imprenta"}</span>;
+        }
         return item ? (
           <button
             type="button"
@@ -484,6 +580,9 @@ export default function FotografoEscuelasPedidosPage() {
           </button>
         ) : null;
       case "PARA_ENTREGAR":
+        if (o.kind === "PACK_EXTERNO") {
+          return <span className="text-xs text-gray-600">Impreso · {o.disenos.find((d) => d.printBatchName)?.printBatchName ?? ""}</span>;
+        }
         return item ? (
           <button
             type="button"
@@ -564,26 +663,134 @@ export default function FotografoEscuelasPedidosPage() {
       }
       case "CAMBIOS_PEDIDOS":
         return nota("Le pediste algo a cada familia. Cuando te responda, abrí el diseño, corregilo y aprobalo.");
-      case "PARA_IMPRIMIR":
+      case "PARA_IMPRIMIR": {
+        const base = elegidas.length ? elegidas : filas;
+        const paraLote = disenosDe(base, (d) => APROBADO.has(d.status) && !d.sentToPrintAt);
         return (
           <>
             <div className="flex flex-wrap gap-2">
+              <button type="button" className={btnPrincipal} disabled={!!ocupado || paraLote.length === 0} onClick={() => void crearLote()}>
+                {ocupado === "lote" ? "Armando el lote…" : `Crear lote de impresión${paraLote.length ? ` (${paraLote.length})` : ""}`}
+              </button>
               <button
                 type="button"
-                className={btnPrincipal}
-                disabled
-                title="Muy pronto vas a poder juntar los diseños aprobados en un lote y mandarlos a la imprenta de una vez."
+                className={btnSecundario}
+                disabled={paraLote.length === 0}
+                onClick={() => descargar("lotes/zip", { ids: paraLote })}
               >
-                Armar lote de impresión · próximamente
+                Descargar ZIP sin armar lote
               </button>
             </div>
-            {nota("Por ahora, descargá el PDF de cada uno desde su fila. Muy pronto: lotes para mandar a imprimir todo junto.")}
+            {nota(
+              (elegidas.length ? "Va sólo lo que marcaste. " : "Sin marcar nada, va todo lo de este paso. ") +
+                "El lote junta los PDF finales en orden de impresión (colegio, curso y alumno). Conviene un lote por curso: el PDF único admite hasta 40 librititos y el ZIP hasta 60.",
+            )}
           </>
         );
-      case "EN_IMPRENTA":
-        return nota("Cuando lleguen impresos a la escuela, marcalos «En la escuela».");
-      case "PARA_ENTREGAR":
-        return nota("Cuando la familia lo reciba, marcalo «Entregado».");
+      }
+      case "EN_IMPRENTA": {
+        const impresos = disenosDe(elegidas, (d) => !!d.sentToPrintAt && !d.printedAt);
+        const enCurso = lotes.filter((l) => l.impresos < l.cantidad);
+        return (
+          <>
+            {enCurso.length === 0 ? nota("No hay lotes esperando a la imprenta.") : null}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {enCurso.map((l) => (
+                <div key={l.nombre} className="rounded-lg border border-gray-200 bg-white p-3">
+                  <p className="m-0 text-sm font-semibold text-gray-900">{l.nombre}</p>
+                  <p className="m-0 text-xs text-gray-600">
+                    {plural(l.cantidad, "librito", "librititos")} · {l.impresos} impresos
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" className={btnSecundario} onClick={() => descargar("lotes/zip", { lote: l.nombre })}>
+                      ZIP
+                    </button>
+                    <button
+                      type="button"
+                      className={btnSecundario}
+                      disabled={l.cantidad > 40}
+                      title={l.cantidad > 40 ? "El PDF único admite hasta 40: bajá el ZIP." : undefined}
+                      onClick={() => descargar("lotes/pdf", { lote: l.nombre })}
+                    >
+                      PDF único
+                    </button>
+                    <button
+                      type="button"
+                      className={btnPrincipal}
+                      disabled={!!ocupado}
+                      onClick={() =>
+                        void marcar("IMPRESO", { lote: l.nombre }, `¿Volvió impreso todo el ${l.nombre}? Pasa a «Para entregar».`)
+                      }
+                    >
+                      Marcar lote impreso
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {impresos.length ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={btnSecundario}
+                  disabled={!!ocupado}
+                  onClick={() =>
+                    void marcar("IMPRESO", { ids: impresos }, `¿Volvieron impresos los ${impresos.length} que marcaste?`)
+                  }
+                >
+                  Marcar impresos los elegidos ({impresos.length})
+                </button>
+                <button
+                  type="button"
+                  className={btnSecundario}
+                  disabled={!!ocupado}
+                  onClick={() =>
+                    void marcar(
+                      "VOLVER_A_IMPRIMIR",
+                      { ids: impresos },
+                      `¿Sacar ${impresos.length} del lote? Vuelven a «Para imprimir» para armar otro lote.`,
+                    )
+                  }
+                >
+                  Sacar del lote
+                </button>
+              </div>
+            ) : null}
+            {nota("Cuando la imprenta te los devuelva, marcá el lote impreso. Si alguno salió mal, marcalo y «Sacar del lote» para reimprimirlo.")}
+          </>
+        );
+      }
+      case "PARA_ENTREGAR": {
+        const base = elegidas.length ? elegidas : filas;
+        const ids = disenosDe(base, (d) => !!d.printedAt && !d.deliveredAt);
+        return (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className={btnPrincipal} disabled={ids.length === 0} onClick={() => descargar("etiquetas", { ids })}>
+                Imprimir etiquetas{ids.length ? ` (${ids.length})` : ""}
+              </button>
+              <button
+                type="button"
+                className={btnSecundario}
+                disabled={!!ocupado || ids.length === 0}
+                onClick={() =>
+                  void marcar(
+                    "ENTREGADO",
+                    { ids },
+                    `¿Marcar entregados ${plural(ids.length, "librito", "librititos")}${elegidas.length ? "" : " (todos los de este paso)"}?`,
+                  )
+                }
+              >
+                Marcar entregados{ids.length ? ` (${ids.length})` : ""}
+              </button>
+            </div>
+            {nota(
+              (elegidas.length ? "Va sólo lo que marcaste. " : "Sin marcar nada, va todo lo de este paso. ") +
+                "Las etiquetas salen en hoja A4 (24 por hoja), en el mismo orden que el lote: alumno, curso y colegio. Filtrá por curso para armar los sobres de a un curso.",
+            )}
+          </>
+        );
+      }
       case "ENTREGADO":
         return nota("Listo: estos pedidos ya terminaron.");
       default:
