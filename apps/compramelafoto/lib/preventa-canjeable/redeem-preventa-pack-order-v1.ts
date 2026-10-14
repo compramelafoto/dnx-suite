@@ -22,6 +22,7 @@ import {
 } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
 import type { DesignTemplateVersion } from "@/lib/design-v2/template";
 import { notifyPhotographerDesignToReview } from "@/lib/design-v2/notify";
+import { armarDisenosDelCanjeExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { ensureDigitalDelivery } from "@/lib/digital-delivery";
 
 export { PreventaPackRedeemValidationError };
@@ -569,6 +570,21 @@ export async function executePreventaPackRedeemV1(
     // El pedido de canje nace pagado sin pasar por el webhook de Mercado Pago, que es quien
     // normalmente prepara la entrega. Sin esto la familia canjea y nunca recibe sus fotos.
     // Fuera de la transacción y sin propagar el error: el canje ya está confirmado.
+    // Pack cobrado por fuera (sin pedido de la tienda escolar): el librito se arma acá. Sin
+    // propagar el error: el canje ya está confirmado y el diseño se puede volver a armar.
+    try {
+      await armarDisenosDelCanjeExterno({
+        preventaOrderId,
+        redemptionOrderId: resultado.redemptionOrderId,
+        selections,
+      });
+    } catch (err) {
+      console.error("[preventa_redeem] external_design_failed", {
+        redemptionOrderId: resultado.redemptionOrderId,
+        err,
+      });
+    }
+
     // Diseños armados en el canje: el fotógrafo tiene que enterarse para revisarlos.
     try {
       const designs = await prisma.designProject.findMany({
