@@ -675,7 +675,7 @@ export default function FotografoEscuelasPedidosPage() {
           </div>
 
           {/* Los pasos de la línea */}
-          <nav aria-label="Pasos del pedido" className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+          <nav aria-label="Pasos del pedido" className="overflow-x-auto pb-1">
             <ol className="m-0 grid min-w-[760px] list-none grid-cols-7 gap-2 p-0">
               {PASOS_EMBUDO.map((p) => {
                 const activo = vistaEfectiva === p;
@@ -759,8 +759,8 @@ export default function FotografoEscuelasPedidosPage() {
               </DsEmptyState>
             </Card>
           ) : (
-            <div className="ds-table-scroll rounded-xl border border-gray-100 bg-white">
-              <table className="w-full text-sm">
+            <div className="ds-table-scroll overflow-x-auto rounded-xl border border-gray-100 bg-white">
+              <table className="w-full min-w-[920px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="w-10 py-3 px-3">
