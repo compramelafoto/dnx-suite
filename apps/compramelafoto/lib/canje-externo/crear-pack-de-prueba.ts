@@ -42,6 +42,24 @@ export async function albumTienePacksCanjeables(albumId: number): Promise<boolea
   return vendidos + definidos > 0;
 }
 
+/**
+ * ¿Se muestra «Probar canje» en el álbum, y se puede usar ya?
+ *
+ * Escolar es todo álbum marcado como escolar, con un colegio asociado o con packs de preventa:
+ * la carpeta de San Patricio, por ejemplo, es un álbum «simple» con packs vendidos por fuera.
+ * En un álbum escolar sin packs el botón aparece igual y explica que primero hay que armar uno.
+ */
+export async function estadoDePruebaDeCanje(
+  albumId: number,
+): Promise<{ escolar: boolean; disponible: boolean }> {
+  const [album, disponible] = await Promise.all([
+    prisma.album.findUnique({ where: { id: albumId }, select: { mode: true, schoolId: true } }),
+    albumTienePacksCanjeables(albumId),
+  ]);
+  const escolar = disponible || album?.mode === "SCHOOL" || album?.schoolId != null;
+  return { escolar, disponible };
+}
+
 export type PackDePruebaListo = {
   token: string;
   orderId: number;

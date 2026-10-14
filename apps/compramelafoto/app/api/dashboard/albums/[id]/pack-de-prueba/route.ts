@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
 import { requireAlbumOwnerOrAdmin } from "@/lib/canje-externo/require-album-owner";
-import { albumTienePacksCanjeables, prepararPackDePrueba } from "@/lib/canje-externo/crear-pack-de-prueba";
+import { estadoDePruebaDeCanje, prepararPackDePrueba } from "@/lib/canje-externo/crear-pack-de-prueba";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id?: string }> };
 
-/** GET — ¿se puede "Probar como cliente" en este álbum? (tiene packs de preventa canjeables). */
+/**
+ * GET — ¿el álbum es escolar (se muestra «Probar canje») y tiene packs para canjear (se puede
+ * usar ya)?
+ */
 export async function GET(_req: Request, { params }: Ctx) {
   const access = await requireAlbumOwnerOrAdmin((await params).id);
   if (!access.ok) return access.response;
-  return NextResponse.json({ disponible: await albumTienePacksCanjeables(access.albumId) });
+  return NextResponse.json(await estadoDePruebaDeCanje(access.albumId));
 }
 
 /**

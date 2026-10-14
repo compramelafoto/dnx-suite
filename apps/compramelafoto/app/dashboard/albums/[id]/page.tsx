@@ -2126,6 +2126,11 @@ export default function DashboardAlbumDetailPage() {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center justify-end gap-2">
+                  <ProbarComoClienteButton
+                    albumId={album.id}
+                    variant="header"
+                    onIrAPreventa={() => changeAlbumTab("preventa")}
+                  />
                   <button
                     type="button"
                     onClick={() => changeAlbumTab("configuracion")}
