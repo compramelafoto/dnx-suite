@@ -13,7 +13,28 @@ type DisenoFila = {
   reviewNote: string | null;
   /** Huecos sin foto (sólo se calcula para los que esperan revisión). */
   emptySlots: number;
+  /** Producción: lote de impresión y fechas de enviado, impreso y entregado. */
+  printBatchName: string | null;
+  sentToPrintAt: Date | null;
+  printedAt: Date | null;
+  deliveredAt: Date | null;
 };
+
+const PRODUCCION = { printBatchName: true, sentToPrintAt: true, printedAt: true, deliveredAt: true } as const;
+
+function produccion(d: {
+  printBatchName: string | null;
+  sentToPrintAt: Date | null;
+  printedAt: Date | null;
+  deliveredAt: Date | null;
+}) {
+  return {
+    printBatchName: d.printBatchName,
+    sentToPrintAt: d.sentToPrintAt,
+    printedAt: d.printedAt,
+    deliveredAt: d.deliveredAt,
+  };
+}
 
 /** Huecos vacíos de los diseños que esperan revisión: aprobar en lote avisa si van a salir vacíos. */
 async function huecosVaciosDe(ids: number[]): Promise<Map<number, number>> {
@@ -76,6 +97,7 @@ export async function GET(req: NextRequest) {
                 id: true,
                 status: true,
                 reviewNote: true,
+                ...PRODUCCION,
               },
             },
           },
@@ -98,7 +120,13 @@ export async function GET(req: NextRequest) {
       const disenos: DisenoFila[] = rawItems
         .map((i) => i.designProject)
         .filter((d): d is NonNullable<typeof d> => d != null)
-        .map((d) => ({ id: d.id, status: d.status, reviewNote: d.reviewNote, emptySlots: huecosTienda.get(d.id) ?? 0 }));
+        .map((d) => ({
+          id: d.id,
+          status: d.status,
+          reviewNote: d.reviewNote,
+          emptySlots: huecosTienda.get(d.id) ?? 0,
+          ...produccion(d),
+        }));
       return {
         ...orderRest,
         kind: "TIENDA_ESCOLAR",
@@ -108,7 +136,7 @@ export async function GET(req: NextRequest) {
           orderStatus: o.status,
           items: rawItems.map((i) => ({
             status: i.status,
-            diseno: i.designProject ? { status: i.designProject.status } : null,
+            diseno: i.designProject ? { status: i.designProject.status, ...produccion(i.designProject) } : null,
           })),
         }),
         disenos,
@@ -162,7 +190,7 @@ export async function GET(req: NextRequest) {
         ? await Promise.all([
             prisma.designProject.findMany({
               where: { albumOrderId: { in: canjes } },
-              select: { id: true, status: true, albumOrderId: true, reviewNote: true },
+              select: { id: true, status: true, albumOrderId: true, reviewNote: true, ...PRODUCCION },
               orderBy: { id: "asc" },
             }),
             // Canjes con copias impresas o cuadros: sin librito, igual hay algo para imprimir.
@@ -208,11 +236,17 @@ export async function GET(req: NextRequest) {
           paso: ubicarPedido({
             kind: "PACK_EXTERNO",
             canjeado: p.redemptionOrderId != null,
-            disenos: delCanje.map((d) => ({ status: d.status })),
+            disenos: delCanje.map((d) => ({ status: d.status, ...produccion(d) })),
             tieneCopiasFisicas: p.redemptionOrderId != null && canjesConCopias.has(p.redemptionOrderId),
           }),
           disenos: delCanje.map(
-            (d): DisenoFila => ({ id: d.id, status: d.status, reviewNote: d.reviewNote, emptySlots: huecosPacks.get(d.id) ?? 0 }),
+            (d): DisenoFila => ({
+              id: d.id,
+              status: d.status,
+              reviewNote: d.reviewNote,
+              emptySlots: huecosPacks.get(d.id) ?? 0,
+              ...produccion(d),
+            }),
           ),
           album: p.album ? { ...p.album, school: escuela } : null,
           schoolCourse: externo?.courseName ? { id: 0, name: externo.courseName, division: null } : null,
