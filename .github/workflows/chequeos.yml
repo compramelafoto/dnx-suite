@@ -187,6 +187,9 @@ jobs:
       - name: Pruebas de los frenos de gasto en Amazon
         run: pnpm --filter compramelafoto test:aws-costos
 
+      - name: Pruebas del embudo de pedidos escolares
+        run: pnpm --filter compramelafoto test:embudo-escolar
+
       # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
       # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
       # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos

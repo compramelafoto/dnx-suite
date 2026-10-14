@@ -126,18 +126,22 @@ export async function notifyPhotographerDesignToReview(projectId: number): Promi
   }
 }
 
-/** Al cliente: el diseño está aprobado y se puede descargar. */
+/**
+ * Al cliente: el fotógrafo aprobó el librito y pasa a producción (imprenta). Igual lo puede ver
+ * y descargar ya. Los pedidos DEMO no mandan nada.
+ */
 export async function notifyBuyerDesignReady(projectId: number, generatedAt: string): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
     if (ctx?.esPrueba) return;
     if (!ctx?.buyerEmail) return;
     const url = await downloadLinkFor(ctx.orderId);
+    const who = photographerLabel(ctx);
     await queueEmail({
       to: ctx.buyerEmail,
-      subject: "Tu diseño está listo",
-      body: `${greeting(ctx)}\n\n${photographerLabel(ctx)} aprobó el diseño con las fotos que elegiste. Ya lo podés ver y descargar:\n${url}\n`,
-      htmlBody: `<p>${escapeHtml(greeting(ctx))}</p><p>${escapeHtml(photographerLabel(ctx))} aprobó el diseño con las fotos que elegiste. Ya lo podés ver y descargar.</p>${button(url, "Ver mi diseño")}`,
+      subject: "Tu librito está aprobado y en producción",
+      body: `${greeting(ctx)}\n\n${who} revisó y aprobó el librito con las fotos que elegiste. Ya está en producción: lo mandamos a imprimir y te lo entregan cuando esté listo.\n\nMientras tanto, ya lo podés ver y descargar:\n${url}\n`,
+      htmlBody: `<p>${escapeHtml(greeting(ctx))}</p><p>${escapeHtml(who)} revisó y aprobó el librito con las fotos que elegiste. <strong>Ya está en producción</strong>: lo mandamos a imprimir y te lo entregan cuando esté listo.</p><p>Mientras tanto, ya lo podés ver y descargar.</p>${button(url, "Ver mi librito")}`,
       // Una aprobación nueva (después de corregir) vuelve a avisar.
       idempotencyKey: `design_v2_ready_${projectId}_${generatedAt}`,
     });
