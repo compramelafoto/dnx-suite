@@ -79,12 +79,10 @@ function Plegado({
   modelo,
   paginas,
   abierto,
-  deEspaldas,
 }: {
   modelo: Extract<ModeloLibrito, { tipo: "plegado" }>;
   paginas: HTMLCanvasElement[];
   abierto: boolean;
-  deEspaldas: boolean;
 }) {
   const { mk } = useTexturas();
   const ext = paginas[modelo.exterior];
@@ -103,14 +101,10 @@ function Plegado({
 
   const libro = useRef<THREE.Group>(null);
   const tapa = useRef<THREE.Group>(null);
-  // Para ver la contratapa el librito cerrado se da vuelta entero, alrededor de su centro.
-  const vuelta = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     const t = tapa.current;
     const l = libro.current;
-    const v = vuelta.current;
-    if (!t || !l || !v) return;
-    v.rotation.y = THREE.MathUtils.damp(v.rotation.y, deEspaldas ? Math.PI : 0, 5, Math.min(dt, 0.1));
+    if (!t || !l) return;
     const destino = abierto ? ABIERTO : Math.PI;
     t.rotation.y = THREE.MathUtils.damp(t.rotation.y, destino, 5, Math.min(dt, 0.1));
     // Cerrado ocupa sólo la mitad derecha: se corre para que quede centrado.
@@ -118,17 +112,15 @@ function Plegado({
   });
 
   return (
-    <group ref={vuelta}>
-      <group ref={libro}>
-        <mesh position={[mitad / 2, 0, 0]} material={fijaMats}>
+    <group ref={libro}>
+      <mesh position={[mitad / 2, 0, 0]} material={fijaMats}>
+        <boxGeometry args={[mitad, 1, GROSOR]} />
+      </mesh>
+      {/* Arranca cerrado: se ve la tapa. */}
+      <group ref={tapa} position={[0, 0, GROSOR * 1.2]} rotation={[0, Math.PI, 0]}>
+        <mesh position={[-mitad / 2, 0, 0]} material={tapaMats}>
           <boxGeometry args={[mitad, 1, GROSOR]} />
         </mesh>
-        {/* Arranca cerrado: se ve la tapa. */}
-        <group ref={tapa} position={[0, 0, GROSOR * 1.2]} rotation={[0, Math.PI, 0]}>
-          <mesh position={[-mitad / 2, 0, 0]} material={tapaMats}>
-            <boxGeometry args={[mitad, 1, GROSOR]} />
-          </mesh>
-        </group>
       </group>
     </group>
   );
@@ -255,7 +247,17 @@ function Contenido(props: Props) {
     modelo.tipo === "plegado" ? modelo.anchoMitad * (props.abierto ? 2 : 1) : modelo.ancho;
   const deCostado = giro % 180 !== 0;
   const roll = useRef<THREE.Group>(null);
+  /*
+   * Para ver la contratapa el librito cerrado se da vuelta como una tarjeta en la mano: sobre el
+   * eje vertical de la pantalla, por fuera del giro de lectura. Antes se daba vuelta sobre su
+   * doblez; con el librito girado para leerlo derecho, ese doblez queda horizontal y la
+   * contratapa salía cabeza abajo o de costado, girando para el otro lado.
+   */
+  const vuelta = useRef<THREE.Group>(null);
+  const deEspaldas = modelo.tipo === "plegado" && !props.abierto && props.deEspaldas === true;
   useFrame((_, dt) => {
+    const v = vuelta.current;
+    if (v) v.rotation.y = THREE.MathUtils.damp(v.rotation.y, deEspaldas ? Math.PI : 0, 5, Math.min(dt, 0.1));
     const g = roll.current;
     if (!g) return;
     // Mismo sentido que la vista plana (CSS gira en sentido horario; three, al revés).
@@ -269,17 +271,14 @@ function Contenido(props: Props) {
       <directionalLight position={[1.6, 2.4, 3]} intensity={1.5} />
       <directionalLight position={[-1.6, 2.4, -3]} intensity={1.3} />
       <group ref={modeloRef}>
-        <group ref={roll}>
-          {modelo.tipo === "plegado" ? (
-            <Plegado
-              modelo={modelo}
-              paginas={props.paginas}
-              abierto={props.abierto}
-              deEspaldas={!props.abierto && props.deEspaldas === true}
-            />
-          ) : (
-            <Hoja modelo={modelo} paginas={props.paginas} hoja={props.hoja} volteada={props.volteada} />
-          )}
+        <group ref={vuelta}>
+          <group ref={roll}>
+            {modelo.tipo === "plegado" ? (
+              <Plegado modelo={modelo} paginas={props.paginas} abierto={props.abierto} />
+            ) : (
+              <Hoja modelo={modelo} paginas={props.paginas} hoja={props.hoja} volteada={props.volteada} />
+            )}
+          </group>
         </group>
       </group>
       <Sombra objetivo={modeloRef} />
