@@ -1,32 +1,47 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, JetBrains_Mono, Share_Tech_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "@/styles/camofduty/index.css";
 import codIcon from "./icon.png";
 
-const barlow = Barlow({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+/*
+ * Tipografías guardadas en el proyecto (camofduty/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"). Son las
+ * mismas familias y pesos de antes.
+ */
+const barlow = localFont({
+  src: [
+    { path: "./fonts/barlow-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/barlow-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/barlow-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/barlow-700.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-cod-body",
   display: "swap",
 });
 
-const barlowCondensed = Barlow_Condensed({
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+const barlowCondensed = localFont({
+  src: [
+    { path: "./fonts/barlow-condensed-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/barlow-condensed-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/barlow-condensed-700.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/barlow-condensed-800.woff2", weight: "800", style: "normal" },
+  ],
   variable: "--font-cod-display",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const jetbrainsMono = localFont({
+  src: [
+    { path: "./fonts/jetbrains-mono-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/jetbrains-mono-500.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-cod-mono",
   display: "swap",
 });
 
-const shareTechMono = Share_Tech_Mono({
-  subsets: ["latin"],
-  weight: "400",
+const shareTechMono = localFont({
+  src: [{ path: "./fonts/share-tech-mono-400.woff2", weight: "400", style: "normal" }],
   variable: "--font-cod-vf-lcd",
   display: "swap",
 });
