@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archivo } from "next/font/google";
+import localFont from "next/font/local";
 import { Check } from "lucide-react";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { ElegiTuCaso } from "./elegi-tu-caso";
@@ -20,10 +20,16 @@ import styles from "./landing.module.css";
  * Archivo, de Omnibus-Type (Buenos Aires). Se usa sólo para los titulares de esta página: es
  * una grotesca de señalética, con la misma familia de formas que el logotipo. El texto corrido
  * sigue en Geist, la del panel, para que la portada y el sistema se lean como una sola cosa.
+ *
+ * Los archivos están en el proyecto (landing/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción la bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font").
  */
-const archivo = Archivo({
-  subsets: ["latin"],
-  weight: ["600", "700"],
+const archivo = localFont({
+  src: [
+    { path: "./fonts/archivo-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/archivo-700.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-archivo",
   display: "swap",
 });

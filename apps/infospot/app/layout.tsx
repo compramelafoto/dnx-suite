@@ -1,21 +1,28 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
+import localFont from "next/font/local";
 import { AppChrome } from "@/components/navigation/AppChrome";
 import { SiteFooter } from "@/components/navigation/SiteFooter";
 import { resolveSiteHeaderChrome } from "@/components/navigation/resolve-site-header-auth";
 import { getInfoSpotSettings, getSiteUrl } from "@/lib/settings";
 import "./globals.css";
 
-const infoSans = Plus_Jakarta_Sans({
+/*
+ * Tipografías guardadas en el proyecto (app/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"). Son las
+ * mismas familias, en su versión variable (todos los pesos).
+ */
+const infoSans = localFont({
   variable: "--font-info-sans",
-  subsets: ["latin"],
+  src: [{ path: "./fonts/plus-jakarta-sans-variable.woff2", weight: "200 800", style: "normal" }],
   display: "swap",
 });
 
-const infoSerif = Source_Serif_4({
+const infoSerif = localFont({
   variable: "--font-source-serif",
-  subsets: ["latin"],
+  src: [{ path: "./fonts/source-serif-4-variable.woff2", weight: "200 900", style: "normal" }],
   display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
 
 export const dynamic = "force-dynamic";

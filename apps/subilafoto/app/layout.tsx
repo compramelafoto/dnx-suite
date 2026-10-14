@@ -1,41 +1,56 @@
 import type { Metadata, Viewport } from "next";
-import { Bebas_Neue, Caveat, Cormorant_Garamond, Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
+
+/*
+ * Tipografías guardadas en el proyecto (app/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"). Son las
+ * mismas familias y pesos de antes.
+ */
 
 // El manual fija Montserrat. Sólo tres pesos: cada peso extra son kilobytes que
 // paga el invitado con datos móviles en un salón.
-const montserrat = Montserrat({
+const montserrat = localFont({
   variable: "--slf-font",
-  subsets: ["latin"],
-  weight: ["400", "500", "800"],
+  src: [
+    { path: "./fonts/montserrat-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/montserrat-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/montserrat-800.woff2", weight: "800", style: "normal" },
+  ],
   display: "swap",
 });
 
 // Sólo para las plantillas donde el papel importa: la invitación de casamiento y el
 // diploma. Dos familias en total, no una por plantilla.
-const cormorant = Cormorant_Garamond({
+const cormorant = localFont({
   variable: "--slf-font-serif",
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
+  src: [
+    { path: "./fonts/cormorant-garamond-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/cormorant-garamond-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cormorant-garamond-700.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
 
 // Letra de cartel: condensada y en caja alta, pensada para leerse de lejos. Es la que
 // mejor funciona proyectada en la pared de un salón. Un solo peso, que es todo lo que
 // tiene la familia.
-const bebas = Bebas_Neue({
+const bebas = localFont({
   variable: "--slf-font-cartel",
-  subsets: ["latin"],
-  weight: ["400"],
+  src: [{ path: "./fonts/bebas-neue-400.woff2", weight: "400", style: "normal" }],
   display: "swap",
 });
 
 // Manuscrita, para cumpleaños y eventos de confianza. Dos pesos: el regular para el
 // cuerpo y el grueso para los títulos.
-const caveat = Caveat({
+const caveat = localFont({
   variable: "--slf-font-mano",
-  subsets: ["latin"],
-  weight: ["400", "700"],
+  src: [
+    { path: "./fonts/caveat-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/caveat-700.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
 });
 

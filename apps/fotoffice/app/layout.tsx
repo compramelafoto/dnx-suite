@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = Geist({
+/*
+ * Tipografías guardadas en el proyecto (app/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción las bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font"). Son las
+ * mismas familias, en su versión variable (todos los pesos).
+ */
+const geistSans = localFont({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  src: [{ path: "./fonts/geist-variable.woff2", weight: "100 900", style: "normal" }],
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  src: [{ path: "./fonts/geist-mono-variable.woff2", weight: "100 900", style: "normal" }],
 });
 
 export const metadata: Metadata = {
