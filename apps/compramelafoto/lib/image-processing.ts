@@ -8,19 +8,9 @@ import {
 import fs from "fs/promises";
 import path from "path";
 import {
-  buildSvgEmbeddedFontDefs,
   sanitizeWatermarkAscii,
-  watermarkFontFamilyCss,
+  watermarkTextPath,
 } from "@/lib/images/watermark-svg-font";
-
-function escapeSvgText(text: string): string {
-  return sanitizeWatermarkAscii(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 // Marca de agua: PNG 35% tamaño, grid 3x3 (9 marcas) + texto "@compramelafoto" centrado
 
@@ -183,21 +173,16 @@ function createInstagramTextOverlay(
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
     <svg width="${textWidth}" height="${textHeight}" xmlns="http://www.w3.org/2000/svg">
-      <defs>${buildSvgEmbeddedFontDefs()}</defs>
       <g opacity="${WATERMARK_OPACITY}">
-        <text
-          x="50%"
-          y="50%"
-          font-family="${watermarkFontFamilyCss()}"
-          font-size="${fontSize}"
-          font-weight="normal"
-          fill="white"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          stroke="black"
-          stroke-width="${Math.floor(fontSize * 0.12)}"
-          stroke-opacity="0.6"
-          paint-order="stroke fill">${escapeSvgText(text)}</text>
+        ${watermarkTextPath({
+          text: sanitizeWatermarkAscii(text),
+          fontSize,
+          x: textWidth / 2,
+          y: textHeight / 2,
+          anchor: "middle",
+          baseline: "middle",
+          attrs: `fill="white" stroke="black" stroke-width="${Math.floor(fontSize * 0.12)}" stroke-opacity="0.6" paint-order="stroke fill"`,
+        })}
       </g>
     </svg>
   `;

@@ -27,10 +27,19 @@ const LEGACY_TEXT_OPACITY = 0.62;
 /** Densidad del texto SVG dinámico: 0.7 = ~30 % menos capas/repeticiones visibles. */
 const DYNAMIC_WATERMARK_QUANTITY_FACTOR = 0.7;
 
+/**
+ * Sufijo que se suma a la versión del caché cuando cambia cómo se dibuja la marca. «t1»: el texto
+ * pasó a trazos; las copias guardadas antes en R2 tenían las letras como cuadraditos y no se
+ * tienen que volver a servir. Va en el código y no en la variable de entorno para que no dependa
+ * de que alguien la actualice en Vercel.
+ */
+const DIBUJO_DE_MARCA = "t1";
+
 export function getDynamicWatermarkCacheVersion(): string {
-  return isProtectedPreviewWatermarkEnabled()
+  const base = isProtectedPreviewWatermarkEnabled()
     ? PROTECTED_PREVIEW_WATERMARK_VERSION
     : getPublicPhotoVariantConfig().dynamicCacheVersion;
+  return `${base}-${DIBUJO_DE_MARCA}`;
 }
 
 /** Rejilla de watermark.png: como máximo 12 celdas (antes very_high = 5×5 = 25). */

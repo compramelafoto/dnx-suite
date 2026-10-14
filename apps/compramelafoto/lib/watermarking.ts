@@ -1,17 +1,4 @@
-import {
-  buildSvgEmbeddedFontDefs,
-  sanitizeWatermarkAscii,
-  watermarkFontFamilyCss,
-} from "@/lib/images/watermark-svg-font";
-
-function escapeXml(text: string) {
-  return sanitizeWatermarkAscii(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+import { sanitizeWatermarkAscii, watermarkTextPath } from "@/lib/images/watermark-svg-font";
 
 export function buildViewerWatermarkText(params: {
   viewerLabel: string;
@@ -97,7 +84,8 @@ export function buildTiledWatermarkSvg(params: {
   blurDy?: number;
 }) {
   const { width, height, text, opacity, fontSize } = params;
-  const safeText = escapeXml(text);
+  // En trazos el texto no pasa por XML: se dibuja tal cual, sólo con caracteres imprimibles.
+  const patternText = sanitizeWatermarkAscii(text);
   const baseRotations = params.rotations ?? [0, -30, 30, -60];
   const quantity = resolveDynamicQuantity({
     rotations: baseRotations,
@@ -126,19 +114,13 @@ export function buildTiledWatermarkSvg(params: {
   const singlePatternContent = Array.from({ length: lineCount }).map((_, i) => {
     const y = textY + i * lineSpacing;
     return `
-              <text
-                x="${textX}"
-                y="${y}"
-                font-family="${watermarkFontFamilyCss()}"
-                font-size="${fontSize}"
-                fill="white"
-                fill-opacity="${opacity}"
-                stroke="black"
-                stroke-width="${strokeWidth}"
-                stroke-opacity="${strokeOpacity}"
-                paint-order="stroke fill"
-                ${blurStdDev > 0 ? 'filter="url(#wm-blur)"' : ""}
-              >${safeText}</text>
+              ${watermarkTextPath({
+                text: patternText,
+                fontSize,
+                x: textX,
+                y,
+                attrs: `fill="white" fill-opacity="${opacity}" stroke="black" stroke-width="${strokeWidth}" stroke-opacity="${strokeOpacity}" paint-order="stroke fill"${blurStdDev > 0 ? ' filter="url(#wm-blur)"' : ""}`,
+              })}
             `;
   }).join("");
 
@@ -150,14 +132,11 @@ export function buildTiledWatermarkSvg(params: {
 
   const rects = rotations.map((_, idx) => `<rect width="100%" height="100%" fill="url(#wm-${idx})" />`).join("\n      ");
 
-  const safeCenterEscaped = params.centerText
-    ? escapeXml(sanitizeWatermarkAscii(params.centerText))
-    : "";
+  const centerText = params.centerText ? sanitizeWatermarkAscii(params.centerText) : "";
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <defs>
-        ${buildSvgEmbeddedFontDefs()}
         ${blurStdDev > 0 ? `
           <filter id="wm-blur" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="${blurStdDev}" />
@@ -167,23 +146,16 @@ export function buildTiledWatermarkSvg(params: {
         ${patterns}
       </defs>
       ${rects}
-      ${safeCenterEscaped ? `
-        <text
-          x="50%"
-          y="50%"
-          font-family="${watermarkFontFamilyCss()}"
-          font-size="${scaledCenterFontSize}"
-          font-weight="normal"
-          fill="white"
-          fill-opacity="1"
-          stroke="black"
-          stroke-width="${Math.max(2, Math.floor(centerFontSize * 0.08))}"
-          stroke-opacity="0.7"
-          paint-order="stroke fill"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          xml:space="preserve"
-        >${safeCenterEscaped}</text>
+      ${centerText ? `
+        ${watermarkTextPath({
+          text: centerText,
+          fontSize: scaledCenterFontSize,
+          x: width / 2,
+          y: height / 2,
+          anchor: "middle",
+          baseline: "middle",
+          attrs: `fill="white" fill-opacity="1" stroke="black" stroke-width="${Math.max(2, Math.floor(centerFontSize * 0.08))}" stroke-opacity="0.7" paint-order="stroke fill"`,
+        })}
       ` : ""}
     </svg>
   `;
