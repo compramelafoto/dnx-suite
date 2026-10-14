@@ -79,7 +79,7 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
 }
 
 /** Une cada hueco del diseño con su lugar del canje: la foto `p` de la unidad va al hueco `p`. */
-function placesForUnit(slots: ClientPhotoSlot[], slotIndexes: number[], unit: number, perUnit: number) {
+export function placesForUnit(slots: ClientPhotoSlot[], slotIndexes: number[], unit: number, perUnit: number) {
   const numbers = [...new Set(slots.map((s) => s.slotNumber))].sort((a, b) => a - b);
   const map = new Map<string, number>();
   for (const s of slots) {
@@ -179,13 +179,20 @@ export default function CanjeLibritoStep({
   const canvasH = Number(t.canvas.height) || 1;
   const pageCount = Math.max(1, t.pageCount);
 
-  const maxW = Math.min(areaWidth, 420);
+  /*
+   * El librito se ve grande para que se aprecien los detalles del diseño: hasta 840 px de ancho
+   * (antes 420) y, de alto, lo que deje libre la pantalla. En pantallas anchas se reservan unos
+   * 120 px para las flechas de los costados; en el celular el librito usa todo el ancho.
+   */
+  const maxW = Math.min(areaWidth >= 700 ? areaWidth - 120 : areaWidth, 840);
+  const maxH =
+    typeof window !== "undefined" ? Math.min(1120, Math.max(360, window.innerHeight - 280)) : 1120;
   // Girado un cuarto de vuelta, el ancho que ocupa en pantalla es el alto del diseño.
   const scale =
     maxW > 0
       ? deCostado
-        ? Math.min(maxW / canvasH, 560 / canvasW)
-        : Math.min(maxW / canvasW, 560 / canvasH)
+        ? Math.min(maxW / canvasH, maxH / canvasW)
+        : Math.min(maxW / canvasW, maxH / canvasH)
       : 0;
   const pageLabel = (i: number) =>
     t.pageLabels[i]?.trim() ||
@@ -336,7 +343,12 @@ export default function CanjeLibritoStep({
         </button>
       </div>
 
-      <div ref={areaRef} className="relative flex w-full items-center justify-center">
+      {/* Más ancho que el texto de arriba: el librito sale del ancho de la columna. */}
+      <div
+        ref={areaRef}
+        className="relative left-1/2 flex -translate-x-1/2 items-center justify-center"
+        style={{ width: "min(calc(100vw - 16px), 1000px)" }}
+      >
         {pageCount > 1 && scale > 0 ? (
           <>
             <button

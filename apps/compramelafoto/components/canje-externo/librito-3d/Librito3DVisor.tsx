@@ -55,7 +55,13 @@ export default function Librito3DVisor({
   const paginasTotales = Math.max(1, pageCount);
   const modelo = useMemo(() => modeloDelLibrito(canvasW, canvasH, paginasTotales), [canvasW, canvasH, paginasTotales]);
   const [estado, setEstado] = useState<Estado>({ tipo: "cargando" });
-  const [abierto, setAbierto] = useState(false);
+  /*
+   * Plegado: se recorre como la vista plana, con flechas: tapa, interior (abierto) y
+   * contratapa (cerrado y de espaldas). Antes había un solo botón «Abrir el librito» y la
+   * contratapa no se podía ver.
+   */
+  const [paso, setPaso] = useState(0);
+  const abierto = paso === 1;
   const [hoja, setHoja] = useState(0);
   const [volteada, setVolteada] = useState(false);
   const [giro, setGiro] = useState(giroInicial);
@@ -79,13 +85,13 @@ export default function Librito3DVisor({
       if (e.key === "ArrowUp") setGiro((g) => g + 90);
       else if (e.key === "ArrowDown") setGiro((g) => g - 90);
       else if (e.key === "ArrowRight") {
-        if (modelo.tipo === "plegado") setAbierto(true);
+        if (modelo.tipo === "plegado") setPaso((p) => Math.min(2, p + 1));
         else {
           setHoja((h) => Math.min(hojas - 1, h + 1));
           setVolteada(false);
         }
       } else if (e.key === "ArrowLeft") {
-        if (modelo.tipo === "plegado") setAbierto(false);
+        if (modelo.tipo === "plegado") setPaso((p) => Math.max(0, p - 1));
         else {
           setHoja((h) => Math.max(0, h - 1));
           setVolteada(false);
@@ -208,6 +214,7 @@ export default function Librito3DVisor({
               modelo={modelo}
               paginas={estado.paginas}
               abierto={abierto}
+              deEspaldas={paso === 2}
               hoja={hoja}
               volteada={volteada}
               giro={giro}
@@ -222,14 +229,29 @@ export default function Librito3DVisor({
 
         <div className="flex flex-wrap items-center justify-center gap-2 px-4 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pt-2">
           {esPlegado ? (
-            <button
-              type="button"
-              onClick={() => setAbierto((a) => !a)}
-              disabled={estado.tipo !== "listo"}
-              className="min-h-11 rounded-full bg-[#1f2328] px-5 text-[15px] font-semibold text-white disabled:opacity-40"
-            >
-              {abierto ? "Cerrar el librito" : "Abrir el librito"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setPaso((p) => Math.max(0, p - 1))}
+                disabled={paso === 0 || estado.tipo !== "listo"}
+                aria-label="Página anterior"
+                className="grid h-11 w-11 place-items-center rounded-full bg-white text-xl text-[#1f2328] shadow-[0_2px_8px_rgba(0,0,0,.12)] ring-1 ring-[#e7e1da] disabled:opacity-40"
+              >
+                ‹
+              </button>
+              <span className="min-w-[110px] text-center text-[15px] font-semibold text-[#1f2328]" aria-live="polite">
+                {["Tapa", "Interior", "Contratapa"][paso]}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPaso((p) => Math.min(2, p + 1))}
+                disabled={paso === 2 || estado.tipo !== "listo"}
+                aria-label="Página siguiente"
+                className="grid h-11 w-11 place-items-center rounded-full bg-white text-xl text-[#1f2328] shadow-[0_2px_8px_rgba(0,0,0,.12)] ring-1 ring-[#e7e1da] disabled:opacity-40"
+              >
+                ›
+              </button>
+            </>
           ) : (
             <>
               {hojas > 1 ? (
