@@ -116,7 +116,14 @@ const nextConfig: NextConfig = {
     "mupdf",
   ],
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    /**
+     * En Vercel, sin caché de webpack: el caché restaurado del deploy anterior crece hasta que
+     * cargarlo pasa los 8 GB de la máquina y el build muere sin mensaje (15/10/2026). Mismo
+     * arreglo que FOTOFFICE (PR 459). En local el caché sigue (sin `VERCEL`).
+     */
+    if (!dev && process.env.VERCEL) config.cache = false;
+
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
