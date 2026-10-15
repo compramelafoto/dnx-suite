@@ -14,6 +14,7 @@ vi.mock("@/lib/bot/config", () => ({
 }));
 vi.mock("@/lib/bot/store", () => ({
   usageSnapshot: () => m.snap(), getOrCreateConversation: () => m.conv(), loadHistory: () => m.hist(),
+  continueConversation: async (conv: unknown) => ({ conv, history: await m.hist(), rotated: false }),
   appendMessages: (...a: unknown[]) => m.append(...a), recordUsage: (...a: unknown[]) => m.usage(...a), createPendingAction: vi.fn(),
 }));
 vi.mock("next/server", () => ({ after: (fn: () => Promise<void>) => m.after.push(fn) }));
@@ -99,6 +100,20 @@ describe("POST /api/bot/chat", () => {
     await runAfter();
     expect(m.cap).toHaveBeenCalledTimes(1);
     expect(m.turn.mock.calls[0]![0]).toEqual(expect.objectContaining({ systemGuide: "GUIA", situation: "SIT" }));
+  });
+  it("conversación larga → misma conversación; al modelo van los últimos turnos y lo anterior va resumido en la situación", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    m.turn.mockImplementation(okTurn);
+    const largo = Array.from({ length: 50 }, (_, i) => [{ role: "user", content: `pregunta ${i + 1}` }, { role: "assistant", content: [{ type: "text", text: "ok" }] }]).flat();
+    m.hist.mockResolvedValue(largo);
+    await read(await POST(req("hola")));
+    const input = m.turn.mock.calls[0]![0] as BotTurnInput;
+    expect(input.history.length).toBeLessThan(largo.length);
+    expect((input.history[0] as { role: string }).role).toBe("user");
+    expect(input.history.at(-2)).toEqual({ role: "user", content: "pregunta 50" });
+    expect(input.situation.startsWith("SIT")).toBe(true);
+    expect(input.situation).toContain("«pregunta 20»");
+    expect(m.append).toHaveBeenCalledWith("c1", expect.any(Array));
   });
   it("turno cortado (refusal) → guarda lo agregado, registra incidente y ofrece ticket", async () => {
     m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });

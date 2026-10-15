@@ -153,8 +153,9 @@ async function handleToolUse(i: BotTurnInput, tool: BotTool | undefined, tu: { i
   let summary: string;
   try {
     if (!tool.describe) throw new Error("la herramienta no tiene describe()");
-    summary = await tool.describe(parsed.data, i.actor);
-    ({ actionId } = await i.proposeWrite({ toolName: tool.name, input: parsed.data, summary }));
+    const input = tool.prepare ? await tool.prepare(parsed.data, i.actor) : parsed.data;
+    summary = await tool.describe(input, i.actor);
+    ({ actionId } = await i.proposeWrite({ toolName: tool.name, input, summary }));
     i.onProposal({ actionId, summary });
   } catch (e) {
     return err(`No se pudo preparar la acción: ${e instanceof Error ? e.message : String(e)}`);

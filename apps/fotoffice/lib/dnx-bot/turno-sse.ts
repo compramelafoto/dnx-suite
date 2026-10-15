@@ -25,7 +25,10 @@ export const FALLA_TURNO = "Tuve un problema para responder. Probá de nuevo en 
 
 export type PreparacionTurno = {
   conversationId: string;
+  /** Lo que ve el modelo: la ventana del historial (`windowHistory`). */
   history: unknown[];
+  /** El historial entero, para verificar cifras (lo que dijo la persona antes de la ventana vale). */
+  historialCompleto?: unknown[];
   systemGuide: string;
   situation: string;
   tools: BotTool[];
@@ -147,7 +150,12 @@ export function respuestaDeTurno(p: TurnoParams): Response {
           error(FALLA_TURNO);
         } else if (p.revisarRespuesta) {
           try {
-            const aviso = await p.revisarRespuesta({ texto, appended: result.appended, history: prep.history, conversationId: prep.conversationId });
+            const aviso = await p.revisarRespuesta({
+              texto,
+              appended: result.appended,
+              history: prep.historialCompleto ?? prep.history,
+              conversationId: prep.conversationId,
+            });
             if (aviso) send("text", { delta: `\n\n${aviso}` });
           } catch (e) {
             console.error("[dnx-bot] revisar respuesta", e);

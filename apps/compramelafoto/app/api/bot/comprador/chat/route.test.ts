@@ -168,6 +168,18 @@ describe("POST /api/bot/comprador/chat", () => {
       expect(m.tope).toHaveBeenCalledTimes(1);
     });
   });
+  it("conversación larga → sigue la misma; al modelo van los últimos turnos y lo anterior, resumido en la situación", async () => {
+    m.turn.mockImplementation(okTurn);
+    const largo = Array.from({ length: 45 }, (_, i) => [{ role: "user", content: `duda ${i + 1}` }, { role: "assistant", content: [{ type: "text", text: "ok" }] }]).flat();
+    m.hist.mockResolvedValue(largo);
+    await (await POST(req({ text: "hola", pagePath: "/a/5" }, `dnxbot_guest=${KEY}`))).text();
+    const input = m.turn.mock.calls[0]![0] as BotTurnInput;
+    expect(input.history.length).toBeLessThan(largo.length);
+    expect(input.history.at(-2)).toEqual({ role: "user", content: "duda 45" });
+    expect(input.situation.startsWith("SIT_COMPRADOR")).toBe(true);
+    expect(input.situation).toContain("«duda 20»");
+    expect(m.append).toHaveBeenCalledWith("cb1", expect.any(Array));
+  });
   it("la conversación se guarda con la ruta segura (sin el token) y la IP con hash", async () => {
     m.resolver.mockResolvedValue({ albumId: 5, orderId: 7, enlace: { tipo: "descarga", orderId: 7, albumId: 5 } });
     m.turn.mockImplementation(okTurn);

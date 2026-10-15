@@ -49,4 +49,27 @@ describe("armarSituacion", () => {
     expect(s).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
     expect(s).toContain("Está mirando la consulta N.º 12 (consultaLeadId l1): Bodas · 15/11/2026 · de Lucía.");
   });
+  it("borrador del perfil: retoma donde quedó (lo anotado y lo que falta), sin montos", () => {
+    const s = armarSituacion({
+      rol: "WORKSPACE_OWNER", capacidades: DUENO, contexto: ctx, workspaceNombre: null,
+      perfil: {
+        existe: false, completo: false, faltan: ["x"], origen: null,
+        borrador: { anotado: ["si vive sólo de la fotografía", "gastos de Vivienda (Alquiler / hipoteca)"], faltan: ["Horas por semana"], rubrosSinDatos: ["Salud"] },
+      },
+    });
+    expect(s).toContain("Borrador del perfil");
+    expect(s).toContain("gastos de Vivienda (Alquiler / hipoteca)");
+    expect(s).toContain("Horas por semana");
+    expect(s).toContain("Salud");
+    expect(s).toMatch(/Seguimos donde quedamos/);
+    expect(s).toMatch(/no vuelvas a preguntar/i);
+    // A mitad de la entrevista no la manda al formulario; sin borrador, sí (PR 592).
+    expect(s).toContain("seguí la entrevista; no la mandes al formulario");
+    expect(s).not.toContain("Se completa en el formulario");
+  });
+  it("el resumen de lo que quedó fuera de la ventana va al final", () => {
+    const s = armarSituacion({ rol: "WORKSPACE_OWNER", capacidades: DUENO, contexto: ctx, workspaceNombre: null, antes: "# Antes en esta conversación\n- «hola»" });
+    expect(s.endsWith("# Antes en esta conversación\n- «hola»")).toBe(true);
+    expect(armarSituacion({ rol: "WORKSPACE_OWNER", capacidades: DUENO, contexto: ctx, workspaceNombre: null, antes: null })).not.toContain("Antes en esta");
+  });
 });

@@ -5,12 +5,14 @@ import type { SinRespuesta } from "../seguimientos";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import type { DetallePresupuesto } from "@/lib/presupuestos/presupuestos";
 import { calcularTotales } from "@/lib/presupuestos/totales";
+import { loAnotado, rubrosSinDatos } from "../borrador";
+import { perfilBase, simularPerfil, type ParchePerfil } from "../motor";
 import { armarSituacion, type EstadoPerfil } from "../situacion";
 
 /**
  * Banco de escenarios de `bot:eval` (spec §10). Se corre contra la API real con las herramientas
  * reales cuyo `run`/`describe` sólo registran la llamada: GASTA PLATA, sólo con permiso de Daniel.
- * Etapa 1: casos 1–5. Etapa 2: casos 6–13. Etapa 3: casos 14–20.
+ * Etapa 1: casos 1–5. Etapa 2: casos 6–13. Etapa 3: casos 14–20. Continuidad (13/10): casos 21–22.
  * Las herramientas de lectura corren de verdad sobre un perfil de prueba (`perfil`), sin base;
  * las de escritura sólo registran la propuesta.
  */
@@ -38,6 +40,10 @@ export type Escenario = {
   entradaEnAlguna?: Record<string, Record<string, unknown>>;
   /** Por herramienta: textos que tiene que CONTENER algún campo de al menos una llamada. */
   entradaContiene?: Record<string, Record<string, string>>;
+  /** Por herramienta: fragmentos que tiene que contener la entrada (en JSON) de al menos una llamada. */
+  entradaJsonContiene?: Record<string, string[]>;
+  /** Lo que ya está anotado en el borrador del perfil al empezar (una conversación nueva que retoma). */
+  borrador?: ParchePerfil;
 };
 
 /** Lo que devuelve ver_consulta en la evaluación (por consultaLeadId). */
@@ -167,6 +173,40 @@ export const VA_AL_FORMULARIO = /\/workspace\/configuracion\/precios|Configuraci
 /** El aviso de privacidad repetido por el modelo, o el texto viejo («lo procesa Anthropic»). */
 export const AVISO_REPETIDO = /Tus números son tuyos|lo procesa Anthropic/i;
 
+/**
+ * Borrador de la charla del 13/10 cortada a la mitad: ya contó si vive de la fotografía y los gastos de
+ * vivienda, comida, salud y transporte; faltaban «otros gastos» (mascotas, ropa, ocio) y todo lo demás.
+ */
+export const BORRADOR_A_MEDIAS: ParchePerfil = {
+  moneda: "ARS",
+  viveSoloDeFotografia: "si",
+  gastosPersonales: [
+    { grupoId: "housing", itemId: "rent-mortgage", monto: "450000" },
+    { grupoId: "housing", itemId: "home-utilities", monto: "90000" },
+    { grupoId: "food", itemId: "supermarket", monto: "400000" },
+    { grupoId: "health", itemId: "health-insurance", monto: "180000" },
+    { grupoId: "transport", itemId: "fuel", monto: "120000" },
+  ],
+};
+
+/** La situación que arma el chat cuando una conversación nueva encuentra ese borrador (sin montos). */
+function enPreciosConBorrador(parche: ParchePerfil) {
+  const base = perfilBase(null);
+  return armarSituacion({
+    rol: "WORKSPACE_OWNER",
+    capacidades: DUENO,
+    contexto: { pantalla: "precios", presupuestoId: null, consultaLeadId: null },
+    workspaceNombre: "Estudio de prueba",
+    perfil: {
+      ...SIN_PERFIL,
+      borrador: { anotado: loAnotado(parche, base), faltan: simularPerfil(base, parche).vista.faltan, rubrosSinDatos: rubrosSinDatos(parche, base) },
+    },
+  });
+}
+
+/** Le pide a la persona que haga la cuenta del período (lo que pasó el 13/10). */
+export const PIDE_QUE_DIVIDA = /no hago (las |esas )?cuentas|cu[aá]nto (es|ser[ií]a|te queda) por mes\?|me (dec[ií]s|pas[aá]s) (el monto|cu[aá]nto) por mes|divid[ií]/i;
+
 /** "Listo/creado" antes de que la persona toque Confirmar. */
 const AFIRMA_CREADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?cre[ée]|creado|qued[óo] creado|ya (lo )?sum[ée])(?![a-záéíóúñ])/i;
 
@@ -226,6 +266,38 @@ export const ESCENARIOS: Escenario[] = [
     noDebeUsar: ["ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios"],
     textoDebeContener: [/due[ñn]o|administrador/i],
     textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
+  },
+
+  // ── Continuidad (conversación real del 13/10) ──
+  // 21 · Montos cada 3 meses: van con su período a anotar_en_borrador; nunca le pide a la persona que divida.
+  {
+    id: "perfil-monto-trimestral",
+    situacion: enPreciosConBorrador(BORRADOR_A_MEDIAS),
+    mensaje: "Mascotas gasto 80 mil cada 3 meses y ropa 100 mil cada 3 meses. Ocio dejalo en cero.",
+    perfil: "vacio",
+    borrador: BORRADOR_A_MEDIAS,
+    debeUsar: ["anotar_en_borrador"],
+    noDebeUsar: ["guardar_perfil_de_precios"],
+    entradaJsonContiene: { anotar_en_borrador: ['"periodo":"trimestral"', '"monto":"80000"'] },
+    textoNoDebeContener: [PIDE_QUE_DIVIDA],
+  },
+  // 22 · Conversación nueva con borrador: retoma donde quedó, no vuelve a la pregunta 1 ni dice que no ve lo anterior.
+  {
+    id: "perfil-retoma-borrador",
+    situacion: enPreciosConBorrador(BORRADOR_A_MEDIAS),
+    mensaje: "hacé vos las cuentas! si ocio dejalo en cero",
+    perfil: "vacio",
+    borrador: BORRADOR_A_MEDIAS,
+    debeUsarAlguna: ["ver_perfil_de_precios", "anotar_en_borrador"],
+    noDebeUsar: ["guardar_perfil_de_precios"],
+    textoNoDebeContener: [
+      /viv[ií]s (s[oó]lo|solamente|únicamente) de la fotograf/i,
+      /no (puedo ver|veo|tengo) (nada de )?(lo )?(de )?(antes|anterior)/i,
+      /empecemos de (nuevo|cero)/i,
+      PIDE_QUE_DIVIDA,
+      // A mitad de la entrevista no se la manda al formulario (PR 592: el formulario, sólo si no hay borrador).
+      VA_AL_FORMULARIO,
+    ],
   },
 
   // ── Etapa 2 ──
@@ -404,6 +476,16 @@ export const ESCENARIOS: Escenario[] = [
     textoNoDebeContener: [/\/(ajustes|configuracion\/validez|presupuestos\/configuracion)\b/],
   },
 ];
+
+/** Herramientas que tenían que recibir ciertos fragmentos (en el JSON de la entrada) en al menos una llamada. */
+export function fallasDeEntradaJson(e: Escenario, llamadas: LlamadaRegistrada[]): string[] {
+  const fallas: string[] = [];
+  for (const [herramienta, fragmentos] of Object.entries(e.entradaJsonContiene ?? {})) {
+    const ok = llamadas.some((l) => l.herramienta === herramienta && fragmentos.every((f) => JSON.stringify(l.entrada ?? null).includes(f)));
+    if (!ok) fallas.push(`ninguna llamada a ${herramienta} con ${fragmentos.join(" y ")}`);
+  }
+  return fallas;
+}
 
 /** Herramientas que tenían que recibir cierto texto adentro de un campo en al menos una llamada. */
 export function fallasDeEntradaContiene(e: Escenario, llamadas: LlamadaRegistrada[]): string[] {

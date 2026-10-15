@@ -1,10 +1,10 @@
-import { checkLimits } from "@repo/dnx-bot";
+import { checkLimits, windowHistory } from "@repo/dnx-bot";
 import { getAuthUser } from "@/lib/auth";
 import { isBotEnabledForUser, readBotConfig } from "@/lib/bot/config";
 import { buildPhotographerSituation } from "@/lib/bot/contexto";
 import { buildSystemGuide } from "@/lib/bot/guia";
 import { toolsForActor } from "@/lib/bot/herramientas";
-import { createPendingAction, getOrCreateConversation, loadHistory, recordUsage, usageSnapshot } from "@/lib/bot/store";
+import { continueConversation, createPendingAction, getOrCreateConversation, recordUsage, usageSnapshot } from "@/lib/bot/store";
 import { notifyCapThresholds } from "@/lib/bot/tope";
 import { respuestaDeTurnoSse } from "@/lib/bot/turno-sse";
 
@@ -44,15 +44,17 @@ export async function POST(req: Request) {
       return d.allowed ? null : d.message;
     },
     preparar: async () => {
-      const conv = await getOrCreateConversation({ userId: user.id, pagePath, model: cfg.model });
-      const [history, situation] = await Promise.all([
-        loadHistory(conv.id),
+      const abierta = await getOrCreateConversation({ userId: user.id, pagePath, model: cfg.model });
+      const [{ conv, history }, situation] = await Promise.all([
+        continueConversation(abierta, { userId: user.id, pagePath, model: cfg.model }),
         isPhotographer ? buildPhotographerSituation(user.id).then((s) => s.text) : Promise.resolve(SITUACION_NEUTRA),
       ]);
+      // La conversación sigue entera; al modelo van los últimos turnos y lo anterior, resumido.
+      const ventana = windowHistory(history);
       return {
         conversationId: conv.id,
-        history,
-        situation,
+        history: ventana.messages,
+        situation: ventana.summary ? `${situation}\n\n${ventana.summary}` : situation,
         systemGuide: buildSystemGuide(),
         tools: toolsForActor(actor, { conversationId: conv.id, currentUserText: text }),
         actor,

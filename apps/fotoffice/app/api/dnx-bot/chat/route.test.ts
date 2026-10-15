@@ -30,8 +30,11 @@ vi.mock("@/lib/dnx-bot/turno-sse", () => ({
 }));
 vi.mock("@/lib/dnx-bot/store", () => ({
   usoActual: (...a: unknown[]) => H.uso(...a),
-  conversacionAbierta: (...a: unknown[]) => H.conv(...a),
-  cargarHistorial: (...a: unknown[]) => H.historial(...a),
+  continuarConversacion: async (...a: unknown[]) => {
+    const c = (await H.conv(...a)) as { id: string };
+    const mensajes = (await H.historial(c.id)) as unknown[];
+    return { id: c.id, creada: new Date(0), mensajes, fechas: mensajes.map(() => new Date(0)), rotada: false };
+  },
   registrarUso: (...a: unknown[]) => H.registrar(...a),
   crearAccionPendiente: (...a: unknown[]) => H.accion(...a),
 }));
@@ -99,7 +102,7 @@ describe("POST /api/dnx-bot/chat", () => {
     expect(prep.situation).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
     expect(prep.situation).toContain("Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.");
     expect(prep.tools.map((t) => t.name)).toEqual([
-      "ver_perfil_de_precios", "simular_perfil", "guardar_perfil_de_precios",
+      "ver_perfil_de_precios", "anotar_en_borrador", "simular_perfil", "guardar_perfil_de_precios",
       "cotizar_trabajo", "buscar_consultas", "ver_presupuesto", "crear_borrador_de_presupuesto", "sumar_al_borrador",
       "ver_consulta", "preparar_mensaje", "presupuestos_sin_respuesta",
     ]);
@@ -174,5 +177,33 @@ describe("POST /api/dnx-bot/chat", () => {
     const send = vi.fn();
     params().alResultado!(send, "simular_perfil", { ok: true, message: "", data: {} });
     expect(send.mock.calls.filter((c) => c[0] === "aviso")).toEqual([]);
+  });
+
+  it("conversación larga: al modelo va la ventana, lo anterior resumido en la situación, y el aviso mira la conversación entera", async () => {
+    const largo = [
+      { role: "assistant", content: [{ type: "tool_use", id: "t", name: "ver_perfil_de_precios", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t", content: "{}" }] },
+      ...Array.from({ length: 60 }, (_, i) => [{ role: "user", content: `dato ${i + 1}` }, { role: "assistant", content: [{ type: "text", text: "anotado" }] }]).flat(),
+    ];
+    H.historial.mockResolvedValue(largo);
+    await POST(pedido({ text: "seguimos", contexto: { pantalla: "precios" } }));
+    const prep = await params().preparar();
+    expect(prep.history.length).toBeLessThan(largo.length);
+    expect(prep.history.at(-2)).toEqual({ role: "user", content: "dato 60" });
+    expect(prep.historialCompleto).toEqual(largo);
+    expect(prep.situation).toContain("# Antes en esta conversación");
+    expect(prep.situation).toContain("«dato 20»");
+    const send = vi.fn();
+    params().alResultado!(send, "simular_perfil", { ok: true, message: "", data: {} });
+    expect(send.mock.calls.filter((c) => c[0] === "aviso")).toEqual([]);
+  });
+
+  it("la tarjeta de cálculo también sale al anotar en el borrador", async () => {
+    await POST(pedido({ text: "mascotas 80 mil cada 3 meses", contexto: { pantalla: "precios" } }));
+    await params().preparar();
+    const send = vi.fn();
+    const tarjeta = { titulo: "Tu perfil hasta ahora (borrador, sin guardar)", filas: [], avisos: [] };
+    params().alResultado!(send, "anotar_en_borrador", { ok: true, message: "", data: { tarjeta } });
+    expect(send).toHaveBeenCalledWith("calculo", tarjeta);
   });
 });

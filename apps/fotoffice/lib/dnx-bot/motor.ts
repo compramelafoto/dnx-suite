@@ -28,8 +28,64 @@ import { resumirPerfil } from "@/lib/precios/resumen";
 const monto = z
   .string()
   .regex(/^\d{1,12}$/)
-  .describe("Monto mensual en pesos, sólo dígitos (sin $, puntos ni comas). '450 lucas' → '450000'. Tiene que haberlo dicho la persona.");
+  .describe("Monto en pesos, sólo dígitos (sin $, puntos ni comas). '450 lucas' → '450000'. Tiene que haberlo dicho la persona.");
 const entero = z.string().regex(/^\d{1,9}$/).describe("Número entero, sólo dígitos.");
+
+// ── Montos por período ("80 mil cada 3 meses") ─────────────────────────────────────────────────
+
+export const PERIODOS = ["mensual", "semanal", "bimestral", "trimestral", "cuatrimestral", "semestral", "anual", "unica_vez"] as const;
+export type Periodo = (typeof PERIODOS)[number];
+
+/** Cuántos meses hay en el período, como fracción exacta (semana = 12/52 de mes). unica_vez: los meses que dijo. */
+const FRACCION: Record<Exclude<Periodo, "unica_vez">, { num: number; den: number }> = {
+  mensual: { num: 1, den: 1 },
+  semanal: { num: 52, den: 12 },
+  bimestral: { num: 1, den: 2 },
+  trimestral: { num: 1, den: 3 },
+  cuatrimestral: { num: 1, den: 4 },
+  semestral: { num: 1, den: 6 },
+  anual: { num: 1, den: 12 },
+};
+
+const FRASE: Record<Exclude<Periodo, "unica_vez">, string> = {
+  mensual: "por mes",
+  semanal: "por semana",
+  bimestral: "cada 2 meses",
+  trimestral: "cada 3 meses",
+  cuatrimestral: "cada 4 meses",
+  semestral: "cada 6 meses",
+  anual: "por año",
+};
+
+/**
+ * Pasa un monto de cualquier período a mensual, en pesos enteros: monto × num ÷ den redondeado al
+ * peso más cercano (el medio peso, para arriba). Sólo enteros: sin errores de coma flotante.
+ * 80.000 trimestral → 26.667; 1.000.000 anual → 83.333; 10.000 semanal → 43.333 (52 semanas / 12).
+ */
+export function aMensual(monto: number, periodo: Periodo, meses?: number): { ok: true; mensual: number } | { ok: false; error: string } {
+  let f: { num: number; den: number };
+  if (periodo === "unica_vez") {
+    if (!meses || !Number.isInteger(meses) || meses < 1 || meses > 120) {
+      return { ok: false, error: "Para repartir un gasto de una sola vez necesito en cuántos meses (entre 1 y 120)." };
+    }
+    f = { num: 1, den: meses };
+  } else f = FRACCION[periodo];
+  return { ok: true, mensual: Math.floor((2 * monto * f.num + f.den) / (2 * f.den)) };
+}
+
+const montoPeriodico = z
+  .object({
+    monto: z.string().regex(/^\d{1,12}$/).describe("El monto tal como lo dijo, sólo dígitos."),
+    periodo: z.enum(PERIODOS).describe("Cada cuánto lo paga: semanal, bimestral (cada 2 meses), trimestral (cada 3), cuatrimestral (cada 4), semestral, anual, o unica_vez (un gasto de una sola vez que se reparte en `meses`)."),
+    meses: z.string().regex(/^\d{1,3}$/).optional().describe("Sólo con unica_vez: en cuántos meses se reparte."),
+  })
+  .describe("Monto que la persona dijo por otro período que no es el mes. El servidor lo pasa a mensual: nunca dividas vos ni le pidas a la persona que haga la cuenta.");
+
+/** Un monto mensual ("450000") o un monto con su período ({ monto: "80000", periodo: "trimestral" }). */
+const montoMes = z.union([monto, montoPeriodico]);
+type MontoMes = z.infer<typeof montoMes>;
+
+export type Conversion = { etiqueta: string; detalle: string };
 const horasOPct = z.string().regex(/^\d{1,3}([.,]\d{1,2})?$/);
 
 const POSICIONAMIENTOS = ["starting", "growing", "stable", "established", "high-demand"] as const;
@@ -38,14 +94,14 @@ export const esquemaParchePerfil = z
   .object({
     moneda: z.string().regex(/^[A-Z]{3}$/).optional().describe("Código de moneda, por ejemplo ARS. Casi siempre ARS."),
     viveSoloDeFotografia: z.enum(["si", "no"]).optional(),
-    ingresosExternos: monto.optional().describe("Sólo si no vive sólo de la fotografía: lo que le dejan sus otros ingresos por mes."),
+    ingresosExternos: montoMes.optional().describe("Sólo si no vive sólo de la fotografía: lo que le dejan sus otros ingresos por mes."),
     gastosPersonales: z
       .array(
         z.object({
           grupoId: z.string().max(40).describe("id del rubro, de ver_perfil_de_precios (housing, food, health…)."),
           itemId: z.string().max(60).optional().describe("id del renglón del rubro. Si el gasto no tiene renglón, omitilo y mandá `etiqueta`."),
           etiqueta: z.string().min(1).max(60).optional().describe("Nombre de un renglón propio, sólo si no existe en el rubro."),
-          monto,
+          monto: montoMes,
         }),
       )
       .max(60)
@@ -53,16 +109,16 @@ export const esquemaParchePerfil = z
       .describe("Gastos personales del mes, uno por renglón."),
     negocio: z
       .object({
-        alquiler: monto.optional().describe("Alquiler del estudio u oficina ('0' si no tiene)."),
-        software: monto.optional(),
-        publicidad: monto.optional(),
+        alquiler: montoMes.optional().describe("Alquiler del estudio u oficina ('0' si no tiene)."),
+        software: montoMes.optional(),
+        publicidad: montoMes.optional(),
         colaboradores: entero.optional().describe("Cantidad de empleados o colaboradores fijos ('0' si trabaja sola/o)."),
-        costoColaboradores: monto.optional().describe("Costo mensual total de esos colaboradores."),
+        costoColaboradores: montoMes.optional().describe("Costo mensual total de esos colaboradores."),
       })
       .optional(),
     equipo: z
       .object({
-        renovacionMensual: monto.optional().describe("Lo que aparta por mes para renovar el equipo."),
+        renovacionMensual: montoMes.optional().describe("Lo que aparta por mes para renovar el equipo."),
         camara: z.string().max(80).optional(),
         vidaUtilObturador: entero.optional(),
         disparosActuales: entero.optional(),
@@ -83,8 +139,8 @@ export const esquemaParchePerfil = z
       })
       .optional()
       .describe("En qué se van las horas de la semana. Mandá las seis tareas; las que la persona no nombre van en 0."),
-    fondoEmergencia: monto.optional(),
-    ahorro: monto.optional().describe("Ahorro y vacaciones por mes."),
+    fondoEmergencia: montoMes.optional(),
+    ahorro: montoMes.optional().describe("Ahorro y vacaciones por mes."),
     posicionamiento: z.enum(POSICIONAMIENTOS).optional().describe(
       `Momento del negocio: ${COMMERCIAL_POSITIONING_OPTIONS.map((o) => `${o.id} = «${o.title}»`).join(", ")}.`,
     ),
@@ -145,13 +201,41 @@ export function perfilBase(guardado: CuantoCobroProfileInput | null): CuantoCobr
   return normalizarPerfil(guardado ?? {})!;
 }
 
-export function aplicarParche(base: CuantoCobroProfileInput, parche: ParchePerfil): { perfil: CuantoCobroProfileInput; errores: string[] } {
+export function aplicarParche(
+  base: CuantoCobroProfileInput,
+  parche: ParchePerfil,
+): { perfil: CuantoCobroProfileInput; errores: string[]; conversiones: Conversion[] } {
   const errores: string[] = [];
+  const conversiones: Conversion[] = [];
   const p: CuantoCobroProfileInput = structuredClone(normalizarPerfil(base)!);
+  const moneda = parche.moneda || p.currency || "ARS";
+  /** El monto mensual (texto de dígitos); si vino con período, lo convierte y anota la cuenta. undefined = error. */
+  const mes = (v: MontoMes, etiqueta: string): string | undefined => {
+    if (typeof v === "string") return v;
+    const r = aMensual(Number(v.monto), v.periodo, v.meses === undefined ? undefined : Number(v.meses));
+    if (!r.ok) {
+      errores.push(`${etiqueta}: ${r.error}`);
+      return undefined;
+    }
+    if (v.periodo !== "mensual") {
+      const como = v.periodo === "unica_vez" ? `por única vez, repartido en ${Number(v.meses)} meses` : FRASE[v.periodo];
+      conversiones.push({
+        etiqueta,
+        detalle: `${formatCuantoCobroCurrency(Number(v.monto), moneda)} ${como} = ${formatCuantoCobroCurrency(r.mensual, moneda)} por mes`,
+      });
+    }
+    return String(r.mensual);
+  };
+  /** Asigna el mensual al campo sólo si se pudo calcular. */
+  const poner = (v: MontoMes | undefined, etiqueta: string, set: (s: string) => void) => {
+    if (v === undefined) return;
+    const m = mes(v, etiqueta);
+    if (m !== undefined) set(m);
+  };
 
   if (parche.moneda) p.currency = parche.moneda;
   if (parche.viveSoloDeFotografia) p.livesOnlyFromPhotography = parche.viveSoloDeFotografia === "si" ? "yes" : "no";
-  if (parche.ingresosExternos !== undefined) p.externalMonthlyIncome = parche.ingresosExternos;
+  poner(parche.ingresosExternos, "Ingresos externos", (v) => (p.externalMonthlyIncome = v));
 
   for (const g of parche.gastosPersonales ?? []) {
     const grupo = p.personalExpenseGroups.find((x) => x.id === g.grupoId);
@@ -165,7 +249,7 @@ export function aplicarParche(base: CuantoCobroProfileInput, parche: ParchePerfi
         errores.push(`El rubro «${grupo.title}» no tiene el renglón «${g.itemId}»: usá uno de la lista o mandá una etiqueta propia.`);
         continue;
       }
-      item.amount = g.monto;
+      poner(g.monto, item.label, (v) => (item.amount = v));
       continue;
     }
     if (!g.etiqueta) {
@@ -174,19 +258,21 @@ export function aplicarParche(base: CuantoCobroProfileInput, parche: ParchePerfi
     }
     const etiqueta = g.etiqueta.trim();
     const existente = grupo.items.find((i) => i.label.trim().toLocaleLowerCase("es") === etiqueta.toLocaleLowerCase("es"));
-    if (existente) existente.amount = g.monto;
-    else grupo.items.push({ id: idPropio(etiqueta), label: etiqueta, amount: g.monto, isCustom: true });
+    const m = mes(g.monto, existente?.label ?? etiqueta);
+    if (m === undefined) continue;
+    if (existente) existente.amount = m;
+    else grupo.items.push({ id: idPropio(etiqueta), label: etiqueta, amount: m, isCustom: true });
   }
 
   const n = parche.negocio;
-  if (n?.alquiler !== undefined) p.businessRent = n.alquiler;
-  if (n?.software !== undefined) p.businessSoftware = n.software;
-  if (n?.publicidad !== undefined) p.businessMarketing = n.publicidad;
+  poner(n?.alquiler, "Alquiler o estudio", (v) => (p.businessRent = v));
+  poner(n?.software, "Software", (v) => (p.businessSoftware = v));
+  poner(n?.publicidad, "Publicidad", (v) => (p.businessMarketing = v));
   if (n?.colaboradores !== undefined) p.employeesCount = n.colaboradores;
-  if (n?.costoColaboradores !== undefined) p.employeeMonthlyCost = n.costoColaboradores;
+  poner(n?.costoColaboradores, "Costo de colaboradores", (v) => (p.employeeMonthlyCost = v));
 
   const e = parche.equipo;
-  if (e?.renovacionMensual !== undefined) p.equipmentRenewalMonthly = e.renovacionMensual;
+  poner(e?.renovacionMensual, "Renovación de equipo", (v) => (p.equipmentRenewalMonthly = v));
   if (e?.camara !== undefined) p.primaryCameraCustomName = e.camara;
   if (e?.vidaUtilObturador !== undefined) p.primaryCameraShutterRating = e.vidaUtilObturador;
   if (e?.disparosActuales !== undefined) p.primaryCameraCurrentShutterCount = e.disparosActuales;
@@ -229,11 +315,11 @@ export function aplicarParche(base: CuantoCobroProfileInput, parche: ParchePerfi
     }
   }
 
-  if (parche.fondoEmergencia !== undefined) p.emergencyFundMonthly = parche.fondoEmergencia;
-  if (parche.ahorro !== undefined) p.savingsGoalsMonthly = parche.ahorro;
+  poner(parche.fondoEmergencia, "Fondo de emergencia", (v) => (p.emergencyFundMonthly = v));
+  poner(parche.ahorro, "Ahorro y vacaciones", (v) => (p.savingsGoalsMonthly = v));
   if (parche.posicionamiento) p.commercialPositioningId = parche.posicionamiento;
 
-  return { perfil: p, errores };
+  return { perfil: p, errores, conversiones };
 }
 
 // ── Lo que ve el modelo (y la tarjeta) ─────────────────────────────────────────────────────────
@@ -301,17 +387,17 @@ export function vistaDelPerfil(perfil: CuantoCobroProfileInput, source: string |
 
 export type VistaPerfil = ReturnType<typeof vistaDelPerfil>;
 
-export type Simulacion = { perfil: CuantoCobroProfileInput; errores: string[]; vista: VistaPerfil };
+export type Simulacion = { perfil: CuantoCobroProfileInput; errores: string[]; vista: VistaPerfil; conversiones: Conversion[] };
 
 /** El perfil con el parche aplicado, SIN guardar, con los errores del formulario y su resumen. */
 export function simularPerfil(base: CuantoCobroProfileInput, parche: ParchePerfil, source: string | null = null): Simulacion {
-  const { perfil, errores } = aplicarParche(base, parche);
+  const { perfil, errores, conversiones } = aplicarParche(base, parche);
   const v = validarPerfil(perfil);
   const propios = [...errores];
   // Si ya se explicó cuánto falta repartir, el error genérico de la distribución sobra.
   const yaDijoDistribucion = errores.some((e) => e.startsWith("Las horas por tarea"));
   if (!v.ok && !(yaDijoDistribucion && v.error.startsWith("La distribución del tiempo"))) propios.push(v.error);
-  return { perfil, errores: propios, vista: vistaDelPerfil(perfil, source) };
+  return { perfil, errores: propios, vista: vistaDelPerfil(perfil, source), conversiones };
 }
 
 // ── Tarjeta «cálculo» (la pinta la burbuja con estos datos, nunca con el texto del modelo) ─────
@@ -330,6 +416,8 @@ export function tarjetaDelPerfil(s: Simulacion): TarjetaCalculo {
       { etiqueta: "Horas que se cobran por mes", valor: r.horasFacturablesMes },
       { etiqueta: "Gastos personales", valor: r.gastosPersonales ?? "$ 0" },
       { etiqueta: "Gastos del negocio", valor: r.gastosNegocio ?? "$ 0" },
+      // Cada monto que se dijo por otro período, con la cuenta hecha por el servidor.
+      ...s.conversiones.map((c) => ({ etiqueta: c.etiqueta, valor: c.detalle })),
     ],
     avisos: [...s.errores, ...(s.vista.faltan.length ? [`Falta: ${s.vista.faltan.join(", ")}.`] : [])],
   };

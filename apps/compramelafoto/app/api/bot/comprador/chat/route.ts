@@ -1,3 +1,4 @@
+import { windowHistory } from "@repo/dnx-bot";
 import { readBotConfig } from "@/lib/bot/config";
 import { readBuyerBotConfig } from "@/lib/bot/comprador/config";
 import {
@@ -19,9 +20,9 @@ import { buildBuyerSituation } from "@/lib/bot/comprador/situacion";
 import {
   buscarConversacionComprador,
   crearAccionPendienteComprador,
+  continuarConversacionComprador,
   obtenerConversacionComprador,
 } from "@/lib/bot/comprador/store";
-import { loadHistory } from "@/lib/bot/store";
 import { notifyCapThresholds } from "@/lib/bot/tope";
 import { respuestaDeTurnoSse } from "@/lib/bot/turno-sse";
 
@@ -77,14 +78,18 @@ export async function POST(req: Request) {
         orderId: hab.datos.orderId,
         model: cfg.model,
       });
+      // La conversación sigue entera (sólo rota, con resumen, pasado el tope duro en turnos).
+      const { conv: actual, history } = await continuarConversacionComprador(conv, { guestKey: inv.guestKey, pagePath: hab.pagePath, model: cfg.model });
       const actor = await actorDesdeConversacion({
-        conv, guestKey: inv.guestKey, ipHash: inv.ipHash, pagina: hab.pagina, pagePath: hab.pagePath, datos: hab.datos, sesion,
+        conv: actual, guestKey: inv.guestKey, ipHash: inv.ipHash, pagina: hab.pagina, pagePath: hab.pagePath, datos: hab.datos, sesion,
       });
-      const [history, situation] = await Promise.all([loadHistory(conv.id), buildBuyerSituation(actor)]);
+      const situation = await buildBuyerSituation(actor);
+      // Al modelo van los últimos turnos; lo anterior, resumido en la situación.
+      const ventana = windowHistory(history);
       return {
-        conversationId: conv.id,
-        history,
-        situation,
+        conversationId: actual.id,
+        history: ventana.messages,
+        situation: ventana.summary ? `${situation}\n\n${ventana.summary}` : situation,
         systemGuide: buildBuyerGuide(),
         tools: herramientasComprador(actor, { currentUserText: text }),
         actor: ACTOR_MOTOR_COMPRADOR,

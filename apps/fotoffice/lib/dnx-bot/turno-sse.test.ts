@@ -117,6 +117,24 @@ describe("respuestaDeTurno", () => {
     expect(body.indexOf("Ojo: revisá")).toBeLessThan(body.indexOf("event: done"));
   });
 
+  it("con ventana: al modelo va lo recortado, pero las cifras se verifican contra el historial completo", async () => {
+    m.turn.mockResolvedValue({ appended: [], usage, outcome: "ok" });
+    const revisar = vi.fn(async () => null);
+    const completo = [{ role: "user", content: "gasto 80000 cada 3 meses" }, { role: "assistant", content: "ok" }, { role: "user", content: "seguimos" }];
+    const recortado = completo.slice(2);
+    await respuestaDeTurno(
+      base({
+        revisarRespuesta: revisar,
+        preparar: async () => ({
+          conversationId: "c1", history: recortado, historialCompleto: completo, systemGuide: "G", situation: "S", tools: [],
+          actor: { userId: 7, role: "WORKSPACE_OWNER", email: "", name: null },
+        }),
+      }),
+    ).text();
+    expect((m.turn.mock.calls[0]![0] as { history: unknown[] }).history).toEqual(recortado);
+    expect((revisar.mock.calls[0] as unknown as [{ history: unknown[] }])[0].history).toEqual(completo);
+  });
+
   it("si revisarRespuesta falla, el turno termina igual", async () => {
     m.turn.mockResolvedValue({ appended: [], usage, outcome: "ok" });
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

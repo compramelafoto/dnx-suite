@@ -12,6 +12,13 @@ export type BotTool = {
   input: z.ZodType;
   /** read: corre directo. write: se propone y corre sólo tras confirmación del usuario. */
   kind: "read" | "write";
+  /**
+   * Sólo write: completa la entrada ANTES de describirla y proponerla (p. ej. con un borrador
+   * guardado). Lo que devuelve es lo que se describe, se guarda en la propuesta y corre al confirmar:
+   * queda congelado, así lo confirmado es exactamente lo que se mostró. Tiene que cumplir `input`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prepare?: (input: any, actor: BotActor) => Promise<any>;
   /** Texto de la tarjeta "¿Lo hago?" (obligatorio para write). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   describe?: (input: any, actor: BotActor) => Promise<string>;
@@ -26,6 +33,7 @@ export function defineTool<S extends z.ZodType>(t: {
   description: string;
   input: S;
   kind: "read" | "write";
+  prepare?: (input: z.infer<S>, actor: BotActor) => Promise<z.infer<S>>;
   describe?: (input: z.infer<S>, actor: BotActor) => Promise<string>;
   run: (input: z.infer<S>, actor: BotActor) => Promise<ToolOutcome>;
   undo?: (before: unknown, actor: BotActor) => Promise<ToolOutcome>;

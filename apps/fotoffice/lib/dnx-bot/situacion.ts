@@ -8,7 +8,14 @@ import { RUTAS_BOT, rutasPara } from "./rutas";
  * que la persona puede hacer. Sin correos, teléfonos ni ids crudos del pedido.
  */
 
-export type EstadoPerfil = { existe: boolean; completo: boolean; faltan: string[]; origen: "manual" | "clf-import" | "dnx-bot" | null };
+export type EstadoPerfil = {
+  existe: boolean;
+  completo: boolean;
+  faltan: string[];
+  origen: "manual" | "clf-import" | "dnx-bot" | null;
+  /** Lo anotado en el borrador (antes de lo que se ve del historial), sin montos. Ausente si no hay. */
+  borrador?: { anotado: string[]; faltan: string[]; rubrosSinDatos: string[] };
+};
 
 const ORIGEN: Record<string, string> = {
   manual: "cargado a mano",
@@ -20,11 +27,26 @@ const ORIGEN: Record<string, string> = {
 const COMO_SE_COMPLETA =
   "Se completa en el formulario de /workspace/configuracion/precios; armarlo conversando, sólo si la persona lo pide o dice que no puede.";
 
+function lineaBorrador(b: NonNullable<EstadoPerfil["borrador"]>): string {
+  const partes = [`Borrador del perfil (lo que ya contó y quedó anotado, sin guardar todavía): ${b.anotado.join("; ")}.`];
+  if (b.faltan.length) partes.push(`Con el borrador, todavía falta: ${b.faltan.join(", ")}.`);
+  if (b.rubrosSinDatos.length) partes.push(`Rubros de gastos personales sin datos: ${b.rubrosSinDatos.join(", ")}.`);
+  partes.push(
+    "Si van a seguir con el perfil, retomá desde ahí («Seguimos donde quedamos: ya tengo … falta …») y no vuelvas a preguntar lo anotado; los montos y totales están en ver_perfil_de_precios.",
+  );
+  return partes.join(" ");
+}
+
+/** A mitad de la entrevista (hay borrador) no se la manda al formulario: se sigue conversando. */
+const SIGUE_CONVERSANDO =
+  "Ya lo está armando conversando (hay borrador): seguí la entrevista; no la mandes al formulario salvo que ella lo pida.";
+
 function lineaPerfil(p: EstadoPerfil): string {
-  if (!p.existe) return `Perfil de precios: todavía no está armado. ${COMO_SE_COMPLETA}`;
+  const comoSeCompleta = p.borrador ? SIGUE_CONVERSANDO : COMO_SE_COMPLETA;
+  if (!p.existe) return `Perfil de precios: todavía no está armado. ${comoSeCompleta}`;
   const origen = p.origen ? ` (${ORIGEN[p.origen]})` : "";
   if (p.completo) return `Perfil de precios: completo${origen}.`;
-  return `Perfil de precios: incompleto${origen}. Falta: ${p.faltan.join(", ")}. ${COMO_SE_COMPLETA}`;
+  return `Perfil de precios: incompleto${origen}. Falta: ${p.faltan.join(", ")}. ${comoSeCompleta}`;
 }
 
 const ROLES: Record<string, string> = {
@@ -50,6 +72,8 @@ export function armarSituacion(p: {
   perfil?: EstadoPerfil | null;
   /** Lo que está mirando, ya revalidado contra el workspace (`revalidarContexto`). */
   enPantalla?: EnPantalla;
+  /** Resumen de lo que quedó fuera de la ventana del historial (`windowHistory`). */
+  antes?: string | null;
 }): string {
   const lineas = ["# Situación"];
   if (p.workspaceNombre) lineas.push(`Workspace: «${p.workspaceNombre}»`);
@@ -75,10 +99,14 @@ export function armarSituacion(p: {
       "No puede usar ¿Cuánto Cobro?: el perfil de precios, el cálculo y los costos los usan el dueño y los administradores. Si lo pide, explicáselo y no des precios.",
     );
   }
-  if (p.capacidades.configurar && p.perfil) lineas.push(lineaPerfil(p.perfil));
+  if (p.capacidades.configurar && p.perfil) {
+    lineas.push(lineaPerfil(p.perfil));
+    if (p.perfil.borrador) lineas.push(lineaBorrador(p.perfil.borrador));
+  }
   if (!p.capacidades.gestionarPresupuestos) lineas.push("Puede ver presupuestos, pero no armarlos ni editarlos.");
   const permitidas = new Set(rutasPara(p.capacidades).map((r) => r.ruta));
   const vedadas = RUTAS_BOT.filter((r) => !permitidas.has(r.ruta)).map((r) => r.ruta);
   if (vedadas.length) lineas.push(`No puede abrir: ${vedadas.join(", ")}`);
+  if (p.antes) lineas.push("", p.antes);
   return lineas.join("\n");
 }

@@ -1,4 +1,4 @@
-import type { BotActor } from "@repo/dnx-bot";
+import { windowHistory, type BotActor } from "@repo/dnx-bot";
 import { resolverBot } from "@/lib/dnx-bot/acceso";
 import { avisoDePrivacidad } from "@/lib/dnx-bot/aviso-privacidad";
 import { AVISO_CIFRA, cifrasNoRespaldadas, cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
@@ -11,7 +11,7 @@ import { estadoDelPerfil } from "@/lib/dnx-bot/herramientas/perfil";
 import { reportarCifraNoRespaldada } from "@/lib/dnx-bot/incidentes";
 import { decidirLimites } from "@/lib/dnx-bot/limites";
 import { armarSituacion } from "@/lib/dnx-bot/situacion";
-import { cargarHistorial, conversacionAbierta, crearAccionPendiente, registrarUso, usoActual } from "@/lib/dnx-bot/store";
+import { continuarConversacion, crearAccionPendiente, registrarUso, usoActual } from "@/lib/dnx-bot/store";
 import { avisarTopes } from "@/lib/dnx-bot/tope";
 import { respuestaDeTurno } from "@/lib/dnx-bot/turno-sse";
 
@@ -56,13 +56,28 @@ export async function POST(req: Request) {
       return d.permitido ? null : d.mensaje;
     },
     preparar: async () => {
-      const conv = await conversacionAbierta({ plataforma: ctx.plataforma, userId, pagePath, model: cfg.model });
-      const [history, perfil, enPantalla] = await Promise.all([cargarHistorial(conv.id), estadoDelPerfil(ctx), revalidarContexto(ctx, contexto)]);
+      // La conversación sigue entera (nunca se corta en silencio); al modelo va una ventana de los
+      // últimos turnos, y lo anterior, resumido en la situación.
+      const conv = await continuarConversacion({ plataforma: ctx.plataforma, userId, pagePath, model: cfg.model });
+      const ventana = windowHistory(conv.mensajes);
+      // Del borrador del perfil, la situación cuenta sólo lo anotado antes de lo que el modelo ve del historial.
+      const borradorHasta = ventana.start > 0 ? conv.fechas[ventana.start]! : conv.creada;
+      const [perfil, enPantalla] = await Promise.all([estadoDelPerfil(ctx, { borradorHasta }), revalidarContexto(ctx, contexto)]);
       return {
         conversationId: conv.id,
-        history: (historial = history),
+        history: ventana.messages,
+        // Entero: el aviso de privacidad y las cifras miran toda la conversación, no sólo la ventana.
+        historialCompleto: (historial = conv.mensajes),
         systemGuide: guiaDelBot(),
-        situation: armarSituacion({ rol: ctx.role, capacidades: ctx.capacidades, contexto, workspaceNombre: ctx.workspaceNombre, perfil, enPantalla }),
+        situation: armarSituacion({
+          rol: ctx.role,
+          capacidades: ctx.capacidades,
+          contexto,
+          workspaceNombre: ctx.workspaceNombre,
+          perfil,
+          enPantalla,
+          antes: ventana.summary,
+        }),
         tools: herramientasPara(ctx),
         actor,
       };
@@ -81,7 +96,7 @@ export async function POST(req: Request) {
         }
       }
       const tarjeta = outcome.ok ? (outcome.data as { tarjeta?: unknown } | undefined)?.tarjeta : undefined;
-      if ((name === "simular_perfil" || name === "cotizar_trabajo") && tarjeta) send("calculo", tarjeta);
+      if ((name === "simular_perfil" || name === "anotar_en_borrador" || name === "cotizar_trabajo") && tarjeta) send("calculo", tarjeta);
       if (name === "preparar_mensaje" && tarjeta) send("mensaje", tarjeta);
     },
     // Red de seguridad (spec §5.4): toda cifra del texto tiene que salir de una herramienta o de la persona.
