@@ -49,10 +49,17 @@ export type TrabajoPanel = {
   horasEdicion: string;
   horasEntrega: string;
   horasViaje: string;
+  /**
+   * Máximo de disparos que se planean para este trabajo (sólo servicio propio): con la cámara del
+   * perfil (valor de reposición / vida útil del obturador) el motor calcula su desgaste.
+   */
+  disparosEstimados: string;
   costoDirecto: string;
   costoProveedor: string;
   horasDiseno: string;
   costoEnvio: string;
+  /** Embalaje del producto físico (por unidad, como el costo del proveedor). */
+  costoEmbalaje: string;
   costoTercerizado: string;
   horasGestion: string;
   costoGasto: string;
@@ -73,10 +80,12 @@ export function trabajoVacio(nombre = ""): TrabajoPanel {
     horasEdicion: "",
     horasEntrega: "",
     horasViaje: "",
+    disparosEstimados: "",
     costoDirecto: "",
     costoProveedor: "",
     horasDiseno: "",
     costoEnvio: "",
+    costoEmbalaje: "",
     costoTercerizado: "",
     horasGestion: "",
     costoGasto: "",
@@ -105,12 +114,12 @@ function conceptoAlMotor(t: TrabajoPanel, id: string): CuantoCobroQuoteItem {
     administrationHours: "",
     salesHours: "",
     directCost: t.costoDirecto.trim(),
-    estimatedShots: "",
+    estimatedShots: t.disparosEstimados.trim(),
     supplierCost: t.costoProveedor.trim(),
     productionHours: t.horasDiseno.trim(),
     reviewHours: "",
     correctionHours: "",
-    packagingCost: "",
+    packagingCost: t.costoEmbalaje.trim(),
     shippingCost: t.costoEnvio.trim(),
     outsourcedLaborCost: t.costoTercerizado.trim(),
     managementHours: t.horasGestion.trim(),
@@ -179,10 +188,12 @@ export function trabajoDesdeMotor(raw: unknown): { trabajo: TrabajoPanel; tipoDe
       horasEdicion: c.editingHours ?? "",
       horasEntrega: c.deliveryHours ?? "",
       horasViaje: c.travelHours ?? "",
+      disparosEstimados: c.estimatedShots ?? "",
       costoDirecto: c.directCost ?? "",
       costoProveedor: c.supplierCost ?? "",
       horasDiseno: c.productionHours ?? "",
       costoEnvio: c.shippingCost ?? "",
+      costoEmbalaje: c.packagingCost ?? "",
       costoTercerizado: c.outsourcedLaborCost ?? "",
       horasGestion: c.managementHours ?? "",
       costoGasto: c.expenseCost ?? "",

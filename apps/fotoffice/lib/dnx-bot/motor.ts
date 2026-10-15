@@ -118,12 +118,14 @@ export const esquemaParchePerfil = z
       .optional(),
     equipo: z
       .object({
-        renovacionMensual: montoMes.optional().describe("Lo que aparta por mes para renovar el equipo."),
-        camara: z.string().max(80).optional(),
-        vidaUtilObturador: entero.optional(),
-        disparosActuales: entero.optional(),
-        valorReposicion: monto.optional(),
-        disparosAnuales: entero.optional(),
+        renovacionMensual: montoMes
+          .optional()
+          .describe("Inversión mensual en equipo: lo que aparta por mes para tarjetas, baterías, lentes y otros equipos. NO es el desgaste de la cámara."),
+        camara: z.string().max(80).optional().describe("Marca y modelo de la cámara principal."),
+        vidaUtilObturador: entero.optional().describe("Vida útil del obturador de la cámara, en disparos."),
+        disparosActuales: entero.optional().describe("Disparos que ya tiene la cámara."),
+        valorReposicion: monto.optional().describe("Lo que cuesta hoy reemplazar la cámara."),
+        disparosAnuales: entero.optional().describe("Disparos por AÑO sumando todos los trabajos. Los de un trabajo puntual no van acá: van al cotizar ese trabajo."),
       })
       .optional(),
     horasSemana: z.string().regex(/^\d{1,3}$/).optional().describe("Horas de trabajo por semana en total."),
@@ -272,7 +274,7 @@ export function aplicarParche(
   poner(n?.costoColaboradores, "Costo de colaboradores", (v) => (p.employeeMonthlyCost = v));
 
   const e = parche.equipo;
-  poner(e?.renovacionMensual, "Renovación de equipo", (v) => (p.equipmentRenewalMonthly = v));
+  poner(e?.renovacionMensual, "Inversión mensual en equipo", (v) => (p.equipmentRenewalMonthly = v));
   if (e?.camara !== undefined) p.primaryCameraCustomName = e.camara;
   if (e?.vidaUtilObturador !== undefined) p.primaryCameraShutterRating = e.vidaUtilObturador;
   if (e?.disparosActuales !== undefined) p.primaryCameraCurrentShutterCount = e.disparosActuales;
@@ -445,12 +447,12 @@ function camposPlanos(p: CuantoCobroProfileInput): Campo[] {
     { clave: "publicidad", etiqueta: "Publicidad", valor: $(p.businessMarketing) },
     { clave: "colaboradores", etiqueta: "Colaboradores", valor: texto(p.employeesCount) },
     { clave: "costoColaboradores", etiqueta: "Costo mensual del equipo", valor: $(p.employeeMonthlyCost) },
-    { clave: "renovacion", etiqueta: "Renovación mensual de equipo", valor: $(p.equipmentRenewalMonthly) },
+    { clave: "renovacion", etiqueta: "Inversión mensual en equipo", valor: $(p.equipmentRenewalMonthly) },
     { clave: "camara", etiqueta: "Cámara principal", valor: texto(p.primaryCameraCustomName) },
     { clave: "obturador", etiqueta: "Vida útil del obturador", valor: texto(p.primaryCameraShutterRating) },
-    { clave: "disparos", etiqueta: "Disparos actuales", valor: texto(p.primaryCameraCurrentShutterCount) },
+    { clave: "disparos", etiqueta: "Disparos actuales de la cámara", valor: texto(p.primaryCameraCurrentShutterCount) },
     { clave: "reposicion", etiqueta: "Valor de reposición de la cámara", valor: $(p.primaryCameraReplacementValue) },
-    { clave: "anuales", etiqueta: "Disparos por año", valor: texto(p.estimatedAnnualShots) },
+    { clave: "anuales", etiqueta: "Disparos por año (todos los trabajos)", valor: texto(p.estimatedAnnualShots) },
     { clave: "horasSemana", etiqueta: "Horas por semana", valor: texto(p.weeklyHours) },
     ...CLAVES_DISTRIBUCION.map((k) => ({ clave: `tarea:${k}`, etiqueta: `${ETIQUETA_TAREA[k]} (horas por semana)`, valor: String(horas[k]) })),
     { clave: "fondo", etiqueta: "Fondo de emergencia", valor: $(p.emergencyFundMonthly) },

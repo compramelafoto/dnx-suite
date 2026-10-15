@@ -122,3 +122,55 @@ describe("ganancia desmedida: la tarjeta pide revisar (no cambia la cuenta del m
     expect(tarjetaDeCotizacion(normal.resumen, "Boda").avisos.join(" ")).not.toMatch(/revisá/);
   });
 });
+
+describe("entrevista completa: disparos, costos variables y desglose", () => {
+  const camara = () =>
+    createBaseCompleteProfile({ primaryCameraPresetId: "custom", primaryCameraCustomName: "Sony A7C", primaryCameraReplacementValue: "3000000", primaryCameraShutterRating: "200000" });
+  const XV: TrabajoBot[] = [
+    { nombre: "Cobertura", horasCobertura: "10", horasEdicion: "8", horasViaje: "1", horasCliente: "2", disparosEstimados: "3000" },
+    { nombre: "Impresiones", tipo: "physical-product", costoProveedor: "90000", costoEmbalaje: "5000" },
+    { nombre: "Asistente", tipo: "outsourced", costoTercerizado: "60000" },
+    { nombre: "Combustible y peajes", tipo: "expense", costoGasto: "25000" },
+  ];
+
+  it("el esquema acepta los disparos del trabajo y el embalaje; nada de eso es del perfil", () => {
+    expect(esquemaCotizacion.safeParse({ tipoDeTrabajo: "XV", conceptos: XV }).success).toBe(true);
+    expect(esquemaCotizacion.safeParse({ tipoDeTrabajo: "XV", conceptos: [{ nombre: "x", disparosEstimados: "muchos" }] }).success).toBe(false);
+    expect(trabajoBotAPanel(XV[0]!).disparosEstimados).toBe("3000");
+    expect(trabajoBotAPanel(XV[1]!).costoEmbalaje).toBe("5000");
+  });
+
+  it("el desgaste de la cámara de ESTE trabajo sale del motor (disparos × valor / vida útil) y se muestra", () => {
+    const r = cotizar(camara(), { tipoDeTrabajo: "XV", conceptos: XV }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    // 3000 × (3.000.000 / 200.000) = 45.000.
+    expect(r.resumen.desgasteCamara).toEqual({ disparos: 3000, monto: pesos(45_000), sumado: false });
+    const t = tarjetaDeCotizacion(r.resumen, "XV");
+    expect(t.filas.find((f) => f.etiqueta.startsWith("Desgaste de cámara"))).toEqual({ etiqueta: "Desgaste de cámara (3000 disparos)", valor: `${pesos(45_000)} (no sumado)` });
+    expect(t.avisos.join(" ")).toContain("Hoy ¿Cuánto Cobro? no lo suma al precio: la reposición de tu cámara ya está en tu valor hora, calculada con su valor y la vida útil del obturador.");
+    // El aviso del motor que mezclaba la inversión en equipo con la cámara no llega a la persona.
+    expect(t.avisos.join(" ")).not.toMatch(/Modo estructural|aporte mensual/);
+  });
+
+  it("los costos variables (productos, tercerizados, gastos) están en el desglose por concepto", () => {
+    const r = cotizar(camara(), { tipoDeTrabajo: "XV", conceptos: XV }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(r.resumen.conceptos.map((c) => c.nombre)).toEqual(["Cobertura", "Impresiones", "Asistente", "Combustible y peajes"]);
+    const t = tarjetaDeCotizacion(r.resumen, "XV");
+    for (const n of ["Impresiones", "Asistente", "Combustible y peajes"]) expect(t.filas.map((f) => f.etiqueta)).toContain(n);
+    expect(t.filas.find((f) => f.etiqueta === "Costos variables")!.valor).toBe(r.resumen.total.costosVariables);
+  });
+
+  it("sin disparos en un servicio propio, avisa que el desgaste no está contado", () => {
+    const r = cotizar(camara(), { tipoDeTrabajo: "XV", conceptos: [{ nombre: "Cobertura", horasCobertura: "10" }] }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(tarjetaDeCotizacion(r.resumen, "XV").avisos).toContain("Faltan los disparos estimados del trabajo: el desgaste de la cámara no está contado.");
+  });
+
+  it("parcial: el resultado y la tarjeta lo dicen", () => {
+    const r = cotizar(camara(), { tipoDeTrabajo: "XV", conceptos: [{ nombre: "Cobertura", horasCobertura: "10" }], parcial: true }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(r.resumen.parcial).toBe(true);
+    expect(tarjetaDeCotizacion(r.resumen, "XV").titulo).toBe("¿Cuánto cobro? · XV (parcial)");
+  });
+});

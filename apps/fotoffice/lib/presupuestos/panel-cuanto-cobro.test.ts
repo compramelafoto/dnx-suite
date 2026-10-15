@@ -91,3 +91,34 @@ describe("panel de ¿Cuánto Cobro? (motor real)", () => {
     expect(perfilParaPanel({ calculo: { entrada: { perfil: "roto" } } }, PERFIL).origen).toBe("workspace");
   });
 });
+
+describe("disparos del trabajo y embalaje (desgaste de cámara por trabajo)", () => {
+  it("los disparos estimados y el embalaje llegan al motor y vuelven al reabrir el panel", async () => {
+    const { trabajoAlMotor, trabajoDesdeMotor, trabajoVacio: vacio } = await import("./panel-cuanto-cobro");
+    const t = { ...vacio("Cobertura"), horasCobertura: "8", disparosEstimados: "2500" };
+    const q = trabajoAlMotor(t, "Casamiento");
+    expect(q.concepts[0]!.estimatedShots).toBe("2500");
+    const p = { ...vacio("Álbum"), tipo: "physical-product" as const, costoProveedor: "180000", costoEmbalaje: "5000" };
+    expect(trabajoAlMotor(p, "Casamiento").concepts[0]!.packagingCost).toBe("5000");
+    expect(trabajoDesdeMotor(q)!.trabajo.disparosEstimados).toBe("2500");
+    expect(trabajoDesdeMotor(trabajoAlMotor(p, "x"))!.trabajo.costoEmbalaje).toBe("5000");
+    expect(vacio("x")).toMatchObject({ disparosEstimados: "", costoEmbalaje: "" });
+  });
+  it("con la cámara en el perfil, el motor calcula el desgaste de esos disparos (hoy, informativo: la cámara ya está en la renovación)", async () => {
+    const { calcularItemDelPanel, correrMotor, trabajoVacio: vacio } = await import("./panel-cuanto-cobro");
+    const { entradaDelMotor } = await import("./calculo-cuanto-cobro");
+    const { createBaseCompleteProfile: perfil } = await import("@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures");
+    const conCamara = perfil({ equipmentRenewalMonthly: "", equipmentInventory: undefined, primaryCameraPresetId: "custom", primaryCameraReplacementValue: "3000000", primaryCameraShutterRating: "200000" });
+    const sin = calcularItemDelPanel(conCamara, { ...vacio("Cobertura"), horasCobertura: "8" }, "Boda", { id: "a", nombre: "Cobertura" });
+    const con = calcularItemDelPanel(conCamara, { ...vacio("Cobertura"), horasCobertura: "8", disparosEstimados: "2000" }, "Boda", { id: "a", nombre: "Cobertura" });
+    if (!sin.ok || !con.ok) throw new Error("no calculó");
+    const r = correrMotor(entradaDelMotor(con.item.calculo!.entrada)!);
+    if (!r || r.status !== "complete") throw new Error("no calculó");
+    // 2000 disparos × (3.000.000 / 200.000) = 30.000.
+    expect(r.cameraWearSummary.totalJobShots).toBe(2000);
+    expect(r.cameraWearSummary.totalCameraWearInformative).toBe(30_000);
+    // El motor toma la cámara como renovación mensual (modo estructural) y no lo suma de nuevo: el precio no cambia.
+    expect(r.cameraWearSummary.totalCameraWearCharged).toBe(0);
+    expect(con.item.calculo!.precioSugerido).toBe(sin.item.calculo!.precioSugerido);
+  });
+});

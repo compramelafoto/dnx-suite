@@ -13,6 +13,7 @@ import { armarSituacion, type EstadoPerfil } from "../situacion";
  * Banco de escenarios de `bot:eval` (spec §10). Se corre contra la API real con las herramientas
  * reales cuyo `run`/`describe` sólo registran la llamada: GASTA PLATA, sólo con permiso de Daniel.
  * Etapa 1: casos 1–5. Etapa 2: casos 6–13. Etapa 3: casos 14–20. Continuidad (13/10): casos 21–22.
+ * Entrevista completa de la etapa 2 (15/10): casos 13b–13d.
  * Las herramientas de lectura corren de verdad sobre un perfil de prueba (`perfil`), sin base;
  * las de escritura sólo registran la propuesta.
  */
@@ -207,6 +208,15 @@ function enPreciosConBorrador(parche: ParchePerfil) {
 /** Le pide a la persona que haga la cuenta del período (lo que pasó el 13/10). */
 export const PIDE_QUE_DIVIDA = /no hago (las |esas )?cuentas|cu[aá]nto (es|ser[ií]a|te queda) por mes\?|me (dec[ií]s|pas[aá]s) (el monto|cu[aá]nto) por mes|divid[ií]/i;
 
+/** Un monto en pesos que no es cero sin la palabra "parcial": un precio final antes de terminar la entrevista. */
+export const PRECIO_SIN_DECIR_PARCIAL = /^(?![\s\S]*parcial)[\s\S]*\$\s?[1-9]/i;
+
+/** Dice que la inversión (o renovación) de equipo cubre el desgaste de la cámara: son cosas distintas. */
+export const INVERSION_ES_DESGASTE = [
+  /(inversi[óo]n|renovaci[óo]n|aporte)[^.\n]{0,80}(cubre|incluye|contempla|absorbe|ya est[áa])[^.\n]{0,60}desgaste/i,
+  /desgaste[^.\n]{0,60}(ya est[áa]|contemplad|incluid|cubiert)[^.\n]{0,60}(inversi[óo]n|renovaci[óo]n|aporte)/i,
+];
+
 /** "Listo/creado" antes de que la persona toque Confirmar. */
 const AFIRMA_CREADO = /(^|[.!¡]\s*)(listo(?!\s+para)|ya (lo )?cre[ée]|creado|qued[óo] creado|ya (lo )?sum[ée])(?![a-záéíóúñ])/i;
 
@@ -305,9 +315,10 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "cotizar-casamiento",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "¿Cuánto cobro un casamiento de 8 horas de cobertura, 20 de edición y 2 de viaje?",
+    mensaje: "¿Cuánto cobro un casamiento de 8 horas de cobertura, 20 de edición y 2 de viaje? Como máximo 2500 disparos y no tiene otros gastos.",
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
+    entradaJsonContiene: { cotizar_trabajo: ['"disparosEstimados":"2500"'] },
     noDebeUsar: ["crear_borrador_de_presupuesto", "sumar_al_borrador"],
   },
   // 7 · Sin horas de edición: pregunta por la edición o aclara que no la contó; no la inventa.
@@ -323,7 +334,7 @@ export const ESCENARIOS: Escenario[] = [
     id: "cotizar-sumar-album",
     situacion: enPresupuestos(PERFIL_COMPLETO),
     mensaje:
-      "Calculame un casamiento de 8 horas de cobertura y 20 de edición. Y decime también cuánto queda si le sumo un álbum que el laboratorio me cobra 180000.",
+      "Calculame un casamiento de 8 horas de cobertura y 20 de edición, como máximo 2500 disparos y sin otros gastos. Y decime también cuánto queda si le sumo un álbum que el laboratorio me cobra 180000.",
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
   },
@@ -342,7 +353,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "pasar-a-consulta-de-lucia",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición y pasalo a la consulta de Lucía, la de bodas.",
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos y sin otros gastos, y pasalo a la consulta de Lucía, la de bodas.",
     perfil: "completo",
     consultas: "lucia",
     debeUsar: ["cotizar_trabajo", "buscar_consultas", "crear_borrador_de_presupuesto"],
@@ -354,7 +365,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "consulta-con-borrador",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición y agregalo al presupuesto de Lucía.",
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos y sin otros gastos, y agregalo al presupuesto de Lucía.",
     perfil: "completo",
     consultas: "lucia-con-borrador",
     debeUsar: ["sumar_al_borrador"],
@@ -374,11 +385,42 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "precio-a-mano",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, pero dejalo en $1.100.000. ¿Cuánto gano?",
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos y sin otros gastos, pero dejalo en $1.100.000. ¿Cuánto gano?",
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
     entradaEnAlguna: { cotizar_trabajo: { precioTotalElegido: "1100000" } },
     textoDebeContener: [/gan/i],
+  },
+
+  // ── La entrevista completa (pedido de Daniel, 15/10) ──
+  // 13b · XV de 10 h: antes del precio pregunta los disparos y los costos variables; si da un número, dice "parcial".
+  {
+    id: "cotizar-xv-pregunta-antes",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "¿Cuánto cobro unos XV de 10 horas?",
+    perfil: "completo",
+    noDebeUsar: ["crear_borrador_de_presupuesto", "sumar_al_borrador"],
+    textoDebeContener: [/disparos|fotos/i, /impresi[óo]n|álbum|album|asistente|segundo fot[óo]grafo|combustible|peajes|vi[áa]ticos/i],
+    textoNoDebeContener: [PRECIO_SIN_DECIR_PARCIAL],
+  },
+  // 13c · "¿Y el desgaste de la cámara?": no dice que la inversión en equipo lo cubre; explica de dónde sale.
+  {
+    id: "cotizar-desgaste-camara",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "¿Y el desgaste de la cámara? ¿Está contado en lo que cobro?",
+    perfil: "completo",
+    textoNoDebeContener: INVERSION_ES_DESGASTE,
+    textoDebeContener: [/obturador|valor de reposici[óo]n|disparos/i],
+  },
+  // 13d · Impresiones, asistente tercerizado y combustible: cada uno es un concepto en la entrada de cotizar_trabajo.
+  {
+    id: "cotizar-con-costos-variables",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje:
+      "Cotizá unos XV: 6 horas de cobertura, 10 de edición y 1 de viaje, máximo 2000 disparos. Lleva impresiones que el laboratorio me cobra 180000, un asistente que me cobra 60000 y 25000 de combustible y peajes. No hay nada más.",
+    perfil: "completo",
+    debeUsar: ["cotizar_trabajo"],
+    entradaJsonContiene: { cotizar_trabajo: ['"costoProveedor":"180000"', '"costoTercerizado":"60000"', '"costoGasto":"25000"', '"disparosEstimados":"2000"'] },
   },
 
   // ── El formulario primero (pedido de Daniel, 13/10) ──

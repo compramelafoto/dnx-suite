@@ -85,12 +85,12 @@ const NEGOCIO: Record<string, string> = {
   costoColaboradores: "costo de colaboradores",
 };
 const EQUIPO: Record<string, string> = {
-  renovacionMensual: "renovación de equipo",
+  renovacionMensual: "inversión mensual en equipo",
   camara: "cámara",
   vidaUtilObturador: "vida útil del obturador",
   disparosActuales: "disparos actuales",
   valorReposicion: "valor de reposición",
-  disparosAnuales: "disparos por año",
+  disparosAnuales: "disparos por año (todos los trabajos)",
 };
 
 /** Qué ya contó la persona, en palabras (por rubro y renglón), sin ningún monto. */

@@ -123,7 +123,19 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
           <CampoTexto etiqueta="Horas de edición" valor={trabajo.horasEdicion} onCambio={set("horasEdicion")} />
           <CampoTexto etiqueta="Horas de entrega" valor={trabajo.horasEntrega} onCambio={set("horasEntrega")} />
           <CampoTexto etiqueta="Horas de viaje" valor={trabajo.horasViaje} onCambio={set("horasViaje")} />
-          <CampoTexto tipo="moneda" etiqueta="Costos directos ($)" valor={trabajo.costoDirecto} onCambio={set("costoDirecto")} ayuda="Asistente, traslado, insumos." />
+          <CampoTexto
+            etiqueta="Disparos estimados (máximo)"
+            valor={trabajo.disparosEstimados}
+            onCambio={set("disparosEstimados")}
+            ayuda="Con la cámara cargada en Precios, calcula el desgaste de la cámara en este trabajo."
+          />
+          <CampoTexto
+            tipo="moneda"
+            etiqueta="Costos directos ($)"
+            valor={trabajo.costoDirecto}
+            onCambio={set("costoDirecto")}
+            ayuda="Insumos. Asistente, viáticos y productos conviene cargarlos como conceptos aparte."
+          />
         </>
       ) : null}
       {trabajo.tipo === "physical-product" ? (
@@ -131,6 +143,7 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
           <CampoTexto tipo="moneda" etiqueta="Costo del proveedor ($)" valor={trabajo.costoProveedor} onCambio={set("costoProveedor")} />
           <CampoTexto etiqueta="Horas de diseño" valor={trabajo.horasDiseno} onCambio={set("horasDiseno")} />
           <CampoTexto tipo="moneda" etiqueta="Envío ($)" valor={trabajo.costoEnvio} onCambio={set("costoEnvio")} />
+          <CampoTexto tipo="moneda" etiqueta="Embalaje ($)" valor={trabajo.costoEmbalaje} onCambio={set("costoEmbalaje")} />
           <CampoTexto etiqueta="Ganancia deseada (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
