@@ -56,6 +56,11 @@ export type Entidad = {
    * sin sumar una duda.
    */
   idEsperado?: boolean;
+  /**
+   * Versión de la forma de pedir. Si cambia (p. ej. se corrigió el endpoint), una extracción en curso que la tenga
+   * con otra versión rehace esa entidad desde cero en vez de seguir con el cursor viejo. Sin versión = 1.
+   */
+  version?: number;
 };
 
 export const TAMANO_PAGINA = 100;
@@ -147,9 +152,17 @@ const cuentas = (type: string) =>
 
 export const ENTIDADES: readonly Entidad[] = [
   // ── Configuración y catálogos ─────────────────────────────────────────────
-  { clave: "configuracion", nombre: "Configuración", idFijo: "settings", fuente: { tipo: "simple", pedido: get("/settings/"), filas: filaUnica } },
-  { clave: "origenes", nombre: "Orígenes de oportunidad", claves: ["name"], fuente: { tipo: "derivada", de: "configuracion", filas: origenesDe } },
-  { clave: "plantillas_sistema", nombre: "Correos del sistema", claves: ["key"], fuente: { tipo: "derivada", de: "configuracion", filas: plantillasSistemaDe } },
+  // El panel llama `Settings.get({})` → `$resource("/settings/:username")`, y AngularJS saca la barra final: el
+  // pedido real es `GET /settings`. `GET /settings/` (con barra) da 404 (extracción real de DNX, 13/10/2026).
+  { clave: "configuracion", nombre: "Configuración", idFijo: "settings", version: 2, fuente: { tipo: "simple", pedido: get("/settings"), filas: filaUnica } },
+  { clave: "origenes", nombre: "Orígenes de oportunidad", claves: ["name"], version: 2, fuente: { tipo: "derivada", de: "configuracion", filas: origenesDe } },
+  {
+    clave: "plantillas_sistema",
+    nombre: "Correos del sistema",
+    claves: ["key"],
+    version: 2,
+    fuente: { tipo: "derivada", de: "configuracion", filas: plantillasSistemaDe },
+  },
   {
     clave: "plantillas_correo",
     nombre: "Plantillas de correo personales",
@@ -275,10 +288,14 @@ export const ENTIDADES: readonly Entidad[] = [
 
   // ── Presupuestos y pedidos ────────────────────────────────────────────────
   { clave: "presupuestos", nombre: "Presupuestos", fuente: { tipo: "paginada", ruta: "/quotes/paginate", body: listado({ user: "all" }) } },
+  // Detalles: el panel usa `Quotes.query({id})` / `Orders.query({id})` → `GET /quotes/<id>` y `GET /orders/<id>`.
+  // La acción `get` de la fábrica (`GET /quotes?id=`) existe pero el panel nunca la usa, y Alboom responde 500 a
+  // todos (extracción real de DNX, 13/10/2026: 174 de 174). El listado no trae los ítems (`quote_item_count` 0).
   {
     clave: "presupuestos_detalle",
     nombre: "Detalle de presupuestos (con ítems)",
-    fuente: { tipo: "porPadre", padre: "presupuestos", mismoId: true, pedido: (id) => get(`/quotes?id=${id}`), filas: filaUnica },
+    version: 2,
+    fuente: { tipo: "porPadre", padre: "presupuestos", mismoId: true, pedido: (id) => get(`/quotes/${id}`), filas: filaUnica },
   },
   {
     clave: "pedidos",
@@ -292,14 +309,15 @@ export const ENTIDADES: readonly Entidad[] = [
   {
     clave: "pedidos_detalle",
     nombre: "Detalle de pedidos",
-    fuente: { tipo: "porPadre", padre: "pedidos", mismoId: true, pedido: (id) => get(`/orders?id=${id}`), filas: filaUnica },
+    version: 2,
+    fuente: { tipo: "porPadre", padre: "pedidos", mismoId: true, pedido: (id) => get(`/orders/${id}`), filas: filaUnica },
   },
   {
     clave: "pedidos_items",
     nombre: "Ítems de pedidos",
     fuente: { tipo: "porPadre", padre: "pedidos", pedido: (id) => get(`/orders/items?id=${id}`), filas: filasDeLista },
   },
-  { clave: "pedidos_plan_pagos", nombre: "Plan de pagos de pedidos", fuente: { tipo: "derivada", de: "pedidos_detalle", filas: cuotasDe } },
+  { clave: "pedidos_plan_pagos", nombre: "Plan de pagos de pedidos", version: 2, fuente: { tipo: "derivada", de: "pedidos_detalle", filas: cuotasDe } },
   {
     clave: "pedidos_costos",
     nombre: "Costos de pedidos",

@@ -71,7 +71,8 @@ const ID = String.raw`\d{1,12}`;
  */
 export const RUTAS_DE_LECTURA: readonly { method: "GET" | "POST"; patron: RegExp }[] = [
   // Configuración y catálogos.
-  { method: "GET", patron: /^\/settings\/$/ },
+  // `GET /settings` sin barra final: así lo pide el panel (AngularJS saca la barra). Con barra, Alboom da 404.
+  { method: "GET", patron: /^\/settings$/ },
   { method: "GET", patron: /^\/settings\/custom_mail_templates$/ },
   { method: "GET", patron: /^\/settings\/custom_messages_whatsapp$/ },
   { method: "GET", patron: /^\/stages\/list\?type=(lead_stage|stage|order_stage)$/ },
@@ -87,8 +88,10 @@ export const RUTAS_DE_LECTURA: readonly { method: "GET" | "POST"; patron: RegExp
   // Detalles e historiales por registro.
   { method: "GET", patron: new RegExp(`^/leads/progress/${ID}/\\d{1,6}/\\d{1,6}$`) },
   { method: "GET", patron: new RegExp(`^/mails/leads/${ID}/\\d{1,6}/\\d{1,6}$`) },
-  { method: "GET", patron: new RegExp(`^/quotes\\?id=${ID}$`) },
-  { method: "GET", patron: new RegExp(`^/orders\\?id=${ID}$`) },
+  // Detalle de un presupuesto / pedido: `GET /quotes/<id>` y `GET /orders/<id>` (sólo dígitos: `/orders/all`,
+  // `/orders/list`… no entran). `GET /quotes?id=` da 500 en Alboom y el panel no lo usa.
+  { method: "GET", patron: new RegExp(`^/quotes/${ID}$`) },
+  { method: "GET", patron: new RegExp(`^/orders/${ID}$`) },
   { method: "GET", patron: new RegExp(`^/orders/items\\?id=${ID}$`) },
   { method: "GET", patron: new RegExp(`^/costs/orders/${ID}$`) },
   { method: "GET", patron: new RegExp(`^/agreements/${ID}$`) },

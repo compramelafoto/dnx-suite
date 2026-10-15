@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { avanceInicial, leerAvance, type Avance } from "./avance";
 import { AlboomApiError, AlboomLoginError, esRutaDeLectura, type ClienteAlboom, type PedidoLectura } from "./client";
 import { ENTIDADES, type Entidad } from "./entidades";
-import { armarFilas, detectarId, ejecutarTanda, REINTENTOS_PARA_SALTEAR, type Almacen, type FilaCruda } from "./extractor";
+import { armarFilas, detectarId, ejecutarTanda, FALLAS_SEGUIDAS_PAUSA, FALLAS_SIN_EXITO, type Almacen, type FilaCruda } from "./extractor";
 import { huella } from "./huella";
 
 const WS = "ws-1";
@@ -347,27 +347,137 @@ describe("extractor", () => {
     expect(r.avance.entidades.oportunidades_notas).toMatchObject({ estado: "LISTA", dudas: 1 });
   });
 
-  it("un 5xx que se repite en el mismo hijo varias tandas se saltea como error; un 429 nunca", async () => {
+  it("un 5xx en un hijo: una pausa, y si vuelve a fallar se cuenta como error y se sigue; un 429 nunca se saltea", async () => {
     const padre: Entidad = { clave: "pedidos", nombre: "P", fuente: { tipo: "paginada", ruta: "/orders/paginate", body: (p, t) => ({ pageNumber: p, pageSize: t }) } };
-    const det: Entidad = { clave: "pedidos_detalle", nombre: "D", fuente: { tipo: "porPadre", padre: "pedidos", mismoId: true, pedido: (id) => ({ method: "GET", ruta: `/orders?id=${id}` }), filas: (j) => [j] } };
+    const det: Entidad = { clave: "pedidos_detalle", nombre: "D", fuente: { tipo: "porPadre", padre: "pedidos", mismoId: true, pedido: (id) => ({ method: "GET", ruta: `/orders/${id}` }), filas: (j) => [j] } };
     const status = { valor: 500 };
     const { cliente } = clienteFalso((p) => {
       if (p.ruta === "/orders/paginate") return paginar([{ id: "1" }, { id: "2" }], p);
-      if (p.ruta === "/orders?id=1") throw new AlboomApiError("Alboom respondió 5xx", status.valor, true);
+      if (p.ruta === "/orders/1") throw new AlboomApiError("Alboom respondió 5xx", status.valor, true);
       return { id: "2", total: 10 };
     });
     const m = almacenEnMemoria();
     let r = await tanda({ cliente, almacen: m.almacen, entidades: [padre, det] });
     expect(r.resultado).toBe("REINTENTAR");
+    // Lo que hace `correr` ante REINTENTAR: suma un reintento y espera.
+    r.avance.reintentos = 1;
     status.valor = 429;
-    r.avance.reintentos = REINTENTOS_PARA_SALTEAR;
     expect((await tanda({ cliente, almacen: m.almacen, entidades: [padre, det], avance: r.avance })).resultado).toBe("REINTENTAR");
     status.valor = 503;
-    r.avance.reintentos = REINTENTOS_PARA_SALTEAR;
+    r.avance.reintentos = 1;
     r = await tanda({ cliente, almacen: m.almacen, entidades: [padre, det], avance: r.avance });
     expect(r.resultado).toBe("COMPLETA");
-    expect(r.avance.entidades.pedidos_detalle).toMatchObject({ estado: "LISTA", errores: 1, cantidad: 1 });
+    expect(r.avance.entidades.pedidos_detalle).toMatchObject({ estado: "LISTA", errores: 1, cantidad: 1, exitos: 1, fallasSeguidas: 0 });
+    expect(r.avance.reintentos).toBe(0);
     expect(m.de("pedidos_detalle").map((f) => f.alboomId)).toEqual(["2"]);
+  });
+
+  /** Padre con `n` registros (ids 101…), su detalle por id y una entidad posterior (cobros). */
+  function escenarioDetalle(n: number, responderDetalle: (id: number) => unknown) {
+    const padre: Entidad = { clave: "presupuestos", nombre: "P", fuente: { tipo: "paginada", ruta: "/quotes/paginate", body: (p, t) => ({ pageNumber: p, pageSize: t }) } };
+    const det: Entidad = {
+      clave: "presupuestos_detalle",
+      nombre: "D",
+      fuente: { tipo: "porPadre", padre: "presupuestos", mismoId: true, pedido: (id) => ({ method: "GET", ruta: `/quotes/${id}` }), filas: (j) => [j] },
+    };
+    const despues: Entidad = { clave: "cobros", nombre: "C", fuente: { tipo: "paginada", ruta: "/account_trans/paginate_apr", body: (p, t) => ({ pageNumber: p, pageSize: t }) } };
+    const { cliente, pedidos } = clienteFalso((p) => {
+      if (p.ruta === "/quotes/paginate") return paginar(Array.from({ length: n }, (_, i) => ({ id: String(101 + i) })), p);
+      if (p.ruta === "/account_trans/paginate_apr") return paginar([{ id: "9001" }, { id: "9002" }], p);
+      const id = Number(/^\/quotes\/(\d+)$/.exec(p.ruta)![1]);
+      return responderDetalle(id);
+    });
+    return { entidades: [padre, det, despues], cliente, pedidos, m: almacenEnMemoria() };
+  }
+  const roto = () => {
+    throw new AlboomApiError("Alboom respondió 500 en /quotes/x", 500, true);
+  };
+
+  it("un detalle que falla en todos los registros queda en ERROR y la extracción sigue con lo que viene después", async () => {
+    const s = escenarioDetalle(30, roto);
+    let r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades });
+    expect(r.resultado).toBe("REINTENTAR");
+    r.avance.reintentos = 1;
+    r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades, avance: r.avance });
+    expect(r.resultado).toBe("COMPLETA");
+    const d = r.avance.entidades.presupuestos_detalle!;
+    expect(d.estado).toBe("ERROR");
+    expect(d.errores).toBe(FALLAS_SIN_EXITO);
+    expect(d.ultimoError).toMatch(/sin ningún éxito/);
+    // Una pausa y después FALLAS_SIN_EXITO pedidos; no recorre los 30.
+    expect(s.pedidos.filter((p) => p.ruta.startsWith("/quotes/") && p.ruta !== "/quotes/paginate")).toHaveLength(FALLAS_SIN_EXITO + 1);
+    expect(r.avance.entidades.cobros).toMatchObject({ estado: "LISTA", cantidad: 2 });
+  });
+
+  it("un 404 en todos los registros también deja la entidad en ERROR, sin pausas", async () => {
+    const s = escenarioDetalle(30, () => {
+      throw new AlboomApiError("Alboom respondió 404 en /quotes/x", 404);
+    });
+    const r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(r.avance.entidades.presupuestos_detalle).toMatchObject({ estado: "ERROR", errores: FALLAS_SIN_EXITO });
+    expect(r.avance.entidades.cobros!.estado).toBe("LISTA");
+  });
+
+  it("con éxitos previos, los registros que fallan se saltean y cada racha larga vuelve a pausar", async () => {
+    // 101 y 102 andan; del 103 en adelante, 500.
+    const s = escenarioDetalle(30, (id) => (id <= 102 ? { id: String(id), items: [] } : roto()));
+    let r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades });
+    expect(r.resultado).toBe("REINTENTAR");
+    r.avance.reintentos = 1;
+    r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades, avance: r.avance });
+    // Se saltean FALLAS_SEGUIDAS_PAUSA y vuelve a pausar: nunca queda en ERROR porque hubo éxitos.
+    expect(r.resultado).toBe("REINTENTAR");
+    expect(r.avance.entidades.presupuestos_detalle).toMatchObject({ estado: "EN_CURSO", errores: FALLAS_SEGUIDAS_PAUSA, exitos: 2 });
+    for (let i = 0; i < 5 && r.resultado === "REINTENTAR"; i++) {
+      r.avance.reintentos = 1;
+      r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades, avance: r.avance });
+    }
+    expect(r.resultado).toBe("COMPLETA");
+    expect(r.avance.entidades.presupuestos_detalle).toMatchObject({ estado: "LISTA", errores: 28, cantidad: 2 });
+    expect(r.avance.entidades.cobros!.estado).toBe("LISTA");
+  });
+
+  it("si cambió la forma de pedir (versión), una extracción trabada rehace esa entidad desde cero y sigue", async () => {
+    const s = escenarioDetalle(3, (id) => ({ id: String(id), items: [{ product_id: 1 }] }));
+    const det = { ...s.entidades[1]!, version: 2 };
+    const entidades = [s.entidades[0]!, det, s.entidades[2]!];
+    // Avance como el de DNX: el listado LISTA, el detalle EN_CURSO con el cursor adelante y sólo errores (versión 1).
+    const avance = avanceInicial();
+    const previo = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: [s.entidades[0]!], avance });
+    previo.avance.entidades.presupuestos_detalle = {
+      ...previo.avance.entidades.presupuestos_detalle!,
+      estado: "EN_CURSO",
+      padre: "102",
+      errores: 174,
+      ultimoError: "Alboom respondió 500 en /quotes?id=102",
+    };
+    delete previo.avance.entidades.presupuestos_detalle!.version;
+    const antes = s.pedidos.length;
+    const r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades, avance: leerAvance(JSON.parse(JSON.stringify(previo.avance))) });
+    expect(r.resultado).toBe("COMPLETA");
+    // No vuelve a pedir el listado (estaba LISTA) y pide los 3 detalles, también los que habían quedado atrás del cursor.
+    expect(s.pedidos.slice(antes).map((p) => p.ruta)).toEqual(["/quotes/101", "/quotes/102", "/quotes/103", "/account_trans/paginate_apr"]);
+    expect(r.avance.entidades.presupuestos_detalle).toMatchObject({ estado: "LISTA", errores: 0, cantidad: 3, version: 2 });
+    expect(r.avance.entidades.presupuestos_detalle!.ultimoError).toBeUndefined();
+
+    // Ya en la versión nueva y LISTA: no se rehace.
+    const n = s.pedidos.length;
+    const r2 = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades, avance: r.avance });
+    expect(r2.resultado).toBe("COMPLETA");
+    expect(s.pedidos.length).toBe(n);
+  });
+
+  it("el avance guarda y relee éxitos, racha de fallas y versión", () => {
+    const a = avanceInicial();
+    expect(a.entidades.presupuestos_detalle!.version).toBe(2);
+    a.entidades.presupuestos_detalle = { ...a.entidades.presupuestos_detalle!, exitos: 5, fallasSeguidas: 2 };
+    const b = leerAvance(JSON.parse(JSON.stringify(a)));
+    expect(b.entidades.presupuestos_detalle).toMatchObject({ exitos: 5, fallasSeguidas: 2, version: 2 });
+    // Un avance viejo sin versión queda sin versión (= 1), para que el extractor lo rehaga.
+    const viejo = JSON.parse(JSON.stringify(a));
+    delete viejo.entidades.presupuestos_detalle.version;
+    expect(leerAvance(viejo).entidades.presupuestos_detalle!.version).toBeUndefined();
   });
 
   it("por desplazamiento: frena con una página vacía o si Alboom repite la misma página", async () => {
@@ -407,7 +517,7 @@ function alboomCompleto() {
   return (p: PedidoLectura): unknown => {
     const r = p.ruta;
     const pag = (filas: unknown[]) => paginar(filas, p);
-    if (r === "/settings/") return { lead_origin: "Instagram\nRecomendado\n", MailTemplates: { followup: { subject: "Hola", body: "..." } }, company: "Estudio" };
+    if (r === "/settings") return { lead_origin: "Instagram\nRecomendado\n", MailTemplates: { followup: { subject: "Hola", body: "..." } }, company: "Estudio" };
     if (r.startsWith("/settings/custom_")) return [{ id: 1, subject: "Plantilla" }];
     if (r.startsWith("/stages/list?type=order_stage")) return { stage_list: [{ id: "9", name: "Pedidos Simple" }], stages: { "9": [{ id: "91", stage: "1" }] } };
     if (r.startsWith("/stages/list")) return { stage_list: [{ id: "5", name: "Embudo" }], stages: { "5": [{ id: "51", stage: "1", name: "Recepción" }, { id: "52", stage: "2", name: "Contrato" }] } };
@@ -424,9 +534,9 @@ function alboomCompleto() {
     if (r === "/notes/paginate" || r === "/activities/paginate") return { rows: [{ id: `${r.length}${(p.body as { id: string }).id}`, text: "x" }] };
     if (r.startsWith("/mails/leads/")) return { rows: [] };
     if (r === "/quotes/paginate") return pag([{ id: "301" }]);
-    if (r.startsWith("/quotes?id=")) return { id: "301", quote_items: [] };
+    if (/^\/quotes\/\d+$/.test(r)) return { id: "301", quote_items: [] };
     if (r === "/orders/paginate") return pag(pedidos);
-    if (r.startsWith("/orders?id=")) return { id: "201", order_payments: [{ id: "7001", value: "100" }, { id: "7002", value: "200" }] };
+    if (/^\/orders\/\d+$/.test(r)) return { id: "201", order_payments: [{ id: "7001", value: "100" }, { id: "7002", value: "200" }] };
     if (r.startsWith("/orders/items")) return [{ id: "8001", name: "Cobertura" }];
     if (r.startsWith("/costs/orders/")) return [];
     if (r === "/agreements/paginate") return pag([{ id: "401" }]);

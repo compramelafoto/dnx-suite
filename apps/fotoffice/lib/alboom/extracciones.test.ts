@@ -53,7 +53,7 @@ function alboomFetch(opciones: { login?: () => Response; contactos?: (pagina: nu
       const tam = body.pageSize ?? 100;
       return json(200, { rows: todos.slice((pagina - 1) * tam, pagina * tam), count: todos.length });
     }
-    if (ruta === "/settings/") return json(200, { company: "Estudio" });
+    if (ruta === "/settings") return json(200, { company: "Estudio" });
     if (ruta.startsWith("/stages/list")) return json(200, { stage_list: [], stages: {} });
     if (ruta.endsWith("/paginate") || ruta.endsWith("/paginate_apr")) return json(200, { rows: [], count: 0 });
     return json(200, []);
