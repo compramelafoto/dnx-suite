@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { OpenShiftRow } from "@/lib/cash/repository";
@@ -36,11 +37,17 @@ export function ShiftBlock({
       </div>
 
       {canOperate ? (
+        <Link href={`/caja/arqueo/${shift.accountId}`} className="fo-btn fo-btn-primary w-full text-sm">
+          Cerrar contando billetes
+        </Link>
+      ) : null}
+
+      {canOperate ? (
         <form action={closeShiftAction} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input type="hidden" name="shiftId" value={shift.id} />
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`contado-${shift.id}`}>
-              Cuánto contaste
+              O escribí el total contado
             </label>
             <InputMoneda id={`contado-${shift.id}`} name="countedAmountArs" placeholder="47.300" required />
           </div>
@@ -51,7 +58,7 @@ export function ShiftBlock({
             <input id={`diferencia-${shift.id}`} name="differenceNote" className="fo-input" placeholder="Vuelto de más" />
           </div>
           <div className="self-end">
-            <button type="submit" className="fo-btn fo-btn-primary text-sm">
+            <button type="submit" className="fo-btn fo-btn-secondary text-sm">
               Cerrar turno
             </button>
           </div>
