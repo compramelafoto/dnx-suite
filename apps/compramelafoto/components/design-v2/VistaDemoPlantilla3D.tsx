@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
-import { fotosDeDemoPorHueco } from "@/lib/design-v2/demo-de-plantilla";
 import { visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 
 /**
@@ -16,8 +15,11 @@ import { visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 type Demo = {
   template: DesignTemplatePayload;
   values: Record<string, string>;
-  fotos: { retrato: string | null; grupal: string | null };
+  /** Por blockId: la foto de demo, o la de muestra si todavía no está subida. */
+  fotos: Record<string, { src: string }>;
 };
+
+const SIN_FOTOS: Record<string, { src: string }> = {};
 
 function Cargando({ texto }: { texto: string }) {
   return (
@@ -79,11 +81,14 @@ export default function VistaDemoPlantilla3D({
     return () => window.removeEventListener("keydown", onKey);
   }, [error, onClose]);
 
-  const fotos = useMemo(
-    () => (demo ? fotosDeDemoPorHueco(demo.template.slots, { retrato: demo.fotos.retrato ?? null, grupal: demo.fotos.grupal ?? null }) : {}),
-    [demo],
-  );
-  const bloques = useMemo(() => (demo ? visibleDesignBlocks(demo.template.blocks, demo.values) : []), [demo]);
+  const fotos = demo?.fotos ?? SIN_FOTOS;
+  // Los huecos con foto de demo se ven siempre (también maestra, amigos y libre, que no son
+  // huecos del cliente); el resto, como en el diseño real (sin logo, no hay recuadro de logo).
+  const bloques = useMemo(() => {
+    if (!demo) return [];
+    const visibles = new Set(visibleDesignBlocks(demo.template.blocks, demo.values).map((b) => b.id));
+    return demo.template.blocks.filter((b) => visibles.has(b.id) || demo.fotos[b.id]);
+  }, [demo]);
 
   if (error) {
     return (
@@ -129,7 +134,7 @@ export default function VistaDemoPlantilla3D({
             disabled={usando}
             className="min-h-11 rounded-full bg-[#c27b3d] px-6 text-[15px] font-semibold text-white shadow-sm disabled:opacity-60"
           >
-            {usando ? "Preparando copia…" : "Usar esta plantilla"}
+            {usando ? "Copiando a tus plantillas…" : "Usar y personalizar"}
           </button>
         ) : null
       }

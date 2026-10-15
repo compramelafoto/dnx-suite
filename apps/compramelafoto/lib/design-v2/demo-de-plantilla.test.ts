@@ -3,23 +3,40 @@ import { test } from "node:test";
 import {
   ARCHIVOS_DEMO,
   FOTO_DE_MUESTRA_DATA_URL,
+  archivosNecesarios,
   categoriaDeMeta,
   demoDePlantilla,
-  fotosDeDemoPorHueco,
+  eventoDemo,
+  fotosDeDemoPorBloque,
+  huecosDeDemo,
   logoDemoDeCategoria,
   nivelDemoDeCategoria,
+  ranuraDeVariable,
   selloDeDemo,
   urlDeDemo,
   varianteDemo,
 } from "./demo-de-plantilla";
 import { valoresDeDemo } from "./demo-valores";
 
-test("los archivos esperados son exactamente los 14 acordados", () => {
+test("los archivos esperados son exactamente los acordados", () => {
   assert.deepEqual([...ARCHIVOS_DEMO].sort(), [
+    "amigos-egresados.jpg",
+    "amigos-primaria.jpg",
+    "amigos-secundaria.jpg",
+    "comunion-con-catequista.jpg",
+    "comunion-detalle.jpg",
+    "comunion-grupal.jpg",
+    "comunion-retrato-1.jpg",
+    "comunion-retrato-2.jpg",
+    "con-maestra-jardin.jpg",
+    "con-maestra-primaria.jpg",
+    "confirmacion-grupal.jpg",
+    "confirmacion-retrato.jpg",
     "grupal-egresados.jpg",
     "grupal-jardin.jpg",
     "grupal-primaria.jpg",
     "grupal-secundaria.jpg",
+    "libre-patio.jpg",
     "logo-escudo-clasico.png",
     "logo-moderno.png",
     "retrato-egresados-1.jpg",
@@ -61,19 +78,68 @@ test("la categoría sale del meta de la versión", () => {
   assert.equal(categoriaDeMeta([1]), null);
 });
 
+test("cada variable de imagen tiene su ranura", () => {
+  assert.equal(ranuraDeVariable("photo_individual"), "individual");
+  assert.equal(ranuraDeVariable("photo_group"), "grupal");
+  assert.equal(ranuraDeVariable("photo_teacher"), "maestra");
+  assert.equal(ranuraDeVariable("photo_friends"), "amigos");
+  assert.equal(ranuraDeVariable("photo_extra"), "extra");
+  assert.equal(ranuraDeVariable("photo_3"), "individual");
+  assert.equal(ranuraDeVariable("branding.schoolLogoUrl"), null);
+  assert.equal(ranuraDeVariable(null), null);
+});
+
 test("nena o nene: fijo por plantilla, y el nombre coincide con la foto", () => {
   assert.equal(varianteDemo("abc"), varianteDemo("abc"));
   const variantes = new Set(["a", "b", "c", "d", "e", "f"].map(varianteDemo));
   assert.deepEqual([...variantes].sort(), [1, 2]);
 
-  const ids = ["plantilla-a", "plantilla-b", "plantilla-c", "plantilla-d"];
-  for (const templateId of ids) {
+  for (const templateId of ["plantilla-a", "plantilla-b", "plantilla-c", "plantilla-d"]) {
     const demo = demoDePlantilla({ templateId, meta: { categoria: "Primaria" } });
-    assert.equal(demo.archivos.retrato, `retrato-primaria-${demo.variante}.jpg`);
+    assert.equal(demo.archivos.individual, `retrato-primaria-${demo.variante}.jpg`);
     assert.equal(demo.archivos.grupal, "grupal-primaria.jpg");
     // 1 = nena (Valentina), 2 = nene (Mateo).
     assert.equal(demo.alumno.firstName, demo.variante === 1 ? "Valentina" : "Mateo");
   }
+});
+
+test("maestra, amigos y libre según el nivel", () => {
+  const jardin = demoDePlantilla({ templateId: "x", meta: { categoria: "Jardín" } });
+  assert.equal(jardin.archivos.maestra, "con-maestra-jardin.jpg");
+  assert.equal(jardin.archivos.amigos, "amigos-primaria.jpg");
+  assert.equal(jardin.archivos.extra, "libre-patio.jpg");
+  const primaria = demoDePlantilla({ templateId: "x", meta: { categoria: "Primaria" } });
+  assert.equal(primaria.archivos.maestra, "con-maestra-primaria.jpg");
+  assert.equal(primaria.archivos.amigos, "amigos-primaria.jpg");
+  const secundaria = demoDePlantilla({ templateId: "x", meta: { categoria: "Secundaria" } });
+  assert.equal(secundaria.archivos.amigos, "amigos-secundaria.jpg");
+  const egresados = demoDePlantilla({ templateId: "x", meta: { categoria: "Egresados" } });
+  assert.equal(egresados.archivos.amigos, "amigos-egresados.jpg");
+  // Todos los archivos que puede pedir una plantilla están en la lista acordada.
+  for (const d of [jardin, primaria, secundaria, egresados]) {
+    for (const a of Object.values(d.archivos)) assert.ok(ARCHIVOS_DEMO.includes(a), a);
+  }
+});
+
+test("religiosas: el evento elige las fotos", () => {
+  assert.equal(eventoDemo("Religioso", "Primera Comunión"), "comunion");
+  assert.equal(eventoDemo("Religioso", "Confirmación"), "confirmacion");
+  assert.equal(eventoDemo("Religioso", null), "comunion");
+  assert.equal(eventoDemo("Primaria", "Fin de año"), null);
+
+  for (const templateId of ["a", "b"]) {
+    const c = demoDePlantilla({ templateId, meta: { categoria: "Religioso", evento: "Primera Comunión" } });
+    assert.equal(c.archivos.individual, `comunion-retrato-${c.variante}.jpg`);
+    assert.equal(c.archivos.grupal, "comunion-grupal.jpg");
+    assert.equal(c.archivos.maestra, "comunion-con-catequista.jpg");
+    assert.equal(c.archivos.extra, "comunion-detalle.jpg");
+    assert.equal(c.curso, "Primera Comunión 2026");
+  }
+  const conf = demoDePlantilla({ templateId: "a", meta: { categoria: "Religioso", evento: "Confirmación" } });
+  assert.equal(conf.archivos.individual, "confirmacion-retrato.jpg");
+  assert.equal(conf.archivos.grupal, "confirmacion-grupal.jpg");
+  assert.equal(conf.archivos.extra, "libre-patio.jpg");
+  for (const a of Object.values(conf.archivos)) assert.ok(ARCHIVOS_DEMO.includes(a), a);
 });
 
 test("el alumno aparece una vez y marcado en el listado del curso, ordenado por apellido", () => {
@@ -100,36 +166,59 @@ test("los valores de demo llenan nombre, curso, colegio, listado y logo", () => 
 });
 
 test("la dirección pública de la demo", () => {
-  assert.equal(
-    urlDeDemo("https://pub.r2.dev/", "grupal-jardin.jpg"),
-    "https://pub.r2.dev/template-v2/demo/grupal-jardin.jpg",
-  );
+  assert.equal(urlDeDemo("https://pub.r2.dev/", "grupal-jardin.jpg"), "https://pub.r2.dev/template-v2/demo/grupal-jardin.jpg");
   assert.equal(urlDeDemo("", "grupal-jardin.jpg"), null);
   assert.equal(urlDeDemo(undefined, "grupal-jardin.jpg"), null);
 });
 
+const img = (id: string, variableKey: string) => ({ id, type: "IMAGE", configJson: { source: { variableKey } } });
+
 test("cada hueco recibe su foto, y la de muestra si la de demo no está", () => {
-  const slots = [
-    { blockId: "ind", role: "individual" as const },
-    { blockId: "grp", role: "group" as const },
-    { blockId: "otro", role: null },
+  const blocks = [
+    img("ind", "photo_individual"),
+    img("grp", "photo_group"),
+    img("mae", "photo_teacher"),
+    img("ami", "photo_friends"),
+    img("lib", "photo_extra"),
+    img("logo", "branding.schoolLogoUrl"),
+    { id: "txt", type: "VARIABLE_TEXT", configJson: { variableKey: "student.fullName" } },
   ];
-  assert.deepEqual(fotosDeDemoPorHueco(slots, { retrato: "R", grupal: "G" }), {
-    ind: { src: "R" },
-    grp: { src: "G" },
-    otro: { src: "R" },
-  });
-  const sinFotos = fotosDeDemoPorHueco(slots, { retrato: null, grupal: null });
-  assert.equal(sinFotos.ind!.src, FOTO_DE_MUESTRA_DATA_URL);
-  assert.equal(sinFotos.grp!.src, FOTO_DE_MUESTRA_DATA_URL);
+  const huecos = huecosDeDemo(blocks);
+  assert.deepEqual(
+    huecos.map((h) => [h.blockId, h.ranura]),
+    [
+      ["ind", "individual"],
+      ["grp", "grupal"],
+      ["mae", "maestra"],
+      ["ami", "amigos"],
+      ["lib", "extra"],
+    ],
+  );
+  const demo = demoDePlantilla({ templateId: "x", meta: { categoria: "Primaria" } });
+  const subidos = new Set([demo.archivos.individual, demo.archivos.maestra]);
+  const fotos = fotosDeDemoPorBloque(huecos, demo, (a) => (subidos.has(a) ? `U/${a}` : null));
+  assert.equal(fotos.ind!.src, `U/${demo.archivos.individual}`);
+  assert.equal(fotos.mae!.src, "U/con-maestra-primaria.jpg");
+  assert.equal(fotos.grp!.src, FOTO_DE_MUESTRA_DATA_URL);
+  assert.equal(fotos.lib!.src, FOTO_DE_MUESTRA_DATA_URL);
   assert.ok(FOTO_DE_MUESTRA_DATA_URL.startsWith("data:image/svg+xml"));
+
+  assert.deepEqual(archivosNecesarios(demo, huecos), [
+    "amigos-primaria.jpg",
+    "con-maestra-primaria.jpg",
+    "grupal-primaria.jpg",
+    "libre-patio.jpg",
+    "logo-escudo-clasico.png",
+    demo.archivos.individual,
+  ].sort());
 });
 
 test("el sello de la miniatura cambia cuando se suben las fotos", () => {
-  assert.equal(selloDeDemo({ retrato: false, grupal: false, logo: false }), "r0g0l0");
-  assert.equal(selloDeDemo({ retrato: true, grupal: true, logo: true }), "r1g1l1");
-  assert.notEqual(
-    selloDeDemo({ retrato: true, grupal: false, logo: true }),
-    selloDeDemo({ retrato: true, grupal: true, logo: true }),
-  );
+  const nada = selloDeDemo({ "a.jpg": false, "b.jpg": false });
+  const una = selloDeDemo({ "a.jpg": true, "b.jpg": false });
+  const todas = selloDeDemo({ "b.jpg": true, "a.jpg": true });
+  assert.notEqual(nada, una);
+  assert.notEqual(una, todas);
+  assert.equal(todas, selloDeDemo({ "a.jpg": true, "b.jpg": true }));
+  assert.match(todas, /^2de2-[0-9a-z]+$/);
 });

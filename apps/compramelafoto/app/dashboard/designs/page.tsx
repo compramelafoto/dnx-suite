@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
 import VistaDemoPlantilla3D from "@/components/design-v2/VistaDemoPlantilla3D";
+import FiltrosDeCatalogo from "@/components/design-v2/FiltrosDeCatalogo";
+import {
+  FILTROS_VACIOS,
+  filtrarPlantillas,
+  type FiltrosDeCatalogo as FiltrosCatalogo,
+  type RasgosDePlantilla,
+} from "@/lib/design-v2/rasgos-de-plantilla";
 
 type TemplatePublication = {
   reviewStatus: string;
@@ -26,6 +33,7 @@ type DashboardTemplate = {
   tipoLabel: string;
   publication: TemplatePublication | null;
   isSystemCatalog: boolean;
+  rasgos: RasgosDePlantilla;
   ownerName: string | null;
   ownerEmail: string | null;
 };
@@ -136,6 +144,8 @@ export default function DashboardDesignsPage() {
   const [message, setMessage] = useState<string | null>(null);
   /** Plantilla del sistema abierta en la vista 3D con datos de demo. */
   const [vista3d, setVista3d] = useState<{ id: string; name: string } | null>(null);
+  const [filtros, setFiltros] = useState<FiltrosCatalogo>(FILTROS_VACIOS);
+  const sistemaFiltradas = useMemo(() => filtrarPlantillas(systemTemplates, filtros), [systemTemplates, filtros]);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -320,10 +330,9 @@ export default function DashboardDesignsPage() {
       <section className="mt-14">
         <div className="mb-4 w-full min-w-0">
           <h2 className="text-lg font-semibold text-[#111827]">Plantillas del sistema</h2>
-          <p className="mt-2 w-full min-w-0 ds-readable-text ds-readable-text--fluid ds-readable-text--sm ds-readable-text--muted">
-            Marcadas como sistema en la plantilla, versión editor v2, publicadas (<span className="font-medium text-gray-800">PUBLIC</span>{" "}
-            + <span className="font-medium text-gray-800">APPROVED</span>). Al tocar «Usar plantilla» se crea una copia en tu cuenta antes de
-            abrir el editor: los cambios del catálogo no la sobreescriben.
+          <p className="mt-2 w-full min-w-0 rounded-lg bg-[#fdf6ee] px-3 py-2 text-sm text-[#5b4630]">
+            Elegí un diseño, copialo a tus plantillas y personalizalo: cambiá textos, colores, fotos o agregá tu logo. El
+            original no se modifica.
           </p>
         </div>
         {systemTemplates.length === 0 ? (
@@ -331,8 +340,20 @@ export default function DashboardDesignsPage() {
             <p className="text-center text-sm text-[#64748b]">No hay plantillas del sistema disponibles</p>
           </Card>
         ) : (
+          <>
+          <FiltrosDeCatalogo
+            items={systemTemplates}
+            filtros={filtros}
+            onChange={setFiltros}
+            cantidad={sistemaFiltradas.length}
+          />
+          {sistemaFiltradas.length === 0 ? (
+            <Card className="border border-[#f1f5f9] p-8">
+              <p className="text-center text-sm text-[#64748b]">Ninguna plantilla cumple estos filtros.</p>
+            </Card>
+          ) : null}
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {systemTemplates.map((t) => {
+            {sistemaFiltradas.map((t) => {
               const catalogEditorHref = editorHrefFor(t);
               return (
                 <li key={t.id}>
@@ -365,7 +386,7 @@ export default function DashboardDesignsPage() {
                         disabled={busyCloneId !== null}
                         onClick={() => runCloneSystem(t.id)}
                       >
-                        {busyCloneId === t.id ? "Preparando copia…" : "Usar plantilla"}
+                        {busyCloneId === t.id ? "Copiando a tus plantillas…" : "Usar y personalizar"}
                       </Button>
                       {isAdmin && catalogEditorHref ? (
                         <Link
@@ -381,6 +402,7 @@ export default function DashboardDesignsPage() {
               );
             })}
           </ul>
+          </>
         )}
       </section>
 

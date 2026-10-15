@@ -44,6 +44,12 @@ export async function hayArchivoDeDemo(archivo: string): Promise<boolean> {
   return hay;
 }
 
+/** Cuáles de estos archivos están subidos. */
+export async function archivosDeDemoSubidos(archivos: string[]): Promise<Record<string, boolean>> {
+  const hay = await Promise.all(archivos.map((a) => hayArchivoDeDemo(a)));
+  return Object.fromEntries(archivos.map((a, i) => [a, hay[i]!]));
+}
+
 /** El contenido del archivo, o null si no está. */
 export async function leerArchivoDeDemo(archivo: string): Promise<Uint8Array | null> {
   const url = urlPublicaDeDemo(archivo);
