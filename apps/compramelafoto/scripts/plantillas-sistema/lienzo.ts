@@ -174,7 +174,7 @@ export class Armador {
    * Si el colegio no tiene logo cargado, el bloque no se dibuja (ni en pantalla ni en el PDF):
    * el diseño tiene que verse bien también sin él.
    */
-  logo(pagina: 0 | 1, clave: string, r: Rect) {
+  logo(pagina: 0 | 1, clave: string, r: Rect, giro = 0) {
     this.push({
       clave: `p${pagina}_${clave}`,
       pagina,
@@ -184,6 +184,7 @@ export class Armador {
       y: r.y,
       width: r.w,
       height: r.h,
+      rotation: giro,
       configJson: {
         fit: "contain",
         src: "",
