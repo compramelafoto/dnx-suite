@@ -39,7 +39,7 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
         "seguimientos", "fuera-de-alcance", "ruta-de-la-validez",
       ]),
     );
-    expect(ESCENARIOS).toHaveLength(20);
+    expect(ESCENARIOS).toHaveLength(22);
   });
 
   it("sólo nombran herramientas que existen", () => {
@@ -182,5 +182,21 @@ describe("aviso de privacidad en las evaluaciones", () => {
     expect(AVISO_REPETIDO.test("Lo que me cuentes queda guardado en esta conversación y lo procesa Anthropic.")).toBe(true);
     expect(AVISO_REPETIDO.test("Tus números son tuyos: quedan guardados en tu estudio…")).toBe(true);
     expect(AVISO_REPETIDO.test("Primero: ¿vivís sólo de la fotografía?")).toBe(false);
+  });
+});
+
+describe("el formulario primero: los dos caminos", () => {
+  it("con el perfil incompleto manda al formulario sin arrancar la entrevista; si pide ayuda o lo pide conversando, la hace", async () => {
+    const { ESCENARIOS: E, VA_AL_FORMULARIO } = await import("./escenarios");
+    const porId = (id: string) => E.find((e) => e.id === id)!;
+    for (const id of ["cotizar-perfil-incompleto", "precio-sin-perfil-va-al-formulario"]) {
+      expect(porId(id).textoDebeContener, id).toContain(VA_AL_FORMULARIO);
+      expect(porId(id).noDebeUsar, id).toContain("simular_perfil");
+    }
+    expect(porId("perfil-pide-ayuda-hace-la-entrevista").debeUsar).toContain("ver_perfil_de_precios");
+    expect(porId("perfil-vacio-una-pregunta").mensaje).toBe("Quiero armar mi perfil de precios conversando.");
+    expect(porId("perfil-vacio-una-pregunta").debeUsar).toContain("ver_perfil_de_precios");
+    expect(VA_AL_FORMULARIO.test("Completá tu perfil en Configuración → Precios.")).toBe(true);
+    expect(VA_AL_FORMULARIO.test("Abrí /workspace/configuracion/precios")).toBe(true);
   });
 });

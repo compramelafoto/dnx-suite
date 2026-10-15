@@ -34,21 +34,18 @@ beforeEach(() => {
 });
 
 describe("Configuración → Precios y DNX Bot", () => {
-  it("sin bot (apagado o sin puertas) no hay botón", async () => {
-    expect(buscar(await Page(), PreguntaleAlBot)).toEqual([]);
-  });
-  it("con bot: «Armalo conversando» con el mensaje y el contexto de la pantalla, y el aviso de privacidad", async () => {
+  it("ya no hay un «Armalo conversando» siempre visible (el camino principal es el formulario)", async () => {
     H.bot = { rutas: ["/workspace/configuracion/precios"] };
     const arbol = await Page();
-    const [boton] = buscar(arbol, PreguntaleAlBot);
-    expect(boton!.props).toMatchObject({
-      etiqueta: "Armalo conversando",
-      mensaje: "Quiero armar mi perfil de precios conversando.",
-      contexto: { pantalla: "precios" },
-    });
-    expect(textos(arbol)).toContain("Tus números son tuyos: quedan guardados en tu estudio dentro de FOTOFFICE, no los ven otros fotógrafos ni tus clientes, y sólo los uso para calcular cuánto tenés que cobrar.");
-    expect(textos(arbol)).toContain("Cómo cuidamos tus datos");
-    expect(textos(arbol)).not.toContain("Anthropic");
+    expect(buscar(arbol, PreguntaleAlBot)).toEqual([]);
+    expect(textos(arbol)).not.toContain("Armalo conversando");
+    expect(textos(arbol)).not.toContain("Tus números son tuyos");
+  });
+  it("con bot, el formulario recibe el workspace para ofrecerlo sólo si la persona se traba; sin bot, nada", async () => {
+    H.bot = { rutas: ["/workspace/configuracion/precios"] };
+    expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ bot: { workspaceId: "ws1" } });
+    H.bot = null;
+    expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ bot: null });
   });
   it("perfil guardado por el bot: lo dice", async () => {
     H.source = "dnx-bot";

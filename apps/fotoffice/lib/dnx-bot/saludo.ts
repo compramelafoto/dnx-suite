@@ -8,7 +8,8 @@ import type { Pantalla } from "./contexto";
  */
 const SALUDO = "Hola, soy DNX Bot. Te ayudo con tus precios y tus presupuestos.";
 
-const PERFIL = "Quiero armar mi perfil de precios conversando.";
+/** Ayuda con el formulario (barato). Armarlo conversando no se sugiere: se ofrece si la persona se traba. */
+const QUE_FALTA = "¿Qué me falta para completar mi perfil?";
 const COTIZAR = "Quiero saber cuánto cobrar un trabajo.";
 const SUMAR = "Quiero sumar ítems calculados a este presupuesto.";
 const RESPONDER = "Ayudame a responder esta consulta.";
@@ -18,10 +19,10 @@ const COMO_ARMAR = "¿Cómo armo un presupuesto?";
 export function saludoPara(pantalla: Pantalla, c: Capacidades): { saludo: string; sugerencias: string[] } {
   const lista: string[] = [];
   if (c.configurar) {
-    if (pantalla === "precios") lista.push(PERFIL, COTIZAR);
+    if (pantalla === "precios") lista.push(QUE_FALTA, COTIZAR);
     else if (pantalla === "presupuesto") lista.push(SUMAR, COTIZAR);
     else if (pantalla === "consulta") lista.push(RESPONDER, COTIZAR);
-    else lista.push(COTIZAR, PERFIL);
+    else lista.push(COTIZAR);
     lista.push(SEGUIMIENTOS);
   } else {
     if (pantalla === "consulta" && c.verConsultas) lista.push(RESPONDER);

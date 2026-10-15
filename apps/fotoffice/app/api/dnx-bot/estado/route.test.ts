@@ -24,11 +24,11 @@ describe("GET /api/dnx-bot/estado", () => {
     H.resolver.mockResolvedValue({ ok: true, ctx: CTX });
     const a = await (await GET(new Request("http://x/api/dnx-bot/estado?pantalla=precios"))).json();
     expect(a.enabled).toBe(true);
-    expect(a.sugerencias[0]).toBe("Quiero armar mi perfil de precios conversando.");
+    expect(a.sugerencias[0]).toBe("¿Qué me falta para completar mi perfil?");
     const b = await (
       await GET(new Request("http://x/api/dnx-bot/estado", { headers: { referer: "http://x/workspace/configuracion/precios" } }))
     ).json();
-    expect(b.sugerencias[0]).toBe("Quiero armar mi perfil de precios conversando.");
+    expect(b.sugerencias[0]).toBe("¿Qué me falta para completar mi perfil?");
   });
   it("si resolver falla, se apaga sin romper la página", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

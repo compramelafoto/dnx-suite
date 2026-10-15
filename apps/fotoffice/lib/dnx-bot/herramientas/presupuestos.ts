@@ -72,7 +72,7 @@ async function cotizarCon(ctx: CtxBot, c: Cotizacion, deps: DepsPresupuestosBot,
 
 /** Mensaje de por qué no hay precio, para el modelo y para la tarjeta. */
 function sinPrecio(r: Exclude<ResultadoCotizacion, { estado: "OK" }>): string {
-  if (r.estado === "PERFIL_INCOMPLETO") return `Sin perfil de precios completo no hay precio. Falta: ${r.faltan.join(", ")}. Se completa en ${RUTA_PRECIOS}.`;
+  if (r.estado === "PERFIL_INCOMPLETO") return `Sin perfil de precios completo no hay precio. Falta: ${r.faltan.join(", ")}. Completá tu perfil en Configuración → Precios (${RUTA_PRECIOS}).`;
   return r.faltan.length ? `${r.error} Falta: ${r.faltan.join(", ")}.` : r.error;
 }
 

@@ -13,6 +13,7 @@ import { validarPerfil } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import { pesos } from "@/lib/presupuestos/editor";
 import { guardarPerfilPreciosAction } from "./actions";
+import { OfertaArmarConversando } from "@/components/dnx-bot/oferta-perfil";
 import {
   Aviso,
   SeccionAhorro,
@@ -45,7 +46,16 @@ const PASOS = CC_WIZARD_STEPS.filter((p) => p.block === "profile" && CONTENIDO[p
  * Formulario del perfil de precios, con la forma del asistente de ¿Cuánto Cobro?: un paso por vez,
  * los pasos a la izquierda con su estado y el resumen en vivo (el mismo cálculo de los presupuestos).
  */
-export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileInput; version: string | null }) {
+export function PerfilForm({
+  inicial,
+  version,
+  bot = null,
+}: {
+  inicial: CuantoCobroProfileInput;
+  version: string | null;
+  /** DNX Bot encendido para este workspace: se ofrece armarlo conversando sólo si la persona parece trabada. */
+  bot?: { workspaceId: string } | null;
+}) {
   const [perfil, setPerfil] = useState(inicial);
   /** Cuándo se guardó el perfil que se está editando (null: no había): para no pisar un cambio de otro (o de DNX Bot). */
   const [versionCargada, setVersionCargada] = useState(version);
@@ -55,6 +65,8 @@ export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileIn
   const [indice, setIndice] = useState(0);
   const [mostrarFaltan, setMostrarFaltan] = useState(false);
   const resumen = useMemo(() => resumirPerfil(perfil), [perfil]);
+  /** Intentó guardar y no pudo, o lo que guardó sigue incompleto: una señal de que está trabada (oferta del bot). */
+  const [guardadoTrabado, setGuardadoTrabado] = useState(false);
   const faltanPorPaso = useMemo(
     () => PASOS.map((p) => getCuantoCobroMissingFields(p.id, perfil, INITIAL_CUANTO_COBRO_QUOTE)),
     [perfil],
@@ -93,6 +105,7 @@ export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileIn
     const v = validarPerfil(perfil);
     if (!v.ok) {
       setError(v.error);
+      setGuardadoTrabado(true);
       return;
     }
     empezar(async () => {
@@ -100,7 +113,11 @@ export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileIn
       if (r.ok) {
         setVersionCargada(r.actualizado);
         setOk("Perfil guardado.");
-      } else setError(r.error);
+        if (!resumirPerfil(perfil).completo) setGuardadoTrabado(true);
+      } else {
+        setError(r.error);
+        setGuardadoTrabado(true);
+      }
     });
   }
 
@@ -139,6 +156,8 @@ export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileIn
   };
 
   return (
+    <div className="space-y-6">
+      {bot ? <OfertaArmarConversando workspaceId={bot.workspaceId} perfilCompleto={resumen.completo} guardadoTrabado={guardadoTrabado} /> : null}
     <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] shadow-[var(--fo-shadow-xs)] lg:grid lg:grid-cols-[16rem_1fr]">
       <aside
         className="hidden flex-col border-r border-[var(--fo-border)] bg-[color-mix(in_srgb,var(--fo-surface-muted)_55%,var(--fo-bg-elevated))] lg:flex"
@@ -295,6 +314,7 @@ export function PerfilForm({ inicial, version }: { inicial: CuantoCobroProfileIn
           </footer>
         </article>
       </form>
+    </div>
     </div>
   );
 }

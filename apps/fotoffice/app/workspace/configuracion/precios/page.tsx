@@ -4,10 +4,7 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
-import Link from "next/link";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
-import { AVISO_PRIVACIDAD, ENLACE_DATOS } from "@/lib/dnx-bot/aviso-privacidad";
-import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { PerfilForm } from "./perfil-form";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +32,8 @@ export default async function ConfiguracionPreciosPage() {
       userLabel: etiquetaDeUsuario(user),
       role,
     }),
-    // DNX Bot (etapa 1): el botón sólo aparece si el bot está encendido para este workspace.
+    // DNX Bot: el formulario es el camino principal; armarlo conversando se ofrece sólo si la persona
+    // parece trabada (`OfertaArmarConversando`, dentro del formulario) y el bot está encendido.
     botEnPanel(),
   ]);
 
@@ -55,28 +53,10 @@ export default async function ConfiguracionPreciosPage() {
           Armado con DNX Bot.
         </p>
       ) : null}
-      {bot ? (
-        <div className="fo-card flex flex-wrap items-center justify-between gap-3 p-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-[var(--fo-text)]">¿Preferís contarlo con tus palabras?</p>
-            <p className="text-xs text-[var(--fo-muted)]">
-              DNX Bot te pregunta de a una cosa y te muestra tu valor hora. No guarda nada hasta que confirmes.{" "}
-              {AVISO_PRIVACIDAD}{" "}
-              <Link href={ENLACE_DATOS.ruta} className="text-[var(--fo-accent)] hover:underline">
-                {ENLACE_DATOS.etiqueta}
-              </Link>
-            </p>
-          </div>
-          <PreguntaleAlBot
-            etiqueta="Armalo conversando"
-            mensaje="Quiero armar mi perfil de precios conversando."
-            contexto={{ pantalla: "precios" }}
-          />
-        </div>
-      ) : null}
       <PerfilForm
         inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE}
         version={guardado ? guardado.actualizado.toISOString() : null}
+        bot={bot ? { workspaceId: workspace.id } : null}
       />
     </div>
   );
