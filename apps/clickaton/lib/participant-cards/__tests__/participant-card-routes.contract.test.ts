@@ -22,6 +22,7 @@ import {
   parseDisposition,
   parseMode,
   parseParticipantCardTypeParam,
+  resolveCardFormat,
   wantsJsonDiagnostic,
 } from "../participant-card-http";
 import type { ParticipantCardRegistrationSnapshot } from "../participant-card-types";
@@ -70,7 +71,14 @@ function makeRegistration(
 
 describe("route contract — parse helpers", () => {
   it("cardType aliases round-trip", () => {
-    for (const raw of ["welcome", "bienvenida", "member", "soy-parte", "miembro"]) {
+    for (const raw of [
+      "welcome",
+      "bienvenida",
+      "member",
+      "soy-parte",
+      "miembro",
+      "diploma",
+    ]) {
       assert.ok(parseParticipantCardTypeParam(raw));
     }
     assert.equal(parseParticipantCardTypeParam("invalid"), null);
@@ -99,6 +107,20 @@ describe("route contract — parse helpers", () => {
       ),
       true
     );
+  });
+});
+
+describe("route contract — diploma", () => {
+  it("acepta el tipo diploma", () => {
+    assert.equal(parseParticipantCardTypeParam("diploma"), "diploma");
+  });
+
+  it("el formato pdf sólo se resuelve para el diploma", () => {
+    assert.equal(resolveCardFormat({ cardType: "diploma", format: "pdf" }), "pdf");
+    assert.equal(resolveCardFormat({ cardType: "diploma", format: "PDF" }), "pdf");
+    assert.equal(resolveCardFormat({ cardType: "diploma", format: null }), "png");
+    assert.equal(resolveCardFormat({ cardType: "welcome", format: "pdf" }), "png");
+    assert.equal(resolveCardFormat({ cardType: "member", format: "pdf" }), "png");
   });
 });
 

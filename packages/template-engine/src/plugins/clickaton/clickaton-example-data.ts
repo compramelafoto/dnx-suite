@@ -115,6 +115,12 @@ export function createClickatonTemplateExampleData(
         "Una comunidad que recorre, crea y muestra la ciudad desde nuevas miradas.",
       callToAction: "Compartí tu placa",
     },
+    diploma: {
+      code: "DIP-CK1-0042",
+      issuedAtFormatted: "22/09/2026",
+      accreditedAtFormatted: "19/09/2026, 16:30",
+      verificationUrl: "https://maratonfotografica.com/diplomas/verificar/AB12CD34",
+    },
   };
 
   const merged = deepMerge(nested, overrides);

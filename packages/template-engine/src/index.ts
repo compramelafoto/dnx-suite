@@ -139,6 +139,7 @@ export {
   formatDateLong,
   formatDateLongUppercase,
   formatDateDayMonthUppercase,
+  formatDateWithTime,
   formatParticipantNumber,
 } from "./plugins/clickaton";
 export type { NormalizeInstagramResult } from "./plugins/clickaton";
