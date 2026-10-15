@@ -2,7 +2,7 @@
  * Convierte cada modelo en las filas que guarda el diseñador (TemplateV2 y compañía), con ids
  * fijos para que el SQL se pueda correr más de una vez.
  */
-import { ALTO, ANCHO, Armador, CARPETA_R2, DPI, FOTOS, PLIEGUE, SEGURIDAD, TUBO_PLIEGUE, VARIABLE_LOGO } from "./lienzo";
+import { ALTO, ANCHO, Armador, CARPETA_R2, DPI, FOTOS, PLIEGUE, SEGURIDAD, TUBO_PLIEGUE, VARIABLE_LOGO, type RolFoto } from "./lienzo";
 import { archivoFondo, CATEGORIAS, type Modelo } from "./modelos/tipo";
 import { MODELOS } from "./modelos";
 
@@ -126,7 +126,9 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
   const photoInputs = fotos.map((key) => {
     const f = claveDeFoto.get(key)!;
     const primera = bloques.find((b) => bindings.some((v) => v.blockId === b.id && v.variableKey === key))!;
-    return { slotKey: key, label: f.nombre, pageIndex: primera.pageIndex, role: f.rolMeta };
+    // El modelo puede nombrar la foto a su manera («Foto con la catequista» en vez de «con la maestra»).
+    const rol = (Object.keys(FOTOS) as RolFoto[]).find((r) => FOTOS[r].variableKey === key)!;
+    return { slotKey: key, label: modelo.etiquetasDeFotos?.[rol] ?? f.nombre, pageIndex: primera.pageIndex, role: f.rolMeta };
   });
   if (!modelo.filtros && (!fotos.includes("photo_individual") || !fotos.includes("photo_group"))) {
     throw new Error(`${modelo.slug}: faltan los huecos de foto individual y grupal.`);

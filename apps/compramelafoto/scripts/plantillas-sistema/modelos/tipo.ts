@@ -1,4 +1,4 @@
-import type { Armador } from "../lienzo";
+import type { Armador, RolFoto } from "../lienzo";
 
 /** Un modelo de librito: sus dos fondos (SVG) y sus bloques. */
 export type Modelo = {
@@ -26,6 +26,11 @@ export type Modelo = {
   fondoInterior: () => string;
   /** Agrega los bloques. Los fondos se agregan solos (zIndex 1 de cada página). */
   armar: (a: Armador) => void;
+  /**
+   * Otro nombre para alguna foto que se le pide a la familia (va a `metaJson.photoInputs` y lo
+   * muestra el canje). Por ejemplo `{ maestra: "Foto con la catequista" }`.
+   */
+  etiquetasDeFotos?: Partial<Record<RolFoto, string>>;
   /** Tanda a la que pertenece, para generar sólo esa con `--serie=<nombre>` (con su SQL). */
   serie?: string;
 };

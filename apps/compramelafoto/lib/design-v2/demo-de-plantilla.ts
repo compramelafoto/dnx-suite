@@ -45,6 +45,7 @@ export const ARCHIVOS_DEMO: readonly string[] = [
   "comunion-grupal.jpg",
   "comunion-con-catequista.jpg",
   "comunion-detalle.jpg",
+  "comunion-momento.jpg",
   "confirmacion-retrato.jpg",
   "confirmacion-grupal.jpg",
   "logo-escudo-clasico.png",
@@ -223,12 +224,14 @@ function archivosDeRanuras(nivel: NivelDemo, evento: EventoDemo, variante: Varia
     extra: "libre-patio.jpg",
   };
   if (evento === "comunion") {
+    // Foto libre: la nena con la vela en la misa sólo cuando la protagonista es nena (coincide
+    // con el retrato); con nene, el detalle de las manos con rosario y vela, que sirve para los dos.
     return {
       ...general,
       individual: `comunion-retrato-${variante}.jpg`,
       grupal: "comunion-grupal.jpg",
       maestra: "comunion-con-catequista.jpg",
-      extra: "comunion-detalle.jpg",
+      extra: variante === 1 ? "comunion-momento.jpg" : "comunion-detalle.jpg",
     };
   }
   if (evento === "confirmacion") {

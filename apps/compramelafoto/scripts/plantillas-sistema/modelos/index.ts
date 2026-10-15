@@ -20,6 +20,7 @@ import { egresadosAzulOro } from "./18-egresados-azul-oro";
 import { formalHeraldico } from "./19-formal-heraldico";
 import { institucionalBanda } from "./20-institucional-banda";
 import { VARIADAS } from "./variadas";
+import { RELIGIOSOS } from "./religiosos";
 
 /** Los modelos, en el orden en que se listan. */
 export const MODELOS: Modelo[] = [
@@ -44,4 +45,5 @@ export const MODELOS: Modelo[] = [
   formalHeraldico,
   institucionalBanda,
   ...VARIADAS,
+  ...RELIGIOSOS,
 ];

@@ -77,6 +77,11 @@ export class Panel {
     this.a.listado(this.pagina, this.bloque(r), e, columnas, this.giro);
   }
 
+  /** Logo del colegio, girado como la cara (entero en su recuadro). */
+  logo(clave: string, r: Rect) {
+    this.a.logo(this.pagina, this.clave(clave), this.bloque(r), this.giro);
+  }
+
   forma(
     clave: string,
     nombre: string,
