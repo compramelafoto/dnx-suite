@@ -31,6 +31,7 @@ const deps = (over: Record<string, unknown> = {}) => ({
     usesParticipantPhoto: false,
   }),
   resolvePhoto: async () => null,
+  loadRanking: async () => null,
   renderPng: async () => ({ png: Buffer.from("png"), width: 1754, height: 1240, durationMs: 10 }),
   saveToStorage: async () => ({
     storageKey: "k1",
@@ -274,6 +275,58 @@ describe("issueDiploma", () => {
     );
     assert.equal(out.ok, true);
     assert.equal(issuedAtFormatted, formatDateShort(fechaOriginal, "America/Argentina/Cordoba"));
+  });
+
+  it("imprime puesto, calificación y categoría del ranking general", async () => {
+    let data: Record<string, unknown> = {};
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        loadRanking: async () => ({ position: 4, total: 26, score: 7.2, category: "Titanic" }),
+        renderPng: async (input: DiplomaRenderPngInput) => {
+          data = input.templateData;
+          return { png: Buffer.from("png"), width: 1754, height: 1240, durationMs: 10 };
+        },
+      })
+    );
+    assert.equal(out.ok, true);
+    assert.equal(data["diploma.position"], "4");
+    assert.equal(data["diploma.positionOrdinal"], "4.º");
+    assert.equal(data["diploma.rankingTotal"], "26");
+    assert.equal(data["diploma.score"], "7,20");
+    assert.equal(data["diploma.category"], "Titanic");
+  });
+
+  it("la vista previa también trae el ranking", async () => {
+    let data: Record<string, unknown> = {};
+    const out = await renderDiplomaPreview(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        loadRanking: async () => ({ position: 1, total: 26, score: 7.67, category: "Titanic" }),
+        renderPng: async (input: DiplomaRenderPngInput) => {
+          data = input.templateData;
+          return { png: Buffer.from("png"), width: 1754, height: 1240, durationMs: 10 };
+        },
+      })
+    );
+    assert.equal(out.ok, true);
+    assert.equal(data["diploma.score"], "7,67");
+  });
+
+  it("sin fotos calificadas el diploma se emite igual, con el ranking en blanco", async () => {
+    let data: Record<string, unknown> = {};
+    const out = await issueDiploma(
+      { registrationId: "reg_1", actor: { kind: "admin" } },
+      deps({
+        renderPng: async (input: DiplomaRenderPngInput) => {
+          data = input.templateData;
+          return { png: Buffer.from("png"), width: 1754, height: 1240, durationMs: 10 };
+        },
+      })
+    );
+    assert.equal(out.ok, true);
+    assert.equal(data["diploma.position"], "");
+    assert.equal(data["diploma.score"], "");
   });
 
   it("un diploma revocado no se reusa: se emite uno nuevo", async () => {
@@ -583,6 +636,7 @@ describe("renderDiplomaPreview: el trayecto real de dibujo (sin doble de renderP
       checkAccess: () => {},
       loadRegistration: async () => registration,
       resolvePhoto: async () => null,
+      loadRanking: async () => null,
       // renderPng deliberadamente ausente: sin fijarlo, resolveDeps cae en defaultRenderPng.
       ...over,
     };
