@@ -46,7 +46,11 @@ export const esquemaTrabajoBot = z
     costoTercerizado: monto.optional().describe("Tercerizado (outsourced): lo que cobra quien lo hace (segundo fotógrafo, asistente, video, maquillaje)."),
     horasGestion: horas.optional().describe("Tercerizado: horas propias de gestión."),
     costoGasto: monto.optional().describe("Gasto o viático (expense): combustible, peajes, estacionamiento, comida, alojamiento… Uno por concepto."),
-    margenDeseado: pct.optional().describe("Ganancia deseada para producto, tercerizado o gasto. Sólo si la persona la dijo."),
+    margenDeseado: pct
+      .optional()
+      .describe(
+        "Producto o tercerizado: % de ganancia sobre su costo (lo que dijo la persona). El motor no tiene un % por omisión: sin este dato la ganancia del producto es 0 %. En gastos no se usa.",
+      ),
     horasCliente: horas.optional().describe("Horas con el cliente (ventas, reuniones, coordinación) del trabajo entero: van sólo en el primer concepto."),
   })
   .describe("Un concepto del trabajo. Todo número tiene que haberlo dicho la persona: si falta, dejalo vacío.");
@@ -106,6 +110,10 @@ export function repartirTotal(sugeridos: readonly number[], total: number): numb
 export type ResumenCotizacion = {
   conceptos: {
     nombre: string;
+    /** "servicio propio" | "producto" | "tercerizado" | "gasto". */
+    tipo: string;
+    /** Producto o tercerizado: el % de ganancia pedido ("30 %"), o null si no se indicó (el motor usa 0 %). */
+    margenPedido: string | null;
     precio: string;
     precioMinimo: string;
     precioRecomendado: string;
@@ -170,7 +178,11 @@ function desgasteDe(items: ItemPresupuesto[]): { disparos: number; informativo: 
 const porcentaje = (p: number | null) => (p === null || !Number.isFinite(p) ? null : `${Math.round(p * 100)} %`);
 const horasTexto = (h: number) => `${Math.round(h * 10) / 10} h`;
 
-function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: { faltanDisparos: boolean; parcial: boolean }): ResumenCotizacion {
+const TIPO: Record<string, string> = { "own-service": "servicio propio", "physical-product": "producto", outsourced: "tercerizado", expense: "gasto" };
+
+type ExtraResumen = { faltanDisparos: boolean; parcial: boolean; conceptos: { tipo: string; margen: string | null }[] };
+
+function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: ExtraResumen): ResumenCotizacion {
   const calc = items.map((i) => i.calculo!);
   const moneda = calc[0]?.moneda || "ARS";
   const $ = (n: number) => formatCuantoCobroCurrency(n, moneda);
@@ -179,10 +191,13 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: { faltanDis
   const costoBase = suma((c) => c.costoBase);
   const ganancia = suma((c) => c.margenElegido);
   return {
-    conceptos: items.map((it) => {
+    conceptos: items.map((it, i) => {
       const c = it.calculo!;
+      const e = extra.conceptos[i];
       return {
         nombre: it.nombre,
+        tipo: TIPO[e?.tipo ?? "own-service"] ?? "servicio propio",
+        margenPedido: e?.margen ?? null,
         precio: $(c.precioElegido),
         precioMinimo: $(c.precioMinimo),
         precioRecomendado: $(c.precioSugerido),
@@ -233,9 +248,14 @@ export function cotizar(
   });
   if (!r.ok) return { estado: r.faltan.length ? "FALTAN_DATOS" : "INVALIDO", faltan: r.faltan, error: r.error };
 
-  const extra = {
+  const extra: ExtraResumen = {
     faltanDisparos: c.conceptos.some((t) => (t.tipo ?? "own-service") === "own-service" && !t.disparosEstimados),
     parcial: c.parcial === true,
+    conceptos: c.conceptos.map((t) => {
+      const tipo = t.tipo ?? "own-service";
+      const conMargen = tipo === "physical-product" || tipo === "outsourced";
+      return { tipo, margen: conMargen && t.margenDeseado ? `${t.margenDeseado} %` : null };
+    }),
   };
   if (c.precioTotalElegido === undefined) return { estado: "OK", faltan: [], items: r.items, resumen: resumir(r.items, false, extra) };
 
@@ -268,7 +288,8 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
     ...(r.desgasteCamara
       ? [{ etiqueta: `Desgaste de cámara (${r.desgasteCamara.disparos} disparos)`, valor: `${r.desgasteCamara.monto} (${r.desgasteCamara.sumado ? "sumado" : "no sumado"})` }]
       : []),
-    ...r.conceptos.map((c) => ({ etiqueta: c.nombre, valor: c.precio })),
+    // Subtotal de cada concepto: precio, con su costo y su ganancia (la cuenta del motor).
+    ...r.conceptos.map((c) => ({ etiqueta: c.nombre, valor: `${c.precio} (costo ${c.costo} + ganancia ${c.ganancia})` })),
   ].slice(0, 12);
   const avisos = [
     // Sólo un aviso: el número es el del motor, tal cual.
@@ -278,6 +299,9 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
       : []),
     ...(r.gananciaParaRevisar ? ["La ganancia es más de 3 veces el costo: revisá que las horas y los costos del trabajo estén completos."] : []),
     ...r.conceptos.filter((c) => c.estado === "pierde plata").map((c) => `${c.nombre}: con este precio pierde plata.`),
+    ...r.conceptos
+      .filter((c) => (c.tipo === "producto" || c.tipo === "tercerizado") && c.margenPedido === null)
+      .map((c) => `${c.nombre}: sin % de ganancia sobre el ${c.tipo} (no se indicó; queda en 0 %).`),
     ...new Set(r.conceptos.flatMap((c) => c.advertencias)),
   ].slice(0, 6);
   return { titulo: `¿Cuánto cobro? · ${tipoDeTrabajo}${r.parcial ? " (parcial)" : ""}`.slice(0, 80), filas, avisos };

@@ -174,3 +174,47 @@ describe("entrevista completa: disparos, costos variables y desglose", () => {
     expect(tarjetaDeCotizacion(r.resumen, "XV").titulo).toBe("¿Cuánto cobro? · XV (parcial)");
   });
 });
+
+describe("extras del trabajo: una lista de conceptos, cada uno con su tipo", () => {
+  const XV_CON_EXTRAS: TrabajoBot[] = [
+    { nombre: "Cobertura XV", horasCobertura: "6", horasEdicion: "10", horasViaje: "1", horasCliente: "2", disparosEstimados: "2500" },
+    { nombre: "Sesión previa", horasCobertura: "2", horasEdicion: "3", horasViaje: "1", disparosEstimados: "400" },
+    { nombre: "Fotolibro", tipo: "physical-product", costoProveedor: "120000", horasDiseno: "4", costoEnvio: "8000", costoEmbalaje: "3000", margenDeseado: "30" },
+  ];
+
+  it("cada extra es su propio ítem, con su tipo, y la tarjeta muestra el subtotal de cada uno (costo + ganancia)", () => {
+    const r = cotizar(perfil(), { tipoDeTrabajo: "XV", conceptos: XV_CON_EXTRAS }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(r.items.map((i) => i.nombre)).toEqual(["Cobertura XV", "Sesión previa", "Fotolibro"]);
+    expect(r.resumen.conceptos.map((c) => [c.tipo, c.margenPedido])).toEqual([
+      ["servicio propio", null],
+      ["servicio propio", null],
+      ["producto", "30 %"],
+    ]);
+    const t = tarjetaDeCotizacion(r.resumen, "XV");
+    for (const c of r.resumen.conceptos) {
+      expect(t.filas.find((f) => f.etiqueta === c.nombre)!.valor).toBe(`${c.precio} (costo ${c.costo} + ganancia ${c.ganancia})`);
+    }
+    expect(t.filas.find((f) => f.etiqueta === "Precio")!.valor).toBe(r.resumen.total.elegido);
+  });
+
+  it("el % de ganancia del fotolibro se respeta: el mínimo del producto es su costo + 30 %", () => {
+    const r = cotizar(perfil(), { tipoDeTrabajo: "XV", conceptos: XV_CON_EXTRAS }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    const libro = r.items[2]!.calculo!;
+    // Costo = proveedor + envío + embalaje + horas de diseño al valor hora.
+    expect(libro.costoBase).toBeCloseTo(120_000 + 8_000 + 3_000 + 4 * libro.valorHora, 1);
+    expect(Math.abs(libro.precioMinimo - libro.costoBase * 1.3)).toBeLessThanOrEqual(1);
+    const sinMargen = cotizar(perfil(), { tipoDeTrabajo: "XV", conceptos: [XV_CON_EXTRAS[2]!].map((c) => ({ ...c, margenDeseado: undefined })) }, { nuevaClave: claves(), ahora: AHORA });
+    if (sinMargen.estado !== "OK") throw new Error(sinMargen.estado);
+    expect(Math.abs(sinMargen.items[0]!.calculo!.precioMinimo - sinMargen.items[0]!.calculo!.costoBase)).toBeLessThanOrEqual(1);
+    expect(tarjetaDeCotizacion(sinMargen.resumen, "XV").avisos).toContain("Fotolibro: sin % de ganancia sobre el producto (no se indicó; queda en 0 %).");
+  });
+
+  it("las horas con el cliente van sólo en el primer concepto (la sesión previa no las repite)", () => {
+    const r = cotizar(perfil(), { tipoDeTrabajo: "XV", conceptos: XV_CON_EXTRAS }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(r.items[0]!.calculo!.horasTotales).toBe(6 + 10 + 1 + 2);
+    expect(r.items[1]!.calculo!.horasTotales).toBe(2 + 3 + 1);
+  });
+});
