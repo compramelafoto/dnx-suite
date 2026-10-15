@@ -1,9 +1,10 @@
 # Del presupuesto a la Caja, y los números del estudio — diseño
 
 - **Fecha:** 15/10/2026 (aprobado el alcance por Daniel el mismo día: etapas A a E + Conciliación).
-- **Estado:** diseño. No hay código en esta rama.
+- **Estado:** **aprobado por Daniel el 15/10/2026** (decisiones de la sección 14 confirmadas). La etapa A se
+  implementa con su propio plan: `docs/superpowers/plans/2026-10-15-etapa-a-precio-completo.md`.
 - **Base revisada:** `origin/main` en `65e6235c1` (PR 596). Las PR 598 (desgaste de cámara por trabajo) y
-  599 (extras como conceptos en DNX Bot) están **abiertas, sin fusionar**: la etapa A se construye encima de ellas.
+  599 (extras como conceptos en DNX Bot) ya están **fusionadas y en producción**: la etapa A se construye encima.
 - **Relacionadas:** `2026-10-07-etapa-2-catalogo-y-presupuestos-design.md`, `2026-10-08-perfil-de-precios-design.md`,
   `2026-10-12-dnx-bot-cuanto-cobro-design.md`, spec de la etapa 3 (pedidos, cuotas, cobros) y etapa 6 (informes).
 
@@ -20,11 +21,13 @@ extremos: que el precio contemple impuestos, comisión y recargos; que el client
 mismo momento en que acepta; que la Caja muestre la comisión real de Mercado Pago; que se vea cuánto
 se ganó de verdad en cada trabajo y en el mes; y que las transferencias se reconozcan solas.
 
-Hoy hay dos cosas que frenan todo en DNX Estudio (lo miré en la base, sin tocar nada):
+Cómo está DNX Estudio (actualizado el 15/10/2026):
 
-- Hay **dos organizaciones "DNX Estudio"**. Una tiene Pedidos, Proyectos y Agenda pero **no tiene Caja**; la
-  otra tiene Caja pero **no tiene Pedidos**. Ninguna tiene presupuestos, pedidos ni movimientos todavía.
-- **Ninguna de las dos tiene Mercado Pago conectado.** Sin eso no se puede cobrar la seña ni leer transferencias.
+- La organización **real** es `cmv5z6qxwwmmhf0q5gp8qja1j` (slug `dnx-estudio`, dueño dnxfotografia@gmail.com).
+  Tiene **Caja encendida** y desde el 15/10 también **Pedidos**. Todavía no tiene presupuestos, pedidos ni movimientos.
+- La otra, `cmocabxjg0063xpedb91k42xt`, era una organización de **demostración** (datos de prueba). Se renombró
+  "DNX Estudio (demo)" y se le apagó DNX Bot. No se usa para nada de este diseño.
+- **Falta conectar Mercado Pago** en la real. Sin eso no se puede cobrar la seña ni leer transferencias.
 
 ### Qué vas a ver, etapa por etapa
 
@@ -75,8 +78,8 @@ marcás a mano.
 
 ### Lo que tenés que hacer vos
 
-1. Decirnos **cuál de las dos "DNX Estudio" es la real** (y si conviene unificar).
-2. En esa organización: **encender Caja y Pedidos**, y **conectar tu Mercado Pago**.
+1. ~~Decir cuál "DNX Estudio" es la real~~ (resuelto: `dnx-estudio`; Caja y Pedidos ya encendidos).
+2. **Conectar tu Mercado Pago** en `dnx-estudio`.
 3. Hacer la **prueba de transferencias** de $10 cuando te avisemos.
 4. Pasar: los **Excel de 3 años**, la **lista de débitos automáticos** (o los resúmenes de banco, tarjeta y MP),
    tu **alias y CBU**, tu situación fiscal (**categoría de monotributo** y **régimen de Ingresos Brutos** de Santa Fe)
@@ -277,7 +280,7 @@ Lo que se agrega:
 2. **Seña pendiente:** si la cuota 1 sigue impaga a las 48 h, tarea al responsable y un recordatorio al cliente con la
    plantilla existente. La fecha queda "tentativa" en Agenda hasta que se pague la seña (marca visual, no bloqueo).
 3. **Caja obligatoria para cobrar:** hoy un cobro sin Caja falla con `sinCaja`. El asistente de encendido de Pedidos
-   avisa si Caja está apagada (es el caso de una de las dos DNX Estudio).
+   avisa si Caja está apagada (en `dnx-estudio` ya está encendida).
 
 ### 6. Etapa D · Costos del trabajo y resultado real
 
@@ -495,9 +498,11 @@ En las tablas existentes (`Workspace`, `Client`, `CashCategory`, `CashMovement`,
 6. **Dos ventas con el mismo monto en la misma ventana:** nunca se aplica sola; monto único opcional.
 7. **Gross-up mal entendido:** el desglose muestra cada paso; los porcentajes se congelan en la versión enviada.
 8. **Inflación:** si el IPC no responde, se usa la última tasa guardada o la manual, y se avisa; nunca se inventa.
-9. **Recargo por pagar con tarjeta o Mercado Pago:** históricamente la ley de tarjetas prohibía cobrar distinto según
-   el medio; hubo cambios normativos recientes que no verifiqué. Mitigación: por omisión la comisión se suma para
-   todos y la diferencia se devuelve como "descuento por transferencia"; confirmarlo con el contador.
+9. **Recargo por pagar con tarjeta o Mercado Pago — consulta para el contador:** la ley de tarjetas de crédito
+   (Ley 25.065, art. 37) prohibía históricamente cobrar un precio distinto según el medio de pago, y hubo cambios
+   normativos recientes que **no verifiqué**. Por eso la decisión aprobada es sumar la comisión **al precio de todos** y
+   ofrecer un **descuento por transferencia** del mismo porcentaje (un descuento, no un recargo a la tarjeta). Pedirle
+   al contador que confirme que esta forma es válida hoy y cómo se refleja en la factura.
 10. **Tabla de feriados desactualizada** → la prueba anual la obliga.
 11. **Histórico mal importado:** queda en tablas aparte, por lote, con "Descartar lote".
 12. **Caja apagada o Mercado Pago sin conectar** en la organización real: sin eso, B, C y la Conciliación no
@@ -520,12 +525,13 @@ En las tablas existentes (`Workspace`, `Client`, `CashCategory`, `CashMovement`,
 Total aproximado: **~77 tareas**. Orden sugerido: A y Conciliación 0 en paralelo → B → C → D; E y la importación
 histórica en una línea aparte en cuanto Caja esté encendida.
 
-### 14. Decisiones tomadas que Daniel tiene que confirmar
+### 14. Decisiones (confirmadas por Daniel el 15/10/2026)
 
 1. El "trabajo/evento" es el **Pedido** (no una entidad nueva).
 2. Al aceptar, **el pedido se crea solo** (interruptor, apagado por omisión; para DNX Estudio, encendido).
 3. La comisión de Mercado Pago se **suma al precio para todos** y se ofrece un descuento por transferencia del mismo
-   porcentaje (en vez de dos precios distintos según el medio).
+   porcentaje (en vez de dos precios distintos según el medio). **Pendiente del contador** (riesgo 9): validar la
+   forma frente a la ley de tarjetas.
 4. Los recargos de fin de semana y feriado **no se suman**: se toma el mayor. El exprés sí se suma. Ninguno se aplica a
    productos ni gastos.
 5. La inflación ajusta **sólo lo que se cobra después** del mes en curso; la seña no.
@@ -541,8 +547,7 @@ histórica en una línea aparte en cuanto Caja esté encendida.
 
 ### 15. Preguntas abiertas
 
-1. ¿Cuál de las dos organizaciones "DNX Estudio" (`cmocabxjg0063xpedb91k42xt` con Pedidos sin Caja, o
-   `cmv5z6qxwwmmhf0q5gp8qja1j` con Caja sin Pedidos) es la real? ¿Unificamos?
+1. ~~¿Cuál "DNX Estudio" es la real?~~ Resuelto: `cmv5z6qxwwmmhf0q5gp8qja1j` (`dnx-estudio`); la otra es demo.
 2. Situación fiscal: categoría de monotributo, ¿IIBB de Santa Fe en régimen simplificado (incluido) o porcentual?
 3. ¿Qué permisos tiene hoy la aplicación de Mercado Pago de FOTOFFICE y qué webhook global tiene configurado?
 4. ¿Qué cuenta de banco (no Mercado Pago) usa el estudio y en qué formato descarga el extracto?
