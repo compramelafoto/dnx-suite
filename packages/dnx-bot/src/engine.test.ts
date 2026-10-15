@@ -153,7 +153,9 @@ describe("runBotTurn", () => {
     expect(p.system[0]).toMatchObject({ text: "GUIA", cache_control: { type: "ephemeral" } });
     expect(p.system[1]).toMatchObject({ text: "SIT" });
     expect(p.messages.slice(0, 2)).toEqual(history);
-    expect(p.thinking).toEqual({ type: "adaptive" });
+    // El razonamiento de turnos viejos queda ligado a otra situación: la API lo descarta en vez de dar 400.
+    expect(p.thinking).toEqual({ type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } });
+    expect(p.betas).toContain("thinking-binding-controls-2026-08-01");
     expect(p).not.toHaveProperty("tool_choice");
   });
 
