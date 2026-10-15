@@ -8,3 +8,4 @@ node_modules/
 *.tsbuildinfo
 **/._*
 lib/design-v2/pantalla-vs-pdf/salida/
+scripts/plantillas-sistema/salida/
