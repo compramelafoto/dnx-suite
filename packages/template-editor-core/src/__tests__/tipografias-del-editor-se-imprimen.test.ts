@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { readFontBytes, type FontId } from "@repo/design-studio";
 import { editorADocumento, type EditorBlock } from "../design-studio-bridge";
 import { EDITOR_FONT_CATALOG } from "../editor-font-catalog";
+import { enParalelo, esArchivoDeFuente, fetchConReintentos } from "./red-de-pruebas";
 
 /**
  * Toda tipografía que el editor ofrece se imprime con esa misma tipografía.
@@ -69,25 +70,34 @@ describe("tipografías del editor en el PDF", () => {
     assert.equal(avisos.length, 1);
   });
 
+  /*
+   * Esta sale a internet a propósito: es la única forma de saber que el nombre de cada familia
+   * existe en Fontsource. Los cortes de red se reintentan (fallaba de a ratos en CI con "fetch
+   * failed"); un 404 o un archivo que no es una fuente fallan al primer intento. Las descargas
+   * van de a ocho: las ~120 juntas eran, justamente, lo que más cortes provocaba.
+   */
   it(
     "cada tipografía del editor se puede bajar de verdad para incrustarla",
-    { skip: process.env.SIN_RED === "1" ? "sin red" : false, timeout: 180_000 },
+    { skip: process.env.SIN_RED === "1" ? "sin red" : false, timeout: 300_000 },
     async () => {
-      const ids = new Set(EDITOR_FONT_CATALOG.map((f) => fuenteImpresa(f.family).fontId));
-      const fallidas: string[] = [];
-      await Promise.all(
-        [...ids].map(async (id) => {
-          for (const slot of ["normal", "bold"] as const) {
-            try {
-              const bytes = await readFontBytes(id, slot);
-              if (bytes.length < 1000) fallidas.push(`${id} ${slot}: archivo vacío`);
-            } catch (e) {
-              fallidas.push(`${id} ${slot}: ${e instanceof Error ? e.message : String(e)}`);
-            }
+      const fetchOriginal = globalThis.fetch;
+      globalThis.fetch = fetchConReintentos(fetchOriginal);
+      try {
+        const ids = [...new Set(EDITOR_FONT_CATALOG.map((f) => fuenteImpresa(f.family).fontId))];
+        const pedidos = ids.flatMap((id) => (["normal", "bold"] as const).map((slot) => ({ id, slot })));
+        const fallidas: string[] = [];
+        await enParalelo(pedidos, 8, async ({ id, slot }) => {
+          try {
+            const bytes = await readFontBytes(id, slot);
+            if (!esArchivoDeFuente(bytes)) fallidas.push(`${id} ${slot}: no es un archivo de tipografía`);
+          } catch (e) {
+            fallidas.push(`${id} ${slot}: ${e instanceof Error ? e.message : String(e)}`);
           }
-        }),
-      );
-      assert.deepEqual(fallidas, []);
+        });
+        assert.deepEqual(fallidas, []);
+      } finally {
+        globalThis.fetch = fetchOriginal;
+      }
     },
   );
 });
