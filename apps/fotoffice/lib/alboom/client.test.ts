@@ -50,10 +50,11 @@ const loginOk = (url: string) => (url.endsWith("/users/login") ? json(200, { sta
 describe("lista blanca de lectura", () => {
   it("acepta las rutas de lectura documentadas", () => {
     for (const [m, r] of [
-      ["GET", "/settings/"],
+      ["GET", "/settings"],
       ["GET", "/stages/list?type=lead_stage"],
       ["GET", "/leads/progress/123/0/9999"],
-      ["GET", "/orders?id=55"],
+      ["GET", "/quotes/2019028"],
+      ["GET", "/orders/55"],
       ["GET", "/orders/items?id=55"],
       ["GET", "/tasks?offset=200&filteruser=all"],
       ["POST", "/leads/paginate"],
@@ -83,10 +84,17 @@ describe("lista blanca de lectura", () => {
       ["GET", "/products/clone_pack/1/2"],
       ["GET", "/boleto_set/3"],
       ["GET", "/leads/12"],
-      ["GET", "/orders?id=55&x=1"],
-      ["GET", "/orders?id=abc"],
+      ["GET", "/orders?id=55"],
+      ["GET", "/quotes?id=55"],
+      ["GET", "/orders/55?x=1"],
+      ["GET", "/orders/abc"],
+      ["GET", "/orders/all"],
+      ["GET", "/orders/list"],
+      ["GET", "/orders/status"],
+      ["GET", "/quotes/all"],
+      ["GET", "/quotes/unique/abc123"],
       ["GET", "/leads/progress/../users/0/1"],
-      ["GET", "/settings"],
+      ["GET", "/settings/"],
       ["POST", "/leads/paginate?x=1"],
     ] as const) {
       expect(esRutaDeLectura(m, r), `${m} ${r}`).toBe(false);
@@ -138,8 +146,8 @@ describe("cliente de Alboom", () => {
     await expect(c.leer({ method: "POST", ruta: "/leads/batch_delete", body: { rows: [1] } })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
     await expect(c.leer({ method: "GET", ruta: "/settings/erase_finance" })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
     await expect(c.leer({ method: "PUT" as "GET", ruta: "/leads/1" })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
-    await expect(c.leer({ method: "DELETE" as "GET", ruta: "/settings/" })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
-    await expect(c.leer({ method: "GET", ruta: "/settings/", body: { x: 1 } })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
+    await expect(c.leer({ method: "DELETE" as "GET", ruta: "/settings" })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
+    await expect(c.leer({ method: "GET", ruta: "/settings", body: { x: 1 } })).rejects.toBeInstanceOf(AlboomRutaNoPermitidaError);
     expect(llamadas.length).toBe(antes);
   });
 
@@ -216,12 +224,12 @@ describe("cliente de Alboom", () => {
 
       const lectura = fetchFalso((url) => loginOk(url) ?? new Response(null, { status, headers: { location: "/api/settings/erase_finance" } }));
       const c = await crearClienteAlboom(CRED, { fetchImpl: lectura.impl, ...relojFalso() });
-      const e2 = await c.leer({ method: "GET", ruta: "/settings/" }).catch((e: unknown) => e);
+      const e2 = await c.leer({ method: "GET", ruta: "/settings" }).catch((e: unknown) => e);
       expect(e2).toBeInstanceOf(AlboomApiError);
       expect((e2 as AlboomApiError).transitorio).toBe(false);
       expect(lectura.llamadas.map((l) => l.url)).toEqual([
         "https://estudio-prueba.alboomcrm.com/api/users/login",
-        "https://estudio-prueba.alboomcrm.com/api/settings/",
+        "https://estudio-prueba.alboomcrm.com/api/settings",
       ]);
       for (const call of vi.mocked(lectura.impl).mock.calls) expect((call[1] as RequestInit).redirect).toBe("manual");
     }

@@ -33,6 +33,12 @@ export type AvanceEntidad = {
   offset?: number;
   /** Firma de la página anterior, para frenar si Alboom repite la misma página. */
   huellaPagina?: string;
+  /** Pedidos buenos a Alboom en esta entidad (fuentes `porPadre`): distingue "endpoint roto" de "algunos fallan". */
+  exitos?: number;
+  /** Registros hijos seguidos que fallaron (fuentes `porPadre`). Vuelve a 0 con el primer pedido bueno. */
+  fallasSeguidas?: number;
+  /** Versión de la forma de pedir con la que se recorrió (ver `Entidad.version`). Sin dato = 1. */
+  version?: number;
   /** Mensaje legible del último error. Nunca lleva datos de la cuenta ni de clientes. */
   ultimoError?: string;
   /** ISO. */
@@ -57,7 +63,8 @@ export function avanceEntidadInicial(): AvanceEntidad {
 export function avanceInicial(): Avance {
   const entidades: Record<string, AvanceEntidad> = {};
   for (const e of ENTIDADES) {
-    entidades[e.clave] = e.fuente.tipo === "noDisponible" ? { ...avanceEntidadInicial(), estado: "NO_DISPONIBLE", ultimoError: e.fuente.motivo } : avanceEntidadInicial();
+    const inicial = { ...avanceEntidadInicial(), ...(e.version !== undefined ? { version: e.version } : {}) };
+    entidades[e.clave] = e.fuente.tipo === "noDisponible" ? { ...inicial, estado: "NO_DISPONIBLE", ultimoError: e.fuente.motivo } : inicial;
   }
   return { version: 1, entidades, pedidos: 0, reintentos: 0, reintentarDesde: null };
 }
@@ -94,6 +101,10 @@ export function leerAvance(json: unknown): Avance {
       ...(typeof r.padre === "string" || r.padre === null ? { padre: r.padre as string | null } : {}),
       ...(typeof r.offset === "number" ? { offset: numero(r.offset) } : {}),
       ...(typeof r.huellaPagina === "string" ? { huellaPagina: r.huellaPagina } : {}),
+      ...(typeof r.exitos === "number" ? { exitos: numero(r.exitos) } : {}),
+      ...(typeof r.fallasSeguidas === "number" ? { fallasSeguidas: numero(r.fallasSeguidas) } : {}),
+      // Sin `version` guardada es la 1 (avances anteriores a este campo), aunque el catálogo ya esté en otra.
+      ...(typeof r.version === "number" ? { version: numero(r.version) } : {}),
       ...(typeof r.ultimoError === "string" ? { ultimoError: r.ultimoError.slice(0, 300) } : previo.ultimoError ? { ultimoError: previo.ultimoError } : {}),
       ...(typeof r.actualizado === "string" ? { actualizado: r.actualizado } : {}),
     };

@@ -1,5 +1,6 @@
 import type { Avance, AvanceEntidad } from "./avance";
 import { AlboomApiError, AlboomLoginError, AlboomRutaNoPermitidaError, type ClienteAlboom, type PedidoLectura } from "./client";
+import { avanceEntidadInicial } from "./avance";
 import { ENTIDADES, TAMANO_PAGINA, filasDeLista, type Entidad } from "./entidades";
 import { huella } from "./huella";
 import { redactarSecretos } from "./redactar";
@@ -16,6 +17,12 @@ import { redactarSecretos } from "./redactar";
  * - `AlboomLoginError` → `CREDENCIAL` (hay que volver a conectar; frena todo).
  * - `AlboomApiError` transitorio (429, 5xx, red) → `REINTENTAR` sin mover el cursor: la próxima tanda lo repite.
  * - Otro `AlboomApiError` (404, 400, forma desconocida) → error de ESA entidad (o de ese padre) y sigue.
+ * - En los detalles por registro (`porPadre`), un 5xx en un registro tiene UNA pausa (`REINTENTAR`) al empezar una
+ *   racha de fallas; si vuelve a fallar se cuenta como error de ese registro y se sigue, y los siguientes de la
+ *   racha se saltean sin pausa. Si los primeros `FALLAS_SIN_EXITO` registros fallan sin un solo éxito, el endpoint
+ *   está roto: la entidad queda en `ERROR` con el motivo y la extracción sigue con las demás. Con éxitos previos,
+ *   cada `FALLAS_SEGUIDAS_PAUSA` fallas seguidas vuelve a hacer una pausa (por si Alboom se cayó un rato).
+ * - Si cambia `Entidad.version` (se corrigió cómo pedir), esa entidad se rehace desde cero.
  * - Sin tiempo → `PAUSADA`.
  */
 
@@ -54,8 +61,10 @@ const MAX_PAGINAS = 5000;
 const MAX_OFFSET_POR_PADRE = 50_000;
 const LOTE_PADRES = 25;
 const ID_MAX = 200;
-/** Tandas seguidas con 5xx en el mismo registro hijo antes de saltearlo. */
-export const REINTENTOS_PARA_SALTEAR = 3;
+/** Registros hijos seguidos que fallan, sin ningún éxito en la entidad, para darla por rota (`ERROR`). */
+export const FALLAS_SIN_EXITO = 10;
+/** Con éxitos previos: cada tantas fallas seguidas vuelve a hacer una pausa antes de seguir salteando. */
+export const FALLAS_SEGUIDAS_PAUSA = 10;
 
 class SinTiempo extends Error {}
 class Cancelada extends Error {}
@@ -280,6 +289,25 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
             await guardarAvance(e);
             return;
           }
+          /**
+           * Un registro hijo falló (5xx ya pausado, 404/400, forma desconocida). Devuelve `true` si la entidad quedó
+           * en `ERROR` por fallar sistemáticamente (ningún éxito en los primeros `FALLAS_SIN_EXITO`).
+           */
+          const fallaDeHijo = async (motivo: string, duda = false): Promise<boolean> => {
+            e.errores++;
+            if (duda) e.dudas++;
+            e.ultimoError = motivo;
+            e.fallasSeguidas = (e.fallasSeguidas ?? 0) + 1;
+            if ((e.exitos ?? 0) === 0 && e.fallasSeguidas >= FALLAS_SIN_EXITO) {
+              e.estado = "ERROR";
+              e.ultimoError = `Alboom falló en los primeros ${e.fallasSeguidas} registros sin ningún éxito; se dejó de pedir este detalle y se siguió con lo demás. Último error: ${motivo}`.slice(0, 300);
+              await guardarAvance(e);
+              return true;
+            }
+            // Con éxitos previos, una racha larga puede ser Alboom caído: la próxima falla vuelve a pausar.
+            if (e.fallasSeguidas >= FALLAS_SEGUIDAS_PAUSA) e.fallasSeguidas = 0;
+            return false;
+          };
           for (const p of lote) {
             if (f.filtro && !f.filtro(p.payload)) {
               e.padre = p.alboomId;
@@ -301,22 +329,25 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
                 filas = f.filas(json);
                 if (esObjeto(json) && json.count != null && json.count !== "") total = Number(json.count);
               } catch (error) {
-                // Un 5xx que se repite en el MISMO registro después de varias tandas no puede trabar toda la
-                // extracción: ese registro se cuenta como error y se sigue. Un 429 no se saltea nunca.
-                const atascado =
-                  error instanceof AlboomApiError && error.transitorio && (error.status ?? 0) >= 500 && avance.reintentos >= REINTENTOS_PARA_SALTEAR;
-                if (!esDeEntidad(error) && !atascado) throw error;
-                if (atascado) avance.reintentos = 0;
-                e.errores++;
-                e.ultimoError = mensaje(error);
+                if (!esDeEntidad(error)) {
+                  // 429, red, sin tiempo, base: se corta la tanda como siempre. Un 429 no se saltea nunca.
+                  const es5xx = error instanceof AlboomApiError && error.transitorio && (error.status ?? 0) >= 500;
+                  if (!es5xx) throw error;
+                  // Un 5xx en el MISMO registro no puede trabar la extracción: la primera falla de una racha tiene
+                  // una pausa (REINTENTAR, la próxima tanda repite este registro); después se cuenta y se sigue.
+                  if ((e.fallasSeguidas ?? 0) === 0 && avance.reintentos < 1) throw error;
+                  avance.reintentos = 0;
+                  avance.reintentarDesde = null;
+                }
+                if (await fallaDeHijo(mensaje(error))) return;
                 break;
               }
               if (filas === null) {
-                e.errores++;
-                e.dudas++;
-                e.ultimoError = FORMA;
+                if (await fallaDeHijo(FORMA, true)) return;
                 break;
               }
+              e.exitos = (e.exitos ?? 0) + 1;
+              e.fallasSeguidas = 0;
               if (f.paginaDe && filas.length > 0) {
                 const firma = firmaDePagina(filas, entidad.claves);
                 if (offset > 0 && firma === e.huellaPagina) {
@@ -372,16 +403,15 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
 
   try {
     for (const entidad of entidades) {
-      const e = (avance.entidades[entidad.clave] ??= {
-        estado: "PENDIENTE",
-        paginas: 0,
-        cantidad: 0,
-        nuevos: 0,
-        cambiados: 0,
-        iguales: 0,
-        errores: 0,
-        dudas: 0,
+      let e = (avance.entidades[entidad.clave] ??= {
+        ...avanceEntidadInicial(),
+        ...(entidad.version !== undefined ? { version: entidad.version } : {}),
       });
+      // Se corrigió cómo pedir esta entidad: lo recorrido con la forma vieja no sirve (cursor, errores). Se rehace
+      // desde cero, aunque estuviera en ERROR o LISTA; lo ya guardado crudo se reescribe por huella.
+      if (entidad.version !== undefined && (e.version ?? 1) !== entidad.version && e.estado !== "NO_DISPONIBLE") {
+        e = avance.entidades[entidad.clave] = { ...avanceEntidadInicial(), version: entidad.version };
+      }
       if (e.estado === "LISTA" || e.estado === "ERROR" || e.estado === "NO_DISPONIBLE") continue;
       e.estado = "EN_CURSO";
       try {
