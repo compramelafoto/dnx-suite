@@ -160,6 +160,11 @@ describe("clickaton plugin", () => {
       assert.ok(paths.has("diploma.issuedAtFormatted"));
       assert.ok(paths.has("diploma.accreditedAtFormatted"));
       assert.ok(paths.has("diploma.verificationUrl"));
+      assert.ok(paths.has("diploma.position"));
+      assert.ok(paths.has("diploma.positionOrdinal"));
+      assert.ok(paths.has("diploma.rankingTotal"));
+      assert.ok(paths.has("diploma.score"));
+      assert.ok(paths.has("diploma.category"));
     });
 
     it("la URL de verificación es de tipo QR", () => {
