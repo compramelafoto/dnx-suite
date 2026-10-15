@@ -90,12 +90,12 @@ describe("instantánea congelada", () => {
   it("lo que ve el cliente: nombre, cuotas, importe por cuota, total y nota; nada más", () => {
     const pub = opcionesPublicas(congelada);
     expect(pub).toEqual([
-      { id: "contado", etiqueta: "Contado con 10% de descuento", cuotas: 1, importeCuota: 900_000, total: 900_000, nota: "Transferencia al confirmar" },
-      { id: "p3", etiqueta: "3 cuotas sin interés", cuotas: 3, importeCuota: 333_333.33, total: 1_000_000, nota: null },
-      { id: "p6", etiqueta: "6 cuotas con 15% de interés", cuotas: 6, importeCuota: 191_666.66, total: 1_150_000, nota: "Con tarjeta" },
+      { id: "contado", etiqueta: "Contado con 10% de descuento", cuotas: 1, importeCuota: 900_000, total: 900_000, nota: "Transferencia al confirmar", medio: null, sena: 0 },
+      { id: "p3", etiqueta: "3 cuotas sin interés", cuotas: 3, importeCuota: 333_333.33, total: 1_000_000, nota: null, medio: null, sena: 0 },
+      { id: "p6", etiqueta: "6 cuotas con 15% de interés", cuotas: 6, importeCuota: 191_666.66, total: 1_150_000, nota: "Con tarjeta", medio: null, sena: 0 },
     ]);
     // Ni tasas internas, ni el precio base, ni la información del índice.
-    expect(Object.keys(pub[2]!).sort()).toEqual(["cuotas", "etiqueta", "id", "importeCuota", "nota", "total"]);
+    expect(Object.keys(pub[2]!).sort()).toEqual(["cuotas", "etiqueta", "id", "importeCuota", "medio", "nota", "sena", "total"]);
     expect(opcionesPublicas(null)).toEqual([]);
     expect(opcionesPublicas(CONFIGURADAS)).toEqual([]);
   });
@@ -104,7 +104,7 @@ describe("instantánea congelada", () => {
     for (const ajustes of [null, opcionesVacias()]) {
       const s = opcionesParaPresupuesto({ paymentOptions: ajustes }, 600_000, "2026-12-20", HOY, EN);
       expect(opcionesPublicas(s)).toEqual([
-        { id: "omision", etiqueta: "Hasta 2 cuotas sin interés", cuotas: 2, importeCuota: 300_000, total: 600_000, nota: "Hasta 2 cuotas sin interés" },
+        { id: "omision", etiqueta: "Hasta 2 cuotas sin interés", cuotas: 2, importeCuota: 300_000, total: 600_000, nota: "Hasta 2 cuotas sin interés", medio: null, sena: 0 },
       ]);
     }
   });

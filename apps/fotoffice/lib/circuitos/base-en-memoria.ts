@@ -63,6 +63,8 @@ const TABLAS = [
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace.
   "fotofficePerfilPrecios",
+  // Etapa B: ajustes de cobro y transferencias esperadas.
+  "fotofficeCobroAjustes", "fotofficeEsperaPago",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -262,6 +264,11 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   workspaceFeatureModule: () => ({ enabled: false, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficeCobroAjustes: () => ({
+    autoConfirmarPedido: false, alias: null, cbuCvu: null, titular: null, cuit: null, banco: null, montoUnico: false,
+    updatedAt: new Date(), updatedByUserId: null,
+  }),
+  fotofficeEsperaPago: () => ({ importeUnicoArs: null, estado: "ESPERANDO", creadaEn: new Date(), conciliadaEn: null, cobroId: null, updatedAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -472,6 +479,12 @@ export function crearBaseEnMemoria() {
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
     fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
+    fotofficeCobroAjustes: [{ columnas: ["workspaceId"] }],
+    // Como en la migración: una abierta por cuota y un monto único que no se repite entre las abiertas.
+    fotofficeEsperaPago: [
+      { columnas: ["cuotaId"], aplica: (f) => f.estado === "ESPERANDO" },
+      { columnas: ["workspaceId", "importeUnicoArs"], aplica: (f) => f.estado === "ESPERANDO" && f.importeUnicoArs !== null && f.importeUnicoArs !== undefined },
+    ],
   };
 
   /**

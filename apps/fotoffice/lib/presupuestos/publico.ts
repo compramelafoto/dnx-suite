@@ -7,6 +7,8 @@ import { hashDeToken, resolverClaveDeEnlace, tokenConForma, tokenDeVersion, urlD
 import { estadoEfectivo } from "./estados";
 import { sitioDelWorkspace } from "./sitio";
 import { itemsGuardados, type TotalesGuardados } from "./versiones";
+import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
+import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
 import { armarVistaPublica, esRobot, type EstadoDeLaVista, type EstadoDelEnlace, type VistaPublica } from "./vista-publica";
 import { registrarVista } from "./vistas";
 
@@ -123,7 +125,23 @@ export type DepsPublico = {
   ahora?: () => Date;
   clave?: string | null;
   appOrigin?: string;
+  /** ¿La organización puede cobrar con Mercado Pago? Inyectable en las pruebas. */
+  mercadoPago?: (workspaceId: string) => Promise<boolean>;
+  /** El enlace del pedido de un presupuesto aceptado. Inyectable en las pruebas. */
+  enlaceDelPedido?: (workspaceId: string, presupuestoId: string) => Promise<string | null>;
 };
+
+/** El enlace del pedido del presupuesto, si ya tiene uno (etapa B). Nunca lanza. */
+async function enlacePedidoDe(workspaceId: string, presupuestoId: string): Promise<string | null> {
+  try {
+    const p = await prisma.fotofficePedido.findFirst({ where: { presupuestoId, workspaceId }, select: { id: true } });
+    if (!p) return null;
+    const r = await enlaceDelPedidoDelSistema(workspaceId, p.id);
+    return r.ok ? r.url : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Abre el enlace: arma la vista y, si `registrar` (la página, no la vista de impresión) y no es
@@ -181,6 +199,8 @@ export async function abrirPresupuestoPublico(
       acceptedName: enlace.version.acceptedName,
     },
     validUntil: enlace.validUntil,
+    mercadoPago: await (deps.mercadoPago ?? puedeCobrarConMercadoPago)(workspaceId),
+    pedidoUrl: enlace.estado === "ACEPTADO" ? await (deps.enlaceDelPedido ?? enlacePedidoDe)(workspaceId, enlace.presupuestoId) : null,
   });
 
   if (visita.registrar && !esRobot(visita.userAgent)) {

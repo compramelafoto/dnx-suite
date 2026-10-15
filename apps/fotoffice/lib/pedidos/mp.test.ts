@@ -159,8 +159,13 @@ describe("acreditar un pago aprobado", () => {
       createdByUserId: null, receiptNumber: "2026-0001", paidAt: new Date("2026-10-07T14:00:00.000Z"),
     });
     expect(imputaciones(c.id as string)).toEqual([["ped-1-c1", "40000.00"]]);
-    expect(B.datos.cashMovement).toHaveLength(1);
+    // Etapa B: el INGRESO por el bruto y la comisión real de Mercado Pago como EGRESO, en la misma cuenta.
+    expect(B.datos.cashMovement).toHaveLength(2);
     expect(B.datos.cashMovement[0]).toMatchObject({ kind: "INGRESO", amountArs: "40000.00", accountId: "mp", createdByUserId: null, sourceRef: c.id });
+    expect(B.datos.cashMovement[1]).toMatchObject({
+      kind: "EGRESO", amountArs: "5.50", accountId: "mp", paymentMethod: "MERCADO_PAGO", sourceModule: "pedidos-comision", sourceRef: c.id,
+      categoryId: B.datos.cashCategory.find((x) => x.name === "Comisiones de Mercado Pago" && x.kind === "EGRESO")!.id,
+    });
     expect(B.datos.fotofficePedido[0]!.status).toBe("EN_CURSO");
     expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-1" }, "SENA_COBRADA", c.id);
     expect(H.recibo).toHaveBeenCalledWith("ws-1", c.id);
@@ -170,6 +175,8 @@ describe("acreditar un pago aprobado", () => {
   it("sin fee_details, comisión y neto quedan null", async () => {
     await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { fee_details: [] }));
     expect(B.datos.fotofficeCobro[0]).toMatchObject({ feeArs: null, netArs: null });
+    // Sin comisión conocida, no hay EGRESO.
+    expect(B.datos.cashMovement.map((m) => m.kind)).toEqual(["INGRESO"]);
   });
 
   it("el mismo aviso repetido no acredita dos veces", async () => {
@@ -177,7 +184,7 @@ describe("acreditar un pago aprobado", () => {
     const otra = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
     expect(otra).toEqual({ resultado: "ya_acreditado", pedidoId: "ped-1" });
     expect(B.datos.fotofficeCobro).toHaveLength(1);
-    expect(B.datos.cashMovement).toHaveLength(1);
+    expect(B.datos.cashMovement).toHaveLength(2);
     expect(H.recibo).toHaveBeenCalledTimes(1);
     expect(H.notificar).toHaveBeenCalledTimes(1);
   });
@@ -231,7 +238,8 @@ describe("acreditar un pago aprobado", () => {
     const r = await MP.acreditarPagoMp("ws-1", pago("pay-2", "ped-1-c1", 40000)); // pago doble
     expect(r).toEqual({ resultado: "sin_aplicar", motivo: "EXCEDE", pedidoId: "ped-1" });
     expect(B.datos.fotofficeCobro).toHaveLength(1);
-    expect(B.datos.cashMovement).toHaveLength(1);
+    // Sólo los del primer pago: su ingreso y su comisión.
+    expect(B.datos.cashMovement.map((m) => m.kind)).toEqual(["INGRESO", "EGRESO"]);
     expect(tareas()).toHaveLength(1);
     expect(tareas()[0]).toMatchObject({ workspaceId: "ws-1", subjectType: "CAPTACION", subjectId: "lead-1", title: PURO.TITULO_TAREA_PAGO_SIN_APLICAR, assigneeUserId: 7 });
   });
@@ -616,7 +624,7 @@ describe("devoluciones y contracargos de un pago ya acreditado (B2-4)", () => {
     await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
     expect((H.enviar.mock.calls[0]![0] as { subject: string }).subject).toMatch(/devolvió/);
     expect(B.datos.fotofficeCobro[0]!.voidedAt ?? null).toBeNull();
-    expect(B.datos.cashMovement).toHaveLength(1);
+    expect(B.datos.cashMovement).toHaveLength(2);
   });
 
   it("después de la devolución, un contracargo del mismo pago avisa de nuevo (otro estado)", async () => {
@@ -675,5 +683,26 @@ describe("devoluciones y contracargos de un pago ya acreditado (B2-4)", () => {
     await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
     expect(JSON.stringify([checklist(), H.enviar.mock.calls])).not.toMatch(/plata/i);
     expect(JSON.stringify([errores.mock.calls, avisos.mock.calls])).not.toMatch(/estudio\.test/);
+  });
+});
+
+
+describe("comisión de Mercado Pago en Caja (etapa B)", () => {
+  it("al anular el cobro se anulan el ingreso y la comisión", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    const c = B.datos.fotofficeCobro[0]!;
+    const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: { orders: "MANAGE" } } as never };
+    const r = await CO.anularCobro(DUENO, c.id as string, "Devuelto", { ahora: () => AHORA });
+    expect(r).toMatchObject({ ok: true, yaAnulado: false });
+    const ingreso = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos")!;
+    const comision = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos-comision")!;
+    expect(B.datos.cashMovement.filter((m) => m.reversesMovementId === ingreso.id)).toHaveLength(1);
+    expect(B.datos.cashMovement.filter((m) => m.reversesMovementId === comision.id)).toEqual([expect.objectContaining({ kind: "INGRESO", amountArs: "5.50" })]);
+  });
+
+  it("dos comisiones usan el mismo rubro (no lo crea dos veces)", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    await MP.acreditarPagoMp("ws-1", pago("pay-2", "ped-1-c2", 40000));
+    expect(B.datos.cashCategory.filter((x) => x.name === "Comisiones de Mercado Pago")).toHaveLength(1);
   });
 });

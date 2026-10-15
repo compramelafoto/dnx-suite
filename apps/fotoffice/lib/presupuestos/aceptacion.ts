@@ -12,6 +12,10 @@ import { opcionElegida } from "./opciones-pago";
 import { pasarEstado } from "./presupuestos";
 import { buscarEnlace } from "./publico";
 import { bloquearPresupuesto, type TotalesGuardados } from "./versiones";
+import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
+import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
+import { confirmarPedidoPorSistema } from "@/lib/pedidos/confirmar";
+import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
 
 /**
  * "Acepto" desde el enlace público (spec etapa 2 §2 A.9, §5). Sin sesión: el token es la llave y
@@ -62,9 +66,22 @@ export function nombreDeAceptacion(v: unknown): string | null {
   return t.length >= 2 && t.length <= MAX_NOMBRE_ACEPTACION ? t : null;
 }
 
-export type ResultadoAceptacion = { ok: true; fecha: Date } | { ok: false; error: string };
+/** `pedidoUrl`: el enlace del pedido creado al aceptar (etapa B), para pagar la seña; null si no se creó. */
+export type ResultadoAceptacion = { ok: true; fecha: Date; pedidoUrl: string | null } | { ok: false; error: string };
 
-export type DepsAceptacion = DepsAvisos & { ahora?: () => Date };
+export type DepsAceptacion = DepsAvisos & {
+  ahora?: () => Date;
+  /** ¿La organización puede cobrar con Mercado Pago? Sin eso, las opciones de Mercado Pago no se aceptan. */
+  mercadoPago?: (workspaceId: string) => Promise<boolean>;
+  /** ¿Está encendido «Crear el pedido al aceptar»? */
+  autoPedido?: (workspaceId: string) => Promise<boolean>;
+  crearPedido?: (workspaceId: string, presupuestoId: string) => Promise<{ ok: true; pedidoId: string } | { ok: false; error: string }>;
+  enlaceDelPedido?: (workspaceId: string, pedidoId: string) => Promise<{ ok: true; url: string } | { ok: false; error: string }>;
+};
+
+async function autoPedidoEncendido(workspaceId: string): Promise<boolean> {
+  return (await leerAjustesCobro(workspaceId)).autoConfirmarPedido;
+}
 
 export async function aceptarPresupuesto(
   workspaceId: string,
@@ -78,6 +95,7 @@ export async function aceptarPresupuesto(
   if (!nombre) return { ok: false, error: MENSAJES_ACEPTACION.nombre };
   if (datos.acepta !== true) return { ok: false, error: MENSAJES_ACEPTACION.condiciones };
   const ahora = (deps.ahora ?? (() => new Date()))();
+  const mercadoPago = await (deps.mercadoPago ?? puedeCobrarConMercadoPago)(workspaceId).catch(() => false);
 
   const v0 = await prisma.fotofficePresupuestoVersion.findFirst({
     where: { tokenHash: hashDeToken(token), workspaceId },
@@ -105,7 +123,7 @@ export async function aceptarPresupuesto(
       if (efectivo === "ACEPTADO") throw new Corte(MENSAJES_ACEPTACION.yaAceptado);
       if (efectivo === "VENCIDO") throw new Corte(MENSAJES_ACEPTACION.vencido);
       if (efectivo === "RECHAZADO" || efectivo === "BORRADOR") throw new Corte(MENSAJES_ACEPTACION.rechazado);
-      const opcion = opcionElegida(v.paymentOptions, datos.opcion);
+      const opcion = opcionElegida(v.paymentOptions, datos.opcion, { mercadoPago });
       if (!opcion.ok) throw new Corte(opcion.error);
 
       // Una sola vez por versión: si otra aceptación ganó la carrera, esta no escribe nada.
@@ -144,7 +162,23 @@ export async function aceptarPresupuesto(
     { workspaceId, leadId: aceptado.leadId, presupuestoId: v0.presupuestoId, ownerUserId: aceptado.ownerUserId, numero, total: pesos(aceptado.total) },
     { ...deps, ahora: () => ahora },
   );
-  return { ok: true, fecha: ahora };
+
+  // Etapa B: con «Crear el pedido al aceptar» encendido, el pedido nace ahora y el cliente pasa a su
+  // enlace para pagar la seña. Si algo falla, la aceptación vale igual: queda «Pedido por confirmar».
+  let pedidoUrl: string | null = null;
+  try {
+    if (await (deps.autoPedido ?? autoPedidoEncendido)(workspaceId)) {
+      const crear = deps.crearPedido ?? ((ws: string, id: string) => confirmarPedidoPorSistema(ws, id, { ahora: () => ahora }));
+      const p = await crear(workspaceId, v0.presupuestoId);
+      if (p.ok) {
+        const e = await (deps.enlaceDelPedido ?? ((ws: string, id: string) => enlaceDelPedidoDelSistema(ws, id)))(workspaceId, p.pedidoId);
+        pedidoUrl = e.ok ? e.url : null;
+      }
+    }
+  } catch (e) {
+    console.error("[presupuestos] pedido automático al aceptar falló", { codigo: typeof (e as { code?: unknown })?.code === "string" ? (e as { code: string }).code : null });
+  }
+  return { ok: true, fecha: ahora, pedidoUrl };
 }
 
 /**

@@ -7286,6 +7286,8 @@ model Workspace {
   fotofficeCuentasPagar          FotofficeCuentaPagar[]
   fotofficeCuotaRecordatorios    FotofficeCuotaRecordatorio[]
   fotofficePedidoAjustes         FotofficePedidoAjustes?
+  fotofficeCobroAjustes          FotofficeCobroAjustes?
+  fotofficeEsperasPago           FotofficeEsperaPago[]
   fotofficePedidoTareas          FotofficePedidoTarea[]
   fotofficeProyectos             FotofficeProyecto[]
   fotofficeProductoProyectos     FotofficeProductoProyecto[]
@@ -21301,6 +21303,7 @@ model FotofficePedido {
   citas           FotofficeCita[]
   contratantes    FotofficePedidoContratante[]
   contratos       FotofficeContrato[]
+  esperasPago     FotofficeEsperaPago[]
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -21333,6 +21336,7 @@ model FotofficePedidoCuota {
   pedido        FotofficePedido              @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   imputaciones  FotofficeCobroImputacion[]
   recordatorios FotofficeCuotaRecordatorio[]
+  esperasPago   FotofficeEsperaPago[]
 
   @@index([pedidoId, position])
   @@index([workspaceId, dueDate])
@@ -21512,6 +21516,54 @@ model FotofficePedidoAjustes {
 
   /// Para la FK al borrar un rubro.
   @@index([incomeCategoryId])
+}
+
+/// Cobro de la organización (etapa B, 15/10/2026): pedido automático al aceptar un presupuesto y
+/// datos para pagar por transferencia. Tabla aparte (no columnas en tablas existentes): sin la
+/// migración aplicada, el código la lee como "de fábrica" (todo apagado).
+model FotofficeCobroAjustes {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
+  /// Crear el pedido solo cuando el cliente acepta el presupuesto. Apagado por omisión.
+  autoConfirmarPedido Boolean  @default(false)
+  alias               String?
+  cbuCvu              String?
+  titular             String?
+  cuit                String?
+  banco               String?
+  /// Sumar de 1 a 99 pesos a cada transferencia esperada para que no haya dos montos iguales.
+  montoUnico          Boolean  @default(false)
+  updatedAt           DateTime @updatedAt
+  updatedByUserId     Int?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Pago esperado por transferencia (etapa B): el cliente eligió pagar una cuota por transferencia.
+/// La conciliación (más adelante) lo busca entre las transferencias recibidas.
+/// estado: ESPERANDO | CONCILIADA | ANULADA (CHECK en el SQL). Una sola ESPERANDO por cuota y un
+/// monto único que no se repite entre las ESPERANDO de la organización (índices únicos parciales).
+model FotofficeEsperaPago {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  pedidoId           String
+  cuotaId            String
+  importeEsperadoArs Decimal   @db.Decimal(12, 2)
+  /// Esperado + 1 a 99 pesos (monto único); null si no se usa.
+  importeUnicoArs    Decimal?  @db.Decimal(12, 2)
+  estado             String    @default("ESPERANDO")
+  creadaEn           DateTime  @default(now())
+  conciliadaEn       DateTime?
+  cobroId            String?
+  updatedAt          DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido      @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  cuota     FotofficePedidoCuota @relation(fields: [cuotaId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, estado])
+  @@index([pedidoId])
+  @@index([cuotaId])
 }
 
 /// Tarea del checklist de un pedido. `position` desde 1 y título no vacío (CHECK en el SQL).

@@ -94,7 +94,13 @@ export function mesesCompletos(desde: string, hasta: string): number {
 
 // --- Plan -------------------------------------------------------------------------------------
 
-export type CuotaPlan = { position: number; dueDate: string; amountArs: number };
+export type CuotaPlan = {
+  position: number;
+  dueDate: string;
+  amountArs: number;
+  /** Medio sugerido (etapa B): el de la opción elegida ("MERCADO_PAGO" o "TRANSFERENCIA"). */
+  suggestedMethod?: "MERCADO_PAGO" | "TRANSFERENCIA";
+};
 
 /** Reparte el total en `n` partes iguales a centavos; la última absorbe la diferencia. */
 export function repartirImporte(total: number, n: number): number[] {
@@ -150,11 +156,24 @@ export const ETIQUETA_AVISO_PLAN: Record<AvisoPlan, string> = {
  * Contado es una opción de 1 cuota: vence el día de la confirmación (`desde`).
  */
 export function planDesdeOpcion(
-  opcion: { cuotas: number; total: number },
-  contexto: { desde: string; fechaEvento?: string | null },
+  opcion: { cuotas: number; total: number; medio?: "MERCADO_PAGO" | "TRANSFERENCIA" | null },
+  contexto: { desde: string; fechaEvento?: string | null; senaPorcentaje?: number },
 ): { cuotas: CuotaPlan[]; aviso: AvisoPlan | null } {
   const fechaEvento = contexto.fechaEvento ?? null;
-  const cuotas = generarPlan({ total: opcion.total, cuotas: opcion.cuotas, desde: contexto.desde, fechaEvento });
+  const sena = contexto.senaPorcentaje && contexto.senaPorcentaje > 0 ? Math.round((aCentavos(opcion.total) * Math.min(100, contexto.senaPorcentaje)) / 100) : 0;
+  let cuotas: CuotaPlan[];
+  if (sena > 0 && sena < aCentavos(opcion.total)) {
+    // Con seña (etapa B): la cuota 1 es la seña y vence hoy; el saldo arranca el mes que viene
+    // (o el día del evento, si es antes).
+    exigir(contexto.desde);
+    const alMes = sumarMeses(contexto.desde, 1);
+    const desdeSaldo = fechaEvento !== null && fechaEvento < alMes ? (fechaEvento > contexto.desde ? fechaEvento : contexto.desde) : alMes;
+    const saldo = generarPlan({ total: desdeCentavos(aCentavos(opcion.total) - sena), cuotas: opcion.cuotas, desde: desdeSaldo, fechaEvento });
+    cuotas = [{ position: 1, dueDate: contexto.desde, amountArs: desdeCentavos(sena) }, ...saldo.map((c, i) => ({ ...c, position: i + 2 }))];
+  } else {
+    cuotas = generarPlan({ total: opcion.total, cuotas: opcion.cuotas, desde: contexto.desde, fechaEvento });
+  }
+  if (opcion.medio) cuotas = cuotas.map((c) => ({ ...c, suggestedMethod: opcion.medio! }));
   let aviso: AvisoPlan | null = null;
   if (cuotas.length > 0 && fechaEvento !== null) {
     if (fechaEvento < contexto.desde) aviso = "EVENTO_PASADO";
