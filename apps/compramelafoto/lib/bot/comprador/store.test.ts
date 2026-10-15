@@ -1,11 +1,20 @@
 import { createHash } from "node:crypto";
+import { HARD_CAP_TURNS } from "@repo/dnx-bot";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   conv: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
   action: { create: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
+  msg: { findMany: vi.fn(), aggregate: vi.fn(), createMany: vi.fn() },
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { botConversation: m.conv, botAction: m.action } }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    botConversation: m.conv,
+    botAction: m.action,
+    botMessage: m.msg,
+    $transaction: (fn: (tx: unknown) => unknown) => fn({ botMessage: m.msg, $queryRaw: async () => [] }),
+  },
+}));
 import {
   buscarConversacionComprador,
   contarAccionesComprador,
@@ -14,7 +23,7 @@ import {
   hashEmail,
   leerConversacionComprador,
   marcarVerificada,
-  MAX_MENSAJES_CONVERSACION_COMPRADOR,
+  continuarConversacionComprador,
   obtenerConversacionComprador,
   rechazarAccionPendienteComprador,
   registrarAccionComprador,
@@ -39,8 +48,8 @@ describe("store del comprador", () => {
     expect(q.orderBy).toEqual({ updatedAt: "desc" });
   });
 
-  it("reusa la conversación con 30 mensajes y no devuelve _count", async () => {
-    m.conv.findFirst.mockResolvedValue(fila("c1", MAX_MENSAJES_CONVERSACION_COMPRADOR));
+  it("reusa la conversación abierta por más larga que sea (ya no se corta a los 30 mensajes) y no devuelve _count", async () => {
+    m.conv.findFirst.mockResolvedValue(fila("c1", 300));
     const c = await obtenerConversacionComprador(base);
     expect(c).toEqual({ id: "c1", status: "OPEN", supportTicketId: null, buyerEmail: null, verifiedUntil: null, ipHash: "h1", albumId: null, orderId: null });
     expect(m.conv.create).not.toHaveBeenCalled();
@@ -55,10 +64,10 @@ describe("store del comprador", () => {
     expect(c.orderId).toBe(9);
   });
 
-  it("con 31 mensajes crea una nueva copiando la verificación vigente del mismo guestKey", async () => {
+  it("sin conversación abierta crea una nueva copiando la verificación vigente del mismo guestKey", async () => {
     const hasta = new Date(Date.now() + 60_000);
     m.conv.findFirst
-      .mockResolvedValueOnce(fila("c1", MAX_MENSAJES_CONVERSACION_COMPRADOR + 1))
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ buyerEmail: "ju@gmail.com", verifiedUntil: hasta });
     m.conv.create.mockImplementation(async ({ data }: any) => ({ id: "c2", status: "OPEN", supportTicketId: null, ...data }));
     const c = await obtenerConversacionComprador(base);
@@ -70,6 +79,32 @@ describe("store del comprador", () => {
     expect(verif.verifiedUntil.gt).toBeInstanceOf(Date);
     const data = m.conv.create.mock.calls[0]![0].data;
     expect(data).toMatchObject({ platform: "CLF", audience: "BUYER", userId: null, guestKey: "g1", ipHash: "h1", pagePath: "/a/x", model: "m" });
+  });
+
+  it("continuar: debajo del tope duro, la misma conversación con su historial", async () => {
+    m.msg.findMany.mockResolvedValue([{ role: "user", content: "hola" }, { role: "assistant", content: "¡hola!" }]);
+    const conv = { id: "c1", status: "OPEN" as const, supportTicketId: null, buyerEmail: null, verifiedUntil: null, ipHash: "h1", albumId: null, orderId: null };
+    const r = await continuarConversacionComprador(conv, base);
+    expect(r.conv).toBe(conv);
+    expect(r.history).toHaveLength(2);
+    expect(m.conv.create).not.toHaveBeenCalled();
+  });
+
+  it("continuar: pasado el tope duro abre otra con el resumen, la misma verificación y el mismo pedido", async () => {
+    const hasta = new Date(Date.now() + 60_000);
+    const conv = { id: "c1", status: "OPEN" as const, supportTicketId: null, buyerEmail: "ju@gmail.com", verifiedUntil: hasta, ipHash: "h1", albumId: 5, orderId: 9 };
+    m.msg.findMany.mockResolvedValue(Array.from({ length: HARD_CAP_TURNS }, (_, i) => [{ role: "user", content: `duda ${i + 1}` }, { role: "assistant", content: "ok" }]).flat());
+    m.msg.aggregate.mockResolvedValue({ _max: { seq: null } });
+    m.conv.create.mockImplementation(async ({ data }: any) => ({ id: "c2", status: "OPEN", supportTicketId: null, ...data }));
+    const r = await continuarConversacionComprador(conv, base);
+    expect(r.conv.id).toBe("c2");
+    expect(m.conv.create.mock.calls[0]![0].data).toMatchObject({
+      platform: "CLF", audience: "BUYER", userId: null, guestKey: "g1", ipHash: "h1", buyerEmail: "ju@gmail.com", verifiedUntil: hasta, albumId: 5, orderId: 9,
+    });
+    const arrastre = m.msg.createMany.mock.calls[0]![0].data[0];
+    expect(arrastre.content).toMatch(/^\[Sistema\]/);
+    expect(arrastre.content).toContain(`duda ${HARD_CAP_TURNS}`);
+    expect(r.history).toHaveLength(1);
   });
 
   it("no copia una verificación vencida (la consulta exige verifiedUntil > ahora y no hay)", async () => {

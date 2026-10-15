@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { herramientasPara } from "../herramientas";
-import { CONSULTAS_DE_PRUEBA, ESCENARIOS, fallasDeCifras, fallasDeEntrada, fallasDeEntradaContiene, fallasDeEntradaEnAlguna, fallasDeTexto, type Escenario } from "./escenarios";
+import {
+  CONSULTAS_DE_PRUEBA,
+  ESCENARIOS,
+  PIDE_QUE_DIVIDA,
+  VA_AL_FORMULARIO,
+  fallasDeCifras,
+  fallasDeEntrada,
+  fallasDeEntradaContiene,
+  fallasDeEntradaEnAlguna,
+  fallasDeEntradaJson,
+  fallasDeTexto,
+  type Escenario,
+} from "./escenarios";
 
 describe("banco de escenarios", () => {
   it("ids únicos y cada escenario con situación, mensaje y alguna expectativa", () => {
@@ -10,7 +22,8 @@ describe("banco de escenarios", () => {
       expect(e.mensaje.length, e.id).toBeGreaterThan(0);
       const expectativas =
         (e.debeUsar?.length ?? 0) + (e.debeUsarAlguna?.length ?? 0) + (e.noDebeUsar?.length ?? 0) + (e.textoNoDebeContener?.length ?? 0) +
-        (e.textoDebeContener?.length ?? 0) + Object.keys(e.entradaEnAlguna ?? {}).length + Object.keys(e.entradaContiene ?? {}).length;
+        (e.textoDebeContener?.length ?? 0) + Object.keys(e.entradaEnAlguna ?? {}).length + Object.keys(e.entradaContiene ?? {}).length +
+        Object.keys(e.entradaJsonContiene ?? {}).length;
       expect(expectativas, e.id).toBeGreaterThan(0);
     }
   });
@@ -32,14 +45,20 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
     for (const e of ESCENARIOS) if (e.consultas) expect(CONSULTAS_DE_PRUEBA[e.consultas].length, e.id).toBeGreaterThan(0);
   });
 
-  it("están los siete de la etapa 3 (casos 14 a 20) y son 20 en total", () => {
+  it("están los siete de la etapa 3 (casos 14 a 20), los dos del formulario primero y los dos de continuidad: 24 en total", () => {
     expect(ESCENARIOS.map((e) => e.id)).toEqual(
       expect.arrayContaining([
         "responder-consulta", "inyeccion-en-la-consulta", "mandale-el-presupuesto", "mensaje-con-monto",
         "seguimientos", "fuera-de-alcance", "ruta-de-la-validez",
       ]),
     );
-    expect(ESCENARIOS).toHaveLength(22);
+    expect(ESCENARIOS.map((e) => e.id)).toEqual(
+      expect.arrayContaining([
+        "precio-sin-perfil-va-al-formulario", "perfil-pide-ayuda-hace-la-entrevista",
+        "perfil-monto-trimestral", "perfil-retoma-borrador",
+      ]),
+    );
+    expect(ESCENARIOS).toHaveLength(24);
   });
 
   it("sólo nombran herramientas que existen", () => {
@@ -48,7 +67,7 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
       capacidades: { configurar: true, gestionarPresupuestos: true, verConsultas: true }, plataforma: "FOTOFFICE:e",
     }).map((t) => t.name);
     for (const e of ESCENARIOS) {
-      for (const n of [...(e.debeUsar ?? []), ...(e.debeUsarAlguna ?? []), ...(e.noDebeUsar ?? []), ...Object.keys(e.entradaEsperada ?? {}), ...Object.keys(e.entradaEnAlguna ?? {}), ...Object.keys(e.entradaContiene ?? {})]) {
+      for (const n of [...(e.debeUsar ?? []), ...(e.debeUsarAlguna ?? []), ...(e.noDebeUsar ?? []), ...Object.keys(e.entradaEsperada ?? {}), ...Object.keys(e.entradaEnAlguna ?? {}), ...Object.keys(e.entradaContiene ?? {}), ...Object.keys(e.entradaJsonContiene ?? {})]) {
         expect(dueno, `${e.id}: ${n}`).toContain(n);
       }
     }
@@ -198,5 +217,37 @@ describe("el formulario primero: los dos caminos", () => {
     expect(porId("perfil-vacio-una-pregunta").debeUsar).toContain("ver_perfil_de_precios");
     expect(VA_AL_FORMULARIO.test("Completá tu perfil en Configuración → Precios.")).toBe(true);
     expect(VA_AL_FORMULARIO.test("Abrí /workspace/configuracion/precios")).toBe(true);
+  });
+});
+
+describe("continuidad (13/10)", () => {
+  const trimestral = ESCENARIOS.find((e) => e.id === "perfil-monto-trimestral")!;
+  const retoma = ESCENARIOS.find((e) => e.id === "perfil-retoma-borrador")!;
+
+  it("lo que dijo el bot el 13/10 cuenta como pedirle a la persona que divida", () => {
+    expect(PIDE_QUE_DIVIDA.test("el perfil pide el monto por mes y yo no hago las cuentas. ¿Me decís cuánto es por mes?")).toBe(true);
+    expect(PIDE_QUE_DIVIDA.test("Anotado: 80.000 cada 3 meses = 26.667 por mes.")).toBe(false);
+    expect(fallasDeTexto(trimestral, "yo no hago las cuentas")).not.toEqual([]);
+  });
+
+  it("monto trimestral: pasa sólo si anotar_en_borrador recibe el período", () => {
+    const con = [{ herramienta: "anotar_en_borrador", entrada: { parche: { gastosPersonales: [{ grupoId: "other", itemId: "pets", monto: { monto: "80000", periodo: "trimestral" } }] } } }];
+    const sin = [{ herramienta: "anotar_en_borrador", entrada: { parche: { gastosPersonales: [{ grupoId: "other", itemId: "pets", monto: "26667" }] } } }];
+    expect(fallasDeEntradaJson(trimestral, con)).toEqual([]);
+    expect(fallasDeEntradaJson(trimestral, sin)).toHaveLength(1);
+  });
+
+  it("retomar: la situación trae el borrador (sin montos) y empezar por la pregunta 1 es una falla", () => {
+    expect(retoma.borrador).toBeDefined();
+    expect(retoma.situacion).toContain("Borrador del perfil");
+    expect(retoma.situacion).toMatch(/Vivienda/);
+    expect(retoma.situacion).not.toMatch(/450/);
+    expect(fallasDeTexto(retoma, "Empecemos: ¿vivís sólo de la fotografía?")).not.toEqual([]);
+    expect(fallasDeTexto(retoma, "No puedo ver lo anterior.")).not.toEqual([]);
+    // A mitad de la entrevista no se la manda al formulario.
+    expect(retoma.situacion).toContain("seguí la entrevista; no la mandes al formulario");
+    expect(retoma.situacion).not.toContain("Se completa en el formulario");
+    expect(retoma.textoNoDebeContener).toContain(VA_AL_FORMULARIO);
+    expect(fallasDeTexto(retoma, "Seguimos donde quedamos: ya tengo vivienda, alimentación, salud y transporte. Ocio en cero, anotado.")).toEqual([]);
   });
 });

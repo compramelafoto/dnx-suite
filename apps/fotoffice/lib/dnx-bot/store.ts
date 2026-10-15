@@ -1,5 +1,5 @@
 import "server-only";
-import type { TokenUsage } from "@repo/dnx-bot";
+import { HARD_CAP_TURNS, carryOverMessage, countTurns, type TokenUsage } from "@repo/dnx-bot";
 import { prisma } from "@repo/db";
 import { PREFIJO_PLATAFORMA } from "./config";
 import { diaArgentino, mesArgentino } from "./dia-argentino";
@@ -16,21 +16,28 @@ import type { UsoFotoffice } from "./limites";
 const VENTANA_ABIERTA_MS = 6 * 60 * 60 * 1000;
 const VIDA_ACCION_MS = 60 * 60 * 1000;
 
-/** Más mensajes que esto en la conversación abierta → se abre otra (cada turno reenvía todo). */
-export const MAX_MENSAJES_POR_CONVERSACION = 40;
-
 const TODO_FOTOFFICE = { startsWith: PREFIJO_PLATAFORMA };
 
 export function claveUsuario(userId: number): string {
   return `u:${userId}`;
 }
 
-export async function conversacionAbierta(p: {
-  plataforma: string;
-  userId: number;
-  pagePath: string | null;
-  model: string;
-}): Promise<{ id: string }> {
+type PedidoConversacion = { plataforma: string; userId: number; pagePath: string | null; model: string };
+export type ConversacionRef = { id: string; createdAt: Date };
+
+async function crearConversacion(p: PedidoConversacion): Promise<ConversacionRef> {
+  return prisma.botConversation.create({
+    data: { platform: p.plataforma, audience: "PHOTOGRAPHER", userId: p.userId, pagePath: p.pagePath, model: p.model },
+    select: { id: true, createdAt: true },
+  });
+}
+
+/**
+ * La conversación abierta (últimas 6 h) o una nueva. Ya NO se corta por cantidad de mensajes: el
+ * 13/10 se abría otra a las 40 filas y el bot perdía todo el contexto en medio del perfil. Lo que
+ * se manda al modelo lo acota la ventana (`windowHistory`), no la conversación.
+ */
+export async function conversacionAbierta(p: PedidoConversacion): Promise<ConversacionRef> {
   const abierta = await prisma.botConversation.findFirst({
     where: {
       platform: p.plataforma,
@@ -40,23 +47,35 @@ export async function conversacionAbierta(p: {
       updatedAt: { gt: new Date(Date.now() - VENTANA_ABIERTA_MS) },
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, _count: { select: { messages: true } } },
+    select: { id: true, createdAt: true },
   });
-  if (abierta && abierta._count.messages <= MAX_MENSAJES_POR_CONVERSACION) return { id: abierta.id };
-  const nueva = await prisma.botConversation.create({
-    data: { platform: p.plataforma, audience: "PHOTOGRAPHER", userId: p.userId, pagePath: p.pagePath, model: p.model },
-    select: { id: true },
-  });
-  return { id: nueva.id };
+  return abierta ?? crearConversacion(p);
 }
 
-export async function cargarHistorial(conversationId: string): Promise<unknown[]> {
+/** Historial completo: los mensajes tal cual van a la API y, aparte, la fecha de cada uno. */
+export async function cargarHistorial(conversationId: string): Promise<{ mensajes: unknown[]; fechas: Date[] }> {
   const filas = await prisma.botMessage.findMany({
     where: { conversationId },
     orderBy: { seq: "asc" },
-    select: { role: true, content: true },
+    select: { role: true, content: true, createdAt: true },
   });
-  return filas.map((f) => ({ role: f.role, content: f.content }));
+  return { mensajes: filas.map((f) => ({ role: f.role, content: f.content })), fechas: filas.map((f) => f.createdAt) };
+}
+
+/**
+ * La conversación del turno con su historial. Sólo si pasó el tope duro (HARD_CAP_TURNS turnos de
+ * la persona, no filas) se abre otra, que arranca con el resumen de la anterior: la persona no ve
+ * un corte. `creada` sirve para saber qué parte del borrador ya está en el historial.
+ */
+export async function continuarConversacion(
+  p: PedidoConversacion,
+): Promise<{ id: string; creada: Date; mensajes: unknown[]; fechas: Date[]; rotada: boolean }> {
+  const conv = await conversacionAbierta(p);
+  const h = await cargarHistorial(conv.id);
+  if (countTurns(h.mensajes) < HARD_CAP_TURNS) return { id: conv.id, creada: conv.createdAt, ...h, rotada: false };
+  const nueva = await crearConversacion(p);
+  await agregarMensajes(nueva.id, [carryOverMessage(h.mensajes)]);
+  return { id: nueva.id, creada: nueva.createdAt, ...(await cargarHistorial(nueva.id)), rotada: true };
 }
 
 export async function agregarMensajes(conversationId: string, msgs: { role: string; content: unknown }[]): Promise<void> {

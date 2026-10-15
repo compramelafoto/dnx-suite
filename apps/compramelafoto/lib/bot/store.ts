@@ -1,4 +1,4 @@
-import type { BotUsageSnapshot, TokenUsage } from "@repo/dnx-bot";
+import { HARD_CAP_TURNS, carryOverMessage, countTurns, type BotUsageSnapshot, type TokenUsage } from "@repo/dnx-bot";
 import { prisma } from "@/lib/prisma";
 import { claveUsuario } from "./actor-key";
 import { BOT_PLATFORM } from "./config";
@@ -6,9 +6,6 @@ import { argentinaDay, argentinaMonthPrefix } from "./dia-argentino";
 
 const OPEN_WINDOW_MS = 6 * 60 * 60 * 1000;
 const ACTION_TTL_MS = 60 * 60 * 1000;
-
-/** Más mensajes que esto en la conversación abierta → se abre una nueva (cada turno reenvía todo el historial). */
-export const MAX_MESSAGES_PER_CONVERSATION = 40;
 
 export type ConversationRef = { id: string; status: "OPEN" | "ESCALATED" | "CLOSED"; supportTicketId: number | null };
 
@@ -23,11 +20,11 @@ export async function getOrCreateConversation(p: { userId: number; pagePath: str
       updatedAt: { gt: new Date(Date.now() - OPEN_WINDOW_MS) },
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, status: true, supportTicketId: true, _count: { select: { messages: true } } },
+    select: { id: true, status: true, supportTicketId: true },
   });
-  if (open && open._count.messages <= MAX_MESSAGES_PER_CONVERSATION) {
-    return { id: open.id, status: open.status, supportTicketId: open.supportTicketId };
-  }
+  // Ya no se corta por cantidad de mensajes (el bot perdía el contexto a mitad de una charla): lo
+  // que viaja al modelo lo acota la ventana del historial (`windowHistory`) en la ruta del chat.
+  if (open) return { id: open.id, status: open.status, supportTicketId: open.supportTicketId };
   const created = await prisma.botConversation.create({
     data: { platform: BOT_PLATFORM, userId: p.userId, pagePath: p.pagePath, model: p.model },
     select: { id: true, status: true, supportTicketId: true },
@@ -38,6 +35,29 @@ export async function getOrCreateConversation(p: { userId: number; pagePath: str
 export async function loadHistory(conversationId: string): Promise<unknown[]> {
   const rows = await prisma.botMessage.findMany({ where: { conversationId }, orderBy: { seq: "asc" }, select: { role: true, content: true } });
   return rows.map((r) => ({ role: r.role, content: r.content }));
+}
+
+/**
+ * El historial del turno. Sólo si la conversación pasó el tope duro (HARD_CAP_TURNS turnos de la
+ * persona, no filas) se abre otra —con el mismo estado y ticket— que arranca con el resumen de la
+ * anterior: para la persona no hay corte.
+ */
+export async function continueConversation(
+  conv: ConversationRef,
+  p: { userId: number; pagePath: string | null; model: string },
+): Promise<{ conv: ConversationRef; history: unknown[]; rotated: boolean }> {
+  const history = await loadHistory(conv.id);
+  if (countTurns(history) < HARD_CAP_TURNS) return { conv, history, rotated: false };
+  const created = await prisma.botConversation.create({
+    data: {
+      platform: BOT_PLATFORM, userId: p.userId, pagePath: p.pagePath, model: p.model,
+      status: conv.status, supportTicketId: conv.supportTicketId,
+    },
+    select: { id: true, status: true, supportTicketId: true },
+  });
+  const carry = carryOverMessage(history);
+  await appendMessages(created.id, [carry]);
+  return { conv: { id: created.id, status: created.status, supportTicketId: created.supportTicketId }, history: [carry], rotated: true };
 }
 
 export async function appendMessages(conversationId: string, msgs: { role: string; content: unknown }[]) {

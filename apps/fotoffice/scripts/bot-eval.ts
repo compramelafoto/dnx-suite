@@ -19,6 +19,7 @@ import {
   fallasDeEntrada,
   fallasDeEntradaContiene,
   fallasDeEntradaEnAlguna,
+  fallasDeEntradaJson,
   fallasDeTexto,
   informeDeEscenario,
   presupuestoDePrueba,
@@ -28,6 +29,7 @@ import {
 import { perfilDePrueba } from "../lib/dnx-bot/evals/perfil-de-prueba";
 import { guiaDelBot } from "../lib/dnx-bot/guia";
 import { herramientasPara } from "../lib/dnx-bot/herramientas";
+import type { Anotacion } from "../lib/dnx-bot/borrador";
 
 const ACTOR: BotActor = { userId: 1, role: "WORKSPACE_OWNER", email: "eval@x.test", name: "Eval" };
 
@@ -53,9 +55,21 @@ function herramientasDe(e: Escenario): BotTool[] {
     throw new Error("bot:eval nunca escribe");
   };
   const consultas = e.consultas ? CONSULTAS_DE_PRUEBA[e.consultas] : [];
+  // El borrador en memoria: arranca con el del escenario (una conversación nueva que retoma).
+  let anotaciones: Anotacion[] = e.borrador ? [{ en: new Date(Date.now() - 60 * 60 * 1000).toISOString(), parche: e.borrador }] : [];
   let n = 0;
   return herramientasPara(ctxDe(e), {
-    perfil: { leer, guardar: nunca },
+    perfil: {
+      leer,
+      guardar: nunca,
+      borrador: {
+        leer: async () => anotaciones,
+        anotar: async (_r, parche) => (anotaciones = [...anotaciones, { en: new Date().toISOString(), parche }]),
+        limpiar: async () => {
+          anotaciones = [];
+        },
+      },
+    },
     presupuestos: {
       leerPerfil: leer,
       buscarConsultas: async () => consultas,
@@ -139,6 +153,7 @@ async function main() {
       ...fallasDeEntrada(e, llamadas),
       ...fallasDeEntradaEnAlguna(e, llamadas),
       ...fallasDeEntradaContiene(e, llamadas),
+      ...fallasDeEntradaJson(e, llamadas),
     ];
     if (errores.length) fallas++;
     console.log(informeDeEscenario(e.id, usadas, errores, texto));

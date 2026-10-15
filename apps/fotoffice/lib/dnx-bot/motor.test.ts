@@ -3,7 +3,7 @@ import { toInputSchema } from "@repo/dnx-bot";
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 import { normalizarPerfil } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
-import { aplicarParche, cambiosEntre, esquemaParchePerfil, perfilBase, simularPerfil, tarjetaDelPerfil, vistaDelPerfil } from "./motor";
+import { aMensual, aplicarParche, cambiosEntre, esquemaParchePerfil, perfilBase, simularPerfil, tarjetaDelPerfil, vistaDelPerfil } from "./motor";
 
 const completo = () => createBaseCompleteProfile();
 const pesos = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -166,5 +166,70 @@ describe("cambiosEntre", () => {
   });
   it("sin cambios, lista vacía", () => {
     expect(cambiosEntre(normalizarPerfil(completo())!, normalizarPerfil(completo())!)).toEqual([]);
+  });
+});
+
+describe("montos por período (80.000 cada 3 meses)", () => {
+  it("aMensual: determinístico, redondeado al peso más cercano (medio peso para arriba)", () => {
+    expect(aMensual(80_000, "trimestral")).toEqual({ ok: true, mensual: 26_667 });
+    expect(aMensual(100_000, "trimestral")).toEqual({ ok: true, mensual: 33_333 });
+    expect(aMensual(90_000, "mensual")).toEqual({ ok: true, mensual: 90_000 });
+    expect(aMensual(50_000, "bimestral")).toEqual({ ok: true, mensual: 25_000 });
+    expect(aMensual(100_000, "cuatrimestral")).toEqual({ ok: true, mensual: 25_000 });
+    expect(aMensual(600_000, "semestral")).toEqual({ ok: true, mensual: 100_000 });
+    expect(aMensual(1_000_000, "anual")).toEqual({ ok: true, mensual: 83_333 });
+    expect(aMensual(18, "anual")).toEqual({ ok: true, mensual: 2 }); // 1,5 → 2
+    expect(aMensual(10_000, "semanal")).toEqual({ ok: true, mensual: 43_333 }); // 52 semanas / 12 meses
+    expect(aMensual(1_200_000, "unica_vez", 24)).toEqual({ ok: true, mensual: 50_000 });
+  });
+  it("aMensual: una vez sin meses, o con 0, es un error claro (no se adivina)", () => {
+    expect(aMensual(1_200_000, "unica_vez")).toMatchObject({ ok: false });
+    expect(aMensual(1_200_000, "unica_vez", 0)).toMatchObject({ ok: false });
+  });
+
+  it("el esquema acepta el monto con su período, y sigue aceptando el monto mensual", () => {
+    expect(esquemaParchePerfil.safeParse({ ahorro: "30000" }).success).toBe(true);
+    expect(esquemaParchePerfil.safeParse({ ahorro: { monto: "360000", periodo: "anual" } }).success).toBe(true);
+    expect(
+      esquemaParchePerfil.safeParse({ gastosPersonales: [{ grupoId: "other", itemId: "pets", monto: { monto: "80000", periodo: "trimestral" } }] }).success,
+    ).toBe(true);
+    expect(esquemaParchePerfil.safeParse({ ahorro: { monto: "$80.000", periodo: "trimestral" } }).success).toBe(false);
+    expect(esquemaParchePerfil.safeParse({ ahorro: { monto: "80000", periodo: "cada tanto" } }).success).toBe(false);
+  });
+
+  it("aplicarParche guarda el mensual y explica la cuenta: «80.000 cada 3 meses = 26.667 por mes»", () => {
+    const r = aplicarParche(perfilBase(null), {
+      gastosPersonales: [
+        { grupoId: "other", itemId: "pets", monto: { monto: "80000", periodo: "trimestral" } },
+        { grupoId: "other", itemId: "clothing", monto: { monto: "100000", periodo: "trimestral" } },
+        { grupoId: "other", itemId: "leisure", monto: "0" },
+      ],
+      negocio: { software: { monto: "240000", periodo: "anual" } },
+    });
+    expect(r.errores).toEqual([]);
+    const otros = r.perfil.personalExpenseGroups.find((g) => g.id === "other")!;
+    expect(otros.items.find((i) => i.id === "pets")!.amount).toBe("26667");
+    expect(otros.items.find((i) => i.id === "clothing")!.amount).toBe("33333");
+    expect(r.perfil.businessSoftware).toBe("20000");
+    expect(r.conversiones).toEqual([
+      { etiqueta: "Mascotas", detalle: `${pesos(80_000)} cada 3 meses = ${pesos(26_667)} por mes` },
+      { etiqueta: "Ropa", detalle: `${pesos(100_000)} cada 3 meses = ${pesos(33_333)} por mes` },
+      { etiqueta: "Software", detalle: `${pesos(240_000)} por año = ${pesos(20_000)} por mes` },
+    ]);
+  });
+
+  it("única vez repartida en N meses, y el error si faltan los meses", () => {
+    const ok = aplicarParche(perfilBase(null), { equipo: { renovacionMensual: { monto: "3600000", periodo: "unica_vez", meses: "36" } } });
+    expect(ok.perfil.equipmentRenewalMonthly).toBe("100000");
+    expect(ok.conversiones[0]!.detalle).toBe(`${pesos(3_600_000)} por única vez, repartido en 36 meses = ${pesos(100_000)} por mes`);
+    const mal = aplicarParche(perfilBase(null), { ahorro: { monto: "500000", periodo: "unica_vez" } });
+    expect(mal.errores.join(" ")).toMatch(/cuántos meses/);
+  });
+
+  it("la tarjeta y la simulación muestran la conversión", () => {
+    const s = simularPerfil(perfilBase(null), { gastosPersonales: [{ grupoId: "other", itemId: "pets", monto: { monto: "80000", periodo: "trimestral" } }] });
+    expect(s.conversiones).toHaveLength(1);
+    const t = tarjetaDelPerfil(s);
+    expect(t.filas).toContainEqual({ etiqueta: "Mascotas", valor: `${pesos(80_000)} cada 3 meses = ${pesos(26_667)} por mes` });
   });
 });

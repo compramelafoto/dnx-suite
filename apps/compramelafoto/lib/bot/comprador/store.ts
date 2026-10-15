@@ -2,13 +2,11 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/order-claims";
 import { BOT_PLATFORM } from "../config";
-import type { BotActionRow } from "../store";
+import { HARD_CAP_TURNS, carryOverMessage, countTurns } from "@repo/dnx-bot";
+import { appendMessages, loadHistory, type BotActionRow } from "../store";
 
 const OPEN_WINDOW_MS = 6 * 60 * 60 * 1000;
 const ACTION_TTL_MS = 60 * 60 * 1000;
-
-/** Más mensajes que esto en la conversación abierta → se abre una nueva (cada turno reenvía todo el historial). */
-export const MAX_MENSAJES_CONVERSACION_COMPRADOR = 30;
 
 export type ConversacionComprador = {
   id: string;
@@ -35,7 +33,7 @@ function aConversacion(r: ConversacionComprador): ConversacionComprador {
 }
 
 /** Conversación abierta (o escalada) del navegador en las últimas 6 horas. */
-async function buscarConConteo(guestKey: string) {
+async function buscarAbierta(guestKey: string) {
   return prisma.botConversation.findFirst({
     where: {
       platform: BOT_PLATFORM,
@@ -45,12 +43,12 @@ async function buscarConConteo(guestKey: string) {
       updatedAt: { gt: new Date(Date.now() - OPEN_WINDOW_MS) },
     },
     orderBy: { updatedAt: "desc" },
-    select: { ...SELECT_CONVERSACION, _count: { select: { messages: true } } },
+    select: SELECT_CONVERSACION,
   });
 }
 
 export async function buscarConversacionComprador(guestKey: string): Promise<ConversacionComprador | null> {
-  const r = await buscarConConteo(guestKey);
+  const r = await buscarAbierta(guestKey);
   return r ? aConversacion(r) : null;
 }
 
@@ -69,8 +67,9 @@ export async function leerConversacionComprador(conversationId: string, guestKey
 export async function obtenerConversacionComprador(p: {
   guestKey: string; ipHash: string; pagePath: string | null; albumId: number | null; orderId: number | null; model: string;
 }): Promise<ConversacionComprador> {
-  const abierta = await buscarConConteo(p.guestKey);
-  if (abierta && abierta._count.messages <= MAX_MENSAJES_CONVERSACION_COMPRADOR) {
+  // Ya no se corta por cantidad de mensajes: lo que viaja al modelo lo acota la ventana del historial.
+  const abierta = await buscarAbierta(p.guestKey);
+  if (abierta) {
     const c = aConversacion(abierta);
     const cambios: { albumId?: number; orderId?: number } = {};
     if (p.albumId != null && p.albumId !== c.albumId) cambios.albumId = p.albumId;
@@ -96,6 +95,30 @@ export async function obtenerConversacionComprador(p: {
     select: SELECT_CONVERSACION,
   });
   return aConversacion(creada);
+}
+
+/**
+ * El historial del turno. Sólo si la conversación pasó el tope duro (HARD_CAP_TURNS turnos, no
+ * filas) se abre otra con lo mismo (verificación, pedido, ticket) que arranca con el resumen de la
+ * anterior: para el comprador no hay corte.
+ */
+export async function continuarConversacionComprador(
+  conv: ConversacionComprador,
+  p: { guestKey: string; pagePath: string | null; model: string },
+): Promise<{ conv: ConversacionComprador; history: unknown[]; rotada: boolean }> {
+  const history = await loadHistory(conv.id);
+  if (countTurns(history) < HARD_CAP_TURNS) return { conv, history, rotada: false };
+  const creada = await prisma.botConversation.create({
+    data: {
+      platform: BOT_PLATFORM, audience: "BUYER", userId: null, guestKey: p.guestKey, ipHash: conv.ipHash,
+      pagePath: p.pagePath, albumId: conv.albumId, orderId: conv.orderId, model: p.model,
+      buyerEmail: conv.buyerEmail, verifiedUntil: conv.verifiedUntil, status: conv.status, supportTicketId: conv.supportTicketId,
+    },
+    select: SELECT_CONVERSACION,
+  });
+  const arrastre = carryOverMessage(history);
+  await appendMessages(creada.id, [arrastre]);
+  return { conv: aConversacion(creada), history: [arrastre], rotada: true };
 }
 
 export async function marcarVerificada(conversationId: string, email: string, hasta: Date): Promise<void> {

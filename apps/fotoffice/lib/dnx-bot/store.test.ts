@@ -15,6 +15,9 @@ const m = vi.hoisted(() => ({
   incidentFindUnique: vi.fn(),
   incidentUpsert: vi.fn(),
   incidentDeleteMany: vi.fn(),
+  msgFindMany: vi.fn(),
+  msgAggregate: vi.fn(),
+  msgCreateMany: vi.fn(),
 }));
 vi.mock("@repo/db", () => ({
   prisma: {
@@ -22,10 +25,16 @@ vi.mock("@repo/db", () => ({
     botUsageDaily: { aggregate: m.usageAggregate, upsert: m.usageUpsert, findMany: m.usageFindMany },
     botAction: { create: m.actionCreate, updateMany: m.actionUpdateMany, findFirst: m.actionFindFirst, findUnique: m.actionFindUnique },
     botIncident: { create: m.incidentCreate, findUnique: m.incidentFindUnique, upsert: m.incidentUpsert, deleteMany: m.incidentDeleteMany },
+    botMessage: { findMany: m.msgFindMany },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({ $queryRaw: async () => [], botMessage: { aggregate: m.msgAggregate, createMany: m.msgCreateMany } }),
   },
 }));
 
+import { HARD_CAP_TURNS } from "@repo/dnx-bot";
 import {
+  cargarHistorial,
+  continuarConversacion,
   conversacionAbierta,
   gastoDelMes,
   registrarIncidente,
@@ -33,7 +42,6 @@ import {
   reservarMarca,
   tomarAccionPendiente,
   usoActual,
-  MAX_MENSAJES_POR_CONVERSACION,
 } from "./store";
 
 beforeEach(() => {
@@ -42,24 +50,63 @@ beforeEach(() => {
 
 const OCT = new Date("2026-10-20T15:00:00Z");
 
+const CREADA = new Date("2026-10-13T07:02:00Z");
+
 describe("conversacionAbierta", () => {
   it("busca y crea con la plataforma del workspace y audiencia de fotógrafo", async () => {
     m.convFindFirst.mockResolvedValue(null);
-    m.convCreate.mockResolvedValue({ id: "c-nueva" });
+    m.convCreate.mockResolvedValue({ id: "c-nueva", createdAt: CREADA });
     const r = await conversacionAbierta({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: "/presupuestos", model: "claude-sonnet-5-5" });
-    expect(r).toEqual({ id: "c-nueva" });
+    expect(r).toEqual({ id: "c-nueva", createdAt: CREADA });
     expect(m.convFindFirst.mock.calls[0]![0].where).toMatchObject({ platform: "FOTOFFICE:ws1", audience: "PHOTOGRAPHER", userId: 7, status: "OPEN" });
     expect(m.convCreate.mock.calls[0]![0].data).toMatchObject({ platform: "FOTOFFICE:ws1", audience: "PHOTOGRAPHER", userId: 7, pagePath: "/presupuestos" });
   });
-  it("reusa la abierta mientras no pase el máximo de mensajes", async () => {
-    m.convFindFirst.mockResolvedValue({ id: "c1", _count: { messages: MAX_MENSAJES_POR_CONVERSACION } });
-    expect(await conversacionAbierta({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: null, model: "x" })).toEqual({ id: "c1" });
+  it("reusa la abierta por más larga que sea: el 13/10 se abría otra a las 40 filas y el bot se olvidaba de todo", async () => {
+    m.convFindFirst.mockResolvedValue({ id: "c1", createdAt: CREADA });
+    expect(await conversacionAbierta({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: null, model: "x" })).toEqual({ id: "c1", createdAt: CREADA });
+    expect(m.convCreate).not.toHaveBeenCalled();
+    expect(m.convFindFirst.mock.calls[0]![0].select).not.toHaveProperty("_count");
+  });
+});
+
+const fila = (role: string, content: unknown, min = 0) => ({ role, content, createdAt: new Date(CREADA.getTime() + min * 60_000) });
+
+describe("cargarHistorial", () => {
+  it("devuelve los mensajes tal cual (sin campos extra para la API) y sus fechas aparte", async () => {
+    m.msgFindMany.mockResolvedValue([fila("user", "hola", 1), fila("assistant", [{ type: "text", text: "¡hola!" }], 1)]);
+    const h = await cargarHistorial("c1");
+    expect(h.mensajes).toEqual([{ role: "user", content: "hola" }, { role: "assistant", content: [{ type: "text", text: "¡hola!" }] }]);
+    expect(h.fechas[0]).toEqual(new Date(CREADA.getTime() + 60_000));
+  });
+});
+
+describe("continuarConversacion (tope duro en turnos, con arrastre)", () => {
+  const p = { plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: null, model: "x" };
+  const turnos = (n: number) => Array.from({ length: n }, (_, i) => [fila("user", `dato ${i + 1}`), fila("assistant", [{ type: "text", text: "ok" }])]).flat();
+
+  it("una conversación como la del 13/10 (21 turnos, 42 filas) sigue en la misma", async () => {
+    m.convFindFirst.mockResolvedValue({ id: "c1", createdAt: CREADA });
+    m.msgFindMany.mockResolvedValue(turnos(21));
+    const r = await continuarConversacion(p);
+    expect(r.id).toBe("c1");
+    expect(r.creada).toEqual(CREADA);
+    expect(r.mensajes).toHaveLength(42);
     expect(m.convCreate).not.toHaveBeenCalled();
   });
-  it("con demasiados mensajes abre otra", async () => {
-    m.convFindFirst.mockResolvedValue({ id: "c1", _count: { messages: MAX_MENSAJES_POR_CONVERSACION + 1 } });
-    m.convCreate.mockResolvedValue({ id: "c2" });
-    expect(await conversacionAbierta({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: null, model: "x" })).toEqual({ id: "c2" });
+
+  it("pasado el tope duro abre otra, pero arranca con el resumen de la anterior (sin corte para la persona)", async () => {
+    m.convFindFirst.mockResolvedValue({ id: "c1", createdAt: CREADA });
+    m.convCreate.mockResolvedValue({ id: "c2", createdAt: new Date("2026-10-13T09:00:00Z") });
+    m.msgAggregate.mockResolvedValue({ _max: { seq: null } });
+    const arrastre: { content: string }[] = [];
+    m.msgCreateMany.mockImplementation(async ({ data }: { data: { content: string }[] }) => arrastre.push(...data));
+    m.msgFindMany.mockResolvedValueOnce(turnos(HARD_CAP_TURNS)).mockImplementationOnce(async () => arrastre.map((a) => fila("user", a.content)));
+    const r = await continuarConversacion(p);
+    expect(r.id).toBe("c2");
+    expect(arrastre).toHaveLength(1);
+    expect(arrastre[0]!.content).toMatch(/^\[Sistema\]/);
+    expect(arrastre[0]!.content).toContain(`dato ${HARD_CAP_TURNS}`);
+    expect(r.mensajes).toHaveLength(1);
   });
 });
 

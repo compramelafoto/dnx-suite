@@ -87,6 +87,25 @@ describe("runBotTurn", () => {
     expect(JSON.stringify(r.appended[2]!.content)).toContain("PENDIENTE_DE_CONFIRMACION");
   });
 
+  it("prepare: la entrada que se describe y se guarda en la propuesta es la preparada (congelada al proponer)", async () => {
+    const conPrepare = defineTool({
+      name: "guardar_algo",
+      description: "d",
+      input: z.object({ a: z.string(), b: z.string().optional() }),
+      kind: "write",
+      prepare: async (i) => ({ ...i, b: "del borrador" }),
+      describe: async (i) => `Guardar ${i.a} y ${i.b}`,
+      run: vi.fn(),
+    });
+    const client = fakeClient([
+      { stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t1", name: "guardar_algo", input: { a: "x" } }] },
+      { stop_reason: "end_turn", usage, content: [{ type: "text", text: "Confirmá abajo" }] },
+    ]);
+    const proposeWrite = vi.fn(async () => ({ actionId: "a1" }));
+    await runBotTurn({ ...base, client, tools: [conPrepare], userText: "guardalo", onText: () => {}, proposeWrite, onProposal: vi.fn() });
+    expect(proposeWrite).toHaveBeenCalledWith({ toolName: "guardar_algo", input: { a: "x", b: "del borrador" }, summary: "Guardar x y del borrador" });
+  });
+
   it("entrada inválida → tool_result con is_error, sin correr", async () => {
     const client = fakeClient([
       { stop_reason: "tool_use", usage, content: [{ type: "tool_use", id: "t1", name: "ver_album", input: { albumId: "x" } }] },

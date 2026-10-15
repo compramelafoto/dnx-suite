@@ -15,7 +15,8 @@ vi.mock("@/lib/prisma", () => ({
     $transaction: (fn: any) => fn({ botMessage: m.msg, $queryRaw: m.raw }),
   },
 }));
-import { appendMessages, claimPendingAction, getOrCreateConversation, MAX_MESSAGES_PER_CONVERSATION, recordUsage, usageSnapshot } from "./store";
+import { HARD_CAP_TURNS } from "@repo/dnx-bot";
+import { appendMessages, claimPendingAction, continueConversation, getOrCreateConversation, recordUsage, usageSnapshot } from "./store";
 
 beforeEach(() => Object.values(m).forEach((g: any) => typeof g === "function" ? g.mockReset() : Object.values(g).forEach((f: any) => f.mockReset())));
 
@@ -31,13 +32,33 @@ describe("store", () => {
     m.conv.create.mockResolvedValue({ id: "c2", status: "OPEN", supportTicketId: null });
     expect(await getOrCreateConversation({ userId: 1, pagePath: "/x", model: "m" })).toEqual({ id: "c2", status: "OPEN", supportTicketId: null });
   });
-  it("con más de 40 mensajes abre una conversación nueva; con 40 justos la reusa", async () => {
-    m.conv.findFirst.mockResolvedValueOnce({ id: "c1", status: "OPEN", supportTicketId: null, _count: { messages: MAX_MESSAGES_PER_CONVERSATION + 1 } });
-    m.conv.create.mockResolvedValue({ id: "c3", status: "OPEN", supportTicketId: null });
-    expect((await getOrCreateConversation({ userId: 1, pagePath: null, model: "m" })).id).toBe("c3");
-    m.conv.findFirst.mockResolvedValueOnce({ id: "c1", status: "OPEN", supportTicketId: null, _count: { messages: MAX_MESSAGES_PER_CONVERSATION } });
+  it("una conversación larga se sigue usando: ya no se corta a los 40 mensajes (el bot perdía el contexto)", async () => {
+    m.conv.findFirst.mockResolvedValueOnce({ id: "c1", status: "OPEN", supportTicketId: null });
     expect((await getOrCreateConversation({ userId: 1, pagePath: null, model: "m" })).id).toBe("c1");
-    expect(m.conv.create).toHaveBeenCalledTimes(1);
+    expect(m.conv.create).not.toHaveBeenCalled();
+    expect(m.conv.findFirst.mock.calls[0]![0].select).not.toHaveProperty("_count");
+  });
+  it("continueConversation: debajo del tope duro (en turnos), la misma conversación con su historial", async () => {
+    const filas = Array.from({ length: 60 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: `m${i}` }));
+    m.msg.findMany.mockResolvedValue(filas);
+    const r = await continueConversation({ id: "c1", status: "OPEN", supportTicketId: null }, { userId: 1, pagePath: null, model: "m" });
+    expect(r.conv.id).toBe("c1");
+    expect(r.history).toHaveLength(60);
+    expect(m.conv.create).not.toHaveBeenCalled();
+  });
+  it("continueConversation: pasado el tope duro abre otra con el resumen de la anterior y conserva el ticket", async () => {
+    const filas = Array.from({ length: HARD_CAP_TURNS }, (_, i) => [{ role: "user", content: `pedido ${i + 1}` }, { role: "assistant", content: "ok" }]).flat();
+    m.msg.findMany.mockResolvedValue(filas);
+    m.msg.aggregate.mockResolvedValue({ _max: { seq: null } });
+    m.conv.create.mockResolvedValue({ id: "c2", status: "ESCALATED", supportTicketId: 9 });
+    const r = await continueConversation({ id: "c1", status: "ESCALATED", supportTicketId: 9 }, { userId: 1, pagePath: null, model: "m" });
+    expect(r.conv.id).toBe("c2");
+    expect(m.conv.create.mock.calls[0]![0].data).toMatchObject({ platform: "CLF", userId: 1, status: "ESCALATED", supportTicketId: 9 });
+    const arrastre = m.msg.createMany.mock.calls[0]![0].data[0];
+    expect(arrastre).toMatchObject({ conversationId: "c2", seq: 0, role: "user" });
+    expect(arrastre.content).toMatch(/^\[Sistema\]/);
+    expect(arrastre.content).toContain(`pedido ${HARD_CAP_TURNS}`);
+    expect(r.history).toEqual([{ role: "user", content: arrastre.content }]);
   });
   it("claimPendingAction es atómico: sólo gana un updateMany con count 1", async () => {
     m.action.updateMany.mockResolvedValue({ count: 0 });
