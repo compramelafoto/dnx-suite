@@ -4,7 +4,9 @@ import { useState } from "react";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { nuevaClave, pesos } from "@/lib/presupuestos/editor";
-import { armarItemsDelAsistente, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { ajustesVacios, armarItemsDelAsistente, trabajoVacio, type AjustesTrabajo, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { resumenDelPrecioCompleto } from "@/lib/presupuestos/precio-completo";
+import { CamposAjustes, DesglosePrecio } from "./desglose-precio";
 import { AvisoSinPerfil, CampoTexto, CamposTrabajo, PerfilEnUso } from "./panel-cuanto-cobro";
 
 /**
@@ -25,13 +27,15 @@ export function AsistenteCuantoCobro({
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState("");
   const [seccion, setSeccion] = useState("");
   const [trabajos, setTrabajos] = useState<TrabajoPanel[]>([trabajoVacio("Cobertura")]);
+  const [ajustes, setAjustes] = useState<AjustesTrabajo>(ajustesVacios());
 
   // La vista previa usa claves fijas (por posición): las claves de verdad se generan recién al
   // agregar, así no cambian en cada tecla.
-  const opciones = (clave: () => string) => ({ seccion: seccion.trim() || null, nuevaClave: clave });
+  const opciones = (clave: () => string) => ({ seccion: seccion.trim() || null, nuevaClave: clave, ajustes });
   let n = 0;
   const r = perfil ? armarItemsDelAsistente(perfil, trabajos, tipoDeTrabajo, opciones(() => `vista-${n++}`)) : null;
   const total = r?.ok ? r.items.reduce((s, i) => s + i.precioUnitario, 0) : 0;
+  const completo = r?.ok && perfil ? resumenDelPrecioCompleto(r.items, perfil) : null;
 
   return (
     <section aria-label="Armar con ¿Cuánto Cobro?" className="space-y-4 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] p-4">
@@ -76,6 +80,8 @@ export function AsistenteCuantoCobro({
       <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setTrabajos((ts) => [...ts, trabajoVacio("")])}>
         Agregar concepto
       </button>
+      {perfil ? <CamposAjustes ajustes={ajustes} onCambio={setAjustes} perfil={perfil} /> : null}
+      {trabajos.length > 1 ? <p className="text-xs text-[var(--fo-muted)]">Viáticos, retoque y seguro del evento se suman una sola vez, en el primer concepto.</p> : null}
 
       {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
       <p className="sr-only" aria-live="polite">
@@ -92,6 +98,7 @@ export function AsistenteCuantoCobro({
             ))}
           </ul>
           <p className="font-semibold text-[var(--fo-text)]">Total sugerido: {pesos(total)}</p>
+          {completo ? <DesglosePrecio trabajo={completo.trabajo} /> : null}
           <button
             type="button"
             className="fo-btn fo-btn-primary text-sm"
