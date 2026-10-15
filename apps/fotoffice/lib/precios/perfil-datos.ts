@@ -68,7 +68,7 @@ const CAMPOS_MONTO: ReadonlyArray<[keyof CuantoCobroProfileInput, string]> = [
   ["employeesCount", "Cantidad de empleados"],
   ["employeeMonthlyCost", "Costo mensual del equipo"],
   ["weeklyHours", "Horas por semana"],
-  ["equipmentRenewalMonthly", "Renovación de equipos"],
+  ["equipmentRenewalMonthly", "Inversión mensual en equipo"],
   ["primaryCameraShutterRating", "Vida útil del obturador"],
   ["primaryCameraCurrentShutterCount", "Disparos actuales del obturador"],
   ["primaryCameraReplacementValue", "Valor de reposición de la cámara"],

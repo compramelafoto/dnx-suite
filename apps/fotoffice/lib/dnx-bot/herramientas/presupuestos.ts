@@ -55,6 +55,7 @@ const DEPS: DepsPresupuestosBot = {
 
 const RUTA_PRECIOS = "/workspace/configuracion/precios";
 export const CAMBIO_EL_CALCULO = "El cálculo cambió desde que te lo mostré: volvé a cotizar.";
+export const ES_PARCIAL = "Es un cálculo parcial: completá las preguntas (o confirmá que van en cero) antes de pasarlo a un presupuesto.";
 
 const pesos = (n: number) => formatCuantoCobroCurrency(n, "ARS");
 const totalDe = (items: readonly ItemPresupuesto[]) => Math.round(items.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0));
@@ -108,6 +109,7 @@ function entradaCon(items: ItemPresupuesto[], borrador: VersionVista): EntradaBo
 }
 
 async function validarCreacion(ctx: CtxBot, input: Cotizacion & { consultaLeadId: string; totalEsperado: string; seccion?: string }, deps: DepsPresupuestosBot) {
+  if (input.parcial) return { ok: false, error: ES_PARCIAL } as const;
   const consulta = await deps.consulta(ctx, input.consultaLeadId);
   if (!consulta) return { ok: false, error: MENSAJES_PRESUPUESTO.consulta } as const;
   if (!consulta.tieneFicha) return { ok: false, error: `${MENSAJES_PRESUPUESTO.consultaSinContacto} Está en /consultas/${consulta.leadId}.` } as const;
@@ -122,6 +124,7 @@ async function validarCreacion(ctx: CtxBot, input: Cotizacion & { consultaLeadId
 }
 
 async function validarSuma(ctx: CtxBot, input: Cotizacion & { presupuestoId: string; totalEsperado: string; seccion?: string }, deps: DepsPresupuestosBot) {
+  if (input.parcial) return { ok: false, error: ES_PARCIAL } as const;
   const d = await deps.leerPresupuesto(ctx, input.presupuestoId);
   if (!d) return { ok: false, error: MENSAJES_PRESUPUESTO.noExiste } as const;
   if (!d.borrador) return { ok: false, error: `${MENSAJES_PRESUPUESTO.sinBorrador} Si ya se envió, creá una versión nueva desde /presupuestos/${d.id}.` } as const;
@@ -143,7 +146,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
       defineTool({
         name: "cotizar_trabajo",
         description:
-          "Calcula con ¿Cuánto Cobro? (el motor del panel) el precio de un trabajo descripto por la persona: precio recomendado, mínimo para no perder plata y ganancia, por concepto y total. No escribe nada. Para cualquier variante (sumar un álbum, cambiar horas, fijar un total a mano) volvé a usarla: nunca hagas la cuenta vos.",
+          "Calcula con ¿Cuánto Cobro? (el motor del panel) el precio de un trabajo: recomendado, mínimo para no perder plata, ganancia, costos variables y desgaste de la cámara, por concepto y total. No escribe nada. Cada costo variable va como concepto propio: productos (physical-product: impresiones, álbum), tercerizados (outsourced: segundo fotógrafo, asistente) y gastos (expense: combustible, peajes, estacionamiento, comida, alojamiento). En el servicio propio, disparosEstimados = el máximo de disparos de ESTE trabajo. Si todavía falta algún grupo de la entrevista, mandá parcial: true. Para cualquier variante (sumar un álbum, cambiar horas, fijar un total a mano) volvé a usarla: nunca hagas la cuenta vos.",
         input: esquemaCotizacion,
         kind: "read",
         run: async (input) => {

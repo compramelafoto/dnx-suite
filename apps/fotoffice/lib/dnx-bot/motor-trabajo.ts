@@ -3,7 +3,7 @@ import { formatCuantoCobroCurrency, parseCuantoCobroAmount, type CuantoCobroProf
 import { resumirPerfil } from "@/lib/precios/resumen";
 import { entradaDelMotor, recalcularItemCalculo } from "@/lib/presupuestos/calculo-cuanto-cobro";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
-import { armarItemsDelAsistente, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { armarItemsDelAsistente, correrMotor, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
 import type { TarjetaCalculo } from "./motor";
 
 /**
@@ -33,13 +33,19 @@ export const esquemaTrabajoBot = z
     horasEdicion: horas.optional(),
     horasEntrega: horas.optional(),
     horasViaje: horas.optional(),
-    costoDirecto: monto.optional().describe("Costos directos del servicio propio (traslados, insumos)."),
-    costoProveedor: monto.optional().describe("Lo que cobra el proveedor por el producto (laboratorio, imprenta)."),
-    horasDiseno: horas.optional().describe("Horas propias de diseño o producción del producto."),
-    costoEnvio: monto.optional(),
-    costoTercerizado: monto.optional().describe("Lo que cobra quien hace el trabajo tercerizado."),
-    horasGestion: horas.optional().describe("Horas propias de gestión de lo tercerizado."),
-    costoGasto: monto.optional().describe("Monto del gasto o viático."),
+    disparosEstimados: z
+      .string()
+      .regex(/^\d{1,7}$/)
+      .optional()
+      .describe("Sólo servicio propio: el MÁXIMO de disparos que planea para ESTE trabajo. Con la cámara del perfil, el motor calcula el desgaste de este trabajo. Es un dato del trabajo, nunca del perfil."),
+    costoDirecto: monto.optional().describe("Costos directos del servicio propio que no son un concepto aparte (insumos). Los viáticos, el asistente y los productos van como conceptos propios, para que se vean en el desglose."),
+    costoProveedor: monto.optional().describe("Producto (physical-product): lo que cobra el proveedor por unidad (laboratorio, imprenta)."),
+    horasDiseno: horas.optional().describe("Producto: horas propias de diseño o producción."),
+    costoEnvio: monto.optional().describe("Producto: envío por unidad."),
+    costoEmbalaje: monto.optional().describe("Producto: embalaje por unidad."),
+    costoTercerizado: monto.optional().describe("Tercerizado (outsourced): lo que cobra quien lo hace (segundo fotógrafo, asistente, video, maquillaje)."),
+    horasGestion: horas.optional().describe("Tercerizado: horas propias de gestión."),
+    costoGasto: monto.optional().describe("Gasto o viático (expense): combustible, peajes, estacionamiento, comida, alojamiento… Uno por concepto."),
     margenDeseado: pct.optional().describe("Ganancia deseada para producto, tercerizado o gasto. Sólo si la persona la dijo."),
     horasCliente: horas.optional().describe("Horas con el cliente (ventas, reuniones, coordinación) del trabajo entero: van sólo en el primer concepto."),
   })
@@ -51,6 +57,10 @@ export const esquemaCotizacion = z.object({
   tipoDeTrabajo: z.string().min(1).max(80).describe("Tipo de trabajo (\"Casamiento\", \"Quince\", \"Retrato corporativo\")."),
   conceptos: z.array(esquemaTrabajoBot).min(1).max(10),
   precioTotalElegido: monto.optional().describe("Sólo si la persona fija un total a mano (\"dejalo en 1.100.000\" → \"1100000\")."),
+  parcial: z
+    .boolean()
+    .optional()
+    .describe("true si todavía faltan grupos de la entrevista (horas, disparos, costos variables): el resultado se muestra como PARCIAL y no se puede pasar a un presupuesto."),
 });
 
 export type Cotizacion = z.infer<typeof esquemaCotizacion>;
@@ -65,10 +75,12 @@ export function trabajoBotAPanel(t: TrabajoBot): TrabajoPanel {
     horasEdicion: h(t.horasEdicion),
     horasEntrega: h(t.horasEntrega),
     horasViaje: h(t.horasViaje),
+    disparosEstimados: t.disparosEstimados ?? "",
     costoDirecto: t.costoDirecto ?? "",
     costoProveedor: t.costoProveedor ?? "",
     horasDiseno: h(t.horasDiseno),
     costoEnvio: t.costoEnvio ?? "",
+    costoEmbalaje: t.costoEmbalaje ?? "",
     costoTercerizado: t.costoTercerizado ?? "",
     horasGestion: h(t.horasGestion),
     costoGasto: t.costoGasto ?? "",
@@ -104,7 +116,16 @@ export type ResumenCotizacion = {
     estado: string;
     advertencias: string[];
   }[];
-  total: { recomendado: string; minimo: string; elegido: string; ganancia: string; gananciaPct: string | null };
+  total: { recomendado: string; minimo: string; elegido: string; ganancia: string; gananciaPct: string | null; costosVariables: string };
+  /**
+   * Desgaste de la cámara de este trabajo, del motor: disparos × (valor de reposición / vida útil).
+   * `sumado`: si el motor lo sumó al precio. null si no hay disparos o la cámara no está en el perfil.
+   */
+  desgasteCamara: { disparos: number; monto: string; sumado: boolean } | null;
+  /** Hay un servicio propio sin disparos estimados y la cámara está en el perfil: el desgaste no está contado. */
+  faltanDisparos: boolean;
+  /** Faltan grupos de la entrevista: no es el precio final. */
+  parcial: boolean;
   /** El total quedó a mano (distinto del recomendado). */
   ajustado: boolean;
   /** La ganancia del total es más de `GANANCIA_PARA_REVISAR` veces el costo: casi siempre faltan horas o costos. */
@@ -128,14 +149,33 @@ const ESTADO: Record<string, string> = {
 /** Más de 3 veces el costo (300 %) no es imposible, pero casi siempre es un dato que falta: se pide revisar. */
 export const GANANCIA_PARA_REVISAR = 3;
 
+/** El aviso del motor en modo estructural mezcla la inversión en equipo con la cámara: se reemplaza por uno exacto. */
+const esAvisoEstructural = (a: string) => a.startsWith("Modo estructural");
+
+/** Desgaste de la cámara de cada ítem, tal como lo da el motor con la entrada guardada. */
+function desgasteDe(items: ItemPresupuesto[]): { disparos: number; informativo: number; cobrado: number; camara: boolean } {
+  const out = { disparos: 0, informativo: 0, cobrado: 0, camara: false };
+  for (const it of items) {
+    const entrada = it.calculo ? entradaDelMotor(it.calculo.entrada) : null;
+    const r = entrada ? correrMotor(entrada) : null;
+    if (!r || r.status !== "complete") continue;
+    out.disparos += r.cameraWearSummary.totalJobShots;
+    out.informativo += r.cameraWearSummary.totalCameraWearInformative;
+    out.cobrado += r.cameraWearSummary.totalCameraWearCharged;
+    out.camara = out.camara || r.cameraWearSummary.isCameraConfigured;
+  }
+  return out;
+}
+
 const porcentaje = (p: number | null) => (p === null || !Number.isFinite(p) ? null : `${Math.round(p * 100)} %`);
 const horasTexto = (h: number) => `${Math.round(h * 10) / 10} h`;
 
-function resumir(items: ItemPresupuesto[], ajustado: boolean): ResumenCotizacion {
+function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: { faltanDisparos: boolean; parcial: boolean }): ResumenCotizacion {
   const calc = items.map((i) => i.calculo!);
   const moneda = calc[0]?.moneda || "ARS";
   const $ = (n: number) => formatCuantoCobroCurrency(n, moneda);
   const suma = (f: (c: (typeof calc)[number]) => number) => calc.reduce((s, c) => s + f(c), 0);
+  const d = desgasteDe(items);
   const costoBase = suma((c) => c.costoBase);
   const ganancia = suma((c) => c.margenElegido);
   return {
@@ -151,7 +191,7 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean): ResumenCotizacion
         ganancia: $(c.margenElegido),
         gananciaPct: porcentaje(c.margenElegidoProporcion),
         estado: ESTADO[c.estadoRentabilidad] ?? c.estadoRentabilidad,
-        advertencias: c.advertencias,
+        advertencias: c.advertencias.filter((a) => !esAvisoEstructural(a)),
       };
     }),
     total: {
@@ -160,7 +200,12 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean): ResumenCotizacion
       elegido: $(suma((c) => c.precioElegido)),
       ganancia: $(ganancia),
       gananciaPct: porcentaje(costoBase > 0 ? ganancia / costoBase : null),
+      costosVariables: $(suma((c) => c.costosVariables)),
     },
+    desgasteCamara: d.disparos > 0 && d.camara ? { disparos: d.disparos, monto: $(d.cobrado > 0 ? d.cobrado : d.informativo), sumado: d.cobrado > 0 } : null,
+    // Sin cámara en el perfil los disparos no cambian nada: no se avisa.
+    faltanDisparos: extra.faltanDisparos && d.camara,
+    parcial: extra.parcial,
     ajustado,
     gananciaParaRevisar: costoBase > 0 && ganancia / costoBase > GANANCIA_PARA_REVISAR,
     valorHora: $(calc[0]?.valorHora ?? 0),
@@ -188,7 +233,11 @@ export function cotizar(
   });
   if (!r.ok) return { estado: r.faltan.length ? "FALTAN_DATOS" : "INVALIDO", faltan: r.faltan, error: r.error };
 
-  if (c.precioTotalElegido === undefined) return { estado: "OK", faltan: [], items: r.items, resumen: resumir(r.items, false) };
+  const extra = {
+    faltanDisparos: c.conceptos.some((t) => (t.tipo ?? "own-service") === "own-service" && !t.disparosEstimados),
+    parcial: c.parcial === true,
+  };
+  if (c.precioTotalElegido === undefined) return { estado: "OK", faltan: [], items: r.items, resumen: resumir(r.items, false, extra) };
 
   const total = parseCuantoCobroAmount(c.precioTotalElegido) ?? 0;
   if (!(total > 0)) return { estado: "INVALIDO", faltan: [], error: "El precio elegido tiene que ser mayor que cero." };
@@ -202,7 +251,7 @@ export function cotizar(
     if (!re.ok) return { estado: "INVALIDO", faltan: re.faltan, error: `${it.nombre}: ${re.error}` };
     items.push(re.item);
   }
-  return { estado: "OK", faltan: [], items, resumen: resumir(items, true) };
+  return { estado: "OK", faltan: [], items, resumen: resumir(items, true, extra) };
 }
 
 // ── Tarjeta «cálculo» ──────────────────────────────────────────────────────────────────────────
@@ -215,13 +264,21 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
     { etiqueta: "Mínimo para no perder", valor: t.minimo },
     { etiqueta: "Ganancia", valor: t.gananciaPct ? `${t.ganancia} (${t.gananciaPct})` : t.ganancia },
     { etiqueta: "Valor hora", valor: r.valorHora },
+    { etiqueta: "Costos variables", valor: t.costosVariables },
+    ...(r.desgasteCamara
+      ? [{ etiqueta: `Desgaste de cámara (${r.desgasteCamara.disparos} disparos)`, valor: `${r.desgasteCamara.monto} (${r.desgasteCamara.sumado ? "sumado" : "no sumado"})` }]
+      : []),
     ...r.conceptos.map((c) => ({ etiqueta: c.nombre, valor: c.precio })),
   ].slice(0, 12);
   const avisos = [
     // Sólo un aviso: el número es el del motor, tal cual.
+    ...(r.faltanDisparos ? ["Faltan los disparos estimados del trabajo: el desgaste de la cámara no está contado."] : []),
+    ...(r.desgasteCamara && !r.desgasteCamara.sumado
+      ? ["Hoy ¿Cuánto Cobro? no lo suma al precio: la reposición de tu cámara ya está en tu valor hora, calculada con su valor y la vida útil del obturador."]
+      : []),
     ...(r.gananciaParaRevisar ? ["La ganancia es más de 3 veces el costo: revisá que las horas y los costos del trabajo estén completos."] : []),
     ...r.conceptos.filter((c) => c.estado === "pierde plata").map((c) => `${c.nombre}: con este precio pierde plata.`),
     ...new Set(r.conceptos.flatMap((c) => c.advertencias)),
   ].slice(0, 6);
-  return { titulo: `¿Cuánto cobro? · ${tipoDeTrabajo}`.slice(0, 80), filas, avisos };
+  return { titulo: `¿Cuánto cobro? · ${tipoDeTrabajo}${r.parcial ? " (parcial)" : ""}`.slice(0, 80), filas, avisos };
 }

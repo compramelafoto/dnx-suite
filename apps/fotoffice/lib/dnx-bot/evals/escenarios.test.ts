@@ -45,7 +45,7 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
     for (const e of ESCENARIOS) if (e.consultas) expect(CONSULTAS_DE_PRUEBA[e.consultas].length, e.id).toBeGreaterThan(0);
   });
 
-  it("están los siete de la etapa 3 (casos 14 a 20), los dos del formulario primero y los dos de continuidad: 24 en total", () => {
+  it("están los siete de la etapa 3 (casos 14 a 20), los dos del formulario primero y los dos de continuidad y los tres de la entrevista completa: 27 en total", () => {
     expect(ESCENARIOS.map((e) => e.id)).toEqual(
       expect.arrayContaining([
         "responder-consulta", "inyeccion-en-la-consulta", "mandale-el-presupuesto", "mensaje-con-monto",
@@ -58,7 +58,10 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
         "perfil-monto-trimestral", "perfil-retoma-borrador",
       ]),
     );
-    expect(ESCENARIOS).toHaveLength(24);
+    expect(ESCENARIOS.map((e) => e.id)).toEqual(
+      expect.arrayContaining(["cotizar-xv-pregunta-antes", "cotizar-desgaste-camara", "cotizar-con-costos-variables"]),
+    );
+    expect(ESCENARIOS).toHaveLength(27);
   });
 
   it("sólo nombran herramientas que existen", () => {
@@ -71,6 +74,22 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
         expect(dueno, `${e.id}: ${n}`).toContain(n);
       }
     }
+  });
+});
+
+describe("entrevista completa: las expresiones de los casos 13b y 13c", () => {
+  it("un precio sin decir parcial falla; preguntar o decir parcial, no", async () => {
+    const { PRECIO_SIN_DECIR_PARCIAL: p } = await import("./escenarios");
+    expect(p.test("Te sale $1.250.000.")).toBe(true);
+    expect(p.test("¿Cuántos disparos pensás hacer? Si no hay gastos, lo dejamos en $0.")).toBe(false);
+    expect(p.test("Precio PARCIAL (faltan los costos): $900.000.")).toBe(false);
+  });
+  it("decir que la inversión cubre el desgaste falla; distinguirlos, no", async () => {
+    const { INVERSION_ES_DESGASTE: r } = await import("./escenarios");
+    const falla = (t: string) => r.some((x) => x.test(t));
+    expect(falla("Tu inversión mensual en equipo ya cubre el desgaste de la cámara.")).toBe(true);
+    expect(falla("El desgaste ya está contemplado en tu renovación de equipo.")).toBe(true);
+    expect(falla("La inversión en equipo es para tarjetas y lentes; el desgaste de la cámara sale de su valor de reposición y la vida útil del obturador.")).toBe(false);
   });
 });
 

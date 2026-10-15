@@ -11,7 +11,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
 
-const { herramientasDePresupuestos, CAMBIO_EL_CALCULO } = await import("./presupuestos");
+const { herramientasDePresupuestos, CAMBIO_EL_CALCULO, ES_PARCIAL } = await import("./presupuestos");
 const P = await import("@/lib/presupuestos/presupuestos");
 type CtxBot = import("../acceso").CtxBot;
 
@@ -135,6 +135,15 @@ describe("crear_borrador_de_presupuesto", () => {
     perfil = createBaseCompleteProfile({ businessRent: "500000" });
     await expect(tool("crear_borrador_de_presupuesto").describe!({ ...BODA, consultaLeadId: "l1", totalEsperado: total }, actor)).rejects.toThrow(CAMBIO_EL_CALCULO);
     expect(await tool("crear_borrador_de_presupuesto").run({ ...BODA, consultaLeadId: "l1", totalEsperado: total }, actor)).toEqual({ ok: false, message: CAMBIO_EL_CALCULO });
+    expect(B.datos.fotofficePresupuesto).toHaveLength(0);
+  });
+
+  it("un cálculo parcial no pasa a un presupuesto", async () => {
+    consulta("l1");
+    const { total } = await cotizado();
+    await expect(tool("crear_borrador_de_presupuesto").describe!({ ...BODA, parcial: true, consultaLeadId: "l1", totalEsperado: total }, actor)).rejects.toThrow(ES_PARCIAL);
+    expect(await tool("crear_borrador_de_presupuesto").run({ ...BODA, parcial: true, consultaLeadId: "l1", totalEsperado: total }, actor)).toEqual({ ok: false, message: ES_PARCIAL });
+    expect(await tool("sumar_al_borrador").run({ ...BODA, parcial: true, presupuestoId: "p1", totalEsperado: total }, actor)).toEqual({ ok: false, message: ES_PARCIAL });
     expect(B.datos.fotofficePresupuesto).toHaveLength(0);
   });
 

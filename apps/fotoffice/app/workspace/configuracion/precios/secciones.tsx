@@ -285,10 +285,16 @@ export function SeccionEquipo({ perfil, cambiar }: PropsSeccion) {
   return (
     <Seccion>
       <div className="grid gap-3 sm:grid-cols-2">
-        <CampoTexto tipo="moneda" etiqueta="Renovación mensual de equipo ($)" valor={perfil.equipmentRenewalMonthly} onCambio={(v) => cambiar({ equipmentRenewalMonthly: v })} />
+        <CampoTexto
+          tipo="moneda"
+          etiqueta="Inversión mensual en equipo ($)"
+          valor={perfil.equipmentRenewalMonthly}
+          onCambio={(v) => cambiar({ equipmentRenewalMonthly: v })}
+          ayuda="Tarjetas, baterías, lentes y otros equipos. No es el desgaste de la cámara: la cámara va en los campos de al lado."
+        />
         <CampoTexto etiqueta="Cámara principal" tipo="text" valor={perfil.primaryCameraCustomName} onCambio={(v) => cambiar({ primaryCameraCustomName: v })} />
         <CampoTexto etiqueta="Vida útil del obturador (disparos)" valor={perfil.primaryCameraShutterRating} onCambio={(v) => cambiar({ primaryCameraShutterRating: v })} />
-        <CampoTexto etiqueta="Disparos actuales" valor={perfil.primaryCameraCurrentShutterCount} onCambio={(v) => cambiar({ primaryCameraCurrentShutterCount: v })} />
+        <CampoTexto etiqueta="Disparos actuales de la cámara" valor={perfil.primaryCameraCurrentShutterCount} onCambio={(v) => cambiar({ primaryCameraCurrentShutterCount: v })} />
         <CampoTexto tipo="moneda" etiqueta="Valor de reposición ($)" valor={perfil.primaryCameraReplacementValue} onCambio={(v) => cambiar({ primaryCameraReplacementValue: v })} />
       </div>
       {perfil.equipmentInventory ? (
