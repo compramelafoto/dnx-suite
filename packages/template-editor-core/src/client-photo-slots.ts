@@ -15,14 +15,21 @@ export const CLIENT_PHOTO_VARIABLE_PATTERN = /^photo_(\d+)$/;
 
 /**
  * Huecos con nombre. Su "número" es negativo para ordenarse antes que `photo_1…`: la familia
- * elige primero la individual y después la grupal, y el armado respeta ese orden.
+ * elige primero la individual, después la grupal, la foto con la maestra, la foto con amigos y
+ * la foto libre, y el armado respeta ese orden (la foto `p` que eligió va al hueco `p`).
+ *
+ * Los números no se guardan en ningún lado (los diseños guardan la foto por bloque): sólo
+ * ordenan. Lo que importa es que individual quede antes que grupal, como siempre.
  */
 export const CLIENT_PHOTO_ROLE_SLOTS: Record<string, { slotNumber: number; label: string; role: ClientPhotoRole }> = {
-  photo_individual: { slotNumber: -2, label: "Foto individual", role: "individual" },
-  photo_group: { slotNumber: -1, label: "Foto grupal", role: "group" },
+  photo_individual: { slotNumber: -5, label: "Foto individual", role: "individual" },
+  photo_group: { slotNumber: -4, label: "Foto grupal", role: "group" },
+  photo_teacher: { slotNumber: -3, label: "Foto con la maestra", role: "teacher" },
+  photo_friends: { slotNumber: -2, label: "Foto con amigos", role: "friends" },
+  photo_extra: { slotNumber: -1, label: "Foto libre", role: "extra" },
 };
 
-export type ClientPhotoRole = "individual" | "group";
+export type ClientPhotoRole = "individual" | "group" | "teacher" | "friends" | "extra";
 
 /** Encuadre de una foto en su hueco. `zoom` ≥ 1; `x` e `y` entre -1 y 1 (0 = centrada). */
 export type PhotoCrop = { zoom: number; x: number; y: number };
@@ -39,7 +46,7 @@ export type ClientPhotoSlot = {
   pageIndex: number;
   /** Para mostrar: la etiqueta de `metaJson.photoInputs` si la hay, si no "Foto n". */
   label: string;
-  /** Si es la foto individual o la grupal; `null` en los huecos numerados. */
+  /** Qué foto es (individual, grupal, con la maestra…); `null` en los huecos numerados. */
   role: ClientPhotoRole | null;
   width: number;
   height: number;

@@ -40,6 +40,33 @@ const SCHOOL_CLIENT_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = Array.from
  */
 export const SCHOOL_INDIVIDUAL_PHOTO_KEY = "photo_individual";
 export const SCHOOL_GROUP_PHOTO_KEY = "photo_group";
+/** Más huecos con nombre, para libritos con otras fotos (con la maestra, con amigos, una libre). */
+export const SCHOOL_TEACHER_PHOTO_KEY = "photo_teacher";
+export const SCHOOL_FRIENDS_PHOTO_KEY = "photo_friends";
+export const SCHOOL_EXTRA_PHOTO_KEY = "photo_extra";
+
+/** Todos los huecos con nombre, en el orden en que la familia los elige. */
+export const SCHOOL_NAMED_PHOTO_KEYS = [
+  SCHOOL_INDIVIDUAL_PHOTO_KEY,
+  SCHOOL_GROUP_PHOTO_KEY,
+  SCHOOL_TEACHER_PHOTO_KEY,
+  SCHOOL_FRIENDS_PHOTO_KEY,
+  SCHOOL_EXTRA_PHOTO_KEY,
+] as const;
+
+const fotoConNombre = (path: string, label: string, description: string): TemplateVariableDefinition => ({
+  path,
+  label,
+  description,
+  valueType: "image",
+  required: false,
+  example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  formatters: ["none"],
+  usableIn: ["IMAGE"],
+  defaultFallback: null,
+  group: "photos",
+  groupLabel: "Fotos del cliente",
+});
 
 const SCHOOL_ROLE_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = [
   {
@@ -68,6 +95,9 @@ const SCHOOL_ROLE_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = [
     group: "photos",
     groupLabel: "Fotos del cliente",
   },
+  fotoConNombre(SCHOOL_TEACHER_PHOTO_KEY, "Foto con la maestra", "La foto del alumno con su maestra o profesor que elige la familia al canjear el pack."),
+  fotoConNombre(SCHOOL_FRIENDS_PHOTO_KEY, "Foto con amigos", "La foto con los mejores amigos que elige la familia al canjear el pack."),
+  fotoConNombre(SCHOOL_EXTRA_PHOTO_KEY, "Foto libre", "Una foto más, a elección de la familia, al canjear el pack."),
 ];
 
 /**

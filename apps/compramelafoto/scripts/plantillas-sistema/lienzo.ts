@@ -32,6 +32,20 @@ export type Rect = { x: number; y: number; w: number; h: number };
 
 export type TipoBloque = "IMAGE" | "TEXT" | "VARIABLE_TEXT" | "SHAPE";
 
+/**
+ * Las fotos que puede pedir un librito, cada una atada a su hueco con nombre (los reconoce
+ * `CLIENT_PHOTO_ROLE_SLOTS` de `@repo/template-editor-core`). La familia las elige en este orden.
+ */
+export const FOTOS = {
+  individual: { variableKey: "photo_individual", nombre: "Foto individual", rolMeta: "single" },
+  grupal: { variableKey: "photo_group", nombre: "Foto grupal", rolMeta: "group" },
+  maestra: { variableKey: "photo_teacher", nombre: "Foto con la maestra", rolMeta: "teacher" },
+  amigos: { variableKey: "photo_friends", nombre: "Foto con amigos", rolMeta: "friends" },
+  libre: { variableKey: "photo_extra", nombre: "Foto libre", rolMeta: "extra" },
+} as const;
+
+export type RolFoto = keyof typeof FOTOS;
+
 export type Bloque = {
   /** Sufijo estable; el id final es `<idVersion>_<clave>`. */
   clave: string;
@@ -123,19 +137,22 @@ export class Armador {
     });
   }
 
-  /** Hueco de foto del cliente: `photo_individual` (1.ª que elige la familia) o `photo_group`. */
+  /**
+   * Hueco de foto del cliente. El rol dice qué foto le pide a la familia (ver `FOTOS`). La misma
+   * foto puede ir en dos huecos (en la tapa y en el interior): el segundo lleva otra `clave`.
+   */
   foto(
     pagina: 0 | 1,
-    rol: "individual" | "grupal",
+    rol: RolFoto,
     r: Rect,
-    opts: { radio?: number; mascara?: "rect" | "circle"; giro?: number } = {},
+    opts: { radio?: number; mascara?: "rect" | "circle"; giro?: number; clave?: string } = {},
   ) {
-    const variableKey = rol === "individual" ? "photo_individual" : "photo_group";
+    const { variableKey, nombre } = FOTOS[rol];
     this.push({
-      clave: `p${pagina}_foto_${rol}`,
+      clave: `p${pagina}_foto_${opts.clave ?? rol}`,
       pagina,
       tipo: "IMAGE",
-      nombre: rol === "individual" ? "Foto individual" : "Foto grupal",
+      nombre,
       x: r.x,
       y: r.y,
       width: r.w,
@@ -218,7 +235,7 @@ export class Armador {
   }
 
   /** «Listado del curso»: el bloque reparte los alumnos en columnas y achica si no entran. */
-  listado(pagina: 0 | 1, r: Rect, e: Estilo, columnas = 2) {
+  listado(pagina: 0 | 1, r: Rect, e: Estilo, columnas = 2, giro = 0) {
     this.push({
       clave: `p${pagina}_listado`,
       pagina,
@@ -228,6 +245,7 @@ export class Armador {
       y: r.y,
       width: r.w,
       height: r.h,
+      rotation: giro,
       configJson: {
         variableKey: "course.studentList",
         fallback: "",

@@ -119,6 +119,20 @@ export default function PreventaBenefitForm({
     isPhysical && (templatePolicy === "REQUIRED" || templatePolicy === "OPTIONAL");
 
   const showPhotosPerUnitField = selectionMode === "MULTI_PHOTO_FIXED";
+
+  /*
+   * Una plantilla con 3 o 4 fotos (con la maestra, con amigos…) necesita que cada unidad pida
+   * esas mismas fotos: si pide menos, los huecos de más quedan vacíos en el diseño.
+   */
+  const fotosDeLaPlantilla = templateOptions.find((t) => t.id === templateId)?.photoInputs ?? 0;
+  const fotosPorUnidad =
+    selectionMode === "SINGLE_PHOTO"
+      ? 1
+      : selectionMode === "MULTI_PHOTO_FIXED"
+        ? Number.parseInt(photosPerUnitMulti, 10)
+        : null;
+  const fotosNoCoinciden =
+    showTemplateSelect && fotosDeLaPlantilla > 0 && fotosPorUnidad != null && fotosPorUnidad !== fotosDeLaPlantilla;
   const showMaxPhotosField = selectionMode === "ALBUM_CHOICE";
   /** Si ya guardaron un mínimo >1 en modo álbum, mostramos el campo para no perder datos. */
   const showAlbumMinPhotos =
@@ -482,6 +496,14 @@ export default function PreventaBenefitForm({
                   </>
                 ) : null}
               </p>
+              {fotosNoCoinciden ? (
+                <p role="status" className="mt-2 rounded-md bg-[#fff4e5] px-3 py-2 text-xs text-[#7a4a12]">
+                  Esta plantilla lleva {fotosDeLaPlantilla} foto{fotosDeLaPlantilla === 1 ? "" : "s"} distinta
+                  {fotosDeLaPlantilla === 1 ? "" : "s"}, pero cada unidad pide {fotosPorUnidad}. Para que la
+                  familia elija una foto para cada lugar, abajo elegí «Varias fotos fijas por unidad» con {fotosDeLaPlantilla}{" "}
+                  fotos por unidad.
+                </p>
+              ) : null}
             </div>
           )}
         </>

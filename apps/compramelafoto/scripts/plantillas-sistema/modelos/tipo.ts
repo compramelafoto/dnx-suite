@@ -26,7 +26,12 @@ export type Modelo = {
   fondoInterior: () => string;
   /** Agrega los bloques. Los fondos se agregan solos (zIndex 1 de cada página). */
   armar: (a: Armador) => void;
+  /** Tanda a la que pertenece, para generar sólo esa con `--serie=<nombre>` (con su SQL). */
+  serie?: string;
 };
+
+/** Categorías del catálogo. */
+export const CATEGORIAS = ["Jardín", "Primaria", "Secundaria", "Egresados", "Formal", "Informal", "Religioso"] as const;
 
 export const archivoFondo = (slug: string, pagina: "exterior" | "interior") => `librito-${slug}-${pagina}.jpg`;
 export const archivoMiniatura = (slug: string) => `librito-${slug}-miniatura.jpg`;

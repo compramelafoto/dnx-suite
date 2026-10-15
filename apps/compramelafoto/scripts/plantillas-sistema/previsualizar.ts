@@ -12,7 +12,12 @@ import sharp from "sharp";
 import { emitDesign, type ResourceResolver } from "@repo/design-studio";
 import { editorADocumento } from "@repo/template-editor-core/rendering";
 import { legacyPayloadToCore, versionRowsToLegacyPayload } from "@repo/template-editor-core/services";
-import { clientPhotoSlotNumber, computeCoverCropRect, resolveTemplateVariablePlugin } from "@repo/template-editor-core";
+import {
+  clientPhotoSlotNumber,
+  computeCoverCropRect,
+  imageBlockVariableKey,
+  resolveTemplateVariablePlugin,
+} from "@repo/template-editor-core";
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
@@ -56,13 +61,28 @@ export const VALORES_DE_MUESTRA: Record<string, string> = {
   ),
 };
 
-/** Foto de muestra: un retrato o un grupo de siluetas sobre un fondo de estudio. */
-async function fotoDeMuestra(rol: "individual" | "grupal"): Promise<Buffer> {
+type Muestra = "individual" | "grupal" | "maestra" | "amigos" | "libre";
+
+const MUESTRA_POR_VARIABLE: Record<string, Muestra> = {
+  photo_individual: "individual",
+  photo_group: "grupal",
+  photo_teacher: "maestra",
+  photo_friends: "amigos",
+  photo_extra: "libre",
+};
+
+/** Una persona de siluetas: cabeza y torso. */
+const persona = (x: number, yCabeza: number, r: number, color: string, piel = "#f1c7a8") =>
+  `<circle cx="${x}" cy="${yCabeza}" r="${r}" fill="${piel}"/><path d="M ${x - r * 1.7} ${yCabeza + r * 4.2} C ${x - r * 1.6} ${yCabeza + r * 1.2}, ${x + r * 1.6} ${yCabeza + r * 1.2}, ${x + r * 1.7} ${yCabeza + r * 4.2} Z" fill="${color}"/>`;
+
+/** Foto de muestra: siluetas genéricas sobre un fondo de estudio (o de patio, la libre). */
+async function fotoDeMuestra(rol: Muestra): Promise<Buffer> {
   const [w, h] = rol === "individual" ? [1200, 1600] : [1800, 1200];
   let figuras = "";
+  let fondo = `<radialGradient id="g" cx="0.5" cy="0.4" r="0.8"><stop offset="0" stop-color="#d9dde3"/><stop offset="1" stop-color="#8a929e"/></radialGradient>`;
   if (rol === "individual") {
     figuras = `<circle cx="600" cy="640" r="250" fill="#f1c7a8"/><path d="M 180 1600 C 220 1100, 980 1100, 1020 1600 Z" fill="#2e5aa8"/>`;
-  } else {
+  } else if (rol === "grupal") {
     const filas = [[260, 760, 7], [420, 980, 6]] as const;
     for (const [yCab, yCuerpo, n] of filas) {
       for (let i = 0; i < n; i++) {
@@ -70,8 +90,19 @@ async function fotoDeMuestra(rol: "individual" | "grupal"): Promise<Buffer> {
         figuras += `<circle cx="${x}" cy="${yCab + 300}" r="80" fill="#f1c7a8"/><path d="M ${x - 130} ${yCuerpo + 300} C ${x - 120} ${yCuerpo + 60}, ${x + 120} ${yCuerpo + 60}, ${x + 130} ${yCuerpo + 300} Z" fill="${i % 2 ? "#c0392b" : "#2e5aa8"}"/>`;
       }
     }
+  } else if (rol === "maestra") {
+    // La maestra (más alta, de verde) y el alumno al lado.
+    figuras = persona(760, 380, 150, "#2f8f6b", "#e8b896") + persona(1120, 640, 120, "#2e5aa8");
+    figuras += `<path d="M 900 1000 q 80 -60 150 -10" stroke="#e8b896" stroke-width="44" fill="none" stroke-linecap="round"/>`;
+  } else if (rol === "amigos") {
+    // Tres amigos abrazados, apretados.
+    figuras = persona(560, 560, 130, "#e67e22") + persona(900, 500, 140, "#8e44ad") + persona(1240, 570, 130, "#16a085");
+    figuras += `<path d="M 600 900 Q 900 760 1200 900" stroke="#f1c7a8" stroke-width="50" fill="none" stroke-linecap="round"/>`;
+  } else {
+    fondo = `<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe3f5"/><stop offset="0.62" stop-color="#e9f6fb"/><stop offset="0.62" stop-color="#9ccf7a"/><stop offset="1" stop-color="#6fae55"/></linearGradient>`;
+    figuras = `<circle cx="1500" cy="230" r="110" fill="#ffd34d"/>` + persona(820, 470, 120, "#d35400") + `<circle cx="1180" cy="1010" r="90" fill="#ffffff" stroke="#333" stroke-width="10"/>`;
   }
-  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><radialGradient id="g" cx="0.5" cy="0.4" r="0.8"><stop offset="0" stop-color="#d9dde3"/><stop offset="1" stop-color="#8a929e"/></radialGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/>${figuras}</svg>`;
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${fondo}</defs><rect width="${w}" height="${h}" fill="url(#g)"/>${figuras}</svg>`;
   return sharp(Buffer.from(s)).jpeg({ quality: 85 }).toBuffer();
 }
 
@@ -122,11 +153,11 @@ export async function dibujarPlantilla(
     bindings: p.bindings.map((b) => ({ ...b, formatter: null, fallbackOverride: null })),
   });
 
-  const rolDeBloque = new Map<string, "individual" | "grupal">();
+  const rolDeBloque = new Map<string, Muestra>();
   const blocks: LegacyTemplateV2Payload["blocks"] = legacy0.blocks.map((b) => {
     const n = clientPhotoSlotNumber(b);
     if (n == null) return b;
-    rolDeBloque.set(b.id, n === -2 ? "individual" : "grupal");
+    rolDeBloque.set(b.id, MUESTRA_POR_VARIABLE[imageBlockVariableKey(b.configJson) ?? ""] ?? "libre");
     return { ...b, type: "IMAGE", configJson: fixedImageConfig(asRecord(b.configJson), `${FOTO}${b.id}`) };
   });
   const legacy: LegacyTemplateV2Payload = {
@@ -180,7 +211,9 @@ export async function dibujarPlantilla(
   });
 
   const tam = new Map(legacy.blocks.map((b) => [b.id, b.layout]));
-  const fotos = { individual: await fotoDeMuestra("individual"), grupal: await fotoDeMuestra("grupal") };
+  const fotos = Object.fromEntries(
+    await Promise.all((Object.values(MUESTRA_POR_VARIABLE)).map(async (m) => [m, await fotoDeMuestra(m)] as const)),
+  ) as Record<Muestra, Buffer>;
   const resources: ResourceResolver = {
     async read(ref: string) {
       if (ref === LOGO_DE_MUESTRA) return new Uint8Array(await logoDeMuestra());
