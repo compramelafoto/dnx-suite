@@ -1,8 +1,12 @@
 import {
   COMMERCIAL_POSITIONING_OPTIONS,
+  INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
   INITIAL_CUANTO_COBRO_PROFILE,
   isTimeDistributionValid,
+  normalizePricingExtras,
   parseCuantoCobroAmount,
+  parsePercent,
+  type CuantoCobroPricingExtras,
   type CuantoCobroProfileInput,
   type MonthlyExpenseGroup,
   type MonthlyExpenseItem,
@@ -57,7 +61,51 @@ export function normalizarPerfil(raw: unknown): CuantoCobroProfileInput | null {
     ? raw.personalExpenseGroups.map(normalizarGrupo).filter((g): g is MonthlyExpenseGroup => g !== null)
     : INITIAL_CUANTO_COBRO_PROFILE.personalExpenseGroups;
   if (typeof perfil.currency !== "string" || !perfil.currency.trim()) perfil.currency = "ARS";
+  // Precio completo (15/10/2026): sólo si estaba; un perfil viejo sigue sin el bloque.
+  const extras = normalizePricingExtras(raw.pricingExtras);
+  if (extras) perfil.pricingExtras = extras;
+  else delete perfil.pricingExtras;
   return perfil;
+}
+
+const PORCENTAJES_EXTRAS: ReadonlyArray<[keyof CuantoCobroPricingExtras, string]> = [
+  ["ivaPercent", "IVA"],
+  ["grossIncomePercent", "Ingresos Brutos"],
+  ["paymentCommissionPercent", "Comisión del medio de pago"],
+  ["depositPercent", "Seña"],
+  ["overtimeSurchargePercent", "Recargo de la hora extra"],
+  ["saturdaySurchargePercent", "Recargo de sábado"],
+  ["sundaySurchargePercent", "Recargo de domingo"],
+  ["holidaySurchargePercent", "Recargo de feriado"],
+  ["expressSurchargePercent", "Recargo por entrega exprés"],
+  ["inflationMonthlyPercent", "Inflación mensual"],
+];
+
+const MONTOS_EXTRAS: ReadonlyArray<[keyof CuantoCobroPricingExtras, string]> = [
+  ["monotributoMonthly", "Monotributo"],
+  ["equipmentInsuranceAnnual", "Seguro del equipo"],
+  ["standardDeliveryDays", "Días de entrega"],
+  ["travelPerKm", "Valor por km"],
+  ["travelFreeKm", "Km sin cargo"],
+  ["retouchMinutesPerPhoto", "Minutos de retoque por foto"],
+  ["minimumJobPrice", "Precio mínimo por trabajo"],
+];
+
+function errorDeExtras(e: CuantoCobroPricingExtras): string | null {
+  for (const [clave, etiqueta] of PORCENTAJES_EXTRAS) {
+    if (parsePercent(e[clave] as string) === null) return `Revisá el porcentaje de «${etiqueta}».`;
+  }
+  for (const [clave, etiqueta] of MONTOS_EXTRAS) {
+    if (montoInvalido(e[clave])) return `Revisá el monto de «${etiqueta}».`;
+  }
+  for (const z of e.travelZones) {
+    if (!z.name.trim()) return "Cada zona de viáticos necesita un nombre.";
+    if (montoInvalido(z.upToKm) || montoInvalido(z.amount)) return `Revisá los números de la zona «${z.name}».`;
+  }
+  for (const c of [e.studioLatitude, e.studioLongitude]) {
+    if (c.trim() !== "" && !Number.isFinite(Number(c.replace(",", ".")))) return "Revisá las coordenadas del estudio.";
+  }
+  return null;
 }
 
 const CAMPOS_MONTO: ReadonlyArray<[keyof CuantoCobroProfileInput, string]> = [
@@ -126,6 +174,11 @@ export function validarPerfil(raw: unknown): ResultadoValidacion {
     return { ok: false, error: "La distribución del tiempo no cierra: las horas de cada tarea tienen que sumar tus horas por semana." };
   }
 
+  if (perfil.pricingExtras) {
+    const e = errorDeExtras(perfil.pricingExtras);
+    if (e) return { ok: false, error: e };
+  }
+
   const pos = perfil.commercialPositioningId;
   if (pos !== "" && !COMMERCIAL_POSITIONING_OPTIONS.some((o) => o.id === pos)) {
     return { ok: false, error: "Elegí un posicionamiento comercial." };
@@ -189,4 +242,19 @@ export function horasPorTarea(p: Pick<CuantoCobroProfileInput, "weeklyHours" | "
     horas[k] = Number.isFinite(pct) ? Math.round((semanal * pct) / 100) : 0;
   }
   return horas;
+}
+
+/** El bloque de impuestos, cobros y recargos del perfil, completo (o el inicial si no tiene). */
+export function extrasDelPerfil(p: Pick<CuantoCobroProfileInput, "pricingExtras">): CuantoCobroPricingExtras {
+  return normalizePricingExtras(p.pricingExtras ?? {}) ?? { ...INITIAL_CUANTO_COBRO_PRICING_EXTRAS };
+}
+
+/** Un porcentaje válido (0 a 100, con coma o punto). */
+export function porcentajeValido(v: string): boolean {
+  return parsePercent(v) !== null;
+}
+
+/** ¿El porcentaje es mayor que cero? */
+export function porcentajePositivo(v: string): boolean {
+  return (parsePercent(v) ?? 0) > 0;
 }

@@ -109,3 +109,11 @@ describe("lo que se ve del borrador (sin montos)", () => {
     expect(r.length).toBe(perfilBase(null).personalExpenseGroups.length - 1);
   });
 });
+
+describe("cobros en el borrador (etapa A)", () => {
+  it("se fusionan campo por campo y se nombran sin montos", () => {
+    const p = fusionarParches({ cobros: { sena: "30" } }, { cobros: { ingresosBrutos: "3" } });
+    expect(p.cobros).toEqual({ sena: "30", ingresosBrutos: "3" });
+    expect(loAnotado(p, perfilBase(null))).toEqual(expect.arrayContaining(["seña", "ingresos brutos"]));
+  });
+});

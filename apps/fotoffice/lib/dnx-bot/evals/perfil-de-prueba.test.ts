@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import { cotizar } from "../motor-trabajo";
-import { perfilDePrueba } from "./perfil-de-prueba";
+import { perfilConCobrosDePrueba, perfilDePrueba } from "./perfil-de-prueba";
 
 /**
  * El perfil con el que corre `bot:eval` tiene que parecerse a uno real de 2026 (lo que va a ver
@@ -36,5 +36,27 @@ describe("perfil de prueba de bot:eval", () => {
   it("cada llamada devuelve un perfil nuevo (las pruebas no se pisan)", () => {
     expect(perfilDePrueba()).not.toBe(perfilDePrueba());
     expect(perfilDePrueba()).toEqual(perfilDePrueba());
+  });
+});
+
+describe("perfil con impuestos, cobros y recargos (escenarios del precio completo)", () => {
+  it("es válido, trae precio completo y un retrato chico queda bajo el mínimo", () => {
+    const c = cotizar(
+      perfilConCobrosDePrueba(),
+      { tipoDeTrabajo: "Retrato", conceptos: [{ nombre: "Sesión", horasCobertura: "1", horasEdicion: "1" }], ajustes: { fechaEvento: "2026-10-20", distanciaKm: "0" } },
+      { nuevaClave: claves(), ahora: new Date("2026-10-15T15:00:00Z") },
+    );
+    if (c.estado !== "OK") throw new Error(c.estado);
+    expect(c.resumen.precioCompleto?.bajoMinimo).toBe(true);
+    expect(c.resumen.precioCompleto?.sena).toMatch(/30 %/);
+  });
+  it("un evento a seis meses trae el ajuste por inflación", () => {
+    const c = cotizar(
+      perfilConCobrosDePrueba(),
+      { tipoDeTrabajo: "XV", conceptos: [{ nombre: "Cobertura", horasCobertura: "6", horasEdicion: "10" }], ajustes: { fechaEvento: "2027-04-17" } },
+      { nuevaClave: claves(), ahora: new Date("2026-10-15T15:00:00Z") },
+    );
+    if (c.estado !== "OK") throw new Error(c.estado);
+    expect(c.resumen.precioCompleto?.inflacion).toMatch(/6 meses al 2 %/);
   });
 });

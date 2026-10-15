@@ -20,7 +20,9 @@ import {
   INITIAL_CUANTO_COBRO_PROFILE,
   INITIAL_CUANTO_COBRO_QUOTE,
   parseCuantoCobroAmount,
+  withoutOneTimeAdjustments,
   type CuantoCobroCalculationResult,
+  type CuantoCobroJobAdjustments,
   type CuantoCobroProfileInput,
   type CuantoCobroQuoteInput,
   type CuantoCobroQuoteItem,
@@ -29,6 +31,7 @@ import {
 import { itemDesdeCalculo, presupuestoParaElMotor, type EntradaMotor, type ResultadoItemCalculado } from "./calculo-cuanto-cobro";
 import { normalizarPerfil, perfilesIguales } from "@/lib/precios/perfil-datos";
 import type { Descuento } from "./constantes";
+import { diaEnBuenosAires } from "./estados";
 
 // --- Formulario del trabajo ----------------------------------------------------------------------
 
@@ -95,6 +98,63 @@ export function trabajoVacio(nombre = ""): TrabajoPanel {
   };
 }
 
+// --- Ajustes del trabajo (precio completo, etapa A) ---------------------------------------------
+
+/**
+ * Lo del trabajo entero que cambia el precio: fecha del evento (fin de semana, feriado, inflación),
+ * entrega exprés, viáticos (km o zona), seguro que pide el lugar y fotos a retocar. Los recargos y
+ * porcentajes salen del perfil (Configuración → Precios).
+ */
+export type AjustesTrabajo = {
+  /** "AAAA-MM-DD". */
+  fechaEvento: string;
+  expres: boolean;
+  /** Distancia de ida en km. */
+  distanciaKm: string;
+  /** Zona de viáticos (modo por zonas). */
+  zonaId: string;
+  seguroEvento: string;
+  fotosRetoque: string;
+  /** Este trabajo no suma la comisión del medio de pago. */
+  sinComision: boolean;
+};
+
+export function ajustesVacios(): AjustesTrabajo {
+  return { fechaEvento: "", expres: false, distanciaKm: "", zonaId: "", seguroEvento: "", fotosRetoque: "", sinComision: false };
+}
+
+/** Los ajustes como los recibe el motor; undefined si no hay ninguno (el trabajo queda como antes). */
+export function ajustesAlMotor(a: AjustesTrabajo | undefined, ahora: Date): CuantoCobroJobAdjustments | undefined {
+  if (!a) return undefined;
+  const out: CuantoCobroJobAdjustments = {};
+  if (a.fechaEvento.trim()) out.eventDate = a.fechaEvento.trim();
+  if (a.expres) out.express = true;
+  if (a.sinComision) out.includeCommission = false;
+  if (a.distanciaKm.trim()) out.distanceKm = a.distanciaKm.trim();
+  if (a.zonaId.trim()) out.travelZoneId = a.zonaId.trim();
+  if (a.seguroEvento.trim()) out.eventInsuranceCost = a.seguroEvento.trim();
+  if (a.fotosRetoque.trim()) out.retouchPhotos = a.fotosRetoque.trim();
+  if (Object.keys(out).length === 0) return undefined;
+  // El motor no lee el reloj: la fecha del cálculo (para la inflación) va en la entrada.
+  return { ...(out.eventDate ? { eventDate: out.eventDate } : {}), quoteDate: diaEnBuenosAires(ahora), ...out };
+}
+
+export function ajustesDesdeMotor(j: unknown): AjustesTrabajo {
+  const a = ajustesVacios();
+  if (!j || typeof j !== "object" || Array.isArray(j)) return a;
+  const x = j as CuantoCobroJobAdjustments;
+  const t = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    fechaEvento: t(x.eventDate),
+    expres: x.express === true,
+    distanciaKm: t(x.distanceKm),
+    zonaId: t(x.travelZoneId),
+    seguroEvento: t(x.eventInsuranceCost),
+    fotosRetoque: t(x.retouchPhotos),
+    sinComision: x.includeCommission === false,
+  };
+}
+
 // --- Del formulario al motor -------------------------------------------------------------------
 
 const numero = (v: string): number => parseCuantoCobroAmount(v) ?? 0;
@@ -128,7 +188,11 @@ function conceptoAlMotor(t: TrabajoPanel, id: string): CuantoCobroQuoteItem {
   };
 }
 
-export function trabajoAlMotor(t: TrabajoPanel, tipoDeTrabajo: string): CuantoCobroQuoteInput {
+export function trabajoAlMotor(
+  t: TrabajoPanel,
+  tipoDeTrabajo: string,
+  jobAdjustments?: CuantoCobroJobAdjustments,
+): CuantoCobroQuoteInput {
   return {
     ...INITIAL_CUANTO_COBRO_QUOTE,
     client: {
@@ -141,11 +205,18 @@ export function trabajoAlMotor(t: TrabajoPanel, tipoDeTrabajo: string): CuantoCo
     paymentOptions: { ...INITIAL_CUANTO_COBRO_QUOTE.paymentOptions, installmentPlans: [] },
     // La cámara se cobra por trabajo (los disparos de este trabajo); ver `presupuestoParaElMotor`.
     cameraWearModel: "per-job",
+    ...(jobAdjustments ? { jobAdjustments } : {}),
   };
 }
 
-export function entradaDelPanel(perfil: CuantoCobroProfileInput, trabajo: TrabajoPanel, tipoDeTrabajo = ""): EntradaMotor {
-  return { perfil, presupuesto: trabajoAlMotor(trabajo, tipoDeTrabajo) };
+export function entradaDelPanel(
+  perfil: CuantoCobroProfileInput,
+  trabajo: TrabajoPanel,
+  tipoDeTrabajo = "",
+  ajustes?: AjustesTrabajo,
+  ahora: Date = new Date(),
+): EntradaMotor {
+  return { perfil, presupuesto: trabajoAlMotor(trabajo, tipoDeTrabajo, ajustesAlMotor(ajustes, ahora)) };
 }
 
 // --- Del motor al formulario (para reabrir el panel) ---------------------------------------------
@@ -175,13 +246,14 @@ export function perfilParaPanel(
 }
 
 /** El primer concepto del trabajo guardado, en corto. */
-export function trabajoDesdeMotor(raw: unknown): { trabajo: TrabajoPanel; tipoDeTrabajo: string } | null {
+export function trabajoDesdeMotor(raw: unknown): { trabajo: TrabajoPanel; tipoDeTrabajo: string; ajustes: AjustesTrabajo } | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const q = raw as Partial<CuantoCobroQuoteInput>;
   const c = Array.isArray(q.concepts) ? q.concepts[0] : undefined;
   if (!c) return null;
   return {
     tipoDeTrabajo: q.client?.jobType ?? "",
+    ajustes: ajustesDesdeMotor(q.jobAdjustments),
     trabajo: {
       nombre: c.name ?? "",
       tipo: c.itemType ?? "own-service",
@@ -240,8 +312,12 @@ export function calcularItemDelPanel(
   tipoDeTrabajo: string,
   datos: DatosItemCalculado,
   ahora: Date = new Date(),
+  ajustes?: AjustesTrabajo,
 ): ResultadoItemCalculado {
-  const entrada = entradaDelPanel(perfil, trabajo, tipoDeTrabajo);
+  return calcularDesdeEntrada(entradaDelPanel(perfil, trabajo, tipoDeTrabajo, ajustes, ahora), trabajo, datos, ahora);
+}
+
+function calcularDesdeEntrada(entrada: EntradaMotor, trabajo: TrabajoPanel, datos: DatosItemCalculado, ahora: Date): ResultadoItemCalculado {
   const resultado = correrMotor(entrada);
   if (!resultado) return { ok: false, error: "Los datos del cálculo de ¿Cuánto Cobro? no son válidos.", faltan: [] };
   const unidades = numero(trabajo.cantidad);
@@ -267,13 +343,20 @@ export function armarItemsDelAsistente(
   perfil: CuantoCobroProfileInput,
   trabajos: readonly TrabajoPanel[],
   tipoDeTrabajo: string,
-  opciones: { seccion?: string | null; nuevaClave: () => string; ahora?: Date },
+  opciones: { seccion?: string | null; nuevaClave: () => string; ahora?: Date; ajustes?: AjustesTrabajo },
 ): { ok: true; items: Extract<ResultadoItemCalculado, { ok: true }>["item"][] } | { ok: false; error: string; faltan: string[] } {
   if (trabajos.length === 0) return { ok: false, error: "Agregá al menos un concepto.", faltan: [] };
   const items: Extract<ResultadoItemCalculado, { ok: true }>["item"][] = [];
+  // Viáticos, seguro del evento y retoque son del trabajo entero: van sólo en el primer concepto
+  // (como las horas con el cliente). La fecha, el exprés y la comisión valen para todos.
+  const ahora = opciones.ahora ?? new Date();
+  const primeros = ajustesAlMotor(opciones.ajustes, ahora);
+  const siguientes = withoutOneTimeAdjustments(primeros);
   for (let i = 0; i < trabajos.length; i += 1) {
     const t = i === 0 ? trabajos[i]! : { ...trabajos[i]!, horasCliente: "" };
-    const r = calcularItemDelPanel(perfil, t, tipoDeTrabajo, { id: opciones.nuevaClave(), nombre: t.nombre, seccion: opciones.seccion ?? null }, opciones.ahora);
+    const jobAdjustments = i === 0 ? primeros : siguientes;
+    const entrada: EntradaMotor = { perfil, presupuesto: trabajoAlMotor(t, tipoDeTrabajo, jobAdjustments) };
+    const r = calcularDesdeEntrada(entrada, t, { id: opciones.nuevaClave(), nombre: t.nombre, seccion: opciones.seccion ?? null }, ahora);
     if (!r.ok) return { ok: false, error: `${t.nombre.trim() || `Concepto ${i + 1}`}: ${r.error}`, faltan: r.faltan };
     items.push(r.item);
   }

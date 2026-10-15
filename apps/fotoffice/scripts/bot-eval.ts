@@ -26,7 +26,7 @@ import {
   type Escenario,
   type LlamadaRegistrada,
 } from "../lib/dnx-bot/evals/escenarios";
-import { perfilDePrueba } from "../lib/dnx-bot/evals/perfil-de-prueba";
+import { perfilConCobrosDePrueba, perfilDePrueba } from "../lib/dnx-bot/evals/perfil-de-prueba";
 import { guiaDelBot } from "../lib/dnx-bot/guia";
 import { herramientasPara } from "../lib/dnx-bot/herramientas";
 import type { Anotacion } from "../lib/dnx-bot/borrador";
@@ -49,7 +49,7 @@ function ctxDe(e: Escenario): CtxBot {
 }
 
 function herramientasDe(e: Escenario): BotTool[] {
-  const perfil = e.perfil === "completo" ? perfilDePrueba() : null;
+  const perfil = e.perfil === "completo" ? perfilDePrueba() : e.perfil === "con-cobros" ? perfilConCobrosDePrueba() : null;
   const leer = async () => (perfil ? { perfil, source: "manual", actualizado: new Date() } : null);
   const nunca = async (): Promise<never> => {
     throw new Error("bot:eval nunca escribe");

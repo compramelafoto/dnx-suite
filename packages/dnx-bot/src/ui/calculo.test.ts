@@ -16,10 +16,10 @@ describe("parseTarjetaCalculo", () => {
   it("descarta filas y avisos raros y recorta las listas", () => {
     const t = parseTarjetaCalculo({
       titulo: "a",
-      filas: [...Array.from({ length: 20 }, (_, i) => ({ etiqueta: `e${i}`, valor: "v" })), { etiqueta: "x" }],
+      filas: [...Array.from({ length: 25 }, (_, i) => ({ etiqueta: `e${i}`, valor: "v" })), { etiqueta: "x" }],
       avisos: ["ok", 3, ...Array.from({ length: 10 }, () => "más")],
     })!;
-    expect(t.filas).toHaveLength(12);
+    expect(t.filas).toHaveLength(20);
     expect(t.avisos).toHaveLength(6);
     expect(t.avisos[0]).toBe("ok");
   });

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { calculateCuantoCobro, type CuantoCobroCalculationComplete } from "@repo/cuanto-cobro-core";
+import {
+  calculateCuantoCobro,
+  INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
+  type CuantoCobroCalculationComplete,
+  type CuantoCobroJobAdjustments,
+} from "@repo/cuanto-cobro-core";
 import {
   createBaseCompleteProfile,
   createBaseCompleteQuote,
@@ -114,5 +119,42 @@ describe("esPrecioAjustado (contrato del precio al recalcular)", async () => {
     // Ítem nuevo, sin sugerido guardado: un precio > 0 es un ajuste; 0 es "el del motor".
     expect(esPrecioAjustado(100)).toBe(true);
     expect(esPrecioAjustado(0)).toBe(false);
+  });
+});
+
+describe("itemDesdeCalculo con el precio completo (etapa A)", () => {
+  const EXTRAS = { ...INITIAL_CUANTO_COBRO_PRICING_EXTRAS, grossIncomePercent: "3", paymentCommissionPercent: "6", travelMode: "per_km" as const, travelPerKm: "300" };
+  function conExtras(jobAdjustments?: CuantoCobroJobAdjustments): CuantoCobroCalculationComplete {
+    const r = calculateCuantoCobro({ ...createBaseCompleteProfile(), pricingExtras: EXTRAS }, { ...createBaseCompleteQuote(), jobAdjustments });
+    if (r.status !== "complete") throw new Error("fixture incompleta");
+    return r;
+  }
+
+  it("el renglón toma el precio sin IVA del desglose y la instantánea guarda el desglose", () => {
+    const r = conExtras({ distanceKm: "40" });
+    const res = itemDesdeCalculo(r, { id: "i1", nombre: "Cobertura", calculadoEn: CUANDO });
+    if (!res.ok) throw new Error(res.error);
+    expect(res.item.precioUnitario).toBe(r.priceBuildUp!.priceWithoutVat);
+    expect(res.item.calculo!.precioSugerido).toBe(r.priceBuildUp!.priceWithoutVat);
+    expect(res.item.calculo!.desglose).toEqual(r.priceBuildUp);
+    // El costo suma los viáticos; la ganancia descuenta IIBB y comisión.
+    expect(res.item.calculo!.costoBase).toBe(Math.round((r.minimumPrice + 24_000) * 100) / 100);
+    const b = r.priceBuildUp!;
+    expect(res.item.calculo!.margenElegido).toBe(Math.round((b.takeHome - (r.minimumPrice + 24_000)) * 100) / 100);
+  });
+
+  it("un precio ajustado a mano manda; la ganancia descuenta impuestos y comisión con la misma proporción", () => {
+    const r = conExtras();
+    const res = itemDesdeCalculo(r, { id: "i1", nombre: "Cobertura", precioAjustado: 1_000_000, calculadoEn: CUANDO });
+    if (!res.ok) throw new Error(res.error);
+    expect(res.item.precioUnitario).toBe(1_000_000);
+    const tasa = (r.priceBuildUp!.grossIncomeTax + r.priceBuildUp!.commission) / r.priceBuildUp!.priceWithoutVat;
+    expect(res.item.calculo!.margenElegido).toBeCloseTo(1_000_000 * (1 - tasa) - r.minimumPrice, 0);
+  });
+
+  it("sin extras, el ítem no trae desglose (igual que antes)", () => {
+    const res = itemDesdeCalculo(calculoCompleto(), { id: "i1", nombre: "Cobertura", calculadoEn: CUANDO });
+    if (!res.ok) throw new Error(res.error);
+    expect("desglose" in res.item.calculo!).toBe(false);
   });
 });

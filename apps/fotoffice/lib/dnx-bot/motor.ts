@@ -3,12 +3,16 @@ import {
   COMMERCIAL_POSITIONING_OPTIONS,
   formatCuantoCobroCurrency,
   parseCuantoCobroAmount,
+  type CuantoCobroPricingExtras,
   type CuantoCobroProfileInput,
 } from "@repo/cuanto-cobro-core";
 import {
   CLAVES_DISTRIBUCION,
   distribucionDesdeHoras,
+  extrasDelPerfil,
   horasPorTarea,
+  porcentajePositivo,
+  porcentajeValido,
   normalizarPerfil,
   validarPerfil,
   type ClaveDistribucion,
@@ -90,6 +94,40 @@ const horasOPct = z.string().regex(/^\d{1,3}([.,]\d{1,2})?$/);
 
 const POSICIONAMIENTOS = ["starting", "growing", "stable", "established", "high-demand"] as const;
 
+const porcentaje = z.string().regex(/^\d{1,3}([.,]\d{1,2})?$/).describe("Porcentaje, sólo el número (\"3,5\", \"30\").");
+
+/** Impuestos, cobros y recargos (precio completo, etapa A). Todo opcional. */
+const esquemaCobros = z
+  .object({
+    monotributo: montoMes.optional().describe("Cuota mensual del monotributo (es un costo fijo: sube el valor hora)."),
+    seguroEquipoAnual: monto.optional().describe("Lo que paga POR AÑO de seguro del equipo."),
+    condicionIva: z.enum(["monotributo", "responsable_inscripto", "exento"]).optional(),
+    iva: porcentaje.optional().describe("Sólo responsable inscripto, si no es el 21 %."),
+    ingresosBrutos: porcentaje.optional().describe("% de Ingresos Brutos sobre lo facturado. En régimen simplificado (incluido en el monotributo) va \"0\"."),
+    comisionMedioDePago: porcentaje.optional().describe("% que le cobra Mercado Pago (u otro medio) por cada cobro."),
+    sumarComisionAlPrecio: z.boolean().optional().describe("Si la comisión se suma al precio (por omisión, sí)."),
+    sena: porcentaje.optional().describe("% de seña sobre el total."),
+    recargoHoraExtra: porcentaje.optional(),
+    recargoSabado: porcentaje.optional(),
+    recargoDomingo: porcentaje.optional(),
+    recargoFeriado: porcentaje.optional(),
+    recargoExpres: porcentaje.optional().describe("% por entrega exprés."),
+    diasDeEntrega: entero.optional().describe("Días de entrega habituales."),
+    viaticos: z.enum(["por_km", "por_zonas", "no"]).optional().describe("Cómo cobra el viaje: por km, por zonas, o no cobra."),
+    valorKm: monto.optional().describe("Por km recorrido (ida y vuelta)."),
+    kmSinCargo: entero.optional().describe("Km sin cargo (ida y vuelta)."),
+    zonas: z
+      .array(z.object({ nombre: z.string().min(1).max(60), hastaKm: entero, monto }))
+      .max(10)
+      .optional()
+      .describe("Zonas de viáticos, de la más cercana a la más lejana: hasta cuántos km y cuánto cobra."),
+    minutosRetoquePorFoto: entero.optional(),
+    inflacionMensual: porcentaje.optional().describe("Inflación mensual estimada para eventos a meses. \"0\" la apaga."),
+    precioMinimo: monto.optional().describe("Precio mínimo por trabajo."),
+    politicaCancelacion: z.string().max(2000).optional().describe("Texto de su política de cancelación, como lo dijo."),
+  })
+  .describe("Impuestos, cobros y recargos: sólo lo que dijo la persona.");
+
 export const esquemaParchePerfil = z
   .object({
     moneda: z.string().regex(/^[A-Z]{3}$/).optional().describe("Código de moneda, por ejemplo ARS. Casi siempre ARS."),
@@ -143,6 +181,7 @@ export const esquemaParchePerfil = z
       .describe("En qué se van las horas de la semana. Mandá las seis tareas; las que la persona no nombre van en 0."),
     fondoEmergencia: montoMes.optional(),
     ahorro: montoMes.optional().describe("Ahorro y vacaciones por mes."),
+    cobros: esquemaCobros.optional(),
     posicionamiento: z.enum(POSICIONAMIENTOS).optional().describe(
       `Momento del negocio: ${COMMERCIAL_POSITIONING_OPTIONS.map((o) => `${o.id} = «${o.title}»`).join(", ")}.`,
     ),
@@ -321,6 +360,42 @@ export function aplicarParche(
   poner(parche.ahorro, "Ahorro y vacaciones", (v) => (p.savingsGoalsMonthly = v));
   if (parche.posicionamiento) p.commercialPositioningId = parche.posicionamiento;
 
+  const c = parche.cobros;
+  if (c) {
+    const x: CuantoCobroPricingExtras = extrasDelPerfil(p);
+    const porc = (v: string | undefined, etiqueta: string, set: (s: string) => void) => {
+      if (v === undefined) return;
+      if (!porcentajeValido(v)) errores.push(`${etiqueta}: tiene que ser un porcentaje entre 0 y 100.`);
+      else set(v);
+    };
+    poner(c.monotributo, "Monotributo", (v) => (x.monotributoMonthly = v));
+    if (c.seguroEquipoAnual !== undefined) x.equipmentInsuranceAnnual = c.seguroEquipoAnual;
+    if (c.condicionIva) x.ivaCondition = c.condicionIva;
+    porc(c.iva, "IVA", (v) => (x.ivaPercent = v));
+    porc(c.ingresosBrutos, "Ingresos Brutos", (v) => (x.grossIncomePercent = v));
+    porc(c.comisionMedioDePago, "Comisión del medio de pago", (v) => (x.paymentCommissionPercent = v));
+    if (c.sumarComisionAlPrecio !== undefined) x.includeCommissionInPrice = c.sumarComisionAlPrecio;
+    porc(c.sena, "Seña", (v) => (x.depositPercent = v));
+    porc(c.recargoHoraExtra, "Recargo de la hora extra", (v) => (x.overtimeSurchargePercent = v));
+    porc(c.recargoSabado, "Recargo de sábado", (v) => (x.saturdaySurchargePercent = v));
+    porc(c.recargoDomingo, "Recargo de domingo", (v) => (x.sundaySurchargePercent = v));
+    porc(c.recargoFeriado, "Recargo de feriado", (v) => (x.holidaySurchargePercent = v));
+    porc(c.recargoExpres, "Recargo por entrega exprés", (v) => (x.expressSurchargePercent = v));
+    if (c.diasDeEntrega !== undefined) x.standardDeliveryDays = c.diasDeEntrega;
+    if (c.viaticos) x.travelMode = c.viaticos === "por_km" ? "per_km" : c.viaticos === "por_zonas" ? "zones" : "";
+    if (c.valorKm !== undefined) x.travelPerKm = c.valorKm;
+    if (c.kmSinCargo !== undefined) x.travelFreeKm = c.kmSinCargo;
+    if (c.zonas) x.travelZones = c.zonas.map((z, i) => ({ id: `zona-${i + 1}`, name: z.nombre.trim(), upToKm: z.hastaKm, amount: z.monto }));
+    if (c.minutosRetoquePorFoto !== undefined) x.retouchMinutesPerPhoto = c.minutosRetoquePorFoto;
+    porc(c.inflacionMensual, "Inflación mensual", (v) => {
+      x.inflationMonthlyPercent = v;
+      x.inflationEnabled = porcentajePositivo(v);
+    });
+    if (c.precioMinimo !== undefined) x.minimumJobPrice = c.precioMinimo;
+    if (c.politicaCancelacion !== undefined) x.cancellationPolicy = c.politicaCancelacion.trim();
+    p.pricingExtras = x;
+  }
+
   return { perfil: p, errores, conversiones };
 }
 
@@ -458,6 +533,40 @@ function camposPlanos(p: CuantoCobroProfileInput): Campo[] {
     { clave: "fondo", etiqueta: "Fondo de emergencia", valor: $(p.emergencyFundMonthly) },
     { clave: "ahorro", etiqueta: "Ahorro y vacaciones", valor: $(p.savingsGoalsMonthly) },
     { clave: "posicionamiento", etiqueta: "Momento del negocio", valor: pos ?? "sin dato" },
+    ...camposDeCobros(p.pricingExtras, $),
+  ];
+}
+
+const IVA_TEXTO: Record<string, string> = { monotributo: "monotributo", responsable_inscripto: "responsable inscripto", exento: "exento" };
+
+/** Los datos de impuestos, cobros y recargos; un perfil sin el bloque no suma campos (sin cambios falsos). */
+function camposDeCobros(e: CuantoCobroPricingExtras | undefined, $: (t: string) => string): Campo[] {
+  if (!e) return [];
+  const pc = (t: string) => (t?.trim() ? `${t.trim()} %` : "sin dato");
+  const texto = (t: string) => (t?.trim() ? t.trim() : "sin dato");
+  return [
+    { clave: "c:monotributo", etiqueta: "Monotributo (por mes)", valor: $(e.monotributoMonthly) },
+    { clave: "c:seguro", etiqueta: "Seguro del equipo (por año)", valor: $(e.equipmentInsuranceAnnual) },
+    { clave: "c:iva", etiqueta: "Condición frente al IVA", valor: IVA_TEXTO[e.ivaCondition] ?? "sin dato" },
+    { clave: "c:ivaPct", etiqueta: "IVA (%)", valor: pc(e.ivaPercent) },
+    { clave: "c:iibb", etiqueta: "Ingresos Brutos (%)", valor: pc(e.grossIncomePercent) },
+    { clave: "c:comision", etiqueta: "Comisión del medio de pago (%)", valor: pc(e.paymentCommissionPercent) },
+    { clave: "c:sumaComision", etiqueta: "Comisión sumada al precio", valor: e.includeCommissionInPrice ? "sí" : "no" },
+    { clave: "c:sena", etiqueta: "Seña (%)", valor: pc(e.depositPercent) },
+    { clave: "c:horaExtra", etiqueta: "Recargo hora extra (%)", valor: pc(e.overtimeSurchargePercent) },
+    { clave: "c:sabado", etiqueta: "Recargo sábado (%)", valor: pc(e.saturdaySurchargePercent) },
+    { clave: "c:domingo", etiqueta: "Recargo domingo (%)", valor: pc(e.sundaySurchargePercent) },
+    { clave: "c:feriado", etiqueta: "Recargo feriado (%)", valor: pc(e.holidaySurchargePercent) },
+    { clave: "c:expres", etiqueta: "Recargo entrega exprés (%)", valor: pc(e.expressSurchargePercent) },
+    { clave: "c:entrega", etiqueta: "Días de entrega", valor: texto(e.standardDeliveryDays) },
+    { clave: "c:viaticos", etiqueta: "Viáticos", valor: e.travelMode === "per_km" ? "por km" : e.travelMode === "zones" ? "por zonas" : "sin dato" },
+    { clave: "c:km", etiqueta: "Valor por km", valor: $(e.travelPerKm) },
+    { clave: "c:kmLibres", etiqueta: "Km sin cargo", valor: texto(e.travelFreeKm) },
+    { clave: "c:zonas", etiqueta: "Zonas de viáticos", valor: e.travelZones.length ? e.travelZones.map((z) => `${z.name} (hasta ${z.upToKm} km: ${$(z.amount)})`).join(", ") : "sin dato" },
+    { clave: "c:retoque", etiqueta: "Minutos de retoque por foto", valor: texto(e.retouchMinutesPerPhoto) },
+    { clave: "c:inflacion", etiqueta: "Inflación mensual (%)", valor: e.inflationEnabled ? pc(e.inflationMonthlyPercent) : "sin ajuste" },
+    { clave: "c:minimo", etiqueta: "Precio mínimo por trabajo", valor: $(e.minimumJobPrice) },
+    { clave: "c:cancelacion", etiqueta: "Política de cancelación", valor: e.cancellationPolicy.trim() ? "cargada" : "sin dato" },
   ];
 }
 

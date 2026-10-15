@@ -149,3 +149,29 @@ describe("distribución en horas (DNX Bot)", () => {
     expect(isTimeDistributionValid(d, 45)).toBe(false);
   });
 });
+
+describe("precio completo en el perfil (pricingExtras)", () => {
+  it("un perfil sin el bloque no lo inventa (sigue igual que antes)", () => {
+    const p = normalizarPerfil({ weeklyHours: "40" });
+    expect(p && "pricingExtras" in p).toBe(false);
+  });
+
+  it("completa el bloque guardado y descarta lo que no sirve", () => {
+    const p = normalizarPerfil({ pricingExtras: { grossIncomePercent: "3,5", travelZones: [{ id: "z", name: "Centro", upToKm: "10", amount: "0" }, 4], extraHolidays: ["2026-10-07", "x"] } });
+    expect(p?.pricingExtras).toMatchObject({
+      grossIncomePercent: "3,5",
+      includeCommissionInPrice: true,
+      travelZones: [{ id: "z", name: "Centro" }],
+      extraHolidays: ["2026-10-07"],
+      ivaCondition: "",
+    });
+  });
+
+  it("valida porcentajes (0 a 100) y montos", () => {
+    expect(validarPerfil({ pricingExtras: { paymentCommissionPercent: "120" } })).toEqual({ ok: false, error: "Revisá el porcentaje de «Comisión del medio de pago»." });
+    expect(validarPerfil({ pricingExtras: { depositPercent: "treinta" } })).toEqual({ ok: false, error: "Revisá el porcentaje de «Seña»." });
+    expect(validarPerfil({ pricingExtras: { travelPerKm: "abc" } })).toEqual({ ok: false, error: "Revisá el monto de «Valor por km»." });
+    expect(validarPerfil({ pricingExtras: { travelZones: [{ id: "z", name: "", upToKm: "10", amount: "1000" }] } })).toEqual({ ok: false, error: "Cada zona de viáticos necesita un nombre." });
+    expect(validarPerfil({ pricingExtras: { grossIncomePercent: "3", paymentCommissionPercent: "6", depositPercent: "30" } }).ok).toBe(true);
+  });
+});

@@ -233,3 +233,73 @@ describe("montos por período (80.000 cada 3 meses)", () => {
     expect(t.filas).toContainEqual({ etiqueta: "Mascotas", valor: `${pesos(80_000)} cada 3 meses = ${pesos(26_667)} por mes` });
   });
 });
+
+describe("impuestos, cobros y recargos (parche `cobros`, etapa A)", () => {
+  it("aplica cada dato al bloque pricingExtras sin tocar lo demás", () => {
+    const r = aplicarParche(completo(), {
+      cobros: {
+        monotributo: "60000",
+        seguroEquipoAnual: "240000",
+        condicionIva: "monotributo",
+        ingresosBrutos: "3,5",
+        comisionMedioDePago: "6",
+        sena: "30",
+        recargoSabado: "10",
+        recargoDomingo: "15",
+        recargoFeriado: "20",
+        recargoExpres: "10",
+        diasDeEntrega: "30",
+        recargoHoraExtra: "50",
+        viaticos: "por_km",
+        valorKm: "300",
+        kmSinCargo: "20",
+        minutosRetoquePorFoto: "6",
+        inflacionMensual: "2",
+        precioMinimo: "800000",
+        politicaCancelacion: "La seña no se devuelve.",
+      },
+    });
+    expect(r.errores).toEqual([]);
+    expect(r.perfil.pricingExtras).toMatchObject({
+      monotributoMonthly: "60000",
+      equipmentInsuranceAnnual: "240000",
+      ivaCondition: "monotributo",
+      grossIncomePercent: "3,5",
+      paymentCommissionPercent: "6",
+      includeCommissionInPrice: true,
+      depositPercent: "30",
+      sundaySurchargePercent: "15",
+      travelMode: "per_km",
+      travelPerKm: "300",
+      inflationEnabled: true,
+      inflationMonthlyPercent: "2",
+      minimumJobPrice: "800000",
+      cancellationPolicy: "La seña no se devuelve.",
+    });
+    expect(r.perfil.personalExpenseGroups).toEqual(completo().personalExpenseGroups);
+  });
+
+  it("zonas de viáticos e inflación en 0 la apaga", () => {
+    const r = aplicarParche(completo(), {
+      cobros: { viaticos: "por_zonas", zonas: [{ nombre: "Rosario", hastaKm: "15", monto: "0" }, { nombre: "Gran Rosario", hastaKm: "40", monto: "25000" }], inflacionMensual: "0" },
+    });
+    expect(r.perfil.pricingExtras?.travelMode).toBe("zones");
+    expect(r.perfil.pricingExtras?.travelZones.map((z) => z.name)).toEqual(["Rosario", "Gran Rosario"]);
+    expect(r.perfil.pricingExtras?.inflationEnabled).toBe(false);
+  });
+
+  it("un porcentaje imposible es un error y no se guarda", () => {
+    const r = aplicarParche(completo(), { cobros: { comisionMedioDePago: "150" } });
+    expect(r.errores.join(" ")).toMatch(/Comisión del medio de pago/);
+  });
+
+  it("cambiosEntre los nombra", () => {
+    const antes = completo();
+    const despues = aplicarParche(antes, { cobros: { sena: "30", ingresosBrutos: "3" } }).perfil;
+    expect(cambiosEntre(antes, despues).map((c) => c.etiqueta)).toEqual(expect.arrayContaining(["Seña (%)", "Ingresos Brutos (%)"]));
+  });
+
+  it("un perfil sin cobros no muestra cambios de cobros", () => {
+    expect(cambiosEntre(completo(), completo())).toEqual([]);
+  });
+});

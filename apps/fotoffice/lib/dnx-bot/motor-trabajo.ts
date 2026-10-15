@@ -1,9 +1,23 @@
 import { z } from "@repo/dnx-bot";
-import { formatCuantoCobroCurrency, parseCuantoCobroAmount, type CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
+import {
+  formatCuantoCobroCurrency,
+  parseCuantoCobroAmount,
+  type CuantoCobroPriceBuildUp,
+  type CuantoCobroProfileInput,
+} from "@repo/cuanto-cobro-core";
+import { extrasDelPerfil } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
+import { resumenDelPrecioCompleto } from "@/lib/presupuestos/precio-completo";
 import { entradaDelMotor, recalcularItemCalculo } from "@/lib/presupuestos/calculo-cuanto-cobro";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
-import { armarItemsDelAsistente, correrMotor, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
+import {
+  ajustesVacios,
+  armarItemsDelAsistente,
+  correrMotor,
+  trabajoVacio,
+  type AjustesTrabajo,
+  type TrabajoPanel,
+} from "@/lib/presupuestos/panel-cuanto-cobro";
 import type { TarjetaCalculo } from "./motor";
 
 /**
@@ -57,9 +71,28 @@ export const esquemaTrabajoBot = z
 
 export type TrabajoBot = z.infer<typeof esquemaTrabajoBot>;
 
+export const esquemaAjustesBot = z
+  .object({
+    fechaEvento: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe("Fecha del evento AAAA-MM-DD. Con ella el motor sabe si es sábado, domingo o feriado (recargo) y cuántos meses faltan (inflación)."),
+    expres: z.boolean().optional().describe("true si pidió entrega exprés."),
+    distanciaKm: z.string().regex(/^\d{1,4}$/).optional().describe("Distancia de IDA al evento, en km (sólo el número)."),
+    zona: z.string().min(1).max(60).optional().describe("Zona de viáticos del perfil, por su nombre (si cobra por zonas)."),
+    seguroEvento: monto.optional().describe("Seguro que pide el lugar del evento (costo del trabajo, sin ganancia)."),
+    fotosRetoque: z.string().regex(/^\d{1,5}$/).optional().describe("Cantidad de fotos a retocar."),
+    sinComision: z.boolean().optional().describe("true sólo si para ESTE trabajo no se suma la comisión del medio de pago."),
+  })
+  .describe("Datos del trabajo entero que cambian el precio. Sólo lo que dijo la persona.");
+
+export type AjustesBot = z.infer<typeof esquemaAjustesBot>;
+
 export const esquemaCotizacion = z.object({
   tipoDeTrabajo: z.string().min(1).max(80).describe("Tipo de trabajo (\"Casamiento\", \"Quince\", \"Retrato corporativo\")."),
   conceptos: z.array(esquemaTrabajoBot).min(1).max(10),
+  ajustes: esquemaAjustesBot.optional(),
   precioTotalElegido: monto.optional().describe("Sólo si la persona fija un total a mano (\"dejalo en 1.100.000\" → \"1100000\")."),
   parcial: z
     .boolean()
@@ -90,6 +123,38 @@ export function trabajoBotAPanel(t: TrabajoBot): TrabajoPanel {
     costoGasto: t.costoGasto ?? "",
     margenDeseado: h(t.margenDeseado),
     horasCliente: h(t.horasCliente),
+  };
+}
+
+/** Los ajustes del bot como los del panel. La zona va por nombre: si no está en el perfil, error (no se inventa). */
+export function ajustesBotAPanel(a: AjustesBot | undefined, perfil: CuantoCobroProfileInput): { ok: true; ajustes: AjustesTrabajo | undefined } | { ok: false; error: string } {
+  if (!a) return { ok: true, ajustes: undefined };
+  let zonaId = "";
+  if (a.zona) {
+    const zonas = extrasDelPerfil(perfil).travelZones;
+    const z = zonas.find((x) => x.name.trim().toLocaleLowerCase("es") === a.zona!.trim().toLocaleLowerCase("es"));
+    if (!z) {
+      return {
+        ok: false,
+        error: zonas.length
+          ? `La zona «${a.zona}» no está en tu perfil. Tus zonas son: ${zonas.map((x) => x.name).join(", ")}.`
+          : "Tu perfil no tiene zonas de viáticos: cargalas en Configuración → Precios o decime los km.",
+      };
+    }
+    zonaId = z.id;
+  }
+  return {
+    ok: true,
+    ajustes: {
+      ...ajustesVacios(),
+      fechaEvento: a.fechaEvento ?? "",
+      expres: a.expres === true,
+      distanciaKm: a.distanciaKm ?? "",
+      zonaId,
+      seguroEvento: a.seguroEvento ?? "",
+      fotosRetoque: a.fotosRetoque ?? "",
+      sinComision: a.sinComision === true,
+    },
   };
 }
 
@@ -141,6 +206,34 @@ export type ResumenCotizacion = {
   gananciaParaRevisar: boolean;
   valorHora: string;
   posicionamiento: string;
+  /** Precio completo (impuestos, comisión, recargos, viáticos, seña…). null si el perfil y el trabajo no lo encienden. */
+  precioCompleto: PrecioCompleto | null;
+};
+
+export type PrecioCompleto = {
+  /** Lo que paga el cliente (con IVA si es responsable inscripto). */
+  total: string;
+  iva: string | null;
+  /** "domingo", "sábado", "feriado (Navidad)", "día hábil"; null sin fecha. */
+  dia: string | null;
+  recargos: { etiqueta: string; monto: string } | null;
+  viaticos: string | null;
+  retoque: { fotos: number; monto: string } | null;
+  seguroEvento: string | null;
+  inflacion: string | null;
+  impuestosYComision: string | null;
+  sena: string | null;
+  /** Monto de la seña sin el porcentaje, para la tarjeta. */
+  senaMonto: string | null;
+  senaPct: number | null;
+  saldo: string | null;
+  horaExtra: string | null;
+  teQueda: string;
+  descuentoTransferenciaPct: number | null;
+  bajoMinimo: boolean;
+  minimo: string | null;
+  politicaCancelacion: string | null;
+  avisos: string[];
 };
 
 export type ResultadoCotizacion =
@@ -178,7 +271,69 @@ const horasTexto = (h: number) => `${Math.round(h * 10) / 10} h`;
 
 const TIPO: Record<string, string> = { "own-service": "servicio propio", "physical-product": "producto", outsourced: "tercerizado", expense: "gasto" };
 
-type ExtraResumen = { faltanDisparos: boolean; parcial: boolean; conceptos: { tipo: string; margen: string | null }[] };
+type ExtraResumen = {
+  faltanDisparos: boolean;
+  parcial: boolean;
+  conceptos: { tipo: string; margen: string | null }[];
+  perfil: CuantoCobroProfileInput;
+};
+
+function textoDia(d: CuantoCobroPriceBuildUp["day"]): string | null {
+  if (!d) return null;
+  if (d.dayType === "holiday") return `feriado (${d.holidayName ?? "feriado"})`;
+  return d.dayType === "sunday" ? "domingo" : d.dayType === "saturday" ? "sábado" : "día hábil";
+}
+
+/** El precio completo del trabajo, sumando el desglose de cada ítem. Con total a mano, la seña y el IVA van sobre ese total. */
+function precioCompletoDe(items: ItemPresupuesto[], ajustado: boolean, perfil: CuantoCobroProfileInput, $: (n: number) => string): PrecioCompleto | null {
+  const resumen = resumenDelPrecioCompleto(items, perfil);
+  if (!resumen) return null;
+  const { lineas, trabajo: r } = resumen;
+  const primera = lineas[0]!;
+  let sinIva = r.priceWithoutVat;
+  let iva = r.iva;
+  let total = r.total;
+  let deducciones = r.grossIncomeTax + r.commission;
+  let sena = r.deposit;
+  if (ajustado) {
+    sinIva = Math.round(items.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0));
+    iva = Math.round((sinIva * primera.ivaPercent) / 100);
+    total = sinIva + iva;
+    deducciones = r.priceWithoutVat > 0 ? Math.round((sinIva * (r.grossIncomeTax + r.commission)) / r.priceWithoutVat) : 0;
+    sena = r.deposit ? { percent: r.deposit.percent, amount: Math.round((total * r.deposit.percent) / 100) } : null;
+  }
+  const minimo = r.minimumJobPrice;
+  const bajoMinimo = minimo !== null && sinIva < minimo;
+  const partesRecargo = [
+    primera.daySurchargePercent > 0 ? `${textoDia(primera.day)} ${primera.daySurchargePercent} %` : null,
+    primera.expressSurchargePercent > 0 ? `exprés ${primera.expressSurchargePercent} %` : null,
+  ].filter(Boolean);
+  const viaje = lineas.find((l) => l.travel)?.travel ?? null;
+  const retoque = lineas.find((l) => l.retouch)?.retouch ?? null;
+  const inflacion = lineas.find((l) => l.inflation)?.inflation ?? null;
+  return {
+    total: $(total),
+    iva: iva > 0 ? `${$(iva)} (${primera.ivaPercent} %)` : null,
+    dia: textoDia(primera.day),
+    recargos: r.surchargeAmount > 0 && partesRecargo.length ? { etiqueta: `Recargos (${partesRecargo.join(" + ")})`, monto: $(r.surchargeAmount) } : null,
+    viaticos: viaje ? `${$(viaje.cost)} (${viaje.zoneName ? `${viaje.zoneName}, ` : ""}${viaje.km} km)` : null,
+    retoque: retoque ? { fotos: retoque.photos, monto: $(retoque.price) } : null,
+    seguroEvento: r.eventInsurance > 0 ? $(r.eventInsurance) : null,
+    inflacion: inflacion ? `${$(r.inflationAmount)} (${inflacion.months} ${inflacion.months === 1 ? "mes" : "meses"} al ${inflacion.monthlyPercent} %)` : null,
+    impuestosYComision: deducciones > 0 ? $(deducciones) : null,
+    sena: sena ? `${$(sena.amount)} (${sena.percent} %)` : null,
+    senaMonto: sena ? $(sena.amount) : null,
+    senaPct: sena ? sena.percent : null,
+    saldo: sena ? $(total - sena.amount) : null,
+    horaExtra: r.overtimeHourPrice ? $(r.overtimeHourPrice) : null,
+    teQueda: $(sinIva - deducciones),
+    descuentoTransferenciaPct: r.suggestedTransferDiscountPercent,
+    bajoMinimo,
+    minimo: minimo !== null ? $(minimo) : null,
+    politicaCancelacion: r.cancellationPolicy,
+    avisos: r.warnings.filter((w) => !/precio mínimo/.test(w)),
+  };
+}
 
 function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: ExtraResumen): ResumenCotizacion {
   const calc = items.map((i) => i.calculo!);
@@ -223,6 +378,7 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: ExtraResume
     gananciaParaRevisar: costoBase > 0 && ganancia / costoBase > GANANCIA_PARA_REVISAR,
     valorHora: $(calc[0]?.valorHora ?? 0),
     posicionamiento: calc[0]?.posicionamiento ?? "",
+    precioCompleto: precioCompletoDe(items, ajustado, extra.perfil, $),
   };
 }
 
@@ -239,10 +395,13 @@ export function cotizar(
   const p = resumirPerfil(perfil);
   if (!p.completo) return { estado: "PERFIL_INCOMPLETO", faltan: p.faltan };
 
+  const aj = ajustesBotAPanel(c.ajustes, perfil);
+  if (!aj.ok) return { estado: "INVALIDO", faltan: [], error: aj.error };
   const r = armarItemsDelAsistente(perfil, c.conceptos.map(trabajoBotAPanel), c.tipoDeTrabajo, {
     nuevaClave: opciones.nuevaClave,
     ahora: opciones.ahora,
     seccion: opciones.seccion ?? null,
+    ajustes: aj.ajustes,
   });
   if (!r.ok) return { estado: r.faltan.length ? "FALTAN_DATOS" : "INVALIDO", faltan: r.faltan, error: r.error };
 
@@ -254,6 +413,7 @@ export function cotizar(
       const conMargen = tipo === "physical-product" || tipo === "outsourced";
       return { tipo, margen: conMargen && t.margenDeseado ? `${t.margenDeseado} %` : null };
     }),
+    perfil,
   };
   if (c.precioTotalElegido === undefined) return { estado: "OK", faltan: [], items: r.items, resumen: resumir(r.items, false, extra) };
 
@@ -274,6 +434,33 @@ export function cotizar(
 
 // ── Tarjeta «cálculo» ──────────────────────────────────────────────────────────────────────────
 
+function filasDelPrecioCompleto(p: PrecioCompleto | null): { etiqueta: string; valor: string }[] {
+  if (!p) return [];
+  return [
+    { etiqueta: "Total para el cliente", valor: p.total },
+    ...(p.iva ? [{ etiqueta: "IVA", valor: p.iva }] : []),
+    ...(p.recargos ? [{ etiqueta: p.recargos.etiqueta, valor: p.recargos.monto }] : []),
+    ...(p.viaticos ? [{ etiqueta: "Viáticos", valor: p.viaticos }] : []),
+    ...(p.retoque ? [{ etiqueta: `Retoque (${p.retoque.fotos} fotos)`, valor: p.retoque.monto }] : []),
+    ...(p.seguroEvento ? [{ etiqueta: "Seguro del evento", valor: p.seguroEvento }] : []),
+    ...(p.inflacion ? [{ etiqueta: "Ajuste por inflación", valor: p.inflacion }] : []),
+    ...(p.impuestosYComision ? [{ etiqueta: "Ingresos Brutos y comisión", valor: p.impuestosYComision }] : []),
+    ...(p.senaMonto ? [{ etiqueta: `Seña (${p.senaPct} %)`, valor: p.senaMonto }] : []),
+    ...(p.saldo ? [{ etiqueta: "Saldo", valor: p.saldo }] : []),
+    ...(p.horaExtra ? [{ etiqueta: "Hora extra", valor: p.horaExtra }] : []),
+    { etiqueta: "Te queda", valor: p.teQueda },
+  ];
+}
+
+function avisosDelPrecioCompleto(p: PrecioCompleto | null): string[] {
+  if (!p) return [];
+  return [
+    ...(p.bajoMinimo && p.minimo ? [`El total queda por debajo de tu precio mínimo por trabajo (${p.minimo}).`] : []),
+    ...(p.descuentoTransferenciaPct ? [`La comisión está sumada al precio: podés ofrecer un descuento por transferencia del ${p.descuentoTransferenciaPct} %.`] : []),
+    ...p.avisos,
+  ];
+}
+
 export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string): TarjetaCalculo {
   const t = r.total;
   const filas = [
@@ -288,8 +475,11 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
       : []),
     // Subtotal de cada concepto: precio, con su costo y su ganancia (la cuenta del motor).
     ...r.conceptos.map((c) => ({ etiqueta: c.nombre, valor: `${c.precio} (costo ${c.costo} + ganancia ${c.ganancia})` })),
-  ].slice(0, 12);
+    // Precio completo: del total al cliente a lo que te queda (todo del motor).
+    ...filasDelPrecioCompleto(r.precioCompleto),
+  ].slice(0, 20);
   const avisos = [
+    ...avisosDelPrecioCompleto(r.precioCompleto),
     // Sólo un aviso: el número es el del motor, tal cual.
     ...(r.faltanDisparos ? ["Faltan los disparos estimados del trabajo: el desgaste de la cámara no está contado."] : []),
     ...(r.gananciaParaRevisar ? ["La ganancia es más de 3 veces el costo: revisá que las horas y los costos del trabajo estén completos."] : []),

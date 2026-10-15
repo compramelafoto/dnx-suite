@@ -38,7 +38,7 @@ export function fusionarParches(a: ParchePerfil, b: ParchePerfil): ParchePerfil 
       const viejos = (a.gastosPersonales ?? []).filter((g) => porClave.get(claveGasto(g)) === g);
       const nuevos = (b.gastosPersonales ?? []).filter((g, i, arr) => arr.findLastIndex((x) => claveGasto(x) === claveGasto(g)) === i);
       out.gastosPersonales = [...viejos, ...nuevos];
-    } else if (k === "negocio" || k === "equipo") {
+    } else if (k === "negocio" || k === "equipo" || k === "cobros") {
       (out as Record<string, unknown>)[k] = { ...(a[k] ?? {}), ...(v as object) };
     } else {
       (out as Record<string, unknown>)[k] = v;
@@ -93,6 +93,31 @@ const EQUIPO: Record<string, string> = {
   disparosAnuales: "disparos por año (todos los trabajos)",
 };
 
+const COBROS: Record<string, string> = {
+  monotributo: "monotributo",
+  seguroEquipoAnual: "seguro del equipo",
+  condicionIva: "condición frente al IVA",
+  iva: "IVA",
+  ingresosBrutos: "ingresos brutos",
+  comisionMedioDePago: "comisión del medio de pago",
+  sumarComisionAlPrecio: "si suma la comisión al precio",
+  sena: "seña",
+  recargoHoraExtra: "recargo de la hora extra",
+  recargoSabado: "recargo de sábado",
+  recargoDomingo: "recargo de domingo",
+  recargoFeriado: "recargo de feriado",
+  recargoExpres: "recargo por entrega exprés",
+  diasDeEntrega: "días de entrega",
+  viaticos: "cómo cobra los viáticos",
+  valorKm: "valor por km",
+  kmSinCargo: "km sin cargo",
+  zonas: "zonas de viáticos",
+  minutosRetoquePorFoto: "minutos de retoque por foto",
+  inflacionMensual: "inflación mensual",
+  precioMinimo: "precio mínimo por trabajo",
+  politicaCancelacion: "política de cancelación",
+};
+
 /** Qué ya contó la persona, en palabras (por rubro y renglón), sin ningún monto. */
 export function loAnotado(parche: ParchePerfil, base: CuantoCobroProfileInput): string[] {
   const l: string[] = [];
@@ -114,6 +139,7 @@ export function loAnotado(parche: ParchePerfil, base: CuantoCobroProfileInput): 
   if (parche.fondoEmergencia !== undefined) l.push("fondo de emergencia");
   if (parche.ahorro !== undefined) l.push("ahorro y vacaciones");
   if (parche.posicionamiento) l.push("momento del negocio");
+  for (const k of Object.keys(parche.cobros ?? {})) l.push(COBROS[k] ?? k);
   return l;
 }
 

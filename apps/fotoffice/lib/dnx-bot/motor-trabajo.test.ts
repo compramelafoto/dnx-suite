@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { toInputSchema } from "@repo/dnx-bot";
+import { INITIAL_CUANTO_COBRO_PRICING_EXTRAS } from "@repo/cuanto-cobro-core";
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
-import { armarItemsDelAsistente, trabajoVacio } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { ajustesVacios, armarItemsDelAsistente, trabajoVacio } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { perfilBase } from "./motor";
 import { cotizar, esquemaCotizacion, repartirTotal, tarjetaDeCotizacion, trabajoBotAPanel, type TrabajoBot } from "./motor-trabajo";
 
@@ -218,5 +219,75 @@ describe("extras del trabajo: una lista de conceptos, cada uno con su tipo", () 
     if (r.estado !== "OK") throw new Error(r.estado);
     expect(r.items[0]!.calculo!.horasTotales).toBe(6 + 10 + 1 + 2);
     expect(r.items[1]!.calculo!.horasTotales).toBe(2 + 3 + 1);
+  });
+});
+
+describe("precio completo: fecha, viaje, exprés y retoque (etapa A)", () => {
+  const EXTRAS = {
+    ...INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
+    grossIncomePercent: "3",
+    paymentCommissionPercent: "6",
+    depositPercent: "30",
+    sundaySurchargePercent: "15",
+    expressSurchargePercent: "10",
+    overtimeSurchargePercent: "50",
+    travelMode: "zones" as const,
+    travelZones: [{ id: "z1", name: "Rosario", upToKm: "15", amount: "0" }, { id: "z2", name: "Gran Rosario", upToKm: "60", amount: "25000" }],
+    retouchMinutesPerPhoto: "6",
+    minimumJobPrice: "900000000",
+  };
+  const conExtras = () => ({ ...perfil(), pricingExtras: EXTRAS });
+  const AJUSTES = { fechaEvento: "2026-10-18", expres: true, distanciaKm: "40", fotosRetoque: "50" };
+
+  it("el esquema acepta los ajustes y rechaza fechas o km en texto", () => {
+    expect(esquemaCotizacion.safeParse({ tipoDeTrabajo: "XV", conceptos: BODA, ajustes: AJUSTES }).success).toBe(true);
+    expect(esquemaCotizacion.safeParse({ tipoDeTrabajo: "XV", conceptos: BODA, ajustes: { fechaEvento: "18 de octubre" } }).success).toBe(false);
+    expect(esquemaCotizacion.safeParse({ tipoDeTrabajo: "XV", conceptos: BODA, ajustes: { distanciaKm: "cuarenta" } }).success).toBe(false);
+  });
+
+  it("sin extras ni ajustes, el resumen no trae precio completo (igual que antes)", () => {
+    const r = cotizar(perfil(), { tipoDeTrabajo: "Boda", conceptos: BODA }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(r.resumen.precioCompleto).toBeNull();
+  });
+
+  it("bot = panel también con ajustes", () => {
+    const r = cotizar(conExtras(), { tipoDeTrabajo: "XV", conceptos: BODA, ajustes: AJUSTES }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    const panel = armarItemsDelAsistente(conExtras(), BODA.map(trabajoBotAPanel), "XV", {
+      nuevaClave: claves(),
+      ahora: AHORA,
+      ajustes: { ...ajustesVacios(), fechaEvento: "2026-10-18", expres: true, distanciaKm: "40", fotosRetoque: "50" },
+    });
+    if (!panel.ok) throw new Error(panel.error);
+    expect(r.items.map((i) => i.precioUnitario)).toEqual(panel.items.map((i) => i.precioUnitario));
+  });
+
+  it("la tarjeta muestra el desglose: domingo, viáticos de la zona, retoque, IIBB y comisión, seña, hora extra y el mínimo", () => {
+    const r = cotizar(conExtras(), { tipoDeTrabajo: "XV", conceptos: BODA, ajustes: AJUSTES }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    const pc = r.resumen.precioCompleto!;
+    expect(pc.dia).toBe("domingo");
+    expect(pc.viaticos).toBe(`${pesos(25_000)} (Gran Rosario, 40 km)`);
+    const t = tarjetaDeCotizacion(r.resumen, "XV");
+    const etiquetas = t.filas.map((f) => f.etiqueta);
+    expect(etiquetas).toEqual(
+      expect.arrayContaining(["Total para el cliente", "Recargos (domingo 15 % + exprés 10 %)", "Viáticos", "Retoque (50 fotos)", "Ingresos Brutos y comisión", "Seña (30 %)", "Saldo", "Hora extra", "Te queda"]),
+    );
+    expect(t.filas.length).toBeLessThanOrEqual(20);
+    expect(t.avisos.join(" ")).toMatch(/mínimo/);
+    expect(t.avisos.join(" ")).toMatch(/descuento por transferencia del 6 %/);
+  });
+
+  it("una zona que no existe en el perfil no se inventa", () => {
+    const r = cotizar(conExtras(), { tipoDeTrabajo: "XV", conceptos: BODA, ajustes: { zona: "Luna" } }, { nuevaClave: claves(), ahora: AHORA });
+    expect(r.estado).toBe("INVALIDO");
+    if (r.estado === "INVALIDO") expect(r.error).toMatch(/Rosario, Gran Rosario/);
+  });
+
+  it("con un total a mano, la seña se calcula sobre ese total", () => {
+    const r = cotizar(conExtras(), { tipoDeTrabajo: "XV", conceptos: BODA, ajustes: AJUSTES, precioTotalElegido: "2000000" }, { nuevaClave: claves(), ahora: AHORA });
+    if (r.estado !== "OK") throw new Error(r.estado);
+    expect(r.resumen.precioCompleto?.sena).toBe(`${pesos(600_000)} (30 %)`);
   });
 });
