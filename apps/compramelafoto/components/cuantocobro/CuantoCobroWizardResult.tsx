@@ -437,7 +437,7 @@ export default function CuantoCobroWizardResult({ calculation, profile, quote, o
               <div className="cc-stat-card">
                 <dt className="cc-stat-card__label">Modo usado</dt>
                 <dd className="cc-stat-card__value text-base">
-                  {calculation.cameraWearSummary.mode === "structural" ? "Estructural (perfil)" : "Por trabajo"}
+                  {calculation.cameraWearSummary.mode === "structural" ? "Modelo anterior (en el perfil)" : "Por trabajo"}
                 </dd>
               </div>
               {calculation.cameraWearSummary.totalCameraWearInformative > 0 ? (

@@ -24,7 +24,8 @@ export const RENEWAL_CATEGORY_META: Record<
   camera: {
     title: "Cámara",
     shortTitle: "Cámara",
-    description: "Modelo, valor de reposición y disparos. El ahorro se calcula según la vida útil del obturador.",
+    description:
+      "Modelo, valor de reposición y vida útil del obturador. No suma por mes: su desgaste se cobra en cada trabajo, según los disparos.",
   },
   lenses: {
     title: "Lentes",
@@ -91,7 +92,7 @@ export const FUTURE_TIMELINE_OPTIONS: Array<{ value: "" | "1" | "2" | "3" | "non
 ];
 
 export const CC_EQUIPMENT_RENEWAL_INTRO =
-  "Registrá el equipo que ya usás. Calculamos cuánto ahorrar por mes para renovarlo sin afectar tu negocio.";
+  "Registrá el equipo que ya usás. Calculamos cuánto ahorrar por mes para renovarlo sin afectar tu negocio. La cámara principal se cobra aparte, en cada trabajo, según los disparos.";
 
 export const CC_EQUIPMENT_RENEWAL_HELP =
   "Solo equipamiento que ya forma parte de tu negocio. Para sumar herramientas nuevas, usá la sección «Equipos que deseo comprar».";

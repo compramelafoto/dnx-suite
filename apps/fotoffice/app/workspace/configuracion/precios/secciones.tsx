@@ -290,7 +290,7 @@ export function SeccionEquipo({ perfil, cambiar }: PropsSeccion) {
           etiqueta="Inversión mensual en equipo ($)"
           valor={perfil.equipmentRenewalMonthly}
           onCambio={(v) => cambiar({ equipmentRenewalMonthly: v })}
-          ayuda="Tarjetas, baterías, lentes y otros equipos. No es el desgaste de la cámara: la cámara va en los campos de al lado."
+          ayuda="Tarjetas, baterías, lentes y otros equipos. No incluye la cámara: su desgaste se cobra en cada trabajo, según los disparos."
         />
         <CampoTexto etiqueta="Cámara principal" tipo="text" valor={perfil.primaryCameraCustomName} onCambio={(v) => cambiar({ primaryCameraCustomName: v })} />
         <CampoTexto etiqueta="Vida útil del obturador (disparos)" valor={perfil.primaryCameraShutterRating} onCambio={(v) => cambiar({ primaryCameraShutterRating: v })} />

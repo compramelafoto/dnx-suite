@@ -104,7 +104,7 @@ describe("disparos del trabajo y embalaje (desgaste de cámara por trabajo)", ()
     expect(trabajoDesdeMotor(trabajoAlMotor(p, "x"))!.trabajo.costoEmbalaje).toBe("5000");
     expect(vacio("x")).toMatchObject({ disparosEstimados: "", costoEmbalaje: "" });
   });
-  it("con la cámara en el perfil, el motor calcula el desgaste de esos disparos (hoy, informativo: la cámara ya está en la renovación)", async () => {
+  it("con la cámara en el perfil, el desgaste de esos disparos se suma al costo del trabajo", async () => {
     const { calcularItemDelPanel, correrMotor, trabajoVacio: vacio } = await import("./panel-cuanto-cobro");
     const { entradaDelMotor } = await import("./calculo-cuanto-cobro");
     const { createBaseCompleteProfile: perfil } = await import("@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures");
@@ -112,13 +112,34 @@ describe("disparos del trabajo y embalaje (desgaste de cámara por trabajo)", ()
     const sin = calcularItemDelPanel(conCamara, { ...vacio("Cobertura"), horasCobertura: "8" }, "Boda", { id: "a", nombre: "Cobertura" });
     const con = calcularItemDelPanel(conCamara, { ...vacio("Cobertura"), horasCobertura: "8", disparosEstimados: "2000" }, "Boda", { id: "a", nombre: "Cobertura" });
     if (!sin.ok || !con.ok) throw new Error("no calculó");
+    expect((con.item.calculo!.entrada as { presupuesto: { cameraWearModel?: string } }).presupuesto.cameraWearModel).toBe("per-job");
     const r = correrMotor(entradaDelMotor(con.item.calculo!.entrada)!);
     if (!r || r.status !== "complete") throw new Error("no calculó");
-    // 2000 disparos × (3.000.000 / 200.000) = 30.000.
-    expect(r.cameraWearSummary.totalJobShots).toBe(2000);
-    expect(r.cameraWearSummary.totalCameraWearInformative).toBe(30_000);
-    // El motor toma la cámara como renovación mensual (modo estructural) y no lo suma de nuevo: el precio no cambia.
-    expect(r.cameraWearSummary.totalCameraWearCharged).toBe(0);
-    expect(con.item.calculo!.precioSugerido).toBe(sin.item.calculo!.precioSugerido);
+    // 2000 disparos × (3.000.000 / 200.000) = 30.000, sumados al costo del trabajo.
+    expect(r.cameraWearSummary).toMatchObject({ mode: "per-job", totalJobShots: 2000, totalCameraWearCharged: 30_000 });
+    expect(con.item.calculo!.costosVariables - sin.item.calculo!.costosVariables).toBe(30_000);
+    expect(con.item.calculo!.precioSugerido).toBeGreaterThan(sin.item.calculo!.precioSugerido);
+  });
+
+  it("un ítem guardado antes del cambio (sin cameraWearModel) se recalcula con el modelo anterior: no cambia de precio solo", async () => {
+    const { calcularItemDelPanel, trabajoVacio: vacio } = await import("./panel-cuanto-cobro");
+    const { recalcularItemCalculo, entradaDelMotor } = await import("./calculo-cuanto-cobro");
+    const { calculateCuantoCobro, INITIAL_CUANTO_COBRO_QUOTE } = await import("@repo/cuanto-cobro-core");
+    const { createBaseCompleteProfile: perfil } = await import("@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures");
+    const conCamara = perfil({ equipmentRenewalMonthly: "41667", primaryCameraPresetId: "custom", primaryCameraReplacementValue: "3000000", primaryCameraShutterRating: "200000" });
+    const nuevo = calcularItemDelPanel(conCamara, { ...vacio("Cobertura"), horasCobertura: "8", disparosEstimados: "2000" }, "Boda", { id: "a", nombre: "Cobertura" });
+    if (!nuevo.ok) throw new Error("no calculó");
+    // Lo que había quedado guardado antes: la misma entrada, sin la marca del modelo.
+    const viejo = { ...(nuevo.item.calculo!.entrada as { presupuesto: Record<string, unknown> }).presupuesto };
+    delete viejo.cameraWearModel;
+    const entradaVieja = { perfil: conCamara, presupuesto: viejo };
+    const antes = calculateCuantoCobro(conCamara, { ...INITIAL_CUANTO_COBRO_QUOTE, ...(viejo as object), cameraWearModel: "legacy-structural" });
+    if (antes.status !== "complete") throw new Error("no calculó");
+    const guardado = { ...nuevo.item, precioUnitario: antes.chosenPriceEffective, calculo: { ...nuevo.item.calculo!, entrada: entradaVieja, precioSugerido: antes.chosenPriceEffective } };
+    const r = recalcularItemCalculo(guardado, entradaDelMotor(entradaVieja)!, new Date(), { sugeridoAnterior: antes.chosenPriceEffective });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.item.precioUnitario).toBeCloseTo(antes.chosenPriceEffective, 2);
+    expect(r.item.calculo!.precioSugerido).toBeCloseTo(antes.chosenPriceEffective, 2);
+    expect(r.item.precioUnitario).toBeLessThan(nuevo.item.precioUnitario);
   });
 });

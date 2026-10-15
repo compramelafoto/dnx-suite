@@ -7,7 +7,7 @@ import {
   type EquipmentDepreciationMode,
 } from "./camera-equipment";
 import { parseQuoteItemQuantity } from "./quote-items";
-import type { CuantoCobroProfileInput, CuantoCobroQuoteItem } from "./types";
+import type { CameraWearModel, CuantoCobroProfileInput, CuantoCobroQuoteItem } from "./types";
 
 export type { EquipmentDepreciationMode };
 
@@ -23,9 +23,12 @@ export type ConceptCameraWearBreakdown = {
   cameraWearCharged: number;
 };
 
-export function buildCameraWearPolicy(profile: CuantoCobroProfileInput): CameraWearPolicy {
+export function buildCameraWearPolicy(
+  profile: CuantoCobroProfileInput,
+  model: CameraWearModel = "per-job",
+): CameraWearPolicy {
   return {
-    mode: getEquipmentDepreciationMode(profile),
+    mode: getEquipmentDepreciationMode(profile, model),
     costPerShot: getCameraCostPerShot(profile),
     isCameraConfigured: isCameraWearConfigured(profile),
   };
@@ -88,9 +91,10 @@ export function buildCameraWearWarnings(
     return warnings;
   }
 
+  // Sólo en presupuestos guardados con el modelo anterior.
   if (policy.mode === "structural") {
     warnings.push(
-      "Modo estructural: el desgaste de cámara es informativo. Ya contemplás renovación de equipo en tu aporte mensual del perfil; no se suma de nuevo al precio.",
+      "Presupuesto calculado con el modelo anterior: la cámara estaba en la renovación mensual del perfil y el desgaste de este trabajo no se sumó al precio.",
     );
   }
 

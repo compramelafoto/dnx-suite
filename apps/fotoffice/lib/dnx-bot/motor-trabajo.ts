@@ -127,7 +127,8 @@ export type ResumenCotizacion = {
   total: { recomendado: string; minimo: string; elegido: string; ganancia: string; gananciaPct: string | null; costosVariables: string };
   /**
    * Desgaste de la cámara de este trabajo, del motor: disparos × (valor de reposición / vida útil).
-   * `sumado`: si el motor lo sumó al precio. null si no hay disparos o la cámara no está en el perfil.
+   * `sumado`: si el motor lo sumó al costo del trabajo (siempre, salvo un ítem guardado con el modelo
+   * anterior a 10/2026). null si no hay disparos o la cámara no está en el perfil.
    */
   desgasteCamara: { disparos: number; monto: string; sumado: boolean } | null;
   /** Hay un servicio propio sin disparos estimados y la cámara está en el perfil: el desgaste no está contado. */
@@ -156,9 +157,6 @@ const ESTADO: Record<string, string> = {
 
 /** Más de 3 veces el costo (300 %) no es imposible, pero casi siempre es un dato que falta: se pide revisar. */
 export const GANANCIA_PARA_REVISAR = 3;
-
-/** El aviso del motor en modo estructural mezcla la inversión en equipo con la cámara: se reemplaza por uno exacto. */
-const esAvisoEstructural = (a: string) => a.startsWith("Modo estructural");
 
 /** Desgaste de la cámara de cada ítem, tal como lo da el motor con la entrada guardada. */
 function desgasteDe(items: ItemPresupuesto[]): { disparos: number; informativo: number; cobrado: number; camara: boolean } {
@@ -206,7 +204,7 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: ExtraResume
         ganancia: $(c.margenElegido),
         gananciaPct: porcentaje(c.margenElegidoProporcion),
         estado: ESTADO[c.estadoRentabilidad] ?? c.estadoRentabilidad,
-        advertencias: c.advertencias.filter((a) => !esAvisoEstructural(a)),
+        advertencias: c.advertencias,
       };
     }),
     total: {
@@ -294,9 +292,6 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
   const avisos = [
     // Sólo un aviso: el número es el del motor, tal cual.
     ...(r.faltanDisparos ? ["Faltan los disparos estimados del trabajo: el desgaste de la cámara no está contado."] : []),
-    ...(r.desgasteCamara && !r.desgasteCamara.sumado
-      ? ["Hoy ¿Cuánto Cobro? no lo suma al precio: la reposición de tu cámara ya está en tu valor hora, calculada con su valor y la vida útil del obturador."]
-      : []),
     ...(r.gananciaParaRevisar ? ["La ganancia es más de 3 veces el costo: revisá que las horas y los costos del trabajo estén completos."] : []),
     ...r.conceptos.filter((c) => c.estado === "pierde plata").map((c) => `${c.nombre}: con este precio pierde plata.`),
     ...r.conceptos

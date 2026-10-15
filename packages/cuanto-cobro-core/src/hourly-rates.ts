@@ -11,7 +11,7 @@ import {
   getEffectiveRenewalMonthly,
 } from "./equipment/calculations";
 import { sumPersonalExpenseGroups } from "./personal-expenses";
-import type { CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
+import type { CameraWearModel, CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 function sumAmounts(...values: string[]): number {
   return values.reduce((total, value) => total + (parseCuantoCobroAmount(value) ?? 0), 0);
@@ -21,7 +21,7 @@ function sumAmounts(...values: string[]): number {
  * Necesidad mensual del perfil.
  * Impuestos fijos: campo futuro en perfil; por ahora no incluido en el wizard.
  */
-export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput): number {
+export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number {
   const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
   const businessExpenses = sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
   const teamExpenses =
@@ -29,7 +29,7 @@ export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput): number 
       ? (parseCuantoCobroAmount(profile.employeeMonthlyCost) ?? 0)
       : 0;
   const profileReserves = sumAmounts(
-    String(getEffectiveRenewalMonthly(profile) + getEffectiveExpansionMonthly(profile)),
+    String(getEffectiveRenewalMonthly(profile, model) + getEffectiveExpansionMonthly(profile)),
     profile.emergencyFundMonthly,
     profile.savingsGoalsMonthly,
   );
@@ -49,8 +49,8 @@ export function getProfileMonthlyHours(profile: CuantoCobroProfileInput): number
  *
  * La distribución semanal de tiempo no modifica este valor.
  */
-export function getProfileCostHour(profile: CuantoCobroProfileInput): number | null {
-  const monthlyNeed = getProfileMonthlyNeed(profile);
+export function getProfileCostHour(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number | null {
+  const monthlyNeed = getProfileMonthlyNeed(profile, model);
   const monthlyHours = getProfileMonthlyHours(profile);
   if (monthlyHours <= 0) return null;
   return monthlyNeed / monthlyHours;
@@ -106,8 +106,8 @@ function buildUniformLaborRates(costHour: number): QuoteLaborRates {
   };
 }
 
-export function getQuoteLaborRates(profile: CuantoCobroProfileInput): QuoteLaborRates | null {
-  const costHour = getProfileCostHour(profile);
+export function getQuoteLaborRates(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): QuoteLaborRates | null {
+  const costHour = getProfileCostHour(profile, model);
   if (costHour === null) return null;
   return buildUniformLaborRates(costHour);
 }

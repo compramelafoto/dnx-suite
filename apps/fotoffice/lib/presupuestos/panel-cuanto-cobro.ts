@@ -26,7 +26,7 @@ import {
   type CuantoCobroQuoteItem,
   type CuantoCobroQuoteItemType,
 } from "@repo/cuanto-cobro-core";
-import { itemDesdeCalculo, type EntradaMotor, type ResultadoItemCalculado } from "./calculo-cuanto-cobro";
+import { itemDesdeCalculo, presupuestoParaElMotor, type EntradaMotor, type ResultadoItemCalculado } from "./calculo-cuanto-cobro";
 import { normalizarPerfil, perfilesIguales } from "@/lib/precios/perfil-datos";
 import type { Descuento } from "./constantes";
 
@@ -139,6 +139,8 @@ export function trabajoAlMotor(t: TrabajoPanel, tipoDeTrabajo: string): CuantoCo
     concepts: [conceptoAlMotor(t, "concepto-1")],
     chosenPrice: t.precioManual.trim(),
     paymentOptions: { ...INITIAL_CUANTO_COBRO_QUOTE.paymentOptions, installmentPlans: [] },
+    // La cámara se cobra por trabajo (los disparos de este trabajo); ver `presupuestoParaElMotor`.
+    cameraWearModel: "per-job",
   };
 }
 
@@ -210,7 +212,7 @@ export function correrMotor(entrada: EntradaMotor): CuantoCobroCalculationResult
   try {
     return calculateCuantoCobro(
       { ...INITIAL_CUANTO_COBRO_PROFILE, ...entrada.perfil },
-      { ...INITIAL_CUANTO_COBRO_QUOTE, ...entrada.presupuesto },
+      presupuestoParaElMotor(entrada.presupuesto),
     );
   } catch {
     return null;
