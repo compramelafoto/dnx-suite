@@ -8,7 +8,7 @@ const TODO = { configurar: true, gestionarPresupuestos: true, verConsultas: true
 const STAFF = { configurar: false, gestionarPresupuestos: true, verConsultas: false };
 
 describe("rutas que el bot puede mencionar", () => {
-  it("son las nueve del spec (§6.6)", () => {
+  it("son las nueve del spec (§6.6) más la página de los datos", () => {
     expect(RUTAS_BOT.map((r) => r.ruta)).toEqual([
       "/workspace/configuracion/precios",
       "/workspace/configuracion/presupuestos",
@@ -18,6 +18,7 @@ describe("rutas que el bot puede mencionar", () => {
       "/consultas",
       "/consultas/{id}",
       "/consultas/nueva",
+      "/ayuda/dnx-bot-datos",
       "/ventas/catalogo",
     ]);
   });

@@ -20,7 +20,10 @@ describe("guía base de DNX Bot en FOTOFFICE", () => {
     expect(g).not.toMatch(/hablar con una persona/i);
   });
   it("tiene la etapa 1: aviso de privacidad, de a uno, simular antes de guardar, parche completo", () => {
-    expect(g).toContain("Lo que me cuentes queda guardado en esta conversación y lo procesa Anthropic");
+    // El aviso de privacidad lo muestra FOTOFFICE en una tarjeta fija (aviso-privacidad.ts): el modelo no lo repite.
+    expect(g).toContain("lo muestra FOTOFFICE solo, en una tarjeta");
+    expect(g).toContain("/ayuda/dnx-bot-datos");
+    expect(g).not.toContain("lo procesa Anthropic");
     expect(g).toContain("de a una cosa");
     expect(g).toContain("simular_perfil");
     expect(g).toContain("parche completo");

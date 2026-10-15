@@ -2,6 +2,7 @@
 import { parseProgreso, type ProgresoEscolar } from "./globito";
 import { parseTarjetaCalculo, type TarjetaCalculo } from "./calculo";
 import { parseTarjetaMensaje, type TarjetaMensaje } from "./mensaje";
+import { parseAviso, type Aviso } from "./aviso";
 
 export type Item =
   | { kind: "user"; text: string }
@@ -10,7 +11,8 @@ export type Item =
   | { kind: "notice"; text: string; offerTicket?: boolean }
   | { kind: "progreso"; progreso: ProgresoEscolar }
   | { kind: "calculo"; tarjeta: TarjetaCalculo }
-  | { kind: "mensaje"; tarjeta: TarjetaMensaje };
+  | { kind: "mensaje"; tarjeta: TarjetaMensaje }
+  | { kind: "aviso"; aviso: Aviso };
 
 /** Pone la tarjeta de progreso al final y saca la anterior: siempre queda una sola, la más nueva. */
 export function withProgreso(items: Item[], progreso: ProgresoEscolar): Item[] {
@@ -41,6 +43,10 @@ export function applySseEvent(items: Item[], event: string, d: Record<string, un
   if (event === "calculo") {
     const t = parseTarjetaCalculo(d);
     return t ? [...items, { kind: "calculo", tarjeta: t }, { kind: "bot", text: "" }] : items;
+  }
+  if (event === "aviso") {
+    const a = parseAviso(d);
+    return a ? [...items, { kind: "aviso", aviso: a }, { kind: "bot", text: "" }] : items;
   }
   if (event === "mensaje") {
     const t = parseTarjetaMensaje(d);
