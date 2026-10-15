@@ -67,7 +67,8 @@ function filtrosDelCatalogo(modelo: Modelo, bloques: FilaBloque[], bindings: Fil
   const fotos = new Set(bindings.filter((b) => b.variableKey.startsWith("photo_")).map((b) => b.variableKey));
   return {
     estilo: modelo.filtros.estilo,
-    orientacion: ANCHO >= ALTO ? "horizontal" : "vertical",
+    // El lienzo abierto siempre es apaisado: lo que importa es cómo se lee el librito cerrado.
+    orientacion: modelo.filtros.orientacion ?? "vertical",
     cantidadFotos: fotos.size,
     conListado: bloques.some((b) => (b.configJson as { variableKey?: string }).variableKey === "course.studentList"),
     conLogo: bindings.some((b) => b.variableKey === VARIABLE_LOGO),

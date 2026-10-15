@@ -15,6 +15,11 @@ export type Modelo = {
   filtros?: {
     estilo: "Formal" | "Informal" | "Divertido" | "Moderno" | "Clásico" | "Minimalista";
     evento?: string;
+    /**
+     * Cómo se lee el librito cerrado: "vertical" (páginas de pie, lo común) u "horizontal"
+     * (contenido girado para leerlo apaisado, como San Patricio). Por defecto "vertical".
+     */
+    orientacion?: "vertical" | "horizontal";
     etiquetas: string[];
   };
   fondoExterior: () => string;
