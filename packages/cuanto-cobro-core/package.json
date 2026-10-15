@@ -33,7 +33,12 @@
     "./quote-items": "./src/quote-items.ts",
     "./quote-profitability": "./src/quote-profitability.ts",
     "./types": "./src/types.ts",
-    "./__fixtures__/characterization-fixtures": "./src/__fixtures__/characterization-fixtures.ts"
+    "./__fixtures__/characterization-fixtures": "./src/__fixtures__/characterization-fixtures.ts",
+    "./pricing-extras/holidays": "./src/pricing-extras/holidays.ts",
+    "./pricing-extras/price-build-up": "./src/pricing-extras/price-build-up.ts",
+    "./pricing-extras/summarize": "./src/pricing-extras/summarize.ts",
+    "./pricing-extras/travel": "./src/pricing-extras/travel.ts",
+    "./pricing-extras/types": "./src/pricing-extras/types.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit -p tsconfig.json",

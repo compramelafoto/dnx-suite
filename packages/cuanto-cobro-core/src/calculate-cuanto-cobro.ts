@@ -19,9 +19,12 @@ import {
   computeQuoteProfitabilityMetrics,
 } from "./quote-profitability";
 import { sumPersonalExpenseGroups } from "./personal-expenses";
+import { buildPriceBuildUp, isPricingExtrasActive, normalizePricingExtras } from "./pricing-extras/price-build-up";
+import { INITIAL_CUANTO_COBRO_PRICING_EXTRAS } from "./pricing-extras/types";
 import {
   computeMinimumSustainablePrice,
   computeRecommendedBusinessPrice,
+  getCommercialPositioningFactor,
   getCommercialPositioningOption,
   getEffectiveCommercialPositioningId,
 } from "./commercial-positioning";
@@ -458,6 +461,26 @@ export function calculateCuantoCobro(
 
   const hourlyRate = costHour;
 
+  // Precio completo (opcional): sólo si hay algo encendido; si no, la clave no existe.
+  const pricingExtras = normalizePricingExtras(profile.pricingExtras);
+  const jobAdjustments = quote.jobAdjustments && typeof quote.jobAdjustments === "object" ? quote.jobAdjustments : undefined;
+  let priceBuildUp: CuantoCobroCalculationComplete["priceBuildUp"];
+  if (isPricingExtrasActive(pricingExtras) || jobAdjustments) {
+    const pricedTotal = clientSummary.suggestedPrice + quoteSummary.totalSuggestedPrice;
+    const ownPriced = clientSummary.suggestedPrice + quoteSummary.subtotalOwnService;
+    priceBuildUp = buildPriceBuildUp({
+      extras: pricingExtras ?? INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
+      adjustments: jobAdjustments ?? {},
+      basePrice: chosenPriceMetrics.chosenPriceEffective,
+      ownServiceShare: pricedTotal > 0 ? ownPriced / pricedTotal : 1,
+      costHour,
+      positioningFactor: getCommercialPositioningFactor(profile.commercialPositioningId),
+      clientJobDate: normalizedQuote.client?.jobDate,
+      jobLatitude: normalizedQuote.client?.jobLatitude,
+      jobLongitude: normalizedQuote.client?.jobLongitude,
+    });
+  }
+
   return {
     status: "complete",
     currency: profile.currency,
@@ -500,6 +523,7 @@ export function calculateCuantoCobro(
     equipmentSavings,
     clientSummary,
     quoteSummary,
+    ...(priceBuildUp ? { priceBuildUp } : {}),
   };
 }
 

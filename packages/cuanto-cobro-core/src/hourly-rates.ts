@@ -11,6 +11,7 @@ import {
   getEffectiveRenewalMonthly,
 } from "./equipment/calculations";
 import { sumPersonalExpenseGroups } from "./personal-expenses";
+import { normalizePricingExtras, pricingExtrasFixedMonthly } from "./pricing-extras/price-build-up";
 import type { CameraWearModel, CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 function sumAmounts(...values: string[]): number {
@@ -19,7 +20,7 @@ function sumAmounts(...values: string[]): number {
 
 /**
  * Necesidad mensual del perfil.
- * Impuestos fijos: campo futuro en perfil; por ahora no incluido en el wizard.
+ * Impuestos fijos: el monotributo y el seguro de equipo (anual ÷ 12) de `pricingExtras`, si están.
  */
 export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number {
   const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
@@ -35,7 +36,8 @@ export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: C
   );
   const externalIncome =
     profile.livesOnlyFromPhotography === "no" ? (parseCuantoCobroAmount(profile.externalMonthlyIncome) ?? 0) : 0;
-  return Math.max(0, personalExpenses + businessExpenses + teamExpenses + profileReserves - externalIncome);
+  const fixedFromExtras = pricingExtrasFixedMonthly(normalizePricingExtras(profile.pricingExtras));
+  return Math.max(0, personalExpenses + businessExpenses + teamExpenses + profileReserves + fixedFromExtras - externalIncome);
 }
 
 /** Horas mensuales disponibles = weeklyHours × 4.33 */
