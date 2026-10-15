@@ -26,6 +26,7 @@ test("los archivos esperados son exactamente los acordados", () => {
     "comunion-con-catequista.jpg",
     "comunion-detalle.jpg",
     "comunion-grupal.jpg",
+    "comunion-momento.jpg",
     "comunion-retrato-1.jpg",
     "comunion-retrato-2.jpg",
     "con-maestra-jardin.jpg",
@@ -132,9 +133,13 @@ test("religiosas: el evento elige las fotos", () => {
     assert.equal(c.archivos.individual, `comunion-retrato-${c.variante}.jpg`);
     assert.equal(c.archivos.grupal, "comunion-grupal.jpg");
     assert.equal(c.archivos.maestra, "comunion-con-catequista.jpg");
-    assert.equal(c.archivos.extra, "comunion-detalle.jpg");
+    // Foto libre: con nena, la nena con la vela en la misa; con nene, el detalle de las manos.
+    assert.equal(c.archivos.extra, c.variante === 1 ? "comunion-momento.jpg" : "comunion-detalle.jpg");
+    for (const a of Object.values(c.archivos)) assert.ok(ARCHIVOS_DEMO.includes(a), a);
     assert.equal(c.curso, "Primera Comunión 2026");
   }
+  const variantes = new Set(["a", "b", "c", "d", "e", "f"].map((templateId) => demoDePlantilla({ templateId, meta: { categoria: "Religioso", evento: "Primera Comunión" } }).archivos.extra));
+  assert.deepEqual([...variantes].sort(), ["comunion-detalle.jpg", "comunion-momento.jpg"]);
   const conf = demoDePlantilla({ templateId: "a", meta: { categoria: "Religioso", evento: "Confirmación" } });
   assert.equal(conf.archivos.individual, "confirmacion-retrato.jpg");
   assert.equal(conf.archivos.grupal, "confirmacion-grupal.jpg");
