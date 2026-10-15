@@ -79,9 +79,14 @@ async function turnLoop(
       model: i.model,
       max_tokens: 8000,
       // Si el modelo rechaza por seguridad, la API reintenta sola con otro modelo.
-      betas: ["server-side-fallback-2026-07-01"],
+      // La situación (segundo bloque de `system`) cambia en cada turno y la ventana del historial corta
+      // turnos viejos: eso invalida el razonamiento ("thinking") de turnos anteriores, y la API respondía
+      // 400 «bound to a different conversation». Con "drop_block" la API descarta ese razonamiento viejo
+      // y sigue; el texto y las herramientas de esos turnos se mantienen. Dentro del turno, el razonamiento
+      // de cada vuelta de herramientas sigue valiendo (la situación no cambia entre vueltas).
+      betas: ["server-side-fallback-2026-07-01", "thinking-binding-controls-2026-08-01"],
       fallbacks: "default",
-      thinking: { type: "adaptive" },
+      thinking: { type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } },
       output_config: { effort: i.effort },
       system: [
         { type: "text", text: i.systemGuide, cache_control: { type: "ephemeral" } },
