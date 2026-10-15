@@ -1,3 +1,4 @@
+import { miniaturaDePlantillaUrl } from "@/lib/design-v2/miniatura-url";
 import type { Role, TemplateV2Status } from "@/lib/prisma";
 import { Role as RoleEnum } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
@@ -185,7 +186,8 @@ export async function listDesignDashboardTemplateGroups(params: {
       description: row.description,
       status: row.status,
       currentVersionId: row.currentVersionId,
-      thumbnailUrl: pickThumbFromMeta(metaJson),
+      // Sin imagen propia, la que dibuja el servidor: así todo el catálogo muestra el diseño.
+      thumbnailUrl: pickThumbFromMeta(metaJson) ?? miniaturaDePlantillaUrl(row.id, row.currentVersionId),
       preview: parsePreviewFromCanvas(cvRow?.canvasJson),
       tipoLabel: tipoParts.join(" · "),
       publication:
