@@ -203,7 +203,27 @@ export type CuantoCobroQuoteInput = {
   paymentOptions: CuantoCobroPaymentOptionsInput;
   /** @future Borrador / enviado / aceptado / rechazado */
   status: CuantoCobroQuoteStatus;
+  /**
+   * Cómo se cuenta la cámara principal. Ausente = "per-job" (el modelo vigente).
+   * "legacy-structural" sólo para recalcular presupuestos guardados con el modelo anterior
+   * (ver `CameraWearModel`): no lo uses en presupuestos nuevos.
+   */
+  cameraWearModel?: CameraWearModel;
 };
+
+/**
+ * - "per-job" (vigente desde 10/2026): la cámara principal NO entra en el valor hora; su desgaste se
+ *   cobra en cada trabajo (disparos estimados × valor de reposición / vida útil del obturador), como un
+ *   costo directo del servicio. La inversión mensual en equipo (u otros equipos del inventario) sigue
+ *   en el valor hora, aparte.
+ * - "legacy-structural": el modelo anterior. La cámara se convertía en renovación mensual (reemplazando
+ *   la inversión cargada a mano) y el desgaste por trabajo quedaba informativo.
+ */
+export type CameraWearModel = "per-job" | "legacy-structural";
+
+export function resolveCameraWearModel(quote?: { cameraWearModel?: unknown } | null): CameraWearModel {
+  return quote?.cameraWearModel === "legacy-structural" ? "legacy-structural" : "per-job";
+}
 
 export type CuantoCobroWizardState = {
   profile: CuantoCobroProfileInput;

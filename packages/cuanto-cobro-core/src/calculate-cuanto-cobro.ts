@@ -43,7 +43,7 @@ import type {
   CuantoCobroQuoteItem,
   CuantoCobroStepId,
 } from "./types";
-import { CC_WIZARD_STEPS } from "./types";
+import { CC_WIZARD_STEPS, resolveCameraWearModel } from "./types";
 
 export type {
   CuantoCobroCalculationResult,
@@ -307,7 +307,7 @@ function buildWarnings(
 
   if (cameraWear?.isConfigured && cameraWear.remainingLifePercent < 20) {
     warnings.push(
-      `Tu obturador tiene aprox. ${cameraWear.remainingLifePercent}% de vida útil restante. Considerá renovar el cuerpo o aumentar el aporte mensual de equipo.`,
+      `Tu obturador tiene aprox. ${cameraWear.remainingLifePercent}% de vida útil restante. Considerá renovar el cuerpo pronto.`,
     );
   }
 
@@ -338,6 +338,7 @@ export function calculateCuantoCobro(
     return { status: "incomplete", missingFields };
   }
 
+  const cameraWearModel = resolveCameraWearModel(quote);
   const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
   const businessExpenses = sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
   const teamExpenses =
@@ -345,14 +346,14 @@ export function calculateCuantoCobro(
       ? (parseCuantoCobroAmount(profile.employeeMonthlyCost) ?? 0)
       : 0;
   const profileReserves = sumAmounts(
-    String(computeEquipmentSavings(profile).totalMonthly),
+    String(computeEquipmentSavings(profile, cameraWearModel).totalMonthly),
     profile.emergencyFundMonthly,
     profile.savingsGoalsMonthly,
   );
   const externalIncome =
     profile.livesOnlyFromPhotography === "no" ? (parseCuantoCobroAmount(profile.externalMonthlyIncome) ?? 0) : 0;
 
-  const monthlyNeed = getProfileMonthlyNeed(profile);
+  const monthlyNeed = getProfileMonthlyNeed(profile, cameraWearModel);
   const weeklyTotal = Math.round(parseCuantoCobroAmount(profile.weeklyHours) ?? 0);
   const monthlyAvailableHours = computeMonthlyAvailableHours(profile.weeklyHours);
   const coverageHours = getCategoryWeeklyHours(weeklyTotal, profile.timeDistribution, "coverage");
@@ -367,7 +368,7 @@ export function calculateCuantoCobro(
     };
   }
 
-  const costHour = getProfileCostHour(profile);
+  const costHour = getProfileCostHour(profile, cameraWearModel);
   if (costHour === null) {
     return {
       status: "incomplete",
@@ -375,7 +376,7 @@ export function calculateCuantoCobro(
     };
   }
 
-  const laborRates = getQuoteLaborRates(profile);
+  const laborRates = getQuoteLaborRates(profile, cameraWearModel);
   if (!laborRates) {
     return {
       status: "incomplete",
@@ -383,7 +384,7 @@ export function calculateCuantoCobro(
     };
   }
 
-  const cameraWearPolicy = buildCameraWearPolicy(profile);
+  const cameraWearPolicy = buildCameraWearPolicy(profile, cameraWearModel);
 
   const { quote: normalizedQuote, warnings: hoursMigrationWarnings } =
     normalizeQuoteHoursForCalculation(quote);
@@ -416,7 +417,7 @@ export function calculateCuantoCobro(
   const growthMargin = quoteSummary.totalMarginAmount;
 
   const cameraWear = analyzeCameraWear(profile, quote);
-  const equipmentSavings = computeEquipmentSavings(profile);
+  const equipmentSavings = computeEquipmentSavings(profile, cameraWearModel);
 
   const chosenPriceRaw = parseCuantoCobroAmount(quote.chosenPrice ?? "");
   const chosenManualPrice = chosenPriceRaw !== null && chosenPriceRaw > 0 ? chosenPriceRaw : null;

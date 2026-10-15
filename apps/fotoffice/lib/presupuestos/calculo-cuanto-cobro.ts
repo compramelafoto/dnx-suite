@@ -121,6 +121,19 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
  */
 export type EntradaMotor = { perfil: CuantoCobroProfileInput; presupuesto: CuantoCobroQuoteInput };
 
+/**
+ * El trabajo tal como lo recibe el motor. Una entrada guardada antes de que la cámara se cobrara por
+ * trabajo (15/10/2026) no trae `cameraWearModel`: se recalcula con el modelo anterior, para que un
+ * presupuesto guardado no cambie de precio solo. Las entradas nuevas (`trabajoAlMotor`) traen "per-job".
+ */
+export function presupuestoParaElMotor(presupuesto: CuantoCobroQuoteInput): CuantoCobroQuoteInput {
+  return {
+    ...INITIAL_CUANTO_COBRO_QUOTE,
+    ...presupuesto,
+    cameraWearModel: presupuesto.cameraWearModel === "per-job" ? "per-job" : "legacy-structural",
+  };
+}
+
 /** Tope del JSON de entrada (el perfil y el trabajo de un panel real pesan unos pocos KB). */
 
 function objetoPlano(v: unknown): v is Record<string, unknown> {
@@ -191,7 +204,7 @@ export function recalcularItemCalculo(
   try {
     resultado = calculateCuantoCobro(
       { ...INITIAL_CUANTO_COBRO_PROFILE, ...entrada.perfil },
-      { ...INITIAL_CUANTO_COBRO_QUOTE, ...entrada.presupuesto },
+      presupuestoParaElMotor(entrada.presupuesto),
     );
   } catch {
     return { ok: false, error: "Los datos del cálculo de ¿Cuánto Cobro? no son válidos.", faltan: [] };

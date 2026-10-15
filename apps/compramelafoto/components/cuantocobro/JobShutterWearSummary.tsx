@@ -37,18 +37,19 @@ export default function JobShutterWearSummary({ profile, quote }: Props) {
         ) : null}
         {wear.jobWearCostInformative !== null ? (
           <div className="cc-camera-wear__summary-row">
-            <dt>Costo de desgaste (referencia)</dt>
+            <dt>{wear.depreciationMode === "structural" ? "Costo de desgaste (referencia)" : "Costo de desgaste del trabajo"}</dt>
             <dd>{fmt(wear.jobWearCostInformative)}</dd>
           </div>
         ) : null}
       </dl>
       {wear.depreciationMode === "structural" ? (
         <p className="cc-camera-wear__formula m-0 mt-2 text-sm text-[var(--cc-color-muted)]">
-          Modo estructural: no se suma al precio (ya está en tu aporte mensual de renovación).
+          Presupuesto con el modelo anterior: este desgaste no se sumó al precio.
         </p>
       ) : wear.jobWearCostCharged !== null && wear.jobWearCostCharged > 0 ? (
         <p className="cc-camera-wear__formula m-0 mt-2 text-sm text-[var(--cc-color-muted)]">
-          Modo por trabajo: este desgaste se sumará al costo de los productos o servicios con disparos estimados.
+          Se suma al costo de los servicios con disparos estimados. Tu cámara no está en el valor hora: se cobra
+          en cada trabajo según los disparos.
         </p>
       ) : null}
       <p className="cc-camera-wear__formula m-0">

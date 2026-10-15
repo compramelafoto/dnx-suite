@@ -132,7 +132,7 @@ export default function CameraShutterWearPanel({
           <DsField
             label="Disparos anuales estimados (opcional)"
             htmlFor="cc-camera-annual-shots"
-            hint="Para calcular el aporte mensual."
+            hint="Sólo como referencia: el desgaste se cobra en cada trabajo."
           >
             <Input
               id="cc-camera-annual-shots"
@@ -185,7 +185,7 @@ export default function CameraShutterWearPanel({
           ) : null}
           {wear.suggestedMonthlyRenewal !== null ? (
             <div className="cc-camera-wear__summary-compact-item cc-camera-wear__summary-compact-item--highlight">
-              <dt>Aporte mensual sugerido</dt>
+              <dt>Desgaste por mes (referencia)</dt>
               <dd>{fmt(wear.suggestedMonthlyRenewal)}</dd>
             </div>
           ) : null}
@@ -219,13 +219,14 @@ export default function CameraShutterWearPanel({
           ) : null}
           {wear.suggestedMonthlyRenewal !== null ? (
             <div className="cc-camera-wear__summary-row">
-              <dt>Aporte mensual sugerido</dt>
+              <dt>Desgaste por mes (referencia)</dt>
               <dd>{fmt(wear.suggestedMonthlyRenewal)}</dd>
             </div>
           ) : null}
         </dl>
         <p className="cc-camera-wear__formula m-0">
-          Costo por disparo = valor de reemplazo ÷ vida útil del obturador
+          Costo por disparo = valor de reemplazo ÷ vida útil del obturador. Se suma a cada trabajo según sus
+          disparos estimados; no entra en tu valor hora.
         </p>
       </div>
     )
@@ -243,8 +244,8 @@ export default function CameraShutterWearPanel({
         <div className="cc-camera-wear__intro">
           <h4 className="cc-camera-wear__title m-0">Vida útil del cuerpo de cámara</h4>
           <p className="cc-camera-wear__text m-0">
-            El obturador tiene un límite de disparos. Con el modelo, el valor de reemplazo y tus disparos
-            anuales estimados podés calcular cuánto reservar por mes.
+            El obturador tiene un límite de disparos. Con el modelo y el valor de reemplazo calculamos el costo
+            por disparo, y en cada presupuesto se suma el desgaste según los disparos de ese trabajo.
           </p>
         </div>
       ) : null}

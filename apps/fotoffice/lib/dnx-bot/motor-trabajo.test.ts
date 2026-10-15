@@ -144,12 +144,14 @@ describe("entrevista completa: disparos, costos variables y desglose", () => {
     const r = cotizar(camara(), { tipoDeTrabajo: "XV", conceptos: XV }, { nuevaClave: claves(), ahora: AHORA });
     if (r.estado !== "OK") throw new Error(r.estado);
     // 3000 × (3.000.000 / 200.000) = 45.000.
-    expect(r.resumen.desgasteCamara).toEqual({ disparos: 3000, monto: pesos(45_000), sumado: false });
+    expect(r.resumen.desgasteCamara).toEqual({ disparos: 3000, monto: pesos(45_000), sumado: true });
     const t = tarjetaDeCotizacion(r.resumen, "XV");
-    expect(t.filas.find((f) => f.etiqueta.startsWith("Desgaste de cámara"))).toEqual({ etiqueta: "Desgaste de cámara (3000 disparos)", valor: `${pesos(45_000)} (no sumado)` });
-    expect(t.avisos.join(" ")).toContain("Hoy ¿Cuánto Cobro? no lo suma al precio: la reposición de tu cámara ya está en tu valor hora, calculada con su valor y la vida útil del obturador.");
-    // El aviso del motor que mezclaba la inversión en equipo con la cámara no llega a la persona.
-    expect(t.avisos.join(" ")).not.toMatch(/Modo estructural|aporte mensual/);
+    expect(t.filas.find((f) => f.etiqueta.startsWith("Desgaste de cámara"))).toEqual({ etiqueta: "Desgaste de cámara (3000 disparos)", valor: `${pesos(45_000)} (sumado)` });
+    expect(t.avisos.join(" ")).not.toMatch(/estructural|aporte mensual|modelo anterior/i);
+    // Se sumó al costo del trabajo: el mismo trabajo sin disparos cuesta $45.000 menos.
+    const sin = cotizar(camara(), { tipoDeTrabajo: "XV", conceptos: [{ ...XV[0]!, disparosEstimados: undefined }, ...XV.slice(1)] }, { nuevaClave: claves(), ahora: AHORA });
+    if (sin.estado !== "OK") throw new Error(sin.estado);
+    expect(r.items[0]!.calculo!.costosVariables - sin.items[0]!.calculo!.costosVariables).toBe(45_000);
   });
 
   it("los costos variables (productos, tercerizados, gastos) están en el desglose por concepto", () => {
