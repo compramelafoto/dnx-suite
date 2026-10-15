@@ -13,6 +13,8 @@ import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
  */
 
 export type ResultadoPublico = { ok: true } | { ok: false; error: string };
+/** Al aceptar (etapa B): `pedidoUrl` si se creó el pedido (para pagar la seña). */
+export type ResultadoAceptarPublico = { ok: true; pedidoUrl: string | null } | { ok: false; error: string };
 
 const DIEZ_MINUTOS = 10 * 60 * 1000;
 const DEMASIADOS = "Hiciste demasiados intentos. Esperá unos minutos y probá de nuevo.";
@@ -30,13 +32,13 @@ export async function aceptarPresupuestoAction(
   nombre: unknown,
   acepta: unknown,
   opcion?: unknown,
-): Promise<ResultadoPublico> {
+): Promise<ResultadoAceptarPublico> {
   const v = await visitante();
   if (!checkRateLimit({ key: `presupuesto-aceptar:${v.ip}`, limit: 10, windowMs: DIEZ_MINUTOS }).allowed) return { ok: false, error: DEMASIADOS };
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return { ok: false, error: MENSAJES_ACEPTACION.enlaceInvalido };
   const r = await aceptarPresupuesto(workspaceId, token, { nombre, acepta, opcion }, { ipHash: v.ipHash, userAgent: v.userAgent });
-  return r.ok ? { ok: true } : r;
+  return r.ok ? { ok: true, pedidoUrl: r.pedidoUrl } : r;
 }
 
 /** "Pedir uno nuevo" desde un presupuesto vencido. */

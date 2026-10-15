@@ -218,6 +218,8 @@ export function opcionDePedidoManual(opcion: OpcionManual, total: number): Opcio
     interes: 0,
     nota: "",
     etiqueta: opcion.tipo === "CONTADO" ? "Contado" : cuotas === 1 ? "1 cuota" : `${cuotas} cuotas`,
+    medio: null,
+    descuentoTransferenciaPorcentaje: 0,
   };
 }
 

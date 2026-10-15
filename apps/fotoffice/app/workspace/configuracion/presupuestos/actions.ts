@@ -6,6 +6,7 @@ import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { guardarBorradorAuto } from "@/lib/presupuestos/borrador-automatico";
 import { guardarAjustes } from "@/lib/presupuestos/ajustes";
+import { guardarAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { borrarPropuestaModelo, guardarPropuestaModelo } from "@/lib/presupuestos/propuestas-modelo";
 import type { CtxPresupuestos } from "@/lib/presupuestos/acceso";
 
@@ -116,4 +117,28 @@ export async function guardarBorradorAutoAction(categoriaId: unknown, encendido:
   if (!r.ok) return r;
   revalidatePath(RUTA_PROPUESTAS, "layout");
   return { ok: true };
+}
+
+/**
+ * Cobro (etapa B): crear el pedido al aceptar, datos para transferir y monto único.
+ * `guardarAjustesCobro` vuelve a chequear `configurar` y valida alias, CBU/CVU y CUIT.
+ */
+export async function guardarAjustesCobroAction(
+  _prev: EstadoPresupuestosConfig | undefined,
+  fd: FormData,
+): Promise<EstadoPresupuestosConfig> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO;
+  const r = await guardarAjustesCobro(ctx, {
+    autoConfirmarPedido: fd.get("autoConfirmarPedido") === "on",
+    montoUnico: fd.get("montoUnico") === "on",
+    alias: texto(fd, "alias"),
+    cbuCvu: texto(fd, "cbuCvu"),
+    titular: texto(fd, "titular"),
+    cuit: texto(fd, "cuit"),
+    banco: texto(fd, "banco"),
+  });
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: "Datos de cobro guardados." };
 }

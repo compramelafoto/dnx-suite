@@ -8,6 +8,9 @@ import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { leerAjustes } from "@/lib/presupuestos/ajustes";
 import { asegurarAjustesDnx } from "@/lib/presupuestos/semillas";
 import { AjustesForm } from "./ajustes-form";
+import { CobroForm } from "./cobro-form";
+import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
+import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
 import { PestanasPresupuestos } from "./pestanas";
 
 export const dynamic = "force-dynamic";
@@ -38,9 +41,11 @@ export default async function ConfiguracionPresupuestosPage() {
   const slug = branding?.publicSlug ?? "";
   await asegurarAjustesDnx(workspace.id, slug);
 
-  const [ajustes, encendido] = await Promise.all([
+  const [ajustes, encendido, cobro, mercadoPago] = await Promise.all([
     leerAjustes(workspace.id),
     isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
+    leerAjustesCobro(workspace.id),
+    puedeCobrarConMercadoPago(workspace.id),
   ]);
 
   return (
@@ -60,6 +65,7 @@ export default async function ConfiguracionPresupuestosPage() {
         </div>
       ) : null}
       <AjustesForm ajustes={ajustes} />
+      <CobroForm ajustes={cobro} mercadoPago={mercadoPago} />
       <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="numeracion-presupuesto-titulo">
         <h2 id="numeracion-presupuesto-titulo" className="text-base font-semibold">
           Numeración

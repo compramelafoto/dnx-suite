@@ -232,7 +232,12 @@ export function pesosCuota(n: number): string {
 const formatoTotal = formatoEntero;
 
 /** "3 cuotas de $ 40.000 · total $ 120.000" (o sólo el total, si es una). */
-export function importeDeOpcion(o: Pick<OpcionPublica, "cuotas" | "importeCuota" | "total">): string {
+export function importeDeOpcion(o: Pick<OpcionPublica, "cuotas" | "importeCuota" | "total"> & { sena?: number }): string {
   const total = formatoTotal.format(Math.round(o.total));
+  // Etapa B: con seña, la seña y las cuotas del saldo.
+  if (o.sena && o.sena > 0) {
+    const resto = o.cuotas > 1 ? `${o.cuotas} cuotas de ${pesosCuota(o.importeCuota)}` : `saldo de ${pesosCuota(o.importeCuota)}`;
+    return `Seña de ${pesosCuota(o.sena)} + ${resto} · total ${total}`;
+  }
   return o.cuotas > 1 ? `${o.cuotas} cuotas de ${pesosCuota(o.importeCuota)} · total ${total}` : total;
 }

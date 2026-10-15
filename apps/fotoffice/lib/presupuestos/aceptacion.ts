@@ -172,7 +172,9 @@ export async function aceptarPresupuesto(
       const p = await crear(workspaceId, v0.presupuestoId);
       if (p.ok) {
         const e = await (deps.enlaceDelPedido ?? ((ws: string, id: string) => enlaceDelPedidoDelSistema(ws, id)))(workspaceId, p.pedidoId);
-        pedidoUrl = e.ok ? e.url : null;
+        // La cuota 1 (la seña) queda resaltada en el enlace del pedido.
+        const sena = e.ok ? await prisma.fotofficePedidoCuota.findFirst({ where: { workspaceId, pedidoId: p.pedidoId, position: 1 }, select: { id: true } }) : null;
+        pedidoUrl = e.ok ? (sena ? `${e.url}?pagar=${encodeURIComponent(sena.id)}` : e.url) : null;
       }
     }
   } catch (e) {

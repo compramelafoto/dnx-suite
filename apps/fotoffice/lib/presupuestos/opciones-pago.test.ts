@@ -147,3 +147,11 @@ describe("importes", () => {
     expect(importeDeOpcion({ cuotas: 1, importeCuota: 900_000, total: 900_000 }).replace(/\s/g, " ")).toBe("$ 900.000");
   });
 });
+
+describe("importe de la opción con seña (etapa B)", () => {
+  it("dice la seña y las cuotas del saldo; sin seña, como antes", () => {
+    expect(importeDeOpcion({ cuotas: 3, importeCuota: 233_333.33, total: 1_000_000, sena: 300_000 })).toMatch(/^Seña de .*300\.000.* \+ 3 cuotas de .*233\.333,33.* · total .*1\.000\.000/);
+    expect(importeDeOpcion({ cuotas: 1, importeCuota: 700_000, total: 1_000_000, sena: 300_000 })).toMatch(/^Seña de .* \+ saldo de .*700\.000/);
+    expect(importeDeOpcion({ cuotas: 3, importeCuota: 333_333.33, total: 1_000_000, sena: 0 })).toMatch(/^3 cuotas de/);
+  });
+});
