@@ -45,7 +45,7 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
     for (const e of ESCENARIOS) if (e.consultas) expect(CONSULTAS_DE_PRUEBA[e.consultas].length, e.id).toBeGreaterThan(0);
   });
 
-  it("están los siete de la etapa 3 (casos 14 a 20), los dos del formulario primero y los dos de continuidad y los tres de la entrevista completa: 27 en total", () => {
+  it("están los siete de la etapa 3 (casos 14 a 20), los dos del formulario primero y los dos de continuidad y los cinco de la entrevista completa (con extras): 29 en total", () => {
     expect(ESCENARIOS.map((e) => e.id)).toEqual(
       expect.arrayContaining([
         "responder-consulta", "inyeccion-en-la-consulta", "mandale-el-presupuesto", "mensaje-con-monto",
@@ -59,9 +59,9 @@ describe("etapa 1 (casos 1 a 5 del spec)", () => {
       ]),
     );
     expect(ESCENARIOS.map((e) => e.id)).toEqual(
-      expect.arrayContaining(["cotizar-xv-pregunta-antes", "cotizar-desgaste-camara", "cotizar-con-costos-variables"]),
+      expect.arrayContaining(["cotizar-xv-pregunta-antes", "cotizar-desgaste-camara", "cotizar-con-costos-variables", "cotizar-pregunta-extras", "cotizar-xv-con-extras"]),
     );
-    expect(ESCENARIOS).toHaveLength(27);
+    expect(ESCENARIOS).toHaveLength(29);
   });
 
   it("sólo nombran herramientas que existen", () => {

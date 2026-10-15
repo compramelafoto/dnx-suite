@@ -13,7 +13,7 @@ import { armarSituacion, type EstadoPerfil } from "../situacion";
  * Banco de escenarios de `bot:eval` (spec §10). Se corre contra la API real con las herramientas
  * reales cuyo `run`/`describe` sólo registran la llamada: GASTA PLATA, sólo con permiso de Daniel.
  * Etapa 1: casos 1–5. Etapa 2: casos 6–13. Etapa 3: casos 14–20. Continuidad (13/10): casos 21–22.
- * Entrevista completa de la etapa 2 (15/10): casos 13b–13d.
+ * Entrevista completa de la etapa 2 (15/10): casos 13b–13d. Extras del trabajo (15/10): casos 13e–13f.
  * Las herramientas de lectura corren de verdad sobre un perfil de prueba (`perfil`), sin base;
  * las de escritura sólo registran la propuesta.
  */
@@ -315,7 +315,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "cotizar-casamiento",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "¿Cuánto cobro un casamiento de 8 horas de cobertura, 20 de edición y 2 de viaje? Como máximo 2500 disparos y no tiene otros gastos.",
+    mensaje: "¿Cuánto cobro un casamiento de 8 horas de cobertura, 20 de edición y 2 de viaje? Como máximo 2500 disparos, sin extras ni otros gastos.",
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
     entradaJsonContiene: { cotizar_trabajo: ['"disparosEstimados":"2500"'] },
@@ -334,7 +334,7 @@ export const ESCENARIOS: Escenario[] = [
     id: "cotizar-sumar-album",
     situacion: enPresupuestos(PERFIL_COMPLETO),
     mensaje:
-      "Calculame un casamiento de 8 horas de cobertura y 20 de edición, como máximo 2500 disparos y sin otros gastos. Y decime también cuánto queda si le sumo un álbum que el laboratorio me cobra 180000.",
+      "Calculame un casamiento de 8 horas de cobertura y 20 de edición, como máximo 2500 disparos, sin otros gastos ni otros extras. Y decime también cuánto queda si le sumo un álbum que el laboratorio me cobra 180000.",
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
   },
@@ -353,7 +353,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "pasar-a-consulta-de-lucia",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos y sin otros gastos, y pasalo a la consulta de Lucía, la de bodas.",
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos, sin extras ni otros gastos, y pasalo a la consulta de Lucía, la de bodas.",
     perfil: "completo",
     consultas: "lucia",
     debeUsar: ["cotizar_trabajo", "buscar_consultas", "crear_borrador_de_presupuesto"],
@@ -365,7 +365,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "consulta-con-borrador",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos y sin otros gastos, y agregalo al presupuesto de Lucía.",
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos, sin extras ni otros gastos, y agregalo al presupuesto de Lucía.",
     perfil: "completo",
     consultas: "lucia-con-borrador",
     debeUsar: ["sumar_al_borrador"],
@@ -385,7 +385,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "precio-a-mano",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos y sin otros gastos, pero dejalo en $1.100.000. ¿Cuánto gano?",
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura y 20 de edición, máximo 2500 disparos, sin extras ni otros gastos, pero dejalo en $1.100.000. ¿Cuánto gano?",
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
     entradaEnAlguna: { cotizar_trabajo: { precioTotalElegido: "1100000" } },
@@ -421,6 +421,37 @@ export const ESCENARIOS: Escenario[] = [
     perfil: "completo",
     debeUsar: ["cotizar_trabajo"],
     entradaJsonContiene: { cotizar_trabajo: ['"costoProveedor":"180000"', '"costoTercerizado":"60000"', '"costoGasto":"25000"', '"disparosEstimados":"2000"'] },
+  },
+  // 13e · Sin decir si lleva extras: antes del precio pregunta por los extras (sesión previa, fotolibro…).
+  {
+    id: "cotizar-pregunta-extras",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje: "Cotizá un casamiento de 8 horas de cobertura, 20 de edición y 2 de viaje, máximo 2500 disparos, sin gastos de viaje ni asistentes.",
+    perfil: "completo",
+    noDebeUsar: ["crear_borrador_de_presupuesto", "sumar_al_borrador"],
+    textoDebeContener: [/extras?|sesi[óo]n previa|fotolibro|[áa]lbum/i],
+    textoNoDebeContener: [PRECIO_SIN_DECIR_PARCIAL],
+  },
+  // 13f · XV + sesión previa + fotolibro: cada uno es su concepto, con el tipo y los datos que corresponden.
+  {
+    id: "cotizar-xv-con-extras",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje:
+      "Cotizá unos XV: 6 horas de cobertura, 10 de edición y 1 de viaje, máximo 2500 disparos. Lleva una sesión previa de 2 horas, con 3 de edición y 1 de viaje, unos 400 disparos. Y un fotolibro: el laboratorio me cobra 120000, son 4 horas de diseño, 8000 de envío y 3000 de embalaje, y le quiero ganar un 30 %. No hay otros gastos ni nada más.",
+    perfil: "completo",
+    debeUsar: ["cotizar_trabajo"],
+    entradaJsonContiene: {
+      cotizar_trabajo: [
+        '"disparosEstimados":"2500"',
+        '"disparosEstimados":"400"',
+        '"tipo":"physical-product"',
+        '"costoProveedor":"120000"',
+        '"horasDiseno":"4"',
+        '"costoEnvio":"8000"',
+        '"costoEmbalaje":"3000"',
+        '"margenDeseado":"30"',
+      ],
+    },
   },
 
   // ── El formulario primero (pedido de Daniel, 13/10) ──
