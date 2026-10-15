@@ -10,8 +10,9 @@
  *
  * No escribe en ninguna base ni sube nada.
  *
- * Correr: `npx tsx scripts/plantillas-sistema/generar.ts [--salida=<carpeta>] [--desde=11 --hasta=20] [--solo=<slug>,<slug>] [--dpi=60]`
+ * Correr: `npx tsx scripts/plantillas-sistema/generar.ts [--salida=<carpeta>] [--desde=11 --hasta=20] [--solo=<slug>,<slug>] [--serie=<nombre>] [--dpi=60]`
  * (`--desde`/`--hasta` dejan en el SQL sólo esos modelos; `--solo` no escribe SQL)
+ * Con `--serie` se generan sólo los modelos de esa tanda (por ejemplo `variadas`, 21–40), y el SQL lleva sólo esos.
  * (la verificación baja las tipografías de Google: necesita red).
  */
 import { createHash } from "node:crypto";
@@ -34,6 +35,9 @@ const SOLO = args.get("solo")?.split(",");
 /** `--desde=11 --hasta=20`: sólo esos modelos (números de la lista), y el SQL con sólo esos. */
 const DESDE = args.has("desde") ? Number(args.get("desde")) : undefined;
 const HASTA = args.has("hasta") ? Number(args.get("hasta")) : undefined;
+const SERIE = args.get("serie");
+/** Cuántas plantillas por lámina de verificación (en grilla de 2 columnas). */
+const POR_LAMINA = Number(args.get("por-lamina") ?? 6);
 const DPI_VERIFICACION = Number(args.get("dpi") ?? 60);
 const LIMITE_FONDO = 1.5 * 1024 * 1024;
 
@@ -66,7 +70,9 @@ async function generarFondos(p: PlantillaSistema, carpeta: string) {
 }
 
 async function main() {
-  const plantillas = todasLasPlantillas({ desde: DESDE, hasta: HASTA }).filter((p) => !SOLO || SOLO.includes(p.modelo.slug));
+  const plantillas = todasLasPlantillas({ desde: DESDE, hasta: HASTA }).filter(
+    (p) => (!SOLO || SOLO.includes(p.modelo.slug)) && (!SERIE || p.modelo.serie === SERIE),
+  );
   const fondos = path.join(SALIDA, "fondos");
   await mkdir(fondos, { recursive: true });
 
@@ -101,8 +107,21 @@ async function main() {
     tapas.push(pngs[0]!);
     interiores.push(pngs[1]!);
   }
-  await lamina(tapas, plantillas, path.join(verif, "lamina-exteriores.jpg"));
-  await lamina(interiores, plantillas, path.join(verif, "lamina-interiores.jpg"));
+  for (let i = 0, n = 1; i < plantillas.length; i += POR_LAMINA, n++) {
+    const sufijo = plantillas.length > POR_LAMINA ? `-${n}` : "";
+    const tanda = plantillas.slice(i, i + POR_LAMINA);
+    await lamina(tapas.slice(i, i + POR_LAMINA), tanda, path.join(verif, `lamina-exteriores${sufijo}.jpg`));
+    await lamina(interiores.slice(i, i + POR_LAMINA), tanda, path.join(verif, `lamina-interiores${sufijo}.jpg`));
+  }
+  // Los apaisados, además, como se leen: cada cara enderezada como la pone el visor 3D.
+  const apaisados = plantillas.flatMap((p, i) =>
+    p.modelo.filtros?.orientacion === "horizontal" ? [{ p, exterior: tapas[i]!, interior: interiores[i]! }] : [],
+  );
+  for (let i = 0, n = 1; i < apaisados.length; i += 3, n++) {
+    const { laminaEnderezada } = await import("./enderezar");
+    const sufijo = apaisados.length > 3 ? `-${n}` : "";
+    await laminaEnderezada(apaisados.slice(i, i + 3), path.join(verif, `lamina-apaisados-enderezados${sufijo}.jpg`));
+  }
   console.log(`Verificación: ${verif}`);
 }
 
