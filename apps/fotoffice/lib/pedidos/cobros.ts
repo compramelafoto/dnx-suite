@@ -320,6 +320,25 @@ async function aplicarCobro(tx: Tx, e: EntradaCobro): Promise<{ cobroId: string;
     paymentMethod: e.medio,
     createdByUserId: e.createdByUserId,
   });
+  // Etapa B: la comisión real de Mercado Pago, como EGRESO en la misma cuenta (así el saldo de la
+  // cuenta Mercado Pago de Caja da lo mismo que la app de Mercado Pago). Se anula con el cobro.
+  const comision = e.proveedor?.feeArs ?? null;
+  if (comision !== null && aCentavos(comision) > 0) {
+    await recordCashMovement(tx, {
+      workspaceId,
+      accountId: destino.accountId,
+      kind: "EGRESO",
+      amountMinor: aCentavos(comision),
+      occurredAt: paidAt,
+      description: `Comisión Mercado Pago · pedido N° ${p.number} · recibo ${numero.display}`,
+      sourceModule: MODULO_CAJA_COMISION,
+      sourceRef: cobroId,
+      categoryId: await rubroDeComisiones(tx, workspaceId),
+      clientId: null,
+      paymentMethod: "MERCADO_PAGO",
+      createdByUserId: e.createdByUserId,
+    });
+  }
   await tx.fotofficeCobro.create({
     data: {
       id: cobroId,
@@ -396,7 +415,40 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
   // Lo que sigue nunca deshace el cobro: `notificarEvento` no lanza.
   // Doble red: `notificarEvento` no lanza, y si alguna vez lo hiciera, el cobro ya está hecho.
   if (hecho.primero) await avisarSenaCobrada(workspaceId, v.pedidoId, hecho.consultaLeadId, hecho.cobroId);
+  await cerrarEsperasPagas(workspaceId, v.pedidoId, hecho.cobroId, ahora);
   return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero, importe: v.importe };
+}
+
+/** Rubro de egreso de las comisiones de Mercado Pago: el que existe o uno nuevo (único por nombre y tipo). */
+export const RUBRO_COMISIONES_MP = "Comisiones de Mercado Pago";
+const MODULO_CAJA_COMISION = "pedidos-comision";
+
+async function rubroDeComisiones(tx: Tx, workspaceId: string): Promise<string> {
+  const ya = await tx.cashCategory.findFirst({ where: { workspaceId, kind: "EGRESO", name: RUBRO_COMISIONES_MP }, select: { id: true } });
+  if (ya) return ya.id;
+  const nuevo = await tx.cashCategory.create({ data: { workspaceId, kind: "EGRESO", name: RUBRO_COMISIONES_MP, order: 80 }, select: { id: true } });
+  return nuevo.id;
+}
+
+/**
+ * Etapa B: las transferencias esperadas de las cuotas que quedaron pagas se cierran (CONCILIADA, con
+ * el cobro). Va DESPUÉS de la transacción del cobro y nunca lanza: si la tabla todavía no está en la
+ * base, el cobro igual queda hecho.
+ */
+async function cerrarEsperasPagas(workspaceId: string, pedidoId: string, cobroId: string, ahora: Date): Promise<void> {
+  try {
+    const abiertas = await prisma.fotofficeEsperaPago.findMany({ where: { workspaceId, pedidoId, estado: "ESPERANDO" }, select: { id: true, cuotaId: true } });
+    if (abiertas.length === 0) return;
+    const plan = (await planesDe(workspaceId, [pedidoId])).get(pedidoId) ?? { cuotas: [], imputaciones: [] };
+    const imputado = imputadoPorCuota(plan.imputaciones);
+    const pagas = new Set(plan.cuotas.filter((c) => aCentavos(c.amountArs) - (imputado.get(c.id) ?? 0) <= 0).map((c) => c.id));
+    const ids = abiertas.filter((a) => pagas.has(a.cuotaId)).map((a) => a.id);
+    if (ids.length) {
+      await prisma.fotofficeEsperaPago.updateMany({ where: { id: { in: ids }, workspaceId, estado: "ESPERANDO" }, data: { estado: "CONCILIADA", conciliadaEn: ahora, cobroId } });
+    }
+  } catch (e) {
+    falla("cerrarEsperasPagas", e);
+  }
 }
 
 /**
@@ -508,6 +560,7 @@ export async function registrarCobroDelSistema(datos: DatosCobroDelSistema, deps
   }
 
   if (hecho.primero) await avisarSenaCobrada(workspaceId, pedidoId, hecho.consultaLeadId, hecho.cobroId);
+  await cerrarEsperasPagas(workspaceId, pedidoId, hecho.cobroId, ahora);
   return { ok: true, cobroId: hecho.cobroId, pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero };
 }
 
@@ -566,6 +619,9 @@ export async function anularCobro(ctx: CtxPedidos, cobroId: unknown, motivo: unk
 
       let voidCashMovementId: string | null = null;
       if (c.cashMovementId) voidCashMovementId = await contramovimiento(tx, workspaceId, c.cashMovementId, razon, ahora, ctx.userId);
+      // Etapa B: la comisión de Mercado Pago del cobro (si la hubo) se anula con él.
+      const comision = await tx.cashMovement.findFirst({ where: { workspaceId, sourceModule: MODULO_CAJA_COMISION, sourceRef: c.id }, select: { id: true } });
+      if (comision) await contramovimiento(tx, workspaceId, comision.id, razon, ahora, ctx.userId);
 
       const r = await tx.fotofficeCobro.updateMany({
         where: { id: c.id, workspaceId, voidedAt: null },

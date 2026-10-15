@@ -77,6 +77,8 @@ function Renglon({ i }: { i: ItemPublicoPedido }) {
 /** El formulario de «Pagar»: la acción del servidor vuelve a validar el token y la cuota; acá sólo viajan ids. */
 export type PagoDelPedido = {
   accion: (formData: FormData) => void | Promise<void>;
+  /** «Pagar por transferencia» (etapa B). */
+  transferir?: (formData: FormData) => void | Promise<void>;
   slug: string;
   token: string;
   /** Cuota de `?pagar=`: se resalta sólo si es de este pedido (si no está en el plan, se ignora). */
@@ -91,7 +93,7 @@ export function PedidoPublico({ vista, pago }: { vista: VistaPedidoPublica; pago
   // El último recibo vigente con enlace: el del pago que se acaba de acreditar.
   const reciboNuevo = [...vista.recibos].reverse().find((r) => !r.anulado && r.url) ?? null;
   const resaltada = pago?.resaltarCuotaId && vista.plan.cuotas.some((c) => c.id === pago.resaltarCuotaId) ? pago.resaltarCuotaId : null;
-  const hayPagar = vista.plan.cuotas.some((c) => c.pagable);
+  const hayPagar = vista.plan.cuotas.some((c) => c.pagable || c.transferible || c.esperando !== null);
   return (
     <article className="space-y-6">
       <MarcaPublica organizacion={vista.organizacion}>
@@ -219,16 +221,33 @@ export function PedidoPublico({ vista, pago }: { vista: VistaPedidoPublica; pago
                     <td className={`py-2 ${c.estado === "VENCIDA" ? "font-medium text-[var(--fo-danger)]" : ""}`}>{c.estadoEtiqueta}</td>
                     {hayPagar && pago ? (
                       <td className="py-2 pl-2 text-right">
-                        {c.pagable ? (
-                          <form action={pago.accion}>
-                            <input type="hidden" name="slug" value={pago.slug} />
-                            <input type="hidden" name="token" value={pago.token} />
-                            <input type="hidden" name="cuotaId" value={c.id} />
-                            <button type="submit" className={`fo-btn ${c.id === resaltada ? "fo-btn-primary" : "fo-btn-secondary"} whitespace-nowrap text-sm`}>
-                              Pagar con Mercado Pago
-                            </button>
-                          </form>
-                        ) : null}
+                        <div className="flex flex-col items-end gap-1">
+                          {c.pagable ? (
+                            <form action={pago.accion}>
+                              <input type="hidden" name="slug" value={pago.slug} />
+                              <input type="hidden" name="token" value={pago.token} />
+                              <input type="hidden" name="cuotaId" value={c.id} />
+                              <button type="submit" className={`fo-btn ${c.id === resaltada ? "fo-btn-primary" : "fo-btn-secondary"} whitespace-nowrap text-sm`}>
+                                Pagar con Mercado Pago
+                              </button>
+                            </form>
+                          ) : null}
+                          {c.esperando !== null ? (
+                            <span className="whitespace-nowrap text-xs font-medium">Esperando tu transferencia de {pesosPedido(c.esperando)}</span>
+                          ) : c.transferible && pago.transferir ? (
+                            <form action={pago.transferir}>
+                              <input type="hidden" name="slug" value={pago.slug} />
+                              <input type="hidden" name="token" value={pago.token} />
+                              <input type="hidden" name="cuotaId" value={c.id} />
+                              <button
+                                type="submit"
+                                className={`fo-btn ${c.id === resaltada && !c.pagable ? "fo-btn-primary" : "fo-btn-secondary"} whitespace-nowrap text-sm`}
+                              >
+                                Pagar por transferencia
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
                       </td>
                     ) : null}
                   </tr>
@@ -238,6 +257,18 @@ export function PedidoPublico({ vista, pago }: { vista: VistaPedidoPublica; pago
           </div>
         )}
       </section>
+
+      {vista.transferencia ? (
+        <section aria-label="Datos para transferir" className="fo-card space-y-1 p-4 text-sm">
+          <h2 className="text-base font-semibold">Datos para transferir</h2>
+          {vista.transferencia.alias ? <p>Alias: <span className="font-medium">{vista.transferencia.alias}</span></p> : null}
+          {vista.transferencia.cbuCvu ? <p>CBU / CVU: <span className="font-medium tabular-nums">{vista.transferencia.cbuCvu}</span></p> : null}
+          {vista.transferencia.titular ? <p>Titular: {vista.transferencia.titular}</p> : null}
+          {vista.transferencia.cuit ? <p>CUIT: <span className="tabular-nums">{vista.transferencia.cuit}</span></p> : null}
+          {vista.transferencia.banco ? <p>Banco: {vista.transferencia.banco}</p> : null}
+          <p className="text-xs opacity-70">Transferí el monto exacto que dice la cuota: así la reconocemos más rápido.</p>
+        </section>
+      ) : null}
 
       <section aria-label="Recibos" className="space-y-2">
         <h2 className="text-base font-semibold">Recibos</h2>

@@ -2,6 +2,9 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
+import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
+import { datosTransferenciaPublicos } from "@/lib/cobro-ajustes/datos";
+import { esperasAbiertas } from "./espera-pago";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { sitioDelWorkspace, type SitioDelPresupuesto } from "@/lib/presupuestos/sitio";
 import { itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
@@ -83,6 +86,8 @@ export async function abrirPedidoPublico(workspaceId: string, token: unknown, de
   if (!sitio) return null;
   // Sólo el sí o el no: el cobrador (y su token) se resuelve en el servidor y no sale de acá.
   const cobrosHabilitados = p.status !== "CANCELADO" && (await resolveWorkspaceCollector(workspaceId).then((r) => r.ok, () => false));
+  // Etapa B: transferencia (datos de la organización y lo que ya eligió transferir).
+  const [ajustesCobro, esperas] = await Promise.all([leerAjustesCobro(workspaceId), esperasAbiertas(workspaceId, p.id)]);
 
   const [planes, cobros] = await Promise.all([
     planesDe(workspaceId, [p.id]),
@@ -106,6 +111,8 @@ export async function abrirPedidoPublico(workspaceId: string, token: unknown, de
     formaDePago: formaDePago(p.paymentOption),
     plan: resumenDePlan(plan.cuotas, plan.imputaciones, { hoy: diaEnBuenosAires(ahora), estadoPedido: p.status, total: pesosDeBase(p.totalArs) }),
     cobrosHabilitados,
+    transferencia: datosTransferenciaPublicos(ajustesCobro),
+    esperas,
     recibos: cobros.map((c) => ({
       numero: c.receiptNumber,
       fecha: ddmmaaaa(diaEnBuenosAires(c.paidAt)),

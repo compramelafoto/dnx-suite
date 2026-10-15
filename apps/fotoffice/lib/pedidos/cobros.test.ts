@@ -369,3 +369,25 @@ describe("recibo", () => {
     expect(await RE.leerRecibo("ws-2", a.cobroId)).toBeNull();
   });
 });
+
+describe("transferencias esperadas (etapa B)", () => {
+  it("un cobro que deja la cuota paga cierra su espera (CONCILIADA, con el cobro); una parcial sigue abierta", async () => {
+    B.agregar("fotofficeEsperaPago", { id: "e1", workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1", importeEsperadoArs: "40000.00" });
+    B.agregar("fotofficeEsperaPago", { id: "e2", workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c2", importeEsperadoArs: "40000.00" });
+    const r = await cobrado("ped-1", 50000, { medio: "TRANSFERENCIA" });
+    expect(B.datos.fotofficeEsperaPago.find((e) => e.id === "e1")).toMatchObject({ estado: "CONCILIADA", cobroId: r.cobroId, conciliadaEn: AHORA });
+    expect(B.datos.fotofficeEsperaPago.find((e) => e.id === "e2")).toMatchObject({ estado: "ESPERANDO", cobroId: null });
+  });
+
+  it("si la tabla de esperas no está en la base, el cobro igual queda hecho", async () => {
+    const original = B.tablas.fotofficeEsperaPago.findMany;
+    B.tablas.fotofficeEsperaPago.findMany = async () => {
+      throw Object.assign(new Error("no existe"), { code: "P2021" });
+    };
+    try {
+      expect((await cobrar("ped-1", 40000)).ok).toBe(true);
+    } finally {
+      B.tablas.fotofficeEsperaPago.findMany = original;
+    }
+  });
+});

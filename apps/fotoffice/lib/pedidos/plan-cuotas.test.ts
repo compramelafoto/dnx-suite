@@ -192,3 +192,41 @@ describe("validarPlan", () => {
     expect(validarPlan(plan, 1_234_567.89)).toEqual({ ok: true });
   });
 });
+
+describe("plan con seña y medio sugerido (etapa B)", () => {
+  it("contado con seña: la seña hoy y el saldo al mes", () => {
+    const r = planDesdeOpcion({ cuotas: 1, total: 1_000_000 }, { desde: "2026-10-15", fechaEvento: "2027-03-20", senaPorcentaje: 30 });
+    expect(r.cuotas).toEqual([
+      { position: 1, dueDate: "2026-10-15", amountArs: 300_000 },
+      { position: 2, dueDate: "2026-11-15", amountArs: 700_000 },
+    ]);
+  });
+
+  it("tres cuotas con seña: seña + tres cuotas del saldo, mensuales desde el mes que viene", () => {
+    const r = planDesdeOpcion({ cuotas: 3, total: 1_000_000 }, { desde: "2026-10-15", fechaEvento: "2027-03-20", senaPorcentaje: 30 });
+    expect(r.cuotas.map((c) => [c.dueDate, c.amountArs])).toEqual([
+      ["2026-10-15", 300_000],
+      ["2026-11-15", 233_333.33],
+      ["2026-12-15", 233_333.33],
+      ["2027-01-15", 233_333.34],
+    ]);
+  });
+
+  it("evento antes del mes: el saldo vence el día del evento", () => {
+    const r = planDesdeOpcion({ cuotas: 1, total: 100_000 }, { desde: "2026-10-15", fechaEvento: "2026-10-25", senaPorcentaje: 50 });
+    expect(r.cuotas.map((c) => c.dueDate)).toEqual(["2026-10-15", "2026-10-25"]);
+  });
+
+  it("el medio de la opción queda como medio sugerido de cada cuota", () => {
+    const r = planDesdeOpcion({ cuotas: 2, total: 1000, medio: "TRANSFERENCIA" }, { desde: "2026-10-15", senaPorcentaje: 30 });
+    expect(r.cuotas.every((c) => c.suggestedMethod === "TRANSFERENCIA")).toBe(true);
+    const mp = planDesdeOpcion({ cuotas: 1, total: 1000, medio: "MERCADO_PAGO" }, { desde: "2026-10-15" });
+    expect(mp.cuotas[0]!.suggestedMethod).toBe("MERCADO_PAGO");
+  });
+
+  it("sin seña ni medio, igual que antes", () => {
+    const a = planDesdeOpcion({ cuotas: 3, total: 1000 }, { desde: "2026-10-15", fechaEvento: null });
+    expect(a.cuotas.every((c) => !("suggestedMethod" in c))).toBe(true);
+    expect(a.cuotas).toHaveLength(3);
+  });
+});
