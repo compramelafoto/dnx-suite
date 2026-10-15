@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { Ticket } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { requireRafflesStaff } from "@/lib/raffles/access";
+import { requireRafflesViewer } from "@/lib/raffles/access";
 import { listRaffles } from "@/lib/raffles/repository";
 import { fechaHora, raffleStatusLabel } from "@/lib/raffles/labels";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +16,10 @@ export default async function SorteosPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace, role } = await requireRafflesStaff();
+  const { workspace, canConduct } = await requireRafflesViewer();
   const params = await searchParams;
   const sorteos = await listRaffles(workspace.id);
-  const puedeAdministrar = canManageWorkspaceSettings(role);
+  const puedeAdministrar = canConduct;
 
   const ahora = new Date();
   // Los que ya cerraron el padrón y siguen sin sellar. No es decoración: es lo que evita que

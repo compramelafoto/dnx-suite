@@ -1,7 +1,10 @@
 import { Prisma, prisma } from "@/lib/admin/db";
+import { readCouponAffiliate } from "@/lib/affiliates/domain/coupon-affiliate";
+import { reverseAffiliateCommission } from "@/lib/affiliates/infrastructure/commission-lifecycle";
 import { buildAvailability } from "@/lib/admin-catalog/domain/availability";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import { releaseClickatonPromotionRedemption } from "@/lib/promotions/prisma-promotions-adapter";
+import { liberarReferidosDeInscripcionVencida } from "@/lib/referrals/application/liberar-reserva-de-inscripcion";
 import type { ClickatonRegistrationRecord } from "@/lib/registration/domain/types";
 import { countsAsActiveRegistration, EXPIRATION_TARGET, isExpireCandidate } from "../domain/expiration-rules";
 import { PublicRegistrationError } from "../domain/errors";
@@ -367,6 +370,66 @@ export function createPrismaPublicRegistrationRepository(
     async getEditionBySlug(slug) {
       const row = await prisma.clickatonEdition.findUnique({ where: { slug } });
       return row ? mapEdition(row) : null;
+    },
+
+    async getHomeDeliveryConfig(editionId) {
+      const row = await prisma.clickatonEditionHomeDelivery.findUnique({
+        where: { editionId },
+        include: { edition: { select: { city: true, provinceOrState: true } } },
+      });
+      if (!row) return null;
+      return {
+        enabled: row.enabled,
+        feeAmount: row.feeAmount,
+        guaranteedUntil: row.guaranteedUntil,
+        excludedCity: row.edition.city,
+        excludedProvince: row.edition.provinceOrState,
+      };
+    },
+
+    async getAffiliateCommissionContext({ promotionId, editionId }) {
+      const promotion = await prisma.dnxPromotion.findUnique({
+        where: { id: promotionId },
+        select: { metadata: true },
+      });
+      const affiliate = readCouponAffiliate(promotion?.metadata ?? null);
+      if (!affiliate) return null;
+      const [row, settings] = await Promise.all([
+        prisma.clickatonAffiliate.findUnique({
+          where: { id: affiliate.affiliateId },
+          select: { isActive: true },
+        }),
+        prisma.clickatonEditionResultSettings.findUnique({
+          where: { editionId },
+          select: { mpProcessingFeeBps: true },
+        }),
+      ]);
+      return {
+        affiliate,
+        affiliateActive: row?.isActive === true,
+        editionMpFeeBps: settings?.mpProcessingFeeBps ?? null,
+      };
+    },
+
+    async getShipping(registrationId) {
+      const row = await prisma.clickatonRegistrationShipping.findUnique({
+        where: { registrationId },
+      });
+      if (!row) return null;
+      return {
+        feeAmount: row.feeAmount,
+        guaranteed: row.guaranteed,
+        recipientName: row.recipientName,
+        documentNumber: row.documentNumber,
+        phone: row.phone,
+        street: row.street,
+        streetNumber: row.streetNumber,
+        floor: row.floor,
+        city: row.city,
+        province: row.province,
+        postalCode: row.postalCode,
+        reference: row.reference,
+      };
     },
 
     async listPricePhases(editionId) {
@@ -768,6 +831,22 @@ export function createPrismaPublicRegistrationRepository(
           },
         });
       });
+
+      // Si el regalo se compró con un código de descuento, ese uso vuelve a
+      // estar disponible. Sin esto, anular un regalo le quema el cupón a quien
+      // lo había usado. Best-effort, igual que al vencer una reserva: la
+      // anulación ya quedó firme.
+      try {
+        await releaseClickatonPromotionRedemption(input.registrationId);
+      } catch {
+        // No bloquear la anulación por el cupón.
+      }
+      // Lo mismo con los colegas traídos: anular no se los puede quedar.
+      try {
+        await liberarReferidosDeInscripcionVencida(input.registrationId);
+      } catch {
+        // No bloquear la anulación por el programa de referidos.
+      }
     },
 
     async completeGiftRegistration(cmd) {
@@ -1471,6 +1550,12 @@ export function createPrismaPublicRegistrationRepository(
               socialPublicationConsent: input.cmd.socialPublicationConsent ?? false,
               consentAcceptedAt: input.cmd.consentAcceptedAt ?? null,
               consentVersion: input.cmd.consentVersion ?? null,
+              locationConsentAt: input.cmd.locationConsentAt ?? null,
+              locationPublicConsentAt: input.cmd.locationPublicConsentAt ?? null,
+              interviewConsentAt: input.cmd.interviewConsentAt ?? null,
+              locationConsentVersion: input.cmd.locationConsentVersion ?? null,
+              locationConsentDeclaredAdult:
+                input.cmd.locationConsentDeclaredAdult ?? false,
               termsVersion: input.cmd.termsVersion ?? null,
               termsAcceptedAt: input.cmd.termsAcceptedAt ?? null,
               promotionalLicenseAcceptedAt: input.cmd.promotionalLicenseAcceptedAt ?? null,
@@ -1479,6 +1564,46 @@ export function createPrismaPublicRegistrationRepository(
                 input.cmd.identifiablePersonsPolicyVersion ?? null,
               holdExpiresAt: input.holdExpiresAt,
               paymentIdempotencyKey: input.idempotencyKey,
+              ...(input.shipping
+                ? {
+                    shipping: {
+                      create: {
+                        editionId: input.cmd.editionId,
+                        feeAmount: input.shipping.feeAmount,
+                        guaranteed: input.shipping.guaranteed,
+                        recipientName: input.shipping.recipientName,
+                        documentNumber: input.shipping.documentNumber,
+                        phone: input.shipping.phone,
+                        street: input.shipping.street,
+                        streetNumber: input.shipping.streetNumber,
+                        floor: input.shipping.floor,
+                        city: input.shipping.city,
+                        province: input.shipping.province,
+                        postalCode: input.shipping.postalCode,
+                        reference: input.shipping.reference,
+                      },
+                    },
+                  }
+                : {}),
+              ...(input.affiliateCommission
+                ? {
+                    affiliateCommission: {
+                      create: {
+                        editionId: input.cmd.editionId,
+                        affiliateId: input.affiliateCommission.affiliateId,
+                        promotionId: input.affiliateCommission.promotionId,
+                        promotionCodeSnapshot: input.affiliateCommission.promotionCodeSnapshot,
+                        commissionBps: input.affiliateCommission.commissionBps,
+                        baseAmount: input.affiliateCommission.baseAmount,
+                        grossAmount: input.affiliateCommission.grossAmount,
+                        mpFeeBps: input.affiliateCommission.mpFeeBps,
+                        mpFeeShareAmount: input.affiliateCommission.mpFeeShareAmount,
+                        netAmount: input.affiliateCommission.netAmount,
+                        status: "PENDING",
+                      },
+                    },
+                  }
+                : {}),
               items: {
                 create: reservedItems.map((item) => ({
                   ticketTypeItemId: item.ticketTypeItemId ?? null,
@@ -1788,6 +1913,14 @@ export function createPrismaPublicRegistrationRepository(
           } catch {
             // best-effort: no bloquear expiración de hold
           }
+          try {
+            await liberarReferidosDeInscripcionVencida(registrationId);
+          } catch {
+            // best-effort: no bloquear expiración de hold
+          }
+          // El fotógrafo pierde la comisión de una reserva que nunca se pagó.
+          // No tira: sólo loguea.
+          await reverseAffiliateCommission(prisma, registrationId, "reserva vencida sin pago");
         }
         return result;
       });

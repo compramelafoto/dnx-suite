@@ -531,9 +531,13 @@ export default function AlbumPhotosFolderExplorer({
     .map((p) => String(p.id));
   const selectAllTargetIds =
     folderBulkEnabled && isOwner ? gridPhotos.map((p) => p.id) : deletablePhotoIds;
-  const allSelectTargetsChosen =
-    selectAllTargetIds.length > 0 &&
-    selectAllTargetIds.every((id) => selectedPhotoIds.has(id));
+  // Con más páginas por cargar, "todas" son las del servidor, no las que están en pantalla.
+  const hasUnloadedPhotos = folderViewNextCursor != null;
+  const allSelectTargetsChosen = hasUnloadedPhotos
+    ? folderViewTotalCount != null && selectedPhotoIds.size >= folderViewTotalCount
+    : selectAllTargetIds.length > 0 &&
+      selectAllTargetIds.every((id) => selectedPhotoIds.has(id));
+  const [selectingAll, setSelectingAll] = useState(false);
 
   function toggleExpand(folderId: number) {
     setExpanded((prev) => {
@@ -556,6 +560,37 @@ export default function AlbumPhotosFolderExplorer({
       return { id, canDelete: p?.canDelete };
     });
     onSelectAll(items);
+  }
+
+  /** Selecciona todas las fotos de la carpeta abierta, también las que no se cargaron. */
+  async function selectAllInView() {
+    if (!hasUnloadedPhotos) {
+      selectAllVisible();
+      return;
+    }
+    setSelectingAll(true);
+    try {
+      const folderQuery = folderViewToPhotosQuery(folderView, mode);
+      const url = `${buildExplorerPhotosListUrl(albumId, folderQuery)}&idsOnly=1`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = (await res.json().catch(() => ({}))) as {
+        photos?: Array<{ id: number; canDelete?: boolean }>;
+        error?: string;
+      };
+      if (!res.ok || !Array.isArray(data.photos)) {
+        throw new Error(data.error || "No se pudieron seleccionar todas las fotos.");
+      }
+      const selectAnyPhoto = folderBulkEnabled && isOwner;
+      onSelectAll(
+        data.photos
+          .filter((p) => selectAnyPhoto || p.canDelete !== false)
+          .map((p) => ({ id: String(p.id), canDelete: p.canDelete }))
+      );
+    } catch (e: unknown) {
+      onError(e instanceof Error ? e.message : "No se pudieron seleccionar todas las fotos.");
+    } finally {
+      setSelectingAll(false);
+    }
   }
 
   function handlePhotoSelectFromGrid(id: string) {
@@ -771,10 +806,14 @@ export default function AlbumPhotosFolderExplorer({
                 variant="secondary"
                 size="md"
                 className="min-h-11"
-                onClick={selectAllVisible}
-                disabled={deletingSelected || bulkFolderLoading}
+                onClick={() => void selectAllInView()}
+                disabled={deletingSelected || bulkFolderLoading || selectingAll}
               >
-                Seleccionar visibles
+                {selectingAll
+                  ? "Seleccionando…"
+                  : folderViewTotalCount != null
+                    ? `Seleccionar todas (${folderViewTotalCount})`
+                    : "Seleccionar todas"}
               </Button>
             ) : null}
             {selectedPhotoIds.size > 0 ? (

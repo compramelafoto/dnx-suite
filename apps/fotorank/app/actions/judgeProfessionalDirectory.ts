@@ -1,5 +1,9 @@
 "use server";
 
+import {
+  avisarInvitacionAlJurado,
+  avisarRespuestaAlOrganizador,
+} from "../lib/fotorank/judges/avisosDeInvitacion";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireAuth } from "../lib/auth";
@@ -81,6 +85,7 @@ export async function directorySendInvitationAction(input: {
     assignmentType: input.assignmentType ?? "PRIMARY",
   });
   if (!created.ok) return { ok: false, error: created.error };
+  await avisarInvitacionAlJurado(created.id);
   revalidatePath("/jurados/directorio");
   revalidatePath("/jurados/directorio/invitaciones");
   revalidatePath(`/jurados/directorio/${input.judgeAccountId.trim()}`);
@@ -209,6 +214,7 @@ export async function judgeAcceptDirectoryInvitationAction(invitationId: string)
   const judge = await requireJudgeAuth();
   const r = await acceptDirectoryInvitationForJudge({ judgeAccountId: judge.id, invitationId });
   if (!r.ok) return { ok: false, error: r.error };
+  await avisarRespuestaAlOrganizador(invitationId, "aceptada");
   revalidatePath("/jurado/invitaciones");
   revalidatePath("/jurado/panel");
   return { ok: true };
@@ -218,6 +224,7 @@ export async function judgeRejectDirectoryInvitationAction(invitationId: string)
   const judge = await requireJudgeAuth();
   const r = await rejectDirectoryInvitationForJudge({ judgeAccountId: judge.id, invitationId });
   if (!r.ok) return { ok: false, error: r.error };
+  await avisarRespuestaAlOrganizador(invitationId, "rechazada");
   revalidatePath("/jurado/invitaciones");
   return { ok: true };
 }

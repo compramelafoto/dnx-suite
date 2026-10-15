@@ -1,9 +1,11 @@
 import type { WeeklyHour } from "./availability";
+import type { PricingMode } from "./pricing";
 
 // Se reexporta porque `lib/bookings/extra-form.ts` importa `parseArsToMinor` desde acá, y
 // `parseSpaceForm` (más abajo) también lo usa: un `export ... from` puro no deja un
 // identificador local, así que hace falta importarlo además de reexportarlo.
 import { parseArsToMinor } from "@/lib/membership/money";
+import { parseSharePercent } from "./settlement";
 export { parseArsToMinor };
 
 /**
@@ -25,8 +27,18 @@ export type SpaceFormValues = {
   requiresApproval: boolean;
   memberHourlyPriceMinor: number;
   nonMemberHourlyPriceMinor: number;
+  pricingMode: PricingMode;
+  /** Con `BLOCK`: minutos del bloque, o `null` = precio plano por jornada. */
+  blockMinutes: number | null;
+  memberBlockPriceMinor: number;
+  nonMemberBlockPriceMinor: number;
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
+  /** Parte de cada turno para quien atiende (agenda de profesionales). 0 = todo para la institución. */
+  professionalShareBps: number;
+  /** La cuenta de quien atiende (para su agenda y su liquidación). null = nadie. */
+  professionalUserId: number | null;
+  acceptsClubCredits: boolean;
   weeklyHours: WeeklyHour[];
   compatibleWith: string[];
 };
@@ -52,15 +64,39 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) return { ok: false, error: "Poné un nombre para el espacio." };
 
-  const memberHourlyPriceMinor = parseArsToMinor(String(formData.get("memberHourlyPriceArs") ?? ""));
+  const pricingMode: PricingMode = formData.get("pricingMode") === "BLOCK" ? "BLOCK" : "HOURLY";
+  const porBloque = pricingMode === "BLOCK";
+
+  // Un precio que no se usa en el modo elegido puede quedar vacío: vale cero.
+  const precio = (campo: string): number | null => {
+    const crudo = String(formData.get(campo) ?? "").trim();
+    return crudo === "" ? 0 : parseArsToMinor(crudo);
+  };
+
+  const memberHourlyPriceMinor = porBloque
+    ? (precio("memberHourlyPriceArs") ?? 0)
+    : parseArsToMinor(String(formData.get("memberHourlyPriceArs") ?? ""));
   if (memberHourlyPriceMinor === null) {
     return { ok: false, error: "El precio por hora para {personas} no se entiende." };
   }
-  const nonMemberHourlyPriceMinor = parseArsToMinor(
-    String(formData.get("nonMemberHourlyPriceArs") ?? ""),
-  );
+  const nonMemberHourlyPriceMinor = porBloque
+    ? (precio("nonMemberHourlyPriceArs") ?? 0)
+    : parseArsToMinor(String(formData.get("nonMemberHourlyPriceArs") ?? ""));
   if (nonMemberHourlyPriceMinor === null) {
     return { ok: false, error: "El precio por hora para no {personas} no se entiende." };
+  }
+
+  const memberBlockPriceMinor = porBloque
+    ? parseArsToMinor(String(formData.get("memberBlockPriceArs") ?? ""))
+    : (precio("memberBlockPriceArs") ?? 0);
+  if (memberBlockPriceMinor === null) {
+    return { ok: false, error: "El precio del bloque para {personas} no se entiende." };
+  }
+  const nonMemberBlockPriceMinor = porBloque
+    ? parseArsToMinor(String(formData.get("nonMemberBlockPriceArs") ?? ""))
+    : (precio("nonMemberBlockPriceArs") ?? 0);
+  if (nonMemberBlockPriceMinor === null) {
+    return { ok: false, error: "El precio del bloque para no {personas} no se entiende." };
   }
 
   const slotMinutes = entero(formData.get("slotMinutes") as string | null, 60);
@@ -75,6 +111,18 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
   const maxBookingMinutes = maxCrudo === "" ? null : entero(maxCrudo, 0);
   if (maxBookingMinutes !== null && maxBookingMinutes < minBookingMinutes) {
     return { ok: false, error: "La duración máxima no puede ser menor que la mínima." };
+  }
+
+  // Vacío = un solo bloque por reserva, la "jornada".
+  const bloqueCrudo = String(formData.get("blockMinutes") ?? "").trim();
+  const blockMinutes = !porBloque || bloqueCrudo === "" ? null : entero(bloqueCrudo, 0);
+  if (blockMinutes !== null && (blockMinutes <= 0 || blockMinutes % slotMinutes !== 0)) {
+    return { ok: false, error: "El largo del bloque tiene que ser múltiplo de la grilla." };
+  }
+
+  const professionalShareBps = parseSharePercent(String(formData.get("professionalSharePct") ?? ""));
+  if (professionalShareBps === null) {
+    return { ok: false, error: "El porcentaje para el profesional tiene que ser un número entre 0 y 100." };
   }
 
   const weeklyHours: WeeklyHour[] = [];
@@ -134,8 +182,18 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
       requiresApproval: formData.get("requiresApproval") === "on",
       memberHourlyPriceMinor,
       nonMemberHourlyPriceMinor,
+      pricingMode,
+      blockMinutes,
+      memberBlockPriceMinor,
+      nonMemberBlockPriceMinor,
       memberFreeHoursPerMonth: entero(formData.get("memberFreeHoursPerMonth") as string | null, 0),
       allowsNonMembers: formData.get("allowsNonMembers") !== "off",
+      professionalShareBps,
+      professionalUserId: (() => {
+        const n = Number(String(formData.get("professionalUserId") ?? "").trim());
+        return Number.isInteger(n) && n > 0 ? n : null;
+      })(),
+      acceptsClubCredits: formData.get("acceptsClubCredits") !== "off",
       weeklyHours,
       compatibleWith: formData.getAll("compatibleWith").map((v) => String(v)),
     },

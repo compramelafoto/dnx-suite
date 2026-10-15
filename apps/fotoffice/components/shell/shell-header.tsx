@@ -1,94 +1,97 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
-import { switchWorkspaceAction } from "@/app/actions/workspace";
-import { fotofficeLogoutAction } from "@/app/actions/auth";
+import type { AccountMenu as AccountMenuData, RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
+import { AccountMenu } from "./account-menu";
 import { NavToggle } from "./nav-toggle";
 import { useShellNav } from "./shell-frame";
 
+/** El rol en el idioma de quien lo lee. Antes se mostraba `SUPER_ADMIN · WORKSPACE_OWNER`. */
+const ROLES: Record<string, string> = {
+  WORKSPACE_OWNER: "Dueño",
+  WORKSPACE_ADMIN: "Administrador",
+  STAFF: "Equipo",
+  COLLABORATOR: "Colaborador",
+};
+
+/**
+ * El encabezado del panel: de qué institución es este panel, a la izquierda; quién está
+ * mirando, a la derecha.
+ *
+ * La institución va con su logo y grande: es lo que dice "estás administrando la SFPR" y no
+ * otra cosa. Con varias instituciones, se elige acá.
+ */
 export function ShellHeader({
   userName,
   userEmail,
-  userRole,
-  userGlobalRole,
+  userAvatarUrl,
+  workspaceRole,
+  workspaceLogoUrl,
+  menu,
+  roleSelector,
   memberships,
   activeWorkspaceId,
 }: {
   userName: string | null;
   userEmail: string;
-  userRole: string;
-  userGlobalRole: string;
+  userAvatarUrl: string | null;
+  workspaceRole: string | null;
+  workspaceLogoUrl: string | null;
+  menu: AccountMenuData;
+  roleSelector: RoleSelectorData | null;
   memberships: { workspaceId: string; name: string }[];
   activeWorkspaceId: string | null;
 }) {
-  const pathname = usePathname() ?? "/dashboard";
   // Con el menú oculto el encabezado también se ensancha: si quedara centrado en 6xl, el
   // contenido de abajo ocuparía toda la pantalla y el de arriba no, y se vería torcido.
   const { hidden } = useShellNav();
-  const suiteLogoutBtnClass =
-    "inline-flex min-h-9 items-center gap-2 rounded-full border border-[var(--fo-accent)]/35 bg-[var(--fo-accent-muted)] px-3 text-sm font-medium text-[var(--fo-accent)] transition-colors hover:bg-[var(--fo-accent)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--fo-accent)]/45";
+  const activa = memberships.find((m) => m.workspaceId === activeWorkspaceId) ?? memberships[0];
+  const nombre = userName || userEmail;
 
   return (
-    <header className="border-b border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]/80 backdrop-blur-md px-4 py-4 md:px-8">
+    <header className="sticky top-0 z-30 border-b border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]/90 px-4 py-3 backdrop-blur-md md:px-8">
       <div
         className={[
-          "flex flex-col gap-4 md:flex-row md:items-center md:justify-between mx-auto w-full",
+          "mx-auto flex w-full items-center justify-between gap-4",
           hidden ? "max-w-none" : "max-w-6xl",
         ].join(" ")}
       >
         <div className="flex min-w-0 items-center gap-3">
           <NavToggle variant="header" />
-          <div className="min-w-0 space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wider text-[var(--fo-muted-soft)]">
-              Workspace activo
+          {workspaceLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
+            <img
+              src={workspaceLogoUrl}
+              alt=""
+              className="h-10 w-auto max-w-28 shrink-0 object-contain md:h-14 md:max-w-40"
+            />
+          ) : null}
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--fo-muted-soft)]">
+              Panel de la institución
             </p>
-            {memberships.length === 0 ? (
-              <p className="text-sm text-[var(--fo-muted)]">Sin workspaces asignados.</p>
-            ) : memberships.length === 1 ? (
-              <p className="text-sm font-semibold text-[var(--fo-text)] truncate">
-                {memberships[0]!.name}
-              </p>
+            {activa ? (
+              <p className="truncate text-base font-semibold text-[var(--fo-text)] md:text-lg">{activa.name}</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {memberships.map((m) => (
-                  <form key={m.workspaceId} action={switchWorkspaceAction} className="inline">
-                    <input type="hidden" name="workspaceId" value={m.workspaceId} />
-                    <input type="hidden" name="next" value={pathname} />
-                    <button
-                      type="submit"
-                      className={
-                        m.workspaceId === activeWorkspaceId
-                          ? "fo-btn fo-btn-primary text-xs min-h-9 px-3"
-                          : "fo-btn fo-btn-secondary text-xs min-h-9 px-3"
-                      }
-                    >
-                      {m.name}
-                    </button>
-                  </form>
-                ))}
-              </div>
+              <p className="text-sm text-[var(--fo-muted)]">Sin institución asignada</p>
             )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 md:justify-end">
-          <div className="text-right min-w-0">
-            <p className="text-sm font-medium text-[var(--fo-text)] truncate max-w-[14rem] md:max-w-xs">
-              {userName || userEmail}
-            </p>
-            <p className="text-xs text-[var(--fo-muted)] truncate max-w-[14rem] md:max-w-xs">
+
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden min-w-0 text-right sm:block">
+            <p className="max-w-[14rem] truncate text-sm font-medium text-[var(--fo-text)]">{nombre}</p>
+            <p className="max-w-[14rem] truncate text-xs text-[var(--fo-muted)]">
+              {workspaceRole && ROLES[workspaceRole] ? `${ROLES[workspaceRole]} · ` : ""}
               {userEmail}
             </p>
-            <p className="text-[10px] text-[var(--fo-muted-soft)] font-mono uppercase tracking-wide truncate max-w-[14rem] md:max-w-xs">
-              {userGlobalRole} · {userRole}
-            </p>
           </div>
-          <form action={fotofficeLogoutAction}>
-            <button type="submit" className={suiteLogoutBtnClass} aria-label="Cerrar sesión">
-              <LogOut className="size-4" aria-hidden />
-              Cerrar sesión
-            </button>
-          </form>
+          <AccountMenu
+            userName={userName}
+            userEmail={userEmail}
+            userAvatarUrl={userAvatarUrl}
+            menu={menu}
+            roleSelector={roleSelector}
+          />
         </div>
       </div>
     </header>

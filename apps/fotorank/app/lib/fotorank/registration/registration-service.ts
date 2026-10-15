@@ -75,6 +75,8 @@ export type RegistrationDTO = {
   organizerNetBpsSnapshot: number;
   feeSourceSnapshot: string;
   paymentOrderId: string | null;
+  /** Obras que habilitó el paquete pagado. null = manda el cupo del concurso. */
+  purchasedEntriesCount: number | null;
   /** P0-01: upload aún no implementado. */
   photoUploadStatus: "pending";
   checkoutUrl: string | null;
@@ -101,6 +103,7 @@ function toDTO(
     organizerNetBpsSnapshot: number;
     feeSourceSnapshot: string;
     paymentOrderId: string | null;
+    purchasedEntriesCount: number | null;
     contest: { title: string; slug: string };
     category: { name: string };
     rulesVersion: { versionNumber: number };
@@ -130,6 +133,7 @@ function toDTO(
     organizerNetBpsSnapshot: row.organizerNetBpsSnapshot,
     feeSourceSnapshot: row.feeSourceSnapshot,
     paymentOrderId: row.paymentOrderId,
+    purchasedEntriesCount: row.purchasedEntriesCount,
     photoUploadStatus: "pending",
     // 09B2: cablear @repo/payments. FREE nunca tiene checkout.
     checkoutUrl: null,

@@ -19,7 +19,9 @@ export function getPublicVisiblePacks(params: {
   for (const pack of packs) {
     if (!pack.isActive) continue;
     if (pack.packType === "SCHOOL_FOLDER") continue;
-    if (pack.requiresDesign) continue;
+    // Un pack con diseño se vende solo si el diseño se puede armar: plantilla del diseñador nuevo
+    // y fotos elegidas por el cliente (el armado sale de esa selección).
+    if (pack.requiresDesign && (!pack.templateV2Id || !pack.requiresSelection)) continue;
 
     const phaseVisible = hasPublishedPhotos
       ? pack.availabilityPhase === "POST_UPLOAD" || pack.availabilityPhase === "ALWAYS"

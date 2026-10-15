@@ -20,6 +20,7 @@ const landingNavAnchors: MenuLink[] = [
   { href: "/#para-quien-es", label: "¿Para quién es?" },
   { href: "/#beneficios", label: "Beneficios" },
   { href: "/#ejemplos", label: "Ejemplos" },
+  { href: "/jurados/galeria", label: "Jurados" },
 ];
 
 export function getLandingMenuLinks(hasSession: boolean): MenuLink[] {

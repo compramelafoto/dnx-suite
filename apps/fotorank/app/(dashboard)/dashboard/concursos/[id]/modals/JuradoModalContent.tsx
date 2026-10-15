@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { mensajeDeAsignacion } from "../../../../../lib/fotorank/judges/mensajeDeAsignacion";
 import {
   createJudgeAssignmentsBatch,
-  listJudgeInvitationsForContest,
   listJudgeRosterForContest,
-  sendJudgeInvitation,
   type ContestJudgeRosterRow,
   type JudgeMethodType,
 } from "../../../../../actions/judges";
@@ -25,7 +23,7 @@ interface JuradoModalContentProps {
   restrictionMessage?: string | null;
 }
 
-type TabId = "integrantes" | "evaluacion" | "visibilidad" | "invitaciones" | "preview";
+type TabId = "integrantes" | "evaluacion" | "visibilidad" | "preview";
 type JudgeFichaState = "NOT_STARTED" | "IN_PROGRESS" | "READY";
 
 type JuradoRulesConfig = {
@@ -44,18 +42,8 @@ const TAB_LABELS: Record<TabId, string> = {
   integrantes: "Integrantes",
   evaluacion: "Evaluación",
   visibilidad: "Visibilidad pública",
-  invitaciones: "Invitaciones y acceso",
   preview: "Vista previa",
 };
-
-const METHOD_OPTIONS: { id: JudgeMethodType; label: string }[] = [
-  { id: "SCORE_1_10", label: "Puntaje numérico (1 a 10)" },
-  { id: "SCORE_1_5", label: "Estrellas (1 a 5)" },
-  { id: "SCORE_0_100", label: "Ranking / score (0 a 100)" },
-  { id: "YES_NO", label: "Selección simple" },
-  { id: "SELECTION_WITH_QUOTA", label: "Selección + cupo" },
-  { id: "CRITERIA_BASED", label: "Selección + comentario (criterios)" },
-];
 
 const DEFAULT_CRITERIA = [
   { key: "tecnica", label: "Técnica", maxScore: 10, weight: 20 },
@@ -90,23 +78,14 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
   const [pending, start] = useTransition();
 
   const [roster, setRoster] = useState<ContestJudgeRosterRow[]>([]);
-  const [invites, setInvites] = useState<
-    Array<{
-      id: string;
-      email: string;
-      invitationStatus: string;
-      expiresAt: string;
-      acceptedAt: string | null;
-      createdAt: string;
-      judgeLabel: string | null;
-    }>
-  >([]);
 
   const rulesCfg = useMemo(() => asJuradoConfig(contest.rulesData), [contest.rulesData]);
   const [showInLanding, setShowInLanding] = useState<boolean>(rulesCfg.jurado?.showInLanding ?? false);
   const [hideUntil, setHideUntil] = useState<string>(safeDateInput(rulesCfg.jurado?.hideUntil));
   const [anonymousByDefault, setAnonymousByDefault] = useState<boolean>(rulesCfg.jurado?.anonymousByDefault ?? true);
-  const [methodType, setMethodType] = useState<JudgeMethodType>(rulesCfg.jurado?.methodType ?? "CRITERIA_BASED");
+  // Un solo método: los criterios del concurso. Los de puntaje único (1 a 10,
+  // estrellas, selección con cupo…) se quitaron el 2026-09-24.
+  const methodType: JudgeMethodType = "CRITERIA_BASED";
   const [criteria, setCriteria] = useState(rulesCfg.jurado?.criteriaPreset ?? DEFAULT_CRITERIA);
   const [visibilityByJudgeId, setVisibilityByJudgeId] = useState<Record<string, boolean>>(
     rulesCfg.jurado?.visibilityByJudgeId ?? {}
@@ -117,17 +96,11 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
   const [allCategories, setAllCategories] = useState(true);
   const [assignCategoryIds, setAssignCategoryIds] = useState<string[]>([]);
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteJudgeId, setInviteJudgeId] = useState("");
 
   const refreshData = () => {
     start(async () => {
-      const [rRes, iRes] = await Promise.all([
-        listJudgeRosterForContest(contest.id),
-        listJudgeInvitationsForContest(contest.id),
-      ]);
+      const rRes = await listJudgeRosterForContest(contest.id);
       if (rRes.ok) setRoster(rRes.data ?? []);
-      if (iRes.ok) setInvites(iRes.data ?? []);
     });
   };
 
@@ -151,18 +124,16 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
   );
 
   const checklist = useMemo(() => {
-    const methodOk = Boolean(methodType);
     const criteriaOk = criteria.length > 0 && criteriaWeightsSum === 100;
     const visibilityOk = typeof showInLanding === "boolean";
     const perJudgeScopeOk = assignedRows.every((j) => j.assignedCategoryIds.length > 0);
     return [
       { label: "Al menos 1 jurado asignado", ok: assignedRows.length > 0 },
-      { label: "Método de evaluación definido", ok: methodOk },
       { label: "Criterios de evaluación completos (100%)", ok: criteriaOk },
       { label: "Visibilidad pública del bloque resuelta", ok: visibilityOk },
       { label: "Cada jurado con alcance/categoría", ok: perJudgeScopeOk },
     ];
-  }, [assignedRows, methodType, criteria, criteriaWeightsSum, showInLanding]);
+  }, [assignedRows, criteria, criteriaWeightsSum, showInLanding]);
 
   const fichaState: JudgeFichaState = useMemo(() => {
     const done = checklist.filter((c) => c.ok).length;
@@ -233,40 +204,6 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
     });
   };
 
-  const sendInvite = () => {
-    if (readOnly) return;
-    const email = inviteEmail.trim() || roster.find((r) => r.judgeId === inviteJudgeId)?.email || "";
-    if (!email) {
-      setError("Ingresá email o seleccioná un jurado.");
-      return;
-    }
-    setError(null);
-    setOkMsg(null);
-    start(async () => {
-      const res = await sendJudgeInvitation({
-        email,
-        contestId: contest.id,
-        judgeAccountId: inviteJudgeId || undefined,
-      });
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
-      setOkMsg("Invitación enviada.");
-      setInviteEmail("");
-      refreshData();
-    });
-  };
-
-  const runReminderSweep = () => {
-    const pendingInv = invites.filter((i) => ["DRAFT", "SENT", "OPENED"].includes(i.invitationStatus)).length;
-    const acceptedNoProgress = assignedRows.filter((r) => r.assignmentStatuses.includes("ACCEPTED")).length;
-    const inProgress = assignedRows.filter((r) => r.assignmentStatuses.includes("IN_PROGRESS")).length;
-    setOkMsg(
-      `Recordatorios preparados (simulado): ${pendingInv} sin aceptar, ${acceptedNoProgress} aceptados sin iniciar, ${inProgress} en progreso.`
-    );
-  };
-
   return (
     <div className="space-y-6">
       {restrictionMessage ? (
@@ -283,7 +220,7 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryChip label="Jurados asignados" value={String(assignedRows.length)} />
           <SummaryChip label="Visibles en landing" value={String(visibleCount)} />
-          <SummaryChip label="Método de evaluación" value={METHOD_OPTIONS.find((m) => m.id === methodType)?.label ?? methodType} />
+          <SummaryChip label="Método de evaluación" value="Criterios del concurso" />
         </div>
         <div className="mt-4 grid gap-2">
           {checklist.map((item) => (
@@ -316,6 +253,19 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
 
       {tab === "integrantes" ? (
         <div className="space-y-4">
+          {/*
+           * Hay un solo camino para sumar jurados: el directorio. Esta pestaña
+           * tenía además una invitación por correo que no mandaba ningún correo
+           * y tiraba el enlace; se quitó el 2026-09-25.
+           */}
+          <p className="rounded-xl border border-fr-border bg-fr-bg-elevated/60 px-4 py-3 text-xs text-fr-muted">
+            Acá se asignan categorías a los jurados que ya trabajan con tu organización. Para sumar
+            uno nuevo, buscalo en el{" "}
+            <a href="/jurados/directorio" className="text-gold hover:text-gold-hover">
+              directorio de jurados
+            </a>{" "}
+            e invitalo a este concurso: cuando acepta, aparece en esta lista.
+          </p>
           <div className="rounded-xl border border-fr-border p-4">
             <h4 className="text-sm font-semibold text-fr-primary">Asignar jurado al concurso</h4>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -395,14 +345,6 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
 
       {tab === "evaluacion" ? (
         <div className="space-y-4">
-          <label className="space-y-1.5">
-            <span className="text-xs text-fr-muted">Método de evaluación del concurso</span>
-            <select className={inputBase} value={methodType} onChange={(e) => setMethodType(e.target.value as JudgeMethodType)} disabled={readOnly || pending}>
-              {METHOD_OPTIONS.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
-          </label>
           <label className="inline-flex items-center gap-2 text-sm text-fr-muted">
             <input type="checkbox" checked={anonymousByDefault} onChange={(e) => setAnonymousByDefault(e.target.checked)} disabled={readOnly || pending} />
             Jura anónima por defecto
@@ -480,46 +422,6 @@ export function JuradoModalContent({ contest, onSuccess, onCancel, readOnly, res
               Hay jurados asignados, pero la sección está oculta en landing.
             </p>
           ) : null}
-        </div>
-      ) : null}
-
-      {tab === "invitaciones" ? (
-        <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1.5">
-              <span className="text-xs text-fr-muted">Seleccionar jurado (opcional)</span>
-              <select className={inputBase} value={inviteJudgeId} onChange={(e) => setInviteJudgeId(e.target.value)} disabled={readOnly || pending}>
-                <option value="">Sin jurado vinculado</option>
-                {roster.map((r) => (
-                  <option key={r.judgeId} value={r.judgeId}>{r.firstName} {r.lastName}</option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-xs text-fr-muted">Email invitación</span>
-              <input className={inputBase} value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} disabled={readOnly || pending} placeholder="jurado@email.com" />
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="fr-btn fr-btn-primary" disabled={readOnly || pending} onClick={sendInvite}>
-              Invitar / reenviar
-            </button>
-            <button type="button" className="fr-btn fr-btn-secondary" disabled={pending} onClick={runReminderSweep}>
-              Probar recordatorios automáticos
-            </button>
-          </div>
-          <div className="space-y-2">
-            {invites.length === 0 ? (
-              <p className="text-sm text-fr-muted">No hay invitaciones para este concurso.</p>
-            ) : (
-              invites.map((i) => (
-                <div key={i.id} className="rounded-lg border border-fr-border px-3 py-2 text-xs text-fr-muted">
-                  <span className="font-medium text-fr-primary">{i.judgeLabel ?? i.email}</span> · {i.invitationStatus} · vence{" "}
-                  {new Date(i.expiresAt).toLocaleDateString("es-AR")}
-                </div>
-              ))
-            )}
-          </div>
         </div>
       ) : null}
 

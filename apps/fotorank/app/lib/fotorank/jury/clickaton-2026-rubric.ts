@@ -38,4 +38,15 @@ export const CLICKATON_2026_JURY_CRITERIA = [
 ] as const;
 
 export const CLICKATON_2026_FINALISTS_PER_PROMPT = 3;
+
+/** Cuántas obras premia cada consigna. Las bases dicen tres. */
+export const CLICKATON_GANADORES_POR_CONSIGNA = CLICKATON_2026_FINALISTS_PER_PROMPT;
+
+/**
+ * Con qué criterio se desempata primero.
+ *
+ * Las bases ordenan por adecuación a la consigna: entre dos fotos con el
+ * mismo promedio gana la que mejor responde a lo que se pedía.
+ */
+export const CLICKATON_CRITERIO_PARA_DESEMPATAR = "prompt_fit";
 export const CLICKATON_2026_MAX_FINALISTS = 30;

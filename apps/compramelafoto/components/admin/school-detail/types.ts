@@ -340,6 +340,8 @@ export type OrganizerCommissionRow = {
   paidAt: string | null;
   paymentMethod: string | null;
   paymentProofUrl: string | null;
+  /** Pagada y luego anulada por reembolso de la venta: saldo a compensar. */
+  paidThenCancelled?: boolean;
   organizerUser: {
     id: number;
     name: string | null;
@@ -350,8 +352,13 @@ export type OrganizerCommissionRow = {
 };
 
 export type OrganizerCommissionSummary = {
+  /** = beneficioVigente (excluye anuladas y rechazadas). */
   acumulado: number;
   pendiente: number;
   solicitado: number;
   pagado: number;
+  cancelado?: number;
+  rechazado?: number;
+  aCompensar?: number;
+  beneficioVigente?: number;
 };

@@ -1,33 +1,32 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsContext } from "@/lib/workspace";
+import { rutaPublicaFormulario } from "@/lib/service-leads/ruta-publica";
+import { esFormularioInsertable } from "@/lib/service-leads/insertar";
 
 export default async function ServiceLeadFormsPage() {
-  const { workspace } = await requireActiveWorkspace();
-  const forms = workspace
-    ? await prisma.serviceLeadForm.findMany({
-        where: { workspaceId: workspace.id },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+  const { workspace } = await requireServiceLeadsContext();
+  const [forms, branding] = await Promise.all([
+    prisma.serviceLeadForm.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    // El enlace público sale de la dirección real del workspace, nunca de un valor fijo.
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { publicSlug: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-10">
       <PageHeader
-        title="Formularios de captación"
+        title="Formularios de consulta"
         description="Administrá los formularios públicos que capturan consultas para este workspace."
       />
 
-      {!workspace ? (
-        <div className="fo-card">
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            No hay workspace activo para este usuario.
-          </p>
-        </div>
-      ) : null}
-
-      {workspace && forms.length === 0 ? (
+      {forms.length === 0 ? (
         <div className="fo-card">
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
             Todavía no tenés formularios creados.
@@ -35,7 +34,7 @@ export default async function ServiceLeadFormsPage() {
         </div>
       ) : null}
 
-      {workspace && forms.length > 0 ? (
+      {forms.length > 0 ? (
         <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
           <table className="w-full text-sm text-left min-w-[920px]">
             <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
@@ -51,7 +50,7 @@ export default async function ServiceLeadFormsPage() {
             </thead>
             <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
               {forms.map((form) => {
-                const publicPath = `/w/dnx-estudio/${form.slug}`;
+                const publicPath = rutaPublicaFormulario(branding?.publicSlug, form.slug);
                 return (
                   <tr key={form.id} className="hover:bg-[var(--fo-surface-hover)]/60">
                     <td className="px-4 py-3 text-[var(--fo-text)] font-medium">{form.name}</td>
@@ -60,14 +59,18 @@ export default async function ServiceLeadFormsPage() {
                     <td className="px-4 py-3 text-[var(--fo-muted)]">{form.isActive ? "Sí" : "No"}</td>
                     <td className="px-4 py-3 text-[var(--fo-muted)]">{form.isDefault ? "Sí" : "No"}</td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={publicPath}
-                        className="text-[var(--fo-accent)] underline underline-offset-2"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {publicPath}
-                      </Link>
+                      {publicPath ? (
+                        <Link
+                          href={publicPath}
+                          className="text-[var(--fo-accent)] underline underline-offset-2"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {publicPath}
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--fo-muted)]">Sin dirección pública</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -83,6 +86,14 @@ export default async function ServiceLeadFormsPage() {
                         >
                           Compartir
                         </Link>
+                        {publicPath && esFormularioInsertable(form.slug) ? (
+                          <Link
+                            href={`/dashboard/service-leads/forms/${form.id}/share#insertar`}
+                            className="text-[var(--fo-accent)] underline underline-offset-2 whitespace-nowrap"
+                          >
+                            Insertar en mi web
+                          </Link>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

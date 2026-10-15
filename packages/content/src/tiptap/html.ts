@@ -63,6 +63,17 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
     CONTENT_HTML_ALLOWED_TAGS.map((tag) => [tag, [...CONTENT_HTML_ALLOWED_ATTR]])
   ),
   allowVulnerableTags: false,
+  // Videos incrustados, y nada más. Sin esta lista un iframe podía apuntar a cualquier sitio, y
+  // con varias instituciones escribiendo en FOTOFFICE eso es meter una página ajena dentro del
+  // sitio de otra. Si `src` no es de estos hosts, el iframe se descarta entero.
+  allowedIframeHostnames: [
+    "www.youtube.com",
+    "youtube.com",
+    "www.youtube-nocookie.com",
+    "player.vimeo.com",
+    "www.instagram.com",
+  ],
+  allowIframeRelativeUrls: false,
 };
 
 /**

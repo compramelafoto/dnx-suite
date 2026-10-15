@@ -66,4 +66,17 @@ describe("computeWebsiteChangeStatus", () => {
       computeWebsiteChangeStatus({ draft: changedDraft, publishedVersion: { ...base }, hasAnyVersionHistory: true }),
     ).toBe("PUBLISHED_WITH_CHANGES");
   });
+
+  it("el menú sin editar en su forma vieja y null son lo mismo (no hay cambios falsos)", () => {
+    expect(
+      computeWebsiteChangeStatus({ draft: { ...base, navJson: null }, publishedVersion: base, hasAnyVersionHistory: true }),
+    ).toBe("PUBLISHED_NO_CHANGES");
+  });
+
+  it("editar el menú cuenta como cambio sin publicar", () => {
+    const navJson = { version: 2, items: [{ id: "page:home", kind: "page", page: "home", label: "Portada", hidden: false }] };
+    expect(
+      computeWebsiteChangeStatus({ draft: { ...base, navJson }, publishedVersion: base, hasAnyVersionHistory: true }),
+    ).toBe("PUBLISHED_WITH_CHANGES");
+  });
 });

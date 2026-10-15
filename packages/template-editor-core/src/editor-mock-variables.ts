@@ -33,6 +33,11 @@ import {
 export const TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES: Record<string, unknown> = {
   "branding.schoolLogoUrl": TEMPLATE_V2_EDITOR_SCHOOL_LOGO_PLACEHOLDER,
   "student.fullName": "María Gómez",
+  "student.lastNameFirst": "Gómez, María",
+  "student.firstName": "María",
+  "student.lastName": "Gómez",
+  "course.withSchool": "3.º B · Mañana - Escuela Ejemplo",
+  "school.withCourse": "Escuela Ejemplo - 3.º B · Mañana",
   "buyer.fullName": "Ana Rodríguez",
   "school.name": "Escuela Ejemplo",
   "course.displayName": "3.º B · Mañana",

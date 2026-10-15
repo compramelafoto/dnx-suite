@@ -22,6 +22,8 @@ export type {
   ReconcileClickatonCheckoutResult,
   NormalizedCheckoutStatus,
   ClickatonCheckoutProviderBridge,
+  ClickatonAffiliateSplitRequest,
+  ClickatonCheckoutPayerName,
 } from "./application/services/clickaton-checkout/types";
 export {
   validateMercadoPagoTestCredentials,
@@ -75,6 +77,10 @@ export {
   buildClickatonOperationalSnapshot,
   CLICKATON_STAGING_AGREEMENT_SCOPE,
   createMercadoPagoOrders1nClickatonBridge,
+  createMercadoPagoOrdersAffiliateSplitBridge,
+  createProductionAffiliateSplitOrdersAdapter,
+  createClickatonAffiliateSplitCompositeBridge,
+  isMercadoPagoOrdersProviderId,
   fulfillRegistrationFromOrdersObserve,
 } from "./application/services/clickaton-checkout";
 export type {
@@ -84,6 +90,8 @@ export type {
 export type {
   OperationalSnapshotResult,
   Orders1nRegistrationBridgeDeps,
+  OrdersAffiliateSplitBridgeDeps,
+  AffiliateSplitOrdersAdapterPort,
   FulfillFromOrdersObserveResult,
 } from "./application/services/clickaton-checkout";
 export type { CheckoutEventOrigin } from "./application/services/clickaton-checkout/types";

@@ -88,18 +88,37 @@ export function ImageUploadField({
       return;
     }
 
-    if (dims.width < preset!.minWidth || dims.height < preset!.minHeight) {
+    /*
+     * Con proporción libre el mínimo se mide sobre el lado mayor, no sobre los dos. Exigir
+     * 1000 × 1000 a una panorámica de 2400 × 900 la rechazaría por baja resolución cuando en
+     * realidad es una foto grande y bien apaisada.
+     */
+    const ladoMayor = Math.max(dims.width, dims.height);
+    const minimoLadoMayor = Math.max(preset!.minWidth, preset!.minHeight);
+    const cumpleMinimo = preset!.aspectRatioFree
+      ? ladoMayor >= minimoLadoMayor
+      : dims.width >= preset!.minWidth && dims.height >= preset!.minHeight;
+
+    if (!cumpleMinimo) {
       setSizeWarning(
-        `La imagen es más chica que lo recomendado (${dims.width} × ${dims.height} px). Recomendado: ${preset!.minWidth} × ${preset!.minHeight} px o más — puede verse pixelada.`,
+        preset!.aspectRatioFree
+          ? `La imagen es más chica que lo recomendado (${dims.width} × ${dims.height} px). Recomendado: ${minimoLadoMayor} px o más en su lado más largo — puede verse pixelada.`
+          : `La imagen es más chica que lo recomendado (${dims.width} × ${dims.height} px). Recomendado: ${preset!.minWidth} × ${preset!.minHeight} px o más — puede verse pixelada.`,
       );
     }
 
-    const actualRatio = dims.width / dims.height;
-    const recommendedRatio = preset!.aspectRatio.width / preset!.aspectRatio.height;
-    if (Math.abs(actualRatio - recommendedRatio) / recommendedRatio > preset!.aspectRatioTolerance) {
-      setAspectWarning(
-        "La imagen tiene una proporción distinta de la recomendada y puede recortarse al mostrarse.",
-      );
+    // Un preset de proporción libre no avisa nada: recortar o no es decisión de quien hizo la foto.
+    if (!preset!.aspectRatioFree) {
+      const actualRatio = dims.width / dims.height;
+      const recommendedRatio = preset!.aspectRatio.width / preset!.aspectRatio.height;
+      if (
+        Math.abs(actualRatio - recommendedRatio) / recommendedRatio >
+        preset!.aspectRatioTolerance
+      ) {
+        setAspectWarning(
+          "La imagen tiene una proporción distinta de la recomendada y puede recortarse al mostrarse.",
+        );
+      }
     }
 
     setPreviewSrc(dims.objectUrl);

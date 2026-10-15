@@ -1,0 +1,17 @@
+{
+  "proyecto": "Instructivos y carteles del álbum",
+  "plataforma": "CompraMeLaFoto",
+  "etapas": [
+    {
+      "nombre": "Las piezas impresas",
+      "criterios": [
+        {
+          "que": "El cartel del QR, las tarjetas y el instructivo le dicen al cliente que puede buscar sus fotos con una selfie, su número o una palabra clave",
+          "implementado": { "pr": 264, "fecha": "2026-09-25" },
+          "probado": null,
+          "bloqueado": "Las piezas se generan al pedirlas y no dejan rastro en la base: falta bajar el cartel de un álbum real en producción y leer la leyenda"
+        }
+      ]
+    }
+  ]
+}

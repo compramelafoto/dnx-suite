@@ -189,7 +189,7 @@ export function buildChecklist(input: BuildChecklistInput): ChecklistItem[] {
       "REGISTRATION",
       input.categoryMatches ? "PASS" : "FAIL",
       "Categoría coincidente",
-      input.categoryMatches ? "La categoría coincide con la inscripción." : "Categoría inválida.",
+      input.categoryMatches ? "La categoría es válida para la inscripción." : "Categoría inválida.",
     ),
   );
   items.push(

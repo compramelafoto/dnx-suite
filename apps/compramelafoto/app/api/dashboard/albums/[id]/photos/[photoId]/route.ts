@@ -164,6 +164,22 @@ export async function DELETE(
       });
     }
 
+    // Una foto que figura en pedidos no se puede borrar (OrderItem_photoId_fkey es RESTRICT)
+    // y el comprador puede necesitar volver a descargarla: se retira del álbum sin tocar R2.
+    // Este chequeo va antes de borrar archivos; si no, la foto queda en la galería sin imagen.
+    const orderItemCount = await prisma.orderItem.count({ where: { photoId } });
+    if (orderItemCount > 0) {
+      await prisma.photo.update({
+        where: { id: photoId },
+        data: {
+          isRemoved: true,
+          removedAt: new Date(),
+          removedReason: "Retirada por el fotógrafo; no se borra porque figura en pedidos",
+        },
+      });
+      return NextResponse.json({ success: true, retiredBecauseOrdered: true });
+    }
+
     // Eliminar primero las solicitudes de remoción asociadas (si existen)
     // Esto evita el error de foreign key constraint
     try {

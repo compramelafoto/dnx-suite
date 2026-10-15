@@ -476,6 +476,7 @@ async function avisarConfirmacion(input: {
   const base = appUrl();
   for (const destino of destinatarios) {
     await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to: destino,
       templateKey: COVERAGE_EMAIL_KEYS.ASSIGNMENT_CONFIRMED,
       body: buildAssignmentConfirmedEmail({
@@ -503,6 +504,7 @@ async function avisarEquipoCompleto(
 ): Promise<void> {
   const contexto = await loadWorkspaceEmailContext(workspaceId);
   await sendAndLogEmail({
+    workspaceId: workspaceId,
     to: aviso.destinatario,
     templateKey: COVERAGE_EMAIL_KEYS.TEAM_COMPLETE,
     body: buildTeamCompleteEmail({

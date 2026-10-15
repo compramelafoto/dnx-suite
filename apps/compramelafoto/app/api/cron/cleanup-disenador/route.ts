@@ -94,6 +94,8 @@ export async function GET(req: NextRequest) {
       where: {
         status: { in: ["DRAFT", "DRAFT_RENDERING"] },
         updatedAt: { lt: cutoff },
+        // Los diseños del diseñador nuevo nunca son borradores sueltos: tienen un pedido detrás.
+        templateV2Id: null,
       },
       select: { id: true },
     });

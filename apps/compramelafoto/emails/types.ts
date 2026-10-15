@@ -15,7 +15,10 @@ export type EmailTemplateKey =
   | "SCHOOL_ORGANIZER_INVITE"
   | "ALBUM_INTEREST_DIGEST"
   | "ADMIN_MANUAL"
-  | "SUPPORT_REPLY";
+  | "SUPPORT_REPLY"
+  | "BOT_CODIGO"
+  | "SCHOOL_LEAD_DNX"
+  | "SCHOOL_LEAD_PHOTOGRAPHER";
 
 export type SendEmailParams = {
   to: string;

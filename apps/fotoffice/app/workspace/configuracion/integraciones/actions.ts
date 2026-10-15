@@ -30,10 +30,17 @@ export async function disconnectIntegrationAction(formData: FormData): Promise<v
   if (!canManageWorkspaceSettings(role)) redirect(`${PANTALLA}?error=sin_permiso`);
 
   const key = String(formData.get("integrationKey") ?? "").trim();
-  if (!getIntegrationDefinition(key)) redirect(`${PANTALLA}?error=integracion_desconocida`);
+  const definition = getIntegrationDefinition(key);
+  // Esta pantalla es la de Google: sólo desconecta cuentas de Google. Las credenciales de los
+  // transportistas (Correo Argentino, Andreani) se manejan en la configuración de envíos de la
+  // tienda; un formulario armado a mano no puede borrarlas desde acá.
+  if (!definition || definition.provider !== "GOOGLE") {
+    redirect(`${PANTALLA}?error=integracion_desconocida`);
+  }
 
   try {
     const refreshToken = await deleteIntegration(workspace.id, key);
+    // Sólo se revoca contra Google lo que es de Google (ya garantizado arriba).
     if (refreshToken) await revokeIntegrationToken(refreshToken);
   } catch (error) {
     console.error("[fotoffice][integraciones] falló la desconexión", {

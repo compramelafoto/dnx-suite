@@ -38,6 +38,8 @@ export type JuryErrorCode =
   | "INVALID_SCORE"
   | "WEIGHT_SUM"
   | "TERMS_REQUIRED"
+  /** Elegir con cupo: ya eligió el máximo de fotos en esa categoría y consigna. */
+  | "QUOTA_EXCEEDED"
   | "NO_ASSIGNMENT"
   | "REASSIGN_TARGET_INVALID"
   | "JUDGE_REVOKED";

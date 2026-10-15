@@ -20,13 +20,23 @@ export type CoverageEntityType =
   | "ASSIGNMENT"
   | "DELIVERABLE";
 
+/**
+ * `ENLACE_REEMITIDO` registra que se emitió un enlace de seguimiento nuevo, y **no** que el
+ * correo llegó: el evento se escribe dentro de la transacción que rota el token, y el envío
+ * ocurre después y afuera. Si se usara `EMAIL_ENVIADO`, un correo que falla dejaría el historial
+ * afirmando algo que no pasó. El desenlace del envío vive en `SentEmailLog`, como el del resto
+ * de los correos del módulo.
+ *
+ * Nunca guarda el token crudo: el enlace no entra en la nota del evento.
+ */
 export type CoverageEventType =
   | "CREADA"
   | "ESTADO_CAMBIADO"
   | "NOTA"
   | "INFO_PEDIDA"
   | "INFO_RESPONDIDA"
-  | "EMAIL_ENVIADO";
+  | "EMAIL_ENVIADO"
+  | "ENLACE_REEMITIDO";
 
 export async function recordEvent(
   tx: Prisma.TransactionClient | typeof prisma,

@@ -218,6 +218,31 @@ export const spacerConfigSchema = z.object({
   sizePreset: z.enum(WEBSITE_SPACER_SIZE_PRESET),
 });
 
+/**
+ * Últimos artículos del blog — el primer bloque `dynamic`: su `config` sólo dice CÓMO mostrar
+ * (título, cuántas tarjetas, si va el extracto); los artículos se leen al dibujar la portada,
+ * nunca se copian al `sectionsJson`. Así un artículo nuevo aparece solo, sin volver a publicar
+ * el sitio. `.catch` en todo: un valor fuera de lo permitido cae al default en vez de descartar
+ * el bloque entero.
+ */
+export const BLOG_LATEST_COUNT_OPTIONS = [3, 6] as const;
+export type BlogLatestCount = (typeof BLOG_LATEST_COUNT_OPTIONS)[number];
+
+export const blogLatestConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  count: z.union([z.literal(3), z.literal(6)]).catch(3),
+  showExcerpt: z.boolean().catch(true),
+});
+
+/**
+ * "Socio de la semana": la tarjeta del socio destacado de esta semana. Sólo aparece si ese socio
+ * dio permiso para mostrarse en público (`directoryOptIn`), y nunca con teléfono ni correo.
+ */
+export const memberOfWeekConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  intro: z.string().max(400).optional(),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -229,6 +254,8 @@ export const textBlockSchema = z.object({ ...blockEnvelope, type: z.literal("TEX
 export const imageBlockSchema = z.object({ ...blockEnvelope, type: z.literal("IMAGE"), config: imageConfigSchema });
 export const ctaBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CTA"), config: ctaConfigSchema });
 export const spacerBlockSchema = z.object({ ...blockEnvelope, type: z.literal("SPACER"), config: spacerConfigSchema });
+export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
+export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 
 export const websiteBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
@@ -236,6 +263,8 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   imageBlockSchema,
   ctaBlockSchema,
   spacerBlockSchema,
+  blogLatestBlockSchema,
+  memberOfWeekBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
@@ -250,12 +279,16 @@ export type TextBlockConfig = z.infer<typeof textConfigSchema>;
 export type ImageBlockConfig = z.infer<typeof imageConfigSchema>;
 export type CtaBlockConfig = z.infer<typeof ctaConfigSchema>;
 export type SpacerBlockConfig = z.infer<typeof spacerConfigSchema>;
+export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
+export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 
 export type HeroBlock = z.infer<typeof heroBlockSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
 export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type CtaBlock = z.infer<typeof ctaBlockSchema>;
 export type SpacerBlock = z.infer<typeof spacerBlockSchema>;
+export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
+export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 
 /** Unión cerrada de los bloques implementados. Bloques con `type` desconocido no matchean acá
  * — el renderer y el editor deben tratarlos como inválidos y omitirlos, nunca romper la página. */
@@ -298,12 +331,11 @@ export function parseWebsiteSections(raw: unknown): WebsiteSections {
 }
 
 /**
- * Categorías del catálogo de secciones. Solo BASICAS tiene bloques implementados hoy — el
- * resto queda declarado para que el selector de secciones ya tenga la forma final (categorías
+ * Categorías del catálogo de secciones. BASICAS tiene los bloques estáticos y COMUNICACION el
+ * primero dinámico (`BLOG_LATEST`, últimos artículos del blog) — el resto queda declarado para que el selector de secciones ya tenga la forma final (categorías
  * agrupadas) sin tener que rediseñarlo cuando se implemente el primer bloque de cada una.
- * INSTITUCION/SOCIOS/ACTIVIDAD/COMUNICACION/COMERCIAL serán bloques `source: "dynamic"`
- * (resuelven datos de otro módulo vía DTO público, ver `block-contract.ts`) — ninguno
- * implementado todavía, a propósito.
+ * INSTITUCION/SOCIOS/ACTIVIDAD/COMERCIAL serán bloques `source: "dynamic"` (resuelven datos
+ * de otro módulo vía DTO público, ver `block-contract.ts` y `dynamic-data.ts`).
  */
 export const WEBSITE_BLOCK_CATEGORIES = ["BASICAS", "INSTITUCION", "SOCIOS", "ACTIVIDAD", "COMUNICACION", "COMERCIAL"] as const;
 export type WebsiteBlockCategory = (typeof WEBSITE_BLOCK_CATEGORIES)[number];
@@ -313,8 +345,8 @@ type BlockTypeDefinition<TType extends WebsiteBlockType> = {
   label: string;
   description: string;
   category: WebsiteBlockCategory;
-  /** `dynamic` = resuelve datos de otro módulo en el momento del render (ninguno implementado
-   * todavía). Los 5 bloques de esta etapa son `static`: su contenido vive en `config`. */
+  /** `dynamic` = resuelve datos de otro módulo en el momento del render (hoy sólo
+   * `BLOG_LATEST`, ver `dynamic-data.ts`). Los `static` tienen todo su contenido en `config`. */
   source: "static" | "dynamic";
   defaultConfig: () => Extract<WebsiteBlock, { type: TType }>["config"];
   previewLabel: (config: Extract<WebsiteBlock, { type: TType }>["config"]) => string;
@@ -383,6 +415,27 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     source: "static",
     defaultConfig: () => ({ sizePreset: "md" }),
     previewLabel: (c) => `Tamaño: ${c.sizePreset === "sm" ? "chico" : c.sizePreset === "lg" ? "grande" : "medio"}`,
+  },
+  BLOG_LATEST: {
+    type: "BLOG_LATEST",
+    label: "Últimos artículos",
+    description: "Las tarjetas de los artículos más recientes del blog, con enlace a cada uno.",
+    category: "COMUNICACION",
+    source: "dynamic",
+    defaultConfig: () => ({ title: "Últimos artículos", count: 3, showExcerpt: true }),
+    // Alimenta también el menú (ver HERO): sin título, "Blog" es lo que el visitante entiende.
+    previewLabel: (c) => c.title?.trim() || "Blog",
+  },
+  MEMBER_OF_WEEK: {
+    type: "MEMBER_OF_WEEK",
+    label: "Socio de la semana",
+    description:
+      "El socio destacado de esta semana, con lo que contó de sí y sus redes. Sólo aparece si ese socio dio permiso para mostrarse en público.",
+    category: "SOCIOS",
+    source: "dynamic",
+    defaultConfig: () => ({ title: "Socio de la semana", intro: "" }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Socio de la semana",
   },
 };
 

@@ -8,13 +8,16 @@ import { resolveRecommender } from "@/lib/membership/recommendation-link";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { asociarseAbierto } from "@/lib/course-classroom/asociarse";
+import { getEnrollmentSettings } from "@/lib/membership/enrollment-store";
+import { SimpleApplicationForm } from "@/components/membership/simple-application-form";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ workspaceSlug: string }>;
   /** `?rec=` es el enlace de recomendación de un socio. Ausente o inválido, el alta sigue igual. */
-  searchParams: Promise<{ rec?: string }>;
+  searchParams: Promise<{ rec?: string; pago?: string }>;
 };
 
 const ars = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 });
@@ -29,7 +32,7 @@ const ars = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 });
  */
 export default async function AsociarsePage({ params, searchParams }: Props) {
   const { workspaceSlug } = await params;
-  const { rec } = await searchParams;
+  const { rec, pago } = await searchParams;
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
@@ -41,7 +44,7 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
   // exacta. Mismo criterio que /reservas.
   if (!(await isModuleEnabledForWorkspace(branding.workspaceId, MEMBERS_MODULE_KEY))) notFound();
 
-  const [cobros, settings, valorCuota, workspace, v] = await Promise.all([
+  const [cobros, settings, valorCuota, workspace, v, alta] = await Promise.all([
     getWorkspaceCollectionStatus(branding.workspaceId),
     getDuesSettings(branding.workspaceId),
     getActiveFeeValue(branding.workspaceId, null, new Date()),
@@ -50,7 +53,12 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
       select: { name: true },
     }),
     loadPersonVocabulary(branding.workspaceId),
+    getEnrollmentSettings(branding.workspaceId),
   ]);
+  // Con una categoría para las altas (el VIP), el precio que se anuncia es el suyo.
+  const valorDeLaCategoria = alta.category
+    ? await getActiveFeeValue(branding.workspaceId, alta.category.id, new Date())
+    : null;
 
   /*
     Quién lo recomienda se resuelve en el servidor y contra el padrón. Si el código no
@@ -73,7 +81,52 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
   const institutionName = branding.commercialName?.trim() || workspace?.name || "la institución";
 
   // Sin cobros conectados o sin valor de cuota, aprobar generaría cuotas impagables.
-  const abierto = cobros.canCharge && Boolean(valorCuota);
+  // El módulo ya se exigió arriba con `notFound`. El criterio vive en un solo lugar.
+  const abierto = asociarseAbierto({ moduloSocios: true, puedeCobrar: cobros.canCharge, hayValorCuota: Boolean(valorCuota) });
+
+  // El alta corta de un club de clientes (el VIP de Gus Barbers). El resto, como siempre.
+  if (alta.simpleForm) {
+    const valor = valorDeLaCategoria ?? valorCuota;
+    const precio = valor ? `$${ars.format(Number(valor.amountArs)).replace(/,00$/, "")} por mes` : null;
+    const nombre = alta.category?.name ?? v.singular;
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Hacete {nombre}</h1>
+          {alta.category?.description ? (
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{alta.category.description}</p>
+          ) : null}
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+            {alta.autoApprove
+              ? "Completá tus datos y pagá con Mercado Pago. Si un mes no renovás, no debés nada."
+              : "Completá tus datos y te escribimos por email."}
+          </p>
+        </div>
+        {pago === "ok" ? (
+          <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+            ¡Listo! Recibimos tu pago. Revisá tu email: te mandamos el acceso a tu portal, donde ves tus
+            cortes y renovás.
+          </p>
+        ) : null}
+        {pago === "error" ? (
+          <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
+            El pago no se pudo completar. Podés intentar de nuevo con el mismo email.
+          </p>
+        ) : null}
+        {abierto ? (
+          <SimpleApplicationForm workspaceSlug={workspaceSlug} priceLabel={precio} autoApprove={alta.autoApprove} />
+        ) : (
+          <section className="fo-card space-y-2 p-6">
+            <h2 className="text-base font-semibold">Todavía no está abierto</h2>
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              {institutionName} todavía no habilitó el alta en línea. Escribinos y te contamos cómo
+              sumarte.
+            </p>
+          </section>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">

@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { prisma } from "@repo/db";
 import { normalizeGiftVoucherCode } from "../domain/code";
 import { evaluateGiftRedeemEligibility, type GiftVoucherStatus } from "../domain/status";
@@ -178,11 +179,34 @@ export async function redeemGiftVoucherAction(
       idempotencyKey: formString(formData, "idempotencyKey"),
     });
 
+    // Recién ahora la inscripción tiene a la persona que participa: es el
+    // momento de las placas, de FotoRank y del correo de confirmación. Al
+    // pagar no se podían hacer porque los datos eran de quien regaló.
+    try {
+      const { enqueueParticipantCardsAfterPaid } = await import(
+        "@/lib/participant-cards/participant-card-autogenerate"
+      );
+      enqueueParticipantCardsAfterPaid({ registrationId: result.registrationId });
+    } catch (error) {
+      // El cron reintenta; el canje ya quedó firme.
+      console.error("[clickaton] placas del regalo no se encolaron:", error);
+    }
+
     // El aviso nunca frena el canje: la inscripción ya quedó confirmada.
     const { notifyGiftRedeemed } = await import(
       "../notifications/notify-gift-lifecycle"
     );
     await notifyGiftRedeemed(result.registrationId);
+
+    // Ubicar la ciudad en el mapa de Personas, sin demorar el canje.
+    after(async () => {
+      const { asegurarLocalidad } = await import("@/lib/localities/service");
+      await asegurarLocalidad({
+        ciudad: formString(formData, "city"),
+        provincia: formString(formData, "province"),
+        pais: formString(formData, "country") || "AR",
+      });
+    });
 
     return giftSuccess(result);
   } catch (error) {

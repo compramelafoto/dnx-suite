@@ -1,4 +1,13 @@
-import { FONT_CATALOG, type FontId } from "@repo/design-studio";
+import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, type FontId } from "@repo/design-studio";
+import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
+import {
+  CLASS_LIST_SAMPLE,
+  CLASS_LIST_VARIABLE_KEY,
+  formatClassList,
+  layoutClassList,
+  readClassListOptions,
+  type ClassListStudent,
+} from "@repo/template-engine";
 
 /**
  * Puente entre el diseñador de plantillas y el módulo que imprime.
@@ -67,7 +76,7 @@ export type PuenteResultado = {
 };
 
 const DPI_POR_DEFECTO = 300;
-const FUENTE_POR_DEFECTO: FontId = "dmSans";
+const FUENTE_POR_DEFECTO = "dmSans" as const;
 
 function num(v: unknown, porDefecto: number): number {
   return typeof v === "number" && Number.isFinite(v) ? v : porDefecto;
@@ -82,27 +91,63 @@ function texto(v: unknown, porDefecto = ""): string {
   return typeof v === "string" ? v : porDefecto;
 }
 
+/*
+ * Las tipografías del sistema que ofrece el editor no existen en Google. Se imprimen con su
+ * equivalente métrico libre: mismo ancho letra por letra, así el texto ocupa lo mismo que en
+ * pantalla y se ve casi igual.
+ */
+const EQUIVALENTES_DE_SISTEMA: Record<string, string> = {
+  helvetica: "Arimo",
+  "helvetica neue": "Arimo",
+  arial: "Arimo",
+  "sans-serif": "Arimo",
+  "times new roman": "Tinos",
+  times: "Tinos",
+  serif: "Tinos",
+  georgia: "Gelasio",
+};
+
+const FAMILIAS_DEL_EDITOR = new Map(EDITOR_FONT_CATALOG.map((f) => [f.family.toLowerCase(), f.family]));
+
 /**
  * Elige la tipografía de design-studio a partir de la familia CSS del editor.
  *
- * El catálogo es cerrado: si la familia no está, se usa DM Sans y se avisa. Es preferible a
- * fallar la impresión, y preferible también a un cambio silencioso de familia que nadie ve
- * hasta que llegan las tarjetas de la imprenta.
+ * Las incrustadas se usan por su id; el resto de las familias del editor se bajan de Google al
+ * imprimir (`google:Familia`). Sólo una familia que el editor no ofrece cae en DM Sans, y avisa:
+ * es preferible a fallar la impresión, y preferible también a un cambio silencioso de familia
+ * que nadie ve hasta que llegan las tarjetas de la imprenta.
  */
 function fuenteDesde(familia: string, avisos: string[]): FontId {
-  const normal = familia.trim().toLowerCase().replace(/['"]/g, "");
+  // El editor guarda a veces la pila CSS entera ("Lato, sans-serif"): manda la primera.
+  const normal = (familia.split(",")[0] ?? "").trim().toLowerCase().replace(/['"]/g, "");
   if (!normal) return FUENTE_POR_DEFECTO;
 
+  const equivalente = EQUIVALENTES_DE_SISTEMA[normal];
+  if (equivalente) return `${GOOGLE_FONT_PREFIX}${equivalente}` as FontId;
+
+  /*
+   * Una familia que el editor carga de Google se imprime con la de Google aunque haya una
+   * incrustada del mismo nombre: la incrustada puede ser una versión anterior (Merriweather
+   * cambió de dibujo) y el PDF salía con otras proporciones que la pantalla. Si no se puede
+   * bajar, el cargador usa la incrustada.
+   */
+  const delEditor = FAMILIAS_DEL_EDITOR.get(normal);
+  if (delEditor) {
+    const id = `${GOOGLE_FONT_PREFIX}${delEditor}`;
+    if (isFontId(id)) return id;
+  }
+
   for (const [id, def] of Object.entries(FONT_CATALOG)) {
-    if (
-      id.toLowerCase() === normal ||
-      def.label.toLowerCase() === normal ||
-      def.cssFamily.toLowerCase() === normal ||
-      normal.startsWith(def.cssFamily.toLowerCase())
-    ) {
+    if (id.toLowerCase() === normal || def.label.toLowerCase() === normal || def.cssFamily.toLowerCase() === normal) {
       return id as FontId;
     }
   }
+
+  // Variantes con apellido de una incrustada ("DM Sans Medium"): la familia base.
+  for (const [id, def] of Object.entries(FONT_CATALOG)) {
+    if (normal.startsWith(def.cssFamily.toLowerCase())) return id as FontId;
+  }
+
   avisos.push(
     `La tipografía "${familia}" no está en el catálogo de impresión; se usó ${FONT_CATALOG[FUENTE_POR_DEFECTO].label}.`,
   );
@@ -148,6 +193,11 @@ export function editorADocumento(input: {
    * es lo correcto cuando no se sabe cuáles son válidos.
    */
   variablesConocidas?: ReadonlySet<string>;
+  /**
+   * Los alumnos del curso para el bloque «Listado del curso». Sin esto se dibuja el curso de
+   * muestra (la vista previa del editor); una lista vacía no dibuja nada.
+   */
+  listaDelCurso?: readonly ClassListStudent[];
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -228,6 +278,7 @@ export function editorADocumento(input: {
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
               textTransform: conversionDeLetras(cfg.textTransform),
+              lineHeight: num(cfg.lineHeight, 1.2),
             });
             break;
           }
@@ -236,6 +287,64 @@ export function editorADocumento(input: {
             const clave = texto(cfg.variableKey);
             if (!clave) {
               avisos.push(`Un bloque de dato variable quedó sin variable elegida; no se imprimió.`);
+              break;
+            }
+            if (clave === CLASS_LIST_VARIABLE_KEY) {
+              /*
+               * design-studio no mezcla negrita y normal dentro de un mismo texto, así que el
+               * listado se imprime como un texto por alumno, cada uno con su peso. La cuenta de
+               * columnas y filas es la misma que usa el lienzo del editor.
+               */
+              const opciones = readClassListOptions(cfg);
+              const pesoBase = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
+              const reparto = layoutClassList({
+                lines: formatClassList(input.listaDelCurso ?? CLASS_LIST_SAMPLE, opciones),
+                width: num(b.width, 0),
+                height: num(b.height, 0),
+                fontSize: num(cfg.fontSize, 20),
+                lineHeight: num(cfg.lineHeight, 1.2),
+                columns: opciones.columns,
+              });
+              const comun = {
+                type: "text" as const,
+                fontId: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
+                fontSize: pt(reparto.fontSize),
+                fontStyle: cfg.fontItalic === true ? "italic" : "normal",
+                color: texto(cfg.color, "#111111"),
+                align: alineacion(cfg.textAlign),
+                textTransform: conversionDeLetras(cfg.textTransform),
+                lineHeight: num(cfg.lineHeight, 1.2),
+              };
+              /*
+               * Un listado girado (la carpeta de San Patricio lo lleva a 90°) se arma derecho y
+               * después cada alumno se lleva a su lugar girando alrededor del centro del bloque,
+               * con el mismo giro. Antes cada celda salía sin giro y en su posición derecha: el
+               * PDF mostraba el listado acostado y encimado con lo que lo rodeaba.
+               */
+              const giro = num(b.rotation, 0);
+              const rad = (giro * Math.PI) / 180;
+              const bx = num(b.x, 0);
+              const by = num(b.y, 0);
+              const centroX = bx + num(b.width, 0) / 2;
+              const centroY = by + num(b.height, 0) / 2;
+              reparto.cells.forEach((celda, i) => {
+                const dx = bx + celda.x + celda.width / 2 - centroX;
+                const dy = by + celda.y + celda.height / 2 - centroY;
+                const cx = centroX + dx * Math.cos(rad) - dy * Math.sin(rad);
+                const cy = centroY + dx * Math.sin(rad) + dy * Math.cos(rad);
+                dibujables.push({
+                  ...geo,
+                  ...comun,
+                  id: `${b.id}__${i}`,
+                  x: mm(cx - celda.width / 2),
+                  y: mm(cy - celda.height / 2),
+                  width: mm(celda.width),
+                  height: mm(celda.height),
+                  rotation: giro || undefined,
+                  content: celda.text,
+                  fontWeight: celda.bold ? "bold" : pesoBase,
+                });
+              });
               break;
             }
             dibujables.push({
@@ -249,6 +358,7 @@ export function editorADocumento(input: {
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
               textTransform: conversionDeLetras(cfg.textTransform),
+              lineHeight: num(cfg.lineHeight, 1.2),
             });
             break;
           }
@@ -453,13 +563,18 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
         // puede cambiar la variable desde el inspector en vez de editar llaves a mano.
         const soloMarcador = contenido.match(/^\{\{\s*([\w.]+)\s*\}\}$/);
         const tipografia = {
-          fontFamily: FONT_CATALOG[(texto(b.fontId, FUENTE_POR_DEFECTO) as FontId)]?.cssFamily
-            ?? FONT_CATALOG[FUENTE_POR_DEFECTO].cssFamily,
+          fontFamily: isFontId(b.fontId)
+            ? fontDefinition(b.fontId).cssFamily
+            : FONT_CATALOG[FUENTE_POR_DEFECTO].cssFamily,
           fontSize: pxDePt(num(b.fontSize, 10)),
           fontWeight: texto(b.fontWeight) === "bold" ? 700 : 400,
           fontItalic: texto(b.fontStyle) === "italic",
           color: texto(b.color, "#111111"),
           textAlign: texto(b.align, "left").toUpperCase(),
+          // Las mayúsculas del diseño base se conservaban al imprimir pero no al pasar al editor.
+          ...(conversionDeLetras(b.textTransform) !== "none"
+            ? { textTransform: conversionDeLetras(b.textTransform) }
+            : {}),
         };
 
         blocks.push(
@@ -476,15 +591,31 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
 
       if (tipo === "image") {
         const clave = texto(b.variableKey);
+        /*
+         * La variable va en `source.variableKey`, que es donde la buscan el lienzo y el
+         * inspector; en la raíz sólo la leía la impresión, así que una imagen sembrada se veía
+         * como "Imagen libre" mientras se diseñaba. Se conserva también el encaje ("contain" en
+         * un logo) y el recorte, que antes se perdían al pasar al editor.
+         */
+        const encaje = texto(b.fit) === "contain" ? "contain" : "cover";
+        const recorte = texto(b.mask);
+        const forma = {
+          ...(recorte === "circle" || recorte === "ellipse" ? { maskShape: recorte } : {}),
+          ...(num(b.cornerRadius, 0) > 0 ? { borderRadius: px(num(b.cornerRadius, 0)) } : {}),
+        };
         blocks.push(
           clave === "photo"
-            ? { ...base, type: "PHOTO", configJson: { variableKey: "photo", fit: "cover" } }
+            ? {
+                ...base,
+                type: "PHOTO",
+                configJson: { variableKey: "photo", source: { variableKey: "photo" }, fit: encaje, ...forma },
+              }
             : {
                 ...base,
                 type: "IMAGE",
                 configJson: clave
-                  ? { variableKey: clave, fit: "cover" }
-                  : { src: texto(b.resourceRef), fit: "cover" },
+                  ? { variableKey: clave, source: { variableKey: clave }, fit: encaje, ...forma }
+                  : { src: texto(b.resourceRef), fit: encaje, ...forma },
               },
         );
         return;

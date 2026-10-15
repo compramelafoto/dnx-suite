@@ -7,6 +7,7 @@ import { requireMembersManageContext } from "@/lib/members/access";
 import { auditActorFrom } from "@/lib/members/audit";
 import { documentDedupKey } from "@/lib/members/documents";
 import { memberValuesToRepositoryInput } from "@/lib/members/schema";
+import { guardarObservacionesImportadas } from "@/lib/members/import/observaciones";
 import { normalizeEmail, parseAndValidateMemberImport, type ImportRowResult } from "@/lib/members/import/parse";
 import { MEMBER_IMPORT_MAX_ROWS } from "@/lib/members/import/columns";
 import { mensajeDePadron } from "@/lib/members/mensajes";
@@ -106,6 +107,9 @@ export async function confirmMemberImportAction(rawCsv: string): Promise<MemberI
       // Un id por importación: permite recuperar el lote completo desde el historial.
       batchId: randomUUID(),
       sourceRows,
+      // Las observaciones del CSV también quedan como nota fijada de la ficha, en la misma
+      // transacción: si no, después de la etapa 0.3 no se verían en ningún lado de la ficha.
+      afterCreate: (tx, member) => guardarObservacionesImportadas(tx, workspace.id, member),
     });
     revalidatePath("/members");
     return { ok: true, createdCount: created.length };

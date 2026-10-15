@@ -21,6 +21,11 @@ import {
   presentAdminRegistrationStatus,
 } from "@/lib/admin-registration/ui/admin-status-presentation";
 import {
+  esFilaDeRegaloSinActivar,
+  presentAdminParticipantIdentity,
+} from "@/lib/admin-registration/ui/gift-row-presentation";
+import { REGISTRATION_STATUS_FILTER_OPTIONS } from "@/lib/admin-registration/ui/status-filter-options";
+import {
   displayRegistrationAmount,
   formatArDateTime,
   paymentStatusLabel,
@@ -218,15 +223,7 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                     <span className="text-ck-text-secondary">Estado de inscripción</span>
                     <Select name="status" defaultValue={params.status ?? ""}>
                       <option value="">Todos</option>
-                      {[
-                        "DRAFT",
-                        "PENDING_PAYMENT",
-                        "CONFIRMED",
-                        "WAITLISTED",
-                        "CANCELLED",
-                        "REFUNDED",
-                        "DISQUALIFIED",
-                      ].map((s) => (
+                      {REGISTRATION_STATUS_FILTER_OPTIONS.map((s) => (
                         <option key={s} value={s}>
                           {registrationStatusLabel(s as never)}
                         </option>
@@ -389,19 +386,27 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                 {
                   key: "participant",
                   header: "Participante",
-                  cell: (row) => (
-                    <div className="min-w-0 space-y-1">
-                      <AdminTableLink href={`${adminRoutes.registrations}/${row.id}`}>
-                        {row.firstName} {row.lastName}
-                      </AdminTableLink>
-                      <p className="break-all text-xs text-ck-text-muted">{row.email}</p>
-                      {row.instagramHandle ? (
-                        <p className="text-xs text-ck-text-muted">
-                          @{row.instagramHandle.replace(/^@/, "")}
-                        </p>
-                      ) : null}
-                    </div>
-                  ),
+                  cell: (row) => {
+                    const identity = presentAdminParticipantIdentity(row);
+                    return (
+                      <div className="min-w-0 space-y-1">
+                        <AdminTableLink href={`${adminRoutes.registrations}/${row.id}`}>
+                          {identity.displayName}
+                        </AdminTableLink>
+                        {identity.note ? (
+                          <p className="text-xs font-medium text-ck-text-secondary">
+                            {identity.note}
+                          </p>
+                        ) : null}
+                        <p className="break-all text-xs text-ck-text-muted">{row.email}</p>
+                        {row.instagramHandle ? (
+                          <p className="text-xs text-ck-text-muted">
+                            @{row.instagramHandle.replace(/^@/, "")}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  },
                 },
                 {
                   key: "summary",
@@ -440,6 +445,15 @@ export default async function AdminRegistrationsPage({ searchParams }: Props) {
                   key: "kit",
                   header: "Kit",
                   cell: (row) => {
+                    // Antes de activarse no hay talle elegido: mostrar "pendiente
+                    // de entrega" sugeriría una tarea que todavía no existe.
+                    if (esFilaDeRegaloSinActivar(row)) {
+                      return (
+                        <span className="text-sm text-ck-text-muted">
+                          Se define al activarse
+                        </span>
+                      );
+                    }
                     const kit = presentAdminFulfillmentStatus(row.itemFulfillmentStatus);
                     return (
                       <div className="space-y-1">

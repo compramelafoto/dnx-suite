@@ -21,7 +21,7 @@ import type { RenderedEmailSignature } from "@repo/communications/signature";
 
 export type EmailBody = { subject: string; html: string; text: string };
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -36,6 +36,11 @@ type Composition = {
   greetingName?: string | null;
   paragraphs: string[];
   cta?: { label: string; url: string } | null;
+  /**
+   * Bloques ya armados que van después del botón, como el del sorteo en el recordatorio de
+   * cuota. Quien los arma escapa su propio HTML; acá se insertan tal cual.
+   */
+  blocks?: { html: string; text: string }[];
   /** Aclaraciones al pie, en letra chica. */
   notes?: string[];
   signature: RenderedEmailSignature | null;
@@ -64,6 +69,8 @@ export function compose(input: Composition): EmailBody {
   <p style="font-size:13px;color:#6b7280;">Si el botón no funciona, copiá y pegá esta dirección en tu navegador:<br>${escapeHtml(input.cta.url)}</p>`
     : "";
 
+  const htmlBloques = (input.blocks ?? []).map((b) => `\n  ${b.html}`).join("");
+
   const htmlNotas = (input.notes ?? [])
     .map((n) => `\n  <p style="font-size:13px;color:#6b7280;">${escapeHtml(n)}</p>`)
     .join("");
@@ -74,7 +81,7 @@ export function compose(input: Composition): EmailBody {
 
   const html = `
 <div>
-${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${htmlNotas}${htmlFirma}
+${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${htmlBloques}${htmlNotas}${htmlFirma}
 </div>
 `.trim();
 
@@ -82,6 +89,7 @@ ${saludo ? `  <p>${escapeHtml(saludo)}</p>\n` : ""}${htmlParrafos}${htmlCta}${ht
     ...(saludo ? [saludo, ""] : []),
     input.paragraphs.join("\n\n"),
     ...(input.cta ? ["", `${input.cta.label}:`, input.cta.url] : []),
+    ...(input.blocks ?? []).flatMap((b) => ["", b.text]),
     ...((input.notes ?? []).length ? ["", (input.notes ?? []).join("\n")] : []),
     ...(input.signature ? ["", input.signature.text] : []),
   ].join("\n");
@@ -179,6 +187,36 @@ export function buildApplicationApprovedEmail(input: {
       `El enlace vence en ${input.activationTtlLabel}. Si se te pasa, escribinos y te mandamos uno nuevo.`,
       `Si el ${input.deadlineLabel} no registramos el pago, el ingreso queda sin efecto y habría que empezar de nuevo.`,
     ],
+    signature: input.signature,
+  });
+}
+
+/**
+ * El acceso de quien se sumó solo desde el sitio (alta sin aprobación, el VIP de una barbería).
+ *
+ * No dice "tu solicitud fue aprobada" ni da número de socio: nadie revisó nada y la persona ya
+ * está pagando en Mercado Pago cuando le llega. Lo que necesita es la puerta a su portal.
+ */
+export function buildSelfEnrollmentAccessEmail(input: {
+  firstName: string;
+  institution: string;
+  /** "VIP", o la palabra de la institución si no hay categoría. */
+  membershipName: string;
+  activationUrl: string;
+  totalLabel: string;
+  activationTtlLabel: string;
+  signature: RenderedEmailSignature | null;
+}): EmailBody {
+  return compose({
+    subject: `Tu acceso a ${input.institution}`,
+    greetingName: input.firstName,
+    paragraphs: [
+      `Gracias por sumarte a ${input.membershipName} de ${input.institution}.`,
+      "Con el botón de acá abajo activás tu portal: ahí ves lo que tenés incluido, reservás tus turnos y renovás cuando quieras.",
+      `Si todavía no terminaste el pago de ${input.totalLabel}, también lo podés hacer desde el portal.`,
+    ],
+    cta: { label: "Activar mi portal", url: input.activationUrl },
+    notes: [`El enlace vence en ${input.activationTtlLabel}. Si se te pasa, escribinos y te mandamos uno nuevo.`],
     signature: input.signature,
   });
 }
@@ -290,6 +328,10 @@ export function buildMembershipWelcomeEmail(input: {
    * carnet" lo dejaría frente a un login que no sabe pasar. A ese se le dice qué hacer.
    */
   hasAccount: boolean;
+  /** El grupo de WhatsApp de los socios, si la institución cargó uno. */
+  whatsappGroupUrl?: string | null;
+  /** Dirección de FOTOFFICE, para el logo de WhatsApp del botón (Gmail no muestra SVG). */
+  appBaseUrl?: string;
   signature: RenderedEmailSignature | null;
 }): EmailBody {
   const parrafos = [
@@ -309,6 +351,62 @@ export function buildMembershipWelcomeEmail(input: {
     greetingName: input.firstName,
     paragraphs: parrafos,
     cta: { label: "Ver mi carnet", url: input.cardUrl },
+    blocks: input.whatsappGroupUrl
+      ? [whatsappGroupBlock(input.whatsappGroupUrl, input.appBaseUrl ?? "")]
+      : undefined,
     signature: input.signature,
   });
+}
+
+/**
+ * Bienvenida de un club que se renueva cuando la persona quiere (el VIP de una barbería):
+ * qué tiene incluido, dónde reservar y que puede renovar sin deuda. Sin número de socio.
+ */
+export function buildClubWelcomeEmail(input: {
+  firstName: string;
+  institution: string;
+  membershipName: string;
+  /** "4 cortes para usar en los próximos 30 días", o null si la categoría no incluye turnos. */
+  includedLabel: string | null;
+  portalUrl: string;
+  hasAccount: boolean;
+  signature: RenderedEmailSignature | null;
+}): EmailBody {
+  const parrafos = [`Registramos tu pago: ya sos ${input.membershipName} de ${input.institution}.`];
+  if (input.includedLabel) parrafos.push(`Tenés ${input.includedLabel}. Los reservás desde tu portal.`);
+  parrafos.push(
+    "Cuando quieras renovar, lo hacés desde el portal. Si un mes no renovás, no debés nada.",
+  );
+  if (!input.hasAccount) {
+    parrafos.push(
+      "Para entrar a tu portal, activá tu cuenta con el enlace que te mandamos al sumarte. Si venció, respondé este correo y te mandamos uno nuevo.",
+    );
+  }
+  return compose({
+    subject: `Ya sos ${input.membershipName} de ${input.institution}`,
+    greetingName: input.firstName,
+    paragraphs: parrafos,
+    cta: { label: "Ir a mi portal", url: input.portalUrl },
+    signature: input.signature,
+  });
+}
+
+/**
+ * El botón verde para sumarse al grupo de WhatsApp de los socios.
+ *
+ * Con estilos en línea y una tabla, porque es lo único que respetan todos los clientes de
+ * correo; el logo va como PNG por la misma razón.
+ */
+export function whatsappGroupBlock(url: string, appBaseUrl: string): { html: string; text: string } {
+  const href = escapeHtml(url);
+  const logo = appBaseUrl
+    ? `<img src="${escapeHtml(`${appBaseUrl}/brand/whatsapp-blanco.png`)}" width="20" height="20" alt="" style="display:inline-block;vertical-align:middle;border:0;margin-right:8px;">`
+    : "";
+  return {
+    html: `<div style="margin:24px 0;padding:16px;border:1px solid #d1fae5;border-radius:10px;background:#f0fdf4;">
+    <p style="margin:0 0 12px;font-weight:600;">Sumate al grupo de WhatsApp de los socios</p>
+    <a href="${href}" style="background:#25D366;color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">${logo}<span style="vertical-align:middle;">Unite al grupo de WhatsApp</span></a>
+  </div>`,
+    text: `Sumate al grupo de WhatsApp de los socios:\n${url}`,
+  };
 }

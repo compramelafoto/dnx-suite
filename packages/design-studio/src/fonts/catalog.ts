@@ -18,7 +18,21 @@ export const FONT_IDS = [
   "barlowCondensed",
 ] as const;
 
-export type FontId = (typeof FONT_IDS)[number];
+/** Las tipografías incrustadas en el paquete. */
+export type CuratedFontId = (typeof FONT_IDS)[number];
+
+/**
+ * Cualquier otra familia de Google Fonts, por su nombre: `google:Montserrat`.
+ *
+ * El editor de plantillas ofrece unas sesenta familias de Google y el catálogo incrustado tiene
+ * siete. Antes el resto se cambiaba en silencio por DM Sans y el PDF salía con otra letra que
+ * la pantalla. Estas se bajan de Google al imprimir: del mismo lugar que las usa el editor.
+ */
+export type GoogleFontId = `google:${string}`;
+
+export type FontId = CuratedFontId | GoogleFontId;
+
+export const GOOGLE_FONT_PREFIX = "google:";
 
 export type FontSlot = "normal" | "bold" | "italic" | "boldItalic";
 
@@ -34,7 +48,7 @@ export type FontDefinition = {
   files: Record<FontSlot, string>;
 };
 
-export const FONT_CATALOG: Record<FontId, FontDefinition> = {
+export const FONT_CATALOG: Record<CuratedFontId, FontDefinition> = {
   dmSans: {
     label: "DM Sans",
     cssFamily: "DM Sans",
@@ -123,8 +137,30 @@ export const FONT_CATALOG: Record<FontId, FontDefinition> = {
   },
 };
 
-export function isFontId(v: unknown): v is FontId {
+export function isCuratedFontId(v: unknown): v is CuratedFontId {
   return typeof v === "string" && (FONT_IDS as readonly string[]).includes(v);
+}
+
+/** Nombre de familia de Google: letras, números y espacios. Nada que pueda torcer la URL. */
+export function isGoogleFontId(v: unknown): v is GoogleFontId {
+  if (typeof v !== "string" || !v.startsWith(GOOGLE_FONT_PREFIX)) return false;
+  return /^[A-Za-z0-9][A-Za-z0-9 ]{0,60}$/.test(v.slice(GOOGLE_FONT_PREFIX.length));
+}
+
+export function isFontId(v: unknown): v is FontId {
+  return isCuratedFontId(v) || isGoogleFontId(v);
+}
+
+/** El nombre de familia de una tipografía de Google (`google:Lato` → `Lato`). */
+export function googleFamilyOf(id: GoogleFontId): string {
+  return id.slice(GOOGLE_FONT_PREFIX.length);
+}
+
+/** Nombre y familias CSS de cualquier tipografía, incrustada o de Google. */
+export function fontDefinition(id: FontId): Pick<FontDefinition, "label" | "cssFamily" | "fallbackStack"> {
+  if (isCuratedFontId(id)) return FONT_CATALOG[id];
+  const familia = googleFamilyOf(id);
+  return { label: familia, cssFamily: familia, fallbackStack: `'${familia}', 'DM Sans', Arial, sans-serif` };
 }
 
 export function slotFor(

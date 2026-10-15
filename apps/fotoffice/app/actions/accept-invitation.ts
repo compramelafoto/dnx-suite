@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { MemberLinkError } from "@repo/db/fotoffice-members";
 import { acceptMemberInvitation } from "@repo/db/fotoffice-member-invitations";
 import { prisma } from "@repo/db";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { getAuthUser } from "@/lib/auth";
 import { auditActorFrom } from "@/lib/members/audit";
 import { canMemberUseInvitations, emailsMatch, invitationState } from "@/lib/members/invitations";
@@ -68,6 +69,13 @@ export async function acceptInvitationAction(
       }
     }
     return { error: "No pudimos completar la vinculación. Intentá de nuevo." };
+  }
+
+  // Quien recibió un rol antes de tener cuenta pasa a ser equipo apenas se vincula (Roles §12.1.4).
+  try {
+    await syncPendingTeamMemberships(user.id);
+  } catch (error) {
+    console.error("[accept-invitation] No se pudo sincronizar la membresía de equipo", error);
   }
 
   // La continuidad ya cumplió su función: se borra apenas la vinculación quedó firme.

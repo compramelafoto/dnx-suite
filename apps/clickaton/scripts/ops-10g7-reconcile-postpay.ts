@@ -108,15 +108,6 @@ async function main() {
         status: confirmed.status,
         paymentStatus: confirmed.paymentStatus,
       };
-      try {
-        const { enqueueWelcomeCardAfterPaid } = await import("../lib/welcome-card/enqueue");
-        await enqueueWelcomeCardAfterPaid({
-          registrationId: REG,
-          editionId: before.editionId,
-        });
-      } catch {
-        // soft
-      }
     }
   }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { EstadoSolicitudChip } from "@/components/coberturas/estado-chip";
-import { requireCoveragesReviewer } from "@/lib/coverages/access";
+import { requireCoveragesViewer } from "@/lib/coverages/access";
 import { fechaArgentina } from "@/lib/coverages/format";
 import {
   INBOX_FILTERS,
@@ -35,7 +35,7 @@ export default async function CoberturasPage({
 }: {
   searchParams: Promise<{ filtro?: string }>;
 }) {
-  const { workspace } = await requireCoveragesReviewer();
+  const { workspace } = await requireCoveragesViewer();
   const { filtro } = await searchParams;
   const activo = isInboxFilter(filtro) ? filtro : "nuevas";
 

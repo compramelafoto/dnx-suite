@@ -1,5 +1,6 @@
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
+import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listTransfers, userDisplayNames } from "@/lib/cash/repository";
 import { formatMinorArs } from "@/lib/membership/money";
 import { transferAction } from "../actions";
@@ -22,7 +23,7 @@ export default async function PasesPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace, canOperate } = await requireCashViewer();
   const params = await searchParams;
 
   const [cuentas, pases] = await Promise.all([listAccounts(workspace.id), listTransfers(workspace.id)]);
@@ -30,7 +31,7 @@ export default async function PasesPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Pases" description="Los pases de plata entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
+      <PageHeader title="Pases" description="Los pases de dinero entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
@@ -39,7 +40,7 @@ export default async function PasesPage({
       ) : null}
       {params.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Pase hecho.</p> : null}
 
-      {cuentas.length >= 2 ? (
+      {!canOperate ? null : cuentas.length >= 2 ? (
         <form action={transferAction} className="fo-card grid gap-4 p-5 sm:grid-cols-4">
           <input type="hidden" name="returnTo" value="/caja/pases" />
           <div className="fo-field-stack">
@@ -70,7 +71,7 @@ export default async function PasesPage({
             <label className="fo-label" htmlFor="amountArs">
               Importe
             </label>
-            <input id="amountArs" name="amountArs" className="fo-input" placeholder="10.000" required />
+            <InputMoneda id="amountArs" name="amountArs" placeholder="10.000" required />
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="note">
@@ -86,7 +87,7 @@ export default async function PasesPage({
         </form>
       ) : (
         <p className="text-sm text-[var(--fo-muted-soft)]">
-          Hacen falta al menos dos cuentas para pasar plata de una a otra.
+          Hacen falta al menos dos cuentas para pasar dinero de una a otra.
         </p>
       )}
 

@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveDuesSettingsAction, saveFeeValueAction } from "@/app/actions/dues-settings";
+import {
+  saveCommunityLinkAction,
+  saveDuesSettingsAction,
+  saveFeeValueAction,
+  sendDuesReminderNowAction,
+} from "@/app/actions/dues-settings";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
+import { WhatsappGroupButton } from "@/components/brand/whatsapp-group-button";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 function Estado({ ok, error }: { ok: string | null; error: string | null }) {
   if (error) {
@@ -137,7 +144,7 @@ export function FeeValueForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-xs">
           <span className="text-[var(--fo-muted-soft)]">Importe de la cuota</span>
-          <input name="amount" inputMode="decimal" placeholder="47.000" className="fo-input w-full" />
+          <InputMoneda name="amount" envio="coma" placeholder="47.000" className="fo-input w-full" />
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-[var(--fo-muted-soft)]">Rige desde</span>
@@ -166,6 +173,96 @@ export function FeeValueForm({
       </p>
       <button type="submit" disabled={pendiente} className="fo-btn fo-btn-primary text-sm disabled:opacity-60">
         {pendiente ? "Guardando…" : "Cargar valor"}
+      </button>
+      <Estado ok={ok} error={error} />
+    </form>
+  );
+}
+
+/**
+ * El botón del recordatorio manual. Pide confirmación porque sale a personas reales y un
+ * correo enviado no se puede retirar.
+ */
+export function SendReminderButton({ recipients }: { recipients: number }) {
+  const [ok, setOk] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendiente, startTransition] = useTransition();
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        disabled={pendiente || recipients === 0}
+        className="fo-btn fo-btn-primary text-sm disabled:opacity-60"
+        onClick={() => {
+          if (!window.confirm(`Se va a enviar el recordatorio a ${recipients} personas. ¿Seguimos?`)) return;
+          startTransition(async () => {
+            setOk(null);
+            setError(null);
+            const r = await sendDuesReminderNowAction();
+            if (r.ok) setOk(r.message);
+            else setError(r.error);
+          });
+        }}
+      >
+        {pendiente ? "Enviando… (puede tardar un par de minutos)" : "Enviar recordatorio ahora"}
+      </button>
+      <Estado ok={ok} error={error} />
+    </div>
+  );
+}
+
+/** El enlace al grupo de WhatsApp, con la vista previa del botón que van a ver los socios. */
+export function CommunityLinkForm({
+  defaultUrl,
+  vocabulary,
+}: {
+  defaultUrl: string | null;
+  vocabulary: PersonVocabulary;
+}) {
+  const [ok, setOk] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [guardado, setGuardado] = useState(defaultUrl);
+  const [pendiente, startTransition] = useTransition();
+
+  return (
+    <form
+      action={(data) =>
+        startTransition(async () => {
+          setOk(null);
+          setError(null);
+          const r = await saveCommunityLinkAction(data);
+          if (r.ok) {
+            const valor = String(data.get("communityWhatsappUrl") ?? "").trim();
+            setGuardado(valor || null);
+            setOk(valor ? "Guardado." : "Listo: ya no se muestra el grupo.");
+          } else setError(r.error);
+        })
+      }
+      className="space-y-3"
+    >
+      <label className="block space-y-1 text-xs">
+        <span className="text-[var(--fo-muted-soft)]">Enlace de invitación al grupo</span>
+        <input
+          name="communityWhatsappUrl"
+          type="url"
+          inputMode="url"
+          placeholder="https://chat.whatsapp.com/..."
+          defaultValue={defaultUrl ?? ""}
+          className="fo-input w-full"
+        />
+      </label>
+      <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
+        {`Les llega a los ${vocabulary.plural} en el correo de bienvenida y lo tienen como botón en el inicio de su portal. Sólo lo ven ${vocabulary.plural} activos: nunca aparece en el sitio público ni en el formulario para asociarse. Dejalo vacío para no mostrarlo.`}
+      </p>
+      {guardado ? (
+        <div className="space-y-1.5">
+          <p className="text-xs text-[var(--fo-muted-soft)]">Así lo ven:</p>
+          <WhatsappGroupButton href={guardado} />
+        </div>
+      ) : null}
+      <button type="submit" disabled={pendiente} className="fo-btn fo-btn-secondary text-sm disabled:opacity-60">
+        {pendiente ? "Guardando…" : "Guardar enlace"}
       </button>
       <Estado ok={ok} error={error} />
     </form>

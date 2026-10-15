@@ -50,7 +50,7 @@ export default async function FichaDeProveedor({ params }: Props) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={logo} alt={vendedor.displayName} className="h-12 w-auto" />
       ) : (
-        <p className="text-sm font-extrabold" style={{ color: "var(--slf-violeta)" }}>
+        <p className="text-sm font-extrabold" style={{ color: "var(--slf-violeta-texto)" }}>
           {vendedor.displayName}
         </p>
       )}

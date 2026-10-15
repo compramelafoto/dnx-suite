@@ -62,6 +62,25 @@ export function advanceCandidatePeriods(fromPeriod: string, months: number): str
 }
 
 /**
+ * Cuántos meses entran todavía en la ventana de adelanto.
+ *
+ * El tope se mide contra el mes corriente, no contra el último mes cargado: si se midiera
+ * desde lo último cargado, cada pedido correría la ventana y el tope dejaría de existir
+ * (así un socio llegó a tener trece meses adelantados tocando el botón tres veces). La
+ * ventana va del mes corriente hasta `MAX_ADVANCE_MONTHS` meses después; lo que ya está
+ * cargado ahí adentro ocupa lugar.
+ */
+export function advanceRoomMonths(currentPeriod: string, fromPeriod: string): number {
+  if (!PERIOD_RE.test(currentPeriod) || !PERIOD_RE.test(fromPeriod)) return 0;
+  const indice = (p: string) => {
+    const [a, m] = p.split("-").map(Number);
+    return (a as number) * 12 + ((m as number) - 1);
+  };
+  const ultimoPermitido = indice(currentPeriod) + MAX_ADVANCE_MONTHS;
+  return Math.max(0, Math.min(MAX_ADVANCE_MONTHS, ultimoPermitido - indice(fromPeriod) + 1));
+}
+
+/**
  * Cuánto le corresponde pagar a ESTE socio, en un período, dado el valor de referencia
  * vigente para su categoría al vencimiento de ese período.
  *

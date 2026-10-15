@@ -3,28 +3,32 @@
   "plataforma": "FOTOFFICE",
   "spec": "apps/fotoffice/docs/superpowers/specs/2026-09-07-sorteos-design.md",
   "enUso": "no",
-  "usoNota": "Construido y en verde en su rama; nunca llegó a producción",
+  "usoNota": "Fusionado el 10/09 (PR 26) y encendido en la SFPR ese mismo día, pero el único sorteo que existe está en BORRADOR desde el 10/09, con 0 participantes y 0 premios",
   "etapas": [
     {
       "nombre": "El sorteo y su verificación",
       "criterios": [
         {
           "que": "Una institución hace un sorteo y cualquiera puede verificar que no se manipuló",
-          "implementado": { "fecha": "2026-09-08" },
+          "implementado": { "pr": 26, "fecha": "2026-09-10" },
           "probado": null,
-          "bloqueado": "La rama feat/fotoffice-sorteos nunca se mergeó"
+          "bloqueado": "El único sorteo de producción (SFPR, creado el 10/09) sigue en BORRADOR con 0 participantes, 0 premios y 0 ganadores: nunca se selló ni se sorteó"
         },
         {
-          "que": "La migración está aplicada en las bases",
-          "implementado": { "fecha": "2026-09-08" },
-          "probado": null,
-          "bloqueado": "Falta aplicarla en las 5 bases"
+          "que": "La migración está aplicada en la base donde vive FOTOFFICE",
+          "implementado": { "pr": 26, "fecha": "2026-09-10" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "20260911000000_sorteos registrada en la base de FOTOFFICE el 09/09 a las 07:55 UTC, con las 7 tablas Raffle*. En CLF producción y en Clickatón no está registrada: son tablas nuevas, así que es sólo higiene"
+          }
         },
         {
           "que": "El módulo se puede encender por institución",
-          "implementado": null,
-          "probado": null,
-          "bloqueado": "No existe el interruptor"
+          "implementado": { "pr": 26, "fecha": "2026-09-10" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "El módulo «raffles» figura en el catálogo de módulos y está encendido en la SFPR (WorkspaceFeatureModule, 10/09 10:21 UTC)"
+          }
         },
         {
           "que": "Las bases legales del sorteo están resueltas",

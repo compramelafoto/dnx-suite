@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { adminRoutes } from "@/config/admin/navigation";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { fechaAr } from "@/lib/fecha-ar";
 import { withClickatonDb } from "@/lib/admin/db";
 import { listClickatonAdminPosts } from "@/lib/content/admin-queries";
 import { CLICKATON_CONTENT_STATUS_LABELS } from "@/lib/content/content-labels";
@@ -19,10 +20,7 @@ type Props = {
 };
 
 function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return fechaAr(value);
 }
 
 export default async function AdminContentsPage({ searchParams }: Props) {

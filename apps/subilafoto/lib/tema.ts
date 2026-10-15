@@ -1,3 +1,5 @@
+import { texturaValida, type ClaveDeTextura } from "./texturas";
+
 /**
  * El tema visual de un evento (capítulo 8).
  *
@@ -14,6 +16,8 @@ export type Tema = {
   acento: string;
   textoSobreAcento: string;
   tipografia: string;
+  /** El dibujo de fondo. Lista cerrada, por el mismo motivo que los colores. */
+  textura: ClaveDeTextura;
 };
 
 /** Sin plantilla elegida, el evento se ve con la identidad de SubiLaFoto. */
@@ -23,6 +27,7 @@ export const TEMA_BASE: Tema = {
   acento: "#FFD51F",
   textoSobreAcento: "#200638",
   tipografia: "var(--slf-font)",
+  textura: "ninguna",
 };
 
 /** Sólo colores hexadecimales de 3 o 6 dígitos. Nada de funciones ni de nombres. */
@@ -52,5 +57,6 @@ export function resolverTema(tokens: unknown): Tema {
     acento: colorValido(t.acento, TEMA_BASE.acento),
     textoSobreAcento: colorValido(t.textoSobreAcento, TEMA_BASE.textoSobreAcento),
     tipografia: tipografiaValida(t.tipografia, TEMA_BASE.tipografia),
+    textura: texturaValida(t.textura),
   };
 }

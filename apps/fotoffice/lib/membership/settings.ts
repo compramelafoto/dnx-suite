@@ -1,4 +1,5 @@
 import { Prisma, prisma } from "@repo/db";
+import { safeWhatsappGroupUrl } from "./community-link";
 
 /** Valores por defecto, alineados con lo acordado con la SFPR. */
 export const DEFAULT_DUES_SETTINGS = {
@@ -26,6 +27,8 @@ export type DuesSettings = {
   recommendationEnabled: boolean;
   /** Porcentaje de la cuota que se bonifica por cada recomendado. */
   recommendationBenefitPercent: number;
+  /** Enlace al grupo de WhatsApp de los socios, o `null` si no hay. Ver `community-link.ts`. */
+  communityWhatsappUrl: string | null;
 };
 
 /**
@@ -47,6 +50,7 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
       collaboratorFloorMultiple: true,
       recommendationEnabled: true,
       recommendationBenefitPercent: true,
+      communityWhatsappUrl: true,
     },
   });
 
@@ -61,6 +65,7 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
       collaboratorFloorMultiple: DEFAULT_DUES_SETTINGS.collaboratorFloorMultiple,
       recommendationEnabled: DEFAULT_DUES_SETTINGS.recommendationEnabled,
       recommendationBenefitPercent: DEFAULT_DUES_SETTINGS.recommendationBenefitPercent,
+      communityWhatsappUrl: null,
     };
   }
 
@@ -74,6 +79,7 @@ export async function getDuesSettings(workspaceId: string): Promise<DuesSettings
     collaboratorFloorMultiple: Number(row.collaboratorFloorMultiple),
     recommendationEnabled: row.recommendationEnabled,
     recommendationBenefitPercent: Number(row.recommendationBenefitPercent),
+    communityWhatsappUrl: safeWhatsappGroupUrl(row.communityWhatsappUrl),
   };
 }
 

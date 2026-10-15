@@ -90,6 +90,44 @@ const reacceptAction = resolveParticipantNextAction({
 assert.equal(reacceptAction.key, "reaccept_rules");
 assert.ok(reacceptAction.enabled);
 
+/* Varias fotos: con la primera enviada y cupo libre, se ofrece subir otra. */
+const addAnother = resolveParticipantNextAction({
+  registrationId: "reg-1",
+  contestSlug: "retratos-del-mundo",
+  registrationStatus: "CONFIRMED",
+  entryStatus: "CONFIRMED",
+  upload: open,
+  remainingEntries: 2,
+});
+assert.equal(addAnother.key, "add_photo");
+assert.equal(addAnother.href, "/concursos/retratos-del-mundo/inscripcion");
+
+// Sin cupo (o concurso de una foto) no cambia nada.
+for (const remainingEntries of [0, undefined]) {
+  const done = resolveParticipantNextAction({
+    registrationId: "reg-1",
+    contestSlug: "santa-fe-en-foco",
+    registrationStatus: "CONFIRMED",
+    entryStatus: "CONFIRMED",
+    upload: open,
+    remainingEntries,
+  });
+  assert.equal(done.key, "view_detail");
+}
+
+// Ventana cerrada: no se ofrece subir aunque quede cupo.
+assert.equal(
+  resolveParticipantNextAction({
+    registrationId: "reg-1",
+    contestSlug: "retratos-del-mundo",
+    registrationStatus: "CONFIRMED",
+    entryStatus: "CONFIRMED",
+    upload: closed,
+    remainingEntries: 2,
+  }).key,
+  "view_detail",
+);
+
 const incomplete = resolveParticipantNextAction({
   registrationId: "reg-2",
   contestSlug: "x",
@@ -241,6 +279,35 @@ const withEntry = buildParticipantParticipationView({
 });
 assert.equal(withEntry.primaryStatus.label, "Admitida");
 assert.equal(withEntry.uploadedCount, 1);
+
+/* Rechazada con estados desfasados (caso SANTAF-000083): obra en PROCESSING, admisión REJECTED. */
+const rejectedInput = {
+  registrationId: "reg-r",
+  contestSlug: "santa-fe-en-foco",
+  registrationStatus: "CONFIRMED",
+  entryStatus: "PROCESSING",
+  manualReviewStatus: "PENDING",
+  admissionStatus: "REJECTED",
+};
+const rejectedOpen = resolveParticipantNextAction({ ...rejectedInput, upload: open });
+assert.equal(rejectedOpen.key, "reupload_photo");
+assert.ok(!rejectedOpen.label.includes("Continuar"));
+assert.equal(resolveParticipantNextAction({ ...rejectedInput, upload: closed }).key, "view_detail");
+
+const rejectedStep = resolveNextStepBlock({
+  registrationStatus: "CONFIRMED",
+  categoryName: "Fotógrafo Profesional",
+  maxFiles: 1,
+  entryStatus: "PROCESSING",
+  admissionStatus: "REJECTED",
+  upload: open,
+});
+assert.equal(rejectedStep.title, "Tu obra no fue admitida");
+assert.match(rejectedStep.message, /volver a cargar/i);
+
+const rejectedProgress = resolveParticipantProgress({ ...rejectedInput, upload: open, hasJudgingWindow: true });
+assert.equal(rejectedProgress.find((s) => s.key === "upload")?.state, "current");
+assert.notEqual(rejectedProgress.find((s) => s.key === "review")?.state, "completed");
 
 assert.ok(formatParticipantDate(future)?.includes("2030"));
 

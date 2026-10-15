@@ -7,6 +7,9 @@ import {
   createMercadoPagoTestClickatonProviderBridge,
   createMercadoPagoProductionClickatonProviderBridge,
   createMercadoPagoOrders1nClickatonBridge,
+  createMercadoPagoOrdersAffiliateSplitBridge,
+  createProductionAffiliateSplitOrdersAdapter,
+  createClickatonAffiliateSplitCompositeBridge,
   resolveClickatonPaymentsProviderMode,
   createMercadoPagoProviderConfig,
   MercadoPagoHttpClient,
@@ -30,6 +33,11 @@ import { createDurableDnxPaymentsClient } from "../infrastructure/durable-dnx-pa
 import { createPrismaPublicRegistrationRepository } from "@/lib/public-registration/infrastructure/prisma-public-registration-repository";
 import { createCheckoutLogSink } from "../domain/observability";
 import type { DnxPaymentsClient } from "../infrastructure/dnx-payments-client";
+import { isAffiliateSplitEnabled } from "@/lib/affiliates/domain/affiliate-split";
+import {
+  DNX_COLLECTOR_PAYMENT_ACCOUNT_ID,
+  DNX_COLLECTOR_PROVIDER_USER_ID,
+} from "@/lib/affiliates/infrastructure/split-consent";
 
 type G = {
   __clickatonCheckoutService?: CheckoutService;
@@ -117,6 +125,46 @@ function buildOrdersHttp(): {
   return { adapter, fetchOrdersCanonical };
 }
 
+/**
+ * Cobro dividido al afiliado (DNX_CLICKATON_AFFILIATE_SPLIT_ENABLED, apagado
+ * por defecto). Apagado ⇒ devuelve el mismo puente de Checkout Pro, intacto.
+ * Encendido ⇒ puente compuesto: Checkout Pro de siempre + Orders 1:N
+ * productivo para las tarjetas con reparto (dueño = cuenta cobradora DNX).
+ */
+export function wrapWithAffiliateSplitIfEnabled(
+  checkoutPro: ClickatonCheckoutProviderBridge,
+  env: NodeJS.ProcessEnv = process.env,
+): ClickatonCheckoutProviderBridge {
+  if (!isAffiliateSplitEnabled(env)) return checkoutPro;
+  const ownerUserId = DNX_COLLECTOR_PROVIDER_USER_ID;
+  const ordersSplit = createMercadoPagoOrdersAffiliateSplitBridge({
+    // Escritura: OAuth del collector que trae el snapshot de la edición.
+    createAdapter: (accessToken) =>
+      createProductionAffiliateSplitOrdersAdapter({
+        accessToken,
+        ownerUserId,
+        statementDescriptor: "CLICKATON",
+      }),
+    ownerUserId,
+    // Lectura (refresh): OAuth de la cuenta dueña, desde el vault, verificando
+    // que sea el usuario de MP dueño de la orden. Nunca otro token.
+    resolveReadAccessToken: async () => {
+      const { resolveCollectorAccessTokenFromPaymentAccount } = await import(
+        "@/lib/admin/edition-finance/infrastructure/resolve-collector-token"
+      );
+      const resolved = await resolveCollectorAccessTokenFromPaymentAccount(
+        DNX_COLLECTOR_PAYMENT_ACCOUNT_ID,
+      );
+      if (!resolved.ok) return undefined;
+      if (resolved.providerUserId && resolved.providerUserId !== ownerUserId) return undefined;
+      return resolved.accessToken;
+    },
+    expectedCollectorPaymentAccountId: DNX_COLLECTOR_PAYMENT_ACCOUNT_ID,
+    statementDescriptor: "CLICKATON",
+  });
+  return createClickatonAffiliateSplitCompositeBridge({ checkoutPro, ordersSplit });
+}
+
 function resolveProviderBridge(): {
   bridge: ClickatonCheckoutProviderBridge | undefined;
   fetchOrdersCanonical?: FetchCanonicalOrder;
@@ -143,8 +191,9 @@ function resolveProviderBridge(): {
       accessToken: liveToken,
       publicKey: readOptionalEnv("MERCADOPAGO_LIVE_PUBLIC_KEY"),
     });
+    const checkoutPro = createMercadoPagoProductionClickatonProviderBridge({ adapter });
     return {
-      bridge: createMercadoPagoProductionClickatonProviderBridge({ adapter }),
+      bridge: wrapWithAffiliateSplitIfEnabled(checkoutPro),
     };
   }
 

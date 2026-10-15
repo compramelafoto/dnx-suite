@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 
 /**
  * Reconocer al socio que ya tenía usuario.
@@ -81,6 +82,13 @@ export async function claimMembership(input: {
   });
   if (actualizados.count === 0) {
     return { ok: false, error: "Alguien vinculó esa ficha mientras confirmabas. Volvé a entrar." };
+  }
+
+  // Quien recibió un rol antes de tener cuenta pasa a ser equipo apenas se vincula (Roles §12.1.4).
+  try {
+    await syncPendingTeamMemberships(input.userId);
+  } catch (error) {
+    console.error("[claim] No se pudo sincronizar la membresía de equipo", error);
   }
 
   const member = await prisma.member.findUnique({

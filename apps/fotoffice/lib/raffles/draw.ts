@@ -26,6 +26,11 @@ export type DrawInput = {
   /** Los premios, por su `order`. Se recorren en el orden en que vienen. */
   prizeOrders: readonly number[];
   entrantCount: number;
+  /**
+   * De qué premios quedó afuera cada posición, por la regla de no repetir premio. Se congeló
+   * al sellar el padrón y está en la huella. Sin exclusiones, la cuenta es la de siempre.
+   */
+  exclusions?: ReadonlyMap<number, readonly number[]>;
 };
 
 export type DrawResult = {
@@ -34,6 +39,11 @@ export type DrawResult = {
   winnerPosition: number;
   /** Cuántos descartes hicieron falta. En la práctica, cero. */
   iterations: number;
+  /**
+   * Todos los que quedaban en la bolsa estaban excluidos de este premio, así que se sorteó
+   * entre todos ellos: la regla cede antes que dejar el premio sin sortear.
+   */
+  ruleRelaxed: boolean;
 };
 
 /** Un entero de 64 bits sin signo a partir de los primeros 8 bytes del SHA-256. */
@@ -55,7 +65,7 @@ function enteroDe64Bits(...partes: (string | number)[]): (i: number) => bigint {
  * tener un sesgo conocido, por chico que sea. El costo es un bucle que casi nunca itera.
  */
 export function drawWinners(input: DrawInput): DrawResult[] {
-  const { entrantsHash, round, randomness, prizeOrders, entrantCount } = input;
+  const { entrantsHash, round, randomness, prizeOrders, entrantCount, exclusions } = input;
 
   if (entrantCount <= 0) {
     throw new Error("No hay participantes: no se puede sortear.");
@@ -71,7 +81,12 @@ export function drawWinners(input: DrawInput): DrawResult[] {
 
   for (const prizeOrder of prizeOrders) {
     const valor = enteroDe64Bits(entrantsHash, round, randomness, prizeOrder);
-    const n = BigInt(bolsa.length);
+    // La bolsa de ESTE premio: los que no ganaron todavía, menos los excluidos de él, en el
+    // mismo orden ascendente. Si no queda nadie, la regla cede y entran todos.
+    const habilitados = bolsa.filter((pos) => !(exclusions?.get(pos) ?? []).includes(prizeOrder));
+    const ruleRelaxed = habilitados.length === 0;
+    const urna = ruleRelaxed ? bolsa : habilitados;
+    const n = BigInt(urna.length);
     const limite = (DOS_A_LA_64 / n) * n;
 
     let i = 0;
@@ -79,8 +94,9 @@ export function drawWinners(input: DrawInput): DrawResult[] {
       const x = valor(i);
       if (x < limite) {
         const indice = Number(x % n);
-        resultados.push({ prizeOrder, winnerPosition: bolsa[indice], iterations: i });
-        bolsa.splice(indice, 1);
+        const winnerPosition = urna[indice];
+        resultados.push({ prizeOrder, winnerPosition, iterations: i, ruleRelaxed });
+        bolsa.splice(bolsa.indexOf(winnerPosition), 1);
         break;
       }
       i += 1;

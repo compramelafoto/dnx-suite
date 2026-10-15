@@ -50,7 +50,7 @@ export function WebsiteFooterView({
             <div className="space-y-3">
               {completo && logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
-                <img src={logoUrl} alt="" style={{ height: "var(--wsite-logo-size, 40px)", width: "auto" }} />
+                <img src={logoUrl} alt="" style={{ height: "min(var(--wsite-logo-size, 40px), 56px)", width: "auto" }} />
               ) : null}
               <p className="text-base font-semibold" style={{ fontFamily: "var(--wsite-heading-font)" }}>
                 {commercialName}
@@ -61,7 +61,13 @@ export function WebsiteFooterView({
             {navItems.length > 1 ? (
               <nav className="space-y-2" aria-label="Pie del sitio">
                 {navItems.map((item) => (
-                  <a key={item.id} href={item.href} className="block text-sm opacity-80 hover:opacity-100">
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target={item.newTab ? "_blank" : undefined}
+                    rel={item.newTab ? "noopener noreferrer" : undefined}
+                    className="block text-sm opacity-80 hover:opacity-100"
+                  >
                     {item.label}
                   </a>
                 ))}

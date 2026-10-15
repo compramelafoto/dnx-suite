@@ -2,9 +2,23 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import {
+  BOOKINGS_CONFIGURE_ACTION,
+  CASH_CONFIGURE_ACTION,
+  COMMUNICATIONS_CARNETS_ACTION,
+  COVERAGES_COORDINATE_ACTION,
+  STORE_CONFIGURE_ACTION,
+} from "@/lib/permissions/actions";
+import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
@@ -35,8 +49,27 @@ export type SubmoduleItem = {
   icon: string;
   /** Qué se hace ahí, en una línea. Solo lo usa el inicio. */
   description: string;
-  /** Si hace falta permiso de administración del módulo para verla. */
+  /** Si hace falta gestionar (`MANAGE`) para verla; si no, alcanza con ver (`VIEW`). */
   requiresManage: boolean;
+  /**
+   * El módulo cuyo nivel decide esta pantalla, cuando no es el del grupo donde se muestra.
+   * Cuotas vive en el menú de Socios pero su permiso es el de `membership-dues`: una Tesorería
+   * puede cobrar sin gestionar el padrón, y una Secretaría al revés.
+   */
+  levelModuleKey?: string;
+  /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
+  requiresAction?: string;
+  /**
+   * Se oculta para quien gestiona este módulo, porque ahí ya tiene la misma pantalla. Carnets
+   * aparece en Comunicación para el rol que lo opera sin gestionar Socios; a quien gestiona
+   * Socios se le mostraría dos veces.
+   */
+  hiddenIfManages?: string;
+  /**
+   * Sólo dueño o admin del negocio (`isFullAccessRole`), como exige su página. Para pantallas de
+   * plata que no se delegan con roles: un MANAGE del módulo no alcanza.
+   */
+  requiresFullAccess?: boolean;
   activeMatch: ActiveMatch;
 };
 
@@ -62,7 +95,8 @@ const SOCIOS: SubmoduleItem[] = [
     label: "Cuotas",
     icon: "Wallet",
     description: "Qué se debe, qué se cobró y qué se generó.",
-    requiresManage: true,
+    requiresManage: false,
+    levelModuleKey: MEMBERSHIP_DUES_MODULE_KEY,
     activeMatch: "exact",
   },
   {
@@ -95,6 +129,7 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Cuánto vale la cuota y cuándo vence.",
     requiresManage: true,
+    levelModuleKey: MEMBERSHIP_DUES_MODULE_KEY,
     activeMatch: "under",
   },
 ];
@@ -106,6 +141,24 @@ const CURSOS: SubmoduleItem[] = [
     icon: "GraduationCap",
     description: "Los cursos publicados y sus ediciones.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/dashboard/mercado-de-cursos",
+    label: "Mercado de cursos",
+    icon: "Store",
+    description: "Cursos de otros negocios que podés vender, y tus acuerdos de reventa.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/dashboard/cobros-de-cursos",
+    label: "Cobros",
+    icon: "Wallet",
+    description: "Lo que vendiste y lo que te tocó de cada venta de cursos.",
+    requiresManage: true,
+    // La página exige dueño o admin (`requireDuenoOAdminDelNegocio`): es plata.
+    requiresFullAccess: true,
     activeMatch: "under",
   },
   {
@@ -144,11 +197,21 @@ const RESERVAS: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    // Sin `requiresAction`: el barbero vinculado a su puesto ve acá "Mi liquidación".
+    href: "/reservas/liquidaciones",
+    label: "Liquidaciones",
+    icon: "Wallet",
+    description: "Cuánto se le debe a cada profesional por sus turnos, y los pagos que ya se le hicieron.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/reservas/espacios",
     label: "Espacios",
     icon: "DoorOpen",
     description: "Qué se alquila, cuándo, a qué precio y con qué otros espacios puede convivir.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -157,6 +220,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "PackagePlus",
     description: "El equipamiento que se alquila junto con un espacio, y cuánto hay de cada cosa.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -165,6 +229,7 @@ const RESERVAS: SubmoduleItem[] = [
     icon: "CalendarClock",
     description: "Plazos de pago, cancelación y cierres por feriado.",
     requiresManage: true,
+    requiresAction: BOOKINGS_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -184,6 +249,52 @@ const SORTEOS: SubmoduleItem[] = [
     icon: "PackageCheck",
     description: "Los premios ganados que todavía hay que avisar o entregar.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
+const SPONSORS: SubmoduleItem[] = [
+  {
+    href: "/sponsors",
+    label: "Sponsors",
+    icon: "Handshake",
+    description: "Las marcas que acompañan a la institución y dónde aparece cada una.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
+const GOBIERNO: SubmoduleItem[] = [
+  {
+    href: "/gobierno",
+    label: "Proyectos",
+    icon: "FolderKanban",
+    description: "Cada proyecto con sus etapas, tareas, archivos e historial, ordenados por urgencia.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/gobierno/tareas",
+    label: "Tareas",
+    icon: "ListTodo",
+    description: "Todas las tareas delegadas: quién tiene qué, para cuándo y qué está vencido.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/gobierno/reuniones",
+    label: "Reuniones",
+    icon: "CalendarClock",
+    description: "Reuniones de comisión: el temario se arma solo, lo resuelto cambia cada proyecto y queda el acta.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/gobierno/tipos",
+    label: "Tipos de proyecto",
+    icon: "LayoutTemplate",
+    description: "Las plantillas de etapas y tareas con que arranca cada proyecto nuevo.",
+    requiresManage: true,
     activeMatch: "under",
   },
 ];
@@ -233,8 +344,9 @@ const CAJA: SubmoduleItem[] = [
     href: "/caja/configuracion",
     label: "Cuentas y categorías",
     icon: "Settings",
-    description: "Dónde está la plata y cómo se clasifica lo que entra y sale.",
+    description: "Dónde está el dinero y cómo se clasifica lo que entra y sale.",
     requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
     activeMatch: "under",
   },
 ];
@@ -253,7 +365,7 @@ const CLIENTES: SubmoduleItem[] = [
     label: "Nuevo cliente",
     icon: "UserPlus",
     description: "Dar de alta a alguien que compra por primera vez.",
-    requiresManage: false,
+    requiresManage: true,
     activeMatch: "under",
   },
 ];
@@ -273,6 +385,7 @@ const COBERTURAS: SubmoduleItem[] = [
     icon: "UserCheck",
     description: "Quiénes del padrón están habilitados para anotarse a una convocatoria.",
     requiresManage: true,
+    requiresAction: COVERAGES_COORDINATE_ACTION,
     activeMatch: "under",
   },
   {
@@ -280,6 +393,149 @@ const COBERTURAS: SubmoduleItem[] = [
     label: "Configuración",
     icon: "Settings",
     description: "Las palabras, los plazos y quién decide en esta organización.",
+    requiresManage: true,
+    requiresAction: COVERAGES_COORDINATE_ACTION,
+    activeMatch: "under",
+  },
+];
+
+const VENTAS: SubmoduleItem[] = [
+  {
+    href: "/ventas",
+    label: "Mostrador",
+    icon: "ShoppingCart",
+    description: "Buscá, sumá al ticket y cobrá.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/ventas/catalogo",
+    label: "Catálogo",
+    icon: "Package",
+    description: "Los productos y servicios, con su precio, su costo y su foto.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/stock",
+    label: "Stock",
+    icon: "Boxes",
+    description: "Qué queda, qué entró y qué hay que reponer.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/historial",
+    label: "Ventas hechas",
+    icon: "ReceiptText",
+    description: "Lo vendido, con su detalle y su anulación.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // Decide el nivel en `store` (con la tienda apagada es NONE y no aparece). Operar los
+    // pedidos alcanza con gestionar la tienda; no hace falta poder configurarla.
+    href: "/ventas/tienda",
+    label: "Pedidos online",
+    icon: "PackageCheck",
+    description: "Los pedidos de la tienda online: preparar, entregar, cancelar y resolver problemas.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    activeMatch: "under",
+  },
+  {
+    // Decide el nivel en `store`, que ya incluye si la tienda está encendida para el
+    // workspace: con el módulo apagado el nivel es NONE y la entrada no aparece.
+    href: "/ventas/tienda/configuracion",
+    label: "Tienda",
+    icon: "Store",
+    description: "Abrir o cerrar la tienda online, el retiro, la política de devoluciones y los avisos.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+  {
+    // Mismo permiso que la configuración de la tienda (`requireStoreConfigurer`).
+    href: "/ventas/tienda/envios",
+    label: "Envíos",
+    icon: "Truck",
+    description: "Retiro, envío a domicilio y a sucursal: precios por zona, Correo Argentino y recargo.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+  {
+    // Mismo permiso que la configuración de la tienda (`requireStoreConfigurer`).
+    href: "/ventas/tienda/obras",
+    label: "Obras",
+    icon: "Frame",
+    description: "Vender copias y cuadros de las obras de tus concursos de FotoRank, con permiso del autor.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    requiresAction: STORE_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+];
+
+const COMUNICACION: SubmoduleItem[] = [
+  {
+    href: "/comunicacion/placas",
+    label: "Bienvenidas",
+    icon: "PartyPopper",
+    description: "La placa de bienvenida de cada {persona} nuevo, lista para descargar y publicar.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/comunicacion/placas/socio-de-la-semana",
+    label: "Socio de la semana",
+    icon: "Star",
+    description: "El {persona} destacado de cada viernes, con su placa y su texto para redes.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/campanas",
+    label: "Campañas",
+    icon: "Send",
+    description: "Correos propios a todos los {personas} o a una parte: redactar, programar, aprobar y ver aperturas.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/fechas",
+    label: "Fechas y saludos",
+    icon: "CalendarDays",
+    description: "Cumpleaños, aniversarios de ingreso, fiestas, fechas patrias y días del oficio: cada saludo por correo, con su interruptor.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/correo",
+    label: "Correo",
+    icon: "Mail",
+    description: "Los correos a los {personas}: interruptores, resumen semanal del blog e historial de envíos.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    // La pantalla vive en Socios; acá la ve el rol de Comunicación con la acción de carnets.
+    href: "/members/carnets",
+    label: "Carnets",
+    icon: "CreditCard",
+    description: "Emitir carnets, descargar el PDF para imprimir y registrar la entrega.",
+    requiresManage: true,
+    requiresAction: COMMUNICATIONS_CARNETS_ACTION,
+    hiddenIfManages: MEMBERS_MODULE_KEY,
+    activeMatch: "under",
+  },
+  {
+    href: "/comunicacion/plantillas",
+    label: "Plantillas",
+    icon: "Palette",
+    description: "El diseño de las placas, con el mismo diseñador del carnet.",
     requiresManage: true,
     activeMatch: "under",
   },
@@ -290,13 +546,41 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [COURSES_SALES_MODULE_KEY]: CURSOS,
   [BOOKINGS_MODULE_KEY]: RESERVAS,
   [RAFFLES_MODULE_KEY]: SORTEOS,
+  [SPONSORS_MODULE_KEY]: SPONSORS,
+  [GOVERNANCE_MODULE_KEY]: GOBIERNO,
   [CASH_MODULE_KEY]: CAJA,
   [CLIENTS_MODULE_KEY]: CLIENTES,
   [COVERAGES_MODULE_KEY]: COBERTURAS,
+  [SALES_MODULE_KEY]: VENTAS,
+  [COMMUNICATIONS_MODULE_KEY]: COMUNICACION,
 };
 
 /**
- * Las pantallas de un módulo que esta persona puede abrir.
+ * Lo que sabe el menú de quien mira: su nivel en cada módulo (`getModuleLevels`) y las acciones
+ * sensibles vigentes que alguna pantalla exige, calculadas en el servidor con `hasModuleAction`.
+ * Es serializable a propósito: viaja del servidor al menú, que es un componente de cliente.
+ */
+export type SubmoduleAccess = {
+  levels: ModuleLevels;
+  actions: readonly string[];
+  /** Dueño o admin del negocio (`isFullAccessRole`). Sin dato, se asume que no. */
+  fullAccess?: boolean;
+};
+
+function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAccess): boolean {
+  const nivel = (key: string) => access.levels[key] ?? "NONE";
+  // Todo el grupo cuelga del layout de su módulo, que exige al menos verlo.
+  if (!hasLevel(nivel(moduleKey), "VIEW")) return false;
+  const decide = item.levelModuleKey ?? moduleKey;
+  if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
+  if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
+  if (item.requiresFullAccess && access.fullAccess !== true) return false;
+  if (item.hiddenIfManages && hasLevel(nivel(item.hiddenIfManages), "MANAGE")) return false;
+  return true;
+}
+
+/**
+ * Las pantallas de un módulo que esta persona puede abrir, con la misma regla que sus páginas.
  *
  * Devuelve vacío para un módulo de una sola pantalla o desconocido, y quien llama decide qué
  * hacer con eso — no se inventa una lista.
@@ -307,13 +591,13 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
  */
 export function submodulesFor(
   moduleKey: string,
-  opts: { canManage: boolean },
+  access: SubmoduleAccess,
   vocabulary: PersonVocabulary,
 ): SubmoduleItem[] {
   const items = POR_MODULO[moduleKey];
   if (!items) return [];
   return items
-    .filter((i) => !i.requiresManage || opts.canManage)
+    .filter((i) => puedeAbrir(moduleKey, i, access))
     .map((i) => ({
       ...i,
       label: aplicarVocabulario(i.label, vocabulary),

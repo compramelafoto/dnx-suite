@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { ConvocarJurado } from "../../../components/jurados/ConvocarJurado";
 import { Mail } from "lucide-react";
 import { requireAuth } from "../../../lib/auth";
 import { resolveActiveOrganizationForUser } from "../../../lib/fotorank/dashboard-org-context";
@@ -73,6 +74,8 @@ export default async function DirectorioJuradosPage({ searchParams }: Props) {
           </HeaderSecondaryLink>
         }
       />
+
+      <ConvocarJurado />
 
       <DirectorioJuradosClient
         initialItems={items}

@@ -66,7 +66,8 @@ export function dependenciasReales(): Dependencias {
         const cambio = await tx.subilafotoMedia.updateMany({
           where: { id: entrada.mediaId, status: "PROCESSING" },
           data: {
-            status: entrada.estado,
+            // Lo que ve el salón; el veredicto crudo va en la decisión de abajo.
+            status: entrada.estadoVisible,
             ...(entrada.publicar ? { publishedAt: new Date() } : {}),
           },
         });

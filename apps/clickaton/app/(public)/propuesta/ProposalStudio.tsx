@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
+import { fechaAr } from "@/lib/fecha-ar";
 
 type PieceSummary = {
   id: string;
@@ -282,7 +283,7 @@ export function ProposalStudio({ pieces, defaultPeriod }: Props) {
               <strong className="font-mono tracking-wider">{guardada.code}</strong>. Con
               ese código se vuelve a abrir sin cargar nada de nuevo
               {guardada.vence
-                ? `, hasta el ${new Date(guardada.vence).toLocaleDateString("es-AR")}`
+                ? `, hasta el ${fechaAr(guardada.vence)}`
                 : ""}
               .
             </p>

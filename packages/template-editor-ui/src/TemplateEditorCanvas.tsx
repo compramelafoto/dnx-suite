@@ -21,7 +21,12 @@ import {
 } from "@repo/template-editor-core";
 import type { TemplateV2Block } from "@repo/template-editor-core";
 import { measureTextBlockBoundsPx } from "@repo/template-editor-core";
-import { snapDragPosition } from "@repo/template-editor-core";
+import {
+  buildSnapGuideLines,
+  SNAP_SCREEN_PX,
+  snapDragPosition,
+  snapResizeRect,
+} from "@repo/template-editor-core";
 import { normalizeRotationDeg, unwrapAngleDeltaRad } from "@repo/template-editor-core";
 import {
   addBlock,
@@ -36,24 +41,45 @@ import {
   offsetsWithinSelection,
   setSelectedBlockIds,
   setZoom,
+  clampZoom,
+  addGuide,
+  isGuideInsideCanvas,
+  moveGuide,
+  readGuides,
+  removeGuide,
+  setGuides,
+  type EditorGuides,
+  type GuideAxis,
   takePersistSnapshot,
   toggleBlockInSelection,
   updateBlock,
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
 } from "@repo/template-editor-core";
-import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES } from "@repo/template-editor-core";
+import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES, isClassListConfig } from "@repo/template-editor-core";
 import {
   notifyTemplateTextEditingBlockId,
   registerTemplateTextInsert,
 } from "@repo/template-editor-core";
 import { createAreaTextBlockInRect, createPointTextBlockAt } from "@repo/template-editor-core";
-import { computeResizeRect } from "@repo/template-editor-core";
+import {
+  canvasDpi,
+  computeResizeRectRotated,
+  isResizeEdge,
+  snapRotationDeg,
+  describeAspect,
+  findAspectPreset,
+  formatBlockSize,
+  getBlockAspectLock,
+} from "@repo/template-editor-core";
+import { useBlockSizeUnit } from "./useBlockSizeUnit";
 import {
   TEMPLATE_V2_RESET_WORK_SCROLL_EVENT,
   type TemplateEditorCanvasTool,
 } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
+import { PAPER_TOKENS } from "./theme";
+import { EditorRuler, RULER_SIZE_PX } from "./EditorRuler";
 
 function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
@@ -64,6 +90,12 @@ type Props = {
   state: TemplateV2EditorState;
   dispatch: TemplateV2EditorDispatch;
   className?: string;
+  /**
+   * Valores de muestra con que el lienzo resuelve las variables, según la plataforma de la
+   * plantilla. Sin esto el lienzo usaba siempre los de escuela, y en FotoOffice o FotoRank los
+   * datos aparecían como `{clave}` y las imágenes atadas a un dato como "Imagen libre".
+   */
+  resolvedVariables?: Record<string, unknown>;
   /** Guía visual de márgenes seguros (no es un bloque; no se exporta en preview). Por defecto activa. */
   showSafeArea?: boolean;
   /** Ejes vertical y horizontal en el centro del lienzo (referencia fija; no es snap dinámico). Por defecto activos. */
@@ -76,12 +108,12 @@ type Props = {
   onExitTextPlacementMode?: () => void;
 };
 
-type ResizeHandle = {
-  key: "nw" | "ne" | "sw" | "se";
-  cursor: "nwse-resize" | "nesw-resize";
-  left?: number;
+type ResizeHandleDef = {
+  key: "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
+  cursor: "nwse-resize" | "nesw-resize" | "ns-resize" | "ew-resize";
+  left?: number | string;
   right?: number;
-  top?: number;
+  top?: number | string;
   bottom?: number;
 };
 
@@ -89,11 +121,21 @@ type ResizeHandle = {
 const RESIZE_HANDLE_SIZE_PX = 32;
 const RESIZE_HANDLE_INSET = -RESIZE_HANDLE_SIZE_PX / 2;
 
-const RESIZE_HANDLES: ResizeHandle[] = [
+const MEDIO = `calc(50% - ${RESIZE_HANDLE_SIZE_PX / 2}px)`;
+
+const RESIZE_HANDLES: ResizeHandleDef[] = [
   { key: "nw", left: RESIZE_HANDLE_INSET, top: RESIZE_HANDLE_INSET, cursor: "nwse-resize" },
   { key: "ne", right: RESIZE_HANDLE_INSET, top: RESIZE_HANDLE_INSET, cursor: "nesw-resize" },
   { key: "sw", left: RESIZE_HANDLE_INSET, bottom: RESIZE_HANDLE_INSET, cursor: "nesw-resize" },
   { key: "se", right: RESIZE_HANDLE_INSET, bottom: RESIZE_HANDLE_INSET, cursor: "nwse-resize" },
+  /*
+   * Medio de cada lado: estiran en una sola dirección, como en Photoshop. Desde una esquina con la
+   * proporción fijada no había forma de alargar una foto hacia un solo lado para llenar un hueco.
+   */
+  { key: "n", left: MEDIO, top: RESIZE_HANDLE_INSET, cursor: "ns-resize" },
+  { key: "s", left: MEDIO, bottom: RESIZE_HANDLE_INSET, cursor: "ns-resize" },
+  { key: "w", left: RESIZE_HANDLE_INSET, top: MEDIO, cursor: "ew-resize" },
+  { key: "e", right: RESIZE_HANDLE_INSET, top: MEDIO, cursor: "ew-resize" },
 ];
 
 /** Intersección parcial entre rectángulos alineados a ejes (layout sin rotación). */
@@ -106,12 +148,6 @@ function axisRectsIntersect(
 
 /** Mínimo arrastre en coords de lienzo para considerar marquee (evita pisar el clic en vacío). */
 const MARQUEE_MIN_DRAG_CANVAS_PX = 4;
-
-/** Ancho útil del área scroll (sin padding horizontal del contenedor). */
-function getScrollAreaInnerWidth(el: HTMLElement): number {
-  const cs = getComputedStyle(el);
-  return el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-}
 
 function mergeSelectionIds(existing: readonly string[], found: readonly string[]): string[] {
   const out = [...existing];
@@ -158,6 +194,55 @@ function getOverlayStyle(block: TemplateV2EditorState["blocks"][number]) {
     zIndex: l.zIndex + 1000,
     boxSizing: "border-box" as const,
   };
+}
+
+/**
+ * Medida del recuadro mientras se estira: "85 × 55 mm · 3:2". Vive dentro del lienzo escalado,
+ * así que se contra-escala con el zoom para leerse siempre del mismo tamaño.
+ */
+function BlockSizeBadge({
+  width,
+  height,
+  unit,
+  dpi,
+  zoom,
+}: {
+  width: number;
+  height: number;
+  unit: Parameters<typeof formatBlockSize>[2];
+  dpi: number;
+  zoom: number;
+}) {
+  const z = zoom > 0 ? zoom : 1;
+  const preset = findAspectPreset(width, height);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "100%",
+        transform: `translate(-50%, ${10 / z}px) scale(${1 / z})`,
+        transformOrigin: "top center",
+        whiteSpace: "nowrap",
+        pointerEvents: "none",
+        fontSize: 11,
+        fontWeight: 600,
+        lineHeight: 1,
+        padding: "4px 7px",
+        borderRadius: 6,
+        background: "var(--te-accent)",
+        color: "#fff",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {formatBlockSize(width, height, unit, dpi)}
+      <span style={{ opacity: preset ? 1 : 0.75, fontWeight: preset ? 600 : 400 }}>
+        {" · "}
+        {describeAspect(width, height)}
+      </span>
+    </div>
+  );
 }
 
 function asBlockConfigJson(block: TemplateV2Block): Record<string, unknown> {
@@ -348,6 +433,7 @@ export function TemplateEditorCanvas({
   state,
   dispatch,
   className,
+  resolvedVariables: valoresDeMuestra = TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES,
   showSafeArea = true,
   showCenterAxes = true,
   onCanvasBackgroundClick,
@@ -374,6 +460,9 @@ export function TemplateEditorCanvas({
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
   const textEditStartSnapshotRef = useRef<ReturnType<typeof takePersistSnapshot> | null>(null);
   const [rotatingBlockId, setRotatingBlockId] = useState<string | null>(null);
+  /** Bloque que se está estirando: mientras dura el gesto, el recuadro muestra su medida. */
+  const [resizingBlockId, setResizingBlockId] = useState<string | null>(null);
+  const sizeUnit = useBlockSizeUnit();
   /** Rect en coords de lienzo: esquinas opuestas durante el arrastre. */
   const [marqueeRect, setMarqueeRect] = useState<{ ax: number; ay: number; bx: number; by: number } | null>(null);
   /** Vista previa al colocar texto en área (herramienta T). */
@@ -386,10 +475,6 @@ export function TemplateEditorCanvas({
   });
   const suppressNextBackgroundClickRef = useRef(false);
   const workAreaRef = useRef<HTMLDivElement | null>(null);
-  const zoomUserAdjustedRef = useRef(state.zoomUserAdjusted);
-  useLayoutEffect(() => {
-    zoomUserAdjustedRef.current = state.zoomUserAdjusted;
-  }, [state.zoomUserAdjusted]);
   /** True durante pointerdown Alt+duplicar hasta soltar: hace falta commit de historial aunque no se mueva el puntero. */
   const altDuplicateGestureRef = useRef(false);
   const canvasInnerRef = useRef<HTMLDivElement | null>(null);
@@ -421,7 +506,7 @@ export function TemplateEditorCanvas({
   const resizeRef = useRef<{
     pointerId: number;
     blockId: string;
-    handle: "se" | "sw" | "ne" | "nw";
+    handle: ResizeHandleDef["key"];
     startClientX: number;
     startClientY: number;
     startX: number;
@@ -551,25 +636,77 @@ export function TemplateEditorCanvas({
     return () => window.removeEventListener(TEMPLATE_V2_RESET_WORK_SCROLL_EVENT, onResetWorkScroll);
   }, []);
 
-  useLayoutEffect(() => {
-    const el = workAreaRef.current;
-    if (!el || state.canvas.width <= 0) return;
+  /*
+   * El ajuste automático del zoom vive en TemplateEditorShell (`ajustarALaVentana`), que hace
+   * entrar la hoja entera. Acá había otro que sólo miraba el ancho: corría después y le ganaba,
+   * y una hoja apaisada quedaba cortada abajo.
+   */
 
-    const cw = state.canvas.width;
+  /*
+   * Zoom con el gesto de pellizcar del trackpad o con Ctrl/⌘ + rueda, sólo sobre el área de
+   * trabajo. Sin esto el navegador ampliaba la página entera, paneles incluidos. El punto de la
+   * hoja que está bajo el puntero queda bajo el puntero, como en los editores de imagen.
+   *
+   * El listener va a mano y no como `onWheel` de React: React lo registra pasivo y entonces
+   * `preventDefault` no frena el zoom del navegador.
+   */
+  const zoomRef = useRef(state.zoom);
+  zoomRef.current = state.zoom;
+  useEffect(() => {
+    const area = workAreaRef.current;
+    if (!area) return;
 
-    const applyFitWidth = () => {
-      if (zoomUserAdjustedRef.current) return;
-      const innerW = getScrollAreaInnerWidth(el);
-      if (innerW <= 0) return;
-      const z = Math.min(4, Math.max(0.1, innerW / cw));
-      dispatch(setZoom(z, "auto"));
+    function zoomAround(nextZoom: number, clientX: number, clientY: number) {
+      const inner = canvasInnerRef.current;
+      const wa = workAreaRef.current;
+      const prev = zoomRef.current > 0 ? zoomRef.current : 1;
+      const next = clampZoom(nextZoom);
+      if (!inner || !wa || next === prev) return;
+      const r = inner.getBoundingClientRect();
+      // Punto de la hoja (en px del lienzo) que está bajo el puntero.
+      const px = (clientX - r.left) / prev;
+      const py = (clientY - r.top) / prev;
+      // Se adelanta el valor: los pasos de un pellizco llegan antes de que React vuelva a dibujar.
+      zoomRef.current = next;
+      dispatch(setZoom(next, "user"));
+      requestAnimationFrame(() => {
+        const r2 = inner.getBoundingClientRect();
+        wa.scrollLeft += r2.left + px * next - clientX;
+        wa.scrollTop += r2.top + py * next - clientY;
+      });
+    }
+
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      // El pellizco manda pasos chicos y la rueda pasos de ~100: se acota para que un clic de
+      // rueda no salte demasiado.
+      const delta = Math.max(-60, Math.min(60, e.deltaY));
+      zoomAround(zoomRef.current * Math.exp(-delta * 0.005), e.clientX, e.clientY);
+    }
+
+    // Safari no manda el pellizco como rueda sino como `gesture*`.
+    let gestureStartZoom = zoomRef.current;
+    type GestureLike = Event & { scale: number; clientX: number; clientY: number };
+    function onGestureStart(e: Event) {
+      e.preventDefault();
+      gestureStartZoom = zoomRef.current;
+    }
+    function onGestureChange(e: Event) {
+      e.preventDefault();
+      const g = e as GestureLike;
+      zoomAround(gestureStartZoom * g.scale, g.clientX, g.clientY);
+    }
+
+    area.addEventListener("wheel", onWheel, { passive: false });
+    area.addEventListener("gesturestart", onGestureStart);
+    area.addEventListener("gesturechange", onGestureChange);
+    return () => {
+      area.removeEventListener("wheel", onWheel);
+      area.removeEventListener("gesturestart", onGestureStart);
+      area.removeEventListener("gesturechange", onGestureChange);
     };
-
-    applyFitWidth();
-    const ro = new ResizeObserver(applyFitWidth);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [dispatch, state.canvas.width, state.canvas.height]);
+  }, [dispatch]);
 
   function clientToCanvas(clientX: number, clientY: number): { x: number; y: number } {
     const el = canvasInnerRef.current;
@@ -581,6 +718,99 @@ export function TemplateEditorCanvas({
       y: (clientY - rect.top) / z,
     };
   }
+
+  /*
+   * Guías de diseño (estilo Photoshop). Se sacan arrastrando desde las reglas, se mueven
+   * arrastrándolas, se borran soltándolas fuera de la hoja o con clic derecho. Mientras se
+   * arrastra, el cambio vive sólo acá; al soltar se guarda una vez, así deshacer revierte el
+   * gesto entero y no cada píxel.
+   */
+  const guides = useMemo(() => readGuides(state.versionMeta), [state.versionMeta]);
+  const [guideDrag, setGuideDrag] = useState<{ axis: GuideAxis; index: number | null; pos: number } | null>(null);
+  const [guideMenu, setGuideMenu] = useState<{ axis: GuideAxis; index: number; x: number; y: number } | null>(null);
+  const guidesRef = useRef(guides);
+  guidesRef.current = guides;
+
+  const startGuideDrag = useCallback(
+    (axis: GuideAxis, index: number | null, e: ReactPointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setGuideMenu(null);
+      const toPos = (cx: number, cy: number) => {
+        const inner = canvasInnerRef.current;
+        if (!inner) return 0;
+        const r = inner.getBoundingClientRect();
+        const z = zoomRef.current > 0 ? zoomRef.current : 1;
+        return axis === "v" ? (cx - r.left) / z : (cy - r.top) / z;
+      };
+      setGuideDrag({ axis, index, pos: toPos(e.clientX, e.clientY) });
+      const onMove = (ev: PointerEvent) => setGuideDrag({ axis, index, pos: toPos(ev.clientX, ev.clientY) });
+      const onUp = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        setGuideDrag(null);
+        const pos = toPos(ev.clientX, ev.clientY);
+        const g = guidesRef.current;
+        const inside = isGuideInsideCanvas(axis, pos, state.canvas.width, state.canvas.height);
+        let next: EditorGuides;
+        if (index === null) {
+          if (!inside) return;
+          next = addGuide(g, axis, pos);
+        } else {
+          next = inside ? moveGuide(g, axis, index, pos) : removeGuide(g, axis, index);
+        }
+        dispatch(setGuides(next));
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    },
+    [dispatch, state.canvas.width, state.canvas.height]
+  );
+
+  useEffect(() => {
+    if (!guideMenu) return;
+    const close = () => setGuideMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [guideMenu]);
+
+  /** Dónde cae el 0 de la hoja en cada regla, y cuánto miden. Se mide del DOM real. */
+  const [rulerFrame, setRulerFrame] = useState({ ox: 0, oy: 0, w: 0, h: 0 });
+  const measureRulers = useCallback(() => {
+    const wa = workAreaRef.current;
+    const inner = canvasInnerRef.current;
+    if (!wa || !inner) return;
+    const a = wa.getBoundingClientRect();
+    const r = inner.getBoundingClientRect();
+    setRulerFrame((prev) => {
+      const next = { ox: r.left - a.left, oy: r.top - a.top, w: a.width, h: a.height };
+      return prev.ox === next.ox && prev.oy === next.oy && prev.w === next.w && prev.h === next.h ? prev : next;
+    });
+  }, []);
+  useLayoutEffect(() => {
+    measureRulers();
+  });
+  useEffect(() => {
+    const wa = workAreaRef.current;
+    if (!wa) return;
+    const ro = new ResizeObserver(measureRulers);
+    ro.observe(wa);
+    wa.addEventListener("scroll", measureRulers, { passive: true });
+    return () => {
+      ro.disconnect();
+      wa.removeEventListener("scroll", measureRulers);
+    };
+  }, [measureRulers]);
 
   const zw = state.canvas.width * state.zoom;
   const zh = state.canvas.height * state.zoom;
@@ -649,10 +879,36 @@ export function TemplateEditorCanvas({
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
       data-testid="template-v2-canvas"
     >
+      <div className="flex shrink-0" style={{ height: RULER_SIZE_PX }}>
+        <div
+          className="shrink-0 border-b border-r border-[color:var(--te-line)] bg-[color:var(--te-chrome)]"
+          style={{ width: RULER_SIZE_PX }}
+          aria-hidden
+        />
+        <EditorRuler
+          orientation="horizontal"
+          lengthPx={rulerFrame.w}
+          originPx={rulerFrame.ox}
+          zoom={state.zoom}
+          dpi={state.canvas.dpi}
+          onPointerDown={(e) => startGuideDrag("h", null, e)}
+        />
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="shrink-0" style={{ width: RULER_SIZE_PX }}>
+          <EditorRuler
+            orientation="vertical"
+            lengthPx={rulerFrame.h}
+            originPx={rulerFrame.oy}
+            zoom={state.zoom}
+            dpi={state.canvas.dpi}
+            onPointerDown={(e) => startGuideDrag("v", null, e)}
+          />
+        </div>
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}
-        className="flex min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-auto bg-[color:var(--te-line)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
+        className="flex min-h-0 w-full min-w-0 flex-1 overflow-auto overscroll-contain bg-[color:var(--te-void)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
         style={{ cursor: workAreaCursor }}
         onPointerDownCapture={onWorkAreaPointerDownCapture}
         onPointerMove={onWorkAreaPointerMove}
@@ -664,8 +920,11 @@ export function TemplateEditorCanvas({
         }}
       >
         <div
-          className="relative shrink-0 overflow-hidden rounded-md bg-white shadow-[0_2px_14px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/[0.07]"
-          style={{ width: zw, height: zh }}
+          // `m-auto` y no `items-center`/`justify-center` en el padre: centrar con flex deja fuera del
+          // scroll la parte izquierda y de arriba de una hoja más grande que el área.
+          className="relative m-auto shrink-0 rounded-none bg-white shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
+          // El pliego es papel: no hereda el tema oscuro del editor (ver PAPER_TOKENS).
+          style={{ ...PAPER_TOKENS, width: zw, height: zh }}
           title={`Lienzo ${Math.round(state.canvas.width)}×${Math.round(state.canvas.height)} px · zoom ${Math.round(state.zoom * 100)}%`}
           aria-label="Lienzo de la plantilla"
           onClick={(e) => {
@@ -689,16 +948,24 @@ export function TemplateEditorCanvas({
               position: "relative",
             }}
           >
-            <TemplateCanvasRenderer
-              canvas={state.canvas}
-              blocks={blocksOnPage}
-              readOnly
-              resolvedVariables={TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES}
-              selectedBlockIds={state.selectedBlockIds}
-              primarySelectedBlockId={primaryId}
-              diagnosticHighlightByBlockId={diagnosticHighlightByBlockId}
-              hideTextBodyForBlockId={editingTextBlockId}
-            />
+            {/*
+              Sólo el diseño se recorta al borde de la hoja. Antes se recortaba la hoja entera, con
+              los tiradores incluidos: un bloque agrandado o girado que asomaba por fuera quedaba
+              con una esquina imposible de agarrar. Como en Photoshop, el recuadro de selección y
+              sus tiradores se ven y se usan aunque salgan del lienzo.
+            */}
+            <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+              <TemplateCanvasRenderer
+                canvas={state.canvas}
+                blocks={blocksOnPage}
+                readOnly
+                resolvedVariables={valoresDeMuestra}
+                selectedBlockIds={state.selectedBlockIds}
+                primarySelectedBlockId={primaryId}
+                diagnosticHighlightByBlockId={diagnosticHighlightByBlockId}
+                hideTextBodyForBlockId={editingTextBlockId}
+              />
+            </div>
 
             {showSafeArea ? (
               <div
@@ -877,7 +1144,8 @@ export function TemplateEditorCanvas({
             {/* Capa de hit-target para selección simple por click */}
             {orderedVisibleBlocks.map((b) => {
               const hitSelected = state.selectedBlockIds.includes(b.id);
-              const isTextKind = b.type === "TEXT" || b.type === "VARIABLE_TEXT";
+              const isTextKind =
+                (b.type === "TEXT" || b.type === "VARIABLE_TEXT") && !isClassListConfig(b.configJson);
               return (
               <button
                 key={`hit-${b.id}`}
@@ -1042,8 +1310,20 @@ export function TemplateEditorCanvas({
                   if (!drag.moved && (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1)) {
                     drag.moved = true;
                   }
-                  const rawX = drag.startX + deltaX;
-                  const rawY = drag.startY + deltaY;
+                  /*
+                   * Shift bloquea un eje, como en Photoshop: si el arrastre va más en horizontal,
+                   * la posición vertical queda fija, y al revés. Se decide en cada movimiento,
+                   * así se puede cambiar de eje sin soltar.
+                   */
+                  const ejeFijo: "x" | "y" | null = e.shiftKey
+                    ? Math.abs(deltaX) >= Math.abs(deltaY)
+                      ? "y"
+                      : "x"
+                    : null;
+                  const rawX = ejeFijo === "x" ? drag.startX : drag.startX + deltaX;
+                  const rawY = ejeFijo === "y" ? drag.startY : drag.startY + deltaY;
+                  // ⌘ / Ctrl apretado suelta el imán, como en los editores de imagen.
+                  const sinIman = e.metaKey || e.ctrlKey;
                   const snapped = snapDragPosition(
                     state.canvas.width,
                     state.canvas.height,
@@ -1059,8 +1339,18 @@ export function TemplateEditorCanvas({
                      */
                     drag.grupo
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
-                      : blocksOnPage
+                      : blocksOnPage,
+                    sinIman ? 0 : SNAP_SCREEN_PX / zoom,
+                    { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
                   );
+                  // El eje bloqueado no se imanta: el bloque no puede salirse de la línea.
+                  if (ejeFijo === "x") {
+                    snapped.x = drag.startX;
+                    snapped.guideVerticalX = null;
+                  } else if (ejeFijo === "y") {
+                    snapped.y = drag.startY;
+                    snapped.guideHorizontalY = null;
+                  }
                   setSnapGuides({ vx: snapped.guideVerticalX, hy: snapped.guideHorizontalY });
 
                   if (drag.grupo) {
@@ -1224,7 +1514,8 @@ export function TemplateEditorCanvas({
                           rz.rotationAccumDeg = normalizeRotationDeg(
                             rz.rotationAccumDeg + (deltaRad * 180) / Math.PI
                           );
-                          const nextDeg = rz.rotationAccumDeg;
+                          // Con Shift, imán a los ángulos rectos (y de a 15° entre medio).
+                          const nextDeg = e.shiftKey ? snapRotationDeg(rz.rotationAccumDeg) : rz.rotationAccumDeg;
                           dispatch(
                             updateBlock(
                               primaryBlock.id,
@@ -1279,7 +1570,16 @@ export function TemplateEditorCanvas({
                           borderRadius: 9999,
                           border: "2.5px solid var(--te-accent)",
                           background: "var(--te-surface)",
-                          cursor: h.cursor,
+                          // Girado un cuarto de vuelta, la flecha del cursor sigue al lado girado.
+                          cursor:
+                            Math.round(Math.abs(primaryBlock.layout.rotation ?? 0) / 90) % 2 === 1
+                              ? ({
+                                  "ns-resize": "ew-resize",
+                                  "ew-resize": "ns-resize",
+                                  "nwse-resize": "nesw-resize",
+                                  "nesw-resize": "nwse-resize",
+                                } as const)[h.cursor]
+                              : h.cursor,
                           pointerEvents: "auto",
                           boxShadow:
                             "0 1px 2px rgba(255,255,255,0.9) inset, 0 2px 8px rgba(0,0,0,0.30)",
@@ -1295,13 +1595,18 @@ export function TemplateEditorCanvas({
                           if (rotateRef.current) return;
                           gesturePersistSnapshotRef.current = takePersistSnapshot(state);
                           (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                          // El listado del curso se agranda como caja: la lista se reparte sola.
+                          // Un lado estira la caja sin cambiar la tipografía.
                           const isTextKind =
-                            primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT";
+                            (primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT") &&
+                            !isClassListConfig(primaryBlock.configJson) &&
+                            !isResizeEdge(h.key);
                           const nb = normalizeBlockConfig(primaryBlock.type, primaryBlock.configJson) as {
                             fontSize?: number;
                           };
                           const startFs =
                             typeof nb.fontSize === "number" && Number.isFinite(nb.fontSize) ? nb.fontSize : 20;
+                          setResizingBlockId(primaryBlock.id);
                           resizeRef.current = {
                             pointerId: e.pointerId,
                             blockId: primaryBlock.id,
@@ -1328,31 +1633,83 @@ export function TemplateEditorCanvas({
                           if (!rz.moved && (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5)) {
                             rz.moved = true;
                           }
-                          const next = computeResizeRect(
+                          // Con proporción fijada en el inspector, la esquina estira siempre en
+                          // proporción, como si Mayús estuviera apretada.
+                          /*
+                           * Esquinas: Shift invierte la proporción, como en Photoshop. Sin candado,
+                           * Shift la mantiene; con el candado cerrado, Shift la libera y al soltar
+                           * queda abierto.
+                           * Lados: estiran en una sola dirección; si el candado estaba cerrado,
+                           * sigue cerrado pero con la proporción nueva, así las esquinas después
+                           * respetan la forma que se le dio.
+                           */
+                          const aspectLock = getBlockAspectLock(rz.startConfigJson);
+                          const esLado = isResizeEdge(rz.handle);
+                          const liberaProporcion = !esLado && aspectLock !== null && e.shiftKey;
+                          const proporcional =
+                            !esLado && (aspectLock !== null ? !e.shiftKey : e.shiftKey);
+                          const next = computeResizeRectRotated(
                             rz.handle,
                             {
                               x: rz.startX,
                               y: rz.startY,
                               width: rz.startWidth,
-                              height: rz.startHeight,
+                              height: aspectLock && proporcional ? rz.startWidth / aspectLock : rz.startHeight,
                             },
                             dx,
                             dy,
-                            { shift: e.shiftKey, alt: e.altKey }
+                            { shift: proporcional, alt: e.altKey },
+                            primaryBlock.layout.rotation ?? 0
                           );
+                          // Imán al estirar: los bordes que se mueven se pegan a las guías. Alt (desde
+                          // el centro) y ⌘/Ctrl lo sueltan. En un bloque girado no: las guías son
+                          // horizontales y verticales, y pegarle un borde inclinado lo deformaría.
+                          let finalRect = next;
+                          const girado = Math.abs(primaryBlock.layout.rotation ?? 0) % 360 !== 0;
+                          if (!girado && !e.altKey && !e.metaKey && !e.ctrlKey) {
+                            const lineas = buildSnapGuideLines(
+                              state.canvas.width,
+                              state.canvas.height,
+                              blocksOnPage,
+                              new Set([rz.blockId]),
+                              { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
+                            );
+                            const sr = snapResizeRect(
+                              rz.handle,
+                              next,
+                              lineas,
+                              SNAP_SCREEN_PX / zoom,
+                              proporcional
+                            );
+                            finalRect = sr.rect;
+                            setSnapGuides({ vx: sr.guideVerticalX, hy: sr.guideHorizontalY });
+                          } else {
+                            setSnapGuides({ vx: null, hy: null });
+                          }
                           const layoutPatch = {
-                            x: next.x,
-                            y: next.y,
-                            width: next.width,
-                            height: next.height,
+                            x: finalRect.x,
+                            y: finalRect.y,
+                            width: finalRect.width,
+                            height: finalRect.height,
                           };
+                          const configTrasLado = (() => {
+                            if (liberaProporcion) {
+                              const c = { ...rz.startConfigJson };
+                              delete c.aspectLock;
+                              return c;
+                            }
+                            if (esLado && aspectLock !== null && finalRect.height > 0) {
+                              return { ...rz.startConfigJson, aspectLock: finalRect.width / finalRect.height };
+                            }
+                            return rz.startConfigJson;
+                          })();
                           if (
                             rz.scaleTypography &&
                             rz.startWidth > 0 &&
                             rz.startHeight > 0
                           ) {
-                            const rw = next.width / rz.startWidth;
-                            const rh = next.height / rz.startHeight;
+                            const rw = finalRect.width / rz.startWidth;
+                            const rh = finalRect.height / rz.startHeight;
                             const scale = Math.sqrt(Math.max(1e-9, rw * rh));
                             const newFs = Math.round(
                               Math.max(8, Math.min(400, rz.startFontSize * scale))
@@ -1363,7 +1720,7 @@ export function TemplateEditorCanvas({
                                 {
                                   layout: layoutPatch,
                                   configJson: {
-                                    ...rz.startConfigJson,
+                                    ...configTrasLado,
                                     fontSize: newFs,
                                   },
                                 },
@@ -1374,7 +1731,9 @@ export function TemplateEditorCanvas({
                             dispatch(
                               updateBlock(
                                 rz.blockId,
-                                { layout: layoutPatch },
+                                aspectLock !== null
+                                  ? { layout: layoutPatch, configJson: configTrasLado }
+                                  : { layout: layoutPatch },
                                 { skipHistory: true }
                               )
                             );
@@ -1391,10 +1750,14 @@ export function TemplateEditorCanvas({
                           }
                           gesturePersistSnapshotRef.current = null;
                           resizeRef.current = null;
+                          setResizingBlockId(null);
+                          setSnapGuides({ vx: null, hy: null });
                         }}
                         onPointerCancel={() => {
                           gesturePersistSnapshotRef.current = null;
                           resizeRef.current = null;
+                          setResizingBlockId(null);
+                          setSnapGuides({ vx: null, hy: null });
                         }}
                       />
                       );
@@ -1417,6 +1780,15 @@ export function TemplateEditorCanvas({
                   >
                     LOCKED
                   </div>
+                ) : null}
+                {resizingBlockId === primaryBlock.id ? (
+                  <BlockSizeBadge
+                    width={primaryBlock.layout.width}
+                    height={primaryBlock.layout.height}
+                    unit={sizeUnit}
+                    dpi={canvasDpi(state.canvas)}
+                    zoom={state.zoom}
+                  />
                 ) : null}
                 {rotatingBlockId === primaryBlock.id ? (
                   <div
@@ -1452,24 +1824,25 @@ export function TemplateEditorCanvas({
                   dispatch={dispatch}
                   onEnd={endInlineTextEdit}
                   canvasWidth={state.canvas.width}
-                  resolvedVariables={TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES}
+                  resolvedVariables={valoresDeMuestra}
                 />
               </div>
             ) : null}
 
-            {draggingBlockId !== null && (snapGuides.vx != null || snapGuides.hy != null) ? (
+            {(draggingBlockId !== null || resizingBlockId !== null) && (snapGuides.vx != null || snapGuides.hy != null) ? (
               <div className="pointer-events-none" style={{ position: "absolute", inset: 0, zIndex: 99990 }} aria-hidden>
                 {snapGuides.vx != null ? (
                   <div
                     style={{
                       position: "absolute",
-                      left: snapGuides.vx,
+                      // Grosor fijo en pantalla: la capa está escalada con el zoom y 2 px del
+                      // lienzo eran medio píxel con una carpeta al 25 %. Magenta, como las guías
+                      // inteligentes de los editores de imagen: se distingue de la selección.
+                      left: snapGuides.vx - 0.75 / (state.zoom || 1),
                       top: 0,
-                      width: 2,
+                      width: 1.5 / (state.zoom || 1),
                       height: "100%",
-                      transform: "translateX(-0.5px)",
-                      background: "rgba(59, 130, 246, 0.92)",
-                      boxShadow: "0 0 0 1px rgba(255,255,255,0.75)",
+                      background: "#ff2bd6",
                     }}
                   />
                 ) : null}
@@ -1477,13 +1850,11 @@ export function TemplateEditorCanvas({
                   <div
                     style={{
                       position: "absolute",
-                      top: snapGuides.hy,
+                      top: snapGuides.hy - 0.75 / (state.zoom || 1),
                       left: 0,
-                      height: 2,
+                      height: 1.5 / (state.zoom || 1),
                       width: "100%",
-                      transform: "translateY(-0.5px)",
-                      background: "rgba(59, 130, 246, 0.92)",
-                      boxShadow: "0 0 0 1px rgba(255,255,255,0.75)",
+                      background: "#ff2bd6",
                     }}
                   />
                 ) : null}
@@ -1525,9 +1896,97 @@ export function TemplateEditorCanvas({
                 aria-hidden
               />
             ) : null}
+
+            {/* Guías de diseño. La franja que se agarra es más ancha que la línea que se ve. */}
+            {(["v", "h"] as const).map((axis) =>
+              guides[axis].map((pos, i) => {
+                const z = state.zoom > 0 ? state.zoom : 1;
+                const moving = guideDrag && guideDrag.axis === axis && guideDrag.index === i;
+                const p = moving ? guideDrag!.pos : pos;
+                const hit = 7 / z;
+                return (
+                  <div
+                    key={`${axis}-${i}`}
+                    title="Guía: arrastrala para moverla; soltala fuera de la hoja o clic derecho para borrarla"
+                    onPointerDown={(e) => startGuideDrag(axis, i, e)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setGuideMenu({ axis, index: i, x: e.clientX, y: e.clientY });
+                    }}
+                    style={{
+                      position: "absolute",
+                      zIndex: 99970,
+                      cursor: axis === "v" ? "col-resize" : "row-resize",
+                      ...(axis === "v"
+                        ? { left: p - hit / 2, top: 0, width: hit, height: "100%" }
+                        : { top: p - hit / 2, left: 0, height: hit, width: "100%" }),
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        background: "#00b7ff",
+                        ...(axis === "v"
+                          ? { left: hit / 2 - 0.5 / z, top: 0, width: 1 / z, height: "100%" }
+                          : { top: hit / 2 - 0.5 / z, left: 0, height: 1 / z, width: "100%" }),
+                      }}
+                    />
+                  </div>
+                );
+              })
+            )}
+            {guideDrag && guideDrag.index === null ? (
+              <div
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  zIndex: 99970,
+                  pointerEvents: "none",
+                  background: "#00b7ff",
+                  ...(guideDrag.axis === "v"
+                    ? { left: guideDrag.pos, top: 0, width: 1 / (state.zoom || 1), height: "100%" }
+                    : { top: guideDrag.pos, left: 0, height: 1 / (state.zoom || 1), width: "100%" }),
+                }}
+              />
+            ) : null}
           </div>
         </div>
       </div>
+      </div>
+
+      {guideMenu ? (
+        <div
+          role="menu"
+          className="fixed z-[100000] min-w-[11rem] overflow-hidden rounded-[var(--te-radius)] border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] py-1 text-[12px] text-[color:var(--te-ink)] shadow-lg"
+          style={{ left: guideMenu.x, top: guideMenu.y }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left hover:bg-[color:var(--te-accent-wash)]"
+            onClick={() => {
+              dispatch(setGuides(removeGuide(guides, guideMenu.axis, guideMenu.index)));
+              setGuideMenu(null);
+            }}
+          >
+            Eliminar guía
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left hover:bg-[color:var(--te-accent-wash)]"
+            onClick={() => {
+              dispatch(setGuides({ v: [], h: [] }));
+              setGuideMenu(null);
+            }}
+          >
+            Eliminar todas las guías
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

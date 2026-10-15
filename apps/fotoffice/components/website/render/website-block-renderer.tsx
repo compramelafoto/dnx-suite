@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { websiteBlockSchema } from "@/lib/website/blocks";
 import { WEBSITE_BLOCK_REGISTRY } from "@/lib/website/block-registry";
+import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
 
 /**
  * Despacha un bloque a su componente de renderizado. Fail-safe de forma: si el bloque no
@@ -10,7 +11,7 @@ import { WEBSITE_BLOCK_REGISTRY } from "@/lib/website/block-registry";
  * a este componente en `WebsitePageRenderer` — un try/catch acá no serviría, porque el render de
  * `View` ocurre en la fase de reconciliación de React, no al construir el elemento JSX.
  */
-export function WebsiteBlockRenderer({ block }: { block: unknown }) {
+export function WebsiteBlockRenderer({ block, data }: { block: unknown; data?: WebsiteDynamicData }) {
   const parsed = websiteBlockSchema.safeParse(block);
   if (!parsed.success) {
     if (process.env.NODE_ENV !== "production") {
@@ -21,6 +22,10 @@ export function WebsiteBlockRenderer({ block }: { block: unknown }) {
   const validBlock = parsed.data;
   if (!validBlock.visible) return null;
 
-  const View = WEBSITE_BLOCK_REGISTRY[validBlock.type].View as ComponentType<{ config: typeof validBlock.config; blockId?: string }>;
-  return <View config={validBlock.config} blockId={validBlock.id} />;
+  const View = WEBSITE_BLOCK_REGISTRY[validBlock.type].View as ComponentType<{
+    config: typeof validBlock.config;
+    blockId?: string;
+    data?: WebsiteDynamicData;
+  }>;
+  return <View config={validBlock.config} blockId={validBlock.id} data={data} />;
 }

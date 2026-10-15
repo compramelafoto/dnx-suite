@@ -1,0 +1,77 @@
+{
+  "proyecto": "Cursos grabados",
+  "plataforma": "FOTOFFICE",
+  "enUso": "no",
+  "usoNota": "Diseñado, planificado y arrancado el 21/09: el cobro y la modalidad del curso están en el PR 213, sin fusionar. Todavía no existe ninguna clase grabada: falta la carga de video y las variables de Cloudflare Stream",
+  "etapas": [
+    {
+      "nombre": "Cargar el curso grabado y sus clases",
+      "criterios": [
+        {
+          "que": "Un curso se marca como grabado y en vez de ediciones tiene clases",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Implementado en el PR 213: el curso ya declara su modalidad y el grabado tiene clases en vez de ediciones. Falta aplicar la migración a mano en las cinco bases Neon"
+        },
+        {
+          "que": "El fotógrafo sube el video de una clase y queda lista para ver",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Planificado (tareas 5 a 7): el archivo sube directo del navegador a Cloudflare, sin pasar por Vercel. Faltan las cuatro variables STREAM_* y habilitar el CORS del proveedor, que en FotoRank tuvo la subida frenada once días"
+        },
+        {
+          "que": "Una clase se puede marcar como muestra gratuita para vender el curso",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Planificado (tarea 7)"
+        }
+      ]
+    },
+    {
+      "nombre": "Que el alumno mire el curso sin poder copiarlo",
+      "criterios": [
+        {
+          "que": "Quien pagó entra a su aula con el enlace que le llega por correo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Etapa 2 del spec, sin planificar todavía"
+        },
+        {
+          "que": "El video sólo reproduce dentro de FOTOFFICE y con el permiso de ese alumno",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Etapa 2: el video exige firma y orígenes permitidos. Se comprueba pegando el link en otra pestaña: no tiene que reproducir"
+        },
+        {
+          "que": "La copia filmada de pantalla lleva escrito quién la filtró",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Etapa 2: marca de agua con nombre y documento del alumno. Disuade, no impide — está escrito así en el spec a propósito"
+        },
+        {
+          "que": "El avance del alumno queda registrado y el video retoma donde quedó",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Etapa 2: arrastrar la barra hasta el final no tiene que marcar la clase como vista"
+        }
+      ]
+    },
+    {
+      "nombre": "Consultas y certificado",
+      "criterios": [
+        {
+          "que": "El alumno pregunta sobre una clase y el docente le responde",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Etapa 3 del spec, sin planificar"
+        },
+        {
+          "que": "Al llegar al porcentaje visto se emite el certificado, verificable por QR",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Etapa 4 del spec, sin planificar"
+        }
+      ]
+    }
+  ]
+}

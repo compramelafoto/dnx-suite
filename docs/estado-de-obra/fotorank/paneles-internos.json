@@ -1,0 +1,72 @@
+{
+  "proyecto": "Los paneles por dentro",
+  "plataforma": "FotoRank",
+  "enUso": "parcial",
+  "usoNota": "Los cuatro paneles se usan, pero cada uno tenía su propio marco. El armazón común está en el PR 214, sin fusionar y sin desplegar",
+  "etapas": [
+    {
+      "nombre": "Que sea un solo producto y no cuatro",
+      "criterios": [
+        {
+          "que": "Las cuatro áreas —organizador, participante, jurado y administración— tienen el mismo encabezado y el mismo menú",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Verificado por tipos, lint y las cuatro rutas respondiendo en local. Falta el repaso visual con sesión iniciada"
+        },
+        {
+          "que": "El participante tiene menú propio y puede cerrar sesión desde su panel",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Antes eran dos enlaces de texto y el correo al lado. Falta mirarlo con sesión"
+        },
+        {
+          "que": "El jurado entra por su propia puerta y su marco no alcanza al login",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Verificado en local, pero el código no está en main todavía: En local, /jurado/panel redirige a /jurado/login y esa pantalla abre sin sesión; ninguna dirección cambió al agrupar en (panel)"
+        },
+        {
+          "que": "El menú se escribe una sola vez y no puede divergir",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Verificado en local, pero el código no está en main todavía: La barra tenía 14 entradas y el menú a pantalla completa 7, con otros nombres. Ahora el segundo se deriva del primero; 5 tests lo sostienen"
+        },
+        {
+          "que": "Cada persona ve sólo las secciones que puede abrir",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Verificado en local, pero el código no está en main todavía: 7 tests sobre la función que arma el menú del hub; el central verifica que sin ser super administrador no aparece ninguna entrada de plataforma"
+        }
+      ]
+    },
+    {
+      "nombre": "Formularios que acompañan",
+      "criterios": [
+        {
+          "que": "Cada campo del alta de concurso explica qué se espera, sin jerga",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La ayuda estaba prevista y se pasaba vacía a propósito. Escrita, y «Slug» pasó a «Dirección web del concurso». Falta verlo con sesión"
+        },
+        {
+          "que": "Ninguna ayuda contradice a su campo",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Verificado en local, pero el código no está en main todavía: «Formato recomendado 1920x1080 px · JPG, PNG o WebP · Máx. 2 MB» colgaba del campo Descripción completa, que es texto. Volvió a Portada"
+        },
+        {
+          "que": "Los formularios del asistente se ven del mismo producto que el resto",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Usaban el amber de Tailwind y no el dorado de marca, y el selector venía al 67% del ancho y corrido a la derecha. Corregido; falta verlo"
+        },
+        {
+          "que": "Hay un solo sistema de asistente, no dos",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "La página /wizard-demo usa los componentes del design system y se ve bien; el formulario real usa otro sistema local. Unificarlos es trabajo aparte"
+        }
+      ]
+    }
+  ]
+}

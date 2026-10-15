@@ -41,7 +41,7 @@ export function amzDates(now: Date): { amzDate: string; dateStamp: string } {
   return { amzDate, dateStamp: amzDate.slice(0, 8) };
 }
 
-export function presignPutUrl(input: {
+type EntradaDeFirma = {
   endpoint: string;
   bucket: string;
   key: string;
@@ -49,7 +49,21 @@ export function presignPutUrl(input: {
   secretAccessKey: string;
   expiresInSeconds: number;
   now?: Date;
-}): string {
+};
+
+/** Codificación estricta de SigV4 (RFC 3986): los espacios son %20, no "+". */
+function encodeRfc3986(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
+function presignUrl(
+  method: "GET" | "PUT",
+  input: EntradaDeFirma,
+  extra: Record<string, string>,
+): string {
   const { amzDate, dateStamp } = amzDates(input.now ?? new Date());
   const url = new URL(input.endpoint);
   // Estilo path: el bucket va en la ruta, no en el nombre del servidor.
@@ -66,24 +80,25 @@ export function presignPutUrl(input: {
   // Sólo se firma `host`. El navegador puede mandar otras cabeceras —el tipo de
   // archivo, por ejemplo— sin invalidar la firma, y el tipo real lo determina
   // el servidor leyendo los bytes, no lo que el cliente declare.
-  const query = new URLSearchParams({
+  const params: Record<string, string> = {
     "X-Amz-Algorithm": ALGORITHM,
     "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD",
     "X-Amz-Credential": `${input.accessKeyId}/${scope}`,
     "X-Amz-Date": amzDate,
     "X-Amz-Expires": String(input.expiresInSeconds),
     "X-Amz-SignedHeaders": "host",
-    // El SDK oficial lo agrega y lo firma; se replica para que la URL sea
-    // exactamente la que el proveedor ya acepta del resto de la suite.
-    "x-id": "PutObject",
-  });
+    ...extra,
+  };
   // La consulta canónica va ordenada por nombre de parámetro.
-  query.sort();
+  const query = Object.keys(params)
+    .sort()
+    .map((k) => `${encodeRfc3986(k)}=${encodeRfc3986(params[k]!)}`)
+    .join("&");
 
   const canonicalRequest = [
-    "PUT",
+    method,
     canonicalUri,
-    query.toString(),
+    query,
     `host:${host}\n`,
     "host",
     "UNSIGNED-PAYLOAD",
@@ -104,5 +119,36 @@ export function presignPutUrl(input: {
     .update(stringToSign, "utf8")
     .digest("hex");
 
-  return `${url.origin}${canonicalUri}?${query.toString()}&X-Amz-Signature=${signature}`;
+  return `${url.origin}${canonicalUri}?${query}&X-Amz-Signature=${signature}`;
+}
+
+export function presignPutUrl(input: EntradaDeFirma): string {
+  // El SDK oficial agrega `x-id` y lo firma; se replica para que la URL sea
+  // exactamente la que el proveedor ya acepta del resto de la suite.
+  return presignUrl("PUT", input, { "x-id": "PutObject" });
+}
+
+/**
+ * URL temporal para bajar un archivo privado directo del bucket.
+ *
+ * Los originales pesan más que el tope de respuesta de una función de Vercel
+ * (4,5 MB), así que no pueden pasar por el servidor. El nombre de archivo va
+ * firmado: R2 lo devuelve como `Content-Disposition` y el navegador descarga
+ * en vez de abrir.
+ */
+/** Sólo ASCII: "Ana Pérez.jpg" → "Ana_Perez.jpg". */
+export function nombreDeArchivoSeguro(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w.-]+/g, "_");
+}
+
+export function presignGetUrl(input: EntradaDeFirma & { downloadFileName?: string }): string {
+  const extra: Record<string, string> = { "x-id": "GetObject" };
+  if (input.downloadFileName) {
+    extra["response-content-disposition"] =
+      `attachment; filename="${nombreDeArchivoSeguro(input.downloadFileName)}"`;
+  }
+  return presignUrl("GET", input, extra);
 }

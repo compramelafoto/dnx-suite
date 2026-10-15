@@ -26,7 +26,7 @@ export async function getGoogleAccessToken(
   integrationKey: string,
 ): Promise<AccessTokenResult> {
   const definition = getIntegrationDefinition(integrationKey);
-  if (!definition || definition.status !== "AVAILABLE") {
+  if (!definition || definition.status !== "AVAILABLE" || definition.provider !== "GOOGLE") {
     return { ok: false, reason: "NOT_CONNECTED" };
   }
 

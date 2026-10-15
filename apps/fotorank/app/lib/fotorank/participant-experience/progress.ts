@@ -75,7 +75,11 @@ export function resolveParticipantProgress(input: ProgressInput): ParticipantPro
     reviewState = "current";
   }
   if (input.admissionStatus === "ADMITTED") reviewState = "completed";
-  if (input.admissionStatus === "REJECTED") reviewState = "completed";
+  // Rechazada con la carga abierta: el paso vigente vuelve a ser la carga, no
+  // una revisión “completada” que contradice el botón de volver a cargar.
+  if (input.admissionStatus === "REJECTED" || input.entryStatus === "REJECTED") {
+    reviewState = input.upload.isOpen && !cancelled ? "upcoming" : "completed";
+  }
 
   let evaluationState: ProgressStepState = "na";
   if (input.hasJudgingWindow || inEvaluation || results) {

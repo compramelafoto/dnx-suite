@@ -1,3 +1,4 @@
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { CashAccountRow, OpenShiftRow } from "@/lib/cash/repository";
 import { openShiftAction } from "./actions";
@@ -26,11 +27,14 @@ export function AccountCard({
   balanceMinor,
   turno,
   expectedMinor,
+  canOperate,
 }: {
   cuenta: CashAccountRow;
   balanceMinor: number;
   turno: OpenShiftRow | null;
   expectedMinor: number;
+  /** Sin MANAGE se ve el turno, pero no se abre ni se cierra. */
+  canOperate: boolean;
 }) {
   const llevaTurno = cuenta.kind === "EFECTIVO" && !cuenta.isVault;
 
@@ -46,8 +50,8 @@ export function AccountCard({
 
       {llevaTurno ? (
         turno ? (
-          <ShiftBlock shift={turno} expectedMinor={expectedMinor} />
-        ) : (
+          <ShiftBlock shift={turno} expectedMinor={expectedMinor} canOperate={canOperate} />
+        ) : canOperate ? (
           <form
             action={openShiftAction}
             className="grid gap-3 rounded-[var(--fo-radius)] border border-dashed border-[var(--fo-border)] p-4 sm:grid-cols-[1fr_auto]"
@@ -57,13 +61,7 @@ export function AccountCard({
               <label className="fo-label" htmlFor={`apertura-${cuenta.id}`}>
                 Abrir turno — con cuánto
               </label>
-              <input
-                id={`apertura-${cuenta.id}`}
-                name="openingAmountArs"
-                className="fo-input"
-                placeholder="20.000"
-                required
-              />
+              <InputMoneda id={`apertura-${cuenta.id}`} name="openingAmountArs" placeholder="20.000" required />
             </div>
             <div className="self-end">
               <button type="submit" className="fo-btn fo-btn-secondary text-sm">
@@ -71,7 +69,7 @@ export function AccountCard({
               </button>
             </div>
           </form>
-        )
+        ) : null
       ) : null}
     </section>
   );

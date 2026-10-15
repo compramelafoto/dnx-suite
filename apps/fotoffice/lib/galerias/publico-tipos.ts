@@ -1,0 +1,176 @@
+/**
+ * Tipos y reglas PURAS de la página del cliente (etapa 7): lo que viaja del servidor al navegador y los
+ * cálculos que ambos lados comparten (filtros, textos). Sin base, sin red, sin `server-only`.
+ */
+import type { DecisionAlbum, EstadoCliente, EstadoRonda, ModoSeleccion, TipoGaleria, TipoMedio } from "./constantes";
+import type { VistaVenta } from "./venta-publica";
+
+/** Largo máximo del mensaje que el cliente le deja al estudio al enviar. */
+export const MAX_MENSAJE_CLIENTE = 1000;
+/** Fotos cuya vista grande se pide de una vez al abrir el visor. */
+export const MAX_VISTAS_POR_LOTE = 12;
+
+export const MENSAJES_PUBLICO = {
+  enlaceInvalido: "Este enlace ya no es válido.",
+  soloLectura: "Tu selección ya fue enviada, así que no se puede cambiar. Si querés modificar algo, escribinos.",
+  yaEnviada: "Tu selección ya fue enviada.",
+  fotoInvalida: "No encontramos esa foto.",
+  sinComentarios: "En esta galería no se pueden dejar comentarios.",
+  topeComentarios: "Llegaste al máximo de comentarios que se pueden dejar en esta galería.",
+  mensajeLargo: `El mensaje puede tener hasta ${MAX_MENSAJE_CLIENTE.toLocaleString("es-AR")} caracteres.`,
+  sinDescarga: "En esta galería no se pueden descargar las fotos.",
+  originalNoDisponible: "Esa foto todavía no está disponible para descargar en alta.",
+  entregaSinSeleccion: "Esta galería no tiene selección: no hay nada para elegir ni para enviar.",
+  videoNoDisponible: "No pudimos abrir ese video. Probá de nuevo en un momento.",
+  demasiados: "Hiciste demasiados intentos. Esperá unos minutos y probá de nuevo.",
+  generico: "No pudimos hacerlo. Probá de nuevo en un momento.",
+} as const;
+
+export type FotoPublica = {
+  id: string;
+  /** Miniatura firmada (1 h); null si no se pudo firmar. */
+  thumbUrl: string | null;
+  width: number | null;
+  height: number | null;
+  /** FOTO o VIDEO. Un video no tiene miniatura: se muestra una tapa genérica con un ícono de play. */
+  tipo: TipoMedio;
+};
+
+export type ComentarioPublico = {
+  id: string;
+  fotoId: string;
+  autor: "CLIENTE" | "ESTUDIO";
+  texto: string;
+  /** Ya en hora argentina, listo para mostrar. */
+  fecha: string;
+};
+
+export type VistaGaleria = {
+  organizacion: { nombre: string; logoUrl: string | null };
+  galeria: {
+    /** ENTREGA: grilla, visor y descarga por archivo, sin selección ni venta. */
+    tipo: TipoGaleria;
+    nombre: string;
+    mensaje: string | null;
+    permiteComentarios: boolean;
+    permiteDescarga: boolean;
+    /** La galería entrega el original de las fotos elegidas o compradas. */
+    permiteOriginales: boolean;
+    modo: ModoSeleccion;
+    minimo: number | null;
+    maximo: number | null;
+  };
+  cliente: {
+    nombre: string;
+    estado: EstadoCliente;
+    /** Cuándo envió, en hora argentina. */
+    enviadaEn: string | null;
+    mensajeEnviado: string | null;
+  };
+  /** Venta de fotos extra; null si la galería es sólo de selección. */
+  venta: VistaVenta | null;
+  /** Fotos cuyo original puede bajar el cliente ahora (pagadas, o incluidas con la selección ya enviada). */
+  originales: string[];
+  portadaUrl: string | null;
+  fotos: FotoPublica[];
+  seleccionadas: string[];
+  comentarios: ComentarioPublico[];
+};
+
+export type FiltroGaleria = "TODAS" | "SELECCIONADAS" | "CON_COMENTARIOS";
+
+/** Las fotos que muestra la grilla según el filtro. Conserva el orden. */
+export function filtrarFotos<T extends { id: string }>(
+  fotos: readonly T[],
+  filtro: FiltroGaleria,
+  seleccionadas: ReadonlySet<string>,
+  fotosConComentarios: ReadonlySet<string>,
+): T[] {
+  if (filtro === "SELECCIONADAS") return fotos.filter((f) => seleccionadas.has(f.id));
+  if (filtro === "CON_COMENTARIOS") return fotos.filter((f) => fotosConComentarios.has(f.id));
+  return [...fotos];
+}
+
+/** Ids de fotos con al menos un comentario. */
+export function fotosConComentarios(comentarios: readonly { fotoId: string }[]): Set<string> {
+  return new Set(comentarios.map((c) => c.fotoId));
+}
+
+/** Agrupa los comentarios por foto, en el orden en que vienen. */
+export function comentariosPorFoto<T extends { fotoId: string }>(comentarios: readonly T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const c of comentarios) {
+    const l = m.get(c.fotoId);
+    if (l) l.push(c);
+    else m.set(c.fotoId, [c]);
+  }
+  return m;
+}
+
+/** Ids cuya vista conviene tener lista al mirar la foto `indice` (la actual, un par antes y unas más adelante). */
+export function idsParaPrecargar(ids: readonly string[], indice: number, atras = 2, adelante = 4): string[] {
+  const desde = Math.max(0, indice - atras);
+  const hasta = Math.min(ids.length - 1, indice + adelante);
+  const salida: string[] = [];
+  // La actual primero, después las siguientes y al final las anteriores.
+  if (indice >= 0 && indice < ids.length) salida.push(ids[indice]);
+  for (let i = indice + 1; i <= hasta; i++) salida.push(ids[i]);
+  for (let i = indice - 1; i >= desde; i--) salida.push(ids[i]);
+  return salida;
+}
+
+/** Nombre del archivo que se baja: el de la foto sin extensión + .jpg, sólo con caracteres seguros. */
+export function nombreDeDescarga(fileName: string): { ascii: string; utf8: string } {
+  const base = fileName.replace(/\.[^./\\]{1,6}$/, "").replace(/[\\/\r\n"';:*?<>|%\u0000-\u001f]/g, "_").trim().slice(0, 120) || "foto";
+  const ascii = base.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]/g, "_");
+  return { ascii: `${ascii}.jpg`, utf8: `${base}.jpg` };
+}
+
+/**
+ * Nombre con el que se baja el ORIGINAL: el de la foto, con su extensión, sin caracteres que rompan el
+ * encabezado (comillas, barras, saltos de línea, `%`, `;`, controles). `ascii` es la versión sin tildes.
+ */
+export function nombreDeOriginal(fileName: string): { ascii: string; utf8: string } {
+  const limpio = String(fileName ?? "").replace(/[\\/\r\n"';:*?<>|%\u0000-\u001f\u007f]/g, "_").replace(/^[.\s]+/, "").trim().slice(0, 150);
+  const utf8 = limpio || "foto";
+  const ascii = utf8.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "_");
+  return { ascii, utf8 };
+}
+
+/** ¿iPhone o iPad? (el iPad nuevo se presenta como Mac con pantalla táctil). Allí las descargas programáticas en cadena se bloquean. */
+export function esDispositivoIOS(userAgent: string, puntosTactiles: number): boolean {
+  return /iPad|iPhone|iPod/.test(userAgent) || (/Macintosh/.test(userAgent) && puntosTactiles > 1);
+}
+
+// --- Prueba de álbum (Entrega C) ------------------------------------------------------------------------------
+
+export type LaminaPublica = { id: string; thumbUrl: string | null; width: number | null; height: number | null };
+
+export type ComentarioLamina = {
+  id: string;
+  fotoId: string;
+  autor: "CLIENTE" | "ESTUDIO";
+  texto: string;
+  fecha: string;
+  /** Número del pin (correlativo por lámina y cliente); null en un comentario general. Las respuestas del estudio llevan el del pin que contestan. */
+  pinNumber: number | null;
+  /** Posición del pin, 0 a 1 respecto de la imagen mostrada; null sin pin. */
+  pinX: number | null;
+  pinY: number | null;
+};
+
+export type VistaAlbum = {
+  organizacion: { nombre: string; logoUrl: string | null };
+  galeria: { nombre: string; mensaje: string | null };
+  cliente: { nombre: string };
+  /** Todas las rondas, de la 1 a la última. */
+  rondas: { numero: number; estado: EstadoRonda }[];
+  /** La ronda que se está mirando (por omisión, la abierta). */
+  ronda: { numero: number; estado: EstadoRonda; nota: string | null };
+  /** Sólo en la ronda abierta y mientras el cliente no decidió: se puede marcar, comentar y decidir. */
+  puedeComentar: boolean;
+  /** La decisión del cliente sobre la ronda que mira, en hora argentina; null si todavía no decidió. */
+  decision: { decision: DecisionAlbum; mensaje: string | null; fecha: string } | null;
+  laminas: LaminaPublica[];
+  comentarios: ComentarioLamina[];
+};

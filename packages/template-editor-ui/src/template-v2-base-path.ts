@@ -13,6 +13,7 @@ export const TEMPLATE_V2_BASE_PATHS = {
   compramelafoto: "/fotografo/diseno/plantillas/v2",
   fotoffice: "/members/disenador",
   clickaton: "/admin/plantillas",
+  fotorank: "/dashboard/disenador",
 } as const;
 
 /** `{base}/{templateId}/{versionId}` */

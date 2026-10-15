@@ -1,12 +1,18 @@
 import { randomBytes } from "node:crypto";
-import { prisma } from "@repo/db";
+import { baseDelConcurso } from "./baseDelConcurso";
 import { JuryError } from "./errors";
 import { enqueueJuryNotificationIntent } from "./notification-intents";
 import { computePrivateAggregates } from "./scoring-engine";
 import {
-  SANTA_FE_EN_FOCO_JURY_CRITERIA,
-  SANTA_FE_MIN_EVALUATIONS_PER_ENTRY,
-} from "./santa-fe-en-foco-rubric";
+  criteriosDesdeLasReglas,
+  criteriosParaConcurso,
+  minimoDeEvaluacionesPorObra,
+} from "./criteriosDeLaRubrica";
+import {
+  etiquetaDelTipo,
+  rubricaParaTipo,
+  type ConfiguracionDeCalificacion,
+} from "./tiposDeCalificacion";
 
 function newId() {
   return `js${randomBytes(12).toString("hex")}`;
@@ -19,12 +25,13 @@ async function writeSessionAudit(input: {
   entityId: string;
   payload?: Record<string, unknown>;
 }) {
-  const contest = await prisma.fotorankContest.findUnique({
+  const { db } = await baseDelConcurso(input.contestId);
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
     select: { organizationId: true },
   });
   if (!contest) return;
-  await prisma.fotorankJudgeAuditEvent.create({
+  await db.fotorankJudgeAuditEvent.create({
     data: {
       organizationId: contest.organizationId,
       contestId: input.contestId,
@@ -38,13 +45,6 @@ async function writeSessionAudit(input: {
   });
 }
 
-const EXAMPLE_CRITERIA = [
-  { key: "interpretation", name: "Interpretación de la consigna", weight: 30, sortOrder: 10 },
-  { key: "creativity", name: "Creatividad", weight: 25, sortOrder: 20 },
-  { key: "composition", name: "Composición", weight: 20, sortOrder: 30 },
-  { key: "impact", name: "Impacto visual", weight: 15, sortOrder: 40 },
-  { key: "technique", name: "Técnica", weight: 10, sortOrder: 50 },
-] as const;
 
 export async function ensureDraftRubric(input: {
   contestId: string;
@@ -52,33 +52,48 @@ export async function ensureDraftRubric(input: {
   actorUserId: number;
   localExample?: boolean;
 }) {
-  const existing = await prisma.fotorankJuryRubric.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const existing = await db.fotorankJuryRubric.findFirst({
     where: { contestId: input.contestId, admissionBatchId: input.admissionBatchId },
     orderBy: { version: "desc" },
     include: { criteria: true },
   });
   if (existing) return existing;
 
-  const contest = await prisma.fotorankContest.findUnique({
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
-    select: { slug: true },
+    select: { slug: true, distributionChannel: true },
   });
   const isSantaFe = contest?.slug === "santa-fe-en-foco";
-  const rubricName = isSantaFe
-    ? "Santa Fe en Foco — rúbrica staging (borrador legal)"
-    : input.localExample || process.env.NODE_ENV !== "production"
-      ? "Rúbrica ejemplo (local)"
-      : "Rúbrica principal";
+  const esDeClickaton = contest?.distributionChannel === "CLICKATON";
+  const rubricName = esDeClickaton
+    ? "Clickatón — 4 criterios de las bases"
+    : isSantaFe
+      ? "Santa Fe en Foco — rúbrica staging (borrador legal)"
+      : input.localExample || process.env.NODE_ENV !== "production"
+        ? "Rúbrica ejemplo (local)"
+        : "Rúbrica principal";
 
-  const maxVersion = await prisma.fotorankJuryRubric.aggregate({
+  /*
+   * Con qué criterios nace. Una maratón de Clickatón no configura nada: sus
+   * cuatro criterios y la escala están en las bases. El resto sigue como
+   * estaba, incluida la rúbrica vacía en producción para un concurso ajeno.
+   */
+  const criteriosIniciales = criteriosParaConcurso({
+    slug: contest?.slug ?? null,
+    distributionChannel: contest?.distributionChannel ?? null,
+    esProduccion: process.env.NODE_ENV === "production" && !input.localExample,
+  });
+
+  const maxVersion = await db.fotorankJuryRubric.aggregate({
     where: { contestId: input.contestId, name: rubricName },
     _max: { version: true },
   });
   const nextVersion = (maxVersion._max.version ?? 0) + 1;
 
-  if (!input.localExample && !isSantaFe && process.env.NODE_ENV === "production") {
-    // En prod no inventar criterios definitivos (salvo plantilla staging Santa Fe).
-    const empty = await prisma.fotorankJuryRubric.create({
+  if (!criteriosIniciales) {
+    // En prod no inventar criterios definitivos para un concurso ajeno.
+    const empty = await db.fotorankJuryRubric.create({
       data: {
         id: newId(),
         contestId: input.contestId,
@@ -95,42 +110,20 @@ export async function ensureDraftRubric(input: {
     return empty;
   }
 
-  const criteria = isSantaFe
-    ? SANTA_FE_EN_FOCO_JURY_CRITERIA.map((c) => ({
-        id: newId(),
-        key: c.key,
-        name: c.name,
-        description: c.description,
-        weight: c.weight,
-        minScore: c.minScore,
-        maxScore: c.maxScore,
-        step: c.step,
-        required: c.required,
-        sortOrder: c.sortOrder,
-      }))
-    : EXAMPLE_CRITERIA.map((c) => ({
-        id: newId(),
-        key: c.key,
-        name: c.name,
-        description: null as string | null,
-        weight: c.weight,
-        minScore: 1,
-        maxScore: 10,
-        step: 1,
-        required: true,
-        sortOrder: c.sortOrder,
-      }));
+  const criteria = criteriosIniciales.map((c) => ({ id: newId(), ...c }));
 
-  const rubric = await prisma.fotorankJuryRubric.create({
+  const rubric = await db.fotorankJuryRubric.create({
     data: {
       id: newId(),
       contestId: input.contestId,
       admissionBatchId: input.admissionBatchId,
       version: nextVersion,
       name: rubricName,
-      description: isSantaFe
-        ? "PENDING_ORGANIZER_DECISION · BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR"
-        : "Fixture local — no usar como reglamento definitivo.",
+      description: esDeClickaton
+        ? "Los cuatro criterios de las bases de Clickatón, del 1 al 10 y con el mismo peso."
+        : isSantaFe
+          ? "PENDING_ORGANIZER_DECISION · BORRADOR — LEGAL REVIEW REQUIRED — NO PUBLICAR"
+          : "Fixture local — no usar como reglamento definitivo.",
       status: "DRAFT",
       scoringMode: "WEIGHTED_SCORE",
       createdByUserId: input.actorUserId,
@@ -141,12 +134,103 @@ export async function ensureDraftRubric(input: {
   return rubric;
 }
 
+/**
+ * Elegir el tipo de calificación: rehace los criterios de la rúbrica en borrador.
+ *
+ * Sólo mientras la rúbrica no esté activa y nadie haya enviado una nota: cambiar
+ * el tipo con notas enviadas mezclaría escalas en el mismo ranking.
+ */
+export async function configurarTipoDeCalificacion(input: {
+  contestId: string;
+  sessionId: string;
+  config: ConfiguracionDeCalificacion;
+  actorUserId: number;
+}) {
+  const { db } = await baseDelConcurso(input.contestId);
+  const session = await db.fotorankJuryScoringSession.findFirst({
+    where: { id: input.sessionId, contestId: input.contestId },
+    include: { rubric: true },
+  });
+  if (!session) throw new JuryError("SESSION_NOT_FOUND", "Sesión no encontrada.", 404);
+  if (session.rubric.status !== "DRAFT") {
+    throw new JuryError(
+      "RUBRIC_IMMUTABLE",
+      "La rúbrica ya está activa: el tipo de calificación no se puede cambiar.",
+      409,
+    );
+  }
+  const enviadas = await db.fotorankJuryEvaluation.count({
+    where: { rubricId: session.rubricId, status: { in: ["SUBMITTED", "LOCKED"] } },
+  });
+  if (enviadas > 0) {
+    throw new JuryError("RUBRIC_IMMUTABLE", "Ya hay notas enviadas con esta rúbrica.", 409);
+  }
+
+  const contest = await db.fotorankContest.findUnique({
+    where: { id: input.contestId },
+    select: { slug: true, distributionChannel: true, rulesData: true },
+  });
+  const criteriosDelConcurso =
+    criteriosDesdeLasReglas(contest?.rulesData) ??
+    criteriosParaConcurso({
+      slug: contest?.slug ?? null,
+      distributionChannel: contest?.distributionChannel ?? null,
+      esProduccion: process.env.NODE_ENV === "production",
+    });
+  const rubrica = rubricaParaTipo(input.config, criteriosDelConcurso);
+  if (!rubrica) {
+    throw new JuryError(
+      "RUBRIC_EMPTY",
+      "El concurso no tiene criterios cargados. Cargalos en Jurado → Evaluación o elegí otro tipo.",
+      409,
+    );
+  }
+
+  const metadataPrevia =
+    session.metadata && typeof session.metadata === "object"
+      ? (session.metadata as Record<string, unknown>)
+      : {};
+  const { cupoDeSeleccion: _anterior, ...resto } = metadataPrevia;
+  void _anterior;
+
+  await db.$transaction([
+    db.fotorankJuryCriterion.deleteMany({ where: { rubricId: session.rubricId } }),
+    db.fotorankJuryRubric.update({
+      where: { id: session.rubricId },
+      data: {
+        scoringMode: rubrica.modo,
+        description: etiquetaDelTipo(input.config),
+        criteria: { create: rubrica.criterios.map((c) => ({ id: newId(), ...c })) },
+      },
+    }),
+    db.fotorankJuryScoringSession.update({
+      where: { id: session.id },
+      data: {
+        metadata: (input.config.tipo === "SELECCION_CON_CUPO"
+          ? { ...resto, cupoDeSeleccion: input.config.cupo }
+          : resto) as object,
+        scoreScaleMin: Math.min(...rubrica.criterios.map((c) => c.minScore)),
+        scoreScaleMax: Math.max(...rubrica.criterios.map((c) => c.maxScore)),
+      },
+    }),
+  ]);
+
+  await writeSessionAudit({
+    contestId: input.contestId,
+    actorUserId: input.actorUserId,
+    eventType: "JURY_SCORING_TYPE_CONFIGURED",
+    entityId: session.id,
+    payload: { tipo: input.config.tipo, etiqueta: etiquetaDelTipo(input.config) },
+  });
+}
+
 export async function activateRubric(input: {
   contestId: string;
   rubricId: string;
   actorUserId: number;
 }) {
-  const rubric = await prisma.fotorankJuryRubric.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const rubric = await db.fotorankJuryRubric.findFirst({
     where: { id: input.rubricId, contestId: input.contestId },
     include: { criteria: true },
   });
@@ -155,7 +239,7 @@ export async function activateRubric(input: {
     throw new JuryError("RUBRIC_EMPTY", "La rúbrica no tiene criterios.", 409);
   }
 
-  const submitted = await prisma.fotorankJuryEvaluation.count({
+  const submitted = await db.fotorankJuryEvaluation.count({
     where: {
       contestId: input.contestId,
       rubricId: rubric.id,
@@ -170,7 +254,7 @@ export async function activateRubric(input: {
     );
   }
 
-  await prisma.fotorankJuryRubric.updateMany({
+  await db.fotorankJuryRubric.updateMany({
     where: {
       contestId: input.contestId,
       admissionBatchId: rubric.admissionBatchId,
@@ -180,7 +264,7 @@ export async function activateRubric(input: {
     data: { status: "SUPERSEDED" },
   });
 
-  const updated = await prisma.fotorankJuryRubric.update({
+  const updated = await db.fotorankJuryRubric.update({
     where: { id: rubric.id },
     data: {
       status: "ACTIVE",
@@ -213,7 +297,8 @@ export async function ensureDraftScoringSession(input: {
   admissionBatchId: string;
   actorUserId: number;
 }) {
-  const batch = await prisma.fotorankAdmissionBatch.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const batch = await db.fotorankAdmissionBatch.findFirst({
     where: { id: input.admissionBatchId, contestId: input.contestId },
   });
   if (!batch) throw new JuryError("BATCH_NOT_FOUND", "Lote no encontrado.", 404);
@@ -221,7 +306,7 @@ export async function ensureDraftScoringSession(input: {
     throw new JuryError("BATCH_NOT_FROZEN", "Solo se puede crear sesión sobre batch FROZEN.", 409);
   }
 
-  const existing = await prisma.fotorankJuryScoringSession.findFirst({
+  const existing = await db.fotorankJuryScoringSession.findFirst({
     where: {
       contestId: input.contestId,
       admissionBatchId: input.admissionBatchId,
@@ -231,11 +316,21 @@ export async function ensureDraftScoringSession(input: {
   });
   if (existing) return existing;
 
-  const contest = await prisma.fotorankContest.findUnique({
+  const contest = await db.fotorankContest.findUnique({
     where: { id: input.contestId },
-    select: { slug: true },
+    select: { slug: true, distributionChannel: true },
   });
   const isSantaFe = contest?.slug === "santa-fe-en-foco";
+  const esDeClickaton = contest?.distributionChannel === "CLICKATON";
+
+  /*
+   * Cuántos jurados miran cada obra. Sale de cuántos jurados hay: tres
+   * cuando el equipo alcanza, todos cuando es más chico. Fijarlo en uno
+   * dejaba pasar obras con una sola mirada y sin nada que desempatar.
+   */
+  const juradosAsignados = await db.fotorankJudgeAssignment.count({
+    where: { contestId: input.contestId },
+  });
 
   const rubric = await ensureDraftRubric({
     contestId: input.contestId,
@@ -244,7 +339,7 @@ export async function ensureDraftScoringSession(input: {
     localExample: process.env.NODE_ENV !== "production" || isSantaFe,
   });
 
-  return prisma.fotorankJuryScoringSession.create({
+  return db.fotorankJuryScoringSession.create({
     data: {
       id: newId(),
       contestId: input.contestId,
@@ -252,7 +347,10 @@ export async function ensureDraftScoringSession(input: {
       rubricId: rubric.id,
       status: "DRAFT",
       scoringEnabled: false,
-      minimumEvaluationsPerEntry: isSantaFe ? SANTA_FE_MIN_EVALUATIONS_PER_ENTRY : 1,
+      minimumEvaluationsPerEntry:
+        isSantaFe || esDeClickaton
+          ? minimoDeEvaluacionesPorObra(juradosAsignados)
+          : 1,
       assignmentSeed: randomBytes(16).toString("hex"),
     },
   });
@@ -263,7 +361,8 @@ export async function openScoringSession(input: {
   sessionId: string;
   actorUserId: number;
 }) {
-  const session = await prisma.fotorankJuryScoringSession.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const session = await db.fotorankJuryScoringSession.findFirst({
     where: { id: input.sessionId, contestId: input.contestId },
     include: {
       admissionBatch: true,
@@ -281,7 +380,7 @@ export async function openScoringSession(input: {
     throw new JuryError("RUBRIC_EMPTY", "Rúbrica sin criterios.", 409);
   }
 
-  const opened = await prisma.fotorankJuryScoringSession.update({
+  const opened = await db.fotorankJuryScoringSession.update({
     where: { id: session.id },
     data: {
       status: "OPEN",
@@ -314,7 +413,8 @@ export async function closeScoringSession(input: {
   force?: boolean;
   reason?: string | null;
 }) {
-  const session = await prisma.fotorankJuryScoringSession.findFirst({
+  const { db } = await baseDelConcurso(input.contestId);
+  const session = await db.fotorankJuryScoringSession.findFirst({
     where: { id: input.sessionId, contestId: input.contestId },
   });
   if (!session) throw new JuryError("SESSION_NOT_FOUND", "Sesión no encontrada.", 404);
@@ -336,7 +436,7 @@ export async function closeScoringSession(input: {
     sessionId: session.id,
   });
 
-  const closed = await prisma.fotorankJuryScoringSession.update({
+  const closed = await db.fotorankJuryScoringSession.update({
     where: { id: session.id },
     data: {
       status: "CLOSED",
@@ -373,14 +473,15 @@ export async function closeScoringSession(input: {
 }
 
 export async function getCoverageReport(contestId: string, sessionId: string) {
-  const session = await prisma.fotorankJuryScoringSession.findFirstOrThrow({
+  const { db } = await baseDelConcurso(contestId);
+  const session = await db.fotorankJuryScoringSession.findFirstOrThrow({
     where: { id: sessionId, contestId },
   });
-  const snapshots = await prisma.fotorankJuryEntrySnapshot.findMany({
+  const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
     where: { admissionBatchId: session.admissionBatchId },
     select: { id: true, anonymousCode: true, entryId: true },
   });
-  const submitted = await prisma.fotorankJuryEvaluation.groupBy({
+  const submitted = await db.fotorankJuryEvaluation.groupBy({
     by: ["juryEntrySnapshotId"],
     where: {
       scoringSessionId: sessionId,
@@ -396,14 +497,14 @@ export async function getCoverageReport(contestId: string, sessionId: string) {
     if (n >= session.minimumEvaluationsPerEntry) complete += 1;
     else incomplete += 1;
   }
-  const activeConflicts = await prisma.fotorankJudgeEntryConflict.count({
+  const activeConflicts = await db.fotorankJudgeEntryConflict.count({
     where: {
       contestId,
       status: "ACTIVE",
       entryId: { in: snapshots.map((s) => s.entryId) },
     },
   });
-  const submittedEvaluations = await prisma.fotorankJuryEvaluation.count({
+  const submittedEvaluations = await db.fotorankJuryEvaluation.count({
     where: { scoringSessionId: sessionId, status: { in: ["SUBMITTED", "LOCKED"] } },
   });
   return {
@@ -420,15 +521,16 @@ export async function computeAndStorePreliminaryAggregates(input: {
   contestId: string;
   sessionId: string;
 }) {
-  const session = await prisma.fotorankJuryScoringSession.findFirstOrThrow({
+  const { db } = await baseDelConcurso(input.contestId);
+  const session = await db.fotorankJuryScoringSession.findFirstOrThrow({
     where: { id: input.sessionId, contestId: input.contestId },
   });
-  const snapshots = await prisma.fotorankJuryEntrySnapshot.findMany({
+  const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
     where: { admissionBatchId: session.admissionBatchId },
   });
 
   for (const snap of snapshots) {
-    const evals = await prisma.fotorankJuryEvaluation.findMany({
+    const evals = await db.fotorankJuryEvaluation.findMany({
       where: {
         scoringSessionId: session.id,
         juryEntrySnapshotId: snap.id,
@@ -445,7 +547,7 @@ export async function computeAndStorePreliminaryAggregates(input: {
     const agg = computePrivateAggregates(totals);
     const normAgg = computePrivateAggregates(norms);
 
-    await prisma.fotorankJuryPreliminaryAggregate.upsert({
+    await db.fotorankJuryPreliminaryAggregate.upsert({
       where: {
         scoringSessionId_juryEntrySnapshotId: {
           scoringSessionId: session.id,
@@ -484,8 +586,9 @@ export async function computeAndStorePreliminaryAggregates(input: {
 }
 
 export async function exportJuryProgressCsv(contestId: string, sessionId: string) {
+  const { db } = await baseDelConcurso(contestId);
   const coverage = await getCoverageReport(contestId, sessionId);
-  const evals = await prisma.fotorankJuryEvaluation.findMany({
+  const evals = await db.fotorankJuryEvaluation.findMany({
     where: { contestId, scoringSessionId: sessionId },
     include: {
       juryEntrySnapshot: { select: { anonymousCode: true } },
@@ -510,7 +613,8 @@ export async function exportJuryProgressCsv(contestId: string, sessionId: string
 }
 
 export async function exportBlindAggregatesCsv(contestId: string, sessionId: string) {
-  const rows = await prisma.fotorankJuryPreliminaryAggregate.findMany({
+  const { db } = await baseDelConcurso(contestId);
+  const rows = await db.fotorankJuryPreliminaryAggregate.findMany({
     where: { contestId, scoringSessionId: sessionId },
     orderBy: { anonymousCode: "asc" },
   });
@@ -537,7 +641,8 @@ export async function exportBlindAggregatesCsv(contestId: string, sessionId: str
 
 /** Export administrativo de evaluaciones (requiere canExportJuryScores). Sin identidad de participante. */
 export async function exportAdminEvaluationsCsv(contestId: string, sessionId: string) {
-  const evals = await prisma.fotorankJuryEvaluation.findMany({
+  const { db } = await baseDelConcurso(contestId);
+  const evals = await db.fotorankJuryEvaluation.findMany({
     where: { contestId, scoringSessionId: sessionId },
     include: {
       juryEntrySnapshot: {

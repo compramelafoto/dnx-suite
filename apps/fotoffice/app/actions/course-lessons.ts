@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@repo/db";
 import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
@@ -50,7 +51,7 @@ export async function crearClase(
   formData: FormData,
 ): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const datos = claseSchema.parse({
       courseId: formData.get("courseId")?.toString()?.trim() ?? "",
       title: formData.get("title")?.toString()?.trim() ?? "",
@@ -86,6 +87,8 @@ export async function crearClase(
     revalidatePath(`/dashboard/courses/${datos.courseId}`);
     return { error: null, ok: true };
   } catch (error) {
+    // El `redirect` de la guarda no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo crear la clase." };
   }
 }
@@ -95,7 +98,7 @@ export async function actualizarClase(
   formData: FormData,
 ): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const lessonId = formData.get("lessonId")?.toString()?.trim() ?? "";
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
     const datos = claseSchema.parse({
@@ -116,13 +119,15 @@ export async function actualizarClase(
     revalidatePath(`/dashboard/courses/${clase.courseId}`);
     return { error: null, ok: true };
   } catch (error) {
+    // El `redirect` de la guarda no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo guardar la clase." };
   }
 }
 
 export async function borrarClase(lessonId: string): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
 
     await prisma.$transaction(async (tx) => {
@@ -146,6 +151,8 @@ export async function borrarClase(lessonId: string): Promise<CourseLessonActionS
     revalidatePath(`/dashboard/courses/${clase.courseId}`);
     return { error: null, ok: true };
   } catch (error) {
+    // El `redirect` de la guarda no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo borrar la clase." };
   }
 }
@@ -156,7 +163,7 @@ export async function reordenarClases(
   destino: number,
 ): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     await asegurarCursoDelWorkspace(workspace.id, courseId);
 
     const actuales = await prisma.courseLesson.findMany({
@@ -179,6 +186,8 @@ export async function reordenarClases(
     revalidatePath(`/dashboard/courses/${courseId}`);
     return { error: null, ok: true };
   } catch (error) {
+    // El `redirect` de la guarda no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "No se pudo reordenar." };
   }
 }
@@ -191,7 +200,7 @@ export async function reordenarClases(
  */
 export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLessonActionState> {
   try {
-    const { workspace } = await requireCoursesSalesContext();
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
     if (!clase.videoUid) return { error: null, ok: true };
 
@@ -207,6 +216,8 @@ export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLe
     revalidatePath(`/dashboard/courses/${clase.courseId}`);
     return { error: null, ok: true };
   } catch (error) {
+    // El `redirect` de la guarda no es un error: que llegue a Next.
+    unstable_rethrow(error);
     return {
       error: error instanceof Error ? error.message : "No se pudo consultar el estado del video.",
     };
@@ -221,7 +232,7 @@ export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLe
 export async function prepararSubidaDeVideo(
   lessonId: string,
 ): Promise<{ ok: true; uploadUrl: string } | { ok: false; error: string }> {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
 
   // Cuatro horas: una clase más larga que eso es, casi siempre, un archivo equivocado.

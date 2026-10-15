@@ -7,6 +7,7 @@ import { CAMERA_CLOCK_WARNING_ES } from "@/config/editions/argentina-2026";
 import { publicUploadError } from "@/lib/public-ux/public-errors";
 import { resolverEstadoConsigna } from "@/lib/participant-notes/prompt-state";
 import { subirConProgreso } from "@/lib/participant-notes/upload-progress";
+import { formatearEnAr } from "@/lib/fecha-ar";
 
 /**
  * Entrega de la foto de una consigna, en un solo paso.
@@ -191,12 +192,12 @@ export function PromptPhotoUpload({
         <dt className="inline">Fecha de captura: </dt>
         <dd className="inline">
           {datos.captura
-            ? new Date(datos.captura).toLocaleString("es-AR", {
+            ? formatearEnAr(datos.captura, {
                 day: "2-digit",
                 month: "2-digit",
                 hour: "2-digit",
                 minute: "2-digit",
-                hour12: false,
+                hourCycle: "h23",
               })
             : "no detectada"}
         </dd>

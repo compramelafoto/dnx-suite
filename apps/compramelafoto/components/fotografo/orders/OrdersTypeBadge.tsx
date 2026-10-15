@@ -34,7 +34,7 @@ const BADGE_TITLES: Record<OrderTypeBadgeVariant, string> = {
 export default function OrdersTypeBadge({ order }: { order: PhotographerOrderRow }) {
   const variant = getOrderTypeBadgeVariant(order);
 
-  return (
+  const badge = (
     <span
       title={BADGE_TITLES[variant]}
       className={cn(
@@ -43,6 +43,19 @@ export default function OrdersTypeBadge({ order }: { order: PhotographerOrderRow
       )}
     >
       {BADGE_LABELS[variant]}
+    </span>
+  );
+  if (!order.isDemo) return badge;
+  // Canje de prueba del fotógrafo: bien visible para no confundirlo con un pedido real.
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span
+        title="Pedido DEMO: tu prueba del canje. No se cobra ni entra en tus ventas."
+        className="inline-flex items-center rounded bg-fuchsia-600 px-1.5 py-0.5 text-[10px] font-bold tracking-wider leading-none text-white whitespace-nowrap"
+      >
+        DEMO
+      </span>
+      {badge}
     </span>
   );
 }

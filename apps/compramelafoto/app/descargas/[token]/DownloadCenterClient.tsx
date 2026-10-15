@@ -345,6 +345,56 @@ function VideosSection({ data }: { data: DownloadCenterData }) {
   );
 }
 
+/** Los diseños aprobados por el fotógrafo (carpeta, póster…), con PDF para imprimir y JPG. */
+function DesignsSection({ data }: { data: DownloadCenterData }) {
+  if (!data.designs || data.designs.length === 0) return null;
+  return (
+    <section aria-label="Diseños" className="min-w-0">
+      <h2 className="mb-3 text-base font-semibold text-[#111827]">
+        {data.designs.length === 1 ? "Tu diseño" : `Tus ${data.designs.length} diseños`}
+      </h2>
+      <ul className="flex flex-col gap-3">
+        {data.designs.map((design) => (
+          <li key={design.id} className="rounded-lg border border-[#e5e7eb] bg-white p-4">
+            <p className="font-medium text-[#111827]">{design.name}</p>
+            {design.jpgUrls[0] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={design.jpgUrls[0]}
+                alt={design.name}
+                className="mt-3 w-full max-w-xl rounded-md border border-[#e5e7eb]"
+              />
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {design.jpgUrls.map((url, i) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="whitespace-nowrap rounded-lg bg-[#111827] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#374151]"
+                >
+                  {design.jpgUrls.length > 1 ? `Imagen ${i + 1}` : "Descargar imagen"}
+                </a>
+              ))}
+              {design.pdfUrl ? (
+                <a
+                  href={design.pdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="whitespace-nowrap rounded-lg border border-[#d1d5db] px-4 py-2 text-sm font-medium text-[#111827] transition hover:bg-[#f9fafb]"
+                >
+                  PDF para imprimir
+                </a>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function DownloadCenterClient({ data }: Props) {
   const [isMobile, setIsMobile] = useState(false);
   const [zipState, setZipState] = useState(data.zip);
@@ -419,6 +469,7 @@ export default function DownloadCenterClient({ data }: Props) {
             </p>
           ) : null}
 
+          {!isExpired ? <DesignsSection data={data} /> : null}
           {!isExpired ? <VideosSection data={data} /> : null}
 
           {!isExpired ? <ZipSection data={data} zipState={zipState} /> : null}

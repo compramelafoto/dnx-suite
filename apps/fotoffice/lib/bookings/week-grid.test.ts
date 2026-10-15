@@ -156,3 +156,17 @@ describe("elegir un rango con dos toques", () => {
     expect(selectRange(g, "2026-01-01T00:00:00.000Z", celda(g, 0, 9)!.startISO).ok).toBe(false);
   });
 });
+
+describe("lo que todavía no se puede pedir", () => {
+  it("más allá de la anticipación máxima no se muestra como ocupado", () => {
+    // Ahora: domingo 13 a las 12 locales. Con 3 días de anticipación, el jueves 17 queda afuera.
+    const g = buildWeekGrid({ ...base, freeSlots: [], maxAdvanceDays: 3 });
+    expect(celda(g, 3, 10)!.state).toBe("LATER");
+    expect(celda(g, 1, 10)!.state).toBe("TAKEN");
+  });
+
+  it("sin el dato, se comporta como antes", () => {
+    const g = buildWeekGrid({ ...base, freeSlots: [] });
+    expect(celda(g, 3, 10)!.state).toBe("TAKEN");
+  });
+});

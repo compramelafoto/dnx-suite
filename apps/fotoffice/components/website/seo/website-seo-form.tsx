@@ -25,12 +25,12 @@ export function WebsiteSeoForm({
         <label className="block space-y-2">
           <span className="fo-label">Título para buscadores</span>
           <input name="seoTitle" defaultValue={initialSeoTitle ?? ""} className="fo-input" maxLength={200} />
-          <p className="fo-helper">Lo que se ve como título cuando tu sitio aparece en Google.</p>
+          <p className="fo-helper">Lo que se ve como título cuando tu sitio aparece en Google o se comparte. Si lo dejás vacío, se usa el nombre de tu institución.</p>
         </label>
         <label className="block space-y-2">
           <span className="fo-label">Descripción para buscadores</span>
           <textarea name="seoDescription" defaultValue={initialSeoDescription ?? ""} rows={3} className="fo-input" maxLength={400} />
-          <p className="fo-helper">Un resumen corto que acompaña al título en los resultados de búsqueda.</p>
+          <p className="fo-helper">Un resumen corto que acompaña al título en Google y al compartir el enlace. Si lo dejás vacío, se usa la «Descripción breve» de Datos de la institución. Los cambios se ven al publicar el sitio.</p>
         </label>
       </fieldset>
       {state.error ? <p className="text-sm text-[var(--fo-danger)]">{state.error}</p> : null}

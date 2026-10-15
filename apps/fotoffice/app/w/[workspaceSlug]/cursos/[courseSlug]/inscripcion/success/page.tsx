@@ -66,6 +66,23 @@ export default async function CourseEnrollmentSuccessPage({ params, searchParams
           Curso: <strong className="text-[var(--fo-text)]">{enrollment.course.title}</strong>
         </p>
         <p className="text-sm text-[var(--fo-muted)]">{statusMessage}</p>
+        {approved && enrollment.course.deliveryMode === "RECORDED" ? (
+          <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4">
+            <h2 className="font-semibold">Tu curso está en tu portal</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Te mandamos un correo con cómo entrar. Si ya tenés cuenta en el portal, entrá con
+              tu usuario y contraseña de siempre.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link href="/portal/cursos" className="fo-btn fo-btn-primary text-sm">
+                Ir a mis cursos
+              </Link>
+              <Link href="/recuperar" className="text-sm text-[var(--fo-accent)] underline self-center">
+                No tengo contraseña
+              </Link>
+            </div>
+          </div>
+        ) : null}
         {canShowClassroom ? (
           <div className="space-y-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-4">
             <h2 className="font-semibold">Acceso al aula</h2>

@@ -9,6 +9,8 @@ const BY_CODE: Partial<Record<EntryErrorCode | string, string>> = {
   REPLACE_NOT_ALLOWED: "En este momento no podés reemplazar la fotografía.",
   CONFIRM_BLOCKED: "Todavía no se puede confirmar el envío. Revisá los requisitos técnicos.",
   FROZEN: "La obra está congelada y no admite cambios.",
+  ENTRY_QUOTA_EXCEEDED: "Ya cargaste todas las fotografías que permite esta categoría.",
+  CATEGORY_NOT_ALLOWED: "Este concurso no permite presentar fotografías en esa categoría.",
   DEVICE_NOT_ELIGIBLE: "El dispositivo declarado no es válido para esta categoría.",
   TERRITORY_REQUIRED: "Confirmá el territorio y la localidad de captura.",
   ARGRA_REQUIRED: "Falta la acreditación requerida para esta categoría.",
@@ -44,6 +46,14 @@ const BY_CODE: Partial<Record<EntryErrorCode | string, string>> = {
   DIRECT_UPLOAD_FAILED:
     "No se pudo subir la fotografía al servidor de archivos. Revisá tu conexión y reintentá: conservamos tus datos.",
   STAGED_FILE_MISSING: "La fotografía no llegó completa al servidor. Reintentá el envío.",
+  /**
+   * El navegador perdió acceso a la foto elegida (pasa en iPhone si la página
+   * queda un rato en segundo plano o la foto está en iCloud) y mandó 0 bytes.
+   * Reintentar con el mismo archivo no sirve: hay que volver a elegirla.
+   */
+  EMPTY_FILE: "La foto llegó vacía. Volvé a elegirla desde tu galería y enviala de nuevo.",
+  FILE_UNREADABLE:
+    "No pudimos leer la foto desde tu dispositivo. Volvé a elegirla desde tu galería y enviala de nuevo.",
 };
 
 export function translateUploadError(

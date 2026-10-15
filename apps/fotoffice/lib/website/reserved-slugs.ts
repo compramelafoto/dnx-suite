@@ -25,6 +25,7 @@ export const FOTOFFICE_RESERVED_SLUGS = [
   "preview", "vista-previa",
   "courses", "course", "cursos", "curso",
   "members", "member", "socios", "socio",
+  "portfolios", "portfolio",
   "users", "user", "usuarios", "usuario",
   "settings", "configuracion", "configuration",
   "billing", "facturacion",
@@ -44,5 +45,5 @@ export const FOTOFFICE_RESERVED_SLUGS = [
  */
 export const FOTOFFICE_TOP_LEVEL_APP_ROUTES = [
   "admin", "api", "courses", "cursos", "dashboard", "evaluaciones", "login", "members",
-  "onboarding", "recuperar", "w", "website", "workspace",
+  "onboarding", "portfolios", "recuperar", "w", "website", "workspace",
 ] as const;

@@ -21,7 +21,7 @@ export default function Arrepentimiento() {
         <Link
           href="/"
           className="text-sm font-extrabold"
-          style={{ color: "var(--slf-violeta)" }}
+          style={{ color: "var(--slf-violeta-texto)" }}
         >
           ← SubiLaFoto
         </Link>

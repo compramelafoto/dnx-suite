@@ -5,6 +5,8 @@
  */
 import { prisma } from "@repo/db";
 
+import { componerCorreo } from "./plantillaInstitucional";
+
 export type TransactionalEmailKind =
   | "REGISTRATION_CONFIRMED"
   | "PHOTO_RECEIVED"
@@ -12,6 +14,8 @@ export type TransactionalEmailKind =
   | "REPLACEMENT_REQUESTED"
   | "JURY_INVITATION"
   | "JURY_INVITE_REMINDER"
+  | "JURY_INVITATION_ANSWERED"
+  | "JURY_RECRUIT_INVITATION"
   | "JURY_SCORING_OPEN"
   | "JURY_SCORING_CLOSING_SOON"
   | "JURY_ASSIGNMENT_NEW"
@@ -113,16 +117,9 @@ export async function enqueueTransactionalEmail(msg: OutboxMessage): Promise<{ q
         process.env.RESEND_FROM?.trim() ||
         process.env.FOTORANK_EMAIL_FROM?.trim() ||
         "FotoRank <noreply@fotorank.com>";
-      const tpl = TRANSACTIONAL_EMAIL_TEMPLATES[msg.kind];
-      let subject = tpl.subject;
-      const bodyLines: string[] = [`Evento: ${msg.kind}`];
-      for (const [k, v] of Object.entries(msg.payload)) {
-        if (v == null) continue;
-        if (/argra|password|token|secret|gps/i.test(k)) continue;
-        const s = String(v);
-        subject = subject.split(`{{${k}}}`).join(s);
-        bodyLines.push(`${k}: ${s}`);
-      }
+      // Hasta el 2026-09-25 el cuerpo era "Evento: <tipo>" y cada dato con su
+      // nombre de variable. Ahora cada tipo tiene su texto y el marco con el logo.
+      const correo = componerCorreo(msg.kind, msg.payload);
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -132,8 +129,9 @@ export async function enqueueTransactionalEmail(msg: OutboxMessage): Promise<{ q
         body: JSON.stringify({
           from,
           to: [to],
-          subject,
-          text: bodyLines.join("\n"),
+          subject: correo.asunto,
+          html: correo.html,
+          text: correo.texto,
         }),
       });
       if (!res.ok) {
@@ -177,6 +175,16 @@ export const TRANSACTIONAL_EMAIL_TEMPLATES: Record<
   JURY_INVITE_REMINDER: {
     subject: "Recordatorio: invitación a jurado — {{contestTitle}}",
     requiredVars: ["contestTitle"],
+  },
+  /** Va al organizador que invitó, cuando el jurado responde desde el directorio. */
+  JURY_INVITATION_ANSWERED: {
+    subject: "{{nombre}} respondió tu invitación — {{contestTitle}}",
+    requiredVars: ["nombre", "respuesta", "contestTitle"],
+  },
+  /** Convocatoria a sumarse al padrón de jurados, sin concurso de por medio. */
+  JURY_RECRUIT_INVITATION: {
+    subject: "Te invitamos a sumarte como jurado de FotoRank",
+    requiredVars: ["organizationName", "postulacionUrl"],
   },
   JURY_SCORING_OPEN: {
     subject: "Evaluación abierta — {{contestTitle}}",

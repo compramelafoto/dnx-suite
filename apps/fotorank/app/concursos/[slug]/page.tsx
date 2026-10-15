@@ -13,6 +13,7 @@ import { getPublicContestCardBySlug, parseUpcomingConfig } from "../../lib/fotor
 import { getMyContestInterestAction } from "../../actions/contest-interest";
 import { UpcomingContestLanding } from "../../components/contest-upcoming/UpcomingContestLanding";
 import { prisma } from "@repo/db";
+import { MuestrasDelConcurso } from "../../components/contest-public/MuestrasDelConcurso";
 import { ContestPublicLanding } from "./ContestPublicLanding";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -145,6 +146,7 @@ export default async function ContestPublicPage({ params }: Props) {
         partnerGroups={[]}
         managedBanner={landingManaged.banner ?? null}
       />
+      <MuestrasDelConcurso contestId={data.contest.id} className="mx-auto w-full max-w-3xl px-6 py-10" />
       <FotorankContestPartnerWelcome ad={welcomePayload} />
     </>
   );

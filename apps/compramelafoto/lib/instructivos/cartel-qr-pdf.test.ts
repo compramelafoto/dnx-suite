@@ -7,6 +7,7 @@ import type { AlbumInstructivoProfile } from "./album-instructivo-profile";
 
 function perfil(over: Partial<AlbumInstructivoProfile> = {}): AlbumInstructivoProfile {
   return {
+    publico: "general",
     entrada: "abierta",
     busqueda: ["cara", "navegar"],
     momento: "postventa",
@@ -38,6 +39,14 @@ describe("lineaDeAccion", () => {
 
   it("con dorsales nombra el número", () => {
     assert.match(lineaDeAccion(perfil({ busqueda: ["dorsal", "navegar"] })), /número/i);
+  });
+
+  it("nombra todos los métodos de búsqueda, no sólo el primero", () => {
+    const linea = lineaDeAccion(perfil({ busqueda: ["cara", "dorsal", "palabra", "navegar"] }));
+    assert.equal(
+      linea,
+      "Escaneá el código y buscá tus fotos con una selfie, tu número o palabra clave"
+    );
   });
 
   it("en preventa habla de reservar, no de mirar", () => {

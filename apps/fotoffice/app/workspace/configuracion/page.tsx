@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
+import { puede } from "@/lib/access/policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
 import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
@@ -11,6 +12,13 @@ import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
 import { getWorkspaceCollectionStatus } from "@/lib/payments/connect/status";
 import { collectionCopy } from "@/lib/payments/connect/messages";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { enumerar, tiposConModuloEncendido } from "@/lib/campos/modulos";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
+import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
+import { CONTRACTS_MODULE_KEY } from "@/lib/contratos/acceso";
+import { GALLERY_MODULE_KEY } from "@/lib/galerias/acceso";
 
 export default async function WorkspaceSettingsPage() {
   const user = await requireAuth();
@@ -37,6 +45,21 @@ export default async function WorkspaceSettingsPage() {
   // El acceso a Palabras muestra la que rige hoy: sin eso, entrar es la única forma de saber
   // si alguien ya la cambió.
   const vocabulario = await loadPersonVocabulary(ensured.workspaceId);
+  // La tarjeta de Campos nombra los mismos tipos que las pestañas de su página: cada uno con su módulo.
+  const NOMBRE_TIPO = { CLIENTE: "clientes", SOCIO: vocabulario.plural, CONSULTA: "consultas", PROYECTO: "proyectos" } as const;
+  const tiposConCampos = (await tiposConModuloEncendido(ensured.workspaceId)).map((t) => NOMBRE_TIPO[t]);
+  // Configuración → Consultas, sólo con el módulo encendido (como su pantalla).
+  const consultasEncendido = await isModuleEnabledForWorkspace(ensured.workspaceId, SERVICE_LEADS_MODULE_KEY);
+  // Configuración → Presupuestos: con Consultas o Presupuestos encendido (los ajustes se dejan
+  // listos antes de encender el módulo, como en el menú).
+  const presupuestosVisible = consultasEncendido || (await isModuleEnabledForWorkspace(ensured.workspaceId, QUOTES_MODULE_KEY));
+  // Configuración → Pedidos: con Presupuestos o Pedidos encendido (como en el menú).
+  const pedidosVisible =
+    (await isModuleEnabledForWorkspace(ensured.workspaceId, QUOTES_MODULE_KEY)) ||
+    (await isModuleEnabledForWorkspace(ensured.workspaceId, ORDERS_MODULE_KEY));
+  // Configuración → Contratos: sólo con el módulo encendido (como en el menú).
+  const contratosVisible = await isModuleEnabledForWorkspace(ensured.workspaceId, CONTRACTS_MODULE_KEY);
+  const galeriaVisible = await isModuleEnabledForWorkspace(ensured.workspaceId, GALLERY_MODULE_KEY);
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -79,6 +102,216 @@ export default async function WorkspaceSettingsPage() {
         <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
       </Link>
 
+      {/* Equipo (etapa 0.1) no se muestra: el equipo y sus permisos se administran en Comisión
+          directiva (roles por módulo de main). La pantalla y sus tablas quedan sin enlace. */}
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/modulos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Módulos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Encendé o apagá lo que usa tu organización.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/ficha"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Ficha</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Categorías de las notas y etiquetas de las fichas.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/circuitos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Circuitos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Etapas de ventas y trabajos, tareas automáticas y motivos de pérdida.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && tiposConCampos.length > 0 ? (
+        <Link
+          href="/workspace/configuracion/campos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Campos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Datos propios para las fichas de {enumerar(tiposConCampos, "y")}.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && consultasEncendido ? (
+        <Link
+          href="/workspace/configuracion/consultas"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Consultas</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Categorías, orígenes, roles de participante y avisos de consultas nuevas.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/precios"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Precios</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Tus costos, tus horas y el valor de tu hora para calcular presupuestos con ¿Cuánto Cobro?
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && presupuestosVisible ? (
+        <Link
+          href="/workspace/configuracion/presupuestos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Presupuestos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && pedidosVisible ? (
+        <Link
+          href="/workspace/configuracion/pedidos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Pedidos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Recordatorio de cuotas, rubro de ingreso por omisión y checklist de los pedidos.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && contratosVisible ? (
+        <Link
+          href="/workspace/configuracion/contratos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Contratos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Plantillas de contrato, datos de la empresa, consentimiento a la firma electrónica y recordatorios.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") && galeriaVisible ? (
+        <Link
+          href="/workspace/configuracion/galeria"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Galería</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Mensaje de bienvenida, comentarios y descarga con los que nace cada galería.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/plantillas"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Plantillas</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Textos de correo y WhatsApp listos para mandar desde las fichas, y la respuesta automática.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/numeracion"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Numeración</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Prefijo, año y próximo número de consultas, presupuestos, pedidos, contratos y proyectos.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/alboom"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Migración desde Alboom</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Conectá tu cuenta de Alboom y copiá todo el CRM para traerlo a FotoOffice.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
+      <Link
+        href="/workspace/configuracion/concursos"
+        className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+      >
+        <span className="space-y-0.5">
+          <span className="block text-sm font-semibold">Vitrina de concursos</span>
+          <span className="block text-xs text-[var(--fo-muted)]">
+            Qué concursos de FotoRank y Clickatón ven tus socios en su portal.
+          </span>
+        </span>
+        <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+      </Link>
+
       <div className="space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
           Configuración del negocio
@@ -109,6 +342,7 @@ export default async function WorkspaceSettingsPage() {
           website: branding?.website ?? "",
           instagram: branding?.instagram ?? "",
           emailSignatureNote: branding?.emailSignatureNote ?? "",
+          shortDescription: branding?.shortDescription ?? "",
           activityType: normalizeFotofficeOrganizationType(branding?.activityType),
           specialties: branding?.specialties ?? [],
           logoUrl: branding?.logoUrl ?? null,

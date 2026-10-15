@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { requireRafflesAdmin } from "@/lib/raffles/access";
+import { requireRafflesConductor } from "@/lib/raffles/access";
 import { createRaffleAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export default async function NuevoSorteoPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireRafflesAdmin();
+  await requireRafflesConductor();
   const params = await searchParams;
 
   return (

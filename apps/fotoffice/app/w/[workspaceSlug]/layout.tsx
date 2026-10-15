@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { buildSiteMetadata } from "@/lib/website/site-metadata";
+import { loadSiteMetadataInput } from "@/lib/website/site-metadata.server";
 import { loadPublicSite } from "@/lib/website/public-site";
 import { PublicSiteShell } from "@/components/website/render/public-site-shell";
 
@@ -18,6 +21,15 @@ type Props = { children: ReactNode; params: Promise<{ workspaceSlug: string }> }
  * marco: una institución que sólo vende cursos sigue teniendo su /w/slug/cursos con cara de
  * sitio (ver la tabla de la sección 4 del spec).
  */
+/**
+ * Título, descripción, ícono y vista previa al compartir (logo) de todo el sitio. Las páginas que
+ * definen los suyos (un artículo del blog, un portfolio) los pisan; el resto hereda estos.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ workspaceSlug: string }> }): Promise<Metadata> {
+  const input = await loadSiteMetadataInput((await params).workspaceSlug);
+  return input ? buildSiteMetadata(input) : {};
+}
+
 export default async function PublicWorkspaceLayout({ children, params }: Props) {
   const { workspaceSlug } = await params;
   const site = await loadPublicSite(workspaceSlug);

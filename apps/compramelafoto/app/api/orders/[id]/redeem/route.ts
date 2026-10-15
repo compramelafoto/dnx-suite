@@ -10,6 +10,7 @@ import { z } from "zod";
 import { OrderOrigin, OrderStatus, Role } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/order-claims";
+import { completePreventaRedemption } from "@/lib/preventa-canjeable/complete-preventa-redemption";
 import {
   executePreventaPackRedeemV1,
   PreventaPackRedeemValidationError,
@@ -115,9 +116,15 @@ export async function POST(
     }
 
     const result = await executePreventaPackRedeemV1(preventaOrderId, parsed.data.selections);
+    const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");
+    const { downloadUrl } = await completePreventaRedemption(
+      result.redemptionOrderId,
+      preventaOrderId,
+      baseUrl
+    );
 
     return NextResponse.json(
-      { redemptionOrderId: result.redemptionOrderId },
+      { redemptionOrderId: result.redemptionOrderId, downloadUrl },
       { status: 201 }
     );
   } catch (err: unknown) {

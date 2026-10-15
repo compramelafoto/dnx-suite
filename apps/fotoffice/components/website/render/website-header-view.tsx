@@ -1,19 +1,29 @@
-import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
+import { loginButtonText, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { SiteNavItem } from "@/lib/website/site-nav";
+import { levelStyle } from "@/lib/website/typography";
 import { WebsiteHeaderNavClient } from "./website-header-nav-client";
+import { WebsiteLoginButton } from "./website-login-button";
+import { WebsiteMenuOverlay } from "./website-menu-overlay";
 
 /**
  * Header real del sitio. NO es una sección: vive en Diseño global, no en `sectionsJson`. Los
  * presets sólo cambian layout vía clases — nunca CSS libre.
  *
- * Server Component: el logo, el botón de login y el marco del `<header>` se dibujan acá, sin
- * JavaScript. Lo único que cruza al navegador es el menú (`WebsiteHeaderNavClient`, en
- * `website-header-nav-client.tsx`) — porque necesita saber en qué página está el visitante para
- * marcarla, y `buildSiteNav` corre en el servidor sin esa información (ver el comentario ahí).
- * El resto del header — y el pie entero — siguen sin ningún JS.
+ * `menuLayout` decide dónde vive el menú:
+ * - `topbar`: la barra de siempre, con sus estilos (`headerPreset`).
+ * - `sidebar`: una columna fija al costado en pantallas grandes (el marco la acomoda: ver
+ *   `SiteFrame`).
+ * - `drawer` / `fullscreen` / `modal`: logo y botón de menú; el menú se abre encima.
+ * En el celular, todas terminan en el botón de menú con panel lateral.
  *
- * El botón "Iniciar sesión" apunta siempre a `/login` — nunca a una URL que el usuario escriba:
- * evita convertirlo sin querer en un vector de phishing.
+ * Server Component: el logo, el botón de login y el marco se dibujan acá, sin JavaScript. Lo que
+ * cruza al navegador son los enlaces (necesitan saber la página actual) y el panel que se abre.
+ *
+ * El botón para entrar ("Ingresar") está siempre, a la derecha de todo: es la puerta de los
+ * socios a su panel. Lleva a `loginHref`, que arma quien llama (en el sitio, la puerta de la
+ * institución, `/w/<slug>/entrar`) — nunca a una URL que el usuario escriba: evita convertirlo
+ * sin querer en un vector de phishing. Es un enlace fijo, sin leer la sesión, para que la página
+ * siga siendo pública y cacheable.
  */
 export function WebsiteHeaderView({
   logoUrl,
@@ -21,6 +31,7 @@ export function WebsiteHeaderView({
   navItems,
   designPresets,
   homeHref,
+  loginHref,
 }: {
   logoUrl: string | null;
   workspaceName: string;
@@ -28,20 +39,31 @@ export function WebsiteHeaderView({
   designPresets: WebsiteDesignPresets;
   /** A dónde lleva el logo. En la vista previa del panel no hay sitio público al que ir. */
   homeHref: string;
+  /** A dónde lleva el botón "Ingresar". En la vista previa del panel, a ningún lado ("#"). */
+  loginHref: string;
 }) {
+  const layout = designPresets.menuLayout;
+  const side = designPresets.menuSide;
   const preset = designPresets.headerPreset;
-  const overlay = preset === "transparent-hero";
-  const floating = preset === "floating";
-  const centered = preset === "centered";
-  const minimal = preset === "minimal";
+  // Los estilos de barra sólo existen en la barra superior.
+  const overlay = layout === "topbar" && preset === "transparent-hero";
+  const floating = layout === "topbar" && preset === "floating";
+  const centered = layout === "topbar" && preset === "centered";
+  const minimal = layout === "topbar" && preset === "minimal";
 
-  const colorTexto = overlay ? "#ffffff" : "var(--wsite-text)";
+  // Los ítems del menú toman el color de su nivel; sobre la portada (barra transparente), blanco.
+  const colorTexto = overlay ? "#ffffff" : "var(--wsite-menu-color)";
 
   const logo = (
-    <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: colorTexto }}>
+    <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: overlay ? "#ffffff" : "var(--wsite-text)" }}>
       {logoUrl ? (
+        // En el teléfono se limita al 18% del ancho: un logo de 160 px taparía media pantalla.
         // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
-        <img src={logoUrl} alt={workspaceName} style={{ height: "var(--wsite-logo-size, 40px)", width: "auto" }} />
+        <img
+          src={logoUrl}
+          alt={workspaceName}
+          style={{ height: "min(var(--wsite-logo-size, 40px), 18vw)", width: "auto" }}
+        />
       ) : (
         <span className="text-lg font-bold" style={{ fontFamily: "var(--wsite-heading-font)" }}>
           {workspaceName}
@@ -50,36 +72,76 @@ export function WebsiteHeaderView({
     </a>
   );
 
-  const botonLogin = designPresets.showLoginButton ? (
-    <a
-      href="/login"
-      className="shrink-0 text-sm"
+  // Con sesión iniciada se convierte en el menú de la persona (ver `WebsiteLoginButton`).
+  const botonLogin = (
+    <WebsiteLoginButton
+      href={loginHref}
+      label={loginButtonText(designPresets)}
+      className="inline-block shrink-0 whitespace-nowrap"
       style={{
+        ...levelStyle("button", { color: false }),
         backgroundColor: "var(--wsite-accent)",
         color: "#ffffff",
         borderRadius: "var(--wsite-button-radius)",
         paddingInline: "var(--wsite-button-padding-x)",
         paddingBlock: "var(--wsite-button-padding-y)",
-        fontWeight: "var(--wsite-button-weight)",
       }}
-    >
-      {designPresets.loginButtonLabel || "Iniciar sesión"}
-    </a>
-  ) : null;
+    />
+  );
+
+  const borde = "1px solid rgba(127,127,127,0.15)";
+
+  if (layout === "sidebar") {
+    return (
+      <header
+        className={`relative border-b @3xl:w-64 @3xl:shrink-0 @3xl:border-b-0 ${side === "left" ? "@3xl:border-r" : "@3xl:border-l"}`}
+        style={{ backgroundColor: "var(--wsite-bg)", borderColor: "rgba(127,127,127,0.15)" }}
+      >
+        <div className="flex items-center justify-between gap-4 px-6 py-4 @3xl:sticky @3xl:top-0 @3xl:flex-col @3xl:items-start @3xl:gap-8 @3xl:py-10">
+          {logo}
+          <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} vertical />
+          {botonLogin ? <div className="hidden @3xl:block">{botonLogin}</div> : null}
+          <WebsiteMenuOverlay navItems={navItems} variant="drawer" side={side} colorTexto={colorTexto} triggerClassName="@3xl:hidden">
+            {botonLogin}
+          </WebsiteMenuOverlay>
+        </div>
+      </header>
+    );
+  }
+
+  if (layout === "drawer" || layout === "fullscreen" || layout === "modal") {
+    const boton = (
+      <WebsiteMenuOverlay navItems={navItems} variant={layout} side={side} colorTexto={colorTexto}>
+        {botonLogin}
+      </WebsiteMenuOverlay>
+    );
+    // El botón va del lado del que sale el panel; en las demás, a la derecha.
+    const botonALaIzquierda = layout === "drawer" && side === "left";
+    return (
+      <header className="relative" style={{ backgroundColor: "var(--wsite-bg)", borderBottom: borde }}>
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-4">
+          {botonALaIzquierda ? boton : null}
+          {logo}
+          <div className="ml-auto flex items-center gap-4">
+            {botonLogin ? <div className="hidden @3xl:block">{botonLogin}</div> : null}
+            {botonALaIzquierda ? null : boton}
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   const wrapperClass = overlay ? "absolute inset-x-0 top-0 z-10" : floating ? "relative mx-4 mt-4 rounded-2xl shadow-md" : "relative";
-  const wrapperStyle = overlay
-    ? undefined
-    : { backgroundColor: "var(--wsite-bg)", borderBottom: floating ? undefined : "1px solid rgba(127,127,127,0.15)" };
+  const wrapperStyle = overlay ? undefined : { backgroundColor: "var(--wsite-bg)", borderBottom: floating ? undefined : borde };
 
   return (
     <header className={wrapperClass} style={wrapperStyle}>
       <div className={`mx-auto flex max-w-6xl items-center gap-4 px-6 py-4 ${centered ? "flex-col text-center" : "justify-between"}`}>
         {logo}
         <div className={`flex items-center gap-4 ${centered ? "flex-col" : ""}`}>
-          <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} minimal={minimal} centered={centered}>
-            {botonLogin}
-          </WebsiteHeaderNavClient>
+          <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} minimal={minimal} centered={centered} />
+          {botonLogin}
+          <WebsiteMenuOverlay navItems={navItems} variant="drawer" side={side} colorTexto={colorTexto} triggerClassName="@3xl:hidden" />
         </div>
       </div>
     </header>

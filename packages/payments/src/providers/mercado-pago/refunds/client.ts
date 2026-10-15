@@ -8,15 +8,25 @@ import type {
 } from "./contracts.js";
 import { mapMercadoPagoRefundHttpError, MercadoPagoRefundError } from "./errors.js";
 
+/** Un reembolso dirigido a un participante del split. */
+export type MercadoPagoRefundSplitTarget = {
+  /** Owner user id o partner receiver id, tal como se envió en la orden. */
+  receiverId: string;
+  /** Omitido = se reembolsa la pata completa de ese participante. */
+  amount?: Money;
+};
+
 export type CreateMercadoPagoOrderRefundInput = {
   providerOrderId: string;
   idempotencyKey: string;
   /**
-   * Omit for total refund.
-   * For partial: amount + providerTransactionId required by MP Orders API.
+   * A quién se le reembolsa. Vacío u omitido = reembolso total de la orden,
+   * que MP espera como body vacío.
+   *
+   * En órdenes con split el destinatario es el **participante**, nunca la
+   * transacción de pago: enviar `transactions` devuelve `split_validation_error`.
    */
-  amount?: Money;
-  providerTransactionId?: string;
+  splits?: MercadoPagoRefundSplitTarget[];
 };
 
 export type CreateMercadoPagoOrderRefundResult = {
@@ -47,30 +57,33 @@ function sanitizeRefundResponse(body: MpOrderRefundResponse): Record<string, unk
 function buildBody(
   input: CreateMercadoPagoOrderRefundInput,
 ): MpOrderRefundRequestBody | undefined {
-  if (!input.amount) {
-    // Total refund — empty body per MP docs
+  const splits = input.splits ?? [];
+  if (splits.length === 0) {
+    // Reembolso total de la orden: MP lo espera como body vacío.
     return undefined;
   }
-  if (!input.providerTransactionId?.trim()) {
-    throw new MercadoPagoRefundError({
-      code: "TRANSACTION_ID_REQUIRED",
-      message:
-        "Partial Orders refund requires providerTransactionId (payment transaction id)",
-    });
-  }
-  if (input.amount.amountMinor <= 0n) {
-    throw new MercadoPagoRefundError({
-      code: "INVALID_REFUND_AMOUNT",
-      message: "Partial refund amount must be > 0",
-    });
-  }
+
   return {
-    transactions: [
-      {
-        id: input.providerTransactionId.trim(),
-        amount: moneyToMercadoPagoAmount(input.amount),
-      },
-    ],
+    splits: splits.map((target) => {
+      const receiverId = target.receiverId.trim();
+      if (!receiverId) {
+        throw new MercadoPagoRefundError({
+          code: "RECEIVER_ID_REQUIRED",
+          message: "Split refund requires a receiverId per target",
+        });
+      }
+      if (target.amount && target.amount.amountMinor <= 0n) {
+        throw new MercadoPagoRefundError({
+          code: "INVALID_REFUND_AMOUNT",
+          message: "Partial refund amount must be > 0",
+        });
+      }
+      return {
+        receiver_id: receiverId,
+        // Sin amount, MP reembolsa la pata completa de ese participante.
+        ...(target.amount ? { amount: moneyToMercadoPagoAmount(target.amount) } : {}),
+      };
+    }),
   };
 }
 

@@ -14,12 +14,12 @@ import {
 import { evaluateAdmissionAutoMatrix } from "../admission/auto-matrix";
 import { ADMISSION_RULES_VERSION } from "../admission/types";
 import { EntryError } from "./errors";
-import { canCreateEntry } from "./entry-quota";
+import { canCreateEntry, isEmptyDraftEntry, resolvePolicyMaxEntries } from "./entry-quota";
 import { buildChecklist, CHECKLIST_RULE_VERSION, entryStatusFromSummary, summarizeChecklist } from "./checklist";
 import { generateEntryDerivatives, readImageDimensions } from "./derivatives";
 import { assessDeviceCompatibility, extractEntryExif } from "./exif";
 import { sha256Buffer, type DuplicateMatch } from "./hash";
-import { isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
+import { allowsMultipleCategories, isPublicUploadOpenFlag, parseUploadPolicy } from "./upload-policy";
 import {
   buildStagedUploadKey,
   isValidStagedUploadId,
@@ -128,19 +128,35 @@ async function findDuplicate(input: {
 }
 
 /**
- * Obtiene o crea una obra de la inscripción.
+ * Obtiene o crea la obra sobre la que va a caer una carga.
  *
- * El cupo lo define el concurso (`maxEntriesPerRegistration`) y, si hubo pago
- * por paquete, `purchasedEntriesCount`. Con el default de 1 obra el
- * comportamiento es idéntico al anterior: devuelve la obra existente.
+ * - Con `targetEntryId`, el participante eligió una obra suya (reemplazo o
+ *   reintento): se devuelve esa, después de verificar que es de esta inscripción.
+ * - Sin él, quiere una obra nueva. Primero se reusa un borrador vacío —el que
+ *   deja un envío que falló antes de llegar el archivo—, para que un intento
+ *   fallido no ocupe un lugar del cupo. Recién si no hay, se crea una.
+ *
+ * El cupo lo define el concurso (`resolvePolicyMaxEntries`: política o, si no
+ * hay, el "Máx. archivos" de la categoría) y, si hubo pago por paquete,
+ * `purchasedEntriesCount`. Con 1 obra el comportamiento es idéntico al
+ * anterior: sin cupo se devuelve la obra existente en lugar de fallar.
+ *
+ * Categoría: la obra nueva va a la de la inscripción, salvo que el concurso
+ * permita varias (`allowsMultipleCategories`) y se pida otra activa del mismo
+ * concurso. Con varias, el cupo se cuenta por categoría: 3 en Color y 3 en
+ * Monocromo son 6 obras.
  */
 export async function ensureEntryForRegistration(input: {
   contestId: string;
   registrationId: string;
   participantUserId: number;
+  targetEntryId?: string | null;
+  /** Categoría de la obra nueva. Ausente = la de la inscripción. */
+  categoryId?: string | null;
 }): Promise<{ entryId: string; created: boolean }> {
   const reg = await prisma.fotorankContestRegistration.findUnique({
     where: { id: input.registrationId },
+    include: { category: { select: { maxFiles: true } } },
   });
   if (!reg || reg.contestId !== input.contestId) {
     throw new EntryError("REGISTRATION_REQUIRED", "Inscripción no encontrada.", 404);
@@ -154,24 +170,63 @@ export async function ensureEntryForRegistration(input: {
 
   const existing = await prisma.fotorankContestEntry.findMany({
     where: { registrationId: reg.id },
-    select: { id: true },
+    select: {
+      id: true,
+      status: true,
+      categoryId: true,
+      assets: { where: { kind: "ORIGINAL" }, select: { id: true }, take: 1 },
+    },
     orderBy: { createdAt: "asc" },
   });
+
+  if (input.targetEntryId) {
+    const target = existing.find((e) => e.id === input.targetEntryId);
+    if (!target) throw new EntryError("ENTRY_NOT_FOUND", "Obra no encontrada.", 404);
+    return { entryId: target.id, created: false };
+  }
 
   const contest = await prisma.fotorankContest.findUnique({
     where: { id: reg.contestId },
     select: { uploadPolicyJson: true },
   });
+
+  let category = { id: reg.categoryId, maxFiles: reg.category?.maxFiles ?? null };
+  if (input.categoryId && input.categoryId !== reg.categoryId) {
+    if (!allowsMultipleCategories(contest?.uploadPolicyJson)) {
+      throw new EntryError(
+        "CATEGORY_NOT_ALLOWED",
+        "Este concurso no permite presentar obras en otra categoría que la de tu inscripción.",
+        403,
+      );
+    }
+    const other = await prisma.fotorankContestCategory.findFirst({
+      where: { id: input.categoryId, contestId: reg.contestId, status: "ACTIVE" },
+      select: { id: true, maxFiles: true },
+    });
+    if (!other) throw new EntryError("CATEGORY_NOT_ALLOWED", "Categoría no disponible en este concurso.", 404);
+    category = other;
+  }
+
+  const emptyDraft = existing.find((e) => isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }));
+  if (emptyDraft) {
+    // El borrador de un intento fallido puede haber nacido en otra categoría.
+    if (emptyDraft.categoryId !== category.id) {
+      await prisma.fotorankContestEntry.update({ where: { id: emptyDraft.id }, data: { categoryId: category.id } });
+    }
+    return { entryId: emptyDraft.id, created: false };
+  }
+
   const quota = canCreateEntry({
-    policyMaxEntries: parseUploadPolicy(contest?.uploadPolicyJson).maxEntriesPerRegistration,
+    policyMaxEntries: resolvePolicyMaxEntries(contest?.uploadPolicyJson, category.maxFiles),
     purchasedEntriesCount: reg.purchasedEntriesCount,
-    currentEntryCount: existing.length,
+    currentEntryCount: existing.filter((e) => e.categoryId === category.id).length,
   });
 
   if (!quota.allowed) {
-    // Sin cupo para una obra más. Con límite 1 esto reproduce el comportamiento
-    // histórico: se devuelve la obra ya existente en lugar de fallar.
-    if (existing.length > 0) {
+    // Con límite 1 se reproduce el comportamiento histórico: se devuelve la
+    // obra ya existente en lugar de fallar. Con más de una, devolver la primera
+    // haría que "agregar otra foto" pise una obra ya enviada.
+    if (quota.quota.limit === 1 && existing.length > 0) {
       return { entryId: existing[0]!.id, created: false };
     }
     throw new EntryError("ENTRY_QUOTA_EXCEEDED", quota.message, 409);
@@ -180,7 +235,7 @@ export async function ensureEntryForRegistration(input: {
   const created = await prisma.fotorankContestEntry.create({
     data: {
       contestId: reg.contestId,
-      categoryId: reg.categoryId,
+      categoryId: category.id,
       authorUserId: reg.participantUserId,
       registrationId: reg.id,
       status: "DRAFT",
@@ -208,6 +263,10 @@ export async function createUploadIntent(input: {
   participantUserId: number;
   /** MIME que el navegador va a mandar en el PUT; debe coincidir con el firmado. */
   contentType?: string | null;
+  /** Obra existente a reemplazar o reintentar. Ausente = obra nueva. */
+  entryId?: string | null;
+  /** Categoría de la obra nueva (concursos con varias categorías). */
+  categoryId?: string | null;
 }): Promise<{
   entryId: string;
   registrationId: string;
@@ -250,6 +309,8 @@ export async function createUploadIntent(input: {
     contestId: input.contestId,
     registrationId: reg.id,
     participantUserId: input.participantUserId,
+    targetEntryId: input.entryId,
+    categoryId: input.categoryId,
   });
 
   return {
@@ -389,7 +450,7 @@ export async function processStagedUpload(input: {
 
   if (buffer.length === 0) {
     await storage.deleteObject(key).catch(() => null);
-    throw new EntryError("INVALID_FILE", "El archivo llegó vacío. Reintentá el envío.", 400);
+    throw emptyFileError();
   }
   // Redundante con `headObject` cuando el adapter lo implementa; obligatorio
   // cuando no, porque entonces este es el único control de peso.
@@ -415,7 +476,15 @@ export async function processStagedUpload(input: {
   }
 }
 
-export async function processUploadedFile(input: {
+function emptyFileError() {
+  return new EntryError(
+    "EMPTY_FILE",
+    "La foto llegó vacía. Volvé a elegirla desde tu galería y enviala de nuevo.",
+    400,
+  );
+}
+
+type ProcessUploadInput = {
   contestId: string;
   entryId: string;
   participantUserId: number;
@@ -424,14 +493,32 @@ export async function processUploadedFile(input: {
   declaredMime: string;
   isReplace?: boolean;
   eligibility?: EntryEligibilityFormInput | null;
-}): Promise<{
+};
+
+type ProcessUploadResult = {
   entryId: string;
   status: string;
   technicalSummaryStatus: string;
   versionNumber: number;
   checklistSummary: ReturnType<typeof summarizeChecklist>;
   warnings: string[];
-}> {
+};
+
+type UploadEntry = Prisma.FotorankContestEntryGetPayload<{
+  include: { registration: true; category: true; contest: true };
+}> & {
+  registration: NonNullable<Prisma.FotorankContestEntryGetPayload<{ include: { registration: true } }>["registration"]>;
+};
+
+export async function processUploadedFile(input: ProcessUploadInput): Promise<ProcessUploadResult> {
+  /**
+   * Un archivo de 0 bytes no es una foto rota: es una foto que nunca llegó
+   * (en iPhone el navegador pierde acceso al archivo elegido y manda el cuerpo
+   * vacío). Antes se procesaba igual, fallaban los controles bloqueantes y la
+   * obra quedaba “No admitida” sin que el participante supiera por qué.
+   */
+  if (input.buffer.length === 0) throw emptyFileError();
+
   const entry = await prisma.fotorankContestEntry.findUnique({
     where: { id: input.entryId },
     include: {
@@ -494,12 +581,42 @@ export async function processUploadedFile(input: {
     }
   }
 
+  /**
+   * PROCESSING es una marca transitoria mientras corre el pipeline. Si el
+   * pipeline corta antes de escribir el estado final —un error de validación,
+   * o la rama de idempotencia—, hay que devolver la obra a su estado anterior:
+   * si no, queda “procesando” para siempre y la tarjeta del participante
+   * ofrece “Continuar carga” sobre una obra que ya tiene veredicto.
+   */
+  const previousStatus = entry.status;
   await prisma.fotorankContestEntry.update({
     where: { id: entry.id },
     data: { status: "PROCESSING" },
   });
 
-  const ext = (input.originalFileName.split(".").pop() || "jpg").toLowerCase().replace(/^\./, "");
+  try {
+    const outcome = await runUploadPipeline({ ...entry, registration: entry.registration }, policy, input);
+    if (outcome.restoreStatus) {
+      await prisma.fotorankContestEntry.update({
+        where: { id: entry.id },
+        data: { status: previousStatus },
+      });
+    }
+    return outcome.result;
+  } catch (err) {
+    await prisma.fotorankContestEntry
+      .update({ where: { id: entry.id }, data: { status: previousStatus } })
+      .catch(() => null);
+    throw err;
+  }
+}
+
+async function runUploadPipeline(
+  entry: UploadEntry,
+  policy: ReturnType<typeof parseUploadPolicy>,
+  input: ProcessUploadInput,
+): Promise<{ result: ProcessUploadResult; restoreStatus: boolean }> {
+  const ext =(input.originalFileName.split(".").pop() || "jpg").toLowerCase().replace(/^\./, "");
   const mime = input.declaredMime || "application/octet-stream";
   // MIME real aproximado por magic bytes JPEG
   const isJpegMagic = input.buffer.length > 3 && input.buffer[0] === 0xff && input.buffer[1] === 0xd8;
@@ -522,12 +639,15 @@ export async function processUploadedFile(input: {
   if (existingSame && !input.isReplace) {
     const summary = (entry.technicalSummaryJson as ReturnType<typeof summarizeChecklist> | null) ?? summarizeChecklist([]);
     return {
-      entryId: entry.id,
-      status: entry.status,
-      technicalSummaryStatus: entry.technicalSummaryStatus,
-      versionNumber: existingSame.versionNumber,
-      checklistSummary: summary,
-      warnings: ["El archivo ya estaba cargado (idempotencia)."],
+      restoreStatus: true,
+      result: {
+        entryId: entry.id,
+        status: entry.status,
+        technicalSummaryStatus: entry.technicalSummaryStatus,
+        versionNumber: existingSame.versionNumber,
+        checklistSummary: summary,
+        warnings: ["El archivo ya estaba cargado (idempotencia)."],
+      },
     };
   }
 
@@ -679,7 +799,11 @@ export async function processUploadedFile(input: {
     height: dims.height,
     decodable: dims.decodable,
     registrationConfirmed: true,
-    categoryMatches: entry.categoryId === entry.registration.categoryId,
+    // Con varias categorías habilitadas, cualquier categoría activa del concurso
+    // es válida (`categoryActive` ya controla que esté activa).
+    categoryMatches:
+      entry.categoryId === entry.registration.categoryId ||
+      (allowsMultipleCategories(entry.contest.uploadPolicyJson) && entry.category.contestId === entry.contestId),
     userMatches: true,
     contestActive: entry.contest.status === "PUBLISHED" || entry.contest.status === "ACTIVE",
     categoryActive: entry.category.status === "ACTIVE",
@@ -989,12 +1113,15 @@ export async function processUploadedFile(input: {
   const warnings = checks.filter((c) => c.status === "WARNING" || c.status === "REQUIRES_REVIEW").map((c) => c.message);
 
   return {
-    entryId: entry.id,
-    status: result.updated.status,
-    technicalSummaryStatus: result.updated.technicalSummaryStatus,
-    versionNumber: result.versionNumber,
-    checklistSummary: summary,
-    warnings,
+    restoreStatus: false,
+    result: {
+      entryId: entry.id,
+      status: result.updated.status,
+      technicalSummaryStatus: result.updated.technicalSummaryStatus,
+      versionNumber: result.versionNumber,
+      checklistSummary: summary,
+      warnings,
+    },
   };
 }
 
@@ -1109,6 +1236,33 @@ export async function getMyEntry(contestId: string, participantUserId: number) {
   return entry;
 }
 
+/**
+ * Todas las obras del participante en el concurso, en orden de creación.
+ * Excluye los borradores vacíos: no son obras, son intentos de carga que no
+ * llegaron (ver `isEmptyDraftEntry`).
+ */
+export async function getMyEntries(contestId: string, participantUserId: number) {
+  const reg = await prisma.fotorankContestRegistration.findUnique({
+    where: { contestId_participantUserId: { contestId, participantUserId } },
+  });
+  if (!reg) return [];
+  const entries = await prisma.fotorankContestEntry.findMany({
+    where: { registrationId: reg.id },
+    orderBy: { createdAt: "asc" },
+    include: {
+      checks: { orderBy: { checkGroup: "asc" } },
+      assets: {
+        where: { isActive: true },
+        orderBy: { versionNumber: "desc" },
+      },
+      category: { select: { id: true, name: true, slug: true } },
+    },
+  });
+  return entries.filter(
+    (e) => !isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.some((a) => a.kind === "ORIGINAL") }),
+  );
+}
+
 export async function listContestEntriesForOrganizer(input: {
   contestId: string;
   organizerUserId: number;
@@ -1134,8 +1288,11 @@ export async function listContestEntriesForOrganizer(input: {
       participant: { select: { id: true, name: true, email: true } },
       category: { select: { name: true } },
       entries: {
+        orderBy: { createdAt: "asc" },
         include: {
           checks: { select: { status: true } },
+          category: { select: { name: true } },
+          assets: { where: { kind: "ORIGINAL" }, select: { id: true }, take: 1 },
         },
       },
     },
@@ -1162,6 +1319,23 @@ export async function listContestEntriesForOrganizer(input: {
       submittedAt: entry?.submittedAt ?? null,
       confirmedAt: entry?.confirmedAt ?? null,
       entriesCount: r.entries.length,
+      /**
+       * Todas las obras de la inscripción, cada una con SU categoría: en
+       * concursos de varias fotos o varias categorías no alcanza con la primera.
+       * Sin los borradores de intentos de carga que no llegaron.
+       */
+      entries: r.entries
+        .filter((e) => !isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }))
+        .map((e) => ({
+          entryId: e.id,
+          entryStatus: e.status,
+          entryNumber: e.entryNumber,
+          technicalSummaryStatus: e.technicalSummaryStatus,
+          categoryName: e.category.name,
+          warnings: e.checks.filter((c) => c.status === "WARNING").length,
+          failures: e.checks.filter((c) => c.status === "FAIL").length,
+          requiresReview: e.checks.filter((c) => c.status === "REQUIRES_REVIEW").length,
+        })),
       warnings: checks.filter((c) => c.status === "WARNING").length,
       failures: checks.filter((c) => c.status === "FAIL").length,
       requiresReview: checks.filter((c) => c.status === "REQUIRES_REVIEW").length,

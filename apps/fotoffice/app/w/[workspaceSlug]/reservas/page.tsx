@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { loadPublicBookingViewer } from "@/lib/bookings/public-member";
+import { doorPathFor } from "@/lib/entrada/institution-door";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { prisma } from "@repo/db";
-import { formatMinorArs } from "@/lib/membership/money";
+import { spacePriceLabel, turnPriceLabel } from "@/lib/bookings/pricing";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { listSpaces } from "@/lib/bookings/repository";
+import { getBookingWording, listSpaces } from "@/lib/bookings/repository";
 import { minuteOfDayToLabel } from "@/lib/bookings/time";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +22,7 @@ const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 /**
  * Los espacios que la institución alquila a quien no es socio.
  *
- * Reservar exige cuenta: sin ella no se puede reconocer a quien ocupó el espacio ni avisarle
- * si algo cambia. El botón lleva al login y vuelve acá.
+ * Reservar no exige cuenta: el correo identifica la reserva (ver `[spaceId]/page.tsx`).
  */
 export default async function PublicBookingsPage({ params, searchParams }: Props) {
   const { workspaceSlug } = await params;
@@ -34,16 +36,37 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
 
   if (!(await isModuleEnabledForWorkspace(branding.workspaceId, BOOKINGS_MODULE_KEY))) notFound();
 
-  const espacios = (await listSpaces(branding.workspaceId)).filter((e) => e.allowsNonMembers);
+  // El socio con sesión reserva desde su portal, con su precio.
+  if ((await loadPublicBookingViewer(branding.workspaceId)).isMemberHere) redirect("/portal/reservas");
+
+  const [todos, vocabulary, wording] = await Promise.all([
+    listSpaces(branding.workspaceId),
+    loadPersonVocabulary(branding.workspaceId),
+    getBookingWording(branding.workspaceId),
+  ]);
+  const espacios = todos.filter((e) => e.allowsNonMembers);
+  const turnos = wording.kind === "PROFESIONALES";
+  // El beneficio del socio se menciona sólo si existe: con el mismo precio y sin horas gratis,
+  // "si sos socio, pagás menos" era una promesa falsa.
+  const conBeneficio = (e: (typeof espacios)[number]) =>
+    e.memberFreeHoursPerMonth > 0 ||
+    spacePriceLabel(e, "MEMBER") !== spacePriceLabel(e, "NON_MEMBER");
+  const algunBeneficio = espacios.some(conBeneficio);
 
   return (
     <main className="mx-auto max-w-5xl space-y-8 px-4 py-12 md:px-8 md:py-16">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Alquilar un espacio</h1>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{wording.pageTitle}</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-[var(--fo-muted)]">
-          Estos son los espacios disponibles y sus tarifas.{" "}
-          <strong>Si sos socio, entrá a tu portal</strong>: el precio es menor y tenés horas
-          bonificadas por mes.
+          {turnos
+            ? `Elegí a tu ${wording.singular}, el día y la hora.`
+            : `Estos son los ${wording.plural} disponibles y sus tarifas.`}{" "}
+          {algunBeneficio ? (
+            <>
+              <strong>Si sos {vocabulary.singular}, entrá a tu portal</strong>: tenés tu precio
+              {espacios.some((e) => e.memberFreeHoursPerMonth > 0) ? " y horas bonificadas por mes" : ""}.
+            </>
+          ) : null}
         </p>
       </div>
 
@@ -56,7 +79,7 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
       {espacios.length === 0 ? (
         <div className="fo-card p-6 text-center">
           <p className="text-sm text-[var(--fo-muted)]">
-            Por ahora no hay espacios disponibles para alquilar.
+            {wording.emptyText}
           </p>
         </div>
       ) : (
@@ -82,13 +105,24 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
                 </div>
                 <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
                   <span className="text-sm font-medium">
-                    {formatMinorArs(espacio.nonMemberHourlyPriceMinor)} por hora
+                    {turnos
+                      ? turnPriceLabel(espacio, "NON_MEMBER")
+                      : spacePriceLabel(espacio, "NON_MEMBER")}
                   </span>
+                  {conBeneficio(espacio) ? (
+                    <span className="text-xs text-[var(--fo-accent-hover)]">
+                      {vocabulary.Plural}:{" "}
+                      {spacePriceLabel(espacio, "MEMBER")}
+                      {espacio.memberFreeHoursPerMonth > 0
+                        ? ` + ${espacio.memberFreeHoursPerMonth} h gratis por mes`
+                        : ""}
+                    </span>
+                  ) : null}
                   <Link
-                    href={`/login?next=${encodeURIComponent(`/w/${workspaceSlug}/reservas/${espacio.id}`)}`}
+                    href={`/w/${workspaceSlug}/reservas/${espacio.id}`}
                     className="fo-btn fo-btn-primary text-sm"
                   >
-                    Reservar
+                    {wording.bookLabel}
                   </Link>
                 </div>
               </div>
@@ -98,8 +132,12 @@ export default async function PublicBookingsPage({ params, searchParams }: Props
       )}
 
       <p className="text-xs leading-relaxed text-[var(--fo-muted-soft)]">
-        Para reservar hace falta una cuenta. El horario queda reservado cuando se acredita el
-        pago por Mercado Pago.
+        {turnos ? "El turno" : "El horario"} queda reservado cuando se acredita el pago por Mercado Pago. ¿Sos{" "}
+        {vocabulary.singular}?{" "}
+        <Link href={doorPathFor(workspaceSlug)} className="underline underline-offset-4">
+          Ingresá
+        </Link>{" "}
+        y reservá desde tu portal.
       </p>
     </main>
   );

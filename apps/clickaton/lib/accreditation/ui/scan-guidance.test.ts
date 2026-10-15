@@ -32,6 +32,7 @@ test("cada motivo da una instrucción, nunca un texto vacío", () => {
     "ACCREDITATION_DISABLED",
     "PAYMENT_PENDING",
     "NOT_CONFIRMED",
+    "GIFT_NOT_REDEEMED",
     "CREDENTIAL_MISSING",
     "REGISTRATION_INACTIVE",
     "DISQUALIFIED",
@@ -49,4 +50,15 @@ test("el aviso sonoro distingue válido, inválido y a revisar", () => {
   assert.equal(avisoParaTono("YELLOW"), "warning");
   assert.equal(avisoParaTono("BLUE"), "warning");
   assert.equal(avisoParaTono(undefined), "warning");
+});
+
+test("un regalo sin activar no se confunde con una inscripción sin pagar", () => {
+  // En la mesa de sede, "no está confirmada" empuja a confirmarla a mano.
+  // Un regalo sin activar está pago: lo que falta es que lo activen.
+  const texto = describirBloqueoDeAcreditacion({
+    reason: "GIFT_NOT_REDEEMED",
+    window: null,
+  });
+  assert.match(texto, /regalo/i);
+  assert.doesNotMatch(texto, /no está confirmada/i);
 });

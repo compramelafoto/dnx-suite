@@ -8,6 +8,7 @@ import type {
   ResultsStatus,
   GalleryStatus,
 } from "@/types/marathon";
+import { ZONA_ARGENTINA } from "@/lib/fecha-ar";
 
 const MARATHON_STATUSES = new Set<MarathonStatus>([
   "draft",
@@ -123,7 +124,7 @@ export function normalizePublicMarathon(input: PublicMarathon): PublicMarathon {
     city: input.city ?? "",
     provinceOrRegion: input.provinceOrRegion ?? "",
     country: input.country ?? "",
-    timezone: input.timezone || "UTC",
+    timezone: input.timezone || ZONA_ARGENTINA,
     startAt: assertIsoDate(input.startAt, "startAt"),
     endAt: assertIsoDate(input.endAt, "endAt"),
     registrationOpenAt: input.registrationOpenAt

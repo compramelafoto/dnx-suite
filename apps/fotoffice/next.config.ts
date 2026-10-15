@@ -1,14 +1,56 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { REDIRECCIONES_PERMANENTES } from "./lib/entrada/redirecciones";
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Los tipos NO se chequean en el build de Vercel: el 05/10/2026 ese paso se quedó sin memoria y
+  // mató el deploy de producción (PR #368), aunque el código compilaba. Se chequean en GitHub
+  // Actions (`.github/workflows/chequeos.yml`, «Chequear tipos de FOTOFFICE»), que frena el PR
+  // antes del merge. Mismo criterio que CompraMeLaFoto y Clickatón.
+  // Si alguna vez se saca ese paso del workflow, hay que volver a prender esto.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  experimental: {
+    serverActions: {
+      // El logo de un sponsor se sube con una acción de servidor (`app/(shell)/sponsors/actions.ts`),
+      // y el tope por omisión de 1 MB rechazaba logos comunes. 4 MB queda debajo del corte de
+      // 4,5 MB que Vercel pone a cualquier pedido.
+      bodySizeLimit: "4mb",
+    },
+    /*
+     * La compilación se quedaba sin memoria en Vercel (OOM en "Creating an optimized production
+     * build", 09/10). Como hay un `webpack` propio, Next apaga solo el proceso aparte de webpack:
+     * se enciende a mano. Más la optimización de memoria de webpack y un único proceso en
+     * paralelo, como CompraMeLaFoto. Tarda un poco más y entra en la memoria.
+     */
+    webpackBuildWorker: true,
+    webpackMemoryOptimizations: true,
+    cpus: 1,
+  },
   // @repo/db NO se transpila: se externaliza para conservar el Query Engine de Prisma.
   // Mismo criterio que apps/clickaton. Transpilarlo funcionaba con Turbopack, pero con
   // webpack el motor nativo no llega al bundle y toda consulta falla en runtime.
-  transpilePackages: ["@repo/auth", "@repo/auth-ui", "@repo/payments", "@repo/design-studio"],
+  transpilePackages: [
+    "@repo/quick-search",
+    "@repo/auth",
+    "@repo/auth-ui",
+    // El blog de cada institución: el motor compartido y su editor (los mismos de CLF y Clickatón).
+    "@repo/content",
+    "@repo/content-ui",
+    "@repo/payments",
+    "@repo/design-studio",
+    // Sólo el selector de logos de los aliados de los sorteos (`lib/raffles/partners-live.ts`).
+    "@repo/partners",
+    // El motor de ¿Cuánto Cobro? (presupuestos, etapa 2): es TypeScript fuente, como en CompraMeLaFoto.
+    "@repo/cuanto-cobro-core",
+    // DNX Bot (¿Cuánto Cobro? conversado): motor de turnos y burbuja, TypeScript fuente como en CLF.
+    // El SDK de Anthropic entra por este paquete y sólo en las rutas del bot.
+    "@repo/dnx-bot",
+  ],
   serverExternalPackages: [
     "@prisma/client",
     "@repo/db",
@@ -19,26 +61,129 @@ const nextConfig: NextConfig = {
     // assets HTML que webpack no sabe empaquetar, y no hace falta: corre siempre en el servidor.
     "playwright",
     "playwright-core",
+    /*
+     * Las placas de Comunicación (`lib/placas/render.ts`) se rasterizan con `mupdf`, que es
+     * WebAssembly: un solo archivo igual para todos los sistemas, sin variante por plataforma
+     * (por eso, a diferencia del binario nativo de arriba, sí se puede usar en Vercel). Webpack
+     * no sabe empaquetar su `.wasm` de 10 MB; lo carga Node en tiempo de ejecución.
+     * `sharp` convierte las fotos WebP de los socios, que `mupdf` no lee.
+     */
+    "mupdf",
+    "sharp",
   ],
   outputFileTracingRoot: path.join(appDir, "../.."),
   outputFileTracingIncludes: {
+    /*
+     * Sólo lo que el cliente de Prisma usa en Linux (como FotoRank): sin motores de macOS, tipos,
+     * variantes edge/wasm ni migraciones. Con `**` la función de las placas pasó los 250 MB.
+     */
     "/**": [
-      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
-      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
-      "../../packages/db/prisma/**",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/*.js",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/package.json",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/schema.prisma",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/*.js",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/package.json",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/library.js",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/index-browser.js",
+      "../../packages/db/prisma/schema.prisma",
       // Las tipografías ya no se leen del disco: viajan incrustadas en @repo/design-studio.
       // Antes se copiaban acá y aun así fallaban en el servidor — con pnpm el enlace a
       // @fontsource vive dentro de packages/design-studio, y el código empaquetado termina en
       // otro lado del árbol, donde la búsqueda hacia arriba nunca llega. Copiar los archivos no
       // alcanzaba: el problema no era que faltaran, era que Node no sabía dónde buscarlos.
     ],
+    /*
+     * El motor de rasterizado de las placas. Va sólo en la ruta que dibuja y no en `/**`: el
+     * `.wasm` pesa 10 MB y Next lo copia una vez por función; aplicado a todas, el contenedor de
+     * build se queda sin disco (pasó en Clickatón). Se excluyen los `.br`, que Node no usa.
+     */
+    "/api/comunicacion/placas/[memberId]/[kind]/[format]": [
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+    ],
+  },
+  /** Segunda barrera: lo que no corre en Linux aunque el rastreo automático de Next lo sume. */
+  outputFileTracingExcludes: {
+    "/**": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/*.d.ts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/libquery_engine-darwin*",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/query_engine_bg.wasm",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*.d.ts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*.d.mts",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/*.map",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/*.wasm-base64.*",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/runtime/query_*",
+    ],
+  },
+  // Direcciones viejas que siguen andando (`/captacion/...` → `/consultas/...`).
+  async redirects() {
+    return REDIRECCIONES_PERMANENTES;
+  },
+  // La página de un pedido de la tienda se abre con un token en la dirección (la vuelta de
+  // Mercado Pago, los correos): no se manda esa dirección a ningún sitio que se abra desde ahí.
+  // Dos formas porque en el dominio propio de la institución la tienda vive en `/tienda`.
+  async headers() {
+    const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
+    const sinMarco = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+    ];
+    // El formulario de consulta para insertar en cualquier web (lib/service-leads/insertar.ts): se
+    // deja enmarcar desde cualquier sitio, a propósito, y no se indexa (la página es el sitio).
+    // Sin botón peligroso que robar con un clic: es el mismo formulario abierto del sitio público.
+    const marcoLibre = [
+      { key: "Content-Security-Policy", value: "frame-ancestors *" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ];
+    return [
+      { source: "/w/:slug/insertar", headers: marcoLibre },
+      { source: "/w/:slug/insertar/:form", headers: marcoLibre },
+      // En el dominio propio de la institución las direcciones van sin `/w/<slug>`.
+      { source: "/insertar", headers: marcoLibre },
+      { source: "/insertar/:form", headers: marcoLibre },
+      { source: "/formulario-insertado/:slug/:form", headers: marcoLibre },
+      { source: "/w/:slug/tienda/pedido/:path*", headers: noReferrer },
+      { source: "/tienda/pedido/:path*", headers: noReferrer },
+      // El enlace del permiso del autor lleva su token en la dirección: misma regla.
+      { source: "/w/:slug/obras/permiso/:path*", headers: noReferrer },
+      { source: "/obras/permiso/:path*", headers: noReferrer },
+      // El enlace de un presupuesto también (etapa 2), y además no se puede enmarcar en otro sitio:
+      // tiene el botón "Acepto" (clickjacking). Vale para la página y para la vista de impresión.
+      { source: "/w/:slug/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/presupuesto/:path*", headers: [...noReferrer, ...sinMarco] },
+      // Los enlaces del pedido y del recibo (etapa 3): llevan su token en la dirección y no se
+      // enmarcan en otro sitio, igual que el del presupuesto.
+      { source: "/w/:slug/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/w/:slug/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
+      // El enlace de firma de un contrato (etapa 5): token personal en la dirección, botones de firmar
+      // (clickjacking) y datos de la persona: ni se enmarca ni manda la dirección a otro sitio. Sin
+      // `frame-ancestors *`.
+      { source: "/w/:slug/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
+      // El enlace de una galería (etapa 7): token personal del cliente en la dirección, botón de enviar la
+      // selección (clickjacking) y fotos de un evento privado: ni se enmarca ni manda la dirección a otro sitio.
+      { source: "/w/:slug/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
+    ];
   },
   images: {
     remotePatterns: [{ protocol: "https", hostname: "lh3.googleusercontent.com" }],
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
   // Mismo criterio que apps/clickaton, que consume el mismo paquete.
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    /*
+     * En Vercel, sin caché persistente de webpack. El 09/10/2026 todo build que restauraba el caché
+     * de un deploy anterior moría por memoria (SIGKILL) o tardaba 42 min; los mismos commits sin
+     * caché compilaban en 2 a 4 min. Cargar el caché cuesta más memoria que compilar de cero.
+     * En local el caché sigue (sin `VERCEL`).
+     */
+    if (!dev && process.env.VERCEL) config.cache = false;
+
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
@@ -52,10 +197,9 @@ const nextConfig: NextConfig = {
       // y termina intentando empaquetar el binario nativo de skia. Externalizarlo a mano es
       // lo que lo deja fuera del grafo.
       //
-      // FotoOffice NO rasteriza: el carnet solo pide PDF (ver lib/carnet/render.ts). Esto
-      // existe para que el código del módulo de diseño no rompa la compilación, no para
-      // habilitar el rasterizado. Si alguna vez hace falta, hay que resolver además que el
-      // binario nativo llegue al paquete desplegado, que es de otra plataforma.
+      // El carnet sólo pide PDF (ver lib/carnet/render.ts). Las placas de Comunicación sí
+      // rasterizan, pero con `mupdf` (WebAssembly), no con este binario nativo: esto existe para
+      // que el código viejo del módulo de diseño no rompa la compilación.
       const externals = Array.isArray(config.externals) ? config.externals : [config.externals];
       config.externals = [
         ...externals.filter(Boolean),
@@ -73,6 +217,12 @@ const nextConfig: NextConfig = {
             request?.startsWith("playwright-core/")
           ) {
             return callback(undefined, `commonjs ${request}`);
+          }
+          // Mismo caso con `mupdf`: su import vive DENTRO de @repo/design-studio. Es ESM con
+          // `await` en el nivel superior, así que no se puede cargar con `require`: va como
+          // `import()` nativo, que es lo que el módulo ya hace.
+          if (request === "mupdf") {
+            return callback(undefined, "import mupdf");
           }
           return callback();
         },

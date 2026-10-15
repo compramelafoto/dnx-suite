@@ -93,6 +93,16 @@ export function resolveBracePlaceholdersInText(
 ): string {
   if (!raw.includes("{")) return raw;
   return raw.replace(TEXT_BRACE_TOKEN_RE, (full, inner: string) => {
+    /*
+     * Una clave con valor de muestra se resuelve aunque no esté en el catálogo de escuela o de
+     * Clickatón: los valores ya vienen filtrados por la plataforma de la plantilla. Sin esto, en
+     * FotoOffice y FotoRank los textos con datos mezclados se veían como `{clave}` al diseñar.
+     */
+    const exacta = String(inner).trim();
+    if (resolvedVariables && Object.hasOwn(resolvedVariables, exacta)) {
+      const directo = resolvedValueForKey(exacta, resolvedVariables, undefined);
+      if (directo !== null) return directo;
+    }
     const key = catalogKeyFromBraceInner(String(inner));
     if (!key) return full;
     const def = Object.hasOwn(TEMPLATE_V2_VARIABLE_MAP, key)

@@ -2,9 +2,14 @@ import Link from "next/link";
 import { Role } from "@/lib/prisma";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import {
+  CreateTemplateV2Button,
+  TEMPLATE_V2_BASE_PATHS,
+  TemplateV2RowActions,
+} from "@repo/template-editor-ui";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import TemplateV2NameEditor from "@/components/template-v2/TemplateV2NameEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +67,11 @@ export default async function PlantillasV2ListPage() {
   }
 
   const rows = await prisma.templateV2.findMany({
-    where: user.role === Role.ADMIN ? undefined : { ownerUserId: user.id },
+    // Las archivadas son las que se eliminaron desde esta lista.
+    where:
+      user.role === Role.ADMIN
+        ? { status: { not: "ARCHIVED" } }
+        : { ownerUserId: user.id, status: { not: "ARCHIVED" } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -114,7 +123,10 @@ export default async function PlantillasV2ListPage() {
             abrir una anterior sin salir del flujo.
           </p>
         </div>
-        <CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto} />
+        <CreateTemplateV2Button
+          basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto}
+          theme={{ accent: "#c27b3d", accentInk: "#ffffff" }}
+        />
       </div>
 
       {templates.length === 0 ? (
@@ -166,8 +178,11 @@ export default async function PlantillasV2ListPage() {
                   return (
                     <tr key={template.id} className="border-b border-[#f1f5f9] align-top last:border-b-0">
                       <td className="px-5 py-4">
-                        <p className="text-sm font-semibold text-[#111827]">{template.name || "Sin nombre"}</p>
-                        <p className="mt-1 text-xs text-[#6b7280]">Lista para editar en el diseñador</p>
+                        <TemplateV2NameEditor
+                          templateId={template.id}
+                          initialName={template.name}
+                          subtitle="Lista para editar en el diseñador"
+                        />
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">Template ID</p>
@@ -193,11 +208,20 @@ export default async function PlantillasV2ListPage() {
                       <td className="px-5 py-4 text-xs text-[#64748b]">{formatDate(template.updatedAt)}</td>
                       <td className="px-5 py-4">
                         {editorHref ? (
-                          <Link href={editorHref}>
-                            <Button variant="primary" className="px-5 py-2.5 text-sm font-semibold">
-                              Editar
-                            </Button>
-                          </Link>
+                          <div className="flex flex-col items-start gap-2">
+                            <TemplateV2RowActions
+                              templateId={template.id}
+                              name={template.name}
+                              editorHref={editorHref}
+                              showRename={false}
+                            />
+                            <Link
+                              href={`/fotografo/diseno/plantillas/v2/${template.id}/probar`}
+                              className="text-xs font-medium text-[#c27b3d] underline underline-offset-2 hover:text-[#a0632f]"
+                            >
+                              Probar con fotos
+                            </Link>
+                          </div>
                         ) : (
                           <div className="space-y-1.5">
                             <Button variant="secondary" className="px-5 py-2.5 text-sm font-semibold" disabled>

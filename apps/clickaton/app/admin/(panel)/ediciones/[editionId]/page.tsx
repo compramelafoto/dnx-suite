@@ -18,6 +18,8 @@ import { formatAdminDateTime } from "@/lib/admin/datetime-input";
 import { getEditionById } from "@/lib/admin/editions/queries";
 import { listVenuesByEditionId } from "@/lib/admin/venues/queries";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
+import { getEditionReadinessDashboard } from "@/lib/readiness/admin/readiness-dashboard";
+import { readinessCopy } from "@/lib/readiness/content/readiness-copy";
 import {
   getEditionFotoRankAdminData,
   markFotoRankSyncManualReviewFormAction,
@@ -84,6 +86,7 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
   const venues = venuesResult.ok ? venuesResult.data : [];
   const integrations = getAdminIntegrations();
   const fr = await getEditionFotoRankAdminData(editionId);
+  const readinessDashboard = await getEditionReadinessDashboard(editionId);
   const salesUrl = `${siteConfig.url}${marathonRegistrationPath(edition.slug)}`;
 
   return (
@@ -315,6 +318,60 @@ export default async function EditionDetailPage({ params, searchParams }: Props)
           <p className="text-sm text-ck-text-muted">
             Todavía no hay envíos de inscripción a FotoRank.
           </p>
+        )}
+      </Card>
+
+      <Card variant="outlined" className="space-y-4 p-5">
+        <h2 className="text-lg font-semibold">Cuántos están listos</h2>
+        <p className="text-sm leading-relaxed text-ck-text-secondary">
+          De los inscriptos confirmados, cuántos ya probaron si su teléfono
+          guarda la ubicación en las fotos. Contamos la prueba más reciente
+          de cada inscripción, no todos los intentos.
+        </p>
+        {!readinessDashboard.ok ? (
+          <AdminMigrationNotice message={readinessDashboard.message} />
+        ) : (
+          <>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                  Inscriptos confirmados
+                </dt>
+                <dd className="text-sm text-ck-text">
+                  {readinessDashboard.data.totalRegistrations}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                  Listos
+                </dt>
+                <dd className="text-sm text-ck-text">{readinessDashboard.data.ready}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                  Nunca probaron
+                </dt>
+                <dd className="mt-1 flex flex-wrap items-center gap-2">
+                  <Badge variant="warning">{readinessDashboard.data.neverChecked}</Badge>
+                  <span className="text-sm text-ck-text-secondary">
+                    A ellos hay que mandarles el enlace: todavía no lo abrieron.
+                  </span>
+                </dd>
+              </div>
+            </dl>
+            <div>
+              <p className="text-xs uppercase tracking-[0.1em] text-ck-text-muted">
+                Probaron y les falta algo
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-ck-text">
+                {readinessDashboard.data.notReady.map((item) => (
+                  <li key={item.result}>
+                    {readinessCopy.results[item.result].title}: {item.count}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
         )}
       </Card>
 

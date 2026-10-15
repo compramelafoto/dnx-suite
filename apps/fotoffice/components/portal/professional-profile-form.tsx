@@ -14,14 +14,26 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 const initial: PortalProfileState = { error: null, ok: null };
 
+/**
+ * Se usa en dos pantallas: "Mi perfil" y "Mi portfolio".
+ *
+ * Es el mismo formulario y la misma acción en los dos lugares, a propósito. Duplicarlo haría que
+ * un día pidan cosas distintas y nadie sepa cuál manda.
+ */
 export function ProfessionalProfileForm({
   institutionName,
   defaults,
   vocabulary,
+  intro,
+  backHref = "/portal",
 }: {
   institutionName: string;
   defaults: PresenciaDefaults;
   vocabulary: PersonVocabulary;
+  /** Para qué sirve esto, según desde dónde se entre. */
+  intro?: string;
+  /** `null` saca el enlace de volver: dentro de otra pantalla no va a ningún lado útil. */
+  backHref?: string | null;
 }) {
   const [state, submit, pending] = useActionState(savePortalProfileAction, initial);
 
@@ -31,7 +43,10 @@ export function ProfessionalProfileForm({
         institutionName={institutionName}
         defaults={defaults}
         vocabulary={vocabulary}
-        intro={`Esto es lo que ${institutionName} usa para recomendarte y difundir tu trabajo. Actualizalo cuando quieras.`}
+        intro={
+          intro ??
+          `Esto es lo que ${institutionName} usa para recomendarte y difundir tu trabajo. Actualizalo cuando quieras.`
+        }
       />
 
       {state.error ? (
@@ -45,9 +60,11 @@ export function ProfessionalProfileForm({
         <button type="submit" disabled={pending} className="fo-btn fo-btn-primary text-sm">
           {pending ? "Guardando…" : "Guardar cambios"}
         </button>
-        <Link href="/portal" className="fo-btn fo-btn-secondary text-sm">
-          Volver
-        </Link>
+        {backHref ? (
+          <Link href={backHref} className="fo-btn fo-btn-secondary text-sm">
+            Volver
+          </Link>
+        ) : null}
       </div>
     </form>
   );

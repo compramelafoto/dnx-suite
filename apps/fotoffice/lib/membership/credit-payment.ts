@@ -14,6 +14,7 @@ import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { recordCashMovement } from "@/lib/cash/record-movement";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { closeBookingCreditsForPayment, grantBookingCreditsForPayment } from "./booking-credits";
 
 export type CreditResult =
   | { ok: true; applied: boolean; motivo: string }
@@ -102,6 +103,8 @@ export async function creditMembershipPayment(input: {
         data: { status: "RECHAZADO", paidAt: null },
       });
     });
+    // Un pago que volvió no deja turnos del club para usar. Nunca lanza.
+    await closeBookingCreditsForPayment(intento.id);
     return { ok: true, applied: true, motivo: "pago revertido" };
   }
 
@@ -232,6 +235,9 @@ export async function creditMembershipPayment(input: {
   // Si este pago era el que faltaba, cierra el alta: marca la solicitud como completada, emite
   // el carnet digital y le da la bienvenida. Nunca lanza.
   await completeApplicationIfPaid(intento.memberId);
+
+  // Si su categoría incluye turnos (Club VIP), este pago abre su bolsa. Nunca lanza.
+  await grantBookingCreditsForPayment(intento.id);
 
   return { ok: true, applied: true, motivo: "pago acreditado" };
 }

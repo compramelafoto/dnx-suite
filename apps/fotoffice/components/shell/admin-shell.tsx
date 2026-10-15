@@ -1,0 +1,130 @@
+import { cookies } from "next/headers";
+import { prisma } from "@repo/db";
+import { resolveActiveWorkspace } from "@/lib/workspace";
+import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { getOrganizationType } from "@/lib/workspace-type";
+import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
+import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { personVocabulary } from "@/lib/vocabulario/personas";
+import { ShellSidebar } from "@/components/shell/shell-sidebar";
+import { ShellFrame } from "@/components/shell/shell-frame";
+import { ShellHeader } from "@/components/shell/shell-header";
+import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
+import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
+import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { BurbujaDnxBot } from "@/components/dnx-bot/burbuja";
+
+type PanelUser = {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string;
+  globalRole: string;
+};
+
+/**
+ * El marco del panel administrativo: menú lateral, encabezado y contenido.
+ *
+ * Vive acá y no en un layout porque lo usan dos: el grupo `(shell)` (Socios, Caja, Sorteos…)
+ * y `/workspace`, el inicio de la institución. Antes cada uno tenía el suyo y el inicio era el
+ * pobre de los dos: otro menú, sin íconos, sin el selector de institución, y su "Inicio" no
+ * era el mismo que el del resto del panel. Quien entraba veía dos sistemas distintos.
+ *
+ * El control de acceso lo hace quien lo monta, antes: cada layout tiene sus propias reglas
+ * (el de `/workspace` además exige el alta terminada).
+ */
+export async function AdminShell({ user, children }: { user: PanelUser; children: React.ReactNode }) {
+  // Solo `workspaceMembership`: sin respaldo a la tabla legacy. El menú tiene que
+  // ofrecer exactamente lo que las páginas aceptan, y las páginas leen de acá
+  // (ver `lib/workspace-role.ts`).
+  const memberships = await prisma.workspaceMembership.findMany({
+    where: { userId: user.id },
+    include: { workspace: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const workspace = await resolveActiveWorkspace(user.id);
+  // El rol sigue alimentando el encabezado y la sección Institución (Configuración no se
+  // delega). Qué módulos y qué pantallas aparecen sale de un solo cálculo de niveles, el mismo
+  // que usan las páginas: un módulo apagado ya viene en NONE.
+  const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
+  const levels = workspace !== null ? await getModuleLevels(user.id, workspace.id) : {};
+  const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
+  // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
+  // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
+  const [actions, platformAdmin, organizationType] = await Promise.all([
+    workspace !== null ? getGrantedActions(user.id, workspace.id) : Promise.resolve([] as string[]),
+    isFotofficePlatformAdmin(user.id),
+    workspace !== null ? getOrganizationType(workspace.id) : Promise.resolve(null),
+  ]);
+  // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
+  // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
+  const vocabulary =
+    workspace !== null ? await loadPersonVocabulary(workspace.id) : personVocabulary(null);
+
+  // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
+  // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
+  const [branding, perfil, perfiles, bot] = await Promise.all([
+    workspace !== null
+      ? prisma.fotofficeWorkspaceBranding.findUnique({
+          where: { workspaceId: workspace.id },
+          select: { commercialName: true, logoUrl: true },
+        })
+      : null,
+    prisma.fotofficePhotographerProfile.findUnique({
+      where: { userId: user.id },
+      select: { displayName: true, avatarUrl: true },
+    }),
+    listUserProfiles(user.id),
+    // DNX Bot: sólo si pasan todas sus puertas (apagado por omisión; ver lib/dnx-bot/acceso.ts).
+    botEnPanel(),
+  ]);
+  const institucion = branding?.commercialName?.trim() || workspace?.name || null;
+  // Si quien administra también es socio de ESTA institución, el selector de rol del menú
+  // lateral lo lleva a su portal. El "Cambiar de perfil" general queda para varias instituciones.
+  const selector = roleSelector(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null }, vocabulary);
+
+  const cookieStore = await cookies();
+  const navHidden = parseShellNavPreference(cookieStore.get(SHELL_NAV_COOKIE)?.value) === "hidden";
+  const openGroups = parseOpenGroups(cookieStore.get(NAV_GROUPS_COOKIE)?.value);
+
+  return (
+    <ShellFrame
+      navHidden={navHidden}
+      sidebar={
+        <ShellSidebar
+          workspaceName={institucion}
+          levels={levels}
+          actions={actions}
+          canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+          organizationType={organizationType}
+          platformAdmin={platformAdmin}
+          vocabulary={vocabulary}
+          roleSelector={selector}
+          openGroups={openGroups}
+        />
+      }
+      header={
+        <ShellHeader
+          userName={perfil?.displayName ?? user.name}
+          userAvatarUrl={perfil?.avatarUrl ?? null}
+          workspaceRole={activeRole}
+          workspaceLogoUrl={branding?.logoUrl ?? null}
+          menu={accountMenu(perfiles, workspace?.id ?? null)}
+          roleSelector={selector}
+          userEmail={user.email}
+          memberships={memberships.map((m) => ({
+            workspaceId: m.workspaceId,
+            name: m.workspaceId === workspace?.id && institucion ? institucion : m.workspace.name,
+          }))}
+          activeWorkspaceId={workspace?.id ?? null}
+        />
+      }
+    >
+      {children}
+      {bot && <BurbujaDnxBot rutas={bot.rutas} />}
+    </ShellFrame>
+  );
+}

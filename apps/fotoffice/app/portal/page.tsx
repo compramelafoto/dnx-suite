@@ -2,20 +2,36 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { loadPortalContext } from "@/lib/portal/access";
+import { tieneCursos } from "@/lib/course-classroom/alumno";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
-import { listUserProfiles } from "@/lib/portal/profiles";
-import Link from "next/link";
-import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
+import { hasOwnBusiness, listUserProfiles } from "@/lib/portal/profiles";
 import { loadMemberBalance } from "@/lib/membership/balance";
 import { getDuesSettings } from "@/lib/membership/settings";
-import { formatMinorArs } from "@/lib/membership/money";
-import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
 import { describeSeniority } from "@/lib/portal/identity";
 import { pendingPrintedCard } from "@/lib/carnet/pending-print";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolvePortalMenu } from "@/lib/portal/menu";
-import { PortalSections } from "@/components/portal/portal-sections";
+import { listOpenTasksForVolunteers } from "@/lib/governance/repository";
+import { loadShowcase } from "@/lib/contests/load";
+import { bannerItems, type ShowcaseItem } from "@/lib/contests/showcase";
+import { PortalHome } from "@/components/portal/portal-home";
+import { loadPortalRaffles } from "@/lib/raffles/portal";
+import {
+  ensureCurrentSpotlightSafe,
+  isSpotlightEnabled,
+  loadCurrentSpotlight,
+} from "@/lib/spotlight/repository";
+import { buildSpotlightCard } from "@/lib/spotlight/view";
+import { spotlightWeekLabel } from "@/lib/spotlight/week";
+import { loadBirthdaysOfWeek } from "@/lib/birthdays/repository";
+import type { BirthdayView } from "@/lib/birthdays/week";
+import { loadActivePlacement } from "@/lib/sponsors/placements";
+import { PortalSponsorsSection } from "@/components/sponsors/portal-sponsors-section";
+import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
+import { loadRenewalOffer } from "@/lib/membership/enrollment-store";
+import { renewMembershipAction } from "@/app/actions/renew-membership";
+import { formatMinorArs } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
 
@@ -25,24 +41,32 @@ export const dynamic = "force-dynamic";
  * Destino real de quien activa su acceso, y frontera con el panel administrativo: acá se
  * entra por tener ficha de socio propia, no por un rol de equipo.
  *
- * Muestra las cuotas cuando hay algo que decir. El resto de los módulos —comprobantes,
- * beneficios— sigue sin anunciarse: prometer algo que no existe es peor que no mencionarlo.
+ * Es un tablero: indicadores arriba (cuenta, carnet, categoría, antigüedad), las cuotas y los
+ * atajos a la izquierda, el carnet y los avisos a la derecha. La navegación vive en el marco
+ * (panel lateral o barra inferior), no en la portada.
  */
 export default async function PortalPage() {
   const user = await requireAuth();
   const context = await loadPortalContext(user.id);
 
   if (!context) {
+    // Un alumno que entra a una pantalla de socios (todas redirigen a `/portal`) termina en
+    // Mis cursos, que es lo suyo.
+    if (await tieneCursos(user.id)) redirect("/portal/cursos");
     // Quien no es socio no tiene nada que hacer acá. Si administra una institución se lo
     // devuelve a su panel; si no, al inicio de sesión.
     const kind = await resolveFotofficeUserKind(user.id);
     redirect(kind === "TEAM" ? "/workspace" : "/login");
   }
 
+  // La sección de sponsors arranca ya, en paralelo con todo lo demás. Nunca falla y tiene tope de
+  // espera: si no hay o DNX Partners no responde, la portada sale sin la sección.
+  const sponsorsPromesa = loadActivePlacement(context.workspace.id, "FOTOFFICE_PORTAL_SPONSORS");
+
   const profiles = await listUserProfiles(user.id);
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { workspaceId: context.workspace.id },
-    select: { commercialName: true, logoUrl: true },
+    select: { commercialName: true },
   });
   const institution = branding?.commercialName?.trim() || context.workspace.name;
   const cuenta = await loadMemberBalance(context.member.id);
@@ -58,7 +82,7 @@ export default async function PortalPage() {
   const perfil = await prisma.member.findUnique({
     where: { id: context.member.id },
     select: {
-      businessName: true, bio: true, specialties: true, instagram: true, website: true,
+      businessName: true, businessLogoUrl: true, bio: true, specialties: true, instagram: true, website: true,
       avatarUrl: true, profilePhotoUrl: true,
     },
   });
@@ -81,191 +105,158 @@ export default async function PortalPage() {
     (s) => s.href === "/portal/recomendados" && s.state === "DISPONIBLE",
   );
 
+  // El sorteo del mes, si el módulo está prendido: estar al día tiene premio, y el inicio es
+  // donde el socio se entera.
+  const sorteosDisponibles = secciones.some(
+    (s) => s.href === "/portal/sorteos" && s.state === "DISPONIBLE",
+  );
+  const sorteo = sorteosDisponibles
+    ? (await loadPortalRaffles({ workspaceId: context.workspace.id, memberId: context.member.id }))
+        .current
+    : null;
+
+  // El Socio de la semana. Si la tarea de los viernes no corrió, esta visita lo elige: nunca queda
+  // una semana vacía. Cualquier falla deja el panel sin la tarjeta, nunca sin panel.
+  let socioDeLaSemana: { card: NonNullable<ReturnType<typeof buildSpotlightCard>>; weekLabel: string } | null =
+    null;
+  try {
+    if (await isSpotlightEnabled(context.workspace.id)) {
+      await ensureCurrentSpotlightSafe(context.workspace.id);
+      const destacado = await loadCurrentSpotlight(context.workspace.id);
+      const card = destacado
+        ? buildSpotlightCard({
+            member: destacado.member,
+            about: destacado.about,
+            portfolioPath: destacado.portfolioPath,
+            institution,
+            audience: "portal",
+            viewerMemberId: context.member.id,
+          })
+        : null;
+      if (destacado && card) {
+        socioDeLaSemana = { card, weekLabel: spotlightWeekLabel(destacado.weekStart) };
+      }
+    }
+  } catch (error) {
+    console.error("[fotoffice][socio-de-la-semana] no se pudo mostrar la tarjeta", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
+  // Proyectos de la comisión: proponer y ayudar. Si el módulo está prendido, la portada invita a
+  // las dos cosas, con las tareas sin responsable a la vista. Si falla, el panel sigue.
+  const gobiernoDisponible = secciones.some((s) => s.href === "/portal/proyectos" && s.state === "DISPONIBLE");
+  let gobierno: { tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[]; totalLibres: number } | null =
+    null;
+  if (gobiernoDisponible) {
+    try {
+      const libres = await listOpenTasksForVolunteers(context.workspace.id, 3);
+      gobierno = {
+        tareasLibres: libres.tasks.map((t) => ({ id: t.id, title: t.title, projectTitle: t.project.title, dueAt: t.dueAt })),
+        totalLibres: libres.total,
+      };
+    } catch (error) {
+      console.error("[fotoffice][gobierno] no se pudieron cargar las tareas libres", {
+        detalle: error instanceof Error ? error.message : "error desconocido",
+      });
+      gobierno = { tareasLibres: [], totalLibres: 0 };
+    }
+  }
+
+  // La vitrina de concursos (FotoRank y Clickatón). Si falla, el panel sigue sin la franja.
+  let concursos: ShowcaseItem[] = [];
+  try {
+    concursos = bannerItems(await loadShowcase(context.workspace.id));
+  } catch (error) {
+    console.error("[fotoffice][vitrina] no se pudo cargar la vitrina", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
+  // Los cumpleaños de la semana. Igual que la tarjeta de arriba: si falla, el panel sigue.
+  let cumpleanos: BirthdayView[] = [];
+  try {
+    cumpleanos = await loadBirthdaysOfWeek({
+      workspaceId: context.workspace.id,
+      viewerMemberId: context.member.id,
+    });
+  } catch (error) {
+    console.error("[fotoffice][cumpleanos] no se pudieron cargar los cumpleaños", {
+      detalle: error instanceof Error ? error.message : "error desconocido",
+    });
+  }
+
+  const sponsors = await sponsorsPromesa;
+
+  // Club con turnos incluidos (Club VIP): cuántos le quedan y hasta cuándo.
+  const clubSaldo = await loadMemberClubBalance({
+    workspaceId: context.workspace.id,
+    memberId: context.member.id,
+  });
+  const renovacionOferta = await loadRenewalOffer({
+    workspaceId: context.workspace.id,
+    memberId: context.member.id,
+  });
+  const reservasDisponibles = secciones.some(
+    (s) => s.href === "/portal/reservas" && s.state === "DISPONIBLE",
+  );
+  const club = clubSaldo
+    ? {
+        available: clubSaldo.available,
+        credits: clubSaldo.credits,
+        plural: clubSaldo.plural,
+        validUntilLabel: clubSaldo.validUntil.toLocaleDateString("es-AR", {
+          timeZone: "America/Argentina/Buenos_Aires",
+          day: "numeric",
+          month: "numeric",
+        }),
+        reservarHref: reservasDisponibles ? "/portal/reservas" : null,
+      }
+    : null;
+
   return (
     <>
-      <main className="mx-auto max-w-lg px-4 py-16">
-        <section className="fo-card space-y-6">
-          <div className="flex items-center gap-3">
-            {branding?.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- el logo es una URL externa de R2
-              <img
-                src={branding.logoUrl}
-                alt=""
-                className="h-12 w-12 rounded-lg object-contain"
-              />
-            ) : null}
-            <p className="text-sm font-semibold">{institution}</p>
-          </div>
-
-          {/*
-            Identidad antes que trámite. El socio abre el portal y lo primero que ve es que la
-            institución sabe quién es: su número, su categoría y desde cuándo pertenece. Son
-            datos que ya existen en la ficha, así que nunca quedan desactualizados.
-          */}
-          <div className="space-y-3">
-            <h1 className="text-xl font-semibold tracking-tight">
-              Hola, {context.member.firstName}
-            </h1>
-            <div className="rounded-lg border border-[var(--fo-border)] px-4 py-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <p className="text-sm font-medium">
-                  {v.Singular} N° <span className="tabular-nums">{context.member.memberNumber}</span>
-                </p>
-                {context.member.categoryName ? (
-                  <p className="text-xs text-[var(--fo-muted)]">{context.member.categoryName}</p>
-                ) : null}
-              </div>
-              {antiguedad.desde ? (
-                <p className="mt-1 text-xs text-[var(--fo-muted)]">
-                  Desde {antiguedad.desde}
-                  {antiguedad.anios
-                    ? ` · ${antiguedad.anios} ${antiguedad.anios === 1 ? "año" : "años"} en la institución`
-                    : ""}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <Link
-            href="/portal/carnet"
-            className={
-              "block space-y-1 rounded-lg border p-4 " +
-              (impresa.pedida && impresa.faltaFoto
-                ? "border-[var(--fo-accent)] hover:border-[var(--fo-text)]"
-                : "border-[var(--fo-border)] hover:border-[var(--fo-text)]")
+    <PortalHome
+      institution={institution}
+      member={{
+        firstName: context.member.firstName,
+        fullName: `${context.member.firstName} ${context.member.lastName}`.trim(),
+        memberNumber: context.member.memberNumber,
+        categoryName: context.member.categoryName ?? null,
+        photoUrl: perfil?.profilePhotoUrl ?? perfil?.avatarUrl ?? null,
+        businessName: perfil?.businessName?.trim() || null,
+        businessLogoUrl: perfil?.businessLogoUrl ?? null,
+      }}
+      antiguedad={antiguedad}
+      cuenta={cuenta}
+      faltaFoto={impresa.pedida && impresa.faltaFoto}
+      secciones={secciones}
+      vocabulary={v}
+      recommendationBenefitPercent={
+        recomendar ? duesSettings.recommendationBenefitPercent : null
+      }
+      perfilVacio={perfilVacio}
+      tieneNegocio={hasOwnBusiness(profiles)}
+      sorteo={sorteo}
+      whatsappGroupUrl={duesSettings.communityWhatsappUrl}
+      socioDeLaSemana={socioDeLaSemana}
+      cumpleanos={cumpleanos}
+      gobierno={gobierno}
+      concursos={concursos}
+      club={club}
+      renovacion={
+        renovacionOferta.available
+          ? {
+              categoryName: renovacionOferta.categoryName,
+              amountLabel: formatMinorArs(renovacionOferta.amountMinor).replace(/,00$/, ""),
+              action: renewMembershipAction,
             }
-          >
-            <p className="text-sm font-medium">
-              {impresa.pedida && impresa.faltaFoto
-                ? "Te falta subir tu foto"
-                : `Tu carnet de ${v.singular}`}
-            </p>
-            <p className="text-xs text-[var(--fo-muted)]">
-              {impresa.pedida && impresa.faltaFoto
-                ? "Ya pagaste tu credencial impresa. Sin tu foto no la podemos emitir."
-                : `Mostralo para que verifiquen tu condición de ${v.singular}.`}
-            </p>
-          </Link>
-
-          {cuenta.charges.length > 0 ? (
-            <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium">Cuotas pendientes</p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {formatMinorArs(cuenta.dueMinor)}
-                </p>
-              </div>
-              {cuenta.overdueCount > 0 ? (
-                <p className="text-xs text-[var(--fo-danger)]">
-                  {cuenta.overdueCount === 1
-                    ? "Tenés 1 cuota vencida."
-                    : `Tenés ${cuenta.overdueCount} cuotas vencidas.`}
-                </p>
-              ) : null}
-              <Link href="/portal/cuotas" className="fo-btn fo-btn-primary inline-flex text-sm">
-                Ver y pagar
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-2 rounded-lg border border-[var(--fo-border)] p-4">
-              <p className="text-sm font-medium text-[var(--fo-success)]">Estás al día</p>
-              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-                No tenés cuotas pendientes con {institution}.
-              </p>
-              <Link href="/portal/cuotas" className="text-xs text-[var(--fo-muted)] hover:underline">
-                Ver el detalle
-              </Link>
-            </div>
-          )}
-
-          {/*
-            Va pegado a las cuotas y no en el menú de abajo a propósito: el premio por recomendar
-            ES una cuota, así que se entiende leyéndolo justo después de lo que el socio debe. En
-            la lista de secciones era el último renglón de diez y nadie llegaba hasta ahí.
-
-            Solo se muestra cuando la sección está realmente disponible: los dos interruptores
-            —módulo de socios y beneficio resuelto por la comisión— ya los resolvió el menú, así
-            que se pregunta por él y no se vuelve a decidir acá.
-          */}
-          {recomendar ? (
-            <div className="space-y-2 rounded-lg border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-4">
-              <p className="text-sm font-medium">Recomendá a un fotógrafo amigo</p>
-              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-                Por cada colega que se asocie a {institution} con tu enlace y pague su ingreso,
-                ganás {recommendationBenefitPhrase(duesSettings.recommendationBenefitPercent)}.
-                Sin tope: una por cada amigo que se suma.
-              </p>
-              <Link
-                href="/portal/recomendados"
-                className="fo-btn fo-btn-primary inline-flex text-sm"
-              >
-                Recomendar a un amigo
-              </Link>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            <Link href="/portal/perfil" className="fo-btn fo-btn-secondary text-sm">
-              Mi perfil profesional
-            </Link>
-            <form action="/api/auth/logout" method="post">
-              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                Cerrar sesión
-              </button>
-            </form>
-            {profiles.length > 1 ? (
-              <form action={switchProfileAction}>
-                <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                  Cambiar de perfil
-                </button>
-              </form>
-            ) : null}
-          </div>
-        </section>
-
-        {/* Todo lo que el portal ofrece, incluido lo que todavía se está construyendo. */}
-        <div className="mt-6">
-          <PortalSections items={secciones} vocabulary={v} />
-        </div>
-
-        {perfilVacio ? (
-          <section className="fo-card mt-6 space-y-3 p-5">
-            <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-              Contanos a qué te dedicás y dónde se ve tu trabajo. Es lo que {institution} usa
-              para recomendarte y difundir lo que hacés. Se publica solo si lo autorizás.
-            </p>
-            <Link href="/portal/perfil" className="fo-btn fo-btn-primary text-sm">
-              Completar mi perfil
-            </Link>
-          </section>
-        ) : null}
-
-        {/*
-          El socio que todavía no tiene negocio se entera acá de que puede usar FotoOffice para
-          administrarlo. La creación es siempre explícita: nunca ocurre por visitar una ruta.
-
-          Va al pie y en tono menor a propósito: es una posibilidad, no una tarea pendiente. Como
-          tarjeta competía en peso visual con las cuotas y el carnet, que sí son lo que el socio
-          viene a hacer.
-        */}
-        {!profiles.some((p) => p.kind === "TEAM") ? (
-          <footer className="mt-10 border-t border-[var(--fo-border)] pt-4">
-            <form
-              action={createOwnBusinessAction}
-              className="text-xs leading-relaxed text-[var(--fo-muted)]"
-            >
-              {`¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio fotográfico, aparte de tu ficha de ${v.singular}.`}{" "}
-              <button
-                type="submit"
-                className="underline underline-offset-2 hover:text-[var(--fo-text)]"
-              >
-                Crear mi negocio
-              </button>
-            </form>
-          </footer>
-        ) : null}
-      </main>
+          : null
+      }
+    />
+    <div className="mt-8">
+      <PortalSponsorsSection sponsors={sponsors} />
+    </div>
     </>
   );
 }

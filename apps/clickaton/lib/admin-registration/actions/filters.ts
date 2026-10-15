@@ -31,6 +31,7 @@ export function filtersFromSearchParams(params: {
     "TRANSFERRED_TO_NEXT_EDITION",
     "EXPIRED",
     "REFUND_REQUESTED",
+    "GIFT_AWAITING_REDEMPTION",
   ];
   const payments: ClickatonPaymentStatus[] = [
     "NOT_REQUIRED",

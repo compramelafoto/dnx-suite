@@ -1,19 +1,13 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import { getAuthUser } from "../../../../lib/auth";
 import { resolveActiveOrganizationForUser } from "../../../../lib/fotorank/dashboard-org-context";
+import { readDiplomaFile } from "../../../../lib/fotorank/diplomas/diplomaStorage";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function publicUrlToAbsoluteFile(publicUrl: string): string | null {
-  if (!publicUrl.startsWith("/uploads/diplomas/")) return null;
-  const rel = publicUrl.replace(/^\//, "");
-  if (rel.includes("..")) return null;
-  return path.join(process.cwd(), "public", rel);
-}
-
+/** Descarga de un diploma emitido, sólo para la organización que lo emitió. */
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ issuedId: string }> }
@@ -21,6 +15,7 @@ export async function GET(
   const { issuedId } = await ctx.params;
   const { searchParams } = new URL(req.url);
   const format = searchParams.get("format") === "png" ? "png" : "pdf";
+  const inline = searchParams.get("inline") === "1";
 
   const user = await getAuthUser();
   if (!user) {
@@ -34,7 +29,7 @@ export async function GET(
 
   const issued = await prisma.fotorankDiplomaIssued.findFirst({
     where: { id: issuedId, organizationId: org.org.id },
-    select: { pdfUrl: true, pngUrl: true, contestId: true },
+    select: { pdfUrl: true, pngUrl: true, contestId: true, diplomaCode: true },
   });
 
   if (!issued) {
@@ -46,23 +41,18 @@ export async function GET(
     return NextResponse.json({ error: "Archivo no disponible." }, { status: 404 });
   }
 
-  const abs = publicUrlToAbsoluteFile(url);
-  if (!abs) {
-    return NextResponse.json({ error: "Ruta no válida." }, { status: 400 });
+  const bytes = await readDiplomaFile(issued.contestId, issuedId, format);
+  if (!bytes) {
+    return NextResponse.json({ error: "No se pudo leer el archivo." }, { status: 404 });
   }
 
-  try {
-    const buf = await readFile(abs);
-    const contentType = format === "png" ? "image/png" : "application/pdf";
-    return new NextResponse(new Uint8Array(buf), {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="diploma-${issuedId}.${format}"`,
-        "Cache-Control": "private, no-store",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "No se pudo leer el archivo." }, { status: 500 });
-  }
+  const nombre = `diploma-${issued.diplomaCode.replace(/[^A-Za-z0-9_-]/g, "") || issuedId}.${format}`;
+  return new NextResponse(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      "Content-Type": format === "png" ? "image/png" : "application/pdf",
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${nombre}"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
 }

@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { withClickatonDb } from "@/lib/admin/db";
+import { fechaAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ const NOMBRE_ESPACIO = new Map<string, string>(
 );
 
 function fecha(d: Date): string {
-  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return fechaAr(d);
 }
 
 /** Un mes desde hoy, en `AAAA-MM-DD`, como valor por defecto del formulario. */

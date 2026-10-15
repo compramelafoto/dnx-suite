@@ -153,12 +153,12 @@ for (const slug of ["otro-concurso", "santa-fe-en-una-foto", "concurso-sin-image
    ==========================================================================
    El instante guardado es EXCLUSIVO (1-oct 00:00 ART) porque así se calcula si
    la inscripción sigue abierta; lo publicado legalmente es el último día
-   INCLUSIVO (30 de septiembre). La home formateaba el instante crudo y por eso
+   INCLUSIVO (31 de octubre, extendido desde el 30 de septiembre en bases v3). La home formateaba el instante crudo y por eso
    mostraba una fecha distinta de la landing.
    ========================================================================== */
 
-/** Cierre exclusivo real de SFEF: 1-oct-2026 00:00 ART = 03:00 UTC. */
-const SFEF_CIERRE_EXCLUSIVO = new Date("2026-10-01T03:00:00.000Z");
+/** Cierre exclusivo real de SFEF: 1-nov-2026 00:00 ART = 03:00 UTC. */
+const SFEF_CIERRE_EXCLUSIVO = new Date("2026-11-01T03:00:00.000Z");
 
 // 1) Santa Fe en Foco muestra la fecha publicada, no el instante crudo.
 const sfefFecha = toPublicHomeContestCard({
@@ -168,12 +168,12 @@ const sfefFecha = toPublicHomeContestCard({
   submissionDeadline: SFEF_CIERRE_EXCLUSIVO,
 });
 ok(
-  sfefFecha.registrationCloseLabel === "30 de septiembre de 2026",
-  'la home muestra "30 de septiembre de 2026" (fecha publicada, inclusiva)',
+  sfefFecha.registrationCloseLabel === "31 de octubre de 2026",
+  'la home muestra "31 de octubre de 2026" (fecha publicada, inclusiva)',
 );
 ok(
-  !String(sfefFecha.registrationCloseLabel).includes("octubre"),
-  "la home ya NO muestra 1 de octubre",
+  !String(sfefFecha.registrationCloseLabel).includes("noviembre"),
+  "la home ya NO muestra 1 de noviembre",
 );
 
 // 2) Home y landing resuelven la MISMA etiqueta: una sola fuente.
@@ -189,17 +189,17 @@ ok(
 
 // 3) El instante almacenado NO se modifica: se sigue exponiendo crudo.
 ok(
-  sfefFecha.submissionDeadline?.toISOString() === "2026-10-01T03:00:00.000Z",
-  "el instante exclusivo almacenado sigue siendo 1-oct-2026 00:00 ART (sin alterar)",
+  sfefFecha.submissionDeadline?.toISOString() === "2026-11-01T03:00:00.000Z",
+  "el instante exclusivo almacenado sigue siendo 1-nov-2026 00:00 ART (sin alterar)",
 );
 
-// 4) El cálculo de estado no cambia: durante todo el 30/09 sigue abierta.
-const during30Sep = new Date("2026-09-30T23:59:00.000Z");
+// 4) El cálculo de estado no cambia: durante todo el 31/10 sigue abierta.
+const during31Oct = new Date("2026-10-31T23:59:00.000Z");
 ok(
-  getStatusLabel(during30Sep, PAST, SFEF_CIERRE_EXCLUSIVO) === "Inscripciones abiertas",
-  "el 30 de septiembre la inscripción sigue abierta (cierre inclusivo preservado)",
+  getStatusLabel(during31Oct, PAST, SFEF_CIERRE_EXCLUSIVO) === "Inscripciones abiertas",
+  "el 31 de octubre la inscripción sigue abierta (cierre inclusivo preservado)",
 );
-const after = new Date("2026-10-01T04:00:00.000Z");
+const after = new Date("2026-11-01T04:00:00.000Z");
 ok(
   getStatusLabel(after, PAST, SFEF_CIERRE_EXCLUSIVO) === "Cerrado",
   "pasado el instante exclusivo el concurso queda cerrado",
@@ -216,7 +216,7 @@ ok(
   "un concurso sin override muestra su propia fecha formateada",
 );
 ok(
-  otroFecha.registrationCloseLabel !== "30 de septiembre de 2026",
+  otroFecha.registrationCloseLabel !== "31 de octubre de 2026",
   "el override de Santa Fe no se aplica a otros concursos",
 );
 

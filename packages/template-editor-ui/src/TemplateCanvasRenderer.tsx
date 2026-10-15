@@ -1,13 +1,27 @@
+"use client";
+
 import { QrBlockRenderer } from "./QrBlockRenderer";
-import React from "react";
+import React, { useState } from "react";
 import {
+  computeCoverCropRect,
   getResolvedVariableText,
   getTextVisualConfig,
   toRenderableBlocks,
   type TemplateV2Block,
+  type PhotoCrop,
   type TemplateV2Canvas,
 } from "@repo/template-editor-core";
-import { resolveBracePlaceholdersInText } from "@repo/template-editor-core";
+import {
+  CLIENT_PHOTO_ROLE_SLOTS,
+  CLIENT_PHOTO_VARIABLE_PATTERN,
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  formatClassList,
+  isClassListConfig,
+  layoutClassList,
+  parseClassListValue,
+  readClassListOptions,
+  resolveBracePlaceholdersInText,
+} from "@repo/template-editor-core";
 
 type TemplateCanvasRendererProps = {
   canvas: TemplateV2Canvas;
@@ -22,7 +36,16 @@ type TemplateCanvasRendererProps = {
   /** Editor: mientras se edita inline, oculta el cuerpo del texto para no duplicarlo bajo el contentEditable. */
   hideTextBodyForBlockId?: string | null;
   className?: string;
+  /** Si se pasa, solo se dibujan los bloques de esa cara. */
+  pageIndex?: number;
+  /**
+   * Fotos concretas para bloques de imagen, por id de bloque, con su encuadre. Lo usa la revisión
+   * de diseños: cada hueco de foto del cliente muestra la foto asignada tal como va a imprimirse.
+   */
+  photoOverrides?: Record<string, PhotoOverride>;
 };
+
+export type PhotoOverride = { src: string; crop?: PhotoCrop };
 
 /** Multiselección: contorno liviano; el primario se pinta en TemplateEditorCanvas (handles). */
 const SECONDARY_SELECTION_OUTLINE = "1.5px solid rgba(59, 130, 246, 0.42)";
@@ -119,6 +142,80 @@ function TextBlockRenderer({
   );
 }
 
+/** «Listado del curso»: la misma cuenta de columnas y cuerpo que usa la impresión. */
+function ClassListBlockRenderer({
+  config,
+  resolvedVariables,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  resolvedVariables?: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const key = String(config.variableKey ?? "");
+  const options = readClassListOptions(config);
+  const t = getTextVisualConfig(config);
+  const { cells, fontSize } = layoutClassList({
+    lines: formatClassList(parseClassListValue(resolvedVariables?.[key]), options),
+    width: layoutWidth,
+    height: layoutHeight,
+    fontSize: t.fontSize,
+    lineHeight: t.lineHeight,
+    columns: options.columns,
+  });
+  if (cells.length === 0) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px dashed #94a3b8",
+          color: "#64748b",
+          fontSize: Math.max(12, Math.min(layoutWidth, layoutHeight) * 0.08),
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        Listado del curso (sin alumnos)
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {cells.map((cell, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: cell.x,
+            top: cell.y,
+            width: cell.width,
+            height: cell.height,
+            color: t.color,
+            fontFamily: t.fontFamilyCss,
+            fontSize,
+            fontWeight: cell.bold ? 700 : t.fontWeight,
+            fontStyle: t.fontStyle,
+            textDecoration: t.textDecoration,
+            textTransform: t.textTransform,
+            lineHeight: String(t.lineHeight),
+            letterSpacing: `${t.letterSpacing}px`,
+            textAlign: t.textAlign,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          {cell.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function VariableTextBlockRenderer({
   config,
   resolvedVariables,
@@ -151,6 +248,68 @@ function imagePlaceholderTypography(layoutWidth: number, layoutHeight: number): 
   return { titlePx, subtitlePx, padPx };
 }
 
+/**
+ * El nombre de un hueco de foto del cliente para mostrar mientras se diseña: "Foto individual",
+ * "Foto grupal" o "Foto del cliente 3". `null` si el bloque no es un hueco de foto del cliente.
+ */
+function clientPhotoSlotTitle(variableKey: string): string | null {
+  const conNombre = CLIENT_PHOTO_ROLE_SLOTS[variableKey];
+  if (conNombre) return conNombre.label;
+  const m = CLIENT_PHOTO_VARIABLE_PATTERN.exec(variableKey);
+  return m ? `Foto del cliente ${m[1]}` : null;
+}
+
+/**
+ * Hueco de foto sin foto todavía. Dice qué foto va y dónde queda arriba: gira junto con el
+ * recuadro, así quien diseña lo orienta como quiere que se coloque la foto.
+ */
+function ClientPhotoSlotPlaceholder({
+  title,
+  layoutWidth,
+  layoutHeight,
+}: {
+  title: string;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const minSide = Math.min(Math.max(1, layoutWidth), Math.max(1, layoutHeight));
+  const titlePx = Math.max(18, Math.round(minSide * 0.12));
+  const hintPx = Math.max(12, Math.round(titlePx * 0.5));
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        display: "grid",
+        placeItems: "center",
+        border: "2px dashed #64748b",
+        background: "#e2e8f0",
+        color: "#1e293b",
+        textAlign: "center",
+        boxSizing: "border-box",
+        fontFamily: "system-ui, sans-serif",
+        overflow: "hidden",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: Math.round(hintPx * 0.6),
+          left: 0,
+          right: 0,
+          fontSize: hintPx,
+          fontWeight: 600,
+          color: "#475569",
+        }}
+      >
+        ▲ arriba
+      </span>
+      <span style={{ fontSize: titlePx, fontWeight: 700, lineHeight: 1.1, padding: "0 6%" }}>{title}</span>
+    </div>
+  );
+}
+
 function ImageBlockRenderer({
   config,
   resolvedVariables,
@@ -172,6 +331,10 @@ function ImageBlockRenderer({
   const photoMode = String(config.photoMode ?? "free").toLowerCase();
   const maskShape = String(config.maskShape ?? "rect").toLowerCase();
   const modeLabel = PHOTO_MODE_LABEL[photoMode] ?? PHOTO_MODE_LABEL.free;
+  const slotTitle = clientPhotoSlotTitle(variableKey);
+  if (slotTitle && (!src || src === SCHOOL_CLIENT_PHOTO_PLACEHOLDER)) {
+    return <ClientPhotoSlotPlaceholder title={slotTitle} layoutWidth={layoutWidth} layoutHeight={layoutHeight} />;
+  }
 
   const imgStyle: React.CSSProperties = {
     width: "100%",
@@ -225,6 +388,11 @@ function ImageBlockRenderer({
   }
 
   if (maskShape === "circle") {
+    /*
+     * El círculo va inscripto en el lado corto, como en la impresión, y fuera de él no se pinta
+     * nada: antes el recuadro llevaba un fondo gris que se veía en pantalla y no se imprimía.
+     */
+    const lado = Math.min(layoutWidth, layoutHeight);
     return (
       <div
         style={{
@@ -233,16 +401,13 @@ function ImageBlockRenderer({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "var(--te-chrome-sunken)",
         }}
       >
         <div
           style={{
-            width: "auto",
-            height: "auto",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            aspectRatio: "1",
+            width: lado,
+            height: lado,
+            flex: "none",
             borderRadius: "50%",
             overflow: "hidden",
             background: "var(--te-line)",
@@ -261,7 +426,97 @@ function ImageBlockRenderer({
   );
 }
 
-function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
+/**
+ * Una foto encuadrada en su hueco, con la misma cuenta que usa la exportación
+ * (`computeCoverCropRect`): lo que se aprueba en pantalla es lo que se imprime.
+ */
+function CroppedPhotoRenderer({
+  override,
+  config,
+  layoutWidth,
+  layoutHeight,
+}: {
+  override: PhotoOverride;
+  config: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const [natural, setNatural] = useState<{ src: string; w: number; h: number } | null>(null);
+  const size = natural && natural.src === override.src ? natural : null;
+  const maskShape = String(config.maskShape ?? "rect").toLowerCase();
+  const borderRadius = Math.max(0, Number(config.borderRadius ?? 0));
+
+  let imgStyle: React.CSSProperties = {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+    maxWidth: "none",
+  };
+  if (size) {
+    const rect = computeCoverCropRect({
+      srcWidth: size.w,
+      srcHeight: size.h,
+      slotWidth: layoutWidth,
+      slotHeight: layoutHeight,
+      crop: override.crop,
+    });
+    const scale = layoutWidth / rect.width;
+    imgStyle = {
+      ...imgStyle,
+      width: size.w * scale,
+      height: size.h * scale,
+      left: -rect.left * scale,
+      top: -rect.top * scale,
+      objectFit: "fill",
+    };
+  }
+
+  const clip: React.CSSProperties =
+    maskShape === "ellipse"
+      ? { borderRadius: "50%" }
+      : maskShape === "circle"
+        ? { clipPath: `circle(${Math.min(layoutWidth, layoutHeight) / 2}px at 50% 50%)` }
+        : { borderRadius };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        background: "var(--te-chrome-sunken, #eef0f2)",
+        ...clip,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={override.src}
+        alt=""
+        draggable={false}
+        style={imgStyle}
+        onLoad={(e) => {
+          const el = e.currentTarget;
+          setNatural({ src: override.src, w: el.naturalWidth, h: el.naturalHeight });
+        }}
+      />
+    </div>
+  );
+}
+
+function ShapeBlockRenderer({
+  config,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
   const variant = String(config.variant ?? "rectangle").toLowerCase();
   const fill = typeof config.fill === "string" ? config.fill : "var(--te-line)";
   const stroke = typeof config.stroke === "string" ? config.stroke : "transparent";
@@ -298,11 +553,10 @@ function ShapeBlockRenderer({ config }: { config: Record<string, unknown> }) {
       >
         <div
           style={{
-            width: "auto",
-            height: "auto",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            aspectRatio: "1",
+            // Con tamaño "auto" el círculo medía cero y no se veía; la impresión sí lo dibujaba.
+            width: Math.min(layoutWidth, layoutHeight),
+            height: Math.min(layoutWidth, layoutHeight),
+            flex: "none",
             background: fill,
             border: `${sw}px solid ${stroke}`,
             borderRadius: "50%",
@@ -387,9 +641,13 @@ export function TemplateCanvasRenderer({
   diagnosticHighlightByBlockId,
   hideTextBodyForBlockId = null,
   className,
+  pageIndex,
+  photoOverrides,
 }: TemplateCanvasRendererProps) {
   const canvasBackground = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
-  const renderableBlocks = toRenderableBlocks(blocks);
+  const renderableBlocks = toRenderableBlocks(
+    pageIndex == null ? blocks : blocks.filter((b) => (b.pageIndex ?? 0) === pageIndex),
+  );
   const selectedSet = new Set(selectedBlockIds);
 
   return (
@@ -428,11 +686,26 @@ export function TemplateCanvasRenderer({
             {block.type === "VARIABLE_TEXT" ? (
               hideTextBodyForBlockId === block.id ? (
                 <div style={{ width: "100%", height: "100%" }} aria-hidden />
+              ) : isClassListConfig(block.configJson) ? (
+                <ClassListBlockRenderer
+                  config={block.configJson}
+                  resolvedVariables={resolvedVariables}
+                  layoutWidth={block.layout.width}
+                  layoutHeight={block.layout.height}
+                />
               ) : (
                 <VariableTextBlockRenderer config={block.configJson} resolvedVariables={resolvedVariables} />
               )
             ) : null}
-            {block.type === "IMAGE" ? (
+            {(block.type === "IMAGE" || block.type === "PHOTO") && photoOverrides?.[block.id]?.src ? (
+              <CroppedPhotoRenderer
+                override={photoOverrides[block.id]!}
+                config={block.configJson}
+                layoutWidth={block.layout.width}
+                layoutHeight={block.layout.height}
+              />
+            ) : null}
+            {block.type === "IMAGE" && !photoOverrides?.[block.id]?.src ? (
               <ImageBlockRenderer
                 config={block.configJson}
                 resolvedVariables={resolvedVariables}
@@ -440,7 +713,13 @@ export function TemplateCanvasRenderer({
                 layoutHeight={block.layout.height}
               />
             ) : null}
-            {block.type === "SHAPE" ? <ShapeBlockRenderer config={block.configJson} /> : null}
+            {block.type === "SHAPE" ? (
+              <ShapeBlockRenderer
+                config={block.configJson}
+                layoutWidth={block.layout.width}
+                layoutHeight={block.layout.height}
+              />
+            ) : null}
             {block.type === "QR" ? (
               <QrBlockRenderer
                 config={block.configJson}
@@ -450,7 +729,7 @@ export function TemplateCanvasRenderer({
               />
             ) : null}
             {block.type === "BACKGROUND" ? <BackgroundLegacyRenderer config={block.configJson} /> : null}
-            {block.type === "PHOTO" ? (
+            {block.type === "PHOTO" && !photoOverrides?.[block.id]?.src ? (
               <PhotoLegacyRenderer layoutWidth={block.layout.width} layoutHeight={block.layout.height} />
             ) : null}
           </BlockContainer>

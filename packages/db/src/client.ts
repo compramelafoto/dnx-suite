@@ -109,6 +109,7 @@ export {
   InfoSpotEditorialLicenseStatus,
   InfoSpotEditorialUsageStatus,
   InfoSpotEditorialPhotoUsageType,
+  StoreOrderStatus,
 } from "@prisma/client";
 
 export {

@@ -342,17 +342,6 @@ export function createApplyPaymentEventUseCase(deps: {
           });
         }
 
-        // Etapa 8: placa de bienvenida durable. Nunca revierte PAID.
-        try {
-          const { enqueueWelcomeCardAfterPaid } = await import("@/lib/welcome-card/enqueue");
-          void enqueueWelcomeCardAfterPaid({
-            registrationId: confirmed.id,
-            editionId: confirmed.editionId,
-          });
-        } catch {
-          // soft-fail: el cron reintenta desde el outbox y PAID permanece confirmado
-        }
-
         // Placas de participante V2 (welcome + member). Soft-fail: si el render
         // no está disponible, el cron /api/cron/participant-cards reintenta.
         try {
@@ -440,6 +429,56 @@ export function createApplyPaymentEventUseCase(deps: {
         reason: `order_${order.status.toLowerCase()}`,
         requestId: event.eventId,
       });
+
+      // Devolvieron la plata de un regalo: el código tiene que dejar de
+      // servir y el cupo volver a la venta. Sin esto, el pago se devuelve y
+      // quien lo recibe igual activa una inscripción que ya nadie pagó.
+      if (registration.isGift && nextPay === "REFUNDED") {
+        try {
+          const { voidGiftVoucherOnRefund } = await import(
+            "@/lib/gift-vouchers/application/void-gift-on-refund"
+          );
+          const { createPrismaGiftVoucherRepository } = await import(
+            "@/lib/gift-vouchers/infrastructure/prisma-gift-voucher-repository"
+          );
+          const { createPrismaPublicRegistrationRepository } = await import(
+            "@/lib/public-registration/infrastructure/prisma-public-registration-repository"
+          );
+          const publicRepo = createPrismaPublicRegistrationRepository();
+          const voided = await voidGiftVoucherOnRefund({
+            vouchers: createPrismaGiftVoucherRepository(),
+            clock: { now: () => new Date() },
+            registrations: {
+              async releaseGiftRegistration(registrationId) {
+                await publicRepo.releaseGiftRegistration({
+                  registrationId,
+                  now: new Date(),
+                  reason: "gift_refunded",
+                });
+              },
+            },
+          }).execute({ registrationId: registration.id });
+
+          log?.({
+            event: "holds_released",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: { via: "gift_refund", voided: voided.voided },
+          });
+        } catch (err) {
+          // El reembolso ya quedó asentado: el voucher se anula a mano desde
+          // el panel de Regalos si esto falla.
+          log?.({
+            event: "conflict",
+            registrationId: registration.id,
+            orderId: order.id,
+            meta: {
+              code: "GIFT_REFUND_VOID_SOFT_FAIL",
+              reason: err instanceof Error ? err.message.slice(0, 80) : "unknown",
+            },
+          });
+        }
+      }
 
       return {
         applied: true,

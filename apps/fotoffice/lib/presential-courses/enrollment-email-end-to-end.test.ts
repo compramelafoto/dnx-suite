@@ -74,6 +74,11 @@ vi.mock("@repo/db", () => ({
 }));
 
 vi.mock("./log", () => ({ logCourseEvent: logCourseEventMock }));
+// El motor de etapas tiene sus propias pruebas; acá sólo importa que la aprobación lo avise.
+const ganarConsultaMock = vi.hoisted(() => vi.fn(async () => ({ cerrado: true })));
+vi.mock("@/lib/circuitos/eventos", () => ({ ganarConsultaPorSistema: ganarConsultaMock }));
+const numerarMock = vi.hoisted(() => vi.fn(async () => null));
+vi.mock("@/lib/service-leads/numero", () => ({ numerarConsultaNueva: numerarMock }));
 vi.mock("./availability", () => ({
   computeAvailableSpots: () => 5,
   getApprovedEnrollmentCountsByInstanceIds: approvedCountsMock,

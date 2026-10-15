@@ -2,20 +2,34 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireActiveWorkspace, isCoursesSalesEnabledForWorkspace } from "@/lib/workspace";
 import { isMissingCoursesSalesSchemaError } from "@/lib/courses-sales/prisma-errors";
+import { MisTareas } from "@/components/circuitos/mis-tareas";
+import { misTareasDelInicio } from "@/lib/circuitos/inicio";
+import { MisEntregas } from "@/components/proyectos/mis-entregas";
+import { misEntregasDelInicio } from "@/lib/proyectos/entregas";
+import { invitacionesPendientesWhere } from "@/lib/course-marketplace/access";
+import { puedePedirReventa } from "@/lib/course-marketplace/mercado";
+import { moduleOffNotice } from "@/lib/dashboard/module-off-notice";
 
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ courses?: string; forbidden?: string }>;
+  searchParams: Promise<{ courses?: string; module?: string; evaluaciones?: string; forbidden?: string }>;
 }) {
   const { user, workspace } = await requireActiveWorkspace();
   const sp = await searchParams;
-  const coursesOff = sp.courses === "off";
+  // Una guarda rebotó porque el módulo está apagado (cursos, socios, captación, evaluaciones).
+  const avisoModuloApagado = moduleOffNotice(sp);
   const forbiddenAdmin = sp.forbidden === "admin";
 
   const memberships = await prisma.membership.count({ where: { userId: user.id } });
   const coursesOn =
     workspace !== null ? await isCoursesSalesEnabledForWorkspace(workspace.id) : false;
+
+  // Sólo con `operar` y Captación encendida; vacío o con error, no se muestra (nunca rompe el inicio).
+  const tareas = workspace !== null ? await misTareasDelInicio(user, workspace.id, new Date()) : null;
+
+  // Los proyectos propios con fecha final en los próximos 7 días o vencidos (sólo con "Ver" en Proyectos).
+  const entregas = workspace !== null ? await misEntregasDelInicio(user, workspace.id, new Date()) : null;
 
   let branding: { publicSlug: string; commercialName: string } | null = null;
   if (workspace !== null) {
@@ -26,6 +40,32 @@ export default async function DashboardPage({
       });
     } catch (e) {
       if (!isMissingCoursesSalesSchemaError(e)) throw e;
+    }
+  }
+
+  // Si la tabla todavía no existe en la base, el aviso no debe tumbar el tablero.
+  let invitacionesPendientes = 0;
+  if (workspace !== null) {
+    try {
+      invitacionesPendientes = await prisma.courseBeneficiary.count({
+        where: invitacionesPendientesWhere(workspace.id, user.email),
+      });
+    } catch {
+      console.error("[dashboard] no se pudieron contar las invitaciones de cursos compartidos");
+    }
+  }
+
+  let pedidosDeReventa = 0;
+  if (workspace !== null) {
+    try {
+      // Sólo quien puede responder (cursos MANAGE + dueño o admin) ve el aviso.
+      if (await puedePedirReventa(user.id, workspace.id)) {
+        pedidosDeReventa = await prisma.courseResaleAgreement.count({
+          where: { status: "PENDIENTE", course: { workspaceId: workspace.id } },
+        });
+      }
+    } catch {
+      console.error("[dashboard] no se pudieron contar los pedidos de reventa");
     }
   }
 
@@ -41,6 +81,32 @@ export default async function DashboardPage({
         </p>
       </header>
 
+      {invitacionesPendientes > 0 ? (
+        <div className="fo-card" role="status">
+          <p className="text-sm font-medium text-[var(--fo-text)]">
+            Te sumaron como beneficiario de {invitacionesPendientes} {invitacionesPendientes === 1 ? "curso" : "cursos"}
+          </p>
+          <p className="mt-2 text-sm">
+            <Link href="/dashboard/cursos-compartidos" className="text-[var(--fo-accent)] underline">
+              Ver invitaciones
+            </Link>
+          </p>
+        </div>
+      ) : null}
+
+      {pedidosDeReventa > 0 ? (
+        <div className="fo-card" role="status">
+          <p className="text-sm font-medium text-[var(--fo-text)]">
+            {pedidosDeReventa === 1 ? "Una institución quiere vender uno de tus cursos" : `${pedidosDeReventa} pedidos para vender tus cursos`}
+          </p>
+          <p className="mt-2 text-sm">
+            <Link href="/dashboard/mercado-de-cursos/acuerdos" className="text-[var(--fo-accent)] underline">
+              Ver los pedidos
+            </Link>
+          </p>
+        </div>
+      ) : null}
+
       {forbiddenAdmin ? (
         <div className="fo-card fo-alert-error" role="alert">
           <p className="text-sm text-[var(--fo-text)] font-medium">Acceso denegado</p>
@@ -51,18 +117,18 @@ export default async function DashboardPage({
         </div>
       ) : null}
 
-      {coursesOff ? (
+      {avisoModuloApagado ? (
         <div
           className="fo-card fo-alert-warning"
           role="status"
         >
           <p className="text-sm text-[var(--fo-text)] font-medium">Módulo desactivado</p>
-          <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
-            El módulo «Venta de cursos» no está habilitado para este workspace. Contactá al
-            administrador de la plataforma o elegí otro workspace.
-          </p>
+          <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">{avisoModuloApagado}</p>
         </div>
       ) : null}
+
+      {tareas ? <MisTareas grupos={tareas} /> : null}
+      {entregas ? <MisEntregas entregas={entregas} /> : null}
 
       {memberships === 0 ? (
         <div className="fo-card">

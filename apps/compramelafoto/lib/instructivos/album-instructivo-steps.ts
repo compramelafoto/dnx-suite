@@ -6,6 +6,11 @@
  * En preventa hay DOS momentos de elección y por eso dos pasos con títulos distintos: se
  * elige el producto antes de pagar ("Elegí qué querés") y las fotos concretas después de
  * que se publican ("Elegí tus fotos"). En postventa hay uno solo.
+ *
+ * Los botones se nombran como los ve el cliente en la galería (`ClientAlbumView`): el
+ * instructivo sirve si se puede seguir con el celular en la mano, no si describe la idea.
+ * Todo el recorrido pasa por la página; nunca se manda al cliente a resolver algo por
+ * fuera (capturas, mensajes), porque eso es justo lo que el sistema automatiza.
  */
 
 import type { AlbumInstructivoProfile } from "./album-instructivo-profile";
@@ -28,11 +33,15 @@ function fecha(d: Date): string {
   return FORMATO_FECHA.format(d);
 }
 
+const escolar = (p: AlbumInstructivoProfile) => p.publico === "escolar";
+
 function pasoEntrar(p: AlbumInstructivoProfile): InstructivoStep {
   const detalle = [`Abrí ${p.album.url} desde el celular o la computadora.`];
   if (p.entrada === "selfie_obligatoria") {
     detalle.push(
-      "En esta galería nadie ve todas las fotos: vas a ver sólo las tuyas, después de verificar tu identidad."
+      escolar(p)
+        ? "En esta galería nadie ve todas las fotos: cada familia ve sólo las de su hija o hijo."
+        : "En esta galería nadie ve todas las fotos: vas a ver sólo las tuyas."
     );
   }
   if (p.entrada === "no_listada") {
@@ -45,46 +54,74 @@ function pasoEncontrar(p: AlbumInstructivoProfile): InstructivoStep {
   const detalle: string[] = [];
   if (p.busqueda.includes("cara")) {
     detalle.push(
-      "Sacate una selfie desde el celular: el reconocimiento facial compara tu cara con las fotos y te muestra las que coinciden."
+      escolar(p)
+        ? "Tocá \"Buscar por selfie\" y cargá una foto de la cara de tu hija o hijo: te aparecen las fotos donde está."
+        : "Tocá \"Buscar por selfie\" y sacate una foto de la cara: te aparecen las fotos donde estás."
     );
   }
   if (p.busqueda.includes("dorsal")) {
-    detalle.push("Escribí tu número de dorsal o pechera en el buscador.");
+    detalle.push("Tocá \"Buscar por número o palabra clave\" y escribí tu número de dorsal.");
   }
   if (p.busqueda.includes("palabra")) {
     detalle.push(
-      "También podés buscar por una palabra que aparezca en la foto (un cartel, un nombre)."
+      p.busqueda.includes("dorsal")
+        ? "En ese mismo buscador también podés escribir una palabra que se lea en la foto (un cartel, un nombre)."
+        : "Tocá \"Buscar por número o palabra clave\" y escribí una palabra que se lea en la foto (un cartel, un nombre)."
     );
   }
   if (p.busqueda.includes("navegar")) {
     // "O mirá..." sólo tiene sentido si antes hubo otra opción.
     detalle.push(
       detalle.length > 0
-        ? "O mirá la galería completa y elegí a mano."
-        : "Mirá la galería completa y elegí las tuyas."
+        ? "O recorré la galería completa."
+        : "Recorré la galería completa y buscá tus fotos."
     );
   }
 
   const paso: InstructivoStep = { titulo: "Encontrá tus fotos", detalle };
   if (p.entrada === "selfie_obligatoria") {
     paso.nota =
-      "La selfie se usa sólo para encontrarte y no se publica. Hace falta un celular: desde la computadora no se puede subir.";
+      "La foto de la cara se usa sólo para buscar y no se publica. Hace falta un celular: desde la computadora no se puede cargar.";
   }
   return paso;
 }
 
+/** Qué recibe el cliente con cada opción. Se dice una sola vez y en el paso de elegir. */
+function lineasQueIncluye(p: AlbumInstructivoProfile): string[] {
+  const lineas: string[] = [];
+  if (p.venta.digital) lineas.push("Digital: recibís el archivo para descargar.");
+  if (p.venta.impreso) {
+    lineas.push(
+      p.venta.digitalIncluidoConImpreso
+        ? "Impresa: recibís la foto en papel y, además, el archivo digital."
+        : "Impresa: recibís la foto en papel."
+    );
+  }
+  if (p.venta.video) lineas.push("También hay videos del evento.");
+  return lineas;
+}
+
+const NOTA_MARCA_DE_AGUA =
+  "En la galería las fotos se ven en baja calidad y con marca de agua, sólo para elegir. Lo que comprás se entrega en alta calidad y sin marca de agua.";
+
 /** Qué se vende. En preventa es lo que se elige ANTES de pagar. */
 function pasoElegirProducto(p: AlbumInstructivoProfile): InstructivoStep {
   const detalle: string[] = [];
-  if (p.venta.digital) detalle.push("Fotos digitales: las descargás vos.");
-  if (p.venta.impreso) detalle.push("Fotos impresas: las imprime el laboratorio.");
-  if (p.venta.digitalIncluidoConImpreso) {
-    detalle.push("Cada foto impresa incluye también su versión digital.");
-  }
-  if (p.venta.packs) detalle.push("Hay packs: varias fotos a mejor precio que sueltas.");
-  if (p.venta.video) detalle.push("También hay videos del evento.");
+  if (p.venta.packs) detalle.push("Elegí el pack o la opción que quieras.");
+  detalle.push(...lineasQueIncluye(p));
   if (detalle.length === 0) detalle.push("Mirá las opciones disponibles y elegí la tuya.");
   return { titulo: "Elegí qué querés", detalle };
+}
+
+/** Cómo se marca cada foto según lo que vende el álbum. */
+function lineaComoSeleccionar(p: AlbumInstructivoProfile): string {
+  if (p.venta.digital && p.venta.impreso) {
+    return "Tocá \"Seleccionar\" en cada foto que quieras. En el paso siguiente elegís si cada una va digital o impresa.";
+  }
+  if (p.venta.impreso) {
+    return "Tocá \"Seleccionar\" en cada foto que quieras. En el paso siguiente elegís el tamaño de la impresión.";
+  }
+  return "Tocá \"Seleccionar\" en cada foto que quieras y después el botón de abajo para seguir.";
 }
 
 /** Marcar las fotos concretas. En preventa pasa DESPUÉS de pagar y de la espera. */
@@ -93,22 +130,21 @@ function pasoElegirFotos(p: AlbumInstructivoProfile): InstructivoStep {
     return {
       titulo: "Elegí tus fotos",
       detalle: [
-        "Entrá de nuevo a la galería con el mismo enlace.",
-        "Marcá las fotos que entran en lo que ya compraste.",
+        "Marcá las fotos que incluye lo que compraste y confirmá la selección. Ya están pagadas: no se vuelven a cobrar.",
+        "Si querés más fotos de las que incluye tu compra, las comprás aparte en la galería.",
       ],
+      nota: NOTA_MARCA_DE_AGUA,
     };
   }
 
-  const detalle: string[] = [];
-  if (p.venta.digital) detalle.push("Fotos digitales: las descargás vos.");
-  if (p.venta.impreso) detalle.push("Fotos impresas: las imprime el laboratorio.");
-  if (p.venta.digitalIncluidoConImpreso) {
-    detalle.push("Cada foto impresa incluye también su versión digital.");
+  const detalle = [lineaComoSeleccionar(p)];
+  if (p.venta.packs) {
+    detalle.push(
+      "Para un pack: en \"Packs disponibles\" tocá \"Elegir fotos para este pack\", marcá las fotos que pide y guardá la selección."
+    );
   }
-  if (p.venta.packs) detalle.push("Hay packs: varias fotos a mejor precio que sueltas.");
-  if (p.venta.video) detalle.push("También hay videos del evento.");
-  if (detalle.length === 0) detalle.push("Marcá las fotos que te quieras llevar.");
-  return { titulo: "Elegí tus fotos", detalle };
+  detalle.push(...lineasQueIncluye(p));
+  return { titulo: "Elegí tus fotos", detalle, nota: NOTA_MARCA_DE_AGUA };
 }
 
 function pasoPagar(p: AlbumInstructivoProfile): InstructivoStep {
@@ -117,17 +153,30 @@ function pasoPagar(p: AlbumInstructivoProfile): InstructivoStep {
     "Vas a recibir el comprobante por correo.",
   ];
   if (p.momento === "preventa") {
-    detalle.unshift("En la preventa pagás primero y elegís tus fotos después.");
+    detalle.unshift("En la preventa pagás ahora y elegís tus fotos cuando se publiquen.");
   }
   return { titulo: "Pagá", detalle };
 }
 
-function pasoEsperar(): InstructivoStep {
+function pasoEsperar(p: AlbumInstructivoProfile): InstructivoStep {
+  const recuperar = `${new URL(p.album.url).origin}/cliente/recuperar-pack`;
   return {
     titulo: "Esperá a que se publiquen las fotos",
     detalle: [
       "Las fotos todavía no están: se sacan el día del evento y se suben después.",
-      "Cuando estén disponibles te avisamos por correo y entrás con el mismo enlace.",
+      "Guardá el correo de confirmación: trae el enlace para elegir tus fotos. No hace falta crear una cuenta.",
+    ],
+    nota: `Si perdiste el correo, entrá en ${recuperar} con el mismo email de la compra y te lo mandamos de nuevo.`,
+  };
+}
+
+/** En preventa la elección arranca desde el enlace del correo, no desde la galería. */
+function pasoAbrirCompra(): InstructivoStep {
+  return {
+    titulo: "Abrí tu compra",
+    detalle: [
+      "Cuando las fotos estén publicadas, abrí el enlace del correo de confirmación.",
+      "Tocá \"Elegir fotos en el álbum\".",
     ],
   };
 }
@@ -135,10 +184,10 @@ function pasoEsperar(): InstructivoStep {
 function pasoRecibir(p: AlbumInstructivoProfile): InstructivoStep {
   const detalle: string[] = [];
   if (p.entrega.descarga) {
-    detalle.push("Las fotos digitales se descargan desde el enlace que te llega por correo.");
+    detalle.push("Las fotos digitales te llegan por correo, con un enlace para descargarlas.");
   }
   if (p.entrega.retiro) {
-    detalle.push("Las fotos impresas se retiran en persona; te avisamos cuándo están listas.");
+    detalle.push("Las fotos impresas se retiran en persona: te avisamos cuándo y dónde están listas.");
   }
   if (p.entrega.envio) {
     detalle.push("Las fotos impresas se envían a la dirección que cargues al comprar.");
@@ -152,7 +201,7 @@ function pasoRecibir(p: AlbumInstructivoProfile): InstructivoStep {
 
   const paso: InstructivoStep = { titulo: "Recibí tus fotos", detalle };
   if (p.vencimiento) {
-    paso.nota = `La galería está disponible hasta el ${fecha(p.vencimiento)}. Después de esa fecha las fotos se borran.`;
+    paso.nota = `Podés comprar hasta el ${fecha(p.vencimiento)}. Después la galería deja de estar disponible.`;
   }
   return paso;
 }
@@ -204,7 +253,8 @@ export function buildInstructivoSteps(p: AlbumInstructivoProfile): InstructivoSt
     pasos.push(
       pasoElegirProducto(p),
       pasoPagar(p),
-      pasoEsperar(),
+      pasoEsperar(p),
+      pasoAbrirCompra(),
       pasoEncontrar(p),
       pasoElegirFotos(p),
       pasoRecibir(p)

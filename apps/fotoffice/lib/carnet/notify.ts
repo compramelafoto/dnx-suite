@@ -1,4 +1,5 @@
 import "server-only";
+import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
 import { prisma } from "@repo/db";
 import { buildCardNotice } from "./notice";
 import { shouldNotifyMember, type FulfillmentState } from "./fulfillment";
@@ -34,7 +35,7 @@ export async function notifyCardEvent(input: {
       select: {
         cardNumber: true,
         member: { select: { firstName: true, email: true } },
-        workspace: { select: { name: true } },
+        workspace: { select: { id: true, name: true } },
       },
     });
     if (!card?.member.email) return;
@@ -53,6 +54,7 @@ export async function notifyCardEvent(input: {
       subject: aviso.subject,
       html: aviso.html,
       text: aviso.text,
+      sender: await loadWorkspaceSender(card.workspace.id),
     });
 
     await prisma.memberCardEvent.update({

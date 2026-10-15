@@ -131,7 +131,7 @@ export async function createCourseAction(
   _prev: CourseFormState | undefined,
   formData: FormData,
 ): Promise<CourseFormState> {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const raw = readCourseForm(formData);
   let sectionsParsed: z.infer<typeof programSchema>;
   try {
@@ -238,7 +238,7 @@ export async function updateCourseAction(
   _prev: CourseFormState | undefined,
   formData: FormData,
 ): Promise<CourseFormState> {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const id = formData.get("id")?.toString()?.trim();
   if (!id) return { error: "Curso inválido." };
   const existing = await prisma.courseSalesCourse.findFirst({

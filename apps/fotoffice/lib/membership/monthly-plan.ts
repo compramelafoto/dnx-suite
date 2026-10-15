@@ -21,6 +21,13 @@ export type MemberForDues = {
   categoryGeneratesDues: boolean;
   /** Valor de referencia vigente para su categoría en este período. */
   referenceAmount: Prisma.Decimal | null;
+  /**
+   * Si este período ya está cubierto por una de las cuotas de ingreso. Quien se asocia paga
+   * por adelantado las primeras cuotas (concepto `INGRESO`, una por período); generarle además
+   * la `MENSUAL` del mismo mes le cobra dos veces el mismo mes. La clave única no lo evita
+   * porque el concepto es distinto.
+   */
+  coveredByIngreso?: boolean;
 };
 
 export type PlannedCharge = {
@@ -37,6 +44,7 @@ export type SkippedMember = {
     | "su categoría no genera cuotas"
     | "está exento"
     | "todavía no era socio"
+    | "ya la cubre la cuota de ingreso"
     | "sin valor de cuota vigente";
 };
 
@@ -91,6 +99,11 @@ export function planMonthlyCharges(input: {
         skipped.push({ memberId: socio.id, reason: "todavía no era socio" });
         continue;
       }
+    }
+
+    if (socio.coveredByIngreso) {
+      skipped.push({ memberId: socio.id, reason: "ya la cubre la cuota de ingreso" });
+      continue;
     }
 
     if (!socio.referenceAmount) {

@@ -1,13 +1,19 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
@@ -74,6 +80,43 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Sorteás entre los socios que están al día, con premios de las marcas aliadas. El número ganador no lo elige el sistema: sale de una baliza pública de azar que se consulta en varios servidores a la vez. Cualquier socio puede rehacer la cuenta después y comprobar que salió así.",
     pantallas: ["Sorteos y participantes", "Entregas de premios", "Comprobación pública del resultado"],
+  },
+  {
+    key: SPONSORS_MODULE_KEY,
+    cuadro: "03a",
+    nombre: "Sponsors",
+    resuelve:
+      "Cargás las marcas que acompañan a la institución y decidís dónde aparece cada una y hasta cuándo: la franja de logos del sitio, la sección de sponsors del portal de los socios o el aviso que ven al entrar. Cuando vence el período, el logo se baja solo.",
+    pantallas: ["Sponsors de la institución", "Espacios y fechas de cada marca", "Logos en el sitio y en el portal"],
+  },
+  {
+    key: PORTFOLIO_MODULE_KEY,
+    cuadro: "03b",
+    nombre: "Portfolios",
+    resuelve:
+      "Cada socio arma su galería desde su propio portal y queda publicada en el sitio de la institución, con su obra, su presentación y su contacto. Nadie de la Secretaría toca una foto. La institución decide si se muestra y puede bajar un portfolio cuando haga falta, pero no edita la obra de nadie.",
+    pantallas: [
+      "Mi portfolio, en el portal del socio",
+      "Directorio público de socios",
+      "La ficha de cada socio, con su galería",
+      "Control de publicación desde el panel",
+    ],
+  },
+  {
+    key: GOVERNANCE_MODULE_KEY,
+    cuadro: "03c",
+    nombre: "Proyectos de la comisión",
+    resuelve:
+      "Lo que hoy se pierde en el grupo de WhatsApp queda en un solo lugar: cada proyecto con sus etapas, sus tareas repartidas con responsable y fecha, los archivos, lo que cuesta y lo que se gastó, y un historial de todo lo que se decidió. La comisión vota cada proyecto y lo trata en reunión, con temario y acta. Los socios proponen ideas, siguen en qué paso está la suya, apoyan los proyectos que la comisión les muestra y se ofrecen para las tareas sin responsable.",
+    pantallas: [
+      "Proyectos ordenados por urgencia",
+      "Ficha del proyecto con etapas, tareas y archivos",
+      "Presupuesto, cotizaciones y gastos del proyecto",
+      "Votación de la comisión",
+      "Reuniones con temario, resoluciones y acta",
+      "Propuestas y apoyo de los socios desde el portal",
+      "Tareas para socios voluntarios",
+    ],
   },
   {
     key: BOOKINGS_MODULE_KEY,
@@ -166,13 +209,149 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   {
     key: SERVICE_LEADS_MODULE_KEY,
     cuadro: "11",
-    nombre: "Captación de presupuestos",
+    nombre: "Consultas de presupuesto",
     resuelve:
-      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio todavía lo ponés vos por afuera.",
+      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio se lo ponés con Presupuestos.",
     pantallas: [
       "Formularios por tipo de evento",
       "Enlace para compartir",
       "Bandeja de consultas",
+    ],
+  },
+  {
+    key: "quotes",
+    cuadro: "15",
+    nombre: "Presupuestos",
+    resuelve:
+      "El presupuesto sale de la consulta, con los precios de tu catálogo o calculado con ¿Cuánto Cobro?. Se lo mandás por correo o WhatsApp con un enlace: el cliente lo ve, lo descarga y lo acepta ahí mismo, y la consulta pasa a ganada sola. Cada cambio después de enviarlo es una versión nueva, y tu equipo no ve tus costos.",
+    pantallas: [
+      "Presupuestos por consulta",
+      "Ítems de lista o calculados",
+      "Enlace para que el cliente acepte",
+      "Versiones y quién lo vio",
+    ],
+  },
+  {
+    key: "orders",
+    cuadro: "20",
+    nombre: "Pedidos",
+    resuelve:
+      "El presupuesto aceptado se confirma como pedido con un clic: copia lo que se vendió, la fecha del evento y arma el plan de cuotas con la forma de pago que eligió el cliente. Ves qué cuota está pagada, cuál vence y cuál ya venció, y cada cobro entra a la Caja con su recibo.",
+    pantallas: [
+      "Pedido desde el presupuesto aceptado",
+      "Plan de cuotas editable",
+      "Saldo y cuotas vencidas",
+      "Pedido cargado a mano",
+    ],
+  },
+  {
+    key: "projects",
+    cuadro: "22",
+    nombre: "Proyectos",
+    resuelve:
+      "Cada trabajo vendido se convierte en un proyecto con su flujo, sus etapas y sus tareas, con fechas calculadas desde el día del evento. Ves quién es el responsable, quién integra el equipo (fotógrafos, salón, DJ, lo que haga falta), qué se atrasó y qué está suspendido, con notas y archivos adjuntos en cada uno.",
+    pantallas: [
+      "Proyecto creado al confirmar el pedido",
+      "Tablero por etapas",
+      "Tareas con fecha y responsable",
+      "Equipo del proyecto con roles",
+      "Notas y adjuntos",
+      "Suspender y reanudar",
+    ],
+  },
+  {
+    key: "agenda",
+    cuadro: "23",
+    nombre: "Agenda",
+    resuelve:
+      "Las reuniones, sesiones y eventos del equipo en un calendario por día, semana o mes, con el tipo de cada cita, su responsable y quiénes participan. Al confirmar un pedido, los productos pueden crear solos las citas que corresponden, según la fecha del evento. Sobre el mismo calendario ves las entregas de proyectos, las tareas con vencimiento, las cuotas por cobrar y los cumpleaños, y podés sincronizarlo con Google Calendar.",
+    pantallas: [
+      "Calendario por día, semana y mes",
+      "Citas con tipo, responsable y participantes",
+      "Citas creadas desde el pedido",
+      "Entregas, tareas y vencimientos en capas",
+    ],
+  },
+  {
+    key: "contracts",
+    cuadro: "24",
+    nombre: "Contratos",
+    resuelve:
+      "El contrato de cada pedido sale de una plantilla tuya, con los datos de quien contrata, el detalle de lo vendido y el plan de cuotas ya completados. Lo mandás a firmar por correo: cada firmante verifica su identidad con un código y firma con su nombre y su trazo, con firma electrónica (Ley 25.506). Ves quién abrió, quién firmó y quién falta, y al final queda un PDF con las firmas y la constancia de cada una.",
+    pantallas: [
+      "Plantillas de contrato con variables",
+      "Contratantes del pedido",
+      "Envío a firmar por correo",
+      "Firma electrónica con código de verificación",
+      "PDF firmado y bitácora",
+    ],
+  },
+  {
+    key: "reports",
+    cuadro: "25",
+    nombre: "Informes",
+    resuelve:
+      "Ves cómo le está yendo al negocio sin armar planillas: el resultado por rubro y por mes (lo cobrado y pagado, o lo vendido y comprometido), el flujo de caja proyectado con lo que viene a cobrar y a pagar, y un control del monotributo con semáforo. Cada número se puede abrir hasta el movimiento que lo forma y se descarga a planilla.",
+    pantallas: [
+      "Tablero con lo que vence y el saldo de Caja",
+      "Resultados por rubro y por mes",
+      "Flujo de caja proyectado con saldo mínimo",
+      "Control de monotributo",
+      "Descarga a planilla",
+    ],
+  },
+  {
+    key: "gallery",
+    cuadro: "26",
+    nombre: "Galería",
+    resuelve:
+      "Subís las fotos de un proyecto y cada cliente recibe su enlace personal: mira las fotos en el celular, elige las que quiere para el álbum o el fotolibro, deja un comentario en las que necesitan un ajuste y te manda su selección. Vos ves qué eligió cada uno, lo exportás con los nombres de archivo listos para pegar en Lightroom, y cerrás la selección cuando está lista.",
+    pantallas: [
+      "Subida de fotos con miniaturas y vistas livianas",
+      "Un enlace personal por cliente",
+      "Selección, comentarios y envío desde el celular",
+      "Revisión y exportación para Lightroom",
+    ],
+  },
+  {
+    key: SALES_MODULE_KEY,
+    cuadro: "12",
+    nombre: "Ventas",
+    resuelve:
+      "El mostrador: buscás el producto por nombre o lo pasás por el lector de código de barras, armás el ticket y cobrás. Cada venta descuenta la existencia y entra sola a la caja del turno. Los productos con código de barras se comparten con el resto del sistema, así que el que alguien ya cargó no hay que volver a cargarlo.",
+    pantallas: [
+      "Mostrador con lector de código de barras",
+      "Catálogo de productos y servicios con foto",
+      "Existencias y reposición",
+      "Ventas hechas y anulaciones",
+      "Margen por producto",
+    ],
+  },
+  {
+    key: COMMUNICATIONS_MODULE_KEY,
+    cuadro: "13",
+    nombre: "Comunicación",
+    resuelve:
+      "Las placas para redes, listas para descargar: cada socio nuevo que paga su primera cuota aparece con su placa de bienvenida, en formato publicación e historia, y un texto sugerido con su Instagram para etiquetarlo. Las plantillas las diseña tu área de comunicación, con el mismo diseñador del carnet.",
+    pantallas: [
+      "Bienvenidas a socios nuevos",
+      "Placa cuadrada y para historias",
+      "Texto sugerido para copiar",
+      "Plantillas con tus colores y tu logo",
+    ],
+  },
+  {
+    key: STORE_MODULE_KEY,
+    cuadro: "14",
+    nombre: "Tienda online",
+    resuelve:
+      "Los mismos productos del mostrador, a la venta en tu sitio. El comprador elige, paga con Mercado Pago y pasa a retirar por el local; el stock es uno solo, así que lo que se vende online no se vende dos veces en el mostrador. Vos decidís cuándo abrir la tienda y cuándo cerrarla.",
+    pantallas: [
+      "Vidriera en tu sitio con fotos y talles",
+      "Cobro con Mercado Pago",
+      "Retiro en el local",
+      "Pedidos online",
+      "Abrir y cerrar la tienda",
     ],
   },
 ];
@@ -234,6 +413,55 @@ export const BASE_DEL_SISTEMA: FichaModulo[] = [
   },
 ];
 
+/**
+ * Lo que una institución usa de las otras aplicaciones de DNX Suite.
+ *
+ * No son módulos de FOTOFFICE ni se encienden desde su panel: viven en su propia aplicación,
+ * con la misma cuenta. Se cuentan acá porque forman parte de la propuesta a una institución, y
+ * por eso cada ficha dice de qué aplicación viene. Las claves no pueden chocar con el registro
+ * (lo controla `catalogo.test.ts`). Lo que la aplicación todavía no hace va en `pendiente`.
+ */
+export const MODULOS_DE_LA_SUITE: (FichaModulo & { app: string; dominio: string; pendiente?: string })[] = [
+  {
+    key: "concursos",
+    cuadro: "S1",
+    app: "FotoRank",
+    dominio: "fotorank.dnxsuite.com",
+    nombre: "Concursos fotográficos",
+    resuelve:
+      "La institución arma su organización y publica el concurso con sus bases, sus categorías y sus fechas. Los participantes se inscriben y suben sus fotos desde la página del concurso; ustedes admiten las obras, invitan a los jurados y les asignan categorías. Cada jurado evalúa desde su propio portal —por puntaje, sí o no, selección con cupo o por criterios— y los resultados se publican cuando están cerrados, con diplomas verificables.",
+    pantallas: [
+      "Concurso con bases versionadas y categorías",
+      "Inscripción y subida de fotos",
+      "Admisión de obras",
+      "Jurados invitados, asignados por categoría",
+      "Portal del jurado para evaluar",
+      "Resultados públicos, ganadores y diplomas",
+    ],
+    pendiente:
+      "cobrar la inscripción en línea. Hoy un concurso con inscripción gratuita funciona de punta a punta; el pago con Mercado Pago dentro de FotoRank todavía no está conectado.",
+  },
+  {
+    key: "muestras",
+    cuadro: "S2",
+    app: "Muestras Fotográficas",
+    dominio: "muestrasfotograficas.com",
+    nombre: "Muestras fotográficas",
+    resuelve:
+      "Cada muestra tiene su ficha pública con fechas, sede y mapa, una página por obra y por autor, la inauguración con confirmación de asistencia y el libro de visitas. Se puede abrir una convocatoria para recibir obras, hacer la curaduría y la selección, preparar el montaje con fichas de sala con código QR y difundirla con piezas para redes. Si la muestra sale de un concurso de FotoRank, las obras se traen de ahí.",
+    pantallas: [
+      "Ficha pública con fechas, sede y mapa nacional",
+      "Obras y autores, cada uno con su página",
+      "Convocatoria, curaduría y selección",
+      "Montaje y fichas de sala con QR",
+      "Inauguración y libro de visitas",
+      "Piezas para redes y difusión",
+    ],
+    pendiente:
+      "es un módulo propio del panel de la institución. Muestras Fotográficas es un portal de toda la suite: cada muestra se propone ahí y DNX la aprueba antes de publicarla. La venta de obras todavía no está habilitada.",
+  },
+];
+
 /** Lo que está previsto y todavía no se puede usar. Se muestra sin revelar, nunca como promesa. */
 export const EN_CONSTRUCCION: {
   cuadro: string;
@@ -243,41 +471,30 @@ export const EN_CONSTRUCCION: {
   icono: string;
 }[] = [
   {
-    cuadro: "12",
-    icono: "presupuestos",
-    nombre: "Presupuestos",
-    resuelve:
-      "Armar el presupuesto con tus precios, mandárselo al cliente y seguir si lo aceptó. La consulta ya te llega con todos los datos del evento —eso es Captación—; falta ponerle precio y mandarlo desde acá.",
-  },
-  {
-    cuadro: "13",
-    icono: "comunicacion",
-    nombre: "Comunicación",
-    resuelve: "Mandar un mensaje a todos los socios o a un grupo, desde adentro.",
-  },
-  {
-    cuadro: "14",
+    cuadro: "16",
     icono: "eventos",
     nombre: "Eventos",
     resuelve: "Salidas, charlas y encuentros con inscripción y lista de asistencia.",
   },
   {
-    cuadro: "15",
-    icono: "gobierno",
-    nombre: "Gobierno institucional",
-    resuelve: "Actas, votaciones y resoluciones de la comisión directiva.",
-  },
-  {
-    cuadro: "16",
+    cuadro: "18",
     icono: "muestras",
-    nombre: "Muestras",
-    resuelve: "Las muestras de la institución, con sus obras y sus autores.",
+    nombre: "Muestras dentro del panel",
+    resuelve:
+      "Que las muestras de la institución se carguen desde FOTOFFICE y aparezcan en su sitio. Hoy se arman en Muestras Fotográficas, la aplicación de DNX Suite.",
   },
   {
-    cuadro: "17",
+    cuadro: "19",
     icono: "transparencia",
     nombre: "Transparencia",
     resuelve: "Publicar el balance y la rendición para que el socio vea en qué se usó su cuota.",
+  },
+  {
+    cuadro: "21",
+    icono: "cobros",
+    nombre: "Cobro en línea de las cuotas",
+    resuelve:
+      "Que el cliente pague cada cuota del pedido desde su enlace, con un recordatorio antes del vencimiento, y lo que le tenés que pagar a cada proveedor por trabajo.",
   },
 ];
 

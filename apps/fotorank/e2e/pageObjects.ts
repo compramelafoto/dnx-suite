@@ -259,6 +259,6 @@ export class JudgeInviteForm {
   }
 
   async expectPanelHeading(): Promise<void> {
-    await expect(this.page.getByRole("heading", { name: /Panel del jurado/i })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: /Concursos a calificar/i })).toBeVisible();
   }
 }

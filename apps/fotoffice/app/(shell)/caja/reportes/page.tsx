@@ -1,10 +1,17 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { requireCashStaff } from "@/lib/cash/access";
+import { contextoDeInformes } from "@/lib/informes/acceso";
+import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listCategories, movementsForBalance, movementsForReport } from "@/lib/cash/repository";
 import { balancesByAccountMinor, periodSummary, topClients, totalsByCategory } from "@/lib/cash/balance";
-import { categoryReportRows, type CategoryReportRow } from "@/lib/cash/category-report";
+import { categoryReportRows, groupCategoryReportRows, type CategoryReportGroup } from "@/lib/cash/category-report";
+import { listarRubros } from "@/lib/rubros/repositorio";
 import { formatMinorArs } from "@/lib/membership/money";
 import { esPeriodShortcut, resolvePeriodShortcut, type PeriodShortcut } from "@/lib/cash/period";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { listSaleItemsForMargin } from "@/lib/sales/repository";
+import { marginByProduct, marginTotals, type ProductMargin } from "@/lib/sales/margin";
 import { PeriodFilter } from "./period-filter";
 
 export const dynamic = "force-dynamic";
@@ -26,11 +33,19 @@ function hoyYmd(): string {
   return `${d.getFullYear()}-${mes}-${dia}`;
 }
 
-function CategoryTable({ title, rows }: { title: string; rows: CategoryReportRow[] }) {
+function etiqueta(r: { code: string | null; categoryName: string }): string {
+  return r.code ? `${r.code} ${r.categoryName}` : r.categoryName;
+}
+
+/**
+ * Por rubro: cada padre con el subtotal suyo y de sus hijos, y los hijos debajo. Las filas de
+ * primer nivel suman lo mismo que antes; los hijos son el detalle, no un total aparte.
+ */
+function CategoryTable({ title, groups }: { title: string; groups: CategoryReportGroup[] }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-[var(--fo-text)]">{title}</h3>
-      {rows.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted-soft)]">Todavía no hay categorías configuradas.</p>
       ) : (
         <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
@@ -43,17 +58,73 @@ function CategoryTable({ title, rows }: { title: string; rows: CategoryReportRow
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
-              {rows.map((r) => (
-                <tr key={r.categoryId ?? "sin-categoria"}>
-                  <td className="px-4 py-2">{r.categoryName}</td>
-                  <td className="px-4 py-2 text-right text-[var(--fo-muted)]">{r.count}</td>
-                  <td className="px-4 py-2 text-right font-medium">{formatMinorArs(r.totalMinor)}</td>
-                </tr>
-              ))}
+              {groups.map((g, i) => {
+                const conHijos = g.children.length > 0;
+                return [
+                  <tr key={g.categoryId ?? `sin-categoria-${i}`}>
+                    <td className={`px-4 py-2 ${conHijos ? "font-semibold" : ""}`}>{etiqueta(g)}</td>
+                    <td className="px-4 py-2 text-right text-[var(--fo-muted)]">{g.count}</td>
+                    <td className="px-4 py-2 text-right font-medium">{formatMinorArs(g.totalMinor)}</td>
+                  </tr>,
+                  // Lo cargado directo en el padre, si hubo, va como una línea más del detalle.
+                  conHijos && g.ownCount > 0 ? (
+                    <tr key={`${g.categoryId}-propio`} className="text-[var(--fo-muted)]">
+                      <td className="py-2 pl-8 pr-4">Directo en {g.categoryName}</td>
+                      <td className="px-4 py-2 text-right">{g.ownCount}</td>
+                      <td className="px-4 py-2 text-right">{formatMinorArs(g.ownMinor)}</td>
+                    </tr>
+                  ) : null,
+                  ...g.children.map((c) => (
+                    <tr key={c.categoryId ?? "sin-categoria"} className="text-[var(--fo-muted)]">
+                      <td className="py-2 pl-8 pr-4">{etiqueta(c)}</td>
+                      <td className="px-4 py-2 text-right">{c.count}</td>
+                      <td className="px-4 py-2 text-right">{formatMinorArs(c.totalMinor)}</td>
+                    </tr>
+                  )),
+                ];
+              })}
             </tbody>
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function MarginTable({ rows }: { rows: ProductMargin[] }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-[var(--fo-muted-soft)]">Todavía no hay ventas completadas en este período.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)]">
+      <table className="w-full min-w-[480px] text-left text-sm">
+        <thead className="bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]">
+          <tr>
+            <th className="px-4 py-2 font-semibold">Producto</th>
+            <th className="px-4 py-2 text-right font-semibold">Cantidad</th>
+            <th className="px-4 py-2 text-right font-semibold">Vendido</th>
+            <th className="px-4 py-2 text-right font-semibold">Costo</th>
+            <th className="px-4 py-2 text-right font-semibold">Margen</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
+          {rows.map((r) => (
+            <tr key={r.productId ?? `desc:${r.description}`}>
+              <td className="px-4 py-2">{r.description}</td>
+              <td className="px-4 py-2 text-right text-[var(--fo-muted)]">{r.qty}</td>
+              <td className="px-4 py-2 text-right">{formatMinorArs(r.revenueMinor)}</td>
+              <td className="px-4 py-2 text-right">{formatMinorArs(r.costMinor)}</td>
+              <td
+                className={`px-4 py-2 text-right font-medium ${
+                  r.marginMinor < 0 ? "text-[var(--fo-danger)]" : "text-[var(--fo-success)]"
+                }`}
+              >
+                {formatMinorArs(r.marginMinor)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -63,7 +134,7 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ shortcut?: string; from?: string; to?: string; accountId?: string }>;
 }) {
-  const { workspace } = await requireCashStaff();
+  const { workspace } = await requireCashViewer();
   const sp = await searchParams;
 
   // Un rango libre (`from` y `to` en la URL) manda por sobre cualquier atajo: es lo que la
@@ -80,7 +151,7 @@ export default async function ReportesPage({
 
   const accountId = sp.accountId || undefined;
 
-  const [cuentas, categoriasIngreso, categoriasEgreso, movimientosPeriodo, movimientosDeTodaLaHistoria] =
+  const [cuentas, categoriasIngreso, categoriasEgreso, movimientosPeriodo, movimientosDeTodaLaHistoria, rubros] =
     await Promise.all([
       listAccounts(workspace.id),
       listCategories(workspace.id, "INGRESO"),
@@ -94,6 +165,9 @@ export default async function ReportesPage({
       // fecha ni el filtro de cuenta del selector, y por eso es una consulta aparte de la de
       // arriba en vez de reutilizar `movimientosPeriodo`.
       movementsForBalance(workspace.id),
+      // Padre y código de cada categoría (también las dadas de baja: un padre inactivo sigue
+      // agrupando a sus hijos con movimientos).
+      listarRubros(workspace.id, { includeInactive: true }),
     ]);
 
   const saldos = balancesByAccountMinor(cuentas.map((c) => c.id), movimientosDeTodaLaHistoria);
@@ -109,15 +183,45 @@ export default async function ReportesPage({
   // veces afuera y adentro, con un signo distinto cada vez.
   const resumen = periodSummary(movimientosPeriodo);
   const totalesPorCategoria = totalsByCategory(movimientosPeriodo);
-  const filasIngresos = categoryReportRows(categoriasIngreso, totalesPorCategoria, "INGRESO");
-  const filasEgresos = categoryReportRows(categoriasEgreso, totalesPorCategoria, "EGRESO");
+  const perfilesRubro = new Map(rubros.map((r) => [r.id, { parentCategoryId: r.parentCategoryId, code: r.code }]));
+  const nombresRubro = new Map(rubros.map((r) => [r.id, r.name]));
+  const filasIngresos = groupCategoryReportRows(
+    categoryReportRows(categoriasIngreso, totalesPorCategoria, "INGRESO"),
+    perfilesRubro,
+    nombresRubro,
+  );
+  const filasEgresos = groupCategoryReportRows(
+    categoryReportRows(categoriasEgreso, totalesPorCategoria, "EGRESO"),
+    perfilesRubro,
+    nombresRubro,
+  );
   const clientesTop = topClients(movimientosPeriodo, 10);
+
+  // El margen es una sección más, sólo si el módulo de Ventas está habilitado para ESTE
+  // workspace. La pregunta va ANTES de tocar cualquier tabla de Ventas: si el módulo está
+  // apagado, esta pantalla —la de Caja— tiene que seguir funcionando exactamente como hoy,
+  // sin que una tabla ausente o un workspace sin acceso la rompa.
+  const ventasHabilitadas = await isModuleEnabledForWorkspace(workspace.id, SALES_MODULE_KEY);
+  const lineasMargen = ventasHabilitadas
+    ? await listSaleItemsForMargin(workspace.id, { from: inicioDelDia(range.from), to: finDelDia(range.to) })
+    : [];
+  const margenTotales = marginTotals(lineasMargen);
+  const margenPorProducto = marginByProduct(lineasMargen);
+  // El enlace a Informes sólo si el módulo está encendido y esta persona puede verlo.
+  const verInformes = (await contextoDeInformes()) !== null;
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Reportes"
         description="Saldo por cuenta, lo que entró y salió del período, y quiénes compraron más."
+        actions={
+          verInformes ? (
+            <Link href="/informes/resultados" className="fo-btn fo-btn-secondary text-sm">
+              Ver en Informes
+            </Link>
+          ) : undefined
+        }
       />
 
       <PeriodFilter accounts={cuentas} accountId={accountId} from={range.from} to={range.to} activeShortcut={activeShortcut} />
@@ -169,8 +273,8 @@ export default async function ReportesPage({
       <section className="fo-card space-y-5 p-5">
         <h2 className="text-base font-semibold">Ingresos y egresos por categoría</h2>
         <div className="grid gap-6 lg:grid-cols-2">
-          <CategoryTable title="Ingresos" rows={filasIngresos} />
-          <CategoryTable title="Egresos" rows={filasEgresos} />
+          <CategoryTable title="Ingresos" groups={filasIngresos} />
+          <CategoryTable title="Egresos" groups={filasEgresos} />
         </div>
       </section>
 
@@ -199,6 +303,46 @@ export default async function ReportesPage({
           </div>
         )}
       </section>
+
+      {ventasHabilitadas && (
+        <section className="fo-card space-y-4 p-5">
+          <div>
+            <h2 className="text-base font-semibold">Margen de Ventas</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Lo vendido, lo que costó y lo que quedó, del período de arriba. Sólo ventas completadas: una anulada no
+              vendió nada.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+              <p className="text-sm text-[var(--fo-muted)]">Vendido</p>
+              <p className="text-lg font-semibold">{formatMinorArs(margenTotales.revenueMinor)}</p>
+            </div>
+            <div className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+              <p className="text-sm text-[var(--fo-muted)]">Costó</p>
+              <p className="text-lg font-semibold">{formatMinorArs(margenTotales.costMinor)}</p>
+            </div>
+            <div className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-4">
+              <p className="text-sm text-[var(--fo-muted)]">Margen</p>
+              <p
+                className={`text-lg font-semibold ${
+                  margenTotales.marginMinor < 0 ? "text-[var(--fo-danger)]" : "text-[var(--fo-success)]"
+                }`}
+              >
+                {formatMinorArs(margenTotales.marginMinor)}
+              </p>
+            </div>
+          </div>
+          {margenTotales.withoutCostCount > 0 && (
+            <p className="text-xs text-[var(--fo-muted-soft)]">
+              {margenTotales.withoutCostCount === 1
+                ? "Hay 1 renglón sin costo cargado: no suma al costo, así que el margen de arriba está mejor de lo real."
+                : `Hay ${margenTotales.withoutCostCount} renglones sin costo cargado: no suman al costo, así que el margen de arriba está mejor de lo real.`}
+            </p>
+          )}
+          <MarginTable rows={margenPorProducto} />
+        </section>
+      )}
     </div>
   );
 }

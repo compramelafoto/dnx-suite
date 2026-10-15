@@ -2,6 +2,7 @@
  * Reenvío seguro de email de confirmación post-pago.
  * No regenera QR/credencial/registration. Rate-limited + audit.
  */
+import { loadShippingForEmail } from "@/lib/home-delivery/load-shipping-for-email";
 import { prisma } from "@repo/db";
 import { verifyRegistrationAccessToken } from "@/lib/public-registration/domain/access-token";
 import { sendParticipantFunnelEmail } from "./participant-email";
@@ -107,6 +108,7 @@ export async function resendPaymentConfirmationEmail(input: {
       visibleCode: reg.visibleCode,
       instagramHandle: reg.instagramHandle,
       paymentStatus: reg.paymentStatus,
+      homeDelivery: await loadShippingForEmail(reg.id),
       dryRunBuildOnly: true,
     });
 

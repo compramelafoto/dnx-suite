@@ -25,6 +25,8 @@ type Props = {
   categories: CategoryOption[];
   rules: { id: string; versionNumber: number; title: string; content: string; publishedAt?: string | null };
   isFree: boolean;
+  /** El concurso deja presentar obras en todas las categorías con una sola inscripción. */
+  allowMultipleCategories?: boolean;
 };
 
 const CATEGORY_HINTS: Record<string, string> = {
@@ -59,7 +61,14 @@ function isSantaFeContestSlug(slug: string): boolean {
   return slug === "santa-fe-en-foco" || slug.includes("santa-fe");
 }
 
-export function InscriptionForm({ contestId, contestSlug, categories, rules, isFree }: Props) {
+export function InscriptionForm({
+  contestId,
+  contestSlug,
+  categories,
+  rules,
+  isFree,
+  allowMultipleCategories = false,
+}: Props) {
   const router = useRouter();
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [acceptedRules, setAcceptedRules] = useState(false);
@@ -224,6 +233,12 @@ export function InscriptionForm({ contestId, contestSlug, categories, rules, isF
         <p className="fr-public-field__helper" data-testid="category-hint">
           {categoryHint}
         </p>
+        {allowMultipleCategories && !singleCategory ? (
+          <p className="fr-public-field__helper" data-testid="multiple-categories-hint">
+            En este concurso podés presentar fotografías en todas las categorías: después de inscribirte vas a poder
+            cargar hasta {categories.map((c) => `${c.maxFiles} en ${c.name}`).join(" y ")}.
+          </p>
+        ) : null}
         {needsArgra ? (
           <FormField
             id="inscription-argra"

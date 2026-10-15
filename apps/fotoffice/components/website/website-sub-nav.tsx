@@ -4,13 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
-/** Menú SECUNDARIO — Historial/SEO/Navegación no compiten en protagonismo con el constructor
- * (Plantillas/Secciones/Diseño, dentro de `/website`). Se accede desde acá o desde el link
+/** Menú SECUNDARIO — Historial/SEO no compiten en protagonismo con el constructor
+ * (Plantillas/Secciones/Menú/Diseño, dentro de `/website`). Se accede desde acá o desde el link
  * "Volver al constructor" en cada una de estas pantallas. */
 const SECONDARY_TABS = [
-  { href: "/website/navegacion", label: "Navegación" },
+  { href: "/website?panel=menu", label: "Menú" },
   { href: "/website/seo", label: "SEO" },
   { href: "/website/historial", label: "Historial" },
+  { href: "/website/dominio", label: "Dominio" },
+  // El blog tiene su propio marco (`BlogShell`) y su ítem en el menú lateral; acá queda a mano
+  // para quien llega desde la configuración del sitio.
+  { href: "/website/blog", label: "Blog" },
 ] as const;
 
 export function WebsiteSubNav() {

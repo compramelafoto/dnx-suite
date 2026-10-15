@@ -93,6 +93,7 @@ export async function observeOrdersWebhook(
     signatureHeader,
     requestIdHeader,
     dataId: parsed.notification.dataId,
+    queryDataId: input.queryDataId ?? null,
     secret: input.webhookSecret,
   });
   if (!verified.ok) {
@@ -109,7 +110,10 @@ export async function observeOrdersWebhook(
       environment: env,
       result: "DENIED",
       errorCode: verified.reason,
-      metadata: { reason: verified.reason },
+      metadata: {
+        reason: verified.reason,
+        ...(verified.diagnostics ? { diagnostics: verified.diagnostics } : {}),
+      },
       createdAt: new Date().toISOString(),
     });
     return {
@@ -123,6 +127,8 @@ export async function observeOrdersWebhook(
     };
   }
   counters.signatureOk += 1;
+  // Deja asentado qué convención de `data.id` usó MP para firmar este tópico.
+  const signatureDataIdVariant = verified.dataIdVariant;
 
   const liveMode = parsed.notification.liveMode;
   if (env === "sandbox" && liveMode === true) {
@@ -309,6 +315,8 @@ export async function observeOrdersWebhook(
       snapshotIdPrefix: snapshot?.idPrefix ?? null,
       snapshotIntact: snapshot?.intact ?? null,
       mismatchCount: mismatches.length,
+      // Qué convención de `data.id` usó MP para firmar este tópico.
+      signatureDataIdVariant,
       getOrderCalled: Boolean(input.fetchCanonicalOrder),
       deliveryClass: input.deliveryClass ?? "HTTP_DELIVERED_FROM_MP",
     },

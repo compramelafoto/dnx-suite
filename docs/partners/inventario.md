@@ -30,10 +30,10 @@ no se escribe a mano.
 | `CLF_LOGO_MARQUEE` | Logo marquee | PLATFORM | ALL_USERS | SALE | Montado |
 | `CLF_PHOTO_DETAIL_BELOW` | Detalle foto | PLATFORM | EVENT_PARTICIPANTS | SALE | Declarado |
 | `FOTOFFICE_BENEFIT_CARD` | Ficha del beneficio | WORKSPACE | MEMBERSHIP_HOLDERS | EXCHANGE | Declarado |
-| `FOTOFFICE_PORTAL_MARQUEE` | Slideshow de logos aliados (pie del portal) | WORKSPACE | MEMBERSHIP_HOLDERS | EXCHANGE | Declarado |
-| `FOTOFFICE_PORTAL_SPONSORS` | Sponsors y alianzas del portal | WORKSPACE | MEMBERSHIP_HOLDERS | BOTH | Declarado |
-| `FOTOFFICE_PORTAL_WELCOME` | Ventana al abrir el portal del socio | WORKSPACE | MEMBERSHIP_HOLDERS | BOTH | Declarado |
-| `FOTOFFICE_PUBLIC_MARQUEE` | Franja de logos (sitio público) | WORKSPACE | ALL_USERS | SALE | Declarado |
+| `FOTOFFICE_PORTAL_MARQUEE` | Slideshow de logos aliados (pie del portal) | WORKSPACE | MEMBERSHIP_HOLDERS | EXCHANGE | Montado |
+| `FOTOFFICE_PORTAL_SPONSORS` | Sponsors y alianzas del portal | WORKSPACE | MEMBERSHIP_HOLDERS | BOTH | Montado |
+| `FOTOFFICE_PORTAL_WELCOME` | Ventana al abrir el portal del socio | WORKSPACE | MEMBERSHIP_HOLDERS | BOTH | Montado |
+| `FOTOFFICE_PUBLIC_MARQUEE` | Franja de logos (sitio público) | WORKSPACE | ALL_USERS | SALE | Montado |
 | `FOTOFFICE_RAFFLE_SPONSOR` | Auspicio del sorteo mensual | WORKSPACE | MEMBERSHIP_HOLDERS | BOTH | Declarado |
 | `FOTORANK_CONTEST_WELCOME` | Activación destacada (concurso) | ORGANIZER | EVENT_PARTICIPANTS | SALE | Montado |
 | `FOTORANK_HOME_WELCOME` | Activación destacada (home) | PLATFORM | ALL_USERS | SALE | Declarado |

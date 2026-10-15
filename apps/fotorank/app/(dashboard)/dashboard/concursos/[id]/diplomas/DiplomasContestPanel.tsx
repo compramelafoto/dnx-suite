@@ -3,22 +3,20 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "../../../../../components/ui/Modal";
-import { DiplomaLayoutPreview } from "../../../../../components/diplomas/DiplomaLayoutPreview";
+import { DiplomaTemplatePreviewImage } from "../../../../../components/diplomas/DiplomaTemplatePreviewImage";
 import {
   planDiplomaIssuanceAction,
   executeDiplomaIssuanceAction,
   listIssuedDiplomasAction,
   revokeDiplomaAction,
   reissueDiplomaAction,
-  getDiplomaPreviewSampleVariablesAction,
   downloadDiplomaExcelTemplateAction,
   parseDiplomaExcelDraftAction,
   generateDiplomasFromExcelDraftAction,
   listDiplomaExcelBatchesAction,
 } from "../../../../../actions/diplomas";
 import type { DiplomaIssuanceMode, PlanRow } from "../../../../../lib/fotorank/diplomas/issuanceTypes";
-import { parseDiplomaLayoutJson } from "../../../../../lib/fotorank/diplomas/layoutSchema";
-import type { DiplomaMergeVariables } from "../../../../../lib/fotorank/diplomas/mergeFields";
+import { readDiplomaDesignLink } from "../../../../../lib/fotorank/design/constants";
 import { DiplomaTemplatesTab } from "./DiplomaTemplatesTab";
 
 type TemplateRow = {
@@ -26,10 +24,7 @@ type TemplateRow = {
   name: string;
   status: string;
   layoutJson: unknown;
-  widthPt: number;
-  heightPt: number;
-  backgroundColor: string;
-  backgroundImageUrl: string | null;
+  updatedAt?: string | Date;
 };
 
 type IssuedRow = {
@@ -102,7 +97,6 @@ export function DiplomasContestPanel({
   const [planError, setPlanError] = useState<string | null>(null);
   const [planPayload, setPlanPayload] = useState<Awaited<ReturnType<typeof planDiplomaIssuanceAction>> | null>(null);
   const [confirmIssueOpen, setConfirmIssueOpen] = useState(false);
-  const [previewVars, setPreviewVars] = useState<DiplomaMergeVariables | null>(null);
   const [issued, setIssued] = useState(initialIssued);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -124,17 +118,6 @@ export function DiplomasContestPanel({
     [templates, templateId]
   );
 
-  const layout = useMemo(
-    () => parseDiplomaLayoutJson(selectedTemplate?.layoutJson),
-    [selectedTemplate?.layoutJson]
-  );
-
-  const loadPreviewVars = useCallback(() => {
-    startTransition(async () => {
-      const r = await getDiplomaPreviewSampleVariablesAction(contestId);
-      if (r.ok) setPreviewVars(r.variables);
-    });
-  }, [contestId]);
 
   const refreshIssued = useCallback(() => {
     startTransition(async () => {
@@ -473,25 +456,23 @@ export function DiplomasContestPanel({
 
           <aside className="min-w-0 space-y-6">
             <div className="fr-recuadro rounded-xl border border-fr-border bg-fr-card">
-              <h3 className="font-sans text-base font-semibold text-fr-primary">Vista previa (layout)</h3>
+              <h3 className="font-sans text-base font-semibold text-fr-primary">Vista previa</h3>
               <p className="mt-3 text-xs leading-relaxed text-fr-muted">
-                Misma geometría que el PDF; tipografías pueden diferir levemente del motor PDF.
+                Dibujada con el mismo motor que emite el PDF, con un premiado de muestra.
               </p>
-              <button type="button" className="fr-btn fr-btn-secondary mt-6 text-sm" onClick={loadPreviewVars} disabled={pending}>
-                Cargar datos de ejemplo
-              </button>
-              {previewVars && selectedTemplate ? (
-                <div className="mt-8">
-                  <DiplomaLayoutPreview
-                    layout={layout}
-                    variables={previewVars}
-                    widthPt={selectedTemplate.widthPt}
-                    heightPt={selectedTemplate.heightPt}
-                    backgroundColor={selectedTemplate.backgroundColor}
-                    backgroundImageUrl={selectedTemplate.backgroundImageUrl}
+              {selectedTemplate && readDiplomaDesignLink(selectedTemplate.layoutJson) ? (
+                <div className="mt-6 aspect-[297/210] overflow-hidden rounded-lg bg-fr-bg-elevated">
+                  <DiplomaTemplatePreviewImage
+                    templateId={selectedTemplate.id}
+                    version={selectedTemplate.updatedAt ? new Date(selectedTemplate.updatedAt).getTime() : 0}
+                    alt={selectedTemplate.name}
                   />
                 </div>
-              ) : null}
+              ) : (
+                <p className="mt-6 text-xs text-fr-muted">
+                  Esta plantilla es del editor anterior. Elegí o creá una plantilla nueva.
+                </p>
+              )}
             </div>
           </aside>
         </div>

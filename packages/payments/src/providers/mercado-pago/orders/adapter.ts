@@ -26,6 +26,7 @@ import {
   isOrders1nStagingFlagEnabled,
 } from "./orders-1n-flag.js";
 import type { PartnerConsentEvidence } from "./consent-evidence.js";
+import type { OrderPayerProfile } from "./payer-profile.js";
 import type { OrderItemInput, ItemsTotalRelation } from "./order-items.js";
 import {
   DEFAULT_MP_SPLIT_AMOUNT_TYPE_STRATEGY,
@@ -67,6 +68,12 @@ export interface CreateSplitOrderInput extends CreateProviderOrderInput {
   partnerConsentsByRecipientId: Map<string, PartnerConsentEvidence>;
   /** Required payer email (real buyer). */
   payerEmail: string;
+  /**
+   * Señales antifraude opcionales del pagador (nombre, documento, teléfono…).
+   * Un pagador que llega sólo con email es señal débil: Mercado Pago puede
+   * rechazar el pago con `high_risk`.
+   */
+  payerProfile?: OrderPayerProfile;
   /** Card extract descriptor; falls back to adapter defaultStatementDescriptor. */
   statementDescriptor?: string;
   items: OrderItemInput[];
@@ -174,6 +181,7 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
       entries,
       deviceSessionId: validated.deviceSessionId,
       payerEmail: validated.payerEmail,
+      ...(input.payerProfile ? { payerProfile: input.payerProfile } : {}),
       statementDescriptor: validated.statementDescriptor,
       items: input.items,
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -246,10 +254,9 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
     const result = await createMercadoPagoOrderRefund(this.http, {
       providerOrderId: input.providerOrderId,
       idempotencyKey: input.idempotencyKey,
-      ...(input.amount ? { amount: input.amount } : {}),
-      ...(input.providerTransactionId
-        ? { providerTransactionId: input.providerTransactionId }
-        : {}),
+      // Orders reembolsa al participante: `amount` y `providerTransactionId`
+      // del contrato genérico no aplican acá.
+      ...(input.splits?.length ? { splits: input.splits } : {}),
     });
     return {
       providerRefundId: result.providerRefundIds[0] ?? result.providerOrderId,

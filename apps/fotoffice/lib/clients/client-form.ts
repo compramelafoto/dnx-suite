@@ -30,7 +30,6 @@ export type ClientFormValues = {
   phone: string | null;
   address: string | null;
   city: string | null;
-  notes: string | null;
   status: "ACTIVO" | "INACTIVO";
 };
 
@@ -132,7 +131,6 @@ export function parseClientForm(formData: FormData): ClientFormResult {
       phone,
       address: texto(formData, "address"),
       city: texto(formData, "city"),
-      notes: texto(formData, "notes"),
       status,
     },
   };

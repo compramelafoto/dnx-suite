@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { avisarAMuestras } from "@/lib/dnx-payments/aviso-muestras";
 import { handleClfOrdersWebhook } from "@/lib/homologation/mp-split-1n/orders-webhook";
 
 export const runtime = "nodejs";
@@ -30,6 +31,13 @@ export async function POST(request: NextRequest) {
       { ok: false, code: result.code },
       { status: result.status },
     );
+  }
+
+  // Venta de obras de Muestras: se le avisa en segundo plano, después de responder. El aviso nunca
+  // cambia esta respuesta ni lo que procesa CLF (`avisarAMuestras` no lanza).
+  if (result.routeTo === "muestras") {
+    const providerOrderId = result.providerOrderId;
+    after(() => avisarAMuestras(providerOrderId));
   }
 
   return NextResponse.json({ ok: true, ...result.evidence }, { status: 200 });

@@ -18,7 +18,7 @@ async function main() {
   const draft = REFERIDOS_PROGRAMA_ARTICLE;
 
   const category = await prisma.blogCategory.findUnique({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: draft.categorySlug } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: draft.categorySlug } },
     select: { id: true },
   });
   if (!category) {
@@ -26,7 +26,7 @@ async function main() {
   }
 
   const author =
-    (await prisma.blogAuthor.findUnique({ where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: "equipo-compramelafoto" } } })) ??
+    (await prisma.blogAuthor.findUnique({ where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: "equipo-compramelafoto" } } })) ??
     (await prisma.blogAuthor.findFirst({
       where: { platform: CLF_CONTENT_PLATFORM, isActive: true },
       orderBy: { id: "asc" },
@@ -37,7 +37,7 @@ async function main() {
   for (const name of draft.tags) {
     const tagSlug = slugifyBlogFromName(name);
     const tag = await prisma.blogTag.upsert({
-      where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: tagSlug } },
+      where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: tagSlug } },
       update: { name },
       create: { platform: CLF_CONTENT_PLATFORM, name, slug: tagSlug },
     });
@@ -45,7 +45,7 @@ async function main() {
   }
 
   const post = await prisma.blogPost.upsert({
-    where: { platform_slug: { platform: CLF_CONTENT_PLATFORM, slug: SLUG } },
+    where: { platform_workspaceKey_slug: { platform: CLF_CONTENT_PLATFORM, workspaceKey: "", slug: SLUG } },
     update: {
       title: prepared.title,
       excerpt: prepared.excerpt,

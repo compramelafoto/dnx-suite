@@ -7,14 +7,24 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { BOOKINGS_TIME_ZONE, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
-import { shiftWeeks, weekDays, weekRange } from "@/lib/bookings/week";
 import { buildWeekGrid } from "@/lib/bookings/week-grid";
+import {
+  calendarHref,
+  parseCalendarParams,
+  shiftYmd,
+  spaceColor,
+  viewInterval,
+  ymdOf,
+} from "@/lib/bookings/calendar-view";
 import { listSpaces, getBookingSettings } from "@/lib/bookings/repository";
+import { bookingWording } from "@/lib/bookings/wording";
+import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 import { loadPortalOffer } from "@/lib/bookings/portal";
 import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { ReservarForm } from "./reservar-form";
-import { cancelPortalBookingAction } from "./actions";
+import { cancelPortalBookingAction, createPortalBookingAction } from "./actions";
+import { spacePriceLabel } from "@/lib/bookings/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +41,7 @@ export default async function PortalReservasPage({
 }: {
   searchParams: Promise<{
     espacio?: string;
+    fecha?: string;
     semana?: string;
     error?: string;
     ok?: string;
@@ -54,11 +65,11 @@ export default async function PortalReservasPage({
 
   const ahora = new Date();
 
-  // La semana que se mira. Sin parámetro, la de hoy.
-  const ancla = params.semana ? new Date(params.semana) : ahora;
-  const referencia = Number.isNaN(ancla.getTime()) ? ahora : ancla;
-  const semana = weekRange(referencia, BOOKINGS_TIME_ZONE);
-  const diasDeLaSemana = weekDays(semana, BOOKINGS_TIME_ZONE);
+  // La semana que se mira. Sin parámetro, la de hoy. El socio ve siempre la semana: es la
+  // vista en la que se elige un horario.
+  const { ymd } = parseCalendarParams(params, ahora, BOOKINGS_TIME_ZONE);
+  const semana = viewInterval("semana", ymd, BOOKINGS_TIME_ZONE);
+  const hoyYmd = ymdOf(ahora, BOOKINGS_TIME_ZONE);
 
   const oferta = elegido
     ? await loadPortalOffer({
@@ -81,15 +92,17 @@ export default async function PortalReservasPage({
           timeZone: BOOKINGS_TIME_ZONE,
           slotMinutes: elegido.rules.slotMinutes,
           minAdvanceHours: elegido.rules.minAdvanceHours,
+          maxAdvanceDays: elegido.rules.maxAdvanceDays,
         })
       : null;
 
   // No se ofrece navegar a una semana que ya pasó entera.
-  const semanaPasada = weekRange(shiftWeeks(referencia, -1), BOOKINGS_TIME_ZONE);
+  const semanaPasada = viewInterval("semana", shiftYmd("semana", ymd, -1), BOOKINGS_TIME_ZONE);
   const hayAnterior = semanaPasada.endAt > ahora;
 
-  const [settings, mias] = await Promise.all([
+  const [settings, club, mias] = await Promise.all([
     getBookingSettings(context.workspace.id),
+    loadMemberClubBalance({ workspaceId: context.workspace.id, memberId: context.member.id, at: ahora }),
     prisma.booking.findMany({
       where: { workspaceId: context.workspace.id, memberId: context.member.id },
       orderBy: { startAt: "desc" },
@@ -101,6 +114,7 @@ export default async function PortalReservasPage({
         status: true,
         totalArs: true,
         paymentStatus: true,
+        spaceId: true,
         space: { select: { name: true } },
         extraLines: {
           where: { status: { not: "REMOVED" } },
@@ -109,6 +123,12 @@ export default async function PortalReservasPage({
       },
     }),
   ]);
+
+  const wording = bookingWording(settings);
+  const turnos = wording.kind === "PROFESIONALES";
+  const vencimientoClub = club
+    ? club.validUntil.toLocaleDateString("es-AR", { timeZone: BOOKINGS_TIME_ZONE, day: "numeric", month: "numeric" })
+    : null;
 
   const proximas = mias.filter((r) => r.endAt >= ahora);
   const pasadas = mias.filter((r) => r.endAt < ahora);
@@ -127,9 +147,11 @@ export default async function PortalReservasPage({
         <Link href="/portal" className="text-sm text-[var(--fo-muted)] underline underline-offset-4">
           Volver al inicio
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Reservas</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{turnos ? "Turnos" : "Reservas"}</h1>
         <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
-          Reservá el estudio, el salón o el coworking.
+          {turnos
+            ? `Elegí a tu ${wording.singular}, el día y la hora.`
+            : `Elegí el ${wording.singular} y el horario.`}
         </p>
       </header>
 
@@ -162,37 +184,73 @@ export default async function PortalReservasPage({
       {espacios.length === 0 ? (
         <div className="fo-card p-6 text-center">
           <p className="text-sm text-[var(--fo-muted)]">
-            La institución todavía no publicó espacios para reservar.
+            {`La institución todavía no publicó ${wording.plural} para reservar.`}
           </p>
         </div>
       ) : (
         <>
-          <nav className="flex flex-wrap gap-2">
-            {espacios.map((e) => (
-              <Link
-                key={e.id}
-                href={`/portal/reservas?espacio=${e.id}`}
-                className={`fo-btn text-sm ${e.id === elegido?.id ? "fo-btn-primary" : "fo-btn-secondary"}`}
-              >
-                {e.name}
-              </Link>
-            ))}
-          </nav>
-
+          {club && elegido && !elegido.acceptsClubCredits ? (
+            <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">
+              {`Tus ${club.plural} incluidos se usan con ${
+                espacios.filter((e) => e.acceptsClubCredits).map((e) => e.name).join(" o ") || "otro profesional"
+              }. Con ${elegido.name} el turno se paga.`}
+            </p>
+          ) : null}
           {elegido && oferta && grid ? (
             <ReservarForm
+              key={`${elegido.id}-${semana.startAt.toISOString()}`}
+              action={createPortalBookingAction}
+              basePath="/portal/reservas"
+              customerType="MEMBER"
+              pricing={elegido}
               spaceId={elegido.id}
               spaceName={elegido.name}
+              spaceColor={spaceColor(espacios.findIndex((e) => e.id === elegido.id))}
               description={elegido.description}
+              spaces={espacios.map((e, i) => ({
+                id: e.id,
+                name: e.name,
+                color: spaceColor(i),
+                priceLabel: spacePriceLabel(e, "MEMBER"),
+                href: calendarHref("/portal/reservas", { ymd }, { espacio: e.id }),
+              }))}
               vocabulary={v}
-              memberHourlyPriceMinor={elegido.memberHourlyPriceMinor}
+              resourceSingular={wording.singular}
+              baseItemLabel={turnos ? "Turno" : undefined}
+              club={
+                club && vencimientoClub && elegido.acceptsClubCredits
+                  ? {
+                      available: club.available,
+                      credits: club.credits,
+                      validUntilISO: club.validUntil.toISOString(),
+                      validUntilLabel: vencimientoClub,
+                      singular: club.singular,
+                      plural: club.plural,
+                    }
+                  : null
+              }
               freeHours={oferta.freeHours}
               grid={grid}
-              tituloSemana={`Semana del ${diasDeLaSemana[0].label} al ${diasDeLaSemana[6].label}`}
-              semanaAnterior={
-                hayAnterior ? shiftWeeks(referencia, -1).toISOString() : null
-              }
-              semanaSiguiente={shiftWeeks(referencia, 1).toISOString()}
+              ymd={ymd}
+              todayYmd={hoyYmd}
+              nowMinute={localMoment(ahora, BOOKINGS_TIME_ZONE).minuteOfDay}
+              canGoBack={hayAnterior}
+              mine={mias
+                .filter(
+                  (r) =>
+                    r.spaceId === elegido.id &&
+                    r.startAt < semana.endAt &&
+                    r.endAt > semana.startAt &&
+                    r.status !== "CANCELLED" &&
+                    r.status !== "EXPIRED",
+                )
+                .map((r) => ({
+                  id: r.id,
+                  ymd: localMoment(r.startAt, BOOKINGS_TIME_ZONE).ymd,
+                  startMinute: localMoment(r.startAt, BOOKINGS_TIME_ZONE).minuteOfDay,
+                  endMinute: localMoment(r.endAt, BOOKINGS_TIME_ZONE).minuteOfDay || 24 * 60,
+                  statusLabel: ETIQUETA_ESTADO[r.status] ?? r.status,
+                }))}
               extras={oferta.extras.map((o) => ({
                 id: o.extra.id,
                 name: o.extra.name,

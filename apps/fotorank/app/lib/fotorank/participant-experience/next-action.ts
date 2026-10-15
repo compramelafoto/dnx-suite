@@ -23,6 +23,8 @@ export type NextActionInput = {
   needsRulesReacceptance?: boolean;
   /** En detalle, evita CTA “Ver detalle” autorreferencial. */
   surface?: "list" | "detail";
+  /** Lugares libres del cupo de obras. Ausente = 0 (concurso de una foto). */
+  remainingEntries?: number;
 };
 
 /**
@@ -102,6 +104,31 @@ export function resolveParticipantNextAction(input: NextActionInput): Participan
     };
   }
 
+  /**
+   * Una obra rechazada no tiene “carga” que continuar: o se vuelve a subir
+   * mientras la ventana esté abierta, o sólo queda consultar el detalle. Antes
+   * caía en “Continuar carga” porque el estado de la obra y el de admisión
+   * podían quedar desfasados (obra en PROCESSING con admisión REJECTED).
+   */
+  if (input.admissionStatus === "REJECTED" || input.entryStatus === "REJECTED") {
+    if (input.upload.isOpen) {
+      return {
+        key: "reupload_photo",
+        label: "Volver a cargar",
+        href: inscriptionHref,
+        variant: "primary",
+        enabled: true,
+      };
+    }
+    return {
+      key: onDetail ? "view_bases" : "view_detail",
+      label: onDetail ? "Consultar bases" : "Ver detalle",
+      href: onDetail ? basesHref : detailHref,
+      variant: "primary",
+      enabled: true,
+    };
+  }
+
   const entry = input.entryStatus;
   if (entry && ["DRAFT", "UPLOADED", "PROCESSING", "READY_TO_CONFIRM", "REQUIRES_REVIEW"].includes(entry)) {
     if (input.upload.isOpen) {
@@ -123,6 +150,16 @@ export function resolveParticipantNextAction(input: NextActionInput): Participan
   }
 
   if (entry === "CONFIRMED" || input.admissionStatus === "ADMITTED" || input.admissionStatus === "FROZEN_FOR_JURY") {
+    // Concursos de varias fotos: la primera ya está enviada, pero el cupo no.
+    if (input.upload.isOpen && (input.remainingEntries ?? 0) > 0) {
+      return {
+        key: "add_photo",
+        label: "Subir otra fotografía",
+        href: inscriptionHref,
+        variant: "primary",
+        enabled: true,
+      };
+    }
     return {
       key: onDetail ? "view_contest" : "view_detail",
       label: onDetail ? "Ver concurso" : "Consultar participación",

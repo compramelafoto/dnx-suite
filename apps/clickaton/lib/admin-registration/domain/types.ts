@@ -64,9 +64,6 @@ export type AdminRegistrationListItem = {
   /** Soft refs Etapa 8 — perfil / placa. */
   instagramHandle: string | null;
   profilePhotoAssetId: string | null;
-  welcomeCardId: string | null;
-  welcomeCardStatus: string | null;
-  welcomeCardAssetId: string | null;
   welcomePublicationStatus: string | null;
 };
 
@@ -148,19 +145,6 @@ export type AdminRegistrationDetail = AdminRegistrationListItem & {
     fotoRankContestId: string;
     completedAt: Date | null;
     updatedAt: Date;
-  } | null;
-  welcomeCard: {
-    id: string;
-    status: string;
-    templateId: string;
-    templateVersion: number;
-    pngUrl: string | null;
-    webpUrl: string | null;
-    publicationStatus: string;
-    lastErrorCode: string | null;
-    lastErrorMessage: string | null;
-    attemptCount: number;
-    generatedAt: Date | null;
   } | null;
 };
 

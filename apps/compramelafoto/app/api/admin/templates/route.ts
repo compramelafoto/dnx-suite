@@ -49,62 +49,16 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/admin/templates
- * Crea una plantilla pública del sistema (sin álbum). Solo admin.
- * Body: { name, imageUrl, widthCm, heightCm, slots, textElements?, pagesJson?, theme? }
+ * POST retirado: el diseñador viejo ya no crea plantillas. Todo el circuito de diseño usa el
+ * diseñador nuevo (`TemplateV2`); ver docs/compramelafoto/DISENO-V2-SELECCION-Y-APROBACION.md.
  */
-export async function POST(req: NextRequest) {
-  try {
-    const { error, user } = await requireAuth([Role.ADMIN]);
-    if (error || !user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const name = String(body?.name ?? "").trim();
-    const imageUrl = String(body?.imageUrl ?? "").trim();
-    const widthCm = Number(body?.widthCm);
-    const heightCm = Number(body?.heightCm);
-    const slots = Array.isArray(body?.slots) ? body.slots : [];
-    const textElements = Array.isArray(body?.textElements) ? body.textElements : null;
-    const pagesJson = Array.isArray(body?.pagesJson) ? body.pagesJson : null;
-    const theme = typeof body?.theme === "string" ? body.theme.trim() || null : null;
-
-    if (!name) {
-      return NextResponse.json({ error: "name es requerido" }, { status: 400 });
-    }
-    if (!imageUrl) {
-      return NextResponse.json({ error: "imageUrl es requerido" }, { status: 400 });
-    }
-    if (!Number.isFinite(widthCm) || widthCm <= 0 || !Number.isFinite(heightCm) || heightCm <= 0) {
-      return NextResponse.json({ error: "widthCm y heightCm deben ser números positivos" }, { status: 400 });
-    }
-
-    const template = await prisma.template.create({
-      data: {
-        albumId: null,
-        albumProductId: null,
-        name,
-        imageUrl,
-        widthCm,
-        heightCm,
-        isSystemTemplate: true,
-        theme,
-        textElementsJson: textElements as object | undefined,
-        pagesJson: pagesJson as object[] | undefined,
-        slots: {
-          create: slots.map((s: { index?: number; bbox?: Record<string, number> }, i: number) => ({
-            index: Number.isInteger(s.index) ? s.index : i,
-            bbox: s.bbox && typeof s.bbox === "object" ? (s.bbox as object) : { x: 0, y: 0, width: 100, height: 100 },
-          })),
-        },
-      },
-      include: { slots: true },
-    });
-
-    return NextResponse.json({ template });
-  } catch (e) {
-    console.error("POST /api/admin/templates error:", e);
-    return NextResponse.json({ error: "Error al crear plantilla" }, { status: 500 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      error:
+        "El diseñador viejo se retiró. Creá la plantilla en el diseñador nuevo (Diseños → Mis plantillas).",
+    },
+    { status: 410 }
+  );
 }
+

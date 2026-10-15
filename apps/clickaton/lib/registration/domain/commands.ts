@@ -33,6 +33,12 @@ export type CreateDraftRegistrationCommand = {
   socialPublicationConsent?: boolean;
   consentAcceptedAt?: Date | null;
   consentVersion?: string | null;
+  /** Centro de Transmisión — consentimientos de ubicación. */
+  locationConsentAt?: Date | null;
+  locationPublicConsentAt?: Date | null;
+  interviewConsentAt?: Date | null;
+  locationConsentVersion?: string | null;
+  locationConsentDeclaredAdult?: boolean;
   termsVersion?: string | null;
   termsAcceptedAt?: Date | null;
   promotionalLicenseAcceptedAt?: Date | null;

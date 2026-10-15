@@ -1,0 +1,32 @@
+[
+  {
+    "archivo": "01-resumen-cuotas.png",
+    "ruta": "/members/cuotas",
+    "que_mostrar": "Parte superior de la pantalla Cuotas: título, recuadro 'Generar cuotas' y los tres recuadros 'Deuda total', 'Cobrado en 30 días' y 'Pagos pendientes'. Ingresar como administrador.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-socios-con-saldo.png",
+    "ruta": "/members/cuotas",
+    "que_mostrar": "Bajar hasta la tabla 'Socios con saldo' y que se vean al menos 4 o 5 filas, idealmente alguna con '(N vencidas)' en rojo. Recortar sólo esa tarjeta.",
+    "selector_recorte": "section.fo-card:has(table)"
+  },
+  {
+    "archivo": "03-formulario-pago-manual.png",
+    "ruta": "/members/<id-de-un-socio-con-saldo>",
+    "que_mostrar": "Ficha de un socio con deuda (abrirla con clic en su nombre desde /members/cuotas). Recortar el recuadro 'Registrar un pago cobrado en mano' con el formulario completo pero SIN enviar: Importe cobrado 8000, Cómo pagó 'Efectivo', fecha de hoy, Comprobante vacío.",
+    "selector_recorte": "form:has(select[name='method'])"
+  },
+  {
+    "archivo": "04-pago-registrado.png",
+    "ruta": "/members/<id-de-un-socio-con-saldo>",
+    "que_mostrar": "El mismo formulario después de tocar 'Registrar pago', con el mensaje verde 'Pago de $… registrado.' visible. ATENCIÓN: esto registra un pago real y no se puede anular desde el panel; hacerlo sólo con un pago verdadero que haya que cargar de todos modos, o en una base de prueba.",
+    "selector_recorte": "form:has(select[name='method'])"
+  },
+  {
+    "archivo": "05-historial-pagos-ficha.png",
+    "ruta": "/members/<id-de-un-socio-con-saldo>",
+    "que_mostrar": "En la columna lateral de la ficha, el recuadro 'Pagos' con el pago recién cargado al principio de la lista.",
+    "selector_recorte": null
+  }
+]

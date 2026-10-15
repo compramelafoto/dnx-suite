@@ -10,6 +10,8 @@ import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { personVocabulary } from "@/lib/vocabulario/personas";
 import { getPlatformFeeBpsByModule } from "@/lib/platform-fee/store";
 import { WorkspaceModuleFeeField } from "@/components/platform-fee/module-fee-field";
+import { PortfolioRealojarButton } from "@/components/admin/portfolio-realojar-button";
+import { countExternalPortfolioPhotos } from "@/lib/portfolio/localize-photos";
 
 export default async function SuperAdminWorkspaceDetailPage({
   params,
@@ -37,6 +39,9 @@ export default async function SuperAdminWorkspaceDetailPage({
     id,
     availableModules.map((m) => m.key),
   );
+
+  // Fotos de portfolio que la migración del sitio viejo dejó apuntando al servidor de otro.
+  const fotosAfuera = await countExternalPortfolioPhotos(id);
 
   let enabledByModule = new Map<string, boolean>();
   let schemaMissing = false;
@@ -75,6 +80,10 @@ export default async function SuperAdminWorkspaceDetailPage({
       <Link href="/admin/workspaces" className="text-sm text-[var(--fo-accent)] hover:underline">
         ← Volver a Workspaces
       </Link>
+
+      {fotosAfuera > 0 ? (
+        <PortfolioRealojarButton workspaceId={workspace.id} pendientes={fotosAfuera} />
+      ) : null}
 
       {schemaMissing ? (
         <div className="fo-card fo-alert-warning" role="alert">

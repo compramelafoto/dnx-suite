@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
 import { getBookingSettings, listSpaces } from "@/lib/bookings/repository";
 import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
 import { GOOGLE_CALENDAR_INTEGRATION_KEY } from "@/lib/integrations/registry";
@@ -15,7 +15,7 @@ export default async function ReservasConfiguracionPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const params = await searchParams;
 
   const [settings, espacios, calendario, cierres] = await Promise.all([
@@ -48,6 +48,48 @@ export default async function ReservasConfiguracionPage({
       ) : null}
 
       <form action={saveBookingSettingsAction} className="fo-card space-y-4 p-5">
+        <h2 className="text-base font-semibold">Cómo se reserva</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="agendaKind">
+              Tipo de agenda
+            </label>
+            <select id="agendaKind" name="agendaKind" className="fo-input" defaultValue={settings.agendaKind}>
+              <option value="ESPACIOS">Espacios que se alquilan</option>
+              <option value="PROFESIONALES">Turnos con profesionales</option>
+            </select>
+            <p className="fo-helper">
+              Con profesionales, el público elige con quién saca turno (por ejemplo, un barbero).
+            </p>
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="resourceSingular">
+              Cómo se llama (singular)
+            </label>
+            <input
+              id="resourceSingular"
+              name="resourceSingular"
+              className="fo-input"
+              maxLength={40}
+              placeholder="espacio, barbero…"
+              defaultValue={settings.resourceSingular ?? ""}
+            />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="resourcePlural">
+              Cómo se llama (plural)
+            </label>
+            <input
+              id="resourcePlural"
+              name="resourcePlural"
+              className="fo-input"
+              maxLength={40}
+              placeholder="espacios, barberos…"
+              defaultValue={settings.resourcePlural ?? ""}
+            />
+          </div>
+        </div>
+
         <h2 className="text-base font-semibold">Plazos</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="fo-field-stack">
@@ -87,7 +129,7 @@ export default async function ReservasConfiguracionPage({
         </div>
         <div className="fo-form-actions">
           <button type="submit" className="fo-btn fo-btn-primary text-sm">
-            Guardar plazos
+            Guardar
           </button>
         </div>
       </form>

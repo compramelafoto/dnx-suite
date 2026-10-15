@@ -4,13 +4,19 @@ import { assertContentPlatform, platformWhere, type ContentPlatform } from "../p
 export async function getContentSitemapEntries(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
+  now?: Date;
 }) {
   const platform = assertContentPlatform(input.platform);
+  const scope = platformWhere(platform, input.workspaceKey);
+  const now = input.now ?? new Date();
   const publishedScoped = {
-    ...platformWhere(platform),
+    ...scope,
     status: BlogPostStatus.PUBLISHED,
     noIndex: false,
-  } as const;
+    // Programado: con fecha futura todavía no está publicado.
+    OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+  };
 
   const [posts, categories, tags] = await Promise.all([
     input.prisma.blogPost.findMany({
@@ -25,7 +31,7 @@ export async function getContentSitemapEntries(input: {
     }),
     input.prisma.blogCategory.findMany({
       where: {
-        ...platformWhere(platform),
+        ...scope,
         posts: {
           some: publishedScoped,
         },
@@ -35,7 +41,7 @@ export async function getContentSitemapEntries(input: {
     }),
     input.prisma.blogTag.findMany({
       where: {
-        ...platformWhere(platform),
+        ...scope,
         posts: {
           some: {
             post: publishedScoped,

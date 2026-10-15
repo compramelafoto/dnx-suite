@@ -3,6 +3,8 @@
  * PAID operativo = paymentStatus APPROVED | NOT_REQUIRED.
  */
 
+import { motivoSinParticipante } from "@/lib/registration/domain/participante-definido";
+
 export type ScanTone = "GREEN" | "YELLOW" | "RED" | "BLUE";
 
 export type EligibilitySnapshot = {
@@ -32,7 +34,12 @@ export function evaluateAccreditationEligibility(input: EligibilitySnapshot): {
     return { ok: false, tone: "RED", reason: "DISQUALIFIED", canCheckIn: false };
   }
   if (input.registrationStatus !== "CONFIRMED") {
-    return { ok: false, tone: "YELLOW", reason: "NOT_CONFIRMED", canCheckIn: false };
+    return {
+      ok: false,
+      tone: "YELLOW",
+      reason: motivoSinParticipante({ status: input.registrationStatus }),
+      canCheckIn: false,
+    };
   }
   if (!isPaidForAccreditation(input.paymentStatus)) {
     return {

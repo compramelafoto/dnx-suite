@@ -1,5 +1,8 @@
-import Link from "next/link";
-import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import {
+  CreateTemplateV2Button,
+  TEMPLATE_V2_BASE_PATHS,
+  TemplateV2RowActions,
+} from "@repo/template-editor-ui";
 import { AdminMigrationNotice } from "@/components/admin/AdminMigrationNotice";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -9,15 +12,19 @@ import { requireClickatonAdmin } from "@/lib/admin/auth";
 import { prisma, withClickatonDb } from "@/lib/admin/db";
 // El import registra el runtime del editor (base, sesión y almacenamiento).
 import "@/lib/template-v2/server";
+import { formatearEnAr } from "@/lib/fecha-ar";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(value: Date | null): string {
-  if (!value) return "—";
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
+  return formatearEnAr(value, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 }
 
 export default async function ClickatonTemplatesPage() {
@@ -96,16 +103,16 @@ export default async function ClickatonTemplatesPage() {
                     {formatDate(t.updatedAt)}
                   </td>
                   <td className="px-6 py-4">
-                    {t.currentVersionId ? (
-                      <Link
-                        href={`${adminRoutes.templates}/${t.id}/${t.currentVersionId}`}
-                        className="text-ck-accent underline-offset-2 hover:underline"
-                      >
-                        Abrir editor
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-ck-text-muted">Sin versión</span>
-                    )}
+                    <TemplateV2RowActions
+                      templateId={t.id}
+                      name={t.name}
+                      editorHref={
+                        t.currentVersionId
+                          ? `${adminRoutes.templates}/${t.id}/${t.currentVersionId}`
+                          : null
+                      }
+                      deleteWarning="Si está asignada a las placas de una edición, revisá la asignación en Ediciones → Placas."
+                    />
                   </td>
                 </tr>
               ))}

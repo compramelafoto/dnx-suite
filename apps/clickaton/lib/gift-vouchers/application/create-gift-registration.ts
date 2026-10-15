@@ -83,9 +83,51 @@ export type GiftPricePhaseView = {
   currency: string;
 };
 
+/**
+ * Mismo contrato que usa el alta normal (`PromotionsPort`), recortado a lo
+ * que un regalo necesita. Se declara acá para que este caso de uso no dependa
+ * del servicio público entero.
+ */
+export type GiftPromotionsPort = {
+  reserve(input: {
+    code: string;
+    originalAmount: number;
+    currency: string;
+    editionId: string;
+    userId: number | null;
+    email?: string | null;
+    orderId: string;
+    idempotencyKey: string;
+    now?: Date;
+  }): Promise<
+    | {
+        ok: true;
+        applied: {
+          quote: {
+            promotionId: string;
+            code: string;
+            discountAmount: number;
+            finalAmount: number;
+            originalAmount: number;
+          };
+        };
+      }
+    | { ok: false; code: string; message: string }
+  >;
+  attachRegistration(input: {
+    idempotencyKey: string;
+    registrationId: string;
+  }): Promise<void>;
+};
+
 export type CreateGiftRegistrationDeps = {
   vouchers: GiftVoucherRepository;
   clock: { now(): Date };
+  /**
+   * Sin esto un código de descuento se cobraría entero. El caso de uso
+   * prefiere fallar a ignorarlo: ver el bloque del cupón más abajo.
+   */
+  promotions?: GiftPromotionsPort | null;
   registrations: {
     getEditionBySlug(slug: string): Promise<GiftEditionView | null>;
     getTicketDetail(ticketTypeId: string): Promise<GiftTicketView | null>;
@@ -230,6 +272,49 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
       const pricePhaseNameSnapshot = resolvedPhase?.phase.name ?? null;
       const pricePhaseAmountSnapshot = resolvedPhase?.phase.amount ?? null;
 
+      // El cupón, antes de crear nada: si no vale, no queremos una inscripción
+      // colgada ni un cobro por el precio entero. El código se valida contra
+      // quien compra, que es quien paga — quien recibe el regalo no pone plata.
+      let discountAmount = 0;
+      let chargeAmount = totalAmount;
+      let promotionId: string | null = null;
+      let promotionCodeSnapshot: string | null = null;
+      let promoIdempotencyKey: string | null = null;
+      const rawPromo = (input.promoCode ?? "").trim();
+      if (rawPromo) {
+        if (!deps.promotions) {
+          throw new GiftRegistrationError(
+            "UNEXPECTED",
+            "Los códigos promocionales no están disponibles en este entorno.",
+          );
+        }
+        if (totalAmount <= 0) {
+          throw new GiftRegistrationError(
+            "VALIDATION",
+            "No se puede aplicar un código a una entrada gratuita.",
+          );
+        }
+        promoIdempotencyKey = `clickaton:gift-promo:${idempotencyKey}`;
+        const reserved = await deps.promotions.reserve({
+          code: rawPromo,
+          originalAmount: totalAmount,
+          currency: ticket.currency,
+          editionId: edition.id,
+          userId: null,
+          email,
+          orderId: promoIdempotencyKey,
+          idempotencyKey: promoIdempotencyKey,
+          now,
+        });
+        if (!reserved.ok) {
+          throw new GiftRegistrationError("PROMO_REJECTED", reserved.message);
+        }
+        discountAmount = reserved.applied.quote.discountAmount;
+        chargeAmount = reserved.applied.quote.finalAmount;
+        promotionId = reserved.applied.quote.promotionId;
+        promotionCodeSnapshot = reserved.applied.quote.code;
+      }
+
       const registration = await deps.registrations.createReservedRegistration({
         idempotencyKey,
         holdExpiresAt,
@@ -246,16 +331,26 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
         },
         currency: ticket.currency,
         subtotalAmount: totalAmount,
-        discountAmount: 0,
-        totalAmount,
-        promotionId: null,
-        promotionCodeSnapshot: null,
+        discountAmount,
+        totalAmount: chargeAmount,
+        promotionId,
+        promotionCodeSnapshot,
         pricePhaseId,
         pricePhaseNameSnapshot,
         pricePhaseAmountSnapshot,
         acceptedTermsAt: now,
         termsVersion: TERMS_VERSION,
       });
+
+      // Recién ahora el uso del cupón tiene a qué inscripción pertenecer. Sin
+      // este paso queda reservado y colgado de nada: anular el regalo no lo
+      // devolvería, y esa persona perdería el código.
+      if (deps.promotions && promoIdempotencyKey && promotionId) {
+        await deps.promotions.attachRegistration({
+          idempotencyKey: promoIdempotencyKey,
+          registrationId: registration.id,
+        });
+      }
 
       const code = generateCode();
       await deps.vouchers.create({
@@ -275,7 +370,8 @@ export function createGiftRegistrationUseCase(deps: CreateGiftRegistrationDeps) 
       return {
         registrationId: registration.id,
         voucherCode: code,
-        totalAmount,
+        // Lo que se va a cobrar, ya con el descuento aplicado.
+        totalAmount: chargeAmount,
         currency: ticket.currency,
       };
     },

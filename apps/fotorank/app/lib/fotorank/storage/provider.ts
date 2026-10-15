@@ -68,3 +68,10 @@ export function getPrivateContestStorageProvider(): PrivateContestStorageProvide
 export function getContestEntryStorage(): PrivateContestStorageProvider {
   return getPrivateContestStorageProvider();
 }
+
+/** Lee un objeto del almacenamiento privado. Falla si el proveedor no sabe leer o no existe. */
+export async function readPrivateObject(key: string): Promise<Uint8Array> {
+  const storage = getPrivateContestStorageProvider();
+  if (!storage.readObject) throw new Error("El almacenamiento no permite leer objetos.");
+  return storage.readObject(key);
+}

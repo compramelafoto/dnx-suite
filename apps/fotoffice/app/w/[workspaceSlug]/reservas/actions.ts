@@ -2,14 +2,14 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser } from "@/lib/auth";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
 import { loadPortalOffer } from "@/lib/bookings/portal";
 import { extrasTotalMinor } from "@/lib/bookings/extras";
-import { quoteBooking } from "@/lib/bookings/pricing";
+import { quoteForSpace } from "@/lib/bookings/pricing";
 import { createBooking, type BookingExtraLineInput } from "@/lib/bookings/create";
 import { startBookingCheckout } from "@/lib/bookings/checkout";
 
@@ -21,9 +21,12 @@ import { startBookingCheckout } from "@/lib/bookings/checkout";
  * - **Tarifa plena y cero horas bonificadas.** El beneficio lo da la cuota.
  * - **Solo Mercado Pago.** La transferencia exige a alguien que la concilie, y para un
  *   desconocido eso es un horario bloqueado sin ninguna garantía.
+ *
+ * No exige cuenta: el correo identifica la reserva. Si hay sesión, se registra también quién
+ * es, pero el correo que manda es el que la persona escribió.
  */
 export async function createPublicBookingAction(formData: FormData): Promise<void> {
-  const user = await requireAuth();
+  const user = await getAuthUser();
 
   const workspaceSlug = String(formData.get("workspaceSlug") ?? "").trim();
   const spaceId = String(formData.get("spaceId") ?? "").trim();
@@ -48,6 +51,10 @@ export async function createPublicBookingAction(formData: FormData): Promise<voi
   if (contactName.length < 2) {
     volver(`error=${encodeURIComponent("Poné tu nombre para la reserva.")}`);
   }
+  const contactEmail = String(formData.get("contactEmail") ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    volver(`error=${encodeURIComponent("Poné un correo válido: ahí te llega la confirmación.")}`);
+  }
 
   const range = { startAt: startAt as Date, endAt: endAt as Date };
 
@@ -66,11 +73,9 @@ export async function createPublicBookingAction(formData: FormData): Promise<voi
   }
 
   const minutos = (range.endAt.getTime() - range.startAt.getTime()) / 60_000;
-  const quote = quoteBooking({
+  const quote = quoteForSpace(space, {
     minutes: minutos,
     customerType: "NON_MEMBER",
-    memberHourlyPriceMinor: space.memberHourlyPriceMinor,
-    nonMemberHourlyPriceMinor: space.nonMemberHourlyPriceMinor,
     freeMinutesAvailable: 0,
   });
 
@@ -92,9 +97,9 @@ export async function createPublicBookingAction(formData: FormData): Promise<voi
     range,
     customerType: "NON_MEMBER",
     memberId: null,
-    userId: user.id,
+    userId: user?.id ?? null,
     contactName,
-    contactEmail: String(formData.get("contactEmail") ?? user.email ?? "").trim(),
+    contactEmail,
     contactPhone: String(formData.get("contactPhone") ?? "").trim() || null,
     freeMinutesAvailable: 0,
     paymentMethod: "MERCADO_PAGO",
@@ -117,7 +122,7 @@ export async function createPublicBookingAction(formData: FormData): Promise<voi
   const checkout = await startBookingCheckout({
     workspaceId: branding.workspaceId,
     bookingId: creada.bookingId,
-    payerEmail: user.email ?? "",
+    payerEmail: contactEmail,
     returnPath: base,
   });
   if (!checkout.ok) volver(`error=${encodeURIComponent(checkout.error)}`);

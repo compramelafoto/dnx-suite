@@ -42,6 +42,15 @@ export type CreatePaymentOrderInput = {
    * Browser amounts are ignored for charging — server reconstructs price.
    */
   cardPayment?: import("@repo/payments/frontend").CardPaymentSubmission;
+  /**
+   * Reparto al fotógrafo afiliado en el mismo cobro con tarjeta (Orders 1:N
+   * productivo). Sólo con `cardPayment` y el interruptor encendido.
+   */
+  affiliateSplit?: {
+    recipientId: string;
+    receiverId: string;
+    partnerAmountMinor: number;
+  };
 };
 
 export type CardPaymentCheckoutResultDto = {
@@ -74,6 +83,8 @@ export type PaymentOrder = {
   attempt: number;
   /** Mercado Pago status_detail when available (Orders Brick path). */
   statusDetail?: string | null;
+  /** Id del proveedor (preferencia, pago u orden "ORD…"), si lo hay. */
+  providerOrderId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   approvedAt: Date | null;
@@ -167,4 +178,7 @@ export type CheckoutObservabilityEvent =
   | "invalid_currency"
   | "finance_snapshot_skipped"
   | "finance_snapshot_failed"
-  | "price_tamper_ignored";
+  | "price_tamper_ignored"
+  | "affiliate_split_skipped"
+  | "affiliate_split_marked"
+  | "affiliate_split_mark_failed";

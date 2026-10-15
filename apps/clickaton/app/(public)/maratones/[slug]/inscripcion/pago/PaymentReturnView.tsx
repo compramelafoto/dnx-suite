@@ -97,7 +97,6 @@ export async function PaymentReturnView({
           instagramHandle: true,
           status: true,
           paymentStatus: true,
-          welcomeCardStatus: true,
           credential: { select: { status: true, publicCode: true } },
           items: {
             where: { isIncluded: true },

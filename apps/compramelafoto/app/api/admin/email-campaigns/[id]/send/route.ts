@@ -3,27 +3,11 @@ import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAudienceRecipients, type AudienceFilters } from "@/lib/email-marketing/audience";
-import { randomBytes } from "crypto";
+import { ensureUnsubscribeToken } from "@/lib/email-marketing/unsubscribe-token";
 
 export const dynamic = "force-dynamic";
 
 const MAX_CAMPAIGN_RECIPIENTS = 50000;
-
-async function ensureUnsubscribeToken(userId: number): Promise<string> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { unsubscribeToken: true },
-  });
-  if (!user) throw new Error("Usuario no encontrado");
-  if (user.unsubscribeToken) return user.unsubscribeToken;
-
-  const token = randomBytes(24).toString("hex");
-  await prisma.user.update({
-    where: { id: userId },
-    data: { unsubscribeToken: token },
-  });
-  return token;
-}
 
 export async function POST(
   req: NextRequest,

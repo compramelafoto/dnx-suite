@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { formatMoney } from "@/lib/format";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { cursosRevendidosDe } from "@/lib/course-marketplace/vitrina";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
@@ -34,11 +35,16 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
     orderBy: { updatedAt: "desc" },
   });
 
+  const revendidos = await cursosRevendidosDe(branding.workspaceId);
+  const slugsPropios = new Set(courses.map((c) => c.slug));
+  // El propio gana si coincide el slug: el ajeno no se lista.
+  const ajenos = revendidos.filter((a) => !slugsPropios.has(a.course.slug));
+
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-8 py-12 md:py-16 space-y-8">
       <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">Cursos</h1>
 
-      {courses.length === 0 ? (
+      {courses.length === 0 && ajenos.length === 0 ? (
         <section className="fo-card">
           <p className="text-sm text-[var(--fo-muted)]">Todavía no hay cursos publicados.</p>
         </section>
@@ -65,6 +71,21 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
                 {course.instances[0] ? `Desde ${formatMoney(course.instances[0].priceArs, "ARS")}` : "Sin ediciones activas"}
               </p>
               <Link href={`/w/${workspaceSlug}/cursos/${course.slug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
+                Ver curso
+              </Link>
+            </li>
+          ))}
+          {ajenos.map((a) => (
+            <li key={a.id} className="fo-card space-y-3">
+              {a.course.thumbnailImageUrl || a.course.coverImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.course.thumbnailImageUrl ?? a.course.coverImageUrl ?? ""} alt="" className="h-40 w-full object-cover rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)]" />
+              ) : null}
+              <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">Curso grabado</p>
+              <h2 className="text-lg font-semibold">{a.course.title}</h2>
+              {a.course.shortDescription ? <p className="text-sm text-[var(--fo-muted)] line-clamp-3">{a.course.shortDescription}</p> : null}
+              {a.course.priceArs ? <p className="text-sm text-[var(--fo-muted)]">{formatMoney(a.course.priceArs, "ARS")}</p> : null}
+              <Link href={`/w/${workspaceSlug}/cursos/${a.course.slug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
                 Ver curso
               </Link>
             </li>

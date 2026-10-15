@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
-import { requireActiveWorkspace } from "@/lib/workspace";
+import { requireServiceLeadsContext } from "@/lib/workspace";
 import { updateServiceLeadForm } from "../actions";
 
 type Props = { params: Promise<{ formId: string }> };
@@ -25,21 +25,8 @@ function getNumber(value: unknown, fallback: number): number {
 }
 
 export default async function EditServiceLeadFormPage({ params }: Props) {
-  const { workspace } = await requireActiveWorkspace();
+  const { workspace } = await requireServiceLeadsContext();
   const { formId } = await params;
-
-  if (!workspace) {
-    return (
-      <div className="space-y-10">
-        <PageHeader title="Editar formulario" description="Actualizá los datos básicos del formulario." />
-        <div className="fo-card">
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            No hay workspace activo para este usuario.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const form = await prisma.serviceLeadForm.findFirst({
     where: {

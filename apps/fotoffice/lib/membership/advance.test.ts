@@ -4,6 +4,7 @@ import {
   MAX_ADVANCE_MONTHS,
   advanceAmountMinorFor,
   advanceCandidatePeriods,
+  advanceRoomMonths,
   planAdvancePeriods,
 } from "./advance";
 
@@ -236,5 +237,31 @@ describe("planAdvancePeriods", () => {
         [],
       );
     });
+  });
+});
+
+describe("advanceRoomMonths", () => {
+  it("sin nada adelantado entra el tope completo", () => {
+    expect(advanceRoomMonths("2026-10", "2026-11")).toBe(MAX_ADVANCE_MONTHS);
+  });
+
+  it("lo ya adelantado ocupa lugar en la ventana", () => {
+    // Noviembre a abril ya cargados: el próximo libre es mayo, fuera de la ventana.
+    expect(advanceRoomMonths("2026-10", "2027-05")).toBe(0);
+    // Noviembre y diciembre cargados: quedan enero a abril.
+    expect(advanceRoomMonths("2026-10", "2027-01")).toBe(4);
+  });
+
+  it("pedir varias veces no corre la ventana", () => {
+    // El caso real: tres pedidos seguidos llegaron a noviembre de 2027.
+    expect(advanceRoomMonths("2026-10", "2027-11")).toBe(0);
+  });
+
+  it("sin cargos, el mes corriente también cuenta, pero no pasa del tope", () => {
+    expect(advanceRoomMonths("2026-10", "2026-10")).toBe(MAX_ADVANCE_MONTHS);
+  });
+
+  it("un período mal formado no deja adelantar nada", () => {
+    expect(advanceRoomMonths("2026-10", "octubre")).toBe(0);
   });
 });

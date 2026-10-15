@@ -18,6 +18,10 @@ import {
   resolveClickatonMercadoPagoPublicKey,
 } from "@/lib/checkout/card-brick-enabled";
 import {
+  resolveProductionCardBrickPublicKey,
+  resolveRegistrationPaymentMethod,
+} from "@/lib/affiliates/infrastructure/affiliate-split-checkout";
+import {
   presentParticipantRegistration,
   publicToneToBadgeVariant,
 } from "@/lib/public-ux/status-presentation";
@@ -82,7 +86,17 @@ export default async function PublicRegistrationSummaryPage({
   }
 
   const s = result.data;
-  const cardBrickEnabled = isClickatonCardBrickCheckoutEnabled();
+  // Cobro dividido al afiliado (producción): la inscripción con cupón de un
+  // fotógrafo con permiso ACTIVO paga con tarjeta acá mismo (Orders 1:N). Sin
+  // public key de producción, sigue por Checkout Pro como siempre.
+  const splitPublicKey =
+    s.checkoutEligible && !isClickatonCardBrickCheckoutEnabled()
+      ? (await resolveRegistrationPaymentMethod(s.registrationId)) === "card_brick_split"
+        ? resolveProductionCardBrickPublicKey()
+        : null
+      : null;
+  const affiliateSplitCard = Boolean(splitPublicKey);
+  const cardBrickEnabled = isClickatonCardBrickCheckoutEnabled() || affiliateSplitCard;
   const statusPresentation = presentParticipantRegistration(s.status, s.paymentStatus);
   const hasDiscount = s.discountAmount > 0;
 
@@ -152,19 +166,38 @@ export default async function PublicRegistrationSummaryPage({
             </div>
           </dl>
           <dl className="min-w-0 space-y-3 text-sm">
+            {hasDiscount || s.homeDelivery ? (
+              <div>
+                <dt className="text-ck-text-secondary">Inscripción</dt>
+                <dd>
+                  {formatPublicPrice(
+                    s.subtotalAmount - (s.homeDelivery?.feeAmount ?? 0),
+                    s.currency,
+                  )}
+                </dd>
+              </div>
+            ) : null}
             {hasDiscount ? (
-              <>
-                <div>
-                  <dt className="text-ck-text-secondary">Precio base</dt>
-                  <dd>{formatPublicPrice(s.subtotalAmount, s.currency)}</dd>
-                </div>
-                <div>
-                  <dt className="text-ck-text-secondary">Descuento</dt>
-                  <dd className="text-emerald-400">
-                    − {formatPublicPrice(s.discountAmount, s.currency)}
-                  </dd>
-                </div>
-              </>
+              <div>
+                <dt className="text-ck-text-secondary">Descuento</dt>
+                <dd className="text-emerald-400">
+                  − {formatPublicPrice(s.discountAmount, s.currency)}
+                </dd>
+              </div>
+            ) : null}
+            {s.homeDelivery ? (
+              <div>
+                <dt className="text-ck-text-secondary">Envío del kit a domicilio</dt>
+                <dd>
+                  {formatPublicPrice(s.homeDelivery.feeAmount, s.currency)}
+                  <span className="block text-xs text-ck-text-muted">
+                    A {s.homeDelivery.city}, {s.homeDelivery.province}
+                    {s.homeDelivery.guaranteed
+                      ? ""
+                      : " · sin garantía de llegada antes de la maratón"}
+                  </span>
+                </dd>
+              </div>
             ) : null}
             <div>
               <dt className="text-ck-text-secondary">Total a pagar</dt>
@@ -233,9 +266,11 @@ export default async function PublicRegistrationSummaryPage({
               currency={s.currency}
               expiresLabel={formatHoldExpiry(s.holdExpiresAt)}
               eligible={s.checkoutEligible}
-              testEnvironment={isClickatonDnxCheckoutEnabled()}
+              testEnvironment={affiliateSplitCard ? false : isClickatonDnxCheckoutEnabled()}
               cardBrickEnabled={cardBrickEnabled}
-              mercadoPagoPublicKey={resolveClickatonMercadoPagoPublicKey()}
+              mercadoPagoPublicKey={
+                affiliateSplitCard ? splitPublicKey : resolveClickatonMercadoPagoPublicKey()
+              }
               autoStart={!cardBrickEnabled}
             />
           ) : (

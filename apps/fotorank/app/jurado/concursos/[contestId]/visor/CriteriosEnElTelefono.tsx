@@ -1,0 +1,235 @@
+"use client";
+
+/**
+ * Los criterios en un teléfono: de a uno, deslizables, flotando sobre la foto.
+ *
+ * En una pantalla chica los cuatro criterios en fila dejaban la fotografía
+ * reducida a una franja y los botones del 1 al 10 del ancho de un fósforo. Acá
+ * se ve **un** criterio por vez, apoyado sobre la obra y no debajo de ella, y
+ * se pasa al siguiente arrastrando con el dedo.
+ *
+ * Al pasar el último criterio no se frena: sigue a la fotografía siguiente con
+ * el primer criterio puesto, que es cómo se califica de corrido. El movimiento
+ * lo decide `onMover`, que es el mismo camino del Tab en la computadora.
+ */
+import { useRef, useState } from "react";
+import { BotoneraDeNota } from "./BotoneraDeNota";
+import { textoDeLaNota } from "../../../../lib/fotorank/jury/formaDeLaNota";
+
+import {
+  esGestoHorizontal,
+  haciaDondePasar,
+} from "../../../../lib/fotorank/jury/gestoLateral";
+
+type Criterio = { key: string; nombre: string; min: number; max: number };
+
+type Colores = {
+  fondo: string;
+  panel: string;
+  linea: string;
+  tinta: string;
+  suave: string;
+  chip: string;
+};
+
+export function CriteriosEnElTelefono({
+  criterios,
+  indice,
+  notas,
+  colores,
+  acostado,
+  sePuedeTocar,
+  onElegirNota,
+  onMover,
+  onIrACriterio,
+}: {
+  criterios: Criterio[];
+  indice: number;
+  notas: Record<string, number>;
+  colores: Colores;
+  /** El teléfono está acostado: la tarjeta va en columna, a un costado. */
+  acostado: boolean;
+  sePuedeTocar: boolean;
+  onElegirNota: (valor: number, indice: number) => void;
+  onMover: (paso: 1 | -1) => void;
+  onIrACriterio: (indice: number) => void;
+}) {
+  const [arrastre, setArrastre] = useState(0);
+  const gesto = useRef<{
+    x: number;
+    y: number;
+    t: number;
+    suyo: boolean;
+  } | null>(null);
+
+  /*
+   * El gesto no sube a la fotografía.
+   *
+   * Sobre la foto el mismo arrastre cambia de obra. Si dejáramos que el toque
+   * burbujee, deslizar sobre los criterios pasaría de criterio **y** de foto a
+   * la vez.
+   */
+  function alEmpezar(e: React.TouchEvent) {
+    e.stopPropagation();
+    const t = e.touches[0];
+    if (!t) return;
+    gesto.current = { x: t.clientX, y: t.clientY, t: Date.now(), suyo: false };
+  }
+
+  function alMover(e: React.TouchEvent) {
+    e.stopPropagation();
+    const g = gesto.current;
+    const t = e.touches[0];
+    if (!g || !t) return;
+    const dx = t.clientX - g.x;
+    const dy = t.clientY - g.y;
+    if (!g.suyo) {
+      const horizontal = esGestoHorizontal(dx, dy);
+      if (horizontal === null) return;
+      if (!horizontal) {
+        gesto.current = null;
+        return;
+      }
+      g.suyo = true;
+    }
+    setArrastre(dx);
+  }
+
+  function alSoltar(e: React.TouchEvent) {
+    e.stopPropagation();
+    const g = gesto.current;
+    gesto.current = null;
+    if (!g?.suyo) {
+      setArrastre(0);
+      return;
+    }
+    const recorrido = arrastre;
+    const milisegundos = Date.now() - g.t;
+    setArrastre(0);
+    const paso = haciaDondePasar({ dx: recorrido, milisegundos });
+    if (paso) onMover(paso);
+  }
+
+  const arrastrando = arrastre !== 0;
+  const corrimiento = `calc(${-indice * 100}% + ${arrastre}px)`;
+
+  return (
+    <div
+      className={`pointer-events-auto flex select-none overflow-hidden ${
+        acostado ? "h-full flex-col" : "flex-col"
+      }`}
+      style={{
+        background: colores.panel,
+        [acostado ? "borderLeft" : "borderTop"]: `1px solid ${colores.linea}`,
+        touchAction: "pan-y",
+      }}
+      onTouchStart={alEmpezar}
+      onTouchMove={alMover}
+      onTouchEnd={alSoltar}
+      onTouchCancel={alSoltar}
+    >
+      <div
+        className={`flex ${acostado ? "min-h-0 flex-1" : ""}`}
+        style={{
+          transform: `translate3d(${corrimiento}, 0, 0)`,
+          // Mientras el dedo está apoyado la tarjeta sigue la mano sin retardo;
+          // al soltar, se acomoda sola.
+          transition: arrastrando
+            ? "none"
+            : "transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1)",
+        }}
+      >
+        {criterios.map((c, i) => {
+          const puesta = notas[c.key];
+          return (
+            <div
+              key={c.key}
+              className={`w-full shrink-0 ${acostado ? "flex flex-col px-3 py-2" : "px-4 pb-3 pt-2.5"}`}
+            >
+              {/*
+               * Acostado la franja mide 72 píxeles y el nombre del criterio no
+               * entra escrito de frente. Va el número de criterio y la nota,
+               * que es lo mínimo para saber en cuál está uno y qué puso.
+               */}
+              {acostado ? (
+                <div className="flex items-center justify-between gap-1 px-0.5">
+                  <span className="font-mono text-[9px] opacity-60">
+                    {i + 1}/{criterios.length}
+                  </span>
+                  <span
+                    className="font-mono text-base font-semibold tabular-nums"
+                    style={{
+                      color:
+                        typeof puesta === "number" ? "#e0a061" : colores.suave,
+                    }}
+                  >
+                    {typeof puesta === "number"
+                      ? textoDeLaNota(c, puesta)
+                      : "–"}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-semibold">{c.nombre}</span>
+                  <span
+                    className="font-mono text-lg font-semibold tabular-nums"
+                    style={{
+                      color:
+                        typeof puesta === "number" ? "#e0a061" : colores.suave,
+                    }}
+                  >
+                    {typeof puesta === "number"
+                      ? textoDeLaNota(c, puesta)
+                      : "–"}
+                  </span>
+                </div>
+              )}
+              <div className={acostado ? "mt-1 flex min-h-0 flex-1" : "mt-2"}>
+                <BotoneraDeNota
+                  criterio={c}
+                  puesta={puesta}
+                  habilitado={sePuedeTocar}
+                  onElegir={(valor) => onElegirNota(valor, i)}
+                  colores={colores}
+                  alto="h-11"
+                  acostado={acostado}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* En qué criterio está, y cuántos faltan para pasar de foto. */}
+      <div
+        className={`flex shrink-0 items-center justify-center gap-1.5 ${acostado ? "pb-1.5" : "pb-2"}`}
+        aria-hidden="true"
+      >
+        {criterios.map((c, i) => (
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => onIrACriterio(i)}
+            aria-label={`Ir a ${c.nombre}`}
+            className="h-4 px-0.5"
+          >
+            <span
+              className="block h-1 transition-all duration-300"
+              style={{
+                width: i === indice ? 18 : 6,
+                background:
+                  typeof notas[c.key] === "number"
+                    ? "#e0a061"
+                    : i === indice
+                      ? colores.tinta
+                      : colores.linea,
+                opacity:
+                  i === indice || typeof notas[c.key] === "number" ? 1 : 0.6,
+              }}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

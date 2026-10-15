@@ -14,6 +14,7 @@ export type NextStepInput = {
   maxFiles: number;
   entryStatus?: string | null;
   manualReviewStatus?: string | null;
+  admissionStatus?: string | null;
   publicRejectionReason?: string | null;
   upload: UploadWindowView;
   timezone?: string | null;
@@ -88,12 +89,13 @@ export function resolveNextStepBlock(input: NextStepInput): NextStepBlock {
     };
   }
 
-  if (input.entryStatus === "REJECTED") {
+  if (input.entryStatus === "REJECTED" || input.admissionStatus === "REJECTED") {
+    const reason = input.publicRejectionReason?.trim();
     return {
       title: "Tu obra no fue admitida",
-      message:
-        input.publicRejectionReason?.trim() ||
-        "Consultá el detalle y las bases. No se muestran notas internas del organizador.",
+      message: input.upload.isOpen
+        ? `${reason ? `${reason} ` : ""}Podés volver a cargar tu fotografía mientras la carga esté abierta.`
+        : reason || "Consultá el detalle y las bases. No se muestran notas internas del organizador.",
       tone: "danger",
       facts: [{ label: "Categoría", value: input.categoryName }],
     };

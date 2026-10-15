@@ -11,6 +11,7 @@ const {
   membershipCountMock,
   legacyCountMock,
   memberFindFirstMock,
+  tieneCursosMock,
 } = vi.hoisted(() => ({
   userFindUniqueMock: vi.fn(),
   workspaceMembershipFindManyMock: vi.fn(),
@@ -22,8 +23,14 @@ const {
   membershipCountMock: vi.fn(async () => 0),
   legacyCountMock: vi.fn(async () => 0),
   memberFindFirstMock: vi.fn(async () => null),
+  tieneCursosMock: vi.fn(async () => false),
 }));
 
+vi.mock("@/lib/course-classroom/alumno", () => ({ tieneCursos: tieneCursosMock }));
+
+vi.mock("@/lib/commission/team-membership", () => ({
+  syncPendingTeamMemberships: vi.fn().mockResolvedValue(0),
+}));
 vi.mock("@/lib/portal/profile-choice", () => ({
   readProfileChoice: vi.fn(async () => null),
 }));
@@ -36,6 +43,9 @@ vi.mock("@/lib/portal/profiles", async () => {
 vi.mock("@/lib/portal/claim", () => ({ findClaimableMembership: async () => null }));
 vi.mock("@/lib/members/invitation-continuity-resolve", () => ({
   resolveInvitationContinuityPath: vi.fn(async () => null),
+}));
+vi.mock("@/lib/team/continuity", () => ({
+  resolveTeamInvitationContinuityPath: vi.fn(async () => null),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -59,6 +69,8 @@ vi.mock("@repo/db", () => ({
 }));
 
 const { resolveFotofficePostLoginDestination } = await import("./post-login");
+const memberContinuity = await import("@/lib/members/invitation-continuity-resolve");
+const teamContinuity = await import("@/lib/team/continuity");
 
 function resetMocks() {
   userFindUniqueMock.mockReset();
@@ -68,6 +80,7 @@ function resetMocks() {
   workspaceCreateMock.mockReset();
   brandingFindUniqueMock.mockReset();
   brandingCreateMock.mockReset();
+  tieneCursosMock.mockReset().mockResolvedValue(false);
 }
 
 describe("resolveFotofficePostLoginDestination — A: post-login apunta al shell correcto", () => {
@@ -191,5 +204,60 @@ describe("resolveFotofficePostLoginDestination — B: resolución de workspace a
 
     expect(workspaceCreateMock).not.toHaveBeenCalled();
     expect(dest).toEqual({ path: "/bienvenida", workspaceId: null });
+  });
+});
+
+describe("resolveFotofficePostLoginDestination — continuidad de invitación al equipo", () => {
+  beforeEach(() => {
+    resetMocks();
+    userFindUniqueMock.mockResolvedValue({
+      id: 7,
+      email: "ana@example.com",
+      name: "Ana",
+      role: "PHOTOGRAPHER",
+      globalRole: "USER",
+    });
+    vi.mocked(memberContinuity.resolveInvitationContinuityPath).mockReset().mockResolvedValue(null);
+    vi.mocked(teamContinuity.resolveTeamInvitationContinuityPath).mockReset().mockResolvedValue(null);
+  });
+
+  it("con cookie de equipo válida y sin `next`, vuelve a la invitación del equipo", async () => {
+    vi.mocked(teamContinuity.resolveTeamInvitationContinuityPath).mockResolvedValue(
+      "/invitacion/equipo/tok",
+    );
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest).toEqual({ path: "/invitacion/equipo/tok", workspaceId: null });
+    expect(teamContinuity.resolveTeamInvitationContinuityPath).toHaveBeenCalledWith("ana@example.com");
+    expect(workspaceCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("si existen las dos continuidades, la de socios tiene prioridad", async () => {
+    vi.mocked(memberContinuity.resolveInvitationContinuityPath).mockResolvedValue("/invitacion/socio-tok");
+    vi.mocked(teamContinuity.resolveTeamInvitationContinuityPath).mockResolvedValue(
+      "/invitacion/equipo/tok",
+    );
+    const dest = await resolveFotofficePostLoginDestination({ userId: 7 });
+    expect(dest.path).toBe("/invitacion/socio-tok");
+    expect(teamContinuity.resolveTeamInvitationContinuityPath).not.toHaveBeenCalled();
+  });
+
+  it("un `next` de invitación de equipo explícito se respeta", async () => {
+    const dest = await resolveFotofficePostLoginDestination({
+      userId: 7,
+      next: "/invitacion/equipo/tok",
+    });
+    expect(dest.path).toBe("/invitacion/equipo/tok");
+  });
+});
+
+describe("resolveFotofficePostLoginDestination — alumno", () => {
+  beforeEach(resetMocks);
+
+  it("quien sólo tiene cursos va a Mis cursos, no a la bienvenida", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({ id: 3, email: "ana@example.com", name: "Ana", role: "CUSTOMER", globalRole: "USER" });
+    workspaceMembershipFindManyMock.mockResolvedValue([]);
+    tieneCursosMock.mockResolvedValue(true);
+    const dest = await resolveFotofficePostLoginDestination({ userId: 3 });
+    expect(dest).toEqual({ path: "/portal/cursos", workspaceId: null });
   });
 });

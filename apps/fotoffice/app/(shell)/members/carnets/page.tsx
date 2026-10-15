@@ -17,6 +17,8 @@ import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { CardsTable, type CardRowView, type TimelineEntry } from "./cards-table";
 import { IssueButton } from "./issue-button";
+import { PrepaidSection } from "./prepaid-section";
+import { loadPrepaidUnissuedCards } from "@/lib/carnet/prepaid-unissued";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +69,11 @@ export default async function CarnetsPage({
   const params = await searchParams;
   const grupo = params.grupo ? groupStates(params.grupo) : null;
 
-  const [board, v] = await Promise.all([
+  const administra = capabilities.includes("ADMINISTRAR");
+  const [board, v, pagadasSinEmitir] = await Promise.all([
     loadCardBoard(workspace.id, grupo ? { states: grupo } : {}),
     loadPersonVocabulary(workspace.id),
+    administra ? loadPrepaidUnissuedCards(workspace.id) : Promise.resolve([]),
   ]);
   const ahora = new Date();
 
@@ -110,6 +114,8 @@ export default async function CarnetsPage({
           <IssueButton />
         </div>
       ) : null}
+
+      {administra ? <PrepaidSection rows={pagadasSinEmitir} /> : null}
 
       <nav className="flex flex-wrap gap-1.5">
         <Link

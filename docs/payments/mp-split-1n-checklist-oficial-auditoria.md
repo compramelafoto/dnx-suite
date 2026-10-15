@@ -23,7 +23,8 @@ identificada.
 | ✅ Ya cumplido | La totalidad de los requisitos `API` mandatorios | §2 |
 | ✅ Implementado el 2026-09-03 | 4 puntos | §3 |
 | 🟡 Recomendado sin implementar | 2 | §3 |
-| 🔴 Bloqueante real | 2 | §4 |
+| 🔴 Bloqueante real | **0** — MP aclaró el 2026-09-15 que todo se revisa en test | §4 |
+| ✅ Primer pago aprobado end-to-end | 2026-09-17 · `PROCESSED_ACCREDITED` con 3 receptores | §8 |
 | ❓ MP nos pregunta | 1 | §5 |
 
 ---
@@ -87,28 +88,40 @@ sin ese objeto el payload es idéntico al de antes.
 
 ## 4. Los tres bloqueantes
 
-### 4.1 🔴 Order ID productivo con `live_mode: true`
+> ## ⚠️ ACLARACIÓN DE MP (2026-09-15) — esta sección quedó desactualizada
+>
+> Marilyn aclaró cómo funciona realmente el proceso, y **desarma el bloqueo que describíamos acá**:
+>
+> - **Las revisiones se hacen en ambiente de test, con órdenes de prueba.** Ahí se alinea el
+>   desarrollo con el checklist y se resuelve cualquier situación.
+> - **El video de la experiencia de pago también se evalúa en el entorno de test.**
+> - **El Order ID productivo es sólo el registro final**, para revalidar que lo trabajado en
+>   test quedó efectivamente disponible en producción.
+>
+> O sea: **todo el trabajo de homologación es en sandbox y no cuesta dinero.** La orden
+> productiva es la última formalidad, no un requisito previo. Lo de abajo se conserva como
+> registro de lo que creíamos.
+
+### 4.1 ~~🔴~~ ✅ Order ID productivo con `live_mode: true`
 
 El checklist lo exige como evidencia: *"Compartir al menos un Order ID real (`live_mode: true`)
 para el cierre de homologación"*.
 
-**Choca de frente con nuestro estado actual:** `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` está en
-`false` y todo el diseño es fail-closed. Cerrar la homologación exige **una ventana controlada
-de producción con dinero real**, con un pagador distinto del collector.
+**Ya no es un bloqueante.** Según la aclaración de arriba, es el paso final de registro: se hace
+**después** de que MP haya revisado y aprobado todo en test. Sigue requiriendo una ventana
+controlada con dinero real y un pagador distinto del collector, y **nada de eso se ejecuta sin
+autorización expresa** — pero llega al final del camino, no al principio.
 
-Es una decisión de negocio, no técnica: hay que elegir qué producto, qué monto y qué receptores
-se usan para esa orden, y cómo se revierte. **Nada de esto se ejecuta sin autorización expresa.**
-
-### 4.2 🔴 Video del flujo de pago aprobado
+### 4.2 ~~🔴~~ ✅ Video del flujo de pago aprobado
 
 Video **continuo y sin cortes**, desde la perspectiva del comprador: selección del producto →
 checkout con Card Payment Brick → carga de datos de la tarjeta → confirmación → **retorno al
 comercio** con el mensaje de resultado final. Debe verse que la orden queda en
 `processed / accredited`.
 
-Hoy la superficie de homologación vive en `/admin/homologacion-mp-split-1n` de Comprame la Foto,
-que es **administrativa**. Para grabar "desde la perspectiva del comprador" hace falta un
-recorrido que se vea como una compra real, incluido el retorno al comercio.
+**Se graba en el entorno de test**, confirmado por MP. La ruta `/homologacion/compra`
+(construida el 2026-09-03) ya provee ese recorrido, y funciona sólo en preview: el guard bloquea
+la superficie cuando `VERCEL_ENV=production`. Encaja exactamente con lo que pide el proceso.
 
 ### 4.3 ✅ El endpoint receptor del webhook — RESUELTO 2026-09-03
 
@@ -154,7 +167,55 @@ ruteo interno por el `external_reference` leído del `GET` de la Order.
 
 ---
 
-## 8. Trabajo realizado el 2026-09-03
+## 8. Primer pago aprobado desde el navegador (2026-09-17)
+
+**El recorrido completo funcionó de punta a punta por primera vez.** Hasta acá las pruebas
+creaban el token desde el backend; el Card Payment Brick nunca se había completado desde un
+navegador real.
+
+### La evidencia
+
+```
+ORDER_CREATED:   true
+ORDER_STATUS:    "PROCESSED_ACCREDITED"
+RECEIVER_COUNT:  3
+SPLIT_SUM_VALID: true
+GET_RECONCILED:  true
+providerOrderIdPrefix: "ORDTST01M2R3…"
+```
+
+Escenario `OWNER_PLUS_2`: owner + 2 partners, ARS 150,00, 1 cuota, tarjeta TEST de Mercado Pago
+con titular `APRO`. Cubre la evidencia **"Split con múltiples partners"** del checklist.
+
+Cuenta usada: `TESTUSER313600323196489184`, con la etiqueta `test_user` — verificado contra
+`GET /users/me` **antes** de pagar. No hubo dinero real en juego.
+
+### Por qué antes fallaba
+
+Los primeros intentos morían con `The following transactions failed (high_risk)`. La causa no
+era la tarjeta: **la Order le mandaba a Mercado Pago un pagador con el email y nada más.**
+
+El Card Payment Brick pide nombre y documento del titular, pero esos datos morían en el
+navegador: la acción del servidor sólo reenviaba el token de la tarjeta, el método de pago y las
+cuotas. Un pagador tan pobre en señales es exactamente lo que dispara el rechazo por riesgo.
+
+La corrección conecta la identificación de punta a punta —Brick → server action → Order— usando
+el `payerProfile` que ya existía en `@repo/payments` desde el 2026-09-03 pero que ningún
+consumidor usaba. El log lo confirma: `hasIdentification: true`.
+
+Es además uno de los puntos que el checklist marca como **Recomendado** en "Datos del pagador"
+(§3): la corrección cierra un requisito y desbloquea el pago a la vez.
+
+### Cómo se reproduce
+
+El entorno vive **fuera de Vercel**: los previews están protegidos con login y una rama sin
+cambios ni siquiera se construye. Se levanta `next dev` con las variables de Preview bajadas por
+`vercel env pull`, apuntando a un Postgres local con el esquema aplicado. La superficie exige rol
+ADMIN, así que hace falta sembrar un usuario administrador en esa base local.
+
+---
+
+## 9. Trabajo realizado el 2026-09-03
 
 Todo lo que no dependía de Mercado Pago.
 

@@ -1,0 +1,56 @@
+{
+  "proyecto": "Centro de Transmisión",
+  "plataforma": "Clickatón",
+  "spec": "docs/superpowers/specs/2026-09-21-clickaton-centro-de-transmision-design.md",
+  "enUso": "parcial",
+  "usoNota": "Etapas 0 y 1 en producción: 5 de las 12 inscripciones posteriores al 22/09 dieron su consentimiento de ubicación, y nadie usó todavía «Preparate». El mapa y la transmisión en vivo no están construidos",
+  "etapas": [
+    {
+      "nombre": "0 — Los consentimientos de ubicación",
+      "criterios": [
+        {
+          "que": "Al inscribirse se dan o no, por separado, los tres consentimientos: resumen personal, mapa público y entrevista",
+          "implementado": { "pr": 221, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "De las 12 inscripciones reales creadas desde el 22/09 13:11 UTC, 5 dieron el consentimiento personal, 5 el del mapa público y 4 el de entrevista: no todas marcan todo"
+          }
+        },
+        {
+          "que": "Quien se inscribió antes los da o los revoca desde Mi cuenta",
+          "implementado": { "pr": 221, "fecha": "2026-09-22" },
+          "probado": null,
+          "bloqueado": "0 inscripciones anteriores al 22/09 tienen consentimiento: nadie lo dio desde Mi cuenta"
+        }
+      ]
+    },
+    {
+      "nombre": "1 — Preparate para la Clickatón",
+      "criterios": [
+        {
+          "que": "El participante prueba una foto de su teléfono y sabe si guarda la ubicación y si el reloj está en hora",
+          "implementado": { "pr": 231, "fecha": "2026-09-22" },
+          "probado": null,
+          "bloqueado": "0 filas en ClickatonReadinessCheck"
+        },
+        {
+          "que": "La organización ve cuántos inscriptos ya se prepararon",
+          "implementado": { "pr": 231, "fecha": "2026-09-22" },
+          "probado": null,
+          "bloqueado": "Sin ningún chequeo hecho, el número es cero"
+        }
+      ]
+    },
+    {
+      "nombre": "Lo que falta del diseño",
+      "criterios": [
+        {
+          "que": "El recorrido de cada participante se ve en el mapa público y en la transmisión en vivo del día del evento",
+          "implementado": null,
+          "probado": null,
+          "bloqueado": "Las etapas siguientes del diseño (mapa, resumen personal y gráficas para el streaming) no están construidas"
+        }
+      ]
+    }
+  ]
+}

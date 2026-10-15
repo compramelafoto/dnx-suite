@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button, FormField, FormSection, spacing, useResolvedTheme } from "@repo/design-system";
-import { datetimeLocalBase, inputBase, selectBase } from "../../../components/ui/form";
-import {
-  createJudgeAssignmentsBatch,
-  type JudgeMethodType,
-} from "../../../actions/judges";
+import { datetimeLocalBase, selectBase } from "../../../components/ui/form";
+import { createJudgeAssignmentsBatch } from "../../../actions/judges";
 import { mensajeDeAsignacion } from "../../../lib/fotorank/judges/mensajeDeAsignacion";
 
 interface AssignmentsPageClientProps {
@@ -56,8 +53,6 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
     setError(null);
     setOk(null);
 
-    const methodType = String(fd.get("methodType") ?? "SCORE_1_10") as JudgeMethodType;
-    const quota = Number(fd.get("quota") ?? 0);
 
     if (!allCategoriesMode && selectedCategoryIds.size === 0) {
       setSaving(false);
@@ -73,11 +68,17 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
       assignmentType: String(fd.get("assignmentType") ?? "PRIMARY") as "PRIMARY" | "BACKUP",
       evaluationStartsAt: String(fd.get("evaluationStartsAt") ?? "") || undefined,
       evaluationEndsAt: String(fd.get("evaluationEndsAt") ?? "") || undefined,
-      methodType,
-      methodConfigJson: methodType === "SELECTION_WITH_QUOTA" ? { quota: Math.max(1, quota || 1) } : {},
+      // Un solo método: la rúbrica del concurso. El puntaje único por
+      // asignación (1 a 5, 1 a 10, favoritas…) se quitó el 2026-09-24.
+      methodType: "CRITERIA_BASED",
+      methodConfigJson: {},
       allowVoteEdit: fd.get("allowVoteEdit") === "on",
       commentsVisibleToParticipants: fd.get("commentsVisibleToParticipants") === "on",
-      sendInvitationNow: fd.get("sendInvitationNow") === "on",
+      // La casilla "Enviar invitación ahora" no mandaba nada y dejaba la
+      // asignación trabada: el jurado no podía entrar y no había pantalla para
+      // aceptarla. Se quitó el 2026-09-25; asignar a quien ya trabaja con la
+      // organización no necesita invitación.
+      sendInvitationNow: false,
     });
 
     setSaving(false);
@@ -183,20 +184,6 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
             <option value="BACKUP">Suplente</option>
           </select>
         </FormField>
-        <FormField label="Método de calificación" htmlFor="as-method" required>
-          <select id="as-method" name="methodType" className={selectBase}>
-            <option value="SCORE_1_5">1 a 5</option>
-            <option value="SCORE_1_10">1 a 10</option>
-            <option value="SCORE_0_100">0 a 100</option>
-            <option value="YES_NO">Sí / No</option>
-            <option value="FAVORITES_SELECTION">Favoritas</option>
-            <option value="SELECTION_WITH_QUOTA">Selección con cupo</option>
-            <option value="CRITERIA_BASED">Criterios múltiples</option>
-          </select>
-        </FormField>
-        <FormField label="Cupo (si aplica)">
-          <input name="quota" type="number" min={1} defaultValue={1} className={inputBase} />
-        </FormField>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
           <FormField
             label="Inicio de evaluación"
@@ -218,9 +205,6 @@ export function AssignmentsPageClient({ judges, contests }: AssignmentsPageClien
         </label>
         <label style={checkboxRowStyle}>
           <input type="checkbox" name="commentsVisibleToParticipants" /> Comentarios visibles a participantes
-        </label>
-        <label style={checkboxRowStyle}>
-          <input type="checkbox" name="sendInvitationNow" /> Enviar invitación ahora
         </label>
       </FormSection>
       <Button type="submit" disabled={saving || !contestId || !selectedContest?.categories.length}>

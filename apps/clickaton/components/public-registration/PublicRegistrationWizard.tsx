@@ -43,6 +43,13 @@ import { marathonPath } from "@/config/navigation";
 import { CLICKATON_TERMS_VERSION } from "@/config/editions/argentina-2026";
 import { resolveShirtBenefitUiStatus } from "@/lib/catalog/domain/first-n-benefit";
 import { formatMarathonDateRange } from "@/lib/datetime";
+import { LocationConsentCheckboxes } from "@/components/participant/LocationConsentCheckboxes";
+import {
+  EMPTY_HOME_DELIVERY_VALUES,
+  RegistrationHomeDelivery,
+  type HomeDeliveryFieldKey,
+} from "@/components/public-registration/experience/RegistrationHomeDelivery";
+import { isInExcludedCity, parseHomeDeliveryAddress } from "@/lib/home-delivery/domain";
 
 type AppliedPromoQuote = Extract<PreviewPromotionActionResult, { ok: true }>["quote"];
 
@@ -147,7 +154,11 @@ export function PublicRegistrationWizard({
   const [documentNumber, setDocumentNumber] = useState("");
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [locationConsent, setLocationConsent] = useState(false);
+  const [locationPublicConsent, setLocationPublicConsent] = useState(false);
+  const [interviewConsent, setInterviewConsent] = useState(false);
   const [instagramHandle, setInstagramHandle] = useState("");
   const [profilePhotoAssetId, setProfilePhotoAssetId] = useState("");
   const [profilePhotoFileName, setProfilePhotoFileName] = useState("");
@@ -157,6 +168,8 @@ export function PublicRegistrationWizard({
   const [appliedPromo, setAppliedPromo] = useState<AppliedPromoQuote | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoPending, setPromoPending] = useState(false);
+  const [homeDelivery, setHomeDelivery] = useState(false);
+  const [deliveryValues, setDeliveryValues] = useState(EMPTY_HOME_DELIVERY_VALUES);
 
   const ticketsForVenue = useMemo(() => {
     return context.tickets.filter((t) => {
@@ -242,15 +255,74 @@ export function PublicRegistrationWizard({
     };
   }, [selectedTicket, usePassCredit, context.currentPricePhase]);
 
+  /**
+   * Beneficio por amigos invitados que ya se sumaron. NO se suma al cupón: se
+   * muestra el mayor de los dos, igual que decide el servidor al crear la
+   * inscripción.
+   *
+   * En el código el contador se llama `colegas` por razones históricas; de
+   * cara al participante son "amigos".
+   */
+  const referralPreview = useMemo(() => {
+    const benefit = context.referralBenefit;
+    if (!benefit || benefit.descuento <= 0) return null;
+    if (!baseCharge || baseCharge.amount <= 0 || usePassCredit) return null;
+
+    const descuento = Math.round((baseCharge.amount * benefit.descuento) / 100);
+    const descuentoCupon = appliedPromo
+      ? baseCharge.amount - appliedPromo.finalAmount
+      : 0;
+
+    return {
+      colegas: benefit.colegas,
+      porcentaje: benefit.descuento,
+      finalAmount: baseCharge.amount - descuento,
+      // Empate → gana el cupón, y así los colegas quedan para la próxima.
+      gana: descuento > descuentoCupon,
+    };
+  }, [context.referralBenefit, baseCharge, appliedPromo, usePassCredit]);
+
   const displayCharge = useMemo(() => {
     if (!baseCharge) return null;
-    if (!appliedPromo || usePassCredit) return baseCharge;
+    if (usePassCredit) return baseCharge;
+    if (referralPreview?.gana) {
+      return {
+        amount: referralPreview.finalAmount,
+        currency: baseCharge.currency,
+        label:
+          referralPreview.colegas === 1
+            ? "Invitaste a 1 amigo"
+            : `Invitaste a ${referralPreview.colegas} amigos`,
+      };
+    }
+    if (!appliedPromo) return baseCharge;
     return {
       amount: appliedPromo.finalAmount,
       currency: appliedPromo.currency || baseCharge.currency,
       label: appliedPromo.name || baseCharge.label,
     };
-  }, [baseCharge, appliedPromo, usePassCredit]);
+  }, [baseCharge, appliedPromo, usePassCredit, referralPreview]);
+
+  // El envío no se combina con el canje de crédito del Pack (se coordina aparte).
+  const homeDeliveryOffer = usePassCredit ? null : context.homeDelivery;
+  const shippingFee = homeDelivery && homeDeliveryOffer ? homeDeliveryOffer.feeAmount : 0;
+  const totalCharge = displayCharge
+    ? { ...displayCharge, amount: displayCharge.amount + shippingFee }
+    : null;
+
+  function toggleHomeDelivery(on: boolean) {
+    setHomeDelivery(on);
+    if (!on) return;
+    // Se completa con lo que ya cargó; lo puede cambiar.
+    setDeliveryValues((prev) => ({
+      ...prev,
+      recipientName: prev.recipientName || `${firstName} ${lastName}`.trim(),
+      documentNumber: prev.documentNumber || documentNumber,
+      phone: prev.phone || phone,
+      city: prev.city || city,
+      province: prev.province || province,
+    }));
+  }
 
   const canUsePromo = Boolean(
     selectedTicket && !usePassCredit && baseCharge && baseCharge.amount > 0,
@@ -368,7 +440,25 @@ export function PublicRegistrationWizard({
       }
       if (!acceptTerms) errs.acceptTerms = "Obligatorio.";
       if (!instagramHandle.trim()) errs.instagramHandle = "Instagram requerido.";
+      {
+        const anio = Number(birthDate.slice(0, 4));
+        const hoy = new Date().getFullYear();
+        if (!birthDate) errs.birthDate = "Fecha de nacimiento requerida.";
+        else if (!(anio >= hoy - 110 && anio <= hoy - 5)) errs.birthDate = "Revisá la fecha de nacimiento.";
+      }
       if (!profilePhotoAssetId) errs.profilePhotoAssetId = "Subí una foto de perfil.";
+      if (homeDelivery && homeDeliveryOffer) {
+        const parsed = parseHomeDeliveryAddress(deliveryValues);
+        if (!parsed.ok) Object.assign(errs, parsed.errors);
+        else if (
+          isInExcludedCity(parsed.address, {
+            excludedCity: homeDeliveryOffer.excludedCity,
+            excludedProvince: null,
+          })
+        ) {
+          errs["delivery.city"] = `El envío es para quienes viven fuera de ${homeDeliveryOffer.excludedCity}. Ahí el kit se retira en la sede.`;
+        }
+      }
       if (selectedTicket) {
         for (const p of selectedTicket.products) {
           if (p.requiresVariantChoice && !variantChoices[p.productId]) {
@@ -381,7 +471,9 @@ export function PublicRegistrationWizard({
         setError(
           errs[`variant_${shirtProducts[0]?.productId ?? ""}`]
             ? "Elegí el talle de la remera para continuar."
-            : "Completá los datos obligatorios y aceptá las bases y condiciones.",
+            : Object.keys(errs).some((k) => k.startsWith("delivery."))
+              ? "Revisá los datos del envío a domicilio."
+              : "Completá los datos obligatorios y aceptá las bases y condiciones.",
         );
         return;
       }
@@ -498,6 +590,7 @@ export function PublicRegistrationWizard({
     fd.set("city", city);
     fd.set("province", province);
     fd.set("country", "AR");
+    if (birthDate) fd.set("birthDate", birthDate);
     if (acceptTerms) {
       fd.set("acceptTerms", "true");
       fd.set("acceptPrivacy", "true");
@@ -507,11 +600,27 @@ export function PublicRegistrationWizard({
       fd.set("identifiablePersonsConsent", "true");
       fd.set("promotionalLicenseConsent", "true");
     }
+    // Consentimientos de ubicación: opt-in propio y separado de las bases,
+    // por eso van fuera del if de arriba.
+    if (locationConsent) fd.set("locationConsent", "true");
+    if (locationPublicConsent) {
+      fd.set("locationPublicConsent", "true");
+      // La declaración de mayoría de edad viaja con el mapa público porque
+      // su texto (locationConsentCopy.publicMap) ya la incluye.
+      fd.set("locationDeclaredAdult", "true");
+    }
+    if (interviewConsent) fd.set("interviewConsent", "true");
     fd.set("instagramHandle", instagramHandle);
     fd.set("profilePhotoAssetId", profilePhotoAssetId);
     fd.set("consentVersion", "2026-08-social-v1");
     fd.set("termsVersion", CLICKATON_TERMS_VERSION);
     fd.set("idempotencyKey", idemRef.current || idemKey);
+    if (homeDelivery && homeDeliveryOffer) {
+      fd.set("homeDelivery", "true");
+      for (const [key, value] of Object.entries(deliveryValues)) {
+        fd.set(`delivery.${key}`, value);
+      }
+    }
 
     startTransition(async () => {
       const result = await createPublicRegistrationAction(undefined, fd);
@@ -597,6 +706,12 @@ export function PublicRegistrationWizard({
     if (selectedTicket.isMarathonPack) {
       return { compareAt: null, savings: null };
     }
+    if (referralPreview?.gana) {
+      return {
+        compareAt: context.highestPricePhase?.amount ?? baseCharge?.amount ?? null,
+        savings: null,
+      };
+    }
     return resolveRegistrationCompareAt({
       currentAmount: context.currentPricePhase?.amount,
       highestAmount: context.highestPricePhase?.amount,
@@ -605,9 +720,27 @@ export function PublicRegistrationWizard({
     usePassCredit,
     selectedTicket,
     appliedPromo,
+    referralPreview,
+    baseCharge,
     context.currentPricePhase?.amount,
     context.highestPricePhase?.amount,
   ]);
+
+  /**
+   * Ahorro real contra el precio que se muestra.
+   *
+   * El ahorro de la fase ("antes $45.000, ahora $30.000") se queda corto en
+   * cuanto hay un cupón o un beneficio por referidos encima: el precio bajaba
+   * y el cartel seguía anunciando el ahorro viejo.
+   */
+  const stickySavings = useMemo(() => {
+    const compareAt = entryPromo.compareAt;
+    const final = displayCharge?.amount;
+    if (compareAt == null || final == null || compareAt <= final) {
+      return entryPromo.savings;
+    }
+    return compareAt - final;
+  }, [entryPromo.compareAt, entryPromo.savings, displayCharge?.amount]);
 
   const promoFieldProps = canUsePromo
     ? {
@@ -865,7 +998,28 @@ export function PublicRegistrationWizard({
                 value={province}
                 onChange={setProvince}
               />
+              <Field
+                id="birthDate"
+                label="Fecha de nacimiento *"
+                type="date"
+                value={birthDate}
+                onChange={setBirthDate}
+                error={fieldErrors.birthDate}
+              />
             </div>
+            {homeDeliveryOffer ? (
+              <RegistrationHomeDelivery
+                offer={homeDeliveryOffer}
+                enabled={homeDelivery}
+                onEnabledChange={toggleHomeDelivery}
+                values={deliveryValues}
+                onChange={(key: HomeDeliveryFieldKey, v: string) =>
+                  setDeliveryValues((prev) => ({ ...prev, [key]: v }))
+                }
+                errors={fieldErrors}
+                currency={displayCharge?.currency ?? "ARS"}
+              />
+            ) : null}
             <div className="block text-sm">
               <span className="font-medium text-ck-text">Foto de perfil *</span>
               <input
@@ -939,6 +1093,24 @@ export function PublicRegistrationWizard({
                 </p>
               ) : null}
             </div>
+            <div className="space-y-3 rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4">
+              <p className="text-sm font-semibold">Tu recorrido y la transmisión en vivo</p>
+              <p className="text-sm text-ck-text-secondary">
+                Son opcionales y no afectan tu inscripción.
+              </p>
+              <LocationConsentCheckboxes
+                values={{
+                  personal: locationConsent,
+                  publicMap: locationPublicConsent,
+                  interview: interviewConsent,
+                }}
+                onChange={(next) => {
+                  setLocationConsent(next.personal);
+                  setLocationPublicConsent(next.publicMap);
+                  setInterviewConsent(next.interview);
+                }}
+              />
+            </div>
             {promoFieldProps ? (
               <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
                 <RegistrationPromoCodeField id="promoCodeParticipant" {...promoFieldProps} />
@@ -989,9 +1161,15 @@ export function PublicRegistrationWizard({
               <div>
                 <dt className="text-ck-text-secondary">Importe</dt>
                 <dd>
-                  {displayCharge
-                    ? formatPublicPrice(displayCharge.amount, displayCharge.currency)
+                  {totalCharge
+                    ? formatPublicPrice(totalCharge.amount, totalCharge.currency)
                     : "—"}
+                  {shippingFee > 0 && displayCharge ? (
+                    <span className="mt-1 block text-xs text-ck-text-muted">
+                      Inscripción {formatPublicPrice(displayCharge.amount, displayCharge.currency)}{" "}
+                      + envío a domicilio {formatPublicPrice(shippingFee, displayCharge.currency)}
+                    </span>
+                  ) : null}
                   {appliedPromo ? (
                     <span className="mt-1 block text-xs text-emerald-300">
                       Código {appliedPromo.code}: −{" "}
@@ -1015,6 +1193,32 @@ export function PublicRegistrationWizard({
                 </dd>
               </div>
             </dl>
+            {referralPreview ? (
+              <div className="rounded-[var(--ck-radius-card)] border border-ck-yellow/40 bg-ck-surface-strong p-4">
+                <p className="text-sm font-semibold text-ck-text">
+                  {referralPreview.colegas === 1
+                    ? "Invitaste a 1 amigo que ya se sumó"
+                    : `Invitaste a ${referralPreview.colegas} amigos que ya se sumaron`}
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-ck-text-secondary">
+                  {referralPreview.gana ? (
+                    <>
+                      Te corresponde un{" "}
+                      <strong className="text-ck-yellow">
+                        {referralPreview.porcentaje}% de descuento
+                      </strong>{" "}
+                      y ya está aplicado.
+                    </>
+                  ) : (
+                    <>
+                      Tu código de descuento te conviene más que tu{" "}
+                      {referralPreview.porcentaje}% por invitar amigos, así que usamos el
+                      código. Tus amigos quedan guardados para la próxima edición.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : null}
             {promoFieldProps ? (
               <div className="rounded-[var(--ck-radius-card)] border border-ck-border bg-ck-surface/60 p-4 lg:hidden">
                 <RegistrationPromoCodeField id="promoCodeReview" {...promoFieldProps} />
@@ -1078,9 +1282,11 @@ export function PublicRegistrationWizard({
       {showSticky ? (
         <RegistrationStickySummary
           productLabel={stickyProductLabel}
-          priceMinor={displayCharge?.amount ?? null}
-          compareAtMinor={entryPromo.compareAt}
-          savingsMinor={entryPromo.savings}
+          priceMinor={totalCharge?.amount ?? null}
+          compareAtMinor={
+            entryPromo.compareAt != null ? entryPromo.compareAt + shippingFee : null
+          }
+          savingsMinor={stickySavings}
           usingCredit={usePassCredit}
           includes={stickyIncludes}
           nextStepLabel={stickyNextStep}

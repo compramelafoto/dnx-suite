@@ -6,6 +6,7 @@ import {
   addNoteAction,
   changeRequestStatusAction,
   requestInfoAction,
+  resendTrackingLinkAction,
   type PanelState,
 } from "../actions";
 
@@ -14,9 +15,10 @@ const inicial: PanelState = { error: null, ok: null };
 /**
  * Lo que la coordinación puede hacer con una solicitud.
  *
- * `puedeCoordinar` esconde los botones de aprobar y rechazar para quien solo revisa. **No es
- * el control**: las acciones vuelven a verificar el rol en el servidor. Esto es cortesía, para
- * no ofrecer lo que después va a rebotar.
+ * `puedeCoordinar` esconde los botones de aprobar y rechazar para quien solo revisa, y
+ * `puedeRevisar` esconde todos los formularios para quien sólo puede mirar (nivel VIEW del
+ * módulo). **No es el control**: las acciones vuelven a verificar el nivel en el servidor. Esto
+ * es cortesía, para no ofrecer lo que después va a rebotar.
  *
  * **La pantalla dice en qué momento está el pedido antes de mostrar ningún botón.** Las acciones
  * cambian según el estado, y antes aparecían y desaparecían sin ninguna explicación: quien
@@ -26,16 +28,27 @@ const inicial: PanelState = { error: null, ok: null };
  * principal va sola y ancha, y las dos salidas menores —pedir un dato, no poder tomarlo— viven
  * detrás de un botón que recién entonces pide lo que hace falta escribir. Es el mismo patrón que
  * usa la bandeja de solicitudes de asociación (`components/membership/application-card.tsx`).
+ *
+ * **Todo estado vivo tiene alguna salida ofrecida acá.** No es un detalle de prolijidad: la
+ * máquina de estados permitía salir de `REQUIERE_INFO` y de `APROBADA` y esta pantalla no
+ * ofrecía ninguna de las dos, así que un pedido que esperaba un dato que nunca llegó —o uno
+ * aprobado cuya actividad ya pasó— se quedaba trabado para siempre y la única salida era
+ * escribir en la base. `criterios-callejones.test.ts` verifica que no vuelva a pasar.
  */
 export function EvaluacionPanel({
   id,
   status,
+  puedeRevisar,
   puedeCoordinar,
   infoRequested,
   advertenciaOtraCobertura,
+  avisoAlCerrar,
+  reenvioDeEnlace,
 }: {
   id: string;
   status: string;
+  /** Nivel MANAGE en Coberturas: anotar, pedir un dato, reenviar el enlace, pasar a evaluación. */
+  puedeRevisar: boolean;
   puedeCoordinar: boolean;
   /** Lo último que se pidió, para mostrarlo mientras el estado sigue en `REQUIERE_INFO`. */
   infoRequested?: string | null;
@@ -46,6 +59,22 @@ export function EvaluacionPanel({
    * dato que cambia la decisión, y enterarse después de haber aprobado no sirve de nada.
    */
   advertenciaOtraCobertura?: string | null;
+  /**
+   * Que el pedido todavía tenga coberturas sin terminar, si las tiene.
+   *
+   * Se lee **adentro del formulario de cerrar**, no arriba de la tarjeta: es lo que hay que
+   * saber en el segundo antes de apretar, y cerrar el pedido no toca esas coberturas (ver
+   * `avisoAlCerrarSolicitud`).
+   */
+  avisoAlCerrar?: string | null;
+  /**
+   * Si se le puede emitir un enlace de seguimiento nuevo, y a quién iría.
+   *
+   * La decisión la toma `puedeReemitirEnlace` en el servidor; esto es la misma respuesta
+   * adelantada, para no ofrecer un botón que va a rebotar y para poder explicar por qué no se
+   * puede en vez de no mostrar nada.
+   */
+  reenvioDeEnlace?: { habilitado: boolean; motivo: string | null; destino: string | null };
 }) {
   const [estadoState, cambiarEstado, cambiando] = useActionState(
     changeRequestStatusAction,
@@ -53,9 +82,14 @@ export function EvaluacionPanel({
   );
   const [infoState, pedirInfo, pidiendo] = useActionState(requestInfoAction, inicial);
   const [notaState, anotar, anotando] = useActionState(addNoteAction, inicial);
+  const [reenvioState, reenviarEnlace, reenviando] = useActionState(
+    resendTrackingLinkAction,
+    inicial,
+  );
 
   const [pidiendoDato, setPidiendoDato] = useState(false);
   const [rechazando, setRechazando] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
 
   const cerrada = ["RECHAZADA", "CERRADA", "CANCELADA_SOLICITANTE", "CANCELADA_ORGANIZACION"].includes(
     status,
@@ -63,19 +97,38 @@ export function EvaluacionPanel({
   const paso = requestStatusStep(status);
   const decidiendo = !cerrada && status === "EN_EVALUACION" && puedeCoordinar;
 
+  const dondeEsta = paso ? (
+    <>
+      <p className="text-sm text-[var(--fo-text-secondary)]">{paso.donde}</p>
+      <p className="fo-helper">
+        <span className="font-semibold text-[var(--fo-text-secondary)]">Lo que sigue: </span>
+        {paso.queSigue}
+      </p>
+    </>
+  ) : null;
+
+  // Quien sólo puede mirar ve en qué momento está el pedido y nada más: ningún formulario que
+  // después rebotaría en el servidor.
+  if (!puedeRevisar) {
+    return (
+      <section className="fo-card space-y-5 p-5">
+        <header className="space-y-1">
+          <h2 className="text-base font-semibold">En qué está</h2>
+          {dondeEsta}
+          <p className="fo-helper">
+            Podés consultar este pedido, pero no trabajarlo: eso lo hace quien tiene a cargo las
+            coberturas.
+          </p>
+        </header>
+      </section>
+    );
+  }
+
   return (
     <section className="fo-card space-y-5 p-5">
       <header className="space-y-1">
         <h2 className="text-base font-semibold">Qué hacemos</h2>
-        {paso ? (
-          <>
-            <p className="text-sm text-[var(--fo-text-secondary)]">{paso.donde}</p>
-            <p className="fo-helper">
-              <span className="font-semibold text-[var(--fo-text-secondary)]">Lo que sigue: </span>
-              {paso.queSigue}
-            </p>
-          </>
-        ) : null}
+        {dondeEsta}
         {!cerrada && status === "EN_EVALUACION" && !puedeCoordinar ? (
           <p className="fo-helper">
             Esa decisión la toma una coordinadora. Vos podés pedirles un dato y dejar notas.
@@ -100,9 +153,9 @@ export function EvaluacionPanel({
 
       {/*
         Empezar a evaluar (RECIBIDA → EN_EVALUACION) no está detrás de `puedeCoordinar`: es
-        trabajo de secretaría, alcanza con revisar. Quien llegó a esta ficha ya pasó
-        `requireCoveragesReviewer` en el servidor, y `changeRequestStatusAction` vuelve a exigir
-        el guard que corresponde según el destino (ver `transitionNeedsCoordinator`).
+        trabajo de secretaría, alcanza con revisar (`puedeRevisar`, ya comprobado arriba), y
+        `changeRequestStatusAction` vuelve a exigir el guard que corresponde según el destino (ver
+        `transitionNeedsCoordinator`).
       */}
       {!cerrada && status === "RECIBIDA" ? (
         <form action={cambiarEstado}>
@@ -237,10 +290,223 @@ export function EvaluacionPanel({
         </div>
       ) : null}
 
+      {/*
+        Esperar una respuesta que no llega no puede ser un estado sin salida.
+
+        `REQUIERE_INFO` permite volver a `EN_EVALUACION` y también terminar en `RECHAZADA`, y
+        esta pantalla no ofrecía ninguna de las dos: la coordinación pedía un dato, la
+        organización no contestaba nunca, y el pedido se quedaba ahí para siempre. La única
+        salida era escribir en la base.
+
+        Las dos salidas son las que de verdad pasan, y se leen como lo que son. Seguir sin el
+        dato no es un atajo: es decidir con lo que hay. Dar por terminado el intento no es un
+        castigo a la organización: casi siempre se le fue el tema de las manos, y el texto del
+        correo sale escrito en esos términos.
+      */}
       {!cerrada && status === "REQUIERE_INFO" ? (
-        <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
-          Les pedimos: «{infoRequested}»
-        </p>
+        <div className="space-y-4">
+          <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+            Les pedimos: «{infoRequested}»
+          </p>
+
+          <div className="space-y-4 border-t border-[var(--fo-border)] pt-4">
+            <p className="fo-helper">¿Pasó el tiempo y no contestaron?</p>
+
+            {/*
+              Volver a evaluación alcanza con revisar: `transitionNeedsCoordinator` sólo exige
+              coordinar para los destinos que le cierran la puerta a la organización, y éste es
+              el que la deja abierta.
+            */}
+            <div className="space-y-2">
+              <form action={cambiarEstado}>
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="to" value="EN_EVALUACION" />
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-primary min-h-12 w-full text-base sm:w-auto"
+                  disabled={cambiando}
+                >
+                  {cambiando ? "Volviendo a evaluación…" : "Seguir sin ese dato"}
+                </button>
+              </form>
+              <p className="fo-helper">
+                Vuelve a evaluación y se decide con lo que ya tenemos. La organización no recibe
+                ningún aviso, pero el cuadro para contestarnos desaparece de su enlace: si
+                todavía esperás la respuesta, no aprietes esto.
+              </p>
+            </div>
+
+            {puedeCoordinar ? (
+              <div className="space-y-3">
+                {!rechazando ? (
+                  <button
+                    type="button"
+                    onClick={() => setRechazando(true)}
+                    className="fo-btn fo-btn-secondary min-h-11 text-sm"
+                  >
+                    Dar por terminado el intento
+                  </button>
+                ) : null}
+
+                {rechazando ? (
+                  <form action={cambiarEstado} className="fo-field-stack">
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="to" value="RECHAZADA" />
+                    <label className="fo-label" htmlFor="reasonSinRespuesta">
+                      Qué les decimos
+                    </label>
+                    <p className="fo-helper">
+                      Se lo mandamos tal como quede escrito. Está redactado para no sonar a
+                      reproche —nadie le debía nada a nadie— y deja la puerta abierta para que
+                      vuelvan. Cambialo si en este caso corresponde otra cosa.
+                    </p>
+                    <textarea
+                      id="reasonSinRespuesta"
+                      name="reason"
+                      rows={4}
+                      required
+                      className="fo-input"
+                      defaultValue="Quedamos esperando el dato que les pedimos y no llegó, así que por ahora damos por cerrado este pedido. No es ningún problema: si todavía necesitan la cobertura, escribinos de nuevo con esa información y lo volvemos a ver con todo gusto."
+                    />
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="submit"
+                        className="fo-btn fo-btn-danger-outline min-h-11 text-sm"
+                        disabled={cambiando}
+                      >
+                        {cambiando ? "Avisando…" : "Avisarles y cerrar el pedido"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRechazando(false)}
+                        className="fo-btn fo-btn-ghost min-h-11 text-sm"
+                      >
+                        Mejor no
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+              </div>
+            ) : (
+              <p className="fo-helper">
+                Dar por terminado el intento lo decide una coordinadora. Vos sí podés volverlo a
+                evaluación.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {/*
+        Un pedido aprobado tampoco puede quedar abierto para siempre.
+
+        `APROBADA → CERRADA` existe en la máquina y ninguna pantalla lo ofrecía: una cobertura
+        que ya ocurrió, o que la organización dio de baja, se quedaba en la bandeja sin forma de
+        sacarla. Cerrar es lo único que se ofrece acá — el ciclo de la cobertura (`REALIZADA`,
+        `ENTREGADA`) es de la etapa 1c y no se toca.
+
+        Detrás de un botón y con el aviso adentro: cerrar es terminal, y si el pedido todavía
+        tiene coberturas sin terminar hay que leerlo antes y no después.
+      */}
+      {!cerrada && status === "APROBADA" && puedeCoordinar ? (
+        <div className="space-y-3 border-t border-[var(--fo-border)] pt-4">
+          <p className="fo-helper">
+            ¿Ya pasó todo lo que tenía que pasar, o la organización dio de baja la actividad?
+          </p>
+
+          {!cerrando ? (
+            <button
+              type="button"
+              onClick={() => setCerrando(true)}
+              className="fo-btn fo-btn-secondary min-h-11 text-sm"
+            >
+              Cerrar el pedido
+            </button>
+          ) : (
+            <form action={cambiarEstado} className="fo-field-stack">
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="to" value="CERRADA" />
+              {avisoAlCerrar ? (
+                <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+                  <strong>Ojo:</strong> {avisoAlCerrar}
+                </p>
+              ) : null}
+              <p className="fo-helper">
+                Sale de la bandeja y no se reabre. La organización no recibe ningún aviso por
+                esto.
+              </p>
+              <label className="fo-label" htmlFor="motivoDelCierre">
+                Por qué lo cerramos (podés dejarlo vacío)
+              </label>
+              <p className="fo-helper">
+                Queda en el historial, para acordarse dentro de un año. La organización no lo ve.
+              </p>
+              <textarea id="motivoDelCierre" name="reason" rows={2} className="fo-input" />
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="fo-btn fo-btn-primary min-h-11 text-sm"
+                  disabled={cambiando}
+                >
+                  {cambiando ? "Cerrando…" : "Cerrarlo"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCerrando(false)}
+                  className="fo-btn fo-btn-ghost min-h-11 text-sm"
+                >
+                  Mejor no
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      ) : null}
+
+      {/*
+        Reparar un enlace que no llegó.
+
+        El enlace rota al aprobar y al pedir un dato, y el token crudo vive un instante: se manda
+        por correo y en la base queda sólo su hash. Si ese correo falla, la organización se queda
+        sin enlace vivo y **nadie lo puede recuperar** —por diseño—. Lo único posible es emitir
+        otro, y eso apaga el anterior: la advertencia va ARRIBA del botón, adentro del mismo
+        bloque que hay que abrir para llegar a él, no en un aviso después de haberlo apretado.
+
+        Cuando no se puede, se explica por qué en vez de no mostrar nada: «no hay correo cargado»
+        y «falta la dirección pública de la aplicación» se arreglan en lugares distintos.
+      */}
+      {!cerrada ? (
+        <details className="border-t border-[var(--fo-border)] pt-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Reenviarles el enlace de seguimiento
+          </summary>
+          <div className="space-y-3 pt-3">
+            {reenvioDeEnlace?.habilitado ? (
+              <>
+                <p className="fo-alert-warning rounded-[var(--fo-radius-sm)] p-3 text-sm leading-relaxed">
+                  <strong>Emitir uno nuevo apaga el que tengan.</strong> Si la organización
+                  guardó el enlace de un correo anterior, deja de funcionar en el momento en que
+                  apretás. El que tiene ahora no lo podemos leer ni recuperar: de ese enlace sólo
+                  guardamos una huella, nunca el enlace.
+                </p>
+                <p className="fo-helper">Se lo mandamos a {reenvioDeEnlace.destino}.</p>
+                <form action={reenviarEnlace}>
+                  <input type="hidden" name="id" value={id} />
+                  <button
+                    type="submit"
+                    className="fo-btn fo-btn-secondary min-h-11 text-sm"
+                    disabled={reenviando}
+                  >
+                    {reenviando ? "Emitiendo y mandando…" : "Emitir uno nuevo y mandarlo"}
+                  </button>
+                </form>
+                <Aviso state={reenvioState} />
+              </>
+            ) : (
+              <p className="fo-helper">{reenvioDeEnlace?.motivo}</p>
+            )}
+          </div>
+        </details>
       ) : null}
 
       <details className="border-t border-[var(--fo-border)] pt-4">

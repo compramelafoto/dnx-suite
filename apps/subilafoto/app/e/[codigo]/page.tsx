@@ -4,10 +4,18 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
 import { estadoDeAcceso } from "@/lib/acceso-evento";
+import { estiloLegible } from "@/lib/estilo-de-tema";
+import { urlDelBanner } from "@/lib/banner-url";
+import { enlaceDeBannerValido } from "@/lib/banner";
+import { urlDelLogo } from "@/lib/logo-url";
+import { PieRotativo } from "./pie-rotativo";
+import { LogoDelFotografo } from "./logo-del-fotografo";
+import { urlDePortada } from "@/lib/portada-url";
 import { resolverTema } from "@/lib/tema";
 import { COOKIE_INVITADO } from "@/lib/invitado-cookie";
 import { yaAcepto } from "@/lib/consentimiento-db";
 import { aceptarYEntrar } from "@/app/actions/consentimiento";
+import { bannersDeProveedores } from "@/lib/banners-del-evento";
 
 /**
  * La puerta del invitado: lo que se ve al escanear el QR.
@@ -41,6 +49,9 @@ export default async function PuertaDelInvitado({ params }: Props) {
       hostsLabel: true,
       venueName: true,
       coverUrl: true,
+      sellerProfile: {
+        select: { logoUrl: true, displayName: true, bannerUrl: true, bannerLinkUrl: true },
+      },
       status: true,
       activationAt: true,
       deactivationAt: true,
@@ -54,6 +65,12 @@ export default async function PuertaDelInvitado({ params }: Props) {
   if (!evento) notFound();
 
   const acceso = estadoDeAcceso(evento, new Date());
+  /*
+    El bucket es privado: lo guardado es la clave del archivo y hay que firmarla. Antes
+    se ponía el valor crudo en el `src`, que nunca habría cargado — no se notaba porque
+    no había forma de cargar una portada.
+  */
+  const portada = await urlDePortada(evento.coverUrl);
 
   // Si ya aceptó los términos en este evento, no se le vuelve a pedir.
   const almacen = await cookies();
@@ -63,30 +80,52 @@ export default async function PuertaDelInvitado({ params }: Props) {
   });
   // El tema sale del snapshot del evento. Si está vacío o corrupto, cae en la marca.
   const tema = resolverTema(evento.themeTokens);
+  const logo = await urlDelLogo(evento.sellerProfile.logoUrl);
+  const banner = await urlDelBanner(evento.sellerProfile.bannerUrl);
+  /*
+    Los proveedores que subieron banner comparten el pie con el fotógrafo. Es lo que
+    reciben a cambio de completar la ficha: hasta ahora era un renglón al pie del álbum,
+    que casi nadie abre.
+  */
+  const bannersDeLosProveedores = await bannersDeProveedores(evento.id);
   const hora = FORMATO_HORA(evento.timezone);
 
   return (
     <main
       className="flex min-h-[100svh] flex-col items-center justify-center px-6 py-14 text-center"
-      style={{
-        background: tema.fondo,
-        color: tema.texto,
-        fontFamily: `${tema.tipografia}, system-ui, sans-serif`,
-      }}
+      style={estiloLegible(tema)}
     >
-      {evento.coverUrl ? (
-        <Image
-          src={evento.coverUrl}
+      <LogoDelFotografo url={logo} nombre={evento.sellerProfile.displayName} />
+
+      {portada ? (
+        /*
+          Sin `next/image`: la dirección viene firmada y vence. El optimizador guarda el
+          resultado con la dirección entera como clave —firma incluida—, así que cada
+          visita genera una clave nueva y vuelve a bajar y recomprimir la foto. Además el
+          host del bucket no está en `images.remotePatterns` y contesta 400.
+
+          Tampoco lleva alto y ancho fijos: eran cuadrados y recortaban cualquier foto que
+          no lo fuera. Con `max-w` y `max-h` la foto entra entera y conserva su forma.
+        */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={portada}
           alt=""
-          width={520}
-          height={520}
-          priority
-          className="mb-10 h-auto w-[min(20rem,72vw)] rounded-2xl object-cover"
+          decoding="async"
+          className="mb-10 max-h-[45vh] max-w-[min(20rem,72vw)] rounded-2xl"
         />
-      ) : (
-        // Monocromo y no el isotipo a color: el fondo lo pone la plantilla del evento y
-        // el manual prohíbe usar el logo sobre fondos que no le dan contraste. Además la
-        // marca que manda acá es la del evento, no la nuestra.
+      ) : logo ? null : (
+        /*
+          El relleno, sólo cuando no hay NI portada NI logo del fotógrafo.
+
+          Antes salía siempre que faltara la portada, y desde que el logo del fotógrafo
+          se muestra arriba eso dejaba dos marcas apiladas: la suya y la nuestra en gris
+          debajo. La marca que manda acá es la del evento; la nuestra es el último
+          recurso para que la pantalla no arranque con un hueco.
+
+          Monocromo y no el isotipo a color: el fondo lo pone la plantilla del evento y
+          el manual prohíbe usar el logo sobre fondos que no le dan contraste.
+        */
         <Image
           src="/brand/subilafoto-isotipo-monocromo-blanco.png"
           alt=""
@@ -222,6 +261,18 @@ export default async function PuertaDelInvitado({ params }: Props) {
           ) : null}
         </>
       )}
+      <PieRotativo
+        fotografo={
+          banner
+            ? {
+                url: banner,
+                enlace: enlaceDeBannerValido(evento.sellerProfile.bannerLinkUrl),
+                nombre: evento.sellerProfile.displayName,
+              }
+            : null
+        }
+        proveedores={bannersDeLosProveedores}
+      />
     </main>
   );
 }

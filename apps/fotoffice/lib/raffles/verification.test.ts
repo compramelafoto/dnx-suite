@@ -71,7 +71,7 @@ describe("armar la verificación", () => {
 
 describe("rehacer la cuenta", () => {
   it("un sorteo bien resuelto verifica", () => {
-    expect(recheck(datos())).toEqual({ ok: true, mismatches: [] });
+    expect(recheck(datos())).toEqual({ ok: true, mismatches: [], relaxedPrizeOrders: [] });
   });
 
   it("si alguien cambió un ganador en la base, se detecta y se nombra", () => {
@@ -102,5 +102,68 @@ describe("rehacer la cuenta", () => {
     const d = datos();
     const invertida = [...d.entrants].reverse().map((e, i) => ({ ...e, position: i }));
     expect(recheck({ ...d, entrants: invertida }).ok).toBe(false);
+  });
+});
+
+describe("verificar un sorteo con la regla de no repetir premio", () => {
+  // Los socios en las posiciones 0 a 29 no pueden ganar el premio 1: la regla tiene que notarse.
+  const conExclusiones = PADRON.map((e) => ({
+    ...e,
+    excludedPrizeOrders: e.position < 30 ? [1] : [],
+  }));
+  const huella = entrantsHash("r-1", conExclusiones);
+  const exclusiones = new Map(conExclusiones.map((e) => [e.position, e.excludedPrizeOrders]));
+  const ganadores = drawWinners({
+    entrantsHash: huella,
+    round: TANDA,
+    randomness: NUMERO,
+    prizeOrders: [1, 2],
+    entrantCount: PADRON.length,
+    exclusions: exclusiones,
+  });
+  const sorteo = {
+    ...sorteoResuelto,
+    entrantsHash: huella,
+    entries: conExclusiones.map((e) => ({
+      position: e.position,
+      memberNumberSnapshot: e.memberNumber,
+      fullNameSnapshot: e.fullName,
+      excludedPrizeOrders: e.excludedPrizeOrders,
+    })),
+    prizes: ganadores.map((g, i) => ({
+      order: g.prizeOrder,
+      title: `Premio ${i + 1}`,
+      award: { winnerPosition: g.winnerPosition },
+    })),
+  };
+
+  it("publica de qué premios quedó afuera cada participante", () => {
+    const d = buildVerification(sorteo) as VerificationData;
+    expect(d.entrants[0].excludedPrizeOrders).toEqual([1]);
+    expect(d.entrants[35].excludedPrizeOrders).toEqual([]);
+    expect(d.hasExclusions).toBe(true);
+  });
+
+  it("la cuenta rehecha da, y el ganador del premio 1 no es un excluido", () => {
+    expect(recheck(buildVerification(sorteo) as VerificationData)).toEqual({
+      ok: true,
+      mismatches: [],
+      relaxedPrizeOrders: [],
+    });
+    expect(ganadores[0].winnerPosition).toBeGreaterThanOrEqual(30);
+  });
+
+  it("si alguien borra una exclusión de la lista publicada, la huella deja de coincidir", () => {
+    const d = buildVerification(sorteo) as VerificationData;
+    d.entrants[0] = { ...d.entrants[0], excludedPrizeOrders: [] };
+    const r = recheck(d);
+    expect(r.ok).toBe(false);
+    expect(r.mismatches[0]).toMatch(/huella/);
+  });
+
+  it("un sorteo viejo, sin exclusiones, sigue verificando con la cuenta de siempre", () => {
+    const d = buildVerification(sorteoResuelto) as VerificationData;
+    expect(d.hasExclusions).toBe(false);
+    expect(recheck(d).ok).toBe(true);
   });
 });

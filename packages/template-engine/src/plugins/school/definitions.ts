@@ -1,4 +1,74 @@
 import type { TemplateVariableDefinition } from "../../variables/types";
+import { CLASS_LIST_SAMPLE, CLASS_LIST_VARIABLE_KEY, serializeClassList } from "./class-list";
+
+/** Cuántos huecos de "foto del cliente" ofrece el catálogo: `photo_1` … `photo_12`. */
+export const SCHOOL_CLIENT_PHOTO_SLOT_COUNT = 12;
+
+/** Gris liso, sin red: lo que muestra la vista previa del editor en un hueco de foto. */
+export const SCHOOL_CLIENT_PHOTO_PLACEHOLDER =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAAEUlEQVR4nGN49OIDVsQwkBIAV9CC4fMnHZAAAAAASUVORK5CYII=";
+
+/**
+ * Huecos que se llenan con las fotos que eligió el cliente, en el orden en que las eligió.
+ *
+ * Las plantillas escolares ya usaban `photo_1`, `photo_2` y `photo_3` (la "Carpeta escolar 3
+ * fotos"), pero el catálogo no las declaraba: la vista previa del editor las rechazaba como
+ * "variable de imagen inválida" y no había forma de ver el diseño.
+ */
+const SCHOOL_CLIENT_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = Array.from(
+  { length: SCHOOL_CLIENT_PHOTO_SLOT_COUNT },
+  (_, i) => ({
+    path: `photo_${i + 1}`,
+    label: `Foto del cliente ${i + 1}`,
+    description: `La foto número ${i + 1} que elige el cliente al canjear o comprar el pack.`,
+    valueType: "image" as const,
+    required: false,
+    example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    formatters: ["none"],
+    usableIn: ["IMAGE" as const],
+    defaultFallback: null,
+    group: "photos",
+    groupLabel: "Fotos del cliente",
+  }),
+);
+
+/**
+ * Huecos con nombre: la foto individual del alumno y la foto grupal del curso.
+ *
+ * Van antes que `photo_1…`: la familia elige primero la individual y después la grupal, cada
+ * una en su lugar con su nombre, así no depende del orden en que toca las fotos.
+ */
+export const SCHOOL_INDIVIDUAL_PHOTO_KEY = "photo_individual";
+export const SCHOOL_GROUP_PHOTO_KEY = "photo_group";
+
+const SCHOOL_ROLE_PHOTO_DEFINITIONS: TemplateVariableDefinition[] = [
+  {
+    path: SCHOOL_INDIVIDUAL_PHOTO_KEY,
+    label: "Foto individual del alumno",
+    description: "La foto individual que elige la familia al canjear el pack.",
+    valueType: "image",
+    required: false,
+    example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    formatters: ["none"],
+    usableIn: ["IMAGE"],
+    defaultFallback: null,
+    group: "photos",
+    groupLabel: "Fotos del cliente",
+  },
+  {
+    path: SCHOOL_GROUP_PHOTO_KEY,
+    label: "Foto grupal del curso",
+    description: "La foto grupal del curso que elige la familia al canjear el pack.",
+    valueType: "image",
+    required: false,
+    example: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+    formatters: ["none"],
+    usableIn: ["IMAGE"],
+    defaultFallback: null,
+    group: "photos",
+    groupLabel: "Fotos del cliente",
+  },
+];
 
 /**
  * Definiciones escolares (solo catálogo).
@@ -13,6 +83,45 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     required: true,
     example: "María Gómez",
     aliases: ["alumno", "nombredelalumno", "nombrecompleto", "apellido"],
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "—",
+    group: "student",
+    groupLabel: "Alumno",
+  },
+  {
+    path: "student.lastNameFirst",
+    label: "Alumno - Apellido, Nombre",
+    description: "El alumno con el apellido primero: «Gómez, María».",
+    valueType: "text",
+    required: false,
+    example: "Gómez, María",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "—",
+    group: "student",
+    groupLabel: "Alumno",
+  },
+  {
+    path: "student.firstName",
+    label: "Alumno - Nombre",
+    description: "Sólo el nombre del alumno.",
+    valueType: "text",
+    required: false,
+    example: "María",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "—",
+    group: "student",
+    groupLabel: "Alumno",
+  },
+  {
+    path: "student.lastName",
+    label: "Alumno - Apellido",
+    description: "Sólo el apellido del alumno.",
+    valueType: "text",
+    required: false,
+    example: "Gómez",
     formatters: ["none", "uppercase", "titleCase", "truncate"],
     usableIn: ["TEXT"],
     defaultFallback: "—",
@@ -58,6 +167,46 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     formatters: ["none", "uppercase", "titleCase", "truncate"],
     usableIn: ["TEXT"],
     defaultFallback: "—",
+    group: "course",
+    groupLabel: "Curso",
+  },
+  {
+    path: "course.withSchool",
+    label: "Curso - Colegio",
+    description: "Curso y colegio en un mismo texto: «3.º B · Mañana - Escuela Ejemplo».",
+    valueType: "text",
+    required: false,
+    example: "3.º B · Mañana - Escuela Ejemplo",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "—",
+    group: "course",
+    groupLabel: "Curso",
+  },
+  {
+    path: "school.withCourse",
+    label: "Colegio - Curso",
+    description: "Colegio y curso en un mismo texto: «Escuela Ejemplo - 3.º B · Mañana».",
+    valueType: "text",
+    required: false,
+    example: "Escuela Ejemplo - 3.º B · Mañana",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "—",
+    group: "school",
+    groupLabel: "Escuela",
+  },
+  {
+    path: CLASS_LIST_VARIABLE_KEY,
+    label: "Curso - Listado de alumnos",
+    description: "Todos los alumnos del curso, para el bloque «Listado del curso».",
+    valueType: "text",
+    required: false,
+    example: serializeClassList(CLASS_LIST_SAMPLE),
+    formatters: ["none"],
+    // No es un texto para insertar: es una lista que sólo sabe dibujar su propio bloque.
+    usableIn: ["LIST"],
+    defaultFallback: null,
     group: "course",
     groupLabel: "Curso",
   },
@@ -143,4 +292,6 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     group: "branding",
     groupLabel: "Marca",
   },
+  ...SCHOOL_ROLE_PHOTO_DEFINITIONS,
+  ...SCHOOL_CLIENT_PHOTO_DEFINITIONS,
 ];

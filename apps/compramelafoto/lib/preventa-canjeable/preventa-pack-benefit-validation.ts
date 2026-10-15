@@ -8,6 +8,7 @@ import {
   assertPhotographerProductOwnedByUser,
   assertTemplateAccessibleForAlbum,
 } from "./dashboard-pack-helpers";
+import { resolveTemplateV2IdOwnedByAlbumPhotographer } from "@/lib/template-v2/resolve-template-v2-for-album-pack";
 
 const KIND_VALUES = new Set<string>(Object.values(PackBenefitKind));
 const POLICY_VALUES = new Set<string>(Object.values(BenefitTemplatePolicy));
@@ -59,11 +60,20 @@ export type ParsedBenefitForCreate = {
   photographerProductId: number | null;
   templatePolicy: BenefitTemplatePolicy;
   templateId: number | null;
+  /** Plantilla del diseñador nuevo (la única que se ofrece desde la migración al diseñador). */
+  templateV2Id: string | null;
   extraUnitPriceOverrideArs: number | null;
   requiredPhotoCount: number;
   selectionMode: BenefitSelectionMode;
   maxPhotosPerUnit: number | null;
 };
+
+function parseTemplateV2Id(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new Error("templateV2Id debe ser texto o null");
+  const v = value.trim();
+  return v ? v.slice(0, 64) : null;
+}
 
 export function parseBenefitBodyCreate(body: unknown): ParsedBenefitForCreate {
   if (!body || typeof body !== "object") {
@@ -85,6 +95,7 @@ export function parseBenefitBodyCreate(body: unknown): ParsedBenefitForCreate {
   if (b.templateId !== undefined && b.templateId !== null) {
     templateId = parsePositiveInt(b.templateId, "templateId", 1);
   }
+  const templateV2Id = parseTemplateV2Id(b.templateV2Id);
   let extraUnitPriceOverrideArs: number | null = null;
   if (b.extraUnitPriceOverrideArs !== undefined && b.extraUnitPriceOverrideArs !== null) {
     const x = Number(b.extraUnitPriceOverrideArs);
@@ -108,7 +119,8 @@ export function parseBenefitBodyCreate(body: unknown): ParsedBenefitForCreate {
     sortOrder,
     photographerProductId,
     templatePolicy,
-    templateId,
+    templateId: templateV2Id ? null : templateId,
+    templateV2Id,
     extraUnitPriceOverrideArs,
     requiredPhotoCount,
     selectionMode,
@@ -124,11 +136,28 @@ export async function assertBenefitBusinessRules(
   if (
     fields.kind === PackBenefitKind.PHYSICAL &&
     fields.templatePolicy === BenefitTemplatePolicy.REQUIRED &&
+    fields.templateV2Id == null &&
     fields.templateId == null
   ) {
-    throw new Error(
-      "Con kind PHYSICAL y templatePolicy REQUIRED, templateId es obligatorio"
-    );
+    throw new Error("Elegí la plantilla del diseño para este beneficio.");
+  }
+  if (fields.templateV2Id != null) {
+    // Una plantilla pública del catálogo se copia a la cuenta del fotógrafo: el diseño que se
+    // arme al canjear tiene que salir de una plantilla suya, que el catálogo no puede cambiarle.
+    try {
+      fields.templateV2Id = await resolveTemplateV2IdOwnedByAlbumPhotographer({
+        templateV2Id: fields.templateV2Id,
+        albumOwnerUserId: userId,
+      });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      throw new Error(
+        code === "template_v2_fork_forbidden"
+          ? "Esa plantilla no es tuya ni está publicada en el catálogo."
+          : "No encontramos esa plantilla.",
+      );
+    }
+    fields.templateId = null;
   }
   if (fields.photographerProductId != null) {
     await assertPhotographerProductOwnedByUser(fields.photographerProductId, userId);
@@ -145,6 +174,7 @@ export type ParsedBenefitPatch = Partial<{
   photographerProductId: number | null;
   templatePolicy: BenefitTemplatePolicy;
   templateId: number | null;
+  templateV2Id: string | null;
   extraUnitPriceOverrideArs: number | null;
   requiredPhotoCount: number;
   selectionMode: BenefitSelectionMode;
@@ -184,6 +214,9 @@ export function parseBenefitBodyPatch(body: unknown): ParsedBenefitPatch {
     } else {
       out.templateId = parsePositiveInt(b.templateId, "templateId", 1);
     }
+  }
+  if ("templateV2Id" in b) {
+    out.templateV2Id = parseTemplateV2Id(b.templateV2Id === "" ? null : b.templateV2Id);
   }
   if ("extraUnitPriceOverrideArs" in b) {
     if (b.extraUnitPriceOverrideArs === null || b.extraUnitPriceOverrideArs === "") {
@@ -226,6 +259,7 @@ function mergedBenefitForValidation(
         : existing.photographerProductId,
     templatePolicy: patch.templatePolicy ?? existing.templatePolicy,
     templateId: patch.templateId !== undefined ? patch.templateId : existing.templateId,
+    templateV2Id: patch.templateV2Id !== undefined ? patch.templateV2Id : existing.templateV2Id,
     extraUnitPriceOverrideArs:
       patch.extraUnitPriceOverrideArs !== undefined
         ? patch.extraUnitPriceOverrideArs
@@ -248,4 +282,9 @@ export async function validateBenefitPatch(
   }
   const merged = mergedBenefitForValidation(existing, patch);
   await assertBenefitBusinessRules(albumId, userId, merged);
+  // La validación puede haber copiado la plantilla a la cuenta del fotógrafo: se guarda la copia.
+  if (patch.templateV2Id !== undefined) {
+    patch.templateV2Id = merged.templateV2Id;
+    if (merged.templateV2Id) patch.templateId = null;
+  }
 }

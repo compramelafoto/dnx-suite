@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { amzDates, presignPutUrl } from "./presign";
+import { amzDates, presignGetUrl, presignPutUrl } from "./presign";
 
 /**
  * El algoritmo se verificó contra `@aws-sdk/s3-request-presigner`: con los mismos
@@ -73,4 +73,14 @@ test("las fechas salen en el formato que pide la firma", () => {
   const { amzDate, dateStamp } = amzDates(new Date("2026-09-19T18:45:00.000Z"));
   assert.equal(amzDate, "20260919T184500Z");
   assert.equal(dateStamp, "20260919");
+});
+
+test("la descarga firma GET y el nombre de archivo, con espacios como %20", () => {
+  const url = presignGetUrl({ ...ENTRADA, downloadFileName: "Ana Pérez consigna 1.jpg" });
+  assert.ok(url.includes("x-id=GetObject"));
+  assert.ok(
+    url.includes("response-content-disposition=attachment%3B%20filename%3D%22Ana_Perez_consigna_1.jpg%22"),
+  );
+  assert.ok(!url.includes("+"));
+  assert.notEqual(new URL(url).searchParams.get("X-Amz-Signature"), null);
 });

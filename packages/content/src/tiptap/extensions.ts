@@ -7,6 +7,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import Youtube from "@tiptap/extension-youtube";
 import StarterKit from "@tiptap/starter-kit";
+import { InstagramEmbed } from "./instagram";
 
 export {
   EMPTY_CONTENT_JSON,
@@ -49,6 +50,7 @@ export function getContentTiptapExtensions(): Extensions {
         class: "blog-youtube-embed",
       },
     }),
+    InstagramEmbed,
     Table.configure({
       resizable: false,
     }),

@@ -1,0 +1,7 @@
+{
+  "//": "Sólo para correr tests que renderizan componentes con tsx: Next compila el JSX por su cuenta y el tsconfig de la app lo deja en 'preserve'.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
+}

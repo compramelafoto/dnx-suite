@@ -48,18 +48,31 @@ export interface GetProviderOrderResult {
   payments: Array<{ providerPaymentId: string; status: string; amount: Money }>;
 }
 
+/** Un destinatario del reembolso dentro de una orden con split. */
+export interface ProviderRefundSplitTarget {
+  /** Identificador del receptor en el proveedor (owner user id o partner receiver id). */
+  receiverId: string;
+  /** Omitido = se reembolsa la pata completa de ese receptor. */
+  amount?: Money;
+}
+
 export interface ProviderRefundInput {
   providerOrderId: string;
   /**
-   * Omit for total Orders refund (empty body).
-   * Required with providerTransactionId for partial refund.
+   * A quién se le reembolsa, en órdenes con split. Vacío u omitido = reembolso
+   * total de la orden.
+   *
+   * Mercado Pago Orders dirige el reembolso **al participante**, no a la
+   * transacción de pago: por eso acá va el receptor y no un id de pago.
    */
+  splits?: ProviderRefundSplitTarget[];
+  /** Monto del reembolso parcial. Lo usan los proveedores sin split (p. ej. Stripe). */
   amount?: Money;
-  /** Payment transaction id (PAY…) — required for partial Orders refunds. */
+  /** Id de la transacción de pago. Lo usan los proveedores sin split. */
   providerTransactionId?: string;
   /**
-   * Not sent to Mercado Pago Orders refund API.
-   * Reserved for internal / future per-recipient accounting only.
+   * Identificador interno del destinatario, para contabilidad propia.
+   * No se envía al proveedor.
    */
   recipientExternalId?: string;
   idempotencyKey: string;

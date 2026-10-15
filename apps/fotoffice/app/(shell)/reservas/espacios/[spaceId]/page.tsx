@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
-import { requireBookingsAdmin } from "@/lib/bookings/access";
-import { getSpace, listCompatibilities, listSpaces } from "@/lib/bookings/repository";
+import { requireBookingsConfigurer } from "@/lib/bookings/access";
+import { getSpace, listCompatibilities, listSpaces, listTeamPeople } from "@/lib/bookings/repository";
 import { compatibleSpaceIds } from "@/lib/bookings/conflicts";
 import { SpaceForm } from "../space-form";
 
@@ -14,7 +14,7 @@ export default async function EditarEspacioPage({
   params: Promise<{ spaceId: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { workspace } = await requireBookingsAdmin();
+  const { workspace } = await requireBookingsConfigurer();
   const { spaceId } = await params;
   const query = await searchParams;
 
@@ -32,6 +32,7 @@ export default async function EditarEspacioPage({
         description="Horarios, tarifas y convivencia de este espacio."
       />
       <SpaceForm
+        equipo={await listTeamPeople(workspace.id)}
         space={espacio}
         otrosEspacios={espacios
           .filter((e) => e.id !== spaceId)

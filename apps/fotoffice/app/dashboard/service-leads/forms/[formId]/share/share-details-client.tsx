@@ -2,41 +2,74 @@
 
 import { useEffect, useState } from "react";
 
+type CodigoInsertar = {
+  /** Dirección absoluta del formulario en modo insertado. */
+  url: string;
+  /** (a) El marco solo, con alto fijo. */
+  simple: string;
+  /** (b) El marco y el script que le ajusta el alto. */
+  conAltoAutomatico: string;
+};
+
 type ShareDetailsClientProps = {
   formName: string;
   formSlug: string;
   formMode: string;
   publicUrl: string;
+  /** null = este formulario todavía no tiene versión para insertar. */
+  insertar: CodigoInsertar | null;
 };
 
 const COPY_FEEDBACK_MS = 2000;
 
-export function ShareDetailsClient({ formName, formSlug, formMode, publicUrl }: ShareDetailsClientProps) {
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [iframeCopied, setIframeCopied] = useState(false);
-
-  const iframeCode = `<iframe src="${publicUrl}" width="100%" height="700"></iframe>`;
-
+function useCopiado() {
+  const [copiado, setCopiado] = useState(false);
   useEffect(() => {
-    if (!linkCopied) return;
-    const timeout = window.setTimeout(() => setLinkCopied(false), COPY_FEEDBACK_MS);
+    if (!copiado) return;
+    const timeout = window.setTimeout(() => setCopiado(false), COPY_FEEDBACK_MS);
     return () => window.clearTimeout(timeout);
-  }, [linkCopied]);
+  }, [copiado]);
+  return [copiado, setCopiado] as const;
+}
 
-  useEffect(() => {
-    if (!iframeCopied) return;
-    const timeout = window.setTimeout(() => setIframeCopied(false), COPY_FEEDBACK_MS);
-    return () => window.clearTimeout(timeout);
-  }, [iframeCopied]);
+function BloqueCodigo({ id, titulo, ayuda, codigo }: { id: string; titulo: string; ayuda: string; codigo: string }) {
+  const [copiado, setCopiado] = useCopiado();
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-semibold text-[var(--fo-text)]" htmlFor={id}>
+        {titulo}
+      </label>
+      <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{ayuda}</p>
+      <textarea
+        id={id}
+        rows={codigo.split("\n").length + 2}
+        className="fo-input resize-none font-mono text-xs"
+        value={codigo}
+        readOnly
+        onFocus={(e) => e.currentTarget.select()}
+      />
+      <div className="flex justify-start">
+        <button
+          type="button"
+          className="fo-btn fo-btn-secondary"
+          onClick={async () => {
+            await navigator.clipboard.writeText(codigo);
+            setCopiado(true);
+          }}
+        >
+          {copiado ? "Copiado" : "Copiar código"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function ShareDetailsClient({ formName, formSlug, formMode, publicUrl, insertar }: ShareDetailsClientProps) {
+  const [linkCopied, setLinkCopied] = useCopiado();
 
   async function handleCopyLink() {
     await navigator.clipboard.writeText(publicUrl);
     setLinkCopied(true);
-  }
-
-  async function handleCopyIframe() {
-    await navigator.clipboard.writeText(iframeCode);
-    setIframeCopied(true);
   }
 
   return (
@@ -74,17 +107,43 @@ export function ShareDetailsClient({ formName, formSlug, formMode, publicUrl }: 
         </div>
       </section>
 
-      <section className="fo-card space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight text-[var(--fo-text)]">Código HTML embebible</h2>
-        <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-          Próximamente vas a poder insertar este formulario en cualquier sitio web copiando un código HTML.
-        </p>
-        <textarea rows={4} className="fo-input resize-none" defaultValue={iframeCode} />
-        <div className="flex justify-start">
-          <button type="button" className="fo-btn fo-btn-secondary" onClick={handleCopyIframe}>
-            {iframeCopied ? "Copiado" : "Copiar código"}
-          </button>
+      <section id="insertar" className="fo-card space-y-6 scroll-mt-24">
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight text-[var(--fo-text)]">Insertar en mi web</h2>
+          {insertar ? (
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Pegalo en tu web donde quieras que aparezca el formulario. Sirve para WordPress, Wix y cualquier
+              sitio que acepte HTML. Las consultas que lleguen por ahí entran igual que las de tu sitio de FOTOFFICE.
+            </p>
+          ) : (
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Por ahora se pueden insertar el formulario general y el de XV. Este formulario se comparte con su enlace.
+            </p>
+          )}
         </div>
+
+        {insertar ? (
+          <>
+            <BloqueCodigo
+              id="codigo-alto-automatico"
+              titulo="Con alto automático (recomendado)"
+              ayuda="El formulario se estira solo a su tamaño, sin barras de desplazamiento. Necesita que tu web acepte el código completo, con el script."
+              codigo={insertar.conAltoAutomatico}
+            />
+            <BloqueCodigo
+              id="codigo-simple"
+              titulo="Simple"
+              ayuda="Si tu web no deja pegar scripts, usá este: el formulario queda con un alto fijo."
+              codigo={insertar.simple}
+            />
+            <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+              Vista del formulario solo:{" "}
+              <a href={insertar.url} target="_blank" rel="noreferrer" className="text-[var(--fo-accent)] underline underline-offset-2 break-all">
+                {insertar.url}
+              </a>
+            </p>
+          </>
+        ) : null}
       </section>
     </>
   );

@@ -55,6 +55,11 @@ import { getAppConfig } from "@/lib/services/settingsService";
 import { getAuthUser } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { normalizeWorkingCoverageRadiusKm } from "@/lib/photographer/working-coverage-radius";
+import {
+  normalizeDefaultDigitalPrice,
+  normalizeHexColor,
+  normalizePublicPageHandler,
+} from "@/lib/fotografo/profile-field-rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,73 +157,22 @@ export async function PATCH(req: Request) {
       updateData.logoUrl = body.logoUrl?.toString().trim() || null;
     }
 
-    if (body.primaryColor !== undefined) {
-      const color = body.primaryColor?.toString().trim();
-      // Validar formato hex
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.primaryColor = color;
-      } else if (color === "" || color === null) {
-        updateData.primaryColor = null;
-      }
-    }
-
-    if (body.secondaryColor !== undefined) {
-      const color = body.secondaryColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.secondaryColor = color;
-      } else if (color === "" || color === null) {
-        updateData.secondaryColor = null;
-      }
-    }
-
-    if (body.tertiaryColor !== undefined) {
-      const color = body.tertiaryColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.tertiaryColor = color;
-      } else if (color === "" || color === null) {
-        updateData.tertiaryColor = null;
-      }
-    }
-
-    if (body.fontColor !== undefined) {
-      const color = body.fontColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.fontColor = color;
-      } else if (color === "" || color === null) {
-        updateData.fontColor = null;
-      }
-    }
-
-    if (body.headerBackgroundColor !== undefined) {
-      const color = body.headerBackgroundColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.headerBackgroundColor = color;
-      } else if (color === "" || color === null) {
-        updateData.headerBackgroundColor = null;
-      }
-    }
-    if (body.footerBackgroundColor !== undefined) {
-      const color = body.footerBackgroundColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.footerBackgroundColor = color;
-      } else if (color === "" || color === null) {
-        updateData.footerBackgroundColor = null;
-      }
-    }
-    if (body.heroBackgroundColor !== undefined) {
-      const color = body.heroBackgroundColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.heroBackgroundColor = color;
-      } else if (color === "" || color === null) {
-        updateData.heroBackgroundColor = null;
-      }
-    }
-    if (body.pageBackgroundColor !== undefined) {
-      const color = body.pageBackgroundColor?.toString().trim();
-      if (color && /^#[0-9A-Fa-f]{6}$/.test(color)) {
-        updateData.pageBackgroundColor = color;
-      } else if (color === "" || color === null) {
-        updateData.pageBackgroundColor = null;
+    // Colores: #RRGGBB se guarda, "" borra, cualquier otro valor se ignora.
+    for (const key of [
+      "primaryColor",
+      "secondaryColor",
+      "tertiaryColor",
+      "fontColor",
+      "headerBackgroundColor",
+      "footerBackgroundColor",
+      "heroBackgroundColor",
+      "pageBackgroundColor",
+    ] as const) {
+      if (body[key] !== undefined) {
+        const color = normalizeHexColor(body[key]);
+        if (color.set) {
+          updateData[key] = color.value;
+        }
       }
     }
 
@@ -249,19 +203,11 @@ export async function PATCH(req: Request) {
     if (body.defaultDigitalPhotoPrice !== undefined) {
       const config = await getAppConfig();
       const minPrice = config?.minDigitalPhotoPrice ?? 5000;
-      const price = body.defaultDigitalPhotoPrice ? Number(body.defaultDigitalPhotoPrice) : null;
-      if (price !== null && Number.isFinite(price) && price >= 0) {
-        if (price < minPrice) {
-          return NextResponse.json(
-            { error: `El precio por foto digital no puede ser menor al mínimo del sistema (${minPrice} pesos)` },
-            { status: 400 }
-          );
-        }
-        updateData.defaultDigitalPhotoPrice = price;
-      } else {
-        // Que el valor no quede nulo: usar siempre el mínimo de la plataforma como valor por defecto
-        updateData.defaultDigitalPhotoPrice = minPrice;
+      const price = normalizeDefaultDigitalPrice(body.defaultDigitalPhotoPrice, minPrice);
+      if (!price.ok) {
+        return NextResponse.json({ error: price.error }, { status: 400 });
       }
+      updateData.defaultDigitalPhotoPrice = price.value;
     }
 
     if (body.digitalDiscountsEnabled !== undefined) {
@@ -300,15 +246,13 @@ export async function PATCH(req: Request) {
     }
 
     if (body.publicPageHandler !== undefined) {
-      const handler = body.publicPageHandler?.toString().trim().toLowerCase() || null;
+      // Formato del handler (solo letras, números, guiones); vacío → null
+      const handlerRule = normalizePublicPageHandler(body.publicPageHandler);
+      if (!handlerRule.ok) {
+        return NextResponse.json({ error: handlerRule.error }, { status: 400 });
+      }
+      const handler = handlerRule.value;
       if (handler) {
-        // Validar formato del handler (solo letras, números, guiones)
-        if (!/^[a-z0-9-]+$/.test(handler)) {
-          return NextResponse.json(
-            { error: "El handler solo puede contener letras, números y guiones" },
-            { status: 400 }
-          );
-        }
         // Verificar que no esté en uso por otro usuario
         let existing: any = null;
         try {
@@ -428,8 +372,6 @@ export async function PATCH(req: Request) {
         { status: 400 }
       );
     }
-
-    console.log("Actualizando usuario:", id, "con datos:", updateData);
 
     // Actualizar usuario con manejo de errores para campos que pueden no existir
     let updated: any;

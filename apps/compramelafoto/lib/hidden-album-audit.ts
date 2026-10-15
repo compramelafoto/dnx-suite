@@ -8,6 +8,14 @@ const IP_HASH_SALT = process.env.HIDDEN_ALBUM_IP_SALT || process.env.CRON_SECRET
  * Hash de IP para auditoría (no guardar IP en crudo).
  * sha256(ip + salt)
  */
+
+/**
+ * Clave con la que se firman los permisos de álbum oculto. Sin clave configurada no hay permisos:
+ * nunca se firma con un valor fijo, porque cualquiera podría falsificar el acceso.
+ */
+export function getHiddenAlbumGrantSecret(): string | null {
+  return process.env.HIDDEN_ALBUM_GRANT_SECRET || process.env.CRON_SECRET || null;
+}
 export function hashIp(ip: string): string {
   return crypto.createHash("sha256").update(ip + IP_HASH_SALT).digest("hex");
 }
@@ -86,10 +94,13 @@ export function parseGrantCookie(cookieValue: string | null): { grantId: string;
     const expiresAt = parseInt(expiresAtStr, 10);
     if (!Number.isFinite(albumId) || !Number.isFinite(expiresAt)) return null;
     if (Date.now() > expiresAt) return null;
-    const secret = process.env.HIDDEN_ALBUM_GRANT_SECRET || process.env.CRON_SECRET || "grant-secret";
+    const secret = getHiddenAlbumGrantSecret();
+    if (!secret) return null;
     const payload = `${grantId}:${albumId}:${expiresAt}`;
     const expectedSig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-    if (sig !== expectedSig) return null;
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expectedSig);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
     return { grantId, albumId, expiresAt };
   } catch {
     return null;

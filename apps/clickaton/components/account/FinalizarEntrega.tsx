@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { estadoDeFinalizacion } from "@/lib/participant-support/finalizar-entrega";
+import { formatearEnAr, horaAr } from "@/lib/fecha-ar";
 
 export type ResumenConsigna = {
   sequence: number;
@@ -26,15 +27,8 @@ export type FinalizarEntregaProps = {
 };
 
 function formatearFechaHora(iso: string, timezone: string): string {
-  const d = new Date(iso);
-  const fecha = d.toLocaleDateString("es-AR", { timeZone: timezone, day: "2-digit", month: "2-digit" });
-  const hora = d.toLocaleTimeString("es-AR", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${fecha} a las ${hora}`;
+  const fecha = formatearEnAr(iso, { day: "2-digit", month: "2-digit" }, timezone);
+  return `${fecha} a las ${horaAr(iso, timezone)}`;
 }
 
 export function FinalizarEntrega(props: FinalizarEntregaProps) {

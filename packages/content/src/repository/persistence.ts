@@ -19,11 +19,12 @@ type PrismaTx = Pick<
 async function assertPostRelations(
   tx: PrismaTx,
   platform: ContentPlatform,
+  workspaceKey: string,
   data: { categoryId?: number | null; authorId?: number | null; tagIds?: number[] }
 ) {
   if (data.categoryId != null) {
     const category = await tx.blogCategory.findFirst({
-      where: { id: data.categoryId, ...platformWhere(platform) },
+      where: { id: data.categoryId, ...platformWhere(platform, workspaceKey) },
       select: { id: true },
     });
     if (!category) {
@@ -32,7 +33,7 @@ async function assertPostRelations(
   }
   if (data.authorId != null) {
     const author = await tx.blogAuthor.findFirst({
-      where: { id: data.authorId, ...platformWhere(platform) },
+      where: { id: data.authorId, ...platformWhere(platform, workspaceKey) },
       select: { id: true },
     });
     if (!author) {
@@ -41,7 +42,7 @@ async function assertPostRelations(
   }
   if (data.tagIds && data.tagIds.length > 0) {
     const count = await tx.blogTag.count({
-      where: { id: { in: data.tagIds }, ...platformWhere(platform) },
+      where: { id: { in: data.tagIds }, ...platformWhere(platform, workspaceKey) },
     });
     if (count !== data.tagIds.length) {
       throw new ContentError("CONTENT_TAG_NOT_FOUND", "TAG_NOT_FOUND");
@@ -79,16 +80,18 @@ function syncImageFields(input: {
 export async function createContentPost(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   data: ContentPostCreateInput;
 }) {
   const platform = assertContentPlatform(input.platform);
+  const { workspaceKey } = platformWhere(platform, input.workspaceKey);
   const prepared = await prepareContentPostContent(input.data.contentJson);
   const publishedAt = resolvePublishedAtForStatus(input.data.status, input.data.publishedAt);
   const tagIds = input.data.tagIds ?? [];
   const images = syncImageFields(input.data);
 
   return input.prisma.$transaction(async (tx) => {
-    await assertPostRelations(tx, platform, {
+    await assertPostRelations(tx, platform, workspaceKey, {
       categoryId: input.data.categoryId,
       authorId: input.data.authorId,
       tagIds,
@@ -97,6 +100,7 @@ export async function createContentPost(input: {
     const post = await tx.blogPost.create({
       data: {
         platform,
+        workspaceKey,
         title: input.data.title,
         slug: input.data.slug,
         excerpt: input.data.excerpt,
@@ -128,13 +132,14 @@ export async function createContentPost(input: {
       await ensureSingleFeaturedPost({
         prisma: tx,
         platform,
+        workspaceKey,
         postId: post.id,
         isFeatured: true,
       });
     }
 
     const reloaded = await tx.blogPost.findFirstOrThrow({
-      where: { id: post.id, ...platformWhere(platform) },
+      where: { id: post.id, ...platformWhere(platform, workspaceKey) },
       include: contentPostInclude,
     });
     return reloaded;
@@ -144,12 +149,14 @@ export async function createContentPost(input: {
 export async function updateContentPost(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   postId: number;
   data: ContentPostUpdateInput;
 }) {
   const platform = assertContentPlatform(input.platform);
+  const { workspaceKey } = platformWhere(platform, input.workspaceKey);
   const existing = await input.prisma.blogPost.findFirst({
-    where: { id: input.postId, ...platformWhere(platform) },
+    where: { id: input.postId, ...platformWhere(platform, workspaceKey) },
     select: {
       id: true,
       status: true,
@@ -195,7 +202,7 @@ export async function updateContentPost(input: {
       : null;
 
   return input.prisma.$transaction(async (tx) => {
-    await assertPostRelations(tx, platform, {
+    await assertPostRelations(tx, platform, workspaceKey, {
       categoryId: scalar.categoryId,
       authorId: scalar.authorId,
       tagIds,
@@ -223,7 +230,7 @@ export async function updateContentPost(input: {
     };
 
     const updated = await tx.blogPost.updateMany({
-      where: { id: input.postId, ...platformWhere(platform) },
+      where: { id: input.postId, ...platformWhere(platform, workspaceKey) },
       data: updateData as Prisma.BlogPostUpdateManyMutationInput,
     });
     if (updated.count === 0) return null;
@@ -236,13 +243,14 @@ export async function updateContentPost(input: {
       await ensureSingleFeaturedPost({
         prisma: tx,
         platform,
+        workspaceKey,
         postId: input.postId,
         isFeatured: true,
       });
     }
 
     return tx.blogPost.findFirstOrThrow({
-      where: { id: input.postId, ...platformWhere(platform) },
+      where: { id: input.postId, ...platformWhere(platform, workspaceKey) },
       include: contentPostInclude,
     });
   });
@@ -251,11 +259,12 @@ export async function updateContentPost(input: {
 export async function deleteContentPost(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   postId: number;
 }): Promise<boolean> {
   const platform = assertContentPlatform(input.platform);
   const result = await input.prisma.blogPost.deleteMany({
-    where: { id: input.postId, ...platformWhere(platform) },
+    where: { id: input.postId, ...platformWhere(platform, input.workspaceKey) },
   });
   return result.count > 0;
 }

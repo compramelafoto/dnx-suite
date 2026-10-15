@@ -38,11 +38,20 @@ export async function savePortalProfileAction(
     youtube: texto("youtube"),
     linkedin: texto("linkedin"),
     directoryOptIn: formData.get("directoryOptIn") === "on",
+    studioStreet: texto("studioStreet"),
+    studioCity: texto("studioCity"),
+    studioProvince: texto("studioProvince"),
+    studioPostalCode: texto("studioPostalCode"),
+    studioMapsUrl: texto("studioMapsUrl"),
   });
 
   if (!r.ok) return { error: r.error, field: r.field, ok: null };
 
   revalidatePath("/portal");
   revalidatePath("/portal/perfil");
+  // Los mismos campos se editan desde "Mi portfolio", y se ven en su vista previa: sin esto, el
+  // socio guarda su presentación y la pantalla donde la escribió sigue mostrando la anterior.
+  revalidatePath("/portal/portfolio");
+  revalidatePath("/portal/portfolio/vista-previa");
   return { error: null, ok: "Listo, guardamos tus datos." };
 }

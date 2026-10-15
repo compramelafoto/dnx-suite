@@ -8,8 +8,13 @@
  * es explícita en las dos direcciones.
  */
 
+import { ZONA_ARGENTINA, zonaSegura } from "@/lib/fecha-ar";
+
 /** Operaciones Clickatón: -03:00 todo el año, sin horario de verano. */
-export const DEFAULT_ADMIN_TIME_ZONE = "America/Argentina/Buenos_Aires";
+export const DEFAULT_ADMIN_TIME_ZONE = ZONA_ARGENTINA;
+
+/** Una zona mal escrita no debe tumbar el panel: se cae al default. */
+export const safeTimeZone = zonaSegura;
 
 /** Valor de `datetime-local`: `YYYY-MM-DDTHH:mm`, con segundos opcionales. */
 const WALL_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
@@ -22,28 +27,6 @@ type ZonedParts = {
   minute: number;
   second: number;
 };
-
-/**
- * Una zona guardada mal escrita no debe tumbar el panel: se cae al default.
- * El resultado se memoriza porque `Intl` se construye en cada conversión.
- */
-const timeZoneCache = new Map<string, string>();
-
-export function safeTimeZone(timeZone: string | null | undefined): string {
-  const candidate = timeZone?.trim();
-  if (!candidate) return DEFAULT_ADMIN_TIME_ZONE;
-  const cached = timeZoneCache.get(candidate);
-  if (cached) return cached;
-  let resolved = DEFAULT_ADMIN_TIME_ZONE;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: candidate });
-    resolved = candidate;
-  } catch {
-    resolved = DEFAULT_ADMIN_TIME_ZONE;
-  }
-  timeZoneCache.set(candidate, resolved);
-  return resolved;
-}
 
 function zonedParts(instant: Date, timeZone: string): ZonedParts {
   const parts = new Intl.DateTimeFormat("en-US", {

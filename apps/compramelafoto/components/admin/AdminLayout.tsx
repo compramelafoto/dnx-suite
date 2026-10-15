@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Button from "@/components/ui/Button";
 import AdminNotificationBell from "@/components/admin/AdminNotificationBell";
+import MenuSearch, { type MenuSearchSection } from "@/components/panels/MenuSearch";
 
 export const dynamic = 'force-dynamic';
 
@@ -96,9 +97,10 @@ const menuGroups: MenuGroup[] = [
     title: "Diseños",
     items: [
       { id: "plantillas-v2-hub", label: "Plantillas y editor V2", path: "/dashboard/designs" },
+      { id: "template-v2-plantillas", label: "Plantillas de fotógrafos", path: "/admin/template-v2/plantillas" },
       { id: "template-v2-revision", label: "Revisión plantillas V2", path: "/admin/template-v2/revision" },
-      { id: "plantillas", label: "Plantillas clásicas (V1)", path: "/admin/plantillas" },
-      { id: "plantillas-disenador", label: "Diseñador clásico (V1)", path: "/admin/plantillas/disenador" },
+      { id: "disenos-clientes", label: "Diseños de clientes", path: "/fotografo/disenos" },
+      { id: "plantillas", label: "Migración diseñador viejo", path: "/admin/plantillas" },
       { id: "proyectos", label: "Proyectos de diseño", path: "/admin/proyectos" },
     ],
   },
@@ -194,6 +196,23 @@ const menuGroups: MenuGroup[] = [
   },
 ];
 
+/**
+ * Lo que ve el buscador del menú: cada grupo con sus links. Los subgrupos (p. ej. Cursos)
+ * quedan como "Marketing · Cursos" para que se entienda de dónde sale cada opción.
+ */
+const menuSearchSections: MenuSearchSection[] = menuGroups.flatMap((group) => {
+  const leaves = group.items.filter((item): item is MenuLeafItem => !isMenuSubgroup(item));
+  const sueltos: MenuSearchSection = {
+    title: group.title,
+    items: leaves.map((leaf) => ({ href: leaf.path, label: leaf.label })),
+  };
+  const subgrupos: MenuSearchSection[] = group.items.filter(isMenuSubgroup).map((sub) => ({
+    title: `${group.title} · ${sub.label}`,
+    items: sub.children.map((leaf) => ({ href: leaf.path, label: leaf.label })),
+  }));
+  return [sueltos, ...subgrupos];
+});
+
 function getActiveMenuId(
   pathname: string | null,
   searchParams: URLSearchParams | null,
@@ -215,8 +234,8 @@ function getActiveMenuId(
   if (pathname?.startsWith("/admin/clientes")) return "clientes";
   if (pathname?.startsWith("/admin/fotooffice-interesados")) return "fotooffice-interesados";
   if (pathname === "/dashboard/designs" || pathname?.startsWith("/dashboard/designs/")) return "plantillas-v2-hub";
+  if (pathname?.startsWith("/admin/template-v2/plantillas")) return "template-v2-plantillas";
   if (pathname?.startsWith("/admin/template-v2")) return "template-v2-revision";
-  if (pathname?.startsWith("/admin/plantillas/disenador")) return "plantillas-disenador";
   if (pathname?.startsWith("/admin/email-marketing")) return "email-marketing";
   if (pathname?.startsWith("/admin/marketing/charlas")) return "charlas";
   if (pathname?.startsWith("/admin/catalog-templates")) return "catalog-templates";
@@ -686,6 +705,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
               Panel Admin
             </span>
           </div>
+          <MenuSearch sections={menuSearchSections} variant="admin" className="shrink-0 px-2 pt-2" />
           <nav className="p-2 flex-1 min-h-0 overflow-y-auto overscroll-contain pb-[max(0.5rem,env(safe-area-inset-bottom))] touch-pan-y">
             {menuGroups.map((group) => {
               const isExpanded = expandedGroups.has(group.title);

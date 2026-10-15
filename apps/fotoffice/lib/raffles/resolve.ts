@@ -41,13 +41,17 @@ export async function resolveRaffle(input: {
       status: true,
       drawsAt: true,
       drawnAt: true,
+      pickupDays: true,
       entrantsHash: true,
       entrantsCount: true,
       drandChainHash: true,
       drandRound: true,
       drandRandomness: true,
       prizes: { orderBy: { order: "asc" }, select: { id: true, order: true } },
-      entries: { orderBy: { position: "asc" }, select: { id: true, memberId: true, position: true } },
+      entries: {
+        orderBy: { position: "asc" },
+        select: { id: true, memberId: true, position: true, excludedPrizeOrders: true },
+      },
     },
   });
   if (!sorteo) return { ok: false, error: "Ese sorteo no existe." };
@@ -89,7 +93,10 @@ export async function resolveRaffle(input: {
     randomness: tanda.randomness,
     prizeOrders: sorteo.prizes.map((p) => p.order),
     entrantCount: sorteo.entries.length,
+    // Congeladas al sellar, dentro de la huella. Sin ninguna, la cuenta es la de siempre.
+    exclusions: new Map(sorteo.entries.map((e) => [e.position, e.excludedPrizeOrders ?? []])),
   });
+  const cedidos = resultados.filter((r) => r.ruleRelaxed).map((r) => r.prizeOrder);
 
   const porOrden = new Map(sorteo.prizes.map((p) => [p.order, p.id]));
   const porPosicion = new Map(sorteo.entries.map((e) => [e.position, e]));
@@ -112,10 +119,18 @@ export async function resolveRaffle(input: {
     };
   });
 
+  // El plazo de retiro arranca ahora y es el mismo para todos los premios del sorteo: así el
+  // aliado sabe la fecha exacta desde el día uno, se le haya podido avisar al ganador o no.
+  const venceElRetiro = new Date(now.getTime() + sorteo.pickupDays * 86_400_000);
+
   await prisma.$transaction(async (tx) => {
     // `skipDuplicates` con el único sobre `prizeId`: si otro proceso ya escribió, este no
     // pisa nada, y como la cuenta es determinística lo que hay es idéntico a lo que iba.
     await tx.rafflePrizeAward.createMany({ data: filas, skipDuplicates: true });
+    await tx.rafflePrize.updateMany({
+      where: { raffleId: sorteo.id },
+      data: { pickupDeadline: venceElRetiro },
+    });
     await tx.raffle.update({
       where: { id: sorteo.id },
       data: {
@@ -130,7 +145,13 @@ export async function resolveRaffle(input: {
       type: "SORTEADO",
       actorUserId: input.actorUserId ?? null,
       actorLabel: input.actorLabel ?? null,
-      note: `Tanda ${sorteo.drandRound}. Valor ${tanda.randomness}.`,
+      note:
+        `Tanda ${sorteo.drandRound}. Valor ${tanda.randomness}.` +
+        (cedidos.length > 0
+          ? cedidos
+              .map((o) => ` El premio ${o} se sorteó entre todos: los que quedaban ya lo habían ganado.`)
+              .join("")
+          : ""),
     });
   });
 

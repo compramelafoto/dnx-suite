@@ -139,18 +139,21 @@
         },
         {
           "que": "Un pedido que espera información no queda trabado sin salida",
-          "implementado": null,
-          "probado": null
+          "implementado": { "pr": 288, "fecha": "2026-09-30" },
+          "probado": null,
+          "bloqueado": "Falta la sesión de fotopositivos@gmail.com, y un pedido en REQUIERE_INFO para ejercitar las dos salidas"
         },
         {
           "que": "Una solicitud aprobada se puede cerrar o cancelar desde el panel",
-          "implementado": null,
-          "probado": null
+          "implementado": { "pr": 288, "fecha": "2026-09-30" },
+          "probado": null,
+          "bloqueado": "Cerrar quedó implementado; CANCELADA_SOLICITANTE y CANCELADA_ORGANIZACION siguen sin ofrecerse en ninguna pantalla y sin correo que avise a la organización — es una decisión pendiente, no un olvido"
         },
         {
           "que": "Si el correo del enlace falla, la coordinación puede reenviarlo",
-          "implementado": null,
-          "probado": null
+          "implementado": { "pr": 288, "fecha": "2026-09-30" },
+          "probado": null,
+          "bloqueado": "Falta la sesión de fotopositivos@gmail.com; para probarlo de punta a punta hay que abrir el enlace nuevo desde la casilla de la ONG y comprobar que el anterior dejó de servir"
         }
       ]
     }

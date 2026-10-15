@@ -1571,8 +1571,20 @@ export default function AlbumPacksSection({
                               >
                                 Quitar
                               </button>
+                              <a
+                                href={`/fotografo/diseno/plantillas/v2/${encodeURIComponent(draft.templateV2Id.trim())}/probar`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="ml-3 text-sm font-medium text-[#c27b3d] underline underline-offset-2 hover:text-[#a0632f]"
+                              >
+                                Probar con fotos
+                              </a>
                             </p>
                           ) : null}
+                          <p className="m-0 text-xs text-gray-600">
+                            Cuando el cliente pague, el diseño se arma solo con las fotos que eligió, en el orden en que
+                            las eligió, y te llega a <strong>Diseños</strong> para que lo revises y lo apruebes.
+                          </p>
 
                           {templateV2PickCount === 0 ? (
                             <p className="ds-intro-prose ds-intro-prose--start ds-intro-prose--fluid text-sm text-amber-800 m-0">

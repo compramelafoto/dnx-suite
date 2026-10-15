@@ -5,6 +5,7 @@ import { findClaimableMembership } from "@/lib/portal/claim";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { PORTAL_HOME } from "@/lib/portal/destination";
 import { resolveFotofficeUserKind } from "@/lib/portal/user-kind";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { OnboardingWizard } from "./onboarding-wizard";
 
@@ -28,6 +29,14 @@ export default async function OnboardingPage() {
   if (ensured.onboardingCompleted) {
     redirect("/workspace");
   }
+
+  // El onboarding configura la institución activa: sólo dueño o admin. Un STAFF va al panel,
+  // que no lo vuelve a mandar acá (ver `app/workspace/layout.tsx`).
+  const membership = await prisma.workspaceMembership.findUnique({
+    where: { userId_workspaceId: { userId: user.id, workspaceId: ensured.workspaceId } },
+    select: { role: true },
+  });
+  if (!canManageWorkspaceSettings(membership?.role)) redirect("/workspace");
 
   const [profile, branding] = await Promise.all([
     prisma.fotofficePhotographerProfile.findUnique({ where: { userId: user.id } }),

@@ -6,6 +6,7 @@ import {
   createCourseInstanceAction,
   type PresentialCourseActionState,
 } from "@/app/actions/presential-courses";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 const initialState: PresentialCourseActionState = { error: null };
 
@@ -56,18 +57,16 @@ export function CourseInstanceForm({
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="priceArs">
-            Precio ARS
+            Precio (pesos)
           </label>
-          <input
+          <InputMoneda
             id="priceArs"
             name="priceArs"
-            type="number"
-            min={0}
-            step="0.01"
+            envio="punto"
             className="fo-input"
             required
             value={priceArs}
-            onChange={(e) => setPriceArs(e.target.value)}
+            onChange={setPriceArs}
           />
           <PlatformFeeBreakdown amountArs={priceArs} feeBps={platformFeeBps} />
         </div>

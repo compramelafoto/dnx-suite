@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { EstadoCoberturaChip } from "@/components/coberturas/estado-chip";
 import { LugarConfirmado } from "@/components/coberturas/lugar-confirmado";
-import { requireCoveragesReviewer } from "@/lib/coverages/access";
-import { canCoordinateCoverages } from "@/lib/coverages/access-policy";
+import { requireCoveragesViewer } from "@/lib/coverages/access";
 import { lugaresLibres, type EstadoDeRol } from "@/lib/coverages/cupos";
 import { assignmentOriginLabel } from "@/lib/coverages/equipo";
 import { listEvents } from "@/lib/coverages/events";
@@ -43,7 +42,7 @@ export default async function FichaCoberturaPage({
 }: {
   params: Promise<{ coverageId: string }>;
 }) {
-  const { workspace, role } = await requireCoveragesReviewer();
+  const { workspace, canCoordinate } = await requireCoveragesViewer();
   const { coverageId } = await params;
 
   const cobertura = await loadCoverage({ workspaceId: workspace.id, coverageId });
@@ -56,7 +55,7 @@ export default async function FichaCoberturaPage({
       : Promise.resolve([]),
   ]);
 
-  const puedeCoordinar = canCoordinateCoverages(role);
+  const puedeCoordinar = canCoordinate;
 
   const estadosDeRol: EstadoDeRol[] = cobertura.roles.map((r) => ({
     vacancies: r.vacancies,

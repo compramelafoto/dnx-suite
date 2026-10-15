@@ -67,7 +67,7 @@ export async function createTeacherAction(
   _prev: TeacherFormState | undefined,
   formData: FormData,
 ): Promise<TeacherFormState> {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const raw = formToTeacherPayload(formData);
   const parsed = teacherSchema.safeParse(raw);
   if (!parsed.success) {
@@ -118,7 +118,7 @@ export async function updateTeacherAction(
   _prev: TeacherFormState | undefined,
   formData: FormData,
 ): Promise<TeacherFormState> {
-  const { workspace } = await requireCoursesSalesContext();
+  const { workspace } = await requireCoursesSalesContext("MANAGE");
   const id = formData.get("id")?.toString()?.trim();
   if (!id) return { error: "Docente inválido." };
   const existing = await prisma.courseSalesTeacher.findFirst({

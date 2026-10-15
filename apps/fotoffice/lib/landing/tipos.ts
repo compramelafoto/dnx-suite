@@ -53,7 +53,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "cash", "correos", "equipo", "courses-sales"],
-    proximo: "12",
+    proximo: "21",
   },
   {
     id: "local",
@@ -78,7 +78,32 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["cobros", "consultas", "website", "courses-sales", "correos", "equipo"],
-    proximo: "12",
+    proximo: "21",
+  },
+  {
+    id: "estudio",
+    label: "Tengo un estudio o productora con equipo",
+    resumen: "Hacemos eventos y sesiones, atendemos al público y somos varios trabajando a la vez.",
+    icono: "tipo-local",
+    destacados: [
+      {
+        key: "consultas",
+        porque:
+          "Cada consulta entra con el evento, la fecha y el lugar, y cualquiera del equipo la sigue desde donde la dejó el otro, sin preguntar por WhatsApp en qué quedó.",
+      },
+      {
+        key: "cash",
+        porque:
+          "La caja del mostrador con turnos y arqueo: quien atiende cobra, anota y cierra, y a fin de mes sabés qué entró por cada lado sin juntar papelitos.",
+      },
+      {
+        key: "equipo",
+        porque:
+          "Sumás a quien atiende con el permiso justo, módulo por módulo: puede trabajar en consultas y caja sin tocar la configuración ni lo que no le corresponde.",
+      },
+    ],
+    ademas: ["clients", "cobros", "website", "correos", "bookings", "courses-sales"],
+    proximo: "21",
   },
   {
     id: "escuela",
@@ -103,11 +128,11 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["cobros", "cash", "website", "bookings", "correos", "equipo", "consultas"],
-    proximo: "13",
+    proximo: "16",
   },
   {
     id: "sociedad",
-    label: "Soy una sociedad o asociación de fotógrafos",
+    label: "Soy una sociedad, asociación o fotoclub",
     resumen: "Tengo socios, una cuota que vence todos los meses y carnets que emitir.",
     icono: "tipo-sociedad",
     destacados: [
@@ -130,6 +155,12 @@ export const TIPOS: TipoDeOrganizacion[] = [
     ademas: [
       "portal",
       "raffles",
+      "sponsors",
+      "concursos",
+      "muestras",
+      "governance",
+      "portfolio",
+      "communications",
       "bookings",
       "courses-sales",
       "website",
@@ -140,7 +171,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "clients",
       "evaluaciones",
     ],
-    proximo: "15",
+    proximo: "19",
   },
   {
     id: "agrupacion",
@@ -165,7 +196,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["portal", "carnets", "courses-sales", "bookings", "correos", "equipo", "consultas"],
-    proximo: "14",
+    proximo: "16",
   },
   {
     id: "ong",
@@ -200,7 +231,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "bookings",
       "clients",
     ],
-    proximo: "17",
+    proximo: "19",
   },
   {
     id: "espacio",
@@ -225,7 +256,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       },
     ],
     ademas: ["clients", "website", "consultas", "correos", "equipo", "members", "membership-dues"],
-    proximo: "12",
+    proximo: "16",
   },
 ];
 

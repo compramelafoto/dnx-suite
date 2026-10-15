@@ -1079,7 +1079,7 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       </main>
 
       {/* Sticky móvil */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden border-t border-[#e8e8e8] bg-white/95 backdrop-blur-md py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div data-dnxbot-evitar="" className="fixed bottom-0 left-0 right-0 z-40 sm:hidden border-t border-[#e8e8e8] bg-white/95 backdrop-blur-md py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className={`${PAGE_SHELL} flex min-w-0 flex-col gap-2`}>
           {submitting ? (
             <p className="w-full text-center text-xs font-medium text-[#374151]">

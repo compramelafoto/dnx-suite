@@ -1,4 +1,5 @@
 import type { VariableContract } from "@repo/design-studio";
+import { PLACA_ONLY_VARIABLES } from "@/lib/placas/variables";
 
 /**
  * Plantilla del carnet y su contrato de variables.
@@ -155,6 +156,9 @@ export const CARNET_VARIABLE_CONTRACT: VariableContract = {
       required: false,
       sampleValue: "instituciones/ejemplo/logo.png",
     },
+    // Las de las placas de Comunicación: el catálogo del diseñador es uno solo, y lo que se
+    // ofrece al diseñar tiene que poder emitirse también en el carnet. Ver `lib/placas/variables.ts`.
+    ...PLACA_ONLY_VARIABLES,
   ],
 };
 

@@ -1,10 +1,12 @@
 import { prisma } from "@repo/db";
 import { requireWebsiteContext } from "@/lib/workspace";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { hasModuleLevel } from "@/lib/permissions/module-access";
+import { WEBSITE_MODULE_KEY } from "./constants";
 import { ensureWebsiteDraft } from "./draft";
 import { computeWebsiteChangeStatus, type WebsiteChangeStatus } from "./change-status";
 import { parseWebsiteSections, type WebsiteSections } from "./blocks";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
+import { parseSiteMenu, type SiteMenu } from "./site-menu";
 
 /** Contexto común a las 6 pantallas del CMS (Editor/Diseño/Navegación/SEO/Historial/Preview):
  * workspace activo + permisos + borrador (garantizado existente) + estado de publicación. Se
@@ -13,12 +15,9 @@ import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-p
 export async function loadWebsiteCmsContext() {
   const { workspace, user } = await requireWebsiteContext();
 
-  const [draft, membership, hasAnyVersionHistory] = await Promise.all([
+  const [draft, canEdit, hasAnyVersionHistory] = await Promise.all([
     ensureWebsiteDraft(workspace.id),
-    prisma.workspaceMembership.findUnique({
-      where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } },
-      select: { role: true },
-    }),
+    hasModuleLevel(user.id, workspace.id, WEBSITE_MODULE_KEY, "MANAGE"),
     prisma.fotofficeWorkspaceWebsiteVersion
       .count({ where: { website: { workspaceId: workspace.id } }, take: 1 })
       .then((n) => n > 0),
@@ -52,11 +51,12 @@ export async function loadWebsiteCmsContext() {
     hasAnyVersionHistory,
   });
 
-  const canEdit = canManageWorkspaceSettings(membership?.role);
   const sections: WebsiteSections = parseWebsiteSections(draft.sectionsJson);
   const designPresets: WebsiteDesignPresets = parseWebsiteDesignPresets(draft.designPresetsJson);
+  const menu: SiteMenu | null = parseSiteMenu(draft.navJson);
 
   return {
+    menu,
     workspace,
     user,
     draft,

@@ -1,5 +1,5 @@
 import { PORTAL_HOME } from "../portal/destination";
-import type { UserProfile } from "../portal/profiles";
+import { resolveEntryProfile, type UserProfile } from "../portal/profiles";
 
 /**
  * La puerta propia de cada institución.
@@ -14,10 +14,23 @@ import type { UserProfile } from "../portal/profiles";
  * paquete de autenticación compartido con las otras aplicaciones.
  */
 
-/** La dirección de la puerta de una institución. */
-export function doorPathFor(slug: string): string {
-  return `/w/${slug}/entrar`;
+/**
+ * La dirección de la puerta de una institución.
+ *
+ * Con `reserva`, la puerta además recuerda qué espacio y qué semana estaba mirando la persona:
+ * así quien toca "Ingresar" desde la página de reservas vuelve a esa misma reserva, ya
+ * reconocida como socia, en vez de aterrizar en el inicio del portal.
+ */
+export function doorPathFor(slug: string, reserva?: { spaceId: string; ymd?: string }): string {
+  const base = `/w/${slug}/entrar`;
+  if (!reserva || !ID_RESERVA.test(reserva.spaceId)) return base;
+  const fecha = reserva.ymd && FECHA.test(reserva.ymd) ? `&fecha=${reserva.ymd}` : "";
+  return `${base}?espacio=${reserva.spaceId}${fecha}`;
 }
+
+const ID_RESERVA = /^[a-z0-9]{1,40}$/;
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+const PUERTA = /^\/w\/([a-z0-9][a-z0-9-]*)\/entrar(?:\?espacio=[a-z0-9]{1,40}(?:&fecha=\d{4}-\d{2}-\d{2})?)?$/;
 
 /**
  * El slug de la institución si este `next` es una puerta, o `null`.
@@ -28,12 +41,26 @@ export function doorPathFor(slug: string): string {
  */
 export function parseDoorPath(next: string | null | undefined): string | null {
   if (typeof next !== "string") return null;
-  const match = /^\/w\/([a-z0-9][a-z0-9-]*)\/entrar$/.exec(next.trim());
+  const match = PUERTA.exec(next.trim());
   return match?.[1] ?? null;
 }
 
+/**
+ * La dirección exacta a la que se vuelve después de entrar por una puerta, con la reserva
+ * que recordaba si la tenía, o `null` si `next` no es una puerta. Mismo filtro estricto que
+ * `parseDoorPath`: sólo `espacio` (un id) y `fecha` (un día), en ese orden.
+ */
+export function doorReturnPath(next: string | null | undefined): string | null {
+  return parseDoorPath(next) ? (next as string).trim() : null;
+}
+
 export type DoorDestination =
-  | { redirectTo: string }
+  /**
+   * `activateWorkspaceId` viene cuando el destino es el panel: hay que dejar esa institución
+   * activa antes de abrirlo (lo hace `app/w/[workspaceSlug]/entrar/panel/route.ts`, porque la
+   * página de la puerta no puede escribir cookies).
+   */
+  | { redirectTo: string; activateWorkspaceId?: string }
   /** No es nada de esta institución. La puerta se aparta y decide el camino normal. */
   | { unknownHere: true };
 
@@ -48,12 +75,17 @@ export type DoorDestination =
 export function resolveDoorDestination(input: {
   workspaceId: string;
   profiles: UserProfile[];
+  /** La elección recordada (`fotoffice_perfil`). Sólo cuenta si es de esta institución. */
+  rememberedKey?: string | null;
 }): DoorDestination {
   const aca = input.profiles.filter((p) => p.workspaceId === input.workspaceId);
   if (aca.length === 0) return { unknownHere: true };
 
-  // Ser equipo gana, igual que en `resolveFotofficeUserKind`: quien administra la institución
-  // y además es socio entra a administrar, y desde ahí puede cambiar de perfil.
-  const esEquipo = aca.some((p) => p.kind === "TEAM");
-  return { redirectTo: esEquipo ? "/workspace" : PORTAL_HOME };
+  // Todos los perfiles de `aca` son de UNA institución: el mismo criterio que la entrada
+  // general — elección recordada válida; si no, dueño/admin al panel; si no, socio al portal;
+  // si no, equipo (STAFF sin ficha) al panel.
+  const entry = resolveEntryProfile(aca, input.rememberedKey ?? null);
+  if (entry.kind !== "go") return { unknownHere: true };
+  if (entry.profile.kind === "MEMBER") return { redirectTo: PORTAL_HOME };
+  return { redirectTo: "/workspace", activateWorkspaceId: entry.profile.workspaceId };
 }

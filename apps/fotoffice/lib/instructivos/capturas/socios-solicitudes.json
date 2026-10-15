@@ -1,0 +1,38 @@
+[
+  {
+    "archivo": "01-solicitudes.png",
+    "ruta": "/members/solicitudes",
+    "que_mostrar": "Pantalla Solicitudes de asociación con el texto de cabecera, el contador de solicitudes pendientes y al menos una tarjeta. Si no hay solicitudes reales, capturar igual el estado vacío (No hay solicitudes pendientes).",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-tarjeta.png",
+    "ruta": "/members/solicitudes",
+    "que_mostrar": "Una tarjeta de solicitud completa, con los botones Aprobar y Rechazar. Difuminar correo, documento, teléfono y domicilio.",
+    "selector_recorte": "article.fo-card"
+  },
+  {
+    "archivo": "03-advertencias.png",
+    "ruta": "/members/solicitudes",
+    "que_mostrar": "Tarjeta que muestre la advertencia Declara condición de estudiante y/o el aviso Ya fue socio N° … con deuda registrada. Sólo si existe alguna solicitud así; si no, omitir esta captura.",
+    "selector_recorte": "article.fo-card"
+  },
+  {
+    "archivo": "04-aprobada.png",
+    "ruta": "/members/solicitudes",
+    "que_mostrar": "Mensaje en verde después de tocar Aprobar (Socio N° … creado. Se generaron … cuotas…). ATENCIÓN: aprobar crea un socio real, genera cuotas y manda un correo. Capturar sólo al aprobar una solicitud que de verdad corresponde aprobar, o pedir que se arme la captura en un entorno de prueba.",
+    "selector_recorte": "article.fo-card"
+  },
+  {
+    "archivo": "05-rechazar.png",
+    "ruta": "/members/solicitudes",
+    "que_mostrar": "Tocar Rechazar (NO Confirmar rechazo) para que aparezca el campo Motivo del rechazo y el botón Confirmar rechazo. No enviar.",
+    "selector_recorte": "article.fo-card"
+  },
+  {
+    "archivo": "06-esperando-pago.png",
+    "ruta": "/members/solicitudes",
+    "que_mostrar": "Sección Aprobadas, esperando el pago al pie de la pantalla, con al menos una persona y su fecha de vencimiento. Si está vacía, omitir.",
+    "selector_recorte": null
+  }
+]

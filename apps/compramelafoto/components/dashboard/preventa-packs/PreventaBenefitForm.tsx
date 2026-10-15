@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { preventaSelectClassName } from "./preventa-form-controls";
 import { buildBenefitDashboardSummary } from "@/lib/preventa-canjeable/benefit-copy";
 import type { BenefitRow, PhotographerProductOption, TemplateOption } from "./types";
+import ProbarComoClienteButton from "./ProbarComoClienteButton";
 
 export type BenefitFormPayload = {
   kind: "DIGITAL" | "PHYSICAL";
@@ -13,6 +15,7 @@ export type BenefitFormPayload = {
   photographerProductId: number | null;
   templatePolicy: "NONE" | "REQUIRED" | "OPTIONAL";
   templateId: number | null;
+  templateV2Id: string | null;
   extraUnitPriceOverrideArs: number | null;
   requiredPhotoCount: number;
   selectionMode: "SINGLE_PHOTO" | "MULTI_PHOTO_FIXED" | "ALBUM_CHOICE";
@@ -46,6 +49,7 @@ export default function PreventaBenefitForm({
   templateOptions,
   saving,
   hideHeading = false,
+  albumId,
   onCancel,
   onSubmit,
 }: {
@@ -55,6 +59,8 @@ export default function PreventaBenefitForm({
   saving: boolean;
   /** Oculta el título del formulario cuando el contenedor padre ya lo indica (modal / wizard). */
   hideHeading?: boolean;
+  /** Álbum del pack: habilita "Probar como cliente" (el canje real, en vez del sandbox de la plantilla). */
+  albumId?: number;
   onCancel: () => void;
   onSubmit: (payload: BenefitFormPayload) => Promise<void>;
 }) {
@@ -79,7 +85,7 @@ export default function PreventaBenefitForm({
         benefit.photographerProductId != null ? String(benefit.photographerProductId) : ""
       );
       setTemplatePolicy(benefit.templatePolicy);
-      setTemplateId(benefit.templateId != null ? String(benefit.templateId) : "");
+      setTemplateId(benefit.templateV2Id ?? "");
       setExtraUnitPriceOverrideArs(
         benefit.extraUnitPriceOverrideArs != null ? String(benefit.extraUnitPriceOverrideArs) : ""
       );
@@ -261,7 +267,7 @@ export default function PreventaBenefitForm({
 
     let photographerProductIdNum: number | null = null;
     let templatePolicyOut: BenefitFormPayload["templatePolicy"] = "NONE";
-    let templateIdNum: number | null = null;
+    let templateV2Out: string | null = null;
     let extraOut: number | null = null;
 
     if (isPhysical) {
@@ -273,22 +279,12 @@ export default function PreventaBenefitForm({
           return;
         }
       }
-      if (templatePolicyOut === "REQUIRED") {
-        if (!templateId.trim()) {
-          setLocalError("Con política «Obligatoria», elegí una plantilla.");
-          return;
-        }
-        templateIdNum = parseInt(templateId, 10);
-        if (!Number.isInteger(templateIdNum)) {
-          setLocalError("Plantilla inválida.");
-          return;
-        }
-      } else if (templatePolicyOut === "OPTIONAL" && templateId.trim()) {
-        templateIdNum = parseInt(templateId, 10);
-        if (!Number.isInteger(templateIdNum)) {
-          setLocalError("Plantilla inválida.");
-          return;
-        }
+      if (templatePolicyOut === "REQUIRED" && !templateId.trim()) {
+        setLocalError("Con política «Obligatoria», elegí una plantilla.");
+        return;
+      }
+      if (templatePolicyOut !== "NONE" && templateId.trim()) {
+        templateV2Out = templateId.trim();
       }
       if (extraUnitPriceOverrideArs.trim()) {
         extraOut = parseInt(extraUnitPriceOverrideArs, 10);
@@ -312,7 +308,8 @@ export default function PreventaBenefitForm({
       includedQuantity: iq,
       photographerProductId: isPhysical ? photographerProductIdNum : null,
       templatePolicy: isPhysical ? templatePolicyOut : "NONE",
-      templateId: isPhysical ? templateIdNum : null,
+      templateId: null,
+      templateV2Id: isPhysical ? templateV2Out : null,
       extraUnitPriceOverrideArs: extraOut,
       requiredPhotoCount,
       selectionMode,
@@ -471,9 +468,20 @@ export default function PreventaBenefitForm({
                 {templateOptions.map((t) => (
                   <option key={t.id} value={t.id}>
                     [{t.group}] {t.name}
+                    {t.photoInputs > 0 ? ` · ${t.photoInputs} foto${t.photoInputs === 1 ? "" : "s"}` : " · sin huecos de foto"}
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-[#6b7280]">
+                Al canjear, el diseño se arma solo con las fotos que eligió la familia y te llega a{" "}
+                <Link href="/fotografo/disenos" className="underline">Diseños</Link> para revisarlo.
+                {templateId.trim() && albumId ? (
+                  <>
+                    {" "}
+                    <ProbarComoClienteButton albumId={albumId} variant="link" />
+                  </>
+                ) : null}
+              </p>
             </div>
           )}
         </>

@@ -11,12 +11,29 @@ import {
 } from "@/lib/onboarding-constants";
 import { cookies } from "next/headers";
 import { FOTOFFICE_WORKSPACE_COOKIE } from "@/lib/courses-sales/constants";
+import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 
 export type OnboardingState = { error: string | null; ok?: boolean };
 
 const ACTIVITY_IDS = FOTOFFICE_ORGANIZATION_TYPE_IDS;
 
-async function requireOwnedWorkspace(userId: number, email: string, name: string | null) {
+const FORBIDDEN: OnboardingState = {
+  error: "Sólo el dueño o un administrador puede configurar esta institución.",
+};
+
+/**
+ * La institución del onboarding —la activa— si la persona puede configurarla (dueño o admin);
+ * si no, `null` y no se escribe nada.
+ *
+ * La institución activa sigue a la cookie: quien es dueño de su estudio y STAFF de una
+ * sociedad puede tener la sociedad activa. Sin este control, un POST directo a estas acciones
+ * le permitía renombrarla o darle por terminado el onboarding.
+ */
+async function requireManageableWorkspace(
+  userId: number,
+  email: string,
+  name: string | null,
+): Promise<string | null> {
   const ensured = await requireOwnWorkspace({ id: userId, email, name });
   const membership = await prisma.workspaceMembership.findUnique({
     where: {
@@ -24,10 +41,7 @@ async function requireOwnedWorkspace(userId: number, email: string, name: string
     },
     select: { role: true },
   });
-  if (!membership) {
-    throw new Error("Sin membresía en el workspace.");
-  }
-  return ensured.workspaceId;
+  return canManageWorkspaceSettings(membership?.role) ? ensured.workspaceId : null;
 }
 
 export async function saveOnboardingPersonalAction(
@@ -82,7 +96,8 @@ export async function saveOnboardingBusinessAction(
   formData: FormData,
 ): Promise<OnboardingState> {
   const user = await requireAuth();
-  const workspaceId = await requireOwnedWorkspace(user.id, user.email, user.name);
+  const workspaceId = await requireManageableWorkspace(user.id, user.email, user.name);
+  if (!workspaceId) return FORBIDDEN;
 
   const commercialName = formData.get("commercialName")?.toString()?.trim() || "";
   const activityType = formData.get("activityType")?.toString()?.trim() || "";
@@ -123,7 +138,8 @@ export async function saveOnboardingSpecialtiesAction(
   formData: FormData,
 ): Promise<OnboardingState> {
   const user = await requireAuth();
-  const workspaceId = await requireOwnedWorkspace(user.id, user.email, user.name);
+  const workspaceId = await requireManageableWorkspace(user.id, user.email, user.name);
+  if (!workspaceId) return FORBIDDEN;
 
   const raw = formData.getAll("specialties").map((v) => String(v));
   const specialties = raw.filter((id) => FOTOFFICE_SPECIALTY_IDS.has(id as never));
@@ -151,7 +167,8 @@ export async function saveOnboardingSpecialtiesAction(
 
 export async function skipOnboardingAction(): Promise<void> {
   const user = await requireAuth();
-  const workspaceId = await requireOwnedWorkspace(user.id, user.email, user.name);
+  const workspaceId = await requireManageableWorkspace(user.id, user.email, user.name);
+  if (!workspaceId) redirect("/workspace");
   await prisma.fotofficeWorkspaceBranding.update({
     where: { workspaceId },
     data: { onboardingCompletedAt: new Date() },

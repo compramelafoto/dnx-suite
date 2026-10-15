@@ -8,10 +8,12 @@ import { assertContentPlatform, platformWhere, type ContentPlatform } from "../p
 export function incrementViewCount(input: {
   prisma: PrismaClient;
   platform: ContentPlatform;
+  workspaceKey?: string | null;
   postId: number;
   visitorKey: string;
 }): void {
   const platform = assertContentPlatform(input.platform);
+  const scope = platformWhere(platform, input.workspaceKey);
   const normalizedKey = input.visitorKey.trim().slice(0, 64);
   if (normalizedKey.length < 8) return;
 
@@ -22,7 +24,7 @@ export function incrementViewCount(input: {
       const published = await prisma.blogPost.findFirst({
         where: {
           id: postId,
-          ...platformWhere(platform),
+          ...scope,
           status: BlogPostStatus.PUBLISHED,
         },
         select: { id: true },
@@ -47,7 +49,7 @@ export function incrementViewCount(input: {
       }
 
       await prisma.blogPost.updateMany({
-        where: { id: postId, ...platformWhere(platform) },
+        where: { id: postId, ...scope },
         data: { viewCount: { increment: 1 } },
       });
     } catch (err) {

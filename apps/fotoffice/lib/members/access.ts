@@ -1,15 +1,14 @@
 import { redirect } from "next/navigation";
 import { getAuthUser, requireAuth, type AuthUser } from "@/lib/auth";
 import { resolveActiveWorkspace, type ActiveWorkspace } from "@/lib/workspace";
-import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { getModuleLevel } from "@/lib/permissions/module-access";
 import { MEMBERS_MODULE_KEY } from "./constants";
-import { canManageMembers } from "./role-policy";
 
 export type MembersContext = {
   user: AuthUser;
   workspace: ActiveWorkspace;
-  /** OWNER/ADMIN del workspace: puede crear/editar socios, cambiar estado y administrar categorías. STAFF solo consulta. */
+  /** Nivel MANAGE en Socios: puede crear/editar socios, cambiar estado y administrar categorías. VIEW sólo consulta. */
   canManage: boolean;
 };
 
@@ -27,8 +26,9 @@ export async function requireMembersContext(): Promise<MembersContext> {
   const enabled = await isModuleEnabledForWorkspace(workspace.id, MEMBERS_MODULE_KEY);
   if (!enabled) redirect("/dashboard?module=off");
 
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  return { user, workspace, canManage: canManageMembers(role) };
+  const level = await getModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY);
+  if (level === "NONE") redirect("/dashboard");
+  return { user, workspace, canManage: level === "MANAGE" };
 }
 
 /** Para rutas de alta/edición/categorías: exige además rol OWNER/ADMIN. STAFF queda afuera aunque entre por URL directa. */
@@ -56,9 +56,9 @@ export async function resolveMembersExportContext(): Promise<MembersContext | nu
   const enabled = await isModuleEnabledForWorkspace(workspace.id, MEMBERS_MODULE_KEY);
   if (!enabled) return null;
 
-  const role = await resolveWorkspaceRole(user.id, workspace.id);
-  // La exportación masiva se lleva datos personales de todo el padrón: solo OWNER/ADMIN.
-  if (!canManageMembers(role)) return null;
+  // La exportación masiva se lleva datos personales de todo el padrón: sólo nivel MANAGE.
+  const level = await getModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY);
+  if (level !== "MANAGE") return null;
 
   return { user, workspace, canManage: true };
 }

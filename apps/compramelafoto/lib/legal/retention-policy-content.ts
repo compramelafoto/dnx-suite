@@ -1,9 +1,10 @@
 /**
- * Política de Retención y Eliminación de Datos — LEGAL-PACK-2026-06 / RETENTION-v1.0
+ * Política de Retención y Eliminación de Datos — LEGAL-PACK-2026-06 / RETENTION-v1.1
+ * v1.1 (2026-10-13): selfie del álbum oculto (máximo 90 días, borrado a pedido) e intentos de verificación (90 días).
  */
 
-export const RETENTION_POLICY_VERSION = "RETENTION-v1.0";
-export const RETENTION_POLICY_EFFECTIVE_DATE = "2026-06-01";
+export const RETENTION_POLICY_VERSION = "RETENTION-v1.1";
+export const RETENTION_POLICY_EFFECTIVE_DATE = "2026-10-13";
 
 export type RetentionTableRow = {
   category: string;
@@ -82,8 +83,14 @@ export const RETENTION_TABLE_ROWS: RetentionTableRow[] = [
   {
     category: "Selfie álbum oculto",
     location: "R2 + HiddenAlbumAttempt",
-    activePeriod: "Según selfieExpiresAt del álbum",
-    deletion: "Cron / expiración",
+    activePeriod: "No se guarda por defecto; si el álbum lo configura, hasta **90 días** como máximo o eliminación del álbum",
+    deletion: "Cron al vencer / al eliminar el álbum / enlace de borrado inmediato para la persona",
+  },
+  {
+    category: "Intentos de verificación del álbum oculto",
+    location: "HiddenAlbumAttempt (IP cifrada, dispositivo, resultado)",
+    activePeriod: "**90 días**",
+    deletion: "Cron diario",
   },
   {
     category: "Padrón escolar",

@@ -58,7 +58,13 @@ describe("Mercado Pago Orders refunds (Imp 04)", () => {
     assert.equal(req.options.idempotencyKey, "idem-total");
   });
 
-  it("partial refund sends transactions[{id,amount}]", async () => {
+  /**
+   * MP confirmó el 13/10/2026 (IXFS-16376) que en órdenes con split el reembolso
+   * se dirige al **participante**, no a la transacción de pago. Enviar
+   * `transactions` devuelve `split_validation_error`. Verificado contra sandbox:
+   * la orden ORDTST01M4VK5KFTHHC0QZKGM7KS01PR quedó `partially_refunded`.
+   */
+  function fakeRefundOk(detail: string, refunds: unknown[]) {
     const http = new FakeMercadoPagoHttpClient(fakeMercadoPagoConfig());
     http.addRule({
       match: (o) => o.method === "POST" && String(o.path).includes("/refund"),
@@ -68,49 +74,92 @@ describe("Mercado Pago Orders refunds (Imp 04)", () => {
         body: {
           id: "ORD123",
           status: "processed",
-          status_detail: "partially_refunded",
-          transactions: {
-            refunds: [
-              {
-                id: "REF002",
-                transaction_id: "PAY01",
-                amount: "20.00",
-                status: "processed",
-              },
-            ],
-          },
+          status_detail: detail,
+          transactions: { refunds },
         },
         rawText: "",
         problem: null,
       },
     });
+    return http;
+  }
 
+  it("parcial a un participante manda splits[{receiver_id, amount}]", async () => {
+    const http = fakeRefundOk("partially_refunded", [
+      { id: "REF002", amount: "10.00", status: "processed" },
+    ]);
     const result = await createMercadoPagoOrderRefund(http, {
       providerOrderId: "ORD123",
-      idempotencyKey: "idem-partial",
-      amount: money("ARS", 20_00n),
-      providerTransactionId: "PAY01",
+      idempotencyKey: "idem-parcial",
+      splits: [{ receiverId: "748d158f-6dbd-444b-8f3d-b73204c972da", amount: money("ARS", 10_00n) }],
     });
     assert.equal(result.statusDetail, "partially_refunded");
     const body = http.recordedRequests[0]!.options.body as {
-      transactions: Array<{ id: string; amount: string }>;
+      splits: Array<{ receiver_id: string; amount?: string }>;
+      transactions?: unknown;
     };
-    assert.equal(body.transactions[0]!.id, "PAY01");
-    assert.equal(body.transactions[0]!.amount, "20.00");
+    assert.equal(body.splits[0]!.receiver_id, "748d158f-6dbd-444b-8f3d-b73204c972da");
+    assert.equal(body.splits[0]!.amount, "10.00");
+    assert.equal(body.transactions, undefined, "nunca se mezcla con transactions");
   });
 
-  it("partial without transaction id fails", async () => {
+  it("total a un participante manda el receiver_id sin amount", async () => {
+    const http = fakeRefundOk("refunded", [{ id: "REF003", amount: "30.00", status: "processed" }]);
+    await createMercadoPagoOrderRefund(http, {
+      providerOrderId: "ORD123",
+      idempotencyKey: "idem-total-1p",
+      splits: [{ receiverId: "748d158f-6dbd-444b-8f3d-b73204c972da" }],
+    });
+    const body = http.recordedRequests[0]!.options.body as {
+      splits: Array<{ receiver_id: string; amount?: string }>;
+    };
+    assert.equal(body.splits[0]!.receiver_id, "748d158f-6dbd-444b-8f3d-b73204c972da");
+    assert.equal(body.splits[0]!.amount, undefined, "sin amount = pata completa");
+  });
+
+  it("combinado: parcial a uno y total a otro en el mismo request", async () => {
+    const http = fakeRefundOk("partially_refunded", []);
+    await createMercadoPagoOrderRefund(http, {
+      providerOrderId: "ORD123",
+      idempotencyKey: "idem-combinado",
+      splits: [
+        { receiverId: "3141372692", amount: money("ARS", 40_00n) },
+        { receiverId: "748d158f-6dbd-444b-8f3d-b73204c972da" },
+      ],
+    });
+    const body = http.recordedRequests[0]!.options.body as {
+      splits: Array<{ receiver_id: string; amount?: string }>;
+    };
+    assert.equal(body.splits.length, 2);
+    assert.equal(body.splits[0]!.amount, "40.00");
+    assert.equal(body.splits[1]!.amount, undefined);
+  });
+
+  it("rechaza un monto que no sea positivo", async () => {
     const http = new FakeMercadoPagoHttpClient(fakeMercadoPagoConfig());
     await assert.rejects(
       () =>
         createMercadoPagoOrderRefund(http, {
           providerOrderId: "ORD123",
           idempotencyKey: "x",
-          amount: money("ARS", 100n),
+          splits: [{ receiverId: "3141372692", amount: money("ARS", 0n) }],
         }),
       (err: unknown) =>
-        err instanceof MercadoPagoRefundError &&
-        err.code === "TRANSACTION_ID_REQUIRED",
+        err instanceof MercadoPagoRefundError && err.code === "INVALID_REFUND_AMOUNT",
+    );
+  });
+
+  it("rechaza un receptor vacío", async () => {
+    const http = new FakeMercadoPagoHttpClient(fakeMercadoPagoConfig());
+    await assert.rejects(
+      () =>
+        createMercadoPagoOrderRefund(http, {
+          providerOrderId: "ORD123",
+          idempotencyKey: "x",
+          splits: [{ receiverId: "   " }],
+        }),
+      (err: unknown) =>
+        err instanceof MercadoPagoRefundError && err.code === "RECEIVER_ID_REQUIRED",
     );
   });
 });

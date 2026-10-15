@@ -7,7 +7,7 @@
  * `DATABASE_URL` debe venir de `apps/compramelafoto/.env.preview.local` (staging).
  *
  * - Solo staging (ep-round-fog); aborta contra cualquier otra base.
- * - Idempotente: upsert por `platform_slug`.
+ * - Idempotente: upsert por `platform_workspaceKey_slug`.
  * - Sin `--with-fixture` no crea ninguna nota, solo categorías + autor.
  */
 import { pathToFileURL } from "node:url";
@@ -163,7 +163,7 @@ export async function seedClickatonBlogTaxonomy(options?: {
 
   for (const category of CATEGORIES) {
     await prisma.blogCategory.upsert({
-      where: { platform_slug: { platform: PLATFORM, slug: category.slug } },
+      where: { platform_workspaceKey_slug: { platform: PLATFORM, workspaceKey: "", slug: category.slug } },
       update: {
         name: category.name,
         description: category.description,
@@ -176,14 +176,14 @@ export async function seedClickatonBlogTaxonomy(options?: {
 
   for (const tag of TAGS) {
     await prisma.blogTag.upsert({
-      where: { platform_slug: { platform: PLATFORM, slug: tag.slug } },
+      where: { platform_workspaceKey_slug: { platform: PLATFORM, workspaceKey: "", slug: tag.slug } },
       update: { name: tag.name },
       create: { platform: PLATFORM, ...tag },
     });
   }
 
   const author = await prisma.blogAuthor.upsert({
-    where: { platform_slug: { platform: PLATFORM, slug: AUTHOR.slug } },
+    where: { platform_workspaceKey_slug: { platform: PLATFORM, workspaceKey: "", slug: AUTHOR.slug } },
     update: { name: AUTHOR.name, role: AUTHOR.role, bio: AUTHOR.bio, isActive: true },
     create: { platform: PLATFORM, ...AUTHOR, isActive: true },
   });
@@ -196,7 +196,7 @@ export async function seedClickatonBlogTaxonomy(options?: {
 
   if (options?.withFixture) {
     const category = await prisma.blogCategory.findUniqueOrThrow({
-      where: { platform_slug: { platform: PLATFORM, slug: "guias" } },
+      where: { platform_workspaceKey_slug: { platform: PLATFORM, workspaceKey: "", slug: "guias" } },
       select: { id: true },
     });
     const contentHtml = await generateContentHtml(FIXTURE_CONTENT);
@@ -204,7 +204,7 @@ export async function seedClickatonBlogTaxonomy(options?: {
     const publishedAt = new Date();
 
     const post = await prisma.blogPost.upsert({
-      where: { platform_slug: { platform: PLATFORM, slug: FIXTURE_SLUG } },
+      where: { platform_workspaceKey_slug: { platform: PLATFORM, workspaceKey: "", slug: FIXTURE_SLUG } },
       update: {
         contentJson: FIXTURE_CONTENT as Prisma.InputJsonValue,
         contentHtml,

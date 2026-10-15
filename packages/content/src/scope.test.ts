@@ -54,6 +54,7 @@ describe("repository platform scope (entry assert)", () => {
   it("platformWhere is the pure scope helper", () => {
     assert.deepEqual(platformWhere(assertContentPlatform("fotorank")), {
       platform: "fotorank",
+      workspaceKey: "",
     });
   });
 });

@@ -12,7 +12,7 @@ const LINKS = [
   {
     id: "pedidos",
     label: "Pedidos escolares",
-    hint: "Preventa y entregas",
+    hint: "De la compra a la entrega, paso a paso",
     href: "/fotografo/escuelas/pedidos",
   },
   {
@@ -22,10 +22,10 @@ const LINKS = [
     href: "/dashboard/designs",
   },
   {
-    id: "revisiones",
-    label: "Revisiones",
-    hint: "Aprobaciones de diseño",
-    href: "/dashboard/design-projects",
+    id: "landing",
+    label: "Mi landing escolar",
+    hint: "Tu página para colegios y sus consultas",
+    href: "/fotografo/escuelas/landing",
   },
 ] as const;
 

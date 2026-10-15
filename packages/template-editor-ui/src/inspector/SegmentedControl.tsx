@@ -35,7 +35,7 @@ export function SegmentedControl<T extends string>({
           className={cn(
             "min-w-0 flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
             value === opt.value
-              ? "bg-white text-[color:var(--te-ink)] shadow-sm"
+              ? "bg-[color:var(--te-surface)] text-[color:var(--te-ink)] shadow-sm"
               : "text-[color:var(--te-ink-muted)] hover:text-[color:var(--te-ink)]"
           )}
           onClick={() => onChange(opt.value)}

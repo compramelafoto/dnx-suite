@@ -37,6 +37,28 @@ export function estaEnLaColaDeRevision(p: PerfilParaRevision): boolean {
   return p.estado === "PENDING" && p.emailVerificado;
 }
 
+/**
+ * Si la ficha ya está aprobada, ¿queda publicada en el directorio?
+ *
+ * Existe porque faltaba una regla y alguien quedó en el medio: una jurado
+ * aprobada pidió aparecer en el directorio **después** de que la aprobaran, y
+ * nada la publicó. `isListedInProfessionalDirectory` sólo se escribía en el
+ * momento de la revisión, así que su pedido no tenía quién lo escuchara.
+ *
+ * La aprobación responde por la persona, no por su preferencia del momento:
+ * una vez aprobada, entrar y salir del directorio es decisión suya, como ya
+ * lo es editar su biografía sin volver a pasar por revisión. Sin aprobar, en
+ * cambio, el pedido queda anotado y no publica nada — el directorio es común
+ * a toda la plataforma y nadie se publica solo.
+ */
+export function listadoSegunLoQuePide(p: {
+  estado: EstadoDeRevision;
+  quiereEstarEnElDirectorio: boolean;
+}): boolean {
+  if (p.estado !== "APPROVED") return false;
+  return p.quiereEstarEnElDirectorio;
+}
+
 export function aprobar(p: PerfilParaRevision): EfectoDeRevision {
   return {
     estado: "APPROVED",

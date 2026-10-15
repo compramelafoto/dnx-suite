@@ -36,6 +36,15 @@ import {
   createAlbumOrderPrintOrderMirror,
   syncAlbumOrderPrintMirrorContact,
 } from "@/lib/orders/create-album-order-print-order-mirror";
+import { applyPrepaidPrintCredit } from "@/lib/canje-externo/prepaid-print-credit";
+import {
+  attachVoucherToOrder,
+  EXTERNAL_VOUCHER_ERROR_MESSAGES,
+  loadExternalVoucherByToken,
+  type ExternalVoucher,
+} from "@/lib/canje-externo/external-voucher";
+import { completePrepaidAlbumOrder } from "@/lib/canje-externo/complete-prepaid-order";
+import { vincularPedidoConBot } from "@/lib/bot/comprador/vincular-pedido";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -222,7 +231,28 @@ export async function POST(
 
     const authUser = await getAuthUser();
 
-    if (!isAlbumPubliclyAccessible(album)) {
+    // El link de canje lo da el fotógrafo: alcanza para comprar aunque el álbum no esté
+    // listado (si no, la familia que entra con su link quedaba en "Álbum no disponible").
+    const canjeToken = typeof body.canjeToken === "string" ? body.canjeToken.trim() : "";
+    let canjeVoucher: ExternalVoucher | null = null;
+    if (canjeToken) {
+      const lookup = await loadExternalVoucherByToken(canjeToken, albumId);
+      if (!lookup.ok) {
+        return NextResponse.json(
+          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES[lookup.error], code: "CANJE_INVALIDO" },
+          { status: 400 }
+        );
+      }
+      if (lookup.voucher.redeemed) {
+        return NextResponse.json(
+          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES.redeemed, code: "CANJE_USADO" },
+          { status: 409 }
+        );
+      }
+      canjeVoucher = lookup.voucher;
+    }
+
+    if (!isAlbumPubliclyAccessible(album) && !canjeVoucher) {
       const isOwner = authUser?.id === album.userId;
       const hasAccess = authUser
         ? await prisma.albumAccess.findUnique({
@@ -258,14 +288,25 @@ export async function POST(
       uploaderDigitalPriceCents: item.uploaderDigitalPriceCents ?? null,
     }));
 
-    const totals = await computeCheckoutTotals({
+    let totals = await computeCheckoutTotals({
       flow: "ALBUM_ORDER",
       albumId,
       items: normalizedItems,
       faceBulkPackPhotoIds,
     });
 
-    if (totals.displayTotalCents <= 0) {
+    // Canje de un combo cobrado por fuera (link único de la familia): las impresas del
+    // combo y su digital salen en $0 y el resto se cobra normal. Ver lib/canje-externo.
+    let voucher: ExternalVoucher | null = null;
+    if (canjeVoucher) {
+      const applied = applyPrepaidPrintCredit(totals, normalizedItems, canjeVoucher.refs);
+      if (applied.creditedPrintUnits > 0) {
+        voucher = canjeVoucher;
+        totals = applied.totals;
+      }
+    }
+
+    if (totals.displayTotalCents <= 0 && !voucher) {
       return NextResponse.json({ error: "El total debe ser mayor a 0" }, { status: 400 });
     }
 
@@ -281,7 +322,26 @@ export async function POST(
       quantity: number;
       priceCents: number;
       subtotalCents: number;
+      metadata?: Prisma.InputJsonValue;
     }> = [];
+
+    // Producto que eligió el cliente para cada impresa (p. ej. "Foto grupal" vs "Foto
+    // impresa", mismo tamaño): queda en el ítem para que la carpeta de impresión lleve el
+    // nombre correcto. Se toma de la lista del dueño del álbum, no del texto del navegador.
+    const chosenProductIds = Array.from(
+      new Set(
+        normalizedItems
+          .map((it: { productId?: unknown }) => Number(it.productId))
+          .filter((n: number) => Number.isInteger(n) && n > 0)
+      )
+    ) as number[];
+    const chosenProducts = chosenProductIds.length
+      ? await prisma.photographerProduct.findMany({
+          where: { id: { in: chosenProductIds }, userId: album.userId },
+          select: { id: true, name: true },
+        })
+      : [];
+    const productNameById = new Map(chosenProducts.map((p) => [p.id, p.name] as const));
 
     totals.items.forEach((computed) => {
       const original = normalizedItems[computed.inputIndex];
@@ -309,6 +369,14 @@ export async function POST(
         quantity: computed.quantity,
         priceCents: computed.unitPriceCents,
         subtotalCents: computed.subtotalCents,
+        ...(!isDigital && productNameById.has(Number(original?.productId))
+          ? {
+              metadata: {
+                productId: Number(original?.productId),
+                productName: productNameById.get(Number(original?.productId)),
+              },
+            }
+          : {}),
       });
     });
 
@@ -335,6 +403,11 @@ export async function POST(
       ) as Prisma.InputJsonValue;
       orderV1Fields.origin = OrderOrigin.STANDARD_CHECKOUT;
       orderV1Fields.checkoutPaymentSource = CheckoutPaymentSource.MERCADO_PAGO;
+    }
+    if (voucher) {
+      // Origen y tipo de pago explícitos aunque el flag de preventa esté apagado: el
+      // panel y las reconciliaciones los leen para saber que esto no es un cobro de MP.
+      orderV1Fields.origin = OrderOrigin.STANDARD_CHECKOUT;
     }
 
     // ── Videos en el mismo pedido ──────────────────────────────────────────
@@ -371,6 +444,11 @@ export async function POST(
       photoMarketplaceFeeArs: Math.round(Number(totals.marketplaceFeeCents || 0)),
       videoQuote,
     });
+    // El combo cubrió todo: no hay nada que cobrar por Mercado Pago.
+    const coveredByVoucher = voucher != null && mixedTotals.totalArs <= 0;
+    if (coveredByVoucher) {
+      orderV1Fields.checkoutPaymentSource = CheckoutPaymentSource.PREPAID_PACK;
+    }
 
     // Crear el pedido
     const baseData: any = {
@@ -399,7 +477,8 @@ export async function POST(
 
     const orderItemsSignature = buildOrderItemsSignature(orderItemsData);
     const recentThreshold = new Date(Date.now() - 10 * 60 * 1000);
-    const recentCandidates = await prisma.order.findMany({
+    // Con canje no se reutiliza un pedido anterior: el combo se reserva para el pedido nuevo.
+    const recentCandidates = voucher ? [] : await prisma.order.findMany({
       where: {
         albumId,
         buyerEmail: normalizedBuyerEmail,
@@ -488,6 +567,7 @@ export async function POST(
     }
 
     if (
+      !coveredByVoucher &&
       !mpCredsPrecheck.ok &&
       mpCredsPrecheck.code === "ORGANIZER_MP_NOT_CONNECTED"
     ) {
@@ -539,6 +619,22 @@ export async function POST(
         });
       } else {
         throw createErr;
+      }
+    }
+
+    // Medición de DNX Bot: nunca lanza y sin la cookie del bot no consulta la base.
+    await vincularPedidoConBot(order.id, req.headers.get("cookie"));
+
+    if (voucher) {
+      try {
+        await attachVoucherToOrder(voucher, order.id);
+      } catch (attachErr) {
+        console.error("[order] no se pudo reservar el combo", { orderId: order.id, attachErr });
+        await prisma.order.update({ where: { id: order.id }, data: { status: "FAILED" } });
+        return NextResponse.json(
+          { error: EXTERNAL_VOUCHER_ERROR_MESSAGES.redeemed, code: "CANJE_USADO" },
+          { status: 409 }
+        );
       }
     }
 
@@ -627,6 +723,19 @@ export async function POST(
         buyerEmail: normalizedBuyerEmail,
       },
     });
+
+    if (coveredByVoucher && voucher) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: "PAID", platformCommissionCents: 0 },
+      });
+      const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");
+      const { downloadUrl } = await completePrepaidAlbumOrder(order.id, voucher.orderId, baseUrl);
+      return NextResponse.json(
+        { id: order.id, totalCents: 0, paid: true, coveredByVoucher: true, downloadUrl },
+        { status: 201 }
+      );
+    }
 
     // Crear preferencia de pago en Mercado Pago
     try {

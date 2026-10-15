@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* El diseñador compartido (diplomas e imágenes de ganadores) trae sus clases de Tailwind. */
+@source "../../../packages/template-editor-ui/src";
+@source "../../../packages/template-editor-core/src";
 @import "./styles/public-tokens.css";
 /* Inscripción / concurso público (ETAPA 10C): define .fr-contest-* y .fr-upload-*,
    que son las clases que usa el wizard de carga. */

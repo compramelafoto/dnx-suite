@@ -1,11 +1,18 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import styles from "./landing.module.css";
 import { EnlaceIngresar } from "./enlace-ingresar";
 import { IconoDe } from "./iconos";
-import { BASE_DEL_SISTEMA, EN_CONSTRUCCION, MODULOS_DISPONIBLES } from "@/lib/landing/catalogo";
+import { PropuestaInstitucional } from "./propuesta-institucional";
+import {
+  BASE_DEL_SISTEMA,
+  EN_CONSTRUCCION,
+  MODULOS_DE_LA_SUITE,
+  MODULOS_DISPONIBLES,
+} from "@/lib/landing/catalogo";
+import { armarConsulta, type SeleccionInicial } from "@/lib/landing/enlace";
 import { TIPOS, clavesDe, tipoPorId } from "@/lib/landing/tipos";
 
 /**
@@ -21,8 +28,17 @@ export function useClavesElegidas() {
 }
 
 const FICHAS = new Map(
-  [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA].map((m) => [m.key, m] as const),
+  [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA, ...MODULOS_DE_LA_SUITE].map((m) => [m.key, m] as const),
 );
+
+/** Los tipos para los que la respuesta suma la propuesta institucional completa. */
+const INSTITUCIONALES = new Set(["sociedad"]);
+
+/** Deja la URL igual a lo que se ve, sin recargar ni sumar pasos al «atrás» del navegador. */
+function reflejarEnLaUrl(seleccion: SeleccionInicial) {
+  const url = `${window.location.pathname}${armarConsulta(seleccion)}${window.location.hash}`;
+  window.history.replaceState(null, "", url);
+}
 
 /**
  * La única pregunta con la que abre la portada.
@@ -31,13 +47,37 @@ const FICHAS = new Map(
  * visitante a descartar por su cuenta, y la mayoría abandona antes de terminar. Quien no quiera
  * contestar tiene la salida de «Prefiero ver todo el sistema» — nada queda detrás de la
  * pregunta, sólo ordenado detrás de ella.
+ *
+ * La respuesta puede venir dada en el enlace (`lib/landing/enlace.ts`): la página la lee en el
+ * servidor y abre ya contestada. Desde ahí, lo que se elija se refleja en la URL, así recargar
+ * o copiar la dirección conserva lo que se está viendo.
  */
-export function ElegiTuCaso({ children }: { children: ReactNode }) {
-  const [id, setId] = useState<string | null>(null);
-  const [verTodo, setVerTodo] = useState(false);
+export function ElegiTuCaso({
+  children,
+  inicial = { tipoId: null, modulos: null },
+}: {
+  children: ReactNode;
+  inicial?: SeleccionInicial;
+}) {
+  const [id, setIdCrudo] = useState<string | null>(inicial.tipoId);
+  const [modulos, setModulos] = useState<string[] | null>(inicial.modulos);
+  const [verTodo, setVerTodo] = useState(inicial.tipoId === null && inicial.modulos !== null);
   const tipo = tipoPorId(id);
-  const claves = useMemo(() => new Set(tipo ? clavesDe(tipo) : []), [tipo]);
+  const claves = useMemo(
+    () => new Set(modulos ?? (tipo ? clavesDe(tipo) : [])),
+    [modulos, tipo],
+  );
   const abierto = tipo !== undefined || verTodo;
+
+  /** Cambiar de caso descarta la selección compartida: era para el caso anterior. */
+  const setId = useCallback((nuevo: string | null) => {
+    setIdCrudo(nuevo);
+    setModulos(null);
+    reflejarEnLaUrl({ tipoId: nuevo, modulos: null });
+  }, []);
+
+  const destacadas = new Set(tipo?.destacados.map((d) => d.key) ?? []);
+  const resto = modulos ? modulos.filter((k) => !destacadas.has(k)) : (tipo?.ademas ?? []);
 
   return (
     <ClavesElegidas.Provider value={claves}>
@@ -151,9 +191,11 @@ export function ElegiTuCaso({ children }: { children: ReactNode }) {
               })}
             </div>
 
-            <h3 className={styles.subtitulo}>Y además tenés, si los querés</h3>
+            <h3 className={styles.subtitulo}>
+              {modulos ? "Y lo demás que te seleccionamos" : "Y además tenés, si los querés"}
+            </h3>
             <div className={styles.ademas}>
-              {tipo.ademas.map((k) => {
+              {resto.map((k) => {
                 const ficha = FICHAS.get(k);
                 if (!ficha) return null;
                 return (
@@ -169,12 +211,14 @@ export function ElegiTuCaso({ children }: { children: ReactNode }) {
 
             <Proximo cuadro={tipo.proximo} />
 
+            {INSTITUCIONALES.has(tipo.id) ? <PropuestaInstitucional /> : null}
+
             <div className={styles.heroAcciones}>
               <EnlaceIngresar className={`${styles.btn} ${styles.btnPrimario}`}>
                 Entrar y encender el primero
               </EnlaceIngresar>
               <a href="#modulos" className={`${styles.btn} ${styles.btnFantasma}`}>
-                Ver los quince cuadros
+                Ver todos los cuadros
               </a>
             </div>
           </div>

@@ -10,12 +10,14 @@ import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
 import { loadPortalOffer, totalForBooking } from "@/lib/bookings/portal";
 import { anyRequiresConfirmation, extrasTotalMinor } from "@/lib/bookings/extras";
-import { quoteBooking } from "@/lib/bookings/pricing";
+import { quoteForSpace } from "@/lib/bookings/pricing";
 import { createBooking, type BookingExtraLineInput } from "@/lib/bookings/create";
 import { startBookingCheckout } from "@/lib/bookings/checkout";
 import { cancelBooking } from "@/lib/bookings/create";
 import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
 import { getBookingSettings } from "@/lib/bookings/repository";
+import { canCoverWithCredits, creditsNeededFor } from "@/lib/bookings/club-credits";
+import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 import { prisma } from "@repo/db";
 
 const PORTAL = "/portal/reservas";
@@ -61,12 +63,24 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
   const { space, freeHours, extras } = oferta as NonNullable<typeof oferta>;
 
   const minutos = (range.endAt.getTime() - range.startAt.getTime()) / 60_000;
-  const quote = quoteBooking({
+
+  // Club VIP: si la bolsa alcanza para este turno, sale de ahí y sin cargo. Las horas
+  // bonificadas no se mezclan con los turnos del club: una reserva usa una cosa o la otra.
+  const club = await loadMemberClubBalance({
+    workspaceId: context.workspace.id,
+    memberId: context.member.id,
+  });
+  const usarClub = space.acceptsClubCredits && canCoverWithCredits({
+    balance: club,
+    needed: creditsNeededFor({ pricingMode: space.pricingMode, blockMinutes: space.blockMinutes, minutes: minutos }),
+    startAt: range.startAt,
+  });
+  const libresParaEsta = usarClub ? 0 : freeHours.availableMinutes;
+
+  const quote = quoteForSpace(space, {
     minutes: minutos,
     customerType: "MEMBER",
-    memberHourlyPriceMinor: space.memberHourlyPriceMinor,
-    nonMemberHourlyPriceMinor: space.nonMemberHourlyPriceMinor,
-    freeMinutesAvailable: freeHours.availableMinutes,
+    freeMinutesAvailable: libresParaEsta,
   });
 
   // Solo los elegidos que además están disponibles. Un agotado se descarta en silencio: la
@@ -86,7 +100,7 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
     }));
 
   const extrasMinor = extrasTotalMinor(extras, elegidos);
-  const total = totalForBooking({ quote, extrasMinor });
+  const total = usarClub ? extrasMinor : totalForBooking({ quote, extrasMinor });
   const aConfirmar = anyRequiresConfirmation(extras, elegidos);
 
   const r = await createBooking({
@@ -99,10 +113,11 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
     contactName: `${context.member.firstName} ${context.member.lastName}`.trim(),
     contactEmail: user.email ?? "",
     contactPhone: null,
-    freeMinutesAvailable: freeHours.availableMinutes,
+    freeMinutesAvailable: libresParaEsta,
     paymentMethod: String(formData.get("paymentMethod") ?? "MERCADO_PAGO"),
     createdByUserId: null,
     extraLines: lineas,
+    useClubCredits: usarClub,
   });
 
   if (!r.ok) volver(`error=${encodeURIComponent(r.error)}`);
@@ -115,7 +130,7 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
   if (aConfirmar || creada.status === "PENDING_APPROVAL") {
     redirect(`${PORTAL}?enviada=1`);
   }
-  if (total === 0 || creada.status === "CONFIRMED") {
+  if (total === 0 || creada.totalMinor === 0 || creada.status === "CONFIRMED") {
     redirect(`${PORTAL}?ok=1`);
   }
 

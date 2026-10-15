@@ -1,0 +1,72 @@
+{
+  "proyecto": "Testimonios y relación de calidad",
+  "plataforma": "Clickatón",
+  "enUso": "si",
+  "usoNota": "28 participantes acreditados de la 1ª edición invitados el 22/09: 11 respondieron la encuesta y hay 10 testimonios publicados en la home",
+  "etapas": [
+    {
+      "nombre": "La encuesta",
+      "criterios": [
+        {
+          "que": "Después del evento, cada participante que se acreditó recibe la invitación a la encuesta",
+          "implementado": { "pr": 242, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "28 invitaciones de la 1ª edición enviadas el 22/09 entre las 21:00:01 y las 21:00:08 UTC (28 correos «¿Cómo te fue…?» en SENT); 28 y no 30, porque 2 confirmados nunca se acreditaron"
+          }
+        },
+        {
+          "que": "Se invita a una sola inscripción desde su ficha, sin escribirle a toda la edición",
+          "implementado": { "pr": 236, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "1 correo «¿Cómo te fue en Clickatón DEMO?» enviado el 22/09 desde la edición de prueba, que no admite el envío masivo"
+          }
+        },
+        {
+          "que": "El participante responde con su nota de 0 a 10 y siete notas de 1 a 5, y su crítica queda privada",
+          "implementado": { "pr": 235, "fecha": "2026-09-22" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "11 respuestas en ClickatonSurveyResponse, la última del 28/09; 11 de las 28 invitaciones pasaron a RESPONDED"
+          }
+        },
+        {
+          "que": "Un administrador mira la encuesta sin haber participado, sin poder responderla",
+          "implementado": { "pr": 241, "fecha": "2026-09-22" },
+          "probado": null
+        },
+        {
+          "que": "El enlace de la encuesta se comparte por WhatsApp desde el panel",
+          "implementado": { "pr": 243, "fecha": "2026-09-23" },
+          "probado": null,
+          "bloqueado": "Compartir no deja rastro en la base: falta usar el botón y ver el mensaje armado en WhatsApp"
+        },
+        {
+          "que": "Una tanda grande de invitaciones sale entera, sin cortarse a la mitad",
+          "implementado": { "pr": 239, "fecha": "2026-09-22" },
+          "probado": null,
+          "bloqueado": "La única tanda fue de 28, por debajo del tope de 40 por corrida: el reparto en varias corridas nunca se ejercitó"
+        }
+      ]
+    },
+    {
+      "nombre": "Los testimonios publicados",
+      "criterios": [
+        {
+          "que": "El testimonio aprobado sale completo en la home, en un carrusel que pasa solo",
+          "implementado": { "pr": 246, "fecha": "2026-09-23" },
+          "probado": {
+            "fecha": "2026-09-29",
+            "evidencia": "10 testimonios en PUBLISHED, y la home de maratonfotografica.com servida el 29/09 trae las 10 citas (antes el tope era 6)"
+          }
+        },
+        {
+          "que": "Quien modera puede recortar un testimonio, y si no lo hace sale entero",
+          "implementado": { "pr": 244, "fecha": "2026-09-23" },
+          "probado": null
+        }
+      ]
+    }
+  ]
+}

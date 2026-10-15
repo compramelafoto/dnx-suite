@@ -1,0 +1,38 @@
+[
+  {
+    "archivo": "01-mostrador.png",
+    "ruta": "/ventas",
+    "que_mostrar": "Pantalla completa del mostrador con el ticket vacío ('Todavía no agregaste nada.'): buscador, grilla de productos con foto y precio a la izquierda, Ticket a la derecha.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-buscar-producto.png",
+    "ruta": "/ventas",
+    "que_mostrar": "Escribir parte del nombre de un producto en el buscador (sin Enter) para que la grilla quede filtrada a 2 a 4 productos.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "03-ticket-con-productos.png",
+    "ruta": "/ventas",
+    "que_mostrar": "Tocar dos productos distintos (uno dos veces) para que el ticket tenga dos renglones, uno con cantidad 2. Recortar sólo la tarjeta del Ticket, desde el título hasta los renglones.",
+    "selector_recorte": "section.fo-card.sticky"
+  },
+  {
+    "archivo": "04-total-y-medio-de-pago.png",
+    "ruta": "/ventas",
+    "que_mostrar": "Con el mismo ticket, escribir un Descuento chico (por ejemplo 500), dejar Medio de pago en Efectivo y que se vea el botón 'Cobrar $…'. Recortar la parte inferior de la tarjeta del Ticket. NO tocar Cobrar.",
+    "selector_recorte": "section.fo-card.sticky"
+  },
+  {
+    "archivo": "05-venta-registrada.png",
+    "ruta": "/ventas",
+    "que_mostrar": "Mensaje verde 'Venta #… registrada.' con el ticket vacío. ATENCIÓN: cobrar registra una venta real, mueve stock y anota en Caja; hacerlo con una venta verdadera o anularla después desde Ventas hechas con motivo 'Prueba para el instructivo'.",
+    "selector_recorte": "section.fo-card.sticky"
+  },
+  {
+    "archivo": "06-ventas-hechas.png",
+    "ruta": "/ventas/historial",
+    "que_mostrar": "Lista de ventas con una abierta (clic en la fila) mostrando la tabla de renglones y el formulario 'Motivo de la anulación' con el botón 'Anular venta'. NO tocar Anular venta.",
+    "selector_recorte": null
+  }
+]

@@ -13,6 +13,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/recordatorio-cuotas",
+      "schedule": "0 12 * * *"
+    },
+    {
       "path": "/api/cron/solicitudes",
       "schedule": "30 7 * * *"
     },
@@ -25,8 +29,64 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/agenda-google-sync",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/agenda-recordatorios",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/contactos-sync",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/sorteos",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/adjuntos",
+      "schedule": "40 4 * * *"
+    },
+    {
+      "path": "/api/cron/galerias",
+      "schedule": "50 4 * * *"
+    },
+    {
+      "path": "/api/cron/galerias-zip",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/tienda",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/socio-de-la-semana",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/cron/correo",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/presupuestos-seguimiento",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/pedidos-recordatorios",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/contratos-recordatorios",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/alboom-extraccion",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/alboom-carga",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

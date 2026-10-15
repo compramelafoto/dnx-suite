@@ -1,3 +1,4 @@
+import { loadShippingForEmail } from "@/lib/home-delivery/load-shipping-for-email";
 import { prisma } from "@repo/db";
 import { sendParticipantFunnelEmail } from "@/lib/registration/notifications/participant-email";
 import {
@@ -67,6 +68,7 @@ export async function notifyPaidRegistrationConfirmed(input: {
       visibleCode: row.visibleCode,
       instagramHandle: row.instagramHandle,
       paymentStatus: row.paymentStatus,
+      homeDelivery: await loadShippingForEmail(row.id),
       dryRunBuildOnly: true,
     });
 

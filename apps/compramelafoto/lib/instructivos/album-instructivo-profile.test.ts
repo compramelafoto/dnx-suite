@@ -23,12 +23,13 @@ function baseInput(): AlbumInstructivoProfileInput {
       includeDigitalWithPrint: false,
       deliveryType: null,
       pickupBy: null,
-      expiresAt: new Date("2026-11-01T00:00:00Z"),
+      escolar: false,
+      tipoEvento: null,
+      disponibleHasta: new Date("2026-11-01T00:00:00Z"),
     },
     fotografo: { nombre: "Estudio DNX", logoUrl: null, primaryColor: null, handler: "dnx" },
     senales: {
       fotosCargadas: 500,
-      rostrosDetectados: 320,
       tokensNumericos: 0,
       tokensDeTexto: 0,
       packsPreventaActivos: 0,
@@ -43,7 +44,7 @@ function baseInput(): AlbumInstructivoProfileInput {
 }
 
 describe("resolveAlbumInstructivoProfile", () => {
-  it("una galería abierta con rostros ofrece cara y navegar", () => {
+  it("una galería abierta ofrece cara y navegar", () => {
     const p = resolveAlbumInstructivoProfile(baseInput());
     assert.equal(p.entrada, "abierta");
     assert.deepEqual(p.busqueda, ["cara", "navegar"]);
@@ -82,10 +83,16 @@ describe("resolveAlbumInstructivoProfile", () => {
   it("sin fotos cargadas el álbum es simple", () => {
     const input = baseInput();
     input.senales.fotosCargadas = 0;
-    input.senales.rostrosDetectados = 0;
     const p = resolveAlbumInstructivoProfile(input);
     assert.equal(p.momento, "simple");
-    assert.deepEqual(p.busqueda, ["navegar"]);
+    assert.deepEqual(p.busqueda, ["cara"]);
+  });
+
+  it("ofrece la selfie sin esperar al análisis facial", () => {
+    const input = baseInput();
+    input.senales.tokensNumericos = 12;
+    const p = resolveAlbumInstructivoProfile(input);
+    assert.deepEqual(p.busqueda, ["cara", "dorsal", "navegar"]);
   });
 
   it("un álbum oculto o no listado se marca no_listada", () => {
@@ -126,5 +133,41 @@ describe("resolveAlbumInstructivoProfile", () => {
     const input = baseInput();
     input.senales.listo = false;
     assert.equal(resolveAlbumInstructivoProfile(input).listo, false);
+  });
+
+  it("en un álbum escolar no ofrece dorsales aunque el OCR encuentre números", () => {
+    const input = baseInput();
+    input.album.escolar = true;
+    input.senales.tokensNumericos = 40;
+    const p = resolveAlbumInstructivoProfile(input);
+    assert.equal(p.publico, "escolar");
+    assert.ok(!p.busqueda.includes("dorsal"));
+  });
+
+  it("en un casamiento no ofrece dorsales", () => {
+    const input = baseInput();
+    input.album.tipoEvento = "WEDDING";
+    input.senales.tokensNumericos = 40;
+    assert.ok(!resolveAlbumInstructivoProfile(input).busqueda.includes("dorsal"));
+  });
+
+  it("en un evento deportivo sí ofrece dorsales", () => {
+    const input = baseInput();
+    input.album.tipoEvento = "SPORTS";
+    input.senales.tokensNumericos = 40;
+    assert.ok(resolveAlbumInstructivoProfile(input).busqueda.includes("dorsal"));
+  });
+
+  it("no anuncia una fecha de disponibilidad que ya pasó", () => {
+    // Caso real: álbum 1045 con expiresAt = fecha de creación; el instructivo decía que
+    // las fotos ya se habían borrado mientras la galería seguía vendiendo.
+    const input = baseInput();
+    input.album.disponibleHasta = new Date("2026-09-01T00:00:00Z");
+    assert.equal(resolveAlbumInstructivoProfile(input).vencimiento, null);
+  });
+
+  it("anuncia la fecha de disponibilidad cuando todavía no llegó", () => {
+    const p = resolveAlbumInstructivoProfile(baseInput());
+    assert.deepEqual(p.vencimiento, new Date("2026-11-01T00:00:00Z"));
   });
 });

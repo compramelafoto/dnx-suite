@@ -1,5 +1,9 @@
 import { prisma } from "@repo/db";
 import { createPrismaPublicRegistrationRepository } from "@/lib/public-registration/infrastructure/prisma-public-registration-repository";
+import {
+  attachPromotionRedemptionRegistration,
+  reserveClickatonPromotion,
+} from "@/lib/promotions/prisma-promotions-adapter";
 import { createGiftRegistrationUseCase } from "../application/create-gift-registration";
 import { redeemGiftVoucherUseCase } from "../application/redeem-gift-voucher";
 import type { GiftVoucherRepository } from "../domain/repository";
@@ -24,6 +28,12 @@ export function getGiftVoucherRuntime(): GiftVoucherRuntime {
     createGift: createGiftRegistrationUseCase({
       vouchers,
       clock: { now: () => new Date() },
+      // El mismo motor de cupones que la inscripción normal: un código sirve
+      // igual para regalar que para inscribirse uno mismo.
+      promotions: {
+        reserve: reserveClickatonPromotion,
+        attachRegistration: attachPromotionRedemptionRegistration,
+      },
       registrations: {
         async getEditionBySlug(slug) {
           const edition = await publicRepo.getEditionBySlug(slug);

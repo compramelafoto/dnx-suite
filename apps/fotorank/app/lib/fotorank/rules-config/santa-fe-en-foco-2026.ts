@@ -8,7 +8,7 @@ export const SFEF_PRIZE_THIRD_MINOR = 300_000 * 100;
 
 const TZ = "America/Argentina/Cordoba";
 
-/** Ventanas en UTC derivadas de wall-clock ART (límite exclusivo 1 oct 00:00). */
+/** Ventanas en UTC derivadas de wall-clock ART (límite exclusivo 1 nov 00:00; extendido desde 1 oct en bases v3). */
 function art(localIso: string): string {
   return contestLocalToUtc(localIso, TZ).toISOString();
 }
@@ -22,7 +22,11 @@ const PIPELINE_EXT = ["jpg", "jpeg", "png", "webp"] as const;
  */
 export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration {
   const regOpen = art("2026-08-01T00:00:00");
-  const closeExclusive = art("2026-10-01T00:00:00");
+  const closeExclusive = art("2026-11-01T00:00:00");
+  // Evaluación y premiación: informativas, al mediodía para que ningún huso las corra de día.
+  const judgingStarts = art("2026-11-01T12:00:00");
+  const judgingEnds = art("2026-11-30T12:00:00");
+  const awards = art("2026-12-10T12:00:00");
 
   return {
     schemaVersion: 1,
@@ -54,15 +58,15 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
       submissionOpensAt: regOpen,
       submissionClosesAtExclusive: closeExclusive,
       replaceClosesAtExclusive: closeExclusive,
-      judgingStartsAt: null,
-      judgingEndsAt: null,
-      resultsAt: null,
-      awardsAt: null,
+      judgingStartsAt: judgingStarts,
+      judgingEndsAt: judgingEnds,
+      resultsAt: awards,
+      awardsAt: awards,
       captureWindowStartsAt: regOpen,
       captureWindowEndsExclusiveAt: closeExclusive,
       timezone: TZ,
       publicScheduleNote:
-        "Inscripción y carga desde el 1 de agosto de 2026 hasta el 30 de septiembre de 2026 inclusive (cierre exclusivo 1 de octubre 00:00 ART).",
+        "Inscripción y carga desde el 1 de agosto de 2026 hasta el 31 de octubre de 2026 inclusive (cierre exclusivo 1 de noviembre 00:00 ART). Evaluación durante noviembre de 2026. Presentación de premios: 10 de diciembre de 2026.",
     },
     participation: {
       pricingMode: "FREE",
@@ -85,7 +89,7 @@ export function buildSantaFeEnFoco2026Configuration(): ContestRulesConfiguration
     theme: {
       summary: "Deporte santafesino con mirada documental, cultural, social, territorial o humana.",
       geographicScope: "Provincia de Santa Fe",
-      temporalScopeNote: "Fotografías tomadas entre el 1 de agosto y el 30 de septiembre de 2026 inclusive.",
+      temporalScopeNote: "Fotografías tomadas entre el 1 de agosto y el 31 de octubre de 2026 inclusive.",
       subjectNotes: [
         "Participación abierta sin requisito de residencia del participante.",
         "La fotografía debe haberse tomado dentro de la Provincia de Santa Fe.",

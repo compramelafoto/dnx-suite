@@ -254,6 +254,11 @@ export function bulkCreateMembers(
     batchId: string;
     /** Fila del CSV que originó cada input, en el mismo orden. */
     sourceRows?: (number | null)[];
+    /**
+     * Trabajo extra por socio creado, DENTRO de la misma transacción (FotoOffice guarda ahí
+     * las observaciones del CSV como nota de la ficha). Si falla, se revierte el lote entero.
+     */
+    afterCreate?: (tx: Prisma.TransactionClient, member: Member) => Promise<void>;
   },
 ): Promise<Member[]> {
   // Modo callback (no el array): hace falta el id de cada socio recién creado para su
@@ -273,6 +278,7 @@ export function bulkCreateMembers(
           sourceRow: options.sourceRows?.[index] ?? null,
         }),
       });
+      if (options.afterCreate) await options.afterCreate(tx, member);
       created.push(member);
     }
     return created;
@@ -724,7 +730,15 @@ export function getMemberCategory(workspaceId: string, categoryId: string): Prom
 
 export function createMemberCategory(
   workspaceId: string,
-  input: { name: string; description?: string | null; order?: number },
+  input: {
+    name: string;
+    description?: string | null;
+    order?: number;
+    bookingCreditsPerPayment?: number;
+    bookingCreditValidityDays?: number;
+    bookingCreditLabel?: string | null;
+    selfRenew?: boolean;
+  },
 ): Promise<MemberCategory> {
   return prisma.memberCategory.create({
     data: {
@@ -732,6 +746,12 @@ export function createMemberCategory(
       name: input.name,
       description: input.description ?? null,
       order: input.order ?? 0,
+      bookingCreditsPerPayment: input.bookingCreditsPerPayment ?? 0,
+      bookingCreditValidityDays: input.bookingCreditValidityDays ?? 30,
+      bookingCreditLabel: input.bookingCreditLabel ?? null,
+      selfRenew: input.selfRenew ?? false,
+      // Lo que se renueva cuando la persona quiere no genera la cuota del día 1.
+      generatesDues: input.selfRenew ? false : true,
     },
   });
 }
@@ -741,6 +761,11 @@ export type UpdateMemberCategoryInput = {
   description?: string | null;
   order?: number;
   isActive?: boolean;
+  bookingCreditsPerPayment?: number;
+  bookingCreditValidityDays?: number;
+  bookingCreditLabel?: string | null;
+  selfRenew?: boolean;
+  generatesDues?: boolean;
 };
 
 export async function updateMemberCategory(

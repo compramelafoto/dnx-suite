@@ -71,6 +71,8 @@ export type TextBlock = BlockGeometry &
     content: string;
     /** Si el texto no entra en estas líneas, la validación de publicación lo rechaza. */
     maxLines?: number;
+    /** Interlineado como múltiplo del cuerpo, igual que `line-height` en CSS. Sin valor, 1,2. */
+    lineHeight?: number;
   };
 
 export type QrErrorCorrection = "L" | "M" | "Q" | "H";

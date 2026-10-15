@@ -29,6 +29,9 @@ export type AlbumConfigurationSectionProps = {
   photoCoverPreviewUrl: string | null;
   onCoverChanged: (next: { coverPhotoId: number | null; customCoverUrl: string | null }) => void;
   scanProtectionEnabled: boolean;
+  /** `null` = el fotógrafo no lo configuró; decide el tipo de álbum. Ver `should-run-ocr`. */
+  textSearchEnabled: boolean | null;
+  onTextSearchChange: (value: boolean) => void;
   onScanProtectionChange: (value: boolean) => void;
   albumMode: AlbumNextStepsMode;
   albumModeSaving: boolean;
@@ -89,6 +92,8 @@ export default function AlbumConfigurationSection({
   photoCoverPreviewUrl,
   onCoverChanged,
   scanProtectionEnabled,
+  textSearchEnabled,
+  onTextSearchChange,
   onScanProtectionChange,
   albumMode,
   albumModeSaving,
@@ -214,15 +219,38 @@ export default function AlbumConfigurationSection({
               <Input
                 type="number"
                 min={0}
-                max={365}
+                max={90}
                 placeholder="0 = no guardar"
                 value={hiddenSelfieRetentionDays}
                 onChange={(e) => onHiddenSelfieRetentionChange(e.target.value)}
                 disabled={saving}
                 className="w-full max-w-[140px]"
               />
+              <span className="block text-xs text-[#6b7280]">
+                Vacío o 0: la selfie no se guarda. Máximo 90 días; al vencer se borra sola.
+              </span>
             </label>
           ) : null}
+
+          <label className="flex items-start gap-3 rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 shrink-0"
+              checked={textSearchEnabled ?? false}
+              onChange={(e) => onTextSearchChange(e.target.checked)}
+              disabled={saving}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-[#1a1a1a]">
+                Búsqueda por dorsal, patente o nombre
+              </span>
+              <span className="mt-0.5 block text-xs text-[#6b7280] leading-relaxed">
+                {textSearchEnabled
+                  ? "Tus clientes pueden encontrarse escribiendo un número o una palabra que aparezca en la foto: dorsal, patente, camiseta o nombre. Leer cada foto tiene un costo, así que conviene dejarlo encendido sólo cuando hay algo escrito."
+                  : "Las fotos no se leen y el buscador por número no se le muestra al cliente. Encendelo en carreras, automovilismo o eventos con número, donde es la forma más rápida de que cada uno encuentre las suyas."}
+              </span>
+            </span>
+          </label>
 
           <label className="flex items-start gap-3 rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3 cursor-pointer">
             <input

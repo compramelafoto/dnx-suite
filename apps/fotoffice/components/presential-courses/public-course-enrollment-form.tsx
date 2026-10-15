@@ -17,12 +17,12 @@ const initial = { error: null };
 export function PublicCourseEnrollmentForm({
   workspaceSlug,
   courseSlug,
-  instanceOptions,
+  instanceOptions = [],
   defaultInstanceId,
 }: {
   workspaceSlug: string;
   courseSlug: string;
-  instanceOptions: InstanceOption[];
+  instanceOptions?: InstanceOption[];
   defaultInstanceId?: string;
 }) {
   const action = createPublicCourseEnrollmentAction.bind(null, workspaceSlug, courseSlug);
@@ -31,7 +31,7 @@ export function PublicCourseEnrollmentForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      {singleInstance ? (
+      {instanceOptions.length === 0 ? null : singleInstance ? (
         <input type="hidden" name="courseInstanceId" value={defaultInstanceId ?? singleInstance.id} />
       ) : (
         <div className="fo-field-stack">
@@ -60,6 +60,9 @@ export function PublicCourseEnrollmentForm({
             Gmail/email
           </label>
           <input id="enroll-email" name="email" type="email" required className="fo-input" />
+          <p className="text-xs text-[var(--fo-muted)]">
+            Si ya entrás al portal, usá el mismo correo: el curso va a aparecer en tu cuenta.
+          </p>
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="enroll-whatsapp">
