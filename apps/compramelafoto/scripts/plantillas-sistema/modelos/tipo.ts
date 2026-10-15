@@ -6,8 +6,22 @@ export type Modelo = {
   slug: string;
   nombre: string;
   descripcion: string;
-  /** Para agrupar en el catálogo: Jardín, Primaria, Secundaria, Egresados, Formal, Informal. */
+  /** Para agrupar en el catálogo: Jardín, Primaria, Secundaria, Egresados, Formal, Informal, Religioso. */
   categoria: string;
+  /**
+   * Filtros del catálogo. Los que salen de la plantilla (orientación, cantidad de fotos, listado,
+   * logo) los calcula `definiciones.ts`; acá va lo que es de criterio.
+   */
+  filtros?: {
+    estilo: "Formal" | "Informal" | "Divertido" | "Moderno" | "Clásico" | "Minimalista";
+    evento?: string;
+    /**
+     * Cómo se lee el librito cerrado: "vertical" (páginas de pie, lo común) u "horizontal"
+     * (contenido girado para leerlo apaisado, como San Patricio). Por defecto "vertical".
+     */
+    orientacion?: "vertical" | "horizontal";
+    etiquetas: string[];
+  };
   fondoExterior: () => string;
   fondoInterior: () => string;
   /** Agrega los bloques. Los fondos se agregan solos (zIndex 1 de cada página). */

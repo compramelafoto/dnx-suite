@@ -325,8 +325,12 @@ function ImageBlockRenderer({
   const variableKey = typeof source.variableKey === "string" ? source.variableKey : "";
   const srcCandidate = variableKey ? resolvedVariables?.[variableKey] : (config.src ?? source.src ?? source.url);
   const src = srcCandidate == null ? "" : String(srcCandidate);
-  /** Siempre cover: proporción de la imagen + llenar el marco (recorte). */
-  const objectFit = "cover" as const;
+  /*
+   * Cover (llenar el marco recortando) salvo que el bloque pida "contain": un logo tiene que
+   * entrar entero. El PDF (`editorADocumento`) ya respetaba "contain"; la pantalla recortaba igual
+   * y lo que se aprobaba no era lo que se imprimía.
+   */
+  const objectFit = config.fit === "contain" ? ("contain" as const) : ("cover" as const);
   const borderRadius = Number(config.borderRadius ?? 0);
   const photoMode = String(config.photoMode ?? "free").toLowerCase();
   const maskShape = String(config.maskShape ?? "rect").toLowerCase();

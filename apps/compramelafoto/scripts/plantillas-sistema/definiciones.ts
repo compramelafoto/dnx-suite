@@ -2,7 +2,7 @@
  * Convierte cada modelo en las filas que guarda el diseñador (TemplateV2 y compañía), con ids
  * fijos para que el SQL se pueda correr más de una vez.
  */
-import { ALTO, ANCHO, Armador, CARPETA_R2, DPI, PLIEGUE } from "./lienzo";
+import { ALTO, ANCHO, Armador, CARPETA_R2, DPI, PLIEGUE, VARIABLE_LOGO } from "./lienzo";
 import { archivoFondo, type Modelo } from "./modelos/tipo";
 import { MODELOS } from "./modelos";
 
@@ -57,6 +57,26 @@ export const ids = (slug: string) => {
   return { templateId, versionId: `${templateId}_v1`, publicationId: `${templateId}_pub` };
 };
 
+/**
+ * Los campos de filtro del catálogo (`estilo`, `orientacion`, `cantidadFotos`, `conListado`,
+ * `conLogo`, `evento`, `etiquetas`). Sólo para los modelos que declaran `filtros`: los ya
+ * cargados quedan con el mismo metaJson.
+ */
+function filtrosDelCatalogo(modelo: Modelo, bloques: FilaBloque[], bindings: FilaBinding[]): Record<string, unknown> {
+  if (!modelo.filtros) return {};
+  const fotos = new Set(bindings.filter((b) => b.variableKey.startsWith("photo_")).map((b) => b.variableKey));
+  return {
+    estilo: modelo.filtros.estilo,
+    // El lienzo abierto siempre es apaisado: lo que importa es cómo se lee el librito cerrado.
+    orientacion: modelo.filtros.orientacion ?? "vertical",
+    cantidadFotos: fotos.size,
+    conListado: bloques.some((b) => (b.configJson as { variableKey?: string }).variableKey === "course.studentList"),
+    conLogo: bindings.some((b) => b.variableKey === VARIABLE_LOGO),
+    ...(modelo.filtros.evento ? { evento: modelo.filtros.evento } : {}),
+    etiquetas: modelo.filtros.etiquetas,
+  };
+}
+
 export function definirPlantilla(modelo: Modelo): PlantillaSistema {
   const { templateId, versionId, publicationId } = ids(modelo.slug);
   const exterior = archivoFondo(modelo.slug, "exterior");
@@ -91,6 +111,14 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
     .filter(({ key }) => key === "photo_individual" || key === "photo_group")
     .map(({ b, key }, i) => ({ id: `vb-${versionId}-${i + 1}`, blockId: b.id, targetPath: "src", variableKey: key }));
 
+  // El logo del colegio lleva el mismo vínculo `src` que le pone el editor al elegir «Logo escuela».
+  for (const b of bloques) {
+    const key = String((b.configJson.source as { variableKey?: string })?.variableKey ?? "");
+    if (b.type === "IMAGE" && key === VARIABLE_LOGO) {
+      bindings.push({ id: `vb-${versionId}-${b.id.slice(versionId.length + 1)}`, blockId: b.id, targetPath: "src", variableKey: key });
+    }
+  }
+
   const fotos = new Set(bindings.map((b) => b.variableKey));
   if (!fotos.has("photo_individual") || !fotos.has("photo_group")) {
     throw new Error(`${modelo.slug}: faltan los huecos de foto individual y grupal.`);
@@ -116,6 +144,7 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
       legacyStyleFlags: { system: true, version: "v2" },
       product: "school",
       categoria: modelo.categoria,
+      ...filtrosDelCatalogo(modelo, bloques, bindings),
       templatePageCount: 2,
       pageLabels: ["Exterior (contratapa + tapa)", "Interior"],
       guides: { h: [], v: [PLIEGUE] },
@@ -138,11 +167,18 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
   };
 }
 
-export function todasLasPlantillas(): PlantillaSistema[] {
+/**
+ * Todas las plantillas, o las de los modelos `desde`–`hasta` (números de la lista, desde 1: los
+ * 10 primeros ya están cargados; `--desde=11 --hasta=20` son los formales). Los slugs se
+ * controlan sobre la lista completa.
+ */
+export function todasLasPlantillas(rango?: { desde?: number; hasta?: number }): PlantillaSistema[] {
   const slugs = new Set<string>();
-  return MODELOS.map((m) => {
+  for (const m of MODELOS) {
     if (slugs.has(m.slug)) throw new Error(`Slug repetido: ${m.slug}`);
     slugs.add(m.slug);
-    return definirPlantilla(m);
-  });
+  }
+  const desde = rango?.desde ?? 1;
+  const hasta = rango?.hasta ?? MODELOS.length;
+  return MODELOS.slice(desde - 1, hasta).map(definirPlantilla);
 }
