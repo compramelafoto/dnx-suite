@@ -2,16 +2,17 @@ import "server-only";
 import { OrderOrigin, prisma } from "@/lib/prisma";
 import { createDesignV2Project } from "@/lib/design-v2/projects";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
-import { buildDesignValues } from "@/lib/design-v2/values";
 import {
   parsePreventaPackSnapshotV1,
   type RedeemUnitSelectionInput,
 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
-import { parseExternalPreventaRefs, splitExcelStudentName, type ExternalPreventaRefs } from "./external-preventa";
+import { parseExternalPreventaRefs, type ExternalPreventaRefs } from "./external-preventa";
+import { valoresDelPackExternoDesdePacks } from "./valores-del-pack-externo";
 
 /**
- * Los textos del librito de un pack cobrado por fuera: alumno, curso, colegio y el listado del
- * curso, sacados de los packs cargados del Excel (no hay pedido de la tienda escolar).
+ * Los textos del librito de un pack cobrado por fuera: alumno, curso, colegio, logo del colegio y
+ * el listado del curso, sacados de los packs cargados del Excel (no hay pedido de la tienda
+ * escolar).
  *
  * Es la misma cuenta que usa la vista previa del canje: lo que la familia ve antes de confirmar
  * es lo que lleva el diseño.
@@ -20,38 +21,19 @@ export async function valoresDelPackExterno(input: {
   albumId: number;
   externo: ExternalPreventaRefs;
   schoolName: string | null | undefined;
+  schoolLogoUrl: string | null | undefined;
   buyerName: string | null | undefined;
   photographerName: string | null | undefined;
 }): Promise<Record<string, string>> {
-  const { externo } = input;
-  const partes = splitExcelStudentName(externo.studentName);
-  const delCurso = externo.courseName
+  const delAlbum = input.externo.courseName
     ? await prisma.order.findMany({
         where: { albumId: input.albumId, origin: OrderOrigin.PREVENTA_PACK, isTest: false },
         select: { redemptionPaymentRefsJson: true },
       })
     : [];
-  const vistos = new Set<string>();
-  const propio = (externo.studentName ?? "").trim().toLowerCase();
-  const courseStudents = delCurso
-    .map((o) => parseExternalPreventaRefs(o.redemptionPaymentRefsJson))
-    .filter((r) => r?.courseName === externo.courseName && r.studentName)
-    .flatMap((r) => {
-      const clave = r!.studentName!.trim().toLowerCase();
-      if (vistos.has(clave)) return [];
-      vistos.add(clave);
-      const p = splitExcelStudentName(r!.studentName);
-      return p ? [{ ...p, isOwner: clave === propio }] : [];
-    });
-  return buildDesignValues({
-    studentName: externo.studentName,
-    studentFirstName: partes?.firstName,
-    studentLastName: partes?.lastName,
-    courseName: externo.courseName,
-    schoolName: input.schoolName ?? externo.schoolName,
-    buyerName: input.buyerName,
-    photographerName: input.photographerName,
-    courseStudents,
+  return valoresDelPackExternoDesdePacks({
+    ...input,
+    packsDelAlbum: delAlbum.map((o) => parseExternalPreventaRefs(o.redemptionPaymentRefsJson)),
   });
 }
 
@@ -82,7 +64,9 @@ export async function armarDisenosDelCanjeExterno(input: {
       buyerName: true,
       preventaPackSnapshotJson: true,
       redemptionPaymentRefsJson: true,
-      album: { select: { userId: true, school: { select: { name: true } }, user: { select: { name: true } } } },
+      album: {
+        select: { userId: true, school: { select: { name: true, logoUrl: true } }, user: { select: { name: true } } },
+      },
     },
   });
   if (!pack?.albumId || !pack.album) return 0;
@@ -98,6 +82,7 @@ export async function armarDisenosDelCanjeExterno(input: {
     albumId: pack.albumId,
     externo,
     schoolName: pack.album.school?.name,
+    schoolLogoUrl: pack.album.school?.logoUrl,
     buyerName: pack.buyerName,
     photographerName: pack.album.user?.name,
   });

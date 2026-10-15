@@ -160,7 +160,11 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
             : typeof source.url === "string"
               ? source.url
               : "",
-      fit: "cover",
+      /*
+       * "contain" (un logo, entero en su recuadro) se conserva: la impresión lo respeta y, si se
+       * perdía al guardar o al dibujar, la pantalla recortaba lo que el PDF mostraba entero.
+       */
+      fit: cfg.fit === "contain" ? "contain" : "cover",
       borderRadius: typeof cfg.borderRadius === "number" ? cfg.borderRadius : 0,
       photoMode,
       maskShape,

@@ -52,3 +52,10 @@ test("la proporción fijada sobrevive a la normalización de cualquier tipo", ()
   assert.equal(getBlockAspectLock(normalizeBlockConfig("IMAGE", { aspectLock: "4:3" })), null);
   assert.equal("aspectLock" in normalizeBlockConfig("IMAGE", {}), false);
 });
+
+test("el encaje «contain» de un logo sobrevive a la normalización (guardar y dibujar)", () => {
+  const logo = normalizeBlockConfig("IMAGE", { src: "", fit: "contain", source: { variableKey: "branding.schoolLogoUrl" } });
+  assert.equal(logo.fit, "contain");
+  assert.equal(normalizeBlockConfig("IMAGE", { src: "x" }).fit, "cover");
+  assert.equal(normalizeBlockConfig("IMAGE", { src: "x", fit: "fill" }).fit, "cover");
+});

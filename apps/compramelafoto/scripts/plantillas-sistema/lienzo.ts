@@ -25,6 +25,9 @@ export const TUBO_PLIEGUE = mm(10);
 export const CENTRO_IZQ = PLIEGUE / 2;
 export const CENTRO_DER = PLIEGUE + PLIEGUE / 2;
 
+/** La variable del logo del colegio (catálogo escolar del diseñador). */
+export const VARIABLE_LOGO = "branding.schoolLogoUrl";
+
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export type TipoBloque = "IMAGE" | "TEXT" | "VARIABLE_TEXT" | "SHAPE";
@@ -145,6 +148,32 @@ export class Armador {
         maskShape: opts.mascara ?? "rect",
         photoMode: "free",
         borderRadius: opts.radio ?? 0,
+      },
+    });
+  }
+
+  /**
+   * Logo del colegio: imagen atada a `branding.schoolLogoUrl`, entera en su recuadro ("contain").
+   * Si el colegio no tiene logo cargado, el bloque no se dibuja (ni en pantalla ni en el PDF):
+   * el diseño tiene que verse bien también sin él.
+   */
+  logo(pagina: 0 | 1, clave: string, r: Rect) {
+    this.push({
+      clave: `p${pagina}_${clave}`,
+      pagina,
+      tipo: "IMAGE",
+      nombre: "Logo del colegio",
+      x: r.x,
+      y: r.y,
+      width: r.w,
+      height: r.h,
+      configJson: {
+        fit: "contain",
+        src: "",
+        source: { variableKey: VARIABLE_LOGO },
+        maskShape: "rect",
+        photoMode: "free",
+        borderRadius: 0,
       },
     });
   }

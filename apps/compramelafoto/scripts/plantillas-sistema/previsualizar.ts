@@ -26,6 +26,8 @@ import { R2_BASE } from "./lienzo";
 
 const FOTO = "muestra-foto:";
 const BASE_FALSA = "https://fondos.local";
+/** El logo ficticio del colegio (un escudo genérico, sin marcas reales). */
+const LOGO_DE_MUESTRA = "https://logo.local/escudo.png";
 
 const ALUMNOS: Array<[string, string]> = [
   ["Sofía", "Acosta"], ["Mateo", "Benítez"], ["Valentina", "Castro"], ["Benjamín", "Díaz"],
@@ -48,6 +50,7 @@ export const VALORES_DE_MUESTRA: Record<string, string> = {
   "school.withCourse": "Colegio San Martín de Tours - Sala de 5 · Turno mañana",
   "event.dateFormatted": "15/10/2026",
   "photographer.displayName": "Estudio de muestra",
+  "branding.schoolLogoUrl": LOGO_DE_MUESTRA,
   [CLASS_LIST_VARIABLE_KEY]: serializeClassList(
     ALUMNOS.map(([f, l]) => ({ firstName: f, lastName: l, isOwner: f === "Martina" })),
   ),
@@ -84,12 +87,31 @@ function fixedImageConfig(config: Record<string, unknown>, src: string): Record<
   return fixed;
 }
 
+/**
+ * Escudo genérico de muestra, en PNG transparente y más alto que ancho (como casi todos los
+ * escudos): sirve para ver que el logo entra entero en su recuadro.
+ */
+async function logoDeMuestra(): Promise<Buffer> {
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="960" viewBox="0 0 800 960">
+    <path d="M 80 60 L 720 60 L 720 470 C 720 700 560 840 400 920 C 240 840 80 700 80 470 Z" fill="#1f4e8c" stroke="#c9a227" stroke-width="34"/>
+    <path d="M 400 60 L 400 905 M 80 360 L 720 360" stroke="#c9a227" stroke-width="22"/>
+    <circle cx="240" cy="210" r="70" fill="#ffffff"/>
+    <path d="M 500 150 L 640 150 L 640 280 L 500 280 Z" fill="#ffffff"/>
+    <path d="M 170 470 L 330 470 L 250 650 Z" fill="#ffffff"/>
+    <path d="M 470 560 q 70 -90 140 0 q -70 90 -140 0 Z" fill="#ffffff"/>
+  </svg>`;
+  return sharp(Buffer.from(s)).png().toBuffer();
+}
+
 /** Dibuja las dos páginas de una plantilla. Devuelve un PNG por página. */
 export async function dibujarPlantilla(
   p: PlantillaSistema,
   carpetaFondos: string,
   dpi: number,
+  opciones: { sinLogo?: boolean } = {},
 ): Promise<{ pngs: Buffer[]; avisos: string[] }> {
+  const valores = { ...VALORES_DE_MUESTRA };
+  if (opciones.sinLogo) delete valores["branding.schoolLogoUrl"];
   const legacy0 = versionRowsToLegacyPayload({
     canvasJson: p.canvasJson,
     metaJson: p.metaJson,
@@ -116,7 +138,7 @@ export async function dibujarPlantilla(
   const { document } = legacyPayloadToCore(legacy, { id: p.templateId, name: p.nombre });
   const resuelto = resolveTemplateDocument({
     template: document,
-    data: VALORES_DE_MUESTRA,
+    data: valores,
     registry: resolveTemplateVariablePlugin("school"),
   }).document;
 
@@ -161,6 +183,7 @@ export async function dibujarPlantilla(
   const fotos = { individual: await fotoDeMuestra("individual"), grupal: await fotoDeMuestra("grupal") };
   const resources: ResourceResolver = {
     async read(ref: string) {
+      if (ref === LOGO_DE_MUESTRA) return new Uint8Array(await logoDeMuestra());
       if (ref.startsWith(BASE_FALSA)) {
         return new Uint8Array(await readFile(path.join(carpetaFondos, path.basename(ref))));
       }

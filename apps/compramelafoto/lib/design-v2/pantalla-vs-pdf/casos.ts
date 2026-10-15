@@ -182,6 +182,26 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       ],
     },
     {
+      /*
+       * El logo de la escuela va con "contain": entra entero en su recuadro. El PDF ya lo hacía;
+       * la pantalla lo recortaba como una foto. Es la imagen tal como la deja `render.ts` después
+       * de resolver `branding.schoolLogoUrl` (fija, con el encaje del bloque).
+       */
+      id: "logo-contain",
+      titulo: "Logo de la escuela entero en recuadros alto, ancho y cuadrado",
+      canvas: CHICO,
+      paginas: 1,
+      blocks: [
+        forma(0, { x: 60, y: 60, width: 300, height: 600 }, { fill: "#f4f1ec" }),
+        imagen(0, { x: 60, y: 60, width: 300, height: 600 }, imagenDePrueba, { fit: "contain" }),
+        forma(0, { x: 460, y: 60, width: 980, height: 260 }, { fill: "#f4f1ec" }),
+        imagen(0, { x: 460, y: 60, width: 980, height: 260 }, imagenDePrueba, { fit: "contain" }),
+        forma(0, { x: 460, y: 420, width: 500, height: 500 }, { fill: "#f4f1ec" }),
+        imagen(0, { x: 460, y: 420, width: 500, height: 500 }, imagenDePrueba, { fit: "contain" }),
+        imagen(0, { x: 1060, y: 420, width: 380, height: 500 }, imagenDePrueba, { fit: "cover" }),
+      ],
+    },
+    {
       id: "san-patricio",
       titulo: "Copia de la carpeta de San Patricio (3602×2421 a 300 dpi)",
       canvas: { width: 3602, height: 2421, dpi: 300, background: "#ffffff" } as TemplateV2Canvas,

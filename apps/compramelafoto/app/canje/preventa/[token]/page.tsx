@@ -85,7 +85,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       album: {
         select: {
           id: true,
-          school: { select: { name: true } },
+          school: { select: { name: true, logoUrl: true } },
           title: true,
           publicSlug: true,
           userId: true,
@@ -286,6 +286,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       albumId: album.id,
       externo,
       schoolName: album.school?.name,
+      schoolLogoUrl: album.school?.logoUrl,
       buyerName: familia,
       photographerName: album.user?.name,
     });

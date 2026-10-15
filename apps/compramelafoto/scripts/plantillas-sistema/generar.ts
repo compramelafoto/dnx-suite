@@ -10,7 +10,8 @@
  *
  * No escribe en ninguna base ni sube nada.
  *
- * Correr: `npx tsx scripts/plantillas-sistema/generar.ts [--salida=<carpeta>] [--solo=<slug>,<slug>] [--dpi=60]`
+ * Correr: `npx tsx scripts/plantillas-sistema/generar.ts [--salida=<carpeta>] [--desde=11 --hasta=20] [--solo=<slug>,<slug>] [--dpi=60]`
+ * (`--desde`/`--hasta` dejan en el SQL sólo esos modelos; `--solo` no escribe SQL)
  * (la verificación baja las tipografías de Google: necesita red).
  */
 import { createHash } from "node:crypto";
@@ -20,6 +21,7 @@ import sharp from "sharp";
 import { todasLasPlantillas, type PlantillaSistema } from "./definiciones";
 import { generarSql } from "./sql";
 import { ALTO, ANCHO } from "./lienzo";
+import { MODELOS } from "./modelos";
 
 const args = new Map(
   process.argv.slice(2).map((a) => {
@@ -29,6 +31,9 @@ const args = new Map(
 );
 const SALIDA = path.resolve(args.get("salida") ?? path.join(__dirname, "salida"));
 const SOLO = args.get("solo")?.split(",");
+/** `--desde=11 --hasta=20`: sólo esos modelos (números de la lista), y el SQL con sólo esos. */
+const DESDE = args.has("desde") ? Number(args.get("desde")) : undefined;
+const HASTA = args.has("hasta") ? Number(args.get("hasta")) : undefined;
 const DPI_VERIFICACION = Number(args.get("dpi") ?? 60);
 const LIMITE_FONDO = 1.5 * 1024 * 1024;
 
@@ -61,7 +66,7 @@ async function generarFondos(p: PlantillaSistema, carpeta: string) {
 }
 
 async function main() {
-  const plantillas = todasLasPlantillas().filter((p) => !SOLO || SOLO.includes(p.modelo.slug));
+  const plantillas = todasLasPlantillas({ desde: DESDE, hasta: HASTA }).filter((p) => !SOLO || SOLO.includes(p.modelo.slug));
   const fondos = path.join(SALIDA, "fondos");
   await mkdir(fondos, { recursive: true });
 
@@ -88,6 +93,11 @@ async function main() {
       await writeFile(path.join(verif, `${p.modelo.slug}-${i === 0 ? "exterior" : "interior"}.png`), png);
     }
     if (avisos.length) console.log(`  avisos ${p.modelo.slug}: ${avisos.join(" | ")}`);
+    // Con logo del colegio, también cómo queda si el colegio no lo cargó (el bloque no se dibuja).
+    if (p.bindings.some((b) => b.variableKey === "branding.schoolLogoUrl")) {
+      const sin = await dibujarPlantilla(p, fondos, DPI_VERIFICACION, { sinLogo: true });
+      await writeFile(path.join(verif, `${p.modelo.slug}-exterior-sin-logo.png`), sin.pngs[0]!);
+    }
     tapas.push(pngs[0]!);
     interiores.push(pngs[1]!);
   }
@@ -110,7 +120,7 @@ async function lamina(pngs: Buffer[], plantillas: PlantillaSistema[], destino: s
     const y = gap + Math.floor(i / cols) * (h + rotulo + gap);
     const nombre = plantillas[i]!.nombre.replace(/&/g, "&amp;").replace(/</g, "&lt;");
     compuestos.push({
-      input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${rotulo}"><text x="0" y="34" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="#222">${i + 1}. ${nombre}</text></svg>`),
+      input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${rotulo}"><text x="0" y="34" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="#222">${MODELOS.indexOf(plantillas[i]!.modelo) + 1}. ${nombre}</text></svg>`),
       left: x,
       top: y,
     });
