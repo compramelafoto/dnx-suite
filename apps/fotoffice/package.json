@@ -10,7 +10,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run --config vitest.config.ts",
-    "bot:eval": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/bot-eval.ts"
+    "bot:eval": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/bot-eval.ts",
+    "caja:importar-historico": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/caja-importar-historico.ts",
+    "caja:apertura": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/caja-apertura.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

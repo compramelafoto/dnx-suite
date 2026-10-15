@@ -161,6 +161,12 @@ describe("asientosDeCaja", () => {
     expect(asientosDeCaja([r], [{ id: "t1", kind: "INGRESO", categoryId: null, transferId: "t" }])).toEqual([]);
   });
 
+  it("el saldo de apertura no es un ingreso (ni su anulación un egreso)", () => {
+    expect(asientosDeCaja([mov("ap", { sourceModule: "apertura" })], [])).toEqual([]);
+    const r = mov("r", { reversesMovementId: "ap", kind: "EGRESO" });
+    expect(asientosDeCaja([r], [{ id: "ap", kind: "INGRESO", categoryId: null, sourceModule: "apertura" }])).toEqual([]);
+  });
+
   it("sin el original, resta del lado contrario en la categoría del contramovimiento", () => {
     const [x] = asientosDeCaja([mov("r", { kind: "EGRESO", reversesMovementId: "no-esta" })], []);
     expect(x).toMatchObject({ kind: "INGRESO", signo: -1 });
