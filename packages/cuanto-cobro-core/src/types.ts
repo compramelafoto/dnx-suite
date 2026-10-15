@@ -68,6 +68,11 @@ export type CuantoCobroProfileInput = {
     | "established"
     | "high-demand"
     | "";
+  /**
+   * Precio completo (FOTOFFICE, 15/10/2026): impuestos, comisión, seña, recargos, viáticos, seguro,
+   * retoque, inflación, mínimo y cancelación. Opcional: sin él, el motor da lo mismo que antes.
+   */
+  pricingExtras?: import("./pricing-extras/types").CuantoCobroPricingExtras;
 };
 
 /** Tipo de concepto dentro de un presupuesto. */
@@ -209,6 +214,8 @@ export type CuantoCobroQuoteInput = {
    * (ver `CameraWearModel`): no lo uses en presupuestos nuevos.
    */
   cameraWearModel?: CameraWearModel;
+  /** Ajustes del trabajo para el precio completo (fecha, exprés, viáticos, retoque…). Opcional. */
+  jobAdjustments?: import("./pricing-extras/types").CuantoCobroJobAdjustments;
 };
 
 /**
@@ -539,6 +546,11 @@ export type CuantoCobroCalculationComplete = {
   equipmentSavings: EquipmentSavingsBreakdown;
   clientSummary: CuantoCobroClientCostSummary;
   quoteSummary: CuantoCobroQuoteSummary;
+  /**
+   * Desglose del precio completo. SÓLO aparece si el perfil tiene algo de `pricingExtras` que cambie
+   * el precio o el trabajo trae `jobAdjustments`; si no, la clave no existe (resultado idéntico al de antes).
+   */
+  priceBuildUp?: import("./pricing-extras/types").CuantoCobroPriceBuildUp;
 };
 
 export type CuantoCobroCalculationIncomplete = {

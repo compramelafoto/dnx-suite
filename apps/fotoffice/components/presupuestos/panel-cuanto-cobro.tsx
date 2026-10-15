@@ -9,14 +9,17 @@ import { InputMoneda } from "@/components/campos/input-moneda";
 import { perfilesIguales } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import {
+  ajustesVacios,
   calcularItemDelPanel,
   perfilParaPanel,
   TIPOS_TRABAJO,
   trabajoDesdeMotor,
   trabajoVacio,
+  type AjustesTrabajo,
   type DatosItemCalculado,
   type TrabajoPanel,
 } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { CamposAjustes, DesglosePrecio } from "./desglose-precio";
 
 /**
  * Panel de ¿Cuánto Cobro? de un ítem (spec §3.2). SÓLO se dibuja para quien tiene `configurar`
@@ -167,9 +170,9 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
 }
 
 /** El trabajo guardado en un ítem calculado, para reabrir el panel. */
-export function trabajoDelItem(item: ItemPresupuesto | null): { trabajo: TrabajoPanel; tipoDeTrabajo: string } {
+export function trabajoDelItem(item: ItemPresupuesto | null): { trabajo: TrabajoPanel; tipoDeTrabajo: string; ajustes: AjustesTrabajo } {
   const guardado = item?.calculo ? trabajoDesdeMotor((item.calculo.entrada as { presupuesto?: unknown } | null)?.presupuesto) : null;
-  return guardado ?? { trabajo: trabajoVacio(item?.nombre ?? ""), tipoDeTrabajo: "" };
+  return guardado ?? { trabajo: trabajoVacio(item?.nombre ?? ""), tipoDeTrabajo: "", ajustes: ajustesVacios() };
 }
 
 export function PanelCuantoCobro({
@@ -193,6 +196,7 @@ export function PanelCuantoCobro({
   const desactualizado = perfil !== null && perfilDelWorkspace !== null && !perfilesIguales(perfil, perfilDelWorkspace);
   const [trabajo, setTrabajo] = useState<TrabajoPanel>(inicial.trabajo);
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState(inicial.tipoDeTrabajo);
+  const [ajustes, setAjustes] = useState<AjustesTrabajo>(inicial.ajustes);
 
   const datos: DatosItemCalculado = {
     id: item.id,
@@ -203,7 +207,7 @@ export function PanelCuantoCobro({
     productId: item.productId,
   };
   // El motor es puro y rápido: corre en cada cambio, sin ir al servidor.
-  const resultado = perfil ? calcularItemDelPanel(perfil, trabajo, tipoDeTrabajo, datos) : null;
+  const resultado = perfil ? calcularItemDelPanel(perfil, trabajo, tipoDeTrabajo, datos, new Date(), ajustes) : null;
   const c = resultado?.ok ? resultado.item.calculo : null;
 
   return (
@@ -230,6 +234,7 @@ export function PanelCuantoCobro({
 
       <CampoTexto etiqueta="Tipo de trabajo" tipo="text" valor={tipoDeTrabajo} onCambio={setTipoDeTrabajo} ayuda="Por ejemplo: Boda, 15 años, Corporativo." />
       <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} />
+      {perfil ? <CamposAjustes ajustes={ajustes} onCambio={setAjustes} perfil={perfil} /> : null}
 
       {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
       <p className="sr-only" aria-live="polite">
@@ -246,6 +251,7 @@ export function PanelCuantoCobro({
             <div className="flex justify-between gap-2"><dt className="text-[var(--fo-muted)]">Valor hora</dt><dd>{pesos(c.valorHora)}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--fo-muted)]">Horas totales</dt><dd>{Math.round(c.horasTotales * 10) / 10} h</dd></div>
           </dl>
+          {c.desglose ? <DesglosePrecio linea={c.desglose} /> : null}
           {c.advertencias.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--fo-muted)]">
               {c.advertencias.map((a) => (

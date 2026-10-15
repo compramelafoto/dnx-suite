@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { calculateCuantoCobro } from "@repo/cuanto-cobro-core";
+import { calculateCuantoCobro, INITIAL_CUANTO_COBRO_PRICING_EXTRAS } from "@repo/cuanto-cobro-core";
 import { createBaseCompleteProfile, createBaseCompleteQuote } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 import { entradaDelMotor, recalcularItemCalculo } from "./calculo-cuanto-cobro";
 import {
+  ajustesVacios,
   armarItemsDelAsistente,
   calcularItemDelPanel,
   entradaDelPanel,
@@ -141,5 +142,61 @@ describe("disparos del trabajo y embalaje (desgaste de cámara por trabajo)", ()
     expect(r.item.precioUnitario).toBeCloseTo(antes.chosenPriceEffective, 2);
     expect(r.item.calculo!.precioSugerido).toBeCloseTo(antes.chosenPriceEffective, 2);
     expect(r.item.precioUnitario).toBeLessThan(nuevo.item.precioUnitario);
+  });
+});
+
+describe("ajustes del trabajo para el precio completo (etapa A)", () => {
+  const EXTRAS = { ...INITIAL_CUANTO_COBRO_PRICING_EXTRAS, sundaySurchargePercent: "15", travelMode: "per_km" as const, travelPerKm: "300", retouchMinutesPerPhoto: "6" };
+  const CON_EXTRAS = { ...PERFIL, pricingExtras: EXTRAS };
+  const AJUSTES = { ...ajustesVacios(), fechaEvento: "2026-10-18", expres: true, distanciaKm: "40", seguroEvento: "15000", fotosRetoque: "50" };
+
+  it("sin ajustes cargados, el trabajo no lleva jobAdjustments (igual que antes)", () => {
+    const q = entradaDelPanel(PERFIL, BODA, "Boda", ajustesVacios(), CUANDO).presupuesto;
+    expect("jobAdjustments" in q).toBe(false);
+  });
+
+  it("con ajustes, van al motor con la fecha del cálculo (día de Buenos Aires)", () => {
+    const q = entradaDelPanel(CON_EXTRAS, BODA, "Boda", AJUSTES, CUANDO).presupuesto;
+    expect(q.jobAdjustments).toEqual({
+      eventDate: "2026-10-18",
+      quoteDate: "2026-10-07",
+      express: true,
+      distanceKm: "40",
+      eventInsuranceCost: "15000",
+      retouchPhotos: "50",
+    });
+  });
+
+  it("el ítem sale con el desglose y el servidor llega al mismo precio (R2)", () => {
+    const r = calcularItemDelPanel(CON_EXTRAS, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO, AJUSTES);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.item.calculo!.desglose?.day?.dayType).toBe("sunday");
+    expect(r.item.calculo!.desglose?.travel?.cost).toBe(24_000);
+    const entrada = entradaDelMotor(r.item.calculo!.entrada)!;
+    const again = recalcularItemCalculo(r.item, entrada, CUANDO, { precioAjustado: false });
+    if (!again.ok) throw new Error(again.error);
+    expect(again.item.precioUnitario).toBe(r.item.precioUnitario);
+  });
+
+  it("se reabre con los mismos ajustes", () => {
+    const r = calcularItemDelPanel(CON_EXTRAS, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO, AJUSTES);
+    if (!r.ok) throw new Error(r.error);
+    const reabierto = trabajoDesdeMotor((r.item.calculo!.entrada as { presupuesto: unknown }).presupuesto);
+    expect(reabierto?.ajustes).toEqual(AJUSTES);
+  });
+
+  it("armar con varios conceptos: viáticos, seguro y retoque sólo en el primero; la fecha en todos", () => {
+    const album: TrabajoPanel = { ...trabajoVacio("Álbum"), tipo: "physical-product", costoProveedor: "100000", margenDeseado: "30" };
+    let n = 0;
+    const r = armarItemsDelAsistente(CON_EXTRAS, [BODA, album], "Boda", { nuevaClave: () => `k${n++}`, ahora: CUANDO, ajustes: AJUSTES });
+    if (!r.ok) throw new Error(r.error);
+    const [a, b] = r.items.map((i) => i.calculo!.desglose!);
+    expect(a!.travel?.cost).toBe(24_000);
+    expect(b!.travel).toBeNull();
+    expect(b!.retouch).toBeNull();
+    expect(b!.eventInsurance).toBe(0);
+    expect(b!.day?.dayType).toBe("sunday");
+    // El álbum es producto: no lleva recargo de domingo.
+    expect(b!.surchargeAmount).toBe(0);
   });
 });

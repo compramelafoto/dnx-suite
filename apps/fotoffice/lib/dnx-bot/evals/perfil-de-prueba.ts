@@ -35,3 +35,36 @@ export function perfilDePrueba(): CuantoCobroProfileInput {
   if (r.errores.length) throw new Error(`Perfil de prueba inválido: ${r.errores.join(" ")}`);
   return r.perfil;
 }
+
+/**
+ * Impuestos, cobros y recargos de prueba (etapa A): monotributo con IIBB en el régimen simplificado,
+ * comisión de Mercado Pago sumada, seña del 30 %, recargos, viáticos por km, retoque, inflación y un
+ * precio mínimo alto (para que un trabajo chico quede por debajo).
+ */
+export const PARCHE_COBROS_DE_PRUEBA: ParchePerfil = {
+  cobros: {
+    monotributo: "90000",
+    condicionIva: "monotributo",
+    ingresosBrutos: "0",
+    comisionMedioDePago: "6",
+    sena: "30",
+    recargoSabado: "10",
+    recargoDomingo: "15",
+    recargoFeriado: "20",
+    recargoExpres: "15",
+    recargoHoraExtra: "50",
+    viaticos: "por_km",
+    valorKm: "350",
+    kmSinCargo: "20",
+    minutosRetoquePorFoto: "5",
+    inflacionMensual: "2",
+    precioMinimo: "400000",
+    politicaCancelacion: "La seña no se devuelve si se cancela con menos de 30 días.",
+  },
+};
+
+export function perfilConCobrosDePrueba(): CuantoCobroProfileInput {
+  const r = aplicarParche(perfilDePrueba(), PARCHE_COBROS_DE_PRUEBA);
+  if (r.errores.length) throw new Error(`Perfil con cobros inválido: ${r.errores.join(" ")}`);
+  return r.perfil;
+}

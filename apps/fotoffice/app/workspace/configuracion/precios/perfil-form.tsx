@@ -8,6 +8,7 @@ import {
   INITIAL_CUANTO_COBRO_QUOTE,
   type CuantoCobroProfileInput,
 } from "@repo/cuanto-cobro-core";
+import type { CuantoCobroStepId } from "@repo/cuanto-cobro-core/types";
 import { CC_DATA_SECURITY_NOTICE } from "@repo/cuanto-cobro-core/types";
 import { validarPerfil } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
@@ -27,9 +28,10 @@ import {
   SeccionTiempo,
   type PropsSeccion,
 } from "./secciones";
+import { SeccionCobros } from "./secciones-cobros";
 
 /** Los pasos del perfil del ¿Cuánto Cobro? original (la moneda no: FOTOFFICE cotiza en pesos). */
-const CONTENIDO: Partial<Record<(typeof CC_WIZARD_STEPS)[number]["id"], (p: PropsSeccion) => React.ReactNode>> = {
+const CONTENIDO: Partial<Record<string, (p: PropsSeccion) => React.ReactNode>> = {
   employment: SeccionIngresos,
   personal: SeccionGastosPersonales,
   business: SeccionNegocio,
@@ -39,8 +41,26 @@ const CONTENIDO: Partial<Record<(typeof CC_WIZARD_STEPS)[number]["id"], (p: Prop
   "emergency-fund": SeccionFondoEmergencia,
   "savings-goals": SeccionAhorro,
   "commercial-positioning": SeccionPosicionamiento,
+  "pricing-extras": SeccionCobros,
 };
-const PASOS = CC_WIZARD_STEPS.filter((p) => p.block === "profile" && CONTENIDO[p.id]);
+
+type Paso = { id: string; title: string; description: string; motor: boolean };
+
+/**
+ * Paso propio de FOTOFFICE (no está en el asistente de CLF): impuestos, cobros y recargos. Es
+ * opcional: nunca bloquea el «Siguiente» ni el guardado.
+ */
+const PASO_COBROS: Paso = {
+  id: "pricing-extras",
+  title: "Impuestos, cobros y recargos",
+  description: "Monotributo o IVA, Ingresos Brutos, comisión de Mercado Pago, seña, recargos, viáticos, retoque, inflación, precio mínimo y política de cancelación. Todo opcional.",
+  motor: false,
+};
+
+const PASOS: Paso[] = [
+  ...CC_WIZARD_STEPS.filter((p) => p.block === "profile" && CONTENIDO[p.id]).map((p) => ({ id: p.id, title: p.title, description: p.description, motor: true })),
+  PASO_COBROS,
+];
 
 /**
  * Formulario del perfil de precios, con la forma del asistente de ¿Cuánto Cobro?: un paso por vez,
@@ -68,7 +88,7 @@ export function PerfilForm({
   /** Intentó guardar y no pudo, o lo que guardó sigue incompleto: una señal de que está trabada (oferta del bot). */
   const [guardadoTrabado, setGuardadoTrabado] = useState(false);
   const faltanPorPaso = useMemo(
-    () => PASOS.map((p) => getCuantoCobroMissingFields(p.id, perfil, INITIAL_CUANTO_COBRO_QUOTE)),
+    () => PASOS.map((p) => (p.motor ? getCuantoCobroMissingFields(p.id as CuantoCobroStepId, perfil, INITIAL_CUANTO_COBRO_QUOTE) : [])),
     [perfil],
   );
 

@@ -5,7 +5,8 @@
  */
 export type TarjetaCalculo = { titulo: string; filas: { etiqueta: string; valor: string }[]; avisos: string[] };
 
-const MAX_FILAS = 12;
+/** 20 desde el precio completo de ¿Cuánto Cobro? (15/10/2026): recargos, viáticos, impuestos, seña y hora extra. */
+const MAX_FILAS = 20;
 const MAX_AVISOS = 6;
 const corto = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.slice(0, max) : null);
 

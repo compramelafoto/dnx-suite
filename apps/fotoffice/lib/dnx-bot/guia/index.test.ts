@@ -94,3 +94,22 @@ describe("guía: el formulario primero (pedido de Daniel, 13/10)", () => {
     expect(g).toContain("Si pide armarlo conversando, hacelo");
   });
 });
+
+describe("guía: precio completo (etapa A, 15/10)", () => {
+  const g = guiaDelBot();
+  it("pregunta fecha y lugar, y el feriado lo decide el motor", () => {
+    expect(g).toContain("la fecha y el lugar del evento");
+    expect(g).toContain("ajustes.fechaEvento");
+    expect(g).toContain("Nunca decidas vos si un día es feriado");
+  });
+  it("muestra el desglose, la seña, la hora extra y el descuento por transferencia", () => {
+    expect(g).toContain("precioCompleto");
+    expect(g).toContain("la seña y el saldo");
+    expect(g).toContain("hora extra");
+    expect(g).toContain("descuento por transferencia");
+  });
+  it("el perfil pregunta impuestos, cobros y recargos en «cobros»", () => {
+    expect(g).toContain("«Impuestos, cobros y recargos»");
+    expect(g).toContain("en «cobros»");
+  });
+});

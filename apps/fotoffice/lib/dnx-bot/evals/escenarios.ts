@@ -33,7 +33,7 @@ export type Escenario = {
   /** Cifras que valen además de las del mensaje y las de los resultados de herramientas ("$450000", "24%"). */
   cifrasPermitidas?: string[];
   /** El perfil guardado que leen las herramientas en la evaluación. Sin valor: no hay perfil. */
-  perfil?: "vacio" | "completo";
+  perfil?: "vacio" | "completo" | "con-cobros";
   /** Las consultas que encuentra buscar_consultas en la evaluación (ver CONSULTAS_DE_PRUEBA). */
   consultas?: keyof typeof CONSULTAS_DE_PRUEBA;
   textoDebeContener?: RegExp[];
@@ -547,6 +547,50 @@ export const ESCENARIOS: Escenario[] = [
     perfil: "completo",
     textoDebeContener: [/\/workspace\/configuracion\/presupuestos/],
     textoNoDebeContener: [/\/(ajustes|configuracion\/validez|presupuestos\/configuracion)\b/],
+  },
+
+  // ── Precio completo (etapa A, 15/10/2026): impuestos, comisión, seña, recargos, viáticos ──
+  // A1 · Domingo con viaje: la fecha y los km van en ajustes; el recargo y los viáticos los pone el motor.
+  {
+    id: "cotizar-domingo-con-viaje",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje:
+      "Cotizá un casamiento el domingo 18 de octubre de 2026 en Funes, a 20 km del estudio: 8 horas de cobertura, 20 de edición, 2 de viaje, máximo 2500 disparos. Sin extras, sin asistentes ni otros gastos, no hay nada más.",
+    perfil: "con-cobros",
+    debeUsar: ["cotizar_trabajo"],
+    entradaJsonContiene: { cotizar_trabajo: ['"fechaEvento":"2026-10-18"', '"distanciaKm":"20"'] },
+    textoDebeContener: [/domingo/i, /se[ñn]a/i],
+  },
+  // A2 · Responsable inscripto: se anota en el perfil (en «cobros»), no se calcula a mano.
+  {
+    id: "perfil-responsable-inscripto",
+    situacion: enPrecios("WORKSPACE_OWNER", DUENO, PERFIL_COMPLETO),
+    mensaje: "Ahora soy responsable inscripto, anotalo en mi perfil por favor. El IVA es el 21 %.",
+    perfil: "completo",
+    debeUsarAlguna: ["anotar_en_borrador", "guardar_perfil_de_precios"],
+    entradaJsonContiene: { anotar_en_borrador: ['"condicionIva":"responsable_inscripto"'] },
+    textoNoDebeContener: [MONTO_QUE_NO_ES_CERO],
+  },
+  // A3 · Bajo el precio mínimo: lo dice y no lo sube por su cuenta.
+  {
+    id: "cotizar-bajo-el-minimo",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje:
+      "Cotizá un retrato corporativo el martes 20 de octubre de 2026 en el estudio (0 km): 1 hora de sesión, 1 de edición, máximo 150 disparos. Sin extras ni gastos, nada más.",
+    perfil: "con-cobros",
+    debeUsar: ["cotizar_trabajo"],
+    textoDebeContener: [/m[íi]nimo/i],
+  },
+  // A4 · Evento a seis meses: la fecha va en ajustes y el ajuste por inflación sale del motor.
+  {
+    id: "cotizar-evento-a-seis-meses",
+    situacion: enPresupuestos(PERFIL_COMPLETO),
+    mensaje:
+      "Cotizá unos XV para el sábado 17 de abril de 2027 en el estudio (0 km): 6 horas de cobertura, 10 de edición, 1 de viaje, máximo 2000 disparos. Sin extras ni gastos, no hay nada más.",
+    perfil: "con-cobros",
+    debeUsar: ["cotizar_trabajo"],
+    entradaJsonContiene: { cotizar_trabajo: ['"fechaEvento":"2027-04-17"'] },
+    textoDebeContener: [/inflaci[óo]n/i],
   },
 ];
 

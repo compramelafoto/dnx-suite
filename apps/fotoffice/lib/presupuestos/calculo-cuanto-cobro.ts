@@ -58,7 +58,8 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
     };
   }
   const cantidad = entrada.cantidad !== undefined && Number.isFinite(entrada.cantidad) && entrada.cantidad > 0 ? entrada.cantidad : 1;
-  const sugerido = redondear2(finito(resultado.chosenPriceEffective));
+  // Con el precio completo, el sugerido es el precio sin IVA del desglose (impuestos, comisión y recargos incluidos).
+  const sugerido = redondear2(finito(resultado.priceBuildUp ? resultado.priceBuildUp.priceWithoutVat : resultado.chosenPriceEffective));
   const ajustado =
     entrada.precioAjustado !== null && entrada.precioAjustado !== undefined && Number.isFinite(entrada.precioAjustado) && entrada.precioAjustado >= 0
       ? redondear2(entrada.precioAjustado)
@@ -69,8 +70,12 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
   }
 
   // Margen del precio elegido con la cuenta del motor: chosenMargin = chosenPrice − minimumPrice.
-  const costoBase = redondear2(finito(resultado.minimumPrice));
-  const margenElegido = redondear2(precioRenglon - costoBase);
+  // Con el precio completo (etapa A): el costo suma viáticos, seguro del evento y retoque, y la
+  // ganancia descuenta IIBB y comisión en la misma proporción que el desglose.
+  const desglose = resultado.priceBuildUp;
+  const costoBase = redondear2(finito(resultado.minimumPrice) + (desglose ? finito(desglose.extraCost) : 0));
+  const descuentos = desglose && desglose.priceWithoutVat > 0 ? (desglose.grossIncomeTax + desglose.commission) / desglose.priceWithoutVat : 0;
+  const margenElegido = redondear2(precioRenglon * (1 - descuentos) - costoBase);
   const calculo: InstantaneaCalculo = {
     motor: "cuanto-cobro-core",
     calculadoEn: (entrada.calculadoEn ?? new Date()).toISOString(),
@@ -93,6 +98,7 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
     posicionamiento: resultado.commercialPositioningLabel,
     advertencias: [...resultado.warnings],
     entrada: entrada.parametros ?? null,
+    ...(desglose ? { desglose } : {}),
   };
 
   return {

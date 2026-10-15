@@ -82,3 +82,39 @@ export { INITIAL_EQUIPMENT_INVENTORY } from "./equipment/normalize";
 export { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "./payment/payment-options-types";
 export type { CuantoCobroPaymentOptionsInput } from "./payment/payment-options-types";
 export type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation";
+
+// Precio completo (FOTOFFICE, 15/10/2026): impuestos, comisión, seña, recargos, viáticos, feriados.
+export {
+  buildPriceBuildUp,
+  isPricingExtrasActive,
+  monthsBetween,
+  normalizePricingExtras,
+  parsePercent,
+  pricingExtrasFixedMonthly,
+  roundUpTo,
+  withoutOneTimeAdjustments,
+} from "./pricing-extras/price-build-up";
+export { summarizeJobPricing, type CuantoCobroJobPricingSummary } from "./pricing-extras/summarize";
+export { computeTravel, resolveDistanceKm, straightLineKm } from "./pricing-extras/travel";
+export {
+  argentinaHolidays,
+  easterSunday,
+  eventDayType,
+  isValidYmd,
+  ARGENTINA_HOLIDAY_YEARS_WITH_DECREE,
+  type ArgentinaHoliday,
+  type EventDayInfo,
+  type EventDayType,
+} from "./pricing-extras/holidays";
+export {
+  INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
+  CUANTO_COBRO_PRICE_ROUNDING_STEP,
+  CUANTO_COBRO_DEFAULT_IVA_PERCENT,
+  CUANTO_COBRO_ROUTE_FACTOR,
+  type CuantoCobroIvaCondition,
+  type CuantoCobroJobAdjustments,
+  type CuantoCobroPriceBuildUp,
+  type CuantoCobroPricingExtras,
+  type CuantoCobroTravelMode,
+  type CuantoCobroTravelZone,
+} from "./pricing-extras/types";
