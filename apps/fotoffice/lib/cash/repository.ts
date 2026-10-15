@@ -2,6 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
+import { SOURCE_APERTURA } from "./apertura";
 
 /**
  * Las consultas de Caja.
@@ -392,6 +393,8 @@ export async function movementsForReport(
       workspaceId,
       occurredAt: { gte: filtros.from, lte: filtros.to },
       ...(filtros.accountId ? { accountId: filtros.accountId } : {}),
+      // El saldo de apertura (y su anulación) no es plata que entró o salió del negocio.
+      NOT: [{ sourceModule: SOURCE_APERTURA }, { reverses: { is: { sourceModule: SOURCE_APERTURA } } }],
     },
     select: {
       kind: true,

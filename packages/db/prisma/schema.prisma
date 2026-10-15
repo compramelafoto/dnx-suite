@@ -7283,6 +7283,10 @@ model Workspace {
   fotofficeCobros                FotofficeCobro[]
   fotofficeCobroImputaciones     FotofficeCobroImputacion[]
   fotofficeRubros                FotofficeRubro[]
+  /// Histórico de Caja (etapa E): relaciones inversas, no son columnas.
+  fotofficeHistoricoLotes        FotofficeHistoricoLote[]
+  fotofficeHistoricoMovimientos  FotofficeHistoricoMovimiento[]
+  fotofficeHistoricoMapeos       FotofficeHistoricoMapeo[]
   fotofficeCuentasPagar          FotofficeCuentaPagar[]
   fotofficeCuotaRecordatorios    FotofficeCuotaRecordatorio[]
   fotofficePedidoAjustes         FotofficePedidoAjustes?
@@ -21426,6 +21430,102 @@ model FotofficeRubro {
 
   @@index([workspaceId])
   @@index([parentCategoryId])
+}
+
+/// Histórico de Caja (etapa E, spec 7.6): un lote por mes importado de los libros viejos.
+/// NO es Caja: no toca saldos, turnos ni arqueos (no son `CashMovement`). Re-importar un mes reemplaza
+/// sus movimientos. estado: BORRADOR | CONFIRMADO | DESCARTADO; mes: "AAAA-MM" (CHECK en el SQL).
+/// Los informes y el tablero sólo suman los lotes CONFIRMADOS.
+model FotofficeHistoricoLote {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  mes                 String
+  estado              String    @default("BORRADOR")
+  /// Nombre del archivo importado (sin ruta).
+  archivo             String
+  /// sha-256 del contenido del lote: misma entrada, misma huella.
+  huella              String
+  /// Filas del archivo (sin estimados).
+  filas               Int
+  ingresosArs         Decimal   @db.Decimal(14, 2)
+  /// Egresos anotados en el libro (4…, 5… y 6…), con signo negativo. Sin estimados.
+  egresosArs          Decimal   @db.Decimal(14, 2)
+  /// Gastos estimados del mes, con signo negativo.
+  estimadosArs        Decimal   @db.Decimal(14, 2)
+  filasRevisar        Int       @default(0)
+  /// Resumen para revisar (totales por clase y rubro, estimados, faltantes). Lo valida `lib/historico-caja`.
+  resumen             Json      @default("{}")
+  /// Avisos del mes, p. ej. "Gastos fijos incompletos".
+  avisos              String[]  @default([])
+  confirmadoPorUserId Int?
+  confirmadoAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  workspace   Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  movimientos FotofficeHistoricoMovimiento[]
+
+  @@unique([workspaceId, mes])
+  @@index([workspaceId, estado])
+}
+
+/// Un movimiento del histórico de Caja. Importe con signo: + entra, − sale (CHECK distinto de 0).
+/// clase: INGRESO | COSTO_VARIABLE | GASTO_FIJO | RETIRO_DUENO | MOVIMIENTO_INTERNO | SIN_CLASIFICAR
+/// (sale del código de rubro: 3, 4, 5, 6 y 0). origen: CSV | EXTRACTO | ESTIMADO; `estimado` va con ESTIMADO.
+model FotofficeHistoricoMovimiento {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  loteId              String
+  orden               Int
+  fecha               DateTime @db.Date
+  turno               String?
+  /// EFECTIVO | DIGITAL
+  medio               String?
+  conceptoOriginal    String
+  conceptoNormalizado String
+  importeArs          Decimal  @db.Decimal(14, 2)
+  clase               String
+  rubroCodigo         String?
+  rubroNombre         String?
+  /// Clave de la regla de mapeo que lo clasificó ("CONCEPTO|signo|monto mínimo").
+  regla               String?
+  origen              String   @default("CSV")
+  estimado            Boolean  @default(false)
+  revisar             Boolean  @default(false)
+  motivosRevision     String[] @default([])
+  /// Dónde está en la planilla original ("archivo | pestaña | celda").
+  referenciaOrigen    String?
+  filaOrigen          Int?
+  observacion         String?
+  createdAt           DateTime @default(now())
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lote      FotofficeHistoricoLote @relation(fields: [loteId], references: [id], onDelete: Cascade)
+
+  @@unique([loteId, orden])
+  @@index([workspaceId, fecha])
+  @@index([workspaceId, clase, fecha])
+}
+
+/// Mapeo aprendido del histórico: concepto (+ signo y monto mínimo) → rubro. Se guarda al confirmar
+/// un lote. clave = "CONCEPTO|signo|monto mínimo".
+model FotofficeHistoricoMapeo {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clave          String
+  concepto       String
+  /// "+" | "-" | null (los dos)
+  signo          String?
+  montoMinimoArs Decimal? @db.Decimal(14, 2)
+  clase          String
+  rubroCodigo    String
+  rubroNombre    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, clave])
 }
 
 /// Cuenta a pagar (Entrega B1): un costo de un pedido (o suelto) que se le debe a un proveedor.

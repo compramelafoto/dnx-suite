@@ -9,6 +9,7 @@
  *   ingresos, o al revés) va a "Sin clasificar" de su propio lado: así no infla el otro lado.
  * - Resultado = Ingresos − Costos − Gastos + Sin clasificar de ingreso − Sin clasificar de egreso.
  */
+import { SOURCE_APERTURA } from "@/lib/cash/apertura";
 import { compararCodigos } from "@/lib/rubros/rubros";
 import { diaEnBuenosAires } from "./fechas";
 import { bloqueDeRubro, ladoDeBloque, type BloqueResultado } from "./bloques";
@@ -248,20 +249,22 @@ export function asientoDeMovimiento(
   porId: ReadonlyMap<string, MovimientoOriginal>,
   excluidos: ReadonlySet<string> = new Set(),
 ): Asiento | null {
+  // El saldo de apertura (etapa E) cuenta para el saldo de la cuenta, nunca como ingreso del negocio.
+  const fuera = (modulo: string) => modulo === SOURCE_APERTURA || excluidos.has(modulo);
   if (m.transferId !== null) return null;
   const mes = mesDeDia(diaEnBuenosAires(m.occurredAt));
   if (m.reversesMovementId === null) {
-    if (excluidos.has(m.sourceModule)) return null;
+    if (fuera(m.sourceModule)) return null;
     return { mes, categoryId: m.categoryId, kind: m.kind, centavos: m.centavos, signo: 1 };
   }
   const original = porId.get(m.reversesMovementId);
   if (original) {
     if (original.transferId) return null;
-    if (excluidos.has(original.sourceModule ?? m.sourceModule)) return null;
+    if (fuera(original.sourceModule ?? m.sourceModule)) return null;
     return { mes, categoryId: original.categoryId, kind: original.kind, centavos: m.centavos, signo: -1 };
   }
   // Sin el original a mano: el contramovimiento es del lado contrario, así que se resta del lado opuesto.
-  if (excluidos.has(m.sourceModule)) return null;
+  if (fuera(m.sourceModule)) return null;
   return { mes, categoryId: m.categoryId, kind: m.kind === "INGRESO" ? "EGRESO" : "INGRESO", centavos: m.centavos, signo: -1 };
 }
 

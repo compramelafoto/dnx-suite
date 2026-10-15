@@ -341,6 +341,15 @@ const CAJA: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/caja/historial",
+    label: "Historial importado",
+    icon: "CalendarDays",
+    description: "Los libros de caja anteriores, mes por mes, para revisar y confirmar. No cambian el saldo.",
+    requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+  {
     href: "/caja/configuracion",
     label: "Cuentas y categorías",
     icon: "Settings",
