@@ -25,6 +25,10 @@ export type Librito3DVisorProps = {
   pageCount: number;
   giro: number;
   onClose: () => void;
+  /** Botones extra al pie (p. ej. «Usar plantilla» en el catálogo). */
+  acciones?: React.ReactNode;
+  /** Texto bajo el título. Sin valor, cómo se maneja el visor. */
+  subtitulo?: string;
 };
 
 type Estado =
@@ -49,6 +53,8 @@ export default function Librito3DVisor({
   pageCount,
   giro: giroInicial,
   onClose,
+  acciones,
+  subtitulo,
 }: Librito3DVisorProps) {
   const canvasW = Number(canvas.width) || 1;
   const canvasH = Number(canvas.height) || 1;
@@ -215,7 +221,9 @@ export default function Librito3DVisor({
         <div className="flex items-center gap-3 px-4 pb-2 pt-[calc(12px+env(safe-area-inset-top,0px))]">
           <div className="min-w-0">
             <h2 className="m-0 truncate text-lg font-semibold text-[#1f2328]">{titulo} en 3D</h2>
-            <p className="m-0 text-[13px] text-[#6b6f76]">Arrastrá para girarlo · pellizcá o usá la rueda para acercar</p>
+            <p className="m-0 text-[13px] text-[#6b6f76]">
+              {subtitulo ?? "Arrastrá para girarlo · pellizcá o usá la rueda para acercar"}
+            </p>
           </div>
           <button
             ref={cerrarRef}
@@ -343,6 +351,11 @@ export default function Librito3DVisor({
             Girar
           </button>
         </div>
+        {acciones ? (
+          <div className="flex flex-wrap items-center justify-center gap-2 border-t border-[#e7e1da] px-4 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pt-3">
+            {acciones}
+          </div>
+        ) : null}
       </div>
 
       {/* Las páginas a tamaño real, fuera de la pantalla: de acá salen las texturas. */}

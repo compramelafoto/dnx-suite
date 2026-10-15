@@ -14,7 +14,7 @@ export const maxDuration = 60;
 type Ctx = { params: Promise<{ templateId: string }> };
 
 /**
- * GET — miniatura JPG de la primera página de la plantilla, con datos de muestra, para mostrarla
+ * GET — miniatura JPG de la primera página de la plantilla, con datos y fotos de demo, para mostrarla
  * en los catálogos. Sólo para quien puede ver la plantilla (la suya o una del sistema publicada).
  * Se dibuja una vez por versión y queda guardada (ver `miniaturaDePlantilla`).
  */
@@ -25,13 +25,15 @@ export async function GET(req: Request, { params }: Ctx) {
     const versionId = new URL(req.url).searchParams.get("v") || undefined;
     // Valida el permiso de lectura con la misma regla que el editor.
     await getTemplateV2Detail(user, templateId, { includeLegacy: false, versionId });
-    const jpg = await miniaturaDePlantilla(templateId, versionId);
-    if (!jpg) return NextResponse.json({ error: "No se pudo dibujar la miniatura." }, { status: 422 });
-    return new Response(Buffer.from(jpg), {
+    const miniatura = await miniaturaDePlantilla(templateId, versionId);
+    if (!miniatura) return NextResponse.json({ error: "No se pudo dibujar la miniatura." }, { status: 422 });
+    return new Response(Buffer.from(miniatura.jpg), {
       headers: {
         "Content-Type": "image/jpeg",
         // Cambia sólo con una versión nueva: quien la pide con ?v= la puede guardar mucho tiempo.
-        "Cache-Control": versionId ? "private, max-age=2592000, immutable" : "private, max-age=600",
+        // Si faltaba alguna foto de demo, poco: cuando se suba, la miniatura tiene que cambiar.
+        "Cache-Control":
+          versionId && miniatura.completa ? "private, max-age=2592000, immutable" : "private, max-age=600",
       },
     });
   } catch (err) {

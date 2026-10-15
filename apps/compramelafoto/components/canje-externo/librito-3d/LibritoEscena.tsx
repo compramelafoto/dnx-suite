@@ -149,7 +149,8 @@ function Hoja({
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
-    g.rotation.y = THREE.MathUtils.damp(g.rotation.y, volteada ? Math.PI : 0, 5, Math.min(dt, 0.1));
+    // Como una página: el borde derecho viene hacia la persona y pasa a la izquierda (ver `vuelta`).
+    g.rotation.y = THREE.MathUtils.damp(g.rotation.y, volteada ? -Math.PI : 0, 5, Math.min(dt, 0.1));
   });
   return (
     <group ref={ref}>
@@ -257,7 +258,10 @@ function Contenido(props: Props) {
   const deEspaldas = modelo.tipo === "plegado" && !props.abierto && props.deEspaldas === true;
   useFrame((_, dt) => {
     const v = vuelta.current;
-    if (v) v.rotation.y = THREE.MathUtils.damp(v.rotation.y, deEspaldas ? Math.PI : 0, 5, Math.min(dt, 0.1));
+    // Hacia -π: el borde derecho viene hacia la persona y pasa a la izquierda, como al dar vuelta
+    // un libro en la mano (con +π el borde derecho se alejaba: giraba al revés). Al volver, el
+    // mismo camino de vuelta. El resultado final es el mismo (±π), así que la lectura no cambia.
+    if (v) v.rotation.y = THREE.MathUtils.damp(v.rotation.y, deEspaldas ? -Math.PI : 0, 5, Math.min(dt, 0.1));
     const g = roll.current;
     if (!g) return;
     // Mismo sentido que la vista plana (CSS gira en sentido horario; three, al revés).

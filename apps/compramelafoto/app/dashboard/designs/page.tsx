@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import VistaDemoPlantilla3D from "@/components/design-v2/VistaDemoPlantilla3D";
 
 type TemplatePublication = {
   reviewStatus: string;
@@ -133,6 +134,8 @@ export default function DashboardDesignsPage() {
   const [busyCloneId, setBusyCloneId] = useState<string | null>(null);
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** Plantilla del sistema abierta en la vista 3D con datos de demo. */
+  const [vista3d, setVista3d] = useState<{ id: string; name: string } | null>(null);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -334,9 +337,27 @@ export default function DashboardDesignsPage() {
               return (
                 <li key={t.id}>
                   <Card className="flex h-full flex-col overflow-hidden border border-[#eef2f6] p-4 shadow-sm">
-                    <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} templateId={t.id} />
+                    <button
+                      type="button"
+                      className="group relative block w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]"
+                      onClick={() => setVista3d({ id: t.id, name: t.name })}
+                      aria-label={`Ver «${t.name || "Sin nombre"}» en 3D con fotos de ejemplo`}
+                    >
+                      <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} templateId={t.id} />
+                      <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white opacity-90 transition group-hover:opacity-100">
+                        Ver en 3D
+                      </span>
+                    </button>
                     <p className="mt-4 line-clamp-2 text-base font-semibold text-[#0f172a]">{t.name || "Sin nombre"}</p>
                     <div className="mt-5 flex flex-col gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="font-semibold"
+                        onClick={() => setVista3d({ id: t.id, name: t.name })}
+                      >
+                        Ver en 3D con fotos de ejemplo
+                      </Button>
                       <Button
                         variant="primary"
                         size="sm"
@@ -420,6 +441,16 @@ export default function DashboardDesignsPage() {
             })}
           </ul>
         </section>
+      ) : null}
+
+      {vista3d ? (
+        <VistaDemoPlantilla3D
+          templateId={vista3d.id}
+          nombre={vista3d.name}
+          onClose={() => setVista3d(null)}
+          onUsar={() => runCloneSystem(vista3d.id)}
+          usando={busyCloneId === vista3d.id}
+        />
       ) : null}
 
       {isAdmin && adminAllTemplates.length === 0 ? (
