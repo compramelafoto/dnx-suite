@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Handshake } from "lucide-react";
+import { Handshake, Network } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { SponsorLogo } from "@/components/sponsors/sponsor-logo";
 import { requireSponsorsViewer } from "@/lib/sponsors/access";
@@ -33,6 +33,12 @@ export default async function SponsorsPage({
         actions={
           puedeEditar ? (
             <div className="flex flex-wrap gap-2">
+              {sponsors.length > 0 ? (
+                <Link href="/sponsors/red" className="fo-btn fo-btn-secondary text-sm">
+                  <Network className="size-4" aria-hidden />
+                  Buscar en la red DNX
+                </Link>
+              ) : null}
               <Link href="/sponsors/invitar" className="fo-btn fo-btn-secondary text-sm">
                 Invitar a un sponsor
               </Link>
@@ -66,12 +72,16 @@ export default async function SponsorsPage({
             <p className="text-base font-semibold">Todavía no hay sponsors</p>
             <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
               Sumá las marcas que acompañan a la institución. Si ya trabajan con otra plataforma de DNX,
-              las encontrás en el buscador con su logo cargado.
+              las encontrás en la red con su logo cargado.
             </p>
           </div>
           {puedeEditar ? (
             <div className="flex flex-wrap justify-center gap-2">
-              <Link href="/sponsors/nuevo" className="fo-btn fo-btn-primary text-sm">
+              <Link href="/sponsors/red" className="fo-btn fo-btn-primary text-sm">
+                <Network className="size-4" aria-hidden />
+                Buscar en la red DNX
+              </Link>
+              <Link href="/sponsors/nuevo" className="fo-btn fo-btn-secondary text-sm">
                 Agregar el primero
               </Link>
               <Link href="/sponsors/invitar" className="fo-btn fo-btn-secondary text-sm">
