@@ -103,6 +103,11 @@ export function getCategoryHourlyRate(
 export type QuoteLaborRates = Record<keyof PhotographyTimeDistribution, number> & {
   travel: number;
   delivery: number;
+  /**
+   * Mi estudio: tarifa por hora de cada persona (su costo por hora + estructura por hora). Sólo con el
+   * modo encendido; las horas asignadas a alguien que no está acá van al valor hora del estudio.
+   */
+  byPerson?: Record<string, number>;
 };
 
 function buildUniformLaborRates(costHour: number): QuoteLaborRates {
@@ -120,7 +125,12 @@ function buildUniformLaborRates(costHour: number): QuoteLaborRates {
 export function getQuoteLaborRates(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): QuoteLaborRates | null {
   const costHour = getProfileCostHour(profile, model);
   if (costHour === null) return null;
-  return buildUniformLaborRates(costHour);
+  const rates = buildUniformLaborRates(costHour);
+  const studio = computeStudioBreakdown(profile, model);
+  if (!studio) return rates;
+  const byPerson: Record<string, number> = {};
+  for (const p of studio.people) if (p.inStructure && p.rate !== null) byPerson[p.id] = p.rate;
+  return { ...rates, byPerson };
 }
 
 /**

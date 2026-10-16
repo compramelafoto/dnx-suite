@@ -34,6 +34,7 @@
     "./quote-profitability": "./src/quote-profitability.ts",
     "./types": "./src/types.ts",
     "./__fixtures__/characterization-fixtures": "./src/__fixtures__/characterization-fixtures.ts",
+    "./__fixtures__/studio-fixtures": "./src/__fixtures__/studio-fixtures.ts",
     "./pricing-extras/holidays": "./src/pricing-extras/holidays.ts",
     "./pricing-extras/price-build-up": "./src/pricing-extras/price-build-up.ts",
     "./pricing-extras/summarize": "./src/pricing-extras/summarize.ts",

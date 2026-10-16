@@ -8,7 +8,18 @@ import {
   parseQuoteItemHours,
   parseQuoteItemQuantity,
 } from "./quote-items";
-import type { CuantoCobroQuoteItem, CuantoCobroQuoteItemType } from "./types";
+import type { CuantoCobroAssignmentActivity, CuantoCobroQuoteItem, CuantoCobroQuoteItemType } from "./types";
+
+/** Mi estudio: lo que costaron las horas de cada persona en un concepto. */
+export type QuoteItemPersonLabor = {
+  personId: string;
+  activity: CuantoCobroAssignmentActivity;
+  /** Horas-persona (ya multiplicadas por la cantidad). */
+  hours: number;
+  cost: number;
+  /** La persona no tiene tarifa (borrada, inactiva o por trabajo): se cobró al valor hora del estudio. */
+  atStudioRate: boolean;
+};
 
 export type CuantoCobroQuoteItemCalculated = {
   item: CuantoCobroQuoteItem;
@@ -23,6 +34,8 @@ export type CuantoCobroQuoteItemCalculated = {
   marginPercent: number;
   marginAmount: number;
   suggestedPrice: number;
+  /** Mi estudio: sólo si el concepto trae asignaciones y el perfil está en modo estudio. */
+  laborByPerson?: QuoteItemPersonLabor[];
 };
 
 export type CuantoCobroQuoteSummary = {
@@ -39,6 +52,8 @@ export type CuantoCobroQuoteSummary = {
   totalOwnHours: number;
   totalMarginAmount: number;
   totalSuggestedPrice: number;
+  /** Mi estudio: horas y costo de cada persona en el trabajo (sumado entre conceptos). Sólo si hay asignaciones. */
+  laborByPerson?: Array<{ personId: string; hours: number; cost: number; atStudioRate: boolean }>;
 };
 
 function laborForHours(hours: number, rate: number, quantity: number): { laborCost: number; ownHours: number } {
@@ -74,13 +89,14 @@ export function calculateQuoteItem(
   let cameraWearCharged = 0;
   let estimatedShots = 0;
   const labor = { laborCost, ownHours };
+  const byPerson: QuoteItemPersonLabor[] = [];
 
   switch (item.itemType) {
     case "own-service": {
-      accumulateLabor(labor, parseQuoteItemHours(item.coverageHours), rates.coverage, quantity);
-      accumulateLabor(labor, getOwnServicePostProductionHours(item), rates.editing, quantity);
-      accumulateLabor(labor, parseQuoteItemHours(item.deliveryHours), rates.delivery, quantity);
-      accumulateLabor(labor, parseQuoteItemHours(item.travelHours), rates.travel, quantity);
+      accumulateActivity(labor, item, "coverage", parseQuoteItemHours(item.coverageHours), rates.coverage, rates, quantity, byPerson);
+      accumulateActivity(labor, item, "editing", getOwnServicePostProductionHours(item), rates.editing, rates, quantity, byPerson);
+      accumulateActivity(labor, item, "delivery", parseQuoteItemHours(item.deliveryHours), rates.delivery, rates, quantity, byPerson);
+      accumulateActivity(labor, item, "travel", parseQuoteItemHours(item.travelHours), rates.travel, rates, quantity, byPerson);
       const unitDirect = parseCuantoCobroAmount(item.directCost) ?? 0;
       directCost = unitDirect * quantity;
 
@@ -94,9 +110,17 @@ export function calculateQuoteItem(
       break;
     }
     case "physical-product": {
-      accumulateLabor(labor, parseQuoteItemHours(item.productionHours), rates.editing, quantity);
-      accumulateLabor(labor, parseQuoteItemHours(item.reviewHours), rates.editing, quantity);
-      accumulateLabor(labor, parseQuoteItemHours(item.correctionHours), rates.editing, quantity);
+      // Diseño, revisión y correcciones: una sola actividad ("production") para asignar.
+      accumulateActivity(
+        labor,
+        item,
+        "production",
+        parseQuoteItemHours(item.productionHours) + parseQuoteItemHours(item.reviewHours) + parseQuoteItemHours(item.correctionHours),
+        rates.editing,
+        rates,
+        quantity,
+        byPerson,
+      );
       const unitSupplier = parseCuantoCobroAmount(item.supplierCost) ?? 0;
       const unitPackaging = parseCuantoCobroAmount(item.packagingCost) ?? 0;
       const unitShipping = parseCuantoCobroAmount(item.shippingCost) ?? 0;
@@ -113,7 +137,7 @@ export function calculateQuoteItem(
       break;
     }
     case "outsourced": {
-      accumulateLabor(labor, parseQuoteItemHours(item.managementHours), rates.administration, quantity);
+      accumulateActivity(labor, item, "management", parseQuoteItemHours(item.managementHours), rates.administration, rates, quantity, byPerson);
       const unitOutsourced = parseCuantoCobroAmount(item.outsourcedLaborCost) ?? 0;
       directCost = unitOutsourced * quantity;
       break;
@@ -144,7 +168,43 @@ export function calculateQuoteItem(
     marginPercent,
     marginAmount,
     suggestedPrice,
+    ...(byPerson.length > 0 ? { laborByPerson: byPerson } : {}),
   };
+}
+
+/**
+ * Horas de una actividad: las asignadas a una persona van a su tarifa; lo que falta asignar, a la tarifa
+ * general (el valor hora del estudio). Si lo asignado supera las horas del concepto, mandan las
+ * asignaciones (son horas-persona). Sin tarifas por persona, lo de siempre.
+ */
+function accumulateActivity(
+  target: { laborCost: number; ownHours: number },
+  item: CuantoCobroQuoteItem,
+  activity: CuantoCobroAssignmentActivity,
+  itemHours: number,
+  rate: number,
+  rates: QuoteLaborRates,
+  quantity: number,
+  byPerson: QuoteItemPersonLabor[],
+): void {
+  const assigned = rates.byPerson && Array.isArray(item.assignments)
+    ? item.assignments.filter((a) => a && a.activity === activity && parseQuoteItemHours(a.hours) > 0)
+    : [];
+  if (assigned.length === 0) {
+    accumulateLabor(target, itemHours, rate, quantity);
+    return;
+  }
+  let assignedHours = 0;
+  for (const a of assigned) {
+    const hours = parseQuoteItemHours(a.hours);
+    const personRate = rates.byPerson?.[a.personId];
+    const effective = personRate ?? rate;
+    assignedHours += hours;
+    target.laborCost += hours * effective * quantity;
+    target.ownHours += hours * quantity;
+    byPerson.push({ personId: a.personId, activity, hours: hours * quantity, cost: hours * effective * quantity, atStudioRate: personRate === undefined });
+  }
+  accumulateLabor(target, Math.max(0, itemHours - assignedHours), rate, quantity);
 }
 
 function subtotalForType(items: CuantoCobroQuoteItemCalculated[], type: CuantoCobroQuoteItemType): number {
@@ -159,6 +219,15 @@ export function calculateQuoteSummary(
   cameraWearPolicy?: CameraWearPolicy,
 ): CuantoCobroQuoteSummary {
   const calculated = items.map((item) => calculateQuoteItem(item, rates, cameraWearPolicy));
+  const porPersona = new Map<string, { personId: string; hours: number; cost: number; atStudioRate: boolean }>();
+  for (const row of calculated) {
+    for (const l of row.laborByPerson ?? []) {
+      const acc = porPersona.get(l.personId) ?? { personId: l.personId, hours: 0, cost: 0, atStudioRate: l.atStudioRate };
+      acc.hours += l.hours;
+      acc.cost += l.cost;
+      porPersona.set(l.personId, acc);
+    }
+  }
 
   return {
     items: calculated,
@@ -174,6 +243,7 @@ export function calculateQuoteSummary(
     totalOwnHours: calculated.reduce((sum, row) => sum + row.ownHours, 0),
     totalMarginAmount: calculated.reduce((sum, row) => sum + row.marginAmount, 0),
     totalSuggestedPrice: calculated.reduce((sum, row) => sum + row.suggestedPrice, 0),
+    ...(porPersona.size > 0 ? { laborByPerson: [...porPersona.values()] } : {}),
   };
 }
 
