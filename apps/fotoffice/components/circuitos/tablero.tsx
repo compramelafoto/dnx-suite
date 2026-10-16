@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useSyncExternalStore, useTransition, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition, type DragEvent } from "react";
+import { AlarmClock, Archive, CircleX, Inbox, LayoutGrid, List, Trophy } from "lucide-react";
 import { cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
-import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { formatoPesos } from "@/lib/consultas/valor";
+import { clasePuntoDeEtapa, porcentajeDe, resumenDeColumnas } from "@/lib/circuitos/tablero-vista";
 import type { Tablero as DatosTablero, TarjetaVista } from "@/lib/circuitos/tablero";
 import { AltaRapida } from "@/components/consultas/alta-rapida";
 import { DialogoGanada } from "./dialogo-ganada";
@@ -80,6 +81,24 @@ export function Tablero({
   const [ganando, setGanando] = useState<Omit<Operacion, "destino"> | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
   const arrastre = useRef<Arrastre | null>(null);
+  // Sombras en los bordes del tablero: avisan que hay más columnas a un costado.
+  const scroller = useRef<HTMLDivElement | null>(null);
+  const [bordes, setBordes] = useState({ izquierda: false, derecha: false });
+  const medirBordes = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const izquierda = el.scrollLeft > 4;
+    const derecha = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setBordes((b) => (b.izquierda === izquierda && b.derecha === derecha ? b : { izquierda, derecha }));
+  }, []);
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    medirBordes();
+    const obs = new ResizeObserver(medirBordes);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [medirBordes, datos]);
 
   const { circuito, columnas, salidas, motivos, responsables } = datos;
   const esProyecto = tipo === "PROYECTO";
@@ -215,18 +234,19 @@ export function Tablero({
   }
 
   const hrefLista = `${ruta}/lista?circuito=${encodeURIComponent(circuito.id)}`;
+  const resumen = resumenDeColumnas(columnas);
   const zonaClase = (clave: string, color: string) =>
-    `flex min-h-24 items-center justify-center rounded-lg border-2 border-dashed p-4 text-center text-sm font-medium ${color} ${
-      sobre === clave ? "ring-2 ring-[var(--fo-accent)]" : ""
+    `flex min-h-28 flex-col items-center justify-center gap-1.5 rounded-[var(--fo-radius)] border-2 border-dashed p-4 text-center text-sm font-medium transition-colors ${color} ${
+      sobre === clave ? "ring-2 ring-[var(--fo-accent)] ring-offset-2 ring-offset-[var(--fo-bg)]" : ""
     }`;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         {datos.circuitos.length > 1 ? (
-          <label className="fo-field-stack">
-            <span className="fo-label">{esProyecto ? "Flujo" : "Circuito"}</span>
-            <select className="fo-input" value={circuito.id} onChange={(ev) => irA({ circuito: ev.target.value })}>
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-medium text-[var(--fo-muted)]">{esProyecto ? "Flujo" : "Circuito"}</span>
+            <select className="fo-input h-9 min-h-0! w-auto! py-0! pr-8! text-sm" value={circuito.id} onChange={(ev) => irA({ circuito: ev.target.value })}>
               {datos.circuitos.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nombre}
@@ -235,10 +255,10 @@ export function Tablero({
             </select>
           </label>
         ) : null}
-        <label className="fo-field-stack">
-          <span className="fo-label">Responsable</span>
+        <label className="flex items-center gap-2">
+          <span className="text-xs font-medium text-[var(--fo-muted)]">Responsable</span>
           <select
-            className="fo-input"
+            className="fo-input h-9 min-h-0! w-auto! py-0! pr-8! text-sm"
             value={filtros.responsable ?? ""}
             onChange={(ev) => irA({ responsable: ev.target.value ? Number(ev.target.value) : null })}
           >
@@ -250,102 +270,205 @@ export function Tablero({
             ))}
           </select>
         </label>
-        <label className="flex h-10 items-center gap-2">
-          <input type="checkbox" checked={filtros.soloVencidas} onChange={(ev) => irA({ soloVencidas: ev.target.checked })} />
+        <label
+          className={`inline-flex h-9 cursor-pointer select-none items-center gap-2 rounded-full border px-3 text-sm transition-colors focus-within:ring-2 focus-within:ring-[var(--fo-accent-muted)] ${
+            filtros.soloVencidas
+              ? "border-[var(--fo-danger-border)] bg-[var(--fo-danger-soft)] font-medium text-[var(--fo-danger)]"
+              : "border-[var(--fo-border-strong)] bg-[var(--fo-bg-elevated)] text-[var(--fo-text-secondary)] hover:bg-[var(--fo-surface-hover)]"
+          }`}
+        >
+          <input
+            type="checkbox"
+            className="size-3.5 accent-[var(--fo-danger)]"
+            checked={filtros.soloVencidas}
+            onChange={(ev) => irA({ soloVencidas: ev.target.checked })}
+          />
+          <AlarmClock className="size-3.5" aria-hidden="true" />
           Sólo vencidas
         </label>
-        <Link href={hrefLista} className="ml-auto flex h-10 items-center font-medium text-[var(--fo-accent)] hover:underline">
-          Modo lista
-        </Link>
+
+        <div className="flex w-full items-center gap-3 sm:ml-auto sm:w-auto">
+          <p className="hidden text-xs text-[var(--fo-muted)] sm:block">
+            <span className="font-medium tabular-nums text-[var(--fo-text-secondary)]">{resumen.total}</span> {plural}
+            {esProyecto ? null : (
+              <>
+                {" · "}
+                <span className="tabular-nums" title="Suma del valor estimado de todas las columnas">
+                  {formatoPesos(resumen.valor)}
+                </span>
+              </>
+            )}
+          </p>
+          <nav aria-label="Modo de vista" className="grid w-full grid-cols-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface-muted)] p-0.5 sm:inline-grid sm:w-auto">
+            <span
+              aria-current="page"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-[var(--fo-surface)] px-3 text-xs font-medium text-[var(--fo-text)] shadow-[var(--fo-shadow-xs)]"
+            >
+              <LayoutGrid className="size-3.5" aria-hidden="true" /> Tablero
+            </span>
+            <Link
+              href={hrefLista}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium text-[var(--fo-muted)] transition-colors hover:text-[var(--fo-text)] focus-visible:outline-2 focus-visible:outline-[var(--fo-accent)]"
+            >
+              <List className="size-3.5" aria-hidden="true" /> Modo lista
+            </Link>
+          </nav>
+        </div>
       </div>
 
       <p role="status" aria-live="polite" className="sr-only">
         {pendiente ? "Guardando…" : estado}
       </p>
 
-      <div className="flex gap-3 overflow-x-auto pb-4">
-        {columnas.map((col, indice) => {
-          const { etapa } = col;
-          const clave = `etapa:${etapa.id}`;
-          const destinos = etapasActivas.filter((e) => e.id !== etapa.id);
-          return (
-            <section
-              key={etapa.id}
-              aria-label={`Etapa ${etapa.nombre}${etapa.archivada ? " (archivada)" : ""}`}
-              className={`flex w-72 shrink-0 flex-col gap-2 rounded-lg bg-[var(--fo-surface-muted)] p-2 ${
-                sobre === clave ? "ring-2 ring-[var(--fo-accent)]" : ""
-              } ${etapa.archivada ? "opacity-80" : ""}`}
-              onDragOver={(ev) => sobreZona(clave, aceptaEtapa(etapa.id, etapa.archivada), ev)}
-              onDragLeave={() => setSobre((s) => (s === clave ? null : s))}
-              onDrop={(ev) => {
-                if (aceptaEtapa(etapa.id, etapa.archivada)) soltarEn({ tipo: "etapa", id: etapa.id, nombre: etapa.nombre }, ev);
-              }}
-            >
-              <header className="flex items-center justify-between gap-2 px-1">
-                <span className={`truncate rounded px-2 py-0.5 text-xs font-medium ${claseDeColorEtiqueta(etapa.color)}`}>{etapa.nombre}</span>
-                <span className="flex items-center gap-2 text-xs text-[var(--fo-muted)]">
-                  {etapa.archivada ? <span title={`Etapa archivada: se pueden sacar ${esProyecto ? "los proyectos" : "las consultas"}, no entrar`}>archivada</span> : null}
-                  {col.total}
-                </span>
-              </header>
-              {esProyecto ? null : (
-                <p className="px-1 text-xs tabular-nums text-[var(--fo-muted)]" title="Suma del valor estimado de las consultas de esta columna">
-                  Valor: {formatoPesos(col.valorTotal)}
-                </p>
-              )}
-              {indice === 0 && altaRapida && circuito.predeterminado && altaRapida.categorias.length > 0 ? <AltaRapida categorias={altaRapida.categorias} /> : null}
-              <ul className="flex flex-col gap-2">
-                {col.tarjetas.map((t) => {
-                  const aviso = avisos[t.journeyId];
-                  return (
-                    <Tarjeta
-                      key={t.journeyId}
-                      tarjeta={t}
-                      responsable={t.responsableId !== null ? (nombreResponsable.get(t.responsableId) ?? null) : null}
-                      arrastrable={ancha}
-                      ocupada={ocupadas.has(t.journeyId)}
-                      aviso={aviso ?? null}
-                      etapasDestino={destinos}
-                      salidas={listaSalidas}
-                      onArrastrar={(ev) => alArrastrar(t, etapa.id, ev)}
-                      onSoltar={alSoltarTarjeta}
-                      onMover={(d) => pedir(t, d)}
-                      onPasarIgual={() => aviso && ejecutar(aviso.op, true)}
-                      onCerrarAviso={() => quitarAviso(t.journeyId)}
-                    />
-                  );
-                })}
-              </ul>
-              {col.tarjetas.length === 0 ? <p className="px-1 py-4 text-center text-xs text-[var(--fo-muted)]">Sin {plural}</p> : null}
-              {col.masHref ? (
-                <Link href={col.masHref} className="px-1 text-xs font-medium text-[var(--fo-accent)] hover:underline">
-                  y {col.total - col.tarjetas.length} más
-                </Link>
-              ) : null}
-            </section>
-          );
-        })}
+      <div className="relative">
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-[var(--fo-bg)] to-transparent transition-opacity duration-200 ${
+            bordes.izquierda ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-[var(--fo-bg)] to-transparent transition-opacity duration-200 ${
+            bordes.derecha ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        <div
+          ref={scroller}
+          data-tablero-scroll=""
+          onScroll={medirBordes}
+          className="flex snap-x snap-mandatory scroll-px-1 gap-3 overflow-x-auto overscroll-x-contain px-1 pb-3 [scrollbar-color:var(--fo-border-strong)_transparent] [scrollbar-width:thin] md:snap-proximity"
+        >
+          {columnas.map((col, indice) => {
+            const { etapa } = col;
+            const clave = `etapa:${etapa.id}`;
+            const destinos = etapasActivas.filter((e) => e.id !== etapa.id);
+            const parte = porcentajeDe(col.total, resumen.total);
+            const conAlta = indice === 0 && altaRapida && circuito.predeterminado && altaRapida.categorias.length > 0;
+            return (
+              <section
+                key={etapa.id}
+                aria-label={`Etapa ${etapa.nombre}${etapa.archivada ? " (archivada)" : ""}`}
+                className={`flex max-h-[calc(100dvh-13rem)] min-h-64 w-[calc(100vw-4rem)] max-w-[320px] shrink-0 snap-start flex-col rounded-[var(--fo-radius)] border bg-[color-mix(in_srgb,var(--fo-surface-muted)_55%,var(--fo-bg))] transition-[box-shadow,border-color] md:w-[300px] ${
+                  sobre === clave ? "border-[var(--fo-accent)] ring-2 ring-[var(--fo-accent-muted)]" : "border-[var(--fo-border)]"
+                } ${etapa.archivada ? "opacity-75" : ""}`}
+                onDragOver={(ev) => sobreZona(clave, aceptaEtapa(etapa.id, etapa.archivada), ev)}
+                onDragLeave={() => setSobre((s) => (s === clave ? null : s))}
+                onDrop={(ev) => {
+                  if (aceptaEtapa(etapa.id, etapa.archivada)) soltarEn({ tipo: "etapa", id: etapa.id, nombre: etapa.nombre }, ev);
+                }}
+              >
+                <header className="shrink-0 space-y-2 px-3 pb-2 pt-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`size-2.5 shrink-0 rounded-full ${clasePuntoDeEtapa(etapa.color)}`} aria-hidden="true" />
+                    <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--fo-text)]" title={etapa.nombre}>
+                      {etapa.nombre}
+                    </h3>
+                    {etapa.archivada ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-[var(--fo-surface)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--fo-muted)]"
+                        title={`Etapa archivada: se pueden sacar ${esProyecto ? "los proyectos" : "las consultas"}, no entrar`}
+                      >
+                        <Archive className="size-3" aria-hidden="true" /> archivada
+                      </span>
+                    ) : null}
+                    <span
+                      className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--fo-surface)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--fo-text-secondary)] shadow-[var(--fo-shadow-xs)]"
+                      aria-label={`${col.total} ${plural}`}
+                    >
+                      {col.total}
+                    </span>
+                  </div>
+                  {esProyecto ? null : (
+                    <p className="flex items-baseline justify-between gap-2 text-xs text-[var(--fo-muted)]" title="Suma del valor estimado de las consultas de esta columna">
+                      <span>Valor</span>
+                      <span className="font-medium tabular-nums text-[var(--fo-text-secondary)]">{formatoPesos(col.valorTotal)}</span>
+                    </p>
+                  )}
+                  {/* Qué parte del tablero está en esta etapa: sale de los mismos totales de las columnas. */}
+                  <div
+                    className="h-1 overflow-hidden rounded-full bg-[var(--fo-border)]"
+                    role="img"
+                    aria-label={`${parte} % de ${esProyecto ? "los proyectos" : "las consultas"} del tablero`}
+                    title={`${parte} % de ${esProyecto ? "los proyectos" : "las consultas"} del tablero`}
+                  >
+                    <div className={`h-full rounded-full ${clasePuntoDeEtapa(etapa.color)} transition-[width] duration-300`} style={{ width: `${parte}%` }} />
+                  </div>
+                </header>
 
-        {ancha ? (
-          <div className="flex w-40 shrink-0 flex-col gap-3" aria-hidden="true">
-            <div
-              className={zonaClase("ganada", "border-[var(--fo-success-border)] text-[var(--fo-success)]")}
-              onDragOver={(ev) => sobreZona("ganada", !!arrastre.current, ev)}
-              onDragLeave={() => setSobre((s) => (s === "ganada" ? null : s))}
-              onDrop={(ev) => soltarEn({ tipo: "salida", salida: salidas.exito }, ev)}
-            >
-              {ETIQUETA_SALIDA[salidas.exito] ?? salidas.exito}
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2 [scrollbar-width:thin]">
+                  {conAlta && altaRapida ? <AltaRapida categorias={altaRapida.categorias} /> : null}
+                  {col.tarjetas.length > 0 ? (
+                    <ul className="flex flex-col gap-2">
+                      {col.tarjetas.map((t) => {
+                        const aviso = avisos[t.journeyId];
+                        return (
+                          <Tarjeta
+                            key={t.journeyId}
+                            tarjeta={t}
+                            responsable={t.responsableId !== null ? (nombreResponsable.get(t.responsableId) ?? null) : null}
+                            arrastrable={ancha}
+                            ocupada={ocupadas.has(t.journeyId)}
+                            aviso={aviso ?? null}
+                            etapasDestino={destinos}
+                            salidas={listaSalidas}
+                            onArrastrar={(ev) => alArrastrar(t, etapa.id, ev)}
+                            onSoltar={alSoltarTarjeta}
+                            onMover={(d) => pedir(t, d)}
+                            onPasarIgual={() => aviso && ejecutar(aviso.op, true)}
+                            onCerrarAviso={() => quitarAviso(t.journeyId)}
+                          />
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border-strong)] px-3 py-5 text-center">
+                      <Inbox className="size-5 text-[var(--fo-muted-soft)]" aria-hidden="true" />
+                      <p className="text-xs font-medium text-[var(--fo-muted)]">Sin {plural}</p>
+                      {ancha && !etapa.archivada ? <p className="text-[11px] text-[var(--fo-muted-soft)]">Arrastrá una tarjeta hasta acá</p> : null}
+                    </div>
+                  )}
+                  {col.masHref ? (
+                    <Link
+                      href={col.masHref}
+                      className="mt-1 inline-flex items-center justify-center rounded-[var(--fo-radius-sm)] px-2 py-1.5 text-xs font-medium text-[var(--fo-accent-hover)] hover:bg-[var(--fo-accent-soft)]"
+                    >
+                      y {col.total - col.tarjetas.length} más
+                    </Link>
+                  ) : null}
+                </div>
+              </section>
+            );
+          })}
+
+          {ancha ? (
+            <div className="flex w-40 shrink-0 flex-col gap-3" aria-hidden="true">
+              <div
+                className={zonaClase(
+                  "ganada",
+                  "border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] text-[var(--fo-success)]",
+                )}
+                onDragOver={(ev) => sobreZona("ganada", !!arrastre.current, ev)}
+                onDragLeave={() => setSobre((s) => (s === "ganada" ? null : s))}
+                onDrop={(ev) => soltarEn({ tipo: "salida", salida: salidas.exito }, ev)}
+              >
+                <Trophy className="size-5" />
+                {ETIQUETA_SALIDA[salidas.exito] ?? salidas.exito}
+                <span className="text-[11px] font-normal opacity-80">Soltá acá</span>
+              </div>
+              <div
+                className={zonaClase("perdida", "border-[var(--fo-danger-border)] bg-[var(--fo-danger-soft)] text-[var(--fo-danger)]")}
+                onDragOver={(ev) => sobreZona("perdida", !!arrastre.current, ev)}
+                onDragLeave={() => setSobre((s) => (s === "perdida" ? null : s))}
+                onDrop={(ev) => soltarEn({ tipo: "salida", salida: salidas.fracaso }, ev)}
+              >
+                <CircleX className="size-5" />
+                {ETIQUETA_SALIDA[salidas.fracaso] ?? salidas.fracaso}
+                <span className="text-[11px] font-normal opacity-80">Soltá acá</span>
+              </div>
             </div>
-            <div
-              className={zonaClase("perdida", "border-[var(--fo-danger-border)] text-[var(--fo-danger)]")}
-              onDragOver={(ev) => sobreZona("perdida", !!arrastre.current, ev)}
-              onDragLeave={() => setSobre((s) => (s === "perdida" ? null : s))}
-              onDrop={(ev) => soltarEn({ tipo: "salida", salida: salidas.fracaso }, ev)}
-            >
-              {ETIQUETA_SALIDA[salidas.fracaso] ?? salidas.fracaso}
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       <DialogoGanada
