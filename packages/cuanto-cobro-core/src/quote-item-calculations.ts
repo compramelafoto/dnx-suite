@@ -101,6 +101,15 @@ export function calculateQuoteItem(
       const unitPackaging = parseCuantoCobroAmount(item.packagingCost) ?? 0;
       const unitShipping = parseCuantoCobroAmount(item.shippingCost) ?? 0;
       directCost = (unitSupplier + unitPackaging + unitShipping) * quantity;
+
+      // Carnet y similares: disparos en una cámara elegida (sólo si el producto la eligió).
+      if (cameraWearPolicy && item.cameraId) {
+        const wear = calculateConceptCameraWear(item, cameraWearPolicy);
+        estimatedShots = wear.estimatedShots;
+        cameraWearInformative = wear.cameraWearInformative;
+        cameraWearCharged = wear.cameraWearCharged;
+        directCost += cameraWearCharged;
+      }
       break;
     }
     case "outsourced": {

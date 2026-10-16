@@ -21,6 +21,8 @@ import {
 import { sumPersonalExpenseGroups } from "./personal-expenses";
 import { buildPriceBuildUp, isPricingExtrasActive, normalizePricingExtras } from "./pricing-extras/price-build-up";
 import { INITIAL_CUANTO_COBRO_PRICING_EXTRAS } from "./pricing-extras/types";
+import { computeStudioBreakdown, getStudioMissingFields } from "./studio/capacity";
+import { isStudioModeActive } from "./studio/normalize";
 import {
   computeMinimumSustainablePrice,
   computeRecommendedBusinessPrice,
@@ -104,6 +106,26 @@ const PROFILE_RESULT_STEPS: CuantoCobroStepId[] = [
   "commercial-positioning",
 ];
 
+/** Pasos del perfil en modo estudio (FOTOFFICE). No están en `CC_WIZARD_STEPS`, que comparte CompraMeLaFoto. */
+export type CuantoCobroStudioStepId = "studio-costs" | "studio-team" | "studio-owner";
+
+const STUDIO_PROFILE_RESULT_STEPS: (CuantoCobroStepId | CuantoCobroStudioStepId)[] = [
+  "currency",
+  "studio-costs",
+  "studio-team",
+  "studio-owner",
+  "investment",
+  "emergency-fund",
+  "commercial-positioning",
+];
+
+/** Los pasos que tiene que completar el perfil para calcular, según el modo (solo o estudio). */
+export function getProfileResultSteps(
+  profile: Pick<CuantoCobroProfileInput, "studioStructure">,
+): readonly (CuantoCobroStepId | CuantoCobroStudioStepId)[] {
+  return isStudioModeActive(profile) ? STUDIO_PROFILE_RESULT_STEPS : PROFILE_RESULT_STEPS;
+}
+
 const QUOTE_RESULT_STEPS: CuantoCobroStepId[] = ["quote-details", "quote-items"];
 
 function getConceptMissingFields(item: CuantoCobroQuoteItem, index: number): string[] {
@@ -162,11 +184,15 @@ function getConceptMissingFields(item: CuantoCobroQuoteItem, index: number): str
 }
 
 export function getCuantoCobroMissingFields(
-  stepId: CuantoCobroStepId,
+  stepId: CuantoCobroStepId | CuantoCobroStudioStepId,
   profile: CuantoCobroProfileInput,
   quote: CuantoCobroQuoteInput,
 ): string[] {
   switch (stepId) {
+    case "studio-costs":
+    case "studio-team":
+    case "studio-owner":
+      return getStudioMissingFields(stepId, profile);
     case "currency":
       return profile.currency ? [] : ["Moneda principal"];
     case "employment":
@@ -227,7 +253,7 @@ export function getCuantoCobroMissingFields(
       return QUOTE_RESULT_STEPS.flatMap((step) => getCuantoCobroMissingFields(step, profile, quote));
     case "result":
       return [
-        ...PROFILE_RESULT_STEPS.flatMap((step) => getCuantoCobroMissingFields(step, profile, quote)),
+        ...getProfileResultSteps(profile).flatMap((step) => getCuantoCobroMissingFields(step, profile, quote)),
         ...QUOTE_RESULT_STEPS.flatMap((step) => getCuantoCobroMissingFields(step, profile, quote)),
       ];
     default:
@@ -239,7 +265,7 @@ export function isCuantoCobroProfileComplete(
   profile: CuantoCobroProfileInput,
   quote: CuantoCobroQuoteInput,
 ): boolean {
-  return PROFILE_RESULT_STEPS.every(
+  return getProfileResultSteps(profile).every(
     (stepId) => getCuantoCobroMissingFields(stepId, profile, quote).length === 0,
   );
 }
@@ -248,7 +274,7 @@ export function getFirstIncompleteProfileStepIndex(
   profile: CuantoCobroProfileInput,
   quote: CuantoCobroQuoteInput,
 ): number {
-  for (const stepId of PROFILE_RESULT_STEPS) {
+  for (const stepId of getProfileResultSteps(profile)) {
     if (getCuantoCobroMissingFields(stepId, profile, quote).length > 0) {
       return CC_WIZARD_STEPS.findIndex((step) => step.id === stepId);
     }
@@ -342,10 +368,16 @@ export function calculateCuantoCobro(
   }
 
   const cameraWearModel = resolveCameraWearModel(quote);
-  const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
-  const businessExpenses = sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
-  const teamExpenses =
-    (parseCuantoCobroAmount(profile.employeesCount) ?? 0) > 0
+  // Mi estudio: el retiro hace de "personales", los fijos de "negocio", los sueldos de "equipo" y lo que
+  // dejan otras líneas de "ingresos externos". Sin el modo, lo de siempre.
+  const studio = computeStudioBreakdown(profile, cameraWearModel);
+  const personalExpenses = studio ? studio.ownerDraw : sumPersonalExpenseGroups(profile.personalExpenseGroups);
+  const businessExpenses = studio
+    ? studio.fixedCosts
+    : sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
+  const teamExpenses = studio
+    ? studio.teamCost
+    : (parseCuantoCobroAmount(profile.employeesCount) ?? 0) > 0
       ? (parseCuantoCobroAmount(profile.employeeMonthlyCost) ?? 0)
       : 0;
   const profileReserves = sumAmounts(
@@ -353,29 +385,37 @@ export function calculateCuantoCobro(
     profile.emergencyFundMonthly,
     profile.savingsGoalsMonthly,
   );
-  const externalIncome =
-    profile.livesOnlyFromPhotography === "no" ? (parseCuantoCobroAmount(profile.externalMonthlyIncome) ?? 0) : 0;
+  const externalIncome = studio
+    ? studio.otherLinesContribution
+    : profile.livesOnlyFromPhotography === "no"
+      ? (parseCuantoCobroAmount(profile.externalMonthlyIncome) ?? 0)
+      : 0;
 
   const monthlyNeed = getProfileMonthlyNeed(profile, cameraWearModel);
   const weeklyTotal = Math.round(parseCuantoCobroAmount(profile.weeklyHours) ?? 0);
-  const monthlyAvailableHours = computeMonthlyAvailableHours(profile.weeklyHours);
+  const monthlyAvailableHours = studio ? studio.totalMonthlyHours : computeMonthlyAvailableHours(profile.weeklyHours);
   const coverageHours = getCategoryWeeklyHours(weeklyTotal, profile.timeDistribution, "coverage");
-  const coveragePercentage =
-    weeklyTotal > 0 ? getDisplayPercentForCategoryHours(weeklyTotal, coverageHours) : 0;
-  const monthlyBillableHours = computeMonthlyBillableHours(profile.weeklyHours, profile.timeDistribution);
+  const coveragePercentage = studio
+    ? studio.totalMonthlyHours > 0
+      ? Math.round((studio.capacityHours / studio.totalMonthlyHours) * 100)
+      : 0
+    : weeklyTotal > 0
+      ? getDisplayPercentForCategoryHours(weeklyTotal, coverageHours)
+      : 0;
+  const monthlyBillableHours = studio
+    ? studio.capacityHours
+    : computeMonthlyBillableHours(profile.weeklyHours, profile.timeDistribution);
 
-  if (monthlyAvailableHours <= 0) {
-    return {
-      status: "incomplete",
-      missingFields: ["Horas semanales dedicadas a tu actividad fotográfica"],
-    };
+  const sinHoras = studio ? "Tus días y horas de trabajo (Mi estudio)" : "Horas semanales dedicadas a tu actividad fotográfica";
+  if (monthlyAvailableHours <= 0 || (studio && studio.capacityHours <= 0)) {
+    return { status: "incomplete", missingFields: [sinHoras] };
   }
 
   const costHour = getProfileCostHour(profile, cameraWearModel);
   if (costHour === null) {
     return {
       status: "incomplete",
-      missingFields: ["Horas semanales dedicadas a tu actividad fotográfica"],
+      missingFields: [sinHoras],
     };
   }
 
@@ -383,7 +423,7 @@ export function calculateCuantoCobro(
   if (!laborRates) {
     return {
       status: "incomplete",
-      missingFields: ["Horas semanales dedicadas a tu actividad fotográfica"],
+      missingFields: [sinHoras],
     };
   }
 
@@ -447,10 +487,12 @@ export function calculateCuantoCobro(
   const warnings = [
     ...hoursMigrationWarnings,
     ...buildCameraWearWarnings(profile, cameraWearPolicy, concepts),
+    ...(studio ? studio.warnings : []),
     ...buildWarnings(
       monthlyNeed,
       monthlyBillableHours,
-      externalIncome,
+      // En modo estudio no hay "ingresos externos": lo de otras líneas tiene su propio aviso.
+      studio ? 0 : externalIncome,
       personalExpenses,
       businessExpenses,
       teamExpenses,
@@ -524,6 +566,7 @@ export function calculateCuantoCobro(
     clientSummary,
     quoteSummary,
     ...(priceBuildUp ? { priceBuildUp } : {}),
+    ...(studio ? { studio } : {}),
   };
 }
 

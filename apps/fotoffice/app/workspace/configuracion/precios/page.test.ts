@@ -7,6 +7,7 @@ vi.mock("@/lib/access/active-context", () => ({
 }));
 vi.mock("@/lib/precios/perfil", () => ({ leerPerfilPrecios: async () => (H.source ? { perfil: {}, source: H.source, actualizado: new Date("2026-10-12T14:00:00.456Z") } : null) }));
 vi.mock("@/lib/dnx-bot/panel", () => ({ botEnPanel: async () => H.bot }));
+vi.mock("@/lib/precios/estudio-servidor", () => ({ datosDeMiEstudio: async () => ({ ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }] }) }));
 vi.mock("./perfil-form", () => ({ PerfilForm: () => null }));
 const ACTUALIZADO = new Date("2026-10-12T14:00:00.456Z");
 
@@ -46,6 +47,9 @@ describe("Configuración → Precios y DNX Bot", () => {
     expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ bot: { workspaceId: "ws1" } });
     H.bot = null;
     expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ bot: null });
+  });
+  it("Mi estudio: el formulario recibe si se ofrece y los miembros para vincular", async () => {
+    expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ estudio: { ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }] } });
   });
   it("perfil guardado por el bot: lo dice", async () => {
     H.source = "dnx-bot";
