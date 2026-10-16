@@ -2,10 +2,12 @@ import { z } from "@repo/dnx-bot";
 import {
   formatCuantoCobroCurrency,
   parseCuantoCobroAmount,
+  type CuantoCobroAssignmentActivity,
   type CuantoCobroPriceBuildUp,
   type CuantoCobroProfileInput,
 } from "@repo/cuanto-cobro-core";
 import { extrasDelPerfil } from "@/lib/precios/perfil-datos";
+import { CAMARA_PRINCIPAL, camarasDelPerfil, estudioActivo } from "@/lib/precios/estudio";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import { resumenDelPrecioCompleto } from "@/lib/presupuestos/precio-completo";
 import { entradaDelMotor, recalcularItemCalculo } from "@/lib/presupuestos/calculo-cuanto-cobro";
@@ -13,9 +15,11 @@ import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import {
   ajustesVacios,
   armarItemsDelAsistente,
+  conAsignaciones,
   correrMotor,
   trabajoVacio,
   type AjustesTrabajo,
+  type AsignacionPanel,
   type TrabajoPanel,
 } from "@/lib/presupuestos/panel-cuanto-cobro";
 import type { TarjetaCalculo } from "./motor";
@@ -66,6 +70,19 @@ export const esquemaTrabajoBot = z
         "Producto o tercerizado: % de ganancia sobre su costo (lo que dijo la persona). El motor no tiene un % por omisión: sin este dato la ganancia del producto es 0 %. En gastos no se usa.",
       ),
     horasCliente: horas.optional().describe("Horas con el cliente (ventas, reuniones, coordinación) del trabajo entero: van sólo en el primer concepto."),
+    asignaciones: z
+      .array(
+        z.object({
+          persona: z.string().min(1).max(60).describe("Nombre de la persona del estudio (como figura en el perfil). Para el dueño: \"yo\"."),
+          actividad: z.enum(["cobertura", "edicion", "entrega", "viaje", "diseno", "gestion"]),
+          horas,
+        }),
+      )
+      .max(30)
+      .optional()
+      .describe("Sólo con «Mi estudio»: quién hace cada parte, en horas-persona (dos fotógrafos 6 h = una asignación de 6 h para cada uno). Lo que no se asigna va al valor hora del estudio. Las horas de esa actividad son la suma de lo asignado: no las mandes aparte."),
+    camara: z.string().min(1).max(60).optional().describe("Nombre de otra cámara del perfil (por ejemplo, la de carnets). Sin este dato, la principal."),
+    disparosPor: z.enum(["unidad", "trabajo"]).optional().describe("unidad (por omisión): disparos × cantidad, como un carnet. trabajo: los disparos del trabajo entero."),
   })
   .describe("Un concepto del trabajo. Todo número tiene que haberlo dicho la persona: si falta, dejalo vacío.");
 
@@ -101,6 +118,48 @@ export const esquemaCotizacion = z.object({
 });
 
 export type Cotizacion = z.infer<typeof esquemaCotizacion>;
+
+const ACTIVIDAD: Record<string, CuantoCobroAssignmentActivity> = {
+  cobertura: "coverage",
+  edicion: "editing",
+  entrega: "delivery",
+  viaje: "travel",
+  diseno: "production",
+  gestion: "management",
+};
+
+const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("es");
+
+/**
+ * Lo de «Mi estudio» de un concepto del bot: personas y cámara van por NOMBRE; si no están en el perfil,
+ * error (no se inventa). Devuelve el trabajo del panel con asignaciones (horas = suma de lo asignado).
+ */
+export function estudioBotAPanel(t: TrabajoBot, panel: TrabajoPanel, perfil: CuantoCobroProfileInput): { ok: true; trabajo: TrabajoPanel } | { ok: false; error: string } {
+  let out = panel;
+  if (t.asignaciones?.length) {
+    const estudio = estudioActivo(perfil);
+    if (!estudio) return { ok: false, error: "Para asignar horas a personas, el perfil tiene que tener «Mi estudio» encendido." };
+    const asignaciones: AsignacionPanel[] = [];
+    for (const a of t.asignaciones) {
+      const n = sinTildes(a.persona);
+      const persona =
+        ["yo", "dueno", "duena", "yo mismo", "yo misma"].includes(n) ? estudio.people.find((p) => p.role === "owner") : estudio.people.find((p) => sinTildes(p.name) === n);
+      if (!persona) return { ok: false, error: `«${a.persona}» no está en el equipo de Mi estudio: usá un nombre del perfil.` };
+      if (persona.employmentType === "per-job") {
+        return { ok: false, error: `${persona.name} cobra por trabajo: cargala como concepto tercerizado (outsourced) con lo que cobra.` };
+      }
+      asignaciones.push({ persona: persona.id, actividad: ACTIVIDAD[a.actividad]!, horas: a.horas.replace(",", ".") });
+    }
+    out = conAsignaciones(out, asignaciones);
+  }
+  if (t.camara) {
+    const camara = camarasDelPerfil(perfil).find((c) => sinTildes(c.name) === sinTildes(t.camara!));
+    if (!camara) return { ok: false, error: `La cámara «${t.camara}» no está en el perfil (Configuración → Precios → Equipamiento).` };
+    out = { ...out, camara: camara.id === CAMARA_PRINCIPAL ? "" : camara.id };
+  }
+  if (t.disparosPor === "trabajo") out = { ...out, disparosPor: "job" };
+  return { ok: true, trabajo: out };
+}
 
 export function trabajoBotAPanel(t: TrabajoBot): TrabajoPanel {
   const h = (v: string | undefined) => (v ?? "").replace(",", ".");
@@ -188,6 +247,8 @@ export type ResumenCotizacion = {
     gananciaPct: string | null;
     estado: string;
     advertencias: string[];
+    /** Mi estudio: horas y costo de cada persona asignada (del motor). */
+    quienLoHace?: { nombre: string; horas: string; costo: string; alValorDelEstudio: boolean }[];
   }[];
   total: { recomendado: string; minimo: string; elegido: string; ganancia: string; gananciaPct: string | null; costosVariables: string };
   /**
@@ -360,6 +421,9 @@ function resumir(items: ItemPresupuesto[], ajustado: boolean, extra: ExtraResume
         gananciaPct: porcentaje(c.margenElegidoProporcion),
         estado: ESTADO[c.estadoRentabilidad] ?? c.estadoRentabilidad,
         advertencias: c.advertencias,
+        ...(c.porPersona?.length
+          ? { quienLoHace: c.porPersona.map((x) => ({ nombre: x.nombre, horas: horasTexto(x.horas), costo: $(x.costo), alValorDelEstudio: x.alValorDelEstudio })) }
+          : {}),
       };
     }),
     total: {
@@ -397,7 +461,13 @@ export function cotizar(
 
   const aj = ajustesBotAPanel(c.ajustes, perfil);
   if (!aj.ok) return { estado: "INVALIDO", faltan: [], error: aj.error };
-  const r = armarItemsDelAsistente(perfil, c.conceptos.map(trabajoBotAPanel), c.tipoDeTrabajo, {
+  const paneles: TrabajoPanel[] = [];
+  for (const t of c.conceptos) {
+    const e = estudioBotAPanel(t, trabajoBotAPanel(t), perfil);
+    if (!e.ok) return { estado: "INVALIDO", faltan: [], error: e.error };
+    paneles.push(e.trabajo);
+  }
+  const r = armarItemsDelAsistente(perfil, paneles, c.tipoDeTrabajo, {
     nuevaClave: opciones.nuevaClave,
     ahora: opciones.ahora,
     seccion: opciones.seccion ?? null,
@@ -475,6 +545,8 @@ export function tarjetaDeCotizacion(r: ResumenCotizacion, tipoDeTrabajo: string)
       : []),
     // Subtotal de cada concepto: precio, con su costo y su ganancia (la cuenta del motor).
     ...r.conceptos.map((c) => ({ etiqueta: c.nombre, valor: `${c.precio} (costo ${c.costo} + ganancia ${c.ganancia})` })),
+    // Mi estudio: quién hizo cada parte, con sus horas y su costo (del motor).
+    ...r.conceptos.flatMap((c) => (c.quienLoHace ?? []).map((q) => ({ etiqueta: `${c.nombre} · ${q.nombre}`, valor: `${q.horas}: ${q.costo}` }))),
     // Precio completo: del total al cliente a lo que te queda (todo del motor).
     ...filasDelPrecioCompleto(r.precioCompleto),
   ].slice(0, 20);

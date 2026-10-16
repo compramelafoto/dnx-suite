@@ -124,3 +124,20 @@ export function errorDeCamaras(camaras: CuantoCobroCamera[]): string | null {
   }
   return null;
 }
+
+/**
+ * Lo del motor que usa DNX Bot para «Mi estudio» (el bot no importa funciones del motor directo:
+ * `lib/dnx-bot/arquitectura.test.ts`). Reexportes, sin cuentas propias.
+ */
+export {
+  activeStudioStructure as estudioActivo,
+  computeStudioBreakdown as desgloseDelEstudio,
+  createCamera as nuevaCamara,
+  createStudioPerson as nuevaPersonaDelEstudio,
+  isStudioModeActive as estudioEncendido,
+  MAX_EXTRA_CAMERAS as MAX_CAMARAS_ADICIONALES,
+  normalizeCameras as normalizarCamaras,
+  PRIMARY_CAMERA_ID as CAMARA_PRINCIPAL,
+  resolveProfileCameras as camarasDelPerfil,
+  STUDIO_MAX_PEOPLE as MAX_PERSONAS_DEL_ESTUDIO,
+} from "@repo/cuanto-cobro-core";
