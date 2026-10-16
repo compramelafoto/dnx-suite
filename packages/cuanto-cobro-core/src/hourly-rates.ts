@@ -12,6 +12,7 @@ import {
 } from "./equipment/calculations";
 import { sumPersonalExpenseGroups } from "./personal-expenses";
 import { normalizePricingExtras, pricingExtrasFixedMonthly } from "./pricing-extras/price-build-up";
+import { computeStudioBreakdown } from "./studio/capacity";
 import type { CameraWearModel, CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 function sumAmounts(...values: string[]): number {
@@ -23,6 +24,9 @@ function sumAmounts(...values: string[]): number {
  * Impuestos fijos: el monotributo y el seguro de equipo (anual ÷ 12) de `pricingExtras`, si están.
  */
 export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number {
+  // Mi estudio: fijos + equipo + reservas + retiro + ganancia − otras líneas (ver studio/capacity.ts).
+  const studio = computeStudioBreakdown(profile, model);
+  if (studio) return studio.monthlyNeed;
   const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
   const businessExpenses = sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
   const teamExpenses =
@@ -40,8 +44,13 @@ export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: C
   return Math.max(0, personalExpenses + businessExpenses + teamExpenses + profileReserves + fixedFromExtras - externalIncome);
 }
 
-/** Horas mensuales disponibles = weeklyHours × 4.33 */
+/**
+ * Horas mensuales disponibles = weeklyHours × 4.33.
+ * Mi estudio: las horas que el equipo entero puede cobrar (con el % vendible de cada persona).
+ */
 export function getProfileMonthlyHours(profile: CuantoCobroProfileInput): number {
+  const studio = computeStudioBreakdown(profile);
+  if (studio) return studio.capacityHours;
   return computeMonthlyAvailableHours(profile.weeklyHours);
 }
 

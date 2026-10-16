@@ -73,6 +73,16 @@ export type CuantoCobroProfileInput = {
    * retoque, inflación, mínimo y cancelación. Opcional: sin él, el motor da lo mismo que antes.
    */
   pricingExtras?: import("./pricing-extras/types").CuantoCobroPricingExtras;
+  /**
+   * Cámaras además de la principal (FOTOFFICE, 16/10/2026). La principal sigue en `primaryCamera*` y es
+   * la cámara #1 (id "primary"). Opcional: sin ella, todo igual que antes.
+   */
+  cameras?: import("./cameras").CuantoCobroCamera[];
+  /**
+   * «Mi estudio» (FOTOFFICE, 16/10/2026): estructura de costos de un estudio con equipo. Opcional: sin
+   * ella, o con `enabled: false`, el motor da lo mismo que antes.
+   */
+  studioStructure?: import("./studio/types").CuantoCobroStudioStructure;
 };
 
 /** Tipo de concepto dentro de un presupuesto. */
@@ -118,6 +128,13 @@ export type CuantoCobroQuoteItem = {
   desiredMarginPercent: string;
   /** Plantilla de biblioteca de la que provino esta línea (sessionStorage). */
   libraryTemplateId?: string;
+  /**
+   * Cámara con la que se hacen los disparos (`estimatedShots`). Ausente o "primary" = la principal.
+   * En productos físicos el desgaste sólo se cuenta si este campo está (carnet: 3 disparos en la cámara 2).
+   */
+  cameraId?: string;
+  /** "unit" (por omisión, lo de siempre): disparos × cantidad. "job": disparos del trabajo entero. */
+  shotsPer?: "unit" | "job";
 };
 
 /** Valores persistidos en plantillas de biblioteca (sin id ni vínculo). */
@@ -551,6 +568,8 @@ export type CuantoCobroCalculationComplete = {
    * el precio o el trabajo trae `jobAdjustments`; si no, la clave no existe (resultado idéntico al de antes).
    */
   priceBuildUp?: import("./pricing-extras/types").CuantoCobroPriceBuildUp;
+  /** Desglose de «Mi estudio». SÓLO aparece si el perfil está en modo estudio. */
+  studio?: import("./studio/types").CuantoCobroStudioBreakdown;
 };
 
 export type CuantoCobroCalculationIncomplete = {

@@ -5,6 +5,7 @@ import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { datosDeMiEstudio } from "@/lib/precios/estudio-servidor";
 import { PerfilForm } from "./perfil-form";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function ConfiguracionPreciosPage() {
     );
   }
 
-  const [guardado, bot] = await Promise.all([
+  const [guardado, bot, estudio] = await Promise.all([
     leerPerfilPrecios({
       workspaceId: workspace.id,
       userId: user.id,
@@ -35,6 +36,8 @@ export default async function ConfiguracionPreciosPage() {
     // DNX Bot: el formulario es el camino principal; armarlo conversando se ofrece sólo si la persona
     // parece trabada (`OfertaArmarConversando`, dentro del formulario) y el bot está encendido.
     botEnPanel(),
+    // Mi estudio: sólo se ofrece a workspaces de tipo estudio; los miembros, para vincular a cada persona.
+    datosDeMiEstudio(workspace.id),
   ]);
 
   return (
@@ -57,6 +60,7 @@ export default async function ConfiguracionPreciosPage() {
         inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE}
         version={guardado ? guardado.actualizado.toISOString() : null}
         bot={bot ? { workspaceId: workspace.id } : null}
+        estudio={estudio}
       />
     </div>
   );

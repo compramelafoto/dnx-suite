@@ -3,7 +3,9 @@ import {
   INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
   INITIAL_CUANTO_COBRO_PROFILE,
   isTimeDistributionValid,
+  normalizeCameras,
   normalizePricingExtras,
+  normalizeStudioStructure,
   parseCuantoCobroAmount,
   parsePercent,
   type CuantoCobroPricingExtras,
@@ -12,6 +14,7 @@ import {
   type MonthlyExpenseItem,
 } from "@repo/cuanto-cobro-core";
 import { TOPE_ENTRADA_MOTOR } from "../presupuestos/constantes";
+import { errorDeCamaras, errorDeEstudio } from "./estudio";
 
 /**
  * Tope del perfil serializado (JSON). Deja 50 KB de margen bajo el tope de entrada del motor
@@ -65,6 +68,13 @@ export function normalizarPerfil(raw: unknown): CuantoCobroProfileInput | null {
   const extras = normalizePricingExtras(raw.pricingExtras);
   if (extras) perfil.pricingExtras = extras;
   else delete perfil.pricingExtras;
+  // Mi estudio y cámaras adicionales (16/10/2026): sólo si estaban; un perfil viejo sigue sin ellos.
+  const estudio = normalizeStudioStructure(raw.studioStructure);
+  if (estudio) perfil.studioStructure = estudio;
+  else delete perfil.studioStructure;
+  const camaras = normalizeCameras(raw.cameras);
+  if (camaras.length > 0) perfil.cameras = camaras;
+  else delete perfil.cameras;
   return perfil;
 }
 
@@ -176,6 +186,16 @@ export function validarPerfil(raw: unknown): ResultadoValidacion {
 
   if (perfil.pricingExtras) {
     const e = errorDeExtras(perfil.pricingExtras);
+    if (e) return { ok: false, error: e };
+  }
+
+  if (perfil.studioStructure) {
+    const e = errorDeEstudio(perfil.studioStructure);
+    if (e) return { ok: false, error: e };
+  }
+
+  if (perfil.cameras) {
+    const e = errorDeCamaras(perfil.cameras);
     if (e) return { ok: false, error: e };
   }
 
