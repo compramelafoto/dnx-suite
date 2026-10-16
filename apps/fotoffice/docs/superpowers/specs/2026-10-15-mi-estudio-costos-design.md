@@ -1,10 +1,49 @@
 # «Mi estudio»: la estructura de costos de un estudio con empleados en ¿Cuánto Cobro?
 
 - **Fecha:** 15/10/2026
-- **Estado:** diseño (sin implementar). Pendiente de que Daniel confirme las decisiones de §13 y conteste §14.
+- **Estado:** **aprobado por Daniel el 16/10/2026** (con la tarifa por persona y lo no asignado al valor hora del estudio). Respuestas y cambios en §0. E1 (motor) y E2 (pantalla) implementadas en la rama `feat/fotoffice-mi-estudio-e1`.
 - **Dónde vive:** FOTOFFICE → Configuración → Precios (el perfil de ¿Cuánto Cobro?) y el panel «Armar con ¿Cuánto Cobro?» de los presupuestos.
 - **Primer usuario:** DNX Estudio (workspace `cmv5z6qxwwmmhf0q5gp8qja1j`).
 - **Código de partida:** `origin/main` en `d2eb14a5e` (incluye PR 598 «cámara por trabajo», PR 602 «Etapa A: el precio completo» y PR 604 «seña al aceptar»).
+
+---
+
+## 0. Decisiones de Daniel (16/10/2026) y cambios a este diseño
+
+Daniel aprobó el enfoque completo, incluida la recomendación de §7 (tarifa por persona; lo no asignado al valor hora del estudio). Sus respuestas cambian estas partes:
+
+| Tema | Lo que dijo | Cómo queda |
+|---|---|---|
+| Jornada de Sabi y Cami | Lunes a sábado, pero los sábados rotan: cada una trabaja 5 días de semana + un sábado sí y otro no. Las horas por día no las dio. | **Días por semana con decimales** ("5,5") y un atajo «5 + sábados alternados» en la pantalla. Las horas por día quedan para cargar. |
+| Contratación | Son informales («en negro») pero cobran todo como si estuvieran registradas: aguinaldo y vacaciones pagas, sin cargas. | Tipo nuevo **`informal`**: aguinaldo sí, vacaciones pagas, cargas 0 %. Además, `paidVacations` por persona (si no se pagan, el costo baja en la misma proporción que las horas). |
+| Retiro | $1.000.000 por mes. | Sin cambios en el modelo. |
+| Ganancia del estudio | Unos $500.000 por mes, **monto fijo**, para reinvertir. | `desiredProfitMode`: **"amount"** (por omisión) o "percent". |
+| Impuestos | El estudio es monotributo. | Ya existe en «Impuestos, cobros y recargos» (`pricingExtras.monotributoMonthly`); se suma una sola vez. Falta cargar el monto. |
+| Carnets | Sabi y Cami atienden el estudio y sacan fotos carnet: 3 disparos por carnet en OTRA cámara, de $500.000 con 150.000 disparos de vida útil → **$10 de desgaste por carnet**. | **Varias cámaras** (§5.1): la principal sigue siendo la #1; las demás en `profile.cameras`. Cada concepto elige `cameraId` y si los disparos son por unidad (carnet) o por trabajo (evento). |
+| Usuarios | Van a tener su usuario de FOTOFFICE. | Cada persona se vincula con un **miembro del workspace** (`link.userId`). **No se manda ninguna invitación**: eso se le pregunta a Daniel aparte. |
+| Márgenes de productos | No los conoce; quiere verlos siempre que un producto tenga costo y precio cargados. | Requisito para la etapa de catálogo (§15, «Catálogo: margen a la vista»). No entra en E1/E2. |
+
+### 0.1 Ejemplo con los números de Daniel
+
+Supuestos (marcados): **8 horas por día** para las tres personas (Daniel no lo dio); 2 semanas de vacaciones; 70 % de tiempo vendible para Sabi y Cami y 60 % para Daniel; Daniel trabaja 6 días (sus 48 horas por semana del perfil actual). Gastos fijos: sólo los que ya están en su perfil (alquiler $450.000, software $30.000, publicidad $100.000 = $580.000); faltan luz, internet, contador, etc. Reservas del perfil: equipo $41.667 + emergencia $50.000. El monotributo todavía no está cargado.
+
+| Persona | Jornada | Horas/mes | Vendibles | Costo/mes | Costo/hora | Tarifa |
+|---|---|---|---|---|---|---|
+| Daniel (retiro) | 6 × 8 | 199,9 | 119,9 | $1.000.000 | $8.340 | **$11.453** |
+| Sabi (informal) | 5,5 × 8 | 183,2 | 128,2 | $900.000 × 13/12 = $975.000 | $7.603 | **$10.716** |
+| Cami (informal) | 5,5 × 8 | 183,2 | 128,2 | $975.000 | $7.603 | **$10.716** |
+| **Estudio** | | | **376,4** | | | **$10.951** |
+
+```
+necesidad = 580.000 + 1.950.000 + 91.667 + 1.000.000 + 500.000 (ganancia fija) = 4.121.667
+valor hora del estudio = 4.121.667 / 376,38 = 10.951
+estructura por hora    = (4.121.667 − 1.950.000 − 1.000.000) / 376,38 = 3.113
+```
+
+- **Carnet:** 3 disparos × ($500.000 / 150.000) = **$10** de desgaste, sumado al costo del producto.
+- **Sesión** (1 h Daniel + 2 h Cami): por persona $32.885; al promedio $32.853.
+- **Evento** (6 h + 1 h de viaje Daniel y Sabi, 10 h de edición Cami): por persona $262.346; al promedio $262.822.
+- Con estos números las tarifas quedan cerca entre sí porque los tres cuestan parecido por hora; la diferencia crece cuando alguien cobra mucho más o mucho menos que el resto.
 
 ---
 
@@ -141,17 +180,18 @@ Campos de cada persona:
 | Campo | Ejemplo Sabi | Ejemplo Cami | Notas |
 |---|---|---|---|
 | Nombre | Sabi | Cami | Obligatorio. |
-| Es… (opcional) | — | — | Vincular a un **miembro** del workspace o a un **contacto colaborador**. Sólo para reconocerla en otras pantallas; el cálculo no lo necesita. |
+| Su usuario (opcional) | — | — | Vincular a un **miembro** del workspace (decisión 16/10: van a tener usuario). Sólo para reconocerla; el cálculo no lo necesita. No se invita a nadie desde acá. |
 | Qué hace | Asistente de fotógrafo | Edición y atención | Texto libre, con sugerencias de los roles de participante del workspace. |
 | Sabe hacer | Fotografía, atención | Edición, impresión, atención | Fichas: fotografía, video, edición, retoque, impresión, atención al público, redes, administración. Sirven para sugerir quién hace cada parte al cotizar. |
-| Cómo está contratada | Relación de dependencia | Monotributista | Relación de dependencia / Monotributista (factura fija por mes) / Jornal (por día trabajado) / Por trabajo. |
+| Cómo está contratada | Relación de dependencia | Monotributista | Relación de dependencia / **Sin registrar, con aguinaldo y vacaciones pagas** (§0) / Monotributista (factura fija por mes) / Jornal (por día trabajado) / Por trabajo. |
 | Sueldo bruto por mes | $900.000 | — | Relación de dependencia. |
 | Cargas sociales (%) | 27 % | — | Relación de dependencia. Ayuda: «Aportes patronales, ART y seguro de vida. Suele andar entre 25 % y 30 %: confirmalo con tu contador.» Sin valor por omisión: si está vacío, avisa. |
 | Aguinaldo | Sí (encendido) | — | Relación de dependencia. Suma 1/12 del sueldo con cargas por mes. |
 | Factura por mes | — | $900.000 | Monotributista. |
 | Jornal por día | — | — | Jornal. El costo del mes es jornal × días por semana × 4,33. |
 | Por trabajo: cuánto cobra | — | — | Por trabajo: monto y si es «por hora» o «por trabajo». |
-| Días por semana | 5 | 4 | No aplica a «por trabajo». |
+| Días por semana | 5 | 4 | No aplica a «por trabajo». Admite decimales; atajos «5», «5 + sábados alternados» (5,5) y «6». |
+| Las vacaciones se pagan | Sí | — | Dependencia, informal y jornal. Si no se pagan, el costo baja como las horas. |
 | Horas por día | 6 | 8 | |
 | Semanas de vacaciones por año | 2 | 2 | Bajan la capacidad, no el costo. |
 | % del tiempo que se puede cobrar | 70 % | 75 % | Ayuda: «De sus horas, ¿cuántas terminan en un presupuesto? Sesiones, eventos, edición, retoque, impresión. No cuentes atender el teléfono, ordenar o redes.» Por omisión 70 %. |
@@ -180,7 +220,7 @@ En vivo: «Tu hora cuesta $17.020 de retiro; con tu parte de la estructura, **tu
 
 - **Líneas del estudio** (lista editable, con sugerencias): Eventos · Sesiones en estudio · Productos e impresiones · Cursos. Cada una tiene nombre y si «vende horas» (eventos, sesiones) o «vende otra cosa» (productos, cursos). En esta etapa la lista sirve para etiquetar presupuestos; con Caja servirá para medir.
 - **Lo que dejan por mes las líneas que no venden horas:** $200.000. Ayuda: «Lo que te queda de impresiones, productos o cursos después de pagar sus costos. Eso ya paga una parte del local: se descuenta de lo que tienen que cubrir las horas. Si no sabés, dejalo en cero.»
-- **Ganancia del estudio (%):** 10 %. Ayuda: «Aparte de tu retiro: lo que el estudio deja para crecer o para un mes malo. Entra en el precio mínimo. El posicionamiento comercial se suma después, sólo al precio recomendado.»
+- **Ganancia del estudio:** un monto por mes (por omisión; Daniel: $500.000) o un %. En el ejemplo de abajo, 10 %. Ayuda: «Aparte de tu retiro: lo que el estudio deja para crecer o para un mes malo. Entra en el precio mínimo. El posicionamiento comercial se suma después, sólo al precio recomendado.»
 
 ### 4.5 Paso 5 · Resumen del estudio
 
@@ -209,7 +249,7 @@ Aviso si la estructura no cierra: «Con estas horas, el estudio necesita factura
 Nuevo archivo `packages/cuanto-cobro-core/src/studio/types.ts`. Montos y porcentajes como texto, igual que el resto del perfil.
 
 ```ts
-export type StudioEmploymentType = "" | "employee" | "monotributista" | "daily" | "per-job";
+export type StudioEmploymentType = "" | "employee" | "informal" | "monotributista" | "daily" | "per-job";
 export type StudioSkill = "photo" | "video" | "editing" | "retouch" | "printing" | "front-desk" | "social" | "admin";
 
 /** Renglón de gasto fijo: el de siempre + el enganche con Caja (§11). */
@@ -225,13 +265,14 @@ export type StudioPerson = {
   id: string;                       // "sp-…", estable: lo usan las asignaciones de los presupuestos
   role: "owner" | "staff";          // exactamente un "owner"
   name: string;
-  link?: { kind: "member"; userId: number } | { kind: "contact"; clientId: string };
+  link?: { kind: "member"; userId: number };
   jobTitle: string;
   skills: StudioSkill[];
   employmentType: StudioEmploymentType;   // el dueño: ""
   monthlySalary: string;            // employee: bruto; monotributista: factura mensual
   socialChargesPercent: string;     // employee
-  includeSac: boolean;              // employee (aguinaldo)
+  includeSac: boolean;              // employee / informal (aguinaldo)
+  paidVacations: boolean;           // employee / informal / daily
   dailyRate: string;                // daily
   perJobRate: string;               // per-job
   perJobUnit: "" | "hour" | "job";  // per-job
@@ -258,6 +299,8 @@ export type CuantoCobroStudioStructure = {
   people: StudioPerson[];           // incluye al dueño
   businessLines: StudioBusinessLine[];
   otherLinesMonthlyContribution: string;
+  desiredProfitMode: "amount" | "percent";   // 16/10: por omisión, monto fijo
+  desiredProfitMonthly: string;
   desiredProfitPercent: string;
   /** Etapa Caja: la última vez que se propusieron montos desde Caja. */
   cashSync?: { from: string; to: string; computedAt: string } | null;
@@ -286,6 +329,23 @@ assignments?: Array<{
 
 Y el presupuesto (`CuantoCobroQuoteInput`) suma `businessLineId?: string` (la línea del trabajo: informativo ahora, Caja después).
 
+### 5.1 Varias cámaras (16/10/2026)
+
+```ts
+/** Cámaras además de la principal. La principal sigue en `primaryCamera*` y es la #1 (id "primary"). */
+cameras?: Array<{ id: string; name: string; presetId: string; shutterRating: string; currentShutterCount: string; replacementValue: string }>;
+
+// En el concepto:
+cameraId?: string;            // ausente o "primary" = la principal
+shotsPer?: "unit" | "job";    // "unit" (por omisión, lo de siempre): disparos × cantidad; "job": del trabajo entero
+```
+
+- **Migración en la normalización, sin mover datos:** los campos `primaryCamera*` SON la cámara #1 (`resolveProfileCameras`). No se copian a la lista: un perfil viejo (y CompraMeLaFoto) sigue igual y no hay dos fuentes para la misma cámara.
+- Servicio propio: como siempre (con `cameraId` puede usar otra cámara). **Producto físico:** el desgaste se suma sólo si eligió una cámara (`cameraId`), así un producto viejo con disparos sueltos no cambia de precio.
+- Los disparos en otra cámara no gastan el obturador de la principal (el aviso de vida útil sigue mirando sólo la principal).
+- Cámara borrada o sin valor de reposición / vida útil: sin desgaste y con aviso.
+- En la pantalla, «Otras cámaras» aparece en Equipamiento sólo en modo estudio (E2). Elegir la cámara en cada concepto del presupuesto es E3.
+
 **Lo que NO se agrega:** monotributo, IVA, IIBB, seguro de equipo, recargos, hora extra, viáticos (ya están en `pricingExtras`); cámara y equipamiento (ya están en el perfil).
 
 ---
@@ -302,16 +362,17 @@ horasMes_p          = días_p × horasDía_p × 4,33 × semanasTrabajadas_p
 horasVendibles_p    = horasMes_p × (vendible_p / 100)              (vendible vacío = 70)
 
 costoMes_p:
-  employee        = sueldo × (1 + cargas/100) × (aguinaldo ? 13/12 : 1) + insumos
+  employee        = sueldo × (1 + cargas/100) × (aguinaldo ? 13/12 : 1) × (vacacionesPagas ? 1 : semanasTrabajadas) + insumos
+  informal        = igual que employee, con cargas 0
   monotributista  = factura + insumos
-  daily           = jornal × días_p × 4,33 × semanasTrabajadas_p + insumos
+  daily           = jornal × días_p × 4,33 × (vacacionesPagas ? 1 : semanasTrabajadas_p) + insumos
   per-job         = 0   (no es estructura; no suma horas)
   owner           = retiro
 
 costoHora_p = costoMes_p / horasVendibles_p
 ```
 
-(Jornal: se asume que los días de vacaciones no se pagan; ver pregunta P3.)
+(Desde el 16/10, si las vacaciones se pagan o no es una opción por persona.)
 
 ### 6.2 Estudio
 
@@ -321,13 +382,14 @@ equipo      = Σ costoMes_p de las personas activas que no son el dueño ni "per
 reservas    = renovación + ampliación de equipo (las del motor) + fondo de emergencia
 fijosExtras = monotributo + seguro de equipo anual / 12   (pricingExtrasFixedMonthly, ya existe)
 base        = fijos + equipo + reservas + fijosExtras + retiro − otrasLíneas
-ganancia    = max(0, base) × ganancia% / 100
+ganancia    = monto fijo por mes  |  max(0, base) × ganancia% / 100
 necesidad   = max(0, base + ganancia)
 
 capacidad   = Σ horasVendibles_p   (activas, sin "per-job", con el dueño)
 valorHoraEstudio = necesidad / capacidad
 
-estructuraPorHora = (necesidad − equipo − retiro) / capacidad
+estructuraPorHora = (necesidad − Σ costoMes de quienes tienen horas vendibles) / capacidad
+                    (el costo de alguien con 0 % vendible, como una recepcionista, va a la estructura)
 tarifa_p          = costoHora_p + estructuraPorHora
 ```
 
@@ -506,6 +568,8 @@ Cómo va a funcionar (para la próxima spec, no se diseña acá):
 
 ## 13. Decisiones para que Daniel confirme
 
+> **16/10/2026: confirmadas.** Cambios: ganancia por monto fijo (6), tipo «informal» y vacaciones pagas por persona (4, 5), vínculo con miembros del workspace (no con contactos).
+
 1. **Modo encendible y reversible** que reemplaza los pasos del modo solo, sin borrarlos (D1, D2).
 2. **Precio por persona (B) con respaldo al promedio (A)** para lo no asignado (§7).
 3. **% vendible por persona, 70 % por omisión** para empleados; para vos se sugiere desde tu distribución del tiempo. Cambia la base del cálculo respecto del modo solo (que divide por todas las horas).
@@ -521,6 +585,8 @@ Cómo va a funcionar (para la próxima spec, no se diseña acá):
 ---
 
 ## 14. Preguntas abiertas para Daniel
+
+> **16/10/2026, contestadas:** P1 (lunes a sábado con sábados alternados; informales con todo pago; horas por día sin dato), P3 (vacaciones pagas), P4 (retiro $1.000.000), P7 ($500.000 fijos), P9 (van a tener usuario), P10 (monotributo). P8: la cámara de carnets es otra (§5.1). **Siguen abiertas:** horas por día de cada una, P2 (% vendible), P5, P6, P11, y cuánto paga de monotributo.
 
 - **P1.** ¿Cómo están contratadas Sabi y Cami (dependencia, monotributo, jornal)? ¿Qué jornada tiene cada una (días y horas)?
 - **P2.** ¿Qué hace cada una en la práctica, y qué parte de su tiempo termina en un presupuesto (sesiones, eventos, edición, impresión) frente a atención, orden y redes?
@@ -540,10 +606,11 @@ Cómo va a funcionar (para la próxima spec, no se diseña acá):
 
 | Etapa | Qué | Tareas aprox. | Resultado visible |
 |---|---|---|---|
-| **E1 · Motor** | §5 y §8: tipos, normalización, capacidad y tarifas, desvío en `hourly-rates`, validación por modo, clave `studio` en el resultado, pruebas de compatibilidad y propiedad. Sin asignaciones todavía. | 8–10 | Nada para el usuario; CLF y FOTOFFICE idénticos (pruebas). |
-| **E2 · Configuración → Precios** | `ofreceMiEstudio`, interruptor, pasos 1–5, precarga, `normalizarPerfil`/`validarPerfil`, `resumen.ts` usando `getProfileResultSteps` (deja de copiar la lista), tarjeta de resumen. | 9–11 | DNX Estudio puede cargar Sabi, Cami, fijos y retiro y ver el valor hora del estudio. Los presupuestos ya usan ese valor (modo A). |
+| **E1 · Motor** ✅ | §5 y §8: tipos, normalización, capacidad y tarifas, desvío en `hourly-rates`, validación por modo, clave `studio` en el resultado, pruebas de compatibilidad y propiedad. **Más (16/10): tipo informal, vacaciones pagas, días con decimales, ganancia fija y varias cámaras con disparos por unidad o por trabajo.** Sin asignaciones todavía. | 10–12 | Nada para el usuario; CLF y FOTOFFICE idénticos (pruebas). |
+| **E2 · Configuración → Precios** ✅ | `ofreceMiEstudio`, «Otras cámaras» en Equipamiento, vínculo con miembros, interruptor, pasos 1–5, precarga, `normalizarPerfil`/`validarPerfil`, `resumen.ts` usando `getProfileResultSteps` (deja de copiar la lista), tarjeta de resumen. | 9–11 | DNX Estudio puede cargar Sabi, Cami, fijos y retiro y ver el valor hora del estudio. Los presupuestos ya usan ese valor (modo A). |
 | **E3 · Asignaciones en presupuestos** | `assignments` en el motor (§7), «¿Quién?» en el panel, persona «por trabajo» como tercerizado, aviso de capacidad, `businessLineId`, instantánea. | 7–9 | Cotizar «Daniel 6 h + Sabi 6 h + Cami 10 h» (modo B). |
 | **E4 · DNX Bot** | Parche `estudio`, tarjeta, guías de perfil y cotizar, asignaciones en `cotizar_trabajo`, evals. | 6–8 | Armar el estudio y cotizar con quién hace qué, conversando. |
+| **Catálogo: margen a la vista** | Pedido de Daniel (16/10): en el catálogo (lista y ficha del producto), siempre que haya costo y precio cargados, mostrar costo, precio y **margen %** = (precio − costos) / precio. Los costos-plantilla ya existen (`lib/catalogo/costos.ts`: fijos y por unidad); el margen se calcula con una unidad. | 3–4 | Ver el margen de cada producto sin hacer cuentas. |
 | **E5 · Caja (spec aparte)** | Clasificar categorías, promedio de 3 meses, propuesta renglón por renglón, ingresos por línea. | (a diseñar) | Gastos fijos reales propuestos desde Caja. |
 
 E1 y E2 se pueden fusionar juntas; E3 depende de E1; E4 depende de E2 y E3. Sin migraciones en E1–E4 (todo va en `profileData` y en la instantánea del ítem, que ya son JSON). Como FOTOFFICE va directo a producción, E2 se prueba con `next dev` contra la base real sólo leyendo, y el primer guardado en DNX Estudio lo hace Daniel.
