@@ -29,8 +29,12 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
   if (!abierta) {
     return (
       <div className="space-y-2">
-        <button type="button" className="fo-btn fo-btn-ghost w-full justify-start text-xs" onClick={() => setAbierta(true)}>
-          <Plus className="size-4" aria-hidden="true" /> Alta rápida
+        <button
+          type="button"
+          className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border-strong)] text-xs font-medium text-[var(--fo-muted)] transition-colors hover:border-[var(--fo-accent)] hover:bg-[var(--fo-accent-soft)] hover:text-[var(--fo-accent-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--fo-accent)]"
+          onClick={() => setAbierta(true)}
+        >
+          <Plus className="size-3.5" aria-hidden="true" /> Alta rápida
         </button>
         {estado ? (
           <p role="status" className="px-1 text-xs text-[var(--fo-success)]">
@@ -79,7 +83,7 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
 
   return (
     <form
-      className="space-y-2 rounded-lg border border-[var(--fo-border)] bg-[var(--fo-surface)] p-2 text-sm"
+      className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface)] p-2.5 text-sm shadow-[var(--fo-shadow-sm)]"
       aria-label="Alta rápida de una consulta"
       onSubmit={(e) => {
         e.preventDefault();
@@ -87,7 +91,7 @@ export function AltaRapida({ categorias }: { categorias: { id: string; nombre: s
       }}
     >
       <fieldset className="space-y-2" disabled={pendiente}>
-        <input className="fo-input" placeholder="Nombre" aria-label="Nombre" maxLength={200} {...marca(["nombre", "contacto"])} value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <input className="fo-input" placeholder="Nombre" aria-label="Nombre" maxLength={200} autoFocus {...marca(["nombre", "contacto"])} value={nombre} onChange={(e) => setNombre(e.target.value)} />
         <input
           className="fo-input"
           placeholder="Teléfono o correo"
