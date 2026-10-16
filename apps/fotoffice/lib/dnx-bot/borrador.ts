@@ -23,6 +23,35 @@ function claveGasto(g: Gasto): string {
   return `${g.grupoId}|${g.itemId ?? `~${(g.etiqueta ?? "").trim().toLocaleLowerCase("es")}`}`;
 }
 
+type Estudio = NonNullable<ParchePerfil["estudio"]>;
+type GastoFijo = NonNullable<Estudio["gastosFijos"]>[number];
+const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("es");
+const claveFijo = (g: GastoFijo) => `${g.rubroId}|${g.renglonId ?? `~${sinTildes(g.etiqueta ?? "")}`}`;
+
+/** Une dos listas por clave: lo nuevo pisa a lo viejo con la misma clave; `mezclar` decide cómo (por omisión, reemplaza). */
+function unirPorClave<T>(a: T[] | undefined, b: T[] | undefined, clave: (x: T) => string, mezclar: (viejo: T, nuevo: T) => T = (_v, n) => n): T[] | undefined {
+  if (!a && !b) return undefined;
+  const out = [...(a ?? [])];
+  for (const x of b ?? []) {
+    const i = out.findIndex((y) => clave(y) === clave(x));
+    if (i >= 0) out[i] = mezclar(out[i]!, x);
+    else out.push(x);
+  }
+  return out;
+}
+
+/** Mi estudio: campo por campo; gastos fijos por renglón, personas por nombre (campo por campo). */
+function fusionarEstudio(a: Estudio | undefined, b: Estudio): Estudio {
+  const out: Estudio = { ...(a ?? {}), ...b };
+  const fijos = unirPorClave(a?.gastosFijos, b.gastosFijos, claveFijo);
+  if (fijos) out.gastosFijos = fijos;
+  const personas = unirPorClave(a?.personas, b.personas, (x) => sinTildes(x.nombre), (v, n) => ({ ...v, ...n }));
+  if (personas) out.personas = personas;
+  if (a?.tuJornada || b.tuJornada) out.tuJornada = { ...(a?.tuJornada ?? {}), ...(b.tuJornada ?? {}) };
+  if (b.ganancia) out.ganancia = b.ganancia;
+  return out;
+}
+
 /** `b` sobre `a`: lo nuevo pisa campo por campo; los gastos, por renglón; la distribución, entera. */
 export function fusionarParches(a: ParchePerfil, b: ParchePerfil): ParchePerfil {
   const out: ParchePerfil = { ...a };
@@ -38,6 +67,10 @@ export function fusionarParches(a: ParchePerfil, b: ParchePerfil): ParchePerfil 
       const viejos = (a.gastosPersonales ?? []).filter((g) => porClave.get(claveGasto(g)) === g);
       const nuevos = (b.gastosPersonales ?? []).filter((g, i, arr) => arr.findLastIndex((x) => claveGasto(x) === claveGasto(g)) === i);
       out.gastosPersonales = [...viejos, ...nuevos];
+    } else if (k === "estudio") {
+      out.estudio = fusionarEstudio(a.estudio, v as Estudio);
+    } else if (k === "camaras") {
+      out.camaras = unirPorClave(a.camaras, b.camaras, (x) => sinTildes(x.nombre), (viejo, nuevo) => ({ ...viejo, ...nuevo }));
     } else if (k === "negocio" || k === "equipo" || k === "cobros") {
       (out as Record<string, unknown>)[k] = { ...(a[k] ?? {}), ...(v as object) };
     } else {
@@ -140,11 +173,24 @@ export function loAnotado(parche: ParchePerfil, base: CuantoCobroProfileInput): 
   if (parche.ahorro !== undefined) l.push("ahorro y vacaciones");
   if (parche.posicionamiento) l.push("momento del negocio");
   for (const k of Object.keys(parche.cobros ?? {})) l.push(COBROS[k] ?? k);
+  const e = parche.estudio;
+  if (e) {
+    if (e.activar !== undefined) l.push(e.activar ? "Mi estudio encendido" : "Mi estudio apagado");
+    if (e.gastosFijos?.length) l.push(`gastos fijos del estudio (${e.gastosFijos.map((g) => g.etiqueta ?? g.renglonId ?? g.rubroId).join(", ")})`);
+    if (e.retiro !== undefined) l.push("tu retiro");
+    if (e.tuJornada) l.push("tu jornada");
+    for (const x of e.personas ?? []) l.push(x.quitar ? `quitar a ${x.nombre} del equipo` : `${x.nombre} (${Object.keys(x).filter((k) => k !== "nombre").join(", ") || "nombre"})`);
+    if (e.otrasLineas !== undefined) l.push("lo que dejan otras líneas");
+    if (e.ganancia) l.push("ganancia del estudio");
+  }
+  for (const c of parche.camaras ?? []) l.push(c.quitar ? `quitar la cámara ${c.nombre}` : `cámara ${c.nombre}`);
   return l;
 }
 
 /** Rubros de gastos personales sin ningún monto, ni en el perfil guardado ni en el borrador. */
 export function rubrosSinDatos(parche: ParchePerfil, base: CuantoCobroProfileInput): string[] {
+  // Con «Mi estudio» no hacen falta gastos personales: el retiro los reemplaza.
+  if ((base.studioStructure?.enabled === true && parche.estudio?.activar !== false) || (parche.estudio && parche.estudio.activar !== false)) return [];
   const anotados = new Set((parche.gastosPersonales ?? []).map((g) => g.grupoId));
   return base.personalExpenseGroups
     .filter((g) => !anotados.has(g.id) && !g.items.some((i) => (parseCuantoCobroAmount(i.amount ?? "") ?? 0) > 0))
