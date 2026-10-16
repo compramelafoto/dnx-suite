@@ -72,7 +72,7 @@ export function AsistenteCuantoCobro({
                 </button>
               ) : null}
             </div>
-            <CamposTrabajo trabajo={t} onCambio={(nuevo) => setTrabajos((ts) => ts.map((x, j) => (j === i ? nuevo : x)))} />
+            <CamposTrabajo trabajo={t} perfil={perfil} onCambio={(nuevo) => setTrabajos((ts) => ts.map((x, j) => (j === i ? nuevo : x)))} />
             {i > 0 ? <p className="text-xs text-[var(--fo-muted)]">Las horas con el cliente se cuentan sólo en el primer concepto.</p> : null}
           </li>
         ))}

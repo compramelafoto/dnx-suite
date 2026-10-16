@@ -31,7 +31,10 @@ export type {
   MonthlyExpenseGroup,
   MonthlyExpenseItem,
   PhotographyTimeDistribution,
+  CuantoCobroAssignmentActivity,
+  CuantoCobroQuoteAssignment,
 } from "./types";
+export type { QuoteItemPersonLabor } from "./quote-item-calculations";
 
 export {
   CC_WIZARD_STEPS,

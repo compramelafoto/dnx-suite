@@ -354,6 +354,44 @@ function buildWarnings(
   return warnings;
 }
 
+/** Mi estudio: avisos de las asignaciones (persona sin tarifa, sin modo estudio, más horas que su capacidad). */
+function buildAssignmentWarnings(
+  concepts: CuantoCobroQuoteItem[],
+  studio: ReturnType<typeof computeStudioBreakdown>,
+  laborByPerson: { personId: string; hours: number }[] | undefined,
+): string[] {
+  const hasAssignments = concepts.some((c) => Array.isArray(c.assignments) && c.assignments.length > 0);
+  if (!hasAssignments) return [];
+  if (!studio) {
+    return ["Este trabajo tiene horas asignadas a personas, pero el perfil no está en «Mi estudio»: se cobraron al valor hora de siempre."];
+  }
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+  for (const c of concepts) {
+    for (const a of c.assignments ?? []) {
+      if (!a || seen.has(a.personId)) continue;
+      seen.add(a.personId);
+      const person = studio.people.find((p) => p.id === a.personId);
+      const name = person?.name.trim() || "Una persona";
+      if (!person) warnings.push("Hay horas asignadas a alguien que ya no está en el equipo: se cobraron al valor hora del estudio.");
+      else if (person.employmentType === "per-job") {
+        warnings.push(`${name} cobra por trabajo: cargala como trabajo tercerizado. Sus horas se cobraron al valor hora del estudio.`);
+      } else if (!person.inStructure) warnings.push(`${name} está inactiva: sus horas se cobraron al valor hora del estudio.`);
+      else if (person.rate === null) warnings.push(`${name} no tiene horas para cobrar en su ficha: sus horas se cobraron al valor hora del estudio.`);
+    }
+  }
+  for (const l of laborByPerson ?? []) {
+    const person = studio.people.find((p) => p.id === l.personId);
+    if (person && person.billableHours > 0 && l.hours > person.billableHours) {
+      const name = person.name.trim() || "Una persona";
+      warnings.push(
+        `${name} puede cobrar ${Math.round(person.billableHours)} h por mes y este trabajo le asigna ${Math.round(l.hours * 10) / 10} h.`,
+      );
+    }
+  }
+  return warnings;
+}
+
 export function getProfileHourlyRate(profile: CuantoCobroProfileInput): number | null {
   return getProfileCostHour(profile);
 }
@@ -488,6 +526,7 @@ export function calculateCuantoCobro(
     ...hoursMigrationWarnings,
     ...buildCameraWearWarnings(profile, cameraWearPolicy, concepts),
     ...(studio ? studio.warnings : []),
+    ...buildAssignmentWarnings(concepts, studio, quoteSummary.laborByPerson),
     ...buildWarnings(
       monthlyNeed,
       monthlyBillableHours,

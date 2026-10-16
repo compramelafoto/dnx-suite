@@ -113,6 +113,8 @@ export type InstantaneaCalculo = {
    * comisión, IVA, seña y hora extra. Sólo si el perfil o el trabajo lo encendieron. INTERNO.
    */
   desglose?: CuantoCobroPriceBuildUp;
+  /** Mi estudio: horas y costo de cada persona asignada en este concepto (sólo si hay asignaciones). Interno. */
+  porPersona?: { persona: string; nombre: string; horas: number; costo: number; alValorDelEstudio: boolean }[];
 };
 
 // --- Ítem ---------------------------------------------------------------------------------------

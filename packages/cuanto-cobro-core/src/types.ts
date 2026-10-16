@@ -135,6 +135,21 @@ export type CuantoCobroQuoteItem = {
   cameraId?: string;
   /** "unit" (por omisión, lo de siempre): disparos × cantidad. "job": disparos del trabajo entero. */
   shotsPer?: "unit" | "job";
+  /**
+   * Mi estudio: quién hace cada parte. Horas-persona por unidad (dos fotógrafos 6 h = 12 h de
+   * cobertura). Lo asignado va a la tarifa de esa persona; lo que falta asignar, al valor hora del
+   * estudio. Sin el modo estudio se ignora.
+   */
+  assignments?: CuantoCobroQuoteAssignment[];
+};
+
+/** Actividades que se pueden asignar a una persona. */
+export type CuantoCobroAssignmentActivity = "coverage" | "editing" | "delivery" | "travel" | "production" | "management";
+
+export type CuantoCobroQuoteAssignment = {
+  personId: string;
+  activity: CuantoCobroAssignmentActivity;
+  hours: string;
 };
 
 /** Valores persistidos en plantillas de biblioteca (sin id ni vínculo). */
@@ -233,6 +248,8 @@ export type CuantoCobroQuoteInput = {
   cameraWearModel?: CameraWearModel;
   /** Ajustes del trabajo para el precio completo (fecha, exprés, viáticos, retoque…). Opcional. */
   jobAdjustments?: import("./pricing-extras/types").CuantoCobroJobAdjustments;
+  /** Mi estudio: la línea del estudio de este trabajo (informativo; Caja lo usará para medir). */
+  businessLineId?: string;
 };
 
 /**
