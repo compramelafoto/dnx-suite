@@ -372,8 +372,9 @@ export function ShellNav({
             isActive: under("/presupuestos"),
           },
           // Precios (¿Cuánto Cobro? y Mi estudio): antes sólo se llegaba desde "Datos de la institución".
-          // Es configuración, así que sólo para quien puede configurar (dueño o administrador).
-          ...(canManageWorkspaceSettings
+          // Es configuración, así que sólo para quien puede configurar (dueño o administrador): el
+          // mismo acceso completo que decide los ajustes de Informes.
+          ...(access.fullAccess === true
             ? [
                 {
                   href: "/workspace/configuracion/precios",
