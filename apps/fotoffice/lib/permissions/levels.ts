@@ -60,7 +60,7 @@ export function isFullAccessRole(role: string | null | undefined): boolean {
 /**
  * Lo que `STAFF` puede hoy en cada módulo ya migrado, copiado de los `access.ts` previos.
  * Es la red de seguridad de la etapa 1: mientras alguien nunca haya tenido roles asignados, sigue
- * exactamente igual que antes. Un módulo que no figura acá todavía no pregunta por niveles.
+ * exactamente igual que antes. Un módulo que no figura acá le da NONE a ese STAFF.
  */
 const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
   [MEMBERS_MODULE_KEY]: "VIEW",
@@ -88,6 +88,25 @@ const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
   [SERVICE_LEADS_MODULE_KEY]: "MANAGE",
   // Portfolio: ocultar o publicar portfolios era sólo de dueño/admin.
   [PORTFOLIO_MODULE_KEY]: "NONE",
+  // ── Empresa del fotógrafo (estudio) ──
+  // Lo decidido para el equipo de un estudio (DNX, 29/09): "todo menos configuración". La
+  // configuración de cada módulo sigue siendo de dueño/admin: vive en Institución
+  // (`canManageWorkspaceSettings`) o en una acción sensible (`sales.catalog`, `store.configure`)
+  // que un STAFF sin roles nunca tiene. Verificado el 2026-10-17 en producción: ningún STAFF
+  // existente tiene estos módulos encendidos (SFPR no usa ninguno), así que nadie gana acceso
+  // por sorpresa. Claves literales a propósito: los `acceso.ts` de cada módulo importan
+  // `lib/access/policy`, que importa este archivo (se armaría un ciclo); `levels.test.ts`
+  // verifica que coincidan con las constantes.
+  agenda: "MANAGE",
+  quotes: "MANAGE",
+  orders: "MANAGE",
+  projects: "MANAGE",
+  gallery: "MANAGE",
+  contracts: "MANAGE",
+  sales: "MANAGE",
+  store: "MANAGE",
+  // Informes: sólo mirar (crear y editar informes es `configurar`, de dueño/admin).
+  reports: "VIEW",
 };
 
 export function legacyStaffLevel(moduleKey: string): ModuleLevel {

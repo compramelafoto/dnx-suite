@@ -30,6 +30,7 @@ import {
   Shield,
   Tags,
   UserCog,
+  UserPlus,
   Users,
   Wallet2,
   Workflow,
@@ -467,6 +468,13 @@ export function ShellNav({
           description: "Quién integra la comisión, con qué cargo y qué puede hacer cada uno.",
           icon: Users,
           isActive: under("/workspace/configuracion/comision"),
+        },
+        {
+          href: "/workspace/configuracion/equipo",
+          label: "Equipo",
+          description: "Quiénes trabajan en este espacio: invitar por correo y dar de baja.",
+          icon: UserPlus,
+          isActive: under("/workspace/configuracion/equipo"),
         },
         {
           href: "/workspace/configuracion/integraciones",
