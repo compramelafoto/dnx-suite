@@ -34,6 +34,7 @@ import {
   Users,
   Wallet2,
   Workflow,
+  Coins,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -371,6 +372,20 @@ export function ShellNav({
             icon: Calculator,
             isActive: under("/presupuestos"),
           },
+          // Precios (¿Cuánto Cobro? y Mi estudio): antes sólo se llegaba desde "Datos de la institución".
+          // Es configuración, así que sólo para quien puede configurar (dueño o administrador): el
+          // mismo acceso completo que decide los ajustes de Informes.
+          ...(access.fullAccess === true
+            ? [
+                {
+                  href: "/workspace/configuracion/precios",
+                  label: "Precios",
+                  description: "Tus costos, tus horas, Mi estudio y el valor de la hora para cotizar.",
+                  icon: Coins,
+                  isActive: under("/workspace/configuracion/precios"),
+                },
+              ]
+            : []),
         ]
       : []),
     // Pedidos (etapa 3): módulo propio (`orders`, depende de Presupuestos), con su nivel.
