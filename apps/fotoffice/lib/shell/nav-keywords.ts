@@ -87,6 +87,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
 
   // Institución
   "/workspace/configuracion": ["ajustes", "logo", "domicilio", "datos", "nombre", "configuracion"],
+  "/workspace/configuracion/equipo": ["empleados", "personal", "invitar", "usuarios", "colaboradores", "acceso"],
   "/workspace/configuracion/comision": ["autoridades", "presidente", "tesorero", "secretario", "roles", "permisos"],
   "/workspace/configuracion/integraciones": ["conexiones", "servicios", "google", "whatsapp", "calendario", "contactos"],
   "/workspace/configuracion/cobros": ["plata", "dinero", "facturacion", "mercado pago", "mp", "cobrar", "cuenta bancaria"],

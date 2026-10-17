@@ -16,7 +16,19 @@ export async function inviteTeamMember(p: {
   actor: { id: number; name: string | null };
   email: string;
   role: string;
-}): Promise<{ ok: true; sentTo: string; warn?: string } | { ok: false; error: string }> {
+}): Promise<
+  | {
+      ok: true;
+      sentTo: string;
+      /**
+       * El enlace con el token en claro. En la base sólo queda su hash: ésta es la única vez que
+       * existe, por eso la pantalla lo muestra una sola vez ("Copiar enlace de invitación").
+       */
+      url: string;
+      warn?: string;
+    }
+  | { ok: false; error: string }
+> {
   const email = p.email.trim().toLowerCase();
   if (!EMAIL_OK.test(email)) return { ok: false, error: "Revisá el correo." };
   const rawToken = generateInvitationToken();
@@ -51,6 +63,11 @@ export async function inviteTeamMember(p: {
   const sent = res.status === "SENT";
   await markTeamInvitationDelivery(id, sent);
   return sent
-    ? { ok: true, sentTo: email }
-    : { ok: true, sentTo: email, warn: "La invitación quedó creada pero el correo no salió. Podés reenviarla." };
+    ? { ok: true, sentTo: email, url: link.url }
+    : {
+        ok: true,
+        sentTo: email,
+        url: link.url,
+        warn: "La invitación quedó creada pero el correo no salió. Podés reenviarla o mandarle el enlace.",
+      };
 }
