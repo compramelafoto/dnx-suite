@@ -7,6 +7,9 @@ export type RevenuePlatformResult = { platformKey: string; ok: boolean; error: s
 
 type Source = { platformKey: string; load: () => Promise<{ months: Map<string, MonthRevenue>; note: string }> };
 
+/** Plataformas que cuentan como ingreso (Clickatón e InfoSpot fuera, decisión de Daniel 18/10/2026). */
+export const REVENUE_PLATFORMS = ["clf", "subilafoto", "fotoffice", "fotorank"] as const;
+
 const SOURCES: Source[] = [
   {
     platformKey: "clf",
