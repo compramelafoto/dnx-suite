@@ -2894,7 +2894,12 @@ export default function ClientAlbumView({
                 </p>
               </div>
             <div className="flex flex-col items-center">
-              <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 sm:gap-5">
+              {/* Si hay un solo buscador va centrado, no pegado a la columna izquierda. */}
+              <div
+                className={`grid w-full gap-4 sm:gap-5 ${
+                  album.textSearchAvailable !== false ? "max-w-4xl sm:grid-cols-2" : "max-w-md"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -2911,7 +2916,7 @@ export default function ClientAlbumView({
                   <img
                     src="/faceid.png"
                     alt="Buscar por selfie"
-                    className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white p-4 object-contain sm:h-[140px] sm:w-[140px]"
+                    className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white object-cover sm:h-[140px] sm:w-[140px]"
                   />
                   <div>
                     <p className="text-base font-semibold text-[#1a1a1a]">Buscar por selfie</p>
@@ -2940,7 +2945,7 @@ export default function ClientAlbumView({
                     <img
                       src="/OCR.png"
                       alt="Buscar por número o palabra clave"
-                      className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white p-4 object-contain sm:h-[140px] sm:w-[140px]"
+                      className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white object-cover sm:h-[140px] sm:w-[140px]"
                     />
                     <div>
                       <p className="text-base font-semibold text-[#1a1a1a]">
