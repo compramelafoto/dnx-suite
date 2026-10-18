@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AGENCY_SECTIONS } from "@/lib/agencies/sections";
 
 export type SidebarNavItem = {
   id: string;
@@ -110,6 +111,14 @@ export function getPhotographerSidebarItems(icons: {
         { id: "escolar-disenos", label: "Diseños escolares", path: "/dashboard/designs" },
         { id: "escolar-landing", label: "Mi landing escolar", path: "/fotografo/escuelas/landing" },
       ],
+    },
+    {
+      id: "agencias",
+      label: "Agencias",
+      path: "/fotografo/agencias",
+      icon: icons.events ?? icons.albums,
+      badge: "NEW",
+      children: AGENCY_SECTIONS.map((s) => ({ id: `agencias-${s.id}`, label: s.label, path: s.path })),
     },
     {
       id: "disenos",

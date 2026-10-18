@@ -11,6 +11,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: [
+      "lib/agencies/**/*.test.ts",
+      "lib/camera-connection/resolve-ftp-destination-album.agency.test.ts",
+      "app/api/fotografo/agencias/**/*.test.ts",
+      "app/api/dashboard/albums/*/photos/upload-helpers.test.ts",
+      "app/api/fotografo/pedidos/agency-privacy.test.ts",
       "lib/bot/**/*.test.ts",
       "lib/support/create-ticket.test.ts",
       "lib/albums/album-settings-update.test.ts",
@@ -24,6 +29,7 @@ export default defineConfig({
       "lib/email-marketing/unsubscribe-token.test.ts",
       "lib/auth/registrar-ultimo-ingreso.test.ts",
       "app/api/dashboard/albums/*/route.patch.test.ts",
+      "app/api/dashboard/albums/*/route.delete-agency.test.ts",
       "app/api/dashboard/albums/*/route.patch-school.test.ts",
       "app/api/fotografo/schools/route.test.ts",
       "app/api/fotografo/schools/*/courses/route.test.ts",

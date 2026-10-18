@@ -243,6 +243,8 @@ model User {
   cuantoCobroQuotes                     CuantoCobroQuote[]
   cuantoCobroQuoteVersionsCreated       CuantoCobroQuoteVersion[]
   fotoOfficeInterests                   FotoOfficeInterest[]
+  ownedAgency                           Agency?                                @relation("AgencyOwner")
+  agencyMemberships                     AgencyMember[]                         @relation("AgencyMemberUser")
   infoSpotRoles                         InfoSpotUserRole[]
   infoSpotArticlesAuthored              InfoSpotArticle[]                      @relation("InfoSpotArticleAuthor")
   infoSpotArticlesFactChecked           InfoSpotArticle[]                      @relation("InfoSpotArticleFactCheck")
@@ -2376,6 +2378,7 @@ model Album {
   packPurchaseEntitlements        PackPurchaseEntitlement[]
   packs                           AlbumPack[]
   packSelectionSessions           AlbumPackSelectionSession[]
+  agencyAlbum                     AgencyAlbum?
   packOrderDrafts                 AlbumPackOrderDraft[]
   photos                          Photo[]
   photographicGearObservations    PhotographicGearObservation[]
@@ -25253,4 +25256,97 @@ model FotofficeAlboomCarga {
 
   @@index([workspaceId, startedAt])
   @@index([status, updatedAt])
+}
+
+/// Modo agencia (CLF): una empresa de fotografía con un equipo de fotógrafos que suben a sus álbumes.
+model Agency {
+  id                    Int            @id @default(autoincrement())
+  ownerUserId           Int            @unique
+  name                  String
+  logoUrl               String?
+  description           String?
+  /// Porcentaje general del fotógrafo en puntos básicos (3000 = 30 %).
+  defaultCommissionBps  Int            @default(3000)
+  directoryListed       Boolean        @default(false)
+  directoryLat          Float?
+  directoryLng          Float?
+  directoryRadiusKm     Int            @default(50)
+  directoryCity         String?
+  notFoundSearchEnabled Boolean        @default(false)
+  /// IMMEDIATE | AWAIT_FILTER (etapa 2).
+  publishMode           String         @default("IMMEDIATE")
+  /// Días que se ve cada foto desde que se sacó (etapa 5).
+  photoVisibilityDays   Int            @default(30)
+  /// Condiciones propias; null = texto por defecto (lib/agencies/rules.ts).
+  termsText             String?
+  termsVersion          Int            @default(1)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  owner                 User           @relation("AgencyOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members               AgencyMember[]
+  invites               AgencyInvite[]
+  albums                AgencyAlbum[]
+  places                AgencyPlace[]
+
+  @@index([directoryListed])
+}
+
+model AgencyMember {
+  id                   Int       @id @default(autoincrement())
+  agencyId             Int
+  userId               Int
+  /// REQUESTED | ACTIVE | REJECTED | REMOVED
+  status               String    @default("REQUESTED")
+  /// null = usa Agency.defaultCommissionBps.
+  commissionBps        Int?
+  termsVersionAccepted Int?
+  termsAcceptedAt      DateTime?
+  termsAcceptedText    String?
+  requestMessage       String?
+  joinedAt             DateTime?
+  removedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  agency               Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user                 User      @relation("AgencyMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, userId])
+  @@index([userId])
+}
+
+model AgencyInvite {
+  id              String    @id @default(cuid())
+  agencyId        Int
+  tokenHash       String    @unique
+  createdByUserId Int
+  useCount        Int       @default(0)
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  agency          Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
+}
+
+model AgencyAlbum {
+  id        Int      @id @default(autoincrement())
+  agencyId  Int
+  albumId   Int      @unique
+  createdAt DateTime @default(now())
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
+}
+
+model AgencyPlace {
+  id        Int      @id @default(autoincrement())
+  agencyId  Int
+  name      String
+  lat       Float
+  lng       Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
 }

@@ -9,6 +9,7 @@ import {
   buildAlbumEventScheduleFromDb,
 } from "@/lib/albums/album-event-datetime";
 import { prisma } from "@/lib/prisma";
+import { checkAgencyAlbumUpload } from "@/lib/agencies/access";
 import { validateActiveAlbumForCameraConnection } from "@/lib/camera-connection/camera-connection-service";
 
 export const FTP_DESTINATION_REASON = {
@@ -150,9 +151,11 @@ export async function resolveFtpDestinationAlbum(
     if (album.userId !== userId && (!album.isPublic || album.isHidden)) {
       continue;
     }
-    if (albumMatchesReceivedAt(album, receivedAt)) {
-      matches.push(album);
-    }
+    if (!albumMatchesReceivedAt(album, receivedAt)) continue;
+    // Álbum de agencia: sólo lo ven como destino el dueño y su equipo habilitado.
+    const agency = await checkAgencyAlbumUpload(album.id, userId);
+    if (agency.agencyAlbum && !agency.allowed) continue;
+    matches.push(album);
   }
 
   return resolveAlbumIdFromTimeMatches(matches);
