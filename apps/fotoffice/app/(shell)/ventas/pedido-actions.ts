@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { avisarPedidoRecibido } from "@/lib/pedidos/aviso-pedido-servidor";
 import { prisma } from "@repo/db";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
@@ -156,6 +158,9 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     else avisos.push(`El pedido ${alta.numero} quedó bien, pero lo que se llevaba en el momento no se cobró: ${v.error}`);
   }
 
+  // Al cliente le llega el detalle del pedido (con la seña ya registrada).
+  const workspaceId = workspace.id;
+  after(() => avisarPedidoRecibido(workspaceId, alta.pedidoId));
   revalidatePath("/pedidos");
   revalidatePath("/proyectos");
   revalidatePath("/caja");
