@@ -8,6 +8,7 @@ import {
   FTP_DESTINATION_REASON,
   resolveFtpDestinationAlbum,
 } from "@/lib/camera-connection/resolve-ftp-destination-album.js";
+import { resolveAgencyFtpUpload } from "@/lib/agencies/ftp-login.js";
 import { FileSystemError } from "ftp-srv";
 import type { CameraFtpAuthContext } from "./authenticate.js";
 import type { GatewayConfig } from "./config.js";
@@ -216,12 +217,30 @@ export async function handleCameraFtpUpload(
   assertJpegMagicBytes(buffer);
 
   const receivedAt = new Date();
-  const destination = await resolveFtpDestinationAlbum({
-    userId: auth.userId,
-    receivedAt,
-    assignmentMode: auth.assignmentMode,
-    activeAlbumId: auth.activeAlbumId,
-  });
+  let declaredPoint: { lat: number; lng: number } | null = null;
+  let destination: Awaited<ReturnType<typeof resolveFtpDestinationAlbum>>;
+  if (auth.agency) {
+    const agencyDest = await resolveAgencyFtpUpload(auth.agency, receivedAt);
+    if (!agencyDest.ok) {
+      await createRejectedUploadLog(
+        auth,
+        filename,
+        buffer.length,
+        agencyDest.message,
+        auth.agency.albumId
+      );
+      throw new FileSystemError(agencyDest.message, 550);
+    }
+    declaredPoint = agencyDest.declaredPoint;
+    destination = { ok: true, albumId: agencyDest.albumId } as typeof destination;
+  } else {
+    destination = await resolveFtpDestinationAlbum({
+      userId: auth.userId,
+      receivedAt,
+      assignmentMode: auth.assignmentMode,
+      activeAlbumId: auth.activeAlbumId,
+    });
+  }
 
   if (!destination.ok) {
     const status = logStatusForDestinationReason(destination.reason);
@@ -259,6 +278,13 @@ export async function handleCameraFtpUpload(
       rawKey,
       filename,
       filesizeBytes: buffer.length,
+      ...(auth.agency
+        ? {
+            declaredLat: declaredPoint?.lat ?? null,
+            declaredLng: declaredPoint?.lng ?? null,
+            agencyCredentialId: auth.agency.agencyCredentialId,
+          }
+        : {}),
     });
 
     recordSuccessfulUpload(limitKey);

@@ -4,6 +4,10 @@ import {
   validateActiveAlbumForCameraConnection,
   verifyFtpPassword,
 } from "@/lib/camera-connection/camera-connection-service.js";
+import {
+  loginAgencyFtp,
+  type AgencyFtpLogin,
+} from "@/lib/agencies/ftp-login.js";
 import { getPrisma } from "./prisma.js";
 
 export type CameraFtpAuthContext = {
@@ -11,6 +15,8 @@ export type CameraFtpAuthContext = {
   ftpUsername: string;
   assignmentMode: CameraConnectionAssignmentMode;
   activeAlbumId: number | null;
+  /** Presente cuando el login es de un usuario FTP de agencia. */
+  agency?: AgencyFtpLogin;
 };
 
 /**
@@ -41,7 +47,23 @@ export async function authenticateFtpUser(
   });
 
   if (!settings?.ftpUsername) {
-    throw new GeneralError("Invalid credentials", 530);
+    const agencyLogin = await loginAgencyFtp(ftpUsername, password);
+    if (agencyLogin === null) {
+      throw new GeneralError("Invalid credentials", 530);
+    }
+    if (!agencyLogin.ok) {
+      throw agencyLogin.code === 530
+        ? new GeneralError(agencyLogin.message, 530)
+        : new FileSystemError(agencyLogin.message, 550);
+    }
+    const { login } = agencyLogin;
+    return {
+      userId: login.userId,
+      ftpUsername: login.ftpUsername,
+      assignmentMode: CameraConnectionAssignmentMode.MANUAL,
+      activeAlbumId: login.albumId,
+      agency: login,
+    };
   }
 
   const passwordOk = await verifyFtpPassword(password, settings.ftpPasswordHash);
