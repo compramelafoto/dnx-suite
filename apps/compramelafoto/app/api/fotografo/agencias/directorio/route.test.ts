@@ -26,7 +26,7 @@ vi.mock("@/lib/prisma", () => ({
 import { GET, POST } from "./route";
 
 const a = (id: number, name: string, lat: number, lng: number) => ({
-  id, name, logoUrl: null, description: null, directoryCity: null, directoryLat: lat, directoryLng: lng, defaultCommissionBps: 3000,
+  id, name, logoUrl: null, description: null, directoryCity: null, directoryLat: lat, directoryLng: lng, defaultCommissionBps: 3000, termsText: null,
 });
 const post = (body: unknown) => ({ json: async () => body }) as any;
 
@@ -45,6 +45,8 @@ describe("directorio", () => {
     expect(body.noLocation).toBe(false);
     expect(body.agencies.map((x: any) => x.name)).toEqual(["Fotoshow", "Porteña"]);
     expect(body.agencies[0].myStatus).toBe("ACTIVE");
+    expect(typeof body.agencies[0].terms).toBe("string");
+    expect(body.agencies[0].terms.length).toBeGreaterThan(0);
     expect(body.agencies[1].myStatus).toBe(null);
     expect(agencyFindMany.mock.calls[0][0].where).toMatchObject({ directoryListed: true, ownerUserId: { not: 20 } });
   });

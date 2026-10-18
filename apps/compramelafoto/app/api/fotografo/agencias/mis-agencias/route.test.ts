@@ -52,6 +52,22 @@ describe("mis-agencias", () => {
     expect(memberFindMany.mock.calls[0][0].where).toEqual({ userId: 20, status: { in: ["ACTIVE", "REQUESTED"] } });
     expect(photoGroupBy.mock.calls[0][0].where).toEqual({ albumId: { in: [50] }, userId: 20, isRemoved: false });
   });
+  it("solicitud REQUESTED: no recibe álbumes ni cuenta fotos", async () => {
+    userFindUnique.mockResolvedValue({ mpAccessToken: null });
+    memberFindMany.mockResolvedValue([
+      {
+        agencyId: 3, status: "REQUESTED", commissionBps: null, termsVersionAccepted: 1,
+        agency: {
+          name: "Fotoshow", logoUrl: null, defaultCommissionBps: 3000, termsText: null, termsVersion: 1,
+          albums: [{ albumId: 50, album: { title: "Temporada 2027", publicSlug: "t-ab" } }],
+        },
+      },
+    ]);
+    const body = await (await GET()).json();
+    expect(body.agencies[0].albums).toEqual([]);
+    expect(body.agencies[0].myPhotosCount).toBe(0);
+    expect(photoGroupBy).not.toHaveBeenCalled();
+  });
   it("aceptar condiciones guarda la versión vigente", async () => {
     memberFindUnique.mockResolvedValue({ id: 7, status: "ACTIVE", agency: { termsVersion: 2, termsText: null } });
     memberUpdate.mockResolvedValue({});

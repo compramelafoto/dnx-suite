@@ -9,7 +9,7 @@ export async function GET() {
   const a = await requireOwnedAgency();
   if ("res" in a) return a.res;
   const linked = await prisma.agencyAlbum.findMany({
-    where: { agencyId: a.agency.id },
+    where: { agencyId: a.agency.id, album: { deletedAt: null } },
     orderBy: { createdAt: "desc" },
     select: { albumId: true, album: { select: { title: true, publicSlug: true } } },
   });
@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
   });
   if (!album) return NextResponse.json({ error: "Ese álbum no es tuyo o no existe." }, { status: 404 });
   if (album.agencyAlbum) return NextResponse.json({ error: "Ese álbum ya es de la agencia." }, { status: 409 });
+  const othersPhotos = await prisma.photo.count({
+    where: { albumId, isRemoved: false, userId: { not: a.user.id } },
+  });
+  if (othersPhotos > 0) {
+    return NextResponse.json({ error: "Ese álbum tiene fotos de otros fotógrafos: elegí un álbum que sea sólo tuyo." }, { status: 409 });
+  }
   await prisma.agencyAlbum.create({ data: { agencyId: a.agency.id, albumId } });
   return NextResponse.json({ ok: true }, { status: 201 });
 }
@@ -46,6 +52,12 @@ export async function DELETE(req: NextRequest) {
   if ("res" in a) return a.res;
   const albumId = Number(req.nextUrl.searchParams.get("albumId"));
   if (!Number.isInteger(albumId) || albumId <= 0) return NextResponse.json({ error: "Álbum inválido." }, { status: 400 });
+  const othersPhotos = await prisma.photo.count({
+    where: { albumId, isRemoved: false, userId: { not: a.user.id } },
+  });
+  if (othersPhotos > 0) {
+    return NextResponse.json({ error: "Este álbum tiene fotos de tu equipo: no se puede quitar de la agencia." }, { status: 409 });
+  }
   const { count } = await prisma.agencyAlbum.deleteMany({ where: { agencyId: a.agency.id, albumId } });
   if (count === 0) return NextResponse.json({ error: "Ese álbum no es de la agencia." }, { status: 404 });
   return NextResponse.json({ ok: true });

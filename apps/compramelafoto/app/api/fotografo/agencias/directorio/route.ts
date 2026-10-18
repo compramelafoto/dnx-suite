@@ -20,7 +20,7 @@ export async function GET() {
   const me = await prisma.user.findUnique({ where: { id: a.user.id }, select: { latitude: true, longitude: true } });
   const rows = await prisma.agency.findMany({
     where: { directoryListed: true, ownerUserId: { not: a.user.id }, directoryLat: { not: null }, directoryLng: { not: null } },
-    select: { id: true, name: true, logoUrl: true, description: true, directoryCity: true, directoryLat: true, directoryLng: true, defaultCommissionBps: true },
+    select: { id: true, name: true, logoUrl: true, description: true, directoryCity: true, directoryLat: true, directoryLng: true, defaultCommissionBps: true, termsText: true },
     take: 1000,
   });
   const mine = await prisma.agencyMember.findMany({
@@ -36,6 +36,7 @@ export async function GET() {
     city: r.directoryCity,
     distanceKm: distanceKm === null ? null : Math.round(distanceKm),
     commissionLabel: bpsToPercentLabel(r.defaultCommissionBps),
+    terms: resolveAgencyTerms(r),
     myStatus: statusBy.get(r.id) ?? null,
   });
 

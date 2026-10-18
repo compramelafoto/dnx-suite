@@ -93,6 +93,7 @@ function TeamSection() {
       <h2 className="text-xl font-medium text-[#1a1a1a]">Equipo</h2>
       <div className="space-y-2">
         <p className="text-sm text-[#6b7280]">Mandale este link a cada fotógrafo. Al entrar, acepta tus condiciones y queda en el equipo.</p>
+        <p className="text-sm text-[#6b7280]">Si ya mandaste un link, generar uno nuevo deja sin efecto el anterior.</p>
         <Button
           variant="outline"
           size="sm"

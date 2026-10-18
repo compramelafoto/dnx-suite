@@ -20,13 +20,15 @@ export async function GET() {
       agency: {
         select: {
           name: true, logoUrl: true, defaultCommissionBps: true, termsText: true, termsVersion: true,
-          albums: { select: { albumId: true, album: { select: { title: true, publicSlug: true } } } },
+          albums: { where: { album: { deletedAt: null } }, select: { albumId: true, album: { select: { title: true, publicSlug: true } } } },
         },
       },
     },
   });
 
-  const albumIds = memberships.flatMap((m) => m.agency.albums.map((al) => al.albumId));
+  // Los álbumes (y las fotos propias) sólo se muestran a miembros activos.
+  const visibleAlbums = (m: (typeof memberships)[number]) => (m.status === "ACTIVE" ? m.agency.albums : []);
+  const albumIds = memberships.flatMap((m) => visibleAlbums(m).map((al) => al.albumId));
   const counts = albumIds.length
     ? await prisma.photo.groupBy({
         by: ["albumId"],
@@ -46,8 +48,8 @@ export async function GET() {
       commissionLabel: bpsToPercentLabel(effectiveCommissionBps(m, m.agency)),
       needsTerms: memberNeedsTerms(m, m.agency),
       terms: resolveAgencyTerms(m.agency),
-      albums: m.agency.albums.map((al) => ({ title: al.album.title, publicSlug: al.album.publicSlug })),
-      myPhotosCount: m.agency.albums.reduce((sum, al) => sum + (countByAlbum.get(al.albumId) ?? 0), 0),
+      albums: visibleAlbums(m).map((al) => ({ title: al.album.title, publicSlug: al.album.publicSlug })),
+      myPhotosCount: visibleAlbums(m).reduce((sum, al) => sum + (countByAlbum.get(al.albumId) ?? 0), 0),
     })),
   });
 }
