@@ -6,6 +6,7 @@ import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { puede } from "@/lib/access/policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
+import { PanelColorForm } from "./panel-color-form";
 import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
 import { TestEmailPanel } from "@/components/communications/test-email-panel";
 import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
@@ -350,6 +351,9 @@ export default async function WorkspaceSettingsPage() {
           displayName: profile?.displayName ?? user.name ?? "",
         }}
       />
+      {canEdit ? (
+        <PanelColorForm actual={branding?.panelColor ?? null} sugerido={branding?.accentColor ?? "#0ea5e9"} />
+      ) : null}
       {canEdit ? (
         <EmailSignaturePreview
           data={toEmailSignatureData(

@@ -8,6 +8,7 @@ import {
   resolveAlbumOrderBuyerName,
   resolveAlbumOrderBuyerPhone,
 } from "@/lib/orders/resolve-album-order-buyer-contact";
+import { digitalOrdersVisibilityWhere } from "@/lib/agencies/order-visibility";
 import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
 
 export const runtime = "nodejs";
@@ -119,12 +120,7 @@ export async function GET(req: Request) {
     const digitalOrders = await prisma.order.findMany({
       where: {
         AND: [
-          {
-            OR: [
-              { album: { userId: id } },
-              { album: { photos: { some: { userId: id } } } },
-            ],
-          },
+          digitalOrdersVisibilityWhere(id),
           {
             // Pedidos de prueba fuera, salvo el canje que hace el fotógrafo con "Probar como
             // cliente": ése se lista como DEMO, en $0, y queda fuera de todo total.

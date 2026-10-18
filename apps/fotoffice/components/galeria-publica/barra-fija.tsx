@@ -36,7 +36,7 @@ export function BarraFija(p: PropsBarra) {
       onClick={() => p.onFiltro(valor)}
       aria-pressed={p.filtro === valor}
       className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${
-        p.filtro === valor ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white" : "border-[var(--fo-border-strong)] bg-white text-[var(--fo-text-secondary)]"
+        p.filtro === valor ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]" : "border-[var(--fo-border-strong)] bg-white text-[var(--fo-text-secondary)]"
       }`}
     >
       {etiqueta} ({n})

@@ -115,7 +115,7 @@ export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, e
             onClick={() => elegir(f.valor)}
             className={`rounded-full border px-3 py-1 text-sm transition ${
               filtro === f.valor
-                ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                 : "border-[var(--fo-border)] bg-[var(--fo-surface)] text-[var(--fo-text-secondary)] hover:bg-[var(--fo-surface-hover)]"
             }`}
           >

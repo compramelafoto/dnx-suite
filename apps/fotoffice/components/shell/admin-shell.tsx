@@ -16,6 +16,7 @@ import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
 import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { BurbujaDnxBot } from "@/components/dnx-bot/burbuja";
+import { cssDelTema, normalizarColor } from "@/lib/panel-tema/tema";
 
 type PanelUser = {
   id: number;
@@ -70,7 +71,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
     workspace !== null
       ? prisma.fotofficeWorkspaceBranding.findUnique({
           where: { workspaceId: workspace.id },
-          select: { commercialName: true, logoUrl: true },
+          select: { commercialName: true, logoUrl: true, panelColor: true },
         })
       : null,
     prisma.fotofficePhotographerProfile.findUnique({
@@ -86,45 +87,52 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   // lateral lo lleva a su portal. El "Cambiar de perfil" general queda para varias instituciones.
   const selector = roleSelector(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null }, vocabulary);
 
+  // Colores propios del negocio (Configuración → Colores del panel). Sin color, los de FOTOFFICE.
+  const colorPanel = normalizarColor(branding?.panelColor);
+
   const cookieStore = await cookies();
   const navHidden = parseShellNavPreference(cookieStore.get(SHELL_NAV_COOKIE)?.value) === "hidden";
   const openGroups = parseOpenGroups(cookieStore.get(NAV_GROUPS_COOKIE)?.value);
 
   return (
-    <ShellFrame
-      navHidden={navHidden}
-      sidebar={
-        <ShellSidebar
-          workspaceName={institucion}
-          levels={levels}
-          actions={actions}
-          canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
-          organizationType={organizationType}
-          platformAdmin={platformAdmin}
-          vocabulary={vocabulary}
-          roleSelector={selector}
-          openGroups={openGroups}
-        />
-      }
-      header={
-        <ShellHeader
-          userName={perfil?.displayName ?? user.name}
-          userAvatarUrl={perfil?.avatarUrl ?? null}
-          workspaceRole={activeRole}
-          workspaceLogoUrl={branding?.logoUrl ?? null}
-          menu={accountMenu(perfiles, workspace?.id ?? null)}
-          roleSelector={selector}
-          userEmail={user.email}
-          memberships={memberships.map((m) => ({
-            workspaceId: m.workspaceId,
-            name: m.workspaceId === workspace?.id && institucion ? institucion : m.workspace.name,
-          }))}
-          activeWorkspaceId={workspace?.id ?? null}
-        />
-      }
-    >
-      {children}
-      {bot && <BurbujaDnxBot rutas={bot.rutas} />}
-    </ShellFrame>
+    <>
+      {colorPanel ? <style>{cssDelTema(colorPanel)}</style> : null}
+      <ShellFrame
+        navHidden={navHidden}
+        sidebar={
+          <ShellSidebar
+            workspaceName={institucion}
+            levels={levels}
+            actions={actions}
+            canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+            organizationType={organizationType}
+            platformAdmin={platformAdmin}
+            vocabulary={vocabulary}
+            roleSelector={selector}
+            openGroups={openGroups}
+            logoPropio={colorPanel ? (branding?.logoUrl ?? null) : null}
+          />
+        }
+        header={
+          <ShellHeader
+            userName={perfil?.displayName ?? user.name}
+            userAvatarUrl={perfil?.avatarUrl ?? null}
+            workspaceRole={activeRole}
+            workspaceLogoUrl={branding?.logoUrl ?? null}
+            menu={accountMenu(perfiles, workspace?.id ?? null)}
+            roleSelector={selector}
+            userEmail={user.email}
+            memberships={memberships.map((m) => ({
+              workspaceId: m.workspaceId,
+              name: m.workspaceId === workspace?.id && institucion ? institucion : m.workspace.name,
+            }))}
+            activeWorkspaceId={workspace?.id ?? null}
+          />
+        }
+      >
+        {children}
+        {bot && <BurbujaDnxBot rutas={bot.rutas} />}
+      </ShellFrame>
+    </>
   );
 }

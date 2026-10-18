@@ -219,7 +219,7 @@ export function PerfilForm({
         className={
           "inline-flex h-[1.625rem] w-[1.625rem] shrink-0 items-center justify-center rounded-full " +
           (actual
-            ? "bg-[var(--fo-accent)] text-white shadow-[0_0_0_3px_var(--fo-accent-muted)]"
+            ? "bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)] shadow-[0_0_0_3px_var(--fo-accent-muted)]"
             : completo
               ? "bg-[color-mix(in_srgb,var(--fo-success)_14%,transparent)] text-[var(--fo-success)]"
               : "bg-[color-mix(in_srgb,var(--fo-warning,#d97706)_14%,transparent)] text-[var(--fo-warning,#d97706)]")

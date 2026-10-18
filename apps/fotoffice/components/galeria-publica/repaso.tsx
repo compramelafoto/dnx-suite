@@ -68,7 +68,7 @@ export function Repaso({
       <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 pb-12 md:py-10">
         {hecho ? (
           <section className="space-y-4 text-center" aria-live="polite">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fo-accent)] text-white"><IconoCheck width={30} height={30} /></span>
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"><IconoCheck width={30} height={30} /></span>
             <h2 className="text-2xl font-semibold">¡Listo{nombre ? `, ${nombre.split(" ")[0]}` : ""}!</h2>
             <p>Recibimos tu selección de {cantidadTexto(hecho.cantidad)}. Ya la estamos mirando.</p>
             <p className="text-sm opacity-70">La enviaste el {hecho.enviadaEn}. Si querés cambiar algo, escribinos y lo vemos.</p>

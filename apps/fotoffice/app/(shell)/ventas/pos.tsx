@@ -1200,7 +1200,7 @@ export function Pos({
       {rows.length > 0 ? (
         <a
           href="#ticket"
-          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-full bg-[var(--fo-accent)] px-5 py-3.5 text-white shadow-lg lg:hidden"
+          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-full bg-[var(--fo-accent)] px-5 py-3.5 text-[var(--fo-on-accent,#fff)] shadow-lg lg:hidden"
         >
           <span className="text-sm font-medium">
             Ver ticket · {unidades} {unidades === 1 ? "artículo" : "artículos"}
