@@ -13,6 +13,8 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { formatMinorArs } from "@/lib/membership/money";
 import { diasEntre, repartirDescuento } from "@/lib/sales/pedido-mostrador";
 import { checkoutAction, type CheckoutInput } from "./actions";
+import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarPagoMp, type ResultadoBusquedaPago } from "@/lib/sales/verificar-pago-servidor";
+import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
 
 /**
  * El Mostrador con trabajos "con proceso". La parte con proceso se vuelve un pedido (con su seña
@@ -44,6 +46,8 @@ export type CobroConPedidoInput = {
   senaMinor: number | null;
   /** Clave única del cobro (doble clic = un solo cobro). */
   clave: string;
+  /** El cobro de Mercado Pago que "Verificar pago" encontró (opcional). */
+  mpPaymentId?: string | null;
 };
 
 export type CobroConPedidoResult =
@@ -64,7 +68,7 @@ async function conProceso(workspaceId: string, productIds: string[]): Promise<Se
 }
 
 export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise<CobroConPedidoResult> {
-  const { workspace } = await requireSalesStaff();
+  const { workspace, user } = await requireSalesStaff();
   const ctx = await contextoDePedidos("operar");
   if (!ctx || ctx.workspaceId !== workspace.id) return { ok: false, error: "No tenés permiso para crear pedidos." };
 
@@ -92,6 +96,17 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   const totalPedido = subPedido - desc.pedido;
   const sena = input.senaMinor === null ? totalPedido : Math.min(Math.max(0, Math.round(input.senaMinor)), totalPedido);
 
+  // Pago verificado: tiene que ser por lo que se cobra ahora (seña + lo que se lleva en el momento).
+  let reservaId: string | null = null;
+  let notaVerificado = "";
+  if (input.mpPaymentId) {
+    if (metodo !== "TRANSFERENCIA" && metodo !== "MERCADO_PAGO") return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
+    const reserva = await reservarPagoMp(workspace.id, user.id, input.mpPaymentId, sena + (subVenta - desc.venta));
+    if (!reserva.ok) return { ok: false, error: reserva.error };
+    reservaId = reserva.reservaId;
+    notaVerificado = notaDePagoVerificado(reserva.pago);
+  }
+
   // 1. El pedido, con sus trabajos.
   const alta = await crearPedidoManual(ctx, {
     clientId: input.clientId,
@@ -114,7 +129,11 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     eventLabel: "Entrega",
     checklist: null,
   });
-  if (!alta.ok) return { ok: false, error: alta.error };
+  if (!alta.ok) {
+    if (reservaId) await liberarPagoMp(reservaId);
+    return { ok: false, error: alta.error };
+  }
+  if (reservaId) await confirmarUsoPagoMp(reservaId, `Pedido ${alta.numero}`);
 
   const hoy = diaEnBuenosAires(new Date());
   // La fecha de entrega queda en cada trabajo, y el plazo elegido se recuerda para la próxima venta.
@@ -150,7 +169,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
       lines: enElMomento.map((l) => ({ ...l })),
       discountMinor: desc.venta,
       paymentMethod: metodo,
-      note: [input.note.trim(), `Junto con el pedido ${alta.numero}`].filter(Boolean).join(" — "),
+      note: [input.note.trim(), `Junto con el pedido ${alta.numero}`, notaVerificado].filter(Boolean).join(" — "),
       client: { mode: "existing", clientId: input.clientId },
     };
     const v = await checkoutAction(venta);
@@ -225,8 +244,8 @@ export async function pedidosParaRetirarAction(clientId: string): Promise<Pedido
 export type CobroSaldoResult = { ok: true; mensaje: string } | { ok: false; error: string };
 
 /** Cobra lo que falta de un pedido (el cliente vino a retirar). */
-export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string, clave: string): Promise<CobroSaldoResult> {
-  await requireSalesStaff();
+export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string, clave: string, mpPaymentId: string | null = null): Promise<CobroSaldoResult> {
+  const { workspace, user } = await requireSalesStaff();
   const ctx = await contextoDePedidos("operar");
   if (!ctx) return { ok: false, error: "No tenés permiso para cobrar pedidos." };
   if (!SALE_PAYMENT_METHODS.includes(paymentMethod as SalePaymentMethod)) return { ok: false, error: "Elegí un medio de pago." };
@@ -235,6 +254,13 @@ export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string,
   if (!d) return { ok: false, error: "Ese pedido no existe." };
   const saldo = Math.round(d.plan.aCobrar * 100);
   if (saldo <= 0) return { ok: false, error: "Ese pedido ya está pago." };
+  let reservaId: string | null = null;
+  if (mpPaymentId) {
+    if (paymentMethod !== "TRANSFERENCIA" && paymentMethod !== "MERCADO_PAGO") return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
+    const reserva = await reservarPagoMp(workspace.id, user.id, mpPaymentId, saldo);
+    if (!reserva.ok) return { ok: false, error: reserva.error };
+    reservaId = reserva.reservaId;
+  }
   const c = await registrarCobro(ctx, {
     pedidoId: d.id,
     importe: pesos(saldo),
@@ -242,8 +268,18 @@ export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string,
     medio: paymentMethod,
     idempotencyKey: clave,
   });
-  if (!c.ok) return { ok: false, error: c.error };
+  if (!c.ok) {
+    if (reservaId) await liberarPagoMp(reservaId);
+    return { ok: false, error: c.error };
+  }
+  if (reservaId) await confirmarUsoPagoMp(reservaId, `Saldo del pedido ${d.numero}`);
   revalidatePath("/pedidos");
   revalidatePath("/caja");
   return { ok: true, mensaje: `Saldo del pedido ${d.numero} cobrado: ${formatMinorArs(saldo)}. Recibo ${c.reciboNumero}.` };
+}
+
+/** "Verificar pago": los cobros de Mercado Pago de las últimas horas por ese monto exacto, sin usar. */
+export async function verificarPagoAction(montoMinor: number): Promise<ResultadoBusquedaPago> {
+  const { workspace } = await requireSalesStaff();
+  return buscarPagosParaCobrar(workspace.id, montoMinor);
 }
