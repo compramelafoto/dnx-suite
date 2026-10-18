@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import {
   ArrowLeftRight,
+  ArrowUpRight,
   Banknote,
   CheckCircle2,
   ChevronDown,
@@ -25,7 +26,10 @@ import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/consta
 import { calcularVuelto, montosSugeridos } from "@/lib/sales/vuelto";
 import type { DatosTransferencia } from "@/lib/cobro-ajustes/datos";
 import type { ProductCategoryRow, ProductRow, ProductVariantRow } from "@/lib/sales/repository";
-import type { ClientRow } from "@/lib/clients/repository";
+import { ClienteBuscador } from "./cliente-buscador";
+import { useOcultarMenuEnEstaPantalla } from "@/components/shell/shell-frame";
+import { EgresoDialogo, type DatosEgreso } from "./egreso-dialogo";
+import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
@@ -40,7 +44,7 @@ const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
 const ETIQUETA_CORTA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
   MERCADO_PAGO: "Mercado Pago",
-  TRANSFERENCIA: "Transfer.",
+  TRANSFERENCIA: "Transferencia",
   TARJETA: "Tarjeta",
   OTRO: "Otro",
 };
@@ -82,8 +86,6 @@ function nuevaKey(): string {
   return `r${contador}-${Date.now()}`;
 }
 
-type ClienteModo = "ninguno" | "existente" | "nuevo";
-
 /** Sobre qué actúan los atajos de cantidad: un renglón del ticket o una tarjeta del catálogo. */
 type Objetivo = { tipo: "renglon"; key: string } | { tipo: "producto"; id: string };
 
@@ -103,18 +105,21 @@ export function Pos({
   products,
   categories,
   clientsEnabled,
-  clients,
   cashEnabled,
+  egresos,
   datosTransferencia,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
   clientsEnabled: boolean;
-  clients: ClientRow[];
+  /** Cuentas y categorías para anotar un egreso; null si no puede operar la caja. */
+  egresos: DatosEgreso | null;
   cashEnabled: boolean;
   /** Alias y CVU del negocio (Configuración → Presupuestos), para mostrar al elegir Transferencia. */
   datosTransferencia: DatosTransferencia;
 }) {
+  // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
+  useOcultarMenuEnEstaPantalla();
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -124,12 +129,11 @@ export function Pos({
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("EFECTIVO");
 
-  const [clienteModo, setClienteModo] = useState<ClienteModo>("ninguno");
-  const [clientId, setClientId] = useState("");
-  const [clientFirstName, setClientFirstName] = useState("");
-  const [clientLastName, setClientLastName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
+  // El cliente de la venta: se busca por cualquier dato o se da de alta en una ventana.
+  const [cliente, setCliente] = useState<ClienteBuscado | null>(null);
+  const [egresoAbierto, setEgresoAbierto] = useState(false);
+  // La foto grande que aparece al pasar el mouse por una miniatura del catálogo.
+  const [fotoGrande, setFotoGrande] = useState<{ src: string; x: number; y: number } | null>(null);
 
   // El producto con talles al que se le está eligiendo el talle, antes de agregarlo.
   const [eligiendoTalle, setEligiendoTalle] = useState<ProductRow | null>(null);
@@ -147,8 +151,7 @@ export function Pos({
   // Efectivo: con cuánto paga, para calcular el vuelto. No viaja como dato propio: queda en la nota.
   const [recibidoText, setRecibidoText] = useState("");
   const [editandoPrecio, setEditandoPrecio] = useState<string | null>(null);
-  // Buscador rápido: el desplegable de coincidencias y cuál está marcado para Enter.
-  const [desplegableAbierto, setDesplegableAbierto] = useState(false);
+  // Buscador: cuál de los productos filtrados del catálogo queda marcado para Enter.
   const [resaltado, setResaltado] = useState(0);
 
   // Atajos de teclado (ver `manejarAtajo`): deshacer, el renglón activo, lo que tiene el puntero
@@ -199,9 +202,10 @@ export function Pos({
   const filtrados = search.trim() === "" ? filtradosLocal : (serverResults ?? filtradosLocal);
 
   /** Las primeras coincidencias del texto tipeado, para el desplegable. */
-  const MAX_SUGERENCIAS = 8;
+  // Con el catálogo en una columna, la lista filtrada hace de desplegable: ↑ ↓ la recorren
+  // y Enter suma la marcada. Sin tope: se puede bajar por todo lo que coincide.
+  const MAX_SUGERENCIAS = Number.POSITIVE_INFINITY;
   const sugerencias = search.trim() === "" ? [] : filtrados.slice(0, MAX_SUGERENCIAS);
-  const mostrarDesplegable = desplegableAbierto && search.trim() !== "";
 
   // Búsqueda en el servidor, con una demora corta para no pegarle a la base en cada tecla.
   // Corre siempre que hay texto —no sólo cuando el filtro local viene vacío— porque un
@@ -347,7 +351,6 @@ export function Pos({
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       if (sugerencias.length === 0) return;
       e.preventDefault();
-      setDesplegableAbierto(true);
       const paso = e.key === "ArrowDown" ? 1 : -1;
       setResaltado((i) => (i + paso + sugerencias.length) % sugerencias.length);
       return;
@@ -451,12 +454,7 @@ export function Pos({
     setPaymentMethod("EFECTIVO");
     setRecibidoText("");
     setEditandoPrecio(null);
-    setClienteModo("ninguno");
-    setClientId("");
-    setClientFirstName("");
-    setClientLastName("");
-    setClientPhone("");
-    setClientEmail("");
+    setCliente(null);
   }
 
   function cobrar() {
@@ -495,12 +493,7 @@ export function Pos({
       discountMinor,
       paymentMethod,
       note: notaFinal,
-      client:
-        clienteModo === "existente"
-          ? { mode: "existing", clientId }
-          : clienteModo === "nuevo"
-            ? { mode: "new", firstName: clientFirstName, lastName: clientLastName, phone: clientPhone, email: clientEmail }
-            : { mode: "none" },
+      client: cliente ? { mode: "existing", clientId: cliente.id } : { mode: "none" },
     };
 
     startTransition(async () => {
@@ -574,7 +567,6 @@ export function Pos({
     input?.focus();
     setSearch((prev) => prev + texto);
     setResaltado(0);
-    setDesplegableAbierto(true);
   }
 
   /**
@@ -590,6 +582,8 @@ export function Pos({
    */
   function manejarAtajo(e: KeyboardEvent) {
     if (e.defaultPrevented || procesando) return;
+    // Con una ventana abierta (cliente nuevo, egreso), el teclado es de la ventana.
+    if (document.querySelector("[data-mostrador-modal]")) return;
     const t = e.target as HTMLElement | null;
     const enBuscador = t !== null && t === searchRef.current;
     const enCampo =
@@ -673,22 +667,21 @@ export function Pos({
   const unidades = rows.reduce((acc, r) => acc + r.qty, 0);
   const cantidadEnTicket = (productId: string) =>
     rows.filter((r) => r.productId === productId).reduce((acc, r) => acc + r.qty, 0);
-  const extrasCargados = discountMinor > 0 || note.trim() !== "" || clienteModo !== "ninguno";
+  const extrasCargados = discountMinor > 0 || note.trim() !== "";
 
   return (
-    <div className="grid gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_400px] lg:pb-0">
-      {/* Catálogo: buscar y tocar para sumar */}
-      <section className="min-w-0 space-y-4">
+    <div className="grid gap-4 pb-24 lg:grid-cols-[300px_minmax(0,1fr)] lg:pb-0 xl:grid-cols-[minmax(300px,1fr)_minmax(0,1.15fr)_330px]">
+      {/* Catálogo: una columna angosta. Escribir filtra; ↑ ↓ y Enter la recorren. */}
+      <section className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4 lg:row-span-2 lg:max-h-[calc(100vh-2rem)] lg:self-start xl:row-span-1">
         {!cashEnabled ? (
-          <div className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-3 text-sm text-[var(--fo-warning)]">
-            El módulo de Caja está apagado. Las ventas se registran igual, pero el dinero no
-            entra al libro de caja.
+          <div className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-3 text-xs text-[var(--fo-warning)]">
+            La Caja está apagada: las ventas se registran, pero el dinero no entra al libro.
           </div>
         ) : null}
 
         <div className="relative">
           <Search
-            className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--fo-muted)]"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--fo-muted)]"
             aria-hidden
           />
           <input
@@ -698,124 +691,33 @@ export function Pos({
             onChange={(e) => {
               setSearch(e.target.value);
               setResaltado(0);
-              setDesplegableAbierto(true);
             }}
-            onFocus={() => setDesplegableAbierto(true)}
-            onBlur={() => setDesplegableAbierto(false)}
             onKeyDown={onSearchKeyDown}
-            className="fo-input h-14 !pl-12 text-base"
-            placeholder="Buscá por nombre o código de barras"
+            className="fo-input h-11 !pl-9 text-sm"
+            placeholder="Nombre o código de barras"
             aria-label="Buscar producto o servicio"
-            role="combobox"
-            aria-expanded={mostrarDesplegable}
-            aria-controls="pos-sugerencias"
-            aria-activedescendant={mostrarDesplegable && sugerencias[resaltado] ? `pos-sug-${sugerencias[resaltado].id}` : undefined}
+            aria-controls="pos-catalogo"
             autoComplete="off"
           />
           {buscando ? (
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[var(--fo-muted)]">Buscando…</span>
-          ) : null}
-
-          {mostrarDesplegable ? (
-            <div
-              id="pos-sugerencias"
-              role="listbox"
-              aria-label="Coincidencias"
-              className="absolute inset-x-0 top-full z-30 mt-2 max-h-[60vh] overflow-y-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] py-1 shadow-xl"
-              // Sin esto, el clic le saca el foco al buscador y el desplegable se cierra antes.
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              {sugerencias.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-[var(--fo-muted)]">
-                  {buscando ? "Buscando en todo el catálogo…" : "Nada coincide. Si no está en el catálogo, usá «+ Otro importe» en el ticket."}
-                </div>
-              ) : (
-                sugerencias.map((p, i) => {
-                  const marcada = i === resaltado;
-                  const codigo = p.barcode ?? p.sku;
-                  const sinStock = p.tracksStock && p.stockQty <= 0;
-                  return (
-                    <div
-                      key={p.id}
-                      id={`pos-sug-${p.id}`}
-                      role="option"
-                      aria-selected={marcada}
-                      onMouseEnter={() => setResaltado(i)}
-                      onClick={() => elegirSugerencia(p)}
-                      className={`flex cursor-pointer items-center gap-3 px-3 py-2 ${marcada ? "bg-[var(--fo-accent-muted)]" : ""}`}
-                    >
-                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)] text-[var(--fo-muted)]">
-                        {p.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <Package className="size-4" aria-hidden />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[var(--fo-text)]">{p.name}</p>
-                        <p className="truncate text-xs text-[var(--fo-muted)]">
-                          {[codigo, p.kind === "SERVICIO" ? "Servicio" : null, p.variants.length > 0 ? `${p.variants.length} talles` : null]
-                            .filter(Boolean)
-                            .join(" · ")}
-                          {sinStock ? <span className="font-semibold text-[var(--fo-danger)]"> · Sin existencia</span> : null}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMinorArs(p.priceMinor)}</span>
-                    </div>
-                  );
-                })
-              )}
-              {sugerencias.length > 0 ? (
-                <p className="hidden border-t border-[var(--fo-border)] px-3 pt-2 pb-1 text-[11px] text-[var(--fo-muted)] sm:block">
-                  ↑ ↓ para moverte · Enter para sumar · Esc para borrar
-                </p>
-              ) : null}
-            </div>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--fo-muted)]">Buscando…</span>
           ) : null}
         </div>
 
-        <p className="hidden flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--fo-muted)] lg:flex" aria-label="Atajos de teclado">
-          <span>
-            <Tecla>+</Tecla> <Tecla>−</Tecla> cantidad
-          </span>
-          <span>
-            <Tecla>10</Tecla> fija 10 unidades
-          </span>
-          <span>
-            <Tecla>Esc</Tecla> vaciar
-          </span>
-          <span>
-            <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>+<Tecla>Z</Tecla> deshacer
-          </span>
-          <span>
-            <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>+<Tecla>Enter</Tecla> cobrar
-          </span>
-          <span>Escribí en cualquier lado para buscar</span>
-        </p>
-
         {categories.length > 0 ? (
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Categorías">
-            {[{ id: "", name: "Todo" }, ...categories].map((c) => {
-              const activa = categoryId === c.id;
-              return (
-                <button
-                  key={c.id || "todo"}
-                  type="button"
-                  role="tab"
-                  aria-selected={activa}
-                  onClick={() => setCategoryId(c.id)}
-                  className={`shrink-0 rounded-full border px-4 py-1.5 text-sm transition ${
-                    activa
-                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
-                      : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
-                  }`}
-                >
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="fo-input h-9 text-sm"
+            aria-label="Categoría"
+          >
+            <option value="">Todas las categorías</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         ) : null}
 
         {eligiendoTalle ? (
@@ -832,398 +734,451 @@ export function Pos({
           />
         ) : null}
 
-        {filtrados.length === 0 ? (
-          <div className="fo-card flex flex-col items-center gap-3 px-6 py-12 text-center">
-            <Package className="size-8 text-[var(--fo-muted)]" aria-hidden />
-            <p className="text-sm font-medium">Ningún producto coincide con esa búsqueda.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-            {filtrados.map((p) => {
-              // Vender nunca se bloquea por falta de existencia, pero el mostrador avisa.
+        <div
+          id="pos-catalogo"
+          className="fo-card min-h-0 flex-1 overflow-y-auto p-1"
+          role="listbox"
+          aria-label="Catálogo"
+        >
+          {filtrados.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center text-sm text-[var(--fo-muted)]">
+              <Package className="size-6" aria-hidden />
+              {buscando ? "Buscando en todo el catálogo…" : "Nada coincide. Si no está, usá «+ Otro importe»."}
+            </div>
+          ) : (
+            filtrados.map((p, i) => {
               const sinStock = p.tracksStock && p.stockQty <= 0;
               const enTicket = cantidadEnTicket(p.id);
+              const marcadaPorTeclado = search.trim() !== "" && i === resaltado;
+              const codigo = p.barcode ?? p.sku;
               return (
                 <button
                   key={p.id}
                   type="button"
+                  role="option"
+                  aria-selected={marcadaPorTeclado}
                   onClick={() => agregarProducto(p)}
                   onMouseEnter={() => setApuntado({ tipo: "producto", id: p.id })}
                   onMouseLeave={() => setApuntado(null)}
                   onFocus={() => setApuntado({ tipo: "producto", id: p.id })}
                   onBlur={() => setApuntado(null)}
-                  className={`group relative flex flex-col overflow-hidden rounded-[var(--fo-radius)] border bg-[var(--fo-bg-elevated)] text-left transition active:scale-[0.98] ${
-                    enTicket > 0
-                      ? "border-[var(--fo-accent)] ring-2 ring-[var(--fo-accent-muted)]"
-                      : "border-[var(--fo-border)] hover:border-[var(--fo-accent)]"
+                  ref={marcadaPorTeclado ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
+                  className={`flex w-full items-center gap-2.5 rounded-[var(--fo-radius-sm)] px-2 py-1.5 text-left transition ${
+                    marcadaPorTeclado ? "bg-[var(--fo-accent-muted)]" : "hover:bg-[var(--fo-surface-hover)]"
                   }`}
                 >
-                  <div className="aspect-[4/3] w-full overflow-hidden bg-[var(--fo-bg)]">
+                  <span
+                    className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)] text-[var(--fo-muted)]"
+                    onMouseEnter={
+                      p.imageUrl
+                        ? (e) => {
+                            // A la derecha de la columna del catálogo, para no tapar los nombres de la lista.
+                            const r = e.currentTarget.getBoundingClientRect();
+                            const columna = e.currentTarget.closest("#pos-catalogo")?.getBoundingClientRect();
+                            setFotoGrande({ src: p.imageUrl!, x: (columna?.right ?? r.right) + 12, y: r.top + r.height / 2 });
+                          }
+                        : undefined
+                    }
+                    onMouseLeave={() => setFotoGrande(null)}
+                  >
                     {p.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.imageUrl} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
+                      <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[var(--fo-muted)]">
-                        <Package className="size-7" aria-hidden />
-                      </div>
+                      <Package className="size-4" aria-hidden />
                     )}
-                  </div>
-                  {enTicket > 0 ? (
-                    <span className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm font-semibold text-white shadow">
-                      {enTicket}
-                    </span>
-                  ) : null}
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-3">
-                    <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">{p.name}</p>
-                    <p className="mt-auto pt-1 text-base font-semibold tabular-nums text-[var(--fo-text)]">
-                      {formatMinorArs(p.priceMinor)}
-                    </p>
-                    {p.variants.length > 0 ? (
-                      <p className="truncate text-xs text-[var(--fo-muted)]">{p.variants.length} talles</p>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 text-[13px] font-medium leading-snug text-[var(--fo-text)]">{p.name}</span>
+                    {codigo || p.variants.length > 0 || sinStock ? (
+                      <span className="block truncate text-[11px] text-[var(--fo-muted)]">
+                        {[codigo, p.variants.length > 0 ? `${p.variants.length} talles` : null].filter(Boolean).join(" · ")}
+                        {sinStock ? <span className="font-semibold text-[var(--fo-danger)]"> Sin existencia</span> : null}
+                      </span>
                     ) : null}
-                    {sinStock ? <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia</p> : null}
-                  </div>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-0.5">
+                    <span className="text-[13px] font-semibold tabular-nums">{formatMinorArs(p.priceMinor).replace(",00", "")}</span>
+                    {enTicket > 0 ? (
+                      <span className="rounded-full bg-[var(--fo-accent)] px-1.5 text-[11px] font-semibold text-[var(--fo-on-accent,#fff)]">
+                        ×{enTicket}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* Centro: el carrito, siempre a la vista. */}
+      <section className="fo-card h-fit min-w-0 overflow-hidden p-0" aria-label="Lo que lleva">
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
+          <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
+            Ticket
+            {unidades > 0 ? (
+              <span className="text-sm font-normal text-[var(--fo-muted)]">
+                · {unidades} {unidades === 1 ? "artículo" : "artículos"}
+              </span>
+            ) : null}
+          </h2>
+          <div className="flex items-center gap-1">
+            {egresos ? (
+              <button
+                type="button"
+                onClick={() => setEgresoAbierto(true)}
+                className="fo-btn fo-btn-ghost gap-1 whitespace-nowrap px-2 text-xs text-[var(--fo-danger)]"
+                title="Anotar algo que sale de la caja: insumos, un pago, un retiro"
+              >
+                <ArrowUpRight className="size-3.5" aria-hidden />
+                Egreso
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setMostrarSuelto((v) => !v)}
+              className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
+            >
+              + Otro
+            </button>
+            {rows.length > 0 ? (
+              <button
+                type="button"
+                onClick={vaciarTicket}
+                className="flex size-8 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-danger)]"
+                aria-label="Vaciar el ticket"
+                title="Vaciar el ticket"
+              >
+                <Trash2 className="size-4" aria-hidden />
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="px-4">
+          {mostrarSuelto ? (
+            <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
+              <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>
+              <input
+                value={sueltoDescripcion}
+                onChange={(e) => setSueltoDescripcion(e.target.value)}
+                placeholder="Qué es"
+                className="fo-input"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <InputMoneda
+                  value={sueltoPrecio}
+                  onChange={setSueltoPrecio}
+                  placeholder="Precio"
+                  aria-label="Precio"
+                  wrapperClassName="min-w-0 flex-1"
+                />
+                <button type="button" onClick={agregarSuelto} className="fo-btn fo-btn-secondary text-sm">
+                  Agregar
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {rows.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center text-[var(--fo-muted)]">
+              <ShoppingCart className="size-8" aria-hidden />
+              <p className="text-sm">Tocá un producto para sumarlo.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-[var(--fo-border)]">
+              {rows.map((r) => {
+                const marcado =
+                  apuntado?.tipo === "renglon"
+                    ? apuntado.key === r.key
+                    : apuntado === null && r.key === (activo ?? rows.at(-1)?.key);
+                return (
+                  <li
+                    key={r.key}
+                    onMouseEnter={() => setApuntado({ tipo: "renglon", key: r.key })}
+                    onMouseLeave={() => setApuntado(null)}
+                    onClick={() => setActivo(r.key)}
+                    className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">{r.description}</p>
+                      {editandoPrecio === r.key ? (
+                        <InputMoneda
+                          autoFocus
+                          defaultValue={formatMinorArs(r.unitPriceMinor).replace("$", "").trim()}
+                          onBlur={(e) => {
+                            actualizarPrecio(r.key, e.target.value);
+                            setEditandoPrecio(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                          }}
+                          className="fo-input h-8 text-sm"
+                          wrapperClassName="mt-1 w-32"
+                          aria-label={`Precio unitario de ${r.description}`}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditandoPrecio(r.key)}
+                          className="text-xs text-[var(--fo-muted)] underline-offset-2 hover:text-[var(--fo-accent)] hover:underline"
+                          title="Cambiar el precio"
+                        >
+                          {formatMinorArs(r.unitPriceMinor)} c/u
+                          {r.priceWasOverridden ? " · precio cambiado" : ""}
+                        </button>
+                      )}
+                      {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
+                        <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
+                      <button
+                        type="button"
+                        onClick={() => (r.qty > 1 ? actualizarCantidad(r.key, r.qty - 1) : quitarRenglon(r.key))}
+                        className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                        aria-label={r.qty > 1 ? `Uno menos de ${r.description}` : `Quitar ${r.description}`}
+                      >
+                        {r.qty > 1 ? <Minus className="size-3.5" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+                      </button>
+                      <span className="w-7 text-center text-sm font-semibold tabular-nums">{r.qty}</span>
+                      <button
+                        type="button"
+                        onClick={() => actualizarCantidad(r.key, r.qty + 1)}
+                        className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                        aria-label={`Uno más de ${r.description}`}
+                      >
+                        <Plus className="size-3.5" aria-hidden />
+                      </button>
+                    </div>
+                    <p className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">
+                      {formatMinorArs(r.qty * r.unitPriceMinor)}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        <p
+          className="hidden flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--fo-border)] px-4 py-2.5 text-[11px] text-[var(--fo-muted)] lg:flex"
+          aria-label="Atajos de teclado"
+        >
+          <span>
+            <Tecla>+</Tecla> <Tecla>−</Tecla> cantidad
+          </span>
+          <span>
+            <Tecla>10</Tecla> fija 10
+          </span>
+          <span>
+            <Tecla>↑</Tecla> <Tecla>↓</Tecla> <Tecla>Enter</Tecla> catálogo
+          </span>
+          <span>
+            <Tecla>Esc</Tecla> vaciar
+          </span>
+          <span>
+            <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>+<Tecla>Z</Tecla> deshacer
+          </span>
+          <span>
+            <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>+<Tecla>Enter</Tecla> cobrar
+          </span>
+        </p>
+
+      </section>
+
+      {/* Derecha: cliente, total, cómo paga y cobrar. */}
+      <section
+        id="ticket"
+        className="fo-card h-fit min-w-0 overflow-visible p-0 lg:col-start-2 xl:sticky xl:top-4 xl:col-start-3 xl:row-start-1"
+        aria-label="Cobro"
+      >
+        <div className="space-y-4 p-4">
+          {clientsEnabled ? (
+            <ClienteBuscador cliente={cliente} onElegir={setCliente} puedeAlta={clientsEnabled} />
+          ) : null}
+
+          {/* Total */}
+          <div>
+            {discountMinor > 0 ? (
+              <div className="flex justify-between text-sm text-[var(--fo-muted)]">
+                <span>Subtotal {formatMinorArs(totals.subtotalMinor)}</span>
+                <span>Descuento −{formatMinorArs(discountMinor)}</span>
+              </div>
+            ) : null}
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-medium text-[var(--fo-muted)]">Total</span>
+              <span className="whitespace-nowrap text-[26px] font-bold tabular-nums tracking-tight 2xl:text-3xl">{formatMinorArs(totals.totalMinor)}</span>
+            </div>
+          </div>
+
+          {/* Medio de pago */}
+          <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="Medio de pago">
+            {SALE_PAYMENT_METHODS.map((m, i) => {
+              const Icono = ICONO_PAGO[m];
+              const activo = paymentMethod === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={activo}
+                  title={ETIQUETA_PAGO[m]}
+                  onClick={() => setPaymentMethod(m)}
+                  className={`flex flex-col items-center gap-1 rounded-[var(--fo-radius-sm)] border px-1 py-2 text-[11px] font-medium leading-tight transition ${
+                    // Dos filas parejas: tres arriba y dos abajo, del mismo ancho total.
+                    i < 3 ? "col-span-2" : "col-span-3"
+                  } ${
+                    activo
+                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] font-semibold text-[var(--fo-text)] ring-1 ring-[var(--fo-accent)]"
+                      : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+                  }`}
+                >
+                  <Icono className="size-5" aria-hidden />
+                  {ETIQUETA_CORTA_PAGO[m]}
                 </button>
               );
             })}
           </div>
-        )}
+
+          {/* Efectivo: con cuánto paga y el vuelto */}
+          {paymentMethod === "EFECTIVO" && totals.totalMinor > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Paga con</p>
+              <div className="flex flex-wrap gap-2">
+                {montosSugeridos(totals.totalMinor).map((monto, i) => {
+                  const texto = minorATexto(monto);
+                  const activo = recibidoText !== "" && parseArsToMinor(recibidoText) === monto;
+                  return (
+                    <button
+                      key={monto}
+                      type="button"
+                      onClick={() => setRecibidoText(texto)}
+                      className={`rounded-full border px-3 py-1.5 text-sm tabular-nums transition ${
+                        activo
+                          ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
+                          : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] hover:border-[var(--fo-accent)]"
+                      }`}
+                    >
+                      {i === 0 ? "Justo" : formatMinorArs(monto).replace(",00", "")}
+                    </button>
+                  );
+                })}
+              </div>
+              <InputMoneda
+                value={recibidoText}
+                onChange={setRecibidoText}
+                placeholder="Otro monto"
+                aria-label="Con cuánto paga"
+                className="fo-input text-base"
+              />
+              {vuelto.estado === "ok" ? (
+                <div className="flex items-baseline justify-between rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] px-3 py-2.5">
+                  <span className="text-sm font-medium text-[var(--fo-success)]">Vuelto</span>
+                  <span className="text-2xl font-bold tabular-nums text-[var(--fo-success)]">
+                    {formatMinorArs(vuelto.vueltoMinor)}
+                  </span>
+                </div>
+              ) : vuelto.estado === "falta" ? (
+                <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] px-3 py-2.5 text-sm font-medium text-[var(--fo-danger)]">
+                  Faltan {formatMinorArs(vuelto.faltaMinor)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {paymentMethod === "TRANSFERENCIA" && totals.totalMinor > 0 ? (
+            <DatosParaTransferir datos={datosTransferencia} totalMinor={totals.totalMinor} />
+          ) : null}
+          {paymentMethod === "MERCADO_PAGO" && totals.totalMinor > 0 ? (
+            <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
+              Que escanee el QR de Mercado Pago del mostrador y pague{" "}
+              <strong className="text-[var(--fo-text)]">{formatMinorArs(totals.totalMinor)}</strong>. Cobrá cuando veas
+              el pago acreditado.
+            </p>
+          ) : null}
+
+          {/* Lo que casi nunca se usa, plegado */}
+          <details className="group text-sm" open={extrasCargados || undefined}>
+            <summary className="flex cursor-pointer list-none items-center justify-between text-[var(--fo-muted)] hover:text-[var(--fo-text)]">
+              <span>
+                Descuento o nota
+                {extrasCargados ? <span className="ml-1 text-[var(--fo-accent)]">●</span> : null}
+              </span>
+              <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="mt-3 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[var(--fo-muted)]">Descuento</span>
+                <InputMoneda
+                  value={discountText}
+                  onChange={setDiscountText}
+                  placeholder="0"
+                  className="fo-input text-right text-sm"
+                  wrapperClassName="w-36"
+                  aria-label="Descuento"
+                />
+              </div>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (opcional)" className="fo-input" />
+            </div>
+          </details>
+
+          {error ? (
+            <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] p-3 text-sm text-[var(--fo-danger)]" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {ultimaVenta !== null ? (
+            <div className="flex items-start gap-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] p-3 text-sm" role="status">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--fo-success)]" aria-hidden />
+              <div>
+                <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
+                {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
+                  <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
+                ) : null}
+                {!ultimaVenta.deposited ? (
+                  <p className="text-[var(--fo-warning)]">No se depositó en Caja: no va a aparecer en el libro.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={cobrar}
+            disabled={procesando || rows.length === 0 || vuelto.estado === "falta"}
+            className="fo-btn fo-btn-primary h-14 w-full text-lg font-semibold"
+          >
+            {procesando ? "Cobrando…" : rows.length === 0 ? "Cobrar" : `Cobrar ${formatMinorArs(totals.totalMinor)}`}
+          </button>
+        </div>
       </section>
 
       {/*
-        El ticket, en dos tarjetas: arriba el total, cómo paga y el botón de cobrar; abajo la
-        lista completa de lo que lleva, siempre a la vista. Antes la lista vivía en un recuadro
-        con barra propia entre el encabezado y el total, y con tres artículos ya quedaba tapada.
+        La miniatura agrandada: fija en la pantalla (la lista del catálogo tiene su propia barra
+        y la recortaría) y sin eventos del mouse, para no taparle el clic a la fila.
       */}
-      <div id="ticket" className="flex h-fit min-w-0 flex-col gap-4">
-        <section className="fo-card overflow-hidden p-0" aria-label="Cobro">
-          <div className="space-y-4 p-4">
-            {/* Total */}
-            <div>
-              {discountMinor > 0 ? (
-                <div className="flex justify-between text-sm text-[var(--fo-muted)]">
-                  <span>Subtotal {formatMinorArs(totals.subtotalMinor)}</span>
-                  <span>Descuento −{formatMinorArs(discountMinor)}</span>
-                </div>
-              ) : null}
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium text-[var(--fo-muted)]">Total</span>
-                <span className="text-3xl font-bold tabular-nums tracking-tight">{formatMinorArs(totals.totalMinor)}</span>
-              </div>
-            </div>
+      {fotoGrande ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={fotoGrande.src}
+          alt=""
+          className="pointer-events-none fixed z-50 size-56 -translate-y-1/2 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] object-contain p-1 shadow-2xl"
+          style={{ left: fotoGrande.x, top: Math.min(Math.max(fotoGrande.y, 124), window.innerHeight - 124) }}
+        />
+      ) : null}
 
-            {/* Medio de pago */}
-            <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Medio de pago">
-              {SALE_PAYMENT_METHODS.map((m) => {
-                const Icono = ICONO_PAGO[m];
-                const activo = paymentMethod === m;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    role="radio"
-                    aria-checked={activo}
-                    title={ETIQUETA_PAGO[m]}
-                    onClick={() => setPaymentMethod(m)}
-                    className={`flex flex-col items-center gap-1 rounded-[var(--fo-radius-sm)] border px-1 py-2.5 text-[11px] font-medium leading-tight transition ${
-                      activo
-                        ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] font-semibold text-[var(--fo-text)] ring-1 ring-[var(--fo-accent)]"
-                        : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
-                    }`}
-                  >
-                    <Icono className="size-5" aria-hidden />
-                    {ETIQUETA_CORTA_PAGO[m]}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Efectivo: con cuánto paga y el vuelto */}
-            {paymentMethod === "EFECTIVO" && totals.totalMinor > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Paga con</p>
-                <div className="flex flex-wrap gap-2">
-                  {montosSugeridos(totals.totalMinor).map((monto, i) => {
-                    const texto = minorATexto(monto);
-                    const activo = recibidoText !== "" && parseArsToMinor(recibidoText) === monto;
-                    return (
-                      <button
-                        key={monto}
-                        type="button"
-                        onClick={() => setRecibidoText(texto)}
-                        className={`rounded-full border px-3 py-1.5 text-sm tabular-nums transition ${
-                          activo
-                            ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
-                            : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] hover:border-[var(--fo-accent)]"
-                        }`}
-                      >
-                        {i === 0 ? "Justo" : formatMinorArs(monto).replace(",00", "")}
-                      </button>
-                    );
-                  })}
-                </div>
-                <InputMoneda
-                  value={recibidoText}
-                  onChange={setRecibidoText}
-                  placeholder="Otro monto"
-                  aria-label="Con cuánto paga"
-                  className="fo-input text-base"
-                />
-                {vuelto.estado === "ok" ? (
-                  <div className="flex items-baseline justify-between rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] px-3 py-2.5">
-                    <span className="text-sm font-medium text-[var(--fo-success)]">Vuelto</span>
-                    <span className="text-2xl font-bold tabular-nums text-[var(--fo-success)]">
-                      {formatMinorArs(vuelto.vueltoMinor)}
-                    </span>
-                  </div>
-                ) : vuelto.estado === "falta" ? (
-                  <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] px-3 py-2.5 text-sm font-medium text-[var(--fo-danger)]">
-                    Faltan {formatMinorArs(vuelto.faltaMinor)}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {paymentMethod === "TRANSFERENCIA" && totals.totalMinor > 0 ? (
-              <DatosParaTransferir datos={datosTransferencia} totalMinor={totals.totalMinor} />
-            ) : null}
-            {paymentMethod === "MERCADO_PAGO" && totals.totalMinor > 0 ? (
-              <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
-                Que escanee el QR de Mercado Pago del mostrador y pague{" "}
-                <strong className="text-[var(--fo-text)]">{formatMinorArs(totals.totalMinor)}</strong>. Cobrá cuando veas
-                el pago acreditado.
-              </p>
-            ) : null}
-
-            {/* Lo que casi nunca se usa, plegado */}
-            <details className="group text-sm" open={extrasCargados || undefined}>
-              <summary className="flex cursor-pointer list-none items-center justify-between text-[var(--fo-muted)] hover:text-[var(--fo-text)]">
-                <span>
-                  Descuento, cliente o nota
-                  {extrasCargados ? <span className="ml-1 text-[var(--fo-accent)]">●</span> : null}
-                </span>
-                <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
-              </summary>
-              <div className="mt-3 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[var(--fo-muted)]">Descuento</span>
-                  <InputMoneda
-                    value={discountText}
-                    onChange={setDiscountText}
-                    placeholder="0"
-                    className="fo-input text-right text-sm"
-                    wrapperClassName="w-36"
-                    aria-label="Descuento"
-                  />
-                </div>
-                {clientsEnabled ? (
-                  <div className="space-y-2">
-                    <select
-                      value={clienteModo}
-                      onChange={(e) => setClienteModo(e.target.value as ClienteModo)}
-                      className="fo-input"
-                      aria-label="Cliente"
-                    >
-                      <option value="ninguno">Sin cliente</option>
-                      <option value="existente">Cliente ya cargado</option>
-                      <option value="nuevo">Cliente nuevo</option>
-                    </select>
-                    {clienteModo === "existente" ? (
-                      <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="fo-input" aria-label="Elegir cliente">
-                        <option value="">Elegí uno…</option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.displayName}
-                          </option>
-                        ))}
-                      </select>
-                    ) : null}
-                    {clienteModo === "nuevo" ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <input value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre" className="fo-input" />
-                        <input value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido" className="fo-input" />
-                        <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono" className="fo-input" />
-                        <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Correo" className="fo-input" />
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (opcional)" className="fo-input" />
-              </div>
-            </details>
-
-            {error ? (
-              <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] p-3 text-sm text-[var(--fo-danger)]" role="alert">
-                {error}
-              </p>
-            ) : null}
-            {ultimaVenta !== null ? (
-              <div className="flex items-start gap-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] p-3 text-sm" role="status">
-                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--fo-success)]" aria-hidden />
-                <div>
-                  <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
-                  {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
-                    <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
-                  ) : null}
-                  {!ultimaVenta.deposited ? (
-                    <p className="text-[var(--fo-warning)]">No se depositó en Caja: no va a aparecer en el libro.</p>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={cobrar}
-              disabled={procesando || rows.length === 0 || vuelto.estado === "falta"}
-              className="fo-btn fo-btn-primary h-14 w-full text-lg font-semibold"
-            >
-              {procesando ? "Cobrando…" : rows.length === 0 ? "Cobrar" : `Cobrar ${formatMinorArs(totals.totalMinor)}`}
-            </button>
-          </div>
-        </section>
-
-        <section className="fo-card overflow-hidden p-0" aria-label="Lo que lleva">
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
-            <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
-              Ticket
-              {unidades > 0 ? (
-                <span className="text-sm font-normal text-[var(--fo-muted)]">
-                  · {unidades} {unidades === 1 ? "artículo" : "artículos"}
-                </span>
-              ) : null}
-            </h2>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setMostrarSuelto((v) => !v)}
-                className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
-              >
-                + Otro importe
-              </button>
-              {rows.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={vaciarTicket}
-                  className="flex size-8 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-danger)]"
-                  aria-label="Vaciar el ticket"
-                  title="Vaciar el ticket"
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="px-4">
-            {mostrarSuelto ? (
-              <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
-                <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>
-                <input
-                  value={sueltoDescripcion}
-                  onChange={(e) => setSueltoDescripcion(e.target.value)}
-                  placeholder="Qué es"
-                  className="fo-input"
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <InputMoneda
-                    value={sueltoPrecio}
-                    onChange={setSueltoPrecio}
-                    placeholder="Precio"
-                    aria-label="Precio"
-                    wrapperClassName="min-w-0 flex-1"
-                  />
-                  <button type="button" onClick={agregarSuelto} className="fo-btn fo-btn-secondary text-sm">
-                    Agregar
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {rows.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-center text-[var(--fo-muted)]">
-                <ShoppingCart className="size-8" aria-hidden />
-                <p className="text-sm">Tocá un producto para sumarlo.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-[var(--fo-border)]">
-                {rows.map((r) => {
-                  const marcado =
-                    apuntado?.tipo === "renglon"
-                      ? apuntado.key === r.key
-                      : apuntado === null && r.key === (activo ?? rows.at(-1)?.key);
-                  return (
-                    <li
-                      key={r.key}
-                      onMouseEnter={() => setApuntado({ tipo: "renglon", key: r.key })}
-                      onMouseLeave={() => setApuntado(null)}
-                      onClick={() => setActivo(r.key)}
-                      className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[var(--fo-text)]">{r.description}</p>
-                        {editandoPrecio === r.key ? (
-                          <InputMoneda
-                            autoFocus
-                            defaultValue={formatMinorArs(r.unitPriceMinor).replace("$", "").trim()}
-                            onBlur={(e) => {
-                              actualizarPrecio(r.key, e.target.value);
-                              setEditandoPrecio(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") e.currentTarget.blur();
-                            }}
-                            className="fo-input h-8 text-sm"
-                            wrapperClassName="mt-1 w-32"
-                            aria-label={`Precio unitario de ${r.description}`}
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setEditandoPrecio(r.key)}
-                            className="text-xs text-[var(--fo-muted)] underline-offset-2 hover:text-[var(--fo-accent)] hover:underline"
-                            title="Cambiar el precio"
-                          >
-                            {formatMinorArs(r.unitPriceMinor)} c/u
-                            {r.priceWasOverridden ? " · precio cambiado" : ""}
-                          </button>
-                        )}
-                        {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
-                          <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
-                        <button
-                          type="button"
-                          onClick={() => (r.qty > 1 ? actualizarCantidad(r.key, r.qty - 1) : quitarRenglon(r.key))}
-                          className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
-                          aria-label={r.qty > 1 ? `Uno menos de ${r.description}` : `Quitar ${r.description}`}
-                        >
-                          {r.qty > 1 ? <Minus className="size-3.5" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
-                        </button>
-                        <span className="w-7 text-center text-sm font-semibold tabular-nums">{r.qty}</span>
-                        <button
-                          type="button"
-                          onClick={() => actualizarCantidad(r.key, r.qty + 1)}
-                          className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
-                          aria-label={`Uno más de ${r.description}`}
-                        >
-                          <Plus className="size-3.5" aria-hidden />
-                        </button>
-                      </div>
-                      <p className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">
-                        {formatMinorArs(r.qty * r.unitPriceMinor)}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-        </section>
-      </div>
+      {egresos && egresoAbierto ? (
+        <EgresoDialogo
+          datos={egresos}
+          onCerrar={() => setEgresoAbierto(false)}
+          onListo={(mensaje) => {
+            setEgresoAbierto(false);
+            avisar(mensaje);
+          }}
+        />
+      ) : null}
 
       {cantidadTipeada || avisoAtajo ? (
         <div
@@ -1245,7 +1200,7 @@ export function Pos({
       {rows.length > 0 ? (
         <a
           href="#ticket"
-          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-full bg-[var(--fo-accent)] px-5 py-3.5 text-white shadow-lg lg:hidden"
+          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-full bg-[var(--fo-accent)] px-5 py-3.5 text-[var(--fo-on-accent,#fff)] shadow-lg lg:hidden"
         >
           <span className="text-sm font-medium">
             Ver ticket · {unidades} {unidades === 1 ? "artículo" : "artículos"}

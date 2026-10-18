@@ -133,7 +133,7 @@ export function ProfessionalPresenceFields({
                 className={[
                   "cursor-pointer rounded-full border px-3 py-1.5 text-xs transition",
                   activa
-                    ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                    ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                     : "border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)]",
                   !activa && alTope ? "cursor-not-allowed opacity-40 hover:border-[var(--fo-border)]" : "",
                 ].join(" ")}

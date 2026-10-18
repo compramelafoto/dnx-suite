@@ -1,4 +1,4 @@
-import { InputMoneda } from "@/components/campos/input-moneda";
+import { ImporteConContador } from "@/components/campos/contador-billetes";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { OpenShiftRow } from "@/lib/cash/repository";
 import { closeShiftAction } from "./actions";
@@ -49,7 +49,7 @@ export function ShiftBlock({
             <label className="fo-label" htmlFor={`contado-${shift.id}`}>
               Cuánto contaste
             </label>
-            <InputMoneda id={`contado-${shift.id}`} name="countedAmountArs" placeholder="47.300" required />
+            <ImporteConContador id={`contado-${shift.id}`} name="countedAmountArs" placeholder="47.300" required />
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`diferencia-${shift.id}`}>

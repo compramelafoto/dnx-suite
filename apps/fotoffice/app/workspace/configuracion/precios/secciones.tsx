@@ -354,7 +354,7 @@ export function SeccionPosicionamiento({ perfil, cambiar }: PropsSeccion) {
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold">{o.title}</span>
                 {o.isRecommended ? (
-                  <span className="rounded-full bg-[var(--fo-accent)] px-2 py-0.5 text-[0.6875rem] font-semibold text-white">Recomendado</span>
+                  <span className="rounded-full bg-[var(--fo-accent)] px-2 py-0.5 text-[0.6875rem] font-semibold text-[var(--fo-on-accent,#fff)]">Recomendado</span>
                 ) : null}
               </span>
               <span className="mt-1 block text-[0.8125rem] leading-snug text-[var(--fo-muted)]">{o.description}</span>
