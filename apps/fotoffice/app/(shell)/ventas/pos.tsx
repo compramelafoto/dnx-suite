@@ -23,6 +23,7 @@ import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticke
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import { calcularVuelto, montosSugeridos } from "@/lib/sales/vuelto";
+import type { DatosTransferencia } from "@/lib/cobro-ajustes/datos";
 import type { ProductCategoryRow, ProductRow, ProductVariantRow } from "@/lib/sales/repository";
 import type { ClientRow } from "@/lib/clients/repository";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
@@ -91,12 +92,15 @@ export function Pos({
   clientsEnabled,
   clients,
   cashEnabled,
+  datosTransferencia,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
   clientsEnabled: boolean;
   clients: ClientRow[];
   cashEnabled: boolean;
+  /** Alias y CVU del negocio (Configuración → Presupuestos), para mostrar al elegir Transferencia. */
+  datosTransferencia: DatosTransferencia;
 }) {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -130,6 +134,9 @@ export function Pos({
   // Efectivo: con cuánto paga, para calcular el vuelto. No viaja como dato propio: queda en la nota.
   const [recibidoText, setRecibidoText] = useState("");
   const [editandoPrecio, setEditandoPrecio] = useState<string | null>(null);
+  // Buscador rápido: el desplegable de coincidencias y cuál está marcado para Enter.
+  const [desplegableAbierto, setDesplegableAbierto] = useState(false);
+  const [resaltado, setResaltado] = useState(0);
   const [procesando, startTransition] = useTransition();
 
   // `products` es sólo lo que `page.tsx` precargó —como mucho 200, ver el comentario de
@@ -157,6 +164,11 @@ export function Pos({
   }, [products, search, categoryId]);
 
   const filtrados = search.trim() === "" ? filtradosLocal : (serverResults ?? filtradosLocal);
+
+  /** Las primeras coincidencias del texto tipeado, para el desplegable. */
+  const MAX_SUGERENCIAS = 8;
+  const sugerencias = search.trim() === "" ? [] : filtrados.slice(0, MAX_SUGERENCIAS);
+  const mostrarDesplegable = desplegableAbierto && search.trim() !== "";
 
   // Búsqueda en el servidor, con una demora corta para no pegarle a la base en cada tecla.
   // Corre siempre que hay texto —no sólo cuando el filtro local viene vacío— porque un
@@ -239,7 +251,31 @@ export function Pos({
    * `findProductByCode` (Tarea 6) y ya normaliza el código de barras adentro. Sin este último
    * paso, escanear el producto 201 no hacía nada, en silencio.
    */
+  /** Suma lo elegido en el desplegable y deja el buscador listo para el siguiente. */
+  function elegirSugerencia(p: ProductRow) {
+    agregarProducto(p);
+    setSearch("");
+    setResaltado(0);
+    searchRef.current?.focus();
+  }
+
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Flechas y Escape mueven el desplegable; Enter decide abajo.
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (sugerencias.length === 0) return;
+      e.preventDefault();
+      setDesplegableAbierto(true);
+      const paso = e.key === "ArrowDown" ? 1 : -1;
+      setResaltado((i) => (i + paso + sugerencias.length) % sugerencias.length);
+      return;
+    }
+    if (e.key === "Escape") {
+      if (search === "") return;
+      e.preventDefault();
+      setSearch("");
+      setResaltado(0);
+      return;
+    }
     if (e.key !== "Enter") return;
     e.preventDefault();
     const texto = search.trim();
@@ -248,11 +284,17 @@ export function Pos({
     const coincideCodigo = (p: ProductRow) =>
       p.sku === texto || (codigoBarras !== null && p.barcode === codigoBarras);
 
+    // Primero el código exacto: es lo que manda el lector, y tiene que ganarle a cualquier
+    // coincidencia por nombre que esté marcada en el desplegable.
     const local = products.find(coincideCodigo) ?? serverResults?.find(coincideCodigo);
     if (local) {
-      agregarProducto(local);
-      setSearch("");
-      searchRef.current?.focus();
+      elegirSugerencia(local);
+      return;
+    }
+    // Si no es un código, Enter suma la coincidencia marcada del desplegable.
+    const marcada = sugerencias[resaltado] ?? sugerencias[0];
+    if (marcada) {
+      elegirSugerencia(marcada);
       return;
     }
 
@@ -418,14 +460,83 @@ export function Pos({
             ref={searchRef}
             autoFocus
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setResaltado(0);
+              setDesplegableAbierto(true);
+            }}
+            onFocus={() => setDesplegableAbierto(true)}
+            onBlur={() => setDesplegableAbierto(false)}
             onKeyDown={onSearchKeyDown}
             className="fo-input h-14 !pl-12 text-base"
-            placeholder="Buscá un producto o escaneá el código"
-            aria-label="Buscar producto"
+            placeholder="Buscá por nombre o código de barras"
+            aria-label="Buscar producto o servicio"
+            role="combobox"
+            aria-expanded={mostrarDesplegable}
+            aria-controls="pos-sugerencias"
+            aria-activedescendant={mostrarDesplegable && sugerencias[resaltado] ? `pos-sug-${sugerencias[resaltado].id}` : undefined}
+            autoComplete="off"
           />
           {buscando ? (
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[var(--fo-muted)]">Buscando…</span>
+          ) : null}
+
+          {mostrarDesplegable ? (
+            <div
+              id="pos-sugerencias"
+              role="listbox"
+              aria-label="Coincidencias"
+              className="absolute inset-x-0 top-full z-30 mt-2 max-h-[60vh] overflow-y-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] py-1 shadow-xl"
+              // Sin esto, el clic le saca el foco al buscador y el desplegable se cierra antes.
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {sugerencias.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-[var(--fo-muted)]">
+                  {buscando ? "Buscando en todo el catálogo…" : "Nada coincide. Si no está en el catálogo, usá «+ Otro importe» en el ticket."}
+                </div>
+              ) : (
+                sugerencias.map((p, i) => {
+                  const marcada = i === resaltado;
+                  const codigo = p.barcode ?? p.sku;
+                  const sinStock = p.tracksStock && p.stockQty <= 0;
+                  return (
+                    <div
+                      key={p.id}
+                      id={`pos-sug-${p.id}`}
+                      role="option"
+                      aria-selected={marcada}
+                      onMouseEnter={() => setResaltado(i)}
+                      onClick={() => elegirSugerencia(p)}
+                      className={`flex cursor-pointer items-center gap-3 px-3 py-2 ${marcada ? "bg-[var(--fo-accent-muted)]" : ""}`}
+                    >
+                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)] text-[var(--fo-muted)]">
+                        {p.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Package className="size-4" aria-hidden />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[var(--fo-text)]">{p.name}</p>
+                        <p className="truncate text-xs text-[var(--fo-muted)]">
+                          {[codigo, p.kind === "SERVICIO" ? "Servicio" : null, p.variants.length > 0 ? `${p.variants.length} talles` : null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                          {sinStock ? <span className="font-semibold text-[var(--fo-danger)]"> · Sin existencia</span> : null}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">{formatMinorArs(p.priceMinor)}</span>
+                    </div>
+                  );
+                })
+              )}
+              {sugerencias.length > 0 ? (
+                <p className="hidden border-t border-[var(--fo-border)] px-3 pt-2 pb-1 text-[11px] text-[var(--fo-muted)] sm:block">
+                  ↑ ↓ para moverte · Enter para sumar · Esc para borrar
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -696,7 +807,7 @@ export function Pos({
                   onClick={() => setPaymentMethod(m)}
                   className={`flex flex-col items-center gap-1 rounded-[var(--fo-radius-sm)] border px-1 py-2.5 text-[11px] font-medium leading-tight transition ${
                     activo
-                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] text-[var(--fo-text)]"
+                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] font-semibold text-[var(--fo-text)] ring-1 ring-[var(--fo-accent)]"
                       : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
                   }`}
                 >
@@ -751,6 +862,17 @@ export function Pos({
                 </p>
               ) : null}
             </div>
+          ) : null}
+
+          {paymentMethod === "TRANSFERENCIA" && totals.totalMinor > 0 ? (
+            <DatosParaTransferir datos={datosTransferencia} totalMinor={totals.totalMinor} />
+          ) : null}
+          {paymentMethod === "MERCADO_PAGO" && totals.totalMinor > 0 ? (
+            <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
+              Que escanee el QR de Mercado Pago del mostrador y pague{" "}
+              <strong className="text-[var(--fo-text)]">{formatMinorArs(totals.totalMinor)}</strong>. Cobrá cuando veas
+              el pago acreditado.
+            </p>
           ) : null}
 
           {/* Lo que casi nunca se usa, plegado */}
@@ -853,6 +975,61 @@ export function Pos({
           <span className="text-base font-bold tabular-nums">{formatMinorArs(totals.totalMinor)}</span>
         </a>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Alias y CVU para que el cliente transfiera desde su celular, con botón de copiar. Si el negocio
+ * todavía no los cargó, dice dónde se cargan en vez de mostrar una tarjeta vacía.
+ */
+function DatosParaTransferir({ datos, totalMinor }: { datos: DatosTransferencia; totalMinor: number }) {
+  const [copiado, setCopiado] = useState<string | null>(null);
+  if (!datos.alias && !datos.cbuCvu) {
+    return (
+      <p className="rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3 text-sm text-[var(--fo-muted)]">
+        Todavía no cargaste el alias ni el CVU del negocio. Se cargan en Configuración → Presupuestos, en
+        «Datos para transferir».
+      </p>
+    );
+  }
+  async function copiar(texto: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(texto);
+      setTimeout(() => setCopiado((c) => (c === texto ? null : c)), 1500);
+    } catch {
+      // Sin permiso de portapapeles el dato igual se ve en pantalla para dictarlo.
+    }
+  }
+  const filas = [
+    { etiqueta: "Alias", valor: datos.alias },
+    { etiqueta: "CBU / CVU", valor: datos.cbuCvu },
+    { etiqueta: "Monto", valor: minorATexto(totalMinor), mostrar: formatMinorArs(totalMinor) },
+  ].filter((f): f is { etiqueta: string; valor: string; mostrar?: string } => Boolean(f.valor));
+  return (
+    <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3">
+      {filas.map((f) => (
+        <div key={f.etiqueta} className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wide text-[var(--fo-muted)]">{f.etiqueta}</p>
+            <p className="break-all font-mono text-sm font-semibold text-[var(--fo-text)]">{f.mostrar ?? f.valor}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => copiar(f.valor)}
+            className="shrink-0 rounded-full border border-[var(--fo-border)] px-3 py-1 text-xs text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)]"
+          >
+            {copiado === f.valor ? "Copiado" : "Copiar"}
+          </button>
+        </div>
+      ))}
+      {datos.titular || datos.banco ? (
+        <p className="text-xs text-[var(--fo-muted)]">
+          {[datos.titular, datos.banco].filter(Boolean).join(" · ")}
+        </p>
+      ) : null}
+      <p className="text-xs text-[var(--fo-muted)]">Cobrá cuando veas la transferencia acreditada.</p>
     </div>
   );
 }
