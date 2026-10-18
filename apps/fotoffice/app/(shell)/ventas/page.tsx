@@ -32,7 +32,7 @@ export default async function VentasPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Caja" description="Buscá o escaneá, armá el ticket y cobrá." />
+      <PageHeader title="Mostrador" description="Tocá los productos, elegí cómo paga y cobrá." />
       <Pos
         products={productos}
         categories={categorias}
