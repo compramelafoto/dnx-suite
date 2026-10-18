@@ -27,9 +27,20 @@ type ShellNavState = {
   toggle: () => void;
   /** Cierra el cajón del teléfono. Lo llama cada enlace del menú al ser elegido. */
   closeDrawer: () => void;
+  /**
+   * Oculta el menú mientras una pantalla lo pida (el Mostrador necesita el ancho) sin tocar la
+   * preferencia guardada. Devuelve cómo deshacerlo: al salir de esa pantalla, vuelve como estaba.
+   */
+  ocultarPorPantalla: () => () => void;
 };
 
 const ShellNavContext = createContext<ShellNavState | null>(null);
+
+/** Oculta el menú lateral mientras esta pantalla esté abierta. Se puede volver a abrir a mano. */
+export function useOcultarMenuEnEstaPantalla() {
+  const { ocultarPorPantalla } = useShellNav();
+  useEffect(() => ocultarPorPantalla(), [ocultarPorPantalla]);
+}
 
 export function useShellNav(): ShellNavState {
   const state = useContext(ShellNavContext);
@@ -55,11 +66,24 @@ export function ShellFrame({
   header: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [hidden, setHidden] = useState(navHidden);
+  const [preferido, setHidden] = useState(navHidden);
+  // Lo que pide la pantalla abierta (null = nada): manda sobre la preferencia mientras dure.
+  const [porPantalla, setPorPantalla] = useState<boolean | null>(null);
+  const hidden = porPantalla ?? preferido;
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const ocultarPorPantalla = useCallback(() => {
+    setPorPantalla(true);
+    return () => setPorPantalla(null);
+  }, []);
 
   const toggle = useCallback(() => {
     if (isWideScreen()) {
+      // Si la pantalla lo ocultó, mostrarlo es sólo para esta visita: la preferencia no cambia.
+      if (porPantalla !== null) {
+        setPorPantalla((actual) => !actual);
+        return;
+      }
       setHidden((current) => {
         const next = !current;
         document.cookie = serializeShellNavCookie(next ? "hidden" : "open");
@@ -68,7 +92,7 @@ export function ShellFrame({
       return;
     }
     setDrawerOpen((current) => !current);
-  }, []);
+  }, [porPantalla]);
 
   // Elegir una opción del cajón tiene que cerrarlo: si no, el contenido queda tapado por el
   // menú que acabás de usar y hay que volver a tocar para verlo. Lo cierra el propio enlace
@@ -93,7 +117,7 @@ export function ShellFrame({
   }, [closeDrawer, drawerOpen, toggle]);
 
   return (
-    <ShellNavContext.Provider value={{ hidden, drawerOpen, toggle, closeDrawer }}>
+    <ShellNavContext.Provider value={{ hidden, drawerOpen, toggle, closeDrawer, ocultarPorPantalla }}>
       <div className="min-h-screen flex flex-col md:flex-row bg-[var(--fo-bg)]">
         {drawerOpen ? (
           <button
