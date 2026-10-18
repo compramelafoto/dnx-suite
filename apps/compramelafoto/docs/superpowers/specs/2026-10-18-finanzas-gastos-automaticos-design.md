@@ -10,7 +10,7 @@ de cada mes.
 
 **Criterio de éxito:**
 
-- Al conectar las dos cuentas de Gmail, el año 2026 queda cargado sin duplicar los 16 gastos que ya existen.
+- Al conectar las tres cuentas de Gmail, queda cargado **todo el historial que haya en el correo** (para analizar cuánto se invirtió en total), sin duplicar los 16 gastos que ya existen.
 - Cada factura, pago exitoso o pago fallido nuevo aparece en Finanzas a más tardar al día siguiente.
 - Un pago fallido llega por Telegram el mismo día.
 - El sistema **nunca inventa un importe**: lo que no puede leer con certeza va a "Para revisar".
@@ -25,9 +25,11 @@ de cada mes.
 | Permiso de Gmail | **Sólo lectura** (`gmail.readonly`). Sólo se buscan mails de los remitentes conocidos. |
 | Frecuencia | Una vez por día a la madrugada, más un botón "Leer ahora". |
 | Avisos | Pago fallido → **Telegram** al chat privado que ya usa el DNX Bot. |
-| Histórico | Al conectar se lee desde el **01/01/2026**. |
+| Histórico | Al conectar se lee **todo el historial** de los remitentes conocidos, sin fecha de corte. Objetivo: el análisis de todo lo invertido. |
 | Anthropic | Se separa en **"Anthropic — Suscripción"** (claude.ai) y **"Anthropic — API del bot"** (console.anthropic.com, DNX Bot). |
-| Cursor | Pasa a **inactivo**. Se conservan sus gastos viejos. |
+| Cursor | Ya no se usa, pero **se leen sus mails viejos** para el histórico. Queda inactivo: no se espera un cobro nuevo ni se avisa que falta. |
+| Inactivo vs. leído | `active` sólo decide si se espera un cobro mensual. **Los mails de todos los proveedores de la tabla se leen siempre**, activos o no. |
+| Cuentas de Gmail | **Tres:** compramelafoto@gmail.com, dnxfotografia@gmail.com y cuart.daniel@gmail.com. |
 | Control cruzado con AWS y Vercel | **Segunda etapa**, fuera de este diseño. |
 | WhatsApp | Se suma cuando esté contratado; agregar un proveedor tiene que ser agregar una fila de configuración y, si hace falta, un lector. |
 
@@ -43,7 +45,9 @@ de cada mes.
 | ChatGPT Plus (`chatgpt`) | dnxfotografia@gmail.com | cualquier `@*.openai.com` | Recibo |
 | Neon (`neon`) | dnxfotografia@gmail.com | `noreply@ar.neon.tech` | Factura, pago fallido, pago exitoso |
 | Vercel (`vercel`) | dnxfotografia@gmail.com | `notifications@vercel.com` | Factura, pago fallido, pago exitoso |
-| Cursor (`cursor`) | — | — | Inactivo |
+| Cursor (`cursor`, inactivo) | dnxfotografia@gmail.com | `invoice+statements+acct_1Lb5LzB4TZWxSIGU@stripe.com` | Recibo y **reembolso** Stripe |
+| CapCut (`capcut`, nuevo) | dnxfotografia@gmail.com | a confirmar con el primer mail | Próximo servicio |
+| ElevenLabs (`elevenlabs`, nuevo) | cuart.daniel@gmail.com | a confirmar | Recibo |
 
 La tabla vive **en código** (`lib/finance-dnx/mail/vendors.ts`): remitentes, patrón de asunto y
 lector de cada proveedor. Las `key` definitivas se toman de la base al implementar.
@@ -78,7 +82,7 @@ Gmail (2 cuentas, sólo lectura)
 
 ### 4.2 Lectura
 
-- Búsqueda por cuenta: `from:(remitente1 OR remitente2 …) after:<última lectura − 3 días>`. La primera vez, `after:2026/01/01`.
+- Búsqueda por cuenta: `from:(remitente1 OR remitente2 …) after:<última lectura − 3 días>`. La primera vez, sin fecha (todo el historial).
 - Lotes acotados por ejecución (para no pasarse del tiempo de la función). Si quedan mensajes, la
   próxima ejecución sigue; "Leer ahora" repite hasta terminar o hasta el tope de tiempo.
 - Se descarga sólo el mensaje encontrado (asunto, remitente, fecha y texto). El texto queda guardado
@@ -88,7 +92,7 @@ Gmail (2 cuentas, sólo lectura)
 
 Funciones puras `(mensaje) → resultado | null`, cada una con pruebas sobre **mails reales** guardados como fixtures.
 
-- **Stripe** (Anthropic, Resend y probablemente OpenAI): importe, número de recibo, fecha de pago, concepto.
+- **Stripe** (Anthropic, Resend, Cursor y probablemente OpenAI y ElevenLabs): importe, número de recibo, fecha de pago, concepto. Distingue **recibo** de **reembolso** ("Your refund from…").
   El concepto separa la suscripción de Anthropic de la compra de crédito de la API.
 - **AWS**: "Hemos cobrado… X USD… por la factura N" + "Billing Date AAAA-MM-DD" → pago exitoso de esa factura, del mes de facturación.
 - **Neon y Vercel**: factura emitida, pago fallido ("Payment failed… invoice #X ($Y)") y pago exitoso.
@@ -107,6 +111,7 @@ Cada factura es **un gasto** (`ExpenseEntry`). El mes del gasto es el **mes de l
 | Pago fallido | Busca o crea la factura → `RECHAZADO`. Avisa por Telegram la primera vez que se ve ese fallo. |
 | Alerta de uso / estimado | Crea o actualiza **un** gasto `ESTIMADO` del proveedor para ese período. Cuando llega la factura real del período, la factura **reemplaza** al estimado. |
 | Recibo (Stripe) | Gasto `PAGADO` con fecha de pago. |
+| Reembolso | Suma a `amountRefunded` del gasto original (buscado por número de recibo o, si no, por proveedor y mes). Si no hay gasto original, va a "Para revisar". |
 
 - **Dólar:** dólar tarjeta del día del documento (API pública `argentinadatos` para fechas pasadas,
   `dolarapi` para hoy), `taxPercent = 0` porque el dólar tarjeta ya incluye impuestos.
@@ -141,10 +146,10 @@ Finanzas; ninguna otra app las usa), a mano y registrada en `_prisma_migrations`
 
 **`ExpenseMailMessage`** (nueva): `accountId`, `gmailMessageId` único, `fromAddress`, `subject`,
 `receivedAt`, `bodyText`, `vendorId?`, `kind?` (`FACTURA`, `PAGO_OK`, `PAGO_FALLIDO`, `ESTIMADO`,
-`RECIBO`), datos leídos (`amount`, `currency`, `invoiceNumber`, `periodYear`, `periodMonth`, `paidAt`),
+`RECIBO`, `REEMBOLSO`), datos leídos (`amount`, `currency`, `invoiceNumber`, `periodYear`, `periodMonth`, `paidAt`),
 `status` (`CARGADO`, `PARA_REVISAR`, `DESCARTADO`), `reviewReason?`, `entryId?`, `alertedAt?`.
 
-**Datos:** crear proveedores `aws` y `anthropic-api`; renombrar `anthropic` a "Anthropic — Suscripción"; `cursor` → inactivo.
+**Datos:** crear proveedores `aws`, `anthropic-api`, `capcut` y `elevenlabs`; renombrar `anthropic` a "Anthropic — Suscripción"; `cursor` → inactivo.
 
 **Efecto sobre lo existente:** "Copiar del mes anterior" deja de chocar por el índice único. Se
 ajusta para copiar sólo los proveedores que todavía no tienen gasto en el mes destino (como hace hoy al filtrar `yaCargados`).
@@ -173,12 +178,12 @@ En **Finanzas DNX → Gastos**:
 - Lectores: pruebas unitarias con mails reales anonimizados como fixtures (uno por tipo y proveedor).
 - Reglas de §5 y §5.1: pruebas puras sobre la función que decide crear, completar, pasar a revisión o ignorar.
 - Búsqueda de Gmail y OAuth: pruebas con `fetch` simulado.
-- Verificación en producción: conectar las dos cuentas, leer el histórico y comparar contra los 16 gastos existentes y los mails mostrados el 18/10 (AWS 106,72 USD, Neon SWURZY-00008 127,31 USD, Resend 20 USD del 22/09).
+- Verificación en producción: conectar las tres cuentas, leer el histórico y comparar contra los 16 gastos existentes y los mails mostrados el 18/10 (AWS 106,72 USD, Neon SWURZY-00008 127,31 USD, Resend 20 USD del 22/09).
 
 ## 10. Orden de construcción
 
 1. **Base y conexión:** migración, OAuth, cifrado, búsqueda y guardado de mensajes, sección Conexiones.
-   Todo mensaje cae en "Para revisar". Daniel conecta las dos cuentas.
+   Todo mensaje cae en "Para revisar". Daniel conecta las tres cuentas.
 2. **Lectores y reglas:** con los mails reales ya guardados se escriben y prueban los lectores, se
    reprocesan los mensajes y se carga el histórico.
 3. **Avisos y pantalla final:** Telegram, etiqueta "Automático", bandeja con Cargar/Descartar.
