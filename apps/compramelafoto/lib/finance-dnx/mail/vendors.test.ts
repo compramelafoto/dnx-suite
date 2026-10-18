@@ -68,3 +68,8 @@ test("las búsquedas siguientes filtran por fecha en segundos", () => {
 test("una cuenta sin proveedores no busca nada", () => {
   assert.equal(gmailQueryFor("otra@gmail.com", null), "");
 });
+
+test("una dirección falsa escrita en el nombre visible no engaña: vale la dirección real", () => {
+  assert.equal(matchVendorKey(CLF, '"<payment@aws.com>" <x@atacante.com>', "Gracias por el pago"), null);
+  assert.equal(matchVendorKey(CLF, '"Pagos AWS" <payment@aws.com>', "Gracias por el pago"), "aws");
+});

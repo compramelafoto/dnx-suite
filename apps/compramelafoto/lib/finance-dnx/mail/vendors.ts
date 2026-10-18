@@ -41,10 +41,13 @@ function norm(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** "Neon, LLC <noreply@ar.neon.tech>" → "noreply@ar.neon.tech" */
+/**
+ * "Neon, LLC <noreply@ar.neon.tech>" → "noreply@ar.neon.tech". Se toma el ÚLTIMO <…>: el
+ * nombre visible lo escribe quien manda y puede traer una dirección falsa entre <>.
+ */
 function bareAddress(from: string): string {
-  const m = from.match(/<([^>]+)>/);
-  return norm(m ? m[1] : from);
+  const all = [...from.matchAll(/<([^<>]+)>/g)];
+  return norm(all.length > 0 ? all[all.length - 1][1] : from);
 }
 
 function senderMatches(address: string, sender: string): boolean {
