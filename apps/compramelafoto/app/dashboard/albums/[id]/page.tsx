@@ -140,6 +140,7 @@ type Album = {
   hiddenSelfieRetentionDays?: number | null;
   showComingSoonMessage?: boolean;
   scanProtectionEnabled?: boolean;
+  scanProtectionThumbnailsEnabled?: boolean;
   textSearchEnabled?: boolean | null;
   preCompraCloseAt?: string | null;
   requireClientApproval?: boolean;
@@ -316,6 +317,7 @@ export default function DashboardAlbumDetailPage() {
   const [hiddenSelfieRetentionDays, setHiddenSelfieRetentionDays] = useState("");
   const [showComingSoonMessage, setShowComingSoonMessage] = useState(false);
   const [scanProtectionEnabled, setScanProtectionEnabled] = useState(true);
+  const [scanProtectionThumbnailsEnabled, setScanProtectionThumbnailsEnabled] = useState(false);
   // `null` = nunca se tocó: la lectura de texto la decide el tipo de álbum.
   const [textSearchEnabled, setTextSearchEnabled] = useState<boolean | null>(null);
   const [savedConfigSnapshot, setSavedConfigSnapshot] =
@@ -337,6 +339,7 @@ export default function DashboardAlbumDetailPage() {
       hiddenSelfieRetentionDays,
       showComingSoonMessage,
       scanProtectionEnabled,
+      scanProtectionThumbnailsEnabled,
       textSearchEnabled,
     }),
     [
@@ -348,6 +351,7 @@ export default function DashboardAlbumDetailPage() {
       hiddenSelfieRetentionDays,
       showComingSoonMessage,
       scanProtectionEnabled,
+      scanProtectionThumbnailsEnabled,
       textSearchEnabled,
     ]
   );
@@ -1108,6 +1112,7 @@ export default function DashboardAlbumDetailPage() {
       );
       setShowComingSoonMessage(Boolean(data.showComingSoonMessage));
       setScanProtectionEnabled(data.scanProtectionEnabled !== false);
+      setScanProtectionThumbnailsEnabled(data.scanProtectionThumbnailsEnabled === true);
       setTextSearchEnabled(data.textSearchEnabled ?? null);
       setSavedConfigSnapshot({
         title: data.title || "",
@@ -1121,6 +1126,7 @@ export default function DashboardAlbumDetailPage() {
           data.hiddenSelfieRetentionDays != null ? String(data.hiddenSelfieRetentionDays) : "",
         showComingSoonMessage: Boolean(data.showComingSoonMessage),
         scanProtectionEnabled: data.scanProtectionEnabled !== false,
+        scanProtectionThumbnailsEnabled: data.scanProtectionThumbnailsEnabled === true,
         textSearchEnabled: data.textSearchEnabled ?? null,
       });
       setConfigSavedNotice(false);
@@ -1903,6 +1909,7 @@ export default function DashboardAlbumDetailPage() {
             : parseInt(hiddenSelfieRetentionDays, 10) || null,
         showComingSoonMessage,
         scanProtectionEnabled,
+        scanProtectionThumbnailsEnabled,
         textSearchEnabled,
       };
 
@@ -1962,6 +1969,7 @@ export default function DashboardAlbumDetailPage() {
           data.hiddenSelfieRetentionDays != null ? String(data.hiddenSelfieRetentionDays) : "",
         showComingSoonMessage: Boolean(data.showComingSoonMessage),
         scanProtectionEnabled: data.scanProtectionEnabled !== false,
+        scanProtectionThumbnailsEnabled: data.scanProtectionThumbnailsEnabled === true,
         textSearchEnabled: data.textSearchEnabled ?? null,
       });
 
@@ -2281,6 +2289,8 @@ export default function DashboardAlbumDetailPage() {
                 onCoverChanged={handleCoverChanged}
                 scanProtectionEnabled={scanProtectionEnabled}
                 onScanProtectionChange={onConfigField(setScanProtectionEnabled)}
+                scanProtectionThumbnailsEnabled={scanProtectionThumbnailsEnabled}
+                onScanProtectionThumbnailsChange={onConfigField(setScanProtectionThumbnailsEnabled)}
                 textSearchEnabled={textSearchEnabled}
                 onTextSearchChange={onConfigField(setTextSearchEnabled)}
                 albumMode={albumMode}
@@ -2593,6 +2603,10 @@ export default function DashboardAlbumDetailPage() {
             albumTitle={album.title}
             eventId={album.eventId}
             isOwner={album.isOwner}
+            scanProtectionEnabled={savedConfigSnapshot?.scanProtectionEnabled ?? false}
+            scanProtectionThumbnailsEnabled={
+              savedConfigSnapshot?.scanProtectionThumbnailsEnabled ?? false
+            }
             coverPhotoId={album.coverPhotoId}
             photoStats={albumPhotoStats}
             initialAlbumFolders={album.albumFolders}

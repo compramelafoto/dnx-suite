@@ -17,6 +17,7 @@ const base: AlbumConfigFormSnapshot = {
   hiddenSelfieRetentionDays: "",
   showComingSoonMessage: true,
   scanProtectionEnabled: true,
+  scanProtectionThumbnailsEnabled: false,
 };
 
 describe("hasUnsavedAlbumConfigChanges", () => {
@@ -31,6 +32,13 @@ describe("hasUnsavedAlbumConfigChanges", () => {
   it("marca cambios al destildar la protección al ampliar fotos", () => {
     assert.equal(
       hasUnsavedAlbumConfigChanges(base, { ...base, scanProtectionEnabled: false }),
+      true
+    );
+  });
+
+  it("marca cambios al tildar la protección en miniaturas", () => {
+    assert.equal(
+      hasUnsavedAlbumConfigChanges(base, { ...base, scanProtectionThumbnailsEnabled: true }),
       true
     );
   });

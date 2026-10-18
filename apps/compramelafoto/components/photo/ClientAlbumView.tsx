@@ -106,6 +106,8 @@ type Album = {
   hiddenPhotosEnabled?: boolean;
   /** Protección visual al ampliar fotos no compradas. Activada salvo que el fotógrafo la apague. */
   scanProtectionEnabled?: boolean;
+  /** Ventana de escaneo también en las miniaturas. Apagada por defecto. */
+  scanProtectionThumbnailsEnabled?: boolean;
   /** Paquete “todas mis fotos” por reconocimiento facial (precio base en centavos; el checkout suma comisión de plataforma como el digital) */
   enableFaceBulkPurchase?: boolean;
   faceBulkPriceCents?: number | null;
@@ -3079,6 +3081,7 @@ export default function ClientAlbumView({
                     }
                   }}
                   noDrag
+                  scanProtectThumbnails={album.scanProtectionThumbnailsEnabled === true}
                 />
                 {!packSelectionMode && placeFaceBulkUnderSearchResults && faceBulkOfferHandled
                   ? renderFaceBulkPackCard()
@@ -3104,6 +3107,7 @@ export default function ClientAlbumView({
             onPhotoSelect={canSelectPhotosForPurchase ? toggle : undefined}
             onPhotoRequestRemoval={handleRequestRemoval}
             noDrag
+            scanProtectThumbnails={album.scanProtectionThumbnailsEnabled === true}
             onPhotoOpenSlide={(id) => {
               const index = photos.findIndex((p) => p.id === id);
               if (index !== -1) {

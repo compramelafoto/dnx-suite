@@ -191,6 +191,7 @@ export default async function Page({
     showComingSoonMessage: true,
     hiddenPhotosEnabled: true,
     scanProtectionEnabled: true,
+    scanProtectionThumbnailsEnabled: true,
     enableFaceBulkPurchase: true,
     faceBulkPriceCents: true,
     photos: {
@@ -835,6 +836,8 @@ export default async function Page({
               hiddenPhotosEnabled,
               scanProtectionEnabled:
                 (album as { scanProtectionEnabled?: boolean }).scanProtectionEnabled !== false,
+              scanProtectionThumbnailsEnabled:
+                (album as { scanProtectionThumbnailsEnabled?: boolean }).scanProtectionThumbnailsEnabled === true,
               enableFaceBulkPurchase: Boolean((album as any).enableFaceBulkPurchase),
               faceBulkPriceCents:
                 typeof (album as any).faceBulkPriceCents === "number"
