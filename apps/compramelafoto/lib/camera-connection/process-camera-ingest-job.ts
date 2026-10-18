@@ -196,6 +196,8 @@ export async function processClaimedCameraIngestJob(
       maxBytes: getAlbumPhotoMaxBytes(),
       maxMb: getAlbumPhotoMaxMb(),
       originalFilename: job.originalFilename ?? null,
+      declaredPoint:
+        job.declaredLat != null && job.declaredLng != null ? { lat: job.declaredLat, lng: job.declaredLng } : null,
     });
 
     if (result.duplicate) {

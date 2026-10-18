@@ -8,6 +8,8 @@ const memberUpdate = vi.fn();
 const inviteUpdateMany = vi.fn();
 const inviteCreate = vi.fn();
 const transaction = vi.fn();
+const revokeFtp = vi.fn();
+vi.mock("@/lib/agencies/ftp-credentials", () => ({ revokeAgencyFtpCredentials: (...a: unknown[]) => revokeFtp(...a) }));
 vi.mock("@/lib/auth", () => ({ requireAuth: (...a: unknown[]) => requireAuth(...a) }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -35,7 +37,7 @@ const req = (body: unknown) => ({ json: async () => body }) as any;
 const ctx = (memberId: string) => ({ params: Promise.resolve({ memberId }) });
 
 beforeEach(() => {
-  for (const f of [requireAuth, agencyFindUnique, memberFindMany, memberFindFirst, memberUpdate, inviteUpdateMany, inviteCreate, transaction]) f.mockReset();
+  for (const f of [requireAuth, agencyFindUnique, memberFindMany, memberFindFirst, memberUpdate, inviteUpdateMany, inviteCreate, transaction, revokeFtp]) f.mockReset();
   requireAuth.mockResolvedValue({ error: null, user: { id: 10 } });
   agencyFindUnique.mockResolvedValue(agency);
   transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]));
@@ -92,6 +94,7 @@ describe("equipo", () => {
     await PATCH(req({ action: "remove" }), ctx("1"));
     expect(memberUpdate.mock.calls[0][0].data.status).toBe("REMOVED");
     expect(memberUpdate.mock.calls[0][0].data.removedAt).toBeInstanceOf(Date);
+    expect(revokeFtp).toHaveBeenCalledWith(1);
   });
   it("PATCH acción desconocida: 400", async () => {
     memberFindFirst.mockResolvedValue({ id: 1, status: "ACTIVE" });

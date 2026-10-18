@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOwnedAgency } from "@/lib/agencies/owner-auth";
+import { revokeAgencyFtpCredentials } from "@/lib/agencies/ftp-credentials";
 import { parseCommissionPercent } from "@/lib/agencies/rules";
 
 export const runtime = "nodejs";
@@ -37,6 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ me
     case "remove": {
       if (member.status !== "ACTIVE") return NextResponse.json({ error: "Ese fotógrafo no está activo." }, { status: 409 });
       await prisma.agencyMember.update({ where: { id }, data: { status: "REMOVED", removedAt: new Date() } });
+      await revokeAgencyFtpCredentials(member.id);
       return NextResponse.json({ ok: true });
     }
     default:
