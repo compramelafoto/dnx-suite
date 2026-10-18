@@ -270,8 +270,8 @@ describe("reglas de fuente", () => {
 
   it("el menú muestra Proyectos sólo con nivel en el módulo projects y el buscador lo conoce", () => {
     const nav = leer("components/shell/shell-nav.tsx");
-    expect(nav).toMatch(/\.\.\.\(ve\(PROJECTS_MODULE_KEY\)\s*\?\s*\[\s*\{\s*href: "\/proyectos"/);
+    expect(nav).toMatch(/\.\.\.\(ve\(PROJECTS_MODULE_KEY\)\s*\?\s*\[\s*\{\s*href: "\/proyectos\/en-curso"/);
     expect(nav).toContain('const PROJECTS_MODULE_KEY = "projects";');
-    expect(leer("lib/shell/nav-keywords.ts")).toContain('"/proyectos": [');
+    expect(leer("lib/shell/nav-keywords.ts")).toContain('"/proyectos/en-curso": [');
   });
 });
