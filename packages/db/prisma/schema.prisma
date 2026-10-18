@@ -25477,3 +25477,19 @@ model AgencyMemberPresence {
   updatedAt  DateTime     @updatedAt
   member     AgencyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
+
+/// FOTOFFICE: un cobro de Mercado Pago que "Verificar pago" del Mostrador ya asignó a una venta,
+/// un pedido o un saldo. El único (negocio + pago) impide usar dos veces la misma transferencia.
+model FotofficePagoMpUsado {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  mpPaymentId     String
+  montoArs        Decimal  @db.Decimal(12, 2)
+  pagador         String?
+  /// "Venta #12", "Pedido P-0003"… (null mientras se registra).
+  usadoEn         String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  @@unique([workspaceId, mpPaymentId])
+}

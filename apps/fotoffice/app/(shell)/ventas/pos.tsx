@@ -37,6 +37,8 @@ import {
 import { aCobrarAhora, repartirDescuento, senaSugerida, sugerirEntrega } from "@/lib/sales/pedido-mostrador";
 import { useOcultarMenuEnEstaPantalla } from "@/components/shell/shell-frame";
 import { EgresoDialogo, type DatosEgreso } from "./egreso-dialogo";
+import { VerificarPago } from "./verificar-pago";
+import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 
@@ -147,6 +149,11 @@ export function Pos({
   const [discountText, setDiscountText] = useState("");
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("EFECTIVO");
+  // El pago que "Verificar pago" encontró en Mercado Pago (sólo vale para su monto exacto).
+  const [pagoVerificado, setPagoVerificado] = useState<PagoCandidato | null>(null);
+  const conVerificar = paymentMethod === "TRANSFERENCIA" || paymentMethod === "MERCADO_PAGO";
+  const verificadoPara = (montoMinor: number) =>
+    conVerificar && pagoVerificado && pagoVerificado.montoMinor === montoMinor ? pagoVerificado.id : null;
 
   // El cliente de la venta: se busca por cualquier dato o se da de alta en una ventana.
   const [cliente, setCliente] = useState<ClienteBuscado | null>(null);
@@ -200,8 +207,9 @@ export function Pos({
     setAvisoSaldo(null);
     const clave = `sal-${crypto.randomUUID()}`;
     startTransition(async () => {
-      const r = await cobrarSaldoAction(p.id, paymentMethod, clave);
+      const r = await cobrarSaldoAction(p.id, paymentMethod, clave, verificadoPara(p.saldoMinor));
       setAvisoSaldo(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
+      if (r.ok) setPagoVerificado(null);
       if (r.ok && cliente) setPedidosCliente(await pedidosParaRetirarAction(cliente.id));
     });
   }
@@ -510,6 +518,7 @@ export function Pos({
     setEntregaElegida(null);
     setConSena(true);
     setSenaText("");
+    setPagoVerificado(null);
   }
 
   /**
@@ -581,6 +590,7 @@ export function Pos({
       paymentMethod,
       note: notaFinal,
       client: cliente ? { mode: "existing", clientId: cliente.id } : { mode: "none" },
+      mpPaymentId: verificadoPara(pedido.aCobrar),
     };
 
     if (pedido.hay && cliente) {
@@ -596,6 +606,7 @@ export function Pos({
           entrega: pedido.entrega,
           senaMinor: pedido.sena,
           clave,
+          mpPaymentId: verificadoPara(pedido.aCobrar),
         });
         if (r.ok) {
           claveCobroRef.current = null;
@@ -1160,6 +1171,9 @@ export function Pos({
                       Cobrar saldo {formatMinorArs(p.saldoMinor)} ({ETIQUETA_PAGO[paymentMethod]})
                     </button>
                   ) : null}
+                  {p.saldoMinor > 0 && conVerificar && rows.length === 0 ? (
+                    <VerificarPago montoMinor={p.saldoMinor} verificado={pagoVerificado} onVerificado={setPagoVerificado} compacto />
+                  ) : null}
                 </div>
               ))}
               {avisoSaldo ? (
@@ -1321,15 +1335,17 @@ export function Pos({
             </div>
           ) : null}
 
-          {paymentMethod === "TRANSFERENCIA" && totals.totalMinor > 0 ? (
-            <DatosParaTransferir datos={datosTransferencia} totalMinor={totals.totalMinor} />
+          {paymentMethod === "TRANSFERENCIA" && pedido.aCobrar > 0 ? (
+            <DatosParaTransferir datos={datosTransferencia} totalMinor={pedido.aCobrar} />
           ) : null}
-          {paymentMethod === "MERCADO_PAGO" && totals.totalMinor > 0 ? (
+          {paymentMethod === "MERCADO_PAGO" && pedido.aCobrar > 0 ? (
             <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
               Que escanee el QR de Mercado Pago del mostrador y pague{" "}
-              <strong className="text-[var(--fo-text)]">{formatMinorArs(totals.totalMinor)}</strong>. Cobrá cuando veas
-              el pago acreditado.
+              <strong className="text-[var(--fo-text)]">{formatMinorArs(pedido.aCobrar)}</strong>.
             </p>
+          ) : null}
+          {conVerificar && pedido.aCobrar > 0 ? (
+            <VerificarPago montoMinor={pedido.aCobrar} verificado={pagoVerificado} onVerificado={setPagoVerificado} />
           ) : null}
 
           {/* Lo que casi nunca se usa, plegado */}
@@ -1521,7 +1537,6 @@ function DatosParaTransferir({ datos, totalMinor }: { datos: DatosTransferencia;
           {[datos.titular, datos.banco].filter(Boolean).join(" · ")}
         </p>
       ) : null}
-      <p className="text-xs text-[var(--fo-muted)]">Cobrá cuando veas la transferencia acreditada.</p>
     </div>
   );
 }
