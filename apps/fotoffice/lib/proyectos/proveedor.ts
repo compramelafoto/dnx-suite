@@ -5,6 +5,7 @@ import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender"
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { MENSAJES_PROYECTO, puedeGestionarProyectos, type CtxProyectos } from "./acceso";
 import { correoParaProveedor } from "./correo-proveedor";
+import { enlaceLaboratorioSiHayArchivos } from "@/lib/carpetas/carpeta";
 
 /**
  * El proveedor (laboratorio) de un trabajo: a quién se mandó, su número de pedido, lo que cobra y
@@ -20,6 +21,8 @@ export type DatosProveedorTrabajo = {
   /** "aaaa-mm-dd" o null. */
   entregaPrometida: string | null;
   enviadoAt: Date | null;
+  /** Cuándo se borra la carpeta de archivos (ISO), o null. */
+  carpetaVence: string | null;
   proveedores: { id: string; name: string; email: string | null }[];
 };
 
@@ -33,7 +36,7 @@ export async function leerProveedorDelTrabajo(ctx: CtxProyectos, proyectoId: str
   const [p, proveedores] = await Promise.all([
     prisma.fotofficeProyecto.findFirst({
       where: { id: proyectoId, workspaceId: ctx.workspaceId },
-      select: { proveedorId: true, proveedorRef: true, proveedorCostoArs: true, entregaPrometida: true, proveedorEnviadoAt: true },
+      select: { proveedorId: true, proveedorRef: true, proveedorCostoArs: true, entregaPrometida: true, proveedorEnviadoAt: true, carpetaVence: true },
     }),
     prisma.fotofficeProveedor.findMany({
       where: { workspaceId: ctx.workspaceId, active: true },
@@ -48,6 +51,7 @@ export async function leerProveedorDelTrabajo(ctx: CtxProyectos, proyectoId: str
     proveedorCostoArs: p.proveedorCostoArs ? p.proveedorCostoArs.toString() : null,
     entregaPrometida: ymd(p.entregaPrometida),
     enviadoAt: p.proveedorEnviadoAt,
+    carpetaVence: p.carpetaVence ? p.carpetaVence.toISOString() : null,
     proveedores,
   };
 }
@@ -138,7 +142,8 @@ export async function enviarAlProveedor(ctx: CtxProyectos, proyectoId: unknown, 
       cliente: nombreDeContacto(p.client),
       entregaDeseada: ymd(p.entregaPrometida),
       notas,
-      enlaceArchivos: null,
+      // Si la carpeta tiene archivos, el laboratorio los descarga desde acá (sin Drive).
+      enlaceArchivos: await enlaceLaboratorioSiHayArchivos(ctx, proyectoId),
     });
     const sender = await loadWorkspaceSender(ctx.workspaceId);
     const r = await sendTransactionalEmail({ to: proveedor.email, ...correo, sender });

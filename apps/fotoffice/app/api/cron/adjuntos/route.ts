@@ -5,6 +5,7 @@ import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { borrarConversacionesViejas } from "@/lib/dnx-bot/limpieza";
+import { purgarCarpetas } from "@/lib/carpetas/carpeta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -39,8 +40,11 @@ export async function POST(request: Request) {
   try {
     const ahora = new Date();
     const [a, b] = [await purgarAdjuntos(ahora), await purgarAdjuntosProyecto(ahora)];
+    // Carpetas de trabajos vencidas (30 días desde que se compartieron) y subidas sin confirmar.
+    const carpetas = await purgarCarpetas(ahora);
     return NextResponse.json({
       ok: true,
+      carpetas,
       purgados: a.purgados + b.purgados,
       pendientesLimpios: a.pendientesLimpios + b.pendientesLimpios,
       fallidos: a.fallidos + b.fallidos,
