@@ -107,7 +107,7 @@ export function MemberImportWizard({
             key={s}
             className={`inline-flex min-h-9 items-center rounded-full px-3 text-xs font-semibold ${
               step === s
-                ? "bg-[var(--fo-accent)] text-white"
+                ? "bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                 : step > s
                   ? "bg-[var(--fo-accent-muted)] text-[var(--fo-accent)]"
                   : "bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]"

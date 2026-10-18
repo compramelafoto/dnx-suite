@@ -29,7 +29,7 @@ export default async function InstructivoPage({ params }: { params: Promise<{ sl
         {guia.pasos.map((paso, i) => (
           <li key={i} className="fo-card space-y-3 p-5 break-inside-avoid">
             <h2 className="flex items-baseline gap-3 text-base font-semibold text-[var(--fo-text)]">
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm text-white">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm text-[var(--fo-on-accent,#fff)]">
                 {i + 1}
               </span>
               {paso.titulo}

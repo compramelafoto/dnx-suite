@@ -807,7 +807,7 @@ export function Pos({
                   onClick={() => setCategoryId(c.id)}
                   className={`shrink-0 rounded-full border px-4 py-1.5 text-sm transition ${
                     activa
-                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                       : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
                   }`}
                 >
@@ -869,7 +869,7 @@ export function Pos({
                     )}
                   </div>
                   {enTicket > 0 ? (
-                    <span className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm font-semibold text-white shadow">
+                    <span className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm font-semibold text-[var(--fo-on-accent,#fff)] shadow">
                       {enTicket}
                     </span>
                   ) : null}
@@ -953,7 +953,7 @@ export function Pos({
                         onClick={() => setRecibidoText(texto)}
                         className={`rounded-full border px-3 py-1.5 text-sm tabular-nums transition ${
                           activo
-                            ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                            ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                             : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] hover:border-[var(--fo-accent)]"
                         }`}
                       >
@@ -1245,7 +1245,7 @@ export function Pos({
       {rows.length > 0 ? (
         <a
           href="#ticket"
-          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-full bg-[var(--fo-accent)] px-5 py-3.5 text-white shadow-lg lg:hidden"
+          className="fixed inset-x-4 bottom-4 z-30 flex items-center justify-between rounded-full bg-[var(--fo-accent)] px-5 py-3.5 text-[var(--fo-on-accent,#fff)] shadow-lg lg:hidden"
         >
           <span className="text-sm font-medium">
             Ver ticket · {unidades} {unidades === 1 ? "artículo" : "artículos"}

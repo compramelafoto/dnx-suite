@@ -19,7 +19,7 @@ export function CartBadge() {
       {hydrated && itemsCount > 0 ? (
         <span
           aria-hidden
-          className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--fo-accent)] px-1.5 text-[11px] font-semibold leading-5 text-white tabular-nums"
+          className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--fo-accent)] px-1.5 text-[11px] font-semibold leading-5 text-[var(--fo-on-accent,#fff)] tabular-nums"
         >
           {itemsCount > 99 ? "99+" : itemsCount}
         </span>

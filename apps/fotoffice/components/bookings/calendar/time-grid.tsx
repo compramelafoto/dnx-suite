@@ -65,7 +65,7 @@ export function TimeGrid({
       <span
         className={`mx-auto flex size-10 items-center justify-center rounded-full text-xl tabular-nums transition-colors ${
           hoy
-            ? "bg-[var(--fo-accent)] font-semibold text-white"
+            ? "bg-[var(--fo-accent)] font-semibold text-[var(--fo-on-accent,#fff)]"
             : `text-[var(--fo-text)] ${dayHref ? "hover:bg-[var(--fo-surface-hover)]" : ""}`
         }`}
       >
@@ -115,7 +115,7 @@ export function TimeGrid({
                 <span
                   className={`mt-0.5 flex size-8 items-center justify-center rounded-full text-base tabular-nums ${
                     hoy
-                      ? "bg-[var(--fo-accent)] font-semibold text-white"
+                      ? "bg-[var(--fo-accent)] font-semibold text-[var(--fo-on-accent,#fff)]"
                       : activo
                         ? "font-semibold text-[var(--fo-accent-hover)]"
                         : "text-[var(--fo-text)]"

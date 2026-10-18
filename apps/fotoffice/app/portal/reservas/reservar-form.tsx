@@ -439,7 +439,7 @@ export function ReservarForm({
                     return (
                       <div
                         key={m.id}
-                        className="absolute inset-x-0.5 z-10 overflow-hidden rounded-md bg-[var(--fo-accent)] px-1.5 py-1 text-xs leading-tight text-white"
+                        className="absolute inset-x-0.5 z-10 overflow-hidden rounded-md bg-[var(--fo-accent)] px-1.5 py-1 text-xs leading-tight text-[var(--fo-on-accent,#fff)]"
                         style={{ top: top + 1, height: alto - 2 }}
                       >
                         <span className="block truncate font-semibold">Tu reserva</span>
