@@ -69,9 +69,10 @@ export function memberNeedsTerms(
 
 export function planJoin(
   existing: { status: string } | null
-): { action: "create" } | { action: "reactivate" } | { action: "already_active" } {
+): { action: "create" } | { action: "reactivate" } | { action: "request_again" } | { action: "already_active" } {
   if (!existing) return { action: "create" };
   if (existing.status === "ACTIVE") return { action: "already_active" };
+  if (existing.status === "REMOVED") return { action: "request_again" };
   return { action: "reactivate" };
 }
 

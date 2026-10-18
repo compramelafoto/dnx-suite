@@ -76,9 +76,20 @@ describe("unirse", () => {
     expect(data.termsAcceptedText).toContain("Al sumarte");
     expect(inviteUpdate.mock.calls[0][0]).toEqual({ where: { id: "i1" }, data: { useCount: { increment: 1 } } });
   });
-  it("POST reactiva a un dado de baja sin duplicar", async () => {
+  it("un dado de baja vuelve como solicitud", async () => {
     inviteFindUnique.mockResolvedValue(validInvite);
     memberFindUnique.mockResolvedValue({ id: 7, status: "REMOVED" });
+    memberUpdate.mockResolvedValue({});
+    inviteUpdate.mockResolvedValue({});
+    const res = await POST(postReq({ token: "tok", acceptTerms: true }));
+    expect(await res.json()).toEqual({ outcome: "requested" });
+    expect(memberCreate).not.toHaveBeenCalled();
+    expect(memberUpdate.mock.calls[0][0].where).toEqual({ id: 7 });
+    expect(memberUpdate.mock.calls[0][0].data).toMatchObject({ status: "REQUESTED", termsVersionAccepted: 2 });
+  });
+  it("un rechazado vuelve activo por link", async () => {
+    inviteFindUnique.mockResolvedValue(validInvite);
+    memberFindUnique.mockResolvedValue({ id: 7, status: "REJECTED" });
     memberUpdate.mockResolvedValue({});
     inviteUpdate.mockResolvedValue({});
     const res = await POST(postReq({ token: "tok", acceptTerms: true }));
@@ -92,5 +103,15 @@ describe("unirse", () => {
     memberFindUnique.mockResolvedValue({ id: 7, status: "ACTIVE" });
     expect(await (await POST(postReq({ token: "tok", acceptTerms: true }))).json()).toEqual({ outcome: "already_active" });
     expect(memberUpdate).not.toHaveBeenCalled();
+  });
+  it("P2002 (race condition) → already_active", async () => {
+    inviteFindUnique.mockResolvedValue(validInvite);
+    memberFindUnique.mockResolvedValue(null);
+    const prismaErr = new Error("Unique constraint failed") as any;
+    prismaErr.code = "P2002";
+    memberCreate.mockRejectedValue(prismaErr);
+    const res = await POST(postReq({ token: "tok", acceptTerms: true }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ outcome: "already_active" });
   });
 });

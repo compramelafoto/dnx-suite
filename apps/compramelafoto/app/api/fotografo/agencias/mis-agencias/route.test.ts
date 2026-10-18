@@ -47,7 +47,8 @@ describe("mis-agencias", () => {
       agencyId: 3, name: "Fotoshow", status: "ACTIVE", commissionLabel: "30 %", needsTerms: true, myPhotosCount: 12,
       albums: [{ title: "Temporada 2027", publicSlug: "temporada-2027-ab" }],
     });
-    expect(JSON.stringify(body)).not.toMatch(/email|buyer|phone/i);
+    // Verifica que no se exponen datos de clientes
+    expect(Object.keys(memberFindMany.mock.calls[0][0].select).sort()).toEqual(["agencyId", "agency", "commissionBps", "status", "termsVersionAccepted"].sort());
     expect(memberFindMany.mock.calls[0][0].where).toEqual({ userId: 20, status: { in: ["ACTIVE", "REQUESTED"] } });
     expect(photoGroupBy.mock.calls[0][0].where).toEqual({ albumId: { in: [50] }, userId: 20, isRemoved: false });
   });

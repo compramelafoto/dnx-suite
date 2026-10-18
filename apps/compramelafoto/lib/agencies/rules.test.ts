@@ -80,7 +80,8 @@ describe("planJoin y planRequest", () => {
   it("link de invitación", () => {
     expect(planJoin(null)).toEqual({ action: "create" });
     expect(planJoin({ status: "ACTIVE" })).toEqual({ action: "already_active" });
-    for (const status of ["REQUESTED", "REJECTED", "REMOVED"]) {
+    expect(planJoin({ status: "REMOVED" })).toEqual({ action: "request_again" });
+    for (const status of ["REQUESTED", "REJECTED"]) {
       expect(planJoin({ status })).toEqual({ action: "reactivate" });
     }
   });

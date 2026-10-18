@@ -72,18 +72,44 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const terms = {
-    status: "ACTIVE",
     termsVersionAccepted: ag.termsVersion,
     termsAcceptedAt: now,
     termsAcceptedText: resolveAgencyTerms(ag),
-    joinedAt: now,
-    removedAt: null,
+    requestMessage: null,
   };
-  await prisma.$transaction([
-    plan.action === "create"
-      ? prisma.agencyMember.create({ data: { agencyId: ag.id, userId: a.user.id, ...terms } })
-      : prisma.agencyMember.update({ where: { id: existing!.id }, data: terms }),
-    prisma.agencyInvite.update({ where: { id: invite.id }, data: { useCount: { increment: 1 } } }),
-  ]);
-  return NextResponse.json({ outcome: "joined" });
+
+  try {
+    if (plan.action === "request_again") {
+      // Dado de baja vuelve a solicitar
+      await prisma.$transaction([
+        prisma.agencyMember.update({
+          where: { id: existing!.id },
+          data: { status: "REQUESTED", ...terms },
+        }),
+        prisma.agencyInvite.update({ where: { id: invite.id }, data: { useCount: { increment: 1 } } }),
+      ]);
+      return NextResponse.json({ outcome: "requested" });
+    } else {
+      // create o reactivate
+      const joinTerms = {
+        status: "ACTIVE",
+        joinedAt: now,
+        removedAt: null,
+        ...terms,
+      };
+      await prisma.$transaction([
+        plan.action === "create"
+          ? prisma.agencyMember.create({ data: { agencyId: ag.id, userId: a.user.id, ...joinTerms } })
+          : prisma.agencyMember.update({ where: { id: existing!.id }, data: joinTerms }),
+        prisma.agencyInvite.update({ where: { id: invite.id }, data: { useCount: { increment: 1 } } }),
+      ]);
+      return NextResponse.json({ outcome: "joined" });
+    }
+  } catch (err) {
+    // Manejo de race condition: P2002 es unique constraint violation
+    if (err instanceof Error && "code" in err && err.code === "P2002") {
+      return NextResponse.json({ outcome: "already_active" });
+    }
+    throw err;
+  }
 }
