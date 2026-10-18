@@ -7294,6 +7294,7 @@ model Workspace {
   fotofficePedidoTareas          FotofficePedidoTarea[]
   fotofficeProyectos             FotofficeProyecto[]
   fotofficeProductoProyectos     FotofficeProductoProyecto[]
+  fotofficeProveedores           FotofficeProveedor[]
   fotofficeProyectoRoles         FotofficeProyectoRol[]
   fotofficeProyectoParticipantes FotofficeProyectoParticipante[]
   fotofficeProyectoNotas         FotofficeProyectoNota[]
@@ -7376,6 +7377,9 @@ model FotofficeWorkspaceBranding {
   /// Color propio del panel (acento, con el menú lateral negro). Vacío = colores de FOTOFFICE.
   /// Aparte de los del sitio público a propósito: prenderlos cambiaría el panel sin aviso.
   panelColor            String?
+  /// Dirección y horario de atención al público: los usan los avisos de "Listo para retirar".
+  atencionDireccion     String?
+  atencionHorario       String?
   contactEmail          String?
   phone                 String?
   whatsapp              String?
@@ -21686,11 +21690,19 @@ model FotofficeProyecto {
   description     String?
   suspendedAt     DateTime?
   suspendReason   String?
+  /// Fecha de entrega prometida al cliente (la del Mostrador). Aparte de `finalDueDate`, que sale de las etapas.
+  entregaPrometida   DateTime? @db.Date
+  /// A qué proveedor se mandó (laboratorio), su número de pedido y lo que cobra.
+  proveedorId        String?
+  proveedorRef       String?
+  proveedorCostoArs  Decimal?  @db.Decimal(14, 2)
+  proveedorEnviadoAt DateTime?
   externalId      String?
   createdByUserId Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  proveedor     FotofficeProveedor?             @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client        Client                          @relation(fields: [clientId], references: [id], onDelete: Restrict)
   pedido        FotofficePedido?                @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
@@ -21705,6 +21717,7 @@ model FotofficeProyecto {
 
   @@unique([workspaceId, number])
   @@unique([pedidoId, pedidoItemIndex, circuitId])
+  @@index([workspaceId, proveedorId])
   @@index([workspaceId, finalDueDate])
   @@index([workspaceId, clientId])
   @@index([workspaceId, pedidoId])
@@ -21729,16 +21742,45 @@ model FotofficeProductoProyecto {
   /// null = «{contacto} · {producto}».
   nameTemplate  String?
   order         Int      @default(0)
+  /// Días hasta la entrega que propone el Mostrador. null = los del recorrido.
+  plazoDias       Int?
+  /// El último plazo que se eligió al venderlo: el Mostrador lo propone la próxima vez.
+  ultimoPlazoDias Int?
+  /// Proveedor al que se manda por omisión (se puede cambiar en cada trabajo).
+  proveedorId     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   circuit   FotofficeCircuit @relation(fields: [circuitId], references: [id], onDelete: Cascade)
+  proveedor FotofficeProveedor? @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, productId, order])
   @@index([productId])
   @@index([circuitId])
+}
+
+/// Proveedor de un trabajo: el laboratorio al que se manda (La Isla, Román, Fotolag…). Se cargan a
+/// mano en Configuración → Proveedores. Al pasar un trabajo a "Enviado" se elige uno y, si tiene
+/// correo, se le manda el pedido.
+model FotofficeProveedor {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String?
+  phone       String?
+  notes       String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyectos FotofficeProyecto[]
+  reglas    FotofficeProductoProyecto[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, active])
 }
 
 /// Rol de un participante de proyecto (Fotógrafo, Editor, Salón, DJ…).
