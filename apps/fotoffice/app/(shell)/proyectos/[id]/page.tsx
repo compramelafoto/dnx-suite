@@ -12,6 +12,8 @@ import { NotasProyecto } from "@/components/proyectos/notas-proyecto";
 import { ParticipantesProyecto } from "@/components/proyectos/participantes-proyecto";
 import { PlanProyecto } from "@/components/proyectos/plan-proyecto";
 import { ProveedorProyecto } from "@/components/proyectos/proveedor-proyecto";
+import { CarpetaProyecto } from "@/components/proyectos/carpeta-proyecto";
+import { listarArchivos } from "@/lib/carpetas/carpeta";
 import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
@@ -51,6 +53,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
     resolveWorkspaceRole(user.id, workspace.id),
     leerProveedorDelTrabajo(ctx, id),
   ]);
+  const archivos = adjuntosR2Configurado() ? await listarArchivos(ctx, id) : null;
   if (!ficha) notFound();
   // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda (si no, null y no se lee nada).
   const citas = await citasDeOrigen(ctx, { proyectoId: ficha.id });
@@ -129,6 +132,9 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
               enviadoAt={proveedor.enviadoAt ? proveedor.enviadoAt.toISOString() : null}
               puedeEditar={puedeEditar}
             />
+          ) : null}
+          {archivos ? (
+            <CarpetaProyecto proyectoId={ficha.id} archivos={archivos} vence={proveedor?.carpetaVence ?? null} puedeEditar={puedeEditar} />
           ) : null}
           {galerias ? <TarjetaGaleriasProyecto proyectoId={ficha.id} galerias={galerias} puedeCrear={puedeGestionarGalerias(ctx)} /> : null}
           <ParticipantesProyecto

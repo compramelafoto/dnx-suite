@@ -7306,6 +7306,7 @@ model Workspace {
   fotofficeProyectos             FotofficeProyecto[]
   fotofficeProductoProyectos     FotofficeProductoProyecto[]
   fotofficeProveedores           FotofficeProveedor[]
+  fotofficeArchivosTrabajo       FotofficeArchivoTrabajo[]
   fotofficeProyectoRoles         FotofficeProyectoRol[]
   fotofficeProyectoParticipantes FotofficeProyectoParticipante[]
   fotofficeProyectoNotas         FotofficeProyectoNota[]
@@ -21708,11 +21709,20 @@ model FotofficeProyecto {
   proveedorRef       String?
   proveedorCostoArs  Decimal?  @db.Decimal(14, 2)
   proveedorEnviadoAt DateTime?
+  /// Carpeta del trabajo: enlaces privados (laboratorio y cliente). El token se rehace con HMAC desde
+  /// la fecha de emisión; acá queda sólo su hash para encontrarlo.
+  carpetaClienteEmitida DateTime?
+  carpetaClienteHash    String?   @unique
+  carpetaLabEmitida     DateTime?
+  carpetaLabHash        String?   @unique
+  /// Después de esta fecha los archivos se borran solos (cron de adjuntos).
+  carpetaVence          DateTime?
   externalId      String?
   createdByUserId Int?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  archivos      FotofficeArchivoTrabajo[]
   proveedor     FotofficeProveedor?             @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client        Client                          @relation(fields: [clientId], references: [id], onDelete: Restrict)
@@ -21792,6 +21802,28 @@ model FotofficeProveedor {
 
   @@unique([workspaceId, name])
   @@index([workspaceId, active])
+}
+
+/// Un archivo de la carpeta de un trabajo (fotos para imprimir, un VHS digitalizado, escaneos de
+/// un rollo…), en el bucket privado de R2. Se sube directo desde el navegador con una URL firmada.
+model FotofficeArchivoTrabajo {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  proyectoId       String
+  key              String   @unique
+  nombre           String
+  tipo             String
+  bytes            BigInt   @default(0)
+  /// PENDIENTE (pidió la subida) | LISTO (confirmado en R2)
+  estado           String   @default("PENDIENTE")
+  uploadedByUserId Int?
+  createdAt        DateTime @default(now())
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@index([proyectoId, createdAt])
+  @@index([workspaceId, estado])
 }
 
 /// Rol de un participante de proyecto (Fotógrafo, Editor, Salón, DJ…).
