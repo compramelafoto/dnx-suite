@@ -93,11 +93,23 @@ Estas otras ya vienen puestas en `fly.toml` y no hace falta tocarlas:
 
 ```bash
 fly deploy . -c apps/compramelafoto-workers/camera-ftp-gateway/fly.toml \
-  --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile
+  --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile \
+  --ha=false
 ```
 
 El `.` del principio es importante: le dice a Fly que use la raíz del
-repositorio como carpeta de trabajo. La primera vez tarda varios minutos.
+repositorio como carpeta de trabajo. `--ha=false` evita que Fly cree dos
+máquinas. La primera vez tarda varios minutos.
+
+Después asegurate de que quede **una sola máquina**:
+
+```bash
+fly scale count 1 -a clf-camera-ftp
+```
+
+Tiene que ser una sola porque en FTP pasivo la cámara abre dos conexiones
+(control y datos) y las dos deben llegar a la misma máquina; con dos máquinas
+las subidas fallarían al azar.
 
 Cuando termine, comprobá que está vivo:
 
@@ -137,6 +149,12 @@ Con FileZilla (o cualquier programa de FTP):
 - Modo de transferencia: **pasivo**
 - Subí un JPG de prueba. Tiene que aparecer en el álbum en uno o dos minutos
   (lo procesa el cron de Vercel).
+- **Comprobá expresamente que la subida en modo pasivo funciona** a través
+  del proxy de Fly: el servidor (ftp-srv) exige que la conexión de datos venga
+  de la misma dirección que la de control. Si la conexión se establece pero la
+  subida falla o se cuelga, lo primero a revisar es que la app tenga la IPv4
+  dedicada del paso 2 (`fly ips list -a clf-camera-ftp`) y que `FTP_PASV_URL`
+  sea esa misma IP.
 
 Prueba automática con el script del repositorio:
 
@@ -181,6 +199,14 @@ Hay que abrir en el firewall los puertos 21, 50000-50050 y 8080.
   ni los `node_modules` de la app.
 - Los paquetes npm que usa esa lib están declarados en el `package.json` del
   servidor, y el Dockerfile los enlaza hacia `apps/compramelafoto/lib`.
-- Desarrollo local: `pnpm --filter compramelafoto-camera-ftp-gateway dev`.
+- `pnpm --filter compramelafoto-camera-ftp-gateway dev` **no arranca en
+  local**: el `package.json` de `apps/compramelafoto` no es `type: module` y su
+  lib se carga como CommonJS. Para simular la imagen: poner temporalmente
+  `{"name":"x","type":"module"}` como `apps/compramelafoto/package.json`,
+  mover `apps/compramelafoto/node_modules` y enlazar ahí el `node_modules` del
+  gateway, correr `pnpm start` con variables falsas (ver `.env.example`) y
+  mirar `/health`; después restaurar con `git checkout`.
+- Fragilidad: los archivos de `apps/compramelafoto/lib` que usa el servidor
+  tienen que seguir siendo compatibles con ESM (sin `require` ni `__dirname`).
 - Los otros trabajadores (`camera-ingest`, `video`) tienen su propia guía; el
   de video ya tiene su Dockerfile para Cloud Run.

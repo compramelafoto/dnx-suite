@@ -2,8 +2,10 @@
 # Guía paso a paso: apps/compramelafoto-workers/deploy/README.md
 #
 # Se despliega desde la RAÍZ del monorepo:
-#   fly deploy -c apps/compramelafoto-workers/camera-ftp-gateway/fly.toml \
-#     --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile
+#   fly deploy . -c apps/compramelafoto-workers/camera-ftp-gateway/fly.toml \
+#     --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile \
+#     --ha=false
+# (una sola máquina: con dos, el FTP pasivo falla al azar)
 #
 # Acá no va ningún secreto. DATABASE_URL, R2_* y FTP_PASV_URL se cargan con
 # `fly secrets set` (ver la guía).

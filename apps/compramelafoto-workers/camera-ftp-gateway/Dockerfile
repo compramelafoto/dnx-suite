@@ -3,8 +3,9 @@
 # Se construye desde la RAÍZ del monorepo, porque depende de @repo/db, de
 # @repo/geo y de una parte del código de la app (apps/compramelafoto/lib):
 #   docker build -f apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile .
-#   fly deploy -c apps/compramelafoto-workers/camera-ftp-gateway/fly.toml \
-#     --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile
+#   fly deploy . -c apps/compramelafoto-workers/camera-ftp-gateway/fly.toml \
+#     --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile \
+#     --ha=false
 # Guía completa: apps/compramelafoto-workers/deploy/README.md
 #
 # El servidor se queda escuchando: FTP en el 21, datos pasivos en
@@ -55,6 +56,9 @@ COPY apps/compramelafoto-workers/camera-ftp-gateway apps/compramelafoto-workers/
 #   - El package.json mínimo con "type": "module" hace que esa lib se cargue
 #     como módulos modernos (sin él, Node la toma como CommonJS y falla al
 #     importar por nombre).
+#     OJO, es frágil: desde acá esos archivos de lib corren como ESM, así que
+#     no pueden usar `require` ni `__dirname`. Si alguno lo hace, el servidor
+#     deja de arrancar en la imagen (y localmente no se nota).
 COPY apps/compramelafoto/lib apps/compramelafoto/lib
 RUN printf '{ "name": "compramelafoto-lib-para-ftp", "private": true, "type": "module" }\n' \
       > apps/compramelafoto/package.json \
