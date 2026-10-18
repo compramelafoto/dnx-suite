@@ -5,6 +5,8 @@ import { processPhoto } from "@/lib/image-processing";
 import { schedulePhotoVariantsOnUpload } from "@/lib/images/generate-photo-variants";
 import { extractCapturedAtFromBuffer } from "@/lib/photo-exif";
 import { incrementPhotosUploaded } from "@/lib/platform-metrics";
+import { findAgencyAlbumGate } from "@/lib/agencies/queries";
+import { extractPhotoFacts, resolvePhotoLocation } from "@/lib/agencies/photo-facts";
 
 export type FinalizeAlbumPhotoFromRawInput = {
   albumId: number;
@@ -14,10 +16,13 @@ export type FinalizeAlbumPhotoFromRawInput = {
   folderId?: number;
   maxBytes: number;
   maxMb: number;
+  declaredPoint?: { lat: number; lng: number } | null;
+  originalFilename?: string | null;
 };
 
 export type FinalizeAlbumPhotoFromRawResult = {
   photo: { id: number; previewUrl: string; originalKey: string };
+  duplicate: boolean;
 };
 
 /**
@@ -46,6 +51,41 @@ export async function finalizeAlbumPhotoFromRaw(
   const fileKey = `${crypto.randomUUID()}.jpg`;
   const capturedAt = await extractCapturedAtFromBuffer(buffer);
 
+  // Álbumes de agencia: ubicación de la toma y descarte de repetidas (FTP + tarjeta, doble subida).
+  // Los álbumes comunes no pasan por acá y quedan exactamente como antes.
+  const agencyGate = await findAgencyAlbumGate(albumId);
+  let agencyData: Record<string, unknown> = {};
+  if (agencyGate) {
+    const facts = await extractPhotoFacts(buffer, input.originalFilename ?? null);
+    const sameTake =
+      facts.cameraSerial && facts.cameraImageNumber && capturedAt
+        ? [{ cameraSerial: facts.cameraSerial, cameraImageNumber: facts.cameraImageNumber, capturedAt }]
+        : [];
+    const existing = await prisma.photo.findFirst({
+      where: { albumId, isRemoved: false, OR: [{ contentSha256: facts.contentSha256 }, ...sameTake] },
+      select: { id: true, previewUrl: true, originalKey: true },
+    });
+    if (existing) {
+      try {
+        await deleteFromR2(key);
+      } catch (deleteErr) {
+        console.warn("No se pudo eliminar archivo raw repetido en R2:", deleteErr);
+      }
+      return {
+        photo: { id: existing.id, previewUrl: existing.previewUrl, originalKey: existing.originalKey },
+        duplicate: true,
+      };
+    }
+    const location = resolvePhotoLocation(facts, input.declaredPoint ?? null);
+    agencyData = {
+      ...(location ?? {}),
+      contentSha256: facts.contentSha256,
+      cameraSerial: facts.cameraSerial,
+      cameraImageNumber: facts.cameraImageNumber,
+      originalFilename: input.originalFilename ?? null,
+    };
+  }
+
   const { previewUrl, originalKey } = await processPhoto(
     buffer,
     fileKey,
@@ -65,6 +105,7 @@ export async function finalizeAlbumPhotoFromRaw(
         analysisStatus: "PENDING",
         exifMetadataStatus: "PENDING",
         ...folderData,
+        ...agencyData,
       },
     });
   } catch (createErr: unknown) {
@@ -185,5 +226,6 @@ export async function finalizeAlbumPhotoFromRaw(
 
   return {
     photo: { id: photo.id, previewUrl, originalKey },
+    duplicate: false,
   };
 }

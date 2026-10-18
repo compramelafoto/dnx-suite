@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { ensureAlbumUploadAccess, ensureMpConnected, isPhotoFolderValidationError, resolvePhotoUploadFolders } from "../../upload-helpers";
 import { finalizeAlbumPhotoFromRaw } from "@/lib/albums/finalize-album-photo-from-raw";
+import { parseDeclaredPoint } from "@/lib/agencies/photo-facts";
 import { getAlbumPhotoMaxBytes, getAlbumPhotoMaxMb } from "@/lib/albums/album-photo-upload-limits";
 
 export const runtime = "nodejs";
@@ -65,6 +66,9 @@ export async function POST(
     const maxBytes = getAlbumPhotoMaxBytes();
     const maxMb = getAlbumPhotoMaxMb();
 
+    const declaredPoint = parseDeclaredPoint(body?.declaredLat, body?.declaredLng);
+    const originalFilename = typeof body?.originalName === "string" ? body.originalName.trim().slice(0, 255) || null : null;
+
     const result = await finalizeAlbumPhotoFromRaw({
       albumId,
       userId: user.id,
@@ -73,8 +77,13 @@ export async function POST(
       folderId: resolvedFolders.folderId,
       maxBytes,
       maxMb,
+      declaredPoint,
+      originalFilename,
     });
 
+    if (result.duplicate) {
+      return NextResponse.json({ photo: result.photo, duplicate: true }, { status: 200 });
+    }
     return NextResponse.json({ photo: result.photo }, { status: 201 });
   } catch (err: unknown) {
     console.error("POST direct-upload complete ERROR >>>", err);
