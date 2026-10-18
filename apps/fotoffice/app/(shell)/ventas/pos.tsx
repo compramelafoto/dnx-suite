@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import {
   ArrowLeftRight,
   Banknote,
@@ -71,6 +71,11 @@ type TicketRow = TicketLine & {
   stockQty: number | null;
 };
 
+/** El sistema operativo no cambia mientras la pantalla está abierta: no hay a qué suscribirse. */
+function sinSuscripcion() {
+  return () => {};
+}
+
 let contador = 0;
 function nuevaKey(): string {
   contador += 1;
@@ -78,6 +83,14 @@ function nuevaKey(): string {
 }
 
 type ClienteModo = "ninguno" | "existente" | "nuevo";
+
+/** Sobre qué actúan los atajos de cantidad: un renglón del ticket o una tarjeta del catálogo. */
+type Objetivo = { tipo: "renglon"; key: string } | { tipo: "producto"; id: string };
+
+/** Hasta tres cifras es una cantidad; más, es un código que viene del lector. */
+const MAX_CIFRAS_CANTIDAD = 3;
+const ESPERA_CANTIDAD_MS = 800;
+const MAX_HISTORIAL = 50;
 
 /**
  * La caja de kiosco.
@@ -137,6 +150,26 @@ export function Pos({
   // Buscador rápido: el desplegable de coincidencias y cuál está marcado para Enter.
   const [desplegableAbierto, setDesplegableAbierto] = useState(false);
   const [resaltado, setResaltado] = useState(0);
+
+  // Atajos de teclado (ver `manejarAtajo`): deshacer, el renglón activo, lo que tiene el puntero
+  // encima y la cantidad que se está tipeando.
+  const historialRef = useRef<TicketRow[][]>([]);
+  const rowsRef = useRef<TicketRow[]>(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+  const [activo, setActivo] = useState<string | null>(null);
+  const [apuntado, setApuntado] = useState<Objetivo | null>(null);
+  const [cantidadTipeada, setCantidadTipeada] = useState<{ texto: string; nombre: string } | null>(null);
+  const tipeoRef = useRef<{ texto: string; objetivo: Objetivo; timer: ReturnType<typeof setTimeout> | null } | null>(null);
+  const [avisoAtajo, setAvisoAtajo] = useState<string | null>(null);
+  const avisoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ⌘ en Mac, Ctrl en el resto. En el servidor no se sabe: dice Ctrl hasta que hidrata.
+  const esMac = useSyncExternalStore(
+    sinSuscripcion,
+    () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent),
+    () => false,
+  );
   const [procesando, startTransition] = useTransition();
 
   // `products` es sólo lo que `page.tsx` precargó —como mucho 200, ver el comentario de
@@ -200,7 +233,7 @@ export function Pos({
    * selector de talle: con talles, el stock vive en cada talle (D4) y el servidor rechaza un
    * renglón sin talle. Cada talle es su propio renglón: "Remera — M" y "Remera — L" no se suman.
    */
-  function agregarProducto(p: ProductRow, talle: ProductVariantRow | null = null) {
+  function agregarProducto(p: ProductRow, talle: ProductVariantRow | null = null, fijarCantidad: number | null = null) {
     limpiarAviso();
     if (talle === null && p.variants.length > 0) {
       setEligiendoTalle(p);
@@ -209,19 +242,21 @@ export function Pos({
     setEligiendoTalle(null);
     const variantId = talle?.id ?? null;
     const precio = talle?.priceMinor ?? p.priceMinor;
-    setRows((prev) => {
-      const existente = prev.find((r) => r.productId === p.id && r.variantId === variantId);
-      if (existente) {
-        return prev.map((r) => (r.key === existente.key ? { ...r, qty: r.qty + 1 } : r));
+    const existente = rowsRef.current.find((r) => r.productId === p.id && r.variantId === variantId);
+    const key = existente?.key ?? nuevaKey();
+    cambiarRenglones((prev) => {
+      const ya = prev.find((r) => r.productId === p.id && r.variantId === variantId);
+      if (ya) {
+        return prev.map((r) => (r.key === ya.key ? { ...r, qty: fijarCantidad ?? r.qty + 1 } : r));
       }
       return [
         ...prev,
         {
-          key: nuevaKey(),
+          key,
           productId: p.id,
           variantId,
           description: talle ? `${p.name} — ${talle.name}` : p.name,
-          qty: 1,
+          qty: fijarCantidad ?? 1,
           unitPriceMinor: precio,
           unitCostMinor: null,
           priceWasOverridden: false,
@@ -231,7 +266,55 @@ export function Pos({
         },
       ];
     });
+    setActivo(key);
   }
+
+  /** Todo cambio del ticket pasa por acá: guarda cómo estaba para poder deshacerlo (Ctrl/⌘+Z). */
+  function cambiarRenglones(cambio: (prev: TicketRow[]) => TicketRow[]) {
+    historialRef.current.push(rowsRef.current);
+    if (historialRef.current.length > MAX_HISTORIAL) historialRef.current.shift();
+    setRows(cambio);
+  }
+
+  function avisar(texto: string) {
+    setAvisoAtajo(texto);
+    if (avisoTimerRef.current) clearTimeout(avisoTimerRef.current);
+    avisoTimerRef.current = setTimeout(() => setAvisoAtajo(null), 3000);
+  }
+
+  function deshacer() {
+    const anterior = historialRef.current.pop();
+    if (!anterior) {
+      avisar("No hay nada para deshacer.");
+      return;
+    }
+    setRows(anterior);
+    setActivo(anterior.at(-1)?.key ?? null);
+    avisar("Deshecho.");
+  }
+
+  /** Vaciar a mano (botón o Esc): se puede deshacer. Después de cobrar no: ver `cobrar`. */
+  function vaciarTicket() {
+    if (rowsRef.current.length === 0) return;
+    cambiarRenglones(() => []);
+    setActivo(null);
+    avisar(`Ticket vaciado. ${esMac ? "⌘" : "Ctrl"}+Z para deshacer.`);
+    searchRef.current?.focus();
+  }
+
+  /** El renglón o la tarjeta sobre la que está parado: lo que tiene el puntero o el foco, si no el último tocado. */
+  function objetivoActual(): Objetivo | null {
+    if (apuntado) return apuntado;
+    const filas = rowsRef.current;
+    const renglon = filas.find((r) => r.key === activo) ?? filas.at(-1);
+    return renglon ? { tipo: "renglon", key: renglon.key } : null;
+  }
+
+  function nombreDe(objetivo: Objetivo): string {
+    if (objetivo.tipo === "renglon") return rowsRef.current.find((r) => r.key === objetivo.key)?.description ?? "";
+    return products.find((p) => p.id === objetivo.id)?.name ?? "";
+  }
+
 
   /**
    * El lector de códigos es sólo un teclado que tipea y manda Enter. Si el texto coincide
@@ -270,16 +353,16 @@ export function Pos({
       return;
     }
     if (e.key === "Escape") {
-      if (search === "") return;
+      if (search === "") return; // buscador vacío: Esc lo maneja el atajo (vacía el ticket)
       e.preventDefault();
       setSearch("");
       setResaltado(0);
       return;
     }
     if (e.key !== "Enter") return;
-    e.preventDefault();
     const texto = search.trim();
     if (texto === "") return;
+    e.preventDefault();
     const codigoBarras = normalizeBarcode(texto);
     const coincideCodigo = (p: ProductRow) =>
       p.sku === texto || (codigoBarras !== null && p.barcode === codigoBarras);
@@ -314,13 +397,13 @@ export function Pos({
 
   function actualizarCantidad(key: string, qty: number) {
     if (!Number.isFinite(qty) || qty < 1) return;
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, qty: Math.floor(qty) } : r)));
+    cambiarRenglones((prev) => prev.map((r) => (r.key === key ? { ...r, qty: Math.floor(qty) } : r)));
   }
 
   function actualizarPrecio(key: string, texto: string) {
     const minor = parseArsToMinor(texto);
     if (minor === null) return;
-    setRows((prev) =>
+    cambiarRenglones((prev) =>
       prev.map((r) =>
         r.key === key
           ? { ...r, unitPriceMinor: minor, priceWasOverridden: r.catalogPriceMinor !== null && minor !== r.catalogPriceMinor }
@@ -330,7 +413,7 @@ export function Pos({
   }
 
   function quitarRenglon(key: string) {
-    setRows((prev) => prev.filter((r) => r.key !== key));
+    cambiarRenglones((prev) => prev.filter((r) => r.key !== key));
   }
 
   function agregarSuelto() {
@@ -338,10 +421,12 @@ export function Pos({
     const precio = parseArsToMinor(sueltoPrecio);
     if (descripcion === "" || precio === null) return;
     limpiarAviso();
-    setRows((prev) => [
+    const key = nuevaKey();
+    setActivo(key);
+    cambiarRenglones((prev) => [
       ...prev,
       {
-        key: nuevaKey(),
+        key,
         productId: null,
         variantId: null,
         description: descripcion,
@@ -427,12 +512,162 @@ export function Pos({
           vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
         });
         reiniciarTicket();
+        // Lo cobrado no se deshace con Ctrl/⌘+Z: para eso está anular la venta.
+        historialRef.current = [];
+        setActivo(null);
         searchRef.current?.focus();
       } else {
         setError(resultado.error);
       }
     });
   }
+
+  /** + / − sobre el objetivo. Un producto del catálogo que todavía no está en el ticket se agrega. */
+  function sumarUno(objetivo: Objetivo, delta: 1 | -1) {
+    const key =
+      objetivo.tipo === "renglon"
+        ? objetivo.key
+        : rowsRef.current.find((r) => r.productId === objetivo.id && r.variantId === null)?.key;
+    if (!key) {
+      if (objetivo.tipo === "producto" && delta > 0) {
+        const p = products.find((x) => x.id === objetivo.id);
+        if (p) agregarProducto(p);
+      }
+      return;
+    }
+    const renglon = rowsRef.current.find((r) => r.key === key);
+    if (!renglon) return;
+    if (renglon.qty + delta < 1) quitarRenglon(key);
+    else actualizarCantidad(key, renglon.qty + delta);
+    setActivo(key);
+  }
+
+  /** Un número tipeado sobre el objetivo: esa es la cantidad (0 lo quita). */
+  function fijarCantidad(objetivo: Objetivo, cantidad: number) {
+    if (objetivo.tipo === "producto") {
+      const enTicket = rowsRef.current.find((r) => r.productId === objetivo.id && r.variantId === null);
+      if (enTicket) {
+        fijarCantidad({ tipo: "renglon", key: enTicket.key }, cantidad);
+        return;
+      }
+      const p = products.find((x) => x.id === objetivo.id);
+      if (p && cantidad > 0) agregarProducto(p, null, cantidad);
+      return;
+    }
+    if (cantidad === 0) quitarRenglon(objetivo.key);
+    else actualizarCantidad(objetivo.key, cantidad);
+    setActivo(objetivo.key);
+  }
+
+  function terminarTipeo(aplicar: boolean) {
+    const tipeo = tipeoRef.current;
+    tipeoRef.current = null;
+    setCantidadTipeada(null);
+    if (!tipeo) return;
+    if (tipeo.timer) clearTimeout(tipeo.timer);
+    if (aplicar) fijarCantidad(tipeo.objetivo, Number(tipeo.texto));
+  }
+
+  /** Lo que se tipeó pasa al buscador (letras, o un código largo que manda el lector). */
+  function escribirEnBuscador(texto: string) {
+    const input = searchRef.current;
+    input?.focus();
+    setSearch((prev) => prev + texto);
+    setResaltado(0);
+    setDesplegableAbierto(true);
+  }
+
+  /**
+   * Atajos del mostrador, en toda la pantalla:
+   * - + o = suman uno, − resta uno, al renglón o tarjeta donde está parado (o al último tocado).
+   * - Un número (hasta 3 cifras) fija esa cantidad. Más cifras seguidas son un código de barras:
+   *   van al buscador, así el lector sigue funcionando aunque el puntero esté sobre un producto.
+   * - Letras: van directo al buscador.
+   * - Esc: cierra lo abierto o vacía el ticket (se puede deshacer).
+   * - Ctrl/⌘+Z deshace; Ctrl/⌘+Enter cobra.
+   * Dentro de un campo (precio, descuento, "paga con"…) el teclado es del campo, salvo el
+   * buscador vacío, que es donde queda el cursor casi siempre.
+   */
+  function manejarAtajo(e: KeyboardEvent) {
+    if (e.defaultPrevented || procesando) return;
+    const t = e.target as HTMLElement | null;
+    const enBuscador = t !== null && t === searchRef.current;
+    const enCampo =
+      t !== null && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+    const buscadorVacio = (searchRef.current?.value ?? "") === "";
+    const libre = !enCampo || (enBuscador && buscadorVacio);
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (mod && !e.shiftKey && e.key.toLowerCase() === "z") {
+      if (!libre) return;
+      e.preventDefault();
+      terminarTipeo(false);
+      deshacer();
+      return;
+    }
+    if (mod && e.key === "Enter") {
+      e.preventDefault();
+      terminarTipeo(true);
+      cobrar();
+      return;
+    }
+    if (mod || e.altKey || !libre) return;
+
+    const tipeo = tipeoRef.current;
+    if (/^[0-9]$/.test(e.key)) {
+      const objetivo = tipeo?.objetivo ?? objetivoActual();
+      if (!objetivo) return; // sin nada en el ticket, el número va al buscador como siempre
+      e.preventDefault();
+      const texto = (tipeo?.texto ?? "") + e.key;
+      if (tipeo?.timer) clearTimeout(tipeo.timer);
+      if (texto.length > MAX_CIFRAS_CANTIDAD) {
+        terminarTipeo(false);
+        escribirEnBuscador(texto);
+        return;
+      }
+      tipeoRef.current = { texto, objetivo, timer: setTimeout(() => terminarTipeo(true), ESPERA_CANTIDAD_MS) };
+      setCantidadTipeada({ texto, nombre: nombreDe(objetivo) });
+      return;
+    }
+    if (e.key === "Enter" && tipeo) {
+      e.preventDefault();
+      terminarTipeo(true);
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (tipeo) terminarTipeo(false);
+      else if (eligiendoTalle) setEligiendoTalle(null);
+      else vaciarTicket();
+      return;
+    }
+    if (e.key === "+" || e.key === "=" || e.key === "-") {
+      const objetivo = objetivoActual();
+      if (!objetivo) return;
+      e.preventDefault();
+      terminarTipeo(true);
+      sumarUno(objetivo, e.key === "-" ? -1 : 1);
+      return;
+    }
+    if (e.key.length === 1 && /\S/.test(e.key)) {
+      // Una letra con una cantidad a medio tipear: era una búsqueda ("10x15"), no una cantidad.
+      const previo = tipeo?.texto ?? "";
+      if (tipeo) terminarTipeo(false);
+      if (enBuscador && previo === "") return; // el buscador ya la escribe solo
+      e.preventDefault();
+      escribirEnBuscador(previo + e.key);
+    }
+  }
+
+  const atajoRef = useRef(manejarAtajo);
+  useEffect(() => {
+    atajoRef.current = manejarAtajo;
+  });
+  useEffect(() => {
+    const escuchar = (e: KeyboardEvent) => atajoRef.current(e);
+    window.addEventListener("keydown", escuchar);
+    return () => window.removeEventListener("keydown", escuchar);
+  }, []);
 
   const vuelto = calcularVuelto(totals.totalMinor, paymentMethod === "EFECTIVO" ? parseArsToMinor(recibidoText) : null);
   const unidades = rows.reduce((acc, r) => acc + r.qty, 0);
@@ -540,6 +775,25 @@ export function Pos({
           ) : null}
         </div>
 
+        <p className="hidden flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--fo-muted)] lg:flex" aria-label="Atajos de teclado">
+          <span>
+            <Tecla>+</Tecla> <Tecla>−</Tecla> cantidad
+          </span>
+          <span>
+            <Tecla>10</Tecla> fija 10 unidades
+          </span>
+          <span>
+            <Tecla>Esc</Tecla> vaciar
+          </span>
+          <span>
+            <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>+<Tecla>Z</Tecla> deshacer
+          </span>
+          <span>
+            <Tecla>{esMac ? "⌘" : "Ctrl"}</Tecla>+<Tecla>Enter</Tecla> cobrar
+          </span>
+          <span>Escribí en cualquier lado para buscar</span>
+        </p>
+
         {categories.length > 0 ? (
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Categorías">
             {[{ id: "", name: "Todo" }, ...categories].map((c) => {
@@ -594,6 +848,10 @@ export function Pos({
                   key={p.id}
                   type="button"
                   onClick={() => agregarProducto(p)}
+                  onMouseEnter={() => setApuntado({ tipo: "producto", id: p.id })}
+                  onMouseLeave={() => setApuntado(null)}
+                  onFocus={() => setApuntado({ tipo: "producto", id: p.id })}
+                  onBlur={() => setApuntado(null)}
                   className={`group relative flex flex-col overflow-hidden rounded-[var(--fo-radius)] border bg-[var(--fo-bg-elevated)] text-left transition active:scale-[0.98] ${
                     enTicket > 0
                       ? "border-[var(--fo-accent)] ring-2 ring-[var(--fo-accent-muted)]"
@@ -632,336 +890,356 @@ export function Pos({
         )}
       </section>
 
-      {/* El ticket */}
-      <section
-        id="ticket"
-        className="fo-card flex h-fit flex-col overflow-hidden p-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]"
-      >
-        <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
-          <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
-            Ticket
-            {unidades > 0 ? (
-              <span className="text-sm font-normal text-[var(--fo-muted)]">
-                · {unidades} {unidades === 1 ? "artículo" : "artículos"}
-              </span>
-            ) : null}
-          </h2>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setMostrarSuelto((v) => !v)}
-              className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
-            >
-              + Otro importe
-            </button>
-            {rows.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  reiniciarTicket();
-                  searchRef.current?.focus();
-                }}
-                className="flex size-8 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-danger)]"
-                aria-label="Vaciar el ticket"
-                title="Vaciar el ticket"
-              >
-                <Trash2 className="size-4" aria-hidden />
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4">
-          {mostrarSuelto ? (
-            <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
-              <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>
-              <input
-                value={sueltoDescripcion}
-                onChange={(e) => setSueltoDescripcion(e.target.value)}
-                placeholder="Qué es"
-                className="fo-input"
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <InputMoneda
-                  value={sueltoPrecio}
-                  onChange={setSueltoPrecio}
-                  placeholder="Precio"
-                  aria-label="Precio"
-                  wrapperClassName="min-w-0 flex-1"
-                />
-                <button type="button" onClick={agregarSuelto} className="fo-btn fo-btn-secondary text-sm">
-                  Agregar
-                </button>
+      {/*
+        El ticket, en dos tarjetas: arriba el total, cómo paga y el botón de cobrar; abajo la
+        lista completa de lo que lleva, siempre a la vista. Antes la lista vivía en un recuadro
+        con barra propia entre el encabezado y el total, y con tres artículos ya quedaba tapada.
+      */}
+      <div id="ticket" className="flex h-fit min-w-0 flex-col gap-4">
+        <section className="fo-card overflow-hidden p-0" aria-label="Cobro">
+          <div className="space-y-4 p-4">
+            {/* Total */}
+            <div>
+              {discountMinor > 0 ? (
+                <div className="flex justify-between text-sm text-[var(--fo-muted)]">
+                  <span>Subtotal {formatMinorArs(totals.subtotalMinor)}</span>
+                  <span>Descuento −{formatMinorArs(discountMinor)}</span>
+                </div>
+              ) : null}
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium text-[var(--fo-muted)]">Total</span>
+                <span className="text-3xl font-bold tabular-nums tracking-tight">{formatMinorArs(totals.totalMinor)}</span>
               </div>
             </div>
-          ) : null}
 
-          {rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center text-[var(--fo-muted)]">
-              <ShoppingCart className="size-8" aria-hidden />
-              <p className="text-sm">Tocá un producto para sumarlo.</p>
+            {/* Medio de pago */}
+            <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Medio de pago">
+              {SALE_PAYMENT_METHODS.map((m) => {
+                const Icono = ICONO_PAGO[m];
+                const activo = paymentMethod === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={activo}
+                    title={ETIQUETA_PAGO[m]}
+                    onClick={() => setPaymentMethod(m)}
+                    className={`flex flex-col items-center gap-1 rounded-[var(--fo-radius-sm)] border px-1 py-2.5 text-[11px] font-medium leading-tight transition ${
+                      activo
+                        ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] font-semibold text-[var(--fo-text)] ring-1 ring-[var(--fo-accent)]"
+                        : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+                    }`}
+                  >
+                    <Icono className="size-5" aria-hidden />
+                    {ETIQUETA_CORTA_PAGO[m]}
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            <ul className="divide-y divide-[var(--fo-border)]">
-              {rows.map((r) => (
-                <li key={r.key} className="py-3">
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[var(--fo-text)]">{r.description}</p>
-                      {editandoPrecio === r.key ? (
-                        <InputMoneda
-                          autoFocus
-                          defaultValue={formatMinorArs(r.unitPriceMinor).replace("$", "").trim()}
-                          onBlur={(e) => {
-                            actualizarPrecio(r.key, e.target.value);
-                            setEditandoPrecio(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") e.currentTarget.blur();
-                          }}
-                          className="fo-input h-8 text-sm"
-                          wrapperClassName="mt-1 w-32"
-                          aria-label={`Precio unitario de ${r.description}`}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setEditandoPrecio(r.key)}
-                          className="text-xs text-[var(--fo-muted)] underline-offset-2 hover:text-[var(--fo-accent)] hover:underline"
-                          title="Cambiar el precio"
-                        >
-                          {formatMinorArs(r.unitPriceMinor)} c/u
-                          {r.priceWasOverridden ? " · precio cambiado" : ""}
-                        </button>
-                      )}
-                      {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
-                        <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
-                      ) : null}
-                    </div>
-                    <p className="shrink-0 text-sm font-semibold tabular-nums">{formatMinorArs(r.qty * r.unitPriceMinor)}</p>
+
+            {/* Efectivo: con cuánto paga y el vuelto */}
+            {paymentMethod === "EFECTIVO" && totals.totalMinor > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Paga con</p>
+                <div className="flex flex-wrap gap-2">
+                  {montosSugeridos(totals.totalMinor).map((monto, i) => {
+                    const texto = minorATexto(monto);
+                    const activo = recibidoText !== "" && parseArsToMinor(recibidoText) === monto;
+                    return (
+                      <button
+                        key={monto}
+                        type="button"
+                        onClick={() => setRecibidoText(texto)}
+                        className={`rounded-full border px-3 py-1.5 text-sm tabular-nums transition ${
+                          activo
+                            ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                            : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] hover:border-[var(--fo-accent)]"
+                        }`}
+                      >
+                        {i === 0 ? "Justo" : formatMinorArs(monto).replace(",00", "")}
+                      </button>
+                    );
+                  })}
+                </div>
+                <InputMoneda
+                  value={recibidoText}
+                  onChange={setRecibidoText}
+                  placeholder="Otro monto"
+                  aria-label="Con cuánto paga"
+                  className="fo-input text-base"
+                />
+                {vuelto.estado === "ok" ? (
+                  <div className="flex items-baseline justify-between rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] px-3 py-2.5">
+                    <span className="text-sm font-medium text-[var(--fo-success)]">Vuelto</span>
+                    <span className="text-2xl font-bold tabular-nums text-[var(--fo-success)]">
+                      {formatMinorArs(vuelto.vueltoMinor)}
+                    </span>
                   </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center rounded-full border border-[var(--fo-border)]">
-                      <button
-                        type="button"
-                        onClick={() => (r.qty > 1 ? actualizarCantidad(r.key, r.qty - 1) : quitarRenglon(r.key))}
-                        className="flex size-8 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
-                        aria-label={r.qty > 1 ? `Uno menos de ${r.description}` : `Quitar ${r.description}`}
-                      >
-                        {r.qty > 1 ? <Minus className="size-4" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
-                      </button>
-                      <span className="w-8 text-center text-sm font-semibold tabular-nums">{r.qty}</span>
-                      <button
-                        type="button"
-                        onClick={() => actualizarCantidad(r.key, r.qty + 1)}
-                        className="flex size-8 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
-                        aria-label={`Uno más de ${r.description}`}
-                      >
-                        <Plus className="size-4" aria-hidden />
-                      </button>
-                    </div>
-                    {r.qty > 1 ? (
-                      <button
-                        type="button"
-                        onClick={() => quitarRenglon(r.key)}
-                        className="text-xs text-[var(--fo-muted)] hover:text-[var(--fo-danger)]"
-                      >
-                        Quitar
-                      </button>
+                ) : vuelto.estado === "falta" ? (
+                  <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] px-3 py-2.5 text-sm font-medium text-[var(--fo-danger)]">
+                    Faltan {formatMinorArs(vuelto.faltaMinor)}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {paymentMethod === "TRANSFERENCIA" && totals.totalMinor > 0 ? (
+              <DatosParaTransferir datos={datosTransferencia} totalMinor={totals.totalMinor} />
+            ) : null}
+            {paymentMethod === "MERCADO_PAGO" && totals.totalMinor > 0 ? (
+              <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
+                Que escanee el QR de Mercado Pago del mostrador y pague{" "}
+                <strong className="text-[var(--fo-text)]">{formatMinorArs(totals.totalMinor)}</strong>. Cobrá cuando veas
+                el pago acreditado.
+              </p>
+            ) : null}
+
+            {/* Lo que casi nunca se usa, plegado */}
+            <details className="group text-sm" open={extrasCargados || undefined}>
+              <summary className="flex cursor-pointer list-none items-center justify-between text-[var(--fo-muted)] hover:text-[var(--fo-text)]">
+                <span>
+                  Descuento, cliente o nota
+                  {extrasCargados ? <span className="ml-1 text-[var(--fo-accent)]">●</span> : null}
+                </span>
+                <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
+              </summary>
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[var(--fo-muted)]">Descuento</span>
+                  <InputMoneda
+                    value={discountText}
+                    onChange={setDiscountText}
+                    placeholder="0"
+                    className="fo-input text-right text-sm"
+                    wrapperClassName="w-36"
+                    aria-label="Descuento"
+                  />
+                </div>
+                {clientsEnabled ? (
+                  <div className="space-y-2">
+                    <select
+                      value={clienteModo}
+                      onChange={(e) => setClienteModo(e.target.value as ClienteModo)}
+                      className="fo-input"
+                      aria-label="Cliente"
+                    >
+                      <option value="ninguno">Sin cliente</option>
+                      <option value="existente">Cliente ya cargado</option>
+                      <option value="nuevo">Cliente nuevo</option>
+                    </select>
+                    {clienteModo === "existente" ? (
+                      <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="fo-input" aria-label="Elegir cliente">
+                        <option value="">Elegí uno…</option>
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
+                    {clienteModo === "nuevo" ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre" className="fo-input" />
+                        <input value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido" className="fo-input" />
+                        <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono" className="fo-input" />
+                        <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Correo" className="fo-input" />
+                      </div>
                     ) : null}
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                ) : null}
+                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (opcional)" className="fo-input" />
+              </div>
+            </details>
 
-        <div className="space-y-4 border-t border-[var(--fo-border)] bg-[var(--fo-bg)] px-4 py-4">
-          {/* Total */}
-          <div>
-            {discountMinor > 0 ? (
-              <div className="flex justify-between text-sm text-[var(--fo-muted)]">
-                <span>Subtotal {formatMinorArs(totals.subtotalMinor)}</span>
-                <span>Descuento −{formatMinorArs(discountMinor)}</span>
+            {error ? (
+              <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] p-3 text-sm text-[var(--fo-danger)]" role="alert">
+                {error}
+              </p>
+            ) : null}
+            {ultimaVenta !== null ? (
+              <div className="flex items-start gap-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] p-3 text-sm" role="status">
+                <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--fo-success)]" aria-hidden />
+                <div>
+                  <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
+                  {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
+                    <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
+                  ) : null}
+                  {!ultimaVenta.deposited ? (
+                    <p className="text-[var(--fo-warning)]">No se depositó en Caja: no va a aparecer en el libro.</p>
+                  ) : null}
+                </div>
               </div>
             ) : null}
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-medium text-[var(--fo-muted)]">Total</span>
-              <span className="text-3xl font-bold tabular-nums tracking-tight">{formatMinorArs(totals.totalMinor)}</span>
+
+            <button
+              type="button"
+              onClick={cobrar}
+              disabled={procesando || rows.length === 0 || vuelto.estado === "falta"}
+              className="fo-btn fo-btn-primary h-14 w-full text-lg font-semibold"
+            >
+              {procesando ? "Cobrando…" : rows.length === 0 ? "Cobrar" : `Cobrar ${formatMinorArs(totals.totalMinor)}`}
+            </button>
+          </div>
+        </section>
+
+        <section className="fo-card overflow-hidden p-0" aria-label="Lo que lleva">
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
+            <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
+              Ticket
+              {unidades > 0 ? (
+                <span className="text-sm font-normal text-[var(--fo-muted)]">
+                  · {unidades} {unidades === 1 ? "artículo" : "artículos"}
+                </span>
+              ) : null}
+            </h2>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setMostrarSuelto((v) => !v)}
+                className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
+              >
+                + Otro importe
+              </button>
+              {rows.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={vaciarTicket}
+                  className="flex size-8 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-danger)]"
+                  aria-label="Vaciar el ticket"
+                  title="Vaciar el ticket"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
+              ) : null}
             </div>
           </div>
 
-          {/* Medio de pago */}
-          <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Medio de pago">
-            {SALE_PAYMENT_METHODS.map((m) => {
-              const Icono = ICONO_PAGO[m];
-              const activo = paymentMethod === m;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={activo}
-                  title={ETIQUETA_PAGO[m]}
-                  onClick={() => setPaymentMethod(m)}
-                  className={`flex flex-col items-center gap-1 rounded-[var(--fo-radius-sm)] border px-1 py-2.5 text-[11px] font-medium leading-tight transition ${
-                    activo
-                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] font-semibold text-[var(--fo-text)] ring-1 ring-[var(--fo-accent)]"
-                      : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
-                  }`}
-                >
-                  <Icono className="size-5" aria-hidden />
-                  {ETIQUETA_CORTA_PAGO[m]}
-                </button>
-              );
-            })}
-          </div>
+          <div className="px-4">
+            {mostrarSuelto ? (
+              <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
+                <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>
+                <input
+                  value={sueltoDescripcion}
+                  onChange={(e) => setSueltoDescripcion(e.target.value)}
+                  placeholder="Qué es"
+                  className="fo-input"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <InputMoneda
+                    value={sueltoPrecio}
+                    onChange={setSueltoPrecio}
+                    placeholder="Precio"
+                    aria-label="Precio"
+                    wrapperClassName="min-w-0 flex-1"
+                  />
+                  <button type="button" onClick={agregarSuelto} className="fo-btn fo-btn-secondary text-sm">
+                    Agregar
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
-          {/* Efectivo: con cuánto paga y el vuelto */}
-          {paymentMethod === "EFECTIVO" && totals.totalMinor > 0 ? (
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Paga con</p>
-              <div className="flex flex-wrap gap-2">
-                {montosSugeridos(totals.totalMinor).map((monto, i) => {
-                  const texto = minorATexto(monto);
-                  const activo = recibidoText !== "" && parseArsToMinor(recibidoText) === monto;
+            {rows.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center text-[var(--fo-muted)]">
+                <ShoppingCart className="size-8" aria-hidden />
+                <p className="text-sm">Tocá un producto para sumarlo.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-[var(--fo-border)]">
+                {rows.map((r) => {
+                  const marcado =
+                    apuntado?.tipo === "renglon"
+                      ? apuntado.key === r.key
+                      : apuntado === null && r.key === (activo ?? rows.at(-1)?.key);
                   return (
-                    <button
-                      key={monto}
-                      type="button"
-                      onClick={() => setRecibidoText(texto)}
-                      className={`rounded-full border px-3 py-1.5 text-sm tabular-nums transition ${
-                        activo
-                          ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
-                          : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] hover:border-[var(--fo-accent)]"
-                      }`}
+                    <li
+                      key={r.key}
+                      onMouseEnter={() => setApuntado({ tipo: "renglon", key: r.key })}
+                      onMouseLeave={() => setApuntado(null)}
+                      onClick={() => setActivo(r.key)}
+                      className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
                     >
-                      {i === 0 ? "Justo" : formatMinorArs(monto).replace(",00", "")}
-                    </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[var(--fo-text)]">{r.description}</p>
+                        {editandoPrecio === r.key ? (
+                          <InputMoneda
+                            autoFocus
+                            defaultValue={formatMinorArs(r.unitPriceMinor).replace("$", "").trim()}
+                            onBlur={(e) => {
+                              actualizarPrecio(r.key, e.target.value);
+                              setEditandoPrecio(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                            }}
+                            className="fo-input h-8 text-sm"
+                            wrapperClassName="mt-1 w-32"
+                            aria-label={`Precio unitario de ${r.description}`}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditandoPrecio(r.key)}
+                            className="text-xs text-[var(--fo-muted)] underline-offset-2 hover:text-[var(--fo-accent)] hover:underline"
+                            title="Cambiar el precio"
+                          >
+                            {formatMinorArs(r.unitPriceMinor)} c/u
+                            {r.priceWasOverridden ? " · precio cambiado" : ""}
+                          </button>
+                        )}
+                        {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
+                          <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
+                        <button
+                          type="button"
+                          onClick={() => (r.qty > 1 ? actualizarCantidad(r.key, r.qty - 1) : quitarRenglon(r.key))}
+                          className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                          aria-label={r.qty > 1 ? `Uno menos de ${r.description}` : `Quitar ${r.description}`}
+                        >
+                          {r.qty > 1 ? <Minus className="size-3.5" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+                        </button>
+                        <span className="w-7 text-center text-sm font-semibold tabular-nums">{r.qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => actualizarCantidad(r.key, r.qty + 1)}
+                          className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                          aria-label={`Uno más de ${r.description}`}
+                        >
+                          <Plus className="size-3.5" aria-hidden />
+                        </button>
+                      </div>
+                      <p className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">
+                        {formatMinorArs(r.qty * r.unitPriceMinor)}
+                      </p>
+                    </li>
                   );
                 })}
-              </div>
-              <InputMoneda
-                value={recibidoText}
-                onChange={setRecibidoText}
-                placeholder="Otro monto"
-                aria-label="Con cuánto paga"
-                className="fo-input text-base"
-              />
-              {vuelto.estado === "ok" ? (
-                <div className="flex items-baseline justify-between rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] px-3 py-2.5">
-                  <span className="text-sm font-medium text-[var(--fo-success)]">Vuelto</span>
-                  <span className="text-2xl font-bold tabular-nums text-[var(--fo-success)]">
-                    {formatMinorArs(vuelto.vueltoMinor)}
-                  </span>
-                </div>
-              ) : vuelto.estado === "falta" ? (
-                <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] px-3 py-2.5 text-sm font-medium text-[var(--fo-danger)]">
-                  Faltan {formatMinorArs(vuelto.faltaMinor)}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+              </ul>
+            )}
+          </div>
 
-          {paymentMethod === "TRANSFERENCIA" && totals.totalMinor > 0 ? (
-            <DatosParaTransferir datos={datosTransferencia} totalMinor={totals.totalMinor} />
-          ) : null}
-          {paymentMethod === "MERCADO_PAGO" && totals.totalMinor > 0 ? (
-            <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
-              Que escanee el QR de Mercado Pago del mostrador y pague{" "}
-              <strong className="text-[var(--fo-text)]">{formatMinorArs(totals.totalMinor)}</strong>. Cobrá cuando veas
-              el pago acreditado.
-            </p>
-          ) : null}
+        </section>
+      </div>
 
-          {/* Lo que casi nunca se usa, plegado */}
-          <details className="group text-sm" open={extrasCargados || undefined}>
-            <summary className="flex cursor-pointer list-none items-center justify-between text-[var(--fo-muted)] hover:text-[var(--fo-text)]">
-              <span>
-                Descuento, cliente o nota
-                {extrasCargados ? <span className="ml-1 text-[var(--fo-accent)]">●</span> : null}
-              </span>
-              <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
-            </summary>
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[var(--fo-muted)]">Descuento</span>
-                <InputMoneda
-                  value={discountText}
-                  onChange={setDiscountText}
-                  placeholder="0"
-                  className="fo-input text-right text-sm"
-                  wrapperClassName="w-36"
-                  aria-label="Descuento"
-                />
-              </div>
-              {clientsEnabled ? (
-                <div className="space-y-2">
-                  <select
-                    value={clienteModo}
-                    onChange={(e) => setClienteModo(e.target.value as ClienteModo)}
-                    className="fo-input"
-                    aria-label="Cliente"
-                  >
-                    <option value="ninguno">Sin cliente</option>
-                    <option value="existente">Cliente ya cargado</option>
-                    <option value="nuevo">Cliente nuevo</option>
-                  </select>
-                  {clienteModo === "existente" ? (
-                    <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="fo-input" aria-label="Elegir cliente">
-                      <option value="">Elegí uno…</option>
-                      {clients.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
-                  {clienteModo === "nuevo" ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <input value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre" className="fo-input" />
-                      <input value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido" className="fo-input" />
-                      <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono" className="fo-input" />
-                      <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Correo" className="fo-input" />
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (opcional)" className="fo-input" />
-            </div>
-          </details>
-
-          {error ? (
-            <p className="rounded-[var(--fo-radius-sm)] bg-[var(--fo-danger-soft)] p-3 text-sm text-[var(--fo-danger)]" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {ultimaVenta !== null ? (
-            <div className="flex items-start gap-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] p-3 text-sm" role="status">
-              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--fo-success)]" aria-hidden />
-              <div>
-                <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
-                {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
-                  <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
-                ) : null}
-                {!ultimaVenta.deposited ? (
-                  <p className="text-[var(--fo-warning)]">No se depositó en Caja: no va a aparecer en el libro.</p>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={cobrar}
-            disabled={procesando || rows.length === 0 || vuelto.estado === "falta"}
-            className="fo-btn fo-btn-primary h-14 w-full text-lg font-semibold"
-          >
-            {procesando ? "Cobrando…" : rows.length === 0 ? "Cobrar" : `Cobrar ${formatMinorArs(totals.totalMinor)}`}
-          </button>
+      {cantidadTipeada || avisoAtajo ? (
+        <div
+          role="status"
+          className="pointer-events-none fixed bottom-24 left-1/2 z-40 -translate-x-1/2 rounded-full bg-[var(--fo-text)] px-5 py-2.5 text-sm text-[var(--fo-bg-elevated)] shadow-lg lg:bottom-8"
+        >
+          {cantidadTipeada ? (
+            <>
+              Cantidad <strong className="tabular-nums">{cantidadTipeada.texto}</strong>
+              {cantidadTipeada.nombre ? ` · ${cantidadTipeada.nombre}` : ""}
+            </>
+          ) : (
+            avisoAtajo
+          )}
         </div>
-      </section>
+      ) : null}
 
       {/* En el teléfono el ticket queda abajo: esta barra lo tiene siempre a mano. */}
       {rows.length > 0 ? (
@@ -976,6 +1254,14 @@ export function Pos({
         </a>
       ) : null}
     </div>
+  );
+}
+
+function Tecla({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="rounded border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] px-1.5 py-0.5 font-sans text-[11px] text-[var(--fo-text)]">
+      {children}
+    </kbd>
   );
 }
 
