@@ -414,9 +414,9 @@ export function ShellNav({
     ...(ve(PROJECTS_MODULE_KEY)
       ? [
           {
-            // Abre en "En curso": todos los trabajos juntos, para operar el día a día.
             href: "/proyectos/en-curso",
             label: "Proyectos",
+            // Abre en "En curso": todos los trabajos juntos, para operar el día a día.
             description: "Los trabajos en curso de todos los recorridos: etapas, entregas, proveedores y saldos.",
             icon: FolderKanban,
             isActive: under("/proyectos"),
