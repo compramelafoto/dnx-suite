@@ -11,6 +11,8 @@ import { DatosProyecto } from "@/components/proyectos/datos-proyecto";
 import { NotasProyecto } from "@/components/proyectos/notas-proyecto";
 import { ParticipantesProyecto } from "@/components/proyectos/participantes-proyecto";
 import { PlanProyecto } from "@/components/proyectos/plan-proyecto";
+import { ProveedorProyecto } from "@/components/proyectos/proveedor-proyecto";
+import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { TarjetaGaleriasProyecto } from "@/components/galerias/tarjeta-galerias-proyecto";
@@ -44,7 +46,11 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   if (!ID_VALIDO.test(id)) notFound();
   await prepararProyectos(workspace.id);
 
-  const [ficha, role] = await Promise.all([cargarFichaProyecto(ctx, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
+  const [ficha, role, proveedor] = await Promise.all([
+    cargarFichaProyecto(ctx, id, new Date()),
+    resolveWorkspaceRole(user.id, workspace.id),
+    leerProveedorDelTrabajo(ctx, id),
+  ]);
   if (!ficha) notFound();
   // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda (si no, null y no se lee nada).
   const citas = await citasDeOrigen(ctx, { proyectoId: ficha.id });
@@ -113,6 +119,16 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
                 <span className="ml-2 text-xs text-[var(--fo-muted)]">{ficha.pedido.estado}</span>
               </Link>
             </section>
+          ) : null}
+          {proveedor ? (
+            <ProveedorProyecto
+              key={`${proveedor.proveedorId ?? ""}:${proveedor.enviadoAt?.toISOString() ?? ""}`}
+              proyectoId={ficha.id}
+              inicial={proveedor}
+              proveedores={proveedor.proveedores}
+              enviadoAt={proveedor.enviadoAt ? proveedor.enviadoAt.toISOString() : null}
+              puedeEditar={puedeEditar}
+            />
           ) : null}
           {galerias ? <TarjetaGaleriasProyecto proyectoId={ficha.id} galerias={galerias} puedeCrear={puedeGestionarGalerias(ctx)} /> : null}
           <ParticipantesProyecto

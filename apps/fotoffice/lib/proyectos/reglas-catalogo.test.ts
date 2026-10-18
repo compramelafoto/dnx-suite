@@ -31,7 +31,7 @@ describe("normalizarReglas", () => {
   it("acepta una regla completa y limpia el nombre", () => {
     expect(R.normalizarReglas([regla({ ownerUserId: 7, daysFromEvent: -365, nameTemplate: "  {contacto} · {producto} · {evento} · {pedido}  " })])).toEqual({
       ok: true,
-      valor: [{ circuitId: "ct-1", ownerUserId: 7, daysFromEvent: -365, nameTemplate: "{contacto} · {producto} · {evento} · {pedido}" }],
+      valor: [{ circuitId: "ct-1", ownerUserId: 7, daysFromEvent: -365, nameTemplate: "{contacto} · {producto} · {evento} · {pedido}", plazoDias: null, proveedorId: null }],
     });
     expect(R.normalizarReglas([regla({ nameTemplate: "   " })])).toMatchObject({ ok: true, valor: [{ nameTemplate: null }] });
     expect(R.normalizarReglas([])).toEqual({ ok: true, valor: [] });
@@ -121,6 +121,14 @@ describe("opciones de la sección", () => {
     const o = await R.opcionesDeRegla("ws-1");
     expect(o.circuitos).toEqual([{ id: "ct-1", name: "Álbum" }, { id: "ct-2", name: "Retoque" }]);
     expect(o.equipo.map((m) => m.id)).toEqual([7]);
+    expect(o.proveedores).toEqual([]);
+  });
+
+  it("el plazo de entrega es opcional, entero y de 0 a 365 días", () => {
+    expect(R.normalizarReglas([regla({ plazoDias: 7, proveedorId: "prov-1" })])).toMatchObject({ ok: true, valor: [{ plazoDias: 7, proveedorId: "prov-1" }] });
+    for (const d of [-1, 366, 1.5]) {
+      expect(R.normalizarReglas([regla({ plazoDias: d })])).toMatchObject({ ok: false, error: expect.stringContaining("plazo de entrega") });
+    }
   });
 });
 

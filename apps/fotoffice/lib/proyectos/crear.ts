@@ -53,6 +53,8 @@ export type ProyectoPlanificado = {
   baseDate: string;
   finalDueDate: string;
   ownerUserId: number | null;
+  /** Proveedor por omisión del producto (laboratorio). */
+  proveedorId: string | null;
   /** Si está, el proyecto NO se crea y la vista previa muestra este motivo. */
   aviso: string | null;
 };
@@ -100,9 +102,10 @@ export async function planificarProyectos(cliente: Lector, workspaceId: string, 
   const reglas = await cliente.fotofficeProductoProyecto.findMany({
     where: { workspaceId, productId: { in: [...vistos] } },
     orderBy: [{ order: "asc" }],
-    select: { productId: true, circuitId: true, ownerUserId: true, daysFromEvent: true, nameTemplate: true },
+    select: { productId: true, circuitId: true, ownerUserId: true, daysFromEvent: true, nameTemplate: true, proveedorId: true },
   });
   if (reglas.length === 0) return [];
+  const proveedorDe = new Map(reglas.map((r) => [`${r.productId}|${r.circuitId}`, r.proveedorId]));
 
   const desdeReglas = proyectosDelPedido(items, reglas, combos);
   if (desdeReglas.length === 0) return [];
@@ -151,6 +154,7 @@ export async function planificarProyectos(cliente: Lector, workspaceId: string, 
       baseDate: base,
       finalDueDate: sumarDias(base, regla.daysFromEvent),
       ownerUserId: dueno,
+      proveedorId: proveedorDe.get(`${regla.productId}|${regla.circuitId}`) ?? null,
       aviso,
     };
   });
@@ -189,6 +193,7 @@ type DatosProyecto = {
   etapas: readonly EtapaDelFlujo[];
   createdByUserId: number | null;
   ahora: Date;
+  proveedorId?: string | null;
 };
 
 /** Proyecto + número + plan + recorrido en la primera etapa, en la transacción de quien llama. */
@@ -211,6 +216,7 @@ async function insertarProyecto(tx: Tx, ctx: CtxCircuitos, d: DatosProyecto): Pr
       finalDueDate: d.finalDueDate ? fechaParaBase(d.finalDueDate) : null,
       ownerUserId: d.ownerUserId,
       createdByUserId: d.createdByUserId,
+      proveedorId: d.proveedorId ?? null,
     },
     select: { id: true },
   });
@@ -285,6 +291,7 @@ export async function crearProyectosDelPedido(tx: Tx, ctx: CtxCircuitos, d: Dato
       etapas: p.etapas,
       createdByUserId: ctx.userId,
       ahora: d.confirmadoEn,
+      proveedorId: p.proveedorId,
     });
     creados++;
   }

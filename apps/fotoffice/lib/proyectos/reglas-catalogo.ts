@@ -21,15 +21,23 @@ export type ReglaEntrada = {
   ownerUserId: number | null;
   daysFromEvent: number;
   nameTemplate: string | null;
+  /** Días hasta la entrega que propone el Mostrador; null = los del recorrido. */
+  plazoDias: number | null;
+  /** Proveedor por omisión (laboratorio). */
+  proveedorId: string | null;
 };
 
-export type ReglaDetalle = ReglaEntrada & { id: string; circuitName: string; circuitActive: boolean };
+export const PLAZO_MAXIMO_DIAS = 365;
+
+export type ReglaDetalle = ReglaEntrada & { id: string; circuitName: string; circuitActive: boolean; ultimoPlazoDias: number | null };
 
 export type OpcionesDeRegla = {
   /** Flujos de trabajo activos. */
   circuitos: { id: string; name: string }[];
   /** Miembros del equipo. */
   equipo: { id: number; nombre: string }[];
+  /** Proveedores activos (Configuración → Proveedores). */
+  proveedores: { id: string; name: string }[];
 };
 
 const VARIABLE = /\{([^{}]*)\}/g;
@@ -72,7 +80,15 @@ export function normalizarReglas(raw: readonly unknown[]): { ok: true; valor: Re
       }
       nameTemplate = t === "" ? null : t;
     }
-    out.push({ circuitId, ownerUserId, daysFromEvent: dias, nameTemplate });
+    let plazoDias: number | null = null;
+    if (r.plazoDias !== null && r.plazoDias !== undefined && r.plazoDias !== "") {
+      if (typeof r.plazoDias !== "number" || !Number.isInteger(r.plazoDias) || r.plazoDias < 0 || r.plazoDias > PLAZO_MAXIMO_DIAS) {
+        return { ok: false, error: `${fila}: el plazo de entrega tiene que ser un número de días entre 0 y ${PLAZO_MAXIMO_DIAS}.` };
+      }
+      plazoDias = r.plazoDias;
+    }
+    const proveedorId = typeof r.proveedorId === "string" && r.proveedorId.trim() !== "" ? r.proveedorId.trim().slice(0, 64) : null;
+    out.push({ circuitId, ownerUserId, daysFromEvent: dias, nameTemplate, plazoDias, proveedorId });
   }
   return { ok: true, valor: out };
 }
@@ -81,7 +97,7 @@ export async function leerReglas(workspaceId: string, productId: string): Promis
   const filas = await prisma.fotofficeProductoProyecto.findMany({
     where: { workspaceId, productId },
     orderBy: [{ order: "asc" }],
-    select: { id: true, circuitId: true, ownerUserId: true, daysFromEvent: true, nameTemplate: true },
+    select: { id: true, circuitId: true, ownerUserId: true, daysFromEvent: true, nameTemplate: true, plazoDias: true, ultimoPlazoDias: true, proveedorId: true },
   });
   if (filas.length === 0) return [];
   const circuitos = await prisma.fotofficeCircuit.findMany({
@@ -95,6 +111,9 @@ export async function leerReglas(workspaceId: string, productId: string): Promis
     ownerUserId: f.ownerUserId,
     daysFromEvent: f.daysFromEvent,
     nameTemplate: f.nameTemplate,
+    plazoDias: f.plazoDias,
+    ultimoPlazoDias: f.ultimoPlazoDias,
+    proveedorId: f.proveedorId,
     circuitName: porId.get(f.circuitId)?.name ?? "Flujo",
     circuitActive: porId.get(f.circuitId)?.isActive === true,
   }));
@@ -102,15 +121,16 @@ export async function leerReglas(workspaceId: string, productId: string): Promis
 
 /** Los flujos de trabajo activos y el equipo del workspace, para armar la sección. */
 export async function opcionesDeRegla(workspaceId: string): Promise<OpcionesDeRegla> {
-  const [circuitos, equipo] = await Promise.all([
+  const [circuitos, equipo, proveedores] = await Promise.all([
     prisma.fotofficeCircuit.findMany({
       where: { workspaceId, kind: "TRABAJO", isActive: true },
       orderBy: [{ isDefault: "desc" }, { name: "asc" }],
       select: { id: true, name: true },
     }),
     responsablesDe(workspaceId),
+    prisma.fotofficeProveedor.findMany({ where: { workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
-  return { circuitos, equipo };
+  return { circuitos, equipo, proveedores };
 }
 
 export async function guardarReglas(workspaceId: string, productId: string, entrada: readonly unknown[]): Promise<ResultadoCatalogo> {
@@ -143,8 +163,19 @@ export async function guardarReglas(workspaceId: string, productId: string, entr
         const miembros = await tx.workspaceMembership.findMany({ where: { workspaceId, userId: { in: duenos } }, select: { userId: true } });
         if (miembros.length !== duenos.length) return { ok: false as const, error: "Uno de los responsables no es parte del equipo." };
       }
+      const provs = [...new Set(reglas.map((r) => r.proveedorId).filter((x): x is string => x !== null))];
+      if (provs.length > 0) {
+        const existen = await tx.fotofficeProveedor.count({ where: { workspaceId, id: { in: provs } } });
+        if (existen !== provs.length) return { ok: false as const, error: "Uno de los proveedores no existe." };
+      }
     }
 
+    // El último plazo usado en el Mostrador sobrevive al guardar: es lo que se va a proponer.
+    const ultimos = new Map(
+      (
+        await tx.fotofficeProductoProyecto.findMany({ where: { workspaceId, productId }, select: { circuitId: true, ultimoPlazoDias: true } })
+      ).map((f) => [f.circuitId, f.ultimoPlazoDias]),
+    );
     await tx.fotofficeProductoProyecto.deleteMany({ where: { workspaceId, productId } });
     if (reglas.length > 0) {
       await tx.fotofficeProductoProyecto.createMany({
@@ -155,6 +186,9 @@ export async function guardarReglas(workspaceId: string, productId: string, entr
           ownerUserId: r.ownerUserId,
           daysFromEvent: r.daysFromEvent,
           nameTemplate: r.nameTemplate,
+          plazoDias: r.plazoDias,
+          proveedorId: r.proveedorId,
+          ultimoPlazoDias: ultimos.get(r.circuitId) ?? null,
           order,
         })),
       });

@@ -34,6 +34,7 @@ import {
   Users,
   Wallet2,
   Workflow,
+  Truck,
   Coins,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -618,6 +619,13 @@ export function ShellNav({
           description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
           icon: Hash,
           isActive: under("/workspace/configuracion/numeracion"),
+        },
+        {
+          href: "/workspace/configuracion/proveedores",
+          label: "Proveedores",
+          description: "Los laboratorios y talleres a los que se mandan trabajos (La Isla, Román, Fotolag…).",
+          icon: Truck,
+          isActive: under("/workspace/configuracion/proveedores"),
         },
         // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
         {
