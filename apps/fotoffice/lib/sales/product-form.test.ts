@@ -65,6 +65,26 @@ describe("parseProductForm", () => {
     expect(r.ok && r.values.tracksStock).toBe(false);
   });
 
+  it("la foto puede ser un enlace https pegado a mano", () => {
+    const r = parseProductForm(form({ ...base, imageUrl: "  https://ejemplo.com/cuadro.jpg  " }));
+    expect(r.ok && r.values.imageUrl).toBe("https://ejemplo.com/cuadro.jpg");
+  });
+
+  it("sin foto queda null", () => {
+    const r = parseProductForm(form({ ...base, imageUrl: "" }));
+    expect(r.ok && r.values.imageUrl).toBeNull();
+  });
+
+  it.each(["http://ejemplo.com/a.jpg", "javascript:alert(1)", "foto.jpg"])(
+    "un enlace de foto que no es https se rechaza: %s",
+    (imageUrl) => {
+      expect(parseProductForm(form({ ...base, imageUrl }))).toEqual({
+        ok: false,
+        error: "El enlace de la foto tiene que empezar con https://.",
+      });
+    },
+  );
+
   it("sin nombre se rechaza", () => {
     expect(parseProductForm(form({ ...base, name: "  " }))).toEqual({
       ok: false,

@@ -1,6 +1,7 @@
 import { PRODUCT_KINDS, type ProductKind } from "./constants";
 import { normalizeBarcode } from "./barcode";
 import { parseArsToMinor } from "@/lib/membership/money";
+import { isAcceptableImageUrl } from "@/lib/store/listing-form";
 
 /**
  * Validación del formulario de producto. Módulo PURO.
@@ -89,6 +90,13 @@ export function parseProductForm(fd: FormData): ProductFormResult {
   const tracksStockChecked = tracksStockRaw !== "off" && tracksStockRaw !== "false";
   const tracksStock = kind === "SERVICIO" ? false : tracksStockChecked;
 
+  // La foto puede venir de la subida o pegada como enlace: las dos llegan como una dirección.
+  // Un enlace pegado a mano se valida igual que la galería de la tienda (sólo https).
+  const imageUrl = trimmedOrNull(fd.get("imageUrl"));
+  if (imageUrl !== null && !isAcceptableImageUrl(imageUrl)) {
+    return { ok: false, error: "El enlace de la foto tiene que empezar con https://." };
+  }
+
   const isActiveRaw = fd.get("isActive");
   const isActive = isActiveRaw !== "off" && isActiveRaw !== "false";
 
@@ -109,7 +117,7 @@ export function parseProductForm(fd: FormData): ProductFormResult {
       minStockQty,
       categoryId: trimmedOrNull(fd.get("categoryId")),
       supplierName: trimmedOrNull(fd.get("supplierName")),
-      imageUrl: trimmedOrNull(fd.get("imageUrl")),
+      imageUrl,
       isActive,
     },
   };

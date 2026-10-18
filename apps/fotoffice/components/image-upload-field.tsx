@@ -6,6 +6,7 @@ import {
   getImagePreset,
   type ImagePresetKey,
 } from "@/lib/images/presets";
+import { isAcceptableImageUrl } from "@/lib/store/listing-form";
 
 type Status = "idle" | "uploading" | "error";
 
@@ -16,6 +17,7 @@ export function ImageUploadField({
   description,
   initialUrl,
   onUploaded,
+  allowUrl = false,
 }: {
   /** Nombre del campo del form que recibe la URL final (ej. "logoUrl"). */
   name: string;
@@ -27,6 +29,8 @@ export function ImageUploadField({
    * padre controlado — lo usa el inspector del builder para reflejarla en la preview en vivo
    * sin esperar a un submit. No cambia el mecanismo de subida. */
   onUploaded?: (url: string | null) => void;
+  /** Además de subir un archivo, deja pegar el enlace de una imagen que ya está en internet. */
+  allowUrl?: boolean;
 }) {
   const preset = getImagePreset(presetKey);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,8 +43,34 @@ export function ImageUploadField({
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [enlace, setEnlace] = useState("");
 
   if (!preset) return null;
+
+  /*
+   * Un enlace pegado no pasa por la subida: no se conocen su peso ni sus medidas hasta que el
+   * navegador la muestra, así que sólo se valida que sea https (lo mismo que exige el servidor)
+   * y la vista previa avisa si la imagen no carga.
+   */
+  function usarEnlace() {
+    const texto = enlace.trim();
+    if (!isAcceptableImageUrl(texto)) {
+      setStatus("error");
+      setError("Pegá un enlace que empiece con https://.");
+      return;
+    }
+    setError(null);
+    setAspectWarning(null);
+    setSizeWarning(null);
+    setFilename(null);
+    setDimensions(null);
+    setSizeLabel(null);
+    setStatus("idle");
+    setUrl(texto);
+    setPreviewSrc(texto);
+    setEnlace("");
+    onUploaded?.(texto);
+  }
 
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -195,6 +225,7 @@ export function ImageUploadField({
               alt=""
               className="h-full w-full"
               style={{ objectFit: preset.objectFit }}
+              onError={() => setError("No pudimos ver la imagen. Revisá el enlace o subí el archivo.")}
             />
           </div>
           <div className="min-w-0 space-y-1 text-xs text-[var(--fo-muted)]">
@@ -242,6 +273,36 @@ export function ImageUploadField({
         className="sr-only"
         onChange={handleFileChange}
       />
+
+      {allowUrl ? (
+        <div className="fo-field-stack">
+          <span className="fo-helper">O pegá el enlace de una imagen que ya está en internet:</span>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              className="fo-input min-w-0 flex-1"
+              placeholder="https://…"
+              aria-label={`Enlace de la imagen: ${label}`}
+              value={enlace}
+              onChange={(e) => setEnlace(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter no tiene que mandar el formulario de afuera: usa el enlace.
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                usarEnlace();
+              }}
+            />
+            <button
+              type="button"
+              className="fo-btn fo-btn-secondary text-sm"
+              onClick={usarEnlace}
+              disabled={enlace.trim() === ""}
+            >
+              Usar enlace
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {aspectWarning ? <p className="text-xs text-[var(--fo-warning,#a16207)]">{aspectWarning}</p> : null}
       {sizeWarning ? <p className="text-xs text-[var(--fo-warning,#a16207)]">{sizeWarning}</p> : null}

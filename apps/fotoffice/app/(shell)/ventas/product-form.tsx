@@ -284,6 +284,7 @@ export function ProductForm({
           label="Foto del producto"
           initialUrl={imageUrl}
           onUploaded={setImageUrl}
+          allowUrl
         />
       </section>
 
