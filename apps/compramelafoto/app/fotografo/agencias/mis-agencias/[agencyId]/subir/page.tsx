@@ -14,11 +14,12 @@ type Place = { id: number; name: string; lat: number; lng: number };
 export default function SubirFotosAgenciaPage() {
   const { agencyId } = useParams<{ agencyId: string }>();
   const [agency, setAgency] = useState<{ name: string; albums: Album[] } | null>(null);
-  const [mpConnected, setMpConnected] = useState(true);
+  const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   const [places, setPlaces] = useState<Place[]>([]);
   const [albumId, setAlbumId] = useState<number | null>(null);
   const [placeChoice, setPlaceChoice] = useState<string>("");
   const [myPoint, setMyPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { upload, progress, uploading, summary, error } = useAgencyPhotoUpload();
 
@@ -48,14 +49,18 @@ export default function SubirFotosAgenciaPage() {
           })()
         : null;
 
+  const waitingLocation = placeChoice === "mine" && !myPoint;
+  const blocked = !albumId || uploading || !mpConnected || waitingLocation;
+
   return (
     <AgencyPageFrame title="Subir fotos" subtitle="Subí tus fotos al álbum de la agencia. Si tu cámara no tiene GPS, elegí dónde las sacaste.">
       {loadError && <Card>{loadError}</Card>}
+      {!agency && !loadError && <Card>Cargando…</Card>}
       {agency && (
         <Card className="space-y-5">
           <h2 className="text-lg font-medium">{agency.name}</h2>
 
-          {!mpConnected && (
+          {mpConnected === false && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
               Para subir fotos tenés que tener tu Mercado Pago conectado: ahí vas a cobrar tu parte.{" "}
               <Link className="underline" href="/fotografo/configuracion?tab=mercadopago">Conectar Mercado Pago</Link>
@@ -77,12 +82,20 @@ export default function SubirFotosAgenciaPage() {
             <select className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={placeChoice} onChange={(e) => {
               const v = e.target.value;
               setPlaceChoice(v);
-              if (v === "mine" && navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                  (pos) => setMyPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                  () => setMyPoint(null),
-                  { enableHighAccuracy: true, timeout: 10000 }
-                );
+              setGeoError(null);
+              setMyPoint(null);
+              if (v === "mine") {
+                const fail = () => {
+                  setGeoError("No pudimos obtener tu ubicación: elegí un lugar de la lista o dejá que la cámara ponga el GPS.");
+                  setPlaceChoice("");
+                };
+                if (!navigator.geolocation) fail();
+                else
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => setMyPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    fail,
+                    { enableHighAccuracy: true, timeout: 10000 }
+                  );
               }
             }}>
               <option value="">No sé / la cámara tiene GPS</option>
@@ -90,16 +103,17 @@ export default function SubirFotosAgenciaPage() {
               <option value="mine">Usar mi ubicación actual</option>
             </select>
           </label>
-          {placeChoice === "mine" && !myPoint && <p className="text-xs text-[#6b7280]">Esperando tu ubicación… (aceptá el permiso del navegador)</p>}
+          {geoError && <p className="text-sm text-red-600">{geoError}</p>}
+          {waitingLocation && <p className="text-xs text-[#6b7280]">Esperando tu ubicación… (aceptá el permiso del navegador)</p>}
           <p className="text-xs text-[#6b7280]">Si la foto trae GPS de la cámara, se usa ese. Si no, el lugar que elijas acá.</p>
 
-          <label className={`block rounded-2xl border-2 border-dashed p-6 text-center text-sm ${!albumId || uploading || !mpConnected ? "opacity-50" : "cursor-pointer hover:bg-gray-50"}`}>
+          <label className={`block rounded-2xl border-2 border-dashed p-6 text-center text-sm ${blocked ? "opacity-50" : "cursor-pointer hover:bg-gray-50"}`}>
             <input
               type="file"
               accept="image/jpeg,image/jpg"
               multiple
               className="hidden"
-              disabled={!albumId || uploading || !mpConnected}
+              disabled={blocked}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
                 e.target.value = "";
