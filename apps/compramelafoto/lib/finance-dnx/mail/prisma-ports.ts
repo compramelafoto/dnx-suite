@@ -57,7 +57,7 @@ export function prismaSyncPorts(): SyncPorts {
       });
     },
     async notify(text) {
-      await sendTelegramMessage(readBotConfig().telegram, text);
+      return (await sendTelegramMessage(readBotConfig().telegram, text)).ok;
     },
   };
 }

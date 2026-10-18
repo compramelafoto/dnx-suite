@@ -11,7 +11,7 @@ export async function POST() {
   const { error, user } = await requireAuth([Role.ADMIN]);
   if (error || !user) return NextResponse.json({ error: error || "No autorizado." }, { status: 401 });
   try {
-    return NextResponse.json({ results: await runMailSync({ budgetMs: 45_000 }) });
+    return NextResponse.json({ results: await runMailSync({ budgetMs: 30_000 }) });
   } catch (err: any) {
     console.error("POST /api/admin/finance-dnx/mail/sync ERROR >>>", err);
     return NextResponse.json({ error: String(err?.message ?? err) }, { status: 500 });

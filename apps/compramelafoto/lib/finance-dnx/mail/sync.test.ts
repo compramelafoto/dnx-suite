@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { OAuthError } from "./google-oauth";
-import type { GmailMessage } from "./gmail";
+import { GmailError, type GmailMessage } from "./gmail";
 import { LOOKBACK_DAYS, syncAccount, type NewMailMessage, type SyncAccount, type SyncPorts } from "./sync";
 
 const NOW = new Date("2026-10-18T09:00:00Z");
@@ -16,15 +16,17 @@ function mensaje(id: string, from = "payment@aws.com"): GmailMessage {
   return { id, from, subject: "Gracias por el pago", receivedAt: NOW, bodyText: `cuerpo ${id}` };
 }
 
-function fakes(pages: string[][], known: string[] = [], opts: { failToken?: Error } = {}) {
+function fakes(pages: string[][], known: string[] = [], opts: { failToken?: Error; telegramOk?: boolean } = {}) {
   const saved: NewMailMessage[] = [];
   const queries: string[] = [];
-  const synced: { at: Date; backfillDone: boolean }[] = [];
+  const synced: { at: Date | null; backfillDone: boolean }[] = [];
+  let tokenCalls = 0;
   const errors: { message: string; alertedAt: Date | null }[] = [];
   const notified: string[] = [];
   const store = new Set(known);
   const ports: SyncPorts = {
     async getAccessToken() {
+      tokenCalls++;
       if (opts.failToken) throw opts.failToken;
       return "tok";
     },
@@ -34,6 +36,9 @@ function fakes(pages: string[][], known: string[] = [], opts: { failToken?: Erro
       return { ids: pages[i] ?? [], nextPageToken: i + 1 < pages.length ? String(i + 1) : null };
     },
     async getMessage(_t, id) {
+      if (id.startsWith("roto")) throw new Error("Gmail respondió 500: backend error");
+      if (id.startsWith("auth")) throw new GmailError("Gmail respondió 401: Invalid Credentials", 401);
+      if (id.startsWith("nul")) return { ...mensaje(id), subject: "Recibo\u0000", bodyText: "Total\u0000 20" };
       return id.startsWith("raro") ? mensaje(id, "alguien@otro.com") : mensaje(id);
     },
     async knownIds(ids) {
@@ -51,9 +56,10 @@ function fakes(pages: string[][], known: string[] = [], opts: { failToken?: Erro
     },
     async notify(text) {
       notified.push(text);
+      return opts.telegramOk ?? true;
     },
   };
-  return { ports, saved, queries, synced, errors, notified };
+  return { ports, saved, queries, synced, errors, notified, tokenCalls: () => tokenCalls };
 }
 
 test("la primera vez busca sin fecha, guarda todo y marca el historial como leído", async () => {
@@ -93,7 +99,7 @@ test("si se corta por tope, queda pendiente y el historial no se marca como leí
   const r = await syncAccount(CUENTA, f.ports, { now: NOW, deadlineMs: FAR, maxMessages: 2 });
   assert.equal(r.saved, 2);
   assert.equal(r.pending, true);
-  assert.deepEqual(f.synced, [{ at: NOW, backfillDone: false }]);
+  assert.deepEqual(f.synced, [{ at: null, backfillDone: false }]);
 });
 
 test("si se acaba el tiempo, corta sin guardar más", async () => {
@@ -129,4 +135,52 @@ test("si ya se avisó ese error, no se vuelve a avisar", async () => {
   await syncAccount({ ...CUENTA, lastErrorAlertedAt: yaAvisado }, f.ports, { now: NOW, deadlineMs: FAR });
   assert.equal(f.notified.length, 0);
   assert.deepEqual(f.errors, [{ message: "revocado", alertedAt: yaAvisado }]);
+});
+
+test("una lectura reciente que se corta no adelanta la fecha: lo no leído entra la próxima vez", async () => {
+  const last = new Date("2026-10-08T09:00:00Z");
+  const f = fakes([["a", "b", "c"]]);
+  const r = await syncAccount({ ...CUENTA, lastSyncAt: last, backfillDone: true }, f.ports, { now: NOW, deadlineMs: FAR, maxMessages: 1 });
+  assert.equal(r.pending, true);
+  assert.deepEqual(f.synced, [{ at: last, backfillDone: true }]);
+});
+
+test("si el tiempo ya se acabó antes de empezar, no llama a Google ni toca la cuenta", async () => {
+  const f = fakes([["a"]]);
+  const r = await syncAccount(CUENTA, f.ports, { now: NOW, deadlineMs: Date.now() - 1 });
+  assert.deepEqual(r, { email: CUENTA.email, saved: 0, pending: true, error: null });
+  assert.equal(f.tokenCalls(), 0);
+  assert.deepEqual(f.synced, []);
+});
+
+test("si el aviso por Telegram falla, no se marca como avisado y se reintenta la próxima vez", async () => {
+  const f = fakes([[]], [], { failToken: new OAuthError("revocado", true), telegramOk: false });
+  await syncAccount(CUENTA, f.ports, { now: NOW, deadlineMs: FAR });
+  assert.equal(f.notified.length, 1);
+  assert.deepEqual(f.errors, [{ message: "revocado", alertedAt: null }]);
+});
+
+test("un mail que no se puede bajar no traba la cuenta: queda para revisar y sigue con el resto", async () => {
+  const f = fakes([["a", "roto1", "b"]]);
+  const r = await syncAccount(CUENTA, f.ports, { now: NOW, deadlineMs: FAR });
+  assert.equal(r.error, null);
+  assert.equal(r.saved, 3);
+  const roto = f.saved.find((m) => m.gmailMessageId === "roto1");
+  assert.equal(roto?.vendorKey, null);
+  assert.match(roto?.reviewReason ?? "", /No se pudo leer/);
+  assert.deepEqual(f.synced, [{ at: NOW, backfillDone: true }]);
+});
+
+test("un caracter nulo en el mail se limpia antes de guardar", async () => {
+  const f = fakes([["nul1"]]);
+  await syncAccount(CUENTA, f.ports, { now: NOW, deadlineMs: FAR });
+  assert.equal(f.saved[0].subject, "Recibo");
+  assert.equal(f.saved[0].bodyText, "Total 20");
+});
+
+test("un 401 de Gmail es un problema de la cuenta, no de un mail", async () => {
+  const f = fakes([["auth1"]]);
+  const r = await syncAccount(CUENTA, f.ports, { now: NOW, deadlineMs: FAR });
+  assert.match(r.error ?? "", /401/);
+  assert.equal(f.saved.length, 0);
 });
