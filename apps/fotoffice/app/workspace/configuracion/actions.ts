@@ -135,6 +135,8 @@ export async function updateWorkspaceSettingsAction(
   const phone = formData.get("phone")?.toString()?.trim() || null;
   const whatsapp = formData.get("whatsapp")?.toString()?.trim() || null;
   const city = formData.get("city")?.toString()?.trim() || null;
+  const atencionDireccion = formData.get("atencionDireccion")?.toString()?.trim().slice(0, 300) || null;
+  const atencionHorario = formData.get("atencionHorario")?.toString()?.trim().slice(0, 300) || null;
   const province = formData.get("province")?.toString()?.trim() || null;
   const country = formData.get("country")?.toString()?.trim() || null;
   const website = formData.get("website")?.toString()?.trim() || null;
@@ -185,6 +187,8 @@ export async function updateWorkspaceSettingsAction(
       phone,
       whatsapp,
       city,
+      atencionDireccion,
+      atencionHorario,
       province,
       country,
       website,

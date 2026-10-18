@@ -338,6 +338,8 @@ export default async function WorkspaceSettingsPage() {
           phone: branding?.phone ?? profile?.phone ?? "",
           whatsapp: branding?.whatsapp ?? "",
           city: branding?.city ?? "",
+          atencionDireccion: branding?.atencionDireccion ?? "",
+          atencionHorario: branding?.atencionHorario ?? "",
           province: branding?.province ?? "",
           country: branding?.country ?? "",
           website: branding?.website ?? "",

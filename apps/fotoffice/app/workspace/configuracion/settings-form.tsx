@@ -17,6 +17,8 @@ type Initial = {
   phone: string;
   whatsapp: string;
   city: string;
+  atencionDireccion: string;
+  atencionHorario: string;
   province: string;
   country: string;
   website: string;
@@ -92,6 +94,18 @@ export function WorkspaceSettingsForm({ initial, canEdit }: { initial: Initial; 
         <Field label="WhatsApp" name="whatsapp" defaultValue={initial.whatsapp} />
         <Field label="Ciudad" name="city" defaultValue={initial.city} />
         <Field label="Provincia" name="province" defaultValue={initial.province} />
+        <Field
+          label="Dirección de atención al público"
+          name="atencionDireccion"
+          defaultValue={initial.atencionDireccion}
+          helper="Dónde se retiran los pedidos. Va en el aviso de «Listo para retirar»."
+        />
+        <Field
+          label="Horario de atención"
+          name="atencionHorario"
+          defaultValue={initial.atencionHorario}
+          helper="Ej.: lunes a viernes de 9 a 13 y de 16 a 20; sábados de 9 a 13."
+        />
         <Field label="País" name="country" defaultValue={initial.country} />
         <Field label="Sitio web" name="website" defaultValue={initial.website} />
         <Field label="Instagram" name="instagram" defaultValue={initial.instagram} />

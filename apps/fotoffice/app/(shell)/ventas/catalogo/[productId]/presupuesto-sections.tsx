@@ -457,6 +457,8 @@ function ProyectosSection({
       ownerUserId: r.ownerUserId === null ? "" : String(r.ownerUserId),
       daysFromEvent: String(r.daysFromEvent),
       nameTemplate: r.nameTemplate ?? "",
+      plazoDias: r.plazoDias === null ? "" : String(r.plazoDias),
+      proveedorId: r.proveedorId ?? "",
     })),
   );
   const [resultado, setResultado] = useState<CatalogoActionResult | null>(null);
@@ -544,6 +546,40 @@ function ProyectosSection({
                   Quitar
                 </button>
               </div>
+              {/* Lo que usa el Mostrador al vender: cuándo se entrega y a qué laboratorio va. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-[var(--fo-muted)]">Entrega en</span>
+                  <input
+                    className="fo-input w-20"
+                    type="number"
+                    step={1}
+                    min={0}
+                    max={365}
+                    aria-label="Plazo de entrega en días"
+                    placeholder="—"
+                    value={f.plazoDias}
+                    onChange={(e) => cambiar(i, { plazoDias: e.target.value })}
+                  />
+                  <span className="text-[var(--fo-muted)]">días</span>
+                </label>
+                <select
+                  className="fo-input min-w-0 flex-1"
+                  aria-label="Proveedor por omisión"
+                  value={f.proveedorId}
+                  onChange={(e) => cambiar(i, { proveedorId: e.target.value })}
+                >
+                  <option value="">Sin proveedor (se hace en el estudio)</option>
+                  {opciones.proveedores.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {reglas[i]?.ultimoPlazoDias != null && reglas[i]?.circuitId === f.circuitId ? (
+                <p className="fo-helper">La última vez se vendió con entrega a {reglas[i]!.ultimoPlazoDias} días: el Mostrador propone ese.</p>
+              ) : null}
             </li>
           );
         })}
@@ -551,7 +587,12 @@ function ProyectosSection({
       <button
         type="button"
         className="fo-btn fo-btn-secondary text-sm"
-        onClick={() => setFilas((fs) => [...fs, { circuitId: opciones.circuitos[0]?.id ?? "", ownerUserId: "", daysFromEvent: "0", nameTemplate: "" }])}
+        onClick={() =>
+          setFilas((fs) => [
+            ...fs,
+            { circuitId: opciones.circuitos[0]?.id ?? "", ownerUserId: "", daysFromEvent: "0", nameTemplate: "", plazoDias: "", proveedorId: "" },
+          ])
+        }
       >
         Agregar proyecto
       </button>
