@@ -341,6 +341,16 @@ const CAJA: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // Sólo dueño o admin: muestra lo que entró a la cuenta de Mercado Pago entera.
+    href: "/caja/mercado-pago",
+    label: "Cobros en Mercado Pago",
+    icon: "ReceiptText",
+    description: "Lo que entró a la cuenta de Mercado Pago del negocio, leído en el momento.",
+    requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
+    activeMatch: "under",
+  },
+  {
     href: "/caja/configuracion",
     label: "Cuentas y categorías",
     icon: "Settings",
