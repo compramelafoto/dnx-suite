@@ -45,3 +45,6 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyUp
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyUploadCredential_memberId_fkey') THEN ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "AgencyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyUploadCredential_albumId_fkey') THEN ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_albumId_fkey" FOREIGN KEY ("albumId") REFERENCES "Album"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyMemberPresence_memberId_fkey') THEN ALTER TABLE "AgencyMemberPresence" ADD CONSTRAINT "AgencyMemberPresence_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "AgencyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
+
+-- Prisma no expresa índices parciales: este índice (una sola credencial activa por miembro) existe sólo en SQL.
+CREATE UNIQUE INDEX IF NOT EXISTS "AgencyUploadCredential_memberId_active_key" ON "AgencyUploadCredential"("memberId") WHERE "revokedAt" IS NULL;

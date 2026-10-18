@@ -15,6 +15,8 @@ export async function issueAgencyFtpCredential(input: {
   const password = generateFtpPassword();
   const ftpPasswordHash = await hashFtpPassword(password);
   return prisma.$transaction(async (tx) => {
+    // Serializa emisiones concurrentes del mismo miembro.
+    await tx.$queryRaw`SELECT id FROM "AgencyMember" WHERE id = ${input.memberId} FOR UPDATE`;
     await tx.agencyUploadCredential.updateMany({
       where: { memberId: input.memberId, revokedAt: null },
       data: { revokedAt: new Date() },

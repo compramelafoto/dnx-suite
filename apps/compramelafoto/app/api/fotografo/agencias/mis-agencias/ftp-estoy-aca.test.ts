@@ -78,6 +78,13 @@ describe("ftp del miembro", () => {
     expect(await res.json()).toEqual({ ftpUsername: "ag7", password: "abcd1234", host: "ftp.test", port: 21 });
     expect(issue).toHaveBeenCalledWith({ agencyId: 3, memberId: 7, albumId: 9 });
   });
+  it("POST con choque de unicidad (P2002): 409", async () => {
+    agencyAlbumFindFirst.mockResolvedValue({ albumId: 9 });
+    issue.mockRejectedValue(Object.assign(new Error("dup"), { code: "P2002" }));
+    const res = await FTP_POST(req({ albumId: 9 }), ctx("3"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Ya se estaba creando/);
+  });
   it("GET devuelve la credencial activa sin contraseña", async () => {
     credFindFirst.mockResolvedValue({ ftpUsername: "ag7", albumId: 9, lastUsedAt: null, album: { title: "Fiesta" } });
     const body = await (await FTP_GET({} as any, ctx("3"))).json();

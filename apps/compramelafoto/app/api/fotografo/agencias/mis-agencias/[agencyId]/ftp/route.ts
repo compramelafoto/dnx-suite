@@ -46,7 +46,16 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if ("res" in m) return m.res;
   const a = await readAlbumId(req, m.agencyId);
   if ("res" in a) return a.res;
-  const { ftpUsername, password } = await issueAgencyFtpCredential({ agencyId: m.agencyId, memberId: m.memberId, albumId: a.albumId });
+  let issued: { ftpUsername: string; password: string };
+  try {
+    issued = await issueAgencyFtpCredential({ agencyId: m.agencyId, memberId: m.memberId, albumId: a.albumId });
+  } catch (e) {
+    if ((e as { code?: string } | null)?.code === "P2002") {
+      return NextResponse.json({ error: "Ya se estaba creando tu usuario de FTP. Probá de nuevo en un momento." }, { status: 409 });
+    }
+    throw e;
+  }
+  const { ftpUsername, password } = issued;
   return NextResponse.json({ ftpUsername, password, host: getCameraConnectionFtpHost(), port: getCameraConnectionFtpPort() });
 }
 

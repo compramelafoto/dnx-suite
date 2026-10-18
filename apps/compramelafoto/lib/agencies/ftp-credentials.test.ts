@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const updateMany = vi.fn();
 const create = vi.fn();
 const findUnique = vi.fn();
-const tx = { agencyUploadCredential: { updateMany, create, findUnique } };
+const queryRaw = vi.fn();
+const tx = { $queryRaw: (...a: unknown[]) => queryRaw(...a), agencyUploadCredential: { updateMany, create, findUnique } };
 const transaction = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -19,7 +20,7 @@ vi.mock("@/lib/camera-connection/camera-connection-service", () => ({
 import { agencyFtpUsername, issueAgencyFtpCredential, revokeAgencyFtpCredentials } from "./ftp-credentials";
 
 beforeEach(() => {
-  for (const f of [updateMany, create, findUnique, transaction]) f.mockReset();
+  for (const f of [updateMany, create, findUnique, transaction, queryRaw]) f.mockReset();
   transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
   findUnique.mockResolvedValue(null);
   updateMany.mockResolvedValue({ count: 0 });
@@ -38,6 +39,7 @@ describe("issueAgencyFtpCredential", () => {
     const out = await issueAgencyFtpCredential({ agencyId: 3, memberId: 7, albumId: 9 });
     expect(updateMany.mock.calls[0][0].where).toEqual({ memberId: 7, revokedAt: null });
     expect(updateMany.mock.calls[0][0].data.revokedAt).toBeInstanceOf(Date);
+    expect(queryRaw.mock.invocationCallOrder[0]).toBeLessThan(updateMany.mock.invocationCallOrder[0]);
     expect(updateMany.mock.invocationCallOrder[0]).toBeLessThan(create.mock.invocationCallOrder[0]);
     expect(create.mock.calls[0][0].data).toMatchObject({ agencyId: 3, memberId: 7, albumId: 9, ftpUsername: "ag7", ftpPasswordHash: "hash(abcd1234)" });
     expect(JSON.stringify(create.mock.calls[0][0])).not.toContain('"abcd1234"');

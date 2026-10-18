@@ -9,7 +9,6 @@ const inviteUpdateMany = vi.fn();
 const inviteCreate = vi.fn();
 const transaction = vi.fn();
 const revokeFtp = vi.fn();
-vi.mock("@/lib/agencies/ftp-credentials", () => ({ revokeAgencyFtpCredentials: (...a: unknown[]) => revokeFtp(...a) }));
 vi.mock("@/lib/auth", () => ({ requireAuth: (...a: unknown[]) => requireAuth(...a) }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -19,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: (...a: unknown[]) => memberFindFirst(...a),
       update: (...a: unknown[]) => memberUpdate(...a),
     },
+    agencyUploadCredential: { updateMany: (...a: unknown[]) => revokeFtp(...a) },
     agencyInvite: {
       updateMany: (...a: unknown[]) => inviteUpdateMany(...a),
       create: (...a: unknown[]) => inviteCreate(...a),
@@ -89,12 +89,14 @@ describe("equipo", () => {
     expect(memberUpdate.mock.calls[0][0].data.joinedAt).toBeInstanceOf(Date);
   });
   it("PATCH remove marca la baja", async () => {
-    memberFindFirst.mockResolvedValue({ id: 1, status: "ACTIVE" });
+    memberFindFirst.mockResolvedValue({ id: 5, status: "ACTIVE" });
     memberUpdate.mockResolvedValue({});
-    await PATCH(req({ action: "remove" }), ctx("1"));
+    revokeFtp.mockResolvedValue({ count: 1 });
+    await PATCH(req({ action: "remove" }), ctx("5"));
     expect(memberUpdate.mock.calls[0][0].data.status).toBe("REMOVED");
     expect(memberUpdate.mock.calls[0][0].data.removedAt).toBeInstanceOf(Date);
-    expect(revokeFtp).toHaveBeenCalledWith(1);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(revokeFtp.mock.calls[0][0].where).toEqual({ memberId: 5, revokedAt: null });
   });
   it("PATCH acción desconocida: 400", async () => {
     memberFindFirst.mockResolvedValue({ id: 1, status: "ACTIVE" });
