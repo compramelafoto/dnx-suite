@@ -17,6 +17,7 @@ export type TarjetaTrabajo = {
   nombre: string;
   cliente: string;
   telefono: string | null;
+  email: string | null;
   producto: string | null;
   recorrido: { id: string; nombre: string };
   etapas: EtapaVista[];
@@ -27,6 +28,7 @@ export type TarjetaTrabajo = {
   enteredStageAt: string;
   entrega: string | null;
   proveedor: string | null;
+  proveedorId: string | null;
   enviadoAt: string | null;
   pedido: { id: string; numero: string; saldoMinor: number } | null;
   cerrado: boolean;
@@ -64,8 +66,9 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
         finalDueDate: true,
         proveedorEnviadoAt: true,
         pedidoId: true,
-        client: { select: { firstName: true, lastName: true, businessName: true, phone: true } },
+        client: { select: { firstName: true, lastName: true, businessName: true, phone: true, email: true } },
         product: { select: { name: true } },
+        proveedorId: true,
         proveedor: { select: { name: true } },
       },
     }),
@@ -132,6 +135,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       nombre: p.name,
       cliente: nombreDeContacto(p.client),
       telefono: p.client?.phone ?? null,
+      email: p.client?.email ?? null,
       producto: p.product?.name ?? null,
       recorrido: { id: j.circuitId, nombre: circuitoDe.get(j.circuitId) ?? "Recorrido" },
       etapas: lista,
@@ -140,6 +144,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       enteredStageAt: j.enteredStageAt.toISOString(),
       entrega: ymd(p.entregaPrometida) ?? ymd(p.finalDueDate),
       proveedor: p.proveedor?.name ?? null,
+      proveedorId: p.proveedorId,
       enviadoAt: p.proveedorEnviadoAt ? p.proveedorEnviadoAt.toISOString() : null,
       pedido: p.pedidoId ? (pedidoDe.get(p.pedidoId) ?? null) : null,
       cerrado,

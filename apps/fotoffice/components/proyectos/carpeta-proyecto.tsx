@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Copy, FileText, Film, FolderOpen, ImageIcon, Trash2, Upload } from "lucide-react";
-import { borrarArchivoAction, confirmarSubidaAction, enlaceDeCarpetaAction, pedirSubidaAction } from "@/app/actions/carpetas";
+import { archivosSubidosAction, borrarArchivoAction, confirmarSubidaAction, enlaceDeCarpetaAction, pedirSubidaAction } from "@/app/actions/carpetas";
 import { tamanoLegible } from "@/lib/carpetas/reglas";
 import type { ArchivoVista } from "@/lib/carpetas/tipos";
 
@@ -79,7 +79,15 @@ export function CarpetaProyecto({
       }
     }
     setSubidas((s) => s.filter((x) => x.error !== null));
-    if (ok > 0) setAviso({ ok: true, texto: `${ok} ${ok === 1 ? "archivo subido" : "archivos subidos"}.` });
+    if (ok > 0) {
+      const subidos = `${ok} ${ok === 1 ? "archivo subido" : "archivos subidos"}.`;
+      // Digitalizaciones y rollos: con los archivos arriba, el trabajo queda listo y el cliente recibe el aviso.
+      const l = await archivosSubidosAction(proyectoId);
+      if (l.ok && l.etapa) {
+        const correo = l.correo ? ` Se le avisó por correo a ${l.correo}.` : ` ${l.avisoError ?? ""}`;
+        setAviso({ ok: l.correo !== null, texto: `${subidos} Pasó a «${l.etapa}».${correo}` });
+      } else setAviso({ ok: true, texto: subidos });
+    }
     router.refresh();
   }
 

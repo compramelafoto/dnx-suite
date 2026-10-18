@@ -115,7 +115,19 @@ export type ResultadoEnlace = { ok: true; url: string; vence: string } | { ok: f
  */
 export async function enlaceDeCarpeta(ctx: CtxProyectos, proyectoId: unknown, audiencia: Audiencia, ahora = new Date()): Promise<ResultadoEnlace> {
   if (!puedeGestionarProyectos(ctx)) return { ok: false, error: MENSAJES_PROYECTO.sinPermiso };
-  const p = await proyectoPropio(ctx, proyectoId);
+  if (typeof proyectoId !== "string" || !ID.test(proyectoId)) return { ok: false, error: MENSAJES_PROYECTO.noExiste };
+  return emitirEnlace(ctx.workspaceId, proyectoId, audiencia, ahora);
+}
+
+/**
+ * Lo mismo sin usuario: lo usa el aviso de "Listo para retirar", que sale solo desde el servidor.
+ * Quien llama ya verificó que el trabajo es del workspace.
+ */
+export async function emitirEnlace(workspaceId: string, proyectoId: string, audiencia: Audiencia, ahora = new Date()): Promise<ResultadoEnlace> {
+  const p = await prisma.fotofficeProyecto.findFirst({
+    where: { id: proyectoId, workspaceId },
+    select: { id: true, carpetaClienteEmitida: true, carpetaLabEmitida: true, carpetaVence: true },
+  });
   if (!p) return { ok: false, error: MENSAJES_PROYECTO.noExiste };
   const clave = resolverClaveDeEnlace();
   if (!clave) return { ok: false, error: "Falta la clave de enlaces del servidor." };
@@ -130,9 +142,14 @@ export async function enlaceDeCarpeta(ctx: CtxProyectos, proyectoId: unknown, au
         ? { carpetaClienteEmitida: emitida, carpetaClienteHash: hashDeToken(token), carpetaVence: vence }
         : { carpetaLabEmitida: emitida, carpetaLabHash: hashDeToken(token), carpetaVence: vence },
   });
-  const url = await urlDe(ctx.workspaceId, token);
+  const url = await urlDe(workspaceId, token);
   if (!url) return { ok: false, error: "El estudio no tiene sitio público configurado para armar el enlace." };
   return { ok: true, url, vence: vence.toISOString() };
+}
+
+/** ¿La carpeta tiene archivos listos? */
+export async function carpetaTieneArchivos(workspaceId: string, proyectoId: string): Promise<boolean> {
+  return (await prisma.fotofficeArchivoTrabajo.count({ where: { workspaceId, proyectoId, estado: "LISTO" } })) > 0;
 }
 
 /** Para el correo al proveedor: el enlace del laboratorio, si la carpeta tiene archivos. */

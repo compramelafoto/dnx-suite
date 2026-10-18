@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { alCambiarProyecto } from "@/lib/agenda/google/empuje";
+import { avisarSiQuedoListo } from "@/lib/proyectos/aviso-listo-servidor";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { contextoDeCircuitos, type CtxCircuitos } from "@/lib/circuitos/acceso";
@@ -95,7 +96,16 @@ export async function moverAction(datos: {
   // Pasar con tareas obligatorias pendientes es de quien puede configurar.
   const forzar = datos.forzar === true && puede(p.ctx.role, "configurar");
   const r = await mover(p.ctx, datos.journeyId, datos.destinoId, { nota: datos.nota, forzar, esperado });
-  if (r.ok) revalidar(p);
+  if (r.ok) {
+    revalidar(p);
+    // Un trabajo que llega a "Listo para retirar" le avisa al cliente por correo (después de responder).
+    if (p.sujeto.tipo === "PROYECTO") {
+      const workspaceId = p.ctx.workspaceId;
+      const proyectoId = p.sujeto.id;
+      const autor = p.ctx.userId;
+      after(() => avisarSiQuedoListo(workspaceId, proyectoId, autor));
+    }
+  }
   return r;
 }
 
