@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queryRaw = vi.fn();
 vi.mock("@/lib/prisma", () => ({ prisma: { $queryRaw: (...a: unknown[]) => queryRaw(...a) } }));
 
-import { agencyPriorityQuota, claimAgencyPriorityJobs } from "./agency-priority";
+import { agencyPriorityQuota, claimAgencyPriorityJobs, combineClaims } from "./agency-priority";
 
 beforeEach(() => {
   queryRaw.mockReset();
@@ -32,5 +32,53 @@ describe("claimAgencyPriorityJobs", () => {
     expect(sql).toContain('INNER JOIN "AgencyAlbum" aa ON aa."albumId" = p."albumId"');
     expect(sql).toContain("FOR UPDATE OF j SKIP LOCKED");
     expect(sql).toContain('p."isRemoved" = false');
+  });
+});
+
+describe("combineClaims", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("si falla la prioridad, el orden de llegada toma el lote completo", async () => {
+    const claimFifo = vi.fn().mockResolvedValue([{ id: 2, photoId: 20 }]);
+    const out = await combineClaims({
+      batchSize: 12,
+      claimPriority: () => Promise.reject(new Error("boom")),
+      claimFifo,
+    });
+    expect(claimFifo).toHaveBeenCalledWith(12);
+    expect(out).toEqual({ priority: [], locked: [{ id: 2, photoId: 20 }] });
+  });
+
+  it("si falla el orden de llegada tras tomar prioridad, devuelve igual los de prioridad", async () => {
+    const rows = [{ id: 1, photoId: 10 }];
+    const out = await combineClaims({
+      batchSize: 12,
+      claimPriority: () => Promise.resolve(rows),
+      claimFifo: () => Promise.reject(new Error("boom")),
+    });
+    expect(out).toEqual({ priority: rows, locked: rows });
+  });
+
+  it("sin prioridad y con falla del orden de llegada, el error se propaga", async () => {
+    await expect(
+      combineClaims({
+        batchSize: 12,
+        claimPriority: () => Promise.resolve([]),
+        claimFifo: () => Promise.reject(new Error("boom")),
+      })
+    ).rejects.toThrow("boom");
+  });
+
+  it("combina prioridad y orden de llegada con el resto del lote", async () => {
+    const claimFifo = vi.fn().mockResolvedValue([{ id: 2, photoId: 20 }]);
+    const out = await combineClaims({
+      batchSize: 12,
+      claimPriority: () => Promise.resolve([{ id: 1, photoId: 10 }]),
+      claimFifo,
+    });
+    expect(claimFifo).toHaveBeenCalledWith(11);
+    expect(out.locked).toHaveLength(2);
   });
 });

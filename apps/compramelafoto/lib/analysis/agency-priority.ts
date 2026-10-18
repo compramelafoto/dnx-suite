@@ -36,3 +36,38 @@ export async function claimAgencyPriorityJobs(
     RETURNING id, "photoId"
   `;
 }
+
+type ClaimedRows = Array<{ id: number; photoId: number }>;
+
+/**
+ * Toma primero los trabajos de agencia y completa el lote con el orden de llegada.
+ * - Si falla la prioridad, se sigue sólo con el orden de llegada (lote completo).
+ * - Si falla el orden de llegada pero ya hay trabajos de agencia tomados (quedaron en PROCESSING),
+ *   se devuelven igual para que se procesen y no queden trabados.
+ * - Sin trabajos de agencia, un error del orden de llegada se propaga como siempre.
+ */
+export async function combineClaims(args: {
+  batchSize: number;
+  claimPriority: () => Promise<ClaimedRows>;
+  claimFifo: (remaining: number) => Promise<ClaimedRows>;
+}): Promise<{ priority: ClaimedRows; locked: ClaimedRows }> {
+  let priority: ClaimedRows = [];
+  try {
+    priority = await args.claimPriority();
+  } catch (err) {
+    console.warn("[analysis] prioridad de agencia falló", err);
+    priority = [];
+  }
+  const remaining = args.batchSize - priority.length;
+  if (remaining <= 0) return { priority, locked: priority };
+  if (priority.length === 0) {
+    return { priority, locked: await args.claimFifo(remaining) };
+  }
+  try {
+    const fifo = await args.claimFifo(remaining);
+    return { priority, locked: [...priority, ...fifo] };
+  } catch (err) {
+    console.warn("[analysis] toma por orden de llegada falló tras la prioridad de agencia", err);
+    return { priority, locked: priority };
+  }
+}
