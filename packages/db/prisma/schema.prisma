@@ -19818,6 +19818,13 @@ model ExpenseMailAccount {
   messages ExpenseMailMessage[]
 }
 
+/// Finanzas DNX — una sola fila: marca que hay una lectura de Gmail en curso, para que el cron y
+/// "Leer ahora" no corran a la vez. Vence sola si una corrida muere sin liberarla.
+model ExpenseMailRunLock {
+  id          Int       @id
+  lockedUntil DateTime?
+}
+
 /// Finanzas DNX — un mail de proveedor leído de Gmail. El id de Gmail es único: nunca se guarda dos veces.
 model ExpenseMailMessage {
   id             Int       @id @default(autoincrement())

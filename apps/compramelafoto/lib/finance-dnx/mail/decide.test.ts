@@ -161,3 +161,18 @@ test("un gasto MANUAL con su número de factura pero otro importe no se pisa", (
   const r = decide(doc({ amount: 25 }), [entry({ source: "MANUAL", amountOriginal: 20, status: "FACTURADO" })]);
   assert.equal(r.type, "review");
 });
+
+test("C1: un pago sin factura paga la factura pendiente aunque haya un estimado en su mes", () => {
+  const r = decide(doc({ kind: "PAGO_OK", amount: 41.03, invoiceNumber: null, periodMonth: 10, paidAt: D("2026-10-02") }), [
+    entry({ id: 50, periodMonth: 9, amountOriginal: 41.03, invoiceNumber: "IN-80185912", status: "FACTURADO" }),
+    entry({ id: 51, periodMonth: 10, amountOriginal: 37.4, invoiceNumber: null, status: "ESTIMADO" }),
+  ]);
+  assert.deepEqual(r, { type: "update", entryId: 50, changes: { status: "PAGADO", paidAt: D("2026-10-02") } });
+});
+
+test("C1: un pago sin factura y sin factura pendiente no toca el estimado", () => {
+  const r = decide(doc({ kind: "PAGO_OK", amount: 41.03, invoiceNumber: null, periodMonth: 10, paidAt: D("2026-10-02") }), [
+    entry({ id: 51, periodMonth: 10, amountOriginal: 37.4, invoiceNumber: null, status: "ESTIMADO" }),
+  ]);
+  assert.notEqual(r.type === "update" && r.entryId, 51);
+});

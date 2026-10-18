@@ -164,3 +164,31 @@ test("un proveedor que no existe en Finanzas deja el mail para revisar", async (
   await processMessages([receipt(8)], f.ports, NOW);
   assert.match(f.marks.get(8)?.reviewReason ?? "", /no existe/);
 });
+
+test("I2: un error en un mail no corta la corrida: queda para revisar y sigue con el resto", async () => {
+  const f = fakes();
+  let first = true;
+  const ports = {
+    ...f.ports,
+    async createEntry(...args: Parameters<ProcessPorts["createEntry"]>) {
+      if (first) {
+        first = false;
+        throw new Error("El proveedor no tiene reparto por plataforma.");
+      }
+      return f.ports.createEntry(...args);
+    },
+  };
+  const otro = receipt(11, { bodyText: receipt(11).bodyText.replace("VTFIW2NT-0002", "VTFIW2NT-0003"), receivedAt: new Date("2026-09-23T20:00:00Z") });
+  const r = await processMessages([receipt(10), otro], ports, NOW);
+  assert.equal(f.marks.get(10)?.status, "PARA_REVISAR");
+  assert.match(f.marks.get(10)?.reviewReason ?? "", /reparto/);
+  assert.equal(f.marks.get(11)?.status, "CARGADO");
+  assert.equal(r.loaded, 1);
+});
+
+test("I4: si se acaba el tiempo, corta el lote sin marcar a medias", async () => {
+  const f = fakes();
+  const r = await processMessages([receipt(12)], f.ports, NOW, { deadlineMs: Date.now() - 1 });
+  assert.deepEqual(r, { loaded: 0, review: 0, ignored: 0 });
+  assert.equal(f.marks.size, 0);
+});

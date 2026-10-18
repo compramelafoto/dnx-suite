@@ -5,14 +5,17 @@ const MONTHS = [
 const SHORT = MONTHS.map((m) => m.slice(0, 3));
 const AR_OFFSET_MS = 3 * 3_600_000;
 
-/** "1,234.56", "127,31", "59.197,00", "45.00" → número. Toma como decimal el último separador si tiene 2 dígitos. */
+/** "1,234.56", "127,31", "59.197,00", "45.00", "41.5" → número. */
 export function parseAmount(raw: string): number | null {
   const s = raw.replace(/[\s$]/g, "");
-  if (!/^\d[\d.,]*$/.test(s)) return null;
+  // Debe empezar y terminar en dígito: "41.03." (el punto de la oración) no es un importe.
+  if (!/^\d(?:[\d.,]*\d)?$/.test(s)) return null;
   const lastDot = s.lastIndexOf(".");
   const lastComma = s.lastIndexOf(",");
   const decimalAt = Math.max(lastDot, lastComma);
-  const hasDecimals = decimalAt >= 0 && s.length - decimalAt - 1 === 2;
+  // Un separador seguido de 1 o 2 dígitos es decimal; de 3, es de miles ("1,234").
+  const digitsAfter = s.length - decimalAt - 1;
+  const hasDecimals = decimalAt >= 0 && digitsAfter >= 1 && digitsAfter <= 2;
   const intPart = (hasDecimals ? s.slice(0, decimalAt) : s).replace(/[.,]/g, "");
   const n = Number(hasDecimals ? `${intPart}.${s.slice(decimalAt + 1)}` : intPart);
   return Number.isFinite(n) ? n : null;
@@ -51,3 +54,6 @@ export function servicePeriodStart(text: string): { periodYear: number; periodMo
   const year = m[3] ? Number(m[3]) : start > end ? endYear - 1 : endYear;
   return { periodYear: year, periodMonth: start + 1 };
 }
+
+/** Un importe dentro de un texto: empieza y termina en dígito, así no se lleva la puntuación. */
+export const NUM = "(\\d(?:[\\d.,]*\\d)?)";

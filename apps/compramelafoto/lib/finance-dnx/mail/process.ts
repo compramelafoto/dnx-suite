@@ -1,6 +1,9 @@
 import { decide, type EntryChanges, type EntryLite, type NewEntry } from "./decide";
 import { readMail, type ParsedDoc } from "./readers";
 
+/** Motivo de los formatos desconocidos: esos mails no se reprocesan en cada corrida. */
+export const UNKNOWN_FORMAT = "No se reconoce el formato de este mail";
+
 /** Pagos fallidos más viejos que esto son historial: se cargan pero no se avisan. */
 const ALERT_WINDOW_MS = 7 * 86_400_000;
 
@@ -81,52 +84,71 @@ export async function processMessages(
   mails: PendingMail[],
   ports: ProcessPorts,
   now: Date,
+  opts: { deadlineMs?: number } = {},
 ): Promise<{ loaded: number; review: number; ignored: number }> {
   const totals = { loaded: 0, review: 0, ignored: 0 };
   const ordered = [...mails].sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime());
   for (const mail of ordered) {
-    const read = readMail(mail.vendorKey, mail);
-    const recent = now.getTime() - mail.receivedAt.getTime() <= ALERT_WINDOW_MS;
-
-    if (read === null) {
-      await ports.markMessage(mail.id, { status: "PARA_REVISAR", reviewReason: "No se reconoce el formato de este mail: cargalo a mano si es un cobro." });
+    // Sin tiempo se corta antes de empezar un mail, nunca a la mitad: el resto sigue en la próxima corrida.
+    if (opts.deadlineMs !== undefined && Date.now() > opts.deadlineMs) break;
+    try {
+      await processOne(mail, ports, now, totals);
+    } catch (err) {
+      // Un mail que falla (por ejemplo, proveedor sin reparto) no frena a los demás.
+      const reason = `No se pudo cargar: ${err instanceof Error ? err.message : String(err)}`;
+      await ports.markMessage(mail.id, { status: "PARA_REVISAR", reviewReason: reason });
       totals.review++;
-      continue;
-    }
-
-    if ("ignore" in read) {
-      let alertedAt = mail.alertedAt;
-      if (read.alert && recent && !alertedAt && (await ports.notify(`Finanzas DNX: ${read.alert}`))) alertedAt = now;
-      await ports.markMessage(mail.id, { status: "DESCARTADO", reviewReason: `Automático: ${read.ignore}`, alertedAt });
-      totals.ignored++;
-      continue;
-    }
-
-    const outcomes: DocOutcome[] = [];
-    for (const d of read.docs) outcomes.push(await applyDoc(d.vendorKey ?? mail.vendorKey, d, mail, ports));
-
-    let alertedAt = mail.alertedAt;
-    const failed = read.docs.find((d) => d.kind === "PAGO_FALLIDO");
-    if (failed && recent && !alertedAt) {
-      const amount = failed.amount !== null ? ` (${failed.currency} ${failed.amount.toFixed(2)})` : "";
-      const sent = await ports.notify(`Finanzas DNX: ${mail.vendorKey} no pudo cobrar la factura ${failed.invoiceNumber ?? "sin número"}${amount}.`);
-      if (sent) alertedAt = now;
-    }
-
-    const review = outcomes.find((o): o is Extract<DocOutcome, { kind: "review" }> => o.kind === "review");
-    const loaded = [...outcomes].reverse().find((o): o is Extract<DocOutcome, { kind: "loaded" }> => o.kind === "loaded");
-    const first = read.docs[0];
-    if (review) {
-      await ports.markMessage(mail.id, { status: "PARA_REVISAR", reviewReason: review.reason, ...parsedFields(first), entryId: loaded?.entryId ?? null, alertedAt });
-      totals.review++;
-    } else if (loaded) {
-      await ports.markMessage(mail.id, { status: "CARGADO", reviewReason: null, ...parsedFields(first), entryId: loaded.entryId, alertedAt });
-      totals.loaded++;
-    } else {
-      const reason = outcomes.map((o) => (o.kind === "ignored" ? o.reason : "")).join(" ");
-      await ports.markMessage(mail.id, { status: "DESCARTADO", reviewReason: `Automático: ${reason}`.trim(), ...parsedFields(first), alertedAt });
-      totals.ignored++;
     }
   }
   return totals;
+}
+
+async function processOne(
+  mail: PendingMail,
+  ports: ProcessPorts,
+  now: Date,
+  totals: { loaded: number; review: number; ignored: number },
+): Promise<void> {
+  const read = readMail(mail.vendorKey, mail);
+  const recent = now.getTime() - mail.receivedAt.getTime() <= ALERT_WINDOW_MS;
+
+  if (read === null) {
+    await ports.markMessage(mail.id, { status: "PARA_REVISAR", reviewReason: `${UNKNOWN_FORMAT}: cargalo a mano si es un cobro.` });
+    totals.review++;
+    return;
+  }
+
+  if ("ignore" in read) {
+    let alertedAt = mail.alertedAt;
+    if (read.alert && recent && !alertedAt && (await ports.notify(`Finanzas DNX: ${read.alert}`))) alertedAt = now;
+    await ports.markMessage(mail.id, { status: "DESCARTADO", reviewReason: `Automático: ${read.ignore}`, alertedAt });
+    totals.ignored++;
+    return;
+  }
+
+  const outcomes: DocOutcome[] = [];
+  for (const d of read.docs) outcomes.push(await applyDoc(d.vendorKey ?? mail.vendorKey, d, mail, ports));
+
+  let alertedAt = mail.alertedAt;
+  const failed = read.docs.find((d) => d.kind === "PAGO_FALLIDO");
+  if (failed && recent && !alertedAt) {
+    const amount = failed.amount !== null ? ` (${failed.currency} ${failed.amount.toFixed(2)})` : "";
+    const sent = await ports.notify(`Finanzas DNX: ${mail.vendorKey} no pudo cobrar la factura ${failed.invoiceNumber ?? "sin número"}${amount}.`);
+    if (sent) alertedAt = now;
+  }
+
+  const review = outcomes.find((o): o is Extract<DocOutcome, { kind: "review" }> => o.kind === "review");
+  const loaded = [...outcomes].reverse().find((o): o is Extract<DocOutcome, { kind: "loaded" }> => o.kind === "loaded");
+  const first = read.docs[0];
+  if (review) {
+    await ports.markMessage(mail.id, { status: "PARA_REVISAR", reviewReason: review.reason, ...parsedFields(first), entryId: loaded?.entryId ?? null, alertedAt });
+    totals.review++;
+  } else if (loaded) {
+    await ports.markMessage(mail.id, { status: "CARGADO", reviewReason: null, ...parsedFields(first), entryId: loaded.entryId, alertedAt });
+    totals.loaded++;
+  } else {
+    const reason = outcomes.map((o) => (o.kind === "ignored" ? o.reason : "")).join(" ");
+    await ports.markMessage(mail.id, { status: "DESCARTADO", reviewReason: `Automático: ${reason}`.trim(), ...parsedFields(first), alertedAt });
+    totals.ignored++;
+  }
 }

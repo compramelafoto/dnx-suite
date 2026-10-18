@@ -116,16 +116,19 @@ export function decide(doc: ParsedDoc, entries: EntryLite[]): Decision {
     return { type: "update", entryId: byInvoice.id, changes: changesFor(byInvoice, doc, { replaceAmount: byInvoice.status === "ESTIMADO" }) };
   }
 
-  if (doc.kind !== "ESTIMADO" && doc.amount !== null) {
-    const estimate = samePeriod.find((e) => e.status === "ESTIMADO" && e.invoiceNumber === null);
-    if (estimate) return { type: "update", entryId: estimate.id, changes: changesFor(estimate, doc, { replaceAmount: true }) };
-  }
-
+  // Un pago sin número de factura (Cloudflare "compra confirmada") paga la factura pendiente del
+  // mismo importe, que suele ser de un mes anterior. Nunca reemplaza un estimado.
   if (!inv && doc.kind === "PAGO_OK" && doc.amount !== null) {
     const unpaid = entries
       .filter((e) => UNPAID.has(e.status) && sameMoney(e, doc))
       .sort((a, b) => b.periodYear * 12 + b.periodMonth - (a.periodYear * 12 + a.periodMonth))[0];
     if (unpaid) return { type: "update", entryId: unpaid.id, changes: changesFor(unpaid, doc, { replaceAmount: false }) };
+  }
+
+  // La factura o el recibo real del mes reemplaza al estimado de ese mes.
+  if ((inv || doc.kind === "FACTURA" || doc.kind === "RECIBO") && doc.kind !== "ESTIMADO" && doc.amount !== null) {
+    const estimate = samePeriod.find((e) => e.status === "ESTIMADO" && e.invoiceNumber === null);
+    if (estimate) return { type: "update", entryId: estimate.id, changes: changesFor(estimate, doc, { replaceAmount: true }) };
   }
 
   const twin = samePeriod.find((e) => e.invoiceNumber === null && sameMoney(e, doc));

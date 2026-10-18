@@ -268,3 +268,33 @@ test("un formato desconocido no se inventa: queda para revisar", () => {
   assert.equal(readMail("linkedin", mail("LinkedIn <billing@linkedin.com>", "Gracias por abonarte a Premium Business", "Te adjuntamos el recibo.")), null);
   assert.equal(readMail("anthropic", mail("invoice+statements@mail.anthropic.com", "Your receipt", "sin importe")), null);
 });
+
+test("C2: el punto final de la oración no se lee como parte del importe", () => {
+  assert.equal(parseAmount("41.03."), null);
+  assert.equal(parseAmount("41.5"), 41.5);
+  assert.equal(parseAmount("1,234"), 1234);
+  const [d] = docs(readMail("cloudflare", mail("Cloudflare <noreply@notify.cloudflare.com>", "Purchase confirmed", "We have confirmed your purchase of $41.03. Your invoice")));
+  assert.equal(d.amount, 41.03);
+});
+
+test("I5: un pago fallido de ChatGPT se descarta pero avisa", () => {
+  const r = readMail("chatgpt", mail("OpenAI <noreply@tm.openai.com>", "Actualiza tu forma de pago de Plus", "Error al procesar el pago de tu suscripción de Plus. No pudimos procesar tu último pago"));
+  assert.ok(r && "ignore" in r);
+  assert.match(r.alert ?? "", /ChatGPT/);
+  const ok = readMail("chatgpt", mail("ChatGPT <noreply@tm.openai.com>", "Your temporary ChatGPT login code", "123456"));
+  assert.ok(ok && "ignore" in ok && !ok.alert);
+});
+
+test("I6: AWS sólo toma como pagadas las facturas de la sección de cargos correctos", () => {
+  const r = docs(
+    readMail(
+      "aws",
+      mail(
+        "Amazon Web Services <payment@aws.com>",
+        "Gracias por el pago | Thank you for your payment",
+        "Cargos correctos:\r\n- Invoice 111 - Billing Date 2026-08-01 - Charge Amount: 10.00 USD\r\n\r\nCargos fallidos:\r\n- Invoice 222 - Billing Date 2026-09-01 - Charge Amount: 20.00 USD\r\n",
+      ),
+    ),
+  );
+  assert.deepEqual(r.map((d) => d.invoiceNumber), ["111"]);
+});

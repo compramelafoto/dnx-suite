@@ -7,7 +7,8 @@ import { readBotConfig } from "@/lib/bot/config";
 import type { EntryLite, NewEntry } from "./decide";
 import { FIXED_CHARGES, missingFixedMonths } from "./fixed-charges";
 import { createFxLookup } from "./fx";
-import { processMessages, type PendingMail, type ProcessPorts, type VendorBook } from "./process";
+import { UNKNOWN_FORMAT, processMessages, type PendingMail, type ProcessPorts, type VendorBook } from "./process";
+import { readMail } from "./readers";
 
 /** Mails procesados por corrida: el resto sigue en la próxima. */
 const BATCH = 300;
@@ -135,7 +136,22 @@ function prismaProcessPorts(fxFor: (d: Date) => Promise<number | null>): Process
   };
 }
 
-/** Cobros fijos sin recibo (ChatGPT): un gasto pagado por cada mes que falte. */
+/** ¿Hay un aviso de cobro fallido de ese proveedor cerca de la fecha de cobro? */
+async function chargeFailedAround(vendorKey: string, date: Date): Promise<boolean> {
+  const mails = await prisma.expenseMailMessage.findMany({
+    where: {
+      vendorKey,
+      receivedAt: { gte: new Date(date.getTime() - 3 * 86_400_000), lte: new Date(date.getTime() + 10 * 86_400_000) },
+    },
+    select: { fromAddress: true, subject: true, bodyText: true, receivedAt: true },
+  });
+  return mails.some((m) => {
+    const r = readMail(vendorKey, m);
+    return r !== null && "ignore" in r && Boolean(r.alert);
+  });
+}
+
+/** Cobros fijos sin recibo (ChatGPT): un gasto por cada mes que falte; rechazado si el proveedor avisó un fallo. */
 async function applyFixedCharges(fxFor: (d: Date) => Promise<number | null>, today: Date): Promise<number> {
   let created = 0;
   for (const charge of FIXED_CHARGES) {
@@ -147,6 +163,7 @@ async function applyFixedCharges(fxFor: (d: Date) => Promise<number | null>, tod
     for (const m of missingFixedMonths(charge, vendor.entries, today)) {
       const fx = await fxFor(m.date);
       if (fx === null) continue;
+      const failed = await chargeFailedAround(charge.vendorKey, m.date);
       await createEntryRow(
         vendor.id,
         {
@@ -154,13 +171,13 @@ async function applyFixedCharges(fxFor: (d: Date) => Promise<number | null>, tod
           periodMonth: m.periodMonth,
           amount: charge.amount,
           currency: charge.currency,
-          status: "PAGADO",
+          status: failed ? "RECHAZADO" : "PAGADO",
           invoiceNumber: null,
-          paidAt: m.date,
+          paidAt: failed ? null : m.date,
           amountRefunded: null,
         },
         fx,
-        charge.note,
+        failed ? `${charge.note} El proveedor avisó que no pudo cobrar.` : charge.note,
       );
       created++;
     }
@@ -170,17 +187,23 @@ async function applyFixedCharges(fxFor: (d: Date) => Promise<number | null>, tod
 
 export type ProcessSummary = { loaded: number; review: number; ignored: number; fixed: number };
 
-/** Convierte en gastos los mails pendientes y completa los cobros fijos. */
-export async function processPendingMail(now = new Date()): Promise<ProcessSummary> {
+/** Convierte en gastos los mails pendientes y completa los cobros fijos, dentro del tiempo disponible. */
+export async function processPendingMail(opts: { deadlineMs: number; now?: Date }): Promise<ProcessSummary> {
+  const now = opts.now ?? new Date();
   const fxFor = createFxLookup({ today: now });
   const rows = await prisma.expenseMailMessage.findMany({
-    where: { status: "PARA_REVISAR", vendorKey: { not: null } },
+    // Los formatos desconocidos no se releen en cada corrida: si no, el historial ilegible tapa a los mails nuevos.
+    where: {
+      status: "PARA_REVISAR",
+      vendorKey: { not: null },
+      OR: [{ reviewReason: null }, { NOT: { reviewReason: { startsWith: UNKNOWN_FORMAT } } }],
+    },
     orderBy: { receivedAt: "asc" },
     take: BATCH,
     select: { id: true, vendorKey: true, fromAddress: true, subject: true, bodyText: true, receivedAt: true, alertedAt: true },
   });
   const mails: PendingMail[] = rows.map((r) => ({ ...r, vendorKey: r.vendorKey as string }));
-  const totals = await processMessages(mails, prismaProcessPorts(fxFor), now);
-  const fixed = await applyFixedCharges(fxFor, now);
+  const totals = await processMessages(mails, prismaProcessPorts(fxFor), now, { deadlineMs: opts.deadlineMs });
+  const fixed = Date.now() < opts.deadlineMs ? await applyFixedCharges(fxFor, now) : 0;
   return { ...totals, fixed };
 }
