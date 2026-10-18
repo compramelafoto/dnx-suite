@@ -56,13 +56,34 @@ test("el remitente se compara sin importar nombre visible ni mayúsculas", () =>
 });
 
 test("la búsqueda de la primera vez no tiene fecha", () => {
-  const q = gmailQueryFor(CLF, null);
-  assert.equal(q, "from:(payment@aws.com OR cloudflare.com)");
+  const q = gmailQueryFor(DNX, null);
+  assert.equal(q.includes("after:"), false);
+  assert.match(q, /^from:\(/);
 });
 
 test("las búsquedas siguientes filtran por fecha en segundos", () => {
-  const q = gmailQueryFor(CLF, new Date("2026-10-15T00:00:00Z"));
-  assert.equal(q, `from:(payment@aws.com OR cloudflare.com) after:${Date.UTC(2026, 9, 15) / 1000}`);
+  const q = gmailQueryFor(DNX, new Date("2026-10-15T00:00:00Z"));
+  assert.equal(q.endsWith(` after:${Date.UTC(2026, 9, 15) / 1000}`), true);
+});
+
+test("los recibos de Vercel también se buscan en la cuenta de CLF", () => {
+  assert.match(gmailQueryFor(CLF, null), /invoice\+statements@vercel\.com/);
+  assert.equal(matchVendorKey(CLF, "Vercel Inc. <invoice+statements@vercel.com>", "Your receipt from Vercel Inc. #2857-2614-4179"), "vercel");
+});
+
+test("AfterShoot, LinkedIn y Starlink se buscan por asunto, sin traer otros recibos de Stripe", () => {
+  const q = gmailQueryFor(CUART, null);
+  assert.match(q, /from:stripe\.com subject:"receipt from AfterShoot"/);
+  assert.match(q, /from:linkedin\.com/);
+  assert.match(q, /from:starlink\.com/);
+  assert.equal(matchVendorKey(CUART, "AfterShoot Inc. <invoice+statements+acct_X@stripe.com>", "Your receipt from AfterShoot Inc. #2568-1040"), "aftershoot");
+  assert.equal(matchVendorKey(CUART, "Otro <invoice+statements+acct_Y@stripe.com>", "Your receipt from Otro Inc."), null);
+  assert.equal(matchVendorKey(CUART, "LinkedIn <billing-noreply@linkedin.com>", "Gracias por abonarte a Premium Business"), "linkedin");
+  assert.equal(matchVendorKey(CUART, "Starlink <no-reply@starlink.com>", "Recibo de Starlink"), "starlink");
+});
+
+test("ElevenLabs sigue ganándole a la regla genérica de Stripe", () => {
+  assert.equal(matchVendorKey(CUART, "invoice+statements+acct_1M07hSLmdOdiMXBs@stripe.com", "Your receipt from Eleven Labs Inc."), "elevenlabs");
 });
 
 test("una cuenta sin proveedores no busca nada", () => {
