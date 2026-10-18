@@ -53,6 +53,9 @@ import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -299,6 +302,12 @@ export function ShellNav({
   const coberturas: Item[] = itemsDeModulo(COVERAGES_MODULE_KEY, access, vocabulary);
 
   const cursos: Item[] = itemsDeModulo(COURSES_SALES_MODULE_KEY, access, vocabulary);
+
+  // Ventas (con el Mostrador primero), Caja y Clientes: antes sólo se llegaba desde las
+  // tarjetas del inicio, y el equipo de un local no encontraba dónde cobrar.
+  const ventas: Item[] = itemsDeModulo(SALES_MODULE_KEY, access, vocabulary);
+  const caja: Item[] = itemsDeModulo(CASH_MODULE_KEY, access, vocabulary);
+  const clientes: Item[] = itemsDeModulo(CLIENTS_MODULE_KEY, access, vocabulary);
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
@@ -651,6 +660,9 @@ export function ShellNav({
       ],
     },
     { title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+    { title: "Ventas", items: ventas, moduleKey: SALES_MODULE_KEY },
+    { title: "Caja", items: caja, moduleKey: CASH_MODULE_KEY },
+    { title: "Clientes", items: clientes, moduleKey: CLIENTS_MODULE_KEY },
     { title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
     { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },
     { title: "Comisión", items: comision, moduleKey: GOVERNANCE_MODULE_KEY },
