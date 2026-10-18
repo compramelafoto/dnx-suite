@@ -16,7 +16,8 @@ export async function buscarCobrosMp(workspaceId: string, desde: Date, hasta: Da
     return { ok: false, motivo: cobrador.code === "NOT_CONNECTED" || cobrador.code === "NO_CREDENTIAL" ? "SIN_CONEXION" : "RECONECTAR" };
   }
   const url = new URL("https://api.mercadopago.com/v1/payments/search");
-  for (const [k, v] of Object.entries(consultaCobros(desde, hasta))) url.searchParams.set(k, v);
+  const collectorId = cobrador.collector.providerUserId;
+  for (const [k, v] of Object.entries(consultaCobros(desde, hasta, collectorId))) url.searchParams.set(k, v);
 
   try {
     const res = await fetch(url, {
@@ -31,7 +32,7 @@ export async function buscarCobrosMp(workspaceId: string, desde: Date, hasta: Da
     const cuerpo = (await res.json()) as { results?: unknown[] };
     const cobros = (cuerpo.results ?? [])
       .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
-      .map(aCobroMp)
+      .map((r) => aCobroMp(r, collectorId))
       .filter((c): c is CobroMp => c !== null);
     return { ok: true, cobros };
   } catch (e) {
