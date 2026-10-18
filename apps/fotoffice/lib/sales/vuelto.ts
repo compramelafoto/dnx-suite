@@ -4,19 +4,19 @@
  * Todo en centavos (`minor`), igual que el resto de Ventas.
  */
 
-/** Redondeos con los que la gente suele pagar, en pesos. */
-const REDONDEOS_PESOS = [1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000];
+import { BILLETES_PESOS } from "@/lib/cash/billetes";
 
 /**
- * Montos sugeridos para "paga con": el justo y los redondeos más probables por encima. Para
- * los redondeos grandes también se ofrece el siguiente: con un total de $ 140.000 nadie paga
- * "redondeado a 20.000" (es el mismo número), pero sí con $ 150.000 o $ 200.000. Sin
- * repetidos, de menor a mayor y como mucho cinco, para que entren en una fila de botones.
+ * Montos sugeridos para "paga con": el justo y lo que se puede juntar con los billetes que
+ * circulan (`BILLETES_PESOS`): el total redondeado hacia arriba a cada billete, y para los
+ * grandes también el siguiente. Con $ 140.000 no sirve "redondeado a 20.000" (es el mismo
+ * número), pero sí $ 150.000 o $ 160.000. Sin repetidos, de menor a mayor y como mucho cinco.
  */
 export function montosSugeridos(totalMinor: number): number[] {
   if (totalMinor <= 0) return [];
   const arriba = new Set<number>();
-  for (const pesos of REDONDEOS_PESOS) {
+  for (const pesos of BILLETES_PESOS) {
+    if (pesos < 1_000) continue; // redondear a 100, 200 o 500 da casi el justo: no ayuda
     const paso = pesos * 100;
     const redondeado = Math.ceil(totalMinor / paso) * paso;
     if (redondeado > totalMinor) arriba.add(redondeado);

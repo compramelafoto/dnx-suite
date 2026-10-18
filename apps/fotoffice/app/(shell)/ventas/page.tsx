@@ -4,7 +4,9 @@ import { listProductCategories, listProducts } from "@/lib/sales/repository";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { listClients } from "@/lib/clients/repository";
+import { listAccounts, listCategories } from "@/lib/cash/repository";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { Pos } from "./pos";
 
@@ -17,7 +19,7 @@ export const dynamic = "force-dynamic";
  * cobrar no pueden depender de ida y vuelta al servidor por cada clic.
  */
 export default async function VentasPage() {
-  const { workspace } = await requireSalesStaff();
+  const { workspace, user } = await requireSalesStaff();
 
   const clientsEnabled = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
   // Sólo para el cartel fijo de "esto no se va a depositar": `recordSale` vuelve a preguntar
@@ -25,10 +27,15 @@ export default async function VentasPage() {
   // es control de acceso — es avisarle al mostrador de antemano, no después del hecho.
   const cashEnabled = await isModuleEnabledForWorkspace(workspace.id, CASH_MODULE_KEY);
 
-  const [productos, categorias, clientes, ajustesCobro] = await Promise.all([
+  // Egresos desde el mostrador: sólo para quien puede operar la caja (como Caja → Anotar).
+  const puedeEgresos = cashEnabled && hasLevel(await getModuleLevel(user.id, workspace.id, CASH_MODULE_KEY), "MANAGE");
+
+  // Los clientes ya no viajan todos: el mostrador los busca por cualquier dato al tipear.
+  const [productos, categorias, cuentas, categoriasEgreso, ajustesCobro] = await Promise.all([
     listProducts(workspace.id, { onlyActive: true, onlyCounter: true }),
     listProductCategories(workspace.id),
-    clientsEnabled ? listClients(workspace.id) : Promise.resolve([]),
+    puedeEgresos ? listAccounts(workspace.id) : Promise.resolve([]),
+    puedeEgresos ? listCategories(workspace.id, "EGRESO") : Promise.resolve([]),
     // Los mismos datos para transferir que muestra el enlace de pago de un pedido.
     leerAjustesCobro(workspace.id),
   ]);
@@ -40,8 +47,15 @@ export default async function VentasPage() {
         products={productos}
         categories={categorias}
         clientsEnabled={clientsEnabled}
-        clients={clientes}
         cashEnabled={cashEnabled}
+        egresos={
+          puedeEgresos
+            ? {
+                cuentas: cuentas.map((c) => ({ id: c.id, nombre: c.name, efectivo: c.kind === "EFECTIVO" && !c.isVault, predeterminada: c.isDefault })),
+                categorias: categoriasEgreso.map((c) => ({ id: c.id, nombre: c.name })),
+              }
+            : null
+        }
         datosTransferencia={{
           alias: ajustesCobro.alias,
           cbuCvu: ajustesCobro.cbuCvu,
