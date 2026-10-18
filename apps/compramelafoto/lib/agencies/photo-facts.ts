@@ -15,18 +15,22 @@ export function sha256Hex(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+const MAX_INT32 = 2147483647; // cameraImageNumber es Int (32 bits) en Postgres
+
+function inInt32(n: number): number | null {
+  return Number.isSafeInteger(n) && n > 0 && n <= MAX_INT32 ? n : null;
+}
+
 export function parseImageNumber(raw: unknown): number | null {
-  if (typeof raw === "number") return Number.isInteger(raw) && raw > 0 ? raw : null;
+  if (typeof raw === "number") return inInt32(raw);
   if (typeof raw !== "string") return null;
   const t = raw.trim();
   const dashed = t.match(/^(\d+)-(\d+)$/);
   if (dashed) {
-    const n = Number(`${dashed[1]}${dashed[2]}`);
-    return Number.isSafeInteger(n) && n > 0 ? n : null;
+    return inInt32(Number(`${dashed[1]}${dashed[2]}`));
   }
   if (!/^\d+$/.test(t)) return null;
-  const n = Number(t);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+  return inInt32(Number(t));
 }
 
 function validPoint(lat: unknown, lng: unknown): { lat: number; lng: number } | null {
@@ -40,7 +44,8 @@ function validPoint(lat: unknown, lng: unknown): { lat: number; lng: number } | 
 function cleanText(v: unknown): string | null {
   if (typeof v !== "string" && typeof v !== "number") return null;
   const t = String(v).trim();
-  return t ? t.slice(0, 120) : null;
+  if (!t || /^0+$/.test(t)) return null; // serial vacío o todo ceros: no identifica la cámara
+  return t.slice(0, 120);
 }
 
 export function cameraFactsFromExif(exif: Record<string, unknown> | null | undefined) {
@@ -56,7 +61,7 @@ export function cameraFactsFromExif(exif: Record<string, unknown> | null | undef
 
 export function imageNumberFromFilename(name: string | null | undefined): number | null {
   if (!name) return null;
-  const m = name.match(/^(?:DSC_|DSC|IMG_|_MG_|DSCF|_DSC|P)(\d{3,6})\.[a-z0-9]+$/i);
+  const m = name.match(/^(?:DSC_|DSC|IMG_|_MG_|DSCF|_DSC)(\d{4,5})\.[a-z0-9]+$/i);
   return m ? parseImageNumber(m[1]) : null;
 }
 

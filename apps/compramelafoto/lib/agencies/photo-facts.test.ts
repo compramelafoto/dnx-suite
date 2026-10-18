@@ -31,7 +31,8 @@ describe("parseImageNumber", () => {
     expect(parseImageNumber("100-1234")).toBe(1001234);
   });
   it("rechaza lo que no sirve", () => {
-    for (const bad of [0, -3, "abc", "", null, undefined, 1.5]) expect(parseImageNumber(bad)).toBe(null);
+    expect(parseImageNumber(2147483647)).toBe(2147483647);
+    for (const bad of [2147483648, "100-12345678", "2147483648", 1e300, 0, -3, "abc", "", null, undefined, 1.5]) expect(parseImageNumber(bad)).toBe(null);
   });
 });
 
@@ -54,6 +55,8 @@ describe("cameraFactsFromExif", () => {
   it("sin EXIF devuelve todo null", () => {
     expect(cameraFactsFromExif(null)).toEqual({ cameraSerial: null, cameraImageNumber: null, exifLat: null, exifLng: null });
     expect(cameraFactsFromExif({ SerialNumber: "   " }).cameraSerial).toBe(null);
+    expect(cameraFactsFromExif({ SerialNumber: "0" }).cameraSerial).toBe(null);
+    expect(cameraFactsFromExif({ BodySerialNumber: "0000000000" }).cameraSerial).toBe(null);
   });
 });
 
@@ -63,9 +66,11 @@ describe("imageNumberFromFilename", () => {
     expect(imageNumberFromFilename("IMG_0042.jpg")).toBe(42);
     expect(imageNumberFromFilename("_MG_9876.JPG")).toBe(9876);
     expect(imageNumberFromFilename("DSCF5555.JPG")).toBe(5555);
+    expect(imageNumberFromFilename("DSC01234.ARW")).toBe(1234);
   });
   it("otro formato: null", () => {
     expect(imageNumberFromFilename("foto final.jpg")).toBe(null);
+    for (const n of ["P2024.jpg", "P100.jpg", "IMG_20.jpg", "Paseo.jpg"]) expect(imageNumberFromFilename(n)).toBe(null);
     expect(imageNumberFromFilename(null)).toBe(null);
   });
 });
