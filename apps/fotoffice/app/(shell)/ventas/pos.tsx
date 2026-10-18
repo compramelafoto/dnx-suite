@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import {
   ArrowLeftRight,
+  ClipboardList,
   ArrowUpRight,
   Banknote,
   CheckCircle2,
@@ -27,6 +28,13 @@ import { calcularVuelto, montosSugeridos } from "@/lib/sales/vuelto";
 import type { DatosTransferencia } from "@/lib/cobro-ajustes/datos";
 import type { ProductCategoryRow, ProductRow, ProductVariantRow } from "@/lib/sales/repository";
 import { ClienteBuscador } from "./cliente-buscador";
+import {
+  cobrarConPedidoAction,
+  cobrarSaldoAction,
+  pedidosParaRetirarAction,
+  type PedidoParaRetirar,
+} from "./pedido-actions";
+import { aCobrarAhora, repartirDescuento, senaSugerida, sugerirEntrega } from "@/lib/sales/pedido-mostrador";
 import { useOcultarMenuEnEstaPantalla } from "@/components/shell/shell-frame";
 import { EgresoDialogo, type DatosEgreso } from "./egreso-dialogo";
 import type { ClienteBuscado } from "./mostrador-actions";
@@ -56,6 +64,11 @@ const ICONO_PAGO: Record<SalePaymentMethod, LucideIcon> = {
   TARJETA: CreditCard,
   OTRO: Ellipsis,
 };
+
+/** Hoy en Argentina, "aaaa-mm-dd". */
+function hoyEnArgentina(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+}
 
 /** A texto plano, sin el símbolo: lo que espera `parseArsToMinor` en el campo. */
 function minorATexto(minor: number): string {
@@ -108,6 +121,7 @@ export function Pos({
   cashEnabled,
   egresos,
   datosTransferencia,
+  procesos,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -117,6 +131,11 @@ export function Pos({
   cashEnabled: boolean;
   /** Alias y CVU del negocio (Configuración → Presupuestos), para mostrar al elegir Transferencia. */
   datosTransferencia: DatosTransferencia;
+  /**
+   * Productos que llevan proceso (generan un trabajo): id → plazo sugerido en días (null = sin
+   * plazo cargado). Si el ticket tiene alguno, esa parte se cobra como pedido con seña.
+   */
+  procesos: Record<string, number | null>;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -144,15 +163,48 @@ export function Pos({
 
   const [error, setError] = useState<string | null>(null);
   const [ultimaVenta, setUltimaVenta] = useState<{
-    saleNumber: number;
+    saleNumber: number | null;
     deposited: boolean;
     vueltoMinor: number | null;
+    pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null };
   } | null>(null);
+  // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
+  const [entregaElegida, setEntregaElegida] = useState<string | null>(null);
+  const [conSena, setConSena] = useState(true);
+  const [senaText, setSenaText] = useState("");
+  const claveCobroRef = useRef<string | null>(null);
+  // Pedidos abiertos del cliente elegido: para cobrar el saldo cuando viene a retirar.
+  const [pedidosCliente, setPedidosCliente] = useState<PedidoParaRetirar[]>([]);
+  const [avisoSaldo, setAvisoSaldo] = useState<{ ok: boolean; texto: string } | null>(null);
   // Efectivo: con cuánto paga, para calcular el vuelto. No viaja como dato propio: queda en la nota.
   const [recibidoText, setRecibidoText] = useState("");
   const [editandoPrecio, setEditandoPrecio] = useState<string | null>(null);
   // Buscador: cuál de los productos filtrados del catálogo queda marcado para Enter.
   const [resaltado, setResaltado] = useState(0);
+
+  // Al elegir un cliente se ven sus pedidos abiertos, con el saldo para cobrar al retirar.
+  useEffect(() => {
+    if (!cliente) return;
+    let vigente = true;
+    pedidosParaRetirarAction(cliente.id).then((p) => {
+      if (vigente) setPedidosCliente(p);
+    });
+    return () => {
+      vigente = false;
+      setPedidosCliente([]);
+      setAvisoSaldo(null);
+    };
+  }, [cliente]);
+
+  function cobrarSaldo(p: PedidoParaRetirar) {
+    setAvisoSaldo(null);
+    const clave = `sal-${crypto.randomUUID()}`;
+    startTransition(async () => {
+      const r = await cobrarSaldoAction(p.id, paymentMethod, clave);
+      setAvisoSaldo(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
+      if (r.ok && cliente) setPedidosCliente(await pedidosParaRetirarAction(cliente.id));
+    });
+  }
 
   // Atajos de teclado (ver `manejarAtajo`): deshacer, el renglón activo, lo que tiene el puntero
   // encima y la cantidad que se está tipeando.
@@ -455,17 +507,52 @@ export function Pos({
     setRecibidoText("");
     setEditandoPrecio(null);
     setCliente(null);
+    setEntregaElegida(null);
+    setConSena(true);
+    setSenaText("");
+  }
+
+  /**
+   * La parte del ticket que queda como pedido: los renglones de productos con proceso. Lo demás se
+   * lleva en el momento y se paga entero. El descuento se reparte en proporción.
+   */
+  function calcularPedido() {
+    const filas = rows.filter((r) => r.productId !== null && procesos[r.productId] !== undefined);
+    const subPedido = filas.reduce((a, r) => a + r.qty * r.unitPriceMinor, 0);
+    const subVenta = totals.subtotalMinor - subPedido;
+    const desc = repartirDescuento(subPedido, subVenta, discountMinor);
+    const totalPedido = subPedido - desc.pedido;
+    const totalVenta = subVenta - desc.venta;
+    const plazo = filas.reduce((max, r) => Math.max(max, procesos[r.productId as string] ?? 7), 0);
+    const entrega = entregaElegida ?? sugerirEntrega(hoyEnArgentina(), plazo);
+    const senaTipeada = parseArsToMinor(senaText);
+    const sena = conSena ? Math.min(senaTipeada ?? senaSugerida(totalPedido), totalPedido) : null;
+    return {
+      hay: filas.length > 0,
+      filas: filas.length,
+      totalPedido,
+      totalVenta,
+      entrega,
+      sena,
+      aCobrar: filas.length > 0 ? aCobrarAhora(totalVenta, totalPedido, sena) : totals.totalMinor,
+    };
   }
 
   function cobrar() {
     limpiarAviso();
+    // Con los valores de este instante (no los del último dibujo).
+    const pedido = calcularPedido();
     const validacion = validateTicket(rows, discountMinor);
     if (!validacion.ok) {
       setError(validacion.error);
       return;
     }
+    if (pedido.hay && !cliente) {
+      setError("Elegí el cliente: hay trabajos que quedan como pedido para retirar.");
+      return;
+    }
     const recibidoMinor = paymentMethod === "EFECTIVO" ? parseArsToMinor(recibidoText) : null;
-    const vueltoAlCobrar = calcularVuelto(totals.totalMinor, recibidoMinor);
+    const vueltoAlCobrar = calcularVuelto(pedido.aCobrar, recibidoMinor);
     if (vueltoAlCobrar.estado === "falta") {
       setError(`Con lo que entregó faltan ${formatMinorArs(vueltoAlCobrar.faltaMinor)}.`);
       return;
@@ -495,6 +582,39 @@ export function Pos({
       note: notaFinal,
       client: cliente ? { mode: "existing", clientId: cliente.id } : { mode: "none" },
     };
+
+    if (pedido.hay && cliente) {
+      if (!claveCobroRef.current) claveCobroRef.current = `mos-${crypto.randomUUID()}`;
+      const clave = claveCobroRef.current;
+      startTransition(async () => {
+        const r = await cobrarConPedidoAction({
+          lines: input.lines.map((l) => ({ ...l, variantId: l.variantId ?? null })),
+          discountMinor,
+          paymentMethod,
+          note: notaFinal,
+          clientId: cliente.id,
+          entrega: pedido.entrega,
+          senaMinor: pedido.sena,
+          clave,
+        });
+        if (r.ok) {
+          claveCobroRef.current = null;
+          setUltimaVenta({
+            saleNumber: r.saleNumber,
+            deposited: true,
+            vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
+            pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso },
+          });
+          reiniciarTicket();
+          historialRef.current = [];
+          setActivo(null);
+          searchRef.current?.focus();
+        } else {
+          setError(r.error);
+        }
+      });
+      return;
+    }
 
     startTransition(async () => {
       const resultado = await checkoutAction(input);
@@ -663,7 +783,8 @@ export function Pos({
     return () => window.removeEventListener("keydown", escuchar);
   }, []);
 
-  const vuelto = calcularVuelto(totals.totalMinor, paymentMethod === "EFECTIVO" ? parseArsToMinor(recibidoText) : null);
+  const pedido = calcularPedido();
+  const vuelto = calcularVuelto(pedido.aCobrar, paymentMethod === "EFECTIVO" ? parseArsToMinor(recibidoText) : null);
   const unidades = rows.reduce((acc, r) => acc + r.qty, 0);
   const cantidadEnTicket = (productId: string) =>
     rows.filter((r) => r.productId === productId).reduce((acc, r) => acc + r.qty, 0);
@@ -903,7 +1024,14 @@ export function Pos({
                     className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">{r.description}</p>
+                      <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">
+                          {r.productId !== null && procesos[r.productId] !== undefined ? (
+                            <span className="mr-1.5 inline-flex rounded-full bg-[var(--fo-accent-muted)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                              Pedido
+                            </span>
+                          ) : null}
+                          {r.description}
+                        </p>
                       {editandoPrecio === r.key ? (
                         <InputMoneda
                           autoFocus
@@ -997,6 +1125,111 @@ export function Pos({
         <div className="space-y-4 p-4">
           {clientsEnabled ? (
             <ClienteBuscador cliente={cliente} onElegir={setCliente} puedeAlta={clientsEnabled} />
+          ) : null}
+
+          {/* Pedidos abiertos del cliente: viene a retirar y paga lo que falta. */}
+          {cliente && pedidosCliente.length > 0 ? (
+            <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                <ClipboardList className="size-3.5" aria-hidden />
+                Tiene {pedidosCliente.length === 1 ? "un pedido" : `${pedidosCliente.length} pedidos`} en curso
+              </p>
+              {pedidosCliente.map((p) => (
+                <div key={p.id} className="space-y-1 rounded-[var(--fo-radius-sm)] bg-[var(--fo-bg-elevated)] p-2.5 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <a href={`/pedidos/${p.id}`} className="font-semibold hover:underline">
+                      Pedido {p.numero}
+                    </a>
+                    <span className={`tabular-nums ${p.saldoMinor > 0 ? "font-semibold" : "text-[var(--fo-success)]"}`}>
+                      {p.saldoMinor > 0 ? `Debe ${formatMinorArs(p.saldoMinor)}` : "Pagado"}
+                    </span>
+                  </div>
+                  {p.trabajos.map((t, i) => (
+                    <p key={i} className="truncate text-xs text-[var(--fo-muted)]">
+                      {t.nombre}
+                      {t.etapa ? ` · ${t.etapa}` : ""}
+                    </p>
+                  ))}
+                  {p.saldoMinor > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => cobrarSaldo(p)}
+                      disabled={procesando}
+                      className="fo-btn fo-btn-secondary mt-1 w-full text-xs"
+                    >
+                      Cobrar saldo {formatMinorArs(p.saldoMinor)} ({ETIQUETA_PAGO[paymentMethod]})
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              {avisoSaldo ? (
+                <p className={`text-xs ${avisoSaldo.ok ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]"}`}>{avisoSaldo.texto}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Trabajos con proceso en el ticket: quedan como pedido para retirar. */}
+          {pedido.hay ? (
+            <div className="space-y-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)] p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                <ClipboardList className="size-3.5" aria-hidden />
+                Pedido para retirar · {pedido.filas} {pedido.filas === 1 ? "trabajo" : "trabajos"}
+              </p>
+              <label className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-[var(--fo-muted)]">Entrega</span>
+                <input
+                  type="date"
+                  value={pedido.entrega}
+                  min={hoyEnArgentina()}
+                  onChange={(e) => setEntregaElegida(e.target.value || null)}
+                  className="fo-input h-9 w-40 text-sm"
+                  aria-label="Fecha de entrega"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Cómo paga el pedido">
+                {[
+                  { v: true, t: "Deja seña" },
+                  { v: false, t: "Paga todo" },
+                ].map((o) => (
+                  <button
+                    key={o.t}
+                    type="button"
+                    role="radio"
+                    aria-checked={conSena === o.v}
+                    onClick={() => setConSena(o.v)}
+                    className={`rounded-[var(--fo-radius-sm)] border px-2 py-1.5 text-xs font-medium ${
+                      conSena === o.v
+                        ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] text-[var(--fo-text)]"
+                        : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]"
+                    }`}
+                  >
+                    {o.t}
+                  </button>
+                ))}
+              </div>
+              {conSena ? (
+                <label className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-[var(--fo-muted)]">Seña</span>
+                  <InputMoneda
+                    value={senaText}
+                    onChange={setSenaText}
+                    placeholder={minorATexto(senaSugerida(pedido.totalPedido)).replace(",00", "")}
+                    className="fo-input h-9 text-right text-sm"
+                    wrapperClassName="w-40"
+                    aria-label="Seña"
+                  />
+                </label>
+              ) : null}
+              <p className="text-xs text-[var(--fo-muted)]">
+                Se cobra ahora <strong className="text-[var(--fo-text)]">{formatMinorArs(pedido.aCobrar)}</strong>
+                {pedido.sena !== null && pedido.totalPedido - pedido.sena > 0 ? (
+                  <>
+                    {" "}· al retirar <strong className="text-[var(--fo-text)]">{formatMinorArs(pedido.totalPedido - pedido.sena)}</strong>
+                  </>
+                ) : null}
+              </p>
+              {!cliente ? <p className="text-xs font-medium text-[var(--fo-warning)]">Elegí el cliente para poder cobrar.</p> : null}
+            </div>
           ) : null}
 
           {/* Total */}
@@ -1133,7 +1366,19 @@ export function Pos({
             <div className="flex items-start gap-3 rounded-[var(--fo-radius-sm)] bg-[var(--fo-success-soft)] p-3 text-sm" role="status">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[var(--fo-success)]" aria-hidden />
               <div>
-                <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
+                {ultimaVenta.pedido ? (
+                  <>
+                    <p className="font-semibold text-[var(--fo-success)]">Pedido {ultimaVenta.pedido.numero} creado</p>
+                    <p className="text-[var(--fo-text)]">
+                      Cobrado {formatMinorArs(ultimaVenta.pedido.cobradoMinor)}
+                      {ultimaVenta.pedido.saldoMinor > 0 ? ` · queda ${formatMinorArs(ultimaVenta.pedido.saldoMinor)} al retirar` : " · pagado"}
+                    </p>
+                    {ultimaVenta.saleNumber !== null ? <p className="text-[var(--fo-text)]">Y la venta #{ultimaVenta.saleNumber}.</p> : null}
+                    {ultimaVenta.pedido.aviso ? <p className="text-[var(--fo-warning)]">{ultimaVenta.pedido.aviso}</p> : null}
+                  </>
+                ) : (
+                  <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
+                )}
                 {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
                   <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
                 ) : null}
@@ -1147,10 +1392,16 @@ export function Pos({
           <button
             type="button"
             onClick={cobrar}
-            disabled={procesando || rows.length === 0 || vuelto.estado === "falta"}
+            disabled={procesando || rows.length === 0 || vuelto.estado === "falta" || (pedido.hay && !cliente)}
             className="fo-btn fo-btn-primary h-14 w-full text-lg font-semibold"
           >
-            {procesando ? "Cobrando…" : rows.length === 0 ? "Cobrar" : `Cobrar ${formatMinorArs(totals.totalMinor)}`}
+            {procesando
+              ? "Cobrando…"
+              : rows.length === 0
+                ? "Cobrar"
+                : pedido.hay && pedido.sena !== null && pedido.sena < pedido.totalPedido
+                  ? `Cobrar seña ${formatMinorArs(pedido.aCobrar)}`
+                  : `Cobrar ${formatMinorArs(pedido.aCobrar)}`}
           </button>
         </div>
       </section>

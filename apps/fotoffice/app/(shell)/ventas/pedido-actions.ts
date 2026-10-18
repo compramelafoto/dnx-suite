@@ -1,0 +1,244 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@repo/db";
+import { requireSalesStaff } from "@/lib/sales/access";
+import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
+import { contextoDePedidos } from "@/lib/pedidos/contexto";
+import { crearPedidoManual, leerPedido } from "@/lib/pedidos/pedidos";
+import { registrarCobro } from "@/lib/pedidos/cobros";
+import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
+import { formatMinorArs } from "@/lib/membership/money";
+import { diasEntre, repartirDescuento } from "@/lib/sales/pedido-mostrador";
+import { checkoutAction, type CheckoutInput } from "./actions";
+
+/**
+ * El Mostrador con trabajos "con proceso". La parte con proceso se vuelve un pedido (con su seña
+ * como primer cobro, que entra a Caja una sola vez) y genera sus trabajos; lo que se lleva en el
+ * momento sigue siendo una venta común (`checkoutAction`), pagada entera.
+ *
+ * No es una sola transacción: pedido, cobro y venta tienen cada uno la suya. Se hacen en ese
+ * orden (el pedido es lo que más puede fallar por validación) y, si algo falla después de crear
+ * el pedido, la respuesta lo dice con su número para terminarlo desde la ficha.
+ */
+
+export type LineaMostrador = {
+  productId: string | null;
+  variantId: string | null;
+  description: string;
+  qty: number;
+  unitPriceMinor: number;
+};
+
+export type CobroConPedidoInput = {
+  lines: LineaMostrador[];
+  discountMinor: number;
+  paymentMethod: string;
+  note: string;
+  clientId: string;
+  /** "aaaa-mm-dd". */
+  entrega: string;
+  /** Lo que deja de seña para el pedido; null = paga el pedido entero. */
+  senaMinor: number | null;
+  /** Clave única del cobro (doble clic = un solo cobro). */
+  clave: string;
+};
+
+export type CobroConPedidoResult =
+  | { ok: true; pedidoId: string; pedidoNumero: string; cobradoMinor: number; saldoMinor: number; saleNumber: number | null; aviso: string | null }
+  | { ok: false; error: string };
+
+const CLAVE = /^[A-Za-z0-9_-]{8,90}$/;
+const pesos = (minor: number) => Math.round(minor) / 100;
+
+/** Qué productos del ticket llevan proceso: los que tienen un flujo de trabajo en "Proyecto que genera". */
+async function conProceso(workspaceId: string, productIds: string[]): Promise<Set<string>> {
+  if (productIds.length === 0) return new Set();
+  const filas = await prisma.fotofficeProductoProyecto.findMany({
+    where: { workspaceId, productId: { in: productIds } },
+    select: { productId: true },
+  });
+  return new Set(filas.map((f) => f.productId));
+}
+
+export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise<CobroConPedidoResult> {
+  const { workspace } = await requireSalesStaff();
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx || ctx.workspaceId !== workspace.id) return { ok: false, error: "No tenés permiso para crear pedidos." };
+
+  const metodo = input.paymentMethod as SalePaymentMethod;
+  if (!SALE_PAYMENT_METHODS.includes(metodo)) return { ok: false, error: "Elegí un medio de pago." };
+  if (!input.clientId) return { ok: false, error: "Elegí el cliente: es un pedido para retirar." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.entrega)) return { ok: false, error: "Elegí la fecha de entrega." };
+  if (typeof input.clave !== "string" || !CLAVE.test(input.clave)) return { ok: false, error: "Volvé a apretar Cobrar." };
+  if (!Array.isArray(input.lines) || input.lines.length === 0) return { ok: false, error: "Agregá algo al ticket antes de cobrar." };
+  for (const l of input.lines) {
+    if (!Number.isInteger(l.qty) || l.qty <= 0 || !Number.isInteger(l.unitPriceMinor) || l.unitPriceMinor < 0) {
+      return { ok: false, error: "Hay un renglón con cantidad o precio que no se entiende." };
+    }
+  }
+  if (!Number.isInteger(input.discountMinor) || input.discountMinor < 0) return { ok: false, error: "El descuento no se entiende." };
+
+  const procesos = await conProceso(workspace.id, input.lines.map((l) => l.productId).filter((x): x is string => x !== null));
+  const delPedido = input.lines.filter((l) => l.productId !== null && procesos.has(l.productId));
+  const enElMomento = input.lines.filter((l) => !(l.productId !== null && procesos.has(l.productId)));
+  if (delPedido.length === 0) return { ok: false, error: "Nada de este ticket lleva proceso: cobralo como venta común." };
+
+  const subPedido = delPedido.reduce((a, l) => a + l.qty * l.unitPriceMinor, 0);
+  const subVenta = enElMomento.reduce((a, l) => a + l.qty * l.unitPriceMinor, 0);
+  const desc = repartirDescuento(subPedido, subVenta, input.discountMinor);
+  const totalPedido = subPedido - desc.pedido;
+  const sena = input.senaMinor === null ? totalPedido : Math.min(Math.max(0, Math.round(input.senaMinor)), totalPedido);
+
+  // 1. El pedido, con sus trabajos.
+  const alta = await crearPedidoManual(ctx, {
+    clientId: input.clientId,
+    items: delPedido.map((l, i) => ({
+      id: `m${i + 1}`,
+      productId: l.productId,
+      nombre: l.description.slice(0, 200),
+      descripcion: null,
+      cantidad: l.qty,
+      precioUnitario: pesos(l.unitPriceMinor),
+      descuento: null,
+      modoPrecio: "LISTA",
+      calculo: null,
+      seccion: null,
+      opcional: false,
+    })),
+    descuento: desc.pedido > 0 ? { tipo: "MONTO", valor: pesos(desc.pedido) } : null,
+    opcion: { tipo: "CONTADO" },
+    fechaEvento: input.entrega,
+    eventLabel: "Entrega",
+    checklist: null,
+  });
+  if (!alta.ok) return { ok: false, error: alta.error };
+
+  const hoy = diaEnBuenosAires(new Date());
+  // La fecha de entrega queda en cada trabajo, y el plazo elegido se recuerda para la próxima venta.
+  const plazo = diasEntre(hoy, input.entrega);
+  await prisma.fotofficeProyecto.updateMany({
+    where: { workspaceId: workspace.id, pedidoId: alta.pedidoId },
+    data: { entregaPrometida: new Date(`${input.entrega}T12:00:00Z`) },
+  });
+  await prisma.fotofficeProductoProyecto.updateMany({
+    where: { workspaceId: workspace.id, productId: { in: [...new Set(delPedido.map((l) => l.productId as string))] } },
+    data: { ultimoPlazoDias: plazo },
+  });
+
+  const avisos: string[] = [];
+  // 2. La seña (o el total) del pedido: entra a Caja como cobro del pedido.
+  let cobrado = 0;
+  if (sena > 0) {
+    const c = await registrarCobro(ctx, {
+      pedidoId: alta.pedidoId,
+      importe: pesos(sena),
+      fecha: hoy,
+      medio: metodo,
+      idempotencyKey: `${input.clave}-p`.slice(0, 100),
+    });
+    if (c.ok) cobrado = sena;
+    else avisos.push(`El pedido ${alta.numero} quedó creado pero la seña no se registró (${c.error}). Cobrala desde el pedido.`);
+  }
+
+  // 3. Lo que se lleva en el momento: venta común, pagada entera.
+  let saleNumber: number | null = null;
+  if (enElMomento.length > 0) {
+    const venta: CheckoutInput = {
+      lines: enElMomento.map((l) => ({ ...l })),
+      discountMinor: desc.venta,
+      paymentMethod: metodo,
+      note: [input.note.trim(), `Junto con el pedido ${alta.numero}`].filter(Boolean).join(" — "),
+      client: { mode: "existing", clientId: input.clientId },
+    };
+    const v = await checkoutAction(venta);
+    if (v.ok) saleNumber = v.saleNumber;
+    else avisos.push(`El pedido ${alta.numero} quedó bien, pero lo que se llevaba en el momento no se cobró: ${v.error}`);
+  }
+
+  revalidatePath("/pedidos");
+  revalidatePath("/proyectos");
+  revalidatePath("/caja");
+  return {
+    ok: true,
+    pedidoId: alta.pedidoId,
+    pedidoNumero: alta.numero,
+    cobradoMinor: cobrado,
+    saldoMinor: totalPedido - cobrado,
+    saleNumber,
+    aviso: avisos.length ? avisos.join(" ") : null,
+  };
+}
+
+export type PedidoParaRetirar = {
+  id: string;
+  numero: string;
+  totalMinor: number;
+  saldoMinor: number;
+  entrega: string | null;
+  trabajos: { nombre: string; etapa: string | null }[];
+};
+
+/** Los pedidos abiertos del cliente, para cobrar el saldo cuando viene a retirar. */
+export async function pedidosParaRetirarAction(clientId: string): Promise<PedidoParaRetirar[]> {
+  await requireSalesStaff();
+  const ctx = await contextoDePedidos("ver");
+  if (!ctx || typeof clientId !== "string" || clientId.length > 64) return [];
+  const abiertos = await prisma.fotofficePedido.findMany({
+    where: { workspaceId: ctx.workspaceId, clientId, status: { in: ["CONFIRMADO", "EN_CURSO"] } },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true },
+  });
+  const out: PedidoParaRetirar[] = [];
+  for (const { id } of abiertos) {
+    const d = await leerPedido(ctx, id);
+    if (!d) continue;
+    const trabajos = await prisma.fotofficeProyecto.findMany({
+      where: { workspaceId: ctx.workspaceId, pedidoId: id },
+      select: { name: true, id: true },
+    });
+    const journeys = trabajos.length
+      ? await prisma.fotofficeJourney.findMany({
+          where: { workspaceId: ctx.workspaceId, subjectType: "PROYECTO", subjectId: { in: trabajos.map((t) => t.id) } },
+          select: { subjectId: true, stage: { select: { name: true } } },
+        })
+      : [];
+    const etapaDe = new Map(journeys.map((j) => [j.subjectId, j.stage?.name ?? null]));
+    out.push({
+      id,
+      numero: d.numero,
+      totalMinor: Math.round(d.plan.total * 100),
+      saldoMinor: Math.round(d.plan.aCobrar * 100),
+      entrega: d.eventDate,
+      trabajos: trabajos.map((t) => ({ nombre: t.name, etapa: etapaDe.get(t.id) ?? null })),
+    });
+  }
+  return out;
+}
+
+export type CobroSaldoResult = { ok: true; mensaje: string } | { ok: false; error: string };
+
+/** Cobra lo que falta de un pedido (el cliente vino a retirar). */
+export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string, clave: string): Promise<CobroSaldoResult> {
+  await requireSalesStaff();
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return { ok: false, error: "No tenés permiso para cobrar pedidos." };
+  if (!SALE_PAYMENT_METHODS.includes(paymentMethod as SalePaymentMethod)) return { ok: false, error: "Elegí un medio de pago." };
+  if (typeof clave !== "string" || !CLAVE.test(clave)) return { ok: false, error: "Volvé a apretar Cobrar." };
+  const d = await leerPedido(ctx, pedidoId);
+  if (!d) return { ok: false, error: "Ese pedido no existe." };
+  const saldo = Math.round(d.plan.aCobrar * 100);
+  if (saldo <= 0) return { ok: false, error: "Ese pedido ya está pago." };
+  const c = await registrarCobro(ctx, {
+    pedidoId: d.id,
+    importe: pesos(saldo),
+    fecha: diaEnBuenosAires(new Date()),
+    medio: paymentMethod,
+    idempotencyKey: clave,
+  });
+  if (!c.ok) return { ok: false, error: c.error };
+  revalidatePath("/pedidos");
+  revalidatePath("/caja");
+  return { ok: true, mensaje: `Saldo del pedido ${d.numero} cobrado: ${formatMinorArs(saldo)}. Recibo ${c.reciboNumero}.` };
+}

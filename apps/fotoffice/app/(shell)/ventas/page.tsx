@@ -8,6 +8,9 @@ import { listAccounts, listCategories } from "@/lib/cash/repository";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
 import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
+import { prisma } from "@repo/db";
+import { contextoDePedidos } from "@/lib/pedidos/contexto";
+import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { Pos } from "./pos";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +33,24 @@ export default async function VentasPage() {
   // Egresos desde el mostrador: sólo para quien puede operar la caja (como Caja → Anotar).
   const puedeEgresos = cashEnabled && hasLevel(await getModuleLevel(user.id, workspace.id, CASH_MODULE_KEY), "MANAGE");
 
+  // Trabajos con proceso (copias a laboratorio, fotolibros, rollos, digitalizaciones): los productos
+  // con un flujo en "Proyecto que genera". Sólo si se pueden crear pedidos y proyectos; si no, el
+  // Mostrador vende todo como hasta ahora.
+  const pedidosHabilitados = (await contextoDePedidos("operar")) !== null && (await proyectosEncendidos(workspace.id));
+  const reglas = pedidosHabilitados
+    ? await prisma.fotofficeProductoProyecto.findMany({
+        where: { workspaceId: workspace.id },
+        select: { productId: true, plazoDias: true, ultimoPlazoDias: true },
+      })
+    : [];
+  // Plazo sugerido por producto: el último que se usó, si no el configurado; el mayor si hay varios.
+  const procesos: Record<string, number | null> = {};
+  for (const r of reglas) {
+    const dias = r.ultimoPlazoDias ?? r.plazoDias;
+    const previo = procesos[r.productId];
+    procesos[r.productId] = previo === undefined ? dias : dias === null ? previo : Math.max(previo ?? 0, dias);
+  }
+
   // Los clientes ya no viajan todos: el mostrador los busca por cualquier dato al tipear.
   const [productos, categorias, cuentas, categoriasEgreso, ajustesCobro] = await Promise.all([
     listProducts(workspace.id, { onlyActive: true, onlyCounter: true }),
@@ -48,6 +69,7 @@ export default async function VentasPage() {
         categories={categorias}
         clientsEnabled={clientsEnabled}
         cashEnabled={cashEnabled}
+        procesos={procesos}
         egresos={
           puedeEgresos
             ? {
