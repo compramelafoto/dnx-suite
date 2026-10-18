@@ -120,6 +120,9 @@ export async function finalizeAlbumPhotoFromRaw(
       errorMsg.includes("Unknown argument") ||
       errorMsg.includes("does not exist")
     ) {
+      if (Object.keys(agencyData).length) {
+        console.warn("[agencia] create de respaldo: se descartaron los datos de agencia de la foto", { albumId });
+      }
       photo = await prisma.photo.create({
         data: { albumId, previewUrl, originalKey },
       });

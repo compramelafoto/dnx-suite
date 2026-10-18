@@ -63,7 +63,8 @@ async function markUploadLogProcessing(
 async function markJobCompleted(
   client: PrismaClient,
   job: ClaimedCameraIngestJob,
-  photoId: number
+  photoId: number | null,
+  note: string | null = null
 ): Promise<void> {
   const now = new Date();
 
@@ -72,10 +73,11 @@ async function markJobCompleted(
       where: { id: job.id },
       data: {
         status: "COMPLETED",
-        photoId,
+        // Repetida: no se guarda photoId (es @unique y la foto ya pertenece a otro job).
+        ...(photoId != null ? { photoId } : {}),
         completedAt: now,
         lockedAt: null,
-        lastError: null,
+        lastError: note,
         runAfter: null,
       },
     }),
@@ -193,7 +195,18 @@ export async function processClaimedCameraIngestJob(
       folderId: job.folderId ?? undefined,
       maxBytes: getAlbumPhotoMaxBytes(),
       maxMb: getAlbumPhotoMaxMb(),
+      originalFilename: job.originalFilename ?? null,
     });
+
+    if (result.duplicate) {
+      await markJobCompleted(
+        client,
+        job,
+        null,
+        `Repetida: ya estaba en el álbum (foto ${result.photo.id})`
+      );
+      return { ok: true, photoId: result.photo.id };
+    }
 
     await markJobCompleted(client, job, result.photo.id);
 
