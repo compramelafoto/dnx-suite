@@ -5,6 +5,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { listClients } from "@/lib/clients/repository";
+import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { Pos } from "./pos";
 
 export const dynamic = "force-dynamic";
@@ -24,21 +25,30 @@ export default async function VentasPage() {
   // es control de acceso — es avisarle al mostrador de antemano, no después del hecho.
   const cashEnabled = await isModuleEnabledForWorkspace(workspace.id, CASH_MODULE_KEY);
 
-  const [productos, categorias, clientes] = await Promise.all([
+  const [productos, categorias, clientes, ajustesCobro] = await Promise.all([
     listProducts(workspace.id, { onlyActive: true, onlyCounter: true }),
     listProductCategories(workspace.id),
     clientsEnabled ? listClients(workspace.id) : Promise.resolve([]),
+    // Los mismos datos para transferir que muestra el enlace de pago de un pedido.
+    leerAjustesCobro(workspace.id),
   ]);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Caja" description="Buscá o escaneá, armá el ticket y cobrá." />
+      <PageHeader title="Mostrador" description="Tocá los productos, elegí cómo paga y cobrá." />
       <Pos
         products={productos}
         categories={categorias}
         clientsEnabled={clientsEnabled}
         clients={clientes}
         cashEnabled={cashEnabled}
+        datosTransferencia={{
+          alias: ajustesCobro.alias,
+          cbuCvu: ajustesCobro.cbuCvu,
+          titular: ajustesCobro.titular,
+          cuit: ajustesCobro.cuit,
+          banco: ajustesCobro.banco,
+        }}
       />
     </div>
   );

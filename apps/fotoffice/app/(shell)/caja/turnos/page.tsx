@@ -10,7 +10,7 @@ import { transferAction } from "../actions";
 export const dynamic = "force-dynamic";
 
 function fecha(d: Date) {
-  return d.toLocaleString("es-AR");
+  return d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 }
 
 export default async function TurnosPage({

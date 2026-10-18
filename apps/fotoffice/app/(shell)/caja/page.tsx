@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { PageHeader } from "@/components/page-header";
 import { requireCashViewer } from "@/lib/cash/access";
 import {
@@ -14,6 +16,7 @@ import { balancesByAccountMinor } from "@/lib/cash/balance";
 import { expectedAmountMinor } from "@/lib/cash/shift";
 import { listClients } from "@/lib/clients/repository";
 import { AccountCard } from "./account-card";
+import { AccionesCaja } from "./acciones-caja";
 import { MovementForm } from "./movement-form";
 import { canHandleProjectMoney, committedMinor, listMoneyProjects } from "@/lib/governance/money-server";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -74,11 +77,12 @@ export default async function CajaPage({
     );
   }
 
-  const [categorias, clientes, movimientosRecientes, movimientosParaSaldo] = await Promise.all([
+  const [categorias, clientes, movimientosRecientes, movimientosParaSaldo, ventasEncendido] = await Promise.all([
     listCategories(workspace.id),
     listClients(workspace.id),
     listMovements(workspace.id, { take: MOVIMIENTOS_RECIENTES }),
     movementsForBalance(workspace.id),
+    isModuleEnabledForWorkspace(workspace.id, SALES_MODULE_KEY),
   ]);
 
   const saldos = balancesByAccountMinor(
@@ -152,7 +156,9 @@ export default async function CajaPage({
         camino de la interfaz. Quien sólo ve (VIEW) no lo recibe: la acción lo rebotaría.
       */}
       {canOperate ? (
-        <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" projects={proyectosConPlata} />
+        <AccionesCaja ventasEncendido={ventasEncendido}>
+          <MovementForm accounts={cuentas} categories={categorias} clients={clientes} returnTo="/caja" projects={proyectosConPlata} />
+        </AccionesCaja>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -124,19 +124,23 @@ export function MovementForm({
             ))}
           </select>
         </div>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor="mov-client">
-            Cliente
-          </label>
-          <select id="mov-client" name="clientId" className="fo-input" defaultValue="">
-            <option value="">Sin cliente</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* El cliente es de los ingresos (le suma puntos del Club). En un gasto no va: ahí
+            lo que importa es a quién se le pagó, que por ahora se escribe en la descripción. */}
+        {kind === "INGRESO" ? (
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="mov-client">
+              Cliente
+            </label>
+            <select id="mov-client" name="clientId" className="fo-input" defaultValue="">
+              <option value="">Sin cliente</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="mov-receipt">
             Comprobante
@@ -166,7 +170,13 @@ export function MovementForm({
         <label className="fo-label" htmlFor="mov-description">
           Descripción
         </label>
-        <input id="mov-description" name="description" className="fo-input" placeholder="De qué se trata" required />
+        <input
+          id="mov-description"
+          name="description"
+          className="fo-input"
+          placeholder={kind === "EGRESO" ? "Qué se pagó y a quién (ej.: resmas — Papelería Norte)" : "De qué se trata"}
+          required
+        />
       </div>
 
       <div className="fo-form-actions">
