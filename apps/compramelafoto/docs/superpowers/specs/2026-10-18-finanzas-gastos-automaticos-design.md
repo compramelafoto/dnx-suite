@@ -47,7 +47,9 @@ de cada mes.
 | Vercel (`vercel`) | dnxfotografia@gmail.com | `notifications@vercel.com` | Factura, pago fallido, pago exitoso |
 | Cursor (`cursor`, inactivo) | dnxfotografia@gmail.com | `invoice+statements+acct_1Lb5LzB4TZWxSIGU@stripe.com` | Recibo y **reembolso** Stripe |
 | CapCut (`capcut`, nuevo) | dnxfotografia@gmail.com | a confirmar con el primer mail | Próximo servicio |
-| ElevenLabs (`elevenlabs`, nuevo) | cuart.daniel@gmail.com | a confirmar | Recibo |
+| ElevenLabs (`elevenlabs`, nuevo) | cuart.daniel@gmail.com | `invoice+statements+acct_1M07hSLmdOdiMXBs@stripe.com` | Recibo Stripe ("Seat Credit Usage") |
+
+Los remitentes `@stripe.com` son de **muchos comercios**: el proveedor se identifica por el `acct_…` del remitente, nunca por el dominio solo.
 
 La tabla vive **en código** (`lib/finance-dnx/mail/vendors.ts`): remitentes, patrón de asunto y
 lector de cada proveedor. Las `key` definitivas se toman de la base al implementar.
