@@ -39,7 +39,7 @@ export default async function CobrosMercadoPagoPage({ searchParams }: { searchPa
             href={`/caja/mercado-pago?horas=${h}`}
             className={`rounded-full border px-4 py-1.5 text-sm ${
               h === horas
-                ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                 : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]"
             }`}
           >

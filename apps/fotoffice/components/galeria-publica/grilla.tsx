@@ -62,7 +62,7 @@ const Celda = memo(function Celda({ foto, numero, seleccionada, comentarios, com
           aria-pressed={seleccionada}
           aria-label={seleccionada ? `Quitar la foto ${numero} de mi selección` : `Elegir la foto ${numero}`}
           className={`absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-full border-2 shadow ${
-            seleccionada ? "border-white bg-[var(--fo-accent)] text-white" : "border-white/90 bg-black/35 text-transparent hover:text-white/80"
+            seleccionada ? "border-white bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]" : "border-white/90 bg-black/35 text-transparent hover:text-white/80"
           } disabled:cursor-default`}
         >
           <IconoCheck />

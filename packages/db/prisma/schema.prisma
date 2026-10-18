@@ -7370,6 +7370,9 @@ model FotofficeWorkspaceBranding {
   backgroundColor       String?
   textColor             String?
   accentColor           String?
+  /// Color propio del panel (acento, con el menú lateral negro). Vacío = colores de FOTOFFICE.
+  /// Aparte de los del sitio público a propósito: prenderlos cambiaría el panel sin aviso.
+  panelColor            String?
   contactEmail          String?
   phone                 String?
   whatsapp              String?
