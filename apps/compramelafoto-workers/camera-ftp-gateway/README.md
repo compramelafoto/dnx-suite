@@ -12,7 +12,7 @@ Cámara → FTP STOR → Gateway (auth + rate limit + validación)
 camera-ingest-worker → finalizeAlbumPhotoFromRaw → foto visible en álbum
 ```
 
-**Importante:** el gateway solo encola. Para que la foto aparezca en el álbum tenés que tener **`camera-ingest-worker` corriendo** (`npm run start` en `camera-ingest-worker/`).
+**Importante:** el gateway solo encola. La ingesta la hace el cron de Vercel `/api/cron/process-camera-ingest-jobs`; `camera-ingest-worker` es opcional. Para desplegar el gateway ver `../deploy/README.md`.
 
 ## Requisitos
 

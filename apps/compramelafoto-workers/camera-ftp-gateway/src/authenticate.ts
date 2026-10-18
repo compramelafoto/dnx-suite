@@ -1,5 +1,5 @@
 import { CameraConnectionAssignmentMode } from "@repo/db";
-import { FileSystemError, GeneralError } from "ftp-srv";
+import { FileSystemError, GeneralError } from "./ftp-srv-compat.js";
 import {
   validateActiveAlbumForCameraConnection,
   verifyFtpPassword,

@@ -1,0 +1,563 @@
+# Servidor de FTP de ComprameLaFoto en Fly.io (NO está desplegado todavía).
+# Guía paso a paso: apps/compramelafoto-workers/deploy/README.md
+#
+# Se despliega desde la RAÍZ del monorepo:
+#   fly deploy -c apps/compramelafoto-workers/camera-ftp-gateway/fly.toml \
+#     --dockerfile apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile
+#
+# Acá no va ningún secreto. DATABASE_URL, R2_* y FTP_PASV_URL se cargan con
+# `fly secrets set` (ver la guía).
+
+app = "clf-camera-ftp"
+primary_region = "eze" # Buenos Aires
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  CAMERA_CONNECTION_FTP_PORT = "21"
+  HEALTH_PORT = "8080"
+  FTP_PASV_MIN_PORT = "50000"
+  FTP_PASV_MAX_PORT = "50050"
+  # Máximo por archivo en el servidor (30 MB). La app acepta hasta 10 MB.
+  FTP_MAX_UPLOAD_BYTES = "31457280"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# Una sola máquina, siempre encendida: el FTP no puede "dormirse" porque la
+# cámara se conecta sin avisar.
+[[services]]
+  protocol = "tcp"
+  internal_port = 21
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 21
+
+# /health queda sólo dentro de Fly (no se publica a Internet).
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8080
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+# Datos en modo pasivo: un puerto por bloque (50000 a 50050). Tienen que
+# coincidir con FTP_PASV_MIN_PORT y FTP_PASV_MAX_PORT de arriba.
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50000
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50000
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50001
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50001
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50002
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50002
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50003
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50003
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50004
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50004
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50005
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50005
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50006
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50006
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50007
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50007
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50008
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50008
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50009
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50009
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50010
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50010
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50011
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50011
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50012
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50012
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50013
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50013
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50014
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50014
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50015
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50015
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50016
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50016
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50017
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50017
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50018
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50018
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50019
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50019
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50020
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50020
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50021
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50021
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50022
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50022
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50023
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50023
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50024
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50024
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50025
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50025
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50026
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50026
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50027
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50027
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50028
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50028
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50029
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50029
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50030
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50030
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50031
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50031
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50032
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50032
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50033
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50033
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50034
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50034
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50035
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50035
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50036
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50036
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50037
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50037
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50038
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50038
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50039
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50039
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50040
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50040
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50041
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50041
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50042
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50042
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50043
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50043
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50044
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50044
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50045
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50045
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50046
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50046
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50047
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50047
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50048
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50048
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50049
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50049
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50050
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 50050

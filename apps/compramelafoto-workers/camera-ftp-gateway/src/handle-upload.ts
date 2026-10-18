@@ -9,7 +9,7 @@ import {
   resolveFtpDestinationAlbum,
 } from "@/lib/camera-connection/resolve-ftp-destination-album.js";
 import { resolveAgencyFtpUpload } from "@/lib/agencies/ftp-login.js";
-import { FileSystemError } from "ftp-srv";
+import { FileSystemError } from "./ftp-srv-compat.js";
 import type { CameraFtpAuthContext } from "./authenticate.js";
 import type { GatewayConfig } from "./config.js";
 import { logError, logInfo, logWarn } from "./logger.js";
