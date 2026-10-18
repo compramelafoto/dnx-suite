@@ -511,7 +511,17 @@ export default function FinanzasDnxGastosPage() {
                   );
                   return (
                     <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.vendor?.name}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {entry.vendor?.name}
+                        {entry.source === "MAIL" && (
+                          <span className="ml-2 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                            Automático
+                          </span>
+                        )}
+                        {entry.invoiceNumber && (
+                          <span className="block text-xs font-normal text-gray-500">Factura {entry.invoiceNumber}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900 text-right">
                         {(entry.amountOriginalMinor / 100).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                       </td>
