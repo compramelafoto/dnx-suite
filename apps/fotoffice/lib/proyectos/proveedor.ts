@@ -5,6 +5,7 @@ import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender"
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { MENSAJES_PROYECTO, puedeGestionarProyectos, type CtxProyectos } from "./acceso";
 import { correoParaProveedor } from "./correo-proveedor";
+import { moverAFase } from "./avance";
 import { enlaceLaboratorioSiHayArchivos } from "@/lib/carpetas/carpeta";
 
 /**
@@ -169,5 +170,8 @@ export async function enviarAlProveedor(ctx: CtxProyectos, proyectoId: unknown, 
       },
     }),
   ]);
+  // Mandado al laboratorio: el trabajo pasa solo a "En el proveedor".
+  const avance = await moverAFase(ctx, proyectoId, "EN_PROVEEDOR", `Enviado a ${proveedor.name}.`);
+  if (avance.ok && avance.movido) aviso = `${aviso} Pasó a «${avance.etapa}».`;
   return { ok: true, porCorreo, aviso };
 }

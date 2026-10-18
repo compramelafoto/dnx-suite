@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Mail, MessageCircle, Search, Truck, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardList, Mail, MessageCircle, PackageCheck, Search, Send, Wallet } from "lucide-react";
 import { cerrarAction, moverAction } from "@/app/actions/circuitos";
-import { avisarListoAction } from "@/app/actions/proyectos-proveedor";
+import { avisarListoAction, enviarAlProveedorAction, llegoDelProveedorAction } from "@/app/actions/proyectos-proveedor";
 import { formatMinorArs } from "@/lib/membership/money";
 import { FASES, FASE_INFO, etapaSiguiente, urgenciaDeEntrega, type Fase, type Urgencia } from "@/lib/proyectos/en-curso-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
@@ -110,6 +110,34 @@ export function TableroEnCurso({
       const r = await avisarListoAction(t.proyectoId);
       setOcupada(null);
       setAviso(r.ok ? { ok: true, texto: `${t.cliente}: aviso enviado a ${r.email}.` } : { ok: false, texto: `${t.cliente}: ${r.error}` });
+    });
+  }
+
+  function enviarAlProveedor(t: TarjetaTrabajo) {
+    if (!t.proveedorId) return;
+    setOcupada(t.journeyId);
+    setAviso(null);
+    start(async () => {
+      const r = await enviarAlProveedorAction(t.proyectoId, t.proveedorId as string, "");
+      setOcupada(null);
+      setAviso(r.ok ? { ok: r.porCorreo, texto: `${t.cliente}: ${r.aviso}` } : { ok: false, texto: `${t.cliente}: ${r.error}` });
+      if (r.ok) router.refresh();
+    });
+  }
+
+  function llego(t: TarjetaTrabajo) {
+    setOcupada(t.journeyId);
+    setAviso(null);
+    start(async () => {
+      const r = await llegoDelProveedorAction(t.proyectoId);
+      setOcupada(null);
+      if (!r.ok) {
+        setAviso({ ok: false, texto: `${t.cliente}: ${r.error}` });
+        return;
+      }
+      const correo = r.correo ? ` Se le avisó por correo a ${r.correo}.` : r.avisoError ? ` ${r.avisoError}` : "";
+      setAviso({ ok: true, texto: `${t.cliente}: listo para retirar.${correo}` });
+      router.refresh();
     });
   }
 
@@ -242,6 +270,8 @@ export function TableroEnCurso({
                         ocupada={ocupada === t.journeyId}
                         onAvanzar={() => avanzar(t)}
                         onCorreo={() => avisarPorCorreo(t)}
+                        onEnviar={() => enviarAlProveedor(t)}
+                        onLlego={() => llego(t)}
                       />
                     ))
                   )}
@@ -287,6 +317,29 @@ function Indicador({
   );
 }
 
+/** Botón chico de ícono, para las acciones secundarias de la tarjeta. */
+function BotonIcono({ titulo, onClick, href, disabled, children }: { titulo: string; onClick?: () => void; href?: string; disabled?: boolean; children: React.ReactNode }) {
+  const clase =
+    "flex size-7 shrink-0 items-center justify-center rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] transition hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)] disabled:opacity-50";
+  return href ? (
+    <a href={href} target="_blank" rel="noreferrer" title={titulo} aria-label={titulo} className={clase}>
+      {children}
+    </a>
+  ) : (
+    <button type="button" onClick={onClick} disabled={disabled} title={titulo} aria-label={titulo} className={clase}>
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Tarjeta compacta: tres renglones. Arriba quién y cuánto debe; en el medio qué es; abajo la
+ * entrega y la acción que corresponde a la columna:
+ * - Recibido / En proceso con proveedor sin enviar: «Enviar a …» (correo al laboratorio y pasa sola a En el proveedor).
+ * - En el proveedor: «Llegó» (pasa directo a Listo para retirar y le avisa al cliente por correo).
+ * - Listo para retirar: WhatsApp, correo y «Entregado».
+ * - El resto: la etapa siguiente.
+ */
 function Tarjeta({
   t,
   hoy,
@@ -295,6 +348,8 @@ function Tarjeta({
   ocupada,
   onAvanzar,
   onCorreo,
+  onEnviar,
+  onLlego,
 }: {
   t: TarjetaTrabajo;
   hoy: string;
@@ -303,6 +358,8 @@ function Tarjeta({
   ocupada: boolean;
   onAvanzar: () => void;
   onCorreo: () => void;
+  onEnviar: () => void;
+  onLlego: () => void;
 }) {
   const orden = [...t.etapas].sort((a, b) => a.order - b.order);
   const indice = t.cerrado ? orden.length : Math.max(0, orden.findIndex((e) => e.id === t.etapaActualId));
@@ -319,102 +376,86 @@ function Tarjeta({
           } ¡Te esperamos!`,
         )
       : null;
+  const porEnviar = (t.fase === "RECIBIDO" || t.fase === "EN_PROCESO") && t.proveedorId !== null && t.enviadoAt === null;
+  const detalle = [t.producto ?? t.nombre, t.proveedor].filter(Boolean).join(" · ");
+  const ayuda = `${t.recorrido.nombre} · ${t.cerrado ? "Terminado" : `paso ${indice + 1} de ${orden.length}: ${actual?.name ?? ""}`}`;
+
+  let principal: { texto: string; icono: React.ReactNode; onClick: () => void; titulo: string } | null = null;
+  if (!t.cerrado && puedeOperar) {
+    if (porEnviar) principal = { texto: `Enviar a ${t.proveedor}`, icono: <Send className="size-3.5" aria-hidden />, onClick: onEnviar, titulo: "Le manda el pedido por correo y pasa a En el proveedor" };
+    else if (t.fase === "EN_PROVEEDOR") principal = { texto: "Llegó", icono: <PackageCheck className="size-3.5" aria-hidden />, onClick: onLlego, titulo: "Pasa a Listo para retirar y le avisa al cliente por correo" };
+    else if (t.fase === "LISTO") principal = { texto: "Entregado", icono: <Check className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
+    else principal = { texto: siguiente ? siguiente.name : "Terminar", icono: siguiente ? <ArrowRight className="size-3.5" aria-hidden /> : <CheckCircle2 className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
+  }
 
   return (
     <article
-      className={`group space-y-2.5 rounded-[var(--fo-radius)] border bg-[var(--fo-bg-elevated)] p-3 shadow-[var(--fo-shadow-xs)] transition hover:shadow-[var(--fo-shadow-sm)] ${
+      title={ayuda}
+      className={`group relative space-y-1.5 overflow-hidden rounded-[var(--fo-radius-sm)] border bg-[var(--fo-bg-elevated)] px-2.5 pb-2 pt-2.5 shadow-[var(--fo-shadow-xs)] transition hover:shadow-[var(--fo-shadow-sm)] ${
         u === "VENCIDO" ? "border-[var(--fo-danger-border)]" : "border-[var(--fo-border)]"
       } ${ocupada ? "opacity-60" : ""}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <Link href={`/proyectos/${t.proyectoId}`} className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[var(--fo-text)] group-hover:underline">{t.cliente}</p>
-          <p className="line-clamp-2 text-xs text-[var(--fo-muted)]">{t.producto ?? t.nombre}</p>
+      {/* Avance: una línea fina arriba, llena hasta la etapa actual. */}
+      {orden.length > 0 ? (
+        <div className="absolute inset-x-0 top-0 flex h-[3px] gap-px" aria-hidden>
+          {orden.map((e, i) => (
+            <span key={e.id} className={`flex-1 ${i <= indice ? "bg-[var(--fo-accent)]" : "bg-[var(--fo-border)]"} ${i === indice ? "opacity-60" : ""}`} />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex items-baseline justify-between gap-2">
+        <Link href={`/proyectos/${t.proyectoId}`} className="min-w-0 truncate text-[13px] font-semibold text-[var(--fo-text)] hover:underline">
+          {t.cliente}
         </Link>
         {t.pedido ? (
           debe > 0 ? (
-            <span className="shrink-0 rounded-full bg-[var(--fo-danger-soft)] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">
-              Debe {formatMinorArs(debe).replace(",00", "")}
-            </span>
+            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">Debe {formatMinorArs(debe).replace(",00", "")}</span>
           ) : (
-            <span className="shrink-0 rounded-full bg-[var(--fo-success-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--fo-success)]">Pagado</span>
+            <span className="shrink-0 text-[11px] font-semibold text-[var(--fo-success)]">Pagado</span>
           )
         ) : null}
       </div>
+      <p className="truncate text-[11px] text-[var(--fo-muted)]">{detalle}</p>
 
-      <div className="flex flex-wrap gap-1">
-        <span className="rounded-full bg-[var(--fo-surface-hover)] px-2 py-0.5 text-[11px] text-[var(--fo-text-secondary)]">{t.recorrido.nombre}</span>
-        {t.proveedor ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-800">
-            <Truck className="size-3" aria-hidden />
-            {t.proveedor}
-          </span>
-        ) : null}
-      </div>
-
-      {/* Avance: un segmento por etapa, lleno hasta la actual. */}
-      {orden.length > 0 ? (
-        <div className="space-y-1">
-          <div className="flex gap-0.5" aria-hidden>
-            {orden.map((e, i) => (
-              <span
-                key={e.id}
-                className={`h-1.5 flex-1 rounded-full ${i < indice ? "bg-[var(--fo-accent)]" : i === indice ? "bg-[var(--fo-accent)] opacity-60" : "bg-[var(--fo-border)]"}`}
-              />
-            ))}
-          </div>
-          <p className="truncate text-[11px] text-[var(--fo-muted)]">
-            {t.cerrado ? "Terminado" : `Paso ${indice + 1} de ${orden.length} · ${actual?.name ?? ""}`}
-          </p>
-        </div>
-      ) : null}
-
-      <div className="flex items-center justify-between gap-2">
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] tabular-nums ${ESTILO_URGENCIA[u]}`}>
+      <div className="flex items-center gap-1.5">
+        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] tabular-nums ${ESTILO_URGENCIA[u]}`}>
           <CalendarDays className="size-3" aria-hidden />
           {t.cerrado ? "Entregado" : textoEntrega(t.entrega, u)}
         </span>
-        <span className="text-[11px] text-[var(--fo-muted-soft)]">{t.pedido ? `Pedido ${t.pedido.numero}` : t.numero}</span>
-      </div>
-
-      {!t.cerrado && puedeOperar ? (
-        <div className="flex gap-1.5">
-          {t.fase === "LISTO" && t.email ? (
-            <button
-              type="button"
-              onClick={onCorreo}
-              disabled={ocupada}
-              className="fo-btn fo-btn-secondary gap-1 px-2.5 text-xs"
-              title={`Mandar el aviso por correo a ${t.email}`}
-            >
-              <Mail className="size-3.5" aria-hidden />
-              Correo
-            </button>
-          ) : null}
-          {whatsapp ? (
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noreferrer"
-              className="fo-btn fo-btn-secondary gap-1 px-2.5 text-xs"
-              title="Avisarle por WhatsApp que está listo"
-            >
-              <MessageCircle className="size-3.5" aria-hidden />
-              Avisar
-            </a>
-          ) : null}
+        <span className="flex-1" />
+        {t.fase === "LISTO" && !t.cerrado && puedeOperar ? (
+          <>
+            {whatsapp ? (
+              <BotonIcono titulo="Avisar por WhatsApp" href={whatsapp}>
+                <MessageCircle className="size-3.5" aria-hidden />
+              </BotonIcono>
+            ) : null}
+            {t.email ? (
+              <BotonIcono titulo={`Reenviar el aviso por correo a ${t.email}`} onClick={onCorreo} disabled={ocupada}>
+                <Mail className="size-3.5" aria-hidden />
+              </BotonIcono>
+            ) : null}
+          </>
+        ) : null}
+        {principal && (porEnviar || t.fase === "EN_PROVEEDOR") && siguiente ? (
+          <BotonIcono titulo={`Pasar a «${siguiente.name}» a mano`} onClick={onAvanzar} disabled={ocupada}>
+            <ArrowRight className="size-3.5" aria-hidden />
+          </BotonIcono>
+        ) : null}
+        {principal ? (
           <button
             type="button"
-            onClick={onAvanzar}
+            onClick={principal.onClick}
             disabled={ocupada}
-            className="fo-btn fo-btn-secondary min-w-0 flex-1 justify-between gap-1 px-2.5 text-xs"
-            title={siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo"}
+            title={principal.titulo}
+            className="inline-flex h-7 min-w-0 max-w-[60%] items-center gap-1 rounded-[var(--fo-radius-sm)] bg-[var(--fo-accent)] px-2 text-[11px] font-semibold text-[var(--fo-on-accent,#fff)] transition hover:bg-[var(--fo-accent-hover)] disabled:opacity-50"
           >
-            <span className="truncate">{siguiente ? siguiente.name : "Terminar"}</span>
-            {siguiente ? <ArrowRight className="size-3.5 shrink-0" aria-hidden /> : <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />}
+            {principal.icono}
+            <span className="truncate">{principal.texto}</span>
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </article>
   );
 }

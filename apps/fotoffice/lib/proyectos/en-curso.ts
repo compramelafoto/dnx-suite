@@ -28,6 +28,7 @@ export type TarjetaTrabajo = {
   enteredStageAt: string;
   entrega: string | null;
   proveedor: string | null;
+  proveedorId: string | null;
   enviadoAt: string | null;
   pedido: { id: string; numero: string; saldoMinor: number } | null;
   cerrado: boolean;
@@ -67,6 +68,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
         pedidoId: true,
         client: { select: { firstName: true, lastName: true, businessName: true, phone: true, email: true } },
         product: { select: { name: true } },
+        proveedorId: true,
         proveedor: { select: { name: true } },
       },
     }),
@@ -142,6 +144,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       enteredStageAt: j.enteredStageAt.toISOString(),
       entrega: ymd(p.entregaPrometida) ?? ymd(p.finalDueDate),
       proveedor: p.proveedor?.name ?? null,
+      proveedorId: p.proveedorId,
       enviadoAt: p.proveedorEnviadoAt ? p.proveedorEnviadoAt.toISOString() : null,
       pedido: p.pedidoId ? (pedidoDe.get(p.pedidoId) ?? null) : null,
       cerrado,
