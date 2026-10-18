@@ -13,7 +13,10 @@ import {
   sha256Hex,
 } from "./photo-facts";
 
-beforeEach(() => exifrParse.mockReset());
+// Con llaves: si el callback devolviera el mock, vitest lo ejecutaría como "limpieza" al terminar cada test.
+beforeEach(() => {
+  exifrParse.mockReset();
+});
 
 describe("sha256Hex", () => {
   it("devuelve la huella en hexadecimal", () => {
