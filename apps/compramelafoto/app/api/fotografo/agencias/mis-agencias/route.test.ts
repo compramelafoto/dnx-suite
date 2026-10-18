@@ -45,7 +45,7 @@ describe("mis-agencias", () => {
     expect(body.mpConnected).toBe(true);
     expect(body.agencies[0]).toMatchObject({
       agencyId: 3, name: "Fotoshow", status: "ACTIVE", commissionLabel: "30 %", needsTerms: true, myPhotosCount: 12,
-      albums: [{ title: "Temporada 2027", publicSlug: "temporada-2027-ab" }],
+      albums: [{ albumId: 50, title: "Temporada 2027", publicSlug: "temporada-2027-ab" }],
     });
     // Verifica que no se exponen datos de clientes
     expect(Object.keys(memberFindMany.mock.calls[0][0].select).sort()).toEqual(["agencyId", "agency", "commissionBps", "status", "termsVersionAccepted"].sort());

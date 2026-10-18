@@ -4,6 +4,7 @@ const requireOwnedAgency = vi.fn();
 const albumFindFirst = vi.fn();
 const albumFindMany = vi.fn();
 const agencyAlbumFindMany = vi.fn();
+const agencyAlbumFindFirst = vi.fn();
 const agencyAlbumCreate = vi.fn();
 const agencyAlbumDeleteMany = vi.fn();
 const photoCount = vi.fn();
@@ -17,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
     photo: { count: (...a: unknown[]) => photoCount(...a) },
     agencyAlbum: {
       findMany: (...a: unknown[]) => agencyAlbumFindMany(...a),
+      findFirst: (...a: unknown[]) => agencyAlbumFindFirst(...a),
       create: (...a: unknown[]) => agencyAlbumCreate(...a),
       deleteMany: (...a: unknown[]) => agencyAlbumDeleteMany(...a),
     },
@@ -34,8 +36,9 @@ import * as lugares from "./lugares/route";
 const req = (body: unknown, url = "http://x/api") => ({ json: async () => body, nextUrl: new URL(url) }) as any;
 
 beforeEach(() => {
-  for (const f of [requireOwnedAgency, albumFindFirst, albumFindMany, agencyAlbumFindMany, agencyAlbumCreate, agencyAlbumDeleteMany, photoCount, placeFindMany, placeCreate, placeDeleteMany]) f.mockReset();
+  for (const f of [requireOwnedAgency, albumFindFirst, albumFindMany, agencyAlbumFindMany, agencyAlbumFindFirst, agencyAlbumCreate, agencyAlbumDeleteMany, photoCount, placeFindMany, placeCreate, placeDeleteMany]) f.mockReset();
   photoCount.mockResolvedValue(0);
+  agencyAlbumFindFirst.mockResolvedValue({ id: 1 });
   requireOwnedAgency.mockResolvedValue({ user: { id: 10 }, agency: { id: 3 } });
 });
 
@@ -72,6 +75,13 @@ describe("álbumes de la agencia", () => {
     const res = await albumes.DELETE(req(null, "http://x/api?albumId=50"));
     expect(res.status).toBe(409);
     expect(agencyAlbumDeleteMany).not.toHaveBeenCalled();
+  });
+  it("DELETE de un álbum que no es de esta agencia no revela si tiene fotos de otros", async () => {
+    agencyAlbumFindFirst.mockResolvedValue(null);
+    const res = await albumes.DELETE(req(null, "http://x/api?albumId=99"));
+    expect(res.status).toBe(404);
+    expect(agencyAlbumFindFirst.mock.calls[0][0].where).toEqual({ agencyId: 3, albumId: 99 });
+    expect(photoCount).not.toHaveBeenCalled();
   });
   it("GET ignora álbumes eliminados", async () => {
     agencyAlbumFindMany.mockResolvedValue([]);

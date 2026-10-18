@@ -52,6 +52,8 @@ export async function DELETE(req: NextRequest) {
   if ("res" in a) return a.res;
   const albumId = Number(req.nextUrl.searchParams.get("albumId"));
   if (!Number.isInteger(albumId) || albumId <= 0) return NextResponse.json({ error: "Álbum inválido." }, { status: 400 });
+  const link = await prisma.agencyAlbum.findFirst({ where: { agencyId: a.agency.id, albumId }, select: { id: true } });
+  if (!link) return NextResponse.json({ error: "Ese álbum no es de la agencia." }, { status: 404 });
   const othersPhotos = await prisma.photo.count({
     where: { albumId, isRemoved: false, userId: { not: a.user.id } },
   });
