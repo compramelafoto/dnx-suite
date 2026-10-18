@@ -11,8 +11,7 @@ export async function GET(req: NextRequest) {
   const denied = assertCronAuth(req);
   if (denied) return denied;
   try {
-    const results = await runMailSync({ budgetMs: 240_000 });
-    return Response.json({ ok: true, results });
+    return Response.json({ ok: true, ...(await runMailSync({ budgetMs: 200_000 })) });
   } catch (err: any) {
     console.error("GET /api/cron/finance-dnx-mail ERROR >>>", err);
     return Response.json({ ok: false, error: String(err?.message ?? err) }, { status: 500 });

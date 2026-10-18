@@ -1,6 +1,8 @@
 const API = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
 const TIMEOUT_MS = 15_000;
 export const BODY_MAX_CHARS = 60_000;
+// Debajo de esto el texto plano no alcanza y se prefiere el HTML.
+const PLAIN_MIN_CHARS = 300;
 
 export type GmailMessage = { id: string; from: string; subject: string; receivedAt: Date; bodyText: string };
 
@@ -81,9 +83,11 @@ export async function getMessage(p: { accessToken: string; id: string; fetchImpl
   const payload: Part = json.payload ?? {};
   const header = (name: string) =>
     payload.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
-  const plain = findPart(payload, "text/plain");
-  const html = plain ? null : findPart(payload, "text/html");
-  const text = plain ? decode(plain.body?.data).trim() : html ? htmlToText(decode(html.body?.data)) : "";
+  const plainText = decode(findPart(payload, "text/plain")?.body?.data).trim();
+  const html = findPart(payload, "text/html");
+  // Algunos proveedores (Neon) mandan un texto plano que es sólo el asunto: ahí el dato está en el HTML.
+  const htmlText = plainText.length < PLAIN_MIN_CHARS && html ? htmlToText(decode(html.body?.data)) : "";
+  const text = htmlText.length > plainText.length ? htmlText : plainText;
   return {
     id: String(json.id),
     from: header("From"),

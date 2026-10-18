@@ -57,11 +57,15 @@ export default function MailConnections({ onSynced }: { onSynced: () => void }) 
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMensaje(json.error ?? "No se pudieron leer los mails.");
+      } else if (json.busy) {
+        setMensaje("Ya hay una lectura en curso (la automática o otra). Probá de nuevo en unos minutos.");
       } else {
         const results = json.results as { saved: number; pending: boolean; error: string | null }[];
         const total = results.reduce((s, r) => s + r.saved, 0);
         const quedan = results.some((r) => r.pending && !r.error);
-        setMensaje(`Se leyeron ${total} mails nuevos.${quedan ? ' Quedan más: volvé a tocar "Leer ahora".' : ""}`);
+        const p = json.processed as { loaded: number; review: number; fixed: number } | null;
+        const cargados = p ? ` Se cargaron o completaron ${p.loaded + p.fixed} gastos y ${p.review} mails quedaron para revisar.` : "";
+        setMensaje(`Se leyeron ${total} mails nuevos.${cargados}${quedan ? ' Quedan más: volvé a tocar "Leer ahora".' : ""}`);
       }
     } finally {
       setLeyendo(false);

@@ -96,3 +96,20 @@ test("un error de Gmail tira GmailError con el código", async () => {
     (e: unknown) => e instanceof GmailError && e.status === 401,
   );
 });
+
+test("si el texto plano es casi vacío (sólo el asunto), usa el HTML", async () => {
+  const f = capture(200, {
+    id: "neon1",
+    internalDate: "0",
+    payload: {
+      headers: [],
+      mimeType: "multipart/alternative",
+      parts: [
+        { mimeType: "text/plain", body: { data: b64("Payment failed for Neon, LLC invoice (#SWURZY-00008)") } },
+        { mimeType: "text/html", body: { data: b64("<p>Hemos tenido un problema al procesar su pago para la factura n.º SWURZY-00008 (127,31 $).</p>") } },
+      ],
+    },
+  });
+  const m = await getMessage({ accessToken: "tok", id: "neon1", fetchImpl: f.impl });
+  assert.match(m.bodyText, /127,31 \$/);
+});

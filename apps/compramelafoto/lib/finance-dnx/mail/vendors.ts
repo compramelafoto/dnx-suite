@@ -10,6 +10,11 @@ export type MailVendor = {
   senders: string[];
   /** Si está, el asunto tiene que cumplirlo. Sirve para separar dos proveedores con el mismo remitente. */
   subjectHint?: RegExp;
+  /**
+   * Búsqueda de Gmail propia, en vez de sumar `senders` al `from:` común. Para remitentes
+   * compartidos por muchos comercios (Stripe) o dominios con mucho correo que no es cobro.
+   */
+  query?: string;
 };
 
 const CLF = "compramelafoto@gmail.com";
@@ -35,6 +40,29 @@ export const MAIL_VENDORS: readonly MailVendor[] = [
   // CapCut todavía no cobró: se confirma el remitente con el primer mail.
   { key: "capcut", account: DNX, senders: ["capcut.com"] },
   { key: "elevenlabs", account: CUART, senders: ["invoice+statements+acct_1M07hSLmdOdiMXBs@stripe.com"] },
+  // Los recibos de Vercel no llegan a dnxfotografia@ (ahí sólo los avisos de pago fallido).
+  { key: "vercel", account: CLF, senders: ["invoice+statements@vercel.com"] },
+  {
+    key: "aftershoot",
+    account: CUART,
+    senders: ["stripe.com"],
+    subjectHint: /receipt from AfterShoot/i,
+    query: 'from:stripe.com subject:"receipt from AfterShoot"',
+  },
+  {
+    key: "linkedin",
+    account: CUART,
+    senders: ["linkedin.com"],
+    subjectHint: /premium/i,
+    query: "from:linkedin.com subject:premium",
+  },
+  {
+    key: "starlink",
+    account: CUART,
+    senders: ["starlink.com"],
+    subjectHint: /recibo|receipt|factura|invoice/i,
+    query: "from:starlink.com subject:(recibo OR receipt OR factura OR invoice)",
+  },
 ];
 
 function norm(email: string): string {
@@ -76,8 +104,11 @@ export function matchVendorKey(account: string, fromAddress: string, subject: st
 /** Búsqueda de Gmail para una cuenta. `after` null = todo el historial. "" = nada que buscar. */
 export function gmailQueryFor(account: string, after: Date | null): string {
   const acc = norm(account);
-  const senders = [...new Set(MAIL_VENDORS.filter((v) => v.account === acc).flatMap((v) => v.senders))];
-  if (senders.length === 0) return "";
-  const from = `from:(${senders.join(" OR ")})`;
-  return after ? `${from} after:${Math.floor(after.getTime() / 1000)}` : from;
+  const mine = MAIL_VENDORS.filter((v) => v.account === acc);
+  const senders = [...new Set(mine.filter((v) => !v.query).flatMap((v) => v.senders))];
+  const custom = mine.flatMap((v) => (v.query ? [v.query] : []));
+  const parts = [...(senders.length ? [`from:(${senders.join(" OR ")})`] : []), ...custom];
+  if (parts.length === 0) return "";
+  const search = parts.length === 1 ? parts[0] : `(${parts.map((p) => `(${p})`).join(" OR ")})`;
+  return after ? `${search} after:${Math.floor(after.getTime() / 1000)}` : search;
 }
