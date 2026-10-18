@@ -17,7 +17,7 @@
 - Porcentajes guardados en **puntos básicos** enteros (`3000` = 30 %), rango 0–10000; en pantalla, porcentaje con hasta 1 decimal.
 - Porcentaje general por defecto de una agencia: **30 %** (`3000`).
 - Estados como `TEXT` + `CHECK` (no enums de Prisma), igual que las migraciones recientes.
-- Migración **aditiva**: sólo crea tablas; no toca filas existentes. Se aplica a mano en las **cinco** bases con `packages/db/scripts/migraciones-cinco-bases.mts` y queda registrada con su checksum. Nombre: `20261120120000_clf_agencias`.
+- Migración **aditiva**: sólo crea tablas; no toca filas existentes. Se aplica a mano en las **cinco** bases con `packages/db/scripts/migraciones-cinco-bases.mts` y queda registrada con su checksum. Nombre: `20261121120000_clf_agencias`.
 - Un miembro de agencia **nunca** recibe datos de compradores ni de interesados, ni descargas de pedidos, de un álbum de agencia.
 - La conexión de Mercado Pago es la existente (`/fotografo/configuracion?tab=mercadopago`); esta etapa sólo enlaza a ella y muestra si está conectada (`User.mpAccessToken` presente).
 - Una cuenta puede ser dueña de **una** agencia (`Agency.ownerUserId` único) y miembro de otras.
@@ -38,7 +38,7 @@
 
 ```
 packages/db/prisma/schema.prisma                                   (modificar: 5 modelos + back-relations en User y Album)
-packages/db/prisma/migrations/20261120120000_clf_agencias/migration.sql (crear)
+packages/db/prisma/migrations/20261121120000_clf_agencias/migration.sql (crear)
 
 apps/compramelafoto/lib/agencies/
   rules.ts            reglas puras: porcentajes, estados, permisos, condiciones, distancia
@@ -91,7 +91,7 @@ apps/compramelafoto/vitest.bot.config.ts            (modificar: include)
 
 **Files:**
 - Modify: `packages/db/prisma/schema.prisma` (modelo `User` ~línea 36, modelo `Album` ~línea 2251, y modelos nuevos al final del bloque de CLF)
-- Create: `packages/db/prisma/migrations/20261120120000_clf_agencias/migration.sql`
+- Create: `packages/db/prisma/migrations/20261121120000_clf_agencias/migration.sql`
 
 **Interfaces:**
 - Produces: modelos Prisma `Agency`, `AgencyMember`, `AgencyInvite`, `AgencyAlbum`, `AgencyPlace` (campos exactos abajo); `prisma.agency`, `prisma.agencyMember`, `prisma.agencyInvite`, `prisma.agencyAlbum`, `prisma.agencyPlace`; back-relations `User.ownedAgency`, `User.agencyMemberships`, `Album.agencyAlbum`.
@@ -215,7 +215,7 @@ En `model Album {` agregar, junto a `packSelectionSessions` (~línea 2378):
 
 - [ ] **Step 3: Escribir la migración**
 
-Create `packages/db/prisma/migrations/20261120120000_clf_agencias/migration.sql`:
+Create `packages/db/prisma/migrations/20261121120000_clf_agencias/migration.sql`:
 
 ```sql
 -- Modo agencia de CompraMeLaFoto (etapa 1): crea Agency, AgencyMember, AgencyInvite, AgencyAlbum y
@@ -332,7 +332,7 @@ Expected: no aparece ninguna sentencia sobre `Agency*` (si el repo ya tenía der
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20261120120000_clf_agencias
+git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20261121120000_clf_agencias
 git commit -m "Modo agencia: tablas de agencia, equipo, invitaciones, álbumes y lugares"
 ```
 
@@ -3411,11 +3411,11 @@ Expected: todos PASS y 0 errores.
 - [ ] **Step 2: Aplicar la migración en las cinco bases (antes del deploy)**
 
 Simulación primero:
-Run: `cd packages/db && pnpm exec tsx scripts/migraciones-cinco-bases.mts --bases ~/neon-bases.json --solo 20261120120000_clf_agencias`
+Run: `cd packages/db && pnpm exec tsx scripts/migraciones-cinco-bases.mts --bases ~/neon-bases.json --solo 20261121120000_clf_agencias`
 Expected: lista las cinco bases con la migración pendiente y nada aplicado.
 
 Aplicar:
-Run: `cd packages/db && pnpm exec tsx scripts/migraciones-cinco-bases.mts --bases ~/neon-bases.json --aplicar --solo 20261120120000_clf_agencias`
+Run: `cd packages/db && pnpm exec tsx scripts/migraciones-cinco-bases.mts --bases ~/neon-bases.json --aplicar --solo 20261121120000_clf_agencias`
 Expected: aplicada y registrada en `_prisma_migrations` en las cinco. Si `~/neon-bases.json` no existe, pedírselo a Daniel (no inventar cadenas de conexión; nunca escribir credenciales en archivos del repo).
 
 Verificación en CLF producción (Neon `divine-hall-10689679`, rama `br-autumn-rain-ad18wq7y`, siempre con `branch_id` explícito):
