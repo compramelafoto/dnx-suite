@@ -7,6 +7,7 @@ vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.configurado
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String(e) }));
 const L = vi.hoisted(() => ({ limpiar: vi.fn() }));
 vi.mock("@/lib/dnx-bot/limpieza", () => ({ borrarConversacionesViejas: L.limpiar }));
+vi.mock("@/lib/carpetas/carpeta", () => ({ purgarCarpetas: async () => 0 }));
 
 const { POST, GET, maxDuration } = await import("./route");
 
@@ -63,13 +64,13 @@ describe("cron de adjuntos", () => {
   it("con secreto purga y devuelve los números", async () => {
     const r = await GET(pedido("Bearer s3creto"));
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, purgados: 2, pendientesLimpios: 1, fallidos: 0 });
+    expect(await r.json()).toEqual({ ok: true, carpetas: 0, purgados: 2, pendientesLimpios: 1, fallidos: 0 });
     expect(H.purgar).toHaveBeenCalledTimes(1);
   });
   it("suma también lo purgado de los adjuntos de proyectos", async () => {
     H.purgarProy.mockResolvedValue({ purgados: 3, pendientesLimpios: 2, fallidos: 1 });
     const r = await GET(pedido("Bearer s3creto"));
-    expect(await r.json()).toEqual({ ok: true, purgados: 5, pendientesLimpios: 3, fallidos: 1 });
+    expect(await r.json()).toEqual({ ok: true, carpetas: 0, purgados: 5, pendientesLimpios: 3, fallidos: 1 });
   });
   it("bucket sin configurar → no hace nada", async () => {
     H.configurado.mockReturnValue(false);

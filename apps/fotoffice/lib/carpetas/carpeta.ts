@@ -25,7 +25,8 @@ import {
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const PREFIJO = "fotoffice-carpeta:v1:";
 
-export type ArchivoVista = { id: string; nombre: string; tipo: string; bytes: number; createdAt: string };
+import type { ArchivoVista, VistaCarpeta } from "./tipos";
+export type { ArchivoVista, VistaCarpeta };
 
 function tokenDe(proyectoId: string, audiencia: Audiencia, emitida: Date, clave: string): string {
   return createHmac("sha256", clave).update(`${PREFIJO}${proyectoId}:${audiencia}:${emitida.toISOString()}`).digest("base64url");
@@ -144,14 +145,6 @@ export async function enlaceLaboratorioSiHayArchivos(ctx: CtxProyectos, proyecto
 
 // --- Lo que ve quien abre el enlace ---------------------------------------------------------------
 
-export type VistaCarpeta = {
-  audiencia: Audiencia;
-  estudio: string;
-  trabajo: string;
-  cliente: string;
-  vence: string | null;
-  archivos: (ArchivoVista & { descargar: string; ver: string | null })[];
-};
 
 export async function abrirCarpeta(workspaceId: string, token: unknown, ahora = new Date()): Promise<VistaCarpeta | null> {
   if (!tokenConForma(token)) return null;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Download, FileText, Film, FolderOpen, ImageIcon } from "lucide-react";
 import { tamanoLegible } from "@/lib/carpetas/reglas";
-import type { VistaCarpeta } from "@/lib/carpetas/carpeta";
+import type { VistaCarpeta } from "@/lib/carpetas/tipos";
 
 function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long" });

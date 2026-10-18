@@ -161,7 +161,7 @@ describe("reglas de fuente", () => {
     expect(archivos.length).toBeGreaterThanOrEqual(8);
     const puros = [
       "@/lib/proyectos/ficha-vista", "@/lib/ficha/formato", "@/lib/pedidos/pantalla", "@/lib/proyectos/entregas-puro",
-      "@/lib/proyectos/tarjetas",
+      "@/lib/proyectos/tarjetas", "@/lib/carpetas/reglas", "@/lib/carpetas/tipos",
     ];
     for (const f of archivos) {
       const c = readFileSync(join(dir, f), "utf8");

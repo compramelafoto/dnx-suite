@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { Copy, FileText, Film, FolderOpen, ImageIcon, Trash2, Upload } from "lucide-react";
 import { borrarArchivoAction, confirmarSubidaAction, enlaceDeCarpetaAction, pedirSubidaAction } from "@/app/actions/carpetas";
 import { tamanoLegible } from "@/lib/carpetas/reglas";
-import type { ArchivoVista } from "@/lib/carpetas/carpeta";
+import type { ArchivoVista } from "@/lib/carpetas/tipos";
 
 type Subida = { nombre: string; progreso: number; error: string | null };
 
