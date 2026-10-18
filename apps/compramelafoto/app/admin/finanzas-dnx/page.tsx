@@ -74,6 +74,13 @@ export default function FinanzasDnxResumenPage() {
           <p className="text-gray-600 mt-1">
             Cuánto se facturó, cuánto se pagó y cuánto se debe por la infraestructura de la suite.
           </p>
+          <div className="mt-2 flex flex-wrap gap-3 text-sm">
+            <Link href="/admin/finanzas-dnx/balance" className="font-medium text-violet-700 underline">
+              Balance: ingresos contra gastos
+            </Link>
+            <Link href="/admin/finanzas-dnx/gastos" className="text-gray-700 underline">Gastos</Link>
+            <Link href="/admin/finanzas-dnx/proveedores" className="text-gray-700 underline">Proveedores</Link>
+          </div>
         </div>
         <div className="flex gap-2">
           <Select
