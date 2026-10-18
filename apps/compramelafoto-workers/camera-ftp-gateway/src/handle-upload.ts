@@ -232,7 +232,7 @@ export async function handleCameraFtpUpload(
       throw new FileSystemError(agencyDest.message, 550);
     }
     declaredPoint = agencyDest.declaredPoint;
-    destination = { ok: true, albumId: agencyDest.albumId } as typeof destination;
+    destination = { ok: true, albumId: agencyDest.albumId };
   } else {
     destination = await resolveFtpDestinationAlbum({
       userId: auth.userId,
@@ -263,6 +263,7 @@ export async function handleCameraFtpUpload(
     filename,
     size: buffer.length,
     assignmentMode: auth.assignmentMode,
+    ...(auth.agency ? { agencyCredentialId: auth.agency.agencyCredentialId } : {}),
   };
 
   const rawKey = generateR2Key(filename, `albums/${albumId}/raw`);
