@@ -19,6 +19,7 @@ import {
 import { analysisFailureKind, retryDelayMs } from "./analysis-failure-kind";
 import sharp from "sharp";
 import { shouldRunOcr } from "@/lib/analysis/should-run-ocr";
+import { agencyPriorityQuota, claimAgencyPriorityJobs } from "./agency-priority";
 
 const MAX_ATTEMPTS = 3;
 
@@ -104,6 +105,11 @@ async function claimJobsAtomic(
     select: { id: true },
   });
 
+  // Sin álbum fijo (cron general), primero hasta la mitad del lote para álbumes de agencia.
+  const priority =
+    scopedAlbum == null ? await claimAgencyPriorityJobs(now, agencyPriorityQuota(batchSize), ageCutoff) : [];
+  const remaining = batchSize - priority.length;
+
   // Usamos FOR UPDATE SKIP LOCKED para evitar doble toma entre workers concurrentes.
   const locked =
     scopedAlbum != null
@@ -125,7 +131,9 @@ async function claimJobsAtomic(
           WHERE id IN (SELECT id FROM claimed)
           RETURNING id, "photoId"
         `
-      : ageCutoff
+      : remaining <= 0
+        ? []
+        : ageCutoff
         ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
             WITH claimed AS (
               SELECT j.id
@@ -136,7 +144,7 @@ async function claimJobsAtomic(
                 AND p."isRemoved" = false
                 AND (p."createdAt" >= ${ageCutoff} OR j."infraFailureAt" IS NOT NULL)
               ORDER BY j."createdAt" ASC
-              LIMIT ${batchSize}
+              LIMIT ${remaining}
               FOR UPDATE OF j SKIP LOCKED
             )
             UPDATE "PhotoAnalysisJob"
@@ -151,7 +159,7 @@ async function claimJobsAtomic(
               WHERE status = 'PENDING'
                 AND ("runAfter" IS NULL OR "runAfter" <= ${now})
               ORDER BY "createdAt" ASC
-              LIMIT ${batchSize}
+              LIMIT ${remaining}
               FOR UPDATE SKIP LOCKED
             )
             UPDATE "PhotoAnalysisJob"
@@ -160,7 +168,7 @@ async function claimJobsAtomic(
             RETURNING id, "photoId"
           `;
 
-  return { jobsFound: candidates.length, locked };
+  return { jobsFound: candidates.length + priority.length, locked: [...priority, ...locked] };
 }
 
 async function matchFacesWithInterested(
