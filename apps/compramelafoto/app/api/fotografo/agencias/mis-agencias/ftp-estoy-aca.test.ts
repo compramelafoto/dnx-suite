@@ -30,6 +30,7 @@ vi.mock("@/lib/prisma", () => ({
   Role: { PHOTOGRAPHER: "PHOTOGRAPHER", LAB_PHOTOGRAPHER: "LAB_PHOTOGRAPHER" },
 }));
 vi.mock("@/lib/agencies/ftp-credentials", () => ({
+  AgencyMemberNotActiveError: class AgencyMemberNotActiveError extends Error {},
   issueAgencyFtpCredential: (...a: unknown[]) => issue(...a),
   revokeAgencyFtpCredentials: (...a: unknown[]) => revoke(...a),
 }));
@@ -87,9 +88,17 @@ describe("ftp del miembro", () => {
   });
   it("GET devuelve la credencial activa sin contraseña", async () => {
     credFindFirst.mockResolvedValue({ ftpUsername: "ag7", albumId: 9, lastUsedAt: null, album: { title: "Fiesta" } });
+    agencyAlbumFindFirst.mockResolvedValue({ albumId: 9 });
     const body = await (await FTP_GET({} as any, ctx("3"))).json();
-    expect(body).toEqual({ live: false, host: "ftp.test", port: 21, credential: { ftpUsername: "ag7", albumId: 9, albumTitle: "Fiesta", lastUsedAt: null } });
+    expect(body).toEqual({ live: false, host: "ftp.test", port: 21, credential: { ftpUsername: "ag7", albumId: 9, albumTitle: "Fiesta", lastUsedAt: null, albumNotInAgency: false } });
     expect(credFindFirst.mock.calls[0][0].where).toEqual({ memberId: 7, revokedAt: null });
+  });
+  it("GET avisa si el álbum de la credencial ya no es de la agencia", async () => {
+    credFindFirst.mockResolvedValue({ ftpUsername: "ag7", albumId: 9, lastUsedAt: null, album: { title: "Fiesta" } });
+    agencyAlbumFindFirst.mockResolvedValue(null);
+    const body = await (await FTP_GET({} as any, ctx("3"))).json();
+    expect(body.credential.albumNotInAgency).toBe(true);
+    expect(agencyAlbumFindFirst.mock.calls[0][0].where).toEqual({ agencyId: 3, albumId: 9 });
   });
   it("PATCH cambia el álbum de la credencial activa si es de la agencia", async () => {
     agencyAlbumFindFirst.mockResolvedValue({ albumId: 10 });
