@@ -13,7 +13,7 @@ type FtpInfo = {
   live: boolean;
   host: string;
   port: number;
-  credential: { ftpUsername: string; albumId: number; albumTitle: string; lastUsedAt: string | null } | null;
+  credential: { ftpUsername: string; albumId: number; albumTitle: string; lastUsedAt: string | null; albumNotInAgency?: boolean } | null;
 };
 type Presence = { lat: number; lng: number; placeId: number | null; validUntil: string };
 
@@ -252,8 +252,14 @@ export default function CamaraYUbicacionPage() {
                   <dt className="text-[#6b7280]">Último uso</dt>
                   <dd>{ftp.credential.lastUsedAt ? formatDateTime(ftp.credential.lastUsedAt) : "Todavía no se usó"}</dd>
                 </dl>
+                {ftp.credential.albumNotInAgency && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+                    El álbum que tenías elegido ya no es de esta agencia, así que la cámara no puede subir ahí. Elegí otro álbum de la lista.
+                  </div>
+                )}
                 <label className="block text-sm font-medium">Álbum
-                  <select className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={ftp.credential.albumId} disabled={ftpBusy} onChange={(e) => { const v = Number(e.target.value); if (v) changeAlbum(v); }}>
+                  <select className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" value={agency.albums.some((a) => a.albumId === ftp.credential!.albumId) ? ftp.credential.albumId : ""} disabled={ftpBusy} onChange={(e) => { const v = Number(e.target.value); if (v) changeAlbum(v); }}>
+                    {ftp.credential.albumNotInAgency && <option value="">Elegí otro álbum…</option>}
                     {agency.albums.map((a) => <option key={a.albumId} value={a.albumId}>{a.title}</option>)}
                   </select>
                 </label>

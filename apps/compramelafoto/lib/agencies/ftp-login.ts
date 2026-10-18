@@ -49,7 +49,13 @@ export async function resolveAgencyFtpUpload(
   login: AgencyFtpLogin,
   receivedAt: Date
 ): Promise<{ ok: true; albumId: number; declaredPoint: { lat: number; lng: number } | null } | { ok: false; message: string }> {
-  const access = await checkAccess(login.agencyId, login.albumId, login.userId);
+  // El álbum se lee de la credencial en cada subida: si el fotógrafo lo cambió con la cámara conectada, rige el nuevo.
+  const current = await prisma.agencyUploadCredential.findUnique({
+    where: { id: login.agencyCredentialId },
+    select: { albumId: true, revokedAt: true },
+  });
+  if (!current || current.revokedAt) return { ok: false, message: "Este usuario de FTP fue desactivado." };
+  const access = await checkAccess(login.agencyId, current.albumId, login.userId);
   if (!access.ok) return { ok: false, message: access.message };
   const touched = await prisma.agencyUploadCredential.updateMany({
     where: { id: login.agencyCredentialId, revokedAt: null },
@@ -60,5 +66,5 @@ export async function resolveAgencyFtpUpload(
     where: { memberId: login.memberId },
     select: { lat: true, lng: true, validUntil: true },
   });
-  return { ok: true, albumId: login.albumId, declaredPoint: activePresencePoint(presence, receivedAt) };
+  return { ok: true, albumId: current.albumId, declaredPoint: activePresencePoint(presence, receivedAt) };
 }

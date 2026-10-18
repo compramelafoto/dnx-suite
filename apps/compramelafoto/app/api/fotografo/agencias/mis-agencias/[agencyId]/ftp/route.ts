@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { issueAgencyFtpCredential, revokeAgencyFtpCredentials } from "@/lib/agencies/ftp-credentials";
+import { AgencyMemberNotActiveError, issueAgencyFtpCredential, revokeAgencyFtpCredentials } from "@/lib/agencies/ftp-credentials";
 import {
   getCameraConnectionFtpHost,
   getCameraConnectionFtpPort,
@@ -31,12 +31,15 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     where: { memberId: m.memberId, revokedAt: null },
     select: { ftpUsername: true, albumId: true, lastUsedAt: true, album: { select: { title: true } } },
   });
+  const albumInAgency = cred
+    ? !!(await prisma.agencyAlbum.findFirst({ where: { agencyId: m.agencyId, albumId: cred.albumId }, select: { albumId: true } }))
+    : true;
   return NextResponse.json({
     live: isCameraConnectionFtpServerLive(),
     host: getCameraConnectionFtpHost(),
     port: getCameraConnectionFtpPort(),
     credential: cred
-      ? { ftpUsername: cred.ftpUsername, albumId: cred.albumId, albumTitle: cred.album.title, lastUsedAt: cred.lastUsedAt ? cred.lastUsedAt.toISOString() : null }
+      ? { ftpUsername: cred.ftpUsername, albumId: cred.albumId, albumTitle: cred.album.title, lastUsedAt: cred.lastUsedAt ? cred.lastUsedAt.toISOString() : null, albumNotInAgency: !albumInAgency }
       : null,
   });
 }
@@ -50,6 +53,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   try {
     issued = await issueAgencyFtpCredential({ agencyId: m.agencyId, memberId: m.memberId, albumId: a.albumId });
   } catch (e) {
+    if (e instanceof AgencyMemberNotActiveError) {
+      return NextResponse.json({ error: "Ya no sos parte del equipo de esta agencia." }, { status: 409 });
+    }
     if ((e as { code?: string } | null)?.code === "P2002") {
       return NextResponse.json({ error: "Ya se estaba creando tu usuario de FTP. Probá de nuevo en un momento." }, { status: 409 });
     }

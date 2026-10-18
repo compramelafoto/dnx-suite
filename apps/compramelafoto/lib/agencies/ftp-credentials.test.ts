@@ -17,11 +17,12 @@ vi.mock("@/lib/camera-connection/camera-connection-service", () => ({
   hashFtpPassword: async (p: string) => `hash(${p})`,
 }));
 
-import { agencyFtpUsername, issueAgencyFtpCredential, revokeAgencyFtpCredentials } from "./ftp-credentials";
+import { AgencyMemberNotActiveError, agencyFtpUsername, issueAgencyFtpCredential, revokeAgencyFtpCredentials } from "./ftp-credentials";
 
 beforeEach(() => {
   for (const f of [updateMany, create, findUnique, transaction, queryRaw]) f.mockReset();
   transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
+  queryRaw.mockResolvedValue([{ id: 7, status: "ACTIVE" }]);
   findUnique.mockResolvedValue(null);
   updateMany.mockResolvedValue({ count: 0 });
   create.mockResolvedValue({});
@@ -45,6 +46,14 @@ describe("issueAgencyFtpCredential", () => {
     expect(JSON.stringify(create.mock.calls[0][0])).not.toContain('"abcd1234"');
     expect(out).toEqual({ ftpUsername: "ag7", password: "abcd1234" });
     expect(out.password).toHaveLength(8);
+  });
+  it("si el miembro ya no está activo, no emite nada", async () => {
+    queryRaw.mockResolvedValue([{ id: 7, status: "REMOVED" }]);
+    await expect(issueAgencyFtpCredential({ agencyId: 3, memberId: 7, albumId: 9 })).rejects.toBeInstanceOf(AgencyMemberNotActiveError);
+    queryRaw.mockResolvedValue([]);
+    await expect(issueAgencyFtpCredential({ agencyId: 3, memberId: 7, albumId: 9 })).rejects.toBeInstanceOf(AgencyMemberNotActiveError);
+    expect(create).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
   it("si ag7 ya existe (revocado) usa ag7-2", async () => {
     findUnique.mockImplementation(async ({ where }: any) => (where.ftpUsername === "ag7" ? { id: 1 } : null));

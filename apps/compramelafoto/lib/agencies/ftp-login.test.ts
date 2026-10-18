@@ -22,6 +22,7 @@ const cred = { id: 4, agencyId: 3, memberId: 7, albumId: 50, ftpUsername: "ag7",
 beforeEach(() => {
   for (const f of [credFindUnique, credUpdateMany, presenceFindUnique, verifyFtpPassword, validateAlbum, findGate]) f.mockReset();
   credUpdateMany.mockResolvedValue({ count: 1 });
+  credFindUnique.mockResolvedValue({ albumId: 50, revokedAt: null });
   findGate.mockResolvedValue({ agencyId: 3, ownerUserId: 9, termsVersion: 1 });
 });
 
@@ -88,6 +89,17 @@ describe("resolveAgencyFtpUpload", () => {
     credUpdateMany.mockResolvedValue({ count: 0 });
     expect(await resolveAgencyFtpUpload(login, new Date())).toEqual({ ok: false, message: "Este usuario de FTP fue desactivado." });
     expect(presenceFindUnique).not.toHaveBeenCalled();
+    credFindUnique.mockResolvedValue({ albumId: 50, revokedAt: new Date() });
+    expect(await resolveAgencyFtpUpload(login, new Date())).toEqual({ ok: false, message: "Este usuario de FTP fue desactivado." });
+  });
+  it("cambiaron el álbum entre el login y la subida", async () => {
+    credFindUnique.mockResolvedValue({ albumId: 51, revokedAt: null });
+    validateAlbum.mockResolvedValue({ ok: true, album: { id: 51 } });
+    presenceFindUnique.mockResolvedValue(null);
+    const r = await resolveAgencyFtpUpload(login, new Date());
+    expect(r).toEqual({ ok: true, albumId: 51, declaredPoint: null });
+    expect(validateAlbum).toHaveBeenCalledWith(20, 51);
+    expect(findGate).toHaveBeenCalledWith(51);
   });
   it("si lo dieron de baja entre el login y la subida: falla", async () => {
     validateAlbum.mockResolvedValue({ ok: false, error: "Este álbum es de una agencia: sólo su equipo puede subir fotos.", status: 403 });

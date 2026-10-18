@@ -6,6 +6,13 @@ export function agencyFtpUsername(memberId: number): string {
   return `ag${memberId.toString(36)}`;
 }
 
+export class AgencyMemberNotActiveError extends Error {
+  constructor() {
+    super("El miembro ya no está activo en la agencia.");
+    this.name = "AgencyMemberNotActiveError";
+  }
+}
+
 /** Emite un usuario nuevo y revoca los anteriores del miembro. La contraseña sólo se devuelve acá, una vez. */
 export async function issueAgencyFtpCredential(input: {
   agencyId: number;
@@ -16,7 +23,8 @@ export async function issueAgencyFtpCredential(input: {
   const ftpPasswordHash = await hashFtpPassword(password);
   return prisma.$transaction(async (tx) => {
     // Serializa emisiones concurrentes del mismo miembro.
-    await tx.$queryRaw`SELECT id FROM "AgencyMember" WHERE id = ${input.memberId} FOR UPDATE`;
+    const rows = await tx.$queryRaw<{ id: number; status: string }[]>`SELECT id, status::text AS status FROM "AgencyMember" WHERE id = ${input.memberId} FOR UPDATE`;
+    if (!rows?.[0] || rows[0].status !== "ACTIVE") throw new AgencyMemberNotActiveError();
     await tx.agencyUploadCredential.updateMany({
       where: { memberId: input.memberId, revokedAt: null },
       data: { revokedAt: new Date() },
