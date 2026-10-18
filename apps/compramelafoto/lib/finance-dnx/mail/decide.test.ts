@@ -176,3 +176,17 @@ test("C1: un pago sin factura y sin factura pendiente no toca el estimado", () =
   ]);
   assert.notEqual(r.type === "update" && r.entryId, 51);
 });
+
+test("Cloudflare avisa el mismo cobro dos veces: la compra confirmada sin factura se asocia al pago ya registrado", () => {
+  const r = decide(doc({ kind: "PAGO_OK", amount: 15.56, invoiceNumber: null, periodMonth: 5, paidAt: new Date("2026-05-07T23:23:41Z") }), [
+    entry({ id: 24, periodMonth: 4, amountOriginal: 15.56, invoiceNumber: "IN-62978253", status: "PAGADO", paidAt: new Date("2026-05-07T23:23:34Z") }),
+  ]);
+  assert.deepEqual(r, { type: "update", entryId: 24, changes: {} });
+});
+
+test("un pago del mismo importe pero de otro mes sí es un cobro nuevo", () => {
+  const r = decide(doc({ kind: "PAGO_OK", amount: 15.56, invoiceNumber: null, periodMonth: 6, paidAt: D("2026-06-10") }), [
+    entry({ id: 24, periodMonth: 4, amountOriginal: 15.56, invoiceNumber: "IN-62978253", status: "PAGADO", paidAt: D("2026-05-07") }),
+  ]);
+  assert.equal(r.type, "create");
+});

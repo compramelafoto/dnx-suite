@@ -53,6 +53,8 @@ const TARGET: Record<MailKind, string> = {
 const RANK: Record<string, number> = { ESTIMADO: 0, FACTURADO: 1, RECHAZADO: 2, IMPAGO: 2, PAGADO: 3, REEMBOLSADO: 4 };
 const UNPAID = new Set(["FACTURADO", "RECHAZADO", "IMPAGO"]);
 const PAID = new Set(["PAGADO", "REEMBOLSADO"]);
+/** Dos avisos de pago del mismo importe con menos de esto de diferencia son el mismo cobro. */
+const SAME_CHARGE_MS = 3 * 86_400_000;
 
 function targetStatus(doc: ParsedDoc): string {
   if (doc.kind === "REEMBOLSO" && doc.amount !== null && doc.refunded !== null && doc.refunded >= doc.amount - 0.005) {
@@ -123,6 +125,13 @@ export function decide(doc: ParsedDoc, entries: EntryLite[]): Decision {
       .filter((e) => UNPAID.has(e.status) && sameMoney(e, doc))
       .sort((a, b) => b.periodYear * 12 + b.periodMonth - (a.periodYear * 12 + a.periodMonth))[0];
     if (unpaid) return { type: "update", entryId: unpaid.id, changes: changesFor(unpaid, doc, { replaceAmount: false }) };
+    // Cloudflare avisa el mismo cobro dos veces ("renovada con la tarjeta de reserva" con factura y
+    // "compra confirmada" sin factura): si ya hay un pago del mismo importe en esos días, es ése.
+    const when = (doc.paidAt ?? doc.docDate).getTime();
+    const already = entries.find(
+      (e) => PAID.has(e.status) && sameMoney(e, doc) && e.paidAt !== null && Math.abs(e.paidAt.getTime() - when) <= SAME_CHARGE_MS,
+    );
+    if (already) return { type: "update", entryId: already.id, changes: {} };
   }
 
   // La factura o el recibo real del mes reemplaza al estimado de ese mes.
