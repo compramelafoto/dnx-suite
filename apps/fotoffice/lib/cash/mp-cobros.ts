@@ -32,9 +32,13 @@ const MEDIOS: Record<string, string> = {
   digital_wallet: "Billetera",
 };
 
-/** La consulta: aprobados y pendientes del rango, del más nuevo al más viejo. */
-export function consultaCobros(desde: Date, hasta: Date, limite = 50): Record<string, string> {
+/**
+ * La consulta: lo cobrado en el rango, del más nuevo al más viejo. Sin `collector.id`, Mercado
+ * Pago también devuelve lo que la cuenta PAGÓ (por ejemplo las cuotas de Mercado Crédito).
+ */
+export function consultaCobros(desde: Date, hasta: Date, collectorId: string, limite = 50): Record<string, string> {
   return {
+    "collector.id": collectorId,
     range: "date_created",
     begin_date: desde.toISOString(),
     end_date: hasta.toISOString(),
@@ -55,8 +59,23 @@ function fecha(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Un resultado de `/v1/payments/search` → lo que se muestra. Sin datos de más (ni tarjeta ni documento). */
-export function aCobroMp(row: Record<string, unknown>): CobroMp | null {
+/** El cobrador de un resultado: `collector_id` o `collector.id`, según la versión de la API. */
+function cobradorDe(row: Record<string, unknown>): string | null {
+  const directo = row.collector_id;
+  if (typeof directo === "number" || typeof directo === "string") return String(directo);
+  const anidado = (row.collector ?? null) as Record<string, unknown> | null;
+  const id = anidado?.id;
+  return typeof id === "number" || typeof id === "string" ? String(id) : null;
+}
+
+/**
+ * Un resultado de `/v1/payments/search` → lo que se muestra. Sin datos de más (ni tarjeta ni
+ * documento). Si el cobrador es otra cuenta, es un pago que hizo el negocio, no un cobro: se
+ * descarta aunque Mercado Pago lo haya devuelto (el filtro de la consulta no siempre alcanza).
+ */
+export function aCobroMp(row: Record<string, unknown>, collectorId: string): CobroMp | null {
+  const cobrador = cobradorDe(row);
+  if (cobrador !== null && cobrador !== collectorId) return null;
   const id = row.id;
   const monto = Number(row.transaction_amount);
   if ((typeof id !== "number" && typeof id !== "string") || !Number.isFinite(monto)) return null;
