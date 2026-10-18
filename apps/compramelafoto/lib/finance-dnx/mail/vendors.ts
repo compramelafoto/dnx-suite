@@ -42,19 +42,15 @@ export const MAIL_VENDORS: readonly MailVendor[] = [
   { key: "elevenlabs", account: CUART, senders: ["invoice+statements+acct_1M07hSLmdOdiMXBs@stripe.com"] },
   // Los recibos de Vercel no llegan a dnxfotografia@ (ahí sólo los avisos de pago fallido).
   { key: "vercel", account: CLF, senders: ["invoice+statements@vercel.com"] },
-  {
-    key: "aftershoot",
-    account: CUART,
-    senders: ["stripe.com"],
-    subjectHint: /receipt from AfterShoot/i,
-    query: 'from:stripe.com subject:"receipt from AfterShoot"',
-  },
+  // AfterShoot cobra con Stripe pero manda los recibos desde su propio dominio.
+  { key: "aftershoot", account: CUART, senders: ["invoice+statements@aftershoot.com"] },
   {
     key: "linkedin",
     account: CUART,
     senders: ["linkedin.com"],
-    subjectHint: /premium/i,
-    query: "from:linkedin.com subject:premium",
+    // "Premium" solo trae sobre todo promociones: sólo la confirmación de compra y los recibos.
+    subjectHint: /gracias por abonarte|recibo|receipt|factura|invoice/i,
+    query: 'from:linkedin.com subject:("gracias por abonarte" OR recibo OR receipt OR factura OR invoice)',
   },
   {
     key: "starlink",

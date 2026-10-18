@@ -73,11 +73,12 @@ test("los recibos de Vercel también se buscan en la cuenta de CLF", () => {
 
 test("AfterShoot, LinkedIn y Starlink se buscan por asunto, sin traer otros recibos de Stripe", () => {
   const q = gmailQueryFor(CUART, null);
-  assert.match(q, /from:stripe\.com subject:"receipt from AfterShoot"/);
+  assert.match(q, /invoice\+statements@aftershoot\.com/);
   assert.match(q, /from:linkedin\.com/);
   assert.match(q, /from:starlink\.com/);
-  assert.equal(matchVendorKey(CUART, "AfterShoot Inc. <invoice+statements+acct_X@stripe.com>", "Your receipt from AfterShoot Inc. #2568-1040"), "aftershoot");
+  assert.equal(matchVendorKey(CUART, "AfterShoot Inc. <invoice+statements@aftershoot.com>", "Your receipt from AfterShoot Inc. #2568-1040"), "aftershoot");
   assert.equal(matchVendorKey(CUART, "Otro <invoice+statements+acct_Y@stripe.com>", "Your receipt from Otro Inc."), null);
+  assert.equal(matchVendorKey(CUART, "LinkedIn <messages-noreply@linkedin.com>", "Probá Premium gratis por un mes"), null);
   assert.equal(matchVendorKey(CUART, "LinkedIn <billing-noreply@linkedin.com>", "Gracias por abonarte a Premium Business"), "linkedin");
   assert.equal(matchVendorKey(CUART, "Starlink <no-reply@starlink.com>", "Recibo de Starlink"), "starlink");
 });
