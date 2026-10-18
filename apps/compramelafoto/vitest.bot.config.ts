@@ -12,6 +12,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "lib/agencies/**/*.test.ts",
+      "lib/camera-connection/resolve-ftp-destination-album.agency.test.ts",
       "app/api/fotografo/agencias/**/*.test.ts",
       "app/api/dashboard/albums/*/photos/upload-helpers.test.ts",
       "app/api/fotografo/pedidos/agency-privacy.test.ts",
