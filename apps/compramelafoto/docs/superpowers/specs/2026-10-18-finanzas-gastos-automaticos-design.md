@@ -40,7 +40,7 @@ de cada mes.
 | AWS (`aws`, nuevo) | compramelafoto@gmail.com | `payment@aws.com` | Pago exitoso (trae número y fecha de factura) |
 | Cloudflare R2 (`cloudflare`) | compramelafoto@gmail.com | cualquier `@*.cloudflare.com` | Alerta de uso (estimado), factura |
 | Anthropic — Suscripción (`anthropic`) | dnxfotografia@gmail.com | `invoice+statements@mail.anthropic.com` | Recibo Stripe |
-| Anthropic — API del bot (`anthropic-api`, nuevo) | a confirmar | mismo remitente; se distingue por el contenido | Recibo Stripe de compra de crédito |
+| Anthropic — API del bot (`anthropic-api`, nuevo) | dnxfotografia@gmail.com | mismo remitente; se distingue por el contenido | Recibo Stripe de compra de crédito |
 | Resend (`resend`) | dnxfotografia@gmail.com | `invoice+statements@invoicing.resend.com` | Recibo Stripe |
 | ChatGPT Plus (`chatgpt`) | dnxfotografia@gmail.com | cualquier `@*.openai.com` | Recibo |
 | Neon (`neon`) | dnxfotografia@gmail.com | `noreply@ar.neon.tech` | Factura, pago fallido, pago exitoso |
