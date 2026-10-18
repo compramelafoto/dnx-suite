@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ClipboardList, MessageCircle, Search, Truck, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Mail, MessageCircle, Search, Truck, Wallet } from "lucide-react";
 import { cerrarAction, moverAction } from "@/app/actions/circuitos";
+import { avisarListoAction } from "@/app/actions/proyectos-proveedor";
 import { formatMinorArs } from "@/lib/membership/money";
 import { FASES, FASE_INFO, etapaSiguiente, urgenciaDeEntrega, type Fase, type Urgencia } from "@/lib/proyectos/en-curso-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
@@ -101,6 +102,16 @@ export function TableroEnCurso({
     visibles
       .filter((t) => t.fase === f)
       .sort((a, b) => (a.entrega ?? "9999").localeCompare(b.entrega ?? "9999") || a.cliente.localeCompare(b.cliente));
+
+  function avisarPorCorreo(t: TarjetaTrabajo) {
+    setOcupada(t.journeyId);
+    setAviso(null);
+    start(async () => {
+      const r = await avisarListoAction(t.proyectoId);
+      setOcupada(null);
+      setAviso(r.ok ? { ok: true, texto: `${t.cliente}: aviso enviado a ${r.email}.` } : { ok: false, texto: `${t.cliente}: ${r.error}` });
+    });
+  }
 
   function avanzar(t: TarjetaTrabajo) {
     if (!t.etapaActualId) return;
@@ -230,6 +241,7 @@ export function TableroEnCurso({
                         puedeOperar={puedeOperar}
                         ocupada={ocupada === t.journeyId}
                         onAvanzar={() => avanzar(t)}
+                        onCorreo={() => avisarPorCorreo(t)}
                       />
                     ))
                   )}
@@ -282,6 +294,7 @@ function Tarjeta({
   puedeOperar,
   ocupada,
   onAvanzar,
+  onCorreo,
 }: {
   t: TarjetaTrabajo;
   hoy: string;
@@ -289,6 +302,7 @@ function Tarjeta({
   puedeOperar: boolean;
   ocupada: boolean;
   onAvanzar: () => void;
+  onCorreo: () => void;
 }) {
   const orden = [...t.etapas].sort((a, b) => a.order - b.order);
   const indice = t.cerrado ? orden.length : Math.max(0, orden.findIndex((e) => e.id === t.etapaActualId));
@@ -365,6 +379,18 @@ function Tarjeta({
 
       {!t.cerrado && puedeOperar ? (
         <div className="flex gap-1.5">
+          {t.fase === "LISTO" && t.email ? (
+            <button
+              type="button"
+              onClick={onCorreo}
+              disabled={ocupada}
+              className="fo-btn fo-btn-secondary gap-1 px-2.5 text-xs"
+              title={`Mandar el aviso por correo a ${t.email}`}
+            >
+              <Mail className="size-3.5" aria-hidden />
+              Correo
+            </button>
+          ) : null}
           {whatsapp ? (
             <a
               href={whatsapp}

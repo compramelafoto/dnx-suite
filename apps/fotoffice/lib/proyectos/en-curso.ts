@@ -17,6 +17,7 @@ export type TarjetaTrabajo = {
   nombre: string;
   cliente: string;
   telefono: string | null;
+  email: string | null;
   producto: string | null;
   recorrido: { id: string; nombre: string };
   etapas: EtapaVista[];
@@ -64,7 +65,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
         finalDueDate: true,
         proveedorEnviadoAt: true,
         pedidoId: true,
-        client: { select: { firstName: true, lastName: true, businessName: true, phone: true } },
+        client: { select: { firstName: true, lastName: true, businessName: true, phone: true, email: true } },
         product: { select: { name: true } },
         proveedor: { select: { name: true } },
       },
@@ -132,6 +133,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       nombre: p.name,
       cliente: nombreDeContacto(p.client),
       telefono: p.client?.phone ?? null,
+      email: p.client?.email ?? null,
       producto: p.product?.name ?? null,
       recorrido: { id: j.circuitId, nombre: circuitoDe.get(j.circuitId) ?? "Recorrido" },
       etapas: lista,
