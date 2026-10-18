@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import Card from "@/components/ui/Card";
@@ -39,7 +39,7 @@ export default function CamaraYUbicacionPage() {
   // FTP
   const [ftp, setFtp] = useState<FtpInfo | null>(null);
   const [ftpAlbumId, setFtpAlbumId] = useState<number | null>(null);
-  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const [issued, setIssued] = useState<{ ftpUsername: string; password: string } | null>(null);
   const [ftpBusy, setFtpBusy] = useState(false);
   const [ftpError, setFtpError] = useState<string | null>(null);
 
@@ -48,6 +48,7 @@ export default function CamaraYUbicacionPage() {
   const [placeChoice, setPlaceChoice] = useState<string>("");
   const [myPoint, setMyPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const geoAttempt = useRef(0);
   const [presenceBusy, setPresenceBusy] = useState(false);
   const [presenceError, setPresenceError] = useState<string | null>(null);
 
@@ -81,17 +82,20 @@ export default function CamaraYUbicacionPage() {
     })().catch(() => setLoadError("No pudimos cargar tus agencias."));
   }, [agencyId, loadFtp, loadPresence]);
 
-  async function createCredential() {
-    if (!ftpAlbumId) return;
+  async function createCredential(albumId: number, regenerate = false) {
+    if (
+      regenerate &&
+      !confirm("Vas a generar un usuario y contraseña nuevos. Los actuales dejan de funcionar: tenés que cargar los nuevos en la cámara. ¿Seguimos?")
+    ) return;
     setFtpBusy(true);
     setFtpError(null);
     try {
       const res = await fetch(`${BASE(agencyId)}/ftp`, {
-        method: "POST", credentials: "include", headers: JSON_HEADERS, body: JSON.stringify({ albumId: ftpAlbumId }),
+        method: "POST", credentials: "include", headers: JSON_HEADERS, body: JSON.stringify({ albumId }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) setFtpError(d.error || "No pudimos crear tu usuario de FTP.");
-      else setNewPassword(d.password ?? null);
+      else setIssued(d.password ? { ftpUsername: d.ftpUsername, password: d.password } : null);
       await loadFtp();
     } catch {
       setFtpError("No pudimos crear tu usuario de FTP.");
@@ -108,6 +112,7 @@ export default function CamaraYUbicacionPage() {
         method: "PATCH", credentials: "include", headers: JSON_HEADERS, body: JSON.stringify({ albumId }),
       });
       if (!res.ok) setFtpError((await res.json().catch(() => ({}))).error || "No pudimos cambiar el álbum.");
+      else setFtpAlbumId(albumId);
       await loadFtp();
     } catch {
       setFtpError("No pudimos cambiar el álbum.");
@@ -123,7 +128,7 @@ export default function CamaraYUbicacionPage() {
     try {
       const res = await fetch(`${BASE(agencyId)}/ftp`, { method: "DELETE", credentials: "include" });
       if (!res.ok) setFtpError((await res.json().catch(() => ({}))).error || "No pudimos desactivar tu usuario de FTP.");
-      else setNewPassword(null);
+      else setIssued(null);
       await loadFtp();
     } catch {
       setFtpError("No pudimos desactivar tu usuario de FTP.");
@@ -133,18 +138,22 @@ export default function CamaraYUbicacionPage() {
   }
 
   function onPlaceChoice(v: string) {
+    const attempt = ++geoAttempt.current;
     setPlaceChoice(v);
     setGeoError(null);
     setMyPoint(null);
     if (v !== "mine") return;
     const fail = () => {
+      if (attempt !== geoAttempt.current) return;
       setGeoError("No pudimos obtener tu ubicación: elegí un lugar de la lista.");
       setPlaceChoice("");
     };
     if (!navigator.geolocation) fail();
     else
       navigator.geolocation.getCurrentPosition(
-        (pos) => setMyPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => {
+          if (attempt === geoAttempt.current) setMyPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
         fail,
         { enableHighAccuracy: true, timeout: 10000 }
       );
@@ -227,7 +236,7 @@ export default function CamaraYUbicacionPage() {
                       {agency.albums.map((a) => <option key={a.albumId} value={a.albumId}>{a.title}</option>)}
                     </select>
                   </label>
-                  <Button size="sm" disabled={!ftpAlbumId || ftpBusy} onClick={createCredential}>
+                  <Button size="sm" disabled={!ftpAlbumId || ftpBusy} onClick={() => ftpAlbumId && createCredential(ftpAlbumId)}>
                     {ftpBusy ? "Creando…" : "Crear mi usuario de FTP"}
                   </Button>
                 </div>
@@ -248,15 +257,15 @@ export default function CamaraYUbicacionPage() {
                     {agency.albums.map((a) => <option key={a.albumId} value={a.albumId}>{a.title}</option>)}
                   </select>
                 </label>
-                {newPassword && (
+                {issued && (
                   <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-sm font-medium">Tu contraseña de FTP</p>
-                    <p className="font-mono text-lg">{newPassword}</p>
-                    <p className="text-xs">Copiá esta contraseña ahora: no la vamos a volver a mostrar.</p>
+                    <p className="text-sm">Usuario: <span className="font-mono text-lg">{issued.ftpUsername}</span></p>
+                    <p className="text-sm">Contraseña: <span className="font-mono text-lg">{issued.password}</span></p>
+                    <p className="text-xs">Actualizá los dos en la cámara. Copiá la contraseña ahora: no la vamos a volver a mostrar.</p>
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" disabled={ftpBusy} onClick={createCredential}>
+                  <Button size="sm" variant="outline" disabled={ftpBusy} onClick={() => ftp.credential && createCredential(ftp.credential.albumId, true)}>
                     {ftpBusy ? "Un momento…" : "Generar contraseña nueva"}
                   </Button>
                   <Button size="sm" variant="outline" disabled={ftpBusy} onClick={deactivate}>Desactivar</Button>
