@@ -3200,6 +3200,15 @@ model Photo {
   /// Si true, esta foto se puede vender como impresa (por defecto sí)
   sellPrint                Boolean                      @default(true)
   capturedAt               DateTime?
+  /// Modo agencia: ubicación de la toma. EXIF_GPS (de la cámara) | DECLARED (la eligió el fotógrafo).
+  geoLat                   Float?
+  geoLng                   Float?
+  geoSource                String?
+  /// Modo agencia: nombre del archivo en la cámara (p. ej. DSC_1234.JPG) y datos para detectar repetidas.
+  originalFilename         String?
+  contentSha256            String?
+  cameraSerial             String?
+  cameraImageNumber        Int?
   folderId                 Int?
   folder                   AlbumFolder?                 @relation(fields: [folderId], references: [id], onDelete: SetNull)
   eventFolderId            Int?
@@ -3233,6 +3242,8 @@ model Photo {
   @@index([exifMetadataStatus, createdAt])
   @@index([storageCleanupStatus])
   @@index([storageDeletedAt])
+  @@index([albumId, contentSha256])
+  @@index([albumId, cameraSerial, cameraImageNumber])
 }
 
 /// Dispositivo fotográfico detectado por EXIF (registro interno admin).

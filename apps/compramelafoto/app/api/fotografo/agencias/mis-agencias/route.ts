@@ -48,7 +48,7 @@ export async function GET() {
       commissionLabel: bpsToPercentLabel(effectiveCommissionBps(m, m.agency)),
       needsTerms: memberNeedsTerms(m, m.agency),
       terms: resolveAgencyTerms(m.agency),
-      albums: visibleAlbums(m).map((al) => ({ title: al.album.title, publicSlug: al.album.publicSlug })),
+      albums: visibleAlbums(m).map((al) => ({ albumId: al.albumId, title: al.album.title, publicSlug: al.album.publicSlug })),
       myPhotosCount: visibleAlbums(m).reduce((sum, al) => sum + (countByAlbum.get(al.albumId) ?? 0), 0),
     })),
   });

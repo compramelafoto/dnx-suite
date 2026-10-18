@@ -9,6 +9,7 @@ export type ClaimedCameraIngestJob = {
   uploadLogId: number | null;
   eventFolderId: number | null;
   folderId: number | null;
+  originalFilename: string | null;
 };
 
 /**
@@ -29,6 +30,7 @@ export async function claimNextCameraIngestJob(
       uploadLogId: number | null;
       eventFolderId: number | null;
       folderId: number | null;
+      originalFilename: string | null;
     }>
   >`
     WITH next_job AS (
@@ -48,7 +50,7 @@ export async function claimNextCameraIngestJob(
       "updatedAt" = ${now}
     FROM next_job
     WHERE j.id = next_job.id
-    RETURNING j.id, j."userId", j."albumId", j."rawKey", j.attempts, j."uploadLogId", j."eventFolderId", j."folderId"
+    RETURNING j.id, j."userId", j."albumId", j."rawKey", j.attempts, j."uploadLogId", j."eventFolderId", j."folderId", j."originalFilename"
   `;
 
   return rows[0] ?? null;

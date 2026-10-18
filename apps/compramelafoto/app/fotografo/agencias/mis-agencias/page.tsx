@@ -9,7 +9,7 @@ import { AGENCY_SECTIONS } from "@/lib/agencies/sections";
 
 type Item = {
   agencyId: number; name: string; status: "ACTIVE" | "REQUESTED"; commissionLabel: string; needsTerms: boolean;
-  terms: string; albums: Array<{ title: string; publicSlug: string }>; myPhotosCount: number;
+  terms: string; albums: Array<{ albumId: number; title: string; publicSlug: string }>; myPhotosCount: number;
 };
 
 const HELP = AGENCY_SECTIONS.find((s) => s.id === "mis-agencias")!.help;
@@ -73,7 +73,10 @@ export default function MisAgenciasPage() {
                       ))}
                     </ul>
                   )}
-                  <p className="text-xs text-[#6b7280]">La subida por FTP y DNX FLUX y el detalle de lo cobrado llegan en las próximas etapas.</p>
+                  <Link href={`/fotografo/agencias/mis-agencias/${a.agencyId}/subir`}>
+                    <Button size="sm">Subir fotos</Button>
+                  </Link>
+                  <p className="text-xs text-[#6b7280]">La subida desde la cámara (FTP) y desde DNX FLUX, y el detalle de lo cobrado, llegan en las próximas etapas.</p>
                 </>
               )}
               {a.needsTerms && (
