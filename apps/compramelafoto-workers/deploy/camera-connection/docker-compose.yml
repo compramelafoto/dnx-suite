@@ -1,17 +1,20 @@
-# Producción VPS — FTP Directo (gateway + ingest worker)
+# Servidor de FTP de la Conexión de Cámara en un VPS propio (alternativa a Fly.io).
 #
-# Uso:
-#   cd deploy/camera-connection
-#   cp .env.example .env   # completar valores
-#   docker compose up -d --build
+# Sólo levanta el servidor de FTP. La ingesta de las fotos (pasar el JPG
+# subido a una foto del álbum) la hace el cron de Vercel
+# /api/cron/process-camera-ingest-jobs; no hace falta otro contenedor.
 #
-# Contexto de build: raíz del monorepo (../../)
+# Uso, desde la raíz del monorepo:
+#   cp apps/compramelafoto-workers/camera-ftp-gateway/.env.example apps/compramelafoto-workers/deploy/camera-connection/.env   # completar valores
+#   docker compose -f apps/compramelafoto-workers/deploy/camera-connection/docker-compose.yml up -d --build
+#
+# Contexto de build: raíz del monorepo (cuatro niveles arriba de este archivo).
 
 services:
   camera-ftp-gateway:
     build:
-      context: ../..
-      dockerfile: camera-ftp-gateway/Dockerfile
+      context: ../../../..
+      dockerfile: apps/compramelafoto-workers/camera-ftp-gateway/Dockerfile
     container_name: clf-camera-ftp-gateway
     env_file:
       - .env
@@ -25,23 +28,6 @@ services:
       - "21:21"
       - "8080:8080"
       - "50000-50050:50000-50050"
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "5"
-
-  camera-ingest-worker:
-    build:
-      context: ../..
-      dockerfile: camera-ingest-worker/Dockerfile
-    container_name: clf-camera-ingest-worker
-    env_file:
-      - .env
-    environment:
-      CAMERA_INGEST_POLL_INTERVAL_MS: ${CAMERA_INGEST_POLL_INTERVAL_MS:-3000}
-      CAMERA_INGEST_BATCH_CONCURRENCY: ${CAMERA_INGEST_BATCH_CONCURRENCY:-2}
     restart: unless-stopped
     logging:
       driver: json-file

@@ -76,7 +76,10 @@ export default function MisAgenciasPage() {
                   <Link href={`/fotografo/agencias/mis-agencias/${a.agencyId}/subir`}>
                     <Button size="sm">Subir fotos</Button>
                   </Link>
-                  <p className="text-xs text-[#6b7280]">La subida desde la cámara (FTP) y desde DNX FLUX, y el detalle de lo cobrado, llegan en las próximas etapas.</p>
+                  <Link href={`/fotografo/agencias/mis-agencias/${a.agencyId}/camara`}>
+                    <Button size="sm" variant="outline">Cámara y ubicación</Button>
+                  </Link>
+                  <p className="text-xs text-[#6b7280]">La subida desde DNX FLUX y el detalle de lo cobrado, llegan en las próximas etapas.</p>
                 </>
               )}
               {a.needsTerms && (

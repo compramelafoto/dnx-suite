@@ -19,6 +19,11 @@ export type CreateCameraUploadLogAndEnqueueInput = {
   filesizeBytes?: number | null;
   /** Reutiliza un log UNASSIGNED/AMBIGUOUS existente en lugar de crear otro. */
   existingUploadLogId?: number;
+  /** Modo agencia: punto "Estoy acá" vigente al llegar la foto. */
+  declaredLat?: number | null;
+  declaredLng?: number | null;
+  /** Modo agencia: credencial FTP de agencia con la que llegó la foto. */
+  agencyCredentialId?: number | null;
 };
 
 export type CreateCameraUploadLogAndEnqueueResult = {
@@ -211,6 +216,12 @@ export async function createCameraUploadLogAndEnqueue(
           originalFilename: filename,
           filesizeBytes,
           status: "PENDING",
+          ...(input.declaredLat != null && input.declaredLng != null
+            ? { declaredLat: input.declaredLat, declaredLng: input.declaredLng }
+            : {}),
+          ...(input.agencyCredentialId != null
+            ? { agencyCredentialId: input.agencyCredentialId }
+            : {}),
         },
       });
 

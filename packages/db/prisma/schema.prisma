@@ -2411,6 +2411,7 @@ model Album {
   @@index([isHidden])
   @@index([deletedAt])
   @@index([cleanupStatus])
+  agencyUploadCredentials AgencyUploadCredential[] @relation("AgencyUploadCredentialAlbum")
 }
 
 /// Contadores históricos de plataforma (no decrecen al borrar fotos).
@@ -3764,6 +3765,10 @@ model CameraIngestJob {
   originalFilename String?
   filesizeBytes    Int?
   completedAt      DateTime?
+  /// Modo agencia: punto "Estoy acá" vigente al llegar la foto y credencial FTP usada.
+  declaredLat        Float?
+  declaredLng        Float?
+  agencyCredentialId Int?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -25343,6 +25348,7 @@ model Agency {
   invites               AgencyInvite[]
   albums                AgencyAlbum[]
   places                AgencyPlace[]
+  uploadCredentials     AgencyUploadCredential[]
 
   @@index([directoryListed])
 }
@@ -25365,6 +25371,8 @@ model AgencyMember {
   updatedAt            DateTime  @updatedAt
   agency               Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   user                 User      @relation("AgencyMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  uploadCredentials    AgencyUploadCredential[]
+  presence             AgencyMemberPresence?
 
   @@unique([agencyId, userId])
   @@index([userId])
@@ -25405,4 +25413,35 @@ model AgencyPlace {
   agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
 
   @@index([agencyId])
+}
+
+/// Modo agencia: usuario de FTP de un fotógrafo del equipo. Sube sólo al álbum elegido de esa agencia.
+model AgencyUploadCredential {
+  id              Int          @id @default(autoincrement())
+  agencyId        Int
+  memberId        Int
+  albumId         Int
+  ftpUsername     String       @unique
+  ftpPasswordHash String
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime     @default(now())
+  agency          Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  member          AgencyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  album           Album        @relation("AgencyUploadCredentialAlbum", fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([agencyId])
+}
+
+/// Modo agencia: "Estoy acá" del fotógrafo, para sus fotos sin GPS. Vale hasta fin del día (hora argentina).
+model AgencyMemberPresence {
+  id         Int          @id @default(autoincrement())
+  memberId   Int          @unique
+  lat        Float
+  lng        Float
+  placeId    Int?
+  validUntil DateTime
+  updatedAt  DateTime     @updatedAt
+  member     AgencyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
