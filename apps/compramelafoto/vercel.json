@@ -113,6 +113,10 @@
     {
       "path": "/api/cron/bot-comparativa",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/finance-dnx-mail",
+      "schedule": "0 9 * * *"
     }
   ]
 }

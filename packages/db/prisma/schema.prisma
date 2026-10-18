@@ -19752,17 +19752,24 @@ model ExpenseEntry {
   status         String    @default("FACTURADO")
   /// Cuándo vence la factura. Permite avisar antes de que un rechazo se vuelva un corte.
   dueDate        DateTime?
-  /// MANUAL, IMPORTADO, API
+  /// MANUAL, IMPORTADO, API, MAIL
   source         String    @default("MANUAL")
   invoiceUrl     String?
   notes          String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  /// Número de factura o recibo del proveedor. Es la llave para que un pago encuentre su factura.
+  invoiceNumber  String?
+  /// Cuándo se pagó de verdad. El mes del gasto es el de la factura, no el del pago.
+  paidAt         DateTime?
 
-  vendor      ExpenseVendor            @relation(fields: [vendorId], references: [id])
-  allocations ExpenseEntryAllocation[]
+  vendor       ExpenseVendor            @relation(fields: [vendorId], references: [id])
+  allocations  ExpenseEntryAllocation[]
+  mailMessages ExpenseMailMessage[]
 
-  @@unique([vendorId, periodYear, periodMonth])
+  /// Un proveedor puede tener varias facturas en un mes (Anthropic, AWS pagando atrasado).
+  @@unique([vendorId, invoiceNumber])
+  @@index([vendorId, periodYear, periodMonth])
   @@index([periodYear, periodMonth])
   @@index([status])
 }
@@ -19790,6 +19797,61 @@ model FxRate {
   createdAt   DateTime @default(now())
 
   @@unique([periodYear, periodMonth])
+}
+
+/// Finanzas DNX — cuenta de Gmail conectada en sólo lectura para leer facturas de proveedores.
+model ExpenseMailAccount {
+  id                 Int       @id @default(autoincrement())
+  email              String    @unique
+  /// JSON {ciphertext, nonce, authTag} cifrado con FINANCE_MAIL_VAULT_KEY.
+  refreshTokenEnc    String
+  connectedAt        DateTime  @default(now())
+  lastSyncAt         DateTime?
+  lastError          String?
+  /// Para avisar por Telegram una sola vez por error, no en cada ejecución.
+  lastErrorAlertedAt DateTime?
+  /// Ya se leyó todo el historial; desde ahora se busca sólo lo reciente.
+  backfillDone       Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  messages ExpenseMailMessage[]
+}
+
+/// Finanzas DNX — un mail de proveedor leído de Gmail. El id de Gmail es único: nunca se guarda dos veces.
+model ExpenseMailMessage {
+  id             Int       @id @default(autoincrement())
+  accountId      Int
+  gmailMessageId String    @unique
+  fromAddress    String
+  subject        String
+  receivedAt     DateTime
+  /// Texto del mail, para reprocesar cuando mejora un lector sin volver a pedirlo a Google.
+  bodyText       String
+  /// `key` del proveedor según la tabla de remitentes; null si el remitente no es de ninguno.
+  vendorKey      String?
+  /// FACTURA, PAGO_OK, PAGO_FALLIDO, ESTIMADO, RECIBO, REEMBOLSO (lo completa el lector, Tanda 2)
+  kind           String?
+  amount         Decimal?  @db.Decimal(12, 2)
+  currency       String?
+  invoiceNumber  String?
+  periodYear     Int?
+  periodMonth    Int?
+  paidAt         DateTime?
+  /// CARGADO, PARA_REVISAR, DESCARTADO
+  status         String    @default("PARA_REVISAR")
+  reviewReason   String?
+  entryId        Int?
+  alertedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  account ExpenseMailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  entry   ExpenseEntry?      @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([accountId, receivedAt])
+  @@index([vendorKey])
 }
 
 /// Finanzas DNX — ingresos por plataforma y mes, calculados y congelados.

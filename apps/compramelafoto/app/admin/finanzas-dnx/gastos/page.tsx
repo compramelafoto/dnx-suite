@@ -11,6 +11,8 @@ import { isOverdueUnpaid } from "@/lib/finance-dnx/due-date";
 import type { VendorJson } from "@/lib/finance-dnx/vendor-json";
 import type { ExpenseEntryJson } from "@/lib/finance-dnx/expense-json";
 import type { ExpenseStatus } from "@repo/finance-control";
+import MailConnections from "./MailConnections";
+import MailReviewInbox from "./MailReviewInbox";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -107,6 +109,7 @@ function formDesdeEntry(entry: ExpenseEntryJson): FormState {
 export default function FinanzasDnxGastosPage() {
   const [year, setYear] = useState(AHORA.getFullYear());
   const [month, setMonth] = useState(AHORA.getMonth() + 1);
+  const [mailRefresh, setMailRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<ExpenseEntryJson[]>([]);
@@ -674,6 +677,9 @@ export default function FinanzasDnxGastosPage() {
           </div>
         </form>
       </Card>
+
+      <MailConnections onSynced={() => setMailRefresh((n) => n + 1)} />
+      <MailReviewInbox refreshKey={mailRefresh} />
     </div>
   );
 }

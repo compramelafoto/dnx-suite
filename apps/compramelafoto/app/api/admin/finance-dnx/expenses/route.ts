@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { manualDuplicateOf } from "@/lib/finance-dnx/manual-duplicate";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { splitAmountByAllocation } from "@repo/finance-control";
@@ -78,6 +79,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Sin el índice único por mes (un proveedor puede tener varias facturas), el duplicado de
+    // una carga manual se frena acá: no puede haber dos gastos sin número de factura en el mismo mes.
+    const mismoMes = await prisma.expenseEntry.findMany({
+      where: { vendorId: value.vendorId, periodYear: value.periodYear, periodMonth: value.periodMonth },
+      select: { id: true, invoiceNumber: true },
+    });
+    if (manualDuplicateOf(mismoMes) !== null) {
+      return NextResponse.json(
+        { error: "Ya existe un gasto cargado para ese proveedor en ese período." },
+        { status: 409 }
+      );
+    }
+
     const reparto = splitAmountByAllocation(
       value.amountArsMinor,
       vendor.allocations.map((asignacion) => ({
@@ -115,7 +129,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     if (err?.code === "P2002") {
       return NextResponse.json(
-        { error: "Ya existe un gasto cargado para ese proveedor en ese período." },
+        { error: "Ya existe un gasto con ese número de factura para ese proveedor." },
         { status: 409 }
       );
     }
