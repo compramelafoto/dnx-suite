@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
  * se le reserva hasta la mitad de cada lote. La otra mitad sigue en orden de llegada para todos.
  */
 export function agencyPriorityQuota(batchSize: number): number {
-  return batchSize > 0 ? Math.ceil(batchSize / 2) : 0;
+  return batchSize > 1 ? Math.min(Math.ceil(batchSize / 2), batchSize - 1) : 0;
 }
 
 export async function claimAgencyPriorityJobs(

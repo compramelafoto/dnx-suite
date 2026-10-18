@@ -10,10 +10,11 @@ beforeEach(() => {
 });
 
 describe("agencyPriorityQuota", () => {
-  it("la mitad del lote, redondeando para arriba, nunca todo", () => {
+  it("la mitad del lote, nunca todo el lote", () => {
     expect(agencyPriorityQuota(12)).toBe(6);
     expect(agencyPriorityQuota(5)).toBe(3);
-    expect(agencyPriorityQuota(1)).toBe(1);
+    expect(agencyPriorityQuota(2)).toBe(1);
+    expect(agencyPriorityQuota(1)).toBe(0);
     expect(agencyPriorityQuota(0)).toBe(0);
   });
 });
