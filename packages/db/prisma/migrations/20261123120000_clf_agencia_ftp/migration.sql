@@ -41,7 +41,7 @@ CREATE INDEX IF NOT EXISTS "AgencyUploadCredential_agencyId_idx" ON "AgencyUploa
 CREATE UNIQUE INDEX IF NOT EXISTS "AgencyMemberPresence_memberId_key" ON "AgencyMemberPresence"("memberId");
 
 -- AddForeignKey
-ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_agencyId_fkey" FOREIGN KEY ("agencyId") REFERENCES "Agency"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "AgencyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_albumId_fkey" FOREIGN KEY ("albumId") REFERENCES "Album"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "AgencyMemberPresence" ADD CONSTRAINT "AgencyMemberPresence_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "AgencyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyUploadCredential_agencyId_fkey') THEN ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_agencyId_fkey" FOREIGN KEY ("agencyId") REFERENCES "Agency"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyUploadCredential_memberId_fkey') THEN ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "AgencyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyUploadCredential_albumId_fkey') THEN ALTER TABLE "AgencyUploadCredential" ADD CONSTRAINT "AgencyUploadCredential_albumId_fkey" FOREIGN KEY ("albumId") REFERENCES "Album"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AgencyMemberPresence_memberId_fkey') THEN ALTER TABLE "AgencyMemberPresence" ADD CONSTRAINT "AgencyMemberPresence_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "AgencyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;
