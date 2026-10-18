@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { buildBalance } from "@/lib/finance-dnx/revenue/balance";
 import { monthKeysSince } from "@/lib/finance-dnx/revenue/compute";
 import { REVENUE_SINCE } from "@/lib/finance-dnx/revenue/sources";
+import { REVENUE_PLATFORMS } from "@/lib/finance-dnx/revenue/run";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     const year = Number(req.nextUrl.searchParams.get("year")) || new Date().getFullYear();
     const months = monthKeysSince(REVENUE_SINCE, new Date()).filter((m) => m.periodYear === year);
     const [snapshots, entries] = await Promise.all([
-      prisma.platformRevenueSnapshot.findMany({ where: { periodYear: year }, orderBy: [{ periodMonth: "asc" }, { platformKey: "asc" }] }),
+      prisma.platformRevenueSnapshot.findMany({ where: { periodYear: year, platformKey: { in: [...REVENUE_PLATFORMS] } }, orderBy: [{ periodMonth: "asc" }, { platformKey: "asc" }] }),
       prisma.expenseEntry.findMany({
         where: { periodYear: year, status: { in: PAID } },
         select: { periodMonth: true, amountArs: true, amountRefunded: true, fxRate: true, allocations: { select: { platformKey: true, amountArs: true } } },
