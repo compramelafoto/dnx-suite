@@ -204,6 +204,14 @@ export function TableroEnCurso({
           <input type="checkbox" checked={soloVencidos} onChange={(e) => setSoloVencidos(e.target.checked)} />
           Sólo vencidos
         </label>
+        {puedeOperar ? (
+          <Link
+            href="/proyectos/en-curso/importar"
+            className="flex h-10 shrink-0 items-center rounded-[var(--fo-radius-sm)] px-2 text-sm text-[var(--fo-muted)] hover:text-[var(--fo-text)] hover:underline"
+          >
+            Importar desde planilla
+          </Link>
+        ) : null}
       </div>
       {recorridos.length > 1 ? (
         <div className="-mt-2 flex flex-wrap gap-1.5" role="tablist" aria-label="Recorridos">
