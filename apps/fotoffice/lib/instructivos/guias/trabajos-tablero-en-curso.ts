@@ -13,9 +13,12 @@ export const guia: Instructivo = {
     {
       titulo: "Abrí el tablero",
       texto: [
-        "En el menú abrí «Proyectos». Arriba hay tres pestañas: «Tablero», «Lista» y «En curso». Elegí «En curso».",
+        "En el menú abrí «Proyectos». Arriba hay tres pestañas: «En curso», «Tablero» y «Lista». «En curso» es la que abre primero.",
         "Arriba de todo hay cuatro números: «En curso», «Vencidos» (en rojo), «Listos para retirar» y «Saldo por cobrar». Tocá «Vencidos» para ver sólo los atrasados.",
       ],
+      imagen: "/instructivos/trabajos-tablero-en-curso/01-tablero.jpg",
+      imagenAlt:
+        "Pantalla Proyectos en la pestaña En curso con los cuatro números (En curso, Vencidos, Listos para retirar, Saldo por cobrar), el buscador y el filtro Sólo vencidos.",
     },
     {
       titulo: "Entendé las cinco columnas",

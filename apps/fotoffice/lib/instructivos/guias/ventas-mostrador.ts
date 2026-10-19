@@ -16,6 +16,9 @@ export const guia: Instructivo = {
         "Tocá el botón grande «Cobrador» en el inicio, o elegí «Cobrador» primero en el menú de Caja. Las dos llevan a la pantalla «Mostrador».",
         "La pantalla tiene tres partes: a la izquierda el catálogo, en el medio el «Ticket» y a la derecha el cobro. El menú lateral se esconde para que haya más lugar.",
       ],
+      imagen: "/instructivos/ventas-mostrador/01-mostrador.jpg",
+      imagenAlt:
+        "Pantalla Mostrador: a la izquierda el buscador y el catálogo con precios, en el medio el Ticket vacío con los atajos de teclado y a la derecha el buscador de cliente, el total, los medios de pago y el botón Cobrar.",
       nota: "Si arriba dice «La Caja está apagada: las ventas se registran, pero el dinero no entra al libro.», avisale a quien administra FOTOFFICE antes de cobrar.",
     },
     {
@@ -41,6 +44,9 @@ export const guia: Instructivo = {
         "Tocá el precio («$… c/u») para cambiarlo. El renglón queda marcado «· precio cambiado».",
         "El tacho de arriba del ticket lo vacía entero.",
       ],
+      imagen: "/instructivos/ventas-mostrador/02-ticket.jpg",
+      imagenAlt:
+        "Ticket con dos renglones, Fotocopia color por 2 y Sticker por 1, con los botones de cantidad y el total de $ 2.100.",
     },
     {
       titulo: "Algo que no está en el catálogo",
@@ -76,6 +82,9 @@ export const guia: Instructivo = {
         "Aparece «Vuelto $…» con lo que tenés que devolver. Si dice «Faltan $…» en rojo, lo que entregó no alcanza y el botón de cobrar queda bloqueado.",
         "Para transferencia y Mercado Pago mirá la guía «Cobrar por transferencia o con el QR».",
       ],
+      imagen: "/instructivos/ventas-mostrador/03-paga-con-y-vuelto.jpg",
+      imagenAlt:
+        "Medio Efectivo con el bloque Paga con: botones Justo, $ 3.000, $ 4.000, $ 10.000 y $ 20.000, el monto elegido y el vuelto de $ 900 en verde.",
     },
     {
       titulo: "Cobrá",

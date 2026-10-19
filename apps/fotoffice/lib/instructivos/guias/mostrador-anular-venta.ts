@@ -15,6 +15,9 @@ export const guia: Instructivo = {
         "Entrá a Ventas → «Ventas hechas». Están todas, de la más nueva a la más vieja, con número, fecha, cliente, medio de pago y total.",
         "Tocá la venta para ver qué se vendió, a qué precio y la nota (por ejemplo «Pagó con $10.000 · vuelto $1.500»).",
       ],
+      imagen: "/instructivos/mostrador-anular-venta/01-ventas-hechas.jpg",
+      imagenAlt:
+        "Pantalla Ventas hechas con una fila por venta: número, fecha y hora, cliente, medio de pago y total.",
     },
     {
       titulo: "Anulala",
