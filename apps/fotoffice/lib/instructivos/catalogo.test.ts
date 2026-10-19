@@ -32,4 +32,24 @@ describe("catálogo de instructivos", () => {
     expect(agruparPorSeccion(visibles)[0]?.seccion).toBe("Primeros pasos");
     expect(instructivosVisibles(INSTRUCTIVOS, {}, true).some((g) => g.soloAdministracion)).toBe(true);
   });
+
+  it("al mostrador de un estudio le muestra sus guías y no las de la institución", () => {
+    const visibles = instructivosVisibles(INSTRUCTIVOS, {
+      sales: "MANAGE",
+      cash: "MANAGE",
+      projects: "MANAGE",
+    });
+    const temas = agruparPorSeccion(visibles).map((g) => g.seccion);
+    expect(temas).toEqual(["Primeros pasos", "Caja", "Mostrador", "Trabajos y entregas"]);
+    expect(visibles.some((g) => g.slug === "primeros-pasos-mostrador")).toBe(true);
+    expect(visibles.some((g) => g.slug === "primeros-pasos")).toBe(false);
+  });
+
+  it("ningún paso tiene un recuadro del sistema vacío", () => {
+    for (const g of INSTRUCTIVOS) {
+      for (const p of g.pasos) {
+        if (p.sistema) expect(p.sistema.length, `${g.slug}: ${p.titulo}`).toBeGreaterThan(0);
+      }
+    }
+  });
 });

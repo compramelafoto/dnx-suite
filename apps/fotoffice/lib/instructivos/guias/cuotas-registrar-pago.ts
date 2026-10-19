@@ -6,7 +6,7 @@ export const guia: Instructivo = {
   titulo: "Ver quién debe y registrar un pago de cuota",
   resumen:
     "Cómo saber qué socios tienen cuotas impagas y cómo anotar un pago que te hicieron en efectivo o por transferencia.",
-  seccion: "Dinero",
+  seccion: "Cuotas",
   moduleKey: MEMBERSHIP_DUES_MODULE_KEY,
   minutos: 5,
   pasos: [
