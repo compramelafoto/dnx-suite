@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { avisarPedidoRecibido } from "@/lib/pedidos/aviso-pedido-servidor";
+import { enviarTrabajosDelPedidoAlProveedor } from "@/lib/proyectos/proveedor";
 import { prisma } from "@repo/db";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
@@ -185,6 +186,8 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   // Al cliente le llega el detalle del pedido (con la seña ya registrada).
   const workspaceId = workspace.id;
   after(() => avisarPedidoRecibido(workspaceId, alta.pedidoId));
+  // Y cada trabajo con proveedor por defecto se le manda al laboratorio en el momento.
+  after(() => enviarTrabajosDelPedidoAlProveedor(ctx, alta.pedidoId));
   revalidatePath("/pedidos");
   revalidatePath("/proyectos");
   revalidatePath("/caja");

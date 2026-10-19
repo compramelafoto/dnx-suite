@@ -10,6 +10,8 @@ import { ProductForm } from "../../product-form";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
 import { PresupuestoSections } from "./presupuesto-sections";
+import { ProveedorPorDefecto } from "./proveedor-por-defecto";
+import { prisma } from "@repo/db";
 import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
 import { sugerirRubro } from "@/lib/rubros/rubros";
 import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
@@ -93,6 +95,22 @@ export default async function ProductoPage({
       ) : null}
 
       <ProductForm product={producto} categories={categorias} error={query.error} />
+
+      {proyectos ? (
+        <ProveedorPorDefecto
+          productId={producto.id}
+          actual={(() => {
+            const ids = [...new Set(proyectos.reglas.map((r) => r.proveedorId ?? ""))];
+            return ids.length > 1 ? "varios" : ids[0] || null;
+          })()}
+          proveedores={await prisma.fotofficeProveedor.findMany({
+            where: { workspaceId: workspace.id, active: true },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true, email: true },
+          })}
+          generaTrabajo={proyectos.reglas.length > 0}
+        />
+      ) : null}
 
       {etapa2 ? (
         <PresupuestoSections
