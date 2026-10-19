@@ -6,6 +6,8 @@ const presenceFindUnique = vi.fn();
 const verifyFtpPassword = vi.fn();
 const validateAlbum = vi.fn();
 const findGate = vi.fn();
+const awaitsFilterMock = vi.fn();
+vi.mock("@/lib/agencies/publish-mode", () => ({ agencyAwaitsFilter: (...a: unknown[]) => awaitsFilterMock(...a) }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     agencyUploadCredential: { findUnique: (...a: unknown[]) => credFindUnique(...a), updateMany: (...a: unknown[]) => credUpdateMany(...a) },
@@ -20,7 +22,8 @@ import { loginAgencyFtp, resolveAgencyFtpUpload } from "./ftp-login";
 const cred = { id: 4, agencyId: 3, memberId: 7, albumId: 50, ftpUsername: "ag7", ftpPasswordHash: "h", revokedAt: null, member: { userId: 20 } };
 
 beforeEach(() => {
-  for (const f of [credFindUnique, credUpdateMany, presenceFindUnique, verifyFtpPassword, validateAlbum, findGate]) f.mockReset();
+  for (const f of [credFindUnique, credUpdateMany, presenceFindUnique, verifyFtpPassword, validateAlbum, findGate, awaitsFilterMock]) f.mockReset();
+  awaitsFilterMock.mockResolvedValue(false);
   credUpdateMany.mockResolvedValue({ count: 1 });
   credFindUnique.mockResolvedValue({ albumId: 50, revokedAt: null });
   findGate.mockResolvedValue({ agencyId: 3, ownerUserId: 9, termsVersion: 1 });
@@ -64,8 +67,15 @@ describe("resolveAgencyFtpUpload", () => {
     validateAlbum.mockResolvedValue({ ok: true, album: { id: 50 } });
     presenceFindUnique.mockResolvedValue({ lat: -38, lng: -57.5, validUntil: new Date("2027-01-19T02:59:59.999Z") });
     const r = await resolveAgencyFtpUpload(login, new Date("2027-01-18T20:00:00Z"));
-    expect(r).toEqual({ ok: true, albumId: 50, declaredPoint: { lat: -38, lng: -57.5 } });
+    expect(r).toEqual({ ok: true, albumId: 50, declaredPoint: { lat: -38, lng: -57.5 }, awaitFilter: false });
     expect(credUpdateMany.mock.calls[0][0].where).toEqual({ id: 4, revokedAt: null });
+  });
+  it("agencia que espera al filtro: lo avisa para encolar en espera", async () => {
+    validateAlbum.mockResolvedValue({ ok: true, album: { id: 50 } });
+    presenceFindUnique.mockResolvedValue(null);
+    awaitsFilterMock.mockResolvedValue(true);
+    expect(await resolveAgencyFtpUpload(login, new Date())).toMatchObject({ ok: true, awaitFilter: true });
+    expect(awaitsFilterMock).toHaveBeenCalledWith(3);
   });
   it("Estoy acá vencido: sin punto", async () => {
     validateAlbum.mockResolvedValue({ ok: true, album: { id: 50 } });
@@ -97,7 +107,7 @@ describe("resolveAgencyFtpUpload", () => {
     validateAlbum.mockResolvedValue({ ok: true, album: { id: 51 } });
     presenceFindUnique.mockResolvedValue(null);
     const r = await resolveAgencyFtpUpload(login, new Date());
-    expect(r).toEqual({ ok: true, albumId: 51, declaredPoint: null });
+    expect(r).toEqual({ ok: true, albumId: 51, declaredPoint: null, awaitFilter: false });
     expect(validateAlbum).toHaveBeenCalledWith(20, 51);
     expect(findGate).toHaveBeenCalledWith(51);
   });

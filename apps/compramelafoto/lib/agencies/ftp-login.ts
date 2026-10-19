@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyFtpPassword } from "@/lib/camera-connection/camera-connection-service";
 import { checkAgencyUploadTarget } from "@/lib/agencies/upload-target";
 import { activePresencePoint } from "@/lib/agencies/presence";
+import { agencyAwaitsFilter } from "@/lib/agencies/publish-mode";
 
 export type AgencyFtpLogin = { agencyId: number; userId: number; ftpUsername: string; albumId: number; agencyCredentialId: number; memberId: number };
 
@@ -37,7 +38,7 @@ export async function loginAgencyFtp(
 export async function resolveAgencyFtpUpload(
   login: AgencyFtpLogin,
   receivedAt: Date
-): Promise<{ ok: true; albumId: number; declaredPoint: { lat: number; lng: number } | null } | { ok: false; message: string }> {
+): Promise<{ ok: true; albumId: number; declaredPoint: { lat: number; lng: number } | null; awaitFilter: boolean } | { ok: false; message: string }> {
   // El álbum se lee de la credencial en cada subida: si el fotógrafo lo cambió con la cámara conectada, rige el nuevo.
   const current = await prisma.agencyUploadCredential.findUnique({
     where: { id: login.agencyCredentialId },
@@ -55,5 +56,6 @@ export async function resolveAgencyFtpUpload(
     where: { memberId: login.memberId },
     select: { lat: true, lng: true, validUntil: true },
   });
-  return { ok: true, albumId: current.albumId, declaredPoint: activePresencePoint(presence, receivedAt) };
+  const awaitFilter = await agencyAwaitsFilter(login.agencyId);
+  return { ok: true, albumId: current.albumId, declaredPoint: activePresencePoint(presence, receivedAt), awaitFilter };
 }
