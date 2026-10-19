@@ -33,6 +33,8 @@ export function clientIp(request: Request): string {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
 }
 
+// Freno en memoria por instancia (lib/rate-limit): en Vercel cada instancia cuenta aparte, así que es contención, no
+// una cuota exacta. Contra adivinar códigos la defensa real es la entropía (32^8), el vencimiento a 10 min y el uso único.
 export function linkRateLimit(request: Request): NextResponse | null {
   const r = checkRateLimit({ key: `flux-link:${clientIp(request)}`, limit: FLUX_LINKS_PER_MINUTE_PER_IP, windowMs: MINUTE_MS });
   return r.allowed ? null : fluxError(FLUX_MESSAGES.slowDown, 429, retryAfter(r.resetAt));
