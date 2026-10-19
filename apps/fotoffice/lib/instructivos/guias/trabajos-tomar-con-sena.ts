@@ -17,6 +17,9 @@ export const guia: Instructivo = {
         "Los productos que llevan proceso aparecen en el ticket con la etiqueta «Pedido». Debajo aparece el recuadro «Pedido para retirar · N trabajos».",
         "Podés mezclar en el mismo ticket cosas que se lleva ahora (un portarretratos) con trabajos para retirar: el sistema los separa solo.",
       ],
+      imagen: "/instructivos/trabajos-tomar-con-sena/01-pedido-para-retirar.jpg",
+      imagenAlt:
+        "Ticket con dos productos para llevar y una Ampliación 20x30 marcada «Pedido»; a la derecha el recuadro «Pedido para retirar · 1 trabajo» con la fecha de entrega, Deja seña o Paga todo, el importe de la seña y el aviso «Elegí el cliente para poder cobrar.».",
       nota: "Si el producto no muestra «Pedido», no tiene cargado un proceso: se cobra como venta común y no aparece en el tablero de trabajos. Avisale a quien administra el catálogo (en la ficha del producto, «Proyecto que genera»).",
     },
     {

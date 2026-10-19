@@ -16,6 +16,9 @@ export const guia: Instructivo = {
         "Con el ticket armado, tocá «Transferencia».",
         "Aparecen «Alias», «CBU / CVU» y «Monto», cada uno con su botón «Copiar» (cambia a «Copiado»), además del titular y el banco. Dictáselos o copialos para mandárselos por WhatsApp.",
       ],
+      imagen: "/instructivos/mostrador-transferencia-y-qr/01-datos-para-transferir.jpg",
+      imagenAlt:
+        "Medio Transferencia elegido: alias, CBU/CVU y monto con sus botones Copiar, el titular y el botón Verificar pago.",
       nota: "Si dice «Todavía no cargaste el alias ni el CVU del negocio.», los datos se cargan en Configuración → Presupuestos, en «Datos para transferir». Lo hace quien administra FOTOFFICE.",
     },
     {
@@ -44,6 +47,9 @@ export const guia: Instructivo = {
         "La pantalla cambia a «Que escaneen el QR del mostrador», con el monto en grande y «Esperando el pago…».",
         "El cliente escanea con su celular el QR impreso del mostrador y paga. No tiene que escribir el monto: ya le aparece.",
       ],
+      imagen: "/instructivos/mostrador-transferencia-y-qr/02-cobrar-con-qr.jpg",
+      imagenAlt:
+        "Medio Mercado Pago elegido con el botón «Cobrar $ 2.100,00 con el QR» arriba del botón Cobrar.",
     },
     {
       titulo: "Esperá la confirmación",

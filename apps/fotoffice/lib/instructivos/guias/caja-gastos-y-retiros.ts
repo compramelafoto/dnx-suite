@@ -41,6 +41,9 @@ export const guia: Instructivo = {
         "«Comprobante»: número de factura o recibo, si lo hay.",
         "«Descripción»: obligatoria. Escribí qué se pagó y a quién, o de qué es la plata que entró.",
       ],
+      imagen: "/instructivos/caja-gastos-y-retiros/02-cargar-movimiento.jpg",
+      imagenAlt:
+        "Recuadro Cargar movimiento con los campos Cuenta, Tipo, Importe, Categoría, Medio de pago, Cliente, Comprobante y Descripción.",
     },
     {
       titulo: "Cargalo",

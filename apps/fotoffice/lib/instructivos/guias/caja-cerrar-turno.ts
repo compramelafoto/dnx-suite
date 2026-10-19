@@ -24,6 +24,9 @@ export const guia: Instructivo = {
         "Contá todo el efectivo del cajón. Podés usar «Contar» para sumarlo billete por billete.",
         "Escribí el total en «Cuánto contaste».",
       ],
+      imagen: "/instructivos/caja-cerrar-turno/01-turno-abierto.jpg",
+      imagenAlt:
+        "Tarjeta de la Caja diaria con el turno abierto: desde cuándo y con qué fondo, «Debería haber», el campo «Cuánto contaste», el botón Contar y el campo para explicar la diferencia.",
     },
     {
       titulo: "Si no cuadra, explicá por qué",
@@ -31,6 +34,9 @@ export const guia: Instructivo = {
         "Si lo contado no es igual a «Debería haber», el sistema pide una explicación. Escribila en «Si no cuadra, explicá por qué» (por ejemplo: «di vuelto de más a un cliente», «faltó anotar la compra de pilas»).",
         "Si cuadra justo, el campo se puede dejar vacío.",
       ],
+      imagen: "/instructivos/caja-cerrar-turno/02-contar.jpg",
+      imagenAlt:
+        "El contador de billetes del cierre con las cantidades cargadas y el total pasado al campo «Cuánto contaste».",
       nota: "Sin explicación no te deja cerrar: aparece «La caja no cuadra. Explicá la diferencia antes de cerrar.».",
     },
     {

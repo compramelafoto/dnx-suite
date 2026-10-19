@@ -17,6 +17,9 @@ export const guia: Instructivo = {
         "Si hay plata separada para proyectos, arriba aparecen tres cifras: «Saldo total», «Comprometido en proyectos» y «Saldo libre».",
         "Los botones grandes «Vender» y «Anotar ingreso o gasto» llevan al Cobrador y al recuadro para cargar un movimiento.",
       ],
+      imagen: "/instructivos/caja-movimientos-y-arqueo/01-panorama.jpg",
+      imagenAlt:
+        "Pantalla Caja con el saldo de cada cuenta y el turno abierto de la Caja diaria.",
     },
     {
       titulo: "Buscá un movimiento en el libro",
@@ -32,6 +35,9 @@ export const guia: Instructivo = {
         "En la fila del movimiento escribí el «Motivo de la anulación» (por ejemplo: «lo cargué dos veces») y tocá «Anular».",
         "Después, si hace falta, cargalo de nuevo bien.",
       ],
+      imagen: "/instructivos/caja-movimientos-y-arqueo/02-libro-y-anular.jpg",
+      imagenAlt:
+        "Libro de movimientos con los filtros Origen, Cliente y Período y una fila por movimiento, cada una con el campo «Motivo de la anulación» y el botón Anular.",
       sistema: [
         "No borra nada: crea un movimiento igual y opuesto, con tu motivo, para que el saldo vuelva a estar bien y quede rastro de qué pasó.",
         "Si la cuenta tiene el turno abierto, la anulación entra en ese turno.",
@@ -45,6 +51,9 @@ export const guia: Instructivo = {
         "Elegí «De» (de dónde sale) y «A» (a dónde va), escribí el «Importe» y, si querés, una «Nota» con el motivo.",
         "Tocá «Pasar». Aparece «Pase hecho.» y el pase queda en el historial de abajo, con quién lo hizo.",
       ],
+      imagen: "/instructivos/caja-movimientos-y-arqueo/03-pases.jpg",
+      imagenAlt:
+        "Pantalla Pases con los campos De, A, Importe y Nota y el botón Pasar.",
       sistema: ["Resta de una cuenta y suma en la otra. No cuenta como gasto ni como ingreso en los reportes."],
       nota: "No deja pasar más plata de la que hay en la cuenta de origen: aparece «No podés pasar más dinero del que hay en esa cuenta.».",
     },
@@ -54,6 +63,9 @@ export const guia: Instructivo = {
         "Entrá a Caja → «Reportes». Arranca en «Este mes»; también están «El mes pasado» y «Últimos 30 días», o elegí «Desde», «Hasta» y una «Cuenta» y tocá «Ver este rango».",
         "Vas a ver el saldo de hoy por cuenta, el «Resumen del período» (Entró, Salió, Neto), los ingresos y egresos por categoría, los clientes que más compraron y el margen de las ventas.",
       ],
+      imagen: "/instructivos/caja-movimientos-y-arqueo/04-reportes.jpg",
+      imagenAlt:
+        "Pantalla Reportes con los atajos Este mes, El mes pasado y Últimos 30 días, el rango de fechas, el saldo actual por cuenta y el resumen del período.",
     },
   ],
 };
