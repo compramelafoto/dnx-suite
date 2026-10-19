@@ -23,6 +23,9 @@ export const guia: Instructivo = {
         "Al entrar ves el inicio del estudio. El botón grande «Cobrador» abre directo la pantalla para cobrar.",
         "Más abajo están «Mis tareas» (lo que tenés que hacer, con lo vencido primero) y «Mis entregas de la semana» (los trabajos tuyos que vencen en los próximos 7 días).",
       ],
+      imagen: "/instructivos/primeros-pasos-mostrador/01-inicio.jpg",
+      imagenAlt:
+        "Inicio del estudio con el botón Cobrador, Cargar en caja, el recuadro Para atender y el total en caja; a la izquierda el menú con la sección Caja abierta.",
     },
     {
       titulo: "El menú de la izquierda",
@@ -38,6 +41,9 @@ export const guia: Instructivo = {
         "Tocá «Buscar» arriba del menú, o apretá Ctrl+K (⌘+K en Mac). Escribí lo que buscás («arqueo», «vender», «stock») y apretá Enter.",
         "Este buscador encuentra pantallas, no personas. Para buscar un cliente usá el buscador de Clientes o del Cobrador.",
       ],
+      imagen: "/instructivos/primeros-pasos-mostrador/02-buscador.jpg",
+      imagenAlt:
+        "El buscador del menú abierto con la palabra «arqueo» escrita y el resultado Arqueos marcado.",
     },
     {
       titulo: "Tu rutina del día",
