@@ -13,8 +13,10 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { formatMinorArs } from "@/lib/membership/money";
 import { diasEntre, repartirDescuento } from "@/lib/sales/pedido-mostrador";
 import { checkoutAction, type CheckoutInput } from "./actions";
-import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarPagoMp, type ResultadoBusquedaPago } from "@/lib/sales/verificar-pago-servidor";
+import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp, type ResultadoBusquedaPago } from "@/lib/sales/verificar-pago-servidor";
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
+import { cancelarOrdenQr, consultarOrdenQr, crearOrdenQr } from "@/lib/sales/qr-mp-servidor";
+import type { OrdenQr } from "@/lib/sales/qr-mp";
 
 /**
  * El Mostrador con trabajos "con proceso". La parte con proceso se vuelve un pedido (con su seña
@@ -48,6 +50,8 @@ export type CobroConPedidoInput = {
   clave: string;
   /** El cobro de Mercado Pago que "Verificar pago" encontró (opcional). */
   mpPaymentId?: string | null;
+  /** La order del QR del mostrador ya pagada (opcional). */
+  mpOrderId?: string | null;
 };
 
 export type CobroConPedidoResult =
@@ -99,9 +103,10 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   // Pago verificado: tiene que ser por lo que se cobra ahora (seña + lo que se lleva en el momento).
   let reservaId: string | null = null;
   let notaVerificado = "";
-  if (input.mpPaymentId) {
+  if (input.mpPaymentId || input.mpOrderId) {
     if (metodo !== "TRANSFERENCIA" && metodo !== "MERCADO_PAGO") return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
-    const reserva = await reservarPagoMp(workspace.id, user.id, input.mpPaymentId, sena + (subVenta - desc.venta));
+    const reserva = await reservarCobroMp(workspace.id, user.id, input, sena + (subVenta - desc.venta));
+    if (!reserva) return { ok: false, error: "Falta el pago verificado." };
     if (!reserva.ok) return { ok: false, error: reserva.error };
     reservaId = reserva.reservaId;
     notaVerificado = notaDePagoVerificado(reserva.pago);
@@ -244,7 +249,7 @@ export async function pedidosParaRetirarAction(clientId: string): Promise<Pedido
 export type CobroSaldoResult = { ok: true; mensaje: string } | { ok: false; error: string };
 
 /** Cobra lo que falta de un pedido (el cliente vino a retirar). */
-export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string, clave: string, mpPaymentId: string | null = null): Promise<CobroSaldoResult> {
+export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string, clave: string, mpPaymentId: string | null = null, mpOrderId: string | null = null): Promise<CobroSaldoResult> {
   const { workspace, user } = await requireSalesStaff();
   const ctx = await contextoDePedidos("operar");
   if (!ctx) return { ok: false, error: "No tenés permiso para cobrar pedidos." };
@@ -255,9 +260,10 @@ export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string,
   const saldo = Math.round(d.plan.aCobrar * 100);
   if (saldo <= 0) return { ok: false, error: "Ese pedido ya está pago." };
   let reservaId: string | null = null;
-  if (mpPaymentId) {
+  if (mpPaymentId || mpOrderId) {
     if (paymentMethod !== "TRANSFERENCIA" && paymentMethod !== "MERCADO_PAGO") return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
-    const reserva = await reservarPagoMp(workspace.id, user.id, mpPaymentId, saldo);
+    const reserva = await reservarCobroMp(workspace.id, user.id, { mpPaymentId, mpOrderId }, saldo);
+    if (!reserva) return { ok: false, error: "Falta el pago verificado." };
     if (!reserva.ok) return { ok: false, error: reserva.error };
     reservaId = reserva.reservaId;
   }
@@ -282,4 +288,21 @@ export async function cobrarSaldoAction(pedidoId: string, paymentMethod: string,
 export async function verificarPagoAction(montoMinor: number): Promise<ResultadoBusquedaPago> {
   const { workspace } = await requireSalesStaff();
   return buscarPagosParaCobrar(workspace.id, montoMinor);
+}
+
+/** Cobrar con el QR del mostrador: crea la order por el monto que se cobra ahora. */
+export async function iniciarCobroQrAction(montoMinor: number, descripcion: string): Promise<{ ok: true; ordenId: string } | { ok: false; error: string }> {
+  const { workspace } = await requireSalesStaff();
+  return crearOrdenQr(workspace.id, montoMinor, typeof descripcion === "string" && descripcion.trim() ? descripcion : "Venta en el mostrador");
+}
+
+/** El mostrador pregunta cada pocos segundos si ya se pagó. */
+export async function estadoCobroQrAction(ordenId: string): Promise<{ ok: true; orden: OrdenQr } | { ok: false; error: string }> {
+  const { workspace } = await requireSalesStaff();
+  return consultarOrdenQr(workspace.id, ordenId);
+}
+
+export async function cancelarCobroQrAction(ordenId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { workspace } = await requireSalesStaff();
+  return cancelarOrdenQr(workspace.id, ordenId);
 }

@@ -11,7 +11,7 @@ import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from 
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
 import { findProductByCode, listProducts, type ProductByCode, type ProductRow } from "@/lib/sales/repository";
 import { ticketTotals, validateTicket } from "@/lib/sales/ticket";
-import { confirmarUsoPagoMp, liberarPagoMp, reservarPagoMp } from "@/lib/sales/verificar-pago-servidor";
+import { confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp } from "@/lib/sales/verificar-pago-servidor";
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
 import {
   buildTicketLines,
@@ -240,6 +240,8 @@ export type CheckoutInput = {
   client: RawCheckoutClient;
   /** El cobro de Mercado Pago que "Verificar pago" encontró para este ticket (opcional). */
   mpPaymentId?: string | null;
+  /** La order del QR del mostrador ya pagada (opcional). */
+  mpOrderId?: string | null;
 };
 
 export type CheckoutResult =
@@ -324,11 +326,12 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
 
   // Pago verificado en Mercado Pago: se reserva antes de registrar (una transferencia, una venta).
   let reservaId: string | null = null;
-  if (input.mpPaymentId) {
+  if (input.mpPaymentId || input.mpOrderId) {
     if (paymentMethod !== "TRANSFERENCIA" && paymentMethod !== "MERCADO_PAGO") {
       return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
     }
-    const reserva = await reservarPagoMp(workspace.id, user.id, input.mpPaymentId, ticketTotals(armado.lines, input.discountMinor).totalMinor);
+    const reserva = await reservarCobroMp(workspace.id, user.id, input, ticketTotals(armado.lines, input.discountMinor).totalMinor);
+    if (!reserva) return { ok: false, error: "Falta el pago verificado." };
     if (!reserva.ok) return { ok: false, error: reserva.error };
     reservaId = reserva.reservaId;
     note = [note, notaDePagoVerificado(reserva.pago)].filter(Boolean).join(" — ");

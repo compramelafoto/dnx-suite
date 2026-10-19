@@ -2,6 +2,8 @@ import "server-only";
 import { prisma, Prisma } from "@repo/db";
 import { buscarCobrosMp } from "@/lib/cash/mp-cobros-server";
 import { candidatosDePago, VENTANA_VERIFICAR_MS, type PagoCandidato } from "./verificar-pago";
+import { consultarOrdenQr } from "./qr-mp-servidor";
+import { medioDeOrden } from "./qr-mp";
 
 /**
  * "Verificar pago" contra la cuenta de Mercado Pago del negocio: buscar el cobro por monto y
@@ -58,4 +60,37 @@ export async function confirmarUsoPagoMp(reservaId: string, usadoEn: string): Pr
 /** El cobro falló: el pago queda libre para volver a usarlo. */
 export async function liberarPagoMp(reservaId: string): Promise<void> {
   await prisma.fotofficePagoMpUsado.delete({ where: { id: reservaId } }).catch(() => undefined);
+}
+
+/**
+ * Una order del QR del mostrador que ya se pagó: se vuelve a leer en Mercado Pago (con el token
+ * de ESTE negocio, así una order ajena no aparece) y se reserva como cualquier otro pago.
+ */
+export async function reservarOrdenQr(workspaceId: string, userId: number | null, ordenId: unknown, montoMinor: number): Promise<ReservaPago> {
+  const r = await consultarOrdenQr(workspaceId, ordenId);
+  if (!r.ok) return r;
+  if (r.orden.estado !== "PAGADO") return { ok: false, error: "El cobro con QR todavía no figura pagado en Mercado Pago." };
+  if (r.orden.montoMinor !== montoMinor) return { ok: false, error: "El monto pagado con QR no coincide con el del ticket." };
+  try {
+    const fila = await prisma.fotofficePagoMpUsado.create({
+      data: { workspaceId, mpPaymentId: r.orden.id, montoArs: (montoMinor / 100).toFixed(2), pagador: null, createdByUserId: userId },
+      select: { id: true },
+    });
+    return { ok: true, reservaId: fila.id, pago: { id: r.orden.id, fecha: new Date().toISOString(), montoMinor, pagador: null, medio: medioDeOrden(r.orden.medio) } };
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { ok: false, error: "Ese cobro con QR ya se registró." };
+    throw e;
+  }
+}
+
+/** El pago que acompaña a un cobro del mostrador: verificado (transferencia) o por QR. */
+export async function reservarCobroMp(
+  workspaceId: string,
+  userId: number | null,
+  origen: { mpPaymentId?: string | null; mpOrderId?: string | null },
+  montoMinor: number,
+): Promise<ReservaPago | null> {
+  if (origen.mpOrderId) return reservarOrdenQr(workspaceId, userId, origen.mpOrderId, montoMinor);
+  if (origen.mpPaymentId) return reservarPagoMp(workspaceId, userId, origen.mpPaymentId, montoMinor);
+  return null;
 }
