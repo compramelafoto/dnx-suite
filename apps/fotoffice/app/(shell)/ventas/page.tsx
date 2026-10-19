@@ -12,6 +12,7 @@ import { prisma } from "@repo/db";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { Pos } from "./pos";
+import { leerQrMostrador } from "@/lib/sales/qr-mp-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -52,13 +53,14 @@ export default async function VentasPage() {
   }
 
   // Los clientes ya no viajan todos: el mostrador los busca por cualquier dato al tipear.
-  const [productos, categorias, cuentas, categoriasEgreso, ajustesCobro] = await Promise.all([
+  const [productos, categorias, cuentas, categoriasEgreso, ajustesCobro, qr] = await Promise.all([
     listProducts(workspace.id, { onlyActive: true, onlyCounter: true }),
     listProductCategories(workspace.id),
     puedeEgresos ? listAccounts(workspace.id) : Promise.resolve([]),
     puedeEgresos ? listCategories(workspace.id, "EGRESO") : Promise.resolve([]),
     // Los mismos datos para transferir que muestra el enlace de pago de un pedido.
     leerAjustesCobro(workspace.id),
+    leerQrMostrador(workspace.id),
   ]);
 
   return (
@@ -70,6 +72,7 @@ export default async function VentasPage() {
         clientsEnabled={clientsEnabled}
         cashEnabled={cashEnabled}
         procesos={procesos}
+        qrActivo={qr.activo}
         egresos={
           puedeEgresos
             ? {

@@ -38,6 +38,7 @@ import { aCobrarAhora, repartirDescuento, senaSugerida, sugerirEntrega } from "@
 import { useOcultarMenuEnEstaPantalla } from "@/components/shell/shell-frame";
 import { EgresoDialogo, type DatosEgreso } from "./egreso-dialogo";
 import { VerificarPago } from "./verificar-pago";
+import { CobroQr } from "./cobro-qr";
 import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
@@ -124,6 +125,7 @@ export function Pos({
   egresos,
   datosTransferencia,
   procesos,
+  qrActivo = false,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -138,6 +140,8 @@ export function Pos({
    * plazo cargado). Si el ticket tiene alguno, esa parte se cobra como pedido con seña.
    */
   procesos: Record<string, number | null>;
+  /** El QR fijo de Mercado Pago está activado (Configuración → Cobros). */
+  qrActivo?: boolean;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -151,6 +155,8 @@ export function Pos({
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("EFECTIVO");
   // El pago que "Verificar pago" encontró en Mercado Pago (sólo vale para su monto exacto).
   const [pagoVerificado, setPagoVerificado] = useState<PagoCandidato | null>(null);
+  // La order del QR del mostrador ya pagada para este ticket.
+  const [pagoQr, setPagoQr] = useState<{ id: string; montoMinor: number } | null>(null);
   const conVerificar = paymentMethod === "TRANSFERENCIA" || paymentMethod === "MERCADO_PAGO";
   const verificadoPara = (montoMinor: number) =>
     conVerificar && pagoVerificado && pagoVerificado.montoMinor === montoMinor ? pagoVerificado.id : null;
@@ -519,6 +525,7 @@ export function Pos({
     setConSena(true);
     setSenaText("");
     setPagoVerificado(null);
+    setPagoQr(null);
   }
 
   /**
@@ -547,7 +554,7 @@ export function Pos({
     };
   }
 
-  function cobrar() {
+  function cobrar(qr?: { id: string; montoMinor: number }) {
     limpiarAviso();
     // Con los valores de este instante (no los del último dibujo).
     const pedido = calcularPedido();
@@ -560,6 +567,10 @@ export function Pos({
       setError("Elegí el cliente: hay trabajos que quedan como pedido para retirar.");
       return;
     }
+    // Pagado con el QR del mostrador: la order viaja y el servidor la vuelve a leer en Mercado Pago.
+    const qrDelTicket = qr ?? pagoQr;
+    const mpOrderId =
+      paymentMethod === "MERCADO_PAGO" && qrDelTicket && qrDelTicket.montoMinor === pedido.aCobrar ? qrDelTicket.id : null;
     const recibidoMinor = paymentMethod === "EFECTIVO" ? parseArsToMinor(recibidoText) : null;
     const vueltoAlCobrar = calcularVuelto(pedido.aCobrar, recibidoMinor);
     if (vueltoAlCobrar.estado === "falta") {
@@ -590,7 +601,8 @@ export function Pos({
       paymentMethod,
       note: notaFinal,
       client: cliente ? { mode: "existing", clientId: cliente.id } : { mode: "none" },
-      mpPaymentId: verificadoPara(pedido.aCobrar),
+      mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
+      mpOrderId,
     };
 
     if (pedido.hay && cliente) {
@@ -606,7 +618,8 @@ export function Pos({
           entrega: pedido.entrega,
           senaMinor: pedido.sena,
           clave,
-          mpPaymentId: verificadoPara(pedido.aCobrar),
+          mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
+          mpOrderId,
         });
         if (r.ok) {
           claveCobroRef.current = null;
@@ -1338,13 +1351,28 @@ export function Pos({
           {paymentMethod === "TRANSFERENCIA" && pedido.aCobrar > 0 ? (
             <DatosParaTransferir datos={datosTransferencia} totalMinor={pedido.aCobrar} />
           ) : null}
-          {paymentMethod === "MERCADO_PAGO" && pedido.aCobrar > 0 ? (
+          {paymentMethod === "MERCADO_PAGO" && pedido.aCobrar > 0 && qrActivo ? (
+            pedido.hay && !cliente ? (
+              <p className="text-xs text-[var(--fo-muted)]">Elegí el cliente antes de mostrar el monto en el QR.</p>
+            ) : (
+              <CobroQr
+                montoMinor={pedido.aCobrar}
+                descripcion="Venta en el mostrador"
+                pagadoId={pagoQr && pagoQr.montoMinor === pedido.aCobrar ? pagoQr.id : null}
+                onPagado={(o) => {
+                  setPagoQr(o);
+                  cobrar(o);
+                }}
+              />
+            )
+          ) : null}
+          {paymentMethod === "MERCADO_PAGO" && pedido.aCobrar > 0 && !qrActivo ? (
             <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-3 text-sm text-[var(--fo-muted)]">
               Que escanee el QR de Mercado Pago del mostrador y pague{" "}
               <strong className="text-[var(--fo-text)]">{formatMinorArs(pedido.aCobrar)}</strong>.
             </p>
           ) : null}
-          {conVerificar && pedido.aCobrar > 0 ? (
+          {conVerificar && pedido.aCobrar > 0 && !(paymentMethod === "MERCADO_PAGO" && qrActivo) ? (
             <VerificarPago montoMinor={pedido.aCobrar} verificado={pagoVerificado} onVerificado={setPagoVerificado} />
           ) : null}
 
@@ -1407,7 +1435,7 @@ export function Pos({
 
           <button
             type="button"
-            onClick={cobrar}
+            onClick={() => cobrar()}
             disabled={procesando || rows.length === 0 || vuelto.estado === "falta" || (pedido.hay && !cliente)}
             className="fo-btn fo-btn-primary h-14 w-full text-lg font-semibold"
           >

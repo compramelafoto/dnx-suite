@@ -25493,3 +25493,20 @@ model FotofficePagoMpUsado {
 
   @@unique([workspaceId, mpPaymentId])
 }
+
+/// FOTOFFICE: el QR fijo de Mercado Pago del mostrador. La sucursal y la caja se crean en la
+/// cuenta MP del negocio; cada cobro es una order por el monto del ticket que el QR muestra.
+model FotofficeQrMostrador {
+  id               String   @id @default(cuid())
+  workspaceId      String   @unique
+  storeId          String
+  externalStoreId  String
+  posId            String
+  externalPosId    String
+  qrImage          String?
+  qrPdf            String?
+  /// La order que el QR está mostrando (se cancela antes de crear otra).
+  ordenPendienteId String?
+  createdByUserId  Int?
+  createdAt        DateTime @default(now())
+}
