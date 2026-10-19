@@ -12,6 +12,14 @@ export type EnqueueAlbumPhotoIngestInput = {
   filesizeBytes?: number | null;
   eventFolderId?: number | null;
   folderId?: number | null;
+  /** Modo agencia (etapa 3a): origen de la foto; por defecto la subida web. */
+  source?: "WEB_UPLOAD" | "FLUX";
+  /** Punto que eligió el fotógrafo al empezar la tanda (sólo se usa si la foto no trae GPS). */
+  declaredPoint?: { lat: number; lng: number } | null;
+  /** Llave de DNX FLUX con la que llegó. */
+  agencyDeviceKeyId?: number | null;
+  /** La agencia espera al filtro de la nube: el job nace AWAITING_FILTER y el cron no lo toma. */
+  awaitFilter?: boolean;
 };
 
 export type EnqueueAlbumPhotoIngestResult = {
@@ -57,7 +65,7 @@ export function validateEnqueueAlbumPhotoIngestInput(
 }
 
 /**
- * Verifica que el raw exista en R2 y encola job WEB_UPLOAD (idempotente por rawKey).
+ * Verifica que el raw exista en R2 y encola job WEB_UPLOAD o FLUX (idempotente por rawKey).
  */
 export async function enqueueAlbumPhotoIngest(
   input: EnqueueAlbumPhotoIngestInput
@@ -89,12 +97,14 @@ export async function enqueueAlbumPhotoIngest(
     user: { connect: { id: input.userId } },
     album: { connect: { id: input.albumId } },
     rawKey,
-    source: AlbumPhotoIngestSource.WEB_UPLOAD,
-    status: "PENDING",
+    source: input.source === "FLUX" ? AlbumPhotoIngestSource.FLUX : AlbumPhotoIngestSource.WEB_UPLOAD,
+    status: input.awaitFilter ? "AWAITING_FILTER" : "PENDING",
     originalFilename: trimOrNull(input.originalFilename ?? null),
     filesizeBytes: input.filesizeBytes ?? size,
     ...(input.eventFolderId != null ? { eventFolderId: input.eventFolderId } : {}),
     ...(input.folderId != null ? { folderId: input.folderId } : {}),
+    ...(input.declaredPoint ? { declaredLat: input.declaredPoint.lat, declaredLng: input.declaredPoint.lng } : {}),
+    ...(input.agencyDeviceKeyId != null ? { agencyDeviceKeyId: input.agencyDeviceKeyId } : {}),
   };
 
   try {

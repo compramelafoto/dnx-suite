@@ -13,6 +13,7 @@ export default defineConfig({
     include: [
       "lib/agencies/**/*.test.ts",
       "lib/albums/finalize-album-photo-from-raw.agency.test.ts",
+      "lib/albums/enqueue-album-photo-ingest.test.ts",
       "app/api/dashboard/albums/*/photos/direct-upload/complete/route.agency.test.ts",
       "lib/analysis/agency-priority.test.ts",
       "lib/camera-connection/process-camera-ingest-job.duplicate.test.ts",
