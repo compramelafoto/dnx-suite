@@ -8,6 +8,7 @@ const upUpdate = vi.fn();
 const upUpdateMany = vi.fn();
 const placeFindFirst = vi.fn();
 const jobFindUnique = vi.fn();
+const jobFindMany = vi.fn();
 const signPut = vi.fn();
 const deleteR2 = vi.fn();
 const target = vi.fn();
@@ -25,7 +26,7 @@ vi.mock("@/lib/prisma", () => ({
       updateMany: (...a: unknown[]) => upUpdateMany(...a),
     },
     agencyPlace: { findFirst: (...a: unknown[]) => placeFindFirst(...a) },
-    cameraIngestJob: { findUnique: (...a: unknown[]) => jobFindUnique(...a) },
+    cameraIngestJob: { findUnique: (...a: unknown[]) => jobFindUnique(...a), findMany: (...a: unknown[]) => jobFindMany(...a) },
   },
 }));
 vi.mock("@/lib/r2-client", () => ({
@@ -45,9 +46,10 @@ const tgt = { agencyId: 3, albumId: 50 };
 const H = "a".repeat(64);
 
 beforeEach(() => {
-  for (const f of [photoFindMany, upFindMany, upFindFirst, upCreate, upUpdate, upUpdateMany, placeFindFirst, jobFindUnique, signPut, deleteR2, target, ensureMp, enqueue, awaitsFilterMock]) f.mockReset();
+  for (const f of [photoFindMany, upFindMany, upFindFirst, upCreate, upUpdate, upUpdateMany, placeFindFirst, jobFindUnique, jobFindMany, signPut, deleteR2, target, ensureMp, enqueue, awaitsFilterMock]) f.mockReset();
   photoFindMany.mockResolvedValue([]);
   upFindMany.mockResolvedValue([]);
+  jobFindMany.mockResolvedValue([]);
   let n = 0;
   upCreate.mockImplementation(async () => ({ id: `up${++n}` }));
   upUpdate.mockResolvedValue({});
@@ -130,13 +132,14 @@ describe("requestFluxUploads", () => {
   it("retoma: la fila sin confirmar se reusa con URL nueva; la confirmada responde alreadyThere", async () => {
     upFindMany.mockResolvedValue([
       { id: "old1", rawKey: "albums/50/raw/k1", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "UPLOADING" },
-      { id: "old2", rawKey: "albums/50/raw/k2", originalFilename: "DSC_2.JPG", sizeBytes: 200, contentSha256: null, status: "CONFIRMED" },
+      { id: "old2", rawKey: "albums/50/raw/k2", originalFilename: "DSC_2.JPG", sizeBytes: 200, contentSha256: null, status: "CONFIRMED", ingestJobId: "j2" },
     ]);
+    jobFindMany.mockResolvedValue([{ id: "j2" }]);
     const items = await requestFluxUploads(ctx, tgt, [f1, f2], null);
     expect(items[0]).toMatchObject({ uploadId: "old1", uploadUrl: "https://r2/albums/50/raw/k1?firma" });
     expect(items[1]).toEqual({ alreadyThere: true });
     expect(upCreate).not.toHaveBeenCalled();
-    expect(upFindMany.mock.calls[0][0].where).toMatchObject({ userId: 20, albumId: 50 });
+    expect(upFindMany.mock.calls[0][0].where).toMatchObject({ userId: 20, albumId: 50, agencyId: 3 });
     expect(signPut).toHaveBeenCalledWith("albums/50/raw/k1", "image/jpeg", 900, 100);
     expect(upUpdate).toHaveBeenCalledWith({ where: { id: "old1" }, data: { deviceKeyId: 33, declaredLat: null, declaredLng: null } });
   });
@@ -147,10 +150,22 @@ describe("requestFluxUploads", () => {
   it("una fila rechazada más nueva no tapa a una confirmada anterior", async () => {
     upFindMany.mockResolvedValue([
       { id: "new", rawKey: "k2", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "REJECTED" },
-      { id: "old", rawKey: "k1", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "CONFIRMED" },
+      { id: "old", rawKey: "k1", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "CONFIRMED", ingestJobId: "j1" },
     ]);
+    jobFindMany.mockResolvedValue([{ id: "j1" }]);
     expect(await requestFluxUploads(ctx, tgt, [f1], null)).toEqual([{ alreadyThere: true }]);
     expect(upCreate).not.toHaveBeenCalled();
+  });
+  it("confirmada pero con el trabajo FAILED (o sin trabajo): no es alreadyThere, se pide una subida nueva", async () => {
+    upFindMany.mockResolvedValue([
+      { id: "old1", rawKey: "k1", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "CONFIRMED", ingestJobId: "jF" },
+      { id: "old2", rawKey: "k2", originalFilename: "DSC_2.JPG", sizeBytes: 200, contentSha256: null, status: "CONFIRMED", ingestJobId: null },
+    ]);
+    jobFindMany.mockResolvedValue([]);
+    const items = await requestFluxUploads(ctx, tgt, [f1, f2], null);
+    expect(items).toEqual([expect.objectContaining({ uploadId: "up1" }), expect.objectContaining({ uploadId: "up2" })]);
+    expect(upCreate).toHaveBeenCalledTimes(2);
+    expect(jobFindMany.mock.calls[0][0].where).toEqual({ id: { in: ["jF"] }, status: { not: "FAILED" } });
   });
   it("el mismo archivo dos veces en la tanda: una sola fila, la misma respuesta", async () => {
     const items = await requestFluxUploads(ctx, tgt, [f1, f1], null);
@@ -196,7 +211,11 @@ describe("confirmFluxUpload", () => {
   it("confirmada dos veces: no vuelve a encolar", async () => {
     upFindFirst.mockResolvedValue({ ...up, status: "CONFIRMED", ingestJobId: "j1" });
     jobFindUnique.mockResolvedValue({ status: "COMPLETED" });
-    expect(await confirmFluxUpload(ctx, "up1")).toEqual({ status: 200, body: { ok: true, state: "QUEUED", alreadyConfirmed: true } });
+    expect(await confirmFluxUpload(ctx, "up1")).toEqual({ status: 200, body: { ok: true, state: "COMPLETED", alreadyConfirmed: true } });
+    jobFindUnique.mockResolvedValue({ status: "FAILED" });
+    expect((await confirmFluxUpload(ctx, "up1")).body).toMatchObject({ state: "FAILED" });
+    jobFindUnique.mockResolvedValue({ status: "PROCESSING" });
+    expect((await confirmFluxUpload(ctx, "up1")).body).toMatchObject({ state: "QUEUED" });
     expect(enqueue).not.toHaveBeenCalled();
   });
   it("lo dieron de baja entre la tanda y la confirmación: 403 sin encolar", async () => {

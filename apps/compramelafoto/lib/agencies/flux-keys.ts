@@ -111,9 +111,9 @@ export async function authenticateAgencyDevice(authorization: string | null, now
   if (!m || !DEVICE_KEY_FORMAT.test(m[1])) return null;
   const row = await prisma.agencyDeviceKey.findUnique({
     where: { keyHash: sha256Hex(m[1]) },
-    select: { id: true, userId: true, revokedAt: true, user: { select: { role: true } } },
+    select: { id: true, userId: true, revokedAt: true, user: { select: { role: true, isBlocked: true } } },
   });
-  if (!row || row.revokedAt) return null;
+  if (!row || row.revokedAt || row.user.isBlocked) return null;
   // Se espera: en Vercel lo que queda corriendo después de responder puede cortarse.
   await prisma.agencyDeviceKey
     .updateMany({

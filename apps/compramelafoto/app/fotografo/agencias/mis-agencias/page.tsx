@@ -79,7 +79,7 @@ export default function MisAgenciasPage() {
                   <Link href={`/fotografo/agencias/mis-agencias/${a.agencyId}/camara`}>
                     <Button size="sm" variant="outline">Cámara, DNX FLUX y ubicación</Button>
                   </Link>
-                  <p className="text-xs text-[#6b7280]">La subida desde DNX FLUX y el detalle de lo cobrado, llegan en las próximas etapas.</p>
+                  <p className="text-xs text-[#6b7280]">En "Cámara, DNX FLUX y ubicación" vinculás tu computadora; la opción de vincular dentro de DNX FLUX llega en su próxima versión. El detalle de lo cobrado llega en las próximas etapas.</p>
                 </>
               )}
               {a.needsTerms && (

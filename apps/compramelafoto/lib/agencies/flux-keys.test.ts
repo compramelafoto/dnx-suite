@@ -142,6 +142,10 @@ describe("authenticateAgencyDevice", () => {
     keyFindUnique.mockResolvedValue({ id: 33, userId: 20, revokedAt: new Date(), user: { role: "PHOTOGRAPHER" } });
     expect(await authenticateAgencyDevice(`Bearer ${key}`)).toBe(null);
   });
+  it("usuario bloqueado: null aunque la llave esté vigente", async () => {
+    keyFindUnique.mockResolvedValue({ id: 33, userId: 20, revokedAt: null, user: { role: "PHOTOGRAPHER", isBlocked: true } });
+    expect(await authenticateAgencyDevice(`Bearer ${key}`, NOW)).toBe(null);
+  });
   it("vigente: busca por hash y devuelve el usuario", async () => {
     keyFindUnique.mockResolvedValue({ id: 33, userId: 20, revokedAt: null, user: { role: "PHOTOGRAPHER" } });
     expect(await authenticateAgencyDevice(`Bearer ${key}`, NOW)).toEqual({ deviceKeyId: 33, userId: 20, role: "PHOTOGRAPHER" });

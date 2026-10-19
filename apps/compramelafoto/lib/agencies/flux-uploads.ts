@@ -90,7 +90,7 @@ function signed(uploadId: string, uploadUrl: string): FluxUploadItem {
 
 /**
  * Un ítem por archivo, en el mismo orden: `alreadyThere` si la huella ya está publicada en el álbum o el archivo ya
- * se confirmó; la MISMA fila con URL nueva si quedó sin confirmar (DNX FLUX retoma sin duplicar); o una fila nueva.
+ * se confirmó y su trabajo no falló (si falló, se pide una subida nueva); la MISMA fila con URL nueva si quedó sin confirmar (DNX FLUX retoma sin duplicar); o una fila nueva.
  * Se reconoce un archivo por su huella si la manda, o por nombre + tamaño.
  */
 export async function requestFluxUploads(
@@ -115,10 +115,11 @@ export async function requestFluxUploads(
     where: {
       userId: ctx.userId,
       albumId: target.albumId,
+      agencyId: target.agencyId,
       OR: [...(hashes.length ? [{ contentSha256: { in: hashes } }] : []), { originalFilename: { in: names } }],
     },
     orderBy: { createdAt: "desc" },
-    select: { id: true, rawKey: true, originalFilename: true, sizeBytes: true, contentSha256: true, status: true },
+    select: { id: true, rawKey: true, originalFilename: true, sizeBytes: true, contentSha256: true, status: true, ingestJobId: true },
   });
   const prevByKey = new Map<string, (typeof previous)[number]>();
   for (const p of previous) {
@@ -127,6 +128,21 @@ export async function requestFluxUploads(
     // Una fila rechazada más nueva no tapa a una confirmada o en curso del mismo archivo.
     if (!cur || (cur.status === "REJECTED" && p.status !== "REJECTED")) prevByKey.set(k, p);
   }
+
+  // Una fila confirmada cuyo trabajo terminó FAILED (o ya no existe) nunca se publicó: no vale como "ya está".
+  const confirmedJobIds = [...new Set(previous.filter((p) => p.status === "CONFIRMED" && p.ingestJobId).map((p) => p.ingestJobId as string))];
+  const liveJobs = confirmedJobIds.length
+    ? new Set(
+        (
+          await prisma.cameraIngestJob.findMany({
+            where: { id: { in: confirmedJobIds }, status: { not: "FAILED" } },
+            select: { id: true },
+          })
+        ).map((j) => j.id)
+      )
+    : new Set<string>();
+  const isLive = (p: (typeof previous)[number] | undefined) =>
+    p?.status === "CONFIRMED" && p.ingestJobId != null && liveJobs.has(p.ingestJobId);
 
   const declared = { declaredLat: point?.lat ?? null, declaredLng: point?.lng ?? null };
   const resolved = new Map<string, FluxUploadItem>();
@@ -140,7 +156,7 @@ export async function requestFluxUploads(
     }
     const prev = prevByKey.get(k);
     let item: FluxUploadItem;
-    if ((f.sha256 && published.has(f.sha256)) || prev?.status === "CONFIRMED") {
+    if ((f.sha256 && published.has(f.sha256)) || isLive(prev)) {
       item = { alreadyThere: true };
     } else if (prev?.status === "UPLOADING") {
       await prisma.agencyFluxUpload.update({ where: { id: prev.id }, data: { deviceKeyId: ctx.deviceKeyId, ...declared } });
@@ -169,7 +185,8 @@ function isR2NotFound(err: unknown): boolean {
   return Boolean(e && (e.name === "NotFound" || e.name === "NoSuchKey" || e.$metadata?.httpStatusCode === 404));
 }
 
-const stateOf = (status: string | null | undefined) => (status === "AWAITING_FILTER" ? "AWAITING_FILTER" : "QUEUED");
+const stateOf = (status: string | null | undefined) =>
+  status === "AWAITING_FILTER" || status === "FAILED" || status === "COMPLETED" ? status : "QUEUED";
 
 /**
  * DNX FLUX avisa que terminó el PUT: se vuelve a chequear el acceso y se encola en la fila común (autor = el
