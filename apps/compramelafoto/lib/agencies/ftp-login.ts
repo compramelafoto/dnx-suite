@@ -1,9 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import {
-  validateActiveAlbumForCameraConnection,
-  verifyFtpPassword,
-} from "@/lib/camera-connection/camera-connection-service";
-import { findAgencyAlbumGate } from "@/lib/agencies/queries";
+import { verifyFtpPassword } from "@/lib/camera-connection/camera-connection-service";
+import { checkAgencyUploadTarget } from "@/lib/agencies/upload-target";
 import { activePresencePoint } from "@/lib/agencies/presence";
 
 export type AgencyFtpLogin = { agencyId: number; userId: number; ftpUsername: string; albumId: number; agencyCredentialId: number; memberId: number };
@@ -11,16 +8,8 @@ export type AgencyFtpLogin = { agencyId: number; userId: number; ftpUsername: st
 const NO_ACCESS = "Este usuario de FTP ya no puede subir a ese álbum de la agencia.";
 
 /** El álbum existe, es de ESTA agencia y el miembro puede subirle fotos ahora. */
-async function checkAccess(
-  agencyId: number,
-  albumId: number,
-  userId: number
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const album = await validateActiveAlbumForCameraConnection(userId, albumId);
-  if (!album.ok) return { ok: false, message: album.error || NO_ACCESS };
-  const gate = await findAgencyAlbumGate(albumId);
-  if (!gate || gate.agencyId !== agencyId) return { ok: false, message: NO_ACCESS };
-  return { ok: true };
+function checkAccess(agencyId: number, albumId: number, userId: number) {
+  return checkAgencyUploadTarget(agencyId, albumId, userId, NO_ACCESS);
 }
 
 /** null = el usuario no es de agencia: el gateway sigue con CameraConnectionSettings como siempre. */

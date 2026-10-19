@@ -18,6 +18,7 @@ export default defineConfig({
       "lib/camera-connection/process-camera-ingest-job.duplicate.test.ts",
       "lib/camera-connection/resolve-ftp-destination-album.agency.test.ts",
       "app/api/fotografo/agencias/**/*.test.ts",
+      "app/api/agency-ingest/**/*.test.ts",
       "app/api/dashboard/albums/*/photos/upload-helpers.test.ts",
       "app/api/fotografo/pedidos/agency-privacy.test.ts",
       "lib/bot/**/*.test.ts",
