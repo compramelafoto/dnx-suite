@@ -83,6 +83,9 @@ export default function FluxDevicesCard() {
           Poné la tarjeta de la cámara en tu computadora y DNX FLUX sube las fotos solas al álbum de la agencia, a tu
           nombre. Vinculás la computadora una sola vez y sirve para todas las agencias en las que estás.
         </p>
+        <p className="mt-1 text-sm text-amber-700">
+          La opción para vincular llega en la próxima versión de DNX FLUX. Si todavía no la ves, esperá la actualización.
+        </p>
       </div>
 
       {code && !expired ? (
