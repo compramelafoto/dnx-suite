@@ -445,6 +445,14 @@ const VENTAS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    href: "/ventas/foto-carnet",
+    label: "Foto carnet",
+    icon: "Crop",
+    description: "Encuadrar una foto a la medida del trámite y armar la plancha para imprimir.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/ventas/historial",
     label: "Ventas hechas",
     icon: "ReceiptText",
