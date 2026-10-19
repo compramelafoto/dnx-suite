@@ -1,10 +1,12 @@
 import type { Instructivo } from "../tipos";
+import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 
 export const guia: Instructivo = {
   slug: "primeros-pasos",
-  titulo: "Primeros pasos en el panel",
+  titulo: "Primeros pasos en el panel de la institución",
   resumen: "Cómo entrar a FOTOFFICE, elegir la institución y moverte por el menú del panel.",
   seccion: "Primeros pasos",
+  moduleKey: MEMBERS_MODULE_KEY,
   minutos: 5,
   pasos: [
     {
