@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { generateR2Key, getSignedPutUrl } from "@/lib/r2-client";
+import { deleteFromR2, generateR2Key, getSignedPutUrl } from "@/lib/r2-client";
+import { checkAgencyUploadTarget } from "@/lib/agencies/upload-target";
+import { ensureMpConnected } from "@/app/api/dashboard/albums/[id]/photos/upload-helpers";
+import { enqueueAlbumPhotoIngest } from "@/lib/albums/enqueue-album-photo-ingest";
+import { agencyAwaitsFilter } from "@/lib/agencies/publish-mode";
 import { getAlbumPhotoMaxBytes, getAlbumPhotoMaxMb } from "@/lib/albums/album-photo-upload-limits";
 import { parseDeclaredPoint } from "@/lib/agencies/photo-facts";
 import type { FluxDeviceCtx } from "@/lib/agencies/flux-keys";
@@ -156,4 +160,74 @@ export async function requestFluxUploads(
     items.push(item);
   }
   return items;
+}
+
+const UPLOAD_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isR2NotFound(err: unknown): boolean {
+  const e = err as { name?: string; $metadata?: { httpStatusCode?: number } } | null;
+  return Boolean(e && (e.name === "NotFound" || e.name === "NoSuchKey" || e.$metadata?.httpStatusCode === 404));
+}
+
+const stateOf = (status: string | null | undefined) => (status === "AWAITING_FILTER" ? "AWAITING_FILTER" : "QUEUED");
+
+/**
+ * DNX FLUX avisa que terminó el PUT: se vuelve a chequear el acceso y se encola en la fila común (autor = el
+ * fotógrafo, álbum de la agencia, punto declarado, origen FLUX). El tamaño real lo mide `enqueueAlbumPhotoIngest`
+ * con un HeadObject en R2 (la medida que manda). Idempotente: confirmar dos veces no duplica.
+ */
+export async function confirmFluxUpload(ctx: FluxDeviceCtx, uploadId: string): Promise<{ status: number; body: Record<string, unknown> }> {
+  if (!UPLOAD_ID.test(uploadId)) return { status: 400, body: { error: "Los datos no son válidos." } };
+  const up = await prisma.agencyFluxUpload.findFirst({
+    where: { id: uploadId, userId: ctx.userId },
+    select: {
+      id: true, agencyId: true, albumId: true, rawKey: true, originalFilename: true, deviceKeyId: true,
+      declaredLat: true, declaredLng: true, status: true, ingestJobId: true,
+    },
+  });
+  if (!up) return { status: 404, body: { error: "No encontramos esa foto." } };
+  if (up.status === "CONFIRMED") {
+    const job = up.ingestJobId
+      ? await prisma.cameraIngestJob.findUnique({ where: { id: up.ingestJobId }, select: { status: true } })
+      : null;
+    return { status: 200, body: { ok: true, state: stateOf(job?.status), alreadyConfirmed: true } };
+  }
+  const tooBig = `La foto pesa más de ${getAlbumPhotoMaxMb()} MB. Achicala y volvé a subirla.`;
+  if (up.status === "REJECTED") return { status: 422, body: { ok: false, state: "REJECTED", error: tooBig } };
+
+  const access = await checkAgencyUploadTarget(up.agencyId, up.albumId, ctx.userId);
+  if (!access.ok) return { status: 403, body: { error: access.message } };
+  const mp = await ensureMpConnected({ id: ctx.userId, role: ctx.role });
+  if (!mp.ok) return { status: 403, body: { error: mp.error } };
+  const awaitFilter = await agencyAwaitsFilter(up.agencyId);
+
+  let job: { id: string; status: string };
+  try {
+    ({ job } = await enqueueAlbumPhotoIngest({
+      userId: ctx.userId,
+      albumId: up.albumId,
+      rawKey: up.rawKey,
+      originalFilename: up.originalFilename,
+      source: "FLUX",
+      declaredPoint: up.declaredLat != null && up.declaredLng != null ? { lat: up.declaredLat, lng: up.declaredLng } : null,
+      agencyDeviceKeyId: up.deviceKeyId,
+      awaitFilter,
+    }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (isR2NotFound(err) || /aún no está disponible/i.test(msg)) {
+      return { status: 409, body: { ok: false, state: "PENDING_UPLOAD", error: "La foto todavía no llegó. Volvé a subirla." } };
+    }
+    if (/supera el límite/i.test(msg)) {
+      await prisma.agencyFluxUpload.update({ where: { id: up.id }, data: { status: "REJECTED" } });
+      await deleteFromR2(up.rawKey).catch(() => undefined);
+      return { status: 422, body: { ok: false, state: "REJECTED", error: tooBig } };
+    }
+    throw err;
+  }
+  await prisma.agencyFluxUpload.updateMany({
+    where: { id: up.id, status: "UPLOADING" },
+    data: { status: "CONFIRMED", ingestJobId: job.id, confirmedAt: new Date() },
+  });
+  return { status: 200, body: { ok: true, state: stateOf(job.status) } };
 }

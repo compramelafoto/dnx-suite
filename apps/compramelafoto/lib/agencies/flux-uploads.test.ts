@@ -38,7 +38,7 @@ vi.mock("@/app/api/dashboard/albums/[id]/photos/upload-helpers", () => ({ ensure
 vi.mock("@/lib/albums/enqueue-album-photo-ingest", () => ({ enqueueAlbumPhotoIngest: (...a: unknown[]) => enqueue(...a) }));
 vi.mock("@/lib/agencies/publish-mode", () => ({ agencyAwaitsFilter: (...a: unknown[]) => awaitsFilterMock(...a) }));
 
-import { requestFluxUploads, resolveFluxPoint, validateFluxFiles } from "./flux-uploads";
+import { confirmFluxUpload, requestFluxUploads, resolveFluxPoint, validateFluxFiles } from "./flux-uploads";
 
 const ctx = { deviceKeyId: 33, userId: 20, role: "PHOTOGRAPHER" } as const;
 const tgt = { agencyId: 3, albumId: 50 };
@@ -156,5 +156,65 @@ describe("requestFluxUploads", () => {
     const items = await requestFluxUploads(ctx, tgt, [f1, f1], null);
     expect(upCreate).toHaveBeenCalledTimes(1);
     expect(items[1]).toEqual(items[0]);
+  });
+});
+
+describe("confirmFluxUpload", () => {
+  const up = {
+    id: "up1", userId: 20, agencyId: 3, albumId: 50, rawKey: "albums/50/raw/uuid-DSC_1.JPG", originalFilename: "DSC_1.JPG",
+    deviceKeyId: 33, declaredLat: -38, declaredLng: -57.5, status: "UPLOADING", ingestJobId: null,
+  };
+
+  beforeEach(() => {
+    upFindFirst.mockResolvedValue(up);
+    enqueue.mockResolvedValue({ job: { id: "j1", status: "PENDING" }, created: true });
+  });
+
+  it("id mal formado: 400; ajena o inexistente: 404 (busca con el usuario de la llave)", async () => {
+    expect((await confirmFluxUpload(ctx, "../x")).status).toBe(400);
+    upFindFirst.mockResolvedValue(null);
+    expect((await confirmFluxUpload(ctx, "up9")).status).toBe(404);
+    expect(upFindFirst.mock.calls[0][0].where).toEqual({ id: "up9", userId: 20 });
+  });
+  it("válida: encola FLUX con autor, álbum, punto y llave, y la marca confirmada una sola vez", async () => {
+    expect(await confirmFluxUpload(ctx, "up1")).toEqual({ status: 200, body: { ok: true, state: "QUEUED" } });
+    expect(enqueue).toHaveBeenCalledWith({
+      userId: 20, albumId: 50, rawKey: "albums/50/raw/uuid-DSC_1.JPG", originalFilename: "DSC_1.JPG",
+      source: "FLUX", declaredPoint: { lat: -38, lng: -57.5 }, agencyDeviceKeyId: 33, awaitFilter: false,
+    });
+    expect(upUpdateMany.mock.calls[0][0]).toEqual({
+      where: { id: "up1", status: "UPLOADING" },
+      data: { status: "CONFIRMED", ingestJobId: "j1", confirmedAt: expect.any(Date) },
+    });
+  });
+  it("agencia que espera al filtro: estado AWAITING_FILTER", async () => {
+    awaitsFilterMock.mockResolvedValue(true);
+    enqueue.mockResolvedValue({ job: { id: "j1", status: "AWAITING_FILTER" }, created: true });
+    expect((await confirmFluxUpload(ctx, "up1")).body).toEqual({ ok: true, state: "AWAITING_FILTER" });
+    expect(enqueue.mock.calls[0][0].awaitFilter).toBe(true);
+  });
+  it("confirmada dos veces: no vuelve a encolar", async () => {
+    upFindFirst.mockResolvedValue({ ...up, status: "CONFIRMED", ingestJobId: "j1" });
+    jobFindUnique.mockResolvedValue({ status: "COMPLETED" });
+    expect(await confirmFluxUpload(ctx, "up1")).toEqual({ status: 200, body: { ok: true, state: "QUEUED", alreadyConfirmed: true } });
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+  it("lo dieron de baja entre la tanda y la confirmación: 403 sin encolar", async () => {
+    target.mockResolvedValue({ ok: false, message: "Ya no podés subir a ese álbum de la agencia." });
+    expect(await confirmFluxUpload(ctx, "up1")).toEqual({ status: 403, body: { error: "Ya no podés subir a ese álbum de la agencia." } });
+    expect(target).toHaveBeenCalledWith(3, 50, 20);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+  it("el archivo no llegó a R2: 409 y la fila sigue esperando", async () => {
+    enqueue.mockRejectedValue(Object.assign(new Error("NotFound"), { name: "NotFound", $metadata: { httpStatusCode: 404 } }));
+    expect(await confirmFluxUpload(ctx, "up1")).toMatchObject({ status: 409, body: { ok: false, state: "PENDING_UPLOAD" } });
+    expect(upUpdateMany).not.toHaveBeenCalled();
+    expect(upUpdate).not.toHaveBeenCalled();
+  });
+  it("subió algo de más de 10 MB: 422, fila REJECTED y se borra el archivo", async () => {
+    enqueue.mockRejectedValue(new Error("El archivo supera el límite de 10MB."));
+    expect(await confirmFluxUpload(ctx, "up1")).toMatchObject({ status: 422, body: { ok: false, state: "REJECTED" } });
+    expect(upUpdate).toHaveBeenCalledWith({ where: { id: "up1" }, data: { status: "REJECTED" } });
+    expect(deleteR2).toHaveBeenCalledWith("albums/50/raw/uuid-DSC_1.JPG");
   });
 });

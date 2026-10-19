@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/r2-client", () => ({}));
 
 import { POST as BATCHES } from "./batches/route";
+import { POST as CONFIRM } from "./photos/[id]/confirm/route";
 
 let keyN = 0;
 const AUTH = () => ({ authorization: `Bearer clf_dev_${++keyN}` });
@@ -68,5 +69,28 @@ describe("POST batches", () => {
     expect(await res.json()).toEqual({ files: [{ alreadyThere: true }] });
     expect(requestUploads.mock.calls[0][1]).toEqual({ agencyId: 3, albumId: 50 });
     expect(requestUploads.mock.calls[0][3]).toEqual({ lat: -38, lng: -57.5 });
+  });
+});
+
+describe("POST confirm", () => {
+  const confirmReq = (headers: Record<string, string> = AUTH()) =>
+    new Request("https://x/api/agency-ingest/v1/photos/up1/confirm", { method: "POST", headers });
+  const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+  it("sin llave: 401", async () => {
+    authenticate.mockResolvedValue(null);
+    expect((await CONFIRM(confirmReq({}), params("up1"))).status).toBe(401);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+  it("devuelve el estado y el cuerpo de confirmFluxUpload", async () => {
+    confirm.mockResolvedValue({ status: 409, body: { ok: false, state: "PENDING_UPLOAD", error: "x" } });
+    const res = await CONFIRM(confirmReq(), params("up1"));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ ok: false, state: "PENDING_UPLOAD", error: "x" });
+    expect(confirm.mock.calls[0][1]).toBe("up1");
+  });
+  it("error inesperado: 503", async () => {
+    confirm.mockRejectedValue(new Error("db"));
+    expect((await CONFIRM(confirmReq(), params("up1"))).status).toBe(503);
   });
 });
