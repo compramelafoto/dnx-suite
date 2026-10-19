@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import AgencyPageFrame from "@/components/agencies/AgencyPageFrame";
+import FluxDevicesCard from "@/components/agencies/FluxDevicesCard";
 
 type Album = { albumId: number; title: string; publicSlug: string };
 type Place = { id: number; name: string; lat: number; lng: number };
@@ -206,7 +207,7 @@ export default function CamaraYUbicacionPage() {
     : null;
 
   return (
-    <AgencyPageFrame title="Cámara y ubicación" subtitle="Subí tus fotos directo desde la cámara y avisá dónde estás trabajando hoy.">
+    <AgencyPageFrame title="Cámara, DNX FLUX y ubicación" subtitle="Subí tus fotos desde la cámara o desde la computadora, y avisá dónde estás trabajando hoy.">
       {loadError && <Card>{loadError}</Card>}
       {!agency && !loadError && <Card>Cargando…</Card>}
       {agency && (
@@ -281,6 +282,8 @@ export default function CamaraYUbicacionPage() {
 
             {ftpError && <p className="text-sm text-red-600">{ftpError}</p>}
           </Card>
+
+          <FluxDevicesCard />
 
           <Card className="space-y-4">
             <h2 className="text-lg font-medium">Estoy acá</h2>

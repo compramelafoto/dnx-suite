@@ -245,6 +245,8 @@ model User {
   fotoOfficeInterests                   FotoOfficeInterest[]
   ownedAgency                           Agency?                                @relation("AgencyOwner")
   agencyMemberships                     AgencyMember[]                         @relation("AgencyMemberUser")
+  agencyDeviceKeys                      AgencyDeviceKey[]                      @relation("AgencyDeviceKeyUser")
+  agencyLinkCodes                       AgencyLinkCode[]                       @relation("AgencyLinkCodeUser")
   infoSpotRoles                         InfoSpotUserRole[]
   infoSpotArticlesAuthored              InfoSpotArticle[]                      @relation("InfoSpotArticleAuthor")
   infoSpotArticlesFactChecked           InfoSpotArticle[]                      @relation("InfoSpotArticleFactCheck")
@@ -3769,6 +3771,8 @@ model CameraIngestJob {
   declaredLat        Float?
   declaredLng        Float?
   agencyCredentialId Int?
+  /// Modo agencia: llave de DNX FLUX con la que llegó la foto.
+  agencyDeviceKeyId  Int?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -6757,11 +6761,15 @@ enum CameraIngestJobStatus {
   PROCESSING
   COMPLETED
   FAILED
+  /// Modo agencia: subida de DNX FLUX esperando la señal del filtro; el cron no la toma.
+  AWAITING_FILTER
 }
 
 enum AlbumPhotoIngestSource {
   CAMERA
   WEB_UPLOAD
+  /// Modo agencia: subida directa desde DNX FLUX.
+  FLUX
 }
 
 enum OrderItemType {
@@ -25509,4 +25517,61 @@ model FotofficeQrMostrador {
   ordenPendienteId String?
   createdByUserId  Int?
   createdAt        DateTime @default(now())
+}
+
+/// Modo agencia: código corto de un solo uso para vincular DNX FLUX (sólo el SHA-256; vence a los 10 minutos).
+model AgencyLinkCode {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  codeHash    String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  /// Llave creada al canjearlo (sin clave foránea: es sólo un rastro).
+  deviceKeyId Int?
+  createdAt   DateTime  @default(now())
+  user        User      @relation("AgencyLinkCodeUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Modo agencia: llave de dispositivo de DNX FLUX (`clf_dev_…`) de un fotógrafo. Sirve para todas sus agencias
+/// activas; el acceso se re-chequea en cada pedido. En la base sólo vive el SHA-256 y los primeros 8 caracteres.
+model AgencyDeviceKey {
+  id         Int                @id @default(autoincrement())
+  userId     Int
+  keyHash    String             @unique
+  keyPrefix  String
+  label      String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime           @default(now())
+  user       User               @relation("AgencyDeviceKeyUser", fields: [userId], references: [id], onDelete: Cascade)
+  uploads    AgencyFluxUpload[]
+
+  @@index([userId])
+}
+
+/// Modo agencia: un archivo que DNX FLUX pidió subir. UPLOADING (tiene URL firmada) → CONFIRMED (encolado) | REJECTED.
+model AgencyFluxUpload {
+  id               String          @id @default(cuid())
+  deviceKeyId      Int
+  userId           Int
+  agencyId         Int
+  albumId          Int
+  rawKey           String          @unique
+  originalFilename String
+  sizeBytes        Int
+  contentSha256    String?
+  declaredLat      Float?
+  declaredLng      Float?
+  status           String          @default("UPLOADING")
+  ingestJobId      String?
+  confirmedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  deviceKey        AgencyDeviceKey @relation(fields: [deviceKeyId], references: [id], onDelete: Cascade)
+
+  @@index([deviceKeyId])
+  @@index([userId, albumId, contentSha256])
+  @@index([userId, albumId, originalFilename])
 }

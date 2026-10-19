@@ -218,6 +218,7 @@ export async function handleCameraFtpUpload(
 
   const receivedAt = new Date();
   let declaredPoint: { lat: number; lng: number } | null = null;
+  let awaitFilter = false;
   let destination: Awaited<ReturnType<typeof resolveFtpDestinationAlbum>>;
   if (auth.agency) {
     const agencyDest = await resolveAgencyFtpUpload(auth.agency, receivedAt);
@@ -232,6 +233,7 @@ export async function handleCameraFtpUpload(
       throw new FileSystemError(agencyDest.message, 550);
     }
     declaredPoint = agencyDest.declaredPoint;
+    awaitFilter = agencyDest.awaitFilter;
     destination = { ok: true, albumId: agencyDest.albumId };
   } else {
     destination = await resolveFtpDestinationAlbum({
@@ -284,6 +286,7 @@ export async function handleCameraFtpUpload(
             declaredLat: declaredPoint?.lat ?? null,
             declaredLng: declaredPoint?.lng ?? null,
             agencyCredentialId: auth.agency.agencyCredentialId,
+            awaitFilter,
           }
         : {}),
     });

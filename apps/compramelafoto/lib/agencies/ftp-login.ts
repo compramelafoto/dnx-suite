@@ -1,26 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import {
-  validateActiveAlbumForCameraConnection,
-  verifyFtpPassword,
-} from "@/lib/camera-connection/camera-connection-service";
-import { findAgencyAlbumGate } from "@/lib/agencies/queries";
+import { verifyFtpPassword } from "@/lib/camera-connection/camera-connection-service";
+import { checkAgencyUploadTarget } from "@/lib/agencies/upload-target";
 import { activePresencePoint } from "@/lib/agencies/presence";
+import { agencyAwaitsFilter } from "@/lib/agencies/publish-mode";
 
 export type AgencyFtpLogin = { agencyId: number; userId: number; ftpUsername: string; albumId: number; agencyCredentialId: number; memberId: number };
 
 const NO_ACCESS = "Este usuario de FTP ya no puede subir a ese álbum de la agencia.";
 
 /** El álbum existe, es de ESTA agencia y el miembro puede subirle fotos ahora. */
-async function checkAccess(
-  agencyId: number,
-  albumId: number,
-  userId: number
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const album = await validateActiveAlbumForCameraConnection(userId, albumId);
-  if (!album.ok) return { ok: false, message: album.error || NO_ACCESS };
-  const gate = await findAgencyAlbumGate(albumId);
-  if (!gate || gate.agencyId !== agencyId) return { ok: false, message: NO_ACCESS };
-  return { ok: true };
+function checkAccess(agencyId: number, albumId: number, userId: number) {
+  return checkAgencyUploadTarget(agencyId, albumId, userId, NO_ACCESS);
 }
 
 /** null = el usuario no es de agencia: el gateway sigue con CameraConnectionSettings como siempre. */
@@ -48,7 +38,7 @@ export async function loginAgencyFtp(
 export async function resolveAgencyFtpUpload(
   login: AgencyFtpLogin,
   receivedAt: Date
-): Promise<{ ok: true; albumId: number; declaredPoint: { lat: number; lng: number } | null } | { ok: false; message: string }> {
+): Promise<{ ok: true; albumId: number; declaredPoint: { lat: number; lng: number } | null; awaitFilter: boolean } | { ok: false; message: string }> {
   // El álbum se lee de la credencial en cada subida: si el fotógrafo lo cambió con la cámara conectada, rige el nuevo.
   const current = await prisma.agencyUploadCredential.findUnique({
     where: { id: login.agencyCredentialId },
@@ -66,5 +56,6 @@ export async function resolveAgencyFtpUpload(
     where: { memberId: login.memberId },
     select: { lat: true, lng: true, validUntil: true },
   });
-  return { ok: true, albumId: current.albumId, declaredPoint: activePresencePoint(presence, receivedAt) };
+  const awaitFilter = await agencyAwaitsFilter(login.agencyId);
+  return { ok: true, albumId: current.albumId, declaredPoint: activePresencePoint(presence, receivedAt), awaitFilter };
 }

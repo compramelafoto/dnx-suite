@@ -24,6 +24,8 @@ export type CreateCameraUploadLogAndEnqueueInput = {
   declaredLng?: number | null;
   /** Modo agencia: credencial FTP de agencia con la que llegó la foto. */
   agencyCredentialId?: number | null;
+  /** Modo agencia: la agencia espera al filtro de la nube (el job nace AWAITING_FILTER). */
+  awaitFilter?: boolean;
 };
 
 export type CreateCameraUploadLogAndEnqueueResult = {
@@ -215,7 +217,7 @@ export async function createCameraUploadLogAndEnqueue(
           uploadLogId: log.id,
           originalFilename: filename,
           filesizeBytes,
-          status: "PENDING",
+          status: input.awaitFilter ? "AWAITING_FILTER" : "PENDING",
           ...(input.declaredLat != null && input.declaredLng != null
             ? { declaredLat: input.declaredLat, declaredLng: input.declaredLng }
             : {}),
