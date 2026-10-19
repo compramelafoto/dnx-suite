@@ -6,6 +6,8 @@ export const ORDEN_SECCIONES: readonly Instructivo["seccion"][] = [
   "Caja",
   "Mostrador",
   "Trabajos y entregas",
+  "Clientes y pedidos",
+  "Galerías",
   "Socios",
   "Cuotas",
   "Comunicación",
