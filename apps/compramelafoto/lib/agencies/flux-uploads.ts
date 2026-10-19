@@ -60,7 +60,8 @@ export async function resolveFluxPoint(
   body: Record<string, unknown>
 ): Promise<{ ok: true; point: { lat: number; lng: number } | null } | { ok: false; error: string }> {
   if (body.placeId !== undefined && body.placeId !== null) {
-    const id = Number(body.placeId);
+    const raw = body.placeId;
+    const id = typeof raw === "number" || (typeof raw === "string" && /^\d+$/.test(raw.trim())) ? Number(raw) : NaN;
     const place = Number.isInteger(id) && id > 0
       ? await prisma.agencyPlace.findFirst({ where: { id, agencyId }, select: { lat: true, lng: true } })
       : null;
@@ -118,7 +119,9 @@ export async function requestFluxUploads(
   const prevByKey = new Map<string, (typeof previous)[number]>();
   for (const p of previous) {
     const k = matchKey({ name: p.originalFilename, size: p.sizeBytes, sha256: p.contentSha256 });
-    if (!prevByKey.has(k)) prevByKey.set(k, p);
+    const cur = prevByKey.get(k);
+    // Una fila rechazada más nueva no tapa a una confirmada o en curso del mismo archivo.
+    if (!cur || (cur.status === "REJECTED" && p.status !== "REJECTED")) prevByKey.set(k, p);
   }
 
   const declared = { declaredLat: point?.lat ?? null, declaredLng: point?.lng ?? null };
@@ -137,7 +140,7 @@ export async function requestFluxUploads(
       item = { alreadyThere: true };
     } else if (prev?.status === "UPLOADING") {
       await prisma.agencyFluxUpload.update({ where: { id: prev.id }, data: { deviceKeyId: ctx.deviceKeyId, ...declared } });
-      item = signed(prev.id, await getSignedPutUrl(prev.rawKey, JPEG, FLUX_PUT_TTL_SECONDS));
+      item = signed(prev.id, await getSignedPutUrl(prev.rawKey, JPEG, FLUX_PUT_TTL_SECONDS, prev.sizeBytes));
     } else {
       const rawKey = generateR2Key(f.name, `albums/${target.albumId}/raw`);
       const row = await prisma.agencyFluxUpload.create({
@@ -147,7 +150,7 @@ export async function requestFluxUploads(
         },
         select: { id: true },
       });
-      item = signed(row.id, await getSignedPutUrl(rawKey, JPEG, FLUX_PUT_TTL_SECONDS));
+      item = signed(row.id, await getSignedPutUrl(rawKey, JPEG, FLUX_PUT_TTL_SECONDS, f.size));
     }
     resolved.set(k, item);
     items.push(item);

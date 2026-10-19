@@ -369,7 +369,8 @@ export async function getSignedUrlForFile(
 export async function getSignedPutUrl(
   key: string,
   contentType: string,
-  expiresIn: number = 900
+  expiresIn: number = 900,
+  contentLength?: number
 ): Promise<string> {
   const client = getS3Client();
   const bucketName = getBucketName();
@@ -378,6 +379,8 @@ export async function getSignedPutUrl(
     Bucket: bucketName,
     Key: key,
     ContentType: contentType,
+    // Si se indica, el largo queda firmado: R2 rechaza un PUT de otro tamaño.
+    ...(contentLength !== undefined ? { ContentLength: contentLength } : {}),
   });
 
   return await getSignedUrl(client, command, { expiresIn });

@@ -92,6 +92,9 @@ describe("resolveFluxPoint", () => {
     placeFindFirst.mockResolvedValue({ lat: -38.02, lng: -57.53 });
     expect(await resolveFluxPoint(3, { placeId: 1 })).toEqual({ ok: true, point: { lat: -38.02, lng: -57.53 } });
     expect(placeFindFirst.mock.calls[0][0].where).toEqual({ id: 1, agencyId: 3 });
+    placeFindFirst.mockClear();
+    expect(await resolveFluxPoint(3, { placeId: true })).toMatchObject({ ok: false });
+    expect(placeFindFirst).not.toHaveBeenCalled();
     placeFindFirst.mockResolvedValue(null);
     expect(await resolveFluxPoint(3, { placeId: 9 })).toMatchObject({ ok: false });
   });
@@ -116,7 +119,7 @@ describe("requestFluxUploads", () => {
       deviceKeyId: 33, userId: 20, agencyId: 3, albumId: 50, rawKey: "albums/50/raw/uuid-DSC_1.JPG",
       originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, declaredLat: -38, declaredLng: -57.5,
     });
-    expect(signPut).toHaveBeenCalledWith("albums/50/raw/uuid-DSC_1.JPG", "image/jpeg", 900);
+    expect(signPut).toHaveBeenCalledWith("albums/50/raw/uuid-DSC_1.JPG", "image/jpeg", 900, 100);
   });
   it("la huella ya está publicada en el álbum: alreadyThere sin crear fila", async () => {
     photoFindMany.mockResolvedValue([{ contentSha256: H }]);
@@ -133,11 +136,21 @@ describe("requestFluxUploads", () => {
     expect(items[0]).toMatchObject({ uploadId: "old1", uploadUrl: "https://r2/albums/50/raw/k1?firma" });
     expect(items[1]).toEqual({ alreadyThere: true });
     expect(upCreate).not.toHaveBeenCalled();
+    expect(upFindMany.mock.calls[0][0].where).toMatchObject({ userId: 20, albumId: 50 });
+    expect(signPut).toHaveBeenCalledWith("albums/50/raw/k1", "image/jpeg", 900, 100);
     expect(upUpdate).toHaveBeenCalledWith({ where: { id: "old1" }, data: { deviceKeyId: 33, declaredLat: null, declaredLng: null } });
   });
   it("una fila rechazada (pesaba de más) no se reusa: se arma una nueva", async () => {
     upFindMany.mockResolvedValue([{ id: "old1", rawKey: "k", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "REJECTED" }]);
     expect(await requestFluxUploads(ctx, tgt, [f1], null)).toEqual([expect.objectContaining({ uploadId: "up1" })]);
+  });
+  it("una fila rechazada más nueva no tapa a una confirmada anterior", async () => {
+    upFindMany.mockResolvedValue([
+      { id: "new", rawKey: "k2", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "REJECTED" },
+      { id: "old", rawKey: "k1", originalFilename: "DSC_1.JPG", sizeBytes: 100, contentSha256: H, status: "CONFIRMED" },
+    ]);
+    expect(await requestFluxUploads(ctx, tgt, [f1], null)).toEqual([{ alreadyThere: true }]);
+    expect(upCreate).not.toHaveBeenCalled();
   });
   it("el mismo archivo dos veces en la tanda: una sola fila, la misma respuesta", async () => {
     const items = await requestFluxUploads(ctx, tgt, [f1, f1], null);
