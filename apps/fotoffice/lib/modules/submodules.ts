@@ -301,6 +301,16 @@ const GOBIERNO: SubmoduleItem[] = [
 
 const CAJA: SubmoduleItem[] = [
   {
+    // Acceso rápido al Mostrador (el cobrador), arriba de todo: es lo que más se usa en el día.
+    href: "/ventas",
+    label: "Cobrador",
+    icon: "ShoppingCart",
+    description: "El Mostrador: buscá, sumá al ticket y cobrá.",
+    requiresManage: true,
+    levelModuleKey: SALES_MODULE_KEY,
+    activeMatch: "exact",
+  },
+  {
     href: "/caja",
     label: "Panorama",
     icon: "Wallet",
