@@ -100,7 +100,7 @@ describe("redeemLinkCode", () => {
     expect(r.key).toMatch(/^clf_dev_[A-Za-z0-9_-]{43}$/);
     const data = keyCreate.mock.calls[0][0].data;
     expect(data).toEqual({ userId: 20, keyHash: sha256Hex(r.key), keyPrefix: r.key.slice(8, 16), label: "Notebook de Juan" });
-    expect(codeUpdateMany).toHaveBeenCalledWith({ where: { id: 5, usedAt: null }, data: { usedAt: NOW } });
+    expect(codeUpdateMany).toHaveBeenCalledWith({ where: { id: 5, usedAt: null, expiresAt: { gt: NOW } }, data: { usedAt: NOW } });
     expect(codeUpdate).toHaveBeenCalledWith({ where: { id: 5 }, data: { deviceKeyId: 33 } });
     expect(r).toMatchObject({ deviceKeyId: 33, userId: 20 });
   });

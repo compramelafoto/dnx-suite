@@ -90,7 +90,7 @@ export async function redeemLinkCode(
       return { ok: false as const, status: 409 as const, error: FLUX_KEY_MESSAGES.tooManyDevices };
     }
     // Marca de usado con condición: si llegan dos canjes juntos, gana uno solo.
-    const claimed = await tx.agencyLinkCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: now } });
+    const claimed = await tx.agencyLinkCode.updateMany({ where: { id: row.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
     if (claimed.count !== 1) return { ok: false as const, status: 400 as const, error: FLUX_KEY_MESSAGES.codeInvalid };
     const k = generateDeviceKey();
     const device = await tx.agencyDeviceKey.create({
@@ -114,7 +114,8 @@ export async function authenticateAgencyDevice(authorization: string | null, now
     select: { id: true, userId: true, revokedAt: true, user: { select: { role: true } } },
   });
   if (!row || row.revokedAt) return null;
-  void prisma.agencyDeviceKey
+  // Se espera: en Vercel lo que queda corriendo después de responder puede cortarse.
+  await prisma.agencyDeviceKey
     .updateMany({
       where: { id: row.id, revokedAt: null, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: new Date(now.getTime() - LAST_USED_EVERY_MS) } }] },
       data: { lastUsedAt: now },
