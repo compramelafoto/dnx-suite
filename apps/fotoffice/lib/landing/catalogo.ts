@@ -4,6 +4,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -368,8 +369,15 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Abrir y cerrar la tienda",
     ],
   },
+  {
+    key: DIGITALIZACION_MODULE_KEY,
+    cuadro: "28",
+    nombre: "Digitalización de VHS y DVD",
+    resuelve:
+      "Grabá cassettes y DVD desde la capturadora mientras seguís trabajando: se suben solos y se cortan cuando termina la cinta.",
+    pantallas: ["Grabaciones", "Estación de grabación"],
+  },
 ];
-
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
 export const BASE_DEL_SISTEMA: FichaModulo[] = [
   {

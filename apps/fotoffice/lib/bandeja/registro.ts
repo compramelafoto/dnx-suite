@@ -1,6 +1,6 @@
 import { prisma, type Prisma } from "@repo/db";
 import { PAUSA_BOT_HORAS_POR_DEFECTO } from "./constantes";
-import { alEco, alEntrante, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
+import { alEco, alEntrante, atiendeElBot, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
 import { mismoTelefono, ultimos6 } from "./telefono";
 import { vistaPreviaDe } from "./vista-previa";
 import type { EventoEco, EventoEntrante, EventoEstado, EventoWa } from "./webhook";
@@ -12,7 +12,8 @@ import type { EventoEco, EventoEntrante, EventoEstado, EventoWa } from "./webhoo
  */
 
 /** `fallidos`: eventos que fallaron por un error inesperado (el resto del lote se aplicó igual). */
-export type ResultadoRegistro = { aplicados: number; duplicados: number; ignorados: number; fallidos: number };
+/** `paraElBot`: chats donde entró un mensaje del cliente y los atiende el bot (los contesta `responderConBot`). */
+export type ResultadoRegistro = { aplicados: number; duplicados: number; ignorados: number; fallidos: number; paraElBot: string[] };
 
 type Db = Prisma.TransactionClient;
 
@@ -54,7 +55,7 @@ export async function aplicarEventos(
   /** `workspaceId`: sólo para el simulador de Configuración. Resuelve la conexión por institución en vez de por `phoneNumberId`. */
   opciones: { workspaceId?: string } = {},
 ): Promise<ResultadoRegistro> {
-  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0 };
+  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [] };
   const conexiones = new Map<string, { workspaceId: string; pausaBotHoras: number } | null>();
   /** Un aviso de estado sin mensaje conocido más nuevo que esto se cuenta como fallido, para que Meta reintente. */
   const REINTENTO_ESTADO_MS = 5 * 60_000;
@@ -86,7 +87,10 @@ export async function aplicarEventos(
       }
       const salida = await registrarMensaje(conexion.workspaceId, conexion.pausaBotHoras, ev, ahora);
       if (salida === "duplicado") r.duplicados++;
-      else r.aplicados++;
+      else {
+        r.aplicados++;
+        if (salida.paraElBot && !r.paraElBot.includes(salida.paraElBot)) r.paraElBot.push(salida.paraElBot);
+      }
     } catch (error) {
       r.fallidos++;
       console.error("[fotoffice][whatsapp] falló un evento del lote", { indice, tipo: ev.tipo, ...detalleDeError(error) });
@@ -115,7 +119,7 @@ async function registrarMensaje(
   pausaBotHoras: number,
   ev: EventoEntrante | EventoEco,
   ahora: Date,
-): Promise<"aplicado" | "duplicado"> {
+): Promise<{ paraElBot: string | null } | "duplicado"> {
   const existe = () =>
     prisma.fotofficeWaMensaje.findUnique({ where: { workspaceId_waMessageId: { workspaceId, waMessageId: ev.waMessageId } }, select: { id: true } });
   if (await existe()) return "duplicado";
@@ -124,8 +128,8 @@ async function registrarMensaje(
   // no se reaplica nada) o la creación simultánea del chat (la segunda vuelta ya lo encuentra).
   for (let intento = 0; ; intento++) {
     try {
-      await prisma.$transaction((tx) => escribir(tx, workspaceId, pausaBotHoras, ev, ahora));
-      return "aplicado";
+      const paraElBot = await prisma.$transaction((tx) => escribir(tx, workspaceId, pausaBotHoras, ev, ahora));
+      return { paraElBot };
     } catch (e) {
       if (!esChoqueDeUnico(e)) throw e;
       if (await existe()) return "duplicado";
@@ -134,7 +138,8 @@ async function registrarMensaje(
   }
 }
 
-async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: EventoEntrante | EventoEco, ahora: Date) {
+/** Devuelve el id del chat si entró un mensaje del cliente y, con el estado resultante, lo atiende el bot. */
+async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: EventoEntrante | EventoEco, ahora: Date): Promise<string | null> {
   // La hora del hecho, sin pasar de la de recepción (un reloj adelantado no debe fijar una pausa eterna).
   const cuando = ev.en && ev.en.getTime() < ahora.getTime() ? ev.en : ahora;
   const entrante = ev.tipo === "ENTRANTE";
@@ -205,6 +210,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
       },
     });
   }
+  return entrante && atiendeElBot({ ...estado, ...regla.parche }, ahora) ? chat.id : null;
 }
 
 /**

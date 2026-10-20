@@ -1,5 +1,6 @@
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
@@ -181,6 +182,18 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     route: "/ventas",
     status: "AVAILABLE",
     family: "negocio",
+  },
+  {
+    key: DIGITALIZACION_MODULE_KEY,
+    label: "Digitalización",
+    description:
+      "Digitalización de VHS y DVD: graba desde la capturadora en segundo plano, sube en tiempo real y corta sola cuando la cinta termina.",
+    category: "GENERAL",
+    order: 37,
+    route: "/digitalizacion",
+    status: "AVAILABLE",
+    family: "negocio",
+    platformFee: true,
   },
   {
     // Que la tienda necesita Ventas (vende el mismo catálogo y el mismo stock) lo hace cumplir

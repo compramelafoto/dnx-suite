@@ -60,4 +60,19 @@ describe("Configuración → WhatsApp", () => {
     expect(i).toBeGreaterThan(0);
     expect(p.slice(Math.max(0, i - 200), i)).toContain('puede(membership.role, "configurar")');
   });
+
+  it("las respuestas automáticas: se leen después de `configurar` y se cambian con la acción del contexto", () => {
+    const p = aqui("page.tsx");
+    const guarda = p.indexOf('puede(role, "configurar")');
+    expect(p.indexOf("botEncendido(", guarda)).toBeGreaterThan(guarda);
+    expect(p).toContain("<BotForm");
+    const a = aqui("actions.ts");
+    const i = a.indexOf("export async function cambiarBotAction");
+    expect(i).toBeGreaterThan(0);
+    expect(a.indexOf("const ctx = await contexto()", i)).toBeLessThan(a.indexOf("cambiarBot(ctx", i));
+  });
+
+  it("la página da tiempo al bot del simulador (corre después de responder)", () => {
+    expect(aqui("page.tsx")).toMatch(/export const maxDuration = \d+/);
+  });
 });

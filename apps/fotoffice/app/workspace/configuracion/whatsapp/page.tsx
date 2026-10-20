@@ -4,12 +4,16 @@ import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { appUrl } from "@/lib/app-url";
+import { botEncendido } from "@/lib/bandeja/bot/interruptor";
 import { estadoConexion, leerConexion } from "@/lib/bandeja/conexion";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
+import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { ConexionForm, SimuladorForm } from "./whatsapp-form";
+import { BotForm, ConexionForm, SimuladorForm } from "./whatsapp-form";
 
 export const dynamic = "force-dynamic";
+/** El simulador dispara al bot después de responder (`after`): su turno puede tardar hasta un minuto. */
+export const maxDuration = 120;
 
 /**
  * Configuración → WhatsApp: estado de la conexión, horas de pausa del bot, datos para Meta y el
@@ -28,12 +32,15 @@ export default async function ConfiguracionWhatsappPage() {
     );
   }
 
-  const [conexion, estado, encendido, cabeceras] = await Promise.all([
+  const [conexion, estado, encendido, bot, cabeceras] = await Promise.all([
     leerConexion(workspace.id),
     estadoConexion(workspace.id),
     isModuleEnabledForWorkspace(workspace.id, BANDEJA_MODULE_KEY),
+    botEncendido(workspace.id),
     headers(),
   ]);
+  const configBot = leerConfigBot();
+  const botDisponible = configBot.enabled && configBot.anthropicApiKey !== null;
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host");
   const origen = appUrl() || (host ? `${cabeceras.get("x-forwarded-proto") ?? "https"}://${host}` : "");
   const urlWebhook = `${origen}/api/webhooks/whatsapp`;
@@ -66,6 +73,7 @@ export default async function ConfiguracionWhatsappPage() {
         }}
         tieneToken={estado.tieneToken}
       />
+      <BotForm encendido={bot} disponible={botDisponible} />
       <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="wa-meta-titulo">
         <h2 id="wa-meta-titulo" className="text-base font-semibold">Datos para Meta</h2>
         <p className="text-[var(--fo-muted)]">En el panel de Meta, en Webhooks, pegá esta dirección:</p>

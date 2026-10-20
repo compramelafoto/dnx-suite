@@ -7323,6 +7323,9 @@ model Workspace {
   fotofficeProductoProyectos     FotofficeProductoProyecto[]
   fotofficeProveedores           FotofficeProveedor[]
   fotofficeArchivosTrabajo       FotofficeArchivoTrabajo[]
+  digitalizacionGrabaciones DigitalizacionGrabacion[]
+  digitalizacionEquipos     DigitalizacionEquipo[]
+  digitalizacionAjustes     DigitalizacionAjustes?
   fotofficeProyectoRoles         FotofficeProyectoRol[]
   fotofficeProyectoParticipantes FotofficeProyectoParticipante[]
   fotofficeProyectoNotas         FotofficeProyectoNota[]
@@ -21758,6 +21761,7 @@ model FotofficeProyecto {
   updatedAt       DateTime  @updatedAt
 
   archivos      FotofficeArchivoTrabajo[]
+  grabaciones   DigitalizacionGrabacion[]
   proveedor     FotofficeProveedor?             @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   workspace     Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   client        Client                          @relation(fields: [clientId], references: [id], onDelete: Restrict)
@@ -21866,6 +21870,95 @@ model FotofficeArchivoTrabajo {
   @@index([proyectoId, createdAt])
   @@index([workspaceId, estado])
   printSource FotofficePrintSourceImage?
+}
+
+/// Digitalización (VHS/DVD): una grabación es un cassette o un DVD. Sus pedacitos viven en el R2
+/// privado bajo `digitalizacion/<workspaceId>/<id>/`. "Interrumpida" no se guarda: se calcula por latido.
+model DigitalizacionGrabacion {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  /// Trabajo del pedido; null = grabación de prueba.
+  proyectoId         String?
+  cassetteNumero     Int?
+  /// VHS | DVD
+  tipo               String
+  /// GRABANDO | COMPLETA | DESCARTADA
+  estado             String    @default("GRABANDO")
+  /// MANUAL | SIN_SENAL | TOPE | DVD_COMPLETO | TERMINADA_CON_LO_GRABADO
+  motivoFin          String?
+  mimeType           String
+  /// ALTA | MEDIA | BAJA (null en DVD)
+  calidad            String?
+  corregirProporcion Boolean   @default(false)
+  equipoId           String?
+  tramos             Int       @default(1)
+  duracionSeg        Int       @default(0)
+  bytesSubidos       BigInt    @default(0)
+  partesListas       Int       @default(0)
+  /// Primer segundo con imagen del tramo 1.
+  primeraImagenSeg   Int?
+  /// Último segundo con imagen, en el tramo `ultimaImagenTramo`.
+  ultimaImagenSeg    Int?
+  ultimaImagenTramo  Int?
+  sinImagen          Boolean   @default(false)
+  /// [{ tramo, desde, hasta, clase }]
+  tramosSinSenal     Json?
+  /// [{ nombre, bytes }] en el orden en que se suben.
+  dvdArchivos        Json?
+  ultimoLatidoAt     DateTime?
+  iniciadaAt         DateTime  @default(now())
+  terminadaAt        DateTime?
+  createdByUserId    Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto?    @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  equipo    DigitalizacionEquipo? @relation(fields: [equipoId], references: [id], onDelete: SetNull)
+  partes    DigitalizacionParte[]
+
+  @@index([workspaceId, createdAt])
+  @@index([proyectoId])
+  @@index([equipoId])
+}
+
+model DigitalizacionParte {
+  id          String   @id @default(cuid())
+  grabacionId String
+  tramo       Int
+  indice      Int
+  key         String   @unique
+  bytes       BigInt   @default(0)
+  /// PENDIENTE (pidió la subida) | LISTA (confirmada en R2)
+  estado      String   @default("PENDIENTE")
+  createdAt   DateTime @default(now())
+
+  grabacion DigitalizacionGrabacion @relation(fields: [grabacionId], references: [id], onDelete: Cascade)
+
+  @@unique([grabacionId, tramo, indice])
+}
+
+/// Capturadora + conversor de un negocio, por la etiqueta del dispositivo de video.
+model DigitalizacionEquipo {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  etiqueta           String
+  /// Grilla 8×6 de colores promedio (144 números) de la pantalla "sin señal".
+  huellaSinSenal     Json?
+  corregirProporcion Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  grabaciones DigitalizacionGrabacion[]
+
+  @@unique([workspaceId, etiqueta])
+}
+
+model DigitalizacionAjustes {
+  workspaceId     String @id
+  minutosSinSenal Int    @default(5)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 /// Rol de un participante de proyecto (Fotógrafo, Editor, Salón, DJ…).
