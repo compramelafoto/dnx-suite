@@ -20621,6 +20621,9 @@ model FotofficeCircuit {
   isActive    Boolean  @default(true)
   /// Uno por clase y workspace (índice único parcial en el SQL).
   isDefault   Boolean  @default(false)
+  /// Marca de los flujos que crea el sistema (hoy PARA_RETIRAR); null en los demás. En el SQL:
+  /// índice único parcial (workspaceId, systemKey) donde systemKey no es null.
+  systemKey   String?
   createdAt   DateTime @default(now())
 
   workspace      Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -21411,6 +21414,9 @@ model FotofficePedido {
   eventLabel        String?
   incomeCategoryId  String?
   ownerUserId       Int?
+  /// Clave de idempotencia del alta desde el Mostrador (la venta que lo originó); null en los demás.
+  /// En el SQL: índice único parcial (workspaceId, altaKey) donde altaKey no es null.
+  altaKey           String?
   /// Hash SHA-256 del token del enlace público del pedido.
   accessTokenHash   String?   @unique
   createdByUserId   Int?

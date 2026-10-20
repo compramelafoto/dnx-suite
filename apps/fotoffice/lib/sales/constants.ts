@@ -17,8 +17,25 @@ export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = {
 };
 
 /** Por qué se movió la existencia. */
-export const STOCK_REASONS = ["VENTA", "ENTRADA", "AJUSTE", "DEVOLUCION", "INICIAL"] as const;
+export const STOCK_REASONS = [
+  "VENTA",
+  "ENTRADA",
+  "AJUSTE",
+  "DEVOLUCION",
+  "INICIAL",
+  "PEDIDO",
+] as const;
 export type StockReason = (typeof STOCK_REASONS)[number];
+
+/** Cómo se muestra cada motivo. `PEDIDO` es la mercadería apartada para un pedido «para retirar». */
+export const STOCK_REASON_LABELS: Record<StockReason, string> = {
+  VENTA: "Venta",
+  ENTRADA: "Entrada",
+  AJUSTE: "Ajuste",
+  DEVOLUCION: "Devolución",
+  INICIAL: "Stock inicial",
+  PEDIDO: "Apartado para pedido",
+};
 
 export const SALE_STATUSES = ["COMPLETADA", "ANULADA"] as const;
 export type SaleStatus = (typeof SALE_STATUSES)[number];
