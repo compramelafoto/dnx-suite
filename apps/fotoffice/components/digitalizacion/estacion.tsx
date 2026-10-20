@@ -1,19 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { cerrarGrabacionAction, confirmarParteAction, crearGrabacionAction, guardarEquipoAction, latidoAction, pedirParteAction, buscarTrabajosAction } from "@/app/(shell)/digitalizacion/actions";
+import { cerrarGrabacionAction, confirmarParteAction, continuarGrabacionAction, crearGrabacionAction, guardarEquipoAction, latidoAction, pedirParteAction, buscarTrabajosAction } from "@/app/(shell)/digitalizacion/actions";
 import { CALIDADES, TOPE_SEGUNDOS, type Calidad } from "@/lib/digitalizacion/constants";
 import { Analizador } from "@/lib/digitalizacion/cliente/analisis";
 import type { MensajeDelWorker } from "@/lib/digitalizacion/cliente/analisis.worker";
 import { almacenIndexedDb } from "@/lib/digitalizacion/cliente/almacen-indexeddb";
 import { navegadorCompatible } from "@/lib/digitalizacion/cliente/apis-navegador";
-import { ColaDeSubida, ErrorDefinitivo, idParte, type ParteEnCola, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
+import { AVISO_SIN_ESPACIO, ColaDeSubida, ErrorDefinitivo, idParte, type ParteEnCola, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
 import { elegirFormato } from "@/lib/digitalizacion/cliente/formato";
 import { Grabador } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: number[] | null; corregirProporcion: boolean };
+/** `tramo`: el último tramo guardado (un VHS pide el siguiente al tocar Grabar; un DVD usa siempre el 1). */
 export type Continuacion = { grabacionId: string; tramo: number; tipo: "VHS" | "DVD"; proyectoId: string | null; cassetteNumero: number | null; calidad: string | null; corregirProporcion: boolean };
 
 const CLAVE_EQUIPO = "fo-digitalizacion-equipo";
@@ -63,7 +64,8 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const [sinPedido, setSinPedido] = useState(continuar ? continuar.proyectoId === null : false);
   const [cassette, setCassette] = useState(continuar?.cassetteNumero ?? 1);
   const [listaOk, setListaOk] = useState(false);
-  const [fase, setFase] = useState<"preparando" | "grabando" | "terminando" | "terminada">("preparando");
+  const [fase, setFase] = useState<"preparando" | "iniciando" | "grabando" | "terminando" | "terminada">("preparando");
+  const [cierreFallido, setCierreFallido] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [cola, setCola] = useState<ResumenCola>({ pendientes: 0, bytesPendientes: 0, ultimoError: null, descartadas: 0 });
   // Si la persona cierra la ventanita, la grabación sigue y ofrecemos volver a abrirla.
@@ -71,14 +73,27 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
 
   const vistaRef = useRef<HTMLVideoElement>(null);
   const colaRef = useRef<ColaDeSubida | null>(null);
-  const sesion = useRef<{ grabacionId: string; tramo: number; grabador: Grabador; analizador: Analizador; ventanita: Ventanita | null; resumen: ResumenCorte | null; segundos: number; sinImagen: number | null; deteniendo: boolean } | null>(null);
+  const sesion = useRef<{
+    grabacionId: string; tramo: number; grabador: Grabador; analizador: Analizador; ventanita: Ventanita | null;
+    resumen: ResumenCorte | null; segundos: number; sinImagen: number | null; deteniendo: boolean;
+    // Pedacitos que todavía se están guardando: hay que esperarlos antes de cerrar.
+    pendientes: Set<Promise<void>>;
+    cierre: (ReturnType<typeof latidoDe> & { motivoFin: "MANUAL" | "SIN_SENAL" | "TOPE" }) | null;
+  } | null>(null);
+  // Evita el doble clic en Grabar (el estado de React no cambia a tiempo).
+  const iniciandoRef = useRef(false);
+  const faseRef = useRef(fase);
+  const streamRef = useRef<MediaStream | null>(null);
+  useEffect(() => { faseRef.current = fase; streamRef.current = stream; }, [fase, stream]);
 
   // Compatibilidad, cola persistente (sube primero lo que quedó de antes) y la lista de chequeo.
   useEffect(() => {
     setCompatible(navegadorCompatible());
     setListaOk(leerLocal(CLAVE_LISTA) === "si");
     if (!navegadorCompatible()) return;
-    const c = new ColaDeSubida(almacenIndexedDb(), crearSubidor(), { alCambiar: setCola });
+    const c = new ColaDeSubida(almacenIndexedDb(), crearSubidor(), {
+      alCambiar: (r) => { setCola(r); if (r.ultimoError === AVISO_SIN_ESPACIO) setAviso(AVISO_SIN_ESPACIO); },
+    });
     colaRef.current = c;
     void c.reanudar();
   }, []);
@@ -116,7 +131,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         if (e && !continuar) setEstirada(e.corregirProporcion);
       })
       .catch(() => setAviso("No pudimos abrir la capturadora. ¿Está abierta en Meet, Zoom u otro programa?"));
-    return () => { cancelado = true; if (fase === "preparando") vivo?.getTracks().forEach((t) => t.stop()); };
+    return () => { cancelado = true; if (faseRef.current === "preparando") vivo?.getTracks().forEach((t) => t.stop()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, audioId]);
 
@@ -181,16 +196,41 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     if (!s || s.deteniendo) return;
     s.deteniendo = true;
     setFase("terminando");
-    await s.grabador.detener();
+    try { await s.grabador.detener(); } catch { /* el grabador ya estaba parado */ }
     s.analizador.detener();
+    // El último pedacito llega al parar y se guarda en IndexedDB antes de entrar a la cola:
+    // si no lo esperamos, la cola parece vacía, cerramos y ese pedacito se descarta.
+    await Promise.allSettled([...s.pendientes]);
     await colaRef.current?.vaciada();
     const resumen = s.resumen ?? { duracionSeg: s.segundos, primeraImagenSeg: null, ultimaImagenSeg: null, sinImagen: true, tramos: [] };
-    const r = await cerrarGrabacionAction(s.grabacionId, { ...latidoDe(resumen, s.tramo), motivoFin });
+    s.cierre = { ...latidoDe(resumen, s.tramo), motivoFin };
     s.ventanita?.cerrar();
+    s.ventanita = null;
     stream?.getTracks().forEach((t) => t.stop());
-    setFase("terminada");
-    setAviso(r.ok ? (motivoFin === "SIN_SENAL" ? `Se cortó sola: ${minutosSinSenal} minutos sin imagen.` : "Grabación terminada y subida.") : r.error);
-  }, [stream, minutosSinSenal]);
+    setStream(null); // apaga el medidor de audio
+    await cerrarRef.current();
+  }, [stream]);
+
+  // Sólo el cierre en el servidor: si falla, se reintenta sin volver a parar nada.
+  const cerrar = useCallback(async () => {
+    const s = sesion.current;
+    if (!s?.cierre) return;
+    setCierreFallido(null);
+    let r: { ok: boolean; error?: string };
+    try {
+      r = await cerrarGrabacionAction(s.grabacionId, s.cierre);
+    } catch {
+      r = { ok: false, error: "No pudimos cerrar la grabación. Revisá la conexión y reintentá." };
+    }
+    if (r.ok) {
+      setFase("terminada");
+      setAviso(s.cierre.motivoFin === "SIN_SENAL" ? `Se cortó sola: ${minutosSinSenal} minutos sin imagen.` : "Grabación terminada y subida.");
+    } else {
+      setCierreFallido(r.error ?? "No pudimos cerrar la grabación.");
+    }
+  }, [minutosSinSenal]);
+  const cerrarRef = useRef(cerrar);
+  useEffect(() => { cerrarRef.current = cerrar; }, [cerrar]);
 
   const alMensaje = useCallback((m: MensajeDelWorker) => {
     const s = sesion.current;
@@ -199,7 +239,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     s.sinImagen = m.sinImagenHaceSeg;
     s.resumen = m.resumen;
     // El latido sale de los mensajes del worker: los temporizadores de la página se frenan en segundo plano.
-    if (m.latido) void latidoAction(s.grabacionId, latidoDe(m.resumen, s.tramo));
+    if (m.latido) latidoAction(s.grabacionId, latidoDe(m.resumen, s.tramo)).catch(() => { /* el próximo latido lo reintenta */ });
     if (m.cortar) void detener("SIN_SENAL");
     else if (m.seg >= TOPE_SEGUNDOS) void detener("TOPE");
     setVentanitaAbierta(Boolean(s.ventanita && !s.ventanita.cerrada()));
@@ -213,35 +253,73 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   useEffect(() => { alMensajeRef.current = alMensaje; detenerRef.current = detener; }, [alMensaje, detener]);
 
   const grabar = async () => {
-    if (!stream || !colaRef.current) return;
+    if (iniciandoRef.current || sesion.current || !stream || !colaRef.current) return;
     const mime = elegirFormato((m) => MediaRecorder.isTypeSupported(m));
     if (!mime) { setAviso("Este navegador no puede grabar video. Usá Chrome o Edge actualizados."); return; }
+    iniciandoRef.current = true;
+    setFase("iniciando");
     // Primero la ventanita: el navegador sólo la abre dentro del clic.
     let ventanita: Ventanita | null = null;
     try { ventanita = await Ventanita.abrir(() => void detenerRef.current("MANUAL")); } catch { setAviso("No se pudo abrir la ventanita; la grabación sigue igual."); }
-    let grabacionId = continuar?.grabacionId ?? null;
-    const tramo = continuar?.tramo ?? 1;
-    if (!grabacionId) {
-      const r = await crearGrabacionAction({
-        tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
-        corregirProporcion: estirada, equipoId: equipo?.id ?? null, dvdArchivos: null,
-      });
-      if (!r.ok) { ventanita?.cerrar(); setAviso(r.error); return; }
-      grabacionId = r.id;
+    const fallar = (error: string) => {
+      ventanita?.cerrar();
+      setAviso(error);
+      iniciandoRef.current = false;
+      setFase("preparando");
+    };
+    let id: string;
+    let tramo: number;
+    try {
+      if (continuar) {
+        // El tramo nuevo se pide recién acá, no al cargar la página (recargar no debe sumar tramos).
+        const r = await continuarGrabacionAction(continuar.grabacionId);
+        if (!r.ok) return fallar(r.error);
+        id = continuar.grabacionId;
+        tramo = r.tramo;
+      } else {
+        const r = await crearGrabacionAction({
+          tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
+          corregirProporcion: estirada, equipoId: equipo?.id ?? null, dvdArchivos: null,
+        });
+        if (!r.ok) return fallar(r.error);
+        id = r.id;
+        tramo = r.tramo;
+      }
+    } catch {
+      return fallar("No pudimos empezar la grabación. Revisá la conexión y probá de nuevo.");
     }
     const cola = colaRef.current;
-    const id = grabacionId;
+    const pendientes = new Set<Promise<void>>();
     const grabador = new Grabador({
       stream, mimeType: mime, bitsVideo: CALIDADES[calidad],
-      alPedacito: (datos, indice) => void cola.agregar({ id: idParte(id, tramo, indice), grabacionId: id, tramo, indice, datos }),
+      alPedacito: (datos, indice) => {
+        const guardado = cola
+          .agregar({ id: idParte(id, tramo, indice), grabacionId: id, tramo, indice, datos })
+          .catch((e: unknown) => setAviso(`No pudimos guardar un pedacito de la grabación: ${e instanceof Error ? e.message : "error"}.`));
+        pendientes.add(guardado);
+        void guardado.finally(() => pendientes.delete(guardado));
+      },
     });
     const analizador = new Analizador((m) => alMensajeRef.current(m));
-    sesion.current = { grabacionId: id, tramo, grabador, analizador, ventanita, resumen: null, segundos: 0, sinImagen: null, deteniendo: false };
+    sesion.current = { grabacionId: id, tramo, grabador, analizador, ventanita, resumen: null, segundos: 0, sinImagen: null, deteniendo: false, pendientes, cierre: null };
     grabador.iniciar();
     analizador.iniciar(stream.getVideoTracks()[0], equipo?.huellaSinSenal ?? null, minutosSinSenal);
     setVentanitaAbierta(Boolean(ventanita));
+    iniciandoRef.current = false;
     setFase("grabando");
   };
+
+  // Navegar a otra pantalla de la app no dispara beforeunload: al desmontar, paramos todo.
+  // Lo que ya está en la cola se sigue subiendo mientras la pestaña siga abierta.
+  useEffect(() => () => {
+    const s = sesion.current;
+    if (!s || s.deteniendo) return;
+    s.deteniendo = true;
+    void s.grabador.detener().catch(() => {});
+    s.analizador.detener();
+    s.ventanita?.cerrar();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
 
   // Volver a abrir la ventanita si la cerraron: tiene que ser dentro del clic.
   const abrirVentanita = async () => {
@@ -272,6 +350,9 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   return (
     <div className="space-y-6">
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
+      {fase === "grabando" ? (
+        <p className="fo-alert-warning p-3 text-sm">No salgas de esta página mientras graba: la grabación sigue con la ventana minimizada.</p>
+      ) : null}
       {cola.pendientes > 0 && fase === "preparando" ? (
         <p className="fo-alert-warning p-3 text-sm">Subiendo {cola.pendientes} pedacitos que quedaron de una grabación anterior…</p>
       ) : null}
@@ -337,7 +418,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">3. ¿De qué pedido es?</h2>
         {continuar ? (
-          <p className="text-sm">Continuás la grabación (tramo {continuar.tramo}).</p>
+          <p className="text-sm">Continuás la grabación (tramo {continuar.tipo === "DVD" ? 1 : continuar.tramo + 1}).</p>
         ) : (
           <>
             <label className="flex items-center gap-2 text-sm">
@@ -365,14 +446,25 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       </section>
 
       <section className="space-y-3">
-        {fase === "preparando" && continuar?.tipo !== "DVD" ? (
-          <button type="button" className="fo-btn fo-btn-primary" disabled={!puedeGrabar} onClick={() => void grabar()}>● Grabar</button>
+        {(fase === "preparando" || fase === "iniciando") && continuar?.tipo !== "DVD" ? (
+          <button type="button" className="fo-btn fo-btn-primary" disabled={!puedeGrabar} onClick={() => void grabar()}>
+            {fase === "iniciando" ? "Empezando…" : "● Grabar"}
+          </button>
         ) : null}
         {fase === "grabando" ? <button type="button" className="fo-btn" onClick={() => void detener("MANUAL")}>⏹ Detener</button> : null}
         {fase === "grabando" && !ventanitaAbierta ? (
           <button type="button" className="fo-btn ml-2" onClick={() => void abrirVentanita()}>Abrir ventanita</button>
         ) : null}
-        {fase === "terminando" ? <p className="text-sm">Terminando de subir… no cierres esta página.</p> : null}
+        {fase === "terminando" && !cierreFallido ? <p className="text-sm">Terminando de subir… no cierres esta página.</p> : null}
+        {fase === "terminando" && cierreFallido ? (
+          <div className="fo-alert-error space-y-2 p-3 text-sm">
+            <p>Todo quedó subido, pero no pudimos cerrar la grabación: {cierreFallido}</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => void cerrar()}>Reintentar cierre</button>
+              <a className="fo-btn text-sm" href="/digitalizacion">Ver grabaciones</a>
+            </div>
+          </div>
+        ) : null}
         {fase === "terminada" ? <a className="fo-btn fo-btn-primary" href="/digitalizacion">Ver grabaciones</a> : null}
       </section>
 

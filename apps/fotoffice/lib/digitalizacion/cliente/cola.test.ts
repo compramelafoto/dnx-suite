@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ColaDeSubida, ErrorDefinitivo, almacenEnMemoria, esperaReintento, idParte, type ParteEnCola } from "./cola";
+import { AVISO_SIN_ESPACIO, ColaDeSubida, ErrorDefinitivo, almacenEnMemoria, esperaReintento, idParte, type ParteEnCola } from "./cola";
 
 const parte = (indice: number, grabacionId = "g1"): ParteEnCola => ({ id: idParte(grabacionId, 1, indice), grabacionId, tramo: 1, indice, datos: new Blob([new Uint8Array(10)]) });
 const sinEspera = async () => {};
@@ -44,6 +44,18 @@ describe("ColaDeSubida", () => {
     await cola.reanudar();
     await cola.vaciada();
     expect(orden).toEqual([0, 1]);
+  });
+  it("si el almacén rechaza guardar, la parte igual se sube desde la memoria", async () => {
+    const almacen = almacenEnMemoria();
+    almacen.guardar = vi.fn(async () => { throw new DOMException("cuota", "QuotaExceededError"); });
+    const avisos: (string | null)[] = [];
+    const subir = vi.fn(async () => {});
+    const cola = new ColaDeSubida(almacen, subir, { dormir: sinEspera, alCambiar: (r) => avisos.push(r.ultimoError) });
+    await expect(cola.agregar(parte(0))).resolves.toBeUndefined();
+    await cola.vaciada();
+    expect(subir).toHaveBeenCalledTimes(1);
+    expect(avisos).toContain(AVISO_SIN_ESPACIO);
+    expect(cola.resumen()).toMatchObject({ pendientes: 0 });
   });
   it("si el almacén rechaza borrar, vaciada() aún se resuelve y pendientes es 0", async () => {
     const almacen = almacenEnMemoria();

@@ -17,6 +17,9 @@ export type ResumenCola = { pendientes: number; bytesPendientes: number; ultimoE
 /** El servidor dijo que no tiene sentido reintentar (grabación cerrada, ajena o descartada). */
 export class ErrorDefinitivo extends Error {}
 
+/** Si el navegador no deja guardar (por ejemplo, sin cuota), la parte igual se sube desde la memoria. */
+export const AVISO_SIN_ESPACIO = "Sin espacio en el navegador: lo pendiente se sube desde la memoria; no cierres la página.";
+
 export function idParte(grabacionId: string, tramo: number, indice: number): string {
   return `${grabacionId}:${tramo}:${String(indice).padStart(6, "0")}`;
 }
@@ -60,7 +63,11 @@ export class ColaDeSubida {
   }
 
   async agregar(p: ParteEnCola): Promise<void> {
-    await this.almacen.guardar(p);
+    try {
+      await this.almacen.guardar(p);
+    } catch {
+      this.ultimoError = AVISO_SIN_ESPACIO;
+    }
     this.encolar([p]);
   }
 
