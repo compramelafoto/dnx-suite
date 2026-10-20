@@ -87,6 +87,58 @@ function partirNombre(nombre: string): { firstName: string | null; lastName: str
   return { firstName: partes[0], lastName: partes.length > 1 ? partes.slice(1).join(" ") : null };
 }
 
+type ItemSinTrabajo = { id: string; proveedorId: string | null; quantity: number; unitCostArs: { toString(): string } | string };
+
+/**
+ * Un trabajo por laboratorio para las copias que todavía no tienen uno, en el circuito de Impresiones (con el
+ * mismo orden de búsqueda que la acreditación), con la entrega prometida y lo que cobra el laboratorio.
+ * Devuelve false si no hay ningún circuito de trabajo (no crea nada).
+ */
+async function crearTrabajosEnTransaccion(
+  tx: Tx,
+  workspaceId: string,
+  d: { id: string; number: number; clientId: string; hoy: string; prometido: Date | null; items: ItemSinTrabajo[] },
+): Promise<boolean> {
+  const ajustes = await tx.fotofficePrintSettings.findUnique({ where: { workspaceId }, select: { circuitId: true } });
+  const circuitId = await circuitoDeTrabajo(tx, workspaceId, ajustes?.circuitId ?? null);
+  if (!circuitId) return false;
+  for (const [proveedorId, items] of agruparPorLaboratorio(d.items)) {
+    const costo = items.reduce((s, i) => s + cents(i.unitCostArs) * i.quantity, 0);
+    const proyecto = await crearProyectoDeSistema(tx, workspaceId, {
+      clientId: d.clientId,
+      circuitId,
+      nombre: `Copias impresas · pedido ${d.number}`,
+      baseDate: d.hoy,
+      proveedorId,
+      ahora: new Date(),
+    });
+    await tx.fotofficeProyecto.update({ where: { id: proyecto.id }, data: { entregaPrometida: d.prometido, proveedorCostoArs: pesos(costo) } });
+    await tx.fotofficePrintOrderItem.updateMany({ where: { orderId: d.id, id: { in: items.map((i) => i.id) } }, data: { proyectoId: proyecto.id } });
+  }
+  return true;
+}
+
+export type ResultadoAsegurarTrabajos = "OK" | "SIN_CIRCUITO" | "SIN_CLIENTE" | "NO_EXISTE";
+
+/**
+ * Para la preparación (y su «Reintentar»): si el pedido pagado quedó sin trabajos —no había circuito cuando
+ * se acreditó—, los crea ahora con el mismo criterio. Quien llama tiene tomado el pedido (PREPARANDO), así
+ * que no corre en paralelo con otra preparación.
+ */
+export async function asegurarTrabajosDelPedido(workspaceId: string, pedidoId: string, ahora: Date): Promise<ResultadoAsegurarTrabajos> {
+  return prisma.$transaction(async (tx) => {
+    const p = await tx.fotofficePrintOrder.findUnique({ where: { id: pedidoId }, include: { items: true } });
+    if (!p || p.workspaceId !== workspaceId) return "NO_EXISTE" as const;
+    const sinTrabajo = p.items.filter((i) => !i.proyectoId);
+    if (sinTrabajo.length === 0) return "OK" as const;
+    if (!p.clientId) return "SIN_CLIENTE" as const;
+    const ok = await crearTrabajosEnTransaccion(tx, workspaceId, {
+      id: p.id, number: p.number, clientId: p.clientId, hoy: diaEnBuenosAires(ahora), prometido: p.promisedAt, items: sinTrabajo,
+    });
+    return ok ? ("OK" as const) : ("SIN_CIRCUITO" as const);
+  }, OPCIONES_TRANSACCION);
+}
+
 export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp): Promise<ResultadoAcreditarImpresion> {
   const id = pedidoDeReferencia(pago.externalReference);
   if (!idValido(id)) return { ok: false, error: "NO_ES_IMPRESION" };
@@ -116,7 +168,14 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
         netArs: hechos.feeMinor === null ? null : pesos(hechos.amountMinor - hechos.feeMinor),
       },
     });
-    if (cambio.count === 0) return { yaEstaba: true };
+    if (cambio.count === 0) {
+      // Otro pago aprobado para un pedido que ya tiene el suyo: la plata entró dos veces. Sólo códigos.
+      const actual = await tx.fotofficePrintOrder.findUnique({ where: { id }, select: { providerPaymentRef: true } });
+      if (actual?.providerPaymentRef && actual.providerPaymentRef !== hechos.providerPaymentId) {
+        console.warn("[impresiones] pago duplicado", { pedidoId: id, ref: hechos.providerPaymentId });
+      }
+      return { yaEstaba: true };
+    }
 
     // El cliente: los pedidos desde la carpeta ya lo traen. Si faltara, se busca o se crea con los datos
     // del pedido (nunca se corta acá: el pago ya quedó registrado).
@@ -127,25 +186,8 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
       await tx.fotofficePrintOrder.update({ where: { id }, data: { clientId } });
     }
 
-    const ajustes = await tx.fotofficePrintSettings.findUnique({ where: { workspaceId }, select: { circuitId: true } });
-    const circuitId = await circuitoDeTrabajo(tx, workspaceId, ajustes?.circuitId ?? null);
-    if (!circuitId) {
-      await tx.fotofficePrintOrder.update({ where: { id }, data: { lastError: SIN_CIRCUITO } });
-    } else {
-      for (const [proveedorId, items] of agruparPorLaboratorio(pedido.items)) {
-        const costo = items.reduce((s, i) => s + cents(i.unitCostArs) * i.quantity, 0);
-        const proyecto = await crearProyectoDeSistema(tx, workspaceId, {
-          clientId,
-          circuitId,
-          nombre: `Copias impresas · pedido ${pedido.number}`,
-          baseDate: hoy,
-          proveedorId,
-          ahora: new Date(),
-        });
-        await tx.fotofficeProyecto.update({ where: { id: proyecto.id }, data: { entregaPrometida: prometido, proveedorCostoArs: pesos(costo) } });
-        await tx.fotofficePrintOrderItem.updateMany({ where: { orderId: id, id: { in: items.map((i) => i.id) } }, data: { proyectoId: proyecto.id } });
-      }
-    }
+    const trabajos = await crearTrabajosEnTransaccion(tx, workspaceId, { id, number: pedido.number, clientId, hoy, prometido, items: pedido.items });
+    if (!trabajos) await tx.fotofficePrintOrder.update({ where: { id }, data: { lastError: SIN_CIRCUITO } });
 
     // Caja. Nunca inventa una cuenta: sin cuenta no hay movimiento, pero el pago no se pierde.
     if (cajaEncendida) {

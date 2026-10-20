@@ -16,6 +16,9 @@ describe("correoPedidoLab", () => {
   it("en modo prueba lo avisa en el asunto", () => {
     expect(correoPedidoLab({ ...base, prueba: true }).subject.startsWith("[PRUEBA] ")).toBe(true);
   });
+  it("junta espacios y saltos de línea del nombre en el asunto", () => {
+    expect(correoPedidoLab({ ...base, cliente: "  Juan\n  Pérez\t " }).subject).toBe("Pedido 12 – PARA MAÑANA – Juan Pérez");
+  });
   it("escapa HTML del nombre del cliente", () => {
     expect(correoPedidoLab({ ...base, cliente: "<b>x</b>" }).html).not.toContain("<b>x</b>");
   });

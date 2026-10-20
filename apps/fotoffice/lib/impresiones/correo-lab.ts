@@ -9,7 +9,9 @@ const fecha = (ymd: string) => ymd.split("-").reverse().join("/");
 
 export function correoPedidoLab(d: DatosCorreoLab) {
   const total = d.resumen.reduce((s, r) => s + r.cantidad, 0);
-  const subject = `${d.prueba ? "[PRUEBA] " : ""}Pedido ${d.numero} – PARA MAÑANA – ${d.cliente}`;
+  // El nombre lo escribe el cliente: sin saltos de línea ni espacios de más en el asunto.
+  const cliente = d.cliente.replace(/\s+/g, " ").trim();
+  const subject = `${d.prueba ? "[PRUEBA] " : ""}Pedido ${d.numero} – PARA MAÑANA – ${cliente}`;
   const filas = d.resumen.map((r) => `- ${r.tamano} ${r.papel}: ${r.cantidad}`).join("\n");
   const text = [
     `Hola, ${d.laboratorio}:`,

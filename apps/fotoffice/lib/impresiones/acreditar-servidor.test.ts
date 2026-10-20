@@ -157,6 +157,53 @@ describe("acreditarPagoImpresion", () => {
   });
 });
 
+describe("pago duplicado", () => {
+  it("si el pedido ya tiene OTRO pago lo avisa en el log, sólo con códigos", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    orden.findUnique.mockResolvedValueOnce(H.pedido).mockResolvedValueOnce({ providerPaymentRef: "mp-anterior" });
+    expect(await A.acreditarPagoImpresion("ws", pago())).toEqual({ ok: true, yaEstaba: true });
+    expect(warn).toHaveBeenCalledWith("[impresiones] pago duplicado", { pedidoId: "ord1", ref: "mp-1" });
+    warn.mockRestore();
+  });
+  it("el mismo pago repetido no avisa nada", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    orden.findUnique.mockResolvedValueOnce(H.pedido).mockResolvedValueOnce({ providerPaymentRef: "mp-1" });
+    await A.acreditarPagoImpresion("ws", pago());
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe("asegurarTrabajosDelPedido", () => {
+  const conPagado = () => ({ ...H.pedido, status: "PREPARANDO", promisedAt: new Date("2026-10-22T12:00:00Z") });
+  it("crea los trabajos que faltan con el mismo circuito que la acreditación", async () => {
+    orden.findUnique.mockResolvedValueOnce(conPagado());
+    expect(await A.asegurarTrabajosDelPedido("ws", "ord1", new Date("2026-10-21T15:00:00Z"))).toBe("OK");
+    expect(H.crear).toHaveBeenCalledTimes(2);
+    expect(H.crear.mock.calls[0][2]).toMatchObject({ clientId: "c1", circuitId: "circ", baseDate: "2026-10-21" });
+    const items = H.db.fotofficePrintOrderItem as Record<string, ReturnType<typeof vi.fn>>;
+    expect(items.updateMany).toHaveBeenCalledWith({ where: { orderId: "ord1", id: { in: ["i1"] } }, data: { proyectoId: "p-f" } });
+  });
+  it("sin circuito devuelve SIN_CIRCUITO y no crea nada", async () => {
+    orden.findUnique.mockResolvedValueOnce(conPagado());
+    circuito.findFirst.mockResolvedValue(null);
+    expect(await A.asegurarTrabajosDelPedido("ws", "ord1", new Date())).toBe("SIN_CIRCUITO");
+    expect(H.crear).not.toHaveBeenCalled();
+  });
+  it("si ya tiene todos sus trabajos no hace nada", async () => {
+    orden.findUnique.mockResolvedValueOnce({ ...conPagado(), items: H.pedido.items.map((i) => ({ ...i, proyectoId: "p-x" })) });
+    expect(await A.asegurarTrabajosDelPedido("ws", "ord1", new Date())).toBe("OK");
+    expect(H.crear).not.toHaveBeenCalled();
+  });
+  it("un pedido de otra organización no se toca", async () => {
+    orden.findUnique.mockResolvedValueOnce(conPagado());
+    expect(await A.asegurarTrabajosDelPedido("otro-ws", "ord1", new Date())).toBe("NO_EXISTE");
+    expect(H.crear).not.toHaveBeenCalled();
+  });
+});
+
 describe("verificarVueltaImpresion", () => {
   it("aprobado: acredita una vez y devuelve PAGADO con el seguimiento", async () => {
     H.getPayment.mockResolvedValue(pago());
