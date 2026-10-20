@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { borrarTokenAction, guardarWhatsappAction, simularEntranteAction, type EstadoWhatsappConfig } from "./actions";
+import { borrarTokenAction, cambiarBotAction, guardarWhatsappAction, simularEntranteAction, type EstadoWhatsappConfig } from "./actions";
 
 /** Lo que muestra el formulario. NUNCA lleva el token: sólo si hay uno cargado. */
 export type ConexionVista = {
@@ -110,3 +110,27 @@ export function SimuladorForm() {
     </form>
   );
 }
+
+/** Respuestas automáticas: el bot contesta los chats que atiende (estado "Bot"). */
+export function BotForm({ encendido, disponible }: { encendido: boolean; disponible: boolean }) {
+  const [estado, cambiar, cambiando] = useActionState(cambiarBotAction, INICIAL);
+  return (
+    <form action={cambiar} className="fo-card space-y-3 p-5" aria-labelledby="wa-bot-titulo">
+      <h2 id="wa-bot-titulo" className="text-base font-semibold">Respuestas automáticas</h2>
+      <p className="text-sm text-[var(--fo-muted)]">
+        {encendido
+          ? "El bot contesta los chats en estado «Bot»: precios del catálogo, dirección y horario. Lo que no puede resolver lo pasa a una persona."
+          : "El bot está apagado: los chats esperan a que alguien del equipo responda."}
+      </p>
+      {!disponible ? (
+        <p role="status" className="text-sm text-[var(--fo-danger)]">El bot de FOTOFFICE no está habilitado en esta instalación: aunque lo enciendas, no va a responder.</p>
+      ) : null}
+      <input type="hidden" name="encendido" value={encendido ? "0" : "1"} />
+      <Mensaje estado={estado} />
+      <button type="submit" disabled={cambiando} className={encendido ? "fo-btn fo-btn-secondary" : "fo-btn fo-btn-primary"}>
+        {cambiando ? "Guardando…" : encendido ? "Apagar el bot" : "Encender el bot"}
+      </button>
+    </form>
+  );
+}
+

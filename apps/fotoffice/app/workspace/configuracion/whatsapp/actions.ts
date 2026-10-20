@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { puede } from "@/lib/access/policy";
+import { cambiarBot } from "@/lib/bandeja/bot/interruptor";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { borrarTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
 import { guardarConexion, leerConexion, MENSAJES_CONEXION } from "@/lib/bandeja/conexion";
@@ -95,4 +96,15 @@ export async function borrarTokenAction(_prev: EstadoWhatsappConfig | undefined,
   revalidatePath(RUTA);
   revalidatePath("/bandeja");
   return { error: null, ok: "Token borrado." };
+}
+
+/** Enciende o apaga las respuestas automáticas del bot en la Bandeja de este workspace. */
+export async function cambiarBotAction(_prev: EstadoWhatsappConfig | undefined, fd: FormData): Promise<EstadoWhatsappConfig> {
+  const ctx = await contexto();
+  if (!ctx) return { error: MENSAJES_CONEXION.sinPermiso };
+  const encendido = texto(fd, "encendido") === "1";
+  const r = await cambiarBot(ctx, encendido);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: encendido ? "El bot ya responde los chats." : "El bot dejó de responder." };
 }
