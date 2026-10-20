@@ -64,6 +64,16 @@ export function ultimos10(valor: string | null | undefined): string {
 }
 
 /**
+ * Últimos 6 dígitos: siempre caen dentro del número de abonado (6 a 8 dígitos en Argentina), así
+ * que no los alteran el 54, el 9, el 0 ni el 15. Sirve para prefiltrar en la base; la comparación
+ * de verdad la hace `mismoTelefono`.
+ */
+export function ultimos6(valor: string | null | undefined): string | null {
+  const digitos = (valor ?? "").replace(/\D/g, "");
+  return digitos.length >= 6 ? digitos.slice(-6) : null;
+}
+
+/**
  * ¿Es un teléfono argentino? Con 54 delante, o escrito en forma local (10 dígitos, con 0 y/o con 15).
  * Un 11 que no empieza con 0 ("1 341 341 9869") es de otro país, no un local con un dígito de más.
  */

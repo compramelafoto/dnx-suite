@@ -697,6 +697,12 @@ export function crearBaseEnMemoria() {
    * "consultas-sin-numero" y "consultas-pendientes": las de la numeración de Captación (0.5).
    */
   function emularConsulta(texto: string, valores: unknown[]): unknown[] {
+    if (texto.includes("clientes-por-telefono")) {
+      const [workspaceId, fin] = valores;
+      return datos.client
+        .filter((c) => c.workspaceId === workspaceId && typeof c.phone === "string" && c.phone.replace(/\D/g, "").slice(-6) === fin)
+        .map((c) => ({ id: c.id, phone: c.phone }));
+    }
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);

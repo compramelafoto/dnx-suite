@@ -366,6 +366,25 @@ describe("vínculo con el cliente (§4)", () => {
     expect(await clienteDelTelefono(WS, WA)).toBe("c1");
   });
 
+  it("pide a la base sólo los candidatos por los últimos 6 dígitos", async () => {
+    await cliente("c1", "0341 15 3419869");
+    B.sql.length = 0;
+    expect(await clienteDelTelefono(WS, WA)).toBe("c1");
+    const consulta = B.sql.find((q: { texto: string }) => q.texto.includes("clientes-por-telefono"));
+    expect(consulta?.valores).toEqual([WS, "419869"]);
+  });
+
+  it("con un waId de menos de 6 dígitos no consulta la base", async () => {
+    B.sql.length = 0;
+    expect(await clienteDelTelefono(WS, "12345")).toBeNull();
+    expect(B.sql).toHaveLength(0);
+  });
+
+  it("un número de otro país con los mismos 6 dígitos finales no se vincula", async () => {
+    await cliente("c1", "+1 555 341 9869");
+    expect(await clienteDelTelefono(WS, WA)).toBeNull();
+  });
+
   it("varios o ninguno: null", async () => {
     expect(await clienteDelTelefono(WS, WA)).toBeNull();
     await cliente("c1", "341 341-9869");

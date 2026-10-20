@@ -1,7 +1,7 @@
 import { prisma, type Prisma } from "@repo/db";
 import { PAUSA_BOT_HORAS_POR_DEFECTO } from "./constantes";
 import { alEco, alEntrante, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
-import { mismoTelefono } from "./telefono";
+import { mismoTelefono, ultimos6 } from "./telefono";
 import { vistaPreviaDe } from "./vista-previa";
 import type { EventoEco, EventoEntrante, EventoEstado, EventoWa } from "./webhook";
 
@@ -29,8 +29,16 @@ const esChoqueDeUnico = (e: unknown) => (e as { code?: unknown } | null)?.code =
  * Cliente del workspace con ese teléfono (§4). Se vincula sólo si hay EXACTAMENTE uno; con varios
  * o ninguno devuelve `null` y el panel ofrece vincular a mano.
  */
-export async function clienteDelTelefono(workspaceId: string, waId: string, db: Pick<Db, "client"> = prisma): Promise<string | null> {
-  const fichas = await db.client.findMany({ where: { workspaceId, phone: { not: null } }, select: { id: true, phone: true } });
+export async function clienteDelTelefono(workspaceId: string, waId: string, db: Pick<Db, "$queryRaw"> = prisma): Promise<string | null> {
+  // Prefiltro en la base por los últimos 6 dígitos (no traer todo el padrón); confirma `mismoTelefono`.
+  const fin = ultimos6(waId);
+  if (!fin) return null;
+  const fichas = await db.$queryRaw<{ id: string; phone: string | null }[]>`
+    -- clientes-por-telefono
+    SELECT "id", "phone" FROM "Client"
+    WHERE "workspaceId" = ${workspaceId}
+      AND "phone" IS NOT NULL
+      AND right(regexp_replace("phone", '[^0-9]', '', 'g'), 6) = ${fin}`;
   const coinciden = fichas.filter((f) => mismoTelefono(waId, f.phone));
   return coinciden.length === 1 ? coinciden[0].id : null;
 }

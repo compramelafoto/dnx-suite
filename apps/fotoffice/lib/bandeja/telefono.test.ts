@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mismoTelefono, ultimos10, waIdDe } from "./telefono";
+import { mismoTelefono, ultimos10, ultimos6, waIdDe } from "./telefono";
 
 describe("waIdDe", () => {
   it.each([
@@ -57,5 +57,18 @@ describe("mismoTelefono", () => {
     expect(mismoTelefono("441524123456", "152 4123456")).toBe(false);
     expect(mismoTelefono("441524123456", "1524123456")).toBe(false);
     expect(mismoTelefono("441524123456", "+44 1524 123456")).toBe(true);
+  });
+});
+
+describe("ultimos6", () => {
+  it("toma los 6 dígitos finales sin importar el formato", () => {
+    expect(ultimos6("5493413419869")).toBe("419869");
+    expect(ultimos6("0341 15 341-9869")).toBe("419869");
+    expect(ultimos6("+54 9 341 341 9869")).toBe("419869");
+  });
+  it("devuelve null con menos de 6 dígitos o vacío", () => {
+    expect(ultimos6("12345")).toBeNull();
+    expect(ultimos6(null)).toBeNull();
+    expect(ultimos6("")).toBeNull();
   });
 });
