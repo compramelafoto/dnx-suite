@@ -761,10 +761,10 @@ importers:
         version: 20.19.37
       tsx:
         specifier: ^4.21.0
-        version: 4.23.0
+        version: 4.21.0
       typescript:
         specifier: ^5
-        version: 5.9.3
+        version: 5.9.2
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
@@ -8740,8 +8740,8 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.974.27
       '@aws-sdk/types': 3.973.15
-      '@smithy/core': 3.34.1
-      '@smithy/types': 4.18.0
+      '@smithy/core': 3.29.1
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/client-rekognition@3.1079.0':
@@ -8774,9 +8774,9 @@ snapshots:
       '@aws-sdk/types': 3.973.15
       '@aws-sdk/xml-builder': 3.972.33
       '@aws/lambda-invoke-store': 0.3.0
-      '@smithy/core': 3.34.1
+      '@smithy/core': 3.29.1
       '@smithy/signature-v4': 5.6.2
-      '@smithy/types': 4.18.0
+      '@smithy/types': 4.15.1
       bowser: 2.14.1
       tslib: 2.8.1
 
@@ -8879,8 +8879,8 @@ snapshots:
       '@aws-sdk/core': 3.974.27
       '@aws-sdk/signature-v4-multi-region': 3.996.38
       '@aws-sdk/types': 3.973.15
-      '@smithy/core': 3.34.1
-      '@smithy/types': 4.18.0
+      '@smithy/core': 3.29.1
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/nested-clients@3.997.27':
@@ -8907,7 +8907,7 @@ snapshots:
     dependencies:
       '@aws-sdk/types': 3.973.15
       '@smithy/signature-v4': 5.6.2
-      '@smithy/types': 4.18.0
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/token-providers@3.1079.0':
@@ -8921,7 +8921,7 @@ snapshots:
 
   '@aws-sdk/types@3.973.15':
     dependencies:
-      '@smithy/types': 4.18.0
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@aws-sdk/xml-builder@3.972.33':
@@ -9846,7 +9846,7 @@ snapshots:
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:
       '@emnapi/core': 1.9.1
-      '@emnapi/runtime': 1.11.3
+      '@emnapi/runtime': 1.7.1
       '@tybys/wasm-util': 0.10.1
     optional: true
 
@@ -10271,7 +10271,7 @@ snapshots:
 
   '@smithy/core@3.29.1':
     dependencies:
-      '@smithy/types': 4.18.0
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@smithy/core@3.34.1':
@@ -10287,14 +10287,14 @@ snapshots:
 
   '@smithy/fetch-http-handler@5.6.3':
     dependencies:
-      '@smithy/core': 3.34.1
-      '@smithy/types': 4.18.0
+      '@smithy/core': 3.29.1
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@smithy/node-http-handler@4.9.3':
     dependencies:
-      '@smithy/core': 3.34.1
-      '@smithy/types': 4.18.0
+      '@smithy/core': 3.29.1
+      '@smithy/types': 4.15.1
       tslib: 2.8.1
 
   '@smithy/signature-v4@5.6.2':
@@ -12933,7 +12933,7 @@ snapshots:
 
   is-bun-module@2.0.0:
     dependencies:
-      semver: 7.8.5
+      semver: 7.7.3
 
   is-callable@1.2.7: {}
 
