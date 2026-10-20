@@ -9,6 +9,8 @@ import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { ProductForm } from "../../product-form";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
+import { ProduccionSection } from "./produccion-section";
+import { asegurarConfiguracion, leerProduccion, listarSalidas } from "@/lib/impresion/configuracion";
 import { PresupuestoSections } from "./presupuesto-sections";
 import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
 import { sugerirRubro } from "@/lib/rubros/rubros";
@@ -40,6 +42,9 @@ export default async function ProductoPage({
     isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
   ]);
   if (!producto) notFound();
+
+  await asegurarConfiguracion(workspace.id);
+  const [produccion, salidasImpresion] = await Promise.all([leerProduccion(workspace.id, producto.id), listarSalidas(workspace.id)]);
 
   // Etapa 2: combo, costos-plantilla y datos para presupuestos, SÓLO con el módulo Presupuestos
   // encendido (si no, la ficha queda como antes y ni se leen). Esta ficha ya exige
@@ -93,6 +98,8 @@ export default async function ProductoPage({
       ) : null}
 
       <ProductForm product={producto} categories={categorias} error={query.error} />
+
+      <ProduccionSection productId={producto.id} produccion={produccion} salidas={salidasImpresion} />
 
       {etapa2 ? (
         <PresupuestoSections

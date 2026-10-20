@@ -267,6 +267,12 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   workspaceFeatureModule: () => ({ enabled: false, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, origen: null, createdAt: new Date() }),
+  fotofficeTamanoImpresion: () => ({ orden: 0, activo: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeSalidaImpresion: () => ({
+    proveedorId: null, ppp: 300, nitidez: "NORMAL", escalaXMil: 1000, escalaYMil: 1000, margenSinBordesMm: "0.0",
+    admiteCopias: true, activo: true, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeProductoProduccion: () => ({ unidad: "HOJA", createdAt: new Date(), updatedAt: new Date() }),
   fotofficePreparacionImpresion: () => ({ productId: null, clientId: null, saleItemId: null, proyectoId: null, estado: "PREPARANDO", createdAt: new Date(), updatedAt: new Date() }),
   fotofficeOriginalImpresion: () => ({ previewKey: null, bytes: 0, anchoPx: 0, altoPx: 0, perfilColor: null, estado: "PENDIENTE", archivoTrabajoId: null, adjuntoId: null, createdAt: new Date() }),
   fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
