@@ -1,10 +1,11 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { AJUSTES_NEUTROS } from "./ajustes";
-import { recetaInicial, type Receta } from "./receta";
-import { MENSAJE_HEIC, componerHoja, esHeicSinSoporte, generarVistaPrevia, leerOriginal, renderizarPieza } from "./render";
+import { AJUSTES_NEUTROS, aplicarAjustes } from "./ajustes";
+import { encuadreQueContiene, encuadreQueLlena } from "./encuadre";
+import { anguloTotal, recetaInicial, type Receta } from "./receta";
+import { MENSAJE_HEIC, componerCopia, componerHoja, esHeicSinSoporte, generarVistaPrevia, leerOriginal, renderizarPieza, type PiezaRaw } from "./render";
 import { disposicionCarnet } from "./plancha";
-import { tamanoVistaPrevia } from "./geometria";
+import { cajaRotada, rectanguloEnPixeles, tamanoVistaPrevia } from "./geometria";
 
 async function foto(ancho: number, alto: number, color = { r: 200, g: 40, b: 40 }) {
   return sharp({ create: { width: ancho, height: alto, channels: 3, background: color } }).jpeg({ quality: 95 }).toBuffer();
@@ -129,5 +130,121 @@ describe("motor de impresión", () => {
     const heic = Buffer.concat([ftyp, Buffer.alloc(64)]);
     await expect(leerOriginal(heic)).rejects.toMatchObject({ message: MENSAJE_HEIC, definitivo: true });
     expect(MENSAJE_HEIC).toBe("Las fotos HEIC del iPhone no se pueden abrir acá: exportala como JPG (en WhatsApp sale así).");
+  });
+});
+
+const pixel = (p: PiezaRaw, x: number, y: number) => {
+  const i = (y * p.ancho + x) * 3;
+  return [p.data[i]!, p.data[i + 1]!, p.data[i + 2]!];
+};
+const encajar = (encuadre: Receta["encuadre"], extra: Partial<Receta> = {}): Receta => ({
+  ...recetaInicial(),
+  modo: "ENCAJAR",
+  orientacion: "HORIZONTAL",
+  colorBorde: "#ffffff",
+  encuadre,
+  ...extra,
+});
+
+/**
+ * Referencia CONGELADA: el pipeline de la etapa 1, copiado a propósito (no importar del motor).
+ * Una receta de la etapa 1 tiene que seguir dando byte por byte el mismo archivo; si el motor
+ * cambia, esta copia no debe cambiar con él.
+ */
+async function piezaComoEnLaEtapa1(original: Buffer, receta: Receta, destino: { ancho: number; alto: number }, sigma: number) {
+  const meta = await sharp(original).metadata();
+  const girada = (meta.orientation ?? 1) >= 5;
+  const ancho = girada ? meta.height! : meta.width!;
+  const alto = girada ? meta.width! : meta.height!;
+  const angulo = anguloTotal(receta);
+  const rect = rectanguloEnPixeles(receta.encuadre, cajaRotada(ancho, alto, angulo), angulo % 90 === 0 ? 0 : 2);
+  const blanco = { r: 255, g: 255, b: 255 };
+  let p = sharp(original).autoOrient().flatten({ background: blanco });
+  if (angulo !== 0) p = p.rotate(angulo, { background: blanco });
+  const { data, info } = await p
+    .extract(rect)
+    .resize(destino.ancho, destino.alto, { fit: "fill", kernel: "lanczos3" })
+    .toColourspace("rgb16")
+    .raw({ depth: "ushort" })
+    .toBuffer({ resolveWithObject: true });
+  const u16 = new Uint16Array(data.length / 2);
+  Buffer.from(u16.buffer).set(data);
+  aplicarAjustes(u16, 3, receta.ajustes);
+  return sharp(u16, { raw: { width: info.width, height: info.height, channels: 3 } }).toColourspace("srgb").sharpen({ sigma }).raw().toBuffer();
+}
+
+describe("motor de impresión: copias (etapa 2)", () => {
+  it("una receta de la etapa 1 da exactamente el mismo archivo que antes", async () => {
+    const r: Receta = { ...recetaInicial(), enderezar: 3, encuadre: { x: 0.1, y: 0.05, ancho: 0.6, alto: 0.7 }, ajustes: { ...AJUSTES_NEUTROS, exposicion: 12, saturacion: -8 } };
+    const original = await mitades(900, 700);
+    const nuevo = await renderizarPieza(original, r, { ancho: 240, alto: 280 }, "NORMAL");
+    const viejo = await piezaComoEnLaEtapa1(original, r, { ancho: 240, alto: 280 }, 0.8);
+    expect(nuevo.data.equals(viejo)).toBe(true);
+  });
+
+  it("ENCAJAR: la foto entera sobre el papel y el borde blanco puro", async () => {
+    const p = await renderizarPieza(await foto(2000, 1000), encajar({ x: 0, y: -0.5, ancho: 1, alto: 2 }), { ancho: 300, alto: 300 }, "SUAVE");
+    expect([p.ancho, p.alto, p.data.length]).toEqual([300, 300, 300 * 300 * 3]);
+    // Filas 0–74 y 225–299: borde; 75–224: foto.
+    for (const y of [0, 40, 74, 225, 299]) expect(pixel(p, 150, y)).toEqual([255, 255, 255]);
+    const [r, g] = pixel(p, 150, 150);
+    expect(r).toBeGreaterThan(180);
+    expect(g).toBeLessThan(80);
+  });
+
+  it("el borde conserva su color exacto aunque se aclare la foto", async () => {
+    const r = encajar({ x: 0, y: -0.5, ancho: 1, alto: 2 }, { colorBorde: "#102030", ajustes: { ...AJUSTES_NEUTROS, exposicion: 50 } });
+    const p = await renderizarPieza(await foto(2000, 1000, { r: 64, g: 64, b: 64 }), r, { ancho: 300, alto: 300 }, "FUERTE");
+    expect(pixel(p, 150, 5)).toEqual([16, 32, 48]);
+    expect(pixel(p, 150, 294)).toEqual([16, 32, 48]);
+    expect(pixel(p, 150, 150)[0]!).toBeGreaterThan(100);
+  });
+
+  it("ENCAJAR con una foto de celular girada por EXIF: queda derecha, con borde a los costados", async () => {
+    // Guardada 400×300 negro|blanco con orientación 6: derecha es 300×400, ARRIBA negra y ABAJO blanca.
+    const girada = await sharp(await mitades(400, 300)).withMetadata({ orientation: 6 }).jpeg({ quality: 100 }).toBuffer();
+    const r = encajar(encuadreQueContiene(300 / 400, 300 / 200));
+    const p = await renderizarPieza(girada, r, { ancho: 300, alto: 200 }, "SUAVE");
+    // Columnas 0–74 y 225–299: borde; la foto, en el medio.
+    for (const [x, y] of [[20, 30], [20, 170], [280, 100]] as const) expect(pixel(p, x, y)).toEqual([255, 255, 255]);
+    for (const x of [110, 190]) {
+      expect(pixel(p, x, 30)[0]!).toBeLessThan(40);
+      expect(pixel(p, x, 170)[0]!).toBeGreaterThan(215);
+    }
+  });
+
+  it("panorámica 3:1 encajada en 10x15: una franja centrada con borde arriba y abajo", async () => {
+    const r = encajar(encuadreQueContiene(3, 447 / 300));
+    const p = await renderizarPieza(await foto(900, 300), r, { ancho: 447, alto: 300 }, "SUAVE");
+    expect([p.ancho, p.alto]).toEqual([447, 300]);
+    expect(pixel(p, 223, 10)).toEqual([255, 255, 255]);
+    expect(pixel(p, 223, 290)).toEqual([255, 255, 255]);
+    expect(pixel(p, 223, 150)[0]!).toBeGreaterThan(180);
+  });
+
+  it("una foto chiquita se agranda a la medida exacta sin romper", async () => {
+    const r: Receta = { ...recetaInicial(), orientacion: "HORIZONTAL", encuadre: encuadreQueLlena(40 / 30, 1795 / 1205) };
+    const p = await renderizarPieza(await foto(40, 30), r, { ancho: 1795, alto: 1205 }, "SUAVE");
+    expect([p.ancho, p.alto, p.data.length]).toEqual([1795, 1205, 1795 * 1205 * 3]);
+  });
+
+  it("la hoja de una copia acostada sale parada: medida exacta, 300 ppp, sRGB y 4:4:4", async () => {
+    const r: Receta = { ...recetaInicial(), orientacion: "HORIZONTAL", encuadre: encuadreQueLlena(1.5, 1795 / 1205) };
+    const pieza = await renderizarPieza(await foto(600, 400), r, { ancho: 1795, alto: 1205 }, "SUAVE");
+    const meta = await sharp(await componerCopia(pieza, true, 300)).metadata();
+    expect([meta.width, meta.height, meta.density, meta.chromaSubsampling, meta.hasProfile]).toEqual([1205, 1795, 300, "4:4:4", true]);
+    const parada = await sharp(await componerCopia(pieza, false, 300)).metadata();
+    expect([parada.width, parada.height]).toEqual([1795, 1205]);
+  });
+  it("ENCAJAR con enderezado: las esquinas que deja el giro quedan EXACTAMENTE del color del borde", async () => {
+    // Borde blanco y borde negro: un fondo blanco pasado por ajustes/nitidez no se confundiría con el negro.
+    for (const colorBorde of ["#000000", "#ffffff", "#102030"]) {
+      const r = encajar({ x: 0, y: 0, ancho: 1, alto: 1 }, { colorBorde, enderezar: 10, ajustes: { ...AJUSTES_NEUTROS, exposicion: 50 } });
+      const p = await renderizarPieza(await foto(600, 400, { r: 64, g: 64, b: 64 }), r, { ancho: 300, alto: 200 }, "FUERTE");
+      const n = Number.parseInt(colorBorde.slice(1), 16);
+      const esperado = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      for (const [x, y] of [[0, 0], [299, 0], [0, 199], [299, 199], [2, 2], [297, 197]] as const) expect(pixel(p, x, y)).toEqual(esperado);
+      expect(pixel(p, 150, 100)[0]!).toBeGreaterThan(100); // el centro es foto aclarada
+    }
   });
 });
