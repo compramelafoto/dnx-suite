@@ -4,6 +4,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -376,6 +377,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Grabá cassettes y DVD desde la capturadora mientras seguís trabajando: se suben solos y se cortan cuando termina la cinta.",
     pantallas: ["Grabaciones", "Estación de grabación"],
+  },
+  {
+    key: PRINT_ORDERS_MODULE_KEY,
+    cuadro: "29",
+    nombre: "Pedidos de impresión",
+    resuelve:
+      "Tu cliente pide sus copias desde el mismo enlace de sus fotos: elige tamaño, cantidad y recorte, paga online y el pedido le llega solo al laboratorio. Vos no tomás pedidos por WhatsApp ni pasás archivos a mano.",
+    pantallas: ["Configuración de impresiones"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */

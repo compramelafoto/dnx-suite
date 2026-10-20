@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma, type Prisma } from "@repo/db";
 import { iniciarEnTransaccion } from "@/lib/circuitos/recorridos";
-import type { CtxCircuitos } from "@/lib/circuitos/acceso";
+import { contextoDeSistema, type CtxCircuitos } from "@/lib/circuitos/acceso";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { asignarNumero } from "@/lib/numeracion/asignar";
 import { OPCIONES_TRANSACCION_PEDIDO } from "@/lib/pedidos/constantes";
@@ -234,6 +234,43 @@ async function insertarProyecto(tx: Tx, ctx: CtxCircuitos, d: DatosProyecto): Pr
     await tx.fotofficeJourney.update({ where: { id: journeyId }, data: { ownerUserId: d.ownerUserId } });
   }
   return { id, numero: numero.display };
+}
+
+/**
+ * Crea un trabajo sin usuario (pagos automáticos: un pedido de copias impresas acreditado por Mercado Pago).
+ * Mismo camino que `insertarProyecto` con el contexto del sistema. Las etapas se leen como en
+ * `crearProyectoManual` (las no archivadas del flujo, de esta organización). Sin permisos ni chequeo del
+ * módulo adentro: lo llama código ya autorizado, en su transacción.
+ */
+export async function crearProyectoDeSistema(
+  tx: Tx,
+  workspaceId: string,
+  d: { clientId: string; circuitId: string; nombre: string; baseDate: string; proveedorId: string | null; ahora: Date },
+): Promise<{ id: string; number: string }> {
+  const ctx = contextoDeSistema(workspaceId);
+  const etapas = await tx.fotofficeStage.findMany({
+    where: { circuitId: d.circuitId, circuit: { workspaceId }, archivedAt: null },
+    orderBy: [{ order: "asc" }],
+    select: { id: true, days: true },
+  });
+  const r = await insertarProyecto(tx, ctx, {
+    workspaceId,
+    clientId: d.clientId,
+    pedidoId: null,
+    pedidoItemIndex: null,
+    productId: null,
+    circuitId: d.circuitId,
+    nombre: d.nombre,
+    eventDate: null,
+    baseDate: d.baseDate,
+    finalDueDate: null,
+    ownerUserId: null,
+    etapas,
+    createdByUserId: null,
+    ahora: d.ahora,
+    proveedorId: d.proveedorId,
+  });
+  return { id: r.id, number: r.numero };
 }
 
 function diaDeEvento(f: string | Date | null): string | null {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CarpetaPublica } from "@/components/carpetas/carpeta-publica";
 import { abrirCarpeta } from "@/lib/carpetas/carpeta";
+import { ofertaPublica } from "@/lib/impresiones/configuracion-servidor";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 
 export const dynamic = "force-dynamic";
@@ -18,5 +19,8 @@ export default async function CarpetaPublicaPage({ params }: { params: Promise<{
   if (!workspaceId) notFound();
   const vista = await abrirCarpeta(workspaceId, token);
   if (!vista) notFound();
-  return <CarpetaPublica vista={vista} />;
+  // Pedir copias: sólo el cliente (no el laboratorio) y si el estudio tiene la impresión encendida y con precios.
+  const imprimir = vista.audiencia === "CLIENTE" && (await ofertaPublica(workspaceId)) !== null;
+  const enlaceImprimir = imprimir ? `/w/${workspaceSlug}/archivos/${encodeURIComponent(token)}/imprimir` : undefined;
+  return <CarpetaPublica vista={vista} enlaceImprimir={enlaceImprimir} />;
 }

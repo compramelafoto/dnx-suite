@@ -15,11 +15,26 @@ export function nombreDentroDelZip(nombre: string, alternativo = "archivo"): str
 
 /** Nombres sin repetirse (sin distinguir mayúsculas): el segundo "IMG_1.jpg" pasa a "IMG_1 (2).jpg". Conserva el orden. */
 export function nombresUnicos(nombres: readonly string[]): string[] {
+  return unicos(nombres, (n) => nombreDentroDelZip(n));
+}
+
+/**
+ * Rutas con carpetas (`Pedido 8/10x15 Brillo/2 copias/foto.jpg`): cada parte se limpia como un nombre (así no
+ * quedan `..` ni caracteres de control) y la ruta completa no se repite.
+ */
+export function rutasUnicas(rutas: readonly string[]): string[] {
+  return unicos(rutas, (r) => {
+    const partes = String(r ?? "").split("/").filter((p) => p.length > 0);
+    return (partes.length ? partes : [""]).map((p) => nombreDentroDelZip(p)).join("/");
+  });
+}
+
+function unicos(nombres: readonly string[], limpiar: (n: string) => string): string[] {
   const usados = new Set<string>();
   // Próximo número a probar por nombre base: evita recorrer desde (2) cada vez cuando hay miles de repetidos.
   const siguiente = new Map<string, number>();
   return nombres.map((original) => {
-    const base = nombreDentroDelZip(original);
+    const base = limpiar(original);
     let candidato = base;
     if (usados.has(candidato.toLowerCase())) {
       const punto = base.lastIndexOf(".");

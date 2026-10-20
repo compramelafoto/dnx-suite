@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileText, Film, FolderOpen, ImageIcon } from "lucide-react";
+import { Download, FileText, Film, FolderOpen, ImageIcon, Printer } from "lucide-react";
 import { tamanoLegible } from "@/lib/carpetas/reglas";
 import type { VistaCarpeta } from "@/lib/carpetas/tipos";
 
@@ -19,7 +19,7 @@ function Icono({ tipo }: { tipo: string }) {
  * Lo que ve quien abre el enlace de la carpeta. El laboratorio: la lista para descargar todo. El
  * cliente: además, los videos para mirar ahí mismo y hasta cuándo puede descargarlos.
  */
-export function CarpetaPublica({ vista }: { vista: VistaCarpeta }) {
+export function CarpetaPublica({ vista, enlaceImprimir }: { vista: VistaCarpeta; enlaceImprimir?: string }) {
   const [bajando, setBajando] = useState(false);
   const total = vista.archivos.reduce((a, f) => a + f.bytes, 0);
   const esCliente = vista.audiencia === "CLIENTE";
@@ -59,6 +59,16 @@ export function CarpetaPublica({ vista }: { vista: VistaCarpeta }) {
             </p>
           ) : null}
         </header>
+
+        {enlaceImprimir ? (
+          <a href={enlaceImprimir} className="fo-card flex items-center gap-3 border-2 border-[var(--fo-accent)] p-4 hover:bg-[var(--fo-surface-hover)]">
+            <Printer className="size-6 shrink-0 text-[var(--fo-accent)]" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">Pedir copias impresas</span>
+              <span className="block text-sm text-[var(--fo-text-secondary)]">Elegí tus fotos, el tamaño y cuántas copias querés. Las retirás en el local.</span>
+            </span>
+          </a>
+        ) : null}
 
         {vista.archivos.length === 0 ? (
           <p className="fo-card p-8 text-center text-sm text-[var(--fo-muted)]">Todavía no hay archivos cargados.</p>

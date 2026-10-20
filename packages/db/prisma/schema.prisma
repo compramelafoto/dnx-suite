@@ -7382,6 +7382,9 @@ model Workspace {
   fotofficePiezasImpresion FotofficePiezaImpresion[]
   fotofficeHojasImpresion FotofficeHojaImpresion[]
   fotofficeRegistrosImpresion FotofficeRegistroImpresion[]
+  printSettings FotofficePrintSettings?
+  printSizes FotofficePrintSize[]
+  printOrders FotofficePrintOrder[]
 }
 
 model WorkspaceFeatureModule {
@@ -18896,6 +18899,7 @@ model Client {
   @@index([workspaceId, status])
   @@index([workspaceId, docNumber])
   @@index([workspaceId, email])
+  printOrders FotofficePrintOrder[]
 }
 
 /// Una cuenta de caja: dónde está la plata.
@@ -19096,6 +19100,7 @@ model CashMovement {
   @@index([shiftId])
   @@index([clientId, occurredAt])
   @@index([transferId])
+  printOrder FotofficePrintOrder? @relation("FotofficePrintOrderMovimiento")
 }
 
 // ============================================================================
@@ -21783,6 +21788,8 @@ model FotofficeProyecto {
   @@index([pedidoId])
   @@index([productId])
   @@index([circuitId])
+  printOrdersOrigen FotofficePrintOrder[] @relation("PrintOrderOrigen")
+  printItems FotofficePrintOrderItem[] @relation("PrintOrderItemTrabajo")
 }
 
 /// Regla "Proyecto que genera" de un producto (Catálogo). Puede haber varias por producto.
@@ -21838,6 +21845,7 @@ model FotofficeProveedor {
 
   @@unique([workspaceId, name])
   @@index([workspaceId, active])
+  printSizes FotofficePrintSize[]
 }
 
 /// Un archivo de la carpeta de un trabajo (fotos para imprimir, un VHS digitalizado, escaneos de
@@ -21861,6 +21869,7 @@ model FotofficeArchivoTrabajo {
 
   @@index([proyectoId, createdAt])
   @@index([workspaceId, estado])
+  printSource FotofficePrintSourceImage?
 }
 
 /// Digitalización (VHS/DVD): una grabación es un cassette o un DVD. Sus pedacitos viven en el R2
@@ -26016,4 +26025,125 @@ model FotofficeWaMensaje {
   @@unique([workspaceId, waMessageId])
   @@unique([chatId, clientToken])
   @@index([chatId, createdAt])
+}
+
+model FotofficePrintSettings {
+  id               String   @id @default(cuid())
+  workspaceId      String   @unique
+  testMode         Boolean  @default(true)
+  paperGlossy      Boolean  @default(true)
+  paperMatte       Boolean  @default(true)
+  shippingEnabled  Boolean  @default(false)
+  shippingBaseArs  Decimal? @db.Decimal(14, 2)
+  shippingPerKmArs Decimal? @db.Decimal(14, 2)
+  shippingMaxKm    Int?
+  circuitId        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model FotofficePrintSize {
+  id          String   @id @default(cuid())
+  workspaceId String
+  widthCm     Decimal  @db.Decimal(6, 1)
+  heightCm    Decimal  @db.Decimal(6, 1)
+  proveedorId String?
+  costArs     Decimal? @db.Decimal(14, 2)
+  priceArs    Decimal? @db.Decimal(14, 2)
+  active      Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proveedor FotofficeProveedor? @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, widthCm, heightCm])
+  @@index([workspaceId, active])
+  @@index([proveedorId])
+}
+
+model FotofficePrintOrder {
+  id                 String    @id @default(cuid())
+  workspaceId        String
+  number             Int
+  source             String    @default("CARPETA")
+  proyectoOrigenId   String?
+  clientId           String?
+  nombre             String
+  email              String
+  telefono           String?
+  paper              String
+  delivery           String    @default("RETIRO")
+  subtotalArs        Decimal   @db.Decimal(14, 2)
+  shippingArs        Decimal   @default(0) @db.Decimal(14, 2)
+  totalArs           Decimal   @db.Decimal(14, 2)
+  costTotalArs       Decimal   @db.Decimal(14, 2)
+  status             String    @default("PENDIENTE_PAGO")
+  promisedAt         DateTime? @db.Date
+  pricingSnapshot    Json
+  mpPreferenceId     String?
+  providerPaymentRef String?   @unique
+  paidAt             DateTime?
+  feeArs             Decimal?  @db.Decimal(14, 2)
+  netArs             Decimal?  @db.Decimal(14, 2)
+  cashMovementId     String?   @unique
+  trackingToken      String    @unique
+  lastError          String?
+  attempts           Int       @default(0)
+  lockedAt           DateTime?
+  sentAt             DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  workspace      Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proyectoOrigen FotofficeProyecto?        @relation("PrintOrderOrigen", fields: [proyectoOrigenId], references: [id], onDelete: SetNull)
+  client         Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  cashMovement   CashMovement?             @relation("FotofficePrintOrderMovimiento", fields: [cashMovementId], references: [id], onDelete: SetNull)
+  items          FotofficePrintOrderItem[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+  @@index([proyectoOrigenId])
+  @@index([clientId])
+}
+
+model FotofficePrintOrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  archivoId    String?
+  sourceKey    String
+  sourceName   String
+  sizeId       String?
+  widthCm      Decimal  @db.Decimal(6, 1)
+  heightCm     Decimal  @db.Decimal(6, 1)
+  quantity     Int
+  unitPriceArs Decimal  @db.Decimal(14, 2)
+  unitCostArs  Decimal  @db.Decimal(14, 2)
+  cropX        Float
+  cropY        Float
+  cropW        Float
+  cropH        Float
+  proveedorId  String?
+  proyectoId   String?
+  createdAt    DateTime @default(now())
+
+  order    FotofficePrintOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  proyecto FotofficeProyecto?  @relation("PrintOrderItemTrabajo", fields: [proyectoId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([proyectoId])
+}
+
+model FotofficePrintSourceImage {
+  id        String   @id @default(cuid())
+  archivoId String   @unique
+  thumbKey  String
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+
+  archivo FotofficeArchivoTrabajo @relation(fields: [archivoId], references: [id], onDelete: Cascade)
 }

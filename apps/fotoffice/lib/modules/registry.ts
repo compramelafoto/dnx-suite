@@ -17,6 +17,7 @@ import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 
 /**
@@ -372,6 +373,17 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 29,
     status: "AVAILABLE",
     route: "/galerias",
+    family: "negocio",
+    dependsOn: ["projects"],
+  },
+  {
+    key: PRINT_ORDERS_MODULE_KEY,
+    label: "Pedidos de impresión",
+    description: "Tus clientes piden copias impresas desde el enlace de sus fotos, pagan online y el pedido sale solo al laboratorio.",
+    category: "GENERAL",
+    order: 95,
+    status: "AVAILABLE",
+    route: "/workspace/configuracion/impresiones",
     family: "negocio",
     dependsOn: ["projects"],
   },

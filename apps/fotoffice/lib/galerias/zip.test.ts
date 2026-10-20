@@ -141,6 +141,20 @@ describe("zipEnFlujo", () => {
     expect(leerZip(zip).map((x) => x.nombre)).toEqual(["a.jpg", "c.jpg"]);
   });
 
+  it("con carpetas conserva las rutas (limpiando cada parte y sin `..`) y no repite nombres", async () => {
+    const piezas: Buffer[] = [];
+    const lista = [
+      archivo("Pedido 8 - Juan/10x15 Brillo/1 copia/a.jpg", Buffer.from("a")),
+      archivo("Pedido 8 - Juan/10x15 Brillo/1 copia/A.jpg", Buffer.from("b")),
+      archivo("../x\u0001/b.jpg", Buffer.from("c")),
+    ];
+    for await (const p of zipEnFlujo(lista, undefined, { conCarpetas: true })) piezas.push(p);
+    expect(leerZip(Buffer.concat(piezas)).map((e) => e.nombre)).toEqual([
+      "Pedido 8 - Juan/10x15 Brillo/1 copia/a.jpg",
+      "Pedido 8 - Juan/10x15 Brillo/1 copia/A (2).jpg",
+      "archivo/x_/b.jpg",
+    ]);
+  });
   it("un ZIP vacío es válido (sólo el registro final)", async () => {
     const { zip } = await armar([]);
     expect(zip.length).toBe(22);

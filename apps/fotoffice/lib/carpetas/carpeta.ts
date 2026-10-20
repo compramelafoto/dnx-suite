@@ -235,6 +235,8 @@ export async function purgarCarpetas(ahora = new Date(), tope = 200): Promise<nu
   for (const f of filas) {
     try {
       await borrarArchivoGuardado(f.key);
+      // Miniatura de los pedidos de impresión (si no existe, no pasa nada).
+      await borrarArchivoGuardado(`impresiones-mini/${f.id}.jpg`).catch(() => {});
       await prisma.fotofficeArchivoTrabajo.delete({ where: { id: f.id } });
       n++;
     } catch (e) {

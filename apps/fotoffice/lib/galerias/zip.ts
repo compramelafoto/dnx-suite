@@ -47,8 +47,8 @@ export function crc32(datos: Uint8Array, previo = 0): number {
 
 // --- Nombres -----------------------------------------------------------------------------------------------
 
-export { nombreDentroDelZip, nombresUnicos } from "./nombres-zip";
-import { nombresUnicos } from "./nombres-zip";
+export { nombreDentroDelZip, nombresUnicos, rutasUnicas } from "./nombres-zip";
+import { nombresUnicos, rutasUnicas } from "./nombres-zip";
 
 // --- Estructuras -------------------------------------------------------------------------------------------
 
@@ -180,16 +180,20 @@ export type ArchivoParaZip = {
 
 /**
  * Convierte una lista de archivos en el flujo de bytes del ZIP, trozo por trozo (memoria acotada: un trozo del
- * origen a la vez). Mientras cada archivo pasa se calcula su CRC32 y se cuentan sus bytes. Los archivos que
+ * origen a la vez). `opciones.conCarpetas` conserva las carpetas de cada nombre. Mientras cada archivo pasa
+ * se calcula su CRC32 y se cuentan sus bytes. Los archivos que
  * `abrir()` devuelve como `null` no entran. Al terminar `resultado` tiene los archivos incluidos y el tamaño.
  */
 export async function* zipEnFlujo(
   archivos: Iterable<ArchivoParaZip>,
   resultado: { archivos: number; bytes: number; omitidos: number } = { archivos: 0, bytes: 0, omitidos: 0 },
+  opciones: { conCarpetas?: boolean } = {},
 ): AsyncGenerator<Buffer, void, void> {
   const z = new ConstructorZip();
   const lista = [...archivos];
-  const nombres = nombresUnicos(lista.map((a) => a.nombre));
+  // Sin carpetas (descargas de galerías) todo queda en la raíz; con carpetas (pedidos de impresión) se
+  // conservan las rutas `a/b/c.jpg`.
+  const nombres = (opciones.conCarpetas ? rutasUnicas : nombresUnicos)(lista.map((a) => a.nombre));
   for (let i = 0; i < lista.length; i++) {
     const origen = await lista[i]!.abrir();
     if (!origen) {
