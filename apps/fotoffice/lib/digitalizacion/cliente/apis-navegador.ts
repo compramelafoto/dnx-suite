@@ -33,9 +33,10 @@ export async function elegirArchivoDeDestino(nombre: string): Promise<FileSystem
   return (await f({ suggestedName: nombre })).createWritable();
 }
 
-/** Un lector de cuadros sobre una COPIA de la pista: se puede pasar al worker sin tocar la grabación. */
-export function procesadorDeCuadros(track: MediaStreamTrack): ReadableStream<VideoFrame> {
+/** Un lector de cuadros sobre una COPIA de la pista. Quien lo pida debe llamar `copia.stop()` al terminar. */
+export function procesadorDeCuadros(track: MediaStreamTrack): { cuadros: ReadableStream<VideoFrame>; copia: MediaStreamTrack } {
   const P = w().MediaStreamTrackProcessor;
   if (!P) throw new Error("Este navegador no deja analizar el video.");
-  return new P({ track: track.clone() }).readable;
+  const copia = track.clone();
+  return { cuadros: new P({ track: copia }).readable, copia };
 }

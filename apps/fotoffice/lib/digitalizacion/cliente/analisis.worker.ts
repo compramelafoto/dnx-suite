@@ -24,12 +24,18 @@ function rasgosDe(cuadro: VideoFrame): Rasgos {
 }
 
 /** Recorre los cuadros y entrega uno por segundo de video (por su marca de tiempo, no por reloj). */
+async function mio_cancelar() {
+  await lector?.cancel().catch(() => {});
+  lector = null;
+}
+
 async function porSegundo(cuadros: ReadableStream<VideoFrame>, fn: (r: Rasgos, seg: number) => boolean | void) {
-  lector = cuadros.getReader();
+  const mio = cuadros.getReader();
+  lector = mio;
   let inicio: number | null = null;
   let proximo = 0;
   for (;;) {
-    const { value: cuadro, done } = await lector.read();
+    const { value: cuadro, done } = await mio.read();
     if (done || !cuadro) return;
     try {
       inicio ??= cuadro.timestamp;
@@ -55,7 +61,11 @@ self.onmessage = async (ev: MessageEvent<MensajeAlWorker>) => {
     if (m.tipo === "calibrar") {
       const huellas: number[][] = [];
       await porSegundo(m.cuadros, (r) => { huellas.push(r.huella); return huellas.length < 5; });
-      await lector?.cancel();
+      await mio_cancelar();
+      if (huellas.length < 5) {
+        enviar({ tipo: "error", mensaje: "No llegaron suficientes cuadros para calibrar." });
+        return;
+      }
       enviar({ tipo: "huella", huella: promediarHuellas(huellas) });
       return;
     }
