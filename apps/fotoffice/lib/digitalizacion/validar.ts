@@ -39,7 +39,7 @@ export function validarNuevaGrabacion(x: unknown): NuevaGrabacion | null {
   const ext = extensionDeMime(mimeType);
   if (tipo === "VHS") {
     if (ext !== "mp4" && ext !== "webm") return null;
-    if (typeof calidad !== "string" || !(calidad in CALIDADES)) return null;
+    if (typeof calidad !== "string" || !Object.hasOwn(CALIDADES, calidad)) return null;
     if (dvdArchivos !== null) return null;
     return { tipo, proyectoId, cassetteNumero: cassetteNumero as number | null, calidad: calidad as Calidad, mimeType, corregirProporcion, equipoId, dvdArchivos: null };
   }

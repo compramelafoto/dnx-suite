@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { estadoVisible, validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte } from "./validar";
+import { cortesDeArchivo } from "./dvd";
 
 const ahora = new Date("2026-11-01T15:00:00Z");
 const hace = (s: number) => new Date(ahora.getTime() - s * 1000);
@@ -35,5 +36,36 @@ describe("validaciones", () => {
     expect(validarLatido({ ...latido, tramosSinSenal: [{ tramo: 1, desde: 0, hasta: 2, clase: "ROJO" }] })).toBeNull();
     expect(validarCierre({ ...latido, motivoFin: "SIN_SENAL" })).toMatchObject({ motivoFin: "SIN_SENAL" });
     expect(validarCierre({ ...latido, motivoFin: "TERMINADA_CON_LO_GRABADO" })).toBeNull();
+  });
+  it("rechaza nombres de la cadena de prototipos y tipos incompatibles", () => {
+    // VHS con calidad "constructor" (nombre del prototipo)
+    expect(validarNuevaGrabacion({ tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "constructor", mimeType: "video/webm", corregirProporcion: false, equipoId: null, dvdArchivos: null })).toBeNull();
+    // VHS con mimeType incorrecto; DVD con mimeType incorrecto
+    expect(validarNuevaGrabacion({ tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/dvd", corregirProporcion: false, equipoId: null, dvdArchivos: null })).toBeNull();
+    expect(validarNuevaGrabacion({ tipo: "DVD", proyectoId: null, cassetteNumero: null, calidad: null, mimeType: "video/mp4;codecs=avc1", corregirProporcion: false, equipoId: null, dvdArchivos: [{ nombre: "VTS_01_1.VOB", bytes: 1000 }] })).toBeNull();
+    // DVD con calidad no nula; VHS con dvdArchivos
+    expect(validarNuevaGrabacion({ tipo: "DVD", proyectoId: null, cassetteNumero: null, calidad: "MEDIA", mimeType: "video/dvd", corregirProporcion: false, equipoId: null, dvdArchivos: [{ nombre: "VTS_01_1.VOB", bytes: 1000 }] })).toBeNull();
+    expect(validarNuevaGrabacion({ tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm", corregirProporcion: false, equipoId: null, dvdArchivos: [{ nombre: "VTS_01_1.VOB", bytes: 10 }] })).toBeNull();
+    // DVD con nombres inválidos
+    expect(validarNuevaGrabacion({ tipo: "DVD", proyectoId: null, cassetteNumero: null, calidad: null, mimeType: "video/dvd", corregirProporcion: false, equipoId: null, dvdArchivos: [{ nombre: "../VTS_01_1.VOB", bytes: 1000 }] })).toBeNull();
+    expect(validarNuevaGrabacion({ tipo: "DVD", proyectoId: null, cassetteNumero: null, calidad: null, mimeType: "video/dvd", corregirProporcion: false, equipoId: null, dvdArchivos: [{ nombre: "VTS_01_0.VOB", bytes: 1000 }] })).toBeNull();
+  });
+  it("rechaza valores inválidos en pedidoParte", () => {
+    // tramo: 1.5 (no entero)
+    expect(validarPedidoParte({ grabacionId: "g1", tramo: 1.5, indice: 0, bytes: 1000 })).toBeNull();
+    // indice: -1 (negativo)
+    expect(validarPedidoParte({ grabacionId: "g1", tramo: 1, indice: -1, bytes: 1000 })).toBeNull();
+    // bytes: NaN
+    expect(validarPedidoParte({ grabacionId: "g1", tramo: 1, indice: 0, bytes: NaN })).toBeNull();
+  });
+  it("estadoVisible con 180 s exactos retorna GRABANDO", () => {
+    expect(estadoVisible({ estado: "GRABANDO", ultimoLatidoAt: hace(180), iniciadaAt: hace(900) }, ahora)).toBe("GRABANDO");
+  });
+  it("cortesDeArchivo retorna vacío con parámetros inválidos", () => {
+    expect(cortesDeArchivo(Infinity)).toEqual([]);
+    expect(cortesDeArchivo(NaN)).toEqual([]);
+    expect(cortesDeArchivo(100, 1.5)).toEqual([]);
+    expect(cortesDeArchivo(100, 0)).toEqual([]);
+    expect(cortesDeArchivo(100, -10)).toEqual([]);
   });
 });
