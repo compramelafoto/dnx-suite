@@ -203,6 +203,9 @@ export async function guardarProduccion(
   // Etapa 1: el carnet se cobra por hoja. Por foto pide un precio por foto que todavía no existe.
   if (datos.tipoPieza === "CARNET" && datos.unidad !== "HOJA")
     return { ok: false, error: "La foto carnet se cobra por hoja (plancha). Cobrarla por foto llega más adelante." };
+  // Etapa 2: la cantidad del renglón es el total de copias de la preparación.
+  if (datos.tipoPieza === "COPIA" && datos.unidad !== "COPIA")
+    return { ok: false, error: "Las copias se cobran por copia." };
   const salida = await prisma.fotofficeSalidaImpresion.findFirst({
     where: { id: datos.salidaId, workspaceId, activo: true },
     select: { id: true, admiteCopias: true, nombre: true },

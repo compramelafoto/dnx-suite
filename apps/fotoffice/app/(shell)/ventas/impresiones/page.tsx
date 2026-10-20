@@ -58,9 +58,11 @@ function Seccion({ titulo, vacia, filas }: { titulo: string; vacia: string; fila
           {filas.map((f) => (
             <li key={f.preparacionId} className="flex items-center justify-between gap-3 py-2">
               <span>
-                {f.producto ?? "Foto carnet"} · {f.cliente ?? "sin cliente"} · {f.estado === "IMPRESA" ? "impresa" : f.estado === "LISTA" ? "lista" : "a medio preparar"} · {hora(f.creada)}
+                {f.producto ?? (f.fotos > 0 ? "Copias" : "Foto carnet")}
+                {f.fotos > 0 ? ` · ${f.fotos} ${f.fotos === 1 ? "foto" : "fotos"}` : ""} · {f.cliente ?? "sin cliente"} ·{" "}
+                {f.estado === "IMPRESA" ? "impresa" : f.estado === "LISTA" ? "lista" : "a medio preparar"} · {hora(f.creada)}
               </span>
-              <FilaAcciones preparacionId={f.preparacionId} hojaId={f.hojaId} hojaVersion={f.hojaVersion} cobrada={f.cobrada} />
+              <FilaAcciones preparacionId={f.preparacionId} imprimirHref={f.imprimirHref} cobrada={f.cobrada} />
             </li>
           ))}
         </ul>

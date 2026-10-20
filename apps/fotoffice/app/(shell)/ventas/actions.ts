@@ -325,9 +325,10 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   // Foto carnet preparada en el Mostrador: se valida antes de cobrar y se ata al renglón dentro de
   // la misma transacción de la venta (el candado de `vincularConVenta` impide cobrarla dos veces).
   // `armado.lines[i]` es el renglón de `input.lines[i]`: `buildTicketLines` no junta ni saltea.
+  // Las copias además exigen que la cantidad del renglón sea el total de copias armado (`qty`).
   const preparaciones = input.lines
-    .map((l, i) => ({ i, preparacionId: l.preparacionId ?? null, productId: l.productId }))
-    .filter((p): p is { i: number; preparacionId: string; productId: string | null } => typeof p.preparacionId === "string");
+    .map((l, i) => ({ i, preparacionId: l.preparacionId ?? null, productId: l.productId, qty: armado.lines[i]!.qty }))
+    .filter((p): p is { i: number; preparacionId: string; productId: string | null; qty: number } => typeof p.preparacionId === "string");
   // Import dinámico: el motor de impresión (sharp) sólo se carga si el ticket trae una preparación.
   const impresion = preparaciones.length > 0 ? await import("@/lib/impresion/preparaciones") : null;
   if (impresion) {

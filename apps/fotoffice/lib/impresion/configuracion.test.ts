@@ -93,4 +93,17 @@ describe("configuración de impresión", () => {
     expect(B.datos.fotofficeTamanoImpresion.filter((x) => x.workspaceId === "ws-1")).toHaveLength(7);
     expect(B.datos.fotofficeSalidaImpresion).toHaveLength(2);
   });
+
+  it("las copias se cobran por copia (no por hoja ni por pieza)", async () => {
+    await C.asegurarConfiguracion("ws-1");
+    const kodak = (await C.listarSalidas("ws-1")).find((x) => x.nombre === "Kodak 305")!;
+    const t13 = kodak.tamanos.find((t) => t.nombre === "13x18")!;
+    for (const unidad of ["HOJA", "PIEZA"] as const) {
+      expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "COPIA", salidaId: kodak.id, tamanoHojaId: t13.id, unidad })).toEqual({
+        ok: false,
+        error: "Las copias se cobran por copia.",
+      });
+    }
+    expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "COPIA", salidaId: kodak.id, tamanoHojaId: t13.id, unidad: "COPIA" })).toEqual({ ok: true });
+  });
 });

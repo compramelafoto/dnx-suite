@@ -62,7 +62,7 @@ beforeEach(async () => {
 });
 
 describe("preparaciones de impresión", () => {
-  it("sólo se prepara un producto con producción de carnet", async () => {
+  it("sólo se prepara un producto con producción de carnet o de copias", async () => {
     expect((await P.crearPreparacion(CTX, { productId: "remera", clientId: null })).ok).toBe(false);
     expect((await P.crearPreparacion(CTX, { productId: "carnet", clientId: null })).ok).toBe(true);
     expect((await P.crearPreparacion(CTX, { productId: null, clientId: null })).ok).toBe(true);
@@ -135,6 +135,13 @@ describe("preparaciones de impresión", () => {
     const { prep, original } = await conOriginal();
     expect((await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: { hola: 1 } })).ok).toBe(false);
     expect((await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 5, altoMm: 40, receta: recetaInicial() })).ok).toBe(false);
+  });
+
+  it("el carnet rechaza una receta ENCAJAR (la plancha no admite borde)", async () => {
+    const { prep, original } = await conOriginal();
+    const encajar = { ...recetaInicial(), modo: "ENCAJAR" as const, orientacion: "HORIZONTAL" as const, encuadre: { x: 0, y: -0.1, ancho: 1, alto: 1.2 } };
+    const r = await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: encajar });
+    expect(r).toEqual({ ok: false, error: "El carnet se arma recortando la foto: no admite foto encajada con borde." });
   });
 
   it("registrar: NORMAL deja la preparación IMPRESA; DESCARTADA no; otro negocio no puede", async () => {
@@ -217,6 +224,34 @@ describe("preparaciones de impresión", () => {
     expect(await P.datosParaImprimir("ws-2", h.hojaId)).toBeNull();
   });
 
+  it("carnet: un NORMAL en la hoja vigente la deja IMPRESA, como en la etapa 1 (con hojas = copias y también con menos)", async () => {
+    const estado = (prep: string) => B.datos.fotofficePreparacionImpresion.find((p) => p.id === prep)!.estado;
+    for (const hojas of [2, 1]) {
+      const { prep, original } = await conOriginal();
+      await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+      const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 2, conLineas: true });
+      if (!h.ok) throw new Error(h.error);
+      expect(estado(prep)).toBe("LISTA");
+      expect(await P.registrarImpresion(CTX, h.hojaId, { motivo: "NORMAL", hojas })).toEqual({ ok: true });
+      expect(estado(prep)).toBe("IMPRESA");
+      // Para imprimir toda la preparación, ya no queda nada pendiente.
+      expect((await P.datosParaImprimirPreparacion("ws-1", prep, true))!.hojas).toEqual([]);
+    }
+  });
+
+  it("registrar una hoja: los mismos errores que en la etapa 1", async () => {
+    const { prep, original } = await conOriginal();
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true });
+    if (!h.ok) throw new Error(h.error);
+    expect(await P.registrarImpresion(CTX, "no existe", { motivo: "PRUEBA" as "NORMAL", hojas: 1 })).toEqual({ ok: false, error: "Elegí cómo salió." });
+    expect(await P.registrarImpresion(CTX, "no existe", { motivo: "NORMAL", hojas: 101 })).toEqual({ ok: false, error: "Las hojas tienen que ser entre 1 y 100." });
+    expect(await P.registrarImpresion(CTX, "noexiste", { motivo: "NORMAL", hojas: 1 })).toEqual({ ok: false, error: "Esa hoja no existe." });
+    await P.anularPreparacion(CTX, prep);
+    expect(await P.registrarImpresion(CTX, h.hojaId, { motivo: "NORMAL", hojas: 1 })).toEqual({ ok: false, error: "Esa preparación no existe." });
+    expect(B.datos.fotofficeRegistroImpresion).toHaveLength(0);
+  });
+
   it("el día de Impreso hoy empieza a las 00:00 de Argentina", () => {
     // 02:30 UTC del 21 = 23:30 del 20 en Argentina.
     expect(P.inicioDelDiaArgentina(new Date("2026-10-21T02:30:00Z")).toISOString()).toBe("2026-10-20T03:00:00.000Z");
@@ -280,5 +315,56 @@ describe("preparaciones de impresión", () => {
     expect(R2.size).toBe(0);
     expect(B.datos.fotofficeRegistroImpresion).toHaveLength(1);
     expect(B.datos.fotofficeRegistroImpresion[0]).toMatchObject({ workspaceId: "ws-1", hojaId: null });
+  });
+
+  it("un producto de copias también se prepara", async () => {
+    B.agregar("product", { id: "copia10", workspaceId: "ws-1", name: "Copia 10x15", priceArs: "900", isActive: true });
+    expect(await C.guardarProduccion("ws-1", "copia10", { tipoPieza: "COPIA", salidaId: kodakId, tamanoHojaId: t10, unidad: "COPIA" })).toEqual({ ok: true });
+    expect((await P.crearPreparacion(CTX, { productId: "copia10", clientId: null })).ok).toBe(true);
+  });
+
+  it("las funciones del carnet no tocan una preparación de copias (no borran sus piezas ni sus hojas)", async () => {
+    B.agregar("product", { id: "copia10", workspaceId: "ws-1", name: "Copia 10x15", priceArs: "900", isActive: true });
+    await C.guardarProduccion("ws-1", "copia10", { tipoPieza: "COPIA", salidaId: kodakId, tamanoHojaId: t10, unidad: "COPIA" });
+    const { prep, original } = await conOriginal("copia10");
+    const NO = { ok: false, error: "Esa preparación no existe." };
+    expect(await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() })).toEqual(NO);
+    expect(await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true })).toEqual(NO);
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(0);
+    expect(B.datos.fotofficeHojaImpresion).toHaveLength(0);
+  });
+
+  it("colas: el carnet enlaza a su hoja y no cuenta fotos de copias", async () => {
+    const { prep, original } = await conOriginal();
+    expect((await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)).toMatchObject({ fotos: 0, imprimirHref: null });
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true });
+    if (!h.ok) throw new Error(h.error);
+    const fila = (await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)!;
+    expect(fila).toMatchObject({ fotos: 0, imprimirHref: `/imprimir/hoja/${h.hojaId}?v=${h.version}` });
+  });
+
+  it("carnet: receta A impresa, B armada sin imprimir y de vuelta a A: la hoja A vuelve a ser la vigente y B desaparece (fila y archivo)", async () => {
+    const { prep, original } = await conOriginal();
+    const estado = () => B.datos.fotofficePreparacionImpresion.find((p) => p.id === prep)!.estado;
+    const armar = async (receta: ReturnType<typeof recetaInicial>) => {
+      await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta });
+      const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true });
+      if (!h.ok) throw new Error(h.error);
+      return h;
+    };
+    const recetaA = recetaInicial();
+    const recetaB = { ...recetaInicial(), encuadre: { x: 0, y: 0.1, ancho: 1, alto: 0.75 } };
+    const a = await armar(recetaA);
+    expect((await P.registrarImpresion(CTX, a.hojaId, { motivo: "NORMAL", hojas: 1 })).ok).toBe(true);
+    const b = await armar(recetaB);
+    expect(b.hojaId).not.toBe(a.hojaId);
+    const claveB = B.datos.fotofficeHojaImpresion.find((x) => x.id === b.hojaId)!.finalKey as string;
+    expect(R2.has(claveB)).toBe(true);
+    const a2 = await armar(recetaA);
+    expect(a2.hojaId).toBe(a.hojaId);
+    expect(B.datos.fotofficeHojaImpresion.map((x) => x.id)).toEqual([a.hojaId]);
+    expect(R2.has(claveB)).toBe(false);
+    expect(estado()).toBe("LISTA");
   });
 });

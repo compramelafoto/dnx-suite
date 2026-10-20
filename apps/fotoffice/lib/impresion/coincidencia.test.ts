@@ -1,7 +1,9 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { AJUSTES_NEUTROS, aplicarAjustes, type Ajustes } from "./ajustes";
-import { recetaInicial } from "./receta";
+import { encuadreQueContiene } from "./encuadre";
+import { cajaRotada, planDeRecorte } from "./geometria";
+import { recetaInicial, type Receta } from "./receta";
 import { generarVistaPrevia, renderizarPieza } from "./render";
 
 /** Un degradé con color: cubre sombras, medios y luces en los tres canales. */
@@ -44,6 +46,12 @@ function zonas(data: Uint8Array | Buffer, ancho: number, alto: number): number[]
   return out;
 }
 
+function deltaZonas(a: Uint8Array | Buffer, b: Uint8Array | Buffer, ancho: number, alto: number): number {
+  const la = zonas(a, ancho, alto).map(aLab);
+  const lb = zonas(b, ancho, alto).map(aLab);
+  return la.reduce((acc, x, i) => acc + Math.hypot(x[0] - lb[i]![0], x[1] - lb[i]![1], x[2] - lb[i]![2]), 0) / la.length;
+}
+
 async function deltaPromedio(ajustes: Ajustes) {
   const original = await degrade(3000, 2000);
   const final = await renderizarPieza(original, { ...recetaInicial(), ajustes }, { ancho: 600, alto: 400 }, "SUAVE");
@@ -52,10 +60,38 @@ async function deltaPromedio(ajustes: Ajustes) {
   const { data } = await sharp(vista.jpg).resize(600, 400, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
   const ocho = new Uint8Array(data);
   aplicarAjustes(ocho, 3, ajustes);
-  const a = zonas(final.data, 600, 400).map(aLab);
-  const b = zonas(ocho, 600, 400).map(aLab);
-  const delta = a.reduce((acc, la, i) => acc + Math.hypot(la[0] - b[i]![0], la[1] - b[i]![1], la[2] - b[i]![2]), 0) / a.length;
-  return delta;
+  return deltaZonas(final.data, ocho, 600, 400);
+}
+
+/**
+ * ENCAJAR como lo arma `VistaPieza` en el navegador: el mismo `planDeRecorte` sobre la vista
+ * previa, ajustes en 8 bits sólo sobre la foto, y la foto sobre el papel del color del borde.
+ */
+async function encajado(ajustes: Ajustes, enderezar = 0) {
+  const original = await degrade(3000, 2000);
+  // 13x18 parada (127 × 180 mm): la foto acostada entra con borde arriba y abajo.
+  const caja = cajaRotada(3000, 2000, enderezar);
+  const receta: Receta = { ...recetaInicial(), modo: "ENCAJAR", orientacion: "VERTICAL", colorBorde: "#ffffff", encuadre: encuadreQueContiene(caja.ancho / caja.alto, 127 / 180), enderezar, ajustes };
+  const destino = { ancho: 400, alto: 567 };
+  const final = await renderizarPieza(original, receta, destino, "SUAVE");
+  const vista = await generarVistaPrevia(original);
+  const plan = planDeRecorte(receta, cajaRotada(vista.ancho, vista.alto, enderezar), destino, enderezar ? 2 : 0);
+  // La vista previa girada como lo hace el navegador (el fondo del giro es el color del borde).
+  let girada = sharp(vista.jpg);
+  if (enderezar) girada = girada.rotate(enderezar, { background: "#ffffff" });
+  const { data } = await girada
+    .extract(plan.recorte)
+    .resize(plan.colocacion.width, plan.colocacion.height, { fit: "fill" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const ocho = new Uint8Array(data);
+  aplicarAjustes(ocho, 3, ajustes);
+  const { data: vistaHoja } = await sharp({ create: { width: destino.ancho, height: destino.alto, channels: 3, background: "#ffffff" } })
+    .composite([{ input: Buffer.from(ocho), raw: { width: plan.colocacion.width, height: plan.colocacion.height, channels: 3 }, left: plan.colocacion.left, top: plan.colocacion.top }])
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return { delta: deltaZonas(final.data, vistaHoja, destino.ancho, destino.alto), final: final.data, vista: vistaHoja, ancho: destino.ancho };
 }
 
 describe("vista previa contra archivo final", () => {
@@ -64,5 +100,20 @@ describe("vista previa contra archivo final", () => {
   });
   it("con ajustes fuertes, también", async () => {
     expect(await deltaPromedio({ ...AJUSTES_NEUTROS, exposicion: 20, contraste: 30, temperatura: -25, saturacion: 40, sombras: 30 })).toBeLessThan(2);
+  });
+  it("ENCAJAR sin ajustes: ΔE menor a 2 y el borde es idéntico en los dos", async () => {
+    const e = await encajado(AJUSTES_NEUTROS);
+    expect(e.delta).toBeLessThan(2);
+    const fila = (d: Uint8Array | Buffer, y: number) => Array.from(d.subarray(y * e.ancho * 3, (y + 1) * e.ancho * 3));
+    for (const y of [0, 100, 149, 417, 566]) {
+      expect(fila(e.final, y).every((v) => v === 255)).toBe(true);
+      expect(fila(e.vista, y)).toEqual(fila(e.final, y));
+    }
+  });
+  it("ENCAJAR con enderezado de 7°: ΔE menor a 2", async () => {
+    expect((await encajado(AJUSTES_NEUTROS, 7)).delta).toBeLessThan(2);
+  });
+  it("ENCAJAR con ajustes fuertes: ΔE menor a 2", async () => {
+    expect((await encajado({ ...AJUSTES_NEUTROS, exposicion: 20, contraste: 30, temperatura: -25, saturacion: 40 })).delta).toBeLessThan(2);
   });
 });
