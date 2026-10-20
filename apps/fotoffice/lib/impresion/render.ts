@@ -2,6 +2,7 @@ import "server-only";
 import sharp from "sharp";
 import { aplicarAjustes } from "./ajustes";
 import { cajaRotada, planDeRecorte, tamanoVistaPrevia } from "./geometria";
+import { MENSAJE_HEIC } from "./mensajes";
 import type { Nitidez } from "./medidas";
 import type { DisposicionCarnet } from "./plancha";
 import { anguloTotal, colorBordeDe, type Receta } from "./receta";
@@ -34,7 +35,7 @@ export class ImagenNoProcesable extends Error {
 
 const esLimite = (e: unknown) => e instanceof Error && /pixel limit/i.test(e.message);
 
-export const MENSAJE_HEIC = "Las fotos HEIC del iPhone no se pueden abrir acá: exportala como JPG (en WhatsApp sale así).";
+export { MENSAJE_HEIC };
 const MARCAS_HEIC = new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs"]);
 
 /** HEIC con imagen HEVC: el `sharp` que viene armado sólo decodifica AVIF dentro de HEIF. */
