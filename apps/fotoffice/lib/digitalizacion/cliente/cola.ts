@@ -66,7 +66,11 @@ export class ColaDeSubida {
 
   /** Lo que quedó guardado de una sesión anterior, en orden de grabación. */
   async reanudar(): Promise<void> {
-    const guardadas = (await this.almacen.pendientes()).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const guardadas = (await this.almacen.pendientes()).sort((a, b) => {
+      if (a.grabacionId !== b.grabacionId) return a.grabacionId < b.grabacionId ? -1 : 1;
+      if (a.tramo !== b.tramo) return a.tramo - b.tramo;
+      return a.indice - b.indice;
+    });
     this.encolar(guardadas);
   }
 
@@ -104,27 +108,34 @@ export class ColaDeSubida {
   }
 
   private async procesar(p: ParteEnCola) {
-    for (let intento = 0; ; intento++) {
-      try {
-        await this.subir(p);
-        this.ultimoError = null;
-        break;
-      } catch (e) {
-        if (e instanceof ErrorDefinitivo) {
-          this.descartadas += 1;
-          this.ultimoError = e.message;
+    try {
+      for (let intento = 0; ; intento++) {
+        try {
+          await this.subir(p);
+          this.ultimoError = null;
           break;
+        } catch (e) {
+          if (e instanceof ErrorDefinitivo) {
+            this.descartadas += 1;
+            this.ultimoError = e.message;
+            break;
+          }
+          this.ultimoError = e instanceof Error ? e.message : "Error de subida";
+          this.avisar();
+          await this.dormir(esperaReintento(intento));
         }
-        this.ultimoError = e instanceof Error ? e.message : "Error de subida";
-        this.avisar();
-        await this.dormir(esperaReintento(intento));
       }
+      try {
+        await this.almacen.borrar(p.id);
+      } catch (e) {
+        this.ultimoError = e instanceof Error ? e.message : "Error al borrar del almacén";
+      }
+    } finally {
+      this.enCurso.delete(p.id);
+      this.conocidas.delete(p.id);
+      this.avisar();
+      this.bombear();
     }
-    await this.almacen.borrar(p.id);
-    this.enCurso.delete(p.id);
-    this.conocidas.delete(p.id);
-    this.avisar();
-    this.bombear();
   }
 
   private avisar() {

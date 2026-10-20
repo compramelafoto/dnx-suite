@@ -18,6 +18,7 @@ function pedido<T>(db: IDBDatabase, modo: IDBTransactionMode, fn: (s: IDBObjectS
     const req = fn(tx.objectStore(TABLA));
     tx.oncomplete = () => resolve(req.result);
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error ?? new Error("Transacción abortada"));
   });
 }
 

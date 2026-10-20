@@ -45,4 +45,25 @@ describe("ColaDeSubida", () => {
     await cola.vaciada();
     expect(orden).toEqual([0, 1]);
   });
+  it("si el almacén rechaza borrar, vaciada() aún se resuelve y pendientes es 0", async () => {
+    const almacen = almacenEnMemoria();
+    almacen.borrar = vi.fn(async () => { throw new Error("sin cuota"); });
+    const cola = new ColaDeSubida(almacen, async () => {}, { dormir: sinEspera });
+    await cola.agregar(parte(0));
+    await cola.vaciada();
+    expect(cola.resumen()).toMatchObject({ pendientes: 0 });
+    expect(cola.resumen().ultimoError).toContain("sin cuota");
+  });
+  it("reanudar ordena numéricamente por grabacionId, tramo, indice (tramos 2 y 10)", async () => {
+    const almacen = almacenEnMemoria();
+    const p10 = { id: idParte("g1", 10, 0), grabacionId: "g1", tramo: 10, indice: 0, datos: new Blob([new Uint8Array(10)]) };
+    const p2 = { id: idParte("g1", 2, 0), grabacionId: "g1", tramo: 2, indice: 0, datos: new Blob([new Uint8Array(10)]) };
+    await almacen.guardar(p10);
+    await almacen.guardar(p2);
+    const orden: number[] = [];
+    const cola = new ColaDeSubida(almacen, async (p) => { orden.push(p.tramo); }, { dormir: sinEspera, concurrencia: 1 });
+    await cola.reanudar();
+    await cola.vaciada();
+    expect(orden).toEqual([2, 10]);
+  });
 });
