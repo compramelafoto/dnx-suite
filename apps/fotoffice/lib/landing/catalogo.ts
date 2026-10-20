@@ -343,7 +343,7 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   },
   {
     key: BANDEJA_MODULE_KEY,
-    cuadro: "25",
+    cuadro: "27",
     nombre: "Bandeja de WhatsApp",
     resuelve:
       "Todos los chats de WhatsApp de la institución en una sola bandeja. Ves quién escribió, si lo atiende el bot o una persona del equipo, y respondés desde el panel dentro de la ventana de 24 horas. Cada conversación se vincula a la ficha del cliente.",
