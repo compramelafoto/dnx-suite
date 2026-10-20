@@ -51,7 +51,8 @@ function sumarImagen(e: EstadoCorte, n: number, fin: number): EstadoCorte {
     sinSenalDesde = null;
     claseSinSenal = null;
   }
-  return { ...e, imagenSeguida, primeraImagenSeg, ultimaImagenSeg: fin, sinSenalDesde, claseSinSenal, tramos };
+  const ultimaImagenSeg = imagenSeguida >= SEGUNDOS_IMAGEN_PARA_REINICIAR ? fin : e.ultimaImagenSeg;
+  return { ...e, imagenSeguida, primeraImagenSeg, ultimaImagenSeg, sinSenalDesde, claseSinSenal, tramos };
 }
 
 export function avanzarSegundo(

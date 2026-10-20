@@ -72,4 +72,9 @@ describe("corte automático", () => {
   it("el latido toca cada 30 segundos", () => {
     expect([0, 29, 30, 59, 60].map(latidoDebido)).toEqual([false, false, true, false, true]);
   });
+  it("un parpadeo de 2 s al final no mueve la última imagen", () => {
+    const { cortoEn, resumen } = correr([...rep("IMAGEN", 10), ...rep("NEGRO", 150), ...rep("IMAGEN", 2), ...rep("NEGRO", 150)]);
+    expect(cortoEn).toBe(10 + 299);
+    expect(resumen.ultimaImagenSeg).toBe(9);
+  });
 });
