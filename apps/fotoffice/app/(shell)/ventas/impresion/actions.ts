@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
+import { asignarCliente, fotosCarnetDelCliente, usarFotoAnterior } from "@/lib/impresion/ficha-carnet";
 import { guardarEscala, guardarProduccion, produccionDeProductos, type ProduccionVista } from "@/lib/impresion/configuracion";
 import {
   anularPreparacion,
@@ -100,4 +105,25 @@ export async function anularPreparacionAction(preparacionId: string) {
 export async function produccionDeProductosAction() {
   const { workspace } = await requireSalesStaff();
   return produccionDeProductos(workspace.id);
+}
+
+/** "Fotos anteriores" del cliente: además de Ventas, pide ver Clientes (como la pantalla de Foto carnet). */
+export async function fotosCarnetDelClienteAction(clientId: string) {
+  const { user, workspace } = await requireSalesStaff();
+  const clientes = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
+  const nivel = clientes ? await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY) : "NONE";
+  if (!hasLevel(nivel, "VIEW")) return [];
+  return fotosCarnetDelCliente(workspace.id, clientId);
+}
+
+export async function usarFotoAnteriorAction(preparacionId: string, adjuntoId: string) {
+  const ctx = await ctxImpresion();
+  return usarFotoAnterior(ctx, preparacionId, adjuntoId);
+}
+
+export async function asignarClienteAction(preparacionId: string, clientId: string | null) {
+  const ctx = await ctxImpresion();
+  const r = await asignarCliente(ctx, preparacionId, clientId);
+  revalidatePath("/ventas/impresiones");
+  return r;
 }

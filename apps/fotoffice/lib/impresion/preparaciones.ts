@@ -28,7 +28,8 @@ import { ImagenNoProcesable, componerHoja, generarVistaPrevia, leerOriginal, ren
 export const DIAS_PREPARACION = 30;
 const DIA_MS = 86_400_000;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
-const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif" };
+/** Extensión del archivo según el tipo del original (también la usa la copia de la ficha). */
+export const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif" };
 const MEDIDA_MIN_MM = 20;
 const MEDIDA_MAX_MM = 100;
 const COPIAS_MAX = 50;
@@ -48,11 +49,11 @@ const NO_EXISTE = { ok: false as const, error: "Esa preparación no existe." };
 const FOTO_NO_EXISTE = { ok: false as const, error: "Esa foto no existe." };
 const HOJA_NO_EXISTE = { ok: false as const, error: "Esa hoja no existe." };
 
-const esId = (x: unknown): x is string => typeof x === "string" && ID.test(x);
+export const esId = (x: unknown): x is string => typeof x === "string" && ID.test(x);
 const enteroEntre = (x: unknown, min: number, max: number): x is number => Number.isInteger(x) && (x as number) >= min && (x as number) <= max;
-const nuevoId = () => randomUUID().replace(/-/g, "");
+export const nuevoId = () => randomUUID().replace(/-/g, "");
 
-async function preparacionPropia(workspaceId: string, id: unknown) {
+export async function preparacionPropia(workspaceId: string, id: unknown) {
   if (!esId(id)) return null;
   return prisma.fotofficePreparacionImpresion.findFirst({
     where: { id, workspaceId },
@@ -126,23 +127,45 @@ export async function pedirSubidaOriginal(
   return { ok: true, originalId: id, url };
 }
 
-export async function confirmarOriginal(
-  ctx: CtxImpresion,
-  originalId: string,
-): Promise<R<{ originalId: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number }>> {
+type OriginalProcesado = { originalId: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number };
+
+export async function confirmarOriginal(ctx: CtxImpresion, originalId: string): Promise<R<OriginalProcesado>> {
   if (!esId(originalId)) return FOTO_NO_EXISTE;
   const o = await prisma.fotofficeOriginalImpresion.findFirst({
     where: { id: originalId, workspaceId: ctx.workspaceId, estado: "PENDIENTE" },
     select: { id: true, key: true, bytes: true, preparacionId: true },
   });
   if (!o) return FOTO_NO_EXISTE;
-  const tirar = async (error: string) => {
-    await borrarObjetoImpresion(o.key).catch(() => undefined);
-    await prisma.fotofficeOriginalImpresion.deleteMany({ where: { id: o.id, workspaceId: ctx.workspaceId } });
-    return { ok: false as const, error };
-  };
   const real = await tamanoDeObjeto(o.key);
-  if (real === null || real !== o.bytes) return tirar("La foto no terminó de subirse. Probá de nuevo.");
+  if (real === null || real !== o.bytes) return tirarOriginal(ctx, o, "La foto no terminó de subirse. Probá de nuevo.");
+  const r = await procesarOriginalSubido(ctx, o.id);
+  if (r.ok) {
+    // Import dinámico: ficha-carnet importa de este archivo; así no queda un ciclo al cargar.
+    // Si la copia a la ficha falla, la preparación sigue: se reintenta al asignar cliente o al cobrar.
+    const { guardarOriginalesEnFicha } = await import("./ficha-carnet");
+    await guardarOriginalesEnFicha(ctx, o.preparacionId).catch((e) =>
+      console.error("[fotoffice][impresion] no se guardó en la ficha", { error: e instanceof Error ? e.name : "?" }),
+    );
+  }
+  return r;
+}
+
+async function tirarOriginal(ctx: CtxImpresion, o: { id: string; key: string }, error: string) {
+  await borrarObjetoImpresion(o.key).catch(() => undefined);
+  await prisma.fotofficeOriginalImpresion.deleteMany({ where: { id: o.id, workspaceId: ctx.workspaceId } });
+  return { ok: false as const, error };
+}
+
+/**
+ * El original ya está en R2 (subido por el navegador o copiado de la ficha): lo abre, arma la
+ * vista previa y lo marca LISTO. Si no es una imagen que se pueda leer, borra archivo y fila.
+ */
+export async function procesarOriginalSubido(ctx: CtxImpresion, originalId: string): Promise<R<OriginalProcesado>> {
+  const o = await prisma.fotofficeOriginalImpresion.findFirst({
+    where: { id: originalId, workspaceId: ctx.workspaceId, estado: "PENDIENTE" },
+    select: { id: true, key: true, preparacionId: true },
+  });
+  if (!o) return FOTO_NO_EXISTE;
   try {
     const buf = await leerObjeto(o.key);
     const info = await leerOriginal(buf);
@@ -155,7 +178,7 @@ export async function confirmarOriginal(
     });
     return { ok: true, originalId: o.id, ancho: info.ancho, alto: info.alto, vistaAncho: vista.ancho, vistaAlto: vista.alto };
   } catch (e) {
-    if (e instanceof ImagenNoProcesable && e.definitivo) return tirar(e.message);
+    if (e instanceof ImagenNoProcesable && e.definitivo) return tirarOriginal(ctx, o, e.message);
     console.error("[fotoffice][impresion] no se pudo confirmar el original", { id: o.id, error: e instanceof Error ? e.name : "?" });
     return { ok: false, error: "No se pudo abrir la foto. Probá de nuevo." };
   }
