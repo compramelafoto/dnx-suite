@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { registrarImpresionAction } from "@/app/(shell)/ventas/impresion/actions";
 import { decisionAlMontar } from "@/lib/impresion/hoja-prueba";
+import { PaginaATamano } from "../../pagina-a-tamano";
 
 type Fase = "cargando" | "imprimiendo" | "preguntar" | "guardando" | "listo" | "error";
 type Respuesta = "NORMAL" | "DESCARTADA";
@@ -91,18 +92,16 @@ export function HojaParaImprimir({
         ) : null}
         <a className="underline" href={`${src}&descargar=1`}>Descargar JPG</a>
       </div>
-      {/* La página real es de tamaño fijo: con una escala mayor a 1000 la imagen se recorta, no pasa a otra hoja. */}
-      <div style={{ width: `${paginaAnchoMm}mm`, height: `${paginaAltoMm}mm`, overflow: "hidden" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- el tamaño en mm es el punto: no se optimiza */}
-        <img
-          ref={imgRef}
-          src={src}
-          alt=""
-          onLoad={() => { if (faseRef.current === "cargando") imprimir(); }}
-          onError={() => { setError("No se pudo cargar la hoja."); setFase("error"); }}
-          style={{ width: `${anchoMm}mm`, height: `${altoMm}mm`, display: "block", maxWidth: "none" }}
-        />
-      </div>
+      <PaginaATamano
+        imgRef={imgRef}
+        src={src}
+        anchoMm={anchoMm}
+        altoMm={altoMm}
+        paginaAnchoMm={paginaAnchoMm}
+        paginaAltoMm={paginaAltoMm}
+        onLoad={() => { if (faseRef.current === "cargando") imprimir(); }}
+        onError={() => { setError("No se pudo cargar la hoja."); setFase("error"); }}
+      />
     </div>
   );
 }

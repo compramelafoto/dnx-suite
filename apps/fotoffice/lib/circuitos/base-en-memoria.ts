@@ -291,6 +291,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeProductoProduccion: () => ({ unidad: "HOJA", createdAt: new Date(), updatedAt: new Date() }),
   fotofficePreparacionImpresion: () => ({ productId: null, clientId: null, saleItemId: null, proyectoId: null, estado: "PREPARANDO", createdAt: new Date(), updatedAt: new Date() }),
   fotofficeOriginalImpresion: () => ({ previewKey: null, bytes: 0, anchoPx: 0, altoPx: 0, perfilColor: null, estado: "PENDIENTE", archivoTrabajoId: null, adjuntoId: null, adjuntoPropio: false, createdAt: new Date() }),
+  fotofficePiezaImpresion: () => ({ tamanoId: null, anchoMm: null, altoMm: null, cantidad: 1, revisadaAt: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRegistroImpresion: () => ({ hojaId: null, productId: null, saleItemId: null, proyectoId: null, userId: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),

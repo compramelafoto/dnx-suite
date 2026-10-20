@@ -37,10 +37,13 @@ export function Ajustes({
   ajustes,
   onChange,
   onRestablecer,
+  explicacion,
 }: {
   ajustes: ValoresAjustes;
   onChange: (next: ValoresAjustes) => void;
   onRestablecer: () => void;
+  /** El texto de ayuda de arriba; si falta, el de la plancha de carnet. */
+  explicacion?: string;
 }) {
   const cambiar = (clave: ClaveAjuste, valor: number) =>
     onChange({ ...ajustes, [clave]: Math.round(Math.min(MAX, Math.max(MIN, valor))) });
@@ -49,8 +52,8 @@ export function Ajustes({
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
-          Ajustes suaves de luz y color. Lo que ves al lado es una vista previa: la plancha se arma desde la foto original, sin
-          perder calidad.
+          {explicacion ??
+            "Ajustes suaves de luz y color. Lo que ves al lado es una vista previa: la plancha se arma desde la foto original, sin perder calidad."}
         </p>
         <button type="button" className="fo-btn fo-btn-secondary shrink-0" onClick={onRestablecer}>
           Restablecer

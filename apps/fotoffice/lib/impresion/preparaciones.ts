@@ -14,6 +14,8 @@ import {
 } from "./almacen";
 import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva, tamanoVistaPrevia } from "./geometria";
 import { huellaDe } from "./huella";
+import { pendientes, type HojaAImprimir, type RegistroDeHoja } from "./impresion-multiple";
+import { FOTOS_MAX } from "./lote";
 import { pixelesDeHoja, type Nitidez } from "./medidas";
 import { disposicionCarnet } from "./plancha";
 import { anguloTotal, validarReceta, type Receta } from "./receta";
@@ -50,7 +52,7 @@ const FOTO_NO_EXISTE = { ok: false as const, error: "Esa foto no existe." };
 const HOJA_NO_EXISTE = { ok: false as const, error: "Esa hoja no existe." };
 
 export const esId = (x: unknown): x is string => typeof x === "string" && ID.test(x);
-const enteroEntre = (x: unknown, min: number, max: number): x is number => Number.isInteger(x) && (x as number) >= min && (x as number) <= max;
+export const enteroEntre = (x: unknown, min: number, max: number): x is number => Number.isInteger(x) && (x as number) >= min && (x as number) <= max;
 export const nuevoId = () => randomUUID().replace(/-/g, "");
 
 /**
@@ -61,6 +63,109 @@ export function versionDeHoja(finalHuella: string | null): string {
   return finalHuella ? finalHuella.slice(0, 12) : "0";
 }
 
+type Db = Prisma.TransactionClient;
+
+/** La hoja de una copia guarda qué pieza lleva y con qué huella se armó (sin migración: va en `disposicion`). */
+export function disposicionDeCopia(d: unknown): { piezaId: string; piezaHuella: string; acostada: boolean } | null {
+  if (!d || typeof d !== "object") return null;
+  const o = d as Record<string, unknown>;
+  if (o.tipo !== "COPIA" || typeof o.piezaId !== "string" || typeof o.piezaHuella !== "string") return null;
+  return { piezaId: o.piezaId, piezaHuella: o.piezaHuella, acostada: o.acostada === true };
+}
+
+/** Las hojas que ya tienen algún registro: salieron de la impresora y no se pisan ni se borran. */
+export async function hojasConRegistro(db: Db, workspaceId: string, ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const filas = await db.fotofficeRegistroImpresion.findMany({ where: { workspaceId, hojaId: { in: ids } }, select: { hojaId: true } });
+  return new Set(filas.map((r) => r.hojaId).filter((x): x is string => x !== null));
+}
+
+/** Cuántas hojas salieron bien (registros NORMAL) de cada hoja. */
+export async function normalesPorHoja(db: Db, workspaceId: string, ids: string[]): Promise<Map<string, number>> {
+  const suma = new Map<string, number>();
+  if (ids.length === 0) return suma;
+  const filas = await db.fotofficeRegistroImpresion.findMany({
+    where: { workspaceId, hojaId: { in: ids }, motivo: "NORMAL" },
+    select: { hojaId: true, hojas: true },
+  });
+  for (const r of filas) if (r.hojaId) suma.set(r.hojaId, (suma.get(r.hojaId) ?? 0) + r.hojas);
+  return suma;
+}
+
+export type HojaVigente = { id: string; copias: number; version: string; salidaId: string; tamanoId: string; piezaId: string | null };
+
+/**
+ * Las hojas que valen hoy. En copias: por cada foto, la última hoja armada con la receta y la
+ * cantidad actuales (`faltan` = fotos sin hoja vigente). En carnet: la última hoja armada de carnet
+ * (una preparación de copias que se quedó sin fotos conserva sus hojas impresas, y ésas no cuentan).
+ */
+export async function hojasVigentes(db: Db, workspaceId: string, preparacionId: string): Promise<{ hojas: HojaVigente[]; faltan: number }> {
+  const [piezas, hojas] = await Promise.all([
+    db.fotofficePiezaImpresion.findMany({
+      where: { workspaceId, preparacionId, tipo: "COPIA" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, huella: true, cantidad: true },
+    }),
+    db.fotofficeHojaImpresion.findMany({
+      where: { workspaceId, preparacionId, finalKey: { not: null } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, copias: true, finalHuella: true, disposicion: true, salidaId: true, tamanoId: true },
+    }),
+  ]);
+  const vista = (h: (typeof hojas)[number], piezaId: string | null): HojaVigente => ({
+    id: h.id, copias: h.copias, version: versionDeHoja(h.finalHuella), salidaId: h.salidaId, tamanoId: h.tamanoId, piezaId,
+  });
+  if (piezas.length === 0) {
+    const ultima = hojas.filter((h) => disposicionDeCopia(h.disposicion) === null).at(-1);
+    return { hojas: ultima ? [vista(ultima, null)] : [], faltan: 0 };
+  }
+  const out: HojaVigente[] = [];
+  let faltan = 0;
+  for (const p of piezas) {
+    const h = hojas.findLast((x) => {
+      const d = disposicionDeCopia(x.disposicion);
+      return d?.piezaId === p.id && d.piezaHuella === p.huella;
+    });
+    if (h && h.copias === p.cantidad) out.push(vista(h, p.id));
+    else faltan++;
+  }
+  return { hojas: out, faltan };
+}
+
+/** PREPARANDO si falta armar alguna hoja; IMPRESA si cada hoja vigente salió entera; si no, LISTA. */
+export function estadoSegunHojas(
+  v: { hojas: { id: string; copias: number }[]; faltan: number },
+  impresas: ReadonlyMap<string, number>,
+): "PREPARANDO" | "LISTA" | "IMPRESA" {
+  if (v.faltan > 0 || v.hojas.length === 0) return "PREPARANDO";
+  return v.hojas.every((h) => (impresas.get(h.id) ?? 0) >= h.copias) ? "IMPRESA" : "LISTA";
+}
+
+/**
+ * Cuántas salieron bien de cada hoja vigente. La hoja de carnet cuenta entera con un solo NORMAL,
+ * como en la etapa 1 ("¿Cómo salió?" de la hoja registra la hoja, sea cual sea el número).
+ */
+async function salidasBien(db: Db, workspaceId: string, hojas: HojaVigente[]): Promise<Map<string, number>> {
+  const n = await normalesPorHoja(db, workspaceId, hojas.map((h) => h.id));
+  for (const h of hojas) if (h.piezaId === null && (n.get(h.id) ?? 0) > 0) n.set(h.id, Math.max(n.get(h.id)!, h.copias));
+  return n;
+}
+
+/** El estado que corresponde hoy según las hojas vigentes y lo que ya salió. */
+async function estadoActual(db: Db, workspaceId: string, preparacionId: string) {
+  const v = await hojasVigentes(db, workspaceId, preparacionId);
+  return estadoSegunHojas(v, await salidasBien(db, workspaceId, v.hojas));
+}
+
+/** Copias: el estado de la preparación sale de sus hojas (una anulada no se toca). */
+export async function recalcularEstado(db: Db, workspaceId: string, preparacionId: string): Promise<void> {
+  const estado = await estadoActual(db, workspaceId, preparacionId);
+  await db.fotofficePreparacionImpresion.updateMany({
+    where: { id: preparacionId, workspaceId, estado: { not: "ANULADA" } },
+    data: { estado },
+  });
+}
+
 export async function preparacionPropia(workspaceId: string, id: unknown) {
   if (!esId(id)) return null;
   return prisma.fotofficePreparacionImpresion.findFirst({
@@ -69,8 +174,22 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
   });
 }
 
+/**
+ * La preparación, si es de carnet (o de la pantalla suelta, sin producto). Una de un producto de
+ * copias no: las funciones del carnet borran piezas y hojas, y no pueden tocar las de copias.
+ */
+async function preparacionDeCarnet(workspaceId: string, id: unknown) {
+  const prep = await preparacionPropia(workspaceId, id);
+  if (!prep || prep.estado === "ANULADA") return null;
+  if (prep.productId) {
+    const copias = await prisma.fotofficeProductoProduccion.count({ where: { workspaceId, productId: prep.productId, tipoPieza: "COPIA" } });
+    if (copias > 0) return null;
+  }
+  return prep;
+}
+
 /** Borra objetos de R2 sin cortar por uno que falle. Devuelve si todos se borraron. */
-async function borrarObjetos(claves: (string | null | undefined)[]): Promise<boolean> {
+export async function borrarObjetos(claves: (string | null | undefined)[]): Promise<boolean> {
   let todos = true;
   for (const k of claves) {
     if (!k) continue;
@@ -100,8 +219,8 @@ export async function crearPreparacion(ctx: CtxImpresion, d: { productId: string
       where: { workspaceId: ctx.workspaceId, productId: producto.id },
       select: { tipoPieza: true },
     });
-    // Etapa 1: sólo carnet.
-    if (prod?.tipoPieza !== "CARNET") return { ok: false, error: "Ese producto no se prepara para imprimir." };
+    // Carnet (etapa 1) y copias (etapa 2). Polaroid llega después.
+    if (prod?.tipoPieza !== "CARNET" && prod?.tipoPieza !== "COPIA") return { ok: false, error: "Ese producto no se prepara para imprimir." };
     productId = producto.id;
   }
   let clientId: string | null = null;
@@ -125,6 +244,11 @@ export async function pedirSubidaOriginal(
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
   if (!(TIPOS_ORIGINAL as readonly string[]).includes(a.tipo)) return { ok: false, error: "La foto tiene que ser JPG, PNG, WebP o HEIC." };
   if (!enteroEntre(a.bytes, 1, MAX_BYTES_ORIGINAL)) return { ok: false, error: "La foto pesa más de 60 MB." };
+  if (await esDeCopias(ctx.workspaceId, prep.productId)) {
+    // Cuentan también las que se están subiendo (PENDIENTE): las fallidas ya se borraron.
+    const subidas = await prisma.fotofficeOriginalImpresion.count({ where: { workspaceId: ctx.workspaceId, preparacionId: prep.id } });
+    if (subidas >= FOTOS_MAX) return { ok: false, error: `Una preparación admite hasta ${FOTOS_MAX} fotos.` };
+  }
   const id = nuevoId();
   const key = claveImpresion(ctx.workspaceId, prep.id, "original", id, EXT[a.tipo]!);
   const nombre = (typeof a.nombre === "string" ? a.nombre.trim() : "").slice(0, 200) || "foto";
@@ -133,6 +257,12 @@ export async function pedirSubidaOriginal(
     data: { id, workspaceId: ctx.workspaceId, preparacionId: prep.id, key, nombre, tipo: a.tipo, bytes: a.bytes, estado: "PENDIENTE" },
   });
   return { ok: true, originalId: id, url };
+}
+
+async function esDeCopias(workspaceId: string, productId: string | null): Promise<boolean> {
+  if (!productId) return false;
+  const prod = await prisma.fotofficeProductoProduccion.findFirst({ where: { workspaceId, productId }, select: { tipoPieza: true } });
+  return prod?.tipoPieza === "COPIA";
 }
 
 type OriginalProcesado = { originalId: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number };
@@ -189,8 +319,8 @@ export async function guardarPiezaCarnet(
   preparacionId: string,
   d: { originalId: string; anchoMm: number; altoMm: number; receta: unknown },
 ): Promise<R<{ piezaId: string; ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" }>> {
-  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
-  if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
+  const prep = await preparacionDeCarnet(ctx.workspaceId, preparacionId);
+  if (!prep) return NO_EXISTE;
   if (!esId(d.originalId)) return FOTO_NO_EXISTE;
   const original = await prisma.fotofficeOriginalImpresion.findFirst({
     where: { id: d.originalId, workspaceId: ctx.workspaceId, preparacionId: prep.id, estado: "LISTO" },
@@ -199,6 +329,8 @@ export async function guardarPiezaCarnet(
   if (!original) return FOTO_NO_EXISTE;
   const receta = validarReceta(d.receta);
   if (!receta) return { ok: false, error: "El recorte no es válido. Volvé a armar la foto." };
+  // La plancha de carnet no lleva borde: sólo RECORTAR (ENCAJAR es de las copias).
+  if (receta.modo !== "RECORTAR") return { ok: false, error: "El carnet se arma recortando la foto: no admite foto encajada con borde." };
   const enRango = (x: unknown) => typeof x === "number" && Number.isFinite(x) && x >= MEDIDA_MIN_MM && x <= MEDIDA_MAX_MM;
   if (!enRango(d.anchoMm) || !enRango(d.altoMm)) return { ok: false, error: `La medida tiene que estar entre ${MEDIDA_MIN_MM} y ${MEDIDA_MAX_MM} mm por lado.` };
   // La columna guarda un decimal: la huella se calcula con lo mismo que queda guardado.
@@ -226,12 +358,7 @@ export async function guardarPiezaCarnet(
       where: { workspaceId: ctx.workspaceId, preparacionId: prep.id },
       select: { id: true, finalKey: true },
     });
-    const conRegistro = new Set(
-      (await tx.fotofficeRegistroImpresion.findMany({
-        where: { workspaceId: ctx.workspaceId, hojaId: { in: hojas.map((h) => h.id) } },
-        select: { hojaId: true },
-      })).map((r) => r.hojaId),
-    );
+    const conRegistro = await hojasConRegistro(tx, ctx.workspaceId, hojas.map((h) => h.id));
     const sinRegistro = hojas.filter((h) => !conRegistro.has(h.id));
     if (sinRegistro.length > 0)
       await tx.fotofficeHojaImpresion.deleteMany({ where: { workspaceId: ctx.workspaceId, id: { in: sinRegistro.map((h) => h.id) } } });
@@ -323,8 +450,8 @@ export async function generarHojaCarnet(
   preparacionId: string,
   d: { salidaId: string | null; tamanoId: string | null; fotos: number | null; copias: number; conLineas: boolean },
 ): Promise<R<{ hojaId: string; fotosPorHoja: number; version: string }>> {
-  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
-  if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
+  const prep = await preparacionDeCarnet(ctx.workspaceId, preparacionId);
+  if (!prep) return NO_EXISTE;
   if (!enteroEntre(d.copias, 1, COPIAS_MAX)) return { ok: false, error: `Las copias tienen que ser entre 1 y ${COPIAS_MAX}.` };
   if (d.fotos !== null && !enteroEntre(d.fotos, 1, 100)) return { ok: false, error: "La cantidad de fotos no es válida." };
   const conLineas = d.conLineas === true;
@@ -380,88 +507,142 @@ export async function generarHojaCarnet(
     orderBy: { createdAt: "asc" },
     select: { id: true, finalKey: true, finalHuella: true },
   });
-
-  // Sin cambios: el archivo ya está armado; sólo cambia cuántas hojas se imprimen.
-  const igual = hojas.find((h) => h.finalHuella === finalHuella && h.finalKey);
-  if (igual) {
-    await prisma.fotofficeHojaImpresion.update({ where: { id: igual.id }, data: { copias: d.copias } });
-    await prisma.fotofficePreparacionImpresion.updateMany({
-      where: { id: prep.id, workspaceId: ctx.workspaceId, estado: "PREPARANDO" },
-      data: { estado: "LISTA" },
-    });
-    return { ok: true, hojaId: igual.id, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
-  }
-
-  const piezaRaw = await renderizarPieza(await leerObjeto(original.key), receta, disp.pieza, salida.nitidez as Nitidez);
-  const jpg = await componerHoja(hojaPx, piezaRaw, disp, salida.ppp, conLineas);
-
-  // Una hoja ya impresa no se pisa: sus registros dicen qué salió. Se rehace la que no tiene registros.
-  const conRegistro = new Set(
-    (await prisma.fotofficeRegistroImpresion.findMany({
-      where: { workspaceId: ctx.workspaceId, hojaId: { in: hojas.map((h) => h.id) } },
-      select: { hojaId: true },
-    })).map((r) => r.hojaId),
-  );
-  const existente = [...hojas].reverse().find((h) => !conRegistro.has(h.id)) ?? null;
-  const hojaId = existente?.id ?? nuevoId();
-  const finalKey = claveImpresion(ctx.workspaceId, prep.id, "final", `${hojaId}-${finalHuella.slice(0, 12)}`, "jpg");
-  await guardarObjeto(finalKey, jpg, "image/jpeg");
-
-  const datos = {
-    salidaId: salida.id,
-    tamanoId: tamano.id,
-    disposicion: { pieza: disp.pieza, posiciones: disp.posiciones, lineas: conLineas ? disp.lineas : null } as Prisma.InputJsonValue,
-    finalKey,
+  const r = await guardarHojaArmada(ctx, prep.id, hojas, {
     finalHuella,
-    finalAnchoPx: hojaPx.ancho,
-    finalAltoPx: hojaPx.alto,
     copias: d.copias,
-  };
-  if (existente) await prisma.fotofficeHojaImpresion.update({ where: { id: existente.id }, data: datos });
-  else await prisma.fotofficeHojaImpresion.create({ data: { id: hojaId, workspaceId: ctx.workspaceId, preparacionId: prep.id, ...datos } });
+    armar: async () => {
+      const piezaRaw = await renderizarPieza(await leerObjeto(original.key), receta, disp.pieza, salida.nitidez as Nitidez);
+      return componerHoja(hojaPx, piezaRaw, disp, salida.ppp, conLineas);
+    },
+    datos: {
+      salidaId: salida.id,
+      tamanoId: tamano.id,
+      disposicion: { pieza: disp.pieza, posiciones: disp.posiciones, lineas: conLineas ? disp.lineas : null } as Prisma.InputJsonValue,
+      finalAnchoPx: hojaPx.ancho,
+      finalAltoPx: hojaPx.alto,
+    },
+  });
+  // Sin cambios (hoja reusada) sólo pasa a LISTA la que estaba preparándose, como en la etapa 1.
   await prisma.fotofficePreparacionImpresion.updateMany({
-    where: { id: prep.id, workspaceId: ctx.workspaceId, estado: { not: "ANULADA" } },
+    where: { id: prep.id, workspaceId: ctx.workspaceId, estado: r.reusada ? "PREPARANDO" : { not: "ANULADA" } },
     data: { estado: "LISTA" },
   });
-  if (existente?.finalKey && existente.finalKey !== finalKey) await borrarObjetos([existente.finalKey]);
-  return { ok: true, hojaId, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
+  return { ok: true, hojaId: r.hojaId, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
 }
 
+/**
+ * El tramo final de armar una hoja, igual para carnet y copias. `hojas`: las que ya hay de esta
+ * pieza, en orden de creación.
+ * - Sin cambios (la misma huella ya armada): no se vuelve a armar; sólo cambian las copias.
+ * - Si no, se arma (`armar`) y se rehace la última hoja sin imprimir, o se crea otra: una hoja ya
+ *   impresa no se pisa (sus registros dicen qué salió).
+ * En los dos casos, las demás hojas sin imprimir de la pieza (de configuraciones viejas) ya no
+ * sirven: se borran, fila y archivo (p. ej. al volver de la receta B a la A, ya impresa).
+ */
+export async function guardarHojaArmada(
+  ctx: CtxImpresion,
+  preparacionId: string,
+  hojas: { id: string; finalKey: string | null; finalHuella: string | null }[],
+  h: {
+    finalHuella: string;
+    copias: number;
+    armar: () => Promise<Buffer>;
+    datos: { salidaId: string; tamanoId: string; disposicion: Prisma.InputJsonValue; finalAnchoPx: number; finalAltoPx: number };
+  },
+): Promise<{ hojaId: string; reusada: boolean }> {
+  const impresas = await hojasConRegistro(prisma, ctx.workspaceId, hojas.map((x) => x.id));
+  const libres = hojas.filter((x) => !impresas.has(x.id));
+  const sacar = async (quedan: string, claves: (string | null)[]) => {
+    const sobrantes = libres.filter((x) => x.id !== quedan);
+    if (sobrantes.length > 0)
+      await prisma.fotofficeHojaImpresion.deleteMany({ where: { workspaceId: ctx.workspaceId, id: { in: sobrantes.map((x) => x.id) } } });
+    await borrarObjetos([...sobrantes.map((x) => x.finalKey), ...claves]);
+  };
+
+  const igual = hojas.findLast((x) => x.finalHuella === h.finalHuella && x.finalKey);
+  if (igual) {
+    await prisma.fotofficeHojaImpresion.update({ where: { id: igual.id }, data: { copias: h.copias } });
+    await sacar(igual.id, []);
+    return { hojaId: igual.id, reusada: true };
+  }
+
+  const jpg = await h.armar();
+  const existente = libres.at(-1) ?? null;
+  const hojaId = existente?.id ?? nuevoId();
+  const finalKey = claveImpresion(ctx.workspaceId, preparacionId, "final", `${hojaId}-${h.finalHuella.slice(0, 12)}`, "jpg");
+  await guardarObjeto(finalKey, jpg, "image/jpeg");
+  const datos = { ...h.datos, finalKey, finalHuella: h.finalHuella, copias: h.copias };
+  if (existente) await prisma.fotofficeHojaImpresion.update({ where: { id: existente.id }, data: datos });
+  else await prisma.fotofficeHojaImpresion.create({ data: { id: hojaId, workspaceId: ctx.workspaceId, preparacionId, ...datos } });
+  await sacar(hojaId, [existente?.finalKey && existente.finalKey !== finalKey ? existente.finalKey : null]);
+  return { hojaId, reusada: false };
+}
+
+/** Lo que llega del navegador para un registro: null si está bien, o el error a mostrar. */
+function registroInvalido(it: unknown): { ok: false; error: string } | null {
+  if (!it || typeof it !== "object") return HOJA_NO_EXISTE;
+  const r = it as Partial<RegistroDeHoja>;
+  if (r.motivo !== "NORMAL" && r.motivo !== "DESCARTADA") return { ok: false, error: "Elegí cómo salió." };
+  if (!enteroEntre(r.hojas, 1, HOJAS_MAX)) return { ok: false, error: `Las hojas tienen que ser entre 1 y ${HOJAS_MAX}.` };
+  if (!esId(r.hojaId)) return HOJA_NO_EXISTE;
+  return null;
+}
+
+/** "¿Cómo salió?" de una sola hoja (la página de la etapa 1). */
 export async function registrarImpresion(ctx: CtxImpresion, hojaId: string, d: { motivo: "NORMAL" | "DESCARTADA"; hojas: number }): Promise<R> {
-  if (d.motivo !== "NORMAL" && d.motivo !== "DESCARTADA") return { ok: false, error: "Elegí cómo salió." };
-  if (!enteroEntre(d.hojas, 1, HOJAS_MAX)) return { ok: false, error: `Las hojas tienen que ser entre 1 y ${HOJAS_MAX}.` };
-  if (!esId(hojaId)) return HOJA_NO_EXISTE;
+  const item = { hojaId, motivo: d.motivo, hojas: d.hojas };
+  const invalido = registroInvalido(item);
+  if (invalido) return invalido;
   const hoja = await prisma.fotofficeHojaImpresion.findFirst({
     where: { id: hojaId, workspaceId: ctx.workspaceId },
-    select: { id: true, preparacionId: true, salidaId: true, tamanoId: true, finalKey: true },
+    select: { preparacionId: true, finalKey: true },
   });
   if (!hoja?.finalKey) return HOJA_NO_EXISTE;
-  const prep = await preparacionPropia(ctx.workspaceId, hoja.preparacionId);
+  return registrarImpresiones(ctx, hoja.preparacionId, [item]);
+}
+
+const REGISTROS_MAX = 200;
+
+/**
+ * Lo que salió de la impresora, de una o varias hojas de UNA preparación, en una transacción.
+ * La preparación queda IMPRESA cuando cada hoja vigente salió entera (copias: una por foto;
+ * carnet: la última armada, con un NORMAL alcanza). Reimprimir una hoja vieja no esconde una más
+ * nueva sin imprimir.
+ */
+export async function registrarImpresiones(ctx: CtxImpresion, preparacionId: string, items: RegistroDeHoja[]): Promise<R> {
+  if (!Array.isArray(items) || items.length === 0 || items.length > REGISTROS_MAX) return { ok: false, error: "No hay hojas para registrar." };
+  for (const it of items) {
+    const invalido = registroInvalido(it);
+    if (invalido) return invalido;
+  }
+  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
+  const ids = [...new Set(items.map((i) => i.hojaId))];
+  const hojas = await prisma.fotofficeHojaImpresion.findMany({
+    where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, id: { in: ids }, finalKey: { not: null } },
+    select: { id: true, salidaId: true, tamanoId: true },
+  });
+  if (hojas.length !== ids.length) return HOJA_NO_EXISTE;
   await prisma.$transaction(async (tx) => {
-    await tx.fotofficeRegistroImpresion.create({
-      data: {
-        workspaceId: ctx.workspaceId,
-        hojaId: hoja.id,
-        salidaId: hoja.salidaId,
-        tamanoId: hoja.tamanoId,
-        hojas: d.hojas,
-        productId: prep.productId,
-        saleItemId: prep.saleItemId,
-        proyectoId: prep.proyectoId,
-        motivo: d.motivo,
-        userId: ctx.userId,
-      },
-    });
-    if (d.motivo !== "NORMAL") return;
-    // Sólo la hoja vigente (la última) deja la preparación IMPRESA: reimprimir una vieja desde
-    // "Impreso hoy" no esconde una hoja más nueva que todavía no salió.
-    const ultima = await tx.fotofficeHojaImpresion.findFirst({
-      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, finalKey: { not: null } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
-    if (ultima?.id !== hoja.id) return;
+    for (const it of items) {
+      const hoja = hojas.find((h) => h.id === it.hojaId)!;
+      await tx.fotofficeRegistroImpresion.create({
+        data: {
+          workspaceId: ctx.workspaceId,
+          hojaId: hoja.id,
+          salidaId: hoja.salidaId,
+          tamanoId: hoja.tamanoId,
+          hojas: it.hojas,
+          productId: prep.productId,
+          saleItemId: prep.saleItemId,
+          proyectoId: prep.proyectoId,
+          motivo: it.motivo,
+          userId: ctx.userId,
+        },
+      });
+    }
+    if (!items.some((i) => i.motivo === "NORMAL")) return;
+    if ((await estadoActual(tx, ctx.workspaceId, prep.id)) !== "IMPRESA") return;
     await tx.fotofficePreparacionImpresion.updateMany({
       where: { id: prep.id, workspaceId: ctx.workspaceId, estado: { not: "ANULADA" } },
       data: { estado: "IMPRESA" },
@@ -498,7 +679,28 @@ export async function anularPreparacion(ctx: CtxImpresion, preparacionId: string
   return r.count === 1 ? { ok: true } : { ok: false, error: "Esa preparación ya se cobró: no se puede anular." };
 }
 
-export async function validarParaCobrar(workspaceId: string, items: { preparacionId: string; productId: string | null }[]): Promise<R> {
+const FALTAN_COPIAS = { ok: false as const, error: "Faltan armar fotos de las copias: abrí Editar fotos y tocá Listo." };
+
+/**
+ * Copias (Ruling 10): sólo se cobran completas — al menos una foto, cada foto con su pieza y su
+ * hoja vigente — y con la cantidad del renglón igual al total de copias guardado. El carnet no pasa por acá.
+ */
+async function validarCopiasParaCobrar(workspaceId: string, preparacionId: string, qty: number | undefined): Promise<R> {
+  const [fotos, piezas, v] = await Promise.all([
+    prisma.fotofficeOriginalImpresion.count({ where: { workspaceId, preparacionId, estado: "LISTO" } }),
+    prisma.fotofficePiezaImpresion.findMany({ where: { workspaceId, preparacionId, tipo: "COPIA" }, select: { originalId: true, cantidad: true } }),
+    hojasVigentes(prisma, workspaceId, preparacionId),
+  ]);
+  if (fotos === 0 || piezas.length < fotos || v.faltan > 0 || v.hojas.length !== piezas.length) return FALTAN_COPIAS;
+  const total = piezas.reduce((s, p) => s + p.cantidad, 0);
+  if (qty !== total) return { ok: false, error: `La cantidad del renglón tiene que ser ${total} copias (abrí Editar fotos y tocá Listo).` };
+  return { ok: true };
+}
+
+export async function validarParaCobrar(
+  workspaceId: string,
+  items: { preparacionId: string; productId: string | null; qty?: number }[],
+): Promise<R> {
   const vistos = new Set<string>();
   for (const it of items) {
     if (!esId(it.preparacionId)) return NO_EXISTE;
@@ -515,6 +717,22 @@ export async function validarParaCobrar(workspaceId: string, items: { preparacio
     if (!p || p.estado === "ANULADA") return NO_EXISTE;
     if (p.saleItemId !== null) return { ok: false, error: "Esa preparación ya se cobró en otra venta." };
     if (p.productId !== it.productId) return { ok: false, error: "La preparación es de otro producto." };
+  }
+  const productos = [...new Set(preps.map((p) => p.productId).filter((x): x is string => x !== null))];
+  const deCopias = new Set(
+    productos.length === 0
+      ? []
+      : (
+          await prisma.fotofficeProductoProduccion.findMany({
+            where: { workspaceId, productId: { in: productos }, tipoPieza: "COPIA" },
+            select: { productId: true },
+          })
+        ).map((x) => x.productId),
+  );
+  for (const it of items) {
+    if (it.productId === null || !deCopias.has(it.productId)) continue;
+    const r = await validarCopiasParaCobrar(workspaceId, it.preparacionId, it.qty);
+    if (!r.ok) return r;
   }
   return { ok: true };
 }
@@ -561,6 +779,10 @@ export type FilaCola = {
   /** Cobrada: atada a un renglón de venta (no se anula desde la cola). */
   cobrada: boolean;
   creada: string;
+  /** Copias: cuántas fotos tiene la preparación (0 en carnet). */
+  fotos: number;
+  /** Adónde lleva "Imprimir": toda la preparación (copias) o su hoja (carnet). null si no hay nada armado. */
+  imprimirHref: string | null;
 };
 
 /** Las tres listas de Ventas → Impresiones. Fechas en ISO (la pantalla las muestra en hora argentina). */
@@ -601,7 +823,7 @@ export async function colas(
     }),
   ]);
   const ids = <T>(xs: (T | null)[]) => [...new Set(xs.filter((x): x is T => x !== null))];
-  const [productos, clientes, hojas, salidas, tamanos, hojasRegistradas] = await Promise.all([
+  const [productos, clientes, hojas, salidas, tamanos, hojasRegistradas, piezasCopia] = await Promise.all([
     prisma.product.findMany({ where: { workspaceId, id: { in: ids(preps.map((p) => p.productId)) } }, select: { id: true, name: true } }),
     prisma.client.findMany({
       where: { workspaceId, id: { in: ids(preps.map((p) => p.clientId)) } },
@@ -615,22 +837,37 @@ export async function colas(
     prisma.fotofficeSalidaImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.salidaId)) } }, select: { id: true, nombre: true } }),
     prisma.fotofficeTamanoImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.tamanoId)) } }, select: { id: true, nombre: true } }),
     prisma.fotofficeHojaImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.hojaId)) } }, select: { id: true, finalHuella: true } }),
+    prisma.fotofficePiezaImpresion.findMany({ where: { workspaceId, preparacionId: { in: preps.map((p) => p.id) }, tipo: "COPIA" }, select: { preparacionId: true } }),
   ]);
   const nombreProducto = new Map(productos.map((p) => [p.id, p.name]));
   const nombreCliente = new Map(clientes.map((c) => [c.id, clientDisplayName(c)]));
   // La última hoja de cada preparación (en orden de creación, la última pisa).
   const ultimaHoja = new Map(hojas.map((h) => [h.preparacionId, h]));
   const versionRegistrada = new Map(hojasRegistradas.map((h) => [h.id, versionDeHoja(h.finalHuella)]));
-  const fila = (p: (typeof preps)[number]): FilaCola => ({
-    preparacionId: p.id,
-    producto: p.productId ? (nombreProducto.get(p.productId) ?? null) : null,
-    cliente: p.clientId ? (nombreCliente.get(p.clientId) ?? null) : null,
-    estado: p.estado,
-    hojaId: ultimaHoja.get(p.id)?.id ?? null,
-    hojaVersion: ultimaHoja.has(p.id) ? versionDeHoja(ultimaHoja.get(p.id)!.finalHuella) : null,
-    cobrada: p.saleItemId !== null,
-    creada: p.createdAt.toISOString(),
-  });
+  const fotosDe = new Map<string, number>();
+  for (const p of piezasCopia) fotosDe.set(p.preparacionId, (fotosDe.get(p.preparacionId) ?? 0) + 1);
+  const fila = (p: (typeof preps)[number]): FilaCola => {
+    const ultima = ultimaHoja.get(p.id) ?? null;
+    const fotos = fotosDe.get(p.id) ?? 0;
+    const imprimirHref =
+      fotos > 0
+        ? `/imprimir/preparacion/${p.id}${p.estado === "IMPRESA" ? "" : "?solo=pendientes"}`
+        : ultima
+          ? `/imprimir/hoja/${ultima.id}?v=${versionDeHoja(ultima.finalHuella)}`
+          : null;
+    return {
+      preparacionId: p.id,
+      producto: p.productId ? (nombreProducto.get(p.productId) ?? null) : null,
+      cliente: p.clientId ? (nombreCliente.get(p.clientId) ?? null) : null,
+      estado: p.estado,
+      hojaId: ultima?.id ?? null,
+      hojaVersion: ultima ? versionDeHoja(ultima.finalHuella) : null,
+      cobrada: p.saleItemId !== null,
+      creada: p.createdAt.toISOString(),
+      fotos,
+      imprimirHref,
+    };
+  };
   const nombreSalida = new Map(salidas.map((s) => [s.id, s.nombre]));
   const nombreTamano = new Map(tamanos.map((t) => [t.id, t.nombre]));
   return {
@@ -685,6 +922,62 @@ export async function datosParaImprimir(
     copias: hoja.copias,
     salida: salida.nombre,
     tamano: tamano.nombre,
+  };
+}
+
+export type DatosPreparacionParaImprimir = {
+  hojas: HojaAImprimir[];
+  /** Fotos sin hoja vigente: no entran en este documento (hay que armarlas). */
+  faltan: number;
+  /** Ya se cobró: no se puede volver a abrir en el Mostrador para armar lo que falte. */
+  cobrada: boolean;
+  papel: { anchoMm: number; altoMm: number; escalaXMil: number; escalaYMil: number; salida: string; tamano: string } | null;
+};
+
+/**
+ * Todas las hojas vigentes de una preparación, para imprimirlas en un solo documento.
+ * `soloPendientes`: sólo lo que todavía no salió entero (después de editar una foto ya impresa).
+ */
+export async function datosParaImprimirPreparacion(
+  workspaceId: string,
+  preparacionId: string,
+  soloPendientes: boolean,
+): Promise<DatosPreparacionParaImprimir | null> {
+  const prep = await preparacionPropia(workspaceId, preparacionId);
+  if (!prep || prep.estado === "ANULADA") return null;
+  const v = await hojasVigentes(prisma, workspaceId, prep.id);
+  const cobrada = prep.saleItemId !== null;
+  if (v.hojas.length === 0) return { hojas: [], faltan: v.faltan, cobrada, papel: null };
+  // Todas las páginas van en el mismo papel: el que fija el producto. Si ninguna hoja está armada en ese papel
+  // (o no es un producto de copias), el de la primera hoja. Las de otro papel se cuentan en `faltan`: hay que volver a armarlas.
+  const prod = prep.productId
+    ? await prisma.fotofficeProductoProduccion.findFirst({
+        where: { workspaceId, productId: prep.productId },
+        select: { tipoPieza: true, salidaId: true, tamanoHojaId: true },
+      })
+    : null;
+  const delProducto = prod?.tipoPieza === "COPIA" ? v.hojas.find((h) => h.salidaId === prod.salidaId && h.tamanoId === prod.tamanoHojaId) : undefined;
+  const primera = delProducto ?? v.hojas[0]!;
+  const mismas = v.hojas.filter((h) => h.salidaId === primera.salidaId && h.tamanoId === primera.tamanoId);
+  const [salida, tamano] = await Promise.all([
+    prisma.fotofficeSalidaImpresion.findFirst({ where: { id: primera.salidaId, workspaceId }, select: { nombre: true, escalaXMil: true, escalaYMil: true } }),
+    prisma.fotofficeTamanoImpresion.findFirst({ where: { id: primera.tamanoId, workspaceId }, select: { nombre: true, anchoMm: true, altoMm: true } }),
+  ]);
+  if (!salida || !tamano) return null;
+  let hojas: HojaAImprimir[] = mismas.map((h) => ({ hojaId: h.id, version: h.version, copias: h.copias }));
+  if (soloPendientes) hojas = pendientes(hojas, await salidasBien(prisma, workspaceId, mismas));
+  return {
+    hojas,
+    faltan: v.faltan + v.hojas.length - mismas.length,
+    cobrada,
+    papel: {
+      anchoMm: Number(tamano.anchoMm),
+      altoMm: Number(tamano.altoMm),
+      escalaXMil: salida.escalaXMil,
+      escalaYMil: salida.escalaYMil,
+      salida: salida.nombre,
+      tamano: tamano.nombre,
+    },
   };
 }
 
