@@ -533,7 +533,8 @@ export function Pos({
 
   /** Abre el editor de foto carnet para un renglón; la preparación se crea la primera vez. */
   async function abrirPreparacion(r: TicketRow) {
-    if (!r.productId || abriendoPreparacion) return;
+    // Mientras se cobra no se abre: el ticket está por reiniciarse.
+    if (!r.productId || abriendoPreparacion || procesando) return;
     let id = preparaciones[r.key] ?? null;
     if (!id) {
       setAbriendoPreparacion(r.key);
@@ -549,12 +550,15 @@ export function Pos({
         setAbriendoPreparacion(null);
       }
     }
+    // Si el renglón se borró (o se cobró el ticket) mientras se creaba la preparación, no se abre.
+    if (!rowsRef.current.some((x) => x.key === r.key)) return;
     setPreparando({ key: r.key, preparacionId: id });
   }
 
   function reiniciarTicket() {
     setRows([]);
     setPreparaciones({});
+    setPreparando(null);
     setDiscountText("");
     setNote("");
     setPaymentMethod("EFECTIVO");
@@ -1106,7 +1110,7 @@ export function Pos({
                         <button
                           type="button"
                           className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
-                          disabled={abriendoPreparacion !== null}
+                          disabled={abriendoPreparacion !== null || procesando}
                           onClick={(e) => {
                             e.stopPropagation();
                             void abrirPreparacion(r);
