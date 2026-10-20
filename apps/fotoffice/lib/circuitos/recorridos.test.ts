@@ -345,6 +345,54 @@ describe("cerrar", () => {
   });
 });
 
+describe("reabrir", () => {
+  async function ganado(): Promise<string> {
+    const id = await iniciado();
+    tildarObligatorias(id);
+    await R.mover(EQUIPO, id, "s2");
+    for (const t of tareas(id)) t.doneAt = LUEGO;
+    await R.cerrar(EQUIPO, id, "GANADA");
+    return id;
+  }
+
+  it("vuelve a abrir en la etapa elegida, con paso, vencimiento y tareas de esa etapa", async () => {
+    const id = await ganado();
+    const cierre = recorrido(id).closedAt as Date;
+    const antes = tareas(id).length;
+    expect(await R.reabrir(EQUIPO, id, "s2", { nota: "Se marcó por error", esperado: cierre })).toEqual({ ok: true });
+    expect(recorrido(id)).toMatchObject({ stageId: "s2", outcome: null, closedAt: null, lossReasonId: null });
+    expect(pasos(id).at(-1)).toMatchObject({ fromStageId: null, toStageId: "s2", note: "Se marcó por error", actorUserId: 7 });
+    expect(tareas(id).length).toBe(antes + 1);
+    expect(lead().status).toBe("CONTACTED");
+  });
+
+  it("rechaza abierto, perdido, etapa ajena o archivada y otro workspace, sin escribir nada", async () => {
+    const abierto = await iniciado();
+    expect(await R.reabrir(EQUIPO, abierto, "s1")).toEqual({ ok: false, error: "Ese registro todavía no está cerrado." });
+    await R.cerrar(EQUIPO, abierto, "PERDIDA", "r1");
+    const antes = foto();
+    expect(await R.reabrir(EQUIPO, abierto, "s1")).toEqual({ ok: false, error: "Sólo se puede reabrir algo terminado." });
+    expect(foto()).toBe(antes);
+  });
+
+  it("etapa de otro circuito o archivada, otro workspace y cierre viejo: rechazo", async () => {
+    const id = await ganado();
+    const antes = foto();
+    expect(await R.reabrir(EQUIPO, id, "x1")).toEqual({ ok: false, error: "Esa etapa no es de este circuito." });
+    expect(await R.reabrir(EQUIPO, id, "s4")).toEqual({ ok: false, error: "Esa etapa está archivada." });
+    expect(await R.reabrir(OTRO_WS, id, "s2")).toEqual({ ok: false, error: "No encontramos ese registro." });
+    expect(await R.reabrir(EQUIPO, id, "s2", { esperado: AHORA })).toEqual({ ok: false, error: "Esta consulta cambió mientras tanto." });
+    expect(foto()).toBe(antes);
+  });
+
+  it("si el sujeto ya tiene otro recorrido abierto, no reabre", async () => {
+    const id = await ganado();
+    await R.iniciarRecorrido(EQUIPO, CONSULTA);
+    expect(await R.reabrir(EQUIPO, id, "s2")).toEqual({ ok: false, error: "Ya tiene otro recorrido abierto." });
+    expect(recorrido(id).closedAt).not.toBeNull();
+  });
+});
+
 describe("cerrar: ganar cuenta como avance y respeta la concurrencia", () => {
   it("ganar con obligatorias pendientes se frena; `configurar` fuerza y queda registrado", async () => {
     const id = await iniciado();

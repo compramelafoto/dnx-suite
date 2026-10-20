@@ -32,6 +32,8 @@ export type TarjetaTrabajo = {
   enviadoAt: string | null;
   pedido: { id: string; numero: string; saldoMinor: number } | null;
   cerrado: boolean;
+  /** Cuándo se cerró: el tablero lo manda al reabrir (control de cambios simultáneos). */
+  cerradoAt: string | null;
 };
 
 const DIAS_ENTREGADOS = 7;
@@ -148,6 +150,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       enviadoAt: p.proveedorEnviadoAt ? p.proveedorEnviadoAt.toISOString() : null,
       pedido: p.pedidoId ? (pedidoDe.get(p.pedidoId) ?? null) : null,
       cerrado,
+      cerradoAt: j.closedAt ? j.closedAt.toISOString() : null,
     });
   }
   return out;
