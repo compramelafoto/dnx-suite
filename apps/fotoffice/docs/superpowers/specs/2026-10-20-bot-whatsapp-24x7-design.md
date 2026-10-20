@@ -92,7 +92,8 @@ Cada etapa es un PR que funciona solo y se puede usar en producción.
 - Renombrar la migración a un timestamp posterior al último de `main`
   (hoy `20261125120000_clf_agencia_flux`).
 - Índice para buscar cliente por teléfono: hoy `clienteDelTelefono()` trae todos los clientes y
-  compara en memoria. Guardar el teléfono normalizado (sólo dígitos, forma 549…) e indexarlo.
+  compara en memoria. Prefiltrar en la base por los últimos 6 dígitos (SQL con parámetros) y
+  confirmar en memoria; sin columnas nuevas en `Client`.
 - Queda en producción en **modo simulado** para DNX Estudio.
 
 ### Etapa 2 — Archivos entrantes
