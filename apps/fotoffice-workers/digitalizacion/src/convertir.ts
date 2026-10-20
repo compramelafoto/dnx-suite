@@ -1,15 +1,13 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
-import type { Readable } from "node:stream";
+import type { Readable, Writable } from "node:stream";
 import { MAX_INTENTOS } from "./cola";
 import { armarMarca, type BrandingMarca } from "./marca";
 import { argumentosFfmpeg, armarPlan } from "./plan";
 import type { Repo } from "./repo";
 
-const execFileP = promisify(execFile);
 
 export type DepsConvertir = {
   repo: Repo;
@@ -32,23 +30,8 @@ function aSegundos(hms: string): number {
   return Number(h) * 3600 + Number(m) * 60 + Number(s);
 }
 
-function dormir(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
 
-/** Abre cada FIFO para lectura sin bloquear, así un escritor que espera un lector se libera. */
-function destrabar(fifos: string[]) {
-  for (const f of fifos) {
-    try {
-      const fd = fs.openSync(f, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
-      fs.closeSync(fd);
-    } catch {
-      /* ya no existe o ya tiene lector */
-    }
-  }
-}
-
-function escribirTodo(ws: fs.WriteStream, buf: Buffer): Promise<void> {
+function escribirTodo(ws: Writable, buf: Buffer): Promise<void> {
   return new Promise((resolve, reject) => {
     const onError = (e: Error) => reject(e);
     ws.once("error", onError);
@@ -67,18 +50,17 @@ function escribirTodo(ws: fs.WriteStream, buf: Buffer): Promise<void> {
   });
 }
 
-async function alimentarFifo(
-  fifo: string,
+/**
+ * Un escritor por entrada. ffmpeg lee cada entrada de un descriptor propio (`-i pipe:N`, un socket
+ * del proceso hijo): no hay archivos ni aperturas bloqueantes, así que ninguna cantidad de tramos
+ * agota los hilos de libuv. Cada parte se baja entera de R2 y recién ahí se escribe.
+ */
+async function alimentar(
+  ws: Writable,
   claves: string[],
   deps: DepsConvertir,
   abortado: () => boolean,
 ): Promise<void> {
-  const ws = fs.createWriteStream(fifo, { flags: "w" });
-  const cerrado = new Promise<void>((resolve, reject) => {
-    ws.once("close", () => resolve());
-    ws.once("error", reject);
-  });
-  cerrado.catch(() => {});
   try {
     for (const clave of claves) {
       if (abortado()) break;
@@ -89,23 +71,27 @@ async function alimentarFifo(
   } finally {
     ws.end();
   }
-  await cerrado;
 }
 
-function mensajeError(texto: string, intentos: number): string {
-  const limpio = texto.replace(/\s+/g, " ").trim().slice(-800);
-  return intentos >= MAX_INTENTOS ? `${limpio} (último intento)` : limpio;
+/** La causa legible va siempre al principio; el detalle de ffmpeg, sólo su cola. */
+export function mensajeError(causa: string, detalle: string, intentos: number): string {
+  const c = causa.replace(/\s+/g, " ").trim().slice(0, 200);
+  const d = detalle.replace(/\s+/g, " ").trim().slice(-600);
+  const texto = d ? `${c} — ${d}` : c;
+  return intentos >= MAX_INTENTOS ? `${texto} (último intento)` : texto;
 }
 
 export async function convertirGrabacion(deps: DepsConvertir, id: string): Promise<void> {
   const { repo } = deps;
-  const log = deps.registrar ?? (() => {});
+  const log = deps.registrar ?? ((m: string) => console.log(`[digitalizacion] ${m}`));
   let intentos = 1;
   let dir: string | null = null;
   let claveFinal: string | null = null;
+  // Desde que la grabación quedó LISTA, nada de lo que falle puede tocar el video final.
+  let lista = false;
   try {
     const datos = await repo.cargar(id);
-    if (!datos) throw new Error("La grabación no existe.");
+    if (!datos) throw new CausaError("La grabación no existe.");
     intentos = datos.intentos;
 
     const plan = armarPlan(datos.grabacion, datos.partes);
@@ -114,7 +100,7 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
       return;
     }
     if (plan.tipo === "SIN_PARTES") {
-      await repo.marcarError(id, mensajeError("No hay partes subidas.", intentos));
+      await repo.marcarError(id, mensajeError("No hay partes subidas.", "", intentos));
       return;
     }
 
@@ -122,29 +108,34 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
     claveFinal = `${prefijo}final.mp4`;
 
     dir = await fs.promises.mkdtemp(path.join(deps.tmpBase ?? os.tmpdir(), "digi-"));
-    const fifos = plan.entradas.map((_, i) => path.join(dir!, `entrada${i}.fifo`));
-    for (const f of fifos) await execFileP("mkfifo", [f]);
-
     const rutaMarca = path.join(dir, "marca.png");
     const brand: BrandingMarca = datos.branding;
     await fs.promises.writeFile(rutaMarca, await armarMarca(brand, deps.cargarLogo));
 
-    const args = argumentosFfmpeg(plan, fifos, rutaMarca, deps.preset);
-    const ff = spawn(deps.ffmpegPath ?? "ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    // Entrada i = descriptor 3+i del hijo.
+    const entradas = plan.entradas.map((_, i) => `pipe:${3 + i}`);
+    const args = argumentosFfmpeg(plan, entradas, rutaMarca, deps.preset);
+    const ff = spawn(deps.ffmpegPath ?? "ffmpeg", args, {
+      stdio: ["ignore", "pipe", "pipe", ...plan.entradas.map(() => "pipe" as const)],
+    });
 
     let falla: Error | null = null;
     let abortado = false;
+    let cancelarSubida!: (e: Error) => void;
+    const cancelacion = new Promise<never>((_, rej) => (cancelarSubida = rej));
+    cancelacion.catch(() => {});
     const abortar = (e: Error) => {
       if (!falla) falla = e;
       abortado = true;
       ff.kill("SIGKILL");
+      cancelarSubida(e);
     };
 
     const ultimasLineas: string[] = [];
     let ultimaTime: string | null = null;
     let ultimoProgreso = Date.now();
     let resto = "";
-    ff.stderr.on("data", (chunk: Buffer) => {
+    ff.stderr!.on("data", (chunk: Buffer) => {
       const partes = (resto + chunk.toString("utf8")).split(/[\r\n]+/);
       resto = partes.pop() ?? "";
       for (const linea of partes) {
@@ -158,72 +149,98 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
         }
       }
     });
+    // La subida también cuenta como actividad.
+    ff.stdout!.on("data", () => (ultimoProgreso = Date.now()));
     const inactividadMs = deps.inactividadMs ?? 10 * 60_000;
+    // El vigía sigue vivo hasta que termina la subida: una parte multiparte colgada no cuelga el job.
     const vigia = setInterval(() => {
       if (Date.now() - ultimoProgreso > inactividadMs) {
-        abortar(new Error(`ffmpeg sin progreso durante ${Math.round(inactividadMs / 60_000)} minutos.`));
+        abortar(new CausaError(`ffmpeg o la subida sin progreso durante ${Math.round(inactividadMs / 60_000)} minutos.`));
       }
     }, Math.min(30_000, Math.max(100, inactividadMs / 4)));
 
-    const salida = new Promise<number | null>((resolve, reject) => {
-      ff.once("error", reject);
-      ff.once("close", (code) => resolve(code));
-    });
-    salida.catch(() => {});
-
-    const escritores = plan.entradas.map((e, i) =>
-      alimentarFifo(fifos[i], e.claves, deps, () => abortado).catch((err: Error) => {
-        // EPIPE cuando ffmpeg ya terminó o murió: el error real es el de ffmpeg.
-        if (!abortado && (err as NodeJS.ErrnoException).code !== "EPIPE") abortar(err);
-      }),
-    );
-    const escritoresListos = Promise.allSettled(escritores);
-    let escritoresTerminaron = false;
-    void escritoresListos.then(() => (escritoresTerminaron = true));
-
-    const subida = deps.subirStream(claveFinal, ff.stdout).then(
-      (b) => b,
-      (err: Error) => {
-        abortar(err);
-        return 0;
-      },
-    );
-
-    let codigo: number | null;
     try {
-      codigo = await salida;
-    } catch (e) {
-      abortar(e as Error);
-      codigo = null;
-    }
-    clearInterval(vigia);
-    // Si ffmpeg terminó antes de abrir algún FIFO, liberar a los escritores bloqueados.
-    while (!escritoresTerminaron) {
-      destrabar(fifos);
-      await Promise.race([escritoresListos, dormir(100)]);
-    }
-    const bytes = await subida;
+      const salida = new Promise<number | null>((resolve, reject) => {
+        ff.once("error", reject);
+        ff.once("close", (code) => resolve(code));
+      });
+      salida.catch(() => {});
 
-    if (falla || codigo !== 0) {
-      const detalle = ultimasLineas.join(" | ");
-      const base = falla
-        ? `${(falla as Error).message}${detalle ? ` — ${detalle}` : ""}`
-        : `ffmpeg terminó con código ${codigo}: ${detalle}`;
-      throw new Error(base);
-    }
-    if (bytes <= 0) throw new Error("La subida del video terminó vacía.");
+      const terminados = plan.entradas.map((e, i) =>
+        alimentar(ff.stdio[3 + i] as Writable, e.claves, deps, () => abortado).catch((err: Error) => {
+          // EPIPE: ffmpeg ya terminó o murió; el error real es el de ffmpeg.
+          if (!abortado && (err as NodeJS.ErrnoException).code !== "EPIPE") abortar(err);
+        }),
+      );
+      const escritoresListos = Promise.allSettled(terminados);
 
-    const duracion = ultimaTime ? Math.round(aSegundos(ultimaTime)) : 0;
-    log(`subido ${claveFinal} ${bytes} bytes, ${duracion}s`);
-    await repo.marcarLista(id, { videoKey: claveFinal, videoBytes: bytes, videoDuracionSeg: duracion });
+      const subida = Promise.race([deps.subirStream(claveFinal, ff.stdout!), cancelacion]).then(
+        (b) => b,
+        (err: Error) => {
+          abortar(err);
+          return 0;
+        },
+      );
+
+      let codigo: number | null;
+      try {
+        codigo = await salida;
+      } catch (e) {
+        abortar(e as Error);
+        codigo = null;
+      }
+      ultimoProgreso = Date.now(); // desde acá sólo falta terminar la subida
+      await escritoresListos;
+      const bytes = await subida;
+
+      if (falla || codigo !== 0) {
+        const detalle = ultimasLineas.join(" | ");
+        const causa = falla
+          ? (falla as Error).message
+          : `ffmpeg terminó con código ${codigo}.`;
+        throw new CausaError(causa, detalle);
+      }
+      if (bytes <= 0) throw new CausaError("La subida del video terminó vacía.");
+
+      const duracion = ultimaTime ? Math.round(aSegundos(ultimaTime)) : 0;
+      log(`subido ${claveFinal} ${bytes} bytes, ${duracion}s`);
+      await repo.marcarLista(id, { videoKey: claveFinal, videoBytes: bytes, videoDuracionSeg: duracion });
+      lista = true;
+    } finally {
+      clearInterval(vigia);
+    }
+
     // Sólo ahora, con el video subido y la base actualizada, se borran los pedacitos.
-    await deps.borrarPrefijo(`${prefijo}t`);
-    await repo.marcarPartesBorradas(id);
+    // Si esto falla, el video ya está listo: se registra y queda partesBorradasAt en null.
+    try {
+      await deps.borrarPrefijo(`${prefijo}t`);
+      await repo.marcarPartesBorradas(id);
+    } catch (e) {
+      console.error(`[digitalizacion] ${id}: el video quedó LISTA pero falló la limpieza de partes:`, e);
+    }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    if (lista) {
+      console.error(`[digitalizacion] ${id}: error después de LISTA, se conserva el video:`, e);
+      return;
+    }
+    const causa = e instanceof Error ? e.message : String(e);
+    const detalle = e instanceof CausaError ? e.detalle : "";
     if (claveFinal) await deps.borrarPrefijo(claveFinal).catch(() => {});
-    await repo.marcarError(id, mensajeError(msg, intentos));
+    try {
+      await repo.marcarError(id, mensajeError(causa, detalle, intentos));
+    } catch (e2) {
+      console.error(`[digitalizacion] ${id}: no se pudo marcar ERROR:`, e2);
+    }
   } finally {
     if (dir) await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+class CausaError extends Error {
+  constructor(
+    mensaje: string,
+    public detalle = "",
+  ) {
+    super(mensaje);
   }
 }

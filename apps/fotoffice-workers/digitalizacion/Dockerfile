@@ -46,8 +46,10 @@ RUN pnpm --filter @repo/db exec prisma generate
 
 WORKDIR /repo/apps/fotoffice-workers/digitalizacion
 
-# Cloud Run monta /tmp en memoria: las partes de la grabación se juntan ahí,
-# así que la memoria del job tiene que superar la grabación más larga.
+# Sin disco para el video: cada tramo entra a ffmpeg por un descriptor propio (pipe:N) y la
+# salida se sube en streaming. En /tmp sólo queda la placa de marca (PNG).
 ENV TMPDIR=/tmp
+# Más hilos de libuv (R2, archivos y DNS no se pisan entre sí).
+ENV UV_THREADPOOL_SIZE=16
 
 CMD ["pnpm", "drain"]

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "drain": "tsx src/index.ts drain",
-    "once": "tsx src/index.ts once",
+    "drain": "UV_THREADPOOL_SIZE=16 tsx src/index.ts drain",
+    "once": "UV_THREADPOOL_SIZE=16 tsx src/index.ts once",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

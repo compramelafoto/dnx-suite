@@ -3,7 +3,7 @@
  * corre `convertirGrabacion` con R2 y base falsos y verifica el resultado con ffprobe.
  * Uso: pnpm tsx scripts/prueba-local.ts   (todo queda en os.tmpdir())
  */
-process.env.UV_THREADPOOL_SIZE ??= "16";
+// Sin UV_THREADPOOL_SIZE a propósito: con 6 tramos, las entradas por pipe no deben trabarse.
 
 import { execFile } from "node:child_process";
 import fs from "node:fs";
@@ -108,6 +108,9 @@ async function main() {
   const dvd = partir(path.join(dir, "dvd.vob"), dir, 1, "vob");
   console.log(`Pedacitos: tramo1=${t1.length}, tramo2=${t2.length}, dvd=${dvd.length}`);
 
+  await generar(["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30", ...audio, "-t", "6", "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "1M", "-c:a", "libopus", path.join(dir, "corto.webm")]);
+  const seis = [1, 2, 3, 4, 5, 6].flatMap((t) => partir(path.join(dir, "corto.webm"), dir, t));
+
   const vhs = { tipo: "VHS", corregirProporcion: false, sinImagen: false } as const;
   const casos: Caso[] = [
     {
@@ -126,6 +129,14 @@ async function main() {
       esperadaSeg: 80,
       verificarMarca: true,
       verificarBarras: true,
+    },
+    {
+      nombre: "VHS 6 tramos cortos de 6 s (entradas por pipe:N, hilos libuv por defecto)",
+      tipo: "VHS",
+      grab: { ...vhs, tipo: "VHS", primeraImagenSeg: null, ultimaImagenSeg: null, ultimaImagenTramo: null },
+      partes: seis,
+      esperadaSeg: 36,
+      verificarMarca: false,
     },
     {
       nombre: "DVD 720x480 4:3 entrelazado",

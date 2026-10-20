@@ -1,5 +1,3 @@
-process.env.UV_THREADPOOL_SIZE ??= "16";
-
 import { tomarSiguiente, recuperarTrabadas } from "./cola";
 import { getConfig, loadEnvFiles } from "./config";
 import { convertirGrabacion } from "./convertir";
@@ -29,7 +27,11 @@ async function main() {
     const id = await tomarSiguiente(db, new Date());
     if (!id) break;
     console.log(`[digitalizacion] convirtiendo ${id}`);
-    await convertirGrabacion(deps, id);
+    try {
+      await convertirGrabacion(deps, id);
+    } catch (e) {
+      console.error(`[digitalizacion] falló ${id}, sigo con la cola:`, e);
+    }
     hechas++;
     if (modo === "once") break;
   }

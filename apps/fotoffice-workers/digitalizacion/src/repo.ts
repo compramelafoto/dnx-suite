@@ -46,10 +46,14 @@ export function crearRepo(db: PrismaCola): Repo {
         `SELECT tramo, indice, key FROM "DigitalizacionParte" WHERE "grabacionId"=$1 AND estado='LISTA' ORDER BY tramo, indice`,
         id,
       );
-      const br = await db.$queryRawUnsafe<{ commercialName: string; logoUrl: string | null; whatsapp: string | null }[]>(
-        `SELECT "commercialName", "logoUrl", whatsapp FROM "FotofficeWorkspaceBranding" WHERE "workspaceId"=$1`,
+      const br = await db.$queryRawUnsafe<
+        { nombre: string | null; commercialName: string | null; logoUrl: string | null; whatsapp: string | null }[]
+      >(
+        `SELECT w.name AS nombre, b."commercialName", b."logoUrl", b.whatsapp
+         FROM "Workspace" w LEFT JOIN "FotofficeWorkspaceBranding" b ON b."workspaceId"=w.id WHERE w.id=$1`,
         g.workspaceId,
       );
+      const b0 = br[0];
       return {
         id: g.id,
         workspaceId: g.workspaceId,
@@ -63,7 +67,11 @@ export function crearRepo(db: PrismaCola): Repo {
           ultimaImagenTramo: g.ultimaImagenTramo,
         },
         partes: partes.map((p) => ({ tramo: Number(p.tramo), indice: Number(p.indice), key: p.key })),
-        branding: br[0] ?? { commercialName: "", logoUrl: null, whatsapp: null },
+        branding: {
+          commercialName: b0?.commercialName?.trim() || b0?.nombre?.trim() || "",
+          logoUrl: b0?.logoUrl ?? null,
+          whatsapp: b0?.whatsapp ?? null,
+        },
       };
     },
     marcarSinImagen: (id) => marcarSinImagen(db, id),
