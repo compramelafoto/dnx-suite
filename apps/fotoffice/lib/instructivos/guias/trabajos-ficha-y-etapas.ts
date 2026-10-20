@@ -13,7 +13,7 @@ export const guia: Instructivo = {
     {
       titulo: "Cómo nace un trabajo",
       texto: [
-        "La mayoría nacen solos: al cobrar en el Cobrador un producto con proceso, o al confirmar un pedido que viene de un presupuesto.",
+        "La mayoría nacen solos: al cobrar en el Cobrador un producto con proceso o un renglón con «Seña» (estos van al tipo de trabajo «Para retirar»), o al confirmar un pedido que viene de un presupuesto.",
         "También se puede agregar a mano desde la ficha del pedido, en la tarjeta «Proyectos», con «Agregar proyecto».",
       ],
       sistema: [

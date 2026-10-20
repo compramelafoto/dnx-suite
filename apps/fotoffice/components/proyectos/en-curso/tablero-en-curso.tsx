@@ -245,7 +245,7 @@ export function TableroEnCurso({
       {tarjetas.length === 0 ? (
         <div className="fo-card flex flex-col items-center gap-2 px-6 py-14 text-center text-sm text-[var(--fo-muted)]">
           <ClipboardList className="size-8" aria-hidden />
-          <p>No hay trabajos en curso. Se crean solos al cobrar en el Mostrador un producto con proceso.</p>
+          <p>No hay trabajos en curso. Se crean solos al cobrar en el Mostrador un producto con proceso o con «Seña».</p>
         </div>
       ) : (
         <div className="-mx-1 overflow-x-auto pb-2">
