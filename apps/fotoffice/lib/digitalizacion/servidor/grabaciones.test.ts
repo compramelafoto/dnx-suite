@@ -12,12 +12,15 @@ const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https:/
 vi.mock("./almacen", () => almacen);
 
 import type { NuevaGrabacion } from "../validar";
-import { confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, terminarConLoGrabado } from "./grabaciones";
+import { confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, terminarConLoGrabado, urlsDeLectura } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
 
 beforeEach(() => vi.clearAllMocks());
+
+const viejo = { ultimoLatidoAt: new Date(Date.now() - 3600_000), iniciadaAt: new Date(Date.now() - 7200_000) };
+const fresco = { ultimoLatidoAt: new Date(), iniciadaAt: new Date(Date.now() - 7200_000) };
 
 describe("crearGrabacion", () => {
   it("rechaza un trabajo de otro negocio", async () => {
@@ -76,7 +79,7 @@ describe("confirmarParte", () => {
 
 describe("descartarGrabacion", () => {
   it("si falla el borrado en R2, no la marca DESCARTADA y devuelve error", async () => {
-    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1 });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...viejo });
     almacen.borrarPrefijo.mockRejectedValue(new Error("r2 caído"));
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await descartarGrabacion(ctx, "g1")).toEqual({ ok: false, error: "No pudimos borrar los archivos. Probá de nuevo." });
@@ -84,14 +87,81 @@ describe("descartarGrabacion", () => {
     spy.mockRestore();
   });
   it("tras borrar bien, la marca DESCARTADA", async () => {
-    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1 });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...viejo });
     almacen.borrarPrefijo.mockResolvedValue(undefined);
     expect(await descartarGrabacion(ctx, "g1")).toEqual({ ok: true });
     expect(db.digitalizacionGrabacion.update).toHaveBeenCalledTimes(1);
   });
 });
 
+describe("descartarGrabacion con latido fresco", () => {
+  it("se niega si la grabación sigue en curso", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...fresco });
+    expect(await descartarGrabacion(ctx, "g1")).toEqual({ ok: false, error: "La grabación sigue en curso." });
+    expect(almacen.borrarPrefijo).not.toHaveBeenCalled();
+    expect(db.digitalizacionGrabacion.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("partes tras terminar con lo grabado", () => {
+  const completa = { id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 2, ...viejo };
+  it("pedirParte acepta una COMPLETA si el tramo existe", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(completa);
+    db.digitalizacionParte.findUnique.mockResolvedValue(null);
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 2, indice: 4, bytes: 10 })).toMatchObject({ ok: true, yaEstaba: false });
+  });
+  it("pedirParte rechaza un tramo inexistente o una DESCARTADA", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(completa);
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 3, indice: 0, bytes: 10 })).toMatchObject({ ok: false, definitivo: true });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...completa, estado: "DESCARTADA" });
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0, bytes: 10 })).toMatchObject({ ok: false, definitivo: true });
+  });
+  it("pedirParte sigue salteando las LISTAS en una COMPLETA", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(completa);
+    db.digitalizacionParte.findUnique.mockResolvedValue({ estado: "LISTA" });
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0, bytes: 10 })).toEqual({ ok: true, yaEstaba: true });
+  });
+  it("confirmarParte acepta una COMPLETA y rechaza una DESCARTADA", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(completa);
+    db.digitalizacionParte.findUnique.mockResolvedValue({ id: "pa1", key: "k", bytes: BigInt(10), estado: "PENDIENTE" });
+    almacen.tamanoDeParte.mockResolvedValue(10);
+    db.digitalizacionParte.updateMany.mockResolvedValue({ count: 1 });
+    expect(await confirmarParte(ctx, { grabacionId: "g1", tramo: 2, indice: 4 })).toEqual({ ok: true });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...completa, estado: "DESCARTADA" });
+    expect(await confirmarParte(ctx, { grabacionId: "g1", tramo: 2, indice: 4 })).toMatchObject({ ok: false, definitivo: true });
+  });
+});
+
+describe("urlsDeLectura", () => {
+  it("rechaza una DESCARTADA", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "DESCARTADA", mimeType: "video/webm", tramos: 1, ...viejo });
+    expect(await urlsDeLectura(ctx, "g1")).toMatchObject({ ok: false });
+  });
+});
+
+describe("registrarLatido entre tramos", () => {
+  it("acumula la duración de los tramos anteriores y combina sinImagen", async () => {
+    db.digitalizacionGrabacion.findFirst
+      .mockResolvedValueOnce({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 2, ...fresco })
+      .mockResolvedValueOnce({ tramosSinSenal: [{ tramo: 1, desde: 0, hasta: 600, clase: "DURACION" }], sinImagen: false });
+    await registrarLatido(ctx, "g1", { tramo: 2, duracionSeg: 100, primeraImagenSeg: null, ultimaImagenSeg: null, sinImagen: true, tramosSinSenal: [] });
+    const data = db.digitalizacionGrabacion.update.mock.calls[0][0].data;
+    expect(data.duracionSeg).toBe(700);
+    expect(data.sinImagen).toBe(false);
+  });
+});
+
 describe("terminarConLoGrabado", () => {
+  it("se niega si la grabación sigue en curso", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...fresco });
+    expect(await terminarConLoGrabado(ctx, "g1")).toEqual({ ok: false, error: "La grabación sigue en curso." });
+    expect(db.digitalizacionGrabacion.updateMany).not.toHaveBeenCalled();
+  });
+  it("cierra una interrumpida", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...viejo });
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    expect(await terminarConLoGrabado(ctx, "g1")).toEqual({ ok: true });
+  });
   it("rechaza un id inválido sin tocar la base", async () => {
     expect(await terminarConLoGrabado(ctx, "../x")).toMatchObject({ ok: false, definitivo: true });
     expect(db.digitalizacionGrabacion.updateMany).not.toHaveBeenCalled();
