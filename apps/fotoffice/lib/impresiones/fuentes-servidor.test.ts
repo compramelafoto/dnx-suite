@@ -18,6 +18,14 @@ describe("proyectoDeTokenCliente", () => {
     expect(await F.proyectoDeTokenCliente("ws", tok)).toBeNull();
     expect(db.fotofficeProyecto.findFirst.mock.calls[0][0].where).toMatchObject({ workspaceId: "ws", carpetaClienteHash: `h:${tok}` });
   });
+  it("rechaza una carpeta vencida", async () => {
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p", clientId: "c", carpetaVence: new Date(Date.now() - 1000) });
+    expect(await F.proyectoDeTokenCliente("ws", "t".repeat(43))).toBeNull();
+  });
+  it("acepta una carpeta vigente", async () => {
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p", clientId: "c", carpetaVence: new Date(Date.now() + 100000) });
+    expect(await F.proyectoDeTokenCliente("ws", "t".repeat(43))).toMatchObject({ proyectoId: "p" });
+  });
   it("rechaza tokens que no son texto", async () => {
     expect(await F.proyectoDeTokenCliente("ws", 123)).toBeNull();
   });

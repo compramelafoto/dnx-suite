@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aCentavos, cotizar } from "./precios";
+import { aCentavos, cotizar, formatearMontoAr, parsearMontoAr } from "./precios";
 
 const T = [
   { id: "t10", widthCm: 10, heightCm: 15, proveedorId: "fotolag", priceCents: 50000, costCents: 20000 },
@@ -32,5 +32,26 @@ describe("aCentavos", () => {
   it("convierte decimales de Prisma y nulos", () => {
     expect(aCentavos({ toString: () => "1234.50" })).toBe(123450);
     expect(aCentavos(null)).toBeNull();
+  });
+});
+
+describe("parsearMontoAr", () => {
+  it.each([
+    ["1500.5", 1500.5],
+    ["1500.50", 1500.5],
+    ["1500,50", 1500.5],
+    ["1.500,50", 1500.5],
+    ["1.500", 1500],
+    ["1.500.000", 1500000],
+    ["1500", 1500],
+    ["0", 0],
+  ])("%s -> %s", (entrada, esperado) => expect(parsearMontoAr(entrada)).toBe(esperado));
+  it.each(["abc", "-1", "", "1,2,3"])("%s es inválido", (e) => expect(parsearMontoAr(e)).toBeNull());
+  it("ida y vuelta con el formato es-AR", () => {
+    for (const n of ["1500.5", "1500", "0.05", "12345.67"]) {
+      expect(parsearMontoAr(formatearMontoAr(n))).toBe(Number(n));
+    }
+    expect(formatearMontoAr("1500.5")).toBe("1500,50");
+    expect(formatearMontoAr(null)).toBe("");
   });
 });

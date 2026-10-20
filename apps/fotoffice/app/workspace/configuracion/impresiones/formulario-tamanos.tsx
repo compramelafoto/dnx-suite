@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { parsearMontoAr } from "@/lib/impresiones/precios";
 import { guardarTamanosAction } from "./actions";
 
 type Fila = { id: string; widthCm: number; heightCm: number; proveedorId: string | null; costArs: string; priceArs: string; active: boolean };
 
-const num = (v: string) => {
-  const n = Number(v.replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-};
+const num = (v: string) => parsearMontoAr(v) ?? 0;
 const pesos = (n: number) => n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 2 });
 
 export function FormularioTamanos({ inicial, proveedores }: { inicial: Fila[]; proveedores: { id: string; name: string }[] }) {

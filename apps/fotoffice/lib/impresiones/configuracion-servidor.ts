@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { PRINT_ORDERS_MODULE_KEY, TAMANOS_INICIALES, type Papel } from "./constantes";
-import { aCentavos, type TamanoOferta } from "./precios";
+import { aCentavos, formatearMontoAr, parsearMontoAr, type TamanoOferta } from "./precios";
 
 const papelesDe = (s: { paperGlossy: boolean; paperMatte: boolean } | null): Papel[] => [
   ...((s?.paperGlossy ?? true) ? (["BRILLO"] as const) : []),
@@ -65,9 +65,10 @@ export async function sembrarTamanos(workspaceId: string): Promise<void> {
 
 const monto = (v: unknown): number | null | "malo" => {
   if (v === null || v === undefined || String(v).trim() === "") return null;
-  const n = Number(String(v).replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : "malo";
+  return parsearMontoAr(String(v)) ?? "malo";
 };
+
+const ERR_TAMANO = "Uno de los tamaños ya no existe. Recargá la página.";
 
 export async function guardarTamanos(workspaceId: string, filas: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!Array.isArray(filas)) return { ok: false, error: "Datos inválidos." };
@@ -85,11 +86,26 @@ export async function guardarTamanos(workspaceId: string, filas: unknown): Promi
       active: f.active === true,
     });
   }
-  for (const c of cambios) {
-    await prisma.fotofficePrintSize.update({
-      where: { id: c.id, workspaceId },
-      data: { costArs: c.costArs, priceArs: c.priceArs, proveedorId: c.proveedorId, active: c.active },
+  // Los laboratorios elegidos tienen que ser de este estudio.
+  const proveedorIds = [...new Set(cambios.map((c) => c.proveedorId).filter((x): x is string => x !== null))];
+  if (proveedorIds.length > 0) {
+    const propios = await prisma.fotofficeProveedor.findMany({ where: { id: { in: proveedorIds }, workspaceId }, select: { id: true } });
+    if (propios.length !== proveedorIds.length) return { ok: false, error: "Uno de los laboratorios no es de tu estudio." };
+  }
+  // Todo o nada: si un tamaño no existe (o es de otro estudio), no se guarda ninguno.
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const c of cambios) {
+        const r = await tx.fotofficePrintSize.updateMany({
+          where: { id: c.id, workspaceId },
+          data: { costArs: c.costArs, priceArs: c.priceArs, proveedorId: c.proveedorId, active: c.active },
+        });
+        if (r.count === 0) throw new Error(ERR_TAMANO);
+      }
     });
+  } catch (e) {
+    if (e instanceof Error && e.message === ERR_TAMANO) return { ok: false, error: ERR_TAMANO };
+    throw e;
   }
   return { ok: true };
 }
@@ -129,8 +145,8 @@ export async function leerAjustes(workspaceId: string): Promise<AjustesImpresion
       heightCm: Number(t.heightCm),
       proveedorId: t.proveedorId,
       proveedorNombre: t.proveedor?.name ?? null,
-      costArs: t.costArs?.toString() ?? "",
-      priceArs: t.priceArs?.toString() ?? "",
+      costArs: formatearMontoAr(t.costArs),
+      priceArs: formatearMontoAr(t.priceArs),
       active: t.active,
     })),
   };

@@ -11,6 +11,31 @@ export function aCentavos(v: { toString(): string } | number | null): number | n
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
 
+/**
+ * Lee un monto escrito a la argentina. Con coma: los puntos son miles y la coma es decimal ("1.500,50").
+ * Sin coma: un único punto seguido de 1 o 2 dígitos al final es decimal ("1500.5"); si no, los puntos son miles ("1.500").
+ * Devuelve null si no es un número válido y no negativo.
+ */
+export function parsearMontoAr(v: string): number | null {
+  const t = v.trim();
+  if (t === "") return null;
+  let normal: string;
+  if (t.includes(",")) normal = t.replace(/\./g, "").replace(",", ".");
+  else if (/^\d+\.\d{1,2}$/.test(t)) normal = t;
+  else normal = t.replace(/\./g, "");
+  if (!/^\d+(\.\d+)?$/.test(normal)) return null;
+  const n = Number(normal);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+/** Monto para mostrar en un campo: coma decimal y sin separador de miles ("1500,50"). Vacío si no hay valor. */
+export function formatearMontoAr(v: { toString(): string } | number | null | undefined): string {
+  if (v === null || v === undefined) return "";
+  const n = Number(v.toString());
+  if (!Number.isFinite(n)) return "";
+  return (Number.isInteger(n) ? String(n) : n.toFixed(2)).replace(".", ",");
+}
+
 export function cotizar(lineas: LineaCarrito[], tamanos: TamanoOferta[]): Cotizacion | { error: string } {
   if (lineas.length === 0) return { error: "Elegí al menos una copia." };
   const porId = new Map(tamanos.map((t) => [t.id, t]));
