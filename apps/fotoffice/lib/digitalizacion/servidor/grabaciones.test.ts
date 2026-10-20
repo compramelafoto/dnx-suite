@@ -12,7 +12,7 @@ const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https:/
 vi.mock("./almacen", () => almacen);
 
 import type { NuevaGrabacion } from "../validar";
-import { confirmarParte, crearGrabacion, pedirParte } from "./grabaciones";
+import { confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, terminarConLoGrabado } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
@@ -71,5 +71,29 @@ describe("confirmarParte", () => {
     db.digitalizacionParte.findUnique.mockResolvedValue({ id: "pa1", key: "k", bytes: BigInt(10), estado: "PENDIENTE" });
     almacen.tamanoDeParte.mockResolvedValue(4);
     expect(await confirmarParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0 })).toMatchObject({ ok: false });
+  });
+});
+
+describe("descartarGrabacion", () => {
+  it("si falla el borrado en R2, no la marca DESCARTADA y devuelve error", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1 });
+    almacen.borrarPrefijo.mockRejectedValue(new Error("r2 caído"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await descartarGrabacion(ctx, "g1")).toEqual({ ok: false, error: "No pudimos borrar los archivos. Probá de nuevo." });
+    expect(db.digitalizacionGrabacion.update).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  it("tras borrar bien, la marca DESCARTADA", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1 });
+    almacen.borrarPrefijo.mockResolvedValue(undefined);
+    expect(await descartarGrabacion(ctx, "g1")).toEqual({ ok: true });
+    expect(db.digitalizacionGrabacion.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("terminarConLoGrabado", () => {
+  it("rechaza un id inválido sin tocar la base", async () => {
+    expect(await terminarConLoGrabado(ctx, "../x")).toMatchObject({ ok: false, definitivo: true });
+    expect(db.digitalizacionGrabacion.updateMany).not.toHaveBeenCalled();
   });
 });

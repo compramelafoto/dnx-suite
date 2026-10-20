@@ -147,6 +147,7 @@ export async function continuarGrabacion(ctx: CtxDigitalizacion, id: string) {
 }
 
 export async function terminarConLoGrabado(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
+  if (typeof id !== "string" || !ID_VALIDO.test(id)) return NO_EXISTE;
   const r = await prisma.digitalizacionGrabacion.updateMany({
     where: { id, workspaceId: ctx.workspaceId, estado: "GRABANDO" },
     data: { estado: "COMPLETA", motivoFin: "TERMINADA_CON_LO_GRABADO", terminadaAt: new Date() },
@@ -157,8 +158,13 @@ export async function terminarConLoGrabado(ctx: CtxDigitalizacion, id: string): 
 export async function descartarGrabacion(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
+  try {
+    await borrarPrefijo(prefijoDeGrabacion(ctx.workspaceId, g.id));
+  } catch (e) {
+    console.error("[digitalizacion] borrar prefijo falló", e instanceof Error ? e.name : "error");
+    return { ok: false, error: "No pudimos borrar los archivos. Probá de nuevo." };
+  }
   await prisma.digitalizacionGrabacion.update({ where: { id: g.id }, data: { estado: "DESCARTADA", terminadaAt: new Date() } });
-  await borrarPrefijo(prefijoDeGrabacion(ctx.workspaceId, g.id));
   return { ok: true };
 }
 
