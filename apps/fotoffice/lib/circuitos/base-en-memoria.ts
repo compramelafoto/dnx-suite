@@ -83,7 +83,7 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
-  fotofficeCircuit: () => ({ isActive: true, isDefault: false, createdAt: new Date() }),
+  fotofficeCircuit: () => ({ isActive: true, isDefault: false, systemKey: null, createdAt: new Date() }),
   fotofficeStage: () => ({ color: "gris", days: 0, requireTasks: false, leadStatus: null, archivedAt: null }),
   fotofficeStageTaskTemplate: () => ({ days: 0, required: false }),
   fotofficeLossReason: () => ({ order: 0, isActive: true }),
@@ -385,6 +385,11 @@ export function crearBaseEnMemoria() {
   const UNICOS: Partial<Record<Tabla, Unico[]>> = {
     fotofficeJourney: [{ columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null }],
     fotofficeProcessedEvent: [{ columnas: ["journeyId", "event", "sourceRef"] }],
+    // Como en el schema (@@unique workspaceId+name) y la migración (único parcial donde systemKey no es null).
+    fotofficeCircuit: [
+      { columnas: ["workspaceId", "name"] },
+      { columnas: ["workspaceId", "systemKey"], aplica: (f) => f.systemKey !== null && f.systemKey !== undefined },
+    ],
     fotofficeCustomField: [{ columnas: ["workspaceId", "entityType", "key"] }],
     fotofficeCustomValue: [{ columnas: ["fieldId", "entityId"] }],
     fotofficeSequence: [{ columnas: ["workspaceId", "key"] }],
