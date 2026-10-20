@@ -20,6 +20,7 @@ export default async function GrabarPage({ searchParams }: { searchParams: Promi
       continuar = {
         grabacionId: g.id, tramo: tipo === "DVD" ? 1 : g.tramos, tipo, proyectoId: g.proyectoId,
         cassetteNumero: g.cassetteNumero, calidad: g.calidad, corregirProporcion: g.corregirProporcion,
+        dvdArchivos: tipo === "DVD" && Array.isArray(g.dvdArchivos) ? (g.dvdArchivos as { nombre: string; bytes: number }[]) : null,
       };
     }
   }

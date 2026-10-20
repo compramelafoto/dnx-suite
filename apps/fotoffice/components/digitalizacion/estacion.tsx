@@ -15,7 +15,7 @@ import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: number[] | null; corregirProporcion: boolean };
 /** `tramo`: el último tramo guardado (un VHS pide el siguiente al tocar Grabar; un DVD usa siempre el 1). */
-export type Continuacion = { grabacionId: string; tramo: number; tipo: "VHS" | "DVD"; proyectoId: string | null; cassetteNumero: number | null; calidad: string | null; corregirProporcion: boolean };
+export type Continuacion = { grabacionId: string; tramo: number; tipo: "VHS" | "DVD"; proyectoId: string | null; cassetteNumero: number | null; calidad: string | null; corregirProporcion: boolean; dvdArchivos: { nombre: string; bytes: number }[] | null };
 
 const CLAVE_EQUIPO = "fo-digitalizacion-equipo";
 const CLAVE_LISTA = "fo-digitalizacion-lista-ok";
