@@ -74,7 +74,7 @@ Casos que el spec implica, que ningún test unitario recorre de punta a punta y 
 | `components/digitalizacion/acciones-grabacion.tsx` | Botones de la lista (Continuar, Terminar, Descartar, Descargar crudo). |
 | `app/(shell)/digitalizacion/page.tsx` | Lista de grabaciones y ajuste de minutos. |
 | `app/(shell)/digitalizacion/grabar/page.tsx` | Página de la estación. |
-| `packages/db/prisma/migrations/20261126120000_fotoffice_digitalizacion/migration.sql` | Tablas nuevas. |
+| `packages/db/prisma/migrations/20261127120000_fotoffice_digitalizacion/migration.sql` | Tablas nuevas. |
 
 Todas las rutas de `lib/`, `components/` y `app/` son relativas a `apps/fotoffice/`.
 
@@ -259,7 +259,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `packages/db/prisma/schema.prisma` (modelo `Workspace` ~línea 7189, `FotofficeProyecto` ~línea 21700, y cuatro modelos nuevos al final del bloque de FOTOFFICE)
-- Create: `packages/db/prisma/migrations/20261126120000_fotoffice_digitalizacion/migration.sql`
+- Create: `packages/db/prisma/migrations/20261127120000_fotoffice_digitalizacion/migration.sql`
 
 **Interfaces:**
 - Produces: modelos Prisma `DigitalizacionGrabacion`, `DigitalizacionParte`, `DigitalizacionEquipo`, `DigitalizacionAjustes` (accesores `prisma.digitalizacionGrabacion`, etc.). Campos exactamente como abajo; las tareas 6 y 9 los usan por nombre.
@@ -381,7 +381,7 @@ Expected: "The schema at prisma/schema.prisma is valid" y "Generated Prisma Clie
 - [ ] **Step 3: Escribir la migración a mano**
 
 ```sql
--- packages/db/prisma/migrations/20261126120000_fotoffice_digitalizacion/migration.sql
+-- packages/db/prisma/migrations/20261127120000_fotoffice_digitalizacion/migration.sql
 -- FOTOFFICE: digitalización de VHS y DVD (parte 1, la grabadora). Sólo tablas nuevas. Idempotente.
 CREATE TABLE IF NOT EXISTS "DigitalizacionEquipo" (
     "id" TEXT NOT NULL,
@@ -477,7 +477,7 @@ Expected: ninguna sentencia sobre tablas `Digitalizacion*`. Si no hay base sombr
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20261126120000_fotoffice_digitalizacion/migration.sql
+git add packages/db/prisma/schema.prisma packages/db/prisma/migrations/20261127120000_fotoffice_digitalizacion/migration.sql
 git commit -m "Digitalización: tablas de grabaciones, partes, equipos y ajustes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -3245,7 +3245,7 @@ El navegador hace `PUT` (subida) y `GET` con `fetch` (Descargar crudo) contra el
 
 - [ ] **Step 3: Aplicar la migración en producción**
 
-Seguí la memoria de migraciones de FOTOFFICE: SQL a mano en la base de producción (rama "development" del proyecto Neon de FOTOFFICE) y después registrala con `prisma migrate resolve --applied 20261126120000_fotoffice_digitalizacion`, usando el checksum de una base sana. Verificá con:
+Seguí la memoria de migraciones de FOTOFFICE: SQL a mano en la base de producción (rama "development" del proyecto Neon de FOTOFFICE) y después registrala con `prisma migrate resolve --applied 20261127120000_fotoffice_digitalizacion`, usando el checksum de una base sana. Verificá con:
 
 ```sql
 SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'Digitalizacion%' ORDER BY 1;
