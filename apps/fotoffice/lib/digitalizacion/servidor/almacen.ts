@@ -44,10 +44,11 @@ export async function borrarPrefijo(prefijo: string): Promise<void> {
   } while (token);
 }
 
-const SEGUNDOS_VIDEO = 2 * 3600;
+/** Cintas largas se miran y retoman durante horas: la URL dura 24 h. */
+const SEGUNDOS_VIDEO = 24 * 3600;
 const REGEX_CLAVE_VIDEO = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/final\.mp4$/;
 
-/** URL firmada (2 h) del MP4 final, para mirarlo en la página (inline) o bajarlo (attachment). */
+/** URL firmada (24 h) del MP4 final, para mirarlo en la página (inline) o bajarlo (attachment). */
 export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "descargar"): Promise<string> {
   if (!REGEX_CLAVE_VIDEO.test(clave)) throw new Error("Clave no válida");
   const seguro = encodeURIComponent(nombre).replace(/['()]/g, escape).replace(/\*/g, "%2A");

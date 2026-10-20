@@ -94,6 +94,33 @@ describe("descartarGrabacion", () => {
   });
 });
 
+describe("descartarGrabacion y la conversión", () => {
+  it("se niega mientras el worker la está convirtiendo", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 1, conversionEstado: "PROCESANDO", ...viejo });
+    expect(await descartarGrabacion(ctx, "g1")).toEqual({ ok: false, error: "La grabación se está convirtiendo." });
+    expect(almacen.borrarPrefijo).not.toHaveBeenCalled();
+    expect(db.digitalizacionGrabacion.update).not.toHaveBeenCalled();
+  });
+  it("al descartar limpia conversionEstado", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 1, conversionEstado: "PENDIENTE", ...viejo });
+    almacen.borrarPrefijo.mockResolvedValue(undefined);
+    await descartarGrabacion(ctx, "g1");
+    expect(db.digitalizacionGrabacion.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estado: "DESCARTADA", conversionEstado: null }) }),
+    );
+  });
+});
+
+describe("pedirParte repetido", () => {
+  it("renueva createdAt al volver a pedir una parte PENDIENTE", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...fresco });
+    db.digitalizacionParte.findUnique.mockResolvedValue({ estado: "PENDIENTE" });
+    await pedirParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0, bytes: 10 });
+    const arg = db.digitalizacionParte.upsert.mock.calls.at(-1)![0];
+    expect(arg.update.createdAt).toBeInstanceOf(Date);
+  });
+});
+
 describe("descartarGrabacion con latido fresco", () => {
   it("se niega si la grabación sigue en curso", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, ...fresco });

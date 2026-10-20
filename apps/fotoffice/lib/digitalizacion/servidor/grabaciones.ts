@@ -77,7 +77,8 @@ export async function pedirParte(
   await prisma.digitalizacionParte.upsert({
     where: { grabacionId_tramo_indice: { grabacionId: g.id, tramo: p.tramo, indice: p.indice } },
     create: { grabacionId: g.id, tramo: p.tramo, indice: p.indice, key, bytes: BigInt(p.bytes) },
-    update: { bytes: BigInt(p.bytes) },
+    // createdAt = ahora: al pedir de nuevo, la parte cuenta como reciente para la espera de 30 min del worker.
+    update: { bytes: BigInt(p.bytes), createdAt: new Date() },
   });
   const tipo = tipoContenido(ext);
   return { ok: true, yaEstaba: false, url: await urlDeSubidaParte(key, tipo, p.bytes), tipoContenido: tipo };
@@ -195,13 +196,14 @@ export async function descartarGrabacion(ctx: CtxDigitalizacion, id: string): Pr
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
   if (g.estado === "GRABANDO" && estadoVisible(g, new Date()) === "GRABANDO") return EN_CURSO;
+  if (g.conversionEstado === "PROCESANDO") return { ok: false as const, error: "La grabación se está convirtiendo." };
   try {
     await borrarPrefijo(prefijoDeGrabacion(ctx.workspaceId, g.id));
   } catch (e) {
     console.error("[digitalizacion] borrar prefijo falló", e instanceof Error ? e.name : "error");
     return { ok: false, error: "No pudimos borrar los archivos. Probá de nuevo." };
   }
-  await prisma.digitalizacionGrabacion.update({ where: { id: g.id }, data: { estado: "DESCARTADA", terminadaAt: new Date() } });
+  await prisma.digitalizacionGrabacion.update({ where: { id: g.id }, data: { estado: "DESCARTADA", terminadaAt: new Date(), conversionEstado: null } });
   return { ok: true };
 }
 
