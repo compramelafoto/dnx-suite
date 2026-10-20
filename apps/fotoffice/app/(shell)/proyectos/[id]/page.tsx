@@ -13,6 +13,8 @@ import { ParticipantesProyecto } from "@/components/proyectos/participantes-proy
 import { PlanProyecto } from "@/components/proyectos/plan-proyecto";
 import { ProveedorProyecto } from "@/components/proyectos/proveedor-proyecto";
 import { CarpetaProyecto } from "@/components/proyectos/carpeta-proyecto";
+import { PedidoDelTrabajo } from "@/components/impresiones/pedido-del-trabajo";
+import { pedidoDelTrabajo } from "@/lib/impresiones/trabajo-servidor";
 import { listarArchivos } from "@/lib/carpetas/carpeta";
 import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
@@ -48,10 +50,12 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   if (!ID_VALIDO.test(id)) notFound();
   await prepararProyectos(workspace.id);
 
-  const [ficha, role, proveedor] = await Promise.all([
+  const [ficha, role, proveedor, pedidoImpresion] = await Promise.all([
     cargarFichaProyecto(ctx, id, new Date()),
     resolveWorkspaceRole(user.id, workspace.id),
     leerProveedorDelTrabajo(ctx, id),
+    // Sólo si el trabajo nació de un pedido de copias impresas (acotado al workspace de la sesión).
+    pedidoDelTrabajo(workspace.id, id),
   ]);
   const archivos = adjuntosR2Configurado() ? await listarArchivos(ctx, id) : null;
   if (!ficha) notFound();
@@ -123,6 +127,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
               </Link>
             </section>
           ) : null}
+          {pedidoImpresion ? <PedidoDelTrabajo pedido={pedidoImpresion} puedeEditar={puedeEditar} /> : null}
           {proveedor ? (
             <ProveedorProyecto
               key={`${proveedor.proveedorId ?? ""}:${proveedor.enviadoAt?.toISOString() ?? ""}`}

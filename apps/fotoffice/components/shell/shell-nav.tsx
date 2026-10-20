@@ -36,6 +36,7 @@ import {
   Wallet2,
   Workflow,
   Truck,
+  Printer,
   Coins,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -83,6 +84,8 @@ const CONTRACTS_MODULE_KEY = "contracts";
 const GALLERY_MODULE_KEY = "gallery";
 // Ídem `lib/informes/constantes`.
 const REPORTS_MODULE_KEY = "reports";
+// Ídem `lib/impresiones/constantes`.
+const PRINT_ORDERS_MODULE_KEY = "print-orders";
 
 /**
  * Menú principal.
@@ -655,6 +658,18 @@ export function ShellNav({
           icon: Truck,
           isActive: under("/workspace/configuracion/proveedores"),
         },
+        // Pedidos de impresión: tamaños y precios, sólo con el módulo encendido.
+        ...(ve(PRINT_ORDERS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/impresiones",
+                label: "Impresiones",
+                description: "Tamaños, costos y precios de las copias que piden los clientes desde su carpeta.",
+                icon: Printer,
+                isActive: under("/workspace/configuracion/impresiones"),
+              },
+            ]
+          : []),
         // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
         {
           href: "/workspace/configuracion/alboom",

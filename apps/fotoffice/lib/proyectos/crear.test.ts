@@ -377,3 +377,18 @@ describe("agregar un proyecto a mano", () => {
     expect(await K.crearProyectoManual(DUENO, { pedidoId: 5, circuitId: "ct-album" }, deps)).toEqual({ ok: false, error: M.datosInvalidos });
   });
 });
+
+describe("crear un trabajo del sistema (pagos automáticos)", () => {
+  it("crea el trabajo sin pedido ni usuario, con el plan de las etapas vivas y el recorrido en la primera", async () => {
+    const r = (await (B.prisma as unknown as { $transaction: (f: (tx: never) => Promise<unknown>) => Promise<unknown> }).$transaction((tx: never) =>
+      K.crearProyectoDeSistema(tx, "ws-1", { clientId: "cli-lead-1", circuitId: "ct-album", nombre: "Copias impresas · pedido 8", baseDate: "2026-10-20", proveedorId: "lab-1", ahora: AHORA }),
+    )) as { id: string; number: string };
+    expect(typeof r.number).toBe("string");
+    const p = proyectos().find((x) => x.id === r.id)!;
+    expect(p).toMatchObject({ workspaceId: "ws-1", number: r.number, name: "Copias impresas · pedido 8", clientId: "cli-lead-1", pedidoId: null, circuitId: "ct-album", ownerUserId: null, createdByUserId: null, proveedorId: "lab-1" });
+    expect(ymd(p.baseDate)).toBe("2026-10-20");
+    // La etapa archivada no entra en el plan.
+    expect(B.datos.fotofficeProyectoEtapaPlan.filter((x) => x.proyectoId === r.id).map((x) => x.stageId)).toEqual(["al1", "al2"]);
+    expect(B.datos.fotofficeJourney.filter((j) => j.subjectType === "PROYECTO" && j.subjectId === r.id && j.stageId === "al1")).toHaveLength(1);
+  });
+});
