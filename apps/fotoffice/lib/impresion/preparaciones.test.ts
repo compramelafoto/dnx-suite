@@ -182,6 +182,32 @@ describe("preparaciones de impresión", () => {
     expect(P.inicioDelDiaArgentina(new Date("2026-10-21T03:00:00Z")).toISOString()).toBe("2026-10-21T03:00:00.000Z");
   });
 
+  it("editar la foto después de imprimir arma otra hoja y no pisa la impresa", async () => {
+    const { prep, original } = await conOriginal();
+    const base = { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true };
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const a = await P.generarHojaCarnet(CTX, prep, base);
+    if (!a.ok) throw new Error(a.error);
+    const datosA = (await P.datosParaImprimir("ws-1", a.hojaId))!;
+    expect((await P.registrarImpresion(CTX, a.hojaId, { motivo: "NORMAL", hojas: 1 })).ok).toBe(true);
+
+    const otra = { ...recetaInicial(), encuadre: { x: 0, y: 0.1, ancho: 1, alto: 0.75 } };
+    expect((await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: otra })).ok).toBe(true);
+    const b = await P.generarHojaCarnet(CTX, prep, base);
+    if (!b.ok) throw new Error(b.error);
+
+    expect(b.hojaId).not.toBe(a.hojaId);
+    // La hoja impresa sigue igual: su fila, su archivo y el registro que la nombra.
+    expect(B.datos.fotofficeHojaImpresion.find((h) => h.id === a.hojaId)).toMatchObject({ finalKey: datosA.finalKey });
+    expect(R2.has(datosA.finalKey)).toBe(true);
+    expect(B.datos.fotofficeRegistroImpresion).toHaveLength(1);
+    expect(B.datos.fotofficeRegistroImpresion[0]!.hojaId).toBe(a.hojaId);
+    // La nueva apunta a otro archivo, que existe.
+    const datosB = (await P.datosParaImprimir("ws-1", b.hojaId))!;
+    expect(datosB.finalKey).not.toBe(datosA.finalKey);
+    expect(R2.has(datosB.finalKey)).toBe(true);
+  });
+
   it("la purga borra a los 30 días archivos y filas, pero deja el registro", async () => {
     const { prep, original } = await conOriginal();
     await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
