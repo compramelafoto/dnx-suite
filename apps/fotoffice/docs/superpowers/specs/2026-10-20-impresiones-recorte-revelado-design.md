@@ -1,7 +1,7 @@
 # Impresiones: recorte, encaje, revelado e impresión directa (Kodak, Epson y laboratorio)
 
 - **Fecha:** 20/10/2026
-- **Estado:** diseño conversado y aprobado por partes con Daniel el 19 y 20/10/2026. **Pendiente: revisión de este documento escrito.**
+- **Estado:** **aprobado por Daniel el 20/10/2026.** Plan de la etapa 1 en `docs/superpowers/plans/2026-10-20-impresiones-etapa-1.md`.
 - **Dónde vive:** FOTOFFICE → Ventas (Mostrador y Foto carnet), Trabajos (carpeta del trabajo) y Configuración → Impresión.
 - **Primer usuario:** DNX Estudio.
 - **Código de partida:** `origin/main` en `b2bd5ecf7`.
@@ -33,9 +33,11 @@ Las fotos que trae un cliente rara vez tienen la proporción del papel. Una foto
 | Carnet y polaroid | Reaprovechar (copiar) los diseñadores de CompraMeLaFoto, mejorándolos. No se usaban porque bajaban la calidad. | Se copia la interfaz; el archivo final lo arma el servidor (§5, §10, §11). |
 | Momento | Durante la atención en el mostrador: cargar el producto y prepararlo **antes o después de cobrar**. Sobre todo lo que se produce en DNX (carnet e instantáneas). | "Preparar" en el carrito del Mostrador (§9). |
 | Carnet Kodak y carnet Epson | Tienen que ser productos separados, para contabilizar el gasto: la Kodak consume una hoja 10x15 (ribbon y papel) y la Epson consume una hoja suya. | Producto con salida fija (§4.3) y registro de hojas impresas (§9.4). |
+| Archivos de laboratorio y digitalizaciones | Todo lo que se sube a la carpeta de un trabajo (pedidos a laboratorios, rollos, videos) se borra de R2 a los **30 días**. | Hoy un archivo que nunca se compartió no vence nunca: se corrige (§12.1). |
+| Foto carnet original | El **original queda guardado para siempre en la ficha del cliente**, para consultarlo si vuelve. | §10.1. |
 | Consumibles | Es **otro proyecto**: calcular lo que consume cada producto para tener stock y proyectar compras. Un producto puede consumir **varios insumos**, por ejemplo la foto carnet gasta el papel y el sobrecito de 5×5 cm. | Fuera de alcance. Este diseño deja el dato listo (§13). |
 
-**Para confirmar con Daniel:** la Kodak 305 usa papel de 15 × 20 cm (152 × 203 mm), no 15 × 21. Este diseño trata el **15x20 como tamaño de la Kodak** y el **15x21 como tamaño de laboratorio**. Las medidas son editables, así que si no es así se corrige desde Configuración.
+**Confirmado por Daniel (20/10):** el **15x20 es de la Kodak** y el **15x21 es de laboratorio**. La Kodak 305 trabaja con **bobina** (rollo de papel y ribbon): 10x15, 13x18 y 15x20 salen del mismo rollo, cada uno con un largo distinto.
 
 ## 3. Lo que ya existe y lo que se reaprovecha
 
@@ -82,8 +84,8 @@ Una **salida** es por dónde sale una hoja: una impresora del local o un laborat
 - **Cada laboratorio** (`FotofficeProveedor`): tipo LABORATORIO, 300 ppp por omisión, nitidez *Normal*. Hojas: las que se le marquen.
 
 Además, cada salida local guarda dos valores:
-- **Corrección de escala X/Y**, en por mil. Si la hoja de prueba (§8.2) muestra que la regla de 100 mm mide 99 mm, se corrige acá.
-- **Margen sin bordes**: el excedente que la impresora corta, en mm.
+- **Corrección de escala X/Y**, en por mil (1000 = sin corrección). Si la hoja de prueba (§8.2) muestra que la regla de 100 mm mide 99 mm, se corrige acá.
+- **Margen sin bordes**: el excedente que la impresora corta, en mm. *Se usa recién en la etapa 2 (copias a sangre); en la etapa 1 la plancha de carnet ya tiene 3 mm de margen.*
 
 ### 4.3 Productos de producción propia
 
@@ -224,7 +226,7 @@ Todo se guarda como proporciones (§5.1). El tamaño de la pantalla nunca influy
 
 ### 8.1 Página de impresión
 
-`/ventas/imprimir/[hojaId]` muestra únicamente el JPG final de la hoja:
+`/imprimir/hoja/[hojaId]` (fuera del panel, como `/imprimir/acta/[id]`) muestra únicamente el JPG final de la hoja:
 
 ```css
 @page { size: <ancho>mm <alto>mm; margin: 0; }
@@ -276,14 +278,14 @@ Una pestaña nueva en Ventas, **"Impresiones"**, con tres listas:
 
 ### 9.4 Registro de hojas impresas
 
-Cada vez que se abre la página de impresión y se confirma "Salió bien", se guarda un **registro**:
+Cuando se cierra el cuadro de impresión, la página pregunta **"¿Cómo salió?"** y cada respuesta guarda un **registro**:
 
 - Salida, hoja (tamaño) y cantidad de hojas.
 - Producto, preparación, renglón de venta o trabajo.
 - Quién y cuándo.
-- Motivo: `NORMAL`, `REIMPRESION` o `PRUEBA`.
+- Motivo: `NORMAL` (salió bien y se entrega), `DESCARTADA` (salió mal y se tira) o `PRUEBA` (hoja de prueba).
 
-Si sale mal, se toca **"Reimprimir"**: queda registrado con motivo `REIMPRESION`, y el desperdicio también cuenta en el gasto.
+Si sale mal, se toca **"Salió mal, reimprimir"**: esas hojas quedan como `DESCARTADA`, porque el desperdicio también cuenta en el gasto, y se vuelve a abrir el cuadro de impresión.
 
 **Para qué sirve:** es el dato con el que el proyecto de consumibles (§13) va a descontar el stock y calcular el costo real.
 
@@ -295,6 +297,13 @@ Si sale mal, se toca **"Reimprimir"**: queda registrado con motivo `REIMPRESION`
 - La salida (Kodak o Epson) sale del producto. En la pantalla suelta se elige.
 - **Guías de rostro:** líneas de mentón y coronilla, con la proporción de cabeza de cada medida (por ejemplo, para el DNI 4×4 la cabeza ocupa entre el 70 y el 80 % del alto).
 - **"Blanquear fondo" queda fuera de la primera entrega.** Se rehace después, con detección del fondo.
+
+### 10.1 El original queda en la ficha del cliente (pedido de Daniel, 20/10)
+
+- Cuando una preparación de carnet tiene cliente, **una copia del original** se guarda como adjunto de su ficha (`FotofficeAttachment`, con `origen = "FOTO_CARNET"`). No vence: sólo se borra si alguien lo borra a mano desde la ficha.
+- Si el cliente se elige recién al cobrar, la copia se guarda en ese momento.
+- En el editor, al elegir un cliente que ya tiene fotos carnet, aparece **"Fotos anteriores"**: tocar una la usa como original de la nueva preparación, sin volver a subirla.
+- La preparación, la plancha y su copia del original sí se borran a los 30 días (§14).
 
 ## 11. Polaroid
 
@@ -310,6 +319,10 @@ Si sale mal, se toca **"Reimprimir"**: queda registrado con motivo `REIMPRESION`
   - Un **resumen** de cantidades por tamaño.
   - Los originales sólo si se marca *"Incluir originales"*.
 - Si una foto de la carpeta no se preparó, se avisa antes de enviar: *"Hay 3 fotos sin preparar: van como están"*.
+
+### 12.1 Los archivos de los trabajos vencen a los 30 días (pedido de Daniel, 20/10)
+
+Hoy la carpeta de un trabajo vence 30 días después de **compartirla** (`nuevoVencimiento`). Si nunca se comparte, `carpetaVence` queda vacío y **los archivos no se borran nunca**. Desde ahora, al confirmar el primer archivo de un trabajo sin vencimiento, `carpetaVence` pasa a ser hoy + 30 días. Compartir lo sigue llevando a 30 días desde ese momento, y nunca lo acorta. Vale para todo: pedidos a laboratorios, digitalizaciones de rollos, videos, etc. La migración les pone vencimiento (hoy + 30) a los trabajos que ya tienen archivos y no tienen fecha. Así nada se borra de golpe, y queda un mes de aviso.
 
 ## 13. Consumibles: otro proyecto (sólo lo que deja listo este)
 
@@ -331,7 +344,7 @@ Ese proyecto va a sumar:
 
 Con eso calcula lo gastado, el stock que queda, el costo real de cada venta y cuándo comprar. **Este diseño no necesita nada más para eso.**
 
-**Dato a verificar en ese proyecto:** cómo usa la Kodak 305 el kit de ribbon y papel para cada tamaño (si un 10x15 gasta un panel entero o medio).
+**Kodak 305 con bobina (dicho por Daniel el 20/10):** 10x15, 13x18 y 15x20 salen del mismo rollo de papel y ribbon, y cada tamaño gasta un largo distinto. Por eso el consumo de la Kodak conviene medirlo **en largo de rollo según el tamaño**, no en "hojas". El registro de impresión ya guarda el tamaño de cada hoja, que es lo que hace falta para eso. **A verificar en ese proyecto:** el largo exacto que consume cada tamaño, incluido el desperdicio entre copias.
 
 ## 14. Datos nuevos
 
@@ -346,7 +359,8 @@ Todas las tablas tienen `workspaceId` y se borran en cascada con el espacio de t
 | `FotofficeOriginalImpresion` | el archivo que trajo el cliente | `preparacionId`, `key` (R2 privado), `previewKey`, `nombre`, `anchoPx`, `altoPx`, `bytes`, `perfilColor`, `archivoTrabajoId?` (si viene de la carpeta de un trabajo, apunta a ese archivo y no lo copia) |
 | `FotofficePiezaImpresion` | una foto en un tamaño | `preparacionId`, `originalId`, `tipo`, `tamanoId?` o `medidaMm` (carnet), `receta` Json, `huella`, `cantidad`, `revisadaAt?` |
 | `FotofficeHojaImpresion` | lo que se imprime | `preparacionId`, `salidaId`, `tamanoId`, `disposicion` Json (dónde va cada pieza), `capaTextoKey?`, `finalKey?`, `finalHuella?`, `finalAnchoPx`, `finalAltoPx`, `copias` |
-| `FotofficeRegistroImpresion` | §9.4 | `hojaId`, `salidaId`, `tamanoId`, `hojas`, `productId?`, `saleItemId?`, `proyectoId?`, `motivo`, `userId`, `createdAt` |
+| `FotofficeRegistroImpresion` | §9.4 | `hojaId`, `salidaId`, `tamanoId`, `hojas`, `productId?`, `saleItemId?`, `proyectoId?`, `motivo` (NORMAL / DESCARTADA / PRUEBA), `userId`, `createdAt` |
+| `FotofficeAttachment.origen` (columna nueva, nula) | §10.1 | `"FOTO_CARNET"` en las copias del original guardadas en la ficha |
 
 **Reglas que se controlan en la base (CHECK):**
 - Una preparación pertenece a lo sumo a un renglón de venta y a lo sumo a un trabajo.
