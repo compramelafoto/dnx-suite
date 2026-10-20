@@ -27,11 +27,13 @@ import {
   etapaAnterior,
   etapaSiguiente,
   faseDeEtapaEn,
+  retenido,
   urgenciaDeEntrega,
   type DestinoDeFase,
   type Fase,
   type Urgencia,
 } from "@/lib/proyectos/en-curso-puro";
+import { importeSinCentavos, mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
 
 /** Color de cada columna: el mismo criterio que los colores de las etapas de DNX. */
@@ -535,6 +537,7 @@ function Tarjeta({
   const anterior = etapaAnterior(orden, t.etapaActualId);
   const u = t.cerrado ? "OK" : urgenciaDeEntrega(t.entrega, hoy);
   const debe = t.pedido && t.pedido.saldoMinor > 0 ? t.pedido.saldoMinor : 0;
+  const retiene = retenido(t);
   const whatsapp =
     t.fase === "LISTO"
       ? enlaceWhatsApp(
@@ -548,11 +551,11 @@ function Tarjeta({
   const detalle = [t.producto ?? t.nombre, t.proveedor].filter(Boolean).join(" · ");
   const ayuda = `${t.recorrido.nombre} · ${t.cerrado ? "Terminado" : `paso ${indice + 1} de ${orden.length}: ${actual?.name ?? ""}`}`;
 
-  let principal: { texto: string; icono: React.ReactNode; onClick: () => void; titulo: string } | null = null;
+  let principal: { texto: string; icono: React.ReactNode; onClick: () => void; titulo: string; bloqueado?: boolean } | null = null;
   if (!t.cerrado && puedeOperar && !movida) {
     if (porEnviar) principal = { texto: `Enviar a ${t.proveedor}`, icono: <Send className="size-3.5" aria-hidden />, onClick: onEnviar, titulo: "Le manda el pedido por correo y pasa a En el proveedor" };
     else if (t.fase === "EN_PROVEEDOR") principal = { texto: "Llegó", icono: <PackageCheck className="size-3.5" aria-hidden />, onClick: onLlego, titulo: "Pasa a Listo para retirar y le avisa al cliente por correo" };
-    else if (t.fase === "LISTO") principal = { texto: "Entregado", icono: <Check className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
+    else if (t.fase === "LISTO") principal = { texto: "Entregado", icono: <Check className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: retiene && t.pedido ? mensajeCandado(t.pedido.numero, t.pedido.saldoMinor) : siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo", bloqueado: retiene };
     else principal = { texto: siguiente ? siguiente.name : "Terminar", icono: siguiente ? <ArrowRight className="size-3.5" aria-hidden /> : <CheckCircle2 className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
   }
 
@@ -578,7 +581,9 @@ function Tarjeta({
         </Link>
         {t.pedido ? (
           debe > 0 ? (
-            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">Debe {formatMinorArs(debe).replace(",00", "")}</span>
+            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">
+              {retiene ? "Retenido · debe" : "Debe"} {importeSinCentavos(debe)}
+            </span>
           ) : (
             <span className="shrink-0 text-[11px] font-semibold text-[var(--fo-success)]">Pagado</span>
           )
@@ -629,7 +634,7 @@ function Tarjeta({
           <button
             type="button"
             onClick={principal.onClick}
-            disabled={ocupada}
+            disabled={ocupada || principal.bloqueado}
             title={principal.titulo}
             className="inline-flex h-7 min-w-0 max-w-[60%] items-center gap-1 rounded-[var(--fo-radius-sm)] bg-[var(--fo-accent)] px-2 text-[11px] font-semibold text-[var(--fo-on-accent,#fff)] transition hover:bg-[var(--fo-accent-hover)] disabled:opacity-50"
           >

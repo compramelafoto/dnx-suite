@@ -71,6 +71,8 @@ const TABLAS = [
   "fotofficeRegistroImpresion", "saleItem",
   // Bandeja de WhatsApp.
   "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
+  // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
+  "productVariant", "stockMovement",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -83,7 +85,7 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
-  fotofficeCircuit: () => ({ isActive: true, isDefault: false, createdAt: new Date() }),
+  fotofficeCircuit: () => ({ isActive: true, isDefault: false, systemKey: null, createdAt: new Date() }),
   fotofficeStage: () => ({ color: "gris", days: 0, requireTasks: false, leadStatus: null, archivedAt: null }),
   fotofficeStageTaskTemplate: () => ({ days: 0, required: false }),
   fotofficeLossReason: () => ({ order: 0, isActive: true }),
@@ -174,7 +176,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficePedido: () => ({
     presupuestoId: null, acceptedVersionId: null, consultaLeadId: null, status: "CONFIRMADO", cancelReason: null,
     paymentOption: null, eventDate: null, eventLabel: null, incomeCategoryId: null, ownerUserId: null, accessTokenHash: null,
-    createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+    createdByUserId: null, altaKey: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficePedidoCuota: () => ({ suggestedMethod: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCobro: () => ({
@@ -386,6 +388,11 @@ export function crearBaseEnMemoria() {
   const UNICOS: Partial<Record<Tabla, Unico[]>> = {
     fotofficeJourney: [{ columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null }],
     fotofficeProcessedEvent: [{ columnas: ["journeyId", "event", "sourceRef"] }],
+    // Como en el schema (@@unique workspaceId+name) y la migración (único parcial donde systemKey no es null).
+    fotofficeCircuit: [
+      { columnas: ["workspaceId", "name"] },
+      { columnas: ["workspaceId", "systemKey"], aplica: (f) => f.systemKey !== null && f.systemKey !== undefined },
+    ],
     fotofficeCustomField: [{ columnas: ["workspaceId", "entityType", "key"] }],
     fotofficeCustomValue: [{ columnas: ["fieldId", "entityId"] }],
     fotofficeSequence: [{ columnas: ["workspaceId", "key"] }],
@@ -432,6 +439,8 @@ export function crearBaseEnMemoria() {
       { columnas: ["workspaceId", "number"] },
       { columnas: ["presupuestoId"], aplica: (f) => f.presupuestoId !== null && f.presupuestoId !== undefined },
       { columnas: ["accessTokenHash"], aplica: (f) => f.accessTokenHash !== null && f.accessTokenHash !== undefined },
+      // Como en la migración: único parcial (workspaceId, altaKey) donde altaKey no es null.
+      { columnas: ["workspaceId", "altaKey"], aplica: (f) => f.altaKey !== null && f.altaKey !== undefined },
     ],
     fotofficeCobro: [
       { columnas: ["workspaceId", "receiptNumber"] },
@@ -554,11 +563,13 @@ export function crearBaseEnMemoria() {
     return f;
   }
 
-  /** Como Prisma: `{ increment: n }` suma sobre el valor actual en vez de reemplazarlo. */
+  /** Como Prisma: `{ increment: n }` / `{ decrement: n }` cambian el valor actual en vez de reemplazarlo. */
   function aplicarDatos(fila: Fila, data: Fila) {
     for (const [k, v] of Object.entries(clonar(data) as Fila)) {
-      const inc = v && typeof v === "object" && !(v instanceof Date) ? (v as { increment?: unknown }).increment : undefined;
-      fila[k] = typeof inc === "number" ? ((fila[k] as number | null) ?? 0) + inc : v;
+      const op = v && typeof v === "object" && !(v instanceof Date) ? (v as { increment?: unknown; decrement?: unknown }) : null;
+      if (typeof op?.increment === "number") fila[k] = ((fila[k] as number | null) ?? 0) + op.increment;
+      else if (typeof op?.decrement === "number") fila[k] = ((fila[k] as number | null) ?? 0) - op.decrement;
+      else fila[k] = v;
     }
   }
 
@@ -695,9 +706,11 @@ export function crearBaseEnMemoria() {
       ganchos.alEjecutarSql?.(texto, valores);
       return 1;
     };
-    c.$queryRaw = async (partes: TemplateStringsArray, ...valores: unknown[]) => {
+    c.$queryRaw = async (crudo: TemplateStringsArray | { strings: readonly string[]; values: unknown[] }, ...resto: unknown[]) => {
       const error = permitido();
       if (error) throw new Error(error);
+      // Como Prisma: acepta la plantilla etiquetada o un `Prisma.sql` ya armado (`{ strings, values }`).
+      const [partes, valores] = Array.isArray(crudo) ? [crudo as readonly string[], resto] : [(crudo as { strings: readonly string[] }).strings, (crudo as { values: unknown[] }).values];
       const texto = partes.join("$");
       sql.push({ texto, valores });
       ganchos.alEjecutarSql?.(texto, valores);
@@ -718,6 +731,8 @@ export function crearBaseEnMemoria() {
         .filter((c) => c.workspaceId === workspaceId && typeof c.phone === "string" && c.phone.replace(/\D/g, "").slice(-6) === fin)
         .map((c) => ({ id: c.id, phone: c.phone }));
     }
+    // `lockStockRows`: el `FOR UPDATE` de productos y talles acá no bloquea nada.
+    if (texto.includes("FOR UPDATE") && /FROM "(Product|ProductVariant)"/.test(texto)) return [];
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);
