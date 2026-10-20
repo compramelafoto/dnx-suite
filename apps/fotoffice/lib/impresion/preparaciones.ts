@@ -893,9 +893,17 @@ export async function datosParaImprimirPreparacion(
   const prep = await preparacionPropia(workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return null;
   const v = await hojasVigentes(prisma, workspaceId, prep.id);
-  const primera = v.hojas[0];
-  if (!primera) return { hojas: [], faltan: v.faltan, papel: null };
-  // Todas las páginas van en el mismo papel. Si el producto cambió de hoja a mitad de camino, las otras se vuelven a armar.
+  if (v.hojas.length === 0) return { hojas: [], faltan: v.faltan, papel: null };
+  // Todas las páginas van en el mismo papel: el que fija el producto. Si ninguna hoja está armada en ese papel
+  // (o no es un producto de copias), el de la primera hoja. Las de otro papel se cuentan en `faltan`: hay que volver a armarlas.
+  const prod = prep.productId
+    ? await prisma.fotofficeProductoProduccion.findFirst({
+        where: { workspaceId, productId: prep.productId },
+        select: { tipoPieza: true, salidaId: true, tamanoHojaId: true },
+      })
+    : null;
+  const delProducto = prod?.tipoPieza === "COPIA" ? v.hojas.find((h) => h.salidaId === prod.salidaId && h.tamanoId === prod.tamanoHojaId) : undefined;
+  const primera = delProducto ?? v.hojas[0]!;
   const mismas = v.hojas.filter((h) => h.salidaId === primera.salidaId && h.tamanoId === primera.tamanoId);
   const [salida, tamano] = await Promise.all([
     prisma.fotofficeSalidaImpresion.findFirst({ where: { id: primera.salidaId, workspaceId }, select: { nombre: true, escalaXMil: true, escalaYMil: true } }),

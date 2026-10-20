@@ -405,6 +405,26 @@ describe("copias: imprimir todo y registrar", () => {
     expect(await P.datosParaImprimirPreparacion("ws-2", prep, false)).toBeNull();
   });
 
+  it("si el producto cambió de papel, se imprime en el papel del producto y las hojas del otro papel quedan como faltantes", async () => {
+    const medidas: [number, number][] = [[600, 400], [400, 600]];
+    const { prep, ids } = await prepConFotos(medidas);
+    await guardarPropuestas(prep, ids, medidas);
+    await K.generarHojaCopia(CTX, prep, ids[0]!);
+    await K.generarHojaCopia(CTX, prep, ids[1]!);
+    // El producto pasa a 13x18; sólo la segunda foto se vuelve a guardar y armar en el papel nuevo.
+    const kodak = (await C.listarSalidas("ws-1")).find((s) => s.nombre === "Kodak 305")!;
+    const t13 = kodak.tamanos.find((t) => t.nombre === "13x18")!.id;
+    await C.guardarProduccion("ws-1", "copia10", { tipoPieza: "COPIA", salidaId: kodak.id, tamanoHojaId: t13, unidad: "COPIA" });
+    const r = await K.guardarPiezasCopia(CTX, prep, [{ originalId: ids[1]!, cantidad: 1, receta: propuestaAutomatica(400, 600, { anchoMm: 127, altoMm: 180 }), revisada: false }]);
+    if (!r.ok) throw new Error(r.error);
+    const h = await K.generarHojaCopia(CTX, prep, ids[1]!);
+    if (!h.ok) throw new Error(h.error);
+    const d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
+    expect(d.papel).toMatchObject({ anchoMm: 127, altoMm: 180, tamano: "13x18" });
+    expect(d.hojas.map((x) => x.hojaId)).toEqual([h.hojaId]);
+    expect(d.faltan).toBe(1);
+  });
+
   it("registrar varias: con una copia mal queda LISTA y sólo esa falta; al reimprimirla, IMPRESA", async () => {
     const { prep } = await armadas([[600, 400], [400, 600]], [2, 1]);
     const d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
