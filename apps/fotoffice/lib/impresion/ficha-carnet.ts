@@ -17,6 +17,7 @@ export const ORIGEN_FOTO_CARNET = "FOTO_CARNET";
 const MAX_ANTERIORES = 12;
 
 class YaCopiado extends Error {}
+class ClienteCambiado extends Error {}
 class PreparacionCobrada extends Error {}
 const COBRADA = { ok: false as const, error: "Esa preparación ya se cobró: el cliente es el de la venta." };
 
@@ -35,68 +36,100 @@ async function esDeCarnet(workspaceId: string, productId: string | null): Promis
 }
 
 /**
- * Copia a la ficha del cliente los originales listos que todavía no se copiaron. Idempotente:
- * el original guarda el `adjuntoId`. Si una copia falla, se anota y sigue con las demás.
- * Devuelve cuántas copió.
+ * Pone en la ficha del cliente el original de la pieza vigente (spec §10.1: "el original", uno):
+ * lo copia si todavía no está y borra, como un borrado de la ficha, la copia propia de un original
+ * que la pieza dejó de usar. Se llama al guardar la pieza, al asignar cliente y al cobrar.
+ * Idempotente: el original guarda el `adjuntoId`. Si la copia falla, se anota y se reintenta la
+ * próxima vez. Devuelve cuántas copió (0 o 1).
  */
 export async function guardarOriginalesEnFicha(ctx: CtxImpresion, preparacionId: string): Promise<number> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
-  if (!prep?.clientId) return 0;
+  if (!prep || prep.estado === "ANULADA") return 0;
+  const pieza = await prisma.fotofficePiezaImpresion.findFirst({
+    where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, tipo: "CARNET" },
+    select: { originalId: true },
+  });
+  if (!pieza) return 0;
+  await soltarOriginalesReemplazados(ctx, prep.id, pieza.originalId);
+
+  if (!prep.clientId) return 0;
   const cliente = await prisma.client.findFirst({ where: { id: prep.clientId, workspaceId: ctx.workspaceId }, select: { id: true } });
   if (!cliente) return 0;
   if (!(await esDeCarnet(ctx.workspaceId, prep.productId))) return 0;
 
-  const originales = await prisma.fotofficeOriginalImpresion.findMany({
-    where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, estado: "LISTO", adjuntoId: null },
-    orderBy: { createdAt: "asc" },
+  const o = await prisma.fotofficeOriginalImpresion.findFirst({
+    where: { id: pieza.originalId, workspaceId: ctx.workspaceId, preparacionId: prep.id, estado: "LISTO", adjuntoId: null },
     select: { id: true, key: true, tipo: true, bytes: true, createdAt: true },
   });
-  let copiadas = 0;
-  for (const o of originales) {
-    const storageKey = claveDeAdjunto(ctx.workspaceId, randomUUID());
-    try {
-      await copiarObjeto(o.key, storageKey);
-      const fileName = `Foto carnet original ${fechaArgentina(o.createdAt)}.${EXT[o.tipo] ?? "jpg"}`;
-      await prisma.$transaction(async (tx) => {
-        const adj = await tx.fotofficeAttachment.create({
-          data: {
-            workspaceId: ctx.workspaceId,
-            clientId: cliente.id,
-            storageKey,
-            fileName,
-            contentType: o.tipo,
-            sizeBytes: o.bytes,
-            status: "LISTO",
-            origen: ORIGEN_FOTO_CARNET,
-            uploadedByUserId: ctx.userId,
-            uploadedByLabel: ctx.userLabel,
-            purgeAfter: null,
-          },
-          select: { id: true },
-        });
-        // Condicionado: si otro pedido ya lo copió, éste se deshace entero.
-        const r = await tx.fotofficeOriginalImpresion.updateMany({
-          where: { id: o.id, workspaceId: ctx.workspaceId, adjuntoId: null },
-          data: { adjuntoId: adj.id, adjuntoPropio: true },
-        });
-        if (r.count !== 1) throw new YaCopiado();
-        await registrarEventoPersona(tx, {
-          workspaceId: ctx.workspaceId,
-          dueno: duenoDe({ clientId: cliente.id, memberId: null }),
-          kind: "ADJUNTO_SUBIDO",
-          detail: { attachmentId: adj.id, nombre: fileName, tamano: o.bytes, origen: ORIGEN_FOTO_CARNET },
-          actor: { userId: ctx.userId, label: ctx.userLabel },
-        });
+  if (!o) return 0;
+  const storageKey = claveDeAdjunto(ctx.workspaceId, randomUUID());
+  try {
+    await copiarObjeto(o.key, storageKey);
+    const fileName = `Foto carnet original ${fechaArgentina(o.createdAt)}.${EXT[o.tipo] ?? "jpg"}`;
+    await prisma.$transaction(async (tx) => {
+      // El cliente se relee con la fila trabada: si lo cambiaron (o lo puso una venta) mientras se
+      // copiaba, la foto no va a la ficha equivocada. El próximo llamado copia al cliente nuevo.
+      const vigente = await tx.fotofficePreparacionImpresion.updateMany({
+        where: { id: prep.id, workspaceId: ctx.workspaceId, clientId: cliente.id, estado: { not: "ANULADA" } },
+        data: { clientId: cliente.id },
       });
-      copiadas++;
-    } catch (e) {
-      // La copia en R2 quedó sin fila: se borra (si ni eso se puede, queda un objeto suelto).
-      await borrarObjetoImpresion(storageKey).catch(() => undefined);
-      if (!(e instanceof YaCopiado))
-        console.error("[fotoffice][impresion] no se pudo copiar el original a la ficha", { id: o.id, error: e instanceof Error ? e.name : "?" });
-    }
+      if (vigente.count !== 1) throw new ClienteCambiado();
+      const adj = await tx.fotofficeAttachment.create({
+        data: {
+          workspaceId: ctx.workspaceId,
+          clientId: cliente.id,
+          storageKey,
+          fileName,
+          contentType: o.tipo,
+          sizeBytes: o.bytes,
+          status: "LISTO",
+          origen: ORIGEN_FOTO_CARNET,
+          uploadedByUserId: ctx.userId,
+          uploadedByLabel: ctx.userLabel,
+          purgeAfter: null,
+        },
+        select: { id: true },
+      });
+      // Condicionado: si otro pedido ya lo copió, éste se deshace entero.
+      const r = await tx.fotofficeOriginalImpresion.updateMany({
+        where: { id: o.id, workspaceId: ctx.workspaceId, adjuntoId: null },
+        data: { adjuntoId: adj.id, adjuntoPropio: true },
+      });
+      if (r.count !== 1) throw new YaCopiado();
+      await registrarEventoPersona(tx, {
+        workspaceId: ctx.workspaceId,
+        dueno: duenoDe({ clientId: cliente.id, memberId: null }),
+        kind: "ADJUNTO_SUBIDO",
+        detail: { attachmentId: adj.id, nombre: fileName, tamano: o.bytes, origen: ORIGEN_FOTO_CARNET },
+        actor: { userId: ctx.userId, label: ctx.userLabel },
+      });
+    });
+    return 1;
+  } catch (e) {
+    // La copia en R2 quedó sin fila: se borra (si ni eso se puede, queda un objeto suelto).
+    await borrarObjetoImpresion(storageKey).catch(() => undefined);
+    if (!(e instanceof YaCopiado) && !(e instanceof ClienteCambiado))
+      console.error("[fotoffice][impresion] no se pudo copiar el original a la ficha", { id: o.id, error: e instanceof Error ? e.name : "?" });
+    return 0;
   }
-  return copiadas;
+}
+
+/** Las copias propias en la ficha de originales que la pieza ya no usa se borran (restaurables 30 días). */
+async function soltarOriginalesReemplazados(ctx: CtxImpresion, preparacionId: string, vigenteId: string): Promise<void> {
+  const viejos = await prisma.fotofficeOriginalImpresion.findMany({
+    where: { workspaceId: ctx.workspaceId, preparacionId, adjuntoPropio: true, adjuntoId: { not: null }, id: { not: vigenteId } },
+    select: { id: true, adjuntoId: true },
+  });
+  for (const o of viejos) {
+    await prisma.$transaction(async (tx) => {
+      const adj = await tx.fotofficeAttachment.findFirst({
+        where: { id: o.adjuntoId!, workspaceId: ctx.workspaceId, origen: ORIGEN_FOTO_CARNET, status: "LISTO" },
+        select: { id: true, clientId: true, fileName: true, sizeBytes: true },
+      });
+      if (adj) await borrarAdjuntoPropio(tx, ctx, adj, "ORIGINAL_REEMPLAZADO");
+      await liberarOriginal(tx, ctx, o.id);
+    });
+  }
 }
 
 /** Las fotos carnet guardadas en la ficha del cliente, más nuevas primero. */
@@ -198,10 +231,39 @@ async function cambiarCliente(tx: Prisma.TransactionClient, ctx: CtxImpresion, p
     data: { clientId: nuevo },
   });
   if (r.count !== 1) throw new PreparacionCobrada();
-  const actor = { userId: ctx.userId, label: ctx.userLabel };
+  await moverAdjuntosPropios(tx, ctx, preparacionId, nuevo);
+}
+
+type AdjuntoPropio = { id: string; clientId: string | null; fileName: string; sizeBytes: number };
+const actorDe = (ctx: CtxImpresion) => ({ userId: ctx.userId, label: ctx.userLabel });
+
+function liberarOriginal(tx: Prisma.TransactionClient, ctx: CtxImpresion, originalId: string) {
+  return tx.fotofficeOriginalImpresion.updateMany({ where: { id: originalId, workspaceId: ctx.workspaceId }, data: { adjuntoId: null, adjuntoPropio: false } });
+}
+
+/** Como `borrarAdjunto` de la ficha: se puede restaurar durante 30 días. Avisa en la ficha del dueño. */
+async function borrarAdjuntoPropio(tx: Prisma.TransactionClient, ctx: CtxImpresion, adj: AdjuntoPropio, motivo: string): Promise<void> {
   const ahora = new Date();
-  const liberar = (id: string) =>
-    tx.fotofficeOriginalImpresion.updateMany({ where: { id, workspaceId: ctx.workspaceId }, data: { adjuntoId: null, adjuntoPropio: false } });
+  await tx.fotofficeAttachment.updateMany({
+    where: { id: adj.id, workspaceId: ctx.workspaceId, status: "LISTO" },
+    data: { status: "BORRADO", deletedAt: ahora, purgeAfter: new Date(ahora.getTime() + DIAS_PURGA * 86_400_000) },
+  });
+  if (adj.clientId)
+    await registrarEventoPersona(tx, {
+      workspaceId: ctx.workspaceId,
+      dueno: duenoDe({ clientId: adj.clientId, memberId: null }),
+      kind: "ADJUNTO_BORRADO",
+      detail: { attachmentId: adj.id, nombre: adj.fileName, motivo },
+      actor: actorDe(ctx),
+    });
+}
+
+/**
+ * Las fotos que ESTA preparación dejó en la ficha siguen a su cliente: pasan a la ficha de `nuevo`
+ * o, sin cliente, se borran como un borrado de la ficha. Las de "Fotos anteriores" no se tocan.
+ * Dentro de la transacción de quien cambia el cliente (corrección en el editor, o la venta).
+ */
+export async function moverAdjuntosPropios(tx: Prisma.TransactionClient, ctx: CtxImpresion, preparacionId: string, nuevo: string | null): Promise<void> {
   const propios = await tx.fotofficeOriginalImpresion.findMany({
     where: { workspaceId: ctx.workspaceId, preparacionId, adjuntoPropio: true, adjuntoId: { not: null } },
     select: { id: true, adjuntoId: true },
@@ -213,34 +275,30 @@ async function cambiarCliente(tx: Prisma.TransactionClient, ctx: CtxImpresion, p
     });
     // Si ya lo borraron a mano desde la ficha, el original queda libre para volver a copiarse.
     if (!adj) {
-      await liberar(o.id);
+      await liberarOriginal(tx, ctx, o.id);
       continue;
     }
     if (adj.clientId === nuevo) continue;
-    if (nuevo) {
-      await tx.fotofficeAttachment.updateMany({ where: { id: adj.id, workspaceId: ctx.workspaceId }, data: { clientId: nuevo } });
-      await registrarEventoPersona(tx, {
-        workspaceId: ctx.workspaceId,
-        dueno: duenoDe({ clientId: nuevo, memberId: null }),
-        kind: "ADJUNTO_SUBIDO",
-        detail: { attachmentId: adj.id, nombre: adj.fileName, tamano: adj.sizeBytes, origen: ORIGEN_FOTO_CARNET },
-        actor,
-      });
-    } else {
-      // Como `borrarAdjunto` de la ficha: se puede restaurar durante 30 días.
-      await tx.fotofficeAttachment.updateMany({
-        where: { id: adj.id, workspaceId: ctx.workspaceId, status: "LISTO" },
-        data: { status: "BORRADO", deletedAt: ahora, purgeAfter: new Date(ahora.getTime() + DIAS_PURGA * 86_400_000) },
-      });
-      await liberar(o.id);
+    if (!nuevo) {
+      await borrarAdjuntoPropio(tx, ctx, adj, "SIN_CLIENTE");
+      await liberarOriginal(tx, ctx, o.id);
+      continue;
     }
+    await tx.fotofficeAttachment.updateMany({ where: { id: adj.id, workspaceId: ctx.workspaceId }, data: { clientId: nuevo } });
+    await registrarEventoPersona(tx, {
+      workspaceId: ctx.workspaceId,
+      dueno: duenoDe({ clientId: nuevo, memberId: null }),
+      kind: "ADJUNTO_SUBIDO",
+      detail: { attachmentId: adj.id, nombre: adj.fileName, tamano: adj.sizeBytes, origen: ORIGEN_FOTO_CARNET },
+      actor: actorDe(ctx),
+    });
     if (adj.clientId)
       await registrarEventoPersona(tx, {
         workspaceId: ctx.workspaceId,
         dueno: duenoDe({ clientId: adj.clientId, memberId: null }),
         kind: "ADJUNTO_BORRADO",
-        detail: { attachmentId: adj.id, nombre: adj.fileName, motivo: nuevo ? "CLIENTE_CORREGIDO" : "SIN_CLIENTE" },
-        actor,
+        detail: { attachmentId: adj.id, nombre: adj.fileName, motivo: "CLIENTE_CORREGIDO" },
+        actor: actorDe(ctx),
       });
   }
 }

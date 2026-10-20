@@ -21,7 +21,7 @@ export default async function HojaPage({ params }: { params: Promise<{ hojaId: s
       />
       <HojaParaImprimir
         hojaId={hojaId}
-        src={`/api/impresion/hoja/${hojaId}`}
+        src={`/api/impresion/hoja/${hojaId}?v=${d.version}`}
         anchoMm={medidaImpresaMm(d.anchoMm, d.escalaXMil)}
         altoMm={medidaImpresaMm(d.altoMm, d.escalaYMil)}
         paginaAnchoMm={d.anchoMm}

@@ -16,7 +16,8 @@ type Armada = {
   firma: string;
   hojaId: string;
   fotosPorHoja: number;
-  version: number;
+  /** La versión del archivo (la da el servidor): va en la URL de la imagen, que se cachea. */
+  version: string;
   aviso: "OK" | "BLANDA" | "PIXELADA";
   ppp: number;
 };
@@ -45,7 +46,7 @@ export function PasoPlancha({
   modo: ModoEditorFotoCarnet;
   preparacionId: string;
   pieza: Pieza;
-  inicial?: { id: string; fotosPorHoja: number; copias: number; ppp: number; aviso: Armada["aviso"] } | null;
+  inicial?: { id: string; fotosPorHoja: number; copias: number; version: string; ppp: number; aviso: Armada["aviso"] } | null;
 }) {
   const salidas = modo.tipo === "suelto" ? modo.salidas : [];
   const [salidaId, setSalidaId] = useState(salidas[0]?.id ?? "");
@@ -59,7 +60,7 @@ export function PasoPlancha({
   const [armada, setArmada] = useState<Armada | null>(() =>
     // Sólo en el Mostrador (la impresora y la hoja salen del producto): la firma es la de lo guardado.
     inicial && modo.tipo === "mostrador"
-      ? { firma: firmaDe({ pieza, fotos: null, copias: inicial.copias }), hojaId: inicial.id, fotosPorHoja: inicial.fotosPorHoja, version: 0, aviso: inicial.aviso, ppp: inicial.ppp }
+      ? { firma: firmaDe({ pieza, fotos: null, copias: inicial.copias }), hojaId: inicial.id, fotosPorHoja: inicial.fotosPorHoja, version: inicial.version, aviso: inicial.aviso, ppp: inicial.ppp }
       : null,
   );
 
@@ -87,7 +88,7 @@ export function PasoPlancha({
         conLineas: true,
       });
       if (!h.ok) return setError(h.error);
-      setArmada({ firma, hojaId: h.hojaId, fotosPorHoja: h.fotosPorHoja, version: Date.now(), aviso: g.aviso, ppp: g.ppp });
+      setArmada({ firma, hojaId: h.hojaId, fotosPorHoja: h.fotosPorHoja, version: h.version, aviso: g.aviso, ppp: g.ppp });
     } catch {
       setError("No se pudo armar la plancha. Probá de nuevo.");
     } finally {
@@ -204,7 +205,7 @@ export function PasoPlancha({
               {vigente.fotosPorHoja} fotos por hoja, con líneas para cortar. Imprimila en tamaño real, sin «ajustar a la página».
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
-              <button type="button" className="fo-btn fo-btn-primary" onClick={() => window.open(`/imprimir/hoja/${vigente.hojaId}`, "_blank")}>
+              <button type="button" className="fo-btn fo-btn-primary" onClick={() => window.open(`/imprimir/hoja/${vigente.hojaId}?v=${vigente.version}`, "_blank")}>
                 <Printer className="size-4" aria-hidden />
                 Imprimir
               </button>

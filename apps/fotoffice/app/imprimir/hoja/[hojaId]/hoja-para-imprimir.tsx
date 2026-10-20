@@ -10,6 +10,7 @@ type Respuesta = "NORMAL" | "DESCARTADA";
 export function HojaParaImprimir({
   hojaId, src, anchoMm, altoMm, paginaAnchoMm, paginaAltoMm, copias, titulo,
 }: {
+  /** Con `?v=`: la versión de la hoja, para que el navegador no muestre una vieja de la caché. */
   hojaId: string; src: string; anchoMm: number; altoMm: number;
   paginaAnchoMm: number; paginaAltoMm: number; copias: number; titulo: string;
 }) {
@@ -88,7 +89,7 @@ export function HojaParaImprimir({
             {ultima ? <button type="button" className="fo-btn fo-btn-primary" onClick={() => responder(ultima)}>Reintentar</button> : null}
           </div>
         ) : null}
-        <a className="underline" href={`${src}?descargar=1`}>Descargar JPG</a>
+        <a className="underline" href={`${src}&descargar=1`}>Descargar JPG</a>
       </div>
       {/* La página real es de tamaño fijo: con una escala mayor a 1000 la imagen se recorta, no pasa a otra hoja. */}
       <div style={{ width: `${paginaAnchoMm}mm`, height: `${paginaAltoMm}mm`, overflow: "hidden" }}>

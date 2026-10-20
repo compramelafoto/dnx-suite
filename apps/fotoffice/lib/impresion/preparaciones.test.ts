@@ -112,6 +112,25 @@ describe("preparaciones de impresión", () => {
     expect((await P.datosParaImprimir("ws-1", b.hojaId))!.copias).toBe(3);
   });
 
+  it("rearmar la misma hoja con otro contenido cambia su versión (la URL de la imagen no queda vieja en caché)", async () => {
+    // Pantalla suelta: cambiar cuántas fotos van rehace la misma hoja (no tiene registros).
+    const { prep, original } = await conOriginal(null);
+    const base = { salidaId: kodakId, tamanoId: t10, fotos: null, copias: 1, conLineas: true };
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const a = await P.generarHojaCarnet(CTX, prep, base);
+    if (!a.ok) throw new Error(a.error);
+    const va = (await P.datosParaImprimir("ws-1", a.hojaId))!.version;
+    expect(va).toBe(a.version);
+    const b = await P.generarHojaCarnet(CTX, prep, { ...base, fotos: 2 });
+    if (!b.ok) throw new Error(b.error);
+    expect(b.hojaId).toBe(a.hojaId); // la misma hoja (sin imprimir) se rehace…
+    const vb = (await P.datosParaImprimir("ws-1", b.hojaId))!.version;
+    expect(vb).toBe(b.version);
+    expect(vb).not.toBe(va); // …con otra versión
+    const fila = (await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep);
+    expect(fila).toMatchObject({ hojaId: b.hojaId, hojaVersion: vb, cobrada: false });
+  });
+
   it("una receta inválida no se guarda", async () => {
     const { prep, original } = await conOriginal();
     expect((await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: { hola: 1 } })).ok).toBe(false);
@@ -153,17 +172,19 @@ describe("preparaciones de impresión", () => {
 
   it("no vincula una preparación ya cobrada (dos pestañas, mismo carnet)", async () => {
     const { prep } = await conOriginal();
-    await enTransaccion((tx) => P.vincularConVenta(tx, "ws-1", [{ preparacionId: prep, saleItemId: "item-1" }], null));
+    await enTransaccion((tx) => P.vincularConVenta(tx, CTX, [{ preparacionId: prep, saleItemId: "item-1" }], null));
     await expect(
-      enTransaccion((tx) => P.vincularConVenta(tx, "ws-1", [{ preparacionId: prep, saleItemId: "item-2" }], null)),
+      enTransaccion((tx) => P.vincularConVenta(tx, CTX, [{ preparacionId: prep, saleItemId: "item-2" }], null)),
     ).rejects.toBeInstanceOf(P.PreparacionNoVinculable);
     const c = await P.colas("ws-1", new Date());
     expect(c.paraImprimir.map((f) => f.preparacionId)).toEqual([prep]);
+    expect(c.paraImprimir[0]!.cobrada).toBe(true); // la cola no ofrece "Anular" en lo cobrado
   });
 
   it("estadoPreparacion: original, pieza y la hoja vigente para reabrir el editor; otro negocio no ve nada", async () => {
     const { prep, original } = await conOriginal();
     expect(await P.estadoPreparacion(CTX, prep)).toEqual({
+      cliente: null,
       original: { id: original, ancho: 1200, alto: 1600, vistaAncho: 1200, vistaAlto: 1600 },
       pieza: null,
       hoja: null,
@@ -175,7 +196,7 @@ describe("preparaciones de impresión", () => {
     const e = await P.estadoPreparacion(CTX, prep);
     expect(e?.pieza).toMatchObject({ anchoMm: 40, altoMm: 40, receta, aviso: "OK" });
     expect(e?.pieza?.ppp).toBeGreaterThan(200);
-    expect(e?.hoja).toEqual({ id: h.hojaId, fotosPorHoja: h.fotosPorHoja, copias: 3 });
+    expect(e?.hoja).toEqual({ id: h.hojaId, fotosPorHoja: h.fotosPorHoja, copias: 3, version: h.version });
     expect(await P.estadoPreparacion(OTRO, prep)).toBeNull();
     await P.anularPreparacion(CTX, prep);
     expect(await P.estadoPreparacion(CTX, prep)).toBeNull();
@@ -226,6 +247,26 @@ describe("preparaciones de impresión", () => {
     const datosB = (await P.datosParaImprimir("ws-1", b.hojaId))!;
     expect(datosB.finalKey).not.toBe(datosA.finalKey);
     expect(R2.has(datosB.finalKey)).toBe(true);
+  });
+
+  it("reimprimir una hoja vieja no marca IMPRESA lo que tiene una hoja más nueva sin imprimir", async () => {
+    const { prep, original } = await conOriginal();
+    const base = { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true };
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const a = await P.generarHojaCarnet(CTX, prep, base);
+    if (!a.ok) throw new Error(a.error);
+    await P.registrarImpresion(CTX, a.hojaId, { motivo: "NORMAL", hojas: 1 });
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 35, altoMm: 45, receta: recetaInicial() });
+    const b = await P.generarHojaCarnet(CTX, prep, base);
+    if (!b.ok) throw new Error(b.error);
+    const estado = async () => (await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)?.estado;
+    expect(await estado()).toBe("LISTA");
+    // "Reimprimir" la vieja desde Impreso hoy: queda registrada, pero la nueva sigue por imprimir.
+    expect((await P.registrarImpresion(CTX, a.hojaId, { motivo: "NORMAL", hojas: 1 })).ok).toBe(true);
+    expect(await estado()).toBe("LISTA");
+    expect(B.datos.fotofficeRegistroImpresion).toHaveLength(2);
+    expect((await P.registrarImpresion(CTX, b.hojaId, { motivo: "NORMAL", hojas: 1 })).ok).toBe(true);
+    expect(await estado()).toBe("IMPRESA");
   });
 
   it("la purga borra a los 30 días archivos y filas, pero deja el registro", async () => {

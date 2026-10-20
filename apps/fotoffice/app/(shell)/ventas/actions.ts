@@ -369,7 +369,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
       if (impresion) {
         await impresion.vincularConVenta(
           tx,
-          workspace.id,
+          { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user) },
           preparaciones.map((p) => ({ preparacionId: p.preparacionId, saleItemId: v.itemIds[p.i]! })),
           v.clientId,
         );
@@ -378,7 +378,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
     });
     revalidatePath("/ventas");
     if (reservaId) await confirmarUsoPagoMp(reservaId, `Venta #${venta.saleNumber}`);
-    if (impresion) await despuesDeCobrarPreparaciones(workspace.id, user, venta.clientId, preparaciones);
+    if (impresion) await despuesDeCobrarPreparaciones(workspace.id, user, preparaciones);
     return { ok: true, saleNumber: venta.saleNumber, deposited: venta.deposited };
   } catch (e) {
     if (reservaId) await liberarPagoMp(reservaId);
@@ -397,17 +397,15 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
 async function despuesDeCobrarPreparaciones(
   workspaceId: string,
   user: Parameters<typeof etiquetaDeUsuario>[0],
-  clientId: string | null,
   preparaciones: { preparacionId: string }[],
 ): Promise<void> {
   const avisar = (e: unknown) =>
     console.error("[fotoffice][ventas] no se guardó la foto carnet en la ficha", { error: e instanceof Error ? e.name : "?" });
   try {
-    if (clientId) {
-      const { guardarOriginalesEnFicha } = await import("@/lib/impresion/ficha-carnet");
-      const ctx = { workspaceId, userId: user.id, userLabel: etiquetaDeUsuario(user) };
-      for (const p of preparaciones) await guardarOriginalesEnFicha(ctx, p.preparacionId).catch(avisar);
-    }
+    // También sin cliente en la venta: la preparación puede conservar el suyo.
+    const { guardarOriginalesEnFicha } = await import("@/lib/impresion/ficha-carnet");
+    const ctx = { workspaceId, userId: user.id, userLabel: etiquetaDeUsuario(user) };
+    for (const p of preparaciones) await guardarOriginalesEnFicha(ctx, p.preparacionId).catch(avisar);
     revalidatePath("/ventas/impresiones");
   } catch (e) {
     avisar(e);

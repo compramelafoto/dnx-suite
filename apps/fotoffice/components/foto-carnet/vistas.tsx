@@ -91,7 +91,7 @@ export function VistaRecorte({
 }
 
 /** La hoja que armó el servidor: es el mismo archivo que se imprime o se descarga. */
-export function VistaHoja({ hojaId, version, fotos }: { hojaId: string; version: number; fotos: number }) {
+export function VistaHoja({ hojaId, version, fotos }: { hojaId: string; version: string; fotos: number }) {
   return (
     <div className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-white p-2">
       {/* eslint-disable-next-line @next/next/no-img-element -- archivo privado de la plancha, servido por nuestra ruta */}

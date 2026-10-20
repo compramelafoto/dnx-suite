@@ -53,6 +53,14 @@ export const esId = (x: unknown): x is string => typeof x === "string" && ID.tes
 const enteroEntre = (x: unknown, min: number, max: number): x is number => Number.isInteger(x) && (x as number) >= min && (x as number) <= max;
 export const nuevoId = () => randomUUID().replace(/-/g, "");
 
+/**
+ * La versión del archivo final de una hoja: cambia cada vez que la hoja se rearma con otro
+ * contenido (la misma hoja puede rehacerse). Va en la URL de la imagen, que se cachea.
+ */
+export function versionDeHoja(finalHuella: string | null): string {
+  return finalHuella ? finalHuella.slice(0, 12) : "0";
+}
+
 export async function preparacionPropia(workspaceId: string, id: unknown) {
   if (!esId(id)) return null;
   return prisma.fotofficePreparacionImpresion.findFirst({
@@ -138,16 +146,8 @@ export async function confirmarOriginal(ctx: CtxImpresion, originalId: string): 
   if (!o) return FOTO_NO_EXISTE;
   const real = await tamanoDeObjeto(o.key);
   if (real === null || real !== o.bytes) return tirarOriginal(ctx, o, "La foto no terminó de subirse. Probá de nuevo.");
-  const r = await procesarOriginalSubido(ctx, o.id);
-  if (r.ok) {
-    // Import dinámico: ficha-carnet importa de este archivo; así no queda un ciclo al cargar.
-    // Si la copia a la ficha falla, la preparación sigue: se reintenta al asignar cliente o al cobrar.
-    const { guardarOriginalesEnFicha } = await import("./ficha-carnet");
-    await guardarOriginalesEnFicha(ctx, o.preparacionId).catch((e) =>
-      console.error("[fotoffice][impresion] no se guardó en la ficha", { error: e instanceof Error ? e.name : "?" }),
-    );
-  }
-  return r;
+  // No va a la ficha todavía: va sólo la foto que se use en la pieza (al guardarla o al cobrar).
+  return procesarOriginalSubido(ctx, o.id);
 }
 
 async function tirarOriginal(ctx: CtxImpresion, o: { id: string; key: string }, error: string) {
@@ -242,6 +242,13 @@ export async function guardarPiezaCarnet(
     return { piezaId: pieza.id, finalesABorrar: sinRegistro.map((h) => h.finalKey) };
   });
   await borrarObjetos(finalesABorrar);
+  // A la ficha del cliente va el original de esta pieza (y sale el de una pieza anterior, si era otro).
+  // Import dinámico: ficha-carnet importa de este archivo; así no queda un ciclo al cargar.
+  // Si falla, la pieza igual queda: se reintenta al asignar cliente o al cobrar.
+  const { guardarOriginalesEnFicha } = await import("./ficha-carnet");
+  await guardarOriginalesEnFicha(ctx, prep.id).catch((e) =>
+    console.error("[fotoffice][impresion] no se guardó en la ficha", { error: e instanceof Error ? e.name : "?" }),
+  );
 
   return { ok: true, piezaId, ...calidadDePieza(original, receta, { anchoMm, altoMm }) };
 }
@@ -254,9 +261,11 @@ function calidadDePieza(original: { anchoPx: number; altoPx: number }, receta: R
 }
 
 export type EstadoPreparacion = {
+  /** El cliente real de la preparación (al cobrar, el de la venta): el editor arranca con él. */
+  cliente: { id: string; nombre: string; numero: number } | null;
   original: { id: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number } | null;
   pieza: { anchoMm: number; altoMm: number; receta: Receta; ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" } | null;
-  hoja: { id: string; fotosPorHoja: number; copias: number } | null;
+  hoja: { id: string; fotosPorHoja: number; copias: number; version: string } | null;
 };
 
 /**
@@ -268,7 +277,13 @@ export type EstadoPreparacion = {
 export async function estadoPreparacion(ctx: CtxImpresion, preparacionId: string): Promise<EstadoPreparacion | null> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return null;
-  const [piezaFila, hojaFila] = await Promise.all([
+  const [clienteFila, piezaFila, hojaFila] = await Promise.all([
+    prep.clientId
+      ? prisma.client.findFirst({
+          where: { id: prep.clientId, workspaceId: ctx.workspaceId },
+          select: { id: true, kind: true, firstName: true, lastName: true, businessName: true, clientNumber: true },
+        })
+      : null,
     prisma.fotofficePiezaImpresion.findFirst({
       where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, tipo: "CARNET" },
       select: { originalId: true, anchoMm: true, altoMm: true, receta: true },
@@ -276,7 +291,7 @@ export async function estadoPreparacion(ctx: CtxImpresion, preparacionId: string
     prisma.fotofficeHojaImpresion.findFirst({
       where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, finalKey: { not: null } },
       orderBy: { createdAt: "desc" },
-      select: { id: true, disposicion: true, copias: true },
+      select: { id: true, disposicion: true, copias: true, finalHuella: true },
     }),
   ]);
   const receta = piezaFila ? validarReceta(piezaFila.receta) : null;
@@ -290,22 +305,24 @@ export async function estadoPreparacion(ctx: CtxImpresion, preparacionId: string
     orderBy: { createdAt: "desc" },
     select: { id: true, anchoPx: true, altoPx: true },
   });
-  if (!originalFila) return { original: null, pieza: null, hoja: null };
+  const cliente = clienteFila ? { id: clienteFila.id, nombre: clientDisplayName(clienteFila), numero: clienteFila.clientNumber } : null;
+  if (!originalFila) return { cliente, original: null, pieza: null, hoja: null };
   const vista = tamanoVistaPrevia(originalFila.anchoPx, originalFila.altoPx);
   const original = { id: originalFila.id, ancho: originalFila.anchoPx, alto: originalFila.altoPx, vistaAncho: vista.ancho, vistaAlto: vista.alto };
-  if (!piezaFila || !receta) return { original, pieza: null, hoja: null };
+  if (!piezaFila || !receta) return { cliente, original, pieza: null, hoja: null };
   const mm = { anchoMm: Number(piezaFila.anchoMm), altoMm: Number(piezaFila.altoMm) };
   const pieza = { ...mm, receta, ...calidadDePieza(originalFila, receta, mm) };
   const posiciones = (hojaFila?.disposicion as { posiciones?: unknown[] } | null)?.posiciones;
-  const hoja = hojaFila && Array.isArray(posiciones) ? { id: hojaFila.id, fotosPorHoja: posiciones.length, copias: hojaFila.copias } : null;
-  return { original, pieza, hoja };
+  const hoja = hojaFila && Array.isArray(posiciones) ? { id: hojaFila.id, fotosPorHoja: posiciones.length, copias: hojaFila.copias, version: versionDeHoja(hojaFila.finalHuella) }
+      : null;
+  return { cliente, original, pieza, hoja };
 }
 
 export async function generarHojaCarnet(
   ctx: CtxImpresion,
   preparacionId: string,
   d: { salidaId: string | null; tamanoId: string | null; fotos: number | null; copias: number; conLineas: boolean },
-): Promise<R<{ hojaId: string; fotosPorHoja: number }>> {
+): Promise<R<{ hojaId: string; fotosPorHoja: number; version: string }>> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
   if (!enteroEntre(d.copias, 1, COPIAS_MAX)) return { ok: false, error: `Las copias tienen que ser entre 1 y ${COPIAS_MAX}.` };
@@ -372,7 +389,7 @@ export async function generarHojaCarnet(
       where: { id: prep.id, workspaceId: ctx.workspaceId, estado: "PREPARANDO" },
       data: { estado: "LISTA" },
     });
-    return { ok: true, hojaId: igual.id, fotosPorHoja: disp.posiciones.length };
+    return { ok: true, hojaId: igual.id, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
   }
 
   const piezaRaw = await renderizarPieza(await leerObjeto(original.key), receta, disp.pieza, salida.nitidez as Nitidez);
@@ -407,7 +424,7 @@ export async function generarHojaCarnet(
     data: { estado: "LISTA" },
   });
   if (existente?.finalKey && existente.finalKey !== finalKey) await borrarObjetos([existente.finalKey]);
-  return { ok: true, hojaId, fotosPorHoja: disp.posiciones.length };
+  return { ok: true, hojaId, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
 }
 
 export async function registrarImpresion(ctx: CtxImpresion, hojaId: string, d: { motivo: "NORMAL" | "DESCARTADA"; hojas: number }): Promise<R> {
@@ -436,11 +453,19 @@ export async function registrarImpresion(ctx: CtxImpresion, hojaId: string, d: {
         userId: ctx.userId,
       },
     });
-    if (d.motivo === "NORMAL")
-      await tx.fotofficePreparacionImpresion.updateMany({
-        where: { id: prep.id, workspaceId: ctx.workspaceId, estado: { not: "ANULADA" } },
-        data: { estado: "IMPRESA" },
-      });
+    if (d.motivo !== "NORMAL") return;
+    // Sólo la hoja vigente (la última) deja la preparación IMPRESA: reimprimir una vieja desde
+    // "Impreso hoy" no esconde una hoja más nueva que todavía no salió.
+    const ultima = await tx.fotofficeHojaImpresion.findFirst({
+      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, finalKey: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (ultima?.id !== hoja.id) return;
+    await tx.fotofficePreparacionImpresion.updateMany({
+      where: { id: prep.id, workspaceId: ctx.workspaceId, estado: { not: "ANULADA" } },
+      data: { estado: "IMPRESA" },
+    });
   });
   return { ok: true };
 }
@@ -497,25 +522,46 @@ export async function validarParaCobrar(workspaceId: string, items: { preparacio
 /**
  * Dentro de la transacción de la venta. El `updateMany` condicionado es el candado: si otra venta
  * (otra pestaña, un reintento) ya se quedó con la preparación, cuenta 0 y la venta entera se deshace.
+ * El cliente de la venta manda (spec §9, "atada al cliente del ticket"): si la venta tiene uno y
+ * es otro que el de la preparación, la foto que la preparación dejó en la ficha pasa a la suya.
+ * Sin cliente en la venta, la preparación conserva el suyo.
  */
 export async function vincularConVenta(
   tx: Prisma.TransactionClient,
-  workspaceId: string,
+  ctx: CtxImpresion,
   pares: { preparacionId: string; saleItemId: string }[],
   clientId: string | null,
 ): Promise<void> {
+  const workspaceId = ctx.workspaceId;
   for (const p of pares) {
     if (!esId(p.preparacionId)) throw new PreparacionNoVinculable();
     const prep = await tx.fotofficePreparacionImpresion.findFirst({ where: { id: p.preparacionId, workspaceId }, select: { clientId: true } });
+    const cliente = clientId ?? prep?.clientId ?? null;
     const r = await tx.fotofficePreparacionImpresion.updateMany({
       where: { id: p.preparacionId, workspaceId, saleItemId: null, estado: { not: "ANULADA" } },
-      data: { saleItemId: p.saleItemId, clientId: prep?.clientId ?? clientId },
+      data: { saleItemId: p.saleItemId, clientId: cliente },
     });
     if (r.count !== 1) throw new PreparacionNoVinculable();
+    if (cliente !== (prep?.clientId ?? null)) {
+      // Import dinámico: ficha-carnet importa de este archivo.
+      const { moverAdjuntosPropios } = await import("./ficha-carnet");
+      await moverAdjuntosPropios(tx, ctx, p.preparacionId, cliente);
+    }
   }
 }
 
-export type FilaCola = { preparacionId: string; producto: string | null; cliente: string | null; estado: string; hojaId: string | null; creada: string };
+export type FilaCola = {
+  preparacionId: string;
+  producto: string | null;
+  cliente: string | null;
+  estado: string;
+  hojaId: string | null;
+  /** La versión de la hoja (va en el enlace para imprimir): null si no hay hoja. */
+  hojaVersion: string | null;
+  /** Cobrada: atada a un renglón de venta (no se anula desde la cola). */
+  cobrada: boolean;
+  creada: string;
+};
 
 /** Las tres listas de Ventas → Impresiones. Fechas en ISO (la pantalla las muestra en hora argentina). */
 export async function colas(
@@ -524,7 +570,16 @@ export async function colas(
 ): Promise<{
   paraImprimir: FilaCola[];
   sinCobrar: FilaCola[];
-  impresoHoy: { registroId: string; salida: string; tamano: string; hojas: number; motivo: string; hora: string; hojaId: string | null }[];
+  impresoHoy: {
+    registroId: string;
+    salida: string;
+    tamano: string;
+    hojas: number;
+    motivo: string;
+    hora: string;
+    hojaId: string | null;
+    hojaVersion: string | null;
+  }[];
 }> {
   const [preps, registros] = await Promise.all([
     prisma.fotofficePreparacionImpresion.findMany({
@@ -546,7 +601,7 @@ export async function colas(
     }),
   ]);
   const ids = <T>(xs: (T | null)[]) => [...new Set(xs.filter((x): x is T => x !== null))];
-  const [productos, clientes, hojas, salidas, tamanos] = await Promise.all([
+  const [productos, clientes, hojas, salidas, tamanos, hojasRegistradas] = await Promise.all([
     prisma.product.findMany({ where: { workspaceId, id: { in: ids(preps.map((p) => p.productId)) } }, select: { id: true, name: true } }),
     prisma.client.findMany({
       where: { workspaceId, id: { in: ids(preps.map((p) => p.clientId)) } },
@@ -555,21 +610,25 @@ export async function colas(
     prisma.fotofficeHojaImpresion.findMany({
       where: { workspaceId, preparacionId: { in: preps.map((p) => p.id) } },
       orderBy: { createdAt: "asc" },
-      select: { id: true, preparacionId: true },
+      select: { id: true, preparacionId: true, finalHuella: true },
     }),
     prisma.fotofficeSalidaImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.salidaId)) } }, select: { id: true, nombre: true } }),
     prisma.fotofficeTamanoImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.tamanoId)) } }, select: { id: true, nombre: true } }),
+    prisma.fotofficeHojaImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.hojaId)) } }, select: { id: true, finalHuella: true } }),
   ]);
   const nombreProducto = new Map(productos.map((p) => [p.id, p.name]));
   const nombreCliente = new Map(clientes.map((c) => [c.id, clientDisplayName(c)]));
   // La última hoja de cada preparación (en orden de creación, la última pisa).
-  const ultimaHoja = new Map(hojas.map((h) => [h.preparacionId, h.id]));
+  const ultimaHoja = new Map(hojas.map((h) => [h.preparacionId, h]));
+  const versionRegistrada = new Map(hojasRegistradas.map((h) => [h.id, versionDeHoja(h.finalHuella)]));
   const fila = (p: (typeof preps)[number]): FilaCola => ({
     preparacionId: p.id,
     producto: p.productId ? (nombreProducto.get(p.productId) ?? null) : null,
     cliente: p.clientId ? (nombreCliente.get(p.clientId) ?? null) : null,
     estado: p.estado,
-    hojaId: ultimaHoja.get(p.id) ?? null,
+    hojaId: ultimaHoja.get(p.id)?.id ?? null,
+    hojaVersion: ultimaHoja.has(p.id) ? versionDeHoja(ultimaHoja.get(p.id)!.finalHuella) : null,
+    cobrada: p.saleItemId !== null,
     creada: p.createdAt.toISOString(),
   });
   const nombreSalida = new Map(salidas.map((s) => [s.id, s.nombre]));
@@ -585,6 +644,7 @@ export async function colas(
       motivo: r.motivo,
       hora: r.createdAt.toISOString(),
       hojaId: r.hojaId,
+      hojaVersion: r.hojaId ? (versionRegistrada.get(r.hojaId) ?? null) : null,
     })),
   };
 }
@@ -592,11 +652,22 @@ export async function colas(
 export async function datosParaImprimir(
   workspaceId: string,
   hojaId: string,
-): Promise<{ finalKey: string; anchoMm: number; altoMm: number; escalaXMil: number; escalaYMil: number; copias: number; salida: string; tamano: string } | null> {
+): Promise<{
+  finalKey: string;
+  /** Cambia cuando la hoja se rearma: la URL de la imagen la lleva para no mostrar una vieja en caché. */
+  version: string;
+  anchoMm: number;
+  altoMm: number;
+  escalaXMil: number;
+  escalaYMil: number;
+  copias: number;
+  salida: string;
+  tamano: string;
+} | null> {
   if (!esId(hojaId)) return null;
   const hoja = await prisma.fotofficeHojaImpresion.findFirst({
     where: { id: hojaId, workspaceId },
-    select: { finalKey: true, salidaId: true, tamanoId: true, copias: true },
+    select: { finalKey: true, finalHuella: true, salidaId: true, tamanoId: true, copias: true },
   });
   if (!hoja?.finalKey) return null;
   const [salida, tamano] = await Promise.all([
@@ -606,6 +677,7 @@ export async function datosParaImprimir(
   if (!salida || !tamano) return null;
   return {
     finalKey: hoja.finalKey,
+    version: versionDeHoja(hoja.finalHuella),
     anchoMm: Number(tamano.anchoMm),
     altoMm: Number(tamano.altoMm),
     escalaXMil: salida.escalaXMil,

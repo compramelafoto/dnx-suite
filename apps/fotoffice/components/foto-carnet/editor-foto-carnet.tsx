@@ -23,9 +23,14 @@ import { FotosAnteriores } from "./fotos-anteriores";
 import { PasoPlancha } from "./paso-plancha";
 import { recetaDesdeEditor } from "./receta-desde-editor";
 
-/** Igual que el servidor (`lib/impresion/almacen.ts`): 60 MB; HEIC se intenta. */
+/** Igual que el servidor (`lib/impresion/almacen.ts`): 60 MB. */
 const TAMANO_MAXIMO_FOTO = 60 * 1024 * 1024;
-const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
+/**
+ * El motor no abre HEIC (el servidor da el mismo aviso, `MENSAJE_HEIC` de `lib/impresion/render.ts`):
+ * se avisa antes de subir 60 MB para nada. Sin HEIC en `accept`, el iPhone entrega la foto ya en JPG.
+ */
+const MENSAJE_HEIC = "Las fotos HEIC del iPhone no se pueden abrir acá: exportala como JPG (en WhatsApp sale así).";
 /** El servidor acepta piezas de 20 a 100 mm por lado. */
 const LADO_MAXIMO_CM = 10;
 
@@ -63,19 +68,16 @@ type OriginalProcesado = { originalId: string; ancho: number; alto: number; vist
 type PiezaGuardada = {
   pieza: { originalId: string; anchoMm: number; altoMm: number; receta: Receta };
   calidad: { ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" };
-  hoja: { id: string; fotosPorHoja: number; copias: number } | null;
+  hoja: { id: string; fotosPorHoja: number; copias: number; version: string } | null;
 };
 
 /** Error con un texto que se le puede mostrar a quien atiende. */
 class ErrorVisible extends Error {}
 
-/** El tipo de la foto; algunos navegadores dejan vacío el de las HEIC del iPhone. */
-function tipoDeFoto(file: File): string | null {
-  if (TIPOS_FOTO.includes(file.type)) return file.type;
+/** Una HEIC del iPhone, por tipo o por nombre (algunos navegadores dejan vacío el tipo). */
+function esHeic(file: File): boolean {
   const nombre = file.name.toLowerCase();
-  if (!file.type && nombre.endsWith(".heic")) return "image/heic";
-  if (!file.type && nombre.endsWith(".heif")) return "image/heif";
-  return null;
+  return file.type === "image/heic" || file.type === "image/heif" || nombre.endsWith(".heic") || nombre.endsWith(".heif");
 }
 
 const cm = (n: number) => String(n).replace(".", ",");
@@ -124,6 +126,8 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
       .then((e) => {
         if (!vigente) return;
         if (!e) return setErrorFoto("Esa preparación ya no existe. Cerrá y volvé a tocar «Preparar».");
+        // El cliente de la preparación manda sobre el del ticket (al cobrar, es el de la venta).
+        if (e.cliente) setCliente({ ...e.cliente, documento: null, email: null, telefono: null });
         if (!e.original) return;
         setOriginal({ id: e.original.id, vista: { ancho: e.original.vistaAncho, alto: e.original.vistaAlto }, ancho: e.original.ancho, alto: e.original.alto });
         if (!e.pieza) return;
@@ -207,8 +211,9 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
   function elegirFoto(file: File | undefined) {
     setErrorFoto(null);
     if (!file) return;
-    const tipo = tipoDeFoto(file);
-    if (!tipo) return setErrorFoto("La foto tiene que ser JPG, PNG, WebP o HEIC.");
+    if (esHeic(file)) return setErrorFoto(MENSAJE_HEIC);
+    const tipo = TIPOS_FOTO.includes(file.type) ? file.type : null;
+    if (!tipo) return setErrorFoto("La foto tiene que ser JPG, PNG o WebP.");
     if (file.size > TAMANO_MAXIMO_FOTO) {
       return setErrorFoto(`La foto pesa ${(file.size / 1024 / 1024).toFixed(1)} MB: el máximo es 60 MB.`);
     }
@@ -279,7 +284,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
             <input
               ref={inputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={(e) => {
                 elegirFoto(e.target.files?.[0]);
@@ -293,7 +298,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
               </button>
             </div>
             <p className="text-xs text-[var(--fo-muted)]">
-              JPG, PNG, WebP o HEIC de hasta 60 MB. El original se guarda en la ficha del cliente para la próxima vez.
+              JPG, PNG o WebP de hasta 60 MB. El original se guarda en la ficha del cliente para la próxima vez.
             </p>
             {errorFoto ? <p className="fo-alert-error">{errorFoto}</p> : null}
             {imageSrc ? (

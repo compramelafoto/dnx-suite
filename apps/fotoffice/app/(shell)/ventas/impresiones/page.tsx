@@ -32,7 +32,7 @@ export default async function ImpresionesPage() {
                 </span>
                 <span className="flex gap-3">
                   {r.hojaId ? (
-                    <Link className="underline" href={`/imprimir/hoja/${r.hojaId}`} target="_blank">
+                    <Link className="underline" href={`/imprimir/hoja/${r.hojaId}?v=${r.hojaVersion ?? "0"}`} target="_blank">
                       Reimprimir
                     </Link>
                   ) : null}
@@ -60,7 +60,7 @@ function Seccion({ titulo, vacia, filas }: { titulo: string; vacia: string; fila
               <span>
                 {f.producto ?? "Foto carnet"} · {f.cliente ?? "sin cliente"} · {f.estado === "IMPRESA" ? "impresa" : f.estado === "LISTA" ? "lista" : "a medio preparar"} · {hora(f.creada)}
               </span>
-              <FilaAcciones preparacionId={f.preparacionId} hojaId={f.hojaId} />
+              <FilaAcciones preparacionId={f.preparacionId} hojaId={f.hojaId} hojaVersion={f.hojaVersion} cobrada={f.cobrada} />
             </li>
           ))}
         </ul>
