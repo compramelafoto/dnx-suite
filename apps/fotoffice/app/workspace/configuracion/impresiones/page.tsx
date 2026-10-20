@@ -5,8 +5,14 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { leerAjustes } from "@/lib/impresiones/configuracion-servidor";
 import { CIRCUITO_POR_OMISION } from "@/lib/impresiones/constantes";
+import { pedidosPagadosSinEnviar } from "@/lib/impresiones/trabajo-servidor";
 import { guardarAjustesAction } from "./actions";
 import { FormularioTamanos } from "./formulario-tamanos";
+import { PedidosSinEnviar } from "./pedidos-sin-enviar";
+
+const pesos = (c: number) => (c / 100).toLocaleString("es-AR", { style: "currency", currency: "ARS" });
+const fechaAr = (d: Date | null) =>
+  d ? d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +28,11 @@ export default async function ImpresionesPage({ searchParams }: { searchParams: 
       </div>
     );
   }
-  const [ajustes, proveedores, circuitos] = await Promise.all([
+  const [ajustes, proveedores, circuitos, sinEnviar] = await Promise.all([
     leerAjustes(workspace.id),
     prisma.fotofficeProveedor.findMany({ where: { workspaceId: workspace.id, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.fotofficeCircuit.findMany({ where: { workspaceId: workspace.id, kind: "TRABAJO", isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    pedidosPagadosSinEnviar(workspace.id),
   ]);
   const circuitoActual = ajustes.circuitId ?? circuitos.find((c) => c.name === CIRCUITO_POR_OMISION)?.id ?? "";
 
@@ -42,6 +49,12 @@ export default async function ImpresionesPage({ searchParams }: { searchParams: 
           </Link>
           .
         </p>
+      ) : null}
+
+      {sinEnviar.length > 0 ? (
+        <PedidosSinEnviar
+          filas={sinEnviar.map((p) => ({ pedidoId: p.pedidoId, numero: p.numero, cliente: p.cliente, pagadoEl: fechaAr(p.pagadoEl), total: pesos(p.totalCents), lastError: p.lastError }))}
+        />
       ) : null}
 
       <form action={guardarAjustesAction} className="fo-card grid gap-3 p-5">
