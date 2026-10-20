@@ -87,7 +87,4 @@ describe("resolverFuente", () => {
     db.fotofficeProyecto.findFirst.mockResolvedValue(null);
     expect(await F.resolverFuente("ws", "estudio", "CARPETA", tok)).toBeNull();
   });
-  it("GALERIA todavía no está disponible → null", async () => {
-    expect(await F.resolverFuente("ws", "estudio", "GALERIA", tok)).toBeNull();
-  });
 });

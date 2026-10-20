@@ -91,6 +91,25 @@ describe("iniciarPagoImpresion", () => {
     expect(await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, datos)).toEqual({ ok: false, error: "El estudio todavía no puede cobrar online. Escribile para hacer el pedido." });
     expect(H.db.fotofficePrintOrder.create).not.toHaveBeenCalled();
   });
+  it("desde una galería: el pedido guarda la galería y cada copia la foto de la galería y su original", async () => {
+    H.fuente.mockResolvedValue({
+      tipo: "GALERIA", proyectoOrigenId: "pr1", galeriaId: "g1", clientId: null, nombre: "Ana", email: "ana@x.com", telefono: "341",
+      fotos: [{ id: "a1", nombre: "a.jpg", key: "o/a1", width: 6000, height: 4000, mini: "https://r2.test/t/a1" }],
+    });
+    const r = await P.iniciarPagoImpresion("ws", "dnxestudio", "GALERIA", TOKEN, datos);
+    expect(r.ok).toBe(true);
+    expect(H.fuente).toHaveBeenCalledWith("ws", "dnxestudio", "GALERIA", TOKEN);
+    const creado = H.db.fotofficePrintOrder.create.mock.calls[0][0].data as Record<string, unknown> & { items: { create: Record<string, unknown>[] } };
+    expect(creado).toMatchObject({ source: "GALERIA", galeriaId: "g1", proyectoOrigenId: "pr1", clientId: null });
+    expect(creado.items.create[0]).toMatchObject({ galeriaFotoId: "a1", sourceKey: "o/a1", sourceName: "a.jpg" });
+    expect(creado.items.create[0].archivoId).toBeUndefined();
+  });
+  it("desde una galería: una foto que no está entre las imprimibles (sin pagar) no cobra", async () => {
+    H.fuente.mockResolvedValue({ tipo: "GALERIA", proyectoOrigenId: "pr1", galeriaId: "g1", clientId: null, nombre: null, email: null, telefono: null, fotos: [{ id: "pagada", nombre: "p.jpg", key: "o/p", width: 1, height: 1, mini: "" }] });
+    const r = await P.iniciarPagoImpresion("ws", "dnxestudio", "GALERIA", TOKEN, datos);
+    expect(r.ok).toBe(false);
+    expect(H.db.fotofficePrintOrder.create).not.toHaveBeenCalled();
+  });
   it("si Mercado Pago rechaza la preferencia, avisa sin lanzar", async () => {
     H.preferencia.mockRejectedValueOnce(new Error("caído"));
     const r = await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, datos);

@@ -3,6 +3,9 @@ import sharp from "sharp";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@repo/db";
 import { hashDeToken } from "@/lib/presupuestos/enlace";
+import { urlsDeLecturaPorLote } from "@/lib/galerias/almacen";
+import { ordenarFotosDeGaleria } from "@/lib/galerias/orden";
+import { idsImprimibles, resolverTokenGaleria } from "@/lib/galerias/publico";
 import { bucketR2Privado, clienteR2Privado } from "@/lib/ficha/adjuntos-r2";
 import { subirBuffer } from "@/lib/carpetas/subir-servidor";
 import { TIPOS_IMAGEN } from "./constantes";
@@ -55,8 +58,46 @@ export type Fuente = {
 /** Resuelve el enlace del cliente a sus fotos imprimibles. `null` si el enlace no vale (o el tipo todavía no existe). */
 export async function resolverFuente(workspaceId: string, slug: string, tipo: FuenteTipo, token: unknown): Promise<Fuente | null> {
   if (tipo === "CARPETA") return fuenteCarpeta(workspaceId, slug, token);
-  // GALERIA: se implementa en la etapa 3.
+  if (tipo === "GALERIA") return fuenteGaleria(workspaceId, token);
   return null;
+}
+
+/**
+ * Enlace de la galería del cliente: se imprimen sólo las FOTOS (no videos) cuyo original puede bajar
+ * (`idsImprimibles`, la misma regla que las descargas). Sin ninguna → null. La miniatura es una URL firmada
+ * (vence), así que se arma en cada pedido de la página.
+ */
+async function fuenteGaleria(workspaceId: string, token: unknown): Promise<Fuente | null> {
+  const r = await resolverTokenGaleria(workspaceId, token);
+  if (!r.ok) return null;
+  const ids = await idsImprimibles(r);
+  if (ids.length === 0) return null;
+  const [galeria, galeriaCliente, filas] = await Promise.all([
+    prisma.fotofficeGaleria.findFirst({ where: { id: r.galeria.id, workspaceId }, select: { proyectoId: true } }),
+    prisma.fotofficeGaleriaCliente.findFirst({ where: { id: r.cliente.id, workspaceId }, select: { clientId: true, name: true, email: true, phone: true } }),
+    prisma.fotofficeGaleriaFoto.findMany({
+      where: { workspaceId, galeriaId: r.galeria.id, status: "LISTA", mediaType: "FOTO", id: { in: ids } },
+      select: { id: true, fileName: true, order: true, originalKey: true, viewKey: true, thumbKey: true, width: true, height: true },
+    }),
+  ]);
+  if (!galeria || !galeriaCliente) return null;
+  const fotos = ordenarFotosDeGaleria(filas, r.galeria.orderMode);
+  if (fotos.length === 0) return null;
+  // Se firma la miniatura; si no tiene, la vista grande.
+  const urls = await urlsDeLecturaPorLote(fotos.map((f) => ({ id: f.id, thumbKey: f.thumbKey, viewKey: f.thumbKey ? null : f.viewKey })));
+  return {
+    tipo: "GALERIA",
+    proyectoOrigenId: galeria.proyectoId,
+    galeriaId: r.galeria.id,
+    clientId: galeriaCliente.clientId,
+    nombre: galeriaCliente.name?.trim() || null,
+    email: galeriaCliente.email ?? null,
+    telefono: galeriaCliente.phone ?? null,
+    fotos: fotos.map((f) => {
+      const u = urls.get(f.id);
+      return { id: f.id, nombre: f.fileName, key: f.originalKey, width: f.width, height: f.height, mini: u?.thumbUrl ?? u?.viewUrl ?? "" };
+    }),
+  };
 }
 
 async function fuenteCarpeta(workspaceId: string, slug: string, token: unknown): Promise<Fuente | null> {
