@@ -1,5 +1,5 @@
 import "server-only";
-import { OrderOrigin, prisma } from "@/lib/prisma";
+import { OrderOrigin, OrderStatus, prisma } from "@/lib/prisma";
 import { createDesignV2Project } from "@/lib/design-v2/projects";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
 import {
@@ -27,7 +27,8 @@ export async function valoresDelPackExterno(input: {
 }): Promise<Record<string, string>> {
   const delAlbum = input.externo.courseName
     ? await prisma.order.findMany({
-        where: { albumId: input.albumId, origin: OrderOrigin.PREVENTA_PACK, isTest: false },
+        // Sólo los pagados: un pack anulado (p. ej. cargado dos veces del Excel) no va al listado.
+        where: { albumId: input.albumId, origin: OrderOrigin.PREVENTA_PACK, isTest: false, status: OrderStatus.PAID },
         select: { redemptionPaymentRefsJson: true },
       })
     : [];
