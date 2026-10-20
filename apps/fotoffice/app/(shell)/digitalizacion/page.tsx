@@ -16,6 +16,12 @@ const MOTIVOS: Record<string, string> = {
   DVD_COMPLETO: "DVD completo",
   TERMINADA_CON_LO_GRABADO: "Terminada con lo grabado",
 };
+const CONVERSION: Record<string, string> = {
+  PENDIENTE: "En cola para convertir",
+  PROCESANDO: "Convirtiendo…",
+  SIN_IMAGEN: "Sin imagen: no se convierte",
+};
+const mb = (b: bigint) => `${(Number(b) / 1024 ** 2).toFixed(0)} MB`;
 const duracion = (s: number) => `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")} min`;
 const gb = (b: bigint) => `${(Number(b) / 1024 ** 3).toFixed(2)} GB`;
 const fecha = (d: Date) => d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short", timeStyle: "short" });
@@ -28,7 +34,7 @@ export default async function DigitalizacionPage() {
     <div className="space-y-6">
       <PageHeader
         title="Digitalización"
-        description="Cassettes VHS y DVD grabados o subidos. La conversión a Full HD llega en la próxima etapa."
+        description="Cassettes VHS y DVD grabados o subidos, con su conversión a video Full HD."
         actions={puedeGrabar ? <a href="/digitalizacion/grabar" className="fo-btn fo-btn-primary text-sm">● Grabar</a> : undefined}
       />
       {puedeGrabar ? <AjusteMinutos minutos={ajustes.minutosSinSenal} /> : null}
@@ -51,7 +57,21 @@ export default async function DigitalizacionPage() {
                   {g.motivoFin ? ` · ${MOTIVOS[g.motivoFin] ?? g.motivoFin}` : ""}
                   {g.sinImagen && g.tipo === "VHS" ? " · ¡no se vio imagen en ningún momento!" : ""}
                 </p>
-                {puedeGrabar ? <AccionesGrabacion id={g.id} estado={estado} nombreArchivo={`grabacion-${g.id}.${extensionDeMime(g.mimeType) ?? "bin"}`} /> : null}
+                {g.conversionEstado ? <p className="text-sm">
+                  {g.conversionEstado === "LISTA"
+                    ? `Video listo${g.videoDuracionSeg != null ? ` · ${duracion(g.videoDuracionSeg)}` : ""}${g.videoBytes != null ? ` · ${mb(g.videoBytes)}` : ""}`
+                    : g.conversionEstado === "ERROR"
+                      ? <span className="fo-alert-warning px-2">Error: {g.conversionError ?? "falló la conversión"}</span>
+                      : CONVERSION[g.conversionEstado] ?? g.conversionEstado}
+                </p> : null}
+                <AccionesGrabacion
+                  id={g.id}
+                  estado={estado}
+                  puedeGrabar={puedeGrabar}
+                  conversionEstado={g.conversionEstado ?? ""}
+                  partesBorradas={g.partesBorradasAt != null}
+                  nombreArchivo={`grabacion-${g.id}.${extensionDeMime(g.mimeType) ?? "bin"}`}
+                />
               </li>
             );
           })}

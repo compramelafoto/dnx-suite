@@ -4,21 +4,27 @@ import { ID_VALIDO, claveDeParte, extensionDeMime, prefijoDeGrabacion, tipoConte
 import { MINUTOS_SIN_SENAL_MAX, MINUTOS_SIN_SENAL_MIN, MINUTOS_SIN_SENAL_POR_DEFECTO } from "../constants";
 import type { CtxDigitalizacion } from "../contexto";
 import { estadoVisible, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
-import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte } from "./almacen";
+import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
 
 export type Nada = Record<never, never>;
 export type Resultado<T> = ({ ok: true } & T) | { ok: false; error: string; definitivo?: boolean };
 
 const NO_EXISTE = { ok: false as const, error: "No encontramos esa grabación.", definitivo: true };
 const CERRADA = { ok: false as const, error: "Esa grabación ya está cerrada.", definitivo: true };
+const CONVERTIDA = { ok: false as const, error: "Esa grabación ya se está convirtiendo o ya está convertida.", definitivo: true };
 const EN_CURSO = { ok: false as const, error: "La grabación sigue en curso." };
 
 async function grabacionDelNegocio(ctx: CtxDigitalizacion, id: string) {
   if (!ID_VALIDO.test(id)) return null;
   return prisma.digitalizacionGrabacion.findFirst({
     where: { id, workspaceId: ctx.workspaceId },
-    select: { id: true, workspaceId: true, estado: true, mimeType: true, tramos: true, tipo: true, proyectoId: true, cassetteNumero: true, calidad: true, corregirProporcion: true, ultimoLatidoAt: true, iniciadaAt: true },
+    select: { id: true, workspaceId: true, estado: true, mimeType: true, tramos: true, tipo: true, proyectoId: true, calidad: true, corregirProporcion: true, ultimoLatidoAt: true, iniciadaAt: true, cassetteNumero: true, conversionEstado: true, partesBorradasAt: true, videoKey: true, sinImagen: true },
   });
+}
+
+/** Una vez que el worker tomó la grabación (o ya la convirtió, o borró las partes) no se aceptan partes nuevas. */
+function sinPartesNuevas(g: { conversionEstado: string | null; partesBorradasAt: Date | null }): boolean {
+  return g.conversionEstado === "PROCESANDO" || g.conversionEstado === "LISTA" || g.partesBorradasAt != null;
 }
 
 export async function crearGrabacion(ctx: CtxDigitalizacion, g: NuevaGrabacion): Promise<Resultado<{ id: string; tramo: number }>> {
@@ -58,6 +64,7 @@ export async function pedirParte(
   // Tras "Terminar con lo grabado" (COMPLETA) pueden quedar partes en el navegador: se aceptan
   // mientras el tramo exista. Sólo una grabación DESCARTADA las rechaza.
   if (g.estado === "DESCARTADA") return CERRADA;
+  if (sinPartesNuevas(g)) return CONVERTIDA;
   if (p.tramo > g.tramos) return { ok: false, error: "Ese tramo no existe.", definitivo: true };
   const ext = extensionDeMime(g.mimeType);
   if (!ext) return { ok: false, error: "Formato no válido.", definitivo: true };
@@ -70,7 +77,8 @@ export async function pedirParte(
   await prisma.digitalizacionParte.upsert({
     where: { grabacionId_tramo_indice: { grabacionId: g.id, tramo: p.tramo, indice: p.indice } },
     create: { grabacionId: g.id, tramo: p.tramo, indice: p.indice, key, bytes: BigInt(p.bytes) },
-    update: { bytes: BigInt(p.bytes) },
+    // createdAt = ahora: al pedir de nuevo, la parte cuenta como reciente para la espera de 30 min del worker.
+    update: { bytes: BigInt(p.bytes), createdAt: new Date() },
   });
   const tipo = tipoContenido(ext);
   return { ok: true, yaEstaba: false, url: await urlDeSubidaParte(key, tipo, p.bytes), tipoContenido: tipo };
@@ -80,6 +88,7 @@ export async function confirmarParte(ctx: CtxDigitalizacion, p: Omit<PedidoParte
   const g = await grabacionDelNegocio(ctx, p.grabacionId);
   if (!g) return NO_EXISTE;
   if (g.estado === "DESCARTADA") return CERRADA;
+  if (sinPartesNuevas(g)) return CONVERTIDA;
   if (p.tramo > g.tramos) return { ok: false, error: "Ese tramo no existe.", definitivo: true };
   const parte = await prisma.digitalizacionParte.findUnique({
     where: { grabacionId_tramo_indice: { grabacionId: g.id, tramo: p.tramo, indice: p.indice } },
@@ -133,15 +142,22 @@ export async function registrarLatido(ctx: CtxDigitalizacion, id: string, l: Lat
   return { ok: true };
 }
 
+/** Un VHS sin imagen en toda la grabación no se convierte; todo lo demás entra a la cola. */
+function estadoInicialDeConversion(tipo: string, sinImagen: boolean): "PENDIENTE" | "SIN_IMAGEN" {
+  return tipo === "VHS" && sinImagen ? "SIN_IMAGEN" : "PENDIENTE";
+}
+
 export async function cerrarGrabacion(ctx: CtxDigitalizacion, id: string, c: Cierre): Promise<Resultado<Nada>> {
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
   if (g.estado !== "GRABANDO") return CERRADA;
   if (c.tramo !== g.tramos) return { ok: false, error: "Ese tramo ya no es el actual.", definitivo: true };
   const previo = await prisma.digitalizacionGrabacion.findFirst({ where: { id: g.id }, select: { tramosSinSenal: true, sinImagen: true } });
+  const datos = datosDeLatido(c, g.tramos, previo ?? null);
+  const sinImagenFinal = datos.sinImagen;
   await prisma.digitalizacionGrabacion.update({
     where: { id: g.id },
-    data: { ...datosDeLatido(c, g.tramos, previo ?? null), estado: "COMPLETA", motivoFin: c.motivoFin, terminadaAt: new Date() },
+    data: { ...datos, estado: "COMPLETA", motivoFin: c.motivoFin, terminadaAt: new Date(), conversionEstado: estadoInicialDeConversion(g.tipo, sinImagenFinal) },
   });
   return { ok: true };
 }
@@ -171,7 +187,7 @@ export async function terminarConLoGrabado(ctx: CtxDigitalizacion, id: string): 
   if (estadoVisible(g, new Date()) === "GRABANDO") return EN_CURSO;
   const r = await prisma.digitalizacionGrabacion.updateMany({
     where: { id: g.id, workspaceId: ctx.workspaceId, estado: "GRABANDO" },
-    data: { estado: "COMPLETA", motivoFin: "TERMINADA_CON_LO_GRABADO", terminadaAt: new Date() },
+    data: { estado: "COMPLETA", motivoFin: "TERMINADA_CON_LO_GRABADO", terminadaAt: new Date(), conversionEstado: estadoInicialDeConversion(g.tipo, g.sinImagen) },
   });
   return r.count === 1 ? { ok: true } : NO_EXISTE;
 }
@@ -180,13 +196,14 @@ export async function descartarGrabacion(ctx: CtxDigitalizacion, id: string): Pr
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
   if (g.estado === "GRABANDO" && estadoVisible(g, new Date()) === "GRABANDO") return EN_CURSO;
+  if (g.conversionEstado === "PROCESANDO") return { ok: false as const, error: "La grabación se está convirtiendo." };
   try {
     await borrarPrefijo(prefijoDeGrabacion(ctx.workspaceId, g.id));
   } catch (e) {
     console.error("[digitalizacion] borrar prefijo falló", e instanceof Error ? e.name : "error");
     return { ok: false, error: "No pudimos borrar los archivos. Probá de nuevo." };
   }
-  await prisma.digitalizacionGrabacion.update({ where: { id: g.id }, data: { estado: "DESCARTADA", terminadaAt: new Date() } });
+  await prisma.digitalizacionGrabacion.update({ where: { id: g.id }, data: { estado: "DESCARTADA", terminadaAt: new Date(), conversionEstado: null } });
   return { ok: true };
 }
 
@@ -194,6 +211,7 @@ export async function urlsDeLectura(ctx: CtxDigitalizacion, id: string): Promise
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
   if (g.estado === "DESCARTADA") return CERRADA;
+  if (g.partesBorradasAt) return { ok: false, error: "Los archivos crudos ya se borraron. Descargá el video final.", definitivo: true };
   const partes = await prisma.digitalizacionParte.findMany({
     where: { grabacionId: g.id, estado: "LISTA" },
     orderBy: [{ tramo: "asc" }, { indice: "asc" }],
@@ -201,6 +219,24 @@ export async function urlsDeLectura(ctx: CtxDigitalizacion, id: string): Promise
   });
   const urls = await Promise.all(partes.map((p) => urlDeLecturaParte(p.key)));
   return { ok: true, urls, nombre: `grabacion-${g.id}.${extensionDeMime(g.mimeType) ?? "bin"}` };
+}
+
+export async function reintentarConversion(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
+  const g = await grabacionDelNegocio(ctx, id);
+  if (!g) return NO_EXISTE;
+  const r = await prisma.digitalizacionGrabacion.updateMany({
+    where: { id: g.id, workspaceId: ctx.workspaceId, conversionEstado: "ERROR" },
+    data: { conversionEstado: "PENDIENTE", conversionIntentos: 0, conversionError: null, conversionLockAt: null },
+  });
+  return r.count === 1 ? { ok: true } : { ok: false, error: "Esa grabación no está con error." };
+}
+
+export async function urlDeVideo(ctx: CtxDigitalizacion, id: string, modo: "ver" | "descargar"): Promise<Resultado<{ url: string }>> {
+  const g = await grabacionDelNegocio(ctx, id);
+  if (!g) return NO_EXISTE;
+  if (g.conversionEstado !== "LISTA" || !g.videoKey || g.videoKey !== `${prefijoDeGrabacion(ctx.workspaceId, g.id)}final.mp4`) return { ok: false, error: "El video todavía no está listo." };
+  const nombre = g.cassetteNumero != null ? `cassette-${g.cassetteNumero}.mp4` : `grabacion-${g.id}.mp4`;
+  return { ok: true, url: await firmarVideo(g.videoKey, nombre, modo) };
 }
 
 export async function buscarTrabajos(ctx: CtxDigitalizacion, q: string) {
@@ -266,6 +302,7 @@ export async function listarGrabaciones(workspaceId: string) {
     select: {
       id: true, tipo: true, estado: true, motivoFin: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
       tramos: true, ultimoLatidoAt: true, iniciadaAt: true, sinImagen: true, mimeType: true,
+      conversionEstado: true, conversionError: true, videoBytes: true, videoDuracionSeg: true, partesBorradasAt: true,
       proyecto: { select: { number: true, name: true } },
     },
   });
