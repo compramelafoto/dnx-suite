@@ -56,6 +56,7 @@ describe("motor de impresión", () => {
     const p = await renderizarPieza(p3, recetaInicial(), { ancho: 50, alto: 50 }, "SUAVE");
     const [r, g] = await promedio(p.data);
     expect(r).toBeGreaterThanOrEqual(225);
+    expect(r).toBeLessThanOrEqual(236);
     expect(g).toBeLessThanOrEqual(70);
   });
 
@@ -83,7 +84,9 @@ describe("motor de impresión", () => {
       if (desde < 0 && v(x) > 51) desde = x;
       if (hasta < 0 && v(x) > 204) hasta = x;
     }
-    expect(hasta - desde).toBeLessThanOrEqual(4);
+    expect(desde).toBeGreaterThan(0);
+    expect(hasta).toBeGreaterThan(0);
+    expect(hasta - desde).toBeLessThanOrEqual(1);
   });
 
   it("la hoja final: medidas exactas, 300 ppp grabados, sRGB embebido y fondo blanco", async () => {
