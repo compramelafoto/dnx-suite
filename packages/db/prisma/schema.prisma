@@ -25620,6 +25620,7 @@ model FotofficePrintSize {
 
   @@unique([workspaceId, widthCm, heightCm])
   @@index([workspaceId, active])
+  @@index([proveedorId])
 }
 
 model FotofficePrintOrder {
@@ -25663,6 +25664,8 @@ model FotofficePrintOrder {
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
+  @@index([proyectoOrigenId])
+  @@index([clientId])
 }
 
 model FotofficePrintOrderItem {

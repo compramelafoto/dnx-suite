@@ -1,3 +1,4 @@
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { describe, expect, it } from "vitest";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -40,7 +41,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos, informes y galería", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos, informes, galería y pedidos de impresión", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -67,6 +68,7 @@ describe("MODULE_REGISTRY", () => {
         "contracts",
         "reports",
         "gallery",
+        PRINT_ORDERS_MODULE_KEY,
       ].sort(),
     );
   });

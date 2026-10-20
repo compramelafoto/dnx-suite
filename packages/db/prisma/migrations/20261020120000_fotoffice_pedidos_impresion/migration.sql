@@ -139,6 +139,15 @@ CREATE INDEX "FotofficePrintOrderItem_proyectoId_idx" ON "FotofficePrintOrderIte
 -- CreateIndex
 CREATE UNIQUE INDEX "FotofficePrintSourceImage_archivoId_key" ON "FotofficePrintSourceImage"("archivoId");
 
+-- CreateIndex
+CREATE INDEX "FotofficePrintSize_proveedorId_idx" ON "FotofficePrintSize"("proveedorId");
+
+-- CreateIndex
+CREATE INDEX "FotofficePrintOrder_proyectoOrigenId_idx" ON "FotofficePrintOrder"("proyectoOrigenId");
+
+-- CreateIndex
+CREATE INDEX "FotofficePrintOrder_clientId_idx" ON "FotofficePrintOrder"("clientId");
+
 -- AddForeignKey
 ALTER TABLE "FotofficePrintSettings" ADD CONSTRAINT "FotofficePrintSettings_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
