@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const RAIZ = join(__dirname, "..", "..", "..", "..");
 const sql = readFileSync(
-  join(RAIZ, "packages/db/prisma/migrations/20261027100000_fotoffice_bandeja_whatsapp/migration.sql"),
+  join(RAIZ, "packages/db/prisma/migrations/20261126100000_fotoffice_bandeja_whatsapp/migration.sql"),
   "utf8",
 );
 const schema = readFileSync(join(RAIZ, "packages/db/prisma/schema.prisma"), "utf8");
