@@ -42,6 +42,8 @@ export function HojasParaImprimir({
   const [reintento, setReintento] = useState<{ registros: RegistroDeHoja[]; reimprimir: HojaAImprimir[] } | null>(null);
   const contenedor = useRef<HTMLDivElement>(null);
   const cargadas = useRef(new Set<string>());
+  /** Un registro a la vez: un doble clic en «Todas bien» no registra dos veces la misma tanda. */
+  const registrando = useRef(false);
   const lista = useMemo(() => paginas(tanda), [tanda]);
 
   function cambiarFase(f: Fase) {
@@ -82,6 +84,16 @@ export function HojasParaImprimir({
   }, [ronda]);
 
   async function registrar(registros: RegistroDeHoja[], reimprimir: HojaAImprimir[]) {
+    if (registrando.current) return;
+    registrando.current = true;
+    try {
+      await guardarRegistros(registros, reimprimir);
+    } finally {
+      registrando.current = false;
+    }
+  }
+
+  async function guardarRegistros(registros: RegistroDeHoja[], reimprimir: HojaAImprimir[]) {
     cambiarFase("guardando");
     setError(null);
     try {

@@ -929,6 +929,8 @@ export type DatosPreparacionParaImprimir = {
   hojas: HojaAImprimir[];
   /** Fotos sin hoja vigente: no entran en este documento (hay que armarlas). */
   faltan: number;
+  /** Ya se cobró: no se puede volver a abrir en el Mostrador para armar lo que falte. */
+  cobrada: boolean;
   papel: { anchoMm: number; altoMm: number; escalaXMil: number; escalaYMil: number; salida: string; tamano: string } | null;
 };
 
@@ -944,7 +946,8 @@ export async function datosParaImprimirPreparacion(
   const prep = await preparacionPropia(workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return null;
   const v = await hojasVigentes(prisma, workspaceId, prep.id);
-  if (v.hojas.length === 0) return { hojas: [], faltan: v.faltan, papel: null };
+  const cobrada = prep.saleItemId !== null;
+  if (v.hojas.length === 0) return { hojas: [], faltan: v.faltan, cobrada, papel: null };
   // Todas las páginas van en el mismo papel: el que fija el producto. Si ninguna hoja está armada en ese papel
   // (o no es un producto de copias), el de la primera hoja. Las de otro papel se cuentan en `faltan`: hay que volver a armarlas.
   const prod = prep.productId
@@ -966,6 +969,7 @@ export async function datosParaImprimirPreparacion(
   return {
     hojas,
     faltan: v.faltan + v.hojas.length - mismas.length,
+    cobrada,
     papel: {
       anchoMm: Number(tamano.anchoMm),
       altoMm: Number(tamano.altoMm),

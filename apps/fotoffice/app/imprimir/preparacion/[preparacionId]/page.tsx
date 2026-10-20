@@ -32,7 +32,11 @@ export default async function PreparacionParaImprimirPage({
       <div className="mx-auto max-w-xl space-y-3 p-6 text-sm">
         {d.faltan > 0 ? (
           <p>
-            Faltan armar {d.faltan} {d.faltan === 1 ? "foto" : "fotos"}. Abrí la preparación en el Mostrador y tocá «Armar hojas».
+            {/* Desde Ventas → Impresiones no se edita una preparación: sólo el Mostrador la abre, y sólo antes de cobrarla. */}
+            Faltan armar {d.faltan} {d.faltan === 1 ? "foto" : "fotos"}.{" "}
+            {d.cobrada
+              ? "Esta preparación ya se cobró y no se puede volver a abrir para armarlas: no hay hojas para imprimir."
+              : "Abrí la preparación en el Mostrador («Editar fotos» en su renglón) y tocá «Listo»."}
           </p>
         ) : (
           <p>No queda nada por imprimir: todo salió.</p>

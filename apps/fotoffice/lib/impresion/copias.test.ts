@@ -396,6 +396,7 @@ describe("copias: imprimir todo y registrar", () => {
     await K.generarHojaCopia(CTX, prep, ids[1]!);
     let d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
     expect(d.faltan).toBe(1);
+    expect(d.cobrada).toBe(false);
     expect(d.hojas.map((h) => h.copias)).toEqual([2, 1]);
     expect(d.papel).toEqual({ anchoMm: 102, altoMm: 152, escalaXMil: 1000, escalaYMil: 1000, salida: "Kodak 305", tamano: "10x15" });
     await K.generarHojaCopia(CTX, prep, ids[2]!);
@@ -403,6 +404,9 @@ describe("copias: imprimir todo y registrar", () => {
     expect(d.faltan).toBe(0);
     expect(M.paginas(d.hojas)).toHaveLength(6);
     expect(await P.datosParaImprimirPreparacion("ws-2", prep, false)).toBeNull();
+    // Cobrada: la página de impresión lo sabe (no la manda a abrir en el Mostrador).
+    B.datos.fotofficePreparacionImpresion.find((p) => p.id === prep)!.saleItemId = "item-1";
+    expect((await P.datosParaImprimirPreparacion("ws-1", prep, false))!.cobrada).toBe(true);
   });
 
   it("si el producto cambió de papel, se imprime en el papel del producto y las hojas del otro papel quedan como faltantes", async () => {
