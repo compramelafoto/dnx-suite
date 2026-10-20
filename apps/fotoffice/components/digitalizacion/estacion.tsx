@@ -83,6 +83,8 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   // Evita el doble clic en Grabar (el estado de React no cambia a tiempo).
   const iniciandoRef = useRef(false);
   const faseRef = useRef(fase);
+  const montadoRef = useRef(false);
+  const cerrandoRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   useEffect(() => { faseRef.current = fase; streamRef.current = stream; }, [fase, stream]);
 
@@ -91,6 +93,8 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     setCompatible(navegadorCompatible());
     setListaOk(leerLocal(CLAVE_LISTA) === "si");
     if (!navegadorCompatible()) return;
+    // Una sola cola por pantalla: en desarrollo (Strict Mode) el efecto corre dos veces y subiría doble.
+    if (colaRef.current) return;
     const c = new ColaDeSubida(almacenIndexedDb(), crearSubidor(), {
       alCambiar: (r) => { setCola(r); if (r.ultimoError === AVISO_SIN_ESPACIO) setAviso(AVISO_SIN_ESPACIO); },
     });
@@ -131,7 +135,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         if (e && !continuar) setEstirada(e.corregirProporcion);
       })
       .catch(() => setAviso("No pudimos abrir la capturadora. ¿Está abierta en Meet, Zoom u otro programa?"));
-    return () => { cancelado = true; if (faseRef.current === "preparando") vivo?.getTracks().forEach((t) => t.stop()); };
+    return () => { cancelado = true; if (faseRef.current === "preparando" || faseRef.current === "iniciando") vivo?.getTracks().forEach((t) => t.stop()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, audioId]);
 
@@ -214,7 +218,8 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   // Sólo el cierre en el servidor: si falla, se reintenta sin volver a parar nada.
   const cerrar = useCallback(async () => {
     const s = sesion.current;
-    if (!s?.cierre) return;
+    if (!s?.cierre || cerrandoRef.current) return;
+    cerrandoRef.current = true;
     setCierreFallido(null);
     let r: { ok: boolean; error?: string };
     try {
@@ -228,6 +233,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     } else {
       setCierreFallido(r.error ?? "No pudimos cerrar la grabación.");
     }
+    cerrandoRef.current = false;
   }, [minutosSinSenal]);
   const cerrarRef = useRef(cerrar);
   useEffect(() => { cerrarRef.current = cerrar; }, [cerrar]);
@@ -261,6 +267,16 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     // Primero la ventanita: el navegador sólo la abre dentro del clic.
     let ventanita: Ventanita | null = null;
     try { ventanita = await Ventanita.abrir(() => void detenerRef.current("MANUAL")); } catch { setAviso("No se pudo abrir la ventanita; la grabación sigue igual."); }
+    // Si salieron de la pantalla mientras esperábamos, no arrancamos nada. Si la grabación ya se
+    // creó o continuó, queda así: la lista la va a mostrar como Interrumpida.
+    const abandonada = () => {
+      if (montadoRef.current) return false;
+      ventanita?.cerrar();
+      stream.getTracks().forEach((t) => t.stop());
+      iniciandoRef.current = false;
+      return true;
+    };
+    if (abandonada()) return;
     const fallar = (error: string) => {
       ventanita?.cerrar();
       setAviso(error);
@@ -273,6 +289,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       if (continuar) {
         // El tramo nuevo se pide recién acá, no al cargar la página (recargar no debe sumar tramos).
         const r = await continuarGrabacionAction(continuar.grabacionId);
+        if (abandonada()) return;
         if (!r.ok) return fallar(r.error);
         id = continuar.grabacionId;
         tramo = r.tramo;
@@ -281,11 +298,13 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
           corregirProporcion: estirada, equipoId: equipo?.id ?? null, dvdArchivos: null,
         });
+        if (abandonada()) return;
         if (!r.ok) return fallar(r.error);
         id = r.id;
         tramo = r.tramo;
       }
     } catch {
+      if (abandonada()) return;
       return fallar("No pudimos empezar la grabación. Revisá la conexión y probá de nuevo.");
     }
     const cola = colaRef.current;
@@ -311,14 +330,18 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
 
   // Navegar a otra pantalla de la app no dispara beforeunload: al desmontar, paramos todo.
   // Lo que ya está en la cola se sigue subiendo mientras la pestaña siga abierta.
-  useEffect(() => () => {
-    const s = sesion.current;
-    if (!s || s.deteniendo) return;
-    s.deteniendo = true;
-    void s.grabador.detener().catch(() => {});
-    s.analizador.detener();
-    s.ventanita?.cerrar();
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+      const s = sesion.current;
+      if (!s || s.deteniendo) return;
+      s.deteniendo = true;
+      void s.grabador.detener().catch(() => {});
+      s.analizador.detener();
+      s.ventanita?.cerrar();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
   }, []);
 
   // Volver a abrir la ventanita si la cerraron: tiene que ser dentro del clic.
@@ -458,7 +481,9 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         {fase === "terminando" && !cierreFallido ? <p className="text-sm">Terminando de subir… no cierres esta página.</p> : null}
         {fase === "terminando" && cierreFallido ? (
           <div className="fo-alert-error space-y-2 p-3 text-sm">
-            <p>Todo quedó subido, pero no pudimos cerrar la grabación: {cierreFallido}</p>
+            <p>
+              {cola.descartadas > 0 ? "Algunos pedacitos no se pudieron subir y no pudimos cerrar la grabación" : "Todo quedó subido, pero no pudimos cerrar la grabación"}: {cierreFallido}
+            </p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => void cerrar()}>Reintentar cierre</button>
               <a className="fo-btn text-sm" href="/digitalizacion">Ver grabaciones</a>
