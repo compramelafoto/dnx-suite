@@ -9,8 +9,11 @@ describe("validarCarrito", () => {
     const r = validarCarrito({ papel: "BRILLO", lineas: [{ archivoId: "a", sizeId: "t", quantity: 2, recorte: R }] }, OK, ["BRILLO", "MATE"]);
     expect(r).toEqual({ ok: true, papel: "BRILLO", lineas: [{ archivoId: "a", sizeId: "t", quantity: 2, recorte: R }] });
   });
-  it("rechaza fotos que no son de la carpeta", () => {
-    expect(validarCarrito({ papel: "BRILLO", lineas: [{ archivoId: "zzz", sizeId: "t", quantity: 1, recorte: R }] }, OK, ["BRILLO"]).ok).toBe(false);
+  it("rechaza fotos que no son de la fuente (carpeta o galería)", () => {
+    expect(validarCarrito({ papel: "BRILLO", lineas: [{ archivoId: "zzz", sizeId: "t", quantity: 1, recorte: R }] }, OK, ["BRILLO"])).toEqual({
+      ok: false,
+      error: "Una de las fotos ya no está disponible para imprimir.",
+    });
   });
   it("rechaza cantidades raras y papeles apagados", () => {
     expect(validarCarrito({ papel: "BRILLO", lineas: [{ archivoId: "a", sizeId: "t", quantity: 0, recorte: R }] }, OK, ["BRILLO"]).ok).toBe(false);

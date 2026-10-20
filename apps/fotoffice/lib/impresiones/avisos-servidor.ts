@@ -8,8 +8,8 @@ import { esc } from "./correo-lab";
 const fechaAr = (d: Date) => d.toISOString().slice(0, 10).split("-").reverse().join("/");
 
 /**
- * El correo al cliente cuando su pago de copias impresas se acreditó: cuántas copias, cuándo retirarlas y el
- * enlace de seguimiento. Corre después de la respuesta (`after()`); nunca lanza ni loguea datos personales.
+ * El correo al cliente cuando su pago de copias impresas se acreditó: cuántas copias, cuándo retirarlas (o adónde
+ * se envían) y el enlace de seguimiento. Corre después de la respuesta (`after()`); nunca lanza ni loguea datos personales.
  */
 export async function avisarPedidoConfirmado(workspaceId: string, pedidoId: string): Promise<void> {
   try {
@@ -22,10 +22,22 @@ export async function avisarPedidoConfirmado(workspaceId: string, pedidoId: stri
     const queCopias = `${copias} ${copias === 1 ? "copia" : "copias"}`;
     const fecha = p.promisedAt ? fechaAr(p.promisedAt) : null;
     const plazo = `${DIAS_HABILES_PROMETIDOS * 24} horas hábiles`;
-    const cuando = fecha ? `Van a estar listas para retirar el ${fecha} (${plazo}).` : `Van a estar listas para retirar en ${plazo}.`;
-    const cuandoHtml = fecha
-      ? `Van a estar listas para retirar el <strong>${fecha}</strong> (${plazo}).`
-      : `Van a estar listas para retirar en ${plazo}.`;
+    const direccion = p.delivery === "ENVIO" && p.shippingAddress ? p.shippingAddress : null;
+    // Con envío no hay nada que retirar: se dice adónde va y cuándo sale.
+    const cuando = direccion
+      ? fecha
+        ? `Te lo enviamos a ${direccion}: sale el ${fecha} (${plazo}).`
+        : `Te lo enviamos a ${direccion}: sale en ${plazo}.`
+      : fecha
+        ? `Van a estar listas para retirar el ${fecha} (${plazo}).`
+        : `Van a estar listas para retirar en ${plazo}.`;
+    const cuandoHtml = direccion
+      ? fecha
+        ? `Te lo enviamos a <strong>${esc(direccion)}</strong>: sale el <strong>${fecha}</strong> (${plazo}).`
+        : `Te lo enviamos a <strong>${esc(direccion)}</strong>: sale en ${plazo}.`
+      : fecha
+        ? `Van a estar listas para retirar el <strong>${fecha}</strong> (${plazo}).`
+        : `Van a estar listas para retirar en ${plazo}.`;
     const firma = ws?.commercialName ?? "";
     const r = await sendTransactionalEmail({
       to: p.email,

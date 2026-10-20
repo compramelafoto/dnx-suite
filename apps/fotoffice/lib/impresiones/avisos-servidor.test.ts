@@ -35,6 +35,22 @@ describe("avisarPedidoConfirmado", () => {
     expect(m.html).not.toContain("Juan <b>");
     expect(m.html).toContain("DNX &lt;Estudio&gt;");
   });
+  it("con retiro dice que van a estar listas para retirar", async () => {
+    H.pedido.mockResolvedValue({ ...pedido, delivery: "RETIRO", shippingAddress: null });
+    await avisarPedidoConfirmado("ws", "ord1");
+    const m = H.enviar.mock.calls[0][0] as unknown as { text: string };
+    expect(m.text).toContain("listas para retirar");
+  });
+  it("con envío dice a qué dirección se mandan, en vez de «listas para retirar»", async () => {
+    H.pedido.mockResolvedValue({ ...pedido, delivery: "ENVIO", shippingAddress: "Av. <Siempreviva> 742, Funes" });
+    await avisarPedidoConfirmado("ws", "ord1");
+    const m = H.enviar.mock.calls[0][0] as unknown as { text: string; html: string };
+    expect(m.text).toContain("Te lo enviamos a Av. <Siempreviva> 742, Funes");
+    expect(m.text).toContain("22/10/2026");
+    expect(m.text).not.toContain("retirar");
+    expect(m.html).toContain("Av. &lt;Siempreviva&gt; 742, Funes");
+    expect(m.html).not.toContain("retirar");
+  });
   it("sin pedido no manda nada", async () => {
     H.pedido.mockResolvedValue(null);
     await avisarPedidoConfirmado("ws", "ord1");

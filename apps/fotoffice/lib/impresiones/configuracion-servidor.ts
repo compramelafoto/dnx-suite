@@ -2,8 +2,35 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
+import { extrasDelWorkspace } from "@/lib/presupuestos/perfil-cobro";
+import { parseCuantoCobroAmount } from "@repo/cuanto-cobro-core";
 import { PRINT_ORDERS_MODULE_KEY, TAMANOS_INICIALES, type Papel } from "./constantes";
+import { coordenadasDelEstudio, type Punto } from "./envio";
 import { aCentavos, formatearMontoAr, parsearMontoAr, type TamanoOferta } from "./precios";
+
+/** Envío a domicilio que se le ofrece al cliente. El estudio sale del perfil de precios. */
+export type OfertaEnvio = { baseCents: number; porKmCents: number; maxKm: number | null; estudio: Punto };
+export type OfertaImpresion = { papeles: Papel[]; tamanos: TamanoOferta[]; envio: OfertaEnvio | null };
+
+type AjustesEnvio = {
+  shippingEnabled?: boolean;
+  shippingBaseArs?: unknown;
+  shippingPerKmArs?: unknown;
+  shippingMaxKm?: number | null;
+} | null;
+
+/** null si el envío está apagado o el estudio no cargó su ubicación (sin ubicación no hay distancia que medir). */
+async function ofertaEnvio(workspaceId: string, s: AjustesEnvio): Promise<OfertaEnvio | null> {
+  if (!s?.shippingEnabled) return null;
+  const estudio = coordenadasDelEstudio(await extrasDelWorkspace(workspaceId));
+  if (!estudio) return null;
+  return {
+    baseCents: Math.max(0, aCentavos((s.shippingBaseArs ?? null) as never) ?? 0),
+    porKmCents: Math.max(0, aCentavos((s.shippingPerKmArs ?? null) as never) ?? 0),
+    maxKm: typeof s.shippingMaxKm === "number" && s.shippingMaxKm > 0 ? s.shippingMaxKm : null,
+    estudio,
+  };
+}
 
 const papelesDe = (s: { paperGlossy: boolean; paperMatte: boolean } | null): Papel[] => [
   ...((s?.paperGlossy ?? true) ? (["BRILLO"] as const) : []),
@@ -38,7 +65,7 @@ const aOferta = (t: FilaTamano): TamanoOferta | null => {
  * sin laboratorio se cobraría y nunca saldría). null = módulo apagado, el estudio no puede cobrar con Mercado
  * Pago, o nada para ofrecer.
  */
-export async function ofertaPublica(workspaceId: string): Promise<{ papeles: Papel[]; tamanos: TamanoOferta[] } | null> {
+export async function ofertaPublica(workspaceId: string): Promise<OfertaImpresion | null> {
   if (!(await isModuleEnabledForWorkspace(workspaceId, PRINT_ORDERS_MODULE_KEY))) return null;
   if (!(await puedeCobrarConMercadoPago(workspaceId))) return null;
   const [ajustes, filas] = await Promise.all([
@@ -51,7 +78,7 @@ export async function ofertaPublica(workspaceId: string): Promise<{ papeles: Pap
   const tamanos = (filas as FilaTamano[]).map(aOferta).filter((t): t is TamanoOferta => t !== null);
   const papeles = papelesDe(ajustes);
   if (tamanos.length === 0 || papeles.length === 0) return null;
-  return { papeles, tamanos };
+  return { papeles, tamanos, envio: await ofertaEnvio(workspaceId, ajustes) };
 }
 
 /** Carga la lista inicial de tamaños la primera vez (idempotente). Asocia el laboratorio por nombre. */
@@ -72,9 +99,15 @@ export async function sembrarTamanos(workspaceId: string): Promise<void> {
   });
 }
 
-const monto = (v: unknown): number | null | "malo" => {
+/** Tope de cualquier monto en pesos: las columnas son Decimal(14, 2) y nadie cobra cien millones por una copia. */
+const MONTO_MAXIMO = 99_999_999;
+const ERR_GRANDE = "El monto es demasiado grande.";
+
+const monto = (v: unknown): number | null | "malo" | "grande" => {
   if (v === null || v === undefined || String(v).trim() === "") return null;
-  return parsearMontoAr(String(v)) ?? "malo";
+  const n = parsearMontoAr(String(v));
+  if (n === null) return "malo";
+  return n > MONTO_MAXIMO ? "grande" : n;
 };
 
 const ERR_TAMANO = "Uno de los tamaños ya no existe. Recargá la página.";
@@ -85,6 +118,7 @@ export async function guardarTamanos(workspaceId: string, filas: unknown): Promi
   for (const f of filas as Record<string, unknown>[]) {
     const cost = monto(f.costArs);
     const price = monto(f.priceArs);
+    if (cost === "grande" || price === "grande") return { ok: false, error: ERR_GRANDE };
     if (cost === "malo" || price === "malo") return { ok: false, error: "Revisá los montos: tienen que ser números positivos." };
     if (typeof f.id !== "string") return { ok: false, error: "Datos inválidos." };
     cambios.push({
@@ -127,6 +161,8 @@ export type AjustesImpresion = {
   testMode: boolean;
   papeles: Papel[];
   circuitId: string | null;
+  /** Montos en formato es-AR para los campos. `porKmArs` propone el precio por km del perfil si está vacío. */
+  envio: { encendido: boolean; baseArs: string; porKmArs: string; maxKm: string; estudioUbicado: boolean };
   tamanos: {
     id: string;
     widthCm: number;
@@ -141,16 +177,26 @@ export type AjustesImpresion = {
 
 export async function leerAjustes(workspaceId: string): Promise<AjustesImpresion> {
   await sembrarTamanos(workspaceId);
-  const [encendido, s, filas] = await Promise.all([
+  const [encendido, s, filas, extras] = await Promise.all([
     isModuleEnabledForWorkspace(workspaceId, PRINT_ORDERS_MODULE_KEY),
     prisma.fotofficePrintSettings.findUnique({ where: { workspaceId } }),
     prisma.fotofficePrintSize.findMany({ where: { workspaceId }, orderBy: [{ order: "asc" }], include: { proveedor: { select: { name: true } } } }),
+    extrasDelWorkspace(workspaceId),
   ]);
+  const porKmPerfil = extras?.travelPerKm ? parseCuantoCobroAmount(extras.travelPerKm) : null;
+  const porKmArs = formatearMontoAr((s?.shippingPerKmArs ?? null) as never) || formatearMontoAr(porKmPerfil);
   return {
     encendido,
     testMode: s?.testMode ?? true,
     papeles: papelesDe(s),
     circuitId: s?.circuitId ?? null,
+    envio: {
+      encendido: s?.shippingEnabled ?? false,
+      baseArs: formatearMontoAr((s?.shippingBaseArs ?? null) as never),
+      porKmArs,
+      maxKm: s?.shippingMaxKm ? String(s.shippingMaxKm) : "",
+      estudioUbicado: coordenadasDelEstudio(extras) !== null,
+    },
     tamanos: filas.map((t) => ({
       id: t.id,
       widthCm: Number(t.widthCm),
@@ -170,7 +216,19 @@ export async function guardarAjustes(workspaceId: string, raw: unknown): Promise
   const paperMatte = r.paperMatte === true;
   if (!paperGlossy && !paperMatte) return { ok: false, error: "Dejá al menos un papel encendido." };
   const circuitId = typeof r.circuitId === "string" && r.circuitId ? r.circuitId : null;
-  const data = { testMode: r.testMode === true, paperGlossy, paperMatte, circuitId };
+  const shippingEnabled = r.shippingEnabled === true;
+  const shippingBaseArs = monto(r.shippingBaseArs);
+  const shippingPerKmArs = monto(r.shippingPerKmArs);
+  if (shippingBaseArs === "grande" || shippingPerKmArs === "grande") return { ok: false, error: ERR_GRANDE };
+  if (shippingBaseArs === "malo" || shippingPerKmArs === "malo") return { ok: false, error: "Revisá los montos del envío: tienen que ser números positivos." };
+  const maxTexto = r.shippingMaxKm === null || r.shippingMaxKm === undefined ? "" : String(r.shippingMaxKm).trim();
+  if (maxTexto !== "" && !/^\d{1,4}$/.test(maxTexto)) return { ok: false, error: "La distancia máxima tiene que ser un número entero de kilómetros." };
+  const shippingMaxKm = maxTexto === "" || Number(maxTexto) === 0 ? null : Number(maxTexto);
+  if (shippingEnabled && !shippingBaseArs && !shippingPerKmArs) return { ok: false, error: "Cargá el costo del envío (fijo o por kilómetro)." };
+  if (shippingEnabled && !coordenadasDelEstudio(await extrasDelWorkspace(workspaceId))) {
+    return { ok: false, error: "Cargá la ubicación de tu estudio en Configuración → Precios para ofrecer envíos." };
+  }
+  const data = { testMode: r.testMode === true, paperGlossy, paperMatte, circuitId, shippingEnabled, shippingBaseArs, shippingPerKmArs, shippingMaxKm };
   await prisma.fotofficePrintSettings.upsert({ where: { workspaceId }, create: { workspaceId, ...data }, update: data });
   return { ok: true };
 }

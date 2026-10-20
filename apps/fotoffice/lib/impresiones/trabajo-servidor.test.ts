@@ -56,7 +56,19 @@ describe("pedidoDelTrabajo", () => {
     expect(r).toEqual({
       pedidoId: "ord1", numero: 8, estado: "PAGADO_SIN_ENVIAR", lastError: "Fotolag no tiene correo cargado.",
       copias: [{ tamano: "10x15", papel: "Brillo", cantidad: 3 }, { tamano: "13x18", papel: "Brillo", cantidad: 3 }],
-      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950,
+      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950, entrega: null,
+    });
+  });
+  it("con envío a domicilio muestra la dirección, los km, el costo y el enlace al mapa", async () => {
+    orden.findFirst.mockResolvedValue({
+      id: "ord1", number: 8, status: "PAGADO", lastError: null, paper: "MATE", totalArs: "12000", costTotalArs: "4000",
+      delivery: "ENVIO", shippingArs: "2000", shippingAddress: "Av. Siempreviva 742, Funes", shippingLat: -32.9167, shippingLon: -60.8097, shippingKm: 22.3,
+      items: [{ widthCm: "10", heightCm: "15", quantity: 1 }],
+    });
+    const r = await T.pedidoDelTrabajo("ws", "p-f");
+    expect(r?.gananciaCents).toBe(1200000 - 200000 - 400000);
+    expect(r?.entrega).toEqual({
+      direccion: "Av. Siempreviva 742, Funes", km: 22.3, envioCents: 200000, mapa: "https://www.google.com/maps?q=-32.9167,-60.8097",
     });
   });
   it("un trabajo que no viene de un pedido de impresión devuelve null", async () => {

@@ -21,6 +21,10 @@ export async function guardarAjustesAction(formData: FormData): Promise<void> {
     paperGlossy: formData.get("paperGlossy") === "on",
     paperMatte: formData.get("paperMatte") === "on",
     circuitId: String(formData.get("circuitId") ?? ""),
+    shippingEnabled: formData.get("shippingEnabled") === "on",
+    shippingBaseArs: String(formData.get("shippingBaseArs") ?? ""),
+    shippingPerKmArs: String(formData.get("shippingPerKmArs") ?? ""),
+    shippingMaxKm: String(formData.get("shippingMaxKm") ?? ""),
   });
   revalidatePath(RUTA);
   redirect(r.ok ? `${RUTA}?ok=1` : `${RUTA}?error=${encodeURIComponent(r.error)}`);
