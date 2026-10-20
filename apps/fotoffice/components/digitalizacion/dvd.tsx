@@ -1,13 +1,13 @@
 // apps/fotoffice/components/digitalizacion/dvd.tsx
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { buscarTrabajosAction, cerrarGrabacionAction, crearGrabacionAction } from "@/app/(shell)/digitalizacion/actions";
 import { elegirCarpeta } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { ColaDeSubida, almacenEnMemoria, idParte, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
 import { cortesDeArchivo, vobsEnOrden } from "@/lib/digitalizacion/dvd";
 import { crearSubidor, type Continuacion } from "./estacion";
-import { Ventanita } from "./ventanita";
+import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 async function carpetaVideoTs(raiz: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
   if (raiz.name.toUpperCase() === "VIDEO_TS") return raiz;
@@ -33,19 +33,34 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
   const [proyectoId, setProyectoId] = useState<string | null>(null);
   const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
 
+  const ventanitaRef = useRef<Ventanita | null>(null);
+  const ultimoEstado = useRef<EstadoVentanita | null>(null);
+  const [, redibujar] = useState(0);
+
+  const abrirVentanita = async (): Promise<boolean> => {
+    try {
+      ventanitaRef.current = await Ventanita.abrir(() => setAviso("El DVD sigue subiendo; esperá a que termine."));
+      if (ultimoEstado.current) ventanitaRef.current.mostrar(ultimoEstado.current);
+      redibujar((n) => n + 1);
+      return true;
+    } catch {
+      ventanitaRef.current = null;
+      return false;
+    }
+  };
+
   const empezar = async () => {
-    let ventanita: Ventanita | null = null;
     try {
       const archivos = await archivosDe(await carpetaVideoTs(await elegirCarpeta()));
       if (archivos.length === 0) { setAviso("No hay videos en esa carpeta (sólo menús o nada)."); return; }
-      ventanita = await Ventanita.abrir(() => setAviso("El DVD sigue subiendo; esperá a que termine."));
+      if (!(await abrirVentanita())) setAviso("No se pudo abrir la ventanita; el DVD se sube igual.");
       let grabacionId = continuar?.grabacionId ?? null;
       if (!grabacionId) {
         const r = await crearGrabacionAction({
           tipo: "DVD", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: null, calidad: null, mimeType: "video/dvd",
           corregirProporcion: false, equipoId: null, dvdArchivos: archivos.map((f) => ({ nombre: f.name, bytes: f.size })),
         });
-        if (!r.ok) { ventanita.cerrar(); setAviso(r.error); return; }
+        if (!r.ok) { setAviso(r.error); return; }
         grabacionId = r.id;
       }
       const id = grabacionId;
@@ -55,7 +70,9 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
       const pintar = (r: ResumenCola) => {
         const hechos = pedacitos.length - r.pendientes;
         setAvance({ hechos, total: pedacitos.length });
-        ventanita?.mostrar({ modo: "DVD", stream: null, segundos: 0, bytesPendientes: r.bytesPendientes, ultimoError: r.ultimoError, sinImagenHaceSeg: null, minutosSinSenal: 0, avanceDvd: { hechos, total: pedacitos.length }, terminando: false });
+        const estado: EstadoVentanita = { modo: "DVD", stream: null, segundos: 0, bytesPendientes: r.bytesPendientes, ultimoError: r.ultimoError, sinImagenHaceSeg: null, minutosSinSenal: 0, avanceDvd: { hechos, total: pedacitos.length }, terminando: false };
+        ultimoEstado.current = estado;
+        if (ventanitaRef.current && !ventanitaRef.current.cerrada()) ventanitaRef.current.mostrar(estado);
       };
       const cola = new ColaDeSubida(almacenEnMemoria(), crearSubidor(), { alCambiar: pintar });
       await Promise.all(pedacitos.map((datos, indice) => cola.agregar({ id: idParte(id, 1, indice), grabacionId: id, tramo: 1, indice, datos })));
@@ -66,7 +83,9 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
     } catch (e) {
       if ((e as DOMException)?.name !== "AbortError") setAviso(e instanceof Error ? e.message : "No se pudo leer el DVD.");
     } finally {
-      ventanita?.cerrar();
+      ventanitaRef.current?.cerrar();
+      ventanitaRef.current = null;
+      ultimoEstado.current = null;
     }
   };
 
@@ -93,6 +112,9 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
       )}
       {fase === "listo" ? (
         <button type="button" className="fo-btn fo-btn-primary" disabled={!continuar && !sinPedido && !proyectoId} onClick={() => void empezar()}>Elegir la carpeta del DVD</button>
+      ) : null}
+      {fase === "subiendo" && (!ventanitaRef.current || ventanitaRef.current.cerrada()) ? (
+        <button type="button" className="fo-btn" onClick={() => void abrirVentanita()}>Abrir ventanita</button>
       ) : null}
       {fase === "subiendo" ? <p className="text-sm">Subiendo parte {avance.hechos} de {avance.total}… podés seguir usando la computadora.</p> : null}
       {fase === "terminada" ? <a className="fo-btn fo-btn-primary" href="/digitalizacion">Ver grabaciones</a> : null}
