@@ -17,7 +17,7 @@ export function HojaParaImprimir({
   const [error, setError] = useState<string | null>(null);
   const faseRef = useRef<Fase>("cargando");
   const imgRef = useRef<HTMLImageElement>(null);
-  const ultima = useRef<Respuesta | null>(null);
+  const [ultima, setUltima] = useState<Respuesta | null>(null);
 
   useEffect(() => { faseRef.current = fase; }, [fase]);
 
@@ -43,7 +43,7 @@ export function HojaParaImprimir({
 
   async function responder(motivo: Respuesta | null) {
     if (motivo === null) return setFase("listo");
-    ultima.current = motivo;
+    setUltima(motivo);
     setFase("guardando");
     try {
       const r = await registrarImpresionAction(hojaId, { motivo, hojas: copias });
@@ -84,7 +84,7 @@ export function HojaParaImprimir({
         {fase === "error" ? (
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[var(--fo-danger)]">{error}</p>
-            {ultima.current ? <button className="fo-btn" onClick={() => responder(ultima.current)}>Reintentar</button> : null}
+            {ultima ? <button className="fo-btn" onClick={() => responder(ultima)}>Reintentar</button> : null}
           </div>
         ) : null}
         <a className="underline" href={`${src}?descargar=1`}>Descargar JPG</a>
