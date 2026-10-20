@@ -3,20 +3,25 @@ import { prisma, type Prisma } from "@repo/db";
 import { aspectoCoincide, papelOrientado } from "./encuadre";
 import { calidadDeCopia, type AvisoCalidad } from "./geometria";
 import { huellaDe } from "./huella";
+import { leerObjeto } from "./almacen";
 import { CANTIDAD_MAX, FOTOS_MAX } from "./lote";
+import { pixelesDeHoja, type Nitidez } from "./medidas";
 import {
   borrarObjetos,
   disposicionDeCopia,
   enteroEntre,
   esId,
+  guardarHojaArmada,
   hojasConRegistro,
   hojasVigentes,
   preparacionPropia,
   recalcularEstado,
+  versionDeHoja,
   type CtxImpresion,
   type R,
 } from "./preparaciones";
 import { validarReceta, type Receta } from "./receta";
+import { componerCopia, renderizarPieza } from "./render";
 
 /**
  * Copias instantáneas (etapa 2): cada foto de la preparación es una pieza COPIA con su receta y
@@ -209,4 +214,63 @@ export async function quitarFotoCopia(ctx: CtxImpresion, preparacionId: string, 
   await borrarObjetos([...libres.map((h) => h.finalKey), o.archivoTrabajoId ? null : o.key, o.previewKey]);
   await recalcularEstado(prisma, ctx.workspaceId, prep.id);
   return { ok: true };
+}
+
+/**
+ * La hoja de UNA foto: la copia a papel entero, a los píxeles exactos de la salida (300 ppp), y
+ * la hoja siempre parada (una copia acostada se gira al componer). Una llamada por foto: el
+ * editor las pide de a una, así ningún pedido tarda demasiado. Qué hoja se reusa, rehace o crea
+ * lo decide `guardarHojaArmada` (igual que en el carnet).
+ */
+export async function generarHojaCopia(
+  ctx: CtxImpresion,
+  preparacionId: string,
+  originalId: string,
+): Promise<R<{ hojaId: string; version: string; copias: number }>> {
+  const prep = await preparacionDeCopias(ctx, preparacionId);
+  if (!prep) return NO_EXISTE;
+  if (!esId(originalId)) return FOTO_NO_EXISTE;
+  const pieza = await prisma.fotofficePiezaImpresion.findFirst({
+    where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, tipo: "COPIA", originalId },
+    select: { id: true, receta: true, huella: true, cantidad: true },
+  });
+  const receta = pieza ? validarReceta(pieza.receta) : null;
+  if (!pieza || !receta?.orientacion) return { ok: false, error: "Primero armá la foto." };
+  const original = await prisma.fotofficeOriginalImpresion.findFirst({
+    where: { id: originalId, workspaceId: ctx.workspaceId, preparacionId: prep.id, estado: "LISTO" },
+    select: { key: true },
+  });
+  if (!original) return FOTO_NO_EXISTE;
+
+  const papelPieza = papelOrientado(prep.papel, receta.orientacion);
+  const hojaPx = pixelesDeHoja(prep.papel, prep.salida.ppp);
+  const acostada = papelPieza.anchoMm > papelPieza.altoMm !== prep.papel.anchoMm > prep.papel.altoMm;
+  const finalHuella = huellaDe({ pieza: pieza.huella, salidaId: prep.salida.id, tamanoId: prep.papel.tamanoId, ppp: prep.salida.ppp, nitidez: prep.salida.nitidez });
+
+  const hojas = (
+    await prisma.fotofficeHojaImpresion.findMany({
+      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, finalKey: true, finalHuella: true, disposicion: true },
+    })
+  ).filter((h) => disposicionDeCopia(h.disposicion)?.piezaId === pieza.id);
+
+  const { hojaId } = await guardarHojaArmada(ctx, prep.id, hojas, {
+    finalHuella,
+    copias: pieza.cantidad,
+    armar: async () => {
+      const destino = pixelesDeHoja(papelPieza, prep.salida.ppp);
+      const piezaRaw = await renderizarPieza(await leerObjeto(original.key), receta, destino, prep.salida.nitidez as Nitidez);
+      return componerCopia(piezaRaw, acostada, prep.salida.ppp);
+    },
+    datos: {
+      salidaId: prep.salida.id,
+      tamanoId: prep.papel.tamanoId,
+      disposicion: { tipo: "COPIA", piezaId: pieza.id, piezaHuella: pieza.huella, acostada } as Prisma.InputJsonValue,
+      finalAnchoPx: hojaPx.ancho,
+      finalAltoPx: hojaPx.alto,
+    },
+  });
+  await recalcularEstado(prisma, ctx.workspaceId, prep.id);
+  return { ok: true, hojaId, version: versionDeHoja(finalHuella), copias: pieza.cantidad };
 }

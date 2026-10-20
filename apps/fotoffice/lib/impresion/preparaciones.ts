@@ -477,46 +477,75 @@ export async function generarHojaCarnet(
     orderBy: { createdAt: "asc" },
     select: { id: true, finalKey: true, finalHuella: true },
   });
-
-  // Sin cambios: el archivo ya está armado; sólo cambia cuántas hojas se imprimen.
-  const igual = hojas.find((h) => h.finalHuella === finalHuella && h.finalKey);
-  if (igual) {
-    await prisma.fotofficeHojaImpresion.update({ where: { id: igual.id }, data: { copias: d.copias } });
-    await prisma.fotofficePreparacionImpresion.updateMany({
-      where: { id: prep.id, workspaceId: ctx.workspaceId, estado: "PREPARANDO" },
-      data: { estado: "LISTA" },
-    });
-    return { ok: true, hojaId: igual.id, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
-  }
-
-  const piezaRaw = await renderizarPieza(await leerObjeto(original.key), receta, disp.pieza, salida.nitidez as Nitidez);
-  const jpg = await componerHoja(hojaPx, piezaRaw, disp, salida.ppp, conLineas);
-
-  // Una hoja ya impresa no se pisa: sus registros dicen qué salió. Se rehace la que no tiene registros.
-  const conRegistro = await hojasConRegistro(prisma, ctx.workspaceId, hojas.map((h) => h.id));
-  const existente = [...hojas].reverse().find((h) => !conRegistro.has(h.id)) ?? null;
-  const hojaId = existente?.id ?? nuevoId();
-  const finalKey = claveImpresion(ctx.workspaceId, prep.id, "final", `${hojaId}-${finalHuella.slice(0, 12)}`, "jpg");
-  await guardarObjeto(finalKey, jpg, "image/jpeg");
-
-  const datos = {
-    salidaId: salida.id,
-    tamanoId: tamano.id,
-    disposicion: { pieza: disp.pieza, posiciones: disp.posiciones, lineas: conLineas ? disp.lineas : null } as Prisma.InputJsonValue,
-    finalKey,
+  const r = await guardarHojaArmada(ctx, prep.id, hojas, {
     finalHuella,
-    finalAnchoPx: hojaPx.ancho,
-    finalAltoPx: hojaPx.alto,
     copias: d.copias,
-  };
-  if (existente) await prisma.fotofficeHojaImpresion.update({ where: { id: existente.id }, data: datos });
-  else await prisma.fotofficeHojaImpresion.create({ data: { id: hojaId, workspaceId: ctx.workspaceId, preparacionId: prep.id, ...datos } });
+    armar: async () => {
+      const piezaRaw = await renderizarPieza(await leerObjeto(original.key), receta, disp.pieza, salida.nitidez as Nitidez);
+      return componerHoja(hojaPx, piezaRaw, disp, salida.ppp, conLineas);
+    },
+    datos: {
+      salidaId: salida.id,
+      tamanoId: tamano.id,
+      disposicion: { pieza: disp.pieza, posiciones: disp.posiciones, lineas: conLineas ? disp.lineas : null } as Prisma.InputJsonValue,
+      finalAnchoPx: hojaPx.ancho,
+      finalAltoPx: hojaPx.alto,
+    },
+  });
+  // Sin cambios (hoja reusada) sólo pasa a LISTA la que estaba preparándose, como en la etapa 1.
   await prisma.fotofficePreparacionImpresion.updateMany({
-    where: { id: prep.id, workspaceId: ctx.workspaceId, estado: { not: "ANULADA" } },
+    where: { id: prep.id, workspaceId: ctx.workspaceId, estado: r.reusada ? "PREPARANDO" : { not: "ANULADA" } },
     data: { estado: "LISTA" },
   });
-  if (existente?.finalKey && existente.finalKey !== finalKey) await borrarObjetos([existente.finalKey]);
-  return { ok: true, hojaId, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
+  return { ok: true, hojaId: r.hojaId, fotosPorHoja: disp.posiciones.length, version: versionDeHoja(finalHuella) };
+}
+
+/**
+ * El tramo final de armar una hoja, igual para carnet y copias. `hojas`: las que ya hay de esta
+ * pieza, en orden de creación.
+ * - Sin cambios (la misma huella ya armada): no se vuelve a armar; sólo cambian las copias.
+ * - Si no, se arma (`armar`) y se rehace la última hoja sin imprimir, o se crea otra: una hoja ya
+ *   impresa no se pisa (sus registros dicen qué salió).
+ * En los dos casos, las demás hojas sin imprimir de la pieza (de configuraciones viejas) ya no
+ * sirven: se borran, fila y archivo (p. ej. al volver de la receta B a la A, ya impresa).
+ */
+export async function guardarHojaArmada(
+  ctx: CtxImpresion,
+  preparacionId: string,
+  hojas: { id: string; finalKey: string | null; finalHuella: string | null }[],
+  h: {
+    finalHuella: string;
+    copias: number;
+    armar: () => Promise<Buffer>;
+    datos: { salidaId: string; tamanoId: string; disposicion: Prisma.InputJsonValue; finalAnchoPx: number; finalAltoPx: number };
+  },
+): Promise<{ hojaId: string; reusada: boolean }> {
+  const impresas = await hojasConRegistro(prisma, ctx.workspaceId, hojas.map((x) => x.id));
+  const libres = hojas.filter((x) => !impresas.has(x.id));
+  const sacar = async (quedan: string, claves: (string | null)[]) => {
+    const sobrantes = libres.filter((x) => x.id !== quedan);
+    if (sobrantes.length > 0)
+      await prisma.fotofficeHojaImpresion.deleteMany({ where: { workspaceId: ctx.workspaceId, id: { in: sobrantes.map((x) => x.id) } } });
+    await borrarObjetos([...sobrantes.map((x) => x.finalKey), ...claves]);
+  };
+
+  const igual = hojas.findLast((x) => x.finalHuella === h.finalHuella && x.finalKey);
+  if (igual) {
+    await prisma.fotofficeHojaImpresion.update({ where: { id: igual.id }, data: { copias: h.copias } });
+    await sacar(igual.id, []);
+    return { hojaId: igual.id, reusada: true };
+  }
+
+  const jpg = await h.armar();
+  const existente = libres.at(-1) ?? null;
+  const hojaId = existente?.id ?? nuevoId();
+  const finalKey = claveImpresion(ctx.workspaceId, preparacionId, "final", `${hojaId}-${h.finalHuella.slice(0, 12)}`, "jpg");
+  await guardarObjeto(finalKey, jpg, "image/jpeg");
+  const datos = { ...h.datos, finalKey, finalHuella: h.finalHuella, copias: h.copias };
+  if (existente) await prisma.fotofficeHojaImpresion.update({ where: { id: existente.id }, data: datos });
+  else await prisma.fotofficeHojaImpresion.create({ data: { id: hojaId, workspaceId: ctx.workspaceId, preparacionId, ...datos } });
+  await sacar(hojaId, [existente?.finalKey && existente.finalKey !== finalKey ? existente.finalKey : null]);
+  return { hojaId, reusada: false };
 }
 
 export async function registrarImpresion(ctx: CtxImpresion, hojaId: string, d: { motivo: "NORMAL" | "DESCARTADA"; hojas: number }): Promise<R> {

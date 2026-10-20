@@ -9,7 +9,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
 import { asignarCliente, fotosCarnetDelCliente, usarFotoAnterior } from "@/lib/impresion/ficha-carnet";
-import { estadoCopias, guardarPiezasCopia, quitarFotoCopia, type PiezaCopiaEntrada } from "@/lib/impresion/copias";
+import { estadoCopias, generarHojaCopia, guardarPiezasCopia, quitarFotoCopia, type PiezaCopiaEntrada } from "@/lib/impresion/copias";
 import { guardarEscala, guardarProduccion, produccionDeProductos, type ProduccionVista } from "@/lib/impresion/configuracion";
 import {
   anularPreparacion,
@@ -157,6 +157,14 @@ export async function guardarPiezasCopiaAction(preparacionId: string, items: Pie
 export async function quitarFotoCopiaAction(preparacionId: string, originalId: string) {
   const ctx = await ctxImpresion();
   const r = await quitarFotoCopia(ctx, preparacionId, originalId);
+  revalidatePath("/ventas/impresiones");
+  return r;
+}
+
+/** Arma la hoja de UNA foto. El editor la llama de a una foto por vez. */
+export async function generarHojaCopiaAction(preparacionId: string, originalId: string) {
+  const ctx = await ctxImpresion();
+  const r = await generarHojaCopia(ctx, preparacionId, originalId);
   revalidatePath("/ventas/impresiones");
   return r;
 }
