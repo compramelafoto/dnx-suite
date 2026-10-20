@@ -49,6 +49,9 @@ export function buildPreventaCanjeWhatsAppMessage(input: {
     `${saludo} Ya están las fotos de "${input.albumTitle}".\n\n` +
     `Lo que compraste${alumno ? ` para ${alumno}` : ""} (${input.packLabel}) ya está pago. ` +
     `Entrá al link y elegí las fotos que van en tu pedido. ` +
+    // En las galerías con fotos ocultas el link pide una selfie: si la saca el adulto, no
+    // aparece en ninguna foto del colegio y no ve nada.
+    `Si te pide una selfie, tiene que ser la cara de ${alumno ?? "tu hija o tu hijo"}, no la tuya. ` +
     `Si querés, después podés sumar más fotos (esas se pagan aparte).\n\n${AVISO_LINK_UNICO}\n\n${input.link}`
   );
 }

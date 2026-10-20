@@ -19,6 +19,7 @@ import {
   contarPorPaso,
   disenosParaRevisar,
   esPasoEmbudo,
+  packsPendientesPorAlbum,
   textoCurso,
   type PasoEmbudo,
   type UbicacionEnEmbudo,
@@ -215,10 +216,15 @@ export default function FotografoEscuelasPedidosPage() {
   /** Por canjear · principal: el aviso "ya están las fotos" de cada álbum (el mismo del álbum). */
   async function avisarFamilias() {
     const base = elegidas.length ? elegidas : filas;
-    const albumes = [
-      ...new Set(base.filter((o) => o.kind === "PACK_EXTERNO" && !o.isDemo && o.album).map((o) => o.album!.id)),
-    ];
-    if (albumes.length === 0) return;
+    // Sólo los packs de esta lista (los marcados, o los del curso filtrado): las fotos se suben
+    // curso por curso y avisarle a todo el álbum hacía entrar a familias cuyas fotos no estaban.
+    const porAlbum = packsPendientesPorAlbum(base);
+    const albumes = [...porAlbum.keys()];
+    const pendientes = [...porAlbum.values()].reduce((s, ids) => s + ids.length, 0);
+    if (pendientes === 0) {
+      setMensaje({ tono: "ok", texto: "No hay familias pendientes de canjear en esta lista." });
+      return;
+    }
     setOcupado("avisar");
     setMensaje(null);
     try {
@@ -228,24 +234,23 @@ export default function FotografoEscuelasPedidosPage() {
           return r.ok ? ((await r.json()) as { pendientes: number; ultimoAvisoAt: string | null }) : null;
         }),
       );
-      const pendientes = estados.reduce((s, e) => s + (e?.pendientes ?? 0), 0);
-      if (pendientes === 0) {
-        setMensaje({ tono: "ok", texto: "No hay familias pendientes de canjear en esos álbumes." });
-        return;
-      }
       const yaAvisadas = estados.some((e) => e?.ultimoAvisoAt);
       const ok = window.confirm(
-        `Vamos a mandarle un correo a ${plural(pendientes, "familia", "familias")} ` +
-          `(${plural(albumes.length, "álbum", "álbumes")}) con su link para elegir las fotos del pack. ` +
-          "Le llega a todas las que todavía no canjearon en esos álbumes, no sólo a las de esta lista." +
-          (yaAvisadas ? " Ya les avisaste antes: les va a llegar otro correo." : "") +
-          " Las pruebas DEMO no reciben nada. ¿Seguimos?",
+        `Vamos a mandarle un correo a ${plural(pendientes, "familia", "familias")} de esta lista` +
+          (filterCurso ? ` (${filterCurso})` : "") +
+          " con su link para elegir las fotos del pack. Sólo a las de esta lista que todavía no canjearon." +
+          (yaAvisadas ? " Si ya les avisaste antes, les va a llegar otro correo." : "") +
+          " Las pruebas DEMO y las familias sin email no reciben nada. ¿Seguimos?",
       );
       if (!ok) return;
       let enviados = 0;
       let sinEmail = 0;
       for (const id of albumes) {
-        const r = await fetch(`/api/dashboard/albums/${id}/preventa-aviso`, { method: "POST" });
+        const r = await fetch(`/api/dashboard/albums/${id}/preventa-aviso`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderIds: porAlbum.get(id) ?? [] }),
+        });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(mensajeDeError(d, r, "No se pudo mandar el aviso."));
         enviados += Number(d.enviados ?? 0);
@@ -253,7 +258,11 @@ export default function FotografoEscuelasPedidosPage() {
       }
       setMensaje({
         tono: "ok",
-        texto: `Listo: ${plural(enviados, "correo", "correos")} en camino.${sinEmail ? ` ${sinEmail} sin email válido.` : ""}`,
+        texto:
+          `Listo: ${plural(enviados, "correo", "correos")} en camino.` +
+          (sinEmail
+            ? ` ${sinEmail} sin email: a esas familias mandales el link por WhatsApp desde el álbum, en «Canjes».`
+            : ""),
       });
     } catch (e) {
       setMensaje({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo mandar el aviso." });

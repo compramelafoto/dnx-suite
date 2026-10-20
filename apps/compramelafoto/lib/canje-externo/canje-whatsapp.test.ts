@@ -54,4 +54,22 @@ describe("buildPreventaCanjeWhatsAppMessage", () => {
     assert.ok(m.includes("Este link es único para tu familia: por favor no lo compartas."));
     assert.ok(m.endsWith("https://www.compramelafoto.com/canje/preventa/abc"));
   });
+  it("avisa que la selfie es la cara del alumno, no la del adulto", () => {
+    const m = buildPreventaCanjeWhatsAppMessage({
+      parentName: "Valenza Sabrina",
+      studentName: "Ambros Joaquín",
+      albumTitle: "Colegio San Patricio",
+      packLabel: "1 librito con su digital",
+      link: "https://x/canje/preventa/abc",
+    });
+    assert.ok(m.includes("Si te pide una selfie, tiene que ser la cara de Ambros Joaquín, no la tuya."));
+    const sinAlumno = buildPreventaCanjeWhatsAppMessage({
+      parentName: null,
+      studentName: null,
+      albumTitle: "A",
+      packLabel: "tu pack",
+      link: "https://x",
+    });
+    assert.ok(sinAlumno.includes("la cara de tu hija o tu hijo, no la tuya"));
+  });
 });

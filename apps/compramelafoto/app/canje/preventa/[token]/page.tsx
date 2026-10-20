@@ -231,7 +231,14 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     { photographerBypassGrant: modoPrueba, simulateClientView: false, grantCookieValue: grantCookie }
   );
 
-  if (album.hiddenPhotosEnabled && !visible.initialHasGrant) {
+  /*
+   * La selfie no encontró a nadie (casi siempre: la sacó el adulto, que no está en las fotos del
+   * colegio). Antes quedaba un permiso con cero fotos y la familia veía la grilla vacía, sin forma
+   * de reintentar durante 30 minutos. Ahora vuelve a ver la verificación, con el porqué.
+   */
+  const selfieSinFotos = album.hiddenPhotosEnabled && visible.initialHasGrant && visible.photos.length === 0;
+  if (album.hiddenPhotosEnabled && (!visible.initialHasGrant || selfieSinFotos)) {
+    const quien = alumno ? alumno : "tu hija o tu hijo";
     return (
       <ProtectedAlbumWrapper albumId={album.id} enableProtection>
         <section className="mx-auto max-w-lg px-4 pt-10">
@@ -240,6 +247,16 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
             {alumno ? `El pack de ${alumno} ya está pago. ` : "Tu pack ya está pago. "}
             En esta galería cada familia ve sólo sus fotos: primero verificá con una selfie y después elegís
             las fotos de tu pack.
+          </p>
+          {selfieSinFotos ? (
+            <p role="alert" className="m-0 mt-3 rounded-lg bg-[#fff4e5] px-3 py-2 text-sm text-[#7a4a12]">
+              No encontramos fotos con esa cara. Probá de nuevo con la cara de {quien}: de frente, con buena
+              luz y sin anteojos de sol. Si sigue sin aparecer, escribile a {album.user?.name ?? "la fotógrafa"}.
+            </p>
+          ) : null}
+          <p className="m-0 mt-3 rounded-lg bg-[#eef6f1] px-3 py-2 text-sm text-[#1f5b3f]">
+            <strong>Importante:</strong> la selfie tiene que ser la cara de {quien}, no la tuya: las fotos son
+            del colegio. Usá la cámara de adelante del celular, con {quien} mirando a la pantalla.
           </p>
         </section>
         <HiddenAlbumVerificationGate albumId={album.id} albumTitle={album.title} />
