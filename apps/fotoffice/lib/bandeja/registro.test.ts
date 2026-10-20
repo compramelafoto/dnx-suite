@@ -40,7 +40,7 @@ beforeEach(async () => {
 describe("aplicarEventos: entrantes", () => {
   it("crea el chat con nombre, no leído, hora y el mensaje", async () => {
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0 });
+    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [chats()[0].id] });
     expect(chats()).toHaveLength(1);
     expect(chats()[0]).toMatchObject({
       workspaceId: WS, waId: WA, nombre: "Lucía", estado: "BOT", noLeidos: 1, clientId: null,
@@ -67,7 +67,7 @@ describe("aplicarEventos: entrantes", () => {
   it("idempotente: el mismo waMessageId no duplica ni vuelve a sumar", async () => {
     await aplicarEventos([entrante()], AHORA);
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0 });
+    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0, paraElBot: [] });
     expect(mensajes()).toHaveLength(1);
     expect(chats()[0].noLeidos).toBe(1);
   });
@@ -93,14 +93,14 @@ describe("aplicarEventos: entrantes", () => {
 
   it("phoneNumberId sin conexión: se ignora sin tocar nada", async () => {
     const r = await aplicarEventos([entrante({ phoneNumberId: "999" })], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [] });
     expect(chats()).toHaveLength(0);
   });
 
   it("una conexión SIMULADA no recibe eventos por phoneNumberId (no puede apropiarse de un número)", async () => {
     B.datos.fotofficeWaConexion[0].modo = "SIMULADO";
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [] });
     expect(chats()).toHaveLength(0);
     // El simulador de Configuración sí entra, por workspaceId.
     expect(await aplicarEventos([entrante()], AHORA, { workspaceId: WS })).toMatchObject({ aplicados: 1 });
@@ -202,7 +202,7 @@ describe("aplicarEventos: estados de envío", () => {
   });
 
   it("estado de un mensaje desconocido y reciente (< 5 min): fallido, para que Meta reintente", async () => {
-    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1 });
+    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1, paraElBot: [] });
   });
 
   it("estado desconocido con hora ilegible o muy en el futuro: se ignora, no se reintenta", async () => {
@@ -211,7 +211,7 @@ describe("aplicarEventos: estados de envío", () => {
   });
 
   it("estado de un mensaje desconocido y viejo (>= 5 min): se ignora", async () => {
-    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0 });
+    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [] });
   });
 
   it("mensaje entrante con ese id: el estado se ignora", async () => {
@@ -446,5 +446,24 @@ describe("vista previa del chat", () => {
     await aplicarEventos([entrante({ waMessageId: "wamid.3", en: min(-0.5), texto: "volví" })], AHORA);
     expect(mensajes().some((m) => m.autor === "SISTEMA")).toBe(true);
     expect(chats()[0].ultimoMensajeTexto).toBe("volví");
+  });
+});
+
+describe("chats para el bot (etapa 3a)", () => {
+  it("un mensaje del cliente a un chat del bot lo marca para el bot", async () => {
+    const r = await aplicarEventos([entrante()], AHORA);
+    expect(r.paraElBot).toEqual([chats()[0].id]);
+  });
+
+  it("un eco del celular o un chat tomado por una persona no", async () => {
+    await aplicarEventos([entrante()], AHORA);
+    expect((await aplicarEventos([eco()], AHORA)).paraElBot).toEqual([]);
+    await P.fotofficeWaChat.update({ where: { id: chats()[0].id }, data: { estado: "HUMANO", asignadoUserId: 4 } });
+    expect((await aplicarEventos([entrante({ waMessageId: "wamid.9" })], AHORA)).paraElBot).toEqual([]);
+  });
+
+  it("un mensaje repetido no se marca dos veces", async () => {
+    await aplicarEventos([entrante()], AHORA);
+    expect((await aplicarEventos([entrante()], AHORA)).paraElBot).toEqual([]);
   });
 });

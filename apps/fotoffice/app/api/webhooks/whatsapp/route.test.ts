@@ -11,6 +11,9 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- la base en memoria tipa el cliente como mapa suelto
 const P = B.prisma as Record<string, any>;
 
+const programados: string[][] = [];
+vi.mock("@/lib/bandeja/bot/programar", () => ({ programarBot: (ids: string[]) => void programados.push([...ids]) }));
+
 const { GET, POST } = await import("./route");
 
 const SECRETO = "app-secret-de-prueba";
@@ -140,5 +143,14 @@ describe("POST /api/webhooks/whatsapp", () => {
     const r = await get({ "hub.mode": "subscribe", "hub.verify_token": TOKEN, "hub.challenge": "<b>1</b>" });
     expect(r.headers.get("x-content-type-options")).toBe("nosniff");
     expect(r.headers.get("content-type")).toContain("text/plain");
+  });
+});
+
+describe("POST: el bot", () => {
+  it("programa la respuesta del bot para el chat del mensaje entrante", async () => {
+    programados.length = 0;
+    const r = await post(fixture("texto.json"));
+    expect(r.status).toBe(200);
+    expect(programados).toEqual([[B.datos.fotofficeWaChat[0].id]]);
   });
 });
