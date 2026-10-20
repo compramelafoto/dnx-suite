@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { prisma } from "@repo/db";
-import { claveDeAdjunto } from "@/lib/ficha/adjuntos-reglas";
+import { prisma, type Prisma } from "@repo/db";
+import { DIAS_PURGA, claveDeAdjunto } from "@/lib/ficha/adjuntos-reglas";
 import { registrarEventoPersona } from "@/lib/ficha/eventos";
 import { duenoDe } from "@/lib/ficha/persona";
 import { TIPOS_ORIGINAL, borrarObjetoImpresion, claveImpresion, copiarObjeto } from "./almacen";
@@ -17,6 +17,8 @@ export const ORIGEN_FOTO_CARNET = "FOTO_CARNET";
 const MAX_ANTERIORES = 12;
 
 class YaCopiado extends Error {}
+class PreparacionCobrada extends Error {}
+const COBRADA = { ok: false as const, error: "Esa preparación ya se cobró: el cliente es el de la venta." };
 
 /** "DD-MM-AAAA" del día en Argentina (UTC−3, sin horario de verano). */
 function fechaArgentina(d: Date): string {
@@ -75,7 +77,7 @@ export async function guardarOriginalesEnFicha(ctx: CtxImpresion, preparacionId:
         // Condicionado: si otro pedido ya lo copió, éste se deshace entero.
         const r = await tx.fotofficeOriginalImpresion.updateMany({
           where: { id: o.id, workspaceId: ctx.workspaceId, adjuntoId: null },
-          data: { adjuntoId: adj.id },
+          data: { adjuntoId: adj.id, adjuntoPropio: true },
         });
         if (r.count !== 1) throw new YaCopiado();
         await registrarEventoPersona(tx, {
@@ -156,10 +158,17 @@ export async function usarFotoAnterior(
   return procesarOriginalSubido(ctx, id);
 }
 
-/** Cambia el cliente de la preparación (o lo saca) y guarda en su ficha los originales que falten. */
+/**
+ * Cambia el cliente de la preparación (o lo saca). Las fotos que ESTA preparación dejó en la ficha
+ * del cliente anterior lo siguen: pasan a la ficha del nuevo o, si queda sin cliente, se borran como
+ * un borrado de la ficha (restaurable 30 días). Las que vinieron de "Fotos anteriores" no se tocan.
+ * Después guarda en la ficha los originales que falten. Una preparación cobrada tiene el cliente de
+ * la venta: no se cambia.
+ */
 export async function asignarCliente(ctx: CtxImpresion, preparacionId: string, clientId: string | null): Promise<R> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return { ok: false, error: "Esa preparación no existe." };
+  if (prep.saleItemId !== null) return COBRADA;
   let nuevo: string | null = null;
   if (clientId !== null) {
     const cliente = esId(clientId)
@@ -168,12 +177,70 @@ export async function asignarCliente(ctx: CtxImpresion, preparacionId: string, c
     if (!cliente) return { ok: false, error: "Ese cliente no existe." };
     nuevo = cliente.id;
   }
-  await prisma.fotofficePreparacionImpresion.updateMany({
-    where: { id: prep.id, workspaceId: ctx.workspaceId },
-    data: { clientId: nuevo },
-  });
+  if (nuevo !== prep.clientId) {
+    try {
+      await prisma.$transaction((tx) => cambiarCliente(tx, ctx, prep.id, nuevo));
+    } catch (e) {
+      if (e instanceof PreparacionCobrada) return COBRADA;
+      throw e;
+    }
+  }
   await guardarOriginalesEnFicha(ctx, prep.id).catch((e) =>
     console.error("[fotoffice][impresion] no se guardó en la ficha", { error: e instanceof Error ? e.name : "?" }),
   );
   return { ok: true };
+}
+
+async function cambiarCliente(tx: Prisma.TransactionClient, ctx: CtxImpresion, preparacionId: string, nuevo: string | null): Promise<void> {
+  // Condicionado: si una venta se quedó con la preparación entre medio, no se cambia nada.
+  const r = await tx.fotofficePreparacionImpresion.updateMany({
+    where: { id: preparacionId, workspaceId: ctx.workspaceId, saleItemId: null },
+    data: { clientId: nuevo },
+  });
+  if (r.count !== 1) throw new PreparacionCobrada();
+  const actor = { userId: ctx.userId, label: ctx.userLabel };
+  const ahora = new Date();
+  const liberar = (id: string) =>
+    tx.fotofficeOriginalImpresion.updateMany({ where: { id, workspaceId: ctx.workspaceId }, data: { adjuntoId: null, adjuntoPropio: false } });
+  const propios = await tx.fotofficeOriginalImpresion.findMany({
+    where: { workspaceId: ctx.workspaceId, preparacionId, adjuntoPropio: true, adjuntoId: { not: null } },
+    select: { id: true, adjuntoId: true },
+  });
+  for (const o of propios) {
+    const adj = await tx.fotofficeAttachment.findFirst({
+      where: { id: o.adjuntoId!, workspaceId: ctx.workspaceId, origen: ORIGEN_FOTO_CARNET, status: "LISTO" },
+      select: { id: true, clientId: true, fileName: true, sizeBytes: true },
+    });
+    // Si ya lo borraron a mano desde la ficha, el original queda libre para volver a copiarse.
+    if (!adj) {
+      await liberar(o.id);
+      continue;
+    }
+    if (adj.clientId === nuevo) continue;
+    if (nuevo) {
+      await tx.fotofficeAttachment.updateMany({ where: { id: adj.id, workspaceId: ctx.workspaceId }, data: { clientId: nuevo } });
+      await registrarEventoPersona(tx, {
+        workspaceId: ctx.workspaceId,
+        dueno: duenoDe({ clientId: nuevo, memberId: null }),
+        kind: "ADJUNTO_SUBIDO",
+        detail: { attachmentId: adj.id, nombre: adj.fileName, tamano: adj.sizeBytes, origen: ORIGEN_FOTO_CARNET },
+        actor,
+      });
+    } else {
+      // Como `borrarAdjunto` de la ficha: se puede restaurar durante 30 días.
+      await tx.fotofficeAttachment.updateMany({
+        where: { id: adj.id, workspaceId: ctx.workspaceId, status: "LISTO" },
+        data: { status: "BORRADO", deletedAt: ahora, purgeAfter: new Date(ahora.getTime() + DIAS_PURGA * 86_400_000) },
+      });
+      await liberar(o.id);
+    }
+    if (adj.clientId)
+      await registrarEventoPersona(tx, {
+        workspaceId: ctx.workspaceId,
+        dueno: duenoDe({ clientId: adj.clientId, memberId: null }),
+        kind: "ADJUNTO_BORRADO",
+        detail: { attachmentId: adj.id, nombre: adj.fileName, motivo: nuevo ? "CLIENTE_CORREGIDO" : "SIN_CLIENTE" },
+        actor,
+      });
+  }
 }

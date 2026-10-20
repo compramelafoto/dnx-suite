@@ -22662,6 +22662,8 @@ model FotofficeOriginalImpresion {
   archivoTrabajoId String?
   /// La copia guardada en la ficha del cliente (sólo carnet).
   adjuntoId        String?
+  /// true si ESTE original creó ese adjunto (se mueve o se borra al corregir el cliente); false si vino de "Fotos anteriores".
+  adjuntoPropio    Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   workspace   Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

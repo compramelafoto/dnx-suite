@@ -107,17 +107,22 @@ export async function produccionDeProductosAction() {
   return produccionDeProductos(workspace.id);
 }
 
-/** "Fotos anteriores" del cliente: además de Ventas, pide ver Clientes (como la pantalla de Foto carnet). */
+/** Las "Fotos anteriores" son de la ficha del cliente: además de Ventas, piden ver Clientes (como la pantalla de Foto carnet). */
+async function puedeVerClientes(userId: number, workspaceId: string): Promise<boolean> {
+  const clientes = await isModuleEnabledForWorkspace(workspaceId, CLIENTS_MODULE_KEY);
+  const nivel = clientes ? await getModuleLevel(userId, workspaceId, CLIENTS_MODULE_KEY) : "NONE";
+  return hasLevel(nivel, "VIEW");
+}
+
 export async function fotosCarnetDelClienteAction(clientId: string) {
   const { user, workspace } = await requireSalesStaff();
-  const clientes = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
-  const nivel = clientes ? await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY) : "NONE";
-  if (!hasLevel(nivel, "VIEW")) return [];
+  if (!(await puedeVerClientes(user.id, workspace.id))) return [];
   return fotosCarnetDelCliente(workspace.id, clientId);
 }
 
 export async function usarFotoAnteriorAction(preparacionId: string, adjuntoId: string) {
   const ctx = await ctxImpresion();
+  if (!(await puedeVerClientes(ctx.userId, ctx.workspaceId))) return { ok: false as const, error: "No tenés permiso para ver las fichas de clientes." };
   return usarFotoAnterior(ctx, preparacionId, adjuntoId);
 }
 

@@ -86,10 +86,13 @@ CREATE TABLE IF NOT EXISTS "FotofficeOriginalImpresion" (
     "estado" TEXT NOT NULL DEFAULT 'PENDIENTE',
     "archivoTrabajoId" TEXT,
     "adjuntoId" TEXT,
+    "adjuntoPropio" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "FotofficeOriginalImpresion_pkey" PRIMARY KEY ("id")
 );
+
+ALTER TABLE "FotofficeOriginalImpresion" ADD COLUMN IF NOT EXISTS "adjuntoPropio" BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS "FotofficePiezaImpresion" (
     "id" TEXT NOT NULL,

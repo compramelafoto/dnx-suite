@@ -100,4 +100,54 @@ describe("el original de la foto carnet en la ficha del cliente", () => {
     if (!ajena.ok) throw new Error();
     expect((await F.usarFotoAnterior(CTX, ajena.id, anterior!.adjuntoId)).ok).toBe(false);
   });
+
+  describe("corregir el cliente", () => {
+    const fotosDe = (clientId: string) => Adjuntos.findMany({ where: { workspaceId: "ws-1", clientId, origen: "FOTO_CARNET", status: "LISTO" } });
+    beforeEach(() => {
+      B.agregar("client", { id: "cli-1", workspaceId: "ws-1", kind: "PERSONA", firstName: "Mica", lastName: "Gómez", businessName: null });
+      B.agregar("client", { id: "cli-2", workspaceId: "ws-1", kind: "PERSONA", firstName: "Leo", lastName: "Paz", businessName: null });
+    });
+
+    it("de X a Y, la foto pasa a la ficha de Y", async () => {
+      const { prep } = await conOriginal("carnet", "cli-1");
+      const [antes] = await fotosDe("cli-1");
+      expect(await F.asignarCliente(CTX, prep, "cli-2")).toEqual({ ok: true });
+      expect(await fotosDe("cli-1")).toHaveLength(0);
+      const enY = await fotosDe("cli-2");
+      expect(enY).toHaveLength(1);
+      expect(enY[0]!.id).toBe(antes!.id);
+      expect(R2.has(enY[0]!.storageKey)).toBe(true);
+      expect(await Adjuntos.count({ where: { workspaceId: "ws-1" } })).toBe(1);
+    });
+
+    it("de X a sin cliente, la foto se borra de la ficha (restaurable)", async () => {
+      const { prep, original } = await conOriginal("carnet", "cli-1");
+      expect(await F.asignarCliente(CTX, prep, null)).toEqual({ ok: true });
+      expect(await fotosDe("cli-1")).toHaveLength(0);
+      const [borrada] = await Adjuntos.findMany({ where: { workspaceId: "ws-1", clientId: "cli-1" } });
+      expect(borrada).toMatchObject({ status: "BORRADO" });
+      expect(borrada!.purgeAfter).toBeInstanceOf(Date);
+      expect(B.datos.fotofficeOriginalImpresion.find((o) => o.id === original)).toMatchObject({ adjuntoId: null, adjuntoPropio: false });
+    });
+
+    it("una foto anterior de X usada en otra preparación no se mueve al corregir el cliente", async () => {
+      await conOriginal("carnet", "cli-1");
+      const [anterior] = await F.fotosCarnetDelCliente("ws-1", "cli-1");
+      const nueva = await P.crearPreparacion(CTX, { productId: "carnet", clientId: "cli-1" });
+      if (!nueva.ok) throw new Error();
+      expect((await F.usarFotoAnterior(CTX, nueva.id, anterior!.adjuntoId)).ok).toBe(true);
+      expect(await F.asignarCliente(CTX, nueva.id, "cli-2")).toEqual({ ok: true });
+      expect((await fotosDe("cli-1")).map((a) => a.id)).toEqual([anterior!.adjuntoId]);
+      expect(await fotosDe("cli-2")).toHaveLength(0);
+    });
+
+    it("una preparación cobrada no cambia de cliente", async () => {
+      const { prep } = await conOriginal("carnet", "cli-1");
+      await (B.prisma.$transaction as (f: (tx: unknown) => Promise<void>) => Promise<void>)((tx) =>
+        P.vincularConVenta(tx as Parameters<typeof P.vincularConVenta>[0], "ws-1", [{ preparacionId: prep, saleItemId: "item-1" }], null),
+      );
+      expect(await F.asignarCliente(CTX, prep, "cli-2")).toEqual({ ok: false, error: "Esa preparación ya se cobró: el cliente es el de la venta." });
+      expect(await fotosDe("cli-1")).toHaveLength(1);
+    });
+  });
 });
