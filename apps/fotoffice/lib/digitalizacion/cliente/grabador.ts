@@ -1,6 +1,6 @@
 import { BITS_AUDIO, SEGUNDOS_POR_PARTE } from "../constants";
 
-type Opciones = { stream: MediaStream; mimeType: string; bitsVideo: number; alPedacito: (b: Blob, indice: number) => void };
+type Opciones = { stream: MediaStream; mimeType: string; bitsVideo: number; alPedacito: (b: Blob, indice: number) => void; alError?: () => void };
 
 /** `MediaRecorder` con un pedacito cada 10 s. `detener` espera el último pedacito. */
 export class Grabador {
@@ -12,10 +12,12 @@ export class Grabador {
   }
 
   iniciar(): void {
+    if (this.rec) return; // ya iniciado: un segundo MediaRecorder duplicaría los pedacitos
     const rec = new MediaRecorder(this.o.stream, { mimeType: this.o.mimeType, videoBitsPerSecond: this.o.bitsVideo, audioBitsPerSecond: BITS_AUDIO });
     rec.ondataavailable = (e) => {
       if (e.data.size > 0) this.o.alPedacito(e.data, this.indice++);
     };
+    rec.onerror = () => this.o.alError?.();
     rec.start(SEGUNDOS_POR_PARTE * 1000);
     this.rec = rec;
   }

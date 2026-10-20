@@ -17,6 +17,11 @@ export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: num
 /** `tramo`: el último tramo guardado (un VHS pide el siguiente al tocar Grabar; un DVD usa siempre el 1). */
 export type Continuacion = { grabacionId: string; tramo: number; tipo: "VHS" | "DVD"; proyectoId: string | null; cassetteNumero: number | null; calidad: string | null; corregirProporcion: boolean; dvdArchivos: { nombre: string; bytes: number }[] | null };
 
+/** Lo emite "Digitalizar DVD" (detail: true mientras sube) para que acá no se pueda grabar un VHS a la vez. */
+export const EVENTO_DVD_SUBIENDO = "fo-digitalizacion-dvd-subiendo";
+const LATIDO_CADA_MS = 30_000;
+const RESPALDO_CADA_MS = 60_000;
+
 const CLAVE_EQUIPO = "fo-digitalizacion-equipo";
 const CLAVE_LISTA = "fo-digitalizacion-lista-ok";
 const leerLocal = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -79,7 +84,13 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     // Pedacitos que todavía se están guardando: hay que esperarlos antes de cerrar.
     pendientes: Set<Promise<void>>;
     cierre: (ReturnType<typeof latidoDe> & { motivoFin: "MANUAL" | "SIN_SENAL" | "TOPE" }) | null;
+    // Cuándo arrancó (reloj de pared) y el temporizador de respaldo de la página.
+    inicioMs: number; respaldo: number | null;
+    // Si la señal se perdió (capturadora desenchufada, error del grabador), se avisa al terminar.
+    perdida: string | null;
   } | null>(null);
+  const ultimoLatidoMs = useRef(0);
+  const [dvdSubiendo, setDvdSubiendo] = useState(false);
   // Evita el doble clic en Grabar (el estado de React no cambia a tiempo).
   const iniciandoRef = useRef(false);
   const faseRef = useRef(fase);
@@ -87,6 +98,22 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const cerrandoRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   useEffect(() => { faseRef.current = fase; streamRef.current = stream; }, [fase, stream]);
+
+  // Manda un latido con el último resumen conocido, si pasó al menos `cadaMs` desde el anterior.
+  // Lo usan el worker (grabando), la cola (terminando) y el temporizador de respaldo de la página.
+  const enviarLatido = useCallback((cadaMs: number) => {
+    const s = sesion.current;
+    if (!s || Date.now() - ultimoLatidoMs.current < cadaMs) return;
+    ultimoLatidoMs.current = Date.now();
+    const resumen = s.resumen ?? { duracionSeg: s.segundos, primeraImagenSeg: null, ultimaImagenSeg: null, sinImagen: true, tramos: [] };
+    latidoAction(s.grabacionId, latidoDe(resumen, s.tramo)).catch(() => { /* el próximo latido lo reintenta */ });
+  }, []);
+
+  useEffect(() => {
+    const f = (e: Event) => setDvdSubiendo(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener(EVENTO_DVD_SUBIENDO, f);
+    return () => window.removeEventListener(EVENTO_DVD_SUBIENDO, f);
+  }, []);
 
   // Compatibilidad, cola persistente (sube primero lo que quedó de antes) y la lista de chequeo.
   useEffect(() => {
@@ -96,11 +123,16 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     // Una sola cola por pantalla: en desarrollo (Strict Mode) el efecto corre dos veces y subiría doble.
     if (colaRef.current) return;
     const c = new ColaDeSubida(almacenIndexedDb(), crearSubidor(), {
-      alCambiar: (r) => { setCola(r); if (r.ultimoError === AVISO_SIN_ESPACIO) setAviso(AVISO_SIN_ESPACIO); },
+      alCambiar: (r) => {
+        setCola(r);
+        if (r.ultimoError === AVISO_SIN_ESPACIO) setAviso(AVISO_SIN_ESPACIO);
+        // Al terminar ya no llegan mensajes del worker: sin esto, una subida larga parecería Interrumpida.
+        if (sesion.current?.deteniendo) enviarLatido(LATIDO_CADA_MS);
+      },
     });
     colaRef.current = c;
     void c.reanudar();
-  }, []);
+  }, [enviarLatido]);
 
   // Pedir permiso una vez para ver los nombres de los dispositivos.
   const cargarDispositivos = useCallback(async () => {
@@ -134,7 +166,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         setEquipo(e);
         if (e && !continuar) setEstirada(e.corregirProporcion);
       })
-      .catch(() => setAviso("No pudimos abrir la capturadora. ¿Está abierta en Meet, Zoom u otro programa?"));
+      .catch(() => { setStream(null); setAviso("No pudimos abrir la capturadora. ¿Está abierta en Meet, Zoom u otro programa?"); });
     return () => { cancelado = true; if (faseRef.current === "preparando" || faseRef.current === "iniciando") vivo?.getTracks().forEach((t) => t.stop()); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, audioId]);
@@ -199,6 +231,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     const s = sesion.current;
     if (!s || s.deteniendo) return;
     s.deteniendo = true;
+    if (s.respaldo !== null) { window.clearInterval(s.respaldo); s.respaldo = null; }
     setFase("terminando");
     try { await s.grabador.detener(); } catch { /* el grabador ya estaba parado */ }
     s.analizador.detener();
@@ -229,7 +262,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     }
     if (r.ok) {
       setFase("terminada");
-      setAviso(s.cierre.motivoFin === "SIN_SENAL" ? `Se cortó sola: ${minutosSinSenal} minutos sin imagen.` : "Grabación terminada y subida.");
+      setAviso(s.perdida ?? (s.cierre.motivoFin === "SIN_SENAL" ? `Se cortó sola: ${minutosSinSenal} minutos sin imagen.` : "Grabación terminada y subida."));
     } else {
       setCierreFallido(r.error ?? "No pudimos cerrar la grabación.");
     }
@@ -240,12 +273,20 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
 
   const alMensaje = useCallback((m: MensajeDelWorker) => {
     const s = sesion.current;
-    if (!s || m.tipo !== "segundo") return;
+    if (!s) return;
+    if (m.tipo === "error") {
+      // Sin el analizador no hay latido ni corte automático: mejor parar y subir lo que hay.
+      s.perdida = "Falló el análisis de la imagen y paramos la grabación. Lo grabado hasta acá se sube.";
+      setAviso(s.perdida);
+      void detener("MANUAL");
+      return;
+    }
+    if (m.tipo !== "segundo") return;
     s.segundos = m.seg;
     s.sinImagen = m.sinImagenHaceSeg;
     s.resumen = m.resumen;
     // El latido sale de los mensajes del worker: los temporizadores de la página se frenan en segundo plano.
-    if (m.latido) latidoAction(s.grabacionId, latidoDe(m.resumen, s.tramo)).catch(() => { /* el próximo latido lo reintenta */ });
+    if (m.latido) { ultimoLatidoMs.current = Date.now(); latidoAction(s.grabacionId, latidoDe(m.resumen, s.tramo)).catch(() => { /* el próximo latido lo reintenta */ }); }
     if (m.cortar) void detener("SIN_SENAL");
     else if (m.seg >= TOPE_SEGUNDOS) void detener("TOPE");
     setVentanitaAbierta(Boolean(s.ventanita && !s.ventanita.cerrada()));
@@ -308,9 +349,18 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       return fallar("No pudimos empezar la grabación. Revisá la conexión y probá de nuevo.");
     }
     const cola = colaRef.current;
+    // Se corta a mano si la capturadora se va (pista terminada) o el grabador falla.
+    const perder = (mensaje: string) => {
+      const s = sesion.current;
+      if (!s || s.deteniendo) return;
+      s.perdida = mensaje;
+      setAviso(mensaje);
+      void detenerRef.current("MANUAL");
+    };
     const pendientes = new Set<Promise<void>>();
     const grabador = new Grabador({
       stream, mimeType: mime, bitsVideo: CALIDADES[calidad],
+      alError: () => perder("Se perdió la señal de la capturadora."),
       alPedacito: (datos, indice) => {
         const guardado = cola
           .agregar({ id: idParte(id, tramo, indice), grabacionId: id, tramo, indice, datos })
@@ -320,7 +370,17 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       },
     });
     const analizador = new Analizador((m) => alMensajeRef.current(m));
-    sesion.current = { grabacionId: id, tramo, grabador, analizador, ventanita, resumen: null, segundos: 0, sinImagen: null, deteniendo: false, pendientes, cierre: null };
+    sesion.current = { grabacionId: id, tramo, grabador, analizador, ventanita, resumen: null, segundos: 0, sinImagen: null, deteniendo: false, pendientes, cierre: null, inicioMs: Date.now(), respaldo: null, perdida: null };
+    ultimoLatidoMs.current = Date.now();
+    const pista = stream.getVideoTracks()[0];
+    pista?.addEventListener("ended", () => perder("Se perdió la señal de la capturadora."), { once: true });
+    // Respaldo de la página: si el worker se calla, igual hay latido y se respeta el tope por reloj de pared.
+    sesion.current.respaldo = window.setInterval(() => {
+      const s = sesion.current;
+      if (!s || s.deteniendo) return;
+      enviarLatido(RESPALDO_CADA_MS);
+      if ((Date.now() - s.inicioMs) / 1000 >= TOPE_SEGUNDOS) void detenerRef.current("TOPE");
+    }, RESPALDO_CADA_MS);
     grabador.iniciar();
     analizador.iniciar(stream.getVideoTracks()[0], equipo?.huellaSinSenal ?? null, minutosSinSenal);
     setVentanitaAbierta(Boolean(ventanita));
@@ -337,6 +397,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       const s = sesion.current;
       if (!s || s.deteniendo) return;
       s.deteniendo = true;
+      if (s.respaldo !== null) window.clearInterval(s.respaldo);
       void s.grabador.detener().catch(() => {});
       s.analizador.detener();
       s.ventanita?.cerrar();
@@ -369,7 +430,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     return <p className="fo-alert-error p-4 text-sm">La estación necesita Chrome o Edge de escritorio actualizados (versión 116 o mayor).</p>;
   }
 
-  const puedeGrabar = Boolean(stream) && listaOk && (sinPedido || proyectoId) && fase === "preparando";
+  const puedeGrabar = Boolean(stream) && !dvdSubiendo && listaOk && (sinPedido || proyectoId) && fase === "preparando";
   return (
     <div className="space-y-6">
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
@@ -424,7 +485,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           La imagen se ve estirada (la gente se ve ancha)
         </label>
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <button type="button" className="fo-btn text-sm" disabled={!stream || calibrando || fase !== "preparando"} onClick={() => void calibrar()}>
+          <button type="button" className="fo-btn fo-btn-secondary text-sm" disabled={!stream || calibrando || fase !== "preparando"} onClick={() => void calibrar()}>
             {calibrando ? "Calibrando…" : "Calibrar “sin señal”"}
           </button>
           <span>{equipo?.huellaSinSenal ? "✓ Calibrado" : "Sin calibrar: apagá la videocasetera y tocá Calibrar."}</span>
@@ -474,9 +535,12 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
             {fase === "iniciando" ? "Empezando…" : "● Grabar"}
           </button>
         ) : null}
-        {fase === "grabando" ? <button type="button" className="fo-btn" onClick={() => void detener("MANUAL")}>⏹ Detener</button> : null}
+        {fase === "preparando" && dvdSubiendo ? (
+          <p className="text-sm">Hay un DVD subiendo: esperá a que termine para grabar un VHS.</p>
+        ) : null}
+        {fase === "grabando" ? <button type="button" className="fo-btn fo-btn-danger" onClick={() => void detener("MANUAL")}>⏹ Detener</button> : null}
         {fase === "grabando" && !ventanitaAbierta ? (
-          <button type="button" className="fo-btn ml-2" onClick={() => void abrirVentanita()}>Abrir ventanita</button>
+          <button type="button" className="fo-btn fo-btn-secondary ml-2" onClick={() => void abrirVentanita()}>Abrir ventanita</button>
         ) : null}
         {fase === "terminando" && !cierreFallido ? <p className="text-sm">Terminando de subir… no cierres esta página.</p> : null}
         {fase === "terminando" && cierreFallido ? (
@@ -486,7 +550,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
             </p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className="fo-btn fo-btn-primary text-sm" onClick={() => void cerrar()}>Reintentar cierre</button>
-              <a className="fo-btn text-sm" href="/digitalizacion">Ver grabaciones</a>
+              <a className="fo-btn fo-btn-secondary text-sm" href="/digitalizacion">Ver grabaciones</a>
             </div>
           </div>
         ) : null}

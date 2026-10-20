@@ -33,7 +33,7 @@ function Vista({ stream }: { stream: MediaStream }) {
 function Panel({ e, alDetener }: { e: EstadoVentanita; alDetener: () => void }) {
   const restan = e.sinImagenHaceSeg === null ? null : Math.max(0, e.minutosSinSenal * 60 - e.sinImagenHaceSeg);
   return (
-    <div style={{ font: "13px system-ui, sans-serif", color: "#fff", background: "#111", height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ font: "13px system-ui, sans-serif", color: "#fff", background: "#111", minHeight: "100vh", overflow: "auto", display: "flex", flexDirection: "column" }}>
       {e.stream ? <Vista stream={e.stream} /> : null}
       <div style={{ padding: 8, display: "grid", gap: 4 }}>
         <strong style={{ color: e.terminando ? "#fbbf24" : "#ef4444" }}>
@@ -73,8 +73,13 @@ export class Ventanita {
     return this.win.closed;
   }
 
+  private cerradaYa = false;
+
+  /** Se puede llamar más de una vez (al detener, al desmontar la pantalla, al cerrar la ventana). */
   cerrar(): void {
-    this.raiz.unmount();
-    if (!this.win.closed) this.win.close();
+    if (this.cerradaYa) return;
+    this.cerradaYa = true;
+    try { this.raiz.unmount(); } catch { /* ya estaba desmontada */ }
+    try { if (!this.win.closed) this.win.close(); } catch { /* la ventana ya no está */ }
   }
 }

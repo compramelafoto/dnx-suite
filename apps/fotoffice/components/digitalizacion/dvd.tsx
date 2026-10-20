@@ -6,7 +6,7 @@ import { buscarTrabajosAction, cerrarGrabacionAction, continuarGrabacionAction, 
 import { elegirCarpeta } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { ColaDeSubida, almacenEnMemoria, idParte, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
 import { cortesDeArchivo, vobsEnOrden } from "@/lib/digitalizacion/dvd";
-import { crearSubidor, type Continuacion } from "./estacion";
+import { EVENTO_DVD_SUBIENDO, crearSubidor, type Continuacion } from "./estacion";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 async function carpetaVideoTs(raiz: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
@@ -41,6 +41,12 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
   const [fallo, setFallo] = useState(false);
   const ocupado = useRef(false);
   const ultimoLatido = useRef(0);
+
+  // La estación de VHS escucha esto para no dejar grabar mientras el DVD sube.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(EVENTO_DVD_SUBIENDO, { detail: fase === "subiendo" }));
+    return () => { window.dispatchEvent(new CustomEvent(EVENTO_DVD_SUBIENDO, { detail: false })); };
+  }, [fase]);
 
   useEffect(() => {
     if (fase !== "subiendo") return;
@@ -161,10 +167,10 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
         <button type="button" className="fo-btn fo-btn-primary" disabled={!continuar && !sinPedido && !proyectoId} onClick={() => void empezar()}>Elegir la carpeta del DVD</button>
       ) : null}
       {fase === "subiendo" && (!ventanitaRef.current || ventanitaRef.current.cerrada()) ? (
-        <button type="button" className="fo-btn" onClick={() => void abrirVentanita()}>Abrir ventanita</button>
+        <button type="button" className="fo-btn fo-btn-secondary" onClick={() => void abrirVentanita()}>Abrir ventanita</button>
       ) : null}
       {fase === "subiendo" && !fallo ? <p className="text-sm">Subiendo parte {avance.hechos} de {avance.total}… podés seguir usando la computadora.</p> : null}
-      {fase === "subiendo" && fallo ? <button type="button" className="fo-btn" onClick={() => { setFase("listo"); setFallo(false); }}>Volver</button> : null}
+      {fase === "subiendo" && fallo ? <button type="button" className="fo-btn fo-btn-secondary" onClick={() => { setFase("listo"); setFallo(false); }}>Volver</button> : null}
       {fase === "terminada" ? <a className="fo-btn fo-btn-primary" href="/digitalizacion">Ver grabaciones</a> : null}
     </div>
   );

@@ -265,7 +265,7 @@ export async function listarGrabaciones(workspaceId: string) {
     take: 200,
     select: {
       id: true, tipo: true, estado: true, motivoFin: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
-      tramos: true, ultimoLatidoAt: true, iniciadaAt: true, sinImagen: true,
+      tramos: true, ultimoLatidoAt: true, iniciadaAt: true, sinImagen: true, mimeType: true,
       proyecto: { select: { number: true, name: true } },
     },
   });

@@ -1,12 +1,16 @@
 // apps/fotoffice/lib/digitalizacion/cliente/descargar-crudo.ts
-import { elegirArchivoDeDestino } from "./apis-navegador";
 
 /**
- * Escribe las partes, en orden, en un archivo que elige el usuario. No pasa por Vercel ni por la
- * memoria: cada parte va del almacenamiento al disco en streaming. Herramienta de verificación.
+ * Escribe las partes, en orden, en un archivo que el usuario ya eligió (el selector de archivos
+ * tiene que abrirse primero, dentro del clic: ver `elegirArchivoDeDestino`). No pasa por Vercel
+ * ni por la memoria: cada parte va del almacenamiento al disco en streaming. Herramienta de
+ * verificación.
  */
-export async function descargarCrudo(urls: string[], nombre: string, alAvance: (hechas: number, total: number) => void): Promise<void> {
-  const destino = await elegirArchivoDeDestino(nombre);
+export async function descargarCrudo(
+  destino: WritableStream,
+  urls: string[],
+  alAvance: (hechas: number, total: number) => void,
+): Promise<void> {
   try {
     for (let i = 0; i < urls.length; i++) {
       const res = await fetch(urls[i]);
@@ -16,7 +20,7 @@ export async function descargarCrudo(urls: string[], nombre: string, alAvance: (
     }
     await destino.close();
   } catch (e) {
-    await destino.abort();
+    try { await destino.abort(); } catch { /* ya estaba cerrado o abortado: importa el error original */ }
     throw e;
   }
 }

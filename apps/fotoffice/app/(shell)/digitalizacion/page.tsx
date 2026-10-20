@@ -1,6 +1,7 @@
 // apps/fotoffice/app/(shell)/digitalizacion/page.tsx
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
+import { extensionDeMime } from "@/lib/digitalizacion/claves";
 import { requireDigitalizacion } from "@/lib/digitalizacion/contexto";
 import { leerAjustes, listarGrabaciones } from "@/lib/digitalizacion/servidor/grabaciones";
 import { estadoVisible } from "@/lib/digitalizacion/validar";
@@ -50,7 +51,7 @@ export default async function DigitalizacionPage() {
                   {g.motivoFin ? ` · ${MOTIVOS[g.motivoFin] ?? g.motivoFin}` : ""}
                   {g.sinImagen && g.tipo === "VHS" ? " · ¡no se vio imagen en ningún momento!" : ""}
                 </p>
-                {puedeGrabar ? <AccionesGrabacion id={g.id} estado={estado} /> : null}
+                {puedeGrabar ? <AccionesGrabacion id={g.id} estado={estado} nombreArchivo={`grabacion-${g.id}.${extensionDeMime(g.mimeType) ?? "bin"}`} /> : null}
               </li>
             );
           })}
