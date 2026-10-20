@@ -8,6 +8,7 @@ import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { agendaEncendida, crearCitasDelPedido } from "@/lib/agenda/crear";
 import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
+import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { nombreDeContacto } from "./nombre-contacto";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
 import { rubroIngresoPorOmision } from "./ajustes";
@@ -124,6 +125,8 @@ export type DatosPedidoNuevo = {
   createdByUserId: number | null;
   cuotas: readonly CuotaParaGuardar[];
   ahora: Date;
+  /** Clave del alta (único por workspace): el mismo cobro repetido no crea otro pedido. */
+  altaKey?: string | null;
 };
 
 /**
@@ -159,6 +162,7 @@ export async function insertarPedido(tx: Tx, d: DatosPedidoNuevo): Promise<{ id:
       incomeCategoryId: d.incomeCategoryId,
       ownerUserId: d.ownerUserId,
       createdByUserId: d.createdByUserId,
+      altaKey: d.altaKey ?? null,
     },
     select: { id: true },
   });
@@ -188,11 +192,75 @@ export type DatosPedidoManual = {
   plan?: unknown;
   /** Plantilla de checklist a copiar (por nombre); sin ella, la primera; `null` = ninguna. */
   checklist?: unknown;
+  /**
+   * Clave del alta (la arma el Mostrador una vez por cobro). Con la misma clave, la segunda
+   * llamada devuelve el pedido de la primera (`repetido: true`) sin volver a escribir nada: un
+   * doble clic o un reintento después de un corte no crean dos pedidos ni apartan dos veces.
+   */
+  clave?: unknown;
+  /** Ids de los ítems que el cliente pasa a retirar: abren su trabajo en «Para retirar». */
+  paraRetirar?: unknown;
+  /** Unidades que aparta la seña: `{ itemId, productId, variantId, cantidad }[]`. */
+  apartar?: unknown;
 };
 
-export type ResultadoAlta = { ok: true; pedidoId: string; numero: string; aviso: AvisoPlan | null } | { ok: false; error: string };
+export type ResultadoAlta =
+  | { ok: true; pedidoId: string; numero: string; aviso: AvisoPlan | null; repetido: boolean }
+  | { ok: false; error: string };
 
 const MAX_CUOTAS_OPCION = 60;
+
+/** Mismo formato que la clave del cobro del Mostrador (`CLAVE` de `ventas/pedido-actions.ts`). */
+const CLAVE_ALTA = /^[A-Za-z0-9_-]{8,90}$/;
+
+type LineaApartada = { itemId: string; productId: string; variantId: string | null; cantidad: number };
+
+/** La clave del alta: `null` si no vino; `undefined` si vino con otro formato. */
+function leerClave(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === null) return null;
+  return typeof raw === "string" && CLAVE_ALTA.test(raw) ? raw : undefined;
+}
+
+/** Posiciones (en `items`) de los ids marcados «para retirar»; null si alguno no es un ítem. */
+function leerParaRetirar(raw: unknown, items: readonly Pick<ItemPresupuesto, "id">[]): Set<number> | null {
+  if (raw === undefined || raw === null) return new Set();
+  if (!Array.isArray(raw)) return null;
+  const posiciones = new Set<number>();
+  for (const id of raw) {
+    const i = typeof id === "string" ? items.findIndex((it) => it.id === id) : -1;
+    if (i < 0) return null;
+    posiciones.add(i);
+  }
+  return posiciones;
+}
+
+/**
+ * Las líneas que aparta la seña. Cada una apunta a un ítem del pedido (por id) con ese mismo
+ * producto, y la cantidad es un entero positivo. null si alguna no cuadra (el talle se verifica
+ * contra la base aparte).
+ */
+function leerApartar(raw: unknown, items: readonly Pick<ItemPresupuesto, "id" | "productId">[]): LineaApartada[] | null {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) return null;
+  const out: LineaApartada[] = [];
+  for (const l of raw) {
+    if (!l || typeof l !== "object" || Array.isArray(l)) return null;
+    const r = l as Record<string, unknown>;
+    if (typeof r.itemId !== "string" || !idValido(r.productId)) return null;
+    const it = items.find((x) => x.id === r.itemId);
+    if (!it || it.productId !== r.productId) return null;
+    const variantId = r.variantId === undefined || r.variantId === null ? null : r.variantId;
+    if (variantId !== null && !idValido(variantId)) return null;
+    if (typeof r.cantidad !== "number" || !Number.isSafeInteger(r.cantidad) || r.cantidad <= 0) return null;
+    out.push({ itemId: r.itemId, productId: r.productId, variantId, cantidad: r.cantidad });
+  }
+  return out;
+}
+
+/** El pedido que ya se dio de alta con esta clave, o null. */
+async function pedidoDeLaClave(workspaceId: string, clave: string): Promise<{ id: string; number: string } | null> {
+  return prisma.fotofficePedido.findFirst({ where: { workspaceId, altaKey: clave }, select: { id: true, number: true } });
+}
 
 function leerOpcionManual(raw: unknown): OpcionManual | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -236,6 +304,15 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
   const ahora = deps.ahora?.() ?? new Date();
   const hoy = diaEnBuenosAires(ahora);
 
+  const clave = leerClave(datos.clave);
+  if (clave === undefined) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  // Con la misma clave ya hay pedido: es el mismo cobro que vuelve. Se devuelve tal cual, antes de
+  // validar nada (lo que cambió desde entonces no deshace un pedido que ya existe).
+  if (clave !== null) {
+    const ya = await pedidoDeLaClave(workspaceId, clave);
+    if (ya) return { ok: true, pedidoId: ya.id, numero: ya.number, aviso: null, repetido: true };
+  }
+
   if (!idValido(datos.clientId)) return { ok: false, error: MENSAJES_PEDIDO.contacto };
   const v = validarItems(datos.items);
   if (!v.ok) return v;
@@ -261,6 +338,20 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
   if (productIds.length > 0) {
     const productos = await prisma.product.findMany({ where: { workspaceId, id: { in: productIds } }, select: { id: true } });
     if (productos.length !== productIds.length) return { ok: false, error: MENSAJES_PEDIDO.producto };
+  }
+  const paraRetirar = leerParaRetirar(datos.paraRetirar, items);
+  if (!paraRetirar) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  const apartar = leerApartar(datos.apartar, items);
+  if (!apartar) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  // El talle tiene que ser de ese producto: `applyStockMovement` lo rechazaría igual, pero con la
+  // transacción ya abierta y como una falla; acá es un dato inválido.
+  const variantIds = [...new Set(apartar.map((l) => l.variantId).filter((x): x is string => x !== null))];
+  if (variantIds.length > 0) {
+    const talles = await prisma.productVariant.findMany({ where: { workspaceId, id: { in: variantIds } }, select: { id: true, productId: true } });
+    const productoDelTalle = new Map(talles.map((t) => [t.id, t.productId]));
+    if (apartar.some((l) => l.variantId !== null && productoDelTalle.get(l.variantId) !== l.productId)) {
+      return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+    }
   }
 
   const totales = calcularTotales(items, descuento.valor);
@@ -306,15 +397,17 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
         createdByUserId: ctx.userId,
         cuotas,
         ahora,
+        altaKey: clave,
       });
       await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
+      await apartarStock(tx, { workspaceId, pedidoId: r.id, lineas: apartar, createdByUserId: ctx.userId });
       // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
       // Y los proyectos de las reglas de sus productos (Etapa 4), todos: a mano no hay vista previa.
       if (conProyectos) {
         await crearProyectosDelPedido(tx, ctx, {
           pedidoId: r.id, clientId: contacto.id, items, fechaEvento, eventLabel: etiqueta, numeroPedido: r.numero,
-          ownerUserId: ctx.userId, confirmadoEn: ahora,
+          ownerUserId: ctx.userId, confirmadoEn: ahora, paraRetirar,
         });
       }
       // Y las citas de las reglas de sus productos (Etapa 4, Entrega B), todas y sólo con fecha de evento.
@@ -324,11 +417,50 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
           ownerUserId: ctx.userId, createdByUserId: ctx.userId,
         });
       }
-      return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
+      return { ok: true, pedidoId: r.id, numero: r.numero, aviso, repetido: false };
     }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
+    // Otra llamada con la misma clave ganó la carrera (único `workspaceId`+`altaKey`): ésta se
+    // deshizo entera y el pedido es el de la otra.
+    if (clave !== null && (e as { code?: unknown } | null)?.code === "P2002") {
+      const ganador = await pedidoDeLaClave(workspaceId, clave);
+      if (ganador) return { ok: true, pedidoId: ganador.id, numero: ganador.number, aviso: null, repetido: true };
+    }
     falla("crearPedidoManual", e);
     return { ok: false, error: MENSAJES_PEDIDO.fallo };
+  }
+}
+
+/**
+ * Aparta el stock de la seña: un movimiento `PEDIDO` por línea, sólo de los productos que
+ * controlan stock (los demás no tienen existencia que mover). Va por `applyStockMovement`, como
+ * todo lo que mueve stock; la nota `item:<id>` empareja el movimiento con su línea para devolverlo
+ * si el pedido se cancela.
+ */
+async function apartarStock(
+  tx: Tx,
+  d: { workspaceId: string; pedidoId: string; lineas: readonly LineaApartada[]; createdByUserId: number | null },
+): Promise<void> {
+  if (d.lineas.length === 0) return;
+  const productos = await tx.product.findMany({
+    where: { workspaceId: d.workspaceId, id: { in: [...new Set(d.lineas.map((l) => l.productId))] } },
+    select: { id: true, tracksStock: true },
+  });
+  const controla = new Map(productos.map((p) => [p.id, p.tracksStock]));
+  for (const l of d.lineas) {
+    if (controla.get(l.productId) !== true) continue;
+    await applyStockMovement(tx, {
+      workspaceId: d.workspaceId,
+      productId: l.productId,
+      variantId: l.variantId,
+      qty: -l.cantidad,
+      reason: "PEDIDO",
+      sourceModule: "pedidos",
+      sourceRef: d.pedidoId,
+      note: `item:${l.itemId}`,
+      unitCostArs: null,
+      createdByUserId: d.createdByUserId,
+    });
   }
 }
 

@@ -71,6 +71,8 @@ const TABLAS = [
   "fotofficeRegistroImpresion", "saleItem",
   // Bandeja de WhatsApp.
   "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
+  // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
+  "productVariant", "stockMovement",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -174,7 +176,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficePedido: () => ({
     presupuestoId: null, acceptedVersionId: null, consultaLeadId: null, status: "CONFIRMADO", cancelReason: null,
     paymentOption: null, eventDate: null, eventLabel: null, incomeCategoryId: null, ownerUserId: null, accessTokenHash: null,
-    createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+    createdByUserId: null, altaKey: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficePedidoCuota: () => ({ suggestedMethod: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCobro: () => ({
@@ -436,6 +438,8 @@ export function crearBaseEnMemoria() {
       { columnas: ["workspaceId", "number"] },
       { columnas: ["presupuestoId"], aplica: (f) => f.presupuestoId !== null && f.presupuestoId !== undefined },
       { columnas: ["accessTokenHash"], aplica: (f) => f.accessTokenHash !== null && f.accessTokenHash !== undefined },
+      // Como en la migración: único parcial (workspaceId, altaKey) donde altaKey no es null.
+      { columnas: ["workspaceId", "altaKey"], aplica: (f) => f.altaKey !== null && f.altaKey !== undefined },
     ],
     fotofficeCobro: [
       { columnas: ["workspaceId", "receiptNumber"] },
@@ -558,11 +562,13 @@ export function crearBaseEnMemoria() {
     return f;
   }
 
-  /** Como Prisma: `{ increment: n }` suma sobre el valor actual en vez de reemplazarlo. */
+  /** Como Prisma: `{ increment: n }` / `{ decrement: n }` cambian el valor actual en vez de reemplazarlo. */
   function aplicarDatos(fila: Fila, data: Fila) {
     for (const [k, v] of Object.entries(clonar(data) as Fila)) {
-      const inc = v && typeof v === "object" && !(v instanceof Date) ? (v as { increment?: unknown }).increment : undefined;
-      fila[k] = typeof inc === "number" ? ((fila[k] as number | null) ?? 0) + inc : v;
+      const op = v && typeof v === "object" && !(v instanceof Date) ? (v as { increment?: unknown; decrement?: unknown }) : null;
+      if (typeof op?.increment === "number") fila[k] = ((fila[k] as number | null) ?? 0) + op.increment;
+      else if (typeof op?.decrement === "number") fila[k] = ((fila[k] as number | null) ?? 0) - op.decrement;
+      else fila[k] = v;
     }
   }
 
