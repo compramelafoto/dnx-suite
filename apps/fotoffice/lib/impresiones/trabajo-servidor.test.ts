@@ -6,6 +6,7 @@ const H = vi.hoisted(() => ({
     fotofficePrintOrder: {
       updateMany: vi.fn(async (..._a: unknown[]) => ({ count: 1 })),
       findFirst: vi.fn(async (..._a: unknown[]) => null as unknown),
+      findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
     },
   },
 }));
@@ -26,7 +27,7 @@ describe("reintentarEnvio", () => {
     expect(await T.reintentarEnvio(ctx, "ord1")).toEqual({ ok: true });
     expect(orden.updateMany).toHaveBeenCalledWith({
       where: { id: "ord1", workspaceId: "ws", status: "PAGADO_SIN_ENVIAR" },
-      data: { status: "PAGADO", lastError: null, lockedAt: null },
+      data: { status: "PAGADO", lastError: null, lockedAt: null, attempts: 0 },
     });
   });
   it("un pedido de otra organización o en otro estado no se toca", async () => {
@@ -60,5 +61,20 @@ describe("pedidoDelTrabajo", () => {
   });
   it("un trabajo que no viene de un pedido de impresión devuelve null", async () => {
     expect(await T.pedidoDelTrabajo("ws", "p-x")).toBeNull();
+  });
+});
+
+describe("pedidosPagadosSinEnviar", () => {
+  it("lista los pedidos pagados sin enviar de la organización, del más viejo al más nuevo", async () => {
+    const pagado = new Date("2026-10-20T15:30:00Z");
+    orden.findMany.mockResolvedValue([{ id: "ord1", number: 8, nombre: "Juan", paidAt: pagado, totalArs: "1500.5", lastError: "Fotolag no tiene correo cargado." }]);
+    const r = await T.pedidosPagadosSinEnviar("ws");
+    expect(orden.findMany).toHaveBeenCalledWith({
+      where: { workspaceId: "ws", status: "PAGADO_SIN_ENVIAR" },
+      orderBy: [{ paidAt: "asc" }, { number: "asc" }],
+      take: 50,
+      select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true },
+    });
+    expect(r).toEqual([{ pedidoId: "ord1", numero: 8, cliente: "Juan", pagadoEl: pagado, totalCents: 150050, lastError: "Fotolag no tiene correo cargado." }]);
   });
 });

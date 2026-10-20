@@ -50,15 +50,32 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
   return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, costoCents, gananciaCents: totalCents - costoCents };
 }
 
+export type PedidoSinEnviar = { pedidoId: string; numero: number; cliente: string; pagadoEl: Date | null; totalCents: number; lastError: string | null };
+
 /**
- * «Reintentar envío»: un pedido PAGADO_SIN_ENVIAR de esta organización vuelve a PAGADO y el próximo cron lo
- * prepara (si le faltan los trabajos, los crea primero). Quien llama ya exigió "Gestionar" en Proyectos.
+ * Los pedidos pagados que no salieron al laboratorio (Configuración → Impresiones): incluye los que no tienen
+ * trabajo, que no se pueden reintentar desde ninguna ficha.
+ */
+export async function pedidosPagadosSinEnviar(workspaceId: string): Promise<PedidoSinEnviar[]> {
+  const filas = await prisma.fotofficePrintOrder.findMany({
+    where: { workspaceId, status: "PAGADO_SIN_ENVIAR" },
+    orderBy: [{ paidAt: "asc" }, { number: "asc" }],
+    take: 50,
+    select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true },
+  });
+  return filas.map((p) => ({ pedidoId: p.id, numero: p.number, cliente: p.nombre, pagadoEl: p.paidAt, totalCents: cents(p.totalArs), lastError: p.lastError }));
+}
+
+/**
+ * «Reintentar envío»: un pedido PAGADO_SIN_ENVIAR de esta organización vuelve a PAGADO (con los intentos en
+ * cero) y el próximo cron lo prepara (si le faltan los trabajos, los crea primero). Quien llama ya exigió
+ * "Gestionar" en Proyectos.
  */
 export async function reintentarEnvio(ctx: { workspaceId: string }, pedidoId: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
   if (typeof pedidoId !== "string" || !ID_VALIDO.test(pedidoId)) return { ok: false, error: "Pedido inválido." };
   const r = await prisma.fotofficePrintOrder.updateMany({
     where: { id: pedidoId, workspaceId: ctx.workspaceId, status: "PAGADO_SIN_ENVIAR" },
-    data: { status: "PAGADO", lastError: null, lockedAt: null },
+    data: { status: "PAGADO", lastError: null, lockedAt: null, attempts: 0 },
   });
   return r.count === 1 ? { ok: true } : { ok: false, error: "Este pedido ya no está esperando un reintento." };
 }

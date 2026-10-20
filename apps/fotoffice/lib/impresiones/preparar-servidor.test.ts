@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 /* eslint-disable @typescript-eslint/no-unused-vars -- los mocks reciben argumentos que la prueba lee con `mock.calls` */
 type Item = {
   id: string; sourceKey: string; sourceName: string; widthCm: string; heightCm: string; quantity: number;
-  cropX: number; cropY: number; cropW: number; cropH: number; proveedorId: string | null; proyectoId: string | null;
+  cropX: number; cropY: number; cropW: number; cropH: number; proveedorId: string | null; proyectoId: string | null; sizeId?: string | null;
 };
 type Pedido = { id: string; workspaceId: string; number: number; nombre: string; paper: string; status: string; items: Item[] };
 
@@ -27,6 +27,7 @@ const H = vi.hoisted(() => {
     lecturas: {} as Record<string, unknown[]>,
     pagados: [] as { id: string }[],
     pendientesPago: [] as { id: string; workspaceId: string }[],
+    sinCircuito: [] as { id: string; workspaceId: string }[],
   };
   const db = {
     fotofficePrintOrder: {
@@ -36,7 +37,9 @@ const H = vi.hoisted(() => {
         if (cola && cola.length > 0) return cola.shift();
         return estado.pedidos[where.id];
       }),
-      findMany: vi.fn(async ({ where }: { where: { status?: string } }) => (where.status === "PENDIENTE_PAGO" ? estado.pendientesPago : estado.pagados)),
+      findMany: vi.fn(async ({ where }: { where: { status?: string } }) =>
+        where.status === "PENDIENTE_PAGO" ? estado.pendientesPago : where.status === "PAGADO_SIN_ENVIAR" ? estado.sinCircuito : estado.pagados,
+      ),
       update: vi.fn(async (..._a: unknown[]) => ({})),
     },
     fotofficePrintSettings: { findUnique: vi.fn(async (..._a: unknown[]) => ({ testMode: false }) as unknown) },
@@ -51,7 +54,13 @@ const H = vi.hoisted(() => {
       findMany: vi.fn(async (..._a: unknown[]) => [] as { id: string; proveedorEnviadoAt: Date | null }[]),
       update: vi.fn(async (..._a: unknown[]) => ({})),
     },
-    fotofficeArchivoTrabajo: { create: vi.fn(async (..._a: unknown[]) => ({})) },
+    fotofficeArchivoTrabajo: {
+      create: vi.fn(async (..._a: unknown[]) => ({})),
+      findMany: vi.fn(async (..._a: unknown[]) => [] as { id: string; key: string }[]),
+      deleteMany: vi.fn(async (..._a: unknown[]) => ({ count: 0 })),
+    },
+    fotofficePrintSize: { findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]) },
+    fotofficePrintOrderItem: { update: vi.fn(async (..._a: unknown[]) => ({})) },
   };
   return {
     estado,
@@ -62,6 +71,7 @@ const H = vi.hoisted(() => {
     acreditar: vi.fn(async (..._a: unknown[]) => ({ ok: true, yaEstaba: false })),
     collector: vi.fn(async (..._a: unknown[]) => ({ ok: true, collector: { accessToken: "tok" } }) as unknown),
     buscar: vi.fn(async (..._a: unknown[]) => null as unknown),
+    borrar: vi.fn(async (..._a: unknown[]) => undefined),
   };
 });
 vi.mock("server-only", () => ({}));
@@ -72,6 +82,7 @@ vi.mock("@/lib/circuitos/acceso", () => ({ contextoDeSistema: (workspaceId: stri
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.fn() }));
 vi.mock("@/lib/communications/load-workspace-sender", () => ({ loadWorkspaceSender: async () => ({ name: "DNX Estudio", replyTo: null }) }));
 vi.mock("@/lib/carpetas/subir-servidor", () => ({ subirFlujo: vi.fn() }));
+vi.mock("@/lib/carpetas/almacen", () => ({ borrarArchivoGuardado: H.borrar }));
 vi.mock("./fuentes-servidor", () => ({ leerOriginal: vi.fn() }));
 vi.mock("./acreditar-servidor", () => ({ asegurarTrabajosDelPedido: H.asegurar, acreditarPagoImpresion: H.acreditar }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));
@@ -112,6 +123,9 @@ beforeEach(() => {
   H.estado.lecturas = {};
   H.estado.pagados = [{ id: "ord1" }];
   H.estado.pendientesPago = [];
+  H.estado.sinCircuito = [];
+  H.db.fotofficeArchivoTrabajo.findMany.mockResolvedValue([]);
+  H.db.fotofficePrintSize.findMany.mockResolvedValue([]);
   orden.updateMany.mockResolvedValue({ count: 1 });
   H.db.fotofficePrintSettings.findUnique.mockResolvedValue({ testMode: false });
   H.db.fotofficeProyecto.findMany.mockResolvedValue([]);
@@ -129,14 +143,11 @@ describe("prepararPedido", () => {
     const d = deps();
     expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
     const toma = orden.updateMany.mock.calls[0][0] as { where: Record<string, unknown>; data: Record<string, unknown> };
-    expect(toma.where).toEqual({
-      id: "ord1",
-      OR: [{ status: "PAGADO" }, { status: "PREPARANDO", lockedAt: { lt: new Date(AHORA.getTime() - 15 * 60 * 1000) } }],
-    });
+    expect(toma.where).toEqual({ id: "ord1", status: "PAGADO" });
     expect(toma.data).toEqual({ status: "PREPARANDO", lockedAt: AHORA });
 
     vi.clearAllMocks();
-    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    orden.updateMany.mockResolvedValue({ count: 0 });
     const d2 = deps();
     expect(await P.prepararPedido("ord1", d2)).toBe("OCUPADO");
     expect(orden.findUniqueOrThrow).not.toHaveBeenCalled();
@@ -257,8 +268,80 @@ describe("prepararPedido", () => {
     const busqueda = orden.findMany.mock.calls.map((c) => c[0] as { where: Record<string, unknown> }).find((q) => !("status" in q.where))!;
     const vencido = new Date(AHORA.getTime() - 15 * 60 * 1000);
     expect(busqueda.where).toEqual({ OR: [{ status: "PAGADO" }, { status: "PREPARANDO", lockedAt: { lt: vencido } }] });
-    const toma = orden.updateMany.mock.calls[0][0] as { where: { OR: unknown[] } };
-    expect(toma.where.OR[1]).toEqual({ status: "PREPARANDO", lockedAt: { lt: vencido } });
+    // Ya no estaba PAGADO: se retoma el PREPARANDO vencido sumando un intento.
+    orden.updateMany.mockReset();
+    orden.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValue({ count: 1 });
+    expect(await P.prepararPedido("ord1", deps())).toBe("ENVIADO");
+    expect(orden.updateMany.mock.calls[1][0]).toEqual({
+      where: { id: "ord1", status: "PREPARANDO", lockedAt: { lt: vencido }, attempts: { lt: 2 } },
+      data: { lockedAt: AHORA, attempts: { increment: 1 } },
+    });
+  });
+
+  it("un PREPARANDO vencido que ya se trabó 3 veces no se vuelve a procesar: queda PAGADO_SIN_ENVIAR y avisa", async () => {
+    orden.updateMany.mockReset();
+    // No está PAGADO; tampoco tiene menos de 2 intentos; se corta.
+    orden.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 0 }).mockResolvedValue({ count: 1 });
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    const vencido = new Date(AHORA.getTime() - 15 * 60 * 1000);
+    expect(orden.updateMany.mock.calls[2][0]).toEqual({
+      where: { id: "ord1", status: "PREPARANDO", lockedAt: { lt: vencido } },
+      data: {
+        status: "PAGADO_SIN_ENVIAR",
+        lockedAt: null,
+        attempts: { increment: 1 },
+        lastError: "El pedido es muy grande o una foto no se pudo procesar. Revisalo y tocá «Reintentar envío».",
+      },
+    });
+    expect(d.leer).not.toHaveBeenCalled();
+    expect(d.subir).not.toHaveBeenCalled();
+    expect(d.enviar).toHaveBeenCalledTimes(1);
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "estudio@dnx.test", subject: "El pedido de impresión 8 no se pudo mandar al laboratorio" }));
+  });
+
+  it("una copia sin laboratorio usa el laboratorio actual de su tamaño (así «Reintentar envío» anda tras arreglar la configuración)", async () => {
+    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, sizeId: "s13" })] };
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "f", proveedor: { active: true } }]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(H.db.fotofficePrintSize.findMany.mock.calls[0][0]).toMatchObject({ where: { workspaceId: "ws", id: { in: ["s13"] } } });
+    expect(H.db.fotofficePrintOrderItem.update).toHaveBeenCalledWith({ where: { id: "i1" }, data: { proveedorId: "f" } });
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "pedidos@fotolag.test" }));
+  });
+
+  it("si el laboratorio de la copia ya no está activo, también usa el actual de su tamaño", async () => {
+    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: "viejo", sizeId: "s13" })] };
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "isla", proveedor: { active: true } }]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    const activos = H.db.fotofficeProveedor.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
+    expect(activos.where).toEqual({ workspaceId: "ws", active: true, id: { in: ["viejo"] } });
+    expect(H.db.fotofficePrintOrderItem.update).toHaveBeenCalledWith({ where: { id: "i1" }, data: { proveedorId: "isla" } });
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "isla@lab.test" }));
+  });
+
+  it("si el tamaño tampoco tiene laboratorio, falla como antes", async () => {
+    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, sizeId: "s13" })] };
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: null, proveedor: null }]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    expect(actualizaciones().at(-1)!.data.lastError).toBe("Hay copias sin laboratorio asignado.");
+    expect(H.db.fotofficePrintOrderItem.update).not.toHaveBeenCalled();
+  });
+
+  it("antes de subir el ZIP de un reintento borra el ZIP anterior del mismo nombre en ese trabajo", async () => {
+    H.db.fotofficeArchivoTrabajo.findMany.mockImplementation(async (a: unknown) => {
+      const { where } = a as { where: { proyectoId: string } };
+      return where.proyectoId === "p-f" ? [{ id: "viejo", key: "trabajos/ws/p-f/viejo/Pedido-8.zip" }] : [];
+    });
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(H.db.fotofficeArchivoTrabajo.findMany).toHaveBeenCalledWith({ where: { workspaceId: "ws", proyectoId: "p-f", nombre: "Pedido-8.zip" }, select: { id: true, key: true } });
+    expect(H.borrar).toHaveBeenCalledWith("trabajos/ws/p-f/viejo/Pedido-8.zip");
+    expect(H.db.fotofficeArchivoTrabajo.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["viejo"] }, workspaceId: "ws" } });
+    expect(H.borrar).toHaveBeenCalledTimes(1);
+    expect(H.db.fotofficeArchivoTrabajo.create).toHaveBeenCalledTimes(2);
   });
 
   it("sin circuito de trabajo (copias sin trabajo) queda PAGADO_SIN_ENVIAR, avisa y no rompe el cron", async () => {
@@ -269,7 +352,7 @@ describe("prepararPedido", () => {
     expect(H.asegurar).toHaveBeenCalledWith("ws", "ord1", AHORA);
     expect(actualizaciones().at(-1)!.data).toMatchObject({
       status: "PAGADO_SIN_ENVIAR",
-      lastError: "No hay un circuito de trabajo para crear el trabajo. Creá uno en Configuración → Circuitos y tocá «Reintentar».",
+      lastError: "No hay un circuito de trabajo para crear el trabajo. Creá uno en Configuración → Circuitos y tocá «Reintentar envío».",
     });
     expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "estudio@dnx.test" }));
     expect(d.subir).not.toHaveBeenCalled();
@@ -301,9 +384,9 @@ describe("conciliación de pagos", () => {
     H.buscar.mockResolvedValue(pagoAprobado("fo-impresion:ord9"));
     await P.procesarPedidosDeImpresion(deps());
     const q = orden.findMany.mock.calls.map((c) => c[0] as { where: Record<string, unknown>; take: number }).find((x) => x.where.status === "PENDIENTE_PAGO")!;
+    // Sin exigir la preferencia: si no se pudo anotar, la búsqueda por referencia igual lo encuentra.
     expect(q.where).toEqual({
       status: "PENDIENTE_PAGO",
-      mpPreferenceId: { not: null },
       createdAt: { gte: new Date(AHORA.getTime() - 3 * 24 * 60 * 60 * 1000), lte: new Date(AHORA.getTime() - 10 * 60 * 1000) },
     });
     expect(q.take).toBe(5);
@@ -327,6 +410,56 @@ describe("conciliación de pagos", () => {
     expect(H.acreditar).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("procesarPedidosDeImpresion", () => {
+  it("deja de empezar pedidos nuevos pasados los 200 segundos", async () => {
+    H.estado.pedidos.ord2 = { ...pedidoBase(), id: "ord2" };
+    H.estado.pedidos.ord3 = { ...pedidoBase(), id: "ord3" };
+    H.estado.pagados = [{ id: "ord1" }, { id: "ord2" }, { id: "ord3" }];
+    const d = deps();
+    let t = AHORA.getTime();
+    const reloj = vi.fn(() => new Date(t));
+    // Cada pedido "tarda" 150 segundos.
+    d.enviar.mockImplementation(async () => {
+      t += 75_000;
+      return { status: "SENT", providerId: "re_1" };
+    });
+    const r = await P.procesarPedidosDeImpresion({ ...d, ahora: reloj });
+    expect(r).toEqual({ procesados: 2, enviados: 2, fallidos: 0 });
+    expect(orden.updateMany.mock.calls.some((c) => (c[0] as { where: { id: string } }).where.id === "ord3")).toBe(false);
+  });
+
+  it("sin almacenamiento sólo concilia los pagos, no prepara", async () => {
+    H.estado.pendientesPago = [{ id: "ord9", workspaceId: "ws" }];
+    const d = deps();
+    expect(await P.procesarPedidosDeImpresion(d, { preparar: false })).toEqual({ procesados: 0, enviados: 0, fallidos: 0 });
+    expect(H.buscar).toHaveBeenCalledWith("fo-impresion:ord9");
+    expect(d.subir).not.toHaveBeenCalled();
+  });
+
+  it("reintenta solo (hasta 3) los pedidos trabados por falta de circuito cuando el estudio ya tiene uno", async () => {
+    H.estado.pagados = [];
+    H.estado.sinCircuito = [{ id: "ord5", workspaceId: "ws" }];
+    await P.procesarPedidosDeImpresion(deps());
+    const q = orden.findMany.mock.calls.map((c) => c[0] as { where: Record<string, unknown>; take: number }).find((x) => x.where.status === "PAGADO_SIN_ENVIAR")!;
+    expect(q.where).toEqual({
+      status: "PAGADO_SIN_ENVIAR",
+      lastError: { startsWith: "No hay un circuito de trabajo" },
+      workspace: { fotofficeCircuits: { some: { kind: "TRABAJO", isActive: true, stages: { some: { archivedAt: null } } } } },
+    });
+    expect(q.take).toBe(3);
+    expect(orden.updateMany).toHaveBeenCalledWith({
+      where: { id: "ord5", status: "PAGADO_SIN_ENVIAR" },
+      data: { status: "PAGADO", lastError: null, lockedAt: null, attempts: 0 },
+    });
+  });
+
+  it("si nadie espera un circuito, no reintenta nada", async () => {
+    H.estado.pagados = [];
+    await P.procesarPedidosDeImpresion(deps());
+    expect(orden.updateMany).not.toHaveBeenCalled();
   });
 });
 

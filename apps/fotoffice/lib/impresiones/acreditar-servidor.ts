@@ -121,7 +121,7 @@ async function crearTrabajosEnTransaccion(
 export type ResultadoAsegurarTrabajos = "OK" | "SIN_CIRCUITO" | "SIN_CLIENTE" | "NO_EXISTE";
 
 /**
- * Para la preparación (y su «Reintentar»): si el pedido pagado quedó sin trabajos —no había circuito cuando
+ * Para la preparación (y su «Reintentar envío»): si el pedido pagado quedó sin trabajos —no había circuito cuando
  * se acreditó—, los crea ahora con el mismo criterio. Quien llama tiene tomado el pedido (PREPARANDO), así
  * que no corre en paralelo con otra preparación.
  */

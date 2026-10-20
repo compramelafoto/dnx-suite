@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
 import { PRINT_ORDERS_MODULE_KEY, TAMANOS_INICIALES, type Papel } from "./constantes";
 import { aCentavos, formatearMontoAr, parsearMontoAr, type TamanoOferta } from "./precios";
 
@@ -32,12 +33,20 @@ const aOferta = (t: FilaTamano): TamanoOferta | null => {
   };
 };
 
-/** Lo que ve el cliente: papeles encendidos y tamaños activos con precio. null = módulo apagado o nada para ofrecer. */
+/**
+ * Lo que ve el cliente: papeles encendidos y tamaños activos con precio y con un laboratorio activo (un tamaño
+ * sin laboratorio se cobraría y nunca saldría). null = módulo apagado, el estudio no puede cobrar con Mercado
+ * Pago, o nada para ofrecer.
+ */
 export async function ofertaPublica(workspaceId: string): Promise<{ papeles: Papel[]; tamanos: TamanoOferta[] } | null> {
   if (!(await isModuleEnabledForWorkspace(workspaceId, PRINT_ORDERS_MODULE_KEY))) return null;
+  if (!(await puedeCobrarConMercadoPago(workspaceId))) return null;
   const [ajustes, filas] = await Promise.all([
     prisma.fotofficePrintSettings.findUnique({ where: { workspaceId } }),
-    prisma.fotofficePrintSize.findMany({ where: { workspaceId, active: true }, orderBy: [{ order: "asc" }, { widthCm: "asc" }] }),
+    prisma.fotofficePrintSize.findMany({
+      where: { workspaceId, active: true, proveedorId: { not: null }, proveedor: { active: true } },
+      orderBy: [{ order: "asc" }, { widthCm: "asc" }],
+    }),
   ]);
   const tamanos = (filas as FilaTamano[]).map(aOferta).filter((t): t is TamanoOferta => t !== null);
   const papeles = papelesDe(ajustes);
@@ -85,6 +94,9 @@ export async function guardarTamanos(workspaceId: string, filas: unknown): Promi
       proveedorId: typeof f.proveedorId === "string" && f.proveedorId ? f.proveedorId : null,
       active: f.active === true,
     });
+  }
+  if (cambios.some((c) => c.priceArs !== null && c.proveedorId === null)) {
+    return { ok: false, error: "Elegí un laboratorio para cada tamaño con precio." };
   }
   // Los laboratorios elegidos tienen que ser de este estudio.
   const proveedorIds = [...new Set(cambios.map((c) => c.proveedorId).filter((x): x is string => x !== null))];
