@@ -322,4 +322,38 @@ describe("preparaciones de impresión", () => {
     expect(await C.guardarProduccion("ws-1", "copia10", { tipoPieza: "COPIA", salidaId: kodakId, tamanoHojaId: t10, unidad: "COPIA" })).toEqual({ ok: true });
     expect((await P.crearPreparacion(CTX, { productId: "copia10", clientId: null })).ok).toBe(true);
   });
+
+  it("colas: el carnet enlaza a su hoja y no cuenta fotos de copias", async () => {
+    const { prep, original } = await conOriginal();
+    expect((await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)).toMatchObject({ fotos: 0, imprimirHref: null });
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true });
+    if (!h.ok) throw new Error(h.error);
+    const fila = (await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)!;
+    expect(fila).toMatchObject({ fotos: 0, imprimirHref: `/imprimir/hoja/${h.hojaId}?v=${h.version}` });
+  });
+
+  it("carnet: receta A impresa, B armada sin imprimir y de vuelta a A: la hoja A vuelve a ser la vigente y B desaparece (fila y archivo)", async () => {
+    const { prep, original } = await conOriginal();
+    const estado = () => B.datos.fotofficePreparacionImpresion.find((p) => p.id === prep)!.estado;
+    const armar = async (receta: ReturnType<typeof recetaInicial>) => {
+      await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta });
+      const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true });
+      if (!h.ok) throw new Error(h.error);
+      return h;
+    };
+    const recetaA = recetaInicial();
+    const recetaB = { ...recetaInicial(), encuadre: { x: 0, y: 0.1, ancho: 1, alto: 0.75 } };
+    const a = await armar(recetaA);
+    expect((await P.registrarImpresion(CTX, a.hojaId, { motivo: "NORMAL", hojas: 1 })).ok).toBe(true);
+    const b = await armar(recetaB);
+    expect(b.hojaId).not.toBe(a.hojaId);
+    const claveB = B.datos.fotofficeHojaImpresion.find((x) => x.id === b.hojaId)!.finalKey as string;
+    expect(R2.has(claveB)).toBe(true);
+    const a2 = await armar(recetaA);
+    expect(a2.hojaId).toBe(a.hojaId);
+    expect(B.datos.fotofficeHojaImpresion.map((x) => x.id)).toEqual([a.hojaId]);
+    expect(R2.has(claveB)).toBe(false);
+    expect(estado()).toBe("LISTA");
+  });
 });

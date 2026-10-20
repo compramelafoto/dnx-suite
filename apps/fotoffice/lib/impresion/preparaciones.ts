@@ -728,6 +728,10 @@ export type FilaCola = {
   /** Cobrada: atada a un renglón de venta (no se anula desde la cola). */
   cobrada: boolean;
   creada: string;
+  /** Copias: cuántas fotos tiene la preparación (0 en carnet). */
+  fotos: number;
+  /** Adónde lleva "Imprimir": toda la preparación (copias) o su hoja (carnet). null si no hay nada armado. */
+  imprimirHref: string | null;
 };
 
 /** Las tres listas de Ventas → Impresiones. Fechas en ISO (la pantalla las muestra en hora argentina). */
@@ -768,7 +772,7 @@ export async function colas(
     }),
   ]);
   const ids = <T>(xs: (T | null)[]) => [...new Set(xs.filter((x): x is T => x !== null))];
-  const [productos, clientes, hojas, salidas, tamanos, hojasRegistradas] = await Promise.all([
+  const [productos, clientes, hojas, salidas, tamanos, hojasRegistradas, piezasCopia] = await Promise.all([
     prisma.product.findMany({ where: { workspaceId, id: { in: ids(preps.map((p) => p.productId)) } }, select: { id: true, name: true } }),
     prisma.client.findMany({
       where: { workspaceId, id: { in: ids(preps.map((p) => p.clientId)) } },
@@ -782,22 +786,37 @@ export async function colas(
     prisma.fotofficeSalidaImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.salidaId)) } }, select: { id: true, nombre: true } }),
     prisma.fotofficeTamanoImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.tamanoId)) } }, select: { id: true, nombre: true } }),
     prisma.fotofficeHojaImpresion.findMany({ where: { workspaceId, id: { in: ids(registros.map((r) => r.hojaId)) } }, select: { id: true, finalHuella: true } }),
+    prisma.fotofficePiezaImpresion.findMany({ where: { workspaceId, preparacionId: { in: preps.map((p) => p.id) }, tipo: "COPIA" }, select: { preparacionId: true } }),
   ]);
   const nombreProducto = new Map(productos.map((p) => [p.id, p.name]));
   const nombreCliente = new Map(clientes.map((c) => [c.id, clientDisplayName(c)]));
   // La última hoja de cada preparación (en orden de creación, la última pisa).
   const ultimaHoja = new Map(hojas.map((h) => [h.preparacionId, h]));
   const versionRegistrada = new Map(hojasRegistradas.map((h) => [h.id, versionDeHoja(h.finalHuella)]));
-  const fila = (p: (typeof preps)[number]): FilaCola => ({
-    preparacionId: p.id,
-    producto: p.productId ? (nombreProducto.get(p.productId) ?? null) : null,
-    cliente: p.clientId ? (nombreCliente.get(p.clientId) ?? null) : null,
-    estado: p.estado,
-    hojaId: ultimaHoja.get(p.id)?.id ?? null,
-    hojaVersion: ultimaHoja.has(p.id) ? versionDeHoja(ultimaHoja.get(p.id)!.finalHuella) : null,
-    cobrada: p.saleItemId !== null,
-    creada: p.createdAt.toISOString(),
-  });
+  const fotosDe = new Map<string, number>();
+  for (const p of piezasCopia) fotosDe.set(p.preparacionId, (fotosDe.get(p.preparacionId) ?? 0) + 1);
+  const fila = (p: (typeof preps)[number]): FilaCola => {
+    const ultima = ultimaHoja.get(p.id) ?? null;
+    const fotos = fotosDe.get(p.id) ?? 0;
+    const imprimirHref =
+      fotos > 0
+        ? `/imprimir/preparacion/${p.id}${p.estado === "IMPRESA" ? "" : "?solo=pendientes"}`
+        : ultima
+          ? `/imprimir/hoja/${ultima.id}?v=${versionDeHoja(ultima.finalHuella)}`
+          : null;
+    return {
+      preparacionId: p.id,
+      producto: p.productId ? (nombreProducto.get(p.productId) ?? null) : null,
+      cliente: p.clientId ? (nombreCliente.get(p.clientId) ?? null) : null,
+      estado: p.estado,
+      hojaId: ultima?.id ?? null,
+      hojaVersion: ultima ? versionDeHoja(ultima.finalHuella) : null,
+      cobrada: p.saleItemId !== null,
+      creada: p.createdAt.toISOString(),
+      fotos,
+      imprimirHref,
+    };
+  };
   const nombreSalida = new Map(salidas.map((s) => [s.id, s.nombre]));
   const nombreTamano = new Map(tamanos.map((t) => [t.id, t.nombre]));
   return {

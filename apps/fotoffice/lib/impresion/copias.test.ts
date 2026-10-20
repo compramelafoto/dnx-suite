@@ -456,3 +456,13 @@ describe("copias: imprimir todo y registrar", () => {
     expect(B.datos.fotofficeRegistroImpresion).toHaveLength(0);
   });
 });
+
+describe("copias en la cola de Impresiones", () => {
+  it("muestra cuántas fotos tiene y enlaza a imprimir lo que falta de toda la preparación", async () => {
+    const medidas: [number, number][] = [[600, 400], [400, 600]];
+    const { prep, ids } = await prepConFotos(medidas);
+    await guardarPropuestas(prep, ids, medidas);
+    const fila = (await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)!;
+    expect(fila).toMatchObject({ fotos: 2, estado: "PREPARANDO", imprimirHref: `/imprimir/preparacion/${prep}?solo=pendientes` });
+  });
+});
