@@ -40,6 +40,11 @@ describe("asegurarFlujoParaRetirar", () => {
     expect(etapas).toEqual(filas.map((e) => ({ id: e.id, days: e.days })));
   });
 
+  it("toma el candado por estudio antes de mirar", async () => {
+    await asegurar();
+    expect(B.sql.some((q) => q.valores.includes("para-retirar:ws-1"))).toBe(true);
+  });
+
   it("dos llamadas devuelven el mismo flujo y no duplican nada", async () => {
     const a = await asegurar();
     const b = await asegurar();

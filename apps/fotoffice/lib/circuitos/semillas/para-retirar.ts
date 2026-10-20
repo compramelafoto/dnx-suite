@@ -56,6 +56,9 @@ async function dejarUsable(tx: Tx, c: FilaCircuito): Promise<void> {
  * (archivado, de venta o sin etapas), crea el suyo como «Para retirar (FOTOFFICE)».
  */
 export async function asegurarFlujoParaRetirar(tx: Tx, workspaceId: string): Promise<{ circuitId: string; etapas: EtapaDelFlujo[] }> {
+  // Dos pedidos a la vez en un estudio sin el flujo pasarían los dos el «mirar» y el segundo
+  // chocaría con el único: se serializan por estudio (el candado se suelta al cerrar la transacción).
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`para-retirar:${workspaceId}`}))`;
   const campos = { id: true, kind: true, isActive: true, systemKey: true } as const;
   let circuito: FilaCircuito | null = await tx.fotofficeCircuit.findFirst({ where: { workspaceId, systemKey: CLAVE_PARA_RETIRAR }, select: campos });
 
@@ -70,11 +73,10 @@ export async function asegurarFlujoParaRetirar(tx: Tx, workspaceId: string): Pro
     if (sirve) {
       circuito = homonimo;
     } else {
-      const propio: FilaCircuito | null = await tx.fotofficeCircuit.findFirst({
-        where: { workspaceId, name: homonimo ? NOMBRE_ALTERNATIVO : NOMBRE },
-        select: campos,
-      });
-      // Un «Para retirar (FOTOFFICE)» de un intento anterior sin marca se adopta en vez de chocar.
+      // Sin homónimo, el nombre está libre; con uno que no sirve, puede haber un «(FOTOFFICE)» sin marca de un intento anterior: se adopta.
+      const propio: FilaCircuito | null = homonimo
+        ? await tx.fotofficeCircuit.findFirst({ where: { workspaceId, name: NOMBRE_ALTERNATIVO }, select: campos })
+        : null;
       circuito =
         propio ??
         (await tx.fotofficeCircuit.create({
