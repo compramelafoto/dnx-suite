@@ -80,3 +80,10 @@ export async function marcarPartesBorradas(prisma: PrismaCola, id: string): Prom
     new Date(),
   );
 }
+
+export async function marcarSinImagen(prisma: PrismaCola, id: string): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE "DigitalizacionGrabacion" SET "conversionEstado"='SIN_IMAGEN', "conversionError"=NULL WHERE id=$1`,
+    id,
+  );
+}

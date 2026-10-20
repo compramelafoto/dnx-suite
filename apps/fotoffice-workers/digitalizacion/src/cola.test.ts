@@ -3,6 +3,7 @@ import {
   marcarError,
   marcarLista,
   marcarPartesBorradas,
+  marcarSinImagen,
   recuperarTrabadas,
   tomarSiguiente,
   type PrismaCola,
@@ -76,6 +77,12 @@ describe("marcadores", () => {
     await marcarError(prisma, "g1", "falló");
     expect(execs[0].sql).toContain("'ERROR'");
     expect(execs[0].params).toEqual(["g1", "falló"]);
+  });
+  it("marcarSinImagen", async () => {
+    const { prisma, execs } = falso();
+    await marcarSinImagen(prisma, "g1");
+    expect(execs[0].sql).toContain("'SIN_IMAGEN'");
+    expect(execs[0].params).toEqual(["g1"]);
   });
   it("marcarPartesBorradas", async () => {
     const { prisma, execs } = falso();
