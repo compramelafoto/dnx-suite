@@ -50,4 +50,17 @@ describe("configuración de impresión", () => {
     expect(await C.guardarProduccion("ws-1", "carnet", null)).toEqual({ ok: true });
     expect(await C.leerProduccion("ws-1", "carnet")).toBeNull();
   });
+
+  it("tolera que otro pedido simultáneo ya haya sembrado (P2002)", async () => {
+    const t = B.tablas.fotofficeTamanoImpresion as unknown as { create: (a: unknown) => Promise<unknown> };
+    const original = t.create;
+    t.create = async () => {
+      t.create = original;
+      throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+    };
+    await expect(C.asegurarConfiguracion("ws-1")).resolves.toBeUndefined();
+    t.create = original;
+    await C.asegurarConfiguracion("ws-1");
+    expect((await C.listarSalidas("ws-1")).map((s) => s.nombre)).toEqual(["Epson L800", "Kodak 305"]);
+  });
 });
