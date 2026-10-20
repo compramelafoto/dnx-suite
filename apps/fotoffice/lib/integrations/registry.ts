@@ -17,7 +17,7 @@
  * proveedor: la credencial cifrada de un transportista es usuario y clave, y mandarla a
  * Google sería filtrarla.
  */
-export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "WHATSAPP";
+export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM" | "WHATSAPP";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -38,6 +38,7 @@ export const GOOGLE_CALENDAR_INTEGRATION_KEY = "google-calendar";
 export const GOOGLE_CONTACTS_INTEGRATION_KEY = "google-contacts";
 export const CORREO_ARGENTINO_INTEGRATION_KEY = "correo-argentino";
 export const ANDREANI_INTEGRATION_KEY = "andreani";
+export const ALBOOM_INTEGRATION_KEY = "alboom-crm";
 export const WHATSAPP_INTEGRATION_KEY = "whatsapp";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
@@ -100,6 +101,18 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     // de Andreani. Se cargan en la configuración de envíos de la tienda.
     scopes: [],
     // La tienda funciona sin Andreani: ningún módulo la exige.
+    requiredByModules: [],
+    status: "AVAILABLE",
+  },
+  {
+    key: ALBOOM_INTEGRATION_KEY,
+    provider: "ALBOOM",
+    label: "Alboom CRM",
+    description: "Lee el CRM de Alboom de la institución para migrarlo a FotoOffice. Sólo lee: nunca escribe en Alboom.",
+    // No es OAuth: subdominio, usuario y contraseña del panel de Alboom, cifrados en el mismo baúl.
+    // Se conecta en Configuración → Migración desde Alboom, no en la pantalla de Integraciones.
+    scopes: [],
+    // Es una herramienta de migración del dueño: ningún módulo la exige.
     requiredByModules: [],
     status: "AVAILABLE",
   },

@@ -1,11 +1,12 @@
 /**
  * Enlaces firmados a la imagen de una obra de FotoRank. Módulo PURO (sólo `node:crypto`).
  *
- * ATENCIÓN: este archivo vive COPIADO, idéntico, en dos apps:
+ * ATENCIÓN: este archivo vive COPIADO, idéntico, en tres apps:
  *   - apps/fotoffice/lib/store/artworks/signing.ts
  *   - apps/fotorank/app/lib/fotorank/external/entry-image-signing.ts
- * No hay paquete compartido para esto. Si cambiás uno, cambiá el otro; el vector fijo de
- * los tests de ambas apps avisa si se separan.
+ *   - apps/muestras/lib/concursos/firma.ts
+ * No hay paquete compartido para esto. Si cambiás uno, cambiá los otros dos; el vector fijo de
+ * los tests de las tres apps avisa si se separan.
  *
  * La firma es HMAC-SHA256 (base64url) sobre `entryId|variant|exp|wm`, donde `exp` son
  * segundos unix y `wm` el texto de la marca de agua (vacío si no hay). Como `|` es el

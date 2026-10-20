@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
     "@repo/partners",
     // El motor de ¿Cuánto Cobro? (presupuestos, etapa 2): es TypeScript fuente, como en CompraMeLaFoto.
     "@repo/cuanto-cobro-core",
+    // DNX Bot (¿Cuánto Cobro? conversado): motor de turnos y burbuja, TypeScript fuente como en CLF.
+    // El SDK de Anthropic entra por este paquete y sólo en las rutas del bot.
+    "@repo/dnx-bot",
   ],
   serverExternalPackages: [
     "@prisma/client",
@@ -161,6 +164,10 @@ const nextConfig: NextConfig = {
       // `frame-ancestors *`.
       { source: "/w/:slug/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/contrato/:path*", headers: [...noReferrer, ...sinMarco] },
+      // El enlace de una galería (etapa 7): token personal del cliente en la dirección, botón de enviar la
+      // selección (clickjacking) y fotos de un evento privado: ni se enmarca ni manda la dirección a otro sitio.
+      { source: "/w/:slug/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/galeria/:path*", headers: [...noReferrer, ...sinMarco] },
     ];
   },
   images: {
@@ -168,7 +175,15 @@ const nextConfig: NextConfig = {
   },
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
   // Mismo criterio que apps/clickaton, que consume el mismo paquete.
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    /*
+     * En Vercel, sin caché persistente de webpack. El 09/10/2026 todo build que restauraba el caché
+     * de un deploy anterior moría por memoria (SIGKILL) o tardaba 42 min; los mismos commits sin
+     * caché compilaban en 2 a 4 min. Cargar el caché cuesta más memoria que compilar de cero.
+     * En local el caché sigue (sin `VERCEL`).
+     */
+    if (!dev && process.env.VERCEL) config.cache = false;
+
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),

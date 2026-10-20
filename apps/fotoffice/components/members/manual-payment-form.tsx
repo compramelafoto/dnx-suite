@@ -5,6 +5,7 @@ import {
   registerManualPaymentAction,
   type ManualPaymentState,
 } from "@/app/actions/manual-payment";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 const initial: ManualPaymentState = { error: null, ok: null };
 
@@ -35,13 +36,7 @@ export function ManualPaymentForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1">
           <span className="block text-xs text-[var(--fo-muted)]">Importe cobrado</span>
-          <input
-            name="amount"
-            inputMode="decimal"
-            required
-            placeholder="8000"
-            className="fo-input w-full"
-          />
+          <InputMoneda name="amount" envio="coma" required placeholder="8.000" className="fo-input w-full" />
         </label>
 
         <label className="space-y-1">

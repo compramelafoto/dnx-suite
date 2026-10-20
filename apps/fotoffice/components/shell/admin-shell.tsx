@@ -16,7 +16,10 @@ import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { noLeidosDelWorkspace } from "@/lib/bandeja/lecturas";
 import { hasLevel } from "@/lib/permissions/levels";
-import { hasProfilesInSeveralWorkspaces, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { BurbujaDnxBot } from "@/components/dnx-bot/burbuja";
+import { cssDelTema, normalizarColor } from "@/lib/panel-tema/tema";
 
 type PanelUser = {
   id: number;
@@ -70,11 +73,11 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
 
   // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
   // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
-  const [branding, perfil, perfiles] = await Promise.all([
+  const [branding, perfil, perfiles, bot] = await Promise.all([
     workspace !== null
       ? prisma.fotofficeWorkspaceBranding.findUnique({
           where: { workspaceId: workspace.id },
-          select: { commercialName: true, logoUrl: true },
+          select: { commercialName: true, logoUrl: true, panelColor: true },
         })
       : null,
     prisma.fotofficePhotographerProfile.findUnique({
@@ -82,50 +85,61 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
       select: { displayName: true, avatarUrl: true },
     }),
     listUserProfiles(user.id),
+    // DNX Bot: sólo si pasan todas sus puertas (apagado por omisión; ver lib/dnx-bot/acceso.ts).
+    botEnPanel(),
   ]);
   const institucion = branding?.commercialName?.trim() || workspace?.name || null;
   // Si quien administra también es socio de ESTA institución, el selector de rol del menú
   // lateral lo lleva a su portal. El "Cambiar de perfil" general queda para varias instituciones.
   const selector = roleSelector(perfiles, { kind: "TEAM", workspaceId: workspace?.id ?? null }, vocabulary);
 
+  // Colores propios del negocio (Configuración → Colores del panel). Sin color, los de FOTOFFICE.
+  const colorPanel = normalizarColor(branding?.panelColor);
+
   const cookieStore = await cookies();
   const navHidden = parseShellNavPreference(cookieStore.get(SHELL_NAV_COOKIE)?.value) === "hidden";
   const openGroups = parseOpenGroups(cookieStore.get(NAV_GROUPS_COOKIE)?.value);
 
   return (
-    <ShellFrame
-      navHidden={navHidden}
-      sidebar={
-        <ShellSidebar
-          workspaceName={institucion}
-          levels={levels}
-          actions={actions}
-          canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
-          organizationType={organizationType}
-          platformAdmin={platformAdmin}
-          vocabulary={vocabulary}
-          roleSelector={selector}
-          openGroups={openGroups}
-          bandejaNoLeidos={bandejaNoLeidos}
-        />
-      }
-      header={
-        <ShellHeader
-          userName={perfil?.displayName ?? user.name}
-          userAvatarUrl={perfil?.avatarUrl ?? null}
-          workspaceRole={activeRole}
-          workspaceLogoUrl={branding?.logoUrl ?? null}
-          canSwitchProfile={hasProfilesInSeveralWorkspaces(perfiles)}
-          userEmail={user.email}
-          memberships={memberships.map((m) => ({
-            workspaceId: m.workspaceId,
-            name: m.workspaceId === workspace?.id && institucion ? institucion : m.workspace.name,
-          }))}
-          activeWorkspaceId={workspace?.id ?? null}
-        />
-      }
-    >
-      {children}
-    </ShellFrame>
+    <>
+      {colorPanel ? <style>{cssDelTema(colorPanel)}</style> : null}
+      <ShellFrame
+        navHidden={navHidden}
+        sidebar={
+          <ShellSidebar
+            workspaceName={institucion}
+            levels={levels}
+            actions={actions}
+            canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
+            organizationType={organizationType}
+            platformAdmin={platformAdmin}
+            vocabulary={vocabulary}
+            roleSelector={selector}
+            openGroups={openGroups}
+            logoPropio={colorPanel ? (branding?.logoUrl ?? null) : null}
+            bandejaNoLeidos={bandejaNoLeidos}
+          />
+        }
+        header={
+          <ShellHeader
+            userName={perfil?.displayName ?? user.name}
+            userAvatarUrl={perfil?.avatarUrl ?? null}
+            workspaceRole={activeRole}
+            workspaceLogoUrl={branding?.logoUrl ?? null}
+            menu={accountMenu(perfiles, workspace?.id ?? null)}
+            roleSelector={selector}
+            userEmail={user.email}
+            memberships={memberships.map((m) => ({
+              workspaceId: m.workspaceId,
+              name: m.workspaceId === workspace?.id && institucion ? institucion : m.workspace.name,
+            }))}
+            activeWorkspaceId={workspace?.id ?? null}
+          />
+        }
+      >
+        {children}
+        {bot && <BurbujaDnxBot rutas={bot.rutas} />}
+      </ShellFrame>
+    </>
   );
 }

@@ -53,6 +53,17 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/evaluaciones": ["notas", "calificaciones", "examenes", "trabajos practicos"],
   "/courses/settings": ["ajustes", "moneda", "comision"],
 
+  "/ventas/foto-carnet": ["foto carnet", "fotocarnet", "recortar", "recorte", "encuadrar", "dni", "pasaporte", "plancha", "4x4", "imprimir"],
+
+  // Informes
+  "/informes": ["tablero", "resumen", "por cobrar", "por pagar", "saldo", "finanzas", "dinero", "balance"],
+  "/informes/resultados": ["ganancia", "perdida", "ingresos", "costos", "gastos", "rubros", "meses", "balance", "estado de resultados", "devengado", "percibido"],
+  "/informes/ventas": ["ventas", "vendido", "facturado", "pedidos", "productos", "clientes", "vendedor", "categoria", "origen", "por producto", "ranking"],
+  "/informes/embudo": ["embudo", "consultas", "conversion", "ganadas", "perdidas", "abiertas", "leads", "captacion", "por categoria", "por origen", "cierre"],
+  "/informes/flujo": ["proyeccion", "futuro", "cuanto va a haber", "cobros", "pagos", "vencimientos", "caja proyectada", "cashflow"],
+  "/informes/monotributo": ["tope", "categoria", "facturacion", "arca", "afip", "limite", "topes"],
+  "/informes/ajustes": ["saldo minimo", "tope", "categoria", "aviso", "configurar informes"],
+
   // Reservas
   "/reservas": ["turnos", "ocupacion", "semana", "calendario", "alquiler", "reservar"],
   "/reservas/espacios": ["alquiler", "salon", "sala", "estudio", "aula"],
@@ -68,7 +79,8 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/presupuestos": ["cotizacion", "cotizar", "precio", "cuanto cobro", "propuesta", "vencidos"],
   "/pedidos": ["pedido", "cobro", "cobrar", "cuotas", "recibo", "saldo", "seña", "sena"],
   "/contratos": ["contrato", "firma", "firmar", "firmado", "firmante", "pdf", "enviar contrato", "papel", "anular"],
-  "/proyectos": ["proyecto", "trabajo", "entrega", "entregas", "tablero", "etapas", "tareas", "equipo", "atraso", "suspendido"],
+  "/galerias": ["galeria", "galerias", "fotos", "seleccion", "elegir", "fotolibro", "subir fotos", "enlace", "cliente elige", "proof", "lightroom"],
+  "/proyectos/en-curso": ["proyecto", "trabajo", "entrega", "entregas", "tablero", "etapas", "tareas", "equipo", "atraso", "suspendido"],
 
   // Presencia pública
   "/website": ["web", "pagina", "sitio", "portal", "home publica", "constructor", "menu"],
@@ -77,6 +89,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
 
   // Institución
   "/workspace/configuracion": ["ajustes", "logo", "domicilio", "datos", "nombre", "configuracion"],
+  "/workspace/configuracion/equipo": ["empleados", "personal", "invitar", "usuarios", "colaboradores", "acceso"],
   "/workspace/configuracion/comision": ["autoridades", "presidente", "tesorero", "secretario", "roles", "permisos"],
   "/workspace/configuracion/integraciones": ["conexiones", "servicios", "google", "whatsapp", "calendario", "contactos"],
   "/workspace/configuracion/cobros": ["plata", "dinero", "facturacion", "mercado pago", "mp", "cobrar", "cuenta bancaria"],

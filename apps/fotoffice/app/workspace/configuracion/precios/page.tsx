@@ -4,6 +4,8 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { datosDeMiEstudio } from "@/lib/precios/estudio-servidor";
 import { PerfilForm } from "./perfil-form";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +26,19 @@ export default async function ConfiguracionPreciosPage() {
     );
   }
 
-  const guardado = await leerPerfilPrecios({
-    workspaceId: workspace.id,
-    userId: user.id,
-    userLabel: etiquetaDeUsuario(user),
-    role,
-  });
+  const [guardado, bot, estudio] = await Promise.all([
+    leerPerfilPrecios({
+      workspaceId: workspace.id,
+      userId: user.id,
+      userLabel: etiquetaDeUsuario(user),
+      role,
+    }),
+    // DNX Bot: el formulario es el camino principal; armarlo conversando se ofrece sólo si la persona
+    // parece trabada (`OfertaArmarConversando`, dentro del formulario) y el bot está encendido.
+    botEnPanel(),
+    // Mi estudio: sólo se ofrece a workspaces de tipo estudio; los miembros, para vincular a cada persona.
+    datosDeMiEstudio(workspace.id),
+  ]);
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -42,7 +51,17 @@ export default async function ConfiguracionPreciosPage() {
           Importado de ¿Cuánto Cobro? de CompraMeLaFoto.
         </p>
       ) : null}
-      <PerfilForm inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE} />
+      {guardado?.source === "dnx-bot" ? (
+        <p role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">
+          Armado con DNX Bot.
+        </p>
+      ) : null}
+      <PerfilForm
+        inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE}
+        version={guardado ? guardado.actualizado.toISOString() : null}
+        bot={bot ? { workspaceId: workspace.id } : null}
+        estudio={estudio}
+      />
     </div>
   );
 }

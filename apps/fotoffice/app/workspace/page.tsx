@@ -1,3 +1,4 @@
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
@@ -86,6 +87,7 @@ export default async function WorkspaceHomePage() {
       puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
       faltaConfigurar={faltaConfigurar}
       faltaTipoDeOrganizacion={faltaTipoDeOrganizacion}
+      puedeCobrar={enabled.has(SALES_MODULE_KEY) && levels[SALES_MODULE_KEY] === "MANAGE"}
       modulos={modulos.map((m) => ({
         ...m,
         // Las mismas pantallas, con la misma regla, que muestra el menú lateral.

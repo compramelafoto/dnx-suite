@@ -74,7 +74,7 @@ export async function POST(
   } catch (err) {
     if (err instanceof AlbumPackDraftToOrderError) {
       return NextResponse.json(
-        { error: err.message, code: err.code },
+        { error: err.message, code: err.code, ...err.details },
         { status: err.status }
       );
     }

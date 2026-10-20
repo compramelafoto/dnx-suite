@@ -7,6 +7,7 @@ import Input from "@/components/ui/Input";
 import { preventaSelectClassName } from "./preventa-form-controls";
 import { buildBenefitDashboardSummary } from "@/lib/preventa-canjeable/benefit-copy";
 import type { BenefitRow, PhotographerProductOption, TemplateOption } from "./types";
+import ProbarComoClienteButton from "./ProbarComoClienteButton";
 
 export type BenefitFormPayload = {
   kind: "DIGITAL" | "PHYSICAL";
@@ -48,6 +49,7 @@ export default function PreventaBenefitForm({
   templateOptions,
   saving,
   hideHeading = false,
+  albumId,
   onCancel,
   onSubmit,
 }: {
@@ -57,6 +59,8 @@ export default function PreventaBenefitForm({
   saving: boolean;
   /** Oculta el título del formulario cuando el contenedor padre ya lo indica (modal / wizard). */
   hideHeading?: boolean;
+  /** Álbum del pack: habilita "Probar como cliente" (el canje real, en vez del sandbox de la plantilla). */
+  albumId?: number;
   onCancel: () => void;
   onSubmit: (payload: BenefitFormPayload) => Promise<void>;
 }) {
@@ -115,6 +119,20 @@ export default function PreventaBenefitForm({
     isPhysical && (templatePolicy === "REQUIRED" || templatePolicy === "OPTIONAL");
 
   const showPhotosPerUnitField = selectionMode === "MULTI_PHOTO_FIXED";
+
+  /*
+   * Una plantilla con 3 o 4 fotos (con la maestra, con amigos…) necesita que cada unidad pida
+   * esas mismas fotos: si pide menos, los huecos de más quedan vacíos en el diseño.
+   */
+  const fotosDeLaPlantilla = templateOptions.find((t) => t.id === templateId)?.photoInputs ?? 0;
+  const fotosPorUnidad =
+    selectionMode === "SINGLE_PHOTO"
+      ? 1
+      : selectionMode === "MULTI_PHOTO_FIXED"
+        ? Number.parseInt(photosPerUnitMulti, 10)
+        : null;
+  const fotosNoCoinciden =
+    showTemplateSelect && fotosDeLaPlantilla > 0 && fotosPorUnidad != null && fotosPorUnidad !== fotosDeLaPlantilla;
   const showMaxPhotosField = selectionMode === "ALBUM_CHOICE";
   /** Si ya guardaron un mínimo >1 en modo álbum, mostramos el campo para no perder datos. */
   const showAlbumMinPhotos =
@@ -471,20 +489,21 @@ export default function PreventaBenefitForm({
               <p className="mt-1 text-xs text-[#6b7280]">
                 Al canjear, el diseño se arma solo con las fotos que eligió la familia y te llega a{" "}
                 <Link href="/fotografo/disenos" className="underline">Diseños</Link> para revisarlo.
-                {templateId.trim() ? (
+                {templateId.trim() && albumId ? (
                   <>
                     {" "}
-                    <a
-                      href={`/fotografo/diseno/plantillas/v2/${encodeURIComponent(templateId.trim())}/probar`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-[#c27b3d] underline"
-                    >
-                      Probar con fotos
-                    </a>
+                    <ProbarComoClienteButton albumId={albumId} variant="link" />
                   </>
                 ) : null}
               </p>
+              {fotosNoCoinciden ? (
+                <p role="status" className="mt-2 rounded-md bg-[#fff4e5] px-3 py-2 text-xs text-[#7a4a12]">
+                  Esta plantilla lleva {fotosDeLaPlantilla} foto{fotosDeLaPlantilla === 1 ? "" : "s"} distinta
+                  {fotosDeLaPlantilla === 1 ? "" : "s"}, pero cada unidad pide {fotosPorUnidad}. Para que la
+                  familia elija una foto para cada lugar, abajo elegí «Varias fotos fijas por unidad» con {fotosDeLaPlantilla}{" "}
+                  fotos por unidad.
+                </p>
+              ) : null}
             </div>
           )}
         </>

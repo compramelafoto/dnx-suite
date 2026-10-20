@@ -11,7 +11,9 @@ import {
   getEffectiveRenewalMonthly,
 } from "./equipment/calculations";
 import { sumPersonalExpenseGroups } from "./personal-expenses";
-import type { CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
+import { normalizePricingExtras, pricingExtrasFixedMonthly } from "./pricing-extras/price-build-up";
+import { computeStudioBreakdown } from "./studio/capacity";
+import type { CameraWearModel, CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 function sumAmounts(...values: string[]): number {
   return values.reduce((total, value) => total + (parseCuantoCobroAmount(value) ?? 0), 0);
@@ -19,9 +21,12 @@ function sumAmounts(...values: string[]): number {
 
 /**
  * Necesidad mensual del perfil.
- * Impuestos fijos: campo futuro en perfil; por ahora no incluido en el wizard.
+ * Impuestos fijos: el monotributo y el seguro de equipo (anual ÷ 12) de `pricingExtras`, si están.
  */
-export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput): number {
+export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number {
+  // Mi estudio: fijos + equipo + reservas + retiro + ganancia − otras líneas (ver studio/capacity.ts).
+  const studio = computeStudioBreakdown(profile, model);
+  if (studio) return studio.monthlyNeed;
   const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
   const businessExpenses = sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
   const teamExpenses =
@@ -29,17 +34,23 @@ export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput): number 
       ? (parseCuantoCobroAmount(profile.employeeMonthlyCost) ?? 0)
       : 0;
   const profileReserves = sumAmounts(
-    String(getEffectiveRenewalMonthly(profile) + getEffectiveExpansionMonthly(profile)),
+    String(getEffectiveRenewalMonthly(profile, model) + getEffectiveExpansionMonthly(profile)),
     profile.emergencyFundMonthly,
     profile.savingsGoalsMonthly,
   );
   const externalIncome =
     profile.livesOnlyFromPhotography === "no" ? (parseCuantoCobroAmount(profile.externalMonthlyIncome) ?? 0) : 0;
-  return Math.max(0, personalExpenses + businessExpenses + teamExpenses + profileReserves - externalIncome);
+  const fixedFromExtras = pricingExtrasFixedMonthly(normalizePricingExtras(profile.pricingExtras));
+  return Math.max(0, personalExpenses + businessExpenses + teamExpenses + profileReserves + fixedFromExtras - externalIncome);
 }
 
-/** Horas mensuales disponibles = weeklyHours × 4.33 */
+/**
+ * Horas mensuales disponibles = weeklyHours × 4.33.
+ * Mi estudio: las horas que el equipo entero puede cobrar (con el % vendible de cada persona).
+ */
 export function getProfileMonthlyHours(profile: CuantoCobroProfileInput): number {
+  const studio = computeStudioBreakdown(profile);
+  if (studio) return studio.capacityHours;
   return computeMonthlyAvailableHours(profile.weeklyHours);
 }
 
@@ -49,8 +60,8 @@ export function getProfileMonthlyHours(profile: CuantoCobroProfileInput): number
  *
  * La distribución semanal de tiempo no modifica este valor.
  */
-export function getProfileCostHour(profile: CuantoCobroProfileInput): number | null {
-  const monthlyNeed = getProfileMonthlyNeed(profile);
+export function getProfileCostHour(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number | null {
+  const monthlyNeed = getProfileMonthlyNeed(profile, model);
   const monthlyHours = getProfileMonthlyHours(profile);
   if (monthlyHours <= 0) return null;
   return monthlyNeed / monthlyHours;
@@ -92,6 +103,11 @@ export function getCategoryHourlyRate(
 export type QuoteLaborRates = Record<keyof PhotographyTimeDistribution, number> & {
   travel: number;
   delivery: number;
+  /**
+   * Mi estudio: tarifa por hora de cada persona (su costo por hora + estructura por hora). Sólo con el
+   * modo encendido; las horas asignadas a alguien que no está acá van al valor hora del estudio.
+   */
+  byPerson?: Record<string, number>;
 };
 
 function buildUniformLaborRates(costHour: number): QuoteLaborRates {
@@ -106,10 +122,15 @@ function buildUniformLaborRates(costHour: number): QuoteLaborRates {
   };
 }
 
-export function getQuoteLaborRates(profile: CuantoCobroProfileInput): QuoteLaborRates | null {
-  const costHour = getProfileCostHour(profile);
+export function getQuoteLaborRates(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): QuoteLaborRates | null {
+  const costHour = getProfileCostHour(profile, model);
   if (costHour === null) return null;
-  return buildUniformLaborRates(costHour);
+  const rates = buildUniformLaborRates(costHour);
+  const studio = computeStudioBreakdown(profile, model);
+  if (!studio) return rates;
+  const byPerson: Record<string, number> = {};
+  for (const p of studio.people) if (p.inStructure && p.rate !== null) byPerson[p.id] = p.rate;
+  return { ...rates, byPerson };
 }
 
 /**

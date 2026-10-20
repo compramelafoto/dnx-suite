@@ -28,7 +28,7 @@ type Props = {
 };
 
 const btnBase =
-  "rounded-md border border-[color:var(--te-line)] bg-white px-2 py-1 text-[10px] font-medium text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-40";
+  "h-6 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2 text-[11px] font-medium text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-40";
 
 function mergeConfigJson(block: TemplateV2Block, patch: Record<string, unknown>) {
   const base = asObject(normalizeBlockConfig(block.type, block.configJson));
@@ -98,7 +98,7 @@ export function TemplateBlockContextToolbar({
         <TemplateBlockSafeAreaAlignmentStrip state={state} dispatch={dispatch} />
       </div>
 
-      <span className="mx-0.5 hidden h-8 w-px shrink-0 bg-[color:var(--te-line)] sm:inline" aria-hidden />
+      <span className="mx-0.5 hidden h-4 w-px shrink-0 bg-[color:var(--te-line)] sm:inline" aria-hidden />
 
       <button
         type="button"

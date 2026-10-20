@@ -1,0 +1,136 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), "utf8");
+const BASE = "../../app/w/[workspaceSlug]/galeria/[token]";
+const page = leer(`${BASE}/page.tsx`);
+const acciones = leer(`${BASE}/acciones.ts`);
+const visitante = leer(`${BASE}/visitante.ts`);
+const config = leer("../../next.config.ts");
+
+const NOMBRES = [...acciones.matchAll(/export async function (\w+)\(/g)].map((m) => m[1]!);
+const cuerpoDe = (n: string) => {
+  const i = acciones.indexOf(`export async function ${n}(`);
+  const j = acciones.indexOf("\nexport async function ", i + 10);
+  return acciones.slice(i, j === -1 ? undefined : j);
+};
+
+describe("página pública de la galería (fuente)", () => {
+  it("es dinámica, no se indexa, no manda el referer, y pasa por el freno por IP antes de leer la base", () => {
+    expect(page).toContain('export const dynamic = "force-dynamic"');
+    expect(page).toMatch(/robots: \{ index: false, follow: false \}/);
+    expect(page).toContain('referrer: "no-referrer"');
+    expect(page.indexOf("visitanteDelEnlace()")).toBeGreaterThan(-1);
+    expect(page.indexOf("visitanteDelEnlace()")).toBeLessThan(page.indexOf("workspaceDelSlug("));
+  });
+  it("una galería de entrega usa su propia pantalla (sin selección ni carrito)", () => {
+    expect(page).toMatch(/vista\.galeria\.tipo === "ENTREGA"\) \{[\s\S]*<GaleriaEntrega\s/);
+    expect(page).toContain("RecibirTodoPorCorreo");
+    const entrega = leer("../../components/galeria-publica/galeria-entrega.tsx");
+    expect(entrega).toContain("<video");
+    expect(entrega).toMatch(/controls/);
+    expect(entrega).toContain('preload="metadata"');
+    expect(entrega).toContain("reproducirVideoAction");
+    expect(entrega).toContain("descargarOriginalAction");
+    expect(entrega).not.toMatch(/elegirFotoAction|enviarSeleccionAction|pagarFotosExtraAction|comentarAction/);
+  });
+  it("«Recibir todo por correo» sólo se arma en la entrega y pasa por el freno de su acción", () => {
+    expect(page.indexOf("estadoDescargaDeCliente(")).toBeGreaterThan(page.indexOf('vista.galeria.tipo === "ENTREGA"'));
+    expect(page.indexOf("estadoDescargaDeCliente(")).toBeLessThan(page.indexOf("return <GaleriaCliente"));
+    const recibir = leer("../../components/galeria-publica/recibir-todo.tsx");
+    expect(recibir).toContain("pedirDescargaAction");
+    expect(recibir).toContain("Recibir todo por correo");
+    expect(cuerpoDe("pedirDescargaAction")).toMatch(/entrar\("pedir-descarga", 10, slug\)/);
+    expect(cuerpoDe("descargarParteAction")).toMatch(/entrar\("descargar-parte", \d+, slug\)/);
+  });
+  it("la página /descargas: dinámica, sin indexar, con freno por IP antes de leer, 404 si el enlace no resuelve y sólo lee lo del token", () => {
+    const d = leer(`${BASE}/descargas/page.tsx`);
+    expect(d).toContain('export const dynamic = "force-dynamic"');
+    expect(d).toMatch(/robots: \{ index: false, follow: false \}/);
+    expect(d).toContain('referrer: "no-referrer"');
+    expect(d.indexOf("visitanteDelEnlace()")).toBeLessThan(d.indexOf("workspaceDelSlug("));
+    expect(d).toMatch(/if \(!vista\) notFound\(\)/);
+    expect(d).toContain("vistaDeDescargas(workspaceId, token)");
+    expect(d).toContain("Pedí la descarga de nuevo");
+    const partes = leer(`${BASE}/descargas/descargar-partes.tsx`);
+    expect(partes).toContain("descargarParteAction");
+    expect(partes).not.toMatch(/originalKey|key:/);
+  });
+  it("las rutas /descargas llevan los mismos encabezados que la galería (sin referer, sin marco)", () => {
+    expect(config).toContain('source: "/w/:slug/galeria/:path*"');
+    expect(config).toContain('source: "/galeria/:path*"');
+  });
+  it("lo que abre el equipo no cuenta como 'entró'", () => {
+    expect(page).toMatch(/!\(await abreAlguienDelEquipo\(workspaceId\)\)\) await registrarEntrada/);
+  });
+  it("un enlace que no resuelve da 404 (notFound), con su página 'Este enlace ya no es válido'", () => {
+    expect(page).toMatch(/if \(!r\.ok\) notFound\(\)/);
+    expect(leer(`${BASE}/not-found.tsx`)).toContain("Este enlace ya no es válido");
+  });
+});
+
+describe("acciones públicas (fuente)", () => {
+  it("es 'use server' y sólo exporta funciones async", () => {
+    expect(acciones.startsWith('"use server";')).toBe(true);
+    expect(acciones).not.toMatch(/^export (const|let|var|type|interface|class)\b/m);
+    expect(NOMBRES.sort()).toEqual(["comentarAction", "comentarLaminaAction", "decidirAlbumAction", "descargarAction", "descargarOriginalAction", "descargarParteAction", "elegirFotoAction", "enviarSeleccionAction", "pagarFotosExtraAction", "pedirDescargaAction", "reproducirVideoAction", "vistasAction"]);
+  });
+  it("toda acción pasa por el freno por IP y por el workspace del slug antes de tocar nada", () => {
+    for (const n of NOMBRES) expect(cuerpoDe(n), n).toMatch(/await entrar\("/);
+    const e = acciones.slice(acciones.indexOf("async function entrar"), acciones.indexOf("export async function"));
+    expect(e.indexOf("visitanteDeAccion")).toBeLessThan(e.indexOf("workspaceDelSlug"));
+  });
+  it("ninguna acción confía en un workspace o cliente que mande el navegador: sólo slug y token", () => {
+    expect(acciones).not.toMatch(/workspaceId: unknown|galeriaClienteId: unknown|clienteId: unknown/);
+  });
+  it("los correos salen con after(), después de responder", () => {
+    expect(cuerpoDe("enviarSeleccionAction")).toMatch(/after\(\(\) => avisarSeleccionEnviada\(/);
+  });
+  it("pagar fotos extra sólo manda slug y token (el precio lo calcula el servidor) y tiene su propio freno", () => {
+    expect(acciones).toMatch(/pagarFotosExtraAction\(slug: unknown, token: unknown\)/);
+    expect(cuerpoDe("pagarFotosExtraAction")).toContain('entrar("pagar", 15,');
+    expect(cuerpoDe("pagarFotosExtraAction")).not.toMatch(/importe|total|monto|amount/i);
+  });
+  it("enviar tiene el freno más estricto", () => {
+    expect(cuerpoDe("enviarSeleccionAction")).toContain('entrar("enviar", 10,');
+  });
+  it("el freno usa claves propias por acción y no guarda la IP", () => {
+    expect(visitante).toContain("galeria-ver:");
+    expect(visitante).toMatch(/`galeria-\$\{accion\}:\$\{ip\}`/);
+    expect(visitante).not.toMatch(/prisma/);
+  });
+});
+
+describe("cabeceras de la galería (next.config.ts)", () => {
+  it("la página y el dominio propio van sin referer y sin marco, como el contrato", () => {
+    expect(config).toContain('source: "/w/:slug/galeria/:path*", headers: [...noReferrer, ...sinMarco]');
+    expect(config).toContain('source: "/galeria/:path*", headers: [...noReferrer, ...sinMarco]');
+  });
+});
+
+describe("componentes del cliente (fuente)", () => {
+  const grilla = leer("../../components/galeria-publica/grilla.tsx");
+  const visor = leer("../../components/galeria-publica/visor.tsx");
+  const cliente = leer("../../components/galeria-publica/galeria-cliente.tsx");
+  it("las imágenes no se arrastran, no abren el menú del clic derecho y la grilla carga perezosa", () => {
+    for (const f of [grilla, visor, cliente]) {
+      expect(f).toContain("onContextMenu");
+      expect(f).toContain("draggable={false}");
+    }
+    expect(grilla).toContain('loading="lazy"');
+    expect(cliente).toContain("select-none");
+  });
+  it("el visor responde a las flechas del teclado, a Escape y al deslizar", () => {
+    expect(visor).toContain('"ArrowLeft"');
+    expect(visor).toContain('"ArrowRight"');
+    expect(visor).toContain('"Escape"');
+    expect(visor).toContain("onTouchStart");
+    expect(visor).toContain("onTouchEnd");
+  });
+  it("elegir es optimista y se deshace si el servidor dice que no", () => {
+    expect(cliente).toMatch(/setElegidas\(\(s\) => conCambio\(s, id, !marcar\)\)/);
+  });
+  it("las imágenes nunca llevan el referer", () => {
+    for (const f of [grilla, visor, cliente]) expect(f).toContain('referrerPolicy="no-referrer"');
+  });
+});

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { avisarPedidoRecibido } from "@/lib/pedidos/aviso-pedido-servidor";
 import { empujarCitasDelPedido } from "@/lib/agenda/crear";
 import { empujarEntregasDelPedido } from "@/lib/agenda/google/empuje";
 import { MENSAJES_PEDIDO } from "@/lib/pedidos/acceso";
@@ -85,6 +86,7 @@ export async function confirmarPedidoAction(datos: {
     const workspaceId = ctx.workspaceId;
     after(() => empujarCitasDelPedido(workspaceId, r.pedidoId));
     after(() => empujarEntregasDelPedido(workspaceId, r.pedidoId));
+    after(() => avisarPedidoRecibido(workspaceId, r.pedidoId));
   }
   return r;
 }
@@ -124,6 +126,7 @@ export async function crearPedidoManualAction(datos: {
     const workspaceId = ctx.workspaceId;
     after(() => empujarCitasDelPedido(workspaceId, r.pedidoId));
     after(() => empujarEntregasDelPedido(workspaceId, r.pedidoId));
+    after(() => avisarPedidoRecibido(workspaceId, r.pedidoId));
   }
   return r;
 }

@@ -3,7 +3,7 @@ import { ok, type Result } from "../result";
 import type { DesignDocument } from "../document/schema";
 import type { ResolvedVariables } from "../variables/contract";
 import { buildLayoutPlan, type LayoutPage } from "../layout/plan";
-import { FONT_CATALOG, isFontId, slotFor, type FontId, type FontSlot } from "../fonts/catalog";
+import { fontDefinition, isFontId, slotFor, type FontId, type FontSlot } from "../fonts/catalog";
 import { createPdfFontSet } from "./fonts-pdf";
 
 export function escapeXml(texto: string): string {
@@ -81,7 +81,7 @@ function svgDePagina(pagina: LayoutPage, qrPorItem: Map<string, string>): string
     }
 
     if (item.kind === "text") {
-      const def = FONT_CATALOG[item.fontId];
+      const def = fontDefinition(item.fontId);
       const anclaje = item.align === "center" ? "middle" : item.align === "right" ? "end" : "start";
       const x =
         item.align === "center"

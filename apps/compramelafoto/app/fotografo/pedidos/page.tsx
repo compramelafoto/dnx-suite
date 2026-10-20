@@ -126,6 +126,8 @@ export default function PhotographerPedidosPage() {
     clientPaidAmount: o.clientPaidAmount,
     eventOrganizerSale: o.eventOrganizerSale ?? null,
     albumEventId: o.albumEventId ?? null,
+    isDemo: o.isDemo === true,
+    designProjectIds: Array.isArray(o.designProjectIds) ? o.designProjectIds : [],
   }));
 
   return (

@@ -175,7 +175,11 @@ export default function QuoteItemEditor({
                   onValueChange={(value) => onChange({ directCost: value })}
                 />
               </DsField>
-              <DsField label="Disparos estimados" htmlFor={`cc-qi-shots-${item.id}`}>
+              <DsField
+                label="Disparos estimados (máximo)"
+                htmlFor={`cc-qi-shots-${item.id}`}
+                hint="Con tu cámara cargada en el perfil, el desgaste de estos disparos se suma al costo del trabajo."
+              >
                 <Input
                   id={`cc-qi-shots-${item.id}`}
                   type="number"

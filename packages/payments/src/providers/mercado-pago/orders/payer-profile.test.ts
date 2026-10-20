@@ -43,45 +43,68 @@ describe("buildMercadoPagoPayer", () => {
 
 describe("buildMercadoPagoAdditionalInfoPayer", () => {
   /**
-   * Orders rechaza `additional_info` por completo. Se verificó contra sandbox
-   * MLA el 07/10/2026: responde `Properties not supported ('$.additional_info'
-   * - additionalProperties 'payer' not allowed)` y la orden no se crea.
+   * MP lo aclaró el 09/10/2026: en Orders estos campos van con claves planas
+   * dentro de `additional_info`, no anidados bajo `payer`. El nodo anidado
+   * pertenece a la API de Payments y Orders lo rechaza.
    */
-  it("no devuelve nada: Orders no acepta ese nodo", () => {
-    assert.equal(
-      buildMercadoPagoAdditionalInfoPayer({
-        registrationDate: "2026-01-15T10:00:00.000-03:00",
-        isPrimeUser: false,
-        isFirstPurchaseOnline: true,
-        authenticationType: "Gmail",
-        lastPurchase: "2026-09-20T18:30:00.000-03:00",
-        address: { zipCode: "2000" },
-      }),
-      undefined,
-    );
+  it("usa claves planas con el prefijo payer.", () => {
+    const info = buildMercadoPagoAdditionalInfoPayer({
+      registrationDate: "2024-01-15T10:00:00.000-03:00",
+      isPrimeUser: true,
+      isFirstPurchaseOnline: false,
+      authenticationType: "WEB",
+      lastPurchase: "2026-09-01T10:00:00.000-03:00",
+    });
+    assert.deepEqual(info, {
+      "payer.registration_date": "2024-01-15T10:00:00.000-03:00",
+      "payer.last_purchase": "2026-09-01T10:00:00.000-03:00",
+      "payer.authentication_type": "WEB",
+      "payer.is_prime_user": true,
+      "payer.is_first_purchase_online": false,
+    });
   });
 
-  it("tampoco devuelve nada sin perfil", () => {
+  it("no anida nada bajo una clave `payer`", () => {
+    const info = buildMercadoPagoAdditionalInfoPayer({ authenticationType: "WEB" }) ?? {};
+    assert.equal((info as Record<string, unknown>).payer, undefined);
+  });
+
+  it("conserva los booleanos en false, que son información válida", () => {
+    const info = buildMercadoPagoAdditionalInfoPayer({
+      isPrimeUser: false,
+      isFirstPurchaseOnline: false,
+    });
+    assert.equal(info?.["payer.is_prime_user"], false);
+    assert.equal(info?.["payer.is_first_purchase_online"], false);
+  });
+
+  it("devuelve undefined sin perfil y sin datos", () => {
     assert.equal(buildMercadoPagoAdditionalInfoPayer(undefined), undefined);
+    assert.equal(buildMercadoPagoAdditionalInfoPayer({ firstName: "Ana" }), undefined);
   });
 });
 
 describe("buildMercadoPagoPayer — dirección", () => {
-  it("manda la dirección dentro de payer, que es donde Orders la acepta", () => {
+  it("manda la dirección dentro de payer, con barrio y ciudad", () => {
     const payer = buildMercadoPagoPayer("comprador@testuser.com", {
-      address: { zipCode: "2000", streetName: "Córdoba", streetNumber: "1234" },
+      address: {
+        zipCode: "2000",
+        streetName: "Córdoba",
+        streetNumber: "1234",
+        neighborhood: "Centro",
+        city: "Rosario",
+      },
     });
     assert.deepEqual(payer.address, {
       zip_code: "2000",
       street_name: "Córdoba",
       street_number: "1234",
+      neighborhood: "Centro",
+      city: "Rosario",
     });
   });
 
   it("omite la dirección cuando el perfil no la trae", () => {
-    const payer = buildMercadoPagoPayer("comprador@testuser.com", {
-      firstName: "Ana",
-    });
-    assert.equal(payer.address, undefined);
+    assert.equal(buildMercadoPagoPayer("c@testuser.com", { firstName: "Ana" }).address, undefined);
   });
 });

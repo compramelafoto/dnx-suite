@@ -106,6 +106,22 @@ test("los textos se arman con lo que se sabe y omiten lo vacío", () => {
   assert.deepEqual(v, {
     "student.fullName": "Juana Pérez",
     "course.displayName": "5.º A",
+    "course.withSchool": "5.º A",
+    "school.withCourse": "5.º A",
     "event.dateFormatted": "08/10/2026",
   });
+});
+
+test("el armado inicial respeta cómo acomodó la familia cada foto", () => {
+  const data = buildInitialDesignData({
+    templateV2Id: "t",
+    templateV2VersionId: "v",
+    slots,
+    photoIds: [10, 20, 30, 40],
+    cropsByPhotoId: new Map([[20, { zoom: 2, x: -0.5, y: 9 }]]),
+  });
+  const withPhoto20 = Object.values(data.slots).find((s) => s.photoId === 20);
+  assert.deepEqual(withPhoto20?.crop, { zoom: 2, x: -0.5, y: 1 });
+  const withPhoto10 = Object.values(data.slots).find((s) => s.photoId === 10);
+  assert.deepEqual(withPhoto10?.crop, { zoom: 1, x: 0, y: 0 });
 });

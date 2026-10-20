@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 
 /** Las pestañas de Proyectos. */
 export const PESTANAS_PROYECTOS = [
+  { clave: "en-curso", texto: "En curso", href: "/proyectos/en-curso" },
   { clave: "tablero", texto: "Tablero", href: "/proyectos" },
   { clave: "lista", texto: "Lista", href: "/proyectos/lista" },
 ] as const;

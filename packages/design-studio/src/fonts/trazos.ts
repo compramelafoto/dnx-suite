@@ -89,3 +89,71 @@ export async function medirTexto(input: {
   const unidades = positions.reduce((s, p) => s + p.xAdvance, 0);
   return (unidades * input.tamano) / f.unitsPerEm + Math.max(0, positions.length - 1) * (input.espaciado ?? 0);
 }
+
+type GlifoConTrazo = {
+  path: { scale(x: number, y: number): GlifoConTrazo["path"]; translate(x: number, y: number): GlifoConTrazo["path"]; toSVG(): string };
+};
+type FuenteConMetricas = {
+  unitsPerEm: number;
+  ascent: number;
+  descent: number;
+  layout(texto: string): {
+    glyphs: GlifoConTrazo[];
+    positions: { xAdvance: number; xOffset: number; yOffset: number }[];
+  };
+};
+
+const porArchivo = new WeakMap<Uint8Array, FuenteConMetricas>();
+
+/** Un texto en trazos ya ubicados, sin transformaciones: el borde (`stroke`) conserva su grosor. */
+export type TrazosDeTexto = {
+  /** Atributo `d` de un único `<path>`. */
+  d: string;
+  /** Ancho, en píxeles. */
+  ancho: number;
+  /** Ascendente y descendente (positivo), en píxeles. */
+  ascendente: number;
+  descendente: number;
+};
+
+/**
+ * Como `textoATrazos`, pero con el archivo de la tipografía en mano y sin esperar: para quien
+ * arma el SVG en un camino sincrónico (la marca de agua de CompraMeLaFoto, con Roboto).
+ *
+ * Las coordenadas ya vienen escaladas y ubicadas en cada trazo (no hay `transform`), así que un
+ * borde (`stroke`) puesto en el `<path>` se dibuja con el grosor pedido y no achicado por la
+ * escala de la letra.
+ */
+export function trazosDeTexto(input: {
+  archivo: Uint8Array;
+  texto: string;
+  /** Tamaño en píxeles. */
+  tamano: number;
+  x: number;
+  /** Línea de base. */
+  y: number;
+}): TrazosDeTexto {
+  let f = porArchivo.get(input.archivo);
+  if (!f) {
+    f = fontkit.create(Buffer.from(input.archivo)) as unknown as FuenteConMetricas;
+    porArchivo.set(input.archivo, f);
+  }
+  const escala = input.tamano / f.unitsPerEm;
+  const { glyphs, positions } = f.layout(input.texto);
+  const partes: string[] = [];
+  let cursor = 0;
+  glyphs.forEach((glifo, i) => {
+    const pos = positions[i]!;
+    const gx = input.x + (cursor + pos.xOffset) * escala;
+    const gy = input.y - pos.yOffset * escala;
+    const d = glifo.path.scale(escala, -escala).translate(gx, gy).toSVG();
+    if (d) partes.push(d);
+    cursor += pos.xAdvance;
+  });
+  return {
+    d: partes.join(" "),
+    ancho: cursor * escala,
+    ascendente: f.ascent * escala,
+    descendente: Math.abs(f.descent) * escala,
+  };
+}

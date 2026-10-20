@@ -1,4 +1,5 @@
 import type { ReviewStatus } from "./constants";
+import { can, type ActivityRole, type Capability } from "./team";
 
 /**
  * Quién puede hacer qué con una actividad.
@@ -7,7 +8,11 @@ import type { ReviewStatus } from "./constants";
  * institución del socio (`workspaceId`) como revisora de lo suyo; por eso el dato ya viaja.
  */
 export type ReviewAction = "submit" | "approve" | "reject" | "unpublish" | "republish" | "cancel" | "uncancel";
-export type Actor = { userId: number; isSuperAdmin: boolean };
+/**
+ * `role`: el rol de la persona en esta muestra (etapa 5). Sin `role` (código viejo y tests), se
+ * deduce: dueño o nada.
+ */
+export type Actor = { userId: number; isSuperAdmin: boolean; role?: ActivityRole | null };
 export type ActivityForReview = {
   reviewStatus: ReviewStatus;
   proposedByUserId: number;
@@ -35,8 +40,9 @@ export function nextStatus(action: ReviewAction, current: ReviewStatus): ReviewS
 function isReviewer(_a: ActivityForReview, actor: Actor): boolean {
   return actor.isSuperAdmin;
 }
-function isOwner(a: ActivityForReview, actor: Actor): boolean {
-  return a.proposedByUserId === actor.userId;
+function puede(cap: Capability, a: ActivityForReview, actor: Actor): boolean {
+  const role = actor.role !== undefined ? actor.role : a.proposedByUserId === actor.userId ? "OWNER" : null;
+  return can(cap, { role, isSuperAdmin: actor.isSuperAdmin });
 }
 
 export function canPerform(action: ReviewAction, a: ActivityForReview, actor: Actor): Permission {
@@ -45,7 +51,9 @@ export function canPerform(action: ReviewAction, a: ActivityForReview, actor: Ac
   }
   switch (action) {
     case "submit":
-      return isOwner(a, actor) || isReviewer(a, actor) ? { ok: true } : { ok: false, reason: "Sólo quien la propuso puede enviarla." };
+      if (puede("submitForReview", a, actor)) return { ok: true };
+      // A quien es del equipo pero su rol no envía, no se le dice "sólo quien la propuso" (la coorganización también puede).
+      return { ok: false, reason: actor.role ? "Tu rol en esta muestra no permite enviarla a revisión." : "Sólo quien la propuso puede enviarla." };
     case "approve":
     case "reject":
     case "unpublish":
@@ -53,16 +61,23 @@ export function canPerform(action: ReviewAction, a: ActivityForReview, actor: Ac
       return isReviewer(a, actor) ? { ok: true } : { ok: false, reason: "No tenés permiso para revisar esta actividad." };
     case "cancel":
       if (a.isCancelled) return { ok: false, reason: "Ya está cancelada." };
-      return isOwner(a, actor) || isReviewer(a, actor) ? { ok: true } : { ok: false, reason: "No podés cancelar esta actividad." };
+      return puede("cancel", a, actor) ? { ok: true } : { ok: false, reason: "No podés cancelar esta actividad." };
     case "uncancel":
       if (!a.isCancelled) return { ok: false, reason: "No está cancelada." };
-      return isOwner(a, actor) || isReviewer(a, actor) ? { ok: true } : { ok: false, reason: "No podés reactivar esta actividad." };
+      return puede("cancel", a, actor) ? { ok: true } : { ok: false, reason: "No podés reactivar esta actividad." };
   }
 }
 
 /** Se edita en borrador, rechazada y publicada (sin volver a revisión). No en revisión. */
 export function canEdit(a: ActivityForReview, actor: Actor): boolean {
   if (isReviewer(a, actor)) return true;
-  if (!isOwner(a, actor)) return false;
+  if (!puede("editActivity", a, actor)) return false;
+  return a.reviewStatus === "DRAFT" || a.reviewStatus === "REJECTED" || a.reviewStatus === "APPROVED";
+}
+
+/** Textos (etapa 5, D9): mismos estados que la ficha, con la capacidad `editTexts`. */
+export function canEditTexts(a: ActivityForReview, actor: Actor): boolean {
+  if (isReviewer(a, actor)) return true;
+  if (!puede("editTexts", a, actor)) return false;
   return a.reviewStatus === "DRAFT" || a.reviewStatus === "REJECTED" || a.reviewStatus === "APPROVED";
 }

@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib/shell/nav-groups";
 import {
+  ArrowDownToLine,
   Building2,
   Calculator,
   CalendarDays,
+  ChartColumn,
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
@@ -15,6 +17,7 @@ import {
   FolderKanban,
   Hash,
   Globe,
+  Images,
   Link2,
   Plug,
   Inbox,
@@ -28,9 +31,12 @@ import {
   Shield,
   Tags,
   UserCog,
+  UserPlus,
   Users,
   Wallet2,
   Workflow,
+  Truck,
+  Coins,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -50,12 +56,16 @@ import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { ordenarSecciones } from "@/lib/modules/nav-order";
+import { itemsMenuInformes } from "@/lib/informes/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
@@ -69,6 +79,10 @@ const PROJECTS_MODULE_KEY = "projects";
 const AGENDA_MODULE_KEY = "agenda";
 // Ídem `lib/contratos/acceso`.
 const CONTRACTS_MODULE_KEY = "contracts";
+// Ídem `lib/galerias/acceso`.
+const GALLERY_MODULE_KEY = "gallery";
+// Ídem `lib/informes/constantes`.
+const REPORTS_MODULE_KEY = "reports";
 
 /**
  * Menú principal.
@@ -303,6 +317,12 @@ export function ShellNav({
 
   const cursos: Item[] = itemsDeModulo(COURSES_SALES_MODULE_KEY, access, vocabulary);
 
+  // Ventas (con el Mostrador primero), Caja y Clientes: antes sólo se llegaba desde las
+  // tarjetas del inicio, y el equipo de un local no encontraba dónde cobrar.
+  const ventas: Item[] = itemsDeModulo(SALES_MODULE_KEY, access, vocabulary);
+  const caja: Item[] = itemsDeModulo(CASH_MODULE_KEY, access, vocabulary);
+  const clientes: Item[] = itemsDeModulo(CLIENTS_MODULE_KEY, access, vocabulary);
+
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
   // "Cursos" muestra solo este ítem, que sigue siendo cierto.
@@ -389,6 +409,20 @@ export function ShellNav({
             icon: Calculator,
             isActive: under("/presupuestos"),
           },
+          // Precios (¿Cuánto Cobro? y Mi estudio): antes sólo se llegaba desde "Datos de la institución".
+          // Es configuración, así que sólo para quien puede configurar (dueño o administrador): el
+          // mismo acceso completo que decide los ajustes de Informes.
+          ...(access.fullAccess === true
+            ? [
+                {
+                  href: "/workspace/configuracion/precios",
+                  label: "Precios",
+                  description: "Tus costos, tus horas, Mi estudio y el valor de la hora para cotizar.",
+                  icon: Coins,
+                  isActive: under("/workspace/configuracion/precios"),
+                },
+              ]
+            : []),
         ]
       : []),
     // Pedidos (etapa 3): módulo propio (`orders`, depende de Presupuestos), con su nivel.
@@ -407,9 +441,10 @@ export function ShellNav({
     ...(ve(PROJECTS_MODULE_KEY)
       ? [
           {
-            href: "/proyectos",
+            href: "/proyectos/en-curso",
             label: "Proyectos",
-            description: "Los trabajos de cada pedido: etapas, tareas, fechas y equipo.",
+            // Abre en "En curso": todos los trabajos juntos, para operar el día a día.
+            description: "Los trabajos en curso de todos los recorridos: etapas, entregas, proveedores y saldos.",
             icon: FolderKanban,
             isActive: under("/proyectos"),
           },
@@ -427,7 +462,29 @@ export function ShellNav({
           },
         ]
       : []),
+    // Galería (etapa 7): módulo propio (`gallery`, depende de Proyectos), con su nivel.
+    ...(ve(GALLERY_MODULE_KEY)
+      ? [
+          {
+            href: "/galerias",
+            label: "Galerías",
+            description: "Las fotos de cada proyecto para que los clientes elijan: subirlas, compartir el enlace y revisar lo que eligieron.",
+            icon: Images,
+            isActive: under("/galerias"),
+          },
+        ]
+      : []),
   ];
+
+  // Informes (etapa 6): módulo propio (`reports`), con su nivel. Apagado, nadie tiene nivel y no aparece.
+  // Ajustes sólo para quien puede configurar (dueño o administrador), como la pantalla.
+  const informes: Item[] = itemsMenuInformes({ veInformes: ve(REPORTS_MODULE_KEY), puedeConfigurar: access.fullAccess === true }).map((i) => ({
+    href: i.href,
+    label: i.label,
+    description: i.description,
+    icon: ChartColumn,
+    isActive: i.activeMatch === "exact" ? exact(i.href) : under(i.href),
+  }));
 
   // Presencia pública: el sitio y su blog. Es donde aterrizan los portfolios y las redes
   // cuando existan.
@@ -464,6 +521,13 @@ export function ShellNav({
           description: "Quién integra la comisión, con qué cargo y qué puede hacer cada uno.",
           icon: Users,
           isActive: under("/workspace/configuracion/comision"),
+        },
+        {
+          href: "/workspace/configuracion/equipo",
+          label: "Equipo",
+          description: "Quiénes trabajan en este espacio: invitar por correo y dar de baja.",
+          icon: UserPlus,
+          isActive: under("/workspace/configuracion/equipo"),
         },
         {
           href: "/workspace/configuracion/integraciones",
@@ -558,6 +622,18 @@ export function ShellNav({
               },
             ]
           : []),
+        // Etapa 7: valores por omisión de las galerías, sólo con el módulo encendido.
+        ...(ve(GALLERY_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/galeria",
+                label: "Galería",
+                description: "Mensaje de bienvenida, comentarios y descarga con los que nace cada galería.",
+                icon: Images,
+                isActive: under("/workspace/configuracion/galeria"),
+              },
+            ]
+          : []),
         {
           href: "/workspace/configuracion/plantillas",
           label: "Plantillas",
@@ -571,6 +647,21 @@ export function ShellNav({
           description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
           icon: Hash,
           isActive: under("/workspace/configuracion/numeracion"),
+        },
+        {
+          href: "/workspace/configuracion/proveedores",
+          label: "Proveedores",
+          description: "Los laboratorios y talleres a los que se mandan trabajos (La Isla, Román, Fotolag…).",
+          icon: Truck,
+          isActive: under("/workspace/configuracion/proveedores"),
+        },
+        // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
+        {
+          href: "/workspace/configuracion/alboom",
+          label: "Migración desde Alboom",
+          description: "Conectar la cuenta de Alboom y copiar todo su CRM para migrarlo.",
+          icon: ArrowDownToLine,
+          isActive: under("/workspace/configuracion/alboom"),
         },
       ]
     : [];
@@ -605,6 +696,9 @@ export function ShellNav({
       ],
     },
     { title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+    { title: "Ventas", items: ventas, moduleKey: SALES_MODULE_KEY },
+    { title: "Caja", items: caja, moduleKey: CASH_MODULE_KEY },
+    { title: "Clientes", items: clientes, moduleKey: CLIENTS_MODULE_KEY },
     { title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
     { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },
     { title: "Comisión", items: comision, moduleKey: GOVERNANCE_MODULE_KEY },
@@ -615,6 +709,7 @@ export function ShellNav({
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
     { title: "Agenda", items: agenda, moduleKey: AGENDA_MODULE_KEY },
     { title: "Consultas", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+    { title: "Informes", items: informes, moduleKey: REPORTS_MODULE_KEY },
     { title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
     { title: "Institución", items: institucion, moduleKey: null },
     { title: "Plataforma", items: plataforma, moduleKey: null },

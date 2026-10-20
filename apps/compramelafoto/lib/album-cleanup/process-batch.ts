@@ -14,6 +14,7 @@ import {
 } from "@/lib/album-cleanup/eligibility";
 import {
   deletePhotoRowIfAllowed,
+  purgeAlbumHiddenSelfies,
   purgePhotoStorageAndMetadata,
 } from "@/lib/album-cleanup/purge-photo-storage";
 import {
@@ -416,6 +417,24 @@ export async function processAlbumCleanupBatch(
         budget.photosRemaining -= 1;
         budget.externalOpsRemaining -= purgeResult.externalOps;
 
+        /*
+          Caras que Amazon no confirmó borradas. Se avisa fuerte porque es plata: cada
+          una se factura todos los meses hasta que se borre, y si esto se repite día tras
+          día quiere decir que Rekognition no está respondiendo (cuenta suspendida,
+          credencial vencida o permiso faltante).
+        */
+        if (purgeResult.pendingFaces > 0) {
+          console.warn(
+            "[album-cleanup] rekognition faces pending",
+            JSON.stringify({
+              albumId: album.id,
+              photoId: photo.id,
+              pendingFaces: purgeResult.pendingFaces,
+              errors: purgeResult.errors.filter((e) => e.startsWith("rekognition:")),
+            })
+          );
+        }
+
         if (config.destructiveDelete && !hasOrderItem) {
           const deleteResult = await deletePhotoRowIfAllowed(photo.id, false, {
             destructiveDelete: true,
@@ -448,6 +467,7 @@ export async function processAlbumCleanupBatch(
       if (activeLeft === 0) {
         albumLog.externalOps += await purgeAlbumRawUploads(album.id);
         albumLog.externalOps += await purgeAlbumCovers(album.id);
+        albumLog.externalOps += await purgeAlbumHiddenSelfies(album.id);
         const finalized = await finalizeAlbumCleanup(album.id, config);
         albumLog.status = finalized.status;
         log.processedAlbums.push({

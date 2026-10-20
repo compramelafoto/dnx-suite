@@ -5,6 +5,7 @@ import type { PricingMode } from "./pricing";
 // `parseSpaceForm` (más abajo) también lo usa: un `export ... from` puro no deja un
 // identificador local, así que hace falta importarlo además de reexportarlo.
 import { parseArsToMinor } from "@/lib/membership/money";
+import { parseSharePercent } from "./settlement";
 export { parseArsToMinor };
 
 /**
@@ -33,6 +34,11 @@ export type SpaceFormValues = {
   nonMemberBlockPriceMinor: number;
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
+  /** Parte de cada turno para quien atiende (agenda de profesionales). 0 = todo para la institución. */
+  professionalShareBps: number;
+  /** La cuenta de quien atiende (para su agenda y su liquidación). null = nadie. */
+  professionalUserId: number | null;
+  acceptsClubCredits: boolean;
   weeklyHours: WeeklyHour[];
   compatibleWith: string[];
 };
@@ -114,6 +120,11 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
     return { ok: false, error: "El largo del bloque tiene que ser múltiplo de la grilla." };
   }
 
+  const professionalShareBps = parseSharePercent(String(formData.get("professionalSharePct") ?? ""));
+  if (professionalShareBps === null) {
+    return { ok: false, error: "El porcentaje para el profesional tiene que ser un número entre 0 y 100." };
+  }
+
   const weeklyHours: WeeklyHour[] = [];
   for (let weekday = 0; weekday <= 6; weekday += 1) {
     // Cada recuadro puede traer varios tramos, uno por línea.
@@ -177,6 +188,12 @@ export function parseSpaceForm(formData: FormData): SpaceFormResult {
       nonMemberBlockPriceMinor,
       memberFreeHoursPerMonth: entero(formData.get("memberFreeHoursPerMonth") as string | null, 0),
       allowsNonMembers: formData.get("allowsNonMembers") !== "off",
+      professionalShareBps,
+      professionalUserId: (() => {
+        const n = Number(String(formData.get("professionalUserId") ?? "").trim());
+        return Number.isInteger(n) && n > 0 ? n : null;
+      })(),
+      acceptsClubCredits: formData.get("acceptsClubCredits") !== "off",
       weeklyHours,
       compatibleWith: formData.getAll("compatibleWith").map((v) => String(v)),
     },

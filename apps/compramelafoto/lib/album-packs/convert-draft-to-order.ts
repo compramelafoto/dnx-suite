@@ -24,6 +24,12 @@ import {
 } from "@/lib/album-packs/validate-album-pack-buyer-contact";
 import { albumPackClientPriceArs } from "@/lib/album-packs/album-pack-client-price";
 import { resolveAlbumPackOrderExtensionTotals } from "@/lib/album-packs/resolve-album-pack-extension-pricing";
+import { parseAlbumPackCartDraftIdsFromPaymentRef } from "@/lib/album-packs/album-pack-cart-payment-ref";
+import {
+  ALBUM_PACK_ORDER_ALREADY_PAID_CODE,
+  ALBUM_PACK_ORDER_ALREADY_PAID_MESSAGE,
+  isAlbumPackDraftOrderConsumed,
+} from "@/lib/album-packs/album-pack-order-payable";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -44,7 +50,9 @@ export class AlbumPackDraftToOrderError extends Error {
   constructor(
     message: string,
     public readonly code: string = "ALBUM_PACK_DRAFT_TO_ORDER_ERROR",
-    public readonly status: number = 400
+    public readonly status: number = 400,
+    /** Datos extra para el cliente (p. ej. qué borradores ya estaban pagados). */
+    public readonly details: Record<string, unknown> = {}
   ) {
     super(message);
     this.name = "AlbumPackDraftToOrderError";
@@ -127,6 +135,51 @@ async function findExistingOrderByDraftRef(
   return existing;
 }
 
+/**
+ * Borradores (de los pedidos) que ya fueron cobrados, sea como pedido de un solo pack
+ * (`ALBUM_PACK_DRAFT:<id>`) o dentro de un carrito (`ALBUM_PACK_CART:a|b`).
+ * Un borrador cobrado no puede volver a comprarse: el comprador arma una selección nueva.
+ */
+export async function findPaidAlbumPackDraftIds(
+  tx: TxClient,
+  draftIds: string[]
+): Promise<string[]> {
+  const ids = Array.from(
+    new Set(draftIds.map((id) => String(id ?? "").trim()).filter((id) => id.length > 0))
+  );
+  if (ids.length === 0) return [];
+  const paidOrders = await tx.order.findMany({
+    where: {
+      status: OrderStatus.PAID,
+      OR: ids.flatMap((id) => [
+        { preCompraPaymentRef: `ALBUM_PACK_DRAFT:${id}` },
+        {
+          AND: [
+            { preCompraPaymentRef: { startsWith: "ALBUM_PACK_CART:" } },
+            { preCompraPaymentRef: { contains: id } },
+          ],
+        },
+      ]),
+    },
+    select: { preCompraPaymentRef: true },
+  });
+  const consumed = new Set(
+    paidOrders.flatMap((row) => parseAlbumPackCartDraftIdsFromPaymentRef(row.preCompraPaymentRef))
+  );
+  return ids.filter((id) => consumed.has(id));
+}
+
+export function assertAlbumPackDraftsNotConsumed(paidDraftIds: string[]): void {
+  if (paidDraftIds.length > 0) {
+    throw new AlbumPackDraftToOrderError(
+      ALBUM_PACK_ORDER_ALREADY_PAID_MESSAGE,
+      ALBUM_PACK_ORDER_ALREADY_PAID_CODE,
+      409,
+      { paidDraftIds }
+    );
+  }
+}
+
 function readAlbumPackDraftPricing(draft: {
   totalCents: number;
   pricingSnapshotJson: unknown;
@@ -180,6 +233,16 @@ export async function convertAlbumPackDraftToOrder(params: {
     async (tx) => {
       const existing = await findExistingOrderByDraftRef(tx, draftId);
       if (existing) {
+        // Borrador ya cobrado: no se reusa su pedido (devolvería el link de pago y el
+        // comprador lo pagaría otra vez). Tiene que armar una selección nueva.
+        if (isAlbumPackDraftOrderConsumed(existing.status)) {
+          throw new AlbumPackDraftToOrderError(
+            ALBUM_PACK_ORDER_ALREADY_PAID_MESSAGE,
+            ALBUM_PACK_ORDER_ALREADY_PAID_CODE,
+            409,
+            { paidDraftIds: [draftId] }
+          );
+        }
         const draftForReuse = await loadDraftForCreateOrder(tx, draftId);
         const photoIds = draftForReuse.selectionSession.photos.map((row) => row.photoId);
         return {
@@ -190,6 +253,10 @@ export async function convertAlbumPackDraftToOrder(params: {
           reused: true,
         };
       }
+
+      assertAlbumPackDraftsNotConsumed(
+        await findPaidAlbumPackDraftIds(tx, [draftId])
+      );
 
       const draft = await loadDraftForCreateOrder(tx, draftId);
       if (

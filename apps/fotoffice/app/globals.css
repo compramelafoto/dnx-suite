@@ -224,7 +224,8 @@ select.fo-input {
 
 .fo-btn-primary {
   background: var(--fo-accent);
-  color: #ffffff;
+  /* `--fo-on-accent` lo define el modo oscuro del sitio público cuando el acento es claro. */
+  color: var(--fo-on-accent, #ffffff);
   box-shadow: var(--fo-shadow-xs);
 }
 
@@ -419,5 +420,20 @@ select.fo-input {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Instructivos: al imprimir o guardar en PDF sale sólo la guía, sin menú ni encabezado. */
+@media print {
+  body:has(.instructivo) #fo-shell-nav,
+  body:has(.instructivo) header {
+    display: none !important;
+  }
+  body:has(.instructivo) main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .instructivo .fo-card {
+    box-shadow: none !important;
   }
 }

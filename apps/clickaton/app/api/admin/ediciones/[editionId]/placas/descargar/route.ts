@@ -13,6 +13,7 @@ import { getClickatonAuthUser } from "@/lib/admin/auth";
 import { hasClickatonAdminAccess } from "@/lib/admin/access";
 import { loadParticipantCardPngFromAsset } from "@/lib/participant-cards/participant-card-asset-store";
 import {
+  filtrarPiezasParaDescarga,
   nombreDeArchivoDePlaca,
   nombresSinRepetir,
 } from "@/lib/participant-cards/participant-card-descarga-masiva";
@@ -25,7 +26,7 @@ export const maxDuration = 300;
 
 type Params = { params: Promise<{ editionId: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: Request, { params }: Params) {
   const user = await getClickatonAuthUser();
   if (!user || !hasClickatonAdminAccess(user)) {
     return Response.json(
@@ -36,6 +37,34 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { editionId } = await params;
 
+  const url = new URL(req.url);
+  const cardTypeParam = url.searchParams.get("cardType");
+  const idsParam = url.searchParams.get("ids");
+
+  let cardType: ReturnType<typeof normalizeParticipantCardType> | undefined;
+  if (cardTypeParam !== null) {
+    try {
+      cardType = normalizeParticipantCardType(cardTypeParam);
+    } catch {
+      return Response.json(
+        { ok: false, error: `Tipo de placa desconocido: ${cardTypeParam}` },
+        { status: 400 },
+      );
+    }
+  }
+
+  /*
+   * `ids` ausente significa "sin filtro" (todas). `ids` presente pero vacío es una elección
+   * explícita de "ninguna": no hay que confundir las dos cosas.
+   */
+  const registrationIds =
+    idsParam === null
+      ? undefined
+      : idsParam
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => id.length > 0);
+
   const edicion = await prisma.clickatonEdition.findUnique({
     where: { id: editionId },
     select: { id: true, slug: true },
@@ -44,7 +73,7 @@ export async function GET(_req: Request, { params }: Params) {
     return Response.json({ ok: false, error: "Edición inexistente" }, { status: 404 });
   }
 
-  const placas = await prisma.clickatonParticipantCard.findMany({
+  const placasListas = await prisma.clickatonParticipantCard.findMany({
     where: { editionId, status: "READY", assetId: { not: null } },
     orderBy: [{ registration: { visibleCode: "asc" } }, { cardType: "asc" }],
     select: {
@@ -55,9 +84,33 @@ export async function GET(_req: Request, { params }: Params) {
     },
   });
 
+  const placas = filtrarPiezasParaDescarga(
+    placasListas.map((p) => ({ ...p, cardType: normalizeParticipantCardType(p.cardType) })),
+    { cardType, registrationIds },
+  );
+
+  /*
+   * Dos 404 distintos, porque el admin los lee y decide cosas distintas con cada uno:
+   * "la edición no tiene nada generado todavía" (hay que generar) vs. "lo que elegiste
+   * no está disponible" (la selección o el tipo no dieron resultados). Antes los dos
+   * decían lo primero.
+   */
   if (placas.length === 0) {
+    const pieza = cardType === "diploma" ? "diplomas generados" : "placas generadas";
+    if (placasListas.length === 0) {
+      return Response.json(
+        { ok: false, error: `Todavía no hay ${pieza} en esta edición.` },
+        { status: 404 },
+      );
+    }
+    const porSeleccion = registrationIds !== undefined;
     return Response.json(
-      { ok: false, error: "Todavía no hay placas generadas en esta edición." },
+      {
+        ok: false,
+        error: porSeleccion
+          ? "Ninguno de los participantes elegidos tiene esa pieza lista para descargar."
+          : `Todavía no hay ${pieza} en esta edición.`,
+      },
       { status: 404 },
     );
   }
@@ -67,7 +120,7 @@ export async function GET(_req: Request, { params }: Params) {
       nombreDeArchivoDePlaca({
         visibleCode: p.registration?.visibleCode,
         registrationId: p.registrationId,
-        cardType: normalizeParticipantCardType(p.cardType),
+        cardType: p.cardType,
       }),
     ),
   );
@@ -108,7 +161,10 @@ export async function GET(_req: Request, { params }: Params) {
     },
   });
 
-  const nombreDelArchivo = `placas-${edicion.slug || edicion.id}.zip`;
+  const nombreDelArchivo =
+    cardType === "diploma"
+      ? `diplomas-${edicion.slug || edicion.id}.zip`
+      : `placas-${edicion.slug || edicion.id}.zip`;
   return new Response(stream, {
     headers: {
       "Content-Type": "application/zip",

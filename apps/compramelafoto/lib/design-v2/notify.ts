@@ -31,6 +31,8 @@ type DesignContext = {
   orderId: number | null;
   albumTitle: string | null;
   photographer: { name: string | null; email: string | null } | null;
+  /** Diseño de un canje de prueba del fotógrafo (pedido DEMO): no se manda ningún correo. */
+  esPrueba: boolean;
 };
 
 async function loadDesignContext(projectId: number): Promise<DesignContext | null> {
@@ -48,11 +50,13 @@ async function loadDesignContext(projectId: number): Promise<DesignContext | nul
 
   let buyerEmail: string | null = null;
   let buyerName: string | null = null;
+  let esPrueba = false;
   if (project.albumOrderId) {
     const order = await prisma.order.findUnique({
       where: { id: project.albumOrderId },
-      select: { buyerEmail: true, buyerName: true },
+      select: { buyerEmail: true, buyerName: true, isTest: true },
     });
+    esPrueba = order?.isTest === true;
     buyerEmail = order?.buyerEmail ?? null;
     buyerName = order?.buyerName ?? null;
   } else if (project.orderItemId) {
@@ -80,6 +84,7 @@ async function loadDesignContext(projectId: number): Promise<DesignContext | nul
     orderId: project.albumOrderId,
     albumTitle: album?.title ?? null,
     photographer,
+    esPrueba,
   };
 }
 
@@ -105,6 +110,7 @@ function photographerLabel(ctx: DesignContext): string {
 export async function notifyPhotographerDesignToReview(projectId: number): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
+    if (ctx?.esPrueba) return;
     if (!ctx?.photographer?.email) return;
     const url = `${APP_URL}/fotografo/disenos/${projectId}`;
     const album = ctx.albumTitle ? ` del álbum "${ctx.albumTitle}"` : "";
@@ -120,17 +126,22 @@ export async function notifyPhotographerDesignToReview(projectId: number): Promi
   }
 }
 
-/** Al cliente: el diseño está aprobado y se puede descargar. */
+/**
+ * Al cliente: el fotógrafo aprobó el librito y pasa a producción (imprenta). Igual lo puede ver
+ * y descargar ya. Los pedidos DEMO no mandan nada.
+ */
 export async function notifyBuyerDesignReady(projectId: number, generatedAt: string): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
+    if (ctx?.esPrueba) return;
     if (!ctx?.buyerEmail) return;
     const url = await downloadLinkFor(ctx.orderId);
+    const who = photographerLabel(ctx);
     await queueEmail({
       to: ctx.buyerEmail,
-      subject: "Tu diseño está listo",
-      body: `${greeting(ctx)}\n\n${photographerLabel(ctx)} aprobó el diseño con las fotos que elegiste. Ya lo podés ver y descargar:\n${url}\n`,
-      htmlBody: `<p>${escapeHtml(greeting(ctx))}</p><p>${escapeHtml(photographerLabel(ctx))} aprobó el diseño con las fotos que elegiste. Ya lo podés ver y descargar.</p>${button(url, "Ver mi diseño")}`,
+      subject: "Tu librito está aprobado y en producción",
+      body: `${greeting(ctx)}\n\n${who} revisó y aprobó el librito con las fotos que elegiste. Ya está en producción: lo mandamos a imprimir y te lo entregan cuando esté listo.\n\nMientras tanto, ya lo podés ver y descargar:\n${url}\n`,
+      htmlBody: `<p>${escapeHtml(greeting(ctx))}</p><p>${escapeHtml(who)} revisó y aprobó el librito con las fotos que elegiste. <strong>Ya está en producción</strong>: lo mandamos a imprimir y te lo entregan cuando esté listo.</p><p>Mientras tanto, ya lo podés ver y descargar.</p>${button(url, "Ver mi librito")}`,
       // Una aprobación nueva (después de corregir) vuelve a avisar.
       idempotencyKey: `design_v2_ready_${projectId}_${generatedAt}`,
     });
@@ -143,6 +154,7 @@ export async function notifyBuyerDesignReady(projectId: number, generatedAt: str
 export async function notifyBuyerDesignChanges(projectId: number, note: string): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
+    if (ctx?.esPrueba) return;
     if (!ctx?.buyerEmail) return;
     const who = photographerLabel(ctx);
     const contact = ctx.photographer?.email ? `\n\nRespondele a ${ctx.photographer.email}.` : "";

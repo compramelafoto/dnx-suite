@@ -34,7 +34,7 @@ import { reorderLayersByPanelIndexForPage, sortBlocksByZIndexDesc } from "@repo/
 import { cn } from "./primitives/cn";
 
 const layerActionBtnClass =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-faint)] transition-colors hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink)] disabled:pointer-events-none disabled:opacity-30";
+  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--te-radius)] text-[color:var(--te-ink-faint)] transition-colors hover:bg-white/[0.08] hover:text-[color:var(--te-ink)] disabled:pointer-events-none disabled:opacity-30";
 
 function IconEye({ className }: { className?: string }) {
   return (
@@ -143,19 +143,6 @@ function IconTrash({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function IconGrip({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="12" height="14" viewBox="0 0 12 14" fill="currentColor" aria-hidden>
-      <circle cx="3" cy="2.5" r="1.2" />
-      <circle cx="9" cy="2.5" r="1.2" />
-      <circle cx="3" cy="7" r="1.2" />
-      <circle cx="9" cy="7" r="1.2" />
-      <circle cx="3" cy="11.5" r="1.2" />
-      <circle cx="9" cy="11.5" r="1.2" />
     </svg>
   );
 }
@@ -281,36 +268,42 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
   );
 
   return (
-    <div className="mt-1 flex flex-col">
-      <div className="shrink-0">
-        {copiedStyle ? (
-          <p
-            className="mt-2 rounded-md border border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] px-2 py-1.5 text-[10px] leading-snug text-[color:var(--te-ink)] shadow-sm"
-            role="status"
-            aria-live="polite"
-          >
-            <span className="font-semibold text-[color:var(--te-accent)]">Estilo copiado.</span> Tocá otra capa compatible aquí abajo
-            (texto↔texto, imagen↔imagen, forma↔forma) para aplicarlo. Volvé a pulsar el rodillo en la misma capa para
-            cancelar.
-          </p>
-        ) : null}
-        {styleFeedback ? (
-          <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-950">
-            {styleFeedback}
-          </p>
-        ) : null}
-      </div>
+    <div className="flex flex-col">
+      {copiedStyle ? (
+        <p
+          className="border-b border-[color:var(--te-line)] bg-[color:var(--te-accent-wash)] px-2 py-1 text-[10px] leading-snug text-[color:var(--te-ink)]"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="font-semibold text-[color:var(--te-accent)]">Estilo copiado.</span> Tocá otra capa compatible
+          para aplicarlo. Volvé a pulsar el rodillo para cancelar.
+        </p>
+      ) : null}
+      {styleFeedback ? (
+        <p className="border-b border-[color:var(--te-line)] bg-amber-400/10 px-2 py-1 text-[10px] text-amber-200">
+          {styleFeedback}
+        </p>
+      ) : null}
       {ordered.length === 0 ? (
-        <p className="mt-3 text-[11px] text-[color:var(--te-ink-faint)]">No hay bloques en el lienzo.</p>
+        <p className="px-3 py-2 text-[11px] text-[color:var(--te-ink-faint)]">No hay bloques en el lienzo.</p>
       ) : (
-        <ul className="mt-2 space-y-1 pr-0.5">
+        /*
+         * Filas al estilo de los paneles de capas de los editores de imagen: el ojo en su propia
+         * columna a la izquierda, un ícono del tipo de capa, el nombre en una línea y el candado a
+         * la derecha. Las acciones (renombrar, duplicar, copiar estilo, eliminar) aparecen al pasar
+         * el mouse: con seis capas, verlas siempre era una grilla de íconos que tapaba los nombres.
+         * Se reordena arrastrando la fila entera.
+         */
+        <ul role="list">
           {ordered.map((block, index) => {
             const selected = state.selectedBlockIds.includes(block.id);
             const isPrimary = selected && primaryId === block.id;
             const isSecondary = selected && !isPrimary;
             const locked = block.layout.locked ?? false;
             const visible = block.layout.visible;
-            const rowTitle = `${getBlockDisplayName(block)} · ${getBlockTypeLabelEs(block.type)} · ${block.id}`;
+            const editing = editingId === block.id;
+            const styleSource = Boolean(copiedStyle && styleSourceId === block.id);
+            const rowTitle = `${getBlockDisplayName(block)} · ${getBlockTypeLabelEs(block.type)}`;
             /*
              * La opacidad se editaba acá, con un deslizador visible en cada fila. Con seis
              * capas eso era media pantalla de deslizadores y la lista dejaba de servir para lo
@@ -321,6 +314,18 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
               <li
                 key={block.id}
                 title={rowTitle}
+                draggable={!editing}
+                onDragStart={(e) => {
+                  dragFromIndexRef.current = index;
+                  setDragSourceIndex(index);
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", block.id);
+                }}
+                onDragEnd={() => {
+                  dragFromIndexRef.current = null;
+                  setDragSourceIndex(null);
+                  setDragOverIndex(null);
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "move";
@@ -340,246 +345,212 @@ export function TemplateEditorLayers({ state, dispatch }: Props) {
                 onClick={(e) => {
                   const t = e.target as HTMLElement;
                   if (t.closest("button") || t.closest("input")) return;
-                  if (t.closest("[data-layer-opacity-row]")) return;
-                  if (editingId === block.id) return;
+                  if (editing) return;
                   tryPasteStyleThenSelect(block, e.shiftKey);
                 }}
+                onDoubleClick={(e) => {
+                  const t = e.target as HTMLElement;
+                  if (t.closest("button") || t.closest("input")) return;
+                  e.preventDefault();
+                  beginRename(block);
+                }}
                 className={cn(
-                  "rounded-lg border py-1.5 pl-2 pr-2 transition-[background-color,border-color,box-shadow] duration-150 ease-out",
-                  copiedStyle && styleSourceId === block.id && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1",
+                  "group relative flex h-8 cursor-default select-none items-center border-b border-[color:var(--te-chrome-sunken)] text-[12px] transition-colors",
+                  isPrimary && "bg-[color:var(--te-accent-wash)]",
+                  isSecondary && "bg-white/[0.05]",
+                  !selected && "hover:bg-white/[0.04]",
+                  styleSource && "outline outline-1 -outline-offset-1 outline-[color:var(--te-accent)]",
                   dragOverIndex === index &&
                     dragSourceIndex !== null &&
                     dragSourceIndex !== index &&
-                    "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1",
-                  isPrimary &&
-                    "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] shadow-[inset_3px_0_0_0_var(--te-accent)]",
-                  isSecondary &&
-                    "border-[color:var(--te-line)] bg-[color:var(--te-chrome)] shadow-[inset_3px_0_0_0_#93c5fd,inset_0_0_0_1px_rgba(148,163,184,0.2)]",
-                  !selected && "border-[color:var(--te-chrome-sunken)] bg-white hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)]"
+                    "shadow-[inset_0_2px_0_0_var(--te-accent)]",
+                  dragSourceIndex === index && "opacity-50"
                 )}
               >
-                <div className="flex items-center gap-1.5">
-                  {editingId === block.id ? (
-                    <span className="w-5 shrink-0" aria-hidden />
-                  ) : (
-                    <button
-                      type="button"
-                      draggable
-                      onDragStart={(e) => {
-                        dragFromIndexRef.current = index;
-                        setDragSourceIndex(index);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("text/plain", block.id);
-                      }}
-                      onDragEnd={() => {
-                        dragFromIndexRef.current = null;
-                        setDragSourceIndex(null);
-                        setDragOverIndex(null);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="shrink-0 cursor-grab rounded px-0.5 py-1 text-[color:var(--te-ink-faint)] transition-colors active:cursor-grabbing hover:bg-[color:var(--te-chrome-sunken)] hover:text-[color:var(--te-ink-muted)]"
-                      title="Arrastrar para reordenar capas"
-                      aria-label="Arrastrar para reordenar capas"
-                    >
-                      <IconGrip className="block" />
-                    </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-full w-7 shrink-0 items-center justify-center border-r border-[color:var(--te-chrome-sunken)] transition-colors hover:text-[color:var(--te-ink)]",
+                    visible ? "text-[color:var(--te-ink-muted)]" : "text-[color:var(--te-ink-faint)] opacity-60"
                   )}
-                  <div className="flex min-w-0 flex-1 items-center gap-1">
-                    {editingId === block.id ? (
-                      <input
-                        type="text"
-                        className="min-w-0 flex-1 rounded-md border border-[color:var(--te-accent-wash)] bg-white px-2 py-1 text-xs font-semibold text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]"
-                        value={draftName}
-                        autoFocus
-                        aria-label="Nombre del bloque"
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setDraftName(v);
-                          draftNameRef.current = v;
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            skipBlurCommitRef.current = true;
-                            commitRename(block.id, (e.target as HTMLInputElement).value);
-                          }
-                          if (e.key === "Escape") {
-                            e.preventDefault();
-                            cancelRename();
-                          }
-                        }}
-                        onBlur={(e) => {
-                          if (skipBlurCommitRef.current) {
-                            skipBlurCommitRef.current = false;
-                            return;
-                          }
-                          commitRename(block.id, e.currentTarget.value);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="min-w-0 flex-1 text-left"
-                          onClick={(e) => tryPasteStyleThenSelect(block, e.shiftKey)}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            beginRename(block);
-                          }}
-                        >
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            {isPrimary ? (
-                              <span
-                                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--te-accent)] shadow-[0_0_0_1px_rgba(255,255,255,0.9)]"
-                                aria-hidden
-                                title="Bloque activo (primario)"
-                              />
-                            ) : null}
-                            <span
-                              className={cn(
-                                "min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight tracking-tight",
-                                visible ? "text-[color:var(--te-ink)]" : "text-[color:var(--te-ink-faint)] line-through decoration-[color:var(--te-line-strong)]"
-                              )}
-                            >
-                              {getBlockDisplayName(block)}
-                            </span>
-                          </span>
-                          <span className="mt-0.5 block truncate text-[10px] text-[color:var(--te-ink-faint)]">
-                            {getBlockTypeLabelEs(block.type)}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className={cn(layerActionBtnClass, "text-[color:var(--te-ink-faint)] hover:text-[color:var(--te-accent)]")}
-                          title="Renombrar"
-                          aria-label="Renombrar capa"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            beginRename(block);
-                          }}
-                        >
-                          <IconPencil className="block h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-px">
-                    {editingId !== block.id ? (
-                      <>
-                        <button
-                          type="button"
-                          className={cn(layerActionBtnClass, "hover:text-[color:var(--te-accent)]")}
-                          title="Duplicar capa"
-                          aria-label="Duplicar capa"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dispatch(duplicateBlock(block.id));
-                          }}
-                        >
-                          <IconDuplicate className="block h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          className={cn(
-                            layerActionBtnClass,
-                            "hover:text-[color:var(--te-accent)]",
-                            copiedStyle && styleSourceId === block.id
-                              ? "bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)] ring-2 ring-[color:var(--te-accent-wash)]"
-                              : ""
-                          )}
-                          title={
-                            copiedStyle && styleSourceId === block.id
-                              ? "Cancelar copiar estilo"
-                              : "Copiar estilo"
-                          }
-                          aria-label={
-                            copiedStyle && styleSourceId === block.id
-                              ? "Cancelar copiar estilo"
-                              : "Copiar estilo"
-                          }
-                          disabled={extractBlockStyle(block) === null}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (copiedStyle && styleSourceId === block.id) {
-                              clearCopiedBlockStyle();
-                              return;
-                            }
-                            const st = extractBlockStyle(block);
-                            if (st) setCopiedBlockStyle(st, block.id);
-                          }}
-                        >
-                          <IconFormatPainter className="block h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          className={cn(layerActionBtnClass, "hover:bg-red-50 hover:text-red-600")}
-                          title="Eliminar capa"
-                          aria-label="Eliminar capa"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dispatch(removeBlock(block.id));
-                          }}
-                        >
-                          <IconTrash className="block h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    ) : null}
-                    <button
-                      type="button"
-                      className={cn(
-                        layerActionBtnClass,
-                        "text-[color:var(--te-ink-muted)]",
-                        !visible && "bg-amber-50/80 text-amber-800 hover:bg-amber-100 hover:text-amber-900"
-                      )}
-                      title={visible ? "Ocultar en el lienzo" : "Mostrar en el lienzo"}
-                      aria-label={visible ? "Ocultar capa" : "Mostrar capa"}
-                      aria-pressed={visible}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const next = !visible;
-                        dispatch(updateBlock(block.id, { layout: { visible: next } }));
-                        if (!next && state.selectedBlockIds.includes(block.id)) {
-                          dispatch(
-                            setSelectedBlockIds(state.selectedBlockIds.filter((id) => id !== block.id))
-                          );
+                  title={visible ? "Ocultar en el lienzo" : "Mostrar en el lienzo"}
+                  aria-label={visible ? "Ocultar capa" : "Mostrar capa"}
+                  aria-pressed={visible}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = !visible;
+                    dispatch(updateBlock(block.id, { layout: { visible: next } }));
+                    if (!next && state.selectedBlockIds.includes(block.id)) {
+                      dispatch(setSelectedBlockIds(state.selectedBlockIds.filter((id) => id !== block.id)));
+                    }
+                  }}
+                >
+                  {visible ? <IconEye className="block h-3.5 w-3.5" /> : <IconEyeOff className="block h-3.5 w-3.5" />}
+                </button>
+
+                <LayerTypeThumb type={block.type} />
+
+                <div className="flex min-w-0 flex-1 items-center pr-1">
+                  {editing ? (
+                    <input
+                      type="text"
+                      className="h-6 min-w-0 flex-1 rounded-[var(--te-radius)] border border-[color:var(--te-accent)] bg-[color:var(--te-chrome-sunken)] px-1.5 text-[12px] text-[color:var(--te-ink)] focus:outline-none"
+                      value={draftName}
+                      autoFocus
+                      aria-label="Nombre del bloque"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setDraftName(v);
+                        draftNameRef.current = v;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          skipBlurCommitRef.current = true;
+                          commitRename(block.id, (e.target as HTMLInputElement).value);
+                        }
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          cancelRename();
                         }
                       }}
-                    >
-                      {visible ? (
-                        <IconEye className="block h-3.5 w-3.5" />
-                      ) : (
-                        <IconEyeOff className="block h-3.5 w-3.5" />
+                      onBlur={(e) => {
+                        if (skipBlurCommitRef.current) {
+                          skipBlurCommitRef.current = false;
+                          return;
+                        }
+                        commitRename(block.id, e.currentTarget.value);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate",
+                        visible ? "text-[color:var(--te-ink)]" : "text-[color:var(--te-ink-faint)]",
+                        isPrimary && "font-medium"
                       )}
+                    >
+                      {getBlockDisplayName(block)}
+                    </span>
+                  )}
+                </div>
+
+                {!editing ? (
+                  <div
+                    className={cn(
+                      "flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
+                      styleSource && "opacity-100"
+                    )}
+                  >
+                    <button
+                      type="button"
+                      className={layerActionBtnClass}
+                      title="Renombrar (doble clic en la fila)"
+                      aria-label="Renombrar capa"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        beginRename(block);
+                      }}
+                    >
+                      <IconPencil className="block h-3 w-3" />
                     </button>
                     <button
                       type="button"
-                      className={cn(
-                        layerActionBtnClass,
-                        "text-[color:var(--te-ink-muted)]",
-                        locked && "bg-[color:var(--te-accent-wash)] text-amber-900 hover:bg-amber-100"
-                      )}
-                      title={locked ? "Desbloquear edición" : "Bloquear edición"}
-                      aria-label={locked ? "Desbloquear capa" : "Bloquear capa"}
-                      aria-pressed={locked}
+                      className={layerActionBtnClass}
+                      title="Duplicar capa"
+                      aria-label="Duplicar capa"
                       onClick={(e) => {
                         e.stopPropagation();
-                        dispatch(updateBlock(block.id, { layout: { locked: !locked } }));
+                        dispatch(duplicateBlock(block.id));
                       }}
                     >
-                      {locked ? (
-                        <IconLock className="block h-3.5 w-3.5" />
-                      ) : (
-                        <IconUnlock className="block h-3.5 w-3.5" />
-                      )}
+                      <IconDuplicate className="block h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(layerActionBtnClass, styleSource && "bg-[color:var(--te-accent-wash)] text-[color:var(--te-accent)]")}
+                      title={styleSource ? "Cancelar copiar estilo" : "Copiar estilo"}
+                      aria-label={styleSource ? "Cancelar copiar estilo" : "Copiar estilo"}
+                      disabled={extractBlockStyle(block) === null}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (styleSource) {
+                          clearCopiedBlockStyle();
+                          return;
+                        }
+                        const st = extractBlockStyle(block);
+                        if (st) setCopiedBlockStyle(st, block.id);
+                      }}
+                    >
+                      <IconFormatPainter className="block h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(layerActionBtnClass, "hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]")}
+                      title="Eliminar capa"
+                      aria-label="Eliminar capa"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dispatch(removeBlock(block.id));
+                      }}
+                    >
+                      <IconTrash className="block h-3 w-3" />
                     </button>
                   </div>
-                </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  className={cn(
+                    layerActionBtnClass,
+                    "mr-1",
+                    locked ? "text-[color:var(--te-ink-muted)]" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                  )}
+                  title={locked ? "Desbloquear edición" : "Bloquear edición"}
+                  aria-label={locked ? "Desbloquear capa" : "Bloquear capa"}
+                  aria-pressed={locked}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dispatch(updateBlock(block.id, { layout: { locked: !locked } }));
+                  }}
+                >
+                  {locked ? <IconLock className="block h-3 w-3" /> : <IconUnlock className="block h-3 w-3" />}
+                </button>
               </li>
             );
           })}
         </ul>
       )}
     </div>
+  );
+}
+
+/** Miniatura del tipo de capa, como la que muestran los paneles de capas de los editores de imagen. */
+function LayerTypeThumb({ type }: { type: TemplateV2Block["type"] }) {
+  const glyph: Record<string, string> = {
+    TEXT: "T",
+    VARIABLE_TEXT: "{ }",
+    SHAPE: "■",
+    QR: "▦",
+  };
+  const isImage = type === "IMAGE" || type === "PHOTO" || type === "BACKGROUND";
+  return (
+    <span
+      className={cn(
+        "mx-1.5 flex h-5 w-7 shrink-0 items-center justify-center rounded-[2px] border border-[color:var(--te-line)] text-[9px] font-semibold text-[color:var(--te-ink-muted)]",
+        type === "BACKGROUND" ? "bg-[color:var(--te-ink-faint)]" : "bg-[color:var(--te-chrome-sunken)]"
+      )}
+      aria-hidden
+    >
+      {isImage ? (
+        <svg viewBox="0 0 16 12" className="h-2.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.3">
+          <rect x="1" y="1" width="14" height="10" rx="1" />
+          <path d="M1 9l4-3.5 3 2.5 2.5-2 4.5 3.5" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        glyph[type] ?? "·"
+      )}
+    </span>
   );
 }

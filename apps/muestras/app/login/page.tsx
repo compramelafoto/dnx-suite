@@ -25,7 +25,7 @@ export default async function Login({ searchParams }: Props) {
   // un enlace viejo o con la pestaña desactualizada, se lo manda a destino.
   const token = (await cookies()).get(DNX_SESSION_COOKIE)?.value;
   if (token && (await getSessionUserByRawToken(token))) {
-    redirect(rutaInternaSegura(next) ?? "/mis-muestras");
+    redirect(rutaInternaSegura(next) ?? "/panel");
   }
 
   const destino = next

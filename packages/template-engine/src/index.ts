@@ -106,6 +106,28 @@ export {
   SCHOOL_TEMPLATE_ALIASES,
   SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS,
   SCHOOL_TEMPLATE_EXAMPLE_DATA,
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  SCHOOL_GROUP_PHOTO_KEY,
+  SCHOOL_INDIVIDUAL_PHOTO_KEY,
+  SCHOOL_TEACHER_PHOTO_KEY,
+  SCHOOL_FRIENDS_PHOTO_KEY,
+  SCHOOL_EXTRA_PHOTO_KEY,
+  SCHOOL_NAMED_PHOTO_KEYS,
+  CLASS_LIST_VARIABLE_KEY,
+  CLASS_LIST_MAX_COLUMNS,
+  CLASS_LIST_SAMPLE,
+  DEFAULT_CLASS_LIST_OPTIONS,
+  formatClassList,
+  isClassListConfig,
+  layoutClassList,
+  parseClassListValue,
+  readClassListOptions,
+  serializeClassList,
+  type ClassListCell,
+  type ClassListLayout,
+  type ClassListLine,
+  type ClassListOptions,
+  type ClassListStudent,
 } from "./plugins/school";
 
 export {
@@ -121,6 +143,7 @@ export {
   formatDateLong,
   formatDateLongUppercase,
   formatDateDayMonthUppercase,
+  formatDateWithTime,
   formatParticipantNumber,
 } from "./plugins/clickaton";
 export type { NormalizeInstagramResult } from "./plugins/clickaton";

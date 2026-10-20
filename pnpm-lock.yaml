@@ -225,6 +225,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/dnx-bot':
+        specifier: workspace:*
+        version: link:../../packages/dnx-bot
       '@repo/finance-control':
         specifier: workspace:*
         version: link:../../packages/finance-control
@@ -441,9 +444,18 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.972.0
         version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@prisma/client':
+        specifier: ^6.19.2
+        version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
       '@repo/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../../packages/geo
       basic-ftp:
         specifier: ^5.0.5
         version: 5.3.1
@@ -613,6 +625,9 @@ importers:
       '@repo/design-studio':
         specifier: workspace:*
         version: link:../../packages/design-studio
+      '@repo/dnx-bot':
+        specifier: workspace:*
+        version: link:../../packages/dnx-bot
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
@@ -667,6 +682,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
+      react-easy-crop:
+        specifier: ^5.5.6
+        version: 5.5.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react-leaflet:
         specifier: ^5.0.0
         version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1069,6 +1087,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.972.0
         version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.972.0
+        version: 3.1079.0
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -1084,12 +1105,21 @@ importers:
       '@repo/muestras':
         specifier: workspace:*
         version: link:../../packages/muestras
+      '@repo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -1118,6 +1148,9 @@ importers:
       '@types/node':
         specifier: ^20
         version: 20.19.37
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
       '@types/react':
         specifier: ^19
         version: 19.2.2
@@ -1566,6 +1599,46 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  packages/dnx-bot:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.133.0
+        version: 0.133.0(zod@4.3.6)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: 19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
   packages/editor:
     dependencies:
@@ -2295,6 +2368,15 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@anthropic-ai/sdk@0.133.0':
+    resolution: {integrity: sha512-jlqUN8p8ESTJj+GJnA4KjzbEfF1waEoGzRT8jwytlYGFFgv+/DUQOxlYGvYw10UzhD1kwLqYzxvA3FrTB2YWuQ==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@asamuzakjp/css-color@5.1.11':
     resolution: {integrity: sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg==}
@@ -6468,6 +6550,10 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -8119,6 +8205,9 @@ packages:
   trough@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
+
   ts-api-utils@2.1.0:
     resolution: {integrity: sha512-CUgTZL1irw8u29bzrOD/nH85jqyc74D6SshFgujOIA7osm2Rz7dYH77agkx7H4FBNxDq7Cjf+IjaX/8zwFW+ZQ==}
     engines: {node: '>=18.12'}
@@ -8585,6 +8674,13 @@ snapshots:
   '@acemir/cssom@0.9.31': {}
 
   '@alloc/quick-lru@5.2.0': {}
+
+  '@anthropic-ai/sdk@0.133.0(zod@4.3.6)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.0.0
+    optionalDependencies:
+      zod: 4.3.6
 
   '@asamuzakjp/css-color@5.1.11':
     dependencies:
@@ -12995,6 +13091,11 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      ts-algebra: 2.0.0
+
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -15096,6 +15197,8 @@ snapshots:
   troika-worker-utils@0.52.0: {}
 
   trough@2.2.0: {}
+
+  ts-algebra@2.0.0: {}
 
   ts-api-utils@2.1.0(typescript@5.9.2):
     dependencies:

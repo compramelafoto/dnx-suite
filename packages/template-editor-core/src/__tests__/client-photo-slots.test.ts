@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   autoAssignClientPhotos,
+  clientPhotoInputs,
   clientPhotoSlotNumber,
   computeCoverCropRect,
   countClientPhotoInputs,
@@ -83,4 +84,83 @@ test("recorte con desplazamiento y zoom queda dentro de la foto", () => {
     crop: { zoom: 2, x: 1, y: 1 },
   });
   assert.deepEqual(zoom, { left: 3000, top: 1000, width: 1000, height: 1000 });
+});
+
+test("la foto individual y la grupal van primero, con su nombre", () => {
+  const bloque = (id: string, key: string) => ({
+    id,
+    type: "IMAGE",
+    pageIndex: 0,
+    configJson: { source: { variableKey: key } },
+    layout: { width: 100, height: 100 },
+  });
+  const slots = listClientPhotoSlots([bloque("c", "photo_1"), bloque("g", "photo_group"), bloque("i", "photo_individual")]);
+  assert.deepEqual(
+    slots.map((s) => [s.blockId, s.label, s.role]),
+    [
+      ["i", "Foto individual", "individual"],
+      ["g", "Foto grupal", "group"],
+      ["c", "Foto 1", null],
+    ],
+  );
+  const asignado = autoAssignClientPhotos(slots, [10, 20, 30]);
+  assert.equal(asignado.i!.photoId, 10);
+  assert.equal(asignado.g!.photoId, 20);
+  assert.equal(asignado.c!.photoId, 30);
+  assert.deepEqual(clientPhotoInputs(slots).map((x) => x.label), ["Foto individual", "Foto grupal", "Foto 1"]);
+});
+
+test("huecos con nombre: maestra, amigos y libre van después de individual y grupal, con su etiqueta y su rol", () => {
+  const slots = listClientPhotoSlots(
+    [
+      img("libre", "photo_extra", 0),
+      img("amigos", "photo_friends", 1),
+      img("maestra", "photo_teacher", 1),
+      img("grupal", "photo_group", 1),
+      img("individual", "photo_individual", 0),
+      img("numerada", "photo_1", 1),
+    ],
+    { photoInputs: [{ slotKey: "photo_friends", label: "Con mis amigos" }] },
+  );
+  assert.deepEqual(
+    slots.map((s) => [s.blockId, s.label, s.role]),
+    [
+      ["individual", "Foto individual", "individual"],
+      ["grupal", "Foto grupal", "group"],
+      ["maestra", "Foto con la maestra", "teacher"],
+      ["amigos", "Con mis amigos", "friends"],
+      ["libre", "Foto libre", "extra"],
+      ["numerada", "Foto 1", null],
+    ],
+  );
+  assert.deepEqual(
+    clientPhotoInputs(slots).map((i) => i.role),
+    ["individual", "group", "teacher", "friends", "extra", null],
+  );
+});
+
+test("una plantilla sin individual ni grupal (maestra + amigos) pide dos fotos y las arma en ese orden", () => {
+  const slots = listClientPhotoSlots([
+    img("amigos-tapa", "photo_friends", 0),
+    img("maestra", "photo_teacher", 1),
+    img("amigos-int", "photo_friends", 1),
+  ]);
+  assert.equal(countClientPhotoInputs(slots), 2);
+  assert.deepEqual(clientPhotoInputs(slots).map((i) => i.label), ["Foto con la maestra", "Foto con amigos"]);
+  const a = autoAssignClientPhotos(slots, [7, 8]);
+  assert.equal(a.maestra!.photoId, 7);
+  assert.equal(a["amigos-tapa"]!.photoId, 8);
+  assert.equal(a["amigos-int"]!.photoId, 8);
+});
+
+test("cuatro fotos: individual, grupal, amigos y libre reciben una foto distinta cada una", () => {
+  const slots = listClientPhotoSlots([
+    img("e", "photo_extra"),
+    img("f", "photo_friends"),
+    img("g", "photo_group"),
+    img("i", "photo_individual"),
+  ]);
+  const a = autoAssignClientPhotos(slots, [1, 2, 3, 4]);
+  assert.deepEqual([a.i!.photoId, a.g!.photoId, a.f!.photoId, a.e!.photoId], [1, 2, 3, 4]);
+  assert.ok(clientPhotoSlotNumber(img("t", "photo_teacher"))! < 0);
 });

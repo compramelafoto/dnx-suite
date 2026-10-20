@@ -32,7 +32,7 @@ export function PaginaLegal({
           <Link
             href="/"
             className="text-sm font-extrabold"
-            style={{ color: "var(--slf-violeta)" }}
+            style={{ color: "var(--slf-violeta-texto)" }}
           >
             SubiLaFoto
           </Link>
@@ -94,7 +94,7 @@ export function PaginaLegal({
             <Link
               href={otroHref}
               className="font-extrabold underline underline-offset-4"
-              style={{ color: "var(--slf-violeta)" }}
+              style={{ color: "var(--slf-violeta-texto)" }}
             >
               {otroTexto}
             </Link>

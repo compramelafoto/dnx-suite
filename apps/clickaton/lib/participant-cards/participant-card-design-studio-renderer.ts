@@ -12,10 +12,21 @@
  * formateadores, los alias y los valores por defecto ya se ocupó el motor de plantillas, y
  * duplicar esa lógica sería la forma más segura de que la placa y la vista previa dejaran de
  * coincidir.
+ *
+ * La única excepción es el código QR: a diferencia de un texto o una imagen, no lleva su valor
+ * adentro del documento — lo pide por `variableKey`, porque `design-studio` sólo sabe leer QR
+ * de una variable declarada en su contrato. Por eso acá sí se acepta `templateData` (los mismos
+ * datos con los que se resolvió el documento) y se usa exclusivamente para completar ese
+ * contrato: ningún otro bloque lo necesita.
  */
 import type { ResolvedTemplateDocument } from "@repo/template-engine";
 import { editorADocumento } from "@repo/template-editor-core/rendering";
-import { emitDesign, type ResourceResolver } from "@repo/design-studio";
+import {
+  emitDesign,
+  type DesignDocument,
+  type ResourceResolver,
+  type VariableDeclaration,
+} from "@repo/design-studio";
 import { cardRenderFailed } from "./participant-card-errors";
 import type { ParticipantCardRenderProvider } from "./participant-card-render-provider";
 import {
@@ -188,24 +199,192 @@ function documentoResueltoAEditor(document: ResolvedTemplateDocument): {
   };
 }
 
-/** Dibuja un documento resuelto con `design-studio`. Sin navegador. */
+/**
+ * Recorre `dato` buscando una propiedad llamada `clave`, a cualquier profundidad, y devuelve su
+ * valor si es un texto no vacío.
+ *
+ * Sirve para la clave corta de una variable de QR: cuando el bloque pide `verificationUrl` pero
+ * el dato de la pieza sólo trae `diploma.verificationUrl` (anidado), la propiedad sigue
+ * llamándose `verificationUrl` un nivel más abajo.
+ */
+function buscarPorNombreDePropiedad(dato: unknown, clave: string): string | undefined {
+  if (!dato || typeof dato !== "object" || Array.isArray(dato)) return undefined;
+  const objeto = dato as Record<string, unknown>;
+
+  for (const [k, v] of Object.entries(objeto)) {
+    if ((k === clave || k.endsWith(`.${clave}`)) && typeof v === "string" && v.trim() !== "") {
+      return v;
+    }
+  }
+  for (const v of Object.values(objeto)) {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const encontrado = buscarPorNombreDePropiedad(v, clave);
+      if (encontrado !== undefined) return encontrado;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Sigue una ruta con puntos (`diploma.verificationUrl`) dentro de los datos de la pieza.
+ */
+function valorEnRuta(templateData: Record<string, unknown>, ruta: string): string | undefined {
+  let actual: unknown = templateData;
+  for (const parte of ruta.split(".")) {
+    if (!actual || typeof actual !== "object" || Array.isArray(actual)) return undefined;
+    actual = (actual as Record<string, unknown>)[parte];
+  }
+  return typeof actual === "string" && actual.trim() !== "" ? actual : undefined;
+}
+
+/**
+ * Busca el valor de la variable que pide un bloque QR dentro de los datos de la pieza.
+ *
+ * En el diseñador se pudo haber elegido cualquiera de las dos formas de nombrar el dato —la
+ * ruta completa (`diploma.verificationUrl`) o la clave corta (`verificationUrl`)—, así que acá
+ * se prueban las dos: primero la ruta tal cual, después la propiedad plana con ese nombre
+ * exacto y, si tampoco está, se la busca a cualquier profundidad.
+ */
+function leerVariableDeTemplateData(
+  templateData: Record<string, unknown>,
+  clave: string
+): string | undefined {
+  const porRuta = valorEnRuta(templateData, clave);
+  if (porRuta !== undefined) return porRuta;
+
+  const plano = templateData[clave];
+  if (typeof plano === "string" && plano.trim() !== "") return plano;
+
+  const claveCorta = clave.includes(".") ? (clave.split(".").pop() ?? clave) : clave;
+  return buscarPorNombreDePropiedad(templateData, claveCorta);
+}
+
+/**
+ * Bloque de entrada tal como lo entrega el editor o el documento resuelto — el mismo
+ * `BloqueDelEditor` (derivado de `editorADocumento`, no copiado), salvo que los campos con
+ * default propio (`name`, `pageIndex`, `rotation`, `zIndex`, `opacity`, `locked`, `visible`)
+ * quedan opcionales: si el puente algún día cambia esa forma, este tipo se entera solo.
+ */
+export type QrContractSourceBlock = Pick<
+  BloqueDelEditor,
+  "id" | "type" | "x" | "y" | "width" | "height" | "configJson"
+> &
+  Partial<
+    Omit<BloqueDelEditor, "id" | "type" | "x" | "y" | "width" | "height" | "configJson">
+  >;
+
+/** El mismo lienzo que espera `editorADocumento`, derivado en vez de copiado. */
+export type QrContractCanvas = Parameters<typeof editorADocumento>[0]["canvas"];
+
+export type EmitDesignEntry = {
+  document: DesignDocument;
+  contract: { variables: VariableDeclaration[] };
+  values: Record<string, string>;
+  /** Lo que el puente no supo traducir. Vacío en una placa sana. */
+  avisos: string[];
+};
+
+/**
+ * Arma la entrada de `emitDesign`: el documento que traduce `editorADocumento` más un contrato
+ * de variables que declara, y llena, todo lo que un bloque QR necesita.
+ *
+ * Un texto o una imagen ya resueltos no piden nada: su valor viaja adentro del documento, así
+ * que sin ningún bloque QR esto se comporta exactamente igual que antes — contrato y valores
+ * vacíos. Un QR es distinto: `design-studio` lo dibuja a partir de una variable declarada en el
+ * contrato, nunca de un valor incrustado, así que hay que declararla y completarla.
+ *
+ * - Un QR de dirección fija ya trae su valor: el puente lo devuelve como variable sintética
+ *   (`variablesSinteticas`), que acá simplemente se declara y se usa.
+ * - Un QR de variable pide su valor por clave: se lo busca en `templateData` con
+ *   `leerVariableDeTemplateData`. Si no aparece, la variable queda declarada con cadena vacía
+ *   en vez de omitirse — así el motor la informa como error del plan de impresión ("quedaría
+ *   vacío") en lugar de imprimir un QR que no lleva a ningún lado.
+ */
+export function construirEntradaDeEmitDesign(input: {
+  blocks: readonly QrContractSourceBlock[];
+  canvas: QrContractCanvas;
+  templateData: Record<string, unknown>;
+  nombre?: string;
+}): EmitDesignEntry {
+  const puente = editorADocumento({
+    canvas: input.canvas,
+    blocks: input.blocks.map((b) => ({
+      id: b.id,
+      type: b.type,
+      name: b.name ?? null,
+      pageIndex: b.pageIndex ?? 0,
+      x: b.x,
+      y: b.y,
+      width: b.width,
+      height: b.height,
+      rotation: b.rotation ?? 0,
+      zIndex: b.zIndex ?? 0,
+      opacity: b.opacity ?? 1,
+      locked: b.locked ?? false,
+      visible: b.visible ?? true,
+      configJson: b.configJson,
+    })),
+    nombre: input.nombre,
+  });
+
+  const document = puente.document as DesignDocument;
+  const variables: VariableDeclaration[] = [];
+  const values: Record<string, string> = {};
+
+  for (const sintetica of puente.variablesSinteticas) {
+    variables.push({
+      key: sintetica.key,
+      type: "qrPayload",
+      label: sintetica.label,
+      required: false,
+      sampleValue: sintetica.value,
+    });
+    values[sintetica.key] = sintetica.value;
+  }
+
+  for (const cara of document.sides) {
+    for (const bloque of cara.blocks) {
+      if (bloque.type !== "qrcode") continue;
+      if (values[bloque.variableKey] !== undefined) continue;
+      const valor = leerVariableDeTemplateData(input.templateData, bloque.variableKey) ?? "";
+      variables.push({
+        key: bloque.variableKey,
+        type: "qrPayload",
+        label: bloque.variableKey,
+        required: false,
+        sampleValue: valor,
+      });
+      values[bloque.variableKey] = valor;
+    }
+  }
+
+  return { document, contract: { variables }, values, avisos: puente.avisos };
+}
+
+/**
+ * Dibuja un documento resuelto con `design-studio`. Sin navegador.
+ *
+ * `templateData` es opcional y sólo hace falta cuando la pieza tiene un bloque QR de variable:
+ * es lo único que necesita un valor que no viaja ya incrustado en `document`.
+ */
 export async function renderResolvedDocumentWithDesignStudio(
-  document: ResolvedTemplateDocument
+  document: ResolvedTemplateDocument,
+  templateData: Record<string, unknown> = {}
 ): Promise<DesignStudioRenderResult> {
   const inicio = Date.now();
   const editor = documentoResueltoAEditor(document);
 
-  const puente = editorADocumento({
+  const entrada = construirEntradaDeEmitDesign({
     canvas: editor.canvas,
     blocks: editor.blocks,
+    templateData,
     nombre: document.name,
   });
 
   const salida = await emitDesign({
-    document: puente.document,
-    // Las variables ya vienen resueltas dentro del documento: acá no queda ninguna por llenar.
-    contract: { variables: [] },
-    values: {},
+    document: entrada.document,
+    contract: entrada.contract,
+    values: entrada.values,
     formats: ["PNG_PER_SIDE"],
     resources: createParticipantCardResourceResolver(),
     fileBaseName: "clickaton-card",
@@ -225,7 +404,7 @@ export async function renderResolvedDocumentWithDesignStudio(
     width: document.width,
     height: document.height,
     durationMs: Date.now() - inicio,
-    warnings: puente.avisos,
+    warnings: entrada.avisos,
   };
 }
 
@@ -233,8 +412,14 @@ export async function renderResolvedDocumentWithDesignStudio(
 export class DesignStudioRenderProvider implements ParticipantCardRenderProvider {
   readonly id = "design-studio";
 
-  async render(input: { document: ResolvedTemplateDocument }) {
-    const rendered = await renderResolvedDocumentWithDesignStudio(input.document);
+  async render(input: {
+    document: ResolvedTemplateDocument;
+    templateData?: Record<string, unknown>;
+  }) {
+    const rendered = await renderResolvedDocumentWithDesignStudio(
+      input.document,
+      input.templateData ?? {}
+    );
     return {
       png: rendered.png,
       width: rendered.width,
@@ -276,7 +461,7 @@ export async function renderClickatonParticipantCardWithDesignStudio(
     preset,
   });
 
-  const rendered = await renderResolvedDocumentWithDesignStudio(document);
+  const rendered = await renderResolvedDocumentWithDesignStudio(document, input.templateData);
 
   return {
     png: rendered.png,

@@ -5,7 +5,7 @@ import { pasaElFrenoDeEnlaces, pasaElFrenoDePagos } from "@/lib/pedidos/freno-pu
 import { avisoDeVuelta, type ResultadoVuelta } from "@/lib/pedidos/pago-vuelta";
 import { abrirPedidoPublico, verificarVueltaDePago } from "@/lib/pedidos/publico";
 import { idDeCuotaValido } from "@/lib/pedidos/mp-puro";
-import { pagarCuotaAction } from "./actions";
+import { pagarCuotaAction, transferirCuotaAction } from "./actions";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +60,7 @@ export default async function PedidoPublicoPage({ params, searchParams }: Props)
         vista={vista}
         pago={{
           accion: pagarCuotaAction,
+          transferir: transferirCuotaAction,
           slug: workspaceSlug,
           token,
           resaltarCuotaId: idDeCuotaValido(pagar) ? pagar : null,

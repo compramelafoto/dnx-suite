@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { PuntoMapa } from "./mapa-nacional";
+import type { Centro, PuntoMapa } from "./mapa-nacional";
 
 /** Mientras Leaflet carga se ve una superficie quieta del mismo tamaño: nada salta. */
 const Mapa = dynamic(() => import("./mapa-nacional"), {
@@ -10,6 +10,6 @@ const Mapa = dynamic(() => import("./mapa-nacional"), {
 });
 
 /** Ocupa todo el alto de quien lo contiene: el alto lo decide la portada. */
-export function MapaNacionalCliente({ puntos }: { puntos: PuntoMapa[] }) {
-  return <Mapa puntos={puntos} />;
+export function MapaNacionalCliente({ puntos, centro }: { puntos: PuntoMapa[]; centro?: Centro | null }) {
+  return <Mapa puntos={puntos} centro={centro} />;
 }

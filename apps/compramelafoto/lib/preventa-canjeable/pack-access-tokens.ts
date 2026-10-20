@@ -137,3 +137,17 @@ export async function getOrderIdForPackAccessToken(token: string): Promise<PackT
   });
   return { ok: true, orderId: row.orderId };
 }
+
+/**
+ * Pedido al que pertenece un link aunque esté anulado o vencido. Sirve para saber a qué
+ * álbum mandar a quien abre un link de un combo deshabilitado; nunca para canjear.
+ */
+export async function getOrderIdForPackAccessTokenAnyState(token: string): Promise<number | null> {
+  const trimmed = String(token || "").trim();
+  if (!trimmed) return null;
+  const row = await prisma.packAccessToken.findUnique({
+    where: { tokenHash: hashToken(trimmed) },
+    select: { orderId: true },
+  });
+  return row?.orderId ?? null;
+}

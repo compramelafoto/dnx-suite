@@ -281,6 +281,8 @@ type SchoolCommission = {
     name: string | null;
     email: string;
   } | null;
+  /** Pagada y luego anulada por reembolso de la venta: saldo a compensar. */
+  paidThenCancelled?: boolean;
   album: { id: number; title: string };
   order: { id: number };
 };
@@ -376,6 +378,7 @@ export default function FotografoEscuelaDetallePage() {
     pendiente: 0,
     solicitado: 0,
     pagado: 0,
+    aCompensar: 0,
   });
   const [commissionsLoading, setCommissionsLoading] = useState(false);
   const [commissionError, setCommissionError] = useState<string | null>(null);
@@ -663,7 +666,9 @@ export default function FotografoEscuelaDetallePage() {
         if (!active) return;
         setCommissions(Array.isArray(data?.commissions) ? data.commissions : []);
         setCommissionSummary(
-          data?.summary ?? { acumulado: 0, pendiente: 0, solicitado: 0, pagado: 0 }
+          data?.summary
+            ? { aCompensar: 0, ...data.summary }
+            : { acumulado: 0, pendiente: 0, solicitado: 0, pagado: 0, aCompensar: 0 }
         );
       } catch (err: any) {
         if (!active) return;
@@ -1086,12 +1091,9 @@ export default function FotografoEscuelaDetallePage() {
       if (reload.ok) {
         setCommissions(Array.isArray(reloadData?.commissions) ? reloadData.commissions : []);
         setCommissionSummary(
-          reloadData?.summary ?? {
-            acumulado: 0,
-            pendiente: 0,
-            solicitado: 0,
-            pagado: 0,
-          }
+          reloadData?.summary
+            ? { aCompensar: 0, ...reloadData.summary }
+            : { acumulado: 0, pendiente: 0, solicitado: 0, pagado: 0, aCompensar: 0 }
         );
       }
     } catch (err: any) {
@@ -3001,6 +3003,11 @@ export default function FotografoEscuelaDetallePage() {
                               <p className="mt-2 text-xs leading-relaxed text-gray-500">
                                 Montos ya liquidados o abonados.
                               </p>
+                              {commissionSummary.aCompensar > 0 ? (
+                                <p className="mt-1 text-xs font-medium text-amber-800">
+                                  A compensar por devoluciones: {formatArsWhole(commissionSummary.aCompensar)}
+                                </p>
+                              ) : null}
                             </div>
                             <CheckCircle2 className="h-9 w-9 shrink-0 text-emerald-700/85" aria-hidden />
                           </div>
@@ -3177,7 +3184,9 @@ export default function FotografoEscuelaDetallePage() {
                                   <td className="px-3 py-3 tabular-nums">${commission.amount.toLocaleString("es-AR")}</td>
                                   <td className="px-3 py-3">
                                     <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-800">
-                                      {commissionLineStatusLabel(commission.status)}
+                                      {commission.paidThenCancelled
+                                        ? "Pagada y anulada (a compensar)"
+                                        : commissionLineStatusLabel(commission.status)}
                                     </span>
                                   </td>
                                   <td className="px-3 py-3 text-right">

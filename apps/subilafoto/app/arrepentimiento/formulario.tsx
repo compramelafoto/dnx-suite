@@ -28,7 +28,7 @@ export function FormularioArrepentimiento() {
         <p className="mt-4" style={{ color: "var(--slf-tinta-suave)" }}>
           Guardá este número de constancia:
         </p>
-        <p className="mt-2 text-3xl font-extrabold tracking-wide" style={{ color: "var(--slf-violeta)" }}>
+        <p className="mt-2 text-3xl font-extrabold tracking-wide" style={{ color: "var(--slf-violeta-texto)" }}>
           {estado.constancia}
         </p>
         <p className="mt-5 leading-relaxed" style={{ color: "var(--slf-tinta-suave)" }}>

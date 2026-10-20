@@ -113,3 +113,21 @@ describe("variable [cuota_link_pago]", () => {
     expect(resolverVariables(base)("cuota_link_pago")).toBeNull();
   });
 });
+
+describe("pagar por transferencia (etapa B)", () => {
+  it("la acción valida lo mismo que la de Mercado Pago y sólo devuelve códigos", () => {
+    const src = sinComentarios(leer(ACCION));
+    const t = src.slice(src.indexOf("export async function transferirCuotaAction"));
+    for (const paso of ["pasaElFrenoDePagos()", "workspaceDelSlug(slug)", "resolverTokenPedido(workspaceId, token)", "idDeCuotaValido(cuotaId)", "esperarTransferencia({ workspaceId, pedidoId: pedido.pedidoId, cuotaId })"]) {
+      expect(t).toContain(paso);
+    }
+    expect(t).not.toMatch(/encodeURIComponent\(r\.error\)/);
+    expect(leer(PAGINA)).toContain("transferir: transferirCuotaAction");
+  });
+
+  it("avisos: anotada la transferencia, y los motivos nuevos", () => {
+    expect(avisoDeVuelta("transferencia", null, null)).toMatchObject({ tono: "ok", texto: expect.stringMatching(/transferir/) });
+    expect(mensajeDeMotivo("sinDatos")).toMatch(/datos para transferir/);
+    expect(mensajeDeMotivo("sinMontoUnico")).toMatch(/reservar un monto/);
+  });
+});

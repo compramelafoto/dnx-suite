@@ -1,5 +1,7 @@
 "use client";
 
+import { sinPedidosDemo } from "@/lib/canje-externo/pack-de-prueba";
+
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { OrderVisualProvider } from "@/components/fotografo/orders/OrderVisualContext";
@@ -68,6 +70,8 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     () => filterOrders(orders, quickFilter, q),
     [orders, quickFilter, q]
   );
+  /** Sin los pedidos DEMO: para indicadores, alertas, analítica y actividad. */
+  const realOrders = useMemo(() => sinPedidosDemo(orders), [orders]);
 
   const visibleKeys = useMemo(() => filtered.map(rowKey), [filtered]);
 
@@ -309,16 +313,22 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     const eligible = getBulkExportableOrders(bulkSelectedOrders);
     if (eligible.length === 0) return;
 
+    if (eligible.length > 15) {
+      alert(
+        `Elegiste ${eligible.length} pedidos con impresiones. Se pueden bajar hasta 15 juntos: elegí menos y descargá en tandas.`
+      );
+      return;
+    }
     setBulkLoading((prev) => ({ ...prev, export: true }));
-    const origin = window.location.origin;
     try {
-      for (const order of eligible) {
-        if (order.source === "PRINT_ORDER") {
-          window.open(`${origin}/api/print-orders/${order.id}/export`, "_blank");
-        } else {
-          window.open(`${origin}/api/fotografo/pedidos/${order.id}/export-print`, "_blank");
-        }
-      }
+      // Un solo ZIP con una carpeta por pedido. Antes se abría una pestaña por pedido y el
+      // navegador bloqueaba todas menos la primera como ventanas emergentes.
+      const albumes = eligible.filter((o) => o.source !== "PRINT_ORDER").map((o) => o.id);
+      const impresion = eligible.filter((o) => o.source === "PRINT_ORDER").map((o) => o.id);
+      const params = new URLSearchParams();
+      if (albumes.length) params.set("albumes", albumes.join(","));
+      if (impresion.length) params.set("impresion", impresion.join(","));
+      window.location.href = `/api/fotografo/pedidos/export-print-lote?${params.toString()}`;
     } finally {
       setTimeout(() => setBulkLoading((prev) => ({ ...prev, export: false })), 400);
     }
@@ -401,7 +411,7 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     <OrderVisualProvider>
     <div className={cn("flex flex-col gap-5 w-full min-w-0", hasBulkSelection && "pb-24")}>
       <OrdersNeedsAttention
-        orders={orders}
+        orders={realOrders}
         automationHandlers={automationHandlers}
         onViewOrders={() => {
           setQuickFilter("ALL");
@@ -410,9 +420,9 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
         }}
       />
 
-      <OrdersOperationalInsights orders={orders} automationHandlers={automationHandlers} />
+      <OrdersOperationalInsights orders={realOrders} automationHandlers={automationHandlers} />
 
-      <OrdersAnalyticsWorkspace orders={orders} />
+      <OrdersAnalyticsWorkspace orders={realOrders} />
 
       <div ref={listAnchorRef} className="scroll-mt-4 w-full min-w-0 space-y-3 border-t border-gray-100 pt-5">
       <OrdersWorkspaceHeader
@@ -497,7 +507,7 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
       </div>
 
       <OrdersActivityFeed
-        orders={orders}
+        orders={realOrders}
         automationHandlers={automationHandlers}
         variant="compact"
       />

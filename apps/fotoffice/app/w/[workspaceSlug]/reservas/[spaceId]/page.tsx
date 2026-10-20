@@ -9,8 +9,8 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { BOOKINGS_TIME_ZONE, localMoment } from "@/lib/bookings/time";
 import { buildWeekGrid } from "@/lib/bookings/week-grid";
 import { loadPortalOffer } from "@/lib/bookings/portal";
-import { listSpaces } from "@/lib/bookings/repository";
-import { spacePriceLabel } from "@/lib/bookings/pricing";
+import { getBookingWording, listSpaces } from "@/lib/bookings/repository";
+import { spacePriceLabel, turnPriceLabel } from "@/lib/bookings/pricing";
 import {
   calendarHref,
   parseCalendarParams,
@@ -67,7 +67,7 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
   // El socio con sesión reserva desde su portal: ahí tiene su precio y sus horas bonificadas.
   if (isMemberHere) redirect(`/portal/reservas?espacio=${encodeURIComponent(spaceId)}&fecha=${ymd}`);
 
-  const [oferta, todos, vocabulary] = await Promise.all([
+  const [oferta, todos, vocabulary, wording] = await Promise.all([
     loadPortalOffer({
       workspaceId: branding.workspaceId,
       memberId: null,
@@ -78,11 +78,17 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
     }),
     listSpaces(branding.workspaceId),
     loadPersonVocabulary(branding.workspaceId),
+    getBookingWording(branding.workspaceId),
   ]);
   if (!oferta || !oferta.space.allowsNonMembers) notFound();
 
   const espacios = todos.filter((e) => e.allowsNonMembers);
   const space = oferta.space;
+  const turnos = wording.kind === "PROFESIONALES";
+  // Mismo criterio que la lista: el aviso "siendo socio pagás menos" sólo si es verdad.
+  const socioPagaDistinto =
+    space.memberFreeHoursPerMonth > 0 ||
+    spacePriceLabel(space, "MEMBER") !== spacePriceLabel(space, "NON_MEMBER");
 
   const grid = buildWeekGrid({
     weekStart: semana.startAt,
@@ -102,11 +108,15 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-12 md:px-8 md:py-16">
       <header className="space-y-2">
         <Link href={base} className="text-sm text-[var(--fo-muted)] underline underline-offset-4">
-          Volver a los espacios
+          {wording.backLabel}
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Reservá en {branding.commercialName}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {turnos ? `Tu turno con ${space.name}` : `Reservá en ${branding.commercialName}`}
+        </h1>
         <p className="text-sm text-[var(--fo-muted)]">
-          Elegí el día y el horario. La reserva queda confirmada cuando se acredita el pago.
+          Elegí el día y el horario.{" "}
+          {turnos ? "El turno queda confirmado" : "La reserva queda confirmada"} cuando se acredita
+          el pago.
         </p>
       </header>
 
@@ -133,6 +143,7 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
         </p>
       ) : null}
 
+      {socioPagaDistinto ? (
       <MemberPriceBanner
         singular={vocabulary.singular}
         institution={branding.commercialName}
@@ -140,6 +151,7 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
         freeHoursPerMonth={space.memberFreeHoursPerMonth}
         loginHref={doorPathFor(workspaceSlug, { spaceId: space.id, ymd })}
       />
+      ) : null}
 
       <ReservarForm
         key={`${space.id}-${semana.startAt.toISOString()}`}
@@ -198,7 +210,9 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
           id: e.id,
           name: e.name,
           color: spaceColor(i),
-          priceLabel: `${spacePriceLabel(e, "NON_MEMBER")} · ${vocabulary.plural} ${spacePriceLabel(e, "MEMBER")}`,
+          priceLabel: turnos
+            ? turnPriceLabel(e, "NON_MEMBER")
+            : `${spacePriceLabel(e, "NON_MEMBER")} · ${vocabulary.plural} ${spacePriceLabel(e, "MEMBER")}`,
           href: calendarHref(`${base}/${e.id}`, { ymd }),
         }))}
         pricing={space}
@@ -215,6 +229,8 @@ export default async function PublicSpaceBookingPage({ params, searchParams }: P
           loginHref: doorPathFor(workspaceSlug, { spaceId: space.id, ymd }),
         }}
         vocabulary={vocabulary}
+        resourceSingular={wording.singular}
+        baseItemLabel={turnos ? "Turno" : undefined}
         extras={oferta.extras.map((o) => ({
           id: o.extra.id,
           name: o.extra.name,

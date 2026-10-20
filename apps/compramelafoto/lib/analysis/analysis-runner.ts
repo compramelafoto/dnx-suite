@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { AlbumCleanupStatus, PhotoExifMetadataStatus } from "@prisma/client";
+import type { AlbumCleanupStatus, EventType, PhotoExifMetadataStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getR2ObjectMetadata, readFromR2 } from "@/lib/r2-client";
 import { extractOcrTokensFromImage } from "@/lib/ocr/extract-ocr-tokens";
@@ -16,12 +16,19 @@ import {
   resolveMaxRunMs,
   shouldRunAnotherRound,
 } from "@/lib/analysis/analysis-throughput";
+import { analysisFailureKind, retryDelayMs } from "./analysis-failure-kind";
 import sharp from "sharp";
+import { shouldRunOcr } from "@/lib/analysis/should-run-ocr";
+import { agencyPriorityQuota, claimAgencyPriorityJobs, combineClaims } from "./agency-priority";
 
 const MAX_ATTEMPTS = 3;
 
 type RunOptions = {
-  includeOcr: boolean;
+  /**
+   * Lo que pidió quien dispara la corrida: `true` fuerza la lectura de texto, `false` la
+   * apaga, `null` —lo normal, y lo que usa el cron— deja decidir por tipo de álbum.
+   */
+  ocrRequested: boolean | null;
   debug: boolean;
   source: "cron" | "admin";
   /** Si se indica, solo crea/claim jobs de ese álbum (útil para destrabar galerías grandes). */
@@ -75,18 +82,32 @@ async function claimJobsAtomic(
       photo: {
         isRemoved: false,
         ...(scopedAlbum != null ? { albumId: scopedAlbum } : {}),
-        ...(ageCutoff ? { createdAt: { gte: ageCutoff } } : {}),
       },
+      /*
+        El tope de antigüedad no alcanza a lo que falló por algo nuestro. Es un `OR`:
+        sólo deja pasar MÁS trabajos, nunca excluye uno que antes entraba.
+      */
+      ...(ageCutoff
+        ? {
+            AND: [
+              {
+                OR: [
+                  { photo: { createdAt: { gte: ageCutoff } } },
+                  { infraFailureAt: { not: null } },
+                ],
+              },
+            ],
+          }
+        : {}),
     },
     orderBy: { createdAt: "asc" },
     take: batchSize,
     select: { id: true },
   });
 
-  // Usamos FOR UPDATE SKIP LOCKED para evitar doble toma entre workers concurrentes.
-  const locked =
-    scopedAlbum != null
-      ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+  type ClaimedRows = Array<{ id: number; photoId: number }>;
+  const claimScoped = (): Promise<ClaimedRows> =>
+    prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
           WITH claimed AS (
             SELECT j.id
             FROM "PhotoAnalysisJob" j
@@ -103,9 +124,10 @@ async function claimJobsAtomic(
           SET status = 'PROCESSING', "lockedAt" = ${now}
           WHERE id IN (SELECT id FROM claimed)
           RETURNING id, "photoId"
-        `
-      : ageCutoff
-        ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+        `;
+  const claimFifo = (remaining: number): Promise<ClaimedRows> =>
+    ageCutoff
+      ? prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
             WITH claimed AS (
               SELECT j.id
               FROM "PhotoAnalysisJob" j
@@ -113,9 +135,9 @@ async function claimJobsAtomic(
               WHERE j.status = 'PENDING'
                 AND (j."runAfter" IS NULL OR j."runAfter" <= ${now})
                 AND p."isRemoved" = false
-                AND p."createdAt" >= ${ageCutoff}
+                AND (p."createdAt" >= ${ageCutoff} OR j."infraFailureAt" IS NOT NULL)
               ORDER BY j."createdAt" ASC
-              LIMIT ${batchSize}
+              LIMIT ${remaining}
               FOR UPDATE OF j SKIP LOCKED
             )
             UPDATE "PhotoAnalysisJob"
@@ -123,14 +145,14 @@ async function claimJobsAtomic(
             WHERE id IN (SELECT id FROM claimed)
             RETURNING id, "photoId"
           `
-        : await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+      : prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
             WITH claimed AS (
               SELECT id
               FROM "PhotoAnalysisJob"
               WHERE status = 'PENDING'
                 AND ("runAfter" IS NULL OR "runAfter" <= ${now})
               ORDER BY "createdAt" ASC
-              LIMIT ${batchSize}
+              LIMIT ${remaining}
               FOR UPDATE SKIP LOCKED
             )
             UPDATE "PhotoAnalysisJob"
@@ -139,7 +161,18 @@ async function claimJobsAtomic(
             RETURNING id, "photoId"
           `;
 
-  return { jobsFound: candidates.length, locked };
+  // Usamos FOR UPDATE SKIP LOCKED para evitar doble toma entre workers concurrentes.
+  // Sin álbum fijo (cron general), primero hasta la mitad del lote para álbumes de agencia.
+  const { priority, locked } =
+    scopedAlbum != null
+      ? { priority: [] as ClaimedRows, locked: await claimScoped() }
+      : await combineClaims({
+          batchSize,
+          claimPriority: () => claimAgencyPriorityJobs(now, agencyPriorityQuota(batchSize), ageCutoff),
+          claimFifo,
+        });
+
+  return { jobsFound: candidates.length + priority.length, locked };
 }
 
 async function matchFacesWithInterested(
@@ -254,6 +287,10 @@ type AnalysisPhotoContext = {
     firstPhotoDate: Date | null;
     expirationExtensionDays: number | null;
     cleanupStatus: AlbumCleanupStatus;
+    /** Decide si vale la pena leer el texto de las fotos. Ver `should-run-ocr`. */
+    type: EventType | null;
+    /** Interruptor del fotógrafo. `null` = no lo configuró, decide el tipo. */
+    textSearchEnabled: boolean | null;
   };
 };
 
@@ -264,11 +301,20 @@ async function processJob(
     attempts: number | null;
     photo: AnalysisPhotoContext | null;
   },
-  includeOcr: boolean,
+  ocrRequested: boolean | null,
   debug: boolean
 ) {
   const photo = job.photo;
   const photoId = job.photoId;
+  /*
+    La lectura de texto se decide por álbum, no por corrida. Antes el cron la forzaba
+    para todas las fotos de la plataforma y era la mitad de la factura de Amazon.
+  */
+  const includeOcr = shouldRunOcr({
+    textSearchEnabled: photo?.album.textSearchEnabled ?? null,
+    albumType: photo?.album.type ?? null,
+    requested: ocrRequested,
+  });
   const tStart = Date.now();
   const timing: Record<string, number> = {};
   const debugChecks: Array<Record<string, unknown>> = [];
@@ -553,7 +599,7 @@ async function processJob(
     });
     await prisma.photoAnalysisJob.update({
       where: { id: job.id },
-      data: { status: "DONE", lastError: null, lockedAt: null },
+      data: { status: "DONE", lastError: null, lockedAt: null, infraFailureAt: null },
     });
     jobCompleted = true;
 
@@ -573,18 +619,21 @@ async function processJob(
     return { ok: true, photoId, debugChecks };
   } catch (err: any) {
     const message = String(err?.message ?? err);
-    const errorLower = message.toLowerCase();
-    const isInvalidImage =
-      errorLower.includes("decoder") ||
-      errorLower.includes("unsupported") ||
-      errorLower.includes("invalid") ||
-      errorLower.includes("corrupt") ||
-      errorLower.includes("imagen inválida") ||
-      errorLower.includes("formato no soportado") ||
-      errorLower.includes("sin dimensiones");
+    const kind = analysisFailureKind(message);
+    const isInfrastructure = kind === "INFRASTRUCTURE";
 
-    const nextAttempts = (job.attempts ?? 0) + 1;
-    const shouldFail = isInvalidImage || nextAttempts >= MAX_ATTEMPTS;
+    /*
+      Una caída de infraestructura NUNCA da la foto por perdida, y tampoco le gasta
+      intentos: un trabajo en `ERROR` no se vuelve a tomar —la cola sólo reclama los
+      `PENDING`—, así que agotarle el presupuesto mientras AWS está caído borra el análisis
+      de esa foto para siempre.
+
+      Pasó el 7/10/2026: el mensaje de la credencial vencida ("...the request is invalid")
+      contenía la palabra `invalid`, el clasificador viejo lo leyó como imagen ilegible y
+      2233 fotos de álbumes con pedidos pagados murieron en el primer intento.
+    */
+    const nextAttempts = isInfrastructure ? (job.attempts ?? 0) : (job.attempts ?? 0) + 1;
+    const shouldFail = kind === "PHOTO" || (!isInfrastructure && nextAttempts >= MAX_ATTEMPTS);
 
     await prisma.photoAnalysisJob.update({
       where: { id: job.id },
@@ -592,7 +641,15 @@ async function processJob(
         status: shouldFail ? "ERROR" : "PENDING",
         attempts: nextAttempts,
         lastError: message,
-        runAfter: shouldFail ? null : new Date(Date.now() + 10 * 60 * 1000),
+        /*
+          La marca exime a este trabajo del tope de antigüedad del cron. Una foto que no
+          se analizó porque se nos cayó la credencial no es vieja: es una que debemos.
+          Sin esto, la caída del 7/10/2026 dejaba 2000 fotos de álbumes pagados fuera del
+          alcance del cron al cumplir siete días — por un efecto colateral del tope, no
+          por una decisión.
+        */
+        infraFailureAt: isInfrastructure ? new Date() : null,
+        runAfter: shouldFail ? null : new Date(Date.now() + retryDelayMs(kind)),
         lockedAt: null,
       },
     });
@@ -601,7 +658,7 @@ async function processJob(
         where: { id: photoId },
         data: {
           analysisStatus: "ERROR",
-          analysisError: isInvalidImage ? `Imagen inválida o corrupta: ${message}` : message,
+          analysisError: kind === "PHOTO" ? `Imagen inválida o corrupta: ${message}` : message,
         },
       });
     }
@@ -611,6 +668,7 @@ async function processJob(
       photoId,
       jobId: job.id,
       error: message,
+      failure_kind: kind,
       retry_scheduled: !shouldFail,
     });
     return { ok: false, photoId, error: message, debugChecks };
@@ -761,6 +819,8 @@ export async function runAnalysisPipeline(options: RunOptions) {
                 firstPhotoDate: true,
                 expirationExtensionDays: true,
                 cleanupStatus: true,
+                type: true,
+                textSearchEnabled: true,
               },
             },
           },
@@ -779,7 +839,7 @@ export async function runAnalysisPipeline(options: RunOptions) {
             attempts: job.attempts ?? null,
             photo: job.photo,
           },
-          options.includeOcr,
+          options.ocrRequested,
           options.debug
         )
     );
@@ -802,7 +862,8 @@ export async function runAnalysisPipeline(options: RunOptions) {
       batch_size_config: batchSize,
       concurrency_config: concurrency,
       max_run_ms: maxRunMs,
-      ocr_skipped_in_primary_pipeline: !options.includeOcr,
+      // Ya no es un dato de la corrida sino de cada foto: acá se informa lo pedido.
+      ocr_requested: options.ocrRequested,
     });
   } while (
     shouldRunAnotherRound({

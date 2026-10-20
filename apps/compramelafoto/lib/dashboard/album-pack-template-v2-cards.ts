@@ -1,3 +1,4 @@
+import { miniaturaDePlantillaUrl } from "@/lib/design-v2/miniatura-url";
 import { prisma } from "@/lib/prisma";
 import { isTemplateDesignerMetaV2 } from "@/lib/dashboard/template-v2-design-meta";
 
@@ -68,7 +69,8 @@ async function hydrateTemplateV2Cards(
     }
 
     const preview = parsePreviewFromCanvas(canvasJson);
-    const thumbnailUrl = pickThumbFromMeta(metaJson ?? undefined);
+    // Sin imagen propia, la que dibuja el servidor: así todo el catálogo muestra el diseño.
+    const thumbnailUrl = pickThumbFromMeta(metaJson ?? undefined) ?? miniaturaDePlantillaUrl(row.id, row.currentVersionId);
     return {
       id: row.id,
       name: row.name,

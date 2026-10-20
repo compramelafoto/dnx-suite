@@ -198,6 +198,20 @@ export async function changeMemberStatusAction(
   return { error: null };
 }
 
+/** Los campos del club con turnos incluidos (Club VIP). Vacío = la categoría no incluye turnos. */
+function clubFields(formData: FormData) {
+  const entero = (k: string, defecto: number) => {
+    const n = Number(formData.get(k)?.toString() ?? "");
+    return Number.isFinite(n) && formData.get(k)?.toString().trim() ? Math.floor(n) : defecto;
+  };
+  return {
+    bookingCreditsPerPayment: entero("bookingCreditsPerPayment", 0),
+    bookingCreditValidityDays: entero("bookingCreditValidityDays", 30),
+    bookingCreditLabel: formData.get("bookingCreditLabel")?.toString()?.trim() || null,
+    selfRenew: formData.get("selfRenew") === "on",
+  };
+}
+
 export async function createMemberCategoryAction(
   _prev: MemberFormState | undefined,
   formData: FormData,
@@ -208,6 +222,7 @@ export async function createMemberCategoryAction(
     description: formData.get("description")?.toString()?.trim() || null,
     order: Number(formData.get("order")?.toString() ?? 0) || 0,
     isActive: formData.get("isActive") === "on",
+    ...clubFields(formData),
   });
   if (!parsed.success) {
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
@@ -236,6 +251,7 @@ export async function updateMemberCategoryAction(
     description: formData.get("description")?.toString()?.trim() || null,
     order: Number(formData.get("order")?.toString() ?? 0) || 0,
     isActive: formData.get("isActive") === "on",
+    ...clubFields(formData),
   });
   if (!parsed.success) {
     return { error: "Revisá los campos marcados.", fieldErrors: issuesToFieldErrors(parsed.error.issues) };
@@ -243,7 +259,12 @@ export async function updateMemberCategoryAction(
 
   let updated;
   try {
-    updated = await updateMemberCategory(workspace.id, id, parsed.data);
+    // Lo que se renueva cuando quiere no genera la cuota del día 1. Al destildarlo no se toca
+    // `generatesDues`: puede haber sido apagado a propósito (una categoría honoraria).
+    updated = await updateMemberCategory(workspace.id, id, {
+      ...parsed.data,
+      ...(parsed.data.selfRenew ? { generatesDues: false } : {}),
+    });
   } catch (e) {
     return { error: friendlyMemberCategoryError(e) };
   }

@@ -93,6 +93,10 @@ export type ReglaProyectoFormulario = {
   ownerUserId: string;
   daysFromEvent: string;
   nameTemplate: string;
+  /** Días hasta la entrega que propone el Mostrador, o "" = los del recorrido. */
+  plazoDias: string;
+  /** Id del proveedor por omisión, o "". */
+  proveedorId: string;
 };
 
 /** "Proyecto que genera" (Etapa 4): las reglas del producto. Exige `sales.catalog`, como los costos. */
@@ -109,6 +113,8 @@ export async function guardarReglasProyectoAction(productId: string, reglas: Reg
       ownerUserId: dueno === "" ? null : Number(dueno),
       daysFromEvent: diasTexto === "" ? 0 : Number(diasTexto),
       nameTemplate: String(r?.nameTemplate ?? ""),
+      plazoDias: String(r?.plazoDias ?? "").trim() === "" ? null : Number(String(r?.plazoDias).trim()),
+      proveedorId: String(r?.proveedorId ?? "").trim() || null,
     });
   }
   const res = await guardarReglas(workspace.id, String(productId), filas);

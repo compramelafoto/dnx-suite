@@ -23,8 +23,19 @@ describe("payload sanitizado para homologación", () => {
     assert.equal(body.items[0].category_id, "virtual_goods");
   });
 
-  it("no incluye additional_info, que Orders rechaza", () => {
-    assert.equal(body.additional_info, undefined);
+  it("lleva las señales antifraude con claves planas", () => {
+    assert.equal(body.additional_info["payer.authentication_type"], "WEB");
+    assert.equal(body.additional_info["payer.is_prime_user"], false);
+    assert.equal(body.additional_info["payer.is_first_purchase_online"], true);
+    assert.ok(body.additional_info["payer.registration_date"]);
+    assert.ok(body.additional_info["payer.last_purchase"]);
+    // El nodo anidado `payer` es de la API de Payments: Orders lo rechaza.
+    assert.equal(body.additional_info.payer, undefined);
+  });
+
+  it("lleva la dirección completa dentro de payer", () => {
+    assert.equal(body.payer.address.neighborhood, "Centro");
+    assert.equal(body.payer.address.city, "Rosario");
   });
 
   it("no filtra el token de tarjeta", () => {

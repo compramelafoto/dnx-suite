@@ -338,6 +338,7 @@ export default function PreventaPackBenefitsEditor({
             templateOptions={templateOptions}
             saving={benefitSaving}
             hideHeading
+            albumId={albumId}
             onCancel={() => {
               setEditingBenefit(null);
               setView("list");

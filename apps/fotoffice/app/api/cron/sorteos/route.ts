@@ -5,6 +5,7 @@ import { syncContactsAfterRosterClose } from "@/lib/contacts/after-raffle";
 import { resolveDueRaffles } from "@/lib/raffles/resolve";
 import { expireUnclaimedPrizes } from "@/lib/raffles/delivery";
 import { notifyPendingAwards } from "@/lib/raffles/notify";
+import { sendPendingInstitutionSummaries } from "@/lib/raffles/institution-summary";
 import { sendPendingRaffleResults } from "@/lib/raffles/results-mail";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
@@ -26,6 +27,9 @@ export const maxDuration = 300;
  *
  * Después del sorteo sale el correo con los resultados a todos los socios activos
  * (`sendPendingRaffleResults`), repartido en varias pasadas si son muchos.
+ *
+ * Con los avisos ya intentados sale el resumen con los ganadores a la propia institución
+ * (`sendPendingInstitutionSummaries`), que dice cuáles avisos salieron y cuáles no.
  *
  * Los avisos se reintentan solos: `notifyPendingAwards` sólo marca como enviado lo que salió,
  * así que un correo que rebotó vuelve a intentarse en la pasada siguiente.
@@ -49,6 +53,14 @@ export async function POST(request: Request) {
     const contactos = await syncContactsAfterRosterClose(sellado.workspacesSellados);
     const sorteado = await resolveDueRaffles();
     const avisos = await notifyPendingAwards();
+    // Aparte: si el resumen a la institución falla, el resto de la pasada sigue igual.
+    let resumen: Awaited<ReturnType<typeof sendPendingInstitutionSummaries>> | { error: string };
+    try {
+      resumen = await sendPendingInstitutionSummaries();
+    } catch (error) {
+      console.error("[fotoffice][sorteos] falló el resumen a la institución", { detalle: sanitizeError(error) });
+      resumen = { error: "falló el resumen a la institución" };
+    }
     const vencidos = await expireUnclaimedPrizes();
     // Último y aparte: es el paso más largo (un correo por socio) y si falla no puede impedir
     // que se sellen, resuelvan y avisen los sorteos de la pasada.
@@ -59,7 +71,7 @@ export async function POST(request: Request) {
       console.error("[fotoffice][sorteos] falló el envío de resultados", { detalle: sanitizeError(error) });
       resultados = { error: "falló el envío de resultados" };
     }
-    return NextResponse.json({ ok: true, mensual, sellado, contactos, sorteado, avisos, vencidos, resultados });
+    return NextResponse.json({ ok: true, mensual, sellado, contactos, sorteado, avisos, resumen, vencidos, resultados });
   } catch (error) {
     console.error("[fotoffice][sorteos] falló la tarea programada", {
       detalle: sanitizeError(error),

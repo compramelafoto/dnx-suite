@@ -115,6 +115,17 @@ export function createClickatonTemplateExampleData(
         "Una comunidad que recorre, crea y muestra la ciudad desde nuevas miradas.",
       callToAction: "Compartí tu placa",
     },
+    diploma: {
+      code: "DIP-CK1-0042",
+      issuedAtFormatted: "22/09/2026",
+      accreditedAtFormatted: "19/09/2026, 16:30",
+      verificationUrl: "https://maratonfotografica.com/diplomas/verificar/AB12CD34",
+      position: "4",
+      positionOrdinal: "4.º",
+      rankingTotal: "26",
+      score: "7,20",
+      category: "Titanic",
+    },
   };
 
   const merged = deepMerge(nested, overrides);

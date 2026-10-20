@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { hasModuleLevel } from "@/lib/permissions/module-access";
-import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { canAdministerCards } from "@/lib/carnet/operators";
 import { requestPrintedCard } from "@/lib/carnet/print-order";
 
 export type IssuePrepaidCardResult =
@@ -23,9 +22,9 @@ export async function issuePrepaidCardAction(memberId: string): Promise<IssuePre
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
 
-  const puede = await hasModuleLevel(user.id, workspace.id, MEMBERS_MODULE_KEY, "MANAGE");
+  const puede = await canAdministerCards(user.id, workspace.id);
   if (!puede) {
-    return { ok: false, error: "Solo el dueño o un administrador puede emitir carnets." };
+    return { ok: false, error: "Solo quien administra los carnets puede emitirlos." };
   }
 
   const r = await requestPrintedCard({

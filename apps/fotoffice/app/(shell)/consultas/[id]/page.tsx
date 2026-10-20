@@ -38,6 +38,8 @@ import { TIPO_CONSULTA, tituloDeConsulta } from "@/lib/service-leads/numero";
 import { requireServiceLeadsStaff } from "@/lib/service-leads/access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
+import { botEnPanel } from "@/lib/dnx-bot/panel";
+import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
 import { eventosDePresupuestos } from "@/lib/presupuestos/historial";
 
@@ -57,7 +59,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   const { id } = await params;
   if (!ID_VALIDO.test(id)) notFound();
 
-  const [ficha, role] = await Promise.all([cargarFicha(workspace.id, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
+  const [ficha, role, bot] = await Promise.all([cargarFicha(workspace.id, id, new Date()), resolveWorkspaceRole(user.id, workspace.id), botEnPanel()]);
   if (!ficha) notFound();
   // Recién con la consulta verificada en el workspace de la sesión: sus cambios de "Más datos", sus
   // mensajes y su número.
@@ -155,9 +157,19 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
         title={tituloDeConsulta(consulta.nombre, numeros.get(id))}
         description={datosConsulta ? datosConsulta.categoria.nombre : evento}
         actions={
-          <Link href="/consultas" className="fo-btn fo-btn-secondary text-sm">
-            Volver a Consultas
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {/* DNX Bot (etapa 3): sólo si está encendido para el workspace. */}
+            {bot?.capacidades.verConsultas ? (
+              <PreguntaleAlBot
+                etiqueta="Preguntale al bot"
+                mensaje="Ayudame a responder esta consulta."
+                contexto={{ pantalla: "consulta", consultaLeadId: id }}
+              />
+            ) : null}
+            <Link href="/consultas" className="fo-btn fo-btn-secondary text-sm">
+              Volver a Consultas
+            </Link>
+          </div>
         }
       />
 

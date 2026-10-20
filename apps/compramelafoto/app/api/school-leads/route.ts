@@ -3,6 +3,17 @@ import { Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { sendEmail } from "@/emails/send";
+import {
+  DNX_ESCOLAR_SOURCE,
+  buildDnxEscolarLeadEmail,
+  buildPhotographerEscolarLeadEmail,
+  buildSchoolLeadNotes,
+  sanitizeLevels,
+  sanitizeSource,
+  sanitizeUtm,
+} from "@/lib/dnx-escolar/lead-notes";
+import { sanitizePhotographerHandler } from "@/lib/dnx-escolar/landing-brand";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +62,72 @@ function normalizeApproxStudents(value: unknown): number | null {
   if (!Number.isFinite(parsed)) return null;
   const intParsed = Math.floor(parsed);
   return intParsed >= 0 ? intParsed : null;
+}
+
+/**
+ * Aviso a la casilla de DNX. Nunca rompe la solicitud: el lead ya quedó guardado.
+ * `sendEmail` de emails/send.ts registra el envío en SentEmailLog; si falta RESEND_API_KEY
+ * o EMAIL_FROM tira antes de enviar, y eso se loguea acá.
+ */
+async function notifyDnxEscolarLead(lead: Parameters<typeof buildDnxEscolarLeadEmail>[0]): Promise<void> {
+  const to = process.env.DNX_ESCOLAR_LEADS_EMAIL?.trim() || "dnxfotografia@gmail.com";
+  try {
+    const { subject, html } = buildDnxEscolarLeadEmail(lead);
+    const result = await sendEmail({
+      to,
+      subject,
+      html,
+      replyTo: lead.email ?? undefined,
+      templateKey: "SCHOOL_LEAD_DNX",
+    });
+    if (!result.success) {
+      console.error("POST /api/school-leads: no se pudo enviar el aviso a DNX", { leadId: lead.leadId, error: result.error });
+    }
+  } catch (err) {
+    console.error("POST /api/school-leads: falló el aviso a DNX", { leadId: lead.leadId, err });
+  }
+}
+
+type EscolarPhotographer = { id: number; email: string; name: string | null; companyName: string | null; role: Role };
+
+/**
+ * Fotógrafo dueño de la landing `/<handler>/escolar`: las mismas condiciones con las que se
+ * sirve la página (handler, página pública encendida y rol PHOTOGRAPHER).
+ */
+async function findEscolarPhotographer(handler: string): Promise<EscolarPhotographer | null> {
+  return prisma.user.findFirst({
+    where: { publicPageHandler: handler, isPublicPageEnabled: true, role: Role.PHOTOGRAPHER },
+    select: { id: true, email: true, name: true, companyName: true, role: true },
+  });
+}
+
+/** Aviso al fotógrafo. Igual que el de DNX: nunca rompe la solicitud ya guardada. */
+async function notifyPhotographerEscolarLead(
+  photographer: EscolarPhotographer,
+  handler: string,
+  lead: Parameters<typeof buildDnxEscolarLeadEmail>[0],
+): Promise<void> {
+  const to = photographer.email?.trim();
+  if (!to) return;
+  try {
+    const { subject, html } = buildPhotographerEscolarLeadEmail({
+      ...lead,
+      photographerName: photographer.companyName?.trim() || photographer.name?.trim() || "fotógrafo",
+      photographerHandler: handler,
+    });
+    const result = await sendEmail({
+      to,
+      subject,
+      html,
+      replyTo: lead.email ?? undefined,
+      templateKey: "SCHOOL_LEAD_PHOTOGRAPHER",
+    });
+    if (!result.success) {
+      console.error("POST /api/school-leads: no se pudo avisar al fotógrafo", { leadId: lead.leadId, error: result.error });
+    }
+  } catch (err) {
+    console.error("POST /api/school-leads: falló el aviso al fotógrafo", { leadId: lead.leadId, err });
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -102,6 +179,17 @@ export async function POST(req: NextRequest) {
   }
 
   const data = parsed.data;
+  // Campos opcionales de la landing /dnx/escolar. Se limpian en vez de rechazar: un valor
+  // inválido se descarta y la solicitud sigue (las de /escuelas no los mandan).
+  const levels = sanitizeLevels((payload as { levels?: unknown }).levels);
+  const source = sanitizeSource((payload as { source?: unknown }).source);
+  const utm = sanitizeUtm((payload as { utm?: unknown }).utm);
+  // Landing escolar de un fotógrafo: si el handler no corresponde a una landing activa, la
+  // solicitud se guarda igual, sin asignarla a nadie (queda para el admin en /admin/escuelas).
+  const requestedHandler = sanitizePhotographerHandler((payload as { photographerHandler?: unknown }).photographerHandler);
+  const photographer = requestedHandler ? await findEscolarPhotographer(requestedHandler) : null;
+  const photographerHandler = photographer ? requestedHandler : null;
+  const notes = buildSchoolLeadNotes({ source, photographerHandler, levels, utm });
   const normalizedWhatsapp = normalizeWhatsapp(data.whatsapp);
   if (countDigits(normalizedWhatsapp) < 8) {
     return NextResponse.json({ error: "Ingresá un WhatsApp válido." }, { status: 400 });
@@ -110,7 +198,11 @@ export async function POST(req: NextRequest) {
   let referredByUserId: number | null = null;
   let referrerRole: Role | null = null;
 
-  if (data.referralCode) {
+  if (photographer) {
+    // La solicitud llegó por la landing del fotógrafo: es suya (la ve en su panel).
+    referredByUserId = photographer.id;
+    referrerRole = photographer.role;
+  } else if (data.referralCode) {
     const referralOwner = await prisma.referralCode.findFirst({
       where: {
         code: data.referralCode,
@@ -143,9 +235,29 @@ export async function POST(req: NextRequest) {
         referralCode: data.referralCode || null,
         referredByUserId,
         referrerRole,
+        notes,
       },
       select: { id: true },
     });
+
+    const leadForEmail = {
+      leadId: created.id,
+      schoolName: data.schoolName,
+      city: data.city,
+      contactName: data.contactName,
+      email: normalizeOptionalString(data.email),
+      phone: normalizedWhatsapp,
+      approxStudents: typeof data.approxStudents === "number" ? data.approxStudents : null,
+      levels,
+      message: normalizeOptionalString(data.message),
+      utm,
+    };
+
+    if (photographer && photographerHandler) {
+      await notifyPhotographerEscolarLead(photographer, photographerHandler, leadForEmail);
+    } else if (source === DNX_ESCOLAR_SOURCE) {
+      await notifyDnxEscolarLead(leadForEmail);
+    }
 
     return NextResponse.json({ ok: true, leadId: created.id });
   } catch (err) {

@@ -11,6 +11,8 @@ import { isOverdueUnpaid } from "@/lib/finance-dnx/due-date";
 import type { VendorJson } from "@/lib/finance-dnx/vendor-json";
 import type { ExpenseEntryJson } from "@/lib/finance-dnx/expense-json";
 import type { ExpenseStatus } from "@repo/finance-control";
+import MailConnections from "./MailConnections";
+import MailReviewInbox from "./MailReviewInbox";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -107,6 +109,7 @@ function formDesdeEntry(entry: ExpenseEntryJson): FormState {
 export default function FinanzasDnxGastosPage() {
   const [year, setYear] = useState(AHORA.getFullYear());
   const [month, setMonth] = useState(AHORA.getMonth() + 1);
+  const [mailRefresh, setMailRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<ExpenseEntryJson[]>([]);
@@ -508,7 +511,17 @@ export default function FinanzasDnxGastosPage() {
                   );
                   return (
                     <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.vendor?.name}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                        {entry.vendor?.name}
+                        {entry.source === "MAIL" && (
+                          <span className="ml-2 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                            Automático
+                          </span>
+                        )}
+                        {entry.invoiceNumber && (
+                          <span className="block text-xs font-normal text-gray-500">Factura {entry.invoiceNumber}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-900 text-right">
                         {(entry.amountOriginalMinor / 100).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                       </td>
@@ -674,6 +687,9 @@ export default function FinanzasDnxGastosPage() {
           </div>
         </form>
       </Card>
+
+      <MailConnections onSynced={() => setMailRefresh((n) => n + 1)} />
+      <MailReviewInbox refreshKey={mailRefresh} />
     </div>
   );
 }

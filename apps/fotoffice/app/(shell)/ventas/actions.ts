@@ -10,7 +10,9 @@ import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-cat
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
 import { findProductByCode, listProducts, type ProductByCode, type ProductRow } from "@/lib/sales/repository";
-import { validateTicket } from "@/lib/sales/ticket";
+import { ticketTotals, validateTicket } from "@/lib/sales/ticket";
+import { confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp } from "@/lib/sales/verificar-pago-servidor";
+import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
 import {
   buildTicketLines,
   resolveCheckoutClientInput,
@@ -236,6 +238,10 @@ export type CheckoutInput = {
   paymentMethod: string;
   note: string;
   client: RawCheckoutClient;
+  /** El cobro de Mercado Pago que "Verificar pago" encontró para este ticket (opcional). */
+  mpPaymentId?: string | null;
+  /** La order del QR del mostrador ya pagada (opcional). */
+  mpOrderId?: string | null;
 };
 
 export type CheckoutResult =
@@ -316,7 +322,20 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
   const client = resolveCheckoutClientInput(input.client);
-  const note = input.note.trim();
+  let note = input.note.trim();
+
+  // Pago verificado en Mercado Pago: se reserva antes de registrar (una transferencia, una venta).
+  let reservaId: string | null = null;
+  if (input.mpPaymentId || input.mpOrderId) {
+    if (paymentMethod !== "TRANSFERENCIA" && paymentMethod !== "MERCADO_PAGO") {
+      return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
+    }
+    const reserva = await reservarCobroMp(workspace.id, user.id, input, ticketTotals(armado.lines, input.discountMinor).totalMinor);
+    if (!reserva) return { ok: false, error: "Falta el pago verificado." };
+    if (!reserva.ok) return { ok: false, error: reserva.error };
+    reservaId = reserva.reservaId;
+    note = [note, notaDePagoVerificado(reserva.pago)].filter(Boolean).join(" — ");
+  }
 
   try {
     const venta = await prisma.$transaction((tx) =>
@@ -332,8 +351,10 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
       }),
     );
     revalidatePath("/ventas");
+    if (reservaId) await confirmarUsoPagoMp(reservaId, `Venta #${venta.saleNumber}`);
     return { ok: true, saleNumber: venta.saleNumber, deposited: venta.deposited };
   } catch (e) {
+    if (reservaId) await liberarPagoMp(reservaId);
     console.error("[fotoffice][ventas] error al cobrar", e);
     return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };
   }

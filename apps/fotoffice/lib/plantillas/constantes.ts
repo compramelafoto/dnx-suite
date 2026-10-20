@@ -14,8 +14,11 @@ export type Canal = (typeof CANALES)[number];
  * código, recordatorio y firmado). Los textos de los contratos mismos NO viven acá: están en
  * `FotofficeContratoPlantilla` (Configuración → Contratos → Plantillas) y usan su propio catálogo de variables
  * (`lib/contratos/variables.ts`).
+ * GALERIA (etapa 7) tampoco es una ficha: reserva el tipo de los correos automáticos de una galería (el
+ * enlace al cliente y la copia de la selección enviada), con las variables comunes más las de la galería
+ * (`[galeria_enlace]`, etc.).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO", "GALERIA"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -43,10 +46,20 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   los correos del circuito de firma a cada firmante (enlace, código de verificación, recordatorio y
  *   PDF firmado). Son transaccionales: sin el freno de 24 h por dirección, con el tope diario de
  *   automáticos. Los manda `lib/contratos/correos.ts`; el del código NO guarda el código en el registro.
+ * - `GALERIA_ENVIO`, `GALERIA_SELECCION_ENVIADA` y `GALERIA_COMPRA_PAGADA` (etapa 7, Galería): el enlace personal
+ *   de la galería al cliente, la copia de la selección que envió (con la cantidad) y la confirmación de las
+ *   fotos extra que pagó (con la cantidad y el total). Son transaccionales: sin el
+ *   freno de 24 h por dirección, con el tope diario de automáticos. Los manda `lib/galerias/correos.ts`.
+ * - `GALERIA_ENTREGA_ENVIO` y `GALERIA_DESCARGA_LISTA` (etapa 7, Entrega B): el enlace de una galería de ENTREGA (fotos
+ *   y videos listos para ver y bajar) y el aviso de que la descarga completa en ZIP ya está lista (con su vencimiento).
+ * - `GALERIA_ALBUM_RONDA` (etapa 7, Entrega C): el aviso a cada cliente de un álbum de que hay una ronda nueva de láminas para
+ *   revisar (con la nota del estudio y su enlace).
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
   "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
+  "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA", "GALERIA_ENTREGA_ENVIO", "GALERIA_DESCARGA_LISTA",
+  "GALERIA_ALBUM_RONDA",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
@@ -60,6 +73,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   PEDIDO: "Pedido",
   CITA: "Cita",
   CONTRATO: "Contrato",
+  GALERIA: "Galería",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

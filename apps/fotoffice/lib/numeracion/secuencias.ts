@@ -13,7 +13,7 @@ import { formatearNumero, validarConfigSecuencia, type ConfigSecuencia } from ".
 
 type Cliente = Prisma.TransactionClient | typeof prisma;
 
-export const CLAVES_SECUENCIA = ["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO", "RECIBO"] as const;
+export const CLAVES_SECUENCIA = ["CONSULTA", "PRESUPUESTO", "PEDIDO", "CONTRATO", "PROYECTO", "RECIBO", "GALERIA"] as const;
 export type ClaveSecuencia = (typeof CLAVES_SECUENCIA)[number];
 
 /** Todas con año y 4 dígitos ("2026-0001"): cada 1° de enero (hora de Argentina) vuelven a 0001. */
@@ -26,6 +26,8 @@ export const SECUENCIAS_INICIALES: Record<ClaveSecuencia, ConfigSecuencia> = {
   PROYECTO: CON_ANIO,
   /** Recibos X internos de los cobros de pedidos (etapa 3). */
   RECIBO: CON_ANIO,
+  /** Galerías de fotos de los proyectos (etapa 7). */
+  GALERIA: CON_ANIO,
 };
 
 export const MENSAJES_NUMERACION = {

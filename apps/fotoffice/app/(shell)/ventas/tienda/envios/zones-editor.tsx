@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { PROVINCES } from "@/lib/store/shipping/provinces";
 import { MAX_ZONE_NAME } from "@/lib/store/shipping/zone-form";
 import { deleteShippingZoneAction, saveShippingZoneAction, type ShippingActionResult } from "./actions";
@@ -220,14 +221,12 @@ function ZoneForm({ zone, onDone }: { zone: ZoneView | null; onDone: () => void 
               aria-label="Peso máximo en gramos"
             />
             <span>gramos →</span>
-            <span>$</span>
-            <input
+            <InputMoneda
               name="ratePrice"
-              className="fo-input w-32"
+              wrapperClassName="w-32"
               value={f.price}
-              onChange={(e) => cambiarFila(f.key, "price", e.target.value)}
-              inputMode="decimal"
-              placeholder="3500"
+              onChange={(valor) => cambiarFila(f.key, "price", valor)}
+              placeholder="3.500"
               aria-label="Precio en pesos"
             />
             {filas.length > 1 ? (

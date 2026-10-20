@@ -293,10 +293,10 @@ describe("payload completo para homologación", () => {
     assert.equal(body.payer.address.street_name, "Córdoba");
     assert.equal(body.payer.address.street_number, "1234");
 
-    assert.equal(
-      body.additional_info,
-      undefined,
-      "Orders rechaza additional_info: el payload no debe incluirlo",
-    );
+    // Claves planas: el nodo anidado `payer` lo rechaza Orders.
+    assert.equal(body.additional_info["payer.authentication_type"], "Gmail");
+    assert.equal(body.additional_info["payer.is_prime_user"], false);
+    assert.equal(body.additional_info["payer.is_first_purchase_online"], true);
+    assert.equal(body.additional_info.payer, undefined);
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { PRINTED_CARD_PERIOD } from "./approve";
 import { decimalArsToMinor } from "./money";
-import { buildMembershipWelcomeEmail } from "./application-emails";
+import { buildClubWelcomeEmail, buildMembershipWelcomeEmail } from "./application-emails";
 import { getDuesSettings } from "./settings";
 import { issueDigitalCard } from "@/lib/carnet/issue";
 import { issuePrepaidPrintedCard } from "@/lib/carnet/prepaid-card";
@@ -97,6 +97,15 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
       memberNumber: true,
       avatarUrl: true,
       userId: true,
+      category: {
+        select: {
+          name: true,
+          selfRenew: true,
+          bookingCreditsPerPayment: true,
+          bookingCreditValidityDays: true,
+          bookingCreditLabel: true,
+        },
+      },
     },
   });
   if (!socio) return { completed: true };
@@ -152,7 +161,22 @@ async function completar(memberId: string): Promise<{ completed: boolean }> {
       to: socio.email,
       templateKey: MEMBERSHIP_EMAIL_KEYS.WELCOME,
       userId: socio.userId,
-      body: buildMembershipWelcomeEmail({
+      // Un club que se renueva cuando quiere (el VIP) no es una sociedad: su bienvenida habla
+      // de lo que incluye y de cómo renovar, no de número de socio ni de estar al día.
+      body: socio.category?.selfRenew
+        ? buildClubWelcomeEmail({
+            firstName: socio.firstName,
+            institution: organizationName,
+            membershipName: socio.category.name,
+            includedLabel:
+              socio.category.bookingCreditsPerPayment > 0
+                ? `${socio.category.bookingCreditsPerPayment} ${socio.category.bookingCreditLabel?.trim() || "turnos"} para usar en los próximos ${socio.category.bookingCreditValidityDays} días`
+                : null,
+            portalUrl: `${base}/portal`,
+            hasAccount: socio.userId !== null,
+            signature,
+          })
+        : buildMembershipWelcomeEmail({
         firstName: socio.firstName,
         institution: organizationName,
         memberNumber: socio.memberNumber,

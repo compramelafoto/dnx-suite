@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   assertClfOrdersWebhookAllowed,
   buildClfFetchCanonicalOrder,
+  destinoDelAviso,
 } from "./orders-webhook";
 
 const OBSERVE = "DNX_MP_ORDERS_1N_WEBHOOK_OBSERVE_ENABLED";
@@ -61,5 +62,18 @@ describe("CLF webhook `order` — guards", () => {
       const built = buildClfFetchCanonicalOrder();
       assert.ok(built === null || typeof built === "function");
     });
+  });
+});
+
+describe("CLF webhook `order` — aviso a Muestras", () => {
+  it("una orden nueva de venta de obras de Muestras se avisa", () => {
+    assert.equal(destinoDelAviso("processed", "muestras-venta-abcd1234abcd1234"), "muestras");
+  });
+
+  it("los duplicados, otras referencias o sin referencia, no", () => {
+    assert.equal(destinoDelAviso("duplicate", "muestras-venta-abcd1234abcd1234"), null);
+    assert.equal(destinoDelAviso("processed", "clf-homologacion-123"), null);
+    assert.equal(destinoDelAviso("processed", null), null);
+    assert.equal(destinoDelAviso("processed", undefined), null);
   });
 });

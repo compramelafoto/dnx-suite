@@ -68,6 +68,21 @@ export type CuantoCobroProfileInput = {
     | "established"
     | "high-demand"
     | "";
+  /**
+   * Precio completo (FOTOFFICE, 15/10/2026): impuestos, comisión, seña, recargos, viáticos, seguro,
+   * retoque, inflación, mínimo y cancelación. Opcional: sin él, el motor da lo mismo que antes.
+   */
+  pricingExtras?: import("./pricing-extras/types").CuantoCobroPricingExtras;
+  /**
+   * Cámaras además de la principal (FOTOFFICE, 16/10/2026). La principal sigue en `primaryCamera*` y es
+   * la cámara #1 (id "primary"). Opcional: sin ella, todo igual que antes.
+   */
+  cameras?: import("./cameras").CuantoCobroCamera[];
+  /**
+   * «Mi estudio» (FOTOFFICE, 16/10/2026): estructura de costos de un estudio con equipo. Opcional: sin
+   * ella, o con `enabled: false`, el motor da lo mismo que antes.
+   */
+  studioStructure?: import("./studio/types").CuantoCobroStudioStructure;
 };
 
 /** Tipo de concepto dentro de un presupuesto. */
@@ -113,6 +128,28 @@ export type CuantoCobroQuoteItem = {
   desiredMarginPercent: string;
   /** Plantilla de biblioteca de la que provino esta línea (sessionStorage). */
   libraryTemplateId?: string;
+  /**
+   * Cámara con la que se hacen los disparos (`estimatedShots`). Ausente o "primary" = la principal.
+   * En productos físicos el desgaste sólo se cuenta si este campo está (carnet: 3 disparos en la cámara 2).
+   */
+  cameraId?: string;
+  /** "unit" (por omisión, lo de siempre): disparos × cantidad. "job": disparos del trabajo entero. */
+  shotsPer?: "unit" | "job";
+  /**
+   * Mi estudio: quién hace cada parte. Horas-persona por unidad (dos fotógrafos 6 h = 12 h de
+   * cobertura). Lo asignado va a la tarifa de esa persona; lo que falta asignar, al valor hora del
+   * estudio. Sin el modo estudio se ignora.
+   */
+  assignments?: CuantoCobroQuoteAssignment[];
+};
+
+/** Actividades que se pueden asignar a una persona. */
+export type CuantoCobroAssignmentActivity = "coverage" | "editing" | "delivery" | "travel" | "production" | "management";
+
+export type CuantoCobroQuoteAssignment = {
+  personId: string;
+  activity: CuantoCobroAssignmentActivity;
+  hours: string;
 };
 
 /** Valores persistidos en plantillas de biblioteca (sin id ni vínculo). */
@@ -203,7 +240,31 @@ export type CuantoCobroQuoteInput = {
   paymentOptions: CuantoCobroPaymentOptionsInput;
   /** @future Borrador / enviado / aceptado / rechazado */
   status: CuantoCobroQuoteStatus;
+  /**
+   * Cómo se cuenta la cámara principal. Ausente = "per-job" (el modelo vigente).
+   * "legacy-structural" sólo para recalcular presupuestos guardados con el modelo anterior
+   * (ver `CameraWearModel`): no lo uses en presupuestos nuevos.
+   */
+  cameraWearModel?: CameraWearModel;
+  /** Ajustes del trabajo para el precio completo (fecha, exprés, viáticos, retoque…). Opcional. */
+  jobAdjustments?: import("./pricing-extras/types").CuantoCobroJobAdjustments;
+  /** Mi estudio: la línea del estudio de este trabajo (informativo; Caja lo usará para medir). */
+  businessLineId?: string;
 };
+
+/**
+ * - "per-job" (vigente desde 10/2026): la cámara principal NO entra en el valor hora; su desgaste se
+ *   cobra en cada trabajo (disparos estimados × valor de reposición / vida útil del obturador), como un
+ *   costo directo del servicio. La inversión mensual en equipo (u otros equipos del inventario) sigue
+ *   en el valor hora, aparte.
+ * - "legacy-structural": el modelo anterior. La cámara se convertía en renovación mensual (reemplazando
+ *   la inversión cargada a mano) y el desgaste por trabajo quedaba informativo.
+ */
+export type CameraWearModel = "per-job" | "legacy-structural";
+
+export function resolveCameraWearModel(quote?: { cameraWearModel?: unknown } | null): CameraWearModel {
+  return quote?.cameraWearModel === "legacy-structural" ? "legacy-structural" : "per-job";
+}
 
 export type CuantoCobroWizardState = {
   profile: CuantoCobroProfileInput;
@@ -519,6 +580,13 @@ export type CuantoCobroCalculationComplete = {
   equipmentSavings: EquipmentSavingsBreakdown;
   clientSummary: CuantoCobroClientCostSummary;
   quoteSummary: CuantoCobroQuoteSummary;
+  /**
+   * Desglose del precio completo. SÓLO aparece si el perfil tiene algo de `pricingExtras` que cambie
+   * el precio o el trabajo trae `jobAdjustments`; si no, la clave no existe (resultado idéntico al de antes).
+   */
+  priceBuildUp?: import("./pricing-extras/types").CuantoCobroPriceBuildUp;
+  /** Desglose de «Mi estudio». SÓLO aparece si el perfil está en modo estudio. */
+  studio?: import("./studio/types").CuantoCobroStudioBreakdown;
 };
 
 export type CuantoCobroCalculationIncomplete = {

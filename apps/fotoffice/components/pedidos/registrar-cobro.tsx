@@ -6,6 +6,7 @@ import { enlaceDelReciboAction, registrarCobroAction } from "@/app/actions/pedid
 import { subirAdjuntoConId } from "@/components/ficha/subir-adjunto";
 import { ETIQUETA_MEDIO_COBRO, MEDIOS_COBRO, type MedioCobro } from "@/lib/pedidos/constantes";
 import type { OpcionesEnvioPedido } from "@/lib/pedidos/envio";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { claveDeCobro, fechaCorta, importeSugerido, leerImporte, pesosPedido, sumarPesos, type CuotaParaCobro } from "@/lib/pedidos/pantalla";
 import { aCentavos } from "@/lib/pedidos/plan-cuotas";
 import { EnviarPedido } from "./enviar-pedido";
@@ -202,14 +203,13 @@ export function RegistrarCobro({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="fo-field-stack text-sm">
                 <span className="fo-label">Importe</span>
-                <input
-                  className="fo-input tabular-nums"
-                  inputMode="decimal"
+                <InputMoneda
+                  envio="coma"
                   value={importe}
-                  onChange={(e) => {
-                    setImporte(e.target.value);
+                  onChange={(valor) => {
+                    setImporte(valor);
                     if (aMano) {
-                      const n = leerImporte(e.target.value);
+                      const n = leerImporte(valor);
                       if (n !== null) setReparto(repartoInicial(cuotas, n));
                     }
                   }}
@@ -270,12 +270,13 @@ export function RegistrarCobro({
                         <td className="py-1 pr-2">{fechaCorta(c.dueDate)}</td>
                         <td className="py-1 pr-2 text-right tabular-nums">{pesosPedido(c.saldo)}</td>
                         <td className="py-1">
-                          <input
-                            className="fo-input w-32 tabular-nums"
-                            inputMode="decimal"
+                          <InputMoneda
+                            envio="coma"
+                            wrapperClassName="w-32"
+                            className="fo-input w-full"
                             aria-label={`Importe para la cuota ${c.position}`}
                             value={reparto[c.id] ?? ""}
-                            onChange={(e) => setReparto({ ...reparto, [c.id]: e.target.value })}
+                            onChange={(valor) => setReparto({ ...reparto, [c.id]: valor })}
                           />
                         </td>
                       </tr>

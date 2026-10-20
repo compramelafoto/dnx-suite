@@ -5,6 +5,7 @@ import { guardarPerfilAction, type EstadoDelPerfil } from "@/app/actions/perfil"
 import { aCentavos } from "@/lib/perfil";
 import { calcularVenta } from "@/lib/pagos/venta";
 import { formatearPesos } from "@/lib/precios";
+import { SubirBanner } from "./banner";
 import { SubirLogo } from "./logo";
 
 const ETIQUETA = "block text-sm font-extrabold";
@@ -19,6 +20,8 @@ type Perfil = {
   headline: string | null;
   description: string | null;
   logoUrl: string | null;
+  bannerUrl: string | null;
+  bannerLinkUrl: string | null;
   brandColor: string | null;
   basePriceCents: number;
   termsText: string | null;
@@ -36,11 +39,13 @@ export function FormularioPerfil({
   perfil,
   enlace,
   vistaDelLogo,
+  vistaDelBanner,
 }: {
   perfil: Perfil;
   enlace: string;
   /** Ya firmada por el servidor: el cliente no sabe firmar claves del bucket. */
   vistaDelLogo: string | null;
+  vistaDelBanner: string | null;
 }) {
   const [estado, accion, guardando] = useActionState<EstadoDelPerfil, FormData>(
     guardarPerfilAction,
@@ -141,6 +146,28 @@ export function FormularioPerfil({
       </div>
 
       <SubirLogo valorInicial={perfil.logoUrl ?? ""} vistaPreviaInicial={vistaDelLogo} />
+
+      <SubirBanner valorInicial={perfil.bannerUrl ?? ""} vistaPreviaInicial={vistaDelBanner} />
+
+      <div>
+        <label htmlFor="bannerLinkUrl" className="block text-sm font-extrabold">
+          A dónde lleva el banner
+        </label>
+        <input
+          id="bannerLinkUrl"
+          name="bannerLinkUrl"
+          type="url"
+          inputMode="url"
+          defaultValue={perfil.bannerLinkUrl ?? ""}
+          placeholder="https://instagram.com/tucuenta"
+          className="mt-3 w-full rounded-xl px-4 py-3"
+          style={{ border: "1px solid var(--slf-borde)" }}
+        />
+        <p className="mt-2 text-sm" style={{ color: "var(--slf-tinta-suave)" }}>
+          Opcional. Tiene que empezar con <code>https://</code>. Si lo dejás vacío, el
+          banner se muestra igual pero no se puede tocar.
+        </p>
+      </div>
 
       <div>
         <label htmlFor="brandColor" className={ETIQUETA}>

@@ -19,6 +19,7 @@ export { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlig
 export { TemplateEditorExitModal } from "./TemplateEditorExitModal";
 export { CanvasSizeModal } from "./CanvasSizeModal";
 export { CreateTemplateV2Button } from "./CreateTemplateV2Button";
+export { TemplateV2RowActions } from "./TemplateV2RowActions";
 export { GoogleFontsLoader } from "./GoogleFontsLoader";
 export { useTemplateEditorAutosave } from "./useTemplateEditorAutosave";
 export { useTemplateEditorHotkeys } from "./useTemplateEditorHotkeys";

@@ -1,0 +1,38 @@
+[
+  {
+    "archivo": "01-comision.png",
+    "ruta": "/workspace/configuracion/comision",
+    "que_mostrar": "Título Comisión directiva, las pestañas Integrantes, Cargos y Roles, el botón Sumar integrante y las primeras tarjetas de integrantes. Requiere entrar como dueño o administrador de SFPR.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-sumar-integrante.png",
+    "ruta": "/workspace/configuracion/comision",
+    "que_mostrar": "Tocar Sumar integrante para abrir el formulario: ¿Quién? (Es socio / No es socio), buscador del padrón, Cargo, casillas de Roles y fechas Desde/Hasta. NO tocar Sumar a la comisión (manda un correo a la persona).",
+    "selector_recorte": "form.fo-card"
+  },
+  {
+    "archivo": "03-editar-integrante.png",
+    "ruta": "/workspace/configuracion/comision",
+    "que_mostrar": "En la tarjeta de un integrante, tocar Editar para ver las casillas de roles, las fechas y Guardar cambios. No guardar.",
+    "selector_recorte": "li.fo-card"
+  },
+  {
+    "archivo": "04-roles.png",
+    "ruta": "/workspace/configuracion/comision/roles",
+    "que_mostrar": "Pestaña Roles con el botón Nuevo rol y la lista de roles, cada uno con cuántas personas lo tienen y los botones Editar permisos, Duplicar y Archivar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "05-permisos-rol.png",
+    "ruta": "/workspace/configuracion/comision/roles/<id-de-un-rol>",
+    "que_mostrar": "Editor de un rol (por ejemplo Tesorería o Presidencia): Nombre del rol, Descripción y la grilla Qué puede hacer en cada parte del panel. Que se vea al menos una fila en Gestionar con su casilla de acción delicada. No guardar.",
+    "selector_recorte": "fieldset.fo-card"
+  },
+  {
+    "archivo": "06-cargos.png",
+    "ruta": "/workspace/configuracion/comision/cargos",
+    "que_mostrar": "Pestaña Cargos: texto explicativo y las primeras tarjetas de cargos (Presidente, Vicepresidente…) con Nombre del cargo, la casilla Integra la comisión y vota y los botones Guardar, Subir, Bajar y Archivar.",
+    "selector_recorte": null
+  }
+]

@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { cargarInformes } from "@/lib/pedidos/informes-datos";
 import { ETIQUETA_TRAMO, TRAMOS, mesAnterior, mesSiguiente, pesosInforme } from "@/lib/pedidos/informes";
 import { requirePedidos } from "@/lib/pedidos/pagina";
+import { contextoDeInformes } from "@/lib/informes/acceso";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,8 @@ export default async function InformesPage({
   const datos = await cargarInformes(ctx, sp.mes);
   const { aCobrar, cobrado, aPagar, mes, hoy } = datos;
   const esActual = mes === hoy.slice(0, 7);
+  // El enlace a Informes sólo si el módulo está encendido y esta persona puede verlo.
+  const verInformes = (await contextoDeInformes()) !== null;
 
   return (
     <div className="space-y-6">
@@ -55,9 +58,16 @@ export default async function InformesPage({
         title="Informes"
         description="Lo que hay para cobrar, lo cobrado en el mes y lo que hay para pagar a proveedores."
         actions={
-          <Link href="/pedidos" className="fo-btn fo-btn-secondary text-sm">
-            Volver a Pedidos
-          </Link>
+          <>
+            {verInformes ? (
+              <Link href="/informes/flujo" className="fo-btn fo-btn-secondary text-sm">
+                Ver en Informes
+              </Link>
+            ) : null}
+            <Link href="/pedidos" className="fo-btn fo-btn-secondary text-sm">
+              Volver a Pedidos
+            </Link>
+          </>
         }
       />
       {datos.avisos.map((a) => (

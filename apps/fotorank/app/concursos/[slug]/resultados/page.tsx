@@ -1,3 +1,5 @@
+import { prisma } from "@repo/db";
+import { MuestrasDelConcurso } from "../../../components/contest-public/MuestrasDelConcurso";
 import { getPublicResultsPayload } from "../../../lib/fotorank/results/public-results-payload";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +26,22 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 
+/**
+ * El id del concurso para "Muestras del concurso" (el payload público no lo trae). Una consulta de
+ * sólo lectura que nunca rompe la página: ante un error, sin bloque.
+ */
+async function idDelConcurso(slug: string): Promise<string | null> {
+  try {
+    const c = await prisma.fotorankContest.findFirst({ where: { slug, visibility: "PUBLIC" }, orderBy: { createdAt: "desc" }, select: { id: true } });
+    return c?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function PublicContestResultsPage({ params }: Props) {
   const { slug } = await params;
-  const payload = await getPublicResultsPayload({ contestSlug: slug });
+  const [payload, contestId] = await Promise.all([getPublicResultsPayload({ contestSlug: slug }), idDelConcurso(slug)]);
 
   if (!payload.published) {
     return (
@@ -34,6 +49,7 @@ export default async function PublicContestResultsPage({ params }: Props) {
         <div className="mx-auto max-w-2xl space-y-4" data-testid="public-results-not-published">
           <h1 className="text-3xl font-semibold">Resultados</h1>
           <p className="text-fr-muted leading-relaxed">Resultados todavía no publicados.</p>
+          <MuestrasDelConcurso contestId={contestId} />
         </div>
       </main>
     );
@@ -83,6 +99,7 @@ export default async function PublicContestResultsPage({ params }: Props) {
             </div>
           </section>
         ))}
+        <MuestrasDelConcurso contestId={contestId} />
       </div>
     </main>
   );

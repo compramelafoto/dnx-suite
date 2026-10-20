@@ -49,6 +49,14 @@
       "schedule": "40 4 * * *"
     },
     {
+      "path": "/api/cron/galerias",
+      "schedule": "50 4 * * *"
+    },
+    {
+      "path": "/api/cron/galerias-zip",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/tienda",
       "schedule": "*/15 * * * *"
     },
@@ -71,6 +79,14 @@
     {
       "path": "/api/cron/contratos-recordatorios",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/alboom-extraccion",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/alboom-carga",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

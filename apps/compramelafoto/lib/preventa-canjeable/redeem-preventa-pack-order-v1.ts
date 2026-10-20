@@ -22,6 +22,7 @@ import {
 } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
 import type { DesignTemplateVersion } from "@/lib/design-v2/template";
 import { notifyPhotographerDesignToReview } from "@/lib/design-v2/notify";
+import { armarDisenosDelCanjeExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { ensureDigitalDelivery } from "@/lib/digital-delivery";
 
 export { PreventaPackRedeemValidationError };
@@ -142,6 +143,16 @@ async function persistSchoolSelectionsFromRedeem(
 
   const templateCache = new Map<string, DesignTemplateVersion | null>();
   const designContext = await loadSchoolDesignContext(tx, preCompraOrderId);
+  // Una foto no se repite en el canje, así que el encuadre se puede guardar por foto.
+  const cropsByPhotoId = new Map<number, { zoom: number; x: number; y: number }>();
+  for (const sel of selections) {
+    sel.units.forEach((unit, u) =>
+      unit.forEach((photoId, p) => {
+        const crop = sel.crops?.[u]?.[p];
+        if (crop) cropsByPhotoId.set(photoId, crop);
+      })
+    );
+  }
 
   for (const chunk of perItemPhotoIds) {
     if (chunk.photoIds.length === 0) continue;
@@ -209,6 +220,7 @@ async function persistSchoolSelectionsFromRedeem(
           context: designContext,
           redemptionOrderId,
           templateCache,
+          cropsByPhotoId,
         })
       : ({ outcome: "skipped", reason: "context_missing" } as const);
     if (designResult.outcome === "skipped") {
@@ -289,6 +301,7 @@ export async function executePreventaPackRedeemV1InTransaction(
       preventaPackSnapshotJson: true,
       organizerSchoolId: true,
       organizerReferralApplied: true,
+      isTest: true,
     },
   });
   if (!parent) {
@@ -494,6 +507,8 @@ export async function executePreventaPackRedeemV1InTransaction(
       redeemsOrderId: parent.id,
       organizerSchoolId: parent.organizerSchoolId,
       organizerReferralApplied: parent.organizerReferralApplied,
+      // El canje de un pack de prueba es de prueba: no entra en ventas ni en informes.
+      isTest: parent.isTest,
       pricingSnapshot: pricingSnapshot,
       items: {
         create: itemsToCreate,
@@ -555,6 +570,21 @@ export async function executePreventaPackRedeemV1(
     // El pedido de canje nace pagado sin pasar por el webhook de Mercado Pago, que es quien
     // normalmente prepara la entrega. Sin esto la familia canjea y nunca recibe sus fotos.
     // Fuera de la transacción y sin propagar el error: el canje ya está confirmado.
+    // Pack cobrado por fuera (sin pedido de la tienda escolar): el librito se arma acá. Sin
+    // propagar el error: el canje ya está confirmado y el diseño se puede volver a armar.
+    try {
+      await armarDisenosDelCanjeExterno({
+        preventaOrderId,
+        redemptionOrderId: resultado.redemptionOrderId,
+        selections,
+      });
+    } catch (err) {
+      console.error("[preventa_redeem] external_design_failed", {
+        redemptionOrderId: resultado.redemptionOrderId,
+        err,
+      });
+    }
+
     // Diseños armados en el canje: el fotógrafo tiene que enterarse para revisarlos.
     try {
       const designs = await prisma.designProject.findMany({

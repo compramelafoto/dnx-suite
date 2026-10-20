@@ -6,6 +6,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+/** Los intentos (IP hasheada, user-agent, resultado) se conservan 90 días y después se borran. */
+const ATTEMPT_RETENTION_DAYS = 90;
+const ATTEMPT_DELETE_BATCH = 500;
+const ATTEMPT_DELETE_MAX_BATCHES = 20;
+
 function isAuthorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
   const isVercelCron = req.headers.get("x-vercel-cron") === "1" && process.env.VERCEL === "1";
@@ -21,8 +26,10 @@ function isAuthorized(req: Request): boolean {
 
 /**
  * GET /api/cron/hidden-album-cleanup
- * Borra selfies expiradas de R2 y actualiza attempts (auditoría se mantiene).
- * No borra grants ni attempts; los grants expirados se ignoran al validar.
+ * 1) Borra selfies expiradas de R2 y limpia la clave en el attempt.
+ * 2) Borra attempts con más de 90 días (y, en cascada, su grant, que vence a los 30 min),
+ *    en lotes. No toca attempts que todavía tengan una selfie guardada: primero se borra
+ *    la selfie (paso 1) y el attempt se elimina en una corrida posterior.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -63,11 +70,30 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 2) Intentos viejos, en lotes acotados.
+    const attemptCutoff = new Date(now.getTime() - ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    let oldAttemptsDeleted = 0;
+    for (let batch = 0; batch < ATTEMPT_DELETE_MAX_BATCHES; batch++) {
+      const old = await prisma.hiddenAlbumAttempt.findMany({
+        where: { createdAt: { lt: attemptCutoff }, selfieObjectKey: null },
+        select: { id: true },
+        orderBy: { createdAt: "asc" },
+        take: ATTEMPT_DELETE_BATCH,
+      });
+      if (old.length === 0) break;
+      const r = await prisma.hiddenAlbumAttempt.deleteMany({
+        where: { id: { in: old.map((a) => a.id) }, selfieObjectKey: null },
+      });
+      oldAttemptsDeleted += r.count;
+      if (old.length < ATTEMPT_DELETE_BATCH) break;
+    }
+
     return NextResponse.json({
       ok: true,
       processed: expired.length,
       deletedFromR2: deleted,
       errors,
+      oldAttemptsDeleted,
     });
   } catch (err: any) {
     console.error("Error en hidden-album-cleanup:", err);

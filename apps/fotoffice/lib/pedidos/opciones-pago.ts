@@ -30,6 +30,7 @@ import {
   type CuantoCobroPaymentOptionsSnapshot,
 } from "@repo/cuanto-cobro-core/payment/payment-options-types";
 import { ID_OPCION_CONTADO, ID_OPCION_OMISION, MAX_CUOTAS_OMISION } from "./constantes";
+import { leerCondicionesCobro, type CondicionesCobro } from "@/lib/presupuestos/cobro";
 import { aCentavos, desdeCentavos, mesesCompletos, repartirImporte } from "./plan-cuotas";
 
 export type {
@@ -375,7 +376,67 @@ export type OpcionPago = {
   interes: number;
   nota: string;
   etiqueta: string;
+  /**
+   * Medio de pago (etapa B). null: cualquiera (sin descuento por transferencia, como antes).
+   * Con descuento, la opción base es "MERCADO_PAGO" y su variante `<id>~transferencia`, "TRANSFERENCIA".
+   */
+  medio: "MERCADO_PAGO" | "TRANSFERENCIA" | null;
+  /** Descuento por pagar por transferencia (0 en la opción base). */
+  descuentoTransferenciaPorcentaje: number;
 };
+
+/** Sufijo de la variante por transferencia de una opción. */
+export const SUFIJO_TRANSFERENCIA = "~transferencia";
+
+/** La instantánea con las condiciones de cobro congeladas (o sin ellas si son null). */
+export function conCondicionesCobro(
+  s: CuantoCobroPaymentOptionsSnapshot,
+  cobro: CondicionesCobro | null,
+): CuantoCobroPaymentOptionsSnapshot & { cobro?: CondicionesCobro } {
+  return cobro ? { ...s, cobro } : s;
+}
+
+/** Las condiciones de cobro congeladas en la instantánea, si hay. */
+export function condicionesDeInstantanea(s: unknown): CondicionesCobro | null {
+  return s && typeof s === "object" ? leerCondicionesCobro((s as { cobro?: unknown }).cobro) : null;
+}
+
+/** Sin Mercado Pago conectado sólo se ofrece lo que no necesita Mercado Pago. */
+export function opcionesSegunCobros(opciones: readonly OpcionPago[], mercadoPagoDisponible: boolean): OpcionPago[] {
+  return mercadoPagoDisponible ? [...opciones] : opciones.filter((o) => o.medio !== "MERCADO_PAGO");
+}
+
+/** Seña, saldo y cuotas del saldo de una opción (lo que se muestra; el plan real lo arma `planDesdeOpcion`). */
+export function resumenPlanOpcion(o: Pick<OpcionPago, "total" | "cuotas">, senaPorcentaje: number): { sena: number; saldo: number; cuotas: number; importeCuota: number } {
+  const total = aCentavos(o.total);
+  const sena = senaPorcentaje > 0 ? Math.round((total * Math.min(100, senaPorcentaje)) / 100) : 0;
+  const saldo = total - sena;
+  const n = Math.max(1, o.cuotas);
+  return { sena: desdeCentavos(sena), saldo: desdeCentavos(saldo), cuotas: n, importeCuota: repartirImporte(desdeCentavos(saldo), n)[0] ?? 0 };
+}
+
+function conDescuento(total: number, porcentaje: number): number {
+  return desdeCentavos(Math.round(aCentavos(total) * (1 - porcentaje / 100)));
+}
+
+function variantes(base: Omit<OpcionPago, "medio" | "descuentoTransferenciaPorcentaje">[], descuento: number): OpcionPago[] {
+  if (!(descuento > 0)) return base.map((o) => ({ ...o, medio: null, descuentoTransferenciaPorcentaje: 0 }));
+  return base.flatMap((o): OpcionPago[] => {
+    const total = conDescuento(o.total, descuento);
+    return [
+      { ...o, medio: "MERCADO_PAGO", descuentoTransferenciaPorcentaje: 0, etiqueta: `${o.etiqueta} · con Mercado Pago` },
+      {
+        ...o,
+        id: `${o.id}${SUFIJO_TRANSFERENCIA}`,
+        medio: "TRANSFERENCIA",
+        descuentoTransferenciaPorcentaje: descuento,
+        total,
+        importeCuota: repartirImporte(total, Math.max(1, o.cuotas))[0] ?? total,
+        etiqueta: `${o.etiqueta} · por transferencia o efectivo (${formatoPorcentaje(descuento)} % de descuento)`,
+      },
+    ];
+  });
+}
 
 function etiquetaPlan(plan: CuantoCobroPaymentOptionsInstallmentSnapshot): string {
   if (plan.id === ID_OPCION_OMISION) return textoOpcionPorOmision(plan.numberOfInstallments);
@@ -390,7 +451,7 @@ function formatoPorcentaje(n: number): string {
 
 /** Contado primero y después los planes, en el orden guardado. La primera es la de por omisión al aceptar. */
 export function opcionesDeInstantanea(snapshot: CuantoCobroPaymentOptionsSnapshot): OpcionPago[] {
-  const opciones: OpcionPago[] = [];
+  const opciones: Omit<OpcionPago, "medio" | "descuentoTransferenciaPorcentaje">[] = [];
   if (snapshot.cash?.enabled) {
     const c = snapshot.cash;
     opciones.push({
@@ -420,7 +481,7 @@ export function opcionesDeInstantanea(snapshot: CuantoCobroPaymentOptionsSnapsho
       etiqueta: etiquetaPlan(p),
     });
   }
-  return opciones;
+  return variantes(opciones, condicionesDeInstantanea(snapshot)?.descuentoTransferenciaPorcentaje ?? 0);
 }
 
 /** La opción con ese id; sin id (o vacío), la primera. null si el id no está en la instantánea. */

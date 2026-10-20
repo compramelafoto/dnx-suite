@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { guardarBorradorAction } from "@/app/actions/presupuestos";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import type { Descuento, ItemPresupuesto, ModoPrecio, TipoDescuento } from "@/lib/presupuestos/constantes";
 import {
   ajustadosIniciales,
@@ -16,6 +17,7 @@ import {
   type DatosEditor,
 } from "@/lib/presupuestos/editor";
 import { calcularTotales } from "@/lib/presupuestos/totales";
+import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { AsistenteCuantoCobro } from "./asistente-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
 import { PanelCuantoCobro } from "./panel-cuanto-cobro";
@@ -39,6 +41,30 @@ const TEXTO_SIN_SECCION = "Sin sección";
 function aNumero(v: string): number {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Precio unitario con "$" y punto de miles. Guarda lo escrito ("1500.50") mientras coincida con el
+ * número del ítem, para que un cero decimal a medio escribir no se pierda; si el precio cambia desde
+ * afuera (catálogo, "¿Cuánto Cobro?"), muestra el nuevo.
+ */
+function CampoPrecio({ precio, onCambio, disabled, "aria-label": etiqueta }: { precio: number; onCambio: (n: number) => void; disabled?: boolean; "aria-label": string }) {
+  const [escrito, setEscrito] = useState<string | null>(null);
+  const valor = escrito !== null && aNumero(escrito) === precio ? escrito : precio;
+  return (
+    <InputMoneda
+      envio="punto"
+      aria-label={etiqueta}
+      wrapperClassName="w-32"
+      className="fo-input w-full text-right"
+      value={valor}
+      disabled={disabled}
+      onChange={(v) => {
+        setEscrito(v);
+        onCambio(aNumero(v));
+      }}
+    />
+  );
 }
 
 /** Las secciones en el orden en que aparecen por primera vez. */
@@ -97,7 +123,16 @@ function DescuentoCampos({ valor, onCambio, etiqueta }: { valor: Descuento | nul
 const guardadosRecientes = new Map<string, number>();
 const RECIENTE_MS = 10_000;
 
-export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor; puedeGuardar: boolean }) {
+export function EditorPresupuesto({
+  datos,
+  puedeGuardar,
+  botPresupuestoId = null,
+}: {
+  datos: DatosEditor;
+  puedeGuardar: boolean;
+  /** Con DNX Bot encendido (y `configurar`): el presupuesto para «Calcular con el bot». */
+  botPresupuestoId?: string | null;
+}) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [items, setItems] = useState<ItemPresupuesto[]>(datos.items);
@@ -169,6 +204,8 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
         condiciones,
         propuestaPago,
         ...(datos.opcionesPago ? { opcionesPago } : {}),
+        // No pisar un borrador que cambió mientras el editor estaba abierto (por ejemplo, DNX Bot).
+        ...(datos.control ? { control: datos.control } : {}),
       }).catch(() => ({ ok: false as const, error: "No se pudo guardar. Probá de nuevo." }));
       if (r.ok) {
         guardadosRecientes.set(datos.presupuestoId, Date.now());
@@ -217,6 +254,13 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                 <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setAsistente(true)}>
                   Armar con ¿Cuánto Cobro?
                 </button>
+                {botPresupuestoId ? (
+                  <PreguntaleAlBot
+                    etiqueta="Calcular con el bot"
+                    mensaje="Quiero sumar ítems calculados a este presupuesto."
+                    contexto={{ pantalla: "presupuesto", presupuestoId: botPresupuestoId }}
+                  />
+                ) : null}
               </>
             ) : null}
           </div>
@@ -369,16 +413,13 @@ export function EditorPresupuesto({ datos, puedeGuardar }: { datos: DatosEditor;
                               />
                             </td>
                             <td className="py-2 pr-2">
-                              <input
+                              <CampoPrecio
                                 aria-label={`Precio unitario de ${etiquetaFila}`}
-                                type="number"
-                                min={0}
-                                className="fo-input w-32 text-right"
-                                value={it.precioUnitario}
+                                precio={it.precioUnitario}
                                 disabled={!puedeGuardar}
-                                onChange={(e) => {
+                                onCambio={(n) => {
                                   if (calculado) marcarAjuste(it.id, true);
-                                  actualizar(it.id, { precioUnitario: aNumero(e.target.value) });
+                                  actualizar(it.id, { precioUnitario: n });
                                 }}
                               />
                             </td>

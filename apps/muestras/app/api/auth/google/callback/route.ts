@@ -118,7 +118,7 @@ export async function GET(req: Request) {
 
     // El `next` ya se filtró al iniciar el ingreso, pero se vuelve a filtrar acá: es lo que
     // efectivamente se usa para redirigir, y el costo de repetirlo es nulo.
-    const destino = rutaInternaSegura(transito.next) ?? "/mis-muestras";
+    const destino = rutaInternaSegura(transito.next) ?? "/panel";
     const respuesta = NextResponse.redirect(new URL(destino, origin));
 
     respuesta.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {

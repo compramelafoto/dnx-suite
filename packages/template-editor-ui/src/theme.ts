@@ -47,12 +47,40 @@ export type TemplateEditorTokenName =
 export type TemplateEditorTheme = Partial<Record<TemplateEditorTokenName, string>>;
 
 /**
- * Valores por omisión: grises neutros y un acento sobrio.
+ * Valores por omisión: tema oscuro al estilo de los programas de edición de imagen (Photoshop,
+ * Lightroom). El gris carbón deja que la pieza sea lo único claro de la pantalla, y el ojo juzga
+ * mejor los colores de la pieza contra un entorno neutro y oscuro.
  *
  * No son los de ninguna aplicación a propósito. Un host que no mapee nada tiene que verse
- * intencional, no como si le faltara algo.
+ * intencional, no como si le faltara algo. El pliego no usa estos colores: es papel.
  */
 export const DEFAULT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
+  void: "#262626",
+  chrome: "#323232",
+  chromeSunken: "#2a2a2a",
+  surface: "#3a3a3a",
+  line: "#454545",
+  lineStrong: "#5c5c5c",
+  ink: "#e6e6e6",
+  // Contraste mínimo 4,5:1 sobre los paneles (#323232) para el texto secundario.
+  inkMuted: "#b4b4b4",
+  inkFaint: "#a3a3a3",
+  accent: "#3b8eea",
+  accentInk: "#ffffff",
+  accentWash: "rgba(59, 142, 234, 0.22)",
+  danger: "#f2726c",
+  dangerWash: "rgba(242, 114, 108, 0.14)",
+  success: "#5cc07a",
+  radius: "3px",
+  control: "28px",
+};
+
+/**
+ * El tema claro que el editor tenía antes del oscuro. Lo usan los componentes del paquete que
+ * viven fuera del editor, en páginas claras de cada app (el botón "Crear plantilla" de la
+ * lista): con el tema oscuro su menú quedaba como una mancha negra en una página blanca.
+ */
+export const LIGHT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
   void: "#5b6068",
   chrome: "#f7f8f9",
   chromeSunken: "#eef0f2",
@@ -68,8 +96,27 @@ export const DEFAULT_EDITOR_THEME: Record<TemplateEditorTokenName, string> = {
   danger: "#b4242a",
   dangerWash: "#fdf0f0",
   success: "#3f8f57",
-  radius: "6px",
-  control: "30px",
+  radius: "4px",
+  control: "28px",
+};
+
+/**
+ * Colores claros que rigen dentro del pliego. El pliego es papel: los recuadros de ejemplo, los
+ * textos sin color propio y los tiradores de selección tienen que verse sobre blanco igual que
+ * siempre, aunque el marco del editor sea oscuro. El acento no se toca: la selección sigue siendo
+ * del color del editor.
+ */
+export const PAPER_TOKENS: Record<string, string> = {
+  "--te-chrome": "#f7f8f9",
+  "--te-chrome-sunken": "#eef0f2",
+  "--te-surface": "#ffffff",
+  "--te-line": "#dfe2e6",
+  "--te-line-strong": "#c7ccd3",
+  "--te-ink": "#16181d",
+  "--te-ink-muted": "#666d78",
+  "--te-ink-faint": "#949aa4",
+  colorScheme: "light",
+  color: "#111827",
 };
 
 const CSS_VAR: Record<TemplateEditorTokenName, string> = {
@@ -98,8 +145,28 @@ const CSS_VAR: Record<TemplateEditorTokenName, string> = {
  * Se aplican inline y no por hoja de estilos para no depender del orden de la cascada: el
  * paquete no controla en qué momento carga el CSS de cada aplicación.
  */
-export function editorThemeStyle(theme?: TemplateEditorTheme): CSSProperties {
-  const style: Record<string, string> = {};
+/**
+ * Escala de redondeo propia del editor. Tailwind resuelve `rounded-md`, `rounded-xl`, etc. con
+ * variables `--radius-*` que cada app redefine: en CompraMeLaFoto `rounded-md` valía 16 px y el
+ * editor entero se veía hecho de píldoras, el pliego incluido. Redefinirlas en la raíz del
+ * editor hace que se vea igual en todas las apps.
+ */
+const EDITOR_RADIUS_SCALE: Record<string, string> = {
+  "--radius-xs": "2px",
+  "--radius-sm": "3px",
+  "--radius-md": "4px",
+  "--radius-lg": "5px",
+  "--radius-xl": "6px",
+  "--radius-2xl": "8px",
+  "--radius-3xl": "10px",
+};
+
+export function editorThemeStyle(
+  theme?: TemplateEditorTheme,
+  scheme: "dark" | "light" = "dark"
+): CSSProperties {
+  // Los controles nativos (desplegables, selector de color, barras de scroll) siguen al tema.
+  const style: Record<string, string> = { ...EDITOR_RADIUS_SCALE, colorScheme: scheme };
   for (const [name, cssVar] of Object.entries(CSS_VAR) as [
     TemplateEditorTokenName,
     string,

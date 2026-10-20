@@ -19,7 +19,7 @@ export async function completePreventaRedemption(
 ): Promise<{ downloadUrl: string | null }> {
   const order = await prisma.order.findUnique({
     where: { id: redemptionOrderId },
-    select: { origin: true, createdAt: true, items: { select: { productType: true } } },
+    select: { origin: true, createdAt: true, isTest: true, items: { select: { productType: true } } },
   });
   if (!order) return { downloadUrl: null };
 
@@ -36,15 +36,19 @@ export async function completePreventaRedemption(
     });
   }
 
-  try {
-    await runAlbumOrderPaidSideEffects({
-      orderId: redemptionOrderId,
-      origin: order.origin,
-      items: order.items,
-      paymentRef: `CANJE-PREVENTA-${packOrderId}`,
-    });
-  } catch (err) {
-    console.error("[preventa_redeem] side_effects_failed", { redemptionOrderId, err });
+  // Canje de prueba del fotógrafo (pedido DEMO): ni comprobante a la "familia", ni WhatsApp,
+  // ni aviso de pedido nuevo. La descarga se prepara igual, para verla en Pedidos.
+  if (!order.isTest) {
+    try {
+      await runAlbumOrderPaidSideEffects({
+        orderId: redemptionOrderId,
+        origin: order.origin,
+        items: order.items,
+        paymentRef: `CANJE-PREVENTA-${packOrderId}`,
+      });
+    } catch (err) {
+      console.error("[preventa_redeem] side_effects_failed", { redemptionOrderId, err });
+    }
   }
 
   if (!order.items.some((i) => i.productType === "DIGITAL")) return { downloadUrl: null };

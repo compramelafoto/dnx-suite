@@ -20,6 +20,9 @@ const PROTECTED_PREFIXES = [
   "/members",
   "/website",
   "/admin",
+  // Sin sesión, el login vuelve a la pantalla del portal que se pidió (p. ej. "Presentar un
+  // proyecto" desde la página Institucional) en vez de dejar al socio en el inicio.
+  "/portal",
 ];
 
 const FOTOFFICE_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim().replace(/\/+$/, "");

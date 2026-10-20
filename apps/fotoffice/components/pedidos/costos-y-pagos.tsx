@@ -14,6 +14,7 @@ import { claseDeColorEtiqueta, fechaHoraBA } from "@/lib/ficha/formato";
 import { ETIQUETA_MEDIO_COBRO, MEDIOS_COBRO, esMedioCobro, type MedioCobro } from "@/lib/pedidos/constantes";
 import type { CuentaVista, OpcionProveedor } from "@/lib/pedidos/cuentas-pagar";
 import { COLOR_ESTADO_CUENTA, ETIQUETA_ESTADO_CUENTA, type Margenes } from "@/lib/pedidos/cuentas-pagar-estado";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { fechaCorta, leerImporte, pesosPedido } from "@/lib/pedidos/pantalla";
 
 const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
@@ -295,13 +296,7 @@ export function CostosYPagos({
             </label>
             <label className="fo-field-stack">
               <span className="fo-label">Importe</span>
-              <input
-                className="fo-input tabular-nums"
-                inputMode="decimal"
-                value={borrador.importe}
-                onChange={(e) => setBorrador({ ...borrador, importe: e.target.value })}
-                required
-              />
+              <InputMoneda envio="coma" value={borrador.importe} onChange={(valor) => setBorrador({ ...borrador, importe: valor })} required />
             </label>
             <label className="fo-field-stack">
               <span className="fo-label">Vencimiento (opcional)</span>

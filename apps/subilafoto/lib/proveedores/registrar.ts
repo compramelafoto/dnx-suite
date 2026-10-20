@@ -47,6 +47,13 @@ export type DatosDelProveedor = {
   aceptaContacto: boolean;
   /** Autoriza que le lleguen oportunidades y novedades. Es aparte, y puede ser que no. */
   aceptaNovedades: boolean;
+  /*
+    El banner del proveedor, para el pie del teléfono del invitado. Es lo que recibe a
+    cambio de completar la ficha: hasta ahora era un renglón al pie del álbum, que casi
+    nadie abre. Ver `lib/banners-rotativos.ts`.
+  */
+  bannerUrl?: string | null;
+  bannerLinkUrl?: string | null;
 };
 
 export type ResultadoDelAlta =
@@ -166,6 +173,8 @@ export async function registrarProveedor(
         partnerId,
         category: datos.categoria,
         roleNote: limpio(datos.contactoRol),
+        bannerUrl: datos.bannerUrl ?? null,
+        bannerLinkUrl: datos.bannerLinkUrl ?? null,
         completedAt: new Date(),
       },
     ],

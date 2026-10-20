@@ -22,6 +22,7 @@ import PhotographerDashboardHeader from "@/components/photographer/PhotographerD
 import PreventaPackDashboardSection from "@/components/dashboard/preventa-packs/PreventaPackDashboardSection";
 import AlbumUpsellConfigCard from "@/components/dashboard/preventa-packs/AlbumUpsellConfigCard";
 import PreventaAvisoFamiliasCard from "@/components/dashboard/preventa-packs/PreventaAvisoFamiliasCard";
+import ProbarComoClienteButton from "@/components/dashboard/preventa-packs/ProbarComoClienteButton";
 import AlbumStudentRosterSection from "@/components/dashboard/album-school/AlbumStudentRosterSection";
 import AlbumSchoolOperationsSection from "@/components/dashboard/album-school/AlbumSchoolOperationsSection";
 import AlbumPacksSection from "@/components/dashboard/album-packs/AlbumPacksSection";
@@ -139,6 +140,7 @@ type Album = {
   hiddenSelfieRetentionDays?: number | null;
   showComingSoonMessage?: boolean;
   scanProtectionEnabled?: boolean;
+  textSearchEnabled?: boolean | null;
   preCompraCloseAt?: string | null;
   requireClientApproval?: boolean;
   schoolId?: number | null;
@@ -314,6 +316,8 @@ export default function DashboardAlbumDetailPage() {
   const [hiddenSelfieRetentionDays, setHiddenSelfieRetentionDays] = useState("");
   const [showComingSoonMessage, setShowComingSoonMessage] = useState(false);
   const [scanProtectionEnabled, setScanProtectionEnabled] = useState(true);
+  // `null` = nunca se tocó: la lectura de texto la decide el tipo de álbum.
+  const [textSearchEnabled, setTextSearchEnabled] = useState<boolean | null>(null);
   const [savedConfigSnapshot, setSavedConfigSnapshot] =
     useState<AlbumConfigFormSnapshot | null>(null);
   const [configTouched, setConfigTouched] = useState(false);
@@ -333,6 +337,7 @@ export default function DashboardAlbumDetailPage() {
       hiddenSelfieRetentionDays,
       showComingSoonMessage,
       scanProtectionEnabled,
+      textSearchEnabled,
     }),
     [
       title,
@@ -343,6 +348,7 @@ export default function DashboardAlbumDetailPage() {
       hiddenSelfieRetentionDays,
       showComingSoonMessage,
       scanProtectionEnabled,
+      textSearchEnabled,
     ]
   );
   const configHasUnsavedChanges = hasUnsavedAlbumConfigChanges(
@@ -1102,6 +1108,7 @@ export default function DashboardAlbumDetailPage() {
       );
       setShowComingSoonMessage(Boolean(data.showComingSoonMessage));
       setScanProtectionEnabled(data.scanProtectionEnabled !== false);
+      setTextSearchEnabled(data.textSearchEnabled ?? null);
       setSavedConfigSnapshot({
         title: data.title || "",
         location: data.location || "",
@@ -1114,6 +1121,7 @@ export default function DashboardAlbumDetailPage() {
           data.hiddenSelfieRetentionDays != null ? String(data.hiddenSelfieRetentionDays) : "",
         showComingSoonMessage: Boolean(data.showComingSoonMessage),
         scanProtectionEnabled: data.scanProtectionEnabled !== false,
+        textSearchEnabled: data.textSearchEnabled ?? null,
       });
       setConfigSavedNotice(false);
       setConfigTouched(false);
@@ -1895,6 +1903,7 @@ export default function DashboardAlbumDetailPage() {
             : parseInt(hiddenSelfieRetentionDays, 10) || null,
         showComingSoonMessage,
         scanProtectionEnabled,
+        textSearchEnabled,
       };
 
       const res = await fetch(`/api/dashboard/albums/${albumId}`, {
@@ -1953,6 +1962,7 @@ export default function DashboardAlbumDetailPage() {
           data.hiddenSelfieRetentionDays != null ? String(data.hiddenSelfieRetentionDays) : "",
         showComingSoonMessage: Boolean(data.showComingSoonMessage),
         scanProtectionEnabled: data.scanProtectionEnabled !== false,
+        textSearchEnabled: data.textSearchEnabled ?? null,
       });
 
       if (!data._warning && !data._hiddenAnalysisQueued) {
@@ -2116,6 +2126,11 @@ export default function DashboardAlbumDetailPage() {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center justify-end gap-2">
+                  <ProbarComoClienteButton
+                    albumId={album.id}
+                    variant="header"
+                    onIrAPreventa={() => changeAlbumTab("preventa")}
+                  />
                   <button
                     type="button"
                     onClick={() => changeAlbumTab("configuracion")}
@@ -2266,6 +2281,8 @@ export default function DashboardAlbumDetailPage() {
                 onCoverChanged={handleCoverChanged}
                 scanProtectionEnabled={scanProtectionEnabled}
                 onScanProtectionChange={onConfigField(setScanProtectionEnabled)}
+                textSearchEnabled={textSearchEnabled}
+                onTextSearchChange={onConfigField(setTextSearchEnabled)}
                 albumMode={albumMode}
                 albumModeSaving={albumModeSaving}
                 saving={configSaving}
@@ -2366,6 +2383,8 @@ export default function DashboardAlbumDetailPage() {
                 </div>
 
                 <PreventaAvisoFamiliasCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} />
+
+                <ProbarComoClienteButton albumId={album.id} />
 
                 <PreventaPackDashboardSection
                   albumId={album.id}

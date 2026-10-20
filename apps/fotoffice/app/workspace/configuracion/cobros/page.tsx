@@ -12,6 +12,9 @@ import { getPlatformFeeBpsByModule } from "@/lib/platform-fee/store";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { prisma } from "@repo/db";
+import { leerQrMostrador } from "@/lib/sales/qr-mp-servidor";
+import { QrMostrador } from "./qr-mostrador";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +34,13 @@ export default async function CobrosPage({
   if (!workspace) redirect("/workspace");
 
   const params = await searchParams;
-  const [collection, canManage, feeByModule, vocabulary] = await Promise.all([
+  const [collection, canManage, feeByModule, vocabulary, qr, branding] = await Promise.all([
     getWorkspaceCollectionStatus(workspace.id),
     canManageWorkspaceCollection(user.id, workspace.id),
     getPlatformFeeBpsByModule(workspace.id, [MEMBERS_MODULE_KEY]),
     loadPersonVocabulary(workspace.id),
+    leerQrMostrador(workspace.id),
+    prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId: workspace.id }, select: { commercialName: true, city: true } }),
   ]);
 
   const copy = collectionCopy(collection.status, collection.mode);
@@ -127,6 +132,24 @@ export default async function CobrosPage({
             {copy.actionLabel}
           </Link>
         )}
+      </section>
+
+      <section className="fo-card space-y-3 p-5">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">QR del mostrador</h2>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Un QR fijo de Mercado Pago para el local: al cobrar en el Mostrador, el cliente lo escanea y ve el monto ya cargado. Mercado Pago cobra
+            su comisión por cada pago con QR; la transferencia al alias no tiene comisión.
+          </p>
+        </div>
+        <QrMostrador
+          activo={qr.activo}
+          qrImage={qr.activo ? qr.qrImage : null}
+          qrPdf={qr.activo ? qr.qrPdf : null}
+          puedeActivar={canManage}
+          conectado={collection.status !== "NOT_CONNECTED"}
+          inicial={{ nombre: branding?.commercialName ?? workspace.name, ciudad: branding?.city ?? "" }}
+        />
       </section>
 
       <section className="fo-card space-y-2 p-5">

@@ -7,6 +7,7 @@ import type { AvailabilityInput, SpaceRules, WeeklyHour } from "./availability";
 import type { Commitment, ExtraDefinition } from "./extras";
 import { BOOKINGS_TIME_ZONE, type Interval } from "./time";
 import { esPricingMode, type PricingMode } from "./pricing";
+import { bookingWording, normalizeAgendaKind, type AgendaKind, type BookingWording } from "./wording";
 
 /**
  * Única puerta a las tablas de reservas.
@@ -38,6 +39,11 @@ export type SpaceRecord = {
   nonMemberBlockPriceMinor: number;
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
+  /** Parte de cada turno para quien atiende, en centésimos de punto. Ver `settlement.ts`. */
+  professionalShareBps: number;
+  professionalUserId: number | null;
+  /** Si acá se pueden usar los turnos incluidos del club (Club VIP). */
+  acceptsClubCredits: boolean;
   googleCalendarId: string | null;
   weeklyHours: WeeklyHour[];
 };
@@ -65,6 +71,9 @@ type FilaEspacio = {
   nonMemberBlockPriceArs: { toString(): string };
   memberFreeHoursPerMonth: number;
   allowsNonMembers: boolean;
+  professionalShareBps: number;
+  professionalUserId: number | null;
+  acceptsClubCredits: boolean;
   googleCalendarId: string | null;
   hours: { weekday: number; startMinute: number; endMinute: number }[];
 };
@@ -101,6 +110,9 @@ function toRecord(fila: FilaEspacio): SpaceRecord {
     nonMemberBlockPriceMinor: decimalArsToMinor(fila.nonMemberBlockPriceArs),
     memberFreeHoursPerMonth: fila.memberFreeHoursPerMonth,
     allowsNonMembers: fila.allowsNonMembers,
+    professionalShareBps: fila.professionalShareBps ?? 0,
+    professionalUserId: fila.professionalUserId ?? null,
+    acceptsClubCredits: fila.acceptsClubCredits ?? true,
     googleCalendarId: fila.googleCalendarId,
     weeklyHours: fila.hours,
   };
@@ -263,15 +275,38 @@ export async function listBookingsInRange(
   })) as unknown as BookingRow[];
 }
 
+export type BookingSettingsValues = {
+  holdHours: number;
+  cancelWindowHours: number;
+  agendaKind: AgendaKind;
+  resourceSingular: string | null;
+  resourcePlural: string | null;
+};
+
 /** Sin fila configurada rigen los valores por defecto. No se crea nada al leer. */
-export async function getBookingSettings(
-  workspaceId: string,
-): Promise<{ holdHours: number; cancelWindowHours: number }> {
+export async function getBookingSettings(workspaceId: string): Promise<BookingSettingsValues> {
   const fila = await prisma.bookingSettings.findUnique({
     where: { workspaceId },
-    select: { holdHours: true, cancelWindowHours: true },
+    select: {
+      holdHours: true,
+      cancelWindowHours: true,
+      agendaKind: true,
+      resourceSingular: true,
+      resourcePlural: true,
+    },
   });
-  return { holdHours: fila?.holdHours ?? 24, cancelWindowHours: fila?.cancelWindowHours ?? 24 };
+  return {
+    holdHours: fila?.holdHours ?? 24,
+    cancelWindowHours: fila?.cancelWindowHours ?? 24,
+    agendaKind: normalizeAgendaKind(fila?.agendaKind),
+    resourceSingular: fila?.resourceSingular ?? null,
+    resourcePlural: fila?.resourcePlural ?? null,
+  };
+}
+
+/** Los textos de la agenda pública de la institución (ver `wording.ts`). */
+export async function getBookingWording(workspaceId: string): Promise<BookingWording> {
+  return bookingWording(await getBookingSettings(workspaceId));
 }
 
 export type ExtraRecord = ExtraDefinition & {
@@ -357,4 +392,16 @@ export async function listResourceCommitments(
       units: l.unitsConsumed,
       range: { startAt: l.booking.startAt, endAt: l.booking.endAt },
     }));
+}
+
+
+/** Las personas del equipo de la institución, para vincular a cada profesional con su cuenta. */
+export async function listTeamPeople(workspaceId: string): Promise<{ id: number; name: string }[]> {
+  const filas = await prisma.workspaceMembership.findMany({
+    where: { workspaceId },
+    select: { user: { select: { id: true, name: true, email: true } } },
+  });
+  return filas
+    .map((f) => ({ id: f.user.id, name: f.user.name?.trim() || f.user.email }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
 }

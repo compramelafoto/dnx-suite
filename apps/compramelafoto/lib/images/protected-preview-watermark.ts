@@ -1,9 +1,5 @@
 import sharp from "sharp";
-import {
-  buildSvgEmbeddedFontDefs,
-  sanitizeWatermarkAscii,
-  watermarkFontFamilyCss,
-} from "@/lib/images/watermark-svg-font";
+import { sanitizeWatermarkAscii, watermarkTextPath } from "@/lib/images/watermark-svg-font";
 
 export type ProtectedPreviewWatermarkMode = "standard" | "strong";
 
@@ -44,15 +40,6 @@ export function getProtectedPreviewWatermarkMode(): ProtectedPreviewWatermarkMod
   return raw === "strong" ? "strong" : "standard";
 }
 
-function escapeXml(text: string): string {
-  return sanitizeWatermarkAscii(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
 function logProtectedPreview(event: Record<string, unknown>) {
   console.info(LOG_PREFIX, event);
 }
@@ -70,22 +57,14 @@ function buildTilePatternSvg(params: {
   const lineSpacing = Math.max(fontSize * 1.35, 18);
   const textRows = texts
     .map((text, i) => {
-      const safe = escapeXml(text);
       const y = fontSize * 1.1 + i * lineSpacing;
-      return `
-        <text
-          x="${Math.floor(patternSize * 0.06)}"
-          y="${y}"
-          font-family="${watermarkFontFamilyCss()}"
-          font-size="${fontSize}"
-          font-weight="600"
-          fill="white"
-          fill-opacity="${opacity}"
-          stroke="black"
-          stroke-width="${strokeWidth}"
-          stroke-opacity="${Math.min(0.4, opacity + 0.08)}"
-          paint-order="stroke fill"
-        >${safe}</text>`;
+      return watermarkTextPath({
+        text,
+        fontSize,
+        x: Math.floor(patternSize * 0.06),
+        y,
+        attrs: `fill="white" fill-opacity="${opacity}" stroke="black" stroke-width="${strokeWidth}" stroke-opacity="${Math.min(0.4, opacity + 0.08)}" paint-order="stroke fill"`,
+      });
     })
     .join("");
 
@@ -163,65 +142,51 @@ export function buildProtectedPreviewWatermarkSvg(params: {
   ].join("\n");
 
   const centerLines = ["ComprameLaFoto", "Vista previa - ComprameLaFoto", ...(photoLineRaw ? [photoLineRaw] : [])];
-  const centerTspans = centerLines
-    .map((line, i) => {
-      const dy = i === 0 ? 0 : centerFontSize * 1.12;
-      return `<tspan x="50%" dy="${dy}">${escapeXml(line)}</tspan>`;
-    })
+  const centerPaths = centerLines
+    .map((line, i) =>
+      watermarkTextPath({
+        text: line,
+        fontSize: centerFontSize,
+        x: width / 2,
+        y: height / 2 + i * centerFontSize * 1.12,
+        anchor: "middle",
+        baseline: "middle",
+        attrs: `fill="white" fill-opacity="${centerOpacity}" stroke="black" stroke-width="${Math.max(1, Math.floor(centerFontSize * 0.06))}" stroke-opacity="0.55" paint-order="stroke fill"`,
+      }),
+    )
     .join("");
 
   const cornerMarks = [
-    { x: "18%", y: "22%", rot: -24, text: "Vista previa", op: tileOpacityMid },
-    { x: "78%", y: "28%", rot: 18, text: "ComprameLaFoto", op: tileOpacityLow },
-    { x: "22%", y: "76%", rot: 20, text: "ComprameLaFoto", op: tileOpacityLow },
-    { x: "80%", y: "72%", rot: -20, text: "Vista previa", op: tileOpacityMid },
+    { x: 0.18, y: 0.22, rot: -24, text: "Vista previa", op: tileOpacityMid },
+    { x: 0.78, y: 0.28, rot: 18, text: "ComprameLaFoto", op: tileOpacityLow },
+    { x: 0.22, y: 0.76, rot: 20, text: "ComprameLaFoto", op: tileOpacityLow },
+    { x: 0.8, y: 0.72, rot: -20, text: "Vista previa", op: tileOpacityMid },
   ]
-    .map(
-      (m) => `
-    <text
-      x="${m.x}"
-      y="${m.y}"
-      transform="rotate(${m.rot} ${m.x} ${m.y})"
-      font-family="${watermarkFontFamilyCss()}"
-      font-size="${Math.max(10, fontSize - 1)}"
-      font-weight="600"
-      fill="white"
-      fill-opacity="${m.op}"
-      stroke="black"
-      stroke-width="${strokeWidth}"
-      stroke-opacity="0.35"
-      text-anchor="middle"
-      dominant-baseline="middle"
-      paint-order="stroke fill"
-    >${escapeXml(m.text)}</text>`
-    )
+    .map((m) => {
+      const x = width * m.x;
+      const y = height * m.y;
+      return `<g transform="rotate(${m.rot} ${x} ${y})">${watermarkTextPath({
+        text: m.text,
+        fontSize: Math.max(10, fontSize - 1),
+        x,
+        y,
+        anchor: "middle",
+        baseline: "middle",
+        attrs: `fill="white" fill-opacity="${m.op}" stroke="black" stroke-width="${strokeWidth}" stroke-opacity="0.35" paint-order="stroke fill"`,
+      })}</g>`;
+    })
     .join("");
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    ${buildSvgEmbeddedFontDefs()}
     ${patterns}
   </defs>
   <rect width="100%" height="100%" fill="url(#ppw-a)" />
   <rect width="100%" height="100%" fill="url(#ppw-b)" opacity="0.92" />
   <rect width="100%" height="100%" fill="url(#ppw-c)" opacity="0.85" />
   ${cornerMarks}
-  <text
-    x="50%"
-    y="50%"
-    font-family="${watermarkFontFamilyCss()}"
-    font-size="${centerFontSize}"
-    font-weight="normal"
-    fill="white"
-    fill-opacity="${centerOpacity}"
-    stroke="black"
-    stroke-width="${Math.max(1, Math.floor(centerFontSize * 0.06))}"
-    stroke-opacity="0.55"
-    text-anchor="middle"
-    dominant-baseline="middle"
-    paint-order="stroke fill"
-  >${centerTspans}</text>
+  ${centerPaths}
 </svg>`;
 
   return Buffer.from(svg, "utf8");

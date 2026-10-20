@@ -4,9 +4,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import BookPreview3D from "@/components/design-v2/BookPreview3D";
 import DesignEditor from "@/components/design-v2/DesignEditor";
-import { countClientPhotoInputs } from "@repo/template-editor-core";
+import {
+  CLASS_LIST_SAMPLE,
+  CLASS_LIST_VARIABLE_KEY,
+  countClientPhotoInputs,
+  serializeClassList,
+} from "@repo/template-editor-core";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import { isBookTemplate } from "@/lib/design-v2/book-leaves";
 import { buildInitialDesignData, type DesignV2Data } from "@/lib/design-v2/design-data";
 
 type AlbumOption = { id: number; title: string; photoCount: number };
@@ -26,6 +33,7 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
   const [data, setData] = useState<DesignV2Data | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [showBook, setShowBook] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -69,6 +77,7 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
 
   const needed = countClientPhotoInputs(template.slots);
   const photoById = new Map((albumPhotos ?? []).map((p) => [p.id, p]));
+  const pickedPhotos = picked.map((id) => ({ id, url: photoById.get(id)?.url ?? null }));
 
   function togglePhoto(id: number) {
     setPicked((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -86,6 +95,7 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
           "student.fullName": "Nombre del Alumno",
           "course.displayName": "5.º A",
           "school.name": "Escuela de prueba",
+          [CLASS_LIST_VARIABLE_KEY]: serializeClassList(CLASS_LIST_SAMPLE),
         },
       }),
     );
@@ -216,6 +226,11 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
             <Button size="sm" variant="primary" onClick={() => void downloadPdf()} disabled={downloading}>
               {downloading ? "Generando PDF…" : "Descargar PDF de prueba"}
             </Button>
+            {isBookTemplate(template) ? (
+              <Button size="sm" variant="secondary" onClick={() => setShowBook(true)}>
+                Ver librito en 3D
+              </Button>
+            ) : null}
             <Button size="sm" variant="secondary" onClick={() => setData(null)} disabled={downloading}>
               Cambiar fotos
             </Button>
@@ -227,12 +242,15 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
           <div className="mt-5">
             <DesignEditor
               template={template}
-              photos={picked.map((id) => ({ id, url: photoById.get(id)?.url ?? null }))}
+              photos={pickedPhotos}
               data={data}
               onChange={(next) => setData(next)}
               photosTitle="Fotos elegidas para la prueba"
             />
           </div>
+          {showBook ? (
+            <BookPreview3D template={template} photos={pickedPhotos} data={data} onClose={() => setShowBook(false)} />
+          ) : null}
         </>
       )}
     </div>

@@ -3,7 +3,7 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
+import { BLOG_PUBLIC_PAGE_KEY, INSTITUTIONAL_PUBLIC_SEGMENT } from "./constants";
 import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
@@ -111,6 +111,8 @@ export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
   { key: "raffles", moduleKey: RAFFLES_MODULE_KEY, path: "sorteos", label: "Sorteos" },
   { key: "coverages", moduleKey: COVERAGES_MODULE_KEY, path: "coberturas/solicitar", label: "Pedir cobertura" },
   { key: "entrar", moduleKey: null, path: "entrar", label: "Ingresar" },
+  // La comisión directiva que se carga en Configuración → Comisión, a la vista de todos.
+  { key: "institucional", moduleKey: null, path: INSTITUTIONAL_PUBLIC_SEGMENT, label: "Institucional" },
 ] as const;
 
 /** Las páginas opcionales disponibles con los módulos habilitados. */

@@ -1,3 +1,5 @@
+import { CLASS_LIST_VARIABLE_KEY, serializeClassList, type ClassListStudent } from "@repo/template-engine";
+
 /**
  * Los textos que llenan las variables de una plantilla (alumno, curso, escuela, comprador…).
  *
@@ -6,6 +8,13 @@
  */
 export type DesignValueSources = {
   studentName?: string | null;
+  /**
+   * Nombre y apellido por separado, para los formatos «Apellido, Nombre», «Nombre» y
+   * «Apellido». Sin ellos esos formatos usan su texto de respaldo: partir un nombre completo
+   * adivinando dónde termina el apellido saldría mal con los apellidos compuestos.
+   */
+  studentFirstName?: string | null;
+  studentLastName?: string | null;
   courseName?: string | null;
   schoolName?: string | null;
   schoolLogoUrl?: string | null;
@@ -14,6 +23,8 @@ export type DesignValueSources = {
   photographerLogoUrl?: string | null;
   eventDate?: Date | null;
   orderReference?: string | null;
+  /** Los alumnos del curso, para el bloque «Listado del curso». */
+  courseStudents?: ClassListStudent[] | null;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
@@ -29,14 +40,26 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
     const v = value?.trim();
     if (v) values[key] = v;
   };
-  put("student.fullName", src.studentName);
+  const first = src.studentFirstName?.trim() || "";
+  const last = src.studentLastName?.trim() || "";
+  put("student.fullName", src.studentName || [first, last].filter(Boolean).join(" "));
+  put("student.firstName", first);
+  put("student.lastName", last);
+  if (first && last) put("student.lastNameFirst", `${last}, ${first}`);
+  else put("student.lastNameFirst", last || first);
   put("course.displayName", src.courseName);
   put("school.name", src.schoolName);
+  // Curso y colegio en un mismo texto, en los dos órdenes. Si falta uno, va el que hay.
+  const curso = src.courseName?.trim() || "";
+  const colegio = src.schoolName?.trim() || "";
+  put("course.withSchool", [curso, colegio].filter(Boolean).join(" - "));
+  put("school.withCourse", [colegio, curso].filter(Boolean).join(" - "));
   put("branding.schoolLogoUrl", src.schoolLogoUrl);
   put("buyer.fullName", src.buyerName);
   put("photographer.displayName", src.photographerName);
   put("branding.photographerLogoUrl", src.photographerLogoUrl);
   put("order.referenceShort", src.orderReference);
+  if (src.courseStudents?.length) values[CLASS_LIST_VARIABLE_KEY] = serializeClassList(src.courseStudents);
   if (src.eventDate && !Number.isNaN(src.eventDate.getTime())) {
     put("event.dateFormatted", DATE_FORMAT.format(src.eventDate));
   }

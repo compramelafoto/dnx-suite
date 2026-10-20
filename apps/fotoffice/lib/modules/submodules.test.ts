@@ -198,11 +198,11 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
   });
 
   it("Reservas: espacios, extras y tarifas exigen bookings.configure; la agenda alcanza con ver", () => {
-    expect(hrefs("bookings", { levels: { bookings: "VIEW" }, actions: [] })).toEqual(["/reservas"]);
-    expect(hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [] })).toEqual(["/reservas"]);
+    expect(hrefs("bookings", { levels: { bookings: "VIEW" }, actions: [] })).toEqual(["/reservas", "/reservas/liquidaciones"]);
+    expect(hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [] })).toEqual(["/reservas", "/reservas/liquidaciones"]);
     expect(
       hrefs("bookings", { levels: { bookings: "MANAGE" }, actions: [BOOKINGS_CONFIGURE_ACTION] }),
-    ).toEqual(["/reservas", "/reservas/espacios", "/reservas/extras", "/reservas/configuracion"]);
+    ).toEqual(["/reservas", "/reservas/liquidaciones", "/reservas/espacios", "/reservas/extras", "/reservas/configuracion"]);
   });
 
   it("Sorteos: la lista y las entregas alcanzan con ver", () => {
@@ -293,5 +293,32 @@ describe("claimedPrefixes", () => {
     expect(cae("/members/123/edit")).toBe(true);
     expect(cae("/members/disenador")).toBe(false);
     expect(cae("/members/cuotas/configuracion")).toBe(false);
+  });
+});
+
+describe("Carnets dentro de Comunicación", () => {
+  const hrefs = (access: SubmoduleAccess) =>
+    submodulesFor("communications", access, SOCIO).map((i) => i.href);
+
+  it("lo ve el rol de Comunicación con la acción de carnets, sin gestionar Socios", () => {
+    const comunicacion: SubmoduleAccess = {
+      levels: { communications: "MANAGE", members: "VIEW" },
+      actions: ["communications.carnets"],
+    };
+    expect(hrefs(comunicacion)).toContain("/members/carnets");
+  });
+
+  it("sin la acción no aparece", () => {
+    expect(hrefs({ levels: { communications: "MANAGE", members: "VIEW" }, actions: [] })).not.toContain(
+      "/members/carnets",
+    );
+  });
+
+  it("a quien gestiona Socios no se le repite: ya lo tiene en Socios", () => {
+    const admin: SubmoduleAccess = {
+      levels: { communications: "MANAGE", members: "MANAGE" },
+      actions: ["communications.carnets"],
+    };
+    expect(hrefs(admin)).not.toContain("/members/carnets");
   });
 });

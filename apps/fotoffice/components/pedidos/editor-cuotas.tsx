@@ -1,5 +1,6 @@
 "use client";
 
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { ETIQUETA_MEDIO_COBRO, MEDIOS_COBRO, type MedioCobro } from "@/lib/pedidos/constantes";
 import { pesosPedido, sumarPesos } from "@/lib/pedidos/pantalla";
 import { aCentavos, desdeCentavos, sumarMeses } from "@/lib/pedidos/plan-cuotas";
@@ -108,17 +109,15 @@ export function EditorCuotas({
                   />
                 </td>
                 <td className="py-2 pr-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={f.imputado > 0 ? f.imputado : 0.01}
-                    step="0.01"
-                    className="fo-input w-36 tabular-nums"
+                  <InputMoneda
+                    envio="punto"
+                    wrapperClassName="w-36"
+                    className="fo-input w-full"
                     aria-label={`Importe de la cuota ${i + 1}`}
                     aria-invalid={importes[i] === null}
                     value={f.importe}
                     disabled={deshabilitado}
-                    onChange={(e) => cambiar(f.clave, { importe: e.target.value })}
+                    onChange={(valor) => cambiar(f.clave, { importe: valor })}
                     required
                   />
                 </td>

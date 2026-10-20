@@ -31,9 +31,16 @@ export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
 export const GALLERY_MODES = ["HIGHLIGHTS_UNTIL_CLOSED", "FULL"] as const;
 export type GalleryMode = (typeof GALLERY_MODES)[number];
 
-/** Tope de obras por muestra: alcanza para una muestra real y acota el almacenamiento. */
-export const MAX_WORKS = 40;
-/** Lo que se ve mientras la muestra está abierta, para no reemplazar la visita. */
+/**
+ * Tope técnico (spec D17), no de diseño: lo fija el armado de PDF (una foto por vez, ≈ 0,3–0,5 s
+ * cada una) y lo que un teléfono maneja en la galería y el editor. Cuántas obras tiene una
+ * muestra lo decide quien organiza.
+ */
+export const MAX_WORKS = 300;
+/**
+ * Tope de destacadas: sólo para el modo "Las destacadas" de la sorpresa (spec D19). Más de 12 deja
+ * de ser un anticipo; quien quiera mostrar más usa "al azar" o "todas".
+ */
 export const MAX_HIGHLIGHTS = 12;
 /** "Últimos días": cierra dentro de esta cantidad de días. */
 export const LAST_DAYS_WINDOW = 7;
@@ -43,4 +50,29 @@ export function isActivityType(v: unknown): v is ActivityType {
 }
 export function isGalleryMode(v: unknown): v is GalleryMode {
   return typeof v === "string" && (GALLERY_MODES as readonly string[]).includes(v);
+}
+
+/**
+ * Países en los que se pueden cargar muestras, con su código ISO para buscar direcciones.
+ * `country` se guarda con el nombre en español; el primero es el de siempre.
+ */
+export const COUNTRIES = [
+  { name: "Argentina", code: "AR" },
+  { name: "Bolivia", code: "BO" },
+  { name: "Brasil", code: "BR" },
+  { name: "Chile", code: "CL" },
+  { name: "Paraguay", code: "PY" },
+  { name: "Perú", code: "PE" },
+  { name: "Uruguay", code: "UY" },
+  { name: "Venezuela", code: "VE" },
+] as const;
+export const DEFAULT_COUNTRY = "Argentina";
+
+export function isCountry(v: unknown): v is (typeof COUNTRIES)[number]["name"] {
+  return typeof v === "string" && COUNTRIES.some((c) => c.name === v);
+}
+
+/** Código ISO de un país de la lista (para el buscador de direcciones); `null` si no está. */
+export function countryCode(name: string | null | undefined): string | null {
+  return COUNTRIES.find((c) => c.name === name)?.code ?? null;
 }

@@ -61,10 +61,11 @@ describe("misTareasDelInicio", () => {
     expect(await misTareasDelInicio(USUARIO, "ws-1", AHORA)).toBeNull();
   });
 
+  // STAFF sin roles opera Captación y, desde la pantalla Equipo, también Proyectos ("todo menos configuración").
   it("pide las tareas de quien opera en el workspace activo y devuelve fechas ISO", async () => {
     M.misTareas.mockResolvedValue({ vencidas: [tarea("a", "2026-10-14T02:59:59.999Z")], hoy: [], proximas: [tarea("b", "2026-10-18T02:59:59.999Z")] });
     const r = await misTareasDelInicio(USUARIO, "ws-1", AHORA);
-    expect(M.misTareas).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws-1", userId: 7, role: "STAFF" }), AHORA, ["CAPTACION"]);
+    expect(M.misTareas).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws-1", userId: 7, role: "STAFF" }), AHORA, ["CAPTACION", "PROYECTO"]);
     expect(r!.vencidas[0]!.vence).toBe("2026-10-14T02:59:59.999Z");
     expect(r!.proximas.map((t) => t.id)).toEqual(["b"]);
   });

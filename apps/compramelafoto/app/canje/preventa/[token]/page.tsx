@@ -12,7 +12,17 @@ import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificationGate";
 import PreventaCanjeFlow from "@/components/canje-externo/PreventaCanjeFlow";
+import type { CanjeExtrasConfig } from "@/components/canje-externo/CanjeExtrasStep";
+import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
+import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
+import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
 import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
+import { valoresDelPackExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
+import { getAuthUser } from "@/lib/auth";
+import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
+import { toDesignTemplatePayload, type DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import { loadSchoolDesignContext } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import { clientPhotoInputs } from "@repo/template-editor-core";
 
 export const dynamic = "force-dynamic";
 
@@ -66,13 +76,16 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       status: true,
       buyerName: true,
       buyerEmail: true,
+      buyerPhone: true,
       redemptionOrderId: true,
       redemptionPaymentRefsJson: true,
       preventaPackSnapshotJson: true,
       preCompraPaymentRef: true,
+      isTest: true,
       album: {
         select: {
           id: true,
+          school: { select: { name: true, logoUrl: true } },
           title: true,
           publicSlug: true,
           userId: true,
@@ -82,6 +95,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
           hiddenPhotosEnabled: true,
           scanProtectionEnabled: true,
           enableDigitalPhotos: true,
+          includeDigitalWithPrint: true,
           enablePrintedPhotos: true,
           digitalPhotoPriceCents: true,
           albumProfitMarginPercent: true,
@@ -115,6 +129,44 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       />
     );
   }
+  /*
+   * Modo prueba: un pack marcado `isTest` lo arma el fotógrafo con "Probar como cliente" (o el
+   * equipo) para recorrer el canje exactamente como una familia (elegir fotos, ver el librito
+   * armado, confirmar) sin tocar el pack de ninguna familia real. Sólo lo abre el dueño del
+   * álbum (o un admin) con su sesión, y entra sin selfie: él no aparece en las fotos.
+   */
+  let modoPrueba = false;
+  if (order.isTest) {
+    const viewer = await getAuthUser().catch(() => null);
+    if (!puedeUsarPackDePrueba(viewer, album.userId)) {
+      return (
+        <Aviso
+          titulo="Este pack es de prueba"
+          texto="Sólo lo puede abrir el fotógrafo del álbum, con su cuenta iniciada."
+        />
+      );
+    }
+    modoPrueba = true;
+  }
+
+  if (order.redemptionOrderId != null && modoPrueba) {
+    return (
+      <section className="mx-auto max-w-lg px-4 py-16">
+        <div className="rounded-2xl border border-[#e7e1da] bg-white p-6">
+          <h1 className="m-0 text-xl font-semibold text-[#1f2328]">Esta prueba ya se canjeó</h1>
+          <p className="m-0 mt-2 text-[#4b4f56]">
+            El canje quedó como pedido de prueba: no se cobra ni entra en tus ventas. Lo ves en{" "}
+            <Link href="/fotografo/pedidos" className="font-medium text-[#a8652e] underline">
+              Pedidos
+            </Link>{" "}
+            con la etiqueta DEMO, con las descargas igual que un pedido real. Reiniciala para volver a
+            recorrerla desde el principio con este mismo link.
+          </p>
+          <ReiniciarPruebaButton token={token} />
+        </div>
+      </section>
+    );
+  }
   if (order.redemptionOrderId != null) {
     return (
       <Aviso
@@ -140,6 +192,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       />
     );
   }
+
 
   let snapshot;
   try {
@@ -175,7 +228,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     album.id,
     album.hiddenPhotosEnabled,
     album.photos.map((p) => ({ id: p.id, previewUrl: p.previewUrl ?? "", originalKey: p.originalKey })),
-    { photographerBypassGrant: false, simulateClientView: false, grantCookieValue: grantCookie }
+    { photographerBypassGrant: modoPrueba, simulateClientView: false, grantCookieValue: grantCookie }
   );
 
   if (album.hiddenPhotosEnabled && !visible.initialHasGrant) {
@@ -200,8 +253,110 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     .map((p) => ({ id: p.id, sellPrint: p.sellPrint !== false, sellDigital: p.sellDigital !== false }));
   const sellsSingles = await isAlbumReadyToSellForCheckout(album).catch(() => false);
 
+
+  // Si la plantilla del beneficio nombra sus huecos (foto individual, foto grupal), cada lugar
+  // del canje lleva ese nombre. Las plantillas con huecos numerados siguen como siempre.
+  // Los beneficios con diseño obligatorio (el librito) se muestran armados antes de confirmar.
+  const designs: Array<{ benefitKey: string; template: DesignTemplatePayload }> = [];
+  const benefits = await Promise.all(
+    snapshot.benefits.map(async (b) => {
+      if (!b.templateV2Id) return b;
+      const template = await loadDesignTemplateVersion({ templateId: b.templateV2Id }).catch(() => null);
+      if (template && b.templatePolicy === "REQUIRED" && template.slots.length > 0) {
+        designs.push({ benefitKey: b.stableKey, template: toDesignTemplatePayload(template) });
+      }
+      const inputs = template ? clientPhotoInputs(template.slots) : [];
+      return inputs.some((i) => i.role) ? { ...b, photoInputs: inputs } : b;
+    })
+  );
+  // Los mismos textos que va a llevar el diseño real: alumno, curso, escuela, listado del curso.
+  const designContext =
+    designs.length > 0 && preCompraId
+      ? await loadSchoolDesignContext(prisma as never, preCompraId).catch(() => null)
+      : null;
+  /*
+   * Pack cobrado por fuera: no hay PreCompraOrder, así que el curso y el listado salen de los
+   * packs cargados del Excel. Sin esto el librito mostraba sólo el nombre y «—» en curso y
+   * colegio.
+   */
+  let designValues: Record<string, string> =
+    designContext?.values ?? (alumno ? { "student.fullName": alumno } : {});
+  if (designs.length > 0 && !designContext && externo) {
+    designValues = await valoresDelPackExterno({
+      albumId: album.id,
+      externo,
+      schoolName: album.school?.name,
+      schoolLogoUrl: album.school?.logoUrl,
+      buyerName: familia,
+      photographerName: album.user?.name,
+    });
+  }
+
+  // Rostros por foto, para ofrecer como grupales sólo las fotos con mucha gente. `null` = la
+  // foto todavía no se analizó.
+  const usaGrupal = benefits.some((b) => "photoInputs" in b && b.photoInputs?.some((i) => i.role === "group"));
+  const facesById = new Map<number, number | null>();
+  if (usaGrupal && photos.length > 0) {
+    const ids = photos.map((p) => p.id);
+    const [analizadas, conteos] = await Promise.all([
+      prisma.photo.findMany({ where: { id: { in: ids }, analyzedAt: { not: null } }, select: { id: true } }),
+      prisma.faceDetection.groupBy({ by: ["photoId"], where: { photoId: { in: ids } }, _count: { _all: true } }),
+    ]);
+    const porFoto = new Map(conteos.map((c) => [c.photoId, c._count._all]));
+    const vistas = new Set(analizadas.map((a) => a.id));
+    for (const id of ids) facesById.set(id, porFoto.get(id) ?? (vistas.has(id) ? 0 : null));
+  }
+
+  /*
+   * Extras que se ofrecen apenas se confirma el canje: fotos sueltas (impresa con el producto
+   * de impresión del álbum, o digital) y otro librito igual. Sólo si el álbum está listo para
+   * vender; en modo prueba se muestran igual para que el fotógrafo vea la pantalla, sin cobrar.
+   */
+  let extras: CanjeExtrasConfig | null = null;
+  if (sellsSingles || modoPrueba) {
+    const productos = productsForAlbum(
+      await prisma.photographerProduct.findMany({
+        where: { userId: album.userId, isActive: true },
+        select: { id: true, name: true, size: true, acabado: true, albumId: true },
+        orderBy: { id: "asc" },
+      }),
+      album.id
+    );
+    const libritoProductId =
+      snapshot.benefits.find((b) => designs.some((d) => d.benefitKey === b.stableKey))?.photographerProductId ?? null;
+    const libritoRow = libritoProductId ? productos.find((p) => p.id === libritoProductId) : null;
+    const puntaje = (n: string) => {
+      const t = n.trim().toLowerCase();
+      return t === "foto impresa" ? 0 : t.startsWith("foto impresa") ? 1 : t.includes("impres") ? 2 : 3;
+    };
+    const impresaRow = productos
+      .filter((p) => p.id !== libritoProductId && p.size)
+      .sort((a, b) => puntaje(a.name) - puntaje(b.name) || a.id - b.id)[0];
+    const aProducto = (p: { id: number; name: string; size: string | null; acabado: string | null }) => ({
+      productId: p.id,
+      name: p.name,
+      size: p.size ?? "",
+      finish: p.acabado ?? null,
+    });
+    extras = {
+      digital: album.enableDigitalPhotos !== false,
+      impresa: album.enablePrintedPhotos !== false && impresaRow ? aProducto(impresaRow) : null,
+      librito: libritoRow?.size ? aProducto(libritoRow) : null,
+      includeDigitalWithPrint: album.includeDigitalWithPrint === true,
+    };
+    if (!extras.digital && !extras.impresa && !extras.librito) extras = null;
+  }
+
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
+      {modoPrueba ? (
+        <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+          <strong>Modo prueba.</strong> Estás viendo el canje como una familia. Ves todas las fotos
+          del álbum sin selfie; una familia real primero se verifica y ve sólo las suyas. Lo que
+          confirmes queda en tus Pedidos como DEMO, en $0: no se cobra, no entra en tus ventas y no
+          se manda ningún correo ni WhatsApp. Los extras tampoco se cobran.
+        </div>
+      ) : null}
       <PreventaCanjeFlow
         token={token}
         album={{
@@ -215,12 +370,21 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         }}
         pack={{
           name: snapshot.packName,
-          benefits: snapshot.benefits,
+          benefits,
           parentName: familia,
           studentName: alumno,
         }}
-        photos={photos}
+        photos={photos.map((p) => ({ ...p, faces: facesById.get(p.id) ?? null }))}
+        designs={designs}
+        designValues={designValues}
         pedirContacto={isPlaceholderEmail(order.buyerEmail)}
+        extras={extras}
+        modoPrueba={modoPrueba}
+        comprador={{
+          nombre: familia ?? "",
+          email: isPlaceholderEmail(order.buyerEmail) ? "" : (order.buyerEmail ?? ""),
+          telefono: order.buyerPhone ?? "",
+        }}
       />
     </ProtectedAlbumWrapper>
   );

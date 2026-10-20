@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import sharp from "sharp";
 import { getAuthUser } from "@/lib/auth";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
+import { guardarInteresEnAlbum } from "@/lib/albums/registrar-interes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,75 +167,15 @@ export async function POST(
 
     // Crear o actualizar AlbumInterest
     try {
-      const interest = await prisma.albumInterest.upsert({
-        where: {
-          albumId_email: {
-            albumId,
-            email,
-          },
-        },
-        update: {
-          name: name,
-          firstName: name,
-          lastName: lastName || null,
-          whatsapp: whatsapp,
-          // Solo actualizar campos biométricos si hay selfie y consentimiento
-          ...(selfieFile && biometricConsent
-            ? {
-                biometricConsent: true,
-                biometricConsentAt: now,
-                biometricDeletedAt: null, // Si había sido eliminado, reactivar
-                selfieKey: selfieKey,
-                faceId: faceId,
-                expiresAt: expiresAt,
-              }
-            : {}),
-        },
-        create: {
-          albumId,
-          email,
-          name: name,
-          firstName: name,
-          lastName: lastName || null,
-          whatsapp: whatsapp,
-          biometricConsent: selfieFile && biometricConsent ? true : false,
-          biometricConsentAt: selfieFile && biometricConsent ? now : null,
-          selfieKey: selfieKey,
-          faceId: faceId,
-          expiresAt: expiresAt,
-        },
+      const interest = await guardarInteresEnAlbum({
+        albumId,
+        email,
+        name,
+        lastName: lastName || null,
+        whatsapp,
+        biometrico: selfieFile && biometricConsent ? { selfieKey, faceId, consentAt: now } : null,
+        expiresAt,
       });
-
-      // También crear AlbumNotification para compatibilidad con el sistema existente
-      try {
-        await prisma.albumNotification.upsert({
-          where: {
-            albumId_email: {
-              albumId,
-              email,
-            },
-          },
-          update: {
-            name: name,
-            lastName: lastName || null,
-            whatsapp: whatsapp || null,
-          },
-          create: {
-            albumId,
-            email,
-            name: name,
-            lastName: lastName || null,
-            whatsapp: whatsapp || null,
-            notifiedWhenReady: false,
-            notifiedAt3Weeks: false,
-            notifiedAt2Weeks: false,
-            notifiedAt1Week: false,
-          },
-        });
-      } catch (notifErr: any) {
-        // Si falla por campos desconocidos, continuar (es opcional)
-        console.warn("Error creando AlbumNotification:", notifErr);
-      }
 
       return NextResponse.json({
         ok: true,

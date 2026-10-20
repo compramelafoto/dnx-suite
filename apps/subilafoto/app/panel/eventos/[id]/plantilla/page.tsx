@@ -5,6 +5,7 @@ import { prisma } from "@repo/db";
 import { PLANTILLAS } from "@/lib/plantillas";
 import { resolverTema } from "@/lib/tema";
 import { SelectorDePlantilla } from "./selector";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +20,25 @@ export default async function ElegirPlantilla({ params }: Props) {
   if (!usuario) redirect(`/login?next=${encodeURIComponent(`/panel/eventos/${id}/plantilla`)}`);
 
   const evento = await prisma.subilafotoEvent.findFirst({
-    where: { id, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(id, usuario.id),
     select: { name: true, code: true, themeTokens: true },
   });
   if (!evento) notFound();
 
-  // Se compara el snapshot guardado contra el catálogo para saber cuál está elegida.
+  /*
+    Se compara el snapshot guardado contra el catálogo para saber cuál está elegida.
+
+    Se miran TODOS los tokens y no sólo el fondo y el acento: con trece estilos y
+    texturas, dos pueden compartir paleta y diferenciarse en el dibujo o en la letra, y
+    entonces el selector marcaría la equivocada.
+  */
   const tema = resolverTema(evento.themeTokens);
   const actual =
-    PLANTILLAS.find((p) => p.tokens.fondo === tema.fondo && p.tokens.acento === tema.acento)
-      ?.clave ?? null;
+    PLANTILLAS.find((p) =>
+      (Object.keys(p.tokens) as (keyof typeof p.tokens)[]).every(
+        (k) => p.tokens[k] === tema[k],
+      ),
+    )?.clave ?? null;
 
   return (
     <main className="sobre-claro mx-auto max-w-2xl px-6 py-16">
@@ -45,7 +55,7 @@ export default async function ElegirPlantilla({ params }: Props) {
         <a
           href={`/e/${evento.code}`}
           className="underline decoration-2 underline-offset-4"
-          style={{ color: "var(--slf-violeta)" }}
+          style={{ color: "var(--slf-violeta-texto)" }}
         >
           la página de tus invitados
         </a>

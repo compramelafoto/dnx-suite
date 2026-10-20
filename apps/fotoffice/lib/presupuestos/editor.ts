@@ -47,6 +47,8 @@ export type DatosEditor = {
   opcionesPago?: OpcionesPagoEditor;
   /** Sólo con `veCostos`; si no, la clave no está. */
   internos?: InternosEditor;
+  /** Para no pisar un borrador que cambió mientras el editor estaba abierto (DNX Bot u otra persona). */
+  control?: ControlDeBorrador;
 };
 
 type BorradorParaEditor = {
@@ -70,6 +72,8 @@ export function armarDatosEditor(args: {
   costosCatalogo?: Record<string, CostoDeCatalogo>;
   perfil?: CuantoCobroProfileInput | null;
   opcionesPago?: OpcionesPagoEditor;
+  /** `updatedAt` del presupuesto que se abrió (para no pisar cambios ajenos al guardar). */
+  version?: Date;
 }): DatosEditor {
   const { borrador, veCostos } = args;
   const items: ItemPresupuesto[] = veCostos
@@ -85,9 +89,46 @@ export function armarDatosEditor(args: {
     catalogo: args.catalogo.map((p) => ({ ...p })),
   };
   if (args.opcionesPago) datos.opcionesPago = args.opcionesPago;
+  if (args.version) {
+    datos.control = {
+      version: args.version.toISOString(),
+      firma: firmaDelBorrador(items, borrador.terms, borrador.paymentProposal, borrador.totals?.descuento ?? null),
+    };
+  }
   if (veCostos) datos.internos = { costosCatalogo: args.costosCatalogo ?? {}, perfil: args.perfil ?? null };
   return datos;
 }
+
+// --- Concurrencia ---------------------------------------------------------------------------------
+
+/**
+ * Firma del contenido de un borrador (lo que el editor muestra y guarda): ítems, condiciones,
+ * propuesta de pago y descuento global. Sólo campos que ven todos (también quien no ve costos).
+ * Con la fecha del presupuesto (`updatedAt`) arma el control de "no pisar": si la fecha cambió y
+ * la firma también, otro guardó el borrador mientras el editor estaba abierto.
+ */
+export function firmaDelBorrador(
+  items: readonly Pick<ItemPresupuesto, "id" | "nombre" | "descripcion" | "cantidad" | "precioUnitario" | "modoPrecio" | "seccion" | "opcional" | "descuento">[],
+  condiciones: string | null,
+  propuestaPago: string | null,
+  descuento: Descuento | null,
+): string {
+  const contenido = JSON.stringify([
+    items.map((i) => [i.id, i.nombre, i.descripcion ?? null, i.cantidad, i.precioUnitario, i.modoPrecio, i.seccion ?? null, i.opcional, i.descuento ?? null]),
+    condiciones ?? null,
+    propuestaPago ?? null,
+    descuento ?? null,
+  ]);
+  // FNV-1a de 32 bits: corre igual en el navegador y en el servidor.
+  let h = 0x811c9dc5;
+  for (let k = 0; k < contenido.length; k++) {
+    h ^= contenido.charCodeAt(k);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return `${contenido.length.toString(36)}-${h.toString(36)}`;
+}
+
+export type ControlDeBorrador = { version: string; firma: string };
 
 // --- Ítems ----------------------------------------------------------------------------------------
 

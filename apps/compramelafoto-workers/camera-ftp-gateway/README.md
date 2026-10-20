@@ -1,6 +1,6 @@
 # ComprameLaFoto — Camera FTP Gateway (MVP)
 
-Servidor FTP dedicado para **Conexión de Cámara**. Recibe JPG/JPEG, sube el raw a R2 y encola `CameraIngestJob` — **no** procesa fotos (`finalize` lo hace `camera-ingest-worker`).
+Servidor FTP dedicado para **Conexión de Cámara**. Recibe JPG/JPEG, sube el raw a R2 y encola `CameraIngestJob` — **no** procesa fotos (`finalize` lo hace el cron de Vercel, o `camera-ingest-worker` si se usa).
 
 ## Flujo
 
@@ -12,7 +12,7 @@ Cámara → FTP STOR → Gateway (auth + rate limit + validación)
 camera-ingest-worker → finalizeAlbumPhotoFromRaw → foto visible en álbum
 ```
 
-**Importante:** el gateway solo encola. Para que la foto aparezca en el álbum tenés que tener **`camera-ingest-worker` corriendo** (`npm run start` en `camera-ingest-worker/`).
+**Importante:** el gateway solo encola. La ingesta la hace el cron de Vercel `/api/cron/process-camera-ingest-jobs`; `camera-ingest-worker` es opcional. Para desplegar el gateway ver `../deploy/README.md`.
 
 ## Requisitos
 
@@ -20,7 +20,7 @@ camera-ingest-worker → finalizeAlbumPhotoFromRaw → foto visible en álbum
 - PostgreSQL + migraciones (`CameraConnectionSettings`, `CameraIngestJob`, …)
 - Cloudflare R2 (mismas credenciales que la app)
 - Fotógrafo con Conexión de Cámara **habilitada**, no pausada, álbum activo y credenciales FTP
-- **`camera-ingest-worker`** activo en staging/prod
+- Ingesta de las fotos: el cron de Vercel `/api/cron/process-camera-ingest-jobs` (ya activo). `camera-ingest-worker` es opcional.
 
 ## Variables de entorno
 
@@ -218,7 +218,7 @@ docker compose -f camera-ftp-gateway/docker-compose.yml up
 
 1. VPS/Fly/Railway con puertos 21, PASV y 8080 abiertos.
 2. `FTP_PASV_URL` = IP pública del host.
-3. `camera-ingest-worker` desplegado y monitoreado.
+3. (Opcional) `camera-ingest-worker` desplegado y monitoreado; la ingesta ya la hace el cron de Vercel.
 4. `CAMERA_CONNECTION_FTP_SERVER_LIVE=true` en la app.
 5. Alertas: `/ready` ≠ 200, cola `CameraIngestJob` PENDING creciendo, logs `orphan_raw_delete_failed`.
 6. FTPS si una cámara lo exige.

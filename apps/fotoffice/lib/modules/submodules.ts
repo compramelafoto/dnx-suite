@@ -14,6 +14,7 @@ import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
+  COMMUNICATIONS_CARNETS_ACTION,
   COVERAGES_COORDINATE_ACTION,
   STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
@@ -58,6 +59,12 @@ export type SubmoduleItem = {
   levelModuleKey?: string;
   /** Acción sensible (ver `lib/permissions/actions.ts`) que además hace falta tener. */
   requiresAction?: string;
+  /**
+   * Se oculta para quien gestiona este módulo, porque ahí ya tiene la misma pantalla. Carnets
+   * aparece en Comunicación para el rol que lo opera sin gestionar Socios; a quien gestiona
+   * Socios se le mostraría dos veces.
+   */
+  hiddenIfManages?: string;
   /**
    * Sólo dueño o admin del negocio (`isFullAccessRole`), como exige su página. Para pantallas de
    * plata que no se delegan con roles: un MANAGE del módulo no alcanza.
@@ -190,6 +197,15 @@ const RESERVAS: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    // Sin `requiresAction`: el barbero vinculado a su puesto ve acá "Mi liquidación".
+    href: "/reservas/liquidaciones",
+    label: "Liquidaciones",
+    icon: "Wallet",
+    description: "Cuánto se le debe a cada profesional por sus turnos, y los pagos que ya se le hicieron.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/reservas/espacios",
     label: "Espacios",
     icon: "DoorOpen",
@@ -285,6 +301,16 @@ const GOBIERNO: SubmoduleItem[] = [
 
 const CAJA: SubmoduleItem[] = [
   {
+    // Acceso rápido al Mostrador (el cobrador), arriba de todo: es lo que más se usa en el día.
+    href: "/ventas",
+    label: "Cobrador",
+    icon: "ShoppingCart",
+    description: "El Mostrador: buscá, sumá al ticket y cobrá.",
+    requiresManage: true,
+    levelModuleKey: SALES_MODULE_KEY,
+    activeMatch: "exact",
+  },
+  {
     href: "/caja",
     label: "Panorama",
     icon: "Wallet",
@@ -322,6 +348,16 @@ const CAJA: SubmoduleItem[] = [
     icon: "CreditCard",
     description: "Cada pase de una cuenta a otra, como el de mostrador a caja fuerte.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // Sólo dueño o admin: muestra lo que entró a la cuenta de Mercado Pago entera.
+    href: "/caja/mercado-pago",
+    label: "Cobros en Mercado Pago",
+    icon: "ReceiptText",
+    description: "Lo que entró a la cuenta de Mercado Pago del negocio, leído en el momento.",
+    requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -405,6 +441,14 @@ const VENTAS: SubmoduleItem[] = [
     label: "Stock",
     icon: "Boxes",
     description: "Qué queda, qué entró y qué hay que reponer.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/foto-carnet",
+    label: "Foto carnet",
+    icon: "Crop",
+    description: "Encuadrar una foto a la medida del trámite y armar la plancha para imprimir.",
     requiresManage: false,
     activeMatch: "under",
   },
@@ -505,6 +549,17 @@ const COMUNICACION: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // La pantalla vive en Socios; acá la ve el rol de Comunicación con la acción de carnets.
+    href: "/members/carnets",
+    label: "Carnets",
+    icon: "CreditCard",
+    description: "Emitir carnets, descargar el PDF para imprimir y registrar la entrega.",
+    requiresManage: true,
+    requiresAction: COMMUNICATIONS_CARNETS_ACTION,
+    hiddenIfManages: MEMBERS_MODULE_KEY,
+    activeMatch: "under",
+  },
+  {
     href: "/comunicacion/plantillas",
     label: "Plantillas",
     icon: "Palette",
@@ -548,6 +603,7 @@ function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAcc
   if (!hasLevel(nivel(decide), item.requiresManage ? "MANAGE" : "VIEW")) return false;
   if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
   if (item.requiresFullAccess && access.fullAccess !== true) return false;
+  if (item.hiddenIfManages && hasLevel(nivel(item.hiddenIfManages), "MANAGE")) return false;
   return true;
 }
 

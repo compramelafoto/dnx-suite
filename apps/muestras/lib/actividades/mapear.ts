@@ -1,6 +1,6 @@
 import type { Prisma } from "@repo/db";
 import { encodeGeohash } from "@repo/geo";
-import { dayEndAr, dayStartAr, isGalleryMode, toArDay, type GalleryMode } from "@repo/muestras";
+import { DEFAULT_COUNTRY, MAX_WORKS, dayEndAr, dayStartAr, isCountry, isGalleryMode, openingAtFrom, toArDay, type GalleryMode } from "@repo/muestras";
 
 export type ObraForm = {
   id?: string;
@@ -10,6 +10,10 @@ export type ObraForm = {
   year: number | null;
   technique: string | null;
   isHighlight: boolean;
+  /** Perfil público del autor; el servidor verifica que exista. */
+  authorProfileId: string | null;
+  /** Sólo para mostrar en el editor; el servidor no lo lee. */
+  authorProfileName?: string | null;
 };
 
 export type FichaForm = {
@@ -17,11 +21,18 @@ export type FichaForm = {
   type: string;
   title: string;
   description: string;
+  /** Texto curatorial (sólo muestras): ficha pública, cartel y catálogo. */
+  curatorialText: string | null;
+  curatorCredits: string | null;
   coverImageUrl: string | null;
   organizersText: string;
   startDay: string;
   endDay: string;
   openingDay: string | null;
+  /** Hora de la inauguración, "19:30" (etapa 5, D12). Sin hora, la inauguración es "sólo día". */
+  openingClock: string | null;
+  /** Hora de fin, optativa. */
+  openingEndClock: string | null;
   scheduleText: string | null;
   priceText: string | null;
   externalUrl: string | null;
@@ -30,11 +41,24 @@ export type FichaForm = {
   address: string | null;
   city: string | null;
   province: string | null;
+  /** Uno de `COUNTRIES`; lo que no esté en la lista vuelve a Argentina. */
+  country: string;
   latitude: number | null;
   longitude: number | null;
   galleryMode: GalleryMode;
   rightsConfirmed: boolean;
   works: ObraForm[];
+  /**
+   * Ids de las obras que el editor cargó al abrirse. Al guardar sólo se quitan de la galería las
+   * que están acá y ya no vienen en `works`: las que se sumaron después (p. ej. al armar la
+   * muestra con la pestaña abierta) se conservan.
+   */
+  idsCargados: string[];
+  /**
+   * Versión de la ficha con la que se abrió el formulario (etapa 5, D7). Si otra persona del
+   * equipo guardó en el medio, no coincide y el guardado se frena. `null`: pestaña vieja.
+   */
+  editVersion: number | null;
 };
 
 /**
@@ -45,6 +69,8 @@ export type FichaForm = {
 export const LARGOS = {
   title: 200,
   description: 10_000,
+  curatorialText: 6000,
+  curatorCredits: 300,
   organizersText: 500,
   scheduleText: 500,
   priceText: 200,
@@ -82,7 +108,7 @@ const txt = (fd: FormData, k: string, max?: number) => {
   const v = String(fd.get(k) ?? "").trim();
   return max ? v.slice(0, max).trim() : v;
 };
-const opt = (fd: FormData, k: string, max?: number) => txt(fd, k, max) || null;
+export const opt = (fd: FormData, k: string, max?: number) => txt(fd, k, max) || null;
 const num = (fd: FormData, k: string) => {
   const v = Number(txt(fd, k));
   return txt(fd, k) !== "" && Number.isFinite(v) ? v : null;
@@ -105,8 +131,50 @@ function obras(raw: string, base: string | null): ObraForm[] {
         year: typeof r.year === "number" && Number.isInteger(r.year) ? r.year : null,
         technique: typeof r.technique === "string" ? corto(r.technique, LARGOS.obraTechnique) || null : null,
         isHighlight: r.isHighlight === true,
+        authorProfileId: typeof r.authorProfileId === "string" && /^[a-z0-9]{8,40}$/i.test(r.authorProfileId) ? r.authorProfileId : null,
       }];
     });
+  } catch {
+    return [];
+  }
+}
+
+export type TextoDeObra = { id: string; title: string; year: number | null; technique: string | null };
+
+/**
+ * Las obras del formulario de textos (etapa 5, D9): sólo id, título, año y técnica. Cualquier otro
+ * campo (imagen, autor, orden, destacada) se ignora. Un título vacío queda vacío: la acción lo
+ * rechaza. Año entero entre 1800 y 2100, o nada.
+ */
+export function leerObrasDeTextos(raw: string): TextoDeObra[] {
+  let arr: unknown;
+  try {
+    arr = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const vistos = new Set<string>();
+  return arr.flatMap((o): TextoDeObra[] => {
+    if (!o || typeof o !== "object") return [];
+    const r = o as Record<string, unknown>;
+    if (typeof r.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(r.id) || vistos.has(r.id)) return [];
+    vistos.add(r.id);
+    const anio = typeof r.year === "number" ? r.year : typeof r.year === "string" && /^\d{4}$/.test(r.year.trim()) ? Number(r.year.trim()) : null;
+    return [{
+      id: r.id,
+      title: corto(r.title, LARGOS.obraTitle),
+      year: anio != null && Number.isInteger(anio) && anio >= 1800 && anio <= 2100 ? anio : null,
+      technique: corto(r.technique, LARGOS.obraTechnique) || null,
+    }];
+  }).slice(0, MAX_WORKS);
+}
+
+function ids(raw: string): string[] {
+  try {
+    const arr: unknown = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return [...new Set(arr.filter((x): x is string => typeof x === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(x)))].slice(0, 200);
   } catch {
     return [];
   }
@@ -119,7 +187,8 @@ export type OpcionesFicha = {
 
 export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): FichaForm {
   const base = "baseImagenes" in opciones ? opciones.baseImagenes ?? null : baseImagenesPublicas();
-  const virtual = fd.get("isVirtualOnly") === "on";
+  // Una muestra siempre tiene sede: aunque llegue la casilla, para una muestra no cuenta.
+  const virtual = fd.get("isVirtualOnly") === "on" && fd.get("type") !== "MUESTRA";
   const modo = txt(fd, "galleryMode");
   const portada = opt(fd, "coverImageUrl");
   return {
@@ -127,11 +196,15 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     type: txt(fd, "type"),
     title: txt(fd, "title", LARGOS.title),
     description: txt(fd, "description", LARGOS.description),
+    curatorialText: opt(fd, "curatorialText", LARGOS.curatorialText),
+    curatorCredits: opt(fd, "curatorCredits", LARGOS.curatorCredits),
     coverImageUrl: portada && esImagenPropia(portada, base) ? portada : null,
     organizersText: txt(fd, "organizersText", LARGOS.organizersText),
     startDay: txt(fd, "startDay"),
     endDay: txt(fd, "endDay"),
     openingDay: opt(fd, "openingDay"),
+    openingClock: opt(fd, "openingClock", 5),
+    openingEndClock: opt(fd, "openingEndClock", 5),
     scheduleText: opt(fd, "scheduleText", LARGOS.scheduleText),
     priceText: opt(fd, "priceText", LARGOS.priceText),
     externalUrl: opt(fd, "externalUrl", LARGOS.externalUrl),
@@ -140,11 +213,14 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     address: virtual ? null : opt(fd, "address", LARGOS.address),
     city: virtual ? null : opt(fd, "city", LARGOS.city),
     province: virtual ? null : opt(fd, "province", LARGOS.province),
+    country: isCountry(fd.get("country")) ? (fd.get("country") as string) : DEFAULT_COUNTRY,
     latitude: virtual ? null : num(fd, "latitude"),
     longitude: virtual ? null : num(fd, "longitude"),
     galleryMode: isGalleryMode(modo) ? modo : "HIGHLIGHTS_UNTIL_CLOSED",
     rightsConfirmed: fd.get("rightsConfirmed") === "on",
     works: obras(txt(fd, "works") || "[]", base),
+    idsCargados: ids(txt(fd, "idsCargados") || "[]"),
+    editVersion: /^\d{1,9}$/.test(txt(fd, "editVersion")) ? Number(txt(fd, "editVersion")) : null,
   };
 }
 
@@ -168,11 +244,15 @@ export function datosParaGuardar(f: FichaForm) {
     type: f.type,
     title: f.title,
     description: f.description,
+    // Sólo una muestra tiene curaduría; si cambió de tipo, se limpia.
+    curatorialText: f.type === "MUESTRA" ? f.curatorialText : null,
+    curatorCredits: f.type === "MUESTRA" ? f.curatorCredits : null,
     coverImageUrl: f.coverImageUrl,
     organizersText: f.organizersText,
     startsAt: dayStartAr(inicio),
     endsAt: dayEndAr(fin),
-    openingAt: f.openingDay && diaValido(f.openingDay) ? dayStartAr(f.openingDay) : null,
+    openingAt: f.openingDay && diaValido(f.openingDay) ? openingAtFrom(f.openingDay, f.openingClock) : null,
+    openingEndsAt: f.openingDay && diaValido(f.openingDay) && f.openingClock && f.openingEndClock ? openingAtFrom(f.openingDay, f.openingEndClock) : null,
     scheduleText: f.scheduleText,
     priceText: f.priceText,
     externalUrl: f.externalUrl,
@@ -181,10 +261,20 @@ export function datosParaGuardar(f: FichaForm) {
     address: f.address,
     city: f.city,
     province: f.province,
+    country: f.country,
     latitude: f.latitude,
     longitude: f.longitude,
     geohash: f.latitude != null && f.longitude != null ? encodeGeohash(f.latitude, f.longitude) : null,
     galleryMode: f.galleryMode,
     rightsConfirmedAt: f.rightsConfirmed ? new Date() : null,
   } satisfies Prisma.CulturalActivityUncheckedUpdateInput;
+}
+
+/**
+ * El `galleryMode` que se guarda desde la ficha: el del formulario mientras la muestra no tiene
+ * ajuste de sorpresa; con ajuste (`visibility`), el que ya tenía (lo mantiene coherente Visibilidad).
+ */
+export function modoDeGaleriaAlGuardar(pedido: GalleryMode, actual: { visibility: unknown; galleryMode: string }): GalleryMode {
+  if (actual.visibility == null) return pedido;
+  return isGalleryMode(actual.galleryMode) ? actual.galleryMode : pedido;
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { SidebarItem } from "./SidebarNav";
+import { navBadgeClass } from "./nav-badge";
 
 type Props = {
   items: SidebarItem[];
@@ -91,7 +92,7 @@ export default function HorizontalNav({
                   {item.icon && <span className="flex-shrink-0 w-4 flex items-center justify-center">{item.icon}</span>}
                   {item.label}
                   {item.badge && (
-                    <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue-500 text-white">
+                    <span className={navBadgeClass(item.badge)}>
                       {item.badge}
                     </span>
                   )}

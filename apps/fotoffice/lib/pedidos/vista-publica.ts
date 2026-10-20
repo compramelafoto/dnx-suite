@@ -18,6 +18,7 @@ import type { TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { ETIQUETA_ESTADO_CUOTA, ETIQUETA_ESTADO_PEDIDO, type EstadoCuota, type EstadoPedido } from "./constantes";
 import type { CuotaConEstado, ResumenPlan } from "./estado";
 import { ajustePorFormaDePago, type AjustePorFormaDePago } from "./pantalla";
+import type { DatosTransferencia } from "@/lib/cobro-ajustes/datos";
 
 export type OrganizacionPublica = { nombre: string; logoUrl: string | null; whatsappUrl: string | null; email: string | null };
 
@@ -46,6 +47,10 @@ export type CuotaPublica = {
   estadoEtiqueta: string;
   /** Muestra «Pagar con Mercado Pago»: con saldo, pedido no cancelado y cobros habilitados. */
   pagable: boolean;
+  /** Muestra «Pagar por transferencia» (etapa B): con saldo, pedido no cancelado y datos para transferir. */
+  transferible: boolean;
+  /** Ya eligió transferir: lo que tiene que transferir (con el monto único, si hay). null si no. */
+  esperando: number | null;
 };
 
 export type ReciboEnLista = {
@@ -73,6 +78,8 @@ export type VistaPedidoPublica = {
   ajuste: AjustePorFormaDePago | null;
   plan: { total: number; cobrado: number; saldo: number; vencido: number; cuotas: CuotaPublica[] };
   recibos: ReciboEnLista[];
+  /** Datos para transferir (etapa B); null si la organización no los cargó. */
+  transferencia: DatosTransferencia | null;
 };
 
 export type VistaReciboPublica = {
@@ -101,10 +108,13 @@ function organizacion(o: OrganizacionPublica): OrganizacionPublica {
   return { nombre: o.nombre, logoUrl: o.logoUrl, whatsappUrl: o.whatsappUrl, email: o.email };
 }
 
-function cuotaPublica(c: CuotaConEstado, puedePagar: boolean): CuotaPublica {
+function cuotaPublica(c: CuotaConEstado, puedePagar: boolean, puedeTransferir: boolean, esperas: ReadonlyMap<string, number>): CuotaPublica {
+  const esperando = c.saldo > 0 ? (esperas.get(c.id) ?? null) : null;
   return {
     id: c.id,
     pagable: puedePagar && c.saldo > 0,
+    transferible: puedeTransferir && c.saldo > 0,
+    esperando,
     numero: c.position,
     vence: ddmmaaaa(c.dueDate),
     importe: c.amountArs,
@@ -128,9 +138,16 @@ export function armarVistaPedido(args: {
   recibos: readonly ReciboEnLista[];
   /** La organización puede cobrar con Mercado Pago (sólo el sí o el no: nunca la cuenta ni el token). */
   cobrosHabilitados?: boolean;
+  /** Datos para transferir (etapa B). */
+  transferencia?: DatosTransferencia | null;
+  /** Transferencias ya elegidas: cuota → lo que hay que transferir. */
+  esperas?: ReadonlyMap<string, number>;
 }): VistaPedidoPublica {
   const t = args.totals;
   const puedePagar = args.cobrosHabilitados === true && args.estado !== "CANCELADO";
+  const transferencia = args.transferencia ?? null;
+  const puedeTransferir = transferencia !== null && args.estado !== "CANCELADO";
+  const esperas = args.esperas ?? new Map<string, number>();
   const renglones = t?.renglones ?? {};
   return {
     organizacion: organizacion(args.organizacion),
@@ -163,9 +180,12 @@ export function armarVistaPedido(args: {
       cobrado: args.plan.cobrado,
       saldo: args.plan.saldo,
       vencido: args.plan.vencido,
-      cuotas: args.plan.cuotas.map((c) => cuotaPublica(c, puedePagar)),
+      cuotas: args.plan.cuotas.map((c) => cuotaPublica(c, puedePagar, puedeTransferir, esperas)),
     },
     recibos: args.recibos.map((r) => ({ numero: r.numero, fecha: r.fecha, importe: r.importe, medio: r.medio, anulado: r.anulado, url: r.url })),
+    transferencia: puedeTransferir && transferencia
+      ? { alias: transferencia.alias, cbuCvu: transferencia.cbuCvu, titular: transferencia.titular, cuit: transferencia.cuit, banco: transferencia.banco }
+      : null,
   };
 }
 

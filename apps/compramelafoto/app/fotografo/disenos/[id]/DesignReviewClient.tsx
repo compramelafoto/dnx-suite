@@ -116,7 +116,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
       setLoaded((prev) => (prev ? { ...prev, data: body.data, design: { ...prev.design, status: body.status } } : prev));
       setMessage(
         body.status === "EXPORTED"
-          ? { tone: "ok", text: "Diseño aprobado. Le avisamos al cliente y ya puede descargarlo." }
+          ? { tone: "ok", text: "Diseño aprobado. Pasa a producción y le avisamos a la familia." }
           : { tone: "error", text: `Quedó aprobado pero no se pudo generar el archivo: ${body.error}. Probá de nuevo.` },
       );
     } catch (err) {
@@ -225,7 +225,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
                 ? "Reintentar generar archivos"
                 : exported
                   ? "Aprobar de nuevo"
-                  : "Aprobar y enviar al cliente"}
+                  : "Aprobar"}
           </Button>
         </div>
       </div>

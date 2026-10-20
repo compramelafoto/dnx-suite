@@ -1,5 +1,5 @@
 export type {
-  MpOrderRefundTransactionInput,
+  MpOrderRefundSplitInput,
   MpOrderRefundRequestBody,
   MpOrderRefundEntry,
   MpOrderRefundResponse,

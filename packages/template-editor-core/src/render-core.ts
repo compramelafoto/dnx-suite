@@ -43,7 +43,20 @@ export function asObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * Normaliza la config del bloque según su tipo y conserva la proporción fijada (`aspectLock`),
+ * que es del editor y vale para cualquier tipo: sin esto, guardar la borraría.
+ */
 export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown): Record<string, unknown> {
+  const normalized = normalizeBlockConfigByType(type, input);
+  const lock = asObject(input).aspectLock;
+  if (typeof lock === "number" && Number.isFinite(lock) && lock > 0) {
+    return { ...normalized, aspectLock: lock };
+  }
+  return normalized;
+}
+
+function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): Record<string, unknown> {
   const cfg = asObject(input);
   if (type === "TEXT") {
     const contentObj = asObject(cfg.content);
@@ -106,6 +119,8 @@ export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown):
   if (type === "VARIABLE_TEXT") {
     return {
       variableKey: typeof cfg.variableKey === "string" ? cfg.variableKey : "",
+      // Opciones del «Listado del curso»; se leen con `readClassListOptions`.
+      ...(cfg.classList && typeof cfg.classList === "object" ? { classList: cfg.classList } : {}),
       fallback:
         typeof cfg.fallback === "string"
           ? cfg.fallback
@@ -145,7 +160,11 @@ export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown):
             : typeof source.url === "string"
               ? source.url
               : "",
-      fit: "cover",
+      /*
+       * "contain" (un logo, entero en su recuadro) se conserva: la impresión lo respeta y, si se
+       * perdía al guardar o al dibujar, la pantalla recortaba lo que el PDF mostraba entero.
+       */
+      fit: cfg.fit === "contain" ? "contain" : "cover",
       borderRadius: typeof cfg.borderRadius === "number" ? cfg.borderRadius : 0,
       photoMode,
       maskShape,

@@ -27,6 +27,12 @@ export type ExternalPreventaRefs = {
   studentName: string | null;
   parentName: string | null;
   courseName: string | null;
+  /**
+   * El colegio, para el librito. Va con el pack porque estos álbumes pueden no estar vinculados
+   * a un colegio: vincularlo pasa la galería a modo escolar (lista de alumnos, otras reglas de
+   * preventa) y no se hace con familias por canjear.
+   */
+  schoolName: string | null;
   /** Lo que compró, en una línea: "1 librito formal + 1 copia grupal informal". */
   label: string | null;
 };
@@ -44,6 +50,23 @@ export function parseExternalPreventaRefs(raw: unknown): ExternalPreventaRefs | 
     studentName: texto(r.studentName),
     parentName: texto(r.parentName),
     courseName: texto(r.courseName),
+    schoolName: texto(r.schoolName),
     label: texto(r.label),
   };
+}
+
+
+/**
+ * Parte el nombre de un alumno tal como vino en el Excel de una preventa cobrada por fuera.
+ *
+ * Esos listados traen el apellido primero («Araujo Ines»): se toma la primera palabra como
+ * apellido y el resto como nombre. Un apellido compuesto («De La Fuente Juan») queda mal
+ * partido; para el listado del curso y los formatos del nombre es un mal menor frente a no
+ * tenerlos, y el nombre completo se sigue imprimiendo tal como vino.
+ */
+export function splitExcelStudentName(raw: string | null | undefined): { firstName: string; lastName: string } | null {
+  const partes = (raw ?? "").trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return null;
+  if (partes.length === 1) return { firstName: "", lastName: partes[0]! };
+  return { lastName: partes[0]!, firstName: partes.slice(1).join(" ") };
 }

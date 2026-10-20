@@ -33,7 +33,7 @@ export function VariantPicker({
               aria-label={agotado ? `${v.name}, agotado` : v.name}
               className={`min-h-11 min-w-11 rounded-[var(--fo-radius-sm)] border px-3 text-sm font-medium transition-colors ${
                 elegido
-                  ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white"
+                  ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                   : "border-[var(--fo-border-strong)] bg-[var(--fo-surface)] hover:border-[var(--fo-text)]"
               } disabled:cursor-not-allowed disabled:line-through disabled:opacity-40`}
             >

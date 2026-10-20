@@ -15,8 +15,11 @@ export async function achicarEnNavegador(file: File, ladoMayor: number): Promise
   );
 }
 
-export async function subirImagen(file: File, uso: "obra" | "portada"): Promise<string> {
-  const blob = await achicarEnNavegador(file, uso === "portada" ? 1600 : 2000);
+const LADO_EN_NAVEGADOR = { obra: 2000, portada: 1600, avatar: 1200 } as const;
+export type UsoImagen = keyof typeof LADO_EN_NAVEGADOR;
+
+export async function subirImagen(file: File, uso: UsoImagen): Promise<string> {
+  const blob = await achicarEnNavegador(file, LADO_EN_NAVEGADOR[uso]);
   const fd = new FormData();
   fd.set("file", new File([blob], "imagen.jpg", { type: "image/jpeg" }));
   fd.set("uso", uso);

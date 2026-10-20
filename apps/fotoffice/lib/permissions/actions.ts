@@ -4,6 +4,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 
 /**
  * Catálogo de acciones sensibles por módulo (diseño de roles, §12.1.2 y etapa 2b).
@@ -34,6 +35,12 @@ export const SALES_CATALOG_ACTION = "sales.catalog";
 
 /** Acción sensible de la Tienda online: abrirla o cerrarla, el retiro, las políticas y los avisos. */
 export const STORE_CONFIGURE_ACTION = "store.configure";
+
+/**
+ * Acción sensible de Comunicación: administrar los carnets (emitir, mandar a imprimir, descargar
+ * el PDF, entregar y dar permisos de carnets) sin gestionar el padrón de Socios.
+ */
+export const COMMUNICATIONS_CARNETS_ACTION = "communications.carnets";
 
 export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>> = {
   [CASH_MODULE_KEY]: [
@@ -74,6 +81,13 @@ export const MODULE_ACTIONS: Readonly<Record<string, readonly ModuleActionDef[]>
       key: SALES_CATALOG_ACTION,
       label: "Editar el catálogo",
       description: "Alta y edición de productos, precios, costos y categorías.",
+    },
+  ],
+  [COMMUNICATIONS_MODULE_KEY]: [
+    {
+      key: COMMUNICATIONS_CARNETS_ACTION,
+      label: "Administrar carnets",
+      description: "Emitir carnets, descargar el PDF para imprimir, entregarlos y dar permisos de carnets.",
     },
   ],
   [STORE_MODULE_KEY]: [

@@ -147,10 +147,11 @@ function ajustarTexto(entrada: {
   altoPt: number;
   maxLines: number | undefined;
   cuerpoPt: number;
+  interlineado: number;
   medir: (t: string, cuerpoPt: number) => number;
 }): { sizePt: number; lineHeightPt: number; lines: string[]; overflow: boolean } {
   const medirCon = (cuerpo: number) => {
-    const lineHeightPt = cuerpo * LINE_HEIGHT_RATIO;
+    const lineHeightPt = cuerpo * entrada.interlineado;
     const lines = wrapText(
       entrada.texto,
       entrada.anchoPt,
@@ -263,6 +264,7 @@ export function buildLayoutPlan(
           altoPt: base.heightPt,
           maxLines: bloque.maxLines,
           cuerpoPt: bloque.fontSize,
+          interlineado: bloque.lineHeight ?? LINE_HEIGHT_RATIO,
           medir: (t, cuerpo) => options.measurer.widthOf(t, fontId, slot, cuerpo),
         });
         const { sizePt, lineHeightPt, lines } = ajuste;

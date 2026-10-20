@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, toArDay } from "@repo/muestras";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, COUNTRIES, DEFAULT_COUNTRY, countryCode, formatArClock, openingHasTime, toArDay } from "@repo/muestras";
 import { enviarARevision, guardarBorrador } from "@/lib/actividades/acciones";
-import type { buscarPropia } from "@/lib/actividades/consultas";
+import type { buscarParaEditar } from "@/lib/actividades/consultas";
 import type { ObraForm } from "@/lib/actividades/mapear";
 import { BuscadorDireccion } from "./buscador-direccion";
 import { EditorObras } from "./obras";
@@ -13,24 +13,39 @@ import { subirImagen } from "./subir-imagen";
 
 const MapaDelLugar = dynamic(() => import("@/components/mapa/mapa-del-lugar"), { ssr: false });
 
-export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarPropia>>>;
+export type ActividadEditable = NonNullable<Awaited<ReturnType<typeof buscarParaEditar>>>["actividad"];
 
 const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2";
 
-export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }) {
+/**
+ * `visibilidad`: con la sorpresa cargada (etapa 6), qué obras se ven online lo decide Visibilidad: la
+ * casilla "Mostrar todas" se reemplaza por un enlace y el texto dice lo que eligió quien organiza.
+ */
+export function FormularioActividad({ inicial, visibilidad }: { inicial?: ActividadEditable; visibilidad?: { conAjuste: boolean; queSeVe: string; enlace: string | null } }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
   const [errores, setErrores] = useState<string[]>([]);
   const [tipo, setTipo] = useState(inicial?.type ?? "MUESTRA");
-  const [virtual, setVirtual] = useState(inicial?.isVirtualOnly ?? false);
+  const [soloOnline, setSoloOnline] = useState(inicial?.isVirtualOnly ?? false);
+  // Una muestra se visita en persona: para ella no existe "sólo online" (ver MUESTRA_NEEDS_VENUE).
+  const esMuestra = tipo === "MUESTRA";
+  const sinLugar = !esMuestra && soloOnline;
   const [portada, setPortada] = useState<string | null>(inicial?.coverImageUrl ?? null);
+  const [pais, setPais] = useState<string>(inicial?.country ?? DEFAULT_COUNTRY);
   const [lugar, setLugar] = useState({
     address: inicial?.address ?? "", city: inicial?.city ?? "", province: inicial?.province ?? "",
     latitude: inicial?.latitude ?? null as number | null, longitude: inicial?.longitude ?? null as number | null,
   });
   const [obras, setObras] = useState<ObraForm[]>(
-    (inicial?.works ?? []).map((w) => ({ id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique, isHighlight: w.isHighlight })),
+    (inicial?.works ?? []).map((w) => ({
+      id: w.id, imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year, technique: w.technique,
+      isHighlight: w.isHighlight, authorProfileId: w.authorProfileId, authorProfileName: w.authorProfile?.displayName ?? null,
+    })),
   );
+
+  // Las obras que este editor cargó: al guardar sólo se quitan de la galería las que estaban acá.
+  // Si mientras tanto se sumaron otras (p. ej. al armar la muestra en otra pestaña), se conservan.
+  const [idsCargados] = useState<string[]>(() => (inicial?.works ?? []).map((w) => w.id));
 
   function datos(form: HTMLFormElement) {
     const fd = new FormData(form);
@@ -39,6 +54,9 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
     fd.set("address", lugar.address); fd.set("city", lugar.city); fd.set("province", lugar.province);
     fd.set("latitude", lugar.latitude?.toString() ?? ""); fd.set("longitude", lugar.longitude?.toString() ?? "");
     fd.set("works", JSON.stringify(tipo === "MUESTRA" ? obras : []));
+    fd.set("idsCargados", JSON.stringify(idsCargados));
+    // La versión con la que se abrió: si otra persona del equipo guardó en el medio, no se pisa.
+    if (inicial) fd.set("editVersion", String(inicial.editVersion));
     return fd;
   }
 
@@ -49,14 +67,17 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
       if (enviar) {
         const e = await enviarARevision(r.id);
         if (!e.ok) {
-          if (inicial) { setErrores(e.errores); router.refresh(); return; }
-          // Borrador nuevo: hay que ir a su página para que lo próximo edite el mismo y no cree
-          // otro. Los faltantes viajan en la URL porque el cambio de página borra este estado.
-          router.replace(`/mis-muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
+          // Los faltantes viajan en la URL: el guardado cambia la clave del formulario (y, si es un
+          // borrador nuevo, la página), así que este estado se pierde. Un borrador nuevo además
+          // tiene que ir a su página para que lo próximo edite el mismo y no cree otro.
+          router.replace(`/panel/muestras/${r.id}?faltan=${encodeURIComponent(e.errores.join("|"))}`);
           return;
         }
       }
-      router.push(enviar ? "/mis-muestras?enviada=1" : `/mis-muestras/${r.id}`);
+      // Un aviso (por ejemplo, un perfil ajeno en una muestra publicada) no frena el guardado:
+      // viaja en la URL porque el cambio de página borra este estado.
+      const aviso = r.avisos?.length ? "?aviso=perfiles" : "";
+      router.push(enviar ? "/panel/muestras?enviada=1" : `/panel/muestras/${r.id}${aviso}`);
     });
   }
 
@@ -71,6 +92,17 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
         <label className="block">Título<input name="title" className={campo} defaultValue={inicial?.title} required /></label>
         <label className="block">Descripción<textarea name="description" rows={5} className={campo} defaultValue={inicial?.description} /></label>
         <label className="block">Organizadores<input name="organizersText" className={campo} defaultValue={inicial?.organizersText} placeholder="Personas o instituciones que la organizan" /></label>
+        {esMuestra ? (
+          <>
+            <label className="block">Texto curatorial (optativo)
+              <textarea name="curatorialText" rows={8} maxLength={6000} className={campo} defaultValue={inicial?.curatorialText ?? ""} />
+              <span className="mt-1 block text-sm text-[var(--mf-muted)]">Va en la página de la muestra, en el cartel de sala y en el catálogo. Separá los párrafos con una línea en blanco.</span>
+            </label>
+            <label className="block">Curaduría (optativo)
+              <input name="curatorCredits" maxLength={300} className={campo} defaultValue={inicial?.curatorCredits ?? ""} placeholder="Curaduría: Ana Pérez" />
+            </label>
+          </>
+        ) : null}
         <div>
           <p>Foto de portada</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -87,20 +119,35 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
         <label>Desde<input type="date" name="startDay" className={campo} defaultValue={inicial ? toArDay(inicial.startsAt) : ""} /></label>
         <label>Hasta<input type="date" name="endDay" className={campo} defaultValue={inicial ? toArDay(inicial.endsAt) : ""} /></label>
         <label>Inauguración (opcional)<input type="date" name="openingDay" className={campo} defaultValue={inicial?.openingAt ? toArDay(inicial.openingAt) : ""} /></label>
+        <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+          <label>Hora<input type="time" name="openingClock" className={campo} defaultValue={openingHasTime(inicial?.openingAt) ? formatArClock(inicial!.openingAt!) : ""} /></label>
+          <label>Hasta, opcional<input type="time" name="openingEndClock" className={campo} defaultValue={inicial?.openingEndsAt && openingHasTime(inicial.openingAt) ? formatArClock(inicial.openingEndsAt) : ""} /></label>
+          <p className="col-span-2 text-sm text-[var(--mf-muted)]">Con la hora, podés pedir confirmación de asistencia y armar la invitación.</p>
+        </div>
         <label className="sm:col-span-2">Horarios<input name="scheduleText" className={campo} defaultValue={inicial?.scheduleText ?? ""} placeholder="Mar a dom de 16 a 20" /></label>
         <label>Entrada<input name="priceText" className={campo} defaultValue={inicial?.priceText ?? ""} placeholder="Vacío = libre y gratuita" /></label>
         <label className="sm:col-span-3">Enlace (opcional)<input name="externalUrl" type="url" className={campo} defaultValue={inicial?.externalUrl ?? ""} /></label>
       </fieldset>
 
       <fieldset className="space-y-3">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" name="isVirtualOnly" checked={virtual} onChange={(e) => setVirtual(e.target.checked)} />
-          Es sólo virtual (no tiene sala)
-        </label>
-        {!virtual ? (
+        <legend className="text-lg">{esMuestra ? "Dónde se puede visitar" : "Dónde es"}</legend>
+        {esMuestra ? (
+          <p className="text-sm text-[var(--mf-muted)]">La sala, galería o centro cultural donde se cuelgan las obras. Con la dirección, la muestra aparece en el mapa y la gente sabe cómo llegar.</p>
+        ) : (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="isVirtualOnly" checked={soloOnline} onChange={(e) => setSoloOnline(e.target.checked)} />
+            Es sólo online (no tiene lugar)
+          </label>
+        )}
+        {!sinLugar ? (
           <>
-            <label className="block">Nombre del lugar<input name="venueName" className={campo} defaultValue={inicial?.venueName ?? ""} placeholder="Centro cultural, galería…" /></label>
-            <BuscadorDireccion onElegir={(l) => setLugar({ address: l.address ?? l.displayName, city: l.city ?? "", province: l.province ?? "", latitude: l.latitude, longitude: l.longitude })} />
+            <label className="block">{esMuestra ? "Nombre de la sede" : "Nombre del lugar"}<input name="venueName" className={campo} defaultValue={inicial?.venueName ?? ""} placeholder="Sala, galería, centro cultural…" /></label>
+            <label className="block">País
+              <select name="country" value={pais} onChange={(e) => setPais(e.target.value)} className={campo}>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </select>
+            </label>
+            <BuscadorDireccion pais={countryCode(pais) ?? "AR"} onElegir={(l) => setLugar({ address: l.address ?? l.displayName, city: l.city ?? "", province: l.province ?? "", latitude: l.latitude, longitude: l.longitude })} />
             <p className="text-sm text-[var(--mf-muted)]">{lugar.address || "Todavía no elegiste la dirección."} Si el punto quedó corrido, tocá el mapa o arrastrá el pin.</p>
             <MapaDelLugar latitude={lugar.latitude} longitude={lugar.longitude} editable onMover={(lat, lng) => setLugar((p) => ({ ...p, latitude: lat, longitude: lng }))} alto="280px" />
           </>
@@ -109,12 +156,22 @@ export function FormularioActividad({ inicial }: { inicial?: ActividadEditable }
 
       {tipo === "MUESTRA" ? (
         <fieldset className="space-y-3">
-          <legend className="text-lg">Galería virtual</legend>
-          <EditorObras obras={obras} onCambio={setObras} />
-          <label className="flex items-center gap-2">
-            <input type="checkbox" name="galleryMode" value="FULL" defaultChecked={inicial?.galleryMode === "FULL"} />
-            Mostrar la galería completa desde el primer día
-          </label>
+          <legend className="text-lg">Obras de la muestra</legend>
+          <p className="text-sm text-[var(--mf-muted)]">
+            {visibilidad?.queSeVe ?? "Mientras la muestra está abierta, la ficha muestra sólo las destacadas: un anticipo online para invitar a la visita. Cuando cierra, quedan todas como archivo de la muestra."}
+          </p>
+          <EditorObras obras={obras} onCambio={setObras} deExpositor={inicial?.exhibitorWorkIds} deConcurso={inicial?.contestWorkIds} queSeVe={visibilidad?.conAjuste ? "Qué obras se ven online lo elegís en Visibilidad." : inicial?.galleryMode === "FULL" ? "El público ve todas las obras online." : undefined} />
+          {visibilidad?.conAjuste ? (
+            <p className="text-[15px]">
+              Qué obras se ven online lo elegís en{" "}
+              {visibilidad.enlace ? <a href={visibilidad.enlace} className="underline underline-offset-4">Visibilidad</a> : "Visibilidad"}.
+            </p>
+          ) : (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="galleryMode" value="FULL" defaultChecked={inicial?.galleryMode === "FULL"} />
+              Mostrar todas las obras online desde el primer día
+            </label>
+          )}
           <label className="flex items-start gap-2">
             <input type="checkbox" name="rightsConfirmed" defaultChecked={inicial?.rightsConfirmedAt != null} />
             Confirmo que tengo autorización de los autores para publicar estas imágenes, y que cada una lleva su crédito.

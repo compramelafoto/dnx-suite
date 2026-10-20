@@ -5,17 +5,22 @@ import Link from "next/link";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { pesos } from "@/lib/presupuestos/editor";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { perfilesIguales } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
 import {
+  ajustesVacios,
   calcularItemDelPanel,
   perfilParaPanel,
   TIPOS_TRABAJO,
   trabajoDesdeMotor,
   trabajoVacio,
+  type AjustesTrabajo,
   type DatosItemCalculado,
   type TrabajoPanel,
 } from "@/lib/presupuestos/panel-cuanto-cobro";
+import { CamposAjustes, DesglosePrecio } from "./desglose-precio";
+import { CamposEstudio } from "./campos-estudio";
 
 /**
  * Panel de ¿Cuánto Cobro? de un ítem (spec §3.2). SÓLO se dibuja para quien tiene `configurar`
@@ -35,9 +40,21 @@ export function CampoTexto({
   valor: string;
   onCambio: (v: string) => void;
   ayuda?: string;
-  tipo?: "number" | "text";
+  /** "moneda": pesos enteros con $ y punto de miles. */
+  tipo?: "number" | "text" | "moneda";
 }) {
   const id = useId();
+  if (tipo === "moneda") {
+    return (
+      <div className="fo-field-stack">
+        <label htmlFor={id} className="fo-label">
+          {etiqueta.replace(/\s*\(\$\)$/, "")}
+        </label>
+        <InputMoneda id={id} decimales={false} value={valor} onChange={onCambio} />
+        {ayuda ? <p className="text-xs text-[var(--fo-muted)]">{ayuda}</p> : null}
+      </div>
+    );
+  }
   return (
     <div className="fo-field-stack">
       <label htmlFor={id} className="fo-label">
@@ -73,10 +90,10 @@ export function AvisoSinPerfil() {
 
 /** El perfil que se está usando, en una línea. Lo comparten el panel y el asistente. */
 export function PerfilEnUso({ perfil, anterior = false }: { perfil: CuantoCobroProfileInput; anterior?: boolean }) {
-  const { valorHora } = resumirPerfil(perfil);
+  const { valorHora, estudio } = resumirPerfil(perfil);
   return (
     <p className="text-xs text-[var(--fo-muted)]">
-      {valorHora !== null ? `Valor de tu hora: ${pesos(valorHora)} · ` : ""}
+      {valorHora !== null ? `${estudio ? "Valor hora del estudio" : "Valor de tu hora"}: ${pesos(valorHora)} · ` : ""}
       <Link href={RUTA_PRECIOS} className="text-[var(--fo-accent)] hover:underline">
         {anterior ? "Perfil con el que se calculó este ítem" : "Perfil de Configuración → Precios"}
       </Link>
@@ -85,7 +102,18 @@ export function PerfilEnUso({ perfil, anterior = false }: { perfil: CuantoCobroP
 }
 
 /** Los datos de un concepto del trabajo, según su tipo. */
-export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo: TrabajoPanel; onCambio: (t: TrabajoPanel) => void; conNombre?: boolean }) {
+export function CamposTrabajo({
+  trabajo,
+  onCambio,
+  conNombre = true,
+  perfil = null,
+}: {
+  trabajo: TrabajoPanel;
+  onCambio: (t: TrabajoPanel) => void;
+  conNombre?: boolean;
+  /** Con el perfil, se suman los campos de «Mi estudio» (quién lo hace, cámara, línea) si corresponden. */
+  perfil?: CuantoCobroProfileInput | null;
+}) {
   const set = (k: keyof TrabajoPanel) => (v: string) => onCambio({ ...trabajo, [k]: v });
   const idTipo = useId();
   return (
@@ -110,40 +138,57 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
           <CampoTexto etiqueta="Horas de edición" valor={trabajo.horasEdicion} onCambio={set("horasEdicion")} />
           <CampoTexto etiqueta="Horas de entrega" valor={trabajo.horasEntrega} onCambio={set("horasEntrega")} />
           <CampoTexto etiqueta="Horas de viaje" valor={trabajo.horasViaje} onCambio={set("horasViaje")} />
-          <CampoTexto etiqueta="Costos directos ($)" valor={trabajo.costoDirecto} onCambio={set("costoDirecto")} ayuda="Asistente, traslado, insumos." />
+          <CampoTexto
+            etiqueta="Disparos estimados (máximo)"
+            valor={trabajo.disparosEstimados}
+            onCambio={set("disparosEstimados")}
+            ayuda="Con la cámara cargada en Precios, calcula el desgaste de la cámara en este trabajo."
+          />
+          <CampoTexto
+            tipo="moneda"
+            etiqueta="Costos directos ($)"
+            valor={trabajo.costoDirecto}
+            onCambio={set("costoDirecto")}
+            ayuda="Insumos. Asistente, viáticos y productos conviene cargarlos como conceptos aparte."
+          />
         </>
       ) : null}
       {trabajo.tipo === "physical-product" ? (
         <>
-          <CampoTexto etiqueta="Costo del proveedor ($)" valor={trabajo.costoProveedor} onCambio={set("costoProveedor")} />
+          <CampoTexto tipo="moneda" etiqueta="Costo del proveedor ($)" valor={trabajo.costoProveedor} onCambio={set("costoProveedor")} />
           <CampoTexto etiqueta="Horas de diseño" valor={trabajo.horasDiseno} onCambio={set("horasDiseno")} />
-          <CampoTexto etiqueta="Envío ($)" valor={trabajo.costoEnvio} onCambio={set("costoEnvio")} />
+          <CampoTexto tipo="moneda" etiqueta="Envío ($)" valor={trabajo.costoEnvio} onCambio={set("costoEnvio")} />
+          <CampoTexto tipo="moneda" etiqueta="Embalaje ($)" valor={trabajo.costoEmbalaje} onCambio={set("costoEmbalaje")} />
           <CampoTexto etiqueta="Ganancia deseada (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
+          {trabajo.camara ? (
+            <CampoTexto etiqueta="Disparos" valor={trabajo.disparosEstimados} onCambio={set("disparosEstimados")} ayuda="Con la cámara elegida, suma su desgaste (carnet: 3 por unidad)." />
+          ) : null}
         </>
       ) : null}
       {trabajo.tipo === "outsourced" ? (
         <>
-          <CampoTexto etiqueta="Costo tercerizado ($)" valor={trabajo.costoTercerizado} onCambio={set("costoTercerizado")} />
+          <CampoTexto tipo="moneda" etiqueta="Costo tercerizado ($)" valor={trabajo.costoTercerizado} onCambio={set("costoTercerizado")} />
           <CampoTexto etiqueta="Horas de gestión" valor={trabajo.horasGestion} onCambio={set("horasGestion")} />
           <CampoTexto etiqueta="Margen (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
       {trabajo.tipo === "expense" ? (
         <>
-          <CampoTexto etiqueta="Costo del gasto ($)" valor={trabajo.costoGasto} onCambio={set("costoGasto")} />
+          <CampoTexto tipo="moneda" etiqueta="Costo del gasto ($)" valor={trabajo.costoGasto} onCambio={set("costoGasto")} />
           <CampoTexto etiqueta="Recargo (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
+      {perfil ? <CamposEstudio trabajo={trabajo} onCambio={onCambio} perfil={perfil} /> : null}
       <CampoTexto etiqueta="Horas con el cliente" valor={trabajo.horasCliente} onCambio={set("horasCliente")} ayuda="Reuniones, ventas, coordinación." />
-      <CampoTexto etiqueta="Precio a mano en el motor ($)" valor={trabajo.precioManual} onCambio={set("precioManual")} ayuda="Vacío: el recomendado." />
+      <CampoTexto tipo="moneda" etiqueta="Precio a mano en el motor ($)" valor={trabajo.precioManual} onCambio={set("precioManual")} ayuda="Vacío: el recomendado." />
     </div>
   );
 }
 
 /** El trabajo guardado en un ítem calculado, para reabrir el panel. */
-export function trabajoDelItem(item: ItemPresupuesto | null): { trabajo: TrabajoPanel; tipoDeTrabajo: string } {
+export function trabajoDelItem(item: ItemPresupuesto | null): { trabajo: TrabajoPanel; tipoDeTrabajo: string; ajustes: AjustesTrabajo } {
   const guardado = item?.calculo ? trabajoDesdeMotor((item.calculo.entrada as { presupuesto?: unknown } | null)?.presupuesto) : null;
-  return guardado ?? { trabajo: trabajoVacio(item?.nombre ?? ""), tipoDeTrabajo: "" };
+  return guardado ?? { trabajo: trabajoVacio(item?.nombre ?? ""), tipoDeTrabajo: "", ajustes: ajustesVacios() };
 }
 
 export function PanelCuantoCobro({
@@ -167,6 +212,7 @@ export function PanelCuantoCobro({
   const desactualizado = perfil !== null && perfilDelWorkspace !== null && !perfilesIguales(perfil, perfilDelWorkspace);
   const [trabajo, setTrabajo] = useState<TrabajoPanel>(inicial.trabajo);
   const [tipoDeTrabajo, setTipoDeTrabajo] = useState(inicial.tipoDeTrabajo);
+  const [ajustes, setAjustes] = useState<AjustesTrabajo>(inicial.ajustes);
 
   const datos: DatosItemCalculado = {
     id: item.id,
@@ -177,7 +223,7 @@ export function PanelCuantoCobro({
     productId: item.productId,
   };
   // El motor es puro y rápido: corre en cada cambio, sin ir al servidor.
-  const resultado = perfil ? calcularItemDelPanel(perfil, trabajo, tipoDeTrabajo, datos) : null;
+  const resultado = perfil ? calcularItemDelPanel(perfil, trabajo, tipoDeTrabajo, datos, new Date(), ajustes) : null;
   const c = resultado?.ok ? resultado.item.calculo : null;
 
   return (
@@ -203,7 +249,8 @@ export function PanelCuantoCobro({
       ) : null}
 
       <CampoTexto etiqueta="Tipo de trabajo" tipo="text" valor={tipoDeTrabajo} onCambio={setTipoDeTrabajo} ayuda="Por ejemplo: Boda, 15 años, Corporativo." />
-      <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} />
+      <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} perfil={perfil} />
+      {perfil ? <CamposAjustes ajustes={ajustes} onCambio={setAjustes} perfil={perfil} /> : null}
 
       {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
       <p className="sr-only" aria-live="polite">
@@ -220,6 +267,22 @@ export function PanelCuantoCobro({
             <div className="flex justify-between gap-2"><dt className="text-[var(--fo-muted)]">Valor hora</dt><dd>{pesos(c.valorHora)}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--fo-muted)]">Horas totales</dt><dd>{Math.round(c.horasTotales * 10) / 10} h</dd></div>
           </dl>
+          {c.porPersona && c.porPersona.length > 0 ? (
+            <div>
+              <p className="text-xs font-semibold text-[var(--fo-muted)]">Quién lo hace</p>
+              <ul className="mt-1 space-y-0.5">
+                {c.porPersona.map((p) => (
+                  <li key={p.persona} className="flex justify-between gap-2">
+                    <span>
+                      {p.nombre} · {Math.round(p.horas * 10) / 10} h{p.alValorDelEstudio ? " (al valor del estudio)" : ""}
+                    </span>
+                    <span className="tabular-nums">{pesos(p.costo)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {c.desglose ? <DesglosePrecio linea={c.desglose} /> : null}
           {c.advertencias.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--fo-muted)]">
               {c.advertencias.map((a) => (

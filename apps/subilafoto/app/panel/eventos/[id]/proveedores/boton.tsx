@@ -80,7 +80,7 @@ export function BotonDeCategoria({ eventoId, yaCreadas }: { eventoId: string; ya
         type="submit"
         disabled={creando}
         className="rounded-xl border-2 px-5 text-sm font-extrabold disabled:opacity-50"
-        style={{ borderColor: "var(--slf-violeta)", color: "var(--slf-violeta)", minHeight: "44px" }}
+        style={{ borderColor: "var(--slf-violeta)", color: "var(--slf-violeta-texto)", minHeight: "44px" }}
       >
         {creando ? "Creando…" : "Crear"}
       </button>

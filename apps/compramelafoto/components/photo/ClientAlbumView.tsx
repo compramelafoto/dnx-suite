@@ -53,6 +53,10 @@ import { usePurchaseUxFeedback } from "@/components/album-purchase/hooks/usePurc
 import PackBuyerContactSheet from "@/components/album-purchase/PackBuyerContactSheet";
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
 import { albumPackClientPriceArs } from "@/lib/album-packs/album-pack-client-price";
+import {
+  albumPackDraftStorageKey,
+  albumPackGuestTokenStorageKey,
+} from "@/lib/album-packs/album-pack-cart-storage";
 import { applyAlbumExtensionSurchargeToClientTotalArs } from "@/lib/pricing/album-extension-surcharge";
 import {
   getPublicPackBadgeLabel,
@@ -88,6 +92,17 @@ type Album = {
   expirationExtensionDays?: number | null;
   isHidden?: boolean;
   showComingSoonMessage?: boolean;
+  /**
+   * Si ofrecer el buscador por número o palabra.
+   *
+   * Desde el 2026-10-09 la lectura de texto sólo corre en álbumes deportivos, porque en
+   * los demás no hay nada que leer y se le pagaba a Amazon igual. Donde no corrió, el
+   * buscador devolvería siempre cero resultados: es peor ofrecerlo que no tenerlo.
+   *
+   * Opcional y por defecto `true`, para no cambiarle el comportamiento a nadie que no lo
+   * pase explícitamente.
+   */
+  textSearchAvailable?: boolean;
   hiddenPhotosEnabled?: boolean;
   /** Protección visual al ampliar fotos no compradas. Activada salvo que el fotógrafo la apague. */
   scanProtectionEnabled?: boolean;
@@ -128,14 +143,6 @@ type PackDraftCartStorage = {
   items: PackDraftPreparedSummary[];
   orderId: number | null;
 };
-
-function albumPackGuestTokenStorageKey(albumId: number): string {
-  return `album_${albumId}_pack_selection_guest_token`;
-}
-
-function albumPackDraftStorageKey(albumId: number): string {
-  return `album_${albumId}_pack_order_draft_summary`;
-}
 
 function isPackDraftPreparedSummary(value: unknown): value is PackDraftPreparedSummary {
   if (!value || typeof value !== "object") return false;
@@ -236,6 +243,10 @@ function packOrderErrorMessage(code: string | undefined, fallback: string): stri
       return "El fotógrafo aún no conectó Mercado Pago para recibir pagos.";
     case "DRAFT_NOT_FOUND":
       return "No encontramos tu selección. Volvé a elegir las fotos del pack.";
+    case "ORDER_ALREADY_PAID":
+      return "Este pack ya está pagado. Para comprar otras fotos iniciá una compra nueva.";
+    case "ORDER_NOT_PAYABLE":
+      return "Este pedido ya no se puede pagar. Iniciá una compra nueva.";
     default:
       return fallback;
   }
@@ -633,6 +644,8 @@ export default function ClientAlbumView({
   const [packSelectionError, setPackSelectionError] = useState<string | null>(null);
   const [packPaymentSubmitting, setPackPaymentSubmitting] = useState(false);
   const [packPaymentError, setPackPaymentError] = useState<string | null>(null);
+  /** Aviso (no error) cuando el carrito guardado ya estaba pagado y lo reiniciamos. */
+  const [packCartNotice, setPackCartNotice] = useState<string | null>(null);
   const [packDraftPreparedSummaries, setPackDraftPreparedSummaries] = useState<
     PackDraftPreparedSummary[]
   >([]);
@@ -1202,6 +1215,7 @@ export default function ClientAlbumView({
     setPackSelectionSaving(true);
     setPackSelectionError(null);
     setPackPaymentError(null);
+    setPackCartNotice(null);
     try {
       await persistPackSelectionForAlbumPack({
         packId: packSelectionMode.packId,
@@ -1248,10 +1262,38 @@ export default function ClientAlbumView({
     return { contact: null, initial };
   }
 
+  /**
+   * El carrito guardado (o parte) ya estaba pagado: se sacan esos packs para que el comprador
+   * arme una compra nueva en vez de volver a pagar el mismo pedido (pedido 4645, 11/10/2026).
+   * Sin `paidDraftIds` se vacía todo el carrito.
+   */
+  function resetPackCartAfterAlreadyPaid(paidDraftIds: string[] | null) {
+    const paid = new Set(paidDraftIds ?? []);
+    const remaining =
+      paid.size === 0
+        ? []
+        : packDraftPreparedSummaries.filter((item) => !paid.has(item.draftId));
+    writeStoredPackDraftCart(album.id, remaining, null);
+    if (remaining.length === 0 && typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(albumPackGuestTokenStorageKey(album.id));
+      } catch {}
+    }
+    setPackDraftPreparedSummaries(remaining);
+    setPackCartOrderId(null);
+    setPackPaymentError(null);
+    setPackCartNotice(
+      remaining.length === 0
+        ? "Este pack ya está pagado. Para comprar otras fotos iniciá una compra nueva."
+        : "Uno de los packs ya estaba pagado y lo sacamos de tu compra. Revisá lo que queda y volvé a tocar Pagar."
+    );
+  }
+
   async function executePackPayment(buyerContact?: AlbumPackBuyerContact | null) {
     if (packDraftPreparedSummaries.length === 0 || packPaymentSubmitting) return;
     setPackPaymentSubmitting(true);
     setPackPaymentError(null);
+    setPackCartNotice(null);
     try {
       const storedGuestToken =
         typeof window === "undefined"
@@ -1287,6 +1329,13 @@ export default function ClientAlbumView({
         const createOrderData = await createOrderRes.json().catch(() => ({}));
         if (!createOrderRes.ok) {
           const code = String(createOrderData?.code ?? "").trim();
+          if (code === "ORDER_ALREADY_PAID") {
+            const paidDraftIds = Array.isArray(createOrderData?.paidDraftIds)
+              ? (createOrderData.paidDraftIds as unknown[]).map((id) => String(id))
+              : null;
+            resetPackCartAfterAlreadyPaid(paidDraftIds);
+            return;
+          }
           if (
             code === "DRAFT_BUYER_EMAIL_REQUIRED" ||
             code === "BUYER_EMAIL_REQUIRED" ||
@@ -1331,6 +1380,11 @@ export default function ClientAlbumView({
       const prefData = await prefRes.json().catch(() => ({}));
       if (!prefRes.ok) {
         const code = String(prefData?.code ?? "").trim();
+        if (code === "ORDER_ALREADY_PAID" || code === "ORDER_NOT_PAYABLE") {
+          // El pedido guardado en el carrito ya se cobró: nunca volver a mandarlo a pagar.
+          resetPackCartAfterAlreadyPaid(null);
+          return;
+        }
         throw new Error(
           packOrderErrorMessage(
             code,
@@ -2288,6 +2342,14 @@ export default function ClientAlbumView({
           {packSelectionError && !purchaseUxV2 ? (
             <p className="text-sm text-red-600">{packSelectionError}</p>
           ) : null}
+          {packCartNotice ? (
+            <p
+              role="status"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
+              {packCartNotice}
+            </p>
+          ) : null}
           {packSelectionSaving ? (
             <p className="text-sm text-[#6b7280]">Preparando tu pack con las fotos encontradas…</p>
           ) : null}
@@ -2832,7 +2894,12 @@ export default function ClientAlbumView({
                 </p>
               </div>
             <div className="flex flex-col items-center">
-              <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 sm:gap-5">
+              {/* Si hay un solo buscador va centrado, no pegado a la columna izquierda. */}
+              <div
+                className={`grid w-full gap-4 sm:gap-5 ${
+                  album.textSearchAvailable !== false ? "max-w-4xl sm:grid-cols-2" : "max-w-md"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -2849,7 +2916,7 @@ export default function ClientAlbumView({
                   <img
                     src="/faceid.png"
                     alt="Buscar por selfie"
-                    className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white p-4 object-contain sm:h-[140px] sm:w-[140px]"
+                    className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white object-cover sm:h-[140px] sm:w-[140px]"
                   />
                   <div>
                     <p className="text-base font-semibold text-[#1a1a1a]">Buscar por selfie</p>
@@ -2858,33 +2925,38 @@ export default function ClientAlbumView({
                     </p>
                   </div>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTab("text");
-                    setShowOcrModal(true);
-                  }}
-                  className={`flex w-full flex-col items-center justify-center gap-3 rounded-2xl border px-5 py-5 text-center shadow-md transition sm:min-h-[200px] ${
-                    searchTab === "text"
-                      ? "border-transparent"
-                      : "border-[#e5e7eb] hover:border-[#cbd5f5] bg-white"
-                  }`}
-                  style={searchTab === "text" ? { backgroundColor: `${accentColor}14` } : undefined}
-                >
-                  <img
-                    src="/OCR.png"
-                    alt="Buscar por número o palabra clave"
-                    className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white p-4 object-contain sm:h-[140px] sm:w-[140px]"
-                  />
-                  <div>
-                    <p className="text-base font-semibold text-[#1a1a1a]">
-                      Buscar por número o palabra clave
-                    </p>
-                    <p className="text-sm text-[#6b7280] mt-0.5 leading-snug">
-                      Camiseta, dorsal, patente, DNI o nombre
-                    </p>
-                  </div>
-                </button>
+                {/* Sin texto leído, este buscador siempre devolvería cero. Ver `textSearchAvailable`. */}
+                {album.textSearchAvailable !== false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTab("text");
+                      setShowOcrModal(true);
+                    }}
+                    className={`flex w-full flex-col items-center justify-center gap-3 rounded-2xl border px-5 py-5 text-center shadow-md transition sm:min-h-[200px] ${
+                      searchTab === "text"
+                        ? "border-transparent"
+                        : "border-[#e5e7eb] hover:border-[#cbd5f5] bg-white"
+                    }`}
+                    style={
+                      searchTab === "text" ? { backgroundColor: `${accentColor}14` } : undefined
+                    }
+                  >
+                    <img
+                      src="/OCR.png"
+                      alt="Buscar por número o palabra clave"
+                      className="h-[120px] w-[120px] rounded-2xl border border-[#e5e7eb] bg-white object-cover sm:h-[140px] sm:w-[140px]"
+                    />
+                    <div>
+                      <p className="text-base font-semibold text-[#1a1a1a]">
+                        Buscar por número o palabra clave
+                      </p>
+                      <p className="text-sm text-[#6b7280] mt-0.5 leading-snug">
+                        Camiseta, dorsal, patente, DNI o nombre
+                      </p>
+                    </div>
+                  </button>
+                )}
               </div>
             </div>
             {searchError && !purchaseUxV2 && (
@@ -3142,6 +3214,7 @@ export default function ClientAlbumView({
           type="button"
           onClick={handleContinuarCanje}
           disabled={selected.size === 0 || checkoutSubmitting}
+          data-dnxbot-evitar=""
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
             selected.size > 0 && !checkoutSubmitting
               ? "bg-[#c27b3d] hover:bg-[#a0652d]"
@@ -3163,6 +3236,7 @@ export default function ClientAlbumView({
           type="button"
           onClick={handleComprar}
           disabled={comprarBoton.disabled}
+          data-dnxbot-evitar=""
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
             !comprarBoton.disabled
               ? "bg-[#c27b3d] hover:bg-[#a0652d]"
@@ -3192,6 +3266,7 @@ export default function ClientAlbumView({
             packSelectionSaving ||
             packSelectionMode.photoIds.size !== packSelectionMode.requiredCount
           }
+          data-dnxbot-evitar=""
           className={`fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none ${
             packSelectionMode.photoIds.size === packSelectionMode.requiredCount &&
             !packSelectionSaving

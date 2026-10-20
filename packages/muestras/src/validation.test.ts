@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { missingForSubmission, type DraftInput } from "./validation";
+import { MUESTRA_NEEDS_VENUE, missingForSubmission, type DraftInput } from "./validation";
 
 const ok: DraftInput = {
   type: "MUESTRA",
@@ -31,8 +31,17 @@ describe("missingForSubmission", () => {
   it("una actividad presencial necesita punto en el mapa", () => {
     expect(missingForSubmission({ ...ok, latitude: null, longitude: null })).toContain("Falta ubicar el lugar en el mapa.");
   });
-  it("una sólo virtual no necesita lugar", () => {
-    expect(missingForSubmission({ ...ok, isVirtualOnly: true, address: null, latitude: null, longitude: null })).toEqual([]);
+  it("una charla online no necesita lugar", () => {
+    expect(missingForSubmission({ ...ok, type: "CHARLA", isVirtualOnly: true, address: null, latitude: null, longitude: null })).toEqual([]);
+  });
+  it("una muestra no puede ser sólo online: necesita sede", () => {
+    const m = missingForSubmission({ ...ok, isVirtualOnly: true, address: null, latitude: null, longitude: null });
+    expect(m).toEqual([MUESTRA_NEEDS_VENUE]);
+    expect(MUESTRA_NEEDS_VENUE).toBe("Una muestra necesita una sede: cargá la dirección donde se puede visitar.");
+  });
+  it("una muestra sin dirección pide la dirección y el punto", () => {
+    const m = missingForSubmission({ ...ok, address: "", latitude: null, longitude: null });
+    expect(m).toEqual(["Falta la dirección.", "Falta ubicar el lugar en el mapa."]);
   });
   it("una muestra necesita al menos una obra y la confirmación de derechos", () => {
     const m = missingForSubmission({ ...ok, worksCount: 0, rightsConfirmed: false });
@@ -42,9 +51,10 @@ describe("missingForSubmission", () => {
   it("una charla no necesita obras", () => {
     expect(missingForSubmission({ ...ok, type: "CHARLA", worksCount: 0, highlightsCount: 0, rightsConfirmed: false })).toEqual([]);
   });
-  it("respeta los topes de la galería", () => {
-    const m = missingForSubmission({ ...ok, worksCount: 41, highlightsCount: 13 });
-    expect(m).toContain("La galería admite hasta 40 obras.");
+  it("respeta los topes de la galería (300 es el tope técnico, etapa 6)", () => {
+    expect(missingForSubmission({ ...ok, worksCount: 300 })).toEqual([]);
+    const m = missingForSubmission({ ...ok, worksCount: 301, highlightsCount: 13 });
+    expect(m).toContain("La galería admite hasta 300 obras.");
     expect(m).toContain("Podés destacar hasta 12 obras.");
   });
 });

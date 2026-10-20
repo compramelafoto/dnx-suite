@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archivo } from "next/font/google";
+import localFont from "next/font/local";
 import { Check } from "lucide-react";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { ElegiTuCaso } from "./elegi-tu-caso";
@@ -9,24 +9,32 @@ import { IconoDe } from "./iconos";
 import {
   BASE_DEL_SISTEMA,
   EN_CONSTRUCCION,
+  MODULOS_DE_LA_SUITE,
   MODULOS_DISPONIBLES,
   PASOS,
 } from "@/lib/landing/catalogo";
+import type { SeleccionInicial } from "@/lib/landing/enlace";
 import styles from "./landing.module.css";
 
 /**
  * Archivo, de Omnibus-Type (Buenos Aires). Se usa sólo para los titulares de esta página: es
  * una grotesca de señalética, con la misma familia de formas que el logotipo. El texto corrido
  * sigue en Geist, la del panel, para que la portada y el sistema se lean como una sola cosa.
+ *
+ * Los archivos están en el proyecto (landing/fonts, del juego latino de Fontsource) en lugar de
+ * `next/font/google`: esa opción la bajaba de Google en cada publicación y, cuando Google
+ * tardaba o respondía mal, la publicación fallaba ("An error occurred in next/font").
  */
-const archivo = Archivo({
-  subsets: ["latin"],
-  weight: ["600", "700"],
+const archivo = localFont({
+  src: [
+    { path: "./fonts/archivo-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/archivo-700.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-archivo",
   display: "swap",
 });
 
-const CATALOGO = [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA];
+const CATALOGO = [...MODULOS_DISPONIBLES, ...BASE_DEL_SISTEMA, ...MODULOS_DE_LA_SUITE];
 
 /** Un renglón de lista con su ícono. Se usa en las dos puertas y en los cobros. */
 function Punto({ icono, children }: { icono: string; children: React.ReactNode }) {
@@ -40,7 +48,13 @@ function Punto({ icono, children }: { icono: string; children: React.ReactNode }
   );
 }
 
-export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean }) {
+export function FotofficeLanding({
+  dbUnavailable,
+  seleccion,
+}: {
+  dbUnavailable?: boolean;
+  seleccion?: SeleccionInicial;
+}) {
   return (
     <div className={`${styles.pagina} ${archivo.variable}`}>
       <header className={styles.barra}>
@@ -62,7 +76,7 @@ export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean })
           </div>
         ) : null}
 
-        <ElegiTuCaso>
+        <ElegiTuCaso inicial={seleccion}>
         {/* ── Cómo funciona ── */}
         <section id="como-funciona" className={`${styles.seccion} ${styles.seccionBlanca}`}>
           <div className={styles.ancho}>
@@ -158,6 +172,12 @@ export function FotofficeLanding({ dbUnavailable }: { dbUnavailable?: boolean })
                     Reservar el salón, el estudio o el coworking con su precio de socio.
                   </Punto>
                   <Punto icono="raffles">El sorteo del mes y los resultados de los anteriores.</Punto>
+                  <Punto icono="sponsors">
+                    Los beneficios y convenios de las marcas aliadas, todos juntos.
+                  </Punto>
+                  <Punto icono="governance">
+                    Los proyectos de la institución: proponer una idea, apoyar y ofrecerse para una tarea.
+                  </Punto>
                   <Punto icono="verificado">
                     A quién recomendó y cuánto le bonificaron la cuota por eso.
                   </Punto>

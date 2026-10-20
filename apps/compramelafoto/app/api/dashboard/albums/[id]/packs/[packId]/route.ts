@@ -29,6 +29,12 @@ import {
   deriveAlbumPackTypeFromComponents,
   serializeAlbumPackForDashboardApi,
 } from "@/lib/album-packs/album-pack-dashboard-api";
+import {
+  checkSelectionNeedsPhotoCount,
+  parseIncludedPhotoCount,
+  parsePackName,
+  parsePackPrice,
+} from "@/lib/album-packs/album-pack-basic-rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -146,11 +152,11 @@ export async function PATCH(
     }
 
     if ("name" in body) {
-      const name = String(body.name ?? "").trim();
-      if (!name) {
-        return NextResponse.json({ error: "name no puede estar vacío" }, { status: 400 });
+      const nameRule = parsePackName(body.name, "update");
+      if (!nameRule.ok) {
+        return NextResponse.json({ error: nameRule.error }, { status: 400 });
       }
-      data.name = name;
+      data.name = nameRule.value;
     }
 
     if ("description" in body) {
@@ -170,25 +176,22 @@ export async function PATCH(
     }
 
     if ("price" in body) {
-      const price = Number(body.price);
-      if (!Number.isInteger(price) || price < 0) {
-        return NextResponse.json({ error: "price debe ser un entero >= 0" }, { status: 400 });
+      const priceRule = parsePackPrice(body.price);
+      if (!priceRule.ok) {
+        return NextResponse.json({ error: priceRule.error }, { status: 400 });
       }
-      data.price = price;
+      data.price = priceRule.value;
     }
 
     if ("includedPhotoCount" in body) {
       if (body.includedPhotoCount === null) {
         data.includedPhotoCount = null;
       } else {
-        const includedPhotoCount = Number(body.includedPhotoCount);
-        if (!Number.isInteger(includedPhotoCount) || includedPhotoCount < 1) {
-          return NextResponse.json(
-            { error: "includedPhotoCount debe ser un entero >= 1 o null" },
-            { status: 400 }
-          );
+        const includedPhotoCountRule = parseIncludedPhotoCount(body.includedPhotoCount);
+        if (!includedPhotoCountRule.ok) {
+          return NextResponse.json({ error: includedPhotoCountRule.error }, { status: 400 });
         }
-        data.includedPhotoCount = includedPhotoCount;
+        data.includedPhotoCount = includedPhotoCountRule.value;
       }
     }
 
@@ -333,11 +336,12 @@ export async function PATCH(
     const effectiveTemplateV2Id =
       data.templateV2Id !== undefined ? data.templateV2Id : existing.templateV2Id;
 
-    if (effectiveRequiresSelection && effectiveIncludedPhotoCount == null) {
-      return NextResponse.json(
-        { error: "includedPhotoCount es obligatorio cuando requiresSelection = true" },
-        { status: 400 }
-      );
+    const selectionRule = checkSelectionNeedsPhotoCount(
+      effectiveRequiresSelection,
+      effectiveIncludedPhotoCount
+    );
+    if (!selectionRule.ok) {
+      return NextResponse.json({ error: selectionRule.error }, { status: 400 });
     }
     if (effectiveRequiresSelection && Number(effectiveIncludedPhotoCount) <= 0) {
       return NextResponse.json(

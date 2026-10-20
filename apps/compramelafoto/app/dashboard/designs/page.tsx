@@ -1,11 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 import { CreateTemplateV2Button, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import VistaDemoPlantilla3D from "@/components/design-v2/VistaDemoPlantilla3D";
+import FiltrosDeCatalogo from "@/components/design-v2/FiltrosDeCatalogo";
+import {
+  FILTROS_VACIOS,
+  filtrarPlantillas,
+  type FiltrosDeCatalogo as FiltrosCatalogo,
+  type RasgosDePlantilla,
+} from "@/lib/design-v2/rasgos-de-plantilla";
 
 type TemplatePublication = {
   reviewStatus: string;
@@ -25,18 +33,74 @@ type DashboardTemplate = {
   tipoLabel: string;
   publication: TemplatePublication | null;
   isSystemCatalog: boolean;
+  rasgos: RasgosDePlantilla;
   ownerName: string | null;
   ownerEmail: string | null;
 };
+
+/**
+ * Sin imagen guardada, la tarjeta dibuja la primera página de la plantilla con el mismo motor que
+ * imprime (`/api/template-v2/preview`). Antes mostraba sólo el nombre en un recuadro vacío.
+ */
+function VistaPreviaEnVivo({
+  templateId,
+  name,
+  preview,
+}: {
+  templateId: string;
+  name: string;
+  preview: DashboardTemplate["preview"];
+}) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [fallo, setFallo] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/template-v2/preview", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ templateId, previewPageIndex: 0 }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { svg?: string } | null) => {
+        if (!vivo) return;
+        if (d?.svg) setSvg(d.svg);
+        else setFallo(true);
+      })
+      .catch(() => vivo && setFallo(true));
+    return () => {
+      vivo = false;
+    };
+  }, [templateId]);
+  const ratioStyle = `${Math.max(preview.width, 1)} / ${Math.max(preview.height, 1)}`;
+  return (
+    <div
+      className="relative flex w-full items-center justify-center overflow-hidden rounded-lg ring-1 ring-[#e2e8f0] [&>div>svg]:h-full [&>div>svg]:w-full"
+      style={{ aspectRatio: ratioStyle, backgroundColor: preview.background ?? "#f1f5f9" }}
+    >
+      {svg ? (
+        // El SVG lo genera nuestro motor de impresión, con los textos escapados.
+        <div className="h-full w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+      ) : (
+        <span className={`line-clamp-3 px-3 text-center text-[11px] font-medium leading-tight text-[#475569] ${fallo ? "" : "animate-pulse"}`}>
+          {name.trim() || "Sin nombre"}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function TemplatePreviewThumb({
   name,
   thumbnailUrl,
   preview,
+  templateId,
 }: {
   name: string;
   thumbnailUrl: string | null;
   preview: DashboardTemplate["preview"];
+  /** Si no hay imagen guardada, se dibuja la plantilla en vivo. */
+  templateId?: string;
 }) {
   const ratioStyle = `${Math.max(preview.width, 1)} / ${Math.max(preview.height, 1)}`;
   if (thumbnailUrl) {
@@ -47,6 +111,7 @@ function TemplatePreviewThumb({
       </div>
     );
   }
+  if (templateId) return <VistaPreviaEnVivo templateId={templateId} name={name} preview={preview} />;
   return (
     <div
       className="flex w-full items-center justify-center overflow-hidden rounded-lg text-center text-[11px] font-medium leading-tight text-[#475569] ring-1 ring-[#e2e8f0]"
@@ -77,6 +142,10 @@ export default function DashboardDesignsPage() {
   const [busyCloneId, setBusyCloneId] = useState<string | null>(null);
   const [busyDeleteId, setBusyDeleteId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** Plantilla del sistema abierta en la vista 3D con datos de demo. */
+  const [vista3d, setVista3d] = useState<{ id: string; name: string } | null>(null);
+  const [filtros, setFiltros] = useState<FiltrosCatalogo>(FILTROS_VACIOS);
+  const sistemaFiltradas = useMemo(() => filtrarPlantillas(systemTemplates, filtros), [systemTemplates, filtros]);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -202,55 +271,6 @@ export default function DashboardDesignsPage() {
       ) : null}
 
       <section className="mt-10">
-        <div className="mb-4 w-full min-w-0">
-          <h2 className="text-lg font-semibold text-[#111827]">Plantillas del sistema</h2>
-          <p className="mt-2 w-full min-w-0 ds-readable-text ds-readable-text--fluid ds-readable-text--sm ds-readable-text--muted">
-            Marcadas como sistema en la plantilla, versión editor v2, publicadas (<span className="font-medium text-gray-800">PUBLIC</span>{" "}
-            + <span className="font-medium text-gray-800">APPROVED</span>). Al tocar «Usar plantilla» se crea una copia en tu cuenta antes de
-            abrir el editor: los cambios del catálogo no la sobreescriben.
-          </p>
-        </div>
-        {systemTemplates.length === 0 ? (
-          <Card className="border border-[#f1f5f9] p-8">
-            <p className="text-center text-sm text-[#64748b]">No hay plantillas del sistema disponibles</p>
-          </Card>
-        ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {systemTemplates.map((t) => {
-              const catalogEditorHref = editorHrefFor(t);
-              return (
-                <li key={t.id}>
-                  <Card className="flex h-full flex-col overflow-hidden border border-[#eef2f6] p-4 shadow-sm">
-                    <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} />
-                    <p className="mt-4 line-clamp-2 text-base font-semibold text-[#0f172a]">{t.name || "Sin nombre"}</p>
-                    <div className="mt-5 flex flex-col gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        className="font-semibold"
-                        disabled={busyCloneId !== null}
-                        onClick={() => runCloneSystem(t.id)}
-                      >
-                        {busyCloneId === t.id ? "Preparando copia…" : "Usar plantilla"}
-                      </Button>
-                      {isAdmin && catalogEditorHref ? (
-                        <Link
-                          href={catalogEditorHref}
-                          className="text-center text-xs font-medium text-[#64748b] underline underline-offset-2 hover:text-[#334155]"
-                        >
-                          Editar plantilla del catálogo (admin)
-                        </Link>
-                      ) : null}
-                    </div>
-                  </Card>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="mt-14">
         <h2 className="mb-1 text-lg font-semibold text-[#111827]">Mis plantillas</h2>
         <p className="mb-4 w-full min-w-0 ds-readable-text ds-readable-text--fluid ds-readable-text--sm ds-readable-text--muted">
           Tus borradores y plantillas que no están marcadas como «sistema» (meta editor v2).
@@ -266,7 +286,7 @@ export default function DashboardDesignsPage() {
               return (
                 <li key={t.id}>
                   <Card className="flex h-full flex-col overflow-hidden border border-[#eef2f6] p-4 shadow-sm">
-                    <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} />
+                    <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} templateId={t.id} />
                     <p className="mt-4 line-clamp-2 text-base font-semibold text-[#0f172a]">{t.name || "Sin nombre"}</p>
                     <div className="mt-5 flex flex-wrap gap-2">
                       {href ? (
@@ -307,6 +327,85 @@ export default function DashboardDesignsPage() {
         )}
       </section>
 
+      <section className="mt-14">
+        <div className="mb-4 w-full min-w-0">
+          <h2 className="text-lg font-semibold text-[#111827]">Plantillas del sistema</h2>
+          <p className="mt-2 w-full min-w-0 rounded-lg bg-[#fdf6ee] px-3 py-2 text-sm text-[#5b4630]">
+            Elegí un diseño, copialo a tus plantillas y personalizalo: cambiá textos, colores, fotos o agregá tu logo. El
+            original no se modifica.
+          </p>
+        </div>
+        {systemTemplates.length === 0 ? (
+          <Card className="border border-[#f1f5f9] p-8">
+            <p className="text-center text-sm text-[#64748b]">No hay plantillas del sistema disponibles</p>
+          </Card>
+        ) : (
+          <>
+          <FiltrosDeCatalogo
+            items={systemTemplates}
+            filtros={filtros}
+            onChange={setFiltros}
+            cantidad={sistemaFiltradas.length}
+          />
+          {sistemaFiltradas.length === 0 ? (
+            <Card className="border border-[#f1f5f9] p-8">
+              <p className="text-center text-sm text-[#64748b]">Ninguna plantilla cumple estos filtros.</p>
+            </Card>
+          ) : null}
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sistemaFiltradas.map((t) => {
+              const catalogEditorHref = editorHrefFor(t);
+              return (
+                <li key={t.id}>
+                  <Card className="flex h-full flex-col overflow-hidden border border-[#eef2f6] p-4 shadow-sm">
+                    <button
+                      type="button"
+                      className="group relative block w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]"
+                      onClick={() => setVista3d({ id: t.id, name: t.name })}
+                      aria-label={`Ver «${t.name || "Sin nombre"}» en 3D con fotos de ejemplo`}
+                    >
+                      <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} templateId={t.id} />
+                      <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white opacity-90 transition group-hover:opacity-100">
+                        Ver en 3D
+                      </span>
+                    </button>
+                    <p className="mt-4 line-clamp-2 text-base font-semibold text-[#0f172a]">{t.name || "Sin nombre"}</p>
+                    <div className="mt-5 flex flex-col gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="font-semibold"
+                        onClick={() => setVista3d({ id: t.id, name: t.name })}
+                      >
+                        Ver en 3D con fotos de ejemplo
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="font-semibold"
+                        disabled={busyCloneId !== null}
+                        onClick={() => runCloneSystem(t.id)}
+                      >
+                        {busyCloneId === t.id ? "Copiando a tus plantillas…" : "Usar y personalizar"}
+                      </Button>
+                      {isAdmin && catalogEditorHref ? (
+                        <Link
+                          href={catalogEditorHref}
+                          className="text-center text-xs font-medium text-[#64748b] underline underline-offset-2 hover:text-[#334155]"
+                        >
+                          Editar plantilla del catálogo (admin)
+                        </Link>
+                      ) : null}
+                    </div>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+          </>
+        )}
+      </section>
+
       {isAdmin && adminAllTemplates.length > 0 ? (
         <section className="mt-14">
           <h2 className="mb-1 text-lg font-semibold text-[#111827]">Todas las plantillas (Admin)</h2>
@@ -320,7 +419,7 @@ export default function DashboardDesignsPage() {
               return (
                 <li key={`admin-${t.id}`}>
                   <Card className="flex h-full flex-col overflow-hidden border border-[#fde68a]/80 bg-[#fffbeb] p-4 shadow-sm">
-                    <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} />
+                    <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} templateId={t.id} />
                     <div className="mt-3 flex flex-wrap gap-2">
                       {t.isSystemCatalog ? (
                         <span className="rounded-full bg-[#1e293b] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
@@ -364,6 +463,16 @@ export default function DashboardDesignsPage() {
             })}
           </ul>
         </section>
+      ) : null}
+
+      {vista3d ? (
+        <VistaDemoPlantilla3D
+          templateId={vista3d.id}
+          nombre={vista3d.name}
+          onClose={() => setVista3d(null)}
+          onUsar={() => runCloneSystem(vista3d.id)}
+          usando={busyCloneId === vista3d.id}
+        />
       ) : null}
 
       {isAdmin && adminAllTemplates.length === 0 ? (

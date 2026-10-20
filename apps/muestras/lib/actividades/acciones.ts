@@ -3,24 +3,112 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
-  MAX_HIGHLIGHTS, MAX_WORKS, canEdit, canPerform, missingForSubmission, newSlug, nextStatus,
-  toArDay, type ReviewAction, type ReviewStatus,
+  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, activityRole, allowedAuthorProfileId,
+  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, openingProblems, resolveAuthorProfileId, toArDay,
+  type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
 import { avisarAprobada, avisarNuevaPropuesta, avisarRechazada } from "@/lib/correos/enviar";
+import { conPermiso } from "@/lib/equipo/permisos";
+import { datosDeCambio } from "@/lib/equipo/registro";
+import { OBRA_DE_EXPOSITOR_QUITADA, copiarTextosAExpositores } from "@/lib/expositores/copiar";
+import { borrarImagenDeConcurso } from "@/lib/concursos/imagen";
+import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
-import { datosParaGuardar, fichaDesdeFormData } from "./mapear";
+import { datosParaGuardar, fichaDesdeFormData, modoDeGaleriaAlGuardar, type FichaForm } from "./mapear";
 
-export type ResultadoAccion = { ok: true; id: string } | { ok: false; errores: string[] };
+/** `avisos`: cosas que no frenaron el guardado pero conviene contarle a la persona. */
+export type ResultadoAccion =
+  | { ok: true; id: string; avisos?: string[]; /** Enlace para mandar a mano cuando el correo no salió. */ enlace?: string }
+  | { ok: false; errores: string[] };
 
 const SIN_SESION: ResultadoAccion = { ok: false, errores: ["Tenés que ingresar."] };
 const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La actividad no existe."] };
 
+class Corte extends Error {}
+/** Ya no tiene el permiso cuando se bloquea la fila (la sacaron del equipo en el medio). */
+class SinPermiso extends Error {}
+
+/** La fila del equipo de quien actúa (sólo la suya y activa): alcanza para `activityRole`. */
+const filaPropia = (userId: number) =>
+  ({ where: { userId, status: "ACTIVE" }, select: { userId: true, role: true, status: true } }) as const;
+
 function refrescar(slug?: string) {
   revalidatePath("/");
-  revalidatePath("/mis-muestras");
-  revalidatePath("/admin");
-  if (slug) revalidatePath(`/m/${slug}`);
+  revalidatePath("/panel", "layout");
+  // La ficha y las páginas de sus obras (`/m/<slug>/o/<id>`).
+  if (slug) revalidatePath(`/m/${slug}`, "layout");
+  revalidatePath("/fotografos", "layout");
+}
+
+/**
+ * Las obras tal como se escriben.
+ *
+ * - Cada obra que ya era de esta muestra conserva su id: está en la URL de su página y en el QR
+ *   de la ficha impresa. Un id ajeno o repetido se descarta y la obra se crea como nueva.
+ * - El perfil del autor se resuelve con `resolveAuthorProfileId`, usando el perfil de quien
+ *   propuso la muestra (no el de quien edita: puede ser el super admin).
+ * - Si la muestra ya se publicó, `allowedAuthorProfileId` limita a qué perfil se puede vincular
+ *   (el vínculo que la obra ya tenía, el perfil de quien propuso o ninguno). Lo demás se ignora y
+ *   vuelve un aviso que no frena el guardado.
+ */
+type Previa = { authorProfileId: string | null; authorUserId: number | null; imageUrl?: string; authorName?: string };
+
+async function obrasParaGuardar(
+  works: FichaForm["works"],
+  previas: ReadonlyMap<string, Previa>,
+  duenoId: number,
+  contexto: { status: string; isSuperAdmin: boolean } = { status: "DRAFT", isSuperAdmin: false },
+  db: Pick<typeof prisma, "photographerProfile"> = prisma,
+  conservaImagenYAutor: ReadonlySet<string> = new Set(),
+) {
+  const perfilPropio = await db.photographerProfile.findUnique({ where: { userId: duenoId }, select: { id: true, displayName: true } });
+  const pedidos = [...new Set(works.map((w) => w.authorProfileId).filter((x): x is string => !!x))];
+  const existentes = new Set(
+    pedidos.length
+      ? (await db.photographerProfile.findMany({ where: { id: { in: pedidos } }, select: { id: true } })).map((p) => p.id)
+      : [],
+  );
+  const usados = new Set<string>();
+  let bloqueado = false;
+  const obras = works.map((w, i) => {
+    const conserva = !!w.id && previas.has(w.id) && !usados.has(w.id);
+    if (conserva) usados.add(w.id!);
+    const pedido = resolveAuthorProfileId(
+      { isNew: !conserva, authorName: w.authorName, requestedProfileId: w.authorProfileId },
+      existentes,
+      perfilPropio,
+    );
+    const permitido = allowedAuthorProfileId({
+      status: contexto.status,
+      previous: conserva ? previas.get(w.id!)?.authorProfileId ?? null : null,
+      requested: pedido,
+      ownerProfileId: perfilPropio?.id ?? null,
+      isSuperAdmin: contexto.isSuperAdmin,
+    });
+    if (permitido.blocked) bloqueado = true;
+    const previa = conserva ? previas.get(w.id!) : undefined;
+    // Una obra que cargó quien expone (etapa 6, D9) o que vino de un concurso (etapa 7, D17)
+    // conserva su imagen y su autoría tal como están en la base: lo que llegue del formulario para
+    // esos campos se ignora.
+    if (previa && conservaImagenYAutor.has(w.id!) && previa.imageUrl != null && previa.authorName != null) {
+      return {
+        id: w.id, imageUrl: previa.imageUrl, title: w.title, authorName: previa.authorName, year: w.year,
+        technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
+        authorProfileId: previa.authorProfileId, authorUserId: previa.authorUserId,
+      };
+    }
+    return {
+      ...(conserva ? { id: w.id } : {}),
+      imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
+      technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
+      authorProfileId: permitido.id,
+      // La cuenta del autor (p. ej. de una obra que llegó por convocatoria) no se edita en el
+      // formulario: se conserva, porque reescribir la galería no puede borrarla.
+      authorUserId: conserva ? previas.get(w.id!)?.authorUserId ?? null : null,
+    };
+  });
+  return { obras, avisos: bloqueado ? [AVISO_PERFIL_EN_PUBLICADA] : [] };
 }
 
 /** Crea o actualiza la ficha y reemplaza su galería. No cambia el estado de revisión. */
@@ -33,51 +121,171 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   if (f.works.filter((w) => w.isHighlight).length > MAX_HIGHLIGHTS) {
     return { ok: false, errores: [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`] };
   }
+  const inauguracion = openingProblems({ openingDay: f.openingDay, openingClock: f.openingClock, openingEndClock: f.openingEndClock, endDay: f.endDay });
+  if (inauguracion.length) return { ok: false, errores: inauguracion };
   const datos: ReturnType<typeof datosParaGuardar> = datosParaGuardar(f);
-  const obras = f.works.map((w, i) => ({
-    imageUrl: w.imageUrl, title: w.title, authorName: w.authorName, year: w.year,
-    technique: w.technique, isHighlight: w.isHighlight, sortOrder: i,
-  }));
 
   if (!f.id) {
     // Sólo se cuenta la creación: editar un borrador propio no tiene tope.
     if (!frenarPorUsuario("crearBorrador", usuario.id).allowed) {
       return { ok: false, errores: ["Creaste muchas actividades seguidas. Esperá un rato y probá de nuevo."] };
     }
+    // Una actividad nueva es un borrador: todavía no hay límite de perfiles.
+    const { obras } = await obrasParaGuardar(f.works, new Map(), usuario.id);
     const creada = await prisma.culturalActivity.create({
-      data: { ...datos, slug: newSlug(f.title), proposedByUserId: usuario.id, works: { create: obras } },
+      data: { ...datos, slug: newSlug(f.title), proposedByUserId: usuario.id, ...datosDeCambio(usuario.id, "FICHA"), works: { create: obras } },
       select: { id: true },
     });
     refrescar();
     return { ok: true, id: creada.id };
   }
 
-  const actual = await prisma.culturalActivity.findUnique({ where: { id: f.id } });
+  const actual = await prisma.culturalActivity.findUnique({
+    where: { id: f.id },
+    include: { works: { select: { id: true, isHighlight: true } }, members: filaPropia(usuario.id) },
+  });
   if (!actual) return NO_EXISTE;
-  const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin };
+  // El rol se lee en la base en cada guardado: sacar a alguien del equipo corta en el próximo pedido.
+  const actor = { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: activityRole(actual, usuario.id) };
   if (!canEdit({ ...actual, reviewStatus: actual.reviewStatus as ReviewStatus }, actor)) {
     return { ok: false, errores: ["No podés editar esta actividad ahora."] };
   }
-  // Una ficha ya enviada o publicada no puede quedar incompleta por una edición.
+  if (f.editVersion == null) return { ok: false, errores: [PAGINA_VIEJA] };
+  // Una ficha ya enviada o publicada no puede quedar incompleta por una edición. Cuentan también
+  // las obras que se conservan aunque el editor no las haya visto (ver `editorGalleryPlan`).
   if (actual.reviewStatus !== "DRAFT" && actual.reviewStatus !== "REJECTED") {
+    const cargadas = new Set([...f.idsCargados, ...f.works.flatMap((w) => (w.id ? [w.id] : []))]);
+    const sinVer = actual.works.filter((w) => !cargadas.has(w.id));
     const faltan = missingForSubmission({
       type: f.type, title: f.title, description: f.description, coverImageUrl: f.coverImageUrl,
       organizersText: f.organizersText, startDay: f.startDay, endDay: f.endDay,
       scheduleText: f.scheduleText, isVirtualOnly: f.isVirtualOnly, address: f.address,
       latitude: f.latitude, longitude: f.longitude, rightsConfirmed: f.rightsConfirmed,
-      worksCount: f.works.length, highlightsCount: f.works.filter((w) => w.isHighlight).length,
+      worksCount: f.works.length + sinVer.length,
+      highlightsCount: f.works.filter((w) => w.isHighlight).length + sinVer.filter((w) => w.isHighlight).length,
     });
     if (faltan.length) return { ok: false, errores: faltan };
   }
   // Se conserva la primera confirmación de derechos.
   if (datos.rightsConfirmedAt && actual.rightsConfirmedAt) datos.rightsConfirmedAt = actual.rightsConfirmedAt;
-  await prisma.$transaction([
-    prisma.culturalActivity.update({ where: { id: f.id }, data: datos }),
-    prisma.culturalActivityWork.deleteMany({ where: { activityId: f.id } }),
-    prisma.culturalActivityWork.createMany({ data: obras.map((o) => ({ ...o, activityId: f.id! })) }),
-  ]);
+  // Con la sorpresa cargada (etapa 6, spec D24), qué se ve online lo decide Visibilidad: la casilla
+  // del formulario ya no está y lo que llegue no pisa el modo guardado.
+  datos.galleryMode = modoDeGaleriaAlGuardar(datos.galleryMode, actual);
+  const id = f.id;
+  const version = f.editVersion;
+  let avisos: string[];
+  // Copias de imágenes de concursos que salieron de la muestra: se borran después de la transacción.
+  let imagenesQuitadas: string[] = [];
+  try {
+    avisos = await prisma.$transaction(
+      async (tx) => {
+        // Bloquea la muestra: armarla desde una convocatoria (que también la bloquea) no puede
+        // sumar obras entre que se leen y se reescriben. De paso lee la versión: si otra persona
+        // del equipo guardó la ficha o los textos desde que se abrió el formulario, no se pisa.
+        // (`editVersion` es INTEGER: llega como número, no bigint.)
+        const [bloqueada] = await tx.$queryRaw<{ editVersion: number; lastEditedByUserId: number | null; lastEditedPart: string | null }[]>`
+          SELECT "editVersion", "lastEditedByUserId", "lastEditedPart" FROM "CulturalActivity" WHERE id = ${id} FOR UPDATE`;
+        // El permiso se vuelve a leer con la fila bloqueada: si a esta persona la sacaron del
+        // equipo (o le cambiaron el rol) después de la primera lectura, no guarda.
+        if (bloqueada && (await tx.culturalActivity.count({ where: conPermiso({ id }, usuario, "editActivity") })) === 0) throw new SinPermiso();
+        if (!bloqueada || Number(bloqueada.editVersion) !== version) throw new Choque(id, bloqueada ?? null);
+        const enLaBase = await tx.culturalActivityWork.findMany({
+          where: { activityId: id },
+          select: {
+            id: true, isHighlight: true, sortOrder: true, authorProfileId: true, authorUserId: true, imageUrl: true, authorName: true,
+            title: true, year: true, technique: true,
+          },
+        });
+        // Las obras que vinieron de un expositor (etapa 6): su imagen y su autor no se tocan desde acá.
+        const expositoras = await tx.culturalExhibitorWork.findMany({
+          where: { activityId: id, activityWorkId: { not: null } },
+          select: { id: true, activityWorkId: true },
+        });
+        const deExpositor = new Map(expositoras.flatMap((e) => (e.activityWorkId ? [[e.activityWorkId, e.id] as const] : [])));
+        // Y las que vinieron de un concurso de FotoRank (etapa 7, D17): tampoco.
+        const delConcurso = await tx.culturalContestWork.findMany({
+          where: { activityId: id, activityWorkId: { not: null } },
+          select: { id: true, activityWorkId: true, imageUrl: true },
+        });
+        const deConcurso = new Map(delConcurso.flatMap((c) => (c.activityWorkId ? [[c.activityWorkId, c] as const] : [])));
+        // Sacar obras del concurso es de quien tiene `contest` (el dueño, D2): para la coorganización,
+        // las del concurso que no mandó se conservan como si no las hubiera visto (leído en la base).
+        const puedeSacarDelConcurso = deConcurso.size === 0
+          || (await tx.culturalActivity.count({ where: conPermiso({ id }, usuario, "contest") })) > 0;
+        const cargadasQueCuentan = puedeSacarDelConcurso ? f.idsCargados : f.idsCargados.filter((w) => !deConcurso.has(w));
+        const r = await obrasParaGuardar(
+          f.works,
+          new Map(enLaBase.map((w) => [w.id, {
+            authorProfileId: w.authorProfileId ?? null, authorUserId: w.authorUserId ?? null, imageUrl: w.imageUrl, authorName: w.authorName,
+          }])),
+          actual.proposedByUserId,
+          { status: actual.reviewStatus, isSuperAdmin: usuario.esSuperAdmin },
+          tx,
+          new Set([...deExpositor.keys(), ...deConcurso.keys()]),
+        );
+        const plan = editorGalleryPlan({
+          current: enLaBase,
+          loadedIds: cargadasQueCuentan,
+          keptIds: r.obras.flatMap((o) => (o.id ? [o.id] : [])),
+          submittedCount: r.obras.length,
+          submittedHighlights: r.obras.filter((o) => o.isHighlight).length,
+        });
+        if (plan.problems.length) throw new Corte(plan.problems.join(" "));
+        const conservadas = plan.preserved.map((w) => w.id);
+        await tx.culturalActivity.update({ where: { id }, data: { ...datos, editVersion: { increment: 1 }, ...datosDeCambio(usuario.id, "FICHA") } });
+        // Se reescriben las enviadas (las que ya existían conservan su id) y se quitan las que el
+        // editor sacó. Las conservadas no se tocan, salvo su orden: van después de las enviadas.
+        await tx.culturalActivityWork.deleteMany({ where: { activityId: id, id: { notIn: conservadas } } });
+        if (r.obras.length) await tx.culturalActivityWork.createMany({ data: r.obras.map((o) => ({ ...o, activityId: id })) });
+        for (const w of plan.preserved) {
+          await tx.culturalActivityWork.update({ where: { id: w.id }, data: { sortOrder: w.sortOrder } });
+        }
+        // Una obra elegida en una convocatoria que se quitó a propósito no se vuelve a copiar al
+        // armar la muestra otra vez.
+        if (plan.removedIds.length) {
+          await tx.culturalCallWork.updateMany({
+            where: { activityWorkId: { in: plan.removedIds }, call: { activityId: id } },
+            data: { activityWorkId: OBRA_QUITADA_DE_LA_GALERIA },
+          });
+        }
+        await copiarTextosAExpositores(tx, id, r.obras, deExpositor, new Map(enLaBase.map((w) => [w.id, w])));
+        // Una obra de expositor que el editor quitó deja de estar en la muestra (spec D9).
+        const quitadas = plan.removedIds.filter((w) => deExpositor.has(w));
+        if (quitadas.length) {
+          await tx.culturalExhibitorWork.updateMany({
+            where: { activityId: id, activityWorkId: { in: quitadas } },
+            data: { status: "REMOVED", activityWorkId: null, reviewNote: OBRA_DE_EXPOSITOR_QUITADA },
+          });
+        }
+        // Una obra del concurso que el editor quitó deja de estar en la muestra (D16) y no vuelve
+        // sola con "Actualizar desde FotoRank"; su copia de la imagen se borra.
+        const quitadasDelConcurso = plan.removedIds.filter((w) => deConcurso.has(w));
+        if (quitadasDelConcurso.length) {
+          await tx.culturalContestWork.updateMany({
+            where: { activityId: id, activityWorkId: { in: quitadasDelConcurso } },
+            data: { include: false, toPrint: false, activityWorkId: null, imageStatus: "PENDING", imageUrl: null, imageError: null, copiedAt: null },
+          });
+          imagenesQuitadas = quitadasDelConcurso.flatMap((w) => {
+            const u = deConcurso.get(w)?.imageUrl;
+            return u ? [u] : [];
+          });
+        }
+        const conservadasDelConcurso = puedeSacarDelConcurso ? 0 : plan.preserved.filter((w) => deConcurso.has(w.id)).length;
+        return conservadasDelConcurso
+          ? [...r.avisos, "Las obras que vienen del concurso sólo las puede sacar quien armó la muestra: las dejamos en la galería."]
+          : r.avisos;
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
+  } catch (err) {
+    if (err instanceof Corte) return { ok: false, errores: [err.message] };
+    if (err instanceof SinPermiso) return { ok: false, errores: ["No podés editar esta actividad ahora."] };
+    if (err instanceof Choque) return { ok: false, errores: [await mensajeDeChoque(err)] };
+    throw err;
+  }
+  for (const u of imagenesQuitadas) await borrarImagenDeConcurso(u);
   refrescar(actual.slug);
-  return { ok: true, id: f.id };
+  return avisos.length ? { ok: true, id: f.id, avisos } : { ok: true, id: f.id };
 }
 
 async function transicion(
@@ -91,10 +299,10 @@ async function transicion(
   if (!usuario) return SIN_SESION;
   const corte = antes?.(usuario);
   if (corte) return corte;
-  const fila = await prisma.culturalActivity.findUnique({ where: { id }, include: { works: true } });
+  const fila = await prisma.culturalActivity.findUnique({ where: { id }, include: { works: true, members: filaPropia(usuario.id) } });
   if (!fila) return NO_EXISTE;
   const estado = fila.reviewStatus as ReviewStatus;
-  const permiso = canPerform(accion, { ...fila, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin });
+  const permiso = canPerform(accion, { ...fila, reviewStatus: estado }, { userId: usuario.id, isSuperAdmin: usuario.esSuperAdmin, role: activityRole(fila, usuario.id) });
   if (!permiso.ok) return { ok: false, errores: [permiso.reason] };
 
   if (accion === "submit") {

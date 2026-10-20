@@ -60,13 +60,13 @@ const SECURITY_MODE_CARDS: Array<{
   {
     value: "public",
     title: "🌐 Público",
-    description: "Cualquier persona con el link puede ver todas las fotos",
+    description: "Aparece en los listados públicos y cualquier persona puede ver todas las fotos",
     Icon: Globe,
   },
   {
     value: "private",
-    title: "🔒 Privado",
-    description: "Solo personas invitadas pueden acceder al álbum",
+    title: "🔗 No listado",
+    description: "No aparece en los listados públicos: solo entra quien tenga el enlace",
     Icon: Lock,
   },
   {
@@ -954,14 +954,6 @@ export default function AlbumWizard({ variant = "page" }: AlbumWizardProps) {
     }
     if ((inviteN || inviteE) && !wizardSchoolId.trim()) {
       throw new Error("Para invitar, primero elegí la escuela.");
-    }
-  }
-
-  function assertSecurityStepOk(): void {
-    if (securityMode === "private" && invitedEmails.length === 0) {
-      throw new Error(
-        'En modo "Privado" agregá al menos un email invitado o elegí otro nivel de acceso.'
-      );
     }
   }
 
@@ -2392,9 +2384,10 @@ export default function AlbumWizard({ variant = "page" }: AlbumWizardProps) {
                 </span>
                 <div className="min-w-0 flex-1 clf-form-section">
                   <div className="w-full min-w-0">
-                    <h3 className="text-sm font-semibold text-[#1a1a1a]">Invitaciones por mail</h3>
+                    <h3 className="text-sm font-semibold text-[#1a1a1a]">Enviar el enlace por mail (opcional)</h3>
                     <p className="clf-form-description clf-form-description--sm mt-1">
-                      Podés pegar varios separados por coma o espacio. Validamos antes de ir al resumen.
+                      Les mandamos el enlace del álbum. Ojo: no es una lista de acceso, entra cualquiera que tenga el enlace.
+                      Podés pegar varios separados por coma o espacio.
                     </p>
                   </div>
                   <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
@@ -2459,12 +2452,7 @@ export default function AlbumWizard({ variant = "page" }: AlbumWizardProps) {
               variant="primary"
               onClick={() => {
                 setError(null);
-                try {
-                  assertSecurityStepOk();
-                  setStep(reviewStep);
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "Revisá seguridad y privacidad.");
-                }
+                setStep(reviewStep);
               }}
             >
               Revisar y crear
@@ -2539,16 +2527,16 @@ export default function AlbumWizard({ variant = "page" }: AlbumWizardProps) {
               {securityMode === "public"
                 ? "Público"
                 : securityMode === "private"
-                  ? "Privado"
+                  ? "No listado"
                   : "Privado con identificación (Selfie)"}
               {" · "}
-              Cantidad de invitados: {securityMode === "private" ? String(invitedEmails.length) : "—"}
+              Enlace enviado por mail a: {securityMode === "private" ? String(invitedEmails.length) : "—"}
               {" · "}
               Modo privacidad activo:{" "}
               {securityMode === "public"
                 ? "público — todas las fotos visibles con el link"
                 : securityMode === "private"
-                  ? "privado — sólo mails invitados"
+                  ? "no listado — entra quien tenga el enlace"
                   : "privado por identificación / selfie"}
             </li>
             {albumType === "SCHOOL" && (

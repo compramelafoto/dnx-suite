@@ -42,7 +42,9 @@ export function AccionesPublicas({
     setError(null);
     iniciar(async () => {
       const r = await aceptarPresupuestoAction(slug, token, nombre, acepta, opcion).catch(() => ({ ok: false as const, error: "No pudimos registrar tu aceptación. Probá de nuevo." }));
-      if (r.ok) router.refresh();
+      // Etapa B: si se creó el pedido, el cliente pasa a su enlace para pagar la seña.
+      if (r.ok && r.pedidoUrl) window.location.assign(r.pedidoUrl);
+      else if (r.ok) router.refresh();
       else setError(r.error);
     });
   }
@@ -92,6 +94,7 @@ export function AccionesPublicas({
                   <span>
                     <span className="font-medium">{o.etiqueta}</span>
                     <span className="block tabular-nums opacity-75">{importeDeOpcion(o)}</span>
+                    {o.medio === "TRANSFERENCIA" ? <span className="block text-xs opacity-70">Te mostramos los datos para transferir después de aceptar.</span> : null}
                   </span>
                 </label>
               ))}

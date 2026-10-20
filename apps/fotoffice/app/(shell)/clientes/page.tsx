@@ -7,6 +7,25 @@ import { requireClientsViewer } from "@/lib/clients/access";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { cargarListadoClientes } from "@/lib/clients/listado";
 import { contextoListadoDePagina } from "@/lib/listado/acceso";
+import { GoogleContactsCard } from "@/components/members/google-contacts-card";
+import { getContactSyncSetting } from "@/lib/contacts/settings";
+import { GOOGLE_CONTACTS_INTEGRATION_KEY } from "@/lib/integrations/registry";
+import { getIntegrationSummary } from "@/lib/integrations/store";
+import { toggleClientsGoogleContactsAction } from "./contactos-actions";
+
+// Mensajes de `toggleClientsGoogleContactsAction`. Mismo criterio que en Socios.
+const CONTACTOS_ERRORES: Record<string, string> = {
+  sin_cuenta_google:
+    "Todavía no hay una cuenta de Google conectada. Conectala en Integraciones antes de empezar a agendar.",
+};
+const CONTACTOS_OK: Record<string, string> = {
+  contactos_encendido: "Listo. Los clientes se van a empezar a agendar en Google.",
+  contactos_apagado: "Listo. Se dejó de agendar a los clientes en Google. Lo ya agendado no se borró.",
+};
+
+function primero(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}
 
 export const dynamic = "force-dynamic";
 // Las acciones en lote (server actions) corren bajo la configuración de esta página.
@@ -19,10 +38,15 @@ export default async function ClientesPage({
 }) {
   // Ver el padrón pide VIEW en Clientes; crear y las acciones en lote, MANAGE (`canEdit`).
   const { user, workspace, canEdit } = await requireClientsViewer();
-  const [ctx, total] = await Promise.all([
+  const [ctx, total, contactSync, cuentaGoogle, params] = await Promise.all([
     contextoListadoDePagina(user, workspace, CLIENTS_MODULE_KEY),
     prisma.client.count({ where: { workspaceId: workspace.id } }),
+    getContactSyncSetting(workspace.id, CLIENTS_MODULE_KEY),
+    getIntegrationSummary(workspace.id, GOOGLE_CONTACTS_INTEGRATION_KEY),
+    searchParams,
   ]);
+  const contactosError = CONTACTOS_ERRORES[primero(params.error) ?? ""] ?? null;
+  const contactosOk = CONTACTOS_OK[primero(params.ok) ?? ""] ?? null;
 
   return (
     <div className="space-y-8">
@@ -42,6 +66,12 @@ export default async function ClientesPage({
           ) : undefined
         }
       />
+      {contactosOk ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">{contactosOk}</p> : null}
+      {contactosError ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
+          {contactosError}
+        </p>
+      ) : null}
       {total === 0 ? (
         <div className="fo-card flex flex-col items-center gap-4 px-6 py-16 text-center">
           <div className="flex size-14 items-center justify-center rounded-full bg-[var(--fo-accent-muted)] text-[var(--fo-accent)]">
@@ -63,6 +93,24 @@ export default async function ClientesPage({
       ) : (
         <Listado def={await cargarListadoClientes(ctx)} ctx={ctx} ruta="/clientes" searchParams={searchParams} />
       )}
+      {canEdit && total > 0 ? (
+        <GoogleContactsCard
+          copy={{
+            titulo: "Agendar los clientes en Google",
+            descripcion:
+              "Cada cliente activo se agenda en tus contactos de Google, con su número, su categoría y sus etiquetas, y las correcciones que hagas desde el celular vuelven a su ficha.",
+            plural: "clientes",
+            grupo: "Clientes",
+          }}
+          action={toggleClientsGoogleContactsAction}
+          enabled={contactSync?.enabled ?? false}
+          account={cuentaGoogle ? { email: cuentaGoogle.accountEmail, status: cuentaGoogle.status } : null}
+          lastSyncAt={contactSync?.lastSyncAt ?? null}
+          lastSyncOk={contactSync?.lastSyncOk ?? null}
+          lastSyncMessage={contactSync?.lastSyncMessage ?? null}
+          syncedContacts={contactSync?.syncedContacts ?? 0}
+        />
+      ) : null}
     </div>
   );
 }

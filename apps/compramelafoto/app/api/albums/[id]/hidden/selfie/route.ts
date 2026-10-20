@@ -10,6 +10,7 @@ import {
   truncateUserAgent,
   guestIdCookieHeader,
   HIDDEN_ALBUM_GRANT_COOKIE,
+  getHiddenAlbumGrantSecret,
 } from "@/lib/hidden-album-audit";
 import { detectFaceCount, searchFacesByImage } from "@/lib/faces/rekognition";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
@@ -17,6 +18,16 @@ import { resolveAllowedVideoIds } from "@/lib/videos/hidden-album-videos";
 import { uploadToR2, generateR2Key } from "@/lib/r2-client";
 import { HiddenAlbumAttemptResult, HiddenAlbumDeviceType } from "@/lib/prisma";
 import crypto from "crypto";
+import {
+  BIOMETRIC_CONSENT_FIELD,
+  validateBiometricConsentField,
+} from "@/lib/legal/biometric-consent-check";
+import { effectiveHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
+import {
+  buildHiddenSelfieDeletionPath,
+  getHiddenSelfieDeletionSecret,
+  signHiddenSelfieDeletionToken,
+} from "@/lib/hidden-album-selfie-deletion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,8 +44,7 @@ function getSelfieImageFromForm(form: FormData): Promise<Buffer> {
   throw new Error("Se requiere campo 'selfie' o 'file' con la imagen");
 }
 
-function signGrantToken(grantId: string, albumId: number, expiresAt: number): string {
-  const secret = process.env.HIDDEN_ALBUM_GRANT_SECRET || process.env.CRON_SECRET || "grant-secret";
+function signGrantToken(secret: string, grantId: string, albumId: number, expiresAt: number): string {
   const payload = `${grantId}:${albumId}:${expiresAt}`;
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
   return Buffer.from(`${payload}:${sig}`).toString("base64url");
@@ -54,20 +64,40 @@ export async function POST(
   if (!Number.isFinite(albumId)) {
     return NextResponse.json({ error: "ID de álbum inválido" }, { status: 400 });
   }
+  const grantSecret = getHiddenAlbumGrantSecret();
+  if (!grantSecret) {
+    console.error("[hidden-album] falta HIDDEN_ALBUM_GRANT_SECRET/CRON_SECRET: no se otorgan permisos");
+    return NextResponse.json(
+      { error: "La verificación por selfie no está disponible en este momento." },
+      { status: 503 }
+    );
+  }
 
   // Clonar la request y leer el body solo del clone (evita que middleware/framework consuma el body antes)
   const contentType = req.headers.get("content-type") || "";
   let qrSessionId: string | null = null;
+  let consentValue: unknown = null;
   let imageBytes: Buffer;
   try {
     if (contentType.includes("multipart/form-data")) {
       const reqToRead = req.clone();
       const form = await reqToRead.formData();
       qrSessionId = form.get("qrSessionId")?.toString()?.trim() || null;
+      consentValue = form.get(BIOMETRIC_CONSENT_FIELD)?.toString() ?? null;
+      // Consentimiento antes de leer la imagen: sin él no se procesa nada.
+      const consentCheck = validateBiometricConsentField(consentValue);
+      if (!consentCheck.ok) {
+        return NextResponse.json({ error: consentCheck.error, code: "BIOMETRIC_CONSENT_REQUIRED" }, { status: 400 });
+      }
       imageBytes = await getSelfieImageFromForm(form);
     } else {
       const reqToRead = req.clone();
       const body = await reqToRead.json();
+      consentValue = body?.[BIOMETRIC_CONSENT_FIELD] ?? null;
+      const consentCheck = validateBiometricConsentField(consentValue);
+      if (!consentCheck.ok) {
+        return NextResponse.json({ error: consentCheck.error, code: "BIOMETRIC_CONSENT_REQUIRED" }, { status: 400 });
+      }
       const url = body?.imageUrl?.trim?.();
       if (!url) {
         return NextResponse.json({ error: "Se requiere multipart con 'selfie' o JSON con imageUrl" }, { status: 400 });
@@ -361,7 +391,8 @@ export async function POST(
   // 8) Retención de selfie (opcional)
   let selfieObjectKey: string | null = null;
   let selfieExpiresAt: Date | null = null;
-  const retentionDays = album.hiddenSelfieRetentionDays ?? 0;
+  // Tope de 90 días aunque el álbum tenga guardado un valor mayor (configuraciones viejas).
+  const retentionDays = effectiveHiddenSelfieRetentionDays(album.hiddenSelfieRetentionDays);
   if (retentionDays > 0) {
     try {
       const key = generateR2Key(`selfie-${attempt.id}.jpg`, "hidden-selfies");
@@ -382,12 +413,36 @@ export async function POST(
     }
   }
 
-  const token = signGrantToken(grant.id, albumId, expiresAt.getTime());
+  // 9) Si la selfie quedó guardada, enlace firmado para que la persona la borre cuando quiera.
+  let selfieDeletionUrl: string | null = null;
+  if (selfieObjectKey && selfieExpiresAt) {
+    const deletionSecret = getHiddenSelfieDeletionSecret();
+    if (deletionSecret) {
+      const deletionToken = signHiddenSelfieDeletionToken({
+        attemptId: attempt.id,
+        albumId,
+        // Margen de 2 días: el cron de limpieza corre una vez por día.
+        expiresAtMs: selfieExpiresAt.getTime() + 2 * 24 * 60 * 60 * 1000,
+        secret: deletionSecret,
+      });
+      selfieDeletionUrl = buildHiddenSelfieDeletionPath(albumId, deletionToken);
+    } else {
+      console.error(
+        "[hidden-album] selfie guardada sin enlace de borrado: falta BIOMETRIC_DELETION_SECRET/CRON_SECRET",
+        { albumId, attemptId: attempt.id },
+      );
+    }
+  }
+
+  const token = signGrantToken(grantSecret, grant.id, albumId, expiresAt.getTime());
   const res = NextResponse.json({
     grantId: grant.id,
     expiresAt: expiresAt.toISOString(),
     allowedPhotoIds,
     allowedCount: allowedPhotoIds.length,
+    selfieStored: Boolean(selfieObjectKey),
+    selfieExpiresAt: selfieExpiresAt ? selfieExpiresAt.toISOString() : null,
+    selfieDeletionUrl,
   });
   res.headers.set(
     "Set-Cookie",

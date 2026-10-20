@@ -40,6 +40,12 @@ export const memberCategorySchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   order: z.number().int().min(0).max(10000),
   isActive: z.boolean(),
+  /** Club con turnos incluidos: cuántos abre cada pago, cuántos días valen y cómo se llaman. */
+  bookingCreditsPerPayment: z.number().int().min(0, "No puede ser negativo").max(100),
+  bookingCreditValidityDays: z.number().int().min(1, "Al menos un día").max(366),
+  bookingCreditLabel: z.string().max(40).optional().nullable(),
+  /** Se renueva cuando quiere, sin deuda (VIP). Con esto, la categoría no genera cuotas mensuales. */
+  selfRenew: z.boolean().optional(),
 });
 
 export type MemberCategoryFormValues = z.infer<typeof memberCategorySchema>;

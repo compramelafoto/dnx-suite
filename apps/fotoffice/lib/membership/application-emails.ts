@@ -192,6 +192,36 @@ export function buildApplicationApprovedEmail(input: {
 }
 
 /**
+ * El acceso de quien se sumó solo desde el sitio (alta sin aprobación, el VIP de una barbería).
+ *
+ * No dice "tu solicitud fue aprobada" ni da número de socio: nadie revisó nada y la persona ya
+ * está pagando en Mercado Pago cuando le llega. Lo que necesita es la puerta a su portal.
+ */
+export function buildSelfEnrollmentAccessEmail(input: {
+  firstName: string;
+  institution: string;
+  /** "VIP", o la palabra de la institución si no hay categoría. */
+  membershipName: string;
+  activationUrl: string;
+  totalLabel: string;
+  activationTtlLabel: string;
+  signature: RenderedEmailSignature | null;
+}): EmailBody {
+  return compose({
+    subject: `Tu acceso a ${input.institution}`,
+    greetingName: input.firstName,
+    paragraphs: [
+      `Gracias por sumarte a ${input.membershipName} de ${input.institution}.`,
+      "Con el botón de acá abajo activás tu portal: ahí ves lo que tenés incluido, reservás tus turnos y renovás cuando quieras.",
+      `Si todavía no terminaste el pago de ${input.totalLabel}, también lo podés hacer desde el portal.`,
+    ],
+    cta: { label: "Activar mi portal", url: input.activationUrl },
+    notes: [`El enlace vence en ${input.activationTtlLabel}. Si se te pasa, escribinos y te mandamos uno nuevo.`],
+    signature: input.signature,
+  });
+}
+
+/**
  * Rechazo.
  *
  * El motivo es obligatorio al rechazar, y este email es el único lugar donde esa obligación
@@ -324,6 +354,39 @@ export function buildMembershipWelcomeEmail(input: {
     blocks: input.whatsappGroupUrl
       ? [whatsappGroupBlock(input.whatsappGroupUrl, input.appBaseUrl ?? "")]
       : undefined,
+    signature: input.signature,
+  });
+}
+
+/**
+ * Bienvenida de un club que se renueva cuando la persona quiere (el VIP de una barbería):
+ * qué tiene incluido, dónde reservar y que puede renovar sin deuda. Sin número de socio.
+ */
+export function buildClubWelcomeEmail(input: {
+  firstName: string;
+  institution: string;
+  membershipName: string;
+  /** "4 cortes para usar en los próximos 30 días", o null si la categoría no incluye turnos. */
+  includedLabel: string | null;
+  portalUrl: string;
+  hasAccount: boolean;
+  signature: RenderedEmailSignature | null;
+}): EmailBody {
+  const parrafos = [`Registramos tu pago: ya sos ${input.membershipName} de ${input.institution}.`];
+  if (input.includedLabel) parrafos.push(`Tenés ${input.includedLabel}. Los reservás desde tu portal.`);
+  parrafos.push(
+    "Cuando quieras renovar, lo hacés desde el portal. Si un mes no renovás, no debés nada.",
+  );
+  if (!input.hasAccount) {
+    parrafos.push(
+      "Para entrar a tu portal, activá tu cuenta con el enlace que te mandamos al sumarte. Si venció, respondé este correo y te mandamos uno nuevo.",
+    );
+  }
+  return compose({
+    subject: `Ya sos ${input.membershipName} de ${input.institution}`,
+    greetingName: input.firstName,
+    paragraphs: parrafos,
+    cta: { label: "Ir a mi portal", url: input.portalUrl },
     signature: input.signature,
   });
 }

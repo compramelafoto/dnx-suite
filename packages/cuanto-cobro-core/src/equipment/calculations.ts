@@ -1,5 +1,5 @@
 import { parseCuantoCobroAmount } from "../amount-format";
-import type { CuantoCobroProfileInput } from "../types";
+import type { CameraWearModel, CuantoCobroProfileInput } from "../types";
 import {
   AA_BATTERIES_PER_SPEEDLIGHT,
   DEFAULT_COMPUTER_LIFESPAN_YEARS,
@@ -172,7 +172,102 @@ function timelineToMonths(timeline: string): number | null {
   }
 }
 
-export function computeEquipmentSavings(profile: CuantoCobroProfileInput): EquipmentSavingsBreakdown {
+/** ¿Hay equipo cargado en el inventario además de la cámara principal? */
+function hasNonCameraEquipmentData(inventory: CuantoCobroEquipmentInventory): boolean {
+  return hasStructuredEquipmentData({ ...inventory, renewal: { ...inventory.renewal, camera: null } });
+}
+
+/**
+ * El inventario de ¿Cuánto Cobro? (CLF) copiaba la renovación calculada en `equipmentRenewalMonthly`.
+ * Si el inventario sólo tiene la cámara y ese monto es exactamente su renovación calculada, el
+ * monto es la cámara (no una inversión cargada a mano): con la cámara por trabajo no se cuenta.
+ */
+function legacyAmountIsDerivedFromCamera(profile: CuantoCobroProfileInput, legacyAmount: number): boolean {
+  const rawCamera = profile.equipmentInventory?.renewal?.camera;
+  if (!rawCamera) return false;
+  const camera = normalizeEquipmentInventory(profile.equipmentInventory, profile).renewal.camera;
+  const derived = camera ? computeCameraRenewalMonthly(camera) : null;
+  return derived !== null && Math.round(legacyAmount) === derived;
+}
+
+/**
+ * Inversión mensual en equipo (modelo "per-job"): todo el equipo MENOS la cámara principal, que se
+ * cobra por trabajo. Sin otros equipos en el inventario, vale el monto cargado a mano
+ * (`equipmentRenewalMonthly`): cargar una cámara nunca lo reemplaza ni lo pone en cero.
+ */
+function computePerJobEquipmentSavings(profile: CuantoCobroProfileInput): EquipmentSavingsBreakdown {
+  const inventory = getInventory(profile);
+  const renewalByCategory: Partial<Record<EquipmentRenewalCategoryId, number>> = {};
+  let renewalMonthly = 0;
+  const categories: EquipmentRenewalCategoryId[] = [
+    "lenses",
+    "memory-cards",
+    "computer",
+    "monitor",
+    "storage-disks",
+    "speedlight",
+    "studio-flash",
+    "aa-batteries",
+  ];
+  for (const categoryId of categories) {
+    if (categoryId === "aa-batteries" && inventory.renewal.speedlight?.usesAABatteries !== "yes") continue;
+    const monthly = computeRenewalCategoryMonthly(categoryId, inventory);
+    if (monthly !== null && monthly > 0) {
+      renewalByCategory[categoryId] = monthly;
+      renewalMonthly += monthly;
+    }
+  }
+  const { expansionByItem, expansionMonthly } = computeExpansion(inventory);
+
+  let usesLegacy = false;
+  if (!hasNonCameraEquipmentData(inventory)) {
+    const legacyAmount = parseCuantoCobroAmount(profile.equipmentRenewalMonthly) ?? 0;
+    if (legacyAmount > 0 && !legacyAmountIsDerivedFromCamera(profile, legacyAmount)) {
+      renewalMonthly = legacyAmount;
+      usesLegacy = true;
+    }
+  }
+
+  return {
+    renewalMonthly,
+    expansionMonthly,
+    totalMonthly: renewalMonthly + expansionMonthly,
+    renewalByCategory,
+    expansionByItem,
+    usesLegacyRenewalFallback: usesLegacy,
+  };
+}
+
+function computeExpansion(inventory: CuantoCobroEquipmentInventory) {
+  const expansionByItem = inventory.futureEquipment
+    .map((item) => {
+      const price = parseCount(item.estimatedPrice);
+      const months = timelineToMonths(item.desiredTimeline);
+      if (price <= 0 || months === null) return null;
+      return {
+        id: item.id,
+        name: item.name.trim() || "Equipo deseado",
+        monthly: Math.round(price / months),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+  return { expansionByItem, expansionMonthly: expansionByItem.reduce((sum, item) => sum + item.monthly, 0) };
+}
+
+/**
+ * Lo que el equipo suma por mes a la necesidad del perfil (y por lo tanto al valor hora).
+ * Con el modelo vigente ("per-job") la cámara principal no está: se cobra en cada trabajo.
+ */
+export function computeEquipmentSavings(
+  profile: CuantoCobroProfileInput,
+  model: CameraWearModel = "per-job",
+): EquipmentSavingsBreakdown {
+  if (model === "per-job") return computePerJobEquipmentSavings(profile);
+  return computeLegacyStructuralEquipmentSavings(profile);
+}
+
+/** Modelo anterior: la cámara entraba en la renovación mensual. Sólo para recalcular presupuestos viejos. */
+function computeLegacyStructuralEquipmentSavings(profile: CuantoCobroProfileInput): EquipmentSavingsBreakdown {
   const inventory = getInventory(profile);
   const renewalByCategory: Partial<Record<EquipmentRenewalCategoryId, number>> = {};
   let renewalMonthly = 0;
@@ -201,20 +296,7 @@ export function computeEquipmentSavings(profile: CuantoCobroProfileInput): Equip
     }
   }
 
-  const expansionByItem = inventory.futureEquipment
-    .map((item) => {
-      const price = parseCount(item.estimatedPrice);
-      const months = timelineToMonths(item.desiredTimeline);
-      if (price <= 0 || months === null) return null;
-      return {
-        id: item.id,
-        name: item.name.trim() || "Equipo deseado",
-        monthly: Math.round(price / months),
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
-
-  const expansionMonthly = expansionByItem.reduce((sum, item) => sum + item.monthly, 0);
+  const { expansionByItem, expansionMonthly } = computeExpansion(inventory);
 
   const usesLegacy = usesLegacyRenewalFallback(profile, inventory);
   if (usesLegacy) {
@@ -233,8 +315,12 @@ export function computeEquipmentSavings(profile: CuantoCobroProfileInput): Equip
   };
 }
 
-export function getEffectiveRenewalMonthly(profile: CuantoCobroProfileInput): number {
-  const savings = computeEquipmentSavings(profile);
+export function getEffectiveRenewalMonthly(
+  profile: CuantoCobroProfileInput,
+  model: CameraWearModel = "per-job",
+): number {
+  const savings = computeEquipmentSavings(profile, model);
+  if (model === "per-job") return savings.renewalMonthly;
   if (savings.usesLegacyRenewalFallback) {
     return savings.renewalMonthly;
   }
@@ -245,7 +331,7 @@ export function getEffectiveRenewalMonthly(profile: CuantoCobroProfileInput): nu
 }
 
 export function getEffectiveExpansionMonthly(profile: CuantoCobroProfileInput): number {
-  return computeEquipmentSavings(profile).expansionMonthly;
+  return computeExpansion(getInventory(profile)).expansionMonthly;
 }
 
 export function getRenewalCategoryItemCount(
@@ -319,7 +405,8 @@ export function buildRenewalCategoryCards(
         description: meta.description,
         status: configured ? "configured" : "pending",
         itemCount,
-        monthlyContribution: computeRenewalCategoryMonthly(categoryId, inventory),
+        // La cámara principal se cobra por trabajo (disparos × costo por disparo): no aporta por mes.
+        monthlyContribution: categoryId === "camera" ? null : computeRenewalCategoryMonthly(categoryId, inventory),
       };
     });
 }

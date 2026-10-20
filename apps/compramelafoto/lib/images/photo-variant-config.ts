@@ -71,10 +71,22 @@ export function getPublicPhotoVariantConfig(): PublicPhotoVariantConfig {
   };
 }
 
+/**
+ * Cómo se dibuja la marca: «t1», con el texto en trazos. Las vistas guardadas antes tenían las
+ * letras como cuadraditos (el servidor no tiene tipografías); no se sirven más y se vuelven a
+ * dibujar al pedirlas. Va en el código para no depender de la variable de entorno.
+ */
+export const VARIANT_WATERMARK_DRAWING = "t1";
+
 export function thumbVariantR2Key(photoId: number, fileVersion: string): string {
-  return `photo-variants/${photoId}/thumb_wm_${fileVersion}.jpg`;
+  return `photo-variants/${photoId}/thumb_wm_${fileVersion}-${VARIANT_WATERMARK_DRAWING}.jpg`;
 }
 
 export function previewVariantR2Key(photoId: number, fileVersion: string): string {
-  return `photo-variants/${photoId}/preview_wm_${fileVersion}.jpg`;
+  return `photo-variants/${photoId}/preview_wm_${fileVersion}-${VARIANT_WATERMARK_DRAWING}.jpg`;
+}
+
+/** ¿La vista guardada se generó con la marca actual? Las anteriores se dibujan de nuevo. */
+export function isCurrentWatermarkVariantKey(key: string): boolean {
+  return key.endsWith(`-${VARIANT_WATERMARK_DRAWING}.jpg`);
 }

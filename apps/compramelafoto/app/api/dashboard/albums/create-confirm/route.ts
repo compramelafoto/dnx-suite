@@ -1,3 +1,4 @@
+import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
@@ -156,9 +157,7 @@ export async function POST(req: NextRequest) {
         digitalDiscount10Plus: albumFields.digitalDiscount10Plus ?? null,
         digitalDiscount20Plus: albumFields.digitalDiscount20Plus ?? null,
         hiddenPhotosEnabled: Boolean(albumFields.hiddenPhotosEnabled),
-        hiddenSelfieRetentionDays: albumFields.hiddenSelfieRetentionDays != null && albumFields.hiddenSelfieRetentionDays !== ""
-          ? parseInt(String(albumFields.hiddenSelfieRetentionDays), 10)
-          : null,
+        hiddenSelfieRetentionDays: parseHiddenSelfieRetentionDays(albumFields.hiddenSelfieRetentionDays),
         scanProtectionEnabled: pickDefaultScanProtectionEnabled(
           await prisma.user.findUnique({ where: { id: user.id }, select: { tags: true } }),
           await prisma.album.findFirst({
@@ -279,9 +278,7 @@ export async function POST(req: NextRequest) {
       digitalDiscount10Plus: albumFields.digitalDiscount10Plus ?? null,
       digitalDiscount20Plus: albumFields.digitalDiscount20Plus ?? null,
       hiddenPhotosEnabled: Boolean(albumFields.hiddenPhotosEnabled),
-      hiddenSelfieRetentionDays: albumFields.hiddenSelfieRetentionDays != null && albumFields.hiddenSelfieRetentionDays !== ""
-        ? parseInt(String(albumFields.hiddenSelfieRetentionDays), 10)
-        : null,
+      hiddenSelfieRetentionDays: parseHiddenSelfieRetentionDays(albumFields.hiddenSelfieRetentionDays),
       scanProtectionEnabled: pickDefaultScanProtectionEnabled(
         await prisma.user.findUnique({ where: { id: user.id }, select: { tags: true } }),
         await prisma.album.findFirst({

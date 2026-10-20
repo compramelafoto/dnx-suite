@@ -12,7 +12,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { getOrderIdForPackAccessToken } from "@/lib/preventa-canjeable/pack-access-tokens";
+import {
+  getOrderIdForPackAccessToken,
+  getOrderIdForPackAccessTokenAnyState,
+} from "@/lib/preventa-canjeable/pack-access-tokens";
 import type { PrepaidPrintCredit } from "./prepaid-print-credit";
 
 export const EXTERNAL_VOUCHER_KIND = "EXTERNAL_PREPAID_PRINT_CREDIT";
@@ -137,4 +140,25 @@ export async function attachVoucherToOrder(voucher: ExternalVoucher, orderId: nu
     await tx.order.update({ where: { id: orderId }, data: { redeemsOrderId: voucher.orderId } });
     await tx.order.update({ where: { id: voucher.orderId }, data: { redemptionOrderId: orderId } });
   });
+}
+
+/**
+ * Galería a la que va quien abre el link de un combo deshabilitado (link anulado, combo
+ * cancelado o vencido): puede comprar fotos normalmente, pero sin el combo. Devuelve null
+ * si el link no es de un combo o si la galería ya no se puede abrir.
+ */
+export async function resolveGalleryForDisabledVoucher(token: string): Promise<string | null> {
+  const orderId = await getOrderIdForPackAccessTokenAnyState(token);
+  if (orderId == null) return null;
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      redemptionPaymentRefsJson: true,
+      album: { select: { publicSlug: true, deletedAt: true, isHidden: true } },
+    },
+  });
+  if (!order || !parseExternalVoucherRefs(order.redemptionPaymentRefsJson)) return null;
+  const album = order.album;
+  if (!album?.publicSlug || album.deletedAt || album.isHidden) return null;
+  return `/album/${album.publicSlug}`;
 }

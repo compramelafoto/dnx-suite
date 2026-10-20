@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import { prisma } from "@repo/db";
 import { plantillaPorClave } from "@/lib/plantillas";
+import { eventoQueAdministra } from "@/lib/acceso-al-evento";
 
 export type EstadoPlantilla = { error?: string; elegida?: string };
 
@@ -33,7 +34,7 @@ export async function elegirPlantillaAction(
 
   // El filtro por dueño va en el update: un evento ajeno no se toca ni por error.
   const actualizados = await prisma.subilafotoEvent.updateMany({
-    where: { id: eventoId, sellerProfile: { userId: usuario.id } },
+    where: eventoQueAdministra(eventoId, usuario.id),
     data: { themeTokens: plantilla.tokens },
   });
 
