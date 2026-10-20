@@ -60,3 +60,11 @@ export function etapaSiguiente(etapas: readonly EtapaVista[], actualId: string):
   const i = orden.findIndex((e) => e.id === actualId);
   return i >= 0 && i < orden.length - 1 ? orden[i + 1]! : null;
 }
+
+/**
+ * Trabajo retenido: está «Listo para retirar» pero su pedido todavía debe plata, así que no se
+ * puede entregar hasta cobrar el saldo (candado de `lib/pedidos/candado-saldo`).
+ */
+export function retenido(t: { fase: Fase; pedido: { saldoMinor: number } | null }): boolean {
+  return t.fase === "LISTO" && t.pedido !== null && t.pedido.saldoMinor > 0;
+}

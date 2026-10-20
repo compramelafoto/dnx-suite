@@ -1279,6 +1279,9 @@ export function Pos({
                       {t.etapa ? ` · ${t.etapa}` : ""}
                     </p>
                   ))}
+                  {p.saldoMinor > 0 && p.trabajos.some((t) => t.listo) ? (
+                    <p className="text-xs font-semibold text-[var(--fo-danger)]">Debe {formatMinorArs(p.saldoMinor).replace(",00", "")} · retenido hasta pagar</p>
+                  ) : null}
                   {p.saldoMinor > 0 ? (
                     <button
                       type="button"

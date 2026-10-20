@@ -9,6 +9,7 @@ import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/consta
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { crearPedidoManual, leerPedido } from "@/lib/pedidos/pedidos";
 import { registrarCobro } from "@/lib/pedidos/cobros";
+import { faseDeEtapa } from "@/lib/proyectos/en-curso-puro";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { formatMinorArs } from "@/lib/membership/money";
 import { diasEntre, repartirDescuento, separarTicket } from "@/lib/sales/pedido-mostrador";
@@ -248,7 +249,8 @@ export type PedidoParaRetirar = {
   totalMinor: number;
   saldoMinor: number;
   entrega: string | null;
-  trabajos: { nombre: string; etapa: string | null }[];
+  /** `listo`: el trabajo está en «Listo para retirar» (fase LISTO); con saldo queda retenido. */
+  trabajos: { nombre: string; etapa: string | null; listo: boolean }[];
 };
 
 /** Los pedidos abiertos del cliente, para cobrar el saldo cuando viene a retirar. */
@@ -273,17 +275,20 @@ export async function pedidosParaRetirarAction(clientId: string): Promise<Pedido
     const journeys = trabajos.length
       ? await prisma.fotofficeJourney.findMany({
           where: { workspaceId: ctx.workspaceId, subjectType: "PROYECTO", subjectId: { in: trabajos.map((t) => t.id) } },
-          select: { subjectId: true, stage: { select: { name: true } } },
+          select: { subjectId: true, stage: { select: { name: true, color: true, order: true } } },
         })
       : [];
-    const etapaDe = new Map(journeys.map((j) => [j.subjectId, j.stage?.name ?? null]));
+    const etapaDe = new Map(journeys.map((j) => [j.subjectId, j.stage ?? null]));
     out.push({
       id,
       numero: d.numero,
       totalMinor: Math.round(d.plan.total * 100),
       saldoMinor: Math.round(d.plan.aCobrar * 100),
       entrega: d.eventDate,
-      trabajos: trabajos.map((t) => ({ nombre: t.name, etapa: etapaDe.get(t.id) ?? null })),
+      trabajos: trabajos.map((t) => {
+        const etapa = etapaDe.get(t.id) ?? null;
+        return { nombre: t.name, etapa: etapa?.name ?? null, listo: etapa ? faseDeEtapa({ ...etapa, esUltima: false }) === "LISTO" : false };
+      }),
     });
   }
   return out;
