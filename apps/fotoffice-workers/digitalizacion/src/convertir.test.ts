@@ -128,6 +128,40 @@ describe("convertirGrabacion", () => {
     expect(borrados).toEqual(["digitalizacion/ws/g1/final.mp4"]);
   });
 
+  it("ffmpeg sale con 0 sin leer sus entradas y los sockets dan ECONNRESET: queda LISTA, sin caídas", async () => {
+    const noCapturados: unknown[] = [];
+    const h = (e: unknown) => noCapturados.push(e);
+    process.on("uncaughtException", h);
+    process.on("unhandledRejection", h);
+    const { deps, llamadas } = armar({
+      ffmpegPath: ffmpegFalso("sinleer.sh", `echo contenido\nexit 0`),
+      // Parte lenta: el error del socket llega mientras el escritor espera a R2.
+      leerParte: async () => {
+        await new Promise((r) => setTimeout(r, 300));
+        return Buffer.from("datos");
+      },
+    });
+    await convertirGrabacion(
+      {
+        ...deps,
+        // Simula el ECONNRESET que Node recibe en Linux al cerrar el lector con datos sin leer.
+        alLanzar: (ff) => {
+          setTimeout(() => {
+            for (const i of [3, 4]) {
+              (ff.stdio[i] as Readable).destroy(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+            }
+          }, 100);
+        },
+      },
+      "g1",
+    );
+    await new Promise((r) => setTimeout(r, 500));
+    process.off("uncaughtException", h);
+    process.off("unhandledRejection", h);
+    expect(noCapturados).toEqual([]);
+    expect(llamadas).toEqual(["lista", "partesBorradas"]);
+  });
+
   it("sin progreso mata ffmpeg por inactividad", async () => {
     const { deps, llamadas } = armar({
       ffmpegPath: ffmpegFalso("mudo.sh", `exec sleep 30`),

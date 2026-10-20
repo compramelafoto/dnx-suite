@@ -11,7 +11,7 @@ import type { Config } from "./config";
 
 export type R2 = {
   leerParte(clave: string): Promise<Buffer>;
-  subirStream(clave: string, stream: Readable): Promise<number>;
+  subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
 };
 
@@ -33,7 +33,7 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
       return Buffer.from(await r.Body.transformToByteArray());
     },
 
-    async subirStream(clave, stream) {
+    async subirStream(clave, stream, señal) {
       const upload = new Upload({
         client,
         params: { Bucket, Key: clave, Body: stream, ContentType: "video/mp4" },
@@ -41,6 +41,8 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
         queueSize: 2,
         leavePartsOnError: false,
       });
+      // Al cancelar, se aborta la multiparte: no puede quedar un final.mp4 huérfano.
+      señal?.addEventListener("abort", () => void upload.abort().catch(() => {}), { once: true });
       await upload.done();
       const head = await client.send(new HeadObjectCommand({ Bucket, Key: clave }));
       return Number(head.ContentLength ?? 0);

@@ -12,7 +12,7 @@ import type { Repo } from "./repo";
 export type DepsConvertir = {
   repo: Repo;
   leerParte(clave: string): Promise<Buffer>;
-  subirStream(clave: string, stream: Readable): Promise<number>;
+  subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
   preset: string;
   ffmpegPath?: string;
@@ -23,6 +23,8 @@ export type DepsConvertir = {
   tmpBase?: string;
   /** Instante de las pruebas; ignorado en producción. */
   registrar?: (msg: string) => void;
+  /** Sólo para pruebas: se llama con el proceso recién lanzado. */
+  alLanzar?: (ff: import("node:child_process").ChildProcess) => void;
 };
 
 function aSegundos(hms: string): number {
@@ -31,22 +33,42 @@ function aSegundos(hms: string): number {
 }
 
 
-function escribirTodo(ws: Writable, buf: Buffer): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const onError = (e: Error) => reject(e);
-    ws.once("error", onError);
-    const ok = ws.write(buf, (err) => {
-      if (err) reject(err);
-    });
-    if (ok) {
-      ws.off("error", onError);
-      resolve();
-    } else {
-      ws.once("drain", () => {
-        ws.off("error", onError);
-        resolve();
-      });
+/** Entrada de ffmpeg: un socket del hijo. Si ffmpeg ya no lee (cerró, murió o dejó de necesitar la
+ * entrada, p. ej. por un recorte), cualquier error del socket sólo significa "el lector se fue". */
+type Entrada = { ws: Writable; ido: boolean };
+
+function vigilarEntrada(ws: Writable): Entrada {
+  const e: Entrada = { ws, ido: false };
+  // Permanente desde el spawn: un 'error' sin oyente (ECONNRESET, EPIPE...) tumbaría el proceso.
+  ws.on("error", () => (e.ido = true));
+  ws.on("close", () => (e.ido = true));
+  return e;
+}
+
+/** Escribe con contrapresión. Devuelve false si el lector se fue (no es un error). */
+function escribirTodo(e: Entrada, buf: Buffer): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (e.ido || e.ws.destroyed || !e.ws.writable) {
+      e.ido = true;
+      resolve(false);
+      return;
     }
+    const fin = (ok: boolean) => {
+      e.ws.off("error", alError);
+      e.ws.off("close", alCerrar);
+      e.ws.off("drain", alDrenar);
+      resolve(ok);
+    };
+    const alError = () => fin(false);
+    const alCerrar = () => fin(false);
+    const alDrenar = () => fin(true);
+    e.ws.once("error", alError);
+    e.ws.once("close", alCerrar);
+    const ok = e.ws.write(buf, (err) => {
+      if (err) fin(false);
+    });
+    if (ok) fin(true);
+    else e.ws.once("drain", alDrenar);
   });
 }
 
@@ -54,22 +76,23 @@ function escribirTodo(ws: Writable, buf: Buffer): Promise<void> {
  * Un escritor por entrada. ffmpeg lee cada entrada de un descriptor propio (`-i pipe:N`, un socket
  * del proceso hijo): no hay archivos ni aperturas bloqueantes, así que ninguna cantidad de tramos
  * agota los hilos de libuv. Cada parte se baja entera de R2 y recién ahí se escribe.
+ * Sólo los fallos de lectura de R2 (`leerParte`) hacen fallar al escritor.
  */
 async function alimentar(
-  ws: Writable,
+  e: Entrada,
   claves: string[],
   deps: DepsConvertir,
   abortado: () => boolean,
 ): Promise<void> {
   try {
     for (const clave of claves) {
-      if (abortado()) break;
+      if (abortado() || e.ido) break;
       const buf = await deps.leerParte(clave);
-      if (abortado()) break;
-      await escribirTodo(ws, buf);
+      if (abortado() || e.ido) break;
+      if (!(await escribirTodo(e, buf))) break;
     }
   } finally {
-    ws.end();
+    if (!e.ws.destroyed) e.ws.end();
   }
 }
 
@@ -119,15 +142,20 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
       stdio: ["ignore", "pipe", "pipe", ...plan.entradas.map(() => "pipe" as const)],
     });
 
+    deps.alLanzar?.(ff);
+    const entradasVigiladas = plan.entradas.map((_, i) => vigilarEntrada(ff.stdio[3 + i] as Writable));
+
     let falla: Error | null = null;
     let abortado = false;
     let cancelarSubida!: (e: Error) => void;
+    const cortarSubida = new AbortController();
     const cancelacion = new Promise<never>((_, rej) => (cancelarSubida = rej));
     cancelacion.catch(() => {});
     const abortar = (e: Error) => {
       if (!falla) falla = e;
       abortado = true;
       ff.kill("SIGKILL");
+      cortarSubida.abort();
       cancelarSubida(e);
     };
 
@@ -167,14 +195,13 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
       salida.catch(() => {});
 
       const terminados = plan.entradas.map((e, i) =>
-        alimentar(ff.stdio[3 + i] as Writable, e.claves, deps, () => abortado).catch((err: Error) => {
-          // EPIPE: ffmpeg ya terminó o murió; el error real es el de ffmpeg.
-          if (!abortado && (err as NodeJS.ErrnoException).code !== "EPIPE") abortar(err);
+        alimentar(entradasVigiladas[i], e.claves, deps, () => abortado).catch((err: Error) => {
+          if (!abortado) abortar(err); // falló la lectura de R2
         }),
       );
       const escritoresListos = Promise.allSettled(terminados);
 
-      const subida = Promise.race([deps.subirStream(claveFinal, ff.stdout!), cancelacion]).then(
+      const subida = Promise.race([deps.subirStream(claveFinal, ff.stdout!, cortarSubida.signal), cancelacion]).then(
         (b) => b,
         (err: Error) => {
           abortar(err);
