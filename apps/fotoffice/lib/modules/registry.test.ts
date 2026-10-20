@@ -14,6 +14,7 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
@@ -41,7 +42,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos, informes y galería", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización y galería", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -59,6 +60,7 @@ describe("MODULE_REGISTRY", () => {
         SERVICE_LEADS_MODULE_KEY,
         SALES_MODULE_KEY,
         COMMUNICATIONS_MODULE_KEY,
+        DIGITALIZACION_MODULE_KEY,
         STORE_MODULE_KEY,
         GOVERNANCE_MODULE_KEY,
         "quotes",
@@ -132,9 +134,9 @@ describe("familias y dependencias (0.1)", () => {
   it("dependsOn apunta a claves existentes", () => {
     for (const m of MODULE_REGISTRY) for (const d of m.dependsOn ?? []) expect(getModuleDefinition(d)).toBeDefined();
   });
-  it("los módulos con comisión son exactamente cuotas, reservas y cursos", () => {
+  it("los módulos con comisión son exactamente cuotas, reservas, digitalización y cursos", () => {
     expect(MODULE_REGISTRY.filter((m) => m.platformFee).map((m) => m.key).sort()).toEqual(
-      ["bookings", "courses-sales", "membership-dues"],
+      ["bookings", "courses-sales", "digitalizacion", "membership-dues"],
     );
   });
 });

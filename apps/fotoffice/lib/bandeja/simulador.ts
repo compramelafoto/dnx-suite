@@ -5,6 +5,7 @@ import { puedeEnContexto } from "@/lib/access/policy";
 import type { CtxConsultas } from "@/lib/consultas/catalogo";
 import { TEXTO_MAXIMO } from "./constantes";
 import { guardarConexion, leerConexion } from "./conexion";
+import { programarBot } from "./bot/programar";
 import { aplicarEventos } from "./registro";
 import { waIdDe } from "./telefono";
 import type { EventoEntrante } from "./webhook";
@@ -63,6 +64,7 @@ export async function simularEntrante(ctx: CtxConsultas, datos: DatosSimulador, 
   };
   const r = await aplicarEventos([evento], ahora, { workspaceId: ctx.workspaceId });
   if (r.aplicados !== 1) return { ok: false, error: MENSAJES_SIMULADOR.fallo };
+  programarBot(r.paraElBot);
   const chat = await prisma.fotofficeWaChat.findUnique({ where: { workspaceId_waId: { workspaceId: ctx.workspaceId, waId } }, select: { id: true } });
   if (!chat) return { ok: false, error: MENSAJES_SIMULADOR.fallo };
   return { ok: true, chatId: chat.id };
