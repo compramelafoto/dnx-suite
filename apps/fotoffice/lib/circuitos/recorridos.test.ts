@@ -547,6 +547,29 @@ describe("candado del saldo", () => {
     expect(recorrido(id).stageId).toBe("g2");
   });
 
+  it("un flujo que termina en «Listo para retirar» deja entrar ahí con deuda, pero no terminarlo", async () => {
+    B.agregar("fotofficeCircuit", { id: "cl", workspaceId: "ws-1", name: "Termina en listo", kind: "TRABAJO" });
+    B.agregar("fotofficeStage", { id: "l1", circuitId: "cl", name: "Recibido", color: "gris", order: 0, days: 0 });
+    B.agregar("fotofficeStage", { id: "l2", circuitId: "cl", name: "Listo para retirar", color: "amarillo", order: 1, days: 0 });
+    const id = await enListo();
+    expect(await R.cambiarDeCircuito(ADMIN, id, "cl")).toEqual({ ok: true });
+    expect(await R.mover(EQUIPO, id, "l2")).toEqual({ ok: true });
+    expect(recorrido(id).stageId).toBe("l2");
+    expect(await R.cerrar(ADMIN, id, "TERMINADO", undefined, undefined, { forzar: true })).toEqual({ ok: false, error: MENSAJE });
+    expect(recorrido(id).closedAt).toBeNull();
+  });
+
+  it("una última etapa sin color llamada «Listo para retirar» también deja entrar con deuda", async () => {
+    B.agregar("fotofficeCircuit", { id: "cn", workspaceId: "ws-1", name: "Listo por nombre", kind: "TRABAJO" });
+    B.agregar("fotofficeStage", { id: "n1", circuitId: "cn", name: "Recibido", color: "gris", order: 0, days: 0 });
+    // Sin color propio: la fase sale del nombre.
+    B.agregar("fotofficeStage", { id: "n2", circuitId: "cn", name: "Listo para retirar", color: "", order: 1, days: 0 });
+    const id = await enListo();
+    expect(await R.cambiarDeCircuito(ADMIN, id, "cn")).toEqual({ ok: true });
+    expect(await R.mover(EQUIPO, id, "n2")).toEqual({ ok: true });
+    expect(await R.cerrar(EQUIPO, id, "TERMINADO")).toEqual({ ok: false, error: MENSAJE });
+  });
+
   it("pasar a un flujo de una sola etapa gris con deuda se rechaza", async () => {
     B.agregar("fotofficeCircuit", { id: "c-gris", workspaceId: "ws-1", name: "Una sola", kind: "TRABAJO" });
     B.agregar("fotofficeStage", { id: "gu", circuitId: "c-gris", name: "Hecho", color: "gris", order: 0, days: 0 });
