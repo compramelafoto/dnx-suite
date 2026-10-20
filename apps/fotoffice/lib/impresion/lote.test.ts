@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AJUSTES_NEUTROS } from "./ajustes";
 import { propuestaAutomatica } from "./encuadre";
-import { aplicarGuardado, cambiosEnLote, mismaReceta, textoDeAviso, totalDeCopias } from "./lote";
+import { aplicarGuardado, cambiosEnLote, cantidadParaElTicket, mismaReceta, resultadoDeArmado, textoDeAviso, totalDeCopias } from "./lote";
 import type { FotoCopia } from "./copias";
 
 const P10 = { anchoMm: 102, altoMm: 152 };
@@ -69,5 +69,37 @@ describe("reflejar lo guardado en pantalla", () => {
     expect(textoDeAviso("OK", "13x18")).toBeNull();
     expect(textoDeAviso("BLANDA", "13x18")).toBe("Puede verse algo blanda en 13x18");
     expect(textoDeAviso("PIXELADA", "13x18")).toBe("Se va a ver pixelada en 13x18");
+  });
+});
+
+describe("armar las hojas de a una foto", () => {
+  it("las que salen bien quedan armadas; un error devuelto o una excepción quedan en la tarjeta de esa foto", () => {
+    const r = resultadoDeArmado(
+      ["a", "b", "c"],
+      [
+        { status: "fulfilled", value: { ok: true, hojaId: "h1", version: "v1", copias: 2 } },
+        { status: "fulfilled", value: { ok: false, error: "Primero armá la foto." } },
+        { status: "rejected", reason: new Error("ImagenNoProcesable") },
+      ],
+    );
+    expect([...r.armadas]).toEqual([["a", { id: "h1", version: "v1", copias: 2 }]]);
+    expect([...r.errores]).toEqual([
+      ["b", "Primero armá la foto."],
+      ["c", "No se pudo armar la hoja de esta foto. Probá de nuevo."],
+    ]);
+  });
+});
+
+describe("la cantidad que pasa al ticket", () => {
+  it("es el total de copias guardado cuando todas las fotos tienen su hoja", () => {
+    expect(cantidadParaElTicket(FOTOS)).toEqual({ ok: true, cantidad: 3 });
+  });
+
+  it("sin fotos, o con alguna sin hoja vigente, no vuelve al ticket", () => {
+    expect(cantidadParaElTicket([])).toEqual({ ok: false, error: "Todavía no hay fotos cargadas." });
+    const sinHoja = { ...foto("c", 4000, 6000), hoja: null };
+    const sinPieza = { ...foto("d", 4000, 6000), pieza: null, hoja: null };
+    expect(cantidadParaElTicket([...FOTOS, sinHoja, sinPieza])).toEqual({ ok: false, error: "A 2 fotos les falta armar la hoja." });
+    expect(cantidadParaElTicket([...FOTOS, sinHoja])).toEqual({ ok: false, error: "A 1 foto le falta armar la hoja." });
   });
 });

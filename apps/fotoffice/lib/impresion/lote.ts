@@ -63,3 +63,37 @@ export function textoDeAviso(aviso: AvisoCalidad, papel: string): string | null 
   if (aviso === "PIXELADA") return `Se va a ver pixelada en ${papel}`;
   return null;
 }
+
+/** Lo que devuelve armar la hoja de una foto (`generarHojaCopiaAction`). */
+export type HojaArmada = { ok: true; hojaId: string; version: string; copias: number } | { ok: false; error: string };
+
+/**
+ * Junta lo que pasó al armar las hojas, una llamada por foto (`ids[i]` ↔ `resultados[i]`): las
+ * armadas y, para cada foto que falló, el texto que se muestra en su tarjeta. Una excepción del
+ * servidor (p. ej. una imagen que no se puede procesar) cuenta como el error de esa foto sola.
+ */
+export function resultadoDeArmado(
+  ids: readonly string[],
+  resultados: readonly PromiseSettledResult<HojaArmada>[],
+): { armadas: Map<string, { id: string; version: string; copias: number }>; errores: Map<string, string> } {
+  const armadas = new Map<string, { id: string; version: string; copias: number }>();
+  const errores = new Map<string, string>();
+  resultados.forEach((r, i) => {
+    const id = ids[i]!;
+    if (r.status === "rejected") errores.set(id, "No se pudo armar la hoja de esta foto. Probá de nuevo.");
+    else if (!r.value.ok) errores.set(id, r.value.error);
+    else armadas.set(id, { id: r.value.hojaId, version: r.value.version, copias: r.value.copias });
+  });
+  return { armadas, errores };
+}
+
+/**
+ * La cantidad del renglón del ticket al tocar "Listo": el total de copias, sólo si cada foto tiene
+ * su hoja vigente. Se le pasa el estado recién leído del servidor, no lo que cree la pantalla.
+ */
+export function cantidadParaElTicket(fotos: FotoCopia[]): { ok: true; cantidad: number } | { ok: false; error: string } {
+  if (fotos.length === 0) return { ok: false, error: "Todavía no hay fotos cargadas." };
+  const faltan = fotos.filter((f) => !f.pieza || !f.hoja).length;
+  if (faltan > 0) return { ok: false, error: faltan === 1 ? "A 1 foto le falta armar la hoja." : `A ${faltan} fotos les falta armar la hoja.` };
+  return { ok: true, cantidad: totalDeCopias(fotos) };
+}
