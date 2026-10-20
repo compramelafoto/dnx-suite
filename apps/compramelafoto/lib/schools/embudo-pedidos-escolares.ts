@@ -240,6 +240,30 @@ export function disenosParaRevisar(
   return ids;
 }
 
+/**
+ * Los packs cobrados por fuera que todavía no se canjearon, agrupados por álbum, para el aviso
+ * "ya están las fotos" de la lista que se ve (los marcados o los del curso filtrado). Las pruebas
+ * DEMO no van: nunca reciben correos.
+ */
+export function packsPendientesPorAlbum(
+  filas: Array<{
+    id: number;
+    kind?: string;
+    isDemo?: boolean;
+    redemptionOrderId?: number | null;
+    album: { id: number } | null;
+  }>,
+): Map<number, number[]> {
+  const out = new Map<number, number[]>();
+  for (const f of filas) {
+    if (f.kind !== "PACK_EXTERNO" || f.isDemo || !f.album || f.redemptionOrderId != null) continue;
+    const ids = out.get(f.album.id) ?? [];
+    if (!ids.includes(f.id)) ids.push(f.id);
+    out.set(f.album.id, ids);
+  }
+  return out;
+}
+
 /** Texto del curso como se muestra ("5° A"). */
 export function textoCurso(curso: { name: string; division: string | null } | null | undefined): string | null {
   if (!curso?.name?.trim()) return null;

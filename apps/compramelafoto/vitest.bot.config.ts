@@ -52,6 +52,7 @@ export default defineConfig({
       "app/api/public/pack/recover/route.test.ts",
       "lib/digital-download/reenviar-descarga.test.ts",
       "lib/preventa-canjeable/recuperar-pack.test.ts",
+      "lib/preventa-canjeable/notify-preventa-photos-ready.test.ts",
       "app/api/removal-requests/route.test.ts",
       "app/api/privacy-requests/route.test.ts",
       "app/api/a/*/register-interest/route.test.ts",
