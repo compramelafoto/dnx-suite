@@ -137,6 +137,13 @@ describe("preparaciones de impresión", () => {
     expect((await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 5, altoMm: 40, receta: recetaInicial() })).ok).toBe(false);
   });
 
+  it("el carnet rechaza una receta ENCAJAR (la plancha no admite borde)", async () => {
+    const { prep, original } = await conOriginal();
+    const encajar = { ...recetaInicial(), modo: "ENCAJAR" as const, orientacion: "HORIZONTAL" as const, encuadre: { x: 0, y: -0.1, ancho: 1, alto: 1.2 } };
+    const r = await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: encajar });
+    expect(r).toEqual({ ok: false, error: "El carnet se arma recortando la foto: no admite foto encajada con borde." });
+  });
+
   it("registrar: NORMAL deja la preparación IMPRESA; DESCARTADA no; otro negocio no puede", async () => {
     const { prep, original } = await conOriginal();
     await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });

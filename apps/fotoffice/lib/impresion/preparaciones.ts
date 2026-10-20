@@ -199,6 +199,8 @@ export async function guardarPiezaCarnet(
   if (!original) return FOTO_NO_EXISTE;
   const receta = validarReceta(d.receta);
   if (!receta) return { ok: false, error: "El recorte no es válido. Volvé a armar la foto." };
+  // La plancha de carnet no lleva borde: sólo RECORTAR (ENCAJAR es de las copias).
+  if (receta.modo !== "RECORTAR") return { ok: false, error: "El carnet se arma recortando la foto: no admite foto encajada con borde." };
   const enRango = (x: unknown) => typeof x === "number" && Number.isFinite(x) && x >= MEDIDA_MIN_MM && x <= MEDIDA_MAX_MM;
   if (!enRango(d.anchoMm) || !enRango(d.altoMm)) return { ok: false, error: `La medida tiene que estar entre ${MEDIDA_MIN_MM} y ${MEDIDA_MAX_MM} mm por lado.` };
   // La columna guarda un decimal: la huella se calcula con lo mismo que queda guardado.
