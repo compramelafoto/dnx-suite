@@ -533,6 +533,28 @@ describe("candado del saldo", () => {
     expect(recorrido(id)).toMatchObject({ circuitId: "cr", stageId: "r2" });
   });
 
+  it("la última etapa de un flujo entrega aunque sea gris; una gris del medio no", async () => {
+    B.agregar("fotofficeCircuit", { id: "cg", workspaceId: "ws-1", name: "Hecho a mano", kind: "TRABAJO" });
+    B.agregar("fotofficeStage", { id: "g1", circuitId: "cg", name: "Recibido", color: "gris", order: 0, days: 0 });
+    B.agregar("fotofficeStage", { id: "g2", circuitId: "cg", name: "Armado", color: "gris", order: 1, days: 0 });
+    B.agregar("fotofficeStage", { id: "g3", circuitId: "cg", name: "Fin", color: "gris", order: 2, days: 0 });
+    // Una archivada después no cuenta como la última.
+    B.agregar("fotofficeStage", { id: "g4", circuitId: "cg", name: "Vieja", color: "gris", order: 3, days: 0, archivedAt: AHORA });
+    const id = await enListo();
+    expect(await R.cambiarDeCircuito(ADMIN, id, "cg")).toEqual({ ok: true });
+    expect(await R.mover(EQUIPO, id, "g2")).toEqual({ ok: true });
+    expect(await R.mover(ADMIN, id, "g3", { forzar: true })).toEqual({ ok: false, error: MENSAJE });
+    expect(recorrido(id).stageId).toBe("g2");
+  });
+
+  it("pasar a un flujo de una sola etapa gris con deuda se rechaza", async () => {
+    B.agregar("fotofficeCircuit", { id: "c-gris", workspaceId: "ws-1", name: "Una sola", kind: "TRABAJO" });
+    B.agregar("fotofficeStage", { id: "gu", circuitId: "c-gris", name: "Hecho", color: "gris", order: 0, days: 0 });
+    const id = await enListo();
+    expect(await R.cambiarDeCircuito(ADMIN, id, "c-gris")).toEqual({ ok: false, error: MENSAJE });
+    expect(recorrido(id)).toMatchObject({ circuitId: "cr", stageId: "r2" });
+  });
+
   it("un trabajo sin pedido no tiene candado", async () => {
     const id = await enListo({ pedidoId: null });
     expect(await R.mover(EQUIPO, id, "r3")).toEqual({ ok: true });

@@ -96,13 +96,18 @@ async function exigirSaldoCobrado(tx: Tx, workspaceId: string, j: { subjectType:
   if (rechazo !== null) throw new Rechazo(rechazo);
 }
 
-/** Si entrar a esta etapa es entregar: su fase (la del tablero «En curso») es ENTREGADO. */
+/**
+ * Si entrar a esta etapa es entregar: es la última etapa activa de su flujo, o su fase (la del
+ * tablero «En curso») es ENTREGADO. Lo de "la última" va aparte a propósito: en `faseDeEtapa`
+ * manda el color, y como toda etapa tiene uno (gris de fábrica), la última de un flujo armado a
+ * mano caería en otra fase y dejaría entregar con deuda. El tablero sigue mostrando por color.
+ */
 function esEtapaDeEntrega(
   etapa: { name: string; color: string; order: number },
   activas: readonly { order: number }[],
 ): boolean {
-  const ultima = Math.max(...activas.map((e) => e.order));
-  return faseDeEtapa({ ...etapa, esUltima: etapa.order === ultima }) === "ENTREGADO";
+  const esUltima = etapa.order === Math.max(...activas.map((e) => e.order));
+  return esUltima || faseDeEtapa({ ...etapa, esUltima }) === "ENTREGADO";
 }
 
 function esChoqueDeUnicidad(error: unknown): boolean {
