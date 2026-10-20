@@ -2,12 +2,21 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { descartarGrabacionAction, guardarAjustesAction, terminarConLoGrabadoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
+import { descartarGrabacionAction, guardarAjustesAction, reintentarConversionAction, terminarConLoGrabadoAction, urlDeVideoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
 import { elegirArchivoDeDestino } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { descargarCrudo } from "@/lib/digitalizacion/cliente/descargar-crudo";
 import type { EstadoVisible } from "@/lib/digitalizacion/validar";
 
-export function AccionesGrabacion({ id, estado, nombreArchivo }: { id: string; estado: EstadoVisible; nombreArchivo: string }) {
+type Props = {
+  id: string;
+  estado: EstadoVisible;
+  nombreArchivo: string;
+  puedeGrabar: boolean;
+  conversionEstado: string;
+  partesBorradas: boolean;
+};
+
+export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conversionEstado, partesBorradas }: Props) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -33,26 +42,61 @@ export function AccionesGrabacion({ id, estado, nombreArchivo }: { id: string; e
     }
   };
 
+  const verVideo = async () => {
+    // La pestaña se abre ya, dentro del clic, para que el navegador no la bloquee; después se le pone la dirección.
+    const pestana = window.open("about:blank", "_blank");
+    const r = await urlDeVideoAction(id, "ver");
+    if (!r.ok) {
+      pestana?.close();
+      setAviso(r.error);
+      return;
+    }
+    if (pestana) pestana.location.href = r.url;
+    else window.location.assign(r.url);
+  };
+
+  const descargarVideo = async () => {
+    const r = await urlDeVideoAction(id, "descargar");
+    if (!r.ok) {
+      setAviso(r.error);
+      return;
+    }
+    window.location.assign(r.url);
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      {estado === "INTERRUMPIDA" ? (
+      {conversionEstado === "LISTA" ? (
+        <>
+          <button type="button" className="fo-btn fo-btn-primary text-xs" onClick={() => void verVideo()}>Ver video</button>
+          <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => void descargarVideo()}>Descargar video</button>
+        </>
+      ) : null}
+      {puedeGrabar && conversionEstado === "ERROR" ? (
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled={pendiente} onClick={() => empezar(async () => { const r = await reintentarConversionAction(id); if (!r.ok) setAviso(r.error); })}>Reintentar conversión</button>
+      ) : null}
+      {puedeGrabar && estado === "INTERRUMPIDA" ? (
         <>
           <a className="fo-btn fo-btn-primary text-xs" href={`/digitalizacion/grabar?continuar=${id}`}>Continuar</a>
           <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled={pendiente} onClick={() => empezar(async () => { const r = await terminarConLoGrabadoAction(id); if (!r.ok) setAviso(r.error); })}>Terminar con lo grabado</button>
         </>
       ) : null}
-      <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => void bajar()}>Descargar crudo</button>
-      <button
-        type="button"
-        className="fo-btn fo-btn-danger text-xs"
-        disabled={pendiente || estado === "GRABANDO"}
-        onClick={() => {
-          if (!window.confirm("¿Descartar esta grabación? Se borra todo lo subido y no se puede deshacer.")) return;
-          empezar(async () => { const r = await descartarGrabacionAction(id); if (!r.ok) setAviso(r.error); });
-        }}
-      >
-        Descartar
-      </button>
+      {puedeGrabar && !partesBorradas ? (
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => void bajar()}>Descargar crudo</button>
+      ) : null}
+      {puedeGrabar ? (
+        <button
+          type="button"
+          className="fo-btn fo-btn-danger text-xs"
+          disabled={pendiente || estado === "GRABANDO"}
+          onClick={() => {
+            if (!window.confirm("¿Descartar esta grabación? Se borra todo lo subido y no se puede deshacer.")) return;
+            empezar(async () => { const r = await descartarGrabacionAction(id); if (!r.ok) setAviso(r.error); });
+          }}
+        >
+          Descartar
+        </button>
+      ) : null}
       {aviso ? <span className="text-gray-600">{aviso}</span> : null}
     </div>
   );
