@@ -50,7 +50,7 @@ const FOTO_NO_EXISTE = { ok: false as const, error: "Esa foto no existe." };
 const HOJA_NO_EXISTE = { ok: false as const, error: "Esa hoja no existe." };
 
 export const esId = (x: unknown): x is string => typeof x === "string" && ID.test(x);
-const enteroEntre = (x: unknown, min: number, max: number): x is number => Number.isInteger(x) && (x as number) >= min && (x as number) <= max;
+export const enteroEntre = (x: unknown, min: number, max: number): x is number => Number.isInteger(x) && (x as number) >= min && (x as number) <= max;
 export const nuevoId = () => randomUUID().replace(/-/g, "");
 
 /**
@@ -59,6 +59,94 @@ export const nuevoId = () => randomUUID().replace(/-/g, "");
  */
 export function versionDeHoja(finalHuella: string | null): string {
   return finalHuella ? finalHuella.slice(0, 12) : "0";
+}
+
+type Db = Prisma.TransactionClient;
+
+/** La hoja de una copia guarda qué pieza lleva y con qué huella se armó (sin migración: va en `disposicion`). */
+export function disposicionDeCopia(d: unknown): { piezaId: string; piezaHuella: string; acostada: boolean } | null {
+  if (!d || typeof d !== "object") return null;
+  const o = d as Record<string, unknown>;
+  if (o.tipo !== "COPIA" || typeof o.piezaId !== "string" || typeof o.piezaHuella !== "string") return null;
+  return { piezaId: o.piezaId, piezaHuella: o.piezaHuella, acostada: o.acostada === true };
+}
+
+/** Las hojas que ya tienen algún registro: salieron de la impresora y no se pisan ni se borran. */
+export async function hojasConRegistro(db: Db, workspaceId: string, ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const filas = await db.fotofficeRegistroImpresion.findMany({ where: { workspaceId, hojaId: { in: ids } }, select: { hojaId: true } });
+  return new Set(filas.map((r) => r.hojaId).filter((x): x is string => x !== null));
+}
+
+/** Cuántas hojas salieron bien (registros NORMAL) de cada hoja. */
+export async function normalesPorHoja(db: Db, workspaceId: string, ids: string[]): Promise<Map<string, number>> {
+  const suma = new Map<string, number>();
+  if (ids.length === 0) return suma;
+  const filas = await db.fotofficeRegistroImpresion.findMany({
+    where: { workspaceId, hojaId: { in: ids }, motivo: "NORMAL" },
+    select: { hojaId: true, hojas: true },
+  });
+  for (const r of filas) if (r.hojaId) suma.set(r.hojaId, (suma.get(r.hojaId) ?? 0) + r.hojas);
+  return suma;
+}
+
+export type HojaVigente = { id: string; copias: number; version: string; salidaId: string; tamanoId: string; piezaId: string | null };
+
+/**
+ * Las hojas que valen hoy. En copias: por cada foto, la última hoja armada con la receta y la
+ * cantidad actuales (`faltan` = fotos sin hoja vigente). En carnet: la última hoja armada de carnet
+ * (una preparación de copias que se quedó sin fotos conserva sus hojas impresas, y ésas no cuentan).
+ */
+export async function hojasVigentes(db: Db, workspaceId: string, preparacionId: string): Promise<{ hojas: HojaVigente[]; faltan: number }> {
+  const [piezas, hojas] = await Promise.all([
+    db.fotofficePiezaImpresion.findMany({
+      where: { workspaceId, preparacionId, tipo: "COPIA" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, huella: true, cantidad: true },
+    }),
+    db.fotofficeHojaImpresion.findMany({
+      where: { workspaceId, preparacionId, finalKey: { not: null } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, copias: true, finalHuella: true, disposicion: true, salidaId: true, tamanoId: true },
+    }),
+  ]);
+  const vista = (h: (typeof hojas)[number], piezaId: string | null): HojaVigente => ({
+    id: h.id, copias: h.copias, version: versionDeHoja(h.finalHuella), salidaId: h.salidaId, tamanoId: h.tamanoId, piezaId,
+  });
+  if (piezas.length === 0) {
+    const ultima = hojas.filter((h) => disposicionDeCopia(h.disposicion) === null).at(-1);
+    return { hojas: ultima ? [vista(ultima, null)] : [], faltan: 0 };
+  }
+  const out: HojaVigente[] = [];
+  let faltan = 0;
+  for (const p of piezas) {
+    const h = hojas.findLast((x) => {
+      const d = disposicionDeCopia(x.disposicion);
+      return d?.piezaId === p.id && d.piezaHuella === p.huella;
+    });
+    if (h && h.copias === p.cantidad) out.push(vista(h, p.id));
+    else faltan++;
+  }
+  return { hojas: out, faltan };
+}
+
+/** PREPARANDO si falta armar alguna hoja; IMPRESA si cada hoja vigente salió entera; si no, LISTA. */
+export function estadoSegunHojas(
+  v: { hojas: { id: string; copias: number }[]; faltan: number },
+  impresas: ReadonlyMap<string, number>,
+): "PREPARANDO" | "LISTA" | "IMPRESA" {
+  if (v.faltan > 0 || v.hojas.length === 0) return "PREPARANDO";
+  return v.hojas.every((h) => (impresas.get(h.id) ?? 0) >= h.copias) ? "IMPRESA" : "LISTA";
+}
+
+/** Copias: el estado de la preparación sale de sus hojas (una anulada no se toca). */
+export async function recalcularEstado(db: Db, workspaceId: string, preparacionId: string): Promise<void> {
+  const v = await hojasVigentes(db, workspaceId, preparacionId);
+  const estado = estadoSegunHojas(v, await normalesPorHoja(db, workspaceId, v.hojas.map((h) => h.id)));
+  await db.fotofficePreparacionImpresion.updateMany({
+    where: { id: preparacionId, workspaceId, estado: { not: "ANULADA" } },
+    data: { estado },
+  });
 }
 
 export async function preparacionPropia(workspaceId: string, id: unknown) {
@@ -70,7 +158,7 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
 }
 
 /** Borra objetos de R2 sin cortar por uno que falle. Devuelve si todos se borraron. */
-async function borrarObjetos(claves: (string | null | undefined)[]): Promise<boolean> {
+export async function borrarObjetos(claves: (string | null | undefined)[]): Promise<boolean> {
   let todos = true;
   for (const k of claves) {
     if (!k) continue;
@@ -228,12 +316,7 @@ export async function guardarPiezaCarnet(
       where: { workspaceId: ctx.workspaceId, preparacionId: prep.id },
       select: { id: true, finalKey: true },
     });
-    const conRegistro = new Set(
-      (await tx.fotofficeRegistroImpresion.findMany({
-        where: { workspaceId: ctx.workspaceId, hojaId: { in: hojas.map((h) => h.id) } },
-        select: { hojaId: true },
-      })).map((r) => r.hojaId),
-    );
+    const conRegistro = await hojasConRegistro(tx, ctx.workspaceId, hojas.map((h) => h.id));
     const sinRegistro = hojas.filter((h) => !conRegistro.has(h.id));
     if (sinRegistro.length > 0)
       await tx.fotofficeHojaImpresion.deleteMany({ where: { workspaceId: ctx.workspaceId, id: { in: sinRegistro.map((h) => h.id) } } });
@@ -398,12 +481,7 @@ export async function generarHojaCarnet(
   const jpg = await componerHoja(hojaPx, piezaRaw, disp, salida.ppp, conLineas);
 
   // Una hoja ya impresa no se pisa: sus registros dicen qué salió. Se rehace la que no tiene registros.
-  const conRegistro = new Set(
-    (await prisma.fotofficeRegistroImpresion.findMany({
-      where: { workspaceId: ctx.workspaceId, hojaId: { in: hojas.map((h) => h.id) } },
-      select: { hojaId: true },
-    })).map((r) => r.hojaId),
-  );
+  const conRegistro = await hojasConRegistro(prisma, ctx.workspaceId, hojas.map((h) => h.id));
   const existente = [...hojas].reverse().find((h) => !conRegistro.has(h.id)) ?? null;
   const hojaId = existente?.id ?? nuevoId();
   const finalKey = claveImpresion(ctx.workspaceId, prep.id, "final", `${hojaId}-${finalHuella.slice(0, 12)}`, "jpg");

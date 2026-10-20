@@ -9,6 +9,7 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
 import { asignarCliente, fotosCarnetDelCliente, usarFotoAnterior } from "@/lib/impresion/ficha-carnet";
+import { estadoCopias, guardarPiezasCopia, quitarFotoCopia, type PiezaCopiaEntrada } from "@/lib/impresion/copias";
 import { guardarEscala, guardarProduccion, produccionDeProductos, type ProduccionVista } from "@/lib/impresion/configuracion";
 import {
   anularPreparacion,
@@ -136,6 +137,26 @@ export async function usarFotoAnteriorAction(preparacionId: string, adjuntoId: s
 export async function asignarClienteAction(preparacionId: string, clientId: string | null) {
   const ctx = await ctxImpresion();
   const r = await asignarCliente(ctx, preparacionId, clientId);
+  revalidatePath("/ventas/impresiones");
+  return r;
+}
+
+/** Copias: lo ya armado, para abrir o reabrir el editor. */
+export async function estadoCopiasAction(preparacionId: string) {
+  const ctx = await ctxImpresion();
+  return estadoCopias(ctx, preparacionId);
+}
+
+export async function guardarPiezasCopiaAction(preparacionId: string, items: PiezaCopiaEntrada[]) {
+  const ctx = await ctxImpresion();
+  const r = await guardarPiezasCopia(ctx, preparacionId, items);
+  revalidatePath("/ventas/impresiones");
+  return r;
+}
+
+export async function quitarFotoCopiaAction(preparacionId: string, originalId: string) {
+  const ctx = await ctxImpresion();
+  const r = await quitarFotoCopia(ctx, preparacionId, originalId);
   revalidatePath("/ventas/impresiones");
   return r;
 }
