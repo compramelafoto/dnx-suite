@@ -1,5 +1,5 @@
 import { canonico } from "./canonico";
-import { cambiarModo, papelOrientado, type Papel } from "./encuadre";
+import { cambiarModo, papelOrientado, propuestaAutomatica, type Papel } from "./encuadre";
 import { calidadDeCopia, type AvisoCalidad } from "./geometria";
 import type { Modo, Receta } from "./receta";
 import type { FotoCopia } from "./copias";
@@ -39,6 +39,14 @@ export function cambiosEnLote(fotos: FotoCopia[], elegidas: ReadonlySet<string>,
     out.push({ originalId: f.originalId, receta, cantidad, revisada: false });
   }
   return out;
+}
+
+/**
+ * Las fotos sin pieza (se subió el original pero falló guardar su propuesta): su propuesta
+ * automática con 1 copia, para guardarla antes de armar las hojas (si no, "Listo" no avanza nunca).
+ */
+export function propuestasSinPieza(fotos: FotoCopia[], papel: Papel): PiezaAGuardar[] {
+  return fotos.filter((f) => !f.pieza).map((f) => ({ originalId: f.originalId, cantidad: 1, receta: propuestaAutomatica(f.ancho, f.alto, papel), revisada: false }));
 }
 
 /**

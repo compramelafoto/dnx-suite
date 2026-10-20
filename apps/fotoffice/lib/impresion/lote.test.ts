@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AJUSTES_NEUTROS } from "./ajustes";
 import { propuestaAutomatica } from "./encuadre";
-import { aplicarGuardado, cambiosEnLote, cantidadParaElTicket, mismaReceta, resultadoDeArmado, textoDeAviso, totalDeCopias } from "./lote";
+import { aplicarGuardado, cambiosEnLote, cantidadParaElTicket, mismaReceta, propuestasSinPieza, resultadoDeArmado, textoDeAviso, totalDeCopias } from "./lote";
 import type { FotoCopia } from "./copias";
 
 const P10 = { anchoMm: 102, altoMm: 152 };
@@ -32,6 +32,14 @@ describe("cambios en lote", () => {
   it("el total de copias suma la cantidad de cada foto", () => {
     expect(totalDeCopias(FOTOS)).toBe(3);
     expect(totalDeCopias([{ pieza: null }])).toBe(0);
+  });
+});
+
+describe("fotos sin pieza (falló el guardado al subirlas)", () => {
+  it("antes de armar las hojas se les guarda la propuesta automática, con 1 copia; las que tienen pieza no se tocan", () => {
+    const sin: FotoCopia = { ...foto("c", 4000, 6000), pieza: null, hoja: null };
+    expect(propuestasSinPieza([...FOTOS, sin], P10)).toEqual([{ originalId: "c", cantidad: 1, receta: propuestaAutomatica(4000, 6000, P10), revisada: false }]);
+    expect(propuestasSinPieza(FOTOS, P10)).toEqual([]);
   });
 });
 

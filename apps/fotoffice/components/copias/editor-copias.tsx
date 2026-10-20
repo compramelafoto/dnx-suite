@@ -10,6 +10,7 @@ import {
   aplicarGuardado,
   cambiosEnLote,
   cantidadParaElTicket,
+  propuestasSinPieza,
   resultadoDeArmado,
   totalDeCopias,
   type CambioEnLote,
@@ -41,11 +42,9 @@ class ErrorVisible extends Error {}
 export function EditorCopias({
   preparacionId,
   onListo,
-  onCancelar,
 }: {
   preparacionId: string;
   onListo: (r: { cantidad: number }) => void;
-  onCancelar: () => void;
 }) {
   const [estado, setEstado] = useState<EstadoCopias | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -209,38 +208,41 @@ export function EditorCopias({
   async function abrir(f: FotoCopia) {
     // Mientras se arman las hojas no se edita: lo guardado ahora quedaría pisado por la hoja vieja.
     if (!estado || trabajando) return;
-    if (!f.pieza) {
-      const receta = propuestaAutomatica(f.ancho, f.alto, estado.papel);
-      if (!(await guardar([{ originalId: f.originalId, receta, cantidad: 1, revisada: false }]))) return;
-    }
+    if (!f.pieza && !(await guardar(propuestasSinPieza([f], estado.papel)))) return;
     setAbierta(f.originalId);
   }
 
   /**
    * Arma las hojas que falten, una llamada por foto y de a una por vez (nada de pedidos largos ni
    * de cargar el servidor). Si una foto falla (aunque el servidor tire una excepción), el error
-   * queda en su tarjeta y se sigue con las demás. true si quedaron todas armadas.
+   * queda en su tarjeta y se sigue con las demás. true si quedaron todas armadas. Las fotos sin
+   * pieza (falló su guardado al subirlas) reciben antes su propuesta automática, como al abrirlas.
    */
   async function armarHojas(): Promise<boolean> {
-    const faltan = fotos.filter((f) => f.pieza && !f.hoja);
+    if (!estado) return false;
+    const sinPieza = propuestasSinPieza(fotos, estado.papel);
+    if (sinPieza.length > 0) {
+      setOcupado(true);
+      const ok = await guardar(sinPieza);
+      setOcupado(false);
+      if (!ok) return false;
+    }
+    const faltan = fotos.filter((f) => !f.hoja).map((f) => f.originalId);
     if (faltan.length === 0) return true;
     setError(null);
     setArmado({ hechas: 0, total: faltan.length });
-    const resultados = await conLimite(faltan, 1, async (f) => {
+    const resultados = await conLimite(faltan, 1, async (originalId) => {
       try {
-        return await generarHojaCopiaAction(preparacionId, f.originalId);
+        return await generarHojaCopiaAction(preparacionId, originalId);
       } finally {
         setArmado((a) => (a ? { ...a, hechas: a.hechas + 1 } : a));
       }
     });
-    const { armadas, errores: nuevos } = resultadoDeArmado(
-      faltan.map((f) => f.originalId),
-      resultados,
-    );
+    const { armadas, errores: nuevos } = resultadoDeArmado(faltan, resultados);
     setEstado((e) => (e ? { ...e, fotos: e.fotos.map((x) => ({ ...x, hoja: armadas.get(x.originalId) ?? x.hoja })) } : e));
     setErrores((m) => {
       const n = new Map(m);
-      for (const f of faltan) n.delete(f.originalId);
+      for (const id of faltan) n.delete(id);
       for (const [id, texto] of nuevos) n.set(id, texto);
       return n;
     });
@@ -281,12 +283,7 @@ export function EditorCopias({
   if (cargando) return <p className="text-sm text-[var(--fo-muted)]">Buscando lo ya preparado…</p>;
   if (!estado || !papel) {
     return (
-      <div className="space-y-3">
-        <p className="fo-alert-error">{error ?? "No se pudo abrir la preparación."}</p>
-        <button type="button" className="fo-btn fo-btn-secondary" onClick={onCancelar}>
-          Volver al ticket
-        </button>
-      </div>
+      <p className="fo-alert-error">{error ?? "No se pudo abrir la preparación."}</p>
     );
   }
 
@@ -414,10 +411,8 @@ export function EditorCopias({
         </section>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" className="fo-btn fo-btn-secondary" onClick={onCancelar}>
-          Cancelar
-        </button>
+      {/* Para salir sin "Listo" está «Volver al ticket», arriba (lo pone el diálogo del Mostrador). */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex flex-wrap gap-2">
           <button type="button" className="fo-btn fo-btn-secondary" disabled={trabajando || fotos.length === 0 || todasArmadas} onClick={() => void armarHojas()}>
             <LayoutGrid className="size-4" aria-hidden />

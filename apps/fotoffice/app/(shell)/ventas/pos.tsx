@@ -45,7 +45,7 @@ import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
-import { DialogoPreparar } from "./dialogo-preparar";
+import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -187,6 +187,8 @@ export function Pos({
   const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string }>>({});
   const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
   const [preparando, setPreparando] = useState<{ key: string; preparacionId: string } | null>(null);
+  // Renglones de copias cuyo editor se cerró sin terminar: el ticket lo avisa (cobrarlas exige terminarlas).
+  const [copiasSinTerminar, setCopiasSinTerminar] = useState<ReadonlySet<string>>(new Set());
   const [abriendoPreparacion, setAbriendoPreparacion] = useState<string | null>(null);
   useEffect(() => {
     // Si falla (p. ej. Impresión sin configurar), el Mostrador sigue igual, sin "Preparar".
@@ -556,10 +558,34 @@ export function Pos({
     setPreparando({ key: r.key, preparacionId: id });
   }
 
+  function marcarCopiasSinTerminar(key: string, sinTerminar: boolean) {
+    setCopiasSinTerminar((s) => {
+      if (s.has(key) === sinTerminar) return s;
+      const n = new Set(s);
+      if (sinTerminar) n.add(key);
+      else n.delete(key);
+      return n;
+    });
+  }
+
+  /**
+   * Copias cerradas sin "Listo": se vuelve a leer lo guardado. Si quedó completa, el renglón toma el
+   * total de copias; si no, conserva su cantidad y avisa "Copias sin terminar".
+   */
+  async function alCerrarCopias(key: string, preparacionId: string) {
+    const total = await copiasTerminadas(preparacionId);
+    // Si el renglón se borró (o se cobró el ticket) mientras se leía, no se toca nada.
+    const renglon = rowsRef.current.find((x) => x.key === key);
+    if (!renglon) return;
+    marcarCopiasSinTerminar(key, total === null);
+    if (total !== null && renglon.qty !== total) actualizarCantidad(key, total);
+  }
+
   function reiniciarTicket() {
     setRows([]);
     setPreparaciones({});
     setPreparando(null);
+    setCopiasSinTerminar(new Set());
     setDiscountText("");
     setNote("");
     setPaymentMethod("EFECTIVO");
@@ -1121,6 +1147,7 @@ export function Pos({
                           {abriendoPreparacion === r.key ? "Abriendo…" : preparaciones[r.key] ? "Editar fotos" : "Preparar"}
                         </button>
                       ) : null}
+                      {copiasSinTerminar.has(r.key) ? <span className="ml-2 text-xs font-medium text-[var(--fo-warning)]">Copias sin terminar</span> : null}
                       {editandoPrecio === r.key ? (
                         <InputMoneda
                           autoFocus
@@ -1545,9 +1572,13 @@ export function Pos({
                 onListo={({ cantidad }) => {
                   // La cantidad del renglón: planchas (carnet) o el total de copias (se puede deshacer como cualquier cambio).
                   actualizarCantidad(preparando.key, cantidad);
+                  marcarCopiasSinTerminar(preparando.key, false);
                   setPreparando(null);
                 }}
-                onCerrar={() => setPreparando(null)}
+                onCerrar={() => {
+                  setPreparando(null);
+                  if (p.tipoPieza === "COPIA") void alCerrarCopias(preparando.key, preparando.preparacionId);
+                }}
               />
             );
           })()
