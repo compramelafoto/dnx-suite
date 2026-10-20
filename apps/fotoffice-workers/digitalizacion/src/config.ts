@@ -14,7 +14,9 @@ const envSchema = z.object({
   FOTOFFICE_R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   FOTOFFICE_R2_BUCKET: z.string().optional(),
-  DIGITALIZACION_MAX_HORAS: z.coerce.number().positive().default(20),
+  FOTOFFICE_R2_PRIVATE_BUCKET: z.string().optional(),
+  R2_PRIVATE_BUCKET: z.string().optional(),
+  DIGITALIZACION_MAX_HORAS: z.coerce.number().positive().default(16),
   DIGITALIZACION_PRESET: z.string().min(1).default("veryfast"),
 });
 
@@ -51,7 +53,7 @@ export function getConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     databaseUrl: d.DATABASE_URL,
     r2: { endpoint, accessKeyId, secretAccessKey },
-    bucket: d.FOTOFFICE_R2_BUCKET || "fotoffice-private",
+    bucket: d.FOTOFFICE_R2_BUCKET || d.FOTOFFICE_R2_PRIVATE_BUCKET || d.R2_PRIVATE_BUCKET || "fotoffice-private",
     maxHoras: d.DIGITALIZACION_MAX_HORAS,
     preset: d.DIGITALIZACION_PRESET,
   };

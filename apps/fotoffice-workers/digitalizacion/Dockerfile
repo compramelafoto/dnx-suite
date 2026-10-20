@@ -7,10 +7,10 @@
 
 FROM node:20-bookworm-slim
 
-# ffmpeg convierte; fonts-dejavu-core da la tipografía de la placa de marca
+# ffmpeg convierte; fonts-dejavu-core + fontconfig dan la tipografía de la placa de marca
 # (sharp/librsvg la busca como "DejaVu Sans"); openssl lo pide Prisma.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core openssl ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fontconfig openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PNPM_HOME=/pnpm

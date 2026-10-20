@@ -1,6 +1,7 @@
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   S3Client,
@@ -13,6 +14,8 @@ export type R2 = {
   leerParte(clave: string): Promise<Buffer>;
   subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
+  /** Falla si no hay acceso al bucket. */
+  verificarAcceso(): Promise<void>;
 };
 
 export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
@@ -26,6 +29,10 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
   const Bucket = config.bucket;
 
   return {
+    async verificarAcceso() {
+      await client.send(new HeadBucketCommand({ Bucket }));
+    },
+
     /** Baja el objeto entero a memoria y suelta la conexión. */
     async leerParte(clave) {
       const r = await client.send(new GetObjectCommand({ Bucket, Key: clave }));

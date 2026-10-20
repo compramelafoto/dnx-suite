@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Readable, Writable } from "node:stream";
-import { MAX_INTENTOS } from "./cola";
 import { armarMarca, type BrandingMarca } from "./marca";
 import { argumentosFfmpeg, armarPlan } from "./plan";
 import type { Repo } from "./repo";
@@ -16,6 +15,10 @@ export type DepsConvertir = {
   borrarPrefijo(prefijo: string): Promise<void>;
   preset: string;
   ffmpegPath?: string;
+  /** Esperas entre reintentos de escrituras a la base (default 2/5/15/30 s). */
+  esperasMs?: number[];
+  /** Cada cuánto se renueva el token de bloqueo (default 5 min). */
+  renovarMs?: number;
   /** Sin progreso de ffmpeg durante este tiempo, se lo mata. Default 10 min. */
   inactividadMs?: number;
   cargarLogo?: (url: string) => Promise<Buffer | null>;
@@ -87,7 +90,13 @@ async function alimentar(
   try {
     for (const clave of claves) {
       if (abortado() || e.ido) break;
-      const buf = await deps.leerParte(clave);
+      let buf: Buffer;
+      try {
+        buf = await deps.leerParte(clave);
+      } catch (err) {
+        if (abortado() || e.ido) break; // el lector ya se fue: nadie necesita esta parte
+        throw err;
+      }
       if (abortado() || e.ido) break;
       if (!(await escribirTodo(e, buf))) break;
     }
@@ -96,34 +105,65 @@ async function alimentar(
   }
 }
 
-/** La causa legible va siempre al principio; el detalle de ffmpeg, sólo su cola. */
-export function mensajeError(causa: string, detalle: string, intentos: number): string {
-  const c = causa.replace(/\s+/g, " ").trim().slice(0, 200);
-  const d = detalle.replace(/\s+/g, " ").trim().slice(-600);
-  const texto = d ? `${c} — ${d}` : c;
-  return intentos >= MAX_INTENTOS ? `${texto} (último intento)` : texto;
+/** Lo que ve la persona en la pantalla: sólo la causa, corta. El detalle de ffmpeg va a los logs. */
+export function mensajeError(causa: string): string {
+  return causa.replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
-export async function convertirGrabacion(deps: DepsConvertir, id: string): Promise<void> {
+const ESPERAS_DB_MS = [2000, 5000, 15000, 30000];
+
+/** Reintenta una escritura a la base ante errores transitorios (un 0 filas NO es error). */
+async function conReintentos<T>(deps: DepsConvertir, que: string, fn: () => Promise<T>): Promise<T> {
+  const esperas = deps.esperasMs ?? ESPERAS_DB_MS;
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i >= esperas.length) throw e;
+      (deps.registrar ?? console.log)(`${que} falló (${e instanceof Error ? e.message : e}); reintento en ${esperas[i]} ms`);
+      await new Promise((r) => setTimeout(r, esperas[i]));
+    }
+  }
+}
+
+/**
+ * `lockAt` es el token de propiedad que devolvió `tomarSiguiente`: todo cierre en la base exige
+ * que siga siendo el vigente. Si otro worker pasó a ser el dueño, esta corrida no marca nada.
+ */
+export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt: Date): Promise<void> {
   const { repo } = deps;
   const log = deps.registrar ?? ((m: string) => console.log(`[digitalizacion] ${m}`));
-  let intentos = 1;
   let dir: string | null = null;
   let claveFinal: string | null = null;
   // Desde que la grabación quedó LISTA, nada de lo que falle puede tocar el video final.
   let lista = false;
+  let lock = lockAt;
+  // Otro worker es ahora el dueño: no se marca nada ni se borran las partes crudas.
+  let perdida = false;
+  // El video ya está entero en R2 pero la base no confirmó: se lo deja y recuperarTrabadas reencola.
+  let subido = false;
   try {
     const datos = await repo.cargar(id);
     if (!datos) throw new CausaError("La grabación no existe.");
-    intentos = datos.intentos;
 
     const plan = armarPlan(datos.grabacion, datos.partes);
     if (plan.tipo === "SIN_IMAGEN") {
-      await repo.marcarSinImagen(id);
+      const n = await conReintentos(deps, "marcarSinImagen", () => repo.marcarSinImagen(id, lock));
+      if (n === 0) {
+        log(`${id}: ya no somos dueños, no se marca SIN_IMAGEN`);
+        return;
+      }
+      // Las partes crudas de una grabación sin imagen no se usan nunca.
+      try {
+        await deps.borrarPrefijo(`digitalizacion/${datos.workspaceId}/${id}/t`);
+        await conReintentos(deps, "marcarPartesBorradasSinImagen", () => repo.marcarPartesBorradasSinImagen(id));
+      } catch (e) {
+        console.error(`[digitalizacion] ${id}: SIN_IMAGEN, falló la limpieza de partes:`, e);
+      }
       return;
     }
     if (plan.tipo === "SIN_PARTES") {
-      await repo.marcarError(id, mensajeError("No hay partes subidas.", "", intentos));
+      await conReintentos(deps, "marcarError", () => repo.marcarError(id, lock, mensajeError("No hay partes subidas.")));
       return;
     }
 
@@ -180,6 +220,31 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
     // La subida también cuenta como actividad.
     ff.stdout!.on("data", () => (ultimoProgreso = Date.now()));
     const inactividadMs = deps.inactividadMs ?? 10 * 60_000;
+    // Renueva el token de bloqueo: sin esto, una conversión larga parecería trabada a los 6 h.
+    let renovando = false;
+    const renovador = setInterval(() => {
+      if (renovando || abortado) return;
+      renovando = true;
+      void (async () => {
+        try {
+          let nuevo = new Date();
+          if (nuevo.getTime() <= lock.getTime()) nuevo = new Date(lock.getTime() + 1);
+          const viejo = lock;
+          const n = await conReintentos(deps, "renovarLock", () => repo.renovarLock(id, viejo, nuevo));
+          if (n === 0) {
+            perdida = true;
+            abortar(new CausaError("Se perdió la propiedad de la conversión."));
+          } else {
+            lock = nuevo;
+          }
+        } catch (e) {
+          // La base no responde: seguimos; el token vence recién a las 6 h.
+          console.error(`[digitalizacion] ${id}: no se pudo renovar el bloqueo:`, e);
+        } finally {
+          renovando = false;
+        }
+      })();
+    }, deps.renovarMs ?? 5 * 60_000);
     // El vigía sigue vivo hasta que termina la subida: una parte multiparte colgada no cuelga el job.
     const vigia = setInterval(() => {
       if (Date.now() - ultimoProgreso > inactividadMs) {
@@ -220,6 +285,7 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
       await escritoresListos;
       const bytes = await subida;
 
+      if (perdida) throw new CausaError("Se perdió la propiedad de la conversión.");
       if (falla || codigo !== 0) {
         const detalle = ultimasLineas.join(" | ");
         const causa = falla
@@ -231,17 +297,29 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
 
       const duracion = ultimaTime ? Math.round(aSegundos(ultimaTime)) : 0;
       log(`subido ${claveFinal} ${bytes} bytes, ${duracion}s`);
-      await repo.marcarLista(id, { videoKey: claveFinal, videoBytes: bytes, videoDuracionSeg: duracion });
+      subido = true;
+      // Sin renovaciones en vuelo mientras se cierra: el token tiene que ser estable.
+      clearInterval(renovador);
+      while (renovando) await new Promise((r) => setTimeout(r, 20));
+      if (perdida) throw new CausaError("Se perdió la propiedad de la conversión.");
+      const n = await conReintentos(deps, "marcarLista", () =>
+        repo.marcarLista(id, lock, { videoKey: claveFinal!, videoBytes: bytes, videoDuracionSeg: duracion }),
+      );
+      if (n === 0) {
+        perdida = true;
+        throw new CausaError("Se perdió la propiedad de la conversión.");
+      }
       lista = true;
     } finally {
       clearInterval(vigia);
+      clearInterval(renovador);
     }
 
     // Sólo ahora, con el video subido y la base actualizada, se borran los pedacitos.
     // Si esto falla, el video ya está listo: se registra y queda partesBorradasAt en null.
     try {
       await deps.borrarPrefijo(`${prefijo}t`);
-      await repo.marcarPartesBorradas(id);
+      await conReintentos(deps, "marcarPartesBorradas", () => repo.marcarPartesBorradas(id, claveFinal!));
     } catch (e) {
       console.error(`[digitalizacion] ${id}: el video quedó LISTA pero falló la limpieza de partes:`, e);
     }
@@ -252,9 +330,27 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string): Promi
     }
     const causa = e instanceof Error ? e.message : String(e);
     const detalle = e instanceof CausaError ? e.detalle : "";
-    if (claveFinal) await deps.borrarPrefijo(claveFinal).catch(() => {});
+    if (detalle) console.error(`[digitalizacion] ${id}: ${causa} — detalle de ffmpeg: ${detalle.slice(-1500)}`);
+    if (subido && !perdida) {
+      // La subida terminó y sólo falló la base: no se toca el video; recuperarTrabadas reencola.
+      console.error(`[digitalizacion] ${id}: video subido pero la base no confirmó; queda PROCESANDO:`, e);
+      return;
+    }
+    if (claveFinal) {
+      // Nunca se borra el video si otro worker ya dejó la grabación LISTA.
+      try {
+        if ((await repo.estado(id)) !== "LISTA") await deps.borrarPrefijo(claveFinal);
+      } catch {
+        /* sin certeza del estado, no se borra */
+      }
+    }
+    if (perdida) {
+      console.error(`[digitalizacion] ${id}: otro worker es el dueño, no se marca nada:`, causa);
+      return;
+    }
     try {
-      await repo.marcarError(id, mensajeError(causa, detalle, intentos));
+      const n = await conReintentos(deps, "marcarError", () => repo.marcarError(id, lock, mensajeError(causa)));
+      if (n === 0) console.error(`[digitalizacion] ${id}: ya no somos dueños, no se marcó ERROR`);
     } catch (e2) {
       console.error(`[digitalizacion] ${id}: no se pudo marcar ERROR:`, e2);
     }

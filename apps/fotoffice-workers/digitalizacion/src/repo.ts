@@ -1,4 +1,13 @@
-import { marcarError, marcarLista, marcarPartesBorradas, marcarSinImagen, type PrismaCola } from "./cola";
+import {
+  estadoDeConversion,
+  marcarError,
+  marcarLista,
+  marcarPartesBorradas,
+  marcarPartesBorradasSinImagen,
+  marcarSinImagen,
+  renovarLock,
+  type PrismaCola,
+} from "./cola";
 import type { BrandingMarca } from "./marca";
 import type { GrabacionParaPlan, ParteR2 } from "./plan";
 
@@ -13,10 +22,14 @@ export type DatosGrabacion = {
 
 export type Repo = {
   cargar(id: string): Promise<DatosGrabacion | null>;
-  marcarSinImagen(id: string): Promise<void>;
-  marcarError(id: string, mensaje: string): Promise<void>;
-  marcarLista(id: string, d: { videoKey: string; videoBytes: number; videoDuracionSeg: number }): Promise<void>;
-  marcarPartesBorradas(id: string): Promise<void>;
+  /** Todas devuelven las filas afectadas: 0 = el token de bloqueo ya no es nuestro. */
+  marcarSinImagen(id: string, lock: Date): Promise<number>;
+  marcarPartesBorradasSinImagen(id: string): Promise<number>;
+  marcarError(id: string, lock: Date, mensaje: string): Promise<number>;
+  marcarLista(id: string, lock: Date, d: { videoKey: string; videoBytes: number; videoDuracionSeg: number }): Promise<number>;
+  marcarPartesBorradas(id: string, videoKey: string): Promise<number>;
+  renovarLock(id: string, viejo: Date, nuevo: Date): Promise<number>;
+  estado(id: string): Promise<string | null>;
 };
 
 /** Repositorio sobre SQL crudo (las columnas de conversión pueden no estar en el cliente generado). */
@@ -74,9 +87,12 @@ export function crearRepo(db: PrismaCola): Repo {
         },
       };
     },
-    marcarSinImagen: (id) => marcarSinImagen(db, id),
-    marcarError: (id, m) => marcarError(db, id, m),
-    marcarLista: (id, d) => marcarLista(db, id, d),
-    marcarPartesBorradas: (id) => marcarPartesBorradas(db, id),
+    marcarSinImagen: (id, lock) => marcarSinImagen(db, id, lock),
+    marcarPartesBorradasSinImagen: (id) => marcarPartesBorradasSinImagen(db, id),
+    marcarError: (id, lock, m) => marcarError(db, id, lock, m),
+    marcarLista: (id, lock, d) => marcarLista(db, id, lock, d),
+    marcarPartesBorradas: (id, key) => marcarPartesBorradas(db, id, key),
+    renovarLock: (id, viejo, nuevo) => renovarLock(db, id, viejo, nuevo),
+    estado: (id) => estadoDeConversion(db, id),
   };
 }

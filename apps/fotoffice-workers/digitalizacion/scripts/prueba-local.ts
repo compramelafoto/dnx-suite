@@ -12,6 +12,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import { convertirGrabacion } from "../src/convertir";
+import { armarMarca } from "../src/marca";
 import type { DatosGrabacion, Repo } from "../src/repo";
 
 const run = promisify(execFile);
@@ -93,9 +94,26 @@ type Caso = {
   verificarBarras?: boolean;
 };
 
+/** La placa sin logo ni WhatsApp sólo tiene texto blanco: si falta la tipografía no hay píxeles blancos opacos. */
+async function probarPlaca(dir: string) {
+  console.log("\n=== Placa de marca (tipografía) ===");
+  const png = await armarMarca({ commercialName: "Estudio Prueba", logoUrl: null, whatsapp: null });
+  const archivo = path.join(dir, "placa.png");
+  fs.writeFileSync(archivo, png);
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let blancos = 0;
+  for (let i = 0; i + 3 < data.length; i += 4) {
+    if (data[i + 3] > 200 && data[i] > 200 && data[i + 1] > 200 && data[i + 2] > 200) blancos++;
+  }
+  console.log(`Placa ${info.width}x${info.height} guardada en ${archivo}; píxeles de texto blanco opaco: ${blancos}`);
+  chequear(info.width > 0 && info.height > 0, "la placa tiene dimensiones");
+  chequear(blancos > 300, `la placa tiene texto visible (${blancos} píxeles; si es 0 falta la tipografía)`);
+}
+
 async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "digi-prueba-"));
   console.log("Carpeta de trabajo:", dir);
+  await probarPlaca(dir);
 
   console.log("Generando medios de prueba...");
   const audio = ["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000"];
@@ -170,10 +188,13 @@ async function main() {
           branding: { commercialName: "Estudio Prueba", logoUrl: "http://logo/x.png", whatsapp: "+54 9 11 5555-5555" },
         };
       },
-      async marcarSinImagen() { estado.estado = "SIN_IMAGEN"; },
-      async marcarError(_id, m) { estado.estado = "ERROR"; estado.error = m; },
-      async marcarLista(_id, d) { estado.estado = "LISTA"; Object.assign(estado, d); orden.push("lista"); },
-      async marcarPartesBorradas() { orden.push("partesBorradas"); },
+      async marcarSinImagen() { estado.estado = "SIN_IMAGEN"; return 1; },
+      async marcarPartesBorradasSinImagen() { return 1; },
+      async marcarError(_id, _l, m) { estado.estado = "ERROR"; estado.error = m; return 1; },
+      async marcarLista(_id, _l, d) { estado.estado = "LISTA"; Object.assign(estado, d); orden.push("lista"); return 1; },
+      async marcarPartesBorradas() { orden.push("partesBorradas"); return 1; },
+      async renovarLock() { return 1; },
+      async estado() { return estado.estado as string; },
     };
     const t0 = Date.now();
     await convertirGrabacion(
@@ -195,6 +216,7 @@ async function main() {
         borrarPrefijo: async (p) => { borrados.push(p); orden.push("borrar"); },
       },
       "g1",
+      new Date(),
     );
     console.log(`Convertido en ${((Date.now() - t0) / 1000).toFixed(1)} s; estado=`, JSON.stringify(estado));
     chequear(estado.estado === "LISTA", `estado LISTA${estado.error ? " (" + estado.error + ")" : ""}`);

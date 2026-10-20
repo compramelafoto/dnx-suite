@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { convertirGrabacion, mensajeError, type DepsConvertir } from "./convertir";
 import type { Repo } from "./repo";
 
+const LOCK = new Date("2026-11-30T10:00:00.000Z");
 let carpeta: string;
 beforeAll(() => {
   carpeta = fs.mkdtempSync(path.join(os.tmpdir(), "digi-test-"));
@@ -34,6 +35,9 @@ ${cola}
 function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
   const llamadas: string[] = [];
   const borrados: string[] = [];
+  const renovaciones: [Date, Date][] = [];
+  const filas = { sinImagen: 1, error: 1, lista: 1, renovar: 1 };
+  let estadoFila: string | null = "PROCESANDO";
   const repo: Repo = {
     async cargar() {
       return {
@@ -48,14 +52,18 @@ function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
         branding: { commercialName: "Estudio", logoUrl: null, whatsapp: null },
       };
     },
-    async marcarSinImagen() { llamadas.push("sinImagen"); },
-    async marcarError(_i, m) { llamadas.push(`error:${m}`); },
-    async marcarLista() { llamadas.push("lista"); },
-    async marcarPartesBorradas() { llamadas.push("partesBorradas"); },
+    async marcarSinImagen() { llamadas.push("sinImagen"); return filas.sinImagen; },
+    async marcarPartesBorradasSinImagen() { llamadas.push("partesBorradasSinImagen"); return 1; },
+    async marcarError(_i, _l, m) { llamadas.push(`error:${m}`); return filas.error; },
+    async marcarLista() { llamadas.push("lista"); return filas.lista; },
+    async marcarPartesBorradas() { llamadas.push("partesBorradas"); return 1; },
+    async renovarLock(_i, v, n) { renovaciones.push([v, n]); return filas.renovar; },
+    async estado() { return estadoFila; },
   };
   const deps: DepsConvertir = {
     repo,
     preset: "veryfast",
+    esperasMs: [1, 1, 1, 1],
     tmpBase: carpeta,
     registrar: () => {},
     leerParte: async () => Buffer.from("datos"),
@@ -68,13 +76,13 @@ function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
     ffmpegPath: ffmpegFalso("ok.sh", `echo contenido\nexit 0`),
     ...over,
   };
-  return { deps, llamadas, borrados };
+  return { deps, llamadas, borrados, filas, renovaciones, poner: (e: string | null) => (estadoFila = e) };
 }
 
 describe("convertirGrabacion", () => {
   it("camino feliz: LISTA, después borra los pedacitos", async () => {
     const { deps, llamadas, borrados } = armar();
-    await convertirGrabacion(deps, "g1");
+    await convertirGrabacion(deps, "g1", LOCK);
     expect(llamadas).toEqual(["lista", "partesBorradas"]);
     expect(borrados).toEqual(["digitalizacion/ws/g1/t"]);
   });
@@ -88,7 +96,7 @@ describe("convertirGrabacion", () => {
       },
     });
     const borrados2: string[] = [];
-    await convertirGrabacion(deps, "g1");
+    await convertirGrabacion(deps, "g1", LOCK);
     err.mockRestore();
     expect(llamadas).toEqual(["lista"]);
     expect(borrados2).toEqual(["digitalizacion/ws/g1/t"]); // nunca la clave del video final
@@ -99,7 +107,7 @@ describe("convertirGrabacion", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const ctx = armar();
     ctx.deps.repo.marcarPartesBorradas = async () => { throw new Error("base caída"); };
-    await convertirGrabacion(ctx.deps, "g1");
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
     err.mockRestore();
     expect(ctx.llamadas).toEqual(["lista"]);
     expect(ctx.borrados).toEqual(["digitalizacion/ws/g1/t"]);
@@ -109,9 +117,9 @@ describe("convertirGrabacion", () => {
     const { deps, llamadas, borrados } = armar({
       ffmpegPath: ffmpegFalso("falla.sh", `echo parcial\necho "Error opening input" >&2\nexit 1`),
     });
-    await convertirGrabacion(deps, "g1");
+    await convertirGrabacion(deps, "g1", LOCK);
     expect(llamadas).toHaveLength(1);
-    expect(llamadas[0]).toMatch(/^error:ffmpeg terminó con código 1\. — .*Error opening input/);
+    expect(llamadas[0]).toBe("error:ffmpeg terminó con código 1."); // el detalle va sólo a los logs
     expect(borrados).toEqual(["digitalizacion/ws/g1/final.mp4"]);
   });
 
@@ -121,7 +129,7 @@ describe("convertirGrabacion", () => {
       subirStream: async () => { throw new Error("multiparte rechazada"); },
     });
     const t0 = Date.now();
-    await convertirGrabacion(deps, "g1");
+    await convertirGrabacion(deps, "g1", LOCK);
     expect(Date.now() - t0).toBeLessThan(10_000);
     expect(llamadas).toHaveLength(1);
     expect(llamadas[0]).toContain("error:multiparte rechazada");
@@ -154,6 +162,7 @@ describe("convertirGrabacion", () => {
         },
       },
       "g1",
+      LOCK,
     );
     await new Promise((r) => setTimeout(r, 500));
     process.off("uncaughtException", h);
@@ -167,7 +176,7 @@ describe("convertirGrabacion", () => {
       ffmpegPath: ffmpegFalso("mudo.sh", `exec sleep 30`),
       inactividadMs: 800,
     });
-    await convertirGrabacion(deps, "g1");
+    await convertirGrabacion(deps, "g1", LOCK);
     expect(llamadas[0]).toContain("sin progreso");
   });
 
@@ -175,19 +184,88 @@ describe("convertirGrabacion", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const ctx = armar({ ffmpegPath: ffmpegFalso("falla2.sh", `exit 2`) });
     ctx.deps.repo.marcarError = async () => { throw new Error("base caída"); };
-    await expect(convertirGrabacion(ctx.deps, "g1")).resolves.toBeUndefined();
+    await expect(convertirGrabacion(ctx.deps, "g1", LOCK)).resolves.toBeUndefined();
     err.mockRestore();
   });
 });
 
 describe("mensajeError", () => {
-  it("conserva siempre la causa y sólo la cola del detalle", () => {
-    const m = mensajeError("Causa clara. " + "x".repeat(500), "A".repeat(2000) + "FINAL", 1);
-    expect(m.startsWith("Causa clara.")).toBe(true);
-    expect(m.endsWith("FINAL")).toBe(true);
-    expect(m.length).toBeLessThanOrEqual(200 + 3 + 600);
+  it("guarda sólo la causa, acotada a 200 caracteres", () => {
+    expect(mensajeError("Causa clara. " + "x".repeat(500)).length).toBe(200);
+    expect(mensajeError("  falló\n  feo ")).toBe("falló feo");
   });
-  it("agrega (último intento) al tercero", () => {
-    expect(mensajeError("falló", "", 3)).toBe("falló (último intento)");
+});
+
+describe("propiedad y reintentos", () => {
+  it("si marcarLista toca 0 filas: no borra partes crudas y deja el final si otro la dejó LISTA", async () => {
+    const ctx = armar();
+    ctx.filas.lista = 0;
+    ctx.poner("LISTA");
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["lista"]);
+    expect(ctx.borrados).toEqual([]);
+  });
+  it("si marcarLista toca 0 filas y la fila no está LISTA, borra sólo nuestro final.mp4 (no las partes)", async () => {
+    const ctx = armar();
+    ctx.filas.lista = 0;
+    ctx.poner("PENDIENTE");
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["lista"]);
+    expect(ctx.borrados).toEqual(["digitalizacion/ws/g1/final.mp4"]);
+  });
+  it("si falla ffmpeg pero la fila ya está LISTA (de otro), no borra el final", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegFalso("falla3.sh", `exit 1`) });
+    ctx.poner("LISTA");
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.borrados).toEqual([]);
+  });
+  it("renueva el token desde el vigía y lo usa para cerrar", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegFalso("lento.sh", `sleep 1\necho contenido\nexit 0`), renovarMs: 150 });
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.renovaciones.length).toBeGreaterThan(0);
+    expect(ctx.renovaciones[0][0]).toEqual(LOCK);
+    expect(ctx.renovaciones[0][1].getTime()).toBeGreaterThan(LOCK.getTime());
+    expect(ctx.llamadas).toEqual(["lista", "partesBorradas"]);
+  });
+  it("si la renovación toca 0 filas: mata ffmpeg y no marca nada", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegFalso("cuelga2.sh", `exec sleep 30`), renovarMs: 100 });
+    ctx.filas.renovar = 0;
+    ctx.poner("PROCESANDO");
+    const t0 = Date.now();
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(Date.now() - t0).toBeLessThan(10_000);
+    expect(ctx.llamadas).toEqual([]);
+  });
+  it("reintenta marcarLista ante un error transitorio de la base", async () => {
+    const ctx = armar();
+    let n = 0;
+    const original = ctx.deps.repo.marcarLista;
+    ctx.deps.repo.marcarLista = async (...a) => {
+      if (++n < 3) throw new Error("conexión cortada");
+      return original(...a);
+    };
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(n).toBe(3);
+    expect(ctx.llamadas).toEqual(["lista", "partesBorradas"]);
+  });
+  it("si la base no vuelve tras los reintentos, deja el video y no marca ERROR", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ctx = armar();
+    ctx.deps.repo.marcarLista = async () => { throw new Error("base caída"); };
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    err.mockRestore();
+    expect(ctx.llamadas).toEqual([]);
+    expect(ctx.borrados).toEqual([]);
+  });
+  it("SIN_IMAGEN borra las partes crudas y marca partesBorradasAt", async () => {
+    const ctx = armar();
+    const cargar = ctx.deps.repo.cargar;
+    ctx.deps.repo.cargar = async (id) => {
+      const d = (await cargar(id))!;
+      return { ...d, grabacion: { ...d.grabacion, sinImagen: true } };
+    };
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["sinImagen", "partesBorradasSinImagen"]);
+    expect(ctx.borrados).toEqual(["digitalizacion/ws/g1/t"]);
   });
 });

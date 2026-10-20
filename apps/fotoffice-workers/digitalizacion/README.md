@@ -15,8 +15,8 @@ Definidas en `src/config.ts`:
 | `FOTOFFICE_R2_ENDPOINT` o `R2_ENDPOINT` | sí | Endpoint S3 de R2. |
 | `FOTOFFICE_R2_ACCESS_KEY_ID` o `R2_ACCESS_KEY_ID` | sí | Clave de acceso de R2. |
 | `FOTOFFICE_R2_SECRET_ACCESS_KEY` o `R2_SECRET_ACCESS_KEY` | sí | Secreto de R2. |
-| `FOTOFFICE_R2_BUCKET` | no | Por defecto `fotoffice-private`. |
-| `DIGITALIZACION_MAX_HORAS` | no | Por defecto `20`. |
+| `FOTOFFICE_R2_BUCKET`, `FOTOFFICE_R2_PRIVATE_BUCKET` o `R2_PRIVATE_BUCKET` | no | Se usa la primera definida (la misma variable que lee la app, `R2_PRIVATE_BUCKET`). Por defecto `fotoffice-private`. Al arrancar se verifica el acceso al bucket; si falla, el job termina con error sin tocar ninguna grabación. |
+| `DIGITALIZACION_MAX_HORAS` | no | Por defecto `16`: pasado ese tiempo no toma trabajo nuevo. |
 | `DIGITALIZACION_PRESET` | no | Preset de x264, por defecto `veryfast`. |
 
 Las variables `FOTOFFICE_R2_*` tienen prioridad sobre las `R2_*` genéricas.
