@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avisoDeCalidad, cajaRotada, encuadreDesdePixeles, rectanguloEnPixeles, resolucionEfectiva } from "./geometria";
+import { avisoDeCalidad, cajaRotada, encuadreDesdePixeles, rectanguloEnPixeles, resolucionEfectiva, tamanoVistaPrevia } from "./geometria";
 
 describe("geometría", () => {
   it("la caja rotada 90° invierte lados y 0° no cambia", () => {
@@ -33,5 +33,11 @@ describe("geometría", () => {
     expect(avisoDeCalidad(199)).toBe("BLANDA");
     expect(avisoDeCalidad(150)).toBe("BLANDA");
     expect(avisoDeCalidad(149)).toBe("PIXELADA");
+  });
+  it("la vista previa: 1600 px de lado mayor, sin agrandar fotos chicas", () => {
+    expect(tamanoVistaPrevia(4000, 3000)).toEqual({ ancho: 1600, alto: 1200 });
+    expect(tamanoVistaPrevia(3001, 4003)).toEqual({ ancho: 1200, alto: 1600 });
+    expect(tamanoVistaPrevia(800, 600)).toEqual({ ancho: 800, alto: 600 });
+    expect(tamanoVistaPrevia(20000, 3)).toEqual({ ancho: 1600, alto: 1 });
   });
 });

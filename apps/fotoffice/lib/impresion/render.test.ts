@@ -4,6 +4,7 @@ import { AJUSTES_NEUTROS } from "./ajustes";
 import { recetaInicial, type Receta } from "./receta";
 import { componerHoja, generarVistaPrevia, leerOriginal, renderizarPieza } from "./render";
 import { disposicionCarnet } from "./plancha";
+import { tamanoVistaPrevia } from "./geometria";
 
 async function foto(ancho: number, alto: number, color = { r: 200, g: 40, b: 40 }) {
   return sharp({ create: { width: ancho, height: alto, channels: 3, background: color } }).jpeg({ quality: 95 }).toBuffer();
@@ -29,6 +30,16 @@ describe("motor de impresión", () => {
   it("la vista previa queda en 1600 px de lado mayor y no agranda fotos chicas", async () => {
     expect((await generarVistaPrevia(await foto(4000, 3000))).ancho).toBe(1600);
     expect((await generarVistaPrevia(await foto(800, 600))).ancho).toBe(800);
+  });
+
+  it("la vista previa mide lo que dice tamanoVistaPrevia (también con la foto girada por EXIF)", async () => {
+    const girada = await sharp(await foto(3001, 2003)).withMetadata({ orientation: 6 }).jpeg().toBuffer();
+    for (const [buf, ancho, alto] of [[await foto(4001, 2999), 4001, 2999], [girada, 2003, 3001]] as const) {
+      const v = await generarVistaPrevia(buf);
+      const meta = await sharp(v.jpg).metadata();
+      expect([v.ancho, v.alto]).toEqual([meta.width, meta.height]);
+      expect({ ancho: v.ancho, alto: v.alto }).toEqual(tamanoVistaPrevia(ancho, alto));
+    }
   });
 
   it("la pieza sale exactamente del tamaño pedido", async () => {

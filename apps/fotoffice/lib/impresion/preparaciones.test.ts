@@ -161,6 +161,26 @@ describe("preparaciones de impresión", () => {
     expect(c.paraImprimir.map((f) => f.preparacionId)).toEqual([prep]);
   });
 
+  it("estadoPreparacion: original, pieza y la hoja vigente para reabrir el editor; otro negocio no ve nada", async () => {
+    const { prep, original } = await conOriginal();
+    expect(await P.estadoPreparacion(CTX, prep)).toEqual({
+      original: { id: original, ancho: 1200, alto: 1600, vistaAncho: 1200, vistaAlto: 1600 },
+      pieza: null,
+      hoja: null,
+    });
+    const receta = { ...recetaInicial(), encuadre: { x: 0, y: 0.1, ancho: 1, alto: 0.75 } };
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta });
+    const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 3, conLineas: true });
+    if (!h.ok) throw new Error(h.error);
+    const e = await P.estadoPreparacion(CTX, prep);
+    expect(e?.pieza).toMatchObject({ anchoMm: 40, altoMm: 40, receta, aviso: "OK" });
+    expect(e?.pieza?.ppp).toBeGreaterThan(200);
+    expect(e?.hoja).toEqual({ id: h.hojaId, fotosPorHoja: h.fotosPorHoja, copias: 3 });
+    expect(await P.estadoPreparacion(OTRO, prep)).toBeNull();
+    await P.anularPreparacion(CTX, prep);
+    expect(await P.estadoPreparacion(CTX, prep)).toBeNull();
+  });
+
   it("pantalla suelta: la impresora y la hoja se eligen, y tienen que ser del negocio y admitirse", async () => {
     const { prep, original } = await conOriginal(null);
     await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });

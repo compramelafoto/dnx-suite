@@ -47,7 +47,8 @@ describe("configuración de impresión", () => {
     const a4 = epson.tamanos.find((t) => t.nombre === "A4")!;
     expect((await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: a4.id, unidad: "HOJA" })).ok).toBe(false);
     expect((await C.guardarProduccion("ws-2", "ajeno", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "HOJA" })).ok).toBe(false);
-    expect(await C.produccionDeProductos("ws-1")).toEqual({ carnet: { tipoPieza: "CARNET" } });
+    expect(await C.produccionDeProductos("ws-1")).toEqual({ carnet: { tipoPieza: "CARNET", salida: "Kodak 305", hoja: "10x15" } });
+    expect(await C.produccionDeProductos("ws-2")).toEqual({});
     expect(await C.guardarProduccion("ws-1", "carnet", null)).toEqual({ ok: true });
     expect(await C.leerProduccion("ws-1", "carnet")).toBeNull();
   });

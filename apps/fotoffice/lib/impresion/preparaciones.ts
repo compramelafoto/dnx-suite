@@ -12,11 +12,11 @@ import {
   tamanoDeObjeto,
   urlDeSubidaOriginal,
 } from "./almacen";
-import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva } from "./geometria";
+import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva, tamanoVistaPrevia } from "./geometria";
 import { huellaDe } from "./huella";
 import { pixelesDeHoja, type Nitidez } from "./medidas";
 import { disposicionCarnet } from "./plancha";
-import { anguloTotal, validarReceta } from "./receta";
+import { anguloTotal, validarReceta, type Receta } from "./receta";
 import { ImagenNoProcesable, componerHoja, generarVistaPrevia, leerOriginal, renderizarPieza } from "./render";
 
 /**
@@ -243,10 +243,62 @@ export async function guardarPiezaCarnet(
   });
   await borrarObjetos(finalesABorrar);
 
+  return { ok: true, piezaId, ...calidadDePieza(original, receta, { anchoMm, altoMm }) };
+}
+
+/** Cuántos píxeles reales del original caen en cada pulgada de la pieza, y el aviso que corresponde. */
+function calidadDePieza(original: { anchoPx: number; altoPx: number }, receta: Receta, mm: { anchoMm: number; altoMm: number }) {
   const caja = cajaRotada(original.anchoPx, original.altoPx, anguloTotal(receta));
-  const rect = rectanguloEnPixeles(receta.encuadre, caja);
-  const ppp = resolucionEfectiva(rect, { anchoMm, altoMm });
-  return { ok: true, piezaId, ppp, aviso: avisoDeCalidad(ppp) };
+  const ppp = resolucionEfectiva(rectanguloEnPixeles(receta.encuadre, caja), mm);
+  return { ppp, aviso: avisoDeCalidad(ppp) };
+}
+
+export type EstadoPreparacion = {
+  original: { id: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number } | null;
+  pieza: { anchoMm: number; altoMm: number; receta: Receta; ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" } | null;
+  hoja: { id: string; fotosPorHoja: number; copias: number } | null;
+};
+
+/**
+ * Lo ya armado de una preparación, para reabrir el editor donde quedó ("Editar fotos" del
+ * Mostrador): el original (el de la pieza, o el último subido), la pieza y la hoja vigente (la
+ * última, como en las colas). La medida de la vista previa se deduce del original: no se lee R2.
+ * null si no existe, es de otro negocio o está anulada.
+ */
+export async function estadoPreparacion(ctx: CtxImpresion, preparacionId: string): Promise<EstadoPreparacion | null> {
+  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
+  if (!prep || prep.estado === "ANULADA") return null;
+  const [piezaFila, hojaFila] = await Promise.all([
+    prisma.fotofficePiezaImpresion.findFirst({
+      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, tipo: "CARNET" },
+      select: { originalId: true, anchoMm: true, altoMm: true, receta: true },
+    }),
+    prisma.fotofficeHojaImpresion.findFirst({
+      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, finalKey: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, disposicion: true, copias: true },
+    }),
+  ]);
+  const receta = piezaFila ? validarReceta(piezaFila.receta) : null;
+  const originalFila = await prisma.fotofficeOriginalImpresion.findFirst({
+    where: {
+      workspaceId: ctx.workspaceId,
+      preparacionId: prep.id,
+      estado: "LISTO",
+      ...(piezaFila && receta ? { id: piezaFila.originalId } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, anchoPx: true, altoPx: true },
+  });
+  if (!originalFila) return { original: null, pieza: null, hoja: null };
+  const vista = tamanoVistaPrevia(originalFila.anchoPx, originalFila.altoPx);
+  const original = { id: originalFila.id, ancho: originalFila.anchoPx, alto: originalFila.altoPx, vistaAncho: vista.ancho, vistaAlto: vista.alto };
+  if (!piezaFila || !receta) return { original, pieza: null, hoja: null };
+  const mm = { anchoMm: Number(piezaFila.anchoMm), altoMm: Number(piezaFila.altoMm) };
+  const pieza = { ...mm, receta, ...calidadDePieza(originalFila, receta, mm) };
+  const posiciones = (hojaFila?.disposicion as { posiciones?: unknown[] } | null)?.posiciones;
+  const hoja = hojaFila && Array.isArray(posiciones) ? { id: hojaFila.id, fotosPorHoja: posiciones.length, copias: hojaFila.copias } : null;
+  return { original, pieza, hoja };
 }
 
 export async function generarHojaCarnet(

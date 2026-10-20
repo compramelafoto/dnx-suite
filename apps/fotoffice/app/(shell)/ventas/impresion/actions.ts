@@ -14,6 +14,7 @@ import {
   anularPreparacion,
   confirmarOriginal,
   crearPreparacion,
+  estadoPreparacion,
   generarHojaCarnet,
   guardarPiezaCarnet,
   pedirSubidaOriginal,
@@ -56,6 +57,12 @@ async function ctxImpresion(): Promise<CtxImpresion> {
 export async function crearPreparacionAction(d: { productId: string | null; clientId: string | null }) {
   const ctx = await ctxImpresion();
   return crearPreparacion(ctx, d);
+}
+
+/** Lo ya armado de una preparación, para reabrir el editor donde quedó (Mostrador → "Editar fotos"). */
+export async function estadoPreparacionAction(preparacionId: string) {
+  const ctx = await ctxImpresion();
+  return estadoPreparacion(ctx, preparacionId);
 }
 
 export async function pedirSubidaOriginalAction(preparacionId: string, a: { nombre: string; tipo: string; bytes: number }) {

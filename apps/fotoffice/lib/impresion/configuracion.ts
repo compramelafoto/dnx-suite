@@ -231,17 +231,25 @@ export async function guardarProduccion(
   return { ok: true };
 }
 
+/** Para el Mostrador: qué productos se preparan y con qué impresora y hoja (los nombres, para mostrarlos). */
 export async function produccionDeProductos(
   workspaceId: string,
-): Promise<Record<string, { tipoPieza: ProduccionVista["tipoPieza"] }>> {
+): Promise<Record<string, { tipoPieza: ProduccionVista["tipoPieza"]; salida: string; hoja: string }>> {
   const filas = await prisma.fotofficeProductoProduccion.findMany({
     where: { workspaceId },
-    select: { productId: true, tipoPieza: true },
+    select: { productId: true, tipoPieza: true, salidaId: true, tamanoHojaId: true },
   });
+  if (filas.length === 0) return {};
+  const [salidas, tamanos] = await Promise.all([
+    prisma.fotofficeSalidaImpresion.findMany({ where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.salidaId))] } }, select: { id: true, nombre: true } }),
+    prisma.fotofficeTamanoImpresion.findMany({ where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.tamanoHojaId))] } }, select: { id: true, nombre: true } }),
+  ]);
+  const nombreSalida = new Map(salidas.map((s) => [s.id, s.nombre]));
+  const nombreTamano = new Map(tamanos.map((t) => [t.id, t.nombre]));
   return Object.fromEntries(
     filas.map((f) => [
       f.productId,
-      { tipoPieza: f.tipoPieza as ProduccionVista["tipoPieza"] },
+      { tipoPieza: f.tipoPieza as ProduccionVista["tipoPieza"], salida: nombreSalida.get(f.salidaId) ?? "", hoja: nombreTamano.get(f.tamanoHojaId) ?? "" },
     ]),
   );
 }

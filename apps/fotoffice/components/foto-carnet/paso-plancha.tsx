@@ -26,18 +26,26 @@ const TEXTO_AVISO = {
   PIXELADA: "La foto tiene muy poca resolución para esta medida: va a salir pixelada. Conviene sacar otra.",
 } as const;
 
+/** La firma de lo pedido: si cambia algo, la hoja que se ve ya no es la vigente. */
+function firmaDe(d: { pieza: Pieza; salida?: string; tamano?: string; fotos: number | null; copias: number }): string {
+  return JSON.stringify({ pieza: d.pieza, salida: d.salida, tamano: d.tamano, fotos: d.fotos, copias: d.copias });
+}
+
 /**
  * Paso 4: el servidor guarda la receta y arma la hoja desde el original. En la pantalla suelta se
- * elige la impresora y la hoja; en el Mostrador salen del producto.
+ * elige la impresora y la hoja; en el Mostrador salen del producto. `inicial` es la hoja ya armada
+ * de una preparación que se reabre: se muestra sin volver a armarla.
  */
 export function PasoPlancha({
   modo,
   preparacionId,
   pieza,
+  inicial = null,
 }: {
   modo: ModoEditorFotoCarnet;
   preparacionId: string;
   pieza: Pieza;
+  inicial?: { id: string; fotosPorHoja: number; copias: number; ppp: number; aviso: Armada["aviso"] } | null;
 }) {
   const salidas = modo.tipo === "suelto" ? modo.salidas : [];
   const [salidaId, setSalidaId] = useState(salidas[0]?.id ?? "");
@@ -45,10 +53,15 @@ export function PasoPlancha({
   const [tamanoElegido, setTamanoElegido] = useState(salidas[0]?.tamanos[0]?.id ?? "");
   const tamano = salida?.tamanos.find((t) => t.id === tamanoElegido) ?? salida?.tamanos[0] ?? null;
   const [cantidad, setCantidad] = useState<number | null>(null);
-  const [copias, setCopias] = useState(1);
+  const [copias, setCopias] = useState(inicial?.copias ?? 1);
   const [armando, setArmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [armada, setArmada] = useState<Armada | null>(null);
+  const [armada, setArmada] = useState<Armada | null>(() =>
+    // Sólo en el Mostrador (la impresora y la hoja salen del producto): la firma es la de lo guardado.
+    inicial && modo.tipo === "mostrador"
+      ? { firma: firmaDe({ pieza, fotos: null, copias: inicial.copias }), hojaId: inicial.id, fotosPorHoja: inicial.fotosPorHoja, version: 0, aviso: inicial.aviso, ppp: inicial.ppp }
+      : null,
+  );
 
   const entran =
     salida && tamano
@@ -56,7 +69,7 @@ export function PasoPlancha({
       : 0;
   // Si cambia la hoja y la cantidad pedida ya no entra, vuelve a "todas las que entran".
   const fotos = cantidad !== null && cantidad <= entran ? cantidad : null;
-  const firma = JSON.stringify({ pieza, salida: salida?.id, tamano: tamano?.id, fotos, copias });
+  const firma = firmaDe({ pieza, salida: salida?.id, tamano: tamano?.id, fotos, copias });
   const vigente = armada?.firma === firma ? armada : null;
   const puedeArmar = modo.tipo === "mostrador" || (salida !== null && tamano !== null && entran > 0);
 
@@ -145,7 +158,19 @@ export function PasoPlancha({
             </div>
           )
         ) : (
-          <p className="text-sm text-[var(--fo-muted)]">La impresora y la hoja salen del producto del ticket.</p>
+          <div className="space-y-1">
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="fo-label">Impresora</dt>
+                <dd className="font-medium">{modo.produccion.salida || "—"}</dd>
+              </div>
+              <div>
+                <dt className="fo-label">Hoja</dt>
+                <dd className="font-medium">{modo.produccion.hoja || "—"}</dd>
+              </div>
+            </dl>
+            <p className="text-xs text-[var(--fo-muted)]">Salen del producto del ticket.</p>
+          </div>
         )}
 
         <label className="block max-w-40">

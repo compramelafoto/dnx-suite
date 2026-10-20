@@ -1,7 +1,7 @@
 import "server-only";
 import sharp from "sharp";
 import { aplicarAjustes } from "./ajustes";
-import { cajaRotada, rectanguloEnPixeles } from "./geometria";
+import { cajaRotada, rectanguloEnPixeles, tamanoVistaPrevia } from "./geometria";
 import type { Nitidez } from "./medidas";
 import type { DisposicionCarnet } from "./plancha";
 import { anguloTotal, type Receta } from "./receta";
@@ -16,7 +16,6 @@ sharp.cache(false);
 sharp.concurrency(1);
 
 export const MAX_PIXELES_ORIGINAL = 60_000_000;
-export const LADO_VISTA_PREVIA = 1600;
 const FORMATOS = new Set(["jpeg", "png", "webp", "heif"]);
 const BLANCO = { r: 255, g: 255, b: 255 };
 const SIGMA: Record<Nitidez, number> = { SUAVE: 0.5, NORMAL: 0.8, FUERTE: 1.1 };
@@ -62,11 +61,15 @@ function describirPerfil(icc: Buffer): string {
 }
 
 export async function generarVistaPrevia(buf: Buffer): Promise<{ jpg: Buffer; ancho: number; alto: number }> {
+  // La medida sale de `tamanoVistaPrevia` (no de lo que redondee sharp): así se puede reconstruir
+  // desde el tamaño del original sin volver a abrir la vista previa.
+  const original = await leerOriginal(buf);
+  const destino = tamanoVistaPrevia(original.ancho, original.alto);
   try {
     const { data, info } = await abrir(buf)
       .autoOrient()
       .flatten({ background: BLANCO })
-      .resize({ width: LADO_VISTA_PREVIA, height: LADO_VISTA_PREVIA, fit: "inside", withoutEnlargement: true, kernel: "lanczos3" })
+      .resize(destino.ancho, destino.alto, { fit: "fill", kernel: "lanczos3" })
       .toColourspace("srgb")
       .jpeg({ quality: 88 })
       .withIccProfile("srgb")

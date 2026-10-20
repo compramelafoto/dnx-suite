@@ -1,14 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { HOJAS, LADO_MINIMO_CM, MEDIDAS_CARNET, grillaDe } from "@/lib/foto-carnet/medidas";
 import { AJUSTES_NEUTROS, type Ajustes as ValoresAjustes } from "@/lib/impresion/ajustes";
 import type { SalidaVista } from "@/lib/impresion/configuracion";
+import type { Receta } from "@/lib/impresion/receta";
 import {
   asignarClienteAction,
   confirmarOriginalAction,
   crearPreparacionAction,
+  estadoPreparacionAction,
   pedirSubidaOriginalAction,
   usarFotoAnteriorAction,
 } from "@/app/(shell)/ventas/impresion/actions";
@@ -41,6 +43,8 @@ export type ModoEditorFotoCarnet =
       tipo: "mostrador";
       preparacionId: string;
       clienteInicial: ClienteBuscado | null;
+      /** La impresora y la hoja del producto del ticket (nombres, para mostrarlos en la plancha). */
+      produccion: { salida: string; hoja: string };
       onListo: (r: { hojas: number; preparacionId: string }) => void;
       onCancelar: () => void;
     };
@@ -55,6 +59,12 @@ export type EditorFotoCarnetProps = {
 
 type Original = { id: string; vista: { ancho: number; alto: number }; ancho: number; alto: number };
 type OriginalProcesado = { originalId: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number };
+/** Lo ya armado al reabrir una preparación del Mostrador: se muestra tal cual hasta que se vuelva a encuadrar. */
+type PiezaGuardada = {
+  pieza: { originalId: string; anchoMm: number; altoMm: number; receta: Receta };
+  calidad: { ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" };
+  hoja: { id: string; fotosPorHoja: number; copias: number } | null;
+};
 
 /** Error con un texto que se le puede mostrar a quien atiende. */
 class ErrorVisible extends Error {}
@@ -91,6 +101,9 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
   const [enderezar, setEnderezar] = useState(0);
   const [cropPixels, setCropPixels] = useState<PixelesRecorte | null>(null);
   const [ajustes, setAjustes] = useState<ValoresAjustes>(AJUSTES_NEUTROS);
+  const [guardada, setGuardada] = useState<PiezaGuardada | null>(null);
+  /** En el Mostrador se lee primero lo ya armado ("Editar fotos" retoma donde quedó). */
+  const [cargando, setCargando] = useState(modo.tipo === "mostrador");
   const inputRef = useRef<HTMLInputElement | null>(null);
   /** La preparación se crea una sola vez aunque se pida dos veces seguidas. */
   const creando = useRef<Promise<string> | null>(null);
@@ -101,6 +114,49 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
     medida.anchoCm >= LADO_MINIMO_CM && medida.altoCm >= LADO_MINIMO_CM && medida.anchoCm <= LADO_MAXIMO_CM && medida.altoCm <= LADO_MAXIMO_CM;
   const medidaElegida = MEDIDAS_CARNET.find((m) => m.anchoCm === medida.anchoCm && m.altoCm === medida.altoCm);
   const puedeSeguir = (paso === 1 && Boolean(original) && medidaValida && !subiendo) || (paso === 2 && Boolean(cropPixels)) || paso === 3;
+
+  // Una sola vez al abrir: el editor se monta con `key={preparacionId}`.
+  const preparacionInicial = modo.tipo === "mostrador" ? modo.preparacionId : null;
+  useEffect(() => {
+    if (!preparacionInicial) return;
+    let vigente = true;
+    estadoPreparacionAction(preparacionInicial)
+      .then((e) => {
+        if (!vigente) return;
+        if (!e) return setErrorFoto("Esa preparación ya no existe. Cerrá y volvé a tocar «Preparar».");
+        if (!e.original) return;
+        setOriginal({ id: e.original.id, vista: { ancho: e.original.vistaAncho, alto: e.original.vistaAlto }, ancho: e.original.ancho, alto: e.original.alto });
+        if (!e.pieza) return;
+        setMedida({ anchoCm: e.pieza.anchoMm / 10, altoCm: e.pieza.altoMm / 10 });
+        // Si se vuelve a encuadrar, arranca con el giro y los ajustes que tenía.
+        setGiro90(e.pieza.receta.rotacion90);
+        setEnderezar(e.pieza.receta.enderezar);
+        setAjustes({ ...e.pieza.receta.ajustes });
+        setGuardada({
+          pieza: { originalId: e.original.id, anchoMm: e.pieza.anchoMm, altoMm: e.pieza.altoMm, receta: e.pieza.receta },
+          calidad: { ppp: e.pieza.ppp, aviso: e.pieza.aviso },
+          hoja: e.hoja,
+        });
+        // Con la plancha ya armada, abre en la plancha; si no, en la foto (con la pieza guardada a mano).
+        if (e.hoja) setPaso(4);
+      })
+      .catch(() => {
+        if (vigente) setErrorFoto("No se pudo leer lo ya preparado. Probá de nuevo.");
+      })
+      .finally(() => {
+        if (vigente) setCargando(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [preparacionInicial]);
+
+  /** Ir a un paso. Volver a encuadrar o retocar descarta lo guardado: la plancha se arma de nuevo. */
+  function irAPaso(n: Paso) {
+    if (n === 2 || n === 3) setGuardada(null);
+    // Sin encuadre hecho en esta pantalla (se reabrió lo guardado), "Atrás" desde la plancha va al encuadre.
+    setPaso(n === 3 && !cropPixels ? 2 : n);
+  }
 
   function asegurarPreparacion(): Promise<string> {
     if (preparacionId) return Promise.resolve(preparacionId);
@@ -117,6 +173,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
 
   function cambiarMedida(m: { anchoCm: number; altoCm: number }) {
     setMedida(m);
+    setGuardada(null);
     // Con otra proporción el encuadre anterior ya no sirve: se rehace en el paso 2.
     setCropPixels(null);
   }
@@ -129,6 +186,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
     setEnderezar(0);
     setCropPixels(null);
     setAjustes(AJUSTES_NEUTROS);
+    setGuardada(null);
   }
 
   /** Sube, confirma u obtiene el original con `traer`; los errores del servidor se muestran tal cual. */
@@ -176,13 +234,14 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
     <div className="space-y-5">
       <nav aria-label="Pasos" className="flex flex-wrap gap-2">
         {PASOS.map((p) => {
-          const alcanzable = p.n === 1 || (p.n === 2 && Boolean(original) && medidaValida) || (p.n > 2 && Boolean(cropPixels));
+          const alcanzable =
+            p.n === 1 || (p.n === 2 && Boolean(original) && medidaValida) || (p.n > 2 && Boolean(cropPixels)) || (p.n === 4 && Boolean(guardada));
           return (
             <button
               key={p.n}
               type="button"
               disabled={!alcanzable}
-              onClick={() => setPaso(p.n)}
+              onClick={() => irAPaso(p.n)}
               aria-current={paso === p.n ? "step" : undefined}
               className={`rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${
                 paso === p.n
@@ -196,7 +255,9 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
         })}
       </nav>
 
-      {paso === 1 ? (
+      {cargando ? <p className="text-sm text-[var(--fo-muted)]">Buscando lo ya preparado…</p> : null}
+
+      {paso === 1 && !cargando ? (
         <section className="fo-card space-y-5 p-5">
           {puedeBuscarClientes ? (
             <div className="space-y-3">
@@ -340,25 +401,35 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
         </section>
       ) : null}
 
-      {paso === 4 && original && cropPixels && preparacionId ? (
+      {paso === 4 && original && (guardada || cropPixels) && preparacionId ? (
         <section className="fo-card space-y-5 p-5">
-          <h2 className="text-base font-semibold">La plancha para imprimir</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">La plancha para imprimir</h2>
+            {guardada ? (
+              <button type="button" className="fo-btn fo-btn-secondary" onClick={() => irAPaso(2)}>
+                Volver a encuadrar
+              </button>
+            ) : null}
+          </div>
           <PasoPlancha
             modo={modo}
             preparacionId={preparacionId}
-            pieza={{
-              originalId: original.id,
-              anchoMm: Math.round(medida.anchoCm * 100) / 10,
-              altoMm: Math.round(medida.altoCm * 100) / 10,
-              receta: recetaDesdeEditor({ cropPx: cropPixels, vista: original.vista, rotacion, ajustes }),
-            }}
+            pieza={
+              guardada?.pieza ?? {
+                originalId: original.id,
+                anchoMm: Math.round(medida.anchoCm * 100) / 10,
+                altoMm: Math.round(medida.altoCm * 100) / 10,
+                receta: recetaDesdeEditor({ cropPx: cropPixels!, vista: original.vista, rotacion, ajustes }),
+              }
+            }
+            inicial={guardada?.hoja ? { ...guardada.hoja, ...guardada.calidad } : null}
           />
         </section>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-2">
-          <button type="button" className="fo-btn fo-btn-secondary" disabled={paso === 1} onClick={() => setPaso((p) => Math.max(1, p - 1) as Paso)}>
+          <button type="button" className="fo-btn fo-btn-secondary" disabled={paso === 1} onClick={() => irAPaso(Math.max(1, paso - 1) as Paso)}>
             Atrás
           </button>
           {modo.tipo === "mostrador" ? (
@@ -368,7 +439,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
           ) : null}
         </div>
         {paso < 4 ? (
-          <button type="button" className="fo-btn fo-btn-primary" disabled={!puedeSeguir} onClick={() => setPaso((p) => Math.min(4, p + 1) as Paso)}>
+          <button type="button" className="fo-btn fo-btn-primary" disabled={!puedeSeguir} onClick={() => irAPaso(Math.min(4, paso + 1) as Paso)}>
             Siguiente
           </button>
         ) : null}

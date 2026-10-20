@@ -52,3 +52,15 @@ export function avisoDeCalidad(ppp: number): "OK" | "BLANDA" | "PIXELADA" {
   if (ppp >= 150) return "BLANDA";
   return "PIXELADA";
 }
+
+export const LADO_VISTA_PREVIA = 1600;
+
+/**
+ * La medida de la vista previa de un original (ya derecho): el lado mayor a 1600 px, sin agrandar
+ * fotos chicas. `generarVistaPrevia` achica exactamente a esto, así se puede saber la medida sin
+ * volver a leer el archivo.
+ */
+export function tamanoVistaPrevia(ancho: number, alto: number): { ancho: number; alto: number } {
+  const escala = Math.min(1, LADO_VISTA_PREVIA / Math.max(ancho, alto));
+  return { ancho: Math.max(1, Math.round(ancho * escala)), alto: Math.max(1, Math.round(alto * escala)) };
+}
