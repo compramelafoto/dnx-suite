@@ -45,23 +45,30 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conv
   const verVideo = async () => {
     // La pestaña se abre ya, dentro del clic, para que el navegador no la bloquee; después se le pone la dirección.
     const pestana = window.open("about:blank", "_blank");
-    const r = await urlDeVideoAction(id, "ver");
-    if (!r.ok) {
+    if (pestana) pestana.opener = null;
+    try {
+      const r = await urlDeVideoAction(id, "ver");
+      if (!r.ok) throw new Error(r.error);
+      if (pestana) {
+        pestana.location.href = r.url;
+      } else {
+        setAviso("El navegador bloqueó la pestaña: abrimos el video acá.");
+        window.location.assign(r.url);
+      }
+    } catch (e) {
       pestana?.close();
-      setAviso(r.error);
-      return;
+      setAviso(e instanceof Error ? e.message : "No se pudo abrir el video.");
     }
-    if (pestana) pestana.location.href = r.url;
-    else window.location.assign(r.url);
   };
 
   const descargarVideo = async () => {
-    const r = await urlDeVideoAction(id, "descargar");
-    if (!r.ok) {
-      setAviso(r.error);
-      return;
+    try {
+      const r = await urlDeVideoAction(id, "descargar");
+      if (!r.ok) throw new Error(r.error);
+      window.location.assign(r.url);
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : "No se pudo descargar el video.");
     }
-    window.location.assign(r.url);
   };
 
   return (
