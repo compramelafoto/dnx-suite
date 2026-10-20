@@ -65,6 +65,10 @@ const TABLAS = [
   "fotofficePerfilPrecios",
   // Etapa B: ajustes de cobro y transferencias esperadas.
   "fotofficeCobroAjustes", "fotofficeEsperaPago",
+  // Impresión (etapa 1).
+  "fotofficeTamanoImpresion", "fotofficeSalidaImpresion", "fotofficeSalidaTamano", "fotofficeProductoProduccion",
+  "fotofficePreparacionImpresion", "fotofficeOriginalImpresion", "fotofficePiezaImpresion", "fotofficeHojaImpresion",
+  "fotofficeRegistroImpresion", "saleItem",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -262,7 +266,11 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     sourceRef: null, reversesMovementId: null, reverseReason: null, transferId: null, createdByUserId: null, createdAt: new Date(),
   }),
   workspaceFeatureModule: () => ({ enabled: false, createdAt: new Date(), updatedAt: new Date() }),
-  fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, createdAt: new Date() }),
+  fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, origen: null, createdAt: new Date() }),
+  fotofficePreparacionImpresion: () => ({ productId: null, clientId: null, saleItemId: null, proyectoId: null, estado: "PREPARANDO", createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeOriginalImpresion: () => ({ previewKey: null, bytes: 0, anchoPx: 0, altoPx: 0, perfilColor: null, estado: "PENDIENTE", archivoTrabajoId: null, adjuntoId: null, createdAt: new Date() }),
+  fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeRegistroImpresion: () => ({ hojaId: null, productId: null, saleItemId: null, proyectoId: null, userId: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
   fotofficeCobroAjustes: () => ({
     autoConfirmarPedido: false, alias: null, cbuCvu: null, titular: null, cuit: null, banco: null, montoUnico: false,
