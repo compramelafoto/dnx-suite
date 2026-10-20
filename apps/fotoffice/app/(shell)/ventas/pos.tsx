@@ -10,6 +10,7 @@ import {
   ChevronDown,
   CreditCard,
   Ellipsis,
+  Images,
   IdCard,
   Minus,
   Package,
@@ -181,7 +182,7 @@ export function Pos({
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
   const [error, setError] = useState<string | null>(null);
-  // Impresión (foto carnet): qué productos se preparan, la preparación de cada renglón (por key,
+  // Impresión (foto carnet y copias): qué productos se preparan, la preparación de cada renglón (por key,
   // aparte de `rows` para que deshacer no la pierda) y el renglón que se está preparando.
   const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string }>>({});
   const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
@@ -531,7 +532,7 @@ export function Pos({
     setMostrarSuelto(false);
   }
 
-  /** Abre el editor de foto carnet para un renglón; la preparación se crea la primera vez. */
+  /** Abre el editor (foto carnet o copias) de un renglón; la preparación se crea la primera vez. */
   async function abrirPreparacion(r: TicketRow) {
     // Mientras se cobra no se abre: el ticket está por reiniciarse.
     if (!r.productId || abriendoPreparacion || procesando) return;
@@ -545,7 +546,7 @@ export function Pos({
         const nuevo = id;
         setPreparaciones((ps) => ({ ...ps, [r.key]: nuevo }));
       } catch {
-        return setError("No se pudo abrir la foto carnet. Probá de nuevo.");
+        return setError("No se pudo abrir la preparación. Probá de nuevo.");
       } finally {
         setAbriendoPreparacion(null);
       }
@@ -1106,7 +1107,7 @@ export function Pos({
                           ) : null}
                           {r.description}
                         </p>
-                      {r.productId !== null && produccion[r.productId]?.tipoPieza === "CARNET" ? (
+                      {r.productId !== null && (produccion[r.productId]?.tipoPieza === "CARNET" || produccion[r.productId]?.tipoPieza === "COPIA") ? (
                         <button
                           type="button"
                           className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
@@ -1116,7 +1117,7 @@ export function Pos({
                             void abrirPreparacion(r);
                           }}
                         >
-                          <IdCard className="size-3.5" aria-hidden />
+                          {produccion[r.productId]?.tipoPieza === "COPIA" ? <Images className="size-3.5" aria-hidden /> : <IdCard className="size-3.5" aria-hidden />}
                           {abriendoPreparacion === r.key ? "Abriendo…" : preparaciones[r.key] ? "Editar fotos" : "Preparar"}
                         </button>
                       ) : null}
@@ -1528,24 +1529,29 @@ export function Pos({
         />
       ) : null}
 
-      {preparando ? (
-        <DialogoPreparar
-          preparacionId={preparando.preparacionId}
-          cliente={cliente}
-          produccion={(() => {
+      {preparando
+        ? (() => {
             const pid = rows.find((x) => x.key === preparando.key)?.productId;
             const p = pid ? produccion[pid] : undefined;
-            return { salida: p?.salida ?? "", hoja: p?.hoja ?? "" };
-          })()}
-          permisos={permisosCarnet}
-          onListo={({ hojas }) => {
-            // La cantidad del renglón son las hojas preparadas (se puede deshacer como cualquier cambio).
-            actualizarCantidad(preparando.key, hojas);
-            setPreparando(null);
-          }}
-          onCerrar={() => setPreparando(null)}
-        />
-      ) : null}
+            // Sin renglón (o sin producto de impresión) no se abre: el editor equivocado no puede tocar la preparación.
+            if (!p) return null;
+            return (
+              <DialogoPreparar
+                preparacionId={preparando.preparacionId}
+                tipoPieza={p.tipoPieza === "COPIA" ? "COPIA" : "CARNET"}
+                cliente={cliente}
+                produccion={{ salida: p.salida, hoja: p.hoja }}
+                permisos={permisosCarnet}
+                onListo={({ cantidad }) => {
+                  // La cantidad del renglón: planchas (carnet) o el total de copias (se puede deshacer como cualquier cambio).
+                  actualizarCantidad(preparando.key, cantidad);
+                  setPreparando(null);
+                }}
+                onCerrar={() => setPreparando(null)}
+              />
+            );
+          })()
+        : null}
 
       {egresos && egresoAbierto ? (
         <EgresoDialogo
