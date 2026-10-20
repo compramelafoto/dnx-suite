@@ -53,6 +53,20 @@ describe("configuración de impresión", () => {
     expect(await C.leerProduccion("ws-1", "carnet")).toBeNull();
   });
 
+  it("la foto carnet sólo se cobra por hoja en la etapa 1", async () => {
+    await C.asegurarConfiguracion("ws-1");
+    const kodak = (await C.listarSalidas("ws-1")).find((x) => x.nombre === "Kodak 305")!;
+    const t10 = kodak.tamanos.find((t) => t.nombre === "10x15")!;
+    for (const unidad of ["COPIA", "PIEZA"] as const) {
+      expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: t10.id, unidad })).toEqual({
+        ok: false,
+        error: "La foto carnet se cobra por hoja (plancha). Cobrarla por foto llega más adelante.",
+      });
+    }
+    expect(await C.leerProduccion("ws-1", "carnet")).toBeNull();
+    expect((await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "COPIA", salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "COPIA" })).ok).toBe(true);
+  });
+
   it("tolera que otro pedido simultáneo ya haya sembrado (P2002)", async () => {
     const t = B.tablas.fotofficeTamanoImpresion as unknown as { create: (a: unknown) => Promise<unknown> };
     const original = t.create;
