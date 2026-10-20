@@ -79,6 +79,39 @@ export default async function ImpresionesPage({ searchParams }: { searchParams: 
             ))}
           </select>
         </label>
+        <fieldset className="grid gap-3 border-t border-[var(--fo-border)] pt-3">
+          <legend className="pt-3 text-sm font-semibold">Envío a domicilio</legend>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="shippingEnabled" defaultChecked={ajustes.envio.encendido} /> Ofrecer envío a domicilio
+          </label>
+          {!ajustes.envio.estudioUbicado ? (
+            <p className="text-sm text-[var(--fo-warning)]">
+              Para ofrecer envíos, cargá la ubicación de tu estudio en{" "}
+              <Link href="/workspace/configuracion/precios" className="underline">
+                Configuración → Precios
+              </Link>
+              : desde ahí se mide la distancia.
+            </p>
+          ) : null}
+          <p className="text-xs text-[var(--fo-muted)]">
+            El costo es un monto fijo más un precio por kilómetro, medido en línea recta desde tu estudio × 1,3 (sólo ida). Más lejos que la
+            distancia máxima, el cliente sólo puede retirar.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="grid gap-1 text-sm">
+              Monto fijo ($)
+              <input name="shippingBaseArs" defaultValue={ajustes.envio.baseArs} inputMode="decimal" placeholder="0" className="fo-input" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              Precio por km ($)
+              <input name="shippingPerKmArs" defaultValue={ajustes.envio.porKmArs} inputMode="decimal" placeholder="0" className="fo-input" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              Distancia máxima (km)
+              <input name="shippingMaxKm" defaultValue={ajustes.envio.maxKm} inputMode="numeric" placeholder="Sin tope" className="fo-input" />
+            </label>
+          </div>
+        </fieldset>
         <div>
           <button type="submit" className="fo-btn fo-btn-primary text-sm">
             Guardar ajustes

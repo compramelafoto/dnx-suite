@@ -19,5 +19,5 @@ export async function iniciarPagoImpresionAction(slug: string, token: string, da
   }
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return { ok: false, error: "Este enlace ya no permite pedir copias." };
-  return iniciarPagoImpresion(workspaceId, token, datos);
+  return iniciarPagoImpresion(workspaceId, slug, "CARPETA", token, datos);
 }

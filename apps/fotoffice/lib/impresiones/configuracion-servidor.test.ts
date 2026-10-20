@@ -13,12 +13,73 @@ vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: vi.fn(async () => true) }));
 const cobra = vi.hoisted(() => vi.fn(async (..._a: unknown[]) => true));
 vi.mock("@/lib/payments/connect/collector", () => ({ puedeCobrarConMercadoPago: cobra }));
+const extras = vi.hoisted(() => vi.fn(async (..._a: unknown[]) => null as unknown));
+vi.mock("@/lib/presupuestos/perfil-cobro", () => ({ extrasDelWorkspace: extras }));
 const C = await import("./configuracion-servidor");
 
 beforeEach(() => {
   vi.clearAllMocks();
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
   cobra.mockResolvedValue(true);
+  extras.mockResolvedValue(null);
+});
+
+const UBICADO = { studioLatitude: "-32,9476", studioLongitude: "-60.6305", travelPerKm: "1.200" };
+const TAMANO = { id: "a", widthCm: 10, heightCm: 15, proveedorId: "f", priceArs: "500", costArs: "200", active: true };
+
+describe("ofertaPublica · envío", () => {
+  it("con envío encendido y el estudio ubicado ofrece envío en centavos", async () => {
+    db.fotofficePrintSettings.findUnique.mockResolvedValue({ paperGlossy: true, paperMatte: true, shippingEnabled: true, shippingBaseArs: "1500", shippingPerKmArs: { toString: () => "300.5" }, shippingMaxKm: 30 });
+    db.fotofficePrintSize.findMany.mockResolvedValue([TAMANO]);
+    extras.mockResolvedValue(UBICADO);
+    const o = await C.ofertaPublica("ws");
+    expect(o?.envio).toEqual({ baseCents: 150000, porKmCents: 30050, maxKm: 30, estudio: { lat: -32.9476, lon: -60.6305 } });
+    expect(extras).toHaveBeenCalledWith("ws");
+  });
+  it("envío apagado: null", async () => {
+    db.fotofficePrintSettings.findUnique.mockResolvedValue({ paperGlossy: true, paperMatte: true, shippingEnabled: false, shippingBaseArs: "1500", shippingPerKmArs: "300", shippingMaxKm: null });
+    db.fotofficePrintSize.findMany.mockResolvedValue([TAMANO]);
+    extras.mockResolvedValue(UBICADO);
+    expect((await C.ofertaPublica("ws"))?.envio).toBeNull();
+  });
+  it("encendido pero el estudio sin ubicación: null (sólo retiro)", async () => {
+    db.fotofficePrintSettings.findUnique.mockResolvedValue({ paperGlossy: true, paperMatte: true, shippingEnabled: true, shippingBaseArs: "1500", shippingPerKmArs: "300", shippingMaxKm: null });
+    db.fotofficePrintSize.findMany.mockResolvedValue([TAMANO]);
+    extras.mockResolvedValue({ studioLatitude: "", studioLongitude: "", travelPerKm: "" });
+    expect((await C.ofertaPublica("ws"))?.envio).toBeNull();
+  });
+});
+
+describe("guardarAjustes · envío", () => {
+  const ok = { paperGlossy: true, paperMatte: false, testMode: false, circuitId: "" };
+  it("guarda base, precio por km y máximo leídos a la argentina", async () => {
+    extras.mockResolvedValue(UBICADO);
+    const r = await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingBaseArs: "1.500", shippingPerKmArs: "300,50", shippingMaxKm: "25" });
+    expect(r).toEqual({ ok: true });
+    expect(db.fotofficePrintSettings.upsert.mock.calls[0][0].update).toMatchObject({ shippingEnabled: true, shippingBaseArs: 1500, shippingPerKmArs: 300.5, shippingMaxKm: 25 });
+  });
+  it("sin máximo queda sin tope", async () => {
+    extras.mockResolvedValue(UBICADO);
+    await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingBaseArs: "", shippingPerKmArs: "300", shippingMaxKm: "" });
+    expect(db.fotofficePrintSettings.upsert.mock.calls[0][0].update).toMatchObject({ shippingBaseArs: null, shippingMaxKm: null });
+  });
+  it("no deja encender el envío sin la ubicación del estudio", async () => {
+    extras.mockResolvedValue({ studioLatitude: "", studioLongitude: "", travelPerKm: "" });
+    const r = await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingPerKmArs: "300" });
+    expect(r).toEqual({ ok: false, error: "Cargá la ubicación de tu estudio en Configuración → Precios para ofrecer envíos." });
+    expect(db.fotofficePrintSettings.upsert).not.toHaveBeenCalled();
+  });
+  it("apagado se guarda aunque no haya ubicación", async () => {
+    const r = await C.guardarAjustes("ws", { ...ok, shippingEnabled: false });
+    expect(r).toEqual({ ok: true });
+    expect(db.fotofficePrintSettings.upsert.mock.calls[0][0].update).toMatchObject({ shippingEnabled: false });
+  });
+  it("rechaza montos o máximos inválidos", async () => {
+    extras.mockResolvedValue(UBICADO);
+    expect((await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingPerKmArs: "-3" })).ok).toBe(false);
+    expect((await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingPerKmArs: "300", shippingMaxKm: "2,5" })).ok).toBe(false);
+    expect(db.fotofficePrintSettings.upsert).not.toHaveBeenCalled();
+  });
 });
 
 describe("ofertaPublica", () => {
@@ -116,5 +177,21 @@ describe("leerAjustes", () => {
     const a = await C.leerAjustes("ws");
     expect(a.tamanos[0].costArs).toBe("1500,50");
     expect(a.tamanos[0].priceArs).toBe("");
+  });
+  it("propone el precio por km del perfil cuando el de envío está vacío", async () => {
+    db.fotofficePrintSize.count.mockResolvedValue(1);
+    db.fotofficePrintSettings.findUnique.mockResolvedValue(null);
+    db.fotofficePrintSize.findMany.mockResolvedValue([]);
+    extras.mockResolvedValue(UBICADO);
+    const a = await C.leerAjustes("ws");
+    expect(a.envio).toEqual({ encendido: false, baseArs: "", porKmArs: "1200", maxKm: "", estudioUbicado: true });
+  });
+  it("el precio por km guardado gana sobre el del perfil", async () => {
+    db.fotofficePrintSize.count.mockResolvedValue(1);
+    db.fotofficePrintSettings.findUnique.mockResolvedValue({ shippingEnabled: true, shippingBaseArs: "1000", shippingPerKmArs: "250", shippingMaxKm: 20 });
+    db.fotofficePrintSize.findMany.mockResolvedValue([]);
+    extras.mockResolvedValue(null);
+    const a = await C.leerAjustes("ws");
+    expect(a.envio).toEqual({ encendido: true, baseArs: "1000", porKmArs: "250", maxKm: "20", estudioUbicado: false });
   });
 });

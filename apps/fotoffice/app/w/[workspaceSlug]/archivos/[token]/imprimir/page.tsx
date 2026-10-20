@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
+import { PedidoCliente } from "@/components/impresiones/pedido-cliente";
 import { ofertaPublica } from "@/lib/impresiones/configuracion-servidor";
-import { fotosAptas, proyectoDeTokenCliente } from "@/lib/impresiones/fuentes-servidor";
+import { resolverFuente } from "@/lib/impresiones/fuentes-servidor";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
-import { PedidoCliente } from "./pedido-cliente";
+import { iniciarPagoImpresionAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,37 +19,25 @@ export default async function ImprimirPage({ params }: { params: Promise<{ works
   const { workspaceSlug, token } = await params;
   const workspaceId = await workspaceDelSlug(workspaceSlug);
   if (!workspaceId) notFound();
-  const [proyecto, oferta] = await Promise.all([proyectoDeTokenCliente(workspaceId, token), ofertaPublica(workspaceId)]);
-  if (!proyecto || !oferta) notFound();
-  const [fotos, cliente, branding] = await Promise.all([
-    fotosAptas(workspaceId, proyecto.proyectoId),
-    proyecto.clientId
-      ? prisma.client.findFirst({
-          where: { id: proyecto.clientId, workspaceId },
-          select: { firstName: true, lastName: true, businessName: true, email: true, phone: true },
-        })
-      : null,
+  const [fuente, oferta, branding] = await Promise.all([
+    resolverFuente(workspaceId, workspaceSlug, "CARPETA", token),
+    ofertaPublica(workspaceId),
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { commercialName: true } }),
   ]);
-  const nombre = [cliente?.firstName, cliente?.lastName].filter(Boolean).join(" ") || cliente?.businessName?.trim() || "";
+  if (!fuente || !oferta) notFound();
 
   return (
     <PedidoCliente
-      slug={workspaceSlug}
-      token={token}
+      // La clave del original no viaja al navegador.
+      fuente={{ tipo: fuente.tipo, fotos: fuente.fotos.map((f) => ({ id: f.id, nombre: f.nombre, mini: f.mini, width: f.width, height: f.height })) }}
+      pagar={iniciarPagoImpresionAction.bind(null, workspaceSlug, token)}
       estudio={branding?.commercialName?.trim() || "el estudio"}
-      carpeta={`/w/${workspaceSlug}/archivos/${token}`}
-      fotos={fotos.map((f) => ({
-        archivoId: f.archivoId,
-        nombre: f.nombre,
-        mini: `/api/w/${workspaceSlug}/archivos/${token}/mini/${f.archivoId}`,
-        width: f.width,
-        height: f.height,
-      }))}
+      volver={{ href: `/w/${workspaceSlug}/archivos/${token}`, texto: "Tus archivos" }}
       // El costo del laboratorio no viaja al navegador.
       tamanos={oferta.tamanos.map((t) => ({ id: t.id, widthCm: t.widthCm, heightCm: t.heightCm, priceCents: t.priceCents }))}
       papeles={oferta.papeles}
-      cliente={{ nombre, email: cliente?.email ?? "", telefono: cliente?.phone ?? "" }}
+      envio={oferta.envio}
+      cliente={{ nombre: fuente.nombre ?? "", email: fuente.email ?? "", telefono: fuente.telefono ?? "" }}
       plazo="dentro de 48 horas hábiles desde el pago"
     />
   );

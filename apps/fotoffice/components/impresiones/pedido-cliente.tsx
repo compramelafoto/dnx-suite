@@ -1,18 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Minus, Plus, Printer, Store, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, MapPin, Minus, Plus, Printer, Store, Trash2, TriangleAlert, X } from "lucide-react";
+import { BuscarDireccion, type DireccionElegida } from "@/components/impresiones/buscar-direccion";
 import { EditorRecorte } from "@/components/impresiones/editor-recorte";
 import { ETIQUETA_PAPEL, PPP_MINIMO, type Papel } from "@/lib/impresiones/constantes";
+import { cotizarEnvio, type Punto } from "@/lib/impresiones/envio";
 import { cotizar, type LineaCarrito } from "@/lib/impresiones/precios";
 import { coincideProporcion, pppDelRecorte, recorteInicial, type Recorte } from "@/lib/impresiones/recorte";
-import { iniciarPagoImpresionAction } from "./actions";
 
-type Foto = { archivoId: string; nombre: string; mini: string; width: number | null; height: number | null };
+/** La foto tal como viaja al navegador: sin la clave del original. */
+type Foto = { id: string; nombre: string; mini: string; width: number | null; height: number | null };
+/** De dónde salen las fotos (carpeta o galería). Es la `Fuente` del servidor (`fuentes-servidor.ts`) sin datos internos. */
+export type FuenteCliente = { tipo: "CARPETA" | "GALERIA"; fotos: Foto[] };
+/** El envío que ofrece el estudio, para mostrar el costo. El que vale lo recalcula el servidor al pagar. */
+export type EnvioCliente = { baseCents: number; porKmCents: number; maxKm: number | null; estudio: Punto };
+export type ResultadoPagar = { ok: true; checkoutUrl: string; pedidoId: string } | { ok: false; error: string };
 type Tamano = { id: string; widthCm: number; heightCm: number; priceCents: number };
 /** `recorte: null` = automático (centrado, lo más grande posible). */
 type Copia = { id: string; sizeId: string; quantity: number; recorte: Recorte | null };
 type Paso = "elegir" | "recorte" | "datos";
+type Entrega = "RETIRO" | "ENVIO";
 type Medidas = { w: number; h: number };
 
 const MAX_CANTIDAD = 99;
@@ -34,27 +42,33 @@ function medir(src: string): Promise<Medidas | null> {
   });
 }
 
+/**
+ * Pantalla del cliente para pedir copias impresas, común a la carpeta de archivos y a la galería: elegir fotos y
+ * tamaños, revisar el encuadre, sus datos, cómo recibirlas (retiro o envío) y pagar. `pagar` es la acción del
+ * servidor ya atada al enlace (slug y token): allá se vuelve a validar y calcular todo.
+ */
 export function PedidoCliente({
-  slug,
-  token,
+  fuente,
+  pagar: pagarAccion,
   estudio,
-  carpeta,
-  fotos,
+  volver,
   tamanos,
   papeles,
+  envio,
   cliente,
   plazo,
 }: {
-  slug: string;
-  token: string;
+  fuente: FuenteCliente;
+  pagar: (datos: unknown) => Promise<ResultadoPagar>;
   estudio: string;
-  carpeta: string;
-  fotos: Foto[];
+  volver: { href: string; texto: string };
   tamanos: Tamano[];
   papeles: Papel[];
+  envio: EnvioCliente | null;
   cliente: { nombre: string; email: string; telefono: string };
   plazo: string;
 }) {
+  const fotos = fuente.fotos;
   const [paso, setPaso] = useState<Paso>("elegir");
   const [copias, setCopias] = useState<Record<string, Copia[]>>({});
   const [papel, setPapel] = useState<Papel>(papeles[0]);
@@ -66,6 +80,8 @@ export function PedidoCliente({
   const [nombre, setNombre] = useState(cliente.nombre);
   const [email, setEmail] = useState(cliente.email);
   const [telefono, setTelefono] = useState(cliente.telefono);
+  const [entrega, setEntrega] = useState<Entrega>("RETIRO");
+  const [direccion, setDireccion] = useState<DireccionElegida | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [midiendo, setMidiendo] = useState(false);
   const [pagando, empezar] = useTransition();
@@ -75,7 +91,7 @@ export function PedidoCliente({
 
   /** Medidas reales (del servidor) o, si no hay, las de la miniatura. */
   const medidasDe = (f: Foto): Medidas | null =>
-    f.width && f.height ? { w: f.width, h: f.height } : (medidasVistas[f.archivoId] ?? null);
+    f.width && f.height ? { w: f.width, h: f.height } : (medidasVistas[f.id] ?? null);
   const anotarMedidas = (archivoId: string, img: HTMLImageElement) => {
     if (img.naturalWidth > 0 && img.naturalHeight > 0 && !medidasVistas[archivoId]) {
       setMedidasVistas((m) => (m[archivoId] ? m : { ...m, [archivoId]: { w: img.naturalWidth, h: img.naturalHeight } }));
@@ -92,17 +108,23 @@ export function PedidoCliente({
 
   // Para mostrar: el total de verdad lo calcula el servidor al pagar.
   const lineas: LineaCarrito[] = fotos.flatMap((f) =>
-    (copias[f.archivoId] ?? []).map((c) => ({ archivoId: f.archivoId, sizeId: c.sizeId, quantity: c.quantity, recorte: recorteDe(f, c) })),
+    (copias[f.id] ?? []).map((c) => ({ archivoId: f.id, sizeId: c.sizeId, quantity: c.quantity, recorte: recorteDe(f, c) })),
   );
   const cot = lineas.length > 0 ? cotizar(lineas, tamanos.map((t) => ({ ...t, proveedorId: null, costCents: 0 }))) : null;
-  const totalCents = cot && !("error" in cot) ? cot.subtotalCents : 0;
+  const subtotalCents = cot && !("error" in cot) ? cot.subtotalCents : 0;
   const totalCopias = cot && !("error" in cot) ? cot.copias : 0;
+  const conEnvio = envio !== null && entrega === "ENVIO";
+  const cotEnvio = conEnvio && direccion ? cotizarEnvio({ ...envio, destino: { lat: direccion.lat, lon: direccion.lon } }) : null;
+  const envioCents = cotEnvio?.ok ? cotEnvio.cents : 0;
+  const totalCents = subtotalCents + envioCents;
+  // Con envío hace falta una dirección dentro de la zona.
+  const entregaLista = !conEnvio || cotEnvio?.ok === true;
 
   // Las copias que hay que encuadrar: la foto no tiene la proporción del tamaño elegido.
   const paraRecortar = fotos.flatMap((f) => {
     const m = medidasDe(f);
     if (!m) return [];
-    return (copias[f.archivoId] ?? [])
+    return (copias[f.id] ?? [])
       .filter((c) => {
         const t = tamPorId.get(c.sizeId);
         return t ? !coincideProporcion(m.w, m.h, t.widthCm, t.heightCm) : false;
@@ -134,17 +156,17 @@ export function PedidoCliente({
   function aplicarATodas() {
     if (!tamPorId.has(todasTam)) return;
     const todo: Record<string, Copia[]> = {};
-    for (const f of fotos) todo[f.archivoId] = [{ id: nuevoId(), sizeId: todasTam, quantity: todasCant, recorte: null }];
+    for (const f of fotos) todo[f.id] = [{ id: nuevoId(), sizeId: todasTam, quantity: todasCant, recorte: null }];
     setCopias(todo);
   }
 
   /** Antes de encuadrar hace falta la proporción de cada foto elegida (la miniatura puede no haber cargado). */
   async function irARecorte() {
     setError(null);
-    const faltan = fotos.filter((f) => copias[f.archivoId] && !medidasDe(f));
+    const faltan = fotos.filter((f) => copias[f.id] && !medidasDe(f));
     if (faltan.length > 0) {
       setMidiendo(true);
-      const medidas = await Promise.all(faltan.map(async (f) => [f.archivoId, await medir(f.mini)] as const));
+      const medidas = await Promise.all(faltan.map(async (f) => [f.id, await medir(f.mini)] as const));
       setMidiendo(false);
       const nuevas: Record<string, Medidas> = {};
       for (const [id, m] of medidas) if (m) nuevas[id] = m;
@@ -164,10 +186,12 @@ export function PedidoCliente({
       nombre,
       email,
       telefono,
+      // Sólo la dirección y su punto: el costo del envío lo calcula el servidor.
+      entrega: conEnvio && direccion ? { tipo: "ENVIO", direccion: direccion.direccion, lat: direccion.lat, lon: direccion.lon } : { tipo: "RETIRO" },
     };
     empezar(async () => {
       try {
-        const r = await iniciarPagoImpresionAction(slug, token, datos);
+        const r = await pagarAccion(datos);
         if (r.ok) window.location.href = r.checkoutUrl;
         else setError(r.error);
       } catch {
@@ -182,9 +206,11 @@ export function PedidoCliente({
     return (
       <main className="min-h-screen bg-[var(--fo-bg)] px-4 py-10">
         <div className="fo-card mx-auto max-w-md space-y-3 p-8 text-center">
-          <p className="text-sm text-[var(--fo-text-secondary)]">Esta carpeta no tiene fotos para imprimir.</p>
-          <a href={carpeta} className="fo-btn fo-btn-secondary text-sm">
-            Volver a tus archivos
+          <p className="text-sm text-[var(--fo-text-secondary)]">
+            {fuente.tipo === "CARPETA" ? "Esta carpeta no tiene fotos para imprimir." : "Esta galería no tiene fotos para imprimir."}
+          </p>
+          <a href={volver.href} className="fo-btn fo-btn-secondary text-sm">
+            Volver
           </a>
         </div>
       </main>
@@ -202,9 +228,9 @@ export function PedidoCliente({
     <main className="min-h-screen bg-[var(--fo-bg)] px-4 pb-32 pt-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="space-y-3">
-          <a href={carpeta} className="inline-flex items-center gap-1 text-sm text-[var(--fo-muted)] hover:text-[var(--fo-text)]">
+          <a href={volver.href} className="inline-flex items-center gap-1 text-sm text-[var(--fo-muted)] hover:text-[var(--fo-text)]">
             <ArrowLeft className="size-4" aria-hidden />
-            Tus archivos
+            {volver.texto}
           </a>
           <p className="text-sm text-[var(--fo-muted)]">{estudio}</p>
           <h1 ref={titulo} tabIndex={-1} className="flex items-center gap-2 text-2xl font-bold outline-none">
@@ -258,9 +284,9 @@ export function PedidoCliente({
             <p className="text-sm text-[var(--fo-text-secondary)]">Tocá una foto para elegir el tamaño y cuántas copias querés.</p>
             <ul className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
               {fotos.map((f, i) => {
-                const n = (copias[f.archivoId] ?? []).reduce((s, c) => s + c.quantity, 0);
+                const n = (copias[f.id] ?? []).reduce((s, c) => s + c.quantity, 0);
                 return (
-                  <li key={f.archivoId}>
+                  <li key={f.id}>
                     <button
                       type="button"
                       onClick={() => setAbierta(i)}
@@ -272,7 +298,7 @@ export function PedidoCliente({
                         src={f.mini}
                         alt=""
                         loading="lazy"
-                        onLoad={(e) => anotarMedidas(f.archivoId, e.currentTarget)}
+                        onLoad={(e) => anotarMedidas(f.id, e.currentTarget)}
                         className="size-full object-cover"
                       />
                       {n > 0 ? (
@@ -317,7 +343,7 @@ export function PedidoCliente({
                           tamW={tam.widthCm}
                           tamH={tam.heightCm}
                           valor={r}
-                          onCambio={(nuevo) => editarCopia(foto.archivoId, copia.id, { recorte: nuevo })}
+                          onCambio={(nuevo) => editarCopia(foto.id, copia.id, { recorte: nuevo })}
                           etiqueta={`Encuadre de ${foto.nombre} en ${nombreTamano(tam)}`}
                         />
                         {pixelada ? (
@@ -375,15 +401,63 @@ export function PedidoCliente({
                 <p className="text-sm text-[var(--fo-text-secondary)]">Papel: {ETIQUETA_PAPEL[papel]}</p>
               )}
             </div>
-            <div className="fo-card flex items-start gap-3 p-5 text-sm">
-              <Store className="mt-0.5 size-5 shrink-0 text-[var(--fo-accent)]" aria-hidden />
-              <div className="space-y-1">
-                <p className="font-medium">Retiro en el local</p>
-                <p className="text-[var(--fo-text-secondary)]">Las tenés listas {plazo}. Te avisamos por correo.</p>
+            {envio ? (
+              <fieldset className="fo-card space-y-3 p-5 text-sm">
+                <legend className="sr-only">Cómo recibir las copias</legend>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input type="radio" name="entrega" className="mt-1" checked={entrega === "RETIRO"} onChange={() => setEntrega("RETIRO")} />
+                  <span className="space-y-1">
+                    <span className="flex items-center gap-2 font-medium">
+                      <Store className="size-4 text-[var(--fo-accent)]" aria-hidden />
+                      Retiro en el local (gratis)
+                    </span>
+                    <span className="block text-[var(--fo-text-secondary)]">Las tenés listas {plazo}. Te avisamos por correo.</span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input type="radio" name="entrega" className="mt-1" checked={entrega === "ENVIO"} onChange={() => setEntrega("ENVIO")} />
+                  <span className="space-y-1">
+                    <span className="flex items-center gap-2 font-medium">
+                      <MapPin className="size-4 text-[var(--fo-accent)]" aria-hidden />
+                      Envío a domicilio
+                    </span>
+                    <span className="block text-[var(--fo-text-secondary)]">Salen {plazo}. El costo depende de la distancia.</span>
+                  </span>
+                </label>
+                {entrega === "ENVIO" ? <BuscarDireccion envio={envio} elegida={direccion} onElegir={setDireccion} /> : null}
+              </fieldset>
+            ) : (
+              <div className="fo-card flex items-start gap-3 p-5 text-sm">
+                <Store className="mt-0.5 size-5 shrink-0 text-[var(--fo-accent)]" aria-hidden />
+                <div className="space-y-1">
+                  <p className="font-medium">Retiro en el local</p>
+                  <p className="text-[var(--fo-text-secondary)]">Las tenés listas {plazo}. Te avisamos por correo.</p>
+                </div>
               </div>
-            </div>
-            <button type="button" className="fo-btn fo-btn-primary w-full text-base" onClick={pagar} disabled={pagando || totalCopias === 0}>
-              {pagando ? "Abriendo Mercado Pago…" : `Pagar ${plata(totalCents)} con Mercado Pago`}
+            )}
+            {conEnvio && cotEnvio?.ok ? (
+              <dl className="fo-card space-y-1 p-5 text-sm">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-[var(--fo-muted)]">Copias</dt>
+                  <dd className="tabular-nums">{plata(subtotalCents)}</dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-[var(--fo-muted)]">Envío</dt>
+                  <dd className="tabular-nums">{plata(envioCents)}</dd>
+                </div>
+                <div className="flex justify-between gap-2 font-semibold">
+                  <dt>Total</dt>
+                  <dd className="tabular-nums">{plata(totalCents)}</dd>
+                </div>
+              </dl>
+            ) : null}
+            <button
+              type="button"
+              className="fo-btn fo-btn-primary w-full text-base"
+              onClick={pagar}
+              disabled={pagando || totalCopias === 0 || !entregaLista}
+            >
+              {pagando ? "Abriendo Mercado Pago…" : conEnvio && !entregaLista ? "Elegí una dirección de envío" : `Pagar ${plata(totalCents)} con Mercado Pago`}
             </button>
           </section>
         ) : null}
@@ -421,14 +495,14 @@ export function PedidoCliente({
           foto={fotoAbierta}
           posicion={abierta}
           total={fotos.length}
-          copias={copias[fotoAbierta.archivoId] ?? []}
+          copias={copias[fotoAbierta.id] ?? []}
           tamanos={tamanos}
           onCerrar={() => setAbierta(null)}
           onIr={(i) => setAbierta(i)}
-          onAgregar={() => agregarCopia(fotoAbierta.archivoId)}
-          onEditar={(id, cambio) => editarCopia(fotoAbierta.archivoId, id, cambio)}
-          onQuitar={(id) => quitarCopia(fotoAbierta.archivoId, id)}
-          onMedidas={(img) => anotarMedidas(fotoAbierta.archivoId, img)}
+          onAgregar={() => agregarCopia(fotoAbierta.id)}
+          onEditar={(id, cambio) => editarCopia(fotoAbierta.id, id, cambio)}
+          onQuitar={(id) => quitarCopia(fotoAbierta.id, id)}
+          onMedidas={(img) => anotarMedidas(fotoAbierta.id, img)}
         />
       ) : null}
     </main>

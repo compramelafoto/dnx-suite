@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Printer, RotateCcw } from "lucide-react";
+import { MapPin, Printer, RotateCcw, Store } from "lucide-react";
 import { reintentarEnvioAction } from "@/app/actions/impresiones";
 
 const ESTADOS: Record<string, string> = {
@@ -24,6 +24,7 @@ export function PedidoDelTrabajo({
   pedido: {
     pedidoId: string; numero: number; estado: string; lastError: string | null;
     copias: { tamano: string; papel: string; cantidad: number }[]; totalCents: number; costoCents: number; gananciaCents: number;
+    entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
   };
   puedeEditar: boolean;
 }) {
@@ -60,11 +61,39 @@ export function PedidoDelTrabajo({
           </li>
         ))}
       </ul>
+      {pedido.entrega ? (
+        <div className="flex items-start gap-2 text-sm">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--fo-accent)]" aria-hidden />
+          <div className="min-w-0">
+            <p className="font-medium">Envío a domicilio</p>
+            <p className="break-words text-[var(--fo-text-secondary)]">{pedido.entrega.direccion}</p>
+            {pedido.entrega.km !== null ? (
+              <p className="text-xs text-[var(--fo-muted)]">{String(pedido.entrega.km).replace(".", ",")} km de ida</p>
+            ) : null}
+            {pedido.entrega.mapa ? (
+              <a href={pedido.entrega.mapa} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+                Ver en el mapa
+              </a>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <p className="flex items-center gap-2 text-sm text-[var(--fo-text-secondary)]">
+          <Store className="size-4 shrink-0" aria-hidden />
+          Retiro en el local
+        </p>
+      )}
       <dl className="space-y-1 border-t border-[var(--fo-border)] pt-2 text-sm">
         <div className="flex justify-between gap-2">
           <dt className="text-[var(--fo-muted)]">Total cobrado</dt>
           <dd className="tabular-nums">{pesos(pedido.totalCents)}</dd>
         </div>
+        {pedido.entrega ? (
+          <div className="flex justify-between gap-2">
+            <dt className="text-[var(--fo-muted)]">Envío (incluido)</dt>
+            <dd className="tabular-nums">{pesos(pedido.entrega.envioCents)}</dd>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-2">
           <dt className="text-[var(--fo-muted)]">Costo del laboratorio</dt>
           <dd className="tabular-nums">{pesos(pedido.costoCents)}</dd>

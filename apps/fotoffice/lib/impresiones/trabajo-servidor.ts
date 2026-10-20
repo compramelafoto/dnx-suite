@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { enlaceDeMapa } from "@/lib/geocode/lugar";
 import { etiquetaTamano } from "./carpeta-lab";
 import { ETIQUETA_PAPEL, type Papel } from "./constantes";
 
@@ -20,6 +21,8 @@ export type PedidoDelTrabajo = {
   totalCents: number;
   costoCents: number;
   gananciaCents: number;
+  /** null = retiro en el local. Con envío: adónde, cuántos km (ida), cuánto se cobró y el punto en el mapa. */
+  entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
 };
 
 /** El pedido de impresión del trabajo (de esta organización), o null si el trabajo no viene de uno. */
@@ -28,6 +31,7 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
     where: { workspaceId, items: { some: { proyectoId } } },
     select: {
       id: true, number: true, status: true, lastError: true, paper: true, totalArs: true, costTotalArs: true,
+      delivery: true, shippingArs: true, shippingAddress: true, shippingLat: true, shippingLon: true, shippingKm: true,
       items: { select: { widthCm: true, heightCm: true, quantity: true } },
     },
   });
@@ -47,7 +51,18 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
     .map(([tamano, v]) => ({ tamano, papel, cantidad: v.cantidad }));
   const totalCents = cents(p.totalArs);
   const costoCents = cents(p.costTotalArs);
-  return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, costoCents, gananciaCents: totalCents - costoCents };
+  const entrega =
+    p.delivery === "ENVIO" && p.shippingAddress
+      ? {
+          direccion: p.shippingAddress,
+          km: p.shippingKm ?? null,
+          envioCents: cents(p.shippingArs ?? 0),
+          mapa: p.shippingLat != null && p.shippingLon != null ? enlaceDeMapa(p.shippingLat, p.shippingLon) : null,
+        }
+      : null;
+  return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, costoCents,
+    // El envío se cobra para pagar el traslado: no es ganancia de las copias.
+    gananciaCents: totalCents - (entrega?.envioCents ?? 0) - costoCents, entrega };
 }
 
 export type PedidoSinEnviar = { pedidoId: string; numero: number; cliente: string; pagadoEl: Date | null; totalCents: number; lastError: string | null };

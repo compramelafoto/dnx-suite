@@ -44,6 +44,8 @@ export default async function SeguimientoImpresionPage({
         status: true,
         paper: true,
         promisedAt: true,
+        delivery: true,
+        shippingAddress: true,
         items: { select: { widthCm: true, heightCm: true, quantity: true, proyectoId: true } },
       },
     });
@@ -106,6 +108,16 @@ export default async function SeguimientoImpresionPage({
             </li>
           ))}
         </ul>
+        <p className="mt-3 text-sm">
+          {pedido.delivery === "ENVIO" && pedido.shippingAddress ? (
+            <>
+              <span className="text-neutral-500">Envío a: </span>
+              <span className="break-words">{pedido.shippingAddress}</span>
+            </>
+          ) : (
+            <span className="text-neutral-500">Retiro en el local</span>
+          )}
+        </p>
         {confirmado && pedido.promisedAt && (
           <p className="mt-3 text-sm">
             <span className="text-neutral-500">Entrega prometida: </span>
