@@ -144,6 +144,67 @@ describe("copias: guardar y reabrir", () => {
     expect(await K.guardarPiezasCopia(CTX, prep, demasiadas)).toEqual({ ok: false, error: "Una preparación admite hasta 60 fotos." });
   });
 
+  it("el tope de 60 fotos vale para la preparación entera, no para cada llamada", async () => {
+    const medidas = Array.from({ length: 60 }, () => [300, 200] as [number, number]);
+    // Sin pasar por sharp (60 fotos reales hacen lenta la prueba): los originales ya confirmados.
+    const p = await P.crearPreparacion(CTX, { productId: "copia10", clientId: null });
+    if (!p.ok) throw new Error(p.error);
+    const prep = p.id;
+    const ids = medidas.map((_, i) => {
+      B.agregar("fotofficeOriginalImpresion", {
+        id: `foto${i + 1}`, workspaceId: "ws-1", preparacionId: prep, key: `k${i + 1}`, nombre: `foto-${i + 1}.jpg`, tipo: "image/jpeg", bytes: 1, estado: "LISTO", anchoPx: 300, altoPx: 200,
+      });
+      return `foto${i + 1}`;
+    });
+    const DEMASIADAS = { ok: false, error: "Una preparación admite hasta 60 fotos." };
+    // La foto 61 ya no se puede ni pedir para subir.
+    expect(await P.pedirSubidaOriginal(CTX, prep, { nombre: "foto-61.jpg", tipo: "image/jpeg", bytes: 100 })).toEqual(DEMASIADAS);
+    await guardarPropuestas(prep, ids.slice(0, 30), medidas.slice(0, 30));
+    await guardarPropuestas(prep, ids.slice(30), medidas.slice(30));
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(60);
+    // Volver a guardar fotos ya guardadas no suma.
+    await guardarPropuestas(prep, ids.slice(0, 2), medidas.slice(0, 2), [3, 3]);
+    // Una foto 61 que se coló (p. ej. dos pestañas subiendo a la vez) no se guarda en otra llamada.
+    B.agregar("fotofficeOriginalImpresion", {
+      id: "foto61", workspaceId: "ws-1", preparacionId: prep, key: "k61", nombre: "foto-61.jpg", tipo: "image/jpeg", bytes: 1, estado: "LISTO", anchoPx: 300, altoPx: 200,
+    });
+    expect(await K.guardarPiezasCopia(CTX, prep, [{ originalId: "foto61", cantidad: 1, receta: propuestaAutomatica(300, 200, P10), revisada: false }])).toEqual(DEMASIADAS);
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(60);
+  });
+
+  it("elementos que no son fotos se rechazan sin romper", async () => {
+    const { prep, ids } = await prepConFotos([[600, 400]]);
+    const ok = { originalId: ids[0]!, cantidad: 1, receta: propuestaAutomatica(600, 400, P10), revisada: false };
+    const NO_FOTO = { ok: false, error: "Esa foto no existe." };
+    expect(await K.guardarPiezasCopia(CTX, prep, [null as never])).toEqual(NO_FOTO);
+    expect(await K.guardarPiezasCopia(CTX, prep, [ok, 5 as never])).toEqual(NO_FOTO);
+    expect(await K.guardarPiezasCopia(CTX, prep, ["x" as never])).toEqual(NO_FOTO);
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(0);
+  });
+
+  it("si la foto se quita mientras se guarda, no queda una pieza sin original", async () => {
+    const { prep, ids } = await prepConFotos([[600, 400]]);
+    // Otra pestaña quita la foto justo entre la validación y la transacción (la relectura de
+    // adentro es el único `count` de originales que hace el guardado).
+    const tabla = B.tablas.fotofficeOriginalImpresion as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>;
+    const real = tabla.count!;
+    tabla.count = async (...a: unknown[]) => {
+      const lista = B.datos.fotofficeOriginalImpresion;
+      const i = lista.findIndex((o) => o.id === ids[0]);
+      if (i >= 0) lista.splice(i, 1);
+      return real(...a);
+    };
+    try {
+      expect(await K.guardarPiezasCopia(CTX, prep, [{ originalId: ids[0]!, cantidad: 1, receta: propuestaAutomatica(600, 400, P10), revisada: false }])).toEqual({
+        ok: false,
+        error: "Esa foto no existe.",
+      });
+    } finally {
+      tabla.count = real;
+    }
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(0);
+  });
+
   it("quitar una foto borra su original, su vista previa y su pieza", async () => {
     const medidas: [number, number][] = [[600, 400], [400, 600]];
     const { prep, ids } = await prepConFotos(medidas);

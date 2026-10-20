@@ -14,6 +14,7 @@ import {
 } from "./almacen";
 import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva, tamanoVistaPrevia } from "./geometria";
 import { huellaDe } from "./huella";
+import { FOTOS_MAX } from "./lote";
 import { pixelesDeHoja, type Nitidez } from "./medidas";
 import { disposicionCarnet } from "./plancha";
 import { anguloTotal, validarReceta, type Receta } from "./receta";
@@ -213,6 +214,11 @@ export async function pedirSubidaOriginal(
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
   if (!(TIPOS_ORIGINAL as readonly string[]).includes(a.tipo)) return { ok: false, error: "La foto tiene que ser JPG, PNG, WebP o HEIC." };
   if (!enteroEntre(a.bytes, 1, MAX_BYTES_ORIGINAL)) return { ok: false, error: "La foto pesa más de 60 MB." };
+  if (await esDeCopias(ctx.workspaceId, prep.productId)) {
+    // Cuentan también las que se están subiendo (PENDIENTE): las fallidas ya se borraron.
+    const subidas = await prisma.fotofficeOriginalImpresion.count({ where: { workspaceId: ctx.workspaceId, preparacionId: prep.id } });
+    if (subidas >= FOTOS_MAX) return { ok: false, error: `Una preparación admite hasta ${FOTOS_MAX} fotos.` };
+  }
   const id = nuevoId();
   const key = claveImpresion(ctx.workspaceId, prep.id, "original", id, EXT[a.tipo]!);
   const nombre = (typeof a.nombre === "string" ? a.nombre.trim() : "").slice(0, 200) || "foto";
@@ -221,6 +227,12 @@ export async function pedirSubidaOriginal(
     data: { id, workspaceId: ctx.workspaceId, preparacionId: prep.id, key, nombre, tipo: a.tipo, bytes: a.bytes, estado: "PENDIENTE" },
   });
   return { ok: true, originalId: id, url };
+}
+
+async function esDeCopias(workspaceId: string, productId: string | null): Promise<boolean> {
+  if (!productId) return false;
+  const prod = await prisma.fotofficeProductoProduccion.findFirst({ where: { workspaceId, productId }, select: { tipoPieza: true } });
+  return prod?.tipoPieza === "COPIA";
 }
 
 type OriginalProcesado = { originalId: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number };

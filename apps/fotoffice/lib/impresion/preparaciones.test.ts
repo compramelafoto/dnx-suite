@@ -62,7 +62,7 @@ beforeEach(async () => {
 });
 
 describe("preparaciones de impresión", () => {
-  it("sólo se prepara un producto con producción de carnet", async () => {
+  it("sólo se prepara un producto con producción de carnet o de copias", async () => {
     expect((await P.crearPreparacion(CTX, { productId: "remera", clientId: null })).ok).toBe(false);
     expect((await P.crearPreparacion(CTX, { productId: "carnet", clientId: null })).ok).toBe(true);
     expect((await P.crearPreparacion(CTX, { productId: null, clientId: null })).ok).toBe(true);

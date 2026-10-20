@@ -25,6 +25,7 @@ import { validarReceta, type Receta } from "./receta";
 
 const NO_EXISTE = { ok: false as const, error: "Esa preparación no existe." };
 const FOTO_NO_EXISTE = { ok: false as const, error: "Esa foto no existe." };
+const DEMASIADAS = { ok: false as const, error: `Una preparación admite hasta ${FOTOS_MAX} fotos.` };
 const RECORTE_INVALIDO = { ok: false as const, error: "El recorte de una foto no es válido. Volvé a armarla." };
 
 export type PiezaCopiaEntrada = { originalId: string; cantidad: number; receta: unknown; revisada: boolean };
@@ -80,9 +81,11 @@ export async function preparacionDeCopias(ctx: CtxImpresion, preparacionId: stri
  */
 export async function guardarPiezasCopia(ctx: CtxImpresion, preparacionId: string, items: PiezaCopiaEntrada[]): Promise<R<{ guardadas: number }>> {
   if (!Array.isArray(items) || items.length === 0) return { ok: false, error: "No hay fotos para guardar." };
-  if (items.length > FOTOS_MAX) return { ok: false, error: `Una preparación admite hasta ${FOTOS_MAX} fotos.` };
+  if (items.length > FOTOS_MAX) return DEMASIADAS;
   const prep = await preparacionDeCopias(ctx, preparacionId);
   if (!prep) return NO_EXISTE;
+  // Lo que llega del navegador: cada elemento tiene que ser un objeto antes de leerle campos.
+  if (!items.every((i) => i !== null && typeof i === "object")) return FOTO_NO_EXISTE;
   const ids = items.map((i) => i.originalId);
   if (!ids.every(esId) || new Set(ids).size !== ids.length) return FOTO_NO_EXISTE;
   const originales = await prisma.fotofficeOriginalImpresion.findMany({
@@ -107,7 +110,17 @@ export async function guardarPiezasCopia(ctx: CtxImpresion, preparacionId: strin
   }
 
   const ahora = new Date();
-  await prisma.$transaction(async (tx) => {
+  const error = await prisma.$transaction(async (tx) => {
+    // Se vuelven a leer adentro: un `quitarFotoCopia` simultáneo no deja una pieza sin original.
+    const siguen = await tx.fotofficeOriginalImpresion.count({
+      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, estado: "LISTO", id: { in: ids } },
+    });
+    if (siguen !== ids.length) return FOTO_NO_EXISTE;
+    // El tope es por preparación, no por llamada: cuentan también las fotos guardadas antes.
+    const otras = await tx.fotofficePiezaImpresion.count({
+      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, tipo: "COPIA", originalId: { notIn: ids } },
+    });
+    if (otras + ids.length > FOTOS_MAX) return DEMASIADAS;
     const existentes = await tx.fotofficePiezaImpresion.findMany({
       where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, tipo: "COPIA", originalId: { in: ids } },
       select: { id: true, originalId: true, huella: true, revisadaAt: true },
@@ -125,7 +138,9 @@ export async function guardarPiezasCopia(ctx: CtxImpresion, preparacionId: strin
       if (e) await tx.fotofficePiezaImpresion.update({ where: { id: e.id }, data });
       else await tx.fotofficePiezaImpresion.create({ data: { workspaceId: ctx.workspaceId, preparacionId: prep.id, originalId: f.originalId, tipo: "COPIA", ...data } });
     }
+    return null;
   });
+  if (error) return error;
   await recalcularEstado(prisma, ctx.workspaceId, prep.id);
   return { ok: true, guardadas: filas.length };
 }
