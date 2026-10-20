@@ -72,7 +72,7 @@ const ERR_TAMANO = "Uno de los tamaños ya no existe. Recargá la página.";
 
 export async function guardarTamanos(workspaceId: string, filas: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!Array.isArray(filas)) return { ok: false, error: "Datos inválidos." };
-  const cambios = [];
+  const cambios: { id: string; costArs: number | null; priceArs: number | null; proveedorId: string | null; active: boolean }[] = [];
   for (const f of filas as Record<string, unknown>[]) {
     const cost = monto(f.costArs);
     const price = monto(f.priceArs);
