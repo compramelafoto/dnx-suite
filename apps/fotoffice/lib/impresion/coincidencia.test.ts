@@ -67,15 +67,19 @@ async function deltaPromedio(ajustes: Ajustes) {
  * ENCAJAR como lo arma `VistaPieza` en el navegador: el mismo `planDeRecorte` sobre la vista
  * previa, ajustes en 8 bits sólo sobre la foto, y la foto sobre el papel del color del borde.
  */
-async function encajado(ajustes: Ajustes) {
+async function encajado(ajustes: Ajustes, enderezar = 0) {
   const original = await degrade(3000, 2000);
   // 13x18 parada (127 × 180 mm): la foto acostada entra con borde arriba y abajo.
-  const receta: Receta = { ...recetaInicial(), modo: "ENCAJAR", orientacion: "VERTICAL", colorBorde: "#ffffff", encuadre: encuadreQueContiene(1.5, 127 / 180), ajustes };
+  const caja = cajaRotada(3000, 2000, enderezar);
+  const receta: Receta = { ...recetaInicial(), modo: "ENCAJAR", orientacion: "VERTICAL", colorBorde: "#ffffff", encuadre: encuadreQueContiene(caja.ancho / caja.alto, 127 / 180), enderezar, ajustes };
   const destino = { ancho: 400, alto: 567 };
   const final = await renderizarPieza(original, receta, destino, "SUAVE");
   const vista = await generarVistaPrevia(original);
-  const plan = planDeRecorte(receta, cajaRotada(vista.ancho, vista.alto, 0), destino);
-  const { data } = await sharp(vista.jpg)
+  const plan = planDeRecorte(receta, cajaRotada(vista.ancho, vista.alto, enderezar), destino, enderezar ? 2 : 0);
+  // La vista previa girada como lo hace el navegador (el fondo del giro es el color del borde).
+  let girada = sharp(vista.jpg);
+  if (enderezar) girada = girada.rotate(enderezar, { background: "#ffffff" });
+  const { data } = await girada
     .extract(plan.recorte)
     .resize(plan.colocacion.width, plan.colocacion.height, { fit: "fill" })
     .raw()
@@ -105,6 +109,9 @@ describe("vista previa contra archivo final", () => {
       expect(fila(e.final, y).every((v) => v === 255)).toBe(true);
       expect(fila(e.vista, y)).toEqual(fila(e.final, y));
     }
+  });
+  it("ENCAJAR con enderezado de 7°: ΔE menor a 2", async () => {
+    expect((await encajado(AJUSTES_NEUTROS, 7)).delta).toBeLessThan(2);
   });
   it("ENCAJAR con ajustes fuertes: ΔE menor a 2", async () => {
     expect((await encajado({ ...AJUSTES_NEUTROS, exposicion: 20, contraste: 30, temperatura: -25, saturacion: 40 })).delta).toBeLessThan(2);

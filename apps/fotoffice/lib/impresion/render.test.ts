@@ -236,13 +236,34 @@ describe("motor de impresión: copias (etapa 2)", () => {
     const parada = await sharp(await componerCopia(pieza, false, 300)).metadata();
     expect([parada.width, parada.height]).toEqual([1795, 1205]);
   });
+  it("ENCAJAR con enderezado y borde oscuro: no hay línea clara entre la foto y el borde", async () => {
+    const r = encajar({ x: 0, y: 0, ancho: 1, alto: 1 }, { colorBorde: "#000000", enderezar: 10 });
+    const p = await renderizarPieza(await foto(600, 400, { r: 64, g: 64, b: 64 }), r, { ancho: 300, alto: 200 }, "SUAVE");
+    const gris = pixel(p, 150, 100)[0]!;
+    // La nitidez SUAVE, en un salto de 0 a 64, pasa de la foto en 8 a 11 (medido); una línea clara por
+    // mezclar con blanco pasaría de 100.
+    const SOBREIMPULSO = 14;
+    // Se recorren filas enteras: en cada una, de borde a foto, ningún píxel supera a la foto misma.
+    let cruces = 0;
+    for (const y of [40, 100, 160]) {
+      let enFoto = false;
+      for (let x = 0; x < p.ancho; x++) {
+        const v = pixel(p, x, y)[0]!;
+        if (Math.abs(v - gris) <= 3) enFoto = true;
+        if (v > gris + SOBREIMPULSO) throw new Error(`píxel más claro que la foto en (${x}, ${y}): ${v} contra ${gris}`);
+        if (v < gris - 3) cruces++;
+      }
+      expect(enFoto).toBe(true);
+    }
+    expect(cruces).toBeGreaterThan(0); // hay borde oscuro a los lados
+  });
+
   it("ENCAJAR con enderezado: las esquinas que deja el giro quedan EXACTAMENTE del color del borde", async () => {
     // Borde blanco y borde negro: un fondo blanco pasado por ajustes/nitidez no se confundiría con el negro.
-    for (const colorBorde of ["#000000", "#ffffff", "#102030"]) {
+    const casos = [["#000000", [0, 0, 0]], ["#ffffff", [255, 255, 255]], ["#102030", [16, 32, 48]]] as const;
+    for (const [colorBorde, esperado] of casos) {
       const r = encajar({ x: 0, y: 0, ancho: 1, alto: 1 }, { colorBorde, enderezar: 10, ajustes: { ...AJUSTES_NEUTROS, exposicion: 50 } });
       const p = await renderizarPieza(await foto(600, 400, { r: 64, g: 64, b: 64 }), r, { ancho: 300, alto: 200 }, "FUERTE");
-      const n = Number.parseInt(colorBorde.slice(1), 16);
-      const esperado = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
       for (const [x, y] of [[0, 0], [299, 0], [0, 199], [299, 199], [2, 2], [297, 197]] as const) expect(pixel(p, x, y)).toEqual(esperado);
       expect(pixel(p, 150, 100)[0]!).toBeGreaterThan(100); // el centro es foto aclarada
     }

@@ -108,6 +108,39 @@ export async function generarVistaPrevia(buf: Buffer): Promise<{ jpg: Buffer; an
 
 export type PiezaRaw = { data: Buffer; ancho: number; alto: number };
 
+/**
+ * Qué parte de la pieza es foto después del giro (255) y cuál es esquina vacía (0). Se arma a la
+ * escala de la pieza, no del original: una foto de 60 megapíxeles no se vuelve a rasterizar.
+ */
+async function mascaraDeFoto(
+  info: { ancho: number; alto: number },
+  angulo: number,
+  plan: { recorte: { left: number; top: number; width: number; height: number }; colocacion: { width: number; height: number } },
+): Promise<Uint8Array> {
+  const k = Math.min(1, plan.colocacion.width / plan.recorte.width);
+  const w = Math.max(1, Math.round(info.ancho * k));
+  const h = Math.max(1, Math.round(info.alto * k));
+  const { data, info: ig } = await sharp({ create: { width: w, height: h, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } })
+    .rotate(angulo, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  // El recorte, llevado a la escala (y al tamaño exacto) de la máscara girada.
+  const caja = cajaRotada(info.ancho, info.alto, angulo);
+  const sx = ig.width / caja.ancho;
+  const sy = ig.height / caja.alto;
+  const left = Math.min(ig.width - 1, Math.max(0, Math.round(plan.recorte.left * sx)));
+  const top = Math.min(ig.height - 1, Math.max(0, Math.round(plan.recorte.top * sy)));
+  const width = Math.max(1, Math.min(ig.width - left, Math.round(plan.recorte.width * sx)));
+  const height = Math.max(1, Math.min(ig.height - top, Math.round(plan.recorte.height * sy)));
+  const { data: m } = await sharp(data, { raw: { width: ig.width, height: ig.height, channels: 4 } })
+    .extract({ left, top, width, height })
+    .resize(plan.colocacion.width, plan.colocacion.height, { fit: "fill", kernel: "linear" })
+    .extractChannel(3)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return new Uint8Array(m);
+}
+
 export async function renderizarPieza(original: Buffer, receta: Receta, destino: { ancho: number; alto: number }, nitidez: Nitidez): Promise<PiezaRaw> {
   const info = await leerOriginal(original);
   const angulo = anguloTotal(receta);
@@ -117,15 +150,16 @@ export async function renderizarPieza(original: Buffer, receta: Receta, destino:
   const plan = planDeRecorte(receta, caja, destino, angulo % 90 === 0 ? 0 : 2);
   const encajar = receta.modo === "ENCAJAR";
   const borde = encajar ? rgbDe(colorBordeDe(receta)) : BLANCO;
-  // En ENCAJAR con enderezado, el giro deja esquinas sin foto: una máscara (la foto entera como
-  // una imagen opaca, girada y recortada igual) dice cuáles son, y al final vuelven al color
-  // exacto del borde, sin pasar por ajustes ni nitidez. (`flatten` de sharp corre después del
-  // giro, por eso la transparencia no se puede sacar del pipeline principal.)
+  // En ENCAJAR con enderezado, el giro deja esquinas sin foto. Se giran con el color del borde
+  // (no con blanco: el borde del giro se mezcla con el fondo y, si fuera blanco, quedaría una
+  // línea clara entre la foto y un borde de color), y una máscara dice cuáles son para devolverles
+  // al final el color exacto, sin pasar por ajustes ni nitidez. En RECORTAR el borde es blanco:
+  // igual que en la etapa 1.
   const conMascara = encajar && angulo % 90 !== 0;
 
   // 1-4: derecha, a sRGB (sharp usa el perfil embebido), girada, recortada y llevada a su medida.
   let p = abrir(original).autoOrient().flatten({ background: BLANCO });
-  if (angulo !== 0) p = p.rotate(angulo, { background: BLANCO });
+  if (angulo !== 0) p = p.rotate(angulo, { background: borde });
   const { data: crudo16, info: i16 } = await p
     .extract(plan.recorte)
     .resize(plan.colocacion.width, plan.colocacion.height, { fit: "fill", kernel: "lanczos3" })
@@ -138,23 +172,7 @@ export async function renderizarPieza(original: Buffer, receta: Receta, destino:
   const u16 = new Uint16Array(crudo16.length / 2);
   Buffer.from(u16.buffer).set(crudo16);
   let cobertura: Uint8Array | null = null; // 255 = foto, 0 = esquina sin foto
-  if (conMascara) {
-    const { data: m } = await sharp({ create: { width: info.ancho, height: info.alto, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } } })
-      .rotate(angulo, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .extract(plan.recorte)
-      .resize(plan.colocacion.width, plan.colocacion.height, { fit: "fill", kernel: "lanczos3" })
-      .extractChannel(3)
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    cobertura = new Uint8Array(m);
-    const rb = [borde.r * 257, borde.g * 257, borde.b * 257];
-    for (let i = 0; i < cobertura.length; i++) {
-      const a = cobertura[i]! / 255;
-      if (a >= 1) continue;
-      // Bajo la esquina va el color del borde: los ajustes y la nitidez no ven un hueco blanco.
-      for (let c = 0; c < 3; c++) u16[i * 3 + c] = Math.round(u16[i * 3 + c]! * a + rb[c]! * (1 - a));
-    }
-  }
+  if (conMascara) cobertura = await mascaraDeFoto(info, angulo, plan);
   aplicarAjustes(u16, 3, receta.ajustes);
 
   // 6: a 8 bits y nitidez de salida.
@@ -164,12 +182,10 @@ export async function renderizarPieza(original: Buffer, receta: Receta, destino:
     .raw()
     .toBuffer({ resolveWithObject: true });
   if (cobertura) {
+    // Donde el giro no dejó foto, el color exacto del borde (los píxeles de la orilla, con foto
+    // mezclada, ya vienen bien del giro).
     const rb = [borde.r, borde.g, borde.b];
-    for (let i = 0; i < cobertura.length; i++) {
-      const a = cobertura[i]! / 255;
-      if (a >= 1) continue;
-      for (let c = 0; c < 3; c++) foto[i * 3 + c] = a <= 0 ? rb[c]! : Math.round(foto[i * 3 + c]! * a + rb[c]! * (1 - a));
-    }
+    for (let i = 0; i < cobertura.length; i++) if (cobertura[i]! < 128) for (let c = 0; c < 3; c++) foto[i * 3 + c] = rb[c]!;
   }
   if (plan.completo) return { data: foto, ancho: i8.width, alto: i8.height };
 
