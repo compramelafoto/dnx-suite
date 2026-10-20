@@ -7,6 +7,7 @@ const B = await vi.hoisted(async () => {
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 const C = await import("./configuracion");
+const { SALIDAS_INICIALES, TAMANOS_INICIALES } = await import("./medidas");
 
 describe("configuración de impresión", () => {
   beforeEach(() => {
@@ -55,12 +56,26 @@ describe("configuración de impresión", () => {
     const t = B.tablas.fotofficeTamanoImpresion as unknown as { create: (a: unknown) => Promise<unknown> };
     const original = t.create;
     t.create = async () => {
-      t.create = original;
+      // El pedido que ganó confirma la siembra completa; el nuestro choca con el índice único.
+      const ids = new Map<string, string>();
+      for (const x of TAMANOS_INICIALES) {
+        ids.set(x.nombre, B.agregarDeOtraTransaccion("fotofficeTamanoImpresion", { workspaceId: "ws-1", nombre: x.nombre, anchoMm: x.anchoMm, altoMm: x.altoMm, orden: x.orden }).id as string);
+      }
+      for (const s of SALIDAS_INICIALES) {
+        const f = B.agregarDeOtraTransaccion("fotofficeSalidaImpresion", { workspaceId: "ws-1", nombre: s.nombre, tipo: "LOCAL", ppp: s.ppp, nitidez: s.nitidez, admiteCopias: s.admiteCopias });
+        for (const n of s.tamanos) B.agregarDeOtraTransaccion("fotofficeSalidaTamano", { salidaId: f.id, tamanoId: ids.get(n)! });
+      }
       throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
     };
-    await expect(C.asegurarConfiguracion("ws-1")).resolves.toBeUndefined();
-    t.create = original;
-    await C.asegurarConfiguracion("ws-1");
-    expect((await C.listarSalidas("ws-1")).map((s) => s.nombre)).toEqual(["Epson L800", "Kodak 305"]);
+    try {
+      await expect(C.asegurarConfiguracion("ws-1")).resolves.toBeUndefined();
+    } finally {
+      t.create = original;
+    }
+    const salidas = await C.listarSalidas("ws-1");
+    expect(salidas.map((s) => s.nombre)).toEqual(["Epson L800", "Kodak 305"]);
+    expect(salidas.find((s) => s.nombre === "Kodak 305")!.tamanos).toHaveLength(3);
+    expect(B.datos.fotofficeTamanoImpresion.filter((x) => x.workspaceId === "ws-1")).toHaveLength(7);
+    expect(B.datos.fotofficeSalidaImpresion).toHaveLength(2);
   });
 });
