@@ -665,7 +665,28 @@ export async function anularPreparacion(ctx: CtxImpresion, preparacionId: string
   return r.count === 1 ? { ok: true } : { ok: false, error: "Esa preparación ya se cobró: no se puede anular." };
 }
 
-export async function validarParaCobrar(workspaceId: string, items: { preparacionId: string; productId: string | null }[]): Promise<R> {
+const FALTAN_COPIAS = { ok: false as const, error: "Faltan armar fotos de las copias: abrí Editar fotos y tocá Listo." };
+
+/**
+ * Copias (Ruling 10): sólo se cobran completas — al menos una foto, cada foto con su pieza y su
+ * hoja vigente — y con la cantidad del renglón igual al total de copias guardado. El carnet no pasa por acá.
+ */
+async function validarCopiasParaCobrar(workspaceId: string, preparacionId: string, qty: number | undefined): Promise<R> {
+  const [fotos, piezas, v] = await Promise.all([
+    prisma.fotofficeOriginalImpresion.count({ where: { workspaceId, preparacionId, estado: "LISTO" } }),
+    prisma.fotofficePiezaImpresion.findMany({ where: { workspaceId, preparacionId, tipo: "COPIA" }, select: { originalId: true, cantidad: true } }),
+    hojasVigentes(prisma, workspaceId, preparacionId),
+  ]);
+  if (fotos === 0 || piezas.length < fotos || v.faltan > 0 || v.hojas.length !== piezas.length) return FALTAN_COPIAS;
+  const total = piezas.reduce((s, p) => s + p.cantidad, 0);
+  if (qty !== total) return { ok: false, error: `La cantidad del renglón tiene que ser ${total} copias (abrí Editar fotos y tocá Listo).` };
+  return { ok: true };
+}
+
+export async function validarParaCobrar(
+  workspaceId: string,
+  items: { preparacionId: string; productId: string | null; qty?: number }[],
+): Promise<R> {
   const vistos = new Set<string>();
   for (const it of items) {
     if (!esId(it.preparacionId)) return NO_EXISTE;
@@ -682,6 +703,22 @@ export async function validarParaCobrar(workspaceId: string, items: { preparacio
     if (!p || p.estado === "ANULADA") return NO_EXISTE;
     if (p.saleItemId !== null) return { ok: false, error: "Esa preparación ya se cobró en otra venta." };
     if (p.productId !== it.productId) return { ok: false, error: "La preparación es de otro producto." };
+  }
+  const productos = [...new Set(preps.map((p) => p.productId).filter((x): x is string => x !== null))];
+  const deCopias = new Set(
+    productos.length === 0
+      ? []
+      : (
+          await prisma.fotofficeProductoProduccion.findMany({
+            where: { workspaceId, productId: { in: productos }, tipoPieza: "COPIA" },
+            select: { productId: true },
+          })
+        ).map((x) => x.productId),
+  );
+  for (const it of items) {
+    if (it.productId === null || !deCopias.has(it.productId)) continue;
+    const r = await validarCopiasParaCobrar(workspaceId, it.preparacionId, it.qty);
+    if (!r.ok) return r;
   }
   return { ok: true };
 }

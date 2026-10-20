@@ -463,6 +463,34 @@ describe("copias: imprimir todo y registrar", () => {
     expect(B.datos.fotofficeRegistroImpresion).toHaveLength(2);
   });
 
+  it("cobrar copias: sólo completa (toda foto armada, ninguna hoja faltante) y con la cantidad = total de copias", async () => {
+    const FALTAN = "Faltan armar fotos de las copias: abrí Editar fotos y tocá Listo.";
+    const cobrar = (preparacionId: string, qty?: number) => P.validarParaCobrar("ws-1", [{ preparacionId, productId: "copia10", qty }]);
+    // Sin fotos.
+    const vacia = await P.crearPreparacion(CTX, { productId: "copia10", clientId: null });
+    if (!vacia.ok) throw new Error(vacia.error);
+    expect(await cobrar(vacia.id, 0)).toEqual({ ok: false, error: FALTAN });
+    // Fotos subidas sin armar (sin pieza).
+    const medidas: [number, number][] = [[600, 400], [400, 600]];
+    const { prep, ids } = await prepConFotos(medidas);
+    expect(await cobrar(prep, 2)).toEqual({ ok: false, error: FALTAN });
+    // Una foto con pieza y hoja, la otra sin pieza: falta armar.
+    await K.guardarPiezasCopia(CTX, prep, [{ originalId: ids[0]!, cantidad: 2, receta: propuestaAutomatica(600, 400, P10), revisada: false }]);
+    await K.generarHojaCopia(CTX, prep, ids[0]!);
+    expect(await cobrar(prep, 2)).toEqual({ ok: false, error: FALTAN });
+    // Las dos con pieza, una sin hoja: falta armar.
+    await guardarPropuestas(prep, ids, medidas, [2, 3]);
+    expect(await cobrar(prep, 5)).toEqual({ ok: false, error: FALTAN });
+    // Completa: la cantidad del renglón tiene que ser el total.
+    await K.generarHojaCopia(CTX, prep, ids[1]!);
+    expect(await cobrar(prep, 4)).toEqual({ ok: false, error: "La cantidad del renglón tiene que ser 5 copias (abrí Editar fotos y tocá Listo)." });
+    expect((await cobrar(prep)).ok).toBe(false);
+    expect(await cobrar(prep, 5)).toEqual({ ok: true });
+    // Cambiar la cantidad de una foto sin rearmar su hoja: la hoja quedó vieja.
+    await guardarPropuestas(prep, ids, medidas, [2, 4]);
+    expect(await cobrar(prep, 6)).toEqual({ ok: false, error: FALTAN });
+  });
+
   it("no registra hojas de otra preparación ni de otro negocio, ni respuestas raras", async () => {
     const a = await armadas([[600, 400]], [1]);
     const b = await armadas([[600, 400]], [1]);
