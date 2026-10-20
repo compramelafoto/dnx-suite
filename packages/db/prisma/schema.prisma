@@ -21899,6 +21899,19 @@ model DigitalizacionGrabacion {
   ultimoLatidoAt     DateTime?
   iniciadaAt         DateTime  @default(now())
   terminadaAt        DateTime?
+  /// null (grabando) | PENDIENTE | PROCESANDO | LISTA | ERROR | SIN_IMAGEN
+  conversionEstado   String?
+  conversionIntentos Int       @default(0)
+  /// Mensaje corto para la pantalla.
+  conversionError    String?
+  /// Cuándo la tomó el worker.
+  conversionLockAt   DateTime?
+  /// Clave del MP4 final en R2.
+  videoKey           String?
+  videoBytes         BigInt?
+  videoDuracionSeg   Int?
+  convertidaAt       DateTime?
+  partesBorradasAt   DateTime?
   createdByUserId    Int?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -21911,6 +21924,7 @@ model DigitalizacionGrabacion {
   @@index([workspaceId, createdAt])
   @@index([proyectoId])
   @@index([equipoId])
+  @@index([conversionEstado, terminadaAt])
 }
 
 model DigitalizacionParte {

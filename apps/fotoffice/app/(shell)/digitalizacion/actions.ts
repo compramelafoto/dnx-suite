@@ -90,3 +90,18 @@ export async function guardarAjustesAction(minutos: number) {
   revalidatePath("/digitalizacion");
   return r;
 }
+
+export async function urlDeVideoAction(grabacionId: string, modo: "ver" | "descargar") {
+  const ctx = await contextoDigitalizacion("VIEW");
+  if (!ctx) return SIN_PERMISO;
+  if (modo !== "ver" && modo !== "descargar") return INVALIDO;
+  return G.urlDeVideo(ctx, grabacionId, modo);
+}
+
+export async function reintentarConversionAction(grabacionId: string) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await G.reintentarConversion(ctx, grabacionId);
+  revalidatePath("/digitalizacion");
+  return r;
+}

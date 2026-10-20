@@ -43,3 +43,19 @@ export async function borrarPrefijo(prefijo: string): Promise<void> {
     token = lista.IsTruncated ? lista.NextContinuationToken : undefined;
   } while (token);
 }
+
+const SEGUNDOS_VIDEO = 2 * 3600;
+const REGEX_CLAVE_VIDEO = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/final\.mp4$/;
+
+/** URL firmada (2 h) del MP4 final, para mirarlo en la página (inline) o bajarlo (attachment). */
+export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "descargar"): Promise<string> {
+  if (!REGEX_CLAVE_VIDEO.test(clave)) throw new Error("Clave no válida");
+  const seguro = encodeURIComponent(nombre).replace(/['()]/g, escape).replace(/\*/g, "%2A");
+  const cmd = new GetObjectCommand({
+    Bucket: bucketR2Privado(),
+    Key: clave,
+    ResponseContentType: "video/mp4",
+    ResponseContentDisposition: `${modo === "descargar" ? "attachment" : "inline"}; filename*=UTF-8''${seguro}`,
+  });
+  return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_VIDEO });
+}

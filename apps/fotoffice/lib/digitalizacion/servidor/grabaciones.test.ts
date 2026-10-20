@@ -3,16 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   fotofficeProyecto: { findFirst: vi.fn() },
   digitalizacionGrabacion: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-  digitalizacionParte: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+  digitalizacionParte: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
   digitalizacionEquipo: { findFirst: vi.fn() },
   $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
 }));
 vi.mock("@repo/db", () => ({ prisma: db }));
-const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https://r2/firmada"), tamanoDeParte: vi.fn(), urlDeLecturaParte: vi.fn(), borrarPrefijo: vi.fn() }));
+const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https://r2/firmada"), tamanoDeParte: vi.fn(), urlDeLecturaParte: vi.fn(), borrarPrefijo: vi.fn(), urlDeVideo: vi.fn(async () => "https://r2/video") }));
 vi.mock("./almacen", () => almacen);
 
 import type { NuevaGrabacion } from "../validar";
-import { confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, terminarConLoGrabado, urlsDeLectura } from "./grabaciones";
+import { cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
@@ -165,5 +165,88 @@ describe("terminarConLoGrabado", () => {
   it("rechaza un id inválido sin tocar la base", async () => {
     expect(await terminarConLoGrabado(ctx, "../x")).toMatchObject({ ok: false, definitivo: true });
     expect(db.digitalizacionGrabacion.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("cola de conversión al cerrar", () => {
+  const abierta = { id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, tipo: "VHS", ...fresco };
+  const cierre = { tramo: 1, duracionSeg: 100, primeraImagenSeg: null, ultimaImagenSeg: null, sinImagen: false, tramosSinSenal: [], motivoFin: "MANUAL" as const };
+  it("cerrarGrabacion VHS sin imagen queda SIN_IMAGEN", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce(abierta).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: true });
+    await cerrarGrabacion(ctx, "g1", { ...cierre, sinImagen: true });
+    expect(db.digitalizacionGrabacion.update.mock.calls[0][0].data.conversionEstado).toBe("SIN_IMAGEN");
+  });
+  it("cerrarGrabacion con imagen queda PENDIENTE", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce(abierta).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: false });
+    await cerrarGrabacion(ctx, "g1", cierre);
+    expect(db.digitalizacionGrabacion.update.mock.calls[0][0].data.conversionEstado).toBe("PENDIENTE");
+  });
+  it("cerrarGrabacion de un DVD queda PENDIENTE aunque sinImagen sea true", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce({ ...abierta, tipo: "DVD" }).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: true });
+    await cerrarGrabacion(ctx, "g1", { ...cierre, sinImagen: true });
+    expect(db.digitalizacionGrabacion.update.mock.calls[0][0].data.conversionEstado).toBe("PENDIENTE");
+  });
+  it("terminarConLoGrabado queda PENDIENTE", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo });
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    await terminarConLoGrabado(ctx, "g1");
+    expect(db.digitalizacionGrabacion.updateMany.mock.calls[0][0].data.conversionEstado).toBe("PENDIENTE");
+  });
+});
+
+describe("partes tras la conversión", () => {
+  const base = { id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 1, ...viejo };
+  it.each([["PROCESANDO"], ["LISTA"]])("pedirParte rechaza con conversión %s", async (conversionEstado) => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...base, conversionEstado, partesBorradasAt: null });
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0, bytes: 10 })).toMatchObject({ ok: false, definitivo: true });
+    expect(almacen.urlDeSubidaParte).not.toHaveBeenCalled();
+  });
+  it("pedirParte y confirmarParte rechazan con partes borradas", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...base, conversionEstado: "LISTA", partesBorradasAt: new Date() });
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0, bytes: 10 })).toMatchObject({ ok: false, definitivo: true });
+    expect(await confirmarParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0 })).toMatchObject({ ok: false, definitivo: true });
+  });
+  it("pedirParte sigue aceptando con conversión PENDIENTE", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...base, conversionEstado: "PENDIENTE", partesBorradasAt: null });
+    db.digitalizacionParte.findUnique.mockResolvedValue(null);
+    expect(await pedirParte(ctx, { grabacionId: "g1", tramo: 1, indice: 0, bytes: 10 })).toMatchObject({ ok: true });
+  });
+  it("urlsDeLectura rechaza con partes borradas", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...base, conversionEstado: "LISTA", partesBorradasAt: new Date() });
+    expect(await urlsDeLectura(ctx, "g1")).toMatchObject({ ok: false });
+    expect(db.digitalizacionParte.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("reintentarConversion", () => {
+  it("sólo pasa de ERROR a PENDIENTE, con intentos en 0 y sin error", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 1, conversionEstado: "ERROR" });
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    expect(await reintentarConversion(ctx, "g1")).toEqual({ ok: true });
+    expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalledWith({
+      where: { id: "g1", workspaceId: "ws1", conversionEstado: "ERROR" },
+      data: { conversionEstado: "PENDIENTE", conversionIntentos: 0, conversionError: null, conversionLockAt: null },
+    });
+  });
+  it("si ya no está en ERROR, no hace nada", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 1, conversionEstado: "PROCESANDO" });
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 0 });
+    expect(await reintentarConversion(ctx, "g1")).toMatchObject({ ok: false });
+  });
+});
+
+describe("urlDeVideo", () => {
+  const lista = { id: "g1", workspaceId: "ws1", estado: "COMPLETA", mimeType: "video/webm", tramos: 1, cassetteNumero: 3, conversionEstado: "LISTA", videoKey: "digitalizacion/ws1/g1/final.mp4" };
+  it("firma el MP4 final cuando está LISTA", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(lista);
+    expect(await urlDeVideo(ctx, "g1", "ver")).toEqual({ ok: true, url: "https://r2/video" });
+    expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", expect.stringMatching(/\.mp4$/), "ver");
+  });
+  it("rechaza si no está LISTA o no tiene videoKey", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, conversionEstado: "PROCESANDO" });
+    expect(await urlDeVideo(ctx, "g1", "ver")).toMatchObject({ ok: false });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, videoKey: null });
+    expect(await urlDeVideo(ctx, "g1", "descargar")).toMatchObject({ ok: false });
+    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
 });
