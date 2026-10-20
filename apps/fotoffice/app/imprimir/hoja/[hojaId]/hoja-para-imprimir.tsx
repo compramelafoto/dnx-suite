@@ -33,12 +33,13 @@ export function HojaParaImprimir({
     window.addEventListener("afterprint", despues);
     // Si la imagen ya estaba en caché, cargó antes de hidratar y onLoad nunca llega.
     const img = imgRef.current;
-    if (img) {
+    const t = setTimeout(() => {
+      if (!img) return;
       const d = decisionAlMontar(img.complete, img.naturalWidth, faseRef.current);
-      if (d === "imprimir") { setFase("imprimiendo"); faseRef.current = "imprimiendo"; setTimeout(() => window.print(), 50); }
+      if (d === "imprimir") imprimir();
       if (d === "error") { setError("No se pudo cargar la hoja."); setFase("error"); }
-    }
-    return () => window.removeEventListener("afterprint", despues);
+    }, 0);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", despues); };
   }, []);
 
   async function responder(motivo: Respuesta | null) {
