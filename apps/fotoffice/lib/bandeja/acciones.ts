@@ -34,7 +34,7 @@ type ChatFila = NonNullable<Awaited<ReturnType<Tx["fotofficeWaChat"]["findFirst"
 
 const no = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-const aEstado = (c: ChatFila): EstadoChat => ({
+export const aEstado = (c: ChatFila): EstadoChat => ({
   estado: c.estado as EstadoChat["estado"],
   asignadoUserId: c.asignadoUserId,
   botPausadoHasta: c.botPausadoHasta,
@@ -42,14 +42,14 @@ const aEstado = (c: ChatFila): EstadoChat => ({
 });
 
 /** El chat del workspace, con la fila bloqueada y releída. `null` si no existe en este workspace. */
-async function chatBloqueado(tx: Tx, workspaceId: string, chatId: string): Promise<ChatFila | null> {
+export async function chatBloqueado(tx: Tx, workspaceId: string, chatId: string): Promise<ChatFila | null> {
   const chat = await tx.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId } });
   if (!chat) return null;
   await tx.$executeRaw`SELECT 1 FROM "FotofficeWaChat" WHERE id = ${chat.id} FOR UPDATE`;
   return (await tx.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId } })) ?? chat;
 }
 
-async function escribirSistema(tx: Tx, workspaceId: string, chatId: string, texto: string, createdAt: Date) {
+export async function escribirSistema(tx: Tx, workspaceId: string, chatId: string, texto: string, createdAt: Date) {
   await tx.fotofficeWaMensaje.create({
     data: { workspaceId, chatId, direccion: "SISTEMA", autor: "SISTEMA", tipo: "TEXTO", texto, createdAt },
   });
