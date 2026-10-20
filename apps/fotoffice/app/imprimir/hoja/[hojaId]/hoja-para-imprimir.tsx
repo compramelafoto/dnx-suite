@@ -2,33 +2,56 @@
 
 import { useEffect, useRef, useState } from "react";
 import { registrarImpresionAction } from "@/app/(shell)/ventas/impresion/actions";
+import { decisionAlMontar } from "@/lib/impresion/hoja-prueba";
 
 type Fase = "cargando" | "imprimiendo" | "preguntar" | "guardando" | "listo" | "error";
+type Respuesta = "NORMAL" | "DESCARTADA";
 
-export function HojaParaImprimir({ hojaId, src, anchoMm, altoMm, copias, titulo }: { hojaId: string; src: string; anchoMm: number; altoMm: number; copias: number; titulo: string }) {
+export function HojaParaImprimir({
+  hojaId, src, anchoMm, altoMm, paginaAnchoMm, paginaAltoMm, copias, titulo,
+}: {
+  hojaId: string; src: string; anchoMm: number; altoMm: number;
+  paginaAnchoMm: number; paginaAltoMm: number; copias: number; titulo: string;
+}) {
   const [fase, setFase] = useState<Fase>("cargando");
   const [error, setError] = useState<string | null>(null);
   const faseRef = useRef<Fase>("cargando");
+  const imgRef = useRef<HTMLImageElement>(null);
+  const ultima = useRef<Respuesta | null>(null);
 
   useEffect(() => { faseRef.current = fase; }, [fase]);
 
-  useEffect(() => {
-    const despues = () => { if (faseRef.current === "imprimiendo") setFase("preguntar"); };
-    window.addEventListener("afterprint", despues);
-    return () => window.removeEventListener("afterprint", despues);
-  }, []);
-
   function imprimir() {
     setFase("imprimiendo");
+    faseRef.current = "imprimiendo";
     // Un tick para que React pinte antes de que el diálogo bloquee la pestaña.
     setTimeout(() => window.print(), 50);
   }
 
-  async function responder(motivo: "NORMAL" | "DESCARTADA" | null) {
+  useEffect(() => {
+    const despues = () => { if (faseRef.current === "imprimiendo") setFase("preguntar"); };
+    window.addEventListener("afterprint", despues);
+    // Si la imagen ya estaba en caché, cargó antes de hidratar y onLoad nunca llega.
+    const img = imgRef.current;
+    if (img) {
+      const d = decisionAlMontar(img.complete, img.naturalWidth, faseRef.current);
+      if (d === "imprimir") { setFase("imprimiendo"); faseRef.current = "imprimiendo"; setTimeout(() => window.print(), 50); }
+      if (d === "error") { setError("No se pudo cargar la hoja."); setFase("error"); }
+    }
+    return () => window.removeEventListener("afterprint", despues);
+  }, []);
+
+  async function responder(motivo: Respuesta | null) {
     if (motivo === null) return setFase("listo");
+    ultima.current = motivo;
     setFase("guardando");
-    const r = await registrarImpresionAction(hojaId, { motivo, hojas: copias });
-    if (!r.ok) { setError(r.error); return setFase("error"); }
+    try {
+      const r = await registrarImpresionAction(hojaId, { motivo, hojas: copias });
+      if (!r.ok) { setError(r.error); return setFase("error"); }
+    } catch {
+      setError("No se pudo guardar. Revisá la conexión y probá de nuevo.");
+      return setFase("error");
+    }
     if (motivo === "DESCARTADA") return imprimir();
     setFase("listo");
   }
@@ -37,6 +60,12 @@ export function HojaParaImprimir({ hojaId, src, anchoMm, altoMm, copias, titulo 
     <div>
       <div className="no-imprimir mx-auto max-w-xl space-y-3 p-4 text-sm">
         <p className="font-medium">{titulo}</p>
+        {fase === "cargando" ? (
+          <div className="flex gap-2">
+            <span>Cargando la hoja…</span>
+            <button className="fo-btn" onClick={imprimir}>Imprimir</button>
+          </div>
+        ) : null}
         {fase === "preguntar" ? (
           <div className="flex flex-wrap gap-2">
             <span>¿Cómo salió?</span>
@@ -52,17 +81,26 @@ export function HojaParaImprimir({ hojaId, src, anchoMm, altoMm, copias, titulo 
             <button className="fo-btn" onClick={() => window.close()}>Cerrar</button>
           </div>
         ) : null}
-        {fase === "error" ? <p className="text-[var(--fo-danger)]">{error}</p> : null}
+        {fase === "error" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[var(--fo-danger)]">{error}</p>
+            {ultima.current ? <button className="fo-btn" onClick={() => responder(ultima.current)}>Reintentar</button> : null}
+          </div>
+        ) : null}
         <a className="underline" href={`${src}?descargar=1`}>Descargar JPG</a>
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element -- el tamaño en mm es el punto: no se optimiza */}
-      <img
-        src={src}
-        alt=""
-        onLoad={() => { if (faseRef.current === "cargando") imprimir(); }}
-        onError={() => { setError("No se pudo cargar la hoja."); setFase("error"); }}
-        style={{ width: `${anchoMm}mm`, height: `${altoMm}mm`, display: "block" }}
-      />
+      {/* La página real es de tamaño fijo: con una escala mayor a 1000 la imagen se recorta, no pasa a otra hoja. */}
+      <div style={{ width: `${paginaAnchoMm}mm`, height: `${paginaAltoMm}mm`, overflow: "hidden" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- el tamaño en mm es el punto: no se optimiza */}
+        <img
+          ref={imgRef}
+          src={src}
+          alt=""
+          onLoad={() => { if (faseRef.current === "cargando") imprimir(); }}
+          onError={() => { setError("No se pudo cargar la hoja."); setFase("error"); }}
+          style={{ width: `${anchoMm}mm`, height: `${altoMm}mm`, display: "block", maxWidth: "none" }}
+        />
+      </div>
     </div>
   );
 }

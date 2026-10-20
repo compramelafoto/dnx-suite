@@ -41,3 +41,9 @@ export function origenCentrado(largo: number): number {
 export function nombreDescarga(salida: string, tamano: string, hojaId: string): string {
   return `${salida}_${tamano}_${hojaId}.jpg`.replace(/[^A-Za-z0-9._-]/g, "_");
 }
+
+/** Qué hacer con la imagen al montar la página: si ya cargó antes de la hidratación, `onLoad` no llega. */
+export function decisionAlMontar(complete: boolean, naturalWidth: number, fase: string): "imprimir" | "error" | "esperar" {
+  if (fase !== "cargando" || !complete) return "esperar";
+  return naturalWidth > 0 ? "imprimir" : "error";
+}
