@@ -288,4 +288,10 @@ describe("preparaciones de impresión", () => {
     expect(B.datos.fotofficeRegistroImpresion).toHaveLength(1);
     expect(B.datos.fotofficeRegistroImpresion[0]).toMatchObject({ workspaceId: "ws-1", hojaId: null });
   });
+
+  it("un producto de copias también se prepara", async () => {
+    B.agregar("product", { id: "copia10", workspaceId: "ws-1", name: "Copia 10x15", priceArs: "900", isActive: true });
+    expect(await C.guardarProduccion("ws-1", "copia10", { tipoPieza: "COPIA", salidaId: kodakId, tamanoHojaId: t10, unidad: "COPIA" })).toEqual({ ok: true });
+    expect((await P.crearPreparacion(CTX, { productId: "copia10", clientId: null })).ok).toBe(true);
+  });
 });

@@ -100,8 +100,8 @@ export async function crearPreparacion(ctx: CtxImpresion, d: { productId: string
       where: { workspaceId: ctx.workspaceId, productId: producto.id },
       select: { tipoPieza: true },
     });
-    // Etapa 1: sólo carnet.
-    if (prod?.tipoPieza !== "CARNET") return { ok: false, error: "Ese producto no se prepara para imprimir." };
+    // Carnet (etapa 1) y copias (etapa 2). Polaroid llega después.
+    if (prod?.tipoPieza !== "CARNET" && prod?.tipoPieza !== "COPIA") return { ok: false, error: "Ese producto no se prepara para imprimir." };
     productId = producto.id;
   }
   let clientId: string | null = null;

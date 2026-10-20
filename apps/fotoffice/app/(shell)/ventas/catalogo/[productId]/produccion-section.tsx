@@ -8,8 +8,9 @@ import { guardarProduccionAction } from "../../impresion/actions";
 export function ProduccionSection({ productId, produccion, salidas }: { productId: string; produccion: ProduccionVista | null; salidas: SalidaVista[] }) {
   const [tipoPieza, setTipoPieza] = useState<string>(produccion?.tipoPieza ?? "CARNET");
   const [unidad, setUnidad] = useState<string>(produccion?.unidad ?? "HOJA");
-  // Etapa 1: la foto carnet sólo se cobra por hoja (el servidor también lo exige).
+  // La foto carnet sólo se cobra por hoja y la copia por copia (el servidor también lo exige).
   const soloHoja = tipoPieza === "CARNET";
+  const soloCopia = tipoPieza === "COPIA";
   return (
     <form action={guardarProduccionAction} className="fo-card space-y-3 p-5">
       <input type="hidden" name="productId" value={productId} />
@@ -25,6 +26,7 @@ export function ProduccionSection({ productId, produccion, salidas }: { productI
             onChange={(e) => {
               setTipoPieza(e.target.value);
               if (e.target.value === "CARNET") setUnidad("HOJA");
+              if (e.target.value === "COPIA") setUnidad("COPIA");
             }}
             className="fo-input mt-1"
           >
@@ -34,12 +36,13 @@ export function ProduccionSection({ productId, produccion, salidas }: { productI
           </select>
         </label>
         <label className="text-sm">Se cobra por
-          <select name="unidad" value={soloHoja ? "HOJA" : unidad} onChange={(e) => setUnidad(e.target.value)} className="fo-input mt-1">
-            <option value="HOJA">Hoja / plancha</option>
+          <select name="unidad" value={soloHoja ? "HOJA" : soloCopia ? "COPIA" : unidad} onChange={(e) => setUnidad(e.target.value)} className="fo-input mt-1">
+            <option value="HOJA" disabled={soloCopia}>Hoja / plancha</option>
             <option value="COPIA" disabled={soloHoja}>Copia</option>
-            <option value="PIEZA" disabled={soloHoja}>Pieza</option>
+            <option value="PIEZA" disabled={soloHoja || soloCopia}>Pieza</option>
           </select>
-          {soloHoja ? <span className="mt-1 block text-xs text-[var(--fo-muted)]">La foto carnet se cobra por hoja. Por foto llega en la etapa 2.</span> : null}
+          {soloHoja ? <span className="mt-1 block text-xs text-[var(--fo-muted)]">La foto carnet se cobra por hoja.</span> : null}
+          {soloCopia ? <span className="mt-1 block text-xs text-[var(--fo-muted)]">Las copias se cobran por copia: la cantidad del ticket es el total de copias.</span> : null}
         </label>
         <label className="text-sm">Impresora
           <select name="salidaId" defaultValue={produccion?.salidaId ?? salidas[0]?.id} className="fo-input mt-1">
