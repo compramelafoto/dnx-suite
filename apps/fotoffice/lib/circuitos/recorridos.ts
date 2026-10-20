@@ -5,7 +5,7 @@ import { fechaBA } from "@/lib/ficha/formato";
 import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
 import { esRetroceso, validarMovimiento, vencimientoDeEtapa, vencimientoDeTarea } from "./calculos";
 import { vencimientoDeTarea as vencimientoPlanificado } from "@/lib/proyectos/fechas";
-import { faseDeEtapa } from "@/lib/proyectos/en-curso-puro";
+import { esEtapaDeEntrega } from "@/lib/proyectos/en-curso-puro";
 import { exigirPedidoPagado } from "@/lib/pedidos/candado-saldo";
 import { adaptadorDe, type Sujeto } from "./sujetos";
 import type { CtxCircuitos } from "./acceso";
@@ -96,23 +96,8 @@ async function exigirSaldoCobrado(tx: Tx, workspaceId: string, j: { subjectType:
   if (rechazo !== null) throw new Rechazo(rechazo);
 }
 
-/**
- * Si entrar a esta etapa es entregar: su fase (la del tablero «En curso») es ENTREGADO, o es la
- * última etapa activa de su flujo y no es de fase LISTO. Lo de "la última" va aparte a propósito:
- * en `faseDeEtapa` manda el color, y como toda etapa tiene uno (gris de fábrica), la última de un
- * flujo armado a mano caería en otra fase y dejaría entregar con deuda. Una última de fase LISTO
- * («Listo para retirar») sí se deja: entrar ahí es cuando se le avisa al cliente que pase a pagar
- * y retirar; terminar el recorrido (`cerrar` con éxito) igual queda frenado por el candado.
- * El tablero sigue mostrando por color.
- */
-export function esEtapaDeEntrega(
-  etapa: { name: string; color: string; order: number },
-  activas: readonly { order: number }[],
-): boolean {
-  const esUltima = etapa.order === Math.max(...activas.map((e) => e.order));
-  const fase = faseDeEtapa({ ...etapa, esUltima });
-  return fase === "ENTREGADO" || (esUltima && fase !== "LISTO");
-}
+/** Si entrar a esta etapa es entregar: vive en el módulo puro (`en-curso-puro`) para que la ficha la use. */
+export { esEtapaDeEntrega };
 
 function esChoqueDeUnicidad(error: unknown): boolean {
   return (error as { code?: string } | null)?.code === "P2002";

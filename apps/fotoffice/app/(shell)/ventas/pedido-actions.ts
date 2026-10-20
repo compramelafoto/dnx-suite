@@ -12,7 +12,7 @@ import { registrarCobro } from "@/lib/pedidos/cobros";
 import { faseDeEtapa } from "@/lib/proyectos/en-curso-puro";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { formatMinorArs } from "@/lib/membership/money";
-import { diasEntre, repartirDescuento, separarTicket } from "@/lib/sales/pedido-mostrador";
+import { avisoCobroRepetido, diasEntre, reintentarSenaRepetida, repartirDescuento, separarTicket, type SenaRepetida } from "@/lib/sales/pedido-mostrador";
 import { checkoutAction, type CheckoutInput } from "./actions";
 import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp, type ResultadoBusquedaPago } from "@/lib/sales/verificar-pago-servidor";
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
@@ -158,21 +158,38 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     return { ok: false, error: alta.error };
   }
   if (alta.repetido) {
-    // El mismo cobro que vuelve: el pedido ya quedó con su seña y lo del momento ya se vendió (o
-    // quedó avisado en la primera respuesta). No se cobra ni se vende de nuevo; el pago verificado
-    // que se reservó para esta vuelta se suelta, porque el de la primera ya quedó usado.
+    // El mismo cobro que vuelve: el pedido ya existe y no se re-escribe. El pago verificado que se
+    // reservó para esta vuelta se suelta, porque el de la primera ya quedó usado. Si la primera
+    // vuelta se cortó antes de registrar la seña, se registra ahora con la misma clave (idempotente);
+    // lo que se llevaba en el momento no se vuelve a vender (ver `avisoCobroRepetido`).
     if (reservaId) await liberarPagoMp(reservaId);
-    const existente = await leerPedido(ctx, alta.pedidoId);
-    const cobradoMinor = existente ? Math.round(existente.plan.cobrado * 100) : 0;
-    const saldoMinor = existente ? Math.round(existente.plan.aCobrar * 100) : 0;
+    const antes = await leerPedido(ctx, alta.pedidoId);
+    let senaRepetida: SenaRepetida = { tipo: "sin-cambios" };
+    if (reintentarSenaRepetida(sena, antes ? Math.round(antes.plan.cobrado * 100) : 0)) {
+      const c = await registrarCobro(ctx, {
+        pedidoId: alta.pedidoId,
+        importe: pesos(sena),
+        fecha: diaEnBuenosAires(new Date()),
+        medio: metodo,
+        idempotencyKey: `${input.clave}-p`.slice(0, 100),
+      });
+      senaRepetida = !c.ok ? { tipo: "fallo", error: c.error } : c.creado ? { tipo: "registrada" } : { tipo: "sin-cambios" };
+      if (c.ok && c.creado) {
+        revalidatePath("/pedidos");
+        revalidatePath("/caja");
+      }
+    }
+    // Lo cobrado y el saldo, del pedido tal como quedó; el saldo es total menos cobrado, la misma
+    // cuenta que devuelve la primera vuelta.
+    const despues = senaRepetida.tipo === "registrada" ? await leerPedido(ctx, alta.pedidoId) : antes;
     return {
       ok: true,
       pedidoId: alta.pedidoId,
       pedidoNumero: alta.numero,
-      cobradoMinor,
-      saldoMinor,
+      cobradoMinor: despues ? Math.round(despues.plan.cobrado * 100) : 0,
+      saldoMinor: despues ? Math.round(despues.plan.saldo * 100) : 0,
       saleNumber: null,
-      aviso: `Este cobro ya estaba registrado en el pedido ${alta.numero}: no se volvió a cobrar.`,
+      aviso: avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }),
     };
   }
   if (reservaId) await confirmarUsoPagoMp(reservaId, `Pedido ${alta.numero}`);

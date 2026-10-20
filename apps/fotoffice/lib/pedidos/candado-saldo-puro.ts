@@ -16,8 +16,16 @@ export function saldoPedidoMinor(p: { totalArs: number; cobradoArs: number; stat
   return Math.max(0, Math.round((p.totalArs - p.cobradoArs) * 100));
 }
 
+/**
+ * "$ 5.000" en vez de "$ 5.000,00": el saldo como se dice en el mostrador. Sólo saca los
+ * centavos cuando son cero y están al final ("$ 1.000,50" queda igual).
+ */
+export function importeSinCentavos(minor: number): string {
+  return formatMinorArs(minor).replace(/,00$/, "");
+}
+
 /** "El pedido P-12 debe $ 5.000. Cobrá el saldo antes de entregar." (sin los `,00`). */
 export function mensajeCandado(numero: string, saldoMinor: number): string {
-  const saldo = formatMinorArs(saldoMinor).replace(/,00$/, "");
+  const saldo = importeSinCentavos(saldoMinor);
   return `El pedido ${numero} debe ${saldo}. Cobrá el saldo antes de entregar.`;
 }

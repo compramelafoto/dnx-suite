@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
+import { importeSinCentavos } from "@/lib/pedidos/candado-saldo-puro";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
@@ -128,6 +129,7 @@ export function Pos({
   egresos,
   datosTransferencia,
   procesos,
+  senaHabilitada = false,
   qrActivo = false,
   permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
 }: {
@@ -144,6 +146,11 @@ export function Pos({
    * plazo cargado). Si el ticket tiene alguno, esa parte se cobra como pedido con seña.
    */
   procesos: Record<string, number | null>;
+  /**
+   * Puede dejar un renglón sin proceso señado para retirar (interruptor «Seña»): hace falta poder
+   * crear pedidos y tener Clientes, porque el pedido va a nombre de alguien. Si no, no se ofrece.
+   */
+  senaHabilitada?: boolean;
   /** El QR fijo de Mercado Pago está activado (Configuración → Cobros). */
   qrActivo?: boolean;
   /** Qué puede hacer con Clientes dentro del editor de foto carnet (como en Ventas → Foto carnet). */
@@ -692,6 +699,9 @@ export function Pos({
           mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
           mpOrderId,
         });
+        // Una respuesta que llega tarde, de un cobro que ya se cerró (la clave cambió o se limpió),
+        // no toca el ticket que se está armando ahora: ese cobro ya mostró su resultado.
+        if (claveCobroRef.current !== clave) return;
         if (r.ok) {
           claveCobroRef.current = null;
           setUltimaVenta({
@@ -1128,7 +1138,7 @@ export function Pos({
                           {r.description}
                         </p>
                       {/* Un producto sin proceso también puede quedar señado para retirar. */}
-                      {!tieneProceso(r) ? (
+                      {senaHabilitada && !tieneProceso(r) ? (
                         <button
                           type="button"
                           aria-pressed={paraRetirar[r.key] === true}
@@ -1280,7 +1290,7 @@ export function Pos({
                     </p>
                   ))}
                   {p.saldoMinor > 0 && p.trabajos.some((t) => t.listo) ? (
-                    <p className="text-xs font-semibold text-[var(--fo-danger)]">Debe {formatMinorArs(p.saldoMinor).replace(",00", "")} · retenido hasta pagar</p>
+                    <p className="text-xs font-semibold text-[var(--fo-danger)]">Debe {importeSinCentavos(p.saldoMinor)} · retenido hasta pagar</p>
                   ) : null}
                   {p.saldoMinor > 0 ? (
                     <button

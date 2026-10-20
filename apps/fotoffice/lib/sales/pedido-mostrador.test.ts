@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aCobrarAhora, diasEntre, PLAZO_SIN_REGLA_DIAS, repartirDescuento, senaSugerida, separarTicket, sugerirEntrega } from "./pedido-mostrador";
+import { aCobrarAhora, avisoCobroRepetido, diasEntre, reintentarSenaRepetida, PLAZO_SIN_REGLA_DIAS, repartirDescuento, senaSugerida, separarTicket, sugerirEntrega } from "./pedido-mostrador";
 
 describe("sugerirEntrega", () => {
   it("suma los días", () => {
@@ -88,5 +88,39 @@ describe("separarTicket", () => {
   });
   it("el plazo de un producto sin regla es un día", () => {
     expect(PLAZO_SIN_REGLA_DIAS).toBe(1);
+  });
+});
+
+describe("reintentarSenaRepetida", () => {
+  it("reintenta si hay seña y el pedido no tiene ningún cobro (la primera vuelta se cortó)", () => {
+    expect(reintentarSenaRepetida(500000, 0)).toBe(true);
+  });
+  it("no reintenta si el pedido ya tiene un cobro (el de esta clave u otro cargado a mano)", () => {
+    expect(reintentarSenaRepetida(500000, 500000)).toBe(false);
+    expect(reintentarSenaRepetida(500000, 100000)).toBe(false);
+  });
+  it("sin seña no hay nada que reintentar", () => {
+    expect(reintentarSenaRepetida(0, 0)).toBe(false);
+  });
+});
+
+describe("avisoCobroRepetido", () => {
+  it("si no cambió nada, dice que no se volvió a cobrar", () => {
+    expect(avisoCobroRepetido({ numero: "P-7", sena: { tipo: "sin-cambios" }, habiaVentaEnElMomento: false })).toBe(
+      "Este cobro ya estaba registrado en el pedido P-7: no se volvió a cobrar.",
+    );
+  });
+  it("si la seña se registró en esta vuelta, lo dice", () => {
+    expect(avisoCobroRepetido({ numero: "P-7", sena: { tipo: "registrada" }, habiaVentaEnElMomento: false })).toContain("ahora sí");
+  });
+  it("si la seña falló, manda a cobrarla desde el pedido", () => {
+    expect(avisoCobroRepetido({ numero: "P-7", sena: { tipo: "fallo", error: "Caja apagada" }, habiaVentaEnElMomento: false })).toBe(
+      "El pedido P-7 quedó creado pero la seña no se registró (Caja apagada). Cobrala desde el pedido.",
+    );
+  });
+  it("con venta en el momento, pide revisar si esa venta quedó hecha", () => {
+    const aviso = avisoCobroRepetido({ numero: "P-7", sena: { tipo: "registrada" }, habiaVentaEnElMomento: true });
+    expect(aviso).toContain("historial de ventas");
+    expect(aviso).toContain("no se volvió a vender");
   });
 });

@@ -32,19 +32,31 @@ export async function exigirPedidoPagado(
   if (pedidoId === null) return null;
 
   await bloquearPedido(tx, pedidoId);
-  const pedido = await tx.fotofficePedido.findFirst({
+  const pedido = await saldoDelPedido(tx, workspaceId, pedidoId);
+  return pedido && pedido.saldoMinor > 0 ? mensajeCandado(pedido.numero, pedido.saldoMinor) : null;
+}
+
+/**
+ * Número y saldo (centavos) de un pedido del workspace, o null si no existe. La misma cuenta que
+ * el candado; la usa también la ficha del trabajo para avisar antes de que el motor lo rechace.
+ * Sin candado del pedido: quien necesite leerlo bloqueado lo toma antes (`exigirPedidoPagado`).
+ */
+export async function saldoDelPedido(db: Tx, workspaceId: string, pedidoId: string): Promise<{ numero: string; saldoMinor: number } | null> {
+  const pedido = await db.fotofficePedido.findFirst({
     where: { id: pedidoId, workspaceId },
     select: { number: true, totalArs: true, status: true },
   });
   if (!pedido) return null;
-  const cobros = await tx.fotofficeCobro.aggregate({
+  const cobros = await db.fotofficeCobro.aggregate({
     where: { workspaceId, pedidoId, voidedAt: null },
     _sum: { amountArs: true },
   });
-  const saldo = saldoPedidoMinor({
-    totalArs: Number(pedido.totalArs),
-    cobradoArs: Number(cobros._sum.amountArs ?? 0),
-    status: pedido.status,
-  });
-  return saldo > 0 ? mensajeCandado(pedido.number, saldo) : null;
+  return {
+    numero: pedido.number,
+    saldoMinor: saldoPedidoMinor({
+      totalArs: Number(pedido.totalArs),
+      cobradoArs: Number(cobros._sum.amountArs ?? 0),
+      status: pedido.status,
+    }),
+  };
 }

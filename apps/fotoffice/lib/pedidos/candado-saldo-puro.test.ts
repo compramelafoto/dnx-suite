@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mensajeCandado, saldoPedidoMinor } from "./candado-saldo-puro";
+import { importeSinCentavos, mensajeCandado, saldoPedidoMinor } from "./candado-saldo-puro";
 
 describe("saldoPedidoMinor", () => {
   it("es el total menos lo cobrado, en centavos", () => {
@@ -26,5 +26,16 @@ describe("mensajeCandado", () => {
 
   it("con centavos los muestra", () => {
     expect(mensajeCandado("P-12", 500050)).toBe("El pedido P-12 debe $ 5.000,50. Cobrá el saldo antes de entregar.");
+  });
+});
+
+describe("importeSinCentavos", () => {
+  it("saca los ,00 del final", () => {
+    expect(importeSinCentavos(500000)).toBe("$ 5.000");
+    expect(importeSinCentavos(100_000_000)).toBe("$ 1.000.000");
+  });
+
+  it("deja los centavos que no son cero", () => {
+    expect(importeSinCentavos(500050)).toBe("$ 5.000,50");
   });
 });

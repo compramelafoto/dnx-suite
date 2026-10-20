@@ -62,6 +62,24 @@ export function etapaSiguiente(etapas: readonly EtapaVista[], actualId: string):
 }
 
 /**
+ * Si entrar a esta etapa es entregar: su fase (la del tablero «En curso») es ENTREGADO, o es la
+ * última etapa activa de su flujo y no es de fase LISTO. Lo de "la última" va aparte a propósito:
+ * en `faseDeEtapa` manda el color, y como toda etapa tiene uno (gris de fábrica), la última de un
+ * flujo armado a mano caería en otra fase y dejaría entregar con deuda. Una última de fase LISTO
+ * («Listo para retirar») sí se deja: entrar ahí es cuando se le avisa al cliente que pase a pagar
+ * y retirar; terminar el recorrido (`cerrar` con éxito) igual queda frenado por el candado.
+ * El tablero sigue mostrando por color.
+ */
+export function esEtapaDeEntrega(
+  etapa: { name: string; color: string; order: number },
+  activas: readonly { order: number }[],
+): boolean {
+  const esUltima = etapa.order === Math.max(...activas.map((e) => e.order));
+  const fase = faseDeEtapa({ ...etapa, esUltima });
+  return fase === "ENTREGADO" || (esUltima && fase !== "LISTO");
+}
+
+/**
  * Trabajo retenido: está «Listo para retirar» pero su pedido todavía debe plata, así que no se
  * puede entregar hasta cobrar el saldo (candado de `lib/pedidos/candado-saldo`).
  */

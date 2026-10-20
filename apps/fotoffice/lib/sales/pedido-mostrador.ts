@@ -66,3 +66,36 @@ export function separarTicket<L extends { productId: string | null; paraRetirar?
   }
   return { delPedido, enElMomento };
 }
+
+/**
+ * El mismo cobro que vuelve (doble clic, o un reintento después de un corte) y el pedido ya
+ * existía. Si el pedido todavía no tiene ningún cobro, la primera vuelta pudo haberse cortado
+ * entre crear el pedido y registrar la seña: se vuelve a intentar, con la misma clave (si sí se
+ * había registrado, la clave lo frena y no se cobra dos veces). Si ya tiene algún cobro —el de
+ * esta clave u otro que alguien cargó a mano desde el pedido— no se toca nada.
+ */
+export function reintentarSenaRepetida(senaMinor: number, cobradoMinor: number): boolean {
+  return senaMinor > 0 && cobradoMinor === 0;
+}
+
+/** Qué pasó con la seña en el cobro repetido. */
+export type SenaRepetida = { tipo: "sin-cambios" } | { tipo: "registrada" } | { tipo: "fallo"; error: string };
+
+/**
+ * El aviso del cobro repetido. Lo que se llevaba en el momento nunca se vuelve a vender (no hay
+ * forma de saber si la primera vuelta llegó a hacerlo sin arriesgar cobrarlo dos veces): si el
+ * ticket lo tenía, se le pide al cajero que lo revise.
+ */
+export function avisoCobroRepetido(d: { numero: string; sena: SenaRepetida; habiaVentaEnElMomento: boolean }): string {
+  const partes = [
+    d.sena.tipo === "registrada"
+      ? `El pedido ${d.numero} ya estaba creado, pero la seña no había quedado registrada: ahora sí.`
+      : d.sena.tipo === "fallo"
+        ? `El pedido ${d.numero} quedó creado pero la seña no se registró (${d.sena.error}). Cobrala desde el pedido.`
+        : `Este cobro ya estaba registrado en el pedido ${d.numero}: no se volvió a cobrar.`,
+  ];
+  if (d.habiaVentaEnElMomento) {
+    partes.push("Lo que se llevaba en el momento no se volvió a vender: fijate en el historial de ventas si esa venta quedó hecha y, si no, cobrala aparte.");
+  }
+  return partes.join(" ");
+}

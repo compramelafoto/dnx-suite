@@ -8,7 +8,7 @@ import { cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { avisarListoAction, enviarAlProveedorAction, llegoDelProveedorAction } from "@/app/actions/proyectos-proveedor";
 import { formatMinorArs } from "@/lib/membership/money";
 import { FASES, FASE_INFO, etapaSiguiente, retenido, urgenciaDeEntrega, type Fase, type Urgencia } from "@/lib/proyectos/en-curso-puro";
-import { mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
+import { importeSinCentavos, mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
 
 /** Color de cada columna: el mismo criterio que los colores de las etapas de DNX. */
@@ -421,7 +421,7 @@ function Tarjeta({
         {t.pedido ? (
           debe > 0 ? (
             <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">
-              {retiene ? "Retenido · debe" : "Debe"} {formatMinorArs(debe).replace(",00", "")}
+              {retiene ? "Retenido · debe" : "Debe"} {importeSinCentavos(debe)}
             </span>
           ) : (
             <span className="shrink-0 text-[11px] font-semibold text-[var(--fo-success)]">Pagado</span>
