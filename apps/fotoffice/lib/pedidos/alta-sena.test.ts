@@ -227,3 +227,105 @@ describe("líneas para retirar", () => {
     expect(proyectos.every((p) => p.circuitId === estandar!.id)).toBe(true);
   });
 });
+
+describe("cancelar devuelve lo apartado y no entregado", () => {
+  const ITEMS_DOS = [item("m1", { productId: "prod-taza", cantidad: 2 }), item("m2", { productId: "prod-taza", cantidad: 3 })];
+  const APARTAR_DOS = [
+    { itemId: "m1", productId: "prod-taza", variantId: "var-m", cantidad: 2 },
+    { itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 3 },
+  ];
+
+  async function pedidoConDosLineas(): Promise<string> {
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({ items: ITEMS_DOS, paraRetirar: ["m1", "m2"], apartar: APARTAR_DOS }),
+      deps,
+    );
+    if (!r.ok) throw new Error(r.error);
+    return r.pedidoId;
+  }
+  const devoluciones = () => B.datos.stockMovement.filter((m) => m.reason === "DEVOLUCION");
+  const trabajoDe = (pedidoId: string, posicion: number) =>
+    B.datos.fotofficeProyecto.find((p) => p.pedidoId === pedidoId && p.pedidoItemIndex === posicion)!;
+  const recorridoDe = (proyectoId: unknown) => B.datos.fotofficeJourney.find((j) => j.subjectId === proyectoId)!;
+  const etapa = (nombre: string) => B.datos.fotofficeStage.find((e) => e.name === nombre)!;
+
+  it("ninguna línea entregada: vuelven las dos, con su talle, su nota y el mismo sourceRef", async () => {
+    const id = await pedidoConDosLineas();
+    expect(variante("var-m").stockQty).toBe(2);
+    expect(producto("prod-taza").stockQty).toBe(5);
+    expect(await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió")).toEqual({ ok: true });
+    const d = devoluciones();
+    expect(d).toHaveLength(2);
+    expect(d.map((m) => m.qty).sort()).toEqual([2, 3]);
+    expect(d.every((m) => m.sourceRef === id && m.sourceModule === "pedidos")).toBe(true);
+    expect(d.find((m) => m.note === "item:m1")).toMatchObject({ variantId: "var-m", qty: 2 });
+    expect(d.find((m) => m.note === "item:m2")).toMatchObject({ variantId: null, qty: 3 });
+    expect(variante("var-m").stockQty).toBe(4);
+    expect(producto("prod-taza").stockQty).toBe(10);
+  });
+
+  it("una línea con su trabajo cerrado TERMINADO no vuelve; la otra sí", async () => {
+    const id = await pedidoConDosLineas();
+    const j = recorridoDe(trabajoDe(id, 0).id);
+    Object.assign(j, { stageId: null, outcome: "TERMINADO", closedAt: AHORA });
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió");
+    expect(devoluciones().map((m) => m.note)).toEqual(["item:m2"]);
+    expect(producto("prod-taza").stockQty).toBe(8);
+    expect(variante("var-m").stockQty).toBe(2);
+  });
+
+  it("una línea cuyo recorrido está en la etapa Entregado no vuelve; en «Listo para retirar» sí", async () => {
+    const id = await pedidoConDosLineas();
+    recorridoDe(trabajoDe(id, 0).id).stageId = etapa("Entregado").id;
+    recorridoDe(trabajoDe(id, 1).id).stageId = etapa("Listo para retirar").id;
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió");
+    expect(devoluciones().map((m) => m.note)).toEqual(["item:m2"]);
+  });
+
+  it("una línea sin trabajo (Proyectos apagado) vuelve", async () => {
+    const id = await pedidoConDosLineas();
+    B.datos.fotofficeProyecto.length = 0;
+    B.datos.fotofficeJourney.length = 0;
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió");
+    expect(devoluciones()).toHaveLength(2);
+  });
+
+  it("cancelar dos veces no devuelve dos veces", async () => {
+    const id = await pedidoConDosLineas();
+    expect((await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x")).ok).toBe(true);
+    expect((await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x")).ok).toBe(false);
+    expect(devoluciones()).toHaveLength(2);
+    expect(producto("prod-taza").stockQty).toBe(10);
+  });
+
+  it("si ya hay una devolución de esa línea, no la repite", async () => {
+    const id = await pedidoConDosLineas();
+    B.agregar("stockMovement", {
+      workspaceId: "ws-1", productId: "prod-taza", variantId: "var-m", qty: 2, reason: "DEVOLUCION",
+      sourceModule: "pedidos", sourceRef: id, note: "item:m1",
+    });
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+    expect(devoluciones().map((m) => m.note).sort()).toEqual(["item:m1", "item:m2"]);
+  });
+
+  it("bloquea productos y talles antes de devolver", async () => {
+    const id = await pedidoConDosLineas();
+    const bloqueos: number[] = [];
+    B.ganchos.alEjecutarSql = (texto) => {
+      if (/FROM "(Product|ProductVariant)".*FOR UPDATE/s.test(texto)) bloqueos.push(devoluciones().length);
+    };
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+    expect(bloqueos).toEqual([0, 0]);
+  });
+
+  it("un pedido sin apartados se cancela como siempre", async () => {
+    const r = await P.crearPedidoManual(DUENO, base(), deps);
+    if (!r.ok) throw new Error(r.error);
+    const antes = B.sql.length;
+    expect(await P.cambiarEstadoPedido(DUENO, r.pedidoId, "CANCELADO", "x")).toEqual({ ok: true });
+    expect(B.datos.stockMovement).toHaveLength(0);
+    expect(B.sql.slice(antes).some((q) => /FROM "(Product|ProductVariant)"/.test(q.texto))).toBe(false);
+    expect(B.datos.fotofficePedido.find((p) => p.id === r.pedidoId)).toMatchObject({ status: "CANCELADO" });
+  });
+});

@@ -7,6 +7,7 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { agendaEncendida, crearCitasDelPedido } from "@/lib/agenda/crear";
+import { esEtapaDeEntrega } from "@/lib/circuitos/recorridos";
 import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
@@ -480,6 +481,88 @@ async function apartarStock(
   }
 }
 
+/**
+ * Al cancelar un pedido, devuelve el stock que la seña apartó y no se entregó. Una línea se
+ * considera entregada si algún trabajo de su posición terminó (`TERMINADO`) o su recorrido abierto
+ * está en una etapa de entrega (la misma regla del candado del saldo: `esEtapaDeEntrega`). Una
+ * línea sin trabajo (Proyectos apagado) vuelve. Idempotente: una línea que ya tiene su
+ * `DEVOLUCION` (mismo `sourceRef` y nota) no se repite.
+ */
+async function devolverStockApartado(tx: Tx, d: { workspaceId: string; pedidoId: string; createdByUserId: number | null }): Promise<void> {
+  const movimientos = await tx.stockMovement.findMany({
+    where: { workspaceId: d.workspaceId, sourceModule: "pedidos", sourceRef: d.pedidoId, reason: { in: ["PEDIDO", "DEVOLUCION"] } },
+    select: { productId: true, variantId: true, qty: true, reason: true, note: true },
+  });
+  const yaDevueltas = new Set(movimientos.filter((m) => m.reason === "DEVOLUCION").map((m) => m.note));
+  const apartados = movimientos.filter((m) => m.reason === "PEDIDO" && m.note !== null && !yaDevueltas.has(m.note));
+  if (apartados.length === 0) return;
+
+  const pedido = await tx.fotofficePedido.findFirst({ where: { id: d.pedidoId, workspaceId: d.workspaceId }, select: { items: true } });
+  const posicionDe = new Map(itemsGuardados(pedido?.items).map((it, i) => [`item:${it.id}`, i]));
+  const entregadas = await posicionesEntregadas(tx, d.workspaceId, d.pedidoId);
+  const aDevolver = apartados.filter((m) => {
+    const posicion = posicionDe.get(m.note!);
+    return posicion === undefined || !entregadas.has(posicion);
+  });
+  if (aDevolver.length === 0) return;
+
+  // Mismo orden de bloqueo que al apartar (`stock-lock.ts`).
+  await lockStockRows(tx, {
+    workspaceId: d.workspaceId,
+    productIds: [...new Set(aDevolver.map((m) => m.productId))],
+    variantIds: aDevolver.map((m) => m.variantId).filter((x): x is string => x !== null),
+  });
+  for (const m of aDevolver) {
+    await applyStockMovement(tx, {
+      workspaceId: d.workspaceId,
+      productId: m.productId,
+      variantId: m.variantId,
+      qty: -m.qty,
+      reason: "DEVOLUCION",
+      sourceModule: "pedidos",
+      sourceRef: d.pedidoId,
+      note: m.note,
+      unitCostArs: null,
+      createdByUserId: d.createdByUserId,
+    });
+  }
+}
+
+/** Posiciones de ítem del pedido cuyo trabajo ya se entregó (terminado, o en una etapa de entrega). */
+async function posicionesEntregadas(tx: Tx, workspaceId: string, pedidoId: string): Promise<Set<number>> {
+  const trabajos = await tx.fotofficeProyecto.findMany({
+    where: { workspaceId, pedidoId, pedidoItemIndex: { not: null } },
+    select: { id: true, pedidoItemIndex: true },
+  });
+  const entregadas = new Set<number>();
+  if (trabajos.length === 0) return entregadas;
+  const recorridos = await tx.fotofficeJourney.findMany({
+    where: { workspaceId, subjectType: "PROYECTO", subjectId: { in: trabajos.map((t) => t.id) } },
+    select: { subjectId: true, stageId: true, circuitId: true, outcome: true },
+  });
+  const cacheEtapas = new Map<string, { id: string; name: string; color: string; order: number }[]>();
+  for (const t of trabajos) {
+    if (t.pedidoItemIndex === null) continue;
+    for (const j of recorridos.filter((r) => r.subjectId === t.id)) {
+      if (j.outcome === "TERMINADO") {
+        entregadas.add(t.pedidoItemIndex);
+      } else if (j.outcome === null && j.stageId !== null) {
+        let activas = cacheEtapas.get(j.circuitId);
+        if (!activas) {
+          activas = await tx.fotofficeStage.findMany({
+            where: { circuitId: j.circuitId, archivedAt: null },
+            select: { id: true, name: true, color: true, order: true },
+          });
+          cacheEtapas.set(j.circuitId, activas);
+        }
+        const actual = activas.find((e) => e.id === j.stageId);
+        if (actual && esEtapaDeEntrega(actual, activas)) entregadas.add(t.pedidoItemIndex);
+      }
+    }
+  }
+  return entregadas;
+}
+
 // --- Estados ----------------------------------------------------------------------------------
 
 /**
@@ -511,7 +594,10 @@ export async function cambiarEstadoPedido(
         where: { id: pedidoId, workspaceId, status: p.status },
         data: { status: a, ...(a === "CANCELADO" ? { cancelReason } : {}) },
       });
-      return r.count === 1 ? { ok: true } : { ok: false, error: MENSAJES_PEDIDO.cambio };
+      if (r.count !== 1) return { ok: false, error: MENSAJES_PEDIDO.cambio };
+      // Cancelar devuelve el stock apartado que no se entregó, en la misma transacción.
+      if (a === "CANCELADO") await devolverStockApartado(tx, { workspaceId, pedidoId, createdByUserId: ctx.userId });
+      return { ok: true };
     });
   } catch (e) {
     falla("cambiarEstadoPedido", e);

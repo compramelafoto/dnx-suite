@@ -105,7 +105,7 @@ async function exigirSaldoCobrado(tx: Tx, workspaceId: string, j: { subjectType:
  * y retirar; terminar el recorrido (`cerrar` con éxito) igual queda frenado por el candado.
  * El tablero sigue mostrando por color.
  */
-function esEtapaDeEntrega(
+export function esEtapaDeEntrega(
   etapa: { name: string; color: string; order: number },
   activas: readonly { order: number }[],
 ): boolean {
