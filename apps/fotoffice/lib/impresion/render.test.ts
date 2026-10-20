@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { AJUSTES_NEUTROS } from "./ajustes";
 import { recetaInicial, type Receta } from "./receta";
-import { componerHoja, generarVistaPrevia, leerOriginal, renderizarPieza } from "./render";
+import { MENSAJE_HEIC, componerHoja, esHeicSinSoporte, generarVistaPrevia, leerOriginal, renderizarPieza } from "./render";
 import { disposicionCarnet } from "./plancha";
 import { tamanoVistaPrevia } from "./geometria";
 
@@ -115,5 +115,19 @@ describe("motor de impresión", () => {
     await expect(leerOriginal(Buffer.from("hola"))).rejects.toMatchObject({ definitivo: true });
     const enorme = await sharp({ create: { width: 8000, height: 8000, channels: 3, background: "#000" } }).jpeg().toBuffer();
     await expect(leerOriginal(enorme)).rejects.toMatchObject({ definitivo: true });
+  });
+
+  it("HEIC del iPhone (HEVC): avisa que hay que pasarla a JPG; AVIF sí se acepta", () => {
+    expect(esHeicSinSoporte({ format: "heif", compression: "hevc" })).toBe(true);
+    expect(esHeicSinSoporte({ format: "heif", compression: "av1" })).toBe(false);
+    expect(esHeicSinSoporte({ format: "jpeg" })).toBe(false);
+  });
+
+  it("un archivo HEIC que sharp no puede abrir da el mensaje de HEIC, no el genérico", async () => {
+    // Una caja `ftyp` de HEIC sin imagen adentro: como la que el motor no sabe decodificar.
+    const ftyp = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypheic"), Buffer.from([0, 0, 0, 0]), Buffer.from("mif1heic")]);
+    const heic = Buffer.concat([ftyp, Buffer.alloc(64)]);
+    await expect(leerOriginal(heic)).rejects.toMatchObject({ message: MENSAJE_HEIC, definitivo: true });
+    expect(MENSAJE_HEIC).toBe("Las fotos HEIC del iPhone no se pueden abrir acá: exportala como JPG (en WhatsApp sale así).");
   });
 });

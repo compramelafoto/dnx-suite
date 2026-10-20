@@ -28,6 +28,23 @@ export class ImagenNoProcesable extends Error {
 
 const esLimite = (e: unknown) => e instanceof Error && /pixel limit/i.test(e.message);
 
+export const MENSAJE_HEIC = "Las fotos HEIC del iPhone no se pueden abrir acá: exportala como JPG (en WhatsApp sale así).";
+const MARCAS_HEIC = new Set(["heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs"]);
+
+/** HEIC con imagen HEVC: el `sharp` que viene armado sólo decodifica AVIF dentro de HEIF. */
+export function esHeicSinSoporte(meta: { format?: string; compression?: string }): boolean {
+  return meta.format === "heif" && meta.compression !== "av1";
+}
+
+/** Si el archivo es un HEIC por su caja `ftyp` (para dar el mensaje claro aunque `sharp` ni lo abra). */
+function pareceHeic(buf: Buffer): boolean {
+  if (buf.length < 16 || buf.toString("latin1", 4, 8) !== "ftyp") return false;
+  const largo = Math.min(buf.readUInt32BE(0), buf.length, 256);
+  const marcas: string[] = [];
+  for (let i = 8; i + 4 <= largo; i += 4) if (i !== 12) marcas.push(buf.toString("latin1", i, i + 4));
+  return marcas.some((m) => MARCAS_HEIC.has(m)) && !marcas.includes("avif");
+}
+
 function abrir(buf: Buffer) {
   return sharp(buf, { limitInputPixels: MAX_PIXELES_ORIGINAL, failOn: "error" });
 }
@@ -38,8 +55,10 @@ export async function leerOriginal(buf: Buffer): Promise<{ ancho: number; alto: 
     meta = await abrir(buf).metadata();
   } catch (e) {
     if (esLimite(e)) throw new ImagenNoProcesable("La foto es demasiado grande (más de 60 megapíxeles).", true);
+    if (pareceHeic(buf)) throw new ImagenNoProcesable(MENSAJE_HEIC, true);
     throw new ImagenNoProcesable("El archivo no es una imagen que se pueda abrir. Probá con un JPG.", true);
   }
+  if (esHeicSinSoporte(meta)) throw new ImagenNoProcesable(MENSAJE_HEIC, true);
   if (!meta.format || !FORMATOS.has(meta.format)) throw new ImagenNoProcesable("La foto tiene que ser JPG, PNG o WebP. Convertí la foto a JPG.", true);
   if (!meta.width || !meta.height) throw new ImagenNoProcesable("No se pudo leer el tamaño de la foto.", true);
   if (meta.width * meta.height > MAX_PIXELES_ORIGINAL) throw new ImagenNoProcesable("La foto es demasiado grande (más de 60 megapíxeles).", true);
