@@ -23,7 +23,7 @@ export function PruebaCliente({ salidaId, tamanoId }: { salidaId: string; tamano
 
   return (
     <div className="no-imprimir mx-auto max-w-xl p-4 text-sm">
-      <button className="fo-btn" onClick={() => window.print()}>Imprimir de nuevo</button>
+      <button type="button" className="fo-btn fo-btn-primary" onClick={() => window.print()}>Imprimir de nuevo</button>
     </div>
   );
 }
