@@ -34,6 +34,9 @@ export default async function VentasPage() {
   // Egresos desde el mostrador: sólo para quien puede operar la caja (como Caja → Anotar).
   const puedeEgresos = cashEnabled && hasLevel(await getModuleLevel(user.id, workspace.id, CASH_MODULE_KEY), "MANAGE");
 
+  // Foto carnet desde el ticket: buscar y dar de alta clientes, igual que en Ventas → Foto carnet.
+  const nivelClientes = clientsEnabled ? await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY) : "NONE";
+
   // Trabajos con proceso (copias a laboratorio, fotolibros, rollos, digitalizaciones): los productos
   // con un flujo en "Proyecto que genera". Sólo si se pueden crear pedidos y proyectos; si no, el
   // Mostrador vende todo como hasta ahora.
@@ -73,6 +76,7 @@ export default async function VentasPage() {
         cashEnabled={cashEnabled}
         procesos={procesos}
         qrActivo={qr.activo}
+        permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={
           puedeEgresos
             ? {

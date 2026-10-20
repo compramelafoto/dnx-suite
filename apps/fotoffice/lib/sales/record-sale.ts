@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@repo/db";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { findOrCreateClient } from "@/lib/clients/find-or-create";
@@ -211,7 +212,7 @@ async function depositarEnCaja(
 export async function recordSale(
   tx: Tx,
   input: RecordSaleInput,
-): Promise<{ saleId: string; saleNumber: number; deposited: boolean }> {
+): Promise<{ saleId: string; saleNumber: number; deposited: boolean; itemIds: string[]; clientId: string | null }> {
   const totals = ticketTotals(input.lines, input.discountMinor);
 
   // Lo PRIMERO es bloquear las filas de stock del ticket, en el mismo orden que la tienda
@@ -297,8 +298,12 @@ export async function recordSale(
   // Los renglones van aparte: `createMany` no admite `items: { create: [...] }` anidado como
   // sí admitía el `create` que reemplaza. `saleId` ya es conocido porque la fila de `Sale`
   // existe.
+  // Los ids se generan acá porque `createMany` no los devuelve, y la impresión necesita atar
+  // cada preparación a su renglón (`itemIds[i]` es el renglón de `input.lines[i]`).
+  const itemIds = input.lines.map(() => randomUUID());
   await tx.saleItem.createMany({
-    data: input.lines.map((line) => ({
+    data: input.lines.map((line, i) => ({
+      id: itemIds[i],
       saleId,
       productId: line.productId,
       variantId: line.variantId,
@@ -329,5 +334,5 @@ export async function recordSale(
     await tx.sale.update({ where: { id: creada.id }, data: { cashMovementId } });
   }
 
-  return { saleId: creada.id, saleNumber: creada.saleNumber, deposited };
+  return { saleId: creada.id, saleNumber: creada.saleNumber, deposited, itemIds, clientId };
 }

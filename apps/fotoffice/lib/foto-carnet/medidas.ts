@@ -17,6 +17,12 @@ export function cmAPx(cm: number, dpi: number): number {
   return Math.round((cm / CM_POR_PULGADA) * dpi);
 }
 
+/**
+ * Guías de rostro sobre el encuadre (no se imprimen), en proporción del alto de la foto: la
+ * coronilla y el mentón. La cabeza ocupa el 75 %, dentro del 70–80 % que piden los trámites.
+ */
+export const GUIAS_ROSTRO = { coronilla: 0.1, menton: 0.85 } as const;
+
 export type MedidaCarnet = { etiqueta: string; anchoCm: number; altoCm: number };
 
 /** Las medidas más pedidas en el mostrador (DNI, pasaporte, visas, legajos). */

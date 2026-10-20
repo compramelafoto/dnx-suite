@@ -14,7 +14,8 @@ import { lockStockRows } from "./stock-lock";
  * de quien llama (nunca abre la suya propia, mismo criterio que `recordSale`) —
  *
  *   1. marca la `Sale` como ANULADA, con motivo, fecha y quién;
- *   2. devuelve el stock de los renglones que lo controlan, con `reason: "DEVOLUCION"`;
+ *   2. devuelve el stock de los renglones que lo controlan, con `reason: "DEVOLUCION"`
+ *      (y suelta la foto carnet preparada para sus renglones);
  *   3. escribe el contramovimiento en Caja que arma `buildReversal` —nunca a mano—, para que
  *      esta anulación se comporte exactamente igual que la de un movimiento manual.
  *
@@ -98,7 +99,20 @@ export async function voidSale(tx: Tx, input: VoidSaleInput): Promise<VoidSaleRe
     },
   });
 
+  await liberarPreparaciones(tx, input.workspaceId, venta.id);
+
   return { ok: true, saleNumber: venta.saleNumber };
+}
+
+/**
+ * La foto carnet preparada para esta venta vuelve a "Preparado sin cobrar" (Ventas → Impresiones):
+ * se suelta del renglón y conserva su estado, para cobrarla en otra venta o anularla.
+ */
+async function liberarPreparaciones(tx: Tx, workspaceId: string, saleId: string): Promise<void> {
+  const renglones = await tx.saleItem.findMany({ where: { saleId }, select: { id: true } });
+  const ids = renglones.map((r) => r.id).filter((id): id is string => typeof id === "string");
+  if (ids.length === 0) return;
+  await tx.fotofficePreparacionImpresion.updateMany({ where: { workspaceId, saleItemId: { in: ids } }, data: { saleItemId: null } });
 }
 
 /**

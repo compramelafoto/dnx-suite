@@ -10,6 +10,7 @@ import {
   ChevronDown,
   CreditCard,
   Ellipsis,
+  IdCard,
   Minus,
   Package,
   Plus,
@@ -42,6 +43,8 @@ import { CobroQr } from "./cobro-qr";
 import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
+import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
+import { DialogoPreparar } from "./dialogo-preparar";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -126,6 +129,7 @@ export function Pos({
   datosTransferencia,
   procesos,
   qrActivo = false,
+  permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -142,6 +146,8 @@ export function Pos({
   procesos: Record<string, number | null>;
   /** El QR fijo de Mercado Pago está activado (Configuración → Cobros). */
   qrActivo?: boolean;
+  /** Qué puede hacer con Clientes dentro del editor de foto carnet (como en Ventas → Foto carnet). */
+  permisosCarnet?: { puedeBuscarClientes: boolean; puedeAltaCliente: boolean };
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -175,6 +181,18 @@ export function Pos({
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
   const [error, setError] = useState<string | null>(null);
+  // Impresión (foto carnet): qué productos se preparan, la preparación de cada renglón (por key,
+  // aparte de `rows` para que deshacer no la pierda) y el renglón que se está preparando.
+  const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string }>>({});
+  const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
+  const [preparando, setPreparando] = useState<{ key: string; preparacionId: string } | null>(null);
+  const [abriendoPreparacion, setAbriendoPreparacion] = useState<string | null>(null);
+  useEffect(() => {
+    // Si falla (p. ej. Impresión sin configurar), el Mostrador sigue igual, sin "Preparar".
+    produccionDeProductosAction()
+      .then(setProduccion)
+      .catch(() => undefined);
+  }, []);
   const [ultimaVenta, setUltimaVenta] = useState<{
     saleNumber: number | null;
     deposited: boolean;
@@ -513,8 +531,34 @@ export function Pos({
     setMostrarSuelto(false);
   }
 
+  /** Abre el editor de foto carnet para un renglón; la preparación se crea la primera vez. */
+  async function abrirPreparacion(r: TicketRow) {
+    // Mientras se cobra no se abre: el ticket está por reiniciarse.
+    if (!r.productId || abriendoPreparacion || procesando) return;
+    let id = preparaciones[r.key] ?? null;
+    if (!id) {
+      setAbriendoPreparacion(r.key);
+      try {
+        const c = await crearPreparacionAction({ productId: r.productId, clientId: cliente?.id ?? null });
+        if (!c.ok) return setError(c.error);
+        id = c.id;
+        const nuevo = id;
+        setPreparaciones((ps) => ({ ...ps, [r.key]: nuevo }));
+      } catch {
+        return setError("No se pudo abrir la foto carnet. Probá de nuevo.");
+      } finally {
+        setAbriendoPreparacion(null);
+      }
+    }
+    // Si el renglón se borró (o se cobró el ticket) mientras se creaba la preparación, no se abre.
+    if (!rowsRef.current.some((x) => x.key === r.key)) return;
+    setPreparando({ key: r.key, preparacionId: id });
+  }
+
   function reiniciarTicket() {
     setRows([]);
+    setPreparaciones({});
+    setPreparando(null);
     setDiscountText("");
     setNote("");
     setPaymentMethod("EFECTIVO");
@@ -567,6 +611,11 @@ export function Pos({
       setError("Elegí el cliente: hay trabajos que quedan como pedido para retirar.");
       return;
     }
+    // Etapa 1: el cobro con pedido no ata preparaciones; se cobran en un ticket aparte.
+    if (pedido.hay && rows.some((r) => preparaciones[r.key])) {
+      setError("Las fotos preparadas se cobran solas: sacá los trabajos de pedido a otro ticket.");
+      return;
+    }
     // Pagado con el QR del mostrador: la order viaja y el servidor la vuelve a leer en Mercado Pago.
     const qrDelTicket = qr ?? pagoQr;
     const mpOrderId =
@@ -596,6 +645,7 @@ export function Pos({
         description: r.description,
         qty: r.qty,
         unitPriceMinor: r.unitPriceMinor,
+        preparacionId: preparaciones[r.key] ?? null,
       })),
       discountMinor,
       paymentMethod,
@@ -1056,6 +1106,20 @@ export function Pos({
                           ) : null}
                           {r.description}
                         </p>
+                      {r.productId !== null && produccion[r.productId]?.tipoPieza === "CARNET" ? (
+                        <button
+                          type="button"
+                          className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
+                          disabled={abriendoPreparacion !== null || procesando}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void abrirPreparacion(r);
+                          }}
+                        >
+                          <IdCard className="size-3.5" aria-hidden />
+                          {abriendoPreparacion === r.key ? "Abriendo…" : preparaciones[r.key] ? "Editar fotos" : "Preparar"}
+                        </button>
+                      ) : null}
                       {editandoPrecio === r.key ? (
                         <InputMoneda
                           autoFocus
@@ -1461,6 +1525,25 @@ export function Pos({
           alt=""
           className="pointer-events-none fixed z-50 size-56 -translate-y-1/2 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] object-contain p-1 shadow-2xl"
           style={{ left: fotoGrande.x, top: Math.min(Math.max(fotoGrande.y, 124), window.innerHeight - 124) }}
+        />
+      ) : null}
+
+      {preparando ? (
+        <DialogoPreparar
+          preparacionId={preparando.preparacionId}
+          cliente={cliente}
+          produccion={(() => {
+            const pid = rows.find((x) => x.key === preparando.key)?.productId;
+            const p = pid ? produccion[pid] : undefined;
+            return { salida: p?.salida ?? "", hoja: p?.hoja ?? "" };
+          })()}
+          permisos={permisosCarnet}
+          onListo={({ hojas }) => {
+            // La cantidad del renglón son las hojas preparadas (se puede deshacer como cualquier cambio).
+            actualizarCantidad(preparando.key, hojas);
+            setPreparando(null);
+          }}
+          onCerrar={() => setPreparando(null)}
         />
       ) : null}
 
