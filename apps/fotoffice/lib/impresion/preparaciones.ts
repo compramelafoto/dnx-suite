@@ -14,6 +14,7 @@ import {
 } from "./almacen";
 import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva, tamanoVistaPrevia } from "./geometria";
 import { huellaDe } from "./huella";
+import { pendientes, type HojaAImprimir, type RegistroDeHoja } from "./impresion-multiple";
 import { FOTOS_MAX } from "./lote";
 import { pixelesDeHoja, type Nitidez } from "./medidas";
 import { disposicionCarnet } from "./plancha";
@@ -140,10 +141,25 @@ export function estadoSegunHojas(
   return v.hojas.every((h) => (impresas.get(h.id) ?? 0) >= h.copias) ? "IMPRESA" : "LISTA";
 }
 
+/**
+ * Cuántas salieron bien de cada hoja vigente. La hoja de carnet cuenta entera con un solo NORMAL,
+ * como en la etapa 1 ("¿Cómo salió?" de la hoja registra la hoja, sea cual sea el número).
+ */
+async function salidasBien(db: Db, workspaceId: string, hojas: HojaVigente[]): Promise<Map<string, number>> {
+  const n = await normalesPorHoja(db, workspaceId, hojas.map((h) => h.id));
+  for (const h of hojas) if (h.piezaId === null && (n.get(h.id) ?? 0) > 0) n.set(h.id, Math.max(n.get(h.id)!, h.copias));
+  return n;
+}
+
+/** El estado que corresponde hoy según las hojas vigentes y lo que ya salió. */
+async function estadoActual(db: Db, workspaceId: string, preparacionId: string) {
+  const v = await hojasVigentes(db, workspaceId, preparacionId);
+  return estadoSegunHojas(v, await salidasBien(db, workspaceId, v.hojas));
+}
+
 /** Copias: el estado de la preparación sale de sus hojas (una anulada no se toca). */
 export async function recalcularEstado(db: Db, workspaceId: string, preparacionId: string): Promise<void> {
-  const v = await hojasVigentes(db, workspaceId, preparacionId);
-  const estado = estadoSegunHojas(v, await normalesPorHoja(db, workspaceId, v.hojas.map((h) => h.id)));
+  const estado = await estadoActual(db, workspaceId, preparacionId);
   await db.fotofficePreparacionImpresion.updateMany({
     where: { id: preparacionId, workspaceId, estado: { not: "ANULADA" } },
     data: { estado },
@@ -548,41 +564,71 @@ export async function guardarHojaArmada(
   return { hojaId, reusada: false };
 }
 
+/** Lo que llega del navegador para un registro: null si está bien, o el error a mostrar. */
+function registroInvalido(it: unknown): { ok: false; error: string } | null {
+  if (!it || typeof it !== "object") return HOJA_NO_EXISTE;
+  const r = it as Partial<RegistroDeHoja>;
+  if (r.motivo !== "NORMAL" && r.motivo !== "DESCARTADA") return { ok: false, error: "Elegí cómo salió." };
+  if (!enteroEntre(r.hojas, 1, HOJAS_MAX)) return { ok: false, error: `Las hojas tienen que ser entre 1 y ${HOJAS_MAX}.` };
+  if (!esId(r.hojaId)) return HOJA_NO_EXISTE;
+  return null;
+}
+
+/** "¿Cómo salió?" de una sola hoja (la página de la etapa 1). */
 export async function registrarImpresion(ctx: CtxImpresion, hojaId: string, d: { motivo: "NORMAL" | "DESCARTADA"; hojas: number }): Promise<R> {
-  if (d.motivo !== "NORMAL" && d.motivo !== "DESCARTADA") return { ok: false, error: "Elegí cómo salió." };
-  if (!enteroEntre(d.hojas, 1, HOJAS_MAX)) return { ok: false, error: `Las hojas tienen que ser entre 1 y ${HOJAS_MAX}.` };
-  if (!esId(hojaId)) return HOJA_NO_EXISTE;
+  const item = { hojaId, motivo: d.motivo, hojas: d.hojas };
+  const invalido = registroInvalido(item);
+  if (invalido) return invalido;
   const hoja = await prisma.fotofficeHojaImpresion.findFirst({
     where: { id: hojaId, workspaceId: ctx.workspaceId },
-    select: { id: true, preparacionId: true, salidaId: true, tamanoId: true, finalKey: true },
+    select: { preparacionId: true, finalKey: true },
   });
   if (!hoja?.finalKey) return HOJA_NO_EXISTE;
-  const prep = await preparacionPropia(ctx.workspaceId, hoja.preparacionId);
+  return registrarImpresiones(ctx, hoja.preparacionId, [item]);
+}
+
+const REGISTROS_MAX = 200;
+
+/**
+ * Lo que salió de la impresora, de una o varias hojas de UNA preparación, en una transacción.
+ * La preparación queda IMPRESA cuando cada hoja vigente salió entera (copias: una por foto;
+ * carnet: la última armada, con un NORMAL alcanza). Reimprimir una hoja vieja no esconde una más
+ * nueva sin imprimir.
+ */
+export async function registrarImpresiones(ctx: CtxImpresion, preparacionId: string, items: RegistroDeHoja[]): Promise<R> {
+  if (!Array.isArray(items) || items.length === 0 || items.length > REGISTROS_MAX) return { ok: false, error: "No hay hojas para registrar." };
+  for (const it of items) {
+    const invalido = registroInvalido(it);
+    if (invalido) return invalido;
+  }
+  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
+  const ids = [...new Set(items.map((i) => i.hojaId))];
+  const hojas = await prisma.fotofficeHojaImpresion.findMany({
+    where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, id: { in: ids }, finalKey: { not: null } },
+    select: { id: true, salidaId: true, tamanoId: true },
+  });
+  if (hojas.length !== ids.length) return HOJA_NO_EXISTE;
   await prisma.$transaction(async (tx) => {
-    await tx.fotofficeRegistroImpresion.create({
-      data: {
-        workspaceId: ctx.workspaceId,
-        hojaId: hoja.id,
-        salidaId: hoja.salidaId,
-        tamanoId: hoja.tamanoId,
-        hojas: d.hojas,
-        productId: prep.productId,
-        saleItemId: prep.saleItemId,
-        proyectoId: prep.proyectoId,
-        motivo: d.motivo,
-        userId: ctx.userId,
-      },
-    });
-    if (d.motivo !== "NORMAL") return;
-    // Sólo la hoja vigente (la última) deja la preparación IMPRESA: reimprimir una vieja desde
-    // "Impreso hoy" no esconde una hoja más nueva que todavía no salió.
-    const ultima = await tx.fotofficeHojaImpresion.findFirst({
-      where: { workspaceId: ctx.workspaceId, preparacionId: prep.id, finalKey: { not: null } },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
-    if (ultima?.id !== hoja.id) return;
+    for (const it of items) {
+      const hoja = hojas.find((h) => h.id === it.hojaId)!;
+      await tx.fotofficeRegistroImpresion.create({
+        data: {
+          workspaceId: ctx.workspaceId,
+          hojaId: hoja.id,
+          salidaId: hoja.salidaId,
+          tamanoId: hoja.tamanoId,
+          hojas: it.hojas,
+          productId: prep.productId,
+          saleItemId: prep.saleItemId,
+          proyectoId: prep.proyectoId,
+          motivo: it.motivo,
+          userId: ctx.userId,
+        },
+      });
+    }
+    if (!items.some((i) => i.motivo === "NORMAL")) return;
+    if ((await estadoActual(tx, ctx.workspaceId, prep.id)) !== "IMPRESA") return;
     await tx.fotofficePreparacionImpresion.updateMany({
       where: { id: prep.id, workspaceId: ctx.workspaceId, estado: { not: "ANULADA" } },
       data: { estado: "IMPRESA" },
@@ -806,6 +852,50 @@ export async function datosParaImprimir(
     copias: hoja.copias,
     salida: salida.nombre,
     tamano: tamano.nombre,
+  };
+}
+
+export type DatosPreparacionParaImprimir = {
+  hojas: HojaAImprimir[];
+  /** Fotos sin hoja vigente: no entran en este documento (hay que armarlas). */
+  faltan: number;
+  papel: { anchoMm: number; altoMm: number; escalaXMil: number; escalaYMil: number; salida: string; tamano: string } | null;
+};
+
+/**
+ * Todas las hojas vigentes de una preparación, para imprimirlas en un solo documento.
+ * `soloPendientes`: sólo lo que todavía no salió entero (después de editar una foto ya impresa).
+ */
+export async function datosParaImprimirPreparacion(
+  workspaceId: string,
+  preparacionId: string,
+  soloPendientes: boolean,
+): Promise<DatosPreparacionParaImprimir | null> {
+  const prep = await preparacionPropia(workspaceId, preparacionId);
+  if (!prep || prep.estado === "ANULADA") return null;
+  const v = await hojasVigentes(prisma, workspaceId, prep.id);
+  const primera = v.hojas[0];
+  if (!primera) return { hojas: [], faltan: v.faltan, papel: null };
+  // Todas las páginas van en el mismo papel. Si el producto cambió de hoja a mitad de camino, las otras se vuelven a armar.
+  const mismas = v.hojas.filter((h) => h.salidaId === primera.salidaId && h.tamanoId === primera.tamanoId);
+  const [salida, tamano] = await Promise.all([
+    prisma.fotofficeSalidaImpresion.findFirst({ where: { id: primera.salidaId, workspaceId }, select: { nombre: true, escalaXMil: true, escalaYMil: true } }),
+    prisma.fotofficeTamanoImpresion.findFirst({ where: { id: primera.tamanoId, workspaceId }, select: { nombre: true, anchoMm: true, altoMm: true } }),
+  ]);
+  if (!salida || !tamano) return null;
+  let hojas: HojaAImprimir[] = mismas.map((h) => ({ hojaId: h.id, version: h.version, copias: h.copias }));
+  if (soloPendientes) hojas = pendientes(hojas, await salidasBien(prisma, workspaceId, mismas));
+  return {
+    hojas,
+    faltan: v.faltan + v.hojas.length - mismas.length,
+    papel: {
+      anchoMm: Number(tamano.anchoMm),
+      altoMm: Number(tamano.altoMm),
+      escalaXMil: salida.escalaXMil,
+      escalaYMil: salida.escalaYMil,
+      salida: salida.nombre,
+      tamano: tamano.nombre,
+    },
   };
 }
 

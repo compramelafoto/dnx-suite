@@ -224,6 +224,34 @@ describe("preparaciones de impresión", () => {
     expect(await P.datosParaImprimir("ws-2", h.hojaId)).toBeNull();
   });
 
+  it("carnet: un NORMAL en la hoja vigente la deja IMPRESA, como en la etapa 1 (con hojas = copias y también con menos)", async () => {
+    const estado = (prep: string) => B.datos.fotofficePreparacionImpresion.find((p) => p.id === prep)!.estado;
+    for (const hojas of [2, 1]) {
+      const { prep, original } = await conOriginal();
+      await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+      const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 2, conLineas: true });
+      if (!h.ok) throw new Error(h.error);
+      expect(estado(prep)).toBe("LISTA");
+      expect(await P.registrarImpresion(CTX, h.hojaId, { motivo: "NORMAL", hojas })).toEqual({ ok: true });
+      expect(estado(prep)).toBe("IMPRESA");
+      // Para imprimir toda la preparación, ya no queda nada pendiente.
+      expect((await P.datosParaImprimirPreparacion("ws-1", prep, true))!.hojas).toEqual([]);
+    }
+  });
+
+  it("registrar una hoja: los mismos errores que en la etapa 1", async () => {
+    const { prep, original } = await conOriginal();
+    await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() });
+    const h = await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true });
+    if (!h.ok) throw new Error(h.error);
+    expect(await P.registrarImpresion(CTX, "no existe", { motivo: "PRUEBA" as "NORMAL", hojas: 1 })).toEqual({ ok: false, error: "Elegí cómo salió." });
+    expect(await P.registrarImpresion(CTX, "no existe", { motivo: "NORMAL", hojas: 101 })).toEqual({ ok: false, error: "Las hojas tienen que ser entre 1 y 100." });
+    expect(await P.registrarImpresion(CTX, "noexiste", { motivo: "NORMAL", hojas: 1 })).toEqual({ ok: false, error: "Esa hoja no existe." });
+    await P.anularPreparacion(CTX, prep);
+    expect(await P.registrarImpresion(CTX, h.hojaId, { motivo: "NORMAL", hojas: 1 })).toEqual({ ok: false, error: "Esa preparación no existe." });
+    expect(B.datos.fotofficeRegistroImpresion).toHaveLength(0);
+  });
+
   it("el día de Impreso hoy empieza a las 00:00 de Argentina", () => {
     // 02:30 UTC del 21 = 23:30 del 20 en Argentina.
     expect(P.inicioDelDiaArgentina(new Date("2026-10-21T02:30:00Z")).toISOString()).toBe("2026-10-20T03:00:00.000Z");

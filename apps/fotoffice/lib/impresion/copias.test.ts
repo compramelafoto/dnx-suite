@@ -25,6 +25,7 @@ vi.mock("@/lib/ficha/adjuntos-r2", () => ({ clienteR2Privado: () => ({}), bucket
 const C = await import("./configuracion");
 const P = await import("./preparaciones");
 const K = await import("./copias");
+const M = await import("./impresion-multiple");
 const { cambiarModo, propuestaAutomatica } = await import("./encuadre");
 const { recetaInicial } = await import("./receta");
 
@@ -373,5 +374,85 @@ describe("copias: la hoja de cada foto", () => {
     const otra = await prepConFotos([[600, 400]]);
     expect((await K.generarHojaCopia(CTX, otra.prep, ids[0]!)).ok).toBe(false);
     expect(B.datos.fotofficeHojaImpresion).toHaveLength(0);
+  });
+});
+
+describe("copias: imprimir todo y registrar", () => {
+  async function armadas(medidas: [number, number][], cantidades: number[]) {
+    const r = await prepConFotos(medidas);
+    await guardarPropuestas(r.prep, r.ids, medidas, cantidades);
+    for (const id of r.ids) {
+      const h = await K.generarHojaCopia(CTX, r.prep, id);
+      if (!h.ok) throw new Error(h.error);
+    }
+    return r;
+  }
+
+  it("imprimir todo: cada foto su hoja con sus copias; avisa las que faltan armar", async () => {
+    const medidas: [number, number][] = [[600, 400], [400, 600], [500, 500]];
+    const { prep, ids } = await prepConFotos(medidas);
+    await guardarPropuestas(prep, ids, medidas, [2, 1, 3]);
+    await K.generarHojaCopia(CTX, prep, ids[0]!);
+    await K.generarHojaCopia(CTX, prep, ids[1]!);
+    let d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
+    expect(d.faltan).toBe(1);
+    expect(d.hojas.map((h) => h.copias)).toEqual([2, 1]);
+    expect(d.papel).toEqual({ anchoMm: 102, altoMm: 152, escalaXMil: 1000, escalaYMil: 1000, salida: "Kodak 305", tamano: "10x15" });
+    await K.generarHojaCopia(CTX, prep, ids[2]!);
+    d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
+    expect(d.faltan).toBe(0);
+    expect(M.paginas(d.hojas)).toHaveLength(6);
+    expect(await P.datosParaImprimirPreparacion("ws-2", prep, false)).toBeNull();
+  });
+
+  it("registrar varias: con una copia mal queda LISTA y sólo esa falta; al reimprimirla, IMPRESA", async () => {
+    const { prep } = await armadas([[600, 400], [400, 600]], [2, 1]);
+    const d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
+    const primera = d.hojas[0]!.hojaId;
+    const x = M.registrosDeRespuesta(d.hojas, { [primera]: 1 });
+    expect(await P.registrarImpresiones(CTX, prep, x.registros)).toEqual({ ok: true });
+    expect(estadoDe(prep)).toBe("LISTA");
+    expect((await P.datosParaImprimirPreparacion("ws-1", prep, true))!.hojas).toEqual([{ hojaId: primera, version: d.hojas[0]!.version, copias: 1 }]);
+    expect(await P.registrarImpresiones(CTX, prep, [{ hojaId: primera, motivo: "NORMAL", hojas: 1 }])).toEqual({ ok: true });
+    expect(estadoDe(prep)).toBe("IMPRESA");
+    expect((await P.datosParaImprimirPreparacion("ws-1", prep, true))!.hojas).toEqual([]);
+    expect(B.datos.fotofficeRegistroImpresion.map((r) => r.motivo).sort()).toEqual(["DESCARTADA", "NORMAL", "NORMAL", "NORMAL"]);
+    expect(B.datos.fotofficeRegistroImpresion.every((r) => r.productId === "copia10")).toBe(true);
+  });
+
+  it("editar una foto después de imprimir: arma otra hoja, no pisa la impresa y sólo esa queda pendiente", async () => {
+    const medidas: [number, number][] = [[600, 400], [400, 600]];
+    const { prep, ids } = await armadas(medidas, [1, 1]);
+    const d = (await P.datosParaImprimirPreparacion("ws-1", prep, false))!;
+    await P.registrarImpresiones(CTX, prep, M.registrosDeRespuesta(d.hojas, {}).registros);
+    expect(estadoDe(prep)).toBe("IMPRESA");
+    const impresa = B.datos.fotofficeHojaImpresion.find((h) => h.id === d.hojas[0]!.hojaId)!;
+    const claveImpresa = impresa.finalKey as string;
+
+    const encajada = cambiarModo(propuestaAutomatica(600, 400, P10), "ENCAJAR", { foto: { ancho: 600, alto: 400 }, papel: P10 });
+    await K.guardarPiezasCopia(CTX, prep, [{ originalId: ids[0]!, cantidad: 1, receta: encajada, revisada: true }]);
+    expect(estadoDe(prep)).toBe("PREPARANDO");
+    const nueva = await K.generarHojaCopia(CTX, prep, ids[0]!);
+    if (!nueva.ok) throw new Error(nueva.error);
+
+    expect(nueva.hojaId).not.toBe(impresa.id);
+    expect(B.datos.fotofficeHojaImpresion.find((h) => h.id === impresa.id)).toMatchObject({ finalKey: claveImpresa });
+    expect(R2.has(claveImpresa)).toBe(true);
+    expect(estadoDe(prep)).toBe("LISTA");
+    expect((await P.datosParaImprimirPreparacion("ws-1", prep, true))!.hojas.map((h) => h.hojaId)).toEqual([nueva.hojaId]);
+    expect(B.datos.fotofficeRegistroImpresion).toHaveLength(2);
+  });
+
+  it("no registra hojas de otra preparación ni de otro negocio, ni respuestas raras", async () => {
+    const a = await armadas([[600, 400]], [1]);
+    const b = await armadas([[600, 400]], [1]);
+    const hojaA = (await P.datosParaImprimirPreparacion("ws-1", a.prep, false))!.hojas[0]!.hojaId;
+    expect((await P.registrarImpresiones(OTRO, a.prep, [{ hojaId: hojaA, motivo: "NORMAL", hojas: 1 }])).ok).toBe(false);
+    expect((await P.registrarImpresiones(CTX, b.prep, [{ hojaId: hojaA, motivo: "NORMAL", hojas: 1 }])).ok).toBe(false);
+    expect((await P.registrarImpresiones(CTX, a.prep, [{ hojaId: hojaA, motivo: "PRUEBA" as "NORMAL", hojas: 1 }])).ok).toBe(false);
+    expect((await P.registrarImpresiones(CTX, a.prep, [{ hojaId: hojaA, motivo: "NORMAL", hojas: 0 }])).ok).toBe(false);
+    expect((await P.registrarImpresiones(CTX, a.prep, [])).ok).toBe(false);
+    expect((await P.registrarImpresiones(CTX, a.prep, [null as never])).ok).toBe(false);
+    expect(B.datos.fotofficeRegistroImpresion).toHaveLength(0);
   });
 });
