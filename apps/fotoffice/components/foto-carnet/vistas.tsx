@@ -8,7 +8,7 @@ import type { PixelesRecorte } from "./recorte";
 const ANCHO_VISTA_PX = 480;
 
 /** La vista previa del servidor, ya cargada, para dibujarla una y otra vez sin volver a pedirla. */
-function useImagen(src: string): HTMLImageElement | null {
+export function useImagen(src: string): HTMLImageElement | null {
   const [cargada, setCargada] = useState<{ src: string; img: HTMLImageElement } | null>(null);
   useEffect(() => {
     let activo = true;
