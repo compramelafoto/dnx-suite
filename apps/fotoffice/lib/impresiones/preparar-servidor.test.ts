@@ -51,7 +51,7 @@ const H = vi.hoisted(() => {
       ]),
     },
     fotofficeProyecto: {
-      findMany: vi.fn(async (..._a: unknown[]) => [] as { id: string; proveedorEnviadoAt: Date | null }[]),
+      findMany: vi.fn(async (..._a: unknown[]) => [] as { id: string; number?: string; proveedorId?: string | null; proveedorEnviadoAt: Date | null }[]),
       update: vi.fn(async (..._a: unknown[]) => ({})),
     },
     fotofficeArchivoTrabajo: {
@@ -60,7 +60,8 @@ const H = vi.hoisted(() => {
       deleteMany: vi.fn(async (..._a: unknown[]) => ({ count: 0 })),
     },
     fotofficePrintSize: { findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]) },
-    fotofficePrintOrderItem: { update: vi.fn(async (..._a: unknown[]) => ({})) },
+    fotofficePrintOrderItem: { update: vi.fn(async (..._a: unknown[]) => ({})), updateMany: vi.fn(async (..._a: unknown[]) => ({ count: 1 })) },
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
   };
   return {
     estado,
@@ -300,34 +301,131 @@ describe("prepararPedido", () => {
     expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "estudio@dnx.test", subject: "El pedido de impresión 8 no se pudo mandar al laboratorio" }));
   });
 
-  it("una copia sin laboratorio usa el laboratorio actual de su tamaño (así «Reintentar envío» anda tras arreglar la configuración)", async () => {
-    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, sizeId: "s13" })] };
-    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "f", proveedor: { active: true } }]);
+  it("un trabajo sin laboratorio cuyas copias resuelven a un mismo laboratorio se corrige (copias y trabajo) y sale", async () => {
+    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, proyectoId: "p-null", sizeId: "s13", quantity: 2 })] };
+    H.db.fotofficeProyecto.findMany.mockResolvedValue([{ id: "p-null", number: "T-12", proveedorId: null, proveedorEnviadoAt: null }]);
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "f", costArs: "250", proveedor: { id: "f", name: "Fotolag", email: "pedidos@fotolag.test", active: true } }]);
     const d = deps();
     expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
-    expect(H.db.fotofficePrintSize.findMany.mock.calls[0][0]).toMatchObject({ where: { workspaceId: "ws", id: { in: ["s13"] } } });
-    expect(H.db.fotofficePrintOrderItem.update).toHaveBeenCalledWith({ where: { id: "i1" }, data: { proveedorId: "f" } });
+    expect(H.db.$transaction).toHaveBeenCalledTimes(1);
+    expect(H.db.fotofficePrintOrderItem.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["i1"] } }, data: { proveedorId: "f" } });
+    expect(H.db.fotofficeProyecto.update).toHaveBeenCalledWith({ where: { id: "p-null" }, data: { proveedorId: "f", proveedorCostoArs: "500.00" } });
     expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "pedidos@fotolag.test" }));
   });
 
-  it("si el laboratorio de la copia ya no está activo, también usa el actual de su tamaño", async () => {
-    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: "viejo", sizeId: "s13" })] };
-    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "isla", proveedor: { active: true } }]);
+  it("un trabajo con laboratorio inactivo usa el laboratorio actual de sus tamaños", async () => {
+    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: "viejo", proyectoId: "p-v", sizeId: "s13" })] };
+    H.db.fotofficeProyecto.findMany.mockResolvedValue([{ id: "p-v", number: "T-3", proveedorId: "viejo", proveedorEnviadoAt: null }]);
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "isla", costArs: null, proveedor: { id: "isla", name: "La Isla", email: "isla@lab.test", active: true } }]);
     const d = deps();
     expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
-    const activos = H.db.fotofficeProveedor.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
-    expect(activos.where).toEqual({ workspaceId: "ws", active: true, id: { in: ["viejo"] } });
-    expect(H.db.fotofficePrintOrderItem.update).toHaveBeenCalledWith({ where: { id: "i1" }, data: { proveedorId: "isla" } });
+    expect(H.db.fotofficePrintOrderItem.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["i1"] } }, data: { proveedorId: "isla" } });
     expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "isla@lab.test" }));
   });
 
-  it("si el tamaño tampoco tiene laboratorio, falla como antes", async () => {
-    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, sizeId: "s13" })] };
-    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: null, proveedor: null }]);
+  it("si el tamaño tampoco tiene laboratorio, el trabajo no sale y queda el motivo", async () => {
+    H.estado.pedidos.ord1 = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, proyectoId: "p-null", sizeId: "s13" })] };
+    H.db.fotofficeProyecto.findMany.mockResolvedValue([{ id: "p-null", number: "T-12", proveedorId: null, proveedorEnviadoAt: null }]);
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: null, costArs: null, proveedor: null }]);
     const d = deps();
     expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
-    expect(actualizaciones().at(-1)!.data.lastError).toBe("Hay copias sin laboratorio asignado.");
-    expect(H.db.fotofficePrintOrderItem.update).not.toHaveBeenCalled();
+    expect(actualizaciones().at(-1)!.data.lastError).toBe(
+      "Las copias del trabajo T-12 quedaron con laboratorios distintos. Revisá los tamaños en Configuración → Impresiones y tocá «Reintentar envío».",
+    );
+    expect(H.db.$transaction).not.toHaveBeenCalled();
+    expect(d.subir).not.toHaveBeenCalled();
+  });
+
+  it("(a) reintento: el trabajo de Fotolag ya salió y el trabajo sin laboratorio, ya arreglado, manda SÓLO sus copias", async () => {
+    H.estado.pedidos.ord1 = {
+      ...pedidoBase(),
+      items: [
+        item({ id: "i1", sourceName: "ya.jpg", proveedorId: "f", proyectoId: "p-f", sizeId: "s10" }),
+        item({ id: "i2", sourceName: "nueva1.jpg", proveedorId: null, proyectoId: "p-null", sizeId: "s13" }),
+        item({ id: "i3", sourceName: "nueva2.jpg", proveedorId: null, proyectoId: "p-null", sizeId: "s13" }),
+      ],
+    };
+    H.db.fotofficeProyecto.findMany.mockResolvedValue([
+      { id: "p-f", number: "T-1", proveedorId: "f", proveedorEnviadoAt: new Date("2026-10-20T17:00:00Z") },
+      { id: "p-null", number: "T-2", proveedorId: null, proveedorEnviadoAt: null },
+    ]);
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "f", costArs: "100", proveedor: { id: "f", name: "Fotolag", email: "pedidos@fotolag.test", active: true } }]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(d.enviar).toHaveBeenCalledTimes(1);
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "pedidos@fotolag.test" }));
+    expect(zips).toHaveLength(1);
+    expect(zips[0].clave).toMatch(/^trabajos\/ws\/p-null\//);
+    const zip = zips[0].buf.toString("utf8");
+    expect(zip).toContain("nueva1.jpg");
+    expect(zip).toContain("nueva2.jpg");
+    expect(zip).not.toContain("ya.jpg");
+    expect(H.db.fotofficeProyecto.update).toHaveBeenCalledWith({ where: { id: "p-null" }, data: { proveedorEnviadoAt: AHORA } });
+    expect(H.db.fotofficeProyecto.update).not.toHaveBeenCalledWith({ where: { id: "p-f" }, data: { proveedorEnviadoAt: AHORA } });
+    expect(actualizaciones().at(-1)!.data).toMatchObject({ status: "ENVIADO" });
+  });
+
+  it("(b) dos trabajos del mismo pedido que van a Fotolag: dos correos, cada ZIP con sólo sus copias y los dos marcados", async () => {
+    H.estado.pedidos.ord1 = {
+      ...pedidoBase(),
+      items: [
+        item({ id: "i1", sourceName: "uno.jpg", proveedorId: "f", proyectoId: "p-a" }),
+        item({ id: "i2", sourceName: "dos.jpg", proveedorId: "f", proyectoId: "p-b" }),
+      ],
+    };
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(d.enviar).toHaveBeenCalledTimes(2);
+    for (const c of d.enviar.mock.calls) expect((c[0] as { to: string }).to).toBe("pedidos@fotolag.test");
+    expect(zips).toHaveLength(2);
+    const porTrabajo = Object.fromEntries(zips.map((z) => [z.clave.split("/")[2], z.buf.toString("utf8")]));
+    expect(porTrabajo["p-a"]).toContain("uno.jpg");
+    expect(porTrabajo["p-a"]).not.toContain("dos.jpg");
+    expect(porTrabajo["p-b"]).toContain("dos.jpg");
+    expect(porTrabajo["p-b"]).not.toContain("uno.jpg");
+    expect(H.db.fotofficeProyecto.update).toHaveBeenCalledWith({ where: { id: "p-a" }, data: { proveedorEnviadoAt: AHORA } });
+    expect(H.db.fotofficeProyecto.update).toHaveBeenCalledWith({ where: { id: "p-b" }, data: { proveedorEnviadoAt: AHORA } });
+  });
+
+  it("(c) un trabajo sin laboratorio cuyas copias resuelven a dos laboratorios no sale; los demás trabajos sí", async () => {
+    H.estado.pedidos.ord1 = {
+      ...pedidoBase(),
+      items: [
+        item({ id: "i1", sourceName: "ok.jpg", proveedorId: "isla", proyectoId: "p-isla" }),
+        item({ id: "i2", sourceName: "x.jpg", proveedorId: null, proyectoId: "p-null", sizeId: "s13" }),
+        item({ id: "i3", sourceName: "y.jpg", proveedorId: null, proyectoId: "p-null", sizeId: "s50" }),
+      ],
+    };
+    H.db.fotofficeProyecto.findMany.mockResolvedValue([
+      { id: "p-isla", number: "T-1", proveedorId: "isla", proveedorEnviadoAt: null },
+      { id: "p-null", number: "T-2", proveedorId: null, proveedorEnviadoAt: null },
+    ]);
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([
+      { id: "s13", proveedorId: "f", costArs: "100", proveedor: { id: "f", name: "Fotolag", email: "pedidos@fotolag.test", active: true } },
+      { id: "s50", proveedorId: "isla", costArs: "900", proveedor: { id: "isla", name: "La Isla", email: "isla@lab.test", active: true } },
+    ]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    expect(zips).toHaveLength(1);
+    expect(zips[0].clave).toMatch(/^trabajos\/ws\/p-isla\//);
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "isla@lab.test", subject: "Pedido 8 – PARA MAÑANA – Juan" }));
+    expect(H.db.fotofficeProyecto.update).toHaveBeenCalledWith({ where: { id: "p-isla" }, data: { proveedorEnviadoAt: AHORA } });
+    expect(H.db.fotofficeProyecto.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p-null" } }));
+    expect(H.db.fotofficePrintOrderItem.updateMany).not.toHaveBeenCalled();
+    expect(actualizaciones().at(-1)!.data).toMatchObject({
+      status: "PAGADO_SIN_ENVIAR",
+      lastError: "Las copias del trabajo T-2 quedaron con laboratorios distintos. Revisá los tamaños en Configuración → Impresiones y tocá «Reintentar envío».",
+    });
+  });
+
+  it("copias todavía sin trabajo y sin laboratorio toman el del tamaño antes de crear los trabajos", async () => {
+    const sinTrabajo = { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: null, proyectoId: null, sizeId: "s13" })] };
+    H.estado.lecturas.ord1 = [sinTrabajo, { ...pedidoBase(), items: [item({ id: "i1", sourceName: "b.jpg", proveedorId: "f", proyectoId: "p-f", sizeId: "s13" })] }];
+    H.db.fotofficePrintSize.findMany.mockResolvedValue([{ id: "s13", proveedorId: "f", costArs: "100", proveedor: { id: "f", name: "Fotolag", email: "pedidos@fotolag.test", active: true } }]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(H.db.fotofficePrintOrderItem.update).toHaveBeenCalledWith({ where: { id: "i1" }, data: { proveedorId: "f" } });
+    expect(H.db.fotofficePrintOrderItem.update.mock.invocationCallOrder[0]).toBeLessThan(H.asegurar.mock.invocationCallOrder[0]);
   });
 
   it("antes de subir el ZIP de un reintento borra el ZIP anterior del mismo nombre en ese trabajo", async () => {

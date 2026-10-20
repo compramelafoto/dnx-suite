@@ -17,7 +17,7 @@ import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { acreditarPagoImpresion, asegurarTrabajosDelPedido } from "./acreditar-servidor";
 import { leerOriginal } from "./fuentes-servidor";
-import { agruparPorLaboratorio, resumenParaLab, rutasDelZip } from "./carpeta-lab";
+import { resumenParaLab, rutasDelZip } from "./carpeta-lab";
 import { correoPedidoLab, esc } from "./correo-lab";
 import { pedidoDeReferencia, referenciaPedido } from "./pago-servidor";
 import { recorteEnPixeles } from "./recorte";
@@ -29,7 +29,7 @@ import type { Papel } from "./constantes";
  *      15 minutos, sumando un intento), así dos corridas nunca preparan el mismo. Al tercer intento trabado (un
  *      pedido enorme o una foto que tumba la función) no se insiste: queda PAGADO_SIN_ENVIAR y se avisa;
  *   2. si quedó sin trabajos (no había circuito al acreditar) los crea ahora;
- *   3. por laboratorio: recorta cada copia con sharp, arma UN ZIP ordenado (pedido / tamaño y papel / cantidad)
+ *   3. por trabajo (uno por laboratorio; la unidad de envío): recorta cada copia con sharp, arma UN ZIP ordenado (pedido / tamaño y papel / cantidad)
  *      que queda como archivo en la carpeta del trabajo, emite el enlace del laboratorio y le manda el correo
  *      "PARA MAÑANA" (en modo prueba, al estudio);
  *   4. marca el trabajo como enviado y lo pasa a "En el proveedor"; el pedido queda ENVIADO.
@@ -56,7 +56,7 @@ export const PEDIDO_TRABADO =
 type Item = {
   id: string; sourceKey: string; sourceName: string; widthCm: unknown; heightCm: unknown; quantity: number;
   cropX: number; cropY: number; cropW: number; cropH: number; proveedorId: string | null; proyectoId: string | null;
-  sizeId?: string | null;
+  sizeId?: string | null; unitCostArs?: unknown;
 };
 
 export async function recortarParaImprimir(original: Buffer, item: Pick<Item, "cropX" | "cropY" | "cropW" | "cropH">): Promise<Buffer> {
@@ -97,30 +97,111 @@ async function tomar(pedidoId: string, ahora: Date): Promise<"TOMADO" | "TRABADO
   return cortado.count === 1 ? "TRABADO" : "OCUPADO";
 }
 
+const labsDistintos = (numero: string) =>
+  `Las copias del trabajo ${numero} quedaron con laboratorios distintos. Revisá los tamaños en Configuración → Impresiones y tocá «Reintentar envío».`;
+
+type Proveedor = { id: string; name: string; email: string | null };
+type TamanoActual = { id: string; proveedorId: string | null; costArs: unknown; proveedor: (Proveedor & { active: boolean }) | null };
+
+async function tamanosActuales(workspaceId: string, items: Item[]): Promise<Map<string, TamanoActual>> {
+  const sizeIds = [...new Set(items.map((i) => i.sizeId).filter((x): x is string => !!x))];
+  if (sizeIds.length === 0) return new Map();
+  const filas = (await prisma.fotofficePrintSize.findMany({
+    where: { workspaceId, id: { in: sizeIds } },
+    select: { id: true, proveedorId: true, costArs: true, proveedor: { select: { id: true, name: true, email: true, active: true } } },
+  })) as TamanoActual[];
+  return new Map(filas.map((t) => [t.id, t]));
+}
+
+/** El laboratorio activo actual del tamaño de la copia, si lo tiene. */
+const labDelTamano = (tamanos: Map<string, TamanoActual>, i: Item) => {
+  const t = i.sizeId ? tamanos.get(i.sizeId) : undefined;
+  return t?.proveedorId && t.proveedor?.active ? t.proveedor : undefined;
+};
+
 /**
- * Copias sin laboratorio (o con uno que ya no está activo): usan el laboratorio actual de su tamaño, si lo
- * tiene, y se anota en la copia. Así «Reintentar envío» funciona después de que el estudio arregla la
- * configuración. Las que siguen sin laboratorio fallan más adelante con su motivo.
+ * Copias que todavía no tienen trabajo, sin laboratorio (o con uno inactivo): toman el laboratorio actual de
+ * su tamaño antes de crear los trabajos, así cada trabajo nace con el laboratorio correcto.
  */
-async function completarLaboratorios(workspaceId: string, items: Item[]): Promise<void> {
-  const ids = [...new Set(items.map((i) => i.proveedorId).filter((x): x is string => !!x))];
+async function completarLaboratoriosSinTrabajo(workspaceId: string, items: Item[]): Promise<void> {
+  const sueltos = items.filter((i) => !i.proyectoId);
+  if (sueltos.length === 0) return;
+  const ids = [...new Set(sueltos.map((i) => i.proveedorId).filter((x): x is string => !!x))];
   const activos = new Set(
     (await prisma.fotofficeProveedor.findMany({ where: { workspaceId, active: true, id: { in: ids } }, select: { id: true } })).map((x) => x.id),
   );
-  const rotos = items.filter((i) => !i.proveedorId || !activos.has(i.proveedorId));
-  const sizeIds = [...new Set(rotos.map((i) => i.sizeId).filter((x): x is string => !!x))];
-  if (sizeIds.length === 0) return;
-  const tamanos = await prisma.fotofficePrintSize.findMany({
-    where: { workspaceId, id: { in: sizeIds } },
-    select: { id: true, proveedorId: true, proveedor: { select: { active: true } } },
-  });
-  const actual = new Map(tamanos.filter((t) => t.proveedorId && t.proveedor?.active).map((t) => [t.id, t.proveedorId!]));
+  const rotos = sueltos.filter((i) => !i.proveedorId || !activos.has(i.proveedorId));
+  if (rotos.length === 0) return;
+  const tamanos = await tamanosActuales(workspaceId, rotos);
   for (const i of rotos) {
-    const nuevo = i.sizeId ? actual.get(i.sizeId) : undefined;
+    const nuevo = labDelTamano(tamanos, i)?.id;
     if (!nuevo || nuevo === i.proveedorId) continue;
     await prisma.fotofficePrintOrderItem.update({ where: { id: i.id }, data: { proveedorId: nuevo } });
     i.proveedorId = nuevo;
   }
+}
+
+type Trabajo = { id: string; number: string; proveedorId: string | null; proveedorEnviadoAt: Date | null };
+
+/**
+ * El laboratorio de cada trabajo (la unidad de envío) = el de sus copias. Si las copias no coinciden en un
+ * laboratorio activo, sólo se corrige cuando el trabajo no tiene laboratorio (o lo tiene inactivo) y TODAS sus
+ * copias resuelven al mismo laboratorio actual de su tamaño: se actualizan las copias y el trabajo (laboratorio
+ * y costo) en una transacción. Si no, ese trabajo queda con su motivo y no sale nada de él.
+ */
+async function laboratoriosPorTrabajo(
+  workspaceId: string,
+  porTrabajo: Map<string, Item[]>,
+  trabajos: Trabajo[],
+  yaEnviados: Set<string>,
+): Promise<{ laboratorio: Map<string, Proveedor>; errores: Map<string, string> }> {
+  const porId = new Map(trabajos.map((t) => [t.id, t]));
+  const todos = [...porTrabajo.values()].flat();
+  const ids = [...new Set([...todos.map((i) => i.proveedorId), ...trabajos.map((t) => t.proveedorId)].filter((x): x is string => !!x))];
+  const activos = new Map<string, Proveedor>(
+    ((await prisma.fotofficeProveedor.findMany({ where: { workspaceId, active: true, id: { in: ids } } })) as Proveedor[]).map((x) => [x.id, x]),
+  );
+  const laboratorio = new Map<string, Proveedor>();
+  const errores = new Map<string, string>();
+  const aCorregir: string[] = [];
+  for (const [proyectoId, items] of porTrabajo) {
+    if (yaEnviados.has(proyectoId)) continue;
+    const labs = new Set(items.map((i) => i.proveedorId));
+    const unico = labs.size === 1 ? [...labs][0] : null;
+    const prov = unico ? activos.get(unico) : undefined;
+    if (prov) laboratorio.set(proyectoId, prov);
+    else aCorregir.push(proyectoId);
+  }
+  if (aCorregir.length === 0) return { laboratorio, errores };
+
+  const tamanos = await tamanosActuales(workspaceId, aCorregir.flatMap((id) => porTrabajo.get(id)!));
+  for (const proyectoId of aCorregir) {
+    const items = porTrabajo.get(proyectoId)!;
+    const t = porId.get(proyectoId);
+    const numero = t?.number ?? proyectoId;
+    if (t?.proveedorId && activos.has(t.proveedorId)) {
+      errores.set(proyectoId, labsDistintos(numero));
+      continue;
+    }
+    const resueltos = items.map((i) => (i.proveedorId && activos.get(i.proveedorId)) || labDelTamano(tamanos, i));
+    const destino = resueltos[0];
+    if (!destino || resueltos.some((r) => r?.id !== destino.id)) {
+      errores.set(proyectoId, labsDistintos(numero));
+      continue;
+    }
+    const costoCents = items.reduce((suma, i) => {
+      const actual = i.sizeId ? tamanos.get(i.sizeId)?.costArs : undefined;
+      const unitario = actual !== null && actual !== undefined ? actual : (i.unitCostArs ?? 0);
+      return suma + Math.round(Number(String(unitario)) * 100) * i.quantity;
+    }, 0);
+    await prisma.$transaction(async (tx) => {
+      await tx.fotofficePrintOrderItem.updateMany({ where: { id: { in: items.map((i) => i.id) } }, data: { proveedorId: destino.id } });
+      await tx.fotofficeProyecto.update({ where: { id: proyectoId }, data: { proveedorId: destino.id, proveedorCostoArs: (costoCents / 100).toFixed(2) } });
+    });
+    for (const i of items) i.proveedorId = destino.id;
+    laboratorio.set(proyectoId, { id: destino.id, name: destino.name, email: destino.email });
+  }
+  return { laboratorio, errores };
 }
 
 /** Un reintento no deja dos ZIP iguales en la carpeta del trabajo: se borra el anterior (fila y objeto). */
@@ -156,7 +237,7 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
 
   try {
     // Antes de crear trabajos: así el trabajo nace con el laboratorio correcto.
-    await completarLaboratorios(ws, p.items as Item[]);
+    await completarLaboratoriosSinTrabajo(ws, p.items as Item[]);
 
     // Sin trabajos (no había circuito al acreditar): se crean ahora; sin circuito, no se puede seguir.
     if (p.items.some((i) => !i.proyectoId)) {
@@ -168,23 +249,27 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
     }
 
     const proyectoIds = [...new Set(p.items.map((i) => i.proyectoId!))];
-    const [ajustes, branding, proveedores, trabajos] = await Promise.all([
+    const [ajustes, branding, trabajos] = await Promise.all([
       prisma.fotofficePrintSettings.findUnique({ where: { workspaceId: ws } }),
       prisma.fotofficeWorkspaceBranding.findFirst({ where: { workspaceId: ws }, select: { commercialName: true, contactEmail: true } }),
-      prisma.fotofficeProveedor.findMany({ where: { workspaceId: ws, active: true, id: { in: p.items.map((i) => i.proveedorId).filter((x): x is string => !!x) } } }),
-      prisma.fotofficeProyecto.findMany({ where: { workspaceId: ws, id: { in: proyectoIds } }, select: { id: true, proveedorEnviadoAt: true } }),
+      prisma.fotofficeProyecto.findMany({
+        where: { workspaceId: ws, id: { in: proyectoIds } },
+        select: { id: true, number: true, proveedorId: true, proveedorEnviadoAt: true },
+      }) as Promise<Trabajo[]>,
     ]);
     const prueba = ajustes?.testMode ?? true;
-    const porProveedor = new Map(proveedores.map((x) => [x.id, x]));
-    // En un reintento, el laboratorio que ya recibió su parte no la recibe de nuevo.
+    // La unidad de envío es el trabajo: un ZIP, un correo y una marca de enviado por trabajo. En un reintento,
+    // el trabajo que ya salió no se vuelve a mandar.
+    const porTrabajo = new Map<string, Item[]>();
+    for (const i of p.items as Item[]) porTrabajo.set(i.proyectoId!, [...(porTrabajo.get(i.proyectoId!) ?? []), i]);
     const yaEnviados = new Set(trabajos.filter((t) => t.proveedorEnviadoAt).map((t) => t.id));
-    const limpiados = new Set<string>();
+    const { laboratorio, errores } = await laboratoriosPorTrabajo(ws, porTrabajo, trabajos, yaEnviados);
 
-    for (const [proveedorId, items] of agruparPorLaboratorio(p.items as Item[])) {
-      const proyectoId = items[0].proyectoId!;
-      if (yaEnviados.has(proyectoId)) continue;
-      const prov = proveedorId ? porProveedor.get(proveedorId) : undefined;
+    for (const [proyectoId, items] of porTrabajo) {
+      if (yaEnviados.has(proyectoId) || errores.has(proyectoId)) continue;
+      const prov = laboratorio.get(proyectoId);
       if (!prov) throw new Error("Hay copias sin laboratorio asignado.");
+      const proveedorId = prov.id;
       const destino = prueba ? branding?.contactEmail : prov.email;
       if (!destino) throw new Error(prueba ? "El estudio no tiene correo de contacto para el modo prueba." : `${prov.name} no tiene correo cargado.`);
 
@@ -209,10 +294,7 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
 
       const archivoId = randomUUID();
       const nombreZip = `Pedido-${p.number}.zip`;
-      if (!limpiados.has(proyectoId)) {
-        await borrarZipAnterior(ws, proyectoId, nombreZip);
-        limpiados.add(proyectoId);
-      }
+      await borrarZipAnterior(ws, proyectoId, nombreZip);
       const clave = claveDeArchivo(ws, proyectoId, archivoId, nombreZip);
       const bytes = await subir(clave, zipEnFlujo(archivos, undefined, { conCarpetas: true }), "application/zip");
       await prisma.fotofficeArchivoTrabajo.create({
@@ -238,6 +320,9 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
       // Mover de etapa es un plus: si el recorrido no lo permite (tareas obligatorias), el pedido igual salió.
       await moverAFase(contextoDeSistema(ws), proyectoId, "EN_PROVEEDOR", `Pedido de impresión ${p.number} enviado a ${prov.name}${prueba ? " (modo prueba)" : ""}.`).catch(() => undefined);
     }
+    // Los demás trabajos ya salieron; el que no se pudo resolver deja el pedido esperando un reintento.
+    const pendiente = [...errores.values()][0];
+    if (pendiente) throw new Error(pendiente);
     await prisma.fotofficePrintOrder.update({ where: { id: pedidoId }, data: { status: "ENVIADO", sentAt: ahora, lockedAt: null, lastError: null } });
     return "ENVIADO";
   } catch (e) {
