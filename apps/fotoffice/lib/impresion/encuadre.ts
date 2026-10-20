@@ -1,6 +1,6 @@
 import { AJUSTES_NEUTROS } from "./ajustes";
 import { cajaRotada } from "./geometria";
-import { COLOR_BORDE_POR_OMISION, anguloTotal, type Encuadre, type Modo, type Orientacion, type Receta } from "./receta";
+import { COLOR_BORDE_POR_OMISION, LADO_MAX_ENCAJAR, anguloTotal, type Encuadre, type Modo, type Orientacion, type Receta } from "./receta";
 
 /**
  * Módulo PURO: las decisiones de encuadre de una copia (spec §5.5 y §6). Lo usan el editor (al
@@ -49,14 +49,23 @@ export function encuadreQueLlena(af: number, ap: number): Encuadre {
   return { x: 0, y: (1 - alto) / 2, ancho: 1, alto };
 }
 
-/** Centrado y con la foto entera: lo que sobra del papel es borde. */
+/** Margen para que el lado más largo quede apenas por debajo del tope y no lo pase por redondeo. */
+const MARGEN_TOPE = 1 - 1e-9;
+
+/** Ancho máximo del encuadre ENCAJAR para que NINGÚN lado pase de LADO_MAX_ENCAJAR (alto = ancho·af/ap). */
+function anchoMaxEncajar(af: number, ap: number): number {
+  return Math.min(LADO_MAX_ENCAJAR, (LADO_MAX_ENCAJAR * ap) / af) * MARGEN_TOPE;
+}
+
+/**
+ * Centrado y con la foto entera: lo que sobra del papel es borde. Si la foto es tan alargada que
+ * el encuadre pasaría el tope de la receta (panorámicas), se usa el más grande permitido: la
+ * foto queda centrada, con borde a lo largo y un pequeño corte a lo ancho.
+ */
 export function encuadreQueContiene(af: number, ap: number): Encuadre {
-  if (af > ap) {
-    const alto = af / ap;
-    return { x: 0, y: (1 - alto) / 2, ancho: 1, alto };
-  }
-  const ancho = ap / af;
-  return { x: (1 - ancho) / 2, y: 0, ancho, alto: 1 };
+  const ancho = Math.min(af > ap ? 1 : ap / af, anchoMaxEncajar(af, ap));
+  const alto = (ancho * af) / ap;
+  return { x: (1 - ancho) / 2, y: (1 - alto) / 2, ancho, alto };
 }
 
 /** §5.5: la orientación sigue a la foto; si recortar pierde 8 % o menos, se recorta; si no, se encaja con borde blanco. */
@@ -130,11 +139,16 @@ export function moverEncuadre(e: Encuadre, dx: number, dy: number, modo: Modo): 
   return limitarEncuadre({ ...e, x: e.x - dx * e.ancho, y: e.y - dy * e.alto }, modo);
 }
 
+/** Lo más que se puede alejar en ENCAJAR: 4 veces lo que contiene, sin pasar el tope de la receta. */
+function maxAnchoEncajar(af: number, ap: number): number {
+  return Math.min(encuadreQueContiene(af, ap).ancho * ACHIQUE_MAX_ENCAJAR, anchoMaxEncajar(af, ap));
+}
+
 /** `factor` > 1 acerca (el encuadre se achica), < 1 aleja. Mantiene el centro del papel y la proporción. */
 export function zoomEncuadre(e: Encuadre, factor: number, modo: Modo, af: number, ap: number): Encuadre {
   const lleno = encuadreQueLlena(af, ap).ancho;
   const min = modo === "RECORTAR" ? lleno / ZOOM_MAX_RECORTAR : lleno;
-  const max = modo === "RECORTAR" ? lleno : encuadreQueContiene(af, ap).ancho * ACHIQUE_MAX_ENCAJAR;
+  const max = modo === "RECORTAR" ? lleno : maxAnchoEncajar(af, ap);
   const ancho = acotar(e.ancho / factor, min, max);
   const alto = (ancho * af) / ap;
   const cx = e.x + e.ancho / 2;
@@ -153,7 +167,7 @@ export function conZoom(e: Encuadre, nivel: number, modo: Modo, af: number, ap: 
 
 export function rangoDeZoom(modo: Modo, af: number, ap: number): { min: number; max: number } {
   if (modo === "RECORTAR") return { min: 1, max: ZOOM_MAX_RECORTAR };
-  return { min: encuadreQueLlena(af, ap).ancho / (encuadreQueContiene(af, ap).ancho * ACHIQUE_MAX_ENCAJAR), max: 1 };
+  return { min: encuadreQueLlena(af, ap).ancho / maxAnchoEncajar(af, ap), max: 1 };
 }
 
 /** El encuadre, sobre ESTA foto, tiene la proporción del papel (si no, el archivo saldría deformado). */

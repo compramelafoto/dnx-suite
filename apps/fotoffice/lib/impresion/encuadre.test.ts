@@ -197,4 +197,23 @@ describe("colocación en pantalla", () => {
     expect(c.caja.height).toBeCloseTo(100, 6);
     expect(c.foto).toEqual({ width: 100, height: 200, rotacion: 90 });
   });
+
+  describe("panorámicas: el encuadre nunca pasa el tope de 20", () => {
+    const papel = { anchoMm: 100, altoMm: 150 };
+    for (const [ancho, alto] of [[10000, 1000], [30000, 1000]] as const) {
+      it(`${ancho / alto}:1 da recetas válidas en la propuesta y en el máximo alejado`, () => {
+        const r = propuestaAutomatica(ancho, alto, papel);
+        expect(r.modo).toBe("ENCAJAR");
+        expect(validarReceta(r)).not.toBeNull();
+        const af = ancho / alto;
+        const ap = 150 / 100;
+        const { min } = rangoDeZoom("ENCAJAR", af, ap);
+        const lejos = conZoom(r.encuadre, min, "ENCAJAR", af, ap);
+        expect(validarReceta({ ...r, encuadre: lejos })).not.toBeNull();
+        const muyLejos = zoomEncuadre(r.encuadre, 0.0001, "ENCAJAR", af, ap);
+        expect(validarReceta({ ...r, encuadre: muyLejos })).not.toBeNull();
+        expect(Math.abs(muyLejos.x + muyLejos.ancho / 2 - 0.5)).toBeLessThan(1e-6);
+      });
+    }
+  });
 });

@@ -47,6 +47,13 @@ describe("receta de la etapa 2", () => {
     expect(validarReceta({ ...encajar, modo: "RECORTAR" })).toBeNull();
   });
 
+  it("ENCAJAR: un lado de exactamente 20 vale; 20,01 no", () => {
+    const base: Receta = { ...recetaInicial(), modo: "ENCAJAR", orientacion: "VERTICAL" };
+    expect(validarReceta({ ...base, encuadre: { x: -9.5, y: 0, ancho: 20, alto: 1 } })).not.toBeNull();
+    expect(validarReceta({ ...base, encuadre: { x: 0, y: -9.5, ancho: 1, alto: 20 } })).not.toBeNull();
+    expect(validarReceta({ ...base, encuadre: { x: -9.5, y: 0, ancho: 20.01, alto: 1 } })).toBeNull();
+    expect(validarReceta({ ...base, encuadre: { x: 0, y: -9.5, ancho: 1, alto: 20.01 } })).toBeNull();
+  });
   it("ENCAJAR rechaza un encuadre que no toca la foto o que la deja diminuta", () => {
     const base: Receta = { ...recetaInicial(), modo: "ENCAJAR", orientacion: "VERTICAL" };
     expect(validarReceta({ ...base, encuadre: { x: 1.5, y: 0, ancho: 1, alto: 1 } })).toBeNull();
