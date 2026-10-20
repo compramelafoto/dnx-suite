@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coordenadasDelEstudio, cotizarEnvio, puntoValido } from "./envio";
+import { coordenadasDelEstudio, cotizarEnvio, envioParaNavegador, puntoValido } from "./envio";
 
 // Monumento a la Bandera (Rosario) y la plaza de Funes: unos 17 km en línea recta.
 const ROSARIO = { lat: -32.9476, lon: -60.6305 };
@@ -62,5 +62,16 @@ describe("coordenadasDelEstudio", () => {
     expect(coordenadasDelEstudio({ studioLatitude: "", studioLongitude: "-60" })).toBeNull();
     expect(coordenadasDelEstudio({ studioLatitude: "abc", studioLongitude: "-60" })).toBeNull();
     expect(coordenadasDelEstudio({ studioLatitude: "-100", studioLongitude: "-60" })).toBeNull();
+  });
+});
+
+describe("envioParaNavegador", () => {
+  it("redondea la ubicación del estudio a 3 decimales y deja igual los montos", () => {
+    const e = { baseCents: 100000, porKmCents: 50000, maxKm: 30, estudio: { lat: -32.947612, lon: -60.630549 } };
+    expect(envioParaNavegador(e)).toEqual({ baseCents: 100000, porKmCents: 50000, maxKm: 30, estudio: { lat: -32.948, lon: -60.631 } });
+    expect(e.estudio.lat).toBe(-32.947612);
+  });
+  it("sin envío: null", () => {
+    expect(envioParaNavegador(null)).toBeNull();
   });
 });

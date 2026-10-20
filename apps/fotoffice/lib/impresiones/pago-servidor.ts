@@ -3,6 +3,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { prisma } from "@repo/db";
 import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-pago";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
+import { geocodingProvider } from "@/lib/geocode/nominatim";
+import { coordenadasLegibles } from "@/lib/geocode/lugar";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { PREFIJO_REFERENCIA_IMPRESION } from "./constantes";
@@ -42,19 +44,39 @@ const falla = (error: string) => ({ ok: false as const, error });
 const MAX_DIRECCION = 300;
 const FUERA_DE_ZONA = "Esa dirección está fuera de la zona de envío. Elegí retirar en el local.";
 
-type Entrega = { tipo: "RETIRO" } | { tipo: "ENVIO"; direccion: string; lat: number; lon: number };
+const MAX_DETALLES = 100;
+const SIN_VERIFICAR = "(sin verificar) ";
 
-/** Lo que el navegador dice de la entrega. Sin entrega = retiro (como en la etapa 1). Sólo se leen dirección y punto. */
+/** `direccion` es el texto que eligió el navegador: sólo se usa si la geocodificación inversa falla. */
+type Entrega = { tipo: "RETIRO" } | { tipo: "ENVIO"; lat: number; lon: number; detalles: string; direccion: string };
+
+const texto = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max).trim() : "");
+
+/** Lo que el navegador dice de la entrega. Sin entrega = retiro (como en la etapa 1). Para el envío vale el punto. */
 function leerEntrega(raw: unknown): Entrega | { error: string } {
   if (raw === undefined || raw === null) return { tipo: "RETIRO" };
   const e = raw as Record<string, unknown>;
   if (e.tipo === "RETIRO") return { tipo: "RETIRO" };
   if (e.tipo !== "ENVIO") return { error: "Elegí cómo recibir las copias." };
-  const direccion = typeof e.direccion === "string" ? e.direccion.trim() : "";
-  if (!direccion) return { error: "Elegí la dirección de envío de la lista." };
-  if (direccion.length > MAX_DIRECCION) return { error: "La dirección es demasiado larga." };
   if (!puntoValido(e.lat, e.lon)) return { error: "Elegí la dirección de envío de la lista." };
-  return { tipo: "ENVIO", direccion, lat: e.lat as number, lon: e.lon as number };
+  return { tipo: "ENVIO", lat: e.lat as number, lon: e.lon as number, detalles: texto(e.detalles, MAX_DETALLES), direccion: texto(e.direccion, MAX_DIRECCION) };
+}
+
+/**
+ * La dirección que se guarda sale del punto que se cobra (geocodificación inversa en el servidor), no del texto
+ * del navegador. Si Nominatim falla o no responde, no se frena la venta: queda el texto elegido (o el punto)
+ * marcado «(sin verificar)» para que el estudio lo revise. Piso, depto o referencia van al final.
+ */
+async function direccionDelPunto(e: Extract<Entrega, { tipo: "ENVIO" }>): Promise<string> {
+  let base: string | null = null;
+  try {
+    const lugar = await geocodingProvider().reverse(e.lat, e.lon);
+    base = texto(lugar?.displayName, MAX_DIRECCION) || null;
+  } catch {
+    console.warn("[impresiones] no se pudo verificar la dirección de envío");
+  }
+  const dir = base ?? `${SIN_VERIFICAR}${e.direccion || coordenadasLegibles(e.lat, e.lon)}`;
+  return e.detalles ? `${dir} · ${e.detalles}` : dir;
 }
 
 export async function iniciarPagoImpresion(
@@ -91,7 +113,7 @@ export async function iniciarPagoImpresion(
     if (!oferta.envio) return falla("Este estudio no hace envíos. Elegí retirar en el local.");
     const q = cotizarEnvio({ ...oferta.envio, destino: { lat: entrega.lat, lon: entrega.lon } });
     if (!q.ok) return falla(FUERA_DE_ZONA);
-    envio = { cents: q.cents, km: q.km, direccion: entrega.direccion, lat: entrega.lat, lon: entrega.lon };
+    envio = { cents: q.cents, km: q.km, direccion: await direccionDelPunto(entrega), lat: entrega.lat, lon: entrega.lon };
   }
   const totalCents = c.subtotalCents + (envio?.cents ?? 0);
   const esGaleria = fuente.tipo === "GALERIA";

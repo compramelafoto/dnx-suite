@@ -89,7 +89,7 @@ export default async function SeguimientoImpresionPage({
     : confirmado
       ? "Ya recibimos tu pago. Guardá esta página: acá podés seguir tu pedido."
       : rechazado
-        ? "El pago no se completó. Podés volver a intentarlo desde el enlace de tu carpeta de archivos."
+        ? "El pago no se completó. Podés volver a intentarlo desde el enlace donde hiciste el pedido."
         : "Mercado Pago todavía no nos avisó. Puede demorar unos minutos: recargá esta página en un rato.";
 
   return (

@@ -46,6 +46,7 @@ export function BuscarDireccion({
     if (elegida || q.length < MIN_LETRAS) {
       setResultados([]);
       setBuscando(false);
+      setError(null);
       return;
     }
     const reloj = setTimeout(async () => {

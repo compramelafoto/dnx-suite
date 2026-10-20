@@ -74,6 +74,28 @@ describe("guardarAjustes · envío", () => {
     expect(r).toEqual({ ok: true });
     expect(db.fotofficePrintSettings.upsert.mock.calls[0][0].update).toMatchObject({ shippingEnabled: false });
   });
+  it("rechaza montos de envío de más de 99.999.999", async () => {
+    extras.mockResolvedValue(UBICADO);
+    expect(await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingPerKmArs: "300", shippingBaseArs: "100000000" })).toEqual({
+      ok: false,
+      error: "El monto es demasiado grande.",
+    });
+    expect(db.fotofficePrintSettings.upsert).not.toHaveBeenCalled();
+  });
+  it("encendido sin costo (fijo y por km vacíos o en cero) no se guarda", async () => {
+    extras.mockResolvedValue(UBICADO);
+    for (const [b, k] of [["", ""], ["0", "0"], ["", "0,00"]]) {
+      expect(await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingBaseArs: b, shippingPerKmArs: k })).toEqual({
+        ok: false,
+        error: "Cargá el costo del envío (fijo o por kilómetro).",
+      });
+    }
+    expect(db.fotofficePrintSettings.upsert).not.toHaveBeenCalled();
+  });
+  it("con sólo monto fijo (sin precio por km) se guarda", async () => {
+    extras.mockResolvedValue(UBICADO);
+    expect(await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingBaseArs: "2000", shippingPerKmArs: "" })).toEqual({ ok: true });
+  });
   it("rechaza montos o máximos inválidos", async () => {
     extras.mockResolvedValue(UBICADO);
     expect((await C.guardarAjustes("ws", { ...ok, shippingEnabled: true, shippingPerKmArs: "-3" })).ok).toBe(false);
@@ -134,6 +156,10 @@ describe("guardarTamanos", () => {
   const fila = (o: object = {}) => ({ id: "a", costArs: "100", priceArs: "1.500,50", proveedorId: null, active: true, ...o });
   it("rechaza precios negativos", async () => {
     expect((await C.guardarTamanos("ws", [fila({ costArs: "-1" })])).ok).toBe(false);
+  });
+  it("rechaza montos de más de 99.999.999", async () => {
+    expect(await C.guardarTamanos("ws", [fila({ priceArs: "100.000.000" })])).toEqual({ ok: false, error: "El monto es demasiado grande." });
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
   it("rechaza un tamaño con precio y sin laboratorio", async () => {
     const r = await C.guardarTamanos("ws", [fila({ proveedorId: null })]);

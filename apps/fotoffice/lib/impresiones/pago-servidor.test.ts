@@ -6,6 +6,7 @@ const H = vi.hoisted(() => ({
   collector: vi.fn(async (..._a: unknown[]) => ({ ok: true, collector: { accessToken: "tok" } }) as unknown),
   oferta: vi.fn(),
   fuente: vi.fn(),
+  reverse: vi.fn(async (..._a: unknown[]) => ({ displayName: "Av. Real 100, Funes, Santa Fe" }) as unknown),
   db: {
     $transaction: vi.fn(async (f: (tx: unknown) => unknown) => f(H.db)),
     $executeRaw: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => St
 vi.mock("@repo/payments/mercado-pago", () => ({ createMercadoPagoCheckoutProLiveAdapter: () => ({ createPreference: H.preferencia }) }));
 vi.mock("./configuracion-servidor", () => ({ ofertaPublica: H.oferta }));
 vi.mock("./fuentes-servidor", () => ({ resolverFuente: H.fuente }));
+vi.mock("@/lib/geocode/nominatim", () => ({ geocodingProvider: () => ({ reverse: H.reverse }) }));
 process.env.NEXT_PUBLIC_APP_URL = "https://app.test/";
 const P = await import("./pago-servidor");
 
@@ -126,6 +128,31 @@ describe("iniciarPagoImpresion · envío a domicilio", () => {
   const creado = () => H.db.fotofficePrintOrder.create.mock.calls[0][0].data as Record<string, unknown>;
   beforeEach(() => {
     H.oferta.mockResolvedValue({ papeles: ["BRILLO"], tamanos: [{ id: "t10", widthCm: 10, heightCm: 15, proveedorId: "f", priceCents: 50000, costCents: 20000 }], envio });
+    H.reverse.mockResolvedValue({ displayName: "Av. Real 100, Funes, Santa Fe" });
+  });
+
+  it("la dirección guardada sale del punto cobrado (geocodificación inversa), no del texto del navegador", async () => {
+    const r = await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, conEnvio({ ...ENTREGA, direccion: "Casa de mi tía en Ushuaia" }));
+    expect(r.ok).toBe(true);
+    expect(H.reverse).toHaveBeenCalledWith(FUNES.lat, FUNES.lon);
+    expect(creado().shippingAddress).toBe("Av. Real 100, Funes, Santa Fe");
+  });
+  it("suma piso, depto o referencia (hasta 100 letras) detrás de la dirección verificada", async () => {
+    await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, conEnvio({ ...ENTREGA, detalles: `  Piso 3 B ${"x".repeat(200)}` }));
+    const dir = String(creado().shippingAddress);
+    expect(dir.startsWith("Av. Real 100, Funes, Santa Fe · Piso 3 B ")).toBe(true);
+    expect(dir.length).toBe("Av. Real 100, Funes, Santa Fe · ".length + 100);
+  });
+  it("si la geocodificación inversa falla, usa el texto elegido marcado «(sin verificar)» y no frena la venta", async () => {
+    H.reverse.mockRejectedValue(Object.assign(new Error("lento"), { name: "AbortError" }));
+    const r = await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, conEnvio({ ...ENTREGA, detalles: "PB" }));
+    expect(r.ok).toBe(true);
+    expect(creado().shippingAddress).toBe("(sin verificar) Av. Siempreviva 742, Funes · PB");
+  });
+  it("sin resultado inverso ni texto del navegador, guarda el punto marcado «(sin verificar)»", async () => {
+    H.reverse.mockResolvedValue(null);
+    await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, conEnvio({ tipo: "ENVIO", lat: FUNES.lat, lon: FUNES.lon }));
+    expect(String(creado().shippingAddress)).toMatch(/^\(sin verificar\) -32\.916700, -60\.809700$/);
   });
 
   it("recalcula el envío en el servidor: total = copias + envío, y Mercado Pago cobra el total", async () => {
@@ -140,7 +167,7 @@ describe("iniciarPagoImpresion · envío a domicilio", () => {
       subtotalArs: "1000.00",
       shippingArs: (esperado.cents / 100).toFixed(2),
       totalArs: (total / 100).toFixed(2),
-      shippingAddress: "Av. Siempreviva 742, Funes",
+      shippingAddress: "Av. Real 100, Funes, Santa Fe",
       shippingLat: FUNES.lat,
       shippingLon: FUNES.lon,
       shippingKm: esperado.km,
@@ -167,14 +194,12 @@ describe("iniciarPagoImpresion · envío a domicilio", () => {
     expect(r.ok).toBe(false);
     expect(H.db.fotofficePrintOrder.create).not.toHaveBeenCalled();
   });
-  it("coordenadas imposibles, sin dirección o dirección demasiado larga se rechazan", async () => {
+  it("coordenadas imposibles o una entrega desconocida se rechazan", async () => {
     for (const mala of [
       { ...ENTREGA, lat: 95 },
       { ...ENTREGA, lon: -181 },
       { ...ENTREGA, lat: "-32.9" },
       { ...ENTREGA, lat: Number.NaN },
-      { ...ENTREGA, direccion: "   " },
-      { ...ENTREGA, direccion: "x".repeat(301) },
       { tipo: "OTRO" },
     ]) {
       expect((await P.iniciarPagoImpresion("ws", "dnxestudio", "CARPETA", TOKEN, conEnvio(mala))).ok).toBe(false);

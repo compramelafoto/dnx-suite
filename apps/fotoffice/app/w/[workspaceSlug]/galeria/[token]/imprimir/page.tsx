@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PedidoCliente } from "@/components/impresiones/pedido-cliente";
 import { ofertaPublica } from "@/lib/impresiones/configuracion-servidor";
+import { envioParaNavegador } from "@/lib/impresiones/envio";
 import { resolverFuente } from "@/lib/impresiones/fuentes-servidor";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 import { iniciarPagoImpresionGaleriaAction } from "./actions";
@@ -40,7 +41,8 @@ export default async function ImprimirGaleriaPage({ params }: { params: Promise<
       // El costo del laboratorio no viaja al navegador.
       tamanos={oferta.tamanos.map((t) => ({ id: t.id, widthCm: t.widthCm, heightCm: t.heightCm, priceCents: t.priceCents }))}
       papeles={oferta.papeles}
-      envio={oferta.envio}
+      // La ubicación del estudio va redondeada: el envío que vale lo calcula el servidor con el punto exacto.
+      envio={envioParaNavegador(oferta.envio)}
       cliente={{ nombre: fuente.nombre ?? "", email: fuente.email ?? "", telefono: fuente.telefono ?? "" }}
       plazo="dentro de 48 horas hábiles desde el pago"
     />

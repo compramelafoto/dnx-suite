@@ -99,9 +99,15 @@ export async function sembrarTamanos(workspaceId: string): Promise<void> {
   });
 }
 
-const monto = (v: unknown): number | null | "malo" => {
+/** Tope de cualquier monto en pesos: las columnas son Decimal(14, 2) y nadie cobra cien millones por una copia. */
+const MONTO_MAXIMO = 99_999_999;
+const ERR_GRANDE = "El monto es demasiado grande.";
+
+const monto = (v: unknown): number | null | "malo" | "grande" => {
   if (v === null || v === undefined || String(v).trim() === "") return null;
-  return parsearMontoAr(String(v)) ?? "malo";
+  const n = parsearMontoAr(String(v));
+  if (n === null) return "malo";
+  return n > MONTO_MAXIMO ? "grande" : n;
 };
 
 const ERR_TAMANO = "Uno de los tamaños ya no existe. Recargá la página.";
@@ -112,6 +118,7 @@ export async function guardarTamanos(workspaceId: string, filas: unknown): Promi
   for (const f of filas as Record<string, unknown>[]) {
     const cost = monto(f.costArs);
     const price = monto(f.priceArs);
+    if (cost === "grande" || price === "grande") return { ok: false, error: ERR_GRANDE };
     if (cost === "malo" || price === "malo") return { ok: false, error: "Revisá los montos: tienen que ser números positivos." };
     if (typeof f.id !== "string") return { ok: false, error: "Datos inválidos." };
     cambios.push({
@@ -212,10 +219,12 @@ export async function guardarAjustes(workspaceId: string, raw: unknown): Promise
   const shippingEnabled = r.shippingEnabled === true;
   const shippingBaseArs = monto(r.shippingBaseArs);
   const shippingPerKmArs = monto(r.shippingPerKmArs);
+  if (shippingBaseArs === "grande" || shippingPerKmArs === "grande") return { ok: false, error: ERR_GRANDE };
   if (shippingBaseArs === "malo" || shippingPerKmArs === "malo") return { ok: false, error: "Revisá los montos del envío: tienen que ser números positivos." };
   const maxTexto = r.shippingMaxKm === null || r.shippingMaxKm === undefined ? "" : String(r.shippingMaxKm).trim();
   if (maxTexto !== "" && !/^\d{1,4}$/.test(maxTexto)) return { ok: false, error: "La distancia máxima tiene que ser un número entero de kilómetros." };
   const shippingMaxKm = maxTexto === "" || Number(maxTexto) === 0 ? null : Number(maxTexto);
+  if (shippingEnabled && !shippingBaseArs && !shippingPerKmArs) return { ok: false, error: "Cargá el costo del envío (fijo o por kilómetro)." };
   if (shippingEnabled && !coordenadasDelEstudio(await extrasDelWorkspace(workspaceId))) {
     return { ok: false, error: "Cargá la ubicación de tu estudio en Configuración → Precios para ofrecer envíos." };
   }

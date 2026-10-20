@@ -20,7 +20,7 @@ export function validarCarrito(
   const salida: LineaCarrito[] = [];
   for (const l of lineas) {
     const { archivoId, sizeId, quantity, recorte } = (l ?? {}) as Record<string, unknown>;
-    if (typeof archivoId !== "string" || !archivosPermitidos.has(archivoId)) return { ok: false, error: "Una de las fotos no es de esta carpeta." };
+    if (typeof archivoId !== "string" || !archivosPermitidos.has(archivoId)) return { ok: false, error: "Una de las fotos ya no está disponible para imprimir." };
     if (typeof sizeId !== "string" || sizeId.length === 0) return { ok: false, error: "Falta el tamaño de una copia." };
     if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_CANTIDAD) return { ok: false, error: "Revisá las cantidades (de 1 a 99)." };
     if (!recorteValido(recorte)) return { ok: false, error: "Uno de los recortes no es válido." };

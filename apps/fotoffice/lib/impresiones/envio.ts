@@ -41,3 +41,15 @@ export function coordenadasDelEstudio(extras: { studioLatitude?: string; studioL
   const lon = coord(extras.studioLongitude);
   return lat !== null && lon !== null && puntoValido(lat, lon) ? { lat, lon } : null;
 }
+
+const tresDecimales = (n: number) => Math.round(n * 1000) / 1000;
+
+/**
+ * El envío tal como viaja al navegador para mostrar el costo: la ubicación del estudio redondeada a 3 decimales
+ * (~100 m), para no publicar el punto exacto. El costo mostrado puede diferir en unos pesos del que se cobra:
+ * el servidor siempre calcula con el punto exacto.
+ */
+export function envioParaNavegador<T extends { estudio: Punto }>(envio: T | null): T | null {
+  if (!envio) return null;
+  return { ...envio, estudio: { lat: tresDecimales(envio.estudio.lat), lon: tresDecimales(envio.estudio.lon) } };
+}

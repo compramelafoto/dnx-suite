@@ -82,6 +82,7 @@ export function PedidoCliente({
   const [telefono, setTelefono] = useState(cliente.telefono);
   const [entrega, setEntrega] = useState<Entrega>("RETIRO");
   const [direccion, setDireccion] = useState<DireccionElegida | null>(null);
+  const [detalles, setDetalles] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [midiendo, setMidiendo] = useState(false);
   const [pagando, empezar] = useTransition();
@@ -186,8 +187,12 @@ export function PedidoCliente({
       nombre,
       email,
       telefono,
-      // Sólo la dirección y su punto: el costo del envío lo calcula el servidor.
-      entrega: conEnvio && direccion ? { tipo: "ENVIO", direccion: direccion.direccion, lat: direccion.lat, lon: direccion.lon } : { tipo: "RETIRO" },
+      // El punto elegido (y piso/depto): el servidor saca de ahí la dirección y el costo. El texto sólo sirve
+      // de respaldo si el servidor no puede verificar el punto.
+      entrega:
+        conEnvio && direccion
+          ? { tipo: "ENVIO", lat: direccion.lat, lon: direccion.lon, detalles: detalles.trim(), direccion: direccion.direccion }
+          : { tipo: "RETIRO" },
     };
     empezar(async () => {
       try {
@@ -424,7 +429,22 @@ export function PedidoCliente({
                     <span className="block text-[var(--fo-text-secondary)]">Salen {plazo}. El costo depende de la distancia.</span>
                   </span>
                 </label>
-                {entrega === "ENVIO" ? <BuscarDireccion envio={envio} elegida={direccion} onElegir={setDireccion} /> : null}
+                {entrega === "ENVIO" ? (
+                  <>
+                    <BuscarDireccion envio={envio} elegida={direccion} onElegir={setDireccion} />
+                    <label className="block space-y-1">
+                      <span className="fo-label">Piso, depto o referencia (opcional)</span>
+                      <input
+                        className="fo-input w-full"
+                        value={detalles}
+                        onChange={(e) => setDetalles(e.target.value)}
+                        maxLength={100}
+                        placeholder="Ej.: 3.º B, timbre 2"
+                        autoComplete="address-line2"
+                      />
+                    </label>
+                  </>
+                ) : null}
               </fieldset>
             ) : (
               <div className="fo-card flex items-start gap-3 p-5 text-sm">
