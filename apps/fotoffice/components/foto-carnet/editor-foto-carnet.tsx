@@ -1,45 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, ImagePlus, Save } from "lucide-react";
+import { useRef, useState } from "react";
+import { ImagePlus } from "lucide-react";
+import { HOJAS, LADO_MINIMO_CM, MEDIDAS_CARNET, grillaDe } from "@/lib/foto-carnet/medidas";
+import { AJUSTES_NEUTROS, type Ajustes as ValoresAjustes } from "@/lib/impresion/ajustes";
+import type { SalidaVista } from "@/lib/impresion/configuracion";
 import {
-  DPI_IMPRESION,
-  HOJAS,
-  LADO_MINIMO_CM,
-  MARGEN_CM,
-  MEDIDAS_CARNET,
-  SEPARACION_CM,
-  cmAPx,
-  grillaDe,
-  nombreDePlancha,
-  type HojaImpresion,
-} from "@/lib/foto-carnet/medidas";
-import { subirAdjuntoConId } from "@/components/ficha/subir-adjunto";
+  asignarClienteAction,
+  confirmarOriginalAction,
+  crearPreparacionAction,
+  pedirSubidaOriginalAction,
+  usarFotoAnteriorAction,
+} from "@/app/(shell)/ventas/impresion/actions";
 import { ClienteBuscador } from "@/app/(shell)/ventas/cliente-buscador";
 import type { ClienteBuscado } from "@/app/(shell)/ventas/mostrador-actions";
-import { generarPlanchaJpeg, type AdjustmentSettings, type CropAreaPixels } from "./procesar";
-import { Recorte } from "./recorte";
+import { Recorte, type PixelesRecorte } from "./recorte";
 import { Ajustes } from "./ajustes";
-import { VistaPlancha, VistaRecorte } from "./vistas";
+import { VistaRecorte } from "./vistas";
+import { FotosAnteriores } from "./fotos-anteriores";
+import { PasoPlancha } from "./paso-plancha";
+import { recetaDesdeEditor } from "./receta-desde-editor";
 
-const AJUSTES_INICIALES: AdjustmentSettings = {
-  exposure: 0,
-  contrast: 0,
-  shadows: 0,
-  blacks: 0,
-  lights: 0,
-  highlights: 0,
-  saturation: 0,
-  temperature: 0,
-  tint: 0,
-  sharpen: 10,
-  backgroundWhiten: 0,
-  backgroundSmooth: 0,
-};
-
-/** La foto original no se sube a ningún lado: se procesa en el navegador. */
-const TAMANO_MAXIMO_FOTO = 40 * 1024 * 1024;
-const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp"];
+/** Igual que el servidor (`lib/impresion/almacen.ts`): 60 MB; HEIC se intenta. */
+const TAMANO_MAXIMO_FOTO = 60 * 1024 * 1024;
+const TIPOS_FOTO = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+/** El servidor acepta piezas de 20 a 100 mm por lado. */
+const LADO_MAXIMO_CM = 10;
 
 const PASOS = [
   { n: 1, titulo: "Foto y medida" },
@@ -49,144 +35,148 @@ const PASOS = [
 ] as const;
 type Paso = (typeof PASOS)[number]["n"];
 
-function descargar(blob: Blob, nombre: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nombre;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+export type ModoEditorFotoCarnet =
+  | { tipo: "suelto"; salidas: SalidaVista[] }
+  | {
+      tipo: "mostrador";
+      preparacionId: string;
+      clienteInicial: ClienteBuscado | null;
+      onListo: (r: { hojas: number; preparacionId: string }) => void;
+      onCancelar: () => void;
+    };
+
+export type EditorFotoCarnetProps = {
+  puedeBuscarClientes: boolean;
+  /** Ya no se usa: el original se guarda solo en la ficha (lo hace el servidor). Se acepta para no romper a quien lo pasa. */
+  puedeGuardarEnFicha?: boolean;
+  puedeAltaCliente: boolean;
+  modo: ModoEditorFotoCarnet;
+};
+
+type Original = { id: string; vista: { ancho: number; alto: number }; ancho: number; alto: number };
+type OriginalProcesado = { originalId: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number };
+
+/** Error con un texto que se le puede mostrar a quien atiende. */
+class ErrorVisible extends Error {}
+
+/** El tipo de la foto; algunos navegadores dejan vacío el de las HEIC del iPhone. */
+function tipoDeFoto(file: File): string | null {
+  if (TIPOS_FOTO.includes(file.type)) return file.type;
+  const nombre = file.name.toLowerCase();
+  if (!file.type && nombre.endsWith(".heic")) return "image/heic";
+  if (!file.type && nombre.endsWith(".heif")) return "image/heif";
+  return null;
 }
 
+const cm = (n: number) => String(n).replace(".", ",");
+
 /**
- * Foto carnet en el mostrador: el cliente trae o se saca la foto, acá se encuadra a la medida
- * del trámite, se retoca y se arma la plancha para imprimir en una copia 10x15 o 13x18.
+ * Foto carnet: el cliente trae o se saca la foto, acá se encuadra a la medida del trámite, se
+ * retoca y el servidor arma la plancha desde el original. El navegador sólo guarda la RECETA
+ * (encuadre en proporciones, giro y ajustes) y muestra una vista previa; nunca genera el archivo.
+ * Sirve suelto (Ventas → Foto carnet) y dentro del Mostrador, atado a una preparación del ticket.
  */
-export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, puedeAltaCliente }: {
-  puedeBuscarClientes: boolean;
-  puedeGuardarEnFicha: boolean;
-  puedeAltaCliente: boolean;
-}) {
+export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }: EditorFotoCarnetProps) {
   const [paso, setPaso] = useState<Paso>(1);
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [preparacionId, setPreparacionId] = useState<string | null>(modo.tipo === "mostrador" ? modo.preparacionId : null);
+  const [cliente, setCliente] = useState<ClienteBuscado | null>(modo.tipo === "mostrador" ? modo.clienteInicial : null);
+  const [original, setOriginal] = useState<Original | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
   const [errorFoto, setErrorFoto] = useState<string | null>(null);
+  const [errorCliente, setErrorCliente] = useState<string | null>(null);
   const [medida, setMedida] = useState({ anchoCm: 4, altoCm: 4 });
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1.1);
-  const [rotation, setRotation] = useState(0);
-  const [cropPixels, setCropPixels] = useState<CropAreaPixels | null>(null);
-  const [settings, setSettings] = useState<AdjustmentSettings>(AJUSTES_INICIALES);
-  const [hoja, setHoja] = useState<HojaImpresion>(HOJAS[0]!);
-  const [cantidad, setCantidad] = useState<number | null>(null);
-  const [cliente, setCliente] = useState<ClienteBuscado | null>(null);
-  const [trabajando, setTrabajando] = useState<"descarga" | "guardado" | null>(null);
-  const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [giro90, setGiro90] = useState(0);
+  const [enderezar, setEnderezar] = useState(0);
+  const [cropPixels, setCropPixels] = useState<PixelesRecorte | null>(null);
+  const [ajustes, setAjustes] = useState<ValoresAjustes>(AJUSTES_NEUTROS);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  /** La preparación se crea una sola vez aunque se pida dos veces seguidas. */
+  const creando = useRef<Promise<string> | null>(null);
 
-  // La URL local de la foto se libera al cambiarla o al salir.
-  useEffect(() => () => void (imageSrc && URL.revokeObjectURL(imageSrc)), [imageSrc]);
-
-  const medidaValida = medida.anchoCm >= LADO_MINIMO_CM && medida.altoCm >= LADO_MINIMO_CM;
-  const entranComoMucho = useMemo(() => (medidaValida ? grillaDe(medida, hoja).total : 0), [medida, hoja, medidaValida]);
-  const grilla = useMemo(
-    () => grillaDe(medida, hoja, cantidad ?? undefined),
-    [medida, hoja, cantidad],
-  );
+  const imageSrc = original ? `/api/impresion/vista/${original.id}` : null;
+  const rotacion = giro90 + enderezar;
+  const medidaValida =
+    medida.anchoCm >= LADO_MINIMO_CM && medida.altoCm >= LADO_MINIMO_CM && medida.anchoCm <= LADO_MAXIMO_CM && medida.altoCm <= LADO_MAXIMO_CM;
   const medidaElegida = MEDIDAS_CARNET.find((m) => m.anchoCm === medida.anchoCm && m.altoCm === medida.altoCm);
+  const puedeSeguir = (paso === 1 && Boolean(original) && medidaValida && !subiendo) || (paso === 2 && Boolean(cropPixels)) || paso === 3;
 
-  // Si cambia la medida o la hoja y la cantidad pedida ya no entra, vuelve a "todas las que entran".
-  useEffect(() => {
-    if (cantidad !== null && cantidad > entranComoMucho) setCantidad(null);
-  }, [cantidad, entranComoMucho]);
+  function asegurarPreparacion(): Promise<string> {
+    if (preparacionId) return Promise.resolve(preparacionId);
+    creando.current ??= crearPreparacionAction({ productId: null, clientId: cliente?.id ?? null }).then((r) => {
+      if (!r.ok) {
+        creando.current = null;
+        throw new ErrorVisible(r.error);
+      }
+      setPreparacionId(r.id);
+      return r.id;
+    });
+    return creando.current;
+  }
 
-  const puedeSeguir = (paso === 1 && Boolean(imageSrc) && medidaValida) || (paso === 2 && Boolean(cropPixels)) || paso === 3;
+  function cambiarMedida(m: { anchoCm: number; altoCm: number }) {
+    setMedida(m);
+    // Con otra proporción el encuadre anterior ya no sirve: se rehace en el paso 2.
+    setCropPixels(null);
+  }
+
+  function usarOriginal(o: OriginalProcesado) {
+    setOriginal({ id: o.originalId, vista: { ancho: o.vistaAncho, alto: o.vistaAlto }, ancho: o.ancho, alto: o.alto });
+    setCrop({ x: 0, y: 0 });
+    setZoom(1.1);
+    setGiro90(0);
+    setEnderezar(0);
+    setCropPixels(null);
+    setAjustes(AJUSTES_NEUTROS);
+  }
+
+  /** Sube, confirma u obtiene el original con `traer`; los errores del servidor se muestran tal cual. */
+  async function conOriginal(traer: (preparacionId: string) => Promise<({ ok: true } & OriginalProcesado) | { ok: false; error: string }>) {
+    setErrorFoto(null);
+    setSubiendo(true);
+    try {
+      const r = await traer(await asegurarPreparacion());
+      if (!r.ok) return setErrorFoto(r.error);
+      usarOriginal(r);
+    } catch (e) {
+      setErrorFoto(e instanceof ErrorVisible ? e.message : "No se pudo subir la foto. Probá de nuevo.");
+    } finally {
+      setSubiendo(false);
+    }
+  }
 
   function elegirFoto(file: File | undefined) {
     setErrorFoto(null);
     if (!file) return;
-    if (!TIPOS_FOTO.includes(file.type)) {
-      setErrorFoto(
-        file.name.toLowerCase().endsWith(".heic")
-          ? "Las fotos HEIC del iPhone no se pueden abrir acá. Pedile al cliente que la mande como JPG (en WhatsApp sale así) o pasala a JPG."
-          : "La foto tiene que ser JPG, PNG o WebP.",
-      );
-      return;
-    }
+    const tipo = tipoDeFoto(file);
+    if (!tipo) return setErrorFoto("La foto tiene que ser JPG, PNG, WebP o HEIC.");
     if (file.size > TAMANO_MAXIMO_FOTO) {
-      setErrorFoto(`La foto pesa ${(file.size / 1024 / 1024).toFixed(1)} MB: el máximo es 40 MB.`);
-      return;
+      return setErrorFoto(`La foto pesa ${(file.size / 1024 / 1024).toFixed(1)} MB: el máximo es 60 MB.`);
     }
-    setImageSrc(URL.createObjectURL(file));
-    setCrop({ x: 0, y: 0 });
-    setZoom(1.1);
-    setRotation(0);
-    setCropPixels(null);
-    setSettings(AJUSTES_INICIALES);
-    setAviso(null);
-  }
-
-  async function generar(): Promise<{ blob: Blob; nombre: string } | null> {
-    if (!imageSrc || !cropPixels) return null;
-    const blob = await generarPlanchaJpeg({
-      imageSrc,
-      crop: cropPixels,
-      settings,
-      rotation,
-      grilla,
-      config: {
-        sheetWidthPx: cmAPx(hoja.anchoCm, DPI_IMPRESION),
-        sheetHeightPx: cmAPx(hoja.altoCm, DPI_IMPRESION),
-        photoWidthPx: cmAPx(medida.anchoCm, DPI_IMPRESION),
-        photoHeightPx: cmAPx(medida.altoCm, DPI_IMPRESION),
-        marginPx: cmAPx(MARGEN_CM, DPI_IMPRESION),
-        gapPx: cmAPx(SEPARACION_CM, DPI_IMPRESION),
-      },
+    void conOriginal(async (id) => {
+      const s = await pedirSubidaOriginalAction(id, { nombre: file.name, tipo, bytes: file.size });
+      if (!s.ok) return s;
+      const put = await fetch(s.url, { method: "PUT", headers: { "Content-Type": tipo }, body: file });
+      if (!put.ok) throw new ErrorVisible("No se pudo subir la foto. Probá de nuevo.");
+      return confirmarOriginalAction(s.originalId);
     });
-    return { blob, nombre: nombreDePlancha(medida, hoja, grilla.total, new Date(), cliente?.nombre) };
   }
 
-  async function alDescargar() {
-    setTrabajando("descarga");
-    setAviso(null);
-    try {
-      const r = await generar();
-      if (r) {
-        descargar(r.blob, r.nombre);
-        setAviso({ tipo: "ok", texto: `Listo: se descargó «${r.nombre}». Mandala a imprimir en una ${hoja.etiqueta.toLowerCase()}, sin ajustar al tamaño.` });
-      }
-    } catch {
-      setAviso({ tipo: "error", texto: "No se pudo generar la plancha. Probá de nuevo." });
-    } finally {
-      setTrabajando(null);
-    }
-  }
-
-  async function alGuardar() {
-    if (!cliente) return;
-    setTrabajando("guardado");
-    setAviso(null);
-    try {
-      const r = await generar();
-      if (!r) return;
-      const archivo = new File([r.blob], r.nombre, { type: "image/jpeg" });
-      const subido = await subirAdjuntoConId({ tipo: "CLIENTE", id: cliente.id }, archivo, () => {});
-      setAviso(
-        subido.ok
-          ? { tipo: "ok", texto: `Guardada en la ficha de ${cliente.nombre}, en «Adjuntos».` }
-          : { tipo: "error", texto: subido.error },
-      );
-    } catch {
-      setAviso({ tipo: "error", texto: "No se pudo guardar la plancha. Probá de nuevo." });
-    } finally {
-      setTrabajando(null);
-    }
+  async function cambiarCliente(c: ClienteBuscado | null) {
+    setCliente(c);
+    setErrorCliente(null);
+    const id = preparacionId ?? (creando.current ? await creando.current.catch(() => null) : null);
+    if (!id) return;
+    const r = await asignarClienteAction(id, c?.id ?? null).catch(() => ({ ok: false as const, error: "No se pudo cambiar el cliente. Probá de nuevo." }));
+    if (!r.ok) setErrorCliente(r.error);
   }
 
   return (
     <div className="space-y-5">
       <nav aria-label="Pasos" className="flex flex-wrap gap-2">
         {PASOS.map((p) => {
-          const alcanzable = p.n === 1 || (p.n === 2 && Boolean(imageSrc) && medidaValida) || (p.n > 2 && Boolean(cropPixels));
+          const alcanzable = p.n === 1 || (p.n === 2 && Boolean(original) && medidaValida) || (p.n > 2 && Boolean(cropPixels));
           return (
             <button
               key={p.n}
@@ -208,12 +198,27 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
 
       {paso === 1 ? (
         <section className="fo-card space-y-5 p-5">
+          {puedeBuscarClientes ? (
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold">El cliente (opcional)</h2>
+              <ClienteBuscador cliente={cliente} onElegir={(c) => void cambiarCliente(c)} puedeAlta={puedeAltaCliente} />
+              {errorCliente ? <p className="fo-alert-error">{errorCliente}</p> : null}
+              {cliente ? (
+                <FotosAnteriores
+                  clientId={cliente.id}
+                  deshabilitado={subiendo}
+                  onElegir={(adjuntoId) => void conOriginal((id) => usarFotoAnteriorAction(id, adjuntoId))}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="space-y-3">
             <h2 className="text-base font-semibold">La foto</h2>
             <input
               ref={inputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
               className="hidden"
               onChange={(e) => {
                 elegirFoto(e.target.files?.[0]);
@@ -221,20 +226,19 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
               }}
             />
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="fo-btn fo-btn-primary" onClick={() => inputRef.current?.click()}>
+              <button type="button" className="fo-btn fo-btn-primary" disabled={subiendo} onClick={() => inputRef.current?.click()}>
                 <ImagePlus className="size-4" aria-hidden />
-                {imageSrc ? "Elegir otra foto" : "Elegir la foto"}
+                {subiendo ? "Subiendo la foto…" : original ? "Elegir otra foto" : "Elegir la foto"}
               </button>
             </div>
+            <p className="text-xs text-[var(--fo-muted)]">
+              JPG, PNG, WebP o HEIC de hasta 60 MB. El original se guarda en la ficha del cliente para la próxima vez.
+            </p>
             {errorFoto ? <p className="fo-alert-error">{errorFoto}</p> : null}
             {imageSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element -- vista local (blob:) de la foto elegida
+              // eslint-disable-next-line @next/next/no-img-element -- vista previa privada del original, servida por nuestra ruta
               <img src={imageSrc} alt="La foto elegida" className="max-h-72 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)]" />
-            ) : (
-              <p className="text-xs text-[var(--fo-muted)]">
-                JPG, PNG o WebP de hasta 40 MB. La foto no se sube a ningún lado: se trabaja en esta computadora.
-              </p>
-            )}
+            ) : null}
           </div>
 
           <div className="space-y-3">
@@ -247,12 +251,12 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
                   value={medidaElegida ? `${medida.anchoCm}x${medida.altoCm}` : "otra"}
                   onChange={(e) => {
                     const m = MEDIDAS_CARNET.find((x) => `${x.anchoCm}x${x.altoCm}` === e.target.value);
-                    if (m) setMedida({ anchoCm: m.anchoCm, altoCm: m.altoCm });
+                    if (m) cambiarMedida({ anchoCm: m.anchoCm, altoCm: m.altoCm });
                   }}
                 >
                   {MEDIDAS_CARNET.map((m) => (
                     <option key={m.etiqueta} value={`${m.anchoCm}x${m.altoCm}`}>
-                      {m.etiqueta} · entran {grillaDe(m, hoja).total} en una {hoja.etiqueta.toLowerCase()}
+                      {m.etiqueta} · entran {grillaDe(m, HOJAS[0]!).total} en una 10 × 15
                     </option>
                   ))}
                   <option value="otra">Otra medida</option>
@@ -264,10 +268,11 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
                   <input
                     type="number"
                     min={LADO_MINIMO_CM}
+                    max={LADO_MAXIMO_CM}
                     step={0.1}
                     className="fo-input"
                     value={medida.anchoCm}
-                    onChange={(e) => setMedida((m) => ({ ...m, anchoCm: Number(e.target.value) || 0 }))}
+                    onChange={(e) => cambiarMedida({ ...medida, anchoCm: Number(e.target.value) || 0 })}
                   />
                 </label>
                 <label className="block">
@@ -275,15 +280,20 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
                   <input
                     type="number"
                     min={LADO_MINIMO_CM}
+                    max={LADO_MAXIMO_CM}
                     step={0.1}
                     className="fo-input"
                     value={medida.altoCm}
-                    onChange={(e) => setMedida((m) => ({ ...m, altoCm: Number(e.target.value) || 0 }))}
+                    onChange={(e) => cambiarMedida({ ...medida, altoCm: Number(e.target.value) || 0 })}
                   />
                 </label>
               </div>
             </div>
-            {!medidaValida ? <p className="fo-alert-warning">Cada lado tiene que medir al menos {LADO_MINIMO_CM} cm.</p> : null}
+            {!medidaValida ? (
+              <p className="fo-alert-warning">
+                Cada lado tiene que medir entre {LADO_MINIMO_CM} y {LADO_MAXIMO_CM} cm.
+              </p>
+            ) : null}
           </div>
 
           <details className="text-sm">
@@ -302,17 +312,19 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
       {paso === 2 && imageSrc ? (
         <section className="fo-card space-y-4 p-5">
           <h2 className="text-base font-semibold">
-            Encuadre · {String(medida.anchoCm).replace(".", ",")} × {String(medida.altoCm).replace(".", ",")} cm
+            Encuadre · {cm(medida.anchoCm)} × {cm(medida.altoCm)} cm
           </h2>
           <Recorte
             imageSrc={imageSrc}
             crop={crop}
             zoom={zoom}
-            rotation={rotation}
+            giro90={giro90}
+            enderezar={enderezar}
             aspect={medida.anchoCm / medida.altoCm}
             onCropChange={setCrop}
             onZoomChange={setZoom}
-            onRotationChange={setRotation}
+            onGiro90Change={setGiro90}
+            onEnderezarChange={setEnderezar}
             onCropComplete={setCropPixels}
           />
         </section>
@@ -322,94 +334,39 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeGuardarEnFicha, pue
         <section className="fo-card space-y-4 p-5">
           <h2 className="text-base font-semibold">Retoque</h2>
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <VistaRecorte imageSrc={imageSrc} crop={cropPixels} rotation={rotation} settings={settings} medida={medida} />
-            <Ajustes settings={settings} onChange={setSettings} onReset={() => setSettings(AJUSTES_INICIALES)} />
+            <VistaRecorte imageSrc={imageSrc} crop={cropPixels} rotacion={rotacion} ajustes={ajustes} medida={medida} />
+            <Ajustes ajustes={ajustes} onChange={setAjustes} onRestablecer={() => setAjustes(AJUSTES_NEUTROS)} />
           </div>
         </section>
       ) : null}
 
-      {paso === 4 && imageSrc && cropPixels ? (
+      {paso === 4 && original && cropPixels && preparacionId ? (
         <section className="fo-card space-y-5 p-5">
           <h2 className="text-base font-semibold">La plancha para imprimir</h2>
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <VistaPlancha
-              imageSrc={imageSrc}
-              crop={cropPixels}
-              rotation={rotation}
-              settings={settings}
-              medida={medida}
-              hoja={hoja}
-              grilla={grilla}
-            />
-            <div className="space-y-4">
-              <label className="block">
-                <span className="fo-label">Se imprime en</span>
-                <select className="fo-input" value={hoja.clave} onChange={(e) => setHoja(HOJAS.find((h) => h.clave === e.target.value) ?? HOJAS[0]!)}>
-                  {HOJAS.map((h) => (
-                    <option key={h.clave} value={h.clave}>
-                      {h.etiqueta}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="fo-label">Cantidad de fotos</span>
-                <select
-                  className="fo-input"
-                  value={cantidad ?? "todas"}
-                  onChange={(e) => setCantidad(e.target.value === "todas" ? null : Number(e.target.value))}
-                >
-                  <option value="todas">Todas las que entran ({entranComoMucho})</option>
-                  {Array.from({ length: Math.max(0, entranComoMucho - 1) }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
-                {grilla.total} fotos de {String(medida.anchoCm).replace(".", ",")} × {String(medida.altoCm).replace(".", ",")} cm ({grilla.cols}{" "}
-                columnas × {grilla.rows} filas), con guías grises para cortar. El archivo sale en JPG a {DPI_IMPRESION} dpi: imprimilo
-                en tamaño real, sin «ajustar a la página».
-              </p>
-
-              <button type="button" className="fo-btn fo-btn-primary w-full" disabled={trabajando !== null} onClick={() => void alDescargar()}>
-                <Download className="size-4" aria-hidden />
-                {trabajando === "descarga" ? "Preparando…" : "Descargar para imprimir"}
-              </button>
-
-              {puedeGuardarEnFicha && puedeBuscarClientes ? (
-                <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
-                  <p className="text-sm font-medium">Guardarla en la ficha del cliente (opcional)</p>
-                  <p className="text-xs text-[var(--fo-muted)]">Queda en sus «Adjuntos» para volver a imprimirla otro día.</p>
-                  <ClienteBuscador cliente={cliente} onElegir={setCliente} puedeAlta={puedeAltaCliente} />
-                  <button
-                    type="button"
-                    className="fo-btn fo-btn-secondary w-full"
-                    disabled={!cliente || trabajando !== null}
-                    onClick={() => void alGuardar()}
-                  >
-                    <Save className="size-4" aria-hidden />
-                    {trabajando === "guardado" ? "Guardando…" : "Guardar en la ficha"}
-                  </button>
-                </div>
-              ) : null}
-
-              {aviso ? (
-                <p className={aviso.tipo === "ok" ? "fo-alert-success flex gap-2" : "fo-alert-error"}>
-                  {aviso.tipo === "ok" ? <Check className="mt-0.5 size-4 shrink-0" aria-hidden /> : null}
-                  {aviso.texto}
-                </p>
-              ) : null}
-            </div>
-          </div>
+          <PasoPlancha
+            modo={modo}
+            preparacionId={preparacionId}
+            pieza={{
+              originalId: original.id,
+              anchoMm: Math.round(medida.anchoCm * 100) / 10,
+              altoMm: Math.round(medida.altoCm * 100) / 10,
+              receta: recetaDesdeEditor({ cropPx: cropPixels, vista: original.vista, rotacion, ajustes }),
+            }}
+          />
         </section>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" className="fo-btn fo-btn-secondary" disabled={paso === 1} onClick={() => setPaso((p) => Math.max(1, p - 1) as Paso)}>
-          Atrás
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className="fo-btn fo-btn-secondary" disabled={paso === 1} onClick={() => setPaso((p) => Math.max(1, p - 1) as Paso)}>
+            Atrás
+          </button>
+          {modo.tipo === "mostrador" ? (
+            <button type="button" className="fo-btn fo-btn-secondary" onClick={modo.onCancelar}>
+              Cancelar
+            </button>
+          ) : null}
+        </div>
         {paso < 4 ? (
           <button type="button" className="fo-btn fo-btn-primary" disabled={!puedeSeguir} onClick={() => setPaso((p) => Math.min(4, p + 1) as Paso)}>
             Siguiente
