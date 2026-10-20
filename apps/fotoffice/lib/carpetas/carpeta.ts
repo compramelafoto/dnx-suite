@@ -13,6 +13,7 @@ import {
   limpiarNombreArchivo,
   nuevoVencimiento,
   tipoDeArchivo,
+  vencimientoAlSubir,
   type Audiencia,
 } from "./reglas";
 
@@ -89,11 +90,21 @@ export async function pedirSubida(ctx: CtxProyectos, proyectoId: unknown, nombre
 export async function confirmarSubida(ctx: CtxProyectos, archivoId: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!puedeGestionarProyectos(ctx)) return { ok: false, error: MENSAJES_PROYECTO.sinPermiso };
   if (typeof archivoId !== "string" || !ID.test(archivoId)) return { ok: false, error: MENSAJES_PROYECTO.datosInvalidos };
-  const a = await prisma.fotofficeArchivoTrabajo.findFirst({ where: { id: archivoId, workspaceId: ctx.workspaceId }, select: { id: true, key: true } });
+  const a = await prisma.fotofficeArchivoTrabajo.findFirst({
+    where: { id: archivoId, workspaceId: ctx.workspaceId },
+    select: { id: true, key: true, proyectoId: true },
+  });
   if (!a) return { ok: false, error: "Ese archivo no existe." };
   const real = await tamanoDeArchivo(a.key);
   if (real === null) return { ok: false, error: "El archivo no llegó a subirse. Probá de nuevo." };
   await prisma.fotofficeArchivoTrabajo.update({ where: { id: a.id }, data: { estado: "LISTO", bytes: BigInt(real) } });
+  const p = await prisma.fotofficeProyecto.findFirst({ where: { id: a.proyectoId, workspaceId: ctx.workspaceId }, select: { carpetaVence: true } });
+  if (p && !p.carpetaVence) {
+    await prisma.fotofficeProyecto.updateMany({
+      where: { id: a.proyectoId, workspaceId: ctx.workspaceId, carpetaVence: null },
+      data: { carpetaVence: vencimientoAlSubir(null, new Date()) },
+    });
+  }
   return { ok: true };
 }
 
