@@ -1,74 +1,105 @@
 "use client";
 
-import type { AdjustmentSettings } from "./procesar";
+import type { Ajustes as ValoresAjustes, ClaveAjuste } from "@/lib/impresion/ajustes";
 
-const DESLIZADORES: { key: keyof AdjustmentSettings; label: string; min: number; max: number }[] = [
-  { key: "exposure", label: "Exposición", min: -100, max: 100 },
-  { key: "contrast", label: "Contraste", min: -100, max: 100 },
-  { key: "shadows", label: "Sombras", min: -100, max: 100 },
-  { key: "blacks", label: "Negros", min: -100, max: 100 },
-  { key: "lights", label: "Luces", min: -100, max: 100 },
-  { key: "highlights", label: "Altas luces", min: -100, max: 100 },
-  { key: "saturation", label: "Saturación", min: -100, max: 100 },
-  { key: "temperature", label: "Temperatura", min: -100, max: 100 },
-  { key: "tint", label: "Tinte", min: -100, max: 100 },
-  { key: "sharpen", label: "Nitidez suave", min: 0, max: 100 },
-  { key: "backgroundWhiten", label: "Fondo más blanco", min: 0, max: 100 },
-  { key: "backgroundSmooth", label: "Suavizado del borde", min: 0, max: 20 },
+const MIN = -50;
+const MAX = 50;
+
+/** Los controles de la spec §7, agrupados como en la pantalla de revelado. */
+const GRUPOS: { titulo: string; controles: { clave: ClaveAjuste; etiqueta: string }[] }[] = [
+  {
+    titulo: "Luz",
+    controles: [
+      { clave: "exposicion", etiqueta: "Exposición" },
+      { clave: "contraste", etiqueta: "Contraste" },
+      { clave: "luces", etiqueta: "Luces" },
+      { clave: "sombras", etiqueta: "Sombras" },
+      { clave: "blancos", etiqueta: "Blancos" },
+      { clave: "negros", etiqueta: "Negros" },
+    ],
+  },
+  {
+    titulo: "Color",
+    controles: [
+      { clave: "temperatura", etiqueta: "Temperatura" },
+      { clave: "tinte", etiqueta: "Tinte" },
+      { clave: "saturacion", etiqueta: "Saturación" },
+      { clave: "intensidad", etiqueta: "Intensidad" },
+    ],
+  },
 ];
 
-/** Retoque rápido antes de imprimir: luz, color y fondo. */
+/**
+ * Retoque antes de imprimir. Sólo se guarda el valor de cada control (−50 a +50): el servidor
+ * aplica la misma fórmula sobre el original completo.
+ */
 export function Ajustes({
-  settings,
+  ajustes,
   onChange,
-  onReset,
+  onRestablecer,
 }: {
-  settings: AdjustmentSettings;
-  onChange: (next: AdjustmentSettings) => void;
-  onReset: () => void;
+  ajustes: ValoresAjustes;
+  onChange: (next: ValoresAjustes) => void;
+  onRestablecer: () => void;
 }) {
-  const cambiar = (key: keyof AdjustmentSettings, valor: number, min: number, max: number) =>
-    onChange({ ...settings, [key]: Math.min(max, Math.max(min, valor)) });
+  const cambiar = (clave: ClaveAjuste, valor: number) =>
+    onChange({ ...ajustes, [clave]: Math.round(Math.min(MAX, Math.max(MIN, valor))) });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs leading-relaxed text-[var(--fo-muted)]">
-          Ajustes rápidos para mejorar la foto. «Fondo más blanco» sirve para fondos que ya son claros: no reemplaza un fondo de
-          color.
+          Ajustes suaves de luz y color. Lo que ves al lado es una vista previa: la plancha se arma desde la foto original, sin
+          perder calidad.
         </p>
-        <button type="button" className="fo-btn fo-btn-secondary shrink-0" onClick={onReset}>
-          Volver a cero
+        <button type="button" className="fo-btn fo-btn-secondary shrink-0" onClick={onRestablecer}>
+          Restablecer
         </button>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {DESLIZADORES.map((d) => (
-          <div key={d.key} className="space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <span>{d.label}</span>
-              <span className="text-xs text-[var(--fo-muted)]">{settings[d.key]}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" className="fo-icon-btn" onClick={() => cambiar(d.key, settings[d.key] - 1, d.min, d.max)} aria-label={`Menos ${d.label.toLowerCase()}`}>
-                −
-              </button>
-              <input
-                type="range"
-                min={d.min}
-                max={d.max}
-                step={1}
-                value={settings[d.key]}
-                onChange={(e) => cambiar(d.key, Number(e.target.value), d.min, d.max)}
-                className="w-full accent-[var(--fo-accent)]"
-                aria-label={d.label}
-              />
-              <button type="button" className="fo-icon-btn" onClick={() => cambiar(d.key, settings[d.key] + 1, d.min, d.max)} aria-label={`Más ${d.label.toLowerCase()}`}>
-                +
-              </button>
-            </div>
+      {GRUPOS.map((g) => (
+        <fieldset key={g.titulo} className="space-y-3">
+          <legend className="text-sm font-semibold">{g.titulo}</legend>
+          <div className="grid gap-4 md:grid-cols-2">
+            {g.controles.map((c) => (
+              <div key={c.clave} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span>{c.etiqueta}</span>
+                  <span className="text-xs text-[var(--fo-muted)]">{ajustes[c.clave] > 0 ? `+${ajustes[c.clave]}` : ajustes[c.clave]}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="fo-icon-btn"
+                    onClick={() => cambiar(c.clave, ajustes[c.clave] - 1)}
+                    aria-label={`Menos ${c.etiqueta.toLowerCase()}`}
+                  >
+                    −
+                  </button>
+                  <input
+                    type="range"
+                    min={MIN}
+                    max={MAX}
+                    step={1}
+                    value={ajustes[c.clave]}
+                    onChange={(e) => cambiar(c.clave, Number(e.target.value))}
+                    onDoubleClick={() => cambiar(c.clave, 0)}
+                    className="w-full accent-[var(--fo-accent)]"
+                    aria-label={c.etiqueta}
+                  />
+                  <button
+                    type="button"
+                    className="fo-icon-btn"
+                    onClick={() => cambiar(c.clave, ajustes[c.clave] + 1)}
+                    aria-label={`Más ${c.etiqueta.toLowerCase()}`}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </fieldset>
+      ))}
     </div>
   );
 }

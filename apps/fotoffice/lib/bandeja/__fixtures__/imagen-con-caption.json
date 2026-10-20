@@ -1,0 +1,21 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "102290129340398",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": { "display_phone_number": "5493415550100", "phone_number_id": "106540352242922" },
+        "contacts": [{ "profile": { "name": "Lucía Pérez" }, "wa_id": "5493413419869" }],
+        "messages": [{
+          "from": "5493413419869",
+          "id": "wamid.IMG0001",
+          "timestamp": "1791558060",
+          "type": "image",
+          "image": { "id": "1234567890", "mime_type": "image/jpeg", "sha256": "abc", "caption": "Así quiero el fondo" }
+        }]
+      }
+    }]
+  }]
+}

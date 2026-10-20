@@ -121,7 +121,7 @@ describe("recordSale — Caja apagada", () => {
 
     const resultado = await recordSale(tx as never, inputBase);
 
-    expect(resultado).toEqual({ saleId: "sale1", saleNumber: 1, deposited: false });
+    expect(resultado).toEqual({ saleId: "sale1", saleNumber: 1, deposited: false, itemIds: [expect.any(String)], clientId: null });
     expect(tx.cashAccount.findMany).not.toHaveBeenCalled();
     expect(tx.cashCategory.findMany).not.toHaveBeenCalled();
     expect(recordCashMovement).not.toHaveBeenCalled();
@@ -182,7 +182,7 @@ describe("recordSale — todo encendido", () => {
 
     const resultado = await recordSale(tx as never, input);
 
-    expect(resultado).toEqual({ saleId: "sale1", saleNumber: 1, deposited: true });
+    expect(resultado).toEqual({ saleId: "sale1", saleNumber: 1, deposited: true, itemIds: [expect.any(String)], clientId: "c1" });
     expect(recordCashMovement).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({
@@ -436,5 +436,23 @@ describe("recordSale — orden de bloqueo (mismo que la tienda)", () => {
     await recordSale(tx as never, { ...inputBase, lines: [{ ...inputBase.lines[0], productId: null }] });
 
     expect(tx.$queryRaw).not.toHaveBeenCalled();
+  });
+});
+
+describe("recordSale — ids de los renglones (impresión)", () => {
+  it("devuelve el id de cada renglón en el orden del ticket, los mismos que escribió", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx();
+    const input: RecordSaleInput = { ...inputBase, lines: [inputBase.lines[0]!, { ...inputBase.lines[0]!, description: "segundo" }] };
+    const r = await recordSale(tx as never, input);
+    expect(r.itemIds).toHaveLength(2);
+    const escritos = (tx.saleItem.createMany as ReturnType<typeof vi.fn>).mock.calls[0]![0].data.map((d: { id: string }) => d.id);
+    expect(escritos).toEqual(r.itemIds);
+    expect(new Set(r.itemIds).size).toBe(2);
+  });
+
+  it("devuelve el cliente resuelto de la venta (null sin cliente)", async () => {
+    moduleState({ cash: false, clients: false });
+    expect((await recordSale(saleTx() as never, inputBase)).clientId).toBeNull();
   });
 });

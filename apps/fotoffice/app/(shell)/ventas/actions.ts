@@ -22,6 +22,7 @@ import {
   type RawCheckoutLine,
 } from "@/lib/sales/checkout";
 import { recordSale } from "@/lib/sales/record-sale";
+import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { voidSale } from "@/lib/sales/void-sale";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
@@ -321,6 +322,19 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   const validacion = validateTicket(armado.lines, input.discountMinor);
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
+  // Foto carnet preparada en el Mostrador: se valida antes de cobrar y se ata al renglón dentro de
+  // la misma transacción de la venta (el candado de `vincularConVenta` impide cobrarla dos veces).
+  // `armado.lines[i]` es el renglón de `input.lines[i]`: `buildTicketLines` no junta ni saltea.
+  const preparaciones = input.lines
+    .map((l, i) => ({ i, preparacionId: l.preparacionId ?? null, productId: l.productId }))
+    .filter((p): p is { i: number; preparacionId: string; productId: string | null } => typeof p.preparacionId === "string");
+  // Import dinámico: el motor de impresión (sharp) sólo se carga si el ticket trae una preparación.
+  const impresion = preparaciones.length > 0 ? await import("@/lib/impresion/preparaciones") : null;
+  if (impresion) {
+    const v = await impresion.validarParaCobrar(workspace.id, preparaciones);
+    if (!v.ok) return { ok: false, error: v.error };
+  }
+
   const client = resolveCheckoutClientInput(input.client);
   let note = input.note.trim();
 
@@ -338,8 +352,11 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   }
 
   try {
-    const venta = await prisma.$transaction((tx) =>
-      recordSale(tx, {
+    // Sin nivel de aislamiento explícito: READ COMMITTED (el de Postgres). Si dos ventas se
+    // disputan la misma preparación, la segunda espera el candado de la fila, relee
+    // `saleItemId` ya escrito, su `updateMany` cuenta 0 y lanza `PreparacionNoVinculable`.
+    const venta = await prisma.$transaction(async (tx) => {
+      const v = await recordSale(tx, {
         workspaceId: workspace.id,
         createdByUserId: user.id,
         occurredAt: new Date(),
@@ -348,15 +365,50 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
         note: note === "" ? null : note,
         client,
         lines: armado.lines,
-      }),
-    );
+      });
+      if (impresion) {
+        await impresion.vincularConVenta(
+          tx,
+          { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user) },
+          preparaciones.map((p) => ({ preparacionId: p.preparacionId, saleItemId: v.itemIds[p.i]! })),
+          v.clientId,
+        );
+      }
+      return v;
+    });
     revalidatePath("/ventas");
     if (reservaId) await confirmarUsoPagoMp(reservaId, `Venta #${venta.saleNumber}`);
+    if (impresion) await despuesDeCobrarPreparaciones(workspace.id, user, preparaciones);
     return { ok: true, saleNumber: venta.saleNumber, deposited: venta.deposited };
   } catch (e) {
     if (reservaId) await liberarPagoMp(reservaId);
+    if (impresion && e instanceof impresion.PreparacionNoVinculable) return { ok: false, error: e.message };
     console.error("[fotoffice][ventas] error al cobrar", e);
     return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };
+  }
+}
+
+/**
+ * Después de cobrar un ticket con foto carnet preparada: copia el original a la ficha del cliente
+ * de la venta. La venta ya está registrada, así que nada de esto puede volverla atrás ni mostrar
+ * "no se pudo registrar": si falla, queda en el log y se reintenta al asignar cliente.
+ * Privada: en un archivo "use server" todo lo exportado es una acción.
+ */
+async function despuesDeCobrarPreparaciones(
+  workspaceId: string,
+  user: Parameters<typeof etiquetaDeUsuario>[0],
+  preparaciones: { preparacionId: string }[],
+): Promise<void> {
+  const avisar = (e: unknown) =>
+    console.error("[fotoffice][ventas] no se guardó la foto carnet en la ficha", { error: e instanceof Error ? e.name : "?" });
+  try {
+    // También sin cliente en la venta: la preparación puede conservar el suyo.
+    const { guardarOriginalesEnFicha } = await import("@/lib/impresion/ficha-carnet");
+    const ctx = { workspaceId, userId: user.id, userLabel: etiquetaDeUsuario(user) };
+    for (const p of preparaciones) await guardarOriginalesEnFicha(ctx, p.preparacionId).catch(avisar);
+    revalidatePath("/ventas/impresiones");
+  } catch (e) {
+    avisar(e);
   }
 }
 

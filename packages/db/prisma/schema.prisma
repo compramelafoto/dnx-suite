@@ -7305,6 +7305,9 @@ model Workspace {
   fotofficePerfilPrecios         FotofficePerfilPrecios?
   fotofficePropuestasModelo      FotofficePropuestaModelo[]
   fotofficeBorradoresAuto        FotofficePropuestaBorradorAuto[]
+  fotofficeWaConexion            FotofficeWaConexion?
+  fotofficeWaChats               FotofficeWaChat[]
+  fotofficeWaMensajes            FotofficeWaMensaje[]
   fotofficePedidos               FotofficePedido[]
   fotofficePedidoCuotas          FotofficePedidoCuota[]
   fotofficeCobros                FotofficeCobro[]
@@ -7371,6 +7374,14 @@ model Workspace {
   artworkConsents                ArtworkConsent[]
   artworkListings                ArtworkListing[]
   artworkRoyalties               ArtworkRoyalty[]
+  fotofficeTamanosImpresion FotofficeTamanoImpresion[]
+  fotofficeSalidasImpresion FotofficeSalidaImpresion[]
+  fotofficeProductosProduccion FotofficeProductoProduccion[]
+  fotofficePreparacionesImpresion FotofficePreparacionImpresion[]
+  fotofficeOriginalesImpresion FotofficeOriginalImpresion[]
+  fotofficePiezasImpresion FotofficePiezaImpresion[]
+  fotofficeHojasImpresion FotofficeHojaImpresion[]
+  fotofficeRegistrosImpresion FotofficeRegistroImpresion[]
 }
 
 model WorkspaceFeatureModule {
@@ -7561,6 +7572,8 @@ model FotofficeAttachment {
   uploadedByLabel  String
   deletedAt        DateTime?
   purgeAfter       DateTime?
+  /// "FOTO_CARNET" en la copia del original de una foto carnet; null en lo subido a mano.
+  origen           String?
   createdAt        DateTime  @default(now())
 
   workspace                  Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -7569,10 +7582,12 @@ model FotofficeAttachment {
   fotofficeCobros            FotofficeCobro[]
   fotofficeCuentasPagar      FotofficeCuentaPagar[]
   fotofficeContratosManuales FotofficeContrato[]
+  fotofficeOriginalesImpresion FotofficeOriginalImpresion[]
 
   @@index([workspaceId, clientId, createdAt])
   @@index([workspaceId, memberId, createdAt])
   @@index([status, purgeAfter])
+  @@index([workspaceId, clientId, origen])
 }
 
 /// Vínculo entre dos personas del mismo workspace. `kind` es la clave del catálogo desde el lado "from".
@@ -18864,6 +18879,7 @@ model Client {
   fotofficeCostosProveedor         FotofficeCostoPlantilla[]       @relation("FotofficeCostoProveedor")
   fotofficePresupuestos            FotofficePresupuesto[]          @relation("FotofficePresupuestoContacto")
   fotofficePedidos                 FotofficePedido[]               @relation("FotofficePedidoContacto")
+  fotofficeWaChats                 FotofficeWaChat[]
   fotofficeCobros                  FotofficeCobro[]                @relation("FotofficeCobroContacto")
   fotofficeCuentasPagar            FotofficeCuentaPagar[]          @relation("FotofficeCuentaPagarProveedor")
   fotofficeProyectos               FotofficeProyecto[]
@@ -18874,6 +18890,7 @@ model Client {
   fotofficeContratoFirmas          FotofficeContratoFirmante[]
   fotofficeGaleriaClientes         FotofficeGaleriaCliente[]
   fotofficeCitaParticipaciones     FotofficeCitaParticipante[]
+  fotofficePreparacionesImpresion FotofficePreparacionImpresion[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status])
@@ -21752,6 +21769,7 @@ model FotofficeProyecto {
   planes        FotofficeProyectoEtapaPlan[]
   citas         FotofficeCita[]
   galerias      FotofficeGaleria[]
+  preparacionesImpresion FotofficePreparacionImpresion[]
 
   @@unique([workspaceId, number])
   @@unique([pedidoId, pedidoItemIndex, circuitId])
@@ -21816,6 +21834,7 @@ model FotofficeProveedor {
   workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   proyectos FotofficeProyecto[]
   reglas    FotofficeProductoProyecto[]
+  salidasImpresion FotofficeSalidaImpresion[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, active])
@@ -21838,6 +21857,7 @@ model FotofficeArchivoTrabajo {
 
   workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   proyecto  FotofficeProyecto @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  originalesImpresion FotofficeOriginalImpresion[]
 
   @@index([proyectoId, createdAt])
   @@index([workspaceId, estado])
@@ -22474,6 +22494,8 @@ model Product {
   fotofficeProyectos      FotofficeProyecto[]
   fotofficeProyectoReglas FotofficeProductoProyecto[]
   fotofficeCitaReglas     FotofficeProductoCita[]
+  fotofficeProduccion FotofficeProductoProduccion?
+  fotofficePreparaciones FotofficePreparacionImpresion[]
 
   @@unique([workspaceId, sku])
   @@index([workspaceId, isActive])
@@ -22584,10 +22606,253 @@ model SaleItem {
 
   sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  fotofficePreparacion FotofficePreparacionImpresion?
 
   @@index([saleId])
   @@index([productId])
   @@index([variantId])
+}
+
+// ---------------------------------------------------------------------------
+// Impresión (etapa 1): tamaños, salidas (Kodak, Epson, laboratorio), producción de productos,
+// preparaciones del mostrador y registro de hojas impresas. Diseño:
+// apps/fotoffice/docs/superpowers/specs/2026-10-20-impresiones-recorte-revelado-design.md
+// ---------------------------------------------------------------------------
+
+/// Tamaño de papel con su medida real (10x15 = 102 × 152 mm). Editable por espacio de trabajo.
+model FotofficeTamanoImpresion {
+  id          String   @id @default(cuid())
+  workspaceId String
+  nombre      String
+  anchoMm     Decimal  @db.Decimal(6, 1)
+  altoMm      Decimal  @db.Decimal(6, 1)
+  orden       Int      @default(0)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  salidas     FotofficeSalidaTamano[]
+  productos   FotofficeProductoProduccion[]
+  hojas       FotofficeHojaImpresion[]
+  registros   FotofficeRegistroImpresion[]
+
+  @@unique([workspaceId, nombre])
+  @@index([workspaceId, activo, orden])
+}
+
+/// Por dónde sale una hoja: impresora del local (LOCAL) o laboratorio (LABORATORIO).
+/// `escalaXMil`/`escalaYMil`: corrección medida con la hoja de prueba (1000 = sin corrección).
+model FotofficeSalidaImpresion {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  nombre            String
+  /// LOCAL | LABORATORIO (CHECK en el SQL)
+  tipo              String
+  proveedorId       String?
+  ppp               Int      @default(300)
+  /// SUAVE | NORMAL | FUERTE (CHECK en el SQL)
+  nitidez           String   @default("NORMAL")
+  escalaXMil        Int      @default(1000)
+  escalaYMil        Int      @default(1000)
+  /// Se usa desde la etapa 2 (copias a sangre).
+  margenSinBordesMm Decimal  @default(0) @db.Decimal(4, 1)
+  /// false en la Epson: nunca copias ni ampliaciones fotográficas.
+  admiteCopias      Boolean  @default(true)
+  activo            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace  Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proveedor  FotofficeProveedor?           @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+  tamanos    FotofficeSalidaTamano[]
+  productos  FotofficeProductoProduccion[]
+  hojas      FotofficeHojaImpresion[]
+  registros  FotofficeRegistroImpresion[]
+
+  @@unique([workspaceId, nombre])
+  @@index([workspaceId, activo])
+}
+
+/// Qué tamaños admite cada salida.
+model FotofficeSalidaTamano {
+  salidaId String
+  tamanoId String
+
+  salida FotofficeSalidaImpresion @relation(fields: [salidaId], references: [id], onDelete: Cascade)
+  tamano FotofficeTamanoImpresion @relation(fields: [tamanoId], references: [id], onDelete: Cascade)
+
+  @@id([salidaId, tamanoId])
+  @@index([tamanoId])
+}
+
+/// Un producto que se produce en el local: qué pieza es, por dónde sale y qué hoja usa.
+model FotofficeProductoProduccion {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  productId    String   @unique
+  /// COPIA | CARNET | POLAROID (CHECK en el SQL). En la etapa 1 sólo se prepara CARNET.
+  tipoPieza    String
+  salidaId     String
+  tamanoHojaId String
+  /// HOJA | COPIA | PIEZA (CHECK en el SQL): qué cuenta la cantidad del renglón.
+  unidad       String   @default("HOJA")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace  Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product    Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  salida     FotofficeSalidaImpresion @relation(fields: [salidaId], references: [id], onDelete: Restrict)
+  tamanoHoja FotofficeTamanoImpresion @relation(fields: [tamanoHojaId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId])
+  @@index([salidaId])
+  @@index([tamanoHojaId])
+}
+
+/// Lo que se arma para imprimir. Vive aparte del carrito (que está sólo en la pantalla) y se ata
+/// al renglón de venta al cobrar. CHECK en el SQL: a lo sumo uno de saleItemId / proyectoId.
+model FotofficePreparacionImpresion {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  productId       String?
+  clientId        String?
+  saleItemId      String?  @unique
+  proyectoId      String?
+  /// PREPARANDO | LISTA | IMPRESA | ANULADA (CHECK en el SQL)
+  estado          String   @default("PREPARANDO")
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace  Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product    Product?                    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  client     Client?                     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  saleItem   SaleItem?                   @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  proyecto   FotofficeProyecto?          @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  originales FotofficeOriginalImpresion[]
+  piezas     FotofficePiezaImpresion[]
+  hojas      FotofficeHojaImpresion[]
+
+  @@index([workspaceId, estado, createdAt])
+  @@index([workspaceId, saleItemId])
+  @@index([createdAt])
+}
+
+/// El archivo que trajo el cliente, tal cual. Nunca se modifica.
+model FotofficeOriginalImpresion {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  preparacionId    String
+  key              String   @unique
+  previewKey       String?
+  nombre           String
+  tipo             String
+  bytes            Int      @default(0)
+  anchoPx          Int      @default(0)
+  altoPx           Int      @default(0)
+  /// Descripción del perfil de color embebido (p. ej. "Display P3"), o null.
+  perfilColor      String?
+  /// PENDIENTE (pidió la subida) | LISTO (confirmado y con vista previa)
+  estado           String   @default("PENDIENTE")
+  /// Si viene de la carpeta de un trabajo: apunta a ese archivo y no se copia ni se borra.
+  archivoTrabajoId String?
+  /// La copia guardada en la ficha del cliente (sólo carnet).
+  adjuntoId        String?
+  /// true si ESTE original creó ese adjunto (se mueve o se borra al corregir el cliente); false si vino de "Fotos anteriores".
+  adjuntoPropio    Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  workspace   Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  preparacion FotofficePreparacionImpresion @relation(fields: [preparacionId], references: [id], onDelete: Cascade)
+  archivo     FotofficeArchivoTrabajo?      @relation(fields: [archivoTrabajoId], references: [id], onDelete: SetNull)
+  adjunto     FotofficeAttachment?          @relation(fields: [adjuntoId], references: [id], onDelete: SetNull)
+  piezas      FotofficePiezaImpresion[]
+
+  @@index([preparacionId, createdAt])
+  @@index([workspaceId, estado, createdAt])
+}
+
+/// Una foto en una medida, con su receta (JSON chico: encuadre en proporciones, giro, ajustes).
+model FotofficePiezaImpresion {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  preparacionId String
+  originalId    String
+  /// COPIA | CARNET | POLAROID (CHECK en el SQL)
+  tipo          String
+  tamanoId      String?
+  /// Medida de la pieza de carnet (las copias usan `tamanoId`).
+  anchoMm       Decimal?  @db.Decimal(6, 1)
+  altoMm        Decimal?  @db.Decimal(6, 1)
+  receta        Json
+  huella        String
+  cantidad      Int       @default(1)
+  revisadaAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace   Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  preparacion FotofficePreparacionImpresion @relation(fields: [preparacionId], references: [id], onDelete: Cascade)
+  original    FotofficeOriginalImpresion    @relation(fields: [originalId], references: [id], onDelete: Cascade)
+
+  @@index([preparacionId])
+  @@index([originalId])
+}
+
+/// Lo que se imprime: una o más piezas acomodadas en el papel de una salida.
+model FotofficeHojaImpresion {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  preparacionId String
+  salidaId      String
+  tamanoId      String
+  disposicion   Json
+  finalKey      String?
+  finalHuella   String?
+  finalAnchoPx  Int      @default(0)
+  finalAltoPx   Int      @default(0)
+  /// Cuántas hojas iguales se imprimen.
+  copias        Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace   Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  preparacion FotofficePreparacionImpresion @relation(fields: [preparacionId], references: [id], onDelete: Cascade)
+  salida      FotofficeSalidaImpresion      @relation(fields: [salidaId], references: [id], onDelete: Restrict)
+  tamano      FotofficeTamanoImpresion      @relation(fields: [tamanoId], references: [id], onDelete: Restrict)
+  registros   FotofficeRegistroImpresion[]
+
+  @@index([preparacionId])
+  @@index([salidaId])
+  @@index([tamanoId])
+}
+
+/// Cada vez que salen hojas de una impresora. Contable: NO se borra (la purga deja hojaId en null).
+model FotofficeRegistroImpresion {
+  id          String   @id @default(cuid())
+  workspaceId String
+  hojaId      String?
+  salidaId    String
+  tamanoId    String
+  hojas       Int
+  productId   String?
+  saleItemId  String?
+  proyectoId  String?
+  /// NORMAL | DESCARTADA | PRUEBA (CHECK en el SQL)
+  motivo      String
+  userId      Int?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hoja      FotofficeHojaImpresion?  @relation(fields: [hojaId], references: [id], onDelete: SetNull)
+  salida    FotofficeSalidaImpresion @relation(fields: [salidaId], references: [id], onDelete: Restrict)
+  tamano    FotofficeTamanoImpresion @relation(fields: [tamanoId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, salidaId, createdAt])
+  @@index([hojaId])
+  @@index([saleItemId])
 }
 
 /// Ficha online de un producto. Sin fila = se vende sólo en mostrador (el comportamiento de
@@ -25667,4 +25932,88 @@ model AgencyFluxUpload {
   @@index([deviceKeyId])
   @@index([userId, albumId, contentSha256])
   @@index([userId, albumId, originalFilename])
+}
+
+/// Bandeja de WhatsApp (FOTOFFICE): conexión del workspace. UNA por workspace. El token de Meta NO va
+/// acá: va cifrado en `WorkspaceIntegration` (proveedor WHATSAPP). Enums como texto: el esquema lo
+/// comparten cinco aplicaciones.
+model FotofficeWaConexion {
+  id            String   @id @default(cuid())
+  workspaceId   String   @unique
+  phoneNumberId String?  @unique
+  wabaId        String?
+  displayPhone  String?
+  /// SIMULADO | REAL
+  modo          String   @default("SIMULADO")
+  pausaBotHoras Int      @default(4)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Un chat de WhatsApp (un teléfono) dentro de un workspace.
+model FotofficeWaChat {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  /// Teléfono E.164 sin "+" (ej. 5493413419869).
+  waId             String
+  /// Nombre del perfil de WhatsApp.
+  nombre           String?
+  clientId         String?
+  /// BOT | HUMANO | RESUELTO
+  estado           String    @default("BOT")
+  asignadoUserId   Int?
+  botPausadoHasta  DateTime?
+  ultimoMensajeEn  DateTime
+  /// Base de la ventana de 24 h para responder con texto libre.
+  ultimoEntranteEn DateTime?
+  /// Vista previa para la lista (texto plano, hasta 120 caracteres) y tipo del último mensaje real (no SISTEMA).
+  ultimoMensajeTexto String?
+  ultimoMensajeTipo  String?
+  noLeidos         Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  mensajes  FotofficeWaMensaje[]
+
+  @@unique([workspaceId, waId])
+  @@index([workspaceId, estado, ultimoMensajeEn])
+  @@index([workspaceId, asignadoUserId])
+  @@index([clientId])
+}
+
+/// Un mensaje de un chat. Las acciones (tomó, devolvió al bot, resolvió) quedan como SISTEMA.
+model FotofficeWaMensaje {
+  id          String   @id @default(cuid())
+  workspaceId String
+  chatId      String
+  /// ENTRANTE | SALIENTE | SISTEMA
+  direccion   String
+  /// CLIENTE | BOT | USUARIO | CELULAR | SISTEMA
+  autor       String
+  autorUserId Int?
+  autorLabel  String?
+  /// TEXTO | IMAGEN | AUDIO | DOCUMENTO | VIDEO | UBICACION | PLANTILLA | OTRO
+  tipo        String   @default("TEXTO")
+  texto       String?
+  /// id/mime/caption de Meta; no se descarga en esta etapa.
+  media       Json?
+  waMessageId String?
+  /// RECIBIDO | SIMULADO | PENDIENTE | ENVIADO | ENTREGADO | LEIDO | FALLO
+  estadoEnvio String   @default("RECIBIDO")
+  errorCodigo String?
+  /// Token de idempotencia del envío desde el panel (un reintento no manda dos veces).
+  clientToken String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chat      FotofficeWaChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  /// Idempotencia de los webhooks (los NULL no chocan entre sí en Postgres).
+  @@unique([workspaceId, waMessageId])
+  @@unique([chatId, clientToken])
+  @@index([chatId, createdAt])
 }

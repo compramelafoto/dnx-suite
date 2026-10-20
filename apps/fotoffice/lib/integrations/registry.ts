@@ -17,7 +17,7 @@
  * proveedor: la credencial cifrada de un transportista es usuario y clave, y mandarla a
  * Google sería filtrarla.
  */
-export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM";
+export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM" | "WHATSAPP";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -39,6 +39,7 @@ export const GOOGLE_CONTACTS_INTEGRATION_KEY = "google-contacts";
 export const CORREO_ARGENTINO_INTEGRATION_KEY = "correo-argentino";
 export const ANDREANI_INTEGRATION_KEY = "andreani";
 export const ALBOOM_INTEGRATION_KEY = "alboom-crm";
+export const WHATSAPP_INTEGRATION_KEY = "whatsapp";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -112,6 +113,19 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     // Se conecta en Configuración → Migración desde Alboom, no en la pantalla de Integraciones.
     scopes: [],
     // Es una herramienta de migración del dueño: ningún módulo la exige.
+    requiredByModules: [],
+    status: "AVAILABLE",
+  },
+
+  {
+    key: WHATSAPP_INTEGRATION_KEY,
+    provider: "WHATSAPP",
+    label: "WhatsApp Business (Meta)",
+    description:
+      "Envía las respuestas de la Bandeja de WhatsApp con el número de la institución en la API de Meta.",
+    // No es OAuth: el token permanente del usuario del sistema de Meta se carga en la configuración
+    // de la Bandeja. No pasa por la pantalla de Integraciones.
+    scopes: [],
     requiredByModules: [],
     status: "AVAILABLE",
   },

@@ -16,6 +16,7 @@ import {
   CASH_CONFIGURE_ACTION,
   COMMUNICATIONS_CARNETS_ACTION,
   COVERAGES_COORDINATE_ACTION,
+  SALES_CATALOG_ACTION,
   STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
@@ -450,6 +451,25 @@ const VENTAS: SubmoduleItem[] = [
     icon: "Crop",
     description: "Encuadrar una foto a la medida del trámite y armar la plancha para imprimir.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // La página pide gestionar Ventas (`requireSalesStaff`).
+    href: "/ventas/impresiones",
+    label: "Impresiones",
+    icon: "Printer",
+    description: "Lo que hay que imprimir, lo preparado sin cobrar y lo que salió hoy.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    // Mismo permiso que la página (`requireSalesAdmin`): gestionar Ventas + `sales.catalog`.
+    href: "/ventas/impresion/configuracion",
+    label: "Impresoras",
+    icon: "Settings",
+    description: "Las impresoras, los tamaños de hoja y la nitidez de cada una.",
+    requiresManage: true,
+    requiresAction: SALES_CATALOG_ACTION,
     activeMatch: "under",
   },
   {
