@@ -8,6 +8,7 @@ import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { agendaEncendida, crearCitasDelPedido } from "@/lib/agenda/crear";
 import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
+import { lockStockRows } from "@/lib/sales/stock-lock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { nombreDeContacto } from "./nombre-contacto";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
@@ -236,13 +237,15 @@ function leerParaRetirar(raw: unknown, items: readonly Pick<ItemPresupuesto, "id
 
 /**
  * Las líneas que aparta la seña. Cada una apunta a un ítem del pedido (por id) con ese mismo
- * producto, y la cantidad es un entero positivo. null si alguna no cuadra (el talle se verifica
- * contra la base aparte).
+ * producto, y la cantidad es un entero positivo; entre todas las de un ítem no apartan más que
+ * su cantidad (una línea repetida no aparta dos veces). null si alguna no cuadra (el talle se
+ * verifica contra la base aparte).
  */
-function leerApartar(raw: unknown, items: readonly Pick<ItemPresupuesto, "id" | "productId">[]): LineaApartada[] | null {
+function leerApartar(raw: unknown, items: readonly Pick<ItemPresupuesto, "id" | "productId" | "cantidad">[]): LineaApartada[] | null {
   if (raw === undefined || raw === null) return [];
   if (!Array.isArray(raw)) return null;
   const out: LineaApartada[] = [];
+  const porItem = new Map<string, number>();
   for (const l of raw) {
     if (!l || typeof l !== "object" || Array.isArray(l)) return null;
     const r = l as Record<string, unknown>;
@@ -252,6 +255,9 @@ function leerApartar(raw: unknown, items: readonly Pick<ItemPresupuesto, "id" | 
     const variantId = r.variantId === undefined || r.variantId === null ? null : r.variantId;
     if (variantId !== null && !idValido(variantId)) return null;
     if (typeof r.cantidad !== "number" || !Number.isSafeInteger(r.cantidad) || r.cantidad <= 0) return null;
+    const suma = (porItem.get(it.id) ?? 0) + r.cantidad;
+    if (suma > it.cantidad) return null;
+    porItem.set(it.id, suma);
     out.push({ itemId: r.itemId, productId: r.productId, variantId, cantidad: r.cantidad });
   }
   return out;
@@ -442,8 +448,18 @@ async function apartarStock(
   d: { workspaceId: string; pedidoId: string; lineas: readonly LineaApartada[]; createdByUserId: number | null },
 ): Promise<void> {
   if (d.lineas.length === 0) return;
+  const productIds = [...new Set(d.lineas.map((l) => l.productId))];
+  // Lo primero, como toda escritura de stock: bloquear productos y después talles, en orden de id
+  // (`stock-lock.ts`). `applyStockMovement` escribe el talle antes que el producto; sin este
+  // bloqueo, una seña al mismo tiempo que una venta o un pedido online del mismo producto podía
+  // quedar esperando a la otra (interbloqueo) y Postgres abortaba una de las dos.
+  await lockStockRows(tx, {
+    workspaceId: d.workspaceId,
+    productIds,
+    variantIds: d.lineas.map((l) => l.variantId).filter((x): x is string => x !== null),
+  });
   const productos = await tx.product.findMany({
-    where: { workspaceId: d.workspaceId, id: { in: [...new Set(d.lineas.map((l) => l.productId))] } },
+    where: { workspaceId: d.workspaceId, id: { in: productIds } },
     select: { id: true, tracksStock: true },
   });
   const controla = new Map(productos.map((p) => [p.id, p.tracksStock]));

@@ -6,7 +6,11 @@ const B = await vi.hoisted(async () => {
 });
 
 vi.mock("server-only", () => ({}));
-vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
+// `Prisma.sql` arma `{ strings, values }` como el real: lo usa `lockStockRows`.
+vi.mock("@repo/db", () => ({
+  prisma: B.prisma,
+  Prisma: { JsonNull: null, sql: (strings: readonly string[], ...values: unknown[]) => ({ strings, values }) },
+}));
 
 const P = await import("./pedidos");
 
@@ -138,6 +142,31 @@ describe("stock apartado por la seña", () => {
     expect(producto("prod-taza").stockQty).toBe(8);
   });
 
+  it("bloquea productos y talles antes de mover el stock", async () => {
+    const bloqueos: { tabla: string; movimientos: number; valores: unknown[] }[] = [];
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      const m = /FROM "(Product|ProductVariant)".*FOR UPDATE/s.exec(texto);
+      if (m) bloqueos.push({ tabla: m[1]!, movimientos: B.datos.stockMovement.length, valores });
+    };
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({ apartar: [{ itemId: "m2", productId: "prod-taza", variantId: "var-m", cantidad: 1 }] }),
+      deps,
+    );
+    expect(r.ok).toBe(true);
+    expect(bloqueos).toEqual([
+      { tabla: "Product", movimientos: 0, valores: [["prod-taza"], "ws-1"] },
+      { tabla: "ProductVariant", movimientos: 0, valores: [["var-m"], "ws-1"] },
+    ]);
+    expect(B.datos.stockMovement).toHaveLength(1);
+  });
+
+  it("sin líneas que apartar no bloquea nada", async () => {
+    const antes = B.sql.length;
+    await P.crearPedidoManual(DUENO, base(), deps);
+    expect(B.sql.slice(antes).some((q) => /FROM "(Product|ProductVariant)"/.test(q.texto))).toBe(false);
+  });
+
   it("un producto que no controla stock no mueve nada", async () => {
     const r = await P.crearPedidoManual(
       DUENO,
@@ -164,6 +193,12 @@ describe("stock apartado por la seña", () => {
       [{ itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 0 }],
       [{ itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 1.5 }],
       [{ itemId: "m2", productId: "prod-taza", variantId: null, cantidad: "2" }],
+      // Más que la cantidad del ítem (2), en una línea o repartido en dos.
+      [{ itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 3 }],
+      [
+        { itemId: "m2", productId: "prod-taza", variantId: "var-m", cantidad: 2 },
+        { itemId: "m2", productId: "prod-taza", variantId: "var-m", cantidad: 1 },
+      ],
       // No es una lista.
       { itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 1 },
     ];

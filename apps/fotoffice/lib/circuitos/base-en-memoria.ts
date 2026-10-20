@@ -705,9 +705,11 @@ export function crearBaseEnMemoria() {
       ganchos.alEjecutarSql?.(texto, valores);
       return 1;
     };
-    c.$queryRaw = async (partes: TemplateStringsArray, ...valores: unknown[]) => {
+    c.$queryRaw = async (crudo: TemplateStringsArray | { strings: readonly string[]; values: unknown[] }, ...resto: unknown[]) => {
       const error = permitido();
       if (error) throw new Error(error);
+      // Como Prisma: acepta la plantilla etiquetada o un `Prisma.sql` ya armado (`{ strings, values }`).
+      const [partes, valores] = Array.isArray(crudo) ? [crudo as readonly string[], resto] : [(crudo as { strings: readonly string[] }).strings, (crudo as { values: unknown[] }).values];
       const texto = partes.join("$");
       sql.push({ texto, valores });
       ganchos.alEjecutarSql?.(texto, valores);
@@ -728,6 +730,8 @@ export function crearBaseEnMemoria() {
         .filter((c) => c.workspaceId === workspaceId && typeof c.phone === "string" && c.phone.replace(/\D/g, "").slice(-6) === fin)
         .map((c) => ({ id: c.id, phone: c.phone }));
     }
+    // `lockStockRows`: el `FOR UPDATE` de productos y talles acá no bloquea nada.
+    if (texto.includes("FOR UPDATE") && /FROM "(Product|ProductVariant)"/.test(texto)) return [];
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);
