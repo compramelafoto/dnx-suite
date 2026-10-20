@@ -44,6 +44,7 @@ function voidTx(over: {
   cashMovement?: Partial<{ findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> }>;
   cashShift?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
   storeOrder?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
+  fotofficePreparacionImpresion?: Partial<{ updateMany: ReturnType<typeof vi.fn> }>;
 } = {}) {
   return {
     // `lockStockRows` (el bloqueo de filas de stock) pasa por acá: no devuelve nada útil.
@@ -73,6 +74,7 @@ function voidTx(over: {
       ...over.cashMovement,
     },
     cashShift: { findFirst: tablaAusente("cash_shift"), ...over.cashShift },
+    fotofficePreparacionImpresion: { updateMany: vi.fn(async () => ({ count: 0 })), ...over.fotofficePreparacionImpresion },
   };
 }
 
@@ -523,5 +525,36 @@ describe("voidSale — orden de bloqueo (mismo que la tienda)", () => {
     expect(ultimoBloqueo).toBeLessThan(tx.productVariant.updateMany.mock.invocationCallOrder[0]);
     expect(ultimoBloqueo).toBeLessThan(tx.product.update.mock.invocationCallOrder[0]);
     expect(ultimoBloqueo).toBeLessThan(tx.stockMovement.create.mock.invocationCallOrder[0]);
+  });
+});
+
+describe("voidSale — foto carnet preparada", () => {
+  it("libera las preparaciones de sus renglones: vuelven a «Preparado sin cobrar»", async () => {
+    const tx = voidTx({
+      saleItem: {
+        findMany: vi.fn(async () => [
+          { id: "item1", productId: null, variantId: null, qty: 1 },
+          { id: "item2", productId: null, variantId: null, qty: 2 },
+        ]),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.fotofficePreparacionImpresion.updateMany).toHaveBeenCalledWith({
+      where: { workspaceId: inputBase.workspaceId, saleItemId: { in: ["item1", "item2"] } },
+      data: { saleItemId: null },
+    });
+  });
+
+  it("una venta que no se anula no libera nada", async () => {
+    const tx = voidTx({
+      sale: { findFirst: vi.fn(async () => ({ id: "sale1", saleNumber: 5, status: "ANULADA", cashMovementId: null })) },
+    });
+
+    await voidSale(tx as never, inputBase);
+
+    expect(tx.fotofficePreparacionImpresion.updateMany).not.toHaveBeenCalled();
   });
 });
