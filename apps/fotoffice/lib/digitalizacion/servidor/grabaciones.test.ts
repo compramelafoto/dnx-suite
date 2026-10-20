@@ -186,6 +186,12 @@ describe("cola de conversión al cerrar", () => {
     await cerrarGrabacion(ctx, "g1", { ...cierre, sinImagen: true });
     expect(db.digitalizacionGrabacion.update.mock.calls[0][0].data.conversionEstado).toBe("PENDIENTE");
   });
+  it("terminarConLoGrabado de un VHS sin imagen queda SIN_IMAGEN", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: true });
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    await terminarConLoGrabado(ctx, "g1");
+    expect(db.digitalizacionGrabacion.updateMany.mock.calls[0][0].data.conversionEstado).toBe("SIN_IMAGEN");
+  });
   it("terminarConLoGrabado queda PENDIENTE", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo });
     db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
@@ -241,6 +247,13 @@ describe("urlDeVideo", () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue(lista);
     expect(await urlDeVideo(ctx, "g1", "ver")).toEqual({ ok: true, url: "https://r2/video" });
     expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", expect.stringMatching(/\.mp4$/), "ver");
+  });
+  it("rechaza una videoKey de otro negocio o de otra grabación", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, videoKey: "digitalizacion/otro/g1/final.mp4" });
+    expect(await urlDeVideo(ctx, "g1", "ver")).toMatchObject({ ok: false });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, videoKey: "digitalizacion/ws1/g2/final.mp4" });
+    expect(await urlDeVideo(ctx, "g1", "ver")).toMatchObject({ ok: false });
+    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
   it("rechaza si no está LISTA o no tiene videoKey", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, conversionEstado: "PROCESANDO" });
