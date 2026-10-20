@@ -323,6 +323,17 @@ describe("preparaciones de impresión", () => {
     expect((await P.crearPreparacion(CTX, { productId: "copia10", clientId: null })).ok).toBe(true);
   });
 
+  it("las funciones del carnet no tocan una preparación de copias (no borran sus piezas ni sus hojas)", async () => {
+    B.agregar("product", { id: "copia10", workspaceId: "ws-1", name: "Copia 10x15", priceArs: "900", isActive: true });
+    await C.guardarProduccion("ws-1", "copia10", { tipoPieza: "COPIA", salidaId: kodakId, tamanoHojaId: t10, unidad: "COPIA" });
+    const { prep, original } = await conOriginal("copia10");
+    const NO = { ok: false, error: "Esa preparación no existe." };
+    expect(await P.guardarPiezaCarnet(CTX, prep, { originalId: original, anchoMm: 40, altoMm: 40, receta: recetaInicial() })).toEqual(NO);
+    expect(await P.generarHojaCarnet(CTX, prep, { salidaId: null, tamanoId: null, fotos: null, copias: 1, conLineas: true })).toEqual(NO);
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(0);
+    expect(B.datos.fotofficeHojaImpresion).toHaveLength(0);
+  });
+
   it("colas: el carnet enlaza a su hoja y no cuenta fotos de copias", async () => {
     const { prep, original } = await conOriginal();
     expect((await P.colas("ws-1", new Date())).sinCobrar.find((f) => f.preparacionId === prep)).toMatchObject({ fotos: 0, imprimirHref: null });

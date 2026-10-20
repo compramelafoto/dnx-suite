@@ -174,6 +174,20 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
   });
 }
 
+/**
+ * La preparación, si es de carnet (o de la pantalla suelta, sin producto). Una de un producto de
+ * copias no: las funciones del carnet borran piezas y hojas, y no pueden tocar las de copias.
+ */
+async function preparacionDeCarnet(workspaceId: string, id: unknown) {
+  const prep = await preparacionPropia(workspaceId, id);
+  if (!prep || prep.estado === "ANULADA") return null;
+  if (prep.productId) {
+    const copias = await prisma.fotofficeProductoProduccion.count({ where: { workspaceId, productId: prep.productId, tipoPieza: "COPIA" } });
+    if (copias > 0) return null;
+  }
+  return prep;
+}
+
 /** Borra objetos de R2 sin cortar por uno que falle. Devuelve si todos se borraron. */
 export async function borrarObjetos(claves: (string | null | undefined)[]): Promise<boolean> {
   let todos = true;
@@ -305,8 +319,8 @@ export async function guardarPiezaCarnet(
   preparacionId: string,
   d: { originalId: string; anchoMm: number; altoMm: number; receta: unknown },
 ): Promise<R<{ piezaId: string; ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" }>> {
-  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
-  if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
+  const prep = await preparacionDeCarnet(ctx.workspaceId, preparacionId);
+  if (!prep) return NO_EXISTE;
   if (!esId(d.originalId)) return FOTO_NO_EXISTE;
   const original = await prisma.fotofficeOriginalImpresion.findFirst({
     where: { id: d.originalId, workspaceId: ctx.workspaceId, preparacionId: prep.id, estado: "LISTO" },
@@ -436,8 +450,8 @@ export async function generarHojaCarnet(
   preparacionId: string,
   d: { salidaId: string | null; tamanoId: string | null; fotos: number | null; copias: number; conLineas: boolean },
 ): Promise<R<{ hojaId: string; fotosPorHoja: number; version: string }>> {
-  const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
-  if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
+  const prep = await preparacionDeCarnet(ctx.workspaceId, preparacionId);
+  if (!prep) return NO_EXISTE;
   if (!enteroEntre(d.copias, 1, COPIAS_MAX)) return { ok: false, error: `Las copias tienen que ser entre 1 y ${COPIAS_MAX}.` };
   if (d.fotos !== null && !enteroEntre(d.fotos, 1, 100)) return { ok: false, error: "La cantidad de fotos no es válida." };
   const conLineas = d.conLineas === true;
