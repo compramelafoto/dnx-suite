@@ -13,13 +13,17 @@ type Tecla = {
 };
 
 const CAMPOS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
-/** Con el foco acá, Enter ya activa el elemento: confirmar además lo haría dos veces. */
-const ACTIVABLES = new Set(["BUTTON", "A"]);
+/**
+ * Con el foco en un enlace, Enter es del enlace. En un botón (lo normal después de tocar Recortar,
+ * Girar 90°…) Enter confirma: quien llama cancela la tecla, así el botón no se vuelve a activar.
+ */
+const ENLACE = "A";
 
 /**
  * ← → foto anterior / siguiente, R recortar, E encajar, Enter confirma. Nada mientras se escribe
  * en un campo (cantidad, color, deslizadores), con Ctrl/Cmd/Alt (atajos del navegador) ni al
- * sostener la tecla (no saltea fotos ni confirma varias veces).
+ * sostener la tecla (no saltea fotos ni confirma varias veces). Quien llama hace `preventDefault`
+ * de toda tecla con acción.
  */
 export function accionDeTecla(e: Tecla, pos: { primera: boolean; ultima: boolean }): AccionDeTecla | null {
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return null;
@@ -37,7 +41,7 @@ export function accionDeTecla(e: Tecla, pos: { primera: boolean; ultima: boolean
     case "E":
       return "ENCAJAR";
     case "Enter":
-      return t && ACTIVABLES.has(t.tagName) ? null : "CONFIRMAR";
+      return t?.tagName === ENLACE ? null : "CONFIRMAR";
     default:
       return null;
   }

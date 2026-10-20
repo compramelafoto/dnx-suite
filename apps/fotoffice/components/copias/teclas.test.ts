@@ -39,10 +39,9 @@ describe("accionDeTecla", () => {
     expect(accionDeTecla(tecla("r", { target: { tagName: "DIV", isContentEditable: true } }), medio)).toBeNull();
   });
 
-  it("Enter sobre un botón o un enlace es de ese botón, no confirma dos veces", () => {
-    expect(accionDeTecla(tecla("Enter", { target: { tagName: "BUTTON", isContentEditable: false } }), medio)).toBeNull();
+  it("Enter confirma aunque el foco esté en un botón (el de Recortar, Girar 90°…); en un enlace no", () => {
+    expect(accionDeTecla(tecla("Enter", { target: { tagName: "BUTTON", isContentEditable: false } }), medio)).toBe("CONFIRMAR");
     expect(accionDeTecla(tecla("Enter", { target: { tagName: "A", isContentEditable: false } }), medio)).toBeNull();
-    // Las letras sí andan con el foco en un botón.
     expect(accionDeTecla(tecla("r", { target: { tagName: "BUTTON", isContentEditable: false } }), medio)).toBe("RECORTAR");
   });
 

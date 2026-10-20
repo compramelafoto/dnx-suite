@@ -56,13 +56,22 @@ export function EditorUnaFoto({
   onPegarATodas: (d: { modo: Modo; cantidad: number }) => void;
   onCerrar: () => void;
 }) {
-  const [receta, setReceta] = useState<Receta>(foto.pieza.receta);
-  const [cantidad, setCantidad] = useState(foto.pieza.cantidad);
+  const [receta, setRecetaLibre] = useState<Receta>(foto.pieza.receta);
+  const [cantidad, setCantidadLibre] = useState(foto.pieza.cantidad);
+  const [error, setError] = useState<string | null>(null);
   const [pestana, setPestana] = useState<"ENCUADRE" | "RETOQUE">("ENCUADRE");
   const [guias, setGuias] = useState(true);
   const [guardando, setGuardando] = useState(false);
   // El estado tarda un render en verse: la ref frena un segundo guardado (Enter + clic) en el mismo instante.
   const guardandoRef = useRef(false);
+  // Mientras se guarda no se edita: lo que se tocara en ese momento no llegaría al servidor y se
+  // perdería al pasar a la otra foto.
+  const setReceta = (f: (r: Receta) => Receta) => {
+    if (!guardandoRef.current) setRecetaLibre(f);
+  };
+  const setCantidad = (n: number) => {
+    if (!guardandoRef.current) setCantidadLibre(n);
+  };
   const contenedor = useRef<HTMLDivElement>(null);
   const [lado, setLado] = useState(480);
 
@@ -94,10 +103,16 @@ export function EditorUnaFoto({
     if (cambio || revisada) {
       guardandoRef.current = true;
       setGuardando(true);
-      const ok = await onGuardar({ receta, cantidad, revisada }).finally(() => {
+      setError(null);
+      let ok = false;
+      try {
+        ok = await onGuardar({ receta, cantidad, revisada });
+      } catch {
+        setError("No se pudo guardar la foto. Probá de nuevo.");
+      } finally {
         guardandoRef.current = false;
         setGuardando(false);
-      });
+      }
       if (!ok) return;
     }
     if (delta === 0) onCerrar();
@@ -179,6 +194,11 @@ export function EditorUnaFoto({
           ) : (
             <VistaPieza src={src} receta={receta} papelMm={papelPieza} />
           )}
+          {error ? (
+            <p className="fo-alert-error" role="alert">
+              {error}
+            </p>
+          ) : null}
           {aviso ? (
             <p className={calidad.aviso === "PIXELADA" ? "fo-alert-error" : "fo-alert-warning"}>
               {aviso} ({calidad.ppp} ppp efectivos).

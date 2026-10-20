@@ -69,7 +69,9 @@ export function PapelConFoto({
     if (!el || !conZoom) return;
     const rueda = (e: WheelEvent) => {
       e.preventDefault();
-      zoomRef.current?.(Math.exp(-e.deltaY * 0.0015));
+      // deltaY viene en píxeles, en líneas (algunos mouse en Firefox) o en páginas.
+      const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * window.innerHeight : e.deltaY;
+      zoomRef.current?.(Math.exp(-px * 0.0015));
     };
     el.addEventListener("wheel", rueda, { passive: false });
     return () => el.removeEventListener("wheel", rueda);
@@ -101,6 +103,8 @@ export function PapelConFoto({
       onPointerDown={
         onArrastrar
           ? (e) => {
+              // Sólo el dedo principal o el botón izquierdo: el derecho o un segundo dedo no arrastran.
+              if (!e.isPrimary || e.button !== 0) return;
               e.currentTarget.setPointerCapture(e.pointerId);
               arrastre.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
             }
