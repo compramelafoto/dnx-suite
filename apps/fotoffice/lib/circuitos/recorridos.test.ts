@@ -461,3 +461,86 @@ describe("base en memoria", () => {
     await expect(guardado!.fotofficeTask.count()).rejects.toThrow("ya terminada");
   });
 });
+
+describe("candado del saldo", () => {
+  const PRYO = { tipo: "PROYECTO" as const, id: "pr-1" };
+  const MENSAJE = "El pedido PED-12 debe $ 5.000. Cobrá el saldo antes de entregar.";
+
+  /** Un trabajo atado a un pedido de $10.000 con $5.000 cobrados, en «Listo para retirar». */
+  async function enListo(proyecto: Record<string, unknown> = {}): Promise<string> {
+    B.agregar("fotofficeCircuit", { id: "cr", workspaceId: "ws-1", name: "Para retirar", kind: "TRABAJO", isDefault: true });
+    B.agregar("fotofficeStage", { id: "r1", circuitId: "cr", name: "Recibido", color: "gris", order: 0, days: 0 });
+    B.agregar("fotofficeStage", { id: "r2", circuitId: "cr", name: "Listo para retirar", color: "amarillo", order: 1, days: 0 });
+    B.agregar("fotofficeStage", { id: "r3", circuitId: "cr", name: "Entregado", color: "verde", order: 2, days: 0 });
+    B.agregar("fotofficeCircuit", { id: "cu", workspaceId: "ws-1", name: "Entrega en el acto", kind: "TRABAJO" });
+    B.agregar("fotofficeStage", { id: "u1", circuitId: "cu", name: "Entregado", color: "verde", order: 0, days: 0 });
+    B.agregar("fotofficeLossReason", { id: "r-trabajo", workspaceId: "ws-1", name: "Se bajó" });
+    B.agregar("fotofficePedido", { id: "ped-1", workspaceId: "ws-1", number: "PED-12", clientId: "c1", totalArs: 10000 });
+    B.agregar("fotofficeCobro", { id: "co-1", workspaceId: "ws-1", pedidoId: "ped-1", amountArs: 5000, receiptNumber: 1, receiptTokenHash: "h1" });
+    // Un cobro anulado no cuenta.
+    B.agregar("fotofficeCobro", { id: "co-anulado", workspaceId: "ws-1", pedidoId: "ped-1", amountArs: 5000, receiptNumber: 2, receiptTokenHash: "h2", voidedAt: AHORA });
+    B.agregar("fotofficeProyecto", {
+      id: "pr-1", workspaceId: "ws-1", number: "P-1", name: "Carnet", clientId: "c1", circuitId: "cr", baseDate: AHORA,
+      pedidoId: "ped-1", ...proyecto,
+    });
+    const { journeyId } = await R.iniciarRecorrido(EQUIPO, PRYO);
+    expect(await R.mover(EQUIPO, journeyId, "r2")).toEqual({ ok: true });
+    return journeyId;
+  }
+
+  it("de «Recibido» a «Listo para retirar» con deuda se puede: sólo frena la entrega", async () => {
+    const id = await enListo();
+    expect(recorrido(id).stageId).toBe("r2");
+  });
+
+  it("mover a «Entregado» con deuda se rechaza con el saldo y no deja nada escrito", async () => {
+    const id = await enListo();
+    const antes = foto();
+    expect(await R.mover(EQUIPO, id, "r3")).toEqual({ ok: false, error: MENSAJE });
+    expect(foto()).toBe(antes);
+    expect(recorrido(id).stageId).toBe("r2");
+    // Toma el candado del pedido antes de leer los cobros.
+    expect(B.sql.some((q) => q.valores.includes("fotoffice-pedido:ped-1"))).toBe(true);
+  });
+
+  it("ni forzando ni siendo administrador ni el Sistema se saltea", async () => {
+    const id = await enListo();
+    expect(await R.mover(ADMIN, id, "r3", { forzar: true })).toEqual({ ok: false, error: MENSAJE });
+    expect(await R.mover(SISTEMA, id, "r3", { forzar: true, auto: { evento: "X" } })).toEqual({ ok: false, error: MENSAJE });
+    expect(recorrido(id).stageId).toBe("r2");
+  });
+
+  it("cerrar como terminado se rechaza (también de sistema); cancelar se puede", async () => {
+    const id = await enListo();
+    expect(await R.cerrar(EQUIPO, id, "TERMINADO")).toEqual({ ok: false, error: MENSAJE });
+    expect(await R.cerrar(ADMIN, id, "TERMINADO", undefined, undefined, { forzar: true })).toEqual({ ok: false, error: MENSAJE });
+    expect(await R.cerrar(SISTEMA, id, "TERMINADO", undefined, undefined, { deSistema: true })).toEqual({ ok: false, error: MENSAJE });
+    expect(recorrido(id).closedAt).toBeNull();
+    expect(await R.cerrar(EQUIPO, id, "CANCELADO", "r-trabajo")).toEqual({ ok: true });
+    expect(recorrido(id).outcome).toBe("CANCELADO");
+  });
+
+  it("cobrado el saldo, se entrega", async () => {
+    const id = await enListo();
+    B.agregar("fotofficeCobro", { id: "co-2", workspaceId: "ws-1", pedidoId: "ped-1", amountArs: 5000, receiptNumber: 3, receiptTokenHash: "h3" });
+    expect(await R.mover(EQUIPO, id, "r3")).toEqual({ ok: true });
+    expect(recorrido(id).stageId).toBe("r3");
+  });
+
+  it("pasar a un flujo de una sola etapa de entrega con deuda se rechaza", async () => {
+    const id = await enListo();
+    expect(await R.cambiarDeCircuito(ADMIN, id, "cu")).toEqual({ ok: false, error: MENSAJE });
+    expect(recorrido(id)).toMatchObject({ circuitId: "cr", stageId: "r2" });
+  });
+
+  it("un trabajo sin pedido no tiene candado", async () => {
+    const id = await enListo({ pedidoId: null });
+    expect(await R.mover(EQUIPO, id, "r3")).toEqual({ ok: true });
+  });
+
+  it("un pedido cancelado no debe nada", async () => {
+    const id = await enListo();
+    B.datos.fotofficePedido.find((p) => p.id === "ped-1")!.status = "CANCELADO";
+    expect(await R.mover(EQUIPO, id, "r3")).toEqual({ ok: true });
+  });
+});

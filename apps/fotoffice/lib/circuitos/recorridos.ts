@@ -5,6 +5,8 @@ import { fechaBA } from "@/lib/ficha/formato";
 import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
 import { esRetroceso, validarMovimiento, vencimientoDeEtapa, vencimientoDeTarea } from "./calculos";
 import { vencimientoDeTarea as vencimientoPlanificado } from "@/lib/proyectos/fechas";
+import { faseDeEtapa } from "@/lib/proyectos/en-curso-puro";
+import { exigirPedidoPagado } from "@/lib/pedidos/candado-saldo";
 import { adaptadorDe, type Sujeto } from "./sujetos";
 import type { CtxCircuitos } from "./acceso";
 
@@ -83,6 +85,24 @@ class Rechazo extends Error {
 /** Un rechazo esperado del motor (lanzado por las variantes `…EnTransaccion`). */
 export function esRechazo(error: unknown): error is Rechazo {
   return error instanceof Rechazo;
+}
+
+/**
+ * Candado del saldo: un trabajo de un pedido que debe plata no se entrega. Sin excepciones —se
+ * llama antes de mirar `forzar`, `deSistema` o el rol—. Ver `exigirPedidoPagado`.
+ */
+async function exigirSaldoCobrado(tx: Tx, workspaceId: string, j: { subjectType: string; subjectId: string }): Promise<void> {
+  const rechazo = await exigirPedidoPagado(tx, workspaceId, j);
+  if (rechazo !== null) throw new Rechazo(rechazo);
+}
+
+/** Si entrar a esta etapa es entregar: su fase (la del tablero «En curso») es ENTREGADO. */
+function esEtapaDeEntrega(
+  etapa: { name: string; color: string; order: number },
+  activas: readonly { order: number }[],
+): boolean {
+  const ultima = Math.max(...activas.map((e) => e.order));
+  return faseDeEtapa({ ...etapa, esUltima: etapa.order === ultima }) === "ENTREGADO";
 }
 
 function esChoqueDeUnicidad(error: unknown): boolean {
@@ -303,10 +323,17 @@ export async function moverEnTransaccion(
   const j = await recorridoAbierto(tx, workspaceId, journeyId);
   const etapas = await tx.fotofficeStage.findMany({
     where: { circuitId: j.circuitId, circuit: { workspaceId } },
-    select: { id: true, order: true, days: true, archivedAt: true, requireTasks: true, leadStatus: true },
+    select: { id: true, name: true, color: true, order: true, days: true, archivedAt: true, requireTasks: true, leadStatus: true },
   });
   const actual = etapas.find((e) => e.id === j.stageId);
   const destino = etapas.find((e) => e.id === destinoId);
+
+  // Candado del saldo, antes de validar y sin mirar `forzar`. Una etapa archivada o la misma
+  // etapa se rechazan igual más abajo, con su propio mensaje.
+  const activas = etapas.filter((e) => e.archivedAt === null);
+  if (destino && destino.archivedAt === null && destino.id !== j.stageId && esEtapaDeEntrega(destino, activas)) {
+    await exigirSaldoCobrado(tx, workspaceId, j);
+  }
 
   // Exigir tareas completas sólo frena el avance: volver atrás no pide terminar nada.
   const requiereTareas = !!actual?.requireTasks && !!destino && !esRetroceso(etapas, j.stageId, destinoId);
@@ -414,6 +441,8 @@ export async function cerrarEnTransaccion(
 
   let pendientes: string[] = [];
   if (salida === salidas.exito) {
+    // Terminar es entregar: el candado del saldo va siempre, antes que `forzar` y `deSistema`.
+    await exigirSaldoCobrado(tx, workspaceId, j);
     const actual = await tx.fotofficeStage.findFirst({
       where: { id: j.stageId, circuit: { workspaceId } },
       select: { requireTasks: true },
@@ -552,12 +581,15 @@ export async function cambiarDeCircuito(
     if (pendientes.length > 0 && !puede(ctx.role, "configurar")) {
       throw new Rechazo(mensajeTareasPendientes(pendientes), pendientes);
     }
-    const primera = await tx.fotofficeStage.findFirst({
+    const activas = await tx.fotofficeStage.findMany({
       where: { circuitId: circuito.id, circuit: { workspaceId }, archivedAt: null },
-      select: { id: true, days: true, leadStatus: true },
+      select: { id: true, name: true, color: true, order: true, days: true, leadStatus: true },
       orderBy: { order: "asc" },
     });
+    const primera = activas[0];
     if (!primera) throw new Rechazo(MENSAJES.sinEtapas);
+    // Un flujo cuya primera etapa ya es de entrega (p. ej. de una sola etapa) también entrega.
+    if (esEtapaDeEntrega(primera, activas)) await exigirSaldoCobrado(tx, workspaceId, j);
 
     const ahora = new Date();
     const actualizado = await tx.fotofficeJourney.updateMany({
