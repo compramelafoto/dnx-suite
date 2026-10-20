@@ -1,6 +1,7 @@
 /**
  * El Mostrador cuando el ticket tiene trabajos "con proceso" (copias a laboratorio, fotolibros,
- * rollos, digitalizaciones): esa parte se vuelve un pedido con seña y fecha de entrega, y lo que
+ * rollos, digitalizaciones) o renglones marcados «Seña» (cualquier otro producto que el cliente
+ * deja señado para retirar): esa parte se vuelve un pedido con seña y fecha de entrega, y lo que
  * se lleva en el momento sigue siendo una venta común. Módulo PURO.
  *
  * Importes en centavos (`minor`), como el resto del Mostrador.
@@ -41,4 +42,27 @@ export function repartirDescuento(subtotalPedido: number, subtotalVenta: number,
 export function aCobrarAhora(totalVenta: number, totalPedido: number, sena: number | null): number {
   const delPedido = sena === null ? totalPedido : Math.min(Math.max(0, sena), totalPedido);
   return totalVenta + delPedido;
+}
+
+/** Días que se sugieren para un producto sin regla propia que queda señado para retirar. */
+export const PLAZO_SIN_REGLA_DIAS = 1;
+
+/**
+ * Qué renglones del ticket quedan como pedido y cuáles se llevan en el momento. Va al pedido lo
+ * que tiene proceso (su producto tiene regla en "Proyecto que genera"), siempre, y lo que el
+ * cajero marcó «Seña» (`paraRetirar`), tenga producto o sea a mano. El resto es venta común.
+ * Cada parte respeta el orden del ticket. La usan el Mostrador (para mostrar el recuadro) y el
+ * servidor (para cobrar), así las dos cuentas no se separan.
+ */
+export function separarTicket<L extends { productId: string | null; paraRetirar?: boolean }>(
+  lineas: readonly L[],
+  conProceso: ReadonlySet<string>,
+): { delPedido: L[]; enElMomento: L[] } {
+  const delPedido: L[] = [];
+  const enElMomento: L[] = [];
+  for (const l of lineas) {
+    const tieneProceso = l.productId !== null && conProceso.has(l.productId);
+    (tieneProceso || l.paraRetirar === true ? delPedido : enElMomento).push(l);
+  }
+  return { delPedido, enElMomento };
 }

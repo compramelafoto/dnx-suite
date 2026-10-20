@@ -11,7 +11,7 @@ import { crearPedidoManual, leerPedido } from "@/lib/pedidos/pedidos";
 import { registrarCobro } from "@/lib/pedidos/cobros";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { formatMinorArs } from "@/lib/membership/money";
-import { diasEntre, repartirDescuento } from "@/lib/sales/pedido-mostrador";
+import { diasEntre, repartirDescuento, separarTicket } from "@/lib/sales/pedido-mostrador";
 import { checkoutAction, type CheckoutInput } from "./actions";
 import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp, type ResultadoBusquedaPago } from "@/lib/sales/verificar-pago-servidor";
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
@@ -19,13 +19,15 @@ import { cancelarOrdenQr, consultarOrdenQr, crearOrdenQr } from "@/lib/sales/qr-
 import type { OrdenQr } from "@/lib/sales/qr-mp";
 
 /**
- * El Mostrador con trabajos "con proceso". La parte con proceso se vuelve un pedido (con su seña
+ * El Mostrador con trabajos "con proceso" o renglones marcados «Seña». Esa parte se vuelve un pedido (con su seña
  * como primer cobro, que entra a Caja una sola vez) y genera sus trabajos; lo que se lleva en el
  * momento sigue siendo una venta común (`checkoutAction`), pagada entera.
  *
  * No es una sola transacción: pedido, cobro y venta tienen cada uno la suya. Se hacen en ese
  * orden (el pedido es lo que más puede fallar por validación) y, si algo falla después de crear
- * el pedido, la respuesta lo dice con su número para terminarlo desde la ficha.
+ * el pedido, la respuesta lo dice con su número para terminarlo desde la ficha. La clave del cobro
+ * es también la del alta del pedido: si el mismo cobro vuelve (doble clic, reintento después de un
+ * corte), se devuelve el pedido que ya existe sin cobrar ni vender otra vez.
  */
 
 export type LineaMostrador = {
@@ -34,6 +36,12 @@ export type LineaMostrador = {
   description: string;
   qty: number;
   unitPriceMinor: number;
+  /**
+   * El cajero lo marcó «Seña»: un producto sin proceso (o un renglón a mano) que el cliente deja
+   * señado y retira después. Va al pedido y abre su trabajo en «Para retirar». En un producto con
+   * proceso no cambia nada: ése va al pedido siempre.
+   */
+  paraRetirar?: boolean;
 };
 
 export type CobroConPedidoInput = {
@@ -90,9 +98,13 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   if (!Number.isInteger(input.discountMinor) || input.discountMinor < 0) return { ok: false, error: "El descuento no se entiende." };
 
   const procesos = await conProceso(workspace.id, input.lines.map((l) => l.productId).filter((x): x is string => x !== null));
-  const delPedido = input.lines.filter((l) => l.productId !== null && procesos.has(l.productId));
-  const enElMomento = input.lines.filter((l) => !(l.productId !== null && procesos.has(l.productId)));
-  if (delPedido.length === 0) return { ok: false, error: "Nada de este ticket lleva proceso: cobralo como venta común." };
+  const { delPedido, enElMomento } = separarTicket(input.lines, procesos);
+  if (delPedido.length === 0) return { ok: false, error: "Nada de este ticket queda para retirar: cobralo como venta común." };
+  // Los ítems del pedido se llaman m1, m2… en el orden del ticket. Los que no tienen regla (van por
+  // estar marcados «Seña») abren su trabajo en «Para retirar» y apartan su stock; los que tienen
+  // regla siguen su propio flujo, como siempre.
+  const idItem = (i: number) => `m${i + 1}`;
+  const sinRegla = delPedido.flatMap((l, i) => (l.productId !== null && procesos.has(l.productId) ? [] : [{ l, itemId: idItem(i) }]));
 
   const subPedido = delPedido.reduce((a, l) => a + l.qty * l.unitPriceMinor, 0);
   const subVenta = enElMomento.reduce((a, l) => a + l.qty * l.unitPriceMinor, 0);
@@ -116,7 +128,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   const alta = await crearPedidoManual(ctx, {
     clientId: input.clientId,
     items: delPedido.map((l, i) => ({
-      id: `m${i + 1}`,
+      id: idItem(i),
       productId: l.productId,
       nombre: l.description.slice(0, 200),
       descripcion: null,
@@ -133,10 +145,34 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     fechaEvento: input.entrega,
     eventLabel: "Entrega",
     checklist: null,
+    clave: input.clave,
+    paraRetirar: sinRegla.map((x) => x.itemId),
+    // `crearPedidoManual` sólo mueve los que controlan stock.
+    apartar: sinRegla.flatMap(({ l, itemId }) =>
+      l.productId !== null ? [{ itemId, productId: l.productId, variantId: l.variantId, cantidad: l.qty }] : [],
+    ),
   });
   if (!alta.ok) {
     if (reservaId) await liberarPagoMp(reservaId);
     return { ok: false, error: alta.error };
+  }
+  if (alta.repetido) {
+    // El mismo cobro que vuelve: el pedido ya quedó con su seña y lo del momento ya se vendió (o
+    // quedó avisado en la primera respuesta). No se cobra ni se vende de nuevo; el pago verificado
+    // que se reservó para esta vuelta se suelta, porque el de la primera ya quedó usado.
+    if (reservaId) await liberarPagoMp(reservaId);
+    const existente = await leerPedido(ctx, alta.pedidoId);
+    const cobradoMinor = existente ? Math.round(existente.plan.cobrado * 100) : 0;
+    const saldoMinor = existente ? Math.round(existente.plan.aCobrar * 100) : 0;
+    return {
+      ok: true,
+      pedidoId: alta.pedidoId,
+      pedidoNumero: alta.numero,
+      cobradoMinor,
+      saldoMinor,
+      saleNumber: null,
+      aviso: `Este cobro ya estaba registrado en el pedido ${alta.numero}: no se volvió a cobrar.`,
+    };
   }
   if (reservaId) await confirmarUsoPagoMp(reservaId, `Pedido ${alta.numero}`);
 
@@ -148,7 +184,8 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     data: { entregaPrometida: new Date(`${input.entrega}T12:00:00Z`) },
   });
   await prisma.fotofficeProductoProyecto.updateMany({
-    where: { workspaceId: workspace.id, productId: { in: [...new Set(delPedido.map((l) => l.productId as string))] } },
+    // Sólo los productos con regla: los marcados «Seña» no tienen fila que recordar.
+    where: { workspaceId: workspace.id, productId: { in: [...new Set(delPedido.flatMap((l) => (l.productId !== null && procesos.has(l.productId) ? [l.productId] : [])))] } },
     data: { ultimoPlazoDias: plazo },
   });
 
@@ -171,7 +208,13 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   let saleNumber: number | null = null;
   if (enElMomento.length > 0) {
     const venta: CheckoutInput = {
-      lines: enElMomento.map((l) => ({ ...l })),
+      lines: enElMomento.map((l) => ({
+        productId: l.productId,
+        variantId: l.variantId,
+        description: l.description,
+        qty: l.qty,
+        unitPriceMinor: l.unitPriceMinor,
+      })),
       discountMinor: desc.venta,
       paymentMethod: metodo,
       note: [input.note.trim(), `Junto con el pedido ${alta.numero}`, notaVerificado].filter(Boolean).join(" — "),

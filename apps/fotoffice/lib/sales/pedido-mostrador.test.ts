@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aCobrarAhora, diasEntre, repartirDescuento, senaSugerida, sugerirEntrega } from "./pedido-mostrador";
+import { aCobrarAhora, diasEntre, PLAZO_SIN_REGLA_DIAS, repartirDescuento, senaSugerida, separarTicket, sugerirEntrega } from "./pedido-mostrador";
 
 describe("sugerirEntrega", () => {
   it("suma los días", () => {
@@ -50,5 +50,43 @@ describe("aCobrarAhora", () => {
   });
   it("una seña mayor al pedido se topea", () => {
     expect(aCobrarAhora(0, 10_000, 99_000)).toBe(10_000);
+  });
+});
+
+describe("separarTicket", () => {
+  const conProceso = new Set(["copias"]);
+  const linea = (id: string, productId: string | null, paraRetirar?: boolean) => ({ id, productId, paraRetirar });
+
+  it("una línea con proceso va al pedido", () => {
+    const r = separarTicket([linea("a", "copias")], conProceso);
+    expect(r.delPedido.map((l) => l.id)).toEqual(["a"]);
+    expect(r.enElMomento).toEqual([]);
+  });
+  it("una sin proceso marcada va al pedido", () => {
+    const r = separarTicket([linea("a", "marco", true)], conProceso);
+    expect(r.delPedido.map((l) => l.id)).toEqual(["a"]);
+    expect(r.enElMomento).toEqual([]);
+  });
+  it("una sin proceso sin marcar va a la venta", () => {
+    const r = separarTicket([linea("a", "marco"), linea("b", "marco", false)], conProceso);
+    expect(r.delPedido).toEqual([]);
+    expect(r.enElMomento.map((l) => l.id)).toEqual(["a", "b"]);
+  });
+  it("una a mano marcada va al pedido", () => {
+    const r = separarTicket([linea("a", null, true), linea("b", null)], conProceso);
+    expect(r.delPedido.map((l) => l.id)).toEqual(["a"]);
+    expect(r.enElMomento.map((l) => l.id)).toEqual(["b"]);
+  });
+  it("una con proceso desmarcada igual va al pedido", () => {
+    const r = separarTicket([linea("a", "copias", false)], conProceso);
+    expect(r.delPedido.map((l) => l.id)).toEqual(["a"]);
+  });
+  it("respeta el orden del ticket en cada parte", () => {
+    const r = separarTicket([linea("a", "marco", true), linea("b", "marco"), linea("c", "copias"), linea("d", null)], conProceso);
+    expect(r.delPedido.map((l) => l.id)).toEqual(["a", "c"]);
+    expect(r.enElMomento.map((l) => l.id)).toEqual(["b", "d"]);
+  });
+  it("el plazo de un producto sin regla es un día", () => {
+    expect(PLAZO_SIN_REGLA_DIAS).toBe(1);
   });
 });
