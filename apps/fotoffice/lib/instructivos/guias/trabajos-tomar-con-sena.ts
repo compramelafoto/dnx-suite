@@ -14,13 +14,15 @@ export const guia: Instructivo = {
       titulo: "Sumá el trabajo al ticket",
       texto: [
         "En el Cobrador buscá el producto del trabajo (por ejemplo, «Copias 10x15» o «Fotolibro 20x30») y tocalo, igual que en una venta común.",
-        "Los productos que llevan proceso aparecen en el ticket con la etiqueta «Pedido». Debajo aparece el recuadro «Pedido para retirar · N trabajos».",
+        "Los productos que llevan proceso aparecen en el ticket con la etiqueta «Pedido». Cualquier otro producto (un portarretratos, un marco) tiene un interruptor «Seña»: si el cliente deja seña y lo retira después, activalo y ese renglón también pasa a ser un pedido.",
+        "Debajo aparece el recuadro «Pedido para retirar · N trabajos».",
         "Podés mezclar en el mismo ticket cosas que se lleva ahora (un portarretratos) con trabajos para retirar: el sistema los separa solo.",
       ],
+      // TODO: rehacer captura: falta mostrar el interruptor «Seña» en los renglones sin proceso.
       imagen: "/instructivos/trabajos-tomar-con-sena/01-pedido-para-retirar.jpg",
       imagenAlt:
         "Ticket con dos productos para llevar y una Ampliación 20x30 marcada «Pedido»; a la derecha el recuadro «Pedido para retirar · 1 trabajo» con la fecha de entrega, Deja seña o Paga todo, el importe de la seña y el aviso «Elegí el cliente para poder cobrar.».",
-      nota: "Si el producto no muestra «Pedido», no tiene cargado un proceso: se cobra como venta común y no aparece en el tablero de trabajos. Avisale a quien administra el catálogo (en la ficha del producto, «Proyecto que genera»).",
+      nota: "Si el producto no muestra «Pedido» ni tenés el interruptor «Seña» activado, se cobra como venta común: se lo lleva en el momento y no aparece en el tablero de trabajos.",
     },
     {
       titulo: "Elegí el cliente",
@@ -53,9 +55,10 @@ export const guia: Instructivo = {
         "Decile al cliente el número de pedido y la fecha de entrega.",
       ],
       sistema: [
-        "Crea un pedido con un trabajo por cada producto con proceso, con la fecha de entrega prometida. Cada trabajo aparece en Proyectos → «En curso», en la columna «Recibido».",
+        "Crea un pedido con un trabajo por cada producto con proceso y por cada renglón con «Seña», con la fecha de entrega prometida. Cada trabajo aparece en Proyectos → «En curso», en la columna «Recibido».",
+        "Los renglones con «Seña» que no tienen proceso propio entran al flujo «Para retirar» (Recibido, En preparación, Listo para retirar, Entregado), con plazo sugerido de 1 día. Si el producto lleva control de stock, la unidad se aparta en el momento.",
         "Registra la seña como cobro del pedido, con recibo, y la anota en Caja (en efectivo, entra al turno abierto).",
-        "Lo que se lleva en el momento queda como venta común, con su stock.",
+        "Lo que se lleva en el momento (sin «Seña») queda como venta común, con su stock.",
         "Le manda al cliente el correo «Recibimos tu pedido», con qué pidió, lo pagado, el saldo y cuándo va a estar listo.",
         "Recuerda el plazo que usaste para proponerlo la próxima vez.",
       ],

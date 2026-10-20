@@ -16,7 +16,7 @@ export const guia: Instructivo = {
         "Abrí el Cobrador y, en «Buscar cliente», escribí su nombre, DNI o teléfono.",
         "Debajo aparece «Tiene un pedido en curso» (o «N pedidos en curso»). Cada pedido muestra su número, «Debe $…» o «Pagado» y los trabajos con la etapa en la que están.",
       ],
-      nota: "Fijate que la etapa diga «Listo para retirar» (o similar). Si dice que está en el laboratorio o en proceso, todavía no llegó: no lo cobres como entregado.",
+      nota: "Si el pedido debe plata y el trabajo ya está en «Listo para retirar», el Cobrador avisa «Debe $… · retenido hasta pagar»: no se puede entregar hasta cobrar el saldo. Fijate que la etapa diga «Listo para retirar» (o similar). Si dice que está en el laboratorio o en proceso, todavía no llegó: no lo cobres como entregado.",
     },
     {
       titulo: "Cobrá el saldo",
@@ -36,9 +36,13 @@ export const guia: Instructivo = {
       texto: [
         "Cobrar el saldo NO marca el trabajo como entregado. Hay que hacerlo aparte.",
         "Entrá a Proyectos → «En curso», buscá la tarjeta del cliente en la columna «Listo para retirar» y tocá «Entregado».",
+        "Si el pedido todavía debe plata, la tarjeta dice «Retenido · debe $…» y el botón «Entregado» está bloqueado: pasá antes por el paso anterior y cobrá el saldo.",
         "La tarjeta pasa a «Entregado», donde queda visible 7 días.",
       ],
-      sistema: ["Si era la última etapa, cierra el trabajo como terminado y lo saca de la agenda de entregas."],
+      sistema: [
+        "Rechaza la entrega mientras el pedido tenga saldo: ni siquiera quien administra puede saltearlo. Un trabajo sí puede quedar en «Listo para retirar» con deuda.",
+        "Si era la última etapa, cierra el trabajo como terminado y lo saca de la agenda de entregas.",
+      ],
     },
     {
       titulo: "Cerrá el pedido",
@@ -46,7 +50,6 @@ export const guia: Instructivo = {
         "Cuando todos los trabajos del pedido están entregados y no hay saldo, abrí el pedido (tocá «Pedido N» en el Cobrador o buscalo en Consultas → «Pedidos») y tocá «Marcar completado».",
         "Así el pedido deja de aparecer como «En curso» en los listados.",
       ],
-      nota: "Si el cliente se lleva el trabajo sin pagar todo, no completes el pedido: queda con saldo y aparece en Pedidos → «Informes» como deuda.",
     },
   ],
 };

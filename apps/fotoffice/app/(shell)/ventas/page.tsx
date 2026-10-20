@@ -40,7 +40,12 @@ export default async function VentasPage() {
   // Trabajos con proceso (copias a laboratorio, fotolibros, rollos, digitalizaciones): los productos
   // con un flujo en "Proyecto que genera". Sólo si se pueden crear pedidos y proyectos; si no, el
   // Mostrador vende todo como hasta ahora.
-  const pedidosHabilitados = (await contextoDePedidos("operar")) !== null && (await proyectosEncendidos(workspace.id));
+  const puedeCrearPedidos = (await contextoDePedidos("operar")) !== null;
+  const pedidosHabilitados = puedeCrearPedidos && (await proyectosEncendidos(workspace.id));
+  // «Seña» en un renglón sin proceso: alcanza con poder crear pedidos (el pedido necesita un
+  // cliente, por eso Clientes). No pide Proyectos: con ese módulo apagado el pedido y la seña se
+  // registran igual, sólo que sin trabajo ni tablero (lo dice la guía de diseño).
+  const senaHabilitada = puedeCrearPedidos && clientsEnabled;
   const reglas = pedidosHabilitados
     ? await prisma.fotofficeProductoProyecto.findMany({
         where: { workspaceId: workspace.id },
@@ -75,6 +80,7 @@ export default async function VentasPage() {
         clientsEnabled={clientsEnabled}
         cashEnabled={cashEnabled}
         procesos={procesos}
+        senaHabilitada={senaHabilitada}
         qrActivo={qr.activo}
         permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={

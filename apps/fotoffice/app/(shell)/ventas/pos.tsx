@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
+import { importeSinCentavos } from "@/lib/pedidos/candado-saldo-puro";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
@@ -36,7 +37,7 @@ import {
   pedidosParaRetirarAction,
   type PedidoParaRetirar,
 } from "./pedido-actions";
-import { aCobrarAhora, repartirDescuento, senaSugerida, sugerirEntrega } from "@/lib/sales/pedido-mostrador";
+import { aCobrarAhora, PLAZO_SIN_REGLA_DIAS, repartirDescuento, senaSugerida, separarTicket, sugerirEntrega } from "@/lib/sales/pedido-mostrador";
 import { useOcultarMenuEnEstaPantalla } from "@/components/shell/shell-frame";
 import { EgresoDialogo, type DatosEgreso } from "./egreso-dialogo";
 import { VerificarPago } from "./verificar-pago";
@@ -129,6 +130,7 @@ export function Pos({
   egresos,
   datosTransferencia,
   procesos,
+  senaHabilitada = false,
   qrActivo = false,
   permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
 }: {
@@ -145,6 +147,11 @@ export function Pos({
    * plazo cargado). Si el ticket tiene alguno, esa parte se cobra como pedido con seña.
    */
   procesos: Record<string, number | null>;
+  /**
+   * Puede dejar un renglón sin proceso señado para retirar (interruptor «Seña»): hace falta poder
+   * crear pedidos y tener Clientes, porque el pedido va a nombre de alguien. Si no, no se ofrece.
+   */
+  senaHabilitada?: boolean;
   /** El QR fijo de Mercado Pago está activado (Configuración → Cobros). */
   qrActivo?: boolean;
   /** Qué puede hacer con Clientes dentro del editor de foto carnet (como en Ventas → Foto carnet). */
@@ -186,6 +193,11 @@ export function Pos({
   // aparte de `rows` para que deshacer no la pierda) y el renglón que se está preparando.
   const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string }>>({});
   const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
+  // Renglones sin proceso que el cajero marcó «Seña» (por key, como las preparaciones, para que
+  // deshacer no pierda la marca): quedan en el pedido para retirar.
+  const [paraRetirar, setParaRetirar] = useState<Record<string, boolean>>({});
+  const conProceso = useMemo(() => new Set(Object.keys(procesos)), [procesos]);
+  const tieneProceso = (r: TicketRow) => r.productId !== null && conProceso.has(r.productId);
   const [preparando, setPreparando] = useState<{ key: string; preparacionId: string } | null>(null);
   // Renglones de copias cuyo editor se cerró sin terminar: el ticket lo avisa (cobrarlas exige terminarlas).
   const [copiasSinTerminar, setCopiasSinTerminar] = useState<ReadonlySet<string>>(new Set());
@@ -584,6 +596,7 @@ export function Pos({
   function reiniciarTicket() {
     setRows([]);
     setPreparaciones({});
+    setParaRetirar({});
     setPreparando(null);
     setCopiasSinTerminar(new Set());
     setDiscountText("");
@@ -600,17 +613,25 @@ export function Pos({
   }
 
   /**
-   * La parte del ticket que queda como pedido: los renglones de productos con proceso. Lo demás se
-   * lleva en el momento y se paga entero. El descuento se reparte en proporción.
+   * La parte del ticket que queda como pedido: los renglones de productos con proceso y los
+   * marcados «Seña» (misma separación que hace el servidor). Lo demás se lleva en el momento y se
+   * paga entero. El descuento se reparte en proporción.
    */
   function calcularPedido() {
-    const filas = rows.filter((r) => r.productId !== null && procesos[r.productId] !== undefined);
+    const filas = separarTicket(
+      rows.map((r) => ({ ...r, paraRetirar: paraRetirar[r.key] === true })),
+      conProceso,
+    ).delPedido;
     const subPedido = filas.reduce((a, r) => a + r.qty * r.unitPriceMinor, 0);
     const subVenta = totals.subtotalMinor - subPedido;
     const desc = repartirDescuento(subPedido, subVenta, discountMinor);
     const totalPedido = subPedido - desc.pedido;
     const totalVenta = subVenta - desc.venta;
-    const plazo = filas.reduce((max, r) => Math.max(max, procesos[r.productId as string] ?? 7), 0);
+    // Con regla, su plazo (7 si no tiene cargado); marcado «Seña» sin regla, el plazo estándar.
+    const plazo = filas.reduce(
+      (max, r) => Math.max(max, tieneProceso(r) ? (procesos[r.productId as string] ?? 7) : PLAZO_SIN_REGLA_DIAS),
+      0,
+    );
     const entrega = entregaElegida ?? sugerirEntrega(hoyEnArgentina(), plazo);
     const senaTipeada = parseArsToMinor(senaText);
     const sena = conSena ? Math.min(senaTipeada ?? senaSugerida(totalPedido), totalPedido) : null;
@@ -687,7 +708,14 @@ export function Pos({
       const clave = claveCobroRef.current;
       startTransition(async () => {
         const r = await cobrarConPedidoAction({
-          lines: input.lines.map((l) => ({ ...l, variantId: l.variantId ?? null })),
+          lines: rows.map((r) => ({
+            productId: r.productId,
+            variantId: r.variantId ?? null,
+            description: r.description,
+            qty: r.qty,
+            unitPriceMinor: r.unitPriceMinor,
+            paraRetirar: !tieneProceso(r) && paraRetirar[r.key] === true,
+          })),
           discountMinor,
           paymentMethod,
           note: notaFinal,
@@ -698,6 +726,9 @@ export function Pos({
           mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
           mpOrderId,
         });
+        // Una respuesta que llega tarde, de un cobro que ya se cerró (la clave cambió o se limpió),
+        // no toca el ticket que se está armando ahora: ese cobro ya mostró su resultado.
+        if (claveCobroRef.current !== clave) return;
         if (r.ok) {
           claveCobroRef.current = null;
           setUltimaVenta({
@@ -1126,13 +1157,33 @@ export function Pos({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">
-                          {r.productId !== null && procesos[r.productId] !== undefined ? (
+                          {tieneProceso(r) || paraRetirar[r.key] ? (
                             <span className="mr-1.5 inline-flex rounded-full bg-[var(--fo-accent-muted)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
                               Pedido
                             </span>
                           ) : null}
                           {r.description}
                         </p>
+                      {/* Un producto sin proceso también puede quedar señado para retirar. */}
+                      {senaHabilitada && !tieneProceso(r) ? (
+                        <button
+                          type="button"
+                          aria-pressed={paraRetirar[r.key] === true}
+                          title="Deja seña y lo retira después"
+                          disabled={procesando}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setParaRetirar((m) => ({ ...m, [r.key]: !m[r.key] }));
+                          }}
+                          className={`mt-1 inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium transition-colors ${
+                            paraRetirar[r.key]
+                              ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] text-[var(--fo-text)]"
+                              : "border-[var(--fo-border)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+                          }`}
+                        >
+                          Seña
+                        </button>
+                      ) : null}
                       {r.productId !== null && (produccion[r.productId]?.tipoPieza === "CARNET" || produccion[r.productId]?.tipoPieza === "COPIA") ? (
                         <button
                           type="button"
@@ -1266,6 +1317,9 @@ export function Pos({
                       {t.etapa ? ` · ${t.etapa}` : ""}
                     </p>
                   ))}
+                  {p.saldoMinor > 0 && p.trabajos.some((t) => t.listo) ? (
+                    <p className="text-xs font-semibold text-[var(--fo-danger)]">Debe {importeSinCentavos(p.saldoMinor)} · retenido hasta pagar</p>
+                  ) : null}
                   {p.saldoMinor > 0 ? (
                     <button
                       type="button"

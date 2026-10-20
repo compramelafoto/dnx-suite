@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etapaSiguiente, faseDeEtapa, urgenciaDeEntrega } from "./en-curso-puro";
+import { etapaSiguiente, faseDeEtapa, retenido, urgenciaDeEntrega } from "./en-curso-puro";
 
 const e = (name: string, color = "", order = 1, esUltima = false) => ({ name, color, order, esUltima });
 
@@ -42,5 +42,20 @@ describe("etapaSiguiente", () => {
   });
   it("en la última no hay siguiente", () => {
     expect(etapaSiguiente(etapas, "c")).toBeNull();
+  });
+});
+
+describe("retenido", () => {
+  it("está retenido en Listo para retirar con saldo", () => {
+    expect(retenido({ fase: "LISTO", pedido: { saldoMinor: 500000 } })).toBe(true);
+  });
+  it("no lo está si no debe nada", () => {
+    expect(retenido({ fase: "LISTO", pedido: { saldoMinor: 0 } })).toBe(false);
+  });
+  it("no lo está en otra fase aunque deba", () => {
+    expect(retenido({ fase: "EN_PROCESO", pedido: { saldoMinor: 500000 } })).toBe(false);
+  });
+  it("no lo está sin pedido", () => {
+    expect(retenido({ fase: "LISTO", pedido: null })).toBe(false);
   });
 });
