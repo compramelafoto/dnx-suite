@@ -26095,6 +26095,13 @@ model FotofficePrintOrder {
   attempts           Int       @default(0)
   lockedAt           DateTime?
   sentAt             DateTime?
+  // Galería de origen cuando source = "GALERIA" (texto, sin relación, como archivoId).
+  galeriaId          String?
+  // Envío a domicilio: dirección elegida y distancia que calcula el servidor.
+  shippingAddress    String?
+  shippingLat        Float?
+  shippingLon        Float?
+  shippingKm         Float?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -26108,27 +26115,30 @@ model FotofficePrintOrder {
   @@index([workspaceId, status])
   @@index([proyectoOrigenId])
   @@index([clientId])
+  @@index([galeriaId])
 }
 
 model FotofficePrintOrderItem {
-  id           String   @id @default(cuid())
-  orderId      String
-  archivoId    String?
-  sourceKey    String
-  sourceName   String
-  sizeId       String?
-  widthCm      Decimal  @db.Decimal(6, 1)
-  heightCm     Decimal  @db.Decimal(6, 1)
-  quantity     Int
-  unitPriceArs Decimal  @db.Decimal(14, 2)
-  unitCostArs  Decimal  @db.Decimal(14, 2)
-  cropX        Float
-  cropY        Float
-  cropW        Float
-  cropH        Float
-  proveedorId  String?
-  proyectoId   String?
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  orderId       String
+  archivoId     String?
+  // Foto de galería de origen (texto, sin relación, como archivoId).
+  galeriaFotoId String?
+  sourceKey     String
+  sourceName    String
+  sizeId        String?
+  widthCm       Decimal  @db.Decimal(6, 1)
+  heightCm      Decimal  @db.Decimal(6, 1)
+  quantity      Int
+  unitPriceArs  Decimal  @db.Decimal(14, 2)
+  unitCostArs   Decimal  @db.Decimal(14, 2)
+  cropX         Float
+  cropY         Float
+  cropW         Float
+  cropH         Float
+  proveedorId   String?
+  proyectoId    String?
+  createdAt     DateTime @default(now())
 
   order    FotofficePrintOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   proyecto FotofficeProyecto?  @relation("PrintOrderItemTrabajo", fields: [proyectoId], references: [id], onDelete: SetNull)

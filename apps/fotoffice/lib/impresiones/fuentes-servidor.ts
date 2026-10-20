@@ -35,6 +35,62 @@ export async function fotosAptas(workspaceId: string, proyectoId: string): Promi
     .map((f) => ({ archivoId: f.id, nombre: f.nombre, key: f.key, width: f.printSource?.width ?? null, height: f.printSource?.height ?? null }));
 }
 
+export type FuenteTipo = "CARPETA" | "GALERIA";
+
+/** Foto que el cliente puede pedir impresa. `mini` es la URL de la miniatura para el navegador. */
+export type FotoImprimible = { id: string; nombre: string; key: string; width: number | null; height: number | null; mini: string };
+
+/** De dónde salen las fotos del pedido (carpeta de trabajo o galería) y quién es el cliente, si se sabe. */
+export type Fuente = {
+  tipo: FuenteTipo;
+  proyectoOrigenId: string | null;
+  galeriaId: string | null;
+  clientId: string | null;
+  nombre: string | null;
+  email: string | null;
+  telefono: string | null;
+  fotos: FotoImprimible[];
+};
+
+/** Resuelve el enlace del cliente a sus fotos imprimibles. `null` si el enlace no vale (o el tipo todavía no existe). */
+export async function resolverFuente(workspaceId: string, slug: string, tipo: FuenteTipo, token: unknown): Promise<Fuente | null> {
+  if (tipo === "CARPETA") return fuenteCarpeta(workspaceId, slug, token);
+  // GALERIA: se implementa en la etapa 3.
+  return null;
+}
+
+async function fuenteCarpeta(workspaceId: string, slug: string, token: unknown): Promise<Fuente | null> {
+  const proyecto = await proyectoDeTokenCliente(workspaceId, token);
+  if (!proyecto) return null;
+  const [fotos, cliente] = await Promise.all([
+    fotosAptas(workspaceId, proyecto.proyectoId),
+    proyecto.clientId
+      ? prisma.client.findFirst({
+          where: { id: proyecto.clientId, workspaceId },
+          select: { firstName: true, lastName: true, businessName: true, email: true, phone: true },
+        })
+      : null,
+  ]);
+  const nombre = [cliente?.firstName, cliente?.lastName].filter(Boolean).join(" ") || cliente?.businessName?.trim() || null;
+  return {
+    tipo: "CARPETA",
+    proyectoOrigenId: proyecto.proyectoId,
+    galeriaId: null,
+    clientId: proyecto.clientId,
+    nombre,
+    email: cliente?.email ?? null,
+    telefono: cliente?.phone ?? null,
+    fotos: fotos.map((f) => ({
+      id: f.archivoId,
+      nombre: f.nombre,
+      key: f.key,
+      width: f.width,
+      height: f.height,
+      mini: `/api/w/${slug}/archivos/${token as string}/mini/${f.archivoId}`,
+    })),
+  };
+}
+
 export async function leerOriginal(key: string): Promise<Buffer> {
   const r = await clienteR2Privado().send(new GetObjectCommand({ Bucket: bucketR2Privado(), Key: key }));
   return Buffer.from(await r.Body!.transformToByteArray());
