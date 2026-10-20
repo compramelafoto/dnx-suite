@@ -33,7 +33,7 @@ function subirConProgreso(url: string, archivo: File, tipo: string, alAvanzar: (
 /**
  * La carpeta del trabajo: lo que antes iba a un link de Drive. Se arrastran los archivos (hasta
  * 5 GB cada uno), suben directo al almacenamiento y quedan dos enlaces: para el laboratorio y para
- * el cliente. Se borran solos 30 días después de compartirse.
+ * el cliente. Se borran solos 30 días después de subir el primero; compartir lo extiende.
  */
 export function CarpetaProyecto({
   proyectoId,
@@ -217,7 +217,7 @@ export function CarpetaProyecto({
       ) : null}
       {vence ? (
         <p className="text-xs text-[var(--fo-muted)]">
-          Se borra sola el {new Date(vence).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} (30 días desde que se compartió).
+          Se borra sola el {new Date(vence).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} (30 días desde que se subió el primer archivo; compartir los enlaces lo extiende).
         </p>
       ) : null}
       {aviso ? (

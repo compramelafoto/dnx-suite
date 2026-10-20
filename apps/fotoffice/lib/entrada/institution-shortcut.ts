@@ -28,6 +28,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "agenda",
   "api",
   "aula",
+  "bandeja",
   "bienvenida",
   "c",
   "caja",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOJAS, MEDIDAS_CARNET, cmAPx, grillaDe, marcarDpiJpeg, nombreDePlancha } from "./medidas";
+import { GUIAS_ROSTRO, HOJAS, MEDIDAS_CARNET, cmAPx, grillaDe, marcarDpiJpeg, nombreDePlancha } from "./medidas";
 
 const HOJA_10X15 = HOJAS[0]!;
 const HOJA_13X18 = HOJAS[1]!;
@@ -56,5 +56,10 @@ describe("foto carnet: medidas y plancha", () => {
     expect([r[20], r[21]]).toEqual([0xff, 0xdb]);
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
     expect(marcarDpiJpeg(png)).toBe(png);
+  });
+
+  it("las guías de rostro dejan la cabeza entre el 70 y el 80 % del alto", () => {
+    expect(GUIAS_ROSTRO.menton - GUIAS_ROSTRO.coronilla).toBeGreaterThanOrEqual(0.7);
+    expect(GUIAS_ROSTRO.menton - GUIAS_ROSTRO.coronilla).toBeLessThanOrEqual(0.8);
   });
 });

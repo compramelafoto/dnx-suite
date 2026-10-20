@@ -18,6 +18,7 @@ export function ShellSidebar({
   vocabulary,
   roleSelector = null,
   openGroups = [],
+  bandejaNoLeidos = 0,
   logoPropio = null,
 }: {
   /**
@@ -40,6 +41,8 @@ export function ShellSidebar({
   roleSelector?: RoleSelectorData | null;
   /** Grupos del menú que la persona dejó desplegados (cookie `fo_nav_grupos`). */
   openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (0 si no hay o no corresponde). */
+  bandejaNoLeidos?: number;
   /** Con colores propios del panel, el logo del negocio va en lugar del de FOTOFFICE. */
   logoPropio?: string | null;
 }) {
@@ -77,6 +80,7 @@ export function ShellSidebar({
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
         openGroups={openGroups}
+        bandejaNoLeidos={bandejaNoLeidos}
       />
       {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla. */}
       <div className="mt-8 border-t border-[var(--fo-border)] pt-4">

@@ -13,6 +13,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
@@ -69,6 +70,7 @@ describe("MODULE_REGISTRY", () => {
         "reports",
         "gallery",
         PRINT_ORDERS_MODULE_KEY,
+        BANDEJA_MODULE_KEY,
       ].sort(),
     );
   });
