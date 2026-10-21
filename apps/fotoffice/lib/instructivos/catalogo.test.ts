@@ -45,9 +45,9 @@ describe("catálogo de instructivos", () => {
     expect(visibles.some((g) => g.slug === "primeros-pasos")).toBe(false);
   });
 
-  it("la sección Stock tiene las tres guías de insumos, con módulo de ventas", () => {
+  it("la sección Stock tiene las guías de insumos, con módulo de ventas", () => {
     const stock = INSTRUCTIVOS.filter((g) => g.seccion === "Stock").map((g) => g.slug);
-    expect(stock).toEqual(["stock-insumos-alta", "stock-receta-consumo", "stock-contar-y-ajustar", "stock-recibir-pedido"]);
+    expect(stock).toEqual(["stock-insumos-alta", "stock-receta-consumo", "stock-contar-y-ajustar", "stock-recibir-pedido", "stock-importar-factura"]);
     for (const g of INSTRUCTIVOS.filter((x) => x.seccion === "Stock")) expect(g.moduleKey).toBe("sales");
   });
 
