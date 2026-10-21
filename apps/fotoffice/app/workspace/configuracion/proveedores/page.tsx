@@ -3,6 +3,13 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { listarProveedores } from "@/lib/proveedores/repositorio";
 import { cambiarActivoProveedorAction, guardarProveedorAction } from "./actions";
+import {
+  LINEAS_FOTOLIBRO,
+  MEDIDAS_PLIEGO,
+  describirCerrado,
+  medidasDelProveedor,
+  type LineaFotolibro,
+} from "@/lib/fotolibro/medidas-pliego";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +74,7 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
                   </span>
                 </div>
               </form>
+              <OfertaFotolibros nombre={p.name} />
               <form action={cambiarActivoProveedorAction} className="mt-2">
                 <input type="hidden" name="id" value={p.id} />
                 <input type="hidden" name="active" value={p.active ? "0" : "1"} />
@@ -78,6 +86,70 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
           ))}
         </ul>
       )}
+
+      <MedidasPliego />
     </div>
+  );
+}
+
+/** Las medidas de fotolibro que figuran en la lista de precios de este proveedor. */
+function OfertaFotolibros({ nombre }: { nombre: string }) {
+  const medidas = medidasDelProveedor(nombre);
+  if (!medidas) return null;
+  return (
+    <div className="mt-3 space-y-1 text-xs text-[var(--fo-muted)]">
+      {(Object.keys(LINEAS_FOTOLIBRO) as LineaFotolibro[]).map((linea) => {
+        const deLinea = medidas.filter((m) => m.linea === linea);
+        if (deLinea.length === 0) return null;
+        return (
+          <p key={linea}>
+            <span className="font-medium text-[var(--fo-text)]">Fotolibro, {LINEAS_FOTOLIBRO[linea].toLowerCase()}:</span>{" "}
+            {deLinea.map((m) => m.nombre).join(" · ")}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Las medidas reales de los pliegos. Son las mismas en todos los laboratorios: el fotolibro se
+ * diseña con estas y no con la medida redondeada de la lista de precios.
+ */
+function MedidasPliego() {
+  return (
+    <section className="fo-card space-y-3 p-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">Medidas de pliego de fotolibro</h2>
+        <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
+          La medida real de la copia que sale del laboratorio, igual para todos. Un pliego es una
+          hoja del libro abierta (dos páginas). Es la que usa el diseñador al crear un fotolibro.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="border-b border-[var(--fo-border)] text-[var(--fo-muted-soft)]">
+            <tr>
+              <th className="py-2 pr-4 font-medium">Línea</th>
+              <th className="py-2 pr-4 font-medium">Medida</th>
+              <th className="py-2 pr-4 font-medium">Pliego real</th>
+              <th className="py-2 font-medium">Libro cerrado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MEDIDAS_PLIEGO.map((m) => (
+              <tr key={m.id} className="border-b border-[var(--fo-border)]">
+                <td className="py-2 pr-4 text-[var(--fo-muted)]">{LINEAS_FOTOLIBRO[m.linea]}</td>
+                <td className="py-2 pr-4 font-medium">{m.nombre}</td>
+                <td className="py-2 pr-4 tabular-nums">
+                  {m.altoMm} × {m.anchoMm} mm
+                </td>
+                <td className="py-2 text-[var(--fo-muted)]">{describirCerrado(m)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

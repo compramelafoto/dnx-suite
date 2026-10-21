@@ -8,6 +8,8 @@ import {
   templateV2EditorPath,
 } from "@repo/template-editor-ui";
 import { CreateCarnetTemplate } from "@/components/members/create-carnet-template";
+import { NuevoFotolibro } from "@/components/fotolibro/nuevo-fotolibro";
+import { listarProveedores } from "@/lib/proveedores/repositorio";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
@@ -55,6 +57,10 @@ export default async function PlantillasPage() {
   if (!(await canDesignTemplates(user.id, workspace.id))) redirect("/workspace");
 
   const v = await loadPersonVocabulary(workspace.id);
+  const proveedores = (await listarProveedores(workspace.id, { soloActivos: true })).map((p) => ({
+    id: p.id,
+    name: p.name,
+  }));
 
   // Las tablas del editor todavía no existen en todas las bases: hay una migración vieja que
   // las salteó a propósito. Sin esta tolerancia, la pantalla rompería con un error de Prisma en
@@ -98,6 +104,8 @@ export default async function PlantillasPage() {
         description={`El diseño de las piezas de la institución: el carnet de ${v.singular} y lo que venga después.`}
         actions={<CreateTemplateV2Button basePath={TEMPLATE_V2_BASE_PATHS.fotoffice} />}
       />
+
+      <NuevoFotolibro proveedores={proveedores} />
 
       {faltaMigracion ? (
         <section className="fo-card space-y-2 p-8">
