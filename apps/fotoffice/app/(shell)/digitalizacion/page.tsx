@@ -2,6 +2,7 @@
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
+import { nombreArchivoVideo, nombreCliente } from "@/lib/digitalizacion/nombre-archivo";
 import { requireDigitalizacion } from "@/lib/digitalizacion/contexto";
 import { leerAjustes, listarGrabaciones } from "@/lib/digitalizacion/servidor/grabaciones";
 import { estadoVisible } from "@/lib/digitalizacion/validar";
@@ -46,6 +47,7 @@ export default async function DigitalizacionPage() {
               <li key={g.id} className="space-y-2 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="font-semibold">
+                    {g.titulo ? <span className="font-bold">{g.titulo} · </span> : null}
                     {g.tipo === "DVD" ? "DVD" : `VHS${g.cassetteNumero ? ` · cassette ${g.cassetteNumero}` : ""}`}
                     {g.proyecto ? ` · ${g.proyecto.number} · ${g.proyecto.name}` : " · prueba"}
                   </p>
@@ -70,7 +72,11 @@ export default async function DigitalizacionPage() {
                   puedeGrabar={puedeGrabar}
                   conversionEstado={g.conversionEstado ?? ""}
                   partesBorradas={g.partesBorradasAt != null}
-                  nombreArchivo={`grabacion-${g.id}.${extensionDeMime(g.mimeType) ?? "bin"}`}
+                  titulo={g.titulo}
+                  nombreArchivo={nombreArchivoVideo(
+                    { pedidoNumero: g.proyecto?.pedido?.number ?? null, clienteNombre: nombreCliente(g.proyecto?.client), titulo: g.titulo, tipo: g.tipo === "DVD" ? "DVD" : "VHS", cassetteNumero: g.cassetteNumero },
+                    extensionDeMime(g.mimeType) ?? "bin",
+                  )}
                 />
               </li>
             );
