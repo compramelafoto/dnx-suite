@@ -75,7 +75,7 @@ export default async function RecepcionPage({ params }: { params: Promise<{ id: 
             valor={`${nombre(r.confirmedByUserId)}${r.confirmedAt ? `, el ${fechaHoraBA(r.confirmedAt)}` : ""}`}
           />
         ) : (
-          <Dato titulo="Estado" valor="Descartada" />
+          <Dato titulo="La descartaron" valor={`el ${fechaHoraBA(r.updatedAt)}`} />
         )}
       </section>
 

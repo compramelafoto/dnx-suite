@@ -5,6 +5,7 @@ import { formatMinorArs } from "@/lib/membership/money";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listarRecepciones } from "@/lib/stock/recepcion-servidor";
 import { crearRecepcionAction } from "./actions";
+import { BotonRecibirPedido } from "./boton-recibir-pedido";
 import { nombresDeUsuarios } from "./usuarios";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +30,7 @@ export default async function RecepcionesPage() {
               Volver a Stock
             </Link>
             <form action={crearRecepcionAction}>
-              <button type="submit" className="fo-btn fo-btn-primary text-sm">
-                Recibir pedido
-              </button>
+              <BotonRecibirPedido />
             </form>
           </>
         }

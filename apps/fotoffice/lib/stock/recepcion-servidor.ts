@@ -77,6 +77,8 @@ export type RecepcionDetalle = {
   createdByUserId: number | null;
   confirmedAt: Date | null;
   confirmedByUserId: number | null;
+  /** Último cambio: en una DESCARTADA, cuándo se descartó. */
+  updatedAt: Date;
   lineas: LineaDetalle[];
   totalMinor: number;
 };
@@ -152,6 +154,7 @@ export async function leerRecepcion(workspaceId: string, id: string): Promise<Re
       createdByUserId: true,
       confirmedAt: true,
       confirmedByUserId: true,
+      updatedAt: true,
       proveedor: { select: { name: true } },
       lineas: {
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
@@ -203,6 +206,7 @@ export async function leerRecepcion(workspaceId: string, id: string): Promise<Re
     createdByUserId: r.createdByUserId,
     confirmedAt: r.confirmedAt,
     confirmedByUserId: r.confirmedByUserId,
+    updatedAt: r.updatedAt,
     lineas,
     totalMinor: totalRecepcionMinor(lineas),
   };
@@ -550,9 +554,13 @@ export async function guardarLinea(
   });
 }
 
-/** Quita una línea del borrador. Sobre una recepción confirmada o descartada no hace nada. */
-export async function quitarLinea(workspaceId: string, recepcionId: string, lineaId: string): Promise<void> {
-  await enBorrador(workspaceId, recepcionId, async (tx) => {
+/** Quita una línea del borrador. Sobre una recepción confirmada o descartada no hace nada y lo dice. */
+export async function quitarLinea(
+  workspaceId: string,
+  recepcionId: string,
+  lineaId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return enBorrador(workspaceId, recepcionId, async (tx) => {
     await tx.fotofficeRecepcionLinea.deleteMany({ where: { id: lineaId, recepcionId, workspaceId } });
     return { ok: true as const };
   });
@@ -561,7 +569,8 @@ export async function quitarLinea(workspaceId: string, recepcionId: string, line
 export async function guardarEncabezado(
   workspaceId: string,
   recepcionId: string,
-  d: { proveedorId: string | null; fecha: Date; comprobante: string | null; preciosConIva: boolean; nota: string | null },
+  /** `nota` sin mandar (undefined) = no se toca la que ya tenía. */
+  d: { proveedorId: string | null; fecha: Date; comprobante: string | null; preciosConIva: boolean; nota?: string | null },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!(d.fecha instanceof Date) || Number.isNaN(d.fecha.getTime())) {
     return { ok: false, error: "La fecha no se entiende." };
@@ -581,7 +590,7 @@ export async function guardarEncabezado(
         fecha: d.fecha,
         comprobante: textoONulo(d.comprobante),
         preciosConIva: d.preciosConIva,
-        nota: textoONulo(d.nota),
+        ...(d.nota !== undefined ? { nota: textoONulo(d.nota) } : {}),
       },
     });
     return { ok: true as const };
@@ -589,8 +598,11 @@ export async function guardarEncabezado(
 }
 
 /** Descarta el borrador. Una recepción confirmada no se descarta: se corrige con un ajuste. */
-export async function descartar(workspaceId: string, recepcionId: string): Promise<void> {
-  await enBorrador(workspaceId, recepcionId, async (tx) => {
+export async function descartar(
+  workspaceId: string,
+  recepcionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return enBorrador(workspaceId, recepcionId, async (tx) => {
     await tx.fotofficeRecepcion.update({ where: { id: recepcionId }, data: { estado: "DESCARTADA" } });
     return { ok: true as const };
   });

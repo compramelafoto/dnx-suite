@@ -68,6 +68,8 @@ export function RecepcionEditor({
   const [confirmando, setConfirmando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<ProductoBuscado[]>([]);
+  /** El texto para el que se trajeron `resultados`. */
+  const [resultadosDe, setResultadosDe] = useState("");
 
   const [encabezado, setEncabezado] = useState({
     proveedorId: recepcion.proveedorId ?? "",
@@ -130,7 +132,10 @@ export function RecepcionEditor({
     startBusqueda(async () => {
       const r = await buscarProductosAction(texto);
       // Si mientras tanto se siguió escribiendo, esta respuesta ya no es la que corresponde.
-      if (ultimaBusqueda.current === texto) setResultados(r);
+      if (ultimaBusqueda.current === texto) {
+        setResultados(r);
+        setResultadosDe(texto);
+      }
     });
   }
 
@@ -162,7 +167,13 @@ export function RecepcionEditor({
   function descartar() {
     if (!window.confirm("¿Descartás esta recepción? No se suma nada al stock.")) return;
     startTransition(async () => {
-      await descartarAction(recepcion.id);
+      // Si sale bien, la acción lleva al historial; si no, se muestra por qué.
+      const r = await descartarAction(recepcion.id);
+      if (!r.ok) {
+        setAviso({ tipo: "error", texto: r.error });
+        router.refresh();
+        foco();
+      }
     });
   }
 
@@ -280,14 +291,16 @@ export function RecepcionEditor({
             value={busqueda}
             onChange={(e) => buscar(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && resultados[0]) {
-                e.preventDefault();
-                agregar(resultados[0]);
-              }
               if (e.key === "Escape") {
+                e.preventDefault();
                 buscar("");
                 foco();
+                return;
               }
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              // Sólo si los resultados son de lo que está escrito ahora (no de una búsqueda vieja).
+              if (resultadosDe === busqueda && resultados[0]) agregar(resultados[0]);
             }}
           />
           {resultados.length > 0 ? (
@@ -541,7 +554,8 @@ function FilaLinea({
   const anterior = linea.producto?.costMinor ?? null;
   const subio = costoSubio(anterior, nuevoPorUnidad);
   const esProducto = linea.producto?.kind === "PRODUCTO";
-  const margen = esProducto ? calibrarMargenPct(linea.producto?.priceMinor ?? 0, nuevoPorUnidad ?? anterior) : null;
+  const precio = linea.producto?.priceMinor ?? 0;
+  const margen = esProducto && precio > 0 ? calibrarMargenPct(precio, nuevoPorUnidad ?? anterior) : null;
   const unidad = linea.producto?.unidad ?? "unidades";
 
   return (
@@ -623,7 +637,11 @@ function FilaLinea({
           <>
             <p>{formatMinorArs(linea.producto.priceMinor)}</p>
             <p className={`text-xs ${margen !== null && margen < 0 ? "text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}`}>
-              {margen === null ? "Sin margen (falta el costo)" : `Margen ${margen.toLocaleString("es-AR")} %`}
+              {precio <= 0
+                ? "Sin precio"
+                : margen === null
+                  ? "Sin margen (falta el costo)"
+                  : `Margen ${margen.toLocaleString("es-AR")} %`}
             </p>
           </>
         ) : (

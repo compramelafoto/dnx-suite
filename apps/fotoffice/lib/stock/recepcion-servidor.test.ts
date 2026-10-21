@@ -438,7 +438,7 @@ describe("quitarLinea, guardarEncabezado y descartar", () => {
   });
 
   it("quita la línea de un borrador", async () => {
-    await quitarLinea(WS, "r1", "l1");
+    expect(await quitarLinea(WS, "r1", "l1")).toEqual({ ok: true });
     expect(db.t.lineas).toHaveLength(0);
   });
 
@@ -447,6 +447,13 @@ describe("quitarLinea, guardarEncabezado y descartar", () => {
     const r = await guardarEncabezado(WS, "r1", { proveedorId: "prov1", fecha, comprobante: "  A-0001-123 ", preciosConIva: false, nota: " " });
     expect(r).toEqual({ ok: true });
     expect(db.t.recepciones[0]).toMatchObject({ proveedorId: "prov1", fecha, comprobante: "A-0001-123", preciosConIva: false, nota: null });
+  });
+
+  it("sin nota no toca la nota que ya tenía", async () => {
+    db.t.recepciones[0].nota = "Faltó una caja";
+    const fecha = new Date("2026-10-20T15:00:00Z");
+    expect(await guardarEncabezado(WS, "r1", { proveedorId: null, fecha, comprobante: "B-1", preciosConIva: true })).toEqual({ ok: true });
+    expect(db.t.recepciones[0]).toMatchObject({ comprobante: "B-1", nota: "Faltó una caja" });
   });
 
   it("rechaza un proveedor de otro negocio y una fecha inválida", async () => {
@@ -462,19 +469,19 @@ describe("quitarLinea, guardarEncabezado y descartar", () => {
   });
 
   it("descarta un borrador", async () => {
-    await descartar(WS, "r1");
+    expect(await descartar(WS, "r1")).toEqual({ ok: true });
     expect(db.t.recepciones[0].estado).toBe("DESCARTADA");
   });
 
   it("sobre una confirmada: no quita, no cambia el encabezado, no descarta", async () => {
     db.t.recepciones[0].estado = "CONFIRMADA";
-    await quitarLinea(WS, "r1", "l1");
+    expect(await quitarLinea(WS, "r1", "l1")).toEqual({ ok: false, error: "Esa recepción ya está confirmada." });
     expect(db.t.lineas).toHaveLength(1);
     expect(
       await guardarEncabezado(WS, "r1", { proveedorId: null, fecha: new Date(), comprobante: "x", preciosConIva: true, nota: null }),
     ).toEqual({ ok: false, error: "Esa recepción ya está confirmada." });
     expect(db.t.recepciones[0].comprobante).toBeUndefined();
-    await descartar(WS, "r1");
+    expect(await descartar(WS, "r1")).toEqual({ ok: false, error: "Esa recepción ya está confirmada." });
     expect(db.t.recepciones[0].estado).toBe("CONFIRMADA");
   });
 });

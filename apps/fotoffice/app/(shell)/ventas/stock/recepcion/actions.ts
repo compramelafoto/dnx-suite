@@ -124,10 +124,11 @@ export async function guardarLineaAction(
   return r;
 }
 
-export async function quitarLineaAction(recepcionId: string, lineaId: string): Promise<void> {
+export async function quitarLineaAction(recepcionId: string, lineaId: string): Promise<Resultado> {
   const { workspace } = await requireSalesStaff();
-  await quitarLinea(workspace.id, texto(recepcionId), texto(lineaId));
+  const r = await quitarLinea(workspace.id, texto(recepcionId), texto(lineaId));
   refrescar(recepcionId);
+  return r;
 }
 
 export async function guardarEncabezadoAction(
@@ -143,16 +144,17 @@ export async function guardarEncabezadoAction(
     fecha,
     comprobante: texto(d.comprobante),
     preciosConIva: d.preciosConIva === true,
-    nota: null,
+    // La nota no se edita en esta pantalla: sin mandarla, la que tenga queda como está.
   });
   if (r.ok) refrescar(recepcionId);
   return r;
 }
 
-export async function descartarAction(recepcionId: string): Promise<void> {
+export async function descartarAction(recepcionId: string): Promise<Resultado> {
   const { workspace } = await requireSalesStaff();
-  await descartar(workspace.id, texto(recepcionId));
+  const r = await descartar(workspace.id, texto(recepcionId));
   refrescar(recepcionId);
+  if (!r.ok) return r;
   redirect(LISTADO);
 }
 
