@@ -14,7 +14,7 @@ const MARCAS: Record<MarcaVistaPrevia, string> = {
   SIN_MARGEN: "sin margen: sólo cambia el costo",
   BAJA: "el precio baja",
   SUBE_MUCHO: "sube más de 30 %",
-  OTRO_PROVEEDOR: "su proveedor preferido es otro: no cambia",
+  OTRO_PROVEEDOR: "su proveedor preferido no es éste (o no tiene): no cambia",
   VARIANTES: "tiene talles con precio propio",
 };
 
