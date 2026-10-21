@@ -21186,8 +21186,6 @@ model FotofficeInsumo {
 
   workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product   Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  recetas   FotofficeRecetaInsumo[]  @relation("FotofficeRecetaInsumo")
-  consumos  FotofficeConsumoTamano[]
 
   @@index([workspaceId])
 }
@@ -21195,7 +21193,7 @@ model FotofficeInsumo {
 /// Receta: qué insumos gasta un producto o servicio por cada `porCada` unidades vendidas.
 /// Consumo por renglón = ceil(cantidad / porCada) × quantity. Mismo workspace: lo valida el código;
 /// el SQL frena cantidades <= 0, `porCada` < 1 y que un producto se use a sí mismo como insumo.
-/// El insumo es Restrict: no se borra un insumo que está en alguna receta.
+/// `insumoId` es el `Product` del insumo (kind INSUMO). Restrict: no se borra un insumo que está en alguna receta.
 model FotofficeRecetaInsumo {
   id          String   @id @default(cuid())
   workspaceId String
@@ -21209,7 +21207,7 @@ model FotofficeRecetaInsumo {
 
   workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product   Product         @relation("FotofficeRecetaProducto", fields: [productId], references: [id], onDelete: Cascade)
-  insumo    FotofficeInsumo @relation("FotofficeRecetaInsumo", fields: [insumoId], references: [id], onDelete: Restrict)
+  insumo    Product         @relation("FotofficeRecetaComoInsumo", fields: [insumoId], references: [id], onDelete: Restrict)
 
   @@unique([productId, insumoId])
   @@index([workspaceId, insumoId])
@@ -21230,7 +21228,7 @@ model FotofficeConsumoTamano {
   workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   salida    FotofficeSalidaImpresion @relation(fields: [salidaId], references: [id], onDelete: Cascade)
   tamano    FotofficeTamanoImpresion @relation(fields: [tamanoId], references: [id], onDelete: Cascade)
-  insumo    FotofficeInsumo          @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  insumo    Product                  @relation("FotofficeConsumoTamanoInsumo", fields: [insumoId], references: [id], onDelete: Restrict)
 
   @@unique([salidaId, tamanoId, insumoId])
   @@index([workspaceId, insumoId])
@@ -22594,6 +22592,8 @@ model Product {
   fotofficeEnCombos       FotofficeComboItem[]        @relation("FotofficeComboItemComponente")
   fotofficeInsumo         FotofficeInsumo?
   fotofficeReceta         FotofficeRecetaInsumo[]     @relation("FotofficeRecetaProducto")
+  fotofficeRecetasComoInsumo FotofficeRecetaInsumo[]  @relation("FotofficeRecetaComoInsumo")
+  fotofficeConsumosTamano FotofficeConsumoTamano[]    @relation("FotofficeConsumoTamanoInsumo")
   fotofficeCostos         FotofficeCostoPlantilla[]
   fotofficeProyectos      FotofficeProyecto[]
   fotofficeProyectoReglas FotofficeProductoProyecto[]

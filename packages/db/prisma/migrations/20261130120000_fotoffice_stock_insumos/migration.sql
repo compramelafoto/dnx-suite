@@ -73,7 +73,7 @@ BEGIN
   END IF;
   -- Restrict: no se borra un insumo que está en alguna receta.
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FotofficeRecetaInsumo_insumoId_fkey') THEN
-    ALTER TABLE "FotofficeRecetaInsumo" ADD CONSTRAINT "FotofficeRecetaInsumo_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "FotofficeInsumo"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "FotofficeRecetaInsumo" ADD CONSTRAINT "FotofficeRecetaInsumo_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FotofficeConsumoTamano_workspaceId_fkey') THEN
@@ -86,7 +86,7 @@ BEGIN
     ALTER TABLE "FotofficeConsumoTamano" ADD CONSTRAINT "FotofficeConsumoTamano_tamanoId_fkey" FOREIGN KEY ("tamanoId") REFERENCES "FotofficeTamanoImpresion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FotofficeConsumoTamano_insumoId_fkey') THEN
-    ALTER TABLE "FotofficeConsumoTamano" ADD CONSTRAINT "FotofficeConsumoTamano_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "FotofficeInsumo"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    ALTER TABLE "FotofficeConsumoTamano" ADD CONSTRAINT "FotofficeConsumoTamano_insumoId_fkey" FOREIGN KEY ("insumoId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FotofficeRecetaInsumo_quantity') THEN

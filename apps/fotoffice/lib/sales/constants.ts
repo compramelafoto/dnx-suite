@@ -29,8 +29,10 @@ export const STOCK_REASONS = [
 ] as const;
 export type StockReason = (typeof STOCK_REASONS)[number];
 
-/** Cómo se muestra cada motivo. `PEDIDO` es la mercadería apartada para un pedido «para retirar».
- * `CONSUMO` es el insumo que se gasta al vender o al producir (receta o consumo por tamaño). */
+/**
+ * Cómo se muestra cada motivo. `PEDIDO` es la mercadería apartada para un pedido «para retirar».
+ * `CONSUMO` es el insumo que se gasta al vender o al producir (receta o consumo por tamaño).
+ */
 export const STOCK_REASON_LABELS: Record<StockReason, string> = {
   VENTA: "Venta",
   ENTRADA: "Entrada",
