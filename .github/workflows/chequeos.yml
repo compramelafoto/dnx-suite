@@ -238,6 +238,9 @@ jobs:
       - name: Pruebas de producción escolar y marca de agua
         run: pnpm --filter compramelafoto test:produccion-escolar && pnpm --filter compramelafoto test:marca-de-agua
 
+      - name: Pruebas del canje (packs del Excel, WhatsApp, pack de prueba)
+        run: pnpm --filter compramelafoto test:canje-prueba
+
       - name: Comparar pantalla y PDF
         run: pnpm --filter compramelafoto test:pantalla-vs-pdf
 
