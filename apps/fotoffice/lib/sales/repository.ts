@@ -139,6 +139,8 @@ export async function listProducts(
     onlyCounter?: boolean;
     /** Sin insumos: para quien ofrece o cotiza (el bot de atención); el mostrador ya los excluye. */
     onlyVendible?: boolean;
+    /** Sólo este tipo (el filtro "Insumos" del catálogo). */
+    kind?: string;
   } = {},
 ): Promise<ProductRow[]> {
   const q = opts.search?.trim();
@@ -149,6 +151,7 @@ export async function listProducts(
       ...(opts.onlyCounter || opts.onlyVendible
         ? { AND: [...(opts.onlyCounter ? [VISIBLE_EN_MOSTRADOR] : []), ...(opts.onlyVendible ? [NO_ES_INSUMO] : [])] }
         : {}),
+      ...(opts.kind ? { kind: opts.kind } : {}),
       ...(opts.onlyActive ? { isActive: true } : {}),
       ...(opts.tracksStock ? { tracksStock: true } : {}),
       ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
@@ -249,6 +252,8 @@ export type ProductDetail = {
   supplierName: string | null;
   imageUrl: string | null;
   isActive: boolean;
+  /** Datos propios del insumo (unidad y presentación de compra); null si nunca fue insumo. */
+  insumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   /** null = sin ficha online: se vende sólo en el mostrador, como siempre (D2). */
   storeListing: ProductStoreListingDetail | null;
   /** Galería de la tienda, en orden: la primera es la principal. */
@@ -310,6 +315,7 @@ export async function getProduct(
       supplierName: true,
       imageUrl: true,
       isActive: true,
+      fotofficeInsumo: { select: { unidad: true, unidadCompra: true, unidadesPorCompra: true } },
       storeListing: {
         select: {
           sellOnline: true,
@@ -359,6 +365,7 @@ export async function getProduct(
     supplierName: r.supplierName,
     imageUrl: r.imageUrl,
     isActive: r.isActive,
+    insumo: r.fotofficeInsumo,
     storeListing: r.storeListing,
     images: r.images,
     variants: r.variants.map((v) => ({

@@ -173,4 +173,19 @@ describe("parseProductForm", () => {
       error: "El mínimo de stock no puede ser negativo.",
     });
   });
+
+  it("un insumo fuerza controlar existencia y acepta precio vacío como cero", () => {
+    const r = parseProductForm(
+      form({ name: "Kit Kodak 305", kind: "INSUMO", priceArs: "", tracksStock: "off" }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.kind).toBe("INSUMO");
+    expect(r.values.priceMinor).toBe(0);
+    expect(r.values.tracksStock).toBe(true);
+  });
+
+  it("un producto con precio vacío sigue siendo error", () => {
+    expect(parseProductForm(form({ name: "Marco", kind: "PRODUCTO", priceArs: "" })).ok).toBe(false);
+  });
 });

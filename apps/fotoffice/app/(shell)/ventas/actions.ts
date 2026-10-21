@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
 import { parseProductForm } from "@/lib/sales/product-form";
+import { parseInsumoForm, type InsumoFormValues } from "@/lib/stock/insumo-form";
+import { guardarInsumo, validarCambioDeTipo } from "@/lib/stock/insumo-guardas";
 import { parseCategoryForm } from "@/lib/sales/category-form";
 import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-catalog";
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
@@ -54,6 +56,14 @@ export async function saveProductAction(formData: FormData): Promise<void> {
   if (!parsed.ok) redirect(`${destinoError}?error=${encodeURIComponent(parsed.error)}`);
   const v = parsed.values;
 
+  // Los datos propios del insumo (unidad y presentación de compra) sólo se leen si es insumo.
+  let insumo: InsumoFormValues | null = null;
+  if (v.kind === "INSUMO") {
+    const parsedInsumo = parseInsumoForm(formData);
+    if (!parsedInsumo.ok) redirect(`${destinoError}?error=${encodeURIComponent(parsedInsumo.error)}`);
+    insumo = parsedInsumo.values;
+  }
+
   if (productId) {
     // El `where` de un update tiene que ser único, así que el workspace no puede viajar ahí.
     const propio = await prisma.product.count({ where: { id: productId, workspaceId: workspace.id } });
@@ -84,37 +94,61 @@ export async function saveProductAction(formData: FormData): Promise<void> {
   };
 
   try {
-    if (v.barcode) {
-      const barcode = v.barcode;
-      await prisma.$transaction(async (tx) => {
+    // Todo en UNA transacción: el producto, su ficha del catálogo maestro (si trae código de
+    // barras) y su ficha de insumo. Un producto que pasa a ser INSUMO no puede quedar sin
+    // `FotofficeInsumo` (el consumo y el stock la leen), ni al revés.
+    const errorDeTipo = await prisma.$transaction(async (tx) => {
+      let kindAnterior: string | null = null;
+      if (productId) {
+        const actual = await tx.product.findFirst({
+          where: { id: productId, workspaceId: workspace.id },
+          select: { kind: true },
+        });
+        kindAnterior = actual?.kind ?? null;
+        const bloqueo = await validarCambioDeTipo(tx, {
+          workspaceId: workspace.id,
+          productId,
+          kindAnterior,
+          kindNuevo: v.kind,
+        });
+        if (bloqueo) return bloqueo;
+      }
+
+      let data: typeof datosProducto & { globalProductId: string | null };
+      if (v.barcode) {
         const global = await upsertGlobalProduct(tx, {
-          barcode,
+          barcode: v.barcode,
           ...globalFieldsFromProduct(v),
           workspaceId: workspace.id,
           userId: user.id,
         });
-        const data = { ...datosProducto, globalProductId: global.id };
-        if (productId) {
-          await tx.product.update({ where: { id: productId }, data });
-        } else {
-          await tx.product.create({
-            data: { ...data, workspaceId: workspace.id, createdByUserId: user.id },
-          });
-        }
-      });
-    } else {
-      // Sin código de barras no hay catálogo maestro que tocar. Si el producto tenía uno
-      // antes y se lo borraron acá, `globalProductId` se limpia: no tiene sentido dejar
-      // colgada la referencia a una ficha que este producto ya no reclama.
-      const data = { ...datosProducto, globalProductId: null };
-      if (productId) {
-        await prisma.product.update({ where: { id: productId }, data });
+        data = { ...datosProducto, globalProductId: global.id };
       } else {
-        await prisma.product.create({
-          data: { ...data, workspaceId: workspace.id, createdByUserId: user.id },
-        });
+        // Sin código de barras no hay catálogo maestro que tocar. Si el producto tenía uno
+        // antes y se lo borraron acá, `globalProductId` se limpia: no tiene sentido dejar
+        // colgada la referencia a una ficha que este producto ya no reclama.
+        data = { ...datosProducto, globalProductId: null };
       }
-    }
+
+      let guardadoId: string;
+      if (productId) {
+        await tx.product.update({ where: { id: productId }, data });
+        guardadoId = productId;
+      } else {
+        const creado = await tx.product.create({
+          data: { ...data, workspaceId: workspace.id, createdByUserId: user.id },
+          select: { id: true },
+        });
+        guardadoId = creado.id;
+      }
+
+      // Si el producto deja de ser insumo, su ficha queda (inofensiva) y la pantalla no la muestra.
+      if (insumo) {
+        await guardarInsumo(tx, { workspaceId: workspace.id, productId: guardadoId, values: insumo });
+      }
+      return null;
+    });
+    if (errorDeTipo) redirect(`${destinoError}?error=${encodeURIComponent(errorDeTipo)}`);
   } catch (e) {
     // P2002 = choque con un índice único. El único índice único de `Product` que un
     // formulario puede disparar es `[workspaceId, sku]`: el mensaje crudo de Prisma no le

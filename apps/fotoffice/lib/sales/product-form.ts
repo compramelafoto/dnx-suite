@@ -47,7 +47,9 @@ export function parseProductForm(fd: FormData): ProductFormResult {
   }
   const kind = kindRaw as ProductKind;
 
-  const priceMinor = parseArsToMinor(String(fd.get("priceArs") ?? ""));
+  // Un insumo no se vende, así que no tiene precio: el campo ni se muestra y vacío vale cero.
+  const priceRaw = String(fd.get("priceArs") ?? "");
+  const priceMinor = kind === "INSUMO" && priceRaw.trim() === "" ? 0 : parseArsToMinor(priceRaw);
   if (priceMinor === null) return { ok: false, error: "El precio no se entiende." };
 
   const costArsRaw = String(fd.get("costArs") ?? "").trim();
@@ -88,7 +90,8 @@ export function parseProductForm(fd: FormData): ProductFormResult {
   // saltear mandando el formulario a mano, así que la coherencia se garantiza acá.
   const tracksStockRaw = fd.get("tracksStock");
   const tracksStockChecked = tracksStockRaw !== "off" && tracksStockRaw !== "false";
-  const tracksStock = kind === "SERVICIO" ? false : tracksStockChecked;
+  // Un insumo siempre controla existencia: es lo único que se hace con él.
+  const tracksStock = kind === "SERVICIO" ? false : kind === "INSUMO" ? true : tracksStockChecked;
 
   // La foto puede venir de la subida o pegada como enlace: las dos llegan como una dirección.
   // Un enlace pegado a mano se valida igual que la galería de la tienda (sólo https).
