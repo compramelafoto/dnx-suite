@@ -39,6 +39,7 @@ import {
   gastoDelMes,
   registrarIncidente,
   registrarUso,
+  registrarUsoImportacion,
   reservarMarca,
   tomarAccionPendiente,
   usoActual,
@@ -138,6 +139,28 @@ describe("uso y gasto", () => {
     expect(m.usageUpsert.mock.calls[0]![0].where).toEqual({ platform_day_actorKey: { platform: "FOTOFFICE:ws1", day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), actorKey: "u:7" } });
     expect(m.usageUpsert.mock.calls[0]![0].create).toMatchObject({ platform: "FOTOFFICE:ws1", userId: 7, messages: 1, costMicroUsd: 99 });
     expect(m.convUpdate.mock.calls[0]![0]).toMatchObject({ where: { id: "c1" } });
+  });
+  it("registrarUsoImportacion suma tokens y gasto al mismo día y persona, sin conversación ni mensaje", async () => {
+    const usage = { input_tokens: 1200, output_tokens: 300, cache_read_input_tokens: null, cache_creation_input_tokens: null };
+    await registrarUsoImportacion({ plataforma: "FOTOFFICE:ws1", userId: 7, usage, costMicroUsd: 8100 });
+    const arg = m.usageUpsert.mock.calls[0]![0];
+    expect(arg.where).toEqual({ platform_day_actorKey: { platform: "FOTOFFICE:ws1", day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), actorKey: "u:7" } });
+    expect(arg.create).toEqual({
+      platform: "FOTOFFICE:ws1",
+      day: arg.where.platform_day_actorKey.day,
+      userId: 7,
+      actorKey: "u:7",
+      messages: 0,
+      inputTokens: 1200,
+      outputTokens: 300,
+      costMicroUsd: 8100,
+    });
+    expect(arg.update).toEqual({
+      inputTokens: { increment: 1200 },
+      outputTokens: { increment: 300 },
+      costMicroUsd: { increment: 8100 },
+    });
+    expect(m.convUpdate).not.toHaveBeenCalled();
   });
 });
 

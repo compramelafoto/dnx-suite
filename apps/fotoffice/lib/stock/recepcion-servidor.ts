@@ -354,7 +354,7 @@ async function bloquearRecepcion(tx: Tx, workspaceId: string, recepcionId: strin
 }
 
 /** Producto válido para una línea: activo, de este negocio y sin talles. */
-async function productoParaLinea(
+export async function productoParaLinea(
   tx: Tx,
   workspaceId: string,
   productId: string,

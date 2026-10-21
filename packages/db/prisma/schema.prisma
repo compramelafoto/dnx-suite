@@ -7331,6 +7331,7 @@ model Workspace {
   fotofficeReglaPrecios          FotofficeReglaPrecios?
   fotofficeListasProveedor       FotofficeListaProveedor[]
   fotofficeEquivalencias         FotofficeEquivalenciaProveedor[]
+  fotofficeAliasProveedor        FotofficeAliasProveedor[]
   fotofficeArchivosTrabajo       FotofficeArchivoTrabajo[]
   digitalizacionGrabaciones DigitalizacionGrabacion[]
   digitalizacionEquipos     DigitalizacionEquipo[]
@@ -21999,6 +22000,7 @@ model FotofficeProveedor {
   listasPrecios       FotofficeListaProveedor[]
   equivalencias       FotofficeEquivalenciaProveedor[]
   recepciones         FotofficeRecepcion[]
+  aliasStock          FotofficeAliasProveedor[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, active])
@@ -22692,6 +22694,7 @@ model Product {
   preferredProveedor      FotofficeProveedor?              @relation("ProductoProveedorPreferido", fields: [preferredProveedorId], references: [id], onDelete: SetNull)
   fotofficeListaEmparejamientos FotofficeListaProveedorEmparejamiento[]
   fotofficeEquivalencias  FotofficeEquivalenciaProveedor[]
+  fotofficeAliasProveedor FotofficeAliasProveedor[]
 
   @@unique([workspaceId, sku])
   @@index([preferredProveedorId])
@@ -26451,4 +26454,24 @@ model FotofficeEquivalenciaProveedor {
   @@index([workspaceId, proveedorId, clave])
   @@unique([workspaceId, proveedorId, productId])
   @@index([productId])
+}
+
+/// Alias de proveedor (stock etapa 3): recuerda qué producto es cada descripción que viene en las
+/// facturas de ese proveedor, para asociar solas las próximas importaciones.
+/// `textoNormalizado`: minúsculas, sin tildes ni signos, espacios colapsados.
+model FotofficeAliasProveedor {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  proveedorId      String
+  textoNormalizado String
+  productId        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proveedor FotofficeProveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([proveedorId, textoNormalizado])
+  @@index([workspaceId, proveedorId])
 }
