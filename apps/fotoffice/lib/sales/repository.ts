@@ -30,6 +30,8 @@ export type ProductRow = {
   isActive: boolean;
   categoryId: string | null;
   categoryName: string | null;
+  /** Sólo los insumos: en qué unidad se cuenta y, si se compra en otra presentación, cuál. */
+  insumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   /**
    * Los talles ACTIVOS, en el orden configurado. Vacío = el producto no tiene talles.
    * `priceMinor` es el precio efectivo del talle (el propio o, si no tiene, el del producto).
@@ -65,6 +67,7 @@ const PRODUCT_ROW_SELECT = {
   isActive: true,
   categoryId: true,
   category: { select: { name: true } },
+  fotofficeInsumo: { select: { unidad: true, unidadCompra: true, unidadesPorCompra: true } },
   variants: {
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -87,6 +90,7 @@ type ProductRowRecord = {
   isActive: boolean;
   categoryId: string | null;
   category: { name: string } | null;
+  fotofficeInsumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   variants: { id: string; name: string; priceArs: { toString(): string } | null; stockQty: number }[];
 };
 
@@ -107,6 +111,7 @@ function toProductRow(r: ProductRowRecord): ProductRow {
     isActive: r.isActive,
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
+    insumo: r.fotofficeInsumo,
     variants: r.variants.map((v) => ({
       id: v.id,
       name: v.name,

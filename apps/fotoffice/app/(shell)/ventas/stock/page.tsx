@@ -2,6 +2,8 @@ import { PageHeader } from "@/components/page-header";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listProducts } from "@/lib/sales/repository";
 import { needsRestock } from "@/lib/sales/stock";
+import { kodak305Pendiente } from "@/lib/stock/kodak305";
+import { configurarKodak305Action } from "../actions";
 import { StockForm } from "../stock-form";
 
 export const dynamic = "force-dynamic";
@@ -19,14 +21,16 @@ export const dynamic = "force-dynamic";
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; kodak?: string }>;
 }) {
   const { workspace } = await requireSalesStaff();
   const sp = await searchParams;
 
   const productos = await listProducts(workspace.id, { onlyActive: true, tracksStock: true });
   const aReponer = productos.filter((p) => needsRestock(p));
-  const resto = productos.filter((p) => !needsRestock(p));
+  const insumos = productos.filter((p) => p.kind === "INSUMO" && !needsRestock(p));
+  const resto = productos.filter((p) => p.kind !== "INSUMO" && !needsRestock(p));
+  const kodakPendiente = await kodak305Pendiente(workspace.id);
 
   return (
     <div className="space-y-8">
@@ -38,8 +42,33 @@ export default async function StockPage({
         </p>
       ) : null}
       {sp.ok ? <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo, se guardó.</p> : null}
+      {sp.kodak ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+          Listo, la Kodak 305 quedó configurada. Ahora contá cuántas copias le quedan al ribbon y
+          cargalo con &quot;Ajustar por conteo&quot; en el kit.
+        </p>
+      ) : null}
 
-      {productos.length === 0 ? (
+      {kodakPendiente ? (
+        <section className="fo-card flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-[var(--fo-text)]">
+              Controlá el ribbon de la Kodak 305
+            </h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Armamos el kit como insumo y le descontamos las copias que se imprimen. Arranca en
+              cero: después lo ajustás por conteo.
+            </p>
+          </div>
+          <form action={configurarKodak305Action}>
+            <button type="submit" className="fo-btn fo-btn-primary text-sm">
+              Configurar
+            </button>
+          </form>
+        </section>
+      ) : null}
+
+      {productos.length === 0 && !kodakPendiente ? (
         <div className="fo-card px-6 py-16 text-center text-sm text-[var(--fo-muted)]">
           Ningún producto activo controla existencia todavía. Se configura desde la ficha del
           producto, en el catálogo.
@@ -63,9 +92,20 @@ export default async function StockPage({
             </p>
           )}
 
+          {insumos.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-base font-semibold text-[var(--fo-muted)]">Insumos</h2>
+              <div className="space-y-3">
+                {insumos.map((p) => (
+                  <StockForm key={p.id} product={p} destacado={false} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {resto.length > 0 ? (
             <section className="space-y-3">
-              <h2 className="text-base font-semibold text-[var(--fo-muted)]">Resto del catálogo</h2>
+              <h2 className="text-base font-semibold text-[var(--fo-muted)]">Productos</h2>
               <div className="space-y-3">
                 {resto.map((p) => (
                   <StockForm key={p.id} product={p} destacado={false} />

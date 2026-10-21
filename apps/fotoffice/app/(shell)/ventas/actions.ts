@@ -31,6 +31,7 @@ import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/consta
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { lockStockRows } from "@/lib/sales/stock-lock";
+import { asegurarKodak305, entradaEnUnidades } from "@/lib/stock/kodak305";
 import { calibrarMargenPct, margenValido } from "@/lib/precios-proveedor/margen";
 
 const CATALOGO = "/ventas/catalogo";
@@ -501,6 +502,29 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
   const destino = await resolverDestinoDeStock(workspace.id, productId, formData);
   if (!destino.ok) redirect(`${STOCK}?error=${encodeURIComponent(destino.error)}`);
 
+  // Un insumo se compra en kits pero se descuenta en copias: si la casilla está marcada, la
+  // cantidad y el costo se pasan a la unidad de uso con la ficha del servidor (no con lo que
+  // diga el formulario).
+  let qtyFinal = qty;
+  let costoFinal = unitCostMinor;
+  if (formData.get("enUnidadDeCompra") === "on") {
+    const ficha = await prisma.fotofficeInsumo.findFirst({
+      where: { productId, workspaceId: workspace.id },
+      select: { unidadesPorCompra: true },
+    });
+    if (!ficha?.unidadesPorCompra) {
+      redirect(`${STOCK}?error=${encodeURIComponent("Ese insumo no tiene unidad de compra cargada.")}`);
+    }
+    const conv = entradaEnUnidades({
+      cantidad: qty,
+      enUnidadDeCompra: true,
+      unidadesPorCompra: ficha.unidadesPorCompra,
+      costoMinor: unitCostMinor,
+    });
+    qtyFinal = conv.qty;
+    costoFinal = conv.unitCostMinor;
+  }
+
   await prisma.$transaction(async (tx) => {
     // Mismo orden de bloqueo que la tienda y que vender (ver `lib/sales/stock-lock.ts`).
     await lockStockRows(tx, {
@@ -512,18 +536,31 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
       workspaceId: workspace.id,
       productId,
       variantId: destino.variantId,
-      qty,
+      qty: qtyFinal,
       reason: "ENTRADA",
       sourceModule: "sales",
       sourceRef: null,
       note: null,
-      unitCostArs: unitCostMinor === null ? null : minorToDecimalString(unitCostMinor),
+      unitCostArs: costoFinal === null ? null : minorToDecimalString(costoFinal),
       createdByUserId: user.id,
     });
   });
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);
+}
+
+/**
+ * "Configurar" la Kodak 305: crea (o reconoce) el insumo del kit y su consumo por tamaño.
+ * Mismo permiso que el resto de la pantalla Stock (STAFF+). No toca la existencia: después
+ * la persona carga lo que tiene con "Ajustar por conteo".
+ */
+export async function configurarKodak305Action(): Promise<void> {
+  const { workspace } = await requireSalesStaff();
+  const r = await asegurarKodak305(workspace.id);
+  if (!r.ok) redirect(`${STOCK}?error=${encodeURIComponent(r.error)}`);
+  revalidatePath(STOCK);
+  redirect(`${STOCK}?kodak=1`);
 }
 
 /**
