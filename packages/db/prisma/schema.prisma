@@ -7322,6 +7322,9 @@ model Workspace {
   fotofficeProyectos             FotofficeProyecto[]
   fotofficeProductoProyectos     FotofficeProductoProyecto[]
   fotofficeProveedores           FotofficeProveedor[]
+  fotofficeReglaPrecios          FotofficeReglaPrecios?
+  fotofficeListasProveedor       FotofficeListaProveedor[]
+  fotofficeEquivalencias         FotofficeEquivalenciaProveedor[]
   fotofficeArchivosTrabajo       FotofficeArchivoTrabajo[]
   digitalizacionGrabaciones DigitalizacionGrabacion[]
   digitalizacionEquipos     DigitalizacionEquipo[]
@@ -21848,6 +21851,9 @@ model FotofficeProveedor {
   proyectos FotofficeProyecto[]
   reglas    FotofficeProductoProyecto[]
   salidasImpresion FotofficeSalidaImpresion[]
+  productosPreferidos Product[]                        @relation("ProductoProveedorPreferido")
+  listasPrecios       FotofficeListaProveedor[]
+  equivalencias       FotofficeEquivalenciaProveedor[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, active])
@@ -22500,6 +22506,12 @@ model Product {
 
   imageUrl     String?
   supplierName String?
+  /// El proveedor del que sale el costo (listas de precios de proveedores). `supplierName`
+  /// queda como texto libre heredado; éste es el vínculo real.
+  preferredProveedorId String?
+  /// Margen sobre el costo, en %: 170 = costo × 2,7. Nulo = el precio se maneja a mano.
+  marginPct            Decimal?  @db.Decimal(7, 2)
+  costUpdatedAt        DateTime?
   /// Se desactiva, no se borra: las ventas viejas lo siguen nombrando.
   isActive     Boolean @default(true)
 
@@ -22525,8 +22537,12 @@ model Product {
   fotofficeCitaReglas     FotofficeProductoCita[]
   fotofficeProduccion FotofficeProductoProduccion?
   fotofficePreparaciones FotofficePreparacionImpresion[]
+  preferredProveedor      FotofficeProveedor?              @relation("ProductoProveedorPreferido", fields: [preferredProveedorId], references: [id], onDelete: SetNull)
+  fotofficeListaItems     FotofficeListaProveedorItem[]
+  fotofficeEquivalencias  FotofficeEquivalenciaProveedor[]
 
   @@unique([workspaceId, sku])
+  @@index([preferredProveedorId])
   @@index([workspaceId, isActive])
   @@index([workspaceId, categoryId])
   @@index([workspaceId, barcode])
@@ -26176,4 +26192,89 @@ model FotofficePrintSourceImage {
   createdAt DateTime @default(now())
 
   archivo FotofficeArchivoTrabajo @relation(fields: [archivoId], references: [id], onDelete: Cascade)
+}
+
+/// Reglas de precio del workspace para las listas de proveedores: redondeo para la caja y
+/// margen de fotolibros. Una fila por workspace, se crea al guardar por primera vez.
+model FotofficeReglaPrecios {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  /// Tramos `[{ desdeMinor, multiploMinor }]` en centavos, de menor a mayor.
+  redondeo           Json
+  fotolibroMarginPct Decimal? @db.Decimal(7, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Una lista de precios de un proveedor, subida como CSV. BORRADOR | APLICADA | DESCARTADA.
+model FotofficeListaProveedor {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  proveedorId       String
+  /// AAAA-MM
+  vigencia          String
+  nombreArchivo     String?
+  estado            String    @default("BORRADOR")
+  creadaPorUserId   Int?
+  aplicadaPorUserId Int?
+  aplicadaAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proveedor FotofficeProveedor            @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  items     FotofficeListaProveedorItem[]
+
+  @@index([workspaceId, proveedorId, createdAt])
+}
+
+/// Un renglón de la lista: un precio del proveedor.
+model FotofficeListaProveedorItem {
+  id              String  @id @default(cuid())
+  listaId         String
+  fila            Int
+  /// PRODUCTO | TAPA | HOJA | CAJA | ADICIONAL
+  tipo            String
+  categoria       String
+  producto        String
+  modelo          String?
+  medida          String?
+  variante        String?
+  cantidadMinima  Int?
+  unidad          String
+  costoArs        Decimal @db.Decimal(12, 2)
+  codigoProveedor String?
+  notas           String?
+  /// tipo|categoria|producto|modelo|medida|variante|cantidad_minima, normalizada.
+  clave           String
+  productId       String?
+  factor          Decimal @default(1) @db.Decimal(10, 4)
+
+  lista   FotofficeListaProveedor @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  product Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([listaId, fila])
+  @@index([productId])
+}
+
+/// Lo que se recuerda entre listas: este renglón del proveedor alimenta este producto.
+model FotofficeEquivalenciaProveedor {
+  id          String   @id @default(cuid())
+  workspaceId String
+  proveedorId String
+  clave       String
+  productId   String
+  factor      Decimal  @default(1) @db.Decimal(10, 4)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proveedor FotofficeProveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, proveedorId, clave])
+  @@unique([workspaceId, proveedorId, productId])
+  @@index([productId])
 }
