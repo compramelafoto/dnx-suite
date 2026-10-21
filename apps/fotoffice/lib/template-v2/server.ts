@@ -21,7 +21,9 @@ import {
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { canDesignPlacas, canDesignTemplates } from "./access";
-import { listKeyedTemplates } from "./keyed-template";
+import { listKeyedTemplatesTodas } from "./keyed-template";
+import { canDesignFotolibros } from "@/lib/fotolibro/acceso";
+import { FOTOLIBRO_TEMPLATE_KEY } from "@/lib/fotolibro/constantes";
 import { isPlacaTemplateKey } from "@/lib/placas/constants";
 import {
   placaInitials,
@@ -32,8 +34,9 @@ import {
 } from "@/lib/placas/values";
 
 /**
- * Rol con el que viaja quien diseña **sólo** placas: tiene Comunicación en "Gestionar" pero no
- * Socios. Puede abrir y guardar las plantillas de placa, y ninguna otra —el carnet incluido—.
+ * Rol con el que viaja quien diseña **sólo** placas o fotolibros: tiene Comunicación o Ventas
+ * en "Gestionar" pero no Socios. Puede abrir y guardar esas plantillas, y ninguna otra —el
+ * carnet incluido—. El nombre quedó de cuando sólo existían las placas.
  */
 const ROL_SOLO_PLACAS = "FOTOFFICE_PLACAS_ONLY";
 
@@ -84,14 +87,25 @@ setTemplateV2Runtime({
     // las placas). El rol sólo viaja como dato para el editor, salvo el de "sólo placas".
     if (await canDesignTemplates(user.id, workspace.id)) {
       plantillasDePlacasPorUsuario.delete(user.id);
-    } else if (await canDesignPlacas(user.id, workspace.id)) {
-      const placas = (await listKeyedTemplates(workspace.id))
-        .filter((t) => isPlacaTemplateKey(t.templateKey))
-        .map((t) => t.templateId);
-      plantillasDePlacasPorUsuario.set(user.id, new Set(placas));
-      return { id: user.id, role: ROL_SOLO_PLACAS, email: user.email, workspaceId: workspace.id };
     } else {
-      throw new Error("Sin permisos para diseñar plantillas");
+      /*
+       * Acceso acotado: las placas a quien gestiona Comunicación, los fotolibros a quien
+       * gestiona Ventas. Quien tiene los dos permisos abre las dos cosas, y ninguna otra.
+       */
+      const [placas, fotolibros] = await Promise.all([
+        canDesignPlacas(user.id, workspace.id),
+        canDesignFotolibros(user.id, workspace.id),
+      ]);
+      if (!placas && !fotolibros) throw new Error("Sin permisos para diseñar plantillas");
+      const permitidas = (await listKeyedTemplatesTodas(workspace.id))
+        .filter(
+          (t) =>
+            (placas && isPlacaTemplateKey(t.templateKey)) ||
+            (fotolibros && t.templateKey === FOTOLIBRO_TEMPLATE_KEY),
+        )
+        .map((t) => t.templateId);
+      plantillasDePlacasPorUsuario.set(user.id, new Set(permitidas));
+      return { id: user.id, role: ROL_SOLO_PLACAS, email: user.email, workspaceId: workspace.id };
     }
     const role = (await resolveWorkspaceRole(user.id, workspace.id)) ?? "";
 
