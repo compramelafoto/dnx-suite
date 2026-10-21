@@ -44,8 +44,10 @@ describe("normalizarNumero", () => {
     ["-3", -3],
     ["0.500", 0.5],
     ["7", 7],
+    ["1.234", 1234],
+    ["1,234", 1.234],
   ])("%s ⇒ %s", (t, n) => expect(normalizarNumero(t)).toBe(n));
-  it.each(["", "  ", "abc", "1,2,x", "$"])("%j ⇒ null", (t) =>
+  it.each(["", "  ", "abc", "1,2,x", "$", "1.2.3", "1,5,5", "1234.567.890"])("%j ⇒ null", (t) =>
     expect(normalizarNumero(t)).toBeNull(),
   );
 });
@@ -90,6 +92,12 @@ describe("SCHEMA_FACTURA", () => {
     if (s.items) out.push(...objetos(s.items));
     return out;
   };
+  it("los nulos se expresan con anyOf, no con arreglos de type", () => {
+    const texto = JSON.stringify(SCHEMA_FACTURA);
+    expect(texto).not.toMatch(/"type":\[/);
+    expect(texto).toContain('"anyOf":[{"type":"string"},{"type":"null"}]');
+    expect(texto).toContain('"anyOf":[{"type":"integer"},{"type":"null"}]');
+  });
   it("cada objeto cierra propiedades y exige todas", () => {
     const todos = objetos(SCHEMA_FACTURA as unknown as Obj);
     expect(todos.length).toBe(2);

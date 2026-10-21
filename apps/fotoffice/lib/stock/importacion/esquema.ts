@@ -36,8 +36,8 @@ export const documentoSchema = z.object({
 export type FilaImportada = z.infer<typeof filaSchema>;
 export type DocumentoImportado = z.infer<typeof documentoSchema>;
 
-const ns = { type: ["string", "null"] } as const;
-const nn = { type: ["number", "null"] } as const;
+const ns = { anyOf: [{ type: "string" }, { type: "null" }] } as const;
+const nn = { anyOf: [{ type: "number" }, { type: "null" }] } as const;
 
 /** JSON Schema para la salida estructurada de Claude: sin propiedades extra y todo en `required`. */
 export const SCHEMA_FACTURA = {
@@ -48,7 +48,7 @@ export const SCHEMA_FACTURA = {
     cuit: ns,
     fecha: ns,
     comprobante: ns,
-    precios_con_iva: { type: ["boolean", "null"] },
+    precios_con_iva: { anyOf: [{ type: "boolean" }, { type: "null" }] },
     total: nn,
     filas: {
       type: "array",
@@ -61,7 +61,7 @@ export const SCHEMA_FACTURA = {
           descripcion: { type: "string" },
           cantidad: { type: "number" },
           unidad: ns,
-          unidades_por_paquete: { type: ["integer", "null"] },
+          unidades_por_paquete: { anyOf: [{ type: "integer" }, { type: "null" }] },
           costo_unitario: nn,
           alicuota_iva: nn,
           subtotal: nn,
@@ -131,7 +131,10 @@ export function normalizarNumero(texto: string): number | null {
 
 function soloUnSeparador(t: string, sep: "," | "."): string {
   const partes = t.split(sep);
-  if (partes.length > 2) return partes.join(""); // "1.234.567": miles
+  if (partes.length > 2) {
+    // "1.234.567": miles. Si los grupos no son de 3 dígitos no es un número válido ("1.2.3").
+    return /^\d{1,3}(\D\d{3})+$/.test(t) ? partes.join("") : "x";
+  }
   const [ent, dec] = partes;
   if (sep === "." && dec.length === 3 && ent.length >= 1 && ent !== "0") return ent + dec; // "2.000"
   return `${ent}.${dec}`;

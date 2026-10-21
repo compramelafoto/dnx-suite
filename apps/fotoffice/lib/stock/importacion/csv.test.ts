@@ -76,7 +76,36 @@ describe("leerCsv", () => {
   });
 });
 
+describe("endurecimiento de leerCsv", () => {
+  it("saca cercos de código Markdown", () => {
+    expect(ok("```csv\n" + H + "\n;;A;1;;;;;\n```\n")).toHaveLength(1);
+    expect(ok("```\n" + H + "\n;;A;1;;;;;\n```")).toHaveLength(1);
+  });
+  it("tolera celdas vacías de más en el encabezado", () => {
+    expect(ok(`${H};;\n;;A;1;;;;;;\n`)).toHaveLength(1);
+  });
+  it("comillas sin cerrar", () => {
+    expect(leerCsv(`${H}\n;;"A;1;;;;;\n`)).toEqual({ ok: false, error: "El archivo tiene comillas sin cerrar." });
+  });
+  it("más columnas que la plantilla", () => {
+    expect(leerCsv(`${H}\n;;A;1;;;;;;sobra\n`)).toEqual({
+      ok: false,
+      error: "La fila 2 tiene más columnas que la plantilla.",
+    });
+  });
+  it("tipo sólo INSUMO o PRODUCTO", () => {
+    const f = ok(`${H}\n;;A;1;;;;;insumo\n;;B;1;;;;;Producto\n;;C;1;;;;;otra\n`);
+    expect(f.map((x) => x.tipo)).toEqual(["INSUMO", "PRODUCTO", null]);
+  });
+});
+
 describe("escribirCsv", () => {
+  it("neutraliza fórmulas", () => {
+    const t = escribirCsv([
+      { codigo_barras: "=1+1", codigo_proveedor: "@x", descripcion: "-cmd", cantidad: 1, unidad: "+a", unidades_por_paquete: null, costo_unitario: null, alicuota_iva: null, subtotal: null, tipo: null },
+    ]);
+    expect(t.split("\n")[1]).toBe("'=1+1;'@x;'-cmd;1;'+a;;;;");
+  });
   const filas: FilaImportada[] = [
     {
       codigo_barras: "779",

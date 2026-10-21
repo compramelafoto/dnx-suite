@@ -59,10 +59,25 @@ function partir(texto: string, sep: string): string[][] {
 const vacia = (f: string[]) => f.every((c) => c.trim() === "");
 const ELIGE_ENCABEZADO = "El archivo no tiene el encabezado de la plantilla.";
 
+/** Saca las líneas de cierre ``` o ```csv que ponen los asistentes de IA alrededor del CSV. */
+function sinCercos(texto: string): string {
+  const lineas = texto.split(/\r\n|\n|\r/);
+  while (lineas.length && lineas[0].trim() === "") lineas.shift();
+  while (lineas.length && lineas[lineas.length - 1].trim() === "") lineas.pop();
+  if (lineas.length && /^```\w*\s*$/.test(lineas[0].trim())) lineas.shift();
+  if (lineas.length && /^```\s*$/.test(lineas[lineas.length - 1].trim())) lineas.pop();
+  return lineas.join("\n");
+}
+
+const TIPOS = ["INSUMO", "PRODUCTO"];
+
 export function leerCsv(
   texto: string,
 ): { ok: true; filas: FilaImportada[] } | { ok: false; error: string } {
-  const limpio = texto.replace(/^﻿/, "");
+  const limpio = sinCercos(texto.replace(/^\uFEFF/, ""));
+  if ((limpio.match(/"/g)?.length ?? 0) % 2 === 1) {
+    return { ok: false, error: "El archivo tiene comillas sin cerrar." };
+  }
   const primera = limpio.split(/\r\n|\n|\r/).find((l) => l.trim() !== "") ?? "";
   const sep = primera.split(";").length >= primera.split(",").length ? ";" : ",";
 
@@ -70,6 +85,7 @@ export function leerCsv(
   const iEnc = todas.findIndex((f) => !vacia(f));
   if (iEnc === -1) return { ok: false, error: ELIGE_ENCABEZADO };
   const enc = todas[iEnc].map((c) => c.trim().toLowerCase());
+  while (enc.length > COLUMNAS.length && enc[enc.length - 1] === "") enc.pop();
   if (enc.length !== COLUMNAS.length || enc.some((c, i) => c !== COLUMNAS[i])) {
     return { ok: false, error: ELIGE_ENCABEZADO };
   }
@@ -84,6 +100,9 @@ export function leerCsv(
   for (let i = 0; i < datos.length; i++) {
     const c = datos[i];
     if (vacia(c)) continue;
+    if (c.slice(COLUMNAS.length).some((x) => x.trim() !== "")) {
+      return { ok: false, error: `La fila ${iEnc + i + 2} tiene más columnas que la plantilla.` };
+    }
     const g = (k: number) => (c[k] ?? "").trim();
     const texto_o_nulo = (k: number) => g(k) || null;
     const num = (k: number) => (g(k) === "" ? null : normalizarNumero(g(k)));
@@ -104,7 +123,7 @@ export function leerCsv(
       costo_unitario: num(6),
       alicuota_iva: num(7),
       subtotal: null,
-      tipo: g(8).toUpperCase() || null,
+      tipo: TIPOS.includes(g(8).toUpperCase()) ? g(8).toUpperCase() : null,
     });
   }
   return { ok: true, filas };
@@ -112,7 +131,9 @@ export function leerCsv(
 
 const num = (n: number | null) => (n === null ? "" : String(n).replace(".", ","));
 const campo = (t: string | null | undefined) => {
-  const s = t ?? "";
+  let s = t ?? "";
+  // Evita que una planilla lo interprete como fórmula.
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
