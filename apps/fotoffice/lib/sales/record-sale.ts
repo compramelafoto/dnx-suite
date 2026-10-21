@@ -221,7 +221,8 @@ export async function recordSale(
   // una segunda llamada rompería el orden por id que evita el interbloqueo con la tienda.
   // Sólo lee. El `ref` es provisorio (el índice del renglón): el id real del `SaleItem` todavía
   // no existe y se re-mapea más abajo. Las recetas valen aunque el producto vendido no
-  // controle existencia (un servicio también gasta papel).
+  // controle existencia (un servicio también gasta papel). Los renglones sueltos
+  // (`productId` nulo) van igual para que el índice coincida con `itemIds`; el plan los ignora.
   const planConsumo = await planificarConsumo(
     tx,
     input.workspaceId,
@@ -234,8 +235,10 @@ export async function recordSale(
   // el talle antes que el producto: si el mostrador tomara los bloqueos en ese orden mientras
   // un pedido online los toma al revés, cada uno podía quedar esperando al otro (interbloqueo).
   // Cuando la venta sale de un pedido, quien llama ya bloqueó estas filas: volver a pedirlas en
-  // la misma transacción no espera a nadie. (Los insumos, en cambio, quien llama todavía no
-  // los bloquea: se toman acá, después de sus talles.)
+  // la misma transacción no espera a nadie. Por eso quien bloquea ANTES de llamar tiene que
+  // incluir también los insumos en su propio bloqueo (como `lockAndCheckOrderStock` en
+  // `lib/store/credit-payment.ts`): si no, se tomarían acá, después de sus talles, y se
+  // rompería el orden global.
   await lockStockRows(tx, {
     workspaceId: input.workspaceId,
     productIds: [
