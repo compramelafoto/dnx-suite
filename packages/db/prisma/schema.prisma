@@ -7297,6 +7297,9 @@ model Workspace {
   fotofficeConsultaAjustes       FotofficeConsultaAjustes?
   fotofficeProductosCatalogo     FotofficeProductoCatalogo[]
   fotofficeComboItems            FotofficeComboItem[]
+  fotofficeInsumos               FotofficeInsumo[]
+  fotofficeRecetasInsumo         FotofficeRecetaInsumo[]
+  fotofficeConsumosTamano        FotofficeConsumoTamano[]
   fotofficeCostosPlantilla       FotofficeCostoPlantilla[]
   fotofficePresupuestos          FotofficePresupuesto[]
   fotofficePresupuestoVersiones  FotofficePresupuestoVersion[]
@@ -21168,6 +21171,74 @@ model FotofficeProductoCatalogo {
   @@index([incomeCategoryId])
 }
 
+/// Ficha de un insumo (papel, tinta, kits): un `Product` de tipo INSUMO con su unidad de uso y, si
+/// se compra en otra presentación, cuántas unidades trae cada una. Las existencias viven en
+/// `Product.stock`/`StockMovement`; acá sólo lo propio del insumo.
+model FotofficeInsumo {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  productId         String   @unique
+  /// Unidad en que se descuenta (ej. "copias 10x15").
+  unidad            String
+  /// Presentación de compra (ej. "Kit 305 6R").
+  unidadCompra      String?
+  /// Cuántas `unidad` trae cada `unidadCompra`.
+  unidadesPorCompra Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// Receta: qué insumos gasta un producto o servicio por cada `porCada` unidades vendidas.
+/// Consumo por renglón = ceil(cantidad / porCada) × quantity. Mismo workspace: lo valida el código;
+/// el SQL frena cantidades <= 0, `porCada` < 1 y que un producto se use a sí mismo como insumo.
+/// `insumoId` es el `Product` del insumo (kind INSUMO). Restrict: no se borra un insumo que está en alguna receta.
+model FotofficeRecetaInsumo {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String
+  insumoId    String
+  quantity    Int
+  porCada     Int      @default(1)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product         @relation("FotofficeRecetaProducto", fields: [productId], references: [id], onDelete: Cascade)
+  insumo    Product         @relation("FotofficeRecetaComoInsumo", fields: [insumoId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, insumoId])
+  @@index([workspaceId, insumoId])
+}
+
+/// Cuánto insumo gasta una hoja de un tamaño según por dónde sale (ej. Kodak 305: 10x15 = 1,
+/// 13x18 = 2). El insumo es Restrict, igual que en las recetas.
+model FotofficeConsumoTamano {
+  id          String   @id @default(cuid())
+  workspaceId String
+  salidaId    String
+  tamanoId    String
+  insumoId    String
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  salida    FotofficeSalidaImpresion @relation(fields: [salidaId], references: [id], onDelete: Cascade)
+  tamano    FotofficeTamanoImpresion @relation(fields: [tamanoId], references: [id], onDelete: Cascade)
+  insumo    Product                  @relation("FotofficeConsumoTamanoInsumo", fields: [insumoId], references: [id], onDelete: Restrict)
+
+  @@unique([salidaId, tamanoId, insumoId])
+  @@index([workspaceId, insumoId])
+  @@index([tamanoId])
+  @@index([insumoId])
+}
+
 /// Componente de un combo. Mismo workspace y sin ciclos: lo valida el código (`lib/catalogo/combos.ts`);
 /// el SQL frena cantidad <= 0 y que un combo se contenga a sí mismo.
 model FotofficeComboItem {
@@ -22533,6 +22604,10 @@ model Product {
   fotofficeCatalogo       FotofficeProductoCatalogo?
   fotofficeComboItems     FotofficeComboItem[]        @relation("FotofficeComboItemCombo")
   fotofficeEnCombos       FotofficeComboItem[]        @relation("FotofficeComboItemComponente")
+  fotofficeInsumo         FotofficeInsumo?
+  fotofficeReceta         FotofficeRecetaInsumo[]     @relation("FotofficeRecetaProducto")
+  fotofficeRecetasComoInsumo FotofficeRecetaInsumo[]  @relation("FotofficeRecetaComoInsumo")
+  fotofficeConsumosTamano FotofficeConsumoTamano[]    @relation("FotofficeConsumoTamanoInsumo")
   fotofficeCostos         FotofficeCostoPlantilla[]
   fotofficeProyectos      FotofficeProyecto[]
   fotofficeProyectoReglas FotofficeProductoProyecto[]
@@ -22683,6 +22758,7 @@ model FotofficeTamanoImpresion {
   productos   FotofficeProductoProduccion[]
   hojas       FotofficeHojaImpresion[]
   registros   FotofficeRegistroImpresion[]
+  consumos    FotofficeConsumoTamano[]
 
   @@unique([workspaceId, nombre])
   @@index([workspaceId, activo, orden])
@@ -22716,6 +22792,7 @@ model FotofficeSalidaImpresion {
   productos  FotofficeProductoProduccion[]
   hojas      FotofficeHojaImpresion[]
   registros  FotofficeRegistroImpresion[]
+  consumos   FotofficeConsumoTamano[]
 
   @@unique([workspaceId, nombre])
   @@index([workspaceId, activo])

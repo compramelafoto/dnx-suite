@@ -36,6 +36,8 @@ const TABLAS = [
   "fotofficeListActivity",
   // Catálogo de Ventas y su ampliación para presupuestos (etapa 2).
   "product", "productCategory", "fotofficeProductoCatalogo", "fotofficeComboItem", "fotofficeCostoPlantilla", "fotofficeProveedor",
+  // Recetas de insumos (stock de insumos, etapa 1): lo que gasta cada producto al tomarse un pedido.
+  "fotofficeRecetaInsumo",
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
@@ -141,6 +143,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     inPriceList: false, incomeLabel: null, incomeCategoryId: null, isCombo: false, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeComboItem: () => ({ quantity: 1, order: 0, createdAt: new Date() }),
+  fotofficeRecetaInsumo: () => ({ porCada: 1, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCostoPlantilla: () => ({ supplierClientId: null, perUnit: false, daysFromEvent: 0, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePresupuesto: () => ({
     status: "BORRADOR", currentVersionId: null, acceptedVersionId: null, ownerUserId: null, validUntil: null,
@@ -348,6 +351,7 @@ export function crearBaseEnMemoria() {
             if (c.mode !== "insensitive") return igual(v, x);
             return String(v).toLowerCase() === String(x).toLowerCase();
           }
+          if (op === "startsWith") return String(v).startsWith(String(x));
           if (op === "contains") {
             const a = String(v), b = String(x);
             return c.mode === "insensitive" ? a.toLowerCase().includes(b.toLowerCase()) : a.includes(b);
@@ -420,6 +424,7 @@ export function crearBaseEnMemoria() {
     productCategory: [{ columnas: ["workspaceId", "name"] }],
     fotofficeProductoCatalogo: [{ columnas: ["productId"] }],
     fotofficeComboItem: [{ columnas: ["comboProductId", "componentProductId"] }],
+    fotofficeRecetaInsumo: [{ columnas: ["productId", "insumoId"] }],
     fotofficePresupuesto: [
       { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
       { columnas: ["acceptedVersionId"], aplica: (f) => f.acceptedVersionId !== null && f.acceptedVersionId !== undefined },

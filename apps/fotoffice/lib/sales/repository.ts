@@ -4,6 +4,7 @@ import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
 import { normalizeBarcode } from "./barcode";
 import { effectiveUnitPriceMinor } from "@/lib/store/availability";
+import { NO_ES_INSUMO } from "./vendible";
 
 /**
  * Las consultas del catálogo.
@@ -29,6 +30,8 @@ export type ProductRow = {
   isActive: boolean;
   categoryId: string | null;
   categoryName: string | null;
+  /** Sólo los insumos: en qué unidad se cuenta y, si se compra en otra presentación, cuál. */
+  insumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   /**
    * Los talles ACTIVOS, en el orden configurado. Vacío = el producto no tiene talles.
    * `priceMinor` es el precio efectivo del talle (el propio o, si no tiene, el del producto).
@@ -45,7 +48,8 @@ export type ProductVariantRow = {
 
 /** Lo que aparece en el mostrador: sin ficha de tienda, o con ficha que dice "se vende en mostrador" (D3). */
 const VISIBLE_EN_MOSTRADOR: Prisma.ProductWhereInput = {
-  OR: [{ storeListing: null }, { storeListing: { sellAtCounter: true } }],
+  // Un insumo nunca se ofrece para vender, ni por grilla ni por lector de código.
+  AND: [NO_ES_INSUMO, { OR: [{ storeListing: null }, { storeListing: { sellAtCounter: true } }] }],
 };
 
 const PRODUCT_ROW_SELECT = {
@@ -63,6 +67,7 @@ const PRODUCT_ROW_SELECT = {
   isActive: true,
   categoryId: true,
   category: { select: { name: true } },
+  fotofficeInsumo: { select: { unidad: true, unidadCompra: true, unidadesPorCompra: true } },
   variants: {
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -85,6 +90,7 @@ type ProductRowRecord = {
   isActive: boolean;
   categoryId: string | null;
   category: { name: string } | null;
+  fotofficeInsumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   variants: { id: string; name: string; priceArs: { toString(): string } | null; stockQty: number }[];
 };
 
@@ -105,6 +111,7 @@ function toProductRow(r: ProductRowRecord): ProductRow {
     isActive: r.isActive,
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
+    insumo: r.fotofficeInsumo,
     variants: r.variants.map((v) => ({
       id: v.id,
       name: v.name,
@@ -135,6 +142,10 @@ export async function listProducts(
     onlyActive?: boolean;
     tracksStock?: boolean;
     onlyCounter?: boolean;
+    /** Sin insumos: para quien ofrece o cotiza (el bot de atención); el mostrador ya los excluye. */
+    onlyVendible?: boolean;
+    /** Sólo este tipo (el filtro "Insumos" del catálogo). */
+    kind?: string;
   } = {},
 ): Promise<ProductRow[]> {
   const q = opts.search?.trim();
@@ -142,7 +153,10 @@ export async function listProducts(
     where: {
       workspaceId,
       // `AND` y no un `OR` suelto: el buscador de abajo ya ocupa el `OR` de este nivel.
-      ...(opts.onlyCounter ? { AND: [VISIBLE_EN_MOSTRADOR] } : {}),
+      ...(opts.onlyCounter || opts.onlyVendible
+        ? { AND: [...(opts.onlyCounter ? [VISIBLE_EN_MOSTRADOR] : []), ...(opts.onlyVendible ? [NO_ES_INSUMO] : [])] }
+        : {}),
+      ...(opts.kind ? { kind: opts.kind } : {}),
       ...(opts.onlyActive ? { isActive: true } : {}),
       ...(opts.tracksStock ? { tracksStock: true } : {}),
       ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
@@ -247,6 +261,8 @@ export type ProductDetail = {
   marginPct: number | null;
   imageUrl: string | null;
   isActive: boolean;
+  /** Datos propios del insumo (unidad y presentación de compra); null si nunca fue insumo. */
+  insumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   /** null = sin ficha online: se vende sólo en el mostrador, como siempre (D2). */
   storeListing: ProductStoreListingDetail | null;
   /** Galería de la tienda, en orden: la primera es la principal. */
@@ -310,6 +326,7 @@ export async function getProduct(
       marginPct: true,
       imageUrl: true,
       isActive: true,
+      fotofficeInsumo: { select: { unidad: true, unidadCompra: true, unidadesPorCompra: true } },
       storeListing: {
         select: {
           sellOnline: true,
@@ -361,6 +378,7 @@ export async function getProduct(
     marginPct: r.marginPct === null ? null : Number(r.marginPct.toString()),
     imageUrl: r.imageUrl,
     isActive: r.isActive,
+    insumo: r.fotofficeInsumo,
     storeListing: r.storeListing,
     images: r.images,
     variants: r.variants.map((v) => ({

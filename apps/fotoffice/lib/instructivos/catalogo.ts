@@ -26,6 +26,9 @@ import { guia as trabajosTomarConSena } from "./guias/trabajos-tomar-con-sena";
 import { guia as trabajosRetiroYSaldo } from "./guias/trabajos-retiro-y-saldo";
 import { guia as trabajosTableroEnCurso } from "./guias/trabajos-tablero-en-curso";
 import { guia as trabajosFichaYEtapas } from "./guias/trabajos-ficha-y-etapas";
+import { guia as stockInsumosAlta } from "./guias/stock-insumos-alta";
+import { guia as stockRecetaConsumo } from "./guias/stock-receta-consumo";
+import { guia as stockContarYAjustar } from "./guias/stock-contar-y-ajustar";
 
 /** Todas las guías, en el orden en que aparecen dentro de cada sección del índice. */
 export const INSTRUCTIVOS: readonly Instructivo[] = [
@@ -46,6 +49,10 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   trabajosTableroEnCurso,
   trabajosFichaYEtapas,
   trabajosRetiroYSaldo,
+  // Stock de insumos
+  stockInsumosAlta,
+  stockRecetaConsumo,
+  stockContarYAjustar,
   // Institución
   carnetsPdfImprimir,
   sociosBuscarYFicha,

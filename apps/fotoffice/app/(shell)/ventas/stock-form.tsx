@@ -19,6 +19,7 @@ type Modo = "cerrado" | "entrada" | "ajuste";
  */
 export function StockForm({ product, destacado }: { product: ProductRow; destacado: boolean }) {
   const [modo, setModo] = useState<Modo>("cerrado");
+  const [enKit, setEnKit] = useState(false);
 
   return (
     <div
@@ -40,6 +41,7 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
         <div className="flex items-center gap-4 text-sm">
           <span className={destacado ? "font-semibold text-[var(--fo-danger)]" : "text-[var(--fo-text)]"}>
             Existencia: {product.stockQty}
+            {product.insumo ? ` ${product.insumo.unidad}` : ""}
           </span>
           <span className="text-[var(--fo-muted)]">Mínimo: {product.minStockQty ?? "—"}</span>
         </div>
@@ -85,10 +87,21 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`entrada-costo-${product.id}`}>
-              Costo unitario (opcional)
+              {enKit ? "Costo por kit (opcional)" : "Costo unitario (opcional)"}
             </label>
             <InputMoneda id={`entrada-costo-${product.id}`} name="unitCostArs" />
           </div>
+          {product.insumo?.unidadCompra && product.insumo.unidadesPorCompra ? (
+            <label className="flex items-center gap-2 text-sm sm:col-span-full">
+              <input
+                type="checkbox"
+                name="enUnidadDeCompra"
+                checked={enKit}
+                onChange={(e) => setEnKit(e.target.checked)}
+              />
+              Cargo en {product.insumo.unidadCompra} ({product.insumo.unidadesPorCompra} c/u)
+            </label>
+          ) : null}
           <button type="submit" className="fo-btn fo-btn-primary text-sm">
             Confirmar entrada
           </button>

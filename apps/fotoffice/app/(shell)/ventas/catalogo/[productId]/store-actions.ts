@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { requireSalesAdmin } from "@/lib/sales/access";
+import { MENSAJE_INSUMO_NO_SE_VENDE, esVendible } from "@/lib/sales/vendible";
 import { isAcceptableImageUrl, parseListingForm } from "@/lib/store/listing-form";
 import { slugify, uniqueSlug } from "@/lib/store/slug";
 import { parseVariantsForm } from "@/lib/store/variant-form";
@@ -36,7 +37,7 @@ function refrescar(productId: string) {
 async function productoPropio(workspaceId: string, productId: string) {
   return prisma.product.findFirst({
     where: { id: productId, workspaceId },
-    select: { id: true, name: true, storeListing: { select: { slug: true } } },
+    select: { id: true, name: true, kind: true, storeListing: { select: { slug: true } } },
   });
 }
 
@@ -58,6 +59,7 @@ export async function saveListingAction(productId: string, formData: FormData): 
   const { workspace } = await requireSalesAdmin();
   const producto = await productoPropio(workspace.id, productId);
   if (!producto) return NO_EXISTE;
+  if (!esVendible(producto.kind)) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
 
   const parsed = parseListingForm(formData);
   if (!parsed.ok) return parsed;
@@ -93,6 +95,9 @@ export async function saveListingAction(productId: string, formData: FormData): 
 
 export async function saveVariantsAction(productId: string, formData: FormData): Promise<StoreActionResult> {
   const { workspace, user } = await requireSalesAdmin();
+  const propio = await productoPropio(workspace.id, productId);
+  if (!propio) return NO_EXISTE;
+  if (!esVendible(propio.kind)) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
 
   const parsed = parseVariantsForm(formData);
   if (!parsed.ok) return parsed;
@@ -124,7 +129,9 @@ export async function saveVariantsAction(productId: string, formData: FormData):
 
 export async function addProductImageAction(productId: string, url: string): Promise<StoreActionResult> {
   const { workspace } = await requireSalesAdmin();
-  if (!(await productoPropio(workspace.id, productId))) return NO_EXISTE;
+  const propio = await productoPropio(workspace.id, productId);
+  if (!propio) return NO_EXISTE;
+  if (!esVendible(propio.kind)) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
   if (!isAcceptableImageUrl(url)) return { ok: false, error: "Esa imagen no se pudo guardar." };
 
   const fotos = await prisma.productImage.findMany({
@@ -162,7 +169,9 @@ export async function removeProductImageAction(imageId: string): Promise<StoreAc
 /** `ids` es la galería entera en el orden nuevo: la primera queda como principal. */
 export async function reorderProductImagesAction(productId: string, ids: string[]): Promise<StoreActionResult> {
   const { workspace } = await requireSalesAdmin();
-  if (!(await productoPropio(workspace.id, productId))) return NO_EXISTE;
+  const propio = await productoPropio(workspace.id, productId);
+  if (!propio) return NO_EXISTE;
+  if (!esVendible(propio.kind)) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
 
   const fotos = await prisma.productImage.findMany({
     where: { productId, workspaceId: workspace.id },
@@ -193,6 +202,7 @@ export async function setSizeChartAction(productId: string, url: string | null):
   const { workspace } = await requireSalesAdmin();
   const producto = await productoPropio(workspace.id, productId);
   if (!producto) return NO_EXISTE;
+  if (!esVendible(producto.kind)) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
   if (url !== null && !isAcceptableImageUrl(url)) return { ok: false, error: "Esa imagen no se pudo guardar." };
 
   try {

@@ -17,6 +17,7 @@ import {
 } from "./emails";
 import { reservedQtyByKey } from "./repository";
 import { lockStockRows } from "@/lib/sales/stock-lock";
+import { planificarConsumo } from "@/lib/stock/consumo-servidor";
 import { canTransition } from "./transitions";
 
 /**
@@ -384,9 +385,19 @@ export async function lockAndCheckOrderStock(tx: Tx, order: OrderToFinalize): Pr
   const workspaceId = order.workspaceId;
   // Sólo los renglones de producto: las obras no tienen stock (ver `hasStockForOrder`).
   const conStock = order.items.filter((i) => !isArtworkItem(i));
+  // Los insumos que la venta va a consumir (recetas) entran en ESTE bloqueo, junto con los
+  // productos y antes que los talles. `recordSale` los vuelve a pedir, pero sobre filas ya
+  // tomadas no espera; si recién los tomara ahí —después de los talles—, una venta de
+  // mostrador que bloquea {insumo, producto} por id podía esperar en cruz con ésta. Sólo lee:
+  // de acá se usan los ids, no las cantidades (las calcula `recordSale` con sus renglones).
+  const planConsumo = await planificarConsumo(
+    tx,
+    workspaceId,
+    conStock.map((i, n) => ({ ref: String(n), productId: i.productId, qty: i.qty })),
+  );
   await lockStockRows(tx, {
     workspaceId,
-    productIds: conStock.flatMap((i) => (i.productId ? [i.productId] : [])),
+    productIds: [...conStock.flatMap((i) => (i.productId ? [i.productId] : [])), ...planConsumo.insumoIds],
     variantIds: conStock.flatMap((i) => (i.variantId ? [i.variantId] : [])),
   });
   // Recién con el stock bloqueado. Este pedido no compite contra su propia retención.
