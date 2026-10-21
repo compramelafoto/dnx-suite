@@ -129,13 +129,28 @@ function libre(ahora: Date) {
 }
 
 /** Activas que nadie está corriendo, las más demoradas primero. Recorre todos los workspaces a propósito. */
-export async function extraccionesParaCorrer(ahora: Date, limite = 20): Promise<{ id: string; workspaceId: string }[]> {
-  return prisma.fotofficeAlboomExtraccion.findMany({
+export async function extraccionesParaCorrer(ahora: Date, limite = 20): Promise<{ id: string; workspaceId: string; mode: ModoExtraccion }[]> {
+  const filas = await prisma.fotofficeAlboomExtraccion.findMany({
     where: { status: activa, OR: libre(ahora) },
     orderBy: { updatedAt: "asc" },
     take: limite,
-    select: { id: true, workspaceId: true },
+    select: { id: true, workspaceId: true, mode: true },
   });
+  return filas.map((f) => ({ id: f.id, workspaceId: f.workspaceId, mode: f.mode === "INCREMENTAL" ? "INCREMENTAL" : "TODO" }));
+}
+
+/**
+ * Avances de las extracciones anteriores del workspace (sin la actual), de la más nueva a la más vieja. Los usa
+ * "Volver a extraer" para saber de qué padres ya se pidieron bien los hijos (ver `extractor.ts`).
+ */
+export async function avancesAnteriores(id: string, workspaceId: string, limite = 20): Promise<Avance[]> {
+  const filas = await prisma.fotofficeAlboomExtraccion.findMany({
+    where: { workspaceId, id: { notIn: [id] } },
+    orderBy: { startedAt: "desc" },
+    take: limite,
+    select: { progress: true },
+  });
+  return filas.map((f) => leerAvance(f.progress));
 }
 
 /** Toma el turno de una extracción (la pasa a CORRIENDO). `false` si otra tanda la tiene o ya no está activa. */

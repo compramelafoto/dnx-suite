@@ -4,6 +4,10 @@ import type { PedidoLectura } from "./client";
  * Catálogo de lo que se extrae de Alboom, en orden de dependencias (los catálogos antes que los registros que los
  * usan, y cada padre antes que sus hijos). Cada entidad tiene su propia entrada en el avance.
  *
+ * Orden de trabajo (21/10/2026): catálogos, contactos y el listado de oportunidades; después presupuestos, pedidos,
+ * contratos, proyectos, agenda y finanzas con sus hijos; y AL FINAL los hijos de las oportunidades (historial,
+ * notas, actividades, correos), que son miles de pedidos y lo menos importante para la migración.
+ *
  * Los endpoints y sus parámetros salen de `apps/fotoffice/docs/alboom/01`–`05` (tablas "qué extraer"/"datos a
  * migrar") y de `09-configuracion-real-dnx.md`. Donde el documento no fija la forma de la respuesta, el extractor
  * guarda lo que venga tal cual y suma una "duda" si algo no cierra (sin id, forma desconocida).
@@ -61,6 +65,8 @@ export type Entidad = {
    * con otra versión rehace esa entidad desde cero en vez de seguir con el cursor viejo. Sin versión = 1.
    */
   version?: number;
+  /** Listados paginados: tamaño de página propio (si no, `TAMANO_PAGINA`). */
+  tamanoPagina?: number;
 };
 
 export const TAMANO_PAGINA = 100;
@@ -124,14 +130,16 @@ const cuotasDe: Filas = (json) => {
 
 const esCombo = (p: unknown) => esObjeto(p) && (p.pack === 1 || p.pack === "1" || p.pack === true);
 
-const listado = (extra: Record<string, unknown> = {}) => (pagina: number, tamano: number) => ({
-  ...extra,
-  pageNumber: pagina,
-  pageSize: tamano,
-  sortBy: "id",
-  sortDir: "ASC",
-  searchTerm: "",
-});
+const listado =
+  (extra: Record<string, unknown> = {}, sortDir: "ASC" | "DESC" = "ASC") =>
+  (pagina: number, tamano: number) => ({
+    ...extra,
+    pageNumber: pagina,
+    pageSize: tamano,
+    sortBy: "id",
+    sortDir,
+    searchTerm: "",
+  });
 
 const get = (ruta: string): PedidoLectura => ({ method: "GET", ruta });
 
@@ -251,41 +259,6 @@ export const ENTIDADES: readonly Entidad[] = [
       }),
     },
   },
-  {
-    clave: "oportunidades_historial",
-    nombre: "Historial de etapas de oportunidades",
-    idEsperado: false,
-    fuente: { tipo: "porPadre", padre: "oportunidades", pedido: (id) => get(`/leads/progress/${id}/0/9999`), filas: filasDeLista },
-  },
-  {
-    clave: "oportunidades_notas",
-    nombre: "Notas de oportunidades",
-    fuente: {
-      tipo: "porPadre",
-      padre: "oportunidades",
-      paginaDe: 50,
-      pedido: (id, offset) => ({ method: "POST", ruta: "/notes/paginate", body: { type: "leads", id, offset, count: 50, searchTerm: "" } }),
-      filas: filasDeLista,
-    },
-  },
-  {
-    clave: "oportunidades_actividades",
-    nombre: "Actividades de oportunidades",
-    idEsperado: false,
-    fuente: {
-      tipo: "porPadre",
-      padre: "oportunidades",
-      paginaDe: 50,
-      pedido: (id, offset) => ({ method: "POST", ruta: "/activities/paginate", body: { type: "leads", id, offset, count: 50, searchTerm: "" } }),
-      filas: filasDeLista,
-    },
-  },
-  {
-    clave: "oportunidades_correos",
-    nombre: "Correos y WhatsApp de oportunidades",
-    fuente: { tipo: "porPadre", padre: "oportunidades", paginaDe: 50, pedido: (id, offset) => get(`/mails/leads/${id}/${offset}/50`), filas: filasDeLista },
-  },
-
   // ── Presupuestos y pedidos ────────────────────────────────────────────────
   { clave: "presupuestos", nombre: "Presupuestos", fuente: { tipo: "paginada", ruta: "/quotes/paginate", body: listado({ user: "all" }) } },
   // Detalles: el panel usa `Quotes.query({id})` / `Orders.query({id})` → `GET /quotes/<id>` y `GET /orders/<id>`.
@@ -298,12 +271,29 @@ export const ENTIDADES: readonly Entidad[] = [
     fuente: { tipo: "porPadre", padre: "presupuestos", mismoId: true, pedido: (id) => get(`/quotes/${id}`), filas: filaUnica },
   },
   {
+    // Lo mismo que manda el panel de Alboom (`OrdersController.getData` en `js/alboomcrm.min.js`), de a 25 y por id
+    // descendente. Con lo de antes (sin `class` ni `end_date`, ASC, de a 100) Alboom respondía 500 (13–16/10/2026).
     clave: "pedidos",
     nombre: "Pedidos",
+    version: 2,
+    tamanoPagina: 25,
     fuente: {
       tipo: "paginada",
       ruta: "/orders/paginate",
-      body: listado({ type: "all", user: "all", period: "all", period_job: "all", start_date: "all" }),
+      body: (pageNumber, pageSize) => ({
+        type: "all",
+        class: null,
+        user: "all",
+        pageNumber,
+        pageSize,
+        sortBy: "id",
+        sortDir: "DESC",
+        searchTerm: "",
+        period: "all",
+        period_job: "all",
+        start_date: "all",
+        end_date: null,
+      }),
     },
   },
   {
@@ -325,7 +315,14 @@ export const ENTIDADES: readonly Entidad[] = [
   },
 
   // ── Contratos, proyectos y agenda ─────────────────────────────────────────
-  { clave: "contratos", nombre: "Contratos", fuente: { tipo: "paginada", ruta: "/agreements/paginate", body: listado({ type: "all", user: "all" }) } },
+  // El panel ordena los contratos por id descendente (doc 03 §"Orden por defecto"); de a 25 como los pedidos.
+  {
+    clave: "contratos",
+    nombre: "Contratos",
+    version: 2,
+    tamanoPagina: 25,
+    fuente: { tipo: "paginada", ruta: "/agreements/paginate", body: listado({ type: "all", user: "all" }, "DESC") },
+  },
   {
     clave: "contratos_detalle",
     nombre: "Detalle de contratos (texto y firma)",
@@ -381,6 +378,42 @@ export const ENTIDADES: readonly Entidad[] = [
       // "Todos" muestra los movimientos de todas las cuentas (doc 04 §12.1).
       body: listado({ data_type: "all", id: "all", user_id: "all", class_id: "all", period: "all", start_date: "", end_date: "" }),
     },
+  },
+
+  // ── Hijos de las oportunidades (al final: miles de pedidos, lo menos urgente) ──
+  {
+    clave: "oportunidades_historial",
+    nombre: "Historial de etapas de oportunidades",
+    idEsperado: false,
+    fuente: { tipo: "porPadre", padre: "oportunidades", pedido: (id) => get(`/leads/progress/${id}/0/9999`), filas: filasDeLista },
+  },
+  {
+    clave: "oportunidades_notas",
+    nombre: "Notas de oportunidades",
+    fuente: {
+      tipo: "porPadre",
+      padre: "oportunidades",
+      paginaDe: 50,
+      pedido: (id, offset) => ({ method: "POST", ruta: "/notes/paginate", body: { type: "leads", id, offset, count: 50, searchTerm: "" } }),
+      filas: filasDeLista,
+    },
+  },
+  {
+    clave: "oportunidades_actividades",
+    nombre: "Actividades de oportunidades",
+    idEsperado: false,
+    fuente: {
+      tipo: "porPadre",
+      padre: "oportunidades",
+      paginaDe: 50,
+      pedido: (id, offset) => ({ method: "POST", ruta: "/activities/paginate", body: { type: "leads", id, offset, count: 50, searchTerm: "" } }),
+      filas: filasDeLista,
+    },
+  },
+  {
+    clave: "oportunidades_correos",
+    nombre: "Correos y WhatsApp de oportunidades",
+    fuente: { tipo: "porPadre", padre: "oportunidades", paginaDe: 50, pedido: (id, offset) => get(`/mails/leads/${id}/${offset}/50`), filas: filasDeLista },
   },
 ];
 

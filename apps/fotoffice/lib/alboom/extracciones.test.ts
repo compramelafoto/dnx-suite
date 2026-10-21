@@ -84,12 +84,12 @@ beforeEach(() => {
 describe("almacén de datos crudos", () => {
   it("es idempotente por huella y siempre va por workspace", async () => {
     const fila = (id: string, v: number) => ({ alboomId: id, payload: { id, v }, hash: String(v).padStart(64, "0") });
-    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 1)])).toEqual({ nuevos: 2, cambiados: 0, iguales: 0 });
-    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 2), fila("3", 1)])).toEqual({ nuevos: 1, cambiados: 1, iguales: 1 });
+    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 1)])).toEqual({ nuevos: 2, cambiados: 0, iguales: 0, tocados: ["1", "2"] });
+    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 2), fila("3", 1)])).toEqual({ nuevos: 1, cambiados: 1, iguales: 1, tocados: ["3", "2"] });
     expect(B.datos.crudos).toHaveLength(3);
     expect(B.datos.crudos.find((f) => f.alboomId === "2")!.payload).toEqual({ id: "2", v: 2 });
     // Mismo id en otro workspace: es otro registro.
-    expect(await almacenPrisma.guardarFilas("ws-2", "contactos", [fila("1", 1)])).toEqual({ nuevos: 1, cambiados: 0, iguales: 0 });
+    expect(await almacenPrisma.guardarFilas("ws-2", "contactos", [fila("1", 1)])).toEqual({ nuevos: 1, cambiados: 0, iguales: 0, tocados: ["1"] });
     expect((await almacenPrisma.leerLote("ws-1", "contactos", "1", 10)).map((f) => f.alboomId)).toEqual(["2", "3"]);
     expect(await almacenPrisma.leerLote("ws-2", "contactos", null, 10)).toHaveLength(1);
   });

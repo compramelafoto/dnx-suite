@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { avanceInicial, leerAvance, type Avance } from "./avance";
 import { AlboomApiError, AlboomLoginError, esRutaDeLectura, type ClienteAlboom, type PedidoLectura } from "./client";
-import { ENTIDADES, type Entidad } from "./entidades";
-import { armarFilas, detectarId, ejecutarTanda, FALLAS_SEGUIDAS_PAUSA, FALLAS_SIN_EXITO, type Almacen, type FilaCruda } from "./extractor";
+import { ENTIDADES, entidadPorClave, type Entidad } from "./entidades";
+import { armarFilas, detectarId, ejecutarTanda, FALLAS_SEGUIDAS_PAUSA, FALLAS_SIN_EXITO, tamanoMenor, type Almacen, type FilaCruda } from "./extractor";
 import { huella } from "./huella";
 
 const WS = "ws-1";
@@ -14,15 +14,17 @@ function almacenEnMemoria() {
   const almacen: Almacen = {
     async guardarFilas(workspaceId, entity, nuevas) {
       let nuevos = 0, cambiados = 0, iguales = 0;
+      const tocados: string[] = [];
       for (const f of nuevas) {
         const k = clave(workspaceId, entity, f.alboomId);
         const previa = filas.get(k);
         if (!previa) nuevos++;
         else if (previa.hash !== f.hash) cambiados++;
         else iguales++;
+        if (!previa || previa.hash !== f.hash) tocados.push(f.alboomId);
         filas.set(k, { ...f, entity, workspaceId });
       }
-      return { nuevos, cambiados, iguales };
+      return { nuevos, cambiados, iguales, tocados };
     },
     async leerLote(workspaceId, entity, despuesDe, limite) {
       return [...filas.values()]
@@ -65,6 +67,8 @@ function tanda(o: {
   ahora?: () => number;
   guardar?: (a: Avance) => Promise<boolean>;
   tamanoPagina?: number;
+  modo?: "TODO" | "INCREMENTAL";
+  anteriores?: Avance[];
 }) {
   return ejecutarTanda({
     workspaceId: WS,
@@ -77,6 +81,8 @@ function tanda(o: {
     guardar: o.guardar ?? (async () => true),
     entidades: o.entidades,
     tamanoPagina: o.tamanoPagina,
+    modo: o.modo,
+    anteriores: o.anteriores,
   });
 }
 
@@ -577,5 +583,327 @@ describe("el catálogo real contra un Alboom falso", () => {
     const r2 = await tanda({ cliente, almacen: m.almacen });
     const sumas = Object.values(r2.avance.entidades).reduce((s, e) => ({ n: s.n + e.nuevos, c: s.c + e.cambiados }), { n: 0, c: 0 });
     expect(sumas).toEqual({ n: 0, c: 0 });
+  });
+});
+
+describe("pedidos de Alboom: el listado como el panel", () => {
+  it("pide `/orders/paginate` exactamente como el panel: de a 25 y por id descendente", async () => {
+    const ent = entidadPorClave("pedidos")!;
+    expect(ent.tamanoPagina).toBe(25);
+    const { cliente, pedidos } = clienteFalso((p) => paginar([{ id: "3" }, { id: "2" }, { id: "1" }], p));
+    const r = await tanda({ cliente, almacen: almacenEnMemoria().almacen, entidades: [ent] });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(pedidos).toHaveLength(1);
+    expect(pedidos[0]).toEqual({
+      method: "POST",
+      ruta: "/orders/paginate",
+      body: {
+        type: "all",
+        class: null,
+        user: "all",
+        pageNumber: 1,
+        pageSize: 25,
+        sortBy: "id",
+        sortDir: "DESC",
+        searchTerm: "",
+        period: "all",
+        period_job: "all",
+        start_date: "all",
+        end_date: null,
+      },
+    });
+    expect(Object.keys(pedidos[0]!.body as object)).toHaveLength(12);
+  });
+
+  it("los pedidos y sus hijos van antes que los hijos de las oportunidades, y cada hijo después de su padre", () => {
+    const orden = ENTIDADES.map((e) => e.clave);
+    const pos = (c: string) => orden.indexOf(c);
+    for (const c of ["presupuestos", "pedidos", "pedidos_detalle", "pedidos_items", "pedidos_costos", "contratos", "contratos_detalle", "proyectos", "cuentas_cobrar"]) {
+      expect(pos(c)).toBeGreaterThan(pos("contactos"));
+      for (const hijo of ["oportunidades_historial", "oportunidades_notas", "oportunidades_actividades", "oportunidades_correos"]) expect(pos(c)).toBeLessThan(pos(hijo));
+    }
+    for (const e of ENTIDADES) {
+      if (e.fuente.tipo === "porPadre") expect(pos(e.fuente.padre)).toBeLessThan(pos(e.clave));
+      if (e.fuente.tipo === "derivada") expect(pos(e.fuente.de)).toBeLessThan(pos(e.clave));
+    }
+  });
+
+  it("escalera de tamaños: 100 → 25 → 5 → 1", () => {
+    expect([tamanoMenor(100), tamanoMenor(25), tamanoMenor(5), tamanoMenor(1), tamanoMenor(30), tamanoMenor(7)]).toEqual([25, 5, 1, null, 5, 1]);
+  });
+});
+
+describe("listados paginados: una fila rota no frena la extracción", () => {
+  /** 60 pedidos (ids 1…60); pedir cualquier página que incluya el desplazamiento 37 (id 38) da 500. */
+  function alboomConFilaRota() {
+    const todos = Array.from({ length: 60 }, (_, i) => ({ id: String(i + 1) }));
+    return clienteFalso((p) => {
+      const b = p.body as { pageNumber: number; pageSize: number };
+      const desde = (b.pageNumber - 1) * b.pageSize;
+      if (desde <= 37 && 37 < desde + b.pageSize) throw new AlboomApiError("Alboom respondió 500 en /orders/paginate", 500, true);
+      return { rows: todos.slice(desde, desde + b.pageSize), count: todos.length };
+    });
+  }
+  const ENT: Entidad = { clave: "pedidos", nombre: "Pedidos", tamanoPagina: 25, fuente: { tipo: "paginada", ruta: "/orders/paginate", body: (p, t) => ({ pageNumber: p, pageSize: t }) } };
+
+  it("tras la pausa de siempre, repite el tramo de a 5 y de a 1, saltea sólo la fila rota y no repite ni pierde ninguna", async () => {
+    const { cliente, pedidos } = alboomConFilaRota();
+    const m = almacenEnMemoria();
+    let r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT] });
+    // Primera falla: la pausa de siempre, sin mover el cursor.
+    expect(r.resultado).toBe("REINTENTAR");
+    expect(r.avance.entidades.pedidos).toMatchObject({ desde: 25, leidas: 25 });
+    // Lo que hace `correr` ante REINTENTAR; la próxima tanda lee el avance desde la base (JSON).
+    r.avance.reintentos = 1;
+    r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT], avance: leerAvance(JSON.parse(JSON.stringify(r.avance))) });
+    expect(r.resultado).toBe("COMPLETA");
+    const tamanos = pedidos.map((p) => {
+      const b = p.body as { pageNumber: number; pageSize: number };
+      return `${(b.pageNumber - 1) * b.pageSize}+${b.pageSize}`;
+    });
+    expect(tamanos).toEqual([
+      "0+25",
+      "25+25", // falla → pausa
+      "25+25", // vuelve a fallar → de a 5
+      "25+5",
+      "30+5",
+      "35+5", // falla → de a 1
+      "35+1",
+      "36+1",
+      "37+1", // falla sola → se saltea
+      "38+1",
+      "39+1",
+      "40+5",
+      "45+5",
+      "50+25", // vuelve al tamaño normal
+    ]);
+    const ids = m.de("pedidos").map((f) => Number(f.alboomId)).sort((a, b) => a - b);
+    expect(ids).toEqual(Array.from({ length: 60 }, (_, i) => i + 1).filter((id) => id !== 38));
+    expect(r.avance.entidades.pedidos).toMatchObject({ estado: "LISTA", cantidad: 59, saltados: 1, filasSalteadas: [37], errores: 1, leidas: 59 });
+    expect(r.avance.entidades.pedidos!.dudas).toBeGreaterThanOrEqual(1);
+    expect(r.avance.entidades.pedidos!.ultimoError).toMatch(/fila 38 del listado/);
+    expect(r.avance.entidades.pedidos!.tramos).toBeUndefined();
+    expect(r.avance.reintentos).toBe(0);
+  });
+
+  it("cortada a mitad del tramo chico, la tanda siguiente retoma en el mismo tamaño y desplazamiento", async () => {
+    const { cliente, pedidos } = alboomConFilaRota();
+    const m = almacenEnMemoria();
+    let r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT] });
+    r.avance.reintentos = 1;
+    // Presupuesto para 5 pedidos: 25+25 (falla), 25+5, 30+5, 35+5 (falla), 35+1.
+    let t = 0;
+    const ahora = () => t;
+    const cl: ClienteAlboom = { leer: async (p) => ((t += 1000), cliente.leer(p)), pedidosHechos: () => pedidos.length };
+    r = await tanda({ cliente: cl, almacen: m.almacen, entidades: [ENT], avance: r.avance, ahora, limite: 4500 });
+    expect(r.resultado).toBe("PAUSADA");
+    const guardado = leerAvance(JSON.parse(JSON.stringify(r.avance)));
+    expect(guardado.entidades.pedidos).toMatchObject({ desde: 36, tramos: [{ tamano: 5, hasta: 50 }, { tamano: 1, hasta: 40 }] });
+    r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT], avance: guardado });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(m.de("pedidos")).toHaveLength(59);
+    expect(r.avance.entidades.pedidos).toMatchObject({ estado: "LISTA", saltados: 1 });
+  });
+
+  it("un 429 nunca achica la página: sólo pausa", async () => {
+    let n = 0;
+    const { cliente, pedidos } = clienteFalso((p) => {
+      if (++n <= 3) throw new AlboomApiError("Alboom respondió 429", 429, true);
+      return paginar([{ id: "1" }], p);
+    });
+    const avance = avanceInicial();
+    for (let i = 0; i < 3; i++) {
+      avance.reintentos = i;
+      expect((await tanda({ cliente, almacen: almacenEnMemoria().almacen, entidades: [ENT], avance })).resultado).toBe("REINTENTAR");
+    }
+    expect(pedidos.every((p) => (p.body as { pageSize: number }).pageSize === 25)).toBe(true);
+    expect(avance.entidades.pedidos!.tramos).toBeUndefined();
+  });
+});
+
+describe("volver a extraer: hijos sólo de los padres que cambiaron", () => {
+  /** Presupuestos 101…10n con su detalle; `cambiar` modifica el listado. */
+  function escenario(n: number) {
+    let lista = Array.from({ length: n }, (_, i) => ({ id: String(101 + i), v: 1 }));
+    const fallan = new Set<string>();
+    const padre: Entidad = { clave: "presupuestos", nombre: "P", fuente: { tipo: "paginada", ruta: "/quotes/paginate", body: (p, t) => ({ pageNumber: p, pageSize: t }) } };
+    const det: Entidad = {
+      clave: "presupuestos_detalle",
+      nombre: "D",
+      // La misma versión que el catálogo: el avance inicial la toma de ahí.
+      version: entidadPorClave("presupuestos_detalle")!.version,
+      fuente: { tipo: "porPadre", padre: "presupuestos", mismoId: true, pedido: (id) => ({ method: "GET", ruta: `/quotes/${id}` }), filas: (j) => [j] },
+    };
+    const { cliente, pedidos } = clienteFalso((p) => {
+      if (p.ruta === "/quotes/paginate") return paginar(lista, p);
+      const id = /^\/quotes\/(\d+)$/.exec(p.ruta)![1]!;
+      if (fallan.has(id)) throw new AlboomApiError("Alboom respondió 404", 404);
+      return { id, detalle: true };
+    });
+    const m = almacenEnMemoria();
+    const detalles = (desde: number) => pedidos.slice(desde).filter((p) => p.ruta !== "/quotes/paginate").map((p) => p.ruta.split("/").pop());
+    return {
+      entidades: [padre, det],
+      cliente,
+      pedidos,
+      m,
+      fallan,
+      detalles,
+      cambiar: (ids: string[]) => (lista = lista.map((x) => (ids.includes(x.id) ? { ...x, v: x.v + 1 } : x))),
+      agregar: (id: string) => lista.push({ id, v: 1 }),
+      correr: (modo: "TODO" | "INCREMENTAL", anteriores: Avance[] = []) =>
+        tanda({ cliente, almacen: m.almacen, entidades: [padre, det], modo, anteriores: anteriores.map((a) => leerAvance(JSON.parse(JSON.stringify(a)))) }),
+    };
+  }
+
+  it("pide los hijos sólo de lo nuevo o cambiado; \"Extraer todo\" sigue pidiendo todos", async () => {
+    const s = escenario(5);
+    const todo = await s.correr("TODO");
+    expect(s.detalles(0)).toEqual(["101", "102", "103", "104", "105"]);
+    expect(todo.avance.entidades.presupuestos!.tocados).toHaveLength(5);
+
+    s.cambiar(["102"]);
+    s.agregar("106");
+    let n = s.pedidos.length;
+    const inc = await s.correr("INCREMENTAL", [todo.avance]);
+    expect(inc.resultado).toBe("COMPLETA");
+    expect(s.detalles(n)).toEqual(["102", "106"]);
+    expect(inc.avance.entidades.presupuestos!.tocados!.sort()).toEqual(["102", "106"]);
+    expect(inc.avance.entidades.presupuestos_detalle).toMatchObject({ estado: "LISTA", salteados: 4 });
+
+    // Nada cambió: no pide ningún detalle.
+    n = s.pedidos.length;
+    await s.correr("INCREMENTAL", [inc.avance, todo.avance]);
+    expect(s.detalles(n)).toEqual([]);
+
+    // "Extraer todo" pide todos aunque no haya cambios.
+    n = s.pedidos.length;
+    await s.correr("TODO", [inc.avance, todo.avance]);
+    expect(s.detalles(n)).toHaveLength(6);
+  });
+
+  it("lo que cambió en una extracción que se cortó antes de los hijos, y lo que falló en la última completa, se vuelve a pedir", async () => {
+    const s = escenario(5);
+    s.fallan.add("104");
+    const todo = await s.correr("TODO");
+    expect(todo.avance.entidades.presupuestos_detalle).toMatchObject({ estado: "LISTA", fallidos: ["104"] });
+    s.fallan.clear();
+
+    // Una extracción que vio el cambio de 103 pero se cortó antes de pedir los hijos (como las que murieron en pedidos).
+    s.cambiar(["103"]);
+    const cortada = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: [s.entidades[0]!], modo: "INCREMENTAL" });
+    expect(cortada.avance.entidades.presupuestos!.tocados).toEqual(["103"]);
+
+    const n = s.pedidos.length;
+    await s.correr("INCREMENTAL", [cortada.avance, todo.avance]);
+    expect(s.detalles(n).sort()).toEqual(["103", "104"]);
+  });
+
+  it("sin ancla, con un avance viejo sin `tocados` o con una ancla vieja con errores, pide todos", async () => {
+    const s = escenario(3);
+    const todo = await s.correr("TODO");
+    // Sin extracciones anteriores: todos.
+    let n = s.pedidos.length;
+    await s.correr("INCREMENTAL", []);
+    expect(s.detalles(n)).toHaveLength(3);
+
+    // Una anterior del código viejo (sin `tocados`) entre el ancla y ésta: no se sabe qué cambió → todos.
+    const vieja = JSON.parse(JSON.stringify(todo.avance)) as Avance;
+    vieja.entidades.presupuestos_detalle = { ...vieja.entidades.presupuestos_detalle!, estado: "EN_CURSO" };
+    delete vieja.entidades.presupuestos!.tocados;
+    n = s.pedidos.length;
+    await s.correr("INCREMENTAL", [vieja, todo.avance]);
+    expect(s.detalles(n)).toHaveLength(3);
+
+    // Un ancla del código viejo (sin `fallidos`) que tuvo errores: no se sabe cuáles → todos.
+    const anclaVieja = JSON.parse(JSON.stringify(todo.avance)) as Avance;
+    anclaVieja.entidades.presupuestos_detalle = { ...anclaVieja.entidades.presupuestos_detalle!, errores: 2 };
+    delete anclaVieja.entidades.presupuestos_detalle!.fallidos;
+    n = s.pedidos.length;
+    await s.correr("INCREMENTAL", [anclaVieja]);
+    expect(s.detalles(n)).toHaveLength(3);
+    // La misma ancla vieja sin errores sí sirve.
+    anclaVieja.entidades.presupuestos_detalle!.errores = 0;
+    n = s.pedidos.length;
+    await s.correr("INCREMENTAL", [anclaVieja]);
+    expect(s.detalles(n)).toHaveLength(0);
+  });
+
+  it("un padre que venía del código viejo a mitad de camino (sin `tocados`) hace pedir todos los hijos", async () => {
+    const s = escenario(3);
+    const todo = await s.correr("TODO");
+    // Extracción en curso del código viejo: el listado EN_CURSO con filas ya leídas y sin `tocados`.
+    const enCurso = avanceInicial();
+    enCurso.entidades.presupuestos = { ...enCurso.entidades.presupuestos!, estado: "EN_CURSO", paginas: 1, cantidad: 3, pagina: 2 };
+    const n = s.pedidos.length;
+    const r = await tanda({ cliente: s.cliente, almacen: s.m.almacen, entidades: s.entidades, modo: "INCREMENTAL", anteriores: [todo.avance], avance: leerAvance(JSON.parse(JSON.stringify(enCurso))) });
+    expect(r.avance.entidades.presupuestos!.tocadosDesbordado).toBe(true);
+    expect(s.detalles(n)).toHaveLength(3);
+  });
+});
+
+describe("compatibilidad con el avance de la extracción que ya está corriendo", () => {
+  it("un avance del código viejo se lee, retoma los listados por su página y hace pedidos antes que las notas", async () => {
+    // Como el de DNX el 21/10: listados LISTA, notas EN_CURSO con cursor, pedidos PENDIENTE sin versión, y un
+    // listado a mitad (página 3 de a 100) sin los campos nuevos.
+    const viejo: Record<string, unknown> = {
+      version: 1,
+      pedidos: 9000,
+      reintentos: 0,
+      reintentarDesde: null,
+      entidades: {
+        contactos: { estado: "LISTA", paginas: 38, cantidad: 3776, nuevos: 0, cambiados: 0, iguales: 3776, errores: 0, dudas: 0, pagina: 39, leidas: 3776 },
+        oportunidades: { estado: "LISTA", paginas: 31, cantidad: 3078, nuevos: 0, cambiados: 3, iguales: 3075, errores: 0, dudas: 0, pagina: 32, leidas: 3078 },
+        oportunidades_notas: { estado: "EN_CURSO", paginas: 1800, cantidad: 433, nuevos: 0, cambiados: 0, iguales: 433, errores: 0, dudas: 0, padre: "102", exitos: 1800 },
+        pedidos: { estado: "PENDIENTE", paginas: 0, cantidad: 0, nuevos: 0, cambiados: 0, iguales: 0, errores: 0, dudas: 0 },
+        cobros: { estado: "EN_CURSO", paginas: 2, cantidad: 200, nuevos: 0, cambiados: 0, iguales: 200, errores: 0, dudas: 0, pagina: 3, leidas: 200, huellaPagina: "x" },
+      },
+    };
+    const avance = leerAvance(viejo);
+    expect(avance.entidades.oportunidades_notas).toMatchObject({ estado: "EN_CURSO", padre: "102" });
+    expect(avance.entidades.pedidos!.version).toBeUndefined();
+    expect(avance.entidades.cobros!.desde).toBeUndefined();
+
+    const cobrosFilas = Array.from({ length: 250 }, (_, i) => ({ id: String(9000 + i) }));
+    const { cliente, pedidos } = clienteFalso((p) => {
+      if (p.ruta === "/orders/paginate") return paginar([{ id: "201" }], p);
+      if (p.ruta === "/account_trans/paginate_apr") return paginar(cobrosFilas, p);
+      if (p.ruta === "/notes/paginate") return { rows: [] };
+      return { id: "201" };
+    });
+    const m = almacenEnMemoria();
+    await m.almacen.guardarFilas(WS, "oportunidades", ["101", "102", "103"].map((id) => ({ alboomId: id, payload: { id }, hash: id })));
+    const entidades = ["oportunidades", "pedidos", "pedidos_detalle", "cobros", "oportunidades_notas"].map((c) => entidadPorClave(c)!);
+    const r = await tanda({ cliente, almacen: m.almacen, entidades, avance, modo: "INCREMENTAL", anteriores: [] });
+    expect(r.resultado).toBe("COMPLETA");
+    const rutas = pedidos.map((p) => p.ruta);
+    // Pedidos primero (el orden nuevo), los cobros retoman en la página 3 y las notas siguen después del 102.
+    expect(rutas).toEqual(["/orders/paginate", "/orders/201", "/account_trans/paginate_apr", "/notes/paginate"]);
+    expect((pedidos[2]!.body as { pageNumber: number }).pageNumber).toBe(3);
+    expect((pedidos[3]!.body as { id: string }).id).toBe("103");
+    expect(r.avance.entidades.pedidos).toMatchObject({ estado: "LISTA", version: 2, cantidad: 1 });
+    expect(r.avance.entidades.cobros).toMatchObject({ estado: "LISTA", leidas: 250 });
+    expect(r.avance.entidades.oportunidades_notas!.estado).toBe("LISTA");
+  });
+
+  it("los campos nuevos del avance se guardan y se releen; los que vienen mal se ignoran", () => {
+    const a = avanceInicial();
+    a.entidades.pedidos = {
+      ...a.entidades.pedidos!,
+      desde: 35,
+      tramos: [{ tamano: 5, hasta: 50 }, { tamano: 1, hasta: 40 }],
+      saltados: 1,
+      filasSalteadas: [37],
+      total: 60,
+      tocados: ["1", "2"],
+      fallidos: ["9"],
+      salteados: 4,
+    };
+    const b = leerAvance(JSON.parse(JSON.stringify(a)));
+    expect(b.entidades.pedidos).toMatchObject({ desde: 35, tramos: [{ tamano: 5, hasta: 50 }, { tamano: 1, hasta: 40 }], saltados: 1, filasSalteadas: [37], total: 60, tocados: ["1", "2"], fallidos: ["9"], salteados: 4 });
+    const roto = leerAvance({ entidades: { pedidos: { estado: "EN_CURSO", tramos: "x", tocados: [1, null, "3"], fallidos: {} } } });
+    expect(roto.entidades.pedidos!.tramos).toBeUndefined();
+    expect(roto.entidades.pedidos!.tocados).toEqual(["3"]);
+    expect(roto.entidades.pedidos!.fallidos).toBeUndefined();
   });
 });
