@@ -15,6 +15,13 @@ import {
   toggleCanjePhoto,
 } from "@/lib/preventa-canjeable/preventa-canje-slots";
 import ComboFrames from "./ComboFrames";
+import { useMedidasDeFotos } from "./useMedidasDeFotos";
+import {
+  avisoDeBordes,
+  orientacionDeLaFoto,
+  TEXTO_DIGITAL,
+  textoFormatoCopia,
+} from "@/lib/canje-externo/formato-de-la-foto";
 import CanjeSteps, { type CanjeStepKey } from "./CanjeSteps";
 import PhotoPickGrid from "./PhotoPickGrid";
 import CanjeExtrasStep, { type CanjeExtrasConfig } from "./CanjeExtrasStep";
@@ -50,7 +57,11 @@ type Props = {
         | "name"
         | "includesDigital"
         | "previewImageUrl"
-      > & { photoInputs?: CanjePhotoInput[] | null }
+      > & {
+        photoInputs?: CanjePhotoInput[] | null;
+        /** Medida del producto impreso ("15x21"), si el beneficio es una copia. */
+        printSize?: string | null;
+      }
     >;
     parentName: string | null;
     studentName: string | null;
@@ -129,6 +140,7 @@ export default function PreventaCanjeFlow({
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ pedido: number; downloadUrl: string | null } | null>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
+  const { medidas, registrar } = useMedidasDeFotos();
 
   const total = plan.slots.length;
   const elegidas = filled.filter((x) => x != null) as number[];
@@ -267,6 +279,23 @@ export default function PreventaCanjeFlow({
 
   // Los beneficios con diseño (el librito) se muestran como miniatura del diseño real.
   const disenoPorBeneficio = new Map(designs.map((d) => [d.benefitKey, d.template]));
+  /** En qué formato recibe la familia cada foto elegida (no aplica al librito: ahí manda el diseño). */
+  const formatoDe = (benefitKey: string, kind: string, photoId: number): string => {
+    if (kind === "DIGITAL") return TEXTO_DIGITAL;
+    const m = medidas.get(photoId);
+    return textoFormatoCopia(beneficio.get(benefitKey)?.printSize, orientacionDeLaFoto(m?.ancho, m?.alto));
+  };
+  // Una copia de cámara (3:2) en papel 15x21 no calza justo: se avisa una vez, sin alarmar.
+  const avisoBordes = plan.groups
+    .filter((g) => g.kind === "PHYSICAL" && !disenoPorBeneficio.has(g.benefitKey))
+    .flatMap((g) =>
+      g.slotIndexes.map((i) => {
+        const id = filled[i];
+        const m = id != null ? medidas.get(id) : undefined;
+        return avisoDeBordes(beneficio.get(g.benefitKey)?.printSize, m?.ancho, m?.alto);
+      })
+    )
+    .find((x) => x != null);
   const casilleros = (size: "lg" | "md" | "sm", editable: boolean) => (
     <div className="flex flex-wrap justify-center gap-x-6 gap-y-4">
       {plan.groups.map((g) => (
@@ -310,6 +339,8 @@ export default function PreventaCanjeFlow({
             thumbUrl={thumbUrl}
             onRemove={editable ? tocar : undefined}
             size={size}
+            onImgLoad={registrar}
+            caption={size === "lg" ? (id) => formatoDe(g.benefitKey, g.kind, id) : undefined}
           />
           )}
           <p className="m-0 mt-2 text-sm font-medium text-[#1f2328]">{g.label}</p>
@@ -473,6 +504,7 @@ export default function PreventaCanjeFlow({
               thumbUrl={thumbUrl}
               full={completo}
               accent="combo"
+              onImgLoad={registrar}
             />
           </section>
         ) : null}
@@ -497,6 +529,7 @@ export default function PreventaCanjeFlow({
         {paso === "revisar" ? (
           <section className="mx-auto max-w-xl rounded-2xl bg-white px-5 py-8 text-center shadow-[0_1px_2px_rgba(60,40,20,0.08)] sm:px-10">
             {casilleros("lg", false)}
+            {avisoBordes ? <p className="m-0 mt-4 text-xs text-[#6b6f76]">{avisoBordes}</p> : null}
             <h1 className="m-0 mt-6 text-2xl font-semibold text-[#1f2328]">
               {total === 1 ? "¿Es esta?" : "¿Son estas?"}
             </h1>

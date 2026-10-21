@@ -6,6 +6,8 @@ import CheckoutMpPreparingOverlay from "@/components/checkout/CheckoutMpPreparin
 import { albumPhotoFileKey } from "@/lib/album-photo-ref";
 import { savePendingOrderSession } from "@/lib/checkout/pending-order-session";
 import { redirectToMercadoPago } from "@/lib/checkout/mp-redirect";
+import { orientacionDeLaFoto, TEXTO_DIGITAL, textoFormatoCopia } from "@/lib/canje-externo/formato-de-la-foto";
+import { useMedidasDeFotos } from "./useMedidasDeFotos";
 
 /** Un producto que se puede sumar como extra: la foto impresa del álbum o el librito. */
 export type CanjeExtraProduct = { productId: number; name: string; size: string; finish: string | null };
@@ -80,6 +82,7 @@ export default function CanjeExtrasStep({
   const [mpPreparando, setMpPreparando] = useState(false);
   const [avisoPrueba, setAvisoPrueba] = useState(false);
   const idempotencyRef = useRef<string | null>(null);
+  const { medidas, registrar } = useMedidasDeFotos();
 
   const formatoPorDefecto: Formato = config.impresa ? "impresa" : "digital";
   const puedeLibrito = Boolean(config.librito && libritoPhotoId != null);
@@ -330,7 +333,14 @@ export default function CanjeExtrasStep({
                 }`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={thumbUrl(p.id)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img
+                  src={thumbUrl(p.id)}
+                  alt=""
+                  className="h-full w-full object-contain"
+                  loading="lazy"
+                  ref={(el) => registrar(p.id, el)}
+                  onLoad={(e) => registrar(p.id, e.currentTarget)}
+                />
                 {enPack ? (
                   <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-[#4b4f56]">
                     En tu pack
@@ -355,6 +365,16 @@ export default function CanjeExtrasStep({
                     </button>
                   ))}
                 </div>
+              ) : null}
+              {formato ? (
+                <p className="m-0 mt-1 text-center text-[10px] font-medium leading-tight text-[#2f7d5b]">
+                  {formato === "digital" || !config.impresa
+                    ? TEXTO_DIGITAL
+                    : textoFormatoCopia(
+                        config.impresa.size,
+                        orientacionDeLaFoto(medidas.get(p.id)?.ancho, medidas.get(p.id)?.alto)
+                      ) + (config.includeDigitalWithPrint ? " + su digital" : "")}
+                </p>
               ) : null}
             </div>
           );

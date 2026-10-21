@@ -327,6 +327,34 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
   }
 
   /*
+   * Medida de cada copia impresa del pack ("15x21"), la misma que lleva el pedido al canjear:
+   * la familia ve "Copia 15x21 · se imprime horizontal" junto a la foto que eligió.
+   */
+  const productoIds = [
+    ...new Set(
+      snapshot.benefits
+        .filter((b) => b.kind === "PHYSICAL" && b.photographerProductId != null)
+        .map((b) => b.photographerProductId as number)
+    ),
+  ];
+  const medidaPorProducto = new Map(
+    productoIds.length > 0
+      ? (
+          await prisma.photographerProduct
+            .findMany({ where: { id: { in: productoIds } }, select: { id: true, size: true } })
+            .catch(() => [])
+        ).map((p) => [p.id, p.size?.trim() || null] as const)
+      : []
+  );
+  const benefitsConMedida = benefits.map((b) => ({
+    ...b,
+    printSize:
+      b.kind === "PHYSICAL" && b.photographerProductId != null
+        ? (medidaPorProducto.get(b.photographerProductId) ?? null)
+        : null,
+  }));
+
+  /*
    * Extras que se ofrecen apenas se confirma el canje: fotos sueltas (impresa con el producto
    * de impresión del álbum, o digital) y otro librito igual. Sólo si el álbum está listo para
    * vender; en modo prueba se muestran igual para que el fotógrafo vea la pantalla, sin cobrar.
@@ -389,7 +417,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         }}
         pack={{
           name: snapshot.packName,
-          benefits,
+          benefits: benefitsConMedida,
           parentName: familia,
           studentName: alumno,
         }}
