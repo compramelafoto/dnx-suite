@@ -94,6 +94,7 @@ export const guia: Instructivo = {
       ],
       sistema: [
         "Registra la venta con número y baja el stock de cada producto.",
+        "También descuenta los insumos de la receta de cada producto.",
         "Anota el ingreso en Caja con la categoría «Ventas»: el efectivo va a la caja del mostrador (y al turno abierto) y Mercado Pago, transferencia y tarjeta van a la cuenta digital.",
         "Escribe en la venta con cuánto pagó y cuánto vuelto se dio, para que el cierre de caja se pueda explicar.",
       ],
