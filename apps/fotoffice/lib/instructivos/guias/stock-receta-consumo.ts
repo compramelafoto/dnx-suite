@@ -20,6 +20,9 @@ export const guia: Instructivo = {
     },
     {
       titulo: "Agregá lo que gasta",
+      imagen: "/instructivos/stock-receta-consumo/01-receta-carnet.jpg",
+      imagenAlt:
+        "«Receta de consumo» de la foto carnet instantánea: 1 copia 10x15 del Kit Kodak 305 cada 1 unidad vendida, y debajo «Vender 3 gasta 3 copias 10x15».",
       texto: [
         "Tocá «Agregar insumo». Cada línea se lee como una frase: «1 · copias 10x15 · Kit Kodak 305 cada 1 unidades vendidas».",
         "El primer número es cuánto gasta. Elegí el insumo y, en «cada», cuántas unidades vendidas hacen falta para ese gasto. Con «Quitar» sacás una línea. Cuando termines, tocá «Guardar».",
@@ -35,6 +38,9 @@ export const guia: Instructivo = {
     },
     {
       titulo: "Por qué 3 Polaroid gastan 2 copias",
+      imagen: "/instructivos/stock-receta-consumo/02-receta-polaroid.jpg",
+      imagenAlt:
+        "«Receta de consumo» de la Polaroid: 1 copia 10x15 cada 2 unidades vendidas, y debajo «Vender 3 gasta 2 copias 10x15 (se redondea para arriba…)».",
       texto: [
         "Con la regla «1 copia cada 2», una Polaroid gasta media hoja, pero la hoja no se puede cortar a medias: 3 Polaroid ocupan 2 hojas (una con dos fotos y otra con una sola).",
         "FOTOFFICE redondea para arriba en cada venta, porque las fotos de clientes distintos no se juntan en la misma hoja. Cuando escribís la receta, abajo ves un ejemplo en vivo: «Vender 3 gasta…».",
