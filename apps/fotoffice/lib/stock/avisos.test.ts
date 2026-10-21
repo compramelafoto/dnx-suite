@@ -33,10 +33,12 @@ describe("cobertura", () => {
     expect(diasDeCobertura(50, 0)).toBeNull();
   });
   it("textos", () => {
-    expect(textoCobertura(null)).toBe("Sin consumo en 30 días");
-    expect(textoCobertura(0)).toBe("Se termina hoy");
-    expect(textoCobertura(5)).toBe("Te alcanza para ~5 días");
-    expect(textoCobertura(1)).toBe("Te alcanza para ~1 día");
+    expect(textoCobertura(null, 5)).toBe("Sin consumo en 30 días");
+    expect(textoCobertura(0, 3)).toBe("Se termina hoy");
+    expect(textoCobertura(0, 0)).toBe("Ya no queda");
+    expect(textoCobertura(null, -2)).toBe("Ya no queda");
+    expect(textoCobertura(5, 50)).toBe("Te alcanza para ~5 días");
+    expect(textoCobertura(1, 10)).toBe("Te alcanza para ~1 día");
   });
 });
 

@@ -36,7 +36,8 @@ export function diasDeCobertura(stockQty: number, consumoDia: number): number | 
   return null;
 }
 
-export function textoCobertura(dias: number | null): string {
+export function textoCobertura(dias: number | null, stockQty: number): string {
+  if (stockQty <= 0) return "Ya no queda";
   if (dias === null) return "Sin consumo en 30 días";
   if (dias <= 0) return "Se termina hoy";
   if (dias === 1) return "Te alcanza para ~1 día";

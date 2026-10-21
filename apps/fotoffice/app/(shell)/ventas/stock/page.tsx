@@ -47,7 +47,7 @@ export default async function StockPage({
   const productoPorId = new Map(productos.map((p) => [p.id, p]));
   const enCompras = new Set(compras.map((i) => i.productId));
   const cobertura = new Map(
-    items.map((i) => [i.productId, textoCobertura(diasDeCobertura(i.stockQty, consumoDiario(i.consumo30)))]),
+    items.map((i) => [i.productId, textoCobertura(diasDeCobertura(i.stockQty, consumoDiario(i.consumo30)), i.stockQty)]),
   );
   const insumos = productos.filter((p) => p.kind === "INSUMO" && !enCompras.has(p.id));
   const resto = productos.filter((p) => p.kind !== "INSUMO" && !enCompras.has(p.id));
@@ -125,7 +125,7 @@ export default async function StockPage({
                       key={p.id}
                       product={p}
                       destacado
-                      cobertura={textoCobertura(i.dias)}
+                      cobertura={textoCobertura(i.dias, i.stockQty)}
                       aviso={debajo}
                     />
                   );

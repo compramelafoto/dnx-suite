@@ -25,7 +25,7 @@ export function StockForm({
 }: {
   product: ProductRow;
   destacado: boolean;
-  /** «Te alcanza para ~N días», «Se termina hoy» o «Sin consumo en 30 días». */
+  /** «Te alcanza para ~N días», «Se termina hoy», «Ya no queda» o «Sin consumo en 30 días». */
   cobertura?: string | null;
   /** Por qué está para comprar, si no se ve en la cobertura (p. ej. «Debajo del mínimo (5)»). */
   aviso?: string | null;
