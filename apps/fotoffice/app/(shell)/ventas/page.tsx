@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/page-header";
+import { leerCatalogoFotolibro } from "@/lib/fotolibro/catalogo-precios";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listProductCategories, listProducts } from "@/lib/sales/repository";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -23,7 +24,7 @@ export const dynamic = "force-dynamic";
  * cobrar no pueden depender de ida y vuelta al servidor por cada clic.
  */
 export default async function VentasPage() {
-  const { workspace, user } = await requireSalesStaff();
+  const { workspace, user, canEditCatalog } = await requireSalesStaff();
 
   const clientsEnabled = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
   // Sólo para el cartel fijo de "esto no se va a depositar": `recordSale` vuelve a preguntar
@@ -82,6 +83,7 @@ export default async function VentasPage() {
         procesos={procesos}
         senaHabilitada={senaHabilitada}
         qrActivo={qr.activo}
+        fotolibro={await leerCatalogoFotolibro(workspace.id, { conCostos: canEditCatalog }).then((catalogo) => (catalogo ? { catalogo, verCostos: canEditCatalog } : null))}
         permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={
           puedeEgresos

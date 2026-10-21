@@ -47,6 +47,8 @@ import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
 import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
+import { CalculadoraFotolibro, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
+import type { CatalogoFotolibro } from "@/lib/fotolibro/cotizar";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -133,6 +135,7 @@ export function Pos({
   senaHabilitada = false,
   qrActivo = false,
   permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
+  fotolibro = null,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -156,6 +159,8 @@ export function Pos({
   qrActivo?: boolean;
   /** Qué puede hacer con Clientes dentro del editor de foto carnet (como en Ventas → Foto carnet). */
   permisosCarnet?: { puedeBuscarClientes: boolean; puedeAltaCliente: boolean };
+  /** Calculadora de fotolibros: null si no hay ninguna lista de proveedor con tapas y hojas. */
+  fotolibro?: { catalogo: CatalogoFotolibro; verCostos: boolean } | null;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -185,6 +190,7 @@ export function Pos({
   const [eligiendoTalle, setEligiendoTalle] = useState<ProductRow | null>(null);
 
   const [mostrarSuelto, setMostrarSuelto] = useState(false);
+  const [mostrarFotolibro, setMostrarFotolibro] = useState(false);
   const [sueltoDescripcion, setSueltoDescripcion] = useState("");
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
@@ -516,6 +522,30 @@ export function Pos({
 
   function quitarRenglon(key: string) {
     cambiarRenglones((prev) => prev.filter((r) => r.key !== key));
+  }
+
+  /** El fotolibro entra como un renglón suelto: descripción y precio de la calculadora, sin stock. */
+  function agregarFotolibro(l: LineaFotolibro) {
+    limpiarAviso();
+    const key = nuevaKey();
+    setActivo(key);
+    cambiarRenglones((prev) => [
+      ...prev,
+      {
+        key,
+        productId: null,
+        variantId: null,
+        description: l.descripcion,
+        qty: 1,
+        unitPriceMinor: l.precioMinor,
+        unitCostMinor: null,
+        priceWasOverridden: false,
+        catalogPriceMinor: null,
+        tracksStock: false,
+        stockQty: null,
+      },
+    ]);
+    setMostrarFotolibro(false);
   }
 
   function agregarSuelto() {
@@ -1095,6 +1125,15 @@ export function Pos({
             >
               + Otro
             </button>
+            {fotolibro ? (
+              <button
+                type="button"
+                onClick={() => setMostrarFotolibro((v) => !v)}
+                className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
+              >
+                + Fotolibro
+              </button>
+            ) : null}
             {rows.length > 0 ? (
               <button
                 type="button"
@@ -1110,6 +1149,17 @@ export function Pos({
         </div>
 
         <div className="px-4">
+          {mostrarFotolibro && fotolibro ? (
+            <div className="my-3">
+              <CalculadoraFotolibro
+                catalogo={fotolibro.catalogo}
+                verCostos={fotolibro.verCostos}
+                onAgregar={agregarFotolibro}
+                onCerrar={() => setMostrarFotolibro(false)}
+                textoAgregar="Agregar al ticket"
+              />
+            </div>
+          ) : null}
           {mostrarSuelto ? (
             <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
               <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>

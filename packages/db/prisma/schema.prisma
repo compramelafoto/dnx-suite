@@ -26204,6 +26204,8 @@ model FotofficeReglaPrecios {
   /// Tramos `[{ desdeMinor, multiploMinor }]` en centavos, de menor a mayor.
   redondeo           Json
   fotolibroMarginPct Decimal? @db.Decimal(7, 2)
+  /// Fotos por hoja de fotolibro por medida ({ "30x45": 10 }): la sugerencia de hojas.
+  fotolibroFotosPorHoja Json?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
