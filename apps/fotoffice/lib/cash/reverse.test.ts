@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReversal } from "./reverse";
+import { buildReversal, noSeAnulaEnCaja } from "./reverse";
 
 const ingreso = {
   id: "mov-1",
@@ -140,5 +140,17 @@ describe("buildReversal con saldo inicial", () => {
     expect(venta.ok && venta.values.sourceModule).toBe("manual");
     const sinOrigen = buildReversal(ingreso, "x");
     expect(sinOrigen.ok && sinOrigen.values.sourceModule).toBe("manual");
+  });
+});
+
+describe("noSeAnulaEnCaja con saldo inicial", () => {
+  it("el saldo inicial se puede anular", () => {
+    expect(noSeAnulaEnCaja("saldo-inicial", null)).toBeNull();
+  });
+
+  it("la anulación de un saldo inicial no se deshace: revivirlo dejaría cargar otro y duplicaría el saldo", () => {
+    expect(noSeAnulaEnCaja("saldo-inicial", "saldo-inicial")).toBe(
+      "La anulación de un saldo inicial no se deshace: cargalo de nuevo desde Configuración.",
+    );
   });
 });

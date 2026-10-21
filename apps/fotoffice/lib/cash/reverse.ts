@@ -44,6 +44,11 @@ export function noSeAnulaEnCaja(
   sourceModule: string | null | undefined,
   anulaAOrigen?: string | null,
 ): string | null {
+  // Deshacer la anulación de un saldo inicial lo revive, pero `openingBalancesByAccount` no lo ve
+  // (es una anulación): Configuración ofrecería cargar otro y la cuenta quedaría con el doble.
+  if (isOpeningBalanceModule(anulaAOrigen)) {
+    return "La anulación de un saldo inicial no se deshace: cargalo de nuevo desde Configuración.";
+  }
   return (
     (sourceModule && SE_ANULAN_EN_SU_MODULO[sourceModule]) ||
     (anulaAOrigen && SE_ANULAN_EN_SU_MODULO[anulaAOrigen]) ||
