@@ -104,7 +104,9 @@ export function leerCsv(
       return { ok: false, error: `La fila ${iEnc + i + 2} tiene más columnas que la plantilla.` };
     }
     const g = (k: number) => (c[k] ?? "").trim();
-    const texto_o_nulo = (k: number) => g(k) || null;
+    // `escribirCsv` antepone ' a lo que una planilla tomaría por fórmula: al leer se saca.
+    const t = (k: number) => g(k).replace(/^'(?=[=+\-@])/, "");
+    const texto_o_nulo = (k: number) => t(k) || null;
     const num = (k: number) => (g(k) === "" ? null : normalizarNumero(g(k)));
 
     const cantidad = num(3);
@@ -116,7 +118,7 @@ export function leerCsv(
     filas.push({
       codigo_barras: texto_o_nulo(0),
       codigo_proveedor: texto_o_nulo(1),
-      descripcion: g(2),
+      descripcion: t(2),
       cantidad,
       unidad: texto_o_nulo(4),
       unidades_por_paquete: upp === null ? null : Math.round(upp),

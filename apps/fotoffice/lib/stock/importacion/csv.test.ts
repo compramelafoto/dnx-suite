@@ -106,6 +106,13 @@ describe("escribirCsv", () => {
     ]);
     expect(t.split("\n")[1]).toBe("'=1+1;'@x;'-cmd;1;'+a;;;;");
   });
+  it("ida y vuelta con fórmulas neutralizadas: leer saca el apóstrofo", () => {
+    const fila: FilaImportada = { codigo_barras: "=1+1", codigo_proveedor: "@x", descripcion: "-cmd", cantidad: 1, unidad: "+a", unidades_por_paquete: null, costo_unitario: null, alicuota_iva: null, subtotal: null, tipo: null };
+    expect(ok(escribirCsv([fila]))).toEqual([fila]);
+  });
+  it("un apóstrofo que no precede a = + - @ queda", () => {
+    expect(ok(`${H}\n;;'Kodak;1;;;;;\n`)[0].descripcion).toBe("'Kodak");
+  });
   const filas: FilaImportada[] = [
     {
       codigo_barras: "779",
