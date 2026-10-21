@@ -22,6 +22,13 @@ import { guia as cajaCerrarTurno } from "./guias/caja-cerrar-turno";
 import { guia as cajaGastosYRetiros } from "./guias/caja-gastos-y-retiros";
 import { guia as mostradorTransferenciaYQr } from "./guias/mostrador-transferencia-y-qr";
 import { guia as mostradorAnularVenta } from "./guias/mostrador-anular-venta";
+import { guia as fotoCarnet } from "./guias/foto-carnet";
+import { guia as clientesBuscarYAlta } from "./guias/clientes-buscar-y-alta";
+import { guia as pedidosNuevoYConfirmar } from "./guias/pedidos-nuevo-y-confirmar";
+import { guia as pedidosFichaYCobros } from "./guias/pedidos-ficha-y-cobros";
+import { guia as pedidosCuotasEstadoYEnvios } from "./guias/pedidos-cuotas-estado-y-envios";
+import { guia as galeriasCrearYPublicar } from "./guias/galerias-crear-y-publicar";
+import { guia as galeriasCompartirYSeleccion } from "./guias/galerias-compartir-y-seleccion";
 import { guia as trabajosTomarConSena } from "./guias/trabajos-tomar-con-sena";
 import { guia as trabajosRetiroYSaldo } from "./guias/trabajos-retiro-y-saldo";
 import { guia as trabajosTableroEnCurso } from "./guias/trabajos-tablero-en-curso";
@@ -41,11 +48,20 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   ventasMostrador,
   mostradorTransferenciaYQr,
   mostradorAnularVenta,
+  fotoCarnet,
   // Trabajos y entregas, en el orden en que pasa un trabajo
   trabajosTomarConSena,
   trabajosTableroEnCurso,
   trabajosFichaYEtapas,
   trabajosRetiroYSaldo,
+  // Clientes y pedidos
+  clientesBuscarYAlta,
+  pedidosNuevoYConfirmar,
+  pedidosFichaYCobros,
+  pedidosCuotasEstadoYEnvios,
+  // Galerías
+  galeriasCrearYPublicar,
+  galeriasCompartirYSeleccion,
   // Institución
   carnetsPdfImprimir,
   sociosBuscarYFicha,
