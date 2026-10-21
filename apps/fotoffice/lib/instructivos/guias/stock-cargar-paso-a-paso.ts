@@ -91,8 +91,12 @@ export const guia: Instructivo = {
     },
     {
       titulo: "Sabé qué comprar",
+      imagen: "/instructivos/stock-cargar-paso-a-paso/08-para-comprar.jpg",
+      imagenAlt:
+        "Arriba de «Stock», el bloque «Para comprar»: cuando no falta nada dice «Nada para comprar por ahora».",
       texto: [
         "En «Stock», el bloque «Para comprar» te muestra lo que está por terminarse y cuántos días te alcanza. Con «Copiar lista» armás el pedido para el proveedor y lo pegás en un WhatsApp o un mail.",
+        "Si no falta nada, el bloque dice «Nada para comprar por ahora». Para que te avise a tiempo, poné un mínimo en cada producto o insumo.",
         "En el inicio también ves la tarjeta «Para comprar», que te avisa sin tener que entrar a «Stock».",
         "El detalle está en la guía «Saber qué comprar y armar el pedido al proveedor».",
       ],
