@@ -16,12 +16,14 @@ import {
   buscarProductosAction,
   confirmarAction,
   descartarAction,
+  elegirProductoImportadoAction,
   escanearAction,
   guardarEncabezadoAction,
   guardarLineaAction,
   quitarLineaAction,
   type ProductoBuscado,
 } from "../actions";
+import { ImportarSeccion } from "./importar-seccion";
 
 type RecepcionEditable = {
   id: string;
@@ -39,6 +41,10 @@ type Aviso = { tipo: "ok" | "error"; texto: string } | null;
 
 type DatosAlta = { codigo: string; nombre?: string; marca?: string | null };
 
+type Sugerencia = { id: string; nombre: string };
+
+type DatosImportar = { iaDisponible: boolean; plantillaCsv: string; promptExterno: string };
+
 /**
  * El borrador de una recepción. Lo central es el campo del lector: el lector de códigos es un
  * teclado que escribe el código y manda Enter, así que el campo tiene que tener el foco todo el
@@ -52,9 +58,14 @@ type DatosAlta = { codigo: string; nombre?: string; marca?: string | null };
 export function RecepcionEditor({
   recepcion,
   proveedores,
+  sugerencias,
+  importar,
 }: {
   recepcion: RecepcionEditable;
   proveedores: { id: string; nombre: string }[];
+  /** Por id de línea importada sin producto: productos parecidos por nombre. */
+  sugerencias: Record<string, Sugerencia[]>;
+  importar: DatosImportar;
 }) {
   const router = useRouter();
   const [guardando, startTransition] = useTransition();
@@ -71,12 +82,25 @@ export function RecepcionEditor({
   /** El texto para el que se trajeron `resultados`. */
   const [resultadosDe, setResultadosDe] = useState("");
 
-  const [encabezado, setEncabezado] = useState({
+  const encabezadoServidor = {
     proveedorId: recepcion.proveedorId ?? "",
     fecha: recepcion.fecha,
     comprobante: recepcion.comprobante,
     preciosConIva: recepcion.preciosConIva,
-  });
+  };
+  const [encabezado, setEncabezado] = useState(encabezadoServidor);
+  const [encabezadoPrevio, setEncabezadoPrevio] = useState(encabezadoServidor);
+  // Una importación puede completar proveedor, fecha, comprobante e IVA en el servidor: si lo
+  // guardado cambió, se muestra (patrón de React: ajustar el estado durante el render).
+  if (
+    encabezadoPrevio.proveedorId !== encabezadoServidor.proveedorId ||
+    encabezadoPrevio.fecha !== encabezadoServidor.fecha ||
+    encabezadoPrevio.comprobante !== encabezadoServidor.comprobante ||
+    encabezadoPrevio.preciosConIva !== encabezadoServidor.preciosConIva
+  ) {
+    setEncabezadoPrevio(encabezadoServidor);
+    setEncabezado(encabezadoServidor);
+  }
 
   const unidades = unidadesDeStock(recepcion.lineas);
 
@@ -332,10 +356,18 @@ export function RecepcionEditor({
         ) : null}
       </section>
 
+      <ImportarSeccion
+        recepcionId={recepcion.id}
+        iaDisponible={importar.iaDisponible}
+        plantillaCsv={importar.plantillaCsv}
+        promptExterno={importar.promptExterno}
+        deshabilitada={confirmando}
+      />
+
       {/* Líneas. */}
       {recepcion.lineas.length === 0 ? (
         <div className="fo-card px-6 py-12 text-center text-sm text-[var(--fo-muted)]">
-          Todavía no cargaste nada. Escaneá la primera caja.
+          Todavía no cargaste nada. Escaneá la primera caja o importá la factura.
         </div>
       ) : (
         <div className="fo-card overflow-x-auto">
@@ -356,6 +388,14 @@ export function RecepcionEditor({
                   key={l.id}
                   linea={l}
                   deshabilitada={confirmando}
+                  sugerencias={sugerencias[l.id] ?? []}
+                  onElegir={(p) =>
+                    ejecutar(async () => {
+                      const r = await elegirProductoImportadoAction(recepcion.id, l.id, p.id);
+                      if (r.ok) setAviso({ tipo: "ok", texto: `Listo: «${l.descripcionOriginal}» es ${p.nombre}.` });
+                      return r;
+                    })
+                  }
                   onGuardar={(cambios, enter) =>
                     ejecutar(() => guardarLineaAction(recepcion.id, l.id, cambios), enter ? foco : undefined)
                   }
@@ -462,11 +502,15 @@ function textoCosto(minor: number | null): string {
 function FilaLinea({
   linea,
   deshabilitada,
+  sugerencias,
+  onElegir,
   onGuardar,
   onQuitar,
 }: {
   linea: LineaDetalle;
   deshabilitada: boolean;
+  sugerencias: Sugerencia[];
+  onElegir: (p: Sugerencia) => void;
   onGuardar: (cambios: CambiosLinea, conEnter: boolean) => void;
   onQuitar: () => void;
 }) {
@@ -562,7 +606,11 @@ function FilaLinea({
     <tr className={`border-b border-[var(--fo-border)] align-top last:border-0 ${subio ? "bg-[var(--fo-warning-soft)]" : ""}`}>
       <td className="px-3 py-2">
         <p className="font-medium text-[var(--fo-text)]">{linea.producto?.nombre ?? linea.descripcionOriginal}</p>
-        {linea.producto ? null : <p className="text-xs text-[var(--fo-danger)]">Sin producto: quitala.</p>}
+        {linea.producto ? null : linea.origen === "IMPORTACION" ? (
+          <ElegirProducto sugerencias={sugerencias} deshabilitada={deshabilitada} onElegir={onElegir} />
+        ) : (
+          <p className="text-xs text-[var(--fo-danger)]">Sin producto: quitala.</p>
+        )}
         {linea.codigoBarras ? <p className="text-xs text-[var(--fo-muted)]">{linea.codigoBarras}</p> : null}
         {error ? <p className="text-xs text-[var(--fo-danger)]">{error}</p> : null}
       </td>
@@ -654,6 +702,93 @@ function FilaLinea({
         </button>
       </td>
     </tr>
+  );
+}
+
+/**
+ * Una línea importada que no se pudo asociar sola: se elige el producto entre las sugerencias o
+ * con el buscador. Al elegirlo, el servidor lo recuerda para ese proveedor (alias).
+ */
+function ElegirProducto({
+  sugerencias,
+  deshabilitada,
+  onElegir,
+}: {
+  sugerencias: Sugerencia[];
+  deshabilitada: boolean;
+  onElegir: (p: Sugerencia) => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const [resultados, setResultados] = useState<ProductoBuscado[]>([]);
+  const [, startBusqueda] = useTransition();
+  const ultima = useRef("");
+
+  function buscar(texto: string) {
+    setBusqueda(texto);
+    ultima.current = texto;
+    if (texto.trim().length < 2) {
+      setResultados([]);
+      return;
+    }
+    startBusqueda(async () => {
+      const r = await buscarProductosAction(texto);
+      if (ultima.current === texto) setResultados(r);
+    });
+  }
+
+  return (
+    <div className="mt-1 space-y-1">
+      <p className="text-xs font-medium text-[var(--fo-danger)]">Elegí el producto</p>
+      {sugerencias.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {sugerencias.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="fo-btn fo-btn-ghost h-7 px-2 text-xs"
+              disabled={deshabilitada}
+              onClick={() => onElegir(s)}
+            >
+              {s.nombre}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="relative">
+        <input
+          className="fo-input h-7 text-xs"
+          style={{ width: "14rem" }}
+          autoComplete="off"
+          placeholder="Buscar otro por nombre"
+          aria-label="Buscar el producto por nombre"
+          value={busqueda}
+          disabled={deshabilitada}
+          onChange={(e) => buscar(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") buscar("");
+          }}
+        />
+        {resultados.length > 0 ? (
+          <ul className="absolute top-full z-10 mt-1 w-64 overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] shadow-lg">
+            {resultados.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-xs hover:bg-[var(--fo-surface-hover)]"
+                  onClick={() => {
+                    buscar("");
+                    onElegir({ id: p.id, nombre: p.nombre });
+                  }}
+                >
+                  <span className="font-medium">{p.nombre}</span>
+                  <span className="block text-[var(--fo-muted)]">{p.detalle}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

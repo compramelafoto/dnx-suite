@@ -6,7 +6,11 @@ import { formatMinorArs } from "@/lib/membership/money";
 import { listarProveedores } from "@/lib/proveedores/repositorio";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { diaParaInput } from "@/lib/stock/recepcion-pantalla";
-import { leerRecepcion } from "@/lib/stock/recepcion-servidor";
+import { leerRecepcion, type LineaDetalle } from "@/lib/stock/recepcion-servidor";
+import { indiceParaAsociar } from "@/lib/stock/importacion/alias-servidor";
+import { asociarFilas } from "@/lib/stock/importacion/asociar";
+import { PLANTILLA_CSV, PROMPT_EXTERNO } from "@/lib/stock/importacion/csv";
+import { iaDisponible } from "@/lib/stock/importacion/ia";
 import { nombresDeUsuarios } from "../usuarios";
 import { RecepcionEditor } from "./recepcion-editor";
 
@@ -43,6 +47,8 @@ export default async function RecepcionPage({ params }: { params: Promise<{ id: 
           totalMinor: r.totalMinor,
         }}
         proveedores={proveedores}
+        sugerencias={await sugerenciasDeLineas(workspace.id, r.proveedorId, r.lineas)}
+        importar={{ iaDisponible: iaDisponible(), plantillaCsv: PLANTILLA_CSV, promptExterno: PROMPT_EXTERNO }}
       />
     );
   }
@@ -115,6 +121,44 @@ export default async function RecepcionPage({ params }: { params: Promise<{ id: 
       </div>
     </div>
   );
+}
+
+/**
+ * Para cada línea importada que quedó sin producto, hasta 3 productos parecidos por nombre (la
+ * misma regla que al importar). Si mientras tanto se guardó un alias de ese proveedor que la
+ * reconoce, ése va como única sugerencia. Sólo se lee el catálogo si hay alguna línea así.
+ */
+async function sugerenciasDeLineas(
+  workspaceId: string,
+  proveedorId: string | null,
+  lineas: LineaDetalle[],
+): Promise<Record<string, { id: string; nombre: string }[]>> {
+  const sueltas = lineas.filter((l) => l.origen === "IMPORTACION" && !l.productId);
+  if (sueltas.length === 0) return {};
+  const indice = await indiceParaAsociar(workspaceId, proveedorId);
+  const nombres = new Map(indice.catalogo.map((c) => [c.id, c.nombre]));
+  const asociadas = asociarFilas(
+    sueltas.map((l) => ({
+      codigo_barras: null,
+      codigo_proveedor: null,
+      descripcion: l.descripcionOriginal,
+      cantidad: l.cantidad,
+      unidad: null,
+      unidades_por_paquete: null,
+      costo_unitario: null,
+      alicuota_iva: null,
+      subtotal: null,
+      tipo: null,
+    })),
+    indice,
+  );
+  const out: Record<string, { id: string; nombre: string }[]> = {};
+  sueltas.forEach((l, i) => {
+    const a = asociadas[i];
+    const hallado = a.productId ? nombres.get(a.productId) : undefined;
+    out[l.id] = a.productId && hallado ? [{ id: a.productId, nombre: hallado }] : a.sugerencias;
+  });
+  return out;
 }
 
 function Dato({ titulo, valor }: { titulo: string; valor: string }) {
