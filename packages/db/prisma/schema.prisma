@@ -7299,6 +7299,8 @@ model Workspace {
   fotofficeProductosCatalogo     FotofficeProductoCatalogo[]
   fotofficeComboItems            FotofficeComboItem[]
   fotofficeInsumos               FotofficeInsumo[]
+  fotofficeRecepciones           FotofficeRecepcion[]
+  fotofficeRecepcionLineas       FotofficeRecepcionLinea[]
   fotofficeRecetasInsumo         FotofficeRecetaInsumo[]
   fotofficeConsumosTamano        FotofficeConsumoTamano[]
   fotofficeCostosPlantilla       FotofficeCostoPlantilla[]
@@ -21194,6 +21196,62 @@ model FotofficeInsumo {
   @@index([workspaceId])
 }
 
+/// Recepción de un pedido a proveedor (stock etapa 2): se cargan las líneas con el lector de códigos
+/// y al confirmar entra una ENTRADA por línea. `numero` es correlativo por negocio. Estado en texto
+/// (BORRADOR | CONFIRMADA | DESCARTADA), con CHECK en SQL. Confirmada o descartada no se edita.
+model FotofficeRecepcion {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  numero            Int
+  proveedorId       String?
+  fecha             DateTime
+  comprobante       String?
+  estado            String    @default("BORRADOR")
+  preciosConIva     Boolean   @default(true)
+  archivoKey        String?
+  nota              String?
+  createdByUserId   Int?
+  confirmedAt       DateTime?
+  confirmedByUserId Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  proveedor FotofficeProveedor?       @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+  lineas    FotofficeRecepcionLinea[]
+
+  @@unique([workspaceId, numero])
+  @@index([workspaceId, estado, createdAt])
+}
+
+/// Una línea de la recepción. La cantidad y el costo van en la unidad en que se cargaron
+/// (`enUnidadDeCompra` = bultos); al confirmar se pasan a unidad de stock con `entradaEnUnidades`.
+model FotofficeRecepcionLinea {
+  id                  String   @id @default(cuid())
+  recepcionId         String
+  workspaceId         String
+  productId           String?
+  descripcionOriginal String
+  codigoBarras        String?
+  cantidad            Int
+  enUnidadDeCompra    Boolean  @default(false)
+  unidadesPorCompra   Int?
+  /// Costo por la unidad en que se cargó (no por unidad de stock).
+  costoUnitarioArs    Decimal? @db.Decimal(12, 2)
+  /// LECTOR | MANUAL | IMPORTACION (CHECK en SQL).
+  origen              String
+  order               Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  recepcion FotofficeRecepcion @relation(fields: [recepcionId], references: [id], onDelete: Cascade)
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([recepcionId, order])
+  @@index([workspaceId, productId])
+}
+
 /// Receta: qué insumos gasta un producto o servicio por cada `porCada` unidades vendidas.
 /// Consumo por renglón = ceil(cantidad / porCada) × quantity. Mismo workspace: lo valida el código;
 /// el SQL frena cantidades <= 0, `porCada` < 1 y que un producto se use a sí mismo como insumo.
@@ -21940,6 +21998,7 @@ model FotofficeProveedor {
   productosPreferidos Product[]                        @relation("ProductoProveedorPreferido")
   listasPrecios       FotofficeListaProveedor[]
   equivalencias       FotofficeEquivalenciaProveedor[]
+  recepciones         FotofficeRecepcion[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, active])
@@ -22620,6 +22679,7 @@ model Product {
   fotofficeComboItems     FotofficeComboItem[]        @relation("FotofficeComboItemCombo")
   fotofficeEnCombos       FotofficeComboItem[]        @relation("FotofficeComboItemComponente")
   fotofficeInsumo         FotofficeInsumo?
+  fotofficeRecepcionLineas FotofficeRecepcionLinea[]
   fotofficeReceta         FotofficeRecetaInsumo[]     @relation("FotofficeRecetaProducto")
   fotofficeRecetasComoInsumo FotofficeRecetaInsumo[]  @relation("FotofficeRecetaComoInsumo")
   fotofficeConsumosTamano FotofficeConsumoTamano[]    @relation("FotofficeConsumoTamanoInsumo")
