@@ -43,6 +43,7 @@ model User {
   name                                  String?
   fotofficeListViews                    FotofficeListView[]                    @relation("FotofficeListViewOwner")
   fotofficeListActivity                 FotofficeListActivity[]                @relation("FotofficeListActivityActor")
+  fotofficePerfilPreciosSocio           FotofficePerfilPreciosSocio?           @relation("FotofficePerfilPreciosSocio")
   createdAt                             DateTime                               @default(now())
   handler                               String?                                @unique
   isPublicPageEnabled                   Boolean                                @default(false)
@@ -21453,6 +21454,20 @@ model FotofficePerfilPrecios {
   updatedByUserId Int?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// ¿Cuánto Cobro? en el portal del socio: el perfil de precios PERSONAL, una fila por persona.
+/// No cuelga de ninguna institución a propósito: son los gastos de vida de alguien, y la
+/// institución no los lee nunca. Migración a mano: 20261202120000_fotoffice_perfil_precios_socio.
+model FotofficePerfilPreciosSocio {
+  id            String   @id @default(cuid())
+  userId        Int      @unique
+  schemaVersion Int      @default(1)
+  profileData   Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation("FotofficePerfilPreciosSocio", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------

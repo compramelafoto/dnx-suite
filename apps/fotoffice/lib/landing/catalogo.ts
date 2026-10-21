@@ -3,6 +3,7 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
@@ -120,6 +121,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Propuestas y apoyo de los socios desde el portal",
       "Tareas para socios voluntarios",
     ],
+  },
+  {
+    key: CUANTO_COBRO_SOCIO_MODULE_KEY,
+    cuadro: "03d",
+    nombre: "¿Cuánto Cobro? para socios",
+    resuelve:
+      "Cada socio calcula en su portal cuánto cobrar un trabajo sin regalarlo: parte de lo que necesita ganar por mes para vivir de la fotografía, suma sus gastos fijos, reparte sus horas y le agrega los gastos de cada evento. Lo que carga es personal: la institución no lo ve. Si después crea su negocio en FotoOffice, se lleva el perfil armado.",
+    pantallas: ["¿Cuánto Cobro?, en el portal del socio", "Valor de la hora y presupuesto de un trabajo, con el desglose"],
   },
   {
     key: BOOKINGS_MODULE_KEY,
