@@ -8,6 +8,7 @@ import type { MensajeDelWorker } from "@/lib/digitalizacion/cliente/analisis.wor
 import { almacenIndexedDb } from "@/lib/digitalizacion/cliente/almacen-indexeddb";
 import { navegadorCompatible } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { AVISO_SIN_ESPACIO, ColaDeSubida, ErrorDefinitivo, idParte, type ParteEnCola, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
+import { faltantesParaGrabar } from "@/lib/digitalizacion/cliente/faltantes";
 import { elegirFormato } from "@/lib/digitalizacion/cliente/formato";
 import { Grabador } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
@@ -215,6 +216,12 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     const r = await buscarTrabajosAction(q);
     if (r.ok) setTrabajos(r.trabajos);
   };
+
+  // La lista de pedidos arranca con los últimos trabajos: vacía parecía que no había nada para elegir.
+  useEffect(() => {
+    if (continuar) return;
+    void buscarTrabajosAction("").then((r) => { if (r.ok) setTrabajos(r.trabajos); });
+  }, [continuar]);
 
   const pintarVentanita = useCallback(() => {
     const s = sesion.current;
@@ -430,7 +437,17 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     return <p className="fo-alert-error p-4 text-sm">La estación necesita Chrome o Edge de escritorio actualizados (versión 116 o mayor).</p>;
   }
 
-  const puedeGrabar = Boolean(stream) && !dvdSubiendo && listaOk && (sinPedido || proyectoId) && fase === "preparando";
+  const faltan = faltantesParaGrabar({
+    videoElegido: Boolean(videoId),
+    audioElegido: Boolean(audioId),
+    vistaPrevia: Boolean(stream),
+    listaOk,
+    sinPedido,
+    proyectoElegido: Boolean(proyectoId),
+    dvdSubiendo,
+    continuando: Boolean(continuar),
+  });
+  const puedeGrabar = faltan.length === 0 && fase === "preparando";
   return (
     <div className="space-y-6">
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
@@ -535,8 +552,13 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
             {fase === "iniciando" ? "Empezando…" : "● Grabar"}
           </button>
         ) : null}
-        {fase === "preparando" && dvdSubiendo ? (
-          <p className="text-sm">Hay un DVD subiendo: esperá a que termine para grabar un VHS.</p>
+        {fase === "preparando" && continuar?.tipo !== "DVD" && faltan.length > 0 ? (
+          <div className="text-sm text-gray-600">
+            <p className="font-semibold">Para poder grabar falta:</p>
+            <ul className="ml-5 list-disc">
+              {faltan.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          </div>
         ) : null}
         {fase === "grabando" ? <button type="button" className="fo-btn fo-btn-danger" onClick={() => void detener("MANUAL")}>⏹ Detener</button> : null}
         {fase === "grabando" && !ventanitaAbierta ? (
