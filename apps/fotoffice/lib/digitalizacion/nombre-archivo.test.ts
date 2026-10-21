@@ -31,4 +31,14 @@ describe("nombreArchivoVideo", () => {
     expect(n.endsWith(".mp4")).toBe(true);
     expect(n.length).toBe(154);
   });
+  it("un emoji en el borde del corte no rompe el nombre (se puede codificar para la descarga)", () => {
+    // "Pedido 1234 - Ana Pérez - " son 26 caracteres: el emoji cae justo en el 150.
+    const titulo = "a".repeat(123) + "😀" + "b".repeat(10);
+    const n = nombreArchivoVideo({ ...base, titulo }, "mp4");
+    expect(() => encodeURIComponent(n)).not.toThrow();
+    expect(n.endsWith(".mp4")).toBe(true);
+  });
+  it("saca caracteres invisibles que dan vuelta el texto", () => {
+    expect(nombreArchivoVideo({ ...base, titulo: "Viaje‮gnp.exe​" }, "mp4")).toBe("Pedido 1234 - Ana Pérez - Viajegnp.exe.mp4");
+  });
 });
