@@ -20,10 +20,17 @@ const initial: NuevoFotolibroState = { error: null };
  * Arranca un fotolibro con la medida real del pliego. Elegido el laboratorio, sólo se ofrecen
  * las medidas de su lista.
  */
-export function NuevoFotolibro({ proveedores }: { proveedores: Proveedor[] }) {
+export function NuevoFotolibro({
+  proveedores,
+  accion = crearFotolibroAction,
+}: {
+  proveedores: Proveedor[];
+  /** Quién crea el fotolibro: el estudio (por defecto) o el socio desde su portal. */
+  accion?: (prev: NuevoFotolibroState, formData: FormData) => Promise<NuevoFotolibroState>;
+}) {
   const [abierto, setAbierto] = useState(false);
   const [proveedorId, setProveedorId] = useState("");
-  const [state, action, pending] = useActionState(crearFotolibroAction, initial);
+  const [state, action, pending] = useActionState(accion, initial);
 
   const medidas = useMemo(() => {
     const p = proveedores.find((x) => x.id === proveedorId);
