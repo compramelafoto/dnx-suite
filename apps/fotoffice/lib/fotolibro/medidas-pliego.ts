@@ -140,6 +140,16 @@ const OFERTA_POR_PROVEEDOR: Record<string, readonly string[]> = {
   ],
 };
 
+/**
+ * Los laboratorios de los que hay lista, para elegir sin tener proveedores cargados (el socio
+ * en su portal). El `id` no es de la base: sólo sirve para el desplegable.
+ */
+export const LABORATORIOS_CONOCIDOS = [
+  { id: "lab-la-isla", name: "La Isla" },
+  { id: "lab-roman", name: "Román" },
+  { id: "lab-copy-express", name: "Copy Express" },
+] as const;
+
 export function normalizarNombreProveedor(nombre: string): string {
   return nombre
     .normalize("NFD")

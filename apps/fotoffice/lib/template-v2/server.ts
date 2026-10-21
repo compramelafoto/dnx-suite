@@ -23,6 +23,10 @@ import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { canDesignPlacas, canDesignTemplates } from "./access";
 import { listKeyedTemplatesTodas } from "./keyed-template";
 import { canDesignFotolibros } from "@/lib/fotolibro/acceso";
+import { ROL_SOCIO_FOTOLIBROS, ROL_SOLO_PLACAS, puedeAbrirPlantilla } from "./owns";
+
+export { ROL_SOCIO_FOTOLIBROS };
+import { accesoFotolibrosSocio } from "@/lib/fotolibro/socio";
 import { FOTOLIBRO_TEMPLATE_KEY } from "@/lib/fotolibro/constantes";
 import { isPlacaTemplateKey } from "@/lib/placas/constants";
 import {
@@ -33,12 +37,10 @@ import {
   placaZone,
 } from "@/lib/placas/values";
 
-/**
- * Rol con el que viaja quien diseña **sólo** placas o fotolibros: tiene Comunicación o Ventas
- * en "Gestionar" pero no Socios. Puede abrir y guardar esas plantillas, y ninguna otra —el
- * carnet incluido—. El nombre quedó de cuando sólo existían las placas.
- */
-const ROL_SOLO_PLACAS = "FOTOFFICE_PLACAS_ONLY";
+function socioDeFotolibros(user: { id: number; email: string | null }) {
+  plantillasDePlacasPorUsuario.delete(user.id);
+  return { id: user.id, role: ROL_SOCIO_FOTOLIBROS, email: user.email, workspaceId: null };
+}
 
 /**
  * Las plantillas que puede tocar cada persona con `ROL_SOLO_PLACAS`, por id de usuario.
@@ -81,7 +83,11 @@ setTemplateV2Runtime({
     if (!user) throw new Error("No autenticado");
 
     const workspace = await resolveActiveWorkspace(user.id);
-    if (!workspace) throw new Error("No hay una institución activa");
+    if (!workspace) {
+      // Sin panel: puede ser un socio que diseña sus fotolibros desde el portal.
+      if (await accesoFotolibrosSocio(user.id)) return socioDeFotolibros(user);
+      throw new Error("No hay una institución activa");
+    }
 
     // Diseñar pide `members` MANAGE (todas las plantillas) o `communications` MANAGE (sólo
     // las placas). El rol sólo viaja como dato para el editor, salvo el de "sólo placas".
@@ -96,7 +102,10 @@ setTemplateV2Runtime({
         canDesignPlacas(user.id, workspace.id),
         canDesignFotolibros(user.id, workspace.id),
       ]);
-      if (!placas && !fotolibros) throw new Error("Sin permisos para diseñar plantillas");
+      if (!placas && !fotolibros) {
+        if (await accesoFotolibrosSocio(user.id)) return socioDeFotolibros(user);
+        throw new Error("Sin permisos para diseñar plantillas");
+      }
       const permitidas = (await listKeyedTemplatesTodas(workspace.id))
         .filter(
           (t) =>
@@ -212,18 +221,8 @@ setTemplateV2Runtime({
      * Una plantilla sin workspace no es de nadie: se cae al dueño original, que es la regla
      * del paquete.
      */
-    owns: (user, template) => {
-      if (user.role === ROL_SOLO_PLACAS) {
-        return (
-          template.workspaceId != null &&
-          template.workspaceId === user.workspaceId &&
-          (plantillasDePlacasPorUsuario.get(user.id)?.has(template.id) ?? false)
-        );
-      }
-      return template.workspaceId != null && user.workspaceId != null
-        ? template.workspaceId === user.workspaceId
-        : template.ownerUserId === user.id;
-    },
+    owns: (user, template) =>
+      puedeAbrirPlantilla(user, template, plantillasDePlacasPorUsuario.get(user.id)),
   },
 });
 

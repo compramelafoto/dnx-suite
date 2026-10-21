@@ -4,6 +4,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
@@ -129,6 +130,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Cada socio calcula en su portal cuánto cobrar un trabajo sin regalarlo: parte de lo que necesita ganar por mes para vivir de la fotografía, suma sus gastos fijos, reparte sus horas y le agrega los gastos de cada evento. Lo que carga es personal: la institución no lo ve. Si después crea su negocio en FotoOffice, se lleva el perfil armado.",
     pantallas: ["¿Cuánto Cobro?, en el portal del socio", "Valor de la hora y presupuesto de un trabajo, con el desglose"],
+  },
+  {
+    key: FOTOLIBROS_SOCIO_MODULE_KEY,
+    cuadro: "03e",
+    nombre: "Fotolibros para socios",
+    resuelve:
+      "Cada socio diseña sus fotolibros desde su portal: elige la medida y el pliego sale con la medida real que imprime el laboratorio, una hoja por pliego. Encuadra cada foto dentro de su marco arrastrándola, y lo que ve es lo que se imprime. Lo que diseña es personal: la institución no lo ve.",
+    pantallas: ["Mis fotolibros, en el portal del socio", "Editor por pliegos con encuadre de foto"],
   },
   {
     key: BOOKINGS_MODULE_KEY,

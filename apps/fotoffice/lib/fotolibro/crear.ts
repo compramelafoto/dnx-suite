@@ -25,7 +25,8 @@ export type ResultadoFotolibro =
  * A diferencia del carnet, no es idempotente: una institución hace muchos fotolibros.
  */
 export async function crearFotolibro(input: {
-  workspaceId: string;
+  /** `null`: fotolibro personal de un socio, desde su portal (ver `./socio.ts`). */
+  workspaceId: string | null;
   userId: number;
   medidaId: string;
   hojas: number;
@@ -40,7 +41,7 @@ export async function crearFotolibro(input: {
   }
 
   let proveedor: { id: string; name: string } | null = null;
-  if (input.proveedorId) {
+  if (input.proveedorId && input.workspaceId) {
     proveedor = await prisma.fotofficeProveedor.findFirst({
       where: { id: input.proveedorId, workspaceId: input.workspaceId },
       select: { id: true, name: true },
