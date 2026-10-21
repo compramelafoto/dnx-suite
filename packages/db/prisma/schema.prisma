@@ -21889,6 +21889,8 @@ model FotofficeArchivoTrabajo {
 model DigitalizacionGrabacion {
   id                 String    @id @default(cuid())
   workspaceId        String
+  /// Nombre que le pone la persona al video; se usa para nombrar los archivos que se bajan.
+  titulo             String?
   /// Trabajo del pedido; null = grabación de prueba.
   proyectoId         String?
   cassetteNumero     Int?

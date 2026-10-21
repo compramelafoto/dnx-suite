@@ -35,6 +35,7 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
   const [aviso, setAviso] = useState<string | null>(null);
   const [avance, setAvance] = useState({ hechos: 0, total: 0 });
   const [sinPedido, setSinPedido] = useState(true);
+  const [titulo, setTitulo] = useState("");
   const [proyectoId, setProyectoId] = useState<string | null>(null);
   const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
 
@@ -90,7 +91,7 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
         if (!c.ok) { setAviso(c.error); return; }
       } else {
         const r = await crearGrabacionAction({
-          tipo: "DVD", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: null, calidad: null, mimeType: "video/dvd",
+          titulo, tipo: "DVD", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: null, calidad: null, mimeType: "video/dvd",
           corregirProporcion: false, equipoId: null, dvdArchivos: archivos.map((f) => ({ nombre: f.name, bytes: f.size })),
         });
         if (!r.ok) { setAviso(r.error); return; }
@@ -148,6 +149,9 @@ export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
       {continuar ? <p className="text-sm">Elegí de nuevo la carpeta del mismo DVD: se sube sólo lo que faltó.</p> : (
         <>
+          <label className="block text-sm">Título del video (opcional)
+            <input className="mt-1 block w-full max-w-md rounded border p-2 text-sm" maxLength={120} placeholder="Ej.: Casamiento de Juan y Ana, 1998" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+          </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={sinPedido} onChange={(e) => setSinPedido(e.target.checked)} /> Sin pedido (prueba)
           </label>

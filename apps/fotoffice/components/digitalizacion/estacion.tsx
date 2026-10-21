@@ -68,6 +68,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
   const [proyectoId, setProyectoId] = useState<string | null>(continuar?.proyectoId ?? null);
   const [sinPedido, setSinPedido] = useState(continuar ? continuar.proyectoId === null : false);
+  const [titulo, setTitulo] = useState("");
   const [cassette, setCassette] = useState(continuar?.cassetteNumero ?? 1);
   const [listaOk, setListaOk] = useState(false);
   const [fase, setFase] = useState<"preparando" | "iniciando" | "grabando" | "terminando" | "terminada">("preparando");
@@ -343,7 +344,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         tramo = r.tramo;
       } else {
         const r = await crearGrabacionAction({
-          tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
+          titulo, tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
           corregirProporcion: estirada, equipoId: equipo?.id ?? null, dvdArchivos: null,
         });
         if (abandonada()) return;
@@ -522,6 +523,9 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           <p className="text-sm">Continuás la grabación (tramo {continuar.tipo === "DVD" ? 1 : continuar.tramo + 1}).</p>
         ) : (
           <>
+            <label className="block text-sm">Título del video (opcional)
+              <input className="mt-1 block w-full max-w-md rounded border p-2 text-sm" maxLength={120} placeholder="Ej.: Casamiento de Juan y Ana, 1998" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={sinPedido} onChange={(e) => setSinPedido(e.target.checked)} /> Sin pedido (prueba)
             </label>
