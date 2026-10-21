@@ -21,6 +21,7 @@ import {
 import { analizarCsvLista } from "@/lib/precios-proveedor/csv";
 import type { FilaVistaPrevia } from "@/lib/precios-proveedor/vista-previa";
 import type { TramoRedondeo } from "@/lib/precios-proveedor/redondeo";
+import { guardarAjustesFotolibro, type AjustesFotolibro } from "@/lib/fotolibro/catalogo-precios";
 
 const COSTOS = "/ventas/costos";
 const MAX_CSV_BYTES = 2_000_000;
@@ -108,4 +109,11 @@ export async function descartarListaAction(listaId: string): Promise<Resultado> 
   const ok = await descartarLista(workspace.id, listaId);
   revalidatePath(`${COSTOS}/listas`);
   return ok ? { ok: true } : { ok: false, error: "Esta lista ya no se puede descartar." };
+}
+
+export async function guardarAjustesFotolibroAction(a: AjustesFotolibro): Promise<Resultado> {
+  const { workspace } = await requireSalesAdmin();
+  const r = await guardarAjustesFotolibro(workspace.id, a);
+  if (r.ok) revalidatePath(COSTOS);
+  return r;
 }

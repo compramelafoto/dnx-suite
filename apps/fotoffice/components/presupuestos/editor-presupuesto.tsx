@@ -1,5 +1,7 @@
 "use client";
 
+import { CalculadoraFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
+import type { CatalogoFotolibro } from "@/lib/fotolibro/cotizar";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
@@ -127,9 +129,12 @@ export function EditorPresupuesto({
   datos,
   puedeGuardar,
   botPresupuestoId = null,
+  fotolibro = null,
 }: {
   datos: DatosEditor;
   puedeGuardar: boolean;
+  /** Calculadora de fotolibros (listas de proveedores); null si no hay lista con tapas y hojas. */
+  fotolibro?: CatalogoFotolibro | null;
   /** Con DNX Bot encendido (y `configurar`): el presupuesto para «Calcular con el bot». */
   botPresupuestoId?: string | null;
 }) {
@@ -145,6 +150,7 @@ export function EditorPresupuesto({
   /** Ítem recién creado para calcular: si se cierra el panel sin usarlo, se descarta. */
   const [nuevoCalculado, setNuevoCalculado] = useState<string | null>(null);
   const [asistente, setAsistente] = useState(false);
+  const [calculadoraFotolibro, setCalculadoraFotolibro] = useState(false);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(() =>
     Date.now() - (guardadosRecientes.get(datos.presupuestoId) ?? 0) < RECIENTE_MS ? { ok: true, texto: "Guardado." } : null,
   );
@@ -237,6 +243,11 @@ export function EditorPresupuesto({
             <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => cambiar([...items, itemLibre(nuevaClave(), seccionActual)])}>
               Ítem de texto libre
             </button>
+            {fotolibro ? (
+              <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => setCalculadoraFotolibro((v) => !v)}>
+                Fotolibro
+              </button>
+            ) : null}
             {internos ? (
               <>
                 <button
@@ -264,6 +275,19 @@ export function EditorPresupuesto({
               </>
             ) : null}
           </div>
+          {calculadoraFotolibro && fotolibro ? (
+            <CalculadoraFotolibro
+              catalogo={fotolibro}
+              verCostos={!!internos}
+              textoAgregar="Agregar al presupuesto"
+              onCerrar={() => setCalculadoraFotolibro(false)}
+              onAgregar={(l) => {
+                // Ítem de lista con nombre, detalle y precio de la calculadora: el servidor lo guarda tal cual.
+                cambiar([...items, { ...itemLibre(nuevaClave(), seccionActual), nombre: "Fotolibro", descripcion: l.descripcion, precioUnitario: l.precioMinor / 100 }]);
+                setCalculadoraFotolibro(false);
+              }}
+            />
+          ) : null}
           {asistente && internos ? (
             <AsistenteCuantoCobro
               perfilDelWorkspace={datos.internos?.perfil ?? null}
