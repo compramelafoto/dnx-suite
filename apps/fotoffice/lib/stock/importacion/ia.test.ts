@@ -162,6 +162,15 @@ describe("leerConIa: la llamada", () => {
     expect(SYSTEM_PROMPT).toContain("1.234,50");
     expect(SYSTEM_PROMPT).toContain("1234.5");
   });
+
+  it("el system prompt explica los paquetes y las pistas de IVA, subtotal y comprobante", () => {
+    expect(SYSTEM_PROMPT).toContain("640 copias c/u");
+    expect(SYSTEM_PROMPT).toMatch(/cantidad" = número de paquetes/);
+    expect(SYSTEM_PROMPT).toMatch(/precio de cada paquete/);
+    expect(SYSTEM_PROMPT).toContain("21, 10.5 o 27");
+    expect(SYSTEM_PROMPT).toContain("A 0001-00001234");
+    expect(SYSTEM_PROMPT).toMatch(/bonificaciones/i);
+  });
 });
 
 describe("leerConIa: la respuesta", () => {

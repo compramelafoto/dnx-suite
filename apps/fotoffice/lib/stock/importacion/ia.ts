@@ -36,6 +36,11 @@ Reglas:
 - No inventes nada: si un código de barras, un código del proveedor, un precio o cualquier otro dato no figura en el documento, poné null.
 - "cantidad" es lo comprado tal como dice el documento (si dice 2 cajas, es 2).
 - Si el artículo es un pack, caja o bulto que trae N unidades, poné "unidades_por_paquete" = N; si no, null.
+- Cuando el renglón dice que el artículo contiene N unidades ("(640 copias c/u)", "x12", "caja de 50", "pack 100"), poné "unidades_por_paquete" = N, dejá "cantidad" = número de paquetes comprados y "costo_unitario" = precio de cada paquete (no lo dividas por N).
+- "alicuota_iva" suele ser 21, 10.5 o 27.
+- "subtotal" es el importe del renglón.
+- "comprobante" se escribe como "A 0001-00001234" (letra, punto de venta y número).
+- Las bonificaciones de un renglón reducen el subtotal de ese renglón; los descuentos generales se ignoran.
 - Copiá los costos tal como figuran, con o sin IVA, e indicá en "precios_con_iva" si los precios del documento incluyen IVA (true), no lo incluyen (false) o no se sabe (null).
 - Ignorá los renglones de envío o flete, los descuentos generales y los subtotales o totales: no son artículos.
 - "total" es el total final del documento, si figura.

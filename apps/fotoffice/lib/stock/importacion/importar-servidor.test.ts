@@ -92,7 +92,7 @@ function crearBase() {
     }),
     fotofficeRecepcion: tabla(() => t.recepciones, "recepcion"),
     fotofficeRecepcionLinea: tabla(() => t.lineas, "linea"),
-    product: tabla(() => t.productos, "product", (p) => ({ ...p, fotofficeInsumo: null })),
+    product: tabla(() => t.productos, "product", (p) => ({ ...p, fotofficeInsumo: p.insumoUpc ? { unidadesPorCompra: p.insumoUpc } : null })),
     productVariant: tabla(() => t.talles, "variant"),
     fotofficeProveedor: tabla(() => t.proveedores, "proveedor"),
     fotofficeAliasProveedor: {
@@ -340,6 +340,29 @@ describe("importarEnRecepcion", () => {
   });
 });
 
+describe("importarEnRecepcion: bulto del insumo", () => {
+  it("una línea sin paquete toma el bulto de la ficha del insumo", async () => {
+    db.t.recepciones.push(recepcion());
+    db.t.productos.push(producto({ insumoUpc: 640 }));
+    await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila({ codigo_barras: "7790000000001", cantidad: 2, unidades_por_paquete: null, costo_unitario: 120000 })]));
+    expect(db.t.lineas[0]).toMatchObject({ productId: "p1", cantidad: 2, enUnidadDeCompra: true, unidadesPorCompra: 640 });
+  });
+
+  it("si la línea ya trae paquete, se respeta", async () => {
+    db.t.recepciones.push(recepcion());
+    db.t.productos.push(producto({ insumoUpc: 640 }));
+    await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila({ codigo_barras: "7790000000001", unidades_por_paquete: 12 })]));
+    expect(db.t.lineas[0]).toMatchObject({ enUnidadDeCompra: true, unidadesPorCompra: 12 });
+  });
+
+  it("un producto que no es insumo queda igual", async () => {
+    db.t.recepciones.push(recepcion());
+    db.t.productos.push(producto());
+    await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila({ codigo_barras: "7790000000001" })]));
+    expect(db.t.lineas[0]).toMatchObject({ enUnidadDeCompra: false, unidadesPorCompra: null });
+  });
+});
+
 describe("importarEnRecepcion: lecturas fuera del bloqueo", () => {
   it("lee el catálogo y los alias antes de bloquear la recepción", async () => {
     db.t.recepciones.push(recepcion());
@@ -452,6 +475,24 @@ describe("elegirProductoDeLineaImportada", () => {
     expect(r).toEqual({ ok: true });
     expect(db.t.lineas[0].productId).toBe("p2");
     expect(db.t.alias).toEqual([expect.objectContaining({ workspaceId: WS, proveedorId: "pv1", textoNormalizado: "papel brillo x100", productId: "p2" })]);
+  });
+
+  it("insumo con bulto: la línea sin paquete toma el de la ficha; con paquete lo conserva", async () => {
+    preparar();
+    db.t.productos[0].insumoUpc = 640;
+    await elegirProductoDeLineaImportada(WS, "r1", "l1", "p2");
+    expect(db.t.lineas[0]).toMatchObject({ productId: "p2", enUnidadDeCompra: true, unidadesPorCompra: 640 });
+    db.t.lineas[0].unidadesPorCompra = 12;
+    db.t.lineas[0].enUnidadDeCompra = true;
+    await elegirProductoDeLineaImportada(WS, "r1", "l1", "p2");
+    expect(db.t.lineas[0].unidadesPorCompra).toBe(12);
+  });
+
+  it("producto que no es insumo: la línea no cambia", async () => {
+    preparar();
+    await elegirProductoDeLineaImportada(WS, "r1", "l1", "p2");
+    expect(db.t.lineas[0].enUnidadDeCompra).toBeUndefined();
+    expect(db.t.lineas[0].unidadesPorCompra).toBeUndefined();
   });
 
   it("una línea cargada a mano no guarda alias", async () => {
