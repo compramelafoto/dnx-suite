@@ -48,6 +48,9 @@ export const MENSAJES = {
   cambio: "Esta consulta cambió mientras tanto.",
   cambioProyecto: "Este proyecto cambió mientras tanto.",
   cerrado: "Ese registro ya está cerrado.",
+  abierto: "Ese registro todavía no está cerrado.",
+  noTerminado: "Sólo se puede reabrir algo terminado.",
+  otroAbierto: "Ya tiene otro recorrido abierto.",
   salida: "Ese resultado no corresponde a este circuito.",
   motivo: "Elegí un motivo.",
   noEsDelEquipo: "Esa persona no es del equipo.",
@@ -474,6 +477,83 @@ export async function cerrarEnTransaccion(
   return { ok: true as const };
 }
 
+/**
+ * Reabre un recorrido terminado con éxito (un trabajo marcado "Entregado" por error) en la etapa
+ * `destinoId` de su circuito. Sólo el éxito: un fracaso tiene su motivo y su propio camino. Si el
+ * sujeto ya tiene otro recorrido abierto de la misma clase, no reabre. Con `esperado` (el
+ * `closedAt` leído), sólo reabre si nadie lo tocó mientras tanto. Queda un paso sin etapa de
+ * origen y, como al mover, se crean las tareas modelo de la etapa en la que se entra.
+ */
+export async function reabrir(
+  ctx: CtxCircuitos,
+  journeyId: string,
+  destinoId: string,
+  opts: { nota?: string; esperado?: Date } = {},
+): Promise<Resultado> {
+  try {
+    return await enTransaccion(async (tx) => {
+      const { workspaceId } = ctx;
+      const j = await tx.fotofficeJourney.findFirst({
+        where: { id: journeyId, workspaceId },
+        select: { id: true, circuitId: true, kind: true, subjectType: true, subjectId: true, ownerUserId: true, closedAt: true, outcome: true },
+      });
+      if (!j) throw new Rechazo(MENSAJES.noEncontrado);
+      if (j.closedAt === null) throw new Rechazo(MENSAJES.abierto);
+      const salidas = (SALIDAS as Record<string, { exito: string; fracaso: string } | undefined>)[j.kind];
+      if (!salidas || j.outcome !== salidas.exito) throw new Rechazo(MENSAJES.noTerminado);
+
+      const destino = await tx.fotofficeStage.findFirst({
+        where: { id: destinoId, circuitId: j.circuitId, circuit: { workspaceId } },
+        select: { id: true, name: true, color: true, order: true, days: true, archivedAt: true, leadStatus: true },
+      });
+      if (!destino) throw new Rechazo(MENSAJES.otroCircuito);
+      if (destino.archivedAt) throw new Rechazo(MENSAJES.archivada);
+      // Reabrir en una etapa de entrega es entregar: el mismo candado del saldo que al mover.
+      const activas = await tx.fotofficeStage.findMany({
+        where: { circuitId: j.circuitId, circuit: { workspaceId }, archivedAt: null },
+        select: { order: true },
+      });
+      if (esEtapaDeEntrega(destino, activas)) await exigirSaldoCobrado(tx, workspaceId, j);
+
+      const otro = await tx.fotofficeJourney.findFirst({
+        where: { workspaceId, subjectType: j.subjectType, subjectId: j.subjectId, kind: j.kind, closedAt: null },
+        select: { id: true },
+      });
+      if (otro) throw new Rechazo(MENSAJES.otroAbierto);
+
+      const ahora = new Date();
+      const actualizado = await tx.fotofficeJourney.updateMany({
+        where: { id: j.id, workspaceId, outcome: j.outcome, closedAt: opts.esperado ?? j.closedAt },
+        data: {
+          stageId: destino.id, enteredStageAt: ahora, stageDueAt: vencimientoDeEtapa(ahora, destino.days),
+          outcome: null, lossReasonId: null, closedAt: null,
+        },
+      });
+      if (actualizado.count !== 1) throw new Rechazo(mensajeCambio(j.subjectType));
+
+      await tx.fotofficeJourneyStep.create({
+        data: {
+          journeyId: j.id,
+          fromStageId: null,
+          toStageId: destino.id,
+          note: opts.nota?.trim() || null,
+          auto: ctx.userId === null,
+          actorUserId: ctx.userId,
+          actorLabel: ctx.userLabel,
+          createdAt: ahora,
+        },
+      });
+      await crearTareasDeEtapa(tx, ctx, j, destino.id, ahora);
+      await adaptadorDe(j.subjectType)?.alCambiarEtapa?.(tx, workspaceId, j.subjectId, { leadStatus: destino.leadStatus }, null);
+      return { ok: true as const };
+    });
+  } catch (error) {
+    // Otra petición abrió un recorrido del mismo sujeto entre la mirada y la escritura.
+    if (esChoqueDeUnicidad(error)) return { ok: false, error: MENSAJES.otroAbierto };
+    throw error;
+  }
+}
+
 
 /**
  * Cambia a mano el vencimiento de la etapa actual (null = sin vencimiento). Queda en el
@@ -610,6 +690,17 @@ export async function cambiarDeCircuito(
 }
 
 /** El registro que recorre este recorrido del workspace (null si no existe o es ajeno). */
+/** Si mover el recorrido a `destinoId` es volver a una etapa anterior (o a la misma). */
+export async function esRetrocesoDelRecorrido(workspaceId: string, journeyId: string, destinoId: string): Promise<boolean> {
+  const j = await prisma.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { stageId: true, circuitId: true } });
+  if (!j?.stageId) return false;
+  const etapas = await prisma.fotofficeStage.findMany({
+    where: { circuitId: j.circuitId, circuit: { workspaceId } },
+    select: { id: true, order: true, days: true, archivedAt: true },
+  });
+  return esRetroceso(etapas, j.stageId, destinoId);
+}
+
 export async function sujetoDeRecorrido(workspaceId: string, journeyId: string): Promise<Sujeto | null> {
   const j = await prisma.fotofficeJourney.findFirst({ where: { id: journeyId, workspaceId }, select: { subjectType: true, subjectId: true } });
   return j ? { tipo: j.subjectType as TipoSujeto, id: j.subjectId } : null;

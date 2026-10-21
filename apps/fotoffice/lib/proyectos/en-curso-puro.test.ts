@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etapaSiguiente, faseDeEtapa, retenido, urgenciaDeEntrega } from "./en-curso-puro";
+import { destinoParaFase, etapaAnterior, etapaSiguiente, faseDeEtapa, retenido, urgenciaDeEntrega } from "./en-curso-puro";
 
 const e = (name: string, color = "", order = 1, esUltima = false) => ({ name, color, order, esUltima });
 
@@ -42,6 +42,59 @@ describe("etapaSiguiente", () => {
   });
   it("en la última no hay siguiente", () => {
     expect(etapaSiguiente(etapas, "c")).toBeNull();
+  });
+});
+
+// Recorrido de laboratorio: dos etapas en proceso, una en el proveedor, listo y entregado.
+const LAB = [
+  { id: "a", name: "Recibido", color: "gris", order: 0 },
+  { id: "b", name: "Corrección de color", color: "azul", order: 1 },
+  { id: "c", name: "Armado", color: "azul", order: 2 },
+  { id: "d", name: "Enviado a Fotolag", color: "violeta", order: 3 },
+  { id: "e", name: "Listo para retirar", color: "amarillo", order: 4 },
+  { id: "f", name: "Entregado", color: "verde", order: 5 },
+];
+
+describe("etapaAnterior", () => {
+  it("la anterior por orden; null en la primera", () => {
+    expect(etapaAnterior(LAB, "e")?.id).toBe("d");
+    expect(etapaAnterior(LAB, "a")).toBeNull();
+  });
+
+  it("un trabajo cerrado vuelve a la última etapa", () => {
+    expect(etapaAnterior(LAB, null)?.id).toBe("f");
+  });
+});
+
+describe("destinoParaFase", () => {
+  it("hacia adelante va a la primera etapa de esa fase", () => {
+    expect(destinoParaFase(LAB, "a", "EN_PROCESO")).toEqual({ tipo: "MOVER", etapa: LAB[1] });
+    expect(destinoParaFase(LAB, "a", "LISTO")).toEqual({ tipo: "MOVER", etapa: LAB[4] });
+  });
+
+  it("hacia atrás va a la última etapa de esa fase", () => {
+    expect(destinoParaFase(LAB, "e", "EN_PROCESO")).toEqual({ tipo: "MOVER", etapa: LAB[2] });
+    expect(destinoParaFase(LAB, "f", "LISTO")).toEqual({ tipo: "MOVER", etapa: LAB[4] });
+  });
+
+  it("misma columna o fase que el recorrido no tiene: nada", () => {
+    expect(destinoParaFase(LAB, "b", "EN_PROCESO")).toBeNull();
+    const sinProveedor = LAB.filter((e) => e.id !== "d");
+    expect(destinoParaFase(sinProveedor, "a", "EN_PROVEEDOR")).toBeNull();
+  });
+
+  it("a Entregado sin etapa de esa fase termina el recorrido", () => {
+    const sinEntregado = [
+      { id: "x", name: "Recibido", color: "gris", order: 0 },
+      { id: "y", name: "Listo", color: "amarillo", order: 1 },
+    ];
+    expect(destinoParaFase(sinEntregado, "y", "ENTREGADO")).toEqual({ tipo: "CERRAR" });
+  });
+
+  it("un trabajo cerrado se reabre en la última etapa de la fase; a Entregado, nada", () => {
+    expect(destinoParaFase(LAB, null, "LISTO")).toEqual({ tipo: "REABRIR", etapa: LAB[4] });
+    expect(destinoParaFase(LAB, null, "EN_PROCESO")).toEqual({ tipo: "REABRIR", etapa: LAB[2] });
+    expect(destinoParaFase(LAB, null, "ENTREGADO")).toBeNull();
   });
 });
 
