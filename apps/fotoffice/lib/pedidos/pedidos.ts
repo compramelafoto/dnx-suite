@@ -7,7 +7,9 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { calcularTotales } from "@/lib/presupuestos/totales";
 import { itemParaEquipo, itemsGuardados, type ItemEquipo, type TotalesGuardados } from "@/lib/presupuestos/versiones";
 import { agendaEncendida, crearCitasDelPedido } from "@/lib/agenda/crear";
-import { esEtapaDeEntrega } from "@/lib/circuitos/recorridos";
+import type { CtxCircuitos } from "@/lib/circuitos/acceso";
+import { SALIDAS } from "@/lib/circuitos/constantes";
+import { cerrarEnTransaccion, esEtapaDeEntrega, esRechazo } from "@/lib/circuitos/recorridos";
 import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
@@ -563,6 +565,48 @@ async function posicionesEntregadas(tx: Tx, workspaceId: string, pedidoId: strin
   return entregadas;
 }
 
+/** Motivo con el que se cierran los trabajos de un pedido cancelado: el de cierre por defecto del motor. */
+const MOTIVO_CANCELACION_PEDIDO = "Otro";
+
+/**
+ * Al cancelar un pedido, cierra como `CANCELADO` los recorridos abiertos de sus trabajos, por el
+ * motor y como Sistema (queda el paso en el historial). Va DESPUÉS de `devolverStockApartado`, que
+ * decide qué se entregó mirando esos mismos recorridos abiertos. El fracaso exige un motivo activo:
+ * «Otro» si está, si no el primero activo. Sin ninguno, o si un recorrido cambió en el medio, el
+ * trabajo queda abierto y se avisa en el log; la cancelación sigue. Los ya cerrados no se tocan.
+ */
+async function cerrarTrabajosDelPedido(tx: Tx, d: { workspaceId: string; pedidoId: string; motivo: string }): Promise<void> {
+  const { workspaceId, pedidoId } = d;
+  const trabajos = await tx.fotofficeProyecto.findMany({ where: { workspaceId, pedidoId }, select: { id: true } });
+  if (trabajos.length === 0) return;
+  const abiertos = await tx.fotofficeJourney.findMany({
+    where: { workspaceId, subjectType: "PROYECTO", subjectId: { in: trabajos.map((t) => t.id) }, kind: "TRABAJO", closedAt: null, stageId: { not: null } },
+    select: { id: true },
+  });
+  if (abiertos.length === 0) return;
+
+  const motivo =
+    (await tx.fotofficeLossReason.findFirst({ where: { workspaceId, name: MOTIVO_CANCELACION_PEDIDO, isActive: true }, select: { id: true } })) ??
+    (await tx.fotofficeLossReason.findFirst({ where: { workspaceId, isActive: true }, select: { id: true }, orderBy: { order: "asc" } }));
+  if (!motivo) {
+    console.warn("[pedidos] cancelar: sin motivo de cierre activo, los trabajos quedan abiertos", { workspaceId, pedidoId, trabajos: abiertos.length });
+    return;
+  }
+
+  // El contexto de sistema del motor (`contextoDeSistema`), sin traer `acceso.ts` y su sesión.
+  const ctx: CtxCircuitos = { workspaceId, userId: null, userLabel: "Sistema", role: null };
+  const nota = `Se canceló el pedido: ${d.motivo}`;
+  for (const j of abiertos) {
+    try {
+      await cerrarEnTransaccion(tx, ctx, j.id, SALIDAS.TRABAJO.fracaso, motivo.id, nota);
+    } catch (e) {
+      // Un rechazo del motor (p. ej. se movió en el medio) no escribió nada: no frena la cancelación.
+      if (!esRechazo(e)) throw e;
+      console.warn("[pedidos] cancelar: un trabajo no se pudo cerrar", { workspaceId, pedidoId, journeyId: j.id });
+    }
+  }
+}
+
 // --- Estados ----------------------------------------------------------------------------------
 
 /**
@@ -596,7 +640,11 @@ export async function cambiarEstadoPedido(
       });
       if (r.count !== 1) return { ok: false, error: MENSAJES_PEDIDO.cambio };
       // Cancelar devuelve el stock apartado que no se entregó, en la misma transacción.
-      if (a === "CANCELADO") await devolverStockApartado(tx, { workspaceId, pedidoId, createdByUserId: ctx.userId });
+      // Después, cierra sus trabajos abiertos (la devolución necesita verlos como estaban).
+      if (a === "CANCELADO") {
+        await devolverStockApartado(tx, { workspaceId, pedidoId, createdByUserId: ctx.userId });
+        await cerrarTrabajosDelPedido(tx, { workspaceId, pedidoId, motivo: cancelReason! });
+      }
       return { ok: true };
     });
   } catch (e) {
