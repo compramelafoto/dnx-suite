@@ -41,6 +41,11 @@ export type Fuente =
       /** Sólo los padres que cumplen (p. ej. productos que son combo). */
       filtro?: (payload: unknown) => boolean;
       mismoId?: boolean;
+      /**
+       * El hijo sale de lo mismo que la fila del padre (p. ej. el historial de etapas: cambiar de etapa cambia el
+       * padre). Con esto (o `mismoId`), "Volver a extraer" lo pide sólo de los padres que cambiaron.
+       */
+      reflejaPadre?: boolean;
     }
   /** Sin pedidos: sale de lo ya extraído de otra entidad (p. ej. los orígenes, de la configuración). */
   | { tipo: "derivada"; de: string; filas: Filas }
@@ -341,7 +346,7 @@ export const ENTIDADES: readonly Entidad[] = [
     clave: "proyectos_historial",
     nombre: "Historial de etapas de proyectos",
     idEsperado: false,
-    fuente: { tipo: "porPadre", padre: "proyectos", pedido: (id) => get(`/projects/progress/${id}/0/9999`), filas: filasDeLista },
+    fuente: { tipo: "porPadre", padre: "proyectos", reflejaPadre: true, pedido: (id) => get(`/projects/progress/${id}/0/9999`), filas: filasDeLista },
   },
   {
     clave: "proyectos_participantes",
@@ -385,7 +390,7 @@ export const ENTIDADES: readonly Entidad[] = [
     clave: "oportunidades_historial",
     nombre: "Historial de etapas de oportunidades",
     idEsperado: false,
-    fuente: { tipo: "porPadre", padre: "oportunidades", pedido: (id) => get(`/leads/progress/${id}/0/9999`), filas: filasDeLista },
+    fuente: { tipo: "porPadre", padre: "oportunidades", reflejaPadre: true, pedido: (id) => get(`/leads/progress/${id}/0/9999`), filas: filasDeLista },
   },
   {
     clave: "oportunidades_notas",

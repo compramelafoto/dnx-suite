@@ -24,14 +24,21 @@ import { redactarSecretos } from "./redactar";
  *   cada `FALLAS_SEGUIDAS_PAUSA` fallas seguidas vuelve a hacer una pausa (por si Alboom se cayó un rato).
  * - En los listados paginados, un 5xx tiene UNA pausa (`REINTENTAR`); si la misma página vuelve a fallar, se pide
  *   ese mismo tramo con páginas más chicas (25 → 5 → 1), calculando `pageNumber` desde el desplazamiento absoluto,
- *   así no se saltea ni se repite ninguna fila. Si una fila sola sigue fallando, se saltea ese desplazamiento (con
- *   una duda, sin datos) y se sigue: un pedido roto en Alboom no deja la extracción en `ERROR`. Si se saltean
- *   `FALLAS_SEGUIDAS_PAUSA` filas seguidas, vuelve a pausar (por si Alboom se cayó un rato).
+ *   así no se saltea ni se repite ninguna fila. Si una fila sola sigue fallando, se "sondean" las siguientes (de a
+ *   una, hasta `SONDEO_FILAS`): si alguna responde, Alboom anda y las que fallaron están rotas, se saltean (con una
+ *   duda, sólo el desplazamiento) y se sigue: un pedido roto no deja la extracción en `ERROR`. Si ninguna responde,
+ *   Alboom está caído: `REINTENTAR` SIN mover el cursor, así una caída general termina en pausas (o en `ERROR` tras
+ *   muchas) pero nunca en filas salteadas.
+ * - Con orden descendente (o en un tramo chico), una página igual a la anterior puede ser un corrimiento (entraron
+ *   registros nuevos arriba): se sigue avanzando (repetir filas no duplica, se guardan por id) y sólo se frena tras
+ *   `REPETIDAS_MAX` repeticiones seguidas.
  * - Si cambia `Entidad.version` (se corrigió cómo pedir), esa entidad se rehace desde cero.
  * - Sin tiempo → `PAUSADA`.
  *
- * "Volver a extraer" (`modo: "INCREMENTAL"`): los hijos por padre (`porPadre`) se piden sólo de los padres que
- * hacen falta, sin tocar el esquema de la base. Cada entidad padre anota en el avance los ids nuevos o cambiados de
+ * "Volver a extraer" (`modo: "INCREMENTAL"`): los hijos por padre que REFLEJAN la fila del padre (el detalle con
+ * el mismo id, `mismoId`, y los historiales de etapas, `reflejaPadre`) se piden sólo de los padres que hacen falta.
+ * Los que pueden cambiar sin que cambie el padre (correos, notas, actividades, ítems, costos, participantes,
+ * combos) se piden siempre de todos. Para los primeros, sin tocar el esquema de la base. Cada entidad padre anota en el avance los ids nuevos o cambiados de
  * huella en esta extracción (`tocados`, con tope); cada hijo anota los padres que fallaron (`fallidos`). Al
  * empezar un hijo se busca, en las extracciones anteriores (`anteriores`, de la más nueva a la más vieja), la
  * última donde ese hijo quedó `LISTA` con la misma versión (el "ancla": ahí se pidieron los hijos de todos los
@@ -93,6 +100,11 @@ export const FALLAS_SIN_EXITO = 10;
 /** Con éxitos previos: cada tantas fallas seguidas vuelve a hacer una pausa antes de seguir salteando. */
 export const FALLAS_SEGUIDAS_PAUSA = 10;
 
+/** Filas siguientes que se prueban, de a una, antes de saltear una que falla sola. */
+export const SONDEO_FILAS = 3;
+/** Páginas iguales seguidas (en orden descendente o tramo chico) antes de frenar el listado. */
+export const REPETIDAS_MAX = 3;
+
 /** Tamaños de página más chicos para reintentar un tramo que dio 5xx. */
 const ESCALERA = [25, 5, 1] as const;
 
@@ -100,6 +112,12 @@ const ESCALERA = [25, 5, 1] as const;
 export function tamanoMenor(tamano: number): number | null {
   for (const t of ESCALERA) if (t < tamano && tamano % t === 0) return t;
   return tamano > 1 ? 1 : null;
+}
+
+/** ¿El hijo es un reflejo de la fila del padre (si el padre no cambió, él tampoco)? */
+export function reflejaPadre(entidad: Entidad): boolean {
+  const f = entidad.fuente;
+  return f.tipo === "porPadre" && (f.mismoId === true || f.reflejaPadre === true);
 }
 
 class SinTiempo extends Error {}
@@ -162,7 +180,7 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
   const modo = o.modo ?? "TODO";
   const anteriores = o.anteriores ?? [];
   /** Entidades de las que cuelgan hijos `porPadre`: anotan lo nuevo o cambiado (`tocados`). */
-  const padres = new Set([...ENTIDADES, ...entidades].flatMap((x) => (x.fuente.tipo === "porPadre" ? [x.fuente.padre] : [])));
+  const padres = new Set([...ENTIDADES, ...entidades].flatMap((x) => (x.fuente.tipo === "porPadre" && reflejaPadre(x) ? [x.fuente.padre] : [])));
 
   async function guardarAvance(e: AvanceEntidad): Promise<void> {
     e.actualizado = new Date(o.ahora()).toISOString();
@@ -206,7 +224,7 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
    * arriba). Determinístico: una tanda que retoma calcula lo mismo.
    */
   function padresAPedir(entidad: Entidad, padre: string): Set<string> | null {
-    if (modo !== "INCREMENTAL") return null;
+    if (modo !== "INCREMENTAL" || !reflejaPadre(entidad)) return null;
     const ep = avance.entidades[padre];
     if (!ep || ep.tocadosDesbordado || ep.tocados === undefined) return null;
     const pedir = new Set(ep.tocados);
@@ -312,6 +330,7 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
       }
       case "paginada": {
         const base = entidad.tamanoPagina ?? tam;
+        const descendente = f.body(1, base).sortDir === "DESC";
         // Avance viejo: el cursor era la página (con el tamaño de siempre).
         if (e.desde === undefined) e.desde = e.pagina && e.pagina > 1 ? (e.pagina - 1) * base : 0;
         for (;;) {
@@ -341,33 +360,44 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
               await guardarAvance(e);
               continue;
             }
-            // Una sola fila y sigue fallando: se saltea ese desplazamiento (sin datos de la fila) y se sigue.
-            e.saltados = (e.saltados ?? 0) + 1;
-            e.errores++;
-            e.dudas++;
-            if ((e.filasSalteadas?.length ?? 0) < MAX_SALTADAS) e.filasSalteadas = [...(e.filasSalteadas ?? []), desde];
-            e.ultimoError = `Alboom respondió ${(error as AlboomApiError).status} en la fila ${desde + 1} del listado aun pidiéndola sola: se salteó`;
-            e.desde = desde + 1;
-            e.pagina = Math.floor((desde + 1) / base) + 1;
-            e.fallasSeguidas = (e.fallasSeguidas ?? 0) + 1;
-            const fin = e.total !== undefined && (e.leidas ?? 0) + e.saltados >= e.total;
-            if (fin) e.estado = "LISTA";
-            // Muchas filas seguidas que fallan: puede ser Alboom caído; otra pausa antes de seguir salteando.
-            const pausar = !fin && e.fallasSeguidas >= FALLAS_SEGUIDAS_PAUSA;
-            if (pausar) e.fallasSeguidas = 0;
+            // Una sola fila y sigue fallando. ¿Está rota esa fila o está caído Alboom? Se prueban las siguientes.
+            let rotas = 0;
+            for (let k = 1; k <= SONDEO_FILAS; k++) {
+              try {
+                await pedir(e, { method: "POST", ruta: f.ruta, body: f.body(desde + k + 1, 1) });
+                rotas = k;
+                break;
+              } catch (otro) {
+                const otro5xx = otro instanceof AlboomApiError && otro.transitorio && (otro.status ?? 0) >= 500;
+                if (!otro5xx) throw otro;
+              }
+            }
+            // Ninguna respondió: Alboom está caído. Pausa sin mover el cursor; nunca se saltea por una caída.
+            if (rotas === 0) throw error;
+            // Alboom anda y estas filas no: se saltean (sólo el desplazamiento, sin datos) y se sigue. La que
+            // respondió se vuelve a pedir en la vuelta siguiente (es un pedido de más, pero el camino es uno solo).
+            e.saltados = (e.saltados ?? 0) + rotas;
+            e.errores += rotas;
+            e.dudas += rotas;
+            for (let k = 0; k < rotas && (e.filasSalteadas?.length ?? 0) < MAX_SALTADAS; k++) e.filasSalteadas = [...(e.filasSalteadas ?? []), desde + k];
+            e.ultimoError = `Alboom respondió ${(error as AlboomApiError).status} en la fila ${desde + 1} del listado aun pidiéndola sola (y las siguientes sí respondieron): se salteó`;
+            e.desde = desde + rotas;
+            e.pagina = Math.floor((desde + rotas) / base) + 1;
             await guardarAvance(e);
-            if (fin) return;
-            if (pausar) throw error;
             continue;
           }
           const filas = filasDeLista(json);
           if (filas === null) return errorDeEntidad(e, FORMA, true);
           const total = esObjeto(json) && json.count != null && json.count !== "" ? Number(json.count) : NaN;
           if (Number.isFinite(total)) e.total = total;
-          e.fallasSeguidas = 0;
           if (filas.length > 0) {
             const firma = firmaDePagina(filas, entidad.claves);
-            if (firma === e.huellaPagina) return paginaRepetida(e);
+            if (firma === e.huellaPagina) {
+              // En orden descendente (o de a pocas filas) puede ser un corrimiento por registros nuevos: se sigue.
+              if (!(descendente || tamano < base)) return paginaRepetida(e);
+              e.repetidas = (e.repetidas ?? 0) + 1;
+              if (e.repetidas >= REPETIDAS_MAX) return paginaRepetida(e);
+            } else delete e.repetidas;
             e.huellaPagina = firma;
           }
           await guardarFilas(entidad, e, filas, null);

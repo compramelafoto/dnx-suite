@@ -271,6 +271,23 @@ describe("tanda del cron", () => {
     expect(B.datos.extracciones.at(-1)).toMatchObject({ status: "ERROR" });
   });
 
+  it("Alboom caído a mitad de un listado (todo 5xx): pausas sin saltear filas y, tras MAX_REINTENTOS, ERROR", async () => {
+    await preparar();
+    const reloj = relojFalso();
+    // La primera página (100 contactos) anda; todo lo que sigue da 500, de cualquier tamaño.
+    const red = alboomFetch({ contactos: (p) => (p >= 2 ? json(500, {}) : null) });
+    for (let i = 0; i <= MAX_REINTENTOS + 1; i++) {
+      reloj.avanzar(2 * 60 * 60_000);
+      await correrExtraccionesAlboom({ ahora: reloj.ahora, opcionesCliente: { fetchImpl: red.impl, esperar: reloj.esperar } });
+    }
+    expect(B.datos.extracciones[0]).toMatchObject({ status: "ERROR" });
+    expect(String(B.datos.extracciones[0]!.errorReason)).toMatch(/varios intentos/);
+    const a = leerAvance(B.datos.extracciones[0]!.progress);
+    expect(a.entidades.contactos).toMatchObject({ cantidad: 100, desde: 100 });
+    expect(a.entidades.contactos!.saltados).toBeUndefined();
+    expect(B.datos.crudos.filter((f) => f.entity === "contactos")).toHaveLength(100);
+  });
+
   it("un 429 espera (cada vez más) y reintenta en una tanda posterior; tras muchos, ERROR", async () => {
     await preparar();
     const reloj = relojFalso();

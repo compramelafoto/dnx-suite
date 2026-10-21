@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { avanceInicial, leerAvance, type Avance } from "./avance";
 import { AlboomApiError, AlboomLoginError, esRutaDeLectura, type ClienteAlboom, type PedidoLectura } from "./client";
 import { ENTIDADES, entidadPorClave, type Entidad } from "./entidades";
-import { armarFilas, detectarId, ejecutarTanda, FALLAS_SEGUIDAS_PAUSA, FALLAS_SIN_EXITO, tamanoMenor, type Almacen, type FilaCruda } from "./extractor";
+import { armarFilas, detectarId, ejecutarTanda, FALLAS_SEGUIDAS_PAUSA, FALLAS_SIN_EXITO, REPETIDAS_MAX, reflejaPadre, tamanoMenor, type Almacen, type FilaCruda } from "./extractor";
 import { huella } from "./huella";
 
 const WS = "ws-1";
@@ -634,13 +634,13 @@ describe("pedidos de Alboom: el listado como el panel", () => {
 });
 
 describe("listados paginados: una fila rota no frena la extracción", () => {
-  /** 60 pedidos (ids 1…60); pedir cualquier página que incluya el desplazamiento 37 (id 38) da 500. */
-  function alboomConFilaRota() {
+  /** 60 pedidos (ids 1…60); pedir cualquier página que incluya el desplazamiento `rota` (id rota+1) da 500. */
+  function alboomConFilaRota(rota = 37) {
     const todos = Array.from({ length: 60 }, (_, i) => ({ id: String(i + 1) }));
     return clienteFalso((p) => {
       const b = p.body as { pageNumber: number; pageSize: number };
       const desde = (b.pageNumber - 1) * b.pageSize;
-      if (desde <= 37 && 37 < desde + b.pageSize) throw new AlboomApiError("Alboom respondió 500 en /orders/paginate", 500, true);
+      if (desde <= rota && rota < desde + b.pageSize) throw new AlboomApiError("Alboom respondió 500 en /orders/paginate", 500, true);
       return { rows: todos.slice(desde, desde + b.pageSize), count: todos.length };
     });
   }
@@ -670,7 +670,8 @@ describe("listados paginados: una fila rota no frena la extracción", () => {
       "35+5", // falla → de a 1
       "35+1",
       "36+1",
-      "37+1", // falla sola → se saltea
+      "37+1", // falla sola → se prueba la siguiente
+      "38+1", // responde: Alboom anda, la 37 está rota y se saltea
       "38+1",
       "39+1",
       "40+5",
@@ -703,6 +704,42 @@ describe("listados paginados: una fila rota no frena la extracción", () => {
     expect(r.resultado).toBe("COMPLETA");
     expect(m.de("pedidos")).toHaveLength(59);
     expect(r.avance.entidades.pedidos).toMatchObject({ estado: "LISTA", saltados: 1 });
+  });
+
+  it("una fila rota al principio del tramo chico también se saltea sola", async () => {
+    const { cliente } = alboomConFilaRota(25);
+    const m = almacenEnMemoria();
+    let r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT] });
+    expect(r.resultado).toBe("REINTENTAR");
+    r.avance.reintentos = 1;
+    r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT], avance: r.avance });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(m.de("pedidos")).toHaveLength(59);
+    expect(m.de("pedidos").some((f) => f.alboomId === "26")).toBe(false);
+    expect(r.avance.entidades.pedidos).toMatchObject({ estado: "LISTA", saltados: 1, filasSalteadas: [25] });
+  });
+
+  it("Alboom caído a mitad del listado: pausa tras pausa sin mover el cursor y sin saltear ninguna fila", async () => {
+    // La primera página anda; desde la fila 26 todo da 500 (también de a una).
+    const todos = Array.from({ length: 60 }, (_, i) => ({ id: String(i + 1) }));
+    const { cliente } = clienteFalso((p) => {
+      const b = p.body as { pageNumber: number; pageSize: number };
+      const desde = (b.pageNumber - 1) * b.pageSize;
+      if (desde + b.pageSize > 25) throw new AlboomApiError("Alboom respondió 502", 502, true);
+      return { rows: todos.slice(desde, desde + b.pageSize), count: 60 };
+    });
+    const m = almacenEnMemoria();
+    let avance = avanceInicial();
+    // Lo que hace `correr`: cada REINTENTAR suma un reintento (y tras MAX_REINTENTOS = 8, ERROR).
+    for (let i = 0; i < 9; i++) {
+      const r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT], avance });
+      expect(r.resultado).toBe("REINTENTAR");
+      avance = leerAvance(JSON.parse(JSON.stringify(r.avance)));
+      avance.reintentos++;
+      expect(avance.entidades.pedidos).toMatchObject({ desde: 25, leidas: 25 });
+      expect(avance.entidades.pedidos!.saltados).toBeUndefined();
+    }
+    expect(m.de("pedidos")).toHaveLength(25);
   });
 
   it("un 429 nunca achica la página: sólo pausa", async () => {
@@ -905,5 +942,69 @@ describe("compatibilidad con el avance de la extracción que ya está corriendo"
     expect(roto.entidades.pedidos!.tramos).toBeUndefined();
     expect(roto.entidades.pedidos!.tocados).toEqual(["3"]);
     expect(roto.entidades.pedidos!.fallidos).toBeUndefined();
+  });
+});
+
+describe("orden descendente: una página igual puede ser un corrimiento", () => {
+  const ENT_DESC: Entidad = {
+    clave: "pedidos",
+    nombre: "Pedidos",
+    tamanoPagina: 25,
+    fuente: { tipo: "paginada", ruta: "/orders/paginate", body: (p, t) => ({ pageNumber: p, pageSize: t, sortDir: "DESC" }) },
+  };
+
+  it("si entran registros nuevos arriba y la página siguiente sale igual, sigue y no pierde ninguno", async () => {
+    // 60 pedidos en orden descendente (60…1). Después de la primera página entran 25 nuevos (85…61) arriba.
+    let lista = Array.from({ length: 60 }, (_, i) => ({ id: String(60 - i) }));
+    let servidas = 0;
+    const { cliente } = clienteFalso((p) => {
+      const b = p.body as { pageNumber: number; pageSize: number };
+      const r = { rows: lista.slice((b.pageNumber - 1) * b.pageSize, b.pageNumber * b.pageSize), count: lista.length };
+      if (++servidas === 1) lista = [...Array.from({ length: 25 }, (_, i) => ({ id: String(85 - i) })), ...lista];
+      return r;
+    });
+    const m = almacenEnMemoria();
+    const r = await tanda({ cliente, almacen: m.almacen, entidades: [ENT_DESC] });
+    expect(r.resultado).toBe("COMPLETA");
+    const ids = new Set(m.de("pedidos").map((f) => Number(f.alboomId)));
+    for (let id = 1; id <= 60; id++) expect(ids.has(id)).toBe(true);
+    expect(r.avance.entidades.pedidos!.estado).toBe("LISTA");
+    expect(r.avance.entidades.pedidos!.ultimoError ?? "").not.toMatch(/misma página/);
+  });
+
+  it("si repite la misma página una y otra vez, frena tras REPETIDAS_MAX con una duda", async () => {
+    const filas = Array.from({ length: 25 }, (_, i) => ({ id: String(i + 1) }));
+    const { cliente, pedidos } = clienteFalso(() => ({ rows: filas, count: 500 }));
+    const r = await tanda({ cliente, almacen: almacenEnMemoria().almacen, entidades: [ENT_DESC] });
+    expect(r.resultado).toBe("COMPLETA");
+    expect(pedidos).toHaveLength(1 + REPETIDAS_MAX);
+    expect(r.avance.entidades.pedidos).toMatchObject({ estado: "LISTA", dudas: 1 });
+    expect(r.avance.entidades.pedidos!.ultimoError).toMatch(/misma página/);
+  });
+});
+
+describe("volver a extraer: los hijos que no reflejan al padre se piden siempre", () => {
+  it("notas (y correos, actividades, costos, participantes) de todos los padres; el historial sólo de los que cambiaron", async () => {
+    let leads = [{ id: "101", v: 1 }, { id: "102", v: 1 }, { id: "103", v: 1 }];
+    const { cliente, pedidos } = clienteFalso((p) => {
+      if (p.ruta === "/leads/paginate") return paginar(leads, p);
+      if (p.ruta.startsWith("/leads/progress/")) return [{ stage_id: "1" }];
+      if (p.ruta === "/notes/paginate") return { rows: [] };
+      throw new AlboomApiError(`404 ${p.ruta}`, 404);
+    });
+    const m = almacenEnMemoria();
+    const entidades = ["oportunidades", "oportunidades_historial", "oportunidades_notas"].map((c) => entidadPorClave(c)!);
+    const todo = await tanda({ cliente, almacen: m.almacen, entidades });
+    leads = leads.map((l) => (l.id === "102" ? { ...l, v: 2 } : l));
+    const n = pedidos.length;
+    const r = await tanda({ cliente, almacen: m.almacen, entidades, modo: "INCREMENTAL", anteriores: [leerAvance(JSON.parse(JSON.stringify(todo.avance)))] });
+    expect(r.resultado).toBe("COMPLETA");
+    const despues = pedidos.slice(n);
+    expect(despues.filter((p) => p.ruta.startsWith("/leads/progress/")).map((p) => p.ruta)).toEqual(["/leads/progress/102/0/9999"]);
+    expect(despues.filter((p) => p.ruta === "/notes/paginate").map((p) => (p.body as { id: string }).id)).toEqual(["101", "102", "103"]);
+
+    const siempre = ["oportunidades_notas", "oportunidades_actividades", "oportunidades_correos", "pedidos_costos", "pedidos_items", "proyectos_participantes", "combos", "costos_producto"];
+    for (const c of siempre) expect(reflejaPadre(entidadPorClave(c)!)).toBe(false);
+    for (const c of ["presupuestos_detalle", "pedidos_detalle", "contratos_detalle", "oportunidades_historial", "proyectos_historial"]) expect(reflejaPadre(entidadPorClave(c)!)).toBe(true);
   });
 });

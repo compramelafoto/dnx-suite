@@ -53,6 +53,8 @@ export type AvanceEntidad = {
   saltados?: number;
   /** Desplazamientos de esas filas (sin datos de la cuenta), hasta `MAX_SALTADAS`. */
   filasSalteadas?: number[];
+  /** Listados paginados: páginas iguales seguidas (corrimientos en orden descendente). */
+  repetidas?: number;
   /** Listados paginados: el último `count` que informó Alboom. */
   total?: number;
   /**
@@ -159,6 +161,7 @@ export function leerAvance(json: unknown): Avance {
       ...(Array.isArray(r.filasSalteadas)
         ? { filasSalteadas: r.filasSalteadas.filter((x): x is number => typeof x === "number").map(numero).slice(0, MAX_SALTADAS) }
         : {}),
+      ...(typeof r.repetidas === "number" ? { repetidas: numero(r.repetidas) } : {}),
       ...(typeof r.total === "number" ? { total: numero(r.total) } : {}),
       ...(textos(r.tocados, MAX_TOCADOS) ? { tocados: textos(r.tocados, MAX_TOCADOS) } : {}),
       ...(r.tocadosDesbordado === true ? { tocadosDesbordado: true } : {}),
