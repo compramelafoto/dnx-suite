@@ -17,7 +17,19 @@ type Modo = "cerrado" | "entrada" | "ajuste";
  * de `lib/sales/stock.ts`; esto sólo junta lo que ya tipeó la persona en un `FormData` y lo
  * manda al servidor.
  */
-export function StockForm({ product, destacado }: { product: ProductRow; destacado: boolean }) {
+export function StockForm({
+  product,
+  destacado,
+  cobertura,
+  aviso,
+}: {
+  product: ProductRow;
+  destacado: boolean;
+  /** «Te alcanza para ~N días», «Se termina hoy», «Ya no queda» o «Sin consumo en 30 días». */
+  cobertura?: string | null;
+  /** Por qué está para comprar, si no se ve en la cobertura (p. ej. «Debajo del mínimo (5)»). */
+  aviso?: string | null;
+}) {
   const [modo, setModo] = useState<Modo>("cerrado");
   const [enKit, setEnKit] = useState(false);
 
@@ -34,6 +46,15 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           {product.variants.length > 0 ? (
             <p className="text-xs text-[var(--fo-muted)]">
               {product.variants.map((v) => `${v.name}: ${v.stockQty}`).join(" · ")}
+            </p>
+          ) : null}
+          {cobertura || aviso ? (
+            <p className="text-xs">
+              {cobertura ? (
+                <span className={destacado ? "text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}>{cobertura}</span>
+              ) : null}
+              {cobertura && aviso ? <span className="text-[var(--fo-muted)]"> · </span> : null}
+              {aviso ? <span className="font-medium text-[var(--fo-danger)]">{aviso}</span> : null}
             </p>
           ) : null}
         </div>

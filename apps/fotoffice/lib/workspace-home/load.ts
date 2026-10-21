@@ -14,6 +14,8 @@ import { listAccounts, movementsForBalance } from "@/lib/cash/repository";
 import { balancesByAccountMinor } from "@/lib/cash/balance";
 import { listBookingsInRange, listSpaces } from "@/lib/bookings/repository";
 import { countRequestsByFilter } from "@/lib/coverages/repository";
+import { paraComprar } from "@/lib/stock/avisos";
+import { itemsDeStock } from "@/lib/stock/avisos-servidor";
 
 /**
  * Los números del inicio de la institución.
@@ -51,6 +53,8 @@ export type HomeData = {
   pedidosNuevos: number | null;
   /** Placas por publicar en redes (Comunicación). */
   comunicacion: { socioDeLaSemana: string | null; bienvenidasSinPublicar: number } | null;
+  /** Insumos y productos para comprar (Stock), con la misma regla que la pantalla. */
+  paraComprar: { total: number; nombres: string[] } | null;
 };
 
 async function seguro<T>(nombre: string, fn: () => Promise<T>): Promise<T | null> {
@@ -87,7 +91,7 @@ export async function loadWorkspaceHome(input: {
   const cobra = ver.cuotas;
   const enUnaSemana = new Date(now.getTime() + 7 * 86_400_000);
 
-  const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos, comunicacion] =
+  const [socios, cuotas, cobradoMes, altas, caja, reservas, sorteo, premios, coberturas, pedidos, comunicacion, compras] =
     await Promise.all([
       ver.socios
         ? seguro("socios", async () => {
@@ -187,6 +191,12 @@ export async function loadWorkspaceHome(input: {
             };
           })
         : null,
+      ver.stock
+        ? seguro("para comprar", async () => {
+            const lista = paraComprar(await itemsDeStock(workspaceId));
+            return { total: lista.length, nombres: lista.slice(0, 3).map((i) => i.nombre) };
+          })
+        : null,
     ]);
 
   return {
@@ -225,5 +235,6 @@ export async function loadWorkspaceHome(input: {
     coberturas: coberturas ? { nuevas: coberturas.nuevas, urgentes: coberturas.urgentes } : null,
     pedidosNuevos: pedidos,
     comunicacion,
+    paraComprar: compras,
   };
 }

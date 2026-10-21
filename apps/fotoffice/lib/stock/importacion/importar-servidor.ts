@@ -152,6 +152,21 @@ export async function importarEnRecepcion(
           ).map((t) => t.productId),
     );
 
+    // Insumos con presentación de compra: si la factura no dijo cuántas unidades trae el bulto,
+    // se toma la de la ficha del insumo (cantidad y costo siguen siendo por bulto).
+    const bultoDeInsumo = new Map<string, number>();
+    const sinTalles = ids.filter((id) => !conTalles.has(id));
+    if (sinTalles.length > 0) {
+      const productos = await tx.product.findMany({
+        where: { workspaceId, id: { in: sinTalles } },
+        select: { id: true, fotofficeInsumo: { select: { unidadesPorCompra: true } } },
+      });
+      for (const pr of productos) {
+        const n = pr.fotofficeInsumo?.unidadesPorCompra ?? null;
+        if (n !== null && n > 1) bultoDeInsumo.set(pr.id, n);
+      }
+    }
+
     const ultima = await tx.fotofficeRecepcionLinea.findFirst({
       where: { recepcionId },
       orderBy: { order: "desc" },
@@ -166,8 +181,10 @@ export async function importarEnRecepcion(
       const cantidad = Math.max(1, Math.round(f.cantidad));
       if (f.cantidad < 1) corregidas += 1;
       const upp = f.unidades_por_paquete;
-      const enBultos = upp !== null && upp > 1;
       const productId = a.productId && !conTalles.has(a.productId) ? a.productId : null;
+      const delInsumo = productId ? (bultoDeInsumo.get(productId) ?? null) : null;
+      const bultos = upp !== null && upp > 1 ? upp : delInsumo;
+      const enBultos = bultos !== null;
       if (!productId) sinAsociar += 1;
       const costo = costoMinor(f.costo_unitario);
       const barras = textoONulo(f.codigo_barras);
@@ -179,7 +196,7 @@ export async function importarEnRecepcion(
         codigoBarras: barras ? (normalizeBarcode(barras) ?? barras) : null,
         cantidad,
         enUnidadDeCompra: enBultos,
-        unidadesPorCompra: enBultos ? upp : null,
+        unidadesPorCompra: bultos,
         costoUnitarioArs: costo === null ? null : minorToDecimalString(costo),
         origen: "IMPORTACION",
         order: desde + i,
@@ -226,13 +243,19 @@ export async function elegirProductoDeLineaImportada(
   return enBorrador(workspaceId, recepcionId, async (tx) => {
     const linea = await tx.fotofficeRecepcionLinea.findFirst({
       where: { id: lineaId, recepcionId, workspaceId },
-      select: { id: true, descripcionOriginal: true, origen: true },
+      select: { id: true, descripcionOriginal: true, origen: true, unidadesPorCompra: true },
     });
     if (!linea) return { ok: false as const, error: "Esa línea no existe." };
     const p = await productoParaLinea(tx, workspaceId, productId);
     if (!p.ok) return p;
 
-    await tx.fotofficeRecepcionLinea.update({ where: { id: linea.id }, data: { productId } });
+    // Línea sin presentación y producto que es un insumo con bulto: se toma el de la ficha.
+    const delInsumo = p.unidadesPorCompra !== null && p.unidadesPorCompra > 1 ? p.unidadesPorCompra : null;
+    const tomarBulto = linea.unidadesPorCompra == null && delInsumo !== null;
+    await tx.fotofficeRecepcionLinea.update({
+      where: { id: linea.id },
+      data: tomarBulto ? { productId, enUnidadDeCompra: true, unidadesPorCompra: delInsumo } : { productId },
+    });
 
     if (linea.origen === "IMPORTACION") {
       const r = await tx.fotofficeRecepcion.findFirst({

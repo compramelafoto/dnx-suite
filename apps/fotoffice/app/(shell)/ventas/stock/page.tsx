@@ -2,10 +2,18 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listProducts } from "@/lib/sales/repository";
-import { needsRestock } from "@/lib/sales/stock";
+import {
+  consumoDiario,
+  diasDeCobertura,
+  listaPorProveedor,
+  paraComprar,
+  textoCobertura,
+} from "@/lib/stock/avisos";
+import { itemsDeStock } from "@/lib/stock/avisos-servidor";
 import { kodak305Pendiente } from "@/lib/stock/kodak305";
 import { configurarKodak305Action } from "../actions";
 import { StockForm } from "../stock-form";
+import { CopiarLista } from "./copiar-lista";
 
 export const dynamic = "force-dynamic";
 
@@ -27,17 +35,28 @@ export default async function StockPage({
   const { workspace } = await requireSalesStaff();
   const sp = await searchParams;
 
-  const productos = await listProducts(workspace.id, { onlyActive: true, tracksStock: true });
-  const aReponer = productos.filter((p) => needsRestock(p));
-  const insumos = productos.filter((p) => p.kind === "INSUMO" && !needsRestock(p));
-  const resto = productos.filter((p) => p.kind !== "INSUMO" && !needsRestock(p));
-  const kodakPendiente = await kodak305Pendiente(workspace.id);
+  const [productos, items, kodakPendiente] = await Promise.all([
+    listProducts(workspace.id, { onlyActive: true, tracksStock: true }),
+    itemsDeStock(workspace.id),
+    kodak305Pendiente(workspace.id),
+  ]);
+  // Qué comprar sale de `lib/stock/avisos.ts`, la misma regla que usa la tarjeta del inicio:
+  // negativo, debajo del mínimo, o una semana de consumo o menos.
+  const compras = paraComprar(items);
+  const porProveedor = listaPorProveedor(items);
+  const productoPorId = new Map(productos.map((p) => [p.id, p]));
+  const enCompras = new Set(compras.map((i) => i.productId));
+  const cobertura = new Map(
+    items.map((i) => [i.productId, textoCobertura(diasDeCobertura(i.stockQty, consumoDiario(i.consumo30)), i.stockQty)]),
+  );
+  const insumos = productos.filter((p) => p.kind === "INSUMO" && !enCompras.has(p.id));
+  const resto = productos.filter((p) => p.kind !== "INSUMO" && !enCompras.has(p.id));
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Stock"
-        description="Qué queda, qué entró y qué hay que reponer."
+        description="Qué queda, cuánto te dura y qué hay que comprar."
         actions={
           <Link href="/ventas/stock/recepcion" className="fo-btn fo-btn-primary text-sm">
             Recibir pedido
@@ -84,29 +103,77 @@ export default async function StockPage({
         </div>
       ) : (
         <>
-          {aReponer.length > 0 ? (
+          {compras.length > 0 ? (
             <section className="space-y-3">
               <h2 className="text-base font-semibold text-[var(--fo-danger)]">
-                Para reponer ({aReponer.length})
+                Para comprar ({compras.length})
               </h2>
+              <p className="text-sm text-[var(--fo-muted)]">
+                Lo que está en negativo, debajo del mínimo o que alcanza para una semana o menos,
+                según lo que salió en los últimos 30 días.
+              </p>
               <div className="space-y-3">
-                {aReponer.map((p) => (
-                  <StockForm key={p.id} product={p} destacado />
-                ))}
+                {compras.map((i) => {
+                  const p = productoPorId.get(i.productId);
+                  if (!p) return null;
+                  const debajo =
+                    i.minStockQty !== null && i.stockQty < i.minStockQty
+                      ? `Debajo del mínimo (${i.minStockQty})`
+                      : null;
+                  return (
+                    <StockForm
+                      key={p.id}
+                      product={p}
+                      destacado
+                      cobertura={textoCobertura(i.dias, i.stockQty)}
+                      aviso={debajo}
+                    />
+                  );
+                })}
               </div>
             </section>
           ) : (
             <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-              Nada por debajo del mínimo por ahora.
+              Nada para comprar por ahora: nada debajo del mínimo ni por terminarse esta semana.
             </p>
           )}
+
+          {porProveedor.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-base font-semibold text-[var(--fo-text)]">Lista para el proveedor</h2>
+              <p className="text-sm text-[var(--fo-muted)]">
+                Cantidades sugeridas para llegar al mínimo o cubrir un mes de consumo. Copiala y
+                mandásela tal cual, o ajustala antes.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {porProveedor.map((g) => (
+                  <div key={g.proveedor} className="fo-card space-y-2 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium text-[var(--fo-text)]">{g.proveedor}</p>
+                      <CopiarLista texto={g.textoCopiable} />
+                    </div>
+                    <ul className="space-y-1 text-sm text-[var(--fo-text)]">
+                      {g.renglones.map((r, idx) => (
+                        <li key={`${idx}-${r.texto}`}>- {r.texto}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {insumos.length > 0 ? (
             <section className="space-y-3">
               <h2 className="text-base font-semibold text-[var(--fo-muted)]">Insumos</h2>
               <div className="space-y-3">
                 {insumos.map((p) => (
-                  <StockForm key={p.id} product={p} destacado={false} />
+                  <StockForm
+                    key={p.id}
+                    product={p}
+                    destacado={false}
+                    cobertura={cobertura.get(p.id) ?? null}
+                  />
                 ))}
               </div>
             </section>
@@ -117,7 +184,12 @@ export default async function StockPage({
               <h2 className="text-base font-semibold text-[var(--fo-muted)]">Productos</h2>
               <div className="space-y-3">
                 {resto.map((p) => (
-                  <StockForm key={p.id} product={p} destacado={false} />
+                  <StockForm
+                    key={p.id}
+                    product={p}
+                    destacado={false}
+                    cobertura={cobertura.get(p.id) ?? null}
+                  />
                 ))}
               </div>
             </section>
