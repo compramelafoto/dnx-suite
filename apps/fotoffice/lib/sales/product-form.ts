@@ -24,6 +24,7 @@ export type ProductFormValues = {
   minStockQty: number | null;
   categoryId: string | null;
   supplierName: string | null;
+  preferredProveedorId: string | null;
   imageUrl: string | null;
   isActive: boolean;
 };
@@ -117,6 +118,7 @@ export function parseProductForm(fd: FormData): ProductFormResult {
       minStockQty,
       categoryId: trimmedOrNull(fd.get("categoryId")),
       supplierName: trimmedOrNull(fd.get("supplierName")),
+      preferredProveedorId: trimmedOrNull(fd.get("preferredProveedorId")),
       imageUrl,
       isActive,
     },

@@ -28,6 +28,7 @@ import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/consta
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { lockStockRows } from "@/lib/sales/stock-lock";
+import { calibrarMargenPct, margenValido } from "@/lib/precios-proveedor/margen";
 
 const CATALOGO = "/ventas/catalogo";
 const STOCK = "/ventas/stock";
@@ -72,6 +73,24 @@ export async function saveProductAction(formData: FormData): Promise<void> {
     if (propia === 0) redirect(`${destinoError}?error=${encodeURIComponent("Esa categoría no existe.")}`);
   }
 
+  // Mismo control que la categoría: un proveedor de otro negocio no se puede colgar acá.
+  if (v.preferredProveedorId) {
+    const propio = await prisma.fotofficeProveedor.count({ where: { id: v.preferredProveedorId, workspaceId: workspace.id } });
+    if (propio === 0) redirect(`${destinoError}?error=${encodeURIComponent("Ese proveedor no existe.")}`);
+  }
+
+  // Con margen guardado (Ventas → Costos y márgenes), la ficha manda precio y costo y el margen
+  // los sigue: cambiar el precio a mano es recalibrar ese producto (spec de listas, §14).
+  let marginPct: string | undefined;
+  if (productId) {
+    const previo = await prisma.product.findFirst({ where: { id: productId, workspaceId: workspace.id }, select: { marginPct: true } });
+    const calibrado = previo?.marginPct != null ? calibrarMargenPct(v.priceMinor, v.costMinor) : null;
+    if (calibrado !== null && !margenValido(calibrado)) {
+      redirect(`${destinoError}?error=${encodeURIComponent(`Con ese precio y ese costo el margen daría ${calibrado} %: revisá el costo.`)}`);
+    }
+    if (calibrado !== null) marginPct = calibrado.toFixed(2);
+  }
+
   // La base guarda `Decimal(12,2)`; el formulario trabaja en centavos enteros. `priceMinor`
   // y `costMinor` no son columnas de `Product` —lo son `priceArs` y `costArs`— así que no se
   // puede volcar `v` entero en el `data` de Prisma sin antes convertirlos.
@@ -80,6 +99,7 @@ export async function saveProductAction(formData: FormData): Promise<void> {
     ...camposProducto,
     priceArs: minorToDecimalString(priceMinor),
     costArs: costMinor === null ? null : minorToDecimalString(costMinor),
+    ...(marginPct !== undefined ? { marginPct } : {}),
   };
 
   try {

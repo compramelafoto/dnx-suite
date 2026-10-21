@@ -241,6 +241,10 @@ export type ProductDetail = {
   minStockQty: number | null;
   categoryId: string | null;
   supplierName: string | null;
+  /** Proveedor del que sale el costo (Ventas → Costos y márgenes). */
+  preferredProveedorId: string | null;
+  /** Margen sobre el costo, en % (170 = costo × 2,7). Null = precio manejado a mano. */
+  marginPct: number | null;
   imageUrl: string | null;
   isActive: boolean;
   /** null = sin ficha online: se vende sólo en el mostrador, como siempre (D2). */
@@ -302,6 +306,8 @@ export async function getProduct(
       minStockQty: true,
       categoryId: true,
       supplierName: true,
+      preferredProveedorId: true,
+      marginPct: true,
       imageUrl: true,
       isActive: true,
       storeListing: {
@@ -351,6 +357,8 @@ export async function getProduct(
     minStockQty: r.minStockQty,
     categoryId: r.categoryId,
     supplierName: r.supplierName,
+    preferredProveedorId: r.preferredProveedorId,
+    marginPct: r.marginPct === null ? null : Number(r.marginPct.toString()),
     imageUrl: r.imageUrl,
     isActive: r.isActive,
     storeListing: r.storeListing,

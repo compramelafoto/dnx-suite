@@ -446,6 +446,16 @@ const VENTAS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // Mismo permiso que la página (`requireSalesAdmin`): ver y tocar costos es `sales.catalog`.
+    href: "/ventas/costos",
+    label: "Costos y márgenes",
+    icon: "Tag",
+    description: "El costo de cada producto según su proveedor, el margen y las listas de precios.",
+    requiresManage: true,
+    requiresAction: SALES_CATALOG_ACTION,
+    activeMatch: "under",
+  },
+  {
     href: "/ventas/foto-carnet",
     label: "Foto carnet",
     icon: "Crop",
