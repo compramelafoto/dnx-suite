@@ -87,12 +87,14 @@ categorías y la pantalla Stock sin duplicar nada.
 - **No aparece** en el Cobrador, la tienda online, la lista de precios ni los presupuestos.
   Hay que filtrarlo explícitamente en cada listado de "cosas para vender" (`listProducts` y
   vecinos: el constructor debe auditar todos los lugares que listan `Product`).
-- Campo nuevo **`stockUnit`** (texto, en `Product`): en qué se cuenta. Ej.: "copias 10x15",
-  "sobres", "ml". Para productos comunes queda vacío = "unidades".
-- Campos nuevos para **la unidad de compra**: `purchaseUnitName` (ej. "Kit 305 6R") y
-  `unitsPerPurchase` (Int, ej. 640). Al recibir, se puede cargar "1 Kit 305 6R" y entran 640
-  copias; el costo unitario se divide solo. Aplica también a productos comunes (caja x 12
-  portarretratos).
+- **Sin columnas nuevas en `Product`**: el esquema es compartido por todas las apps de DNX y una
+  columna que falte en alguna base rompe toda lectura de `Product` en esa app (P2022). Los datos
+  propios del insumo van en una tabla nueva de FOTOFFICE, **`FotofficeInsumo`** (`productId`
+  único, `workspaceId`, `unidad` — ej. "copias 10x15", "sobres", "ml" —, `unidadCompra?` — ej.
+  "Kit 305 6R" —, `unidadesPorCompra?` Int — ej. 640). Mismo patrón que
+  `FotofficeProductoCatalogo`. Al cargar una entrada se puede indicar "1 Kit 305 6R" y entran
+  640; el costo unitario se divide solo. (La unidad de compra para productos comunes queda para
+  la etapa 2.)
 - Las cantidades son **enteras**. Si algo se gasta en fracciones, se elige una unidad más
   chica (ml en vez de litros). *(Decisión del diseño: mantiene `StockMovement.qty` Int.)*
 
@@ -153,8 +155,9 @@ unidad?" con 1 por defecto.
 En `descontarStock` (`lib/sales/record-sale.ts`), dentro de la misma transacción, por cada
 renglón con producto: buscar sus recetas y escribir un `StockMovement` por insumo con
 `qty = -(receta.quantity × renglón.qty)`, **`reason = "CONSUMO"`** (valor nuevo),
-`sourceModule = "sales"`, `sourceRef = saleId`, y el `saleItemId` en `note` o en una columna
-nueva (decisión del constructor; tiene que permitir revertir con exactitud).
+`sourceModule = "sales"`, `sourceRef = saleId`, y `note = "consumo:item:<saleItemId>"`. El
+prefijo `consumo:` es obligatorio: `devolverStockApartado` de Pedidos empareja devoluciones por
+`note = "item:<id>"`, y una nota igual haría creer que la línea ya se devolvió.
 
 **Instantánea:** se descuenta según la receta **del momento de la venta**. Al anular
 (`void-sale.ts`) se devuelve exactamente lo que se descontó (leyendo los movimientos CONSUMO
@@ -321,7 +324,6 @@ hay CHECK en SQL que los limite.
 
 ## 10. Lo que queda a criterio del constructor
 
-- Dónde exactamente guardar la referencia al `saleItemId` en los movimientos CONSUMO.
 - Límites de tamaño de archivo y páginas para la IA; formato de almacenamiento del archivo.
 - Algoritmo de "nombre parecido" para sugerir asociaciones.
 - Diseño visual de las pantallas, respetando los componentes existentes (`fo-card`, `fo-btn`,
