@@ -321,7 +321,7 @@ export async function crearBorrador(workspaceId: string, userId: number | null):
  * recepción se bloquea primero, antes que cualquier fila de stock (mismo orden que el resto:
  * la tabla propia primero, después `lockStockRows`).
  */
-async function enBorrador<T>(
+export async function enBorrador<T>(
   workspaceId: string,
   recepcionId: string,
   fn: (tx: Tx) => Promise<T | { ok: false; error: string }>,
@@ -390,55 +390,67 @@ export async function escanear(
   if (hallado.tipo === "nada") return { ok: false, error: ERROR_DESCONOCIDO, alta: { codigo: codigoLimpio } };
 
   const productId = hallado.productId;
-  return enBorrador(workspaceId, recepcionId, async (tx) => {
-    const producto = await productoParaLinea(tx, workspaceId, productId);
-    if (!producto.ok) return producto;
+  return enBorrador(workspaceId, recepcionId, (tx) =>
+    agregarProductoALaRecepcion(tx, { workspaceId, recepcionId, productId, codigo: normalizeBarcode(texto), origen: "LECTOR" }),
+  );
+}
 
-    const filas = await tx.fotofficeRecepcionLinea.findMany({
-      where: { recepcionId, workspaceId },
-      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-      select: SELECT_LINEA,
-    });
-    const lineas = filas.map(aLinea);
+/**
+ * Suma una unidad del producto a la recepción (o abre su línea). Corre DENTRO de `enBorrador`
+ * (la recepción ya está bloqueada y en BORRADOR). Lo comparten el lector y el alta rápida.
+ */
+export async function agregarProductoALaRecepcion(
+  tx: Tx,
+  args: { workspaceId: string; recepcionId: string; productId: string; codigo: string | null; origen: OrigenLinea },
+): Promise<{ ok: true; resultado: "sumado" | "agregado" } | { ok: false; error: string }> {
+  const { workspaceId, recepcionId, productId, codigo, origen } = args;
+  const producto = await productoParaLinea(tx, workspaceId, productId);
+  if (!producto.ok) return producto;
 
-    // Un insumo con ficha de compra se escanea por bulto (la caja trae el código): el segundo
-    // escaneo suma al bulto ya cargado, no abre otra línea. Lo demás va suelto, con la regla
-    // de `lineaParaEscaneo`.
-    const enBultos = producto.unidadesPorCompra !== null;
-    const decision = enBultos
-      ? (() => {
-          const l = lineas.find(
-            (x) => x.productId === productId && x.enUnidadDeCompra && x.unidadesPorCompra === producto.unidadesPorCompra,
-          );
-          return l ? { accion: "sumar" as const, lineaId: l.id } : { accion: "crear" as const };
-        })()
-      : lineaParaEscaneo(lineas, productId);
-
-    if (decision.accion === "sumar") {
-      await tx.fotofficeRecepcionLinea.update({
-        where: { id: decision.lineaId },
-        data: { cantidad: { increment: 1 } },
-      });
-      return { ok: true as const, resultado: "sumado" as const };
-    }
-
-    await tx.fotofficeRecepcionLinea.create({
-      data: {
-        recepcionId,
-        workspaceId,
-        productId,
-        descripcionOriginal: producto.nombre,
-        codigoBarras: normalizeBarcode(texto),
-        cantidad: 1,
-        enUnidadDeCompra: enBultos,
-        unidadesPorCompra: producto.unidadesPorCompra,
-        costoUnitarioArs: null,
-        origen: "LECTOR",
-        order: await siguienteOrden(tx, recepcionId),
-      },
-    });
-    return { ok: true as const, resultado: "agregado" as const };
+  const filas = await tx.fotofficeRecepcionLinea.findMany({
+    where: { recepcionId, workspaceId },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    select: SELECT_LINEA,
   });
+  const lineas = filas.map(aLinea);
+
+  // Un insumo con ficha de compra se escanea por bulto (la caja trae el código): el segundo
+  // escaneo suma al bulto ya cargado, no abre otra línea. Lo demás va suelto, con la regla
+  // de `lineaParaEscaneo`.
+  const enBultos = producto.unidadesPorCompra !== null;
+  const decision = enBultos
+    ? (() => {
+        const l = lineas.find(
+          (x) => x.productId === productId && x.enUnidadDeCompra && x.unidadesPorCompra === producto.unidadesPorCompra,
+        );
+        return l ? { accion: "sumar" as const, lineaId: l.id } : { accion: "crear" as const };
+      })()
+    : lineaParaEscaneo(lineas, productId);
+
+  if (decision.accion === "sumar") {
+    await tx.fotofficeRecepcionLinea.update({
+      where: { id: decision.lineaId },
+      data: { cantidad: { increment: 1 } },
+    });
+    return { ok: true as const, resultado: "sumado" as const };
+  }
+
+  await tx.fotofficeRecepcionLinea.create({
+    data: {
+      recepcionId,
+      workspaceId,
+      productId,
+      descripcionOriginal: producto.nombre,
+      codigoBarras: codigo,
+      cantidad: 1,
+      enUnidadDeCompra: enBultos,
+      unidadesPorCompra: producto.unidadesPorCompra,
+      costoUnitarioArs: null,
+      origen,
+      order: await siguienteOrden(tx, recepcionId),
+    },
+  });
+  return { ok: true as const, resultado: "agregado" as const };
 }
 
 /** Chequeos de los campos que vienen de la pantalla, antes de abrir la transacción. */
