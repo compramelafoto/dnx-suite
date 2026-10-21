@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   fotofficeProyecto: { findFirst: vi.fn() },
-  digitalizacionGrabacion: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  digitalizacionGrabacion: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   digitalizacionParte: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
   digitalizacionEquipo: { findFirst: vi.fn() },
   $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
@@ -12,10 +12,10 @@ const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https:/
 vi.mock("./almacen", () => almacen);
 
 import type { NuevaGrabacion } from "../validar";
-import { cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura } from "./grabaciones";
+import { cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
-const vhs: NuevaGrabacion = { tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
+const vhs: NuevaGrabacion = { titulo: null, tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -33,6 +33,47 @@ describe("crearGrabacion", () => {
     db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p1" });
     db.digitalizacionGrabacion.create.mockResolvedValue({ id: "g1" });
     expect(await crearGrabacion(ctx, vhs)).toEqual({ ok: true, id: "g1", tramo: 1 });
+  });
+  it("guarda el título", async () => {
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p1" });
+    db.digitalizacionGrabacion.create.mockResolvedValue({ id: "g1" });
+    await crearGrabacion(ctx, { ...vhs, titulo: "Boda" });
+    expect(db.digitalizacionGrabacion.create.mock.calls[0][0].data.titulo).toBe("Boda");
+  });
+});
+
+describe("editarTitulo", () => {
+  it("actualiza sólo dentro del negocio", async () => {
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    expect(await editarTitulo(ctx, "g1", "  Boda  ")).toEqual({ ok: true, titulo: "Boda" });
+    expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalledWith({ where: { id: "g1", workspaceId: "ws1" }, data: { titulo: "Boda" } });
+  });
+  it("vacío borra el título", async () => {
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    expect(await editarTitulo(ctx, "g1", "  ")).toEqual({ ok: true, titulo: null });
+  });
+  it("grabación ajena: no existe", async () => {
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 0 });
+    expect(await editarTitulo(ctx, "g1", "x")).toMatchObject({ ok: false, definitivo: true });
+  });
+  it("rechaza título inválido o id inválido sin tocar la base", async () => {
+    db.digitalizacionGrabacion.updateMany.mockClear();
+    expect(await editarTitulo(ctx, "g1", "a".repeat(121))).toMatchObject({ ok: false });
+    expect(await editarTitulo(ctx, "g1", 5)).toMatchObject({ ok: false });
+    expect(await editarTitulo(ctx, "../x", "ok")).toMatchObject({ ok: false });
+    expect(db.digitalizacionGrabacion.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("listarGrabaciones", () => {
+  it("pide título, número de pedido y cliente, del negocio", async () => {
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([]);
+    await listarGrabaciones("ws1");
+    const arg = db.digitalizacionGrabacion.findMany.mock.calls[0][0];
+    expect(arg.where.workspaceId).toBe("ws1");
+    expect(arg.select.titulo).toBe(true);
+    expect(arg.select.proyecto.select.pedido).toEqual({ select: { number: true } });
+    expect(arg.select.proyecto.select.client.select.businessName).toBe(true);
   });
 });
 
@@ -166,6 +207,15 @@ describe("urlsDeLectura", () => {
   });
 });
 
+describe("urlsDeLectura nombre", () => {
+  it("usa pedido, cliente y la extensión de la grabación (vob en DVD)", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g1", workspaceId: "ws1", estado: "COMPLETA", tipo: "DVD", mimeType: "video/dvd", tramos: 1, proyectoId: "p1", titulo: null, cassetteNumero: null, partesBorradasAt: null });
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ pedido: { number: "8" }, client: { firstName: null, lastName: null, businessName: "Foto SA" } });
+    db.digitalizacionParte.findMany.mockResolvedValue([]);
+    expect(await urlsDeLectura(ctx, "g1")).toMatchObject({ ok: true, nombre: "Pedido 8 - Foto SA - DVD.vob" });
+  });
+});
+
 describe("registrarLatido entre tramos", () => {
   it("acumula la duración de los tramos anteriores y combina sinImagen", async () => {
     db.digitalizacionGrabacion.findFirst
@@ -273,7 +323,14 @@ describe("urlDeVideo", () => {
   it("firma el MP4 final cuando está LISTA", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue(lista);
     expect(await urlDeVideo(ctx, "g1", "ver")).toEqual({ ok: true, url: "https://r2/video" });
-    expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", expect.stringMatching(/\.mp4$/), "ver");
+    expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", "Prueba - Cassette 3.mp4", "ver");
+  });
+  it("nombra el archivo con pedido, cliente y título", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, proyectoId: "p1", titulo: "Boda de Ana" });
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ pedido: { number: "77" }, client: { firstName: "Ana", lastName: "Gómez", businessName: null } });
+    await urlDeVideo(ctx, "g1", "descargar");
+    expect(db.fotofficeProyecto.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", workspaceId: "ws1" } }));
+    expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", "Pedido 77 - Ana Gómez - Boda de Ana.mp4", "descargar");
   });
   it("rechaza una videoKey de otro negocio o de otra grabación", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, videoKey: "digitalizacion/otro/g1/final.mp4" });

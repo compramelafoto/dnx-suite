@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { descartarGrabacionAction, guardarAjustesAction, reintentarConversionAction, terminarConLoGrabadoAction, urlDeVideoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
+import { useRouter } from "next/navigation";
+import { descartarGrabacionAction, editarTituloAction, guardarAjustesAction, reintentarConversionAction, terminarConLoGrabadoAction, urlDeVideoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
 import { elegirArchivoDeDestino } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { descargarCrudo } from "@/lib/digitalizacion/cliente/descargar-crudo";
 import type { EstadoVisible } from "@/lib/digitalizacion/validar";
@@ -11,14 +12,27 @@ type Props = {
   id: string;
   estado: EstadoVisible;
   nombreArchivo: string;
+  titulo: string | null;
   puedeGrabar: boolean;
   conversionEstado: string;
   partesBorradas: boolean;
 };
 
-export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conversionEstado, partesBorradas }: Props) {
+export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrabar, conversionEstado, partesBorradas }: Props) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
+  const router = useRouter();
+  const [editando, setEditando] = useState(false);
+  const [valorTitulo, setValorTitulo] = useState(titulo ?? "");
+
+  const guardarTitulo = () =>
+    empezar(async () => {
+      const r = await editarTituloAction(id, valorTitulo);
+      if (!r.ok) { setAviso(r.error); return; }
+      setAviso(null);
+      setEditando(false);
+      router.refresh();
+    });
 
   const bajar = async () => {
     // El selector de archivos va primero: el navegador sólo lo abre si es lo primero que pasa dentro del clic.
@@ -103,6 +117,22 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conv
         >
           Descartar
         </button>
+      ) : null}
+      {puedeGrabar && !editando ? (
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => { setValorTitulo(titulo ?? ""); setEditando(true); }}>Editar título</button>
+      ) : null}
+      {puedeGrabar && editando ? (
+        <span className="flex flex-wrap items-center gap-2">
+          <input
+            className="w-72 max-w-full rounded border p-1 text-sm"
+            aria-label="Título del video"
+            maxLength={120}
+            placeholder="Ej.: Casamiento de Juan y Ana, 1998"
+            value={valorTitulo}
+            onChange={(e) => setValorTitulo(e.target.value)}
+          />
+          <button type="button" className="fo-btn fo-btn-primary text-xs" disabled={pendiente} onClick={guardarTitulo}>Guardar</button>
+        </span>
       ) : null}
       {aviso ? <span className="text-gray-600">{aviso}</span> : null}
     </div>

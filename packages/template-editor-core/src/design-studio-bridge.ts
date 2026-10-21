@@ -1,4 +1,4 @@
-import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, type FontId } from "@repo/design-studio";
+import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, normalizarEncuadre, type FontId, type ImageCrop } from "@repo/design-studio";
 import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
 import {
   CLASS_LIST_SAMPLE,
@@ -409,10 +409,15 @@ export function editorADocumento(input: {
              * salía recortado sin que nada lo avisara. `cover` sigue siendo el valor por defecto.
              */
             const encaje = texto(cfg.fit) === "contain" ? "contain" : "cover";
+            /*
+             * El reencuadre de la foto dentro del marco (zoom y corrimiento). Viaja con la
+             * proporción de la foto original, que la vista previa necesita para ubicarla.
+             */
+            const encuadre = encaje === "cover" ? encuadreDeImagen(cfg) : {};
             if (clave) {
-              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: encaje, ...forma });
+              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: encaje, ...forma, ...encuadre });
             } else if (src) {
-              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: encaje, ...forma });
+              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: encaje, ...forma, ...encuadre });
             } else {
               avisos.push("Una imagen quedó sin archivo ni variable; no se imprimió.");
             }
@@ -523,6 +528,15 @@ export type SemillaEditor = {
  * la abriría vacía —no entiende ese formato— y quien fuera a retocar el carnet se encontraría
  * con un lienzo en blanco en lugar de su diseño.
  */
+/** `crop` y `sourceAspect` del bloque imagen, si los tiene. Ver `@repo/design-studio` → encuadre. */
+function encuadreDeImagen(cfg: Record<string, unknown>): { crop?: ImageCrop; sourceAspect?: number } {
+  const crop = normalizarEncuadre(cfg.crop);
+  if (!crop) return {};
+  const w = num(cfg.srcWidth, 0);
+  const h = num(cfg.srcHeight, 0);
+  return { crop, ...(w > 0 && h > 0 ? { sourceAspect: w / h } : {}) };
+}
+
 export function documentoAEditor(documento: unknown): SemillaEditor {
   const doc = obj(documento);
   const formato = obj(doc.format);
@@ -603,6 +617,15 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
           ...(recorte === "circle" || recorte === "ellipse" ? { maskShape: recorte } : {}),
           ...(num(b.cornerRadius, 0) > 0 ? { borderRadius: px(num(b.cornerRadius, 0)) } : {}),
         };
+        const encuadre = normalizarEncuadre(b.crop);
+        const aspecto = num(b.sourceAspect, 0);
+        if (encuadre) {
+          // Sólo la proporción importa: se guarda como medidas relativas.
+          Object.assign(forma, {
+            crop: encuadre,
+            ...(aspecto > 0 ? { srcWidth: Math.round(aspecto * 1000), srcHeight: 1000 } : {}),
+          });
+        }
         blocks.push(
           clave === "photo"
             ? {

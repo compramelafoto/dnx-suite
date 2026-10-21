@@ -7,6 +7,7 @@ import { loadPublicSlug } from "@/lib/blog/admin-queries";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { ProductForm } from "../../product-form";
+import { listarProveedores } from "@/lib/proveedores/repositorio";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
 import { ProduccionSection } from "./produccion-section";
@@ -97,7 +98,12 @@ export default async function ProductoPage({
         </p>
       ) : null}
 
-      <ProductForm product={producto} categories={categorias} error={query.error} />
+      <ProductForm
+        product={producto}
+        categories={categorias}
+        error={query.error}
+        proveedores={(await listarProveedores(workspace.id, { soloActivos: true })).map((p) => ({ id: p.id, name: p.name }))}
+      />
 
       <ProduccionSection productId={producto.id} produccion={produccion} salidas={salidasImpresion} />
 

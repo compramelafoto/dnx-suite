@@ -189,3 +189,12 @@ describe("parseProductForm", () => {
     expect(parseProductForm(form({ name: "Marco", kind: "PRODUCTO", priceArs: "" })).ok).toBe(false);
   });
 });
+
+describe("parseProductForm: proveedor preferido", () => {
+  it("vacío queda null y con valor se conserva", () => {
+    const sin = parseProductForm(form({ name: "Ampliación 20x40", priceArs: "7200", preferredProveedorId: "" }));
+    expect(sin.ok && sin.values.preferredProveedorId).toBeNull();
+    const con = parseProductForm(form({ name: "Ampliación 20x40", priceArs: "7200", preferredProveedorId: "prov1" }));
+    expect(con.ok && con.values.preferredProveedorId).toBe("prov1");
+  });
+});

@@ -1,6 +1,7 @@
 import { fail, ok, type Result } from "../result";
 import { mmToPt, pxToPt } from "../document/units";
 import type { DesignDocument, DesignMedium, TextAlign } from "../document/schema";
+import type { ImageCrop } from "./encuadre";
 import type { ResolvedVariables } from "../variables/contract";
 import { interpolate } from "../variables/resolve";
 import { isFontId, slotFor, type FontId, type FontSlot } from "../fonts/catalog";
@@ -52,6 +53,10 @@ export type LayoutImageItem = ItemBase & {
   mask: "rect" | "circle" | "ellipse";
   /** Solo con `mask: "rect"`. */
   cornerRadiusPt?: number;
+  /** Encuadre de la foto en el recuadro. Ver `layout/encuadre.ts`. */
+  crop?: ImageCrop;
+  /** Ancho ÷ alto de la foto original, si el documento lo trae. */
+  sourceAspect?: number;
 };
 
 export type LayoutLineItem = ItemBase & {
@@ -334,6 +339,8 @@ export function buildLayoutPlan(
           fit: bloque.fit,
           mask: bloque.mask ?? "rect",
           ...(bloque.cornerRadius ? { cornerRadiusPt: aPuntos(bloque.cornerRadius) } : {}),
+          ...(bloque.crop ? { crop: bloque.crop } : {}),
+          ...(bloque.sourceAspect ? { sourceAspect: bloque.sourceAspect } : {}),
         });
         continue;
       }

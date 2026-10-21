@@ -3,7 +3,8 @@ import { prisma } from "@repo/db";
 import { ID_VALIDO, claveDeParte, extensionDeMime, prefijoDeGrabacion, tipoContenido } from "../claves";
 import { MINUTOS_SIN_SENAL_MAX, MINUTOS_SIN_SENAL_MIN, MINUTOS_SIN_SENAL_POR_DEFECTO } from "../constants";
 import type { CtxDigitalizacion } from "../contexto";
-import { estadoVisible, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
+import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
+import { estadoVisible, validarTitulo, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
 import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
 
 export type Nada = Record<never, never>;
@@ -18,8 +19,22 @@ async function grabacionDelNegocio(ctx: CtxDigitalizacion, id: string) {
   if (!ID_VALIDO.test(id)) return null;
   return prisma.digitalizacionGrabacion.findFirst({
     where: { id, workspaceId: ctx.workspaceId },
-    select: { id: true, workspaceId: true, estado: true, mimeType: true, tramos: true, tipo: true, proyectoId: true, calidad: true, corregirProporcion: true, ultimoLatidoAt: true, iniciadaAt: true, cassetteNumero: true, conversionEstado: true, partesBorradasAt: true, videoKey: true, sinImagen: true },
+    select: { id: true, workspaceId: true, estado: true, mimeType: true, tramos: true, tipo: true, proyectoId: true, calidad: true, corregirProporcion: true, ultimoLatidoAt: true, iniciadaAt: true, cassetteNumero: true, conversionEstado: true, partesBorradasAt: true, videoKey: true, sinImagen: true, titulo: true },
   });
+}
+
+/** Nombre de descarga: usa el número del pedido y el cliente del trabajo (siempre dentro del negocio). */
+async function nombreDeDescarga(ctx: CtxDigitalizacion, g: { proyectoId: string | null; titulo: string | null; tipo: string; cassetteNumero: number | null }, extension: string): Promise<string> {
+  const p = g.proyectoId
+    ? await prisma.fotofficeProyecto.findFirst({
+        where: { id: g.proyectoId, workspaceId: ctx.workspaceId },
+        select: { pedido: { select: { number: true } }, client: { select: { firstName: true, lastName: true, businessName: true } } },
+      })
+    : null;
+  return nombreArchivoVideo(
+    { pedidoNumero: p?.pedido?.number ?? null, clienteNombre: nombreCliente(p?.client), titulo: g.titulo, tipo: g.tipo === "DVD" ? "DVD" : "VHS", cassetteNumero: g.cassetteNumero },
+    extension,
+  );
 }
 
 /** Una vez que el worker tomó la grabación (o ya la convirtió, o borró las partes) no se aceptan partes nuevas. */
@@ -39,6 +54,7 @@ export async function crearGrabacion(ctx: CtxDigitalizacion, g: NuevaGrabacion):
   const creada = await prisma.digitalizacionGrabacion.create({
     data: {
       workspaceId: ctx.workspaceId,
+      titulo: g.titulo,
       proyectoId: g.proyectoId,
       cassetteNumero: g.cassetteNumero,
       tipo: g.tipo,
@@ -218,7 +234,7 @@ export async function urlsDeLectura(ctx: CtxDigitalizacion, id: string): Promise
     select: { key: true },
   });
   const urls = await Promise.all(partes.map((p) => urlDeLecturaParte(p.key)));
-  return { ok: true, urls, nombre: `grabacion-${g.id}.${extensionDeMime(g.mimeType) ?? "bin"}` };
+  return { ok: true, urls, nombre: await nombreDeDescarga(ctx, g, extensionDeMime(g.mimeType) ?? "bin") };
 }
 
 export async function reintentarConversion(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
@@ -235,8 +251,17 @@ export async function urlDeVideo(ctx: CtxDigitalizacion, id: string, modo: "ver"
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
   if (g.conversionEstado !== "LISTA" || !g.videoKey || g.videoKey !== `${prefijoDeGrabacion(ctx.workspaceId, g.id)}final.mp4`) return { ok: false, error: "El video todavía no está listo." };
-  const nombre = g.cassetteNumero != null ? `cassette-${g.cassetteNumero}.mp4` : `grabacion-${g.id}.mp4`;
+  const nombre = await nombreDeDescarga(ctx, g, "mp4");
   return { ok: true, url: await firmarVideo(g.videoKey, nombre, modo) };
+}
+
+export async function editarTitulo(ctx: CtxDigitalizacion, id: string, titulo: unknown): Promise<Resultado<{ titulo: string | null }>> {
+  if (typeof titulo !== "string" && titulo !== null) return { ok: false, error: "El título no es válido.", definitivo: true };
+  const t = validarTitulo(titulo);
+  if (!t.ok) return { ok: false, error: "El título es demasiado largo (máximo 120 caracteres).", definitivo: true };
+  if (!ID_VALIDO.test(id)) return NO_EXISTE;
+  const r = await prisma.digitalizacionGrabacion.updateMany({ where: { id, workspaceId: ctx.workspaceId }, data: { titulo: t.titulo } });
+  return r.count === 1 ? { ok: true, titulo: t.titulo } : NO_EXISTE;
 }
 
 export async function buscarTrabajos(ctx: CtxDigitalizacion, q: string) {
@@ -300,10 +325,10 @@ export async function listarGrabaciones(workspaceId: string) {
     orderBy: { createdAt: "desc" },
     take: 200,
     select: {
-      id: true, tipo: true, estado: true, motivoFin: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
+      id: true, titulo: true, tipo: true, estado: true, motivoFin: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
       tramos: true, ultimoLatidoAt: true, iniciadaAt: true, sinImagen: true, mimeType: true,
       conversionEstado: true, conversionError: true, videoBytes: true, videoDuracionSeg: true, partesBorradasAt: true,
-      proyecto: { select: { number: true, name: true } },
+      proyecto: { select: { number: true, name: true, pedido: { select: { number: true } }, client: { select: { firstName: true, lastName: true, businessName: true } } } },
     },
   });
 }

@@ -17,7 +17,19 @@ const entero = (x: unknown, min: number, max: number): x is number => Number.isI
 const idONull = (x: unknown): x is string | null => x === null || (typeof x === "string" && ID_VALIDO.test(x));
 const MAX_SEG = TOPE_SEGUNDOS + 600;
 
+export const MAX_TITULO = 120;
+
+/** Título opcional: texto recortado de hasta 120 caracteres; vacío o ausente = null; cualquier otra cosa es inválida (undefined = no informado). */
+export function validarTitulo(x: unknown): { ok: true; titulo: string | null } | { ok: false } {
+  if (x === undefined || x === null) return { ok: true, titulo: null };
+  if (typeof x !== "string") return { ok: false };
+  const t = x.trim();
+  if (t.length > MAX_TITULO) return { ok: false };
+  return { ok: true, titulo: t || null };
+}
+
 export type NuevaGrabacion = {
+  titulo: string | null;
   tipo: TipoGrabacion;
   proyectoId: string | null;
   cassetteNumero: number | null;
@@ -32,6 +44,9 @@ export function validarNuevaGrabacion(x: unknown): NuevaGrabacion | null {
   if (!esObj(x)) return null;
   const { tipo, proyectoId, cassetteNumero, calidad, mimeType, corregirProporcion, equipoId, dvdArchivos } = x;
   if (tipo !== "VHS" && tipo !== "DVD") return null;
+  const t = validarTitulo(x.titulo);
+  if (!t.ok) return null;
+  const titulo = t.titulo;
   if (!idONull(proyectoId) || !idONull(equipoId)) return null;
   if (cassetteNumero !== null && !entero(cassetteNumero, 1, 999)) return null;
   if (typeof corregirProporcion !== "boolean") return null;
@@ -41,7 +56,7 @@ export function validarNuevaGrabacion(x: unknown): NuevaGrabacion | null {
     if (ext !== "mp4" && ext !== "webm") return null;
     if (typeof calidad !== "string" || !Object.hasOwn(CALIDADES, calidad)) return null;
     if (dvdArchivos !== null) return null;
-    return { tipo, proyectoId, cassetteNumero: cassetteNumero as number | null, calidad: calidad as Calidad, mimeType, corregirProporcion, equipoId, dvdArchivos: null };
+    return { titulo, tipo, proyectoId, cassetteNumero: cassetteNumero as number | null, calidad: calidad as Calidad, mimeType, corregirProporcion, equipoId, dvdArchivos: null };
   }
   if (ext !== "vob" || calidad !== null) return null;
   if (!Array.isArray(dvdArchivos) || dvdArchivos.length === 0 || dvdArchivos.length > 200) return null;
@@ -50,7 +65,7 @@ export function validarNuevaGrabacion(x: unknown): NuevaGrabacion | null {
     if (!esObj(a) || typeof a.nombre !== "string" || !/^VTS_\d{2}_[1-9]\.VOB$/i.test(a.nombre) || !entero(a.bytes, 1, 2 ** 31)) return null;
     archivos.push({ nombre: a.nombre, bytes: a.bytes as number });
   }
-  return { tipo, proyectoId, cassetteNumero: cassetteNumero as number | null, calidad: null, mimeType, corregirProporcion, equipoId, dvdArchivos: archivos };
+  return { titulo, tipo, proyectoId, cassetteNumero: cassetteNumero as number | null, calidad: null, mimeType, corregirProporcion, equipoId, dvdArchivos: archivos };
 }
 
 export type PedidoParte = { grabacionId: string; tramo: number; indice: number; bytes: number };

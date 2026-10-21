@@ -89,6 +89,10 @@ export type QrBlock = BlockGeometry &
     lightColor?: string;
   };
 
+import type { ImageCrop } from "../layout/encuadre";
+
+export type { ImageCrop };
+
 export type ImageFit = "cover" | "contain";
 
 /**
@@ -114,6 +118,16 @@ export type ImageBlock = BlockGeometry &
     mask?: ImageMask;
     /** Solo con `mask: "rect"`. Radio de esquina, en las unidades del documento. */
     cornerRadius?: number;
+    /**
+     * Encuadre de la foto dentro del recuadro (sólo con `fit: "cover"`). Sin él, la foto se
+     * centra. Ver `layout/encuadre.ts`.
+     */
+    crop?: ImageCrop;
+    /**
+     * Ancho ÷ alto de la foto original. El PDF lo lee de los bytes; la vista SVG no los tiene y
+     * lo necesita para ubicar el encuadre.
+     */
+    sourceAspect?: number;
   };
 
 export type LineBlock = BlockGeometry &

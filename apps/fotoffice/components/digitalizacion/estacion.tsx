@@ -8,6 +8,7 @@ import type { MensajeDelWorker } from "@/lib/digitalizacion/cliente/analisis.wor
 import { almacenIndexedDb } from "@/lib/digitalizacion/cliente/almacen-indexeddb";
 import { navegadorCompatible } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { AVISO_SIN_ESPACIO, ColaDeSubida, ErrorDefinitivo, idParte, type ParteEnCola, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
+import { faltantesParaGrabar } from "@/lib/digitalizacion/cliente/faltantes";
 import { elegirFormato } from "@/lib/digitalizacion/cliente/formato";
 import { Grabador } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
@@ -67,6 +68,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
   const [proyectoId, setProyectoId] = useState<string | null>(continuar?.proyectoId ?? null);
   const [sinPedido, setSinPedido] = useState(continuar ? continuar.proyectoId === null : false);
+  const [titulo, setTitulo] = useState("");
   const [cassette, setCassette] = useState(continuar?.cassetteNumero ?? 1);
   const [listaOk, setListaOk] = useState(false);
   const [fase, setFase] = useState<"preparando" | "iniciando" | "grabando" | "terminando" | "terminada">("preparando");
@@ -216,6 +218,12 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     if (r.ok) setTrabajos(r.trabajos);
   };
 
+  // La lista de pedidos arranca con los últimos trabajos: vacía parecía que no había nada para elegir.
+  useEffect(() => {
+    if (continuar) return;
+    void buscarTrabajosAction("").then((r) => { if (r.ok) setTrabajos(r.trabajos); });
+  }, [continuar]);
+
   const pintarVentanita = useCallback(() => {
     const s = sesion.current;
     if (!s?.ventanita) return;
@@ -336,7 +344,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         tramo = r.tramo;
       } else {
         const r = await crearGrabacionAction({
-          tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
+          titulo, tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
           corregirProporcion: estirada, equipoId: equipo?.id ?? null, dvdArchivos: null,
         });
         if (abandonada()) return;
@@ -430,7 +438,17 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     return <p className="fo-alert-error p-4 text-sm">La estación necesita Chrome o Edge de escritorio actualizados (versión 116 o mayor).</p>;
   }
 
-  const puedeGrabar = Boolean(stream) && !dvdSubiendo && listaOk && (sinPedido || proyectoId) && fase === "preparando";
+  const faltan = faltantesParaGrabar({
+    videoElegido: Boolean(videoId),
+    audioElegido: Boolean(audioId),
+    vistaPrevia: Boolean(stream),
+    listaOk,
+    sinPedido,
+    proyectoElegido: Boolean(proyectoId),
+    dvdSubiendo,
+    continuando: Boolean(continuar),
+  });
+  const puedeGrabar = faltan.length === 0 && fase === "preparando";
   return (
     <div className="space-y-6">
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
@@ -505,6 +523,9 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           <p className="text-sm">Continuás la grabación (tramo {continuar.tipo === "DVD" ? 1 : continuar.tramo + 1}).</p>
         ) : (
           <>
+            <label className="block text-sm">Título del video (opcional)
+              <input className="mt-1 block w-full max-w-md rounded border p-2 text-sm" maxLength={120} placeholder="Ej.: Casamiento de Juan y Ana, 1998" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={sinPedido} onChange={(e) => setSinPedido(e.target.checked)} /> Sin pedido (prueba)
             </label>
@@ -535,8 +556,13 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
             {fase === "iniciando" ? "Empezando…" : "● Grabar"}
           </button>
         ) : null}
-        {fase === "preparando" && dvdSubiendo ? (
-          <p className="text-sm">Hay un DVD subiendo: esperá a que termine para grabar un VHS.</p>
+        {fase === "preparando" && continuar?.tipo !== "DVD" && faltan.length > 0 ? (
+          <div className="text-sm text-gray-600">
+            <p className="font-semibold">Para poder grabar falta:</p>
+            <ul className="ml-5 list-disc">
+              {faltan.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          </div>
         ) : null}
         {fase === "grabando" ? <button type="button" className="fo-btn fo-btn-danger" onClick={() => void detener("MANUAL")}>⏹ Detener</button> : null}
         {fase === "grabando" && !ventanitaAbierta ? (

@@ -67,6 +67,14 @@ export async function descartarGrabacionAction(grabacionId: string) {
   return r;
 }
 
+export async function editarTituloAction(grabacionId: string, titulo: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await G.editarTitulo(ctx, grabacionId, titulo);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
 export async function urlsDeLecturaAction(grabacionId: string) {
   const ctx = await contextoDigitalizacion("VIEW");
   return ctx ? G.urlsDeLectura(ctx, grabacionId) : SIN_PERMISO;

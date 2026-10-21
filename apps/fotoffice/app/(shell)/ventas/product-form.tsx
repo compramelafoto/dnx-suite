@@ -27,10 +27,13 @@ export function ProductForm({
   product,
   categories,
   error,
+  proveedores = [],
 }: {
   product: ProductDetail | null;
   categories: ProductCategoryRow[];
   error?: string;
+  /** Los proveedores activos, para el proveedor preferido (del que sale el costo). */
+  proveedores?: { id: string; name: string }[];
 }) {
   const esAlta = product === null;
 
@@ -359,8 +362,28 @@ export function ProductForm({
       <section className="fo-card space-y-4 p-5">
         <h2 className="text-base font-semibold">Proveedor</h2>
         <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="preferredProveedorId">
+            Proveedor preferido
+          </label>
+          <select id="preferredProveedorId" name="preferredProveedorId" className="fo-input" defaultValue={product?.preferredProveedorId ?? ""}>
+            <option value="">Ninguno</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+            {product?.preferredProveedorId && !proveedores.some((p) => p.id === product.preferredProveedorId) ? (
+              <option value={product.preferredProveedorId}>(proveedor inactivo)</option>
+            ) : null}
+          </select>
+          <p className="fo-helper">
+            De su lista de precios sale el costo. El margen y las listas se manejan en Ventas → Costos y márgenes.
+            {product?.marginPct != null ? ` Margen actual: ${String(product.marginPct).replace(".", ",")} % sobre el costo (si cambiás el precio, se ajusta).` : ""}
+          </p>
+        </div>
+        <div className="fo-field-stack">
           <label className="fo-label" htmlFor="supplierName">
-            Proveedor
+            Proveedor (texto libre)
           </label>
           <input
             id="supplierName"

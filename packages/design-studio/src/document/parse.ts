@@ -1,4 +1,5 @@
 import { fail, ok, type Result } from "../result";
+import { normalizarEncuadre } from "../layout/encuadre";
 import {
   BLOCK_TYPES,
   DESIGN_SCHEMA_VERSION,
@@ -163,6 +164,8 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       );
       return null;
     }
+    const encuadre = raw.fit === "contain" ? null : normalizarEncuadre(raw.crop);
+    const aspecto = numeroFinito(raw.sourceAspect);
     return {
       ...geo,
       ...chrome,
@@ -173,6 +176,8 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       mask:
         raw.mask === "circle" || raw.mask === "ellipse" ? raw.mask : "rect",
       ...(numeroFinito(raw.cornerRadius) ? { cornerRadius: numeroFinito(raw.cornerRadius)! } : {}),
+      ...(encuadre ? { crop: encuadre } : {}),
+      ...(aspecto !== null && aspecto > 0 ? { sourceAspect: aspecto } : {}),
     };
   }
 

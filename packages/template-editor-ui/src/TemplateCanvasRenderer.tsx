@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   computeCoverCropRect,
   getResolvedVariableText,
+  normalizePhotoCrop,
   getTextVisualConfig,
   toRenderableBlocks,
   type TemplateV2Block,
@@ -371,6 +372,21 @@ function ImageBlockRenderer({
           <span style={{ fontSize: subtitlePx, fontWeight: 600, color: "var(--te-ink-muted)" }}>{modeLabel}</span>
         </span>
       </div>
+    );
+  }
+
+  /*
+   * Foto reencuadrada en su marco (zoom y corrimiento): se dibuja con la misma cuenta que la
+   * impresión. Sin encuadre guardado sigue el camino de siempre, centrada.
+   */
+  if (objectFit === "cover" && config.crop) {
+    return (
+      <CroppedPhotoRenderer
+        override={{ src, crop: normalizePhotoCrop(config.crop) }}
+        config={config}
+        layoutWidth={layoutWidth}
+        layoutHeight={layoutHeight}
+      />
     );
   }
 
