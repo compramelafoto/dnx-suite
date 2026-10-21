@@ -187,3 +187,31 @@ describe("topClients", () => {
     expect(topClients(muchos, 5)).toHaveLength(5);
   });
 });
+
+describe("saldo inicial", () => {
+  it("periodSummary no cuenta el saldo inicial ni su anulación", () => {
+    const r = periodSummary([
+      { kind: "INGRESO", amountMinor: 19_390_000, isOpeningBalance: true },
+      { kind: "EGRESO", amountMinor: 19_390_000, isOpeningBalance: true },
+      { kind: "INGRESO", amountMinor: 1_500_000 },
+    ]);
+    expect(r).toEqual({ incomeMinor: 1_500_000, expenseMinor: 0, netMinor: 1_500_000 });
+  });
+
+  it("totalsByCategory no agrupa el saldo inicial", () => {
+    const r = totalsByCategory([
+      { kind: "INGRESO", amountMinor: 19_390_000, isOpeningBalance: true, categoryId: null, categoryName: null },
+      { kind: "INGRESO", amountMinor: 1_000, categoryId: "v", categoryName: "Ventas" },
+    ]);
+    expect(r).toEqual([{ categoryId: "v", categoryName: "Ventas", kind: "INGRESO", totalMinor: 1_000, count: 1 }]);
+  });
+
+  it("accountBalanceMinor sí suma el saldo inicial", () => {
+    expect(
+      accountBalanceMinor([
+        { kind: "INGRESO", amountMinor: 19_390_000, isOpeningBalance: true },
+        { kind: "EGRESO", amountMinor: 19_480_000 },
+      ]),
+    ).toBe(-90_000);
+  });
+});

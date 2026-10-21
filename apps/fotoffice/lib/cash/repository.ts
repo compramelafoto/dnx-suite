@@ -2,6 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
+import { isOpeningBalanceModule } from "@/lib/cash/opening-balance";
 
 /**
  * Las consultas de Caja.
@@ -367,6 +368,8 @@ export type ReportMovementRow = {
   amountMinor: number;
   /** Es una pata de un pase entre cuentas. Se lo pasa tal cual a `lib/cash/balance.ts`. */
   isTransfer: boolean;
+  /** Es un saldo inicial o su anulación: entra en el saldo, no en ingresos ni egresos. */
+  isOpeningBalance: boolean;
   categoryId: string | null;
   categoryName: string | null;
   clientId: string | null;
@@ -397,6 +400,7 @@ export async function movementsForReport(
       kind: true,
       amountArs: true,
       transferId: true,
+      sourceModule: true,
       categoryId: true,
       category: { select: { name: true } },
       clientId: true,
@@ -407,6 +411,7 @@ export async function movementsForReport(
     kind: r.kind as "INGRESO" | "EGRESO",
     amountMinor: decimalArsToMinor(r.amountArs),
     isTransfer: r.transferId !== null,
+    isOpeningBalance: isOpeningBalanceModule(r.sourceModule),
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
     clientId: r.clientId,
