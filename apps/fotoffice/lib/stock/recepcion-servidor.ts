@@ -325,6 +325,14 @@ export async function crearBorrador(workspaceId: string, userId: number | null):
  * recepción se bloquea primero, antes que cualquier fila de stock (mismo orden que el resto:
  * la tabla propia primero, después `lockStockRows`).
  */
+/**
+ * Opciones de la transacción de la recepción. Confirmar una recepción grande (150–200 líneas:
+ * un movimiento, un update de producto y a veces el costo por línea) no entra en los 5 s por
+ * omisión de Prisma, y al pasarse fallaría siempre. Mismo aire que Pedidos
+ * (`OPCIONES_TRANSACCION_PEDIDO` en `lib/pedidos/constantes.ts`).
+ */
+export const OPCIONES_TRANSACCION_RECEPCION = { timeout: 15_000, maxWait: 5_000 } as const;
+
 export async function enBorrador<T>(
   workspaceId: string,
   recepcionId: string,
@@ -334,7 +342,7 @@ export async function enBorrador<T>(
     const estado = await bloquearRecepcion(tx, workspaceId, recepcionId);
     if (estado !== "BORRADOR") return { ok: false as const, error: errorDeEstado(estado) };
     return fn(tx);
-  });
+  }, OPCIONES_TRANSACCION_RECEPCION);
 }
 
 async function bloquearRecepcion(tx: Tx, workspaceId: string, recepcionId: string): Promise<string | null> {

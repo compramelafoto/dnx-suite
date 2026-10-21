@@ -52,9 +52,12 @@ function crearBase() {
         t.insumos.push(a.create);
       }),
     },
-    $transaction: async <T,>(fn: (tx: unknown) => Promise<T>) => fn(db),
   };
-  return db;
+  // Se agrega después de armar `db` (no adentro del literal) para que TypeScript no tenga que
+  // inferir `db` a partir de sí mismo. Las opciones de la transacción quedan en `mock.calls`.
+  return Object.assign(db, {
+    $transaction: vi.fn(async <T,>(fn: (tx: unknown) => Promise<T>) => fn(db)),
+  });
 }
 
 let db = crearBase();
@@ -196,6 +199,33 @@ describe("crearDesdeRecepcion", () => {
     const r = await crearDesdeRecepcion("ws1", 1, "r1", prod());
     expect(r.ok).toBe(false);
     expect(db.t.productos).toHaveLength(0);
+  });
+
+  it("si la línea falla después de crear el producto, la transacción se cae (no queda un producto suelto)", async () => {
+    // Producto con talles: `agregarProductoALaRecepcion` lo rechaza después del create.
+    db.productVariant.findFirst.mockResolvedValueOnce({ id: "v1" } as never);
+    const r = await crearDesdeRecepcion("ws1", 1, "r1", prod());
+    expect(r).toEqual({ ok: false, error: "Ese producto tiene talles: cargalo desde Stock." });
+    // La base falsa no deshace: lo que importa es que la transacción terminó con error (ROLLBACK).
+    await expect(db.$transaction.mock.results[0].value).rejects.toThrow("Ese producto tiene talles");
+  });
+
+  it("choque concurrente del código interno: mensaje claro, sin línea", async () => {
+    db.t.productos.length = 0;
+    db.product.create.mockRejectedValueOnce(Object.assign(new Error("Unique constraint failed"), { code: "P2002" }));
+    const r = await crearDesdeRecepcion("ws1", 1, "r1", prod({ codigo: "KIT-305" }));
+    expect(r).toEqual({ ok: false, error: "Ese código se acaba de cargar en otro producto: escanealo de nuevo." });
+    expect(db.t.lineas).toHaveLength(0);
+  });
+
+  it("otros errores de base no se tapan", async () => {
+    db.product.create.mockRejectedValueOnce(new Error("se cayó la conexión"));
+    await expect(crearDesdeRecepcion("ws1", 1, "r1", prod())).rejects.toThrow("se cayó la conexión");
+  });
+
+  it("la transacción usa el tiempo largo de la recepción", async () => {
+    await crearDesdeRecepcion("ws1", 1, "r1", prod());
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000, maxWait: 5_000 });
   });
 
   it("datos inválidos no abren transacción", async () => {

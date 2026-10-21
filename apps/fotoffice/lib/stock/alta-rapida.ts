@@ -1,5 +1,4 @@
 import "server-only";
-import { prisma } from "@repo/db";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { upsertGlobalProduct } from "@/lib/sales/global-catalog";
@@ -27,6 +26,21 @@ export type AltaRapida = {
 };
 
 const ERROR_DADO_DE_BAJA = "Ese código ya es de un producto dado de baja: reactivalo desde el catálogo.";
+const ERROR_CODIGO_RECIEN_CARGADO = "Ese código se acaba de cargar en otro producto: escanealo de nuevo.";
+
+/**
+ * Un rechazo DESPUÉS de crear el producto se lanza (no se devuelve): si se devolviera
+ * `{ ok: false }`, la transacción haría COMMIT y quedaría un producto suelto sin línea. Se
+ * atrapa afuera de la transacción y se traduce al mismo `{ ok: false, error }`.
+ */
+class RechazoAlta extends Error {
+  constructor(readonly motivo: string) {
+    super(motivo);
+  }
+}
+
+const esChoqueDeUnico = (e: unknown) =>
+  typeof e === "object" && e !== null && (e as { code?: unknown }).code === "P2002";
 
 function formDeInsumo(d: AltaRapida): FormData {
   const fd = new FormData();
@@ -72,6 +86,25 @@ export async function crearDesdeRecepcion(
   // Un código que no es numérico (uno interno) no es código de barras: va como código interno.
   const sku = hayCodigo && barras === null ? texto : null;
 
+  try {
+    return await crearEnBorrador(workspaceId, userId, recepcionId, d, { nombre, barras, sku, hayCodigo });
+  } catch (e) {
+    if (e instanceof RechazoAlta) return { ok: false, error: e.motivo };
+    // Dos recepciones dando de alta el mismo código interno a la vez: la segunda choca con el
+    // único `(workspaceId, sku)`. Se atrapa acá, afuera: adentro la transacción ya está abortada.
+    if (esChoqueDeUnico(e)) return { ok: false, error: ERROR_CODIGO_RECIEN_CARGADO };
+    throw e;
+  }
+}
+
+async function crearEnBorrador(
+  workspaceId: string,
+  userId: number | null,
+  recepcionId: string,
+  d: AltaRapida,
+  c: { nombre: string; barras: string | null; sku: string | null; hayCodigo: boolean },
+): Promise<{ ok: true; productId: string; reutilizado: boolean } | { ok: false; error: string }> {
+  const { nombre, barras, sku, hayCodigo } = c;
   return enBorrador(workspaceId, recepcionId, async (tx) => {
     // Un producto del negocio que ya tenga ese código se reutiliza; si está dado de baja no se
     // crea otro (chocaría con el código interno único y duplicaría el barcode).
@@ -128,7 +161,7 @@ export async function crearDesdeRecepcion(
 
       if (d.kind === "INSUMO") {
         const insumo = parseInsumoForm(formDeInsumo(d));
-        if (!insumo.ok) return insumo;
+        if (!insumo.ok) throw new RechazoAlta(insumo.error);
         await guardarInsumo(tx, { workspaceId, productId, values: insumo.values });
       }
     }
@@ -140,7 +173,8 @@ export async function crearDesdeRecepcion(
       codigo: barras,
       origen: hayCodigo ? "LECTOR" : "MANUAL",
     });
-    if (!linea.ok) return linea;
+    // Si el producto se acaba de crear, devolver el error dejaría el producto sin línea.
+    if (!linea.ok) throw new RechazoAlta(linea.error);
     return { ok: true as const, productId, reutilizado };
   });
 }

@@ -171,9 +171,12 @@ function crearBase() {
     fotofficeProveedor: tabla(() => t.proveedores, "proveedor"),
     globalProduct: tabla(() => t.globales, "global"),
     stockMovement: tabla(() => t.movimientos, "movimiento"),
-    $transaction: async <T,>(fn: (tx: unknown) => Promise<T>) => fn(db),
   };
-  return db;
+  // Se agrega después de armar `db` (no adentro del literal) para que TypeScript no tenga que
+  // inferir `db` a partir de sí mismo. Las opciones de la transacción quedan en `mock.calls`.
+  return Object.assign(db, {
+    $transaction: vi.fn(async <T,>(fn: (tx: unknown) => Promise<T>) => fn(db)),
+  });
 }
 
 let db = crearBase();
@@ -535,6 +538,11 @@ describe("confirmar", () => {
     const bloqueos = db.registro.filter((x) => x.startsWith("lock:"));
     expect(bloqueos).toEqual(["lock:recepcion", "lock:stock:i1,p1"]);
     expect(db.registro.indexOf("lock:stock:i1,p1")).toBeLessThan(db.registro.indexOf("movimiento.create"));
+  });
+
+  it("la transacción tiene más aire que los 5 s por omisión (recepciones grandes)", async () => {
+    await confirmar(WS, "r1", 7);
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000, maxWait: 5_000 });
   });
 
   it("una línea sin costo no pisa el costo anterior", async () => {
