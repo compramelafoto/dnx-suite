@@ -29,11 +29,15 @@ export function consumoDiario(consumo30: number): number {
   return Math.max(0, consumo30) / DIAS_DE_CONSUMO;
 }
 
-/** Días que dura lo que hay. `null` = no hubo consumo, no se puede estimar. */
+/**
+ * Días que dura lo que hay. `null` = no hubo consumo en 30 días: no se puede estimar, y por
+ * eso un producto en cero que nunca sale no cuenta como compra urgente (si está en negativo o
+ * debajo del mínimo, `needsRestock` igual lo manda a «Para comprar»).
+ */
 export function diasDeCobertura(stockQty: number, consumoDia: number): number | null {
-  if (consumoDia > 0 && stockQty > 0) return Math.floor(stockQty / consumoDia);
+  if (consumoDia <= 0) return null;
   if (stockQty <= 0) return 0;
-  return null;
+  return Math.floor(stockQty / consumoDia);
 }
 
 export function textoCobertura(dias: number | null, stockQty: number): string {

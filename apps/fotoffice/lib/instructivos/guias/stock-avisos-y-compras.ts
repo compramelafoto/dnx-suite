@@ -31,7 +31,7 @@ export const guia: Instructivo = {
       texto: [
         "«Te alcanza para ~N días»: es una estimación. FOTOFFICE mira cuánto salió en los últimos 30 días (por ventas, por uso en los trabajos y por pedidos) y calcula cuántos días dura lo que tenés a ese ritmo.",
         "«Se termina hoy»: lo que hay no alcanza ni para un día al ritmo de consumo de los últimos 30 días.",
-        "«Ya no queda»: la existencia es cero o negativa (por ejemplo, falta cargar una entrada), haya habido consumo o no.",
+        "«Ya no queda»: la existencia es cero o negativa (por ejemplo, falta cargar una entrada). Entra en «Para comprar» si se vendió en el último mes, si está en negativo o si tenés un mínimo; un producto en cero que no se mueve no aparece, para que la lista no se llene de cosas que todavía no contaste.",
         "«Sin consumo en 30 días»: en el último mes no salió nada, así que no se puede estimar cuánto dura. Por sí solo no entra en «Para comprar»; entra si está debajo del mínimo.",
         "«Debajo del mínimo (M)»: tenés menos que el mínimo que fijaste para ese producto. M es ese mínimo.",
       ],
