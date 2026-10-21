@@ -64,6 +64,8 @@ export type { CuratedFontId, FontId, FontSlot, FontDefinition, GoogleFontId } fr
 export { RENDERER_VERSION } from "./render/version";
 export type { ResourceResolver } from "./render/resources";
 export { renderSvgPages } from "./render/svg";
+export { normalizarEncuadre, ubicarFotoEncuadrada, ZOOM_MAXIMO_ENCUADRE } from "./layout/encuadre";
+export type { ImageCrop } from "./layout/encuadre";
 
 export type { Result } from "./result";
 export type { TextMeasurer, LayoutPlan, LayoutPage, LayoutItem } from "./layout/plan";

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
+import { ImageCropOverlay } from "./ImageCropOverlay";
 import { getCanvasCenterPoint } from "@repo/template-editor-core";
 import { getSafeAreaRectPx } from "@repo/template-editor-core";
 import { getLayoutSafeAreaStatus, type LayoutSafeAreaStatus } from "@repo/template-editor-core";
@@ -458,6 +459,9 @@ export function TemplateEditorCanvas({
 
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
+  /** Foto que se está encuadrando (doble clic): el arrastre mueve la foto, no el marco. */
+  const [croppingBlockId, setCroppingBlockId] = useState<string | null>(null);
+  const cropStartSnapshotRef = useRef<ReturnType<typeof takePersistSnapshot> | null>(null);
   const textEditStartSnapshotRef = useRef<ReturnType<typeof takePersistSnapshot> | null>(null);
   const [rotatingBlockId, setRotatingBlockId] = useState<string | null>(null);
   /** Bloque que se está estirando: mientras dura el gesto, el recuadro muestra su medida. */
@@ -570,6 +574,26 @@ export function TemplateEditorCanvas({
       dispatch(commitHistoryCheckpoint(snap));
     }
   }, [dispatch]);
+
+  /** Termina el encuadre: todo el gesto queda como un solo paso para deshacer. */
+  const endImageCrop = useCallback(() => {
+    const snap = cropStartSnapshotRef.current;
+    cropStartSnapshotRef.current = null;
+    setCroppingBlockId(null);
+    if (snap) dispatch(commitHistoryCheckpoint(snap));
+  }, [dispatch]);
+
+  const croppingBlock =
+    croppingBlockId != null ? state.blocks.find((b) => b.id === croppingBlockId) ?? null : null;
+
+  // Si la foto desaparece, cambia de hoja o se selecciona otra cosa, el encuadre termina solo.
+  useEffect(() => {
+    if (!croppingBlockId) return;
+    const b = state.blocks.find((x) => x.id === croppingBlockId);
+    if (!b || (b.pageIndex ?? 0) !== activePage || !state.selectedBlockIds.includes(croppingBlockId)) {
+      queueMicrotask(endImageCrop);
+    }
+  }, [activePage, croppingBlockId, state.blocks, state.selectedBlockIds, endImageCrop]);
 
   useEffect(() => {
     if (!editingTextBlockId) return;
@@ -1166,6 +1190,19 @@ export function TemplateEditorCanvas({
                   e.preventDefault();
                   e.stopPropagation();
                   if (b.layout.locked) return;
+                  if (
+                    b.type === "IMAGE" &&
+                    String(b.configJson.src ?? "").trim() !== "" &&
+                    b.configJson.fit !== "contain"
+                  ) {
+                    dragRef.current = null;
+                    gesturePersistSnapshotRef.current = null;
+                    setDraggingBlockId(null);
+                    cropStartSnapshotRef.current = takePersistSnapshot(state);
+                    dispatch(selectBlock(b.id));
+                    setCroppingBlockId(b.id);
+                    return;
+                  }
                   if (!isTextKind) return;
                   dragRef.current = null;
                   altDuplicateGestureRef.current = false;
@@ -1410,8 +1447,32 @@ export function TemplateEditorCanvas({
             );
             })}
 
+            {croppingBlock ? (
+              <ImageCropOverlay
+                block={croppingBlock}
+                canvasZoom={state.zoom}
+                onCrop={(crop, natural) =>
+                  dispatch(
+                    updateBlock(
+                      croppingBlock.id,
+                      {
+                        configJson: {
+                          ...croppingBlock.configJson,
+                          crop,
+                          srcWidth: natural.w,
+                          srcHeight: natural.h,
+                        },
+                      },
+                      { skipHistory: true }
+                    )
+                  )
+                }
+                onExit={endImageCrop}
+              />
+            ) : null}
+
             {/* Marco y handles solo en el bloque primario; el resto de seleccionados llevan outline en el renderer. */}
-            {primaryBlock && editingTextBlockId !== primaryBlock.id ? (
+            {primaryBlock && editingTextBlockId !== primaryBlock.id && croppingBlockId !== primaryBlock.id ? (
               <div
                 style={{
                   ...getOverlayStyle(primaryBlock),
