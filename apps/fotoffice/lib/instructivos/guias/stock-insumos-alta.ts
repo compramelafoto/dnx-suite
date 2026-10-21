@@ -36,7 +36,7 @@ export const guia: Instructivo = {
       texto: [
         "Muchos insumos se compran en cajas o kits pero se gastan de a una unidad. Para eso están «Cómo lo comprás (opcional)» y «Cuántas unidades trae cada una».",
         "Ejemplo: el kit de la Kodak 305 se compra como «Kit 305 6R» y trae 640 copias. En «Cómo lo comprás» escribís «Kit 305 6R» y en «Cuántas unidades trae cada una» escribís 640.",
-        "Así, cuando llegue un kit, cargás «1 kit» y FOTOFFICE suma 640 copias. Tocá «Guardar».",
+        "Así, cuando llegue un kit, cargás «1 kit» y FOTOFFICE suma 640 copias. Al terminar, tocá «Crear producto» (si estás editando uno que ya existe, «Guardar cambios»).",
       ],
       sistema: ["Los insumos no aparecen en el Cobrador ni en la tienda: no se pueden vender por error."],
     },
