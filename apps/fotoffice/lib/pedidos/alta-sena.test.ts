@@ -329,3 +329,167 @@ describe("cancelar devuelve lo apartado y no entregado", () => {
     expect(B.datos.fotofficePedido.find((p) => p.id === r.pedidoId)).toMatchObject({ status: "CANCELADO" });
   });
 });
+
+describe("insumos de la seña", () => {
+  // El kit de la Kodak 305 se cuenta en copias 10x15: una 15x20 gasta 2. Arranca en 0, como en la
+  // carga real; queda negativo y está bien (tomar un pedido nunca se frena por falta de insumo).
+  beforeEach(() => {
+    B.agregar("product", { id: "kit-305", workspaceId: "ws-1", name: "Kit Kodak 305 (copias 10x15)", kind: "INSUMO", tracksStock: true, stockQty: 0 });
+    B.agregar("product", { id: "prod-15x20", workspaceId: "ws-1", name: "Copia 15x20", tracksStock: false, stockQty: 0 });
+    B.agregar("fotofficeRecetaInsumo", { id: "rec-15x20", workspaceId: "ws-1", productId: "prod-15x20", insumoId: "kit-305", quantity: 2, porCada: 1 });
+  });
+  const kit = () => producto("kit-305").stockQty;
+  const consumos = () => B.datos.stockMovement.filter((m) => m.reason === "CONSUMO");
+  const devoluciones = () => B.datos.stockMovement.filter((m) => m.reason === "DEVOLUCION");
+
+  it("al tomar un pedido de 10 copias 15x20 se descuentan 20 del kit", async () => {
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({
+        items: [item("c1", { productId: "prod-15x20", cantidad: 10 })],
+        paraRetirar: ["c1"],
+        apartar: [{ itemId: "c1", productId: "prod-15x20", variantId: null, cantidad: 10 }],
+      }),
+      deps,
+    );
+    if (!r.ok) throw new Error(r.error);
+    // La copia no controla stock: no hay PEDIDO, pero su receta se descuenta igual.
+    expect(B.datos.stockMovement.filter((m) => m.reason === "PEDIDO")).toHaveLength(0);
+    expect(consumos()).toHaveLength(1);
+    expect(consumos()[0]).toMatchObject({
+      workspaceId: "ws-1", productId: "kit-305", variantId: null, qty: -20, reason: "CONSUMO",
+      sourceModule: "pedidos", sourceRef: r.pedidoId, note: "consumo:item:c1", createdByUserId: 1,
+    });
+    expect(kit()).toBe(-20);
+  });
+
+  it("bloquea productos e insumos en una sola llamada, antes de escribir nada", async () => {
+    const bloqueos: { tabla: string; movimientos: number; valores: unknown[] }[] = [];
+    B.ganchos.alEjecutarSql = (texto, valores) => {
+      const m = /FROM "(Product|ProductVariant)".*FOR UPDATE/s.exec(texto);
+      if (m) bloqueos.push({ tabla: m[1]!, movimientos: B.datos.stockMovement.length, valores });
+    };
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({
+        items: [item("m1", { productId: "prod-taza", cantidad: 1 }), item("c1", { productId: "prod-15x20", cantidad: 3 })],
+        apartar: [
+          { itemId: "m1", productId: "prod-taza", variantId: "var-m", cantidad: 1 },
+          { itemId: "c1", productId: "prod-15x20", variantId: null, cantidad: 3 },
+        ],
+      }),
+      deps,
+    );
+    expect(r.ok).toBe(true);
+    expect(bloqueos).toEqual([
+      { tabla: "Product", movimientos: 0, valores: [["kit-305", "prod-15x20", "prod-taza"], "ws-1"] },
+      { tabla: "ProductVariant", movimientos: 0, valores: [["var-m"], "ws-1"] },
+    ]);
+    expect(B.datos.stockMovement.map((m) => [m.reason, m.note])).toEqual([
+      ["PEDIDO", "item:m1"],
+      ["CONSUMO", "consumo:item:c1"],
+    ]);
+    expect(kit()).toBe(-6);
+  });
+
+  describe("al cancelar", () => {
+    // Las dos líneas son tazas (controlan stock) y además gastan kit: 2 por taza.
+    const ITEMS_DOS = [item("m1", { productId: "prod-taza", cantidad: 2 }), item("m2", { productId: "prod-taza", cantidad: 3 })];
+    const APARTAR_DOS = [
+      { itemId: "m1", productId: "prod-taza", variantId: "var-m", cantidad: 2 },
+      { itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 3 },
+    ];
+    beforeEach(() => {
+      B.agregar("fotofficeRecetaInsumo", { id: "rec-taza", workspaceId: "ws-1", productId: "prod-taza", insumoId: "kit-305", quantity: 2, porCada: 1 });
+    });
+    async function pedidoConDosLineas(): Promise<string> {
+      const r = await P.crearPedidoManual(DUENO, base({ items: ITEMS_DOS, paraRetirar: ["m1", "m2"], apartar: APARTAR_DOS }), deps);
+      if (!r.ok) throw new Error(r.error);
+      return r.pedidoId;
+    }
+    const trabajoDe = (pedidoId: string, posicion: number) =>
+      B.datos.fotofficeProyecto.find((p) => p.pedidoId === pedidoId && p.pedidoItemIndex === posicion)!;
+    const recorridoDe = (proyectoId: unknown) => B.datos.fotofficeJourney.find((j) => j.subjectId === proyectoId)!;
+
+    it("ninguna entregada: vuelven los productos y los insumos de las dos líneas", async () => {
+      const id = await pedidoConDosLineas();
+      expect(kit()).toBe(-10);
+      expect(await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió")).toEqual({ ok: true });
+      const d = devoluciones();
+      expect(d.filter((m) => m.productId === "prod-taza").map((m) => m.note).sort()).toEqual(["item:m1", "item:m2"]);
+      expect(d.filter((m) => m.productId === "kit-305").map((m) => [m.note, m.qty]).sort()).toEqual([
+        ["consumo:item:m1", 4],
+        ["consumo:item:m2", 6],
+      ]);
+      expect(d.every((m) => m.sourceModule === "pedidos" && m.sourceRef === id)).toBe(true);
+      expect(kit()).toBe(0);
+      expect(producto("prod-taza").stockQty).toBe(10);
+      expect(variante("var-m").stockQty).toBe(4);
+    });
+
+    it("al cancelar con una línea entregada y otra no, vuelve solo el insumo de la no entregada", async () => {
+      const id = await pedidoConDosLineas();
+      Object.assign(recorridoDe(trabajoDe(id, 0).id), { stageId: null, outcome: "TERMINADO", closedAt: AHORA });
+      await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió");
+      // La no entregada (m2) devuelve su producto con la nota de siempre y su insumo con la suya.
+      expect(devoluciones().map((m) => [m.productId, m.note, m.qty])).toEqual([
+        ["prod-taza", "item:m2", 3],
+        ["kit-305", "consumo:item:m2", 6],
+      ]);
+      expect(kit()).toBe(-4);
+      expect(producto("prod-taza").stockQty).toBe(8);
+    });
+
+    it("cancelar dos veces no duplica", async () => {
+      const id = await pedidoConDosLineas();
+      expect((await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x")).ok).toBe(true);
+      expect((await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x")).ok).toBe(false);
+      expect(devoluciones()).toHaveLength(4);
+      expect(kit()).toBe(0);
+      expect(producto("prod-taza").stockQty).toBe(10);
+    });
+
+    it("un insumo ya devuelto no se repite, y no tapa la devolución del producto de esa línea", async () => {
+      const id = await pedidoConDosLineas();
+      // La devolución del insumo de m1 ya está; la de su producto (nota `item:m1`) no.
+      B.agregar("stockMovement", {
+        workspaceId: "ws-1", productId: "kit-305", variantId: null, qty: 4, reason: "DEVOLUCION",
+        sourceModule: "pedidos", sourceRef: id, note: "consumo:item:m1",
+      });
+      await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+      expect(devoluciones().map((m) => m.note).sort()).toEqual(["consumo:item:m1", "consumo:item:m2", "item:m1", "item:m2"]);
+      expect(producto("prod-taza").stockQty).toBe(10);
+    });
+
+    it("un producto ya devuelto no tapa la devolución de su insumo", async () => {
+      const id = await pedidoConDosLineas();
+      B.agregar("stockMovement", {
+        workspaceId: "ws-1", productId: "prod-taza", variantId: "var-m", qty: 2, reason: "DEVOLUCION",
+        sourceModule: "pedidos", sourceRef: id, note: "item:m1",
+      });
+      B.agregar("stockMovement", {
+        workspaceId: "ws-1", productId: "prod-taza", variantId: null, qty: 3, reason: "DEVOLUCION",
+        sourceModule: "pedidos", sourceRef: id, note: "item:m2",
+      });
+      await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+      expect(devoluciones().filter((m) => m.productId === "kit-305").map((m) => m.note).sort()).toEqual([
+        "consumo:item:m1",
+        "consumo:item:m2",
+      ]);
+    });
+
+    it("bloquea productos e insumos en una sola llamada antes de devolver", async () => {
+      const id = await pedidoConDosLineas();
+      const bloqueos: { tabla: string; devueltas: number; valores: unknown[] }[] = [];
+      B.ganchos.alEjecutarSql = (texto, valores) => {
+        const m = /FROM "(Product|ProductVariant)".*FOR UPDATE/s.exec(texto);
+        if (m) bloqueos.push({ tabla: m[1]!, devueltas: devoluciones().length, valores });
+      };
+      await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+      expect(bloqueos).toEqual([
+        { tabla: "Product", devueltas: 0, valores: [["kit-305", "prod-taza"], "ws-1"] },
+        { tabla: "ProductVariant", devueltas: 0, valores: [["var-m"], "ws-1"] },
+      ]);
+    });
+  });
+});

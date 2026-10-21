@@ -12,6 +12,7 @@ import { esEtapaDeEntrega } from "@/lib/circuitos/recorridos";
 import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/crear";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
+import { aplicarConsumo, consumosPendientesDeDevolver, devolverConsumos, planificarConsumo } from "@/lib/stock/consumo-servidor";
 import { nombreDeContacto } from "./nombre-contacto";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
 import { rubroIngresoPorOmision } from "./ajustes";
@@ -445,6 +446,12 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
  * controlan stock (los demás no tienen existencia que mover). Va por `applyStockMovement`, como
  * todo lo que mueve stock; la nota `item:<id>` empareja el movimiento con su línea para devolverlo
  * si el pedido se cancela.
+ *
+ * Además descuenta los insumos de las recetas (copias del kit, sobres…) de TODAS las líneas, aunque
+ * el producto no controle stock: una copia 15x20 no tiene existencia propia, pero gasta papel. Un
+ * movimiento `CONSUMO` por insumo y línea, con la nota `consumo:item:<id>` (nunca `item:<id>`, que
+ * es la de los productos apartados). Un pedido nunca genera una venta, así que esto no se descuenta
+ * dos veces con `recordSale`.
  */
 async function apartarStock(
   tx: Tx,
@@ -452,13 +459,21 @@ async function apartarStock(
 ): Promise<void> {
   if (d.lineas.length === 0) return;
   const productIds = [...new Set(d.lineas.map((l) => l.productId))];
+  // Qué insumos gasta la seña: sólo lecturas, antes de bloquear, porque sus ids tienen que entrar
+  // en el mismo bloqueo que los productos.
+  const plan = await planificarConsumo(
+    tx,
+    d.workspaceId,
+    d.lineas.map((l) => ({ ref: l.itemId, productId: l.productId, qty: l.cantidad })),
+  );
   // Lo primero, como toda escritura de stock: bloquear productos y después talles, en orden de id
   // (`stock-lock.ts`). `applyStockMovement` escribe el talle antes que el producto; sin este
   // bloqueo, una seña al mismo tiempo que una venta o un pedido online del mismo producto podía
-  // quedar esperando a la otra (interbloqueo) y Postgres abortaba una de las dos.
+  // quedar esperando a la otra (interbloqueo) y Postgres abortaba una de las dos. Los insumos son
+  // filas de `Product`: van en la MISMA llamada, no en una segunda, para no romper ese orden.
   await lockStockRows(tx, {
     workspaceId: d.workspaceId,
-    productIds,
+    productIds: [...productIds, ...plan.insumoIds],
     variantIds: d.lineas.map((l) => l.variantId).filter((x): x is string => x !== null),
   });
   const productos = await tx.product.findMany({
@@ -481,6 +496,13 @@ async function apartarStock(
       createdByUserId: d.createdByUserId,
     });
   }
+  await aplicarConsumo(tx, {
+    workspaceId: d.workspaceId,
+    plan,
+    sourceModule: "pedidos",
+    sourceRef: d.pedidoId,
+    createdByUserId: d.createdByUserId,
+  });
 }
 
 /**
@@ -489,6 +511,12 @@ async function apartarStock(
  * está en una etapa de entrega (la misma regla del candado del saldo: `esEtapaDeEntrega`). Una
  * línea sin trabajo (Proyectos apagado) vuelve. Idempotente: una línea que ya tiene su
  * `DEVOLUCION` (mismo `sourceRef` y nota) no se repite.
+ *
+ * Con la misma regla devuelve los insumos que la seña descontó (`CONSUMO`, nota
+ * `consumo:item:<id>`), sólo de las líneas no entregadas: lo entregado ya gastó su papel. No se
+ * recalculan con la receta de hoy: vuelve lo que dicen los movimientos, menos lo ya devuelto.
+ * Las devoluciones de insumos (`DEVOLUCION` con nota `consumo:item:…`) nunca se confunden con las
+ * de productos: éstas se emparejan por la nota exacta `item:<id>`, y aquéllas por otro prefijo.
  */
 async function devolverStockApartado(tx: Tx, d: { workspaceId: string; pedidoId: string; createdByUserId: number | null }): Promise<void> {
   const movimientos = await tx.stockMovement.findMany({
@@ -497,21 +525,30 @@ async function devolverStockApartado(tx: Tx, d: { workspaceId: string; pedidoId:
   });
   const yaDevueltas = new Set(movimientos.filter((m) => m.reason === "DEVOLUCION").map((m) => m.note));
   const apartados = movimientos.filter((m) => m.reason === "PEDIDO" && m.note !== null && !yaDevueltas.has(m.note));
-  if (apartados.length === 0) return;
 
   const pedido = await tx.fotofficePedido.findFirst({ where: { id: d.pedidoId, workspaceId: d.workspaceId }, select: { items: true } });
-  const posicionDe = new Map(itemsGuardados(pedido?.items).map((it, i) => [`item:${it.id}`, i]));
+  const items = itemsGuardados(pedido?.items);
+  const posicionDe = new Map(items.map((it, i) => [`item:${it.id}`, i]));
   const entregadas = await posicionesEntregadas(tx, d.workspaceId, d.pedidoId);
   const aDevolver = apartados.filter((m) => {
     const posicion = posicionDe.get(m.note!);
     return posicion === undefined || !entregadas.has(posicion);
   });
-  if (aDevolver.length === 0) return;
 
-  // Mismo orden de bloqueo que al apartar (`stock-lock.ts`).
+  // Los insumos de las líneas no entregadas. Se leen ANTES de bloquear (sólo lectura): sus ids
+  // entran en el mismo bloqueo que los productos.
+  const pendientes = await consumosPendientesDeDevolver(tx, {
+    workspaceId: d.workspaceId,
+    sourceModule: "pedidos",
+    sourceRef: d.pedidoId,
+    refs: new Set(items.filter((_, i) => !entregadas.has(i)).map((it) => it.id)),
+  });
+  if (aDevolver.length === 0 && pendientes.length === 0) return;
+
+  // Mismo orden de bloqueo que al apartar (`stock-lock.ts`), productos e insumos en una llamada.
   await lockStockRows(tx, {
     workspaceId: d.workspaceId,
-    productIds: [...new Set(aDevolver.map((m) => m.productId))],
+    productIds: [...new Set([...aDevolver.map((m) => m.productId), ...pendientes.map((p) => p.insumoId)])],
     variantIds: aDevolver.map((m) => m.variantId).filter((x): x is string => x !== null),
   });
   for (const m of aDevolver) {
@@ -528,6 +565,13 @@ async function devolverStockApartado(tx: Tx, d: { workspaceId: string; pedidoId:
       createdByUserId: d.createdByUserId,
     });
   }
+  await devolverConsumos(tx, {
+    workspaceId: d.workspaceId,
+    pendientes,
+    sourceModule: "pedidos",
+    sourceRef: d.pedidoId,
+    createdByUserId: d.createdByUserId,
+  });
 }
 
 /** Posiciones de ítem del pedido cuyo trabajo ya se entregó (terminado, o en una etapa de entrega). */
