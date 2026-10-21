@@ -6,6 +6,7 @@ import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { applyStockMovement } from "./variant-stock";
 import { lockStockRows } from "./stock-lock";
+import { consumosPendientesDeDevolver, devolverConsumos } from "@/lib/stock/consumo-servidor";
 
 /**
  * Anular una venta. Espejo de `record-sale.ts`, en sentido contrario.
@@ -261,6 +262,11 @@ async function escribirContramovimiento(
  * `workspaceId` (defensiva: un `productId` de otro negocio no debería poder llegar hasta acá,
  * pero si llegara, esto no lo toca). La cantidad viaja positiva —`SaleItem.qty` ya lo es—
  * porque una devolución suma, igual que una entrada.
+ *
+ * Después devuelve los insumos que la venta descontó (copias del kit, sobres…). No se
+ * recalculan con la receta de hoy —pudo cambiar desde que se vendió—: se devuelve exactamente
+ * lo que dicen los movimientos `CONSUMO` de esta venta, menos lo que ya se hubiera devuelto
+ * (por eso anular dos veces no devuelve dos veces).
  */
 async function devolverStock(
   tx: Tx,
@@ -274,14 +280,26 @@ async function devolverStock(
   });
 
   const productIds = [...new Set(items.map((i) => i.productId).filter((id): id is string => id !== null))];
-  if (productIds.length === 0) return;
+
+  // Lo que hay que devolver de insumos se lee ANTES de bloquear: sus ids tienen que entrar en
+  // el mismo bloqueo que los productos (es sólo lectura; la escritura viene después).
+  const pendientes = await consumosPendientesDeDevolver(tx, {
+    workspaceId,
+    sourceModule: "sales",
+    sourceRef: saleId,
+    refs: null,
+  });
+
+  if (productIds.length === 0 && pendientes.length === 0) return;
 
   // Antes de devolver nada, los bloqueos en el orden de toda la suite (productos y después
   // talles, por id — ver `stock-lock.ts`): la cancelación de un pedido online pasa por acá, y
-  // el mostrador también; el mismo orden en los dos evita que se esperen mutuamente.
+  // el mostrador también; el mismo orden en los dos evita que se esperen mutuamente. Los
+  // insumos son filas de `Product`: van en la MISMA llamada, no en una segunda, para no
+  // romper ese orden.
   await lockStockRows(tx, {
     workspaceId,
-    productIds,
+    productIds: [...productIds, ...pendientes.map((p) => p.insumoId)],
     variantIds: items.map((i) => i.variantId).filter((id): id is string => id !== null && id !== undefined),
   });
 
@@ -310,4 +328,12 @@ async function devolverStock(
       createdByUserId: userId,
     });
   }
+
+  await devolverConsumos(tx, {
+    workspaceId,
+    pendientes,
+    sourceModule: "sales",
+    sourceRef: saleId,
+    createdByUserId: userId,
+  });
 }
