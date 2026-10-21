@@ -64,6 +64,16 @@ export function parseExternalPreventaRefs(raw: unknown): ExternalPreventaRefs | 
  * partido; para el listado del curso y los formatos del nombre es un mal menor frente a no
  * tenerlos, y el nombre completo se sigue imprimiendo tal como vino.
  */
+/**
+ * "Valenza Sabrina" (como viene en el Excel: apellido primero) → "Sabrina Valenza", para saludar y
+ * mostrar a la familia. Saludar con la primera palabra daba "Hola, Valenza".
+ */
+export function nombreNaturalDesdeExcel(raw: string | null | undefined): string | null {
+  const partes = splitExcelStudentName(raw);
+  if (!partes) return null;
+  return [partes.firstName, partes.lastName].filter(Boolean).join(" ");
+}
+
 export function splitExcelStudentName(raw: string | null | undefined): { firstName: string; lastName: string } | null {
   const partes = (raw ?? "").trim().split(/\s+/).filter(Boolean);
   if (partes.length === 0) return null;
