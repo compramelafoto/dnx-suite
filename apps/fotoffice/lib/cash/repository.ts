@@ -2,7 +2,8 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
-import { isOpeningBalanceModule } from "@/lib/cash/opening-balance";
+import { isOpeningBalanceModule, OPENING_BALANCE_MODULE } from "@/lib/cash/opening-balance";
+import type { OpeningBalanceRow } from "@/lib/cash/opening-balance-rules";
 
 /**
  * Las consultas de Caja.
@@ -455,4 +456,28 @@ export async function userDisplayNames(ids: readonly (number | null)[]): Promise
     select: { id: true, name: true, email: true },
   });
   return new Map(rows.map((r) => [r.id, r.name?.trim() || r.email]));
+}
+
+/**
+ * El saldo inicial vigente de cada cuenta del workspace: el que no es una anulación ni fue
+ * anulado. Una cuenta sin entrada en el mapa no tiene (o el suyo se anuló).
+ */
+export async function openingBalancesByAccount(workspaceId: string): Promise<Map<string, OpeningBalanceRow>> {
+  const rows = await prisma.cashMovement.findMany({
+    where: {
+      workspaceId,
+      sourceModule: OPENING_BALANCE_MODULE,
+      kind: "INGRESO",
+      reversesMovementId: null,
+      reversedBy: { is: null },
+    },
+    select: { id: true, accountId: true, amountArs: true, occurredAt: true },
+    orderBy: { occurredAt: "asc" },
+  });
+  const mapa = new Map<string, OpeningBalanceRow>();
+  for (const r of rows) {
+    if (mapa.has(r.accountId)) continue;
+    mapa.set(r.accountId, { movementId: r.id, amountMinor: decimalArsToMinor(r.amountArs), occurredAt: r.occurredAt });
+  }
+  return mapa;
 }
