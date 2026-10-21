@@ -39,6 +39,7 @@ export function diasDeCobertura(stockQty: number, consumoDia: number): number | 
 export function textoCobertura(dias: number | null): string {
   if (dias === null) return "Sin consumo en 30 días";
   if (dias <= 0) return "Se termina hoy";
+  if (dias === 1) return "Te alcanza para ~1 día";
   return `Te alcanza para ~${dias} días`;
 }
 
@@ -69,6 +70,8 @@ export function cantidadSugerida(i: ItemStock): number {
   return Math.ceil(Math.max(min - i.stockQty, i.consumo30 - i.stockQty, 1));
 }
 
+const SIN_PROVEEDOR = "Sin proveedor";
+
 export type ListaProveedor = {
   proveedor: string;
   renglones: { texto: string }[];
@@ -84,15 +87,21 @@ function renglon(i: ItemStock): string {
 }
 
 export function listaPorProveedor(items: readonly ItemStock[]): ListaProveedor[] {
-  const grupos = new Map<string, ItemStock[]>();
+  // «Kodak», «kodak » y «KODAK» son el mismo proveedor: se agrupa sin mayúsculas ni espacios
+  // de más, y se muestra como estaba escrito la primera vez.
+  const grupos = new Map<string, { nombre: string; items: ItemStock[] }>();
   for (const i of paraComprar(items)) {
-    const p = i.proveedor?.trim() || "Sin proveedor";
-    grupos.set(p, [...(grupos.get(p) ?? []), i]);
+    const escrito = i.proveedor?.trim().replace(/\s+/g, " ") ?? "";
+    const clave = escrito ? escrito.toLocaleLowerCase("es") : "";
+    const g = grupos.get(clave) ?? { nombre: escrito || SIN_PROVEEDOR, items: [] };
+    g.items.push(i);
+    grupos.set(clave, g);
   }
   return [...grupos.entries()]
+    .map(([clave, g]) => [clave === "" ? SIN_PROVEEDOR : g.nombre, g.items] as const)
     .sort(([a], [b]) => {
-      if (a === "Sin proveedor") return 1;
-      if (b === "Sin proveedor") return -1;
+      if (a === SIN_PROVEEDOR) return 1;
+      if (b === SIN_PROVEEDOR) return -1;
       return a.localeCompare(b, "es");
     })
     .map(([proveedor, its]) => {

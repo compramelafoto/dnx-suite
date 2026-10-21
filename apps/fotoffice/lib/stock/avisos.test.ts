@@ -36,6 +36,7 @@ describe("cobertura", () => {
     expect(textoCobertura(null)).toBe("Sin consumo en 30 días");
     expect(textoCobertura(0)).toBe("Se termina hoy");
     expect(textoCobertura(5)).toBe("Te alcanza para ~5 días");
+    expect(textoCobertura(1)).toBe("Te alcanza para ~1 día");
   });
 });
 
@@ -76,6 +77,16 @@ describe("listaPorProveedor", () => {
     expect(kodak.renglones.map((r) => r.texto)).toEqual(["3 caja Kit 305", "8 hojas Papel"]);
     expect(kodak.textoCopiable).toBe("Pedido para Kodak:\n- 3 caja Kit 305\n- 8 hojas Papel");
     expect(l[1]!.renglones[0]!.texto).toBe("1 ml Tinta");
+  });
+  it("agrupa proveedores sin importar mayúsculas ni espacios; muestra la primera escritura", () => {
+    const l = listaPorProveedor([
+      item({ productId: "a", nombre: "A", stockQty: -1, proveedor: "Foto  Sur" }),
+      item({ productId: "b", nombre: "B", stockQty: 0, minStockQty: 2, proveedor: " foto sur " }),
+      item({ productId: "c", nombre: "C", stockQty: 0, minStockQty: 2, proveedor: "FOTO SUR" }),
+    ]);
+    expect(l).toHaveLength(1);
+    expect(l[0]!.proveedor).toBe("Foto Sur");
+    expect(l[0]!.renglones).toHaveLength(3);
   });
   it("mínimo 1", () => {
     const l = listaPorProveedor([item({ productId: "q", nombre: "Q", stockQty: 0, minStockQty: null, consumo30: 0 })]);
