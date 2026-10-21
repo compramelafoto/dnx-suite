@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listProducts } from "@/lib/sales/repository";
@@ -34,7 +35,15 @@ export default async function StockPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Stock" description="Qué queda, qué entró y qué hay que reponer." />
+      <PageHeader
+        title="Stock"
+        description="Qué queda, qué entró y qué hay que reponer."
+        actions={
+          <Link href="/ventas/stock/recepcion" className="fo-btn fo-btn-primary text-sm">
+            Recibir pedido
+          </Link>
+        }
+      />
 
       {sp.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
