@@ -18,24 +18,7 @@ export const KODAK_305 = {
   consumoPorTamano: { "10x15": 1, "13x18": 2, "15x20": 2 },
 } as const;
 
-/**
- * Una entrada cargada en la presentación de compra (kits) pasada a la unidad en que se
- * descuenta (copias). El costo se carga por kit y se reparte entre las copias del kit.
- */
-export function entradaEnUnidades(d: {
-  cantidad: number;
-  enUnidadDeCompra: boolean;
-  unidadesPorCompra: number | null;
-  costoMinor: number | null;
-}): { qty: number; unitCostMinor: number | null } {
-  if (!d.enUnidadDeCompra || !d.unidadesPorCompra || d.unidadesPorCompra < 1) {
-    return { qty: d.cantidad, unitCostMinor: d.costoMinor };
-  }
-  return {
-    qty: d.cantidad * d.unidadesPorCompra,
-    unitCostMinor: d.costoMinor === null ? null : Math.round(d.costoMinor / d.unidadesPorCompra),
-  };
-}
+export { entradaEnUnidades } from "./unidades";
 
 export type ResultadoKodak305 =
   | { ok: true; insumoId: string; creado: boolean }

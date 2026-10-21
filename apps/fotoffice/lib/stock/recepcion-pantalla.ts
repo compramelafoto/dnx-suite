@@ -1,4 +1,4 @@
-import { entradaEnUnidades } from "./kodak305";
+import { entradaEnUnidades } from "./unidades";
 import type { LineaBorrador } from "./recepcion";
 
 /**

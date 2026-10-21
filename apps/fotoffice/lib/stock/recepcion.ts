@@ -1,4 +1,4 @@
-import { entradaEnUnidades } from "./kodak305";
+import { entradaEnUnidades } from "./unidades";
 import type { OrigenLinea } from "./recepcion-constantes";
 
 /** Una línea del borrador de recepción. El costo va en minor (centavos) por la unidad en que se cargó. */
