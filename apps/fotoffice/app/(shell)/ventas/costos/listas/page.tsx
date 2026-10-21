@@ -64,7 +64,7 @@ export default async function ListasProveedoresPage() {
                     <td className="px-4 py-3 font-medium">{l.proveedor}</td>
                     <td className="px-4 py-3">{l.vigencia}</td>
                     <td className="px-4 py-3 text-[var(--fo-muted)]">
-                      {l.renglones} · {l.emparejados} con producto
+                      {l.renglones} · {l.productos} productos
                     </td>
                     <td className="px-4 py-3">{ESTADO[l.estado] ?? l.estado}</td>
                     <td className="px-4 py-3 text-[var(--fo-muted)]">{fecha(l.createdAt)}</td>

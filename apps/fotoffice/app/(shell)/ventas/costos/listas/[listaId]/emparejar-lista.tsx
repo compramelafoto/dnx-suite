@@ -6,7 +6,7 @@ import { formatMinorArs } from "@/lib/membership/money";
 import { normalizarTexto } from "@/lib/precios-proveedor/clave";
 import type { DetalleLista, ItemLista } from "@/lib/precios-proveedor/repositorio";
 import type { FilaVistaPrevia, MarcaVistaPrevia } from "@/lib/precios-proveedor/vista-previa";
-import { aplicarListaAction, descartarListaAction, emparejarItemAction } from "../../actions";
+import { aplicarListaAction, descartarListaAction, emparejarProductoAction, soltarProductoAction } from "../../actions";
 
 type Producto = { id: string; name: string; categoryName: string | null; deEsteProveedor: boolean };
 
@@ -24,7 +24,7 @@ function detalle(i: ItemLista): string {
     .join(" · ");
 }
 
-function SelectorProducto({ productos, onElegir, onCancelar }: { productos: Producto[]; onElegir: (id: string | null) => void; onCancelar: () => void }) {
+function SelectorProducto({ productos, onElegir, onCancelar }: { productos: Producto[]; onElegir: (id: string) => void; onCancelar: () => void }) {
   const [q, setQ] = useState("");
   const resultados = useMemo(() => {
     const n = normalizarTexto(q);
@@ -45,9 +45,6 @@ function SelectorProducto({ productos, onElegir, onCancelar }: { productos: Prod
         ))}
       </ul>
       <div className="flex gap-2">
-        <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={() => onElegir(null)}>
-          Sin producto
-        </button>
         <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={onCancelar}>
           Cancelar
         </button>
@@ -72,27 +69,34 @@ export function EmparejarLista({ lista, vistaInicial, productos }: { lista: Deta
   const [pendiente, startTransition] = useTransition();
 
   const nombre = useMemo(() => new Map(productos.map((p) => [p.id, p.name])), [productos]);
-  const visibles = items.filter((i) => (filtro === "con" ? i.productId : filtro === "sin" ? !i.productId : true));
-  const conProducto = items.filter((i) => i.productId).length;
+  const visibles = items.filter((i) => (filtro === "con" ? i.productos.length > 0 : filtro === "sin" ? i.productos.length === 0 : true));
+  const conProducto = items.filter((i) => i.productos.length > 0).length;
   const aplican = vista.filter((f) => f.aplica);
   const cambianPrecio = aplican.filter((f) => f.precioNuevoMinor !== f.precioAntesMinor);
 
-  function emparejar(item: ItemLista, productId: string | null, factor: number) {
+  function emparejar(item: ItemLista, productId: string, factor: number) {
     setError(null);
     startTransition(async () => {
-      const r = await emparejarItemAction(lista.id, item.id, productId, factor);
+      const r = await emparejarProductoAction(lista.id, item.id, productId, factor);
       if (!r.ok) return setError(r.error);
       setItems((prev) =>
-        prev.map((i) =>
-          i.id === item.id
-            ? { ...i, productId, factor, recordado: false }
-            : productId && i.productId === productId
-              ? { ...i, productId: null, recordado: false }
-              : i,
-        ),
+        prev.map((i) => {
+          const sin = i.productos.filter((p) => p.productId !== productId);
+          return i.id === item.id ? { ...i, productos: [...sin, { productId, factor, recordado: false }] } : { ...i, productos: sin };
+        }),
       );
       setVista(r.vista);
       setEditando(null);
+    });
+  }
+
+  function soltar(item: ItemLista, productId: string) {
+    setError(null);
+    startTransition(async () => {
+      const r = await soltarProductoAction(lista.id, item.id, productId);
+      if (!r.ok) return setError(r.error);
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, productos: i.productos.filter((p) => p.productId !== productId) } : i)));
+      setVista(r.vista);
     });
   }
 
@@ -139,8 +143,7 @@ export function EmparejarLista({ lista, vistaInicial, productos }: { lista: Deta
               <tr>
                 <th className="px-3 py-2 font-semibold">Renglón del proveedor</th>
                 <th className="px-3 py-2 font-semibold">Costo</th>
-                <th className="w-[320px] px-3 py-2 font-semibold">Tu producto</th>
-                <th className="px-3 py-2 font-semibold">Factor</th>
+                <th className="w-[420px] px-3 py-2 font-semibold">Tus productos (× factor)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
@@ -152,39 +155,48 @@ export function EmparejarLista({ lista, vistaInicial, productos }: { lista: Deta
                     {i.notas ? <div className="text-xs text-[var(--fo-muted)]">{i.notas}</div> : null}
                   </td>
                   <td className="px-3 py-2 tabular-nums">{formatMinorArs(i.costoMinor)}</td>
-                  <td className="px-3 py-2">
-                    {editando === i.id ? (
-                      <SelectorProducto productos={productos} onElegir={(id) => emparejar(i, id, i.factor)} onCancelar={() => setEditando(null)} />
-                    ) : (
-                      <div className="flex items-start justify-between gap-2">
-                        <span className={i.productId ? "" : "text-[var(--fo-muted)]"}>
-                          {i.productId ? nombre.get(i.productId) ?? "(producto inactivo)" : "—"}
-                          {i.productId ? <span className="block text-xs text-[var(--fo-muted)]">{i.recordado ? "recordado" : "sugerido"}</span> : null}
+                  <td className="space-y-1 px-3 py-2">
+                    {i.productos.map((p) => (
+                      <div key={p.productId} className="flex items-center justify-between gap-2">
+                        <span>
+                          {nombre.get(p.productId) ?? "(producto inactivo)"}
+                          <span className="text-xs text-[var(--fo-muted)]"> · {p.recordado ? "recordado" : "sugerido"}</span>
                         </span>
-                        {editable ? (
-                          <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={() => setEditando(i.id)}>
-                            {i.productId ? "Cambiar" : "Elegir"}
-                          </button>
-                        ) : null}
+                        <span className="flex items-center gap-1">
+                          {editable ? (
+                            <>
+                              <input
+                                key={`${p.productId}-${p.factor}`}
+                                className="fo-input w-16 tabular-nums"
+                                inputMode="decimal"
+                                defaultValue={String(p.factor).replace(".", ",")}
+                                aria-label={`Factor de ${nombre.get(p.productId) ?? "producto"}`}
+                                title="Costo del producto = costo del renglón × factor (por ejemplo 0,6 para un 60x100 si el precio es por m²)"
+                                onBlur={(e) => {
+                                  const n = Number(e.target.value.replace(",", "."));
+                                  if (Number.isFinite(n) && n > 0 && n !== p.factor) emparejar(i, p.productId, n);
+                                }}
+                              />
+                              <button type="button" className="fo-btn fo-btn-ghost text-xs" aria-label="Quitar" onClick={() => soltar(i, p.productId)}>
+                                ×
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs tabular-nums">× {String(p.factor).replace(".", ",")}</span>
+                          )}
+                        </span>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {i.productId && editable ? (
-                      <input
-                        key={`${i.id}-${i.factor}`}
-                        className="fo-input w-20 tabular-nums"
-                        inputMode="decimal"
-                        defaultValue={String(i.factor).replace(".", ",")}
-                        aria-label="Factor"
-                        title="Costo del producto = costo del renglón × factor (por ejemplo 0,6 para un 60x100 si el precio es por m²)"
-                        onBlur={(e) => {
-                          const n = Number(e.target.value.replace(",", "."));
-                          if (Number.isFinite(n) && n > 0 && n !== i.factor) emparejar(i, i.productId, n);
-                        }}
-                      />
-                    ) : i.productId ? (
-                      <span className="tabular-nums">{String(i.factor).replace(".", ",")}</span>
+                    ))}
+                    {editable ? (
+                      editando === i.id ? (
+                        <SelectorProducto productos={productos} onElegir={(id) => emparejar(i, id, 1)} onCancelar={() => setEditando(null)} />
+                      ) : (
+                        <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={() => setEditando(i.id)}>
+                          + Agregar producto
+                        </button>
+                      )
+                    ) : i.productos.length === 0 ? (
+                      <span className="text-[var(--fo-muted)]">—</span>
                     ) : null}
                   </td>
                 </tr>

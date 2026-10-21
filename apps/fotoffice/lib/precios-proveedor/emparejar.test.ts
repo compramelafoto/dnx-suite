@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emparejarSugeridos, proveedorDesdeTexto, sugerirProducto } from "./emparejar";
+import { emparejarSugeridos, proveedorDesdeTexto } from "./emparejar";
 import type { RenglonLista } from "./csv";
 
 function renglon(p: Partial<RenglonLista>): RenglonLista {
@@ -14,29 +14,38 @@ const productos = [
   { id: "iman913", name: "Fotoimán 9x13", categoryName: "Fotoimanes" },
 ];
 
-describe("sugerirProducto", () => {
-  it("elige el de la misma medida", () => {
-    expect(sugerirProducto(renglon({ categoria: "Laboratorio proceso químico", producto: "Fotografía", medida: "20x40" }), productos)).toBe("amp2040");
+describe("emparejarSugeridos", () => {
+  const sugerido = (r: RenglonLista) => emparejarSugeridos([r], productos).get(r.clave) ?? [];
+  it("la fotografía del laboratorio es la ampliación de la misma medida", () => {
+    expect(sugerido(renglon({ categoria: "Laboratorio proceso químico", producto: "Fotografía digital", medida: "20x40" }))).toEqual(["amp2040"]);
   });
   it("entre varios de la misma medida, el que comparte palabras", () => {
-    expect(sugerirProducto(renglon({ categoria: "Cuadros", producto: "Cuadro vinilo en MDF", medida: "20x30" }), productos)).toBe("mdf2030");
-    expect(sugerirProducto(renglon({ categoria: "Fotoimanes", producto: "Fotoimán", medida: "9x13" }), productos)).toBe("iman913");
+    expect(sugerido(renglon({ categoria: "Cuadros", producto: "Cuadro vinilo en MDF", medida: "20x30" }))).toEqual(["mdf2030"]);
+    expect(sugerido(renglon({ categoria: "Fotoimanes", producto: "Fotoimán", medida: "9x13" }))).toEqual(["iman913"]);
+  });
+  it("sin palabras en común no sugiere, aunque la medida coincida", () => {
+    expect(sugerido(renglon({ categoria: "Escolares", producto: "Díptico", medida: "20x40" }))).toEqual([]);
   });
   it("sin medida en común no sugiere nada", () => {
-    expect(sugerirProducto(renglon({ producto: "Foto", medida: "13x18" }), productos)).toBeNull();
+    expect(sugerido(renglon({ producto: "Foto", medida: "13x18" }))).toEqual([]);
   });
   it("sólo sugiere para renglones de tipo PRODUCTO", () => {
-    expect(sugerirProducto(renglon({ tipo: "TAPA", producto: "Tapa", medida: "20x40" }), productos)).toBeNull();
+    expect(sugerido(renglon({ tipo: "TAPA", producto: "Ampliación", medida: "20x40" }))).toEqual([]);
   });
-});
-
-describe("emparejarSugeridos", () => {
+  it("un renglón alimenta todos los tramos de una copia", () => {
+    const tramos = [
+      { id: "c10", name: "Copia para mañana 10x15 · más de 10", categoryName: "Copias para mañana" },
+      { id: "c50", name: "Copia para mañana 10x15 · más de 50", categoryName: "Copias para mañana" },
+    ];
+    const r = renglon({ categoria: "Laboratorio", producto: "Fotografía digital", medida: "10x15" });
+    expect(emparejarSugeridos([r], tramos).get(r.clave)).toEqual(["c10", "c50"]);
+  });
   it("un producto queda con un solo renglón: gana el de más puntaje", () => {
     const a = renglon({ fila: 1, clave: "a", categoria: "Laboratorio", producto: "Foto", medida: "20x30" });
     const b = renglon({ fila: 2, clave: "b", categoria: "Cuadros", producto: "Cuadro vinilo MDF", medida: "20x30" });
     const c = renglon({ fila: 3, clave: "c", categoria: "Cuadros", producto: "Cuadro foto en MDF", medida: "20x30" });
     const r = emparejarSugeridos([a, b, c], productos);
-    expect(r.get("b")).toBe("mdf2030");
+    expect(r.get("b")).toEqual(["mdf2030"]);
     expect(r.get("c")).toBeUndefined();
   });
 });

@@ -9,7 +9,8 @@ import {
   calibrarMargenes,
   crearLista,
   descartarLista,
-  emparejarItem,
+  emparejarProducto,
+  soltarProducto,
   guardarFilaCosto,
   guardarTramos,
   unirProveedores,
@@ -77,9 +78,16 @@ export async function crearListaAction(proveedorId: string, csv: string, nombreA
   return r;
 }
 
-export async function emparejarItemAction(listaId: string, itemId: string, productId: string | null, factor: number): Promise<Resultado<{ vista: FilaVistaPrevia[] }>> {
+export async function emparejarProductoAction(listaId: string, itemId: string, productId: string, factor: number): Promise<Resultado<{ vista: FilaVistaPrevia[] }>> {
   const { workspace } = await requireSalesAdmin();
-  const r = await emparejarItem(workspace.id, itemId, productId, factor);
+  const r = await emparejarProducto(workspace.id, itemId, productId, factor);
+  if (!r.ok) return r;
+  return { ok: true, vista: await vistaPreviaLista(workspace.id, listaId) };
+}
+
+export async function soltarProductoAction(listaId: string, itemId: string, productId: string): Promise<Resultado<{ vista: FilaVistaPrevia[] }>> {
+  const { workspace } = await requireSalesAdmin();
+  const r = await soltarProducto(workspace.id, itemId, productId);
   if (!r.ok) return r;
   return { ok: true, vista: await vistaPreviaLista(workspace.id, listaId) };
 }

@@ -221,12 +221,15 @@ y después se registran con `prisma migrate resolve --applied`.
   `notas?`)
 - `clave String`: `tipo|categoria|producto|modelo|medida|variante|cantidad_minima`, normalizada
   (minúsculas, sin tildes, espacios simples)
-- `productId String?`: producto emparejado en esta lista
+**`FotofficeListaProveedorEmparejamiento`** (qué productos alimenta cada renglón en esta lista)
+
+- `listaId`, `itemId`, `productId`, `factor Decimal(10,4) @default(1)`
+- `@@unique([listaId, productId])`: un producto, un renglón por lista; un renglón, varios productos
 
 **`FotofficeEquivalenciaProveedor`** (lo que se recuerda para la próxima)
 
-- `workspaceId`, `proveedorId`, `clave`, `productId`
-- `@@unique([workspaceId, proveedorId, clave])`
+- `workspaceId`, `proveedorId`, `clave`, `productId`, `factor`
+- `@@unique([workspaceId, proveedorId, productId])` e índice por `clave`
 - Si el proveedor tiene `codigo_proveedor`, se usa también como clave alternativa (las listas de
   Copy Express cambian de nombre pero mantienen el código).
 
@@ -340,11 +343,12 @@ El personal de mostrador sigue viendo sólo precios.
   y las usa la calculadora.
 - `supplierName` queda como está; el preferido es una columna nueva.
 - **Un producto toma su costo de un solo renglón** por proveedor (`@@unique([workspaceId,
-  proveedorId, productId])` en la equivalencia). Un renglón sí puede alimentar varios productos
+  proveedorId, productId])` en la equivalencia y `@@unique([listaId, productId])` en el
+  emparejamiento). Un renglón sí puede alimentar varios productos
   (por ejemplo, la copia 10x15 del proveedor alimenta "10x15 · más de 10", "· más de 50" y
   "· más de 100"). Si el usuario empareja un segundo renglón al mismo producto, reemplaza al
   anterior.
-- **Conversión de unidades:** la equivalencia tiene `factor Decimal(10,4) @default(1)`:
+- **Conversión de unidades:** el emparejamiento y la equivalencia tienen `factor Decimal(10,4) @default(1)`:
   costo del producto = precio del renglón × factor. Sirve para m² (un 60x100 = 0,6), packs
   (pack de 100 bolsas → 0,01) y metros. En la pantalla se ve como "× 0,6".
 - **Etapa 1 y escrituras de precio:** editar costo o margen de **un** producto en la tabla

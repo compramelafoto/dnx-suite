@@ -299,57 +299,64 @@ export async function crearLista(
       select: { id: true, name: true, category: { select: { name: true } } },
     }),
   ]);
-  const recordadas = new Map(equivalencias.map((e) => [e.clave, e]));
+
+  // Primero lo recordado de listas anteriores; después, sugerencias para lo que quede.
+  const porClave = new Map<string, { productId: string; factor: string }[]>();
+  for (const e of equivalencias) porClave.set(e.clave, [...(porClave.get(e.clave) ?? []), { productId: e.productId, factor: e.factor.toString() }]);
   const tomados = new Set<string>();
-  const asignado = new Map<string, { productId: string; factor: string }>();
+  const asignado = new Map<string, { productId: string; factor: string }[]>();
   for (const r of analisis.renglones) {
-    const e = recordadas.get(claveEquivalencia(r));
-    if (e && !tomados.has(e.productId)) {
-      asignado.set(r.clave, { productId: e.productId, factor: e.factor.toString() });
-      tomados.add(e.productId);
-    }
+    const recordados = (porClave.get(claveEquivalencia(r)) ?? []).filter((e) => !tomados.has(e.productId));
+    if (recordados.length === 0) continue;
+    asignado.set(r.clave, recordados);
+    for (const e of recordados) tomados.add(e.productId);
   }
-  const sinAsignar = analisis.renglones.filter((r) => !asignado.has(r.clave));
   const sugeridos = emparejarSugeridos(
-    sinAsignar,
+    analisis.renglones.filter((r) => !asignado.has(r.clave)),
     productos.map((p) => ({ id: p.id, name: p.name, categoryName: p.category?.name ?? null })),
     tomados,
   );
-  for (const [clave, productId] of sugeridos) asignado.set(clave, { productId, factor: "1" });
+  for (const [clave, ids] of sugeridos) asignado.set(clave, ids.map((productId) => ({ productId, factor: "1" })));
 
-  const lista = await prisma.$transaction(async (tx) => {
-    const l = await tx.fotofficeListaProveedor.create({
-      data: {
-        workspaceId,
-        proveedorId,
-        vigencia: analisis.vigencia ?? new Date().toISOString().slice(0, 7),
-        nombreArchivo,
-        creadaPorUserId: userId,
-      },
-      select: { id: true },
-    });
-    await tx.fotofficeListaProveedorItem.createMany({
-      data: analisis.renglones.map((r) => ({
-        listaId: l.id,
-        fila: r.fila,
-        tipo: r.tipo,
-        categoria: r.categoria,
-        producto: r.producto,
-        modelo: r.modelo,
-        medida: r.medida,
-        variante: r.variante,
-        cantidadMinima: r.cantidadMinima,
-        unidad: r.unidad,
-        costoArs: minorToDecimalString(r.costoMinor),
-        codigoProveedor: r.codigoProveedor,
-        notas: r.notas,
-        clave: r.clave,
-        productId: asignado.get(r.clave)?.productId ?? null,
-        factor: asignado.get(r.clave)?.factor ?? "1",
-      })),
-    });
-    return l;
-  });
+  const lista = await prisma.$transaction(
+    async (tx) => {
+      const l = await tx.fotofficeListaProveedor.create({
+        data: {
+          workspaceId,
+          proveedorId,
+          vigencia: analisis.vigencia ?? new Date().toISOString().slice(0, 7),
+          nombreArchivo,
+          creadaPorUserId: userId,
+        },
+        select: { id: true },
+      });
+      const items = await tx.fotofficeListaProveedorItem.createManyAndReturn({
+        data: analisis.renglones.map((r) => ({
+          listaId: l.id,
+          fila: r.fila,
+          tipo: r.tipo,
+          categoria: r.categoria,
+          producto: r.producto,
+          modelo: r.modelo,
+          medida: r.medida,
+          variante: r.variante,
+          cantidadMinima: r.cantidadMinima,
+          unidad: r.unidad,
+          costoArs: minorToDecimalString(r.costoMinor),
+          codigoProveedor: r.codigoProveedor,
+          notas: r.notas,
+          clave: r.clave,
+        })),
+        select: { id: true, clave: true },
+      });
+      const emparejamientos = items.flatMap((it) =>
+        (asignado.get(it.clave) ?? []).map((a) => ({ listaId: l.id, itemId: it.id, productId: a.productId, factor: a.factor })),
+      );
+      if (emparejamientos.length > 0) await tx.fotofficeListaProveedorEmparejamiento.createMany({ data: emparejamientos, skipDuplicates: true });
+      return l;
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
   return { ok: true, id: lista.id };
 }
 
@@ -363,7 +370,7 @@ export type ResumenLista = {
   createdAt: Date;
   aplicadaAt: Date | null;
   renglones: number;
-  emparejados: number;
+  productos: number;
 };
 
 export async function listarListas(workspaceId: string): Promise<ResumenLista[]> {
@@ -380,15 +387,9 @@ export async function listarListas(workspaceId: string): Promise<ResumenLista[]>
       nombreArchivo: true,
       createdAt: true,
       aplicadaAt: true,
-      _count: { select: { items: true } },
+      _count: { select: { items: true, emparejamientos: true } },
     },
   });
-  const emparejados = await prisma.fotofficeListaProveedorItem.groupBy({
-    by: ["listaId"],
-    where: { listaId: { in: listas.map((l) => l.id) }, productId: { not: null } },
-    _count: { _all: true },
-  });
-  const porLista = new Map(emparejados.map((e) => [e.listaId, e._count._all]));
   return listas.map((l) => ({
     id: l.id,
     proveedorId: l.proveedorId,
@@ -399,9 +400,11 @@ export async function listarListas(workspaceId: string): Promise<ResumenLista[]>
     createdAt: l.createdAt,
     aplicadaAt: l.aplicadaAt,
     renglones: l._count.items,
-    emparejados: porLista.get(l.id) ?? 0,
+    productos: l._count.emparejamientos,
   }));
 }
+
+export type EmparejamientoItem = { productId: string; factor: number; recordado: boolean };
 
 export type ItemLista = {
   id: string;
@@ -417,9 +420,7 @@ export type ItemLista = {
   costoMinor: number;
   codigoProveedor: string | null;
   notas: string | null;
-  productId: string | null;
-  factor: number;
-  recordado: boolean;
+  productos: EmparejamientoItem[];
 };
 
 export type DetalleLista = {
@@ -444,7 +445,7 @@ export async function leerLista(workspaceId: string, listaId: string): Promise<D
       estado: true,
       nombreArchivo: true,
       aplicadaAt: true,
-      items: { orderBy: { fila: "asc" } },
+      items: { orderBy: { fila: "asc" }, include: { emparejamientos: { select: { productId: true, factor: true } } } },
     },
   });
   if (!l) return null;
@@ -475,53 +476,66 @@ export async function leerLista(workspaceId: string, listaId: string): Promise<D
       costoMinor: decimalArsToMinor(i.costoArs),
       codigoProveedor: i.codigoProveedor,
       notas: i.notas,
-      productId: i.productId,
-      factor: Number(i.factor.toString()),
-      recordado: i.productId !== null && recordadas.has(`${claveEquivalencia(i)}→${i.productId}`),
+      productos: i.emparejamientos.map((e) => ({
+        productId: e.productId,
+        factor: Number(e.factor.toString()),
+        recordado: recordadas.has(`${claveEquivalencia(i)}→${e.productId}`),
+      })),
     })),
   };
 }
 
-/**
- * Emparejar un renglón con un producto (o soltarlo). Un producto toma su costo de un solo
- * renglón: si ya estaba en otro renglón de esta lista, se suelta de aquél.
- */
-export async function emparejarItem(
-  workspaceId: string,
-  itemId: string,
-  productId: string | null,
-  factor: number,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!Number.isFinite(factor) || factor <= 0 || factor > 100_000) return { ok: false, error: "El factor tiene que ser mayor que cero." };
+async function itemEditable(workspaceId: string, itemId: string) {
   const item = await prisma.fotofficeListaProveedorItem.findFirst({
     where: { id: itemId, lista: { workspaceId } },
     select: { id: true, listaId: true, lista: { select: { estado: true } } },
   });
-  if (!item) return { ok: false, error: "Ese renglón no existe." };
-  if (item.lista.estado !== "BORRADOR") return { ok: false, error: "Esta lista ya no se puede cambiar." };
-  if (productId && (await prisma.product.count({ where: { id: productId, workspaceId } })) === 0) {
-    return { ok: false, error: "Ese producto no existe." };
-  }
-  await prisma.$transaction([
-    ...(productId
-      ? [prisma.fotofficeListaProveedorItem.updateMany({ where: { listaId: item.listaId, productId, id: { not: item.id } }, data: { productId: null } })]
-      : []),
-    prisma.fotofficeListaProveedorItem.update({ where: { id: item.id }, data: { productId, factor: factor.toFixed(4) } }),
-  ]);
+  if (!item) return { ok: false as const, error: "Ese renglón no existe." };
+  if (item.lista.estado !== "BORRADOR") return { ok: false as const, error: "Esta lista ya no se puede cambiar." };
+  return { ok: true as const, item };
+}
+
+/**
+ * Suma un producto a un renglón (o le cambia el factor). Un producto toma su costo de un solo
+ * renglón por lista: si estaba en otro renglón, pasa a éste.
+ */
+export async function emparejarProducto(
+  workspaceId: string,
+  itemId: string,
+  productId: string,
+  factor: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!Number.isFinite(factor) || factor <= 0 || factor > 100_000) return { ok: false, error: "El factor tiene que ser mayor que cero." };
+  const e = await itemEditable(workspaceId, itemId);
+  if (!e.ok) return e;
+  if ((await prisma.product.count({ where: { id: productId, workspaceId } })) === 0) return { ok: false, error: "Ese producto no existe." };
+  await prisma.fotofficeListaProveedorEmparejamiento.upsert({
+    where: { listaId_productId: { listaId: e.item.listaId, productId } },
+    create: { listaId: e.item.listaId, itemId, productId, factor: factor.toFixed(4) },
+    update: { itemId, factor: factor.toFixed(4) },
+  });
   return { ok: true };
 }
+
+export async function soltarProducto(workspaceId: string, itemId: string, productId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const e = await itemEditable(workspaceId, itemId);
+  if (!e.ok) return e;
+  await prisma.fotofficeListaProveedorEmparejamiento.deleteMany({ where: { listaId: e.item.listaId, itemId, productId } });
+  return { ok: true };
+}
+
+type EmparejamientoConCosto = { productId: string; factor: { toString(): string }; item: { costoArs: { toString(): string } } };
 
 async function vistaPreviaCon(
   db: Prisma.TransactionClient | typeof prisma,
   workspaceId: string,
   proveedorId: string,
-  items: { productId: string | null; costoArs: { toString(): string }; factor: { toString(): string } }[],
+  emparejamientos: EmparejamientoConCosto[],
 ): Promise<FilaVistaPrevia[]> {
-  const conProducto = items.filter((i): i is typeof i & { productId: string } => i.productId !== null);
   const [tramos, productos] = await Promise.all([
     leerTramosWorkspace(workspaceId),
     db.product.findMany({
-      where: { workspaceId, id: { in: conProducto.map((i) => i.productId) } },
+      where: { workspaceId, id: { in: emparejamientos.map((e) => e.productId) } },
       select: SELECT_COSTO,
     }),
   ]);
@@ -539,20 +553,22 @@ async function vistaPreviaCon(
     ]),
   );
   return armarVistaPrevia(
-    conProducto.map((i) => ({ productId: i.productId, costoMinor: decimalArsToMinor(i.costoArs), factor: Number(i.factor.toString()) })),
+    emparejamientos.map((e) => ({ productId: e.productId, costoMinor: decimalArsToMinor(e.item.costoArs), factor: Number(e.factor.toString()) })),
     mapa,
     proveedorId,
     tramos,
   );
 }
 
+const SELECT_EMPAREJAMIENTO = { productId: true, factor: true, item: { select: { costoArs: true, clave: true, codigoProveedor: true } } } as const;
+
 export async function vistaPreviaLista(workspaceId: string, listaId: string): Promise<FilaVistaPrevia[]> {
   const l = await prisma.fotofficeListaProveedor.findFirst({
     where: { id: listaId, workspaceId },
-    select: { proveedorId: true, items: { select: { productId: true, costoArs: true, factor: true } } },
+    select: { proveedorId: true, emparejamientos: { select: SELECT_EMPAREJAMIENTO } },
   });
   if (!l) return [];
-  return vistaPreviaCon(prisma, workspaceId, l.proveedorId, l.items);
+  return vistaPreviaCon(prisma, workspaceId, l.proveedorId, l.emparejamientos);
 }
 
 /**
@@ -568,10 +584,9 @@ export async function aplicarLista(
     async (tx) => {
       const l = await tx.fotofficeListaProveedor.findFirst({
         where: { id: listaId, workspaceId },
-        select: { id: true, estado: true, proveedorId: true, items: { select: { productId: true, costoArs: true, factor: true, clave: true, codigoProveedor: true } } },
+        select: { id: true, estado: true, proveedorId: true, emparejamientos: { select: SELECT_EMPAREJAMIENTO } },
       });
       if (!l) return { ok: false as const, error: "Esa lista no existe." };
-      if (l.estado !== "BORRADOR") return { ok: false as const, error: "Esta lista ya fue aplicada o descartada." };
       // Que otra pestaña no la aplique dos veces: el cambio de estado va primero y condicionado.
       const marcada = await tx.fotofficeListaProveedor.updateMany({
         where: { id: l.id, estado: "BORRADOR" },
@@ -579,7 +594,7 @@ export async function aplicarLista(
       });
       if (marcada.count === 0) return { ok: false as const, error: "Esta lista ya fue aplicada o descartada." };
 
-      const filas = await vistaPreviaCon(tx, workspaceId, l.proveedorId, l.items);
+      const filas = await vistaPreviaCon(tx, workspaceId, l.proveedorId, l.emparejamientos);
       const ahora = new Date();
       let actualizados = 0;
       for (const f of filas) {
@@ -595,16 +610,12 @@ export async function aplicarLista(
         actualizados += 1;
       }
 
-      for (const it of l.items) {
-        if (!it.productId) continue;
-        const clave = claveEquivalencia(it);
-        await tx.fotofficeEquivalenciaProveedor.deleteMany({
-          where: { workspaceId, proveedorId: l.proveedorId, OR: [{ productId: it.productId, clave: { not: clave } }, { clave, productId: { not: it.productId } }] },
-        });
+      for (const e of l.emparejamientos) {
+        const clave = claveEquivalencia(e.item);
         await tx.fotofficeEquivalenciaProveedor.upsert({
-          where: { workspaceId_proveedorId_clave: { workspaceId, proveedorId: l.proveedorId, clave } },
-          create: { workspaceId, proveedorId: l.proveedorId, clave, productId: it.productId, factor: it.factor.toString() },
-          update: { productId: it.productId, factor: it.factor.toString() },
+          where: { workspaceId_proveedorId_productId: { workspaceId, proveedorId: l.proveedorId, productId: e.productId } },
+          create: { workspaceId, proveedorId: l.proveedorId, clave, productId: e.productId, factor: e.factor.toString() },
+          update: { clave, factor: e.factor.toString() },
         });
       }
       return { ok: true as const, actualizados };

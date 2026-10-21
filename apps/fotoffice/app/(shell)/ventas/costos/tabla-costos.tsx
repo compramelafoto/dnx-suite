@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import type { CambiosFilaCosto, FilaCosto } from "@/lib/precios-proveedor/repositorio";
@@ -40,10 +40,13 @@ export function TablaCostos({ filasIniciales, proveedores }: { filasIniciales: F
   const [confirmando, setConfirmando] = useState<"sugerido" | "calibrar" | null>(null);
   const [pendiente, startTransition] = useTransition();
 
-  useEffect(() => {
+  // Después de una acción masiva el servidor manda filas nuevas: se toman acá, durante el render.
+  const [base, setBase] = useState(filasIniciales);
+  if (base !== filasIniciales) {
+    setBase(filasIniciales);
     setFilas(filasIniciales);
     setElegidos((prev) => new Set([...prev].filter((id) => filasIniciales.some((f) => f.id === id))));
-  }, [filasIniciales]);
+  }
 
   const nombreProveedor = useMemo(() => new Map(proveedores.map((p) => [p.id, p.name])), [proveedores]);
   const seleccion = filas.filter((f) => elegidos.has(f.id));

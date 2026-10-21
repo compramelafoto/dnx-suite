@@ -22538,7 +22538,7 @@ model Product {
   fotofficeProduccion FotofficeProductoProduccion?
   fotofficePreparaciones FotofficePreparacionImpresion[]
   preferredProveedor      FotofficeProveedor?              @relation("ProductoProveedorPreferido", fields: [preferredProveedorId], references: [id], onDelete: SetNull)
-  fotofficeListaItems     FotofficeListaProveedorItem[]
+  fotofficeListaEmparejamientos FotofficeListaProveedorEmparejamiento[]
   fotofficeEquivalencias  FotofficeEquivalenciaProveedor[]
 
   @@unique([workspaceId, sku])
@@ -26226,6 +26226,7 @@ model FotofficeListaProveedor {
   workspace Workspace                     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   proveedor FotofficeProveedor            @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
   items     FotofficeListaProveedorItem[]
+  emparejamientos FotofficeListaProveedorEmparejamiento[]
 
   @@index([workspaceId, proveedorId, createdAt])
 }
@@ -26249,13 +26250,30 @@ model FotofficeListaProveedorItem {
   notas           String?
   /// tipo|categoria|producto|modelo|medida|variante|cantidad_minima, normalizada.
   clave           String
-  productId       String?
-  factor          Decimal @default(1) @db.Decimal(10, 4)
 
-  lista   FotofficeListaProveedor @relation(fields: [listaId], references: [id], onDelete: Cascade)
-  product Product?                @relation(fields: [productId], references: [id], onDelete: SetNull)
+  lista           FotofficeListaProveedor                 @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  emparejamientos FotofficeListaProveedorEmparejamiento[]
 
   @@index([listaId, fila])
+}
+
+/// Qué productos alimenta cada renglón en esta lista. Un renglón puede alimentar varios
+/// productos (la copia 10x15 alimenta los tramos "más de 10 / 50 / 100"); un producto toma su
+/// costo de un solo renglón por lista.
+model FotofficeListaProveedorEmparejamiento {
+  id        String  @id @default(cuid())
+  listaId   String
+  itemId    String
+  productId String
+  /// costo del producto = costo del renglón × factor (m², packs).
+  factor    Decimal @default(1) @db.Decimal(10, 4)
+
+  lista   FotofficeListaProveedor     @relation(fields: [listaId], references: [id], onDelete: Cascade)
+  item    FotofficeListaProveedorItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  product Product                     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([listaId, productId])
+  @@index([itemId])
   @@index([productId])
 }
 
@@ -26274,7 +26292,7 @@ model FotofficeEquivalenciaProveedor {
   proveedor FotofficeProveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
   product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, proveedorId, clave])
+  @@index([workspaceId, proveedorId, clave])
   @@unique([workspaceId, proveedorId, productId])
   @@index([productId])
 }
