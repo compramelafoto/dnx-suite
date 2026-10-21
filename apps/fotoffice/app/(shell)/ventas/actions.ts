@@ -28,7 +28,7 @@ import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/consta
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { lockStockRows } from "@/lib/sales/stock-lock";
-import { calibrarMargenPct } from "@/lib/precios-proveedor/margen";
+import { calibrarMargenPct, margenValido } from "@/lib/precios-proveedor/margen";
 
 const CATALOGO = "/ventas/catalogo";
 const STOCK = "/ventas/stock";
@@ -85,6 +85,9 @@ export async function saveProductAction(formData: FormData): Promise<void> {
   if (productId) {
     const previo = await prisma.product.findFirst({ where: { id: productId, workspaceId: workspace.id }, select: { marginPct: true } });
     const calibrado = previo?.marginPct != null ? calibrarMargenPct(v.priceMinor, v.costMinor) : null;
+    if (calibrado !== null && !margenValido(calibrado)) {
+      redirect(`${destinoError}?error=${encodeURIComponent(`Con ese precio y ese costo el margen daría ${calibrado} %: revisá el costo.`)}`);
+    }
     if (calibrado !== null) marginPct = calibrado.toFixed(2);
   }
 

@@ -72,7 +72,14 @@ function campo(h: string): string {
 
 /** "$10 .200" → 1.020.000 centavos. Sólo pesos enteros (se toleran ",00"). */
 export function precioDeLista(raw: string): number | null {
-  const t = raw.replace(/[$\s.]/g, "").replace(/,0{1,2}$/, "");
+  let s = raw.replace(/[$\s]/g, "");
+  // "2650.00" (formato inglés): los dos dígitos finales son centavos, no miles.
+  const decimales = /^(\d+)\.(\d{2})$/.exec(s);
+  if (decimales) {
+    if (decimales[2] !== "00") return null;
+    s = decimales[1]!;
+  }
+  const t = s.replace(/\./g, "").replace(/,0{1,2}$/, "");
   if (!/^\d+$/.test(t)) return null;
   const minor = Number(t) * 100;
   return minor > 0 && minor <= MAX_PRECIO_MINOR ? minor : null;

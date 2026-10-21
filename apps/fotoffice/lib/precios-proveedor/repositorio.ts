@@ -1,10 +1,10 @@
 import "server-only";
 import { prisma, Prisma } from "@repo/db";
 import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
-import { normalizarTexto } from "./clave";
-import type { AnalisisLista, RenglonLista } from "./csv";
+import { claveEquivalencia } from "./clave";
+import type { AnalisisLista } from "./csv";
 import { emparejarSugeridos, proveedorDesdeTexto } from "./emparejar";
-import { calibrarMargenPct, precioSugeridoMinor } from "./margen";
+import { calibrarMargenPct, MARGEN_MAXIMO, margenValido, precioSugeridoMinor } from "./margen";
 import { leerTramos, validarTramos, type TramoRedondeo } from "./redondeo";
 import { armarVistaPrevia, type FilaVistaPrevia, type ProductoParaVista } from "./vista-previa";
 
@@ -15,7 +15,7 @@ import { armarVistaPrevia, type FilaVistaPrevia, type ProductoParaVista } from "
  * y el margen como número (`170` = costo × 2,7). Quien llama ya pasó por `requireSalesAdmin`.
  */
 
-export const MARGEN_MAXIMO = 9999;
+export { MARGEN_MAXIMO };
 
 function aNumero(d: { toString(): string } | null): number | null {
   return d === null ? null : Number(d.toString());
@@ -159,7 +159,10 @@ export async function guardarFilaCosto(
   if (cambios.priceMinor !== undefined) {
     priceMinor = cambios.priceMinor;
     const calibrado = calibrarMargenPct(priceMinor, costMinor);
-    if (calibrado !== null && marginPct !== null) marginPct = calibrado;
+    if (calibrado !== null && marginPct !== null) {
+      if (!margenValido(calibrado)) return { ok: false, error: `Con ese precio el margen daría ${calibrado} %: revisá el costo.` };
+      marginPct = calibrado;
+    }
   } else if ((cambios.costMinor !== undefined || cambios.marginPct !== undefined) && costMinor !== null && marginPct !== null) {
     priceMinor = precioSugeridoMinor(costMinor, marginPct, tramos);
   }
@@ -187,12 +190,13 @@ export async function asignarProveedorMasivo(workspaceId: string, productIds: st
 }
 
 /** Deduce el margen de cada producto desde su precio actual. No cambia ningún precio. */
-export async function calibrarMargenes(workspaceId: string, productIds: string[]): Promise<{ calibrados: number; sinCosto: number }> {
+export async function calibrarMargenes(workspaceId: string, productIds: string[]): Promise<{ calibrados: number; sinCosto: number; fueraDeRango: number }> {
   const productos = await prisma.product.findMany({
     where: { workspaceId, id: { in: productIds } },
     select: { id: true, costArs: true, priceArs: true },
   });
   let sinCosto = 0;
+  let fueraDeRango = 0;
   const updates: Prisma.PrismaPromise<unknown>[] = [];
   for (const p of productos) {
     const m = calibrarMargenPct(decimalArsToMinor(p.priceArs), minorODecimal(p.costArs));
@@ -200,10 +204,16 @@ export async function calibrarMargenes(workspaceId: string, productIds: string[]
       sinCosto += 1;
       continue;
     }
-    updates.push(prisma.product.update({ where: { id: p.id }, data: { marginPct: Math.min(m, MARGEN_MAXIMO).toFixed(2) } }));
+    // Un margen fuera de rango es casi seguro un costo mal cargado: no se guarda uno recortado,
+    // que después no reproduciría el precio actual.
+    if (!margenValido(m)) {
+      fueraDeRango += 1;
+      continue;
+    }
+    updates.push(prisma.product.update({ where: { id: p.id }, data: { marginPct: m.toFixed(2) } }));
   }
   if (updates.length > 0) await prisma.$transaction(updates);
-  return { calibrados: updates.length, sinCosto };
+  return { calibrados: updates.length, sinCosto, fueraDeRango };
 }
 
 /** Lleva el precio al sugerido (costo × margen, redondeado) en los productos elegidos que tienen los dos. */
@@ -271,11 +281,6 @@ export async function unirProveedores(
 }
 
 // ── Listas de proveedores ────────────────────────────────────────────────────────────────
-
-/** Con código del proveedor, el código manda (sobrevive a cambios de nombre en la lista). */
-export function claveEquivalencia(r: Pick<RenglonLista, "clave" | "codigoProveedor">): string {
-  return r.codigoProveedor ? `cod:${normalizarTexto(r.codigoProveedor)}` : r.clave;
-}
 
 export async function crearLista(
   workspaceId: string,
@@ -560,7 +565,11 @@ async function vistaPreviaCon(
   );
 }
 
-const SELECT_EMPAREJAMIENTO = { productId: true, factor: true, item: { select: { costoArs: true, clave: true, codigoProveedor: true } } } as const;
+const SELECT_EMPAREJAMIENTO = {
+  productId: true,
+  factor: true,
+  item: { select: { costoArs: true, clave: true, codigoProveedor: true, variante: true, cantidadMinima: true } },
+} as const;
 
 export async function vistaPreviaLista(workspaceId: string, listaId: string): Promise<FilaVistaPrevia[]> {
   const l = await prisma.fotofficeListaProveedor.findFirst({

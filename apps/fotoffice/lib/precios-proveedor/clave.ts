@@ -32,6 +32,16 @@ export type CamposClave = {
   cantidadMinima: number | null;
 };
 
+/**
+ * La clave con la que se recuerda un emparejamiento entre listas. Con código del proveedor, el
+ * código manda (sobrevive a cambios de nombre), pero sumado a la variante y al tramo: un mismo
+ * código puede venir en varios tramos por cantidad.
+ */
+export function claveEquivalencia(r: { clave: string; codigoProveedor: string | null; variante: string | null; cantidadMinima: number | null }): string {
+  if (!r.codigoProveedor) return r.clave;
+  return `cod:${normalizarTexto(r.codigoProveedor)}|${normalizarTexto(r.variante)}|${r.cantidadMinima ?? ""}`;
+}
+
 export function claveRenglon(r: CamposClave): string {
   return [
     normalizarTexto(r.tipo),

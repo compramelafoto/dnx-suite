@@ -160,7 +160,9 @@ export function TablaCostos({ filasIniciales, proveedores }: { filasIniciales: F
               onClick={() =>
                 masivo(async () => {
                   const r = await calibrarMargenesAction(calibrables.map((f) => f.id));
-                  return r.ok ? `Margen calculado en ${r.calibrados} productos.` : r.error;
+                  return r.ok
+                    ? `Margen calculado en ${r.calibrados} productos.${r.fueraDeRango ? ` ${r.fueraDeRango} quedaron sin calcular porque el margen daba fuera de rango: revisá su costo.` : ""}`
+                    : r.error;
                 })
               }
             >

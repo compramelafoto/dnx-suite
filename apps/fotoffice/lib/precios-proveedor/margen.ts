@@ -7,6 +7,14 @@ import { redondearArriba, type TramoRedondeo } from "./redondeo";
  * si se partiera del precio ya redondeado, el redondeo se acumularía mes a mes.
  */
 
+/** Tope del margen: la columna es Decimal(7,2) y un margen mayor es casi seguro un costo mal tipeado. */
+export const MARGEN_MAXIMO = 9999;
+
+/** Entre −99,99 % (precio apenas sobre cero) y el tope. */
+export function margenValido(m: number): boolean {
+  return Number.isFinite(m) && m > -100 && m <= MARGEN_MAXIMO;
+}
+
 /** 170 = costo × 2,7. */
 export function precioSugeridoMinor(costMinor: number, marginPct: number, tramos: readonly TramoRedondeo[]): number {
   // Se trabaja en centésimas de punto para no arrastrar error de punto flotante.

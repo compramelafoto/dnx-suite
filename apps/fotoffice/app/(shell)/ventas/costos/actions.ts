@@ -41,7 +41,7 @@ export async function asignarProveedorMasivoAction(productIds: string[], proveed
   return { ok: true, cantidad };
 }
 
-export async function calibrarMargenesAction(productIds: string[]): Promise<Resultado<{ calibrados: number; sinCosto: number }>> {
+export async function calibrarMargenesAction(productIds: string[]): Promise<Resultado<{ calibrados: number; sinCosto: number; fueraDeRango: number }>> {
   const { workspace } = await requireSalesAdmin();
   const r = await calibrarMargenes(workspace.id, productIds.slice(0, 2000));
   revalidatePath(COSTOS);

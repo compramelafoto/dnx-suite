@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calibrarMargenPct, precioSugeridoMinor } from "./margen";
+import { calibrarMargenPct, margenValido, precioSugeridoMinor } from "./margen";
 import { TRAMOS_POR_OMISION } from "./redondeo";
 
 describe("precioSugeridoMinor", () => {
@@ -20,5 +20,14 @@ describe("calibrarMargenPct", () => {
   it("sin costo o con costo 0 no se puede calibrar", () => {
     expect(calibrarMargenPct(100, 0)).toBeNull();
     expect(calibrarMargenPct(100, null)).toBeNull();
+  });
+});
+
+describe("margenValido", () => {
+  it("entra en la columna Decimal(7,2) y en el tope de 9999 %", () => {
+    expect(margenValido(170)).toBe(true);
+    expect(margenValido(-20)).toBe(true);
+    expect(margenValido(271_598)).toBe(false);
+    expect(margenValido(-100)).toBe(false);
   });
 });

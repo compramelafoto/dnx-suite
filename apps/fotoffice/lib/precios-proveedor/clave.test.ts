@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claveRenglon, normalizarMedida, normalizarTexto } from "./clave";
+import { claveEquivalencia, claveRenglon, normalizarMedida, normalizarTexto } from "./clave";
 
 describe("clave", () => {
   it("normaliza texto sin tildes ni mayúsculas", () => {
@@ -14,5 +14,14 @@ describe("clave", () => {
     const a = claveRenglon({ tipo: "TAPA", categoria: "Tapas", producto: "Tapa", modelo: "Maldivas", medida: "20x40", variante: null, cantidadMinima: null });
     const b = claveRenglon({ tipo: "TAPA", categoria: "tapas", producto: "TAPA", modelo: "maldivas", medida: "20x40", variante: null, cantidadMinima: null });
     expect(a).toBe(b);
+  });
+});
+
+describe("claveEquivalencia", () => {
+  it("con código, separa los tramos por cantidad y la variante", () => {
+    const base = { clave: "x", codigoProveedor: "C1015", variante: null, cantidadMinima: 1 };
+    expect(claveEquivalencia(base)).not.toBe(claveEquivalencia({ ...base, cantidadMinima: 50 }));
+    expect(claveEquivalencia(base)).not.toBe(claveEquivalencia({ ...base, variante: "Mate" }));
+    expect(claveEquivalencia({ ...base, codigoProveedor: null })).toBe("x");
   });
 });

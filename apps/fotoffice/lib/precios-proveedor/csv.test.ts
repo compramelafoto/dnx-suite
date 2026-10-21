@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analizarCsvLista, ENCABEZADO_CSV } from "./csv";
+import { analizarCsvLista, ENCABEZADO_CSV, precioDeLista } from "./csv";
 
 const enc = ENCABEZADO_CSV.join(",");
 
@@ -35,5 +35,13 @@ describe("analizarCsvLista", () => {
 
   it("sin encabezado reconocible devuelve un error general", () => {
     expect(analizarCsvLista("a,b\n1,2").errorGeneral).toBeTruthy();
+  });
+});
+
+describe("precioDeLista", () => {
+  it("decimales en formato inglés no multiplican por 100", () => {
+    expect(precioDeLista("2650.00")).toBe(265_000);
+    expect(precioDeLista("10.200")).toBe(1_020_000);
+    expect(precioDeLista("2650.50")).toBeNull();
   });
 });
