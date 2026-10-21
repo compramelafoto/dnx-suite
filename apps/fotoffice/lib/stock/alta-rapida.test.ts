@@ -140,13 +140,48 @@ describe("crearDesdeRecepcion", () => {
     db.t.productos.push({ id: "pX", workspaceId: "ws1", name: "Marco", kind: "PRODUCTO", barcode: "7790001112223", isActive: true });
     const a = await crearDesdeRecepcion("ws1", 1, "r1", prod({ codigo: "779 0001-112223" }));
     const b = await crearDesdeRecepcion("ws1", 1, "r1", prod());
-    expect(a).toEqual({ ok: true, productId: "pX" });
-    expect(b).toEqual({ ok: true, productId: "pX" });
+    expect(a).toEqual({ ok: true, productId: "pX", reutilizado: true });
+    expect(b).toEqual({ ok: true, productId: "pX", reutilizado: true });
     expect(db.t.productos).toHaveLength(1);
     expect(db.registro).not.toContain("product.create");
     expect(upsertGlobal).not.toHaveBeenCalled();
     expect(db.t.lineas).toHaveLength(1);
     expect(db.t.lineas[0]).toMatchObject({ productId: "pX", cantidad: 2 });
+  });
+
+  it("código interno (no numérico) de un producto activo: lo reutiliza", async () => {
+    db.t.productos.push({ id: "pS", workspaceId: "ws1", kind: "PRODUCTO", sku: "PR-13", isActive: true });
+    const r = await crearDesdeRecepcion("ws1", 1, "r1", prod({ codigo: "PR-13" }));
+    expect(r).toEqual({ ok: true, productId: "pS", reutilizado: true });
+    expect(db.t.productos).toHaveLength(1);
+    expect(db.t.lineas[0]).toMatchObject({ productId: "pS", cantidad: 1, origen: "LECTOR" });
+  });
+
+  it("código interno de un producto dado de baja: error, sin crear", async () => {
+    db.t.productos.push({ id: "pS", workspaceId: "ws1", sku: "PR-13", isActive: false });
+    const r = await crearDesdeRecepcion("ws1", 1, "r1", prod({ codigo: "PR-13" }));
+    expect(r).toEqual({ ok: false, error: "Ese código ya es de un producto dado de baja: reactivalo desde el catálogo." });
+    expect(db.t.productos).toHaveLength(1);
+    expect(db.t.lineas).toHaveLength(0);
+  });
+
+  it("barcode de un producto dado de baja: error, sin duplicar", async () => {
+    db.t.productos.push({ id: "pB", workspaceId: "ws1", barcode: "7790001112223", isActive: false });
+    const r = await crearDesdeRecepcion("ws1", 1, "r1", prod());
+    expect(r.ok).toBe(false);
+    expect(db.t.productos).toHaveLength(1);
+    expect(db.t.lineas).toHaveLength(0);
+  });
+
+  it("insumo existente con ese código: lo reutiliza y suma por bulto", async () => {
+    db.t.productos.push({ id: "pI", workspaceId: "ws1", name: "Kit", kind: "INSUMO", barcode: "7790001112223", isActive: true });
+    db.t.insumos.push({ productId: "pI", unidad: "copias", unidadCompra: "kit", unidadesPorCompra: 500 });
+    await crearDesdeRecepcion("ws1", 1, "r1", insumo());
+    const r = await crearDesdeRecepcion("ws1", 1, "r1", insumo());
+    expect(r).toEqual({ ok: true, productId: "pI", reutilizado: true });
+    expect(db.t.productos).toHaveLength(1);
+    expect(db.t.lineas).toHaveLength(1);
+    expect(db.t.lineas[0]).toMatchObject({ cantidad: 2, enUnidadDeCompra: true, unidadesPorCompra: 500 });
   });
 
   it("un producto de otro negocio con ese código no cuenta", async () => {

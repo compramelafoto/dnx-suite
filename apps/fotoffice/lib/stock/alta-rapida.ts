@@ -26,6 +26,8 @@ export type AltaRapida = {
   unidadesPorCompra: number | null;
 };
 
+const ERROR_DADO_DE_BAJA = "Ese código ya es de un producto dado de baja: reactivalo desde el catálogo.";
+
 function formDeInsumo(d: AltaRapida): FormData {
   const fd = new FormData();
   fd.set("unidad", d.unidad ?? "");
@@ -59,7 +61,7 @@ export async function crearDesdeRecepcion(
   userId: number | null,
   recepcionId: string,
   d: AltaRapida,
-): Promise<{ ok: true; productId: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; productId: string; reutilizado: boolean } | { ok: false; error: string }> {
   const valido = validarAltaRapida(d);
   if (!valido.ok) return valido;
 
@@ -71,14 +73,24 @@ export async function crearDesdeRecepcion(
   const sku = hayCodigo && barras === null ? texto : null;
 
   return enBorrador(workspaceId, recepcionId, async (tx) => {
+    // Un producto del negocio que ya tenga ese código se reutiliza; si está dado de baja no se
+    // crea otro (chocaría con el código interno único y duplicaría el barcode).
     let productId: string | null = null;
-    if (barras !== null) {
-      const existente = await tx.product.findFirst({
-        where: { workspaceId, isActive: true, barcode: barras },
+    let reutilizado = false;
+    const donde = barras !== null ? { barcode: barras } : sku !== null ? { sku } : null;
+    if (donde !== null) {
+      const activo = await tx.product.findFirst({
+        where: { workspaceId, isActive: true, ...donde },
         orderBy: { createdAt: "asc" },
         select: { id: true },
       });
-      productId = existente?.id ?? null;
+      if (activo) {
+        productId = activo.id;
+        reutilizado = true;
+      } else {
+        const baja = await tx.product.findFirst({ where: { workspaceId, ...donde }, select: { id: true } });
+        if (baja) return { ok: false as const, error: ERROR_DADO_DE_BAJA };
+      }
     }
 
     if (productId === null) {
@@ -129,6 +141,6 @@ export async function crearDesdeRecepcion(
       origen: hayCodigo ? "LECTOR" : "MANUAL",
     });
     if (!linea.ok) return linea;
-    return { ok: true as const, productId };
+    return { ok: true as const, productId, reutilizado };
   });
 }
