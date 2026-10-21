@@ -29,7 +29,8 @@ describe("cobertura", () => {
   it("días", () => {
     expect(diasDeCobertura(95, 10)).toBe(9);
     expect(diasDeCobertura(0, 10)).toBe(0);
-    expect(diasDeCobertura(-3, 0)).toBe(0);
+    expect(diasDeCobertura(-3, 0)).toBeNull();
+    expect(diasDeCobertura(0, 0)).toBeNull();
     expect(diasDeCobertura(50, 0)).toBeNull();
   });
   it("textos", () => {
@@ -52,8 +53,17 @@ describe("paraComprar", () => {
       item({ productId: "enmin", stockQty: 5, minStockQty: 5 }),
       item({ productId: "neg", stockQty: -2 }),
       item({ productId: "noctrl", stockQty: 0, tracksStock: false }),
+      item({ productId: "agotado", stockQty: 0, consumo30: 30 }),
     ]).map((i) => i.productId);
-    expect(r.sort()).toEqual(["min", "neg", "siete"]);
+    expect(r.sort()).toEqual(["agotado", "min", "neg", "siete"]);
+  });
+  it("un producto en cero que no se vendió en 30 días y no tiene mínimo no es compra urgente", () => {
+    // Pasó en producción: el catálogo de portarretratos, nunca contado, llenaba «Para comprar».
+    const r = paraComprar([
+      item({ productId: "nuncaContado", stockQty: 0, consumo30: 0 }),
+      item({ productId: "conMinimo", stockQty: 0, consumo30: 0, minStockQty: 2 }),
+    ]).map((i) => i.productId);
+    expect(r).toEqual(["conMinimo"]);
   });
   it("ordena negativos, después menos días, después nombre", () => {
     const r = paraComprar([
@@ -91,7 +101,7 @@ describe("listaPorProveedor", () => {
     expect(l[0]!.renglones).toHaveLength(3);
   });
   it("mínimo 1", () => {
-    const l = listaPorProveedor([item({ productId: "q", nombre: "Q", stockQty: 0, minStockQty: null, consumo30: 0 })]);
+    const l = listaPorProveedor([item({ productId: "q", nombre: "Q", stockQty: -1, minStockQty: null, consumo30: 0 })]);
     expect(l[0]!.renglones[0]!.texto).toBe("1 unidades Q");
   });
 });
