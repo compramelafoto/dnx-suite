@@ -21,7 +21,7 @@
 - Vender nunca se bloquea por falta de stock: el insumo puede quedar negativo.
 - Nota de los movimientos de consumo: exactamente `consumo:item:<id>` (en CONSUMO y en su DEVOLUCION). Nunca `item:<id>` (lo usa Pedidos para emparejar sus devoluciones).
 - `sourceModule`: `"sales"` en ventas (sourceRef = saleId), `"pedidos"` en pedidos (sourceRef = pedidoId).
-- Cantidades enteras. Receta `quantity` Int > 0.
+- Cantidades enteras. Receta `quantity` Int > 0 y `porCada` Int ≥ 1 (default 1). Consumo por renglón = `ceil(qty / porCada) × quantity` — redondeo para arriba por renglón, decidido por Daniel (las piezas de distintos clientes no se juntan en una hoja).
 - Kodak 305: consumo por hoja `10x15 = 1`, `13x18 = 2`, `15x20 = 2`; insumo "Kit Kodak 305 (copias 10x15)", unidad "copias 10x15", unidad de compra "Kit 305 6R", `unidadesPorCompra = 640`; existencia inicial **0**.
 - Textos de pantalla en español rioplatense llano ("vos"), sin tecnicismos. Montos en pesos.
 - FOTOFFICE no tiene staging: nada de scripts que escriban en producción; la carga Kodak es un botón idempotente que usa el propio negocio.
@@ -53,7 +53,7 @@
 
 Modelos (campos exactos):
 - `FotofficeInsumo`: `id` cuid, `workspaceId`, `productId @unique`, `unidad String`, `unidadCompra String?`, `unidadesPorCompra Int?`, `createdAt`, `updatedAt`; FK a `Product` y `Workspace` con `onDelete: Cascade`; `@@index([workspaceId])`.
-- `FotofficeRecetaInsumo`: `id`, `workspaceId`, `productId`, `insumoId`, `quantity Int`, `order Int @default(0)`, `createdAt`, `updatedAt`; FK `product` (relación `"FotofficeRecetaProducto"`, Cascade) e `insumo` (relación `"FotofficeRecetaInsumo"`, **Restrict**: no se borra un insumo usado en recetas); `@@unique([productId, insumoId])`, `@@index([workspaceId, insumoId])`. SQL: `CHECK ("quantity" > 0)` y `CHECK ("productId" <> "insumoId")`.
+- `FotofficeRecetaInsumo`: `id`, `workspaceId`, `productId`, `insumoId`, `quantity Int`, `porCada Int @default(1)`, `order Int @default(0)`, `createdAt`, `updatedAt`; FK `product` (relación `"FotofficeRecetaProducto"`, Cascade) e `insumo` (relación `"FotofficeRecetaInsumo"`, **Restrict**: no se borra un insumo usado en recetas); `@@unique([productId, insumoId])`, `@@index([workspaceId, insumoId])`. SQL: `CHECK ("quantity" > 0)`, `CHECK ("porCada" >= 1)` y `CHECK ("productId" <> "insumoId")`.
 - `FotofficeConsumoTamano`: `id`, `workspaceId`, `salidaId`, `tamanoId`, `insumoId`, `quantity Int`, `createdAt`, `updatedAt`; FKs Cascade (insumo Restrict); `@@unique([salidaId, tamanoId, insumoId])`; `CHECK ("quantity" > 0)`.
 
 - [ ] **Step 1:** En `constants.test.ts` agregar: `expect(PRODUCT_KINDS).toContain("INSUMO")`, `expect(PRODUCT_KIND_LABELS.INSUMO).toBe("Insumo")`, `expect(STOCK_REASONS).toContain("CONSUMO")`, `expect(STOCK_REASON_LABELS.CONSUMO).toBe("Consumo")`.
@@ -72,7 +72,7 @@ Modelos (campos exactos):
 - Produces:
 ```ts
 export type LineaVendida = { ref: string; productId: string | null; qty: number };
-export type Receta = { productId: string; insumoId: string; quantity: number };
+export type Receta = { productId: string; insumoId: string; quantity: number; porCada: number };
 export type ComponenteCombo = { comboProductId: string; componentProductId: string; quantity: number };
 export type ConsumoLinea = { ref: string; insumoId: string; qty: number }; // qty > 0, a restar
 export function expandirConsumo(
@@ -82,7 +82,7 @@ export function expandirConsumo(
   insumosValidos: ReadonlySet<string>,
 ): ConsumoLinea[];
 ```
-Reglas: por línea, receta propia del producto + (si es combo) recetas de componentes recursivamente, multiplicando cantidades; agrupa por (`ref`, `insumoId`) sumando; ignora insumos que no estén en `insumosValidos`; corta recursión a profundidad 10 (defensa contra ciclos aunque `combos.ts` los impide); líneas sin producto o con `qty <= 0` no consumen; orden de salida estable (por `ref`, luego `insumoId`).
+Reglas: por línea, receta propia del producto + (si es combo) recetas de componentes recursivamente; las unidades de cada producto son `qty` de la línea × cantidades del combo; cada receta aporta `ceil(unidades / porCada) × quantity` (redondeo por producto dentro de la línea); agrupa por (`ref`, `insumoId`) sumando; ignora insumos que no estén en `insumosValidos`; corta recursión a profundidad 10 (defensa contra ciclos aunque `combos.ts` los impide); líneas sin producto o con `qty <= 0` no consumen; orden de salida estable (por `ref`, luego `insumoId`).
 
 - [ ] **Step 1: Tests** (`describe("expandirConsumo")`):
   - `"foto carnet gasta 1 copia y 1 sobre por unidad"`: línea `{ref:"a",productId:"carnet",qty:3}`, recetas carnet→kit 1, carnet→sobre 1 ⇒ `[{ref:"a",insumoId:"kit",qty:3},{ref:"a",insumoId:"sobre",qty:3}]`.
@@ -92,6 +92,9 @@ Reglas: por línea, receta propia del producto + (si es combo) recetas de compon
   - `"servicio sin stock con receta igual consume"` (el puro no mira `tracksStock`): ⇒ consume.
   - `"ignora insumos que ya no son válidos"`: receta a `"viejo"` fuera de `insumosValidos` ⇒ no aparece.
   - `"renglón suelto sin producto no consume"` ⇒ `[]`.
+  - `"3 polaroid 7,5x10 gastan 2 copias"`: receta `{quantity:1, porCada:2}`, qty 3 ⇒ kit 2; qty 2 ⇒ 1; qty 1 ⇒ 1.
+  - `"polaroid 9x13 gasta 2 copias por hoja de 2"`: receta `{quantity:2, porCada:2}`, qty 3 ⇒ kit 4.
+  - `"combo redondea por componente"`: combo = 3×Polaroid7,5x10 (receta 1 cada 2), qty 1 ⇒ kit 2.
   - `"ciclo no cuelga"`: combos A→B, B→A con recetas ⇒ termina y devuelve un resultado finito.
 - [ ] **Step 2:** `pnpm --filter fotoffice test lib/stock/consumo.test.ts` → FAIL.
 - [ ] **Step 3:** Implementar `expandirConsumo` (módulo PURO: sin imports de `@repo/db`).
@@ -216,17 +219,18 @@ Reglas: `unidad` obligatoria ("Decí en qué se cuenta: copias, sobres, ml…");
 
 **Interfaces:**
 ```ts
-export type LineaReceta = { insumoId: string; quantity: number };
+export type LineaReceta = { insumoId: string; quantity: number; porCada: number };
 export function normalizarReceta(productId: string, entrada: readonly LineaReceta[]): { ok: true; valor: LineaReceta[] } | { ok: false; error: string };
-export function sugerirLineas(d: { unidad: "HOJA" | "COPIA" | "PIEZA"; hojasPorUnidad: number; consumos: readonly { insumoId: string; quantity: number }[] }): LineaReceta[];
+export function sugerirLineas(d: { unidad: "HOJA" | "COPIA" | "PIEZA"; piezasPorHoja: number; consumos: readonly { insumoId: string; quantity: number }[] }): LineaReceta[];
+export function piezasPorHojaSugeridas(d: { tipoPieza: "COPIA" | "CARNET" | "POLAROID"; unidad: "HOJA" | "COPIA" | "PIEZA"; tamanoHoja: string }): number;
 export async function guardarReceta(workspaceId: string, productId: string, entrada: readonly LineaReceta[]): Promise<{ ok: true } | { ok: false; error: string }>;
-export async function sugerirDesdeImpresion(workspaceId: string, productId: string, hojasPorUnidad: number): Promise<LineaReceta[]>;
+export async function sugerirDesdeImpresion(workspaceId: string, productId: string, piezasPorHoja: number): Promise<LineaReceta[]>;
 ```
-`normalizarReceta`: une duplicados sumando, rechaza `quantity` no entera o ≤ 0 ("La cantidad tiene que ser un número entero mayor que cero."), rechaza que el insumo sea el mismo producto. `guardarReceta` (transacción): verifica que el producto sea del workspace y no INSUMO, que cada `insumoId` sea `kind = INSUMO` del workspace ("Eso no es un insumo de este negocio."), reemplaza la lista entera. `sugerirLineas`: HOJA/COPIA ⇒ hojas = 1; PIEZA ⇒ `hojasPorUnidad` (default 1); cada consumo × hojas. `sugerirDesdeImpresion` lee `FotofficeProductoProduccion` (salida + tamaño de hoja) y `FotofficeConsumoTamano` de ese par; sin producción ⇒ `[]`. La sugerencia **no guarda**: precarga el formulario; la persona toca "Guardar".
+`normalizarReceta`: rechaza duplicados del mismo insumo ("Ese insumo ya está en la receta."), rechaza `quantity` no entera o ≤ 0 ("La cantidad tiene que ser un número entero mayor que cero."), rechaza `porCada` no entero o < 1 ("«Cada cuántas» tiene que ser un número entero desde 1."), rechaza que el insumo sea el mismo producto. `guardarReceta` (transacción): verifica que el producto sea del workspace y no INSUMO, que cada `insumoId` sea `kind = INSUMO` del workspace ("Eso no es un insumo de este negocio."), reemplaza la lista entera. `sugerirLineas`: cada consumo del tamaño de hoja ⇒ `{ insumoId, quantity: consumo, porCada: unidad === "PIEZA" ? piezasPorHoja : 1 }`. `piezasPorHojaSugeridas`: POLAROID con unidad PIEZA en hoja 10x15, 13x18 o 15x20 ⇒ 2; todo lo demás ⇒ 1. `sugerirDesdeImpresion` lee `FotofficeProductoProduccion` (salida + tamaño de hoja) y `FotofficeConsumoTamano` de ese par; sin producción ⇒ `[]`. La sugerencia **no guarda**: precarga el formulario; la persona toca "Guardar".
 
-UI: lista de líneas (selector de insumos activos con su unidad + cantidad + quitar), "Agregar insumo", "Sugerir desde Impresión" (si el producto tiene producción; si la unidad es PIEZA pregunta "¿Cuántas hojas usa una unidad?" con 1), "Guardar". Texto de ayuda: "Lo que gasta una unidad vendida. Se descuenta solo al cobrar y al tomar un pedido."
+UI: lista de líneas que se leen como frase: "[2] [copias 10x15 ▾ Kit Kodak 305] cada [2] unidades vendidas" + quitar; "Agregar insumo"; "Sugerir desde Impresión" (si el producto tiene producción; si la unidad es PIEZA pregunta "¿Cuántas entran por hoja?" con el valor de `piezasPorHojaSugeridas`); debajo, ejemplo calculado en vivo: "Vender 3 gasta 2 copias 10x15 (se redondea para arriba: no se juntan piezas de distintos clientes en una hoja)."; "Guardar". Texto de ayuda: "Lo que gasta una unidad vendida. Se descuenta solo al cobrar y al tomar un pedido."
 
-- [ ] **Step 1: Tests:** `normalizarReceta` (duplicados suman, 0 rechaza, 1.5 rechaza, mismo producto rechaza); `sugerirLineas` (`HOJA` con kit 2 ⇒ `[{kit,2}]`; `PIEZA` con 1 hoja y kit 1 ⇒ `[{kit,1}]`; sin consumos ⇒ `[]`).
+- [ ] **Step 1: Tests:** `normalizarReceta` (duplicado rechaza, quantity 0 rechaza, 1.5 rechaza, porCada 0 rechaza, mismo producto rechaza); `sugerirLineas` (`HOJA` con kit 2 ⇒ `[{kit,2,porCada:1}]`; `PIEZA` con 2 por hoja y kit 1 ⇒ `[{kit,1,porCada:2}]`; sin consumos ⇒ `[]`); `piezasPorHojaSugeridas` (POLAROID/PIEZA/10x15 ⇒ 2; POLAROID/PIEZA/13x18 ⇒ 2; CARNET/HOJA/10x15 ⇒ 1; COPIA/COPIA/10x15 ⇒ 1).
 - [ ] **Step 2–4:** FAIL → implementar → PASS. Commit `Armar la receta de consumo de cada producto`.
 
 ### Task 10: Kodak 305 en un toque y pantalla Stock con insumos
@@ -265,7 +269,7 @@ Pantalla Stock: secciones "Para reponer" (como hoy, incluye insumos), "Insumos",
 
 Contenido (todas `moduleKey: SALES_MODULE_KEY`, `seccion: "Stock"`):
 1. `stock-insumos-alta` — "Dar de alta un insumo": Catálogo → Nuevo → tipo Insumo; unidad; unidad de compra (ejemplo Kit 305 6R = 640); el botón "Configurar" de la Kodak 305 en Stock. `sistema`: "Los insumos no aparecen en el Cobrador ni en la tienda."
-2. `stock-receta-consumo` — "Decir cuánto gasta cada producto": ficha del producto → Consumo de insumos; ejemplo foto carnet = 1 copia + 1 sobre; 15x20 = 2 copias; "Sugerir desde Impresión". `sistema`: "Al cobrar o tomar un pedido se descuenta solo; si anulás o cancelás, vuelve."
+2. `stock-receta-consumo` — "Decir cuánto gasta cada producto": ficha del producto → Consumo de insumos; ejemplo foto carnet = 1 copia + 1 sobre; 15x20 = 2 copias; Polaroid 7,5×10 = 1 copia cada 2 (3 Polaroid gastan 2 copias: no se juntan clientes en una hoja); instantánea y "para retirar" son productos distintos con su precio; "Sugerir desde Impresión". `sistema`: "Al cobrar o tomar un pedido se descuenta solo; si anulás o cancelás, vuelve."
 3. `stock-contar-y-ajustar` — "Contar lo que hay y corregir": Stock → Ajustar por conteo, nota obligatoria; Cargar entrada en kits.
 
 Capturas: levantar FOTOFFICE local desde el worktree (`next dev --webpack`, ver memoria de Agenda) contra una base de prueba o la rama local de desarrollo, en un workspace de demostración con datos de ejemplo (Kit Kodak 305, sobres de carnet, "Foto carnet x4", "Copia 15x20"); **nunca** datos de clientes reales ni la base de producción. Tomar las capturas con el navegador integrado siguiendo cada `.json`; guardarlas en JPG.
@@ -277,6 +281,6 @@ Capturas: levantar FOTOFFICE local desde el worktree (`next dev --webpack`, ver 
 ### Task 12: Verificación final, migración y PR
 
 - [ ] **Step 1:** `pnpm --filter fotoffice typecheck`, `pnpm --filter fotoffice test`, `pnpm --filter fotoffice lint` → sin errores (confirmar que typecheck no murió por memoria).
-- [ ] **Step 2:** Prueba manual local: crear insumo kit (o usar "Configurar" Kodak), receta 15x20 = 2, vender 3 ⇒ existencia −6; anular ⇒ vuelve a 0; pedido con seña de 2 ⇒ −4; cancelar ⇒ 0. Escanear el código del kit en el Cobrador ⇒ no lo agrega.
+- [ ] **Step 2:** Prueba manual local: crear insumo kit (o usar "Configurar" Kodak), receta 15x20 = 2, vender 3 ⇒ existencia −6; Polaroid 7,5×10 (1 cada 2), vender 3 ⇒ −2 más; anular ⇒ vuelve a 0; pedido con seña de 2 ⇒ −4; cancelar ⇒ 0. Escanear el código del kit en el Cobrador ⇒ no lo agrega.
 - [ ] **Step 3:** Aplicar `migration.sql` en la base de FOTOFFICE (Neon `divine-hall-10689679`, rama `development`) y registrar la fila en `_prisma_migrations` con el SHA-256 del archivo; verificar con `SELECT to_regclass('"FotofficeInsumo"'), to_regclass('"FotofficeRecetaInsumo"'), to_regclass('"FotofficeConsumoTamano"')`. **Pedir confirmación a Daniel antes de escribir en producción.**
 - [ ] **Step 4:** PR contra `main` con resumen en español, aclarando: "migración aplicada en FOTOFFICE; no hace falta en otras bases (tablas nuevas solo de FOTOFFICE; sin columnas nuevas en tablas compartidas)".

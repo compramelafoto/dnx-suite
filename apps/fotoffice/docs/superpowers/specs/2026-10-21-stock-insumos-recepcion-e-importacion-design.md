@@ -107,7 +107,8 @@ Modelo nuevo **`FotofficeRecetaInsumo`**:
 | `workspaceId` | |
 | `productId` | Lo que se vende (PRODUCTO o SERVICIO) |
 | `insumoId` | Un `Product` con `kind = INSUMO` del mismo workspace |
-| `quantity` | Int > 0: cuánto insumo gasta **una unidad vendida** |
+| `quantity` | Int > 0: cuánto insumo gasta cada grupo de `porCada` unidades vendidas |
+| `porCada` | Int ≥ 1, por omisión 1: **cada cuántas unidades** se gasta `quantity` (ej. 2 Polaroid 7,5×10 por hoja 10x15) |
 | `order` | |
 
 Único por (`productId`, `insumoId`). Un producto puede gastar varios insumos (foto carnet →
@@ -139,6 +140,26 @@ Modelo nuevo **`FotofficeConsumoTamano`** (`workspaceId`, `salidaId`, `tamanoId`
 Para la Kodak 305: 10x15 → 1, 13x18 → 2, 15x20 → 2 del insumo "Kit Kodak 305 (copias 10x15)".
 Ribbon y papel vienen juntos en el kit, así que es **un solo insumo**.
 
+**Polaroid y piezas más chicas que la hoja** (diseñador de Polaroid de CompraMeLaFoto,
+`apps/compramelafoto/components/polaroid/presets.ts`, que se copia a FOTOFFICE):
+
+| Polaroid | Hoja | Por hoja | Copias del kit por hoja |
+|---|---|---|---|
+| 7,5×10 | 10x15 | 2 | 1 |
+| 9×13 | 13x18 | 2 | 2 |
+| 10×15 | 10x15 | 1 | 1 |
+| (si se agrega) 2 en 15x20 | 15x20 | 2 | 2 |
+
+**Redondeo, decidido por Daniel (21/10):** las piezas de distintos clientes **no se juntan** en
+una hoja, ni las instantáneas ni las "para retirar". Por eso el consumo se redondea **para arriba
+por renglón vendido**: 3 Polaroid 7,5×10 = 2 hojas = 2 copias del kit. Con combos, se redondea
+por componente (unidades del componente = cantidad del combo × cantidad en el combo).
+
+**Precio y consumo son independientes (Daniel, 21/10):** el precio es del producto, por unidad.
+Una pieza más chica que una 10x15 se cobra como una 10x15 aunque entren 2 por hoja. La
+Polaroid **instantánea** y la **no instantánea** (para mañana o la semana que viene) son
+**productos distintos** con precio distinto y pueden tener la misma receta.
+
 Esto **no** se aplica en el momento de la venta. Sirve para **proponer la receta**: en la
 ficha de un producto que tiene `FotofficeProductoProduccion` (salida + tamaño de hoja), el
 botón "Sugerir desde Impresión" precarga la línea de receta (hojas por unidad vendida ×
@@ -146,15 +167,15 @@ consumo del tamaño). La persona la acepta o la corrige. **La receta guardada es
 verdad al vender.** Así cumple "no cargar dos veces" sin que un cambio en Impresión cambie en
 silencio lo que se descuenta.
 
-Cuántas hojas por unidad vendida: si la unidad del producto es HOJA o COPIA, 1. Si es PIEZA
-(ej. carnets: varias piezas por hoja), la sugerencia pregunta "¿cuántas hojas usa una
-unidad?" con 1 por defecto.
+Cuántas piezas por hoja: si la unidad del producto es HOJA o COPIA, `porCada = 1`. Si es PIEZA,
+la sugerencia pregunta "¿Cuántas entran por hoja?" con 2 por defecto para POLAROID en hoja
+10x15, 13x18 o 15x20 y 1 para el resto, y lo guarda en `porCada`.
 
 ### 4.4 Descuento al vender y al anular
 
 En `descontarStock` (`lib/sales/record-sale.ts`), dentro de la misma transacción, por cada
 renglón con producto: buscar sus recetas y escribir un `StockMovement` por insumo con
-`qty = -(receta.quantity × renglón.qty)`, **`reason = "CONSUMO"`** (valor nuevo),
+`qty = -(ceil(renglón.qty / receta.porCada) × receta.quantity)`, **`reason = "CONSUMO"`** (valor nuevo),
 `sourceModule = "sales"`, `sourceRef = saleId`, y `note = "consumo:item:<saleItemId>"`. El
 prefijo `consumo:` es obligatorio: `devolverStockApartado` de Pedidos empareja devoluciones por
 `note = "item:<id>"`, y una nota igual haría creer que la línea ya se devolvió.
@@ -285,7 +306,8 @@ con su `capturas/<slug>.json` (qué mostrar en cada captura) y las imágenes en
 1. **`stock-insumos-alta`** — Dar de alta un insumo y su unidad de compra (ej. Kit Kodak 305
    = 640 copias).
 2. **`stock-receta-consumo`** — Armar la receta de un producto; usar "Sugerir desde
-   Impresión"; ejemplo carnet = 1 copia + 1 sobre; 15x20 = 2 copias.
+   Impresión"; ejemplo carnet = 1 copia + 1 sobre; 15x20 = 2 copias; Polaroid 7,5×10 = 1 copia
+   cada 2 (y por qué 3 Polaroid gastan 2 copias).
 3. **`stock-recibir-pedido`** — Recibir un pedido con el lector: borrador, escanear, cantidad,
    costo, alta rápida, confirmar.
 4. **`stock-importar-factura`** — Importar una factura/remito/captura con IA, revisar,
