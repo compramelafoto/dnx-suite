@@ -6,7 +6,7 @@ import type { FilaImportada } from "./esquema";
 export type IndiceAsociacion = {
   /** barcode normalizado → productId */
   porBarcode: Map<string, string>;
-  /** sku normalizado (normalizarTexto) → productId */
+  /** sku con trim y minúsculas → productId */
   porSku: Map<string, string>;
   /** descripción normalizada → productId (alias del proveedor) */
   porAlias: Map<string, string>;
@@ -40,7 +40,7 @@ export function asociarFilas(filas: FilaImportada[], indice: IndiceAsociacion): 
   const catalogo = indice.catalogo.map((c) => ({ ...c, palabras: palabras(c.nombre) }));
   return filas.map((fila) => {
     const barcode = fila.codigo_barras ? normalizeBarcode(fila.codigo_barras) : null;
-    const sku = fila.codigo_proveedor ? normalizarTexto(fila.codigo_proveedor) : "";
+    const sku = fila.codigo_proveedor ? fila.codigo_proveedor.trim().toLowerCase() : "";
     const desc = normalizarTexto(fila.descripcion);
 
     const porBarcode = barcode ? indice.porBarcode.get(barcode) : undefined;

@@ -46,6 +46,11 @@ describe("asociarFilas", () => {
     const r = asociarFilas([fila({ codigo_proveedor: " S1 " })], indice({ porSku: new Map([["s1", "ps"]]) }));
     expect(r[0]).toMatchObject({ productId: "ps", via: "sku" });
   });
+  it("sku exacto salvo mayúsculas y espacios: A-B1 no es A B1", () => {
+    const ind = indice({ porSku: new Map([["a b1", "ps"]]) });
+    expect(asociarFilas([fila({ codigo_proveedor: "A-B1" })], ind)[0].productId).toBeNull();
+    expect(asociarFilas([fila({ codigo_proveedor: " A B1 " })], ind)[0].via).toBe("sku");
+  });
   it("alias: mismo proveedor y misma descripción la segunda vez", () => {
     const r = asociarFilas(
       [fila({ descripcion: "Papel Fotográfico 10x15" })],
