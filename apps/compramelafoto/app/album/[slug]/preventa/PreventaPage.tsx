@@ -24,6 +24,7 @@ import EmailConfirmationHint, {
 } from "@/components/checkout/EmailConfirmationHint";
 import { getCheckoutEmailValidationError } from "@/lib/email-validation";
 import { packSavingsArs } from "@/lib/preventa-canjeable/pack-savings";
+import { splitPackDescription } from "@/lib/preventa-canjeable/pack-list-price";
 
 type PackBenefitLine = { line: string };
 
@@ -35,6 +36,9 @@ type Pack = {
   /** Pack destacado del álbum: lleva el cartel "Recomendado". */
   isRecommended?: boolean;
   price: number;
+  /** Precio de lista final, para mostrarlo tachado. null si el pack no tiene descuento. */
+  listPriceArs?: number | null;
+  discountPercent?: number | null;
   validFrom: string | null;
   validUntil: string | null;
   redemptionDeadlineAt: string | null;
@@ -612,8 +616,15 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                               </span>
                             ) : null}
                           </span>
-                          <span className="shrink-0 text-base font-bold tabular-nums text-[#1a1a1a] sm:text-lg">
-                            ${pack.price.toLocaleString("es-AR")}
+                          <span className="flex shrink-0 flex-col items-end">
+                            {pack.listPriceArs ? (
+                              <span className="text-xs tabular-nums text-[#9ca3af] line-through">
+                                ${pack.listPriceArs.toLocaleString("es-AR")}
+                              </span>
+                            ) : null}
+                            <span className="text-base font-bold tabular-nums text-[#1a1a1a] sm:text-lg">
+                              ${pack.price.toLocaleString("es-AR")}
+                            </span>
                           </span>
                         </button>
                       </li>
@@ -674,6 +685,7 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
           <div className={`min-w-0 ${packGridClassName(packs.length)}`}>
             {packs.map((pack) => {
               const ahorro = savingsByPackId.get(pack.id);
+              const { giftLines, otherLines } = splitPackDescription(pack.description);
               return (
               <div
                 key={pack.id}
@@ -714,6 +726,18 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                       <h3 className="text-lg sm:text-xl font-bold text-[#1a1a1a] leading-snug">
                         {pack.name}
                       </h3>
+                      {pack.listPriceArs ? (
+                        <p className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-[#9ca3af] line-through tabular-nums">
+                            Lista ${pack.listPriceArs.toLocaleString("es-AR")}
+                          </span>
+                          {pack.discountPercent ? (
+                            <span className="inline-flex items-center rounded-full bg-[#16a34a] px-2.5 py-0.5 text-xs font-bold text-white">
+                              {pack.discountPercent}% OFF preventa
+                            </span>
+                          ) : null}
+                        </p>
+                      ) : null}
                       <p className="text-2xl sm:text-3xl font-bold text-[#c27b3d] tabular-nums tracking-tight">
                         ${pack.price.toLocaleString("es-AR")}
                       </p>
@@ -723,6 +747,16 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                         </p>
                       ) : null}
                     </div>
+                    {giftLines.length > 0 ? (
+                      <div className="rounded-xl border border-[#16a34a]/30 bg-[#f0fdf4] p-3 sm:p-4 space-y-1.5">
+                        {giftLines.map((line, i) => (
+                          <p key={i} className="flex gap-2 text-sm sm:text-[15px] leading-relaxed text-[#14532d]">
+                            <span aria-hidden>🎁</span>
+                            <span className="min-w-0">{line}</span>
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-center gap-3 sm:gap-4 py-1">
                       <button
                         type="button"
@@ -761,10 +795,12 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                         </ul>
                       </div>
                     )}
-                    {pack.description?.trim() ? (
-                      <p className="text-sm text-[#6b7280] leading-relaxed border-t border-[#f3f4f6] pt-4">
-                        {pack.description}
-                      </p>
+                    {otherLines.length > 0 ? (
+                      <div className="text-sm text-[#6b7280] leading-relaxed border-t border-[#f3f4f6] pt-4 space-y-2">
+                        {otherLines.map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                      </div>
                     ) : null}
                   </div>
                 </Card>
@@ -772,6 +808,12 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
               );
             })}
           </div>
+
+          {packs.some((p) => p.coverImageUrl) ? (
+            <p className="-mt-6 lg:-mt-8 text-center text-xs text-[#9ca3af]">
+              Las imágenes de los packs son ilustrativas.
+            </p>
+          ) : null}
 
           {/* 4 — Cómo funciona */}
           <section className="w-full min-w-0 space-y-4 sm:space-y-5">

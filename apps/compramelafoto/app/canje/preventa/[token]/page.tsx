@@ -16,7 +16,7 @@ import type { CanjeExtrasConfig } from "@/components/canje-externo/CanjeExtrasSt
 import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
 import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
-import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
+import { isPlaceholderEmail, nombreNaturalDesdeExcel, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
 import { valoresDelPackExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { getAuthUser } from "@/lib/auth";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
@@ -216,9 +216,11 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     : null;
   // Pack cobrado por fuera: no hay PreCompraOrder; alumno y adulto vienen con el pack.
   const externo = parseExternalPreventaRefs(order.redemptionPaymentRefsJson);
-  const familia = externo?.parentName || order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
+  // El Excel trae "Apellido Nombre": se da vuelta para saludar con el nombre de pila.
+  const familia =
+    nombreNaturalDesdeExcel(externo?.parentName) || order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
   const alumno = studentNameForGreeting(
-    externo?.studentName ||
+    nombreNaturalDesdeExcel(externo?.studentName) ||
       [preCompra?.studentFirstName, preCompra?.studentLastName].filter(Boolean).join(" "),
     familia
   );

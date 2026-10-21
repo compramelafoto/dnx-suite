@@ -6,6 +6,7 @@ import { AlboomApiError, AlboomLoginError, crearClienteAlboom, type ClienteAlboo
 import { leerCredencialAlboom, marcarAlboomParaReconectar, marcarAlboomUsada } from "./credenciales";
 import { ejecutarTanda, type Almacen } from "./extractor";
 import {
+  avancesAnteriores,
   extraccionesParaCorrer,
   guardarAvance,
   leerAvanceDe,
@@ -106,6 +107,8 @@ export async function correrExtraccionesAlboom(deps: DepsCorrida = {}): Promise<
         continue;
       }
 
+      // "Volver a extraer" pide los hijos sólo de los padres que cambiaron: necesita lo que hicieron las anteriores.
+      const anteriores = c.mode === "INCREMENTAL" ? await avancesAnteriores(c.id, c.workspaceId) : [];
       const r = await ejecutarTanda({
         workspaceId: c.workspaceId,
         cliente,
@@ -113,6 +116,8 @@ export async function correrExtraccionesAlboom(deps: DepsCorrida = {}): Promise<
         avance,
         ahora,
         limite,
+        modo: c.mode,
+        anteriores,
         guardar: (a) => guardarAvance(c.id, c.workspaceId, a),
       });
       avance = r.avance;
