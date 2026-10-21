@@ -1,5 +1,5 @@
 import { ENCABEZADO_CSV, MAX_FILAS_CSV } from "./constantes";
-import { normalizarNumero, type FilaImportada } from "./esquema";
+import { filaSchema, normalizarNumero, type FilaImportada } from "./esquema";
 
 /** Plantilla descargable: el encabezado y una fila de ejemplo. */
 export const PLANTILLA_CSV = `${ENCABEZADO_CSV}\n7790000000001;K305;Kit Kodak 305 6R;2;kit;640;120000;21;INSUMO\n`;
@@ -115,18 +115,21 @@ export function leerCsv(
       return { ok: false, error: `La fila ${iEnc + i + 2} tiene una cantidad que no se entiende.` };
     }
     const upp = num(5);
-    filas.push({
-      codigo_barras: texto_o_nulo(0),
-      codigo_proveedor: texto_o_nulo(1),
-      descripcion: t(2),
-      cantidad,
-      unidad: texto_o_nulo(4),
-      unidades_por_paquete: upp === null ? null : Math.round(upp),
-      costo_unitario: num(6),
-      alicuota_iva: num(7),
-      subtotal: null,
-      tipo: TIPOS.includes(g(8).toUpperCase()) ? g(8).toUpperCase() : null,
-    });
+    // Pasa por el esquema: los topes numéricos (cantidad, bultos, costo) se aplican igual que a la IA.
+    filas.push(
+      filaSchema.parse({
+        codigo_barras: texto_o_nulo(0),
+        codigo_proveedor: texto_o_nulo(1),
+        descripcion: t(2),
+        cantidad,
+        unidad: texto_o_nulo(4),
+        unidades_por_paquete: upp === null ? null : Math.round(upp),
+        costo_unitario: num(6),
+        alicuota_iva: num(7),
+        subtotal: null,
+        tipo: TIPOS.includes(g(8).toUpperCase()) ? g(8).toUpperCase() : null,
+      }),
+    );
   }
   return { ok: true, filas };
 }

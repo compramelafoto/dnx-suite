@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_CANTIDAD, MAX_MONTO, MAX_UNIDADES_POR_PAQUETE } from "./constantes";
 
 /**
  * Esquema de lo que se lee de una factura (stock etapa 3). Módulo puro: sin base ni red.
@@ -7,17 +8,27 @@ import { z } from "zod";
 
 const nuloString = z.string().nullable();
 const nuloNumero = z.number().finite().nullable();
+/** Monto en pesos: fuera de [0, MAX_MONTO] queda nulo (no entra en Decimal(12,2)). */
+const monto = nuloNumero.transform((v) => (v === null || v < 0 || v > MAX_MONTO ? null : v));
+/** Cantidad fuera de [0, MAX_CANTIDAD] ⇒ 0: inválida, el volcado carga 1 y la cuenta como corregida. */
+const cantidad = z.number().finite().transform((v) => (v < 0 || v > MAX_CANTIDAD ? 0 : v));
+/** Unidades por paquete: entero en [1, MAX_UNIDADES_POR_PAQUETE]; si no, nulo (va suelto). */
+const unidadesPorPaquete = z
+  .number()
+  .int()
+  .nullable()
+  .transform((v) => (v === null || v < 1 || v > MAX_UNIDADES_POR_PAQUETE ? null : v));
 
 export const filaSchema = z.object({
   codigo_barras: nuloString,
   codigo_proveedor: nuloString,
   descripcion: z.string(),
-  cantidad: z.number().finite(),
+  cantidad,
   unidad: nuloString,
-  unidades_por_paquete: z.number().int().nullable(),
-  costo_unitario: nuloNumero,
+  unidades_por_paquete: unidadesPorPaquete,
+  costo_unitario: monto,
   alicuota_iva: nuloNumero,
-  subtotal: nuloNumero,
+  subtotal: monto,
   /** Sólo viene del CSV (INSUMO | PRODUCTO); la IA no lo informa. */
   tipo: nuloString.optional(),
 });
@@ -29,7 +40,7 @@ export const documentoSchema = z.object({
   fecha: nuloString,
   comprobante: nuloString,
   precios_con_iva: z.boolean().nullable(),
-  total: nuloNumero,
+  total: monto,
   filas: z.array(filaSchema),
 });
 

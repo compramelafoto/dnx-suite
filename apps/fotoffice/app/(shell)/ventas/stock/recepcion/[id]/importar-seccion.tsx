@@ -158,6 +158,7 @@ export function ImportarSeccion({
           return;
         }
         descargarTexto(r.nombre, r.csv);
+        setEstado({ tipo: "nada" });
       } catch {
         setEstado({ tipo: "error", texto: "No se pudo descargar. Probá de nuevo." });
       }

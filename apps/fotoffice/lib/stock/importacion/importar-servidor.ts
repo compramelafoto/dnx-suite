@@ -346,7 +346,15 @@ export async function importarConArchivo(
 ): Promise<ResultadoImportacion> {
   if (!tieneFilasUtiles(doc)) return importarEnRecepcion(workspaceId, recepcionId, userId, "IA", doc);
   const clave = await subirArchivoDeRecepcion(workspaceId, recepcionId, original);
-  const r = await importarEnRecepcion(workspaceId, recepcionId, userId, "IA", doc, clave ?? undefined);
+  let r: ResultadoImportacion;
+  try {
+    r = await importarEnRecepcion(workspaceId, recepcionId, userId, "IA", doc, clave ?? undefined);
+  } catch (e) {
+    // Un error inesperado de la base también deja el original sin recepción: se borra y se sigue
+    // propagando el error.
+    if (clave) await borrarArchivoDeRecepcion(clave);
+    throw e;
+  }
   if (!r.ok && clave) await borrarArchivoDeRecepcion(clave);
   return r;
 }

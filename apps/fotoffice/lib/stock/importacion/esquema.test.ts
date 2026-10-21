@@ -61,6 +61,26 @@ describe("validarDocumento", () => {
     expect(validarDocumento(doc({ filas: [fila({ cantidad: "2" as unknown as number })] })).ok).toBe(false);
     expect(validarDocumento(null).ok).toBe(false);
   });
+  it("topes: montos fuera de rango quedan nulos, cantidad fuera de rango pasa a 0, bultos fuera de rango a nulo", () => {
+    const v = validarDocumento(
+      doc({
+        total: 1e15,
+        filas: [
+          fila({ cantidad: 5e9, unidades_por_paquete: 2_000_000_000_000, costo_unitario: 1e13, subtotal: -4 }),
+          fila({ cantidad: -2, unidades_por_paquete: 0, costo_unitario: 9_999_999_999.99, subtotal: 0 }),
+          fila({ cantidad: 100_000, unidades_por_paquete: 100_000 }),
+        ],
+      }),
+    );
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.doc.total).toBeNull();
+    expect(v.doc.filas.map((f) => [f.cantidad, f.unidades_por_paquete, f.costo_unitario, f.subtotal])).toEqual([
+      [0, null, null, null],
+      [0, null, 9_999_999_999.99, 0],
+      [100_000, 100_000, 1000, null],
+    ]);
+  });
   it("rechaza unidades_por_paquete no entero", () => {
     expect(validarDocumento(doc({ filas: [fila({ unidades_por_paquete: 2.5 })] })).ok).toBe(false);
   });

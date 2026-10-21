@@ -120,7 +120,7 @@ export async function comprimirImagen(archivo: Blob): Promise<{ ok: true; file: 
 
 /** Baja un texto como archivo. Con BOM, para que Excel lea bien los acentos. */
 export function descargarTexto(nombre: string, contenido: string, tipo = "text/csv;charset=utf-8"): void {
-  const cuerpo = contenido.startsWith("﻿") ? contenido : `﻿${contenido}`;
+  const cuerpo = contenido.startsWith("\uFEFF") ? contenido : `\uFEFF${contenido}`;
   const url = URL.createObjectURL(new Blob([cuerpo], { type: tipo }));
   const a = document.createElement("a");
   a.href = url;

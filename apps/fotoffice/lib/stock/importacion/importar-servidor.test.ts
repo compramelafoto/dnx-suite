@@ -231,6 +231,15 @@ describe("importarEnRecepcion", () => {
     expect(db.t.lineas.map((l) => [l.descripcionOriginal, l.cantidad])).toEqual([["A", 1], ["B", 1], ["C", 3]]);
   });
 
+  it("números enormes de la IA no rompen el guardado: cantidad 1 corregida, costo y bultos nulos", async () => {
+    db.t.recepciones.push(recepcion());
+    const r = await importarEnRecepcion(WS, "r1", 3, "IA", doc([
+      fila({ descripcion: "A", cantidad: 7_790_000_000_001, unidades_por_paquete: 3_000_000_000, costo_unitario: 1e14 }),
+    ], { total: 1e20 }));
+    expect(r).toMatchObject({ ok: true, agregadas: 1, corregidas: 1, cuadra: true });
+    expect(db.t.lineas[0]).toMatchObject({ cantidad: 1, enUnidadDeCompra: false, unidadesPorCompra: null, costoUnitarioArs: null });
+  });
+
   it("un costo negativo queda sin costo", async () => {
     db.t.recepciones.push(recepcion());
     await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila({ costo_unitario: -5 })]));
@@ -406,6 +415,15 @@ describe("importarConArchivo", () => {
     expect(r).toEqual({ ok: false, error: "Esa recepción ya está confirmada." });
     expect(error).toHaveBeenCalledWith(expect.stringContaining("no se pudo borrar"), expect.any(String), expect.any(Error));
     error.mockRestore();
+  });
+
+  it("si la importación tira una excepción, borra el original y la propaga", async () => {
+    db.t.recepciones.push(recepcion());
+    enviar.mockResolvedValue({});
+    db.fotofficeRecepcionLinea.createMany.mockRejectedValueOnce(new Error("se cayó la base"));
+    await expect(importarConArchivo(WS, "r1", 3, doc([fila()]), original)).rejects.toThrow("se cayó la base");
+    expect(comandos()).toEqual(["PutObjectCommand", "DeleteObjectCommand"]);
+    expect(enviar.mock.calls[1][0].input.Key).toBe(enviar.mock.calls[0][0].input.Key);
   });
 
   it("si la subida falla, importa igual sin clave y no intenta borrar", async () => {

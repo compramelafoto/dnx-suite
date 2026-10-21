@@ -99,6 +99,16 @@ describe("endurecimiento de leerCsv", () => {
   });
 });
 
+describe("topes numéricos en el CSV", () => {
+  it("valores enormes no llegan a la base: cantidad 0 (inválida), bultos y costo nulos", () => {
+    const f = ok(`${H}\n;;Papel;99999999999;;5000000000;123456789012345;;\n;;Tinta;3;;10;-50;;\n`);
+    expect(f.map((x) => [x.cantidad, x.unidades_por_paquete, x.costo_unitario])).toEqual([
+      [0, null, null],
+      [3, 10, null],
+    ]);
+  });
+});
+
 describe("escribirCsv", () => {
   it("neutraliza fórmulas", () => {
     const t = escribirCsv([
