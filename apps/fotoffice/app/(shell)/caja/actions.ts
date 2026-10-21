@@ -16,6 +16,7 @@ import {
 } from "@/lib/cash/shift";
 import { parseMovementForm } from "@/lib/cash/movement-form";
 import { buildReversal, noSeAnulaEnCaja } from "@/lib/cash/reverse";
+import { OPENING_BALANCE_MODULE } from "@/lib/cash/opening-balance";
 import { accountBalanceMinor } from "@/lib/cash/balance";
 import { createCashTransfer, validateTransfer } from "@/lib/cash/transfer";
 import { parseAccountForm } from "@/lib/cash/account-form";
@@ -289,6 +290,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       description: original.description,
       alreadyReversed: original.reversedBy !== null,
       transferId: original.transferId,
+      sourceModule: original.sourceModule,
     },
     reason,
   );
@@ -298,10 +300,14 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // Si la anulación pasa con el turno todavía abierto, el contramovimiento entra en su
     // arqueo igual que cualquier otro: no hay motivo para que quede afuera.
-    const turno = await tx.cashShift.findFirst({
-      where: { workspaceId: workspace.id, accountId: v.accountId, status: "ABIERTO" },
-      select: { id: true },
-    });
+    // La excepción es el saldo inicial: nunca entró a un arqueo, así que su anulación tampoco.
+    const esSaldoInicial = v.sourceModule === OPENING_BALANCE_MODULE;
+    const turno = esSaldoInicial
+      ? null
+      : await tx.cashShift.findFirst({
+          where: { workspaceId: workspace.id, accountId: v.accountId, status: "ABIERTO" },
+          select: { id: true },
+        });
     await tx.cashMovement.create({
       data: {
         workspaceId: workspace.id,

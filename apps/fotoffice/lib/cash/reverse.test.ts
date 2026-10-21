@@ -128,3 +128,17 @@ describe("movimientos que se anulan en su módulo", () => {
     expect(boton.indexOf("noSeAnulaEnCaja(m.sourceModule, m.reversesSourceModule)")).toBeLessThan(boton.indexOf("<form action={reverseMovementAction}"));
   });
 });
+
+describe("buildReversal con saldo inicial", () => {
+  it("la anulación de un saldo inicial conserva el origen saldo-inicial", () => {
+    const r = buildReversal({ ...ingreso, categoryId: null, sourceModule: "saldo-inicial" }, "faltaban 900 pesos");
+    expect(r.ok && r.values.sourceModule).toBe("saldo-inicial");
+  });
+
+  it("cualquier otro movimiento sigue anulándose como manual", () => {
+    const venta = buildReversal({ ...ingreso, sourceModule: "sales" }, "x");
+    expect(venta.ok && venta.values.sourceModule).toBe("manual");
+    const sinOrigen = buildReversal(ingreso, "x");
+    expect(sinOrigen.ok && sinOrigen.values.sourceModule).toBe("manual");
+  });
+});

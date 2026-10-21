@@ -1,3 +1,5 @@
+import { isOpeningBalanceModule, OPENING_BALANCE_MODULE } from "./opening-balance";
+
 /**
  * La anulación de un movimiento. Módulo PURO.
  *
@@ -61,6 +63,8 @@ export type ReversibleMovement = {
   alreadyReversed: boolean;
   /** No nulo cuando este asiento es una pata de un pase entre cuentas. */
   transferId: string | null;
+  /** El origen del asiento. Sólo importa para el saldo inicial, cuya anulación lo conserva. */
+  sourceModule?: string | null;
 };
 
 export type ReversalValues = {
@@ -73,7 +77,11 @@ export type ReversalValues = {
   description: string;
   reversesMovementId: string;
   reverseReason: string;
-  sourceModule: "manual";
+  /**
+   * "manual", salvo al anular un saldo inicial: ahí el contramovimiento conserva el origen para
+   * que los reportes lo salteen igual que al original y no aparezca como un egreso del negocio.
+   */
+  sourceModule: "manual" | typeof OPENING_BALANCE_MODULE;
   sourceRef: null;
   /**
    * Se arrastra del original a propósito, aunque hoy siempre llega en `null` acá —el chequeo
@@ -113,7 +121,7 @@ export function buildReversal(original: ReversibleMovement, reason: string): Rev
       description: `Anulación de: ${original.description}`,
       reversesMovementId: original.id,
       reverseReason: motivo,
-      sourceModule: "manual",
+      sourceModule: isOpeningBalanceModule(original.sourceModule) ? OPENING_BALANCE_MODULE : "manual",
       sourceRef: null,
       transferId: original.transferId,
     },
