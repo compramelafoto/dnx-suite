@@ -123,7 +123,7 @@ export function leerCsv(
         descripcion: t(2),
         cantidad,
         unidad: texto_o_nulo(4),
-        unidades_por_paquete: upp === null ? null : Math.round(upp),
+        unidades_por_paquete: upp,
         costo_unitario: num(6),
         alicuota_iva: num(7),
         subtotal: null,

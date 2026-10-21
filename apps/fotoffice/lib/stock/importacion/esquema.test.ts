@@ -81,8 +81,15 @@ describe("validarDocumento", () => {
       [100_000, 100_000, 1000, null],
     ]);
   });
-  it("rechaza unidades_por_paquete no entero", () => {
-    expect(validarDocumento(doc({ filas: [fila({ unidades_por_paquete: 2.5 })] })).ok).toBe(false);
+  it("unidades_por_paquete no entero queda nulo y el resto del documento sigue valiendo", () => {
+    const v = validarDocumento(doc({ filas: [fila({ unidades_por_paquete: 2.5 }), fila({ descripcion: "Tinta", unidades_por_paquete: 12 })] }));
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(v.doc.filas.map((f) => [f.descripcion, f.unidades_por_paquete, f.cantidad, f.costo_unitario])).toEqual([
+      ["Papel 10x15", null, 2, 1000],
+      ["Tinta", 12, 2, 1000],
+    ]);
+    expect(v.doc.comprobante).toBe("0001-00001234");
   });
 });
 

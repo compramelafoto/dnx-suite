@@ -100,6 +100,13 @@ describe("endurecimiento de leerCsv", () => {
 });
 
 describe("topes numéricos en el CSV", () => {
+  it("unidades por paquete con decimales quedan vacías sin rechazar el archivo", () => {
+    const f = ok(`${H}\n;;Papel;2;;2,5;100;;\n;;Tinta;1;;12;;;\n`);
+    expect(f.map((x) => [x.descripcion, x.unidades_por_paquete, x.costo_unitario])).toEqual([
+      ["Papel", null, 100],
+      ["Tinta", 12, null],
+    ]);
+  });
   it("valores enormes no llegan a la base: cantidad 0 (inválida), bultos y costo nulos", () => {
     const f = ok(`${H}\n;;Papel;99999999999;;5000000000;123456789012345;;\n;;Tinta;3;;10;-50;;\n`);
     expect(f.map((x) => [x.cantidad, x.unidades_por_paquete, x.costo_unitario])).toEqual([

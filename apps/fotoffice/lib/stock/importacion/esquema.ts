@@ -12,12 +12,13 @@ const nuloNumero = z.number().finite().nullable();
 const monto = nuloNumero.transform((v) => (v === null || v < 0 || v > MAX_MONTO ? null : v));
 /** Cantidad fuera de [0, MAX_CANTIDAD] ⇒ 0: inválida, el volcado carga 1 y la cuenta como corregida. */
 const cantidad = z.number().finite().transform((v) => (v < 0 || v > MAX_CANTIDAD ? 0 : v));
-/** Unidades por paquete: entero en [1, MAX_UNIDADES_POR_PAQUETE]; si no, nulo (va suelto). */
-const unidadesPorPaquete = z
-  .number()
-  .int()
-  .nullable()
-  .transform((v) => (v === null || v < 1 || v > MAX_UNIDADES_POR_PAQUETE ? null : v));
+/**
+ * Unidades por paquete: entero en [1, MAX_UNIDADES_POR_PAQUETE]; si no (fuera de rango o con
+ * decimales), nulo y la fila va suelta. Una celda mala no invalida toda la factura.
+ */
+const unidadesPorPaquete = nuloNumero.transform((v) =>
+  v === null || !Number.isInteger(v) || v < 1 || v > MAX_UNIDADES_POR_PAQUETE ? null : v,
+);
 
 export const filaSchema = z.object({
   codigo_barras: nuloString,
