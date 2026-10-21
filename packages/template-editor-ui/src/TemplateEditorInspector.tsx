@@ -5,6 +5,7 @@ import { BackgroundImageField } from "./inspector/BackgroundImageField";
 import { BlockSizePanel } from "./inspector/BlockSizePanel";
 import { ColorField } from "./inspector/ColorField";
 import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
+import { ImageCropSection } from "./inspector/ImageCropSection";
 import { FieldLabel, InspectorPanel } from "./inspector/InspectorPanel";
 import { NumberSliderField } from "./inspector/NumberSliderField";
 import { SegmentedControl } from "./inspector/SegmentedControl";
@@ -483,6 +484,20 @@ export function TemplateEditorInspector({
             inputBase={inputBase}
             product={product}
           />
+          {String(cfg.src ?? "").trim() !== "" && cfg.fit !== "contain" ? (
+            <ImageCropSection
+              src={String(cfg.src)}
+              cfg={cfg}
+              rotation={Number(selectedBlock.layout.rotation ?? 0)}
+              updateConfig={updateConfig}
+              setRotation={(deg) =>
+                dispatch({
+                  type: "updateBlock",
+                  payload: { blockId: selectedBlock.id, patch: { layout: { rotation: deg } } },
+                })
+              }
+            />
+          ) : null}
           <InspectorPanel title="Contenedor de imagen">
             {/*
               "Uso del marco" distingue foto individual de foto grupal, que es una noción de
