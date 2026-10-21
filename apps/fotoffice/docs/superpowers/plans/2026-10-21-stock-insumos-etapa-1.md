@@ -16,7 +16,7 @@
 
 - **Ninguna columna nueva en tablas compartidas** (`Product`, `StockMovement`, `Sale`, `SaleItem`): solo tablas nuevas `Fotoffice*`. Valores nuevos (`INSUMO`, `CONSUMO`) son texto; no hay CHECK en SQL sobre `Product.kind` ni `StockMovement.reason` (verificado).
 - Sin enums de Prisma (ver comentario de `lib/sales/constants.ts`).
-- Migración idempotente (`IF NOT EXISTS`), nombre `20261130120000_fotoffice_stock_insumos` (posterior a la última, `20261129120000_fotoffice_sena_para_retirar`). Se aplica **a mano** en la base de FOTOFFICE (Neon `divine-hall-10689679`, rama `development`) y se registra en `_prisma_migrations` con el checksum SHA-256 del archivo, **antes del merge**. El deploy nunca corre `migrate deploy`. Las otras bases no la necesitan (ninguna otra app consulta tablas `Fotoffice*`), pero se deja dicho en el PR.
+- Migración idempotente (`IF NOT EXISTS`), nombre `20261203120000_fotoffice_stock_insumos` (posterior a la última de main, `20261202120000_fotoffice_digitalizacion_titulo`). Se aplica **a mano** en la base de FOTOFFICE (Neon `divine-hall-10689679`, rama `development`) y se registra en `_prisma_migrations` con el checksum SHA-256 del archivo, **antes del merge**. El deploy nunca corre `migrate deploy`. Las otras bases no la necesitan (ninguna otra app consulta tablas `Fotoffice*`), pero se deja dicho en el PR.
 - Toda escritura de stock pasa por `applyStockMovement` (`lib/sales/variant-stock.ts`) y bloquea filas antes con `lockStockRows` (`lib/sales/stock-lock.ts`) en **una sola llamada** que incluya productos vendidos **y** insumos.
 - Vender nunca se bloquea por falta de stock: el insumo puede quedar negativo.
 - Nota de los movimientos de consumo: exactamente `consumo:item:<id>` (en CONSUMO y en su DEVOLUCION). Nunca `item:<id>` (lo usa Pedidos para emparejar sus devoluciones).
@@ -41,7 +41,7 @@
 
 **Files:**
 - Modify: `packages/db/prisma/schema.prisma` (modelos nuevos junto a `FotofficeProductoCatalogo`; relaciones inversas en `Product`, `Workspace`, `FotofficeSalidaImpresion`, `FotofficeTamanoImpresion`)
-- Create: `packages/db/prisma/migrations/20261130120000_fotoffice_stock_insumos/migration.sql`
+- Create: `packages/db/prisma/migrations/20261203120000_fotoffice_stock_insumos/migration.sql`
 - Modify: `apps/fotoffice/lib/sales/constants.ts`
 - Test: `apps/fotoffice/lib/sales/constants.test.ts`
 
