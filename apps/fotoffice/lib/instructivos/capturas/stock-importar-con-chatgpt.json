@@ -1,0 +1,8 @@
+[
+  { "archivo": "01-stock.png", "ruta": "/ventas/stock", "que_mostrar": "Pantalla Stock con el botón 'Recibir pedido'.", "selector_recorte": null },
+  { "archivo": "02-recepcion.png", "ruta": "/ventas/stock/recepcion/[id]", "que_mostrar": "Cabecera de la recepción: proveedor, fecha, comprobante, IVA.", "selector_recorte": null },
+  { "archivo": "03-copiar-instrucciones.png", "ruta": "/ventas/stock/recepcion/[id]", "que_mostrar": "Bloque de importar tras tocar 'Copiar instrucciones para la IA' (aviso verde).", "selector_recorte": null },
+  { "archivo": "04-subir-csv.png", "ruta": "/ventas/stock/recepcion/[id]", "que_mostrar": "Aviso 'Se agregaron N líneas (N sin asociar)' tras 'Subir CSV'. NO confirmar.", "selector_recorte": null },
+  { "archivo": "05-elegir-producto.png", "ruta": "/ventas/stock/recepcion/[id]", "que_mostrar": "Líneas del CSV con 'Elegí el producto' y sugerencias.", "selector_recorte": null },
+  { "archivo": "06-revisar-bultos.png", "ruta": "/ventas/stock/recepcion/[id]", "que_mostrar": "Línea asociada al Kit Kodak 305: 2 bultos de 640 = 1280 copias.", "selector_recorte": null }
+]

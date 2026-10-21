@@ -47,7 +47,7 @@ describe("catálogo de instructivos", () => {
 
   it("la sección Stock tiene las guías de insumos, con módulo de ventas", () => {
     const stock = INSTRUCTIVOS.filter((g) => g.seccion === "Stock").map((g) => g.slug);
-    expect(stock).toEqual(["stock-cargar-paso-a-paso", "stock-insumos-alta", "stock-receta-consumo", "stock-contar-y-ajustar", "stock-recibir-pedido", "stock-importar-factura", "stock-avisos-y-compras"]);
+    expect(stock).toEqual(["stock-cargar-paso-a-paso", "stock-insumos-alta", "stock-receta-consumo", "stock-contar-y-ajustar", "stock-recibir-pedido", "stock-importar-factura", "stock-importar-con-chatgpt", "stock-avisos-y-compras"]);
     for (const g of INSTRUCTIVOS.filter((x) => x.seccion === "Stock")) expect(g.moduleKey).toBe("sales");
   });
 
