@@ -473,6 +473,15 @@ const VENTAS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // La página pide gestionar Ventas (`requireSalesStaff`).
+    href: "/ventas/fotolibros",
+    label: "Fotolibros",
+    icon: "LayoutTemplate",
+    description: "Armar el fotolibro con la medida real del pliego y diseñarlo hoja por hoja.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
     // Mismo permiso que la página (`requireSalesAdmin`): gestionar Ventas + `sales.catalog`.
     href: "/ventas/impresion/configuracion",
     label: "Impresoras",

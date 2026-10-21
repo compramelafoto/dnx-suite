@@ -4,8 +4,9 @@ import { prisma } from "@repo/db";
 import { HOJAS_MAX, HOJAS_MIN } from "./limites";
 import { DPI_FOTOLIBRO, describirCerrado, lienzoDelPliego, medidaPorId, LINEAS_FOTOLIBRO } from "./medidas-pliego";
 
-/** Marca de las plantillas de fotolibro. Ver `lib/template-v2/keyed-template.ts`. */
-export const FOTOLIBRO_TEMPLATE_KEY = "fotolibro";
+import { FOTOLIBRO_TEMPLATE_KEY } from "./constantes";
+
+export { FOTOLIBRO_TEMPLATE_KEY };
 
 
 /**
@@ -24,7 +25,8 @@ export type ResultadoFotolibro =
  * A diferencia del carnet, no es idempotente: una institución hace muchos fotolibros.
  */
 export async function crearFotolibro(input: {
-  workspaceId: string;
+  /** `null`: fotolibro personal de un socio, desde su portal (ver `./socio.ts`). */
+  workspaceId: string | null;
   userId: number;
   medidaId: string;
   hojas: number;
@@ -39,7 +41,7 @@ export async function crearFotolibro(input: {
   }
 
   let proveedor: { id: string; name: string } | null = null;
-  if (input.proveedorId) {
+  if (input.proveedorId && input.workspaceId) {
     proveedor = await prisma.fotofficeProveedor.findFirst({
       where: { id: input.proveedorId, workspaceId: input.workspaceId },
       select: { id: true, name: true },

@@ -20,6 +20,7 @@ import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -321,6 +322,18 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
       "Cada una de las {personas} calcula desde su portal cuánto cobrar: lo que necesita ganar por mes, sus gastos fijos, sus horas y los gastos de cada trabajo. Lo que carga es personal: la institución no lo ve.",
     category: "INSTITUTIONAL",
     order: 119,
+    status: "AVAILABLE",
+    family: "institucion",
+    dependsOn: [MEMBERS_MODULE_KEY],
+  },
+  {
+    // Sin `route`, como ¿Cuánto Cobro?: lo que diseña el socio es suyo y la institución no lo ve.
+    key: FOTOLIBROS_SOCIO_MODULE_KEY,
+    label: "Fotolibros para {personas}",
+    description:
+      "Cada una de las {personas} diseña sus fotolibros desde su portal, con la medida real del pliego de los laboratorios, encuadre de cada foto y listos para imprimir. Lo que diseña es personal: la institución no lo ve.",
+    category: "INSTITUTIONAL",
+    order: 119.5,
     status: "AVAILABLE",
     family: "institucion",
     dependsOn: [MEMBERS_MODULE_KEY],

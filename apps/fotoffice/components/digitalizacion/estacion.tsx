@@ -9,8 +9,8 @@ import { almacenIndexedDb } from "@/lib/digitalizacion/cliente/almacen-indexeddb
 import { navegadorCompatible } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { AVISO_SIN_ESPACIO, ColaDeSubida, ErrorDefinitivo, idParte, type ParteEnCola, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
 import { faltantesParaGrabar } from "@/lib/digitalizacion/cliente/faltantes";
-import { elegirFormato } from "@/lib/digitalizacion/cliente/formato";
-import { Grabador } from "@/lib/digitalizacion/cliente/grabador";
+import { elegirFormato, elegirFormatoQueFunciona } from "@/lib/digitalizacion/cliente/formato";
+import { Grabador, probarFormato } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
@@ -309,8 +309,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
 
   const grabar = async () => {
     if (iniciandoRef.current || sesion.current || !stream || !colaRef.current) return;
-    const mime = elegirFormato((m) => MediaRecorder.isTypeSupported(m));
-    if (!mime) { setAviso("Este navegador no puede grabar video. Usá Chrome o Edge actualizados."); return; }
+    if (!elegirFormato((m) => MediaRecorder.isTypeSupported(m))) { setAviso("Este navegador no puede grabar video. Usá Chrome o Edge actualizados."); return; }
     iniciandoRef.current = true;
     setFase("iniciando");
     // Primero la ventanita: el navegador sólo la abre dentro del clic.
@@ -332,6 +331,19 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       iniciandoRef.current = false;
       setFase("preparando");
     };
+    // "Lo soporto" no alcanza: con algunas capturadoras el codificador falla al arrancar (así se
+    // cortaba la grabación al instante). Se prueba con la señal real y se usa el que graba.
+    setAviso("Probando con tu capturadora el formato de grabación…");
+    const eleccion = await elegirFormatoQueFunciona(
+      (m) => MediaRecorder.isTypeSupported(m),
+      (m) => probarFormato(stream, m, CALIDADES[calidad]),
+    );
+    if (abandonada()) return;
+    if (!eleccion.ok) {
+      return fallar(`El navegador no puede grabar con esta capturadora. Probamos: ${eleccion.fallas.join("; ")}. Probá con Chrome actualizado o con otra capturadora.`);
+    }
+    const mime = eleccion.mime;
+    setAviso(null);
     let id: string;
     let tramo: number;
     try {
@@ -368,7 +380,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     const pendientes = new Set<Promise<void>>();
     const grabador = new Grabador({
       stream, mimeType: mime, bitsVideo: CALIDADES[calidad],
-      alError: () => perder("Se perdió la señal de la capturadora."),
+      alError: (detalle) => perder(`El grabador del navegador falló (${detalle}). Lo grabado hasta acá se sube.`),
       alPedacito: (datos, indice) => {
         const guardado = cola
           .agregar({ id: idParte(id, tramo, indice), grabacionId: id, tramo, indice, datos })
@@ -381,7 +393,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     sesion.current = { grabacionId: id, tramo, grabador, analizador, ventanita, resumen: null, segundos: 0, sinImagen: null, deteniendo: false, pendientes, cierre: null, inicioMs: Date.now(), respaldo: null, perdida: null };
     ultimoLatidoMs.current = Date.now();
     const pista = stream.getVideoTracks()[0];
-    pista?.addEventListener("ended", () => perder("Se perdió la señal de la capturadora."), { once: true });
+    pista?.addEventListener("ended", () => perder("La capturadora dejó de enviar imagen: se desconectó o la tomó otro programa."), { once: true });
     // Respaldo de la página: si el worker se calla, igual hay latido y se respeta el tope por reloj de pared.
     sesion.current.respaldo = window.setInterval(() => {
       const s = sesion.current;
