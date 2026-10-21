@@ -10,7 +10,6 @@ export type DatosNombreVideo = {
   cassetteNumero: number | null;
 };
 
-// eslint-disable-next-line no-control-regex
 const PROHIBIDOS = /[\/\\:*?"<>|\u0000-\u001f\u007f]/g;
 
 function limpiar(s: string): string {
