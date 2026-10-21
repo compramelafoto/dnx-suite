@@ -6,6 +6,8 @@
  * producto tiene receta, consume.
  */
 
+import { consumoPorRenglon } from "./receta";
+
 export type LineaVendida = { ref: string; productId: string | null; qty: number };
 export type Receta = { productId: string; insumoId: string; quantity: number; porCada: number };
 export type ComponenteCombo = {
@@ -60,7 +62,7 @@ export function expandirConsumo(
     for (const [productId, units] of unidades) {
       for (const receta of recetasPorProducto.get(productId) ?? []) {
         if (!insumosValidos.has(receta.insumoId)) continue;
-        const aporte = Math.ceil(units / Math.max(1, receta.porCada)) * receta.quantity;
+        const aporte = consumoPorRenglon(units, receta);
         if (!(aporte > 0)) continue;
         const porInsumo = total.get(linea.ref) ?? new Map<string, number>();
         porInsumo.set(receta.insumoId, (porInsumo.get(receta.insumoId) ?? 0) + aporte);
