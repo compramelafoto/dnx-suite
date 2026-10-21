@@ -104,10 +104,17 @@ Lo que se quiere:
 
 ## 5. Redondeo para la caja
 
-- Regla por workspace: **redondear hacia arriba al múltiplo de $N**, con tramos opcionales.
-  Ejemplo: hasta $10.000 → múltiplo de $100; desde $10.000 → múltiplo de $500.
-- **Por omisión:** un solo tramo, múltiplo de **$100** (el billete más chico que se usa para dar
-  vuelto). Se cambia en la misma pantalla, en "Redondeo".
+- Regla por workspace: **redondear hacia arriba al múltiplo de $N**, por tramos de precio.
+- **Por omisión (pedido por Daniel: "múltiplos de 1000 o de 500, y en productos muy económicos
+  de 100"):**
+
+  | Precio calculado | Redondea hacia arriba al múltiplo de |
+  |---|---|
+  | menos de $5.000 | $100 |
+  | de $5.000 a menos de $20.000 | $500 |
+  | $20.000 o más | $1.000 |
+
+  Los límites de los tramos son decisión mía; se cambian en la misma pantalla, en "Redondeo".
 - Siempre hacia arriba: nunca baja el margen.
 - Se aplica al calcular precio desde costo y margen. El precio cargado a mano no se toca.
 
@@ -256,12 +263,27 @@ precio = redondearArriba(costo × (1 + fotolibroMarginPct / 100))
 debajo del costo** de Román octubre 2026. Por ejemplo, la hoja 15x30 se vende a $3.000 y Román la
 cobra $4.300; la hoja 30x45, a $5.900 contra $8.400. Con ×3, la hoja 30x45 sería $25.200.
 
-**Cómo se vende (etapa 3):** una **calculadora de fotolibro** en el mostrador (y en presupuestos):
+**Cuántas hojas: una sugerencia según la cantidad de fotos.** Tomado de la planilla de cálculo
+que usa hoy DNX Estudio (los precios de esa planilla no se usan; la lógica sí):
 
-1. proveedor → modelo (tapa) → medida (sólo las que ese modelo tiene) → cantidad de hojas →
-   caja sí/no → adicionales;
-2. muestra costo y precio;
-3. agrega a la venta **una sola línea** con un producto "Fotolibro" del workspace (sin stock), con
+- El usuario indica **cuántas fotos** quiere imprimir.
+- Cada medida tiene un dato **"fotos por hoja (aprox.)"**, configurable por workspace. Valores
+  iniciales de la planilla: 15x30 → 8, 20x40 → 4, 30x45 → 10, 30x60 → 5.
+- **Hojas sugeridas = fotos ÷ fotos por hoja, redondeado hacia arriba**, con un mínimo de 2 hojas
+  (el mínimo que usa la planilla). Ejemplo con 100 fotos: 15x30 → 13 hojas, 30x45 → 10,
+  30x60 → 20.
+- Se muestra para **todas las medidas a la vez** (medida, hojas sugeridas, precio), así el cliente
+  compara. Es **sólo una sugerencia**: la cantidad de hojas se puede cambiar libremente.
+- **Tapa flexible:** en la planilla, la tapa flexible cuesta lo mismo que **una hoja más** de esa
+  medida. Si el proveedor no la lista como tapa, se usa esa regla.
+
+**Cómo se vende (etapa 3):** una **calculadora de fotolibro** en el mostrador y en el presupuesto
+con ¿Cuánto Cobro?:
+
+1. cantidad de fotos → tabla de sugerencias por medida → se elige medida;
+2. proveedor → modelo (tapa) → cantidad de hojas (viene la sugerida) → caja sí/no → adicionales;
+3. muestra costo y precio;
+4. agrega a la venta (o al presupuesto) **una sola línea** con un producto "Fotolibro" del workspace (sin stock), con
    el precio calculado y la descripción "Fotolibro {modelo} {medida} · {n} hojas".
 
 Las tapas, hojas y cajas salen de la **última lista aplicada** de cada proveedor (§7). Cuando la
