@@ -25,7 +25,7 @@ import { redactarSecretos } from "./redactar";
  * - En los listados paginados, un 5xx tiene UNA pausa (`REINTENTAR`); si la misma página vuelve a fallar, se pide
  *   ese mismo tramo con páginas más chicas (25 → 5 → 1), calculando `pageNumber` desde el desplazamiento absoluto,
  *   así no se saltea ni se repite ninguna fila. Si una fila sola sigue fallando, se "sondean" las siguientes (de a
- *   una, hasta `SONDEO_FILAS`): si alguna responde, Alboom anda y las que fallaron están rotas, se saltean (con una
+ *   una, hasta `SONDEO_FILAS`): si alguna responde, Alboom anda y esa fila está rota: se saltea sólo ella (con una
  *   duda, sólo el desplazamiento) y se sigue: un pedido roto no deja la extracción en `ERROR`. Si ninguna responde,
  *   Alboom está caído: `REINTENTAR` SIN mover el cursor, así una caída general termina en pausas (o en `ERROR` tras
  *   muchas) pero nunca en filas salteadas.
@@ -374,15 +374,15 @@ export async function ejecutarTanda(o: OpcionesTanda): Promise<ResultadoTanda> {
             }
             // Ninguna respondió: Alboom está caído. Pausa sin mover el cursor; nunca se saltea por una caída.
             if (rotas === 0) throw error;
-            // Alboom anda y estas filas no: se saltean (sólo el desplazamiento, sin datos) y se sigue. La que
-            // respondió se vuelve a pedir en la vuelta siguiente (es un pedido de más, pero el camino es uno solo).
-            e.saltados = (e.saltados ?? 0) + rotas;
-            e.errores += rotas;
-            e.dudas += rotas;
-            for (let k = 0; k < rotas && (e.filasSalteadas?.length ?? 0) < MAX_SALTADAS; k++) e.filasSalteadas = [...(e.filasSalteadas ?? []), desde + k];
+            // Alboom anda y esta fila no: se saltea sólo ella (sin datos) y se sigue. Las siguientes que fallaron en
+            // el sondeo pasan por su propio camino (pedirla sola y sondear), así un 5xx suelto no pierde una fila buena.
+            e.saltados = (e.saltados ?? 0) + 1;
+            e.errores += 1;
+            e.dudas += 1;
+            if ((e.filasSalteadas?.length ?? 0) < MAX_SALTADAS) e.filasSalteadas = [...(e.filasSalteadas ?? []), desde];
             e.ultimoError = `Alboom respondió ${(error as AlboomApiError).status} en la fila ${desde + 1} del listado aun pidiéndola sola (y las siguientes sí respondieron): se salteó`;
-            e.desde = desde + rotas;
-            e.pagina = Math.floor((desde + rotas) / base) + 1;
+            e.desde = desde + 1;
+            e.pagina = Math.floor((desde + 1) / base) + 1;
             await guardarAvance(e);
             continue;
           }
