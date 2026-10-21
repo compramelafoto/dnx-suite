@@ -4,6 +4,7 @@ import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
 import { normalizeBarcode } from "./barcode";
 import { effectiveUnitPriceMinor } from "@/lib/store/availability";
+import { NO_ES_INSUMO } from "./vendible";
 
 /**
  * Las consultas del catálogo.
@@ -45,7 +46,8 @@ export type ProductVariantRow = {
 
 /** Lo que aparece en el mostrador: sin ficha de tienda, o con ficha que dice "se vende en mostrador" (D3). */
 const VISIBLE_EN_MOSTRADOR: Prisma.ProductWhereInput = {
-  OR: [{ storeListing: null }, { storeListing: { sellAtCounter: true } }],
+  // Un insumo nunca se ofrece para vender, ni por grilla ni por lector de código.
+  AND: [NO_ES_INSUMO, { OR: [{ storeListing: null }, { storeListing: { sellAtCounter: true } }] }],
 };
 
 const PRODUCT_ROW_SELECT = {

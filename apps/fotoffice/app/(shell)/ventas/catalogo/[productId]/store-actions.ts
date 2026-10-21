@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { requireSalesAdmin } from "@/lib/sales/access";
+import { MENSAJE_INSUMO_NO_SE_VENDE, esVendible } from "@/lib/sales/vendible";
 import { isAcceptableImageUrl, parseListingForm } from "@/lib/store/listing-form";
 import { slugify, uniqueSlug } from "@/lib/store/slug";
 import { parseVariantsForm } from "@/lib/store/variant-form";
@@ -36,7 +37,7 @@ function refrescar(productId: string) {
 async function productoPropio(workspaceId: string, productId: string) {
   return prisma.product.findFirst({
     where: { id: productId, workspaceId },
-    select: { id: true, name: true, storeListing: { select: { slug: true } } },
+    select: { id: true, name: true, kind: true, storeListing: { select: { slug: true } } },
   });
 }
 
@@ -58,6 +59,7 @@ export async function saveListingAction(productId: string, formData: FormData): 
   const { workspace } = await requireSalesAdmin();
   const producto = await productoPropio(workspace.id, productId);
   if (!producto) return NO_EXISTE;
+  if (!esVendible(producto.kind)) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
 
   const parsed = parseListingForm(formData);
   if (!parsed.ok) return parsed;

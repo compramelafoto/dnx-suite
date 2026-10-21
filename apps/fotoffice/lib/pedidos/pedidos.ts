@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma, type Prisma } from "@repo/db";
+import { MENSAJE_INSUMO_NO_SE_VENDE, esVendible } from "@/lib/sales/vendible";
 import { asignarNumero } from "@/lib/numeracion/asignar";
 import { validarDescuento, validarItems, type ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
@@ -343,8 +344,9 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
   if (!contacto) return { ok: false, error: MENSAJES_PEDIDO.contacto };
   const productIds = [...new Set(items.map((i) => i.productId).filter((x): x is string => x !== null))];
   if (productIds.length > 0) {
-    const productos = await prisma.product.findMany({ where: { workspaceId, id: { in: productIds } }, select: { id: true } });
+    const productos = await prisma.product.findMany({ where: { workspaceId, id: { in: productIds } }, select: { id: true, kind: true } });
     if (productos.length !== productIds.length) return { ok: false, error: MENSAJES_PEDIDO.producto };
+    if (productos.some((p) => !esVendible(p.kind))) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
   }
   const paraRetirar = leerParaRetirar(datos.paraRetirar, items);
   if (!paraRetirar) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };

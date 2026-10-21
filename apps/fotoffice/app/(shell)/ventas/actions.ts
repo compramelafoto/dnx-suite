@@ -10,6 +10,7 @@ import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-cat
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
 import { findProductByCode, listProducts, type ProductByCode, type ProductRow } from "@/lib/sales/repository";
+import { MENSAJE_INSUMO_NO_SE_VENDE, esVendible } from "@/lib/sales/vendible";
 import { ticketTotals, validateTicket } from "@/lib/sales/ticket";
 import { confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp } from "@/lib/sales/verificar-pago-servidor";
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
@@ -280,9 +281,11 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
     productIds.length > 0
       ? await prisma.product.findMany({
           where: { id: { in: productIds }, workspaceId: workspace.id },
-          select: { id: true, name: true, priceArs: true, costArs: true },
+          select: { id: true, name: true, priceArs: true, costArs: true, kind: true },
         })
       : [];
+  // Un insumo se gasta, no se vende: aunque el navegador lo mande, el servidor no lo cobra.
+  if (productos.some((p) => !esVendible(p.kind))) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
   // Los talles activos de esos productos, también filtrados por workspace: un `variantId`
   // que no vuelva acá (de otro producto, de otro negocio, o desactivado) hace que
   // `buildTicketLines` rechace el ticket entero, igual que un `productId` ajeno.

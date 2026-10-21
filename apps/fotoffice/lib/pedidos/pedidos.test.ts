@@ -114,6 +114,7 @@ beforeEach(() => {
   B.agregar("product", { id: "prod-sin-rubro", workspaceId: "ws-1", name: "Álbum" });
   B.agregar("product", { id: "prod-con-rubro", workspaceId: "ws-1", name: "Cobertura" });
   B.agregar("product", { id: "prod-ajeno", workspaceId: "ws-2", name: "Ajeno" });
+  B.agregar("product", { id: "prod-insumo", workspaceId: "ws-1", name: "Papel", kind: "INSUMO" });
   B.agregar("fotofficeProductoCatalogo", { workspaceId: "ws-1", productId: "prod-sin-rubro" });
   B.agregar("fotofficeProductoCatalogo", { workspaceId: "ws-1", productId: "prod-con-rubro", incomeCategoryId: "rubro-bodas" });
   aceptado("pre-1");
@@ -379,6 +380,7 @@ describe("alta manual desde un contacto", () => {
     expect(await P.crearPedidoManual(SABI, { ...base, opcion: { tipo: "CUOTAS", cuotas: 0 } }, deps)).toEqual({ ok: false, error: M.opcion });
     expect(await P.crearPedidoManual(SABI, { ...base, items: [item("x", { modoPrecio: "CALCULO", calculo: CALCULO })] }, deps)).toEqual({ ok: false, error: M.calculo });
     expect(await P.crearPedidoManual(SABI, { ...base, items: [item("x", { productId: "prod-ajeno" })] }, deps)).toEqual({ ok: false, error: M.producto });
+    expect(await P.crearPedidoManual(SABI, { ...base, items: [item("x", { productId: "prod-insumo" })] }, deps)).toEqual({ ok: false, error: "Eso es un insumo: no se vende." });
     expect(await P.crearPedidoManual(SABI, { ...base, clientId: "cli-lead-9" }, deps)).toEqual({ ok: false, error: M.contacto });
     expect(await P.crearPedidoManual(SABI, { ...base, fechaEvento: "2026-02-30" }, deps)).toEqual({ ok: false, error: M.fecha });
     expect((await P.crearPedidoManual(SABI, { ...base, plan: [{ dueDate: "2026-10-10", amountArs: 1 }] }, deps)).ok).toBe(false);

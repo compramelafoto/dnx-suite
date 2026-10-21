@@ -117,7 +117,10 @@ export default async function ProductoPage({
         />
       ) : null}
 
-      <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      {/* Un insumo no se vende: no se ofrece publicarlo en la tienda. */}
+      {producto.kind !== "INSUMO" ? (
+        <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      ) : null}
     </div>
   );
 }
