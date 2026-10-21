@@ -1,0 +1,38 @@
+[
+  {
+    "archivo": "01-stock-recibir-pedido.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Pantalla Stock con el botón 'Recibir pedido' arriba a la derecha.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-historial-recepciones.png",
+    "ruta": "/ventas/stock/recepcion",
+    "que_mostrar": "Pantalla 'Recepción de pedidos' con el botón 'Recibir pedido' y el historial con una fila 'Sin confirmar' y otra 'Confirmada'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "03-encabezado-y-escaneo.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Recepción en borrador: Proveedor, Fecha, Comprobante y el campo 'Escaneá o escribí el código' con un par de productos ya cargados.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "04-costos-y-aviso.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Lista de productos con una fila marcada 'El costo subió', 'Costo anterior (c/u)' y una línea 'en bultos de' tildada. NO confirmar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "05-dar-de-alta.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Ventana 'Dar de alta' abierta tras escanear un código desconocido. NO guardar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "06-confirmar-recepcion.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Ventana 'Confirmar recepción' con 'Sí, confirmar' y 'Volver'. NO confirmar.",
+    "selector_recorte": null
+  }
+]
