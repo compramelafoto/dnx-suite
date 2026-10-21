@@ -197,7 +197,7 @@ export function Pos({
   const [error, setError] = useState<string | null>(null);
   // Impresión (foto carnet y copias): qué productos se preparan, la preparación de cada renglón (por key,
   // aparte de `rows` para que deshacer no la pierda) y el renglón que se está preparando.
-  const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string }>>({});
+  const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string; digital: boolean }>>({});
   const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
   // Renglones sin proceso que el cajero marcó «Seña» (por key, como las preparaciones, para que
   // deshacer no pierda la marca): quedan en el pedido para retirar.
@@ -1671,7 +1671,7 @@ export function Pos({
                 preparacionId={preparando.preparacionId}
                 tipoPieza={p.tipoPieza === "COPIA" ? "COPIA" : "CARNET"}
                 cliente={cliente}
-                produccion={{ salida: p.salida, hoja: p.hoja }}
+                produccion={{ salida: p.salida, hoja: p.hoja, digital: p.digital }}
                 permisos={permisosCarnet}
                 onListo={({ cantidad }) => {
                   // La cantidad del renglón: planchas (carnet) o el total de copias (se puede deshacer como cualquier cambio).

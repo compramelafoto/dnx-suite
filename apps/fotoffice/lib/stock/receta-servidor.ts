@@ -81,7 +81,8 @@ export async function sugerirDesdeImpresion(
     where: { workspaceId, productId },
     select: { salidaId: true, tamanoHojaId: true, unidad: true },
   });
-  if (!prod) return [];
+  // El archivo digital no sale por ninguna impresora: no gasta insumos de impresión.
+  if (!prod?.salidaId || !prod.tamanoHojaId) return [];
   const consumos = await prisma.fotofficeConsumoTamano.findMany({
     where: { workspaceId, salidaId: prod.salidaId, tamanoId: prod.tamanoHojaId },
     orderBy: { createdAt: "asc" },

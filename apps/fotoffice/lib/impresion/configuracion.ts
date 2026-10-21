@@ -27,15 +27,16 @@ export type SalidaVista = {
 };
 export type ProduccionVista = {
   tipoPieza: "COPIA" | "CARNET" | "POLAROID";
-  salidaId: string;
-  tamanoHojaId: string;
-  unidad: "HOJA" | "COPIA" | "PIEZA";
+  /** Null sólo en el archivo digital (unidad ARCHIVO): no sale por ninguna impresora. */
+  salidaId: string | null;
+  tamanoHojaId: string | null;
+  unidad: "HOJA" | "COPIA" | "PIEZA" | "ARCHIVO";
 };
 type R = { ok: true } | { ok: false; error: string };
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const TIPOS = new Set(["COPIA", "CARNET", "POLAROID"]);
-const UNIDADES = new Set(["HOJA", "COPIA", "PIEZA"]);
+const UNIDADES = new Set(["HOJA", "COPIA", "PIEZA", "ARCHIVO"]);
 
 /** La primera vez que se usa Impresión en un negocio: las dos impresoras de DNX y los tamaños reales. */
 export async function asegurarConfiguracion(
@@ -192,17 +193,19 @@ export async function guardarProduccion(
     });
     return { ok: true };
   }
-  if (
-    !TIPOS.has(datos.tipoPieza) ||
-    !UNIDADES.has(datos.unidad) ||
-    !ID.test(datos.salidaId) ||
-    !ID.test(datos.tamanoHojaId)
-  ) {
+  if (!TIPOS.has(datos.tipoPieza) || !UNIDADES.has(datos.unidad))
     return { ok: false, error: "Faltan datos de producción." };
+  // El archivo digital no sale por ninguna impresora: no guarda impresora ni hoja.
+  if (datos.unidad === "ARCHIVO") {
+    if (datos.tipoPieza !== "CARNET")
+      return { ok: false, error: "Sólo la foto carnet se entrega como archivo digital." };
+    return guardarFila(workspaceId, productId, { ...datos, salidaId: null, tamanoHojaId: null });
   }
+  if (!datos.salidaId || !ID.test(datos.salidaId) || !datos.tamanoHojaId || !ID.test(datos.tamanoHojaId))
+    return { ok: false, error: "Faltan datos de producción." };
   // Etapa 1: el carnet se cobra por hoja. Por foto pide un precio por foto que todavía no existe.
   if (datos.tipoPieza === "CARNET" && datos.unidad !== "HOJA")
-    return { ok: false, error: "La foto carnet se cobra por hoja (plancha). Cobrarla por foto llega más adelante." };
+    return { ok: false, error: "La foto carnet se cobra por hoja (plancha) o como archivo digital. Cobrarla por foto llega más adelante." };
   // Etapa 2: la cantidad del renglón es el total de copias de la preparación.
   if (datos.tipoPieza === "COPIA" && datos.unidad !== "COPIA")
     return { ok: false, error: "Las copias se cobran por copia." };
@@ -221,6 +224,10 @@ export async function guardarProduccion(
   });
   if (admite === 0)
     return { ok: false, error: `${salida.nombre} no imprime en esa hoja.` };
+  return guardarFila(workspaceId, productId, datos);
+}
+
+async function guardarFila(workspaceId: string, productId: string, datos: ProduccionVista): Promise<R> {
   const existente = await prisma.fotofficeProductoProduccion.findFirst({
     where: { workspaceId, productId },
     select: { id: true },
@@ -240,22 +247,27 @@ export async function guardarProduccion(
 /** Para el Mostrador: qué productos se preparan y con qué impresora y hoja (los nombres, para mostrarlos). */
 export async function produccionDeProductos(
   workspaceId: string,
-): Promise<Record<string, { tipoPieza: ProduccionVista["tipoPieza"]; salida: string; hoja: string }>> {
+): Promise<Record<string, { tipoPieza: ProduccionVista["tipoPieza"]; salida: string; hoja: string; digital: boolean }>> {
   const filas = await prisma.fotofficeProductoProduccion.findMany({
     where: { workspaceId },
-    select: { productId: true, tipoPieza: true, salidaId: true, tamanoHojaId: true },
+    select: { productId: true, tipoPieza: true, salidaId: true, tamanoHojaId: true, unidad: true },
   });
   if (filas.length === 0) return {};
   const [salidas, tamanos] = await Promise.all([
-    prisma.fotofficeSalidaImpresion.findMany({ where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.salidaId))] } }, select: { id: true, nombre: true } }),
-    prisma.fotofficeTamanoImpresion.findMany({ where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.tamanoHojaId))] } }, select: { id: true, nombre: true } }),
+    prisma.fotofficeSalidaImpresion.findMany({ where: { workspaceId, id: { in: [...new Set(filas.flatMap((f) => (f.salidaId ? [f.salidaId] : [])))] } }, select: { id: true, nombre: true } }),
+    prisma.fotofficeTamanoImpresion.findMany({ where: { workspaceId, id: { in: [...new Set(filas.flatMap((f) => (f.tamanoHojaId ? [f.tamanoHojaId] : [])))] } }, select: { id: true, nombre: true } }),
   ]);
   const nombreSalida = new Map(salidas.map((s) => [s.id, s.nombre]));
   const nombreTamano = new Map(tamanos.map((t) => [t.id, t.nombre]));
   return Object.fromEntries(
     filas.map((f) => [
       f.productId,
-      { tipoPieza: f.tipoPieza as ProduccionVista["tipoPieza"], salida: nombreSalida.get(f.salidaId) ?? "", hoja: nombreTamano.get(f.tamanoHojaId) ?? "" },
+      {
+        tipoPieza: f.tipoPieza as ProduccionVista["tipoPieza"],
+        salida: (f.salidaId && nombreSalida.get(f.salidaId)) || "",
+        hoja: (f.tamanoHojaId && nombreTamano.get(f.tamanoHojaId)) || "",
+        digital: f.unidad === "ARCHIVO",
+      },
     ]),
   );
 }

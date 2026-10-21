@@ -38,7 +38,7 @@ export function DialogoPreparar({
   preparacionId: string;
   tipoPieza: "CARNET" | "COPIA";
   cliente: ClienteBuscado | null;
-  produccion: { salida: string; hoja: string };
+  produccion: { salida: string; hoja: string; digital: boolean };
   permisos: { puedeBuscarClientes: boolean; puedeAltaCliente: boolean };
   /** `cantidad`: lo que pasa a la línea del ticket (planchas en carnet, total de copias en copias). */
   onListo: (r: { cantidad: number; preparacionId: string }) => void;
@@ -46,7 +46,7 @@ export function DialogoPreparar({
   onCerrar: () => void;
 }) {
   const copias = tipoPieza === "COPIA";
-  const titulo = copias ? `Preparar copias ${produccion.hoja}`.trim() : "Preparar foto carnet";
+  const titulo = copias ? `Preparar copias ${produccion.hoja}`.trim() : produccion.digital ? "Preparar foto carnet digital" : "Preparar foto carnet";
   return (
     <div role="dialog" aria-modal="true" aria-label={titulo} data-mostrador-modal className="fixed inset-0 z-50 overflow-y-auto bg-[var(--fo-bg)] p-4 sm:p-8">
       <div className={`mx-auto space-y-4 ${copias ? "max-w-6xl" : "max-w-5xl"}`}>

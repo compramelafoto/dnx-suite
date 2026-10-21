@@ -66,7 +66,7 @@ export async function preparacionDeCopias(ctx: CtxImpresion, preparacionId: stri
     where: { workspaceId: ctx.workspaceId, productId: prep.productId },
     select: { tipoPieza: true, salidaId: true, tamanoHojaId: true },
   });
-  if (prod?.tipoPieza !== "COPIA") return null;
+  if (prod?.tipoPieza !== "COPIA" || !prod.salidaId || !prod.tamanoHojaId) return null;
   const [tamano, salida] = await Promise.all([
     prisma.fotofficeTamanoImpresion.findFirst({ where: { id: prod.tamanoHojaId, workspaceId: ctx.workspaceId }, select: { id: true, nombre: true, anchoMm: true, altoMm: true } }),
     prisma.fotofficeSalidaImpresion.findFirst({ where: { id: prod.salidaId, workspaceId: ctx.workspaceId, activo: true }, select: { id: true, nombre: true, ppp: true, nitidez: true } }),
