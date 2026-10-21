@@ -137,6 +137,8 @@ export async function listProducts(
     onlyActive?: boolean;
     tracksStock?: boolean;
     onlyCounter?: boolean;
+    /** Sin insumos: para quien ofrece o cotiza (el bot de atención); el mostrador ya los excluye. */
+    onlyVendible?: boolean;
   } = {},
 ): Promise<ProductRow[]> {
   const q = opts.search?.trim();
@@ -144,7 +146,9 @@ export async function listProducts(
     where: {
       workspaceId,
       // `AND` y no un `OR` suelto: el buscador de abajo ya ocupa el `OR` de este nivel.
-      ...(opts.onlyCounter ? { AND: [VISIBLE_EN_MOSTRADOR] } : {}),
+      ...(opts.onlyCounter || opts.onlyVendible
+        ? { AND: [...(opts.onlyCounter ? [VISIBLE_EN_MOSTRADOR] : []), ...(opts.onlyVendible ? [NO_ES_INSUMO] : [])] }
+        : {}),
       ...(opts.onlyActive ? { isActive: true } : {}),
       ...(opts.tracksStock ? { tracksStock: true } : {}),
       ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
