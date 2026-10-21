@@ -4,7 +4,7 @@ import { useId } from "react";
 import type { CuantoCobroJobPricingSummary, CuantoCobroPriceBuildUp, CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import { extrasDelPerfil } from "@/lib/precios/perfil-datos";
 import type { AjustesTrabajo } from "@/lib/presupuestos/panel-cuanto-cobro";
-import { pesos } from "@/lib/presupuestos/editor";
+import { useFormatearPesos } from "@/components/campos/formato-pesos";
 import { CampoTexto } from "./panel-cuanto-cobro";
 
 /**
@@ -85,6 +85,7 @@ const DIA: Record<string, string> = { sunday: "domingo", saturday: "sábado", we
 
 /** El desglose de un ítem (paso a paso) o el del trabajo entero (varios ítems). */
 export function DesglosePrecio({ linea, trabajo }: { linea?: CuantoCobroPriceBuildUp | null; trabajo?: CuantoCobroJobPricingSummary | null }) {
+  const pesos = useFormatearPesos();
   const d = linea ?? null;
   const t = trabajo ?? null;
   if (!d && !t) return null;

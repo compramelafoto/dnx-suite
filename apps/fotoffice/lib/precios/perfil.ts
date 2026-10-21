@@ -12,8 +12,12 @@ export type PerfilGuardado = { perfil: CuantoCobroProfileInput; source: string |
 
 const SIN_PERMISO = "Sólo el dueño o un administrador pueden configurar los precios.";
 
-/** De dónde salió el perfil guardado: el formulario o DNX Bot ("clf-import" lo escribe sólo el script de importación). */
-export const ORIGENES_DE_GUARDADO = ["manual", "dnx-bot"] as const;
+/**
+ * De dónde salió el perfil guardado: el formulario, DNX Bot o el ¿Cuánto Cobro? que la persona armó
+ * en su portal de socio y copió al crear su negocio ("clf-import" lo escribe sólo el script de
+ * importación).
+ */
+export const ORIGENES_DE_GUARDADO = ["manual", "dnx-bot", "portal"] as const;
 export type OrigenDeGuardado = (typeof ORIGENES_DE_GUARDADO)[number];
 
 export async function leerPerfilPrecios(ctx: CtxPresupuestos): Promise<PerfilGuardado | null> {

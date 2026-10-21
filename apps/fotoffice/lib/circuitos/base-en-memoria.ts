@@ -61,8 +61,8 @@ const TABLAS = [
   "fotofficeGaleriaRonda", "fotofficeGaleriaDecision",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
-  // Perfil de precios del workspace.
-  "fotofficePerfilPrecios",
+  // Perfil de precios del workspace y el personal del socio (portal).
+  "fotofficePerfilPrecios", "fotofficePerfilPreciosSocio",
   // Etapa B: ajustes de cobro y transferencias esperadas.
   "fotofficeCobroAjustes", "fotofficeEsperaPago",
   // Impresión (etapa 1).
@@ -295,6 +295,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRegistroImpresion: () => ({ hojaId: null, productId: null, saleItemId: null, proyectoId: null, userId: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficePerfilPreciosSocio: () => ({ schemaVersion: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCobroAjustes: () => ({
     autoConfirmarPedido: false, alias: null, cbuCvu: null, titular: null, cuit: null, banco: null, montoUnico: false,
     updatedAt: new Date(), updatedByUserId: null,
@@ -517,6 +518,7 @@ export function crearBaseEnMemoria() {
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
     fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
+    fotofficePerfilPreciosSocio: [{ columnas: ["userId"] }],
     fotofficeCobroAjustes: [{ columnas: ["workspaceId"] }],
     // Como en la migración: una abierta por cuota y un monto único que no se repite entre las abiertas.
     fotofficeEsperaPago: [
