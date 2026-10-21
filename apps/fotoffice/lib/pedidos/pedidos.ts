@@ -410,7 +410,7 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
         altaKey: clave,
       });
       await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
-      await apartarStock(tx, { workspaceId, pedidoId: r.id, lineas: apartar, createdByUserId: ctx.userId });
+      await apartarStock(tx, { workspaceId, pedidoId: r.id, items, lineas: apartar, createdByUserId: ctx.userId });
       // Igual que al confirmar desde un presupuesto: las cuentas a pagar de sus costos (Entrega B1).
       await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items, fechaEvento, createdByUserId: ctx.userId });
       // Y los proyectos de las reglas de sus productos (Etapa 4), todos: a mano no hay vista previa.
@@ -442,30 +442,41 @@ export async function crearPedidoManual(ctx: CtxPedidos, datos: DatosPedidoManua
 }
 
 /**
- * Aparta el stock de la seña: un movimiento `PEDIDO` por línea, sólo de los productos que
- * controlan stock (los demás no tienen existencia que mover). Va por `applyStockMovement`, como
- * todo lo que mueve stock; la nota `item:<id>` empareja el movimiento con su línea para devolverlo
- * si el pedido se cancela.
+ * Mueve el stock de un pedido recién tomado, en dos partes:
  *
- * Además descuenta los insumos de las recetas (copias del kit, sobres…) de TODAS las líneas, aunque
- * el producto no controle stock: una copia 15x20 no tiene existencia propia, pero gasta papel. Un
- * movimiento `CONSUMO` por insumo y línea, con la nota `consumo:item:<id>` (nunca `item:<id>`, que
- * es la de los productos apartados). Un pedido nunca genera una venta, así que esto no se descuenta
- * dos veces con `recordSale`.
+ * - Aparta el stock de la seña (`lineas`): un movimiento `PEDIDO` por línea, sólo de los productos
+ *   que controlan stock (los demás no tienen existencia que mover). Va por `applyStockMovement`,
+ *   como todo lo que mueve stock; la nota `item:<id>` empareja el movimiento con su línea para
+ *   devolverlo si el pedido se cancela. Al confirmar desde un presupuesto no hay líneas: ahí no se
+ *   aparta producto, como siempre.
+ * - Descuenta los insumos de las recetas (copias del kit, sobres…) de TODOS los ítems del pedido
+ *   (`items`), por su cantidad completa, estén o no en `lineas` y controle o no stock el producto:
+ *   una copia 15x20 no tiene existencia propia, pero gasta papel, y se descuenta al tomar el pedido.
+ *   Los opcionales no, igual que en los totales y en los costos: no se compraron. Un movimiento
+ *   `CONSUMO` por insumo e ítem, con la nota `consumo:item:<id>` (nunca `item:<id>`, que es la de
+ *   los productos apartados). Un pedido nunca genera una venta, así que esto no se descuenta dos
+ *   veces con `recordSale`.
  */
-async function apartarStock(
+export async function apartarStock(
   tx: Tx,
-  d: { workspaceId: string; pedidoId: string; lineas: readonly LineaApartada[]; createdByUserId: number | null },
+  d: {
+    workspaceId: string;
+    pedidoId: string;
+    items: readonly Pick<ItemPresupuesto, "id" | "productId" | "cantidad" | "opcional">[];
+    lineas: readonly LineaApartada[];
+    createdByUserId: number | null;
+  },
 ): Promise<void> {
-  if (d.lineas.length === 0) return;
-  const productIds = [...new Set(d.lineas.map((l) => l.productId))];
-  // Qué insumos gasta la seña: sólo lecturas, antes de bloquear, porque sus ids tienen que entrar
+  // Qué insumos gasta el pedido: sólo lecturas, antes de bloquear, porque sus ids tienen que entrar
   // en el mismo bloqueo que los productos.
   const plan = await planificarConsumo(
     tx,
     d.workspaceId,
-    d.lineas.map((l) => ({ ref: l.itemId, productId: l.productId, qty: l.cantidad })),
+    d.items.filter((it) => !it.opcional && it.productId).map((it) => ({ ref: it.id, productId: it.productId, qty: it.cantidad })),
   );
+  // Nada que apartar ni que descontar: ni siquiera se bloquea.
+  if (d.lineas.length === 0 && plan.consumos.length === 0) return;
+  const productIds = [...new Set(d.lineas.map((l) => l.productId))];
   // Lo primero, como toda escritura de stock: bloquear productos y después talles, en orden de id
   // (`stock-lock.ts`). `applyStockMovement` escribe el talle antes que el producto; sin este
   // bloqueo, una seña al mismo tiempo que una venta o un pedido online del mismo producto podía

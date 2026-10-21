@@ -363,6 +363,55 @@ describe("insumos de la seña", () => {
     expect(kit()).toBe(-20);
   });
 
+  it("un ítem que no está en `apartar` (va por su regla de proceso) igual descuenta su receta", async () => {
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({
+        items: [item("m1", { productId: "prod-taza", cantidad: 1 }), item("c1", { productId: "prod-15x20", cantidad: 4 })],
+        apartar: [{ itemId: "m1", productId: "prod-taza", variantId: null, cantidad: 1 }],
+      }),
+      deps,
+    );
+    if (!r.ok) throw new Error(r.error);
+    expect(consumos()).toEqual([expect.objectContaining({ productId: "kit-305", qty: -8, note: "consumo:item:c1", sourceRef: r.pedidoId })]);
+    expect(kit()).toBe(-8);
+  });
+
+  it("sin nada que apartar, la receta se descuenta igual", async () => {
+    const r = await P.crearPedidoManual(DUENO, base({ items: [item("c1", { productId: "prod-15x20", cantidad: 5 })] }), deps);
+    if (!r.ok) throw new Error(r.error);
+    expect(B.datos.stockMovement.map((m) => [m.reason, m.note, m.qty])).toEqual([["CONSUMO", "consumo:item:c1", -10]]);
+  });
+
+  it("apartar una parte del ítem descuenta igual el insumo de la cantidad completa", async () => {
+    B.agregar("fotofficeRecetaInsumo", { id: "rec-taza", workspaceId: "ws-1", productId: "prod-taza", insumoId: "kit-305", quantity: 2, porCada: 1 });
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({
+        items: [item("m2", { productId: "prod-taza", cantidad: 3 })],
+        // Dos renglones del mismo ítem: el insumo se calcula por ítem, una sola vez.
+        apartar: [
+          { itemId: "m2", productId: "prod-taza", variantId: "var-m", cantidad: 1 },
+          { itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 1 },
+        ],
+      }),
+      deps,
+    );
+    if (!r.ok) throw new Error(r.error);
+    expect(B.datos.stockMovement.filter((m) => m.reason === "PEDIDO").map((m) => m.qty)).toEqual([-1, -1]);
+    expect(consumos()).toEqual([expect.objectContaining({ productId: "kit-305", qty: -6, note: "consumo:item:m2" })]);
+  });
+
+  it("los ítems opcionales no descuentan", async () => {
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({ items: [item("c1", { productId: "prod-15x20", cantidad: 2 }), item("c2", { productId: "prod-15x20", cantidad: 9, opcional: true })] }),
+      deps,
+    );
+    if (!r.ok) throw new Error(r.error);
+    expect(consumos().map((m) => [m.note, m.qty])).toEqual([["consumo:item:c1", -4]]);
+  });
+
   it("bloquea productos e insumos en una sola llamada, antes de escribir nada", async () => {
     const bloqueos: { tabla: string; movimientos: number; valores: unknown[] }[] = [];
     B.ganchos.alEjecutarSql = (texto, valores) => {
