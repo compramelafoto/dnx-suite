@@ -23,9 +23,9 @@ import { leerConIa, prepararEntrada } from "@/lib/stock/importacion/ia";
 import {
   elegirProductoDeLineaImportada,
   filasDesdeLineas,
+  importarConArchivo,
   importarEnRecepcion,
   recepcionEditable,
-  subirArchivoDeRecepcion,
   type ResultadoImportacion,
 } from "@/lib/stock/importacion/importar-servidor";
 
@@ -221,9 +221,9 @@ export async function importarArchivoAction(formData: FormData): Promise<Resulta
 
   const leido = await leerConIa(workspace.id, user.id, entrada.bloques);
   if (!leido.ok) return leido;
-  // El original se guarda recién con una lectura buena: así no quedan archivos sueltos en R2.
-  const archivoKey = await subirArchivoDeRecepcion(workspace.id, recepcionId, original);
-  const r = await importarEnRecepcion(workspace.id, recepcionId, user.id, "IA", leido.doc, archivoKey ?? undefined);
+  // El original se guarda recién con una lectura buena y algo para cargar; si la importación
+  // falla igual, se borra (`importarConArchivo`): así no quedan archivos sueltos en R2.
+  const r = await importarConArchivo(workspace.id, recepcionId, user.id, leido.doc, original);
   refrescar(recepcionId);
   return r;
 }
@@ -286,7 +286,8 @@ export async function elegirProductoImportadoAction(
   productId: string,
 ): Promise<Resultado> {
   const { workspace } = await requireSalesStaff();
-  const r = await elegirProductoDeLineaImportada(workspace.id, texto(recepcionId), texto(lineaId), texto(productId));
-  if (r.ok) refrescar(recepcionId);
+  const id = texto(recepcionId);
+  const r = await elegirProductoDeLineaImportada(workspace.id, id, texto(lineaId), texto(productId));
+  if (r.ok) refrescar(id);
   return r;
 }

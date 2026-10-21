@@ -125,8 +125,14 @@ vi.mock("@/lib/ficha/adjuntos-r2", () => ({
   bucketR2Privado: () => "privado",
 }));
 
-const { importarEnRecepcion, elegirProductoDeLineaImportada, filasDesdeLineas, claveDeArchivo, subirArchivoDeRecepcion } =
-  await import("./importar-servidor");
+const {
+  importarEnRecepcion,
+  importarConArchivo,
+  elegirProductoDeLineaImportada,
+  filasDesdeLineas,
+  claveDeArchivo,
+  subirArchivoDeRecepcion,
+} = await import("./importar-servidor");
 
 const WS = "ws1";
 
@@ -322,6 +328,95 @@ describe("importarEnRecepcion", () => {
     const r = await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila({ codigo_barras: "7790000000001" })]));
     expect(r).toMatchObject({ ok: true, sinAsociar: 1 });
     expect(db.t.lineas[0].productId).toBeNull();
+  });
+});
+
+describe("importarEnRecepcion: lecturas fuera del bloqueo", () => {
+  it("lee el catálogo y los alias antes de bloquear la recepción", async () => {
+    db.t.recepciones.push(recepcion());
+    db.t.productos.push(producto());
+    const orden: string[] = [];
+    db.product.findMany.mockImplementation(async () => {
+      orden.push("catalogo");
+      return db.t.productos;
+    });
+    const lock = db.$queryRaw.getMockImplementation()!;
+    db.$queryRaw.mockImplementation(async (q: TemplateStringsArray, ...v: unknown[]) => {
+      orden.push("lock");
+      return lock(q, ...v);
+    });
+    await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila()]));
+    expect(orden).toEqual(["catalogo", "lock"]);
+  });
+
+  it("si el proveedor cambió antes del bloqueo, rearma el índice con el que quedó", async () => {
+    db.t.recepciones.push(recepcion());
+    db.t.proveedores.push({ id: "pv1", workspaceId: WS, name: "Kodak", active: true });
+    db.t.productos.push(producto({ id: "p9", barcode: null, sku: null, name: "Zeta" }));
+    db.t.alias.push({ id: "a1", workspaceId: WS, proveedorId: "pv1", textoNormalizado: "papel glossy", productId: "p9" });
+    // Otra pestaña asigna el proveedor justo después de la lectura previa.
+    const previa = db.fotofficeRecepcion.findFirst.getMockImplementation()!;
+    db.fotofficeRecepcion.findFirst.mockImplementationOnce(async (a) => {
+      const r = await previa(a);
+      db.t.recepciones[0].proveedorId = "pv1";
+      return r;
+    });
+    const r = await importarEnRecepcion(WS, "r1", 3, "IA", doc([fila()], { proveedor: "Otro SA" }));
+    expect(r).toMatchObject({ ok: true, proveedorDetectado: null, sinAsociar: 0 });
+    expect(db.t.lineas[0].productId).toBe("p9");
+  });
+});
+
+describe("importarConArchivo", () => {
+  const original = { nombre: "f.pdf", tipo: "application/pdf", bytes: Buffer.from("x") };
+  const comandos = () => enviar.mock.calls.map((c) => (c[0] as object).constructor.name);
+
+  it("sube el original y deja la clave en la recepción", async () => {
+    db.t.recepciones.push(recepcion());
+    enviar.mockResolvedValue({});
+    const r = await importarConArchivo(WS, "r1", 3, doc([fila()]), original);
+    expect(r.ok).toBe(true);
+    expect(comandos()).toEqual(["PutObjectCommand"]);
+    expect(db.t.recepciones[0].archivoKey).toMatch(/^recepciones\/ws1\/r1\/\d+-f\.pdf$/);
+  });
+
+  it("sin filas con descripción no sube nada", async () => {
+    db.t.recepciones.push(recepcion());
+    const r = await importarConArchivo(WS, "r1", 3, doc([fila({ descripcion: " " })]), original);
+    expect(r).toEqual({ ok: false, error: "No encontramos artículos para cargar." });
+    expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it("si la importación falla después de subir, borra el original", async () => {
+    db.t.recepciones.push(recepcion({ estado: "CONFIRMADA" }));
+    enviar.mockResolvedValue({});
+    const r = await importarConArchivo(WS, "r1", 3, doc([fila()]), original);
+    expect(r.ok).toBe(false);
+    expect(comandos()).toEqual(["PutObjectCommand", "DeleteObjectCommand"]);
+    const subida = enviar.mock.calls[0][0].input;
+    expect(enviar.mock.calls[1][0].input).toEqual({ Bucket: "privado", Key: subida.Key });
+    expect(escrituras()).toEqual([]);
+  });
+
+  it("si borrar también falla, lo registra y devuelve el error de la importación", async () => {
+    db.t.recepciones.push(recepcion({ estado: "CONFIRMADA" }));
+    enviar.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("R2 caído"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await importarConArchivo(WS, "r1", 3, doc([fila()]), original);
+    expect(r).toEqual({ ok: false, error: "Esa recepción ya está confirmada." });
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("no se pudo borrar"), expect.any(String), expect.any(Error));
+    error.mockRestore();
+  });
+
+  it("si la subida falla, importa igual sin clave y no intenta borrar", async () => {
+    db.t.recepciones.push(recepcion());
+    enviar.mockRejectedValue(new Error("R2 caído"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await importarConArchivo(WS, "r1", 3, doc([fila()]), original);
+    expect(r.ok).toBe(true);
+    expect(comandos()).toEqual(["PutObjectCommand"]);
+    expect(db.t.recepciones[0].archivoKey).toBeNull();
+    error.mockRestore();
   });
 });
 

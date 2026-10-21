@@ -1,5 +1,5 @@
 import "server-only";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@repo/db";
 import { adjuntosR2Configurado, bucketR2Privado, clienteR2Privado } from "@/lib/ficha/adjuntos-r2";
 import { minorToDecimalString } from "@/lib/membership/money";
@@ -59,6 +59,38 @@ function fechaSinTocar(fecha: Date, createdAt: Date): boolean {
   return diaParaInput(fecha) === diaParaInput(createdAt);
 }
 
+type LectorProveedores = {
+  fotofficeProveedor: {
+    findMany(a: { where: { workspaceId: string; active: true }; select: { id: true; name: true } }): Promise<{ id: string; name: string }[]>;
+  };
+};
+
+/**
+ * Proveedor de la recepción: si ya tiene, ése. Si no, el activo de este negocio cuyo nombre
+ * normalizado coincide con el del documento; si ninguno coincide, se devuelve como detectado
+ * (nunca se crea solo).
+ */
+async function resolverProveedor(
+  db: LectorProveedores,
+  workspaceId: string,
+  actual: string | null,
+  nombreDoc: string | null,
+): Promise<{ proveedorId: string | null; proveedorDetectado: string | null }> {
+  if (actual || !nombreDoc) return { proveedorId: actual, proveedorDetectado: null };
+  const buscado = normalizarTexto(nombreDoc);
+  const activos = await db.fotofficeProveedor.findMany({
+    where: { workspaceId, active: true },
+    select: { id: true, name: true },
+  });
+  const hallado = buscado ? activos.find((p) => normalizarTexto(p.name) === buscado) : undefined;
+  return hallado ? { proveedorId: hallado.id, proveedorDetectado: null } : { proveedorId: null, proveedorDetectado: nombreDoc };
+}
+
+/** ¿Hay al menos una fila con descripción? Sin eso no se carga nada (ni se guarda el archivo). */
+export function tieneFilasUtiles(doc: DocumentoImportado): boolean {
+  return doc.filas.some((f) => typeof f.descripcion === "string" && f.descripcion.trim() !== "");
+}
+
 export async function importarEnRecepcion(
   workspaceId: string,
   recepcionId: string,
@@ -78,6 +110,17 @@ export async function importarEnRecepcion(
   const descartadas = doc.filas.length - utiles.length;
   if (utiles.length === 0) return { ok: false, error: ERR_SIN_FILAS };
 
+  // El catálogo y los alias se leen ANTES de abrir la transacción, para no tener la recepción
+  // bloqueada (FOR UPDATE) mientras se recorre todo el catálogo. Mismo alcance: negocio y
+  // proveedor que va a quedar en la recepción.
+  const nombreDoc = textoONulo(doc.proveedor);
+  const previa = await prisma.fotofficeRecepcion.findFirst({
+    where: { id: recepcionId, workspaceId },
+    select: { proveedorId: true },
+  });
+  const supuesto = await resolverProveedor(prisma, workspaceId, previa?.proveedorId ?? null, nombreDoc);
+  let indice = await indiceParaAsociar(workspaceId, supuesto.proveedorId);
+
   return enBorrador<ResultadoImportacion>(workspaceId, recepcionId, async (tx) => {
     const r = await tx.fotofficeRecepcion.findFirst({
       where: { id: recepcionId, workspaceId },
@@ -85,23 +128,15 @@ export async function importarEnRecepcion(
     });
     if (!r) return { ok: false as const, error: "Esa recepción no existe." };
 
-    // Proveedor: sólo si la recepción no tiene uno. Coincide por nombre normalizado con uno
-    // activo de este negocio ⇒ se asigna; si no, se avisa y la persona decide.
-    let proveedorId = r.proveedorId;
-    let proveedorDetectado: string | null = null;
-    const nombreDoc = textoONulo(doc.proveedor);
-    if (!proveedorId && nombreDoc) {
-      const buscado = normalizarTexto(nombreDoc);
-      const activos = await tx.fotofficeProveedor.findMany({
-        where: { workspaceId, active: true },
-        select: { id: true, name: true },
-      });
-      const hallado = buscado ? activos.find((p) => normalizarTexto(p.name) === buscado) : undefined;
-      if (hallado) proveedorId = hallado.id;
-      else proveedorDetectado = nombreDoc;
+    // Si otra pestaña cambió el proveedor entre la lectura previa y el bloqueo, se resuelve de
+    // nuevo con lo que quedó y se rearma el índice (caso raro).
+    let resuelto = supuesto;
+    if (r.proveedorId !== (previa?.proveedorId ?? null)) {
+      resuelto = await resolverProveedor(tx, workspaceId, r.proveedorId, nombreDoc);
+      indice = await indiceParaAsociar(workspaceId, resuelto.proveedorId);
     }
+    const { proveedorId, proveedorDetectado } = resuelto;
 
-    const indice = await indiceParaAsociar(workspaceId, proveedorId);
     const asociadas = asociarFilas(utiles, indice);
 
     // Un producto con talles no puede ir en una recepción (etapa 2): la línea queda sin asociar.
@@ -286,4 +321,32 @@ export async function subirArchivoDeRecepcion(
     console.error("[stock/importacion] no se pudo subir el archivo original a R2", e);
     return null;
   }
+}
+
+/** Borra el original subido si la importación no se hizo. Un fallo sólo se registra. */
+export async function borrarArchivoDeRecepcion(clave: string): Promise<void> {
+  try {
+    await clienteR2Privado().send(new DeleteObjectCommand({ Bucket: bucketR2Privado(), Key: clave }));
+  } catch (e) {
+    console.error("[stock/importacion] no se pudo borrar de R2 el archivo de una importación fallida", clave, e);
+  }
+}
+
+/**
+ * Importa lo leído de un archivo guardando el original: sólo se sube si hay algo para cargar,
+ * y si la importación igual falla (recepción confirmada en el medio, por ejemplo), se borra.
+ * Así no quedan archivos sueltos en R2.
+ */
+export async function importarConArchivo(
+  workspaceId: string,
+  recepcionId: string,
+  userId: number,
+  doc: DocumentoImportado,
+  original: { nombre: string; tipo: string; bytes: Buffer },
+): Promise<ResultadoImportacion> {
+  if (!tieneFilasUtiles(doc)) return importarEnRecepcion(workspaceId, recepcionId, userId, "IA", doc);
+  const clave = await subirArchivoDeRecepcion(workspaceId, recepcionId, original);
+  const r = await importarEnRecepcion(workspaceId, recepcionId, userId, "IA", doc, clave ?? undefined);
+  if (!r.ok && clave) await borrarArchivoDeRecepcion(clave);
+  return r;
 }
