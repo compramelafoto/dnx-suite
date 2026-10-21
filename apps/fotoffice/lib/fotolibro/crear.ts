@@ -4,8 +4,9 @@ import { prisma } from "@repo/db";
 import { HOJAS_MAX, HOJAS_MIN } from "./limites";
 import { DPI_FOTOLIBRO, describirCerrado, lienzoDelPliego, medidaPorId, LINEAS_FOTOLIBRO } from "./medidas-pliego";
 
-/** Marca de las plantillas de fotolibro. Ver `lib/template-v2/keyed-template.ts`. */
-export const FOTOLIBRO_TEMPLATE_KEY = "fotolibro";
+import { FOTOLIBRO_TEMPLATE_KEY } from "./constantes";
+
+export { FOTOLIBRO_TEMPLATE_KEY };
 
 
 /**
