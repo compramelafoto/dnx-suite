@@ -364,3 +364,24 @@ El personal de mostrador sigue viendo sólo precios.
 - **Combos** se tratan como cualquier producto (su costo se carga a mano o por lista; no se
   deriva de sus componentes). Las variantes que heredan el precio siguen al producto; las que
   tienen precio propio no se tocan y el producto se marca.
+
+## 15. Etapa 3 — cómo quedó la calculadora (21/10/2026)
+
+- **Datos:** tapas, hojas y cajas de la **última lista APLICADA** de cada proveedor activo
+  (`lib/fotolibro/catalogo-precios.ts`). Sin lista con hojas, el botón no aparece.
+- **Ajustes** en Ventas → Costos y márgenes → Fotolibros: margen (`fotolibroMarginPct`, por omisión
+  200 % = ×3) y fotos por hoja de cada medida (`fotolibroFotosPorHoja`, columna nueva). Sin valor
+  configurado: la planilla de DNX (15x30 → 8, 20x40 → 4, 30x45 → 10, 30x60 → 5) y, si no, proporcional
+  a la superficie (30x45 = 10).
+- **Hojas sugeridas** = fotos ÷ fotos por hoja, hacia arriba, mínimo 2, máximo 100. Se muestra una
+  tabla con todas las medidas del modelo; tocar una la elige. Las hojas se pueden cambiar.
+- **Tapa flexible** como modelo extra: cuesta una hoja más de esa medida.
+- **Hoja de un modelo:** si la lista trae hoja con ese modelo se usa; si no, la hoja genérica.
+- **Precio** = redondeo de caja de (tapa + hoja × hojas + caja) × (1 + margen). Al mostrador sólo
+  viajan montos ya con margen; el costo sólo a quien tiene `sales.catalog` / `veCostos`.
+- **Mostrador:** botón "+ Fotolibro" → renglón suelto con la descripción
+  "Fotolibro {modelo} {medida} · {n} hojas [+ caja] ({proveedor})". **Limitación:** el renglón
+  suelto no guarda costo, así que el informe de margen no lo cuenta.
+- **Presupuestos:** botón "Fotolibro" → ítem de lista "Fotolibro" con esa descripción y precio.
+- **Fuera por ahora:** adicionales (lomo brillante, laminado de tapa), combos de tapa flexible
+  ("4 hojas + tapa"), guardar los datos de la calculadora para reabrirla.
