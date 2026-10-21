@@ -389,7 +389,7 @@ function calidadDePieza(original: { anchoPx: number; altoPx: number }, receta: R
 
 export type EstadoPreparacion = {
   /** El cliente real de la preparación (al cobrar, el de la venta): el editor arranca con él. */
-  cliente: { id: string; nombre: string; numero: number } | null;
+  cliente: { id: string; nombre: string; numero: number; email: string | null } | null;
   original: { id: string; ancho: number; alto: number; vistaAncho: number; vistaAlto: number } | null;
   pieza: { anchoMm: number; altoMm: number; receta: Receta; ppp: number; aviso: "OK" | "BLANDA" | "PIXELADA" } | null;
   hoja: { id: string; fotosPorHoja: number; copias: number; version: string } | null;
@@ -408,7 +408,7 @@ export async function estadoPreparacion(ctx: CtxImpresion, preparacionId: string
     prep.clientId
       ? prisma.client.findFirst({
           where: { id: prep.clientId, workspaceId: ctx.workspaceId },
-          select: { id: true, kind: true, firstName: true, lastName: true, businessName: true, clientNumber: true },
+          select: { id: true, kind: true, firstName: true, lastName: true, businessName: true, clientNumber: true, email: true },
         })
       : null,
     prisma.fotofficePiezaImpresion.findFirst({
@@ -432,7 +432,7 @@ export async function estadoPreparacion(ctx: CtxImpresion, preparacionId: string
     orderBy: { createdAt: "desc" },
     select: { id: true, anchoPx: true, altoPx: true },
   });
-  const cliente = clienteFila ? { id: clienteFila.id, nombre: clientDisplayName(clienteFila), numero: clienteFila.clientNumber } : null;
+  const cliente = clienteFila ? { id: clienteFila.id, nombre: clientDisplayName(clienteFila), numero: clienteFila.clientNumber, email: clienteFila.email } : null;
   if (!originalFila) return { cliente, original: null, pieza: null, hoja: null };
   const vista = tamanoVistaPrevia(originalFila.anchoPx, originalFila.altoPx);
   const original = { id: originalFila.id, ancho: originalFila.anchoPx, alto: originalFila.altoPx, vistaAncho: vista.ancho, vistaAlto: vista.alto };
@@ -474,9 +474,10 @@ export async function generarHojaCarnet(
   if (prep.productId) {
     const prod = await prisma.fotofficeProductoProduccion.findFirst({
       where: { workspaceId: ctx.workspaceId, productId: prep.productId },
-      select: { salidaId: true, tamanoHojaId: true },
+      select: { salidaId: true, tamanoHojaId: true, unidad: true },
     });
     if (!prod) return { ok: false, error: "Ese producto ya no tiene configurada la impresión." };
+    if (prod.unidad === "ARCHIVO") return { ok: false, error: "Este producto se entrega como archivo digital: no lleva plancha." };
     salidaId = prod.salidaId;
     tamanoId = prod.tamanoHojaId;
   }

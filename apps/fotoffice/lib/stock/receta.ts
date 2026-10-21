@@ -41,7 +41,7 @@ export function sugerirLineas(d: {
 /** Polaroid por pieza en hoja 10x15, 13x18 o 15x20: entran 2. Todo lo demás, 1. */
 export function piezasPorHojaSugeridas(d: {
   tipoPieza: "COPIA" | "CARNET" | "POLAROID";
-  unidad: "HOJA" | "COPIA" | "PIEZA";
+  unidad: "HOJA" | "COPIA" | "PIEZA" | "ARCHIVO";
   tamanoHoja: string;
 }): number {
   const tamanos = ["10x15", "13x18", "15x20"];

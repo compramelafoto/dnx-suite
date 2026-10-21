@@ -22895,17 +22895,19 @@ model FotofficeProductoProduccion {
   productId    String   @unique
   /// COPIA | CARNET | POLAROID (CHECK en el SQL). En la etapa 1 sólo se prepara CARNET.
   tipoPieza    String
-  salidaId     String
-  tamanoHojaId String
-  /// HOJA | COPIA | PIEZA (CHECK en el SQL): qué cuenta la cantidad del renglón.
+  /// Null sólo en el archivo digital (unidad ARCHIVO): no sale por ninguna impresora (CHECK en el SQL).
+  salidaId     String?
+  tamanoHojaId String?
+  /// HOJA | COPIA | PIEZA | ARCHIVO (CHECK en el SQL): qué cuenta la cantidad del renglón.
+  /// ARCHIVO: foto carnet que se entrega como archivo digital, sin gastar papel.
   unidad       String   @default("HOJA")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   workspace  Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product    Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  salida     FotofficeSalidaImpresion @relation(fields: [salidaId], references: [id], onDelete: Restrict)
-  tamanoHoja FotofficeTamanoImpresion @relation(fields: [tamanoHojaId], references: [id], onDelete: Restrict)
+  salida     FotofficeSalidaImpresion? @relation(fields: [salidaId], references: [id], onDelete: Restrict)
+  tamanoHoja FotofficeTamanoImpresion? @relation(fields: [tamanoHojaId], references: [id], onDelete: Restrict)
 
   @@index([workspaceId])
   @@index([salidaId])

@@ -47,7 +47,7 @@ describe("configuración de impresión", () => {
     const a4 = epson.tamanos.find((t) => t.nombre === "A4")!;
     expect((await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: a4.id, unidad: "HOJA" })).ok).toBe(false);
     expect((await C.guardarProduccion("ws-2", "ajeno", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "HOJA" })).ok).toBe(false);
-    expect(await C.produccionDeProductos("ws-1")).toEqual({ carnet: { tipoPieza: "CARNET", salida: "Kodak 305", hoja: "10x15" } });
+    expect(await C.produccionDeProductos("ws-1")).toEqual({ carnet: { tipoPieza: "CARNET", salida: "Kodak 305", hoja: "10x15", digital: false } });
     expect(await C.produccionDeProductos("ws-2")).toEqual({});
     expect(await C.guardarProduccion("ws-1", "carnet", null)).toEqual({ ok: true });
     expect(await C.leerProduccion("ws-1", "carnet")).toBeNull();
@@ -60,11 +60,29 @@ describe("configuración de impresión", () => {
     for (const unidad of ["COPIA", "PIEZA"] as const) {
       expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: t10.id, unidad })).toEqual({
         ok: false,
-        error: "La foto carnet se cobra por hoja (plancha). Cobrarla por foto llega más adelante.",
+        error: "La foto carnet se cobra por hoja (plancha) o como archivo digital. Cobrarla por foto llega más adelante.",
       });
     }
     expect(await C.leerProduccion("ws-1", "carnet")).toBeNull();
     expect((await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "COPIA", salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "COPIA" })).ok).toBe(true);
+  });
+
+  it("la foto carnet digital no guarda impresora ni hoja, y sólo vale para carnet", async () => {
+    await C.asegurarConfiguracion("ws-1");
+    const kodak = (await C.listarSalidas("ws-1")).find((x) => x.nombre === "Kodak 305")!;
+    const t10 = kodak.tamanos.find((t) => t.nombre === "10x15")!;
+    // Aunque el formulario mande impresora y hoja, el archivo digital no las guarda.
+    expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "ARCHIVO" })).toEqual({ ok: true });
+    expect(await C.leerProduccion("ws-1", "carnet")).toEqual({ tipoPieza: "CARNET", salidaId: null, tamanoHojaId: null, unidad: "ARCHIVO" });
+    expect(await C.produccionDeProductos("ws-1")).toEqual({ carnet: { tipoPieza: "CARNET", salida: "", hoja: "", digital: true } });
+    expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "COPIA", salidaId: null, tamanoHojaId: null, unidad: "ARCHIVO" })).toEqual({
+      ok: false,
+      error: "Sólo la foto carnet se entrega como archivo digital.",
+    });
+    // Impresa otra vez: ahí sí hacen falta impresora y hoja.
+    expect((await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: null, tamanoHojaId: null, unidad: "HOJA" })).ok).toBe(false);
+    expect(await C.guardarProduccion("ws-1", "carnet", { tipoPieza: "CARNET", salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "HOJA" })).toEqual({ ok: true });
+    expect(await C.leerProduccion("ws-1", "carnet")).toMatchObject({ salidaId: kodak.id, tamanoHojaId: t10.id, unidad: "HOJA" });
   });
 
   it("tolera que otro pedido simultáneo ya haya sembrado (P2002)", async () => {
