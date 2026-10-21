@@ -81,12 +81,12 @@ export function RecetaSection({
 
       {filas.map((f, n) => (
         <div key={n} className="flex flex-wrap items-center gap-2 text-sm">
-          <input value={f.quantity} onChange={(e) => cambiar(n, { quantity: e.target.value })} inputMode="numeric" aria-label="Cantidad" className="fo-input w-16" />
-          <select value={f.insumoId} onChange={(e) => cambiar(n, { insumoId: e.target.value })} aria-label="Insumo" className="fo-input">
+          <input value={f.quantity} onChange={(e) => cambiar(n, { quantity: e.target.value })} inputMode="numeric" aria-label="Cantidad" className="fo-input" style={{ width: "4.5rem" }} />
+          <select value={f.insumoId} onChange={(e) => cambiar(n, { insumoId: e.target.value })} aria-label="Insumo" className="fo-input" style={{ width: "auto", minWidth: "14rem", flex: "1 1 14rem" }}>
             {insumos.map((i) => <option key={i.id} value={i.id}>{i.unidad} · {i.nombre}</option>)}
           </select>
           <span>cada</span>
-          <input value={f.porCada} onChange={(e) => cambiar(n, { porCada: e.target.value })} inputMode="numeric" aria-label="Cada cuántas unidades" className="fo-input w-16" />
+          <input value={f.porCada} onChange={(e) => cambiar(n, { porCada: e.target.value })} inputMode="numeric" aria-label="Cada cuántas unidades" className="fo-input" style={{ width: "4.5rem" }} />
           <span>unidades vendidas</span>
           <button type="button" onClick={() => setFilas(filas.filter((_, i) => i !== n))} className="fo-btn fo-btn-ghost text-sm">Quitar</button>
         </div>
@@ -98,7 +98,7 @@ export function RecetaSection({
           <>
             {sugerencia.pideCuantasPorHoja ? (
               <label className="flex items-center gap-2 text-sm">¿Cuántas entran por hoja?
-                <input value={piezas} onChange={(e) => setPiezas(e.target.value)} inputMode="numeric" className="fo-input w-16" />
+                <input value={piezas} onChange={(e) => setPiezas(e.target.value)} inputMode="numeric" className="fo-input" style={{ width: "4.5rem" }} />
               </label>
             ) : null}
             <button type="button" onClick={sugerir} disabled={pendiente} className="fo-btn fo-btn-secondary text-sm">Sugerir desde Impresión</button>

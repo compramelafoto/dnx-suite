@@ -26,6 +26,9 @@ export const guia: Instructivo = {
     },
     {
       titulo: "Decí en qué se cuenta",
+      imagen: "/instructivos/stock-insumos-alta/01-nuevo-insumo.jpg",
+      imagenAlt:
+        "Sección «Insumo» del formulario: «¿En qué se cuenta?» con «sobres» y «Mínimo antes de avisar» en 50.",
       texto: [
         "En «¿En qué se cuenta?» escribí la unidad: «copias», «sobres», «ml»… Es la palabra que vas a ver al lado de la existencia.",
         "En «Mínimo antes de avisar» poné cuántas unidades tienen que quedar como mínimo. Por debajo de ese número, el insumo aparece en «Para reponer».",
@@ -33,6 +36,9 @@ export const guia: Instructivo = {
     },
     {
       titulo: "Decí cómo lo comprás (si hace falta)",
+      imagen: "/instructivos/stock-insumos-alta/02-unidad-de-compra.jpg",
+      imagenAlt:
+        "Sección «Insumo» del kit de la Kodak: se cuenta en «copias 10x15», mínimo 100, se compra como «Kit 305 6R» y cada uno trae 640.",
       texto: [
         "Muchos insumos se compran en cajas o kits pero se gastan de a una unidad. Para eso están «Cómo lo comprás (opcional)» y «Cuántas unidades trae cada una».",
         "Ejemplo: el kit de la Kodak 305 se compra como «Kit 305 6R» y trae 640 copias. En «Cómo lo comprás» escribís «Kit 305 6R» y en «Cuántas unidades trae cada una» escribís 640.",
