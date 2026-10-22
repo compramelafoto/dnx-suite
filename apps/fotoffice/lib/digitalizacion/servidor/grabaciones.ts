@@ -1,8 +1,9 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { Prisma, prisma } from "@repo/db";
 import { ID_VALIDO, claveDeParte, extensionDeMime, prefijoDeGrabacion, tipoContenido } from "../claves";
 import { MINUTOS_SIN_SENAL_MAX, MINUTOS_SIN_SENAL_MIN, MINUTOS_SIN_SENAL_POR_DEFECTO } from "../constants";
 import type { CtxDigitalizacion } from "../contexto";
+import { leerFranjas, validarFranjas, type FranjaEnvio } from "../entrega";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
 import { estadoVisible, validarTitulo, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
 import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
@@ -306,9 +307,28 @@ export async function guardarAjustes(ctx: CtxDigitalizacion, minutos: number): P
   return { ok: true };
 }
 
-export async function leerAjustes(workspaceId: string): Promise<{ minutosSinSenal: number }> {
-  const a = await prisma.digitalizacionAjustes.findUnique({ where: { workspaceId }, select: { minutosSinSenal: true } });
-  return { minutosSinSenal: a?.minutosSinSenal ?? MINUTOS_SIN_SENAL_POR_DEFECTO };
+/** E11: "Enviar al cliente automáticamente al terminar" y las franjas de envío de cassettes. */
+export async function guardarAjustesEntrega(ctx: CtxDigitalizacion, envioAutomatico: unknown, franjas: unknown): Promise<Resultado<{ franjas: FranjaEnvio[] }>> {
+  if (typeof envioAutomatico !== "boolean") return { ok: false, error: "Los datos no son válidos." };
+  const f = validarFranjas(franjas);
+  if (!f.ok) return f;
+  // Sin franjas = "a coordinar": se guarda null, como dice el esquema.
+  const enviosFranjas = f.franjas.length ? f.franjas : Prisma.DbNull;
+  await prisma.digitalizacionAjustes.upsert({
+    where: { workspaceId: ctx.workspaceId },
+    create: { workspaceId: ctx.workspaceId, envioAutomatico, enviosFranjas },
+    update: { envioAutomatico, enviosFranjas },
+  });
+  return { ok: true, franjas: f.franjas };
+}
+
+export async function leerAjustes(workspaceId: string): Promise<{ minutosSinSenal: number; envioAutomatico: boolean; franjas: FranjaEnvio[] }> {
+  const a = await prisma.digitalizacionAjustes.findUnique({ where: { workspaceId }, select: { minutosSinSenal: true, envioAutomatico: true, enviosFranjas: true } });
+  return {
+    minutosSinSenal: a?.minutosSinSenal ?? MINUTOS_SIN_SENAL_POR_DEFECTO,
+    envioAutomatico: a?.envioAutomatico ?? true,
+    franjas: leerFranjas(a?.enviosFranjas ?? null),
+  };
 }
 
 export async function listarEquipos(workspaceId: string) {

@@ -5,14 +5,15 @@ const db = vi.hoisted(() => ({
   digitalizacionGrabacion: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   digitalizacionParte: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
   digitalizacionEquipo: { findFirst: vi.fn() },
+  digitalizacionAjustes: { upsert: vi.fn(), findUnique: vi.fn() },
   $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
 }));
-vi.mock("@repo/db", () => ({ prisma: db }));
+vi.mock("@repo/db", () => ({ prisma: db, Prisma: { DbNull: "DB_NULL" } }));
 const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https://r2/firmada"), tamanoDeParte: vi.fn(), urlDeLecturaParte: vi.fn(), borrarPrefijo: vi.fn(), urlDeVideo: vi.fn(async () => "https://r2/video") }));
 vi.mock("./almacen", () => almacen);
 
 import type { NuevaGrabacion } from "../validar";
-import { cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones } from "./grabaciones";
+import { guardarAjustesEntrega, leerAjustes, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { titulo: null, tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
@@ -345,5 +346,28 @@ describe("urlDeVideo", () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...lista, videoKey: null });
     expect(await urlDeVideo(ctx, "g1", "descargar")).toMatchObject({ ok: false });
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+  });
+});
+
+describe("ajustes de la entrega", () => {
+  it("guarda el envío automático y las franjas ordenadas", async () => {
+    const r = await guardarAjustesEntrega(ctx, false, [{ hastaKm: 20, precioArs: 8000 }, { hastaKm: 5, precioArs: 3000 }]);
+    expect(r).toEqual({ ok: true, franjas: [{ hastaKm: 5, precioArs: 3000 }, { hastaKm: 20, precioArs: 8000 }] });
+    const arg = db.digitalizacionAjustes.upsert.mock.calls[0][0];
+    expect(arg.where).toEqual({ workspaceId: "ws1" });
+    expect(arg.update).toEqual({ envioAutomatico: false, enviosFranjas: [{ hastaKm: 5, precioArs: 3000 }, { hastaKm: 20, precioArs: 8000 }] });
+  });
+  it("sin franjas guarda null (a coordinar)", async () => {
+    await guardarAjustesEntrega(ctx, true, []);
+    expect(db.digitalizacionAjustes.upsert.mock.calls[0][0].update).toEqual({ envioAutomatico: true, enviosFranjas: "DB_NULL" });
+  });
+  it("datos inválidos: no escribe", async () => {
+    expect(await guardarAjustesEntrega(ctx, "sí", [])).toMatchObject({ ok: false });
+    expect(await guardarAjustesEntrega(ctx, true, [{ hastaKm: -1, precioArs: 1 }])).toMatchObject({ ok: false });
+    expect(db.digitalizacionAjustes.upsert).not.toHaveBeenCalled();
+  });
+  it("leerAjustes: valores por defecto sin fila", async () => {
+    db.digitalizacionAjustes.findUnique.mockResolvedValue(null);
+    expect(await leerAjustes("ws1")).toEqual({ minutosSinSenal: 5, envioAutomatico: true, franjas: [] });
   });
 });
