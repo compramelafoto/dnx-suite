@@ -143,6 +143,12 @@ describe("lo puro", () => {
     expect(f({ fee_details: "x" })).toBeNull();
   });
 
+  it("la comisión suma también la de la plataforma (application_fee), no la de financiación", () => {
+    const h = PURO.hechosDelPago(pago("1", "c", 1000, {}, { fee_details: [{ type: "mercadopago_fee", amount: 40 }, { type: "application_fee", amount: 50 }, { type: "financing_fee", amount: 3 }] }));
+    expect(h).toMatchObject({ feeMinor: 9000, conPlataforma: true });
+    expect(PURO.hechosDelPago(pago("1", "c", 1000)).conPlataforma).toBe(false);
+  });
+
   it("la fecha ilegible es null", () => {
     expect(PURO.hechosDelPago(pago("1", "c", 1, {}, { date_approved: "no" })).paidAt).toBeNull();
     expect(PURO.hechosDelPago(pago("1", "c", 1, {}, { date_approved: null })).paidAt).toBeNull();
@@ -704,5 +710,70 @@ describe("comisión de Mercado Pago en Caja (etapa B)", () => {
     await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
     await MP.acreditarPagoMp("ws-1", pago("pay-2", "ped-1-c2", 40000));
     expect(B.datos.cashCategory.filter((x) => x.name === "Comisiones de Mercado Pago")).toHaveLength(1);
+  });
+});
+
+describe("comisión de plataforma en pedidos de digitalización (F1)", () => {
+  beforeEach(() => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    B.agregar("workspaceModuleFee", { workspaceId: "ws-1", moduleKey: "digitalizacion", feeBps: 500 });
+  });
+
+  it("la preferencia retiene la propia más la deuda, y lo deja en la metadata", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "300.00" });
+    await MP.iniciarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" });
+    const arg = H.preferencia.mock.calls[0]![0] as Record<string, unknown>;
+    expect(arg).toMatchObject({ amountMinor: 4_000_000, marketplaceFeeMinor: 230_000 });
+    expect(arg.metadata).toMatchObject({ fo_comision_propia_minor: "200000", fo_retencion_minor: "230000" });
+  });
+
+  it("con 0 bps (DNX) no retiene nada", async () => {
+    B.datos.workspaceModuleFee[0]!.feeBps = 0;
+    await MP.iniciarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" });
+    const arg = H.preferencia.mock.calls[0]![0] as Record<string, unknown>;
+    expect(arg).not.toHaveProperty("marketplaceFeeMinor");
+    expect(arg.metadata).not.toHaveProperty("fo_retencion_minor");
+  });
+
+  it("al acreditar: neto y EGRESO con las dos comisiones, deuda descargada y cobro marcado (no se devenga)", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "300.00" });
+    const r = await MP.acreditarPagoMp(
+      "ws-1",
+      pago("pay-1", "ped-1-c1", 40000, {}, {
+        fee_details: [{ type: "mercadopago_fee", amount: 1000 }, { type: "application_fee", amount: 2300 }],
+        platform_fee_metadata: { own_minor: "200000", withheld_minor: "230000" },
+      }),
+    );
+    expect(r.resultado).toBe("acreditado");
+    const c = B.datos.fotofficeCobro[0]!;
+    expect([c.feeArs, c.netArs]).toEqual(["3300.00", "36700.00"]);
+    const egreso = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos-comision")!;
+    expect(egreso).toMatchObject({ kind: "EGRESO", amountArs: "3300.00" });
+    expect(String(egreso.description)).toMatch(/^Comisiones Mercado Pago y plataforma · pedido N° /);
+    const ret = B.datos.workspaceFeeLedgerEntry.find((a) => a.kind === "RETENIDO")!;
+    expect(ret.amountArs).toBe("-300.00");
+    expect(B.datos.digitalizacionComision).toEqual([expect.objectContaining({ cobroId: c.id, ledgerEntryId: ret.id })]);
+    expect(B.datos.workspaceFeeLedgerEntry.filter((a) => a.kind === "DEVENGADO")).toHaveLength(1);
+  });
+
+  it("un pago sin retención (abierto antes de la entrega) devenga como un cobro manual", async () => {
+    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    expect(r.resultado).toBe("acreditado");
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "2000.00"]]);
+    expect(B.datos.digitalizacionComision).toHaveLength(1);
+    const egreso = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos-comision")!;
+    expect(String(egreso.description)).toMatch(/^Comisión Mercado Pago · /);
+  });
+
+  it("si la marca falla, el cobro tampoco queda (como cualquier falla de la acreditación)", async () => {
+    const original = B.tablas.digitalizacionComision.create;
+    B.tablas.digitalizacionComision.create = async () => {
+      throw new Error("se cayó la base");
+    };
+    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { fee_details: [{ type: "application_fee", amount: 2000 }] }));
+    B.tablas.digitalizacionComision.create = original;
+    expect(r.resultado).toBe("sin_aplicar");
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+    expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(0);
   });
 });

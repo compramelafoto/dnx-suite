@@ -106,9 +106,14 @@ export function tituloPagoDevuelto(providerPaymentId: string, centavos: number, 
   return `Mercado Pago devolvió (o le reclamaron) el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} (${QUE_PASO[reverso]}): anulá ${queAnular} si corresponde.`;
 }
 
+/** Los `fee_details` que paga el negocio: la comisión de Mercado Pago y la de la plataforma (`marketplace_fee`, que MP informa como `application_fee`). */
+const COMISIONES_DEL_COBRADOR = new Set(["mercadopago_fee", "application_fee"]);
+
 /**
- * La comisión de Mercado Pago en centavos: la suma de los `fee_details` de tipo `mercadopago_fee`
- * (montos en pesos). null si no viene, no se entiende, o es mayor que el pago (no se inventa).
+ * Lo que Mercado Pago le descontó al negocio, en centavos: la suma de los `fee_details` de tipo
+ * `mercadopago_fee` y `application_fee` (montos en pesos). Con las dos, el neto del cobro y el
+ * EGRESO de Caja dan lo mismo que la app de Mercado Pago. `financing_fee` lo paga el comprador: no
+ * cuenta. null si no viene, no se entiende, o es mayor que el pago (no se inventa).
  */
 export function comisionDeMp(rawSanitized: Record<string, unknown>, brutoMinor: number): number | null {
   const detalle = rawSanitized.fee_details;
@@ -118,7 +123,7 @@ export function comisionDeMp(rawSanitized: Record<string, unknown>, brutoMinor: 
   for (const fila of detalle) {
     if (typeof fila !== "object" || fila === null) continue;
     const { type, amount } = fila as { type?: unknown; amount?: unknown };
-    if (type !== "mercadopago_fee") continue;
+    if (typeof type !== "string" || !COMISIONES_DEL_COBRADOR.has(type)) continue;
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
     suma += Math.round(amount * 100);
     hay = true;
@@ -127,14 +132,21 @@ export function comisionDeMp(rawSanitized: Record<string, unknown>, brutoMinor: 
   return suma;
 }
 
+function hayComisionDePlataforma(raw: Record<string, unknown>): boolean {
+  if (!Array.isArray(raw.fee_details)) return false;
+  return raw.fee_details.some((f) => typeof f === "object" && f !== null && (f as { type?: unknown }).type === "application_fee" && typeof (f as { amount?: unknown }).amount === "number" && (f as { amount: number }).amount > 0);
+}
+
 export type HechosDelPago = {
   providerPaymentId: string;
   amountMinor: number;
   currency: string;
   /** `date_approved`; null si no viene o no se entiende. */
   paidAt: Date | null;
-  /** Comisión de Mercado Pago en centavos, o null si no viene. */
+  /** Comisión de Mercado Pago (y de la plataforma, si retuvo) en centavos, o null si no viene. */
   feeMinor: number | null;
+  /** Si en `feeMinor` hay una parte de la plataforma (`application_fee` > 0): cambia el texto del EGRESO. */
+  conPlataforma: boolean;
 };
 
 /** Lo que la acreditación necesita de un pago leído: id, monto, moneda, fecha y comisión. */
@@ -152,6 +164,7 @@ export function hechosDelPago(pago: {
     currency: pago.currency,
     paidAt: fecha && !Number.isNaN(fecha.getTime()) ? fecha : null,
     feeMinor: comisionDeMp(pago.rawSanitized, pago.amountMinor),
+    conPlataforma: hayComisionDePlataforma(pago.rawSanitized),
   };
 }
 

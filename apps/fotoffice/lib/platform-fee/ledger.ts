@@ -106,3 +106,30 @@ export async function recordManualSettlement(
     },
   });
 }
+
+/**
+ * Asiento firmado que devuelve su id, para los módulos que necesitan apuntarlo desde otra tabla
+ * (Digitalización: `DigitalizacionComision.ledgerEntryId`). A diferencia de los de arriba, admite
+ * 0: un pago de Mercado Pago que retuvo sólo su comisión propia no cancela deuda, pero el cobro
+ * igual tiene que quedar marcado para no devengarlo después.
+ *
+ * El signo lo pone quien llama, con el mismo criterio que el resto del libro: positivo aumenta la
+ * deuda (DEVENGADO), negativo la reduce (RETENIDO, o REVERSADO de un devengado).
+ */
+export async function recordEntryReturningId(
+  db: Db,
+  input: { workspaceId: string; kind: "DEVENGADO" | "RETENIDO" | "REVERSADO"; signedAmountMinor: number; note: string },
+): Promise<string> {
+  if (!Number.isInteger(input.signedAmountMinor)) throw new Error("el asiento tiene que ser en centavos enteros");
+  const abs = minorToDecimalString(Math.abs(input.signedAmountMinor));
+  const fila = await db.workspaceFeeLedgerEntry.create({
+    data: {
+      workspaceId: input.workspaceId,
+      kind: input.kind,
+      amountArs: input.signedAmountMinor < 0 ? `-${abs}` : abs,
+      note: input.note,
+    },
+    select: { id: true },
+  });
+  return fila.id;
+}
