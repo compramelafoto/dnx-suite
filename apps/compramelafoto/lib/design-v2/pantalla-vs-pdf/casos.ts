@@ -99,6 +99,53 @@ function listaDelCurso(): string {
   );
 }
 
+/** Un curso más largo y con número impar: las dos columnas quedan de distinto largo. */
+const SEPTIMO_A = [
+  "lucía acosta", "tomás benítez", "martina castro", "juan cruz díaz", "emilia fernández",
+  "bruno giménez", "julieta gómez", "franco herrera", "agustina lópez", "ignacio martínez",
+  "camila morales", "nicolás pérez", "abril quiroga", "facundo romero", "victoria sosa",
+  "lorenzo torres", "zoe vega", "máximo zapata", "pilar aguirre", "gael bustos",
+  "renata cabrera", "ciro domínguez", "alma espinoza",
+];
+
+function septimoA(): string {
+  return JSON.stringify(
+    SEPTIMO_A.map((n, i) => {
+      const partes = n.split(" ");
+      const l = partes.pop()!;
+      return i === 6 ? { f: partes.join(" "), l, o: 1 } : { f: partes.join(" "), l };
+    }),
+  );
+}
+
+/**
+ * El bloque «Listado del curso» de 7.º A, copiado tal cual de la plantilla de San Patricio
+ * (TemplateV2 cmv36vjbc0000l8066hx8tjex): posición, tamaño, giro, columnas y tipografía.
+ */
+function listadoSanPatricio(pageIndex: number, verticalAlign?: string): TemplateV2Block {
+  return bloque(
+    "VARIABLE_TEXT",
+    pageIndex,
+    { x: -153.4737183511329, y: 590.8512944622227, width: 1969.923309783439, height: 1239.297411075555, rotation: 90.68413159032582 },
+    {
+      color: "#334155",
+      fallback: "",
+      fontSize: 67,
+      classList: { sortBy: "lastName", columns: 2, nameOrder: "firstLast", givenNames: "all", highlightOwner: true },
+      textAlign: "CENTER",
+      underline: false,
+      fontFamily: "Helvetica",
+      fontItalic: false,
+      fontWeight: 400,
+      lineHeight: 1.3,
+      variableKey: "course.studentList",
+      letterSpacing: 0,
+      textTransform: "capitalize",
+      ...(verticalAlign ? { verticalAlign } : {}),
+    },
+  );
+}
+
 /** Los casos, con la imagen de prueba ya resuelta (se genera una sola vez). */
 export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] {
   orden = 0;
@@ -199,6 +246,50 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
         forma(0, { x: 460, y: 420, width: 500, height: 500 }, { fill: "#f4f1ec" }),
         imagen(0, { x: 460, y: 420, width: 500, height: 500 }, imagenDePrueba, { fit: "contain" }),
         imagen(0, { x: 1060, y: 420, width: 380, height: 500 }, imagenDePrueba, { fit: "cover" }),
+      ],
+    },
+    {
+      /*
+       * Alineación vertical: arriba (lo de siempre), centro y abajo, con varias líneas e
+       * interlineado amplio, y textos girados, que se alinean en el marco de su caja.
+       */
+      id: "alineacion-vertical",
+      titulo: "Texto arriba, centrado y abajo en su caja, derecho y girado",
+      canvas: CHICO,
+      paginas: 1,
+      blocks: [
+        forma(0, { x: 40, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
+        texto(0, { x: 40, y: 40, width: 400, height: 380 }, "Arriba, como siempre", { verticalAlign: "TOP" }),
+        forma(0, { x: 480, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
+        texto(0, { x: 480, y: 40, width: 400, height: 380 }, "Centro con interlineado amplio", { verticalAlign: "MIDDLE", lineHeight: 1.6, textAlign: "LEFT" }),
+        forma(0, { x: 920, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
+        texto(0, { x: 920, y: 40, width: 400, height: 380 }, "Abajo\ncon salto manual", { verticalAlign: "BOTTOM", textAlign: "RIGHT" }),
+        forma(0, { x: 60, y: 610, width: 540, height: 200, rotation: 90 }, { fill: "#e6eef8" }),
+        texto(0, { x: 60, y: 610, width: 540, height: 200, rotation: 90 }, "Girado 90° y centrado", { verticalAlign: "MIDDLE" }),
+        forma(0, { x: 520, y: 610, width: 540, height: 200, rotation: -90 }, { fill: "#e6eef8" }),
+        texto(0, { x: 520, y: 610, width: 540, height: 200, rotation: -90 }, "Menos noventa, abajo", { verticalAlign: "BOTTOM" }),
+        forma(0, { x: 980, y: 640, width: 480, height: 220, rotation: 180 }, { fill: "#e6eef8" }),
+        texto(0, { x: 980, y: 640, width: 480, height: 220, rotation: 180 }, "Cabeza abajo, abajo", { verticalAlign: "BOTTOM", fontWeight: 700 }),
+      ],
+    },
+    {
+      /*
+       * El listado de 7.º A de San Patricio, girado 90,68°, centrado en el alto de su recuadro (lo
+       * que pidió Daniel). En la segunda página, un listado derecho alineado abajo.
+       */
+      id: "listado-centrado-vertical",
+      titulo: "Listado de 7.º A de San Patricio centrado en su recuadro girado",
+      canvas: { width: 3602, height: 2421, dpi: 300, background: "#ffffff" } as TemplateV2Canvas,
+      paginas: 2,
+      valores: { "course.studentList": septimoA() },
+      blocks: [
+        forma(0, { x: -153.4737183511329, y: 590.8512944622227, width: 1969.923309783439, height: 1239.297411075555, rotation: 90.68413159032582 }, { fill: "#f4f1ec" }),
+        listadoSanPatricio(0, "MIDDLE"),
+        forma(1, { x: 200, y: 200, width: 3200, height: 2000 }, { fill: "#f4f1ec" }),
+        bloque("VARIABLE_TEXT", 1, { x: 200, y: 200, width: 3200, height: 2000 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 67, lineHeight: 1.3, color: "#1d3a6b",
+          classList: { columns: 3 }, textAlign: "LEFT", verticalAlign: "BOTTOM",
+        }),
       ],
     },
     {

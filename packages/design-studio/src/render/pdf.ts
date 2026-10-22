@@ -141,7 +141,9 @@ function dibujarTexto(
         : item.align === "right"
           ? item.widthPt - ancho
           : 0;
-    const baseY = altoPagina - (item.yPt + medioInterlineado + ascenso + i * item.lineHeightPt);
+    const baseY =
+      altoPagina -
+      (item.yPt + item.offsetYPt + medioInterlineado + ascenso + i * item.lineHeightPt);
     const x = item.xPt + desplazamiento;
     if (conKerning) {
       escribirConKerning(page, font, conKerning, linea, {

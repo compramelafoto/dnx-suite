@@ -66,6 +66,25 @@ test("reparte en columnas de arriba hacia abajo y achica si no entra", () => {
   assert.equal(amplio.fontSize, 40);
 });
 
+test("alineación vertical: las columnas se mueven juntas y reparten el hueco", () => {
+  // 7 alumnos en 2 columnas: 4 filas de 50 px (cuerpo 40 × 1,25) = 200 px en una caja de 1000.
+  const lines = Array.from({ length: 7 }, (_, i) => ({ text: `A${i}`, bold: false }));
+  const base = { lines, width: 1000, height: 1000, fontSize: 40, lineHeight: 1.25, columns: 2 };
+  const arriba = layoutClassList(base);
+  assert.equal(arriba.cells[0]!.y, 0);
+  assert.deepEqual(layoutClassList({ ...base, verticalAlign: "top" }), arriba);
+  const centro = layoutClassList({ ...base, verticalAlign: "middle" });
+  // Sobran 800 px: 400 arriba y 400 abajo. La segunda columna arranca a la misma altura.
+  assert.equal(centro.cells[0]!.y, 400);
+  assert.equal(centro.cells[4]!.y, 400);
+  assert.equal(centro.cells[3]!.y + centro.cells[3]!.height, 600);
+  const abajo = layoutClassList({ ...base, verticalAlign: "bottom" });
+  assert.equal(abajo.cells[3]!.y + abajo.cells[3]!.height, 1000);
+  // Si la lista se achicó para entrar, no hay hueco y no se mueve.
+  const justa = layoutClassList({ ...base, height: 100, verticalAlign: "middle" });
+  assert.equal(justa.cells[0]!.y, 0);
+});
+
 test("opciones guardadas inválidas vuelven a los valores por defecto", () => {
   assert.deepEqual(readClassListOptions({ classList: { columns: 99, sortBy: "x" } }), {
     ...DEFAULT_CLASS_LIST_OPTIONS,

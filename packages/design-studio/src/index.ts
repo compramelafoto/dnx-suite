@@ -19,7 +19,9 @@ export type {
   ImageBlock,
   LineBlock,
   RectBlock,
+  VerticalAlign,
 } from "./document/schema";
+export { desplazamientoVertical } from "./layout/plan";
 export { mmToPt, ptToMm, mmToPx, pxToPt, ptToPx } from "./document/units";
 
 export type {

@@ -46,6 +46,13 @@ export type BlockGeometry = {
 export type TextAlign = "left" | "center" | "right";
 
 /**
+ * Dónde queda el texto dentro del alto de su caja: pegado arriba (lo de siempre), centrado o
+ * pegado abajo. Se mide en el marco de la caja, no de la hoja: en una caja girada 90°, «arriba»
+ * es el lado hacia donde apunta la parte de arriba de las letras.
+ */
+export type VerticalAlign = "top" | "middle" | "bottom";
+
+/**
  * Cómo se escriben las letras al dibujar.
  *
  * Es una propiedad de presentación, como la negrita, y no una transformación del dato: se
@@ -66,6 +73,8 @@ export type TextBlock = BlockGeometry &
     fontStyle?: FontStyle;
     color: string;
     align?: TextAlign;
+    /** Sin valor, arriba: así se dibujaba todo antes de que existiera la opción. */
+    verticalAlign?: VerticalAlign;
     textTransform?: TextTransform;
     /** Texto fijo o con marcadores `{{clave}}` declarados en el contrato de variables. */
     content: string;

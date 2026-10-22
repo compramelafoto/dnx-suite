@@ -19,6 +19,7 @@ import { buildDiagnosticHighlightMap, collectTemplateDiagnostics } from "@repo/t
 import {
   getTextVisualConfig,
   normalizeBlockConfig,
+  readTextVerticalAlign,
 } from "@repo/template-editor-core";
 import type { TemplateV2Block } from "@repo/template-editor-core";
 import { measureTextBlockBoundsPx } from "@repo/template-editor-core";
@@ -360,7 +361,10 @@ function InlineTextEditOverlay({
     };
   }, [block.id]);
 
-  return (
+  /** Centro y abajo: mientras se escribe, el texto queda donde va a quedar al terminar. */
+  const alineadoVertical = t.verticalAlign !== "top";
+
+  const editable = (
     <div
       ref={ref}
       contentEditable
@@ -369,7 +373,8 @@ function InlineTextEditOverlay({
       data-template-inline-text="1"
       style={{
         width: "100%",
-        height: "100%",
+        height: alineadoVertical ? "auto" : "100%",
+        ...(alineadoVertical ? { maxHeight: "100%", flexShrink: 0 } : {}),
         color: t.color,
         fontFamily: t.fontFamilyCss,
         fontSize: t.fontSize,
@@ -409,7 +414,15 @@ function InlineTextEditOverlay({
               layout: {
                 ...cur.layout,
                 width: bounds.width,
-                height: bounds.height,
+                /*
+                 * Con el texto centrado o abajo, la caja es el espacio donde se alinea: escribir no
+                 * la achica al alto del texto (si no, la alineación dejaría de tener efecto).
+                 * Sólo crece si el texto ya no entra.
+                 */
+                height:
+                  readTextVerticalAlign(patch) === "TOP"
+                    ? bounds.height
+                    : Math.max(cur.layout.height, bounds.height),
               },
             },
             skipHistory: true,
@@ -427,6 +440,21 @@ function InlineTextEditOverlay({
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     />
+  );
+
+  if (!alineadoVertical) return editable;
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: t.verticalAlign === "middle" ? "center" : "flex-end",
+      }}
+    >
+      {editable}
+    </div>
   );
 }
 

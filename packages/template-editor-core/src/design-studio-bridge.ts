@@ -1,5 +1,6 @@
 import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, normalizarEncuadre, type FontId, type ImageCrop } from "@repo/design-studio";
 import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
+import { readTextVerticalAlign } from "./render-core";
 import {
   CLASS_LIST_SAMPLE,
   CLASS_LIST_VARIABLE_KEY,
@@ -159,6 +160,15 @@ function conversionDeLetras(v: unknown): "none" | "uppercase" | "lowercase" | "c
   return v === "uppercase" || v === "lowercase" || v === "capitalize" ? v : "none";
 }
 
+/**
+ * La alineación vertical para design-studio. Arriba no se escribe: el documento queda igual al
+ * de antes de que existiera la opción.
+ */
+function alineacionVertical(cfg: Record<string, unknown>): { verticalAlign?: "middle" | "bottom" } {
+  const v = readTextVerticalAlign(cfg);
+  return v === "MIDDLE" ? { verticalAlign: "middle" } : v === "BOTTOM" ? { verticalAlign: "bottom" } : {};
+}
+
 function alineacion(v: unknown): "left" | "center" | "right" {
   const a = texto(v, "CENTER").toLowerCase();
   return a === "left" || a === "right" ? a : "center";
@@ -277,6 +287,7 @@ export function editorADocumento(input: {
               fontStyle: cfg.fontItalic === true ? "italic" : "normal",
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
+              ...alineacionVertical(cfg),
               textTransform: conversionDeLetras(cfg.textTransform),
               lineHeight: num(cfg.lineHeight, 1.2),
             });
@@ -304,6 +315,9 @@ export function editorADocumento(input: {
                 fontSize: num(cfg.fontSize, 20),
                 lineHeight: num(cfg.lineHeight, 1.2),
                 columns: opciones.columns,
+                // El listado se alinea como un todo: cada alumno sale con su celda ya corrida,
+                // y su texto va arriba de la celda, igual que en el lienzo.
+                verticalAlign: readTextVerticalAlign(cfg).toLowerCase() as "top" | "middle" | "bottom",
               });
               const comun = {
                 type: "text" as const,
@@ -357,6 +371,7 @@ export function editorADocumento(input: {
               fontStyle: cfg.fontItalic === true ? "italic" : "normal",
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
+              ...alineacionVertical(cfg),
               textTransform: conversionDeLetras(cfg.textTransform),
               lineHeight: num(cfg.lineHeight, 1.2),
             });
@@ -585,6 +600,9 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
           fontItalic: texto(b.fontStyle) === "italic",
           color: texto(b.color, "#111111"),
           textAlign: texto(b.align, "left").toUpperCase(),
+          ...(b.verticalAlign === "middle" || b.verticalAlign === "bottom"
+            ? { verticalAlign: texto(b.verticalAlign).toUpperCase() }
+            : {}),
           // Las mayúsculas del diseño base se conservaban al imprimir pero no al pasar al editor.
           ...(conversionDeLetras(b.textTransform) !== "none"
             ? { textTransform: conversionDeLetras(b.textTransform) }

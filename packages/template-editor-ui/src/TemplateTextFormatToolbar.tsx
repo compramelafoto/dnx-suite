@@ -10,7 +10,13 @@ import {
   type EditorFontEntry,
 } from "@repo/template-editor-core";
 import { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlignmentStrip";
-import { asObject, formatFontFamilyCss, normalizeBlockConfig, type TemplateV2Block } from "@repo/template-editor-core";
+import {
+  asObject,
+  formatFontFamilyCss,
+  normalizeBlockConfig,
+  readTextVerticalAlign,
+  type TemplateV2Block,
+} from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
 
 type Props = {
@@ -88,6 +94,34 @@ function IconAlignRight({ className }: { className?: string }) {
   );
 }
 
+/*
+ * Alineación vertical: el recuadro y tres renglones apoyados arriba, en el medio o abajo. Se ven
+ * distintos de los de alineación horizontal (que son renglones sueltos, sin marco).
+ */
+function IconVAlign({ className, at }: { className?: string; at: "top" | "middle" | "bottom" }) {
+  const y0 = at === "top" ? 3.5 : at === "middle" ? 6 : 8.5;
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <rect x="1" y="1" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1" opacity={0.45} />
+      <rect x="4" y={y0} width="8" height="1.2" rx="0.4" />
+      <rect x="4" y={y0 + 2} width="8" height="1.2" rx="0.4" />
+      <rect x="5.5" y={y0 + 4} width="5" height="1.2" rx="0.4" />
+    </svg>
+  );
+}
+
+function IconVAlignTop({ className }: { className?: string }) {
+  return <IconVAlign className={className} at="top" />;
+}
+
+function IconVAlignMiddle({ className }: { className?: string }) {
+  return <IconVAlign className={className} at="middle" />;
+}
+
+function IconVAlignBottom({ className }: { className?: string }) {
+  return <IconVAlign className={className} at="bottom" />;
+}
+
 function IconChevronDown({ className }: { className?: string }) {
   return (
     <svg className={className} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -156,6 +190,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
   const lineHeight = typeof cfg.lineHeight === "number" ? cfg.lineHeight : 1.2;
   const letterSpacing = typeof cfg.letterSpacing === "number" ? cfg.letterSpacing : 0;
   const textAlignRaw = String(cfg.textAlign ?? "CENTER").toUpperCase();
+  const verticalAlign = readTextVerticalAlign(cfg);
   const color = String(cfg.color ?? "#111111");
   const fontItalic = cfg.fontItalic === true;
   const underline = cfg.underline === true;
@@ -394,6 +429,30 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
             aria-label={title}
             aria-pressed={textAlignRaw === al}
             onClick={() => patchConfig({ textAlign: al })}
+          >
+            <Icon className="block opacity-90" />
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-0.5" role="group" aria-label="Alineación vertical del texto en la caja">
+        {(
+          [
+            { va: "TOP" as const, Icon: IconVAlignTop, title: "Arriba", label: "Alinear el texto arriba de la caja" },
+            { va: "MIDDLE" as const, Icon: IconVAlignMiddle, title: "Centro", label: "Centrar el texto en el alto de la caja" },
+            { va: "BOTTOM" as const, Icon: IconVAlignBottom, title: "Abajo", label: "Alinear el texto abajo de la caja" },
+          ] as const
+        ).map(({ va, Icon, title, label }) => (
+          <button
+            key={va}
+            type="button"
+            data-vertical-align-button={va}
+            className={cn(fmtMiniBtn, verticalAlign === va && "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]")}
+            disabled={locked}
+            title={title}
+            aria-label={label}
+            aria-pressed={verticalAlign === va}
+            onClick={() => patchConfig({ verticalAlign: va })}
           >
             <Icon className="block opacity-90" />
           </button>
