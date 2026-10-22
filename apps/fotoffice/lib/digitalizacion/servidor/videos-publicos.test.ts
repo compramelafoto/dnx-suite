@@ -30,7 +30,8 @@ vi.mock("@/lib/presupuestos/sitio", () => ({
   sitioDelWorkspace: vi.fn(async () => ({ workspaceId: "ws1", slug: "fp", customDomain: null, nombre: "Foto Positiva", logoUrl: "http://inseguro/logo.png", whatsapp: null, email: null })),
 }));
 
-import { abrirEntregaPublica, registrarDescarga, vistaDeEntregaPublica } from "./videos-publicos";
+import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
+import { abrirEntregaPublica, abrirVistaPreviaDelEquipo, registrarDescarga, vistaDeEntregaPublica } from "./videos-publicos";
 
 const TOKEN = "a".repeat(43);
 const AHORA = new Date("2026-10-22T15:00:00Z");
@@ -209,5 +210,77 @@ describe("cargos pendientes en la página", () => {
     expect(v!.extensionPendiente).toEqual({ montoMinor: 1500000, urlPagar: "u1" });
     expect(v!.videos[0]!.descargaPendiente).toEqual({ montoMinor: 375000, urlPagar: "u2" });
     expect(v!.envio).toEqual({ puedePedir: true, estado: "A_PAGAR", direccion: "Av. Real 100", precioMinor: 900000, urlPagar: "u3" });
+  });
+});
+
+describe("abrirVistaPreviaDelEquipo («Ver como el cliente»)", () => {
+  /** Nada de lo que puede escribir: ni descargas, ni transacciones, ni enlaces (del pedido o para pagar), ni firmas. */
+  const sinEscribirNada = () => {
+    expect(db.digitalizacionDescarga.create).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(plan.bloquearPedido).not.toHaveBeenCalled();
+    expect(enlaceDelPedidoDelSistema).not.toHaveBeenCalled();
+    expect(cargos.urlsParaPagar).not.toHaveBeenCalled();
+    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+  };
+
+  it("pedido sin entrega todavía: la arma sin crearla, sin fechas y con los botones que vería el cliente al enviarla hoy", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(null);
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, _count: { descargas: 0 } }]);
+    const v = await abrirVistaPreviaDelEquipo("ws1", "p1", AHORA);
+    expect(db.digitalizacionEntrega.findFirst.mock.calls[0][0].where).toEqual({ workspaceId: "ws1", pedidoId: "p1" });
+    // Sin entrega no cuenta descargas de nadie.
+    expect(db.digitalizacionGrabacion.findMany.mock.calls[0][0].select._count.select.descargas.where).toEqual({ entregaId: "" });
+    expect(cargos.cargosPendientes).not.toHaveBeenCalled();
+    expect(v).toMatchObject({ enviada: false, habilitados: true, videosVencenAt: null, cassettesVencenAt: null, borradosAt: null, puedeExtender: true, envio: { puedePedir: true } });
+    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 4, total: 4, vistaPrevia: true, vistaPreviaAgotada: false, puedeComprar: true, descargaPendiente: null, verComoEquipo: true }]);
+    sinEscribirNada();
+  });
+
+  it("entrega con fila pero sin enviar: no muestra los restos de fechas", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue({ ...entrega(), enviadoAt: null, envioEstado: null, envioDireccion: null, envioPrecioArs: null });
+    const v = await abrirVistaPreviaDelEquipo("ws1", "p1", AHORA);
+    expect(v).toMatchObject({ enviada: false, videosVencenAt: null, cassettesVencenAt: null });
+    expect(cargos.cargosPendientes).toHaveBeenCalledWith("ws1", ["e1"]);
+    sinEscribirNada();
+  });
+
+  it("enviada: las fechas reales, las descargas de esa entrega y los cargos sin enlace para pagar", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue({ ...entrega(), enviadoAt: new Date("2026-10-20T15:00:00Z"), envioEstado: "A_PAGAR", envioDireccion: "Av. Real 100", envioPrecioArs: "9000.00" });
+    cargos.cargosPendientes.mockResolvedValue(new Map([["e1", [
+      { id: "c1", tipo: "EXTENSION", grabacionId: null, montoMinor: 1500000, cuotaId: "q1" },
+      { id: "c3", tipo: "ENVIO", grabacionId: null, montoMinor: 900000, cuotaId: "q3" },
+    ]]]));
+    const v = await abrirVistaPreviaDelEquipo("ws1", "p1", AHORA);
+    expect(db.digitalizacionGrabacion.findMany.mock.calls[0][0].select._count.select.descargas.where).toEqual({ entregaId: "e1" });
+    expect(v).toMatchObject({ enviada: true, videosVencenAt: new Date("2026-11-21T15:00:00Z"), extensionPendiente: { montoMinor: 1500000, urlPagar: null } });
+    expect(v!.videos[0]).toMatchObject({ quedan: 2, total: 4 });
+    expect(v!.envio).toMatchObject({ estado: "A_PAGAR", urlPagar: null });
+    sinEscribirNada();
+  });
+
+  it("con saldo: el cliente no lo ve (y sin enlace del pedido), pero el equipo lo puede reproducir", async () => {
+    saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 100000 });
+    const v = await abrirVistaPreviaDelEquipo("ws1", "p1", AHORA);
+    expect(v).toMatchObject({ habilitados: false, saldoMinor: 100000, urlPedido: null });
+    expect(v!.videos[0]).toMatchObject({ vistaPrevia: false, verComoEquipo: true });
+    sinEscribirNada();
+  });
+
+  it("sin versión HLS: el equipo tampoco la puede reproducir", async () => {
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, hlsKey: null }]);
+    const v = await abrirVistaPreviaDelEquipo("ws1", "p1", AHORA);
+    expect(v!.videos[0]).toMatchObject({ vistaPrevia: false, verComoEquipo: false });
+  });
+
+  it("pedido de otro negocio, inexistente o id raro: null", async () => {
+    expect(await abrirVistaPreviaDelEquipo("ws1", "../p1", AHORA)).toBeNull();
+    expect(await abrirVistaPreviaDelEquipo("ws1", 5, AHORA)).toBeNull();
+    expect(db.digitalizacionEntrega.findFirst).not.toHaveBeenCalled();
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(null);
+    db.fotofficePedido.findFirst.mockResolvedValue(null);
+    expect(await abrirVistaPreviaDelEquipo("ws1", "p-ajeno", AHORA)).toBeNull();
+    expect(db.fotofficePedido.findFirst.mock.calls[0][0].where).toEqual({ id: "p-ajeno", workspaceId: "ws1" });
+    sinEscribirNada();
   });
 });

@@ -2,7 +2,7 @@
 import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
-import { AccionesEntrega, AjustesEntrega, EnvioYCargos } from "@/components/digitalizacion/entregas";
+import { AccionesEntrega, AjustesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
 import { estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, pesos, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
 import { resumenDeComision } from "@/lib/digitalizacion/servidor/comision";
 import { resumenDeEntregas, type ResumenEntrega } from "@/lib/digitalizacion/servidor/entregas";
@@ -105,8 +105,12 @@ export default async function DigitalizacionPage() {
                       estado={estado}
                       tieneEmail={r.tieneEmail}
                       envioAutomatico={r.entrega?.envioAutomatico ?? ajustes.envioAutomatico}
-                    />
-                  ) : null}
+                    >
+                      <VerComoCliente pedidoId={r.pedidoId} />
+                    </AccionesEntrega>
+                  ) : (
+                    <div className="text-sm"><VerComoCliente pedidoId={r.pedidoId} /></div>
+                  )}
                 </li>
               );
             })}
