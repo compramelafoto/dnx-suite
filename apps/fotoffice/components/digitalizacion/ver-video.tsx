@@ -17,8 +17,9 @@ async function estadoDe(src: string): Promise<number | null> {
 
 /**
  * Reproductor de la versión para mirar (HLS 720p, spec 2026-10-22, E10). `src` es la ruta de la
- * app que devuelve la playlist con los segmentos firmados. Safari la reproduce solo; en el resto
- * se carga hls.js recién acá (no pesa en la página hasta que alguien toca "Ver"). Saltar a la
+ * app que devuelve la playlist con los segmentos firmados. hls.js se carga recién acá (no pesa en
+ * la página hasta que alguien toca "Ver") y se usa siempre que haya Media Source; el HLS nativo
+ * queda para los navegadores sin Media Source (ver `modoDeReproduccion`). Saltar a la
  * hora 1 sólo baja los segmentos de ese momento.
  */
 export function ReproductorHls({ src }: { src: string }) {

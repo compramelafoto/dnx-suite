@@ -6,12 +6,15 @@
 export type ModoReproduccion = "NATIVO" | "HLSJS" | "NINGUNO";
 
 /**
- * Safari (y iPhone) reproducen HLS solos: así no hace falta CORS ni bajar hls.js. El resto
- * (Chrome, Firefox, Edge) usa hls.js sobre Media Source.
+ * hls.js primero, siempre que haya Media Source (Chrome, Firefox, Edge, Safari y iPhone con iOS 17
+ * o más). El HLS nativo queda para los navegadores sin Media Source (iPhone viejos): Chrome 14x
+ * contesta "maybe" a `canPlayType` de HLS pero su reproductor propio no pudo con nuestra playlist
+ * de segmentos firmados en R2 (22/10/2026), así que "maybe" ya no alcanza para preferirlo.
  */
 export function modoDeReproduccion(puedeNativo: string, hlsJsSoportado: boolean): ModoReproduccion {
+  if (hlsJsSoportado) return "HLSJS";
   if (puedeNativo === "probably" || puedeNativo === "maybe") return "NATIVO";
-  return hlsJsSoportado ? "HLSJS" : "NINGUNO";
+  return "NINGUNO";
 }
 
 /** Reintentos ante un error fatal de red (p. ej. firmas vencidas tras horas de pausa). */
