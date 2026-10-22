@@ -1,0 +1,145 @@
+// apps/fotoffice/components/digitalizacion/entregas.tsx
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { cambiarEnvioAutomaticoAction, enviarEntregaAction, guardarAjustesEntregaAction } from "@/app/(shell)/digitalizacion/actions";
+import { leerNumero, type EstadoVisibleEntrega, type FranjaEnvio } from "@/lib/digitalizacion/entrega";
+
+type PropsAcciones = {
+  pedidoId: string;
+  entregaId: string | null;
+  estado: EstadoVisibleEntrega;
+  tieneEmail: boolean;
+  envioAutomatico: boolean;
+};
+
+async function copiar(texto: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Botones de la entrega de un pedido en la lista de Digitalización (sólo con permiso de gestión). */
+export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envioAutomatico }: PropsAcciones) {
+  const [pendiente, empezar] = useTransition();
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [enlace, setEnlace] = useState<string | null>(null);
+  const router = useRouter();
+  const destino = entregaId ? { entregaId } : { pedidoId };
+
+  const enviar = () =>
+    empezar(async () => {
+      const r = await enviarEntregaAction(destino, "CORREO");
+      setAviso(r.ok ? (estado === "ENVIADA" ? "Listo: se reenvió el correo con un enlace nuevo." : "Listo: se envió el correo al cliente.") : r.error);
+      router.refresh();
+    });
+
+  const copiarEnlace = () => {
+    const advertencia =
+      estado === "ENVIADA"
+        ? "Se va a generar un enlace nuevo: el que tiene el cliente (por correo o WhatsApp) deja de funcionar. ¿Seguimos?"
+        : "Se va a dar la entrega por enviada (empiezan a correr los 30 días) y se copia el enlace para mandarlo por WhatsApp. ¿Seguimos?";
+    if (!window.confirm(advertencia)) return;
+    empezar(async () => {
+      const r = await enviarEntregaAction(destino, "ENLACE");
+      if (!r.ok) { setAviso(r.error); return; }
+      const ok = await copiar(r.url);
+      setEnlace(ok ? null : r.url);
+      setAviso(ok ? "Enlace nuevo copiado. El anterior ya no funciona." : "Enlace nuevo (copialo a mano). El anterior ya no funciona:");
+      router.refresh();
+    });
+  };
+
+  const cambiarAutomatico = (valor: boolean) =>
+    empezar(async () => {
+      const r = await cambiarEnvioAutomaticoAction(pedidoId, valor);
+      setAviso(r.ok ? null : r.error);
+      router.refresh();
+    });
+
+  const abierta = estado !== "ENVIADA" && estado !== "BORRADA";
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      {estado === "LISTA_PARA_ENVIAR" ? (
+        <button type="button" className="fo-btn fo-btn-primary text-xs" disabled={pendiente || !tieneEmail} onClick={enviar}>Enviar al cliente</button>
+      ) : null}
+      {estado === "ENVIADA" && tieneEmail ? (
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled={pendiente} onClick={enviar}>Reenviar</button>
+      ) : null}
+      {estado === "LISTA_PARA_ENVIAR" || estado === "ENVIADA" ? (
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled={pendiente} onClick={copiarEnlace}>Copiar enlace</button>
+      ) : null}
+      {abierta ? (
+        <label className="flex items-center gap-1 text-xs">
+          <input type="checkbox" checked={envioAutomatico} disabled={pendiente} onChange={(e) => cambiarAutomatico(e.target.checked)} />
+          Enviar automáticamente
+        </label>
+      ) : null}
+      {aviso ? <span className="text-gray-600">{aviso}</span> : null}
+      {enlace ? <input readOnly className="w-full rounded border p-1 text-xs" value={enlace} onFocus={(e) => e.currentTarget.select()} /> : null}
+    </div>
+  );
+}
+
+type FranjaEditable = { hastaKm: string; precioArs: string };
+
+/** E11: envío automático por defecto y franjas de envío de cassettes. */
+export function AjustesEntrega({ envioAutomatico, franjas }: { envioAutomatico: boolean; franjas: FranjaEnvio[] }) {
+  const [auto, setAuto] = useState(envioAutomatico);
+  const [filas, setFilas] = useState<FranjaEditable[]>(franjas.map((f) => ({ hastaKm: String(f.hastaKm), precioArs: String(f.precioArs) })));
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [pendiente, empezar] = useTransition();
+  const router = useRouter();
+
+  const cambiar = (i: number, campo: keyof FranjaEditable, valor: string) => setFilas((fs) => fs.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)));
+
+  const guardar = () =>
+    empezar(async () => {
+      // El rango y los decimales los valida el servidor (`validarFranjas`).
+      const datos = filas.map((f) => ({ hastaKm: leerNumero(f.hastaKm), precioArs: leerNumero(f.precioArs) }));
+      if (datos.some((d) => !Number.isFinite(d.hastaKm) || !Number.isFinite(d.precioArs))) {
+        setAviso("Completá los km y el precio de cada franja con números.");
+        return;
+      }
+      const r = await guardarAjustesEntregaAction(auto, datos);
+      if (!r.ok) { setAviso(r.error); return; }
+      setFilas(r.franjas.map((f) => ({ hastaKm: String(f.hastaKm), precioArs: String(f.precioArs) })));
+      setAviso("Guardado.");
+      router.refresh();
+    });
+
+  return (
+    <div className="space-y-2 text-sm">
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+        Enviar al cliente automáticamente al terminar
+      </label>
+      <div className="space-y-1">
+        <p className="font-medium">Envío de cassettes a domicilio</p>
+        <p className="text-xs text-gray-600">Precio según la distancia desde el estudio. Más lejos que la última franja, o sin franjas: «A coordinar».</p>
+        {filas.map((f, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <label>Hasta
+              <input inputMode="decimal" className="mx-1 w-20 rounded border p-1" value={f.hastaKm} onChange={(e) => cambiar(i, "hastaKm", e.target.value)} aria-label="Hasta cuántos km" />
+              km
+            </label>
+            <label>cuesta
+              <input inputMode="decimal" className="mx-1 w-28 rounded border p-1" value={f.precioArs} onChange={(e) => cambiar(i, "precioArs", e.target.value)} aria-label="Precio en pesos" />
+              pesos
+            </label>
+            <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}>Quitar</button>
+          </div>
+        ))}
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => setFilas((fs) => [...fs, { hastaKm: "", precioArs: "" }])}>Agregar franja</button>
+      </div>
+      <div className="flex items-center gap-2">
+        <button type="button" className="fo-btn fo-btn-primary text-xs" disabled={pendiente} onClick={guardar}>Guardar</button>
+        {aviso ? <span>{aviso}</span> : null}
+      </div>
+    </div>
+  );
+}
