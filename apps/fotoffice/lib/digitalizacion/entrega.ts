@@ -3,7 +3,8 @@
  * sin entorno y con el reloj inyectado. Lo usan el servidor (`servidor/entregas.ts`), los crons y
  * las páginas.
  */
-import { randomBytes } from "node:crypto";
+import { createHmac } from "node:crypto";
+import { hashDeToken } from "@/lib/presupuestos/enlace";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { diasEntre } from "@/lib/pedidos/plan-cuotas";
 
@@ -148,13 +149,35 @@ export function duracionLegible(seg: number): string {
 
 // --- Token y dirección ------------------------------------------------------------------------
 
+const PREFIJO_TOKEN = "fotoffice-videos:v1:";
+/** Cuántas veces se puede renovar el enlace de una entrega (reenviar, copiar enlace). */
+export const MAX_GENERACIONES_ENTREGA = 200;
+
 /**
- * Token de la página de videos: 32 bytes al azar en base64url (43 caracteres, la misma forma que
- * los del pedido, así `tokenConForma` lo filtra igual). En la base sólo queda su hash SHA-256;
- * cada envío, reenvío o "Copiar enlace" genera uno nuevo y el anterior deja de abrir.
+ * Token de la página de videos, con el mismo criterio que el del pedido (`lib/pedidos/enlace.ts`):
+ * HMAC-SHA256 con la clave de los enlaces sobre `fotoffice-videos:v1:<entregaId>:<generación>`, en
+ * base64url (43 caracteres). En la base sólo queda el hash SHA-256; el servidor lo rearma (para el
+ * correo del recordatorio) probando generaciones. Reenviar o "Copiar enlace" pasa a la generación
+ * siguiente y el enlace anterior deja de abrir.
  */
-export function nuevoTokenDeEntrega(): string {
-  return randomBytes(32).toString("base64url");
+export function tokenDeEntrega(entregaId: string, clave: string, generacion: number): string {
+  return createHmac("sha256", clave).update(`${PREFIJO_TOKEN}${entregaId}:${generacion}`).digest("base64url");
+}
+
+/** La generación del enlace vigente (la que da el hash guardado), o null. */
+export function generacionDeEntrega(entregaId: string, hashGuardado: string | null, clave: string): number | null {
+  if (!hashGuardado) return null;
+  for (let g = 0; g <= MAX_GENERACIONES_ENTREGA; g++) {
+    if (hashDeToken(tokenDeEntrega(entregaId, clave, g)) === hashGuardado) return g;
+  }
+  return null;
+}
+
+/** El título con el que se muestra un video: el que le pusieron, o "DVD" / "Cassette N". */
+export function tituloDeVideo(g: { titulo: string | null; tipo: string; cassetteNumero: number | null }): string {
+  if (g.titulo?.trim()) return g.titulo.trim();
+  if (g.tipo === "DVD") return "DVD";
+  return g.cassetteNumero != null ? `Cassette ${g.cassetteNumero}` : "Cassette";
 }
 
 /** Dirección completa: dominio propio o `/w/<slug>`. null si no hay cómo armarla. */

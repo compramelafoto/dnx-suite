@@ -30,3 +30,24 @@ describe("urlDeVideo", () => {
     await expect(urlDeVideo("digitalizacion/ws1/g1/final.mp4.x", "a.mp4", "ver")).rejects.toThrow();
   });
 });
+
+describe("urlDeVideo con duración", () => {
+  it("la página pública firma más corto; nunca más de 24 h", async () => {
+    const { urlDeVideo, SEGUNDOS_VER_PUBLICO } = await import("./almacen");
+    const corta = new URL(await urlDeVideo("digitalizacion/ws1/g1/final.mp4", "a.mp4", "ver", SEGUNDOS_VER_PUBLICO));
+    expect(corta.searchParams.get("X-Amz-Expires")).toBe(String(SEGUNDOS_VER_PUBLICO));
+    const larga = new URL(await urlDeVideo("digitalizacion/ws1/g1/final.mp4", "a.mp4", "descargar", 10 * 24 * 3600));
+    expect(larga.searchParams.get("X-Amz-Expires")).toBe(String(24 * 3600));
+    expect(larga.searchParams.get("response-content-disposition")).toMatch(/^attachment/);
+  });
+});
+
+describe("borrarVideoFinal", () => {
+  it("rechaza claves fuera de la carpeta de la grabación sin tocar R2", async () => {
+    const { borrarVideoFinal } = await import("./almacen");
+    await expect(borrarVideoFinal("digitalizacion/ws1/g1/", "digitalizacion/ws1/OTRA/final.mp4", null)).rejects.toThrow();
+    await expect(borrarVideoFinal("digitalizacion/ws1/g1/", null, "digitalizacion/ws1/OTRA/hls")).rejects.toThrow();
+    await expect(borrarVideoFinal("digitalizacion/ws1/g1/", null, "digitalizacion/ws1/g1/../../x")).rejects.toThrow();
+    await expect(borrarVideoFinal("otra/ws1/g1/", null, null)).rejects.toThrow();
+  });
+});

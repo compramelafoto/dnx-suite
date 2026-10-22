@@ -1,5 +1,5 @@
 import "server-only";
-import { DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, DeleteObjectsCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { bucketR2Privado, clienteR2Privado, esNoEncontrado } from "@/lib/ficha/adjuntos-r2";
 import { MAX_BYTES_PARTE } from "../constants";
@@ -34,6 +34,10 @@ export async function tamanoDeParte(clave: string): Promise<number | null> {
 /** Borra todo lo que esté bajo `digitalizacion/<ws>/<grabacion>/`, de a 1000 objetos. */
 export async function borrarPrefijo(prefijo: string): Promise<void> {
   if (!/^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/$/.test(prefijo)) throw new Error("Prefijo no válido");
+  await borrarTodoBajo(prefijo);
+}
+
+async function borrarTodoBajo(prefijo: string): Promise<void> {
   const s3 = clienteR2Privado();
   let token: string | undefined;
   do {
@@ -48,8 +52,14 @@ export async function borrarPrefijo(prefijo: string): Promise<void> {
 const SEGUNDOS_VIDEO = 24 * 3600;
 const REGEX_CLAVE_VIDEO = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/final\.mp4$/;
 
-/** URL firmada (24 h) del MP4 final, para mirarlo en la página (inline) o bajarlo (attachment). */
-export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "descargar"): Promise<string> {
+/** Para mirar desde la página pública de videos: firma corta, que no cuenta como descarga. */
+export const SEGUNDOS_VER_PUBLICO = 3 * 3600;
+
+/**
+ * URL firmada del MP4 final, para mirarlo en la página (inline) o bajarlo (attachment). Por omisión
+ * dura 24 h; la página pública de videos pide firmas más cortas para mirar.
+ */
+export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "descargar", segundos: number = SEGUNDOS_VIDEO): Promise<string> {
   if (!REGEX_CLAVE_VIDEO.test(clave)) throw new Error("Clave no válida");
   const seguro = encodeURIComponent(nombre).replace(/['()]/g, escape).replace(/\*/g, "%2A");
   const cmd = new GetObjectCommand({
@@ -58,5 +68,25 @@ export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "d
     ResponseContentType: "video/mp4",
     ResponseContentDisposition: `${modo === "descargar" ? "attachment" : "inline"}; filename*=UTF-8''${seguro}`,
   });
-  return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: SEGUNDOS_VIDEO });
+  return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: Math.min(Math.max(60, Math.trunc(segundos)), SEGUNDOS_VIDEO) });
+}
+
+/** HLS: `digitalizacion/<ws>/<grabacion>/<carpeta>`, siempre dentro de la carpeta de la grabación. */
+const REGEX_PREFIJO_HLS = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/?$/;
+
+/**
+ * Al vencer la entrega (E8): borra el MP4 final y, si hay, la versión HLS. Lanza si R2 falla, así
+ * quien llama no marca nada como borrado y lo reintenta en la próxima corrida. Borrar algo que ya
+ * no está no es un error.
+ */
+export async function borrarVideoFinal(prefijoGrabacion: string, videoKey: string | null, hlsKey: string | null): Promise<void> {
+  if (!/^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/$/.test(prefijoGrabacion)) throw new Error("Prefijo no válido");
+  if (videoKey) {
+    if (!REGEX_CLAVE_VIDEO.test(videoKey) || !videoKey.startsWith(prefijoGrabacion)) throw new Error("Clave no válida");
+    await clienteR2Privado().send(new DeleteObjectCommand({ Bucket: bucketR2Privado(), Key: videoKey }));
+  }
+  if (hlsKey) {
+    if (!REGEX_PREFIJO_HLS.test(hlsKey) || !hlsKey.startsWith(prefijoGrabacion)) throw new Error("Prefijo HLS no válido");
+    await borrarTodoBajo(hlsKey.endsWith("/") ? hlsKey : `${hlsKey}/`);
+  }
 }

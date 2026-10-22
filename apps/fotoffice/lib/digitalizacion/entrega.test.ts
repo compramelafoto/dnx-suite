@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { hashDeToken } from "@/lib/presupuestos/enlace";
 import {
-  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, nuevoTokenDeEntrega, pesos,
+  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, generacionDeEntrega, pesos, tituloDeVideo, tokenDeEntrega,
   recordatorioQueCorresponde, urlDeVideos, validarFranjas, leerFranjas, vencimientosDesde, videosVencidos,
 } from "./entrega";
 
@@ -149,10 +150,23 @@ describe("formatos", () => {
 });
 
 describe("token y dirección", () => {
-  it("token de 43 caracteres base64url, distinto cada vez", () => {
-    const a = nuevoTokenDeEntrega();
+  it("token HMAC de 43 caracteres, distinto por entrega y por generación", () => {
+    const a = tokenDeEntrega("e1", "clave", 0);
     expect(a).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(nuevoTokenDeEntrega()).not.toBe(a);
+    expect(tokenDeEntrega("e1", "clave", 0)).toBe(a);
+    expect(tokenDeEntrega("e1", "clave", 1)).not.toBe(a);
+    expect(tokenDeEntrega("e2", "clave", 0)).not.toBe(a);
+    expect(tokenDeEntrega("e1", "otra", 0)).not.toBe(a);
+  });
+  it("rearma la generación vigente desde el hash guardado", () => {
+    expect(generacionDeEntrega("e1", hashDeToken(tokenDeEntrega("e1", "clave", 3)), "clave")).toBe(3);
+    expect(generacionDeEntrega("e1", hashDeToken(tokenDeEntrega("e1", "otra", 3)), "clave")).toBeNull();
+    expect(generacionDeEntrega("e1", null, "clave")).toBeNull();
+  });
+  it("título visible", () => {
+    expect(tituloDeVideo({ titulo: " Boda ", tipo: "VHS", cassetteNumero: 2 })).toBe("Boda");
+    expect(tituloDeVideo({ titulo: null, tipo: "VHS", cassetteNumero: 2 })).toBe("Cassette 2");
+    expect(tituloDeVideo({ titulo: "", tipo: "DVD", cassetteNumero: null })).toBe("DVD");
   });
   it("dominio propio o /w/<slug>", () => {
     expect(urlDeVideos({ customDomain: "estudio.com.ar", appOrigin: "https://fotoffice.com", slug: "x", token: "t" })).toBe("https://estudio.com.ar/videos/t");
