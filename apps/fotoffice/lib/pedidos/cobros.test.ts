@@ -407,3 +407,16 @@ describe("efectos del pago en otros módulos", () => {
     expect(B.datos.digitalizacionGrabacion[0]!.descargasExtra).toBe(1);
   });
 });
+
+describe("cuotas de cargos extra en el reparto automático", () => {
+  it("regresión: con la cuota 3 impaga y un cargo de hoy, el cobro automático va a la cuota 3", async () => {
+    const { agregarCargoAlPedido } = await import("./cargos");
+    await cobrado("ped-1", 80000);
+    const c = await agregarCargoAlPedido({ workspaceId: "ws-1", pedidoId: "ped-1", concepto: "Extensión", montoArs: 15000, origen: "prueba", ahora: AHORA });
+    if (!c.ok) throw new Error(c.error);
+    const r = await cobrado("ped-1", 40000);
+    expect(imputacionesDe(r.cobroId)).toEqual([["ped-1-c3", "40000.00"]]);
+    const r2 = await cobrado("ped-1", 15000);
+    expect(imputacionesDe(r2.cobroId)).toEqual([[c.cuotaId, "15000.00"]]);
+  });
+});

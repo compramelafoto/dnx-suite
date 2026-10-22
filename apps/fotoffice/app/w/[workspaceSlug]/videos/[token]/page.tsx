@@ -23,7 +23,6 @@ type Props = {
 /** El aviso de un cargo que no se pudo pedir (`?cargo=error&motivo=`): sólo códigos conocidos. */
 function avisoDeCargo(cargo: unknown, motivo: unknown): string | null {
   if (cargo !== "error") return null;
-  if (motivo === "limite") return "Hubo demasiados pedidos desde tu conexión. Esperá unos minutos y probá de nuevo.";
   if (typeof motivo === "string" && Object.hasOwn(MENSAJES_CARGOS, motivo)) return MENSAJES_CARGOS[motivo as keyof typeof MENSAJES_CARGOS];
   return MENSAJES_CARGOS.fallo;
 }

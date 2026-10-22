@@ -4,7 +4,10 @@ import { prisma, type Prisma } from "@repo/db";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { MENSAJES_PEDIDO } from "./acceso";
 import { esEstadoPedido, OPCIONES_TRANSACCION_PEDIDO } from "./constantes";
-import { armarItemCargo, hayLugarParaOtroItem, itemDeCargo, itemsConCargo, itemsSinCargo, totalesConCargo } from "./cargos-puro";
+import { decimalArsToMinor } from "@/lib/membership/money";
+import {
+  ajustarTotales, armarItemCargo, hayLugarParaOtroItem, itemDeCargo, itemsConCargo, itemsConPrecio, itemsSinCargo, precioDelRenglonDeCargo, totalesConCargo,
+} from "./cargos-puro";
 import { bloquearPedido, fechaParaBase, pesosDeBase, pesosParaBase } from "./plan";
 import { aCentavos, tieneHastaDosDecimales } from "./plan-cuotas";
 
@@ -19,8 +22,9 @@ import { aCentavos, tieneHastaDosDecimales } from "./plan-cuotas";
  * - Un pedido CANCELADO no acepta cargos. Uno COMPLETADO sí y sigue COMPLETADO: el estado del
  *   pedido es del trabajo y se pasa a mano (`puedePasarPedido` no deja volver de COMPLETADO); el
  *   saldo nuevo se ve y se cobra igual que el de cualquier pedido completado.
- * - Quitar un cargo (`quitarCargoDelPedido`) sólo se puede mientras su cuota no tenga ningún
- *   cobro imputado (ni siquiera anulado: la FK lo frena).
+ * - Quitar un cargo (`quitarCargoDelPedido`) o cambiar su importe sólo se puede mientras siga
+ *   intacto: su cuota sin ninguna imputación (ni de cobros anulados) y con el mismo importe que su
+ *   renglón. Nunca baja `totalArs` sin bajar `totals`, ni toca deuda que no sea del cargo.
  *
  * Nunca loguea datos personales.
  */
@@ -47,7 +51,8 @@ export const MENSAJES_CARGO = {
   cancelado: MENSAJES_PEDIDO.cancelado,
   noExiste: MENSAJES_PEDIDO.noExiste,
   muchosItems: "El pedido ya tiene demasiados renglones para sumar otro cargo.",
-  conCobros: "Ese cargo ya tiene un pago registrado: no se puede quitar.",
+  conCobros: "Ese cargo ya tiene un pago registrado o iniciado: no se puede cambiar.",
+  planEditado: "El plan de pagos se editó a mano: revisá ese cargo en el pedido.",
   fallo: MENSAJES_PEDIDO.fallo,
 } as const;
 
@@ -126,31 +131,57 @@ export async function agregarCargoAlPedido(d: DatosCargo): Promise<ResultadoCarg
   }
 }
 
+export type MotivoCargoTrabado = "CON_COBROS" | "PLAN_EDITADO" | "NO_EXISTE";
+export type ResultadoTocarCargo = { ok: true } | { ok: false; motivo: MotivoCargoTrabado; error: string };
+
 /**
- * Deshace un cargo DENTRO de la transacción del llamador: saca el renglón, baja el total y borra su
- * cuota (las de después suben un lugar). Sólo si la cuota no tiene imputaciones. Si la cuota ya no
- * existe (alguien rehízo el plan), no toca el total: el plan ya se cuadró a mano.
+ * ¿El cargo sigue tal como se sumó? La cuota existe, no tiene NINGUNA imputación (ni de cobros
+ * anulados), vale exactamente el monto del cargo, su renglón `cargo-<cuotaId>` está en los ítems
+ * con ese precio y el total lo contiene. Si algo no cuadra, alguien editó el plan a mano: tocar el
+ * cargo podría borrar deuda que no es suya, así que no se toca.
  */
-export async function quitarCargoEnTransaccion(tx: Tx, d: { workspaceId: string; pedidoId: string; cuotaId: string }): Promise<void> {
+async function cargoIntacto(
+  tx: Tx,
+  d: { workspaceId: string; pedidoId: string; cuotaId: string; montoArs: number },
+): Promise<{ ok: true; p: { id: string; items: unknown; totals: unknown; totalArs: { toString(): string } }; position: number } | { ok: false; motivo: MotivoCargoTrabado; error: string }> {
   await bloquearPedido(tx, d.pedidoId);
   const p = await tx.fotofficePedido.findFirst({
     where: { id: d.pedidoId, workspaceId: d.workspaceId },
     select: { id: true, items: true, totals: true, totalArs: true },
   });
-  if (!p) throw new Corte(MENSAJES_CARGO.noExiste);
+  if (!p) return { ok: false, motivo: "NO_EXISTE", error: MENSAJES_CARGO.noExiste };
   const cuota = await tx.fotofficePedidoCuota.findFirst({
     where: { id: d.cuotaId, workspaceId: d.workspaceId, pedidoId: p.id },
     select: { id: true, position: true, amountArs: true },
   });
-  if (!cuota) return;
+  if (!cuota) return { ok: false, motivo: "PLAN_EDITADO", error: MENSAJES_CARGO.planEditado };
   const imputaciones = await tx.fotofficeCobroImputacion.count({ where: { workspaceId: d.workspaceId, cuotaId: cuota.id } });
-  if (imputaciones > 0) throw new Corte(MENSAJES_CARGO.conCobros);
-  const monto = pesosDeBase(cuota.amountArs);
-  const itemId = itemDeCargo(cuota.id);
-  const items = itemsSinCargo(p.items, itemId);
-  await tx.fotofficePedidoCuota.deleteMany({ where: { id: cuota.id, workspaceId: d.workspaceId } });
+  if (imputaciones > 0) return { ok: false, motivo: "CON_COBROS", error: MENSAJES_CARGO.conCobros };
+  const monto = aCentavos(d.montoArs);
+  const precio = precioDelRenglonDeCargo(p.items, cuota.id);
+  if (decimalArsToMinor(cuota.amountArs) !== monto || precio === null || aCentavos(precio) !== monto || decimalArsToMinor(p.totalArs) < monto) {
+    return { ok: false, motivo: "PLAN_EDITADO", error: MENSAJES_CARGO.planEditado };
+  }
+  return { ok: true, p, position: cuota.position };
+}
+
+/**
+ * Deshace un cargo DENTRO de la transacción del llamador: saca el renglón, baja el total y los
+ * `totals` en lo mismo y borra su cuota (las de después suben un lugar). Sólo si el cargo sigue
+ * intacto (`cargoIntacto`); si no, no toca nada y devuelve por qué (no lanza: el llamador decide).
+ */
+export async function quitarCargoEnTransaccion(
+  tx: Tx,
+  d: { workspaceId: string; pedidoId: string; cuotaId: string; montoArs: number },
+): Promise<ResultadoTocarCargo> {
+  const v = await cargoIntacto(tx, d);
+  if (!v.ok) return v;
+  const itemId = itemDeCargo(d.cuotaId);
+  const items = itemsSinCargo(v.p.items, itemId);
+  if (!items) return { ok: false, motivo: "PLAN_EDITADO", error: MENSAJES_CARGO.planEditado };
+  await tx.fotofficePedidoCuota.deleteMany({ where: { id: d.cuotaId, workspaceId: d.workspaceId } });
   const siguientes = await tx.fotofficePedidoCuota.findMany({
-    where: { workspaceId: d.workspaceId, pedidoId: p.id, position: { gt: cuota.position } },
+    where: { workspaceId: d.workspaceId, pedidoId: v.p.id, position: { gt: v.position } },
     orderBy: [{ position: "asc" }],
     select: { id: true, position: true },
   });
@@ -158,24 +189,80 @@ export async function quitarCargoEnTransaccion(tx: Tx, d: { workspaceId: string;
     await tx.fotofficePedidoCuota.update({ where: { id: c.id }, data: { position: c.position - 1 }, select: { id: true } });
   }
   await tx.fotofficePedido.update({
-    where: { id: p.id },
+    where: { id: v.p.id },
     data: {
-      ...(items ? { items: items as unknown as Prisma.InputJsonValue, totals: totalesConCargo(p.totals, itemId, monto, -1) as Prisma.InputJsonValue } : {}),
-      totalArs: pesosParaBase(Math.max(0, pesosDeBase(p.totalArs) - monto)),
+      items: items as unknown as Prisma.InputJsonValue,
+      totals: totalesConCargo(v.p.totals, itemId, d.montoArs, -1) as Prisma.InputJsonValue,
+      totalArs: pesosParaBase(pesosDeBase(v.p.totalArs) - d.montoArs),
     },
     select: { id: true },
   });
+  return { ok: true };
 }
 
-/** `quitarCargoEnTransaccion` en su propia transacción. No lanza. */
-export async function quitarCargoDelPedido(d: { workspaceId: string; pedidoId: string; cuotaId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+/**
+ * Cambia el importe de un cargo EN EL LUGAR (la misma cuota, el mismo renglón): cuota, renglón,
+ * `totals` y `totalArs` juntos. Así un pago ya abierto (un checkout de Mercado Pago) sigue apuntando
+ * a una cuota que existe. Mismas condiciones que quitar; además, sin una transferencia esperada
+ * abierta para esa cuota (el cliente ya tiene el importe viejo para transferir).
+ */
+export async function cambiarMontoDelCargoEnTransaccion(
+  tx: Tx,
+  d: { workspaceId: string; pedidoId: string; cuotaId: string; montoArs: number; montoNuevoArs: number },
+): Promise<ResultadoTocarCargo> {
+  if (!montoValido(d.montoNuevoArs)) throw new Corte(MENSAJES_CARGO.monto);
+  const v = await cargoIntacto(tx, d);
+  if (!v.ok) return v;
+  const espera = await tx.fotofficeEsperaPago.count({ where: { workspaceId: d.workspaceId, cuotaId: d.cuotaId, estado: "ESPERANDO" } });
+  if (espera > 0) return { ok: false, motivo: "CON_COBROS", error: MENSAJES_CARGO.conCobros };
+  const itemId = itemDeCargo(d.cuotaId);
+  const items = itemsConPrecio(v.p.items, itemId, d.montoNuevoArs);
+  if (!items) return { ok: false, motivo: "PLAN_EDITADO", error: MENSAJES_CARGO.planEditado };
+  const delta = d.montoNuevoArs - d.montoArs;
+  await tx.fotofficePedidoCuota.update({ where: { id: d.cuotaId }, data: { amountArs: pesosParaBase(d.montoNuevoArs) }, select: { id: true } });
+  await tx.fotofficePedido.update({
+    where: { id: v.p.id },
+    data: {
+      items: items as unknown as Prisma.InputJsonValue,
+      totals: ajustarTotales(v.p.totals, itemId, d.montoNuevoArs, delta) as Prisma.InputJsonValue,
+      totalArs: pesosParaBase(pesosDeBase(v.p.totalArs) + delta),
+    },
+    select: { id: true },
+  });
+  return { ok: true };
+}
+
+/**
+ * `quitarCargoEnTransaccion` en su propia transacción. No lanza. Si el cargo no está intacto por
+ * un plan editado a mano, deja una tarea en el pedido para que alguien lo revise.
+ */
+export async function quitarCargoDelPedido(d: { workspaceId: string; pedidoId: string; cuotaId: string; montoArs: number; concepto?: string }): Promise<ResultadoTocarCargo | { ok: false; motivo: "FALLO"; error: string }> {
   try {
-    await prisma.$transaction((tx) => quitarCargoEnTransaccion(tx, d), OPCIONES_TRANSACCION_PEDIDO);
-    return { ok: true };
+    const r = await prisma.$transaction((tx) => quitarCargoEnTransaccion(tx, d), OPCIONES_TRANSACCION_PEDIDO);
+    if (!r.ok && r.motivo === "PLAN_EDITADO") await avisarCargoParaRevisar(d.workspaceId, d.pedidoId, d.concepto ?? "un cargo extra");
+    return r;
   } catch (e) {
-    if (e instanceof Corte) return { ok: false, error: e.mensaje };
     falla("quitarCargoDelPedido", e);
-    return { ok: false, error: MENSAJES_CARGO.fallo };
+    return { ok: false, motivo: "FALLO", error: MENSAJES_CARGO.fallo };
+  }
+}
+
+/**
+ * Deja en el checklist del pedido la tarea «Revisá el cargo …: el plan se editó a mano» (una sola
+ * vez por concepto: si ya está sin hacer, no la repite). Nunca lanza.
+ */
+export async function avisarCargoParaRevisar(workspaceId: string, pedidoId: string, concepto: string): Promise<void> {
+  const title = `Revisá el cargo «${concepto.trim().slice(0, 120)}»: el plan se editó a mano y el sistema no lo tocó.`;
+  try {
+    await prisma.$transaction(async (tx) => {
+      await bloquearPedido(tx, pedidoId);
+      const ya = await tx.fotofficePedidoTarea.findFirst({ where: { workspaceId, pedidoId, title, doneAt: null }, select: { id: true } });
+      if (ya) return;
+      const ultima = await tx.fotofficePedidoTarea.findFirst({ where: { workspaceId, pedidoId }, orderBy: [{ position: "desc" }], select: { position: true } });
+      await tx.fotofficePedidoTarea.create({ data: { workspaceId, pedidoId, position: (ultima?.position ?? 0) + 1, title }, select: { id: true } });
+    }, OPCIONES_TRANSACCION_PEDIDO);
+  } catch (e) {
+    falla("avisarCargoParaRevisar", e);
   }
 }
 

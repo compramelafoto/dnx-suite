@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({
-  digitalizacionEntrega: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
-  digitalizacionAjustes: { findUnique: vi.fn() },
-  digitalizacionGrabacion: { findMany: vi.fn(), updateMany: vi.fn() },
-  fotofficePedido: { findFirst: vi.fn(), findMany: vi.fn() },
-  fotofficeWorkspaceBranding: { findUnique: vi.fn() },
-  fotofficeProyectoNota: { createMany: vi.fn() },
-}));
+const db = vi.hoisted(() => {
+  const d = {
+    digitalizacionEntrega: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    digitalizacionAjustes: { findUnique: vi.fn() },
+    digitalizacionGrabacion: { findMany: vi.fn(), updateMany: vi.fn() },
+    fotofficePedido: { findFirst: vi.fn(), findMany: vi.fn() },
+    fotofficeWorkspaceBranding: { findUnique: vi.fn() },
+    fotofficeProyectoNota: { createMany: vi.fn() },
+    $executeRaw: vi.fn(async () => 0),
+    $queryRaw: vi.fn(async () => []),
+    $transaction: vi.fn(),
+  };
+  d.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(d));
+  return d;
+});
 vi.mock("@repo/db", () => ({ prisma: db }));
 const almacen = vi.hoisted(() => ({ borrarVideoFinal: vi.fn() }));
 vi.mock("./almacen", () => almacen);
@@ -17,7 +24,11 @@ const cargos = vi.hoisted(() => ({
   cargosPendientes: vi.fn(async () => new Map()),
 }));
 vi.mock("./cargos", () => cargos);
-const saldo = vi.hoisted(() => ({ saldoDelPedido: vi.fn() }));
+const saldo = vi.hoisted(() => {
+  const saldoDelPedido = vi.fn();
+  // El correo usa el saldo sin extras opcionales: acá, el mismo mock.
+  return { saldoDelPedido, saldoSinExtrasOpcionales: (...a: unknown[]) => saldoDelPedido(...a) };
+});
 vi.mock("@/lib/pedidos/candado-saldo", () => saldo);
 vi.mock("@/lib/pedidos/enlace", () => ({
   enlaceDelPedidoDelSistema: vi.fn(async () => ({ ok: true, url: "https://fotoffice.com/w/fp/pedido/PED" })),
@@ -49,6 +60,7 @@ const lista = { id: "g1", proyectoId: "t1", estado: "COMPLETA", conversionEstado
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
   for (const m of [db.digitalizacionGrabacion.findMany, db.digitalizacionEntrega.findMany, db.digitalizacionEntrega.findUnique, db.fotofficePedido.findMany]) m.mockReset();
   db.digitalizacionEntrega.findMany.mockResolvedValue([]);
   db.fotofficePedido.findMany.mockResolvedValue([]);
@@ -246,16 +258,35 @@ describe("recordatoriosYVencimientos", () => {
   const enviada = (vence: string, extra: Record<string, unknown> = {}) =>
     entrega({ accessTokenHash: hashDeToken(tokenDeEntrega("e1", "clave", 2)), enviadoAt: new Date("2026-10-01T00:00:00Z"), videosVencenAt: new Date(vence), ...extra });
 
-  it("vencida: borra de R2 y marca grabaciones y entrega", async () => {
+  const releida = (vence: string, extra: Record<string, unknown> = {}) =>
+    db.digitalizacionEntrega.findFirst.mockResolvedValue({ videosVencenAt: new Date(vence), videosBorradosAt: null, ...extra });
+
+  it("vencida: con los candados vuelve a leer, marca la entrega y borra de R2", async () => {
     db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);
+    releida("2026-10-22T14:00:00Z");
     const r = await recordatoriosYVencimientos(deps());
     expect(almacen.borrarVideoFinal).toHaveBeenCalledWith("digitalizacion/ws1/g1/", "digitalizacion/ws1/g1/final.mp4", null);
     expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalledWith({ where: { id: "g1", workspaceId: "ws1" }, data: { videoBorradoAt: AHORA } });
     expect(db.digitalizacionEntrega.updateMany).toHaveBeenCalledWith({ where: { id: "e1", workspaceId: "ws1", videosBorradosAt: null }, data: { videosBorradosAt: AHORA } });
+    expect(db.$executeRaw).toHaveBeenCalled();
+    expect(db.$executeRaw.mock.invocationCallOrder[0]!).toBeLessThan(db.$queryRaw.mock.invocationCallOrder[0]!);
+    expect(db.$queryRaw.mock.invocationCallOrder[0]!).toBeLessThan(almacen.borrarVideoFinal.mock.invocationCallOrder[0]!);
     expect(r).toMatchObject({ borradas: 1 });
+  });
+  it("si alguien la extendió en el medio, no borra nada", async () => {
+    db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);
+    releida("2026-11-21T14:00:00Z");
+    const r = await recordatoriosYVencimientos(deps());
+    expect(almacen.borrarVideoFinal).not.toHaveBeenCalled();
+    expect(db.digitalizacionEntrega.updateMany).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ borradas: 0, borradoFallido: 0 });
+    releida("2026-10-22T14:00:00Z", { videosBorradosAt: AHORA });
+    await recordatoriosYVencimientos(deps());
+    expect(almacen.borrarVideoFinal).not.toHaveBeenCalled();
   });
   it("clave con forma inesperada: no la toca, la marca igual y avisa en el log", async () => {
     db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);
+    releida("2026-10-22T14:00:00Z");
     db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, videoKey: "otra/cosa.mp4", hlsKey: "digitalizacion/ws1/g1/hls" }]);
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     const r = await recordatoriosYVencimientos(deps());
@@ -264,13 +295,17 @@ describe("recordatoriosYVencimientos", () => {
     expect(aviso).toHaveBeenCalled();
     expect(r).toMatchObject({ borradas: 1 });
   });
-  it("si R2 falla, no marca nada como borrado (se reintenta mañana)", async () => {
+  it("si R2 falla, desmarca la entrega (se reintenta mañana)", async () => {
     db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);
+    releida("2026-10-22T14:00:00Z");
     almacen.borrarVideoFinal.mockRejectedValue(new Error("R2 caído"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     const r = await recordatoriosYVencimientos(deps());
     expect(db.digitalizacionGrabacion.updateMany).not.toHaveBeenCalled();
-    expect(db.digitalizacionEntrega.updateMany).not.toHaveBeenCalled();
+    expect(db.digitalizacionEntrega.updateMany.mock.calls.map((c) => c[0])).toEqual([
+      { where: { id: "e1", workspaceId: "ws1", videosBorradosAt: null }, data: { videosBorradosAt: AHORA } },
+      { where: { id: "e1", workspaceId: "ws1", videosBorradosAt: AHORA }, data: { videosBorradosAt: null } },
+    ]);
     expect(r).toMatchObject({ borradas: 0, borradoFallido: 1 });
   });
   it("faltan 4 días: reserva el 5, manda el recordatorio con el enlace vigente", async () => {

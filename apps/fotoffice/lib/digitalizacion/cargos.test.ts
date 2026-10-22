@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MINIMO_CARGO_ARS, cotizarEnvioCassettes, franjaParaKm, kmDeEnvio, precioDescargaExtra, precioExtension, precioUnitarioDelTrabajo,
-  puedeComprarDescarga, puedeExtender, puedePedirEnvio, saldoParaVideos, totalOriginal, vencimientoExtendido,
+  puedeComprarDescarga, puedeExtender, puedePedirEnvio, totalOriginal, vencimientoExtendido,
 } from "./cargos";
 
 const AHORA = new Date("2026-10-22T15:00:00Z");
@@ -110,14 +110,5 @@ describe("vencimiento extendido", () => {
   it("si ya venció, desde hoy", () => {
     expect(vencimientoExtendido(new Date("2026-10-01T00:00:00Z"), AHORA).toISOString()).toBe("2026-11-22T02:59:59.999Z");
     expect(vencimientoExtendido(null, AHORA).toISOString()).toBe("2026-11-22T02:59:59.999Z");
-  });
-});
-
-describe("saldo para habilitar los videos", () => {
-  it("no cuenta lo que falta de los cargos sin pagar", () => {
-    expect(saldoParaVideos(375000, [375000])).toBe(0);
-    expect(saldoParaVideos(1375000, [375000])).toBe(1000000);
-    expect(saldoParaVideos(100000, [375000])).toBe(0);
-    expect(saldoParaVideos(500, [])).toBe(500);
   });
 });

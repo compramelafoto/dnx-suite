@@ -3,7 +3,8 @@ import { prisma, type Prisma } from "@repo/db";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { saldoDelPedido } from "@/lib/pedidos/candado-saldo";
+import { saldoSinExtrasOpcionales } from "@/lib/pedidos/candado-saldo";
+import { bloquearPedido } from "@/lib/pedidos/plan";
 import { enlaceDelPedidoDelSistema, MENSAJES_ENLACE } from "@/lib/pedidos/enlace";
 import { hashDeToken, resolverClaveDeEnlace } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
@@ -280,7 +281,8 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
   }
 
   const [saldo, enlacePedido, contacto] = await Promise.all([
-    saldoDelPedido(prisma as unknown as Tx, workspaceId, e.pedidoId),
+    // El saldo que habilita los videos: sin los extras opcionales (descargas, extensión, envío).
+    saldoSinExtrasOpcionales(prisma as unknown as Tx, workspaceId, e.pedidoId),
     enlaceDelPedidoDelSistema(workspaceId, e.pedidoId, {}, { clave: prep.clave, appOrigin: prep.sitio.appOrigin }),
     contactoDelNegocio(workspaceId),
   ]);
@@ -583,16 +585,33 @@ export type ReporteVencimientos = {
 };
 
 /**
- * Borra de R2 los videos de una entrega vencida. Marca `videoBorradoAt` en cada grabación que se
- * pudo borrar y `videosBorradosAt` en la entrega sólo si se borraron todas: si R2 falla en alguna,
- * la entrega queda sin marcar y la corrida de mañana reintenta (borrar lo que ya no está no falla).
+ * Borra de R2 los videos de una entrega vencida. Antes, con los candados del pedido y de la entrega
+ * (el mismo orden que aplicar una extensión paga), vuelve a leer `videosVencenAt` y
+ * `videosBorradosAt`: si alguien extendió la entrega en el medio (o ya se borró), no borra nada. Si
+ * sigue vencida, la marca `videosBorradosAt` en esa misma transacción: así una extensión que se pague
+ * mientras se borra ya la ve borrada (y avisa al equipo) en lugar de correr un vencimiento de videos
+ * que no existen. Si R2 falla en alguna grabación, se desmarca y la corrida de mañana reintenta
+ * (borrar lo que ya no está no falla). Marca `videoBorradoAt` en cada grabación que se pudo borrar.
  *
  * `videoKey` es `digitalizacion/<ws>/<grabacion>/final.mp4`; `hlsKey` es un PREFIJO de carpeta sin
  * barra final (`digitalizacion/<ws>/<grabacion>/hls`) y se borra todo lo que hay adentro. Una clave
  * con forma inesperada no se toca (no se borra algo que no es de la grabación): se registra en el
  * log y la grabación se marca igual, para no fallar todos los días por lo mismo.
  */
-export async function borrarVideosDeEntrega(e: Pick<EntregaLeida, "id" | "workspaceId" | "pedidoId">, ahora: Date): Promise<boolean> {
+export async function borrarVideosDeEntrega(
+  e: Pick<EntregaLeida, "id" | "workspaceId" | "pedidoId" | "videosVencenAt">,
+  ahora: Date,
+): Promise<boolean | "SIN_CAMBIOS"> {
+  const reclamada = await prisma.$transaction(async (tx) => {
+    await bloquearPedido(tx, e.pedidoId);
+    await tx.$queryRaw`SELECT id FROM "DigitalizacionEntrega" WHERE id = ${e.id} FOR UPDATE`;
+    const actual = await tx.digitalizacionEntrega.findFirst({ where: { id: e.id, workspaceId: e.workspaceId }, select: { videosVencenAt: true, videosBorradosAt: true } });
+    if (!actual || actual.videosBorradosAt || !actual.videosVencenAt) return false;
+    if (actual.videosVencenAt.getTime() !== e.videosVencenAt?.getTime() || !videosVencidos(actual, ahora)) return false;
+    const r = await tx.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: null }, data: { videosBorradosAt: ahora } });
+    return r.count === 1;
+  });
+  if (!reclamada) return "SIN_CAMBIOS";
   const grabaciones = await grabacionesDelPedido(e.workspaceId, e.pedidoId);
   let todas = true;
   for (const g of grabaciones) {
@@ -610,8 +629,10 @@ export async function borrarVideosDeEntrega(e: Pick<EntregaLeida, "id" | "worksp
       console.error("[digitalizacion][entrega] no se pudo borrar un video vencido", { codigo: codigo(err) });
     }
   }
-  if (!todas) return false;
-  await prisma.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: null }, data: { videosBorradosAt: ahora } });
+  if (!todas) {
+    await prisma.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: ahora }, data: { videosBorradosAt: null } });
+    return false;
+  }
   return true;
 }
 
@@ -666,8 +687,9 @@ export async function recordatoriosYVencimientos(deps: DepsEntrega = {}): Promis
     reporte.revisadas++;
     try {
       if (videosVencidos(e, ahora)) {
-        if (await borrarVideosDeEntrega(e, ahora)) reporte.borradas++;
-        else reporte.borradoFallido++;
+        const b = await borrarVideosDeEntrega(e, ahora);
+        if (b === true) reporte.borradas++;
+        else if (b === false) reporte.borradoFallido++;
         continue;
       }
       const umbral = recordatorioQueCorresponde(e, ahora);

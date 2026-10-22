@@ -125,15 +125,6 @@ export function vencimientoExtendido(videosVencenAt: Date | null, ahora: Date): 
   return finDelDiaArgentino(new Date(desde + DIAS_VIGENCIA * DIA_MS));
 }
 
-/**
- * El saldo que traba los videos (E4): el del pedido sin lo que falta de los cargos extra sin pagar.
- * Pedir una descarga extra o una extensión sube el saldo del pedido, pero no puede apagar los
- * videos que el cliente ya pagó. Todo en centavos.
- */
-export function saldoParaVideos(saldoPedidoMinor: number, pendientesMinor: readonly number[]): number {
-  return Math.max(0, saldoPedidoMinor - pendientesMinor.reduce((s, m) => s + Math.max(0, m), 0));
-}
-
 // --- Textos -----------------------------------------------------------------------------------
 
 /** El renglón del pedido de cada cargo (lo ve el cliente en la página del pedido y en el recibo). */

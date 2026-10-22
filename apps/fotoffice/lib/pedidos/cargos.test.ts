@@ -11,12 +11,16 @@ vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: vi.fn(async () => (
 
 const CA = await import("./cargos");
 const PL = await import("./plan");
-const { saldoDelPedido } = await import("./candado-saldo");
+const { saldoDelPedido, saldoSinExtrasOpcionales, exigirPedidoPagado } = await import("./candado-saldo");
 const { validarPlan } = await import("./plan-cuotas");
 const { itemsGuardados } = await import("@/lib/presupuestos/versiones");
 const { calcularTotales } = await import("@/lib/presupuestos/totales");
 
 // 12:00 en Buenos Aires del 22/10; a las 23:30 de Argentina ya es 23/10 en UTC.
+/** Abre una transacción de la base en memoria (su `prisma` no tiene tipos). */
+const enTransaccion = <T,>(fn: (tx: never) => Promise<T>): Promise<T> =>
+  (B.prisma as unknown as { $transaction: (f: (tx: never) => Promise<T>) => Promise<T> }).$transaction(fn);
+
 const AHORA = new Date("2026-10-22T15:00:00.000Z");
 const NOCHE = new Date("2026-10-23T02:30:00.000Z");
 const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: { orders: "MANAGE" } } as never };
@@ -128,12 +132,14 @@ describe("agregarCargoAlPedido", () => {
 });
 
 describe("quitarCargoDelPedido", () => {
+  const quitar = (cuotaId: string, montoArs = 3750) => CA.quitarCargoDelPedido({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId, montoArs, concepto: "Descarga extra" });
+
   it("deja el pedido como estaba", async () => {
     const r = await cargo();
     if (!r.ok) throw new Error(r.error);
     const r2 = await cargo({ montoArs: 500 });
     if (!r2.ok) throw new Error(r2.error);
-    expect(await CA.quitarCargoDelPedido({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: r.cuotaId })).toEqual({ ok: true });
+    expect(await quitar(r.cuotaId)).toEqual({ ok: true });
     const p = fila();
     expect(p.totalArs).toBe("30500.00");
     expect((p.items as unknown[]).map((i) => (i as { id: string }).id)).toEqual(["it-1", `cargo-${r2.cuotaId}`]);
@@ -142,11 +148,97 @@ describe("quitarCargoDelPedido", () => {
     expect(cuotas().map((c) => [c.id, c.position])).toEqual([["ped-1-c1", 1], ["ped-1-c2", 2], [r2.cuotaId, 3]]);
   });
 
-  it("no se quita un cargo con un cobro imputado", async () => {
+  it("no se quita un cargo con un cobro imputado, aunque esté anulado", async () => {
     const r = await cargo();
     if (!r.ok) throw new Error(r.error);
-    B.agregar("fotofficeCobroImputacion", { workspaceId: "ws-1", cobroId: "cob-1", cuotaId: r.cuotaId, amountArs: "100.00" });
-    expect(await CA.quitarCargoDelPedido({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: r.cuotaId })).toEqual({ ok: false, error: CA.MENSAJES_CARGO.conCobros });
+    B.agregar("fotofficeCobroImputacion", { workspaceId: "ws-1", cobroId: "cob-anulado", cuotaId: r.cuotaId, amountArs: "100.00" });
+    expect(await quitar(r.cuotaId)).toMatchObject({ ok: false, motivo: "CON_COBROS" });
     expect(fila().totalArs).toBe("33750.00");
+  });
+
+  it("si el plan se editó a mano (la cuota del cargo vale otra cosa) no borra deuda ajena y deja una tarea", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    // Alguien juntó la cuota 2 con la del cargo: ahora vale 18.750.
+    B.datos.fotofficePedidoCuota = B.datos.fotofficePedidoCuota.filter((c) => c.id !== "ped-1-c2");
+    B.datos.fotofficePedidoCuota.find((c) => c.id === r.cuotaId)!.amountArs = "18750.00";
+    expect(await quitar(r.cuotaId)).toEqual({ ok: false, motivo: "PLAN_EDITADO", error: CA.MENSAJES_CARGO.planEditado });
+    expect(fila().totalArs).toBe("33750.00");
+    expect(cuotas()).toHaveLength(2);
+    const tareas = B.datos.fotofficePedidoTarea.map((t) => t.title);
+    expect(tareas).toEqual(["Revisá el cargo «Descarga extra»: el plan se editó a mano y el sistema no lo tocó."]);
+    // Una sola tarea aunque se intente de nuevo.
+    await quitar(r.cuotaId);
+    expect(B.datos.fotofficePedidoTarea).toHaveLength(1);
+  });
+
+  it("si el renglón no está o no coincide, no toca el total ni los totals", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    fila().items = (fila().items as { id: string }[]).filter((i) => i.id === "it-1");
+    expect(await quitar(r.cuotaId)).toMatchObject({ ok: false, motivo: "PLAN_EDITADO" });
+    expect(fila().totalArs).toBe("33750.00");
+    expect((fila().totals as { total: number }).total).toBe(33750);
+  });
+
+  it("con el monto equivocado no quita nada", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    expect(await quitar(r.cuotaId, 1000)).toMatchObject({ ok: false, motivo: "PLAN_EDITADO" });
+  });
+});
+
+describe("cambiar el importe de un cargo en el lugar", () => {
+  const cambiar = (cuotaId: string, montoNuevoArs: number) =>
+    enTransaccion((tx: never) => CA.cambiarMontoDelCargoEnTransaccion(tx, { workspaceId: "ws-1", pedidoId: "ped-1", cuotaId, montoArs: 3750, montoNuevoArs }));
+
+  it("misma cuota y mismo renglón, con total, totals y cuota al nuevo importe", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    expect(await cambiar(r.cuotaId, 9000)).toEqual({ ok: true });
+    expect(cuotas()[2]).toMatchObject({ id: r.cuotaId, amountArs: "9000.00" });
+    expect((fila().items as { precioUnitario: number }[])[1]!.precioUnitario).toBe(9000);
+    expect(fila().totalArs).toBe("39000.00");
+    expect((fila().totals as { total: number; renglones: Record<string, { neto: number }> })).toMatchObject({ total: 39000, renglones: { [`cargo-${r.cuotaId}`]: { neto: 9000 } } });
+  });
+
+  it("con un cobro o una transferencia esperada, no lo cambia", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    B.agregar("fotofficeEsperaPago", { workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: r.cuotaId, importeEsperadoArs: "3750.00", estado: "ESPERANDO" });
+    expect(await cambiar(r.cuotaId, 9000)).toMatchObject({ ok: false, motivo: "CON_COBROS" });
+    expect(fila().totalArs).toBe("33750.00");
+  });
+});
+
+describe("saldo sin extras opcionales", () => {
+  /** Paga el pedido original entero (un cobro vigente a cada cuota del plan). */
+  function pagarPlan() {
+    for (const id of ["ped-1-c1", "ped-1-c2"]) {
+      B.agregar("fotofficeCobro", { id: `cob-${id}`, workspaceId: "ws-1", pedidoId: "ped-1", amountArs: 15000, voidedAt: null, receiptNumber: id, receiptTokenHash: id });
+      B.agregar("fotofficeCobroImputacion", { workspaceId: "ws-1", cobroId: `cob-${id}`, cuotaId: id, amountArs: "15000.00" });
+    }
+  }
+
+  it("un extra sin pagar no cuenta para los videos ni para entregar el trabajo, en cualquier estado del cargo", async () => {
+    pagarPlan();
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    for (const estado of ["PENDIENTE", "APLICADO", "ANULADO"]) {
+      B.datos.digitalizacionCargo = [];
+      B.agregar("digitalizacionCargo", { workspaceId: "ws-1", entregaId: "e1", pedidoId: "ped-1", cuotaId: r.cuotaId, tipo: "EXTENSION", montoArs: "3750.00", estado });
+      expect((await saldoDelPedido(B.prisma as never, "ws-1", "ped-1"))!.saldoMinor).toBe(375000);
+      expect((await saldoSinExtrasOpcionales(B.prisma as never, "ws-1", "ped-1"))!.saldoMinor).toBe(0);
+    }
+    B.agregar("fotofficeProyecto", { id: "pro-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    const candado = await enTransaccion((tx: never) => exigirPedidoPagado(tx, "ws-1", { subjectType: "PROYECTO", subjectId: "pro-1" }));
+    expect(candado).toBeNull();
+  });
+
+  it("la deuda del plan sigue contando", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    B.agregar("digitalizacionCargo", { workspaceId: "ws-1", entregaId: "e1", pedidoId: "ped-1", cuotaId: r.cuotaId, tipo: "EXTENSION", montoArs: "3750.00", estado: "PENDIENTE" });
+    expect((await saldoSinExtrasOpcionales(B.prisma as never, "ws-1", "ped-1"))!.saldoMinor).toBe(3000000);
   });
 });

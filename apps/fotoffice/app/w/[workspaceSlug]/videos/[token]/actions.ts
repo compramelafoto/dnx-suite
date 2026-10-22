@@ -4,21 +4,20 @@ import { redirect } from "next/navigation";
 import { pasaElFrenoDePagos } from "@/lib/pedidos/freno-publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 import {
-  MENSAJES_CARGOS, pedirDescargaExtra, pedirEnvioCassettes, pedirExtension, type ResultadoEnvioCassettes,
+  MENSAJES_CARGOS, pasaElFrenoDelEnlace, pedirDescargaExtra, pedirEnvioCassettes, pedirExtension, type ResultadoEnvioCassettes,
 } from "@/lib/digitalizacion/servidor/cargos";
 
 /**
  * Los cargos extra de la página pública de videos (spec 2026-10-22, E6, E7 y E9), sin sesión: el
  * token de la entrega es la llave y el workspace sale del slug. Se vuelve a validar todo acá: freno
- * por IP (el mismo cupo que pagar una cuota), slug y token (`pedir…` lo resuelve dentro del
+ * por IP (el mismo cupo que pagar una cuota) y por enlace (`pasaElFrenoDelEnlace`), slug y token (`pedir…` lo resuelve dentro del
  * workspace). Con el cargo hecho, se va a la página del pedido con la cuota preseleccionada; los
  * errores vuelven como un código corto (`?cargo=error&motivo=`), nunca como texto del servidor.
  */
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/i;
-const LIMITE = "Hubo demasiados pedidos desde tu conexión. Esperá unos minutos y probá de nuevo.";
 
-/** El código corto de cada mensaje conocido. */
+/** El código corto de cada mensaje (todos los errores de los cargos son de `MENSAJES_CARGOS`). */
 function motivoDe(error: string): string {
   const par = Object.entries(MENSAJES_CARGOS).find(([, texto]) => texto === error);
   return par ? par[0] : "fallo";
@@ -36,6 +35,7 @@ export async function comprarDescargaAction(formData: FormData): Promise<void> {
   const { slug, token, base } = leer(formData);
   const volver = (motivo: string): never => redirect(`${base}?cargo=error&motivo=${motivo}`);
   if (!(await pasaElFrenoDePagos())) return volver("limite");
+  if (!pasaElFrenoDelEnlace(token, "OTRO")) return volver("demasiados");
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return volver("noExiste");
   const r = await pedirDescargaExtra(workspaceId, token, formData.get("grabacionId"));
@@ -49,6 +49,7 @@ export async function extenderAction(formData: FormData): Promise<void> {
   const { slug, token, base } = leer(formData);
   const volver = (motivo: string): never => redirect(`${base}?cargo=error&motivo=${motivo}`);
   if (!(await pasaElFrenoDePagos())) return volver("limite");
+  if (!pasaElFrenoDelEnlace(token, "OTRO")) return volver("demasiados");
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return volver("noExiste");
   const r = await pedirExtension(workspaceId, token);
@@ -62,7 +63,8 @@ export async function extenderAction(formData: FormData): Promise<void> {
  */
 export async function pedirEnvioAction(slug: unknown, token: unknown, datos: unknown): Promise<ResultadoEnvioCassettes> {
   if (typeof slug !== "string" || !SLUG.test(slug) || typeof token !== "string" || token.length > 200) return { ok: false, error: MENSAJES_CARGOS.noExiste };
-  if (!(await pasaElFrenoDePagos())) return { ok: false, error: LIMITE };
+  if (!(await pasaElFrenoDePagos())) return { ok: false, error: MENSAJES_CARGOS.limite };
+  if (!pasaElFrenoDelEnlace(token, "ENVIO")) return { ok: false, error: MENSAJES_CARGOS.demasiados };
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return { ok: false, error: MENSAJES_CARGOS.noExiste };
   return pedirEnvioCassettes(workspaceId, token, datos);
