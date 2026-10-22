@@ -1,0 +1,166 @@
+/**
+ * Entrega de los videos de un pedido (spec 2026-10-22, E1–E5, E8 y E11). Módulo PURO: sin base,
+ * sin entorno y con el reloj inyectado. Lo usan el servidor (`servidor/entregas.ts`), los crons y
+ * las páginas.
+ */
+import { randomBytes } from "node:crypto";
+import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
+import { diasEntre } from "@/lib/pedidos/plan-cuotas";
+
+/** Días que quedan los videos (y los cassettes) desde que se manda el correo. */
+export const DIAS_VIGENCIA = 30;
+/** Descargas por video incluidas en el precio (D14); se suman las `descargasExtra` pagadas. */
+export const DESCARGAS_INCLUIDAS = 3;
+/** Días antes del vencimiento en que se avisa (E8). */
+export const UMBRALES_RECORDATORIO = [10, 5, 1] as const;
+export const MAX_FRANJAS = 20;
+const MAX_KM = 10_000;
+const MAX_PRECIO = 100_000_000;
+const DIA_MS = 24 * 60 * 60 * 1000;
+const ZONA = "America/Argentina/Buenos_Aires";
+
+// --- Cuándo está lista ------------------------------------------------------------------------
+
+/** Cómo vienen las grabaciones de los trabajos del pedido. */
+export type PreparacionEntrega = "CONVIRTIENDO" | "CON_ERROR" | "SIN_VIDEOS" | "LISTA";
+
+/**
+ * E2: lista cuando todas las grabaciones completas están LISTA o SIN_IMAGEN y al menos una LISTA.
+ * Las DESCARTADAS no cuentan; una que sigue GRABANDO (o en cola, o convirtiéndose) hace esperar.
+ * Una con ERROR frena el envío hasta que alguien la reintente o la descarte.
+ */
+export function estadoDeEntrega(grabaciones: readonly { estado: string; conversionEstado: string | null }[]): PreparacionEntrega {
+  const vivas = grabaciones.filter((g) => g.estado !== "DESCARTADA");
+  if (vivas.some((g) => g.estado !== "COMPLETA" || g.conversionEstado === null || g.conversionEstado === "PENDIENTE" || g.conversionEstado === "PROCESANDO")) {
+    return "CONVIRTIENDO";
+  }
+  if (vivas.some((g) => g.conversionEstado === "ERROR")) return "CON_ERROR";
+  if (vivas.some((g) => g.conversionEstado === "LISTA")) return "LISTA";
+  return "SIN_VIDEOS";
+}
+
+export type EstadoVisibleEntrega = PreparacionEntrega | "LISTA_PARA_ENVIAR" | "ENVIADA" | "BORRADA";
+
+/** Lo que se muestra en la lista: una vez enviada, manda el envío; vencida cuenta como borrada. */
+export function estadoVisibleDeEntrega(
+  e: { preparacion: PreparacionEntrega; enviadoAt: Date | null; videosVencenAt: Date | null; videosBorradosAt: Date | null },
+  ahora: Date,
+): EstadoVisibleEntrega {
+  if (e.videosBorradosAt || videosVencidos(e, ahora)) return "BORRADA";
+  if (e.enviadoAt) return "ENVIADA";
+  return e.preparacion === "LISTA" ? "LISTA_PARA_ENVIAR" : e.preparacion;
+}
+
+// --- Vencimientos y cupo ----------------------------------------------------------------------
+
+export function vencimientosDesde(enviadoAt: Date): { videosVencenAt: Date; cassettesVencenAt: Date } {
+  const vence = new Date(enviadoAt.getTime() + DIAS_VIGENCIA * DIA_MS);
+  return { videosVencenAt: vence, cassettesVencenAt: new Date(vence) };
+}
+
+/** Llegó la fecha: se trata como borrada aunque el cron todavía no haya pasado. */
+export function videosVencidos(e: { videosVencenAt: Date | null }, ahora: Date): boolean {
+  return e.videosVencenAt !== null && e.videosVencenAt.getTime() <= ahora.getTime();
+}
+
+export function descargasRestantes(d: { descargasExtra: number; usadas: number }): { quedan: number; total: number } {
+  const total = DESCARGAS_INCLUIDAS + Math.max(0, d.descargasExtra);
+  return { quedan: Math.max(0, total - d.usadas), total };
+}
+
+/**
+ * E8: qué recordatorio sale hoy, o null. Se cuentan días de calendario de Argentina entre hoy y el
+ * día del vencimiento. Sale el umbral más chico que alcanza (si se saltó el de 10 y faltan 5, sólo
+ * el de 5) y una sola vez por umbral. Ya vencida no se avisa: se borra.
+ */
+export function recordatorioQueCorresponde(e: { videosVencenAt: Date | null; recordatorios: readonly number[] }, ahora: Date): number | null {
+  if (!e.videosVencenAt || videosVencidos(e, ahora)) return null;
+  const faltan = diasEntre(diaEnBuenosAires(ahora), diaEnBuenosAires(e.videosVencenAt));
+  const umbral = [...UMBRALES_RECORDATORIO].sort((a, b) => a - b).find((u) => faltan <= u);
+  if (umbral === undefined || e.recordatorios.includes(umbral)) return null;
+  return umbral;
+}
+
+// --- Franjas de envío (E9 / E11) --------------------------------------------------------------
+
+export type FranjaEnvio = { hastaKm: number; precioArs: number };
+
+function numero(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function conHastaDosDecimales(n: number): boolean {
+  return Math.abs(Math.round(n * 100) - n * 100) < 1e-6;
+}
+
+/** Valida las franjas que se guardan en `DigitalizacionAjustes.enviosFranjas` y las ordena por km. */
+export function validarFranjas(raw: unknown): { ok: true; franjas: FranjaEnvio[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: "Las franjas no son válidas." };
+  if (raw.length > MAX_FRANJAS) return { ok: false, error: `Podés cargar hasta ${MAX_FRANJAS} franjas.` };
+  const franjas: FranjaEnvio[] = [];
+  for (const f of raw) {
+    if (typeof f !== "object" || f === null) return { ok: false, error: "Las franjas no son válidas." };
+    const claves = Object.keys(f);
+    if (claves.some((k) => k !== "hastaKm" && k !== "precioArs")) return { ok: false, error: "Las franjas no son válidas." };
+    const { hastaKm, precioArs } = f as Record<string, unknown>;
+    if (!numero(hastaKm) || hastaKm <= 0 || hastaKm > MAX_KM) return { ok: false, error: `Los km tienen que ser un número entre 0 y ${MAX_KM}.` };
+    if (!numero(precioArs) || precioArs < 0 || precioArs > MAX_PRECIO || !conHastaDosDecimales(precioArs)) {
+      return { ok: false, error: "El precio tiene que ser un número de pesos, sin negativos y con hasta dos decimales." };
+    }
+    franjas.push({ hastaKm, precioArs });
+  }
+  franjas.sort((a, b) => a.hastaKm - b.hastaKm);
+  for (let i = 1; i < franjas.length; i++) {
+    if (franjas[i]!.hastaKm === franjas[i - 1]!.hastaKm) return { ok: false, error: "Hay dos franjas con los mismos km." };
+  }
+  return { ok: true, franjas };
+}
+
+/** Lo guardado, para mostrar: si algo está roto, como si no hubiera franjas ("a coordinar"). */
+export function leerFranjas(raw: unknown): FranjaEnvio[] {
+  const r = validarFranjas(raw);
+  return r.ok ? r.franjas : [];
+}
+
+// --- Formatos ---------------------------------------------------------------------------------
+
+/** Centavos → "15.000 pesos" o "1.500,50 pesos". Nunca con "$". */
+export function pesos(minor: number): string {
+  const conCentavos = Math.round(minor) % 100 !== 0;
+  const n = new Intl.NumberFormat("es-AR", { minimumFractionDigits: conCentavos ? 2 : 0, maximumFractionDigits: 2 }).format(minor / 100);
+  return `${n} pesos`;
+}
+
+const FECHA_LARGA = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", year: "numeric" });
+const FECHA_CORTA = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" });
+
+/** "dd/mm/aaaa" (o "dd/mm") en hora argentina. */
+export function fechaArgentina(d: Date, formato: "larga" | "corta" = "larga"): string {
+  return (formato === "corta" ? FECHA_CORTA : FECHA_LARGA).format(d);
+}
+
+/** "1 h 05 min" o "45 min". */
+export function duracionLegible(seg: number): string {
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  return h > 0 ? `${h} h ${String(m).padStart(2, "0")} min` : `${Math.max(m, seg > 0 ? 1 : 0)} min`;
+}
+
+// --- Token y dirección ------------------------------------------------------------------------
+
+/**
+ * Token de la página de videos: 32 bytes al azar en base64url (43 caracteres, la misma forma que
+ * los del pedido, así `tokenConForma` lo filtra igual). En la base sólo queda su hash SHA-256;
+ * cada envío, reenvío o "Copiar enlace" genera uno nuevo y el anterior deja de abrir.
+ */
+export function nuevoTokenDeEntrega(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/** Dirección completa: dominio propio o `/w/<slug>`. null si no hay cómo armarla. */
+export function urlDeVideos(s: { customDomain: string | null; appOrigin: string; slug: string | null; token: string }): string | null {
+  const ruta = `/videos/${encodeURIComponent(s.token)}`;
+  if (s.customDomain) return `https://${s.customDomain}${ruta}`;
+  if (!s.appOrigin || !s.slug) return null;
+  return `${s.appOrigin}/w/${encodeURIComponent(s.slug)}${ruta}`;
+}
