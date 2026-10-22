@@ -7336,6 +7336,10 @@ model Workspace {
   digitalizacionGrabaciones DigitalizacionGrabacion[]
   digitalizacionEquipos     DigitalizacionEquipo[]
   digitalizacionAjustes     DigitalizacionAjustes?
+  digitalizacionEntregas    DigitalizacionEntrega[]
+  digitalizacionDescargas   DigitalizacionDescarga[]
+  digitalizacionCargos      DigitalizacionCargo[]
+  digitalizacionComisiones  DigitalizacionComision[]
   fotofficeProyectoRoles         FotofficeProyectoRol[]
   fotofficeProyectoParticipantes FotofficeProyectoParticipante[]
   fotofficeProyectoNotas         FotofficeProyectoNota[]
@@ -21587,6 +21591,8 @@ model FotofficePedido {
   contratantes    FotofficePedidoContratante[]
   contratos       FotofficeContrato[]
   esperasPago     FotofficeEsperaPago[]
+  digitalizacionEntrega DigitalizacionEntrega?
+  digitalizacionCargos  DigitalizacionCargo[]
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -22082,6 +22088,12 @@ model DigitalizacionGrabacion {
   videoDuracionSeg   Int?
   convertidaAt       DateTime?
   partesBorradasAt   DateTime?
+  /// Prefijo en R2 de la versión para mirar (HLS 720p): `<prefijo>/index.m3u8`. null = no hay.
+  hlsKey             String?
+  /// Descargas compradas aparte de las 3 incluidas.
+  descargasExtra     Int       @default(0)
+  /// Cuándo se borraron de R2 el MP4 y el HLS por vencimiento de la entrega.
+  videoBorradoAt     DateTime?
   createdByUserId    Int?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -22090,6 +22102,8 @@ model DigitalizacionGrabacion {
   proyecto  FotofficeProyecto?    @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
   equipo    DigitalizacionEquipo? @relation(fields: [equipoId], references: [id], onDelete: SetNull)
   partes    DigitalizacionParte[]
+  descargas DigitalizacionDescarga[]
+  cargos    DigitalizacionCargo[]
 
   @@index([workspaceId, createdAt])
   @@index([proyectoId])
@@ -22130,10 +22144,109 @@ model DigitalizacionEquipo {
 }
 
 model DigitalizacionAjustes {
-  workspaceId     String @id
-  minutosSinSenal Int    @default(5)
+  workspaceId     String  @id
+  minutosSinSenal Int     @default(5)
+  /// Valor inicial de `DigitalizacionEntrega.envioAutomatico`.
+  envioAutomatico Boolean @default(true)
+  /// Franjas de envío de cassettes: [{ hastaKm, precioArs }] ordenadas por km. null = a coordinar.
+  enviosFranjas   Json?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Entrega de los videos de un pedido de digitalización (partes 3 y 4). Una por pedido.
+/// Migración a mano: 20261207153000_fotoffice_digitalizacion_entrega.
+model DigitalizacionEntrega {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  pedidoId          String    @unique
+  /// Al terminar todas las grabaciones, se manda sola. false = espera "Enviar al cliente".
+  envioAutomatico   Boolean   @default(true)
+  /// Hash SHA-256 del token de la página pública de videos.
+  accessTokenHash   String?   @unique
+  enviadoAt         DateTime?
+  videosVencenAt    DateTime?
+  cassettesVencenAt DateTime?
+  /// Días antes del vencimiento ya avisados (10, 5, 1) para el `videosVencenAt` vigente.
+  recordatorios     Int[]     @default([])
+  extensiones       Int       @default(0)
+  videosBorradosAt  DateTime?
+  /// Envío de cassettes. estado: null | A_COORDINAR | A_PAGAR | CONFIRMADO | ENTREGADO
+  envioEstado       String?
+  envioDireccion    String?
+  envioLat          Float?
+  envioLng          Float?
+  envioKm           Float?
+  envioPrecioArs    Decimal?  @db.Decimal(12, 2)
+  envioPedidoAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  descargas DigitalizacionDescarga[]
+  cargos    DigitalizacionCargo[]
+
+  @@index([workspaceId, enviadoAt])
+  @@index([videosVencenAt])
+}
+
+/// Una descarga contada de un video (3 incluidas + `descargasExtra`).
+model DigitalizacionDescarga {
+  id          String   @id @default(cuid())
+  workspaceId String
+  entregaId   String
+  grabacionId String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entrega   DigitalizacionEntrega   @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  grabacion DigitalizacionGrabacion @relation(fields: [grabacionId], references: [id], onDelete: Cascade)
+
+  @@index([grabacionId])
+  @@index([entregaId])
+  @@index([workspaceId])
+}
+
+/// Cargo extra que el cliente pide desde la página de videos. Se cobra como una cuota nueva del
+/// pedido; al quedar paga, se aplica. tipo: DESCARGA_EXTRA | EXTENSION | ENVIO.
+/// estado: PENDIENTE | APLICADO | ANULADO.
+model DigitalizacionCargo {
+  id          String    @id @default(cuid())
+  workspaceId String
+  entregaId   String
+  pedidoId    String
+  cuotaId     String    @unique
+  tipo        String
+  grabacionId String?
+  montoArs    Decimal   @db.Decimal(12, 2)
+  estado      String    @default("PENDIENTE")
+  aplicadoAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entrega   DigitalizacionEntrega    @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido          @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  grabacion DigitalizacionGrabacion? @relation(fields: [grabacionId], references: [id], onDelete: SetNull)
+
+  @@index([entregaId, estado])
+  @@index([pedidoId])
+  @@index([grabacionId])
+  @@index([workspaceId])
+}
+
+/// Comisión de plataforma de un cobro de digitalización: evita devengarla dos veces. No se agrega
+/// columna a `WorkspaceFeeLedgerEntry` porque esa tabla la lee también CompraMeLaFoto.
+model DigitalizacionComision {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  cobroId       String   @unique
+  ledgerEntryId String   @unique
+  createdAt     DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 /// Rol de un participante de proyecto (Fotógrafo, Editor, Salón, DJ…).
