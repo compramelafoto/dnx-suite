@@ -259,7 +259,7 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       paginas: 1,
       blocks: [
         forma(0, { x: 40, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
-        texto(0, { x: 40, y: 40, width: 400, height: 380 }, "Arriba, como siempre", { verticalAlign: "TOP" }),
+        texto(0, { x: 40, y: 40, width: 400, height: 380 }, "Arriba", { verticalAlign: "TOP" }),
         forma(0, { x: 480, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
         texto(0, { x: 480, y: 40, width: 400, height: 380 }, "Centro con interlineado amplio", { verticalAlign: "MIDDLE", lineHeight: 1.6, textAlign: "LEFT" }),
         forma(0, { x: 920, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
