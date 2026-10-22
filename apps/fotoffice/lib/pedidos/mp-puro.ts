@@ -1,3 +1,5 @@
+import { pesos } from "@/lib/digitalizacion/entrega";
+
 /**
  * Lo puro del pago de cuotas con Mercado Pago (etapa 3, Entrega B2): la referencia que viaja en
  * la preferencia y vuelve en el aviso, y los hechos de un pago leído. Sin base ni red.
@@ -56,14 +58,26 @@ const POR_QUE_SIN_APLICAR: Record<string, string> = {
 };
 
 /** Texto de la tarea del pedido cuando un pago aprobado no se pudo aplicar. Determinístico: sirve para no repetirla. */
-export function tituloPagoSinAplicar(providerPaymentId: string, centavos: number, motivo: string): string {
+export function tituloPagoSinAplicar(providerPaymentId: string, centavos: number, motivo: string, retenidoPlataforma = 0): string {
   const porque = POR_QUE_SIN_APLICAR[motivo] ?? "falló el registro automático";
-  return `Mercado Pago: llegó el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} y no se pudo aplicar (${porque}). Aplicalo a mano o devolvelo.`;
+  return `Mercado Pago: llegó el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} y no se pudo aplicar (${porque}). Aplicalo a mano o devolvelo.${avisoRetenido(retenidoPlataforma)}`;
+}
+
+/**
+ * F1: si la plataforma ya retuvo su comisión de un pago que quedó sin aplicar, el cobro que se
+ * registre a mano la devengaría otra vez: el cobro manual (ni "Verificar pago" del mostrador, que
+ * busca en otros pagos) no guarda la referencia del pago, así que no hay forma confiable de
+ * vincularlos. Queda dicho en la tarea, con el monto.
+ */
+function avisoRetenido(retenidoPlataforma: number): string {
+  return retenidoPlataforma > 0
+    ? ` La plataforma ya retuvo ${pesos(retenidoPlataforma)} de comisión de este pago: si lo registrás a mano, avisá a DNX para que no se cobre dos veces.`
+    : "";
 }
 
 /** Texto cuando el pago es de una cuota que se borró al editar el plan (B2-2). */
-export function tituloPagoCuotaInexistente(providerPaymentId: string, centavos: number): string {
-  return `Mercado Pago: llegó el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} por una cuota que ya no existe: aplicalo a mano o devolvelo.`;
+export function tituloPagoCuotaInexistente(providerPaymentId: string, centavos: number, retenidoPlataforma = 0): string {
+  return `Mercado Pago: llegó el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} por una cuota que ya no existe: aplicalo a mano o devolvelo.${avisoRetenido(retenidoPlataforma)}`;
 }
 
 /**
@@ -106,9 +120,14 @@ export function tituloPagoDevuelto(providerPaymentId: string, centavos: number, 
   return `Mercado Pago devolvió (o le reclamaron) el pago N° ${providerPaymentId} de ${pesosDeCentavos(centavos)} (${QUE_PASO[reverso]}): anulá ${queAnular} si corresponde.`;
 }
 
+/** Los `fee_details` que paga el negocio: la comisión de Mercado Pago y la de la plataforma (`marketplace_fee`, que MP informa como `application_fee`). */
+const COMISIONES_DEL_COBRADOR = new Set(["mercadopago_fee", "application_fee"]);
+
 /**
- * La comisión de Mercado Pago en centavos: la suma de los `fee_details` de tipo `mercadopago_fee`
- * (montos en pesos). null si no viene, no se entiende, o es mayor que el pago (no se inventa).
+ * Lo que Mercado Pago le descontó al negocio, en centavos: la suma de los `fee_details` de tipo
+ * `mercadopago_fee` y `application_fee` (montos en pesos). Con las dos, el neto del cobro y el
+ * EGRESO de Caja dan lo mismo que la app de Mercado Pago. `financing_fee` lo paga el comprador: no
+ * cuenta. null si no viene, no se entiende, o es mayor que el pago (no se inventa).
  */
 export function comisionDeMp(rawSanitized: Record<string, unknown>, brutoMinor: number): number | null {
   const detalle = rawSanitized.fee_details;
@@ -118,13 +137,27 @@ export function comisionDeMp(rawSanitized: Record<string, unknown>, brutoMinor: 
   for (const fila of detalle) {
     if (typeof fila !== "object" || fila === null) continue;
     const { type, amount } = fila as { type?: unknown; amount?: unknown };
-    if (type !== "mercadopago_fee") continue;
-    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
-    suma += Math.round(amount * 100);
+    if (typeof type !== "string" || !COMISIONES_DEL_COBRADOR.has(type)) continue;
+    const valido = typeof amount === "number" && Number.isFinite(amount) && amount >= 0;
+    // Un `application_fee` ilegible se ignora (como en la retención): no anula la comisión de MP.
+    if (!valido) {
+      if (type === "application_fee") continue;
+      return null;
+    }
+    suma += Math.round((amount as number) * 100);
     hay = true;
   }
   if (!hay || suma > brutoMinor) return null;
   return suma;
+}
+
+function hayComisionDePlataforma(raw: Record<string, unknown>): boolean {
+  if (!Array.isArray(raw.fee_details)) return false;
+  return raw.fee_details.some((f) => {
+    if (typeof f !== "object" || f === null) return false;
+    const { type, amount } = f as { type?: unknown; amount?: unknown };
+    return type === "application_fee" && typeof amount === "number" && Number.isFinite(amount) && amount > 0;
+  });
 }
 
 export type HechosDelPago = {
@@ -133,8 +166,10 @@ export type HechosDelPago = {
   currency: string;
   /** `date_approved`; null si no viene o no se entiende. */
   paidAt: Date | null;
-  /** Comisión de Mercado Pago en centavos, o null si no viene. */
+  /** Comisión de Mercado Pago (y de la plataforma, si retuvo) en centavos, o null si no viene. */
   feeMinor: number | null;
+  /** Si en `feeMinor` hay una parte de la plataforma (`application_fee` > 0): cambia el texto del EGRESO. */
+  conPlataforma: boolean;
 };
 
 /** Lo que la acreditación necesita de un pago leído: id, monto, moneda, fecha y comisión. */
@@ -152,6 +187,7 @@ export function hechosDelPago(pago: {
     currency: pago.currency,
     paidAt: fecha && !Number.isNaN(fecha.getTime()) ? fecha : null,
     feeMinor: comisionDeMp(pago.rawSanitized, pago.amountMinor),
+    conPlataforma: hayComisionDePlataforma(pago.rawSanitized),
   };
 }
 

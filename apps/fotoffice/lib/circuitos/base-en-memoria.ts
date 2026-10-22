@@ -77,6 +77,8 @@ const TABLAS = [
   "productVariant", "stockMovement",
   // Digitalización: entregas de videos y cargos extra (spec 2026-10-22, E6).
   "digitalizacionEntrega", "digitalizacionGrabacion", "digitalizacionCargo", "digitalizacionAjustes",
+  // Comisión de plataforma (F1): el libro, la tasa por módulo y la marca de los cobros de digitalización.
+  "workspaceFeeLedgerEntry", "workspaceModuleFee", "digitalizacionComision",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -309,6 +311,8 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     updatedAt: new Date(), updatedByUserId: null,
   }),
   fotofficeEsperaPago: () => ({ importeUnicoArs: null, estado: "ESPERANDO", creadaEn: new Date(), conciliadaEn: null, cobroId: null, updatedAt: new Date() }),
+  workspaceFeeLedgerEntry: () => ({ membershipPaymentId: null, bookingId: null, note: null, actorUserId: null, createdAt: new Date() }),
+  digitalizacionComision: () => ({ createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -527,6 +531,8 @@ export function crearBaseEnMemoria() {
       { columnas: ["reversesMovementId"], aplica: (f) => f.reversesMovementId !== null && f.reversesMovementId !== undefined },
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
+    workspaceModuleFee: [{ columnas: ["workspaceId", "moduleKey"] }],
+    digitalizacionComision: [{ columnas: ["cobroId"] }, { columnas: ["ledgerEntryId"] }],
     fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
     fotofficePerfilPreciosSocio: [{ columnas: ["userId"] }],
     fotofficeCobroAjustes: [{ columnas: ["workspaceId"] }],
@@ -652,7 +658,8 @@ export function crearBaseEnMemoria() {
           return [c, v.length ? Math.max(...v) : null];
         }));
         const _sum = Object.fromEntries(
-          Object.keys(a._sum ?? {}).map((c) => [c, filas.length === 0 ? null : filas.reduce((s, f) => s + ((f[c] as number | null) ?? 0), 0)]),
+          // Los Decimal llegan como texto ("-200.00"): se suman en centavos para no arrastrar la coma flotante.
+          Object.keys(a._sum ?? {}).map((c) => [c, filas.length === 0 ? null : filas.reduce((s, f) => s + Math.round(Number(f[c] ?? 0) * 100), 0) / 100]),
         );
         return { _max, _sum };
       },

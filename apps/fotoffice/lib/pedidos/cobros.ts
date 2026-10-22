@@ -252,7 +252,7 @@ type EntradaCobro = {
   /** null = el sistema. */
   createdByUserId: number | null;
   /** Pago del proveedor (Mercado Pago): su id, la comisión y el neto, si se conocen. */
-  proveedor: { paymentRef: string; feeArs: number | null; netArs: number | null } | null;
+  proveedor: { paymentRef: string; feeArs: number | null; netArs: number | null; conPlataforma?: boolean } | null;
 };
 
 /**
@@ -334,7 +334,8 @@ async function aplicarCobro(tx: Tx, e: EntradaCobro): Promise<{ cobroId: string;
       kind: "EGRESO",
       amountMinor: aCentavos(comision),
       occurredAt: paidAt,
-      description: `Comisión Mercado Pago · pedido N° ${p.number} · recibo ${numero.display}`,
+      // Con retención de la plataforma (`application_fee`), el EGRESO la incluye: es plata que no entró a la cuenta.
+      description: `${e.proveedor?.conPlataforma ? "Comisiones Mercado Pago y plataforma" : "Comisión Mercado Pago"} · pedido N° ${p.number} · recibo ${numero.display}`,
       sourceModule: MODULO_CAJA_COMISION,
       sourceRef: cobroId,
       categoryId: await rubroDeComisiones(tx, workspaceId),
@@ -469,6 +470,14 @@ async function aplicarEfectosDePago(workspaceId: string, pedidoId: string, ahora
   } catch (e) {
     falla("aplicarEfectosDePago", e);
   }
+  // La comisión de plataforma de los pedidos de digitalización (F1): devenga la de los cobros que no
+  // la retuvieron. No lanza; si falla, la concilian los crons de Digitalización.
+  try {
+    const { devengarComisionesDelPedido } = await import("@/lib/digitalizacion/servidor/comision");
+    await devengarComisionesDelPedido(workspaceId, pedidoId);
+  } catch (e) {
+    falla("devengarComisionesDelPedido", e);
+  }
 }
 
 /**
@@ -503,6 +512,14 @@ export type DatosCobroDelSistema = {
   providerPaymentRef: string;
   feeArs: number | null;
   netArs: number | null;
+  /** En `feeArs` hay una parte retenida por la plataforma (`application_fee`). */
+  conPlataforma?: boolean;
+  /**
+   * Lo que tiene que quedar escrito junto con el cobro, en su misma transacción (la retención de la
+   * comisión de plataforma, F1): si lanza, no hay cobro y queda como cualquier falla de la
+   * acreditación (tarea para el equipo; un aviso repetido o la vuelta del comprador reintentan).
+   */
+  enLaTransaccion?: (tx: Tx, cobro: { cobroId: string; reciboNumero: string }) => Promise<void>;
 };
 
 /** Por qué un pago aprobado no se pudo acreditar: sirve para avisar al responsable. */
@@ -561,11 +578,13 @@ export async function registrarCobroDelSistema(datos: DatosCobroDelSistema, deps
       await bloquearPedido(tx, pedidoId);
       const yaEstaba = await porPago(tx, providerPaymentRef);
       if (yaEstaba) throw new RepetidoDelSistema(yaEstaba);
-      return aplicarCobro(tx, {
+      const h = await aplicarCobro(tx, {
         workspaceId, pedidoId, importe: desdeCentavos(aCentavos(importe)), paidAt, medio: "MERCADO_PAGO", manual: null,
         preferida: datos.cuotaPreferidaId, adjuntoId: null, clave: null, claveEnlace, createdByUserId: null,
-        proveedor: { paymentRef: providerPaymentRef, feeArs, netArs },
+        proveedor: { paymentRef: providerPaymentRef, feeArs, netArs, conPlataforma: datos.conPlataforma === true },
       });
+      if (datos.enLaTransaccion) await datos.enLaTransaccion(tx, { cobroId: h.cobroId, reciboNumero: h.numero });
+      return h;
     }, OPCIONES_TRANSACCION);
   } catch (e) {
     if (e instanceof Corte) return { ok: false, motivo: motivoDe(e.mensaje), error: e.mensaje };
@@ -627,8 +646,9 @@ export async function anularCobro(ctx: CtxPedidos, cobroId: unknown, motivo: unk
   if (c0.voidedAt) return { ok: true, yaAnulado: true, pedidoId: c0.pedidoId };
   if (!(await isModuleEnabledForWorkspace(workspaceId, CASH_MODULE_KEY))) return { ok: false, error: MENSAJES_COBRO.sinCajaAnular };
 
+  let anulado: ResultadoAnulacion;
   try {
-    return await prisma.$transaction(async (tx): Promise<ResultadoAnulacion> => {
+    anulado = await prisma.$transaction(async (tx): Promise<ResultadoAnulacion> => {
       await bloquearPedido(tx, c0.pedidoId);
       const c = await tx.fotofficeCobro.findFirst({
         where: { id: c0.id, workspaceId },
@@ -656,6 +676,17 @@ export async function anularCobro(ctx: CtxPedidos, cobroId: unknown, motivo: unk
     falla("anularCobro", e);
     return { ok: false, error: MENSAJES_COBRO.falloAnular };
   }
+  // Después del commit y sin lanzar: la comisión de plataforma que este cobro había devengado (F1)
+  // se revierte. Si falla, la concilian los crons de Digitalización.
+  if (anulado.ok && !anulado.yaAnulado) {
+    try {
+      const { revertirComisionDelCobro } = await import("@/lib/digitalizacion/servidor/comision");
+      await revertirComisionDelCobro(workspaceId, c0.id);
+    } catch (e) {
+      falla("revertirComisionDelCobro", e);
+    }
+  }
+  return anulado;
 }
 
 /**

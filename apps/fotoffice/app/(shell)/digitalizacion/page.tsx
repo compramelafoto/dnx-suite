@@ -3,7 +3,8 @@ import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
-import { estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
+import { estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, pesos, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
+import { resumenDeComision } from "@/lib/digitalizacion/servidor/comision";
 import { resumenDeEntregas, type ResumenEntrega } from "@/lib/digitalizacion/servidor/entregas";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
 import { nombreArchivoVideo, nombreCliente } from "@/lib/digitalizacion/nombre-archivo";
@@ -51,8 +52,14 @@ const fecha = (d: Date) => d.toLocaleString("es-AR", { timeZone: "America/Argent
 
 export default async function DigitalizacionPage() {
   const { workspace, puedeGrabar } = await requireDigitalizacion("VIEW");
-  const [grabaciones, ajustes, entregas] = await Promise.all([listarGrabaciones(workspace.id), leerAjustes(workspace.id), resumenDeEntregas(workspace.id)]);
   const ahora = new Date();
+  const [grabaciones, ajustes, entregas, comision] = await Promise.all([
+    listarGrabaciones(workspace.id),
+    leerAjustes(workspace.id),
+    resumenDeEntregas(workspace.id),
+    // F1: la comisión de plataforma, sólo para quien gestiona y si la tasa no es 0 (DNX no la ve).
+    puedeGrabar ? resumenDeComision(workspace.id, ahora).catch(() => null) : Promise.resolve(null),
+  ]);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -60,6 +67,11 @@ export default async function DigitalizacionPage() {
         description="Cassettes VHS y DVD grabados o subidos, con su conversión a video Full HD."
         actions={puedeGrabar ? <a href="/digitalizacion/grabar" className="fo-btn fo-btn-primary text-sm">● Grabar</a> : undefined}
       />
+      {comision ? (
+        <p className="text-sm text-gray-600">
+          Comisión de plataforma: {pesos(comision.devengadoMesMinor)} devengados este mes · saldo pendiente {pesos(comision.saldoPendienteMinor)}
+        </p>
+      ) : null}
       {puedeGrabar ? (
         <details className="rounded border p-3">
           <summary className="cursor-pointer text-sm font-semibold">Configuración</summary>
