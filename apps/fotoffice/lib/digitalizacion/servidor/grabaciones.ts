@@ -1,8 +1,9 @@
 import "server-only";
-import { prisma } from "@repo/db";
-import { ID_VALIDO, claveDeParte, extensionDeMime, prefijoDeGrabacion, tipoContenido } from "../claves";
+import { Prisma, prisma } from "@repo/db";
+import { ID_VALIDO, claveDeParte, esPrefijoHlsDe, extensionDeMime, prefijoDeGrabacion, tipoContenido } from "../claves";
 import { MINUTOS_SIN_SENAL_MAX, MINUTOS_SIN_SENAL_MIN, MINUTOS_SIN_SENAL_POR_DEFECTO } from "../constants";
 import type { CtxDigitalizacion } from "../contexto";
+import { leerFranjas, validarFranjas, type FranjaEnvio } from "../entrega";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
 import { estadoVisible, validarTitulo, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
 import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
@@ -19,7 +20,7 @@ async function grabacionDelNegocio(ctx: CtxDigitalizacion, id: string) {
   if (!ID_VALIDO.test(id)) return null;
   return prisma.digitalizacionGrabacion.findFirst({
     where: { id, workspaceId: ctx.workspaceId },
-    select: { id: true, workspaceId: true, estado: true, mimeType: true, tramos: true, tipo: true, proyectoId: true, calidad: true, corregirProporcion: true, ultimoLatidoAt: true, iniciadaAt: true, cassetteNumero: true, conversionEstado: true, partesBorradasAt: true, videoKey: true, sinImagen: true, titulo: true },
+    select: { id: true, workspaceId: true, estado: true, mimeType: true, tramos: true, tipo: true, proyectoId: true, calidad: true, corregirProporcion: true, ultimoLatidoAt: true, iniciadaAt: true, cassetteNumero: true, conversionEstado: true, partesBorradasAt: true, videoKey: true, hlsKey: true, videoBorradoAt: true, sinImagen: true, titulo: true },
   });
 }
 
@@ -255,6 +256,16 @@ export async function urlDeVideo(ctx: CtxDigitalizacion, id: string, modo: "ver"
   return { ok: true, url: await firmarVideo(g.videoKey, nombre, modo) };
 }
 
+/** "Ver video" de la lista (E10): la carpeta HLS de una grabación del negocio, si la tiene. */
+export async function hlsDeGrabacion(ctx: CtxDigitalizacion, id: string): Promise<Resultado<{ hlsKey: string }>> {
+  const g = await grabacionDelNegocio(ctx, id);
+  if (!g) return NO_EXISTE;
+  if (g.conversionEstado !== "LISTA" || g.videoBorradoAt || !g.hlsKey || !esPrefijoHlsDe(ctx.workspaceId, g.id, g.hlsKey)) {
+    return { ok: false, error: "Esta grabación no tiene versión para mirar." };
+  }
+  return { ok: true, hlsKey: g.hlsKey };
+}
+
 export async function editarTitulo(ctx: CtxDigitalizacion, id: string, titulo: unknown): Promise<Resultado<{ titulo: string | null }>> {
   if (typeof titulo !== "string" && titulo !== null) return { ok: false, error: "El título no es válido.", definitivo: true };
   const t = validarTitulo(titulo);
@@ -306,9 +317,28 @@ export async function guardarAjustes(ctx: CtxDigitalizacion, minutos: number): P
   return { ok: true };
 }
 
-export async function leerAjustes(workspaceId: string): Promise<{ minutosSinSenal: number }> {
-  const a = await prisma.digitalizacionAjustes.findUnique({ where: { workspaceId }, select: { minutosSinSenal: true } });
-  return { minutosSinSenal: a?.minutosSinSenal ?? MINUTOS_SIN_SENAL_POR_DEFECTO };
+/** E11: "Enviar al cliente automáticamente al terminar" y las franjas de envío de cassettes. */
+export async function guardarAjustesEntrega(ctx: CtxDigitalizacion, envioAutomatico: unknown, franjas: unknown): Promise<Resultado<{ franjas: FranjaEnvio[] }>> {
+  if (typeof envioAutomatico !== "boolean") return { ok: false, error: "Los datos no son válidos." };
+  const f = validarFranjas(franjas);
+  if (!f.ok) return f;
+  // Sin franjas = "a coordinar": se guarda null, como dice el esquema.
+  const enviosFranjas = f.franjas.length ? f.franjas : Prisma.DbNull;
+  await prisma.digitalizacionAjustes.upsert({
+    where: { workspaceId: ctx.workspaceId },
+    create: { workspaceId: ctx.workspaceId, envioAutomatico, enviosFranjas },
+    update: { envioAutomatico, enviosFranjas },
+  });
+  return { ok: true, franjas: f.franjas };
+}
+
+export async function leerAjustes(workspaceId: string): Promise<{ minutosSinSenal: number; envioAutomatico: boolean; franjas: FranjaEnvio[] }> {
+  const a = await prisma.digitalizacionAjustes.findUnique({ where: { workspaceId }, select: { minutosSinSenal: true, envioAutomatico: true, enviosFranjas: true } });
+  return {
+    minutosSinSenal: a?.minutosSinSenal ?? MINUTOS_SIN_SENAL_POR_DEFECTO,
+    envioAutomatico: a?.envioAutomatico ?? true,
+    franjas: leerFranjas(a?.enviosFranjas ?? null),
+  };
 }
 
 export async function listarEquipos(workspaceId: string) {
@@ -327,7 +357,7 @@ export async function listarGrabaciones(workspaceId: string) {
     select: {
       id: true, titulo: true, tipo: true, estado: true, motivoFin: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
       tramos: true, ultimoLatidoAt: true, iniciadaAt: true, sinImagen: true, mimeType: true,
-      conversionEstado: true, conversionError: true, videoBytes: true, videoDuracionSeg: true, partesBorradasAt: true,
+      conversionEstado: true, conversionError: true, videoBytes: true, videoDuracionSeg: true, partesBorradasAt: true, hlsKey: true, videoBorradoAt: true,
       proyecto: { select: { number: true, name: true, pedido: { select: { number: true } }, client: { select: { firstName: true, lastName: true, businessName: true } } } },
     },
   });

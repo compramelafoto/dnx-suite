@@ -34,7 +34,8 @@ export async function POST(request: Request, context: Ctx) {
   try {
     const permisos = await Promise.all(
       archivos.map(async (a) => {
-        const tipo = a.tipo === "vista" || a.tipo === "mini" ? a.tipo : "original";
+        // "fondo": el fondo de un pliego dibujado por un estilo (ver `/fondo`).
+        const tipo = a.tipo === "vista" || a.tipo === "mini" || a.tipo === "fondo" ? a.tipo : "original";
         const { uploadUrl, key } = await createFotofficeUploadUrl({
           prefix: `${FOTOFFICE_R2_PREFIXES.fotolibroPhoto}/${templateId}/${tipo}`,
           originalFilename: (a.filename ?? "").trim() || "foto.jpg",

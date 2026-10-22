@@ -7,6 +7,7 @@ import { descartarGrabacionAction, editarTituloAction, guardarAjustesAction, rei
 import { elegirArchivoDeDestino } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { descargarCrudo } from "@/lib/digitalizacion/cliente/descargar-crudo";
 import type { EstadoVisible } from "@/lib/digitalizacion/validar";
+import { ReproductorHls } from "./ver-video";
 
 type Props = {
   id: string;
@@ -16,14 +17,17 @@ type Props = {
   puedeGrabar: boolean;
   conversionEstado: string;
   partesBorradas: boolean;
+  /** Tiene versión para mirar (HLS 720p, E10): "Ver video" la reproduce acá mismo. */
+  tieneHls: boolean;
 };
 
-export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrabar, conversionEstado, partesBorradas }: Props) {
+export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrabar, conversionEstado, partesBorradas, tieneHls }: Props) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
   const router = useRouter();
   const [editando, setEditando] = useState(false);
   const [valorTitulo, setValorTitulo] = useState(titulo ?? "");
+  const [mirando, setMirando] = useState(false);
 
   const guardarTitulo = () =>
     empezar(async () => {
@@ -57,6 +61,9 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrab
   };
 
   const verVideo = async () => {
+    // Con versión HLS se mira en la misma página y se puede saltar a cualquier momento sin esperas.
+    if (tieneHls) { setMirando((m) => !m); return; }
+    // Sin HLS (todavía no se rellenó): el MP4 Full HD en otra pestaña, como antes.
     // La pestaña se abre ya, dentro del clic, para que el navegador no la bloquee; después se le pone la dirección.
     const pestana = window.open("about:blank", "_blank");
     if (pestana) pestana.opener = null;
@@ -89,7 +96,7 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrab
     <div className="flex flex-wrap items-center gap-2 text-sm">
       {conversionEstado === "LISTA" ? (
         <>
-          <button type="button" className="fo-btn fo-btn-primary text-xs" onClick={() => void verVideo()}>Ver video</button>
+          <button type="button" className="fo-btn fo-btn-primary text-xs" onClick={() => void verVideo()}>{mirando ? "Cerrar video" : "Ver video"}</button>
           <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => void descargarVideo()}>Descargar video</button>
         </>
       ) : null}
@@ -135,6 +142,11 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrab
         </span>
       ) : null}
       {aviso ? <span className="text-gray-600">{aviso}</span> : null}
+      {mirando && tieneHls && conversionEstado === "LISTA" ? (
+        <div className="w-full max-w-3xl basis-full">
+          <ReproductorHls src={`/api/digitalizacion/grabaciones/${encodeURIComponent(id)}/hls`} />
+        </div>
+      ) : null}
     </div>
   );
 }

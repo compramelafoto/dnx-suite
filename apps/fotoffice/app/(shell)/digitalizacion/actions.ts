@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { contextoDigitalizacion } from "@/lib/digitalizacion/contexto";
 import * as G from "@/lib/digitalizacion/servidor/grabaciones";
+import * as E from "@/lib/digitalizacion/servidor/entregas";
 import { validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte } from "@/lib/digitalizacion/validar";
 
 const SIN_PERMISO = { ok: false as const, error: "No tenés permiso para hacer esto.", definitivo: true };
@@ -110,6 +111,43 @@ export async function reintentarConversionAction(grabacionId: string) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.reintentarConversion(ctx, grabacionId);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
+// --- Entrega de los videos (spec 2026-10-22) ---------------------------------------------------
+
+export async function guardarAjustesEntregaAction(envioAutomatico: unknown, franjas: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await G.guardarAjustesEntrega(ctx, envioAutomatico, franjas);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
+/** "Enviar al cliente" / "Reenviar" (CORREO) o "Copiar enlace" (ENLACE: token nuevo, sin correo). */
+export async function enviarEntregaAction(entregaIdOPedido: { entregaId?: unknown; pedidoId?: unknown }, modo: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  if (modo !== "CORREO" && modo !== "ENLACE") return INVALIDO;
+  let entregaId = typeof entregaIdOPedido?.entregaId === "string" ? entregaIdOPedido.entregaId : null;
+  if (!entregaId && typeof entregaIdOPedido?.pedidoId === "string") {
+    // Un pedido listo que todavía no tiene la fila de entrega (el cron no pasó): se crea acá.
+    const r = await E.asegurarEntrega(ctx.workspaceId, entregaIdOPedido.pedidoId);
+    if (!r) return { ok: false as const, error: E.MENSAJES_ENTREGA.noExiste };
+    entregaId = r.entrega.id;
+  }
+  if (!entregaId) return INVALIDO;
+  const r = await E.enviarEntrega(ctx.workspaceId, entregaId, modo);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
+export async function cambiarEnvioAutomaticoAction(pedidoId: unknown, valor: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  if (typeof pedidoId !== "string" || typeof valor !== "boolean") return INVALIDO;
+  const r = await E.cambiarEnvioAutomatico(ctx.workspaceId, pedidoId, valor);
   revalidatePath("/digitalizacion");
   return r;
 }

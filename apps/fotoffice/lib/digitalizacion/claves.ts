@@ -34,3 +34,17 @@ export function claveDeParte(p: { workspaceId: string; grabacionId: string; tram
 export function esClaveDeParte(k: string): boolean {
   return REGEX_CLAVE_PARTE.test(k);
 }
+
+/** La clave del MP4 final de una grabación: `digitalizacion/<ws>/<grabacion>/final.mp4`. */
+export function claveDeVideoFinal(workspaceId: string, grabacionId: string): string {
+  return `${prefijoDeGrabacion(workspaceId, grabacionId)}final.mp4`;
+}
+
+/**
+ * ¿`hlsKey` es una carpeta válida de la versión HLS de ESTA grabación? Es un PREFIJO de carpeta
+ * sin barra final (`digitalizacion/<ws>/<grabacion>/hls`), con `index.m3u8` y los segmentos adentro.
+ */
+export function esPrefijoHlsDe(workspaceId: string, grabacionId: string, hlsKey: string): boolean {
+  const prefijo = prefijoDeGrabacion(workspaceId, grabacionId);
+  return hlsKey.startsWith(prefijo) && /^[A-Za-z0-9_-]{1,64}$/.test(hlsKey.slice(prefijo.length));
+}

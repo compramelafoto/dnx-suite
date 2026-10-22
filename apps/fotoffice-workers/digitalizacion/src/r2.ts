@@ -4,16 +4,21 @@ import {
   HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
-import type { Readable } from "node:stream";
+import { Readable } from "node:stream";
 import type { Config } from "./config";
 
 export type R2 = {
   leerParte(clave: string): Promise<Buffer>;
   subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
+  /** Sube un archivo chico (segmento o playlist HLS); corta a los 30 s (el subidor reintenta). */
+  subirArchivo(clave: string, cuerpo: Buffer, tipo: string): Promise<void>;
+  /** Lee un objeto grande en streaming; si la conexión se corta, sigue desde el último byte. */
+  leerStream(clave: string): Readable;
   /** Falla si no hay acceso al bucket. */
   verificarAcceso(): Promise<void>;
 };
@@ -55,6 +60,17 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
       return Number(head.ContentLength ?? 0);
     },
 
+    async subirArchivo(clave, cuerpo, tipo) {
+      await client.send(
+        new PutObjectCommand({ Bucket, Key: clave, Body: cuerpo, ContentType: tipo, ContentLength: cuerpo.length }),
+        { abortSignal: AbortSignal.timeout(SUBIDA_ARCHIVO_MS) },
+      );
+    },
+
+    leerStream(clave) {
+      return Readable.from(leerReanudable(client, Bucket, clave));
+    },
+
     async borrarPrefijo(prefijo) {
       let token: string | undefined;
       do {
@@ -72,4 +88,41 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
       } while (token);
     },
   };
+}
+
+/** Un segmento de 6 s a ~2 Mbps pesa ~1,6 MB: 30 s alcanzan de sobra; si no, se reintenta. */
+export const SUBIDA_ARCHIVO_MS = 30_000;
+const ESPERAS_LECTURA_MS = [2000, 5000, 15000, 30000, 60000];
+
+/**
+ * El `final.mp4` de una cinta de 2 h pesa ~8 GB: una sola conexión puede cortarse en el medio.
+ * Ante un error se vuelve a pedir con `Range: bytes=<leídos>-`, hasta 5 veces seguidas sin avanzar.
+ */
+async function* leerReanudable(client: S3Client, Bucket: string, Key: string): AsyncGenerator<Uint8Array> {
+  let leidos = 0;
+  let total: number | null = null;
+  let fallosSeguidos = 0;
+  while (total === null || leidos < total) {
+    const antes = leidos;
+    try {
+      const r = await client.send(
+        new GetObjectCommand({ Bucket, Key, ...(leidos > 0 ? { Range: `bytes=${leidos}-` } : {}) }),
+      );
+      if (!r.Body) throw new Error(`Objeto vacío en R2: ${Key}`);
+      if (total === null) {
+        const rango = r.ContentRange?.match(/\/(\d+)$/);
+        total = rango ? Number(rango[1]) : Number(r.ContentLength ?? 0);
+      }
+      for await (const chunk of r.Body as AsyncIterable<Uint8Array>) {
+        leidos += chunk.length;
+        yield chunk;
+      }
+      if (total !== null && leidos < total) throw new Error(`Lectura cortada en ${leidos} de ${total} bytes`);
+    } catch (e) {
+      fallosSeguidos = leidos > antes ? 1 : fallosSeguidos + 1;
+      if (fallosSeguidos > ESPERAS_LECTURA_MS.length) throw e;
+      console.error(`[digitalizacion] lectura de ${Key} cortada en ${leidos} bytes; reintento:`, e instanceof Error ? e.message : e);
+      await new Promise((r) => setTimeout(r, ESPERAS_LECTURA_MS[fallosSeguidos - 1]));
+    }
+  }
 }

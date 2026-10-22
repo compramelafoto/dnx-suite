@@ -1,11 +1,15 @@
 import {
   estadoDeConversion,
+  estadoHls,
   marcarError,
+  marcarFalloHls,
+  marcarHls,
   marcarLista,
   marcarPartesBorradas,
   marcarPartesBorradasSinImagen,
   marcarSinImagen,
   renovarLock,
+  renovarLockRelleno,
   type PrismaCola,
 } from "./cola";
 import type { BrandingMarca } from "./marca";
@@ -32,8 +36,17 @@ export type Repo = {
   estado(id: string): Promise<string | null>;
 };
 
+/** Lo que necesita el relleno de la versión para mirar (E10). */
+export type RepoRelleno = {
+  cargarRelleno(id: string): Promise<{ id: string; workspaceId: string; videoKey: string | null } | null>;
+  renovarLockRelleno(id: string, viejo: Date, nuevo: Date): Promise<number>;
+  marcarHls(id: string, lock: Date, hlsKey: string): Promise<number>;
+  marcarFalloHls(id: string, lock: Date, mensaje: string): Promise<number>;
+  estadoHls(id: string): Promise<string | null>;
+};
+
 /** Repositorio sobre SQL crudo (las columnas de conversión pueden no estar en el cliente generado). */
-export function crearRepo(db: PrismaCola): Repo {
+export function crearRepo(db: PrismaCola): Repo & RepoRelleno {
   return {
     async cargar(id) {
       const filas = await db.$queryRawUnsafe<
@@ -94,5 +107,16 @@ export function crearRepo(db: PrismaCola): Repo {
     marcarPartesBorradas: (id, key) => marcarPartesBorradas(db, id, key),
     renovarLock: (id, viejo, nuevo) => renovarLock(db, id, viejo, nuevo),
     estado: (id) => estadoDeConversion(db, id),
+    async cargarRelleno(id) {
+      const f = await db.$queryRawUnsafe<{ id: string; workspaceId: string; videoKey: string | null }[]>(
+        `SELECT id, "workspaceId", "videoKey" FROM "DigitalizacionGrabacion" WHERE id=$1`,
+        id,
+      );
+      return f[0] ?? null;
+    },
+    renovarLockRelleno: (id, viejo, nuevo) => renovarLockRelleno(db, id, viejo, nuevo),
+    marcarHls: (id, lock, k) => marcarHls(db, id, lock, k),
+    marcarFalloHls: (id, lock, m) => marcarFalloHls(db, id, lock, m),
+    estadoHls: (id) => estadoHls(db, id),
   };
 }

@@ -28,3 +28,18 @@ describe("claves de digitalización", () => {
     expect(prefijoDeGrabacion("w", "g")).toBe("digitalizacion/w/g/");
   });
 });
+
+describe("claves del video final y del HLS", () => {
+  it("final.mp4 dentro de la carpeta de la grabación", async () => {
+    const { claveDeVideoFinal } = await import("./claves");
+    expect(claveDeVideoFinal("ws1", "g1")).toBe("digitalizacion/ws1/g1/final.mp4");
+  });
+  it("el HLS es una carpeta sin barra final dentro de la grabación", async () => {
+    const { esPrefijoHlsDe } = await import("./claves");
+    expect(esPrefijoHlsDe("ws1", "g1", "digitalizacion/ws1/g1/hls")).toBe(true);
+    expect(esPrefijoHlsDe("ws1", "g1", "digitalizacion/ws1/g1/hls/")).toBe(false);
+    expect(esPrefijoHlsDe("ws1", "g1", "digitalizacion/ws1/g2/hls")).toBe(false);
+    expect(esPrefijoHlsDe("ws1", "g1", "digitalizacion/ws1/g1/../x")).toBe(false);
+    expect(esPrefijoHlsDe("ws1", "g1", "digitalizacion/ws1/g1/")).toBe(false);
+  });
+});
