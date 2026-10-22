@@ -27,6 +27,12 @@ import {
   vaciarPliego,
   type Ubicacion,
 } from "@/lib/fotolibro/modo/operaciones";
+import { GoogleFontsLoader } from "@repo/template-editor-ui";
+import { estiloPorId } from "@/lib/fotolibro/estilos/catalogo";
+import type { EstiloFotolibro, RolTexto } from "@/lib/fotolibro/estilos/tipos";
+import { claveDeMedida, medidasDelLienzo } from "@/lib/fotolibro/modo/bloques";
+import { dibujarYSubirFondos } from "./aplicar-estilo";
+import { SelectorEstilo } from "./selector-estilo";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
 import { TiraFotos } from "./tira-fotos";
@@ -78,6 +84,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [guardado, setGuardado] = useState<Guardado>("al-dia");
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState<{ hechas: number; total: number; errores: string[] } | null>(null);
+  const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
+  const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
 
   // Lo último, para el guardado y las subidas, que corren fuera del ciclo de dibujo.
   const ref = useRef({ cargado, estado, bloques });
@@ -252,10 +260,34 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     [templateId, aplicar],
   );
 
+  // ── Estilo ──
+  const elegirEstilo = useCallback(
+    async (estilo: EstiloFotolibro) => {
+      const c = ref.current.cargado;
+      if (!c) return;
+      setAplicandoEstilo(estilo.id);
+      try {
+        const fondos = await dibujarYSubirFondos(templateId, estilo, medidasDelLienzo(c.canvas));
+        aplicar((e) => ({
+          ...e,
+          estilo: { id: estilo.id, medida: claveDeMedida(c.canvas), fondos, textos: e.estilo?.textos ?? {} },
+          margenMm: estilo.margenMm ?? e.margenMm,
+          separacionMm: estilo.separacionMm ?? e.separacionMm,
+        }));
+        setEligiendoEstilo(false);
+      } catch (err) {
+        setErrorGuardado(err instanceof Error ? err.message : "No se pudo aplicar el estilo.");
+      } finally {
+        setAplicandoEstilo(null);
+      }
+    },
+    [templateId, aplicar],
+  );
+
   // ── Teclado ──
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (recortando || esEditable(ev.target)) return;
+      if (recortando || eligiendoEstilo || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
       if ((ev.metaKey || ev.ctrlKey) && tecla === "z") {
         ev.preventDefault();
@@ -287,7 +319,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
+  }, [recortando, eligiendoEstilo, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -310,6 +342,14 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
 
   const bloqueElegido = seleccionada ? bloques.find((b) => b.id === idDeBloque(seleccionada.pliego, seleccionada.lado, seleccionada.fotoId)) ?? null : null;
   const fotoElegida: FotoDelLibro | null = seleccionada ? fotosPorId.get(seleccionada.fotoId) ?? null : null;
+  const estiloActual = estiloPorId(estado.estilo?.id);
+  const ETIQUETAS: Record<RolTexto, string> = { titulo: "Título (portada)", subtitulo: "Subtítulo", fecha: "Fecha o lugar", frase: "Frase del cierre" };
+  const medidas = medidasDelLienzo(cargado.canvas);
+  const rolesDelEstilo = estiloActual
+    ? (["apertura", "cierre"] as const)
+        .flatMap((t) => estiloActual.textos?.(t, medidas) ?? [])
+        .map((t) => ({ rol: t.rol, etiqueta: ETIQUETAS[t.rol], ejemplo: t.ejemplo }))
+    : [];
   const estadoGuardado =
     guardado === "guardando" ? "Guardando…" : guardado === "pendiente" ? "Cambios sin guardar" : guardado === "error" ? "No se guardó" : "Guardado";
 
@@ -320,6 +360,16 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
 
   return (
     <div className="flex h-full flex-col bg-[#18191b] text-white">
+      <GoogleFontsLoader />
+      {eligiendoEstilo ? (
+        <SelectorEstilo
+          medidas={medidas}
+          actual={estado.estilo?.id ?? null}
+          aplicando={aplicandoEstilo}
+          onElegir={(e) => void elegirEstilo(e)}
+          onCerrar={() => !aplicandoEstilo && setEligiendoEstilo(false)}
+        />
+      ) : null}
       <header className="flex flex-none items-center gap-3 border-b border-white/10 bg-[#202124] px-4 py-2 text-sm">
         <button type="button" onClick={() => void salirA(salirHref)} className="rounded px-2 py-1 text-white/80 hover:bg-white/10">
           ← Fotolibros
@@ -408,6 +458,12 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             aplicar((e) => agregarPliego(e, pliego), (b) => reindexarHojas(b, { tipo: "insertar", indice: pliego + 1 }));
             setPliego(pliego + 1);
           }}
+          estilo={estiloActual ? { nombre: estiloActual.nombre, roles: rolesDelEstilo, textos: estado.estilo?.textos ?? {} } : null}
+          onAbrirEstilos={() => setEligiendoEstilo(true)}
+          onSacarEstilo={() => aplicar((e) => ({ ...e, estilo: null }))}
+          onTexto={(rol, valor) =>
+            aplicar((e) => (e.estilo ? { ...e, estilo: { ...e.estilo, textos: { ...e.estilo.textos, [rol]: valor } } } : e))
+          }
           onQuitarPliego={() => {
             aplicar((e) => quitarPliego(e, pliego), (b) => reindexarHojas(b, { tipo: "quitar", indice: pliego }));
             setPliego(Math.max(0, Math.min(pliego, cantidad - 2)));
