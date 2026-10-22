@@ -391,3 +391,32 @@ describe("transferencias esperadas (etapa B)", () => {
     }
   });
 });
+
+describe("efectos del pago en otros módulos", () => {
+  it("la cuota paga de un cargo de Digitalización lo aplica después del cobro", async () => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1", videosVencenAt: null, videosBorradosAt: null, envioDireccion: null });
+    B.agregar("digitalizacionGrabacion", { id: "gra-1", workspaceId: "ws-1", proyectoId: null, titulo: "Boda", tipo: "VHS", cassetteNumero: 1, descargasExtra: 0 });
+    B.agregar("digitalizacionCargo", {
+      id: "car-1", workspaceId: "ws-1", entregaId: "ent-1", pedidoId: "ped-1", cuotaId: "ped-1-c1", tipo: "DESCARGA_EXTRA", grabacionId: "gra-1",
+      montoArs: "40000.00", estado: "PENDIENTE", createdAt: AHORA,
+    });
+    await cobrado("ped-1", 20000);
+    expect(B.datos.digitalizacionCargo[0]!.estado).toBe("PENDIENTE");
+    await cobrado("ped-1", 20000);
+    expect(B.datos.digitalizacionCargo[0]!.estado).toBe("APLICADO");
+    expect(B.datos.digitalizacionGrabacion[0]!.descargasExtra).toBe(1);
+  });
+});
+
+describe("cuotas de cargos extra en el reparto automático", () => {
+  it("regresión: con la cuota 3 impaga y un cargo de hoy, el cobro automático va a la cuota 3", async () => {
+    const { agregarCargoAlPedido } = await import("./cargos");
+    await cobrado("ped-1", 80000);
+    const c = await agregarCargoAlPedido({ workspaceId: "ws-1", pedidoId: "ped-1", concepto: "Extensión", montoArs: 15000, origen: "prueba", ahora: AHORA });
+    if (!c.ok) throw new Error(c.error);
+    const r = await cobrado("ped-1", 40000);
+    expect(imputacionesDe(r.cobroId)).toEqual([["ped-1-c3", "40000.00"]]);
+    const r2 = await cobrado("ped-1", 15000);
+    expect(imputacionesDe(r2.cobroId)).toEqual([[c.cuotaId, "15000.00"]]);
+  });
+});

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { contextoDigitalizacion } from "@/lib/digitalizacion/contexto";
 import * as G from "@/lib/digitalizacion/servidor/grabaciones";
 import * as E from "@/lib/digitalizacion/servidor/entregas";
+import * as K from "@/lib/digitalizacion/servidor/cargos";
 import { validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte } from "@/lib/digitalizacion/validar";
 
 const SIN_PERMISO = { ok: false as const, error: "No tenés permiso para hacer esto.", definitivo: true };
@@ -148,6 +149,35 @@ export async function cambiarEnvioAutomaticoAction(pedidoId: unknown, valor: unk
   if (!ctx) return SIN_PERMISO;
   if (typeof pedidoId !== "string" || typeof valor !== "boolean") return INVALIDO;
   const r = await E.cambiarEnvioAutomatico(ctx.workspaceId, pedidoId, valor);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
+// --- Cargos extra y envío de cassettes (spec 2026-10-22, E6 y E9) ------------------------------
+
+/** "Marcar entregado": el envío de los cassettes llegó al cliente. */
+export async function marcarEnvioEntregadoAction(entregaId: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await K.marcarEnvioEntregado(ctx.workspaceId, entregaId);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
+/** "Anular" un cargo extra sin pagar: sale del pedido (renglón, total y cuota). */
+export async function anularCargoAction(cargoId: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await K.anularCargo(ctx.workspaceId, cargoId);
+  revalidatePath("/digitalizacion");
+  return r;
+}
+
+/** "Quitar del pedido a mano" un cargo "a revisar": saca su renglón y su monto del total. */
+export async function quitarCargoAManoAction(cargoId: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await K.quitarCargoAMano(ctx.workspaceId, cargoId, ctx.userId ?? null);
   revalidatePath("/digitalizacion");
   return r;
 }

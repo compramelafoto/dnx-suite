@@ -3,7 +3,8 @@ import { prisma, type Prisma } from "@repo/db";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { saldoDelPedido } from "@/lib/pedidos/candado-saldo";
+import { saldoSinExtrasOpcionales } from "@/lib/pedidos/candado-saldo";
+import { bloquearPedido } from "@/lib/pedidos/plan";
 import { enlaceDelPedidoDelSistema, MENSAJES_ENLACE } from "@/lib/pedidos/enlace";
 import { hashDeToken, resolverClaveDeEnlace } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
@@ -17,6 +18,7 @@ import {
 } from "../entrega";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
+import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPendientes, type CargoARevisar, type CargoPendiente } from "./cargos";
 
 /**
  * La entrega de los videos de un pedido (spec 2026-10-22, E1, E2, E3 y E8), del lado del servidor.
@@ -279,7 +281,8 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
   }
 
   const [saldo, enlacePedido, contacto] = await Promise.all([
-    saldoDelPedido(prisma as unknown as Tx, workspaceId, e.pedidoId),
+    // El saldo que habilita los videos: sin los extras opcionales (descargas, extensión, envío).
+    saldoSinExtrasOpcionales(prisma as unknown as Tx, workspaceId, e.pedidoId),
     enlaceDelPedidoDelSistema(workspaceId, e.pedidoId, {}, { clave: prep.clave, appOrigin: prep.sitio.appOrigin }),
     contactoDelNegocio(workspaceId),
   ]);
@@ -323,6 +326,12 @@ export type ResumenEntrega = {
   /** Desde cuándo la manda sola el cron (12 h después de la última actividad); null = sin fechas. */
   enviaSoloDesde: Date | null;
   entrega: Pick<EntregaLeida, "id" | "envioAutomatico" | "enviadoAt" | "videosVencenAt" | "cassettesVencenAt" | "videosBorradosAt"> | null;
+  /** Envío de los cassettes (E9); null = no se pidió. */
+  envio: { estado: string; direccion: string | null; km: number | null; precioMinor: number | null } | null;
+  /** Cargos extra sin pagar (E6). */
+  cargosPendientes: CargoPendiente[];
+  /** Cargos "a revisar": el plan se editó a mano y ya no cuadran. */
+  cargosARevisar: CargoARevisar[];
 };
 
 export const PEDIDOS_EN_LA_LISTA = 60;
@@ -346,7 +355,14 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
       where: { workspaceId, proyecto: { workspaceId, pedidoId: { in: ids } } },
       select: { estado: true, conversionEstado: true, sinImagen: true, terminadaAt: true, convertidaAt: true, proyecto: { select: { pedidoId: true } } },
     }),
-    prisma.digitalizacionEntrega.findMany({ where: { workspaceId, pedidoId: { in: ids } }, select: SELECT_ENTREGA }),
+    prisma.digitalizacionEntrega.findMany({
+      where: { workspaceId, pedidoId: { in: ids } },
+      select: { ...SELECT_ENTREGA, envioEstado: true, envioDireccion: true, envioKm: true, envioPrecioArs: true },
+    }),
+  ]);
+  const [pendientes, aRevisar] = await Promise.all([
+    cargosPendientes(workspaceId, entregas.map((e) => e.id)),
+    cargosARevisar(workspaceId, entregas.map((e) => ({ id: e.id, pedidoId: e.pedidoId }))),
   ]);
   const porPedido = new Map<string, typeof grabaciones>();
   for (const g of grabaciones) {
@@ -371,6 +387,16 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
       entrega: e
         ? { id: e.id, envioAutomatico: e.envioAutomatico, enviadoAt: e.enviadoAt, videosVencenAt: e.videosVencenAt, cassettesVencenAt: e.cassettesVencenAt, videosBorradosAt: e.videosBorradosAt }
         : null,
+      envio: e?.envioEstado
+        ? {
+            estado: e.envioEstado,
+            direccion: e.envioDireccion ?? null,
+            km: e.envioKm ?? null,
+            precioMinor: e.envioPrecioArs == null ? null : Math.round(Number(e.envioPrecioArs.toString()) * 100),
+          }
+        : null,
+      cargosPendientes: e ? (pendientes.get(e.id) ?? []).filter((c) => !(aRevisar.get(e.id) ?? []).some((r) => r.id === c.id)) : [],
+      cargosARevisar: e ? aRevisar.get(e.id) ?? [] : [],
     };
   });
 }
@@ -393,6 +419,8 @@ export type ReporteEnvios = {
   /** Entregas ya enviadas a las que se les sumó un video (vencimiento corrido). */
   extendidas: number;
   avisosAgregado: number;
+  /** Cargos extra con la cuota paga que el cobro no llegó a aplicar (E6). */
+  cargosAplicados: number;
 };
 
 /** Grabaciones que todavía impiden mandar la entrega (en curso, en cola, con error o muy recientes). */
@@ -456,7 +484,9 @@ async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; works
  */
 export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: number } = {}): Promise<ReporteEnvios> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0 };
+  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0 };
+  // Primero los cargos pagos que quedaron sin aplicar (el cobro los aplica después del commit, sin reintento).
+  reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
   const encendido = new Map<string, boolean>();
   const estaEncendido = async (ws: string) => {
     if (!encendido.has(ws)) encendido.set(ws, await isModuleEnabledForWorkspace(ws, DIGITALIZACION_MODULE_KEY));
@@ -556,19 +586,38 @@ export type ReporteVencimientos = {
   recordatoriosFallidos: number;
   borradas: number;
   borradoFallido: number;
+  cargosAplicados: number;
+  cargosAnulados: number;
 };
 
 /**
- * Borra de R2 los videos de una entrega vencida. Marca `videoBorradoAt` en cada grabación que se
- * pudo borrar y `videosBorradosAt` en la entrega sólo si se borraron todas: si R2 falla en alguna,
- * la entrega queda sin marcar y la corrida de mañana reintenta (borrar lo que ya no está no falla).
+ * Borra de R2 los videos de una entrega vencida. Antes, con los candados del pedido y de la entrega
+ * (el mismo orden que aplicar una extensión paga), vuelve a leer `videosVencenAt` y
+ * `videosBorradosAt`: si alguien extendió la entrega en el medio (o ya se borró), no borra nada. Si
+ * sigue vencida, la marca `videosBorradosAt` en esa misma transacción: así una extensión que se pague
+ * mientras se borra ya la ve borrada (y avisa al equipo) en lugar de correr un vencimiento de videos
+ * que no existen. Si R2 falla en alguna grabación, se desmarca y la corrida de mañana reintenta
+ * (borrar lo que ya no está no falla). Marca `videoBorradoAt` en cada grabación que se pudo borrar.
  *
  * `videoKey` es `digitalizacion/<ws>/<grabacion>/final.mp4`. La versión para mirar se borra SIEMPRE
  * entera: todas las carpetas `hls*` de la grabación, haya `hlsKey` o no (un relleno cortado pudo
  * dejar restos). Un `videoKey` con forma inesperada no se toca (no se borra algo que no es de la
  * grabación): se registra en el log y la grabación se marca igual, para no fallar todos los días.
  */
-export async function borrarVideosDeEntrega(e: Pick<EntregaLeida, "id" | "workspaceId" | "pedidoId">, ahora: Date): Promise<boolean> {
+export async function borrarVideosDeEntrega(
+  e: Pick<EntregaLeida, "id" | "workspaceId" | "pedidoId" | "videosVencenAt">,
+  ahora: Date,
+): Promise<boolean | "SIN_CAMBIOS"> {
+  const reclamada = await prisma.$transaction(async (tx) => {
+    await bloquearPedido(tx, e.pedidoId);
+    await tx.$queryRaw`SELECT id FROM "DigitalizacionEntrega" WHERE id = ${e.id} FOR UPDATE`;
+    const actual = await tx.digitalizacionEntrega.findFirst({ where: { id: e.id, workspaceId: e.workspaceId }, select: { videosVencenAt: true, videosBorradosAt: true } });
+    if (!actual || actual.videosBorradosAt || !actual.videosVencenAt) return false;
+    if (actual.videosVencenAt.getTime() !== e.videosVencenAt?.getTime() || !videosVencidos(actual, ahora)) return false;
+    const r = await tx.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: null }, data: { videosBorradosAt: ahora } });
+    return r.count === 1;
+  });
+  if (!reclamada) return "SIN_CAMBIOS";
   const grabaciones = await grabacionesDelPedido(e.workspaceId, e.pedidoId);
   let todas = true;
   for (const g of grabaciones) {
@@ -585,8 +634,10 @@ export async function borrarVideosDeEntrega(e: Pick<EntregaLeida, "id" | "worksp
       console.error("[digitalizacion][entrega] no se pudo borrar un video vencido", { codigo: codigo(err) });
     }
   }
-  if (!todas) return false;
-  await prisma.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: null }, data: { videosBorradosAt: ahora } });
+  if (!todas) {
+    await prisma.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: ahora }, data: { videosBorradosAt: null } });
+    return false;
+  }
   return true;
 }
 
@@ -626,7 +677,11 @@ async function recordar(e: EntregaLeida, umbral: number, ahora: Date, deps: Deps
 /** La corrida diaria (10:00 de Argentina): avisa los vencimientos y borra lo vencido. Devuelve contadores. */
 export async function recordatoriosYVencimientos(deps: DepsEntrega = {}): Promise<ReporteVencimientos> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const reporte: ReporteVencimientos = { revisadas: 0, recordatorios: 0, sinEmail: 0, recordatoriosFallidos: 0, borradas: 0, borradoFallido: 0 };
+  const reporte: ReporteVencimientos = { revisadas: 0, recordatorios: 0, sinEmail: 0, recordatoriosFallidos: 0, borradas: 0, borradoFallido: 0, cargosAplicados: 0, cargosAnulados: 0 };
+  // Antes de borrar nada: una extensión ya paga que el cobro no llegó a aplicar corre el vencimiento.
+  reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
+  // Y se sacan del pedido los cargos sin pagar que perdieron sentido (videos borrados, cassettes vencidos).
+  reporte.cargosAnulados = await anularCargosSinSentido({ ahora: () => ahora });
   const entregas = await prisma.digitalizacionEntrega.findMany({
     where: { enviadoAt: { not: null }, videosBorradosAt: null, videosVencenAt: { not: null } },
     orderBy: { videosVencenAt: "asc" },
@@ -637,8 +692,9 @@ export async function recordatoriosYVencimientos(deps: DepsEntrega = {}): Promis
     reporte.revisadas++;
     try {
       if (videosVencidos(e, ahora)) {
-        if (await borrarVideosDeEntrega(e, ahora)) reporte.borradas++;
-        else reporte.borradoFallido++;
+        const b = await borrarVideosDeEntrega(e, ahora);
+        if (b === true) reporte.borradas++;
+        else if (b === false) reporte.borradoFallido++;
         continue;
       }
       const umbral = recordatorioQueCorresponde(e, ahora);

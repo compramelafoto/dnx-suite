@@ -28,6 +28,7 @@ describe("correoVideosListos", () => {
     expect(c.text).toContain("3 descargas por video");
     expect(c.text).toContain("disponibles hasta el 21/11/2026");
     expect(c.text).toContain("Retirá tus cassettes antes del 21/11/2026");
+    expect(c.text).toContain("¿Querés que te los llevemos? Pedí el envío desde la página de tus videos.");
     expect(c.text).not.toContain("$");
     expect(c.html).toContain('href="https://fotoffice.com/w/fp/videos/xyz"');
   });

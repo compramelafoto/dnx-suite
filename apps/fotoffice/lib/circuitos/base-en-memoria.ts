@@ -75,6 +75,8 @@ const TABLAS = [
   "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
   // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
   "productVariant", "stockMovement",
+  // Digitalización: entregas de videos y cargos extra (spec 2026-10-22, E6).
+  "digitalizacionEntrega", "digitalizacionGrabacion", "digitalizacionCargo", "digitalizacionAjustes",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -84,6 +86,9 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
   stage: { columna: "stageId", tabla: "fotofficeStage" },
   journey: { columna: "journeyId", tabla: "fotofficeJourney" },
   field: { columna: "fieldId", tabla: "fotofficeCustomField" },
+  // Digitalización: la grabación es de un trabajo y el cargo, de una entrega.
+  proyecto: { columna: "proyectoId", tabla: "fotofficeProyecto" },
+  entrega: { columna: "entregaId", tabla: "digitalizacionEntrega" },
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
@@ -740,6 +745,8 @@ export function crearBaseEnMemoria() {
     }
     // `lockStockRows`: el `FOR UPDATE` de productos y talles acá no bloquea nada.
     if (texto.includes("FOR UPDATE") && /FROM "(Product|ProductVariant)"/.test(texto)) return [];
+    // El candado de la entrega de videos (acá no hay concurrencia: sólo lee).
+    if (texto.includes("FOR UPDATE") && texto.includes('FROM "DigitalizacionEntrega"')) return [];
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);

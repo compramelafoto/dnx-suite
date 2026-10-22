@@ -82,7 +82,10 @@ export function correoVideosListos(d: DatosVideosListos): Correo {
   });
   bloques.push({
     titulo: "Tus cassettes",
-    lineas: [`Retirá tus cassettes antes del ${fechaArgentina(d.cassettesVencenAt)}: después los descartamos porque no tenemos espacio para guardarlos.`],
+    lineas: [
+      `Retirá tus cassettes antes del ${fechaArgentina(d.cassettesVencenAt)}: después los descartamos porque no tenemos espacio para guardarlos.`,
+      "¿Querés que te los llevemos? Pedí el envío desde la página de tus videos.",
+    ],
   });
   if (d.contacto) bloques.push({ titulo: null, lineas: [`Cualquier duda, escribinos: ${d.contacto}.`] });
   return armar(`${n === 1 ? "Tu video está listo" : "Tus videos están listos"} · ${d.estudio}`, bloques, d.estudio);

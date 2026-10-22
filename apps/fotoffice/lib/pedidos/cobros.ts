@@ -16,6 +16,7 @@ import {
   ENTIDAD_NUMERACION_RECIBO, esEstadoPedido, esMedioCobro, MODULO_CAJA_PEDIDOS, SECUENCIA_RECIBO, type MedioCobro,
 } from "./constantes";
 import { hashDeToken, resolverClaveDeEnlace, tokenDelRecibo } from "./enlace";
+import { cuotasDeCargo } from "./cargos-puro";
 import { imputadoPorCuota } from "./estado";
 import { imputarConPreferida, validarImputacionManual, type CuotaConSaldo, type Imputacion } from "./imputacion";
 import { bloquearPedido, pesosDeBase, pesosParaBase, planesDe } from "./plan";
@@ -219,14 +220,17 @@ function repetido(c: CobroPorClave, pedidoId: string): ResultadoCobro {
 }
 
 /** Saldos vigentes de cada cuota (importe menos lo imputado por cobros sin anular). */
-async function cuotasConSaldo(tx: Tx, workspaceId: string, pedidoId: string): Promise<CuotaConSaldo[]> {
+/** Con `items` del pedido: las cuotas de cargos extra quedan marcadas (`esCargo`) y el reparto automático las deja al final. */
+async function cuotasConSaldo(tx: Tx, workspaceId: string, pedidoId: string, items: unknown = null): Promise<CuotaConSaldo[]> {
   const plan = (await planesDe(workspaceId, [pedidoId], tx)).get(pedidoId) ?? { cuotas: [], imputaciones: [] };
   const imputado = imputadoPorCuota(plan.imputaciones);
+  const deCargo = cuotasDeCargo(items);
   return plan.cuotas.map((c) => ({
     id: c.id,
     position: c.position,
     dueDate: c.dueDate,
     saldo: desdeCentavos(Math.max(0, aCentavos(c.amountArs) - (imputado.get(c.id) ?? 0))),
+    ...(deCargo.has(c.id) ? { esCargo: true } : {}),
   }));
 }
 
@@ -261,7 +265,7 @@ async function aplicarCobro(tx: Tx, e: EntradaCobro): Promise<{ cobroId: string;
   const { workspaceId, paidAt, claveEnlace } = e;
   const p = await tx.fotofficePedido.findFirst({
     where: { id: e.pedidoId, workspaceId },
-    select: { id: true, number: true, status: true, clientId: true, consultaLeadId: true, incomeCategoryId: true, totalArs: true },
+    select: { id: true, number: true, status: true, clientId: true, consultaLeadId: true, incomeCategoryId: true, totalArs: true, items: true },
   });
   if (!p || !esEstadoPedido(p.status)) throw new Corte(MENSAJES_PEDIDO.noExiste);
   if (p.status === "CANCELADO") throw new Corte(MENSAJES_COBRO.cancelado);
@@ -277,7 +281,7 @@ async function aplicarCobro(tx: Tx, e: EntradaCobro): Promise<{ cobroId: string;
   }
 
   // Imputación contra los saldos vigentes, leídos con el candado tomado.
-  const cuotas = await cuotasConSaldo(tx, workspaceId, p.id);
+  const cuotas = await cuotasConSaldo(tx, workspaceId, p.id, p.items);
   const imp = e.manual ? validarImputacionManual(cuotas, e.manual, e.importe) : imputarConPreferida(cuotas, e.importe, e.preferida);
   if (!imp.ok) throw new Corte(imp.error);
 
@@ -416,6 +420,7 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
   // Doble red: `notificarEvento` no lanza, y si alguna vez lo hiciera, el cobro ya está hecho.
   if (hecho.primero) await avisarSenaCobrada(workspaceId, v.pedidoId, hecho.consultaLeadId, hecho.cobroId);
   await cerrarEsperasPagas(workspaceId, v.pedidoId, hecho.cobroId, ahora);
+  await aplicarEfectosDePago(workspaceId, v.pedidoId, ahora);
   return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero, importe: v.importe };
 }
 
@@ -448,6 +453,21 @@ async function cerrarEsperasPagas(workspaceId: string, pedidoId: string, cobroId
     }
   } catch (e) {
     falla("cerrarEsperasPagas", e);
+  }
+}
+
+/**
+ * Los efectos de las cuotas que quedaron pagas en otros módulos: hoy, los cargos extra de
+ * Digitalización (+1 descarga, +30 días o envío confirmado). Después del commit y sin lanzar nunca:
+ * si falla, el cobro igual está hecho y los crons de Digitalización lo concilian. Se carga recién
+ * acá (import dinámico) para que los pedidos no arrastren el módulo entero.
+ */
+async function aplicarEfectosDePago(workspaceId: string, pedidoId: string, ahora: Date): Promise<void> {
+  try {
+    const { aplicarCargosPagados } = await import("@/lib/digitalizacion/servidor/cargos");
+    await aplicarCargosPagados({ workspaceId, pedidoId }, { ahora: () => ahora });
+  } catch (e) {
+    falla("aplicarEfectosDePago", e);
   }
 }
 
@@ -561,6 +581,7 @@ export async function registrarCobroDelSistema(datos: DatosCobroDelSistema, deps
 
   if (hecho.primero) await avisarSenaCobrada(workspaceId, pedidoId, hecho.consultaLeadId, hecho.cobroId);
   await cerrarEsperasPagas(workspaceId, pedidoId, hecho.cobroId, ahora);
+  await aplicarEfectosDePago(workspaceId, pedidoId, ahora);
   return { ok: true, cobroId: hecho.cobroId, pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero };
 }
 
