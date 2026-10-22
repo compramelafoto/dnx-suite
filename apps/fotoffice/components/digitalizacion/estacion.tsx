@@ -12,6 +12,8 @@ import { faltantesParaGrabar } from "@/lib/digitalizacion/cliente/faltantes";
 import { elegirFormato, elegirFormatoQueFunciona } from "@/lib/digitalizacion/cliente/formato";
 import { Grabador, probarFormato } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
+import { evaluarFin } from "@/lib/digitalizacion/cliente/apagado";
+import { AvisoApagadoEnPagina, PanelApagado, useApagado } from "./apagado";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: number[] | null; corregirProporcion: boolean };
@@ -100,6 +102,12 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const cerrandoRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   useEffect(() => { faseRef.current = fase; streamRef.current = stream; }, [fase, stream]);
+
+  // Apagar la computadora al terminar (F3): "terminó todo" = grabación cerrada y cola vacía sin pérdidas.
+  const apagado = useApagado(evaluarFin({ fase, cierreFallido, pendientes: cola.pendientes, descartadas: cola.descartadas }));
+  // Con la casilla marcada, la ventanita queda abierta al terminar para mostrar la cuenta regresiva.
+  const apagadoArmadoRef = useRef(false);
+  useEffect(() => { apagadoArmadoRef.current = apagado.marcada; }, [apagado.marcada]);
 
   // Manda un latido con el último resumen conocido, si pasó al menos `cadaMs` desde el anterior.
   // Lo usan el worker (grabando), la cola (terminando) y el temporizador de respaldo de la página.
@@ -230,9 +238,10 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     const e: EstadoVentanita = {
       modo: "VHS", stream, segundos: s.segundos, bytesPendientes: cola.bytesPendientes, ultimoError: cola.ultimoError,
       sinImagenHaceSeg: s.sinImagen, minutosSinSenal, avanceDvd: null, terminando: fase === "terminando",
+      terminada: fase === "terminada", apagado: apagado.aviso ? { aviso: apagado.aviso, alCancelar: apagado.cancelar } : null,
     };
     s.ventanita.mostrar(e);
-  }, [stream, cola, minutosSinSenal, fase]);
+  }, [stream, cola, minutosSinSenal, fase, apagado.aviso, apagado.cancelar]);
   useEffect(pintarVentanita, [pintarVentanita]);
 
   const detener = useCallback(async (motivoFin: "MANUAL" | "SIN_SENAL" | "TOPE") => {
@@ -249,8 +258,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     await colaRef.current?.vaciada();
     const resumen = s.resumen ?? { duracionSeg: s.segundos, primeraImagenSeg: null, ultimaImagenSeg: null, sinImagen: true, tramos: [] };
     s.cierre = { ...latidoDe(resumen, s.tramo), motivoFin };
-    s.ventanita?.cerrar();
-    s.ventanita = null;
+    if (!apagadoArmadoRef.current) { s.ventanita?.cerrar(); s.ventanita = null; }
     stream?.getTracks().forEach((t) => t.stop());
     setStream(null); // apaga el medidor de audio
     await cerrarRef.current();
@@ -425,6 +433,15 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     };
   }, []);
 
+  // La ventanita que quedó abierta por el apagado se cierra cuando ya no hay nada que avisar
+  // (casilla desmarcada o cancelado). Si el apagado falló, queda abierta mostrando por qué.
+  useEffect(() => {
+    const s = sesion.current;
+    if (!s?.ventanita || fase !== "terminada" || apagado.marcada || apagado.estado.tipo === "error") return;
+    s.ventanita.cerrar();
+    s.ventanita = null;
+  }, [fase, apagado.marcada, apagado.estado.tipo]);
+
   // Volver a abrir la ventanita si la cerraron: tiene que ser dentro del clic.
   const abrirVentanita = async () => {
     const s = sesion.current;
@@ -463,6 +480,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const puedeGrabar = faltan.length === 0 && fase === "preparando";
   return (
     <div className="space-y-6">
+      <AvisoApagadoEnPagina apagado={apagado} />
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
       {fase === "grabando" ? (
         <p className="fo-alert-warning p-3 text-sm">No salgas de esta página mientras graba: la grabación sigue con la ventana minimizada.</p>
@@ -593,6 +611,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           </div>
         ) : null}
         {fase === "terminada" ? <a className="fo-btn fo-btn-primary" href="/digitalizacion">Ver grabaciones</a> : null}
+        {continuar?.tipo !== "DVD" ? <PanelApagado apagado={apagado} /> : null}
       </section>
 
       {fase === "preparando" && !continuar ? <section className="space-y-3 border-t pt-6">{dvd}</section> : null}

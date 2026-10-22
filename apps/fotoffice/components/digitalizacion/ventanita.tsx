@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { pedirVentanaFlotante } from "@/lib/digitalizacion/cliente/apis-navegador";
+import type { AvisoApagado } from "./apagado";
 
 export type EstadoVentanita = {
   modo: "VHS" | "DVD";
@@ -14,6 +15,9 @@ export type EstadoVentanita = {
   minutosSinSenal: number;
   avanceDvd: { hechos: number; total: number } | null;
   terminando: boolean;
+  /** La grabación ya se cerró: la ventanita sigue abierta sólo para el aviso de apagado. */
+  terminada?: boolean;
+  apagado?: { aviso: AvisoApagado; alCancelar: () => void } | null;
 };
 
 const reloj = (s: number) => {
@@ -36,8 +40,19 @@ function Panel({ e, alDetener }: { e: EstadoVentanita; alDetener: () => void }) 
     <div style={{ font: "13px system-ui, sans-serif", color: "#fff", background: "#111", minHeight: "100vh", overflow: "auto", display: "flex", flexDirection: "column" }}>
       {e.stream ? <Vista stream={e.stream} /> : null}
       <div style={{ padding: 8, display: "grid", gap: 4 }}>
-        <strong style={{ color: e.terminando ? "#fbbf24" : "#ef4444" }}>
-          {e.terminando ? "Terminando de subir…" : `● ${e.modo === "DVD" ? "SUBIENDO DVD" : "GRABANDO"}`} {e.modo === "VHS" ? reloj(e.segundos) : ""}
+        {e.apagado ? (
+          <div role="alert" style={{ padding: 10, borderRadius: 8, background: e.apagado.aviso.error ? "#7f1d1d" : "#92400e", display: "grid", gap: 6, textAlign: "center" }}>
+            <strong style={{ fontSize: 18 }}>{e.apagado.aviso.titulo}</strong>
+            {e.apagado.aviso.detalle ? <span>{e.apagado.aviso.detalle}</span> : null}
+            {e.apagado.aviso.puedeCancelar ? (
+              <button type="button" onClick={e.apagado.alCancelar} style={{ padding: "8px 12px", borderRadius: 6, border: 0, background: "#fff", color: "#111", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
+                Cancelar
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        <strong style={{ color: e.terminada ? "#4ade80" : e.terminando ? "#fbbf24" : "#ef4444" }}>
+          {e.terminada ? "✓ Grabación subida" : e.terminando ? "Terminando de subir…" : `● ${e.modo === "DVD" ? "SUBIENDO DVD" : "GRABANDO"}`} {e.modo === "VHS" ? reloj(e.segundos) : ""}
         </strong>
         {e.avanceDvd ? <span>Parte {e.avanceDvd.hechos} de {e.avanceDvd.total}</span> : null}
         <span>{e.bytesPendientes > 0 ? `Pendiente: ${mb(e.bytesPendientes)}` : "Subida al día ✓"}</span>
@@ -45,9 +60,9 @@ function Panel({ e, alDetener }: { e: EstadoVentanita; alDetener: () => void }) 
         {e.modo === "VHS" ? (
           <span>{restan === null ? "Señal: OK" : `Sin imagen hace ${reloj(e.sinImagenHaceSeg ?? 0)} — se corta en ${reloj(restan)}`}</span>
         ) : null}
-        <button type="button" onClick={alDetener} disabled={e.terminando} style={{ marginTop: 4, padding: "6px 10px", borderRadius: 6, border: 0, background: "#ef4444", color: "#fff", cursor: "pointer" }}>
+        {e.terminada ? null : <button type="button" onClick={alDetener} disabled={e.terminando} style={{ marginTop: 4, padding: "6px 10px", borderRadius: 6, border: 0, background: "#ef4444", color: "#fff", cursor: "pointer" }}>
           ⏹ Detener
-        </button>
+        </button>}
       </div>
     </div>
   );
