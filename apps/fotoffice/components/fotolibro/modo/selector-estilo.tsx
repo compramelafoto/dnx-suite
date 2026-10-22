@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ESTILOS, temasConEstilos } from "@/lib/fotolibro/estilos/catalogo";
 import type { EstiloFotolibro, Medidas, TemaId } from "@/lib/fotolibro/estilos/tipos";
-import { vistaPreviaPliego } from "@/lib/fotolibro/estilos/vista-previa";
+import { aislarIds, vistaPreviaPliego } from "@/lib/fotolibro/estilos/vista-previa";
 
 type Props = {
   medidas: Medidas;
@@ -14,13 +14,10 @@ type Props = {
 };
 
 /** La vista previa entra como SVG en línea: así usa las tipografías ya cargadas en la página. */
-function Previa({ svg }: { svg: string }) {
-  return (
-    <div
-      className="w-full leading-[0] shadow"
-      dangerouslySetInnerHTML={{ __html: svg.replace(/width="[^"]*mm" height="[^"]*mm"/, 'width="100%"') }}
-    />
-  );
+function Previa({ svg, clave }: { svg: string; clave: string }) {
+  // Cada vista previa con sus propios ids: si no, los estilos se roban degradados entre sí.
+  const html = aislarIds(svg, `${clave.replace(/[^a-z0-9]/gi, "")}-`).replace(/width="[^"]*mm" height="[^"]*mm"/, 'width="100%"');
+  return <div className="w-full leading-[0] shadow" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /**
@@ -65,8 +62,8 @@ export function SelectorEstilo({ medidas, actual, aplicando, onElegir, onCerrar 
               className={`group space-y-2 rounded-md p-3 text-left transition-colors ${actual === e.id ? "bg-white/15 ring-2 ring-[var(--fo-accent)]" : "bg-white/5 hover:bg-white/10"} disabled:opacity-60`}
             >
               <div className="grid grid-cols-2 gap-2">
-                <Previa svg={vistaPreviaPliego(e, "apertura", medidas)} />
-                <Previa svg={vistaPreviaPliego(e, "interior", medidas)} />
+                <Previa clave={`${e.id}-ap`} svg={vistaPreviaPliego(e, "apertura", medidas)} />
+                <Previa clave={`${e.id}-in`} svg={vistaPreviaPliego(e, "interior", medidas)} />
               </div>
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium">{e.nombre}</span>
