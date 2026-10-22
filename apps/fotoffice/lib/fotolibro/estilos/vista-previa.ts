@@ -58,3 +58,19 @@ export function vistaPreviaPliego(estilo: EstiloFotolibro, tipo: TipoPliego, m: 
   }
   return fondo.replace(/<\/svg>$/, `${extra}</svg>`);
 }
+
+/**
+ * Le pone un prefijo propio a los ids internos del SVG (degradados, filtros, recortes).
+ *
+ * Los estilos reusan nombres cortos ("g", "a", "n"); dentro de un archivo suelto da igual, pero
+ * el catálogo pega muchas vistas previas en la misma página y ahí un id repetido hace que un
+ * estilo tome el degradado o el filtro de otro.
+ */
+export function aislarIds(svg: string, prefijo: string): string {
+  const ids = new Set([...svg.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]!));
+  if (ids.size === 0) return svg;
+  return svg
+    .replace(/\sid="([^"]+)"/g, (_t, id: string) => ` id="${prefijo}${id}"`)
+    .replace(/url\(#([^)]+)\)/g, (t, id: string) => (ids.has(id) ? `url(#${prefijo}${id})` : t))
+    .replace(/href="#([^"]+)"/g, (t, id: string) => (ids.has(id) ? `href="#${prefijo}${id}"` : t));
+}

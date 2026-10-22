@@ -207,6 +207,14 @@ function textosDelEstilo(estado: EstadoFotolibro, estilo: EstiloFotolibro, lienz
     for (const t of estilo.textos?.(tipo, m) ?? []) {
       const contenido = estado.estilo?.textos[t.rol]?.trim();
       if (!contenido) continue;
+      /*
+       * El cuerpo del estilo está pensado para un título corto. Si lo escrito es largo, se achica
+       * para que entre en el ancho de la caja (una letra mide cerca de medio cuerpo de ancho; las
+       * mayúsculas con espaciado, un poco más).
+       */
+      const cuerpoMm = (t.puntos * 25.4) / 72;
+      const anchoEstimado = contenido.length * cuerpoMm * (t.mayusculas ? 0.72 : 0.5);
+      const escala = anchoEstimado > t.w ? Math.max(0.35, t.w / anchoEstimado) : 1;
       out.push({
         id: `fl-texto-${i}-${t.rol}`,
         type: "TEXT",
@@ -216,7 +224,7 @@ function textosDelEstilo(estado: EstadoFotolibro, estilo: EstiloFotolibro, lienz
         configJson: {
           content: contenido,
           fontFamily: t.fuente,
-          fontSize: (t.puntos * dpi) / 72,
+          fontSize: (t.puntos * escala * dpi) / 72,
           fontWeight: t.negrita ? 700 : 400,
           fontItalic: t.italica === true,
           color: t.color,

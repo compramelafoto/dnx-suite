@@ -95,3 +95,14 @@ describe("con un estilo aplicado", () => {
     expect(sin.every((b) => b.configJson.src === "")).toBe(true);
   });
 });
+
+describe("títulos largos", () => {
+  it("se achican para entrar en el ancho", () => {
+    const e = leerEstadoFotolibro({ fotolibro: { fotos: [] } }, 2);
+    e.estilo = { id: "bodas-01-jardin-acuarela", medida: "", fondos: {}, textos: { titulo: "Ana" } };
+    const corto = generarBloques(e, lienzo, []).find((b) => b.type === "TEXT")!;
+    e.estilo.textos.titulo = "Ana Clara, Luis Alberto y toda la familia";
+    const largo = generarBloques(e, lienzo, []).find((b) => b.type === "TEXT")!;
+    expect(Number(largo.configJson.fontSize)).toBeLessThan(Number(corto.configJson.fontSize));
+  });
+});
