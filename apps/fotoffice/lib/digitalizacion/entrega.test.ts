@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { hashDeToken } from "@/lib/presupuestos/enlace";
 import {
-  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, generacionDeEntrega, pesos, tituloDeVideo, tokenDeEntrega,
-  recordatorioQueCorresponde, urlDeVideos, validarFranjas, leerFranjas, vencimientosDesde, videosVencidos,
+  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, pesos, tituloDeVideo,
+  recordatorioQueCorresponde, urlDeVideos, validarFranjas, leerFranjas, leerNumero, vencimientosDesde, videosVencidos,
 } from "./entrega";
+import { generacionDeEntrega, tokenDeEntrega } from "./token-entrega";
 
 const g = (estado: string, conversionEstado: string | null) => ({ estado, conversionEstado });
 
@@ -134,6 +135,21 @@ describe("validarFranjas", () => {
     expect(leerFranjas([{ hastaKm: 5, precioArs: 1 }])).toEqual([{ hastaKm: 5, precioArs: 1 }]);
     expect(leerFranjas(null)).toEqual([]);
     expect(leerFranjas("x")).toEqual([]);
+  });
+});
+
+describe("leerNumero", () => {
+  it("entiende cómo se escriben los números en Argentina", () => {
+    expect(leerNumero("3500")).toBe(3500);
+    expect(leerNumero("3.500")).toBe(3500);
+    expect(leerNumero("1.500.000")).toBe(1500000);
+    expect(leerNumero("3500,50")).toBe(3500.5);
+    expect(leerNumero("1.500,5")).toBe(1500.5);
+    expect(leerNumero("2.5")).toBe(2.5);
+    expect(leerNumero(" 12 ")).toBe(12);
+  });
+  it("lo que no es un número da NaN", () => {
+    for (const t of ["", "abc", "-5", "1,2,3", "1.50,5", "5km"]) expect(leerNumero(t)).toBeNaN();
   });
 });
 

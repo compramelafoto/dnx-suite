@@ -1,10 +1,8 @@
 /**
  * Entrega de los videos de un pedido (spec 2026-10-22, E1–E5, E8 y E11). Módulo PURO: sin base,
  * sin entorno y con el reloj inyectado. Lo usan el servidor (`servidor/entregas.ts`), los crons y
- * las páginas.
+ * las páginas, también desde el navegador: el token (con `node:crypto`) vive en `token-entrega.ts`.
  */
-import { createHmac } from "node:crypto";
-import { hashDeToken } from "@/lib/presupuestos/enlace";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { diasEntre } from "@/lib/pedidos/plan-cuotas";
 
@@ -117,6 +115,19 @@ export function validarFranjas(raw: unknown): { ok: true; franjas: FranjaEnvio[]
   return { ok: true, franjas };
 }
 
+/**
+ * Lo que escribe la persona en el editor de franjas, como número: "3500", "3.500", "3500,50",
+ * "1.500,5" o "2.5". Con coma, la coma es la de los decimales; sin coma, un punto seguido de tres
+ * cifras es de los miles. NaN si no es un número.
+ */
+export function leerNumero(texto: string): number {
+  const t = texto.trim().replace(/\s/g, "");
+  if (!t) return Number.NaN;
+  if (t.includes(",")) return /^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+(,\d+)?$/.test(t) ? Number(t.replace(/\./g, "").replace(",", ".")) : Number.NaN;
+  if (/^\d{1,3}(\.\d{3})+$/.test(t)) return Number(t.replace(/\./g, ""));
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : Number.NaN;
+}
+
 /** Lo guardado, para mostrar: si algo está roto, como si no hubiera franjas ("a coordinar"). */
 export function leerFranjas(raw: unknown): FranjaEnvio[] {
   const r = validarFranjas(raw);
@@ -148,30 +159,6 @@ export function duracionLegible(seg: number): string {
 }
 
 // --- Token y dirección ------------------------------------------------------------------------
-
-const PREFIJO_TOKEN = "fotoffice-videos:v1:";
-/** Cuántas veces se puede renovar el enlace de una entrega (reenviar, copiar enlace). */
-export const MAX_GENERACIONES_ENTREGA = 200;
-
-/**
- * Token de la página de videos, con el mismo criterio que el del pedido (`lib/pedidos/enlace.ts`):
- * HMAC-SHA256 con la clave de los enlaces sobre `fotoffice-videos:v1:<entregaId>:<generación>`, en
- * base64url (43 caracteres). En la base sólo queda el hash SHA-256; el servidor lo rearma (para el
- * correo del recordatorio) probando generaciones. Reenviar o "Copiar enlace" pasa a la generación
- * siguiente y el enlace anterior deja de abrir.
- */
-export function tokenDeEntrega(entregaId: string, clave: string, generacion: number): string {
-  return createHmac("sha256", clave).update(`${PREFIJO_TOKEN}${entregaId}:${generacion}`).digest("base64url");
-}
-
-/** La generación del enlace vigente (la que da el hash guardado), o null. */
-export function generacionDeEntrega(entregaId: string, hashGuardado: string | null, clave: string): number | null {
-  if (!hashGuardado) return null;
-  for (let g = 0; g <= MAX_GENERACIONES_ENTREGA; g++) {
-    if (hashDeToken(tokenDeEntrega(entregaId, clave, g)) === hashGuardado) return g;
-  }
-  return null;
-}
 
 /** El título con el que se muestra un video: el que le pusieron, o "DVD" / "Cassette N". */
 export function tituloDeVideo(g: { titulo: string | null; tipo: string; cassetteNumero: number | null }): string {
