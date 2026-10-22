@@ -301,9 +301,20 @@ export async function renderDesignV2(input: {
 
   const pdfFile = out.files.find((f) => f.contentType === "application/pdf");
   const pngs = out.files.filter((f) => f.contentType === "image/png");
+  // A resolución completa, el JPG es para la imprenta: perfil sRGB adentro, marca de dpi (si no,
+  // se abre como «72 dpi» y lo escalan) y calidad alta sin submuestrear el color (los textos finos
+  // y los bordes de color quedan nítidos). Las vistas rápidas achicadas siguen livianas.
+  const paraImprenta = pngDpi === dpi;
   const jpgs: Uint8Array[] = [];
   for (const png of pngs) {
-    const jpg = await sharp(png.bytes).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
+    const base = sharp(png.bytes).flatten({ background: "#ffffff" });
+    const jpg = paraImprenta
+      ? await base
+          .withIccProfile("srgb")
+          .withMetadata({ density: Math.round(dpi) })
+          .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+          .toBuffer()
+      : await base.jpeg({ quality: 90 }).toBuffer();
     jpgs.push(new Uint8Array(jpg));
   }
 
