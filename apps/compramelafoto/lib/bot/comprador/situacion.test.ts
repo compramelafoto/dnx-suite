@@ -51,6 +51,13 @@ beforeEach(() => {
   m.packDefinition.count.mockResolvedValue(0);
 });
 
+/** "01/11" en hora argentina (UTC−3, sin horario de verano). No usa `Intl`: con `day: "2-digit"`
+ * el ICU de Node escribe "1/11" para es-AR y la prueba fallaba los días 1 a 9 de cada mes. */
+function diaMesAR(d: Date): string {
+  const ar = new Date(d.getTime() - 3 * 3_600_000);
+  return `${String(ar.getUTCDate()).padStart(2, "0")}/${String(ar.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 describe("buildBuyerSituation", () => {
   it("visitante en un álbum", async () => {
     const s = await buildBuyerSituation(actor({ pagina: { tipo: "album", slug: "maraton" }, albumId: 3 }));
@@ -58,7 +65,7 @@ describe("buildBuyerSituation", () => {
       "# Situación",
       "Página: álbum «Maratón Rosario»",
       "Nivel: visitante",
-      `Álbum #3 «Maratón Rosario» · disponible hasta el ${new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(ALBUM.expiresAt)} · 120 fotos · fotos ocultas: no · preventa: no`,
+      `Álbum #3 «Maratón Rosario» · disponible hasta el ${diaMesAR(ALBUM.expiresAt)} · 120 fotos · fotos ocultas: no · preventa: no`,
       "Los enlaces de descarga duran 15 días.",
     ]);
     // La consulta del álbum no trae precios: salen de cotizar_fotos.
